@@ -35,6 +35,38 @@ LEFT JOIN oom_score_span oom_scores
       raw_events.ts < oom_scores.ts + oom_scores.dur)
 ORDER BY 1;
 
+CREATE VIEW IF NOT EXISTS android_lmk_annotations AS
+WITH raw_events AS (
+  SELECT
+    ts,
+    LEAD(ts) OVER (ORDER BY ts) - ts AS dur,
+    value AS tid
+  FROM counter c
+  JOIN counter_track t ON t.id = c.track_id
+  WHERE t.name = 'kill_one_process'
+),
+lmks_with_proc_name AS (
+  SELECT
+    *,
+    process.name as process_name
+  FROM raw_events
+  LEFT JOIN thread ON
+    thread.tid = raw_events.tid AND
+    raw_events.ts BETWEEN thread.start_ts AND thread.end_ts
+  LEFT JOIN process USING(upid)
+  WHERE raw_events.tid != 0
+)
+SELECT
+  'slice' as track_type,
+  'Low Memory Kills (LMKs)' as track_name,
+  ts,
+  dur,
+  CASE
+    WHEN process_name IS NULL THEN printf('Process %d', lmk.pid)
+    ELSE printf('%s (pid: %d)', process_name, lmk.pid)
+  END AS slice_name
+FROM lmks_with_proc_name as lmk;
+
 CREATE VIEW IF NOT EXISTS android_lmk_output AS
 WITH lmk_counts AS (
   SELECT score, COUNT(1) AS count
