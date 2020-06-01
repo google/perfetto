@@ -670,7 +670,7 @@ export class Sidebar implements m.ClassComponent {
               traceTitle = engines[0].source.url.split('/').pop()!;
               break;
             case 'ARRAY_BUFFER':
-              traceTitle = 'External trace';
+              traceTitle = engines[0].source.title;
               break;
             case 'HTTP_RPC':
               traceTitle = 'External trace (RPC)';
