@@ -22,6 +22,7 @@
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/system_info_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_descriptors.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/types/task_state.h"
@@ -239,7 +240,10 @@ void SchedEventTracker::ClosePendingSlice(uint32_t pending_slice_idx,
   // We store the state as a uint16 as we only consider values up to 2048
   // when unpacking the information inside; this allows savings of 48 bits
   // per slice.
-  auto task_state = ftrace_utils::TaskState(static_cast<uint16_t>(prev_state));
+  auto kernel_version =
+      SystemInfoTracker::GetOrCreate(context_)->GetKernelVersion();
+  auto task_state = ftrace_utils::TaskState(static_cast<uint16_t>(prev_state),
+                                            kernel_version);
   if (!task_state.is_valid()) {
     context_->storage->IncrementStats(stats::task_state_invalid);
   }
