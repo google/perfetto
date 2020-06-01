@@ -27,6 +27,7 @@ using ::testing::UnorderedElementsAre;
 
 TEST(HeapGraphTrackerTest, PackageFromLocationApp) {
   TraceProcessorContext context;
+  context.storage.reset(new TraceStorage);
   HeapGraphTracker tracker(&context);
   EXPECT_EQ(tracker.PackageFromLocation(
                 "/data/app/~~ASDFGH1234QWerT==/"
