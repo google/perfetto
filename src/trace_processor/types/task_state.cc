@@ -105,6 +105,8 @@ TaskState::TaskState(const char* state_str) {
     else if (c == 'Z')
       state_ |= Atom::kExitZombie;
     else if (c == 'x' || c == 'I')
+      // On Linux kernels 4.14+, the character for task dead changed
+      // from 'x' to 'I'.
       state_ |= Atom::kTaskDead;
     else if (c == 'K')
       state_ |= Atom::kWakeKill;
@@ -173,7 +175,7 @@ TaskState::TaskStateStr TaskState::ToString(char separator) const {
     if (state_ & Atom::kTaskDead) {
       if (separator && pos != 0)
         buffer[pos++] = separator;
-      buffer[pos++] = 'x';
+      buffer[pos++] = 'I';
     }
     if (state_ & Atom::kWakeKill) {
       if (separator && pos != 0)
