@@ -615,7 +615,8 @@ export class RecordController extends Controller<'main'> implements Consumer {
       return;
     }
     const trace = this.generateTrace();
-    globals.dispatch(Actions.openTraceFromBuffer({buffer: trace.buffer}));
+    globals.dispatch(Actions.openTraceFromBuffer(
+        {title: 'Recorded trace', buffer: trace.buffer}));
     this.traceBuffer = [];
   }
 
