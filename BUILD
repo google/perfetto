@@ -731,6 +731,8 @@ filegroup(
         "src/trace_processor/importers/common/process_tracker.h",
         "src/trace_processor/importers/common/slice_tracker.cc",
         "src/trace_processor/importers/common/slice_tracker.h",
+        "src/trace_processor/importers/common/system_info_tracker.cc",
+        "src/trace_processor/importers/common/system_info_tracker.h",
         "src/trace_processor/importers/common/track_tracker.cc",
         "src/trace_processor/importers/common/track_tracker.h",
     ],
@@ -881,6 +883,7 @@ filegroup(
         "src/trace_processor/types/trace_processor_context.h",
         "src/trace_processor/types/variadic.cc",
         "src/trace_processor/types/variadic.h",
+        "src/trace_processor/types/version_number.h",
     ],
 )
 
