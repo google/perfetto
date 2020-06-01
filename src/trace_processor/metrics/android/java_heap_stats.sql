@@ -20,7 +20,7 @@ SELECT RUN_METRIC('android/process_mem.sql');
 CREATE VIEW java_heap_stats_output AS
 WITH
 -- Base view
-base_stats AS (
+base_stat_counts AS (
   SELECT
     upid,
     graph_sample_ts,
@@ -30,6 +30,36 @@ base_stats AS (
     SUM(CASE reachable WHEN TRUE THEN 1 ELSE 0 END) AS reachable_obj_count
   FROM heap_graph_object
   GROUP BY 1, 2
+),
+heap_roots AS (
+  SELECT
+    upid,
+    graph_sample_ts,
+    root_type,
+    IFNULL(t.deobfuscated_name, t.name) type_name,
+    COUNT(1) obj_count
+  FROM heap_graph_object o
+  JOIN heap_graph_class t ON o.type_id = t.id
+  -- Classes are going to be particularly spammy and uninteresting
+  -- from a memory analysis perspective (compared e.g. to local jni roots)
+  WHERE root_type IS NOT NULL AND root_type != 'ROOT_STICKY_CLASS'
+  GROUP BY 1, 2, 3, 4
+  ORDER BY obj_count DESC
+),
+heap_roots_proto AS (
+  SELECT
+    upid,
+    graph_sample_ts,
+    RepeatedField(JavaHeapStats_HeapRoots(
+      'root_type', root_type,
+      'type_name', type_name,
+      'obj_count', obj_count
+    )) roots
+  FROM heap_roots
+  GROUP BY 1, 2
+),
+base_stats AS (
+  SELECT * FROM base_stat_counts JOIN heap_roots_proto USING (upid, graph_sample_ts)
 ),
 -- Find closest value
 closest_anon_swap AS (
@@ -64,6 +94,7 @@ heap_graph_sample_protos AS (
       'obj_count', total_obj_count,
       'reachable_heap_size', reachable_size,
       'reachable_obj_count', reachable_obj_count,
+      'roots', roots,
       'anon_rss_and_swap_size', closest_anon_swap.val
     )) sample_protos
   FROM base_stats
