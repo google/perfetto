@@ -69,6 +69,8 @@ export interface TraceFileSource {
 
 export interface TraceArrayBufferSource {
   type: 'ARRAY_BUFFER';
+  title: string;
+  url?: string;
   buffer: ArrayBuffer;
 }
 

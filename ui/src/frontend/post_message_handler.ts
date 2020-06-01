@@ -14,10 +14,14 @@
 
 import * as m from 'mithril';
 
-import {Actions} from '../common/actions';
+import {Actions, PostedTrace} from '../common/actions';
 
 import {globals} from './globals';
 import {showModal} from './modal';
+
+interface PostedTraceWrapped {
+  perfetto: PostedTrace;
+}
 
 // Returns whether incoming traces should be opened automatically or should
 // instead require a user interaction.
@@ -66,12 +70,17 @@ export function postMessageHandler(messageEvent: MessageEvent) {
     return;
   }
 
-  if (!(messageEvent.data instanceof ArrayBuffer)) {
-    throw new Error('Incoming message data is not an ArrayBuffer');
+  let postedTrace: PostedTrace;
+
+  if (isPostedTraceWrapped(messageEvent.data)) {
+    postedTrace = sanitizePostedTrace(messageEvent.data.perfetto);
+  } else if (messageEvent.data instanceof ArrayBuffer) {
+    postedTrace = {title: 'External trace', buffer: messageEvent.data};
+  } else {
+    throw new Error('Incoming message data is not in a usable format');
   }
 
-  const buffer = messageEvent.data;
-  if (buffer.byteLength === 0) {
+  if (postedTrace.buffer.byteLength === 0) {
     throw new Error('Incoming message trace buffer is empty');
   }
 
@@ -79,7 +88,7 @@ export function postMessageHandler(messageEvent: MessageEvent) {
     // For external traces, we need to disable other features such as
     // downloading and sharing a trace.
     globals.frontendLocalState.localOnlyMode = true;
-    globals.dispatch(Actions.openTraceFromBuffer({buffer}));
+    globals.dispatch(Actions.openTraceFromBuffer(postedTrace));
   };
 
   // If the origin is trusted open the trace directly.
@@ -100,4 +109,29 @@ export function postMessageHandler(messageEvent: MessageEvent) {
       {text: 'YES', primary: false, id: 'pm_open_trace', action: openTrace},
     ],
   });
+}
+
+function sanitizePostedTrace(postedTrace: PostedTrace): PostedTrace {
+  const result: PostedTrace = {
+    title: sanitizeString(postedTrace.title),
+    buffer: postedTrace.buffer
+  };
+  if (postedTrace.url !== undefined) {
+    result.url = sanitizeString(postedTrace.url);
+  }
+  return result;
+}
+
+function sanitizeString(str: string): string {
+  return str.replace(/[^A-Za-z0-9.\-_#:/ ]/g, ' ');
+}
+
+// tslint:disable:no-any
+function isPostedTraceWrapped(obj: any): obj is PostedTraceWrapped {
+  const wrapped = obj as PostedTraceWrapped;
+  if (wrapped.perfetto === undefined) {
+    return false;
+  }
+  return wrapped.perfetto.buffer !== undefined &&
+      wrapped.perfetto.title !== undefined;
 }
