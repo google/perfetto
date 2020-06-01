@@ -21,6 +21,7 @@
 #include "perfetto/ext/base/string_writer.h"
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 
 namespace perfetto {
@@ -30,7 +31,7 @@ class SystraceSerializer {
  public:
   using ScopedCString = std::unique_ptr<char, void (*)(void*)>;
 
-  SystraceSerializer(const TraceStorage* storage);
+  SystraceSerializer(TraceProcessorContext* context);
 
   ScopedCString SerializeToString(uint32_t raw_row);
 
@@ -41,19 +42,20 @@ class SystraceSerializer {
 
   StringIdMap proto_id_to_arg_index_by_event_;
   const TraceStorage* storage_ = nullptr;
+  TraceProcessorContext* context_ = nullptr;
 };
 
 class SqliteRawTable : public DbSqliteTable {
  public:
   struct Context {
     QueryCache* cache;
-    const TraceStorage* storage;
+    TraceProcessorContext* context;
   };
 
   SqliteRawTable(sqlite3*, Context);
   virtual ~SqliteRawTable();
 
-  static void RegisterTable(sqlite3* db, QueryCache*, const TraceStorage*);
+  static void RegisterTable(sqlite3* db, QueryCache*, TraceProcessorContext*);
 
  private:
   void ToSystrace(sqlite3_context* ctx, int argc, sqlite3_value** argv);
