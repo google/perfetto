@@ -41,7 +41,7 @@ TEST(TaskStateUnittest, Smoke) {
   ASSERT_STREQ(TaskState(8).ToString().data(), "t");
   ASSERT_STREQ(TaskState(16).ToString().data(), "X");
   ASSERT_STREQ(TaskState(32).ToString().data(), "Z");
-  ASSERT_STREQ(TaskState(64).ToString().data(), "x");
+  ASSERT_STREQ(TaskState(64).ToString().data(), "I");
   ASSERT_STREQ(TaskState(128).ToString().data(), "K");
   ASSERT_STREQ(TaskState(256).ToString().data(), "W");
   ASSERT_STREQ(TaskState(512).ToString().data(), "P");
@@ -68,7 +68,7 @@ TEST(TaskStateUnittest, KernelVersion) {
   ASSERT_STREQ(TaskState(16, VersionNumber{4, 14}).ToString().data(), "X");
   ASSERT_STREQ(TaskState(32, VersionNumber{4, 14}).ToString().data(), "Z");
   ASSERT_STREQ(TaskState(64, VersionNumber{4, 14}).ToString().data(), "P");
-  ASSERT_STREQ(TaskState(128, VersionNumber{4, 14}).ToString().data(), "x");
+  ASSERT_STREQ(TaskState(128, VersionNumber{4, 14}).ToString().data(), "I");
 
   // Any without a specific state but less than max are runnable in this kernel.
   ASSERT_STREQ(TaskState(256, VersionNumber{4, 14}).ToString().data(), "R");
