@@ -86,6 +86,7 @@ class TraceProcessorContext {
   std::unique_ptr<Destructible> systrace_parser;         // SystraceParser
   std::unique_ptr<Destructible> heap_graph_tracker;      // HeapGraphTracker
   std::unique_ptr<Destructible> json_tracker;            // JsonTracker
+  std::unique_ptr<Destructible> system_info_tracker;     // SystemInfoTracker
 
   // These fields are trace readers which will be called by |forwarding_parser|
   // once the format of the trace is discovered. They are placed here as they

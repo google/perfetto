@@ -23,6 +23,7 @@ source_set("types") {
     "trace_processor_context.h",
     "variadic.cc",
     "variadic.h",
+    "version_number.h",
   ]
   deps = [
     "../../../gn:default_deps",
