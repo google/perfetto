@@ -199,14 +199,13 @@ constexpr FlagArray v4_14 = {
 
 // Get the bitmask closest to the kernel version. For versions less than 3.4
 // and greater than 4.14 this may end up being inaccurate.
-const FlagArray* GetBitmaskVersion(std::tuple<int32_t, int32_t> version) {
-  if (version < std::make_tuple(3, 10)) {
+const FlagArray* GetBitmaskVersion(VersionNumber version = VersionNumber{4,
+                                                                         4}) {
+  if (version < VersionNumber{3, 10}) {
     return &v3_4;
-  } else if (version >= std::make_tuple(3, 10) &&
-             version < std::make_tuple(4, 4)) {
+  } else if (version >= VersionNumber{3, 10} && version < VersionNumber{4, 4}) {
     return &v3_10;
-  } else if (version >= std::make_tuple(4, 4) &&
-             version < std::make_tuple(4, 14)) {
+  } else if (version >= VersionNumber{4, 4} && version < VersionNumber{4, 14}) {
     return &v4_4;
   } else {  // version >= 4.14
     // TODO(taylori): Add newer kernel versions once we have access to them.
@@ -216,14 +215,18 @@ const FlagArray* GetBitmaskVersion(std::tuple<int32_t, int32_t> version) {
 }  // namespace
 
 void WriteGfpFlag(uint64_t value,
-                  std::tuple<uint32_t, uint32_t> version,
+                  base::Optional<VersionNumber> version,
                   base::StringWriter* writer) {
   // On all kernel versions if this flag is not set, return GFP_NOWAIT.
-  if (value == 0)
+  if (value == 0) {
     writer->AppendString("GFP_NOWAIT");
+    return;
+  }
 
   std::string result;
-  const FlagArray* bitmasks = GetBitmaskVersion(version);
+  const FlagArray* bitmasks = version.has_value()
+                                  ? GetBitmaskVersion(version.value())
+                                  : GetBitmaskVersion();
 
   // Based on trace_print_flags_seq() in the kernel.
   size_t i = 0;
