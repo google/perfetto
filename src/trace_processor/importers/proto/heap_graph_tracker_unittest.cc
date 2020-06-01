@@ -32,6 +32,10 @@ TEST(HeapGraphTrackerTest, PackageFromLocationApp) {
                 "/data/app/~~ASDFGH1234QWerT==/"
                 "com.twitter.android-MNBVCX7890SDTst6==/test.apk"),
             "com.twitter.android");
+  EXPECT_EQ(tracker.PackageFromLocation(
+                "/data/app/com.google.android.webview-6XfQhnaSkFwGK0sYL9is0G==/"
+                "base.apk"),
+            "com.google.android.webview");
 }
 
 TEST(HeapGraphTrackerTest, BuildFlamegraph) {
