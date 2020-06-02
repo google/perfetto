@@ -30,10 +30,11 @@ message ProcessStats {
   message Thread {
     optional int32 tid = 1;
 
-    // Pairs of frequency (represented as an index to CpuInfo frequencies) and
-    // time at that frequency (represented as a number of ticks, see SystemInfo
-    // for the HZ (ticks / second) value to convert this to time). Frequencies
-    // with zero ticks are never uploaded. Read from /proc/tid/time_in_state.
+    // Pairs of frequency (represented as a (1-based) index to CpuInfo
+    // frequencies) and time at that frequency (represented as a number of
+    // ticks, see SystemInfo for the HZ (ticks / second) value to convert this
+    // to time). Frequencies with zero ticks are never uploaded. Read from
+    // /proc/tid/time_in_state.
     repeated uint32 cpu_freq_indices = 2;
     repeated uint64 cpu_freq_ticks = 3;
     // Whether all frequencies with non-zero ticks are present in
