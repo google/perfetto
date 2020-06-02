@@ -24,7 +24,7 @@ import synth_common
 
 trace = synth_common.create_trace()
 
-trace.add_process_tree_packet(ts=1)
+trace.add_packet(ts=1)
 trace.add_process(10, 0, "process")
 
 trace.add_ftrace_packet(0)
