@@ -61,6 +61,7 @@ struct HttpRequest {
   base::StringView uri;
   base::StringView origin;
   base::StringView body;
+  int id = 0;
 };
 
 class HttpServer : public base::UnixSocket::EventListener {
@@ -136,14 +137,14 @@ void HttpServer::Run() {
 void HttpServer::OnNewIncomingConnection(
     base::UnixSocket*,
     std::unique_ptr<base::UnixSocket> sock) {
-  PERFETTO_DLOG("[HTTP] New connection");
+  PERFETTO_LOG("[HTTP] New connection");
   clients_.emplace_back(std::move(sock));
 }
 
 void HttpServer::OnConnect(base::UnixSocket*, bool) {}
 
 void HttpServer::OnDisconnect(base::UnixSocket* sock) {
-  PERFETTO_DLOG("[HTTP] Client disconnected");
+  PERFETTO_LOG("[HTTP] Client disconnected");
   for (auto it = clients_.begin(); it != clients_.end(); ++it) {
     if (it->sock.get() == sock) {
       clients_.erase(it);
@@ -224,6 +225,8 @@ size_t HttpServer::ParseOneHttpRequest(Client* client) {
         body_size = static_cast<size_t>(atoi(hdr_value.ToStdString().c_str()));
       } else if (hdr_name.CaseInsensitiveEq("origin")) {
         http_req.origin = hdr_value;
+      } else if (hdr_name.CaseInsensitiveEq("x-seq-id")) {
+        http_req.id = atoi(hdr_value.ToStdString().c_str());
       }
     }
     pos = next + 2;
@@ -241,14 +244,21 @@ size_t HttpServer::ParseOneHttpRequest(Client* client) {
 }
 
 void HttpServer::HandleRequest(Client* client, const HttpRequest& req) {
-  PERFETTO_LOG("[HTTP] %s %s (body: %zu bytes)",
+  static int last_req_id = 0;
+  if (req.id) {
+    if (last_req_id && req.id != last_req_id + 1 && req.id != 1)
+      PERFETTO_ELOG("HTTP Request out of order");
+    last_req_id = req.id;
+  }
+
+  PERFETTO_LOG("[HTTP] %04d %s %s (body: %zu bytes)", req.id,
                req.method.ToStdString().c_str(), req.uri.ToStdString().c_str(),
                req.body.size());
   std::string allow_origin_hdr =
       "Access-Control-Allow-Origin: " + req.origin.ToStdString();
   std::initializer_list<const char*> headers = {
       "Connection: Keep-Alive",                //
-      "Access-Control-Expose-Headers: *",      //
+      "Cache-Control: no-cache",               //
       "Keep-Alive: timeout=5, max=1000",       //
       "Content-Type: application/x-protobuf",  //
       allow_origin_hdr.c_str()};
@@ -259,7 +269,7 @@ void HttpServer::HandleRequest(Client* client, const HttpRequest& req) {
                      {
                          "Access-Control-Allow-Methods: POST, GET, OPTIONS",
                          "Access-Control-Allow-Headers: *",
-                         "Access-Control-Max-Age: 600",
+                         "Access-Control-Max-Age: 86400",
                          allow_origin_hdr.c_str(),
                      });
   }
