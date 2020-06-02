@@ -25,7 +25,7 @@ import synth_common
 trace = synth_common.create_trace()
 
 # Create a multi-threaded process which will be forked below.
-trace.add_process_tree_packet(ts=1)
+trace.add_packet(ts=1)
 trace.add_process(10, 0, "main_thread")
 trace.add_thread(11, 10, "worker_thread")
 
