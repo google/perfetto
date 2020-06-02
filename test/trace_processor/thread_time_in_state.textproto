@@ -79,6 +79,36 @@ packet {
   }
 }
 packet {
+  timestamp: 5
+  process_stats {
+    processes {
+      pid: 17
+      threads {
+        tid: 17
+        cpu_freq_indices: 1
+        cpu_freq_ticks: 1
+        cpu_freq_indices: 2
+        cpu_freq_ticks: 1
+        cpu_freq_full: true
+      }
+    }
+  }
+}
+packet {
+  timestamp: 6
+  process_stats {
+    processes {
+      pid: 17
+      threads {
+        tid: 17
+        cpu_freq_indices: 1
+        cpu_freq_ticks: 2
+        # cpu_freq_indices: 2 was skipped because it did not change.
+      }
+    }
+  }
+}
+packet {
   timestamp: 1
   cpu_info {
     cpus {
