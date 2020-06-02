@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_SYSTEM_PROBES_PARSER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_SYSTEM_PROBES_PARSER_H_
 
+#include <set>
 #include <vector>
 
 #include "perfetto/protozero/field.h"
@@ -41,6 +42,7 @@ class SystemProbesParser {
 
  private:
   void ParseThreadStats(int64_t timestamp, uint32_t pid, ConstBytes);
+  inline bool IsValidCpuFreqIndex(uint32_t freq) const;
 
   TraceProcessorContext* const context_;
 
@@ -69,11 +71,22 @@ class SystemProbesParser {
 
   uint64_t ms_per_tick_ = 0;
 
-  // Maps CPU frequency indices to CPU strings: time_in_state.cpuN.
+  // Maps CPU indices to CPU strings: time_in_state.cpuN.
+  // Includes a guard at the end.
   std::vector<StringId> thread_time_in_state_cpu_str_ids_;
 
-  // Maps CPU frequency indices to frequency strings.
+  // Maps CPU frequency indices to frequency strings for the args table.
+  // Includes a guard at the end.
   std::vector<StringId> thread_time_in_state_cpu_freq_ids_;
+
+  // thread_time_in_state_freq_index_[cpu] points to the first frequency for
+  // cpu in thread_time_in_state_cpu_freq_ids_. Includes a guard at the end.
+  std::vector<size_t> thread_time_in_state_freq_index_;
+
+  // Exhaustive set of CPU indices that are reported by time_in_state. Ticks are
+  // counted per core cluster. See time_in_state_cpu_id column of the cpu table.
+  // For example: on bonito (Pixel 3a XL) this set is 0 (little) and 6 (big).
+  std::set<uint32_t> thread_time_in_state_cpus_;
 };
 }  // namespace trace_processor
 }  // namespace perfetto
