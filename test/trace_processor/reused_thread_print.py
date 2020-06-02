@@ -26,7 +26,7 @@ import synth_common
 trace = synth_common.create_trace()
 
 # Create a parent process which  will be forked below.
-trace.add_process_tree_packet(ts=1)
+trace.add_packet(ts=1)
 trace.add_process(10, 0, "parent")
 trace.add_process(11, 0, "short_lived")
 
