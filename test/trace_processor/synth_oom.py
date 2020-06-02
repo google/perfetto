@@ -21,7 +21,7 @@ file_member = 0
 anon_member = 1
 
 trace = synth_common.create_trace()
-trace.add_process_tree_packet()
+trace.add_packet()
 trace.add_process(1, 0, "init")
 trace.add_process(2, 1, "process_a")
 trace.add_process(3, 1, "process_b")
