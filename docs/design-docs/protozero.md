@@ -52,7 +52,7 @@ like [libprotobuf](https://github.com/google/protobuf) are:
 ## Usage
 
 At the build-system level, ProtoZero is extremely similar to the conventional
-libprotobuf libray.
+libprotobuf library.
 The ProtoZero `.proto -> .pbzero.{cc,h}` compiler is based on top of the
 libprotobuf parser and compiler infrastructure. ProtoZero is as a `protoc`
 compiler plugin.
@@ -98,7 +98,7 @@ message TestMsg {
 }
 ```
 
-#### libpprotobuf approach
+#### libprotobuf approach
 
 The libprotobuf approach is to generate a C++ class that has one member for each
 proto field, with dedicated serialization and de-serialization methods.
@@ -138,7 +138,7 @@ class TestMsg : public protobuf::MessageLite {
 The main characteristic of these stubs are:
 
 * Code generated from .proto messages can be used in the codebase as general
-  puropse objects, without ever using the `SerializeAs*()` or `ParseFrom*()`
+  purpose objects, without ever using the `SerializeAs*()` or `ParseFrom*()`
   methods (although anecdotal evidence suggests that most project use these
   proto-generated classes only at the de/serialization endpoints).
 
@@ -146,7 +146,7 @@ The main characteristic of these stubs are:
   1. Setting the individual int / string / vector fields of the generated class.
   2. Doing a serialization pass over these fields.
 
-  In turn this has side-effects on the code generated. STL copy/assingment
+  In turn this has side-effects on the code generated. STL copy/assignment
   operators for strings and vectors are non-trivial because, for instance, they
   need to deal with dynamic memory resizing.
 
@@ -315,7 +315,7 @@ The canonical encoding of this protobuf message, using libprotobuf, would be:
   |         |
   |         +------> Field ID: 1 [str_val], len = 3, value = "foo" (66 6f 6f).
   |
-  +------> Field ID: 3 [nested], lenght: 7  # !!!
+  +------> Field ID: 3 [nested], length: 7  # !!!
 ```
 
 The second byte in this sequence (07) is problematic for direct encoding. At the
