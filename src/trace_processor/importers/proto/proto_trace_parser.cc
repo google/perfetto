@@ -587,7 +587,7 @@ void ProtoTraceParser::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
     context_->slice_tracker->Scoped(ts, track_id, cat_id, name_id,
                                     event.event_duration_ns(), args_fn);
   } else if (event.has_counter_id() || event.has_counter_name()) {
-    if (event.has_event_id()) {
+    if (event.has_counter_id()) {
       auto cid = event.counter_id();
       if (cid < metatrace::COUNTERS_MAX) {
         name_id =
