@@ -61,8 +61,8 @@ class SliceTracker {
   void ScopedGpu(const tables::GpuSliceTable::Row& row,
                  SetArgsCallback args_callback = SetArgsCallback());
 
-  void ScopedFrameEvent(const tables::GraphicsFrameSliceTable::Row& row,
-                        SetArgsCallback args_callback = SetArgsCallback());
+  SliceId ScopedFrameEvent(const tables::GraphicsFrameSliceTable::Row& row,
+                           SetArgsCallback args_callback = SetArgsCallback());
 
   // virtual for testing
   virtual base::Optional<uint32_t> End(
