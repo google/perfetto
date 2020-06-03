@@ -96,16 +96,18 @@ void SliceTracker::ScopedGpu(const tables::GpuSliceTable::Row& row,
   });
 }
 
-void SliceTracker::ScopedFrameEvent(
+SliceId SliceTracker::ScopedFrameEvent(
     const tables::GraphicsFrameSliceTable::Row& row,
     SetArgsCallback args_callback) {
   PERFETTO_DCHECK(row.dur >= 0);
 
-  StartSlice(row.ts, TrackId(row.track_id), args_callback, [this, &row]() {
-    return context_->storage->mutable_graphics_frame_slice_table()
-        ->Insert(row)
-        .id;
+  SliceId id;
+  StartSlice(row.ts, TrackId(row.track_id), args_callback, [this, &row, &id]() {
+    id =
+        context_->storage->mutable_graphics_frame_slice_table()->Insert(row).id;
+    return id;
   });
+  return id;
 }
 
 base::Optional<uint32_t> SliceTracker::End(int64_t timestamp,
