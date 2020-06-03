@@ -3220,7 +3220,7 @@ perfetto_py_binary(
         "tools/gen_merged_sql_metrics.py",
     ],
     main = "tools/gen_merged_sql_metrics.py",
-    python_version = "PY2",
+    python_version = "PY3",
 )
 
 perfetto_java_proto_library(
