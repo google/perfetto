@@ -30,10 +30,12 @@ message AndroidBatteryMetric {
   }
 
   message BatteryAggregates {
-    // Field numbers for these 3 == the int values fromm Android
+    // Field numbers for these 3 == the int values from Android
     optional int64 total_screen_off_ns = 1;
     optional int64 total_screen_on_ns = 2;
     optional int64 total_screen_doze_ns = 3;
+    // Total time a wakelock was held
+    optional int64 total_wakelock_ns = 4;
   }
 
   // Battery counters info for each ts of the trace. This should only be
