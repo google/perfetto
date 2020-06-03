@@ -593,14 +593,6 @@ class TraceStorage {
     return &graphics_frame_slice_table_;
   }
 
-  const tables::GraphicsFrameStatsTable& graphics_frame_stats_table() const {
-    return graphics_frame_stats_table_;
-  }
-
-  tables::GraphicsFrameStatsTable* mutable_graphics_frame_stats_table() {
-    return &graphics_frame_stats_table_;
-  }
-
   const StringPool& string_pool() const { return string_pool_; }
   StringPool* mutable_string_pool() { return &string_pool_; }
 
@@ -815,8 +807,6 @@ class TraceStorage {
 
   tables::GraphicsFrameSliceTable graphics_frame_slice_table_{&string_pool_,
                                                               &slice_table_};
-  tables::GraphicsFrameStatsTable graphics_frame_stats_table_{&string_pool_,
-                                                              nullptr};
 
   // The below array allow us to map between enums and their string
   // representations.
