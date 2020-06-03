@@ -52,43 +52,43 @@ LEFT JOIN (
 ) USING(ts)
 ORDER BY ts;
 
-CREATE VIEW android_batt_wakelocks_merged AS
-WITH android_batt_wakelocks_raw AS (
+DROP TABLE IF EXISTS android_batt_wakelocks_raw_;
+CREATE TABLE android_batt_wakelocks_raw_ AS
 SELECT
   ts,
   dur,
   ts+dur AS ts_end
 FROM slice
-    JOIN process_track ON process_track.id = slice.track_id
-WHERE slice.name LIKE 'WakeLock %'
-  AND dur != -1
-),
-android_batt_wakelocks_labelled AS (
+WHERE slice.name LIKE 'WakeLock %' AND dur != -1;
+
+DROP TABLE IF EXISTS android_batt_wakelocks_labelled_;
+CREATE TABLE android_batt_wakelocks_labelled_ AS
 SELECT
   *,
   NOT EXISTS (
     SELECT *
-    FROM android_batt_wakelocks_raw AS t2
+    FROM android_batt_wakelocks_raw_ AS t2
     WHERE t2.ts < t1.ts
       AND t2.ts_end >= t1.ts
   ) AS no_overlap_at_start,
   NOT EXISTS (
     SELECT *
-    FROM android_batt_wakelocks_raw AS t2
+    FROM android_batt_wakelocks_raw_ AS t2
     WHERE t2.ts_end > t1.ts_end
       AND t2.ts <= t1.ts_end
   ) AS no_overlap_at_end
-FROM android_batt_wakelocks_raw AS t1
-)
+FROM android_batt_wakelocks_raw_ AS t1;
+
+CREATE VIEW android_batt_wakelocks_merged AS
 SELECT
   ts,
   (
     SELECT min(ts_end)
-    FROM android_batt_wakelocks_labelled AS ends
+    FROM android_batt_wakelocks_labelled_ AS ends
     WHERE no_overlap_at_end
       AND ends.ts_end >= starts.ts
   ) AS ts_end
-FROM android_batt_wakelocks_labelled AS starts
+FROM android_batt_wakelocks_labelled_ AS starts
 WHERE no_overlap_at_start;
 
 SELECT RUN_METRIC('android/counter_span_view.sql',
