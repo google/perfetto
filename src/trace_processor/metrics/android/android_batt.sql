@@ -52,6 +52,45 @@ LEFT JOIN (
 ) USING(ts)
 ORDER BY ts;
 
+CREATE VIEW android_batt_wakelocks_merged AS
+WITH android_batt_wakelocks_raw AS (
+SELECT
+  ts,
+  dur,
+  ts+dur AS ts_end
+FROM slice
+    JOIN process_track ON process_track.id = slice.track_id
+WHERE slice.name LIKE 'WakeLock %'
+  AND dur != -1
+),
+android_batt_wakelocks_labelled AS (
+SELECT
+  *,
+  NOT EXISTS (
+    SELECT *
+    FROM android_batt_wakelocks_raw AS t2
+    WHERE t2.ts < t1.ts
+      AND t2.ts_end >= t1.ts
+  ) AS no_overlap_at_start,
+  NOT EXISTS (
+    SELECT *
+    FROM android_batt_wakelocks_raw AS t2
+    WHERE t2.ts_end > t1.ts_end
+      AND t2.ts <= t1.ts_end
+  ) AS no_overlap_at_end
+FROM android_batt_wakelocks_raw AS t1
+)
+SELECT
+  ts,
+  (
+    SELECT min(ts_end)
+    FROM android_batt_wakelocks_labelled AS ends
+    WHERE no_overlap_at_end
+      AND ends.ts_end >= starts.ts
+  ) AS ts_end
+FROM android_batt_wakelocks_labelled AS starts
+WHERE no_overlap_at_start;
+
 SELECT RUN_METRIC('android/counter_span_view.sql',
   'table_name', 'screen_state',
   'counter_name', 'ScreenState');
@@ -80,5 +119,12 @@ SELECT AndroidBatteryMetric(
       SUM(CASE WHEN screen_state_val = 3.0 THEN dur ELSE 0 END)
     )
     FROM screen_state_span
+  ),
+  'battery_aggregates', (
+    SELECT AndroidBatteryMetric_BatteryAggregates(
+      'total_wakelock_ns',
+      SUM(ts_end - ts)
+    )
+    FROM android_batt_wakelocks_merged
   )
 );
