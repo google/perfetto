@@ -160,7 +160,7 @@ base::Optional<FrameId> StackProfileTracker::AddFrame(
     std::vector<FrameId> db_frames =
         context_->storage->FindFrameIds(mapping_id, frame.rel_pc);
     for (const FrameId preexisting_frame : db_frames) {
-      uint32_t preexisting_row_id = preexisting_frame.value;
+      uint32_t preexisting_row_id = *frames->id().IndexOf(preexisting_frame);
       tables::StackProfileFrameTable::Row preexisting_row{
           frames->name()[preexisting_row_id],
           frames->mapping()[preexisting_row_id],
