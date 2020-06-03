@@ -145,7 +145,7 @@ lead to [LMKs](#lmk). We have two tools to investigate situations like this
 ### RSS High Watermark
 
 We can get a lot of information from the `/proc/[pid]/status` file, including
-memory information. `RssHWM` shows the maximum RSS usage the process has seen
+memory information. `VmHWM` shows the maximum RSS usage the process has seen
 since it was started. This value is kept updated by the kernel.
 
 ```bash
