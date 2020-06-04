@@ -57,7 +57,7 @@ SELECT
   utid,
   core_type,
   freq,
-  MAX(runtime_ms_counter) - MIN(runtime_ms_counter) runtime_ms
+  MAX(runtime_ms_counter) - MIN(runtime_ms_counter) runtime_ms_diff
 FROM android_thread_time_in_state_base
 GROUP BY utid, core_type, freq;
 
@@ -65,7 +65,7 @@ CREATE TABLE android_thread_time_in_state_counters AS
 SELECT
   utid,
   core_type,
-  SUM(runtime_ms) runtime_ms
+  SUM(runtime_ms_diff) AS runtime_ms
 FROM android_thread_time_in_state_raw
 GROUP BY utid, core_type
 HAVING runtime_ms > 0;
