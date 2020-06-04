@@ -152,7 +152,7 @@ class Table {
 
   template <typename T>
   Table ExtendWithColumn(const char* name,
-                         std::unique_ptr<SparseVector<T>> sv,
+                         std::unique_ptr<NullableVector<T>> sv,
                          uint32_t flags) const {
     PERFETTO_DCHECK(sv->size() == row_count_);
     uint32_t size = sv->size();
