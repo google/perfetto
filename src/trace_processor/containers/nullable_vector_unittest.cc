@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/containers/sparse_vector.h"
+#include "src/trace_processor/containers/nullable_vector.h"
 
 #include "test/gtest_and_gmock.h"
 
@@ -22,8 +22,8 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-TEST(SparseVector, Append) {
-  SparseVector<int64_t> sv;
+TEST(NullableVector, Append) {
+  NullableVector<int64_t> sv;
   sv.Append(10);
   sv.Append(20);
   sv.AppendNull();
@@ -37,8 +37,8 @@ TEST(SparseVector, Append) {
   ASSERT_EQ(sv.Get(3), base::Optional<int64_t>(40));
 }
 
-TEST(SparseVector, Set) {
-  SparseVector<int64_t> sv;
+TEST(NullableVector, Set) {
+  NullableVector<int64_t> sv;
   sv.Append(10);
   sv.Append(20);
   sv.AppendNull();
@@ -55,8 +55,8 @@ TEST(SparseVector, Set) {
   ASSERT_EQ(*sv.Get(4), 40);
 }
 
-TEST(SparseVector, SetNonNull) {
-  SparseVector<int64_t> sv;
+TEST(NullableVector, SetNonNull) {
+  NullableVector<int64_t> sv;
   sv.Append(1);
   sv.Append(2);
   sv.Append(3);
@@ -70,8 +70,8 @@ TEST(SparseVector, SetNonNull) {
   ASSERT_EQ(sv.Get(3), base::Optional<int64_t>(4));
 }
 
-TEST(SparseVector, Dense) {
-  auto sv = SparseVector<int64_t>::Dense();
+TEST(NullableVector, Dense) {
+  auto sv = NullableVector<int64_t>::Dense();
 
   sv.Append(0);
   sv.AppendNull();
