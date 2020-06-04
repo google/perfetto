@@ -104,8 +104,8 @@ BUILD_DEPS_HOST = [
 
     # Benchmarking tool.
     ('buildtools/benchmark.zip',
-     'https://github.com/google/benchmark/archive/v1.3.0.zip',
-     'f387e0df37d54bfd5be239e8d0d3ea2e2c3e34f4', 'all'),
+     'https://github.com/google/benchmark/archive/v1.5.0.zip',
+     'a9c9bd8a28db82f5ba02998197cfcc4db5a67507', 'all'),
 
     # Libbacktrace, for stacktraces in Linux/Android debug builds.
     ('buildtools/libbacktrace.zip',
