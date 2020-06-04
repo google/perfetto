@@ -700,12 +700,15 @@ source_set("benchmark") {
   testonly = true
   sources = [
     "benchmark/include/benchmark/benchmark.h",
-    "benchmark/include/benchmark/benchmark_api.h",
-    "benchmark/include/benchmark/reporter.h",
     "benchmark/src/arraysize.h",
     "benchmark/src/benchmark.cc",
+    "benchmark/src/benchmark_api_internal.cc",
     "benchmark/src/benchmark_api_internal.h",
+    "benchmark/src/benchmark_name.cc",
     "benchmark/src/benchmark_register.cc",
+    "benchmark/src/benchmark_register.h",
+    "benchmark/src/benchmark_runner.cc",
+    "benchmark/src/benchmark_runner.h",
     "benchmark/src/check.h",
     "benchmark/src/colorprint.cc",
     "benchmark/src/colorprint.h",
@@ -731,13 +734,15 @@ source_set("benchmark") {
     "benchmark/src/string_util.cc",
     "benchmark/src/string_util.h",
     "benchmark/src/sysinfo.cc",
-    "benchmark/src/sysinfo.h",
+    "benchmark/src/thread_manager.h",
+    "benchmark/src/thread_timer.h",
     "benchmark/src/timers.cc",
     "benchmark/src/timers.h",
   ]
   defines = [ "HAVE_POSIX_REGEX" ]
   public_configs = [ ":benchmark_config" ]
   all_dependent_configs = [ ":benchmark_config" ]
+  cflags = [ "-Wno-deprecated-declarations" ]
   configs -= [ "//gn/standalone:extra_warnings" ]
   deps = [ "//gn:default_deps" ]
 }
