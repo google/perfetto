@@ -221,6 +221,12 @@ class MacroTable : public Table {
                                   PERFETTO_TP_COLUMN_FLAG_NO_FLAG_COL)  \
   (__VA_ARGS__)
 
+// Creates the sparse vector with the given flags.
+#define PERFETTO_TP_TABLE_CONSTRUCTOR_SV(type, name, ...)                   \
+  name##_ = (FlagsForColumn(ColumnIndex::name) & Column::Flag::kDense)      \
+                ? SparseVector<TypedColumn<type>::serialized_type>::Dense() \
+                : SparseVector<TypedColumn<type>::serialized_type>();
+
 // Invokes the chosen column constructor by passing the given args.
 #define PERFETTO_TP_TABLE_CONSTRUCTOR_COLUMN(type, name, ...)               \
   columns_.emplace_back(#name, &name##_, FlagsForColumn(ColumnIndex::name), \
@@ -333,6 +339,12 @@ class MacroTable : public Table {
     class_name(StringPool* pool, parent_class_name* parent)                   \
         : macros_internal::MacroTable(table_name, pool, parent),              \
           parent_(parent) {                                                   \
+      /*                                                                      \
+       * Expands to                                                           \
+       * col1_ = SparseVector<col1_type>(mode)                                \
+       * ...                                                                  \
+       */                                                                     \
+      PERFETTO_TP_TABLE_COLUMNS(DEF, PERFETTO_TP_TABLE_CONSTRUCTOR_SV);       \
       /*                                                                      \
        * Expands to                                                           \
        * columns_.emplace_back("col1", col1_, Column::kNoFlag, this,          \

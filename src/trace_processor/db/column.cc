@@ -41,17 +41,37 @@ Column::Column(const char* name,
                Table* table,
                uint32_t col_idx_in_table,
                uint32_t row_map_idx,
-               SparseVectorBase* sparse_vector,
+               SparseVectorBase* sv,
                std::shared_ptr<SparseVectorBase> owned_sparse_vector)
     : owned_sparse_vector_(owned_sparse_vector),
       type_(type),
-      sparse_vector_(sparse_vector),
+      sparse_vector_(sv),
       name_(name),
       flags_(flags),
       table_(table),
       col_idx_in_table_(col_idx_in_table),
       row_map_idx_(row_map_idx),
-      string_pool_(table->string_pool_) {}
+      string_pool_(table->string_pool_) {
+  switch (type_) {
+    case ColumnType::kInt32:
+      PERFETTO_CHECK(sparse_vector<int32_t>().IsDense() == IsDense());
+      break;
+    case ColumnType::kUint32:
+      PERFETTO_CHECK(sparse_vector<uint32_t>().IsDense() == IsDense());
+      break;
+    case ColumnType::kInt64:
+      PERFETTO_CHECK(sparse_vector<int64_t>().IsDense() == IsDense());
+      break;
+    case ColumnType::kDouble:
+      PERFETTO_CHECK(sparse_vector<double>().IsDense() == IsDense());
+      break;
+    case ColumnType::kString:
+      PERFETTO_CHECK(sparse_vector<StringPool::Id>().IsDense() == IsDense());
+      break;
+    case ColumnType::kId:
+      break;
+  }
+}
 
 Column Column::IdColumn(Table* table, uint32_t col_idx, uint32_t row_map_idx) {
   return Column("id", ColumnType::kId, kIdFlags, table, col_idx, row_map_idx,
