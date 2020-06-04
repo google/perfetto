@@ -227,10 +227,15 @@ config("release") {
   }
   if (is_mac) {
     ldflags = [ "-dead_strip" ]
-  } else {
+  } else if (is_clang) {
     ldflags = [
       "-Wl,--gc-sections",
       "-Wl,--icf=all",
+      "-Wl,-O1",
+    ]
+  } else {
+    ldflags = [
+      "-Wl,--gc-sections",
       "-Wl,-O1",
     ]
   }
