@@ -66,13 +66,13 @@ struct TypedColumn : public Column {
   using Serializer = tc_internal::Serializer<non_optional_type>;
 
  public:
-  // The type which should be stored in the SparseVector.
-  // Used by the macro code when actually constructing the SparseVectors.
+  // The type which should be stored in the NullableVector.
+  // Used by the macro code when actually constructing the NullableVectors.
   using serialized_type = typename Serializer::serialized_type;
 
   get_type operator[](uint32_t row) const {
     return Serializer::Deserialize(
-        TH::Get(sparse_vector(), row_map().Get(row)));
+        TH::Get(nullable_vector(), row_map().Get(row)));
   }
 
   // Special function only for string types to allow retrieving the string
@@ -80,18 +80,18 @@ struct TypedColumn : public Column {
   template <bool is_string = TH::is_string>
   typename std::enable_if<is_string, NullTermStringView>::type GetString(
       uint32_t row) const {
-    return string_pool().Get(sparse_vector().GetNonNull(row_map().Get(row)));
+    return string_pool().Get(nullable_vector().GetNonNull(row_map().Get(row)));
   }
 
   // Sets the data in the column at index |row|.
   void Set(uint32_t row, non_optional_type v) {
     auto serialized = Serializer::Serialize(v);
-    mutable_sparse_vector()->Set(row_map().Get(row), serialized);
+    mutable_nullable_vector()->Set(row_map().Get(row), serialized);
   }
 
   // Inserts the value at the end of the column.
   void Append(T v) {
-    mutable_sparse_vector()->Append(Serializer::Serialize(v));
+    mutable_nullable_vector()->Append(Serializer::Serialize(v));
   }
 
   // Returns the row containing the given value in the Column.
@@ -147,11 +147,11 @@ struct TypedColumn : public Column {
     return SqlValue::String(value.c_str());
   }
 
-  const SparseVector<serialized_type>& sparse_vector() const {
-    return Column::sparse_vector<serialized_type>();
+  const NullableVector<serialized_type>& nullable_vector() const {
+    return Column::nullable_vector<serialized_type>();
   }
-  SparseVector<serialized_type>* mutable_sparse_vector() {
-    return Column::mutable_sparse_vector<serialized_type>();
+  NullableVector<serialized_type>* mutable_nullable_vector() {
+    return Column::mutable_nullable_vector<serialized_type>();
   }
 };
 
