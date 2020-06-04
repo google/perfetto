@@ -27,8 +27,9 @@ namespace {
 
 constexpr uint32_t kColumnCount = 1024;
 
-std::unique_ptr<SparseVector<int64_t>> Column() {
-  auto c = std::unique_ptr<SparseVector<int64_t>>(new SparseVector<int64_t>());
+std::unique_ptr<NullableVector<int64_t>> Column() {
+  auto c =
+      std::unique_ptr<NullableVector<int64_t>>(new NullableVector<int64_t>());
   for (int64_t i = 0; i < kColumnCount; ++i)
     c->Append(i);
   return c;
