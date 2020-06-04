@@ -29,6 +29,7 @@ TEST(SparseVector, Append) {
   sv.AppendNull();
   sv.Append(40);
 
+  ASSERT_FALSE(sv.IsDense());
   ASSERT_EQ(sv.size(), 4u);
   ASSERT_EQ(sv.Get(0), base::Optional<int64_t>(10));
   ASSERT_EQ(sv.Get(1), base::Optional<int64_t>(20));
@@ -67,6 +68,27 @@ TEST(SparseVector, SetNonNull) {
   ASSERT_EQ(sv.Get(1), base::Optional<int64_t>(22));
   ASSERT_EQ(sv.Get(2), base::Optional<int64_t>(3));
   ASSERT_EQ(sv.Get(3), base::Optional<int64_t>(4));
+}
+
+TEST(SparseVector, Dense) {
+  auto sv = SparseVector<int64_t>::Dense();
+
+  sv.Append(0);
+  sv.AppendNull();
+  sv.Append(2);
+  sv.Append(3);
+  sv.AppendNull();
+
+  ASSERT_TRUE(sv.IsDense());
+  ASSERT_EQ(sv.Get(0), 0);
+  ASSERT_EQ(sv.Get(1), base::nullopt);
+  ASSERT_EQ(sv.Get(2), 2);
+  ASSERT_EQ(sv.Get(3), 3);
+  ASSERT_EQ(sv.Get(4), base::nullopt);
+
+  sv.Set(1, 1);
+  ASSERT_EQ(sv.Get(1), 1);
+  ASSERT_EQ(sv.Get(2), 2);
 }
 
 }  // namespace
