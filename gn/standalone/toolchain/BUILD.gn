@@ -65,31 +65,37 @@ declare_args() {
 # Then determine the target toolchain.
 
 declare_args() {
+  target_triplet = ""
+  target_extra_cflags = ""
+}
+
+declare_args() {
   target_sysroot = sysroot
   target_gcc_toolchain = ""
-  if (!is_cross_compiling) {
-    target_triplet = ""
-  } else if (target_os == "mac" && target_cpu == "x64") {
-    target_triplet = "x86_64-apple-darwin"
-  } else if (target_os == "mac" && target_cpu == "x86") {
-    target_triplet = "i686-apple-darwin"
-  } else if (target_os == "linux" && target_cpu == "arm64") {
-    target_triplet = "aarch64-linux-gnu"
-  } else if (target_os == "linux" && target_cpu == "x64") {
-    target_triplet = "x86_64-linux-gnu"
-  } else if (target_os == "linux" && target_cpu == "x86") {
-    target_triplet = "i686-linux-gnu"
-  } else if (target_os == "android" && target_cpu == "arm64") {
-    target_triplet = "aarch64-linux-android"
-  } else if (target_os == "android" && target_cpu == "arm") {
-    target_triplet = "arm-linux-androideabi"
-  } else if (target_os == "android" && target_cpu == "x86") {
-    target_triplet = "i686-linux-android"
-  } else if (target_os == "android" && target_cpu == "x64") {
-    target_triplet = "x86_64-linux-android"
-  } else {
-    assert(false,
-           "Unsupported cross-compilation for ${target_os}-${target_cpu}")
+
+  if (target_triplet == "" && is_cross_compiling) {
+    if (target_os == "mac" && target_cpu == "x64") {
+      target_triplet = "x86_64-apple-darwin"
+    } else if (target_os == "mac" && target_cpu == "x86") {
+      target_triplet = "i686-apple-darwin"
+    } else if (target_os == "linux" && target_cpu == "arm64") {
+      target_triplet = "aarch64-linux-gnu"
+    } else if (target_os == "linux" && target_cpu == "x64") {
+      target_triplet = "x86_64-linux-gnu"
+    } else if (target_os == "linux" && target_cpu == "x86") {
+      target_triplet = "i686-linux-gnu"
+    } else if (target_os == "android" && target_cpu == "arm64") {
+      target_triplet = "aarch64-linux-android"
+    } else if (target_os == "android" && target_cpu == "arm") {
+      target_triplet = "arm-linux-androideabi"
+    } else if (target_os == "android" && target_cpu == "x86") {
+      target_triplet = "i686-linux-android"
+    } else if (target_os == "android" && target_cpu == "x64") {
+      target_triplet = "x86_64-linux-android"
+    } else {
+      assert(false,
+            "Unsupported cross-compilation for ${target_os}-${target_cpu}")
+    }
   }
 }
 
@@ -147,6 +153,11 @@ template("gcc_like_toolchain") {
       assert(is_clang, "gcc_toolchain can be used only when using clang")
       _invoker_gcc_toolchain = invoker.gcc_toolchain
       ld_arg = "$ld_arg --gcc-toolchain=$_invoker_gcc_toolchain"
+    }
+    if (defined(invoker.extra_cflags) && invoker.extra_cflags != "") {
+      _invoker_extra_cflags = invoker.extra_cflags
+      cc = "$cc $_invoker_extra_cflags"
+      cxx = "$cxx $_invoker_extra_cflags"
     }
 
     tool("cc") {
@@ -240,6 +251,7 @@ gcc_like_toolchain("gcc_like") {
   linker = target_linker
   sysroot = target_sysroot
   gcc_toolchain = target_gcc_toolchain
+  extra_cflags = target_extra_cflags
 }
 
 gcc_like_toolchain("gcc_like_host") {
