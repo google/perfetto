@@ -32,30 +32,65 @@ namespace trace_processor {
 // allows for std::unique_ptr<SparseVectorBase>).
 class SparseVectorBase {
  public:
+  SparseVectorBase() = default;
   virtual ~SparseVectorBase();
+
+  SparseVectorBase(const SparseVectorBase&) = delete;
+  SparseVectorBase& operator=(const SparseVectorBase&) = delete;
+
+  SparseVectorBase(SparseVectorBase&&) = default;
+  SparseVectorBase& operator=(SparseVectorBase&&) noexcept = default;
 };
 
 // A data structure which compactly stores a list of possibly nullable data.
 //
 // Internally, this class is implemented using a combination of a std::deque
 // with a BitVector used to store whether each index is null or not.
-// For each null value, it only uses a single bit inside the BitVector at
-// a slight cost (searching the BitVector to find the index into the std::deque)
-// when looking up the data.
+// By default, for each null value, it only uses a single bit inside the
+// BitVector at a slight cost (searching the BitVector to find the index into
+// the std::deque) when looking up the data.
+//
+// TODO(lalitm): rename this class (probably to NullableVector) to better
+// reflect that we can also store null entries densely.
 template <typename T>
 class SparseVector : public SparseVectorBase {
+ private:
+  enum class Mode {
+    // Sparse mode is the default mode and ensures that nulls are stored using
+    // only
+    // a single bit (at the cost of making setting null entries to non-null
+    // O(n)).
+    kSparse,
+
+    // Dense mode forces the reservation of space for null entries which
+    // increases
+    // memory usage but allows for O(1) set operations.
+    kDense,
+  };
+
  public:
   // Creates an empty SparseVector.
-  SparseVector() = default;
+  SparseVector() : SparseVector<T>(Mode::kSparse) {}
   ~SparseVector() override = default;
+
+  explicit SparseVector(const SparseVector&) = delete;
+  SparseVector& operator=(const SparseVector&) = delete;
 
   SparseVector(SparseVector&&) = default;
   SparseVector& operator=(SparseVector&&) noexcept = default;
 
+  // Creates a dense sparse vector
+  static SparseVector<T> Dense() { return SparseVector<T>(Mode::kDense); }
+
   // Returns the optional value at |idx| or base::nullopt if the value is null.
   base::Optional<T> Get(uint32_t idx) const {
-    auto opt_idx = valid_.IndexOf(idx);
-    return opt_idx ? base::Optional<T>(data_[*opt_idx]) : base::nullopt;
+    if (mode_ == Mode::kDense) {
+      bool contains = valid_.Contains(idx);
+      return contains ? base::Optional<T>(data_[idx]) : base::nullopt;
+    } else {
+      auto opt_idx = valid_.IndexOf(idx);
+      return opt_idx ? base::Optional<T>(data_[*opt_idx]) : base::nullopt;
+    }
   }
 
   // Returns the non-null value at |ordinal| where |ordinal| gives the index
@@ -66,9 +101,12 @@ class SparseVector : public SparseVectorBase {
   //
   // GetNonNull(0) = 0
   // GetNonNull(1) = 2
-  // GetNoNull(2) = 4
+  // GetNonNull(2) = 4
   // ...
   T GetNonNull(uint32_t ordinal) const {
+    // TODO(lalitm): the semtantics of this method really doesn't make
+    // sense with dense mode. Reevaluate what we should do in that case.
+    PERFETTO_DCHECK(mode_ == Mode::kSparse);
     PERFETTO_DCHECK(ordinal < data_.size());
     return data_[ordinal];
   }
@@ -80,7 +118,12 @@ class SparseVector : public SparseVectorBase {
   }
 
   // Adds a null value to the SparseVector.
-  void AppendNull() { size_++; }
+  void AppendNull() {
+    if (mode_ == Mode::kDense) {
+      data_.emplace_back();
+    }
+    size_++;
+  }
 
   // Adds the given optional value to the SparseVector.
   void Append(base::Optional<T> val) {
@@ -93,27 +136,38 @@ class SparseVector : public SparseVectorBase {
 
   // Sets the value at |idx| to the given |val|.
   void Set(uint32_t idx, T val) {
-    auto opt_idx = valid_.IndexOf(idx);
-
-    // Generally, we will be setting a null row to non-null so optimize for that
-    // path.
-    if (PERFETTO_UNLIKELY(opt_idx)) {
-      data_[*opt_idx] = val;
+    if (mode_ == Mode::kDense) {
+      if (!valid_.Contains(idx)) {
+        valid_.Insert(idx);
+      }
+      data_[idx] = val;
     } else {
-      valid_.Insert(idx);
+      auto opt_idx = valid_.IndexOf(idx);
 
-      opt_idx = valid_.IndexOf(idx);
-      PERFETTO_DCHECK(opt_idx);
-      data_.insert(data_.begin() + static_cast<ptrdiff_t>(*opt_idx), val);
+      // Generally, we will be setting a null row to non-null so optimize for
+      // that path.
+      if (PERFETTO_UNLIKELY(opt_idx)) {
+        data_[*opt_idx] = val;
+      } else {
+        valid_.Insert(idx);
+
+        opt_idx = valid_.IndexOf(idx);
+        PERFETTO_DCHECK(opt_idx);
+        data_.insert(data_.begin() + static_cast<ptrdiff_t>(*opt_idx), val);
+      }
     }
   }
 
   // Returns the size of the SparseVector; this includes any null values.
   uint32_t size() const { return size_; }
 
+  // Returns whether data in this SparseVector is stored densely.
+  bool IsDense() const { return mode_ == Mode::kDense; }
+
  private:
-  explicit SparseVector(const SparseVector&) = delete;
-  SparseVector& operator=(const SparseVector&) = delete;
+  SparseVector(Mode mode) : mode_(mode) {}
+
+  Mode mode_ = Mode::kSparse;
 
   std::deque<T> data_;
   RowMap valid_;

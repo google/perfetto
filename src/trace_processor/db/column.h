@@ -102,6 +102,13 @@ class Column {
     // displayed to the user as it is part of the internal implementation
     // details of the table.
     kHidden = 1 << 2,
+
+    // Indicates that the data in this column is stored densely. This
+    // allows for fast Set calls to change the data in the column.
+    //
+    // This flag is only meaningful for nullable columns has no effect for
+    // non-null columns.
+    kDense = 1 << 3,
   };
 
   // Flags specified for an id column.
@@ -280,6 +287,9 @@ class Column {
 
   // Returns true if this column is a sorted column.
   bool IsSorted() const { return (flags_ & Flag::kSorted) != 0; }
+
+  // Returns true if this column is a dense column.
+  bool IsDense() const { return (flags_ & Flag::kDense) != 0; }
 
   // Returns the backing RowMap for this Column.
   // This function is defined out of line because of a circular dependency
