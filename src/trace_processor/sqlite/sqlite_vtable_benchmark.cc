@@ -106,12 +106,14 @@ static void BM_SqliteStepAndResult(benchmark::State& state) {
 
   sqlite3_initialize();
 
+  // Make sure the module outlives the ScopedDb. SQLite calls xDisconnect in
+  // the database close function and so this struct needs to be available then.
+  sqlite3_module module{};
+
   ScopedDb db;
   sqlite3* raw_db = nullptr;
   PERFETTO_CHECK(sqlite3_open(":memory:", &raw_db) == SQLITE_OK);
   db.reset(raw_db);
-
-  sqlite3_module module{};
 
   auto create_fn = [](sqlite3* xdb, void* aux, int, const char* const*,
                       sqlite3_vtab** tab, char**) {
