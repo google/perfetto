@@ -119,6 +119,8 @@ void ClockTracker::AddSnapshot(const std::vector<ClockValue>& clocks) {
         return;
       }
 
+      PERFETTO_DLOG("Detected non-monotonic clock with ID %" PRIu64, clock_id);
+
       // For the other clocks the best thing we can do is mark it as
       // non-monotonic and refuse to use it as a source clock in the resolution
       // graph. We can still use it as a target clock, but not viceversa.
@@ -208,6 +210,9 @@ base::Optional<int64_t> ClockTracker::ConvertSlowpath(ClockId src_clock_id,
 
   ClockPath path = FindPath(src_clock_id, target_clock_id);
   if (!path.valid()) {
+    PERFETTO_DLOG("No path from clock %" PRIu64 " to %" PRIu64
+                  " at timestamp %" PRId64,
+                  src_clock_id, target_clock_id, src_timestamp);
     context_->storage->IncrementStats(stats::clock_sync_failure);
     return base::nullopt;
   }
