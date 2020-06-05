@@ -289,10 +289,9 @@ void ProtoTraceParser::ParseProfilePacket(
         protos::pbzero::BUILTIN_CLOCK_MONOTONIC_COARSE,
         static_cast<int64_t>(entry.timestamp()));
 
-    if (!maybe_timestamp) {
-      context_->storage->IncrementStats(stats::clock_sync_failure);
+    // ToTraceTime() increments the clock_sync_failure error stat in this case.
+    if (!maybe_timestamp)
       continue;
-    }
 
     int64_t timestamp = *maybe_timestamp;
 
