@@ -105,16 +105,16 @@ void ClockTracker::AddSnapshot(const std::vector<ClockValue>& clocks) {
                     vect.snapshot_ids.back() < snapshot_id);
 
     if (!vect.timestamps_ns.empty() &&
-        timestamp_ns <= vect.timestamps_ns.back()) {
+        timestamp_ns < vect.timestamps_ns.back()) {
       // Clock is not monotonic.
 
       if (clock_id == trace_time_clock_id_) {
         // The trace clock cannot be non-monotonic.
-        PERFETTO_ELOG(
-            "Clock sync error: the trace clock (id=%" PRIu64
-            ") is not "
-            "monotonic at snapshot %" PRIu32 ". %" PRId64 " not > %" PRId64 ".",
-            clock_id, snapshot_id, timestamp_ns, vect.timestamps_ns.back());
+        PERFETTO_ELOG("Clock sync error: the trace clock (id=%" PRIu64
+                      ") is not monotonic at snapshot %" PRIu32 ". %" PRId64
+                      " not >= %" PRId64 ".",
+                      clock_id, snapshot_id, timestamp_ns,
+                      vect.timestamps_ns.back());
         context_->storage->IncrementStats(stats::invalid_clock_snapshots);
         return;
       }
