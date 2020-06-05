@@ -95,6 +95,14 @@ class MacroTable : public Table {
   }
   ~MacroTable() override;
 
+  // We don't want a move or copy constructor because we store pointers to
+  // fields of macro tables which will be invalidated if we move/copy them.
+  MacroTable(const MacroTable&) = delete;
+  MacroTable& operator=(const MacroTable&) = delete;
+
+  MacroTable(MacroTable&&) = delete;
+  MacroTable& operator=(MacroTable&&) noexcept = delete;
+
   const char* table_name() const { return name_; }
 
  protected:
