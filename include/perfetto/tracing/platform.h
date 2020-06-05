@@ -40,7 +40,7 @@ class TaskRunner;
 
 // Base class for thread-local objects. This is to get a basic object vtable and
 // delegate destruction to the embedder. See Platform::CreateThreadLocalObject.
-class PlatformThreadLocalObject {
+class PERFETTO_EXPORT PlatformThreadLocalObject {
  public:
   // Implemented by perfetto internal code. The embedder must call this when
   // implementing GetOrCreateThreadLocalObject() to create an instance for the
