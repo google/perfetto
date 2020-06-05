@@ -162,6 +162,31 @@ TEST_F(ClockTrackerTest, ChainedResolutionHard) {
   EXPECT_EQ(*ct_.Convert(MONOTONIC_RAW, 753, REALTIME), 753 - 1 - 50 + 9000);
 }
 
+// Regression test for b/158182858. When taking two snapshots back-to-back,
+// MONOTONIC_COARSE might be stuck to the last value. We should still be able
+// to convert both ways in this case.
+TEST_F(ClockTrackerTest, NonStrictlyMonotonic) {
+  ct_.AddSnapshot({{BOOTTIME, 101}, {MONOTONIC, 51}, {MONOTONIC_COARSE, 50}});
+  ct_.AddSnapshot({{BOOTTIME, 105}, {MONOTONIC, 55}, {MONOTONIC_COARSE, 50}});
+
+  // This last snapshot is deliberately identical to the previous one. This
+  // is to simulate the case of taking two snapshots so close to each other that
+  // all clocks are identical.
+  ct_.AddSnapshot({{BOOTTIME, 105}, {MONOTONIC, 55}, {MONOTONIC_COARSE, 50}});
+
+  EXPECT_EQ(ct_.Convert(MONOTONIC_COARSE, 49, MONOTONIC), 50);
+  EXPECT_EQ(ct_.Convert(MONOTONIC_COARSE, 50, MONOTONIC), 55);
+  EXPECT_EQ(ct_.Convert(MONOTONIC_COARSE, 51, MONOTONIC), 56);
+
+  EXPECT_EQ(ct_.Convert(MONOTONIC_COARSE, 40, BOOTTIME), 91);
+  EXPECT_EQ(ct_.Convert(MONOTONIC_COARSE, 50, BOOTTIME), 105);
+  EXPECT_EQ(ct_.Convert(MONOTONIC_COARSE, 55, BOOTTIME), 110);
+
+  EXPECT_EQ(ct_.Convert(BOOTTIME, 91, MONOTONIC_COARSE), 40);
+  EXPECT_EQ(ct_.Convert(BOOTTIME, 105, MONOTONIC_COARSE), 50);
+  EXPECT_EQ(ct_.Convert(BOOTTIME, 110, MONOTONIC_COARSE), 55);
+}
+
 TEST_F(ClockTrackerTest, SequenceScopedClocks) {
   ct_.AddSnapshot({{MONOTONIC, 1000}, {BOOTTIME, 100000}});
 
