@@ -525,6 +525,8 @@ TEST_F(ProcessStatsDataSourceTest, ThreadTimeInState) {
   EXPECT_CALL(*data_source, ReadProcPidFile(kTids[0], "time_in_state"))
       .Times(4)
       .WillRepeatedly(Return("cpu0\n300000 1\n748800 1\ncpu1\n300000 5\n"));
+  EXPECT_CALL(*data_source, ReadProcPidFile(kTids[1], "status"))
+      .WillRepeatedly(Return("Name: tid_2"));
   EXPECT_CALL(*data_source, ReadProcPidFile(kTids[1], "time_in_state"))
       .WillOnce(
           Return("cpu0\n300000 10\n748800 0\ncpu1\n300000 50\n652800 60\n"))
