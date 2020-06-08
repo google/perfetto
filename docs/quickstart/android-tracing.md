@@ -70,6 +70,11 @@ all the various knobs of Perfetto.
 If you are running on a Mac or Linux host, or are using a bash-based terminal
 on Windows, you can use the following:
 
+WARNING: The below command does not work on Android P because the `--txt` option
+was introduced in Q. The binary protobuf format should be used instead; the
+details of this can be found on the
+[_Trace configuration_ page](https://perfetto.dev/docs/concepts/config#pbtx-vs-binary-format).
+
 ```bash
 adb shell perfetto \
   -c - --txt \
