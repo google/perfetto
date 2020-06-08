@@ -71,7 +71,8 @@ PERFETTO_TP_TABLE(PERFETTO_TP_METADATA_TABLE_DEF);
   C(StringPool::Id, name)                             \
   C(base::Optional<int64_t>, start_ts)                \
   C(base::Optional<int64_t>, end_ts)                  \
-  C(base::Optional<uint32_t>, upid)
+  C(base::Optional<uint32_t>, upid)                   \
+  C(base::Optional<uint32_t>, is_main_thread)
 
 PERFETTO_TP_TABLE(PERFETTO_TP_THREAD_TABLE_DEF);
 
