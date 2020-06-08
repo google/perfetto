@@ -24,14 +24,16 @@ import {genConfigProto, RecordController, toPbtxt} from './record_controller';
 test('encodeConfig', () => {
   const config = createEmptyRecordConfig();
   config.durationSeconds = 10;
-  const result = TraceConfig.decode(genConfigProto(config));
+  const result =
+      TraceConfig.decode(genConfigProto(config, {os: 'Q', name: 'Android Q'}));
   expect(result.durationMs).toBe(10000);
 });
 
 test('SysConfig', () => {
   const config = createEmptyRecordConfig();
   config.cpuSyscall = true;
-  const result = TraceConfig.decode(genConfigProto(config));
+  const result =
+      TraceConfig.decode(genConfigProto(config, {os: 'Q', name: 'Android Q'}));
   const sources = assertExists(result.dataSources);
   const srcConfig = assertExists(sources[0].config);
   const ftraceConfig = assertExists(srcConfig.ftraceConfig);
@@ -108,7 +110,8 @@ test('ChromeConfig', () => {
   config.ipcFlows = true;
   config.jsExecution = true;
   config.mode = 'STOP_WHEN_FULL';
-  const result = TraceConfig.decode(genConfigProto(config));
+  const result =
+      TraceConfig.decode(genConfigProto(config, {os: 'C', name: 'Chrome'}));
   const sources = assertExists(result.dataSources);
 
   const traceConfigSource = assertExists(sources[0].config);
@@ -133,7 +136,8 @@ test('ChromeConfigRingBuffer', () => {
   config.ipcFlows = true;
   config.jsExecution = true;
   config.mode = 'RING_BUFFER';
-  const result = TraceConfig.decode(genConfigProto(config));
+  const result =
+      TraceConfig.decode(genConfigProto(config, {os: 'C', name: 'Chrome'}));
   const sources = assertExists(result.dataSources);
 
   const traceConfigSource = assertExists(sources[0].config);
@@ -159,7 +163,8 @@ test('ChromeConfigLongTrace', () => {
   config.ipcFlows = true;
   config.jsExecution = true;
   config.mode = 'RING_BUFFER';
-  const result = TraceConfig.decode(genConfigProto(config));
+  const result =
+      TraceConfig.decode(genConfigProto(config, {os: 'C', name: 'Chrome'}));
   const sources = assertExists(result.dataSources);
 
   const traceConfigSource = assertExists(sources[0].config);

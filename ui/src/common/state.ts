@@ -315,6 +315,10 @@ export declare type RecordMode =
 // 'Q','P','O' for Android, 'L' for Linux, 'C' for Chrome.
 export declare type TargetOs = 'Q' | 'P' | 'O' | 'C' | 'L';
 
+export function isAndroidP(target: RecordingTarget) {
+  return target.os === 'P';
+}
+
 export function isAndroidTarget(target: RecordingTarget) {
   return ['Q', 'P', 'O'].includes(target.os);
 }

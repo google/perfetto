@@ -23,6 +23,7 @@ import {
   getBuiltinChromeCategoryList,
   getDefaultRecordingTargets,
   isAdbTarget,
+  isAndroidP,
   isAndroidTarget,
   isChromeTarget,
   RecordingTarget
@@ -140,7 +141,7 @@ function RecSettings(cssClass: string) {
       m('.record-mode',
         recButton('STOP_WHEN_FULL', 'Stop when full', 'rec_one_shot.png'),
         recButton('RING_BUFFER', 'Ring buffer', 'rec_ring_buf.png'),
-        recButton('LONG_TRACE', 'Long trace', 'rec_long_trace.png'), ),
+        recButton('LONG_TRACE', 'Long trace', 'rec_long_trace.png')),
 
       m(Slider, {
         title: 'In-memory buffer size',
@@ -210,15 +211,13 @@ function PowerSettings(cssClass: string) {
 }
 
 function GpuSettings(cssClass: string) {
-  return m(
-      `.record-section${cssClass}`,
-      m(Probe, {
-        title: 'GPU frequency',
-        img: 'rec_cpu_freq.png',
-        descr: 'Records gpu frequency via ftrace',
-        setEnabled: (cfg, val) => cfg.gpuFreq = val,
-        isEnabled: (cfg) => cfg.gpuFreq
-      } as ProbeAttrs));
+  return m(`.record-section${cssClass}`, m(Probe, {
+             title: 'GPU frequency',
+             img: 'rec_cpu_freq.png',
+             descr: 'Records gpu frequency via ftrace',
+             setEnabled: (cfg, val) => cfg.gpuFreq = val,
+             isEnabled: (cfg) => cfg.gpuFreq
+           } as ProbeAttrs));
 }
 
 function CpuSettings(cssClass: string) {
@@ -741,18 +740,19 @@ function AdvancedSettings(cssClass: string) {
               img: null,
               descr: `Records the screen along with running a trace. Max
                   time of recording is 3 minutes (180 seconds).`,
-          setEnabled: (cfg, val) => cfg.screenRecord = val,
-          isEnabled: (cfg) => cfg.screenRecord,
-        } as ProbeAttrs,
-        m(Slider, {
-          title: 'Max duration',
-          icon: 'timer',
-          values: [S(10), S(15), S(30), S(60), M(2), M(3)],
-          isTime: true,
-          unit: 'm:s',
-          set: (cfg, val) => cfg.durationMs = val,
-          get: (cfg) => cfg.durationMs,
-        } as SliderAttrs),) : null);
+              setEnabled: (cfg, val) => cfg.screenRecord = val,
+              isEnabled: (cfg) => cfg.screenRecord,
+            } as ProbeAttrs,
+            m(Slider, {
+              title: 'Max duration',
+              icon: 'timer',
+              values: [S(10), S(15), S(30), S(60), M(2), M(3)],
+              isTime: true,
+              unit: 'm:s',
+              set: (cfg, val) => cfg.durationMs = val,
+              get: (cfg) => cfg.durationMs,
+            } as SliderAttrs)) :
+          null);
 }
 
 function RecordHeader() {
@@ -863,6 +863,11 @@ function RecordingNotes() {
   const msgPerfettoNotSupported =
       m('div', `Perfetto is not supported natively before Android P.`);
 
+  const msgRecordingNotSupported =
+      m('div', `Recording Perfetto traces from the UI is not supported natively
+     before Android Q. If you are using a P device, please select 'Android P'
+     as the 'Target Platform' and collect the trace using ADB`);
+
   const msgSideload =
       m('div',
         `If you have a rooted device you can sideload the latest version of
@@ -882,6 +887,9 @@ function RecordingNotes() {
       output directory. `,
         doc);
 
+  if (isAdbTarget(globals.state.recordingTarget)) {
+    notes.push(msgRecordingNotSupported);
+  }
   switch (globals.state.recordingTarget.os) {
     case 'Q':
       break;
@@ -922,7 +930,7 @@ function RecordingSnippet() {
 
 function getRecordCommand(target: RecordingTarget) {
   const data = globals.trackDataStore.get('config') as
-          {commandline: string, pbtxt: string} |
+          {commandline: string, pbtxt: string, pbBase64: string} |
       null;
 
   const cfg = globals.state.recordConfig;
@@ -932,6 +940,7 @@ function getRecordCommand(target: RecordingTarget) {
     time = MAX_TIME;
   }
 
+  const pbBase64 = data ? data.pbBase64 : '';
   const pbtx = data ? data.pbtxt : '';
   let cmd = '';
   if (cfg.screenRecord) {
@@ -940,13 +949,19 @@ function getRecordCommand(target: RecordingTarget) {
     cmd += `(sleep 0.5 && adb shell screenrecord --time-limit ${time}`;
     cmd += ' "/sdcard/tracescr.mp4") &\\\n';
   }
-  cmd += isAndroidTarget(target) ? 'adb shell perfetto \\\n' : 'perfetto \\\n';
-  cmd += '  -c - --txt \\\n';
-  cmd += '  -o /data/misc/perfetto-traces/trace \\\n';
-  cmd += '<<EOF\n\n';
-  cmd += pbtx;
-  cmd += '\nEOF\n';
-
+  if (isAndroidP(target)) {
+    cmd += `echo '${pbBase64}' | \n`;
+    cmd += 'base64 --decode | \n';
+    cmd += 'adb shell "perfetto -c - -o /data/misc/perfetto-traces/trace"\n';
+  } else {
+    cmd +=
+        isAndroidTarget(target) ? 'adb shell perfetto \\\n' : 'perfetto \\\n';
+    cmd += '  -c - --txt \\\n';
+    cmd += '  -o /data/misc/perfetto-traces/trace \\\n';
+    cmd += '<<EOF\n\n';
+    cmd += pbtx;
+    cmd += '\nEOF\n';
+  }
   return cmd;
 }
 
