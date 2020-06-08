@@ -61,6 +61,12 @@ function parseTableDef(tableDefName, tableDef) {
     return tableDesc.cols[name];
   };
 
+  // Reserve the id and type columns so they appear first in the column list
+  // They will only be kept in case this is a root table - otherwise they will
+  // be deleted below..
+  const id = getOrCreateColumn('id');
+  const type = getOrCreateColumn('type');
+
   let lastColumn = undefined;
   for (const line of tableDef.split('\n')) {
     if (line.startsWith('#define'))
@@ -119,6 +125,14 @@ function parseTableDef(tableDefName, tableDef) {
       continue;
     }
     throw new Error(`Cannot parse line "${line}" from ${tableDefName}`);
+  }
+
+  if (tableDesc.parentDefName === '') {
+    id.type = `${tableDesc.cppClassName}::Id`;
+    type.type = 'string';
+  } else {
+    delete tableDesc.cols['id'];
+    delete tableDesc.cols['type'];
   }
 
   // Process {@joinable xxx} annotations.
