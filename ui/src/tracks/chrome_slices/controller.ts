@@ -105,8 +105,8 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
         (await this.engine.queryOneRow(totalSummarizedQuery))[0];
 
     const query = `select * from ${this.tableName('summary')} UNION
-      select * from ${this.tableName('big')} order by ts, percent desc limit ${
-        LIMIT}`;
+      select * from ${this.tableName('big')}
+      order by ts, depth, percent desc limit ${LIMIT}`;
     const result = await this.query(query);
 
     const numRows = +result.numRecords;
