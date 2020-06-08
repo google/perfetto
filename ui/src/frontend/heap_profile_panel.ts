@@ -127,14 +127,16 @@ export class HeapProfileDetailsPanel extends
                     // Required to stop hot-key handling:
                     onkeydown: (e: Event) => e.stopPropagation(),
                   }),
-                  m('button.download',
-                    {
-                      onclick: () => {
-                        this.downloadPprof();
-                      }
-                    },
-                    m('i.material-icons', 'file_download'),
-                    'Download profile'),
+                  this.profileType == ProfileType.NATIVE_HEAP_PROFILE ?
+                      m('button.download',
+                        {
+                          onclick: () => {
+                            this.downloadPprof();
+                          }
+                        },
+                        m('i.material-icons', 'file_download'),
+                        'Download profile') :
+                      null
                 ]),
             ]),
           m(`div[style=height:${height}px]`),
