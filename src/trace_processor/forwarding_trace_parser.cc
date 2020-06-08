@@ -35,8 +35,7 @@ inline bool isspace(unsigned char c) {
   return ::isspace(c);
 }
 
-std::string RemoveWhitespace(const std::string& input) {
-  std::string str(input);
+std::string RemoveWhitespace(std::string str) {
   str.erase(std::remove_if(str.begin(), str.end(), isspace), str.end());
   return str;
 }
