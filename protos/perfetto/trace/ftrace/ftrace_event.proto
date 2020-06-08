@@ -415,5 +415,7 @@ message FtraceEvent {
     SdeTracingMarkWriteFtraceEvent sde_tracing_mark_write = 333;
     MarkVictimFtraceEvent mark_victim = 334;
     IonStatFtraceEvent ion_stat = 335;
+    IonBufferCreateFtraceEvent ion_buffer_create = 336;
+    IonBufferDestroyFtraceEvent ion_buffer_destroy = 337;
   }
 }

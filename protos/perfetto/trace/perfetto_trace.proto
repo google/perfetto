@@ -3644,6 +3644,14 @@ message IonHeapGrowFtraceEvent {
   optional uint64 len = 2;
   optional int64 total_allocated = 3;
 }
+message IonBufferCreateFtraceEvent {
+  optional uint64 addr = 1;
+  optional uint64 len = 2;
+}
+message IonBufferDestroyFtraceEvent {
+  optional uint64 addr = 1;
+  optional uint64 len = 2;
+}
 
 // End of protos/perfetto/trace/ftrace/kmem.proto
 
@@ -4475,6 +4483,8 @@ message FtraceEvent {
     SdeTracingMarkWriteFtraceEvent sde_tracing_mark_write = 333;
     MarkVictimFtraceEvent mark_victim = 334;
     IonStatFtraceEvent ion_stat = 335;
+    IonBufferCreateFtraceEvent ion_buffer_create = 336;
+    IonBufferDestroyFtraceEvent ion_buffer_destroy = 337;
   }
 }
 
