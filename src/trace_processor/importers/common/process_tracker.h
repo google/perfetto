@@ -145,6 +145,10 @@ class ProcessTracker {
   // other threads associated to the passed thread.
   void ResolvePendingAssociations(UniqueTid, UniquePid);
 
+  // Writes the association that the passed thread belongs to the passed
+  // process.
+  void AssociateThreadToProcess(UniqueTid, UniquePid);
+
   TraceProcessorContext* const context_;
 
   // Each tid can have multiple UniqueTid entries, a new UniqueTid is assigned

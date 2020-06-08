@@ -1,0 +1,47 @@
+packet {
+  timestamp: 1
+  process_tree {
+    processes {
+      pid: 5
+      ppid: 1
+      cmdline: "com.google.pid5"
+    }
+    threads {
+      tid: 5
+      tgid: 5
+    }
+    threads {
+      tid: 7
+      tgid: 5
+      name: "tid7"
+    }
+    processes {
+      pid: 11
+      ppid: 1
+      cmdline: "com.google.pid11"
+    }
+    threads {
+      tid: 11
+      tgid: 11
+      name: "tid11"
+    }
+    threads {
+      tid: 12
+      tgid: 11
+      name: "tid12"
+    }
+  }
+}
+packet {
+  timestamp: 2
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 2
+      pid: 99
+      lowmemory_kill {
+        pid: 99
+      }
+    }
+  }
+}
