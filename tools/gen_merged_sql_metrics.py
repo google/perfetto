@@ -108,7 +108,7 @@ def main():
       variable = filename_to_variable(os.path.splitext(name)[0])
 
       # This is for Windows which has \ as a path separator.
-      path = path.replace("\\", "\\\\")
+      path = path.replace("\\", "/")
       output.write('\n  {{"{}", {}}},\n'.format(path, variable))
     output.write("};\n")
 
