@@ -121,7 +121,7 @@ EOF
 In all other cases, first push the trace config file and then invoke perfetto:
 ```bash
 adb push config.txt /data/local/tmp/trace_config.txt
-abb shell 'perfetto --txt -c - -o /data/misc/perfetto-traces/trace < /data/local/tmp/trace_config.txt'
+adb shell 'perfetto --txt -c - -o /data/misc/perfetto-traces/trace < /data/local/tmp/trace_config.txt'
 ```
 
 NOTE: because of strict SELinux rules, on versions of older than Android 11
