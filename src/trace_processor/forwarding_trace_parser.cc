@@ -147,7 +147,8 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
   std::string start(reinterpret_cast<const char*>(data),
                     std::min<size_t>(size, 20));
   if (size >= 8) {
-    uint64_t first_word = *reinterpret_cast<const uint64_t*>(data);
+    uint64_t first_word;
+    memcpy(&first_word, data, sizeof(first_word));
     if (first_word == kFuchsiaMagicNumber)
       return kFuchsiaTraceType;
   }
