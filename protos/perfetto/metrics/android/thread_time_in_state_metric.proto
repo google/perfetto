@@ -28,6 +28,7 @@ message AndroidThreadTimeInStateMetric {
 
   message Thread {
     optional string name = 1;
+    optional bool main_thread = 3;
     repeated MetricsByCoreType metrics_by_core_type = 2;
   }
 

@@ -35,20 +35,13 @@ SELECT
 FROM (
   SELECT
     slice.ts AS ts,
-    thread.upid AS upid,
+    utid,
     CAST(SUBSTR(slice.name, 18) AS int) AS cpu,
-    thread.utid AS utid,
-    -- We need globally unique track names so add the utid even when we
-    -- know the name. But when we don't, also use the tid because that's what
-    -- the rest of the UI does.
-    IFNULL(thread.name, 'Thread ' || thread.tid) || ' (' || thread.utid || ')'
-        AS thread_name,
     CAST(args.key AS int) AS freq,
     args.int_value as runtime_ms_counter
   FROM slice
     JOIN thread_track ON slice.track_id = thread_track.id
     JOIN args USING (arg_set_id)
-    JOIN thread USING (utid)
   WHERE slice.name LIKE 'time_in_state.%'
 );
 
@@ -84,8 +77,12 @@ CREATE VIEW android_thread_time_in_state_threads AS
 SELECT
   upid,
   RepeatedField(AndroidThreadTimeInStateMetric_Thread(
-    'name', thread.name,
-    'metrics_by_core_type', android_thread_time_in_state_thread_metrics.metrics
+    'name',
+    thread.name,
+    'main_thread',
+    thread.is_main_thread,
+    'metrics_by_core_type',
+    android_thread_time_in_state_thread_metrics.metrics
   )) threads
 FROM thread
 JOIN android_thread_time_in_state_thread_metrics USING (utid)
@@ -144,18 +141,22 @@ SELECT
   upid,
   core_type,
   utid,
-  thread_name,
+  -- We need globally unique track names so add the utid even when we
+  -- know the name. But when we don't, also use the tid because that's what
+  -- the rest of the UI does.
+  IFNULL(thread.name, 'Thread ' || thread.tid) || ' (' || thread.utid || ')'
+      AS thread_track_name,
   freq,
   runtime_ms_counter - LAG(runtime_ms_counter)
       OVER (PARTITION BY core_type, utid, freq ORDER BY ts) AS runtime_ms
 FROM android_thread_time_in_state_base
     JOIN android_thread_time_in_state_annotations_clock USING(ts)
-WHERE thread_name IS NOT NULL;
+    JOIN thread using (utid);
 
 CREATE VIEW android_thread_time_in_state_annotations_thread AS
 SELECT
   'counter' AS track_type,
-  thread_name || ' (' || core_type || ' core)' as track_name,
+  thread_track_name || ' (' || core_type || ' core)' as track_name,
   ts,
   dur,
   upid,
