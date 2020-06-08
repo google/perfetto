@@ -442,8 +442,10 @@ void ProcessStatsDataSource::WriteAllProcessStats() {
 
     if (record_thread_time_in_state_ && ShouldWriteThreadStats(pid)) {
       if (auto task_dir = OpenProcTaskDir(pid)) {
-        while (int32_t tid = ReadNextNumericDir(*task_dir))
+        while (int32_t tid = ReadNextNumericDir(*task_dir)) {
           WriteThreadStats(pid, tid);
+          pids.insert(tid);
+        }
       }
     }
 
