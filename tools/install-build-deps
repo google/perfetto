@@ -192,7 +192,7 @@ TEST_DEPS_ANDROID = [
 ]
 
 # This variable is updated by tools/roll-catapult-trace-viewer.
-CATAPULT_SHA1 = '4d292db280e546ac8ab35acf249214e0979ab781'
+CATAPULT_SHA1 = '5f77256e1b24851a05e8580438b532e2480dd7fd'
 
 TYPEFACES_SHA1 = '4fb455de506f8a2859dc5264b8448c2559b08ab8'
 
