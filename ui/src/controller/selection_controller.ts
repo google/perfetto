@@ -14,7 +14,9 @@
 
 import {Engine} from '../common/engine';
 import {fromNs, toNs} from '../common/time';
-import {CounterDetails, SliceDetails} from '../frontend/globals';
+import {Arg, Args, CounterDetails, SliceDetails} from '../frontend/globals';
+import {SLICE_TRACK_KIND} from '../tracks/chrome_slices/common';
+
 import {Controller} from './controller';
 import {globals} from './globals';
 
@@ -140,8 +142,8 @@ export class SelectionController extends Controller<'main'> {
     return map;
   }
 
-  async getArgs(argId: number): Promise<Map<string, string>> {
-    const args = new Map<string, string>();
+  async getArgs(argId: number): Promise<Args> {
+    const args = new Map<string, Arg>();
     const query = `
       select
         flat_key AS name,
@@ -153,9 +155,34 @@ export class SelectionController extends Controller<'main'> {
     for (let i = 0; i < result.numRecords; i++) {
       const name = result.columns[0].stringValues![i];
       const value = result.columns[1].stringValues![i];
-      args.set(name, value);
+      if (name === 'destination slice id' && !isNaN(Number(value))) {
+        const destTrackId = await this.getDestTrackId(value);
+        args.set(
+            'Destination Slice',
+            {kind: 'SLICE', trackId: destTrackId, sliceId: Number(value)});
+      } else {
+        args.set(name, value);
+      }
     }
     return args;
+  }
+
+  async getDestTrackId(sliceId: string): Promise<string> {
+    const trackIdQuery = `select track_id from slice
+    where slice_id = ${sliceId}`;
+    const destResult = await this.args.engine.query(trackIdQuery);
+    const trackIdTp = destResult.columns[0].longValues![0];
+    // TODO(taylori): If we had a consistent mapping from TP track_id
+    // UI track id for slice tracks this would be unnecessary.
+    let trackId = '';
+    for (const track of Object.values(globals.state.tracks)) {
+      if (track.kind === SLICE_TRACK_KIND &&
+          (track.config as {trackId: number}).trackId === Number(trackIdTp)) {
+        trackId = track.id;
+        break;
+      }
+    }
+    return trackId;
   }
 
   async sliceDetails(id: number) {
