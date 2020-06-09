@@ -104,11 +104,12 @@ class NullableVector : public NullableVectorBase {
   // GetNonNull(2) = 4
   // ...
   T GetNonNull(uint32_t ordinal) const {
-    // TODO(lalitm): the semtantics of this method really doesn't make
-    // sense with dense mode. Reevaluate what we should do in that case.
-    PERFETTO_DCHECK(mode_ == Mode::kSparse);
-    PERFETTO_DCHECK(ordinal < data_.size());
-    return data_[ordinal];
+    if (mode_ == Mode::kDense) {
+      return data_[valid_.Get(ordinal)];
+    } else {
+      PERFETTO_DCHECK(ordinal < data_.size());
+      return data_[ordinal];
+    }
   }
 
   // Adds the given value to the NullableVector.
