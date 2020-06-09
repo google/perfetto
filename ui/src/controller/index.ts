@@ -21,21 +21,29 @@ import {warmupWasmEngine} from '../common/wasm_engine_proxy';
 import {AppController} from './app_controller';
 import {globals} from './globals';
 
+interface OnMessageArg {
+  data: {
+    frontendPort: MessagePort; controllerPort: MessagePort;
+    extensionPort: MessagePort;
+    errorReportingPort: MessagePort;
+  };
+}
+
 function main() {
   self.addEventListener('error', e => reportError(e));
   self.addEventListener('unhandledrejection', e => reportError(e));
   warmupWasmEngine();
   let initialized = false;
-  self.onmessage = ({data}) => {
+  self.onmessage = ({data}: OnMessageArg) => {
     if (initialized) {
       console.error('Already initialized');
       return;
     }
     initialized = true;
-    const frontendPort = data.frontendPort as MessagePort;
-    const controllerPort = data.controllerPort as MessagePort;
-    const extensionPort = data.extensionPort as MessagePort;
-    const errorReportingPort = data.errorReportingPort as MessagePort;
+    const frontendPort = data.frontendPort;
+    const controllerPort = data.controllerPort;
+    const extensionPort = data.extensionPort;
+    const errorReportingPort = data.errorReportingPort;
     setErrorHandler((err: string) => errorReportingPort.postMessage(err));
     const frontend = new Remote(frontendPort);
     controllerPort.onmessage = ({data}) => globals.dispatch(data);

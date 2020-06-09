@@ -39,7 +39,7 @@ export class DragGestureHandler {
   // the mouse has moved at least 1px. This prevents accidental drags that
   // were meant to be clicks.
   private startDragGesture(e: MouseEvent) {
-    this.clientRect = this.element.getBoundingClientRect() as DOMRect;
+    this.clientRect = this.element.getBoundingClientRect();
     this.onDragStarted(
         e.clientX - this.clientRect.left, e.clientY - this.clientRect.top);
   }

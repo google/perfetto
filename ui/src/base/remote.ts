@@ -47,13 +47,16 @@ export class Remote {
       args: Array<{}>, transferList?: Transferable[]): Promise<T> {
     const d = defer<T>();
     this.deferredRequests.set(this.nextRequestId, d);
-    this.port.postMessage(
-        {
-          responseId: this.nextRequestId,
-          method,
-          args,
-        },
-        transferList);
+    const message = {
+      responseId: this.nextRequestId,
+      method,
+      args,
+    };
+    if (transferList === undefined) {
+      this.port.postMessage(message);
+    } else {
+      this.port.postMessage(message, transferList);
+    }
     this.nextRequestId += 1;
     return d;
   }
