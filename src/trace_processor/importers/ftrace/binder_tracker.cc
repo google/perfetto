@@ -75,6 +75,7 @@ BinderTracker::BinderTracker(TraceProcessorContext* context)
       flags_(context->storage->InternString("flags")),
       code_(context->storage->InternString("code")),
       calling_tid_(context->storage->InternString("calling tid")),
+      dest_slice_id_(context->storage->InternString("destination slice id")),
       data_size_(context->storage->InternString("data size")),
       offsets_size_(context->storage->InternString("offsets size")) {}
 
@@ -161,17 +162,32 @@ void BinderTracker::TransactionReceived(int64_t ts,
   }
 
   if (transaction_await_rcv.count(transaction_id) > 0) {
+    // First begin the reply slice to get its slice id.
+    auto reply_slice_id = context_->slice_tracker->Begin(
+        ts, track_id, binder_category_id_, reply_id_);
     // Add accurate dest info to the binder transaction slice.
-    auto args_inserter = [this, pid,
-                          &thread_name](ArgsTracker::BoundInserter* inserter) {
+    auto args_inserter = [this, pid, &thread_name, &reply_slice_id](
+                             ArgsTracker::BoundInserter* inserter) {
       inserter->AddArg(dest_thread_, Variadic::UnsignedInteger(pid));
       inserter->AddArg(dest_name_, Variadic::String(thread_name));
+      if (reply_slice_id.has_value())
+        inserter->AddArg(dest_slice_id_,
+                         Variadic::UnsignedInteger(reply_slice_id.value()));
     };
-    context_->slice_tracker->AddArgs(transaction_await_rcv[transaction_id],
-                                     binder_category_id_, transaction_slice_id_,
-                                     args_inserter);
-    context_->slice_tracker->Begin(ts, track_id, binder_category_id_,
-                                   reply_id_);
+    // Add the dest args to the current transaction slice and get the slice id.
+    auto transaction_slice_id = context_->slice_tracker->AddArgs(
+        transaction_await_rcv[transaction_id], binder_category_id_,
+        transaction_slice_id_, args_inserter);
+
+    // Add the dest slice id to the reply slice that has just begun.
+    auto reply_dest_inserter =
+        [this, &transaction_slice_id](ArgsTracker::BoundInserter* inserter) {
+          if (transaction_slice_id.has_value())
+            inserter->AddArg(dest_slice_id_, Variadic::UnsignedInteger(
+                                                 transaction_slice_id.value()));
+        };
+    context_->slice_tracker->AddArgs(track_id, binder_category_id_, reply_id_,
+                                     reply_dest_inserter);
     transaction_await_rcv.erase(transaction_id);
     return;
   }

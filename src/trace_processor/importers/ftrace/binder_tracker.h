@@ -93,6 +93,7 @@ class BinderTracker : public Destructible {
   const StringId flags_;
   const StringId code_;
   const StringId calling_tid_;
+  const StringId dest_slice_id_;
   const StringId data_size_;
   const StringId offsets_size_;
 };
