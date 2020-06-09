@@ -444,13 +444,13 @@ export function genConfig(
       ftraceEvents.add('ftrace/print');
     }
 
-    var ftraceEventsArray = Array<string>();
+    let ftraceEventsArray: string[] = [];
     if (isAndroidP(target)) {
       for (const ftraceEvent of ftraceEvents) {
         // On P, we don't support groups so strip all group names from ftrace
         // events.
         const groupAndName = ftraceEvent.split('/');
-        if (groupAndName.length != 2) {
+        if (groupAndName.length !== 2) {
           ftraceEventsArray.push(ftraceEvent);
           continue;
         }
@@ -462,7 +462,7 @@ export function genConfig(
         ftraceEventsArray.push(groupAndName[1]);
       }
     } else {
-      ftraceEventsArray = Array.from(ftraceEvents)
+      ftraceEventsArray = Array.from(ftraceEvents);
     }
 
     ds.config.ftraceConfig.ftraceEvents = ftraceEventsArray;
@@ -518,10 +518,13 @@ export function toPbtxt(configBuffer: Uint8Array): string {
           yield entry.toString();
         } else if (typeof entry === 'boolean') {
           yield entry.toString();
-        } else {
+        } else if (typeof entry === 'object' && entry !== null) {
           yield '{\n';
           yield* message(entry, indent + 4);
           yield ' '.repeat(indent) + '}';
+        } else {
+          throw new Error(`Record proto entry "${entry}" with unexpected type ${
+              typeof entry}`);
         }
         yield '\n';
       }
