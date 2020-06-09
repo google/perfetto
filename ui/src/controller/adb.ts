@@ -352,7 +352,8 @@ export class AdbOverWebUsb implements Adb {
     };
 
     const key = await crypto.subtle.generateKey(
-        keySpec, /*extractable=*/ true, ['sign', 'verify']);
+                    keySpec, /*extractable=*/ true, ['sign', 'verify']) as
+        CryptoKeyPair;
 
     return key;
   }
