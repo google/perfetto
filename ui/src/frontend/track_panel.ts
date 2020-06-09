@@ -19,6 +19,7 @@ import {Actions} from '../common/actions';
 import {TrackState} from '../common/state';
 
 import {TRACK_SHELL_WIDTH} from './css_constants';
+import {PerfettoMouseEvent} from './events';
 import {globals} from './globals';
 import {drawGridLines} from './gridline_helper';
 import {BLANK_CHECKBOX, CHECKBOX, STAR, STAR_BORDER} from './icons';
@@ -171,7 +172,7 @@ export interface TrackContentAttrs { track: Track; }
 export class TrackContent implements m.ClassComponent<TrackContentAttrs> {
   view({attrs}: m.CVnode<TrackContentAttrs>) {
     return m('.track-content', {
-      onmousemove: (e: MouseEvent) => {
+      onmousemove: (e: PerfettoMouseEvent) => {
         attrs.track.onMouseMove({x: e.layerX - TRACK_SHELL_WIDTH, y: e.layerY});
         globals.rafScheduler.scheduleRedraw();
       },
@@ -179,7 +180,7 @@ export class TrackContent implements m.ClassComponent<TrackContentAttrs> {
         attrs.track.onMouseOut();
         globals.rafScheduler.scheduleRedraw();
       },
-      onclick: (e: MouseEvent) => {
+      onclick: (e: PerfettoMouseEvent) => {
         // If we are selecting a time range - do not pass the click to the
         // track.
         if (globals.frontendLocalState.selectingArea) return;
