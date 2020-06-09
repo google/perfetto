@@ -14,10 +14,12 @@
 
 import * as m from 'mithril';
 
+import {Actions} from '../common/actions';
 import {timeToCode, toNs} from '../common/time';
 
-import {globals} from './globals';
+import {Args, globals} from './globals';
 import {Panel, PanelSize} from './panel';
+import {verticalScrollToTrack} from './scroll_helper';
 
 export class ChromeSliceDetailsPanel extends Panel {
   view() {
@@ -64,11 +66,35 @@ export class ChromeSliceDetailsPanel extends Panel {
 
   renderCanvas(_ctx: CanvasRenderingContext2D, _size: PanelSize) {}
 
-  getArgs(args?: Map<string, string>): m.Vnode[] {
+  getArgs(args?: Args): m.Vnode[] {
     if (!args || args.size === 0) return [];
     const result = [];
     for (const [key, value] of args) {
-      result.push(m('tr', m('th', key), m('td', value)));
+      if (typeof value === 'string') {
+        result.push(m('tr', m('th', key), m('td', value)));
+      } else {
+        result.unshift(
+            m('tr',
+              m('th', key),
+              m('td',
+                m('i.material-icons.grey',
+                  {
+                    onclick: () => {
+                      globals.makeSelection(Actions.selectChromeSlice({
+                        id: value.sliceId,
+                        trackId: value.trackId,
+                        table: 'slice'
+                      }));
+                      // Ideally we want to have a callback to
+                      // findCurrentSelection after this selection has been
+                      // made. Here we do not have the info for horizontally
+                      // scrolling to ts.
+                      verticalScrollToTrack(value.trackId, true);
+                    },
+                    title: 'Go to destination slice'
+                  },
+                  'call_made'))));
+      }
     }
     return result;
   }
