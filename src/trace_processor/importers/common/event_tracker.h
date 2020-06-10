@@ -22,6 +22,7 @@
 
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
+#include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto {
@@ -32,6 +33,8 @@ class TraceProcessorContext;
 // Tracks sched events, instants, and counters.
 class EventTracker {
  public:
+  using SetArgsCallback = std::function<void(ArgsTracker::BoundInserter*)>;
+
   explicit EventTracker(TraceProcessorContext*);
   EventTracker(const EventTracker&) = delete;
   EventTracker& operator=(const EventTracker&) = delete;
@@ -42,6 +45,13 @@ class EventTracker {
   virtual base::Optional<CounterId> PushCounter(int64_t timestamp,
                                                 double value,
                                                 TrackId track_id);
+
+  // Adds a counter event with args to the counters table returning the index of
+  // the newly added row.
+  base::Optional<CounterId> PushCounter(int64_t timestamp,
+                                        double value,
+                                        TrackId track_id,
+                                        SetArgsCallback args_callback);
 
   // Adds a counter event to the counters table for counter events which
   // should be associated with a process but only have a thread context
