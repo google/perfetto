@@ -224,3 +224,6 @@ cpu_info.textproto cpu_freq.sql cpu_freq.out
 
 # Thread table
 thread_main_thread.textproto thread_main_thread.sql thread_main_thread.out
+
+# Missed frames.
+frame_missed.py frame_missed_derived_events.sql frame_missed_derived_events_frame_missed.out
