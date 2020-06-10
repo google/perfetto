@@ -15,8 +15,6 @@
 set -e
 SCRIPT_DIR="$(realpath "$(dirname "${BASH_SOURCE[0]}")")"
 
-export PATH="$PATH:$SCRIPT_DIR"
-
 if [ "$TMPDIR" == "" ]; then
   TMPDIR=/tmp
 fi
@@ -24,7 +22,8 @@ fi
 function get_gn_value() {
   local out=$1
   local key=$2
-  gn args "$out" --list=$key --short | awk '{print $3}' | tr -d '"'
+  "$SCRIPT_DIR/gn" args "$out" --list=$key --short | awk '{print $3}' \
+    | tr -d '"'
 }
 
 function is_monolithic() {
