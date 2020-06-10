@@ -21,6 +21,7 @@ const states: {[key: string]: string} = {
   'X': 'Exit (Dead)',
   'Z': 'Exit (Zombie)',
   'x': 'Task Dead',
+  'I': 'Task Dead',
   'K': 'Wake Kill',
   'W': 'Waking',
   'P': 'Parked',
@@ -38,5 +39,8 @@ export function translateState(state: string|undefined) {
     result += state[i] === '+' ? ' ' : ' + ';
     result += states[state[i]];
   }
+  // state is some string we don't know how to translate.
+  if (result === undefined) return state;
+
   return result;
 }

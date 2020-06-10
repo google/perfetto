@@ -35,20 +35,13 @@ SELECT
 FROM (
   SELECT
     slice.ts AS ts,
-    thread.upid AS upid,
+    utid,
     CAST(SUBSTR(slice.name, 18) AS int) AS cpu,
-    thread.utid AS utid,
-    -- We need globally unique track names so add the utid even when we
-    -- know the name. But when we don't, also use the tid because that's what
-    -- the rest of the UI does.
-    IFNULL(thread.name, 'Thread ' || thread.tid) || ' (' || thread.utid || ')'
-        AS thread_name,
     CAST(args.key AS int) AS freq,
     args.int_value as runtime_ms_counter
   FROM slice
     JOIN thread_track ON slice.track_id = thread_track.id
     JOIN args USING (arg_set_id)
-    JOIN thread USING (utid)
   WHERE slice.name LIKE 'time_in_state.%'
 );
 
@@ -57,7 +50,7 @@ SELECT
   utid,
   core_type,
   freq,
-  MAX(runtime_ms_counter) - MIN(runtime_ms_counter) runtime_ms
+  MAX(runtime_ms_counter) - MIN(runtime_ms_counter) runtime_ms_diff
 FROM android_thread_time_in_state_base
 GROUP BY utid, core_type, freq;
 
@@ -65,7 +58,7 @@ CREATE TABLE android_thread_time_in_state_counters AS
 SELECT
   utid,
   core_type,
-  SUM(runtime_ms) runtime_ms
+  SUM(runtime_ms_diff) AS runtime_ms
 FROM android_thread_time_in_state_raw
 GROUP BY utid, core_type
 HAVING runtime_ms > 0;
@@ -84,8 +77,12 @@ CREATE VIEW android_thread_time_in_state_threads AS
 SELECT
   upid,
   RepeatedField(AndroidThreadTimeInStateMetric_Thread(
-    'name', thread.name,
-    'metrics_by_core_type', android_thread_time_in_state_thread_metrics.metrics
+    'name',
+    thread.name,
+    'main_thread',
+    thread.is_main_thread,
+    'metrics_by_core_type',
+    android_thread_time_in_state_thread_metrics.metrics
   )) threads
 FROM thread
 JOIN android_thread_time_in_state_thread_metrics USING (utid)
@@ -127,34 +124,39 @@ SELECT AndroidThreadTimeInStateMetric(
   )
 );
 
+-- Ensure we always get the previous clock tick for duration in
+-- android_thread_time_in_state_annotations_raw.
+CREATE VIEW android_thread_time_in_state_annotations_clock AS
+SELECT
+  ts,
+  LAG(ts) OVER (ORDER BY ts) AS lag_ts
+FROM (
+  SELECT DISTINCT ts from android_thread_time_in_state_base
+);
+
 CREATE VIEW android_thread_time_in_state_annotations_raw AS
 SELECT
   ts,
-  ts - LAG(ts) OVER (PARTITION BY core_type, utid ORDER BY ts) AS dur,
+  ts - lag_ts AS dur,
   upid,
   core_type,
   utid,
-  thread_name,
+  -- We need globally unique track names so add the utid even when we
+  -- know the name. But when we don't, also use the tid because that's what
+  -- the rest of the UI does.
+  IFNULL(thread.name, 'Thread ' || thread.tid) || ' (' || thread.utid || ')'
+      AS thread_track_name,
   freq,
   runtime_ms_counter - LAG(runtime_ms_counter)
       OVER (PARTITION BY core_type, utid, freq ORDER BY ts) AS runtime_ms
 FROM android_thread_time_in_state_base
-WHERE thread_name IS NOT NULL;
-
-CREATE VIEW android_thread_time_in_state_annotations_global_raw AS
-SELECT
-  ts,
-  core_type,
-  SUM(runtime_ms * freq) AS ms_freq
-FROM android_thread_time_in_state_annotations_raw
-WHERE thread_name IS NOT NULL
-  AND runtime_ms IS NOT NULL
-GROUP BY ts, core_type;
+    JOIN android_thread_time_in_state_annotations_clock USING(ts)
+    JOIN thread using (utid);
 
 CREATE VIEW android_thread_time_in_state_annotations_thread AS
 SELECT
   'counter' AS track_type,
-  thread_name || ' (' || core_type || ' core)' as track_name,
+  thread_track_name || ' (' || core_type || ' core)' as track_name,
   ts,
   dur,
   upid,
@@ -169,10 +171,12 @@ SELECT
   'counter' AS track_type,
   'Total ' || core_type || ' core cycles / sec' as track_name,
   ts,
-  ts - LAG(ts) OVER (PARTITION BY core_type ORDER BY ts) AS dur,
+  dur,
   0 AS upid,
-  ms_freq
-FROM android_thread_time_in_state_annotations_global_raw;
+  SUM(runtime_ms * freq) AS ms_freq
+FROM android_thread_time_in_state_annotations_raw
+WHERE runtime_ms IS NOT NULL
+GROUP BY ts, track_name;
 
 CREATE VIEW android_thread_time_in_state_annotations AS
 SELECT track_type, track_name, ts, dur, upid, ms_freq * 1000000 / dur AS value

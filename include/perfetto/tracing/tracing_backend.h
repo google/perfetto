@@ -20,6 +20,8 @@
 #include <memory>
 #include <string>
 
+#include "perfetto/base/export.h"
+
 // The embedder can (but doesn't have to) extend the TracingBackend class and
 // pass as an argument to Tracing::Initialize(kCustomBackend) to override the
 // way to reach the service. This is for peculiar cases where the embedder has
@@ -41,7 +43,7 @@ class ConsumerEndpoint;
 class Producer;
 class ProducerEndpoint;
 
-class TracingBackend {
+class PERFETTO_EXPORT TracingBackend {
  public:
   virtual ~TracingBackend();
 

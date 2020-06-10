@@ -32,8 +32,8 @@ Column::Column(const Column& column,
              table,
              col_idx,
              row_map_idx,
-             column.sparse_vector_,
-             column.owned_sparse_vector_) {}
+             column.nullable_vector_,
+             column.owned_nullable_vector_) {}
 
 Column::Column(const char* name,
                ColumnType type,
@@ -41,17 +41,37 @@ Column::Column(const char* name,
                Table* table,
                uint32_t col_idx_in_table,
                uint32_t row_map_idx,
-               SparseVectorBase* sparse_vector,
-               std::shared_ptr<SparseVectorBase> owned_sparse_vector)
-    : owned_sparse_vector_(owned_sparse_vector),
+               NullableVectorBase* nv,
+               std::shared_ptr<NullableVectorBase> owned_nullable_vector)
+    : owned_nullable_vector_(owned_nullable_vector),
       type_(type),
-      sparse_vector_(sparse_vector),
+      nullable_vector_(nv),
       name_(name),
       flags_(flags),
       table_(table),
       col_idx_in_table_(col_idx_in_table),
       row_map_idx_(row_map_idx),
-      string_pool_(table->string_pool_) {}
+      string_pool_(table->string_pool_) {
+  switch (type_) {
+    case ColumnType::kInt32:
+      PERFETTO_CHECK(nullable_vector<int32_t>().IsDense() == IsDense());
+      break;
+    case ColumnType::kUint32:
+      PERFETTO_CHECK(nullable_vector<uint32_t>().IsDense() == IsDense());
+      break;
+    case ColumnType::kInt64:
+      PERFETTO_CHECK(nullable_vector<int64_t>().IsDense() == IsDense());
+      break;
+    case ColumnType::kDouble:
+      PERFETTO_CHECK(nullable_vector<double>().IsDense() == IsDense());
+      break;
+    case ColumnType::kString:
+      PERFETTO_CHECK(nullable_vector<StringPool::Id>().IsDense() == IsDense());
+      break;
+    case ColumnType::kId:
+      break;
+  }
+}
 
 Column Column::IdColumn(Table* table, uint32_t col_idx, uint32_t row_map_idx) {
   return Column("id", ColumnType::kId, kIdFlags, table, col_idx, row_map_idx,
@@ -123,7 +143,7 @@ void Column::FilterIntoNumericSlow(FilterOp op,
     PERFETTO_DCHECK(value.is_null());
     if (is_nullable) {
       row_map().FilterInto(rm, [this](uint32_t row) {
-        return !sparse_vector<T>().Get(row).has_value();
+        return !nullable_vector<T>().Get(row).has_value();
       });
     } else {
       rm->Intersect(RowMap());
@@ -133,7 +153,7 @@ void Column::FilterIntoNumericSlow(FilterOp op,
     PERFETTO_DCHECK(value.is_null());
     if (is_nullable) {
       row_map().FilterInto(rm, [this](uint32_t row) {
-        return sparse_vector<T>().Get(row).has_value();
+        return nullable_vector<T>().Get(row).has_value();
       });
     }
     return;
@@ -191,55 +211,55 @@ void Column::FilterIntoNumericWithComparatorSlow(FilterOp op,
     case FilterOp::kLt:
       row_map().FilterInto(rm, [this, &cmp](uint32_t idx) {
         if (is_nullable) {
-          auto opt_value = sparse_vector<T>().Get(idx);
+          auto opt_value = nullable_vector<T>().Get(idx);
           return opt_value && cmp(*opt_value) < 0;
         }
-        return cmp(sparse_vector<T>().GetNonNull(idx)) < 0;
+        return cmp(nullable_vector<T>().GetNonNull(idx)) < 0;
       });
       break;
     case FilterOp::kEq:
       row_map().FilterInto(rm, [this, &cmp](uint32_t idx) {
         if (is_nullable) {
-          auto opt_value = sparse_vector<T>().Get(idx);
+          auto opt_value = nullable_vector<T>().Get(idx);
           return opt_value && cmp(*opt_value) == 0;
         }
-        return cmp(sparse_vector<T>().GetNonNull(idx)) == 0;
+        return cmp(nullable_vector<T>().GetNonNull(idx)) == 0;
       });
       break;
     case FilterOp::kGt:
       row_map().FilterInto(rm, [this, &cmp](uint32_t idx) {
         if (is_nullable) {
-          auto opt_value = sparse_vector<T>().Get(idx);
+          auto opt_value = nullable_vector<T>().Get(idx);
           return opt_value && cmp(*opt_value) > 0;
         }
-        return cmp(sparse_vector<T>().GetNonNull(idx)) > 0;
+        return cmp(nullable_vector<T>().GetNonNull(idx)) > 0;
       });
       break;
     case FilterOp::kNe:
       row_map().FilterInto(rm, [this, &cmp](uint32_t idx) {
         if (is_nullable) {
-          auto opt_value = sparse_vector<T>().Get(idx);
+          auto opt_value = nullable_vector<T>().Get(idx);
           return opt_value && cmp(*opt_value) != 0;
         }
-        return cmp(sparse_vector<T>().GetNonNull(idx)) != 0;
+        return cmp(nullable_vector<T>().GetNonNull(idx)) != 0;
       });
       break;
     case FilterOp::kLe:
       row_map().FilterInto(rm, [this, &cmp](uint32_t idx) {
         if (is_nullable) {
-          auto opt_value = sparse_vector<T>().Get(idx);
+          auto opt_value = nullable_vector<T>().Get(idx);
           return opt_value && cmp(*opt_value) <= 0;
         }
-        return cmp(sparse_vector<T>().GetNonNull(idx)) <= 0;
+        return cmp(nullable_vector<T>().GetNonNull(idx)) <= 0;
       });
       break;
     case FilterOp::kGe:
       row_map().FilterInto(rm, [this, &cmp](uint32_t idx) {
         if (is_nullable) {
-          auto opt_value = sparse_vector<T>().Get(idx);
+          auto opt_value = nullable_vector<T>().Get(idx);
           return opt_value && cmp(*opt_value) >= 0;
         }
-        return cmp(sparse_vector<T>().GetNonNull(idx)) >= 0;
+        return cmp(nullable_vector<T>().GetNonNull(idx)) >= 0;
       });
       break;
     case FilterOp::kIsNull:
@@ -431,17 +451,17 @@ void Column::StableSortNumeric(std::vector<uint32_t>* out) const {
   PERFETTO_DCHECK(IsNullable() == is_nullable);
   PERFETTO_DCHECK(ToColumnType<T>() == type_);
 
-  const auto& sv = sparse_vector<T>();
-  row_map().StableSort(out, [&sv](uint32_t a_idx, uint32_t b_idx) {
+  const auto& nv = nullable_vector<T>();
+  row_map().StableSort(out, [&nv](uint32_t a_idx, uint32_t b_idx) {
     if (is_nullable) {
-      auto a_val = sv.Get(a_idx);
-      auto b_val = sv.Get(b_idx);
+      auto a_val = nv.Get(a_idx);
+      auto b_val = nv.Get(b_idx);
 
       int res = compare::NullableNumeric(a_val, b_val);
       return desc ? res > 0 : res < 0;
     }
-    auto a_val = sv.GetNonNull(a_idx);
-    auto b_val = sv.GetNonNull(b_idx);
+    auto a_val = nv.GetNonNull(a_idx);
+    auto b_val = nv.GetNonNull(b_idx);
 
     return desc ? compare::Numeric(a_val, b_val) > 0
                 : compare::Numeric(a_val, b_val) < 0;

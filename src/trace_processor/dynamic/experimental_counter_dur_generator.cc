@@ -57,18 +57,18 @@ std::unique_ptr<Table> ExperimentalCounterDurGenerator::ComputeTable(
   }
   Table table = counter_table_->Filter(constraints);
 
-  std::unique_ptr<SparseVector<int64_t>> dur_column(
-      new SparseVector<int64_t>(ComputeDurColumn(table)));
+  std::unique_ptr<NullableVector<int64_t>> dur_column(
+      new NullableVector<int64_t>(ComputeDurColumn(table)));
   return std::unique_ptr<Table>(new Table(table.ExtendWithColumn(
       "dur", std::move(dur_column), TypedColumn<int64_t>::default_flags())));
 }
 
 // static
-SparseVector<int64_t> ExperimentalCounterDurGenerator::ComputeDurColumn(
+NullableVector<int64_t> ExperimentalCounterDurGenerator::ComputeDurColumn(
     const Table& table) {
   // Keep track of the last seen row for each track id.
   std::unordered_map<TrackId, uint32_t> last_row_for_track_id;
-  SparseVector<int64_t> dur;
+  NullableVector<int64_t> dur;
 
   const auto* ts_col =
       TypedColumn<int64_t>::FromColumn(table.GetColumnByName("ts"));

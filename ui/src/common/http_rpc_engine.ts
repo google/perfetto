@@ -14,7 +14,7 @@
 
 import {defer, Deferred} from '../base/deferred';
 import {fetchWithTimeout} from '../base/http_utils';
-import {assertExists} from '../base/logging';
+import {assertExists, assertTrue} from '../base/logging';
 import {StatusResult} from '../common/protos';
 
 import {Engine, LoadingTracker} from './engine';
@@ -32,11 +32,14 @@ interface QueuedRequest {
   methodName: string;
   reqData?: Uint8Array;
   resp: Deferred<Uint8Array>;
+  id: number;
 }
 
 export class HttpRpcEngine extends Engine {
   readonly id: string;
+  private nextReqId = 0;
   private requestQueue = new Array<QueuedRequest>();
+  private pendingRequest?: QueuedRequest = undefined;
   errorHandler: (err: string) => void = () => {};
 
   constructor(id: string, loadingTracker?: LoadingTracker) {
@@ -74,44 +77,61 @@ export class HttpRpcEngine extends Engine {
 
   enqueueRequest(methodName: string, data?: Uint8Array): Promise<Uint8Array> {
     const resp = defer<Uint8Array>();
-    this.requestQueue.push({methodName, reqData: data, resp});
-    if (this.requestQueue.length === 1) {
-      this.submitNextQueuedRequest();
+    const req:
+        QueuedRequest = {methodName, reqData: data, resp, id: this.nextReqId++};
+    if (this.pendingRequest === undefined) {
+      this.beginFetch(req);
+    } else {
+      this.requestQueue.push(req);
     }
     return resp;
   }
 
-  private submitNextQueuedRequest() {
-    if (this.requestQueue.length === 0) {
-      return;
-    }
-    const req = this.requestQueue[0];
+  private beginFetch(req: QueuedRequest) {
+    assertTrue(this.pendingRequest === undefined);
+    this.pendingRequest = req;
     const methodName = req.methodName.toLowerCase();
     // Deliberately not using fetchWithTimeout() here. These queries can be
     // arbitrarily long.
+    // Deliberately not setting cache: no-cache. Doing so invalidates also the
+    // CORS pre-flight responses, causing one OPTIONS request for each POST.
+    // no-cache is also useless because trace-processor's replies are already
+    // marked as no-cache and browsers generally already assume that POST
+    // requests are not idempotent.
     fetch(RPC_URL + methodName, {
       method: 'post',
-      cache: 'no-cache',
       headers: {
         'Content-Type': 'application/x-protobuf',
-        'Accept': 'application/x-protobuf',
+        'X-Seq-Id': `${req.id}`,  // Used only for debugging.
       },
       body: req.reqData || new Uint8Array(),
     })
-        .then(resp => this.onFetchResponse(resp))
+        .then(resp => this.endFetch(resp, req.id))
         .catch(err => this.errorHandler(err));
   }
 
-  private onFetchResponse(resp: Response) {
-    const pendingReq = assertExists(this.requestQueue.shift());
+  private endFetch(resp: Response, expectedReqId: number) {
+    const req = assertExists(this.pendingRequest);
+    this.pendingRequest = undefined;
+    assertTrue(expectedReqId === req.id);
     if (resp.status !== 200) {
-      pendingReq.resp.reject(`HTTP ${resp.status} - ${resp.statusText}`);
+      req.resp.reject(`HTTP ${resp.status} - ${resp.statusText}`);
       return;
     }
     resp.arrayBuffer().then(arrBuf => {
-      this.submitNextQueuedRequest();
-      pendingReq.resp.resolve(new Uint8Array(arrBuf));
+      // Note: another request can sneak in via enqueueRequest() between the
+      // arrayBuffer() call and this continuation. At this point
+      // this.pendingRequest might be set again.
+      // If not (the most common case) submit the next queued request, if any.
+      this.maybeSubmitNextQueuedRequest();
+      req.resp.resolve(new Uint8Array(arrBuf));
     });
+  }
+
+  private maybeSubmitNextQueuedRequest() {
+    if (this.pendingRequest === undefined && this.requestQueue.length > 0) {
+      this.beginFetch(this.requestQueue.shift()!);
+    }
   }
 
   static async checkConnection(): Promise<HttpRpcState> {

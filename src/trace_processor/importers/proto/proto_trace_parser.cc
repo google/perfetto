@@ -289,10 +289,9 @@ void ProtoTraceParser::ParseProfilePacket(
         protos::pbzero::BUILTIN_CLOCK_MONOTONIC_COARSE,
         static_cast<int64_t>(entry.timestamp()));
 
-    if (!maybe_timestamp) {
-      context_->storage->IncrementStats(stats::clock_sync_failure);
+    // ToTraceTime() increments the clock_sync_failure error stat in this case.
+    if (!maybe_timestamp)
       continue;
-    }
 
     int64_t timestamp = *maybe_timestamp;
 
@@ -587,7 +586,7 @@ void ProtoTraceParser::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
     context_->slice_tracker->Scoped(ts, track_id, cat_id, name_id,
                                     event.event_duration_ns(), args_fn);
   } else if (event.has_counter_id() || event.has_counter_name()) {
-    if (event.has_event_id()) {
+    if (event.has_counter_id()) {
       auto cid = event.counter_id();
       if (cid < metatrace::COUNTERS_MAX) {
         name_id =
@@ -661,6 +660,19 @@ void ProtoTraceParser::ParseModuleSymbols(ConstBytes blob) {
     protos::pbzero::AddressSymbols::Decoder address_symbols(*addr_it);
 
     uint32_t symbol_set_id = context_->storage->symbol_table().row_count();
+
+    bool has_lines = false;
+    for (auto line_it = address_symbols.lines(); line_it; ++line_it) {
+      protos::pbzero::Line::Decoder line(*line_it);
+      context_->storage->mutable_symbol_table()->Insert(
+          {symbol_set_id, context_->storage->InternString(line.function_name()),
+           context_->storage->InternString(line.source_file_name()),
+           line.line_number()});
+      has_lines = true;
+    }
+    if (!has_lines) {
+      continue;
+    }
     bool frame_found = false;
     for (MappingId mapping_id : mapping_ids) {
       std::vector<FrameId> frame_ids = context_->storage->FindFrameIds(
@@ -679,13 +691,6 @@ void ProtoTraceParser::ParseModuleSymbols(ConstBytes blob) {
       continue;
     }
 
-    for (auto line_it = address_symbols.lines(); line_it; ++line_it) {
-      protos::pbzero::Line::Decoder line(*line_it);
-      context_->storage->mutable_symbol_table()->Insert(
-          {symbol_set_id, context_->storage->InternString(line.function_name()),
-           context_->storage->InternString(line.source_file_name()),
-           line.line_number()});
-    }
   }
 }
 

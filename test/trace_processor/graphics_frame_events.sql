@@ -14,7 +14,7 @@
 -- limitations under the License.
 --
 select ts, gpu_track.name as track_name, dur, frame_slice.name as slice_name,
-    frame_numbers, layer_names
+    frame_number, layer_name
 from gpu_track
 left join frame_slice on gpu_track.id=frame_slice.track_id
 where scope='graphics_frame_event'

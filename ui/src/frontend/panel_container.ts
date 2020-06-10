@@ -19,7 +19,7 @@ import {assertExists, assertTrue} from '../base/logging';
 
 import {TOPBAR_HEIGHT, TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
-import {isPanelVNode, Panel, PanelSize} from './panel';
+import {isPanelVNode, Panel, PanelSize, PanelVNode} from './panel';
 import {
   debugNow,
   perfDebug,
@@ -302,7 +302,7 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
     const panels = dom.parentElement!.querySelectorAll('.panel');
     assertTrue(panels.length === this.attrs.panels.length);
     for (let i = 0; i < panels.length; i++) {
-      const rect = panels[i].getBoundingClientRect() as DOMRect;
+      const rect = panels[i].getBoundingClientRect();
       const id = this.attrs.panels[i].attrs.id ||
           this.attrs.panels[i].attrs.trackGroupId;
       this.panelPositions[i] =
@@ -343,8 +343,11 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
       totalOnCanvas++;
 
       if (!isPanelVNode(panel)) {
-        throw Error('Vnode passed to panel container is not a panel');
+        throw new Error('Vnode passed to panel container is not a panel');
       }
+
+      // TODO(hjd): This cast should be unnecessary given the type guard above.
+      const p = panel as PanelVNode<{}>;
 
       this.ctx.save();
       this.ctx.translate(0, yStartOnCanvas);
@@ -353,9 +356,9 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
       clipRect.rect(0, 0, size.width, size.height);
       this.ctx.clip(clipRect);
       const beforeRender = debugNow();
-      panel.state.renderCanvas(this.ctx, size, panel);
+      p.state.renderCanvas(this.ctx, size, p);
       this.updatePanelStats(
-          i, panel.state, debugNow() - beforeRender, this.ctx, size);
+          i, p.state, debugNow() - beforeRender, this.ctx, size);
       this.ctx.restore();
       panelYStart += panelHeight;
     }

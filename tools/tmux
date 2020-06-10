@@ -264,6 +264,10 @@ if tmux has-session -t demo; then
 fi
 tmux -2 new-session -d -s demo
 
+if [ ! -z "$ANDROID_ADB_SERVER_PORT" ]; then
+  tmux set-environment -t demo ANDROID_ADB_SERVER_PORT $ANDROID_ADB_SERVER_PORT
+fi
+
 if tmux -V | awk '{split($2, ver, "."); if (ver[1] < 2) exit 1 ; else if (ver[1] == 2 && ver[2] < 1) exit 1 }'; then
   tmux set-option -g mouse on
 else

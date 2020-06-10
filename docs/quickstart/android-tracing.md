@@ -70,6 +70,11 @@ all the various knobs of Perfetto.
 If you are running on a Mac or Linux host, or are using a bash-based terminal
 on Windows, you can use the following:
 
+WARNING: The below command does not work on Android P because the `--txt` option
+was introduced in Q. The binary protobuf format should be used instead; the
+details of this can be found on the
+[_Trace configuration_ page](https://perfetto.dev/docs/concepts/config#pbtx-vs-binary-format).
+
 ```bash
 adb shell perfetto \
   -c - --txt \
@@ -121,7 +126,7 @@ EOF
 In all other cases, first push the trace config file and then invoke perfetto:
 ```bash
 adb push config.txt /data/local/tmp/trace_config.txt
-abb shell 'perfetto --txt -c - -o /data/misc/perfetto-traces/trace < /data/local/tmp/trace_config.txt'
+adb shell 'perfetto --txt -c - -o /data/misc/perfetto-traces/trace < /data/local/tmp/trace_config.txt'
 ```
 
 NOTE: because of strict SELinux rules, on versions of older than Android 11
