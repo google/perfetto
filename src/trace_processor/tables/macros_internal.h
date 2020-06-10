@@ -95,6 +95,14 @@ class MacroTable : public Table {
   }
   ~MacroTable() override;
 
+  // We don't want a move or copy constructor because we store pointers to
+  // fields of macro tables which will be invalidated if we move/copy them.
+  MacroTable(const MacroTable&) = delete;
+  MacroTable& operator=(const MacroTable&) = delete;
+
+  MacroTable(MacroTable&&) = delete;
+  MacroTable& operator=(MacroTable&&) noexcept = delete;
+
   const char* table_name() const { return name_; }
 
  protected:
@@ -122,7 +130,7 @@ class MacroTable : public Table {
   //
   // Only relevant for parentless tables. Will be empty and unreferenced by
   // tables with parents.
-  SparseVector<StringPool::Id> type_;
+  NullableVector<StringPool::Id> type_;
 
  private:
   const char* name_ = nullptr;
@@ -203,7 +211,7 @@ class MacroTable : public Table {
 
 // Defines the member variable in the Table.
 #define PERFETTO_TP_TABLE_MEMBER(type, name, ...) \
-  SparseVector<TypedColumn<type>::serialized_type> name##_;
+  NullableVector<TypedColumn<type>::serialized_type> name##_;
 
 #define PERFETTO_TP_COLUMN_FLAG_HAS_FLAG_COL(type, name, flags) \
   case ColumnIndex::name:                                       \
@@ -220,6 +228,13 @@ class MacroTable : public Table {
                                   PERFETTO_TP_COLUMN_FLAG_HAS_FLAG_COL, \
                                   PERFETTO_TP_COLUMN_FLAG_NO_FLAG_COL)  \
   (__VA_ARGS__)
+
+// Creates the sparse vector with the given flags.
+#define PERFETTO_TP_TABLE_CONSTRUCTOR_SV(type, name, ...)               \
+  name##_ =                                                             \
+      (FlagsForColumn(ColumnIndex::name) & Column::Flag::kDense)        \
+          ? NullableVector<TypedColumn<type>::serialized_type>::Dense() \
+          : NullableVector<TypedColumn<type>::serialized_type>::Sparse();
 
 // Invokes the chosen column constructor by passing the given args.
 #define PERFETTO_TP_TABLE_CONSTRUCTOR_COLUMN(type, name, ...)               \
@@ -335,6 +350,12 @@ class MacroTable : public Table {
           parent_(parent) {                                                   \
       /*                                                                      \
        * Expands to                                                           \
+       * col1_ = NullableVector<col1_type>(mode)                              \
+       * ...                                                                  \
+       */                                                                     \
+      PERFETTO_TP_TABLE_COLUMNS(DEF, PERFETTO_TP_TABLE_CONSTRUCTOR_SV);       \
+      /*                                                                      \
+       * Expands to                                                           \
        * columns_.emplace_back("col1", col1_, Column::kNoFlag, this,          \
        *                        columns_.size(), row_maps_.size() - 1);       \
        * columns_.emplace_back("col2", col2_, Column::kNoFlag, this,          \
@@ -420,8 +441,8 @@ class MacroTable : public Table {
                                                                               \
     /*                                                                        \
      * Expands to                                                             \
-     * SparseVector<col1_type> col1_;                                         \
-     * SparseVector<col2_type> col2_;                                         \
+     * NullableVector<col1_type> col1_;                                       \
+     * NullableVector<col2_type> col2_;                                       \
      * ...                                                                    \
      */                                                                       \
     PERFETTO_TP_TABLE_COLUMNS(DEF, PERFETTO_TP_TABLE_MEMBER)                  \

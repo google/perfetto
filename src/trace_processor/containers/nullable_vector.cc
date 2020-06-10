@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/containers/sparse_vector.h"
+#include "src/trace_processor/containers/nullable_vector.h"
 
 namespace perfetto {
 namespace trace_processor {
 
-SparseVectorBase::~SparseVectorBase() = default;
+NullableVectorBase::~NullableVectorBase() = default;
 
 }  // namespace trace_processor
 }  // namespace perfetto

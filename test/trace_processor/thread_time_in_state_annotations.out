@@ -1,0 +1,8 @@
+
+
+"track_type","track_name","ts","dur","upid","value"
+"counter","Total unknown core cycles / sec",3000000000,1000000000,0,33000
+"counter","Thread 10 (1) (unknown core)",3000000000,1000000000,1,22000
+"counter","Thread 20 (3) (unknown core)",3000000000,1000000000,2,11000
+"counter","Thread 10 (1) (unknown core)",2000000000,1000000000,1,1100
+"counter","Total unknown core cycles / sec",2000000000,1000000000,0,1100

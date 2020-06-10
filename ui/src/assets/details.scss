@@ -93,6 +93,24 @@
   font-family: 'Roboto Condensed', sans-serif;
   font-weight: 300;
   color: #3c4b5d;
+
+  .material-icons {
+    @include transition(0.3s);
+    font-size: 16px;
+    margin-left: 5px;
+    &:hover {
+      cursor: pointer;
+    }
+    &.grey {
+      border-radius: 3px;
+      border: 1px solid transparent;
+      background-color: #e8e8e8;
+      &:hover {
+        border: #475566 solid 1px;
+      }
+    }
+  }
+
   .details-panel-heading {
     padding: 10px 0 5px 0;
     position: sticky;
@@ -189,22 +207,6 @@
       text-align: left;
       width: 30%;
       font-weight: normal;
-    }
-    .material-icons {
-      @include transition(0.3s);
-      font-size: 16px;
-      margin-left: 5px; 
-      &:hover {
-        cursor: pointer;
-      }
-      &.grey {
-        border-radius: 3px;
-        border: 1px solid transparent;
-        background-color: #e8e8e8;
-        &:hover {
-          border: #475566 solid 1px;
-        }
-      }
     }
   }
 

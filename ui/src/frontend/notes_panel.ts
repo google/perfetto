@@ -20,6 +20,7 @@ import {timeToString} from '../common/time';
 
 import {randomColor} from './colorizer';
 import {TRACK_SHELL_WIDTH} from './css_constants';
+import {PerfettoMouseEvent} from './events';
 import {globals} from './globals';
 import {gridlines} from './gridline_helper';
 import {Panel, PanelSize} from './panel';
@@ -40,7 +41,7 @@ export class NotesPanel extends Panel {
 
   oncreate({dom}: m.CVnodeDOM) {
     dom.addEventListener('mousemove', (e: Event) => {
-      this.hoveredX = (e as MouseEvent).layerX - TRACK_SHELL_WIDTH;
+      this.hoveredX = (e as PerfettoMouseEvent).layerX - TRACK_SHELL_WIDTH;
       if (globals.state.scrubbingEnabled) {
         const timescale = globals.frontendLocalState.timeScale;
         const timestamp = timescale.pxToTime(this.hoveredX);
@@ -49,7 +50,7 @@ export class NotesPanel extends Panel {
       globals.rafScheduler.scheduleRedraw();
     }, {passive: true});
     dom.addEventListener('mouseenter', (e: Event) => {
-      this.hoveredX = (e as MouseEvent).layerX - TRACK_SHELL_WIDTH;
+      this.hoveredX = (e as PerfettoMouseEvent).layerX - TRACK_SHELL_WIDTH;
       globals.rafScheduler.scheduleRedraw();
     });
     dom.addEventListener('mouseout', () => {
@@ -60,15 +61,13 @@ export class NotesPanel extends Panel {
   }
 
   view() {
-    return m(
-      '.notes-panel',
-      {
-        onclick: (e: MouseEvent) => {
-          const isMovie = globals.state.flagPauseEnabled;
-          this.onClick(e.layerX - TRACK_SHELL_WIDTH, e.layerY, isMovie);
-          e.stopPropagation();
-        },
-      });
+    return m('.notes-panel', {
+      onclick: (e: PerfettoMouseEvent) => {
+        const isMovie = globals.state.flagPauseEnabled;
+        this.onClick(e.layerX - TRACK_SHELL_WIDTH, e.layerY, isMovie);
+        e.stopPropagation();
+      },
+    });
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {

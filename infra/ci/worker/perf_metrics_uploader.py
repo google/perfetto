@@ -66,31 +66,39 @@ def metric_list_to_hash_dict(raw_metrics):
 
 
 def create_stackdriver_metrics(ts, metrics):
-  desc = {'timeSeries': []}
-  for _, metric in metrics.iteritems():
-    metric_name = metric['metric']
-    desc['timeSeries'] += [{
-        'metric': {
-            'type':
-                'custom.googleapis.com/perfetto-ci/perf/%s' % metric_name,
-            'labels':
-                dict(
-                    list(metric.get('tags', {}).items()) +
-                    list(metric.get('labels', {}).items())),
-        },
-        'resource': {
-            'type': 'global'
-        },
-        'points': [{
-            'interval': {
-                'endTime': ts
-            },
-            'value': {
-                'doubleValue': str(metric['value'])
-            }
-        }]
-    }]
-  return desc
+  # Chunk up metrics into 100 element chunks to comply with Stackdriver's
+  # restrictions on the number of metrics in a request.
+  metrics_list = list(metrics.values())
+  metric_chunks = [metrics_list[x:x + 100] for x in range(0, len(metrics), 100)]
+  desc_chunks = []
+
+  for chunk in metric_chunks:
+    desc = {'timeSeries': []}
+    for metric in chunk:
+      metric_name = metric['metric']
+      desc['timeSeries'] += [{
+          'metric': {
+              'type':
+                  'custom.googleapis.com/perfetto-ci/perf/%s' % metric_name,
+              'labels':
+                  dict(
+                      list(metric.get('tags', {}).items()) +
+                      list(metric.get('labels', {}).items())),
+          },
+          'resource': {
+              'type': 'global'
+          },
+          'points': [{
+              'interval': {
+                  'endTime': ts
+              },
+              'value': {
+                  'doubleValue': str(metric['value'])
+              }
+          }]
+      }]
+    desc_chunks.append(desc)
+  return desc_chunks
 
 
 def main():
@@ -116,8 +124,9 @@ def main():
   # Only upload Stackdriver metrics for post-submit runs.
   git_ref = job['env'].get('PERFETTO_TEST_GIT_REF')
   if git_ref == 'refs/heads/master':
-    sd_metrics = create_stackdriver_metrics(ts, metrics)
-    req('POST', STACKDRIVER_API + '/timeSeries', body=sd_metrics)
+    sd_metrics_chunks = create_stackdriver_metrics(ts, metrics)
+    for sd_metrics in sd_metrics_chunks:
+      req('POST', STACKDRIVER_API + '/timeSeries', body=sd_metrics)
 
   return 0
 

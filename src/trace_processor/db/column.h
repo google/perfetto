@@ -22,8 +22,8 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/containers/nullable_vector.h"
 #include "src/trace_processor/containers/row_map.h"
-#include "src/trace_processor/containers/sparse_vector.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/compare.h"
 
@@ -88,12 +88,12 @@ class Column {
     // up filtering and skip sorting.
     kSorted = 1 << 0,
 
-    // Indicates the data in the column is non-null. That is, the SparseVector
+    // Indicates the data in the column is non-null. That is, the NullableVector
     // passed in will never have any null entries. This is only used for
     // numeric columns (string columns and id columns both have special
     // handling which ignores this flag).
     //
-    // This is used to speed up filters as we can safely index SparseVector
+    // This is used to speed up filters as we can safely index NullableVector
     // directly if this flag is set.
     kNonNull = 1 << 1,
 
@@ -102,6 +102,13 @@ class Column {
     // displayed to the user as it is part of the internal implementation
     // details of the table.
     kHidden = 1 << 2,
+
+    // Indicates that the data in this column is stored densely. This
+    // allows for fast Set calls to change the data in the column.
+    //
+    // This flag is only meaningful for nullable columns has no effect for
+    // non-null columns.
+    kDense = 1 << 3,
   };
 
   // Flags specified for an id column.
@@ -109,7 +116,7 @@ class Column {
 
   template <typename T>
   Column(const char* name,
-         SparseVector<T>* storage,
+         NullableVector<T>* storage,
          /* Flag */ uint32_t flags,
          Table* table,
          uint32_t col_idx_in_table,
@@ -136,12 +143,12 @@ class Column {
 
   template <typename T>
   static Column WithOwnedStorage(const char* name,
-                                 std::unique_ptr<SparseVector<T>> storage,
+                                 std::unique_ptr<NullableVector<T>> storage,
                                  /* Flag */ uint32_t flags,
                                  Table* table,
                                  uint32_t col_idx_in_table,
                                  uint32_t row_map_idx) {
-    SparseVector<T>* ptr = storage.get();
+    NullableVector<T>* ptr = storage.get();
     return Column(name, ToColumnType<T>(), flags, table, col_idx_in_table,
                   row_map_idx, ptr, std::move(storage));
   }
@@ -185,22 +192,22 @@ class Column {
     PERFETTO_CHECK(value.type == type());
     switch (type_) {
       case ColumnType::kInt32: {
-        mutable_sparse_vector<int32_t>()->Set(
+        mutable_nullable_vector<int32_t>()->Set(
             row, static_cast<int32_t>(value.long_value));
         break;
       }
       case ColumnType::kUint32: {
-        mutable_sparse_vector<uint32_t>()->Set(
+        mutable_nullable_vector<uint32_t>()->Set(
             row, static_cast<uint32_t>(value.long_value));
         break;
       }
       case ColumnType::kInt64: {
-        mutable_sparse_vector<int64_t>()->Set(
+        mutable_nullable_vector<int64_t>()->Set(
             row, static_cast<int64_t>(value.long_value));
         break;
       }
       case ColumnType::kDouble: {
-        mutable_sparse_vector<double>()->Set(row, value.double_value);
+        mutable_nullable_vector<double>()->Set(row, value.double_value);
         break;
       }
       case ColumnType::kString: {
@@ -281,6 +288,9 @@ class Column {
   // Returns true if this column is a sorted column.
   bool IsSorted() const { return (flags_ & Flag::kSorted) != 0; }
 
+  // Returns true if this column is a dense column.
+  bool IsDense() const { return (flags_ & Flag::kDense) != 0; }
+
   // Returns the backing RowMap for this Column.
   // This function is defined out of line because of a circular dependency
   // between |Table| and |Column|.
@@ -338,17 +348,17 @@ class Column {
   // Returns the backing sparse vector cast to contain data of type T.
   // Should only be called when |type_| == ToColumnType<T>().
   template <typename T>
-  SparseVector<T>* mutable_sparse_vector() {
+  NullableVector<T>* mutable_nullable_vector() {
     PERFETTO_DCHECK(ToColumnType<T>() == type_);
-    return static_cast<SparseVector<T>*>(sparse_vector_);
+    return static_cast<NullableVector<T>*>(nullable_vector_);
   }
 
   // Returns the backing sparse vector cast to contain data of type T.
   // Should only be called when |type_| == ToColumnType<T>().
   template <typename T>
-  const SparseVector<T>& sparse_vector() const {
+  const NullableVector<T>& nullable_vector() const {
     PERFETTO_DCHECK(ToColumnType<T>() == type_);
-    return *static_cast<const SparseVector<T>*>(sparse_vector_);
+    return *static_cast<const NullableVector<T>*>(nullable_vector_);
   }
 
   // Returns the type of this Column in terms of SqlValue::Type.
@@ -424,8 +434,8 @@ class Column {
          Table* table,
          uint32_t col_idx_in_table,
          uint32_t row_map_idx,
-         SparseVectorBase* sparse_vector,
-         std::shared_ptr<SparseVectorBase> owned_sparse_vector);
+         NullableVectorBase* nullable_vector,
+         std::shared_ptr<NullableVectorBase> owned_nullable_vector);
 
   Column(const Column&) = delete;
   Column& operator=(const Column&) = delete;
@@ -434,19 +444,19 @@ class Column {
   SqlValue GetAtIdx(uint32_t idx) const {
     switch (type_) {
       case ColumnType::kInt32: {
-        auto opt_value = sparse_vector<int32_t>().Get(idx);
+        auto opt_value = nullable_vector<int32_t>().Get(idx);
         return opt_value ? SqlValue::Long(*opt_value) : SqlValue();
       }
       case ColumnType::kUint32: {
-        auto opt_value = sparse_vector<uint32_t>().Get(idx);
+        auto opt_value = nullable_vector<uint32_t>().Get(idx);
         return opt_value ? SqlValue::Long(*opt_value) : SqlValue();
       }
       case ColumnType::kInt64: {
-        auto opt_value = sparse_vector<int64_t>().Get(idx);
+        auto opt_value = nullable_vector<int64_t>().Get(idx);
         return opt_value ? SqlValue::Long(*opt_value) : SqlValue();
       }
       case ColumnType::kDouble: {
-        auto opt_value = sparse_vector<double>().Get(idx);
+        auto opt_value = nullable_vector<double>().Get(idx);
         return opt_value ? SqlValue::Double(*opt_value) : SqlValue();
       }
       case ColumnType::kString: {
@@ -573,17 +583,17 @@ class Column {
   // Should only be called when |type_| == ColumnType::kString.
   NullTermStringView GetStringPoolStringAtIdx(uint32_t idx) const {
     PERFETTO_DCHECK(type_ == ColumnType::kString);
-    return string_pool_->Get(sparse_vector<StringPool::Id>().GetNonNull(idx));
+    return string_pool_->Get(nullable_vector<StringPool::Id>().GetNonNull(idx));
   }
 
   // Only filled for columns which own the data inside them. Generally this is
   // only true for columns which are dynamically generated at runtime.
-  // Keep this before |sparse_vector_|.
-  std::shared_ptr<SparseVectorBase> owned_sparse_vector_;
+  // Keep this before |nullable_vector_|.
+  std::shared_ptr<NullableVectorBase> owned_nullable_vector_;
 
-  // type_ is used to cast sparse_vector_ to the correct type.
+  // type_ is used to cast nullable_vector_ to the correct type.
   ColumnType type_ = ColumnType::kInt64;
-  SparseVectorBase* sparse_vector_ = nullptr;
+  NullableVectorBase* nullable_vector_ = nullptr;
 
   const char* name_ = nullptr;
   uint32_t flags_ = Flag::kNoFlag;

@@ -1,10 +1,14 @@
 android_thread_time_in_state {
   processes {
+    metadata {
+      name: "com.google.pid5"
+    }
     metrics_by_core_type {
       core_type: "unknown"
       runtime_ms: 20
     }
     threads {
+      main_thread: true
       metrics_by_core_type {
         core_type: "unknown"
         runtime_ms: 20
@@ -12,17 +16,40 @@ android_thread_time_in_state {
     }
   }
   processes {
+    metadata {
+      name: "com.google.pid11"
+    }
     metrics_by_core_type {
       core_type: "unknown"
       runtime_ms: 20
     }
     threads {
+      name: "tid11"
+      main_thread: true
       metrics_by_core_type {
         core_type: "unknown"
         runtime_ms: 10
       }
     }
     threads {
+      name: "tid12"
+      main_thread: false
+      metrics_by_core_type {
+        core_type: "unknown"
+        runtime_ms: 10
+      }
+    }
+  }
+  processes {
+    metadata {
+      name: "com.google.pid17"
+    }
+    metrics_by_core_type {
+      core_type: "unknown"
+      runtime_ms: 10
+    }
+    threads {
+      main_thread: true
       metrics_by_core_type {
         core_type: "unknown"
         runtime_ms: 10

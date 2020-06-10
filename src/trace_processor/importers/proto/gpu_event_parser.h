@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_GRAPHICS_EVENT_PARSER_H_
-#define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_GRAPHICS_EVENT_PARSER_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_GPU_EVENT_PARSER_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_GPU_EVENT_PARSER_H_
 
 #include <vector>
 
@@ -52,16 +52,15 @@ struct ProtoEnumHasher {
 };
 
 // Class for parsing graphics related events.
-class GraphicsEventParser {
+class GpuEventParser {
  public:
   using ConstBytes = protozero::ConstBytes;
   using VulkanMemoryEventSource = VulkanMemoryEvent::Source;
   using VulkanMemoryEventOperation = VulkanMemoryEvent::Operation;
-  explicit GraphicsEventParser(TraceProcessorContext*);
+  explicit GpuEventParser(TraceProcessorContext*);
 
   void ParseGpuCounterEvent(int64_t ts, ConstBytes);
   void ParseGpuRenderStageEvent(int64_t ts, ConstBytes);
-  void ParseGraphicsFrameEvent(int64_t timestamp, ConstBytes);
   void ParseGpuLog(int64_t ts, ConstBytes);
 
   void ParseVulkanMemoryEvent(PacketSequenceStateGeneration*, ConstBytes);
@@ -90,27 +89,6 @@ class GraphicsEventParser {
   size_t gpu_hw_queue_counter_ = 0;
   // Map of stage ID -> pair(stage name, stage description)
   std::vector<std::pair<StringId, StringId>> gpu_render_stage_ids_;
-  // For GraphicsFrameEvent
-  const StringId graphics_event_scope_id_;
-  const StringId unknown_event_name_id_;
-  const StringId no_layer_name_name_id_;
-  const StringId layer_name_key_id_;
-  std::array<StringId, 14> event_type_name_ids_;
-  int64_t previous_timestamp_ = 0;
-  char present_frame_buffer_[4096];
-  char present_frame_layer_buffer_[4096];
-  char present_frame_numbers_buffer_[4096];
-  StringId present_event_name_id_;
-  base::StringWriter present_frame_name_;
-  base::StringWriter present_frame_layer_name_;
-  base::StringWriter present_frame_numbers_;
-  TrackId present_track_id_;
-  // Row indices of frame stats table. Used to populate the slice_id after
-  // inserting the rows.
-  std::vector<uint32_t> graphics_frame_stats_idx_;
-  // Map of buffer ID -> (Map of GraphicsFrameEvent -> ts of that event)
-  std::unordered_map<uint32_t, std::unordered_map<uint64_t, int64_t>>
-      graphics_frame_stats_map_;
   // For VulkanMemoryEvent
   std::unordered_map<VulkanMemoryEvent::AllocationScope,
                      int64_t /*counter_value*/,
@@ -140,4 +118,4 @@ class GraphicsEventParser {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_GRAPHICS_EVENT_PARSER_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_GPU_EVENT_PARSER_H_

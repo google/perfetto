@@ -41,7 +41,7 @@ TEST(TaskStateUnittest, Smoke) {
   ASSERT_STREQ(TaskState(8).ToString().data(), "t");
   ASSERT_STREQ(TaskState(16).ToString().data(), "X");
   ASSERT_STREQ(TaskState(32).ToString().data(), "Z");
-  ASSERT_STREQ(TaskState(64).ToString().data(), "x");
+  ASSERT_STREQ(TaskState(64).ToString().data(), "I");
   ASSERT_STREQ(TaskState(128).ToString().data(), "K");
   ASSERT_STREQ(TaskState(256).ToString().data(), "W");
   ASSERT_STREQ(TaskState(512).ToString().data(), "P");
@@ -49,13 +49,40 @@ TEST(TaskStateUnittest, Smoke) {
 }
 
 TEST(TaskStateUnittest, MultipleState) {
-  ASSERT_STREQ(TaskState(2048).ToString().data(), "R+");
-  ASSERT_STREQ(TaskState(4096).ToString().data(), "R+");
   ASSERT_STREQ(TaskState(130).ToString().data(), "DK");
   ASSERT_STREQ(TaskState(258).ToString().data(), "DW");
 
   ASSERT_EQ(TaskState("D|K").raw_state(), 130);
   ASSERT_EQ(TaskState("D|W").raw_state(), 258);
+}
+
+TEST(TaskStateUnittest, KernelVersion) {
+  auto state = TaskState(static_cast<uint16_t>(0u), VersionNumber{4, 14});
+  ASSERT_TRUE(state.is_valid());
+
+  ASSERT_STREQ(state.ToString().data(), "R");
+  ASSERT_STREQ(TaskState(1, VersionNumber{4, 14}).ToString().data(), "S");
+  ASSERT_STREQ(TaskState(2, VersionNumber{4, 14}).ToString().data(), "D");
+  ASSERT_STREQ(TaskState(4, VersionNumber{4, 14}).ToString().data(), "T");
+  ASSERT_STREQ(TaskState(8, VersionNumber{4, 14}).ToString().data(), "t");
+  ASSERT_STREQ(TaskState(16, VersionNumber{4, 14}).ToString().data(), "X");
+  ASSERT_STREQ(TaskState(32, VersionNumber{4, 14}).ToString().data(), "Z");
+  ASSERT_STREQ(TaskState(64, VersionNumber{4, 14}).ToString().data(), "P");
+  ASSERT_STREQ(TaskState(128, VersionNumber{4, 14}).ToString().data(), "I");
+
+  // Any without a specific state but less than max are runnable in this kernel.
+  ASSERT_STREQ(TaskState(256, VersionNumber{4, 14}).ToString().data(), "R");
+  ASSERT_STREQ(TaskState(512, VersionNumber{4, 14}).ToString().data(), "R");
+  ASSERT_STREQ(TaskState(1024, VersionNumber{4, 14}).ToString().data(), "R");
+  ASSERT_STREQ(TaskState(2048, VersionNumber{4, 14}).ToString().data(), "R");
+}
+
+TEST(TaskStateUnittest, MaxValueKernelVersion) {
+  // Max value means pre-empted but is different for each kernel version.
+  ASSERT_STREQ(TaskState(2048).ToString().data(), "R+");
+  ASSERT_STREQ(TaskState(2048, VersionNumber{4, 8}).ToString().data(), "R+");
+  ASSERT_STREQ(TaskState(4096, VersionNumber{4, 14}).ToString().data(), "R+");
+  ASSERT_STREQ(TaskState(4096, VersionNumber{4, 19}).ToString().data(), "R+");
 }
 
 }  // namespace

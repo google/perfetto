@@ -27,7 +27,8 @@ type TrackDataStore = Map<string, {}>;
 type QueryResultsStore = Map<string, {}>;
 type AggregateDataStore = Map<string, AggregateData>;
 type Description = Map<string, string>;
-type Args = Map<string, string>;
+export type Arg = string|{kind: 'SLICE', trackId: string, sliceId: number};
+export type Args = Map<string, Arg>;
 export interface SliceDetails {
   ts?: number;
   dur?: number;

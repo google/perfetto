@@ -105,19 +105,21 @@ void ClockTracker::AddSnapshot(const std::vector<ClockValue>& clocks) {
                     vect.snapshot_ids.back() < snapshot_id);
 
     if (!vect.timestamps_ns.empty() &&
-        timestamp_ns <= vect.timestamps_ns.back()) {
+        timestamp_ns < vect.timestamps_ns.back()) {
       // Clock is not monotonic.
 
       if (clock_id == trace_time_clock_id_) {
         // The trace clock cannot be non-monotonic.
-        PERFETTO_ELOG(
-            "Clock sync error: the trace clock (id=%" PRIu64
-            ") is not "
-            "monotonic at snapshot %" PRIu32 ". %" PRId64 " not > %" PRId64 ".",
-            clock_id, snapshot_id, timestamp_ns, vect.timestamps_ns.back());
+        PERFETTO_ELOG("Clock sync error: the trace clock (id=%" PRIu64
+                      ") is not monotonic at snapshot %" PRIu32 ". %" PRId64
+                      " not >= %" PRId64 ".",
+                      clock_id, snapshot_id, timestamp_ns,
+                      vect.timestamps_ns.back());
         context_->storage->IncrementStats(stats::invalid_clock_snapshots);
         return;
       }
+
+      PERFETTO_DLOG("Detected non-monotonic clock with ID %" PRIu64, clock_id);
 
       // For the other clocks the best thing we can do is mark it as
       // non-monotonic and refuse to use it as a source clock in the resolution
@@ -208,6 +210,9 @@ base::Optional<int64_t> ClockTracker::ConvertSlowpath(ClockId src_clock_id,
 
   ClockPath path = FindPath(src_clock_id, target_clock_id);
   if (!path.valid()) {
+    PERFETTO_DLOG("No path from clock %" PRIu64 " to %" PRIu64
+                  " at timestamp %" PRId64,
+                  src_clock_id, target_clock_id, src_timestamp);
     context_->storage->IncrementStats(stats::clock_sync_failure);
     return base::nullopt;
   }

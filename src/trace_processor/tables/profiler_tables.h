@@ -244,16 +244,16 @@ PERFETTO_TP_TABLE(PERFETTO_TP_HEAP_GRAPH_CLASS_DEF);
 // @param type_id class this object is an instance of.
 // @param root_type if not NULL, this object is a GC root.
 // @tablegroup ART Heap Profiler
-#define PERFETTO_TP_HEAP_GRAPH_OBJECT_DEF(NAME, PARENT, C) \
-  NAME(HeapGraphObjectTable, "heap_graph_object")          \
-  PERFETTO_TP_ROOT_TABLE(PARENT, C)                        \
-  C(uint32_t, upid)                                        \
-  C(int64_t, graph_sample_ts)                              \
-  C(int64_t, self_size)                                    \
-  C(base::Optional<uint32_t>, reference_set_id)            \
-  C(int32_t, reachable)                                    \
-  C(HeapGraphClassTable::Id, type_id)                      \
-  C(base::Optional<StringPool::Id>, root_type)             \
+#define PERFETTO_TP_HEAP_GRAPH_OBJECT_DEF(NAME, PARENT, C)            \
+  NAME(HeapGraphObjectTable, "heap_graph_object")                     \
+  PERFETTO_TP_ROOT_TABLE(PARENT, C)                                   \
+  C(uint32_t, upid)                                                   \
+  C(int64_t, graph_sample_ts)                                         \
+  C(int64_t, self_size)                                               \
+  C(base::Optional<uint32_t>, reference_set_id, Column::Flag::kDense) \
+  C(int32_t, reachable)                                               \
+  C(HeapGraphClassTable::Id, type_id)                                 \
+  C(base::Optional<StringPool::Id>, root_type)                        \
   C(int32_t, root_distance, Column::Flag::kHidden)
 
 PERFETTO_TP_TABLE(PERFETTO_TP_HEAP_GRAPH_OBJECT_DEF);

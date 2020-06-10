@@ -27,7 +27,7 @@ import("perfetto.gni")
 #
 # For instance:
 # perfetto_proto_library("xxx_@TYPE@") {
-#   proto_generators = [ "lite", "zero" ]  # lite+zero is the default value.
+#   proto_generators = [ "lite", "zero" ]  # lite+zero+cpp is the default value.
 #   sources = [ "one.proto", "two.proto" ]
 #   deps = [ "dep:@TYPE@" ]
 # }

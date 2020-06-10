@@ -181,7 +181,7 @@ UniqueTid ProcessTracker::UpdateThread(uint32_t tid, uint32_t pid) {
 
   // Find matching process or create new one.
   if (!thread_table->upid()[utid].has_value()) {
-    thread_table->mutable_upid()->Set(utid, GetOrCreateProcess(pid));
+    AssociateThreadToProcess(utid, GetOrCreateProcess(pid));
   }
 
   ResolvePendingAssociations(utid, *thread_table->upid()[utid]);
@@ -313,13 +313,13 @@ void ProcessTracker::AssociateThreads(UniqueTid utid1, UniqueTid utid2) {
   auto opt_upid2 = tt->upid()[utid2];
 
   if (opt_upid1.has_value() && !opt_upid2.has_value()) {
-    tt->mutable_upid()->Set(utid2, *opt_upid1);
+    AssociateThreadToProcess(utid2, *opt_upid1);
     ResolvePendingAssociations(utid2, *opt_upid1);
     return;
   }
 
   if (opt_upid2.has_value() && !opt_upid1.has_value()) {
-    tt->mutable_upid()->Set(utid1, *opt_upid2);
+    AssociateThreadToProcess(utid1, *opt_upid2);
     ResolvePendingAssociations(utid1, *opt_upid2);
     return;
   }
@@ -385,7 +385,7 @@ void ProcessTracker::ResolvePendingAssociations(UniqueTid utid_arg,
       // Update the other thread and associated it to the same process.
       PERFETTO_DCHECK(!tt->upid()[other_utid] ||
                       tt->upid()[other_utid] == upid);
-      tt->mutable_upid()->Set(other_utid, upid);
+      AssociateThreadToProcess(other_utid, upid);
 
       // Erase the pair. The |pending_assocs_| vector is not sorted and swapping
       // a std::pair<uint32_t, uint32_t> is cheap.
@@ -397,6 +397,14 @@ void ProcessTracker::ResolvePendingAssociations(UniqueTid utid_arg,
       resolved_utids.emplace_back(other_utid);
     }
   }  // while (!resolved_utids.empty())
+}
+
+void ProcessTracker::AssociateThreadToProcess(UniqueTid utid, UniquePid upid) {
+  auto* thread_table = context_->storage->mutable_thread_table();
+  thread_table->mutable_upid()->Set(utid, upid);
+  auto* process_table = context_->storage->mutable_process_table();
+  bool main_thread = thread_table->tid()[utid] == process_table->pid()[upid];
+  thread_table->mutable_is_main_thread()->Set(utid, main_thread);
 }
 
 void ProcessTracker::SetPidZeroIgnoredForIdleProcess() {

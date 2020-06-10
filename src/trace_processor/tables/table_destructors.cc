@@ -66,7 +66,6 @@ InstantTable::~InstantTable() = default;
 SchedSliceTable::~SchedSliceTable() = default;
 GpuSliceTable::~GpuSliceTable() = default;
 GraphicsFrameSliceTable::~GraphicsFrameSliceTable() = default;
-GraphicsFrameStatsTable::~GraphicsFrameStatsTable() = default;
 DescribeSliceTable::~DescribeSliceTable() = default;
 
 // track_tables.h

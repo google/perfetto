@@ -96,16 +96,18 @@ void SliceTracker::ScopedGpu(const tables::GpuSliceTable::Row& row,
   });
 }
 
-void SliceTracker::ScopedFrameEvent(
+SliceId SliceTracker::ScopedFrameEvent(
     const tables::GraphicsFrameSliceTable::Row& row,
     SetArgsCallback args_callback) {
   PERFETTO_DCHECK(row.dur >= 0);
 
-  StartSlice(row.ts, TrackId(row.track_id), args_callback, [this, &row]() {
-    return context_->storage->mutable_graphics_frame_slice_table()
-        ->Insert(row)
-        .id;
+  SliceId id;
+  StartSlice(row.ts, TrackId(row.track_id), args_callback, [this, &row, &id]() {
+    id =
+        context_->storage->mutable_graphics_frame_slice_table()->Insert(row).id;
+    return id;
   });
+  return id;
 }
 
 base::Optional<uint32_t> SliceTracker::End(int64_t timestamp,
@@ -122,25 +124,26 @@ base::Optional<uint32_t> SliceTracker::End(int64_t timestamp,
   return context_->storage->slice_table().id().IndexOf(*slice_id);
 }
 
-void SliceTracker::AddArgs(TrackId track_id,
-                           StringId category,
-                           StringId name,
-                           SetArgsCallback args_callback) {
+base::Optional<uint32_t> SliceTracker::AddArgs(TrackId track_id,
+                                               StringId category,
+                                               StringId name,
+                                               SetArgsCallback args_callback) {
   auto& stack = stacks_[track_id];
   if (stack.empty())
-    return;
+    return base::nullopt;
 
   auto* slices = context_->storage->mutable_slice_table();
   base::Optional<uint32_t> stack_idx =
       MatchingIncompleteSliceIndex(stack, name, category);
   if (!stack_idx.has_value())
-    return;
+    return base::nullopt;
   uint32_t slice_idx = stack[*stack_idx].first;
   PERFETTO_DCHECK(slices->dur()[slice_idx] == kPendingDuration);
   // Add args to current pending slice.
   ArgsTracker* tracker = &stack[*stack_idx].second;
   auto bound_inserter = tracker->AddArgsTo(slices->id()[slice_idx]);
   args_callback(&bound_inserter);
+  return slice_idx;
 }
 
 base::Optional<SliceId> SliceTracker::EndGpu(int64_t ts,
