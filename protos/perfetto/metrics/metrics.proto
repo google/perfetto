@@ -20,23 +20,24 @@ package perfetto.protos;
 
 import "protos/perfetto/metrics/android/batt_metric.proto";
 import "protos/perfetto/metrics/android/cpu_metric.proto";
-import "protos/perfetto/metrics/android/mem_metric.proto";
-import "protos/perfetto/metrics/android/mem_unagg_metric.proto";
-import "protos/perfetto/metrics/android/ion_metric.proto";
-import "protos/perfetto/metrics/android/lmk_metric.proto";
-import "protos/perfetto/metrics/android/lmk_reason_metric.proto";
-import "protos/perfetto/metrics/android/powrails_metric.proto";
-import "protos/perfetto/metrics/android/startup_metric.proto";
+import "protos/perfetto/metrics/android/display_metrics.proto";
 import "protos/perfetto/metrics/android/heap_profile_callsites.proto";
 import "protos/perfetto/metrics/android/hwui_metric.proto";
-import "protos/perfetto/metrics/android/package_list.proto";
-import "protos/perfetto/metrics/android/unmapped_java_symbols.proto";
-import "protos/perfetto/metrics/android/unsymbolized_frames.proto";
+import "protos/perfetto/metrics/android/ion_metric.proto";
 import "protos/perfetto/metrics/android/java_heap_histogram.proto";
 import "protos/perfetto/metrics/android/java_heap_stats.proto";
-import "protos/perfetto/metrics/android/display_metrics.proto";
+import "protos/perfetto/metrics/android/lmk_metric.proto";
+import "protos/perfetto/metrics/android/lmk_reason_metric.proto";
+import "protos/perfetto/metrics/android/mem_metric.proto";
+import "protos/perfetto/metrics/android/mem_unagg_metric.proto";
+import "protos/perfetto/metrics/android/package_list.proto";
+import "protos/perfetto/metrics/android/powrails_metric.proto";
+import "protos/perfetto/metrics/android/startup_metric.proto";
+import "protos/perfetto/metrics/android/surfaceflinger.proto";
 import "protos/perfetto/metrics/android/task_names.proto";
 import "protos/perfetto/metrics/android/thread_time_in_state_metric.proto";
+import "protos/perfetto/metrics/android/unmapped_java_symbols.proto";
+import "protos/perfetto/metrics/android/unsymbolized_frames.proto";
 
 // Trace processor metadata
 message TraceMetadata {
@@ -58,7 +59,7 @@ message TraceMetadata {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 25
+// Next id: 26
 message TraceMetrics {
   reserved 4, 10, 13, 14;
 
@@ -120,6 +121,9 @@ message TraceMetrics {
   optional AndroidTaskNames android_task_names = 23;
 
   optional AndroidThreadTimeInStateMetric android_thread_time_in_state = 24;
+
+  // Metric associated with surfaceflinger.
+  optional AndroidSurfaceflingerMetric android_surfaceflinger = 25;
 
   // Demo extensions.
   extensions 450 to 499;
