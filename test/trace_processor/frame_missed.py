@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# Copyright (C) 2019 The Android Open Source Project
+# Copyright (C) 2020 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,20 +25,16 @@ trace = synth_common.create_trace()
 
 trace.add_packet(ts=1)
 trace.add_process(10, 1, "parent_process")
-trace.add_process(11, 1, "other_process")
+trace.add_process(11, 10, "child_process")
 
 trace.add_ftrace_packet(1)
 
-# Emit an event on an irrelevant thread.
-trace.add_rss_stat(90, tid=11, member=0, size=20, mm_id=0x5678, curr=1)
-
-# Emit an event for the process.
-trace.add_rss_stat(100, tid=10, member=0, size=100, mm_id=0x1234, curr=1)
-
-# Now kill the process.
-trace.add_process_free(ts=101, tid=10, comm="parent_process", prio=0)
-
-# Emit an event on another thread which reuses the struct after free.
-trace.add_rss_stat(103, tid=11, member=0, size=10, mm_id=0x1234, curr=0)
+trace.add_print(ts=99, tid=11, buf='C|10|PrevFrameMissed|0')
+trace.add_print(ts=100, tid=11, buf='C|10|PrevFrameMissed|0')
+trace.add_print(ts=101, tid=11, buf='C|10|PrevFrameMissed|1')
+trace.add_print(ts=102, tid=11, buf='C|10|PrevFrameMissed|0')
+trace.add_print(ts=103, tid=11, buf='C|10|PrevFrameMissed|1')
+trace.add_print(ts=104, tid=11, buf='C|10|PrevFrameMissed|1')
+trace.add_print(ts=105, tid=11, buf='C|10|PrevFrameMissed|0')
 
 print(trace.trace.SerializeToString())

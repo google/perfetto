@@ -32,6 +32,7 @@ perfetto_proto_library("@TYPE@") {
     "powrails_metric.proto",
     "process_metadata.proto",
     "startup_metric.proto",
+    "surfaceflinger.proto",
     "task_names.proto",
     "thread_time_in_state_metric.proto",
     "unmapped_java_symbols.proto",
