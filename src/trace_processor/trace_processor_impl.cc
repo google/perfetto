@@ -130,6 +130,14 @@ void CreateBuiltinTables(sqlite3* db) {
     PERFETTO_ELOG("Error initializing: %s", error);
     sqlite3_free(error);
   }
+  sqlite3_exec(db,
+               "CREATE TABLE power_profile"
+               "(device STRING, cpu INT, cluster INT, freq INT, power DOUBLE);",
+               0, 0, &error);
+  if (error) {
+    PERFETTO_ELOG("Error initializing: %s", error);
+    sqlite3_free(error);
+  }
 
   // Initialize the bounds table with some data so even before parsing any data,
   // we still have a valid table.
