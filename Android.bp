@@ -6481,8 +6481,8 @@ filegroup {
   srcs: [
     "src/trace_processor/containers/bit_vector.cc",
     "src/trace_processor/containers/bit_vector_iterators.cc",
+    "src/trace_processor/containers/nullable_vector.cc",
     "src/trace_processor/containers/row_map.cc",
-    "src/trace_processor/containers/sparse_vector.cc",
     "src/trace_processor/containers/string_pool.cc",
   ],
 }
@@ -6493,8 +6493,8 @@ filegroup {
   srcs: [
     "src/trace_processor/containers/bit_vector_unittest.cc",
     "src/trace_processor/containers/null_term_string_view_unittest.cc",
+    "src/trace_processor/containers/nullable_vector_unittest.cc",
     "src/trace_processor/containers/row_map_unittest.cc",
-    "src/trace_processor/containers/sparse_vector_unittest.cc",
     "src/trace_processor/containers/string_pool_unittest.cc",
   ],
 }
@@ -6543,6 +6543,7 @@ filegroup {
     "src/trace_processor/importers/common/global_args_tracker.cc",
     "src/trace_processor/importers/common/process_tracker.cc",
     "src/trace_processor/importers/common/slice_tracker.cc",
+    "src/trace_processor/importers/common/system_info_tracker.cc",
     "src/trace_processor/importers/common/track_tracker.cc",
   ],
 }
@@ -6645,8 +6646,9 @@ filegroup {
     "src/trace_processor/importers/proto/android_probes_module.cc",
     "src/trace_processor/importers/proto/android_probes_parser.cc",
     "src/trace_processor/importers/proto/android_probes_tracker.cc",
+    "src/trace_processor/importers/proto/gpu_event_parser.cc",
     "src/trace_processor/importers/proto/graphics_event_module.cc",
-    "src/trace_processor/importers/proto/graphics_event_parser.cc",
+    "src/trace_processor/importers/proto/graphics_frame_event_parser.cc",
     "src/trace_processor/importers/proto/heap_graph_module.cc",
     "src/trace_processor/importers/proto/heap_graph_tracker.cc",
     "src/trace_processor/importers/proto/system_probes_module.cc",

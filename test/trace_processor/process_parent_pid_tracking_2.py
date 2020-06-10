@@ -30,7 +30,7 @@ trace.add_ftrace_packet(0)
 trace.add_newtask(ts=15, tid=11, new_tid=20, new_comm='child', flags=0)
 
 # Create a multi-threaded process which will be forked below.
-trace.add_process_tree_packet(ts=25)
+trace.add_packet(ts=25)
 trace.add_process(10, 0, "main_thread")
 trace.add_thread(11, 10, "worker_thread")
 

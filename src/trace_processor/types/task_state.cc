@@ -26,11 +26,38 @@ namespace perfetto {
 namespace trace_processor {
 namespace ftrace_utils {
 
-TaskState::TaskState(uint16_t raw_state) {
-  if (raw_state > kMaxState) {
+TaskState::TaskState(uint16_t raw_state,
+                     base::Optional<VersionNumber> opt_version) {
+  auto version = VersionNumber{4, 4};
+  if (opt_version) {
+    version = opt_version.value();
+  }
+  max_state_ = version < VersionNumber{4, 9} ? 2048 : 4096;
+
+  if (raw_state > max_state_) {
     state_ = 0;
   } else {
-    state_ = raw_state | kValid;
+    state_ |= kValid;
+  }
+
+  if (version < VersionNumber{4, 14}) {
+    state_ |= raw_state;
+    return;
+  }
+  // All values below kTaskDead are consistent between kernels.
+  state_ |= raw_state & (kTaskDead - 1);
+
+  // Only values up to 0x80 (plus max_state) are relevant in kernels >= 4.14.
+  // See
+  // https://android.googlesource.com/kernel/msm.git/+/refs/heads/android-msm-coral-4.14-android10-qpr1/include/trace/events/sched.h#219
+  if (raw_state & 0x40) {
+    state_ |= kParked;
+  }
+  if (raw_state & 0x80) {
+    state_ |= kTaskDead;
+  }
+  if (raw_state & max_state_) {
+    state_ |= max_state_;
   }
 }
 
@@ -44,7 +71,7 @@ TaskState::TaskState(const char* state_str) {
       invalid_char = true;
       break;
     } else if (c == '+') {
-      state_ |= kMaxState;
+      state_ |= max_state_;
       continue;
     }
 
@@ -77,7 +104,9 @@ TaskState::TaskState(const char* state_str) {
       state_ |= Atom::kExitDead;
     else if (c == 'Z')
       state_ |= Atom::kExitZombie;
-    else if (c == 'x')
+    else if (c == 'x' || c == 'I')
+      // On Linux kernels 4.14+, the character for task dead changed
+      // from 'x' to 'I'.
       state_ |= Atom::kTaskDead;
     else if (c == 'K')
       state_ |= Atom::kWakeKill;
@@ -94,9 +123,8 @@ TaskState::TaskState(const char* state_str) {
       break;
     }
   }
-
   bool no_state = !is_runnable && state_ == 0;
-  if (invalid_char || no_state || state_ > kMaxState) {
+  if (invalid_char || no_state || state_ > max_state_) {
     state_ = 0;
   } else {
     state_ |= kValid;
@@ -113,6 +141,7 @@ TaskState::TaskStateStr TaskState::ToString(char separator) const {
 
   // This mapping is given by the file
   // https://android.googlesource.com/kernel/msm.git/+/android-msm-wahoo-4.4-pie-qpr1/include/trace/events/sched.h#155
+  // Some of these flags are ignored in later kernels but we output them anyway.
   if (is_runnable()) {
     buffer[pos++] = 'R';
   } else {
@@ -146,7 +175,7 @@ TaskState::TaskStateStr TaskState::ToString(char separator) const {
     if (state_ & Atom::kTaskDead) {
       if (separator && pos != 0)
         buffer[pos++] = separator;
-      buffer[pos++] = 'x';
+      buffer[pos++] = 'I';
     }
     if (state_ & Atom::kWakeKill) {
       if (separator && pos != 0)

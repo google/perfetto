@@ -48,6 +48,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "../../../protos/perfetto/trace/ftrace:zero",
       "../../base",
       "../db:lib",
+      "../importers:common",
       "../storage",
       "../types",
     ]
@@ -68,5 +69,19 @@ if (enable_perfetto_trace_processor_sqlite) {
       "../../../gn:sqlite",
       "../../base",
     ]
+  }
+
+  if (enable_perfetto_benchmarks) {
+    source_set("benchmarks") {
+      testonly = true
+      deps = [
+        ":sqlite",
+        "../../../gn:benchmark",
+        "../../../gn:default_deps",
+        "../../../gn:sqlite",
+        "../../base",
+      ]
+      sources = [ "sqlite_vtable_benchmark.cc" ]
+    }
   }
 }

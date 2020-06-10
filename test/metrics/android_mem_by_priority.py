@@ -23,7 +23,7 @@ anon_member = 1
 swap_member = 2
 
 trace = synth_common.create_trace()
-trace.add_process_tree_packet()
+trace.add_packet()
 trace.add_process(1, 0, 'init')
 trace.add_process(2, 1, 'system_server')
 trace.add_process(3, 1, 'com.google.android.calendar')

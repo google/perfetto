@@ -47,7 +47,7 @@ void BenchmarkArgs(benchmark::internal::Benchmark* b) {
 
 template <typename SetType>
 static void BM_SetInsert(benchmark::State& state) {
-  std::vector<int> rnd_data = GetRandData(state.range(0));
+  std::vector<int> rnd_data = GetRandData(static_cast<int>(state.range(0)));
   for (auto _ : state) {
     SetType iset;
     for (const int val : rnd_data)

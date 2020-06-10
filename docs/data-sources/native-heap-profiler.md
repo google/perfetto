@@ -277,7 +277,7 @@ The symbol file is the first with matching Build ID in the following order:
 4. basename of library file relative to binary path, but with base.apk!
     removed from filename.
 5. in the subdirectory .build-id: the first two hex digits of the build-id
-    as subdirectory, then the rest of the hex digits, with ".debug"appended.
+    as subdirectory, then the rest of the hex digits, with ".debug" appended.
     See
     https://fedoraproject.org/wiki/RolandMcGrath/BuildID#Find_files_by_build_ID
 

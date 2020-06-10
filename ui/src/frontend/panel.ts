@@ -29,7 +29,7 @@ export abstract class Panel<Attrs = {}> implements m.ClassComponent<Attrs> {
 
 export type PanelVNode<Attrs = {}> = m.Vnode<Attrs, Panel<Attrs>>;
 
-export function isPanelVNode(vnode: m.Vnode): vnode is PanelVNode {
+export function isPanelVNode(vnode: m.Vnode): vnode is PanelVNode<{}> {
   const tag = vnode.tag as {};
   return (
       typeof tag === 'function' && 'prototype' in tag &&

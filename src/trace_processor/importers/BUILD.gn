@@ -28,6 +28,8 @@ source_set("common") {
     "common/process_tracker.h",
     "common/slice_tracker.cc",
     "common/slice_tracker.h",
+    "common/system_info_tracker.cc",
+    "common/system_info_tracker.h",
     "common/track_tracker.cc",
     "common/track_tracker.h",
   ]

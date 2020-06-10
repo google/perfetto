@@ -49,7 +49,7 @@ def add_startup(trace, ts, pid):
 # Verify that each startup is only associated with a single process
 # (i.e. process exit is taken into account).
 trace = synth_common.create_trace()
-trace.add_process_tree_packet()
+trace.add_packet()
 trace.add_process(1, 0, 'init')
 trace.add_process(2, 1, 'system_server')
 add_startup(trace, ts=100, pid=3)

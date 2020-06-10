@@ -16,7 +16,7 @@
 
 #include <benchmark/benchmark.h>
 
-#include "src/trace_processor/containers/sparse_vector.h"
+#include "src/trace_processor/containers/nullable_vector.h"
 
 namespace {
 
@@ -25,7 +25,7 @@ static constexpr uint32_t kSize = 123456;
 
 }  // namespace
 
-static void BM_SparseVectorAppendNonNull(benchmark::State& state) {
+static void BM_NullableVectorAppendNonNull(benchmark::State& state) {
   std::vector<uint8_t> data_pool(kPoolSize);
 
   static constexpr uint32_t kRandomSeed = 42;
@@ -34,7 +34,7 @@ static void BM_SparseVectorAppendNonNull(benchmark::State& state) {
     data_pool[i] = rnd_engine() % std::numeric_limits<uint8_t>::max();
   }
 
-  perfetto::trace_processor::SparseVector<uint8_t> sv;
+  perfetto::trace_processor::NullableVector<uint8_t> sv;
   uint32_t pool_idx = 0;
   for (auto _ : state) {
     sv.Append(data_pool[pool_idx]);
@@ -42,12 +42,12 @@ static void BM_SparseVectorAppendNonNull(benchmark::State& state) {
     benchmark::ClobberMemory();
   }
 }
-BENCHMARK(BM_SparseVectorAppendNonNull);
+BENCHMARK(BM_NullableVectorAppendNonNull);
 
-static void BM_SparseVectorGetNonNull(benchmark::State& state) {
+static void BM_NullableVectorGetNonNull(benchmark::State& state) {
   std::vector<uint32_t> idx_pool(kPoolSize);
 
-  perfetto::trace_processor::SparseVector<uint8_t> sv;
+  perfetto::trace_processor::NullableVector<uint8_t> sv;
   static constexpr uint32_t kRandomSeed = 42;
   std::minstd_rand0 rnd_engine(kRandomSeed);
   for (uint32_t i = 0; i < kSize; ++i) {
@@ -63,4 +63,4 @@ static void BM_SparseVectorGetNonNull(benchmark::State& state) {
     pool_idx = (pool_idx + 1) % kPoolSize;
   }
 }
-BENCHMARK(BM_SparseVectorGetNonNull);
+BENCHMARK(BM_NullableVectorGetNonNull);

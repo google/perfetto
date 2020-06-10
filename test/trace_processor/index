@@ -213,6 +213,7 @@ process_metadata_matching.textproto process_metadata_matching.sql process_metada
 
 # Thread time_in_state
 thread_time_in_state.textproto thread_time_in_state.sql thread_time_in_state.out
+thread_time_in_state_annotations.py thread_time_in_state_annotations.sql thread_time_in_state_annotations.out
 
 # Initial display state
 initial_display_state.textproto initial_display_state.sql initial_display_state.out
@@ -220,3 +221,6 @@ initial_display_state.textproto initial_display_state.sql initial_display_state.
 # CPU info
 cpu_info.textproto cpu.sql cpu.out
 cpu_info.textproto cpu_freq.sql cpu_freq.out
+
+# Thread table
+thread_main_thread.textproto thread_main_thread.sql thread_main_thread.out

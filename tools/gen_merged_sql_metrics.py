@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # Copyright (C) 2019 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -108,7 +108,7 @@ def main():
       variable = filename_to_variable(os.path.splitext(name)[0])
 
       # This is for Windows which has \ as a path separator.
-      path = path.replace("\\", "\\\\")
+      path = path.replace("\\", "/")
       output.write('\n  {{"{}", {}}},\n'.format(path, variable))
     output.write("};\n")
 

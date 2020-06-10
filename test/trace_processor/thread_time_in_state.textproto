@@ -4,6 +4,40 @@ packet {
   }
 }
 packet {
+  timestamp: 1
+  process_tree {
+    processes {
+      pid: 5
+      ppid: 1
+      cmdline: "com.google.pid5"
+    }
+    threads {
+      tid: 5
+      tgid: 5
+    }
+    threads {
+      tid: 7
+      tgid: 5
+      name: "tid7"
+    }
+    processes {
+      pid: 11
+      ppid: 1
+      cmdline: "com.google.pid11"
+    }
+    threads {
+      tid: 11
+      tgid: 11
+      name: "tid11"
+    }
+    threads {
+      tid: 12
+      tgid: 11
+      name: "tid12"
+    }
+  }
+}
+packet {
   timestamp: 2
   process_stats {
     processes {
@@ -74,6 +108,50 @@ packet {
         tid: 12
         cpu_freq_indices: 6
         cpu_freq_ticks: 2
+      }
+    }
+  }
+}
+packet {
+  timestamp: 5
+  process_tree {
+    processes {
+      pid: 17
+      ppid: 1
+      cmdline: "com.google.pid17"
+    }
+    threads {
+      tid: 17
+      tgid: 17
+    }
+  }
+}
+packet {
+  timestamp: 5
+  process_stats {
+    processes {
+      pid: 17
+      threads {
+        tid: 17
+        cpu_freq_indices: 1
+        cpu_freq_ticks: 1
+        cpu_freq_indices: 2
+        cpu_freq_ticks: 1
+        cpu_freq_full: true
+      }
+    }
+  }
+}
+packet {
+  timestamp: 6
+  process_stats {
+    processes {
+      pid: 17
+      threads {
+        tid: 17
+        cpu_freq_indices: 1
+        cpu_freq_ticks: 2
+        # cpu_freq_indices: 2 was skipped because it did not change.
       }
     }
   }

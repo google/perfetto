@@ -253,10 +253,10 @@ std::unique_ptr<Table> ExperimentalSliceLayoutGenerator::AddLayoutColumn(
   }
 
   // Step 3: Add the two new columns layout_depth and filter_track_ids:
-  std::unique_ptr<SparseVector<int64_t>> layout_depth_column(
-      new SparseVector<int64_t>());
-  std::unique_ptr<SparseVector<StringPool::Id>> filter_column(
-      new SparseVector<StringPool::Id>());
+  std::unique_ptr<NullableVector<int64_t>> layout_depth_column(
+      new NullableVector<int64_t>());
+  std::unique_ptr<NullableVector<StringPool::Id>> filter_column(
+      new NullableVector<StringPool::Id>());
 
   for (uint32_t i = 0; i < table.row_count(); ++i) {
     TrackId track_id = track_id_col[i];
