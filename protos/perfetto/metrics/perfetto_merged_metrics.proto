@@ -642,6 +642,21 @@ message AndroidStartupMetric {
 
 // End of protos/perfetto/metrics/android/startup_metric.proto
 
+// Begin of protos/perfetto/metrics/android/surfaceflinger.proto
+
+message AndroidSurfaceflingerMetric {
+  // Counts the number of missed frames in the trace.
+  optional uint32 missed_frames = 1;
+
+  // Counts the number of missed HWC frames in the trace.
+  optional uint32 missed_hwc_frames = 2;
+
+  // Counts the number of missed GPU frames in the trace.
+  optional uint32 missed_gpu_frames = 3;
+}
+
+// End of protos/perfetto/metrics/android/surfaceflinger.proto
+
 // Begin of protos/perfetto/metrics/android/task_names.proto
 
 message AndroidTaskNames {
@@ -748,7 +763,7 @@ message TraceMetadata {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 25
+// Next id: 26
 message TraceMetrics {
   reserved 4, 10, 13, 14;
 
@@ -810,6 +825,9 @@ message TraceMetrics {
   optional AndroidTaskNames android_task_names = 23;
 
   optional AndroidThreadTimeInStateMetric android_thread_time_in_state = 24;
+
+  // Metric associated with surfaceflinger.
+  optional AndroidSurfaceflingerMetric android_surfaceflinger = 25;
 
   // Demo extensions.
   extensions 450 to 499;
