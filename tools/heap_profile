@@ -126,7 +126,7 @@ def print_no_profile_error():
   print("No profiles generated", file=sys.stderr)
   print(
     "If this is unexpected, check "
-    "https://docs.perfetto.dev/#/heapprofd?id=troubleshooting.",
+    "https://perfetto.dev/docs/data-sources/native-heap-profiler#troubleshooting.",
     file=sys.stderr)
 
 SDK = {
