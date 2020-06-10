@@ -646,7 +646,10 @@ export class Sidebar implements m.ClassComponent {
         if (isDownloadAndShareDisabled() &&
             item.hasOwnProperty('checkDownloadDisabled')) {
           attrs = {
-            onclick: () => alert('Can not download or share external trace.'),
+            onclick: e => {
+              e.preventDefault();
+              alert('Can not download or share external trace.');
+            },
             href: '#',
             target: null,
             disabled: true,
