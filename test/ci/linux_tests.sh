@@ -42,9 +42,11 @@ tools/diff_test_trace_processor.py \
   --perf-file=/ci/artifacts/perf/tp-perf-all.json \
   ${TP_SHELL}
 
-# Don't run benchmarks under sanitizers or debug, too slow and pointless.
-USING_SANITIZER="$(tools/gn args --short --list=using_sanitizer ${OUT_PATH} | awk '{print $3}')"
+# Don't run benchmarks under x86 (running out of address space because of 4GB)
+# limit or debug (too slow and pointless).
+HOST_CPU="$(tools/gn args --short --list=host_cpu ${OUT_PATH} | awk '{print $3}' | sed -e 's/^"//' -e 's/"$//')"
+TARGET_CPU="$(tools/gn args --short --list=target_cpu ${OUT_PATH} | awk '{print $3}' | sed -e 's/^"//' -e 's/"$//')"
 IS_DEBUG="$(tools/gn args --short --list=is_debug ${OUT_PATH} | awk '{print $3}')"
-if [ "$USING_SANITIZER" == "false" ] && [ "$IS_DEBUG" == "false" ]; then
+if [[ !("$TARGET_CPU" == "x86" || ("$TARGET_CPU" == "" && "$HOST_CPU" == "x86")) && "$IS_DEBUG" == "false" ]]; then
   BENCHMARK_FUNCTIONAL_TEST_ONLY=true ${OUT_PATH}/perfetto_benchmarks
 fi

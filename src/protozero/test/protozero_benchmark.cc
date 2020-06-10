@@ -117,7 +117,7 @@ PERFETTO_ALWAYS_INLINE void Clobber(benchmark::State& state) {
   buf[0] = reinterpret_cast<uint64_t>(&state);
   for (size_t i = 1; i < kBufPerIteration / sizeof(uint64_t); i++)
     buf[i] ^= buf[i - 1];
-  if (buf[kBufPerIteration - 1] == 42)
+  if (buf[(kBufPerIteration / sizeof(uint64_t)) - 1] == 42)
     PERFETTO_CHECK(false);
   benchmark::DoNotOptimize(buf);
 

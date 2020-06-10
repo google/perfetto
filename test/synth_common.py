@@ -39,8 +39,10 @@ class Trace(object):
     self.packet = self.trace.packet.add()
     self.packet.ftrace_events.cpu = cpu
 
-  def add_packet(self):
+  def add_packet(self, ts=None):
     self.packet = self.trace.packet.add()
+    if ts is not None:
+      self.packet.timestamp = ts
     return self.packet
 
   def __add_ftrace_event(self, ts, tid):
@@ -175,11 +177,6 @@ class Trace(object):
 
   def add_atrace_async_end(self, ts, tid, pid, buf):
     self.add_print(ts, tid, 'F|{}|{}|0'.format(pid, buf))
-
-  def add_process_tree_packet(self, ts=None):
-    self.packet = self.trace.packet.add()
-    if ts is not None:
-      self.packet.timestamp = ts
 
   def add_process(self, pid, ppid, cmdline, uid=None):
     process = self.packet.process_tree.processes.add()
@@ -377,6 +374,20 @@ class Trace(object):
     if event_type >= 0:
       buffer_event.type = event_type
     buffer_event.duration_ns = duration
+
+  def add_cpu(self, freqs):
+    cpu = self.packet.cpu_info.cpus.add()
+    for freq in freqs:
+      cpu.frequencies.append(freq)
+
+  def add_process_stats(self, pid, freqs):
+    process = self.packet.process_stats.processes.add()
+    process.pid = pid
+    thread = process.threads.add()
+    thread.tid = pid * 10
+    for index in freqs:
+      thread.cpu_freq_indices.append(index)
+      thread.cpu_freq_ticks.append(freqs[index])
 
 
 def create_trace():

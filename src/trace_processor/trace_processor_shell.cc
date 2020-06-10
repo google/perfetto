@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#include <errno.h>
 #include <fcntl.h>
 #include <inttypes.h>
 #include <stdio.h>
@@ -147,7 +148,17 @@ struct LineDeleter {
 using ScopedLine = std::unique_ptr<char, LineDeleter>;
 
 ScopedLine GetLine(const char* prompt) {
-  return ScopedLine(linenoise(prompt));
+  errno = 0;
+  auto line = ScopedLine(linenoise(prompt));
+  // linenoise returns a nullptr both for CTRL-C and CTRL-D, however in the
+  // former case it sets errno to EAGAIN.
+  // If the user press CTRL-C return "" instead of nullptr. We don't want the
+  // main loop to quit in that case as that is inconsistent with the behavior
+  // "CTRL-C interrupts the current query" and frustrating when hitting that
+  // a split second after the query is done.
+  if (!line && errno == EAGAIN)
+    return ScopedLine(strdup(""));
+  return line;
 }
 
 #else
@@ -502,8 +513,10 @@ util::Status StartInteractiveShell(uint32_t column_width) {
     ScopedLine line = GetLine("> ");
     if (!line)
       break;
-    if (strcmp(line.get(), "") == 0)
+    if (strcmp(line.get(), "") == 0) {
+      printf("If you want to quit either type .q or press CTRL-D (EOF)\n");
       continue;
+    }
     if (line.get()[0] == '.') {
       char command[32] = {};
       char arg[1024] = {};

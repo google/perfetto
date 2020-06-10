@@ -24,6 +24,7 @@ import {
 import {HeapProfileFlamegraphViewingOption} from '../common/state';
 import {timeToCode} from '../common/time';
 
+import {PerfettoMouseEvent} from './events';
 import {Flamegraph, NodeRendering} from './flamegraph';
 import {globals} from './globals';
 import {Panel, PanelSize} from './panel';
@@ -87,13 +88,13 @@ export class HeapProfileDetailsPanel extends
       return m(
           '.details-panel',
           {
-            onclick: (e: MouseEvent) => {
+            onclick: (e: PerfettoMouseEvent) => {
               if (this.flamegraph !== undefined) {
                 this.onMouseClick({y: e.layerY, x: e.layerX});
               }
               return false;
             },
-            onmousemove: (e: MouseEvent) => {
+            onmousemove: (e: PerfettoMouseEvent) => {
               if (this.flamegraph !== undefined) {
                 this.onMouseMove({y: e.layerY, x: e.layerX});
                 globals.rafScheduler.scheduleRedraw();
@@ -127,14 +128,16 @@ export class HeapProfileDetailsPanel extends
                     // Required to stop hot-key handling:
                     onkeydown: (e: Event) => e.stopPropagation(),
                   }),
-                  m('button.download',
-                    {
-                      onclick: () => {
-                        this.downloadPprof();
-                      }
-                    },
-                    m('i.material-icons', 'file_download'),
-                    'Download profile'),
+                  this.profileType === ProfileType.NATIVE_HEAP_PROFILE ?
+                      m('button.download',
+                        {
+                          onclick: () => {
+                            this.downloadPprof();
+                          }
+                        },
+                        m('i.material-icons', 'file_download'),
+                        'Download profile') :
+                      null
                 ]),
             ]),
           m(`div[style=height:${height}px]`),

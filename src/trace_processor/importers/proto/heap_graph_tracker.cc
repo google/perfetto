@@ -33,9 +33,10 @@ base::Optional<base::StringView> PackageFromApp(base::StringView location) {
   }
   size_t second_slash = location.find('/', slash + 1);
   if (second_slash == std::string::npos) {
-    return base::nullopt;
+    location = location.substr(0, slash);
+  } else {
+    location = location.substr(slash + 1, second_slash - slash);
   }
-  location = location.substr(slash + 1, second_slash - slash);
   size_t minus = location.find('-');
   if (minus == std::string::npos) {
     return base::nullopt;
@@ -241,6 +242,7 @@ base::Optional<std::string> HeapGraphTracker::PackageFromLocation(
   if (location.substr(0, data_app.size()) == data_app) {
     auto package = PackageFromApp(location);
     if (!package) {
+      PERFETTO_DLOG("Failed to parse %s", location.ToStdString().c_str());
       context_->storage->IncrementStats(stats::heap_graph_location_parse_error);
       return base::nullopt;
     }
@@ -271,6 +273,43 @@ bool HeapGraphTracker::SetPidAndTimestamp(SequenceState* sequence_state,
   return true;
 }
 
+tables::HeapGraphObjectTable::Id HeapGraphTracker::GetOrInsertObject(
+    SequenceState* sequence_state,
+    uint64_t object_id) {
+  auto it = sequence_state->object_id_to_db_id.find(object_id);
+  if (it == sequence_state->object_id_to_db_id.end()) {
+    auto id_and_row =
+        context_->storage->mutable_heap_graph_object_table()->Insert(
+            {sequence_state->current_upid,
+             sequence_state->current_ts,
+             -1,
+             /*reference_set_id=*/base::nullopt,
+             /*reachable=*/0,
+             {},
+             /*root_type=*/base::nullopt,
+             /*root_distance*/ -1});
+    bool inserted;
+    std::tie(it, inserted) =
+        sequence_state->object_id_to_db_id.emplace(object_id, id_and_row.id);
+  }
+  return it->second;
+}
+
+tables::HeapGraphClassTable::Id HeapGraphTracker::GetOrInsertType(
+    SequenceState* sequence_state,
+    uint64_t type_id) {
+  auto it = sequence_state->type_id_to_db_id.find(type_id);
+  if (it == sequence_state->type_id_to_db_id.end()) {
+    auto id_and_row =
+        context_->storage->mutable_heap_graph_class_table()->Insert(
+            {StringPool::Id(), base::nullopt, base::nullopt});
+    bool inserted;
+    std::tie(it, inserted) =
+        sequence_state->type_id_to_db_id.emplace(type_id, id_and_row.id);
+  }
+  return it->second;
+}
+
 void HeapGraphTracker::AddObject(uint32_t seq_id,
                                  UniquePid upid,
                                  int64_t ts,
@@ -280,7 +319,46 @@ void HeapGraphTracker::AddObject(uint32_t seq_id,
   if (!SetPidAndTimestamp(&sequence_state, upid, ts))
     return;
 
-  sequence_state.current_objects.emplace_back(std::move(obj));
+  tables::HeapGraphObjectTable::Id owner_id =
+      GetOrInsertObject(&sequence_state, obj.object_id);
+  tables::HeapGraphClassTable::Id type_id =
+      GetOrInsertType(&sequence_state, obj.type_id);
+
+  auto* hgo = context_->storage->mutable_heap_graph_object_table();
+  uint32_t row = *hgo->id().IndexOf(owner_id);
+
+  hgo->mutable_self_size()->Set(row, static_cast<int64_t>(obj.self_size));
+  hgo->mutable_type_id()->Set(row, type_id);
+
+  uint32_t reference_set_id =
+      context_->storage->heap_graph_reference_table().row_count();
+  bool any_references = false;
+  for (const SourceObject::Reference& ref : obj.references) {
+    // This is true for unset reference fields.
+    if (ref.owned_object_id == 0)
+      continue;
+    tables::HeapGraphObjectTable::Id owned_id =
+        GetOrInsertObject(&sequence_state, ref.owned_object_id);
+
+    auto ref_id_and_row =
+        context_->storage->mutable_heap_graph_reference_table()->Insert(
+            {reference_set_id,
+             owner_id,
+             owned_id,
+             {},
+             {},
+             /*deobfuscated_field_name=*/base::nullopt});
+    sequence_state.references_for_field_name_id[ref.field_name_id].push_back(
+        ref_id_and_row.id);
+    any_references = true;
+  }
+  if (any_references) {
+    uint32_t owner_row =
+        *context_->storage->heap_graph_object_table().id().IndexOf(owner_id);
+    context_->storage->mutable_heap_graph_object_table()
+        ->mutable_reference_set_id()
+        ->Set(owner_row, reference_set_id);
+  }
 }
 
 void HeapGraphTracker::AddRoot(uint32_t seq_id,
@@ -322,14 +400,24 @@ void HeapGraphTracker::AddInternedFieldName(uint32_t seq_id,
                                             base::StringView str) {
   SequenceState& sequence_state = GetOrCreateSequence(seq_id);
   size_t space = str.find(' ');
-  base::StringView type_name;
+  base::StringView type;
   if (space != base::StringView::npos) {
-    type_name = str.substr(0, space);
+    type = str.substr(0, space);
     str = str.substr(space + 1);
   }
-  sequence_state.interned_fields.emplace(
-      intern_id, InternedField{context_->storage->InternString(str),
-                               context_->storage->InternString(type_name)});
+  StringPool::Id field_name = context_->storage->InternString(str);
+  StringPool::Id type_name = context_->storage->InternString(type);
+  auto it = sequence_state.references_for_field_name_id.find(intern_id);
+  if (it != sequence_state.references_for_field_name_id.end()) {
+    auto hgr = context_->storage->mutable_heap_graph_reference_table();
+    for (const tables::HeapGraphReferenceTable::Id reference_id : it->second) {
+      uint32_t row = *hgr->id().IndexOf(reference_id);
+      hgr->mutable_field_name()->Set(row, field_name);
+      hgr->mutable_field_type_name()->Set(row, type_name);
+
+      field_to_rows_[field_name].emplace_back(row);
+    }
+  }
 }
 
 void HeapGraphTracker::SetPacketIndex(uint32_t seq_id, uint64_t index) {
@@ -362,7 +450,6 @@ void HeapGraphTracker::SetPacketIndex(uint32_t seq_id, uint64_t index) {
 void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
   SequenceState& sequence_state = GetOrCreateSequence(seq_id);
 
-  std::map<uint64_t, tables::HeapGraphClassTable::Id> type_id_to_db;
   for (const auto& p : sequence_state.interned_types) {
     uint64_t id = p.first;
     const InternedType& interned_type = p.second;
@@ -379,11 +466,15 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
         location_name = it->second;
       }
     }
-    auto id_and_row =
-        context_->storage->mutable_heap_graph_class_table()->Insert(
-            {interned_type.name, base::nullopt, location_name});
+    tables::HeapGraphClassTable::Id type_id =
+        GetOrInsertType(&sequence_state, id);
 
-    type_id_to_db[id] = id_and_row.id;
+    auto* hgc = context_->storage->mutable_heap_graph_class_table();
+    uint32_t row = *hgc->id().IndexOf(type_id);
+    hgc->mutable_name()->Set(row, interned_type.name);
+    if (location_name)
+      hgc->mutable_location()->Set(row, *location_name);
+
     base::StringView normalized_type =
         NormalizeTypeName(context_->storage->GetString(interned_type.name));
 
@@ -404,7 +495,7 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
                            context_->storage->InternString(
                                base::StringView(*package_name)),
                            context_->storage->InternString(normalized_type))]
-            .emplace_back(id_and_row.id);
+            .emplace_back(type_id);
       }
     } else {
       // TODO(b/153552977): Remove this workaround.
@@ -417,75 +508,7 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
       class_to_rows_[std::make_pair(
                          base::nullopt,
                          context_->storage->InternString(normalized_type))]
-          .emplace_back(id_and_row.id);
-    }
-  }
-
-  for (const SourceObject& obj : sequence_state.current_objects) {
-    auto type_it = type_id_to_db.find(obj.type_id);
-    if (type_it == type_id_to_db.end()) {
-      context_->storage->IncrementIndexedStats(
-          stats::heap_graph_malformed_packet,
-          static_cast<int>(sequence_state.current_upid));
-      continue;
-    }
-    tables::HeapGraphClassTable::Id db_id = type_it->second;
-    auto id_and_row =
-        context_->storage->mutable_heap_graph_object_table()->Insert(
-            {sequence_state.current_upid, sequence_state.current_ts,
-             static_cast<int64_t>(obj.self_size),
-             /*reference_set_id=*/base::nullopt,
-             /*reachable=*/0, db_id,
-             /*root_type=*/base::nullopt,
-             /*root_distance*/ -1});
-    sequence_state.object_id_to_db_id.emplace(obj.object_id, id_and_row.id);
-  }
-
-  for (const SourceObject& obj : sequence_state.current_objects) {
-    auto it = sequence_state.object_id_to_db_id.find(obj.object_id);
-    if (it == sequence_state.object_id_to_db_id.end())
-      continue;
-    tables::HeapGraphObjectTable::Id owner_id = it->second;
-
-    uint32_t reference_set_id =
-        context_->storage->heap_graph_reference_table().row_count();
-    bool any_references = false;
-    for (const SourceObject::Reference& ref : obj.references) {
-      // This is true for unset reference fields.
-      if (ref.owned_object_id == 0)
-        continue;
-
-      it = sequence_state.object_id_to_db_id.find(ref.owned_object_id);
-      // This can only happen for an invalid type string id, which is already
-      // reported as an error. Silently continue here.
-      if (it == sequence_state.object_id_to_db_id.end())
-        continue;
-
-      tables::HeapGraphObjectTable::Id owned_id = it->second;
-
-      auto field_it = sequence_state.interned_fields.find(ref.field_name_id);
-      if (field_it == sequence_state.interned_fields.end()) {
-        context_->storage->IncrementIndexedStats(
-            stats::heap_graph_invalid_string_id,
-            static_cast<int>(sequence_state.current_upid));
-        continue;
-      }
-      const InternedField& interned_field = field_it->second;
-      StringPool::Id field_name = interned_field.name;
-      auto ref_id_and_row =
-          context_->storage->mutable_heap_graph_reference_table()->Insert(
-              {reference_set_id, owner_id, owned_id, interned_field.name,
-               interned_field.type_name,
-               /*deobfuscated_field_name=*/base::nullopt});
-      field_to_rows_[field_name].emplace_back(ref_id_and_row.row);
-      any_references = true;
-    }
-    if (any_references) {
-      uint32_t owner_row =
-          *context_->storage->heap_graph_object_table().id().IndexOf(owner_id);
-      context_->storage->mutable_heap_graph_object_table()
-          ->mutable_reference_set_id()
-          ->Set(owner_row, reference_set_id);
+          .emplace_back(type_id);
     }
   }
 

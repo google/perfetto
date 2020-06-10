@@ -272,7 +272,7 @@ TraceWriter from a data source. In almost all cases 1 data source ==
 typically create one TraceWriter per thread.
 
 * Trace packets written from a sequence are emitted in the trace file in the
-  same order they have been written, without gaps.
+  same order they have been written.
 
 * There is no ordering guarantee between packets written by different sequences.
   Sequences are, by design, concurrent and more than one linearization is
@@ -302,9 +302,9 @@ typically create one TraceWriter per thread.
 
 In many cases trace packets are fully independent of each other and can be
 processed and interpreted without further context.
-In some cases, however, trace packets can be behaves more like inter-frame video
-encoding techniques, where some frames require the keyframe to be present to be
-meaningfully decoded.
+In some cases, however, they can have _incremental state_ and behave similarly
+to inter-frame video encoding techniques, where some frames require the keyframe
+to be present to be meaningfully decoded.
 
 Here are are two concrete examples:
 
@@ -329,10 +329,11 @@ Here are are two concrete examples:
   dropped in the ring buffer, there will be no way left to work out the process
   details for all the other ftrace events that refer to that PID.
 
-2. The Perfetto Client Libraries, makes extensive use of string interning. Most
-   strings and descriptors (e.g. details about processes / threads) are emitted
-   only once and later referred to using a monotonic ID. In case a loss of the
-   descriptor packet, it is not possible to make fully sense of those events.
+2. The [Track Event library](/docs/instrumentation/track-events) in the Perfetto
+   SDK makes extensive use of string interning. Mos strings and descriptors
+   (e.g. details about processes / threads) are emitted only once and later
+   referred to using a monotonic ID. In case a loss of the descriptor packet,
+   it is not possible to make fully sense of those events.
 
 Trace Processor has built-in mechanism that detect loss of interning data and
 skips ingesting packets that refer to missing interned strings or descriptors.

@@ -677,6 +677,9 @@ class TrackEventParser::EventImporter {
   util::Status ParseMetadataEvent() {
     ProcessTracker* procs = context_->process_tracker.get();
 
+    if (name_id_ == kNullStringId)
+      return util::ErrStatus("Metadata event without name");
+
     // Parse process and thread names from correspondingly named events.
     NullTermStringView event_name = storage_->GetString(name_id_);
     PERFETTO_DCHECK(event_name.data());

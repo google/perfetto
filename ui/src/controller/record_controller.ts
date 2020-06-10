@@ -39,6 +39,7 @@ import {MeminfoCounters, VmstatCounters} from '../common/protos';
 import {
   AdbRecordingTarget,
   isAdbTarget,
+  isAndroidP,
   isChromeTarget,
   MAX_TIME,
   RecordConfig,
@@ -62,11 +63,13 @@ import {Consumer, RpcConsumerPort} from './record_controller_interfaces';
 
 type RPCImplMethod = (Method|rpc.ServiceMethod<Message<{}>, Message<{}>>);
 
-export function genConfigProto(uiCfg: RecordConfig): Uint8Array {
-  return TraceConfig.encode(genConfig(uiCfg)).finish();
+export function genConfigProto(
+    uiCfg: RecordConfig, target: RecordingTarget): Uint8Array {
+  return TraceConfig.encode(genConfig(uiCfg, target)).finish();
 }
 
-export function genConfig(uiCfg: RecordConfig): TraceConfig {
+export function genConfig(
+    uiCfg: RecordConfig, target: RecordingTarget): TraceConfig {
   const protoCfg = new TraceConfig();
   protoCfg.durationMs = uiCfg.durationMs;
 
@@ -441,7 +444,28 @@ export function genConfig(uiCfg: RecordConfig): TraceConfig {
       ftraceEvents.add('ftrace/print');
     }
 
-    ds.config.ftraceConfig.ftraceEvents = Array.from(ftraceEvents);
+    let ftraceEventsArray: string[] = [];
+    if (isAndroidP(target)) {
+      for (const ftraceEvent of ftraceEvents) {
+        // On P, we don't support groups so strip all group names from ftrace
+        // events.
+        const groupAndName = ftraceEvent.split('/');
+        if (groupAndName.length !== 2) {
+          ftraceEventsArray.push(ftraceEvent);
+          continue;
+        }
+        // Filter out any wildcard event groups which was not supported
+        // before Q.
+        if (groupAndName[1] === '*') {
+          continue;
+        }
+        ftraceEventsArray.push(groupAndName[1]);
+      }
+    } else {
+      ftraceEventsArray = Array.from(ftraceEvents);
+    }
+
+    ds.config.ftraceConfig.ftraceEvents = ftraceEventsArray;
     ds.config.ftraceConfig.atraceCategories = Array.from(atraceCats);
     ds.config.ftraceConfig.atraceApps = Array.from(atraceApps);
     protoCfg.dataSources.push(ds);
@@ -494,10 +518,13 @@ export function toPbtxt(configBuffer: Uint8Array): string {
           yield entry.toString();
         } else if (typeof entry === 'boolean') {
           yield entry.toString();
-        } else {
+        } else if (typeof entry === 'object' && entry !== null) {
           yield '{\n';
           yield* message(entry, indent + 4);
           yield ' '.repeat(indent) + '}';
+        } else {
+          throw new Error(`Record proto entry "${entry}" with unexpected type ${
+              typeof entry}`);
         }
         yield '\n';
       }
@@ -536,19 +563,26 @@ export class RecordController extends Controller<'main'> implements Consumer {
     }
     this.config = this.app.state.recordConfig;
 
-    const configProto = genConfigProto(this.config);
+    const configProto =
+        genConfigProto(this.config, this.app.state.recordingTarget);
     const configProtoText = toPbtxt(configProto);
+    const configProtoBase64 = uint8ArrayToBase64(configProto);
     const commandline = `
-      echo '${uint8ArrayToBase64(configProto)}' |
+      echo '${configProtoBase64}' |
       base64 --decode |
       adb shell "perfetto -c - -o /data/misc/perfetto-traces/trace" &&
       adb pull /data/misc/perfetto-traces/trace /tmp/trace
     `;
-    const traceConfig = genConfig(this.config);
+    const traceConfig = genConfig(this.config, this.app.state.recordingTarget);
     // TODO(hjd): This should not be TrackData after we unify the stores.
     this.app.publish('TrackData', {
       id: 'config',
-      data: {commandline, pbtxt: configProtoText, traceConfig}
+      data: {
+        commandline,
+        pbBase64: configProtoBase64,
+        pbtxt: configProtoText,
+        traceConfig
+      }
     });
 
     // If the recordingInProgress boolean state is different, it means that we
@@ -615,7 +649,8 @@ export class RecordController extends Controller<'main'> implements Consumer {
       return;
     }
     const trace = this.generateTrace();
-    globals.dispatch(Actions.openTraceFromBuffer({buffer: trace.buffer}));
+    globals.dispatch(Actions.openTraceFromBuffer(
+        {title: 'Recorded trace', buffer: trace.buffer}));
     this.traceBuffer = [];
   }
 
