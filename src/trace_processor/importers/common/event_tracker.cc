@@ -67,6 +67,19 @@ base::Optional<CounterId> EventTracker::PushCounter(int64_t timestamp,
   return counter_values->Insert({timestamp, track_id, value}).id;
 }
 
+base::Optional<CounterId> EventTracker::PushCounter(
+    int64_t timestamp,
+    double value,
+    TrackId track_id,
+    SetArgsCallback args_callback) {
+  auto maybe_counter_id = PushCounter(timestamp, value, track_id);
+  if (maybe_counter_id) {
+    auto inserter = context_->args_tracker->AddArgsTo(*maybe_counter_id);
+    args_callback(&inserter);
+  }
+  return maybe_counter_id;
+}
+
 InstantId EventTracker::PushInstant(int64_t timestamp,
                                     StringId name_id,
                                     int64_t ref,
