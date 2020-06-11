@@ -437,7 +437,7 @@ util::Status RunMetrics(const std::vector<std::string>& metric_names,
   return util::OkStatus();
 }
 
-void PrintQueryResultInteractively(TraceProcessor::Iterator* it,
+void PrintQueryResultInteractively(Iterator* it,
                                    base::TimeNanos t_start,
                                    uint32_t column_width) {
   base::TimeNanos t_end = t_start;
@@ -543,7 +543,7 @@ util::Status StartInteractiveShell(uint32_t column_width) {
   return util::OkStatus();
 }
 
-util::Status PrintQueryResultAsCsv(TraceProcessor::Iterator* it, FILE* output) {
+util::Status PrintQueryResultAsCsv(Iterator* it, FILE* output) {
   for (uint32_t c = 0; c < it->ColumnCount(); c++) {
     if (c > 0)
       fprintf(output, ",");
