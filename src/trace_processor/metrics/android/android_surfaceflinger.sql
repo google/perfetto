@@ -29,7 +29,7 @@ SELECT RUN_METRIC(
   'output', 'gpu_frame_missed'
 );
 
-CREATE VIEW android_surfaceflinger_annotations AS
+CREATE VIEW android_surfaceflinger_event AS
 SELECT
   'slice' AS track_type,
   'Android Missed Frames' AS track_name,
