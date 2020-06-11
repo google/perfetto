@@ -55,7 +55,7 @@ class TraceProcessorIntegrationTest : public ::testing::Test {
     return util::OkStatus();
   }
 
-  TraceProcessor::Iterator Query(const std::string& query) {
+  Iterator Query(const std::string& query) {
     return processor_->ExecuteQuery(query.c_str());
   }
 

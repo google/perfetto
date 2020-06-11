@@ -76,7 +76,7 @@ const View kObjectsView{"objects", "count", "SUM(count)", nullptr};
 const View kViews[] = {kAllocObjectsView, kObjectsView, kAllocSpaceView,
                        kSpaceView};
 
-using Iterator = trace_processor::TraceProcessor::Iterator;
+using trace_processor::Iterator;
 
 constexpr const char* kQueryProfiles =
     "select distinct hpa.upid, hpa.ts, p.pid from heap_profile_allocation hpa, "
