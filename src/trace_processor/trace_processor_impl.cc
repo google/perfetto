@@ -37,6 +37,7 @@
 #include "src/trace_processor/importers/json/json_trace_tokenizer.h"
 #include "src/trace_processor/importers/proto/metadata_tracker.h"
 #include "src/trace_processor/importers/systrace/systrace_trace_parser.h"
+#include "src/trace_processor/iterator_impl.h"
 #include "src/trace_processor/sqlite/span_join_operator_table.h"
 #include "src/trace_processor/sqlite/sql_stats_table.h"
 #include "src/trace_processor/sqlite/sqlite3_str_split.h"
@@ -705,9 +706,8 @@ size_t TraceProcessorImpl::RestoreInitialTables() {
   return deletion_list.size();
 }
 
-TraceProcessor::Iterator TraceProcessorImpl::ExecuteQuery(
-    const std::string& sql,
-    int64_t time_queued) {
+Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql,
+                                          int64_t time_queued) {
   sqlite3_stmt* raw_stmt;
   int err;
   {
@@ -732,7 +732,7 @@ TraceProcessor::Iterator TraceProcessorImpl::ExecuteQuery(
   std::unique_ptr<IteratorImpl> impl(new IteratorImpl(
       this, *db_, ScopedStmt(raw_stmt), col_count, status, sql_stats_row));
   iterators_.emplace_back(impl.get());
-  return TraceProcessor::Iterator(std::move(impl));
+  return Iterator(std::move(impl));
 }
 
 void TraceProcessorImpl::InterruptQuery() {
@@ -852,43 +852,6 @@ util::Status TraceProcessorImpl::DisableAndReadMetatrace(
   });
   *trace_proto = trace.SerializeAsArray();
   return util::OkStatus();
-}
-
-TraceProcessor::IteratorImpl::IteratorImpl(TraceProcessorImpl* trace_processor,
-                                           sqlite3* db,
-                                           ScopedStmt stmt,
-                                           uint32_t column_count,
-                                           util::Status status,
-                                           uint32_t sql_stats_row)
-    : trace_processor_(trace_processor),
-      db_(db),
-      stmt_(std::move(stmt)),
-      column_count_(column_count),
-      status_(status),
-      sql_stats_row_(sql_stats_row) {}
-
-TraceProcessor::IteratorImpl::~IteratorImpl() {
-  if (trace_processor_) {
-    auto* its = &trace_processor_->iterators_;
-    auto it = std::find(its->begin(), its->end(), this);
-    PERFETTO_CHECK(it != its->end());
-    its->erase(it);
-
-    base::TimeNanos t_end = base::GetWallTimeNs();
-    auto* sql_stats = trace_processor_->context_.storage->mutable_sql_stats();
-    sql_stats->RecordQueryEnd(sql_stats_row_, t_end.count());
-  }
-}
-
-void TraceProcessor::IteratorImpl::Reset() {
-  *this = IteratorImpl(nullptr, nullptr, ScopedStmt(), 0,
-                       util::ErrStatus("Trace processor was deleted"), 0);
-}
-
-void TraceProcessor::IteratorImpl::RecordFirstNextInSqlStats() {
-  base::TimeNanos t_first_next = base::GetWallTimeNs();
-  auto* sql_stats = trace_processor_->context_.storage->mutable_sql_stats();
-  sql_stats->RecordQueryFirstNext(sql_stats_row_, t_first_next.count());
 }
 
 }  // namespace trace_processor
