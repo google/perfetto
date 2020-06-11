@@ -190,7 +190,7 @@ int ExtractSystrace(trace_processor::TraceProcessor* tp,
                     TraceWriter* trace_writer,
                     bool wrapped_in_json,
                     Keep truncate_keep) {
-  using Iterator = trace_processor::TraceProcessor::Iterator;
+  using trace_processor::Iterator;
 
   QueryWriter q_writer(tp, trace_writer);
   if (wrapped_in_json) {

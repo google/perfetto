@@ -34,7 +34,7 @@ namespace perfetto {
 namespace profiling {
 
 namespace {
-using Iterator = trace_processor::TraceProcessor::Iterator;
+using trace_processor::Iterator;
 
 constexpr const char* kQueryUnsymbolized =
     "select spm.name, spm.build_id, spf.rel_pc "
