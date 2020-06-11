@@ -214,6 +214,7 @@ bool LocalBinaryFinder::IsCorrectFile(const std::string& symbol_file,
 
   size_t size = static_cast<size_t>(statbuf.st_size);
 
+  static_assert(EI_CLASS > EI_MAG3, "mem[EI_MAG?] accesses are in range.");
   if (size <= EI_CLASS)
     return false;
 
