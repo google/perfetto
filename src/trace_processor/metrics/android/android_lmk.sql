@@ -35,7 +35,7 @@ LEFT JOIN oom_score_span oom_scores
       raw_events.ts < oom_scores.ts + oom_scores.dur)
 ORDER BY 1;
 
-CREATE VIEW IF NOT EXISTS android_lmk_annotations AS
+CREATE VIEW IF NOT EXISTS android_lmk_event AS
 WITH raw_events AS (
   SELECT
     ts,
