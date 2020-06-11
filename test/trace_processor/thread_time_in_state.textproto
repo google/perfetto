@@ -160,20 +160,20 @@ packet {
   timestamp: 1
   cpu_info {
     cpus {
-      frequencies: 100
-      frequencies: 200
+      frequencies: 100000
+      frequencies: 200000
     }
     cpus {
-      frequencies: 100
-      frequencies: 200
+      frequencies: 100000
+      frequencies: 200000
     }
     cpus {
-      frequencies: 1000
-      frequencies: 2000
+      frequencies: 1000000
+      frequencies: 2000000
     }
     cpus {
-      frequencies: 1000
-      frequencies: 2000
+      frequencies: 1000000
+      frequencies: 2000000
     }
   }
 }
