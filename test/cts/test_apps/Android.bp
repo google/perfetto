@@ -28,7 +28,6 @@ android_test_helper_app {
     sdk_version: "current",
     jni_libs: [
         "libperfettocts_native",
-        "libnativehelper_compat_libc++",
     ],
     jni_uses_platform_apis: true,
 }
@@ -49,7 +48,6 @@ android_test_helper_app {
     sdk_version: "current",
     jni_libs: [
         "libperfettocts_native",
-        "libnativehelper_compat_libc++",
     ],
     jni_uses_platform_apis: true,
 }
@@ -70,7 +68,6 @@ android_test_helper_app {
     sdk_version: "current",
     jni_libs: [
         "libperfettocts_native",
-        "libnativehelper_compat_libc++",
     ],
     jni_uses_platform_apis: true,
 }
