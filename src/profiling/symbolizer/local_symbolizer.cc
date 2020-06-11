@@ -17,7 +17,7 @@
 
 #include "perfetto/base/build_config.h"
 
-// This translation unit is built only on Linux. See //gn/BUILD.gn.
+// This translation unit is built only on Linux and MacOS. See //gn/BUILD.gn.
 #if PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
 
 #include "src/profiling/symbolizer/local_symbolizer.h"
@@ -26,8 +26,8 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
 
-#include <elf.h>
 #include <inttypes.h>
+#include <signal.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -60,16 +60,106 @@ std::vector<std::string> GetLines(FILE* f) {
   return lines;
 }
 
+// We cannot just include elf.h, as that only exists on Linux, and we want to
+// allow symbolization on other platforms as well. As we only need a small
+// subset, it is easiest to define the constants and structs ourselves.
+constexpr auto SHT_NOTE = 7;
+constexpr auto NT_GNU_BUILD_ID = 3;
+constexpr auto ELFCLASS32 = 1;
+constexpr auto ELFCLASS64 = 2;
+constexpr auto ELFMAG0 = 0x7f;
+constexpr auto ELFMAG1 = 'E';
+constexpr auto ELFMAG2 = 'L';
+constexpr auto ELFMAG3 = 'F';
+constexpr auto EI_MAG0 = 0;
+constexpr auto EI_MAG1 = 1;
+constexpr auto EI_MAG2 = 2;
+constexpr auto EI_MAG3 = 3;
+constexpr auto EI_CLASS = 4;
+
 struct Elf32 {
-  using Ehdr = Elf32_Ehdr;
-  using Shdr = Elf32_Shdr;
-  using Nhdr = Elf32_Nhdr;
+  using Addr = uint32_t;
+  using Half = uint16_t;
+  using Off = uint32_t;
+  using Sword = int32_t;
+  using Word = uint32_t;
+  struct Ehdr {
+    unsigned char e_ident[16];
+    Half e_type;
+    Half e_machine;
+    Word e_version;
+    Addr e_entry;
+    Off e_phoff;
+    Off e_shoff;
+    Word e_flags;
+    Half e_ehsize;
+    Half e_phentsize;
+    Half e_phnum;
+    Half e_shentsize;
+    Half e_shnum;
+    Half e_shstrndx;
+  };
+  struct Shdr {
+    Word sh_name;
+    Word sh_type;
+    Word sh_flags;
+    Addr sh_addr;
+    Off sh_offset;
+    Word sh_size;
+    Word sh_link;
+    Word sh_info;
+    Word sh_addralign;
+    Word sh_entsize;
+  };
+  struct Nhdr {
+    Word n_namesz;
+    Word n_descsz;
+    Word n_type;
+  };
 };
 
 struct Elf64 {
-  using Ehdr = Elf64_Ehdr;
-  using Shdr = Elf64_Shdr;
-  using Nhdr = Elf64_Nhdr;
+  using Addr = uint64_t;
+  using Half = uint16_t;
+  using SHalf = int16_t;
+  using Off = uint64_t;
+  using Sword = int32_t;
+  using Word = uint32_t;
+  using Xword = uint64_t;
+  using Sxword = int64_t;
+  struct Ehdr {
+    unsigned char e_ident[16];
+    Half e_type;
+    Half e_machine;
+    Word e_version;
+    Addr e_entry;
+    Off e_phoff;
+    Off e_shoff;
+    Word e_flags;
+    Half e_ehsize;
+    Half e_phentsize;
+    Half e_phnum;
+    Half e_shentsize;
+    Half e_shnum;
+    Half e_shstrndx;
+  };
+  struct Shdr {
+    Word sh_name;
+    Word sh_type;
+    Xword sh_flags;
+    Addr sh_addr;
+    Off sh_offset;
+    Xword sh_size;
+    Word sh_link;
+    Word sh_info;
+    Xword sh_addralign;
+    Xword sh_entsize;
+  };
+  struct Nhdr {
+    Word n_namesz;
+    Word n_descsz;
+    Word n_type;
+  };
 };
 
 template <typename E>
