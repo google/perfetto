@@ -160,6 +160,8 @@ def main(argv):
       "Default 7 days.",
       type=int,
       default=604800000)
+  # This flag is a no-op now. We never start heapprofd explicitly using system
+  # properties.
   parser.add_argument(
       "--no-start", help="Do not start heapprofd.", action='store_true')
   parser.add_argument(
@@ -362,16 +364,6 @@ def main(argv):
         subprocess.check_call,
         ['adb', 'shell', 'su root setenforce %s' % enforcing])
     subprocess.check_call(['adb', 'shell', 'su root setenforce 0'])
-
-  if not args.no_start:
-    heapprofd_prop = subprocess.check_output(
-        ['adb', 'shell', 'getprop persist.heapprofd.enable'])
-    if heapprofd_prop.strip() != '1':
-      subprocess.check_call(
-          ['adb', 'shell', 'setprop persist.heapprofd.enable 1'])
-      atexit.register(subprocess.check_call,
-                      ['adb', 'shell', 'setprop persist.heapprofd.enable 0'])
-
 
   if args.simpleperf:
     subprocess.check_call([
