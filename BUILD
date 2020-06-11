@@ -452,6 +452,7 @@ filegroup(
 filegroup(
     name = "include_perfetto_trace_processor_trace_processor",
     srcs = [
+        "include/perfetto/trace_processor/iterator.h",
         "include/perfetto/trace_processor/read_trace.h",
         "include/perfetto/trace_processor/trace_processor.h",
     ],
@@ -936,6 +937,8 @@ filegroup(
         "src/trace_processor/dynamic/experimental_flamegraph_generator.h",
         "src/trace_processor/dynamic/experimental_slice_layout_generator.cc",
         "src/trace_processor/dynamic/experimental_slice_layout_generator.h",
+        "src/trace_processor/iterator_impl.cc",
+        "src/trace_processor/iterator_impl.h",
         "src/trace_processor/read_trace.cc",
         "src/trace_processor/trace_processor.cc",
         "src/trace_processor/trace_processor_impl.cc",

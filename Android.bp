@@ -6573,6 +6573,7 @@ filegroup {
     "src/trace_processor/dynamic/experimental_counter_dur_generator.cc",
     "src/trace_processor/dynamic/experimental_flamegraph_generator.cc",
     "src/trace_processor/dynamic/experimental_slice_layout_generator.cc",
+    "src/trace_processor/iterator_impl.cc",
     "src/trace_processor/read_trace.cc",
     "src/trace_processor/trace_processor.cc",
     "src/trace_processor/trace_processor_impl.cc",
