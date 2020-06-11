@@ -1,7 +1,7 @@
 # Perfetto - System profiling, app tracing and trace analysis
 
 Perfetto is a production-grade open-source stack for performance
-instrumentation and trace analysis. It offers services and libraries and for
+instrumentation and trace analysis. It offers services and libraries for
 recording system-level and app-level traces, native + java heap profiling, a
 library for analyzing traces using SQL and a web-based UI to visualize and
 explore multi-GB traces.
@@ -12,23 +12,23 @@ explore multi-GB traces.
 
 At its core, Perfetto introduces a novel userspace-to-userspace
 [tracing protocol](/docs/design-docs/api-and-abi.md#tracing-protocol-abi) based
-on direct protobuf serization onto a shared memory buffer. The tracing protocol
-is used both internally for the built-in data sources and exposed to C++ apps
-through the [Tracing SDK](/docs/instrumentation/tracing-sdk.md) and the
+on direct protobuf serialization onto a shared memory buffer. The tracing
+protocol is used both internally for the built-in data sources and exposed to
+C++ apps through the [Tracing SDK](/docs/instrumentation/tracing-sdk.md) and the
 [Track Event Library](/docs/instrumentation/track-events.md).
 
 This new tracing protocol allows dynamic configuration of all aspects of tracing
 through an extensible protobuf-based capability advertisement and data source
 configuration mechanism (see
 [Trace configuration docs](/docs/concepts/config.md)).
-Different data sources can be multiplexed onto different sub-sets of
+Different data sources can be multiplexed onto different subsets of
 user-defined buffers, allowing also streaming of
 [arbitrarily long traces](/docs/concepts/config.md#long-traces) into the
 filesystem.
 
 ### System-wide tracing on Android and Linux
 
-On Linux and Anroid, Perfetto bundles a number of data sources that are able to
+On Linux and Android, Perfetto bundles a number of data sources that are able to
 gather detailed performance data from different system interfaces. For the full
 sets and details see the _Data Sources_ section of the documentation. Same
 examples:
@@ -46,7 +46,7 @@ examples:
 
 * [Native heap profiling](/docs/data-sources/native-heap-profiler.md): a
   low-overhead heap profiler for hooking malloc/free/new/delete and associating
-  memory to callstacks, based on out-of-process unwinding, configurable
+  memory to call-stacks, based on out-of-process unwinding, configurable
   sampling, attachable to already running processes.
 
 * [Java heap profiling](/docs/data-sources/java-heap-profiler.md): an
@@ -70,7 +70,7 @@ developers to enrich traces with app-specific trace points. You can choose
 between the flexibility of defining your own strongly-typed events and creating
 custom data sources or using the easier-to-use
 [Track Event Library](/docs/instrumentation/track-events.md) which allows to
-easily create time-boudned slices, counters and time markers using annotations
+easily create time-bounded slices, counters and time markers using annotations
 of the form `TRACE_EVENT("category", "event_name", "x", "str", "y", 42)`.
 
 The SDK is designed for tracing of multi-process systems and multi-threaded
@@ -109,8 +109,8 @@ Beyond the trace recording capabilities, the Perfetto codebase includes a
 dedicated project for importing, parsing and querying new and legacy trace
 formats, [Trace Processor](/docs/analysis/trace-processor.md).
 
-Trace Processor is a portable C++11 library that provides a column-oriented
-table storage, designed ad-hoc for for efficiently holding hours of trace data
+Trace Processor is a portable C++11 library that provides column-oriented
+table storage, designed ad-hoc for efficiently holding hours of trace data
 into memory and exposes a SQL query interface based on the popular SQLite query
 engine.
 The trace data model becomes a set of
@@ -136,7 +136,7 @@ trace visualizers. Today Trace Processor is used by the
 
 Perfetto provides also a brand new trace visualizer for opening and querying
 hours-long traces, available at [ui.perfetto.dev](https://ui.perfetto.dev).
-The new visualizer takes advantage of modern web platform technolgies.
+The new visualizer takes advantage of modern web platform technologies.
 Its multi-threading design based WebWorkers keeps the UI always responsive;
 the analytical power of Trace Processor and SQLite is fully available in-browser
 through WebAssembly.
