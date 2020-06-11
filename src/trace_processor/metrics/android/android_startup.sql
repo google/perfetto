@@ -232,7 +232,7 @@ SELECT
   ) as startup
 FROM launches;
 
-CREATE VIEW android_startup_annotations AS
+CREATE VIEW android_startup_event AS
 SELECT
   'slice' as track_type,
   'Android App Startups' as track_name,

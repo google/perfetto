@@ -12,9 +12,10 @@
 -- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
+--
+-- Create so that RUN_METRIC will run without outputting any rows.
+CREATE TABLE TEST_TMP AS
+SELECT RUN_METRIC('android/android_thread_time_in_state.sql');
+DROP TABLE TEST_TMP;
 
-CREATE TABLE surpress_output AS
-SELECT RUN_METRIC('android/android_surfaceflinger.sql');
-
-SELECT ts, dur
-FROM android_surfaceflinger_annotations;
+SELECT * FROM android_thread_time_in_state_event;

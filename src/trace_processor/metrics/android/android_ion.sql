@@ -65,7 +65,7 @@ GROUP BY 1;
 -- different processes occurring at the same timestamp. We take the
 -- max as this will take both allocations into account at that
 -- timestamp.
-CREATE VIEW IF NOT EXISTS android_ion_annotations AS
+CREATE VIEW IF NOT EXISTS android_ion_event AS
 SELECT
   'counter' AS track_type,
   printf('ION allocations (heap: %s)', heap_name) AS track_name,
