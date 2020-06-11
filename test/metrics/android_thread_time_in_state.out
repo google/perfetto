@@ -6,12 +6,14 @@ android_thread_time_in_state {
     metrics_by_core_type {
       core_type: "unknown"
       runtime_ms: 20
+      mcycles: 3
     }
     threads {
       main_thread: true
       metrics_by_core_type {
         core_type: "unknown"
         runtime_ms: 20
+        mcycles: 3
       }
     }
   }
@@ -22,6 +24,7 @@ android_thread_time_in_state {
     metrics_by_core_type {
       core_type: "unknown"
       runtime_ms: 20
+      mcycles: 40
     }
     threads {
       name: "tid11"
@@ -29,6 +32,7 @@ android_thread_time_in_state {
       metrics_by_core_type {
         core_type: "unknown"
         runtime_ms: 10
+        mcycles: 20
       }
     }
     threads {
@@ -37,6 +41,7 @@ android_thread_time_in_state {
       metrics_by_core_type {
         core_type: "unknown"
         runtime_ms: 10
+        mcycles: 20
       }
     }
   }
@@ -47,12 +52,14 @@ android_thread_time_in_state {
     metrics_by_core_type {
       core_type: "unknown"
       runtime_ms: 10
+      mcycles: 1
     }
     threads {
       main_thread: true
       metrics_by_core_type {
         core_type: "unknown"
         runtime_ms: 10
+        mcycles: 1
       }
     }
   }
