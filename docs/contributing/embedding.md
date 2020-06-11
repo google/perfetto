@@ -72,7 +72,7 @@ where name = 'measure'
 
 ### Creating derived events
 
-As creating derived events is tied to the metrics subsystem, the `ComputeMetrics` function in the trace processor API should be called with the appropriate metrics. This will create the `<metric_name>_annotations` table/view which can then be queried using the `ExectueQuery` function.
+As creating derived events is tied to the metrics subsystem, the `ComputeMetrics` function in the trace processor API should be called with the appropriate metrics. This will create the `<metric_name>_event` table/view which can then be queried using the `ExectueQuery` function.
 
 NOTE: At some point, there are plans to add an API which does not create the metrics proto but just executes the queries in the metric.
 
