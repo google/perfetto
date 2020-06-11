@@ -159,7 +159,7 @@ export class TraceController extends Controller<States> {
 
         const selectionArgs: SelectionControllerArgs = {engine};
         childControllers.push(
-          Child('selection', SelectionController, selectionArgs));
+            Child('selection', SelectionController, selectionArgs));
 
         const cpuProfileArgs: CpuProfileControllerArgs = {engine};
         childControllers.push(
@@ -540,6 +540,7 @@ export class TraceController extends Controller<States> {
     const threadCounters = await engine.query(`
       select thread_counter_track.name, utid, thread_counter_track.id,
       start_ts, end_ts from thread_counter_track join thread using(utid)
+      where thread_counter_track.name not in ('time_in_state')
     `);
     for (let i = 0; i < threadCounters.numRecords; i++) {
       const name = threadCounters.columns[0].stringValues![i];
