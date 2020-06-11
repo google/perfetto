@@ -58,14 +58,14 @@ NOTE: the metric can be just an empty proto message during prototyping or if no 
 
 To extend a metric with annotations:
 
-1. Create a new table or view with the name `<metric name>_annotations`.
-  * For example, for the [`android_startup`]() metric, we create a view named `android_startup_annotations`.
-  * Note that the trailing `_annotations` suffix in the table name is important.
+1. Create a new table or view with the name `<metric name>_event`.
+  * For example, for the [`android_startup`]() metric, we create a view named `android_startup_event`.
+  * Note that the trailing `_event` suffix in the table name is important.
   * The schema required for this table is given below.
 
 2. Upload and land your change as normal.
 
-The schema of the `<metric name>_annotations` table/view is as follows:
+The schema of the `<metric name>_event` table/view is as follows:
 
 | Name         | Type     | Presence                              | Meaning                                                      |
 | :----------- | -------- | ------------------------------------- | ------------------------------------------------------------ |
