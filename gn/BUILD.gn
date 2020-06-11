@@ -53,7 +53,9 @@ action("gen_buildflags") {
     perfetto_watchdog = "0"
   }
   if (enable_perfetto_tools) {
-    perfetto_local_symbolizer = "PERFETTO_BUILDFLAG_DEFINE_PERFETTO_OS_LINUX()"
+    perfetto_local_symbolizer =
+        "PERFETTO_BUILDFLAG_DEFINE_PERFETTO_OS_LINUX() || " +
+        "PERFETTO_BUILDFLAG_DEFINE_PERFETTO_OS_MACOSX()"
   } else {
     perfetto_local_symbolizer = "0"
   }
