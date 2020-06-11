@@ -23,6 +23,7 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/export.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/status.h"
 #include "perfetto/trace_processor/trace_processor_storage.h"
 
@@ -33,45 +34,9 @@ namespace trace_processor {
 // traces. See TraceProcessorStorage for parsing of trace files.
 class PERFETTO_EXPORT TraceProcessor : public TraceProcessorStorage {
  public:
-  class IteratorImpl;
-
-  // Iterator returning SQL rows satisfied by a query.
-  class Iterator {
-   public:
-    Iterator(std::unique_ptr<IteratorImpl> iterator);
-    ~Iterator();
-
-    Iterator(Iterator&) noexcept = delete;
-    Iterator& operator=(Iterator&) = delete;
-
-    Iterator(Iterator&&) noexcept;
-    Iterator& operator=(Iterator&&);
-
-    // Forwards the iterator to the next result row and returns a boolean of
-    // whether there is a next row. If this method returns false,
-    // |Status()| should be called to check if there was an error. If
-    // there was no error, this means the EOF was reached.
-    bool Next();
-
-    // Returns the value associated with the column |col|. Any call to
-    // |Get()| must be preceded by a call to |Next()| returning
-    // kHasNext. |col| must be less than the number returned by |ColumnCount()|.
-    SqlValue Get(uint32_t col);
-
-    // Returns the name of the column at index |col|. Can be called even before
-    // calling |Next()|.
-    std::string GetColumnName(uint32_t col);
-
-    // Returns the number of columns in this iterator's query. Can be called
-    // even before calling |Next()|.
-    uint32_t ColumnCount();
-
-    // Returns the status of the iterator.
-    util::Status Status();
-
-   private:
-    std::unique_ptr<IteratorImpl> iterator_;
-  };
+  // For legacy API clients. Iterator used to be a nested class here. Many API
+  // clients depends on it at this point.
+  using Iterator = ::perfetto::trace_processor::Iterator;
 
   // Creates a new instance of TraceProcessor.
   static std::unique_ptr<TraceProcessor> CreateInstance(const Config&);
