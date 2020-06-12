@@ -154,7 +154,12 @@ SELECT
       OVER (PARTITION BY core_type, utid, freq ORDER BY ts) AS runtime_ms
 FROM android_thread_time_in_state_base
     JOIN android_thread_time_in_state_event_clock USING(ts)
-    JOIN thread using (utid);
+    JOIN thread using (utid)
+-- Only keep utids which have non-zero runtime in the trace.
+WHERE utid IN (
+  SELECT utid FROM android_thread_time_in_state_counters
+  WHERE android_thread_time_in_state_counters.core_type = core_type
+);
 
 CREATE VIEW android_thread_time_in_state_event_thread AS
 SELECT
@@ -184,7 +189,7 @@ GROUP BY ts, track_name;
 CREATE VIEW android_thread_time_in_state_event AS
 SELECT track_type, track_name, ts, dur, upid, ms_freq * 1000000 / dur AS value
 FROM android_thread_time_in_state_event_thread
-UNION
+UNION ALL
 SELECT track_type, track_name, ts, dur, upid, ms_freq * 1000000 / dur AS value
 FROM android_thread_time_in_state_event_global
 -- Biggest values at top of list in UI.

@@ -35,6 +35,7 @@ trace.add_cpu([1000, 2000])
 trace.add_packet(1 * SEC)
 trace.add_process_stats(pid=1, freqs={1: 1, 2: 1, 3: 1, 4: 1})
 trace.add_process_stats(pid=2, freqs={1: 1, 2: 1, 3: 1, 4: 1})
+trace.add_process_stats(pid=3, freqs={1: 1, 2: 1, 3: 1, 4: 1})
 
 trace.add_packet(2 * SEC)
 trace.add_process_stats(pid=1, freqs={1: 2, 3: 2})
@@ -44,5 +45,8 @@ trace.add_process_stats(pid=1, freqs={1: 2, 3: 2})
 trace.add_packet(3 * SEC)
 trace.add_process_stats(pid=1, freqs={2: 11, 4: 11})
 trace.add_process_stats(pid=2, freqs={1: 11, 3: 11})
+# pid=3 did not record any change in time_in_state, test that it does not
+# appear in events.
+trace.add_process_stats(pid=3, freqs={1: 1})
 
 print(trace.trace.SerializeToString())
