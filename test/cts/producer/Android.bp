@@ -26,7 +26,6 @@ android_test_helper_app {
     sdk_version: "current",
     jni_libs: [
         "libperfettocts_jni",
-        "libnativehelper_compat_libc++",
     ],
     jni_uses_platform_apis: true,
 }

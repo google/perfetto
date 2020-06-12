@@ -3,6 +3,7 @@ cc_library_shared {
   srcs: [
     "fake_producer_jni.cc",
   ],
+  header_libs: ["jni_headers"],
   static_libs: [
     "libgtest",
     "libprotobuf-cpp-lite",
@@ -12,7 +13,6 @@ cc_library_shared {
   shared_libs: [
     "libandroid",
     "liblog",
-    "libnativehelper_compat_libc++",
   ],
   compile_multilib: "both",
   stl: "libc++_static",
