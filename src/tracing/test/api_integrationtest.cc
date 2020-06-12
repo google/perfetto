@@ -46,6 +46,7 @@
 // yyy.gen.h includes are for the test readback path (the code in the test that
 // checks that the results are valid).
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
+#include "protos/perfetto/common/trace_stats.gen.h"
 #include "protos/perfetto/common/track_event_descriptor.gen.h"
 #include "protos/perfetto/config/track_event/track_event_config.gen.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
@@ -2322,6 +2323,37 @@ TEST_F(PerfettoApiTest, GetDataSourceLockedFromCallbacks) {
     packets_found |= packet.for_testing().str() == "on-stop-locked" ? 8 : 0;
   }
   EXPECT_EQ(packets_found, 1 | 2 | 4 | 8);
+}
+
+TEST_F(PerfettoApiTest, GetTraceStats) {
+  perfetto::TraceConfig cfg;
+  cfg.set_duration_ms(500);
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("track_event");
+  auto* tracing_session = NewTrace(cfg);
+  tracing_session->get()->StartBlocking();
+
+  // Asynchronous read.
+  WaitableTestEvent got_stats;
+  tracing_session->get()->GetTraceStats(
+      [&got_stats](perfetto::TracingSession::GetTraceStatsCallbackArgs args) {
+        perfetto::protos::gen::TraceStats trace_stats;
+        EXPECT_TRUE(trace_stats.ParseFromArray(args.trace_stats_data.data(),
+                                               args.trace_stats_data.size()));
+        EXPECT_EQ(1, trace_stats.buffer_stats_size());
+        got_stats.Notify();
+      });
+  got_stats.Wait();
+
+  // Blocking read.
+  auto stats = tracing_session->get()->GetTraceStatsBlocking();
+  perfetto::protos::gen::TraceStats trace_stats;
+  EXPECT_TRUE(trace_stats.ParseFromArray(stats.trace_stats_data.data(),
+                                         stats.trace_stats_data.size()));
+  EXPECT_EQ(1, trace_stats.buffer_stats_size());
+
+  tracing_session->get()->StopBlocking();
 }
 
 TEST_F(PerfettoApiTest, LegacyTraceEvents) {
