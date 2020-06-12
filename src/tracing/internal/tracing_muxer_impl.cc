@@ -28,6 +28,7 @@
 #include "perfetto/ext/base/thread_checker.h"
 #include "perfetto/ext/base/waitable_event.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
+#include "perfetto/ext/tracing/core/trace_stats.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/tracing/buffer_exhausted_policy.h"
@@ -286,10 +287,22 @@ void TracingMuxerImpl::ConsumerImpl::OnObservableEvents(
   }
 }
 
+void TracingMuxerImpl::ConsumerImpl::OnTraceStats(
+    bool success,
+    const TraceStats& trace_stats) {
+  if (!get_trace_stats_callback_)
+    return;
+  TracingSession::GetTraceStatsCallbackArgs callback_arg{};
+  callback_arg.success = success;
+  callback_arg.trace_stats_data = trace_stats.SerializeAsArray();
+  muxer_->task_runner_->PostTask(
+      std::bind(std::move(get_trace_stats_callback_), std::move(callback_arg)));
+  get_trace_stats_callback_ = nullptr;
+}
+
 // The callbacks below are not used.
 void TracingMuxerImpl::ConsumerImpl::OnDetach(bool) {}
 void TracingMuxerImpl::ConsumerImpl::OnAttach(bool, const TraceConfig&) {}
-void TracingMuxerImpl::ConsumerImpl::OnTraceStats(bool, const TraceStats&) {}
 // ----- End of TracingMuxerImpl::ConsumerImpl
 
 // ----- Begin of TracingMuxerImpl::TracingSessionImpl
@@ -395,6 +408,17 @@ void TracingMuxerImpl::TracingSessionImpl::SetOnStopCallback(
     consumer->stop_complete_callback_ = cb;
   });
 }
+
+// Can be called from any thread.
+void TracingMuxerImpl::TracingSessionImpl::GetTraceStats(
+    GetTraceStatsCallback cb) {
+  auto* muxer = muxer_;
+  auto session_id = session_id_;
+  muxer->task_runner_->PostTask([muxer, session_id, cb] {
+    muxer->GetTraceStats(session_id, std::move(cb));
+  });
+}
+
 // ----- End of TracingMuxerImpl::TracingSessionImpl
 
 // static
@@ -854,6 +878,22 @@ void TracingMuxerImpl::ReadTracingSessionData(
   PERFETTO_DCHECK(!consumer->read_trace_callback_);
   consumer->read_trace_callback_ = std::move(callback);
   consumer->service_->ReadBuffers();
+}
+
+void TracingMuxerImpl::GetTraceStats(
+    TracingSessionGlobalID session_id,
+    TracingSession::GetTraceStatsCallback callback) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  auto* consumer = FindConsumer(session_id);
+  if (!consumer) {
+    TracingSession::GetTraceStatsCallbackArgs callback_arg{};
+    callback_arg.success = false;
+    callback(std::move(callback_arg));
+    return;
+  }
+  PERFETTO_DCHECK(!consumer->get_trace_stats_callback_);
+  consumer->get_trace_stats_callback_ = std::move(callback);
+  consumer->service_->GetTraceStats();
 }
 
 TracingMuxerImpl::ConsumerImpl* TracingMuxerImpl::FindConsumer(
