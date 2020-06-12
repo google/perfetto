@@ -68,4 +68,26 @@ std::vector<char> TracingSession::ReadTraceBlocking() {
   return raw_trace;
 }
 
+TracingSession::GetTraceStatsCallbackArgs
+TracingSession::GetTraceStatsBlocking() {
+  std::mutex mutex;
+  std::condition_variable cv;
+  GetTraceStatsCallbackArgs result;
+  bool stats_read = false;
+
+  GetTraceStats(
+      [&mutex, &result, &stats_read, &cv](GetTraceStatsCallbackArgs args) {
+        result = std::move(args);
+        std::unique_lock<std::mutex> lock(mutex);
+        stats_read = true;
+        cv.notify_one();
+      });
+
+  {
+    std::unique_lock<std::mutex> lock(mutex);
+    cv.wait(lock, [&stats_read] { return stats_read; });
+  }
+  return result;
+}
+
 }  // namespace perfetto
