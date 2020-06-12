@@ -18,13 +18,13 @@ cc_library_shared {
   srcs: [
     "target.cc",
   ],
+  header_libs: ["jni_headers"],
   static_libs: [
     "perfetto_cts_jni_deps",
   ],
   shared_libs: [
     "libandroid",
     "liblog",
-    "libnativehelper_compat_libc++",
   ],
   compile_multilib: "both",
   stl: "libc++_static",
