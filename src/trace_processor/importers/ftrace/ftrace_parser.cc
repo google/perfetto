@@ -353,6 +353,18 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         ParseSdeTracingMarkWrite(ts, pid, data);
         break;
       }
+      case FtraceEvent::kClockSetRateFieldNumber: {
+        ParseClockSetRate(ts, data);
+        break;
+      }
+      case FtraceEvent::kClockEnableFieldNumber: {
+        ParseClockEnable(ts, data);
+        break;
+      }
+      case FtraceEvent::kClockDisableFieldNumber: {
+        ParseClockDisable(ts, data);
+        break;
+      }
       default:
         break;
     }
@@ -846,6 +858,37 @@ void FtraceParser::ParseBinderUnlock(int64_t timestamp,
                                      ConstBytes blob) {
   protos::pbzero::BinderUnlockFtraceEvent::Decoder evt(blob.data, blob.size);
   BinderTracker::GetOrCreate(context_)->Unlock(timestamp, pid);
+}
+
+void FtraceParser::ParseClockSetRate(int64_t timestamp, ConstBytes blob) {
+  protos::pbzero::ClockSetRateFtraceEvent::Decoder evt(blob.data, blob.size);
+  static const char kSubtitle[] = "Frequency";
+  ClockRate(timestamp, evt.name(), kSubtitle, evt.state());
+}
+
+void FtraceParser::ParseClockEnable(int64_t timestamp, ConstBytes blob) {
+  protos::pbzero::ClockEnableFtraceEvent::Decoder evt(blob.data, blob.size);
+  static const char kSubtitle[] = "State";
+  ClockRate(timestamp, evt.name(), kSubtitle, evt.state());
+}
+
+void FtraceParser::ParseClockDisable(int64_t timestamp, ConstBytes blob) {
+  protos::pbzero::ClockDisableFtraceEvent::Decoder evt(blob.data, blob.size);
+  static const char kSubtitle[] = "State";
+  ClockRate(timestamp, evt.name(), kSubtitle, evt.state());
+}
+
+void FtraceParser::ClockRate(int64_t timestamp,
+                             base::StringView clock_name,
+                             base::StringView subtitle,
+                             uint64_t rate) {
+  char counter_name[255];
+  snprintf(counter_name, sizeof(counter_name), "%.*s %.*s",
+           int(clock_name.size()), clock_name.data(), int(subtitle.size()),
+           subtitle.data());
+  StringId name = context_->storage->InternString(counter_name);
+  TrackId track = context_->track_tracker->InternGlobalCounterTrack(name);
+  context_->event_tracker->PushCounter(timestamp, rate, track);
 }
 
 }  // namespace trace_processor
