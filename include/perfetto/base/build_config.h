@@ -45,6 +45,8 @@
 #include <TargetConditionals.h>
 #if defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE
 #define PERFETTO_BUILDFLAG_DEFINE_PERFETTO_OS_IOS() 1
+#else
+#define PERFETTO_BUILDFLAG_DEFINE_PERFETTO_OS_IOS() 0
 #endif
 #elif defined(__linux__)
 #define PERFETTO_BUILDFLAG_DEFINE_PERFETTO_OS_ANDROID() 0
