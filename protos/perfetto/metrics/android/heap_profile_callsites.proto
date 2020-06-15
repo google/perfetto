@@ -52,7 +52,7 @@ message HeapProfileCallsites {
   }
 
   // Callsites per process instance.
-  // Next id: 7
+  // Next id: 8
   message InstanceStats {
     optional uint32 pid = 1;
     // TODO(ilkos): Remove process_name in favour of the metadata.
@@ -64,6 +64,8 @@ message HeapProfileCallsites {
     optional int64 profile_delta_bytes = 4;
     // Bytes allocated via malloc irrespective of whether they were freed.
     optional int64 profile_total_bytes = 5;
+    // Peak anon RSS + swap for this process
+    optional int64 max_anon_rss_and_swap_bytes = 7;
   }
 
   repeated InstanceStats instance_stats = 1;
