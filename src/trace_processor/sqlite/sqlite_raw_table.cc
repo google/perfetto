@@ -196,10 +196,8 @@ void ArgsSerializer::SerializeArgs() {
     return;
   } else if (event_name_ == "clock_set_rate") {
     using CSR = protos::pbzero::ClockSetRateFtraceEvent;
-
-    // We use the string "todo" as the name to stay consistent with old
-    // trace_to_text print code.
-    writer_->AppendString(" todo");
+    writer_->AppendLiteral(" ");
+    WriteValueForField(CSR::kNameFieldNumber);
     WriteArgForField(CSR::kStateFieldNumber);
     WriteArgForField(CSR::kCpuIdFieldNumber);
     return;
