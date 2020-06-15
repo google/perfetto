@@ -20,6 +20,7 @@ import "protos/perfetto/trace/track_event/debug_annotation.proto";
 import "protos/perfetto/trace/track_event/log_message.proto";
 import "protos/perfetto/trace/track_event/task_execution.proto";
 import "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.proto";
+import "protos/perfetto/trace/track_event/chrome_frame_reporter.proto";
 import "protos/perfetto/trace/track_event/chrome_histogram_sample.proto";
 import "protos/perfetto/trace/track_event/chrome_keyed_service.proto";
 import "protos/perfetto/trace/track_event/chrome_latency_info.proto";
@@ -87,7 +88,7 @@ package perfetto.protos;
 // their default track association) can be emitted as part of a
 // TrackEventDefaults message.
 //
-// Next reserved id: 13 (up to 15). Next id: 32.
+// Next reserved id: 13 (up to 15). Next id: 33.
 message TrackEvent {
   // Names of categories of the event. In the client library, categories are a
   // way to turn groups of individual events on or off.
@@ -193,6 +194,7 @@ message TrackEvent {
   optional ChromeLegacyIpc chrome_legacy_ipc = 27;
   optional ChromeHistogramSample chrome_histogram_sample = 28;
   optional ChromeLatencyInfo chrome_latency_info = 29;
+  optional ChromeFrameReporter chrome_frame_reporter = 32;
   // New argument types go here :)
 
   // ---------------------------------------------------------------------------
