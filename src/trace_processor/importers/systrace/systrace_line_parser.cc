@@ -57,6 +57,12 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
   for (base::StringSplitter ss(line.args_str, ' '); ss.Next();) {
     std::string key;
     std::string value;
+    if (!base::Contains(ss.cur_token(), "=")) {
+      key = "name";
+      value = ss.cur_token();
+      args.emplace(std::move(key), std::move(value));
+      continue;
+    }
     for (base::StringSplitter inner(ss.cur_token(), '='); inner.Next();) {
       if (key.empty()) {
         key = inner.cur_token();
@@ -165,6 +171,21 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
     }
     BinderTracker::GetOrCreate(context_)->TransactionAllocBuf(
         line.ts, line.pid, data_size.value(), offsets_size.value());
+  } else if (line.event_name == "clock_set_rate" ||
+             line.event_name == "clock_enable" ||
+             line.event_name == "clock_disable") {
+    std::string subtitle =
+        line.event_name == "clock_set_rate" ? " Frequency" : " State";
+    auto rate = base::StringToUInt32(args["state"]);
+    if (!rate.has_value()) {
+      return util::Status("Could not convert state");
+    }
+    std::string clock_name_str = args["name"] + subtitle;
+    StringId clock_name =
+        context_->storage->InternString(base::StringView(clock_name_str));
+    TrackId track =
+        context_->track_tracker->InternGlobalCounterTrack(clock_name);
+    context_->event_tracker->PushCounter(line.ts, rate.value(), track);
   }
 
   return util::OkStatus();
