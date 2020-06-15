@@ -5289,6 +5289,57 @@ message CompositorTimingHistory {
 
 // End of protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.proto
 
+// Begin of protos/perfetto/trace/track_event/chrome_frame_reporter.proto
+
+message ChromeFrameReporter {
+  enum State {
+    // The frame did not have any updates to present.
+    STATE_NO_UPDATE_DESIRED = 0;
+
+    // The frame presented all the desired updates (i.e. any updates requested
+    // from both the compositor thread and main-threads were handled).
+    STATE_PRESENTED_ALL = 1;
+
+    // The frame was presented with some updates, but also missed some updates
+    // (e.g. missed updates from the main-thread, but included updates from the
+    // compositor thread).
+    STATE_PRESENTED_PARTIAL = 2;
+
+    // The frame was dropped, i.e. some updates were desired for the frame, but
+    // was not presented.
+    STATE_DROPPED = 3;
+  };
+
+  optional State state = 1;
+
+  enum FrameDropReason {
+    REASON_UNSPECIFIED = 0;
+
+    // Frame was dropped by the display-compositor.
+    // The display-compositor may drop a frame some times (e.g. the frame missed
+    // the deadline, or was blocked on surface-sync, etc.)
+    REASON_DISPLAY_COMPOSITOR = 1;
+
+    // Frame was dropped because of the main-thread.
+    // The main-thread may cause a frame to be dropped, e.g. if the main-thread
+    // is running expensive javascript, or doing a lot of layout updates, etc.
+    REASON_MAIN_THREAD = 2;
+
+    // Frame was dropped by the client compositor.
+    // The client compositor can drop some frames too (e.g. attempting to
+    // recover latency, missing the deadline, etc.).
+    REASON_CLIENT_COMPOSITOR = 3;
+  };
+
+  // The reason is set only if |state| is not |STATE_UPDATED_ALL|.
+  optional FrameDropReason reason = 2;
+
+  optional uint64 frame_source = 3;
+  optional uint64 frame_sequence = 4;
+}
+
+// End of protos/perfetto/trace/track_event/chrome_frame_reporter.proto
+
 // Begin of protos/perfetto/trace/track_event/chrome_histogram_sample.proto
 
 // An individual histogram sample logged via Chrome's UMA metrics system.
@@ -5525,7 +5576,7 @@ message TaskExecution {
 // their default track association) can be emitted as part of a
 // TrackEventDefaults message.
 //
-// Next reserved id: 13 (up to 15). Next id: 32.
+// Next reserved id: 13 (up to 15). Next id: 33.
 message TrackEvent {
   // Names of categories of the event. In the client library, categories are a
   // way to turn groups of individual events on or off.
@@ -5631,6 +5682,7 @@ message TrackEvent {
   optional ChromeLegacyIpc chrome_legacy_ipc = 27;
   optional ChromeHistogramSample chrome_histogram_sample = 28;
   optional ChromeLatencyInfo chrome_latency_info = 29;
+  optional ChromeFrameReporter chrome_frame_reporter = 32;
   // New argument types go here :)
 
   // ---------------------------------------------------------------------------
