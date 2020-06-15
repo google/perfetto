@@ -19,7 +19,6 @@
 
 #include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
-#include "src/trace_processor/importers/ftrace/binder_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_descriptors.h"
 #include "src/trace_processor/importers/ftrace/rss_stat_tracker.h"
 #include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
@@ -95,6 +94,13 @@ class FtraceParser {
   void ParseBinderUnlock(int64_t timestamp,
                          uint32_t pid,
                          protozero::ConstBytes);
+  void ParseClockSetRate(int64_t timestamp, protozero::ConstBytes);
+  void ParseClockEnable(int64_t timestamp, protozero::ConstBytes);
+  void ParseClockDisable(int64_t timestamp, protozero::ConstBytes);
+  void ClockRate(int64_t timestamp,
+                 base::StringView clock_name,
+                 base::StringView subtitle,
+                 uint64_t rate);
 
   TraceProcessorContext* context_;
   RssStatTracker rss_stat_tracker_;
