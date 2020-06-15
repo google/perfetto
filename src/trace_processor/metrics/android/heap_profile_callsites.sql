@@ -225,7 +225,7 @@ SELECT HeapProfileCallsites_InstanceStats(
     'profile_total_bytes', memory_total.total,
     'max_anon_rss_and_swap_bytes', (
       SELECT CAST(MAX(anon_and_swap_val) AS INT)
-      FROM anon_and_swap_span s WHERE s.upid = upid
+      FROM anon_and_swap_span s WHERE s.upid = process.upid
     )
 ) AS instance_stats_proto
 FROM process_callsite_proto
