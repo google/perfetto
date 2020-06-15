@@ -97,6 +97,8 @@ class GeneratorJob {
       GenerateEnumDescriptor(enumeration);
     for (const Descriptor* message : messages_)
       GenerateMessageDescriptor(message);
+    for (auto key_value : extensions_)
+      GenerateExtension(key_value.first, key_value.second);
     GenerateEpilogue();
     return error_.empty();
   }
@@ -248,15 +250,38 @@ class GeneratorJob {
     while (!stack.empty()) {
       const Descriptor* message = stack.back();
       stack.pop_back();
-      messages_.push_back(message);
-      for (int i = 0; i < message->nested_type_count(); ++i) {
-        stack.push_back(message->nested_type(i));
+
+      if (message->extension_count() > 0) {
+        if (message->field_count() > 0 || message->nested_type_count() > 0 ||
+            message->enum_type_count() > 0) {
+          Abort("message with extend blocks shouldn't contain anything else");
+        }
+
+        // Iterate over all fields in "extend" blocks.
+        for (int i = 0; i < message->extension_count(); ++i) {
+          const FieldDescriptor* extension = message->extension(i);
+
+          // Protoc plugin API does not group fields in "extend" blocks.
+          // As the support for extensions in protozero is limited, the code
+          // assumes that extend blocks are located inside a wrapper message and
+          // name of this message is used to group them.
+          std::string extension_name = extension->extension_scope()->name();
+          extensions_[extension_name].push_back(extension);
+        }
+      } else {
+        messages_.push_back(message);
+        for (int i = 0; i < message->nested_type_count(); ++i) {
+          stack.push_back(message->nested_type(i));
+        }
       }
     }
 
     // Collect enums.
     for (int i = 0; i < source_->enum_type_count(); ++i)
       enums_.push_back(source_->enum_type(i));
+
+    if (source_->extension_count() > 0)
+      Abort("top-level extension blocks are not supported");
 
     for (const Descriptor* message : messages_) {
       for (int i = 0; i < message->enum_type_count(); ++i) {
@@ -764,18 +789,66 @@ class GeneratorJob {
 
     // Field descriptors.
     for (int i = 0; i < message->field_count(); ++i) {
-      const FieldDescriptor* field = message->field(i);
-      if (field->is_packed()) {
-        GeneratePackedRepeatedFieldDescriptor(field);
-      } else if (field->type() != FieldDescriptor::TYPE_MESSAGE) {
-        GenerateSimpleFieldDescriptor(field);
-      } else {
-        GenerateNestedMessageFieldDescriptor(field);
-      }
+      GenerateFieldDescriptor(message->field(i));
     }
 
     stub_h_->Outdent();
     stub_h_->Print("};\n\n");
+  }
+
+  void GenerateFieldDescriptor(const FieldDescriptor* field) {
+    if (field->is_packed()) {
+      GeneratePackedRepeatedFieldDescriptor(field);
+    } else if (field->type() != FieldDescriptor::TYPE_MESSAGE) {
+      GenerateSimpleFieldDescriptor(field);
+    } else {
+      GenerateNestedMessageFieldDescriptor(field);
+    }
+  }
+
+  // Generate extension class for a group of FieldDescriptor instances
+  // representing one "extend" block in proto definition. For example:
+  //
+  //   message SpecificExtension {
+  //     extend GeneralThing {
+  //       optional Fizz fizz = 101;
+  //       optional Buzz buzz = 102;
+  //     }
+  //   }
+  //
+  // This is going to be passed as a vector of two elements, "fizz" and
+  // "buzz". Wrapping message is used to provide a name for generated
+  // extension class.
+  //
+  // In the example above, generated code is going to look like:
+  //
+  //   class SpecificExtension : public GeneralThing {
+  //     Fizz* set_fizz();
+  //     Buzz* set_buzz();
+  //   }
+  void GenerateExtension(
+      const std::string& extension_name,
+      const std::vector<const FieldDescriptor*>& descriptors) {
+    // Use an arbitrary descriptor in order to get generic information not
+    // specific to any of them.
+    const FieldDescriptor* descriptor = descriptors[0];
+    const Descriptor* base_message = descriptor->containing_type();
+
+    // TODO(ddrone): ensure that this code works when containing_type located in
+    // other file or namespace.
+    stub_h_->Print("class $name$ : public $extendee$ {\n", "name",
+                   extension_name, "extendee", GetCppClassName(base_message));
+    stub_h_->Print(" public:\n");
+    stub_h_->Indent();
+    for (const FieldDescriptor* field : descriptors) {
+      if (field->containing_type() != base_message) {
+        Abort("one wrapper should extend only one message");
+        return;
+      }
+      GenerateFieldDescriptor(field);
+    }
+    stub_h_->Outdent();
+    stub_h_->Print("};\n");
   }
 
   void GenerateEpilogue() {
@@ -795,6 +868,7 @@ class GeneratorJob {
   std::string full_namespace_prefix_;
   std::vector<const Descriptor*> messages_;
   std::vector<const EnumDescriptor*> enums_;
+  std::map<std::string, std::vector<const FieldDescriptor*>> extensions_;
 
   // The custom *Comp comparators are to ensure determinism of the generator.
   std::set<const FileDescriptor*, FileDescriptorComp> public_imports_;
