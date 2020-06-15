@@ -6321,6 +6321,7 @@ filegroup {
 genrule {
   name: "perfetto_src_protozero_testing_messages_cpp_gen",
   srcs: [
+    "src/protozero/test/example_proto/extensions.proto",
     "src/protozero/test/example_proto/library.proto",
     "src/protozero/test/example_proto/library_internals/galaxies.proto",
     "src/protozero/test/example_proto/test_messages.proto",
@@ -6332,6 +6333,7 @@ genrule {
   ],
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(in)",
   out: [
+    "external/perfetto/src/protozero/test/example_proto/extensions.gen.cc",
     "external/perfetto/src/protozero/test/example_proto/library.gen.cc",
     "external/perfetto/src/protozero/test/example_proto/library_internals/galaxies.gen.cc",
     "external/perfetto/src/protozero/test/example_proto/test_messages.gen.cc",
@@ -6343,6 +6345,7 @@ genrule {
 genrule {
   name: "perfetto_src_protozero_testing_messages_cpp_gen_headers",
   srcs: [
+    "src/protozero/test/example_proto/extensions.proto",
     "src/protozero/test/example_proto/library.proto",
     "src/protozero/test/example_proto/library_internals/galaxies.proto",
     "src/protozero/test/example_proto/test_messages.proto",
@@ -6354,6 +6357,7 @@ genrule {
   ],
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(in)",
   out: [
+    "external/perfetto/src/protozero/test/example_proto/extensions.gen.h",
     "external/perfetto/src/protozero/test/example_proto/library.gen.h",
     "external/perfetto/src/protozero/test/example_proto/library_internals/galaxies.gen.h",
     "external/perfetto/src/protozero/test/example_proto/test_messages.gen.h",
@@ -6369,6 +6373,7 @@ genrule {
 genrule {
   name: "perfetto_src_protozero_testing_messages_lite_gen",
   srcs: [
+    "src/protozero/test/example_proto/extensions.proto",
     "src/protozero/test/example_proto/library.proto",
     "src/protozero/test/example_proto/library_internals/galaxies.proto",
     "src/protozero/test/example_proto/test_messages.proto",
@@ -6379,6 +6384,7 @@ genrule {
   ],
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(in)",
   out: [
+    "external/perfetto/src/protozero/test/example_proto/extensions.pb.cc",
     "external/perfetto/src/protozero/test/example_proto/library.pb.cc",
     "external/perfetto/src/protozero/test/example_proto/library_internals/galaxies.pb.cc",
     "external/perfetto/src/protozero/test/example_proto/test_messages.pb.cc",
@@ -6390,6 +6396,7 @@ genrule {
 genrule {
   name: "perfetto_src_protozero_testing_messages_lite_gen_headers",
   srcs: [
+    "src/protozero/test/example_proto/extensions.proto",
     "src/protozero/test/example_proto/library.proto",
     "src/protozero/test/example_proto/library_internals/galaxies.proto",
     "src/protozero/test/example_proto/test_messages.proto",
@@ -6400,6 +6407,7 @@ genrule {
   ],
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(in)",
   out: [
+    "external/perfetto/src/protozero/test/example_proto/extensions.pb.h",
     "external/perfetto/src/protozero/test/example_proto/library.pb.h",
     "external/perfetto/src/protozero/test/example_proto/library_internals/galaxies.pb.h",
     "external/perfetto/src/protozero/test/example_proto/test_messages.pb.h",
@@ -6415,6 +6423,7 @@ genrule {
 genrule {
   name: "perfetto_src_protozero_testing_messages_zero_gen",
   srcs: [
+    "src/protozero/test/example_proto/extensions.proto",
     "src/protozero/test/example_proto/library.proto",
     "src/protozero/test/example_proto/library_internals/galaxies.proto",
     "src/protozero/test/example_proto/test_messages.proto",
@@ -6426,6 +6435,7 @@ genrule {
   ],
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
+    "external/perfetto/src/protozero/test/example_proto/extensions.pbzero.cc",
     "external/perfetto/src/protozero/test/example_proto/library.pbzero.cc",
     "external/perfetto/src/protozero/test/example_proto/library_internals/galaxies.pbzero.cc",
     "external/perfetto/src/protozero/test/example_proto/test_messages.pbzero.cc",
@@ -6437,6 +6447,7 @@ genrule {
 genrule {
   name: "perfetto_src_protozero_testing_messages_zero_gen_headers",
   srcs: [
+    "src/protozero/test/example_proto/extensions.proto",
     "src/protozero/test/example_proto/library.proto",
     "src/protozero/test/example_proto/library_internals/galaxies.proto",
     "src/protozero/test/example_proto/test_messages.proto",
@@ -6448,6 +6459,7 @@ genrule {
   ],
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
+    "external/perfetto/src/protozero/test/example_proto/extensions.pbzero.h",
     "external/perfetto/src/protozero/test/example_proto/library.pbzero.h",
     "external/perfetto/src/protozero/test/example_proto/library_internals/galaxies.pbzero.h",
     "external/perfetto/src/protozero/test/example_proto/test_messages.pbzero.h",
