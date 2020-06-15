@@ -18,4 +18,5 @@ CREATE TABLE TEST_TMP AS
 SELECT RUN_METRIC('android/android_thread_time_in_state.sql');
 DROP TABLE TEST_TMP;
 
-SELECT * FROM android_thread_time_in_state_event;
+SELECT * FROM android_thread_time_in_state_event
+ORDER BY ts, upid, track_name;

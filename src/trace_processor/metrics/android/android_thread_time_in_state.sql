@@ -158,7 +158,8 @@ FROM android_thread_time_in_state_base
 -- Only keep utids which have non-zero runtime in the trace.
 WHERE utid IN (
   SELECT utid FROM android_thread_time_in_state_counters
-  WHERE android_thread_time_in_state_counters.core_type = core_type
+  WHERE android_thread_time_in_state_counters.core_type =
+      android_thread_time_in_state_base.core_type
 );
 
 CREATE VIEW android_thread_time_in_state_event_thread AS
