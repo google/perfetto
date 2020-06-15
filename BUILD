@@ -781,6 +781,7 @@ genrule(
         "src/trace_processor/metrics/chrome/chrome_processes.sql",
         "src/trace_processor/metrics/trace_metadata.sql",
         "src/trace_processor/metrics/webview/webview_cpu_usage.sql",
+        "src/trace_processor/metrics/webview/webview_power_usage.sql",
     ],
     outs = [
         "src/trace_processor/metrics/sql_metrics.h",
