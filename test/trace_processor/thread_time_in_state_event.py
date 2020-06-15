@@ -25,28 +25,39 @@ SEC = 1000000000
 
 trace = synth_common.create_trace()
 
-trace.add_system_info(arch='x86_64')
+# Use fake fingerprint to simulate big/little cores.
+trace.add_system_info(arch='aarch64', fingerprint='bonito')
 trace.packet.system_info.hz = 1
 
 trace.add_packet(1)
+# little cores: cpu0 - cpu3
 trace.add_cpu([100, 200])
+trace.add_cpu([100, 200])
+trace.add_cpu([100, 200])
+trace.add_cpu([100, 200])
+# big cores: cpu4 - cpu5
+trace.add_cpu([1000, 2000])
 trace.add_cpu([1000, 2000])
 
 trace.add_packet(1 * SEC)
-trace.add_process_stats(pid=1, freqs={1: 1, 2: 1, 3: 1, 4: 1})
-trace.add_process_stats(pid=2, freqs={1: 1, 2: 1, 3: 1, 4: 1})
-trace.add_process_stats(pid=3, freqs={1: 1, 2: 1, 3: 1, 4: 1})
+trace.add_process_stats(pid=1, freqs={1: 1, 2: 1, 9: 1, 10: 1})
+trace.add_process_stats(pid=2, freqs={1: 1, 2: 1, 9: 1, 10: 1})
+trace.add_process_stats(pid=3, freqs={1: 1, 2: 1, 9: 1, 10: 1})
+trace.add_process_stats(pid=4, freqs={1: 1, 2: 1, 9: 1, 10: 1})
 
 trace.add_packet(2 * SEC)
-trace.add_process_stats(pid=1, freqs={1: 2, 3: 2})
+trace.add_process_stats(pid=1, freqs={1: 2, 9: 2})
 # Don't log anything for pid=2 thread, test that the packet at t=3 is based
 # against t=2 anyway.
 
 trace.add_packet(3 * SEC)
-trace.add_process_stats(pid=1, freqs={2: 11, 4: 11})
-trace.add_process_stats(pid=2, freqs={1: 11, 3: 11})
+trace.add_process_stats(pid=1, freqs={2: 11, 10: 11})
+trace.add_process_stats(pid=2, freqs={1: 11, 9: 11})
 # pid=3 did not record any change in time_in_state, test that it does not
 # appear in events.
 trace.add_process_stats(pid=3, freqs={1: 1})
+# pid=4 recorded a change only on the little core, test that it shows track for
+# the little core but not the big one.
+trace.add_process_stats(pid=4, freqs={1: 2, 9: 1})
 
 print(trace.trace.SerializeToString())
