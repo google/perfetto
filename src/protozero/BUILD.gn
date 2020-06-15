@@ -76,6 +76,7 @@ perfetto_unittest_source_set("unittests") {
 
 perfetto_proto_library("testing_messages_@TYPE@") {
   sources = [
+    "test/example_proto/extensions.proto",
     "test/example_proto/library.proto",
     "test/example_proto/library_internals/galaxies.proto",
     "test/example_proto/test_messages.proto",
