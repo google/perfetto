@@ -39,6 +39,7 @@
 #include "protos/perfetto/trace/ftrace/power.pbzero.h"
 #include "protos/perfetto/trace/ftrace/raw_syscalls.pbzero.h"
 #include "protos/perfetto/trace/ftrace/sched.pbzero.h"
+#include "protos/perfetto/trace/ftrace/scm.pbzero.h"
 #include "protos/perfetto/trace/ftrace/sde.pbzero.h"
 #include "protos/perfetto/trace/ftrace/signal.pbzero.h"
 #include "protos/perfetto/trace/ftrace/systrace.pbzero.h"
@@ -363,6 +364,14 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kClockDisableFieldNumber: {
         ParseClockDisable(ts, data);
+        break;
+      }
+      case FtraceEvent::kScmCallStartFieldNumber: {
+        ParseScmCallStart(ts, pid, data);
+        break;
+      }
+      case FtraceEvent::kScmCallEndFieldNumber: {
+        ParseScmCallEnd(ts, pid, data);
         break;
       }
       default:
@@ -889,6 +898,28 @@ void FtraceParser::ClockRate(int64_t timestamp,
   StringId name = context_->storage->InternString(counter_name);
   TrackId track = context_->track_tracker->InternGlobalCounterTrack(name);
   context_->event_tracker->PushCounter(timestamp, rate, track);
+}
+
+void FtraceParser::ParseScmCallStart(int64_t timestamp,
+                                     uint32_t pid,
+                                     ConstBytes blob) {
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+  protos::pbzero::ScmCallStartFtraceEvent::Decoder evt(blob.data, blob.size);
+
+  char str[64];
+  sprintf(str, "scm id=%#" PRIx64, evt.x0());
+  StringId name_id = context_->storage->InternString(str);
+  context_->slice_tracker->Begin(timestamp, track_id, kNullStringId, name_id);
+}
+
+void FtraceParser::ParseScmCallEnd(int64_t timestamp,
+                                   uint32_t pid,
+                                   ConstBytes blob) {
+  protos::pbzero::ScmCallEndFtraceEvent::Decoder evt(blob.data, blob.size);
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+  context_->slice_tracker->End(timestamp, track_id);
 }
 
 }  // namespace trace_processor

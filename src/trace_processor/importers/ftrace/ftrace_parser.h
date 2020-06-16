@@ -101,6 +101,10 @@ class FtraceParser {
                  base::StringView clock_name,
                  base::StringView subtitle,
                  uint64_t rate);
+  void ParseScmCallStart(int64_t timestamp,
+                         uint32_t pid,
+                         protozero::ConstBytes);
+  void ParseScmCallEnd(int64_t timestamp, uint32_t pid, protozero::ConstBytes);
 
   TraceProcessorContext* context_;
   RssStatTracker rss_stat_tracker_;
