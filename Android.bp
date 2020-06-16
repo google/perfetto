@@ -209,12 +209,45 @@ cc_library_shared {
   srcs: [
     ":perfetto_include_perfetto_base_base",
     ":perfetto_include_perfetto_ext_base_base",
+    ":perfetto_src_base_base",
+    ":perfetto_src_profiling_memory_malloc_hooks",
+  ],
+  shared_libs: [
+    "heapprofd_client_api",
+  ],
+  static_libs: [
+    "libasync_safe",
+  ],
+  export_include_dirs: [
+    "include",
+    "include/perfetto/base/build_configs/android_tree",
+  ],
+  defaults: [
+    "perfetto_defaults",
+  ],
+  cflags: [
+    "-DPERFETTO_ANDROID_ASYNC_SAFE_LOG",
+  ],
+  include_dirs: [
+    "bionic/libc",
+  ],
+  header_libs: [
+    "bionic_libc_platform_headers",
+  ],
+}
+
+// GN: //src/profiling/memory:heapprofd_client_api
+cc_library_shared {
+  name: "heapprofd_client_api",
+  srcs: [
+    ":perfetto_include_perfetto_base_base",
+    ":perfetto_include_perfetto_ext_base_base",
     ":perfetto_include_perfetto_profiling_normalize",
     ":perfetto_src_base_base",
     ":perfetto_src_base_unix_socket",
     ":perfetto_src_profiling_common_proc_utils",
     ":perfetto_src_profiling_memory_client",
-    ":perfetto_src_profiling_memory_malloc_hooks",
+    ":perfetto_src_profiling_memory_client_ext",
     ":perfetto_src_profiling_memory_ring_buffer",
     ":perfetto_src_profiling_memory_scoped_spinlock",
     ":perfetto_src_profiling_memory_wire_protocol",
@@ -6141,6 +6174,14 @@ filegroup {
   name: "perfetto_src_profiling_memory_client",
   srcs: [
     "src/profiling/memory/client.cc",
+  ],
+}
+
+// GN: //src/profiling/memory:client_ext
+filegroup {
+  name: "perfetto_src_profiling_memory_client_ext",
+  srcs: [
+    "src/profiling/memory/client_ext.cc",
   ],
 }
 
