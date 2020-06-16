@@ -43,22 +43,36 @@ executable("heapprofd") {
 #
 # This builds only in the Android tree, when using the generated Android.bp.
 if (perfetto_build_with_android) {
+  shared_library("heapprofd_client_api") {
+    configs -= [ "//gn/standalone:android_liblog" ]
+    cflags = [ "-DPERFETTO_ANDROID_ASYNC_SAFE_LOG" ]
+    deps = [ ":client_ext" ]
+  }
+
+  source_set("client_ext") {
+    cflags = [ "-DPERFETTO_ANDROID_ASYNC_SAFE_LOG" ]
+    deps = [
+      ":client",
+      "../../../gn:default_deps",
+      "../../base",
+    ]
+    sources = [ "client_ext.cc" ]
+  }
+
   shared_library("heapprofd_client") {
     configs -= [ "//gn/standalone:android_liblog" ]
     cflags = [ "-DPERFETTO_ANDROID_ASYNC_SAFE_LOG" ]
-    deps = [ ":malloc_hooks" ]
+    deps = [
+      ":heapprofd_client_api",
+      ":malloc_hooks",
+    ]
   }
 
   # This will export publicly visible symbols for the malloc_hooks.
   source_set("malloc_hooks") {
     deps = [
-      ":client",
-      ":scoped_spinlock",
-      ":wire_protocol",
       "../../../gn:default_deps",
       "../../base",
-      "../../base:unix_socket",
-      "../common:proc_utils",
     ]
     cflags = [
       "-isystem",
