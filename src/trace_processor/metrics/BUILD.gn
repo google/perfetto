@@ -55,6 +55,7 @@ sql_files = [
   "android/unsymbolized_frames.sql",
   "chrome/chrome_processes.sql",
   "webview/webview_cpu_usage.sql",
+  "webview/webview_power_usage.sql",
 ]
 
 config("gen_config") {
