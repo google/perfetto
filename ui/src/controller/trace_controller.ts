@@ -964,7 +964,7 @@ export class TraceController extends Controller<States> {
 
   async initialiseHelperViews() {
     const engine = assertExists<Engine>(this.engine);
-    this.updateStatus('Creating helper views');
+    this.updateStatus('Creating views');
     let event = 'sched_waking';
     const waking = await engine.query(
         `select * from instants where name = 'sched_waking' limit 1`);
@@ -1010,6 +1010,7 @@ export class TraceController extends Controller<States> {
           full_runnable partitioned utid,
           sched partitioned utid)`);
 
+    this.updateStatus('Creating thread state table');
     // For performance reasons we need to create a table here.
     // Once b/145350531 is fixed this should be able to revert to a
     // view and we can recover the extra memory use.
@@ -1022,8 +1023,10 @@ export class TraceController extends Controller<States> {
       from thread_span window ordered as
       (partition by utid order by ts)`);
 
+    this.updateStatus('Creating thread state index');
     await engine.query(`create index utid_index on thread_state(utid)`);
 
+    this.updateStatus('Creating annotation counter track table');
     // Create the helper tables for all the annotations related data.
     // NULL in min/max means "figure it out per track in the usual way".
     await engine.query(`
@@ -1036,6 +1039,7 @@ export class TraceController extends Controller<States> {
         max_value DOUBLE
       );
     `);
+    this.updateStatus('Creating annotation slice track table');
     await engine.query(`
       CREATE TABLE annotation_slice_track(
         id INTEGER PRIMARY KEY,
@@ -1045,6 +1049,7 @@ export class TraceController extends Controller<States> {
       );
     `);
 
+    this.updateStatus('Creating annotation counter table');
     await engine.query(`
       CREATE TABLE annotation_counter(
         id BIG INT,
@@ -1054,6 +1059,7 @@ export class TraceController extends Controller<States> {
         PRIMARY KEY (track_id, ts)
       ) WITHOUT ROWID;
     `);
+    this.updateStatus('Creating annotation slice table');
     await engine.query(`
       CREATE TABLE annotation_slice(
         id BIG INT,
@@ -1072,11 +1078,13 @@ export class TraceController extends Controller<States> {
                  'android_ion',
                  'android_thread_time_in_state',
                  'android_surfaceflinger']) {
+      this.updateStatus(`Computing ${metric} metric`);
       // We don't care about the actual result of metric here as we are just
       // interested in the annotation tracks.
       const metricResult = await engine.computeMetric([metric]);
       assertTrue(metricResult.error.length === 0);
 
+      this.updateStatus(`Inserting data for ${metric} metric`);
       const result = await engine.query(`
         SELECT * FROM ${metric}_event LIMIT 1`);
 
