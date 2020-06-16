@@ -153,14 +153,10 @@ SELECT
   runtime_ms_counter - LAG(runtime_ms_counter)
       OVER (PARTITION BY core_type, utid, freq ORDER BY ts) AS runtime_ms
 FROM android_thread_time_in_state_base
+    -- Join to keep only utids which have non-zero runtime in the trace.
+    JOIN android_thread_time_in_state_counters USING (utid, core_type)
     JOIN android_thread_time_in_state_event_clock USING(ts)
-    JOIN thread using (utid)
--- Only keep utids which have non-zero runtime in the trace.
-WHERE utid IN (
-  SELECT utid FROM android_thread_time_in_state_counters
-  WHERE android_thread_time_in_state_counters.core_type =
-      android_thread_time_in_state_base.core_type
-);
+    JOIN thread using (utid);
 
 CREATE VIEW android_thread_time_in_state_event_thread AS
 SELECT
@@ -187,7 +183,7 @@ FROM android_thread_time_in_state_event_raw
 WHERE runtime_ms IS NOT NULL
 GROUP BY ts, track_name;
 
-CREATE VIEW android_thread_time_in_state_event AS
+CREATE TABLE android_thread_time_in_state_event AS
 SELECT track_type, track_name, ts, dur, upid, ms_freq * 1000000 / dur AS value
 FROM android_thread_time_in_state_event_thread
 UNION ALL
