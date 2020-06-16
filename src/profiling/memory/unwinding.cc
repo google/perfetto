@@ -70,7 +70,8 @@ constexpr size_t kUnwindBatchSize = 1000;
 // We do not care about deterministic destructor order.
 #pragma GCC diagnostic ignored "-Wglobal-constructors"
 #pragma GCC diagnostic ignored "-Wexit-time-destructors"
-static std::vector<std::string> kSkipMaps{"heapprofd_client.so"};
+static std::vector<std::string> kSkipMaps{"heapprofd_client.so",
+                                          "heapprofd_client_api.so"};
 #pragma GCC diagnostic pop
 
 size_t GetRegsSize(unwindstack::Regs* regs) {
