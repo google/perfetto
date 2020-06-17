@@ -104,11 +104,13 @@ struct AllocMetadata {
   alignas(uint64_t) char register_data[kMaxRegisterDataSize];
   // CPU architecture of the client.
   unwindstack::ArchEnum arch;
+  uint32_t heap_id;
 };
 
 struct FreeBatchEntry {
   uint64_t sequence_number;
   uint64_t addr;
+  uint32_t heap_id;
 };
 
 struct FreeBatch {

@@ -77,6 +77,8 @@ perfetto::base::NoDestructor<std::shared_ptr<perfetto::profiling::Client>>
 // (technically a use-after-destruct scenario).
 std::atomic<bool> g_client_lock{false};
 
+std::atomic<uint32_t> g_next_heap_id{1};
+
 constexpr char kHeapprofdBinPath[] = "/system/bin/heapprofd";
 
 int CloneWithoutSigchld() {
@@ -327,11 +329,10 @@ void AtForkChild() {
 
 }  // namespace
 
-// TODO(fmayer): Keep track of the heap names and return a proper ID here.
-// For now, we are returning a placeholder so we don't need to change the API.
+// TODO(fmayer): Keep track of the heap names.
 __attribute__((visibility("default"))) uint32_t heapprofd_register_heap(
     const char*) {
-  return 0;
+  return g_next_heap_id.fetch_add(1);
 }
 
 __attribute__((visibility("default"))) bool
@@ -353,7 +354,7 @@ heapprofd_report_allocation(uint32_t heap_id, uint64_t id, uint64_t size) {
     client = g_client.ref();  // owning copy
   }                           // unlock
 
-  if (!client->RecordMalloc(sampled_alloc_sz, size, id)) {
+  if (!client->RecordMalloc(heap_id, sampled_alloc_sz, size, id)) {
     ShutdownLazy();
   }
   return true;
@@ -372,7 +373,7 @@ __attribute__((visibility("default"))) void heapprofd_report_free(
   }
 
   if (client) {
-    if (!client->RecordFree(id))
+    if (!client->RecordFree(heap_id, id))
       ShutdownLazy();
   }
 }
