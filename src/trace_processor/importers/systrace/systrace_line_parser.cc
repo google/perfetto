@@ -39,7 +39,8 @@ namespace trace_processor {
 SystraceLineParser::SystraceLineParser(TraceProcessorContext* ctx)
     : context_(ctx),
       sched_wakeup_name_id_(ctx->storage->InternString("sched_wakeup")),
-      cpuidle_name_id_(ctx->storage->InternString("cpuidle")) {}
+      cpuidle_name_id_(ctx->storage->InternString("cpuidle")),
+      workqueue_name_id_(ctx->storage->InternString("workqueue")) {}
 
 util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
   context_->process_tracker->GetOrCreateThread(line.pid);
@@ -186,6 +187,17 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
     TrackId track =
         context_->track_tracker->InternGlobalCounterTrack(clock_name);
     context_->event_tracker->PushCounter(line.ts, rate.value(), track);
+  } else if (line.event_name == "workqueue_execute_start") {
+    auto split = base::SplitString(line.args_str, "function ");
+    StringId name_id =
+        context_->storage->InternString(base::StringView(split[1]));
+    UniqueTid utid = context_->process_tracker->GetOrCreateThread(line.pid);
+    TrackId track = context_->track_tracker->InternThreadTrack(utid);
+    context_->slice_tracker->Begin(line.ts, track, workqueue_name_id_, name_id);
+  } else if (line.event_name == "workqueue_execute_end") {
+    UniqueTid utid = context_->process_tracker->GetOrCreateThread(line.pid);
+    TrackId track = context_->track_tracker->InternThreadTrack(utid);
+    context_->slice_tracker->End(line.ts, track, workqueue_name_id_);
   }
 
   return util::OkStatus();
