@@ -66,12 +66,14 @@ class Client {
   static base::Optional<base::UnixSocketRaw> ConnectToHeapprofd(
       const std::string& sock_name);
 
-  bool RecordMalloc(uint64_t sample_size,
+  bool RecordMalloc(uint32_t heap_id,
+                    uint64_t sample_size,
                     uint64_t alloc_size,
                     uint64_t alloc_address) PERFETTO_WARN_UNUSED_RESULT;
 
   // Add address to buffer of deallocations. Flushes the buffer if necessary.
-  bool RecordFree(uint64_t alloc_address) PERFETTO_WARN_UNUSED_RESULT;
+  bool RecordFree(uint32_t heap_id,
+                  uint64_t alloc_address) PERFETTO_WARN_UNUSED_RESULT;
 
   // Returns the number of bytes to assign to an allocation with the given
   // |alloc_size|, based on the current sampling rate. A return value of zero

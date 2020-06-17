@@ -172,8 +172,8 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
   };
 
   struct ProcessState {
-    ProcessState(GlobalCallstackTrie* callsites, bool dump_at_max_mode)
-        : heap_tracker(callsites, dump_at_max_mode) {}
+    ProcessState(GlobalCallstackTrie* c, bool d)
+        : callsites(c), dump_at_max_mode(d) {}
     bool disconnected = false;
     bool buffer_overran = false;
     bool buffer_corrupted = false;
@@ -183,10 +183,21 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
     uint64_t unwinding_errors = 0;
 
     uint64_t total_unwinding_time_us = 0;
+    GlobalCallstackTrie* callsites;
+    bool dump_at_max_mode;
     LogHistogram unwinding_time_us;
-    HeapTracker heap_tracker;
+    std::map<uint32_t, HeapTracker> heap_trackers;
 
     base::Optional<PageIdleChecker> page_idle_checker;
+    HeapTracker& GetHeapTracker(uint32_t heap_id) {
+      auto it = heap_trackers.find(heap_id);
+      if (it == heap_trackers.end()) {
+        std::tie(it, std::ignore) = heap_trackers.emplace(
+            std::piecewise_construct, std::forward_as_tuple(heap_id),
+            std::forward_as_tuple(callsites, dump_at_max_mode));
+      }
+      return it->second;
+    }
   };
 
   struct DataSource {
