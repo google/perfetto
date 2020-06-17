@@ -39,25 +39,17 @@ IteratorImpl::IteratorImpl(TraceProcessorImpl* trace_processor,
 
 IteratorImpl::~IteratorImpl() {
   if (trace_processor_) {
-    auto* its = &trace_processor_->iterators_;
-    auto it = std::find(its->begin(), its->end(), this);
-    PERFETTO_CHECK(it != its->end());
-    its->erase(it);
-
     base::TimeNanos t_end = base::GetWallTimeNs();
-    auto* sql_stats = trace_processor_->context_.storage->mutable_sql_stats();
+    auto* sql_stats =
+        trace_processor_.get()->context_.storage->mutable_sql_stats();
     sql_stats->RecordQueryEnd(sql_stats_row_, t_end.count());
   }
 }
 
-void IteratorImpl::Reset() {
-  *this = IteratorImpl(nullptr, nullptr, ScopedStmt(), 0,
-                       util::ErrStatus("Trace processor was deleted"), 0);
-}
-
 void IteratorImpl::RecordFirstNextInSqlStats() {
   base::TimeNanos t_first_next = base::GetWallTimeNs();
-  auto* sql_stats = trace_processor_->context_.storage->mutable_sql_stats();
+  auto* sql_stats =
+      trace_processor_.get()->context_.storage->mutable_sql_stats();
   sql_stats->RecordQueryFirstNext(sql_stats_row_, t_first_next.count());
 }
 
