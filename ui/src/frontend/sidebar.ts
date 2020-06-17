@@ -154,7 +154,7 @@ const SECTIONS = [
         checkDownloadDisabled: true,
       },
       {t: 'Legacy UI', a: openCurrentTraceWithOldUI, i: 'filter_none'},
-      {t: 'Analyze', a: navigateAnalyze, i: 'control_camera'},
+      {t: 'Query (SQL)', a: navigateAnalyze, i: 'control_camera'},
     ],
   },
   {
@@ -426,7 +426,7 @@ function navigateRecord(e: Event) {
 
 function navigateAnalyze(e: Event) {
   e.preventDefault();
-  globals.dispatch(Actions.navigate({route: '/analyze'}));
+  globals.dispatch(Actions.navigate({route: '/query'}));
 }
 
 function navigateViewer(e: Event) {
