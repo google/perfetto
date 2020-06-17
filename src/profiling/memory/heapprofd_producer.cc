@@ -602,69 +602,73 @@ void HeapprofdProducer::DoContinuousDump(DataSourceInstanceID id,
 void HeapprofdProducer::DumpProcessState(DataSource* data_source,
                                          pid_t pid,
                                          ProcessState* process_state) {
-  HeapTracker& heap_tracker = process_state->heap_tracker;
+  for (auto& heap_id_and_heap_tracker : process_state->heap_trackers) {
+    HeapTracker& heap_tracker = heap_id_and_heap_tracker.second;
 
-  bool from_startup =
-      data_source->signaled_pids.find(pid) == data_source->signaled_pids.cend();
-  uint64_t dump_timestamp;
-  if (data_source->config.dump_at_max())
-    dump_timestamp = heap_tracker.max_timestamp();
-  else
-    dump_timestamp = heap_tracker.committed_timestamp();
-  auto new_heapsamples = [pid, from_startup, dump_timestamp, process_state,
-                          data_source](
-                             ProfilePacket::ProcessHeapSamples* proto) {
-    proto->set_pid(static_cast<uint64_t>(pid));
-    proto->set_timestamp(dump_timestamp);
-    proto->set_from_startup(from_startup);
-    proto->set_disconnected(process_state->disconnected);
-    proto->set_buffer_overran(process_state->buffer_overran);
-    proto->set_buffer_corrupted(process_state->buffer_corrupted);
-    proto->set_hit_guardrail(data_source->hit_guardrail);
-    auto* stats = proto->set_stats();
-    stats->set_unwinding_errors(process_state->unwinding_errors);
-    stats->set_heap_samples(process_state->heap_samples);
-    stats->set_map_reparses(process_state->map_reparses);
-    stats->set_total_unwinding_time_us(process_state->total_unwinding_time_us);
-    auto* unwinding_hist = stats->set_unwinding_time_us();
-    for (const auto& p : process_state->unwinding_time_us.GetData()) {
-      auto* bucket = unwinding_hist->add_buckets();
-      if (p.first == LogHistogram::kMaxBucket)
-        bucket->set_max_bucket(true);
-      else
-        bucket->set_upper_limit(p.first);
-      bucket->set_count(p.second);
-    }
-  };
+    bool from_startup = data_source->signaled_pids.find(pid) ==
+                        data_source->signaled_pids.cend();
+    uint64_t dump_timestamp;
+    if (data_source->config.dump_at_max())
+      dump_timestamp = heap_tracker.max_timestamp();
+    else
+      dump_timestamp = heap_tracker.committed_timestamp();
+    auto new_heapsamples =
+        [pid, from_startup, dump_timestamp, process_state,
+         data_source](ProfilePacket::ProcessHeapSamples* proto) {
+          proto->set_pid(static_cast<uint64_t>(pid));
+          proto->set_timestamp(dump_timestamp);
+          proto->set_from_startup(from_startup);
+          proto->set_disconnected(process_state->disconnected);
+          proto->set_buffer_overran(process_state->buffer_overran);
+          proto->set_buffer_corrupted(process_state->buffer_corrupted);
+          proto->set_hit_guardrail(data_source->hit_guardrail);
+          auto* stats = proto->set_stats();
+          stats->set_unwinding_errors(process_state->unwinding_errors);
+          stats->set_heap_samples(process_state->heap_samples);
+          stats->set_map_reparses(process_state->map_reparses);
+          stats->set_total_unwinding_time_us(
+              process_state->total_unwinding_time_us);
+          auto* unwinding_hist = stats->set_unwinding_time_us();
+          for (const auto& p : process_state->unwinding_time_us.GetData()) {
+            auto* bucket = unwinding_hist->add_buckets();
+            if (p.first == LogHistogram::kMaxBucket)
+              bucket->set_max_bucket(true);
+            else
+              bucket->set_upper_limit(p.first);
+            bucket->set_count(p.second);
+          }
+        };
 
-  DumpState dump_state(data_source->trace_writer.get(),
-                       std::move(new_heapsamples), &data_source->intern_state);
+    DumpState dump_state(data_source->trace_writer.get(),
+                         std::move(new_heapsamples),
+                         &data_source->intern_state);
 
-  if (process_state->page_idle_checker) {
-    PageIdleChecker& page_idle_checker = *process_state->page_idle_checker;
-    heap_tracker.GetAllocations([&dump_state, &page_idle_checker](
-                                    uint64_t addr, uint64_t,
-                                    uint64_t alloc_size,
-                                    uint64_t callstack_id) {
-      int64_t idle =
-          page_idle_checker.OnIdlePage(addr, static_cast<size_t>(alloc_size));
-      if (idle < 0) {
-        PERFETTO_PLOG("OnIdlePage.");
-        return;
-      }
-      if (idle > 0)
-        dump_state.AddIdleBytes(callstack_id, static_cast<uint64_t>(idle));
-    });
-  }
-
-  heap_tracker.GetCallstackAllocations(
-      [&dump_state,
-       &data_source](const HeapTracker::CallstackAllocations& alloc) {
-        dump_state.WriteAllocation(alloc, data_source->config.dump_at_max());
+    if (process_state->page_idle_checker) {
+      PageIdleChecker& page_idle_checker = *process_state->page_idle_checker;
+      heap_tracker.GetAllocations([&dump_state, &page_idle_checker](
+                                      uint64_t addr, uint64_t,
+                                      uint64_t alloc_size,
+                                      uint64_t callstack_id) {
+        int64_t idle =
+            page_idle_checker.OnIdlePage(addr, static_cast<size_t>(alloc_size));
+        if (idle < 0) {
+          PERFETTO_PLOG("OnIdlePage.");
+          return;
+        }
+        if (idle > 0)
+          dump_state.AddIdleBytes(callstack_id, static_cast<uint64_t>(idle));
       });
-  if (process_state->page_idle_checker)
-    process_state->page_idle_checker->MarkPagesIdle();
-  dump_state.DumpCallstacks(&callsites_);
+    }
+
+    heap_tracker.GetCallstackAllocations(
+        [&dump_state,
+         &data_source](const HeapTracker::CallstackAllocations& alloc) {
+          dump_state.WriteAllocation(alloc, data_source->config.dump_at_max());
+        });
+    if (process_state->page_idle_checker)
+      process_state->page_idle_checker->MarkPagesIdle();
+    dump_state.DumpCallstacks(&callsites_);
+  }
 }
 
 bool HeapprofdProducer::DumpProcessesInDataSource(DataSourceInstanceID id) {
@@ -961,7 +965,8 @@ void HeapprofdProducer::HandleAllocRecord(AllocRecord alloc_rec) {
   }
 
   ProcessState& process_state = process_state_it->second;
-  HeapTracker& heap_tracker = process_state.heap_tracker;
+  HeapTracker& heap_tracker =
+      process_state.GetHeapTracker(alloc_rec.alloc_metadata.heap_id);
 
   if (alloc_rec.error)
     process_state.unwinding_errors++;
@@ -999,7 +1004,6 @@ void HeapprofdProducer::HandleFreeRecord(FreeRecord free_rec) {
   }
 
   ProcessState& process_state = process_state_it->second;
-  HeapTracker& heap_tracker = process_state.heap_tracker;
 
   const FreeBatchEntry* entries = free_batch.entries;
   uint64_t num_entries = free_batch.num_entries;
@@ -1009,6 +1013,7 @@ void HeapprofdProducer::HandleFreeRecord(FreeRecord free_rec) {
   }
   for (size_t i = 0; i < num_entries; ++i) {
     const FreeBatchEntry& entry = entries[i];
+    HeapTracker& heap_tracker = process_state.GetHeapTracker(entry.heap_id);
     heap_tracker.RecordFree(entry.addr, entry.sequence_number,
                             free_batch.clock_monotonic_coarse_timestamp);
   }
