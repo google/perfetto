@@ -254,7 +254,7 @@ function main() {
         '/': HomePage,
         '/viewer': ViewerPage,
         '/record': RecordPage,
-        '/analyze': AnalyzePage,
+        '/query': AnalyzePage,
       },
       dispatch);
   forwardRemoteCalls(frontendChannel.port2, new FrontendApi(router));
