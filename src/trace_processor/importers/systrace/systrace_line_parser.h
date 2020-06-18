@@ -36,6 +36,7 @@ class SystraceLineParser {
   TraceProcessorContext* const context_;
   const StringId sched_wakeup_name_id_ = kNullStringId;
   const StringId cpuidle_name_id_ = kNullStringId;
+  const StringId workqueue_name_id_ = kNullStringId;
 };
 
 }  // namespace trace_processor

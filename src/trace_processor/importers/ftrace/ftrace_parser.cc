@@ -44,6 +44,7 @@
 #include "protos/perfetto/trace/ftrace/signal.pbzero.h"
 #include "protos/perfetto/trace/ftrace/systrace.pbzero.h"
 #include "protos/perfetto/trace/ftrace/task.pbzero.h"
+#include "protos/perfetto/trace/ftrace/workqueue.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -79,7 +80,8 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       lmk_id_(context->storage->InternString("mem.lmk")),
       comm_name_id_(context->storage->InternString("comm")),
       signal_name_id_(context_->storage->InternString("signal.sig")),
-      oom_kill_id_(context_->storage->InternString("mem.oom_kill")) {
+      oom_kill_id_(context_->storage->InternString("mem.oom_kill")),
+      workqueue_id_(context_->storage->InternString("workqueue")) {
   // Build the lookup table for the strings inside ftrace events (e.g. the
   // name of ftrace event fields and the names of their args).
   for (size_t i = 0; i < GetDescriptorsSize(); i++) {
@@ -372,6 +374,14 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kScmCallEndFieldNumber: {
         ParseScmCallEnd(ts, pid, data);
+        break;
+      }
+      case FtraceEvent::kWorkqueueExecuteStartFieldNumber: {
+        ParseWorkqueueExecuteStart(ts, pid, data);
+        break;
+      }
+      case FtraceEvent::kWorkqueueExecuteEndFieldNumber: {
+        ParseWorkqueueExecuteEnd(ts, pid, data);
         break;
       }
       default:
@@ -920,6 +930,30 @@ void FtraceParser::ParseScmCallEnd(int64_t timestamp,
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
   context_->slice_tracker->End(timestamp, track_id);
+}
+
+void FtraceParser::ParseWorkqueueExecuteStart(int64_t timestamp,
+                                              uint32_t pid,
+                                              ConstBytes blob) {
+  protos::pbzero::WorkqueueExecuteStartFtraceEvent::Decoder evt(blob.data,
+                                                                blob.size);
+  char slice_name[255];
+  snprintf(slice_name, sizeof(slice_name), "%#" PRIx64, evt.function());
+  StringId name_id =
+      context_->storage->InternString(base::StringView(slice_name));
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  TrackId track = context_->track_tracker->InternThreadTrack(utid);
+  context_->slice_tracker->Begin(timestamp, track, workqueue_id_, name_id);
+}
+
+void FtraceParser::ParseWorkqueueExecuteEnd(int64_t timestamp,
+                                            uint32_t pid,
+                                            ConstBytes blob) {
+  protos::pbzero::WorkqueueExecuteEndFtraceEvent::Decoder evt(blob.data,
+                                                              blob.size);
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  TrackId track = context_->track_tracker->InternThreadTrack(utid);
+  context_->slice_tracker->End(timestamp, track, workqueue_id_);
 }
 
 }  // namespace trace_processor

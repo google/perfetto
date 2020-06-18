@@ -105,6 +105,12 @@ class FtraceParser {
                          uint32_t pid,
                          protozero::ConstBytes);
   void ParseScmCallEnd(int64_t timestamp, uint32_t pid, protozero::ConstBytes);
+  void ParseWorkqueueExecuteStart(int64_t timestamp,
+                                  uint32_t pid,
+                                  protozero::ConstBytes);
+  void ParseWorkqueueExecuteEnd(int64_t timestamp,
+                                uint32_t pid,
+                                protozero::ConstBytes);
 
   TraceProcessorContext* context_;
   RssStatTracker rss_stat_tracker_;
@@ -125,6 +131,7 @@ class FtraceParser {
   const StringId comm_name_id_;
   const StringId signal_name_id_;
   const StringId oom_kill_id_;
+  const StringId workqueue_id_;
 
   struct FtraceMessageStrings {
     // The string id of name of the event field (e.g. sched_switch's id).
