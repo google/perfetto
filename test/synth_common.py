@@ -307,6 +307,7 @@ class Trace(object):
                             context,
                             render_target_handle=None,
                             render_pass_handle=None,
+                            render_subpass_index_mask=None,
                             command_buffer_handle=None,
                             submission_id=None,
                             extra_data={}):
@@ -322,6 +323,9 @@ class Trace(object):
       render_stage.render_target_handle = render_target_handle
     if render_pass_handle is not None:
       render_stage.render_pass_handle = render_pass_handle
+    if render_subpass_index_mask is not None:
+      for mask in render_subpass_index_mask:
+        render_stage.render_subpass_index_mask.append(mask)
     if command_buffer_handle is not None:
       render_stage.command_buffer_handle = command_buffer_handle
     if submission_id is not None:
