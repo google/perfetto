@@ -77,7 +77,7 @@ class TraceProcessorImpl : public TraceProcessor,
       std::vector<uint8_t>* trace_proto) override;
 
  private:
-  // Needed for iterators to be able to delete themselves from the vector.
+  // Needed for iterators to be able to access the context.
   friend class IteratorImpl;
 
   template <typename Table>
@@ -97,8 +97,6 @@ class TraceProcessorImpl : public TraceProcessor,
 
   DescriptorPool pool_;
   std::vector<metrics::SqlMetricFile> sql_metrics_;
-
-  std::vector<IteratorImpl*> iterators_;
 
   // This is atomic because it is set by the CTRL-C signal handler and we need
   // to prevent single-flow compiler optimizations in ExecuteQuery().
