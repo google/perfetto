@@ -83,7 +83,8 @@ PERFETTO_TP_TABLE(PERFETTO_TP_SCHED_SLICE_TABLE_DEF);
   C(StringPool::Id, command_buffer_name)            \
   C(base::Optional<uint32_t>, frame_id)             \
   C(base::Optional<uint32_t>, submission_id)        \
-  C(base::Optional<int64_t>, hw_queue_id)
+  C(base::Optional<int64_t>, hw_queue_id)           \
+  C(StringPool::Id, render_subpasses)
 
 PERFETTO_TP_TABLE(PERFETTO_TP_GPU_SLICES_DEF);
 
