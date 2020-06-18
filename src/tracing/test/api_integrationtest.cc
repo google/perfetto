@@ -50,6 +50,8 @@
 #include "protos/perfetto/common/track_event_descriptor.gen.h"
 #include "protos/perfetto/config/track_event/track_event_config.gen.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
+#include "protos/perfetto/trace/gpu/gpu_render_stage_event.gen.h"
+#include "protos/perfetto/trace/gpu/gpu_render_stage_event.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.gen.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_common.gen.h"

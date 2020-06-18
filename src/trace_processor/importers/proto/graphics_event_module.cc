@@ -42,6 +42,7 @@ void GraphicsEventModule::ParsePacket(const TracePacket::Decoder& decoder,
       return;
     case TracePacket::kGpuRenderStageEventFieldNumber:
       parser_.ParseGpuRenderStageEvent(ttp.timestamp,
+                                       ttp.packet_data.sequence_state,
                                        decoder.gpu_render_stage_event());
       return;
     case TracePacket::kGpuLogFieldNumber:
