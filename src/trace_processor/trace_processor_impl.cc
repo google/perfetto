@@ -631,10 +631,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   RegisterDbTable(storage->cpu_freq_table());
 }
 
-TraceProcessorImpl::~TraceProcessorImpl() {
-  for (auto* it : iterators_)
-    it->Reset();
-}
+TraceProcessorImpl::~TraceProcessorImpl() = default;
 
 util::Status TraceProcessorImpl::Parse(std::unique_ptr<uint8_t[]> data,
                                        size_t size) {
@@ -731,7 +728,6 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql,
 
   std::unique_ptr<IteratorImpl> impl(new IteratorImpl(
       this, *db_, ScopedStmt(raw_stmt), col_count, status, sql_stats_row));
-  iterators_.emplace_back(impl.get());
   return Iterator(std::move(impl));
 }
 

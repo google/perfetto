@@ -108,13 +108,22 @@ class IteratorImpl {
 
   util::Status Status() { return status_; }
 
-  // Methods called by TraceProcessorImpl.
-  void Reset();
-
  private:
+  // Dummy function to pass to ScopedResource.
+  static int DummyClose(TraceProcessorImpl*) { return 0; }
+
+  // Iterators hold onto an instance of TraceProcessor to track when the query
+  // ends in the sql stats table. As iterators are movable, we need to null out
+  // the TraceProcessor in the moved out iterator to avoid double recording
+  // query ends. We could manually define a move constructor instead, but given
+  // the error prone nature of keeping functions up to date, this seems like a
+  // nicer approach.
+  using ScopedTraceProcessor =
+      base::ScopedResource<TraceProcessorImpl*, &DummyClose, nullptr>;
+
   void RecordFirstNextInSqlStats();
 
-  TraceProcessorImpl* trace_processor_;
+  ScopedTraceProcessor trace_processor_;
   sqlite3* db_ = nullptr;
   ScopedStmt stmt_;
   uint32_t column_count_ = 0;
