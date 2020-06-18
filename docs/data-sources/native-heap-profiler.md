@@ -371,6 +371,10 @@ to not strip them.
   domain. You will not be able to profile any processes unless you disable
   SELinux enforcement.
   Run `restorecon /dev/socket/heapprofd` in a root shell to resolve.
+* Using `vfork(2)` or `clone(2)` with `CLONE_VM` and allocating / freeing
+  memory in the child process will prematurely end the profile.
+  `java.lang.Runtime.exec` does this, calling it will prematurely end
+  the profile. Note that this is in violation of the POSIX standard.
 
 ## Heapprofd vs malloc_info() vs RSS
 
