@@ -189,4 +189,38 @@ trace.add_gpu_render_stages(
 trace.add_gpu_render_stages(
     ts=140, event_id=12, duration=5, hw_queue_id=-1, stage_id=-1, context=42)
 
+# test render_subpass_index_mask
+trace.add_gpu_render_stages(
+    ts=150,
+    event_id=12,
+    duration=5,
+    hw_queue_id=0,
+    stage_id=0,
+    context=42,
+    render_subpass_index_mask=[0x01])
+trace.add_gpu_render_stages(
+    ts=160,
+    event_id=13,
+    duration=5,
+    hw_queue_id=0,
+    stage_id=0,
+    context=42,
+    render_subpass_index_mask=[0x8000000000000000, 0x01])
+trace.add_gpu_render_stages(
+    ts=170,
+    event_id=14,
+    duration=5,
+    hw_queue_id=0,
+    stage_id=0,
+    context=42,
+    render_subpass_index_mask=[0, 0x1])
+trace.add_gpu_render_stages(
+    ts=180,
+    event_id=14,
+    duration=5,
+    hw_queue_id=0,
+    stage_id=0,
+    context=42,
+    render_subpass_index_mask=[0x08, 0xF0])
+
 print(trace.trace.SerializeToString())
