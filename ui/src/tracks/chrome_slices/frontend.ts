@@ -85,8 +85,6 @@ export class ChromeSliceTrack extends Track<Config, Data> {
       const titleId = data.titles[i];
       const sliceId = data.sliceIds[i];
       const title = data.strings[titleId];
-      const summarizedOffset =
-          data.summarizedOffset ? data.summarizedOffset[i] : -1;
       let incompleteSlice = false;
 
       if (toNs(tEnd) - toNs(tStart) === -1) {  // incomplete slice
@@ -112,18 +110,7 @@ export class ChromeSliceTrack extends Track<Config, Data> {
       const saturation = 50;
       const hovered = titleId === this.hoveredTitleId;
       const color = `hsl(${hue}, ${saturation}%, ${hovered ? 30 : 65}%)`;
-      if (summarizedOffset !== -1) {
-        const summarizedSize = data.summarizedSize[i];
-        const nameHues =
-            (data.summaryNameId.slice(
-                 summarizedOffset, summarizedOffset + summarizedSize))
-                .map(id => hash(data.strings[id]));
-        const percents = data.summaryPercent.slice(
-            summarizedOffset, summarizedOffset + summarizedSize);
-        colorSummarizedSlice(nameHues, percents, rectXStart, rectXEnd, hovered);
-      } else {
-        ctx.fillStyle = color;
-      }
+      ctx.fillStyle = color;
       if (incompleteSlice && rectWidth > SLICE_HEIGHT / 4) {
         drawIncompleteSlice(
             ctx, rectXStart, rectYStart, rectWidth, SLICE_HEIGHT, color);
@@ -153,25 +140,6 @@ export class ChromeSliceTrack extends Track<Config, Data> {
       ctx.fillText(displayText, rectXCenter, rectYStart + SLICE_HEIGHT / 2);
     }
     drawRectOnSelected();
-
-    // Make a gradient ordered most common to least common slices within the
-    // summarized slice.
-    function colorSummarizedSlice(
-        nameHues: Uint16Array,
-        percents: Float64Array,
-        rectStart: number,
-        rectEnd: number,
-        hovered: boolean) {
-      const gradient = ctx.createLinearGradient(
-          rectStart, SLICE_HEIGHT, rectEnd, SLICE_HEIGHT);
-      let colorStop = 0;
-      for (let i = 0; i < nameHues.length; i++) {
-        const colorString = `hsl(${nameHues[i]}, 50%, ${hovered ? 30 : 65}%)`;
-        colorStop = Math.max(0, Math.min(1, colorStop + percents[i]));
-        gradient.addColorStop(colorStop, colorString);
-      }
-      ctx.fillStyle = gradient;
-    }
   }
 
   getSliceIndex({x, y}: {x: number, y: number}): number|void {
