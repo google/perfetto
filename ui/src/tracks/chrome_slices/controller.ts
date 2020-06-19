@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {fromNs, toNs} from '../../common/time';
-import {LIMIT} from '../../common/track_data';
 import {
   TrackController,
   trackControllerRegistry,
@@ -21,165 +20,97 @@ import {
 
 import {Config, Data, SLICE_TRACK_KIND} from './common';
 
+
+// Allow to override via devtools for testing (note, needs to be done in the
+// controller-thread).
+(self as {} as {quantPx: number}).quantPx = 1;
+
 class ChromeSliceTrackController extends TrackController<Config, Data> {
   static readonly kind = SLICE_TRACK_KIND;
-  private setup = false;
+  private maxDurNs = 0;
 
   async onBoundsChange(start: number, end: number, resolution: number):
       Promise<Data> {
     const startNs = toNs(start);
     const endNs = toNs(end);
-    // Ns in 1px width. We want all slices smaller than 1px to be grouped.
-    const minNs = toNs(resolution);
 
-    if (!this.setup) {
-      await this.query(
-          `create virtual table ${this.tableName('window')} using window;`);
+    const pxSize = (self as {} as {quantPx: number}).quantPx;
 
-      await this.query(`create view ${this.tableName('small')} as
-        select ts, dur, depth, name, id as slice_id
-        from ${this.namespaceTable('slice')}
-        where track_id = ${this.config.trackId}
-        and dur < ${minNs}
-        order by ts;`);
+    // ns per quantization bucket (i.e. ns per pixel). /2 * 2 is to force it to
+    // be an even number, so we can snap in the middle.
+    const bucketNs = Math.round(resolution * 1e9 * pxSize / 2) * 2;
+    const tableName = this.namespaceTable('slice');
 
-      await this.query(`create virtual table ${this.tableName('span')} using
-      span_join(${this.tableName('small')} PARTITIONED depth,
-      ${this.tableName('window')});`);
-
-      this.setup = true;
+    if (this.maxDurNs === 0) {
+      const query = `SELECT max(dur) FROM ${tableName} WHERE track_id = ${
+          this.config.trackId}`;
+      const rawResult = await this.query(query);
+      if (rawResult.numRecords === 1) {
+        this.maxDurNs = +rawResult.columns![0].longValues![0];
+      }
     }
 
-    const windowDurNs = Math.max(1, endNs - startNs);
+    const query = `
+      SELECT
+        (ts + ${bucketNs / 2}) / ${bucketNs} * ${bucketNs} as tsq,
+        ts,
+        max(dur),
+        depth,
+        id as slice_id,
+        name
+      FROM ${tableName}
+      WHERE track_id = ${this.config.trackId} AND
+        ts >= (${startNs - this.maxDurNs}) AND
+        ts <= ${endNs}
+      GROUP BY depth, tsq`;
+    const rawResult = await this.query(query);
 
-    this.query(`update ${this.tableName('window')} set
-    window_start=${startNs},
-    window_dur=${windowDurNs},
-    quantum=${minNs}`);
-
-    await this.query(`drop view if exists ${this.tableName('small')}`);
-    await this.query(`drop view if exists ${this.tableName('big')}`);
-    await this.query(`drop view if exists ${this.tableName('summary')}`);
-
-    await this.query(`create view ${this.tableName('small')} as
-      select ts, dur, depth, name, id as slice_id
-      from ${this.namespaceTable('slice')}
-      where track_id = ${this.config.trackId}
-      and dur < ${minNs}
-      order by ts`);
-
-    await this.query(`create view ${this.tableName('big')} as
-      select ts, dur, depth, name, id as slice_id, 1.0 as percent,
-      -1 as grouping
-      from ${this.namespaceTable('slice')}
-      where track_id = ${this.config.trackId}
-      and ts >= ${startNs} - dur
-      and ts <= ${endNs}
-      and dur >= ${minNs}
-      order by ts `);
-
-    await this.query(`create view ${this.tableName('summary')} as select
-      min(min(ts)) over (partition by depth, quantum_ts) as ts,
-      sum(sum(dur)) over (partition by depth, quantum_ts) as dur,
-      depth,
-      name,
-      slice_id,
-      (sum(dur) * 1.0)/(sum(sum(dur)) over
-      (partition by depth,quantum_ts)) as percent,
-      quantum_ts as grouping
-      from ${this.tableName('span')}
-      group by depth, quantum_ts, name
-      order by ts;`);
-
-    // Since there are more rows than slices we will output, check the number of
-    // distinct groupings to find the number of slices.
-    const totalSlicesQuery = `select (
-      (select count(1) from ${this.tableName('big')}) +
-      (select count(1) from (select distinct grouping, depth
-      from ${this.tableName('summary')})))`;
-    const totalSlices = (await this.engine.queryOneRow(totalSlicesQuery))[0];
-
-    const totalSummarizedQuery =
-        `select count(1) from ${this.tableName('summary')}`;
-    const totalSummarized =
-        (await this.engine.queryOneRow(totalSummarizedQuery))[0];
-
-    const query = `select * from ${this.tableName('summary')} UNION
-      select * from ${this.tableName('big')}
-      order by ts, depth, percent desc limit ${LIMIT}`;
-    const result = await this.query(query);
-
-    const numRows = +result.numRecords;
-
-    const data: Data = {
+    const numRows = +rawResult.numRecords;
+    const slices: Data = {
       start,
       end,
       resolution,
-      length: totalSlices,
+      length: +rawResult.numRecords,
       strings: [],
-      sliceIds: new Float64Array(totalSlices),
-      starts: new Float64Array(totalSlices),
-      ends: new Float64Array(totalSlices),
-      depths: new Uint16Array(totalSlices),
-      titles: new Uint16Array(totalSlices),
-      summarizedOffset: new Int16Array(totalSlices).fill(-1),
-      summarizedSize: new Uint16Array(totalSlices),
-      summaryNameId: new Uint16Array(totalSummarized),
-      summaryPercent: new Float64Array(totalSummarized)
+      sliceIds: new Float64Array(numRows),
+      starts: new Float64Array(numRows),
+      ends: new Float64Array(numRows),
+      depths: new Uint16Array(numRows),
+      titles: new Uint16Array(numRows),
     };
 
     const stringIndexes = new Map<string, number>();
     function internString(str: string) {
       let idx = stringIndexes.get(str);
       if (idx !== undefined) return idx;
-      idx = data.strings.length;
-      data.strings.push(str);
+      idx = slices.strings.length;
+      slices.strings.push(str);
       stringIndexes.set(str, idx);
       return idx;
     }
 
-    let outIndex = 0;
-    let summaryIndex = 0;
-    const internedVarious = internString('Various slices');
+    const cols = rawResult.columns;
     for (let row = 0; row < numRows; row++) {
-      const cols = result.columns;
-      const start = +cols[0].longValues![row];
-      const dur = +cols[1].longValues![row];
-      const depth = +cols[2].longValues![row];
-      const name = cols[3].stringValues![row];
-      const percent = +(cols[5].doubleValues![row].toFixed(2));
-      const grouping = +cols[6].longValues![row];
+      const startNsQ = +cols[0].longValues![row];
+      const startNs = +cols[1].longValues![row];
+      const durNs = +cols[2].longValues![row];
+      const endNs = startNs + durNs;
 
-      // If it is a summarized slice, store the slice percentage breakdown.
-      if (percent !== 1) {
-        if (data.summarizedOffset[outIndex] === -1) {
-          data.summarizedOffset[outIndex] = summaryIndex;
-        }
-        data.summarizedSize[outIndex] = data.summarizedSize[outIndex] + 1;
-        data.summaryNameId[summaryIndex] = internString(name);
-        data.summaryPercent[summaryIndex] = percent;
-        summaryIndex++;
+      let endNsQ = Math.floor((endNs + bucketNs / 2 - 1) / bucketNs) * bucketNs;
+      endNsQ = Math.max(endNsQ, startNsQ + bucketNs);
+
+      if (startNsQ === endNsQ) {
+        throw new Error('Should never happen');
       }
 
-      const nextGrouping =
-          row + 1 < numRows ? +cols[6].longValues![row + 1] : -1;
-      const nextDepth = row + 1 < numRows ? +cols[2].longValues![row + 1] : -1;
-      // If the next grouping or next depth is different then we have reached
-      // the end of this slice.
-      if (grouping === -1 || grouping !== nextGrouping || depth !== nextDepth) {
-        const numSummarized = data.summarizedSize[outIndex];
-        data.starts[outIndex] = fromNs(start);
-        data.ends[outIndex] = fromNs(start + dur);
-        data.titles[outIndex] =
-            numSummarized > 0 ? internedVarious : internString(name);
-        data.depths[outIndex] = depth;
-        data.sliceIds[outIndex] = +cols[4].longValues![row];
-        outIndex++;
-      }
+      slices.starts[row] = fromNs(startNsQ);
+      slices.ends[row] = fromNs(endNsQ);
+      slices.depths[row] = +cols[3].longValues![row];
+      slices.sliceIds[row] = +cols[4].longValues![row];
+      slices.titles[row] = internString(cols[5].stringValues![row]);
     }
-    return data;
+    return slices;
   }
-
 }
 
 
