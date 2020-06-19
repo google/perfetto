@@ -81,6 +81,8 @@ class GpuEventParser {
           GpuRenderStageEvent_Specifications_Description_Decoder& hw_queue);
   base::Optional<std::string> FindDebugName(int32_t vk_object_type,
                                             uint64_t vk_handle) const;
+  const StringId ParseRenderSubpasses(
+      const protos::pbzero::GpuRenderStageEvent_Decoder& event) const;
 
   TraceProcessorContext* const context_;
   VulkanMemoryTracker vulkan_memory_tracker_;

@@ -48,6 +48,12 @@ message GpuRenderStageEvent {
   // optional. The Vulkan render pass handle.
   optional uint64 render_pass_handle = 9;
 
+  // optional. A bit mask representing which render subpasses contributed to
+  // this render stage event.  Subpass index 0 is represented by setting the
+  // LSB of the mask.  Additional mask can be added for subpass index greater
+  // than 63.
+  repeated uint64 render_subpass_index_mask = 15;
+
   // optional. The Vulkan command buffer handle.
   optional uint64 command_buffer_handle = 12;
 

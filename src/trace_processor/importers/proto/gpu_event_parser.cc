@@ -302,6 +302,34 @@ base::Optional<std::string> GpuEventParser::FindDebugName(
   }
 }
 
+const StringId GpuEventParser::ParseRenderSubpasses(
+    const protos::pbzero::GpuRenderStageEvent_Decoder& event) const {
+  if (!event.has_render_subpass_index_mask()) {
+    return kNullStringId;
+  }
+  char buf[256];
+  base::StringWriter writer(buf, sizeof(buf));
+  uint32_t bit_index = 0;
+  bool first = true;
+  for (auto it = event.render_subpass_index_mask(); it; ++it) {
+    auto subpasses_bits = *it;
+    do {
+      if ((subpasses_bits & 1) != 0) {
+        if (!first) {
+          writer.AppendChar(',');
+        }
+        first = false;
+        writer.AppendUnsignedInt(bit_index);
+      }
+      subpasses_bits >>= 1;
+      ++bit_index;
+    } while (subpasses_bits != 0);
+    // Round up to the next multiple of 64.
+    bit_index = ((bit_index - 1) / 64 + 1) * 64;
+  }
+  return context_->storage->InternString(writer.GetStringView());
+}
+
 void GpuEventParser::ParseGpuRenderStageEvent(
     int64_t ts,
     PacketSequenceStateGeneration* sequence_state,
@@ -441,6 +469,7 @@ void GpuEventParser::ParseGpuRenderStageEvent(
     row.render_target_name = render_target_name_id;
     row.render_pass = static_cast<int64_t>(event.render_pass_handle());
     row.render_pass_name = render_pass_name_id;
+    row.render_subpasses = ParseRenderSubpasses(event);
     row.command_buffer = static_cast<int64_t>(event.command_buffer_handle());
     row.command_buffer_name = command_buffer_name_id;
     row.submission_id = event.submission_id();
