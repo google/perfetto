@@ -162,6 +162,9 @@ heap_graph_baseapk.textproto heap_graph_flamegraph.sql heap_graph_flamegraph.out
 heap_graph_baseapk.textproto heap_graph_object.sql heap_graph_object.out
 heap_graph_baseapk.textproto heap_graph_reference.sql heap_graph_reference.out
 
+
+heap_graph_duplicate.textproto heap_graph_flamegraph.sql heap_graph_duplicate_flamegraph.out
+
 heap_graph.textproto heap_graph_flamegraph.sql heap_graph_flamegraph.out
 heap_graph.textproto heap_graph_object.sql heap_graph_object.out
 heap_graph.textproto heap_graph_reference.sql heap_graph_reference.out

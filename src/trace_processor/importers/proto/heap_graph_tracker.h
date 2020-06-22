@@ -190,7 +190,7 @@ class HeapGraphTracker : public Destructible {
            StringPool::Id>
       deobfuscation_mapping_;
   std::map<std::pair<UniquePid, int64_t>,
-           std::vector<tables::HeapGraphObjectTable::Id>>
+           std::set<tables::HeapGraphObjectTable::Id>>
       roots_;
 };
 
