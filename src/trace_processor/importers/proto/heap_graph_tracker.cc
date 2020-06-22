@@ -521,10 +521,11 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
         continue;
 
       tables::HeapGraphObjectTable::Id db_id = it->second;
-      roots_[std::make_pair(sequence_state.current_upid,
-                            sequence_state.current_ts)]
-          .emplace_back(db_id);
-      MarkRoot(context_->storage.get(), db_id, root.root_type);
+      auto it_and_success = roots_[std::make_pair(sequence_state.current_upid,
+                                                  sequence_state.current_ts)]
+                                .emplace(db_id);
+      if (it_and_success.second)
+        MarkRoot(context_->storage.get(), db_id, root.root_type);
     }
   }
 
@@ -619,7 +620,7 @@ HeapGraphTracker::BuildFlamegraph(const int64_t current_ts,
   if (it == roots_.end())
     return nullptr;
 
-  const std::vector<tables::HeapGraphObjectTable::Id>& roots = it->second;
+  const std::set<tables::HeapGraphObjectTable::Id>& roots = it->second;
 
   std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> tbl(
       new tables::ExperimentalFlamegraphNodesTable(

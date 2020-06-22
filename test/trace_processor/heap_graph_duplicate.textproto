@@ -1,0 +1,45 @@
+packet {
+  process_tree {
+    processes {
+      pid: 2
+      ppid: 1
+      cmdline: "system_server"
+      uid: 1000
+    }
+  }
+}
+packet {
+  timestamp: 10
+  process_stats {
+    processes {
+      pid: 2
+      rss_anon_kb: 1000
+      vm_swap_kb: 3000
+      oom_score_adj: 0
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 999
+  timestamp: 10
+  heap_graph {
+    pid: 2
+    types {
+      id: 1
+      class_name: "FactoryProducerDelegateImplActor"
+      location_id: 1
+    }
+    roots {
+      root_type: ROOT_JAVA_FRAME
+      object_ids: 0x01
+      object_ids: 0x01
+    }
+    objects {
+      id: 0x01
+      type_id: 1
+      self_size: 64
+    }
+    continued: false
+    index: 0
+  }
+}
