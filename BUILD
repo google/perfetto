@@ -780,7 +780,6 @@ genrule(
         "src/trace_processor/metrics/android/unsymbolized_frames.sql",
         "src/trace_processor/metrics/chrome/chrome_processes.sql",
         "src/trace_processor/metrics/trace_metadata.sql",
-        "src/trace_processor/metrics/webview/webview_cpu_usage.sql",
         "src/trace_processor/metrics/webview/webview_power_usage.sql",
     ],
     outs = [
