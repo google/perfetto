@@ -29,6 +29,7 @@
 #include <unistd.h>
 
 #include <atomic>
+#include <memory>
 #include <tuple>
 
 #include "perfetto/base/build_config.h"
@@ -60,14 +61,23 @@ namespace {
 // constructed with an allocator that uses the unhooked malloc & free functions.
 // See UnhookedAllocator.
 //
-// NoDestructor<> wrapper is used to avoid destructing the shared_ptr at program
-// exit. The rationale is:
-// * Avoiding the atexit destructor racing against other threads that are
-//   possibly running within the hooks.
-// * Making sure that atexit handlers running after this global's destructor
-//   can still safely enter the hooks.
-perfetto::base::NoDestructor<std::shared_ptr<perfetto::profiling::Client>>
-    g_client;
+// We initialize this storage the first time GetClientLocked is called. We
+// cannot use a static initializer because that leads to ordering problems
+// of the ELF's constructors.
+
+alignas(std::shared_ptr<perfetto::profiling::Client>) char g_client_arr[sizeof(
+    std::shared_ptr<perfetto::profiling::Client>)];
+
+bool g_client_init;
+
+std::shared_ptr<perfetto::profiling::Client>* GetClientLocked() {
+  if (!g_client_init) {
+    new (g_client_arr) std::shared_ptr<perfetto::profiling::Client>;
+    g_client_init = true;
+  }
+  return reinterpret_cast<std::shared_ptr<perfetto::profiling::Client>*>(
+      &g_client_arr);
+}
 
 // Protects g_client, and serves as an external lock for sampling decisions (see
 // perfetto::profiling::Sampler).
@@ -270,11 +280,11 @@ void ShutdownLazy() {
   if (PERFETTO_UNLIKELY(!s.locked()))
     AbortOnSpinlockTimeout();
 
-  if (!g_client.ref())  // other invocation already initiated shutdown
+  if (!*GetClientLocked())  // other invocation already initiated shutdown
     return;
 
   // Clear primary shared pointer, such that later hook invocations become nops.
-  g_client.ref().reset();
+  GetClientLocked()->reset();
 
   if (!android_mallopt(M_RESET_HOOKS, nullptr, 0))
     PERFETTO_PLOG("Unpatching heapprofd hooks failed.");
@@ -323,8 +333,7 @@ void AtForkChild() {
   // Note: this code assumes that the creation of the empty shared_ptr does not
   // allocate, which should be the case for all implementations as the
   // constructor has to be noexcept.
-  std::shared_ptr<perfetto::profiling::Client>& ref = g_client.ref();
-  new (&ref) std::shared_ptr<perfetto::profiling::Client>();
+  new (g_client_arr) std::shared_ptr<perfetto::profiling::Client>();
 }
 
 }  // namespace
@@ -344,14 +353,15 @@ heapprofd_report_allocation(uint32_t heap_id, uint64_t id, uint64_t size) {
     if (PERFETTO_UNLIKELY(!s.locked()))
       AbortOnSpinlockTimeout();
 
-    if (!g_client.ref())  // no active client (most likely shutting down)
+    auto* g_client_ptr = GetClientLocked();
+    if (!*g_client_ptr)  // no active client (most likely shutting down)
       return false;
 
-    sampled_alloc_sz = g_client.ref()->GetSampleSizeLocked(size);
+    sampled_alloc_sz = (*g_client_ptr)->GetSampleSizeLocked(size);
     if (sampled_alloc_sz == 0)  // not sampling
       return false;
 
-    client = g_client.ref();  // owning copy
+    client = *g_client_ptr;   // owning copy
   }                           // unlock
 
   if (!client->RecordMalloc(heap_id, sampled_alloc_sz, size, id)) {
@@ -369,7 +379,7 @@ __attribute__((visibility("default"))) void heapprofd_report_free(
     if (PERFETTO_UNLIKELY(!s.locked()))
       AbortOnSpinlockTimeout();
 
-    client = g_client.ref();  // owning copy (or empty)
+    client = *GetClientLocked();  // owning copy (or empty)
   }
 
   if (client) {
@@ -400,13 +410,14 @@ __attribute__((visibility("default"))) bool heapprofd_init_session(
     if (PERFETTO_UNLIKELY(!s.locked()))
       AbortOnSpinlockTimeout();
 
-    if (g_client.ref()) {
+    auto* g_client_ptr = GetClientLocked();
+    if (*g_client_ptr) {
       PERFETTO_LOG("%s: Rejecting concurrent profiling initialization.",
                    getprogname());
       return true;  // success as we're in a valid state
     }
-    old_client = g_client.ref();
-    g_client.ref().reset();
+    old_client = *g_client_ptr;
+    g_client_ptr->reset();
   }
 
   old_client.reset();
@@ -437,8 +448,8 @@ __attribute__((visibility("default"))) bool heapprofd_init_session(
 
     // This cannot have been set in the meantime. There are never two concurrent
     // calls to this function, as Bionic uses atomics to guard against that.
-    PERFETTO_DCHECK(g_client.ref() == nullptr);
-    g_client.ref() = std::move(client);
+    PERFETTO_DCHECK(*GetClientLocked() == nullptr);
+    *GetClientLocked() = std::move(client);
   }
   return true;
 }
