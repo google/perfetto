@@ -129,8 +129,8 @@ if (enable_perfetto_benchmarks) {
     deps = [
       ":core",
       ":service",
-      "../../../../../gn:benchmark",
-      "../../../../../gn:default_deps",
+      "../../../gn:benchmark",
+      "../../../gn:default_deps",
       "../../../protos/perfetto/trace:zero",
       "../../../protos/perfetto/trace/ftrace:zero",
       "../../protozero",
@@ -143,6 +143,6 @@ perfetto_fuzzer_test("packet_stream_validator_fuzzer") {
   sources = [ "packet_stream_validator_fuzzer.cc" ]
   deps = [
     ":service",
-    "../../../../../gn:default_deps",
+    "../../../gn:default_deps",
   ]
 }
