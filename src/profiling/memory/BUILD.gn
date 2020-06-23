@@ -235,6 +235,9 @@ source_set("end_to_end_tests") {
     "../../base:test_support",
   ]
   sources = [ "heapprofd_end_to_end_test.cc" ]
+  if (perfetto_build_with_android) {
+    deps += [ ":heapprofd_client_api" ]
+  }
   if (start_daemons_for_testing) {
     defines = [ "PERFETTO_START_DAEMONS_FOR_TESTING" ]
   }

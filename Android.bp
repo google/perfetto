@@ -1541,6 +1541,7 @@ cc_test {
     ":perfetto_test_test_helper",
   ],
   shared_libs: [
+    "heapprofd_client_api",
     "libbase",
     "liblog",
     "libprocinfo",

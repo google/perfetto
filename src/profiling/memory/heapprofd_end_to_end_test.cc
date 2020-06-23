@@ -24,6 +24,7 @@
 #include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/subprocess.h"
 #include "perfetto/ext/tracing/ipc/default_socket.h"
+#include "perfetto/profiling/memory/client_ext.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/profiling/memory/heapprofd_producer.h"
 #include "test/gtest_and_gmock.h"
@@ -89,6 +90,12 @@ base::ScopedResource<std::string*, SetModeProperty, nullptr> DisableFork() {
       new std::string(prev_property_value));
 }
 
+void CustomAllocateAndFree(size_t bytes) {
+  static uint32_t heap_id = heapprofd_register_heap("test");
+  heapprofd_report_allocation(heap_id, 0x1234abc, bytes);
+  heapprofd_report_free(heap_id, 0x1234abc);
+}
+
 #else
 std::string ReadProperty(const std::string&, std::string) {
   PERFETTO_FATAL("Only works on Android.");
@@ -106,6 +113,10 @@ base::ScopedResource<std::string*, SetModeProperty, nullptr> DisableFork() {
   PERFETTO_FATAL("Only works on Android.");
 }
 
+void __attribute__((noreturn)) CustomAllocateAndFree(size_t) {
+  PERFETTO_FATAL("Only works on Android.");
+}
+
 #endif
 
 constexpr size_t kStartupAllocSize = 10;
@@ -120,23 +131,31 @@ void AllocateAndFree(size_t bytes) {
   }
 }
 
-void __attribute__((noreturn)) ContinuousMalloc(size_t bytes) {
+void __attribute__((noreturn))
+ContinuousMalloc(size_t malloc_bytes, size_t custom_bytes) {
   for (;;) {
-    AllocateAndFree(bytes);
+    // We need to run malloc(0) even if we want to test the custom allocator,
+    // as the init mechanism assumes the application uses malloc.
+    AllocateAndFree(malloc_bytes);
+    if (custom_bytes)
+      CustomAllocateAndFree(custom_bytes);
     usleep(10 * kMsToUs);
   }
 }
 
-base::Subprocess ForkContinuousMalloc(size_t bytes) {
+base::Subprocess ForkContinuousMalloc(size_t malloc_bytes,
+                                      size_t custom_bytes = 0) {
   base::Subprocess proc;
-  proc.args.entrypoint_for_testing = [bytes] { ContinuousMalloc(bytes); };
+  proc.args.entrypoint_for_testing = [malloc_bytes, custom_bytes] {
+    ContinuousMalloc(malloc_bytes, custom_bytes);
+  };
   proc.Start();
   return proc;
 }
 
 void __attribute__((constructor)) RunContinuousMalloc() {
   if (getenv("HEAPPROFD_TESTING_RUN_MALLOC") != nullptr)
-    ContinuousMalloc(kStartupAllocSize);
+    ContinuousMalloc(kStartupAllocSize, 0);
 }
 
 std::unique_ptr<TestHelper> GetHelper(base::TestTaskRunner* task_runner) {
@@ -313,6 +332,39 @@ TEST_P(HeapprofdEndToEnd, Smoke) {
   constexpr size_t kAllocSize = 1024;
 
   base::Subprocess child = ForkContinuousMalloc(kAllocSize);
+  const auto pid = child.pid();
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(10 * 1024);
+  trace_config.set_duration_ms(2000);
+  trace_config.set_data_source_stop_timeout_ms(10000);
+
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("android.heapprofd");
+  ds_config->set_target_buffer(0);
+
+  protos::gen::HeapprofdConfig heapprofd_config;
+  heapprofd_config.set_sampling_interval_bytes(1);
+  heapprofd_config.add_pid(static_cast<uint64_t>(pid));
+  heapprofd_config.set_all(false);
+  auto* cont_config = heapprofd_config.mutable_continuous_dump_config();
+  cont_config->set_dump_phase_ms(0);
+  cont_config->set_dump_interval_ms(100);
+  ds_config->set_heapprofd_config_raw(heapprofd_config.SerializeAsString());
+
+  auto helper = Trace(trace_config);
+  PrintStats(helper.get());
+  ValidateHasSamples(helper.get(), static_cast<uint64_t>(pid));
+  ValidateOnlyPID(helper.get(), static_cast<uint64_t>(pid));
+  ValidateSampleSizes(helper.get(), static_cast<uint64_t>(pid), kAllocSize);
+
+  KillAssertRunning(&child);
+}
+
+TEST_P(HeapprofdEndToEnd, SmokeCustom) {
+  constexpr size_t kAllocSize = 1024;
+
+  base::Subprocess child = ForkContinuousMalloc(0, kAllocSize);
   const auto pid = child.pid();
 
   TraceConfig trace_config;
