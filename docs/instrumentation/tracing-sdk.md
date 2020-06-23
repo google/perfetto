@@ -161,7 +161,7 @@ Unlike track events, when working with custom data sources, you will also need
 corresponding changes in [trace processor](/docs/analysis/trace-processor.md)
 to enable importing your data format.
 
-A custom data source is a subclass of `perfetto::DataSource`. Perfetto with
+A custom data source is a subclass of `perfetto::DataSource`. Perfetto will
 automatically create one instance of the class for each tracing session it is
 active in (usually just one).
 
