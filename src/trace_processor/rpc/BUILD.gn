@@ -45,7 +45,6 @@ if (enable_perfetto_trace_processor_httpd) {
       ":rpc",
       "../../../gn:default_deps",
       "../../../include/perfetto/trace_processor",
-      "../../../protos/perfetto/metrics:zero",
       "../../../protos/perfetto/trace_processor:zero",
       "../../base",
       "../../base:unix_socket",
