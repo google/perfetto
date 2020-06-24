@@ -19,10 +19,10 @@ import {
   trackControllerRegistry,
 } from '../../controller/track_controller';
 
-import {Config, Data, SLICE_TRACK_KIND} from './common';
+import {ASYNC_SLICE_TRACK_KIND, Config, Data} from './common';
 
 class AsyncSliceTrackController extends TrackController<Config, Data> {
-  static readonly kind = SLICE_TRACK_KIND;
+  static readonly kind = ASYNC_SLICE_TRACK_KIND;
   private setup = false;
 
   async onBoundsChange(start: number, end: number, resolution: number):
