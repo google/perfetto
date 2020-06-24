@@ -578,7 +578,8 @@ bool TraceToPprof(trace_processor::TraceProcessor* tp,
   if (any_fail) {
     PERFETTO_ELOG(
         "One or more of your profiles had an issue. Please consult "
-        "https://docs.perfetto.dev/#/heapprofd?id=troubleshooting.");
+        "https://perfetto.dev/docs/data-sources/"
+        "native-heap-profiler#troubleshooting");
   }
   if (!it.Status().ok()) {
     PERFETTO_DFATAL_OR_ELOG("Invalid iterator: %s",

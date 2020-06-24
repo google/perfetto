@@ -128,7 +128,8 @@ function main() {
 function renderHeader() {
   const active = id => m.route.get().startsWith(`/${id}`) ? '.active' : '';
   const logUrl = 'https://goto.google.com/perfetto-ci-logs-';
-  const docsUrl = 'https://docs.perfetto.dev/#/continuous-integration';
+  const docsUrl =
+      'https://perfetto.dev/docs/design-docs/continuous-integration';
   return m('header',
     m('a[href=/#!/cls]', m('h1', 'Perfetto ', m('span', 'CI'))),
     m('nav',
