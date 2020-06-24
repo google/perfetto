@@ -18,7 +18,6 @@ export const CPU_FREQ_TRACK_KIND = 'CpuFreqTrack';
 
 export interface Data extends TrackData {
   maximumValue: number;
-  isQuantized: boolean;
 
   tsStarts: Float64Array;
   tsEnds: Float64Array;
