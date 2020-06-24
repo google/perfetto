@@ -82,6 +82,19 @@ TrackId TrackTracker::InternFuchsiaAsyncTrack(StringId name,
   return id;
 }
 
+TrackId TrackTracker::InternCpuTrack(StringId name, uint32_t cpu) {
+  auto it = cpu_tracks_.find(std::make_pair(name, cpu));
+  if (it != cpu_tracks_.end()) {
+    return it->second;
+  }
+
+  tables::TrackTable::Row row(name);
+  auto id = context_->storage->mutable_track_table()->Insert(row).id;
+  cpu_tracks_[std::make_pair(name, cpu)] = id;
+
+  return id;
+}
+
 TrackId TrackTracker::InternGpuTrack(const tables::GpuTrackTable::Row& row) {
   GpuTrackTuple tuple{row.name, row.scope, row.context_id.value_or(0)};
 
