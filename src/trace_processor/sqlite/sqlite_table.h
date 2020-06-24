@@ -325,9 +325,9 @@ class SqliteTable : public sqlite3_vtab {
   virtual int BestIndex(const QueryConstraints& qc, BestIndexInfo* info) = 0;
 
   // Optional metods to implement.
-  using FindFunctionFn = void (**)(sqlite3_context*, int, sqlite3_value**);
+  using FindFunctionFn = void (*)(sqlite3_context*, int, sqlite3_value**);
   virtual int ModifyConstraints(QueryConstraints* qc);
-  virtual int FindFunction(const char* name, FindFunctionFn fn, void** args);
+  virtual int FindFunction(const char* name, FindFunctionFn* fn, void** args);
 
   // At registration time, the function should also pass true for |read_write|.
   virtual int Update(int, sqlite3_value**, sqlite3_int64*);
