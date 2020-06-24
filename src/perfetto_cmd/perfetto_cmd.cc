@@ -179,7 +179,7 @@ statsd-specific flags:
   --config-uid         : UID of app which registered the config.
   --subscription-id    : ID of the subscription that triggered this trace.
 
-Detach mode. DISCOURAGED, read https://docs.perfetto.dev/#/detached-mode :
+Detach mode. DISCOURAGED, read https://perfetto.dev/docs/concepts/detached-mode :
   --detach=key          : Detach from the tracing session with the given key.
   --attach=key [--stop] : Re-attach to the session (optionally stop tracing once reattached).
   --is_detached=key     : Check if the session can be re-attached (0:Yes, 2:No, 1:Error).
