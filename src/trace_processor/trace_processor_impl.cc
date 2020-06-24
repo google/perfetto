@@ -480,6 +480,19 @@ void CreateExtractArgFunction(TraceStorage* ts, sqlite3* db) {
   }
 }
 
+void CreateSourceGeqFunction(sqlite3* db) {
+  auto fn = [](sqlite3_context* ctx, int, sqlite3_value**) {
+    sqlite3_result_error(
+        ctx, "SOURCE_GEQ should not be called from the global scope", -1);
+  };
+  auto ret = sqlite3_create_function_v2(db, "SOURCE_GEQ", -1,
+                                        SQLITE_UTF8 | SQLITE_DETERMINISTIC,
+                                        nullptr, fn, nullptr, nullptr, nullptr);
+  if (ret != SQLITE_OK) {
+    PERFETTO_FATAL("Error initializing SOURCE_GEQ: %s", sqlite3_errmsg(db));
+  }
+}
+
 void SetupMetrics(TraceProcessor* tp,
                   sqlite3* db,
                   std::vector<metrics::SqlMetricFile>* sql_metrics) {
@@ -551,6 +564,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   CreateDemangledNameFunction(db);
   CreateLastNonNullFunction(db);
   CreateExtractArgFunction(context_.storage.get(), db);
+  CreateSourceGeqFunction(db);
 
   SetupMetrics(this, *db_, &sql_metrics_);
 
