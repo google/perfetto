@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {fromNs, toNs} from '../../common/time';
-import {LIMIT} from '../../common/track_data';
 
 import {
   TrackController,
@@ -26,16 +25,28 @@ import {
   Data,
 } from './common';
 
+
+// Allow to override via devtools for testing (note, needs to be done in the
+// controller-thread).
+(self as {} as {quantPx: number}).quantPx = 1;
+
 class CounterTrackController extends TrackController<Config, Data> {
   static readonly kind = COUNTER_TRACK_KIND;
   private setup = false;
   private maximumValueSeen = 0;
   private minimumValueSeen = 0;
+  private maxDurNs = 0;
 
   async onBoundsChange(start: number, end: number, resolution: number):
       Promise<Data> {
     const startNs = toNs(start);
     const endNs = toNs(end);
+
+    const pxSize = (self as {} as {quantPx: number}).quantPx;
+
+    // ns per quantization bucket (i.e. ns per pixel). /2 * 2 is to force it to
+    // be an even number, so we can snap in the middle.
+    const bucketNs = Math.round(resolution * 1e9 * pxSize / 2) * 2;
 
     if (!this.setup) {
       if (this.config.namespace === undefined) {
@@ -62,95 +73,66 @@ class CounterTrackController extends TrackController<Config, Data> {
         `);
       }
 
+      const maxDurResult = await this.query(
+          `select max(dur) from ${this.tableName('counter_view')}`);
+      if (maxDurResult.numRecords === 1) {
+        this.maxDurNs = +maxDurResult.columns![0].longValues![0];
+      }
+
       const result = await this.query(`
         select max(value), min(value)
         from ${this.tableName('counter_view')}`);
       this.maximumValueSeen = +result.columns[0].doubleValues![0];
       this.minimumValueSeen = +result.columns[1].doubleValues![0];
-      await this.query(
-          `create virtual table ${this.tableName('window')} using window;`);
 
-      await this.query(`create virtual table ${this.tableName('span')} using
-        span_join(${this.tableName('counter_view')},
-        ${this.tableName('window')});`);
       this.setup = true;
     }
 
-    const result = await this.engine.queryOneRow(`
-      select count(*)
+    const rawResult = await this.query(`
+      select
+        (ts + ${bucketNs / 2}) / ${bucketNs} * ${bucketNs} as tsq,
+        ts,
+        max(dur) as dur,
+        id,
+        value
       from ${this.tableName('counter_view')}
-      where ts <= ${endNs} and ${startNs} <= ts + dur`);
-
-    // Only quantize if we have too much data to draw.
-    const isQuantized = result[0] > LIMIT;
-    // |resolution| is in s/px we want # ns for 1px window:
-    const bucketSizeNs = Math.round(resolution * 1e9);
-    let windowStartNs = startNs;
-    if (isQuantized) {
-      windowStartNs = Math.floor(windowStartNs / bucketSizeNs) * bucketSizeNs;
-    }
-    const windowDurNs = Math.max(1, endNs - windowStartNs);
-
-    this.query(`update ${this.tableName('window')} set
-    window_start=${windowStartNs},
-    window_dur=${windowDurNs},
-    quantum=${isQuantized ? bucketSizeNs : 0}`);
-
-    let query = `select min(ts) as ts,
-      max(value) as value,
-      -1 as id
-      from ${this.tableName('span')}
-      group by quantum_ts limit ${LIMIT};`;
-
-    if (!isQuantized) {
-      // Find the value just before the query range to ensure counters
-      // continue from the correct previous value.
-      // Union that with the query that finds all the counters within
-      // the current query range.
-      query = `
-      select *
-      from (
-        select ts, value, id
-        from ${this.tableName('counter_view')}
-        where ts <= ${startNs}
-        order by ts desc
-        limit 1
-      )
-      union
-      select *
-      from (
-        select ts, value, id
-        from ${this.tableName('counter_view')}
-        where ts <= ${endNs} and ${startNs} <= ts + dur
-        limit ${LIMIT}
-      );`;
-    }
-
-    const rawResult = await this.query(query);
+      where ts >= ${startNs - this.maxDurNs} and ts <= ${endNs}
+      group by tsq
+    `);
 
     const numRows = +rawResult.numRecords;
-
     const data: Data = {
       start,
       end,
       length: numRows,
-      isQuantized,
       maximumValue: this.maximumValue(),
       minimumValue: this.minimumValue(),
       resolution,
       timestamps: new Float64Array(numRows),
-      values: new Float64Array(numRows),
       ids: new Float64Array(numRows),
+      values: new Float64Array(numRows),
     };
 
     const cols = rawResult.columns;
     for (let row = 0; row < numRows; row++) {
-      const startSec = fromNs(+cols[0].longValues![row]);
-      const value = +cols[1].doubleValues![row];
-      const id = +cols[2].longValues![row];
-      data.timestamps[row] = startSec;
-      data.values[row] = value;
+      const startNsQ = +cols[0].longValues![row];
+      const startNs = +cols[1].longValues![row];
+      const durNs = +cols[2].longValues![row];
+      const endNs = startNs + durNs;
+
+      let endNsQ = Math.floor((endNs + bucketNs / 2 - 1) / bucketNs) * bucketNs;
+      endNsQ = Math.max(endNsQ, startNsQ + bucketNs);
+
+      if (startNsQ === endNsQ) {
+        throw new Error('Should never happen');
+      }
+
+      const id = +cols[3].longValues![row];
+      const value = +cols[4].doubleValues![row];
+
+      data.timestamps[row] = fromNs(startNsQ);
       data.ids[row] = id;
+      data.values[row] = value;
     }
 
     return data;
@@ -171,7 +153,6 @@ class CounterTrackController extends TrackController<Config, Data> {
       return this.config.minimumValue;
     }
   }
-
 }
 
 trackControllerRegistry.register(CounterTrackController);
