@@ -111,7 +111,6 @@ def CheckIncludeGuards(input_api, output_api):
 
 def CheckBannedCpp(input_api, output_api):
   bad_cpp = [
-      (r'\bNULL\b', 'New code should not use NULL prefer nullptr'),
       (r'\bstd::stoi\b',
        'std::stoi throws exceptions prefer base::StringToInt32()'),
       (r'\bstd::stol\b',
