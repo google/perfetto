@@ -16,7 +16,7 @@ import {searchEq, searchRange} from '../../base/binary_search';
 import {assertTrue} from '../../base/logging';
 import {TrackState} from '../../common/state';
 import {checkerboardExcept} from '../../frontend/checkerboard';
-import {colorForThread, colorForTid} from '../../frontend/colorizer';
+import {colorForThread} from '../../frontend/colorizer';
 import {globals} from '../../frontend/globals';
 import {Track} from '../../frontend/track';
 import {trackRegistry} from '../../frontend/track_registry';
@@ -25,14 +25,11 @@ import {
   Config,
   Data,
   PROCESS_SCHEDULING_TRACK_KIND,
-  SliceData,
-  SummaryData
 } from './common';
 
 const MARGIN_TOP = 5;
 const RECT_HEIGHT = 30;
 const TRACK_HEIGHT = MARGIN_TOP * 2 + RECT_HEIGHT;
-const SUMMARY_HEIGHT = TRACK_HEIGHT - MARGIN_TOP;
 
 class ProcessSchedulingTrack extends Track<Config, Data> {
   static readonly kind = PROCESS_SCHEDULING_TRACK_KIND;
@@ -68,42 +65,6 @@ class ProcessSchedulingTrack extends Track<Config, Data> {
         timeScale.timeToPx(data.start),
         timeScale.timeToPx(data.end));
 
-    if (data.kind === 'summary') {
-      this.renderSummary(ctx, data);
-    } else if (data.kind === 'slice') {
-      this.renderSlices(ctx, data);
-    }
-  }
-
-  renderSummary(ctx: CanvasRenderingContext2D, data: SummaryData): void {
-    const {timeScale, visibleWindowTime} = globals.frontendLocalState;
-    const startPx = Math.floor(timeScale.timeToPx(visibleWindowTime.start));
-    const bottomY = TRACK_HEIGHT;
-
-    let lastX = startPx;
-    let lastY = bottomY;
-
-    const color = colorForTid(this.config.pidForColor);
-    ctx.fillStyle = `hsl(${color.h}, ${color.s}%, ${color.l}%)`;
-    ctx.beginPath();
-    ctx.moveTo(lastX, lastY);
-    for (let i = 0; i < data.utilizations.length; i++) {
-      const utilization = data.utilizations[i];
-      const startTime = i * data.bucketSizeSeconds + data.start;
-
-      lastX = Math.floor(timeScale.timeToPx(startTime));
-
-      ctx.lineTo(lastX, lastY);
-      lastY = MARGIN_TOP + Math.round(SUMMARY_HEIGHT * (1 - utilization));
-      ctx.lineTo(lastX, lastY);
-    }
-    ctx.lineTo(lastX, bottomY);
-    ctx.closePath();
-    ctx.fill();
-  }
-
-  renderSlices(ctx: CanvasRenderingContext2D, data: SliceData): void {
-    const {timeScale, visibleWindowTime} = globals.frontendLocalState;
     assertTrue(data.starts.length === data.ends.length);
     assertTrue(data.starts.length === data.utids.length);
 
@@ -158,10 +119,11 @@ class ProcessSchedulingTrack extends Track<Config, Data> {
     }
   }
 
+
   onMouseMove({x, y}: {x: number, y: number}) {
     const data = this.data();
     this.mouseXpos = x;
-    if (data === undefined || data.kind === 'summary') return;
+    if (data === undefined) return;
     if (y < MARGIN_TOP || y > MARGIN_TOP + RECT_HEIGHT) {
       this.utidHoveredInThisTrack = -1;
       globals.frontendLocalState.setHoveredUtidAndPid(-1, -1);
