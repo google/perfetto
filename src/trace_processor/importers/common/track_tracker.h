@@ -37,6 +37,9 @@ class TrackTracker {
   // Interns a Fuchsia async track into the storage.
   TrackId InternFuchsiaAsyncTrack(StringId name, int64_t correlation_id);
 
+  // Interns a global track keyed by CPU + name into the storage.
+  TrackId InternCpuTrack(StringId name, uint32_t cpu);
+
   // Interns a given GPU track into the storage.
   TrackId InternGpuTrack(const tables::GpuTrackTable::Row& row);
 
@@ -256,6 +259,9 @@ class TrackTracker {
   std::map<UniqueTid, TrackId> thread_tracks_;
   std::map<UniquePid, TrackId> process_tracks_;
   std::map<int64_t /* correlation_id */, TrackId> fuchsia_async_tracks_;
+
+  std::map<std::pair<StringId, uint32_t /* cpu */>, TrackId> cpu_tracks_;
+
   std::map<GpuTrackTuple, TrackId> gpu_tracks_;
   std::map<ChromeTrackTuple, TrackId> chrome_tracks_;
   std::map<AndroidAsyncTrackTuple, TrackId> android_async_tracks_;
