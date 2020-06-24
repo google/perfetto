@@ -169,8 +169,8 @@ if (enable_perfetto_benchmarks) {
     deps = [
       ":platform_posix",
       "../..:libperfetto_client_experimental",
-      "../../../../../gn:benchmark",
-      "../../../../../gn:default_deps",
+      "../../gn:benchmark",
+      "../../gn:default_deps",
     ]
     sources = [ "api_benchmark.cc" ]
   }
