@@ -18,6 +18,7 @@ source_set("types") {
     "destructible.h",
     "gfp_flags.cc",
     "gfp_flags.h",
+    "softirq_action.h",
     "task_state.cc",
     "task_state.h",
     "trace_processor_context.h",
