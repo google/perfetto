@@ -883,6 +883,7 @@ filegroup(
         "src/trace_processor/types/destructible.h",
         "src/trace_processor/types/gfp_flags.cc",
         "src/trace_processor/types/gfp_flags.h",
+        "src/trace_processor/types/softirq_action.h",
         "src/trace_processor/types/task_state.cc",
         "src/trace_processor/types/task_state.h",
         "src/trace_processor/types/trace_processor_context.h",
