@@ -42,6 +42,7 @@ class ExperimentalCounterDurGenerator
 
  private:
   const tables::CounterTable* counter_table_ = nullptr;
+  std::unique_ptr<NullableVector<int64_t>> dur_column_;
 };
 
 }  // namespace trace_processor
