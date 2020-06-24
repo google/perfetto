@@ -130,9 +130,6 @@ class CpuFreqTrack extends Track<Config, Data> {
 
     if (this.hoveredValue !== undefined && this.hoveredTs !== undefined) {
       let text = `${this.hoveredValue.toLocaleString()}kHz`;
-      if (data.isQuantized) {
-        text = `${this.hoveredValue.toLocaleString()}kHz (weighted avg)`;
-      }
 
       ctx.fillStyle = `hsl(${hue}, 45%, 75%)`;
       ctx.strokeStyle = `hsl(${hue}, 45%, 45%)`;
