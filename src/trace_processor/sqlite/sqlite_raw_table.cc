@@ -24,6 +24,7 @@
 #include "src/trace_processor/importers/ftrace/ftrace_descriptors.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/types/gfp_flags.h"
+#include "src/trace_processor/types/softirq_action.h"
 #include "src/trace_processor/types/task_state.h"
 #include "src/trace_processor/types/variadic.h"
 
@@ -32,6 +33,7 @@
 #include "protos/perfetto/trace/ftrace/filemap.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
+#include "protos/perfetto/trace/ftrace/irq.pbzero.h"
 #include "protos/perfetto/trace/ftrace/power.pbzero.h"
 #include "protos/perfetto/trace/ftrace/sched.pbzero.h"
 #include "protos/perfetto/trace/ftrace/workqueue.pbzero.h"
@@ -373,8 +375,41 @@ void ArgsSerializer::SerializeArgs() {
     WriteValueForField(WQW::kReqCpuFieldNumber);
     WriteValueForField(WQW::kCpuFieldNumber);
     return;
+  } else if (event_name_ == "irq_handler_entry") {
+    using IEN = protos::pbzero::IrqHandlerEntryFtraceEvent;
+    WriteArgForField(IEN::kIrqFieldNumber);
+    WriteArgForField(IEN::kNameFieldNumber);
+    return;
+  } else if (event_name_ == "irq_handler_exit") {
+    using IEX = protos::pbzero::IrqHandlerExitFtraceEvent;
+    WriteArgForField(IEX::kIrqFieldNumber);
+    writer_->AppendString(" ret=");
+    WriteValueForField(IEX::kRetFieldNumber, [this](const Variadic& value) {
+      PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
+      writer_->AppendString(value.uint_value ? "handled" : "unhandled");
+    });
+    return;
+  } else if (event_name_ == "softirq_entry") {
+    using SIE = protos::pbzero::SoftirqEntryFtraceEvent;
+    WriteArgForField(SIE::kVecFieldNumber);
+    writer_->AppendString(" [action=");
+    WriteValueForField(SIE::kVecFieldNumber, [this](const Variadic& value) {
+      PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
+      writer_->AppendString(kActionNames[value.uint_value]);
+    });
+    writer_->AppendString("]");
+    return;
+  } else if (event_name_ == "softirq_exit") {
+    using SIX = protos::pbzero::SoftirqExitFtraceEvent;
+    WriteArgForField(SIX::kVecFieldNumber);
+    writer_->AppendString(" [action=");
+    WriteValueForField(SIX::kVecFieldNumber, [this](const Variadic& value) {
+      PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
+      writer_->AppendString(kActionNames[value.uint_value]);
+    });
+    writer_->AppendString("]");
+    return;
   }
-
   for (auto it = row_map_.IterateRows(); it; it.Next()) {
     WriteArgAtRow(it.row());
   }
