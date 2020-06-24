@@ -140,7 +140,7 @@ int SqliteTable::ModifyConstraints(QueryConstraints*) {
   return SQLITE_OK;
 }
 
-int SqliteTable::FindFunction(const char*, FindFunctionFn, void**) {
+int SqliteTable::FindFunction(const char*, FindFunctionFn*, void**) {
   return 0;
 }
 
