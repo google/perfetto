@@ -225,7 +225,27 @@ int SpanJoinOperatorTable::BestIndex(const QueryConstraints& qc,
         (ob.size() == 1 && is_first_ob_partition) ||
         (ob.size() == 2 && is_first_ob_partition && is_second_ob_ts);
   }
+
+  const auto& cs = qc.constraints();
+  for (uint32_t i = 0; i < cs.size(); ++i) {
+    if (cs[i].op == kSourceGeqOpCode) {
+      info->sqlite_omit_constraint[i] = true;
+    }
+  }
+
   return SQLITE_OK;
+}
+
+int SpanJoinOperatorTable::FindFunction(const char* name,
+                                        FindFunctionFn* fn,
+                                        void**) {
+  if (base::CaseInsensitiveEqual(name, "source_geq")) {
+    *fn = [](sqlite3_context* ctx, int, sqlite3_value**) {
+      sqlite3_result_error(ctx, "Should not be called.", -1);
+    };
+    return kSourceGeqOpCode;
+  }
+  return 0;
 }
 
 std::vector<std::string>
@@ -240,11 +260,21 @@ SpanJoinOperatorTable::ComputeSqlConstraintsForDefinition(
     if (col_name == "")
       continue;
 
-    if (col_name == kTsColumnName || col_name == kDurColumnName) {
-      // Allow SQLite handle any constraints on ts or duration.
+    // Le constraints can be passed straight to the child tables as they won't
+    // affect the span join computation. Similarily, source_geq constraints
+    // explicitly request that they are passed as geq constraints to the source
+    // tables.
+    if (col_name == kTsColumnName && !sqlite_utils::IsOpLe(cs.op) &&
+        cs.op != kSourceGeqOpCode)
       continue;
-    }
-    auto op = sqlite_utils::OpToString(cs.op);
+
+    // Allow SQLite handle any constraints on duration apart from source_geq
+    // constraints.
+    if (col_name == kDurColumnName && cs.op != kSourceGeqOpCode)
+      continue;
+
+    auto op = sqlite_utils::OpToString(
+        cs.op == kSourceGeqOpCode ? SQLITE_INDEX_CONSTRAINT_GE : cs.op);
     auto value = sqlite_utils::SqliteValueAsString(argv[i]);
 
     constraints.emplace_back("`" + col_name + "`" + op + value);
