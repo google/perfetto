@@ -3,6 +3,6 @@
 heapprofd allows you to attribute memory usage to functions for Android services
 and apps.
 
-For documentation, see https://docs.perfetto.dev/#/heapprofd.
+For documentation, see https://perfetto.dev/docs/data-sources/native-heap-profiler.
 
-Googlers, for design doc see: http://goto.google.com/heapprofd-design.
+For design doc, see https://perfetto.dev/docs/design-docs/heapprofd-design.

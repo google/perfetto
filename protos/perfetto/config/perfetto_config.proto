@@ -483,8 +483,9 @@ message HeapprofdConfig {
   // Set to 1 for perfect accuracy.
   // Otherwise, sample every sample_interval_bytes on average.
   //
-  // See https://docs.perfetto.dev/#/heapprofd?id=sampling-interval for more
-  // details.
+  // See
+  // https://perfetto.dev/docs/data-sources/native-heap-profiler#sampling-interval
+  // for more details.
   optional uint64 sampling_interval_bytes = 1;
 
   // E.g. surfaceflinger, com.android.phone
@@ -500,8 +501,9 @@ message HeapprofdConfig {
   repeated uint64 pid = 4;
 
   // Profile all processes eligible for profiling on the system.
-  // See https://docs.perfetto.dev/#/heapprofd?id=target-processes for which
-  // processes are eligible.
+  // See
+  // https://perfetto.dev/docs/data-sources/native-heap-profiler#heapprofd-targets
+  // for which processes are eligible.
   //
   // On unmodified userdebug builds, this will lead to system crashes. Zygote
   // will crash when trying to launch a new process as it will have an
