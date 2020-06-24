@@ -38,6 +38,7 @@ import {
 } from '../common/wasm_engine_proxy';
 import {QuantizedLoad, ThreadDesc} from '../frontend/globals';
 import {ANDROID_LOGS_TRACK_KIND} from '../tracks/android_log/common';
+import {ASYNC_SLICE_TRACK_KIND} from '../tracks/async_slices/common';
 import {SLICE_TRACK_KIND} from '../tracks/chrome_slices/common';
 import {CPU_FREQ_TRACK_KIND} from '../tracks/cpu_freq/common';
 import {CPU_PROFILE_TRACK_KIND} from '../tracks/cpu_profile/common';
@@ -311,25 +312,6 @@ export class TraceController extends Controller<States> {
     const numGpus = await engine.getNumberOfGpus();
     const tracksToAdd: AddTrackArgs[] = [];
 
-    // TODO(hjd): Renable Vsync tracks when fixed.
-    //// TODO(hjd): Move this code out of TraceController.
-    // for (const counterName of ['VSYNC-sf', 'VSYNC-app']) {
-    //  const hasVsync =
-    //      !!(await engine.query(
-    //             `select ts from counters where name like "${
-    //                                                         counterName
-    //                                                       }" limit 1`))
-    //            .numRecords;
-    //  if (!hasVsync) continue;
-    //  addToTrackActions.push(Actions.addTrack({
-    //    engineId: this.engineId,
-    //    kind: 'VsyncTrack',
-    //    name: `${counterName}`,
-    //    config: {
-    //      counterName,
-    //    }
-    //  }));
-    //}
     const maxCpuFreq = await engine.query(`
       select max(value)
       from counter c
@@ -414,7 +396,7 @@ export class TraceController extends Controller<States> {
       const maxDepth = +rawGlobalAsyncTracks.columns[2].longValues![i];
       const track = {
         engineId: this.engineId,
-        kind: 'AsyncSliceTrack',
+        kind: ASYNC_SLICE_TRACK_KIND,
         trackGroup: SCROLLING_TRACK_GROUP,
         name,
         config: {
