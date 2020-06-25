@@ -72,9 +72,12 @@ void DrawPlayer(int player_number) {
 }
 
 void DrawGame() {
-  TRACE_EVENT("rendering", "DrawGame");
+  // This is an example of an unscoped slice, which begins and ends at specific
+  // points (instead of at the end of the current block scope).
+  TRACE_EVENT_BEGIN("rendering", "DrawGame");
   DrawPlayer(1);
   DrawPlayer(2);
+  TRACE_EVENT_END("rendering");
 }
 
 int main(int, const char**) {
