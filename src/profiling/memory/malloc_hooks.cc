@@ -93,7 +93,8 @@ const MallocDispatch* GetDispatch() {
   return g_dispatch.load(std::memory_order_relaxed);
 }
 
-uint32_t g_heap_id = heapprofd_register_heap("malloc");
+HeapprofdHeapInfo info{"malloc", nullptr};
+uint32_t g_heap_id = heapprofd_register_heap(&info, sizeof(info));
 
 }  // namespace
 

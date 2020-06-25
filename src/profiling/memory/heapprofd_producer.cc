@@ -386,6 +386,27 @@ void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
       heapprofd_config.disable_vfork_detection();
   cli_config.block_client_timeout_us =
       heapprofd_config.block_client_timeout_us();
+  size_t n = 0;
+  std::vector<std::string> heaps = heapprofd_config.heaps();
+  if (heaps.empty()) {
+    heaps.push_back("malloc");
+  }
+  if (heaps.size() > base::ArraySize(cli_config.heaps)) {
+    heaps.resize(base::ArraySize(cli_config.heaps));
+    PERFETTO_ELOG("Too many heaps requested. Truncating.");
+  }
+  for (const std::string& heap : heaps) {
+    // -1 for the \0 byte.
+    if (heap.size() > HEAPPROFD_HEAP_NAME_SZ - 1) {
+      PERFETTO_ELOG("Invalid heap name %s (larger than %d)", heap.c_str(),
+                    HEAPPROFD_HEAP_NAME_SZ - 1);
+      continue;
+    }
+    strncpy(&cli_config.heaps[n][0], heap.c_str(), sizeof(cli_config.heaps[0]));
+    cli_config.heaps[n][sizeof(cli_config.heaps[0]) - 1] = '\0';
+    n++;
+  }
+  cli_config.num_heaps = n;
   data_source.config = heapprofd_config;
   data_source.normalized_cmdlines = std::move(normalized_cmdlines.value());
   data_source.stop_timeout_ms = ds_config.stop_timeout_ms();

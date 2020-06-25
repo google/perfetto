@@ -79,6 +79,20 @@ std::shared_ptr<perfetto::profiling::Client>* GetClientLocked() {
       &g_client_arr);
 }
 
+constexpr auto kMinHeapId = 1;
+
+struct HeapprofdHeapInfoInternal {
+  HeapprofdHeapInfo info;
+  bool ready;
+  bool enabled;
+};
+
+HeapprofdHeapInfoInternal g_heaps[256];
+
+HeapprofdHeapInfoInternal& GetHeap(uint32_t id) {
+  return g_heaps[id];
+}
+
 // Protects g_client, and serves as an external lock for sampling decisions (see
 // perfetto::profiling::Sampler).
 //
@@ -87,7 +101,7 @@ std::shared_ptr<perfetto::profiling::Client>* GetClientLocked() {
 // (technically a use-after-destruct scenario).
 std::atomic<bool> g_client_lock{false};
 
-std::atomic<uint32_t> g_next_heap_id{1};
+std::atomic<uint32_t> g_next_heap_id{kMinHeapId};
 
 constexpr char kHeapprofdBinPath[] = "/system/bin/heapprofd";
 
@@ -275,6 +289,18 @@ std::shared_ptr<perfetto::profiling::Client> CreateClientAndPrivateDaemon(
 //
 // Note: g_client can be reset by heapprofd_initialize without calling this
 // function.
+
+void DisableAllHeaps() {
+  for (size_t i = kMinHeapId; i < g_next_heap_id.load(); ++i) {
+    HeapprofdHeapInfoInternal& heap = GetHeap(i);
+    if (!heap.ready)
+      continue;
+    heap.enabled = false;
+    if (heap.info.callback)
+      heap.info.callback(false);
+  }
+}
+
 void ShutdownLazy() {
   ScopedSpinlock s(&g_client_lock, ScopedSpinlock::Mode::Try);
   if (PERFETTO_UNLIKELY(!s.locked()))
@@ -283,6 +309,7 @@ void ShutdownLazy() {
   if (!*GetClientLocked())  // other invocation already initiated shutdown
     return;
 
+  DisableAllHeaps();
   // Clear primary shared pointer, such that later hook invocations become nops.
   GetClientLocked()->reset();
 
@@ -328,6 +355,8 @@ void AtForkChild() {
   // not be in a consistent state.
   g_client_lock.store(false);
 
+  DisableAllHeaps();
+
   // Leak the existing shared_ptr contents, including the profiling |Client| if
   // profiling was active at the time of the fork.
   // Note: this code assumes that the creation of the empty shared_ptr does not
@@ -338,14 +367,31 @@ void AtForkChild() {
 
 }  // namespace
 
-// TODO(fmayer): Keep track of the heap names.
 __attribute__((visibility("default"))) uint32_t heapprofd_register_heap(
-    const char*) {
-  return g_next_heap_id.fetch_add(1);
+    const HeapprofdHeapInfo* info,
+    size_t n) {
+  // For backwards compatibility, we handle HeapprofdHeapInfo that are shorter
+  // than the current one (and assume all new fields are unset). If someone
+  // calls us with a *newer* HeapprofdHeapInfo than this version of the library
+  // understands, error out.
+  if (n > sizeof(HeapprofdHeapInfo)) {
+    return 0;
+  }
+  uint32_t next_id = g_next_heap_id.fetch_add(1);
+  if (next_id >= perfetto::base::ArraySize(g_heaps)) {
+    return 0;
+  }
+  HeapprofdHeapInfoInternal& heap = GetHeap(next_id);
+  memcpy(&heap.info, info, n);
+  heap.ready = true;
+  return next_id;
 }
 
 __attribute__((visibility("default"))) bool
 heapprofd_report_allocation(uint32_t heap_id, uint64_t id, uint64_t size) {
+  if (!GetHeap(heap_id).enabled) {
+    return false;
+  }
   size_t sampled_alloc_sz = 0;
   std::shared_ptr<perfetto::profiling::Client> client;
   {
@@ -373,6 +419,9 @@ heapprofd_report_allocation(uint32_t heap_id, uint64_t id, uint64_t size) {
 __attribute__((visibility("default"))) void heapprofd_report_free(
     uint32_t heap_id,
     uint64_t id) {
+  if (!GetHeap(heap_id).enabled) {
+    return;
+  }
   std::shared_ptr<perfetto::profiling::Client> client;
   {
     ScopedSpinlock s(&g_client_lock, ScopedSpinlock::Mode::Try);
@@ -439,6 +488,26 @@ __attribute__((visibility("default"))) bool heapprofd_init_session(
     PERFETTO_LOG("%s: heapprofd_client not initialized, not installing hooks.",
                  getprogname());
     return false;
+  }
+  const perfetto::profiling::ClientConfiguration& cli_config =
+      client->client_config();
+  for (size_t i = 0; i < cli_config.num_heaps; ++i) {
+    for (size_t j = kMinHeapId; j < g_next_heap_id.load(); ++j) {
+      HeapprofdHeapInfoInternal& heap = GetHeap(j);
+      if (!heap.ready)
+        continue;
+
+      static_assert(sizeof(g_heaps[0].info.heap_name) == HEAPPROFD_HEAP_NAME_SZ,
+                    "correct heap name size");
+      static_assert(sizeof(cli_config.heaps[0]) == HEAPPROFD_HEAP_NAME_SZ,
+                    "correct heap name size");
+      if (strncmp(&cli_config.heaps[i][0], &heap.info.heap_name[0],
+                  HEAPPROFD_HEAP_NAME_SZ) == 0) {
+        heap.enabled = true;
+        if (heap.info.callback)
+          heap.info.callback(true);
+      }
+    }
   }
   PERFETTO_LOG("%s: heapprofd_client initialized.", getprogname());
   {

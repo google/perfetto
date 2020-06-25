@@ -91,7 +91,8 @@ base::ScopedResource<std::string*, SetModeProperty, nullptr> DisableFork() {
 }
 
 void CustomAllocateAndFree(size_t bytes) {
-  static uint32_t heap_id = heapprofd_register_heap("test");
+  HeapprofdHeapInfo info{"test", nullptr};
+  static uint32_t heap_id = heapprofd_register_heap(&info, sizeof(info));
   heapprofd_report_allocation(heap_id, 0x1234abc, bytes);
   heapprofd_report_free(heap_id, 0x1234abc);
 }
@@ -283,6 +284,19 @@ class HeapprofdEndToEnd : public ::testing::TestWithParam<bool> {
     }
   }
 
+  void ValidateNoSamples(TestHelper* helper, uint64_t pid) {
+    const auto& packets = helper->trace();
+    size_t samples = 0;
+    for (const protos::gen::TracePacket& packet : packets) {
+      for (const auto& dump : packet.profile_packet().process_dumps()) {
+        if (dump.pid() != pid)
+          continue;
+        samples += dump.samples().size();
+      }
+    }
+    EXPECT_EQ(samples, 0u);
+  }
+
   void ValidateHasSamples(TestHelper* helper, uint64_t pid) {
     const auto& packets = helper->trace();
     ASSERT_GT(packets.size(), 0u);
@@ -328,6 +342,37 @@ void KillAssertRunning(base::Subprocess* child) {
   child->KillAndWaitForTermination();
 }
 
+TEST_P(HeapprofdEndToEnd, MallocDisabled) {
+  constexpr size_t kAllocSize = 1024;
+
+  base::Subprocess child = ForkContinuousMalloc(kAllocSize);
+  const auto pid = child.pid();
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(10 * 1024);
+  trace_config.set_duration_ms(2000);
+  trace_config.set_data_source_stop_timeout_ms(10000);
+
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("android.heapprofd");
+  ds_config->set_target_buffer(0);
+
+  protos::gen::HeapprofdConfig heapprofd_config;
+  heapprofd_config.set_sampling_interval_bytes(1);
+  heapprofd_config.add_pid(static_cast<uint64_t>(pid));
+  heapprofd_config.set_all(false);
+  heapprofd_config.add_heaps("invalid");
+  auto* cont_config = heapprofd_config.mutable_continuous_dump_config();
+  cont_config->set_dump_phase_ms(0);
+  cont_config->set_dump_interval_ms(100);
+  ds_config->set_heapprofd_config_raw(heapprofd_config.SerializeAsString());
+
+  auto helper = Trace(trace_config);
+  PrintStats(helper.get());
+
+  ValidateNoSamples(helper.get(), static_cast<uint64_t>(pid));
+  KillAssertRunning(&child);
+}
 TEST_P(HeapprofdEndToEnd, Smoke) {
   constexpr size_t kAllocSize = 1024;
 
@@ -380,6 +425,7 @@ TEST_P(HeapprofdEndToEnd, SmokeCustom) {
   heapprofd_config.set_sampling_interval_bytes(1);
   heapprofd_config.add_pid(static_cast<uint64_t>(pid));
   heapprofd_config.set_all(false);
+  heapprofd_config.add_heaps("test");
   auto* cont_config = heapprofd_config.mutable_continuous_dump_config();
   cont_config->set_dump_phase_ms(0);
   cont_config->set_dump_interval_ms(100);
@@ -390,6 +436,37 @@ TEST_P(HeapprofdEndToEnd, SmokeCustom) {
   ValidateHasSamples(helper.get(), static_cast<uint64_t>(pid));
   ValidateOnlyPID(helper.get(), static_cast<uint64_t>(pid));
   ValidateSampleSizes(helper.get(), static_cast<uint64_t>(pid), kAllocSize);
+
+  KillAssertRunning(&child);
+}
+
+TEST_P(HeapprofdEndToEnd, CustomDisabled) {
+  constexpr size_t kAllocSize = 1024;
+
+  base::Subprocess child = ForkContinuousMalloc(0, kAllocSize);
+  const auto pid = child.pid();
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(10 * 1024);
+  trace_config.set_duration_ms(2000);
+  trace_config.set_data_source_stop_timeout_ms(10000);
+
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("android.heapprofd");
+  ds_config->set_target_buffer(0);
+
+  protos::gen::HeapprofdConfig heapprofd_config;
+  heapprofd_config.set_sampling_interval_bytes(1);
+  heapprofd_config.add_pid(static_cast<uint64_t>(pid));
+  heapprofd_config.set_all(false);
+  auto* cont_config = heapprofd_config.mutable_continuous_dump_config();
+  cont_config->set_dump_phase_ms(0);
+  cont_config->set_dump_interval_ms(100);
+  ds_config->set_heapprofd_config_raw(heapprofd_config.SerializeAsString());
+
+  auto helper = Trace(trace_config);
+  PrintStats(helper.get());
+  ValidateNoSamples(helper.get(), static_cast<uint64_t>(pid));
 
   KillAssertRunning(&child);
 }
