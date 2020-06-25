@@ -54,9 +54,6 @@ class CpuFreqTrackController extends TrackController<Config, Data> {
         where track_id = ${this.config.freqTrackId}`);
       this.maximumValueSeen = +result.columns[0].doubleValues![0];
 
-      await this.query(
-        `create virtual table ${this.tableName('window')} using window;`);
-
       await this.query(`create view ${this.tableName('freq')} as
         select
           ts,
