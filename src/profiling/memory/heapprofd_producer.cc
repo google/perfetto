@@ -95,6 +95,40 @@ size_t Log2LessThan(uint64_t value) {
 
 }  // namespace
 
+void HeapprofdConfigToClientConfiguration(
+    const HeapprofdConfig& heapprofd_config,
+    ClientConfiguration* cli_config) {
+  cli_config->interval = heapprofd_config.sampling_interval_bytes();
+  cli_config->block_client = heapprofd_config.block_client();
+  cli_config->disable_fork_teardown = heapprofd_config.disable_fork_teardown();
+  cli_config->disable_vfork_detection =
+      heapprofd_config.disable_vfork_detection();
+  cli_config->block_client_timeout_us =
+      heapprofd_config.block_client_timeout_us();
+  size_t n = 0;
+  std::vector<std::string> heaps = heapprofd_config.heaps();
+  if (heaps.empty()) {
+    heaps.push_back("malloc");
+  }
+  if (heaps.size() > base::ArraySize(cli_config->heaps)) {
+    heaps.resize(base::ArraySize(cli_config->heaps));
+    PERFETTO_ELOG("Too many heaps requested. Truncating.");
+  }
+  for (const std::string& heap : heaps) {
+    // -1 for the \0 byte.
+    if (heap.size() > HEAPPROFD_HEAP_NAME_SZ - 1) {
+      PERFETTO_ELOG("Invalid heap name %s (larger than %d)", heap.c_str(),
+                    HEAPPROFD_HEAP_NAME_SZ - 1);
+      continue;
+    }
+    strncpy(&cli_config->heaps[n][0], heap.c_str(),
+            sizeof(cli_config->heaps[0]));
+    cli_config->heaps[n][sizeof(cli_config->heaps[0]) - 1] = '\0';
+    n++;
+  }
+  cli_config->num_heaps = n;
+}
+
 const uint64_t LogHistogram::kMaxBucket = 0;
 
 std::vector<std::pair<uint64_t, uint64_t>> LogHistogram::GetData() {
@@ -379,34 +413,7 @@ void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
   DataSource data_source(endpoint_->CreateTraceWriter(buffer_id));
   data_source.id = id;
   auto& cli_config = data_source.client_configuration;
-  cli_config.interval = heapprofd_config.sampling_interval_bytes();
-  cli_config.block_client = heapprofd_config.block_client();
-  cli_config.disable_fork_teardown = heapprofd_config.disable_fork_teardown();
-  cli_config.disable_vfork_detection =
-      heapprofd_config.disable_vfork_detection();
-  cli_config.block_client_timeout_us =
-      heapprofd_config.block_client_timeout_us();
-  size_t n = 0;
-  std::vector<std::string> heaps = heapprofd_config.heaps();
-  if (heaps.empty()) {
-    heaps.push_back("malloc");
-  }
-  if (heaps.size() > base::ArraySize(cli_config.heaps)) {
-    heaps.resize(base::ArraySize(cli_config.heaps));
-    PERFETTO_ELOG("Too many heaps requested. Truncating.");
-  }
-  for (const std::string& heap : heaps) {
-    // -1 for the \0 byte.
-    if (heap.size() > HEAPPROFD_HEAP_NAME_SZ - 1) {
-      PERFETTO_ELOG("Invalid heap name %s (larger than %d)", heap.c_str(),
-                    HEAPPROFD_HEAP_NAME_SZ - 1);
-      continue;
-    }
-    strncpy(&cli_config.heaps[n][0], heap.c_str(), sizeof(cli_config.heaps[0]));
-    cli_config.heaps[n][sizeof(cli_config.heaps[0]) - 1] = '\0';
-    n++;
-  }
-  cli_config.num_heaps = n;
+  HeapprofdConfigToClientConfiguration(heapprofd_config, &cli_config);
   data_source.config = heapprofd_config;
   data_source.normalized_cmdlines = std::move(normalized_cmdlines.value());
   data_source.stop_timeout_ms = ds_config.stop_timeout_ms();
