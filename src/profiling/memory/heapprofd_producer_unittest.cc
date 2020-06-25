@@ -79,5 +79,24 @@ TEST(HeapprofdProducerTest, ExposesDataSource) {
   producer.OnConnect();
 }
 
+TEST(HeapprofdConfigToClientConfigurationTest, Smoke) {
+  HeapprofdConfig cfg;
+  cfg.add_heaps("foo");
+  cfg.set_sampling_interval_bytes(4096);
+  ClientConfiguration cli_config;
+  HeapprofdConfigToClientConfiguration(cfg, &cli_config);
+  EXPECT_EQ(cli_config.num_heaps, 1u);
+  EXPECT_EQ(cli_config.interval, 4096u);
+  EXPECT_STREQ(cli_config.heaps[0], "foo");
+}
+
+TEST(HeapprofdConfigToClientConfigurationTest, OverflowHeapName) {
+  HeapprofdConfig cfg;
+  cfg.add_heaps("foooooooooooooooooooooooooooooooooooooooooooooo");
+  ClientConfiguration cli_config;
+  HeapprofdConfigToClientConfiguration(cfg, &cli_config);
+  EXPECT_EQ(cli_config.num_heaps, 0u);
+}
+
 }  // namespace profiling
 }  // namespace perfetto

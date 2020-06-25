@@ -29,6 +29,7 @@
 #include <unwindstack/MachineX86.h>
 #include <unwindstack/MachineX86_64.h>
 
+#include "perfetto/profiling/memory/client_ext.h"
 #include "src/profiling/memory/shared_ring_buffer.h"
 
 namespace perfetto {
@@ -48,6 +49,10 @@ struct ClientConfiguration {
   uint64_t block_client_timeout_us;
   bool disable_fork_teardown;
   bool disable_vfork_detection;
+  char heaps[64][HEAPPROFD_HEAP_NAME_SZ];
+  uint64_t num_heaps;
+  // Just double check that the array sizes are in correct order.
+  static_assert(sizeof(heaps[0]) == HEAPPROFD_HEAP_NAME_SZ, "");
 };
 
 // Types needed for the wire format used for communication between the client
