@@ -92,7 +92,7 @@ Track events are the suggested option when dealing with app-specific tracing as
 they take care of a number of subtleties (e.g., thread safety, flushing, string
 interning).
 Track events are time bounded events (e.g., slices, counter) based on simple
-annotation tags in the codebase, like this:
+`TRACE_EVENT` annotation tags in the codebase, like this:
 
 ```c++
 #include <perfetto.h>
