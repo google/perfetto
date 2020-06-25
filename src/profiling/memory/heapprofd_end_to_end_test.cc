@@ -284,6 +284,19 @@ class HeapprofdEndToEnd : public ::testing::TestWithParam<bool> {
     }
   }
 
+  void ValidateHeapName(TestHelper* helper,
+                        uint64_t pid,
+                        const char* heap_name) {
+    const auto& packets = helper->trace();
+    for (const protos::gen::TracePacket& packet : packets) {
+      for (const auto& dump : packet.profile_packet().process_dumps()) {
+        if (dump.pid() != pid)
+          continue;
+        EXPECT_EQ(dump.heap_name(), heap_name);
+      }
+    }
+  }
+
   void ValidateNoSamples(TestHelper* helper, uint64_t pid) {
     const auto& packets = helper->trace();
     size_t samples = 0;
@@ -402,6 +415,7 @@ TEST_P(HeapprofdEndToEnd, Smoke) {
   ValidateHasSamples(helper.get(), static_cast<uint64_t>(pid));
   ValidateOnlyPID(helper.get(), static_cast<uint64_t>(pid));
   ValidateSampleSizes(helper.get(), static_cast<uint64_t>(pid), kAllocSize);
+  ValidateHeapName(helper.get(), static_cast<uint64_t>(pid), "malloc");
 
   KillAssertRunning(&child);
 }
@@ -436,6 +450,7 @@ TEST_P(HeapprofdEndToEnd, SmokeCustom) {
   ValidateHasSamples(helper.get(), static_cast<uint64_t>(pid));
   ValidateOnlyPID(helper.get(), static_cast<uint64_t>(pid));
   ValidateSampleSizes(helper.get(), static_cast<uint64_t>(pid), kAllocSize);
+  ValidateHeapName(helper.get(), static_cast<uint64_t>(pid), "test");
 
   KillAssertRunning(&child);
 }
@@ -502,6 +517,8 @@ TEST_P(HeapprofdEndToEnd, TwoProcesses) {
   ValidateSampleSizes(helper.get(), static_cast<uint64_t>(pid), kAllocSize);
   ValidateHasSamples(helper.get(), static_cast<uint64_t>(pid2));
   ValidateSampleSizes(helper.get(), static_cast<uint64_t>(pid2), kAllocSize2);
+  ValidateHeapName(helper.get(), static_cast<uint64_t>(pid), "malloc");
+  ValidateHeapName(helper.get(), static_cast<uint64_t>(pid2), "malloc");
 
   KillAssertRunning(&child);
   KillAssertRunning(&child2);
@@ -533,6 +550,7 @@ TEST_P(HeapprofdEndToEnd, FinalFlush) {
   ValidateHasSamples(helper.get(), static_cast<uint64_t>(pid));
   ValidateOnlyPID(helper.get(), static_cast<uint64_t>(pid));
   ValidateSampleSizes(helper.get(), static_cast<uint64_t>(pid), kAllocSize);
+  ValidateHeapName(helper.get(), static_cast<uint64_t>(pid), "malloc");
 
   KillAssertRunning(&child);
 }
@@ -602,6 +620,7 @@ TEST_P(HeapprofdEndToEnd, NativeStartup) {
   EXPECT_GT(samples, 0u);
   EXPECT_GT(total_allocated, 0u);
   EXPECT_GT(total_freed, 0u);
+  ValidateHeapName(helper.get(), static_cast<uint64_t>(child.pid()), "malloc");
 }
 
 TEST_P(HeapprofdEndToEnd, NativeStartupDenormalizedCmdline) {
@@ -669,6 +688,7 @@ TEST_P(HeapprofdEndToEnd, NativeStartupDenormalizedCmdline) {
   EXPECT_GT(samples, 0u);
   EXPECT_GT(total_allocated, 0u);
   EXPECT_GT(total_freed, 0u);
+  ValidateHeapName(helper.get(), static_cast<uint64_t>(child.pid()), "malloc");
 }
 
 TEST_P(HeapprofdEndToEnd, DiscoverByName) {
@@ -732,6 +752,7 @@ TEST_P(HeapprofdEndToEnd, DiscoverByName) {
   EXPECT_GT(samples, 0u);
   EXPECT_GT(total_allocated, 0u);
   EXPECT_GT(total_freed, 0u);
+  ValidateHeapName(helper.get(), static_cast<uint64_t>(child.pid()), "malloc");
 }
 
 TEST_P(HeapprofdEndToEnd, DiscoverByNameDenormalizedCmdline) {
@@ -796,6 +817,7 @@ TEST_P(HeapprofdEndToEnd, DiscoverByNameDenormalizedCmdline) {
   EXPECT_GT(samples, 0u);
   EXPECT_GT(total_allocated, 0u);
   EXPECT_GT(total_freed, 0u);
+  ValidateHeapName(helper.get(), static_cast<uint64_t>(child.pid()), "malloc");
 }
 
 TEST_P(HeapprofdEndToEnd, ReInit) {
@@ -859,6 +881,7 @@ TEST_P(HeapprofdEndToEnd, ReInit) {
   ValidateOnlyPID(helper.get(), static_cast<uint64_t>(pid));
   ValidateSampleSizes(helper.get(), static_cast<uint64_t>(pid),
                       kFirstIterationBytes);
+  ValidateHeapName(helper.get(), static_cast<uint64_t>(pid), "malloc");
 
   PERFETTO_CHECK(PERFETTO_EINTR(write(*signal_pipe.wr, "1", 1)) == 1);
   signal_pipe.wr.reset();
@@ -877,6 +900,7 @@ TEST_P(HeapprofdEndToEnd, ReInit) {
   ValidateOnlyPID(helper.get(), static_cast<uint64_t>(pid));
   ValidateSampleSizes(helper.get(), static_cast<uint64_t>(pid),
                       kSecondIterationBytes);
+  ValidateHeapName(helper.get(), static_cast<uint64_t>(pid), "malloc");
 
   KillAssertRunning(&child);
 }
@@ -920,6 +944,7 @@ TEST_P(HeapprofdEndToEnd, ConcurrentSession) {
   ValidateSampleSizes(helper.get(), static_cast<uint64_t>(pid), kAllocSize);
   ValidateRejectedConcurrent(helper_concurrent.get(),
                              static_cast<uint64_t>(pid), false);
+  ValidateHeapName(helper.get(), static_cast<uint64_t>(pid), "malloc");
 
   helper_concurrent->WaitForTracingDisabled(kTracingDisabledTimeoutMs);
   helper_concurrent->ReadData();
@@ -1014,6 +1039,7 @@ TEST_P(HeapprofdEndToEnd, NativeProfilingActiveAtProcessExit) {
   EXPECT_EQ(profile_packets, 1u);
   EXPECT_GT(samples, 0u);
   EXPECT_GT(total_allocated, 0u);
+  ValidateHeapName(helper.get(), static_cast<uint64_t>(child.pid()), "malloc");
 }
 
 // This test only works when run on Android using an Android Q version of

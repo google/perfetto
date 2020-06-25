@@ -85,6 +85,7 @@ struct HeapprofdHeapInfoInternal {
   HeapprofdHeapInfo info;
   bool ready;
   bool enabled;
+  uint32_t service_heap_id;
 };
 
 HeapprofdHeapInfoInternal g_heaps[256];
@@ -295,9 +296,11 @@ void DisableAllHeaps() {
     HeapprofdHeapInfoInternal& heap = GetHeap(i);
     if (!heap.ready)
       continue;
-    heap.enabled = false;
-    if (heap.info.callback)
-      heap.info.callback(false);
+    if (heap.enabled) {
+      heap.enabled = false;
+      if (heap.info.callback)
+        heap.info.callback(false);
+    }
   }
 }
 
@@ -389,7 +392,8 @@ __attribute__((visibility("default"))) uint32_t heapprofd_register_heap(
 
 __attribute__((visibility("default"))) bool
 heapprofd_report_allocation(uint32_t heap_id, uint64_t id, uint64_t size) {
-  if (!GetHeap(heap_id).enabled) {
+  const HeapprofdHeapInfoInternal& heap = GetHeap(heap_id);
+  if (!heap.enabled) {
     return false;
   }
   size_t sampled_alloc_sz = 0;
@@ -410,7 +414,7 @@ heapprofd_report_allocation(uint32_t heap_id, uint64_t id, uint64_t size) {
     client = *g_client_ptr;   // owning copy
   }                           // unlock
 
-  if (!client->RecordMalloc(heap_id, sampled_alloc_sz, size, id)) {
+  if (!client->RecordMalloc(heap.service_heap_id, sampled_alloc_sz, size, id)) {
     ShutdownLazy();
   }
   return true;
@@ -419,7 +423,8 @@ heapprofd_report_allocation(uint32_t heap_id, uint64_t id, uint64_t size) {
 __attribute__((visibility("default"))) void heapprofd_report_free(
     uint32_t heap_id,
     uint64_t id) {
-  if (!GetHeap(heap_id).enabled) {
+  const HeapprofdHeapInfoInternal& heap = GetHeap(heap_id);
+  if (!heap.enabled) {
     return;
   }
   std::shared_ptr<perfetto::profiling::Client> client;
@@ -432,7 +437,7 @@ __attribute__((visibility("default"))) void heapprofd_report_free(
   }
 
   if (client) {
-    if (!client->RecordFree(heap_id, id))
+    if (!client->RecordFree(heap.service_heap_id, id))
       ShutdownLazy();
   }
 }
@@ -491,22 +496,32 @@ __attribute__((visibility("default"))) bool heapprofd_init_session(
   }
   const perfetto::profiling::ClientConfiguration& cli_config =
       client->client_config();
-  for (size_t i = 0; i < cli_config.num_heaps; ++i) {
-    for (size_t j = kMinHeapId; j < g_next_heap_id.load(); ++j) {
-      HeapprofdHeapInfoInternal& heap = GetHeap(j);
-      if (!heap.ready)
-        continue;
 
+  for (size_t j = kMinHeapId; j < g_next_heap_id.load(); ++j) {
+    HeapprofdHeapInfoInternal& heap = GetHeap(j);
+    if (!heap.ready)
+      continue;
+
+    bool matched = false;
+    for (size_t i = 0; i < cli_config.num_heaps; ++i) {
       static_assert(sizeof(g_heaps[0].info.heap_name) == HEAPPROFD_HEAP_NAME_SZ,
                     "correct heap name size");
       static_assert(sizeof(cli_config.heaps[0]) == HEAPPROFD_HEAP_NAME_SZ,
                     "correct heap name size");
       if (strncmp(&cli_config.heaps[i][0], &heap.info.heap_name[0],
                   HEAPPROFD_HEAP_NAME_SZ) == 0) {
-        heap.enabled = true;
-        if (heap.info.callback)
+        heap.service_heap_id = i;
+        if (!heap.enabled && heap.info.callback)
           heap.info.callback(true);
+        heap.enabled = true;
+        matched = true;
+        break;
       }
+    }
+    if (!matched && heap.enabled) {
+      heap.enabled = false;
+      if (heap.info.callback)
+        heap.info.callback(false);
     }
   }
   PERFETTO_LOG("%s: heapprofd_client initialized.", getprogname());

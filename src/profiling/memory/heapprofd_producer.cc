@@ -624,6 +624,7 @@ void HeapprofdProducer::DumpProcessState(DataSource* data_source,
                                          pid_t pid,
                                          ProcessState* process_state) {
   for (auto& heap_id_and_heap_tracker : process_state->heap_trackers) {
+    uint32_t heap_id = heap_id_and_heap_tracker.first;
     HeapTracker& heap_tracker = heap_id_and_heap_tracker.second;
 
     bool from_startup = data_source->signaled_pids.find(pid) ==
@@ -633,9 +634,16 @@ void HeapprofdProducer::DumpProcessState(DataSource* data_source,
       dump_timestamp = heap_tracker.max_timestamp();
     else
       dump_timestamp = heap_tracker.committed_timestamp();
+    const char* heap_name = nullptr;
+    const ClientConfiguration& cli_config = data_source->client_configuration;
+    if (heap_id < cli_config.num_heaps) {
+      heap_name = cli_config.heaps[heap_id];
+    } else {
+      PERFETTO_ELOG("Invalid heap id %" PRIu32, heap_id);
+    }
     auto new_heapsamples =
-        [pid, from_startup, dump_timestamp, process_state,
-         data_source](ProfilePacket::ProcessHeapSamples* proto) {
+        [pid, from_startup, dump_timestamp, process_state, data_source,
+         heap_name](ProfilePacket::ProcessHeapSamples* proto) {
           proto->set_pid(static_cast<uint64_t>(pid));
           proto->set_timestamp(dump_timestamp);
           proto->set_from_startup(from_startup);
@@ -643,6 +651,8 @@ void HeapprofdProducer::DumpProcessState(DataSource* data_source,
           proto->set_buffer_overran(process_state->buffer_overran);
           proto->set_buffer_corrupted(process_state->buffer_corrupted);
           proto->set_hit_guardrail(data_source->hit_guardrail);
+          if (heap_name)
+            proto->set_heap_name(heap_name);
           auto* stats = proto->set_stats();
           stats->set_unwinding_errors(process_state->unwinding_errors);
           stats->set_heap_samples(process_state->heap_samples);
