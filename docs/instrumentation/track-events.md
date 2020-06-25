@@ -83,14 +83,41 @@ Now you can add track events to existing functions like this:
 #include "my_app_tracing_categories.h"
 
 void DrawPlayer() {
-  TRACE_EVENT("rendering", "DrawPlayer");
+  TRACE_EVENT("rendering", "DrawPlayer");  // Begin "DrawPlayer" slice.
   ...
+  // End "DrawPlayer" slice.
 }
 ```
 
 This type of trace event is scoped, under the hood it uses C++ [RAII]. The
 event will cover the time from when the `TRACE_EVENT` annotation is encountered
 to the end of the block (in the example above, until the function returns).
+
+For events that don't follow function scoping, use `TRACE_EVENT_BEGIN` and
+`TRACE_EVENT_END`:
+
+```C++
+void LoadGame() {
+  DisplayLoadingScreen();
+
+  TRACE_EVENT_BEGIN("io", "Loading");  // Begin "Loading" slice.
+  LoadCollectibles();
+  LoadVehicles();
+  LoadPlayers();
+  TRACE_EVENT_END("io");               // End "Loading" slice.
+
+  StartGame();
+}
+```
+
+Note that you don't need to give a name for `TRACE_EVENT_END`, since it
+automatically closes the most recent event that began on the same thread. In
+other words, all events on a given thread share the same stack. This means
+that it's not recommended to have a matching pair of `TRACE_EVENT_BEGIN` and
+`TRACE_EVENT_END` markers in separate functions, since an unrelated event
+might terminate the original event unexpectedly; for events that cross
+function boundaries it's usually best to emit them on a [separate
+track](#tracks).
 
 You can also supply (up to two) debug annotations together with the event.
 
