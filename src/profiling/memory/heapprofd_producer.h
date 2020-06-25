@@ -72,6 +72,10 @@ class LogHistogram {
 // clients. This can be implemented as an additional mode here.
 enum class HeapprofdMode { kCentral, kChild };
 
+void HeapprofdConfigToClientConfiguration(
+    const HeapprofdConfig& heapprofd_config,
+    ClientConfiguration* cli_config);
+
 // Heap profiling producer. Can be instantiated in two modes, central and
 // child (also referred to as fork mode).
 //

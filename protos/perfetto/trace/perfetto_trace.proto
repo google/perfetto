@@ -471,7 +471,7 @@ message ProcessStatsConfig {
 // Begin of protos/perfetto/config/profiling/heapprofd_config.proto
 
 // Configuration for go/heapprofd.
-// Next id: 19
+// Next id: 21
 message HeapprofdConfig {
   message ContinuousDumpConfig {
     // ms to wait before first dump.
@@ -499,6 +499,10 @@ message HeapprofdConfig {
 
   // For watermark based triggering or local debugging.
   repeated uint64 pid = 4;
+
+  // Which heaps to sample, e.g. "malloc". If left empty, only samples
+  // "malloc".
+  repeated string heaps = 20;
 
   // Profile all processes eligible for profiling on the system.
   // See
@@ -6302,6 +6306,8 @@ message ProfilePacket {
     // If disconnected, this disconnect was caused by heapprofd exceeding
     // guardrails during this profiling session.
     optional bool hit_guardrail = 10;
+
+    optional string heap_name = 11;
 
     // Timestamp of the state of the target process that this dump represents.
     // This can be different to the timestamp of the TracePackets for various

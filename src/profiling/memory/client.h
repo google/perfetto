@@ -96,7 +96,7 @@ class Client {
 
   ~Client();
 
-  ClientConfiguration client_config_for_testing() { return client_config_; }
+  const ClientConfiguration& client_config() { return client_config_; }
 
  private:
   const char* GetStackBase();
