@@ -16,6 +16,7 @@ import '../tracks/all_controller';
 
 import * as uuidv4 from 'uuid/v4';
 
+import {COUNTER_TRACK_KIND} from '..//tracks/counter/common';
 import {assertExists, assertTrue} from '../base/logging';
 import {
   Actions,
@@ -43,7 +44,6 @@ import {SLICE_TRACK_KIND} from '../tracks/chrome_slices/common';
 import {CPU_FREQ_TRACK_KIND} from '../tracks/cpu_freq/common';
 import {CPU_PROFILE_TRACK_KIND} from '../tracks/cpu_profile/common';
 import {CPU_SLICE_TRACK_KIND} from '../tracks/cpu_slices/common';
-import {GPU_FREQ_TRACK_KIND} from '../tracks/gpu_freq/common';
 import {HEAP_PROFILE_TRACK_KIND} from '../tracks/heap_profile/common';
 import {
   PROCESS_SCHEDULING_TRACK_KIND
@@ -474,11 +474,10 @@ export class TraceController extends Controller<States> {
       if (freqExists.numRecords > 0) {
         tracksToAdd.push({
           engineId: this.engineId,
-          kind: GPU_FREQ_TRACK_KIND,
+          kind: COUNTER_TRACK_KIND,
           name: `Gpu ${gpu} Frequency`,
           trackGroup: SCROLLING_TRACK_GROUP,
           config: {
-            gpu,
             trackId: +freqExists.columns[0].longValues![0],
             maximumValue: +maxGpuFreq.columns[0].doubleValues![0],
           }
@@ -501,7 +500,7 @@ export class TraceController extends Controller<States> {
       const trackId = +globalCounters.columns[1].longValues![i];
       tracksToAdd.push({
         engineId: this.engineId,
-        kind: 'CounterTrack',
+        kind: COUNTER_TRACK_KIND,
         name,
         trackGroup: SCROLLING_TRACK_GROUP,
         config: {

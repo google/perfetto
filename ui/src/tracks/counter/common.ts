@@ -17,12 +17,11 @@ import {TrackData} from '../../common/track_data';
 export const COUNTER_TRACK_KIND = 'CounterTrack';
 
 export interface Data extends TrackData {
-  isQuantized: boolean;
   maximumValue: number;
   minimumValue: number;
   timestamps: Float64Array;
-  values: Float64Array;
   ids: Float64Array;
+  values: Float64Array;
 }
 
 export interface Config {
