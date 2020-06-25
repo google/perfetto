@@ -20,7 +20,6 @@ import './counter/frontend';
 import './heap_profile/frontend';
 import './cpu_freq/frontend';
 import './cpu_profile/frontend';
-import './gpu_freq/frontend';
 import './cpu_slices/frontend';
 import './process_scheduling/frontend';
 import './process_summary/frontend';
