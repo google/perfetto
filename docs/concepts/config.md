@@ -359,11 +359,10 @@ buffers {
 data_sources {
   config {
     name: "track_event"
-
-    # Enable the data source only on Chrome and Chrome canary.
-    producer_name_filter: "com.android.chrome"
-    producer_name_filter: "com.google.chrome.canary"
   }
+  # Enable the data source only on Chrome and Chrome canary.
+  producer_name_filter: "com.android.chrome"
+  producer_name_filter: "com.google.chrome.canary"
 }
 ```
 
