@@ -269,7 +269,7 @@ thread-local chunk and require a critical section to acquire a new chunk once
 every 4KB-32KB (depending on the trace configuration).
 
 The assumption is that the likeliness that two threads will cross the chunk
-boundary and call `GetNewBuffer()` at the same time is extremely slow and hence
+boundary and call `GetNewBuffer()` at the same time is extremely low and hence
 the critical section is un-contended most of the times.
 
 ```mermaid
