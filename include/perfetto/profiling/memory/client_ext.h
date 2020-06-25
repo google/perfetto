@@ -22,6 +22,10 @@
 
 #define HEAPPROFD_HEAP_NAME_SZ 32
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // This struct is append only. Be very careful that the ABI of this does not
 // change. We want to be able to correctly handle structs from clients that
 // compile against old versions of this header, setting all the newly added
@@ -34,16 +38,16 @@ struct HeapprofdHeapInfo {
   void (*callback)(bool /* enabled */);
 };
 
-extern "C" bool heapprofd_init_session(void* (*malloc_fn)(size_t),
-                                       void (*free_fn)(void*));
+bool heapprofd_init_session(void* (*malloc_fn)(size_t), void (*free_fn)(void*));
 
-extern "C" uint32_t heapprofd_register_heap(const HeapprofdHeapInfo* heap_info,
-                                            size_t n);
+uint32_t heapprofd_register_heap(const HeapprofdHeapInfo* heap_info, size_t n);
 
-extern "C" bool heapprofd_report_allocation(uint32_t heap_id,
-                                            uint64_t id,
-                                            uint64_t size);
+bool heapprofd_report_allocation(uint32_t heap_id, uint64_t id, uint64_t size);
 
-extern "C" void heapprofd_report_free(uint32_t heap_id, uint64_t id);
+void heapprofd_report_free(uint32_t heap_id, uint64_t id);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // INCLUDE_PERFETTO_PROFILING_MEMORY_CLIENT_EXT_H_
