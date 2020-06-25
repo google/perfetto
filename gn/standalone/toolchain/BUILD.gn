@@ -75,6 +75,8 @@ declare_args() {
     target_triplet = "i686-apple-darwin"
   } else if (target_os == "linux" && target_cpu == "arm64") {
     target_triplet = "aarch64-linux-gnu"
+  } else if (target_os == "linux" && target_cpu == "arm") {
+    target_triplet = "arm-linux-gnueabi"
   } else if (target_os == "linux" && target_cpu == "x64") {
     target_triplet = "x86_64-linux-gnu"
   } else if (target_os == "linux" && target_cpu == "x86") {
