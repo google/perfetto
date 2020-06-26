@@ -40,15 +40,30 @@ message SysStats {
   // Times in each mode, since boot. Unit: nanoseconds.
   message CpuTimes {
     optional uint32 cpu_id = 1;
-    optional uint64 user_ns = 2;         // Time spent in user mode.
-    optional uint64 user_ice_ns = 3;     // Time spent in user mode (low prio).
-    optional uint64 system_mode_ns = 4;  // Time spent in system mode.
-    optional uint64 idle_ns = 5;         // Time spent in the idle task.
-    optional uint64 io_wait_ns = 6;      // Time spent waiting for I/O.
-    optional uint64 irq_ns = 7;          // Time spent servicing interrupts.
-    optional uint64 softirq_ns = 8;      // Time spent servicing softirqs.
+
+    // Time spent in user mode.
+    optional uint64 user_ns = 2;
+
+    // Time spent in user mode (low prio).
+    optional uint64 user_ice_ns = 3;
+
+    // Time spent in system mode.
+    optional uint64 system_mode_ns = 4;
+
+    // Time spent in the idle task.
+    optional uint64 idle_ns = 5;
+
+    // Time spent waiting for I/O.
+    optional uint64 io_wait_ns = 6;
+
+    // Time spent servicing interrupts.
+    optional uint64 irq_ns = 7;
+
+    // Time spent servicing softirqs.
+    optional uint64 softirq_ns = 8;
   }
-  repeated CpuTimes cpu_stat = 3;  // One entry per cpu.
+  // One entry per cpu.
+  repeated CpuTimes cpu_stat = 3;
 
   // Num processes forked since boot.
   // Populated only if FORK_COUNT in config.stat_counters.
@@ -61,13 +76,19 @@ message SysStats {
 
   // Number of interrupts, broken by IRQ number.
   // Populated only if IRQ_COUNTS in config.stat_counters.
-  optional uint64 num_irq_total = 5;  // Total num of irqs serviced since boot.
+
+  // Total num of irqs serviced since boot.
+  optional uint64 num_irq_total = 5;
   repeated InterruptCount num_irq = 6;
 
   // Number of softirqs, broken by softirq number.
   // Populated only if SOFTIRQ_COUNTS in config.stat_counters.
-  optional uint64 num_softirq_total = 7;    // Total num of softirqs since boot.
-  repeated InterruptCount num_softirq = 8;  // Per-softirq count.
+
+  // Total num of softirqs since boot.
+  optional uint64 num_softirq_total = 7;
+
+  // Per-softirq count.
+  repeated InterruptCount num_softirq = 8;
 
   // The time at which we finish collecting this set of samples;
   // the top-level packet timestamp is the time at which

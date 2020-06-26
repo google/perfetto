@@ -39,6 +39,7 @@ def CheckChange(input, output):
   results += input.canned_checks.CheckGNFormatted(input, output)
   results += CheckIncludeGuards(input, output)
   results += CheckIncludeViolations(input, output)
+  results += CheckProtoComments(input, output)
   results += CheckBuild(input, output)
   results += CheckAndroidBlueprint(input, output)
   results += CheckBinaryDescriptors(input, output)
@@ -207,4 +208,18 @@ def CheckWhitelist(input_api, output_api):
               'event_whitelist only has two supported changes: '
               'appending a new line, and replacing a line with removed.')
       ]
+  return []
+
+
+def CheckProtoComments(input_api, output_api):
+  tool = 'tools/check_proto_comments'
+
+  def file_filter(x):
+    return input_api.FilterSourceFile(
+        x, white_list=['protos/perfetto/.*[.]proto$', tool])
+
+  if not input_api.AffectedSourceFiles(file_filter):
+    return []
+  if subprocess.call([tool]):
+    return [output_api.PresubmitError(tool + ' failed')]
   return []
