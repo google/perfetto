@@ -41,6 +41,19 @@
 
 SELECT RUN_METRIC('android/android_cpu_agg.sql');
 
+CREATE VIEW device AS
+WITH
+  after_first_slash(str) AS (
+      SELECT SUBSTR(str_value, INSTR(str_value, '/') + 1)
+      FROM metadata
+      WHERE name = 'android_build_fingerprint'
+  ),
+  before_second_slash(str) AS (
+      SELECT SUBSTR(str, 0, INSTR(str, '/'))
+      FROM after_first_slash
+  )
+SELECT str AS name FROM before_second_slash;
+
 CREATE VIEW power_view AS
 SELECT
   cpu_freq_view.cpu AS cpu,
@@ -49,7 +62,8 @@ SELECT
   power AS power_ma
 FROM cpu_freq_view
 JOIN power_profile ON (
-  power_profile.cpu = cpu_freq_view.cpu
+  power_profile.device = (SELECT name FROM device)
+  AND power_profile.cpu = cpu_freq_view.cpu
   AND power_profile.freq = cpu_freq_view.freq_khz
 );
 
