@@ -21,5 +21,6 @@ package perfetto.protos;
 // TrackEvent arguments describing the execution of a task.
 message TaskExecution {
   // Source location that the task was posted from.
-  optional uint64 posted_from_iid = 1;  // interned SourceLocation.
+  // interned SourceLocation.
+  optional uint64 posted_from_iid = 1;
 }

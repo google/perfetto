@@ -52,8 +52,16 @@ message TrackEventConfig {
   //       disabled_tags = ["*"]
   //       enabled_tags = ["my_tag"]
   //
-  repeated string disabled_categories = 1;  // Default: []
-  repeated string enabled_categories = 2;   // Default: []
-  repeated string disabled_tags = 3;  // Default: [“slow”, “debug”]
-  repeated string enabled_tags = 4;   // Default: []
+
+  // Default: []
+  repeated string disabled_categories = 1;
+
+  // Default: []
+  repeated string enabled_categories = 2;
+
+  // Default: [“slow”, “debug”]
+  repeated string disabled_tags = 3;
+
+  // Default: []
+  repeated string enabled_tags = 4;
 }

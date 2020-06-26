@@ -49,6 +49,7 @@ def main():
         'Output directory "{}" is not a directory'.format(out)
     check_only = ['--check-only'] if args.check_only else []
     call('check_include_violations')
+    call('check_proto_comments')
     call('fix_include_guards', *check_only)
     call('gen_bazel', *check_only)
     call('gen_android_bp', *check_only)
