@@ -55,11 +55,21 @@ message VulkanMemoryEvent {
 
   enum Operation {
     OP_UNSPECIFIED = 0;
-    OP_CREATE = 1;         // alloc, create
-    OP_DESTROY = 2;        // free, destroy (non-bound)
-    OP_BIND = 3;           // bind buffer and image
-    OP_DESTROY_BOUND = 4;  // destroy (bound)
-    OP_ANNOTATIONS = 5;    // only annotations
+
+    // alloc, create
+    OP_CREATE = 1;
+
+    // free, destroy(non-bound)
+    OP_DESTROY = 2;
+
+    // bind buffer and image
+    OP_BIND = 3;
+
+    // destroy (bound)
+    OP_DESTROY_BOUND = 4;
+
+    // only annotations
+    OP_ANNOTATIONS = 5;
   }
 
   enum AllocationScope {

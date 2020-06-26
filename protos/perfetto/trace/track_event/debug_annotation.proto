@@ -26,7 +26,8 @@ package perfetto.protos;
 message DebugAnnotation {
   message NestedValue {
     enum NestedType {
-      UNSPECIFIED = 0;  // leaf value.
+      // leaf value.
+      UNSPECIFIED = 0;
       DICT = 1;
       ARRAY = 2;
     }
@@ -42,8 +43,10 @@ message DebugAnnotation {
   }
 
   oneof name_field {
-    uint64 name_iid = 1;  // interned DebugAnnotationName.
-    string name = 10;     // non-interned variant.
+    // interned DebugAnnotationName.
+    uint64 name_iid = 1;
+    // non-interned variant.
+    string name = 10;
   }
 
   oneof value {
