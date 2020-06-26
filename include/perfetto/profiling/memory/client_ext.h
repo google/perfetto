@@ -26,10 +26,12 @@
 extern "C" {
 #endif
 
-// This struct is append only. Be very careful that the ABI of this does not
-// change. We want to be able to correctly handle structs from clients that
-// compile against old versions of this header, setting all the newly added
-// fields to zero.
+// Metadata of a custom heap.
+//
+// NB: This struct is append only. Be very careful that the ABI of this does
+// not change. We want to be able to correctly handle structs from clients
+// that compile against old versions of this header, setting all the newly
+// added fields to zero.
 //
 // TODO(fmayer): Sort out alignment etc. before stabilizing the ABI.
 struct HeapprofdHeapInfo {
@@ -38,12 +40,23 @@ struct HeapprofdHeapInfo {
   void (*callback)(bool /* enabled */);
 };
 
+// Called by libc upon receipt of the profiling signal.
+// DO NOT CALL FROM OTHER CLIENTS!
 bool heapprofd_init_session(void* (*malloc_fn)(size_t), void (*free_fn)(void*));
 
+// Register a heap. Options are given in the HeapprofdHeapInfo struct.
+//
+// On error, returns 0, which can be safely passed to any function, and will
+// turn them into a no-op.
 uint32_t heapprofd_register_heap(const HeapprofdHeapInfo* heap_info, size_t n);
 
+// Reports an allocation on the given heap.
+// Returns whether the allocation was sampled.
 bool heapprofd_report_allocation(uint32_t heap_id, uint64_t id, uint64_t size);
 
+// Report allocation was freed on the given heap.
+// It is allowed to call with an id that was not previously reported as
+// allocated, in which case it does not change the output.
 void heapprofd_report_free(uint32_t heap_id, uint64_t id);
 
 #ifdef __cplusplus
