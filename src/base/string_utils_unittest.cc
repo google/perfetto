@@ -248,6 +248,19 @@ TEST(StringUtilsTest, Find) {
   EXPECT_EQ(Find("abc", ""), std::string::npos);
 }
 
+TEST(StringUtilsTest, ReplaceAll) {
+  EXPECT_EQ(ReplaceAll("", "a", ""), "");
+  EXPECT_EQ(ReplaceAll("", "a", "b"), "");
+  EXPECT_EQ(ReplaceAll("a", "a", "b"), "b");
+  EXPECT_EQ(ReplaceAll("aaaa", "a", "b"), "bbbb");
+  EXPECT_EQ(ReplaceAll("aaaa", "aa", "b"), "bb");
+  EXPECT_EQ(ReplaceAll("aa", "aa", "bb"), "bb");
+  EXPECT_EQ(ReplaceAll("aa", "a", "bb"), "bbbb");
+  EXPECT_EQ(ReplaceAll("abc", "a", "b"), "bbc");
+  EXPECT_EQ(ReplaceAll("abc", "c", "b"), "abb");
+  EXPECT_EQ(ReplaceAll("abc", "c", "bbb"), "abbbb");
+}
+
 }  // namespace
 }  // namespace base
 }  // namespace perfetto
