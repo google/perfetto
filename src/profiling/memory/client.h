@@ -122,7 +122,8 @@ class Client {
   std::timed_mutex free_batch_lock_;
 
   const char* main_thread_stack_base_{nullptr};
-  std::atomic<uint64_t> sequence_number_{0};
+  std::atomic<uint64_t>
+      sequence_number_[base::ArraySize(ClientConfiguration{}.heaps)] = {};
   SharedRingBuffer shmem_;
 
   // Used to detect (during the slow path) the situation where the process has
