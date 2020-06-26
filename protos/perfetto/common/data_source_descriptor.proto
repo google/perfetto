@@ -25,7 +25,8 @@ import "protos/perfetto/common/track_event_descriptor.proto";
 // to advertise their capabilities. It describes the structure of tracing
 // protos that will be produced by the data source and the supported filters.
 message DataSourceDescriptor {
-  optional string name = 1;  // e.g., "linux.ftrace", "chromium.tracing"
+  // e.g., "linux.ftrace", "chromium.tracing"
+  optional string name = 1;
 
   // When true the data source is expected to ack the stop request through the
   // NotifyDataSourceStopped() IPC. This field has been introduced after

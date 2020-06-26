@@ -92,8 +92,10 @@ package perfetto.protos;
 message TrackEvent {
   // Names of categories of the event. In the client library, categories are a
   // way to turn groups of individual events on or off.
-  repeated uint64 category_iids = 3;  // interned EventCategoryName.
-  repeated string categories = 22;    // non-interned variant.
+  // interned EventCategoryName.
+  repeated uint64 category_iids = 3;
+  // non-interned variant.
+  repeated string categories = 22;
 
   // Optional name of the event for its display in trace viewer. May be left
   // unspecified for events with typed arguments.
@@ -102,8 +104,10 @@ message TrackEvent {
   // changing. Instead, they should use typed arguments to identify the events
   // they are interested in.
   oneof name_field {
-    uint64 name_iid = 10;  // interned EventName.
-    string name = 23;      // non-interned variant.
+    // interned EventName.
+    uint64 name_iid = 10;
+    // non-interned variant.
+    string name = 23;
   }
 
   // TODO(eseckler): Support using binary symbols for category/event names.
@@ -255,7 +259,8 @@ message TrackEvent {
   // Next id: 20.
   message LegacyEvent {
     // Deprecated, use TrackEvent::name(_iid) instead.
-    optional uint64 name_iid = 1;  // interned EventName.
+    // interned EventName.
+    optional uint64 name_iid = 1;
     optional int32 phase = 2;
     optional int64 duration_us = 3;
     optional int64 thread_duration_us = 4;
@@ -263,7 +268,8 @@ message TrackEvent {
     // Elapsed retired instruction count during the event.
     optional int64 thread_instruction_delta = 15;
 
-    reserved 5;  // used to be |flags|.
+    // used to be |flags|.
+    reserved 5;
 
     oneof id {
       uint64 unscoped_id = 6;

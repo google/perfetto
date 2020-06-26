@@ -30,7 +30,8 @@ message GpuCounterDescriptor {
     VERTICES = 2;
     FRAGMENTS = 3;
     PRIMITIVES = 4;
-    MEMORY = 5;  // Includes counters relating to caching and bandwidth.
+    // Includes counters relating to caching and bandwidth.
+    MEMORY = 5;
     COMPUTE = 6;
   }
 
@@ -38,7 +39,8 @@ message GpuCounterDescriptor {
     optional uint32 counter_id = 1;
     optional string name = 2;
     optional string description = 3;
-    reserved 4;  // MeasureUnit unit (deprecated)
+    // MeasureUnit unit (deprecated)
+    reserved 4;
     oneof peak_value {
       int64 int_peak_value = 5;
       double double_peak_value = 6;

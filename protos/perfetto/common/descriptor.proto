@@ -28,8 +28,10 @@ message FileDescriptorSet {
 
 // Describes a complete .proto file.
 message FileDescriptorProto {
-  optional string name = 1;     // file name, relative to root of source tree
-  optional string package = 2;  // e.g. "foo", "foo.bar", etc.
+  // file name, relative to root of source tree
+  optional string name = 1;
+  // e.g. "foo", "foo.bar", etc.
+  optional string package = 2;
 
   // Names of files imported by this file.
   repeated string dependency = 3;
@@ -70,8 +72,10 @@ message DescriptorProto {
   // fields or extension ranges in the same message. Reserved ranges may
   // not overlap.
   message ReservedRange {
-    optional int32 start = 1;  // Inclusive.
-    optional int32 end = 2;    // Exclusive.
+    // Inclusive.
+    optional int32 start = 1;
+    // Exclusive.
+    optional int32 end = 2;
   }
   repeated ReservedRange reserved_range = 9;
   // Reserved field names, which may not be used by fields in the same message.
@@ -102,7 +106,8 @@ message FieldDescriptorProto {
     // implementations should still be able to parse the group wire format and
     // treat group fields as unknown fields.
     TYPE_GROUP = 10;
-    TYPE_MESSAGE = 11;  // Length-delimited aggregate.
+    // Length-delimited aggregate.
+    TYPE_MESSAGE = 11;
 
     // New in version 2.
     TYPE_BYTES = 12;
@@ -110,8 +115,10 @@ message FieldDescriptorProto {
     TYPE_ENUM = 14;
     TYPE_SFIXED32 = 15;
     TYPE_SFIXED64 = 16;
-    TYPE_SINT32 = 17;  // Uses ZigZag encoding.
-    TYPE_SINT64 = 18;  // Uses ZigZag encoding.
+    // Uses ZigZag encoding.
+    TYPE_SINT32 = 17;
+    // Uses ZigZag encoding.
+    TYPE_SINT64 = 18;
   };
 
   enum Label {
