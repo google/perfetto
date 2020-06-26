@@ -332,3 +332,4 @@ oom/mark_victim
 ion/ion_stat
 kmem/ion_buffer_create
 kmem/ion_buffer_destroy
+gpu_mem/gpu_mem_total
