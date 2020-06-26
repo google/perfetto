@@ -183,6 +183,11 @@ def main(argv):
       type=int,
       default=0)
   parser.add_argument(
+      "--heaps",
+      help="Comma-separated list of heaps to collect, e.g: malloc,art. "
+      "Requires Android 12.",
+      metavar="HEAPS")
+  parser.add_argument(
       "--disable-selinux",
       action="store_true",
       help="Disable SELinux enforcement for duration of "
@@ -323,6 +328,9 @@ def main(argv):
   if args.name:
     for name in args.name.split(','):
       target_cfg += '{}process_cmdline: "{}"\n'.format(CFG_INDENT, name)
+  if args.heaps:
+    for heap in args.heaps.split(','):
+      target_cfg += '{}heaps: "{}"\n'.format(CFG_INDENT, heap)
 
   if fail:
     parser.print_help()
