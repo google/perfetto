@@ -19,11 +19,15 @@ import {TimeSpan} from '../common/time';
 import {Controller} from './controller';
 import {App} from './globals';
 
+export function escapeQuery(s: string): string {
+  // See https://www.sqlite.org/lang_expr.html#:~:text=A%20string%20constant
+  return `'%${s.replace('\'', '\'\'')}%'`;
+}
+
 export interface SearchControllerArgs {
   engine: Engine;
   app: App;
 }
-
 
 export class SearchController extends Controller<'main'> {
   private engine: Engine;
@@ -126,6 +130,8 @@ export class SearchController extends Controller<'main'> {
       resolution: number): Promise<SearchSummary> {
     const quantumNs = Math.round(resolution * 10 * 1e9);
 
+    const searchLiteral = escapeQuery(search);
+
     startNs = Math.floor(startNs / quantumNs) * quantumNs;
 
     await this.query(`update search_summary_window set
@@ -135,8 +141,8 @@ export class SearchController extends Controller<'main'> {
       where rowid = 0;`);
 
     const rawUtidResult = await this.query(`select utid from thread join process
-      using(upid) where thread.name like "%${search}%" or process.name like "%${
-        search}%"`);
+      using(upid) where thread.name like ${searchLiteral}
+      or process.name like ${searchLiteral}`);
 
     const utids = [...rawUtidResult.columns[0].longValues!];
 
@@ -157,7 +163,7 @@ export class SearchController extends Controller<'main'> {
               select
               quantum_ts
               from search_summary_slice_span
-              where name like '%${search}%'
+              where name like ${searchLiteral}
           )
           group by quantum_ts
           order by quantum_ts;`);
@@ -179,6 +185,7 @@ export class SearchController extends Controller<'main'> {
   }
 
   private async specificSearch(search: string) {
+    const searchLiteral = escapeQuery(search);
     // TODO(hjd): we should avoid recomputing this every time. This will be
     // easier once the track table has entries for all the tracks.
     const cpuToTrackId = new Map();
@@ -197,8 +204,9 @@ export class SearchController extends Controller<'main'> {
     }
 
     const rawUtidResult = await this.query(`select utid from thread join process
-    using(upid) where thread.name like "%${search}%" or process.name like "%${
-        search}%"`);
+    using(upid) where
+      thread.name like ${searchLiteral} or
+      process.name like ${searchLiteral}`);
     const utids = [...rawUtidResult.columns[0].longValues!];
 
     const rawResult = await this.query(`
@@ -218,7 +226,7 @@ export class SearchController extends Controller<'main'> {
       0 as utid
       from slice
       inner join track on slice.track_id = track.id
-      and slice.name like '%${search}%'
+      and slice.name like ${searchLiteral}
     order by ts`);
 
     const numRows = +rawResult.numRecords;
