@@ -25,7 +25,8 @@ message GpuCounterDescriptor {
     VERTICES = 2;
     FRAGMENTS = 3;
     PRIMITIVES = 4;
-    MEMORY = 5;  // Includes counters relating to caching and bandwidth.
+    // Includes counters relating to caching and bandwidth.
+    MEMORY = 5;
     COMPUTE = 6;
   }
 
@@ -33,7 +34,8 @@ message GpuCounterDescriptor {
     optional uint32 counter_id = 1;
     optional string name = 2;
     optional string description = 3;
-    reserved 4;  // MeasureUnit unit (deprecated)
+    // MeasureUnit unit (deprecated)
+    reserved 4;
     oneof peak_value {
       int64 int_peak_value = 5;
       double double_peak_value = 6;
@@ -153,7 +155,8 @@ message TrackEventDescriptor {
 // to advertise their capabilities. It describes the structure of tracing
 // protos that will be produced by the data source and the supported filters.
 message DataSourceDescriptor {
-  optional string name = 1;  // e.g., "linux.ftrace", "chromium.tracing"
+  // e.g., "linux.ftrace", "chromium.tracing"
+  optional string name = 1;
 
   // When true the data source is expected to ack the stop request through the
   // NotifyDataSourceStopped() IPC. This field has been introduced after
@@ -186,9 +189,14 @@ message DataSourceDescriptor {
 message TracingServiceState {
   // Describes a producer process.
   message Producer {
-    optional int32 id = 1;     // Unique ID of the producer (monotonic counter).
-    optional string name = 2;  // Typically matches the process name.
-    optional int32 uid = 3;    // Unix uid of the remote process.
+    // Unique ID of the producer (monotonic counter).
+    optional int32 id = 1;
+
+    // Typically matches the process name.
+    optional string name = 2;
+
+    // Unix uid of the remote process.
+    optional int32 uid = 3;
   }
 
   // Describes a data source registered by a producer. Data sources are listed
@@ -237,7 +245,9 @@ enum BuiltinClock {
 
 // Values from NDK's android/log.h.
 enum AndroidLogId {
-  LID_DEFAULT = 0;  // MAIN.
+  // MAIN.
+  LID_DEFAULT = 0;
+
   LID_RADIO = 1;
   LID_EVENTS = 2;
   LID_SYSTEM = 3;
@@ -249,7 +259,10 @@ enum AndroidLogId {
 
 enum AndroidLogPriority {
   PRIO_UNSPECIFIED = 0;
-  PRIO_UNUSED = 1;  // _DEFAULT, but should never be seen in logs.
+
+  // _DEFAULT, but should never be seen in logs.
+  PRIO_UNUSED = 1;
+
   PRIO_VERBOSE = 2;
   PRIO_DEBUG = 3;
   PRIO_INFO = 4;
@@ -265,7 +278,8 @@ enum AndroidLogPriority {
 message AndroidLogConfig {
   repeated AndroidLogId log_ids = 1;
 
-  reserved 2;  // Was |poll_ms|, deprecated.
+  // Was |poll_ms|, deprecated.
+  reserved 2;
 
   // If set ignores all log messages whose prio is < the given value.
   optional AndroidLogPriority min_prio = 3;
@@ -403,10 +417,18 @@ message InodeFileConfig {
 message AndroidPowerConfig {
   enum BatteryCounters {
     BATTERY_COUNTER_UNSPECIFIED = 0;
-    BATTERY_COUNTER_CHARGE = 1;            // Coulomb counter.
-    BATTERY_COUNTER_CAPACITY_PERCENT = 2;  // Charge (%).
-    BATTERY_COUNTER_CURRENT = 3;           // Instantaneous current.
-    BATTERY_COUNTER_CURRENT_AVG = 4;       // Avg current.
+
+    // Coulomb counter.
+    BATTERY_COUNTER_CHARGE = 1;
+
+    // Charge (%).
+    BATTERY_COUNTER_CAPACITY_PERCENT = 2;
+
+    // Instantaneous current.
+    BATTERY_COUNTER_CURRENT = 3;
+
+    // Avg current.
+    BATTERY_COUNTER_CURRENT_AVG = 4;
   }
   optional uint32 battery_poll_ms = 1;
   repeated BatteryCounters battery_counters = 2;
@@ -983,10 +1005,18 @@ message TrackEventConfig {
   //       disabled_tags = ["*"]
   //       enabled_tags = ["my_tag"]
   //
-  repeated string disabled_categories = 1;  // Default: []
-  repeated string enabled_categories = 2;   // Default: []
-  repeated string disabled_tags = 3;  // Default: [“slow”, “debug”]
-  repeated string enabled_tags = 4;   // Default: []
+
+  // Default: []
+  repeated string disabled_categories = 1;
+
+  // Default: []
+  repeated string enabled_categories = 2;
+
+  // Default: [“slow”, “debug”]
+  repeated string disabled_tags = 3;
+
+  // Default: []
+  repeated string enabled_tags = 4;
 }
 
 // End of protos/perfetto/config/track_event/track_event_config.proto
@@ -1086,7 +1116,8 @@ message DataSourceConfig {
   // This field is only used for testing.
   optional TestConfig for_testing = 1001;
 
-  reserved 268435455;  // Was |for_testing|. Caused more problems then found.
+  // Was |for_testing|. Caused more problems then found.
+  reserved 268435455;
 }
 
 // End of protos/perfetto/config/data_source_config.proto
@@ -1103,8 +1134,11 @@ message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
 
-    reserved 2;  // |page_size|, now deprecated.
-    reserved 3;  // |optimize_for|, now deprecated.
+    // |page_size|, now deprecated.
+    reserved 2;
+
+    // |optimize_for|, now deprecated.
+    reserved 3;
 
     enum FillPolicy {
       UNSPECIFIED = 0;
@@ -1286,7 +1320,8 @@ message TraceConfig {
   // Default 5s.
   optional uint32 data_source_stop_timeout_ms = 23;
 
-  reserved 15;  // |disable_clock_snapshotting| moved.
+  // |disable_clock_snapshotting| moved.
+  reserved 15;
 
   // Android-only. If set, sends an intent to the Traceur system app when the
   // trace ends to notify it about the trace readiness.
@@ -1647,8 +1682,10 @@ message GraphicsFrameEvent {
     POST = 3;
     ACQUIRE_FENCE = 4;
     LATCH = 5;
-    HWC_COMPOSITION_QUEUED = 6;  // HWC will compose this buffer
-    FALLBACK_COMPOSITION = 7;    // renderEngine composition
+    // HWC will compose this buffer
+    HWC_COMPOSITION_QUEUED = 6;
+    // renderEngine composition
+    FALLBACK_COMPOSITION = 7;
     PRESENT_FENCE = 8;
     RELEASE_FENCE = 9;
     MODIFY = 10;
@@ -1889,7 +1926,9 @@ message ChromeMetadata {
 message ChromeLegacyJsonTrace {
   enum TraceType {
     USER_TRACE = 0;
-    SYSTEM_TRACE = 1;  // Deprecated.
+
+    // Deprecated.
+    SYSTEM_TRACE = 1;
   }
   optional TraceType type = 1;
   optional string data = 2;
@@ -4692,10 +4731,12 @@ message GpuRenderStageEvent {
   optional uint64 duration = 2;
 
   // required. ID to a hardware queue description in the specifications.
-  optional uint64 hw_queue_iid = 13;  // InternedGpuRenderStageSpecification
+  // InternedGpuRenderStageSpecification
+  optional uint64 hw_queue_iid = 13;
 
   // required. ID to a render stage description in the specifications.
-  optional uint64 stage_iid = 14;  // InternedGpuRenderStageSpecification
+  // InternedGpuRenderStageSpecification
+  optional uint64 stage_iid = 14;
 
   // optional. Identifier for GPU in a multi-gpu device.
   optional int32 gpu_id = 11;
@@ -4885,11 +4926,21 @@ message VulkanMemoryEvent {
 
   enum Operation {
     OP_UNSPECIFIED = 0;
-    OP_CREATE = 1;         // alloc, create
-    OP_DESTROY = 2;        // free, destroy (non-bound)
-    OP_BIND = 3;           // bind buffer and image
-    OP_DESTROY_BOUND = 4;  // destroy (bound)
-    OP_ANNOTATIONS = 5;    // only annotations
+
+    // alloc, create
+    OP_CREATE = 1;
+
+    // free, destroy(non-bound)
+    OP_DESTROY = 2;
+
+    // bind buffer and image
+    OP_BIND = 3;
+
+    // destroy (bound)
+    OP_DESTROY_BOUND = 4;
+
+    // only annotations
+    OP_ANNOTATIONS = 5;
   }
 
   enum AllocationScope {
@@ -4953,8 +5004,13 @@ message ProfiledFrameSymbols {
   // std::vector<int> constructor, which gets inlined at 0xf00. We then get
   // both Foo and the std::vector<int> constructor when we symbolize the
   // address.
-  repeated uint64 function_name_id = 2;  // key to InternedString
-  repeated uint64 file_name_id = 3;      // key to InternedString
+
+  // key to InternedString
+  repeated uint64 function_name_id = 2;
+
+  // key to InternedString
+  repeated uint64 file_name_id = 3;
+
   repeated uint32 line_number = 4;
 }
 
@@ -4992,8 +5048,11 @@ message ModuleSymbols {
 }
 
 message Mapping {
-  optional uint64 iid = 1;       // Interning key.
-  optional uint64 build_id = 2;  // Interning key.
+  // Interning key.
+  optional uint64 iid = 1;
+
+  // Interning key.
+  optional uint64 build_id = 2;
 
   // The linker may create multiple memory mappings for the same shared
   // library.
@@ -5019,19 +5078,28 @@ message Mapping {
   // exact_offset is the offset into the library file of this mapping.
   // start_offset is the offset into the library file of the first mapping
   // for that library. For native libraries (.so files) this should be 0.
-  optional uint64 exact_offset = 8;  // This is not set on Android 10.
+
+  // This is not set on Android 10.
+  optional uint64 exact_offset = 8;
+
   optional uint64 start_offset = 3;
   optional uint64 start = 4;
   optional uint64 end = 5;
   optional uint64 load_bias = 6;
+
   // E.g. ["system", "lib64", "libc.so"]
-  repeated uint64 path_string_ids = 7;  // id of string.
+  // id of string.
+  repeated uint64 path_string_ids = 7;
 }
 
 message Frame {
-  optional uint64 iid = 1;  // Interning key
+  // Interning key
+  optional uint64 iid = 1;
+
   // E.g. "fopen"
-  optional uint64 function_name_id = 2;  // id of string.
+  // id of string.
+  optional uint64 function_name_id = 2;
+
   optional uint64 mapping_id = 3;
   optional uint64 rel_pc = 4;
 }
@@ -5054,7 +5122,8 @@ message Callstack {
 message DebugAnnotation {
   message NestedValue {
     enum NestedType {
-      UNSPECIFIED = 0;  // leaf value.
+      // leaf value.
+      UNSPECIFIED = 0;
       DICT = 1;
       ARRAY = 2;
     }
@@ -5070,8 +5139,10 @@ message DebugAnnotation {
   }
 
   oneof name_field {
-    uint64 name_iid = 1;  // interned DebugAnnotationName.
-    string name = 10;     // non-interned variant.
+    // interned DebugAnnotationName.
+    uint64 name_iid = 1;
+    // non-interned variant.
+    string name = 10;
   }
 
   oneof value {
@@ -5105,8 +5176,10 @@ message DebugAnnotationName {
 // Begin of protos/perfetto/trace/track_event/log_message.proto
 
 message LogMessage {
-  optional uint64 source_location_iid = 1;  // interned SourceLocation.
-  optional uint64 body_iid = 2;             // interned LogMessageBody.
+  // interned SourceLocation.
+  optional uint64 source_location_iid = 1;
+  // interned LogMessageBody.
+  optional uint64 body_iid = 2;
 }
 
 // --------------------
@@ -5607,7 +5680,8 @@ message ChromeUserEvent {
 // TrackEvent arguments describing the execution of a task.
 message TaskExecution {
   // Source location that the task was posted from.
-  optional uint64 posted_from_iid = 1;  // interned SourceLocation.
+  // interned SourceLocation.
+  optional uint64 posted_from_iid = 1;
 }
 // End of protos/perfetto/trace/track_event/task_execution.proto
 
@@ -5676,8 +5750,10 @@ message TaskExecution {
 message TrackEvent {
   // Names of categories of the event. In the client library, categories are a
   // way to turn groups of individual events on or off.
-  repeated uint64 category_iids = 3;  // interned EventCategoryName.
-  repeated string categories = 22;    // non-interned variant.
+  // interned EventCategoryName.
+  repeated uint64 category_iids = 3;
+  // non-interned variant.
+  repeated string categories = 22;
 
   // Optional name of the event for its display in trace viewer. May be left
   // unspecified for events with typed arguments.
@@ -5686,8 +5762,10 @@ message TrackEvent {
   // changing. Instead, they should use typed arguments to identify the events
   // they are interested in.
   oneof name_field {
-    uint64 name_iid = 10;  // interned EventName.
-    string name = 23;      // non-interned variant.
+    // interned EventName.
+    uint64 name_iid = 10;
+    // non-interned variant.
+    string name = 23;
   }
 
   // TODO(eseckler): Support using binary symbols for category/event names.
@@ -5839,7 +5917,8 @@ message TrackEvent {
   // Next id: 20.
   message LegacyEvent {
     // Deprecated, use TrackEvent::name(_iid) instead.
-    optional uint64 name_iid = 1;  // interned EventName.
+    // interned EventName.
+    optional uint64 name_iid = 1;
     optional int32 phase = 2;
     optional int64 duration_us = 3;
     optional int64 thread_duration_us = 4;
@@ -5847,7 +5926,8 @@ message TrackEvent {
     // Elapsed retired instruction count during the event.
     optional int64 thread_instruction_delta = 15;
 
-    reserved 5;  // used to be |flags|.
+    // used to be |flags|.
+    reserved 5;
 
     oneof id {
       uint64 unscoped_id = 6;
@@ -6257,7 +6337,8 @@ message ProfilePacket {
     // is true in HeapprofdConfig. In that case, self_allocated, self_freed and
     // self_idle will not be set.
     optional uint64 self_max = 8;
-    optional uint64 timestamp = 4;  // timestamp [opt]
+    // timestamp [opt]
+    optional uint64 timestamp = 4;
     // Number of allocations that were sampled at this callstack.
     optional uint64 alloc_count = 5;
     // Number of allocations that were sampled at this callstack that have been
@@ -6353,7 +6434,8 @@ message ProfilePacket {
 // Message used to represent individual stack samples sampled at discrete
 // points in time, rather than aggregated over an interval.
 message StreamingProfilePacket {
-  repeated uint64 callstack_iid = 1;  // Index into InternedData.callstacks
+  // Index into InternedData.callstacks
+  repeated uint64 callstack_iid = 1;
   // TODO(eseckler): ThreadDescriptor-based timestamps are deprecated. Replace
   // this with ClockSnapshot-based delta encoding instead.
   repeated int64 timestamp_delta_us = 2;
@@ -6593,15 +6675,30 @@ message SysStats {
   // Times in each mode, since boot. Unit: nanoseconds.
   message CpuTimes {
     optional uint32 cpu_id = 1;
-    optional uint64 user_ns = 2;         // Time spent in user mode.
-    optional uint64 user_ice_ns = 3;     // Time spent in user mode (low prio).
-    optional uint64 system_mode_ns = 4;  // Time spent in system mode.
-    optional uint64 idle_ns = 5;         // Time spent in the idle task.
-    optional uint64 io_wait_ns = 6;      // Time spent waiting for I/O.
-    optional uint64 irq_ns = 7;          // Time spent servicing interrupts.
-    optional uint64 softirq_ns = 8;      // Time spent servicing softirqs.
+
+    // Time spent in user mode.
+    optional uint64 user_ns = 2;
+
+    // Time spent in user mode (low prio).
+    optional uint64 user_ice_ns = 3;
+
+    // Time spent in system mode.
+    optional uint64 system_mode_ns = 4;
+
+    // Time spent in the idle task.
+    optional uint64 idle_ns = 5;
+
+    // Time spent waiting for I/O.
+    optional uint64 io_wait_ns = 6;
+
+    // Time spent servicing interrupts.
+    optional uint64 irq_ns = 7;
+
+    // Time spent servicing softirqs.
+    optional uint64 softirq_ns = 8;
   }
-  repeated CpuTimes cpu_stat = 3;  // One entry per cpu.
+  // One entry per cpu.
+  repeated CpuTimes cpu_stat = 3;
 
   // Num processes forked since boot.
   // Populated only if FORK_COUNT in config.stat_counters.
@@ -6614,13 +6711,19 @@ message SysStats {
 
   // Number of interrupts, broken by IRQ number.
   // Populated only if IRQ_COUNTS in config.stat_counters.
-  optional uint64 num_irq_total = 5;  // Total num of irqs serviced since boot.
+
+  // Total num of irqs serviced since boot.
+  optional uint64 num_irq_total = 5;
   repeated InterruptCount num_irq = 6;
 
   // Number of softirqs, broken by softirq number.
   // Populated only if SOFTIRQ_COUNTS in config.stat_counters.
-  optional uint64 num_softirq_total = 7;    // Total num of softirqs since boot.
-  repeated InterruptCount num_softirq = 8;  // Per-softirq count.
+
+  // Total num of softirqs since boot.
+  optional uint64 num_softirq_total = 7;
+
+  // Per-softirq count.
+  repeated InterruptCount num_softirq = 8;
 
   // The time at which we finish collecting this set of samples;
   // the top-level packet timestamp is the time at which
@@ -6892,8 +6995,12 @@ message CounterDescriptor {
 
     // Thread-scoped counters. The thread's track should be specified via
     // |parent_uuid| in the TrackDescriptor for such a counter.
-    COUNTER_THREAD_TIME_NS = 1;            // implies UNIT_TIME_NS.
-    COUNTER_THREAD_INSTRUCTION_COUNT = 2;  // implies UNIT_COUNT.
+
+    // implies UNIT_TIME_NS.
+    COUNTER_THREAD_TIME_NS = 1;
+
+    // implies UNIT_COUNT.
+    COUNTER_THREAD_INSTRUCTION_COUNT = 2;
   }
 
   // Type of the values for the counters - to supply lower granularity units,

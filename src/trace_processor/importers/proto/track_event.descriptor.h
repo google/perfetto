@@ -27,7 +27,7 @@
 // SHA1(tools/gen_binary_descriptors)
 // 3df80477da2ea38cc659967487b37051a154bb69
 // SHA1(protos/perfetto/trace/track_event/track_event.proto)
-// fb14c55ef0b98f7416e44e00033adf871c3f43fc
+// 1e4267d78600ca00a8514c5479125c0d6ec6dddd
 
 // This is the proto TrackEvent encoded as a ProtoFileDescriptor to allow
 // for reflection without libprotobuf full/non-lite protos.

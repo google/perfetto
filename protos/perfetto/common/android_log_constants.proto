@@ -20,7 +20,9 @@ package perfetto.protos;
 
 // Values from NDK's android/log.h.
 enum AndroidLogId {
-  LID_DEFAULT = 0;  // MAIN.
+  // MAIN.
+  LID_DEFAULT = 0;
+
   LID_RADIO = 1;
   LID_EVENTS = 2;
   LID_SYSTEM = 3;
@@ -32,7 +34,10 @@ enum AndroidLogId {
 
 enum AndroidLogPriority {
   PRIO_UNSPECIFIED = 0;
-  PRIO_UNUSED = 1;  // _DEFAULT, but should never be seen in logs.
+
+  // _DEFAULT, but should never be seen in logs.
+  PRIO_UNUSED = 1;
+
   PRIO_VERBOSE = 2;
   PRIO_DEBUG = 3;
   PRIO_INFO = 4;

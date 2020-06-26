@@ -41,8 +41,12 @@ message CounterDescriptor {
 
     // Thread-scoped counters. The thread's track should be specified via
     // |parent_uuid| in the TrackDescriptor for such a counter.
-    COUNTER_THREAD_TIME_NS = 1;            // implies UNIT_TIME_NS.
-    COUNTER_THREAD_INSTRUCTION_COUNT = 2;  // implies UNIT_COUNT.
+
+    // implies UNIT_TIME_NS.
+    COUNTER_THREAD_TIME_NS = 1;
+
+    // implies UNIT_COUNT.
+    COUNTER_THREAD_INSTRUCTION_COUNT = 2;
   }
 
   // Type of the values for the counters - to supply lower granularity units,

@@ -26,8 +26,10 @@ message GraphicsFrameEvent {
     POST = 3;
     ACQUIRE_FENCE = 4;
     LATCH = 5;
-    HWC_COMPOSITION_QUEUED = 6;  // HWC will compose this buffer
-    FALLBACK_COMPOSITION = 7;    // renderEngine composition
+    // HWC will compose this buffer
+    HWC_COMPOSITION_QUEUED = 6;
+    // renderEngine composition
+    FALLBACK_COMPOSITION = 7;
     PRESENT_FENCE = 8;
     RELEASE_FENCE = 9;
     MODIFY = 10;

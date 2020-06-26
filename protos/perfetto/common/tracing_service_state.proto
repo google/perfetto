@@ -26,9 +26,14 @@ import "protos/perfetto/common/data_source_descriptor.proto";
 message TracingServiceState {
   // Describes a producer process.
   message Producer {
-    optional int32 id = 1;     // Unique ID of the producer (monotonic counter).
-    optional string name = 2;  // Typically matches the process name.
-    optional int32 uid = 3;    // Unix uid of the remote process.
+    // Unique ID of the producer (monotonic counter).
+    optional int32 id = 1;
+
+    // Typically matches the process name.
+    optional string name = 2;
+
+    // Unix uid of the remote process.
+    optional int32 uid = 3;
   }
 
   // Describes a data source registered by a producer. Data sources are listed
