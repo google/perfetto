@@ -28,10 +28,12 @@ message GpuRenderStageEvent {
   optional uint64 duration = 2;
 
   // required. ID to a hardware queue description in the specifications.
-  optional uint64 hw_queue_iid = 13;  // InternedGpuRenderStageSpecification
+  // InternedGpuRenderStageSpecification
+  optional uint64 hw_queue_iid = 13;
 
   // required. ID to a render stage description in the specifications.
-  optional uint64 stage_iid = 14;  // InternedGpuRenderStageSpecification
+  // InternedGpuRenderStageSpecification
+  optional uint64 stage_iid = 14;
 
   // optional. Identifier for GPU in a multi-gpu device.
   optional int32 gpu_id = 11;

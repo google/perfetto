@@ -31,8 +31,11 @@ message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
 
-    reserved 2;  // |page_size|, now deprecated.
-    reserved 3;  // |optimize_for|, now deprecated.
+    // |page_size|, now deprecated.
+    reserved 2;
+
+    // |optimize_for|, now deprecated.
+    reserved 3;
 
     enum FillPolicy {
       UNSPECIFIED = 0;
@@ -214,7 +217,8 @@ message TraceConfig {
   // Default 5s.
   optional uint32 data_source_stop_timeout_ms = 23;
 
-  reserved 15;  // |disable_clock_snapshotting| moved.
+  // |disable_clock_snapshotting| moved.
+  reserved 15;
 
   // Android-only. If set, sends an intent to the Traceur system app when the
   // trace ends to notify it about the trace readiness.
