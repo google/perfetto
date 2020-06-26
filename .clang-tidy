@@ -1,0 +1,4 @@
+Checks: android-cloexec-*,bugprone-*,google-explicit-constructor
+CheckOptions:
+  - key:             bugprone-assert-side-effect.AssertMacros
+    value:           'PERFETTO_DCHECK'
