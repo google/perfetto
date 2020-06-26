@@ -687,6 +687,10 @@ HeapGraphTracker::BuildFlamegraph(const int64_t current_ts,
 void HeapGraphTracker::NotifyEndOfFile() {
   if (!sequence_state_.empty()) {
     context_->storage->IncrementStats(stats::heap_graph_non_finalized_graph);
+    // There might still be valuable data even though the trace is truncated.
+    while (!sequence_state_.empty()) {
+      FinalizeProfile(sequence_state_.begin()->first);
+    }
   }
 }
 

@@ -324,6 +324,10 @@ void Demangle(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
     return;
   }
   sqlite3_value* value = argv[0];
+  if (sqlite3_value_type(value) == SQLITE_NULL) {
+    sqlite3_result_null(ctx);
+    return;
+  }
   if (sqlite3_value_type(value) != SQLITE_TEXT) {
     sqlite3_result_error(ctx, "Unsupported type of arg passed to DEMANGLE", -1);
     return;
