@@ -905,6 +905,91 @@ TEST_P(HeapprofdEndToEnd, ReInit) {
   KillAssertRunning(&child);
 }
 
+TEST_P(HeapprofdEndToEnd, ReInitAfterInvalid) {
+  constexpr size_t kFirstIterationBytes = 5;
+  constexpr size_t kSecondIterationBytes = 7;
+
+  base::Pipe signal_pipe = base::Pipe::Create(base::Pipe::kBothNonBlock);
+  base::Pipe ack_pipe = base::Pipe::Create(base::Pipe::kBothBlock);
+
+  base::Subprocess child;
+  int signal_pipe_rd = *signal_pipe.rd;
+  int ack_pipe_wr = *ack_pipe.wr;
+  child.args.preserve_fds.push_back(signal_pipe_rd);
+  child.args.preserve_fds.push_back(ack_pipe_wr);
+  child.args.entrypoint_for_testing = [signal_pipe_rd, ack_pipe_wr] {
+    // The Subprocess harness takes care of closing all the unused pipe ends.
+    size_t bytes = kFirstIterationBytes;
+    bool signalled = false;
+    for (;;) {
+      AllocateAndFree(bytes);
+      char buf[1];
+      if (!signalled && read(signal_pipe_rd, buf, sizeof(buf)) == 1) {
+        signalled = true;
+        close(signal_pipe_rd);
+
+        // make sure the client has noticed that the session has stopped
+        AllocateAndFree(bytes);
+
+        bytes = kSecondIterationBytes;
+        PERFETTO_CHECK(PERFETTO_EINTR(write(ack_pipe_wr, "1", 1)) == 1);
+        close(ack_pipe_wr);
+      }
+      usleep(10 * kMsToUs);
+    }
+    PERFETTO_FATAL("Should be unreachable");
+  };
+  child.Start();
+  auto pid = child.pid();
+
+  signal_pipe.rd.reset();
+  ack_pipe.wr.reset();
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(10 * 1024);
+  trace_config.set_duration_ms(2000);
+  trace_config.set_data_source_stop_timeout_ms(10000);
+
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("android.heapprofd");
+  ds_config->set_target_buffer(0);
+
+  protos::gen::HeapprofdConfig heapprofd_config;
+  heapprofd_config.set_sampling_interval_bytes(1);
+  heapprofd_config.add_pid(static_cast<uint64_t>(pid));
+  heapprofd_config.set_all(false);
+  heapprofd_config.add_heaps("invalid");
+  ds_config->set_heapprofd_config_raw(heapprofd_config.SerializeAsString());
+
+  auto helper = Trace(trace_config);
+  PrintStats(helper.get());
+  ValidateNoSamples(helper.get(), static_cast<uint64_t>(pid));
+
+  PERFETTO_CHECK(PERFETTO_EINTR(write(*signal_pipe.wr, "1", 1)) == 1);
+  signal_pipe.wr.reset();
+  char buf[1];
+  ASSERT_EQ(PERFETTO_EINTR(read(*ack_pipe.rd, buf, sizeof(buf))), 1);
+  ack_pipe.rd.reset();
+
+  // A brief sleep to allow the client to notice that the profiling session is
+  // to be torn down (as it rejects concurrent sessions).
+  usleep(500 * kMsToUs);
+
+  heapprofd_config.add_heaps("malloc");
+  ds_config->set_heapprofd_config_raw(heapprofd_config.SerializeAsString());
+
+  PERFETTO_LOG("HeapprofdEndToEnd::ReinitAfterInvalid: Starting second");
+  helper = Trace(trace_config);
+  PrintStats(helper.get());
+  ValidateHasSamples(helper.get(), static_cast<uint64_t>(pid));
+  ValidateOnlyPID(helper.get(), static_cast<uint64_t>(pid));
+  ValidateSampleSizes(helper.get(), static_cast<uint64_t>(pid),
+                      kSecondIterationBytes);
+  ValidateHeapName(helper.get(), static_cast<uint64_t>(pid), "malloc");
+
+  KillAssertRunning(&child);
+}
+
 TEST_P(HeapprofdEndToEnd, ConcurrentSession) {
   constexpr size_t kAllocSize = 1024;
 
