@@ -163,7 +163,7 @@ HeapprofdProducer::HeapprofdProducer(HeapprofdMode mode,
       socket_delegate_(this),
       weak_factory_(this) {
   CheckDataSourceMemory();  // Kick off guardrail task.
-  stat_fd_.reset(open("/proc/self/stat", O_RDONLY));
+  stat_fd_.reset(open("/proc/self/stat", O_RDONLY | O_CLOEXEC));
   if (!stat_fd_) {
     PERFETTO_ELOG(
         "Failed to open /proc/self/stat. Cannot accept profiles "

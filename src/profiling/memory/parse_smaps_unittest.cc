@@ -38,7 +38,7 @@ using ::testing::ElementsAre;
 TEST(ParseSmapsTest, Smoke) {
   base::ScopedFstream fd(fopen(
       base::GetTestDataPath("src/profiling/memory/test/data/cat_smaps").c_str(),
-      "r"));
+      "re"));
   std::vector<SmapsEntry> entries;
   EXPECT_TRUE(ParseSmaps(
       *fd, [&entries](const SmapsEntry& e) { entries.emplace_back(e); }));
@@ -65,7 +65,7 @@ TEST(ParseSmapsTest, SmokeNoEol) {
   base::ScopedFstream fd(fopen(
       base::GetTestDataPath("src/profiling/memory/test/data/cat_smaps_noeol")
           .c_str(),
-      "r"));
+      "re"));
   std::vector<SmapsEntry> entries;
   EXPECT_TRUE(ParseSmaps(
       *fd, [&entries](const SmapsEntry& e) { entries.emplace_back(e); }));
