@@ -98,6 +98,8 @@ class Client {
 
   const ClientConfiguration& client_config() { return client_config_; }
 
+  bool IsConnected();
+
  private:
   const char* GetStackBase();
   // Flush the contents of free_batch_. Must hold free_batch_lock_.
@@ -108,9 +110,6 @@ class Client {
 
   bool IsPostFork();
 
-  // This is only valid for non-blocking sockets. This is when
-  // client_config_.block_client is true.
-  bool IsConnected();
 
   ClientConfiguration client_config_;
   uint64_t max_shmem_tries_;
