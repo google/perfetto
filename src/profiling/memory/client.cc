@@ -359,7 +359,7 @@ bool Client::RecordMalloc(uint32_t heap_id,
   metadata.stack_pointer_offset = sizeof(AllocMetadata);
   metadata.arch = unwindstack::Regs::CurrentArch();
   metadata.sequence_number =
-      1 + sequence_number_.fetch_add(1, std::memory_order_acq_rel);
+      1 + sequence_number_[heap_id].fetch_add(1, std::memory_order_acq_rel);
   metadata.heap_id = heap_id;
 
   struct timespec ts;
@@ -404,7 +404,7 @@ bool Client::RecordFree(uint32_t heap_id, const uint64_t alloc_address) {
   }
 
   uint64_t sequence_number =
-      1 + sequence_number_.fetch_add(1, std::memory_order_acq_rel);
+      1 + sequence_number_[heap_id].fetch_add(1, std::memory_order_acq_rel);
 
   std::unique_lock<std::timed_mutex> l(free_batch_lock_, kLockTimeout);
   if (!l.owns_lock())
