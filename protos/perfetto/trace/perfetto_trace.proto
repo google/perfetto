@@ -3303,6 +3303,16 @@ message GenericFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/generic.proto
 
+// Begin of protos/perfetto/trace/ftrace/gpu_mem.proto
+
+message GpuMemTotalFtraceEvent {
+  optional uint32 gpu_id = 1;
+  optional uint32 pid = 2;
+  optional uint64 size = 3;
+}
+
+// End of protos/perfetto/trace/ftrace/gpu_mem.proto
+
 // Begin of protos/perfetto/trace/ftrace/i2c.proto
 
 message I2cReadFtraceEvent {
@@ -4485,6 +4495,7 @@ message FtraceEvent {
     IonStatFtraceEvent ion_stat = 335;
     IonBufferCreateFtraceEvent ion_buffer_create = 336;
     IonBufferDestroyFtraceEvent ion_buffer_destroy = 337;
+    GpuMemTotalFtraceEvent gpu_mem_total = 340;
   }
 }
 
