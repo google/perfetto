@@ -465,7 +465,7 @@ __attribute__((visibility("default"))) bool heapprofd_init_session(
       AbortOnSpinlockTimeout();
 
     auto* g_client_ptr = GetClientLocked();
-    if (*g_client_ptr) {
+    if (*g_client_ptr && (*g_client_ptr)->IsConnected()) {
       PERFETTO_LOG("%s: Rejecting concurrent profiling initialization.",
                    getprogname());
       return true;  // success as we're in a valid state
