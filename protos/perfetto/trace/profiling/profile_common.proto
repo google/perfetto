@@ -45,8 +45,13 @@ message ProfiledFrameSymbols {
   // std::vector<int> constructor, which gets inlined at 0xf00. We then get
   // both Foo and the std::vector<int> constructor when we symbolize the
   // address.
-  repeated uint64 function_name_id = 2;  // key to InternedString
-  repeated uint64 file_name_id = 3;      // key to InternedString
+
+  // key to InternedString
+  repeated uint64 function_name_id = 2;
+
+  // key to InternedString
+  repeated uint64 file_name_id = 3;
+
   repeated uint32 line_number = 4;
 }
 
@@ -84,8 +89,11 @@ message ModuleSymbols {
 }
 
 message Mapping {
-  optional uint64 iid = 1;       // Interning key.
-  optional uint64 build_id = 2;  // Interning key.
+  // Interning key.
+  optional uint64 iid = 1;
+
+  // Interning key.
+  optional uint64 build_id = 2;
 
   // The linker may create multiple memory mappings for the same shared
   // library.
@@ -111,19 +119,28 @@ message Mapping {
   // exact_offset is the offset into the library file of this mapping.
   // start_offset is the offset into the library file of the first mapping
   // for that library. For native libraries (.so files) this should be 0.
-  optional uint64 exact_offset = 8;  // This is not set on Android 10.
+
+  // This is not set on Android 10.
+  optional uint64 exact_offset = 8;
+
   optional uint64 start_offset = 3;
   optional uint64 start = 4;
   optional uint64 end = 5;
   optional uint64 load_bias = 6;
+
   // E.g. ["system", "lib64", "libc.so"]
-  repeated uint64 path_string_ids = 7;  // id of string.
+  // id of string.
+  repeated uint64 path_string_ids = 7;
 }
 
 message Frame {
-  optional uint64 iid = 1;  // Interning key
+  // Interning key
+  optional uint64 iid = 1;
+
   // E.g. "fopen"
-  optional uint64 function_name_id = 2;  // id of string.
+  // id of string.
+  optional uint64 function_name_id = 2;
+
   optional uint64 mapping_id = 3;
   optional uint64 rel_pc = 4;
 }
