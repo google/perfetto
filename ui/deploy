@@ -15,6 +15,15 @@
 
 set -e
 
+function print_usage {
+  echo "Usage: $0 [--no-clean] [--prod] [--staging]"
+  echo "    --no-clean  Don't remove $OUT_DIR"
+  echo "    --prod      Deploy prod version (implies --release)"
+  echo "    --staging   Deploy staging version"
+  echo "    --release   Do a release build"
+  echo "    -h|--help   Display this message"
+}
+
 function echo_and_do {
   echo $@
   $@
@@ -50,13 +59,13 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
       -h|--help)
-      echo "Usage: $0 [--no-clean] [--prod] [--staging]"
-      echo "    --no-clean  Don't remove $OUT_DIR"
-      echo "    --prod      Deploy prod version (implies --release)"
-      echo "    --staging   Deploy staging version"
-      echo "    --release   Do a release build"
-      echo "    -h|--help   Display this message"
+      print_usage
       exit 0
+      shift
+      ;;
+      *)
+      print_usage
+      exit 1
       shift
       ;;
   esac
