@@ -770,6 +770,7 @@ genrule(
         "src/trace_processor/metrics/android/java_heap_histogram.sql",
         "src/trace_processor/metrics/android/java_heap_stats.sql",
         "src/trace_processor/metrics/android/mem_stats_priority_breakdown.sql",
+        "src/trace_processor/metrics/android/power_profile_data.sql",
         "src/trace_processor/metrics/android/process_counter_span_view.sql",
         "src/trace_processor/metrics/android/process_mem.sql",
         "src/trace_processor/metrics/android/process_metadata.sql",
