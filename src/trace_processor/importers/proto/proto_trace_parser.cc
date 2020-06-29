@@ -318,6 +318,12 @@ void ProtoTraceParser::ParseProfilePacket(
 
       HeapProfileTracker::SourceAllocation src_allocation;
       src_allocation.pid = entry.pid();
+      if (entry.heap_name().size != 0) {
+        src_allocation.heap_name =
+            context_->storage->InternString(entry.heap_name());
+      } else {
+        src_allocation.heap_name = context_->storage->InternString("malloc");
+      }
       src_allocation.timestamp = timestamp;
       src_allocation.callstack_id = sample.callstack_id();
       if (sample.self_max()) {
