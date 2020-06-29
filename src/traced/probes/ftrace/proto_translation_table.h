@@ -19,6 +19,7 @@
 
 #include <stdint.h>
 
+#include <deque>
 #include <iostream>
 #include <map>
 #include <memory>
@@ -121,9 +122,10 @@ class ProtoTranslationTable {
   const Event* GetEventById(size_t id) const {
     if (id == 0 || id > largest_id_)
       return nullptr;
-    if (!events_.at(id).ftrace_event_id)
+    const Event* evt = &events_[id];
+    if (!evt->ftrace_event_id)
       return nullptr;
-    return &events_.at(id);
+    return evt;
   }
 
   size_t EventToFtraceId(const GroupAndName& group_and_name) const {
@@ -132,7 +134,7 @@ class ProtoTranslationTable {
     return group_and_name_to_event_.at(group_and_name)->ftrace_event_id;
   }
 
-  const std::vector<Event>& events() { return events_; }
+  const std::deque<Event>& events() { return events_; }
   const FtracePageHeaderSpec& ftrace_page_header_spec() const {
     return ftrace_page_header_spec_;
   }
@@ -173,7 +175,7 @@ class ProtoTranslationTable {
                                    Event& event);
 
   const FtraceProcfs* ftrace_procfs_;
-  std::vector<Event> events_;
+  std::deque<Event> events_;
   size_t largest_id_;
   std::map<GroupAndName, const Event*> group_and_name_to_event_;
   std::map<std::string, std::vector<const Event*>> name_to_events_;
