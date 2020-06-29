@@ -39,6 +39,7 @@ class HeapProfileTracker {
     // This is int64_t, because we get this from the TraceSorter which also
     // converts this for us.
     int64_t timestamp = 0;
+    StringPool::Id heap_name;
     StackProfileTracker::SourceCallstackId callstack_id = 0;
     uint64_t self_allocated = 0;
     uint64_t self_freed = 0;
@@ -75,7 +76,15 @@ class HeapProfileTracker {
       StackProfileTracker* stack_profile_tracker,
       const SourceAllocation&,
       const StackProfileTracker::InternLookup* intern_lookup = nullptr);
-
+  struct SourceAllocationIndex {
+    UniquePid upid;
+    StackProfileTracker::SourceCallstackId src_callstack_id;
+    StringPool::Id heap_name;
+    bool operator<(const SourceAllocationIndex& o) const {
+      return std::tie(upid, src_callstack_id, heap_name) <
+             std::tie(o.upid, o.src_callstack_id, o.heap_name);
+    }
+  };
   struct SequenceState {
     std::vector<SourceAllocation> pending_allocs;
 
@@ -96,9 +105,7 @@ class HeapProfileTracker {
     // one, and then handle it as normal. If it is the first time we see a
     // SourceCallstackId for a CallsiteId, we put the previous value into
     // the correction maps below.
-    std::map<std::pair<UniquePid, StackProfileTracker::SourceCallstackId>,
-             std::set<CallsiteId>>
-        seen_callstacks;
+    std::map<SourceAllocationIndex, std::set<CallsiteId>> seen_callstacks;
     std::map<StackProfileTracker::SourceCallstackId,
              tables::HeapProfileAllocationTable::Row>
         alloc_correction;
