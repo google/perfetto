@@ -53,6 +53,24 @@ base::Optional<std::string> HasDuplicateColumns(
   return base::nullopt;
 }
 
+inline std::string EscapedSqliteValueAsString(sqlite3_value* value) {
+  switch (sqlite3_value_type(value)) {
+    case SQLITE_INTEGER:
+      return std::to_string(sqlite3_value_int64(value));
+    case SQLITE_FLOAT:
+      return std::to_string(sqlite3_value_double(value));
+    case SQLITE_TEXT: {
+      // If str itself contains a single quote, we need to escape it with
+      // another single quote.
+      const char* str =
+          reinterpret_cast<const char*>(sqlite3_value_text(value));
+      return "'" + base::ReplaceAll(str, "'", "''") + "'";
+    }
+    default:
+      PERFETTO_FATAL("Unknown value type %d", sqlite3_value_type(value));
+  }
+}
+
 }  // namespace
 
 SpanJoinOperatorTable::SpanJoinOperatorTable(sqlite3* db, const TraceStorage*)
@@ -275,7 +293,7 @@ SpanJoinOperatorTable::ComputeSqlConstraintsForDefinition(
 
     auto op = sqlite_utils::OpToString(
         cs.op == kSourceGeqOpCode ? SQLITE_INDEX_CONSTRAINT_GE : cs.op);
-    auto value = sqlite_utils::SqliteValueAsString(argv[i]);
+    auto value = EscapedSqliteValueAsString(argv[i]);
 
     constraints.emplace_back("`" + col_name + "`" + op + value);
   }
