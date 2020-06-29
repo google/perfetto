@@ -183,6 +183,7 @@ PERFETTO_TP_TABLE(PERFETTO_TP_SYMBOL_DEF);
   PERFETTO_TP_ROOT_TABLE(PARENT, C)                              \
   C(int64_t, ts, Column::Flag::kSorted)                          \
   C(uint32_t, upid)                                              \
+  C(StringPool::Id, heap_name)                                   \
   C(StackProfileCallsiteTable::Id, callsite_id)                  \
   C(int64_t, count)                                              \
   C(int64_t, size)
