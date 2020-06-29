@@ -13,6 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+
 import argparse
 import datetime
 import difflib
@@ -135,7 +139,7 @@ def run_metrics_test(trace_processor_path, gen_trace_path, metric,
 
   if json_output:
     expected_text = expected
-    actual_text = stdout
+    actual_text = stdout.decode('utf8')
   else:
     # Expected will be in text proto format and we'll need to parse it to a real
     # proto.
@@ -152,7 +156,7 @@ def run_metrics_test(trace_processor_path, gen_trace_path, metric,
     actual_text = text_format.MessageToString(actual_message)
 
   return TestResult('metric', metric, gen_trace_path, cmd, expected_text,
-                    actual_text, stderr, tp.returncode)
+                    actual_text, stderr.decode('utf8'), tp.returncode)
 
 
 def run_query_test(trace_processor_path, gen_trace_path, query_path,
@@ -171,8 +175,8 @@ def run_query_test(trace_processor_path, gen_trace_path, query_path,
 
   tp = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
   (stdout, stderr) = tp.communicate()
-  return TestResult('query', query_path, gen_trace_path, cmd, expected, stdout,
-                    stderr, tp.returncode)
+  return TestResult('query', query_path, gen_trace_path, cmd, expected,
+                    stdout.decode('utf8'), stderr.decode('utf8'), tp.returncode)
 
 
 def run_all_tests(trace_processor, trace_descriptor_path,
@@ -228,11 +232,11 @@ def run_all_tests(trace_processor, trace_descriptor_path,
       else:
         assert False
 
-      perf_lines = tmp_perf_file.readlines()
+      perf_lines = [line.decode('utf8') for line in tmp_perf_file.readlines()]
 
     if gen_trace_file:
       if keep_input:
-        print "Saving generated input trace: ", gen_trace_path
+        print("Saving generated input trace: {}".format(gen_trace_path))
       else:
         gen_trace_file.close()
         os.remove(gen_trace_path)

@@ -8,7 +8,7 @@ android_ion {
   }
   buffer {
     name: "system"
-    avg_size_bytes: 1497.48743719
+    avg_size_bytes: 1497.4874371859296
     min_size_bytes: 1000.0
     max_size_bytes: 2000.0
     total_alloc_size_bytes: 2000.0
