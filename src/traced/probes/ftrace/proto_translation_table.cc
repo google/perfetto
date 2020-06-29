@@ -94,13 +94,13 @@ ProtoTranslationTable::FtracePageHeaderSpec GuessFtracePageHeaderSpec() {
   return spec;
 }
 
-const std::vector<Event> BuildEventsVector(const std::vector<Event>& events) {
+const std::deque<Event> BuildEventsDeque(const std::vector<Event>& events) {
   size_t largest_id = 0;
   for (const Event& event : events) {
     if (event.ftrace_event_id > largest_id)
       largest_id = event.ftrace_event_id;
   }
-  std::vector<Event> events_by_id;
+  std::deque<Event> events_by_id;
   events_by_id.resize(largest_id + 1);
   for (const Event& event : events) {
     events_by_id[event.ftrace_event_id] = event;
@@ -466,7 +466,7 @@ ProtoTranslationTable::ProtoTranslationTable(
     FtracePageHeaderSpec ftrace_page_header_spec,
     CompactSchedEventFormat compact_sched_format)
     : ftrace_procfs_(ftrace_procfs),
-      events_(BuildEventsVector(events)),
+      events_(BuildEventsDeque(events)),
       largest_id_(events_.size() - 1),
       common_fields_(std::move(common_fields)),
       ftrace_page_header_spec_(ftrace_page_header_spec),
