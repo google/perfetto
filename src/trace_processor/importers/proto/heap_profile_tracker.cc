@@ -267,12 +267,18 @@ void HeapProfileTracker::AddAllocation(
       static_cast<uint32_t>(alloc.pid));
 
   tables::HeapProfileAllocationTable::Row alloc_row{
-      alloc.timestamp, upid, callstack_id,
+      alloc.timestamp,
+      upid,
+      alloc.heap_name,
+      callstack_id,
       static_cast<int64_t>(alloc.alloc_count),
       static_cast<int64_t>(alloc.self_allocated)};
 
   tables::HeapProfileAllocationTable::Row free_row{
-      alloc.timestamp, upid, callstack_id,
+      alloc.timestamp,
+      upid,
+      alloc.heap_name,
+      callstack_id,
       -static_cast<int64_t>(alloc.free_count),
       -static_cast<int64_t>(alloc.self_freed)};
 
@@ -295,7 +301,8 @@ void HeapProfileTracker::AddAllocation(
   tables::HeapProfileAllocationTable::Row& prev_free = prev_free_it->second;
 
   std::set<CallsiteId>& callstacks_for_source_callstack_id =
-      sequence_state.seen_callstacks[std::make_pair(upid, alloc.callstack_id)];
+      sequence_state.seen_callstacks[SourceAllocationIndex{
+          upid, alloc.callstack_id, alloc.heap_name}];
   bool new_callstack;
   std::tie(std::ignore, new_callstack) =
       callstacks_for_source_callstack_id.emplace(callstack_id);
