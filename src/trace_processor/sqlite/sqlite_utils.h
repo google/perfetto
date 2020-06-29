@@ -380,22 +380,6 @@ inline void ReportSqliteResult(sqlite3_context* ctx, double value) {
   sqlite3_result_double(ctx, value);
 }
 
-inline std::string SqliteValueAsString(sqlite3_value* value) {
-  switch (sqlite3_value_type(value)) {
-    case SQLITE_INTEGER:
-      return std::to_string(sqlite3_value_int64(value));
-    case SQLITE_FLOAT:
-      return std::to_string(sqlite3_value_double(value));
-    case SQLITE_TEXT: {
-      const char* str =
-          reinterpret_cast<const char*>(sqlite3_value_text(value));
-      return "'" + std::string(str) + "'";
-    }
-    default:
-      PERFETTO_FATAL("Unknown value type %d", sqlite3_value_type(value));
-  }
-}
-
 inline std::vector<SqliteTable::Column> GetColumnsForTable(
     sqlite3* db,
     const std::string& raw_table_name) {

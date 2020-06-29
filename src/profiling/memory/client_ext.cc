@@ -411,8 +411,8 @@ heapprofd_report_allocation(uint32_t heap_id, uint64_t id, uint64_t size) {
     if (sampled_alloc_sz == 0)  // not sampling
       return false;
 
-    client = *g_client_ptr;   // owning copy
-  }                           // unlock
+    client = *g_client_ptr;  // owning copy
+  }                          // unlock
 
   if (!client->RecordMalloc(heap.service_heap_id, sampled_alloc_sz, size, id)) {
     ShutdownLazy();
