@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {iter, NUM, slowlyCountRows} from '../../common/query_iterator';
 import {fromNs, toNs} from '../../common/time';
-
 import {
   TrackController,
   trackControllerRegistry
@@ -91,8 +91,7 @@ class CounterTrackController extends TrackController<Config, Data> {
     const rawResult = await this.query(`
       select
         (ts + ${bucketNs / 2}) / ${bucketNs} * ${bucketNs} as tsq,
-        ts,
-        max(dur) as dur,
+        max(value),
         id,
         value
       from ${this.tableName('counter_view')}
@@ -100,7 +99,8 @@ class CounterTrackController extends TrackController<Config, Data> {
       group by tsq
     `);
 
-    const numRows = +rawResult.numRecords;
+    const numRows = slowlyCountRows(rawResult);
+
     const data: Data = {
       start,
       end,
@@ -113,26 +113,11 @@ class CounterTrackController extends TrackController<Config, Data> {
       values: new Float64Array(numRows),
     };
 
-    const cols = rawResult.columns;
-    for (let row = 0; row < numRows; row++) {
-      const startNsQ = +cols[0].longValues![row];
-      const startNs = +cols[1].longValues![row];
-      const durNs = +cols[2].longValues![row];
-      const endNs = startNs + durNs;
-
-      let endNsQ = Math.floor((endNs + bucketNs / 2 - 1) / bucketNs) * bucketNs;
-      endNsQ = Math.max(endNsQ, startNsQ + bucketNs);
-
-      if (startNsQ === endNsQ) {
-        throw new Error('Should never happen');
-      }
-
-      const id = +cols[3].longValues![row];
-      const value = +cols[4].doubleValues![row];
-
-      data.timestamps[row] = fromNs(startNsQ);
-      data.ids[row] = id;
-      data.values[row] = value;
+    const it = iter({'tsq': NUM, 'id': NUM, 'value': NUM}, rawResult);
+    for (let i = 0; it.valid(); ++i, it.next()) {
+      data.timestamps[i] = fromNs(it.row.tsq);
+      data.ids[i] = it.row.id;
+      data.values[i] = it.row.value;
     }
 
     return data;
