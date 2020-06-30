@@ -85,6 +85,14 @@ struct PERFETTO_EXPORT SqlValue {
     return value;
   }
 
+  static SqlValue Bytes(const void* v, size_t size) {
+    SqlValue value;
+    value.bytes_value = v;
+    value.bytes_count = size;
+    value.type = Type::kBytes;
+    return value;
+  }
+
   double AsDouble() const {
     PERFETTO_CHECK(type == kDouble);
     return double_value;
