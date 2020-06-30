@@ -69,6 +69,93 @@ std::set<tables::HeapGraphObjectTable::Id> GetChildren(
   }
   return children;
 }
+
+struct ClassDescriptor {
+  StringId name;
+  base::Optional<StringId> location;
+
+  bool operator<(const ClassDescriptor& other) const {
+    return std::tie(name, location) < std::tie(other.name, other.location);
+  }
+};
+
+ClassDescriptor GetClassDescriptor(const TraceStorage& storage,
+                                   tables::HeapGraphObjectTable::Id obj_id) {
+  auto obj_idx = storage.heap_graph_object_table().id().IndexOf(obj_id).value();
+  auto type_id = storage.heap_graph_object_table().type_id()[obj_idx];
+  auto type_idx =
+      storage.heap_graph_class_table().id().IndexOf(type_id).value();
+  return {storage.heap_graph_class_table().name()[type_idx],
+          storage.heap_graph_class_table().location()[type_idx]};
+}
+
+base::Optional<tables::HeapGraphObjectTable::Id> GetReferredObj(
+    const TraceStorage& storage,
+    uint32_t ref_set_id,
+    const std::string& field_name) {
+  const auto& refs_tbl = storage.heap_graph_reference_table();
+
+  auto filtered = refs_tbl.Filter(
+      {refs_tbl.reference_set_id().eq(ref_set_id),
+       refs_tbl.field_name().eq(NullTermStringView(field_name))});
+  auto refs_it = filtered.IterateRows();
+  if (!refs_it) {
+    return {};
+  }
+  return tables::HeapGraphObjectTable::Id(static_cast<uint32_t>(
+      refs_it
+          .Get(static_cast<uint32_t>(
+              tables::HeapGraphReferenceTable::ColumnIndex::owned_id))
+          .AsLong()));
+}
+
+// Maps from normalized class name and location, to superclass.
+std::map<ClassDescriptor, ClassDescriptor>
+BuildSuperclassMap(UniquePid upid, int64_t ts, TraceStorage* storage) {
+  std::map<ClassDescriptor, ClassDescriptor> superclass_map;
+
+  // Resolve superclasses by iterating heap graph objects and identifying the
+  // superClass field.
+  const auto& objects_tbl = storage->heap_graph_object_table();
+  auto filtered = objects_tbl.Filter(
+      {objects_tbl.upid().eq(upid), objects_tbl.graph_sample_ts().eq(ts)});
+  for (auto obj_it = filtered.IterateRows(); obj_it; obj_it.Next()) {
+    auto obj_id = tables::HeapGraphObjectTable::Id(static_cast<uint32_t>(
+        obj_it
+            .Get(static_cast<uint32_t>(
+                tables::HeapGraphObjectTable::ColumnIndex::id))
+            .AsLong()));
+    auto class_descriptor = GetClassDescriptor(*storage, obj_id);
+    auto normalized =
+        GetNormalizedType(storage->GetString(class_descriptor.name));
+    // superClass ptrs are stored on the static class objects
+    // ignore arrays (as they are generated objects)
+    if (!normalized.is_static_class || normalized.number_of_arrays > 0)
+      continue;
+
+    auto opt_ref_set_id = obj_it.Get(static_cast<uint32_t>(
+        tables::HeapGraphObjectTable::ColumnIndex::reference_set_id));
+    if (opt_ref_set_id.is_null())
+      continue;
+    auto ref_set_id = static_cast<uint32_t>(opt_ref_set_id.AsLong());
+    auto super_obj_id =
+        GetReferredObj(*storage, ref_set_id, "java.lang.Class.superClass");
+    if (!super_obj_id) {
+      // This is expected to be missing for Object and primitive types
+      continue;
+    }
+
+    // Lookup the super obj type id
+    auto super_class_descriptor = GetClassDescriptor(*storage, *super_obj_id);
+    auto super_class_name =
+        NormalizeTypeName(storage->GetString(super_class_descriptor.name));
+    StringId super_class_id = storage->InternString(super_class_name);
+    StringId class_id = storage->InternString(normalized.name);
+    superclass_map[{class_id, class_descriptor.location}] = {
+        super_class_id, super_class_descriptor.location};
+  }
+  return superclass_map;
+}
 }  // namespace
 
 void MarkRoot(TraceStorage* storage,
@@ -461,7 +548,6 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
         context_->storage->IncrementIndexedStats(
             stats::heap_graph_invalid_string_id,
             static_cast<int>(sequence_state.current_upid));
-
       } else {
         location_name = it->second;
       }
@@ -529,7 +615,52 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
     }
   }
 
+  PopulateSuperClasses(sequence_state);
   sequence_state_.erase(seq_id);
+}
+
+void HeapGraphTracker::PopulateSuperClasses(const SequenceState& seq) {
+  // Maps from normalized class name and location, to superclass.
+  std::map<ClassDescriptor, ClassDescriptor> superclass_map =
+      BuildSuperclassMap(seq.current_upid, seq.current_ts,
+                         context_->storage.get());
+
+  auto* classes_tbl = context_->storage->mutable_heap_graph_class_table();
+  std::map<ClassDescriptor, tables::HeapGraphClassTable::Id> class_to_id;
+  for (uint32_t idx = 0; idx < classes_tbl->row_count(); ++idx) {
+    class_to_id[{classes_tbl->name()[idx], classes_tbl->location()[idx]}] =
+        classes_tbl->id()[idx];
+  }
+
+  // Iterate through the classes table and annotate with superclasses.
+  // We iterate all rows on the classes table (even though the superclass
+  // mapping was generated on the current sequence) - if we cannot identify
+  // a superclass we will just skip.
+  for (uint32_t idx = 0; idx < classes_tbl->row_count(); ++idx) {
+    auto name = context_->storage->GetString(classes_tbl->name()[idx]);
+    auto location = classes_tbl->location()[idx];
+    auto normalized = GetNormalizedType(name);
+    if (normalized.is_static_class || normalized.number_of_arrays > 0)
+      continue;
+
+    StringId class_name_id = context_->storage->InternString(normalized.name);
+    auto map_it = superclass_map.find({class_name_id, location});
+    if (map_it == superclass_map.end()) {
+      continue;
+    }
+
+    // Find the row for the superclass id
+    auto superclass_it = class_to_id.find(map_it->second);
+    if (superclass_it == class_to_id.end()) {
+      // This can happen for traces was captured before the patch to
+      // explicitly emit interned types (meaning classes without live
+      // instances would not appear here).
+      continue;
+    }
+    auto superclass_id = superclass_it->second;
+    // Mutate the superclass column
+    classes_tbl->mutable_superclass_id()->Set(idx, superclass_id);
+  }
 }
 
 void FindPathFromRoot(const TraceStorage& storage,
