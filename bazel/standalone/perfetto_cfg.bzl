@@ -85,6 +85,7 @@ PERFETTO_CONFIG = struct(
 
         proto_library = None,
         py_binary = None,
+        py_library = None,
 
         # We only need this for internal binaries. No other embeedder should
         # care about this.
