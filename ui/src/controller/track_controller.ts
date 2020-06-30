@@ -26,6 +26,9 @@ interface TrackConfig {}
 
 type TrackConfigWithNamespace = TrackConfig&{namespace: string};
 
+// Allow to override via devtools for testing (note, needs to be done in the
+// controller-thread).
+(self as {} as {quantPx: number}).quantPx = 1;
 
 // TrackController is a base class overridden by track implementations (e.g.,
 // sched slices, nestable slices, counters).
@@ -41,6 +44,10 @@ export abstract class TrackController<
     super('main');
     this.trackId = args.trackId;
     this.engine = args.engine;
+  }
+
+  protected pxSize(): number {
+    return (self as {} as {quantPx: number}).quantPx;
   }
 
   // Must be overridden by the track implementation. Is invoked when the track
