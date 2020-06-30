@@ -40,6 +40,7 @@
 --     FROM my_slice_power;
 
 SELECT RUN_METRIC('android/android_cpu_agg.sql');
+SELECT RUN_METRIC('android/power_profile_data.sql');
 
 CREATE VIEW device AS
 WITH
