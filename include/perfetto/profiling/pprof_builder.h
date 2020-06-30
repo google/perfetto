@@ -35,6 +35,7 @@ namespace trace_to_text {
 
 struct SerializedProfile {
   uint64_t pid;
+  std::string heap_name;
   std::string serialized;
 };
 
