@@ -116,7 +116,7 @@ export abstract class AggregationController extends Controller<'main'> {
           data.columns[col].data[row] =
               internString(cols[col].stringValues![row]);
         } else if (cols[col].longValues && cols[col].longValues!.length > 0) {
-          data.columns[col].data[row] = cols[col].longValues![row] as number;
+          data.columns[col].data[row] = cols[col].longValues![row];
         } else if (
             cols[col].doubleValues && cols[col].doubleValues!.length > 0) {
           data.columns[col].data[row] = cols[col].doubleValues![row];

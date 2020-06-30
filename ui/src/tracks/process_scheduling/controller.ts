@@ -67,7 +67,7 @@ class ProcessSchedulingTrackController extends TrackController<Config, Data> {
           utid != 0 and
           upid = ${this.config.upid}`);
       if (maxDurResult.numRecords === 1) {
-        this.maxDurNs = +maxDurResult.columns![0].longValues![0];
+        this.maxDurNs = maxDurResult.columns[0].longValues![0];
       }
 
       this.setup = true;
