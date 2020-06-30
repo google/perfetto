@@ -223,6 +223,7 @@ node_bin("protos_to_js") {
   outputs = [ "$ui_gen_dir/protos.js" ]
   node_cmd = "pbjs"
   args = [
+           "--force-number",
            "-t",
            "static-module",
            "-w",
