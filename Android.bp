@@ -3132,6 +3132,158 @@ genrule {
   ],
 }
 
+// GN: //protos/perfetto/metrics/android:zero
+genrule {
+  name: "perfetto_protos_perfetto_metrics_android_zero_gen",
+  srcs: [
+    "protos/perfetto/metrics/android/batt_metric.proto",
+    "protos/perfetto/metrics/android/cpu_metric.proto",
+    "protos/perfetto/metrics/android/display_metrics.proto",
+    "protos/perfetto/metrics/android/heap_profile_callsites.proto",
+    "protos/perfetto/metrics/android/hwui_metric.proto",
+    "protos/perfetto/metrics/android/ion_metric.proto",
+    "protos/perfetto/metrics/android/java_heap_histogram.proto",
+    "protos/perfetto/metrics/android/java_heap_stats.proto",
+    "protos/perfetto/metrics/android/lmk_metric.proto",
+    "protos/perfetto/metrics/android/lmk_reason_metric.proto",
+    "protos/perfetto/metrics/android/mem_metric.proto",
+    "protos/perfetto/metrics/android/mem_unagg_metric.proto",
+    "protos/perfetto/metrics/android/package_list.proto",
+    "protos/perfetto/metrics/android/powrails_metric.proto",
+    "protos/perfetto/metrics/android/process_metadata.proto",
+    "protos/perfetto/metrics/android/startup_metric.proto",
+    "protos/perfetto/metrics/android/surfaceflinger.proto",
+    "protos/perfetto/metrics/android/task_names.proto",
+    "protos/perfetto/metrics/android/thread_time_in_state_metric.proto",
+    "protos/perfetto/metrics/android/unmapped_java_symbols.proto",
+    "protos/perfetto/metrics/android/unsymbolized_frames.proto",
+  ],
+  tools: [
+    "aprotoc",
+    "protozero_plugin",
+  ],
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  out: [
+    "external/perfetto/protos/perfetto/metrics/android/batt_metric.pbzero.cc",
+    "external/perfetto/protos/perfetto/metrics/android/cpu_metric.pbzero.cc",
+    "external/perfetto/protos/perfetto/metrics/android/display_metrics.pbzero.cc",
+    "external/perfetto/protos/perfetto/metrics/android/heap_profile_callsites.pbzero.cc",
+    "external/perfetto/protos/perfetto/metrics/android/hwui_metric.pbzero.cc",
+    "external/perfetto/protos/perfetto/metrics/android/ion_metric.pbzero.cc",
+    "external/perfetto/protos/perfetto/metrics/android/java_heap_histogram.pbzero.cc",
+    "external/perfetto/protos/perfetto/metrics/android/java_heap_stats.pbzero.cc",
+    "external/perfetto/protos/perfetto/metrics/android/lmk_metric.pbzero.cc",
+    "external/perfetto/protos/perfetto/metrics/android/lmk_reason_metric.pbzero.cc",
+    "external/perfetto/protos/perfetto/metrics/android/mem_metric.pbzero.cc",
+    "external/perfetto/protos/perfetto/metrics/android/mem_unagg_metric.pbzero.cc",
+    "external/perfetto/protos/perfetto/metrics/android/package_list.pbzero.cc",
+    "external/perfetto/protos/perfetto/metrics/android/powrails_metric.pbzero.cc",
+    "external/perfetto/protos/perfetto/metrics/android/process_metadata.pbzero.cc",
+    "external/perfetto/protos/perfetto/metrics/android/startup_metric.pbzero.cc",
+    "external/perfetto/protos/perfetto/metrics/android/surfaceflinger.pbzero.cc",
+    "external/perfetto/protos/perfetto/metrics/android/task_names.pbzero.cc",
+    "external/perfetto/protos/perfetto/metrics/android/thread_time_in_state_metric.pbzero.cc",
+    "external/perfetto/protos/perfetto/metrics/android/unmapped_java_symbols.pbzero.cc",
+    "external/perfetto/protos/perfetto/metrics/android/unsymbolized_frames.pbzero.cc",
+  ],
+}
+
+// GN: //protos/perfetto/metrics/android:zero
+genrule {
+  name: "perfetto_protos_perfetto_metrics_android_zero_gen_headers",
+  srcs: [
+    "protos/perfetto/metrics/android/batt_metric.proto",
+    "protos/perfetto/metrics/android/cpu_metric.proto",
+    "protos/perfetto/metrics/android/display_metrics.proto",
+    "protos/perfetto/metrics/android/heap_profile_callsites.proto",
+    "protos/perfetto/metrics/android/hwui_metric.proto",
+    "protos/perfetto/metrics/android/ion_metric.proto",
+    "protos/perfetto/metrics/android/java_heap_histogram.proto",
+    "protos/perfetto/metrics/android/java_heap_stats.proto",
+    "protos/perfetto/metrics/android/lmk_metric.proto",
+    "protos/perfetto/metrics/android/lmk_reason_metric.proto",
+    "protos/perfetto/metrics/android/mem_metric.proto",
+    "protos/perfetto/metrics/android/mem_unagg_metric.proto",
+    "protos/perfetto/metrics/android/package_list.proto",
+    "protos/perfetto/metrics/android/powrails_metric.proto",
+    "protos/perfetto/metrics/android/process_metadata.proto",
+    "protos/perfetto/metrics/android/startup_metric.proto",
+    "protos/perfetto/metrics/android/surfaceflinger.proto",
+    "protos/perfetto/metrics/android/task_names.proto",
+    "protos/perfetto/metrics/android/thread_time_in_state_metric.proto",
+    "protos/perfetto/metrics/android/unmapped_java_symbols.proto",
+    "protos/perfetto/metrics/android/unsymbolized_frames.proto",
+  ],
+  tools: [
+    "aprotoc",
+    "protozero_plugin",
+  ],
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  out: [
+    "external/perfetto/protos/perfetto/metrics/android/batt_metric.pbzero.h",
+    "external/perfetto/protos/perfetto/metrics/android/cpu_metric.pbzero.h",
+    "external/perfetto/protos/perfetto/metrics/android/display_metrics.pbzero.h",
+    "external/perfetto/protos/perfetto/metrics/android/heap_profile_callsites.pbzero.h",
+    "external/perfetto/protos/perfetto/metrics/android/hwui_metric.pbzero.h",
+    "external/perfetto/protos/perfetto/metrics/android/ion_metric.pbzero.h",
+    "external/perfetto/protos/perfetto/metrics/android/java_heap_histogram.pbzero.h",
+    "external/perfetto/protos/perfetto/metrics/android/java_heap_stats.pbzero.h",
+    "external/perfetto/protos/perfetto/metrics/android/lmk_metric.pbzero.h",
+    "external/perfetto/protos/perfetto/metrics/android/lmk_reason_metric.pbzero.h",
+    "external/perfetto/protos/perfetto/metrics/android/mem_metric.pbzero.h",
+    "external/perfetto/protos/perfetto/metrics/android/mem_unagg_metric.pbzero.h",
+    "external/perfetto/protos/perfetto/metrics/android/package_list.pbzero.h",
+    "external/perfetto/protos/perfetto/metrics/android/powrails_metric.pbzero.h",
+    "external/perfetto/protos/perfetto/metrics/android/process_metadata.pbzero.h",
+    "external/perfetto/protos/perfetto/metrics/android/startup_metric.pbzero.h",
+    "external/perfetto/protos/perfetto/metrics/android/surfaceflinger.pbzero.h",
+    "external/perfetto/protos/perfetto/metrics/android/task_names.pbzero.h",
+    "external/perfetto/protos/perfetto/metrics/android/thread_time_in_state_metric.pbzero.h",
+    "external/perfetto/protos/perfetto/metrics/android/unmapped_java_symbols.pbzero.h",
+    "external/perfetto/protos/perfetto/metrics/android/unsymbolized_frames.pbzero.h",
+  ],
+  export_include_dirs: [
+    ".",
+    "protos",
+  ],
+}
+
+// GN: //protos/perfetto/metrics:zero
+genrule {
+  name: "perfetto_protos_perfetto_metrics_zero_gen",
+  srcs: [
+    "protos/perfetto/metrics/metrics.proto",
+  ],
+  tools: [
+    "aprotoc",
+    "protozero_plugin",
+  ],
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  out: [
+    "external/perfetto/protos/perfetto/metrics/metrics.pbzero.cc",
+  ],
+}
+
+// GN: //protos/perfetto/metrics:zero
+genrule {
+  name: "perfetto_protos_perfetto_metrics_zero_gen_headers",
+  srcs: [
+    "protos/perfetto/metrics/metrics.proto",
+  ],
+  tools: [
+    "aprotoc",
+    "protozero_plugin",
+  ],
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  out: [
+    "external/perfetto/protos/perfetto/metrics/metrics.pbzero.h",
+  ],
+  export_include_dirs: [
+    ".",
+    "protos",
+  ],
+}
+
 // GN: //protos/perfetto/trace/android:cpp
 genrule {
   name: "perfetto_protos_perfetto_trace_android_cpp_gen",
@@ -4864,6 +5016,42 @@ genrule {
   ],
 }
 
+// GN: //protos/perfetto/trace_processor:zero
+genrule {
+  name: "perfetto_protos_perfetto_trace_processor_zero_gen",
+  srcs: [
+    "protos/perfetto/trace_processor/trace_processor.proto",
+  ],
+  tools: [
+    "aprotoc",
+    "protozero_plugin",
+  ],
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  out: [
+    "external/perfetto/protos/perfetto/trace_processor/trace_processor.pbzero.cc",
+  ],
+}
+
+// GN: //protos/perfetto/trace_processor:zero
+genrule {
+  name: "perfetto_protos_perfetto_trace_processor_zero_gen_headers",
+  srcs: [
+    "protos/perfetto/trace_processor/trace_processor.proto",
+  ],
+  tools: [
+    "aprotoc",
+    "protozero_plugin",
+  ],
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+  out: [
+    "external/perfetto/protos/perfetto/trace_processor/trace_processor.pbzero.h",
+  ],
+  export_include_dirs: [
+    ".",
+    "protos",
+  ],
+}
+
 // GN: //protos/perfetto/trace/profiling:cpp
 genrule {
   name: "perfetto_protos_perfetto_trace_profiling_cpp_gen",
@@ -6557,6 +6745,23 @@ filegroup {
   ],
 }
 
+// GN: //src/trace_processor/rpc:rpc
+filegroup {
+  name: "perfetto_src_trace_processor_rpc_rpc",
+  srcs: [
+    "src/trace_processor/rpc/query_result_serializer.cc",
+    "src/trace_processor/rpc/rpc.cc",
+  ],
+}
+
+// GN: //src/trace_processor/rpc:unittests
+filegroup {
+  name: "perfetto_src_trace_processor_rpc_unittests",
+  srcs: [
+    "src/trace_processor/rpc/query_result_serializer_unittest.cc",
+  ],
+}
+
 // GN: //src/trace_processor/sqlite:sqlite
 filegroup {
   name: "perfetto_src_trace_processor_sqlite_sqlite",
@@ -7551,6 +7756,8 @@ cc_test {
     ":perfetto_protos_perfetto_ipc_cpp_gen",
     ":perfetto_protos_perfetto_ipc_ipc_gen",
     ":perfetto_protos_perfetto_ipc_wire_protocol_cpp_gen",
+    ":perfetto_protos_perfetto_metrics_android_zero_gen",
+    ":perfetto_protos_perfetto_metrics_zero_gen",
     ":perfetto_protos_perfetto_trace_android_cpp_gen",
     ":perfetto_protos_perfetto_trace_android_zero_gen",
     ":perfetto_protos_perfetto_trace_chrome_cpp_gen",
@@ -7572,6 +7779,7 @@ cc_test {
     ":perfetto_protos_perfetto_trace_power_cpp_gen",
     ":perfetto_protos_perfetto_trace_power_zero_gen",
     ":perfetto_protos_perfetto_trace_processor_metrics_impl_zero_gen",
+    ":perfetto_protos_perfetto_trace_processor_zero_gen",
     ":perfetto_protos_perfetto_trace_profiling_cpp_gen",
     ":perfetto_protos_perfetto_trace_profiling_zero_gen",
     ":perfetto_protos_perfetto_trace_ps_cpp_gen",
@@ -7638,6 +7846,8 @@ cc_test {
     ":perfetto_src_trace_processor_metatrace",
     ":perfetto_src_trace_processor_metrics_lib",
     ":perfetto_src_trace_processor_metrics_unittests",
+    ":perfetto_src_trace_processor_rpc_rpc",
+    ":perfetto_src_trace_processor_rpc_unittests",
     ":perfetto_src_trace_processor_sqlite_sqlite",
     ":perfetto_src_trace_processor_sqlite_unittests",
     ":perfetto_src_trace_processor_storage_full",
@@ -7742,6 +7952,8 @@ cc_test {
     "perfetto_protos_perfetto_ipc_cpp_gen_headers",
     "perfetto_protos_perfetto_ipc_ipc_gen_headers",
     "perfetto_protos_perfetto_ipc_wire_protocol_cpp_gen_headers",
+    "perfetto_protos_perfetto_metrics_android_zero_gen_headers",
+    "perfetto_protos_perfetto_metrics_zero_gen_headers",
     "perfetto_protos_perfetto_trace_android_cpp_gen_headers",
     "perfetto_protos_perfetto_trace_android_zero_gen_headers",
     "perfetto_protos_perfetto_trace_chrome_cpp_gen_headers",
@@ -7763,6 +7975,7 @@ cc_test {
     "perfetto_protos_perfetto_trace_power_cpp_gen_headers",
     "perfetto_protos_perfetto_trace_power_zero_gen_headers",
     "perfetto_protos_perfetto_trace_processor_metrics_impl_zero_gen_headers",
+    "perfetto_protos_perfetto_trace_processor_zero_gen_headers",
     "perfetto_protos_perfetto_trace_profiling_cpp_gen_headers",
     "perfetto_protos_perfetto_trace_profiling_zero_gen_headers",
     "perfetto_protos_perfetto_trace_ps_cpp_gen_headers",
