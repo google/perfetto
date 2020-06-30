@@ -173,7 +173,7 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
     const char* str = reinterpret_cast<const char*>(entry.str().data);
     auto str_view = base::StringView(str, entry.str().size);
 
-    heap_graph_tracker->AddInternedTypeName(
+    heap_graph_tracker->AddInternedType(
         seq_id, entry.iid(), context_->storage->InternString(str_view));
   }
   for (auto it = heap_graph.field_names(); it; ++it) {
