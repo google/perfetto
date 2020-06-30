@@ -70,10 +70,10 @@ TEST(HeapGraphTrackerTest, BuildFlamegraph) {
 
   tracker.AddInternedFieldName(kSeqId, kField, field);
 
-  tracker.AddInternedTypeName(kSeqId, kX, x);
-  tracker.AddInternedTypeName(kSeqId, kY, y);
-  tracker.AddInternedTypeName(kSeqId, kA, a);
-  tracker.AddInternedTypeName(kSeqId, kB, b);
+  tracker.AddInternedType(kSeqId, kX, x);
+  tracker.AddInternedType(kSeqId, kY, y);
+  tracker.AddInternedType(kSeqId, kA, a);
+  tracker.AddInternedType(kSeqId, kB, b);
 
   {
     HeapGraphTracker::SourceObject obj;
