@@ -19,6 +19,10 @@
 # - public includes don't end up depending on private src/ headers.
 # - We use consistently <angle brackets> for other libraries.
 
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+
 import os
 import re
 import subprocess
