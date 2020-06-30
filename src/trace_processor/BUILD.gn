@@ -299,7 +299,6 @@ if (enable_perfetto_trace_processor_sqlite) {
       ":metatrace",
       ":storage_full",
       "../../gn:default_deps",
-      "../../gn:sqlite",
       "../../protos/perfetto/trace/ftrace:zero",
       "../base",
       "analysis",
@@ -311,7 +310,10 @@ if (enable_perfetto_trace_processor_sqlite) {
       "tables",
       "types",
     ]
-    public_deps = [ "../../include/perfetto/trace_processor" ]
+    public_deps = [
+      "../../gn:sqlite",  # iterator_impl.h includes sqlite3.h.
+      "../../include/perfetto/trace_processor",
+    ]
     if (enable_perfetto_trace_processor_json) {
       deps += [ "../../gn:jsoncpp" ]
     }
@@ -381,6 +383,7 @@ perfetto_unittest_source_set("unittests") {
     "db:unittests",
     "importers:common",
     "importers:unittests",
+    "rpc:unittests",
     "storage",
     "tables:unittests",
     "types",
