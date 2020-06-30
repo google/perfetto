@@ -6600,6 +6600,11 @@ message ProcessStats {
 
 // Begin of protos/perfetto/trace/ps/process_tree.proto
 
+// Metadata about the processes and threads in the trace.
+// Note: this proto was designed to be filled in by traced_probes and should
+// only be populated with accurate information coming from the system. Other
+// trace writers should prefer to fill ThreadDescriptor and ProcessDescriptor
+// in TrackDescriptor.
 message ProcessTree {
   // Representation of a thread.
   message Thread {
