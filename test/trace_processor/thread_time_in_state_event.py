@@ -26,7 +26,7 @@ SEC = 1000000000
 trace = synth_common.create_trace()
 
 # Use fake fingerprint to simulate big/little cores.
-trace.add_system_info(arch='aarch64', fingerprint='bonito')
+trace.add_system_info(arch='aarch64', fingerprint='crosshatch')
 trace.packet.system_info.hz = 1
 
 trace.add_packet(1)
