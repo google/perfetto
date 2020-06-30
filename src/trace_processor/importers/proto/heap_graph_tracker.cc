@@ -379,17 +379,10 @@ void HeapGraphTracker::AddInternedLocationName(uint32_t seq_id,
   sequence_state.interned_location_names.emplace(intern_id, strid);
 }
 
-void HeapGraphTracker::AddInternedTypeName(uint32_t seq_id,
-                                           uint64_t intern_id,
-                                           StringPool::Id strid) {
-  SequenceState& sequence_state = GetOrCreateSequence(seq_id);
-  sequence_state.interned_types[intern_id].name = strid;
-}
-
 void HeapGraphTracker::AddInternedType(uint32_t seq_id,
                                        uint64_t intern_id,
                                        StringPool::Id strid,
-                                       uint64_t location_id) {
+                                       base::Optional<uint64_t> location_id) {
   SequenceState& sequence_state = GetOrCreateSequence(seq_id);
   sequence_state.interned_types[intern_id].name = strid;
   sequence_state.interned_types[intern_id].location_id = location_id;
