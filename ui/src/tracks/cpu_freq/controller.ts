@@ -66,7 +66,7 @@ class CpuFreqTrackController extends TrackController<Config, Data> {
       const maxDurFreqResult =
           await this.query(`select max(dur) from ${this.tableName('freq')}`);
       if (maxDurFreqResult.numRecords === 1) {
-        this.maxDurNs = +maxDurFreqResult.columns![0].longValues![0];
+        this.maxDurNs = maxDurFreqResult.columns[0].longValues![0];
       }
 
       if (this.config.idleTrackId === undefined) {
@@ -92,7 +92,7 @@ class CpuFreqTrackController extends TrackController<Config, Data> {
             await this.query(`select max(dur) from ${this.tableName('idle')}`);
         if (maxDurIdleResult.numRecords === 1) {
           this.maxDurNs = Math.max(
-              this.maxDurNs, +maxDurIdleResult.columns![0].longValues![0]);
+              this.maxDurNs, maxDurIdleResult.columns[0].longValues![0]);
         }
 
         await this.query(`create virtual table ${this.tableName('freq_idle')}

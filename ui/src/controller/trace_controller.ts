@@ -583,9 +583,9 @@ export class TraceController extends Controller<States> {
 
     const utidToThreadTrack = new Map<number, ThreadSliceTrack>();
     for (let i = 0; i < maxDepthQuery.numRecords; i++) {
-      const utid = maxDepthQuery.columns[0].longValues![i] as number;
-      const trackId = maxDepthQuery.columns[1].longValues![i] as number;
-      const maxDepth = maxDepthQuery.columns[2].longValues![i] as number;
+      const utid = maxDepthQuery.columns[0].longValues![i];
+      const trackId = maxDepthQuery.columns[1].longValues![i];
+      const maxDepth = maxDepthQuery.columns[2].longValues![i];
       utidToThreadTrack.set(utid, {maxDepth, trackId});
     }
 
@@ -804,7 +804,7 @@ export class TraceController extends Controller<States> {
     for (let i = 0; i < annotationSliceRows.numRecords; i++) {
       const id = annotationSliceRows.columns[0].longValues![i];
       const name = annotationSliceRows.columns[1].stringValues![i];
-      const upid = annotationSliceRows.columns[2].longValues![i] as number;
+      const upid = annotationSliceRows.columns[2].longValues![i];
       tracksToAdd.push({
         engineId: this.engineId,
         kind: SLICE_TRACK_KIND,
@@ -824,7 +824,7 @@ export class TraceController extends Controller<States> {
     for (let i = 0; i < annotationCounterRows.numRecords; i++) {
       const id = annotationCounterRows.columns[0].longValues![i];
       const name = annotationCounterRows.columns[1].stringValues![i];
-      const upid = annotationCounterRows.columns[2].longValues![i] as number;
+      const upid = annotationCounterRows.columns[2].longValues![i];
       const minimumValue = annotationCounterRows.columns[3].isNulls![i] ?
           undefined :
           annotationCounterRows.columns[3].doubleValues![i];
@@ -862,9 +862,9 @@ export class TraceController extends Controller<States> {
     const threadRows = await assertExists(this.engine).query(sqlQuery);
     const threads: ThreadDesc[] = [];
     for (let i = 0; i < threadRows.numRecords; i++) {
-      const utid = threadRows.columns[0].longValues![i] as number;
-      const tid = threadRows.columns[1].longValues![i] as number;
-      const pid = threadRows.columns[2].longValues![i] as number;
+      const utid = threadRows.columns[0].longValues![i];
+      const tid = threadRows.columns[1].longValues![i];
+      const pid = threadRows.columns[2].longValues![i];
       const threadName = threadRows.columns[3].stringValues![i];
       const procName = threadRows.columns[4].stringValues![i];
       threads.push({utid, tid, threadName, pid, procName});
@@ -894,7 +894,7 @@ export class TraceController extends Controller<States> {
       const schedData: {[key: string]: QuantizedLoad} = {};
       for (let i = 0; i < schedRows.numRecords; i++) {
         const load = schedRows.columns[0].doubleValues![i];
-        const cpu = schedRows.columns[1].longValues![i] as number;
+        const cpu = schedRows.columns[1].longValues![i];
         schedData[cpu] = {startSec, endSec, load};
         hasSchedOverview = true;
       }  // for (record ...)
@@ -926,8 +926,8 @@ export class TraceController extends Controller<States> {
 
     const slicesData: {[key: string]: QuantizedLoad[]} = {};
     for (let i = 0; i < sliceSummaryQuery.numRecords; i++) {
-      const bucket = sliceSummaryQuery.columns[0].longValues![i] as number;
-      const upid = sliceSummaryQuery.columns[1].longValues![i] as number;
+      const bucket = sliceSummaryQuery.columns[0].longValues![i];
+      const upid = sliceSummaryQuery.columns[1].longValues![i];
       const load = sliceSummaryQuery.columns[2].doubleValues![i];
 
       const startSec = traceTime.start + stepSec * bucket;
@@ -1109,8 +1109,8 @@ export class TraceController extends Controller<States> {
           SELECT MIN(value) as min_value, MAX(value) as max_value
           FROM ${metric}_event
           WHERE ${upidColumnWhere} != 0`);
-        const min = minMax.columns[0].longValues![0] as number;
-        const max = minMax.columns[1].longValues![0] as number;
+        const min = minMax.columns[0].longValues![0];
+        const max = minMax.columns[1].longValues![0];
         await engine.query(`
           INSERT INTO annotation_counter_track(
             name, __metric_name, min_value, max_value, upid)

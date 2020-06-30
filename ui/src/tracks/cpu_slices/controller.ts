@@ -45,7 +45,7 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
       const query = `SELECT max(dur) FROM sched WHERE cpu = ${this.config.cpu}`;
       const rawResult = await this.query(query);
       if (rawResult.numRecords === 1) {
-        this.maxDurNs = +rawResult.columns![0].longValues![0];
+        this.maxDurNs = rawResult.columns[0].longValues![0];
       }
     }
 
