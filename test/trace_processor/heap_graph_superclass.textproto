@@ -1,0 +1,104 @@
+packet {
+  process_tree {
+    processes {
+      pid: 2
+      ppid: 1
+      cmdline: "system_server"
+      uid: 1000
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 999
+  timestamp: 10
+  heap_graph {
+    pid: 2
+    objects {
+      # Class<Object> type
+      id: 0x01
+      type_id: 1
+      self_size: 40
+    }
+    objects {
+      # Class<MySuperClass> type
+      id: 0x02
+      type_id: 2
+      self_size: 40
+      reference_field_id: 1
+      reference_object_id: 0x01
+    }
+    objects {
+      # Class<MyChildClass> type
+      id: 0x03
+      type_id: 3
+      self_size: 40
+      reference_field_id: 1
+      reference_object_id: 0x02
+    }
+    objects {
+      # Object instance
+      id: 0x04
+      type_id: 4
+      self_size: 128
+    }
+    objects {
+      # MySuperClass instance
+      id: 0x05
+      type_id: 5
+      self_size: 128
+    }
+    objects {
+      # MyChildClass instance
+      id: 0x06
+      type_id: 6
+      self_size: 128
+    }
+
+    types {
+      id: 1
+      location_id: 1
+      class_name: "java.lang.Class<java.lang.Object>"
+    }
+    types {
+      id: 2
+      location_id: 1
+      class_name: "java.lang.Class<MySuperClass>"
+    }
+    types {
+      id: 3
+      location_id: 2
+      class_name: "java.lang.Class<MyChildClass>"
+    }
+    types {
+      id: 4
+      location_id: 1
+      class_name: "java.lang.Object"
+    }
+    types {
+      id: 5
+      location_id: 1
+      class_name: "MySuperClass"
+    }
+    types {
+      id: 6
+      location_id: 2
+      class_name: "MyChildClass"
+    }
+
+    field_names {
+      iid: 1
+      str: "java.lang.Class.superClass"
+    }
+
+    location_names {
+      iid: 1
+      str: "l1"
+    }
+    location_names {
+      iid: 2
+      str: "l2"
+    }
+    continued: false
+    index: 0
+  }
+}

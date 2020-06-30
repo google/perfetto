@@ -1,0 +1,7 @@
+"id","superclass_id","name","superclass_name","location"
+0,"[NULL]","java.lang.Class<java.lang.Object>","[NULL]","l1"
+1,"[NULL]","java.lang.Class<MySuperClass>","[NULL]","l1"
+2,"[NULL]","java.lang.Class<MyChildClass>","[NULL]","l2"
+3,"[NULL]","java.lang.Object","[NULL]","l1"
+4,3,"MySuperClass","java.lang.Object","l1"
+5,4,"MyChildClass","MySuperClass","l2"
