@@ -48,6 +48,10 @@ def perfetto_py_binary(**kwargs):
     if not _rule_override("py_binary", **kwargs):
         native.py_binary(**kwargs)
 
+def perfetto_py_library(**kwargs):
+    if not _rule_override("py_library", **kwargs):
+        native.py_library(**kwargs)
+
 # +----------------------------------------------------------------------------+
 # | Proto-related rules                                                        |
 # +----------------------------------------------------------------------------+
