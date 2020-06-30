@@ -76,7 +76,7 @@ class CounterTrackController extends TrackController<Config, Data> {
       const maxDurResult = await this.query(
           `select max(dur) from ${this.tableName('counter_view')}`);
       if (maxDurResult.numRecords === 1) {
-        this.maxDurNs = +maxDurResult.columns![0].longValues![0];
+        this.maxDurNs = maxDurResult.columns[0].longValues![0];
       }
 
       const result = await this.query(`

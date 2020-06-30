@@ -321,7 +321,7 @@ export class AdbSocketConsumerPort extends AdbBaseConsumerPort {
   }
 
   handleIncomingFrame(frame: perfetto.protos.IPCFrame) {
-    const requestId = frame.requestId as number;
+    const requestId = frame.requestId;
     switch (frame.msg) {
       case 'msgBindServiceReply': {
         const msgBindServiceReply = frame.msgBindServiceReply;
