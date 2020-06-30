@@ -16,7 +16,6 @@
 
 -- Create all the views used to generate the Android Cpu metrics proto.
 SELECT RUN_METRIC('android/android_cpu_agg.sql');
-SELECT RUN_METRIC('android/cpu_info.sql');
 SELECT RUN_METRIC('android/android_cpu_raw_metrics_per_core.sql',
   'input_table', 'cpu_freq_sched_per_thread',
   'output_table', 'raw_metrics_per_core');

@@ -14,31 +14,22 @@
 -- limitations under the License.
 --
 
-CREATE VIEW IF NOT EXISTS core_layout_mapping AS
-SELECT
-  CASE
-    WHEN (
-      str_value LIKE '%flame%' OR
-      str_value LIKE '%coral%'
-    ) THEN 'big_little_bigger'
-    WHEN (
-      str_value LIKE '%taimen%' OR
-      str_value LIKE '%walleye%' OR
-      str_value LIKE '%bonito%' OR
-      str_value LIKE '%sargo%' OR
-      str_value LIKE '%blueline%' OR
-      str_value LIKE '%crosshatch%'
-    ) THEN 'big_little'
-    ELSE 'unknown'
-  END AS layout
-FROM metadata
-WHERE name = 'android_build_fingerprint';
+SELECT RUN_METRIC('android/power_profile_data.sql');
 
-CREATE TABLE IF NOT EXISTS core_layout_type AS
-SELECT *
-FROM (
-  SELECT layout from core_layout_mapping
-  UNION
-  SELECT 'unknown'
-)
-LIMIT 1;
+CREATE VIEW IF NOT EXISTS core_cluster_per_cpu AS
+SELECT DISTINCT cpu, cluster
+FROM power_profile pp
+WHERE EXISTS (
+  SELECT 1 FROM metadata
+  WHERE name = 'android_build_fingerprint' AND str_value LIKE '%' || pp.device || '%');
+
+CREATE VIEW IF NOT EXISTS core_type_per_cpu AS
+SELECT
+  cpu,
+  CASE cluster
+    WHEN 0 THEN 'little'
+    WHEN 1 THEN 'big'
+    WHEN 2 THEN 'bigger'
+    ELSE 'unknown'
+  END core_type
+FROM core_cluster_per_cpu;
