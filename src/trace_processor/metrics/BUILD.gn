@@ -43,6 +43,7 @@ sql_files = [
   "android/android_hwui_metric.sql",
   "android/java_heap_histogram.sql",
   "android/java_heap_stats.sql",
+  "android/power_profile_data.sql",
   "android/process_unagg_mem_view.sql",
   "android/process_mem.sql",
   "android/process_metadata.sql",
