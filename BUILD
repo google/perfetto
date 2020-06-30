@@ -27,6 +27,7 @@ load(
     "perfetto_java_lite_proto_library",
     "perfetto_proto_library",
     "perfetto_py_binary",
+    "perfetto_py_library",
     "perfetto_gensignature_internal_only",
 )
 
@@ -3281,5 +3282,20 @@ perfetto_gensignature_internal_only(
     tags = [
         "__TRACE_PROCESSOR_SIG_TAG1",
         "__TRACE_PROCESSOR_SIG_TAG2",
+    ],
+)
+
+perfetto_py_binary(
+    name = "api_main",
+    srcs = ["src/trace_processor/python/api_main.py"],
+    deps = [":api_main_lib"],
+    main = "src/trace_processor/python/api_main.py",
+    python_version = "PY3",
+)
+
+perfetto_py_library(
+    name = "api_main_lib",
+    srcs = [
+        "src/trace_processor/python/trace_processor_http.py",
     ],
 )
