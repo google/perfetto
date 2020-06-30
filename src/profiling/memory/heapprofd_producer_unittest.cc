@@ -90,6 +90,16 @@ TEST(HeapprofdConfigToClientConfigurationTest, Smoke) {
   EXPECT_STREQ(cli_config.heaps[0], "foo");
 }
 
+TEST(HeapprofdConfigToClientConfigurationTest, DefaultHeap) {
+  HeapprofdConfig cfg;
+  cfg.set_sampling_interval_bytes(4096);
+  ClientConfiguration cli_config;
+  HeapprofdConfigToClientConfiguration(cfg, &cli_config);
+  EXPECT_EQ(cli_config.num_heaps, 1u);
+  EXPECT_EQ(cli_config.interval, 4096u);
+  EXPECT_STREQ(cli_config.heaps[0], "malloc");
+}
+
 TEST(HeapprofdConfigToClientConfigurationTest, OverflowHeapName) {
   HeapprofdConfig cfg;
   cfg.add_heaps("foooooooooooooooooooooooooooooooooooooooooooooo");
