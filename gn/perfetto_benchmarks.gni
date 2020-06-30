@@ -25,6 +25,7 @@ perfetto_benchmarks_targets = [
   "src/traced/probes/ftrace:benchmarks",
   "src/tracing/core:benchmarks",
   "src/tracing:benchmarks",
+  "src/trace_processor/rpc:benchmarks",
   "test:benchmark_main",
   "test:end_to_end_benchmarks",
 ]

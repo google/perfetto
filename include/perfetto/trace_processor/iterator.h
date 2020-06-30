@@ -65,6 +65,15 @@ class PERFETTO_EXPORT Iterator {
   util::Status Status();
 
  private:
+  friend class QueryResultSerializer;
+
+  // This is to allow QueryResultSerializer, which is very perf sensitive, to
+  // access direct the impl_ and avoid one extra function call for each cell.
+  template <typename T = IteratorImpl>
+  std::unique_ptr<T> take_impl() {
+    return std::move(iterator_);
+  }
+
   // A PIMPL pattern is used to avoid leaking the dependencies on sqlite3.h and
   // other internal classes.
   std::unique_ptr<IteratorImpl> iterator_;
