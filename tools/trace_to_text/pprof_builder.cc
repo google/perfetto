@@ -289,7 +289,7 @@ class GProfileBuilder {
   }
 
   bool WriteMappings(trace_processor::TraceProcessor* tp,
-                     const std::set<int64_t> seen_mappings) {
+                     const std::set<int64_t>& seen_mappings) {
     Iterator mapping_it = tp->ExecuteQuery(
         "SELECT id, exact_offset, start, end, name "
         "FROM stack_profile_mapping;");
