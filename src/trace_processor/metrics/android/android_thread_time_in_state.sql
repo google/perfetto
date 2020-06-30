@@ -19,19 +19,8 @@ SELECT RUN_METRIC('android/process_metadata.sql');
 
 CREATE TABLE IF NOT EXISTS android_thread_time_in_state_base AS
 SELECT
-  *,
-  (
-    SELECT
-      CASE
-        WHEN layout = 'big_little_bigger' AND cpu < 4 THEN 'little'
-        WHEN layout = 'big_little_bigger' AND cpu < 7 THEN 'big'
-        WHEN layout = 'big_little_bigger' AND cpu = 7 THEN 'bigger'
-        WHEN layout = 'big_little' AND cpu < 4 THEN 'little'
-        WHEN layout = 'big_little' AND cpu < 8 THEN 'big'
-        ELSE 'unknown'
-      END
-    FROM core_layout_type
-  ) AS core_type
+  base.*,
+  IFNULL(core_type_per_cpu.core_type, 'unknown') core_type
 FROM (
   SELECT
     ts,
@@ -42,7 +31,8 @@ FROM (
   FROM counter
   JOIN thread_counter_track ON (counter.track_id = thread_counter_track.id)
   WHERE thread_counter_track.name = 'time_in_state'
-);
+) base
+LEFT JOIN core_type_per_cpu USING (cpu);
 
 CREATE VIEW android_thread_time_in_state_raw AS
 SELECT
