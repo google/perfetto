@@ -13,22 +13,13 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+SELECT RUN_METRIC('android/cpu_info.sql');
+
 CREATE TABLE {{output_table}} AS
 SELECT
   utid,
   cpu,
-  (
-    SELECT
-      CASE
-        WHEN layout = 'big_little_bigger' AND cpu < 4 THEN 'little'
-        WHEN layout = 'big_little_bigger' AND cpu < 7 THEN 'big'
-        WHEN layout = 'big_little_bigger' AND cpu = 7 THEN 'bigger'
-        WHEN layout = 'big_little' AND cpu < 4 THEN 'little'
-        WHEN layout = 'big_little' AND cpu < 8 THEN 'big'
-        ELSE 'unknown'
-      END
-    FROM core_layout_type
-  ) AS core_type,
+  IFNULL(core_type_per_cpu.core_type, 'unknown') core_type,
   -- We divide by 1e3 here as dur is in ns and freq_khz in khz. In total
   -- this means we need to divide the duration by 1e9 and multiply the
   -- frequency by 1e3 then multiply again by 1e3 to get millicycles
@@ -45,4 +36,5 @@ SELECT
   -- overflows.
   CAST(SUM(dur * freq_khz / 1000) / SUM(dur / 1000) AS INT) AS avg_freq_khz
 FROM {{input_table}}
+LEFT JOIN core_type_per_cpu USING (cpu)
 GROUP BY utid, cpu;
