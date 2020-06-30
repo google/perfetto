@@ -177,6 +177,7 @@ class HeapGraphTracker : public Destructible {
   tables::HeapGraphClassTable::Id GetOrInsertType(SequenceState* sequence_state,
                                                   uint64_t type_id);
   bool SetPidAndTimestamp(SequenceState* seq, UniquePid upid, int64_t ts);
+  void PopulateSuperClasses(const SequenceState& seq);
 
   TraceProcessorContext* const context_;
   std::map<uint32_t, SequenceState> sequence_state_;
