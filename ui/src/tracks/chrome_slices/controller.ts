@@ -46,7 +46,7 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
           this.config.trackId}`;
       const rawResult = await this.query(query);
       if (rawResult.numRecords === 1) {
-        this.maxDurNs = +rawResult.columns![0].longValues![0];
+        this.maxDurNs = rawResult.columns[0].longValues![0];
       }
     }
 

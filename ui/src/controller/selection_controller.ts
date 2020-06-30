@@ -96,15 +96,15 @@ export class SelectionController extends Controller<'main'> {
         const selection = globals.state.currentSelection;
         if (result.numRecords === 1 && selection &&
             selection.kind === selectedKind && selection.id === selectedId) {
-          const ts = result.columns[0].longValues![0] as number;
+          const ts = result.columns[0].longValues![0];
           const timeFromStart = fromNs(ts) - globals.state.traceTime.startSec;
           const name = result.columns[2].stringValues![0];
-          const dur = fromNs(result.columns[1].longValues![0] as number);
+          const dur = fromNs(result.columns[1].longValues![0]);
           const category = result.columns[3].stringValues![0];
-          const argId = result.columns[4].longValues![0] as number;
+          const argId = result.columns[4].longValues![0];
           const argsAsync = this.getArgs(argId);
           // Don't fetch descriptions for annotation slices.
-          const describeId = table === 'annotation' ? -1 : selectedId as number;
+          const describeId = table === 'annotation' ? -1 : +selectedId;
           const descriptionAsync = this.describeSlice(describeId);
           Promise.all([argsAsync, descriptionAsync])
               .then(([args, description]) => {
@@ -192,13 +192,13 @@ export class SelectionController extends Controller<'main'> {
       // Check selection is still the same on completion of query.
       const selection = globals.state.currentSelection;
       if (result.numRecords === 1 && selection) {
-        const ts = result.columns[0].longValues![0] as number;
+        const ts = result.columns[0].longValues![0];
         const timeFromStart = fromNs(ts) - globals.state.traceTime.startSec;
-        const dur = fromNs(result.columns[1].longValues![0] as number);
-        const priority = result.columns[2].longValues![0] as number;
+        const dur = fromNs(result.columns[1].longValues![0]);
+        const priority = result.columns[2].longValues![0];
         const endState = result.columns[3].stringValues![0];
-        const utid = result.columns[4].longValues![0] as number;
-        const cpu = result.columns[5].longValues![0] as number;
+        const utid = result.columns[4].longValues![0];
+        const cpu = result.columns[5].longValues![0];
         const selected: SliceDetails =
             {ts: timeFromStart, dur, priority, endState, cpu, id, utid};
         this.schedulingDetails(ts, utid)

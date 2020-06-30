@@ -47,7 +47,7 @@ class AsyncSliceTrackController extends TrackController<Config, Data> {
         where filter_track_ids = '${this.config.trackIds.join(',')}'
       `);
       if (maxDurResult.numRecords === 1) {
-        this.maxDurNs = +maxDurResult.columns![0].longValues![0];
+        this.maxDurNs = maxDurResult.columns[0].longValues![0];
       }
     }
 
