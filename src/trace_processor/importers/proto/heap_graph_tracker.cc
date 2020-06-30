@@ -443,6 +443,8 @@ void HeapGraphTracker::SetPacketIndex(uint32_t seq_id, uint64_t index) {
 void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
   SequenceState& sequence_state = GetOrCreateSequence(seq_id);
 
+  // We do this in FinalizeProfile because the interned_location_names get
+  // written at the end of the dump.
   for (const auto& p : sequence_state.interned_types) {
     uint64_t id = p.first;
     const InternedType& interned_type = p.second;
