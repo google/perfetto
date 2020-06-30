@@ -46,12 +46,12 @@ class ProcessSummaryTrackController extends TrackController<Config, Data> {
       if (this.config.upid) {
         const threadQuery = await this.query(
             `select utid from thread where upid=${this.config.upid}`);
-        utids = threadQuery.columns[0].longValues! as number[];
+        utids = threadQuery.columns[0].longValues!;
       }
 
       const trackQuery = await this.query(
           `select id from thread_track where utid in (${utids.join(',')})`);
-      const tracks = trackQuery.columns[0].longValues! as number[];
+      const tracks = trackQuery.columns[0].longValues!;
 
       const processSliceView = this.tableName('process_slice_view');
       await this.query(

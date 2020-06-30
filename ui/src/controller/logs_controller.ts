@@ -83,8 +83,8 @@ async function updateLogEntries(
     };
   }
 
-  const timestamps = rowsResult.columns[0].longValues! as number[];
-  const priorities = rowsResult.columns[1].longValues! as number[];
+  const timestamps = rowsResult.columns[0].longValues!;
+  const priorities = rowsResult.columns[1].longValues!;
   const tags = rowsResult.columns[2].stringValues!;
   const messages = rowsResult.columns[3].stringValues!;
 
