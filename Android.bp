@@ -270,6 +270,8 @@ cc_library_shared {
   ],
   cflags: [
     "-DPERFETTO_ANDROID_ASYNC_SAFE_LOG",
+    "-Werror=global-constructors",
+    "-Wglobal-constructors",
   ],
   include_dirs: [
     "bionic/libc",
