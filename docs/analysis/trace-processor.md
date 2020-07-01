@@ -244,6 +244,56 @@ WHERE slice.name = 'measure'
 GROUP BY thread_name
 ```
 
+## Operator tables
+SQL queries are usually sufficient to retrieive data from trace processor.
+Sometimes though, certain constructs can be difficult to express pure SQL.
+
+In these situations, trace processor has special "operator tables" which solve
+a particular problem in C++ but expose an SQL interface for queries to take
+advantage of.
+
+### Span join
+Span join is a custom operator table which computes the intersection of
+spans of time from two tables or views. A column (called the *partition*)
+can optionally be specified which divides the rows from each table into
+partitions before computing the intersection.
+
+![Span join block diagram](/docs/images/span-join.png)
+
+```sql
+-- Get all the scheduling slices
+CREATE VIEW sp_sched AS
+SELECT ts, dur, cpu, utid
+FROM sched
+
+-- Get all the cpu frequency slices
+CREATE VIEW sp_frequency AS
+SELECT
+  ts,
+  lead(ts) OVER (PARTITION BY cpu ORDER BY ts) - ts as dur,
+  cpu,
+  value as freq
+FROM counter
+
+-- Create the span joined table which combines cpu frequency with
+-- scheduling slices.
+CREATE VIRTUAL TABLE sched_with_frequency
+USING SPAN_JOIN(sp_sched PARTITIONED cpu, sp_frequency PARTITIONED cpu)
+
+-- This span joined table can be queried as normal and has the columns from both
+-- tables.
+SELECT ts, dur, cpu, utid, freq
+FROM sched_with_frequency
+```
+
+NOTE: A partition can be specified on neither, either or both tables. If
+specified on both, the same column name has to be specified on each table.
+
+WARNING: An important restriction on span joined tables is that spans from
+the same table in the same partition *cannot* overlap. For performance
+reasons, span join does attempt to dectect and error out in this situation;
+instead, incorrect rows will silently be produced.
+
 ## Metrics
 
 TIP: To see how to add to add a new metric to trace processor, see the checklist
