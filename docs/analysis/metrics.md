@@ -65,6 +65,9 @@ android_cpu {
 
 ### Case for upstreaming
 
+NOTE: Googlers: for internal usage of metrics in Google3 (i.e. metrics which are
+confidential), please see [this internal page](https://goto.google.com/viecd).
+
 Authors are strongly encouraged to add all metrics derived on Perfetto traces to
 the Perfetto repo unless there is a clear usecase (e.g. confidentiality) why
 these metrics should not be publicly available.
