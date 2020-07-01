@@ -77,7 +77,8 @@ int TraceToProfile(std::istream* input,
   size_t itr = 0;
   for (const auto& profile : profiles) {
     std::string filename = temp_dir + "/heap_dump." + std::to_string(++itr) +
-                           "." + std::to_string(profile.pid) + ".pb";
+                           "." + std::to_string(profile.pid) + "." +
+                           profile.heap_name + ".pb";
     base::ScopedFile fd(base::OpenFile(filename, O_CREAT | O_WRONLY, 0700));
     if (!fd)
       PERFETTO_FATAL("Failed to open %s", filename.c_str());
