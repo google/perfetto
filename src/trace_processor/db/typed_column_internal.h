@@ -91,7 +91,8 @@ template <typename T, typename Enable = void>
 struct TypeHandler {
   using non_optional_type = T;
   using get_type = T;
-  using sql_value_type = T;
+  using sql_value_type =
+      typename Serializer<non_optional_type>::serialized_type;
 
   static constexpr bool is_optional = false;
   static constexpr bool is_string = false;
@@ -115,7 +116,8 @@ template <typename T>
 struct TypeHandler<base::Optional<T>> {
   using non_optional_type = T;
   using get_type = base::Optional<T>;
-  using sql_value_type = T;
+  using sql_value_type =
+      typename Serializer<non_optional_type>::serialized_type;
 
   static constexpr bool is_optional = true;
   static constexpr bool is_string = false;
