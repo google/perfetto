@@ -165,6 +165,10 @@ additional_args = {
         ('include_dirs', {'bionic/libc'}),
         ('static_libs', {'libasync_safe'}),
         ('header_libs', {'bionic_libc_platform_headers'}),
+        # heapprofd_client_api MUST NOT have global constructors. Because it
+        # is loaded in an __attribute__((constructor)) of libc, we cannot
+        # guarantee that the global constructors get run before it is used.
+        ('cflags', {'-Wglobal-constructors', '-Werror=global-constructors'}),
     ],
     'heapprofd_client': [
         ('include_dirs', {'bionic/libc'}),
