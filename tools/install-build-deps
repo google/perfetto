@@ -116,11 +116,11 @@ BUILD_DEPS_HOST = [
     # This is the amalgamated source whose compiled output is meant to be faster.
     # We still pull the full source for the extensions (not amalgamated).
     ('buildtools/sqlite.zip',
-     'https://storage.googleapis.com/perfetto/sqlite-amalgamation-3250300.zip',
-     'b78c2cb0d2c9182686c582312479f96a82bf5380', 'all'),
+     'https://storage.googleapis.com/perfetto/sqlite-amalgamation-3320300.zip',
+     '0c805bea134712a903290a26b2a61c3a8a3bd8cc', 'all'),
     ('buildtools/sqlite_src.zip',
-     'https://storage.googleapis.com/perfetto/sqlite-src-3250300.zip',
-     'd1af2883bb800852946f9bf8ab6055e7698e18ee', 'all'),
+     'https://storage.googleapis.com/perfetto/sqlite-src-3320300.zip',
+     'd46f60e0fb2b1a959ae59bfa881fc95a510c4d21', 'all'),
 
     # JsonCpp for legacy json import. Used only by the trace processor in
     # standalone builds.
