@@ -50,7 +50,7 @@ export function reportError(err: ErrorEvent|PromiseRejectionEvent|{}) {
   } else {
     errLog = `${err}`;
   }
-  if (errorObj !== undefined) {
+  if (errorObj !== undefined && errorObj !== null) {
     const errStack = (errorObj as {stack?: string}).stack;
     errLog += '\n';
     errLog += errStack !== undefined ? errStack : JSON.stringify(errorObj);
