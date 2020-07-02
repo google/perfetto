@@ -294,6 +294,31 @@ the same table in the same partition *cannot* overlap. For performance
 reasons, span join does attempt to dectect and error out in this situation;
 instead, incorrect rows will silently be produced.
 
+### Ancestor slice
+ancestor_slice is a custom operator table that takes a
+[slice table's id column](/docs/analysis/sql-tables#slice) and computes all
+slices on the same track that are direct parents above that id (i.e. given a
+slice id it will return as rows all slices that can be found by following the
+parent_id column to the top slice (depth = 0)).
+
+The returned format is the same as the
+[slice table](/docs/analysis/sql-tables#slice)
+
+For example, the following finds the top level slice given a bunch of slices of
+interest.
+
+```sql
+CREATE VIEW interesting_slices AS
+SELECT id, ts, dur, track_id
+FROM slice WHERE name LIKE "%interesting slice name%";
+
+SELECT
+  *
+FROM
+  interesting_slices LEFT JOIN
+  ancestor_slice(interesting_slices.id) AS ancestor ON ancestor.depth = 0
+```
+
 ## Metrics
 
 TIP: To see how to add to add a new metric to trace processor, see the checklist
