@@ -16,14 +16,11 @@
 
 #include "perfetto/profiling/memory/client_ext.h"
 
-#include <android/fdsan.h>
-#include <bionic/malloc.h>
 #include <inttypes.h>
 #include <malloc.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/system_properties.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -44,10 +41,48 @@
 #include "src/profiling/memory/unhooked_allocator.h"
 #include "src/profiling/memory/wire_protocol.h"
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#include <android/fdsan.h>
+#include <sys/system_properties.h>
+#endif
+
 using perfetto::profiling::ScopedSpinlock;
 using perfetto::profiling::UnhookedAllocator;
 
 namespace {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+std::string ReadSystemProperty(const char* key) {
+  std::string prop_value;
+  const prop_info* prop = __system_property_find(key);
+  if (!prop) {
+    return prop_value;  // empty
+  }
+  __system_property_read_callback(
+      prop,
+      [](void* cookie, const char*, const char* value, uint32_t) {
+        std::string* pv = reinterpret_cast<std::string*>(cookie);
+        *pv = value;
+      },
+      &prop_value);
+  return prop_value;
+}
+#else
+// TODO(fmayer): restructure code to separate android specifics.
+std::string ReadSystemProperty(const char*) {
+  return "";
+}
+#endif
+
+#if defined(__GLIBC__)
+const char* getprogname() {
+  return program_invocation_short_name;
+}
+#elif !defined(__BIONIC__)
+const char* getprogname() {
+  return "";
+}
+#endif
+
 // Holds the active profiling client. Is empty at the start, or after we've
 // started shutting down a profiling session. Hook invocations take shared_ptr
 // copies (ensuring that the client stays alive until no longer needed), and do
@@ -108,15 +143,19 @@ constexpr char kHeapprofdBinPath[] = "/system/bin/heapprofd";
 
 int CloneWithoutSigchld() {
   auto ret = clone(nullptr, nullptr, 0, nullptr);
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   if (ret == 0)
     android_fdsan_set_error_level(ANDROID_FDSAN_ERROR_LEVEL_DISABLED);
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   return ret;
 }
 
 int ForklikeClone() {
   auto ret = clone(nullptr, nullptr, SIGCHLD, nullptr);
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   if (ret == 0)
     android_fdsan_set_error_level(ANDROID_FDSAN_ERROR_LEVEL_DISABLED);
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   return ret;
 }
 
@@ -126,12 +165,10 @@ int Daemonize() {
     case -1:
       PERFETTO_PLOG("Daemonize.clone");
       return -1;
-      break;
     case 0:
       break;
     default:
       _exit(0);
-      break;
   }
   if (setsid() == -1) {
     PERFETTO_PLOG("Daemonize.setsid");
@@ -163,22 +200,6 @@ __attribute__((noreturn, noinline)) void AbortOnSpinlockTimeout() {
       "Timed out on the spinlock - something is horribly wrong. "
       "Aborting whole process.");
   abort();
-}
-
-std::string ReadSystemProperty(const char* key) {
-  std::string prop_value;
-  const prop_info* prop = __system_property_find(key);
-  if (!prop) {
-    return prop_value;  // empty
-  }
-  __system_property_read_callback(
-      prop,
-      [](void* cookie, const char* name, const char* value, uint32_t) {
-        std::string* prop_value = reinterpret_cast<std::string*>(cookie);
-        *prop_value = value;
-      },
-      &prop_value);
-  return prop_value;
 }
 
 bool ForceForkPrivateDaemon() {
@@ -272,8 +293,11 @@ std::shared_ptr<perfetto::profiling::Client> CreateClientAndPrivateDaemon(
 
   // Wait on the immediate child to exit (allow for ECHILD in the unlikely case
   // we're in a process that has made its children unwaitable).
+  // __WCLONE is defined in hex on glibc, so is unsigned per C++ semantics.
+  // waitpid expects a signed integer, so clang complains without the cast.
   int unused = 0;
-  if (PERFETTO_EINTR(waitpid(clone_pid, &unused, __WCLONE)) == -1 &&
+  if (PERFETTO_EINTR(waitpid(clone_pid, &unused, static_cast<int>(__WCLONE))) ==
+          -1 &&
       errno != ECHILD) {
     PERFETTO_PLOG("Failed to waitpid on immediate child.");
     return nullptr;
@@ -283,16 +307,11 @@ std::shared_ptr<perfetto::profiling::Client> CreateClientAndPrivateDaemon(
                                                          unhooked_allocator);
 }
 
-// Note: android_mallopt(M_RESET_HOOKS) is mutually exclusive with
-// heapprofd_initialize. Concurrent calls get discarded, which might be our
-// unpatching attempt if there is a concurrent re-initialization running due to
-// a new signal.
-//
 // Note: g_client can be reset by heapprofd_initialize without calling this
 // function.
 
 void DisableAllHeaps() {
-  for (size_t i = kMinHeapId; i < g_next_heap_id.load(); ++i) {
+  for (uint32_t i = kMinHeapId; i < g_next_heap_id.load(); ++i) {
     HeapprofdHeapInfoInternal& heap = GetHeap(i);
     if (!heap.ready)
       continue;
@@ -315,9 +334,6 @@ void ShutdownLazy() {
   DisableAllHeaps();
   // Clear primary shared pointer, such that later hook invocations become nops.
   GetClientLocked()->reset();
-
-  if (!android_mallopt(M_RESET_HOOKS, nullptr, 0))
-    PERFETTO_PLOG("Unpatching heapprofd hooks failed.");
 }
 
 // We're a library loaded into a potentially-multithreaded process, which might
@@ -497,13 +513,13 @@ __attribute__((visibility("default"))) bool heapprofd_init_session(
   const perfetto::profiling::ClientConfiguration& cli_config =
       client->client_config();
 
-  for (size_t j = kMinHeapId; j < g_next_heap_id.load(); ++j) {
+  for (uint32_t j = kMinHeapId; j < g_next_heap_id.load(); ++j) {
     HeapprofdHeapInfoInternal& heap = GetHeap(j);
     if (!heap.ready)
       continue;
 
     bool matched = false;
-    for (size_t i = 0; i < cli_config.num_heaps; ++i) {
+    for (uint32_t i = 0; i < cli_config.num_heaps; ++i) {
       static_assert(sizeof(g_heaps[0].info.heap_name) == HEAPPROFD_HEAP_NAME_SZ,
                     "correct heap name size");
       static_assert(sizeof(cli_config.heaps[0]) == HEAPPROFD_HEAP_NAME_SZ,

@@ -91,11 +91,13 @@ PERFETTO_EXPORT void LogMessage(LogLev,
                           "%s:%d " fmt, ::perfetto::base::Basename(__FILE__), \
                           __LINE__, ##__VA_ARGS__);                           \
   } while (0)
-#else  // defined(PERFETTO_ANDROID_ASYNC_SAFE_LOG)
+#elif defined(PERFETTO_DISABLE_LOG)
+#define PERFETTO_XLOG(...) ::perfetto::base::ignore_result(__VA_ARGS__)
+#else
 #define PERFETTO_XLOG(level, fmt, ...)                                      \
   ::perfetto::base::LogMessage(level, ::perfetto::base::Basename(__FILE__), \
                                __LINE__, fmt, ##__VA_ARGS__)
-#endif  // defined(PERFETTO_ANDROID_ASYNC_SAFE_LOG)
+#endif
 
 #define PERFETTO_IMMEDIATE_CRASH() \
   do {                             \
