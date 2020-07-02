@@ -319,6 +319,35 @@ FROM
   ancestor_slice(interesting_slices.id) AS ancestor ON ancestor.depth = 0
 ```
 
+### Descendant slice
+descendant_slice is a custom operator table that takes a
+[slice table's id column](/docs/analysis/sql-tables#slice) and computes all
+slices on the same track that are nested under that id (i.e. all slices that
+are on the same track at the same time frame with a depth greater than the given
+slice's depth.
+
+The returned format is the same as the
+[slice table](/docs/analysis/sql-tables#slice)
+
+For example, the following finds the number of slices under each slice of
+interest.
+
+```sql
+CREATE VIEW interesting_slices AS
+SELECT id, ts, dur, track_id
+FROM slice WHERE name LIKE "%interesting slice name%";
+
+SELECT
+  *
+  (
+    SELECT
+      COUNT(*) AS total_descendants
+    FROM descendant_slice(interesting_slice.id)
+  )
+FROM interesting_slices
+```
+
+
 ## Metrics
 
 TIP: To see how to add to add a new metric to trace processor, see the checklist
