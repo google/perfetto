@@ -110,21 +110,16 @@ SELECT AndroidBatteryMetric(
     FROM battery_view
   ),
   'battery_aggregates', (
-    SELECT AndroidBatteryMetric_BatteryAggregates(
+    SELECT NULL_IF_EMPTY(AndroidBatteryMetric_BatteryAggregates(
       'total_screen_off_ns',
       SUM(CASE WHEN screen_state_val = 1.0 THEN dur ELSE 0 END),
       'total_screen_on_ns',
       SUM(CASE WHEN screen_state_val = 2.0 THEN dur ELSE 0 END),
       'total_screen_doze_ns',
-      SUM(CASE WHEN screen_state_val = 3.0 THEN dur ELSE 0 END)
-    )
+      SUM(CASE WHEN screen_state_val = 3.0 THEN dur ELSE 0 END),
+      'total_wakelock_ns', 
+      (SELECT SUM(ts_end - ts) FROM android_batt_wakelocks_merged)
+    ))
     FROM screen_state_span
-  ),
-  'battery_aggregates', (
-    SELECT AndroidBatteryMetric_BatteryAggregates(
-      'total_wakelock_ns',
-      SUM(ts_end - ts)
-    )
-    FROM android_batt_wakelocks_merged
   )
 );
