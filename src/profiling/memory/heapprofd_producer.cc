@@ -942,25 +942,31 @@ void HeapprofdProducer::HandleClientConnection(
   pending_processes_.emplace(peer_pid, std::move(pending_process));
 }
 
-void HeapprofdProducer::PostAllocRecord(AllocRecord alloc_rec) {
+void HeapprofdProducer::PostAllocRecord(std::vector<AllocRecord> alloc_recs) {
   // Once we can use C++14, this should be std::moved into the lambda instead.
-  AllocRecord* raw_alloc_rec = new AllocRecord(std::move(alloc_rec));
+  std::vector<AllocRecord>* raw_alloc_recs =
+      new std::vector<AllocRecord>(std::move(alloc_recs));
   auto weak_this = weak_factory_.GetWeakPtr();
-  task_runner_->PostTask([weak_this, raw_alloc_rec] {
-    if (weak_this)
-      weak_this->HandleAllocRecord(std::move(*raw_alloc_rec));
-    delete raw_alloc_rec;
+  task_runner_->PostTask([weak_this, raw_alloc_recs] {
+    if (weak_this) {
+      for (AllocRecord& alloc_rec : *raw_alloc_recs)
+        weak_this->HandleAllocRecord(std::move(alloc_rec));
+    }
+    delete raw_alloc_recs;
   });
 }
 
-void HeapprofdProducer::PostFreeRecord(FreeRecord free_rec) {
+void HeapprofdProducer::PostFreeRecord(std::vector<FreeRecord> free_recs) {
   // Once we can use C++14, this should be std::moved into the lambda instead.
-  FreeRecord* raw_free_rec = new FreeRecord(std::move(free_rec));
+  std::vector<FreeRecord>* raw_free_recs =
+      new std::vector<FreeRecord>(std::move(free_recs));
   auto weak_this = weak_factory_.GetWeakPtr();
-  task_runner_->PostTask([weak_this, raw_free_rec] {
-    if (weak_this)
-      weak_this->HandleFreeRecord(std::move(*raw_free_rec));
-    delete raw_free_rec;
+  task_runner_->PostTask([weak_this, raw_free_recs] {
+    if (weak_this) {
+      for (FreeRecord& free_rec : *raw_free_recs)
+        weak_this->HandleFreeRecord(std::move(free_rec));
+    }
+    delete raw_free_recs;
   });
 }
 
@@ -1027,7 +1033,6 @@ void HeapprofdProducer::HandleAllocRecord(AllocRecord alloc_rec) {
 }
 
 void HeapprofdProducer::HandleFreeRecord(FreeRecord free_rec) {
-  const FreeBatch& free_batch = free_rec.free_batch;
   auto it = data_sources_.find(free_rec.data_source_instance_id);
   if (it == data_sources_.end()) {
     PERFETTO_LOG("Invalid data source in free record.");
@@ -1043,18 +1048,9 @@ void HeapprofdProducer::HandleFreeRecord(FreeRecord free_rec) {
 
   ProcessState& process_state = process_state_it->second;
 
-  const FreeBatchEntry* entries = free_batch.entries;
-  uint64_t num_entries = free_batch.num_entries;
-  if (num_entries > kFreeBatchSize) {
-    PERFETTO_DFATAL_OR_ELOG("Malformed free page.");
-    return;
-  }
-  for (size_t i = 0; i < num_entries; ++i) {
-    const FreeBatchEntry& entry = entries[i];
-    HeapTracker& heap_tracker = process_state.GetHeapTracker(entry.heap_id);
-    heap_tracker.RecordFree(entry.addr, entry.sequence_number,
-                            free_batch.clock_monotonic_coarse_timestamp);
-  }
+  const FreeEntry& entry = free_rec.entry;
+  HeapTracker& heap_tracker = process_state.GetHeapTracker(entry.heap_id);
+  heap_tracker.RecordFree(entry.addr, entry.sequence_number, 0);
 }
 
 bool HeapprofdProducer::MaybeFinishDataSource(DataSource* ds) {

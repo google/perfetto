@@ -43,7 +43,7 @@ struct FreeRecord {
   pid_t pid;
   uint64_t data_source_instance_id;
   uint64_t timestamp;
-  FreeBatch free_batch;
+  FreeEntry entry;
 };
 
 }  // namespace profiling
