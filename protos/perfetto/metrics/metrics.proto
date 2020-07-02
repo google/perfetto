@@ -41,13 +41,7 @@ import "protos/perfetto/metrics/android/unsymbolized_frames.proto";
 
 // Trace processor metadata
 message TraceMetadata {
-  message Entry {
-    optional string name = 1;
-    optional uint32 idx = 2;
-    optional int64 value = 3;
-  }
-
-  repeated Entry error_stats_entry = 1;
+  reserved 1;
   optional int64 trace_duration_ns = 2;
   optional string trace_uuid = 3;
   optional string android_build_fingerprint = 4;
