@@ -67,31 +67,43 @@ declare_args() {
 declare_args() {
   target_sysroot = sysroot
   target_gcc_toolchain = ""
-  if (!is_cross_compiling) {
-    target_triplet = ""
+
+  # |target_triplet| is the variable that the user can set via GN args. The user
+  # doesn't have to necessarily set it though. In most cases we can infer it
+  # by looking at target_os and target_cpu.
+  # |_target_triplet| is the final argument passed to the toolchain.
+  if (target_triplet != "") {
+    assert(is_cross_compiling)
+
+    # If the user provides the target_triplet in gn args, respect that.
+    # Otherwise guess it looking at the target os and cpu variables.
+    _target_triplet = target_triplet
+  } else if (!is_cross_compiling) {
+    _target_triplet = ""
   } else if (target_os == "mac" && target_cpu == "x64") {
-    target_triplet = "x86_64-apple-darwin"
+    _target_triplet = "x86_64-apple-darwin"
   } else if (target_os == "mac" && target_cpu == "x86") {
-    target_triplet = "i686-apple-darwin"
+    _target_triplet = "i686-apple-darwin"
   } else if (target_os == "linux" && target_cpu == "arm64") {
-    target_triplet = "aarch64-linux-gnu"
+    _target_triplet = "aarch64-linux-gnu"
   } else if (target_os == "linux" && target_cpu == "arm") {
-    target_triplet = "arm-linux-gnueabi"
+    _target_triplet = "arm-linux-gnueabi"
   } else if (target_os == "linux" && target_cpu == "x64") {
-    target_triplet = "x86_64-linux-gnu"
+    _target_triplet = "x86_64-linux-gnu"
   } else if (target_os == "linux" && target_cpu == "x86") {
-    target_triplet = "i686-linux-gnu"
+    _target_triplet = "i686-linux-gnu"
   } else if (target_os == "android" && target_cpu == "arm64") {
-    target_triplet = "aarch64-linux-android"
+    _target_triplet = "aarch64-linux-android"
   } else if (target_os == "android" && target_cpu == "arm") {
-    target_triplet = "arm-linux-androideabi"
+    _target_triplet = "arm-linux-androideabi"
   } else if (target_os == "android" && target_cpu == "x86") {
-    target_triplet = "i686-linux-android"
+    _target_triplet = "i686-linux-android"
   } else if (target_os == "android" && target_cpu == "x64") {
-    target_triplet = "x86_64-linux-android"
+    _target_triplet = "x86_64-linux-android"
   } else {
-    assert(false,
-           "Unsupported cross-compilation for ${target_os}-${target_cpu}")
+    assert(
+        false,
+        "Cannot guess the target triplet from the target_os and target_cpu combination. Please set the target_triplet GN arg explicitly. See https://clang.llvm.org/docs/CrossCompilation.html#target-triple")
   }
 }
 
@@ -113,16 +125,21 @@ declare_args() {
       target_cc = "$android_llvm_dir/bin/clang"
       target_cxx = "$android_llvm_dir/bin/clang++"
     } else {
-      assert(target_triplet != "",
+      assert(_target_triplet != "",
              "target_triplet must be non-empty when cross-compiling")
       if (is_clang) {
-        target_cc = "${linux_clang_bin} --target=${target_triplet}"
-        target_cxx = "${linux_clangxx_bin} --target=${target_triplet}"
-        target_linker = "${linux_clang_linker} --target=${target_triplet}"
+        if (is_linux_host) {
+          target_cc = "${linux_clang_bin} --target=${_target_triplet}"
+          target_cxx = "${linux_clangxx_bin} --target=${_target_triplet}"
+          target_linker = "${linux_clang_linker} --target=${_target_triplet}"
+        } else {
+          target_cc = "clang --target=${_target_triplet}"
+          target_cxx = "clang++ --target=${_target_triplet}"
+        }
       } else {  # GCC
-        target_ar = "${target_triplet}-ar"
-        target_cc = "${target_triplet}-gcc"
-        target_cxx = "${target_triplet}-g++"
+        target_ar = "${_target_triplet}-ar"
+        target_cc = "${_target_triplet}-gcc"
+        target_cxx = "${_target_triplet}-g++"
       }
     }
   }

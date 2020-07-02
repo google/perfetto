@@ -18,6 +18,7 @@
 
 // For bazel build.
 #include "perfetto/base/build_config.h"
+#include "perfetto/base/compiler.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 #include <zlib.h>
@@ -70,6 +71,9 @@ void GzipDecompressor::SetInput(const uint8_t* data, size_t size) {
   // compatible with other embedders.
   z_stream_->next_in = const_cast<uint8_t*>(data);
   z_stream_->avail_in = static_cast<uInt>(size);
+#else
+  base::ignore_result(data);
+  base::ignore_result(size);
 #endif
 }
 
@@ -98,6 +102,8 @@ GzipDecompressor::Result GzipDecompressor::Decompress(uint8_t* out,
       return Result{ResultCode::kOk, out_size - z_stream_->avail_out};
   }
 #else
+  base::ignore_result(out);
+  base::ignore_result(out_size);
   return Result{ResultCode::kError, 0};
 #endif
 }
