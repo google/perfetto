@@ -23,6 +23,7 @@
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "src/trace_processor/dynamic/ancestor_slice_generator.h"
 #include "src/trace_processor/dynamic/describe_slice_generator.h"
 #include "src/trace_processor/dynamic/experimental_counter_dur_generator.h"
 #include "src/trace_processor/dynamic/experimental_flamegraph_generator.h"
@@ -598,6 +599,8 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
       new ExperimentalSliceLayoutGenerator(
           context_.storage.get()->mutable_string_pool(),
           &storage->slice_table())));
+  RegisterDynamicTable(std::unique_ptr<AncestorSliceGenerator>(
+      new AncestorSliceGenerator(&context_)));
 
   // New style db-backed tables.
   RegisterDbTable(storage->arg_table());
