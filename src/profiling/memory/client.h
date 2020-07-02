@@ -102,10 +102,8 @@ class Client {
 
  private:
   const char* GetStackBase();
-  // Flush the contents of free_batch_. Must hold free_batch_lock_.
-  bool FlushFreesLocked() PERFETTO_WARN_UNUSED_RESULT;
   bool SendControlSocketByte() PERFETTO_WARN_UNUSED_RESULT;
-  bool SendWireMessageWithRetriesIfBlocking(const WireMessage&)
+  int64_t SendWireMessageWithRetriesIfBlocking(const WireMessage&)
       PERFETTO_WARN_UNUSED_RESULT;
 
   bool IsPostFork();
@@ -116,10 +114,6 @@ class Client {
   // sampler_ operations are not thread-safe.
   Sampler sampler_;
   base::UnixSocketRaw sock_;
-
-  // Protected by free_batch_lock_.
-  FreeBatch free_batch_;
-  std::timed_mutex free_batch_lock_;
 
   const char* main_thread_stack_base_{nullptr};
   std::atomic<uint64_t>

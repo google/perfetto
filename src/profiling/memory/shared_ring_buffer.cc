@@ -213,6 +213,7 @@ SharedRingBuffer::Buffer SharedRingBuffer::BeginWrite(
 
   result.size = size;
   result.data = wr_ptr + kHeaderSize;
+  result.bytes_free = write_avail(pos);
   meta_->stats.bytes_written += size;
   meta_->stats.num_writes_succeeded++;
 
@@ -283,7 +284,7 @@ SharedRingBuffer::Buffer SharedRingBuffer::BeginRead() {
 
   rd_ptr += kHeaderSize;
   PERFETTO_DCHECK(reinterpret_cast<uintptr_t>(rd_ptr) % kAlignment == 0);
-  return Buffer(rd_ptr, size);
+  return Buffer(rd_ptr, size, write_avail(pos));
 }
 
 void SharedRingBuffer::EndRead(Buffer buf) {

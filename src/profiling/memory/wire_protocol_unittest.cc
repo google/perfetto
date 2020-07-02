@@ -38,16 +38,10 @@ bool operator==(const AllocMetadata& one, const AllocMetadata& other) {
              0;
 }
 
-bool operator==(const FreeBatch& one, const FreeBatch& other);
-bool operator==(const FreeBatch& one, const FreeBatch& other) {
-  if (one.num_entries != other.num_entries)
-    return false;
-  for (size_t i = 0; i < one.num_entries; ++i) {
-    if (std::tie(one.entries[i].sequence_number, one.entries[i].addr) !=
-        std::tie(other.entries[i].sequence_number, other.entries[i].addr))
-      return false;
-  }
-  return true;
+bool operator==(const FreeEntry& one, const FreeEntry& other);
+bool operator==(const FreeEntry& one, const FreeEntry& other) {
+  return (std::tie(one.sequence_number, one.addr, one.heap_id) ==
+          std::tie(other.sequence_number, other.addr, other.heap_id));
 }
 
 namespace {
@@ -92,7 +86,7 @@ TEST(WireProtocolTest, AllocMessage) {
   ASSERT_TRUE(shmem_client->is_valid());
   auto shmem_server = SharedRingBuffer::Attach(CopyFD(shmem_client->fd()));
 
-  ASSERT_TRUE(SendWireMessage(&shmem_client.value(), msg));
+  ASSERT_GE(SendWireMessage(&shmem_client.value(), msg), 0);
 
   auto buf = shmem_server->BeginRead();
   ASSERT_TRUE(buf);
@@ -110,20 +104,17 @@ TEST(WireProtocolTest, AllocMessage) {
 TEST(WireProtocolTest, FreeMessage) {
   WireMessage msg = {};
   msg.record_type = RecordType::Free;
-  FreeBatch batch = {};
-  batch.num_entries = kFreeBatchSize;
-  for (size_t i = 0; i < kFreeBatchSize; ++i) {
-    batch.entries[i].sequence_number = 0x111111111111111;
-    batch.entries[i].addr = 0x222222222222222;
-  }
-  msg.free_header = &batch;
+  FreeEntry entry = {};
+  entry.sequence_number = 0x111111111111111;
+  entry.addr = 0x222222222222222;
+  msg.free_header = &entry;
 
   auto shmem_client = SharedRingBuffer::Create(kShmemSize);
   ASSERT_TRUE(shmem_client);
   ASSERT_TRUE(shmem_client->is_valid());
   auto shmem_server = SharedRingBuffer::Attach(CopyFD(shmem_client->fd()));
 
-  ASSERT_TRUE(SendWireMessage(&shmem_client.value(), msg));
+  ASSERT_GE(SendWireMessage(&shmem_client.value(), msg), 0);
 
   auto buf = shmem_server->BeginRead();
   ASSERT_TRUE(buf);
