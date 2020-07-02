@@ -26,8 +26,8 @@ namespace perfetto {
 namespace profiling {
 
 using ::testing::Contains;
-using ::testing::Pair;
 using ::testing::Eq;
+using ::testing::Pair;
 using ::testing::Property;
 
 class MockProducerEndpoint : public TracingService::ProducerEndpoint {
@@ -100,12 +100,35 @@ TEST(HeapprofdConfigToClientConfigurationTest, DefaultHeap) {
   EXPECT_STREQ(cli_config.heaps[0], "malloc");
 }
 
+TEST(HeapprofdConfigToClientConfigurationTest, TwoHeaps) {
+  HeapprofdConfig cfg;
+  cfg.add_heaps("foo");
+  cfg.add_heaps("bar");
+  cfg.set_sampling_interval_bytes(4096);
+  ClientConfiguration cli_config;
+  HeapprofdConfigToClientConfiguration(cfg, &cli_config);
+  EXPECT_EQ(cli_config.num_heaps, 2u);
+  EXPECT_EQ(cli_config.interval, 4096u);
+  EXPECT_STREQ(cli_config.heaps[0], "foo");
+  EXPECT_STREQ(cli_config.heaps[1], "bar");
+}
+
 TEST(HeapprofdConfigToClientConfigurationTest, OverflowHeapName) {
   HeapprofdConfig cfg;
   cfg.add_heaps("foooooooooooooooooooooooooooooooooooooooooooooo");
   ClientConfiguration cli_config;
   HeapprofdConfigToClientConfiguration(cfg, &cli_config);
   EXPECT_EQ(cli_config.num_heaps, 0u);
+}
+
+TEST(HeapprofdConfigToClientConfigurationTest, OverflowHeapNameAndValid) {
+  HeapprofdConfig cfg;
+  cfg.add_heaps("foooooooooooooooooooooooooooooooooooooooooooooo");
+  cfg.add_heaps("foo");
+  ClientConfiguration cli_config;
+  HeapprofdConfigToClientConfiguration(cfg, &cli_config);
+  EXPECT_EQ(cli_config.num_heaps, 1u);
+  EXPECT_STREQ(cli_config.heaps[0], "foo");
 }
 
 }  // namespace profiling
