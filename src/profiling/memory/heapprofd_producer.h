@@ -136,8 +136,8 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
   void DumpAll();
 
   // UnwindingWorker::Delegate impl:
-  void PostAllocRecord(AllocRecord) override;
-  void PostFreeRecord(FreeRecord) override;
+  void PostAllocRecord(std::vector<AllocRecord>) override;
+  void PostFreeRecord(std::vector<FreeRecord>) override;
   void PostSocketDisconnected(DataSourceInstanceID,
                               pid_t,
                               SharedRingBuffer::Stats) override;

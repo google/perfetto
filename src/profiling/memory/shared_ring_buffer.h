@@ -56,7 +56,8 @@ class SharedRingBuffer {
   class Buffer {
    public:
     Buffer() {}
-    Buffer(uint8_t* d, size_t s) : data(d), size(s) {}
+    Buffer(uint8_t* d, size_t s, uint64_t f)
+        : data(d), size(s), bytes_free(f) {}
 
     Buffer(const Buffer&) = delete;
     Buffer& operator=(const Buffer&) = delete;
@@ -68,6 +69,7 @@ class SharedRingBuffer {
 
     uint8_t* data = nullptr;
     size_t size = 0;
+    uint64_t bytes_free = 0;
   };
 
   struct Stats {
