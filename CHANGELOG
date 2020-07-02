@@ -1,0 +1,33 @@
+Unreleased:
+  Tracing service and probes:
+    *
+  Trace Processor:
+    *
+  UI:
+    *
+
+
+v5.0 - 2020-07-01:
+  Tracing service and probes:
+    * Added gpu_mem_total ftrace event.
+    * Added TrustZone (scm start/end) event.
+    * Added protos for GPU memory tracking and updated render stages proto.
+    * Added time_in_state probe for Android (CPU time broken down by frequency).
+
+  Trace Processor:
+    * Added ingestion of IRQ and SoftIRQ events.
+    * Added ingestion of workqueue events. KAddr symbolization still missing.
+    * Added ingestion of voltage regulators and board clock change events.
+    * Added ingestion of new ION ion_buffer_create/destroy events.
+    * Added ingestion of TrustZone (scm start/end) events.
+    * Added SurfaceFlinger derived events (tracking of missed frames).
+    * Changed parsing of scheduler task state on 4.14 kernels.
+    * Changed importing of Java heap graphs: allow partial dumps.
+    * Improved performance of the SQL query engine.
+
+  UI:
+    * Added dedicated query page for custom SQL queries.
+    * Added navigation links for Binder slices.
+    * Removed overview summary mode when zoomed out.
+    * Fixed recording page when targeting Android P.
+    * Improved slice pan/zoom performance by quantizing.
