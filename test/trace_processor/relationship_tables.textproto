@@ -1,0 +1,308 @@
+# Sequence 1 defaults to track for "t1".
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  incremental_state_cleared: true
+  track_descriptor {
+    uuid: 1
+    parent_uuid: 10
+    thread {
+      pid: 5
+      tid: 1
+      thread_name: "t1"
+    }
+  }
+  trace_packet_defaults {
+    track_event_defaults {
+      track_uuid: 1
+    }
+  }
+}
+# Sequence 2 defaults to track for "t2".
+packet {
+  trusted_packet_sequence_id: 2
+  timestamp: 0
+  incremental_state_cleared: true
+  track_descriptor {
+    uuid: 2
+    parent_uuid: 10
+    thread {
+      pid: 5
+      tid: 2
+      thread_name: "t2"
+    }
+  }
+  trace_packet_defaults {
+    track_event_defaults {
+      track_uuid: 2
+    }
+  }
+}
+# Both thread tracks are nested underneath this process track.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  track_descriptor {
+    uuid: 10
+    process {
+      pid: 5
+      process_name: "p1"
+    }
+  }
+}
+# And we have an async track underneath the process too.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  track_descriptor {
+    uuid: 11
+    parent_uuid: 10
+    name: "async"
+  }
+}
+
+# ----------------------
+# Slices
+# ----------------------
+
+# First we create an event with no relationships just a single event on a track
+# by it self. For both threads and async track.
+#
+# t1    |----------|
+# ---------------------
+# t2       |-----|
+# --------------------
+# async |-------------|
+
+# Should appear on default track "t1".
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 1000
+  track_event {
+    categories: "cat"
+    name: "event1_on_t1_no_relationships"
+    type: 1
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 4000
+  track_event {
+    categories: "cat"
+    name: "event1_on_t1_no_relationships"
+    type: 2
+  }
+}
+# Should appear on default track "t2".
+packet {
+  trusted_packet_sequence_id: 2
+  timestamp: 2000
+  track_event {
+    categories: "cat"
+    name: "event1_on_t2_no_relationships"
+    type: 1
+  }
+}
+packet {
+  trusted_packet_sequence_id: 2
+  timestamp: 3000
+  track_event {
+    categories: "cat"
+    name: "event1_on_t2_no_relationships"
+    type: 2
+  }
+}
+# Should appear on async track.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 1000
+  track_event {
+    track_uuid: 11
+    categories: "cat"
+    name: "event1_on_async_no_relationships"
+    type: 1
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 5000
+  track_event {
+    track_uuid: 11
+    categories: "cat"
+    name: "event1_on_async_no_relationships"
+    type: 2
+  }
+}
+
+# Next we create stacks of various depths for the different tracks.
+# t1     |--------|
+#           |---|
+# ---------------------------------
+# t2                  |-------------------|
+#                         |---|   |-----|
+#                           |       |-|
+# ---------------------------------
+# async  |----------------------|
+#                 |-----------|
+
+# Should appear on default track "t1".
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 6000
+  track_event {
+    categories: "cat"
+    name: "event2_depth_0_on_t1"
+    type: 1
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 7000
+  track_event {
+    categories: "cat"
+    name: "event2_depth_1_on_t1"
+    type: 1
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 8000
+  track_event {
+    categories: "cat"
+    name: "event2_depth_1_on_t1"
+    type: 2
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 9000
+  track_event {
+    categories: "cat"
+    name: "event2_depth_0_on_t1"
+    type: 2
+  }
+}
+
+# Should appear on default track "t2".
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 10000
+  track_event {
+    categories: "cat"
+    name: "event2_depth_0_on_t2"
+    type: 1
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 11000
+  track_event {
+    categories: "cat"
+    name: "event2_first_depth_1_on_t2"
+    type: 1
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 12000
+  track_event {
+    categories: "cat"
+    name: "event2_first_depth_2_on_t2"
+    type: 3
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 13000
+  track_event {
+    categories: "cat"
+    name: "event2_first_depth_1_on_t2"
+    type: 2
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 15000
+  track_event {
+    categories: "cat"
+    name: "event2_second_depth_1_on_t2"
+    type: 1
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 16000
+  track_event {
+    categories: "cat"
+    name: "event2_second_depth_2_on_t2"
+    type: 1
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 17000
+  track_event {
+    categories: "cat"
+    name: "event2_second_depth_2_on_t2"
+    type: 2
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 18000
+  track_event {
+    categories: "cat"
+    name: "event2_second_depth_1_on_t2"
+    type: 2
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 19000
+  track_event {
+    categories: "cat"
+    name: "event2_depth_0_on_t2"
+    type: 2
+  }
+}
+# Should appear on async track.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 6000
+  track_event {
+    track_uuid: 11
+    categories: "cat"
+    name: "event2_on_async_depth_0"
+    type: 1
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 9000
+  track_event {
+    track_uuid: 11
+    categories: "cat"
+    name: "event2_on_async_depth_1"
+    type: 1
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 13000
+  track_event {
+    track_uuid: 11
+    categories: "cat"
+    name: "event1_on_async_depth_1"
+    type: 2
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 14000
+  track_event {
+    track_uuid: 11
+    categories: "cat"
+    name: "event2_on_async_depth_0"
+    type: 2
+  }
+}

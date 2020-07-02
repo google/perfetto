@@ -106,6 +106,8 @@ synth_1.py span_join_unordered_cols_reverse.sql span_join_unordered_cols_synth_1
 # Window table
 ../data/android_sched_and_ps.pb smoke_window.sql android_sched_and_ps_smoke_window.out
 
+# Ancestor slice table.
+relationship_tables.textproto ancestor_slice.sql ancestor_slice.out
 
 # The below tests check the lower level layers of the trace processor (i.e.
 # fitering and printing code).
