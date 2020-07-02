@@ -105,7 +105,8 @@ void HeapTracker::RecordOperation(uint64_t sequence_number,
 void HeapTracker::CommitOperation(uint64_t sequence_number,
                                   const PendingOperation& operation) {
   committed_sequence_number_++;
-  committed_timestamp_ = operation.timestamp;
+  if (operation.timestamp)
+    committed_timestamp_ = operation.timestamp;
 
   uint64_t address = operation.allocation_address;
 

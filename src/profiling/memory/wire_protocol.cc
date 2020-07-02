@@ -45,7 +45,7 @@ void UnsafeMemcpy(char* dest, const char* src, size_t n)
 }
 }  // namespace
 
-bool SendWireMessage(SharedRingBuffer* shmem, const WireMessage& msg) {
+int64_t SendWireMessage(SharedRingBuffer* shmem, const WireMessage& msg) {
   uint64_t total_size;
   struct iovec iovecs[3] = {};
   // TODO(fmayer): Maye pack these two.
@@ -62,7 +62,7 @@ bool SendWireMessage(SharedRingBuffer* shmem, const WireMessage& msg) {
   } else {
     PERFETTO_DFATAL_OR_ELOG("Neither alloc_header nor free_header set.");
     errno = EINVAL;
-    return false;
+    return -1;
   }
 
   iovecs[2].iov_base = msg.payload;
@@ -85,7 +85,7 @@ bool SendWireMessage(SharedRingBuffer* shmem, const WireMessage& msg) {
     if (!lock.locked()) {
       PERFETTO_DLOG("Failed to acquire spinlock.");
       errno = EAGAIN;
-      return false;
+      return -1;
     }
     buf = shmem->BeginWrite(lock, static_cast<size_t>(total_size));
   }
@@ -93,7 +93,7 @@ bool SendWireMessage(SharedRingBuffer* shmem, const WireMessage& msg) {
     PERFETTO_DLOG("Buffer overflow.");
     shmem->EndWrite(std::move(buf));
     errno = EAGAIN;
-    return false;
+    return -1;
   }
 
   size_t offset = 0;
@@ -103,8 +103,9 @@ bool SendWireMessage(SharedRingBuffer* shmem, const WireMessage& msg) {
                  hdr.msg_iov[i].iov_len);
     offset += hdr.msg_iov[i].iov_len;
   }
+  auto bytes_free = buf.bytes_free;
   shmem->EndWrite(std::move(buf));
-  return true;
+  return static_cast<int64_t>(bytes_free);
 }
 
 bool ReceiveWireMessage(char* buf, size_t size, WireMessage* out) {
@@ -131,7 +132,7 @@ bool ReceiveWireMessage(char* buf, size_t size, WireMessage* out) {
     }
     out->payload_size = static_cast<size_t>(end - buf);
   } else if (*record_type == RecordType::Free) {
-    if (!ViewAndAdvance<FreeBatch>(&buf, &out->free_header, end)) {
+    if (!ViewAndAdvance<FreeEntry>(&buf, &out->free_header, end)) {
       PERFETTO_DFATAL_OR_ELOG("Cannot read free header.");
       return false;
     }
