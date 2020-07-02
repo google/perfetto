@@ -29,15 +29,15 @@ namespace profiling {
 namespace {
 
 class NopDelegate : public UnwindingWorker::Delegate {
-  void PostAllocRecord(AllocRecord) override {}
-  void PostFreeRecord(FreeRecord) override {}
+  void PostAllocRecord(std::vector<AllocRecord>) override {}
+  void PostFreeRecord(std::vector<FreeRecord>) override {}
   void PostSocketDisconnected(DataSourceInstanceID,
                               pid_t,
                               SharedRingBuffer::Stats) override {}
 };
 
 int FuzzUnwinding(const uint8_t* data, size_t size) {
-  SharedRingBuffer::Buffer buf(const_cast<uint8_t*>(data), size);
+  SharedRingBuffer::Buffer buf(const_cast<uint8_t*>(data), size, 0u);
 
   pid_t self_pid = getpid();
   DataSourceInstanceID id = 0;
@@ -45,7 +45,10 @@ int FuzzUnwinding(const uint8_t* data, size_t size) {
                              base::OpenFile("/proc/self/mem", O_RDONLY));
 
   NopDelegate nop_delegate;
-  UnwindingWorker::HandleBuffer(buf, &metadata, id, self_pid, &nop_delegate);
+  UnwindingWorker::ClientData client_data{
+      id, {}, std::move(metadata), {}, {}, {}, {},
+  };
+  UnwindingWorker::HandleBuffer(buf, &client_data, self_pid, &nop_delegate);
   return 0;
 }
 
