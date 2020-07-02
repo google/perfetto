@@ -94,8 +94,6 @@ source_set("storage_minimal") {
     "importers/proto/metadata_tracker.h",
     "importers/proto/packet_sequence_state.cc",
     "importers/proto/packet_sequence_state.h",
-    "importers/proto/perf_sample_tracker.cc",
-    "importers/proto/perf_sample_tracker.h",
     "importers/proto/profile_module.cc",
     "importers/proto/profile_module.h",
     "importers/proto/profile_packet_utils.cc",
