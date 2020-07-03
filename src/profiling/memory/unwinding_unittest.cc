@@ -121,7 +121,6 @@ RecordMemory __attribute__((noinline)) GetRecord(WireMessage* msg) {
   metadata->alloc_size = 10;
   metadata->alloc_address = 0x10;
   metadata->stack_pointer = reinterpret_cast<uint64_t>(stacktop);
-  metadata->stack_pointer_offset = sizeof(AllocMetadata);
   metadata->arch = unwindstack::Regs::CurrentArch();
   metadata->sequence_number = 1;
 

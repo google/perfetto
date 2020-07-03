@@ -30,10 +30,9 @@ namespace profiling {
 bool operator==(const AllocMetadata& one, const AllocMetadata& other);
 bool operator==(const AllocMetadata& one, const AllocMetadata& other) {
   return std::tie(one.sequence_number, one.alloc_size, one.alloc_address,
-                  one.stack_pointer, one.stack_pointer_offset, one.arch) ==
+                  one.stack_pointer, one.arch) ==
              std::tie(other.sequence_number, other.alloc_size,
-                      other.alloc_address, other.stack_pointer,
-                      other.stack_pointer_offset, other.arch) &&
+                      other.alloc_address, other.stack_pointer, other.arch) &&
          memcmp(one.register_data, other.register_data, kMaxRegisterDataSize) ==
              0;
 }
@@ -73,7 +72,6 @@ TEST(WireProtocolTest, AllocMessage) {
   metadata.alloc_size = 0xB1B2B3B4B5B6B7B8;
   metadata.alloc_address = 0xC1C2C3C4C5C6C7C8;
   metadata.stack_pointer = 0xD1D2D3D4D5D6D7D8;
-  metadata.stack_pointer_offset = 0xE1E2E3E4E5E6E7E8;
   metadata.arch = unwindstack::ARCH_X86;
   for (size_t i = 0; i < kMaxRegisterDataSize; ++i)
     metadata.register_data[i] = 0x66;
