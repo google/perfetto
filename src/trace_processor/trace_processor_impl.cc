@@ -518,7 +518,7 @@ void SetupMetrics(TraceProcessor* tp,
         nullptr, nullptr,
         [](void* ptr) { delete static_cast<metrics::RunMetricContext*>(ptr); });
     if (ret)
-      PERFETTO_ELOG("Error initializing RUN_METRIC");
+      PERFETTO_FATAL("Error initializing RUN_METRIC");
   }
 
   {
@@ -526,7 +526,15 @@ void SetupMetrics(TraceProcessor* tp,
         db, "RepeatedField", 1, SQLITE_UTF8, nullptr, nullptr,
         metrics::RepeatedFieldStep, metrics::RepeatedFieldFinal, nullptr);
     if (ret)
-      PERFETTO_ELOG("Error initializing RepeatedField");
+      PERFETTO_FATAL("Error initializing RepeatedField");
+  }
+
+  {
+    auto ret = sqlite3_create_function_v2(db, "NULL_IF_EMPTY", 1, SQLITE_UTF8,
+                                          nullptr, metrics::NullIfEmpty,
+                                          nullptr, nullptr, nullptr);
+    if (ret)
+      PERFETTO_FATAL("Error initializing NULL_IF_EMPTY");
   }
 }
 

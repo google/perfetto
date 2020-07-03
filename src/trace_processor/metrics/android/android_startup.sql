@@ -219,7 +219,7 @@ SELECT
       )
     ),
     'hsc', (
-      SELECT AndroidStartupMetric_HscMetrics(
+      SELECT NULL_IF_EMPTY(AndroidStartupMetric_HscMetrics(
         'full_startup', (
           SELECT AndroidStartupMetric_Slice(
             'dur_ns', hsc_based_startup_times.ts_total,
@@ -227,7 +227,7 @@ SELECT
           )
           FROM hsc_based_startup_times WHERE id = launches.id
         )
-      )
+      ))
     )
   ) as startup
 FROM launches;
