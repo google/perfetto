@@ -1,0 +1,4 @@
+"ts","tid","cpu","cpu_mode","unwind_error","frames_str"
+260406202383309,1102,3,"kernel","[NULL]","__ppoll,poll,_ZN8perfetto4base14UnixTaskRunner3RunEv,_ZN8perfetto11ServiceMainEiPPc,__libc_init"
+260406295220349,1102,0,"kernel","[NULL]","__connect,_ZN12_GLOBAL__N_117netdClientConnectEiPK8sockaddrj.cfi,_ZL21HandleProfilingSignaliP7siginfoPv,__kernel_rt_sigreturn,__ppoll,poll,_ZN8perfetto4base14UnixTaskRunner3RunEv,_ZN8perfetto11ServiceMainEiPPc,__libc_init"
+260406802020973,1102,2,"user","[NULL]","_ZN8perfetto3ipc25BufferedFrameDeserializer12BeginReceiveEv,_ZN8perfetto4base10UnixSocket7OnEventEv,_ZN8perfetto4base14UnixTaskRunner22RunFileDescriptorWatchEi,_ZN8perfetto4base14UnixTaskRunner26RunImmediateAndDelayedTaskEv,_ZN8perfetto4base14UnixTaskRunner3RunEv,_ZN8perfetto11ServiceMainEiPPc,__libc_init"
