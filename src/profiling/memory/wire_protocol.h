@@ -101,8 +101,6 @@ struct AllocMetadata {
   uint64_t alloc_address;
   // Current value of the stack pointer.
   uint64_t stack_pointer;
-  // Offset of the data at stack_pointer from the start of this record.
-  uint64_t stack_pointer_offset;
   uint64_t clock_monotonic_coarse_timestamp;
   alignas(uint64_t) char register_data[kMaxRegisterDataSize];
   // CPU architecture of the client.
