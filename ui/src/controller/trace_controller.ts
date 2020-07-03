@@ -52,6 +52,9 @@ import {PROCESS_SUMMARY_TRACK} from '../tracks/process_summary/common';
 import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state/common';
 
 import {
+  CounterAggregationController
+} from './aggregation/counter_aggregation_controller';
+import {
   CpuAggregationController
 } from './aggregation/cpu_aggregation_controller';
 import {
@@ -177,6 +180,10 @@ export class TraceController extends Controller<States> {
             'thread_aggregation',
             ThreadAggregationController,
             {engine, kind: 'thread_state_aggregation'}));
+        childControllers.push(Child(
+            'counter_aggregation',
+            CounterAggregationController,
+            {engine, kind: 'counter_aggregation'}));
         childControllers.push(Child('search', SearchController, {
           engine,
           app: globals,
