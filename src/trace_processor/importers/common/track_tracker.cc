@@ -162,19 +162,6 @@ TrackId TrackTracker::InternAndroidAsyncTrack(StringId name,
   return id;
 }
 
-TrackId TrackTracker::InternPerfStackTrack(UniquePid upid) {
-  auto it = perf_stack_tracks_.find(upid);
-  if (it != perf_stack_tracks_.end())
-    return it->second;
-
-  StringId name = context_->storage->InternString("Stack samples");
-  tables::ProcessTrackTable::Row row(name);
-  row.upid = upid;
-  auto id = context_->storage->mutable_process_track_table()->Insert(row).id;
-  perf_stack_tracks_[upid] = id;
-  return id;
-}
-
 TrackId TrackTracker::InternLegacyChromeProcessInstantTrack(UniquePid upid) {
   auto it = chrome_process_instant_tracks_.find(upid);
   if (it != chrome_process_instant_tracks_.end())
