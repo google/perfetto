@@ -6845,7 +6845,6 @@ filegroup {
     "src/trace_processor/importers/proto/heap_profile_tracker.cc",
     "src/trace_processor/importers/proto/metadata_tracker.cc",
     "src/trace_processor/importers/proto/packet_sequence_state.cc",
-    "src/trace_processor/importers/proto/perf_sample_tracker.cc",
     "src/trace_processor/importers/proto/profile_module.cc",
     "src/trace_processor/importers/proto/profile_packet_utils.cc",
     "src/trace_processor/importers/proto/proto_importer_module.cc",
