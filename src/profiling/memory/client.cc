@@ -355,7 +355,6 @@ bool Client::RecordMalloc(uint32_t heap_id,
   metadata.alloc_size = alloc_size;
   metadata.alloc_address = alloc_address;
   metadata.stack_pointer = reinterpret_cast<uint64_t>(stacktop);
-  metadata.stack_pointer_offset = sizeof(AllocMetadata);
   metadata.arch = unwindstack::Regs::CurrentArch();
   metadata.sequence_number =
       1 + sequence_number_[heap_id].fetch_add(1, std::memory_order_acq_rel);
