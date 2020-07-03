@@ -247,11 +247,13 @@ util::Status ProtoBuilder::AppendBytes(const std::string& field_name,
 util::Status ProtoBuilder::AppendSingleMessage(const FieldDescriptor& field,
                                                const uint8_t* ptr,
                                                size_t size) {
+  // If we have an zero sized bytes, we still want to propogate that the field
+  // message was set but empty.
   if (size == 0) {
-    // If we have an zero sized bytes, we still want to propogate that it the
-    // message was set but empty. Just set the field with that id to an
-    // empty bytes.
-    message_->AppendBytes(field.number(), ptr, size);
+    // ptr can be null and passing nullptr to AppendBytes feels dangerous so
+    // just pass an empty string (which will have a valid pointer always) and
+    // zero as the size.
+    message_->AppendBytes(field.number(), "", 0);
     return util::OkStatus();
   }
 
@@ -429,6 +431,24 @@ int TemplateReplace(
   return 0;
 }
 
+void NullIfEmpty(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
+  // SQLite should enforce this for us.
+  PERFETTO_CHECK(argc == 1);
+
+  if (sqlite3_value_type(argv[0]) != SQLITE_BLOB) {
+    sqlite3_result_error(
+        ctx, "NULL_IF_EMPTY: should only be called with bytes argument", -1);
+    return;
+  }
+
+  if (sqlite3_value_bytes(argv[0]) == 0) {
+    sqlite3_result_null(ctx);
+    return;
+  }
+
+  sqlite3_result_value(ctx, argv[0]);
+}
+
 void RepeatedFieldStep(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
   if (argc != 1) {
     sqlite3_result_error(ctx, "RepeatedField: only expected one arg", -1);
@@ -519,9 +539,13 @@ void BuildProto(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
     }
   }
 
+  // Even if the message is empty, we don't return null here as we want the
+  // existence of the message to be respected.
   std::vector<uint8_t> raw = builder.SerializeToProtoBuilderResult();
-  if (raw.empty()) {
-    sqlite3_result_null(ctx);
+  if (raw.size() == 0) {
+    // Passing nullptr to SQLite feels dangerous so just pass an empty string
+    // and zero as the size so we don't deref nullptr accidentially somewhere.
+    sqlite3_result_blob(ctx, "", 0, nullptr);
     return;
   }
 
