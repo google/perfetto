@@ -13,11 +13,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import argparse
+
 from trace_processor_http import TraceProcessorHttp
 
 
 def main():
-  tp = TraceProcessorHttp()
+  # Parse arguments passed from command line
+  args = parser.parse_args()
+  parser = argparse.ArgumentParser()
+  parser.add_argument(
+      "-a",
+      "--address",
+      help="Address at which trace_processor is being run, e.g. 127.0.0.1:9001",
+      type=str)
+  parser.add_argument("-f", "--file", help="Absolute path to trace", type=str)
+
+  # TODO(@aninditaghosh): Load trace into trace_processor_shell
+
+  # Call functions on the loaded trace
+  tp = TraceProcessorHttp(args.address)
+  tp.notify_eof()
+  print(tp.status())
 
 
 if __name__ == "__main__":
