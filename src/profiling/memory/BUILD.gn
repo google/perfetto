@@ -43,22 +43,6 @@ executable("heapprofd") {
 #
 # This builds only in the Android tree, when using the generated Android.bp.
 if (perfetto_build_with_android) {
-  shared_library("heapprofd_client_api") {
-    configs -= [ "//gn/standalone:android_liblog" ]
-    cflags = [ "-DPERFETTO_ANDROID_ASYNC_SAFE_LOG" ]
-    deps = [ ":client_ext" ]
-  }
-
-  source_set("client_ext") {
-    cflags = [ "-DPERFETTO_ANDROID_ASYNC_SAFE_LOG" ]
-    deps = [
-      ":client",
-      "../../../gn:default_deps",
-      "../../base",
-    ]
-    sources = [ "client_ext.cc" ]
-  }
-
   shared_library("heapprofd_client") {
     configs -= [ "//gn/standalone:android_liblog" ]
     cflags = [ "-DPERFETTO_ANDROID_ASYNC_SAFE_LOG" ]
@@ -81,6 +65,39 @@ if (perfetto_build_with_android) {
     sources = [ "malloc_hooks.cc" ]
   }
 }  # if (perfetto_build_with_android)
+
+shared_library("heapprofd_client_api") {
+  configs -= [ "//gn/standalone:android_liblog" ]
+  if (perfetto_build_with_android) {
+    cflags = [ "-DPERFETTO_ANDROID_ASYNC_SAFE_LOG" ]
+  } else {
+    # We don't have async safe logging for non-Android, so disable all
+    # logging in the client.
+    # TODO(fmayer): Add async-safe logging for non-Android.
+    cflags = [ "-DPERFETTO_DISABLE_LOG" ]
+  }
+  deps = [ ":client_ext" ]
+}
+
+source_set("client_ext") {
+  if (perfetto_build_with_android) {
+    cflags = [ "-DPERFETTO_ANDROID_ASYNC_SAFE_LOG" ]
+  } else {
+    # We don't have async safe logging for non-Android, so disable all
+    # logging in the client.
+    # TODO(fmayer): Add async-safe logging for non-Android.
+    cflags = [ "-DPERFETTO_DISABLE_LOG" ]
+  }
+  deps = [
+    ":client",
+    ":scoped_spinlock",
+    ":wire_protocol",
+    "../../../gn:default_deps",
+    "../../base",
+    "../common:proc_utils",
+  ]
+  sources = [ "client_ext.cc" ]
+}
 
 source_set("wire_protocol") {
   public_deps = [ "../../../gn:libunwindstack" ]

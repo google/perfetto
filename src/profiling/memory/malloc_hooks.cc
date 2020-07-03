@@ -21,6 +21,7 @@
 
 #include <atomic>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/profiling/memory/client_ext.h"
 
@@ -93,7 +94,18 @@ const MallocDispatch* GetDispatch() {
   return g_dispatch.load(std::memory_order_relaxed);
 }
 
-HeapprofdHeapInfo info{"malloc", nullptr};
+// Note: android_mallopt(M_RESET_HOOKS) is mutually exclusive with
+// heapprofd_initialize. Concurrent calls get discarded, which might be our
+// unpatching attempt if there is a concurrent re-initialization running due to
+// a new signal.
+void ProfileCallback(bool enabled) {
+  if (!enabled) {
+    if (!android_mallopt(M_RESET_HOOKS, nullptr, 0))
+      PERFETTO_PLOG("Unpatching heapprofd hooks failed.");
+  }
+}
+
+HeapprofdHeapInfo info{"malloc", ProfileCallback};
 uint32_t g_heap_id = heapprofd_register_heap(&info, sizeof(info));
 
 }  // namespace
