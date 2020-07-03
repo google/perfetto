@@ -37,7 +37,6 @@ class GlobalArgsTracker;
 class HeapGraphTracker;
 class HeapProfileTracker;
 class MetadataTracker;
-class PerfSampleTracker;
 class ProtoImporterModule;
 class ProcessTracker;
 class SliceTracker;
@@ -72,7 +71,6 @@ class TraceProcessorContext {
   std::unique_ptr<ClockTracker> clock_tracker;
   std::unique_ptr<HeapProfileTracker> heap_profile_tracker;
   std::unique_ptr<MetadataTracker> metadata_tracker;
-  std::unique_ptr<PerfSampleTracker> perf_sample_tracker;
 
   // These fields are stored as pointers to Destructible objects rather than
   // their actual type (a subclass of Destructible), as the concrete subclass
