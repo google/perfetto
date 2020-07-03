@@ -63,11 +63,11 @@ SELECT
   AndroidProcessMetadata(
     'name', process_name,
     'uid', uid,
-    'package', AndroidProcessMetadata_Package(
+    'package', NULL_IF_EMPTY(AndroidProcessMetadata_Package(
       'package_name', package_name,
       'apk_version_code', version_code,
       'debuggable', debuggable
-    ),
+    )),
     'packages_for_uid', packages_for_uid
   ) AS metadata
 FROM process_metadata_table

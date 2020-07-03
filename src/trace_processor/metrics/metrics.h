@@ -147,6 +147,9 @@ int TemplateReplace(
     const std::unordered_map<std::string, std::string>& substitutions,
     std::string* out);
 
+// Implements the NULL_IF_EMPTY SQL function.
+void NullIfEmpty(sqlite3_context* ctx, int argc, sqlite3_value** argv);
+
 // These functions implement the RepeatedField SQL aggregate functions.
 void RepeatedFieldStep(sqlite3_context* ctx, int argc, sqlite3_value** argv);
 void RepeatedFieldFinal(sqlite3_context* ctx);
