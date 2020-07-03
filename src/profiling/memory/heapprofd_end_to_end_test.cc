@@ -14,6 +14,12 @@
  * limitations under the License.
  */
 
+// End to end tests for heapprofd.
+// None of these tests currently pass on non-Android, but we still build most
+// of it as a best-effort way to maintain the out-of-tree build.
+
+#include <atomic>
+
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -448,6 +454,71 @@ TEST_P(HeapprofdEndToEnd, SmokeCustomAndMalloc) {
   ValidateSampleSizes(helper.get(), static_cast<uint64_t>(pid), kAllocSize,
                       "malloc");
 
+  KillAssertRunning(&child);
+}
+
+TEST_P(HeapprofdEndToEnd, AccurateCustom) {
+  base::Subprocess child;
+  child.args.entrypoint_for_testing = [] {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+    static std::atomic<bool> initialized{false};
+    HeapprofdHeapInfo info{"test", [](bool) { initialized = true; }};
+
+    static uint32_t heap_id = heapprofd_register_heap(&info, sizeof(info));
+    // heapprofd_client needs malloc to see the signal.
+    while (!initialized)
+      AllocateAndFree(1);
+    // We call the callback before setting enabled=true on the heap, so we
+    // wait a bit for the assignment to happen.
+    usleep(100000);
+    heapprofd_report_allocation(heap_id, 0x1, 10u);
+    heapprofd_report_free(heap_id, 0x1);
+    heapprofd_report_allocation(heap_id, 0x2, 15u);
+    heapprofd_report_allocation(heap_id, 0x3, 15u);
+    heapprofd_report_free(heap_id, 0x2);
+
+    // Wait around so we can verify it did't crash.
+    for (;;) {
+    }
+#else
+    PERFETTO_FATAL("Only supported on Android.");
+#endif
+  };
+  child.Start();
+  const auto pid = child.pid();
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(10 * 1024);
+  trace_config.set_duration_ms(2000);
+  trace_config.set_data_source_stop_timeout_ms(10000);
+
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("android.heapprofd");
+  ds_config->set_target_buffer(0);
+
+  protos::gen::HeapprofdConfig heapprofd_config;
+  heapprofd_config.set_sampling_interval_bytes(1);
+  heapprofd_config.add_pid(static_cast<uint64_t>(pid));
+  heapprofd_config.set_all(false);
+  heapprofd_config.add_heaps("test");
+  ds_config->set_heapprofd_config_raw(heapprofd_config.SerializeAsString());
+
+  auto helper = Trace(trace_config);
+  PrintStats(helper.get());
+  ValidateOnlyPID(helper.get(), static_cast<uint64_t>(pid));
+
+  size_t total_alloc = 0;
+  size_t total_freed = 0;
+  for (const protos::gen::TracePacket& packet : helper->trace()) {
+    for (const auto& dump : packet.profile_packet().process_dumps()) {
+      for (const auto& sample : dump.samples()) {
+        total_alloc += sample.self_allocated();
+        total_freed += sample.self_freed();
+      }
+    }
+  }
+  EXPECT_EQ(total_alloc, 40u);
+  EXPECT_EQ(total_freed, 25u);
   KillAssertRunning(&child);
 }
 
