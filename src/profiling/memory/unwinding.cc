@@ -190,12 +190,14 @@ bool DoUnwind(WireMessage* msg, UnwindingMetadata* metadata, AllocRecord* out) {
 }
 
 void UnwindingWorker::OnDisconnect(base::UnixSocket* self) {
-  // TODO(fmayer): Maybe try to drain shmem one last time.
-  auto it = client_data_.find(self->peer_pid());
+  pid_t peer_pid = self->peer_pid();
+  auto it = client_data_.find(peer_pid);
   if (it == client_data_.end()) {
     PERFETTO_DFATAL_OR_ELOG("Disconnected unexpected socket.");
     return;
   }
+
+  HandleUnwindBatch(peer_pid);
   ClientData& client_data = it->second;
   SharedRingBuffer& shmem = client_data.shmem;
 
@@ -217,7 +219,7 @@ void UnwindingWorker::OnDisconnect(base::UnixSocket* self) {
       PERFETTO_ELOG("Failed to log shmem to get stats.");
   }
   DataSourceInstanceID ds_id = client_data.data_source_instance_id;
-  pid_t peer_pid = self->peer_pid();
+
   client_data_.erase(it);
   // The erase invalidates the self pointer.
   self = nullptr;

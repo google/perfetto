@@ -31,6 +31,7 @@
 #include <atomic>
 #include <memory>
 #include <tuple>
+#include <type_traits>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
@@ -83,9 +84,9 @@ constexpr auto kMinHeapId = 1;
 
 struct HeapprofdHeapInfoInternal {
   HeapprofdHeapInfo info;
-  bool ready;
-  bool enabled;
-  uint32_t service_heap_id;
+  std::atomic<bool> ready;
+  std::atomic<bool> enabled;
+  std::atomic<uint32_t> service_heap_id;
 };
 
 HeapprofdHeapInfoInternal g_heaps[256];
@@ -294,10 +295,10 @@ std::shared_ptr<perfetto::profiling::Client> CreateClientAndPrivateDaemon(
 void DisableAllHeaps() {
   for (size_t i = kMinHeapId; i < g_next_heap_id.load(); ++i) {
     HeapprofdHeapInfoInternal& heap = GetHeap(i);
-    if (!heap.ready)
+    if (!heap.ready.load(std::memory_order_acquire))
       continue;
-    if (heap.enabled) {
-      heap.enabled = false;
+    if (heap.enabled.load(std::memory_order_acquire)) {
+      heap.enabled.store(false, std::memory_order_release);
       if (heap.info.callback)
         heap.info.callback(false);
     }
@@ -386,14 +387,14 @@ __attribute__((visibility("default"))) uint32_t heapprofd_register_heap(
   }
   HeapprofdHeapInfoInternal& heap = GetHeap(next_id);
   memcpy(&heap.info, info, n);
-  heap.ready = true;
+  heap.ready.store(true, std::memory_order_release);
   return next_id;
 }
 
 __attribute__((visibility("default"))) bool
 heapprofd_report_allocation(uint32_t heap_id, uint64_t id, uint64_t size) {
   const HeapprofdHeapInfoInternal& heap = GetHeap(heap_id);
-  if (!heap.enabled) {
+  if (!heap.enabled.load(std::memory_order_acquire)) {
     return false;
   }
   size_t sampled_alloc_sz = 0;
@@ -414,7 +415,9 @@ heapprofd_report_allocation(uint32_t heap_id, uint64_t id, uint64_t size) {
     client = *g_client_ptr;  // owning copy
   }                          // unlock
 
-  if (!client->RecordMalloc(heap.service_heap_id, sampled_alloc_sz, size, id)) {
+  if (!client->RecordMalloc(
+          heap.service_heap_id.load(std::memory_order_relaxed),
+          sampled_alloc_sz, size, id)) {
     ShutdownLazy();
   }
   return true;
@@ -424,7 +427,7 @@ __attribute__((visibility("default"))) void heapprofd_report_free(
     uint32_t heap_id,
     uint64_t id) {
   const HeapprofdHeapInfoInternal& heap = GetHeap(heap_id);
-  if (!heap.enabled) {
+  if (!heap.enabled.load(std::memory_order_acquire)) {
     return;
   }
   std::shared_ptr<perfetto::profiling::Client> client;
@@ -437,7 +440,8 @@ __attribute__((visibility("default"))) void heapprofd_report_free(
   }
 
   if (client) {
-    if (!client->RecordFree(heap.service_heap_id, id))
+    if (!client->RecordFree(
+            heap.service_heap_id.load(std::memory_order_relaxed), id))
       ShutdownLazy();
   }
 }
@@ -499,7 +503,7 @@ __attribute__((visibility("default"))) bool heapprofd_init_session(
 
   for (size_t j = kMinHeapId; j < g_next_heap_id.load(); ++j) {
     HeapprofdHeapInfoInternal& heap = GetHeap(j);
-    if (!heap.ready)
+    if (!heap.ready.load(std::memory_order_acquire))
       continue;
 
     bool matched = false;
@@ -510,16 +514,16 @@ __attribute__((visibility("default"))) bool heapprofd_init_session(
                     "correct heap name size");
       if (strncmp(&cli_config.heaps[i][0], &heap.info.heap_name[0],
                   HEAPPROFD_HEAP_NAME_SZ) == 0) {
-        heap.service_heap_id = i;
-        if (!heap.enabled && heap.info.callback)
+        heap.service_heap_id.store(i, std::memory_order_relaxed);
+        if (!heap.enabled.load(std::memory_order_acquire) && heap.info.callback)
           heap.info.callback(true);
-        heap.enabled = true;
+        heap.enabled.store(true, std::memory_order_release);
         matched = true;
         break;
       }
     }
-    if (!matched && heap.enabled) {
-      heap.enabled = false;
+    if (!matched && heap.enabled.load(std::memory_order_acquire)) {
+      heap.enabled.store(false, std::memory_order_release);
       if (heap.info.callback)
         heap.info.callback(false);
     }
