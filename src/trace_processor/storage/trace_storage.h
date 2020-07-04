@@ -535,12 +535,26 @@ class TraceStorage {
     return &profiler_smaps_table_;
   }
 
+  const tables::StackSampleTable& stack_sample_table() const {
+    return stack_sample_table_;
+  }
+  tables::StackSampleTable* mutable_stack_sample_table() {
+    return &stack_sample_table_;
+  }
+
   const tables::CpuProfileStackSampleTable& cpu_profile_stack_sample_table()
       const {
     return cpu_profile_stack_sample_table_;
   }
   tables::CpuProfileStackSampleTable* mutable_cpu_profile_stack_sample_table() {
     return &cpu_profile_stack_sample_table_;
+  }
+
+  const tables::PerfSampleTable& perf_sample_table() const {
+    return perf_sample_table_;
+  }
+  tables::PerfSampleTable* mutable_perf_sample_table() {
+    return &perf_sample_table_;
   }
 
   const tables::SymbolTable& symbol_table() const { return symbol_table_; }
@@ -788,10 +802,13 @@ class TraceStorage {
                                                             nullptr};
   tables::StackProfileCallsiteTable stack_profile_callsite_table_{&string_pool_,
                                                                   nullptr};
+  tables::StackSampleTable stack_sample_table_{&string_pool_, nullptr};
   tables::HeapProfileAllocationTable heap_profile_allocation_table_{
       &string_pool_, nullptr};
   tables::CpuProfileStackSampleTable cpu_profile_stack_sample_table_{
-      &string_pool_, nullptr};
+      &string_pool_, &stack_sample_table_};
+  tables::PerfSampleTable perf_sample_table_{&string_pool_,
+                                             &stack_sample_table_};
   tables::PackageListTable package_list_table_{&string_pool_, nullptr};
   tables::ProfilerSmapsTable profiler_smaps_table_{&string_pool_, nullptr};
 
