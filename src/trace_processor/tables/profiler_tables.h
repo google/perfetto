@@ -118,6 +118,18 @@ PERFETTO_TP_TABLE(PERFETTO_TP_STACK_PROFILE_FRAME_DEF);
 
 PERFETTO_TP_TABLE(PERFETTO_TP_STACK_PROFILE_CALLSITE_DEF);
 
+// Root table for timestamped stack samples.
+// @param ts timestamp of the sample.
+// @param callsite_id unwound callstack.
+// @tablegroup Callstack profilers
+#define PERFETTO_TP_STACK_SAMPLE_DEF(NAME, PARENT, C) \
+  NAME(StackSampleTable, "stack_sample")              \
+  PERFETTO_TP_ROOT_TABLE(PARENT, C)                   \
+  C(int64_t, ts, Column::Flag::kSorted)               \
+  C(StackProfileCallsiteTable::Id, callsite_id)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_STACK_SAMPLE_DEF);
+
 // Samples from the Chromium stack sampler.
 // @param ts timestamp this sample was taken at.
 // @param utid thread that was active when the sample was taken.
@@ -125,15 +137,38 @@ PERFETTO_TP_TABLE(PERFETTO_TP_STACK_PROFILE_CALLSITE_DEF);
 // @tablegroup Callstack profilers
 #define PERFETTO_TP_CPU_PROFILE_STACK_SAMPLE_DEF(NAME, PARENT, C) \
   NAME(CpuProfileStackSampleTable, "cpu_profile_stack_sample")    \
-  PERFETTO_TP_ROOT_TABLE(PARENT, C)                               \
-  C(int64_t, ts, Column::Flag::kSorted)                           \
-  C(StackProfileCallsiteTable::Id, callsite_id)                   \
+  PARENT(PERFETTO_TP_STACK_SAMPLE_DEF, C)                         \
   C(uint32_t, utid)                                               \
   C(int32_t, process_priority)
 
 PERFETTO_TP_TABLE(PERFETTO_TP_CPU_PROFILE_STACK_SAMPLE_DEF);
 
-// Symbolization data for a frame. Rows with them same symbol_set_id describe
+// Stack samples from the traced_perf perf sampler.
+//
+// The table currently provides no means of discriminating between multiple data
+// sources producing samples within a single trace.
+// @param ts timestamp of the sample.
+// @param callsite_id unwound callstack of the sampled thread.
+// @param utid sampled thread. {@joinable thread.utid}.
+// @param cpu the core the sampled thread was running on.
+// @param cpu_mode execution state (userspace/kernelspace) of the sampled
+//        thread.
+// @param unwind_error if set, indicates that the unwinding for this sample
+//        encountered an error. Such samples still reference the best-effort
+//        result via the callsite_id (with a synthetic error frame at the point
+//        where unwinding stopped).
+// @tablegroup Callstack profilers
+#define PERFETTO_TP_PERF_SAMPLE_DEF(NAME, PARENT, C) \
+  NAME(PerfSampleTable, "perf_sample")               \
+  PARENT(PERFETTO_TP_STACK_SAMPLE_DEF, C)            \
+  C(uint32_t, utid)                                  \
+  C(uint32_t, cpu)                                   \
+  C(StringPool::Id, cpu_mode)                        \
+  C(base::Optional<StringPool::Id>, unwind_error)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_PERF_SAMPLE_DEF);
+
+// Symbolization data for a frame. Rows with the same symbol_set_id describe
 // one frame, with the bottom-most inlined frame having id == symbol_set_id.
 //
 // For instance, if the function foo has an inlined call to the function bar,
