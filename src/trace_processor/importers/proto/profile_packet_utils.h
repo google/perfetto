@@ -24,6 +24,7 @@
 
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
+#include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -61,6 +62,53 @@ class ProfilePacketUtils {
     for (auto frame_it = entry.frame_ids(); frame_it; ++frame_it)
       src_callstack.emplace_back(*frame_it);
     return src_callstack;
+  }
+
+  static const char* StringifyCpuMode(
+      protos::pbzero::Profiling::CpuMode cpu_mode) {
+    using protos::pbzero::Profiling;
+    switch (cpu_mode) {
+      case Profiling::MODE_UNKNOWN:
+        return "unknown";
+      case Profiling::MODE_KERNEL:
+        return "kernel";
+      case Profiling::MODE_USER:
+        return "user";
+      case Profiling::MODE_HYPERVISOR:
+        return "hypervisor";
+      case Profiling::MODE_GUEST_KERNEL:
+        return "guest_kernel";
+      case Profiling::MODE_GUEST_USER:
+        return "guest_user";
+    }
+    return "unknown";  // switch should be complete, but gcc needs a hint
+  }
+
+  static const char* StringifyStackUnwindError(
+      protos::pbzero::Profiling::StackUnwindError unwind_error) {
+    using protos::pbzero::Profiling;
+    switch (unwind_error) {
+      case Profiling::UNWIND_ERROR_UNKNOWN:
+        return "unknown";
+      case Profiling::UNWIND_ERROR_NONE:
+        return "none";  // should never see this serialized by traced_perf, the
+                        // field should be unset instead
+      case Profiling::UNWIND_ERROR_MEMORY_INVALID:
+        return "memory_invalid";
+      case Profiling::UNWIND_ERROR_UNWIND_INFO:
+        return "unwind_info";
+      case Profiling::UNWIND_ERROR_UNSUPPORTED:
+        return "unsupported";
+      case Profiling::UNWIND_ERROR_INVALID_MAP:
+        return "invalid_map";
+      case Profiling::UNWIND_ERROR_MAX_FRAMES_EXCEEDED:
+        return "max_frames_exceeded";
+      case Profiling::UNWIND_ERROR_REPEATED_FRAME:
+        return "repeated_frame";
+      case Profiling::UNWIND_ERROR_INVALID_ELF:
+        return "invalid_elf";
+    }
+    return "unknown";  // switch should be complete, but gcc needs a hint
   }
 };
 
