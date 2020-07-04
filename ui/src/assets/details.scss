@@ -30,6 +30,7 @@
     .tabs {
       display: flex;
       grid-area: tabs;
+      overflow: hidden;
 
       .tab {
         font-family: 'Roboto Condensed', sans-serif;
@@ -42,6 +43,9 @@
         border-top: solid 1px hsla(0, 0%, 75%, 1);
         border-left: solid 1px hsla(0, 0%, 75%, 1);
         border-right: solid 1px hsla(0, 0%, 75%, 1);
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
 
         &[active] {
           background-color: white;
@@ -75,6 +79,7 @@
 
     .buttons {
       grid-area: buttons;
+      text-align: right;
     }
 
     .handle-title {
@@ -93,6 +98,7 @@
   font-family: 'Roboto Condensed', sans-serif;
   font-weight: 300;
   color: #3c4b5d;
+  user-select: text;
 
   .material-icons {
     @include transition(0.3s);
@@ -117,13 +123,14 @@
     top: 0px;
     display: flex;
     background: white;
-    table {
-      padding: 0 10px;
-      th {
-        font-weight: 500;
-      }
-    }
     &.aggregation {
+      padding-top: 5px;
+      display: block;
+      .time-range {
+        text-align: right;
+        font-size: 11px;
+        margin-right: 5px;
+      }
       th {
         cursor: pointer;
         .material-icons {
@@ -199,7 +206,7 @@
     width: 100%;
     table-layout: fixed;
     word-wrap: break-word;
-    padding: 10px;
+    padding: 0px 10px;
     tr:hover {
       background-color: hsl(214, 22%, 90%);
     }
