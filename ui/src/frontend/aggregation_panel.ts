@@ -31,6 +31,7 @@ export class AggregationPanel extends Panel<AggregationPanelAttrs> {
     return m(
         '.details-panel',
         m('.details-panel-heading.aggregation',
+          this.showTimeRange(),
           m('table',
             m('tr',
               attrs.data.columns.map(
@@ -86,6 +87,13 @@ export class AggregationPanel extends Panel<AggregationPanelAttrs> {
       default:
         return `${data.columns[columnIndex].data[rowIndex]}`;
     }
+  }
+
+  showTimeRange() {
+    const area = globals.state.frontendLocalState.selectedArea.area;
+    if (area === undefined) return undefined;
+    const rangeDurationMs = (area.endSec - area.startSec) * 1e3;
+    return m('.time-range', `Selected range: ${rangeDurationMs.toFixed(6)} ms`);
   }
 
   renderCanvas() {}
