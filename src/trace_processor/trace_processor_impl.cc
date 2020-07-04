@@ -646,6 +646,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   RegisterDbTable(storage->symbol_table());
   RegisterDbTable(storage->heap_profile_allocation_table());
   RegisterDbTable(storage->cpu_profile_stack_sample_table());
+  RegisterDbTable(storage->perf_sample_table());
   RegisterDbTable(storage->stack_profile_callsite_table());
   RegisterDbTable(storage->stack_profile_mapping_table());
   RegisterDbTable(storage->stack_profile_frame_table());
