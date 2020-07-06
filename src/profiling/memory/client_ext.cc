@@ -145,12 +145,13 @@ void DisableAllHeaps() {
   }
 }
 
-void ShutdownLazy() {
+void ShutdownLazy(const std::shared_ptr<perfetto::profiling::Client>& client) {
   ScopedSpinlock s(&g_client_lock, ScopedSpinlock::Mode::Try);
   if (PERFETTO_UNLIKELY(!s.locked()))
     AbortOnSpinlockTimeout();
 
-  if (!*GetClientLocked())  // other invocation already initiated shutdown
+  // other invocation already initiated shutdown
+  if (*GetClientLocked() != client)
     return;
 
   DisableAllHeaps();
@@ -255,7 +256,7 @@ heapprofd_report_allocation(uint32_t heap_id, uint64_t id, uint64_t size) {
   if (!client->RecordMalloc(
           heap.service_heap_id.load(std::memory_order_relaxed),
           sampled_alloc_sz, size, id)) {
-    ShutdownLazy();
+    ShutdownLazy(client);
   }
   return true;
 }
@@ -279,7 +280,7 @@ __attribute__((visibility("default"))) void heapprofd_report_free(
   if (client) {
     if (!client->RecordFree(
             heap.service_heap_id.load(std::memory_order_relaxed), id))
-      ShutdownLazy();
+      ShutdownLazy(client);
   }
 }
 
