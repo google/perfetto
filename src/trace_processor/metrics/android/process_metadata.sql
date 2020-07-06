@@ -60,7 +60,7 @@ WITH upid_packages AS (
 )
 SELECT
   upid,
-  AndroidProcessMetadata(
+  NULL_IF_EMPTY(AndroidProcessMetadata(
     'name', process_name,
     'uid', uid,
     'package', NULL_IF_EMPTY(AndroidProcessMetadata_Package(
@@ -69,6 +69,6 @@ SELECT
       'debuggable', debuggable
     )),
     'packages_for_uid', packages_for_uid
-  ) AS metadata
+  )) AS metadata
 FROM process_metadata_table
 LEFT JOIN upid_packages USING (upid);
