@@ -79,6 +79,9 @@ import {
   SelectionControllerArgs
 } from './selection_controller';
 import {
+  TraceErrorController,
+} from './trace_error_controller';
+import {
   TraceBufferStream,
   TraceFileStream,
   TraceHttpStream,
@@ -193,7 +196,8 @@ export class TraceController extends Controller<States> {
           engine,
           app: globals,
         }));
-
+        childControllers.push(
+            Child('traceError', TraceErrorController, {engine}));
         return childControllers;
 
       default:

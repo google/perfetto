@@ -182,6 +182,11 @@ class FrontendApi {
     this.redraw();
   }
 
+  publishTraceErrors(arg: string[]) {
+    globals.traceErrors = arg;
+    this.redraw();
+  }
+
   publishAggregateData(args: {data: AggregateData, kind: string}) {
     globals.setAggregateData(args.kind, args.data);
     this.redraw();
