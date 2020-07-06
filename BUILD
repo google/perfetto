@@ -3288,16 +3288,14 @@ perfetto_gensignature_internal_only(
 )
 
 perfetto_py_binary(
-    name = "api_main",
-    srcs = ["src/trace_processor/python/api_main.py"],
-    deps = [":api_main_lib"],
-    main = "src/trace_processor/python/api_main.py",
+    name = "trace_processor_py_example",
+    srcs = ["src/trace_processor/python/example.py"],
+    deps = [":trace_processor_py"],
+    main = "src/trace_processor/python/example.py",
     python_version = "PY3",
 )
 
 perfetto_py_library(
-    name = "api_main_lib",
-    srcs = [
-        "src/trace_processor/python/trace_processor_http.py",
-    ],
+    name = "trace_processor_py",
+    srcs = glob(['src/trace_processor/python/trace_processor/*.py']),
 )

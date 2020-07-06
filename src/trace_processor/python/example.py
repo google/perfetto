@@ -15,19 +15,21 @@
 
 import argparse
 
-from trace_processor_http import TraceProcessorHttp
+from trace_processor.http import TraceProcessorHttp
 
 
 def main():
   # Parse arguments passed from command line
-  args = parser.parse_args()
   parser = argparse.ArgumentParser()
   parser.add_argument(
       "-a",
       "--address",
       help="Address at which trace_processor is being run, e.g. 127.0.0.1:9001",
+      required=True,
       type=str)
-  parser.add_argument("-f", "--file", help="Absolute path to trace", type=str)
+  parser.add_argument(
+      "-f", "--file", help="Absolute path to trace", required=True, type=str)
+  args = parser.parse_args()
 
   # TODO(@aninditaghosh): Load trace into trace_processor_shell
 
