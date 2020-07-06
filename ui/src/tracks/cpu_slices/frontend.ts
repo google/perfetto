@@ -135,7 +135,10 @@ class CpuSliceTrack extends Track<Config, Data> {
       if (threadInfo) {
         if (threadInfo.pid) {
           pid = threadInfo.pid;
-          const procName = threadInfo.procName || '';
+          let procName = threadInfo.procName || '';
+          if (procName.startsWith('/')) {  // Remove folder paths from name
+            procName = procName.substring(procName.lastIndexOf('/') + 1);
+          }
           title = `${procName} [${threadInfo.pid}]`;
           subTitle = `${threadInfo.threadName} [${threadInfo.tid}]`;
         } else {
