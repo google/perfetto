@@ -13,25 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from urllib import request
+import os
 
 
-class TraceProcessorHttp:
-
-  def __init__(self, url):
-    self.url = 'http://' + url
-
-  def parse(self, chunk):
-    req = request.Request(self.url + '/parse', data=chunk)
-    with request.urlopen(req) as f:
-      return f.read()
-
-  def notify_eof(self):
-    req = request.Request(self.url + '/notify_eof')
-    with request.urlopen(req) as f:
-      return f.read()
-
-  def status(self):
-    req = request.Request(self.url + '/status')
-    with request.urlopen(req) as f:
-      return f.read()
+# This function lives in its own module to allow us to use a different
+# mechanism of loading depending on the build system.
+def read_descriptor():
+  ws = os.path.dirname(__file__)
+  with open(os.path.join(ws, 'trace_processor.descriptor'), 'rb') as x:
+    return x.read()
