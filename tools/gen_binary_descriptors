@@ -37,6 +37,8 @@ SOURCE_TARGET = {
         'src/trace_processor/importers/proto/track_event.descriptor.h',
     'protos/perfetto/metrics/custom_options.proto':
         'src/trace_processor/metrics/custom_options.descriptor.h',
+  'protos/perfetto/trace_processor/trace_processor.proto':
+        'src/trace_processor/python/trace_processor/trace_processor.descriptor',
 }
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -58,11 +60,8 @@ def find_protoc():
   return None
 
 
-def check(source, target):
-  assert os.path.exists(os.path.join(ROOT_DIR, target)), \
-      'Output file {} does not exist and so cannot be checked'.format(target)
-
-  with open(target, 'rb') as f:
+def check_using_shas(source, target, file_with_shas):
+  with open(file_with_shas, 'rb') as f:
     s = f.read()
 
   hashes = re.findall(r'// SHA1\((.*)\)\n// (.*)\n', s.decode())
@@ -73,38 +72,42 @@ def check(source, target):
         'In {} hash given for {} did not match'.format(target, path)
 
 
-def generate(source, target, protoc_path):
+def check_raw_descriptor(source, target):
+  sha1_file = target + '.sha1'
+  assert os.path.exists(sha1_file), \
+      'SHA1 file {} does not exist and so cannot be checked'.format(sha1_file)
+
+  check_using_shas(source, target, sha1_file)
+
+
+def check(source, target):
+  assert os.path.exists(os.path.join(ROOT_DIR, target)), \
+      'Output file {} does not exist and so cannot be checked'.format(target)
+
+  if target.endswith('.descriptor.h'):
+    check_using_shas(source, target, target)
+  elif target.endswith('.descriptor'):
+    check_raw_descriptor(source, target)
+
+
+def write_cpp_header(source, target, descriptor_bytes):
   _, source_name = os.path.split(source)
   _, target_name = os.path.split(target)
   assert source_name.replace('.proto', '.descriptor.h') == target_name
 
-  with tempfile.NamedTemporaryFile() as fdescriptor:
-    subprocess.check_call([
-        protoc_path,
-        '--include_imports',
-        '--proto_path=.',
-        '--proto_path=' + \
-            os.path.join(ROOT_DIR, "buildtools", "protobuf", "src"),
-        '--descriptor_set_out={}'.format(fdescriptor.name),
-        source,
-    ],
-                          cwd=ROOT_DIR)
+  proto_name = source_name[:-len('.proto')].title().replace("_", "")
+  try:
+    ord(descriptor_bytes[0])
+    ordinal = ord
+  except TypeError:
+    ordinal = lambda x: x
+  binary = '{' + ', '.join('{0:#04x}'
+    .format(ordinal(c)) for c in descriptor_bytes) + '}'
+  binary = textwrap.fill(
+      binary, width=80, initial_indent='    ', subsequent_indent='     ')
 
-    s = fdescriptor.read()
-    proto_name = source_name[:-len('.proto')].title().replace("_", "")
-    constant_name = 'k' + proto_name + 'Descriptor'
-    try:
-      ord(s[0])
-      ordinal = ord
-    except TypeError:
-      ordinal = lambda x: x
-    binary = '{' + ', '.join('{0:#04x}'.format(ordinal(c)) for c in s) + '}'
-    binary = textwrap.fill(
-        binary, width=80, initial_indent='    ', subsequent_indent='     ')
-    include_guard = target.replace('/', '_').replace('.', '_').upper() + '_'
-
-    with open(os.path.join(ROOT_DIR, target), 'wb') as f:
-      f.write("""/*
+  with open(os.path.join(ROOT_DIR, target), 'wb') as f:
+    f.write("""/*
  * Copyright (C) 2019 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -140,24 +143,64 @@ def generate(source, target, protoc_path):
 
 namespace perfetto {{
 
-constexpr std::array<uint8_t, {size}> {constant_name}{{
+constexpr std::array<uint8_t, {size}> k{proto_name}Descriptor{{
 {binary}}};
 
 }}  // namespace perfetto
 
 #endif  // {include_guard}
 """.format(
-          proto_name=proto_name,
-          size=len(s),
-          constant_name=constant_name,
-          binary=binary,
-          include_guard=include_guard,
-          script_path=SCRIPT_PATH,
-          script_hash=hash_path(__file__),
-          source_path=source,
-          source_hash=hash_path(os.path.join(source)),
-      ).encode())
+        proto_name=proto_name,
+        size=len(descriptor_bytes),
+        binary=binary,
+        include_guard=target.replace('/', '_').replace('.', '_').upper() + '_',
+        script_path=SCRIPT_PATH,
+        script_hash=hash_path(__file__),
+        source_path=source,
+        source_hash=hash_path(os.path.join(source)),
+    ).encode())
 
+
+def write_raw_descriptor(source, target, descriptor_bytes):
+  with open(target, 'wb') as out:
+    out.write(descriptor_bytes)
+
+  sha1_path = target + '.sha1'
+  with open(sha1_path, 'wb') as c:
+    c.write("""
+// SHA1({script_path})
+// {script_hash}
+// SHA1({source_path})
+// {source_hash}
+""".format(
+        script_path=SCRIPT_PATH,
+        script_hash=hash_path(__file__),
+        source_path=source,
+        source_hash=hash_path(os.path.join(source)),
+    ).encode())
+
+
+
+def generate(source, target, protoc_path):
+  with tempfile.NamedTemporaryFile() as fdescriptor:
+    subprocess.check_call([
+        protoc_path,
+        '--include_imports',
+        '--proto_path=.',
+        '--proto_path=' + \
+            os.path.join(ROOT_DIR, "buildtools", "protobuf", "src"),
+        '--descriptor_set_out={}'.format(fdescriptor.name),
+        source,
+    ],
+                          cwd=ROOT_DIR)
+
+    s = fdescriptor.read()
+    if target.endswith('.descriptor.h'):
+      write_cpp_header(source, target, s)
+    elif target.endswith('.descriptor'):
+      write_raw_descriptor(source, target, s)
+    else:
+      raise Exception('Unsupported target extension for file {}'.format(target))
 
 def main():
   parser = argparse.ArgumentParser()
