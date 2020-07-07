@@ -161,7 +161,10 @@ class TraceStorage {
     void UpdateThreadDeltasForSliceId(uint32_t slice_id,
                                       int64_t end_thread_timestamp_ns,
                                       int64_t end_thread_instruction_count) {
-      uint32_t row = *FindRowForSliceId(slice_id);
+      auto opt_row = FindRowForSliceId(slice_id);
+      if (!opt_row)
+        return;
+      uint32_t row = *opt_row;
       int64_t begin_ns = thread_timestamp_ns_[row];
       thread_duration_ns_[row] = end_thread_timestamp_ns - begin_ns;
       int64_t begin_ticount = thread_instruction_counts_[row];
@@ -222,7 +225,10 @@ class TraceStorage {
     void UpdateThreadDeltasForSliceId(uint32_t slice_id,
                                       int64_t end_thread_timestamp_ns,
                                       int64_t end_thread_instruction_count) {
-      uint32_t row = *FindRowForSliceId(slice_id);
+      auto opt_row = FindRowForSliceId(slice_id);
+      if (!opt_row)
+        return;
+      uint32_t row = *opt_row;
       int64_t begin_ns = thread_timestamp_ns_[row];
       thread_duration_ns_[row] = end_thread_timestamp_ns - begin_ns;
       int64_t begin_ticount = thread_instruction_counts_[row];
