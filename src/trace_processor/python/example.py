@@ -36,6 +36,7 @@ def main():
   # Call functions on the loaded trace
   tp = TraceProcessorHttp(args.address)
   tp.notify_eof()
+  print(tp.compute_metric(["android_cpu"]))
   print(tp.status())
 
 
