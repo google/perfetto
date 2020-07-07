@@ -3291,6 +3291,9 @@ perfetto_gensignature_internal_only(
 perfetto_py_binary(
     name = "trace_processor_py_example",
     srcs = ["src/trace_processor/python/example.py"],
+    data = [
+        "src/trace_processor/python/trace_processor/trace_processor.descriptor"
+    ],
     deps = [":trace_processor_py"],
     main = "src/trace_processor/python/example.py",
     python_version = "PY3",

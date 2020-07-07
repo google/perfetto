@@ -24,6 +24,16 @@ class TraceProcessorHttp:
     self.protos = ProtoFactory()
     self.url = 'http://' + url
 
+  def compute_metric(self, metrics):
+    args = self.protos.ComputeMetricArgs()
+    args.metric_names.extend(metrics)
+    byte_data = args.SerializeToString()
+    req = request.Request(self.url + '/compute_metric', data=byte_data)
+    with request.urlopen(req) as f:
+      result = self.protos.ComputeMetricResult()
+      result.ParseFromString(f.read())
+      return result
+
   def parse(self, chunk):
     req = request.Request(self.url + '/parse', data=chunk)
     with request.urlopen(req) as f:
