@@ -202,6 +202,10 @@ track_event_counters.textproto track_event_slices.sql track_event_counters_slice
 track_event_counters.textproto track_event_counters.sql track_event_counters_counters.out
 track_event_monotonic_trace_clock.textproto track_event_slices.sql track_event_monotonic_trace_clock_slices.out
 
+# Chrome metrics (found in the trace_processor/chrome directory).
+../data/chrome_scroll_without_vsync.pftrace scroll_jank_general_validation.sql scroll_jank_general_validation.out
+../data/chrome_scroll_without_vsync.pftrace scroll_jank.sql scroll_jank.out
+
 # Parsing systrace files
 ../data/systrace.html systrace_html.sql systrace_html.out
 ../data/trailing_empty.systrace sched_smoke.sql sched_smoke_trailing_empty.out
