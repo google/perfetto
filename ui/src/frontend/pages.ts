@@ -39,6 +39,20 @@ class Alerts implements m.ClassComponent {
   }
 }
 
+class TraceErrors implements m.ClassComponent {
+  view() {
+    if (globals.traceErrors.length === 0) {
+      return m('.trace-error');
+    }
+    return m(
+        '.trace-error',
+        m('div',
+          'Errors occured importing trace: ',
+          m('br'),
+          m('ul', globals.traceErrors.map(error => m('li', error)))));
+  }
+}
+
 /**
  * Wrap component with common UI elements (nav bar etc).
  */
@@ -49,6 +63,7 @@ export function createPage(component: m.Component): m.Component {
         m(Sidebar),
         m(Topbar),
         m(Alerts),
+        m(TraceErrors),
         m(component),
       ];
       if (globals.frontendLocalState.perfDebug) {
