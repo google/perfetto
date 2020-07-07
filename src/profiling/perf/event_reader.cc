@@ -315,7 +315,10 @@ ParsedSample EventReader::ParseSampleRecord(uint32_t cpu,
   }
 
   if (event_attr_.sample_type & PERF_SAMPLE_STACK_USER) {
-    uint64_t max_stack_size;  // the requested size
+    // Maximum possible sampled stack size for this sample. Can be lower than
+    // the requested size if there wasn't enough room in the sample (which is
+    // limited to 64k).
+    uint64_t max_stack_size;
     parse_pos = ReadValue(&max_stack_size, parse_pos);
 
     const char* stack_start = parse_pos;
@@ -333,6 +336,9 @@ ParsedSample EventReader::ParseSampleRecord(uint32_t cpu,
       size_t payload_sz = static_cast<size_t>(filled_stack_size);
       sample.stack.resize(payload_sz);
       memcpy(sample.stack.data(), stack_start, payload_sz);
+
+      // remember whether the stack sample is (most likely) truncated
+      sample.stack_maxed = (filled_stack_size == max_stack_size);
     }
   }
 
