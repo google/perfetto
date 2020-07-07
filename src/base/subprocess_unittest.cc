@@ -171,7 +171,14 @@ TEST(SubprocessTest, StartAndWait) {
   EXPECT_EQ(p.returncode(), 128 + SIGKILL);
 }
 
-TEST(SubprocessTest, PollBehavesProperly) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) && defined(ADDRESS_SANITIZER)
+#define MAYBE_PollBehavesProperly DISABLED_PollBehavesProperly
+#else
+#define MAYBE_PollBehavesProperly PollBehavesProperly
+#endif
+
+// TODO(b/158484911): Re-enable once problem is fixed.
+TEST(SubprocessTest, MAYBE_PollBehavesProperly) {
   Subprocess p({"sh", "-c", "echo foobar"});
   p.args.stdout_mode = Subprocess::kBuffer;
   p.args.input = "ignored";
