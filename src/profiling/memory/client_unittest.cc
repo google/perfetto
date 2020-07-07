@@ -20,6 +20,7 @@
 
 #include "perfetto/base/thread_utils.h"
 #include "perfetto/ext/base/unix_socket.h"
+#include "src/profiling/memory/wire_protocol.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -48,6 +49,41 @@ TEST(ClientTest, IsMainThread) {
   std::thread th(
       [main_thread_id] { EXPECT_NE(main_thread_id, base::GetThreadId()); });
   th.join();
+}
+
+TEST(ClientTest, GetMaxTriesBlock) {
+  ClientConfiguration cfg = {};
+  cfg.block_client = true;
+  cfg.block_client_timeout_us = 200;
+  EXPECT_EQ(GetMaxTries(cfg), 2u);
+}
+
+TEST(ClientTest, GetMaxTriesBlockSmall) {
+  ClientConfiguration cfg = {};
+  cfg.block_client = true;
+  cfg.block_client_timeout_us = 99;
+  EXPECT_EQ(GetMaxTries(cfg), 1u);
+}
+
+TEST(ClientTest, GetMaxTriesBlockVerySmall) {
+  ClientConfiguration cfg = {};
+  cfg.block_client = true;
+  cfg.block_client_timeout_us = 1;
+  EXPECT_EQ(GetMaxTries(cfg), 1u);
+}
+
+TEST(ClientTest, GetMaxTriesBlockInfinite) {
+  ClientConfiguration cfg = {};
+  cfg.block_client = true;
+  cfg.block_client_timeout_us = 0;
+  EXPECT_EQ(GetMaxTries(cfg), kInfiniteTries);
+}
+
+TEST(ClientTest, GetMaxTriesNoBlock) {
+  ClientConfiguration cfg = {};
+  cfg.block_client = false;
+  cfg.block_client_timeout_us = 200;
+  EXPECT_EQ(GetMaxTries(cfg), 1u);
 }
 
 }  // namespace
