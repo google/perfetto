@@ -44,8 +44,7 @@ void ClockTracker::AddSnapshot(const std::vector<ClockValue>& clocks) {
   const auto snapshot_id = cur_snapshot_id_++;
 
   // Clear the cache
-  static_assert(std::is_trivial<decltype(cache_)>::value, "must be trivial");
-  memset(&cache_[0], 0, sizeof(cache_));
+  cache_.fill({});
 
   // Compute the fingerprint of the snapshot by hashing all clock ids. This is
   // used by the clock pathfinding logic.
