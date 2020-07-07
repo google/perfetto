@@ -327,6 +327,17 @@ CompletedSample Unwinder::UnwindSample(const ParsedSample& sample,
     if (error_code != unwindstack::ERROR_INVALID_MAP)
       break;
 
+    // Special case: do not reparse the maps if the stack sample was (most
+    // likely) truncated. The perf interface limits the size of the userspace
+    // stack that can be sampled. We perform the best-effort unwind of the
+    // sampled part. It is not unexpected if the unwinder gets "lost" due to the
+    // truncation, which will be reported as outdated /proc/pid/maps.
+    if (sample.stack_maxed) {
+      PERFETTO_DLOG("Skipping reparse/reunwind due to maxed stack for pid [%d]",
+                    static_cast<int>(sample.pid));
+      break;
+    }
+
     // Otherwise, reparse the maps, and possibly retry the unwind.
     PERFETTO_DLOG("Reparsing maps for pid [%d]", static_cast<int>(sample.pid));
     PERFETTO_METATRACE_SCOPED(TAG_PRODUCER, PROFILER_MAPS_REPARSE);
