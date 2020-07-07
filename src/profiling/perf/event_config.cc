@@ -181,7 +181,10 @@ EventConfig::EventConfig(const protos::pbzero::PerfEventConfig::Decoder& cfg,
   pe.use_clockid = true;
   // PERF_SAMPLE_STACK_USER:
   // Needs to be < ((u16)(~0u)), and have bottom 8 bits clear.
-  pe.sample_stack_user = (1u << 15);
+  // Note that the kernel still needs to make space for the other parts of the
+  // sample (up to the max record size of 64k), so the effective maximum
+  // can be lower than this.
+  pe.sample_stack_user = (1u << 16) - 256;
   // PERF_SAMPLE_REGS_USER:
   pe.sample_regs_user =
       PerfUserRegsMaskForArch(unwindstack::Regs::CurrentArch());

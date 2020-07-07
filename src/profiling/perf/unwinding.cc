@@ -303,58 +303,82 @@ CompletedSample Unwinder::UnwindSample(const ParsedSample& sample,
           reinterpret_cast<const uint8_t*>(sample.stack.data()),
           sample.stack.size());
 
-  // Unwindstack clobbers registers, so make a copy in case we need to retry.
-  auto regs_copy = std::unique_ptr<unwindstack::Regs>{sample.regs->Clone()};
+  struct UnwindResult {
+    unwindstack::ErrorCode error_code;
+    std::vector<unwindstack::FrameData> frames;
 
-  unwindstack::ErrorCode error_code = unwindstack::ERROR_NONE;
-  unwindstack::Unwinder unwinder(kUnwindingMaxFrames, &unwind_state->fd_maps,
-                                 regs_copy.get(), overlay_memory);
-
-  // TODO(rsavitski): consider rate-limiting unwind retries.
-  for (int attempt = 0; attempt < 2; attempt++) {
+    UnwindResult(unwindstack::ErrorCode e,
+                 std::vector<unwindstack::FrameData> f)
+        : error_code(e), frames(std::move(f)) {}
+    UnwindResult(const UnwindResult&) = delete;
+    UnwindResult& operator=(const UnwindResult&) = delete;
+    UnwindResult(UnwindResult&&) = default;
+    UnwindResult& operator=(UnwindResult&&) = default;
+  };
+  auto attempt_unwind = [&sample, unwind_state, pid_unwound_before,
+                         &overlay_memory]() -> UnwindResult {
     metatrace::ScopedEvent m(metatrace::TAG_PRODUCER,
                              pid_unwound_before
                                  ? metatrace::PROFILER_UNWIND_ATTEMPT
                                  : metatrace::PROFILER_UNWIND_INITIAL_ATTEMPT);
 
+    // Unwindstack clobbers registers, so make a copy in case of retries.
+    auto regs_copy = std::unique_ptr<unwindstack::Regs>{sample.regs->Clone()};
+
+    unwindstack::Unwinder unwinder(kUnwindingMaxFrames, &unwind_state->fd_maps,
+                                   regs_copy.get(), overlay_memory);
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
     unwinder.SetJitDebug(unwind_state->jit_debug.get(), regs_copy->Arch());
     unwinder.SetDexFiles(unwind_state->dex_files.get(), regs_copy->Arch());
 #endif
     unwinder.Unwind(/*initial_map_names_to_skip=*/nullptr,
                     /*map_suffixes_to_ignore=*/nullptr);
-    error_code = unwinder.LastErrorCode();
-    if (error_code != unwindstack::ERROR_INVALID_MAP)
-      break;
+    return {unwinder.LastErrorCode(), unwinder.ConsumeFrames()};
+  };
 
-    // Otherwise, reparse the maps, and possibly retry the unwind.
-    PERFETTO_DLOG("Reparsing maps for pid [%d]", static_cast<int>(sample.pid));
-    PERFETTO_METATRACE_SCOPED(TAG_PRODUCER, PROFILER_MAPS_REPARSE);
-    unwind_state->ReparseMaps();
+  // first unwind attempt
+  UnwindResult unwind = attempt_unwind();
+
+  // ERROR_INVALID_MAP means that unwinding reached a point in memory without a
+  // corresponding mapping. This is possible if the parsed /proc/pid/maps is
+  // outdated. Reparse and try again.
+  //
+  // Special case: skip reparsing if the stack sample was (most likely)
+  // truncated. We perform the best-effort unwind of the sampled part, but an
+  // error around the truncated part is not unexpected.
+  //
+  // TODO(rsavitski): consider rate-limiting unwind retries.
+  if (unwind.error_code == unwindstack::ERROR_INVALID_MAP &&
+      sample.stack_maxed) {
+    PERFETTO_DLOG("Skipping reparse/reunwind due to maxed stack for tid [%d]",
+                  static_cast<int>(sample.tid));
+  } else if (unwind.error_code == unwindstack::ERROR_INVALID_MAP) {
+    {
+      PERFETTO_METATRACE_SCOPED(TAG_PRODUCER, PROFILER_MAPS_REPARSE);
+      PERFETTO_DLOG("Reparsing maps for pid [%d]",
+                    static_cast<int>(sample.pid));
+      unwind_state->ReparseMaps();
+    }
+    // reunwind attempt
+    unwind = attempt_unwind();
   }
 
-  PERFETTO_DLOG("Frames from unwindstack for pid [%d]:",
-                static_cast<int>(sample.pid));
-  std::vector<unwindstack::FrameData> frames = unwinder.ConsumeFrames();
-  ret.frames.reserve(frames.size());
-  for (unwindstack::FrameData& frame : frames) {
-    if (PERFETTO_DLOG_IS_ON())
-      PERFETTO_DLOG("%s", unwinder.FormatFrame(frame).c_str());
-
+  ret.frames.reserve(unwind.frames.size());
+  for (unwindstack::FrameData& frame : unwind.frames) {
     ret.frames.emplace_back(unwind_state->AnnotateFrame(std::move(frame)));
   }
 
   // In case of an unwinding error, add a synthetic error frame (which will
   // appear as a caller of the partially-unwound fragment), for easier
   // visualization of errors.
-  if (error_code != unwindstack::ERROR_NONE) {
-    PERFETTO_DLOG("Unwinding error %" PRIu8, error_code);
+  if (unwind.error_code != unwindstack::ERROR_NONE) {
+    PERFETTO_DLOG("Unwinding error %" PRIu8, unwind.error_code);
     unwindstack::FrameData frame_data{};
     frame_data.function_name =
-        "ERROR " + StringifyLibUnwindstackError(error_code);
+        "ERROR " + StringifyLibUnwindstackError(unwind.error_code);
     frame_data.map_name = "ERROR";
     ret.frames.emplace_back(std::move(frame_data), /*build_id=*/"");
-    ret.unwind_error = error_code;
+    ret.unwind_error = unwind.error_code;
   }
 
   return ret;
