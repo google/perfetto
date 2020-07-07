@@ -23,7 +23,8 @@ import {ControllerAny} from './controller';
 type PublishKinds = 'OverviewData'|'TrackData'|'Threads'|'QueryResult'|
     'LegacyTrace'|'SliceDetails'|'CounterDetails'|'HeapProfileDetails'|
     'HeapProfileFlamegraph'|'FileDownload'|'Loading'|'Search'|'BufferUsage'|
-    'RecordingLog'|'SearchResult'|'AggregateData'|'CpuProfileDetails';
+    'RecordingLog'|'SearchResult'|'AggregateData'|'CpuProfileDetails'|
+    'TraceErrors';
 
 export interface App {
   state: State;
