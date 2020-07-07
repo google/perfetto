@@ -55,6 +55,7 @@ sql_files = [
   "android/unmapped_java_symbols.sql",
   "android/unsymbolized_frames.sql",
   "chrome/chrome_processes.sql",
+  "chrome/scroll_jank.sql",
   "webview/webview_power_usage.sql",
 ]
 
