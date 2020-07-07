@@ -393,6 +393,8 @@ int64_t Client::SendWireMessageWithRetriesIfBlocking(const WireMessage& msg) {
       break;
     }
   }
+  if (IsConnected())
+    shmem_.SetHitTimeout();
   PERFETTO_PLOG("Failed to write to shared ring buffer. Disconnecting.");
   return -1;
 }
