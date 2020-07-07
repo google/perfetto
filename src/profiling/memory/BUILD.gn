@@ -97,6 +97,9 @@ source_set("client_ext") {
     "../common:proc_utils",
   ]
   sources = [ "client_ext.cc" ]
+  if (perfetto_build_with_android) {
+    sources += [ "client_ext_android.cc" ]
+  }
 }
 
 source_set("wire_protocol") {
