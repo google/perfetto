@@ -36,3 +36,7 @@ class ProtoFactory:
       return message_factory.MessageFactory().GetPrototype(message_desc)
 
     self.StatusResult = create_message_factory('perfetto.protos.StatusResult')
+    self.ComputeMetricArgs = create_message_factory(
+        'perfetto.protos.ComputeMetricArgs')
+    self.ComputeMetricResult = create_message_factory(
+        'perfetto.protos.ComputeMetricResult')
