@@ -296,13 +296,13 @@ instead, incorrect rows will silently be produced.
 
 ### Ancestor slice
 ancestor_slice is a custom operator table that takes a
-[slice table's id column](/docs/analysis/sql-tables#slice) and computes all
-slices on the same track that are direct parents above that id (i.e. given a
-slice id it will return as rows all slices that can be found by following the
-parent_id column to the top slice (depth = 0)).
+[slice table's id column](/docs/analysis/sql-tables.autogen#slice) and computes
+all slices on the same track that are direct parents above that id (i.e. given
+a slice id it will return as rows all slices that can be found by following
+the parent_id column to the top slice (depth = 0)).
 
 The returned format is the same as the
-[slice table](/docs/analysis/sql-tables#slice)
+[slice table](/docs/analysis/sql-tables.autogen#slice)
 
 For example, the following finds the top level slice given a bunch of slices of
 interest.
@@ -321,13 +321,13 @@ FROM
 
 ### Descendant slice
 descendant_slice is a custom operator table that takes a
-[slice table's id column](/docs/analysis/sql-tables#slice) and computes all
-slices on the same track that are nested under that id (i.e. all slices that
-are on the same track at the same time frame with a depth greater than the given
-slice's depth.
+[slice table's id column](/docs/analysis/sql-tables.autogen#slice) and
+computes all slices on the same track that are nested under that id (i.e.
+all slices that are on the same track at the same time frame with a depth
+greater than the given slice's depth.
 
 The returned format is the same as the
-[slice table](/docs/analysis/sql-tables#slice)
+[slice table](/docs/analysis/sql-tables.autogen#slice)
 
 For example, the following finds the number of slices under each slice of
 interest.
