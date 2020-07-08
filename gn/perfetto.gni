@@ -203,6 +203,12 @@ declare_args() {
   # none ("off"). We disable it by default for embedders to avoid spamming their
   # console.
   perfetto_force_dlog = perfetto_force_dlog_default
+
+  # Installs a signal handler for the most common crash signals which unwinds
+  # the stack and prints the stack trace on stderr. Requires a dependency on
+  # libbacktrace when enabled.
+  enable_perfetto_stderr_crash_dump =
+      is_debug && perfetto_build_standalone && !is_wasm
 }
 
 declare_args() {
