@@ -290,6 +290,15 @@ void HttpServer::HandleRequest(Client* client, const HttpRequest& req) {
     return HttpReply(client->sock.get(), "200 OK", headers);
   }
 
+  if (req.uri == "/query") {
+    // TODO(primiano): implement chunking here.
+    PERFETTO_CHECK(req.body.size() > 0u);
+    std::vector<uint8_t> response = trace_processor_rpc_.Query(
+        reinterpret_cast<const uint8_t*>(req.body.data()), req.body.size());
+    return HttpReply(client->sock.get(), "200 OK", headers, response.data(),
+                     response.size());
+  }
+
   if (req.uri == "/raw_query") {
     PERFETTO_CHECK(req.body.size() > 0u);
     std::vector<uint8_t> response = trace_processor_rpc_.RawQuery(
