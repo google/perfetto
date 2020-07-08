@@ -13,8 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-CREATE TABLE surpress_output AS
-SELECT RUN_METRIC('android/android_surfaceflinger.sql');
+SELECT RUN_METRIC('android/android_surfaceflinger.sql') AS suppress_query_output;
 
 SELECT ts, dur
 FROM android_surfaceflinger_event;

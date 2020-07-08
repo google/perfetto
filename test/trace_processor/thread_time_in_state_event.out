@@ -1,5 +1,4 @@
 
-
 "track_type","track_name","ts","dur","upid","value"
 "counter","Total big core cycles / sec",2000000000,1000000000,0,1000
 "counter","Total little core cycles / sec",2000000000,1000000000,0,100
