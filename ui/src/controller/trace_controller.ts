@@ -866,7 +866,8 @@ export class TraceController extends Controller<States> {
     const sqlQuery = `select utid, tid, pid, thread.name,
         ifnull(
           case when length(process.name) > 0 then process.name else null end,
-          thread.name)
+          thread.name),
+        process.cmdline
         from (select * from thread order by upid) as thread
         left join (select * from process order by upid) as process
         using(upid)`;
@@ -878,7 +879,8 @@ export class TraceController extends Controller<States> {
       const pid = threadRows.columns[2].longValues![i];
       const threadName = threadRows.columns[3].stringValues![i];
       const procName = threadRows.columns[4].stringValues![i];
-      threads.push({utid, tid, threadName, pid, procName});
+      const cmdline = threadRows.columns[5].stringValues![i];
+      threads.push({utid, tid, threadName, pid, procName, cmdline});
     }  // for (record ...)
     globals.publish('Threads', threads);
   }

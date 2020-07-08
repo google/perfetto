@@ -19,6 +19,7 @@
 #include <set>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/traced/sys_stats_counters.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
@@ -216,14 +217,24 @@ void SystemProbesParser::ParseProcessTree(ConstBytes blob) {
     // If the parent pid is kthreadd's pid, even though this pid is of a
     // "process", we want to treat it as being a child thread of kthreadd.
     if (ppid == kKthreaddPid) {
-      context_->process_tracker->SetProcessMetadata(kKthreaddPid, base::nullopt,
-                                                    kKthreaddName);
+      context_->process_tracker->SetProcessMetadata(
+          kKthreaddPid, base::nullopt, kKthreaddName, base::StringView());
       context_->process_tracker->UpdateThread(pid, kKthreaddPid);
     } else {
-      auto args = proc.cmdline();
-      base::StringView argv0 = args ? *args : base::StringView();
-      UniquePid upid =
-          context_->process_tracker->SetProcessMetadata(pid, ppid, argv0);
+      auto raw_cmdline = proc.cmdline();
+      base::StringView argv0 = raw_cmdline ? *raw_cmdline : base::StringView();
+
+      std::string cmdline_str;
+      for (auto cmdline_it = raw_cmdline; cmdline_it;) {
+        auto cmdline_part = *cmdline_it;
+        cmdline_str.append(cmdline_part.data, cmdline_part.size);
+
+        if (++cmdline_it)
+          cmdline_str.append(" ");
+      }
+      base::StringView cmdline = base::StringView(cmdline_str);
+      UniquePid upid = context_->process_tracker->SetProcessMetadata(
+          pid, ppid, argv0, cmdline);
       if (proc.has_uid()) {
         context_->process_tracker->SetProcessUid(
             upid, static_cast<uint32_t>(proc.uid()));
