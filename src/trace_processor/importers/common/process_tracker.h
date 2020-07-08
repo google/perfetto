@@ -91,7 +91,8 @@ class ProcessTracker {
   // Virtual for testing.
   virtual UniquePid SetProcessMetadata(uint32_t pid,
                                        base::Optional<uint32_t> ppid,
-                                       base::StringView name);
+                                       base::StringView name,
+                                       base::StringView cmdline);
 
   // Sets the process user id.
   void SetProcessUid(UniquePid upid, uint32_t uid);
