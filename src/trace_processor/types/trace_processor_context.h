@@ -45,6 +45,7 @@ class TraceSorter;
 class TraceStorage;
 class TrackTracker;
 class JsonTracker;
+class ProtoToArgsTable;
 
 class TraceProcessorContext {
  public:
@@ -99,6 +100,9 @@ class TraceProcessorContext {
   // are only available in the storage_full target.
   std::unique_ptr<TraceParser> json_trace_parser;
   std::unique_ptr<TraceParser> fuchsia_trace_parser;
+
+  // Reflection-based proto parser used to convert TrackEvent fields into SQL.
+  std::unique_ptr<ProtoToArgsTable> proto_to_args_table_;
 
   // The module at the index N is registered to handle field id N in
   // TracePacket.

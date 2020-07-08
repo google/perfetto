@@ -31,6 +31,7 @@ proto_sources_non_minimal = [
   "test_event.proto",
   "trace_packet.proto",
   "trace.proto",
+  "extension_descriptor.proto",
 ]
 
 proto_sources_minimal = [
@@ -109,7 +110,7 @@ if (perfetto_build_standalone) {
   perfetto_proto_library("descriptor") {
     proto_generators = [ "descriptor" ]
     generate_descriptor = "trace.descriptor"
-    sources = [ "trace.proto" ]
+    sources = [ "perfetto_trace.proto" ]
   }
 }
 

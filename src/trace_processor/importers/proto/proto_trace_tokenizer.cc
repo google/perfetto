@@ -31,6 +31,7 @@
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
 #include "src/trace_processor/importers/gzip/gzip_utils.h"
+#include "src/trace_processor/importers/proto/args_table_utils.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
 #include "src/trace_processor/importers/proto/proto_incremental_state.h"
 #include "src/trace_processor/storage/stats.h"
@@ -40,6 +41,7 @@
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
+#include "protos/perfetto/trace/extension_descriptor.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -181,6 +183,19 @@ util::Status ProtoTraceTokenizer::ParseInternal(
   return util::OkStatus();
 }
 
+util::Status ProtoTraceTokenizer::ParseExtensionDescriptor(
+    ConstBytes descriptor) {
+  protos::pbzero::ExtensionDescriptor::Decoder decoder(descriptor.data,
+                                                       descriptor.size);
+
+  for (auto extension = decoder.extension_file(); extension; extension++) {
+    context_->proto_to_args_table_->AddExtensionFileDescriptor(
+        extension->data(), extension->size());
+  }
+
+  return util::OkStatus();
+}
+
 util::Status ProtoTraceTokenizer::ParsePacket(TraceBlobView packet) {
   protos::pbzero::TracePacket::Decoder decoder(packet.data(), packet.length());
   if (PERFETTO_UNLIKELY(decoder.bytes_left()))
@@ -217,6 +232,10 @@ util::Status ProtoTraceTokenizer::ParsePacket(TraceBlobView packet) {
   if (decoder.has_clock_snapshot()) {
     return ParseClockSnapshot(decoder.clock_snapshot(),
                               decoder.trusted_packet_sequence_id());
+  }
+
+  if (decoder.has_extension_descriptor()) {
+    return ParseExtensionDescriptor(decoder.extension_descriptor());
   }
 
   if (decoder.sequence_flags() &
