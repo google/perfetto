@@ -44,20 +44,18 @@ class ProcessTrackerTest : public ::testing::Test {
 };
 
 TEST_F(ProcessTrackerTest, PushProcess) {
-  TraceStorage storage;
-  context.process_tracker->SetProcessMetadata(1, base::nullopt, "test");
+  context.process_tracker->SetProcessMetadata(1, base::nullopt, "test",
+                                              base::StringView());
   auto pair_it = context.process_tracker->UpidsForPidForTesting(1);
   ASSERT_EQ(pair_it.first->second, 1u);
 }
 
 TEST_F(ProcessTrackerTest, GetOrCreateNewProcess) {
-  TraceStorage storage;
   auto upid = context.process_tracker->GetOrCreateProcess(123);
   ASSERT_EQ(context.process_tracker->GetOrCreateProcess(123), upid);
 }
 
 TEST_F(ProcessTrackerTest, StartNewProcess) {
-  TraceStorage storage;
   auto upid =
       context.process_tracker->StartNewProcess(1000, 0u, 123, kNullStringId);
   ASSERT_EQ(context.process_tracker->GetOrCreateProcess(123), upid);
@@ -65,16 +63,20 @@ TEST_F(ProcessTrackerTest, StartNewProcess) {
 }
 
 TEST_F(ProcessTrackerTest, PushTwoProcessEntries_SamePidAndName) {
-  context.process_tracker->SetProcessMetadata(1, base::nullopt, "test");
-  context.process_tracker->SetProcessMetadata(1, base::nullopt, "test");
+  context.process_tracker->SetProcessMetadata(1, base::nullopt, "test",
+                                              base::StringView());
+  context.process_tracker->SetProcessMetadata(1, base::nullopt, "test",
+                                              base::StringView());
   auto pair_it = context.process_tracker->UpidsForPidForTesting(1);
   ASSERT_EQ(pair_it.first->second, 1u);
   ASSERT_EQ(++pair_it.first, pair_it.second);
 }
 
 TEST_F(ProcessTrackerTest, PushTwoProcessEntries_DifferentPid) {
-  context.process_tracker->SetProcessMetadata(1, base::nullopt, "test");
-  context.process_tracker->SetProcessMetadata(3, base::nullopt, "test");
+  context.process_tracker->SetProcessMetadata(1, base::nullopt, "test",
+                                              base::StringView());
+  context.process_tracker->SetProcessMetadata(3, base::nullopt, "test",
+                                              base::StringView());
   auto pair_it = context.process_tracker->UpidsForPidForTesting(1);
   ASSERT_EQ(pair_it.first->second, 1u);
   auto second_pair_it = context.process_tracker->UpidsForPidForTesting(3);
@@ -82,7 +84,8 @@ TEST_F(ProcessTrackerTest, PushTwoProcessEntries_DifferentPid) {
 }
 
 TEST_F(ProcessTrackerTest, AddProcessEntry_CorrectName) {
-  context.process_tracker->SetProcessMetadata(1, base::nullopt, "test");
+  context.process_tracker->SetProcessMetadata(1, base::nullopt, "test",
+                                              base::StringView());
   auto name =
       context.storage->GetString(context.storage->process_table().name()[1]);
   ASSERT_EQ(name, "test");
@@ -118,6 +121,13 @@ TEST_F(ProcessTrackerTest, PidReuseWithoutStartAndEndThread) {
   ASSERT_EQ(context.storage->process_table().row_count(), 3u);
   // We expect 5 threads: Invalid thread, 2x (main thread + sub thread).
   ASSERT_EQ(context.storage->thread_table().row_count(), 5u);
+}
+
+TEST_F(ProcessTrackerTest, Cmdline) {
+  UniquePid upid = context.process_tracker->SetProcessMetadata(
+      1, base::nullopt, "test", "cmdline blah");
+  ASSERT_EQ(context.storage->process_table().cmdline().GetString(upid),
+            "cmdline blah");
 }
 
 }  // namespace

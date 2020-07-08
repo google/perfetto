@@ -58,6 +58,7 @@ export class SliceDetailsPanel extends Panel {
                   m('i.material-icons.grey',
                     {onclick: () => this.goToThread(), title: 'Go to thread'},
                     'call_made'))),
+              m('tr', m('th', `Cmdline`), m('td', threadInfo.cmdline)),
               m('tr',
                 m('th', `Start time`),
                 m('td', `${timeToCode(sliceInfo.ts)}`)),
