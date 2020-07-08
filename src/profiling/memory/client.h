@@ -35,8 +35,10 @@
 namespace perfetto {
 namespace profiling {
 
+uint64_t GetMaxTries(const ClientConfiguration& client_config);
 const char* GetThreadStackBase();
 
+constexpr uint64_t kInfiniteTries = 0;
 constexpr uint32_t kClientSockTimeoutMs = 1000;
 
 // Profiling client, used to sample and record the malloc/free family of calls,
