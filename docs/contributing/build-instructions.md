@@ -165,5 +165,15 @@ Enables [Thread Sanitizer](https://github.com/google/sanitizers/wiki/ThreadSanit
 `is_ubsan = true`:  
 Enables [Undefined Behavior Sanitizer](https://clang.llvm.org/docs/UndefinedBehaviorSanitizer.html)
 
+`extra_{cflags,cxxflags, ldflags} = "-fXXX"`:  
+This is the moral equivalent of the common Makefile practice:
+`CFLAGS=...` `CXXFLAGS=...` `LDFLAGS=...`.
+If you want to propagate these env variables into GN, set:
+`extra_cxxflags=\"$CXXFLAGS\"`.
+See the [build_fuzzers](/infra/oss-fuzz/build_fuzzers) script for an example.
+Note that these flags will be appended both to target and host toolchains.
+If you want to append flags only to one toolchain use, respectively,
+`extra_target_{cflags,cxxflags,ldflags}` and
+`extra_host_{cflags,cxxflags,ldflags}`.
 
 [gn-quickstart]: https://gn.googlesource.com/gn/+/master/docs/quick_start.md
