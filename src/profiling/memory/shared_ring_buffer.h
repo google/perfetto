@@ -84,6 +84,7 @@ class SharedRingBuffer {
 
     // Fields below get set by GetStats as copies of atomics in MetadataPage.
     uint64_t failed_spinlocks;
+    bool hit_timeout;
   };
 
   static base::Optional<SharedRingBuffer> Create(size_t);
@@ -110,8 +111,11 @@ class SharedRingBuffer {
     Stats stats = meta_->stats;
     stats.failed_spinlocks =
         meta_->failed_spinlocks.load(std::memory_order_relaxed);
+    stats.hit_timeout = meta_->hit_timeout.load(std::memory_order_relaxed);
     return stats;
   }
+
+  void SetHitTimeout() { meta_->hit_timeout.store(true); }
 
   // This is used by the caller to be able to hold the SpinLock after
   // BeginWrite has returned. This is so that additional bookkeeping can be
@@ -130,6 +134,7 @@ class SharedRingBuffer {
     std::atomic<uint64_t> write_pos;
 
     std::atomic<uint64_t> failed_spinlocks;
+    alignas(uint64_t) std::atomic<bool> hit_timeout;
     // For stats that are only accessed by a single thread or under the
     // spinlock, members of this struct are directly modified. Other stats use
     // the atomics above this struct.
