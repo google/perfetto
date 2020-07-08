@@ -86,6 +86,7 @@ export interface ThreadDesc {
   threadName: string;
   pid?: number;
   procName?: string;
+  cmdline?: string;
 }
 type ThreadMap = Map<number, ThreadDesc>;
 

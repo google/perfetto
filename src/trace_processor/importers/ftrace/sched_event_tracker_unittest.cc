@@ -125,7 +125,8 @@ TEST_F(SchedEventTrackerTest, UpdateThreadMatch) {
                                  prio, prev_state,
                                  /*tid=*/1, kCommProc2, prio);
 
-  context.process_tracker->SetProcessMetadata(2, base::nullopt, "test");
+  context.process_tracker->SetProcessMetadata(2, base::nullopt, "test",
+                                              base::StringView());
   context.process_tracker->UpdateThread(4, 2);
 
   ASSERT_EQ(context.storage->thread_table().tid()[1], 4u);
