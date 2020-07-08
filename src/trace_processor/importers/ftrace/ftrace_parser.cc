@@ -820,8 +820,8 @@ void FtraceParser::ParseTaskNewTask(int64_t ts,
   }
 
   if (source_tid == kKthreaddPid) {
-    context_->process_tracker->SetProcessMetadata(kKthreaddPid, base::nullopt,
-                                                  kKthreaddName);
+    context_->process_tracker->SetProcessMetadata(
+        kKthreaddPid, base::nullopt, kKthreaddName, base::StringView());
   }
 
   // This is a pthread_create or similar. Bind the two threads together, so
