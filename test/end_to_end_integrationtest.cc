@@ -65,7 +65,7 @@ using ::testing::ContainsRegex;
 using ::testing::ElementsAreArray;
 using ::testing::HasSubstr;
 
-constexpr size_t kBuiltinPackets = 8;
+constexpr size_t kBuiltinPackets = 12;
 
 std::string RandomTraceFileName() {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
