@@ -86,18 +86,16 @@ int UnsetDumpable(int) {
   return 0;
 }
 
-constexpr uint64_t kInfiniteTries = 0;
+}  // namespace
 
 uint64_t GetMaxTries(const ClientConfiguration& client_config) {
   if (!client_config.block_client)
     return 1u;
   if (client_config.block_client_timeout_us == 0)
     return kInfiniteTries;
-  return std::min<uint64_t>(
+  return std::max<uint64_t>(
       1ul, client_config.block_client_timeout_us / kResendBackoffUs);
 }
-
-}  // namespace
 
 const char* GetThreadStackBase() {
   pthread_attr_t attr;
