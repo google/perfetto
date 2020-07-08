@@ -232,7 +232,8 @@ UniquePid ProcessTracker::StartNewProcess(base::Optional<int64_t> timestamp,
 
 UniquePid ProcessTracker::SetProcessMetadata(uint32_t pid,
                                              base::Optional<uint32_t> ppid,
-                                             base::StringView name) {
+                                             base::StringView name,
+                                             base::StringView cmdline) {
   auto proc_name_id = context_->storage->InternString(name);
 
   base::Optional<UniquePid> pupid;
@@ -244,6 +245,8 @@ UniquePid ProcessTracker::SetProcessMetadata(uint32_t pid,
 
   auto* process_table = context_->storage->mutable_process_table();
   process_table->mutable_name()->Set(upid, proc_name_id);
+  process_table->mutable_cmdline()->Set(
+      upid, context_->storage->InternString(cmdline));
 
   if (pupid)
     process_table->mutable_parent_upid()->Set(upid, *pupid);

@@ -140,7 +140,8 @@ util::Status SystraceTraceParser::Parse(std::unique_ptr<uint8_t[]> owned_buf,
             PERFETTO_ELOG("Could not parse line '%s'", buffer.c_str());
             return util::ErrStatus("Could not parse PROCESS DUMP line");
           }
-          ctx_->process_tracker->SetProcessMetadata(pid.value(), ppid, name);
+          ctx_->process_tracker->SetProcessMetadata(pid.value(), ppid, name,
+                                                    base::StringView());
         } else if (state_ == ParseState::kProcessDumpShort &&
                    tokens.size() >= 4) {
           // Format is:
