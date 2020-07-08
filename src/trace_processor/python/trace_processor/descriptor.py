@@ -19,6 +19,10 @@ import os
 # This function lives in its own module to allow us to use a different
 # mechanism of loading depending on the build system.
 def read_descriptor():
-  ws = os.path.dirname(__file__)
-  with open(os.path.join(ws, 'trace_processor.descriptor'), 'rb') as x:
-    return x.read()
+  try:
+    from .descriptor_vendor import read_tp_descriptor
+    return read_tp_descriptor()
+  except ModuleNotFoundError:
+    ws = os.path.dirname(__file__)
+    with open(os.path.join(ws, 'trace_processor.descriptor'), 'rb') as x:
+      return x.read()
