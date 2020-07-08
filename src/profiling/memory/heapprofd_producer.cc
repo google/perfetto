@@ -1097,8 +1097,7 @@ void HeapprofdProducer::HandleSocketDisconnected(
     return;
   ProcessState& process_state = process_state_it->second;
   process_state.disconnected = !ds.shutting_down;
-  process_state.buffer_overran =
-      stats.num_writes_overflow > 0 && !ds.config.block_client();
+  process_state.buffer_overran = stats.hit_timeout;
   process_state.buffer_corrupted =
       stats.num_writes_corrupt > 0 || stats.num_reads_corrupt > 0;
 
