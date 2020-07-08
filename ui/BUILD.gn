@@ -61,7 +61,7 @@ ui_dist_targets = [
   ":wasm_dist",
 ]
 
-# Buils the ui, but not service worker, tests and extensions.
+# Builds the ui, but not service worker, tests and extensions.
 group("dist") {
   deps = ui_dist_targets
 }

@@ -30,7 +30,7 @@ filesystem.
 
 On Linux and Android, Perfetto bundles a number of data sources that are able to
 gather detailed performance data from different system interfaces. For the full
-sets and details see the _Data Sources_ section of the documentation. Same
+sets and details see the _Data Sources_ section of the documentation. Some
 examples:
 
 * [Kernel tracing](/docs/data-sources/cpu-scheduling.md): Perfetto integrates
