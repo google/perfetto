@@ -646,7 +646,6 @@ util::Status RunQueryWithoutOutput(const std::vector<std::string>& queries) {
 util::Status RunQueryAndPrintResult(const std::vector<std::string>& queries,
                                     FILE* output) {
   bool is_first_query = true;
-  bool is_query_error = false;
   bool has_output = false;
   for (const auto& sql_query : queries) {
     // Add an extra newline separator between query results.
@@ -659,9 +658,8 @@ util::Status RunQueryAndPrintResult(const std::vector<std::string>& queries,
     auto it = g_tp->ExecuteQuery(sql_query);
     util::Status status = it.Status();
     if (!status.ok()) {
-      PERFETTO_ELOG("SQLite error: %s", status.c_message());
-      is_query_error = true;
-      break;
+      return util::ErrStatus("Encountered error while running queries: %s",
+                             status.c_message());
     }
     if (it.ColumnCount() == 0) {
       bool it_has_more = it.Next();
@@ -669,24 +667,42 @@ util::Status RunQueryAndPrintResult(const std::vector<std::string>& queries,
       continue;
     }
 
+    // If we have a single column with the name |suppress_query_output| that's
+    // a hint to shell that it should not treat the query as having real
+    // meaning.
+    if (it.ColumnCount() == 1 &&
+        it.GetColumnName(0) == "suppress_query_output") {
+      // We should only see a single null value as this feature is usually used
+      // as SELECT RUN_METRIC(<metric file>) as suppress_query_output and
+      // RUN_METRIC returns a single null.
+      bool has_next = it.Next();
+      PERFETTO_DCHECK(has_next);
+      PERFETTO_DCHECK(it.Get(0).is_null());
+
+      has_next = it.Next();
+      PERFETTO_DCHECK(!has_next);
+
+      status = it.Status();
+      if (!status.ok()) {
+        return util::ErrStatus("Encountered error while running queries: %s",
+                               status.c_message());
+      }
+      continue;
+    }
+
     if (has_output) {
-      PERFETTO_ELOG(
-          "More than one query generated result rows. This is "
-          "unsupported.");
-      is_query_error = true;
-      break;
+      return util::ErrStatus(
+          "More than one query generated result rows. This is unsupported.");
     }
     status = PrintQueryResultAsCsv(&it, output);
     has_output = true;
 
     if (!status.ok()) {
-      PERFETTO_ELOG("SQLite error: %s", status.c_message());
-      is_query_error = true;
+      return util::ErrStatus("Encountered error while running queries: %s",
+                             status.c_message());
     }
   }
-  return is_query_error
-             ? util::ErrStatus("Encountered errors while running queries")
-             : util::OkStatus();
+  return util::OkStatus();
 }
 
 util::Status PrintPerfFile(const std::string& perf_file_path,

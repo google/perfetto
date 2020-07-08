@@ -14,9 +14,8 @@
 -- limitations under the License.
 --
 -- Create so that RUN_METRIC will run without outputting any rows.
-CREATE TABLE TEST_TMP AS
-SELECT RUN_METRIC('android/android_thread_time_in_state.sql');
-DROP TABLE TEST_TMP;
+SELECT RUN_METRIC('android/android_thread_time_in_state.sql')
+    AS suppress_query_output;
 
 SELECT * FROM android_thread_time_in_state_event
 ORDER BY ts, upid, track_name;
