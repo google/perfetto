@@ -24,7 +24,6 @@
 --          active development and the values & meaning might change without
 --          notice.
 
-
 -- Get all chrome processes and threads tables set up.
 SELECT RUN_METRIC('chrome/chrome_processes.sql');
 
