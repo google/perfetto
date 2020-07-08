@@ -22,6 +22,7 @@
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
+#include "src/trace_processor/rpc/query_result_serializer.h"
 #include "src/trace_processor/tp_metatrace.h"
 
 namespace perfetto {
@@ -79,6 +80,32 @@ void Rpc::MaybePrintProgress() {
             (eof_ ? "\n" : ""));
     fflush(stderr);
   }
+}
+
+std::vector<uint8_t> Rpc::Query(const uint8_t* args, size_t len) {
+  protos::pbzero::RawQueryArgs::Decoder query(args, len);
+  std::string sql = query.sql_query().ToStdString();
+  PERFETTO_DLOG("[RPC] Query < %s", sql.c_str());
+  PERFETTO_TP_TRACE("RPC_QUERY",
+                    [&](metatrace::Record* r) { r->AddArg("SQL", sql); });
+
+  if (!trace_processor_) {
+    static const char kErr[] = "Query() called before Parse()";
+    PERFETTO_ELOG("[RPC] %s", kErr);
+    protozero::HeapBuffered<protos::pbzero::QueryResult> result;
+    result->set_error(kErr);
+    return result.SerializeAsArray();
+  }
+
+  auto it = trace_processor_->ExecuteQuery(sql.c_str());
+  QueryResultSerializer serializer(std::move(it));
+
+  // TODO(primiano): propagate chunks instead of piling up batches in the same
+  // result.
+  std::vector<uint8_t> res;
+  while (serializer.Serialize(&res)) {
+  }
+  return res;
 }
 
 std::vector<uint8_t> Rpc::RawQuery(const uint8_t* args, size_t len) {

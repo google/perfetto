@@ -58,12 +58,15 @@ class Rpc {
 
   util::Status Parse(const uint8_t* data, size_t len);
   void NotifyEndOfFile();
-  std::vector<uint8_t> RawQuery(const uint8_t* args, size_t len);
+  std::vector<uint8_t> Query(const uint8_t* args, size_t len);
   void RestoreInitialTables();
   std::string GetCurrentTraceName();
   std::vector<uint8_t> ComputeMetric(const uint8_t* data, size_t len);
   void EnableMetatrace();
   std::vector<uint8_t> DisableAndReadMetatrace();
+
+  // DEPRECATED, only for legacy clients. Use |Query()| above.
+  std::vector<uint8_t> RawQuery(const uint8_t* args, size_t len);
 
  private:
   void MaybePrintProgress();
