@@ -93,7 +93,7 @@ config("default") {
 
   cflags += [
     "-fstrict-aliasing",
-    "-fstack-protector",
+    "-fstack-protector-strong",
     "-fPIC",
     "-g",
     "-Wformat",
