@@ -1363,25 +1363,30 @@ void TrackEventParser::ParseCounterDescriptor(
   if (unit_index >= counter_unit_ids_.size())
     unit_index = CounterDescriptor::UNIT_UNSPECIFIED;
 
+  auto opt_track_idx = counter_tracks->id().IndexOf(track_id);
+  if (!opt_track_idx) {
+    context_->storage->IncrementStats(stats::track_event_parser_errors);
+    return;
+  }
+
+  auto track_idx = *opt_track_idx;
+
   switch (decoder.type()) {
     case CounterDescriptor::COUNTER_UNSPECIFIED:
       break;
     case CounterDescriptor::COUNTER_THREAD_TIME_NS:
       unit_index = CounterDescriptor::UNIT_TIME_NS;
-      counter_tracks->mutable_name()->Set(
-          *counter_tracks->id().IndexOf(track_id),
-          counter_name_thread_time_id_);
+      counter_tracks->mutable_name()->Set(track_idx,
+                                          counter_name_thread_time_id_);
       break;
     case CounterDescriptor::COUNTER_THREAD_INSTRUCTION_COUNT:
       unit_index = CounterDescriptor::UNIT_COUNT;
       counter_tracks->mutable_name()->Set(
-          *counter_tracks->id().IndexOf(track_id),
-          counter_name_thread_instruction_count_id_);
+          track_idx, counter_name_thread_instruction_count_id_);
       break;
   }
 
-  counter_tracks->mutable_unit()->Set(*counter_tracks->id().IndexOf(track_id),
-                                      counter_unit_ids_[unit_index]);
+  counter_tracks->mutable_unit()->Set(track_idx, counter_unit_ids_[unit_index]);
 }
 
 void TrackEventParser::ParseTrackEvent(int64_t ts,
