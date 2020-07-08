@@ -50,7 +50,7 @@ class PERFETTO_EXPORT Iterator {
 
   // Returns the value associated with the column |col|. Any call to
   // |Get()| must be preceded by a call to |Next()| returning
-  // kHasNext. |col| must be less than the number returned by |ColumnCount()|.
+  // true. |col| must be less than the number returned by |ColumnCount()|.
   SqlValue Get(uint32_t col);
 
   // Returns the name of the column at index |col|. Can be called even before

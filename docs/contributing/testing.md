@@ -93,6 +93,37 @@ Starting up the daemons in the test itself and then testing against them.
 This is how standalone builds are tested. This is the only supported way to
 run integration tests on Linux and MacOS.
 
+Trace Processor diff tests
+-----------------
+Trace processor is mainly tested using so called "diff tests".
+
+For these tests, trace processor parses a known trace and executes a query
+file. The output of these queries is then compared (i.e. "diff"ed) against
+an expected output file and discrepencies are highlighted.
+
+Similar diff tests are also available when writing metrics - instead of a
+query file, the metric name is used and the expected output file contains
+the expected result of computing the metric.
+
+These tests (for both queries and metrics) can be run as follows:
+```bash
+tools/ninja -C <out directory>
+tools/diff_test_trace_processor.py <out directory>/trace_processor_shell
+```
+
+To add a new diff test (for query tests only), the `tools/add_tp_diff_test.sh`
+script is useful. It will automatically create the query and expected output
+files and adds them both to the index. For metrics, this has to be done
+manually for now.
+
+TIP: Query diff tests are expected to only have a single query which produces
+output in the whole file (usually at the end). Calling
+`SELECT RUN_METRIC('metric file')` can trip up this check as this query
+generates some hidden output. To address this issue, if a query only has
+column is named `supress_query_output`, even if it has output, this will
+be ignored (for example,
+`SELECT RUN_METRIC('metric file') as surpress_query_output`)
+
 Android CTS tests
 -----------------
 CTS tests ensure that any vendors who modify Android remain compliant with the

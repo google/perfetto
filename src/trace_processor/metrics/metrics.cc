@@ -607,6 +607,7 @@ void RunMetric(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
       return;
     }
   }
+  sqlite3_result_null(ctx);
 }
 
 util::Status ComputeMetrics(TraceProcessor* tp,
