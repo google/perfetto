@@ -17,8 +17,6 @@ import("../../gn/perfetto.gni")
 import("../../gn/test.gni")
 import("../../gn/wasm.gni")
 
-enable_stack_trace = is_debug && perfetto_build_standalone && !is_wasm
-
 source_set("base") {
   deps = [ "../../gn:default_deps" ]
   public_deps = [
@@ -53,12 +51,12 @@ source_set("base") {
     ]
   }
 
-  if (enable_stack_trace) {
+  if (enable_perfetto_stderr_crash_dump) {
     deps += [ ":debug_crash_stack_trace" ]
   }
 }
 
-if (enable_stack_trace) {
+if (enable_perfetto_stderr_crash_dump) {
   source_set("debug_crash_stack_trace") {
     sources = [ "debug_crash_stack_trace.cc" ]
     deps = [

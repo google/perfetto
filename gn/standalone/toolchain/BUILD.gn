@@ -26,6 +26,21 @@ assert(current_os == target_os && current_cpu == target_cpu,
 
 declare_args() {
   cc_wrapper = ""
+
+  # These apply to both target and host toolchains.
+  extra_cflags = ""
+  extra_cxxflags = ""
+  extra_ldflags = ""
+
+  # These apply only to the target toolchain.
+  extra_target_cflags = ""
+  extra_target_cxxflags = ""
+  extra_target_ldflags = ""
+
+  # These apply only to the host toolchain.
+  extra_host_cflags = ""
+  extra_host_cxxflags = ""
+  extra_host_ldflags = ""
 }
 
 # First of all determine the host toolchain. The user can override this by:
@@ -153,6 +168,9 @@ template("gcc_like_toolchain") {
     lib_switch = "-l"
     lib_dir_switch = "-L"
     ld_arg = ""
+    external_cflags = ""
+    external_cxxflags = ""
+    external_ldflags = ""
     if (defined(invoker.linker) && invoker.linker != "") {
       _invoker_linker = invoker.linker
       ld_arg = "-fuse-ld=$_invoker_linker"
@@ -167,10 +185,19 @@ template("gcc_like_toolchain") {
       _invoker_gcc_toolchain = invoker.gcc_toolchain
       ld_arg = "$ld_arg --gcc-toolchain=$_invoker_gcc_toolchain"
     }
+    if (defined(invoker.external_cflags)) {
+      external_cflags = invoker.external_cflags
+    }
+    if (defined(invoker.external_cxxflags)) {
+      external_cxxflags = invoker.external_cxxflags
+    }
+    if (defined(invoker.external_ldflags)) {
+      external_ldflags = invoker.external_ldflags
+    }
 
     tool("cc") {
       depfile = "{{output}}.d"
-      command = "$cc_wrapper $cc -MMD -MF $depfile {{defines}} {{include_dirs}} {{cflags}} {{cflags_c}} ${extra_cflags} -c {{source}} -o {{output}}"
+      command = "$cc_wrapper $cc -MMD -MF $depfile {{defines}} {{include_dirs}} {{cflags}} {{cflags_c}} ${external_cflags} -c {{source}} -o {{output}}"
       depsformat = "gcc"
       outputs =
           [ "{{source_out_dir}}/{{target_output_name}}.{{source_name_part}}.o" ]
@@ -179,7 +206,7 @@ template("gcc_like_toolchain") {
 
     tool("cxx") {
       depfile = "{{output}}.d"
-      command = "$cc_wrapper $cxx -MMD -MF $depfile {{defines}} {{include_dirs}} {{cflags}} {{cflags_cc}}  ${extra_cflags} ${extra_cxxflags} -c {{source}} -o {{output}}"
+      command = "$cc_wrapper $cxx -MMD -MF $depfile {{defines}} {{include_dirs}} {{cflags}} {{cflags_cc}}  ${external_cflags} ${external_cxxflags} -c {{source}} -o {{output}}"
       depsformat = "gcc"
       outputs =
           [ "{{source_out_dir}}/{{target_output_name}}.{{source_name_part}}.o" ]
@@ -219,7 +246,7 @@ template("gcc_like_toolchain") {
         rpath = "-Wl,-install_name,@rpath/$soname"
       }
 
-      command = "$cc_wrapper $cxx $ld_arg -shared {{ldflags}} ${extra_ldflags} {{inputs}} {{solibs}} {{libs}} $rpath -o {{output}}"
+      command = "$cc_wrapper $cxx $ld_arg -shared {{ldflags}} ${external_ldflags} {{inputs}} {{solibs}} {{libs}} $rpath -o {{output}}"
       outputs = [ "{{root_out_dir}}/$soname" ]
       output_prefix = "lib"
       default_output_extension = ".so"
@@ -227,7 +254,7 @@ template("gcc_like_toolchain") {
     }
 
     tool("link") {
-      command = "$cc_wrapper $cxx $ld_arg {{ldflags}} ${extra_ldflags} {{inputs}} {{solibs}} {{libs}} -o {{output}}"
+      command = "$cc_wrapper $cxx $ld_arg {{ldflags}} ${external_ldflags} {{inputs}} {{solibs}} {{libs}} -o {{output}}"
       outputs =
           [ "{{root_out_dir}}/{{target_output_name}}{{output_extension}}" ]
       description = "link {{output}}"
@@ -259,6 +286,21 @@ gcc_like_toolchain("gcc_like") {
   linker = target_linker
   sysroot = target_sysroot
   gcc_toolchain = target_gcc_toolchain
+  external_cflags = string_join(" ",
+                                [
+                                  extra_cflags,
+                                  extra_target_cflags,
+                                ])
+  external_cxxflags = string_join(" ",
+                                  [
+                                    extra_cxxflags,
+                                    extra_target_cxxflags,
+                                  ])
+  external_ldflags = string_join(" ",
+                                 [
+                                   extra_ldflags,
+                                   extra_target_ldflags,
+                                 ])
 }
 
 gcc_like_toolchain("gcc_like_host") {
@@ -270,6 +312,21 @@ gcc_like_toolchain("gcc_like_host") {
   linker = linker
   sysroot = sysroot
   gcc_toolchain = gcc_toolchain
+  external_cflags = string_join(" ",
+                                [
+                                  extra_cflags,
+                                  extra_host_cflags,
+                                ])
+  external_cxxflags = string_join(" ",
+                                  [
+                                    extra_cxxflags,
+                                    extra_host_cxxflags,
+                                  ])
+  external_ldflags = string_join(" ",
+                                 [
+                                   extra_ldflags,
+                                   extra_host_ldflags,
+                                 ])
 }
 
 gcc_like_toolchain("wasm") {
