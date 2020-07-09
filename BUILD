@@ -3294,6 +3294,11 @@ perfetto_gensignature_internal_only(
 # These will be rewritten in Google3 to be dependencies on the real targets.
 
 perfetto_py_library(
+    name = "pyglib_noop",
+    srcs = [],
+)
+
+perfetto_py_library(
     name = "protobuf_noop",
     srcs = [],
 )
@@ -3320,5 +3325,6 @@ perfetto_py_library(
     deps = [
         ":protobuf_noop",
         ":protobuf_descriptor_pb2_noop",
+        ":pyglib_noop",
     ]
 )
