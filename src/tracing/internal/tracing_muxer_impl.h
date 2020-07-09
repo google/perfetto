@@ -223,6 +223,10 @@ class TracingMuxerImpl : public TracingMuxer {
     std::shared_ptr<TraceConfig> trace_config_;
     base::ScopedFile trace_fd_;
 
+    // If the API client passes a callback to start, we should invoke this when
+    // NotifyStartComplete() is invoked.
+    std::function<void()> start_complete_callback_;
+
     // An internal callback used to implement StartBlocking().
     std::function<void()> blocking_start_complete_callback_;
 
@@ -258,6 +262,7 @@ class TracingMuxerImpl : public TracingMuxer {
     void Setup(const TraceConfig&, int fd) override;
     void Start() override;
     void StartBlocking() override;
+    void SetOnStartCallback(std::function<void()>) override;
     void Stop() override;
     void StopBlocking() override;
     void ReadTrace(ReadTraceCallback) override;
