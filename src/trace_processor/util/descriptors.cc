@@ -23,8 +23,6 @@
 namespace perfetto {
 namespace trace_processor {
 
-namespace {
-
 FieldDescriptor CreateFieldFromDecoder(
     const protos::pbzero::FieldDescriptorProto::Decoder& f_decoder) {
   using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
@@ -42,8 +40,6 @@ FieldDescriptor CreateFieldFromDecoder(
       static_cast<uint32_t>(f_decoder.number()), type, std::move(type_name),
       f_decoder.label() == FieldDescriptorProto::LABEL_REPEATED);
 }
-
-}  // namespace
 
 base::Optional<uint32_t> DescriptorPool::ResolveShortType(
     const std::string& parent_path,

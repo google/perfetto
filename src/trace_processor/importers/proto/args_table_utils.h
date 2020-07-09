@@ -112,6 +112,11 @@ class ProtoToArgsTable {
   util::Status AddProtoFileDescriptor(const uint8_t* proto_descriptor_array,
                                       size_t proto_descriptor_array_size);
 
+  // Register root message extension file descriptor. Support for extensions of
+  // nested messages is not available.
+  void AddExtensionFileDescriptor(const uint8_t* descriptor_array,
+                                  size_t descriptor_array_size);
+
   // Given a view of bytes that represent a serialized protozero message of
   // |type| we will parse each field into the Args table using RowId |row|,
   // adding |key_prefix| in front of each name (can be an empty string if no
@@ -175,6 +180,12 @@ class ProtoToArgsTable {
       ArgsTracker::BoundInserter* inserter,
       ParsingOverrideState state);
 
+  util::Status InternFieldIntoArgsTable(const FieldDescriptor& field_descriptor,
+                                        int repeated_field_number,
+                                        ParsingOverrideState state,
+                                        ArgsTracker::BoundInserter* inserter,
+                                        protozero::Field field);
+
   using OverrideIterator =
       std::vector<std::pair<std::string, ParsingOverride>>::iterator;
   OverrideIterator FindOverride(const std::string& field);
@@ -188,6 +199,7 @@ class ProtoToArgsTable {
   std::string key_prefix_;
   std::string flat_key_prefix_;
   TraceProcessorContext* context_;
+  std::unordered_map<int, FieldDescriptor> extension_fields_;
 };
 
 }  // namespace trace_processor
