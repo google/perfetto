@@ -46,66 +46,71 @@ void UnsafeMemcpy(char* dest, const char* src, size_t n)
 }  // namespace
 
 int64_t SendWireMessage(SharedRingBuffer* shmem, const WireMessage& msg) {
-  uint64_t total_size;
-  struct iovec iovecs[3] = {};
-  // TODO(fmayer): Maye pack these two.
-  iovecs[0].iov_base = const_cast<RecordType*>(&msg.record_type);
-  iovecs[0].iov_len = sizeof(msg.record_type);
-  if (msg.alloc_header) {
-    PERFETTO_DCHECK(msg.record_type == RecordType::Malloc);
-    iovecs[1].iov_base = msg.alloc_header;
-    iovecs[1].iov_len = sizeof(*msg.alloc_header);
-  } else if (msg.free_header) {
-    PERFETTO_DCHECK(msg.record_type == RecordType::Free);
-    iovecs[1].iov_base = msg.free_header;
-    iovecs[1].iov_len = sizeof(*msg.free_header);
-  } else {
-    PERFETTO_DFATAL_OR_ELOG("Neither alloc_header nor free_header set.");
-    errno = EINVAL;
-    return -1;
-  }
+  switch (msg.record_type) {
+    case RecordType::Malloc: {
+      PERFETTO_DCHECK(msg.free_header == nullptr);
+      PERFETTO_DCHECK(msg.alloc_header != nullptr);
+      size_t total_size = sizeof(msg.record_type) + sizeof(*msg.alloc_header) +
+                          msg.payload_size;
+      SharedRingBuffer::Buffer buf;
+      {
+        ScopedSpinlock lock = shmem->AcquireLock(ScopedSpinlock::Mode::Try);
+        if (!lock.locked()) {
+          PERFETTO_DLOG("Failed to acquire spinlock.");
+          errno = EAGAIN;
+          return -1;
+        }
+        buf = shmem->BeginWrite(lock, total_size);
+      }
+      if (!buf) {
+        PERFETTO_DLOG("Buffer overflow.");
+        shmem->EndWrite(std::move(buf));
+        errno = EAGAIN;
+        return -1;
+      }
 
-  iovecs[2].iov_base = msg.payload;
-  iovecs[2].iov_len = msg.payload_size;
-
-  struct msghdr hdr = {};
-  hdr.msg_iov = iovecs;
-  if (msg.payload) {
-    hdr.msg_iovlen = base::ArraySize(iovecs);
-    total_size = iovecs[0].iov_len + iovecs[1].iov_len + iovecs[2].iov_len;
-  } else {
-    // If we are not sending payload, just ignore that iovec.
-    hdr.msg_iovlen = base::ArraySize(iovecs) - 1;
-    total_size = iovecs[0].iov_len + iovecs[1].iov_len;
-  }
-
-  SharedRingBuffer::Buffer buf;
-  {
-    ScopedSpinlock lock = shmem->AcquireLock(ScopedSpinlock::Mode::Try);
-    if (!lock.locked()) {
-      PERFETTO_DLOG("Failed to acquire spinlock.");
-      errno = EAGAIN;
-      return -1;
+      memcpy(buf.data, &msg.record_type, sizeof(msg.record_type));
+      memcpy(buf.data + sizeof(msg.record_type), msg.alloc_header,
+             sizeof(*msg.alloc_header));
+      UnsafeMemcpy(reinterpret_cast<char*>(buf.data) + sizeof(msg.record_type) +
+                       sizeof(*msg.alloc_header),
+                   msg.payload, msg.payload_size);
+      auto bytes_free = buf.bytes_free;
+      shmem->EndWrite(std::move(buf));
+      return static_cast<int64_t>(bytes_free);
     }
-    buf = shmem->BeginWrite(lock, static_cast<size_t>(total_size));
-  }
-  if (!buf) {
-    PERFETTO_DLOG("Buffer overflow.");
-    shmem->EndWrite(std::move(buf));
-    errno = EAGAIN;
-    return -1;
-  }
+    case RecordType::Free: {
+      PERFETTO_DCHECK(msg.free_header != nullptr);
+      PERFETTO_DCHECK(msg.alloc_header == nullptr);
+      PERFETTO_DCHECK(msg.payload == nullptr);
+      PERFETTO_DCHECK(msg.payload_size == 0);
+      constexpr size_t total_size =
+          sizeof(msg.record_type) + sizeof(*msg.free_header);
+      SharedRingBuffer::Buffer buf;
+      {
+        ScopedSpinlock lock = shmem->AcquireLock(ScopedSpinlock::Mode::Try);
+        if (!lock.locked()) {
+          PERFETTO_DLOG("Failed to acquire spinlock.");
+          errno = EAGAIN;
+          return -1;
+        }
+        buf = shmem->BeginWrite(lock, total_size);
+      }
+      if (!buf) {
+        PERFETTO_DLOG("Buffer overflow.");
+        shmem->EndWrite(std::move(buf));
+        errno = EAGAIN;
+        return -1;
+      }
 
-  size_t offset = 0;
-  for (size_t i = 0; i < hdr.msg_iovlen; ++i) {
-    UnsafeMemcpy(reinterpret_cast<char*>(buf.data + offset),
-                 reinterpret_cast<const char*>(hdr.msg_iov[i].iov_base),
-                 hdr.msg_iov[i].iov_len);
-    offset += hdr.msg_iov[i].iov_len;
+      memcpy(buf.data, &msg.record_type, sizeof(msg.record_type));
+      memcpy(buf.data + sizeof(msg.record_type), msg.free_header,
+             sizeof(*msg.free_header));
+      auto bytes_free = buf.bytes_free;
+      shmem->EndWrite(std::move(buf));
+      return static_cast<int64_t>(bytes_free);
+    }
   }
-  auto bytes_free = buf.bytes_free;
-  shmem->EndWrite(std::move(buf));
-  return static_cast<int64_t>(bytes_free);
 }
 
 bool ReceiveWireMessage(char* buf, size_t size, WireMessage* out) {
