@@ -213,6 +213,10 @@ class TracingMuxerImpl : public TracingMuxer {
     // need to wait until the session has started before stopping it.
     bool stop_pending_ = false;
 
+    // Similarly we need to buffer a call to get trace statistics if the
+    // consumer wasn't connected yet.
+    bool get_trace_stats_pending_ = false;
+
     // Whether this session was already stopped. This will happen in response to
     // Stop{,Blocking}, but also if the service stops the session for us
     // automatically (e.g., when there are no data sources).
