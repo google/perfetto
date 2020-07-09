@@ -24,6 +24,7 @@
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/status.h"
+#include "protos/perfetto/common/descriptor.pbzero.h"
 
 namespace protozero {
 struct ConstBytes;
@@ -59,6 +60,9 @@ class FieldDescriptor {
   std::string resolved_type_name_;
   bool is_repeated_;
 };
+
+FieldDescriptor CreateFieldFromDecoder(
+    const protos::pbzero::FieldDescriptorProto::Decoder& f_decoder);
 
 class ProtoDescriptor {
  public:
