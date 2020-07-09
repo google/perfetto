@@ -157,6 +157,8 @@ void TracingMuxerImpl::ConsumerImpl::OnConnect() {
     muxer_->SetupTracingSession(session_id_, trace_config_);
     if (start_pending_)
       muxer_->StartTracingSession(session_id_);
+    if (get_trace_stats_pending_)
+      muxer_->GetTraceStats(session_id_, std::move(get_trace_stats_callback_));
     if (stop_pending_)
       muxer_->StopTracingSession(session_id_);
   }
@@ -908,6 +910,11 @@ void TracingMuxerImpl::GetTraceStats(
   }
   PERFETTO_DCHECK(!consumer->get_trace_stats_callback_);
   consumer->get_trace_stats_callback_ = std::move(callback);
+  if (!consumer->connected_) {
+    consumer->get_trace_stats_pending_ = true;
+    return;
+  }
+  consumer->get_trace_stats_pending_ = false;
   consumer->service_->GetTraceStats();
 }
 
