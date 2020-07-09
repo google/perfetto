@@ -2375,6 +2375,7 @@ perfetto_cc_proto_library(
 perfetto_proto_library(
     name = "protos_perfetto_trace_non_minimal_protos",
     srcs = [
+        "protos/perfetto/trace/extension_descriptor.proto",
         "protos/perfetto/trace/test_event.proto",
         "protos/perfetto/trace/trace.proto",
         "protos/perfetto/trace/trace_packet.proto",
