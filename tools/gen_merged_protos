@@ -30,7 +30,10 @@ CONFIG_PROTO_ROOTS = [
 ]
 MERGED_CONFIG_PROTO = 'protos/perfetto/config/perfetto_config.proto'
 
-TRACE_PROTO_ROOTS = CONFIG_PROTO_ROOTS + ['protos/perfetto/trace/trace.proto']
+TRACE_PROTO_ROOTS = CONFIG_PROTO_ROOTS + [
+  'protos/perfetto/trace/trace.proto',
+  'protos/perfetto/trace/test_extensions.proto',
+]
 MERGED_TRACE_PROTO = 'protos/perfetto/trace/perfetto_trace.proto'
 
 METRICS_PROTOS_ROOTS = ['protos/perfetto/metrics/metrics.proto']
