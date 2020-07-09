@@ -2329,7 +2329,7 @@ TEST_F(PerfettoApiTest, GetDataSourceLockedFromCallbacks) {
 
 TEST_F(PerfettoApiTest, OnStartCallback) {
   perfetto::TraceConfig cfg;
-  cfg.set_duration_ms(500);
+  cfg.set_duration_ms(60000);
   cfg.add_buffers()->set_size_kb(1024);
   auto* ds_cfg = cfg.add_data_sources()->mutable_config();
   ds_cfg->set_name("track_event");
