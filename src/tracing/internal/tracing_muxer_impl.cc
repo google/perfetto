@@ -281,7 +281,7 @@ void TracingMuxerImpl::ConsumerImpl::OnObservableEvents(
     // Data sources are first reported as being stopped before starting, so once
     // all the data sources we know about have started we can declare tracing
     // begun.
-    if (blocking_start_complete_callback_) {
+    if (start_complete_callback_ || blocking_start_complete_callback_) {
       bool all_data_sources_started = std::all_of(
           data_source_states_.cbegin(), data_source_states_.cend(),
           [](std::pair<DataSourceHandle, bool> state) { return state.second; });
