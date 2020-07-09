@@ -159,7 +159,8 @@ class PERFETTO_EXPORT TracingSession {
   // TODO(primiano): add an error callback.
   virtual void Setup(const TraceConfig&, int fd = -1) = 0;
 
-  // Enable tracing asynchronously.
+  // Enable tracing asynchronously. Use SetOnStartCallback() to get a
+  // notification when the session has fully started.
   virtual void Start() = 0;
 
   // Enable tracing and block until tracing has started. Note that if data
@@ -169,6 +170,11 @@ class PERFETTO_EXPORT TracingSession {
   // notification support, this call may return before those data sources have
   // started.
   virtual void StartBlocking() = 0;
+
+  // This callback will be invoked when all data sources have acknowledged that
+  // tracing has started. This callback will be invoked on an internal perfetto
+  // thread.
+  virtual void SetOnStartCallback(std::function<void()>) = 0;
 
   // Disable tracing asynchronously.
   // Use SetOnStopCallback() to get a notification when the tracing session is
