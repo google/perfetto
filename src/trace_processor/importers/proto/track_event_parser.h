@@ -64,7 +64,6 @@ class TrackEventParser {
   void ParseCounterDescriptor(TrackId, protozero::ConstBytes);
 
   TraceProcessorContext* context_;
-  ProtoToArgsTable proto_to_args_;
 
   const StringId counter_name_thread_time_id_;
   const StringId counter_name_thread_instruction_count_id_;

@@ -2009,6 +2009,201 @@ message ClockSnapshot {
 
 // End of protos/perfetto/trace/clock_snapshot.proto
 
+// Begin of protos/perfetto/common/descriptor.proto
+
+
+// The protocol compiler can output a FileDescriptorSet containing the .proto
+// files it parses.
+message FileDescriptorSet {
+  repeated FileDescriptorProto file = 1;
+}
+
+// Describes a complete .proto file.
+message FileDescriptorProto {
+  // file name, relative to root of source tree
+  optional string name = 1;
+  // e.g. "foo", "foo.bar", etc.
+  optional string package = 2;
+
+  // Names of files imported by this file.
+  repeated string dependency = 3;
+  // Indexes of the public imported files in the dependency list above.
+  repeated int32 public_dependency = 10;
+  // Indexes of the weak imported files in the dependency list.
+  // For Google-internal migration only. Do not use.
+  repeated int32 weak_dependency = 11;
+
+  // All top-level definitions in this file.
+  repeated DescriptorProto message_type = 4;
+  repeated EnumDescriptorProto enum_type = 5;
+  repeated FieldDescriptorProto extension = 7;
+
+  reserved 6;
+  reserved 8;
+  reserved 9;
+  reserved 12;
+}
+
+// Describes a message type.
+message DescriptorProto {
+  optional string name = 1;
+
+  repeated FieldDescriptorProto field = 2;
+  repeated FieldDescriptorProto extension = 6;
+
+  repeated DescriptorProto nested_type = 3;
+  repeated EnumDescriptorProto enum_type = 4;
+
+  reserved 5;
+
+  repeated OneofDescriptorProto oneof_decl = 8;
+
+  reserved 7;
+
+  // Range of reserved tag numbers. Reserved tag numbers may not be used by
+  // fields or extension ranges in the same message. Reserved ranges may
+  // not overlap.
+  message ReservedRange {
+    // Inclusive.
+    optional int32 start = 1;
+    // Exclusive.
+    optional int32 end = 2;
+  }
+  repeated ReservedRange reserved_range = 9;
+  // Reserved field names, which may not be used by fields in the same message.
+  // A given name may only be reserved once.
+  repeated string reserved_name = 10;
+}
+
+// Describes a field within a message.
+message FieldDescriptorProto {
+  enum Type {
+    // 0 is reserved for errors.
+    // Order is weird for historical reasons.
+    TYPE_DOUBLE = 1;
+    TYPE_FLOAT = 2;
+    // Not ZigZag encoded.  Negative numbers take 10 bytes.  Use TYPE_SINT64 if
+    // negative values are likely.
+    TYPE_INT64 = 3;
+    TYPE_UINT64 = 4;
+    // Not ZigZag encoded.  Negative numbers take 10 bytes.  Use TYPE_SINT32 if
+    // negative values are likely.
+    TYPE_INT32 = 5;
+    TYPE_FIXED64 = 6;
+    TYPE_FIXED32 = 7;
+    TYPE_BOOL = 8;
+    TYPE_STRING = 9;
+    // Tag-delimited aggregate.
+    // Group type is deprecated and not supported in proto3. However, Proto3
+    // implementations should still be able to parse the group wire format and
+    // treat group fields as unknown fields.
+    TYPE_GROUP = 10;
+    // Length-delimited aggregate.
+    TYPE_MESSAGE = 11;
+
+    // New in version 2.
+    TYPE_BYTES = 12;
+    TYPE_UINT32 = 13;
+    TYPE_ENUM = 14;
+    TYPE_SFIXED32 = 15;
+    TYPE_SFIXED64 = 16;
+    // Uses ZigZag encoding.
+    TYPE_SINT32 = 17;
+    // Uses ZigZag encoding.
+    TYPE_SINT64 = 18;
+  };
+
+  enum Label {
+    // 0 is reserved for errors
+    LABEL_OPTIONAL = 1;
+    LABEL_REQUIRED = 2;
+    LABEL_REPEATED = 3;
+  };
+
+  optional string name = 1;
+  optional int32 number = 3;
+  optional Label label = 4;
+
+  // If type_name is set, this need not be set.  If both this and type_name
+  // are set, this must be one of TYPE_ENUM, TYPE_MESSAGE or TYPE_GROUP.
+  optional Type type = 5;
+
+  // For message and enum types, this is the name of the type.  If the name
+  // starts with a '.', it is fully-qualified.  Otherwise, C++-like scoping
+  // rules are used to find the type (i.e. first the nested types within this
+  // message are searched, then within the parent, on up to the root
+  // namespace).
+  optional string type_name = 6;
+
+  // For extensions, this is the name of the type being extended.  It is
+  // resolved in the same manner as type_name.
+  optional string extendee = 2;
+
+  // For numeric types, contains the original text representation of the value.
+  // For booleans, "true" or "false".
+  // For strings, contains the default text contents (not escaped in any way).
+  // For bytes, contains the C escaped value.  All bytes >= 128 are escaped.
+  // TODO(kenton):  Base-64 encode?
+  optional string default_value = 7;
+
+  // If set, gives the index of a oneof in the containing type's oneof_decl
+  // list.  This field is a member of that oneof.
+  optional int32 oneof_index = 9;
+
+  reserved 10;
+
+  reserved 8;
+}
+
+// Describes a oneof.
+message OneofDescriptorProto {
+  optional string name = 1;
+  optional OneofOptions options = 2;
+}
+
+// Describes an enum type.
+message EnumDescriptorProto {
+  optional string name = 1;
+
+  repeated EnumValueDescriptorProto value = 2;
+
+  reserved 3;
+  reserved 4;
+
+  // Reserved enum value names, which may not be reused. A given name may only
+  // be reserved once.
+  repeated string reserved_name = 5;
+}
+
+// Describes a value within an enum.
+message EnumValueDescriptorProto {
+  optional string name = 1;
+  optional int32 number = 2;
+
+  reserved 3;
+}
+
+message OneofOptions {
+  reserved 999;
+
+  // Clients can define custom options in extensions of this message. See above.
+  extensions 1000 to max;
+}
+
+// End of protos/perfetto/common/descriptor.proto
+
+// Begin of protos/perfetto/trace/extension_descriptor.proto
+
+// This message contains descriptors used to parse extension fields of
+// TrackEvent.
+//
+// See docs/design-docs/extensions.md for more details.
+message ExtensionDescriptor {
+  repeated FileDescriptorProto extension_file = 1;
+}
+
+// End of protos/perfetto/trace/extension_descriptor.proto
+
 // Begin of protos/perfetto/trace/filesystem/inode_file_map.proto
 
 // Represents the mapping between inode numbers in a block device and their path
@@ -5859,6 +6054,21 @@ message TrackEvent {
   optional ChromeFrameReporter chrome_frame_reporter = 32;
   // New argument types go here :)
 
+  // Extension range for typed events defined externally.
+  // See docs/design-docs/extensions.md for more details.
+  //
+  // Extension support is work-in-progress, in the future the way to reserve a
+  // subrange for a particular project will be described here and in the design
+  // document linked above.
+  //
+  // Contact perfetto-dev@googlegroups.com if you are interested in a subrange
+  // for your project.
+
+  // Extension range for future use.
+  extensions 1000 to 9899;
+  // Reserved for Perfetto unit and integration tests.
+  extensions 9900 to 10000;
+
   // ---------------------------------------------------------------------------
   // Deprecated / legacy event fields, which will be removed in the future:
   // ---------------------------------------------------------------------------
@@ -7156,7 +7366,7 @@ message Trigger {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 13 (up to 15).
-// Next id: 72.
+// Next id: 73.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -7183,7 +7393,7 @@ message TracePacket {
     TrackEvent track_event = 11;
 
     // IDs up to 15 are reserved. They take only one byte to encode their
-    // preamble so should be used for freqeuent events.
+    // preamble so should be used for frequent events.
 
     TraceConfig trace_config = 33;
     FtraceStats ftrace_stats = 34;
@@ -7240,6 +7450,13 @@ message TracePacket {
     // Each compressed_packets TracePacket (including the two field ids and
     // sizes) should be less than 512KB.
     bytes compressed_packets = 50;
+
+    // Data sources can extend the trace proto with custom extension protos (see
+    // docs/design-docs/extensions.md). When they do that, the descriptor of
+    // their extension proto descriptor is serialized in this packet. This
+    // allows trace_processor to deserialize extended messages using reflection
+    // even if the extension proto is not checked in the Perfetto repo.
+    ExtensionDescriptor extension_descriptor = 72;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455
@@ -7342,3 +7559,19 @@ message Trace {
 }
 
 // End of protos/perfetto/trace/trace.proto
+
+// Begin of protos/perfetto/trace/test_extensions.proto
+
+// Extensions for TrackEvent used for integration testing. This proto file is
+// compiled to descriptor and is used in tools/diff_test_trace_processor.py.
+//
+// See docs/design-docs/extensions.md for more details.
+message TestExtension {
+  extend TrackEvent {
+    optional string string_extension_for_testing = 9900;
+    repeated int32 int_extension_for_testing = 9901;
+    optional string omitted_extension_for_testing = 9902;
+  }
+}
+
+// End of protos/perfetto/trace/test_extensions.proto
