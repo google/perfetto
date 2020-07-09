@@ -691,6 +691,8 @@ message AndroidThreadTimeInStateMetric {
     optional int64 runtime_ms = 2;
     // CPU megacycles (i.e. cycles divided by 1e6).
     optional int64 mcycles = 3;
+    // Power cost as predicted by the power profile.
+    optional double power_profile_mah = 4;
   }
 
   message Thread {
