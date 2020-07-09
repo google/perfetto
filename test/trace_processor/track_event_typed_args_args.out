@@ -8,3 +8,6 @@
 4,"chrome_latency_info.component_info.time_us","chrome_latency_info.component_info[1].time_us",928310,"[NULL]"
 4,"chrome_latency_info.is_coalesced","chrome_latency_info.is_coalesced",1,"[NULL]"
 4,"chrome_latency_info.trace_id","chrome_latency_info.trace_id",7,"[NULL]"
+4,"int_extension_for_testing","int_extension_for_testing[0]",42,"[NULL]"
+4,"int_extension_for_testing","int_extension_for_testing[1]",1337,"[NULL]"
+4,"string_extension_for_testing","string_extension_for_testing","[NULL]","an extension string!"

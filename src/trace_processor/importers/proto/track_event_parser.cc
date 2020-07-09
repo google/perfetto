@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/importers/proto/track_event_parser.h"
 
+#include <iostream>
 #include <string>
 
 #include "perfetto/base/logging.h"
@@ -830,9 +831,10 @@ class TrackEventParser::EventImporter {
       log_errors(ParseLogMessage(event_.log_message(), inserter));
     }
 
-    log_errors(parser_->proto_to_args_.InternProtoFieldsIntoArgsTable(
-        blob_, ".perfetto.protos.TrackEvent", parser_->reflect_fields_,
-        inserter, sequence_state_));
+    log_errors(
+        parser_->context_->proto_to_args_table_->InternProtoFieldsIntoArgsTable(
+            blob_, ".perfetto.protos.TrackEvent", parser_->reflect_fields_,
+            inserter, sequence_state_));
 
     if (legacy_passthrough_utid_) {
       inserter->AddArg(parser_->legacy_event_passthrough_utid_id_,
@@ -1083,7 +1085,6 @@ class TrackEventParser::EventImporter {
 
 TrackEventParser::TrackEventParser(TraceProcessorContext* context)
     : context_(context),
-      proto_to_args_(context_),
       counter_name_thread_time_id_(
           context->storage->InternString("thread_time")),
       counter_name_thread_instruction_count_id_(
@@ -1208,26 +1209,27 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context)
       counter_unit_ids_{{kNullStringId, context_->storage->InternString("ns"),
                          context_->storage->InternString("count"),
                          context_->storage->InternString("bytes")}} {
-  auto status = proto_to_args_.AddProtoFileDescriptor(
+  auto status = context_->proto_to_args_table_->AddProtoFileDescriptor(
       kTrackEventDescriptor.data(), kTrackEventDescriptor.size());
+
   PERFETTO_DCHECK(status.ok());
 
   // Switch |source_location_iid| into its interned data variant.
-  proto_to_args_.AddParsingOverride(
+  context_->proto_to_args_table_->AddParsingOverride(
       "begin_impl_frame_args.current_args.source_location_iid",
       [](const ProtoToArgsTable::ParsingOverrideState& state,
          const protozero::Field& field, BoundInserter* inserter) {
         return MaybeParseSourceLocation("begin_impl_frame_args.current_args",
                                         state, field, inserter);
       });
-  proto_to_args_.AddParsingOverride(
+  context_->proto_to_args_table_->AddParsingOverride(
       "begin_impl_frame_args.last_args.source_location_iid",
       [](const ProtoToArgsTable::ParsingOverrideState& state,
          const protozero::Field& field, BoundInserter* inserter) {
         return MaybeParseSourceLocation("begin_impl_frame_args.last_args",
                                         state, field, inserter);
       });
-  proto_to_args_.AddParsingOverride(
+  context_->proto_to_args_table_->AddParsingOverride(
       "begin_frame_observer_state.last_begin_frame_args.source_location_iid",
       [](const ProtoToArgsTable::ParsingOverrideState& state,
          const protozero::Field& field, BoundInserter* inserter) {

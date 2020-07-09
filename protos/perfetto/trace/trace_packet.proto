@@ -18,6 +18,7 @@ syntax = "proto2";
 
 import "protos/perfetto/common/trace_stats.proto";
 import "protos/perfetto/config/trace_config.proto";
+import "protos/perfetto/trace/extension_descriptor.proto";
 import "protos/perfetto/trace/android/android_log.proto";
 import "protos/perfetto/trace/android/gpu_mem_event.proto";
 import "protos/perfetto/trace/android/graphics_frame_event.proto";
@@ -79,7 +80,7 @@ package perfetto.protos;
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 13 (up to 15).
-// Next id: 72.
+// Next id: 73.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -106,7 +107,7 @@ message TracePacket {
     TrackEvent track_event = 11;
 
     // IDs up to 15 are reserved. They take only one byte to encode their
-    // preamble so should be used for freqeuent events.
+    // preamble so should be used for frequent events.
 
     TraceConfig trace_config = 33;
     FtraceStats ftrace_stats = 34;
@@ -163,6 +164,13 @@ message TracePacket {
     // Each compressed_packets TracePacket (including the two field ids and
     // sizes) should be less than 512KB.
     bytes compressed_packets = 50;
+
+    // Data sources can extend the trace proto with custom extension protos (see
+    // docs/design-docs/extensions.md). When they do that, the descriptor of
+    // their extension proto descriptor is serialized in this packet. This
+    // allows trace_processor to deserialize extended messages using reflection
+    // even if the extension proto is not checked in the Perfetto repo.
+    ExtensionDescriptor extension_descriptor = 72;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455

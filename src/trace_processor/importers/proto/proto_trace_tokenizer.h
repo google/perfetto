@@ -79,6 +79,7 @@ class ProtoTraceTokenizer : public ChunkedTraceReader {
       incremental_state.reset(new ProtoIncrementalState(context_));
     return incremental_state->GetOrCreateStateForPacketSequence(sequence_id);
   }
+  util::Status ParseExtensionDescriptor(ConstBytes descriptor);
 
   TraceProcessorContext* context_;
 

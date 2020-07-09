@@ -28,6 +28,7 @@
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/default_modules.h"
 #include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
+#include "src/trace_processor/importers/proto/args_table_utils.h"
 #include "src/trace_processor/importers/proto/metadata_tracker.h"
 #include "src/trace_processor/importers/proto/proto_trace_parser.h"
 #include "src/trace_processor/importers/proto/stack_profile_tracker.h"
@@ -219,6 +220,7 @@ class ProtoTraceParserTest : public ::testing::Test {
     clock_ = new ClockTracker(&context_);
     context_.clock_tracker.reset(clock_);
     context_.sorter.reset(new TraceSorter(CreateParser(), 0 /*window size*/));
+    context_.proto_to_args_table_.reset(new ProtoToArgsTable(&context_));
 
     RegisterDefaultModules(&context_);
     RegisterAdditionalModules(&context_);
