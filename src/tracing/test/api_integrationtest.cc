@@ -2327,6 +2327,22 @@ TEST_F(PerfettoApiTest, GetDataSourceLockedFromCallbacks) {
   EXPECT_EQ(packets_found, 1 | 2 | 4 | 8);
 }
 
+TEST_F(PerfettoApiTest, OnStartCallback) {
+  perfetto::TraceConfig cfg;
+  cfg.set_duration_ms(500);
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("track_event");
+  auto* tracing_session = NewTrace(cfg);
+
+  WaitableTestEvent got_start;
+  tracing_session->get()->SetOnStartCallback([&] { got_start.Notify(); });
+  tracing_session->get()->Start();
+  got_start.Wait();
+
+  tracing_session->get()->StopBlocking();
+}
+
 TEST_F(PerfettoApiTest, GetTraceStats) {
   perfetto::TraceConfig cfg;
   cfg.set_duration_ms(500);

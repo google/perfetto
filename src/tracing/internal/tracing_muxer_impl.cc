@@ -205,6 +205,10 @@ void TracingMuxerImpl::ConsumerImpl::OnTracingDisabled() {
 
 void TracingMuxerImpl::ConsumerImpl::NotifyStartComplete() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
+  if (start_complete_callback_) {
+    muxer_->task_runner_->PostTask(std::move(start_complete_callback_));
+    start_complete_callback_ = nullptr;
+  }
   if (blocking_start_complete_callback_) {
     muxer_->task_runner_->PostTask(
         std::move(blocking_start_complete_callback_));
@@ -395,6 +399,17 @@ void TracingMuxerImpl::TracingSessionImpl::ReadTrace(ReadTraceCallback cb) {
   auto session_id = session_id_;
   muxer->task_runner_->PostTask([muxer, session_id, cb] {
     muxer->ReadTracingSessionData(session_id, std::move(cb));
+  });
+}
+
+// Can be called from any thread.
+void TracingMuxerImpl::TracingSessionImpl::SetOnStartCallback(
+    std::function<void()> cb) {
+  auto* muxer = muxer_;
+  auto session_id = session_id_;
+  muxer->task_runner_->PostTask([muxer, session_id, cb] {
+    auto* consumer = muxer->FindConsumer(session_id);
+    consumer->start_complete_callback_ = cb;
   });
 }
 
