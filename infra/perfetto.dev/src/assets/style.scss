@@ -683,6 +683,9 @@ h3 {
             tr {
                 height: 20px;
             }
+            tr:target {
+                background-color: #ecba2a;
+            }
             thead {
                 text-align: left;
                 background-color: #e8eaed;
