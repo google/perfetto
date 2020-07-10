@@ -56,10 +56,11 @@ PERFETTO_TP_TABLE(PERFETTO_TP_SLICE_TABLE_DEF);
 
 PERFETTO_TP_TABLE(PERFETTO_TP_INSTANT_TABLE_DEF);
 
+// @name sched
 // @tablegroup Events
 // @param utid {@joinable thread.utid}
 #define PERFETTO_TP_SCHED_SLICE_TABLE_DEF(NAME, PARENT, C) \
-  NAME(SchedSliceTable, "sched_slice")                     \
+  NAME(SchedSliceTable, "internal_sched_slice")            \
   PERFETTO_TP_ROOT_TABLE(PARENT, C)                        \
   C(int64_t, ts, Column::Flag::kSorted)                    \
   C(int64_t, dur)                                          \
