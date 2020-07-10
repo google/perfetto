@@ -59,6 +59,29 @@ using ::testing::Eq;
 
 constexpr const char* kHeapprofdModeProperty = "heapprofd.userdebug.mode";
 
+void ContinuousDump(HeapprofdConfig* cfg) {
+  auto* cont_config = cfg->mutable_continuous_dump_config();
+  cont_config->set_dump_phase_ms(0);
+  cont_config->set_dump_interval_ms(100);
+}
+
+template <typename F>
+TraceConfig MakeTraceConfig(F fn) {
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(10 * 1024);
+  trace_config.set_duration_ms(2000);
+  trace_config.set_data_source_stop_timeout_ms(10000);
+
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("android.heapprofd");
+  ds_config->set_target_buffer(0);
+
+  protos::gen::HeapprofdConfig heapprofd_config;
+  fn(&heapprofd_config);
+  ds_config->set_heapprofd_config_raw(heapprofd_config.SerializeAsString());
+  return trace_config;
+}
+
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 
 std::string ReadProperty(const std::string& name, std::string def) {
@@ -359,24 +382,12 @@ TEST_P(HeapprofdEndToEnd, MallocDisabled) {
   base::Subprocess child = ForkContinuousMalloc(kAllocSize);
   const auto pid = child.pid();
 
-  TraceConfig trace_config;
-  trace_config.add_buffers()->set_size_kb(10 * 1024);
-  trace_config.set_duration_ms(2000);
-  trace_config.set_data_source_stop_timeout_ms(10000);
-
-  auto* ds_config = trace_config.add_data_sources()->mutable_config();
-  ds_config->set_name("android.heapprofd");
-  ds_config->set_target_buffer(0);
-
-  protos::gen::HeapprofdConfig heapprofd_config;
-  heapprofd_config.set_sampling_interval_bytes(1);
-  heapprofd_config.add_pid(static_cast<uint64_t>(pid));
-  heapprofd_config.set_all(false);
-  heapprofd_config.add_heaps("invalid");
-  auto* cont_config = heapprofd_config.mutable_continuous_dump_config();
-  cont_config->set_dump_phase_ms(0);
-  cont_config->set_dump_interval_ms(100);
-  ds_config->set_heapprofd_config_raw(heapprofd_config.SerializeAsString());
+  TraceConfig trace_config = MakeTraceConfig([pid](HeapprofdConfig* cfg) {
+    cfg->set_sampling_interval_bytes(1);
+    cfg->add_pid(static_cast<uint64_t>(pid));
+    cfg->add_heaps("invalid");
+    ContinuousDump(cfg);
+  });
 
   auto helper = Trace(trace_config);
   PrintStats(helper.get());
@@ -390,23 +401,11 @@ TEST_P(HeapprofdEndToEnd, Smoke) {
   base::Subprocess child = ForkContinuousMalloc(kAllocSize);
   const auto pid = child.pid();
 
-  TraceConfig trace_config;
-  trace_config.add_buffers()->set_size_kb(10 * 1024);
-  trace_config.set_duration_ms(2000);
-  trace_config.set_data_source_stop_timeout_ms(10000);
-
-  auto* ds_config = trace_config.add_data_sources()->mutable_config();
-  ds_config->set_name("android.heapprofd");
-  ds_config->set_target_buffer(0);
-
-  protos::gen::HeapprofdConfig heapprofd_config;
-  heapprofd_config.set_sampling_interval_bytes(1);
-  heapprofd_config.add_pid(static_cast<uint64_t>(pid));
-  heapprofd_config.set_all(false);
-  auto* cont_config = heapprofd_config.mutable_continuous_dump_config();
-  cont_config->set_dump_phase_ms(0);
-  cont_config->set_dump_interval_ms(100);
-  ds_config->set_heapprofd_config_raw(heapprofd_config.SerializeAsString());
+  TraceConfig trace_config = MakeTraceConfig([pid](HeapprofdConfig* cfg) {
+    cfg->set_sampling_interval_bytes(1);
+    cfg->add_pid(static_cast<uint64_t>(pid));
+    ContinuousDump(cfg);
+  });
 
   auto helper = Trace(trace_config);
   PrintStats(helper.get());
@@ -424,25 +423,13 @@ TEST_P(HeapprofdEndToEnd, SmokeCustomAndMalloc) {
   base::Subprocess child = ForkContinuousMalloc(kAllocSize, kCustomAllocSize);
   const auto pid = child.pid();
 
-  TraceConfig trace_config;
-  trace_config.add_buffers()->set_size_kb(10 * 1024);
-  trace_config.set_duration_ms(2000);
-  trace_config.set_data_source_stop_timeout_ms(10000);
-
-  auto* ds_config = trace_config.add_data_sources()->mutable_config();
-  ds_config->set_name("android.heapprofd");
-  ds_config->set_target_buffer(0);
-
-  protos::gen::HeapprofdConfig heapprofd_config;
-  heapprofd_config.set_sampling_interval_bytes(1);
-  heapprofd_config.add_pid(static_cast<uint64_t>(pid));
-  heapprofd_config.set_all(false);
-  heapprofd_config.add_heaps("test");
-  heapprofd_config.add_heaps("malloc");
-  auto* cont_config = heapprofd_config.mutable_continuous_dump_config();
-  cont_config->set_dump_phase_ms(0);
-  cont_config->set_dump_interval_ms(100);
-  ds_config->set_heapprofd_config_raw(heapprofd_config.SerializeAsString());
+  TraceConfig trace_config = MakeTraceConfig([pid](HeapprofdConfig* cfg) {
+    cfg->set_sampling_interval_bytes(1);
+    cfg->add_pid(static_cast<uint64_t>(pid));
+    cfg->add_heaps("test");
+    cfg->add_heaps("malloc");
+    ContinuousDump(cfg);
+  });
 
   auto helper = Trace(trace_config);
   PrintStats(helper.get());
@@ -487,21 +474,11 @@ TEST_P(HeapprofdEndToEnd, AccurateCustom) {
   child.Start();
   const auto pid = child.pid();
 
-  TraceConfig trace_config;
-  trace_config.add_buffers()->set_size_kb(10 * 1024);
-  trace_config.set_duration_ms(2000);
-  trace_config.set_data_source_stop_timeout_ms(10000);
-
-  auto* ds_config = trace_config.add_data_sources()->mutable_config();
-  ds_config->set_name("android.heapprofd");
-  ds_config->set_target_buffer(0);
-
-  protos::gen::HeapprofdConfig heapprofd_config;
-  heapprofd_config.set_sampling_interval_bytes(1);
-  heapprofd_config.add_pid(static_cast<uint64_t>(pid));
-  heapprofd_config.set_all(false);
-  heapprofd_config.add_heaps("test");
-  ds_config->set_heapprofd_config_raw(heapprofd_config.SerializeAsString());
+  TraceConfig trace_config = MakeTraceConfig([pid](HeapprofdConfig* cfg) {
+    cfg->set_sampling_interval_bytes(1);
+    cfg->add_pid(static_cast<uint64_t>(pid));
+    cfg->add_heaps("test");
+  });
 
   auto helper = Trace(trace_config);
   PrintStats(helper.get());
@@ -528,24 +505,12 @@ TEST_P(HeapprofdEndToEnd, SmokeCustom) {
   base::Subprocess child = ForkContinuousMalloc(0, kAllocSize);
   const auto pid = child.pid();
 
-  TraceConfig trace_config;
-  trace_config.add_buffers()->set_size_kb(10 * 1024);
-  trace_config.set_duration_ms(2000);
-  trace_config.set_data_source_stop_timeout_ms(10000);
-
-  auto* ds_config = trace_config.add_data_sources()->mutable_config();
-  ds_config->set_name("android.heapprofd");
-  ds_config->set_target_buffer(0);
-
-  protos::gen::HeapprofdConfig heapprofd_config;
-  heapprofd_config.set_sampling_interval_bytes(1);
-  heapprofd_config.add_pid(static_cast<uint64_t>(pid));
-  heapprofd_config.set_all(false);
-  heapprofd_config.add_heaps("test");
-  auto* cont_config = heapprofd_config.mutable_continuous_dump_config();
-  cont_config->set_dump_phase_ms(0);
-  cont_config->set_dump_interval_ms(100);
-  ds_config->set_heapprofd_config_raw(heapprofd_config.SerializeAsString());
+  TraceConfig trace_config = MakeTraceConfig([pid](HeapprofdConfig* cfg) {
+    cfg->set_sampling_interval_bytes(1);
+    cfg->add_pid(static_cast<uint64_t>(pid));
+    cfg->add_heaps("test");
+    ContinuousDump(cfg);
+  });
 
   auto helper = Trace(trace_config);
   PrintStats(helper.get());
@@ -561,24 +526,11 @@ TEST_P(HeapprofdEndToEnd, CustomDisabled) {
 
   base::Subprocess child = ForkContinuousMalloc(0, kAllocSize);
   const auto pid = child.pid();
-
-  TraceConfig trace_config;
-  trace_config.add_buffers()->set_size_kb(10 * 1024);
-  trace_config.set_duration_ms(2000);
-  trace_config.set_data_source_stop_timeout_ms(10000);
-
-  auto* ds_config = trace_config.add_data_sources()->mutable_config();
-  ds_config->set_name("android.heapprofd");
-  ds_config->set_target_buffer(0);
-
-  protos::gen::HeapprofdConfig heapprofd_config;
-  heapprofd_config.set_sampling_interval_bytes(1);
-  heapprofd_config.add_pid(static_cast<uint64_t>(pid));
-  heapprofd_config.set_all(false);
-  auto* cont_config = heapprofd_config.mutable_continuous_dump_config();
-  cont_config->set_dump_phase_ms(0);
-  cont_config->set_dump_interval_ms(100);
-  ds_config->set_heapprofd_config_raw(heapprofd_config.SerializeAsString());
+  TraceConfig trace_config = MakeTraceConfig([pid](HeapprofdConfig* cfg) {
+    cfg->set_sampling_interval_bytes(1);
+    cfg->add_pid(static_cast<uint64_t>(pid));
+    ContinuousDump(cfg);
+  });
 
   auto helper = Trace(trace_config);
   PrintStats(helper.get());
@@ -596,21 +548,11 @@ TEST_P(HeapprofdEndToEnd, TwoProcesses) {
   const auto pid = child.pid();
   const auto pid2 = child2.pid();
 
-  TraceConfig trace_config;
-  trace_config.add_buffers()->set_size_kb(10 * 1024);
-  trace_config.set_duration_ms(2000);
-  trace_config.set_data_source_stop_timeout_ms(10000);
-
-  auto* ds_config = trace_config.add_data_sources()->mutable_config();
-  ds_config->set_name("android.heapprofd");
-  ds_config->set_target_buffer(0);
-
-  protos::gen::HeapprofdConfig heapprofd_config;
-  heapprofd_config.set_sampling_interval_bytes(1);
-  heapprofd_config.add_pid(static_cast<uint64_t>(pid));
-  heapprofd_config.add_pid(static_cast<uint64_t>(pid2));
-  heapprofd_config.set_all(false);
-  ds_config->set_heapprofd_config_raw(heapprofd_config.SerializeAsString());
+  TraceConfig trace_config = MakeTraceConfig([pid, pid2](HeapprofdConfig* cfg) {
+    cfg->set_sampling_interval_bytes(1);
+    cfg->add_pid(static_cast<uint64_t>(pid));
+    cfg->add_pid(static_cast<uint64_t>(pid2));
+  });
 
   auto helper = Trace(trace_config);
   PrintStats(helper.get());
@@ -628,21 +570,10 @@ TEST_P(HeapprofdEndToEnd, FinalFlush) {
 
   base::Subprocess child = ForkContinuousMalloc(kAllocSize);
   const auto pid = child.pid();
-
-  TraceConfig trace_config;
-  trace_config.add_buffers()->set_size_kb(10 * 1024);
-  trace_config.set_duration_ms(2000);
-  trace_config.set_data_source_stop_timeout_ms(10000);
-
-  auto* ds_config = trace_config.add_data_sources()->mutable_config();
-  ds_config->set_name("android.heapprofd");
-  ds_config->set_target_buffer(0);
-
-  protos::gen::HeapprofdConfig heapprofd_config;
-  heapprofd_config.set_sampling_interval_bytes(1);
-  heapprofd_config.add_pid(static_cast<uint64_t>(pid));
-  heapprofd_config.set_all(false);
-  ds_config->set_heapprofd_config_raw(heapprofd_config.SerializeAsString());
+  TraceConfig trace_config = MakeTraceConfig([pid](HeapprofdConfig* cfg) {
+    cfg->set_sampling_interval_bytes(1);
+    cfg->add_pid(static_cast<uint64_t>(pid));
+  });
 
   auto helper = Trace(trace_config);
   PrintStats(helper.get());
@@ -656,19 +587,12 @@ TEST_P(HeapprofdEndToEnd, FinalFlush) {
 TEST_P(HeapprofdEndToEnd, NativeStartup) {
   auto helper = GetHelper(&task_runner);
 
-  TraceConfig trace_config;
-  trace_config.add_buffers()->set_size_kb(10 * 1024);
+  TraceConfig trace_config = MakeTraceConfig([](HeapprofdConfig* cfg) {
+    cfg->set_sampling_interval_bytes(1);
+    cfg->add_process_cmdline("heapprofd_continuous_malloc");
+    cfg->set_all(false);
+  });
   trace_config.set_duration_ms(5000);
-  trace_config.set_data_source_stop_timeout_ms(10000);
-
-  auto* ds_config = trace_config.add_data_sources()->mutable_config();
-  ds_config->set_name("android.heapprofd");
-
-  protos::gen::HeapprofdConfig heapprofd_config;
-  heapprofd_config.set_sampling_interval_bytes(1);
-  heapprofd_config.add_process_cmdline("heapprofd_continuous_malloc");
-  heapprofd_config.set_all(false);
-  ds_config->set_heapprofd_config_raw(heapprofd_config.SerializeAsString());
 
   helper->StartTracing(trace_config);
 
@@ -723,19 +647,12 @@ TEST_P(HeapprofdEndToEnd, NativeStartup) {
 TEST_P(HeapprofdEndToEnd, NativeStartupDenormalizedCmdline) {
   auto helper = GetHelper(&task_runner);
 
-  TraceConfig trace_config;
-  trace_config.add_buffers()->set_size_kb(10 * 1024);
+  TraceConfig trace_config = MakeTraceConfig([](HeapprofdConfig* cfg) {
+    cfg->set_sampling_interval_bytes(1);
+    cfg->add_process_cmdline("heapprofd_continuous_malloc@1.2.3");
+    cfg->set_all(false);
+  });
   trace_config.set_duration_ms(5000);
-  trace_config.set_data_source_stop_timeout_ms(10000);
-
-  auto* ds_config = trace_config.add_data_sources()->mutable_config();
-  ds_config->set_name("android.heapprofd");
-
-  protos::gen::HeapprofdConfig heapprofd_config;
-  heapprofd_config.set_sampling_interval_bytes(1);
-  heapprofd_config.add_process_cmdline("heapprofd_continuous_malloc@1.2.3");
-  heapprofd_config.set_all(false);
-  ds_config->set_heapprofd_config_raw(heapprofd_config.SerializeAsString());
 
   helper->StartTracing(trace_config);
 
@@ -790,20 +707,6 @@ TEST_P(HeapprofdEndToEnd, NativeStartupDenormalizedCmdline) {
 TEST_P(HeapprofdEndToEnd, DiscoverByName) {
   auto helper = GetHelper(&task_runner);
 
-  TraceConfig trace_config;
-  trace_config.add_buffers()->set_size_kb(10 * 1024);
-  trace_config.set_duration_ms(5000);
-  trace_config.set_data_source_stop_timeout_ms(10000);
-
-  auto* ds_config = trace_config.add_data_sources()->mutable_config();
-  ds_config->set_name("android.heapprofd");
-
-  protos::gen::HeapprofdConfig heapprofd_config;
-  heapprofd_config.set_sampling_interval_bytes(1);
-  heapprofd_config.add_process_cmdline("heapprofd_continuous_malloc");
-  heapprofd_config.set_all(false);
-  ds_config->set_heapprofd_config_raw(heapprofd_config.SerializeAsString());
-
   base::Subprocess child({"/proc/self/exe"});
   child.args.argv0_override = "heapprofd_continuous_malloc";
   child.args.stdout_mode = base::Subprocess::kDevNull;
@@ -814,6 +717,13 @@ TEST_P(HeapprofdEndToEnd, DiscoverByName) {
   // Wait to make sure process is fully initialized, so we do not accidentally
   // match it by the startup logic.
   sleep(1);
+
+  TraceConfig trace_config = MakeTraceConfig([](HeapprofdConfig* cfg) {
+    cfg->set_sampling_interval_bytes(1);
+    cfg->add_process_cmdline("heapprofd_continuous_malloc");
+    cfg->set_all(false);
+  });
+  trace_config.set_duration_ms(5000);
 
   helper->StartTracing(trace_config);
   helper->WaitForTracingDisabled(kTracingDisabledTimeoutMs);
@@ -853,20 +763,6 @@ TEST_P(HeapprofdEndToEnd, DiscoverByName) {
 TEST_P(HeapprofdEndToEnd, DiscoverByNameDenormalizedCmdline) {
   auto helper = GetHelper(&task_runner);
 
-  TraceConfig trace_config;
-  trace_config.add_buffers()->set_size_kb(10 * 1024);
-  trace_config.set_duration_ms(5000);
-  trace_config.set_data_source_stop_timeout_ms(10000);
-
-  auto* ds_config = trace_config.add_data_sources()->mutable_config();
-  ds_config->set_name("android.heapprofd");
-
-  protos::gen::HeapprofdConfig heapprofd_config;
-  heapprofd_config.set_sampling_interval_bytes(1);
-  heapprofd_config.add_process_cmdline("heapprofd_continuous_malloc@1.2.3");
-  heapprofd_config.set_all(false);
-  ds_config->set_heapprofd_config_raw(heapprofd_config.SerializeAsString());
-
   // Make sure the forked process does not get reparented to init.
   base::Subprocess child({"/proc/self/exe"});
   child.args.argv0_override = "heapprofd_continuous_malloc";
@@ -878,6 +774,13 @@ TEST_P(HeapprofdEndToEnd, DiscoverByNameDenormalizedCmdline) {
   // Wait to make sure process is fully initialized, so we do not accidentally
   // match it by the startup logic.
   sleep(1);
+
+  TraceConfig trace_config = MakeTraceConfig([](HeapprofdConfig* cfg) {
+    cfg->set_sampling_interval_bytes(1);
+    cfg->add_process_cmdline("heapprofd_continuous_malloc@1.2.3");
+    cfg->set_all(false);
+  });
+  trace_config.set_duration_ms(5000);
 
   helper->StartTracing(trace_config);
   helper->WaitForTracingDisabled(kTracingDisabledTimeoutMs);
@@ -954,20 +857,10 @@ TEST_P(HeapprofdEndToEnd, ReInit) {
   signal_pipe.rd.reset();
   ack_pipe.wr.reset();
 
-  TraceConfig trace_config;
-  trace_config.add_buffers()->set_size_kb(10 * 1024);
-  trace_config.set_duration_ms(2000);
-  trace_config.set_data_source_stop_timeout_ms(10000);
-
-  auto* ds_config = trace_config.add_data_sources()->mutable_config();
-  ds_config->set_name("android.heapprofd");
-  ds_config->set_target_buffer(0);
-
-  protos::gen::HeapprofdConfig heapprofd_config;
-  heapprofd_config.set_sampling_interval_bytes(1);
-  heapprofd_config.add_pid(static_cast<uint64_t>(pid));
-  heapprofd_config.set_all(false);
-  ds_config->set_heapprofd_config_raw(heapprofd_config.SerializeAsString());
+  TraceConfig trace_config = MakeTraceConfig([pid](HeapprofdConfig* cfg) {
+    cfg->set_sampling_interval_bytes(1);
+    cfg->add_pid(static_cast<uint64_t>(pid));
+  });
 
   auto helper = Trace(trace_config);
   PrintStats(helper.get());
@@ -1036,22 +929,11 @@ TEST_P(HeapprofdEndToEnd, ReInitAfterInvalid) {
 
   signal_pipe.rd.reset();
   ack_pipe.wr.reset();
-
-  TraceConfig trace_config;
-  trace_config.add_buffers()->set_size_kb(10 * 1024);
-  trace_config.set_duration_ms(2000);
-  trace_config.set_data_source_stop_timeout_ms(10000);
-
-  auto* ds_config = trace_config.add_data_sources()->mutable_config();
-  ds_config->set_name("android.heapprofd");
-  ds_config->set_target_buffer(0);
-
-  protos::gen::HeapprofdConfig heapprofd_config;
-  heapprofd_config.set_sampling_interval_bytes(1);
-  heapprofd_config.add_pid(static_cast<uint64_t>(pid));
-  heapprofd_config.set_all(false);
-  heapprofd_config.add_heaps("invalid");
-  ds_config->set_heapprofd_config_raw(heapprofd_config.SerializeAsString());
+  TraceConfig trace_config = MakeTraceConfig([pid](HeapprofdConfig* cfg) {
+    cfg->set_sampling_interval_bytes(1);
+    cfg->add_pid(static_cast<uint64_t>(pid));
+    cfg->add_heaps("invalid");
+  });
 
   auto helper = Trace(trace_config);
   PrintStats(helper.get());
@@ -1067,8 +949,10 @@ TEST_P(HeapprofdEndToEnd, ReInitAfterInvalid) {
   // to be torn down (as it rejects concurrent sessions).
   usleep(500 * kMsToUs);
 
-  heapprofd_config.add_heaps("malloc");
-  ds_config->set_heapprofd_config_raw(heapprofd_config.SerializeAsString());
+  trace_config = MakeTraceConfig([pid](HeapprofdConfig* cfg) {
+    cfg->set_sampling_interval_bytes(1);
+    cfg->add_pid(static_cast<uint64_t>(pid));
+  });
 
   PERFETTO_LOG("HeapprofdEndToEnd::ReinitAfterInvalid: Starting second");
   helper = Trace(trace_config);
@@ -1087,23 +971,12 @@ TEST_P(HeapprofdEndToEnd, ConcurrentSession) {
   base::Subprocess child = ForkContinuousMalloc(kAllocSize);
   const auto pid = child.pid();
 
-  TraceConfig trace_config;
-  trace_config.add_buffers()->set_size_kb(10 * 1024);
+  TraceConfig trace_config = MakeTraceConfig([pid](HeapprofdConfig* cfg) {
+    cfg->set_sampling_interval_bytes(1);
+    cfg->add_pid(static_cast<uint64_t>(pid));
+    ContinuousDump(cfg);
+  });
   trace_config.set_duration_ms(5000);
-  trace_config.set_data_source_stop_timeout_ms(10000);
-
-  auto* ds_config = trace_config.add_data_sources()->mutable_config();
-  ds_config->set_name("android.heapprofd");
-  ds_config->set_target_buffer(0);
-
-  protos::gen::HeapprofdConfig heapprofd_config;
-  heapprofd_config.set_sampling_interval_bytes(1);
-  heapprofd_config.add_pid(static_cast<uint64_t>(pid));
-  heapprofd_config.set_all(false);
-  auto* cont_config = heapprofd_config.mutable_continuous_dump_config();
-  cont_config->set_dump_phase_ms(0);
-  cont_config->set_dump_interval_ms(100);
-  ds_config->set_heapprofd_config_raw(heapprofd_config.SerializeAsString());
 
   auto helper = GetHelper(&task_runner);
   helper->StartTracing(trace_config);
@@ -1159,23 +1032,17 @@ TEST_P(HeapprofdEndToEnd, NativeProfilingActiveAtProcessExit) {
 
   // Construct tracing config (without starting profiling).
   auto helper = GetHelper(&task_runner);
-  TraceConfig trace_config;
-  trace_config.add_buffers()->set_size_kb(10 * 1024);
-  trace_config.set_duration_ms(5000);
-  trace_config.set_data_source_stop_timeout_ms(10000);
-
-  auto* ds_config = trace_config.add_data_sources()->mutable_config();
-  ds_config->set_name("android.heapprofd");
-
-  protos::gen::HeapprofdConfig heapprofd_config;
-  heapprofd_config.set_sampling_interval_bytes(1);
-  heapprofd_config.add_pid(static_cast<uint64_t>(pid));
-  ds_config->set_heapprofd_config_raw(heapprofd_config.SerializeAsString());
 
   // Wait for child to have been scheduled at least once.
   char buf[1] = {};
   ASSERT_EQ(PERFETTO_EINTR(read(*start_pipe.rd, buf, sizeof(buf))), 1);
   start_pipe.rd.reset();
+
+  TraceConfig trace_config = MakeTraceConfig([pid](HeapprofdConfig* cfg) {
+    cfg->set_sampling_interval_bytes(1);
+    cfg->add_pid(static_cast<uint64_t>(pid));
+  });
+  trace_config.set_duration_ms(5000);
 
   // Trace until child exits.
   helper->StartTracing(trace_config);
