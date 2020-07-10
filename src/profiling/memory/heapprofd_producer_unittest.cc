@@ -68,7 +68,8 @@ TEST(LogHistogramTest, Overflow) {
 
 TEST(HeapprofdProducerTest, ExposesDataSource) {
   base::TestTaskRunner task_runner;
-  HeapprofdProducer producer(HeapprofdMode::kCentral, &task_runner);
+  HeapprofdProducer producer(HeapprofdMode::kCentral, &task_runner,
+                             /* is_oneshot= */ false);
 
   std::unique_ptr<MockProducerEndpoint> endpoint(new MockProducerEndpoint());
   EXPECT_CALL(*endpoint,

@@ -265,19 +265,6 @@ def main(argv):
       default=None)
 
   args = parser.parse_args()
-
-  # TODO(fmayer): Maybe feature detect whether we can remove traces instead of
-  # this.
-  uuid_trace = release_or_newer('R')
-  if uuid_trace:
-    profile_device_path = '/data/misc/perfetto-traces/profile-' + UUID
-  else:
-    user = subprocess.check_output(
-      ['adb', 'shell', 'whoami']).decode('utf-8').strip()
-    profile_device_path = '/data/misc/perfetto-traces/profile-' + user
-  perfetto_cmd = ('CFG=\'{cfg}\'; echo ${{CFG}} | '
-                  'perfetto --txt -c - -o ' + profile_device_path + ' -d')
-
   fail = False
   if args.block_client and args.no_block_client:
     print(
@@ -365,6 +352,19 @@ def main(argv):
   if args.print_config:
     print(cfg)
     return 0
+
+  # TODO(fmayer): Maybe feature detect whether we can remove traces instead of
+  # this.
+  uuid_trace = release_or_newer('R')
+  if uuid_trace:
+    profile_device_path = '/data/misc/perfetto-traces/profile-' + UUID
+  else:
+    user = subprocess.check_output(
+      ['adb', 'shell', 'whoami']).decode('utf-8').strip()
+    profile_device_path = '/data/misc/perfetto-traces/profile-' + user
+
+  perfetto_cmd = ('CFG=\'{cfg}\'; echo ${{CFG}} | '
+                  'perfetto --txt -c - -o ' + profile_device_path + ' -d')
 
   if args.disable_selinux:
     enforcing = subprocess.check_output(['adb', 'shell', 'getenforce'])
