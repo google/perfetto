@@ -1389,12 +1389,14 @@ TEST_F(TracingServiceImplTest, WriteIntoFileAndStopOnMaxSize) {
 
   // The preamble packets are:
   // Trace start clock snapshot
+  // Trace most recent clock snapshot
+  // Trace synchronisation
   // Config
   // SystemInfo
-  // Trace read clock snapshot
-  // Trace synchronisation
+  // Tracing started (TracingServiceEvent)
   // All data source started (TracingServiceEvent)
-  static const int kNumPreamblePackets = 6;
+  // Tracing disabled (TracingServiceEvent)
+  static const int kNumPreamblePackets = 8;
   static const int kNumTestPackets = 9;
   static const char kPayload[] = "1234567890abcdef-";
 
@@ -3138,6 +3140,121 @@ TEST_F(TracingServiceImplTest, ObserveAllDataSourceStartedNoAck) {
     Mock::VerifyAndClearExpectations(consumer.get());
     Mock::VerifyAndClearExpectations(producer.get());
   }
+}
+
+TEST_F(TracingServiceImplTest, LifecycleEventSmoke) {
+  using TracingServiceEvent = protos::gen::TracingServiceEvent;
+  using TracingServiceEventFnPtr = bool (TracingServiceEvent::*)() const;
+  auto has_lifecycle_field = [](TracingServiceEventFnPtr ptr) {
+    return Contains(Property(&protos::gen::TracePacket::service_event,
+                             Property(ptr, Eq(true))));
+  };
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("data_source");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  trace_config.add_data_sources()->mutable_config()->set_name("data_source");
+
+  consumer->EnableTracing(trace_config);
+
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("data_source");
+  producer->WaitForDataSourceStart("data_source");
+  task_runner.RunUntilIdle();
+
+  auto packets = consumer->ReadBuffers();
+  EXPECT_THAT(packets,
+              has_lifecycle_field(&TracingServiceEvent::tracing_started));
+  EXPECT_THAT(packets, has_lifecycle_field(
+                           &TracingServiceEvent::all_data_sources_started));
+  EXPECT_THAT(packets,
+              has_lifecycle_field(
+                  &TracingServiceEvent::read_tracing_buffers_completed));
+
+  std::unique_ptr<TraceWriter> writer =
+      producer->CreateTraceWriter("data_source");
+  {
+    auto tp = writer->NewTracePacket();
+    tp->set_for_testing()->set_str("payload");
+  }
+
+  auto flush_request = consumer->Flush();
+  producer->WaitForFlush(writer.get());
+  ASSERT_TRUE(flush_request.WaitForReply());
+
+  packets = consumer->ReadBuffers();
+  EXPECT_THAT(packets, has_lifecycle_field(
+                           &TracingServiceEvent::all_data_sources_flushed));
+  EXPECT_THAT(packets,
+              has_lifecycle_field(
+                  &TracingServiceEvent::read_tracing_buffers_completed));
+
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("data_source");
+  consumer->WaitForTracingDisabled();
+
+  packets = consumer->ReadBuffers();
+  EXPECT_THAT(packets,
+              has_lifecycle_field(&TracingServiceEvent::tracing_disabled));
+  EXPECT_THAT(packets,
+              has_lifecycle_field(
+                  &TracingServiceEvent::read_tracing_buffers_completed));
+}
+
+TEST_F(TracingServiceImplTest, LifecycleMultipleFlushEventsQueued) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("data_source");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  trace_config.add_data_sources()->mutable_config()->set_name("data_source");
+
+  consumer->EnableTracing(trace_config);
+
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("data_source");
+  producer->WaitForDataSourceStart("data_source");
+  task_runner.RunUntilIdle();
+
+  std::unique_ptr<TraceWriter> writer =
+      producer->CreateTraceWriter("data_source");
+  {
+    auto tp = writer->NewTracePacket();
+    tp->set_for_testing()->set_str("payload");
+  }
+
+  auto flush_request = consumer->Flush();
+  producer->WaitForFlush(writer.get());
+  ASSERT_TRUE(flush_request.WaitForReply());
+
+  {
+    auto tp = writer->NewTracePacket();
+    tp->set_for_testing()->set_str("payload");
+  }
+
+  flush_request = consumer->Flush();
+  producer->WaitForFlush(writer.get());
+  ASSERT_TRUE(flush_request.WaitForReply());
+
+  auto packets = consumer->ReadBuffers();
+  uint32_t count = 0;
+  for (const auto& packet : packets) {
+    count += packet.service_event().all_data_sources_flushed();
+  }
+  ASSERT_EQ(count, 2u);
+
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("data_source");
+  consumer->WaitForTracingDisabled();
 }
 
 TEST_F(TracingServiceImplTest, QueryServiceState) {
