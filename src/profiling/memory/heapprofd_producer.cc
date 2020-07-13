@@ -17,6 +17,7 @@
 #include "src/profiling/memory/heapprofd_producer.h"
 
 #include <algorithm>
+#include <functional>
 
 #include <inttypes.h>
 #include <signal.h>
@@ -156,9 +157,11 @@ size_t LogHistogram::GetBucket(uint64_t value) {
 // We create kUnwinderThreads unwinding threads. Bookkeeping is done on the main
 // thread.
 HeapprofdProducer::HeapprofdProducer(HeapprofdMode mode,
-                                     base::TaskRunner* task_runner)
+                                     base::TaskRunner* task_runner,
+                                     bool is_oneshot)
     : task_runner_(task_runner),
       mode_(mode),
+      is_oneshot_(is_oneshot),
       unwinding_workers_(MakeUnwindingWorkers(this, kUnwinderThreads)),
       socket_delegate_(this),
       weak_factory_(this) {
@@ -176,18 +179,24 @@ HeapprofdProducer::HeapprofdProducer(HeapprofdMode mode,
 HeapprofdProducer::~HeapprofdProducer() = default;
 
 void HeapprofdProducer::SetTargetProcess(pid_t target_pid,
-                                         std::string target_cmdline,
-                                         base::ScopedFile inherited_socket) {
+                                         std::string target_cmdline) {
   target_process_.pid = target_pid;
   target_process_.cmdline = target_cmdline;
+}
+
+void HeapprofdProducer::SetInheritedSocket(base::ScopedFile inherited_socket) {
   inherited_fd_ = std::move(inherited_socket);
 }
 
-void HeapprofdProducer::AdoptTargetProcessSocket() {
+void HeapprofdProducer::SetDataSourceCallback(std::function<void()> fn) {
+  data_source_callback_ = fn;
+}
+
+void HeapprofdProducer::AdoptSocket(base::ScopedFile fd) {
   PERFETTO_DCHECK(mode_ == HeapprofdMode::kChild);
   auto socket = base::UnixSocket::AdoptConnected(
-      std::move(inherited_fd_), &socket_delegate_, task_runner_,
-      base::SockFamily::kUnix, base::SockType::kStream);
+      std::move(fd), &socket_delegate_, task_runner_, base::SockFamily::kUnix,
+      base::SockType::kStream);
 
   HandleClientConnection(std::move(socket), target_process_);
 }
@@ -210,7 +219,7 @@ void HeapprofdProducer::OnDisconnect() {
   PERFETTO_LOG("Disconnected from tracing service");
 
   // Do not attempt to reconnect if we're a process-private process, just quit.
-  if (mode_ == HeapprofdMode::kChild) {
+  if (is_oneshot_) {
     TerminateProcess(/*exit_status=*/1);  // does not return
   }
 
@@ -271,18 +280,18 @@ void HeapprofdProducer::Restart() {
   // be error prone. What we do here is simply destroy the instance and
   // recreate it again.
 
-  // Child mode producer should not attempt restarts. Note that this also means
-  // the rest of this method doesn't have to handle child-specific state.
-  if (mode_ == HeapprofdMode::kChild)
-    PERFETTO_FATAL("Attempting to restart a child mode producer.");
+  // Oneshot producer should not attempt restarts.
+  if (is_oneshot_)
+    PERFETTO_FATAL("Attempting to restart a one shot producer.");
 
   HeapprofdMode mode = mode_;
   base::TaskRunner* task_runner = task_runner_;
   const char* socket_name = producer_sock_name_;
+  const bool is_oneshot = is_oneshot_;
 
   // Invoke destructor and then the constructor again.
   this->~HeapprofdProducer();
-  new (this) HeapprofdProducer(mode, task_runner);
+  new (this) HeapprofdProducer(mode, task_runner, is_oneshot);
 
   ConnectWithRetries(socket_name);
 }
@@ -424,8 +433,10 @@ void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
   data_sources_.emplace(id, std::move(data_source));
   PERFETTO_DLOG("Set up data source.");
 
-  if (mode_ == HeapprofdMode::kChild)
-    AdoptTargetProcessSocket();
+  if (mode_ == HeapprofdMode::kChild && inherited_fd_)
+    AdoptSocket(std::move(inherited_fd_));
+  if (mode_ == HeapprofdMode::kChild && data_source_callback_)
+    (*data_source_callback_)();
 }
 
 bool HeapprofdProducer::IsPidProfiled(pid_t pid) {
@@ -1062,7 +1073,8 @@ bool HeapprofdProducer::MaybeFinishDataSource(DataSource* ds) {
   bool was_stopped = ds->was_stopped;
   DataSourceInstanceID ds_id = ds->id;
   auto weak_producer = weak_factory_.GetWeakPtr();
-  ds->trace_writer->Flush([weak_producer, ds_id, was_stopped] {
+  bool is_oneshot = is_oneshot_;
+  ds->trace_writer->Flush([weak_producer, is_oneshot, ds_id, was_stopped] {
     if (!weak_producer)
       return;
 
@@ -1070,7 +1082,7 @@ bool HeapprofdProducer::MaybeFinishDataSource(DataSource* ds) {
       weak_producer->endpoint_->NotifyDataSourceStopped(ds_id);
     weak_producer->data_sources_.erase(ds_id);
 
-    if (weak_producer->mode_ == HeapprofdMode::kChild) {
+    if (is_oneshot) {
       // Post this as a task to allow NotifyDataSourceStopped to post tasks.
       weak_producer->task_runner_->PostTask([weak_producer] {
         if (!weak_producer)
