@@ -66,6 +66,26 @@ if (perfetto_build_with_android) {
   }
 }  # if (perfetto_build_with_android)
 
+executable("heapprofd_static_client_example") {
+  deps = [
+    ":heapprofd_static_client",
+    "../../../gn:default_deps",
+  ]
+  sources = [ "heapprofd_static_client_example.cc" ]
+}
+
+shared_library("heapprofd_static_client") {
+  deps = [
+    ":client_ext",
+    ":daemon",
+    "../../../gn:default_deps",
+    "../../../include/perfetto/ext/tracing/ipc",
+    "../../base",
+    "../common:proc_utils",
+  ]
+  sources = [ "client_ext_static.cc" ]
+}
+
 shared_library("heapprofd_client_api") {
   configs -= [ "//gn/standalone:android_liblog" ]
   if (perfetto_build_with_android) {
@@ -77,6 +97,9 @@ shared_library("heapprofd_client_api") {
     cflags = [ "-DPERFETTO_DISABLE_LOG" ]
   }
   deps = [ ":client_ext" ]
+  if (perfetto_build_with_android) {
+    sources = [ "client_ext_android.cc" ]
+  }
 }
 
 source_set("client_ext") {
@@ -97,9 +120,6 @@ source_set("client_ext") {
     "../common:proc_utils",
   ]
   sources = [ "client_ext.cc" ]
-  if (perfetto_build_with_android) {
-    sources += [ "client_ext_android.cc" ]
-  }
 }
 
 source_set("wire_protocol") {
