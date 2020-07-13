@@ -519,6 +519,20 @@ bool TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
     return false;
   }
 
+  if (cfg.trigger_config().trigger_mode() ==
+          TraceConfig::TriggerConfig::STOP_TRACING &&
+      cfg.write_into_file()) {
+    // We don't support this usecase because there are subtle assumptions which
+    // break around TracingServiceEvents and windowed sorting (i.e. if we don't
+    // drain the events in ReadBuffers because we are waiting for STOP_TRACING,
+    // we can end up queueing up a lot of TracingServiceEvents and emitting them
+    // wildy out of order breaking windowed sorting in trace processor).
+    PERFETTO_ELOG(
+        "Specifying trigger mode STOP_TRACING and write_into_file together is "
+        "unsupported");
+    return false;
+  }
+
   std::unordered_set<std::string> triggers;
   for (const auto& trigger : cfg.trigger_config().triggers()) {
     if (!triggers.insert(trigger.name()).second) {
@@ -901,18 +915,33 @@ bool TracingServiceImpl::StartTracing(TracingSessionID tsid) {
 
   tracing_session->state = TracingSession::STARTED;
 
+  // We store the start of trace snapshot separately as it's important to make
+  // sure we can interpret all the data in the trace and storing it in the ring
+  // buffer means it could be overwritten by a later snapshot.
+  if (!tracing_session->config.builtin_data_sources()
+           .disable_clock_snapshotting()) {
+    SnapshotClocks(&tracing_session->initial_clock_snapshot);
+  }
+
+  // We don't snapshot the clocks here because we just did this above.
+  SnapshotLifecyleEvent(
+      tracing_session,
+      protos::pbzero::TracingServiceEvent::kTracingStartedFieldNumber,
+      false /* snapshot_clocks */);
+
   // Periodically snapshot clocks, stats, sync markers while the trace is
   // active. The snapshots are emitted on the future ReadBuffers() calls, which
   // means that:
   //  (a) If we're streaming to a file (or to a consumer) while tracing, we
   //      write snapshots periodically into the trace.
   //  (b) If ReadBuffers() is only called after tracing ends, we emit the latest
-  //      snapshot into the trace. For clock snapshots, we keep track of a
-  //      snapshot recorded at the beginning of the session as well as the most
-  //      recent snapshot that showed significant new drift between different
-  //      clocks. This way, we emit useful snapshots for both stop-when-full and
-  //      ring-buffer tracing modes.
-  PeriodicSnapshotTask(tracing_session, /*is_initial_snapshot=*/true);
+  //      snapshot into the trace. For clock snapshots, we keep track of the
+  //      snapshot recorded at the beginning of the session
+  //      (initial_clock_snapshot above), as well as the most recent sampled
+  //      snapshots that showed significant new drift between different clocks.
+  //      The latter clock snapshots are sampled periodically and at lifecycle
+  //      events.
+  PeriodicSnapshotTask(tracing_session);
 
   // Trigger delayed task if the trace is time limited.
   const uint32_t trace_duration_ms = tracing_session->config.duration_ms();
@@ -1130,8 +1159,13 @@ void TracingServiceImpl::MaybeNotifyAllDataSourcesStarted(
     return;
 
   PERFETTO_DLOG("All data sources started");
+
+  SnapshotLifecyleEvent(
+      tracing_session,
+      protos::pbzero::TracingServiceEvent::kAllDataSourcesStartedFieldNumber,
+      true /* snapshot_clocks */);
+
   tracing_session->did_notify_all_data_source_started = true;
-  tracing_session->time_all_data_source_started = base::GetBootTimeNs();
   tracing_session->consumer_maybe_null->OnAllDataSourcesStarted();
 }
 
@@ -1297,6 +1331,11 @@ void TracingServiceImpl::DisableTracingNotifyConsumerAndFlushFile(
   for (auto& producer_id_and_producer : producers_)
     ScrapeSharedMemoryBuffers(tracing_session, producer_id_and_producer.second);
 
+  SnapshotLifecyleEvent(
+      tracing_session,
+      protos::pbzero::TracingServiceEvent::kTracingDisabledFieldNumber,
+      true /* snapshot_clocks */);
+
   if (tracing_session->write_into_file) {
     tracing_session->write_period_ms = 0;
     ReadBuffers(tracing_session->id, nullptr);
@@ -1423,6 +1462,10 @@ void TracingServiceImpl::CompleteFlush(TracingSessionID tsid,
                                 producer_id_and_producer.second);
     }
   }
+  SnapshotLifecyleEvent(
+      tracing_session,
+      protos::pbzero::TracingServiceEvent::kAllDataSourcesFlushedFieldNumber,
+      true /* snapshot_clocks */);
   callback(success);
 }
 
@@ -1685,24 +1728,20 @@ bool TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
   std::vector<TracePacket> packets;
   packets.reserve(1024);  // Just an educated guess to avoid trivial expansions.
 
-  if (!tracing_session->initial_clock_snapshot_.empty()) {
+  if (!tracing_session->initial_clock_snapshot.empty()) {
     EmitClockSnapshot(tracing_session,
-                      std::move(tracing_session->initial_clock_snapshot_),
-                      /*set_root_timestamp=*/true, &packets);
+                      std::move(tracing_session->initial_clock_snapshot),
+                      &packets);
   }
 
-  if (!tracing_session->last_clock_snapshot_.empty()) {
-    // We don't want to put a root timestamp in periodic clock snapshot packets
-    // as they may be emitted very out of order with respect to the actual trace
-    // packets, since consuming the trace may happen at any point after it
-    // starts.
-    EmitClockSnapshot(tracing_session,
-                      std::move(tracing_session->last_clock_snapshot_),
-                      /*set_root_timestamp=*/false, &packets);
+  for (auto& snapshot : tracing_session->clock_snapshot_ring_buffer) {
+    PERFETTO_DCHECK(!snapshot.empty());
+    EmitClockSnapshot(tracing_session, std::move(snapshot), &packets);
   }
+  tracing_session->clock_snapshot_ring_buffer.clear();
 
   if (tracing_session->should_emit_sync_marker) {
-    SnapshotSyncMarker(&packets);
+    EmitSyncMarker(&packets);
     tracing_session->should_emit_sync_marker = false;
   }
 
@@ -1713,7 +1752,7 @@ bool TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
   if (!tracing_session->config.builtin_data_sources().disable_system_info())
     MaybeEmitSystemInfo(tracing_session, &packets);
   if (!tracing_session->config.builtin_data_sources().disable_service_events())
-    MaybeEmitServiceEvents(tracing_session, &packets);
+    EmitLifecycleEvents(tracing_session, &packets);
 
   size_t packets_bytes = 0;  // SUM(slice.size() for each slice in |packets|).
   size_t total_slices = 0;   // SUM(#slices in |packets|).
@@ -1801,21 +1840,33 @@ bool TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
 
   const bool has_more = did_hit_threshold;
 
+  size_t prev_packets_size = packets.size();
+  if (!tracing_session->config.builtin_data_sources()
+           .disable_service_events()) {
+    // We don't bother snapshotting clocks here because we wouldn't be able to
+    // emit it and we shouldn't have significant drift from the last snapshot in
+    // any case.
+    SnapshotLifecyleEvent(tracing_session,
+                          protos::pbzero::TracingServiceEvent::
+                              kReadTracingBuffersCompletedFieldNumber,
+                          false /* snapshot_clocks */);
+    EmitLifecycleEvents(tracing_session, &packets);
+  }
+
   // Only emit the stats when there is no more trace data is available to read.
   // That way, any problems that occur while reading from the buffers are
   // reflected in the emitted stats. This is particularly important for use
   // cases where ReadBuffers is only ever called after the tracing session is
   // stopped.
   if (!has_more && tracing_session->should_emit_stats) {
-    size_t prev_packets_size = packets.size();
-    SnapshotStats(tracing_session, &packets);
+    EmitStats(tracing_session, &packets);
     tracing_session->should_emit_stats = false;
+  }
 
-    // Add sizes of packets emitted by SnapshotStats.
-    for (size_t i = prev_packets_size; i < packets.size(); ++i) {
-      packets_bytes += packets[i].size();
-      total_slices += packets[i].slices().size();
-    }
+  // Add sizes of packets emitted by the EmitLifecycleEvents + EmitStats.
+  for (size_t i = prev_packets_size; i < packets.size(); ++i) {
+    packets_bytes += packets[i].size();
+    total_slices += packets[i].slices().size();
   }
 
   // If the caller asked us to write into a file by setting
@@ -2394,17 +2445,10 @@ void TracingServiceImpl::UpdateMemoryGuardrail() {
 #endif
 }
 
-void TracingServiceImpl::PeriodicSnapshotTask(TracingSession* tracing_session,
-                                              bool is_initial_snapshot) {
+void TracingServiceImpl::PeriodicSnapshotTask(TracingSession* tracing_session) {
   tracing_session->should_emit_sync_marker = true;
   tracing_session->should_emit_stats = true;
-
-  if (!tracing_session->config.builtin_data_sources()
-           .disable_clock_snapshotting()) {
-    if (is_initial_snapshot)
-      SnapshotClocks(&tracing_session->initial_clock_snapshot_);
-    SnapshotClocks(&tracing_session->last_clock_snapshot_);
-  }
+  MaybeSnapshotClocksIntoRingBuffer(tracing_session);
 
   uint32_t interval_ms =
       tracing_session->config.builtin_data_sources().snapshot_interval_ms();
@@ -2422,33 +2466,79 @@ void TracingServiceImpl::PeriodicSnapshotTask(TracingSession* tracing_session,
           return;
         if (tracing_session_ptr->state != TracingSession::STARTED)
           return;
-        weak_this->PeriodicSnapshotTask(tracing_session_ptr,
-                                        /*is_initial_snapshot=*/false);
+        weak_this->PeriodicSnapshotTask(tracing_session_ptr);
       },
       interval_ms - (base::GetWallTimeMs().count() % interval_ms));
 }
 
-void TracingServiceImpl::SnapshotSyncMarker(std::vector<TracePacket>* packets) {
-  // The sync marks are used to tokenize large traces efficiently.
-  // See description in trace_packet.proto.
-  if (sync_marker_packet_size_ == 0) {
-    // The marker ABI expects that the marker is written after the uid.
-    // Protozero guarantees that fields are written in the same order of the
-    // calls. The ResynchronizeTraceStreamUsingSyncMarker test verifies the ABI.
-    protozero::StaticBuffered<protos::pbzero::TracePacket> packet(
-        &sync_marker_packet_[0], sizeof(sync_marker_packet_));
-    packet->set_trusted_uid(static_cast<int32_t>(uid_));
-    packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
+void TracingServiceImpl::SnapshotLifecyleEvent(TracingSession* tracing_session,
+                                               uint32_t field_id,
+                                               bool snapshot_clocks) {
+  // field_id should be an id of a field in TracingServiceEvent.
+  auto& lifecycle_events = tracing_session->lifecycle_events;
+  auto event_it =
+      std::find_if(lifecycle_events.begin(), lifecycle_events.end(),
+                   [field_id](const TracingSession::LifecycleEvent& event) {
+                     return event.field_id == field_id;
+                   });
 
-    // Keep this last.
-    packet->set_synchronization_marker(kSyncMarker, sizeof(kSyncMarker));
-    sync_marker_packet_size_ = packet.Finalize();
+  TracingSession::LifecycleEvent* event;
+  if (event_it == lifecycle_events.end()) {
+    lifecycle_events.emplace_back(field_id);
+    event = &lifecycle_events.back();
+  } else {
+    event = &*event_it;
   }
-  packets->emplace_back();
-  packets->back().AddSlice(&sync_marker_packet_[0], sync_marker_packet_size_);
+
+  // Snapshot the clocks before capturing the timestamp for the event so we can
+  // use this snapshot to resolve the event timestamp if necessary.
+  if (snapshot_clocks)
+    MaybeSnapshotClocksIntoRingBuffer(tracing_session);
+
+  // Erase before emplacing to prevent a unncessary doubling of memory if
+  // not needed.
+  if (event->timestamps.size() >= event->max_size) {
+    event->timestamps.erase_front(1 + event->timestamps.size() -
+                                  event->max_size);
+  }
+  event->timestamps.emplace_back(base::GetBootTimeNs().count());
 }
 
-void TracingServiceImpl::SnapshotClocks(
+void TracingServiceImpl::MaybeSnapshotClocksIntoRingBuffer(
+    TracingSession* tracing_session) {
+  if (tracing_session->config.builtin_data_sources()
+          .disable_clock_snapshotting()) {
+    return;
+  }
+
+  // We are making an explicit copy of the latest snapshot (if it exists)
+  // because SnapshotClocks reads this data and computes the drift based on its
+  // content. If the clock drift is high enough, it will update the contents of
+  // |snapshot| and return true. Otherwise, it will return false.
+  TracingSession::ClockSnapshotData snapshot =
+      tracing_session->clock_snapshot_ring_buffer.empty()
+          ? TracingSession::ClockSnapshotData()
+          : tracing_session->clock_snapshot_ring_buffer.back();
+  bool did_update = SnapshotClocks(&snapshot);
+  if (did_update) {
+    // This means clocks drifted enough since last snapshot. See the comment
+    // in SnapshotClocks.
+    auto* snapshot_buffer = &tracing_session->clock_snapshot_ring_buffer;
+
+    // Erase before emplacing to prevent a unncessary doubling of memory if
+    // not needed.
+    static constexpr uint32_t kClockSnapshotRingBufferSize = 16;
+    if (snapshot_buffer->size() >= kClockSnapshotRingBufferSize) {
+      snapshot_buffer->erase_front(1 + snapshot_buffer->size() -
+                                   kClockSnapshotRingBufferSize);
+    }
+    snapshot_buffer->emplace_back(std::move(snapshot));
+  }
+}
+
+// Returns true when the data in |snapshot_data| is updated with the new state
+// of the clocks and false otherwise.
+bool TracingServiceImpl::SnapshotClocks(
     TracingSession::ClockSnapshotData* snapshot_data) {
   // Minimum drift that justifies replacing a prior clock snapshot that hasn't
   // been emitted into the trace yet (see comment below).
@@ -2534,27 +2624,22 @@ void TracingServiceImpl::SnapshotClocks(
       }
     }
     if (!update_snapshot)
-      return;
+      return false;
     snapshot_data->clear();
   }
 
   *snapshot_data = std::move(new_snapshot_data);
+  return true;
 }
 
 void TracingServiceImpl::EmitClockSnapshot(
     TracingSession* tracing_session,
     TracingSession::ClockSnapshotData snapshot_data,
-    bool set_root_timestamp,
     std::vector<TracePacket>* packets) {
-  protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
-  if (set_root_timestamp) {
-    // First timestamp from the snapshot is the default time domain (BOOTTIME on
-    // systems that support it, or walltime otherwise).
-    PERFETTO_DCHECK(snapshot_data[0].first ==
-                    protos::gen::BUILTIN_CLOCK_BOOTTIME);
-    packet->set_timestamp(snapshot_data[0].second);
-  }
+  PERFETTO_DCHECK(!tracing_session->config.builtin_data_sources()
+                       .disable_clock_snapshotting());
 
+  protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
   auto* snapshot = packet->set_clock_snapshot();
 
   protos::gen::BuiltinClock trace_clock =
@@ -2575,8 +2660,28 @@ void TracingServiceImpl::EmitClockSnapshot(
   SerializeAndAppendPacket(packets, packet.SerializeAsArray());
 }
 
-void TracingServiceImpl::SnapshotStats(TracingSession* tracing_session,
-                                       std::vector<TracePacket>* packets) {
+void TracingServiceImpl::EmitSyncMarker(std::vector<TracePacket>* packets) {
+  // The sync marks are used to tokenize large traces efficiently.
+  // See description in trace_packet.proto.
+  if (sync_marker_packet_size_ == 0) {
+    // The marker ABI expects that the marker is written after the uid.
+    // Protozero guarantees that fields are written in the same order of the
+    // calls. The ResynchronizeTraceStreamUsingSyncMarker test verifies the ABI.
+    protozero::StaticBuffered<protos::pbzero::TracePacket> packet(
+        &sync_marker_packet_[0], sizeof(sync_marker_packet_));
+    packet->set_trusted_uid(static_cast<int32_t>(uid_));
+    packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
+
+    // Keep this last.
+    packet->set_synchronization_marker(kSyncMarker, sizeof(kSyncMarker));
+    sync_marker_packet_size_ = packet.Finalize();
+  }
+  packets->emplace_back();
+  packets->back().AddSlice(&sync_marker_packet_[0], sync_marker_packet_size_);
+}
+
+void TracingServiceImpl::EmitStats(TracingSession* tracing_session,
+                                   std::vector<TracePacket>* packets) {
   protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
   packet->set_trusted_uid(static_cast<int32_t>(uid_));
   packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
@@ -2656,19 +2761,38 @@ void TracingServiceImpl::MaybeEmitSystemInfo(
   SerializeAndAppendPacket(packets, packet.SerializeAsArray());
 }
 
-void TracingServiceImpl::MaybeEmitServiceEvents(
+void TracingServiceImpl::EmitLifecycleEvents(
     TracingSession* tracing_session,
     std::vector<TracePacket>* packets) {
-  int64_t all_start_ns = tracing_session->time_all_data_source_started.count();
-  if (!tracing_session->did_emit_all_data_source_started && all_start_ns > 0) {
-    tracing_session->did_emit_all_data_source_started = true;
-    protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
-    packet->set_timestamp(static_cast<uint64_t>(all_start_ns));
-    packet->set_trusted_uid(static_cast<int32_t>(uid_));
-    packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
-    packet->set_service_event()->set_all_data_sources_started(true);
-    SerializeAndAppendPacket(packets, packet.SerializeAsArray());
+  using TimestampedPacket =
+      std::pair<int64_t /* ts */, std::vector<uint8_t> /* serialized packet */>;
+
+  std::vector<TimestampedPacket> timestamped_packets;
+  for (auto& event : tracing_session->lifecycle_events) {
+    for (int64_t ts : event.timestamps) {
+      protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
+      packet->set_timestamp(static_cast<uint64_t>(ts));
+      packet->set_trusted_uid(static_cast<int32_t>(uid_));
+      packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
+
+      auto* service_event = packet->set_service_event();
+      service_event->AppendVarInt(event.field_id, 1);
+      timestamped_packets.emplace_back(ts, packet.SerializeAsArray());
+    }
+    event.timestamps.clear();
   }
+
+  // We sort by timestamp here to ensure that the "sequence" of lifecycle
+  // packets has monotonic timestamps like other sequences in the trace.
+  // Note that these events could still be out of order with respect to other
+  // events on the service packet sequence (e.g. trigger received packets).
+  std::sort(timestamped_packets.begin(), timestamped_packets.end(),
+            [](const TimestampedPacket& a, const TimestampedPacket& b) {
+              return a.first < b.first;
+            });
+
+  for (const auto& pair : timestamped_packets)
+    SerializeAndAppendPacket(packets, std::move(pair.second));
 }
 
 void TracingServiceImpl::MaybeEmitReceivedTriggers(
@@ -3263,6 +3387,13 @@ TracingServiceImpl::TracingSession::TracingSession(
     : id(session_id),
       consumer_maybe_null(consumer),
       consumer_uid(consumer->uid_),
-      config(new_config) {}
+      config(new_config) {
+  // all_data_sources_flushed is special because we store up to 64 events of
+  // this type. Other events will go through the default case in
+  // SnapshotLifecycleEvent() where they will be given a max history of 1.
+  lifecycle_events.emplace_back(
+      protos::pbzero::TracingServiceEvent::kAllDataSourcesFlushedFieldNumber,
+      64 /* max_size */);
+}
 
 }  // namespace perfetto
