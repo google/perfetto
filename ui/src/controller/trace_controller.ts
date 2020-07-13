@@ -1056,15 +1056,15 @@ export class TraceController extends Controller<States> {
     this.updateStatus('Creating annotation slice table');
     await engine.query(`
       CREATE TABLE annotation_slice(
-        id BIG INT,
+        id INTEGER PRIMARY KEY,
         track_id INT,
         ts BIG INT,
         dur BIG INT,
         depth INT,
         cat STRING,
         name STRING,
-        PRIMARY KEY (track_id, ts)
-      ) WITHOUT ROWID;
+        UNIQUE(track_id, ts)
+      );
     `);
 
     for (const metric
@@ -1100,9 +1100,8 @@ export class TraceController extends Controller<States> {
           WHERE track_type = 'slice'
         `);
         await engine.query(`
-          INSERT INTO annotation_slice(id, track_id, ts, dur, depth, cat, name)
+          INSERT INTO annotation_slice(track_id, ts, dur, depth, cat, name)
           SELECT
-            row_number() over (order by ts) as id,
             t.id AS track_id,
             ts,
             dur,
