@@ -24,6 +24,16 @@ class TraceProcessorHttp:
     self.protos = ProtoFactory()
     self.url = 'http://' + url
 
+  def execute_query(self, query):
+    args = self.protos.RawQueryArgs()
+    args.sql_query = query
+    byte_data = args.SerializeToString()
+    req = request.Request(self.url + '/query', data=byte_data)
+    with request.urlopen(req) as f:
+      result = self.protos.QueryResult()
+      result.ParseFromString(f.read())
+      return result
+
   def compute_metric(self, metrics):
     args = self.protos.ComputeMetricArgs()
     args.metric_names.extend(metrics)
