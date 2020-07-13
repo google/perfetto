@@ -188,7 +188,7 @@
   white-space: pre-line;
 }
 
-.modal-logs {
+.modal-logs, .modal-bash {
   white-space: pre-wrap;
   border: 1px solid #999;
   background: #eee;
@@ -199,4 +199,11 @@
   min-height: 50px;
   max-height: 40vh;
   overflow: scroll;
+}
+
+.modal-bash {
+  margin: 0;
+  padding: 5px 0;
+  overflow: auto;
+  min-height: 0;
 }
