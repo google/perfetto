@@ -26,6 +26,15 @@ const ERR_QUEUE_MAX_LEN = 10;
 
 export function maybeShowErrorDialog(errLog: string) {
   const now = performance.now();
+
+  // Here we rely on the exception message from onCannotGrowMemory function
+  if (errLog.includes('Cannot enlarge memory arrays')) {
+    showOutOfMemoryDialog();
+    // Refresh timeLastReport to prevent a different error showing a dialog
+    timeLastReport = now;
+    return;
+  }
+
   if (timeLastReport > 0 && now - timeLastReport <= MIN_REPORT_PERIOD_MS) {
     queuedErrors.unshift(errLog);
     if (queuedErrors.length > ERR_QUEUE_MAX_LEN) queuedErrors.pop();
@@ -62,5 +71,28 @@ export function maybeShowErrorDialog(errLog: string) {
         }
       },
     ]
+  });
+}
+
+function showOutOfMemoryDialog() {
+  const url =
+      'https://perfetto.dev/docs/quickstart/trace-analysis#get-trace-processor';
+  const description = 'This is a limitation of your browser. ' +
+      'You can get around this by loading the trace ' +
+      'directly in the trace_processor binary.';
+
+  showModal({
+    title: 'Opps! Your WASM trace processor ran out of memory',
+    content: m(
+        'div',
+        m('span', description),
+        m('br'),
+        m('br'),
+        m('span', 'Example command:'),
+        m('.modal-bash', '> trace_processor trace.pftrace --http'),
+        m('span', 'For details see '),
+        m('a', {href: url, target: '_blank'}, url),
+        ),
+    buttons: []
   });
 }

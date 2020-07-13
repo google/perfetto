@@ -16,7 +16,16 @@ chmod +x ./trace_processor
 
 # Start the interactive shell
 ./trace_processor trace.pftrace
+
+# Start a local trace processor instance to replace wasm module in the UI
+./trace_processor trace.pftrace --http
 ```
+
+NOTE: In HTTP mode the trace will be loaded into the `trace_processor` and
+      the UI will connect and issue queries over TCP. This can allow
+      arbitrary sized traces to be loaded since there are no memory
+      constraints, unlike the WASM module. In addition, this can improve
+      performance in the UI as it issues SQL queries.
 
 See [Trace Processor docs](/docs/analysis/trace-processor.md) for the full
 TraceProcessor guide.
