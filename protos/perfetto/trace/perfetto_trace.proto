@@ -6329,18 +6329,44 @@ message PerfettoMetatrace {
 
 // Begin of protos/perfetto/trace/perfetto/tracing_service_event.proto
 
-// Events emitted by the tracing service when data source states change.
+// Events emitted by the tracing service.
+// Note: like any other packet in the trace, the byte offset at which this
+// packet shows up in the trace is arbitrary and doesn't reflect causal
+// ordering (i.e. it's okay to use this event to reason about the timestamps
+// of other packets, NOT their relative order w.r.t. this packet).
+// Next id: 6
 message TracingServiceEvent {
   oneof event_type {
-    // When this is set to true, reports the point in time (the TracePacket's
-    // timestamp) when all data sources did see the start event and ACKed it.
-    // This identifies the point in time when it's safe to assume tha all data
+    // When each of the following booleans are set to true, they report the
+    // point in time (through TracePacket's timestamp) where the condition
+    // they describe happened.
+    // The order of the booleans below matches the timestamp ordering
+    // they would generally be expected to have.
+
+    // Emitted when we start tracing and specifically, this will be before any
+    // producer is notified about the existence of this trace. This is always
+    // emitted before the all_data_sources_started event.
+    bool tracing_started = 2;
+
+    // Emitted after all data sources saw the start event and ACKed it.
+    // This identifies the point in time when it's safe to assume that all data
     // sources have been recording events.
-    // Note: like any other event in the trace, the byte offset at which this
-    // packet shows up in the trace is arbitrary and doesn't reflect causal
-    // ordering (i.e. it's okay to use this event to reason about the timestamps
-    // of othe packets, NOT their relative order w.r.t. this packet).
     bool all_data_sources_started = 1;
+
+    // Emitted when all data sources have been flushed successfully or with an
+    // error (including timeouts). This can generally happen many times over the
+    // course of the trace.
+    bool all_data_sources_flushed = 3;
+
+    // Emitted when reading back the central tracing buffers has been completed.
+    // If |write_into_file| is specified, this can happen many times over the
+    // course of the trace.
+    bool read_tracing_buffers_completed = 4;
+
+    // Emitted after tracing has been disabled and specifically, this will be
+    // after all packets from producers have been included in the central
+    // tracing buffer.
+    bool tracing_disabled = 5;
   }
 }
 
