@@ -28,6 +28,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/time.h"
+#include "perfetto/ext/base/circular_queue.h"
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
@@ -491,23 +492,43 @@ class TracingServiceImpl : public TracingService {
     // Packets that failed validation of the TrustedPacket.
     uint64_t invalid_packets = 0;
 
-    // Set to true on the first call to OnAllDataSourcesStarted().
+    // Set to true on the first call to MaybeNotifyAllDataSourcesStarted().
     bool did_notify_all_data_source_started = false;
-    bool did_emit_all_data_source_started = false;
-    base::TimeNanos time_all_data_source_started = {};
+
+    // Stores all lifecycle events of a particular type (i.e. associated with a
+    // single field id in the TracingServiceEvent proto).
+    struct LifecycleEvent {
+      LifecycleEvent(uint32_t f_id, uint32_t m_size = 1)
+          : field_id(f_id), max_size(m_size), timestamps(m_size) {}
+
+      // The field id of the event in the TracingServiceEvent proto.
+      uint32_t field_id;
+
+      // Stores the max size of |timestamps|. Set to 1 by default (in
+      // the constructor) but can be overriden in TraceSession constructor
+      // if a larger size is required.
+      uint32_t max_size;
+
+      // Stores the timestamps emitted for each event type (in nanoseconds).
+      // Emitted into the trace and cleared when the consumer next calls
+      // ReadBuffers.
+      base::CircularQueue<int64_t> timestamps;
+    };
+    std::vector<LifecycleEvent> lifecycle_events;
 
     using ClockSnapshotData =
         std::vector<std::pair<uint32_t /*clock_id*/, uint64_t /*ts*/>>;
 
     // Initial clock snapshot, captured at trace start time (when state goes to
     // TracingSession::STARTED). Emitted into the trace when the consumer first
-    // begins reading the trace.
-    ClockSnapshotData initial_clock_snapshot_;
+    // calls ReadBuffers().
+    ClockSnapshotData initial_clock_snapshot;
 
-    // Most recent clock snapshot, captured periodically after the trace was
-    // started. Emitted into the trace when the consumer next calls
-    // ReadBuffers().
-    ClockSnapshotData last_clock_snapshot_;
+    // Stores clock snapshots to emit into the trace as a ring buffer. This
+    // buffer is populated both periodically and when lifecycle events happen
+    // but only when significant clock drift is detected. Emitted into the trace
+    // and cleared when the consumer next calls ReadBuffers().
+    base::CircularQueue<ClockSnapshotData> clock_snapshot_ring_buffer;
 
     State state = DISABLED;
 
@@ -555,17 +576,19 @@ class TracingServiceImpl : public TracingService {
                               TracingSession* tracing_session,
                               DataSourceInstance* instance,
                               bool disable_immediately);
-  void PeriodicSnapshotTask(TracingSession* tracing_session,
-                            bool is_initial_snapshot);
-  void SnapshotSyncMarker(std::vector<TracePacket>*);
-  void SnapshotClocks(TracingSession::ClockSnapshotData*);
+  void PeriodicSnapshotTask(TracingSession* tracing_session);
+  void MaybeSnapshotClocksIntoRingBuffer(TracingSession*);
+  bool SnapshotClocks(TracingSession::ClockSnapshotData*);
+  void SnapshotLifecyleEvent(TracingSession*,
+                             uint32_t field_id,
+                             bool snapshot_clocks);
   void EmitClockSnapshot(TracingSession* tracing_session,
                          TracingSession::ClockSnapshotData,
-                         bool set_root_timestamp,
                          std::vector<TracePacket>*);
-  void SnapshotStats(TracingSession*, std::vector<TracePacket>*);
+  void EmitSyncMarker(std::vector<TracePacket>*);
+  void EmitStats(TracingSession*, std::vector<TracePacket>*);
   TraceStats GetTraceStats(TracingSession* tracing_session);
-  void MaybeEmitServiceEvents(TracingSession*, std::vector<TracePacket>*);
+  void EmitLifecycleEvents(TracingSession*, std::vector<TracePacket>* packets);
   void MaybeEmitTraceConfig(TracingSession*, std::vector<TracePacket>*);
   void MaybeEmitSystemInfo(TracingSession*, std::vector<TracePacket>*);
   void MaybeEmitReceivedTriggers(TracingSession*, std::vector<TracePacket>*);

@@ -194,7 +194,7 @@ class CircularQueue {
       PERFETTO_DCHECK(empty());
       return;
     }
-    erase_front(size());  // Invoke destructors on all alive entries.
+    clear();  // Invoke destructors on all alive entries.
     PERFETTO_DCHECK(empty());
     free(entries_);
   }
@@ -217,6 +217,8 @@ class CircularQueue {
   }
 
   void pop_front() { erase_front(1); }
+
+  void clear() { erase_front(size()); }
 
   T& at(size_t idx) {
     PERFETTO_DCHECK(idx < size());
