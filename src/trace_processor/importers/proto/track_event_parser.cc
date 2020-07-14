@@ -833,7 +833,7 @@ class TrackEventParser::EventImporter {
 
     log_errors(
         parser_->context_->proto_to_args_table_->InternProtoFieldsIntoArgsTable(
-            blob_, ".perfetto.protos.TrackEvent", parser_->reflect_fields_,
+            blob_, ".perfetto.protos.TrackEvent", &parser_->reflect_fields_,
             inserter, sequence_state_));
 
     if (legacy_passthrough_utid_) {

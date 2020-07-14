@@ -44,7 +44,7 @@ util::Status ProtoToArgsTable::AddProtoFileDescriptor(
 util::Status ProtoToArgsTable::InternProtoFieldsIntoArgsTable(
     const protozero::ConstBytes& cb,
     const std::string& type,
-    const std::vector<uint16_t>& fields,
+    const std::vector<uint16_t>* fields,
     ArgsTracker::BoundInserter* inserter,
     PacketSequenceStateGeneration* sequence_state) {
   auto idx = pool_.FindDescriptorIdx(type);
@@ -66,9 +66,14 @@ util::Status ProtoToArgsTable::InternProtoFieldsIntoArgsTable(
     }
     auto field = descriptor.fields()[*field_idx];
 
-    auto it = std::find(fields.begin(), fields.end(), f.id());
-    if (!field.is_extension() && it == fields.end()) {
-      // Field is neither an extension, nor in the list of regular fields to be
+    // If allowlist is not provided, reflect all fields. Otherwise, check if the
+    // current field either an extension or is in allowlist.
+    bool is_allowed =
+        field.is_extension() || fields == nullptr ||
+        std::find(fields->begin(), fields->end(), f.id()) != fields->end();
+
+    if (!is_allowed) {
+      // Field is neither an extension, nor is allowed to be
       // reflected.
       continue;
     }
@@ -81,23 +86,6 @@ util::Status ProtoToArgsTable::InternProtoFieldsIntoArgsTable(
   }
 
   return util::OkStatus();
-}
-
-util::Status ProtoToArgsTable::InternProtoIntoArgsTable(
-    const protozero::ConstBytes& cb,
-    const std::string& type,
-    ArgsTracker::BoundInserter* inserter,
-    PacketSequenceStateGeneration* sequence_state,
-    const std::string& key_prefix) {
-  key_prefix_.assign(key_prefix);
-  flat_key_prefix_.assign(key_prefix);
-
-  ParsingOverrideState state{context_, sequence_state};
-  auto result = InternProtoIntoArgsTableInternal(cb, type, inserter, state);
-
-  key_prefix_.clear();
-  flat_key_prefix_.clear();
-  return result;
 }
 
 util::Status ProtoToArgsTable::InternFieldIntoArgsTable(
