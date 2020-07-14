@@ -25,5 +25,5 @@ import "protos/perfetto/common/descriptor.proto";
 //
 // See docs/design-docs/extensions.md for more details.
 message ExtensionDescriptor {
-  repeated FileDescriptorProto extension_file = 1;
+  optional FileDescriptorSet extension_set = 1;
 }
