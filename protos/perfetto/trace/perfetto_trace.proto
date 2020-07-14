@@ -2011,7 +2011,6 @@ message ClockSnapshot {
 
 // Begin of protos/perfetto/common/descriptor.proto
 
-
 // The protocol compiler can output a FileDescriptorSet containing the .proto
 // files it parses.
 message FileDescriptorSet {
@@ -2199,7 +2198,7 @@ message OneofOptions {
 //
 // See docs/design-docs/extensions.md for more details.
 message ExtensionDescriptor {
-  repeated FileDescriptorProto extension_file = 1;
+  optional FileDescriptorSet extension_set = 1;
 }
 
 // End of protos/perfetto/trace/extension_descriptor.proto
@@ -7597,7 +7596,12 @@ message TestExtension {
     optional string string_extension_for_testing = 9900;
     repeated int32 int_extension_for_testing = 9901;
     optional string omitted_extension_for_testing = 9902;
+    optional TestExtensionChild nested_message_extension_for_testing = 9903;
   }
+}
+
+message TestExtensionChild {
+  optional string child_field_for_testing = 1;
 }
 
 // End of protos/perfetto/trace/test_extensions.proto
