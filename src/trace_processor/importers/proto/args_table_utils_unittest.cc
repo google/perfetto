@@ -134,13 +134,14 @@ TEST_F(ArgsTableUtilsTest, BasicSingleLayerProto) {
                            << status.message();
 
   auto inserter = context_.args_tracker->AddArgsTo(TrackId(0));
-  status = helper.InternProtoIntoArgsTable(
+  status = helper.InternProtoFieldsIntoArgsTable(
       protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
-      ".protozero.test.protos.EveryField", &inserter,
-      sequence_state_->current_generation(), /* key_prefix= */ "");
+      ".protozero.test.protos.EveryField", nullptr, &inserter,
+      sequence_state_->current_generation());
 
-  EXPECT_TRUE(status.ok()) << "InternProtoIntoArgsTable failed with error: "
-                           << status.message();
+  EXPECT_TRUE(status.ok())
+      << "InternProtoFieldsIntoArgsTable failed with error: "
+      << status.message();
 
   context_.args_tracker->Flush();
   EXPECT_TRUE(
@@ -210,12 +211,13 @@ TEST_F(ArgsTableUtilsTest, NestedProto) {
                            << status.message();
 
   auto inserter = context_.args_tracker->AddArgsTo(TrackId(0));
-  status = helper.InternProtoIntoArgsTable(
+  status = helper.InternProtoFieldsIntoArgsTable(
       protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
-      ".protozero.test.protos.NestedA", &inserter,
-      sequence_state_->current_generation(), /* key_prefix= */ "");
-  EXPECT_TRUE(status.ok()) << "InternProtoIntoArgsTable failed with error: "
-                           << status.message();
+      ".protozero.test.protos.NestedA", nullptr, &inserter,
+      sequence_state_->current_generation());
+  EXPECT_TRUE(status.ok())
+      << "InternProtoFieldsIntoArgsTable failed with error: "
+      << status.message();
   context_.args_tracker->Flush();
   EXPECT_TRUE(HasArg(ArgSetId(arg_set_id_), "super_nested.value_c",
                      Variadic::Integer(3)));
@@ -238,12 +240,13 @@ TEST_F(ArgsTableUtilsTest, CamelCaseFieldsProto) {
                            << status.message();
 
   auto inserter = context_.args_tracker->AddArgsTo(TrackId(0));
-  status = helper.InternProtoIntoArgsTable(
+  status = helper.InternProtoFieldsIntoArgsTable(
       protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
-      ".protozero.test.protos.CamelCaseFields", &inserter,
-      sequence_state_->current_generation(), /* key_prefix= */ "");
-  EXPECT_TRUE(status.ok()) << "InternProtoIntoArgsTable failed with error: "
-                           << status.message();
+      ".protozero.test.protos.CamelCaseFields", nullptr, &inserter,
+      sequence_state_->current_generation());
+  EXPECT_TRUE(status.ok())
+      << "InternProtoFieldsIntoArgsTable failed with error: "
+      << status.message();
   context_.args_tracker->Flush();
   EXPECT_TRUE(HasArg(ArgSetId(arg_set_id_), "barBaz", Variadic::Boolean(true)));
   EXPECT_TRUE(HasArg(ArgSetId(arg_set_id_), "MooMoo", Variadic::Boolean(true)));
@@ -281,12 +284,13 @@ TEST_F(ArgsTableUtilsTest, NestedProtoParsingOverrideHandled) {
       });
 
   auto inserter = context_.args_tracker->AddArgsTo(TrackId(0));
-  status = helper.InternProtoIntoArgsTable(
+  status = helper.InternProtoFieldsIntoArgsTable(
       protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
-      ".protozero.test.protos.NestedA", &inserter,
-      sequence_state_->current_generation(), /* key_prefix= */ "");
-  EXPECT_TRUE(status.ok()) << "InternProtoIntoArgsTable failed with error: "
-                           << status.message();
+      ".protozero.test.protos.NestedA", nullptr, &inserter,
+      sequence_state_->current_generation());
+  EXPECT_TRUE(status.ok())
+      << "InternProtoFieldsIntoArgsTable failed with error: "
+      << status.message();
   context_.args_tracker->Flush();
   EXPECT_TRUE(HasArg(ArgSetId(arg_set_id_), "super_nested.value_b.replaced",
                      Variadic::Integer(4)));
@@ -321,12 +325,13 @@ TEST_F(ArgsTableUtilsTest, NestedProtoParsingOverrideSkipped) {
       });
 
   auto inserter = context_.args_tracker->AddArgsTo(TrackId(0));
-  status = helper.InternProtoIntoArgsTable(
+  status = helper.InternProtoFieldsIntoArgsTable(
       protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
-      ".protozero.test.protos.NestedA", &inserter,
-      sequence_state_->current_generation(), /* key_prefix= */ "");
-  EXPECT_TRUE(status.ok()) << "InternProtoIntoArgsTable failed with error: "
-                           << status.message();
+      ".protozero.test.protos.NestedA", nullptr, &inserter,
+      sequence_state_->current_generation());
+  EXPECT_TRUE(status.ok())
+      << "InternProtoFieldsIntoArgsTable failed with error: "
+      << status.message();
   context_.args_tracker->Flush();
   EXPECT_TRUE(HasArg(ArgSetId(arg_set_id_), "super_nested.value_c",
                      Variadic::Integer(3)));
@@ -386,12 +391,13 @@ TEST_F(ArgsTableUtilsTest, LookingUpInternedStateParsingOverride) {
                            << status.message();
 
   auto inserter = context_.args_tracker->AddArgsTo(TrackId(0));
-  status = helper.InternProtoIntoArgsTable(
+  status = helper.InternProtoFieldsIntoArgsTable(
       protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
-      ".protozero.test.protos.NestedA", &inserter,
-      sequence_state_->current_generation(), /* key_prefix= */ "");
-  EXPECT_TRUE(status.ok()) << "InternProtoIntoArgsTable failed with error: "
-                           << status.message();
+      ".protozero.test.protos.NestedA", nullptr, &inserter,
+      sequence_state_->current_generation());
+  EXPECT_TRUE(status.ok())
+      << "InternProtoFieldsIntoArgsTable failed with error: "
+      << status.message();
   auto file_name_id = storage_->string_pool().GetId("test_file_name");
   ASSERT_TRUE(file_name_id);
   context_.args_tracker->Flush();
@@ -399,43 +405,6 @@ TEST_F(ArgsTableUtilsTest, LookingUpInternedStateParsingOverride) {
                      Variadic::String(*file_name_id)));
   EXPECT_TRUE(
       HasArg(ArgSetId(arg_set_id_), "line_number", Variadic::Integer(2)));
-}
-
-TEST_F(ArgsTableUtilsTest, NonEmptyPrefix) {
-  using namespace protozero::test::protos::pbzero;
-  protozero::HeapBuffered<EveryField> msg{kChunkSize, kChunkSize};
-  msg->add_repeated_int32(1);
-  msg->add_repeated_int32(-1);
-  msg->add_repeated_int32(100);
-  msg->add_repeated_int32(2000000);
-
-  auto binary_proto = msg.SerializeAsArray();
-
-  storage_->mutable_track_table()->Insert({});
-  ProtoToArgsTable helper(&context_);
-  auto status = helper.AddProtoFileDescriptor(kTestMessagesDescriptor.data(),
-                                              kTestMessagesDescriptor.size());
-  ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
-                           << status.message();
-
-  auto inserter = context_.args_tracker->AddArgsTo(TrackId(0));
-  status = helper.InternProtoIntoArgsTable(
-      protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
-      ".protozero.test.protos.EveryField", &inserter,
-      sequence_state_->current_generation(), /* key_prefix= */ "prefix");
-
-  EXPECT_TRUE(status.ok()) << "InternProtoIntoArgsTable failed with error: "
-                           << status.message();
-
-  context_.args_tracker->Flush();
-  EXPECT_TRUE(HasArg(ArgSetId(arg_set_id_), "prefix.repeated_int32",
-                     "prefix.repeated_int32[0]", Variadic::Integer(1)));
-  EXPECT_TRUE(HasArg(ArgSetId(arg_set_id_), "prefix.repeated_int32",
-                     "prefix.repeated_int32[1]", Variadic::Integer(-1)));
-  EXPECT_TRUE(HasArg(ArgSetId(arg_set_id_), "prefix.repeated_int32",
-                     "prefix.repeated_int32[2]", Variadic::Integer(100)));
-  EXPECT_TRUE(HasArg(ArgSetId(arg_set_id_), "prefix.repeated_int32",
-                     "prefix.repeated_int32[3]", Variadic::Integer(2000000)));
 }
 
 }  // namespace

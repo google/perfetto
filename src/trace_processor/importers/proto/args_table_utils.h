@@ -113,13 +113,15 @@ class ProtoToArgsTable {
                                       size_t proto_descriptor_array_size);
 
   // Given a view of bytes that represent a serialized protozero message of
-  // |type| we will parse each field into the Args table using RowId |row|,
-  // adding |key_prefix| in front of each name (can be an empty string if no
-  // prefix is needed).
+  // |type| we will parse each field into the Args table using RowId |row|.
   //
   // Returns on any error with a status describing the problem. However any
   // added values before encountering the error will be added to the
   // args_tracker.
+  //
+  // Fields with ids given in |fields| are parsed using reflection, as well
+  // as known (previously registered) extension fields. If |fields| is a
+  // nullptr, all fields are going to be parsed.
   //
   // Note:
   // |type| must be the fully qualified name, but with a '.' added to the
@@ -129,19 +131,10 @@ class ProtoToArgsTable {
   // IMPORTANT: currently bytes fields are not supported.
   //
   // TODO(b/145578432): Add support for byte fields.
-  util::Status InternProtoIntoArgsTable(
-      const protozero::ConstBytes& cb,
-      const std::string& type,
-      ArgsTracker::BoundInserter* inserter,
-      PacketSequenceStateGeneration* sequence_state,
-      const std::string& key_prefix);
-
-  // Parse several fields with ids given in |fields| using reflection, as well
-  // as known (previously registered) extension fields.
   util::Status InternProtoFieldsIntoArgsTable(
       const protozero::ConstBytes& cb,
       const std::string& type,
-      const std::vector<uint16_t>& fields,
+      const std::vector<uint16_t>* fields,
       ArgsTracker::BoundInserter* inserter,
       PacketSequenceStateGeneration* sequence_state);
 
