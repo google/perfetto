@@ -21,6 +21,7 @@ perfetto_unittests_targets = [
   "src/protozero:unittests",
   "src/tracing/core:unittests",
   "src/profiling:unittests",
+  "src/profiling/symbolizer:unittests",
 ]
 
 if (enable_perfetto_ipc) {
