@@ -44,6 +44,7 @@ export class CounterAggregationController extends AggregationController {
 
     const query = `create view ${this.kind} as select
     name,
+    count(1) as count,
     round(sum(weighted_value)/${
         toNs(area.endSec) - toNs(area.startSec)}, 2) as avg_value,
     last as last_value,
@@ -98,6 +99,12 @@ export class CounterAggregationController extends AggregationController {
         kind: 'Number',
         columnConstructor: Float64Array,
         columnId: 'avg_value'
+      },
+      {
+        title: 'Count',
+        kind: 'Number',
+        columnConstructor: Float64Array,
+        columnId: 'count'
       },
       {
         title: 'First value',
