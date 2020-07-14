@@ -32,6 +32,7 @@
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_stats.pbzero.h"
 #include "protos/perfetto/trace/ftrace/generic.pbzero.h"
+#include "protos/perfetto/trace/ftrace/gpu_mem.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ion.pbzero.h"
 #include "protos/perfetto/trace/ftrace/irq.pbzero.h"
 #include "protos/perfetto/trace/ftrace/kmem.pbzero.h"
@@ -86,7 +87,11 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       workqueue_id_(context_->storage->InternString("workqueue")),
       irq_id_(context_->storage->InternString("irq")),
       ret_arg_id_(context_->storage->InternString("ret")),
-      vec_arg_id_(context->storage->InternString("vec")) {
+      vec_arg_id_(context->storage->InternString("vec")),
+      gpu_mem_total_process_id_(
+          context->storage->InternString("gpumemtotal.process")),
+      gpu_mem_total_global_id_(
+          context->storage->InternString("gpumemtotal.global")) {
   // Build the lookup table for the strings inside ftrace events (e.g. the
   // name of ftrace event fields and the names of their args).
   for (size_t i = 0; i < GetDescriptorsSize(); i++) {
@@ -403,6 +408,10 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kSoftirqExitFieldNumber: {
         ParseSoftIrqExit(cpu, ts, data);
+        break;
+      }
+      case FtraceEvent::kGpuMemTotalFieldNumber: {
+        ParseGpuMemTotal(ts, data);
         break;
       }
       default:
@@ -1043,6 +1052,23 @@ void FtraceParser::ParseSoftIrqExit(uint32_t cpu,
     inserter->AddArg(vec_arg_id_, Variadic::Integer(vec));
   };
   context_->slice_tracker->End(timestamp, track, irq_id_, {}, args_inserter);
+}
+
+void FtraceParser::ParseGpuMemTotal(int64_t ts, protozero::ConstBytes data) {
+  protos::pbzero::GpuMemTotalFtraceEvent::Decoder gpu_mem_total(data.data,
+                                                                data.size);
+
+  const uint32_t pid = gpu_mem_total.pid();
+  if (pid == 0) {
+    // Pid 0 is used to indicate the global total
+    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+        gpu_mem_total_global_id_);
+    context_->event_tracker->PushCounter(ts, gpu_mem_total.size(), track);
+  } else {
+    UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+    context_->event_tracker->PushProcessCounterForThread(
+        ts, gpu_mem_total.size(), gpu_mem_total_process_id_, utid);
+  }
 }
 
 }  // namespace trace_processor
