@@ -393,6 +393,12 @@ class Trace(object):
       thread.cpu_freq_indices.append(index)
       thread.cpu_freq_ticks.append(freqs[index])
 
+  def add_gpu_mem_total(self, pid, ts, size):
+    ftrace = self.__add_ftrace_event(ts, pid)
+    gpu_mem_total_event = ftrace.gpu_mem_total
+    gpu_mem_total_event.pid = pid
+    gpu_mem_total_event.size = size
+
 
 def create_trace():
   parser = argparse.ArgumentParser()
