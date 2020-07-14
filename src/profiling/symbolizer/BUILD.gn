@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import("../../../gn/perfetto.gni")
+import("../../../gn/test.gni")
 
 source_set("symbolizer") {
   public_deps = [ "../../../include/perfetto/ext/base" ]
@@ -41,4 +42,14 @@ source_set("symbolize_database") {
     "symbolize_database.cc",
     "symbolize_database.h",
   ]
+}
+
+perfetto_unittest_source_set("unittests") {
+  testonly = true
+  deps = [
+    ":symbolizer",
+    "../../../gn:default_deps",
+    "../../../gn:gtest_and_gmock",
+  ]
+  sources = [ "local_symbolizer_unittest.cc" ]
 }
