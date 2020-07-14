@@ -24,7 +24,8 @@ namespace perfetto {
 namespace trace_processor {
 
 FieldDescriptor CreateFieldFromDecoder(
-    const protos::pbzero::FieldDescriptorProto::Decoder& f_decoder) {
+    const protos::pbzero::FieldDescriptorProto::Decoder& f_decoder,
+    bool is_extension) {
   using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
   std::string type_name =
       f_decoder.has_type_name()
@@ -38,7 +39,7 @@ FieldDescriptor CreateFieldFromDecoder(
   return FieldDescriptor(
       base::StringView(f_decoder.name()).ToStdString(),
       static_cast<uint32_t>(f_decoder.number()), type, std::move(type_name),
-      f_decoder.label() == FieldDescriptorProto::LABEL_REPEATED);
+      f_decoder.label() == FieldDescriptorProto::LABEL_REPEATED, is_extension);
 }
 
 base::Optional<uint32_t> DescriptorPool::ResolveShortType(
@@ -68,7 +69,7 @@ util::Status DescriptorPool::AddExtensionField(
     protozero::ConstBytes field_desc_proto) {
   using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
   FieldDescriptorProto::Decoder f_decoder(field_desc_proto);
-  auto field = CreateFieldFromDecoder(f_decoder);
+  auto field = CreateFieldFromDecoder(f_decoder, true);
 
   auto extendee_name = base::StringView(f_decoder.extendee()).ToStdString();
   PERFETTO_CHECK(!extendee_name.empty());
@@ -87,7 +88,8 @@ util::Status DescriptorPool::AddExtensionField(
 void DescriptorPool::AddNestedProtoDescriptors(
     const std::string& package_name,
     base::Optional<uint32_t> parent_idx,
-    protozero::ConstBytes descriptor_proto) {
+    protozero::ConstBytes descriptor_proto,
+    std::vector<ExtensionInfo>* extensions) {
   protos::pbzero::DescriptorProto::Decoder decoder(descriptor_proto);
 
   auto parent_name =
@@ -100,7 +102,7 @@ void DescriptorPool::AddNestedProtoDescriptors(
                                    ProtoDescriptor::Type::kMessage, parent_idx);
   for (auto it = decoder.field(); it; ++it) {
     FieldDescriptorProto::Decoder f_decoder(*it);
-    proto_descriptor.AddField(CreateFieldFromDecoder(f_decoder));
+    proto_descriptor.AddField(CreateFieldFromDecoder(f_decoder, false));
   }
   descriptors_.emplace_back(std::move(proto_descriptor));
 
@@ -109,7 +111,10 @@ void DescriptorPool::AddNestedProtoDescriptors(
     AddEnumProtoDescriptors(package_name, idx, *it);
   }
   for (auto it = decoder.nested_type(); it; ++it) {
-    AddNestedProtoDescriptors(package_name, idx, *it);
+    AddNestedProtoDescriptors(package_name, idx, *it, extensions);
+  }
+  for (auto ext_it = decoder.extension(); ext_it; ++ext_it) {
+    extensions->emplace_back(package_name, *ext_it);
   }
 }
 
@@ -142,33 +147,30 @@ util::Status DescriptorPool::AddFromFileDescriptorSet(
   // to the pool.
   protos::pbzero::FileDescriptorSet::Decoder proto(file_descriptor_set_proto,
                                                    size);
+  std::vector<ExtensionInfo> extensions;
   for (auto it = proto.file(); it; ++it) {
     protos::pbzero::FileDescriptorProto::Decoder file(*it);
     std::string package = "." + base::StringView(file.package()).ToStdString();
     for (auto message_it = file.message_type(); message_it; ++message_it) {
-      AddNestedProtoDescriptors(package, base::nullopt, *message_it);
+      AddNestedProtoDescriptors(package, base::nullopt, *message_it,
+                                &extensions);
     }
     for (auto enum_it = file.enum_type(); enum_it; ++enum_it) {
       AddEnumProtoDescriptors(package, base::nullopt, *enum_it);
+    }
+    for (auto ext_it = file.extension(); ext_it; ++ext_it) {
+      extensions.emplace_back(package, *ext_it);
     }
   }
 
   // Second pass: extract all the extension protos and add them to the real
   // protos.
   for (auto it = proto.file(); it; ++it) {
-    protos::pbzero::FileDescriptorProto::Decoder file(*it);
-
-    std::string package = "." + base::StringView(file.package()).ToStdString();
-    for (auto ext_it = file.extension(); ext_it; ++ext_it) {
-      auto status = AddExtensionField(package, *ext_it);
+    for (auto extension : extensions) {
+      auto status = AddExtensionField(extension.first, extension.second);
       if (!status.ok())
         return status;
     }
-
-    // TODO(lalitm): we don't currently support nested extensions as they are
-    // relatively niche and probably shouldn't be used in metrics because they
-    // are confusing. Add the code for it here if we find a use for them in
-    // the future.
   }
 
   // Third pass: resolve the types of all the fields to the correct indiices.
@@ -219,12 +221,14 @@ FieldDescriptor::FieldDescriptor(std::string name,
                                  uint32_t number,
                                  uint32_t type,
                                  std::string raw_type_name,
-                                 bool is_repeated)
+                                 bool is_repeated,
+                                 bool is_extension)
     : name_(std::move(name)),
       number_(number),
       type_(type),
       raw_type_name_(std::move(raw_type_name)),
-      is_repeated_(is_repeated) {}
+      is_repeated_(is_repeated),
+      is_extension_(is_extension) {}
 
 }  // namespace trace_processor
 }  // namespace perfetto

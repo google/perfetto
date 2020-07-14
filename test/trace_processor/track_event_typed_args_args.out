@@ -10,4 +10,5 @@
 4,"chrome_latency_info.trace_id","chrome_latency_info.trace_id",7,"[NULL]"
 4,"int_extension_for_testing","int_extension_for_testing[0]",42,"[NULL]"
 4,"int_extension_for_testing","int_extension_for_testing[1]",1337,"[NULL]"
+4,"nested_message_extension_for_testing.child_field_for_testing","nested_message_extension_for_testing.child_field_for_testing","[NULL]","nesting test"
 4,"string_extension_for_testing","string_extension_for_testing","[NULL]","an extension string!"
