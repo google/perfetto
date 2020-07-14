@@ -6415,6 +6415,14 @@ filegroup {
   ],
 }
 
+// GN: //src/profiling/symbolizer:unittests
+filegroup {
+  name: "perfetto_src_profiling_symbolizer_unittests",
+  srcs: [
+    "src/profiling/symbolizer/local_symbolizer_unittest.cc",
+  ],
+}
+
 // GN: //src/profiling:unittests
 filegroup {
   name: "perfetto_src_profiling_unittests",
@@ -7845,6 +7853,8 @@ cc_test {
     ":perfetto_src_profiling_perf_producer_unittests",
     ":perfetto_src_profiling_perf_regs_parsing",
     ":perfetto_src_profiling_perf_unwinding",
+    ":perfetto_src_profiling_symbolizer_symbolizer",
+    ":perfetto_src_profiling_symbolizer_unittests",
     ":perfetto_src_profiling_unittests",
     ":perfetto_src_protozero_protozero",
     ":perfetto_src_protozero_testing_messages_cpp_gen",
