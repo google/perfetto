@@ -39,7 +39,8 @@ class FieldDescriptor {
                   uint32_t number,
                   uint32_t type,
                   std::string raw_type_name,
-                  bool is_repeated);
+                  bool is_repeated,
+                  bool is_extension = false);
 
   const std::string& name() const { return name_; }
   uint32_t number() const { return number_; }
@@ -47,6 +48,7 @@ class FieldDescriptor {
   const std::string& raw_type_name() const { return raw_type_name_; }
   const std::string& resolved_type_name() const { return resolved_type_name_; }
   bool is_repeated() const { return is_repeated_; }
+  bool is_extension() const { return is_extension_; }
 
   void set_resolved_type_name(const std::string& resolved_type_name) {
     resolved_type_name_ = resolved_type_name;
@@ -59,10 +61,12 @@ class FieldDescriptor {
   std::string raw_type_name_;
   std::string resolved_type_name_;
   bool is_repeated_;
+  bool is_extension_;
 };
 
 FieldDescriptor CreateFieldFromDecoder(
-    const protos::pbzero::FieldDescriptorProto::Decoder& f_decoder);
+    const protos::pbzero::FieldDescriptorProto::Decoder& f_decoder,
+    bool is_extension);
 
 class ProtoDescriptor {
  public:
@@ -131,6 +135,8 @@ class ProtoDescriptor {
   std::vector<std::pair<int32_t, std::string>> enum_values_;
 };
 
+using ExtensionInfo = std::pair<std::string, protozero::ConstBytes>;
+
 class DescriptorPool {
  public:
   util::Status AddFromFileDescriptorSet(
@@ -147,7 +153,8 @@ class DescriptorPool {
  private:
   void AddNestedProtoDescriptors(const std::string& package_name,
                                  base::Optional<uint32_t> parent_idx,
-                                 protozero::ConstBytes descriptor_proto);
+                                 protozero::ConstBytes descriptor_proto,
+                                 std::vector<ExtensionInfo>* extensions);
   void AddEnumProtoDescriptors(const std::string& package_name,
                                base::Optional<uint32_t> parent_idx,
                                protozero::ConstBytes descriptor_proto);
