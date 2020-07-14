@@ -247,20 +247,6 @@ class ScopedMmap {
   void* ptr_;
 };
 
-bool ParseLine(std::string line, std::string* file_name, uint32_t* line_no) {
-  base::StringSplitter sp(std::move(line), ':');
-  if (!sp.Next())
-    return false;
-  *file_name = sp.cur_token();
-  if (!sp.Next())
-    return false;
-  char* endptr;
-  auto parsed_line_no = strtoll(sp.cur_token(), &endptr, 10);
-  if (parsed_line_no >= 0)
-    *line_no = static_cast<uint32_t>(parsed_line_no);
-  return *endptr == '\0' && parsed_line_no >= 0;
-}
-
 std::string SplitBuildID(const std::string& hex_build_id) {
   if (hex_build_id.size() < 3) {
     PERFETTO_DFATAL_OR_ELOG("Invalid build-id (< 3 char) %s",
@@ -272,6 +258,25 @@ std::string SplitBuildID(const std::string& hex_build_id) {
 }
 
 }  // namespace
+
+bool ParseLlvmSymbolizerLine(const std::string& line,
+                             std::string* file_name,
+                             uint32_t* line_no) {
+  size_t col_pos = line.rfind(':');
+  if (col_pos == std::string::npos || col_pos == 0)
+    return false;
+  size_t row_pos = line.rfind(':', col_pos - 1);
+  if (row_pos == std::string::npos || row_pos == 0)
+    return false;
+  *file_name = line.substr(0, row_pos);
+  auto line_no_str = line.substr(row_pos + 1, col_pos - row_pos - 1);
+
+  base::Optional<int32_t> opt_parsed_line_no = base::StringToInt32(line_no_str);
+  if (!opt_parsed_line_no || *opt_parsed_line_no < 0)
+    return false;
+  *line_no = static_cast<uint32_t>(*opt_parsed_line_no);
+  return true;
+}
 
 base::Optional<std::string> LocalBinaryFinder::FindBinary(
     const std::string& abspath,
@@ -459,7 +464,7 @@ std::vector<SymbolizedFrame> LLVMSymbolizerProcess::Symbolize(
     if (i % 2 == 0) {
       cur.function_name = lines[i];
     } else {
-      if (!ParseLine(lines[i], &cur.file_name, &cur.line)) {
+      if (!ParseLlvmSymbolizerLine(lines[i], &cur.file_name, &cur.line)) {
         PERFETTO_ELOG("Failed to parse llvm-symbolizer line: %s",
                       lines[i].c_str());
         cur.file_name = "";
