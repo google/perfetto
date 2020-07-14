@@ -29,5 +29,10 @@ message TestExtension {
     optional string string_extension_for_testing = 9900;
     repeated int32 int_extension_for_testing = 9901;
     optional string omitted_extension_for_testing = 9902;
+    optional TestExtensionChild nested_message_extension_for_testing = 9903;
   }
+}
+
+message TestExtensionChild {
+  optional string child_field_for_testing = 1;
 }
