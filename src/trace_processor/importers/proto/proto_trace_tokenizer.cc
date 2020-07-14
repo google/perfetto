@@ -37,7 +37,6 @@
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/trace_sorter.h"
-#include "src/trace_processor/util/status_macros.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/config/trace_config.pbzero.h"
@@ -190,10 +189,8 @@ util::Status ProtoTraceTokenizer::ParseExtensionDescriptor(
                                                        descriptor.size);
 
   auto extension = decoder.extension_set();
-  RETURN_IF_ERROR(context_->proto_to_args_table_->AddProtoFileDescriptor(
-      extension.data, extension.size));
-
-  return util::OkStatus();
+  return context_->proto_to_args_table_->AddProtoFileDescriptor(extension.data,
+                                                                extension.size);
 }
 
 util::Status ProtoTraceTokenizer::ParsePacket(TraceBlobView packet) {
