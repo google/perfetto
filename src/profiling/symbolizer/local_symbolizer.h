@@ -28,9 +28,13 @@
 namespace perfetto {
 namespace profiling {
 
+bool ParseLlvmSymbolizerLine(const std::string& line,
+                             std::string* file_name,
+                             uint32_t* line_no);
+
 class LocalBinaryFinder {
  public:
-  LocalBinaryFinder(std::vector<std::string> roots)
+  explicit LocalBinaryFinder(std::vector<std::string> roots)
       : roots_(std::move(roots)) {}
 
   base::Optional<std::string> FindBinary(const std::string& abspath,
@@ -79,7 +83,8 @@ class LLVMSymbolizerProcess {
 
 class LocalSymbolizer : public Symbolizer {
  public:
-  LocalSymbolizer(std::vector<std::string> roots) : finder_(std::move(roots)) {}
+  explicit LocalSymbolizer(std::vector<std::string> roots)
+      : finder_(std::move(roots)) {}
 
   std::vector<std::vector<SymbolizedFrame>> Symbolize(
       const std::string& mapping_name,
