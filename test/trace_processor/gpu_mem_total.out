@@ -1,0 +1,7 @@
+"name","ts","pid","value"
+"gpumemtotal.global",0,"[NULL]",123
+"gpumemtotal.process",0,1,100
+"gpumemtotal.global",5,"[NULL]",256
+"gpumemtotal.process",5,1,233
+"gpumemtotal.global",10,"[NULL]",123
+"gpumemtotal.process",10,1,0
