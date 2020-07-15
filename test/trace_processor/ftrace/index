@@ -1,0 +1,40 @@
+# Sched
+../../data/android_sched_and_ps.pb ts_desc_filter.sql ts_desc_filter_android_sched_and_ps.out
+
+# Sched reason
+../../data/android_sched_and_ps.pb end_reason_eq.sql android_sched_and_ps_end_reason_eq.out
+../../data/android_sched_and_ps.pb end_reason_neq.sql android_sched_and_ps_end_reason_neq.out
+
+# Sched wakeup
+../../data/android_sched_and_ps.pb sched_wakeup.sql sched_wakeup_android_sched_and_ps.out
+
+# CPU Frequency
+../../data/cpu_counters.pb b120487929.sql cpu_counters_b120487929.out
+
+# Rss stats
+rss_stat_mm_id.py rss_stat.sql rss_stat_mm_id.out
+rss_stat_mm_id_clone.py rss_stat.sql rss_stat_mm_id_clone.out
+rss_stat_mm_id_reuse.py rss_stat.sql rss_stat_mm_id_reuse.out
+rss_stat_legacy.py rss_stat.sql rss_stat_legacy.out
+rss_stat_after_free.py rss_stat_after_free.sql rss_stat_after_free.out
+
+# Memory counters
+../../data/memory_counters.pb args_string_filter_null.sql memory_counters_args_string_filter_null.out
+../../data/memory_counters.pb args_string_is_null.sql memory_counters_args_string_is_null.out
+../../data/memory_counters.pb args_string_is_not_null.sql memory_counters_args_string_is_not_null.out
+../../data/memory_counters.pb b120605557.sql memory_counters_b120605557.out
+../../data/memory_counters.pb global_memory_counter.sql global_memory_counter_memory_counters.out
+ion_stat.textproto ion_stat.sql ion_stat.out
+
+# Scheduling slices from sched_switch events. There are two tests, one for the
+# typical encoding of sched_switch events, and one for the same trace
+# re-encoded in the compact format. The output should be identical apart from
+# the latter having one slice fewer for each cpu (the first compact
+# sched_switch event doesn't start a slice). Six slices in this case.
+../../data/sched_switch_original.pb sched_slices.sql sched_slices_sched_switch_original.out
+../../data/sched_switch_compact.pb sched_slices.sql sched_slices_sched_switch_compact.out
+
+# Decoding of sched_waking events from a trace with compact scheduling events.
+# Verifies the contents of raw & instants tables.
+../../data/compact_sched.pb sched_waking_raw.sql sched_waking_raw_compact_sched.out
+../../data/compact_sched.pb sched_waking_instants.sql sched_waking_instants_compact_sched.out
