@@ -395,6 +395,12 @@ std::set<GroupAndName> FtraceConfigMuxer::GetFtraceEvents(
         events.insert(GroupAndName("mm_event", "mm_event_record"));
         continue;
       }
+
+      if (category == "thermal") {
+        events.insert(GroupAndName("thermal", "thermal_temperature"));
+        events.insert(GroupAndName("thermal", "cdev_update"));
+        continue;
+      }
     }
   }
   return events;
