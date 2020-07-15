@@ -15,7 +15,7 @@
 
 import argparse
 
-from trace_processor.http import TraceProcessorHttp
+from trace_processor.api import TraceProcessor
 
 
 def main():
@@ -34,10 +34,11 @@ def main():
   # TODO(@aninditaghosh): Load trace into trace_processor_shell
 
   # Call functions on the loaded trace
-  tp = TraceProcessorHttp(args.address)
-  tp.notify_eof()
-  print(tp.execute_query('select name from slice limit 10'))
-  print(tp.status())
+  tp = TraceProcessor(args.address)
+  res_it = tp.query('select * from slice limit 10')
+  for row in res_it:
+    print(row.name)
+  am_metrics = tp.metric(['android_mem'])
 
 
 if __name__ == "__main__":
