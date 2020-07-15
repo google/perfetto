@@ -1,0 +1,13 @@
+# GPU trace tests.
+gpu_counters.py gpu_counters.sql gpu_counters.out
+gpu_counter_specs.textproto gpu_counter_specs.sql gpu_counter_specs.out
+gpu_render_stages.py gpu_render_stages.sql gpu_render_stages.out
+gpu_render_stages_interned_spec.textproto gpu_render_stages.sql gpu_render_stages_interned_spec.out
+vulkan_api_events.py vulkan_api_events.sql vulkan_api_events.out
+gpu_log.py gpu_log.sql gpu_log.out
+
+# Graphics frame event trace tests.
+graphics_frame_events.py graphics_frame_events.sql graphics_frame_events.out
+
+# GPU Memory ftrace packets
+gpu_mem_total.py gpu_mem_total.sql gpu_mem_total.out
