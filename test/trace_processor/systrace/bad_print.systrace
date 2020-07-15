@@ -1,0 +1,5 @@
+           <...>-882   (  882) [003] .... 10852.771186: event: event: abc xyz =0x34 clk id = 019
+some = 000, other = 0x4
+xyz = 0x0 abc = 0x0
+  surfaceflinger-598   (  598) [004] .... 10852.771242: tracing_mark_write: B|598|some event
+  surfaceflinger-598   (  598) [004] .... 10852.771245: tracing_mark_write: E|598
