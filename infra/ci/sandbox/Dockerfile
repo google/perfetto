@@ -29,6 +29,8 @@ RUN set -ex; \
     apt-get -y -t testing install gcc-7 g++-7 clang; \
     curl https://bootstrap.pypa.io/get-pip.py | python -; \
     pip install --quiet protobuf; \
+    curl https://bootstrap.pypa.io/get-pip.py | python3 -; \
+    pip3 install --quiet protobuf; \
     curl -LO https://github.com/bazelbuild/bazel/releases/download/0.29.1/bazel-0.29.1-installer-linux-x86_64.sh; \
     chmod +x bazel-*-installer-linux-x86_64.sh; \
     ./bazel-*-installer-linux-x86_64.sh; \
