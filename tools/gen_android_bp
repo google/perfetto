@@ -169,6 +169,7 @@ additional_args = {
         # is loaded in an __attribute__((constructor)) of libc, we cannot
         # guarantee that the global constructors get run before it is used.
         ('cflags', {'-Wglobal-constructors', '-Werror=global-constructors'}),
+        ('version_script', 'src/profiling/memory/heapprofd_client_api.map.txt'),
     ],
     'heapprofd_client': [
         ('include_dirs', {'bionic/libc'}),
@@ -395,6 +396,7 @@ class Module(object):
     self.genrule_headers = set()
     self.genrule_srcs = set()
     self.genrule_shared_libs = set()
+    self.version_script = None
 
   def to_string(self, output):
     if self.comment:
@@ -424,6 +426,7 @@ class Module(object):
     self._output_field(output, 'data')
     self._output_field(output, 'stl')
     self._output_field(output, 'apex_available')
+    self._output_field(output, 'version_script')
 
     target_out = []
     self._output_field(target_out, 'android')
