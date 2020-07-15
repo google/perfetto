@@ -59,6 +59,7 @@ default_targets = [
     '//src/profiling/memory:heapprofd_client',
     '//src/profiling/memory:heapprofd_client_api',
     '//src/profiling/memory:heapprofd',
+    '//src/profiling/memory:heapprofd_standalone_client',
     '//src/profiling/perf:traced_perf',
     '//src/traced/probes:traced_probes',
     '//src/traced/service:traced',
@@ -176,6 +177,10 @@ additional_args = {
         ('static_libs', {'libasync_safe'}),
         ('header_libs', {'bionic_libc_platform_headers'}),
     ],
+    'heapprofd_standalone_client': [
+        ('static_libs', {'libasync_safe'}),
+        ('version_script', 'src/profiling/memory/heapprofd_client_api.map.txt'),
+    ],
     'perfetto_unittests': [
         ('data', set(enumerate_data_deps())),
         ('include_dirs', {'bionic/libc/kernel'}),
@@ -227,9 +232,16 @@ def enable_protoc_lib(module):
 
 
 def enable_libunwindstack(module):
-  module.shared_libs.add('libunwindstack')
-  module.shared_libs.add('libprocinfo')
-  module.shared_libs.add('libbase')
+  if module.name != 'heapprofd_standalone_client':
+    module.shared_libs.add('libunwindstack')
+    module.shared_libs.add('libprocinfo')
+    module.shared_libs.add('libbase')
+  else:
+    module.static_libs.add('libunwindstack')
+    module.static_libs.add('libprocinfo')
+    module.static_libs.add('libbase')
+    module.static_libs.add('liblzma')
+    module.static_libs.add('libdexfile_support')
 
 
 def enable_libunwind(module):
