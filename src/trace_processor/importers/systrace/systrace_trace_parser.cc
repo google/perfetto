@@ -107,9 +107,11 @@ util::Status SystraceTraceParser::Parse(std::unique_ptr<uint8_t[]> owned_buf,
       } else if (!base::StartsWith(buffer, "#") && !buffer.empty()) {
         SystraceLine line;
         util::Status status = line_tokenizer_.Tokenize(buffer, &line);
-        if (!status.ok())
-          return status;
-        line_parser_.ParseLine(std::move(line));
+        if (status.ok()) {
+          line_parser_.ParseLine(std::move(line));
+        } else {
+          ctx_->storage->IncrementStats(stats::systrace_parse_failure);
+        }
       }
     } else if (state_ == ParseState::kProcessDumpLong ||
                state_ == ParseState::kProcessDumpShort) {

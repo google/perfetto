@@ -214,9 +214,10 @@ TEST_F(TraceProcessorIntegrationTest, Clusterfuzz15252) {
 }
 
 TEST_F(TraceProcessorIntegrationTest, Clusterfuzz17805) {
-  // This trace fails to load as it's detected as a systrace but is full of
-  // garbage data.
-  ASSERT_TRUE(!LoadTrace("clusterfuzz_17805", 4096).ok());
+  // This trace is garbage but is detected as a systrace. However, it should
+  // still parse successfully as we try to be graceful with encountering random
+  // data in systrace as they can have arbitrary print events from the kernel.
+  ASSERT_TRUE(LoadTrace("clusterfuzz_17805", 4096).ok());
 }
 
 // Failing on DCHECKs during import because the traces aren't really valid.
