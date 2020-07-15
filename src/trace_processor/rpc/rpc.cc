@@ -304,7 +304,7 @@ std::vector<uint8_t> Rpc::DisableAndReadMetatrace() {
   } else {
     result->set_error(status.message());
   }
-  return trace_proto;
+  return result.SerializeAsArray();
 }
 
 }  // namespace trace_processor
