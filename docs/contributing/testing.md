@@ -111,7 +111,7 @@ tools/ninja -C <out directory>
 tools/diff_test_trace_processor.py <out directory>/trace_processor_shell
 ```
 
-To add a new diff test (for query tests only), the `tools/add_tp_diff_test.sh`
+To add a new diff test (for query tests only), the `tools/add_tp_diff_test.py`
 script is useful. It will automatically create the query and expected output
 files and adds them both to the index. For metrics, this has to be done
 manually for now.
