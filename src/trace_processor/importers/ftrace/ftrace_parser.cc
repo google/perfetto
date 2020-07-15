@@ -177,7 +177,14 @@ void FtraceParser::ParseFtraceStats(ConstBytes blob) {
     // of wrapping. Ensure that we are not overflowing to avoid ubsan
     // complaining.
     double oldest_event_ts = cpu_stats.oldest_event_ts() * 1e9;
-    if (oldest_event_ts >= std::numeric_limits<int64_t>::max()) {
+    // NB: This comparison is correct only because of the >=, it would be
+    // incorrect with >. std::numeric_limits<int64_t>::max() converted to
+    // a double is the next value representable as a double that is *larger*
+    // than std::numeric_limits<int64_t>::max(). All values that are
+    // representable as doubles and < than that value are thus representable as
+    // int64_t.
+    if (oldest_event_ts >=
+        static_cast<double>(std::numeric_limits<int64_t>::max())) {
       storage->SetIndexedStats(stats::ftrace_cpu_oldest_event_ts_begin + phase,
                                cpu, std::numeric_limits<int64_t>::max());
     } else {
