@@ -1,0 +1,52 @@
+packet {
+  ftrace_events {
+    cpu: 3
+    event {
+      timestamp: 74289018336
+      pid: 1
+      print {
+        ip: 18446743562018522420
+        buf: "event: abc xyz =0x34 clk id = 019\n"
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 2
+    event {
+      timestamp: 74662603008
+      pid: 1
+      print {
+        ip: 18446743562018522420
+        buf: "another random print message\n"
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 2
+    event {
+      timestamp: 74662603048
+      pid: 2
+      print {
+        ip: 18446743562018522420
+        buf: "B|2|valid_print\n"
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 2
+    event {
+      timestamp: 74662603050
+      pid: 2
+      print {
+        ip: 18446743562018522420
+        buf: "E|2\n"
+      }
+    }
+  }
+}
