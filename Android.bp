@@ -282,6 +282,7 @@ cc_library_shared {
   header_libs: [
     "bionic_libc_platform_headers",
   ],
+  version_script: "src/profiling/memory/heapprofd_client_api.map.txt",
 }
 
 // GN: //src/ipc/protoc_plugin:ipc_plugin
