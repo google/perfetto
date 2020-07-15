@@ -247,17 +247,12 @@ def run_all_tests(trace_processor, trace_descriptor_path,
   return test_failure, perf_data
 
 
-def read_all_tests(test_type, query_metric_pattern, trace_pattern):
-  if test_type == 'queries':
-    index = os.path.join(ROOT_DIR, 'test', 'trace_processor', 'index')
-  elif test_type == 'metrics':
-    index = os.path.join(ROOT_DIR, 'test', 'metrics', 'index')
-  else:
-    assert False
+def read_all_tests_from_index(test_type, index_path, query_metric_pattern,
+                              trace_pattern):
+  index_dir = os.path.dirname(index_path)
 
-  index_dir = os.path.dirname(index)
-  with open(index, 'r') as file:
-    index_lines = file.readlines()
+  with open(index_path, 'r') as index_file:
+    index_lines = index_file.readlines()
 
   tests = []
   for line in index_lines:
@@ -284,7 +279,26 @@ def read_all_tests(test_type, query_metric_pattern, trace_pattern):
 
     tests.append(
         Test(test_type, trace_path, query_path_or_metric, expected_path))
+  return tests
 
+
+def read_all_tests(test_type, query_metric_pattern, trace_pattern):
+  if test_type == 'queries':
+    include_index = os.path.join(ROOT_DIR, 'test', 'trace_processor',
+                                 'include_index')
+  elif test_type == 'metrics':
+    include_index = os.path.join(ROOT_DIR, 'test', 'metrics', 'include_index')
+  else:
+    assert False
+
+  include_index_dir = os.path.dirname(include_index)
+  tests = []
+  with open(include_index, 'r') as include_file:
+    for index_relpath in include_file.readlines():
+      index_path = os.path.join(include_index_dir, index_relpath.strip())
+      tests.extend(
+          read_all_tests_from_index(test_type, index_path, query_metric_pattern,
+                                    trace_pattern))
   return tests
 
 
