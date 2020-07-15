@@ -1,0 +1,4 @@
+# Ancestor slice table.
+relationship_tables.textproto ancestor_slice.sql ancestor_slice.out
+# Descendant slice table.
+relationship_tables.textproto descendant_slice.sql descendant_slice.out

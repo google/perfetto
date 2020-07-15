@@ -25,8 +25,9 @@ def CheckChange(input, output):
         white_list=".*",
         black_list=[
             'Android[.]bp', '.*[.]json$', '.*[.]sql$', '.*[.]out$',
-            'test/trace_processor/index$', '.*\bBUILD$', 'WORKSPACE',
-            '.*/Makefile$', '/perfetto_build_flags.h$'
+            'test/trace_processor/.*/index$', 'test/metrics/.*/index$',
+            '.*\bBUILD$', 'WORKSPACE', '.*/Makefile$',
+            '/perfetto_build_flags.h$'
         ])
 
   results = []
