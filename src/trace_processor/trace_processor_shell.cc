@@ -37,7 +37,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/trace_processor/read_trace.h"
 #include "perfetto/trace_processor/trace_processor.h"
-#include "src/trace_processor/metrics/custom_options.descriptor.h"
+#include "src/trace_processor/metrics/chrome/all_chrome_metrics.descriptor.h"
 #include "src/trace_processor/metrics/metrics.descriptor.h"
 #include "src/trace_processor/util/proto_to_json.h"
 #include "src/trace_processor/util/status_macros.h"
@@ -1050,8 +1050,8 @@ util::Status RunMetrics(const CommandLineOptions& options) {
       google::protobuf::DescriptorPool::generated_pool());
   ExtendPoolWithBinaryDescriptor(pool, kMetricsDescriptor.data(),
                                  kMetricsDescriptor.size());
-  ExtendPoolWithBinaryDescriptor(pool, kCustomOptionsDescriptor.data(),
-                                 kCustomOptionsDescriptor.size());
+  ExtendPoolWithBinaryDescriptor(pool, kAllChromeMetricsDescriptor.data(),
+                                 kAllChromeMetricsDescriptor.size());
 
   std::vector<std::string> metrics;
   for (base::StringSplitter ss(options.metric_names, ','); ss.Next();) {
