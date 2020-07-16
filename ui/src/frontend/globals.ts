@@ -114,7 +114,7 @@ class Globals {
   private _numQueriesQueued = 0;
   private _bufferUsage?: number = undefined;
   private _recordingLog?: string = undefined;
-  private _traceErrors: string[] = [];
+  private _traceErrors?: number = undefined;
 
   private _currentSearchResults: CurrentSearchResults = {
     sliceIds: new Float64Array(0),
@@ -224,11 +224,11 @@ class Globals {
     this._heapProfileDetails = assertExists(click);
   }
 
-  get traceErrors(): string[] {
+  get traceErrors() {
     return this._traceErrors;
   }
 
-  set traceErrors(arg: string[]) {
+  setTraceErrors(arg: number) {
     this._traceErrors = arg;
   }
 
