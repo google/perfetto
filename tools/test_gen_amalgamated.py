@@ -18,6 +18,7 @@ from __future__ import print_function
 import os
 import shutil
 import subprocess
+import sys
 
 from compat import quote
 from platform import system
@@ -58,7 +59,14 @@ def check_amalgamated_build():
   ]
   if system().lower() == 'linux':
     args += ['-lpthread', '-lrt']
-  call('clang++', *args)
+
+  if sys.platform.startswith('linux'):
+    llvm_script = os.path.join(ROOT_DIR, 'gn', 'standalone', 'toolchain',
+                               'linux_find_llvm.py')
+    cxx = subprocess.check_output([llvm_script]).splitlines()[2]
+  else:
+    cxx = 'clang++'
+  call(cxx, *args)
 
 
 def check_amalgamated_dependencies():
