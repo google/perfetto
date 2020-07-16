@@ -194,13 +194,13 @@ class Table {
   }
 
   template <typename T>
-  const TypedColumn<T>& GetTypedColumnByName(const char* name) const {
-    return *TypedColumn<T>::FromColumn(GetColumnByName(name));
+  const TypedColumn<T>* GetTypedColumnByName(const char* name) const {
+    return TypedColumn<T>::FromColumn(GetColumnByName(name));
   }
 
   template <typename T>
-  const IdColumn<T>& GetIdColumnByName(const char* name) const {
-    return *IdColumn<T>::FromColumn(GetColumnByName(name));
+  const IdColumn<T>* GetIdColumnByName(const char* name) const {
+    return IdColumn<T>::FromColumn(GetColumnByName(name));
   }
 
   // Returns the number of columns in the Table.
@@ -210,8 +210,6 @@ class Table {
 
   // Returns an iterator into the Table.
   Iterator IterateRows() const { return Iterator(this); }
-
-  Table Copy() const;
 
   uint32_t row_count() const { return row_count_; }
   const std::vector<RowMap>& row_maps() const { return row_maps_; }
@@ -228,6 +226,7 @@ class Table {
  private:
   friend class Column;
 
+  Table Copy() const;
   Table CopyExceptRowMaps() const;
 };
 
