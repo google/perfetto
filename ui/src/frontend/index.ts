@@ -182,8 +182,8 @@ class FrontendApi {
     this.redraw();
   }
 
-  publishTraceErrors(arg: string[]) {
-    globals.traceErrors = arg;
+  publishTraceErrors(numErrors: number) {
+    globals.setTraceErrors(numErrors);
     this.redraw();
   }
 
