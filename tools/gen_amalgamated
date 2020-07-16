@@ -529,7 +529,16 @@ Example build command:
     """Returns an example command line for building the output source."""
     source = self._get_nice_path(output_prefix, '%s.cc')
     library = self._get_nice_path(output_prefix, 'lib%s.so')
-    build_cmd = ['clang++', source, '-o', library, '-shared'] + \
+
+    if sys.platform.startswith('linux'):
+      llvm_script = os.path.join(gn_utils.repo_root(), 'gn',
+                                 'standalone', 'toolchain',
+                                 'linux_find_llvm.py')
+      cxx = subprocess.check_output([llvm_script]).splitlines()[2]
+    else:
+      cxx = 'clang++'
+
+    build_cmd = [cxx, source, '-o', library, '-shared'] + \
         sorted(self.cflags) + sorted(self.ldflags)
     for lib in sorted(self.libs):
       build_cmd.append('-l%s' % lib)
