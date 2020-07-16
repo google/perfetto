@@ -212,21 +212,6 @@ button.close {
   }
 }
 
-.trace-error {
-  * {
-    user-select: text;
-  }
-  grid-area: alerts;
-  background-color: #d40000;
-  color: #f2f2f2;
-  >div {
-    font-family: 'Raleway', sans-serif;
-    font-weight: 400;
-    letter-spacing: 0.25px;
-    padding: 1rem;
-  }
-}
-
 .home-page {
     text-align: center;
     padding-top: 20vh;
