@@ -15,7 +15,7 @@
 # docker:stable is an Alpine-based distro.
 FROM docker:stable
 
-RUN apk update && apk add python py-pip sudo tini
+RUN apk update && apk add python2 py-pip sudo tini
 RUN pip install oauth2client httplib2
 
 # Unfortunately Docker doesn't allow to copy a file from ../. So we copy instead
