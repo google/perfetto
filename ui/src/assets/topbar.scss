@@ -189,6 +189,14 @@
     }
 }
 
+.error {
+    padding-left: 10px;
+    color: #ee8f4b;
+    &:hover {
+        cursor:pointer;
+    }
+}
+
 .helpful-hint {
   position: absolute;
   right: 5px;
