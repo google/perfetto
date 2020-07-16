@@ -20,12 +20,19 @@ FROM debian:latest
 
 RUN set -ex; \
     export DEBIAN_FRONTEND=noninteractive; \
+    echo deb http://deb.debian.org/debian buster-backports main > \
+            /etc/apt/sources.list.d/backports.list; \
     apt-get update; \
     apt-get -y install python git curl sudo lz4 tar ccache tini libpulse0 \
                        libgl1 libxml2 libc6-dev-i386 libtinfo5 gnupg2 \
                        pkg-config zip g++ zlib1g-dev unzip python3 \
                        python-distutils-extra python3-distutils; \
-    apt-get -y install gcc-7 g++-7 clang; \
+    apt-get -y install gcc-7 g++-7; \
+    gcc-7 --version; \
+    g++-7 --version; \
+    apt-get -y -t buster-backports install clang-8; \
+    clang-8 --version; \
+    clang++-8 --version; \
     curl https://bootstrap.pypa.io/get-pip.py | python -; \
     pip install --quiet protobuf; \
     curl https://bootstrap.pypa.io/get-pip.py | python3 -; \
