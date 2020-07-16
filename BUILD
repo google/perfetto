@@ -781,6 +781,7 @@ genrule(
         "src/trace_processor/metrics/android/unmapped_java_symbols.sql",
         "src/trace_processor/metrics/android/unsymbolized_frames.sql",
         "src/trace_processor/metrics/chrome/chrome_processes.sql",
+        "src/trace_processor/metrics/chrome/console_error_metric.sql",
         "src/trace_processor/metrics/chrome/scroll_flow_event.sql",
         "src/trace_processor/metrics/chrome/scroll_jank.sql",
         "src/trace_processor/metrics/trace_metadata.sql",
@@ -799,7 +800,7 @@ genrule(
 filegroup(
     name = "src_trace_processor_metrics_lib",
     srcs = [
-        "src/trace_processor/metrics/custom_options.descriptor.h",
+        "src/trace_processor/metrics/chrome/all_chrome_metrics.descriptor.h",
         "src/trace_processor/metrics/metrics.cc",
         "src/trace_processor/metrics/metrics.descriptor.h",
         "src/trace_processor/metrics/metrics.h",
@@ -2019,7 +2020,7 @@ perfetto_cc_proto_library(
     ],
 )
 
-# GN target: //protos/perfetto/metrics/android:zero
+# GN target: //protos/perfetto/metrics/android:lite
 perfetto_proto_library(
     name = "protos_perfetto_metrics_android_protos",
     srcs = [
@@ -2048,14 +2049,6 @@ perfetto_proto_library(
     visibility = PERFETTO_CONFIG.public_visibility,
 )
 
-# GN target: //protos/perfetto/metrics/android:zero
-perfetto_cc_protozero_library(
-    name = "protos_perfetto_metrics_android_zero",
-    deps = [
-        ":protos_perfetto_metrics_android_protos",
-    ],
-)
-
 # GN target: //protos/perfetto/metrics:lite
 perfetto_cc_proto_library(
     name = "protos_perfetto_metrics_lite",
@@ -2064,7 +2057,7 @@ perfetto_cc_proto_library(
     ],
 )
 
-# GN target: //protos/perfetto/metrics:zero
+# GN target: //protos/perfetto/metrics:lite
 perfetto_proto_library(
     name = "protos_perfetto_metrics_protos",
     srcs = [
@@ -2073,14 +2066,6 @@ perfetto_proto_library(
     visibility = PERFETTO_CONFIG.public_visibility,
     deps = [
         ":protos_perfetto_metrics_android_protos",
-    ],
-)
-
-# GN target: //protos/perfetto/metrics:zero
-perfetto_cc_protozero_library(
-    name = "protos_perfetto_metrics_zero",
-    deps = [
-        ":protos_perfetto_metrics_protos",
     ],
 )
 
@@ -2502,10 +2487,6 @@ perfetto_proto_library(
     ],
     visibility = [
         PERFETTO_CONFIG.proto_library_visibility,
-    ],
-    deps = [
-        ":protos_perfetto_metrics_android_protos",
-        ":protos_perfetto_metrics_protos",
     ],
 )
 
@@ -3020,8 +3001,6 @@ perfetto_cc_binary(
                ":protos_perfetto_config_sys_stats_zero",
                ":protos_perfetto_config_track_event_zero",
                ":protos_perfetto_config_zero",
-               ":protos_perfetto_metrics_android_zero",
-               ":protos_perfetto_metrics_zero",
                ":protos_perfetto_trace_android_zero",
                ":protos_perfetto_trace_chrome_zero",
                ":protos_perfetto_trace_filesystem_zero",

@@ -18,8 +18,6 @@ syntax = "proto2";
 
 package perfetto.protos;
 
-import "protos/perfetto/metrics/metrics.proto";
-
 // This file defines the schema for {,un}marshalling arguments and return values
 // when interfacing to the trace processor binary interface.
 
@@ -147,7 +145,13 @@ message ComputeMetricArgs {
 
 // Output for the /compute_metric endpoint.
 message ComputeMetricResult {
-  optional perfetto.protos.TraceMetrics metrics = 1;
+  // This is meant to contain a perfetto.protos.TraceMetrics. We're using bytes
+  // instead of the actual type because we do not want to generate protozero
+  // code for the metrics protos. We always encode/decode metrics using a
+  // reflection based mechanism that does not require the compiled C++ code.
+  // This allows us to read in new protos at runtime.
+  optional bytes metrics = 1;
+
   optional string error = 2;
 }
 

@@ -1,4 +1,4 @@
-# Copyright (C) 2018 The Android Open Source Project
+# Copyright (C) 2020 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,18 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../../gn/proto_library.gni")
-import("proto_files.gni")
+import("../../../../gn/proto_library.gni")
 
 perfetto_proto_library("@TYPE@") {
-  proto_generators = [ "zero" ]
-  sources = []
-  foreach(source, trace_processor_protos) {
-    sources += [ "$source.proto" ]
-  }
-}
-
-perfetto_proto_library("metrics_impl_zero") {
-  proto_generators = [ "zero" ]
-  sources = [ "metrics_impl.proto" ]
+  deps = [ "../metrics:@TYPE@" ]
+  sources = [
+    "all_chrome_metrics.proto",
+    "console_error_metric.proto",
+  ]
 }

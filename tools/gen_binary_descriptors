@@ -35,8 +35,8 @@ SOURCE_TARGET = {
         'src/protozero/test/example_proto/test_messages.descriptor.h',
     'protos/perfetto/trace/track_event/track_event.proto':
         'src/trace_processor/importers/proto/track_event.descriptor.h',
-    'protos/perfetto/metrics/custom_options.proto':
-        'src/trace_processor/metrics/custom_options.descriptor.h',
+    'protos/perfetto/metrics/chrome/all_chrome_metrics.proto':
+        'src/trace_processor/metrics/chrome/all_chrome_metrics.descriptor.h',
   'protos/perfetto/trace_processor/trace_processor.proto':
         'src/trace_processor/python/trace_processor/trace_processor.descriptor',
 }
