@@ -288,8 +288,6 @@ if (enable_perfetto_trace_processor_sqlite) {
       "dynamic/experimental_flamegraph_generator.h",
       "dynamic/experimental_slice_layout_generator.cc",
       "dynamic/experimental_slice_layout_generator.h",
-      "dynamic/thread_state_generator.cc",
-      "dynamic/thread_state_generator.h",
       "iterator_impl.cc",
       "iterator_impl.h",
       "read_trace.cc",
@@ -399,7 +397,6 @@ perfetto_unittest_source_set("unittests") {
     sources += [
       "dynamic/experimental_counter_dur_generator_unittest.cc",
       "dynamic/experimental_slice_layout_generator_unittest.cc",
-      "dynamic/thread_state_generator_unittest.cc",
     ]
     deps += [
       ":lib",

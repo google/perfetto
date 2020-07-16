@@ -148,14 +148,14 @@ std::unique_ptr<Table> ExperimentalSliceLayoutGenerator::AddLayoutColumn(
     const std::set<TrackId>& selected,
     StringPool::Id filter_id) {
   const auto& track_id_col =
-      table.GetTypedColumnByName<tables::TrackTable::Id>("track_id");
-  const auto& id_col = table.GetIdColumnByName<tables::SliceTable::Id>("id");
+      *table.GetTypedColumnByName<tables::TrackTable::Id>("track_id");
+  const auto& id_col = *table.GetIdColumnByName<tables::SliceTable::Id>("id");
   const auto& parent_id_col =
-      table.GetTypedColumnByName<base::Optional<tables::SliceTable::Id>>(
+      *table.GetTypedColumnByName<base::Optional<tables::SliceTable::Id>>(
           "parent_id");
-  const auto& depth_col = table.GetTypedColumnByName<uint32_t>("depth");
-  const auto& ts_col = table.GetTypedColumnByName<int64_t>("ts");
-  const auto& dur_col = table.GetTypedColumnByName<int64_t>("dur");
+  const auto& depth_col = *table.GetTypedColumnByName<uint32_t>("depth");
+  const auto& ts_col = *table.GetTypedColumnByName<int64_t>("ts");
+  const auto& dur_col = *table.GetTypedColumnByName<int64_t>("dur");
 
   std::map<tables::SliceTable::Id, GroupInfo> groups;
   // Map of id -> root_id
