@@ -55,6 +55,7 @@
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
+#include "src/trace_processor/metrics/chrome/all_chrome_metrics.descriptor.h"
 #include "src/trace_processor/metrics/metrics.descriptor.h"
 #include "src/trace_processor/metrics/metrics.h"
 #include "src/trace_processor/metrics/sql_metrics.h"
@@ -521,6 +522,8 @@ void SetupMetrics(TraceProcessor* tp,
                   sqlite3* db,
                   std::vector<metrics::SqlMetricFile>* sql_metrics) {
   tp->ExtendMetricsProto(kMetricsDescriptor.data(), kMetricsDescriptor.size());
+  tp->ExtendMetricsProto(kAllChromeMetricsDescriptor.data(),
+                         kAllChromeMetricsDescriptor.size());
 
   for (const auto& file_to_sql : metrics::sql_metrics::kFileToSql) {
     tp->RegisterMetric(file_to_sql.path, file_to_sql.sql);

@@ -834,6 +834,9 @@ message TraceMetrics {
 
   // Vendor extensions.
   extensions 500 to 1000;
+
+  // Chrome metrics.
+  extensions 1001 to 2000;
 }
 
 // End of protos/perfetto/metrics/metrics.proto
