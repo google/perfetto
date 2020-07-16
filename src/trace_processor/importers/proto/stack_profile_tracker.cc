@@ -142,7 +142,6 @@ base::Optional<FrameId> StackProfileTracker::AddFrame(
   auto opt_mapping = FindOrInsertMapping(frame.mapping_id, intern_lookup);
   if (!opt_mapping) {
     context_->storage->IncrementStats(stats::stackprofile_invalid_mapping_id);
-    PERFETTO_ELOG("Invalid mapping for frame %" PRIu64, id);
     return base::nullopt;
   }
   MappingId mapping_id = *opt_mapping;
@@ -193,7 +192,6 @@ base::Optional<CallsiteId> StackProfileTracker::AddCallstack(
     auto opt_frame_id = FindOrInsertFrame(frame_ids[depth], intern_lookup);
     if (!opt_frame_id) {
       context_->storage->IncrementStats(stats::stackprofile_invalid_frame_id);
-      PERFETTO_ELOG("Unknown frame in callstack; ignoring.");
       return base::nullopt;
     }
     FrameId frame_id = *opt_frame_id;
@@ -279,8 +277,6 @@ base::Optional<MappingId> StackProfileTracker::FindOrInsertMapping(
       }
     }
     context_->storage->IncrementStats(stats::stackprofile_invalid_mapping_id);
-    PERFETTO_ELOG("Unknown mapping %" PRIu64 " : %zu", mapping_id,
-                  mapping_ids_.size());
     return res;
   }
   res = it->second;
