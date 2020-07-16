@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 # Copyright (C) 2020 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,8 +15,6 @@
 
 from os import sys, path
 
-sys.path.append(
-    path.dirname(path.dirname(path.dirname(path.abspath(__file__)))))
 import synth_common
 
 # Since we do various time based conversions to build cycles/sec, ensure that
@@ -61,4 +59,4 @@ trace.add_process_stats(pid=3, freqs={1: 1})
 # the little core but not the big one.
 trace.add_process_stats(pid=4, freqs={1: 2, 9: 1})
 
-print(trace.trace.SerializeToString())
+sys.stdout.buffer.write(trace.trace.SerializeToString())
