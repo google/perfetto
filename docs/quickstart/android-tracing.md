@@ -55,7 +55,7 @@ Your trace may look different depending on which data sources you enabled.
 If you are already familiar with `systrace` or `atrace`, there is an equivalent syntax with `perfetto`:
 
 ```bash
-adb shell perfetto -o mytrace.pftrace -t 20s sched freq idle am wm gfx view
+adb shell perfetto -o /data/misc/perfetto-traces/trace -t 20s sched freq idle am wm gfx view
 ```
 
 #### Full trace config
