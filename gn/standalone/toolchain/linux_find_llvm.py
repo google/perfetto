@@ -19,7 +19,7 @@ import sys
 
 def main():
   devnull = open(os.devnull, 'w')
-  for clang in ('clang', 'clang-3.8', 'clang-3.5'):
+  for clang in ('clang', 'clang-3.8', 'clang-3.5', 'clang-8'):
     if subprocess.call(['which', clang], stdout=devnull, stderr=devnull) != 0:
       continue
     res = subprocess.check_output([clang, '-print-search-dirs']).decode("utf-8")
