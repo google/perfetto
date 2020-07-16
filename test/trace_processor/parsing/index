@@ -1,0 +1,110 @@
+# Sched
+../../data/android_sched_and_ps.pb ts_desc_filter.sql ts_desc_filter_android_sched_and_ps.out
+
+# Sched reason
+../../data/android_sched_and_ps.pb end_reason_eq.sql android_sched_and_ps_end_reason_eq.out
+../../data/android_sched_and_ps.pb end_reason_neq.sql android_sched_and_ps_end_reason_neq.out
+
+# Sched wakeup
+../../data/android_sched_and_ps.pb sched_wakeup.sql sched_wakeup_android_sched_and_ps.out
+
+# CPU Frequency
+../../data/cpu_counters.pb b120487929.sql cpu_counters_b120487929.out
+
+# Rss stats
+rss_stat_mm_id.py rss_stat.sql rss_stat_mm_id.out
+rss_stat_mm_id_clone.py rss_stat.sql rss_stat_mm_id_clone.out
+rss_stat_mm_id_reuse.py rss_stat.sql rss_stat_mm_id_reuse.out
+rss_stat_legacy.py rss_stat.sql rss_stat_legacy.out
+rss_stat_after_free.py rss_stat_after_free.sql rss_stat_after_free.out
+
+# Memory counters
+../../data/memory_counters.pb args_string_filter_null.sql memory_counters_args_string_filter_null.out
+../../data/memory_counters.pb args_string_is_null.sql memory_counters_args_string_is_null.out
+../../data/memory_counters.pb args_string_is_not_null.sql memory_counters_args_string_is_not_null.out
+../../data/memory_counters.pb b120605557.sql memory_counters_b120605557.out
+../../data/memory_counters.pb global_memory_counter.sql global_memory_counter_memory_counters.out
+ion_stat.textproto ion_stat.sql ion_stat.out
+
+# Scheduling slices from sched_switch events. There are two tests, one for the
+# typical encoding of sched_switch events, and one for the same trace
+# re-encoded in the compact format. The output should be identical apart from
+# the latter having one slice fewer for each cpu (the first compact
+# sched_switch event doesn't start a slice). Six slices in this case.
+../../data/sched_switch_original.pb sched_slices.sql sched_slices_sched_switch_original.out
+../../data/sched_switch_compact.pb sched_slices.sql sched_slices_sched_switch_compact.out
+
+# Decoding of sched_waking events from a trace with compact scheduling events.
+# Verifies the contents of raw & instants tables.
+../../data/compact_sched.pb sched_waking_raw.sql sched_waking_raw_compact_sched.out
+../../data/compact_sched.pb sched_waking_instants.sql sched_waking_instants_compact_sched.out
+
+# Mm Event
+../../data/mm_event.pb mm_event.sql mm_event.out
+
+# Android userspace async slices
+android_async_slice.textproto process_track_slices.sql process_track_slices_android_async_slice.out
+
+# Check the systrace conversion code in the raw table.
+# Print events
+../../data/lmk_userspace.pb print_systrace.sql print_systrace_lmk_userspace.out
+# Unsigned integers
+print_systrace_unsigned.py print_systrace.sql print_systrace_unsigned.out
+
+# Parsing systrace files
+../../data/systrace.html systrace_html.sql systrace_html.out
+../../data/trailing_empty.systrace sched_smoke.sql sched_smoke_trailing_empty.out
+
+# Check error handling when parsing print events.
+bad_print.textproto list_slices.sql bad_print_textproto_list_slices.out
+bad_print.systrace list_slices.sql bad_print_systrace_list_slices.out
+
+# LMK handling
+kernel_lmk.py lmk.sql lmk_kernel_lmk.out
+../../data/lmk_userspace.pb lmk.sql lmk_userspace_lmk.out
+../common/oom_kill.textproto oom_kill.sql oom_kill.out
+
+# Logcat
+../../data/android_log.pb android_log_counts.sql android_log_counts.out
+../../data/android_log.pb android_log_msgs.sql android_log_msgs.out
+../../data/android_log_ring_buffer_mode.pb android_log_ring_buffer_mode.sql android_log_ring_buffer_mode.out
+
+# Oom Score
+synth_oom.py oom_query.sql synth_oom_oom_query.out
+../../data/process_stats_poll.pb oom_score_poll.sql process_stats_poll_oom_score.out
+
+# Stats
+../../data/android_sched_and_ps.pb stats.sql android_sched_and_ps_stats.out
+
+# Syscalls
+syscall.py sys.sql sys_syscall.out
+
+# Power rails
+../../data/power_rails.pb power_rails.sql power_rails_power_rails.out
+power_rails_custom_clock.textproto power_rails_event.sql power_rails_event_power_rails_custom_clock.out
+power_rails.textproto power_rails_timestamp_sort.sql power_rails_timestamp_sort.out
+
+# Thread time_in_state
+thread_time_in_state.textproto thread_time_in_state.sql thread_time_in_state.out
+thread_time_in_state_event.py thread_time_in_state_event.sql thread_time_in_state_event.out
+thread_time_in_state.textproto android_thread_time_in_state android_thread_time_in_state.out
+
+# Initial display state
+initial_display_state.textproto initial_display_state.sql initial_display_state.out
+
+# Config & metadata
+config_metadata.textproto metadata.sql config_metadata.out
+trigger_packet_trace.textproto triggers_packets.sql triggers_packets_trigger_packet_trace.out
+
+# CPU info
+cpu_info.textproto cpu.sql cpu.out
+cpu_info.textproto cpu_freq.sql cpu_freq.out
+
+# Trace size
+../../data/android_sched_and_ps.pb trace_size.sql android_sched_and_ps_trace_size.out
+
+# Package list handling
+android_package_list.py android_package_list android_package_list.out
+
+# Ensures process -> package matching works as expected.
+process_metadata_matching.textproto process_metadata_matching.sql process_metadata_matching.out
