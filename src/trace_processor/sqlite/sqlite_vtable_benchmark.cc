@@ -194,8 +194,8 @@ static void BM_SqliteStepAndResult(benchmark::State& state) {
     PERFETTO_CHECK(value != 42);
   }
 
-  state.counters["rows"] =
-      Counter(batch_size, Counter::kIsIterationInvariantRate);
+  state.counters["rows"] = Counter(static_cast<double>(batch_size),
+                                   Counter::kIsIterationInvariantRate);
 }
 
 BENCHMARK(BM_SqliteStepAndResult)->Apply(BenchmarkArgs);

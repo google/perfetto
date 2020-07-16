@@ -73,8 +73,10 @@ void SchedEventTracker::PushSchedSwitch(uint32_t cpu,
                                         int32_t next_prio) {
   // At this stage all events should be globally timestamp ordered.
   if (ts < context_->event_tracker->max_timestamp()) {
-    PERFETTO_ELOG("sched_switch event out of order by %.4f ms, skipping",
-                  (context_->event_tracker->max_timestamp() - ts) / 1e6);
+    PERFETTO_ELOG(
+        "sched_switch event out of order by %.4f ms, skipping",
+        static_cast<double>(context_->event_tracker->max_timestamp() - ts) /
+            1e6);
     context_->storage->IncrementStats(stats::sched_switch_out_of_order);
     return;
   }
@@ -125,8 +127,10 @@ void SchedEventTracker::PushSchedSwitchCompact(uint32_t cpu,
                                                StringId next_comm_id) {
   // At this stage all events should be globally timestamp ordered.
   if (ts < context_->event_tracker->max_timestamp()) {
-    PERFETTO_ELOG("sched_switch event out of order by %.4f ms, skipping",
-                  (context_->event_tracker->max_timestamp() - ts) / 1e6);
+    PERFETTO_ELOG(
+        "sched_switch event out of order by %.4f ms, skipping",
+        static_cast<double>(context_->event_tracker->max_timestamp() - ts) /
+            1e6);
     context_->storage->IncrementStats(stats::sched_switch_out_of_order);
     return;
   }
@@ -263,8 +267,10 @@ void SchedEventTracker::PushSchedWakingCompact(uint32_t cpu,
                                                StringId comm_id) {
   // At this stage all events should be globally timestamp ordered.
   if (ts < context_->event_tracker->max_timestamp()) {
-    PERFETTO_ELOG("sched_waking event out of order by %.4f ms, skipping",
-                  (context_->event_tracker->max_timestamp() - ts) / 1e6);
+    PERFETTO_ELOG(
+        "sched_waking event out of order by %.4f ms, skipping",
+        static_cast<double>(context_->event_tracker->max_timestamp() - ts) /
+            1e6);
     context_->storage->IncrementStats(stats::sched_waking_out_of_order);
     return;
   }

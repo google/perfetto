@@ -326,7 +326,7 @@ TEST_F(TableMacrosUnittest, NullableDoubleCompareWithLong) {
   row.value = 99.9999;
   counter_.Insert(row);
 
-  row.value = std::numeric_limits<int64_t>::min();
+  row.value = static_cast<double>(std::numeric_limits<int64_t>::min());
   counter_.Insert(row);
 
   Table out = counter_.Filter({counter_.value().eq_value(SqlValue::Long(100))});
