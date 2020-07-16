@@ -53,7 +53,8 @@ SCOPES.append('https://www.googleapis.com/auth/monitoring.write')
 
 def sha1(obj):
   hasher = hashlib.sha1()
-  hasher.update(json.dumps(obj, sort_keys=True, separators=(',', ':')))
+  hasher.update(
+      json.dumps(obj, sort_keys=True, separators=(',', ':')).encode('utf-8'))
   return hasher.hexdigest()
 
 
