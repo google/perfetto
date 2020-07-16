@@ -30,6 +30,8 @@ const PLACEHOLDER = {
 };
 
 export const DISMISSED_PANNING_HINT_KEY = 'dismissedPanningHint';
+const TRACE_STATS =
+    'select * from stats WHERE severity = \'error\' and value > 0';
 
 let mode: Mode = SEARCH;
 let displayStepThrough = false;
@@ -238,6 +240,29 @@ class HelpPanningNotification implements m.ClassComponent {
   }
 }
 
+class TraceErrorIcon implements m.ClassComponent {
+  view() {
+    const errors = globals.traceErrors;
+    if (!errors || mode === COMMAND) return;
+    return m(
+        '.error',
+        m('i.material-icons',
+          {
+            onclick: () => {
+              globals.dispatch(Actions.executeQuery({
+                engineId: '0',
+                queryId: 'command',
+                query: TRACE_STATS,
+              }));
+            },
+            title: `${
+                globals
+                    .traceErrors} import errors detected. Click for more info.`,
+          },
+          'warning'));
+  }
+}
+
 export class Topbar implements m.ClassComponent {
   view() {
     return m(
@@ -246,6 +271,7 @@ export class Topbar implements m.ClassComponent {
             m(NewVersionNotification) :
             m(Omnibox),
         m(Progress),
-        m(HelpPanningNotification));
+        m(HelpPanningNotification),
+        m(TraceErrorIcon));
   }
 }
