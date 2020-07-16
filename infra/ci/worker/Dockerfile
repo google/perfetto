@@ -15,8 +15,8 @@
 # docker:stable is an Alpine-based distro.
 FROM docker:stable
 
-RUN apk update && apk add python2 py-pip sudo tini
-RUN pip install oauth2client httplib2
+RUN apk update && apk add python3 py-pip sudo tini
+RUN pip3 install oauth2client httplib2
 
 # Unfortunately Docker doesn't allow to copy a file from ../. So we copy instead
 # the config files into tmp/ from the Makefile that runs docker build.
@@ -43,4 +43,4 @@ USER perfetto:perfetto
 WORKDIR /home/perfetto
 
 ENTRYPOINT [ "tini", "--" ]
-CMD [ "python2", "/home/perfetto/worker.py" ]
+CMD [ "python3", "/home/perfetto/worker.py" ]
