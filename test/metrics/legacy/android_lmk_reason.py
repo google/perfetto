@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 # Copyright (C) 2018 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,8 +15,6 @@
 
 from os import sys, path
 
-sys.path.append(
-    path.dirname(path.dirname(path.dirname(path.abspath(__file__)))))
 import synth_common
 
 anon_member = 1
@@ -68,4 +66,4 @@ trace.add_kernel_lmk(ts=504, tid=9)
 trace.add_ftrace_packet(cpu=0)
 trace.add_oom_score_update(ts=1001, oom_score_adj=-800, pid=2)
 
-print(trace.trace.SerializeToString())
+sys.stdout.buffer.write(trace.trace.SerializeToString())

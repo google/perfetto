@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 # Copyright (C) 2019 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,7 +19,7 @@
 
 from os import sys, path
 
-sys.path.append(path.dirname(path.dirname(path.dirname(path.abspath(__file__)))))
+
 from synth_common import CLONE_THREAD
 import synth_common
 
@@ -36,4 +36,4 @@ trace.add_sched(ts=16, prev_pid=10, next_pid=11, next_comm='child')
 trace.add_rename(
     ts=17, tid=11, old_comm='child', new_comm='true_name', oom_score_adj=1000)
 
-print(trace.trace.SerializeToString())
+sys.stdout.buffer.write(trace.trace.SerializeToString())

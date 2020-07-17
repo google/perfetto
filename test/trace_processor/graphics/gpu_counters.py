@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 # Copyright (C) 2019 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,7 +14,7 @@
 # limitations under the License.
 
 from os import sys, path
-sys.path.append(path.dirname(path.dirname(path.dirname(path.abspath(__file__)))))
+
 import synth_common
 
 # See gpu_counter_descriptor.proto
@@ -67,4 +67,4 @@ trace.add_gpu_counter(14, 34, 0)
 trace.add_gpu_counter(24, 34, 9)
 trace.add_gpu_counter(34, 34, 7)
 
-print(trace.trace.SerializeToString())
+sys.stdout.buffer.write(trace.trace.SerializeToString())
