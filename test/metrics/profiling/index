@@ -1,7 +1,0 @@
-heap_profile.textproto heap_profile_callsites heap_profile_callsites.out
-heap_profile_no_symbols.textproto unsymbolized_frames unsymbolized_frames.out
-
-../../trace_processor/profiling/heap_graph.textproto java_heap_stats java_heap_stats.out
-heap_graph_closest_proc.textproto java_heap_stats heap_stats_closest_proc.out
-../../trace_processor/profiling/heap_graph.textproto java_heap_histogram java_heap_histogram.out
-obfuscated_heap_graph.textproto unmapped_java_symbols unmapped_java_symbols.out

@@ -57,20 +57,6 @@ class PerfResult(object):
     self.real_time_ns = int(real_time_ns_str)
 
 
-def create_metrics_message_factory(metrics_descriptor_path):
-  return create_message_factory(metrics_descriptor_path,
-                                'perfetto.protos.TraceMetrics')
-
-
-def write_diff(expected, actual):
-  expected_lines = expected.splitlines(True)
-  actual_lines = actual.splitlines(True)
-  diff = difflib.unified_diff(
-      expected_lines, actual_lines, fromfile='expected', tofile='actual')
-  for line in diff:
-    sys.stderr.write(line)
-
-
 class TestResult(object):
 
   def __init__(self, test_type, input_name, trace, cmd, expected, actual,
@@ -83,6 +69,20 @@ class TestResult(object):
     self.actual = actual
     self.stderr = stderr
     self.exit_code = exit_code
+
+
+def create_metrics_message_factory(metrics_descriptor_path):
+  return create_message_factory(metrics_descriptor_path,
+                                'perfetto.protos.TraceMetrics')
+
+
+def write_diff(expected, actual):
+  expected_lines = expected.splitlines(True)
+  actual_lines = actual.splitlines(True)
+  diff = difflib.unified_diff(
+      expected_lines, actual_lines, fromfile='expected', tofile='actual')
+  for line in diff:
+    sys.stderr.write(line)
 
 
 def run_metrics_test(trace_processor_path, gen_trace_path, metric,
@@ -215,7 +215,7 @@ def run_all_tests(trace_processor, trace_descriptor_path,
             'Command to generate trace:\n'
             'tools/serialize_test_trace.py --descriptor {} {} > {}\n'.format(
                 os.path.relpath(trace_descriptor_path, ROOT_DIR),
-                os.path.relpath(trace_descriptor_path, trace_path),
+                os.path.relpath(trace_path, ROOT_DIR),
                 os.path.relpath(gen_trace_path, ROOT_DIR)))
       sys.stderr.write('Command line:\n{}\n'.format(' '.join(result.cmd)))
 
@@ -256,8 +256,7 @@ def run_all_tests(trace_processor, trace_descriptor_path,
   return test_failure, perf_data
 
 
-def read_all_tests_from_index(test_type, index_path, query_metric_pattern,
-                              trace_pattern):
+def read_all_tests_from_index(index_path, query_metric_pattern, trace_pattern):
   index_dir = os.path.dirname(index_path)
 
   with open(index_path, 'r') as index_file:
@@ -281,32 +280,28 @@ def read_all_tests_from_index(test_type, index_path, query_metric_pattern,
     trace_path = os.path.abspath(os.path.join(index_dir, trace_fname))
     expected_path = os.path.abspath(os.path.join(index_dir, expected_fname))
 
-    query_path_or_metric = query_fname_or_metric
-    if test_type == 'queries':
+    if query_fname_or_metric.endswith('.sql'):
+      test_type = 'queries'
       query_path_or_metric = os.path.abspath(
           os.path.join(index_dir, query_fname_or_metric))
+    else:
+      test_type = 'metrics'
+      query_path_or_metric = query_fname_or_metric
 
     tests.append(
         Test(test_type, trace_path, query_path_or_metric, expected_path))
   return tests
 
 
-def read_all_tests(test_type, query_metric_pattern, trace_pattern):
-  if test_type == 'queries':
-    include_index = os.path.join(ROOT_DIR, 'test', 'trace_processor',
-                                 'include_index')
-  elif test_type == 'metrics':
-    include_index = os.path.join(ROOT_DIR, 'test', 'metrics', 'include_index')
-  else:
-    assert False
-
-  include_index_dir = os.path.dirname(include_index)
+def read_all_tests(query_metric_pattern, trace_pattern):
+  include_index_dir = os.path.join(ROOT_DIR, 'test', 'trace_processor')
+  include_index = os.path.join(include_index_dir, 'include_index')
   tests = []
   with open(include_index, 'r') as include_file:
     for index_relpath in include_file.readlines():
       index_path = os.path.join(include_index_dir, index_relpath.strip())
       tests.extend(
-          read_all_tests_from_index(test_type, index_path, query_metric_pattern,
+          read_all_tests_from_index(index_path, query_metric_pattern,
                                     trace_pattern))
   return tests
 
@@ -336,22 +331,10 @@ def main():
       'trace_processor', type=str, help='location of trace processor binary')
   args = parser.parse_args()
 
-  test_type = args.test_type
-  if test_type != 'all' and test_type != 'queries' and test_type != 'metrics':
-    print('Unknown test type {}. Supported: all, queries, metrics'.format(
-        test_type))
-    return 1
-
   query_metric_pattern = re.compile(args.query_metric_filter)
   trace_pattern = re.compile(args.trace_filter)
 
-  tests = []
-  if test_type == 'all' or test_type == 'metrics':
-    tests += read_all_tests('metrics', query_metric_pattern, trace_pattern)
-
-  if test_type == 'all' or test_type == 'queries':
-    tests += read_all_tests('queries', query_metric_pattern, trace_pattern)
-
+  tests = read_all_tests(query_metric_pattern, trace_pattern)
   sys.stderr.write('[==========] Running {} tests.\n'.format(len(tests)))
 
   if args.trace_descriptor:
