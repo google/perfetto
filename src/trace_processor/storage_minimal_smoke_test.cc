@@ -79,7 +79,7 @@ TEST_F(StorageMinimalSmokeTest, SystraceReturnsError) {
 
 TEST_F(StorageMinimalSmokeTest, TrackEventsImported) {
   const size_t MAX_SIZE = 1 << 20;
-  auto f = fopen("test/trace_processor/legacy/track_event_typed_args.pb", "rb");
+  auto f = fopen("test/data/track_event_typed_args.pb", "rb");
   std::unique_ptr<uint8_t[]> buf(new uint8_t[MAX_SIZE]);
   auto rsize = fread(reinterpret_cast<char*>(buf.get()), 1, MAX_SIZE, f);
   util::Status status = storage_->Parse(std::move(buf), rsize);

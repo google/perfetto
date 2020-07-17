@@ -11,3 +11,9 @@ graphics_frame_events.py graphics_frame_events.sql graphics_frame_events.out
 
 # GPU Memory ftrace packets
 gpu_mem_total.py gpu_mem_total.sql gpu_mem_total.out
+
+# Clock sync
+clock_sync.py clock_sync.sql clock_sync.out
+
+# Missed frames
+frame_missed.py frame_missed_event.sql frame_missed_event_frame_missed.out
