@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 # Copyright (C) 2018 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -244,7 +244,7 @@ class Trace(object):
     if seq_id is not None:
       packet.trusted_packet_sequence_id = seq_id
     snap = self.packet.clock_snapshot
-    for k, v in clocks.iteritems():
+    for k, v in clocks.items():
       clock = snap.clocks.add()
       clock.clock_id = k
       clock.timestamp = v

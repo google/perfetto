@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # Copyright (C) 2018 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -60,9 +60,6 @@ class PerfResult(object):
 def create_metrics_message_factory(metrics_descriptor_path):
   return create_message_factory(metrics_descriptor_path,
                                 'perfetto.protos.TraceMetrics')
-
-
-
 
 
 def write_diff(expected, actual):
@@ -164,6 +161,8 @@ def run_all_tests(trace_processor, trace_descriptor_path,
       test_failure += 1
       continue
 
+    is_generated_trace = trace_path.endswith('.py') or trace_path.endswith(
+        '.textproto')
     if trace_path.endswith('.py'):
       gen_trace_file = tempfile.NamedTemporaryFile(delete=False)
       serialize_python_trace(trace_descriptor_path, trace_path, gen_trace_file)
@@ -204,10 +203,21 @@ def run_all_tests(trace_processor, trace_descriptor_path,
 
     if gen_trace_file:
       if keep_input:
-        print("Saving generated input trace: {}".format(gen_trace_path))
+        sys.stderr.write(
+            "Saving generated input trace: {}\n".format(gen_trace_path))
       else:
         gen_trace_file.close()
         os.remove(gen_trace_path)
+
+    def write_cmdlines():
+      if is_generated_trace:
+        sys.stderr.write(
+            'Command to generate trace:\n'
+            'tools/serialize_test_trace.py --descriptor {} {} > {}\n'.format(
+                os.path.relpath(trace_descriptor_path, ROOT_DIR),
+                os.path.relpath(trace_descriptor_path, trace_path),
+                os.path.relpath(gen_trace_path, ROOT_DIR)))
+      sys.stderr.write('Command line:\n{}\n'.format(' '.join(result.cmd)))
 
     if result.exit_code != 0 or result.expected != result.actual:
       sys.stderr.write(result.stderr)
@@ -217,11 +227,10 @@ def run_all_tests(trace_processor, trace_descriptor_path,
             'Expected did not match actual for trace {} and {} {}\n'.format(
                 trace_path, result.test_type, result.input_name))
         sys.stderr.write('Expected file: {}\n'.format(expected_path))
-        sys.stderr.write('Command line: {}\n'.format(' '.join(result.cmd)))
-
+        write_cmdlines()
         write_diff(result.expected, result.actual)
       else:
-        sys.stderr.write('Command line: {}\n'.format(' '.join(result.cmd)))
+        write_cmdlines()
 
       sys.stderr.write('[     FAIL ] {} {}\n'.format(
           os.path.basename(test.query_path_or_metric),
@@ -381,7 +390,10 @@ def main():
       trace_processor_dir = os.path.join(test_dir, 'trace_processor')
 
       metrics = []
-      for perf_args in sorted(perf_data):
+      sorted_data = sorted(
+          perf_data,
+          key=lambda x: (x.test_type, x.trace_path, x.query_path_or_metric))
+      for perf_args in sorted_data:
         trace_short_path = os.path.relpath(perf_args.trace_path, test_dir)
 
         query_short_path_or_metric = perf_args.query_path_or_metric

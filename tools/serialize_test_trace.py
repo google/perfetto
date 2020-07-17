@@ -29,14 +29,20 @@ def main():
   parser.add_argument(
       '--out',
       type=str,
-      required=True,
       help='out directory to search for trace descriptor')
+  parser.add_argument(
+      '--descriptor', type=str, help='path to the trace descriptor')
   parser.add_argument('trace_path', type=str, help='path of trace to serialize')
   args = parser.parse_args()
 
-  trace_protos_path = os.path.join(args.out, 'gen', 'protos', 'perfetto',
-                                   'trace')
-  trace_descriptor_path = os.path.join(trace_protos_path, 'trace.descriptor')
+  if args.out and not args.descriptor:
+    trace_protos_path = os.path.join(args.out, 'gen', 'protos', 'perfetto',
+                                     'trace')
+    trace_descriptor_path = os.path.join(trace_protos_path, 'trace.descriptor')
+  elif args.descriptor and not args.out:
+    trace_descriptor_path = args.descriptor
+  else:
+    raise RuntimeError('Exactly one of --out and --descriptor should be provided')
 
   trace_path = args.trace_path
 

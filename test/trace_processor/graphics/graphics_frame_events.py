@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 # Copyright (C) 2019 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,7 +14,7 @@
 # limitations under the License.
 
 from os import sys, path
-sys.path.append(path.dirname(path.dirname(path.dirname(path.abspath(__file__)))))
+
 import synth_common
 
 class BufferEvent:
@@ -52,4 +52,4 @@ trace.add_buffer_event_packet(ts=24, buffer_id=1, layer_name="layer1", frame_num
 trace.add_buffer_event_packet(ts=6, buffer_id=-1, layer_name="layer6", frame_number=14, event_type=BufferEvent.HWC_COMPOSITION_QUEUED, duration=0)
 # Missing type.
 trace.add_buffer_event_packet(ts=7, buffer_id=7, layer_name="layer7", frame_number=15, event_type=-1, duration=0)
-print(trace.trace.SerializeToString())
+sys.stdout.buffer.write(trace.trace.SerializeToString())
