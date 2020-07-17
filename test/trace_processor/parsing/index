@@ -1,3 +1,14 @@
+# Contains tests for parsing events which are applicable to more than one vertical
+# "area". Generally, events here are of high importance (e.g. sched_switch is tested
+# here is and is used by every embedder of trace processor)
+#
+# Note: It's generally *not* advisable to add tests here. Check the guidance provided by
+# http://perfetto/dev/docs/analysis/trace-processor#diff-tests for choosing which folder
+# to add a new test to.
+
+# TODO(lalitm): some tests here should be moved out of here and into the area folders;
+# they are only here because they predate the modularisation of diff tests.
+
 # Sched
 ../../data/android_sched_and_ps.pb ts_desc_filter.sql ts_desc_filter_android_sched_and_ps.out
 

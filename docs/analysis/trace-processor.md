@@ -421,6 +421,96 @@ NOTE: we do not plan on supporting case where alerts need to be added to
       and alerts added on these instead; this is because the trace processor
       storage is monotonic-append-only.
 
+## Testing
+
+Trace processor is mainly tested in two ways:
+1. Unit tests of low-level building blocks
+2. "Diff" tests which parse traces and check the output of queries
+
+### Unit tests
+Unit testing trace processor is the same as in other parts of Perfetto and
+other C++ projects. However, unlike the rest of Perfetto, unit testing is
+relatively light in trace processor.
+
+We have discovered over time that unit tests are generally too brittle
+when dealing with code which parses traces leading to painful, mechanical
+changes being needed when refactorings happen.
+
+Because of this, we choose to focus on diff tests for most areas (e.g.
+parsing events, testing schema of tables, testing metrics etc.) and only
+use unit testing for the low-level building blocks on which the rest of
+trace processor is built.
+
+### Diff tests
+Diff tests are essentially integration tests for trace processor and the
+main way trace processor is tested.
+
+Each diff test takes as input a) a trace file b) a query file *or* a metric
+name. It runs `trace_processor_shell` to parse the trace and then executes
+the query/metric. The result is then compared to a 'golden' file and any
+difference is highlighted.
+
+All diff tests are organized under [test/trace_processor](/test/trace_processor)
+and are run by the script
+[`tools/diff_test_trace_processor.py`](/tools/diff_test_trace_processor.py).
+New tests can be added with the helper script
+[`tools/add_tp_diff_test.py`](/tools/add_tp_diff_test.py).
+
+NOTE: `trace_processor_shell` and associated proto descriptors needs to be
+built before running `tools/diff_test_trace_processor.py`. The easiest way
+to do this is to run `tools/ninja -C <out directory>` both initially and on
+every change to trace processor code or builtin metrics.
+
+#### Choosing where to add diff tests
+When adding a new test with `tools/add_tp_diff_test.py`, the user is
+prompted for a folder to add the new test to. Often this can be confusing
+as a test can fall into more than one category. This section is a guide
+to decide which folder to choose.
+
+Broadly, there are two categories which all folders fall into:
+1. __"Area" folders__ which encompass a "vertical" area of interest
+   e.g. startup/ contains Android app startup related tests or chrome/
+   contains all Chrome related tests.
+2. __"Feature" folders__ which encompass a particular feature of
+   trace processor e.g. process_tracking/ tests the lifetime tracking of
+   processes, span_join/ tests the span join operator.
+
+"Area" folders should be preferred for adding tests unless the test is
+applicable to more than one "area"; in this case, one of "feature" folders
+can be used instead.
+
+Here are some common scenarios in which new tests may be added and
+answers on where to add the test:
+
+__Scenario__: A new event is being parsed, the focus of the test is to ensure
+the event is being parsed correctly and the event is focused on a single
+vertical "Area".
+
+_Answer_: Add the test in one of the "Area" folders.
+
+__Scenario__: A new event is being parsed and the focus of the test is to ensure
+the event is being parsed correctly and the event is applicable to more than one
+vertical "Area".
+
+_Answer_: Add the test to the parsing/ folder.
+
+__Scenario__: A new metric is being added and the focus of the test is to
+ensure the metric is being correctly computed.
+
+_Answer_: Add the test in one of the "Area" folders.
+
+__Scenario__: A new dynamic table is being added and the focus of the test is to
+ensure the dynamic table is being correctly computed...
+
+_Answer_: Add the test to the dynamic/ folder
+
+__Scenario__: The interals of trace processor are being modified and the test
+is to ensure the trace processor is correctly filtering/sorting important
+built-in tables.
+
+_Answer_: Add the test to the tables/ folder.
+
+
 ## Appendix: table inheritance
 
 Concretely, the rules for inheritance between tables works are as follows:

@@ -1,11 +1,25 @@
-# TrackEvent tests.
+# Contains tests on the parsing and ingestion of TrackEvent packets.
+
+# Same tid handling
 track_event_same_tids.textproto ../common/process_tracking.sql track_event_same_tids_threads.out
 track_event_same_tids.textproto track_event_slices.sql track_event_same_tids_slices.out
+
+# Typed args
 track_event_typed_args.textproto track_event_slices.sql track_event_typed_args_slices.out
 track_event_typed_args.textproto track_event_args.sql track_event_typed_args_args.out
+
+# Track handling
 track_event_tracks.textproto track_event_slices.sql track_event_tracks_slices.out
+
+# Legacy atrace
 track_event_with_atrace.textproto track_event_slices.sql track_event_with_atrace.out
+
+# Debug annotations
 track_event_merged_debug_annotations.textproto track_event_args.sql track_event_merged_debug_annotations_args.out
+
+# Counters
 track_event_counters.textproto track_event_slices.sql track_event_counters_slices.out
 track_event_counters.textproto track_event_counters.sql track_event_counters_counters.out
+
+# Clock handling
 track_event_monotonic_trace_clock.textproto track_event_slices.sql track_event_monotonic_trace_clock_slices.out
