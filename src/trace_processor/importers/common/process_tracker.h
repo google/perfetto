@@ -26,6 +26,17 @@
 namespace perfetto {
 namespace trace_processor {
 
+// Thread names can come from different sources, and we don't always want to
+// overwrite the previously set name. This enum determines the priority of
+// different sources.
+enum class ThreadNamePriority {
+  kOther = 0,
+  kFtrace = 1,
+  kProcessTree = 2,
+  kTrackDescriptorThreadType = 3,
+  kTrackDescriptor = 4,
+};
+
 class ProcessTracker {
  public:
   explicit ProcessTracker(TraceProcessorContext*);
@@ -48,9 +59,7 @@ class ProcessTracker {
 
   // Called when a task_newtask is observed. This force the tracker to start
   // a new UTID for the thread, which is needed for TID-recycling resolution.
-  UniqueTid StartNewThread(base::Optional<int64_t> timestamp,
-                           uint32_t tid,
-                           StringId thread_name_id);
+  UniqueTid StartNewThread(base::Optional<int64_t> timestamp, uint32_t tid);
 
   // Returns whether a thread is considered alive by the process tracker.
   bool IsThreadAlive(UniqueTid utid);
@@ -65,14 +74,11 @@ class ProcessTracker {
   // Returns the thread utid (or creates a new entry if not present)
   UniqueTid GetOrCreateThread(uint32_t tid);
 
-  // Called when a sched switch event is seen in the trace. Retrieves the
-  // UniqueTid that matches the tid or assigns a new UniqueTid and stores
-  // the thread_name_id.
-  virtual UniqueTid UpdateThreadName(uint32_t tid, StringId thread_name_id);
-
-  // Assigns the given name to the thread identified |utid| if it does not
-  // have a name yet.
-  virtual void SetThreadNameIfUnset(UniqueTid utid, StringId thread_name_id);
+  // Assigns the given name to the thread if the new name has a higher priority
+  // than the existing one. Returns the utid of the thread.
+  virtual UniqueTid UpdateThreadName(uint32_t tid,
+                                     StringId thread_name_id,
+                                     ThreadNamePriority priority);
 
   // Called when a thread is seen the process tree. Retrieves the matching utid
   // for the tid and the matching upid for the tgid and stores both.
@@ -170,6 +176,9 @@ class ProcessTracker {
   // in this vector is: we know that A created process B but we don't know the
   // process of A. That is, we don't know the parent *process* of B.
   std::vector<std::pair<UniqueTid, UniquePid>> pending_parent_assocs_;
+
+  // A mapping from utid to the priority of a thread name source.
+  std::vector<ThreadNamePriority> thread_name_priorities_;
 };
 
 }  // namespace trace_processor
