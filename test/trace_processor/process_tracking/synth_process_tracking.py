@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 # Copyright (C) 2019 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,7 +18,7 @@
 # packets (i.e. the result of the userspace /proc/pid scraper).
 
 from os import sys, path
-sys.path.append(path.dirname(path.dirname(path.dirname(path.abspath(__file__)))))
+
 from synth_common import CLONE_THREAD
 import synth_common
 
@@ -100,4 +100,4 @@ trace.add_newtask(
 trace.add_sched(
     ts=31, prev_pid=40, next_pid=31, prev_comm='p4-t0', next_comm='p4-t1')
 
-print(trace.trace.SerializeToString())
+sys.stdout.buffer.write(trace.trace.SerializeToString())

@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 # Copyright (C) 2019 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,7 +18,7 @@
 
 from os import sys, path
 
-sys.path.append(path.dirname(path.dirname(path.dirname(path.abspath(__file__)))))
+
 import synth_common
 
 trace = synth_common.create_trace()
@@ -40,4 +40,4 @@ trace.add_newtask(102, tid=1, new_tid=10, new_comm="new_process", flags=0)
 # Emit an event for the new thread.
 trace.add_rss_stat(103, tid=10, member=0, size=10, mm_id=0x1234, curr=1)
 
-print(trace.trace.SerializeToString())
+sys.stdout.buffer.write(trace.trace.SerializeToString())
