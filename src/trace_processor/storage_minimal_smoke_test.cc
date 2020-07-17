@@ -59,9 +59,12 @@ TEST_F(StorageMinimalSmokeTest, GraphicEventsIgnored) {
 
   JsonStringOutputWriter output_writer;
   json::ExportJson(storage_.get(), &output_writer);
-  Json::Reader reader;
+  Json::CharReaderBuilder b;
+  auto reader = std::unique_ptr<Json::CharReader>(b.newCharReader());
+
   Json::Value result;
-  reader.parse(output_writer.buffer, result);
+  std::string& o = output_writer.buffer;
+  ASSERT_TRUE(reader->parse(o.data(), o.data() + o.length(), &result, nullptr));
 
   ASSERT_EQ(result["traceEvents"].size(), 0u);
 }
@@ -88,10 +91,12 @@ TEST_F(StorageMinimalSmokeTest, TrackEventsImported) {
 
   JsonStringOutputWriter output_writer;
   json::ExportJson(storage_.get(), &output_writer);
-  Json::Reader reader;
-  Json::Value result;
-  reader.parse(output_writer.buffer, result);
+  Json::CharReaderBuilder b;
+  auto reader = std::unique_ptr<Json::CharReader>(b.newCharReader());
 
+  Json::Value result;
+  std::string& o = output_writer.buffer;
+  ASSERT_TRUE(reader->parse(o.data(), o.data() + o.length(), &result, nullptr));
   ASSERT_EQ(result["traceEvents"].size(), 4u);
 }
 

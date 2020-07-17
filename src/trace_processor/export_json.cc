@@ -19,12 +19,14 @@
 
 #include <inttypes.h>
 #include <stdio.h>
+#include <sstream>
 
 #include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <deque>
 #include <limits>
+#include <memory>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/string_splitter.h"
@@ -340,11 +342,10 @@ class JsonExporter {
       if (label_filter_ && !label_filter_("traceEvents"))
         return;
 
+      std::ostringstream ss;
       if (!first_event_)
-        output_->AppendString(",\n");
+        ss << ",\n";
 
-      Json::FastWriter writer;
-      writer.omitEndingLineFeed();
       Json::Value value;
       value["ph"] = "M";
       value["cat"] = "__metadata";
@@ -357,7 +358,10 @@ class JsonExporter {
       args["name"] = metadata_value;
       value["args"] = args;
 
-      output_->AppendString(writer.write(value));
+      Json::StreamWriterBuilder b;
+      auto writer = std::unique_ptr<Json::StreamWriter>(b.newStreamWriter());
+      writer->write(value, &ss);
+      output_->AppendString(ss.str());
       first_event_ = false;
     }
 
@@ -434,14 +438,19 @@ class JsonExporter {
         }
       }
 
-      Json::FastWriter writer;
-      writer.omitEndingLineFeed();
+      Json::StreamWriterBuilder b;
+      auto writer = std::unique_ptr<Json::StreamWriter>(b.newStreamWriter());
       if ((!label_filter_ || label_filter_("traceEvents")) &&
           !user_trace_data_.empty()) {
         user_trace_data_ += "]";
-        Json::Reader reader;
+
+        Json::CharReaderBuilder builder;
+        auto reader =
+            std::unique_ptr<Json::CharReader>(builder.newCharReader());
         Json::Value result;
-        if (reader.parse(user_trace_data_, result)) {
+        if (reader->parse(user_trace_data_.data(),
+                          user_trace_data_.data() + user_trace_data_.length(),
+                          &result, nullptr)) {
           for (const auto& event : result) {
             WriteCommonEvent(event);
           }
@@ -451,28 +460,35 @@ class JsonExporter {
               user_trace_data_.c_str());
         }
       }
+
+      std::ostringstream ss;
       if (!label_filter_)
-        output_->AppendString("]");
+        ss << "]";
+
       if ((!label_filter_ || label_filter_("systemTraceEvents")) &&
           !system_trace_data_.empty()) {
-        output_->AppendString(",\"systemTraceEvents\":\n");
-        output_->AppendString(writer.write(Json::Value(system_trace_data_)));
+        ss << ",\"systemTraceEvents\":\n";
+        writer->write(Json::Value(system_trace_data_), &ss);
       }
+
       if ((!label_filter_ || label_filter_("metadata")) && !metadata_.empty()) {
-        output_->AppendString(",\"metadata\":\n");
-        output_->AppendString(writer.write(metadata_));
+        ss << ",\"metadata\":\n";
+        writer->write(metadata_, &ss);
       }
+
       if (!label_filter_)
-        output_->AppendString("}");
+        ss << "}";
+
+      output_->AppendString(ss.str());
     }
 
     void DoWriteEvent(const Json::Value& event) {
+      std::ostringstream ss;
       if (!first_event_)
-        output_->AppendString(",\n");
+        ss << ",\n";
 
-      Json::FastWriter writer;
-      writer.omitEndingLineFeed();
-
+      Json::StreamWriterBuilder b;
+      auto writer = std::unique_ptr<Json::StreamWriter>(b.newStreamWriter());
       ArgumentNameFilterPredicate argument_name_filter;
       bool strip_args =
           argument_filter_ &&
@@ -489,11 +505,13 @@ class JsonExporter {
               args[member] = kStrippedArgument;
           }
         }
-        output_->AppendString(writer.write(event_copy));
+        writer->write(event_copy, &ss);
       } else {
-        output_->AppendString(writer.write(event));
+        writer->write(event, &ss);
       }
       first_event_ = false;
+
+      output_->AppendString(ss.str());
     }
 
     OutputWriter* output_;
@@ -569,9 +587,12 @@ class JsonExporter {
         case Variadic::kBool:
           return variadic.bool_value;
         case Variadic::kJson:
-          Json::Reader reader;
+          Json::CharReaderBuilder b;
+          auto reader = std::unique_ptr<Json::CharReader>(b.newCharReader());
+
           Json::Value result;
-          reader.parse(GetNonNullString(storage_, variadic.json_value), result);
+          std::string v = GetNonNullString(storage_, variadic.json_value);
+          reader->parse(v.data(), v.data() + v.length(), &result, nullptr);
           return result;
       }
       PERFETTO_FATAL("Not reached");  // For gcc.

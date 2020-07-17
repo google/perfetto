@@ -60,9 +60,9 @@ def perfetto_deps():
         new_git_repository,
         name = "perfetto_dep_jsoncpp",
         remote = "https://github.com/open-source-parsers/jsoncpp",
-        commit = "7165f6ac4c482e68475c9e1dac086f9e12fff0d0",  # v1.0.0
+        commit = "6aba23f4a8628d599a9ef7fa4811c4ff6e4070e2",  # v1.9.3
         build_file = "//bazel:jsoncpp.BUILD",
-        shallow_since = "1416494758 -0600",
+        shallow_since = "1590760226 +0800",
     )
 
     _add_repo_if_not_existing(
