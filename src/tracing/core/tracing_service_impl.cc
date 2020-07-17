@@ -1751,6 +1751,10 @@ bool TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
   }
   if (!tracing_session->config.builtin_data_sources().disable_system_info())
     MaybeEmitSystemInfo(tracing_session, &packets);
+
+  // Note that in the proto comment, we guarantee that the tracing_started
+  // lifecycle event will be emitted before any data packets so make sure to
+  // keep this before reading the tracing buffers.
   if (!tracing_session->config.builtin_data_sources().disable_service_events())
     EmitLifecycleEvents(tracing_session, &packets);
 

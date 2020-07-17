@@ -38,7 +38,6 @@ fi
 mkdir -p /ci/artifacts/perf
 
 tools/diff_test_trace_processor.py \
-  --test-type=all \
   --perf-file=/ci/artifacts/perf/tp-perf-all.json \
   ${TP_SHELL}
 

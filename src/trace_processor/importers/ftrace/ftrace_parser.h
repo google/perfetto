@@ -168,6 +168,13 @@ class FtraceParser {
   // Keep kMmEventCounterSize equal to mm_event_type::MM_TYPE_NUM in the kernel.
   static constexpr size_t kMmEventCounterSize = 7;
   std::array<MmEventCounterNames, kMmEventCounterSize> mm_event_counter_names_;
+
+  bool has_seen_first_ftrace_packet_ = false;
+
+  // Stores information about the "tracing_start" timestamp from the metadata
+  // table which is used to filter ftrace packets which happen before this
+  // point.
+  int64_t tracing_start_ts_ = 0;
 };
 
 }  // namespace trace_processor

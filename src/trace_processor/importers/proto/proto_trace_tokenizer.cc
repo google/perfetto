@@ -32,6 +32,7 @@
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
 #include "src/trace_processor/importers/gzip/gzip_utils.h"
 #include "src/trace_processor/importers/proto/args_table_utils.h"
+#include "src/trace_processor/importers/proto/metadata_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
 #include "src/trace_processor/importers/proto/proto_incremental_state.h"
 #include "src/trace_processor/storage/stats.h"
@@ -42,6 +43,7 @@
 #include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "protos/perfetto/trace/extension_descriptor.pbzero.h"
+#include "protos/perfetto/trace/perfetto/tracing_service_event.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -229,6 +231,12 @@ util::Status ProtoTraceTokenizer::ParsePacket(TraceBlobView packet) {
   if (decoder.has_clock_snapshot()) {
     return ParseClockSnapshot(decoder.clock_snapshot(),
                               decoder.trusted_packet_sequence_id());
+  }
+
+  if (decoder.has_service_event()) {
+    PERFETTO_DCHECK(decoder.has_timestamp());
+    int64_t ts = static_cast<int64_t>(decoder.timestamp());
+    return ParseServiceEvent(ts, decoder.service_event());
   }
 
   if (decoder.has_extension_descriptor()) {
@@ -489,6 +497,24 @@ util::Status ProtoTraceTokenizer::ParseClockSnapshot(ConstBytes blob,
                         clk.is_incremental());
   }
   context_->clock_tracker->AddSnapshot(clocks);
+  return util::OkStatus();
+}
+
+util::Status ProtoTraceTokenizer::ParseServiceEvent(int64_t ts,
+                                                    ConstBytes blob) {
+  protos::pbzero::TracingServiceEvent::Decoder tse(blob);
+  if (tse.tracing_started()) {
+    context_->metadata_tracker->SetMetadata(metadata::tracing_started_ns,
+                                            Variadic::Integer(ts));
+  }
+  if (tse.tracing_disabled()) {
+    context_->metadata_tracker->SetMetadata(metadata::tracing_disabled_ns,
+                                            Variadic::Integer(ts));
+  }
+  if (tse.all_data_sources_started()) {
+    context_->metadata_tracker->SetMetadata(
+        metadata::all_data_source_started_ns, Variadic::Integer(ts));
+  }
   return util::OkStatus();
 }
 
