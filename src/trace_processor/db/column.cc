@@ -186,7 +186,7 @@ void Column::FilterIntoNumericSlow(FilterOp op,
         // for this function even though the LHS of the comparator should
         // actually be |v|. This saves us having a duplicate implementation of
         // the comparision function.
-        return -compare::LongToDouble(long_value, v);
+        return -compare::LongToDouble(long_value, static_cast<double>(v));
       };
       FilterIntoNumericWithComparatorSlow<T, is_nullable>(op, rm, fn);
     } else {

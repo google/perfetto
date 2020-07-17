@@ -51,7 +51,8 @@ base::Optional<int64_t> CoerceToTs(TimeUnit unit, const Json::Value& value) {
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
   switch (static_cast<size_t>(value.type())) {
     case Json::realValue:
-      return static_cast<int64_t>(value.asDouble() * TimeUnitToNs(unit));
+      return static_cast<int64_t>(value.asDouble() *
+                                  static_cast<double>(TimeUnitToNs(unit)));
     case Json::uintValue:
     case Json::intValue:
       return value.asInt64() * TimeUnitToNs(unit);

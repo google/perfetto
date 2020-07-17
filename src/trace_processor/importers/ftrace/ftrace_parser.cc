@@ -673,14 +673,16 @@ void FtraceParser::ParseIonHeapGrowOrShrink(int64_t ts,
   // Push the global counter.
   TrackId track =
       context_->track_tracker->InternGlobalCounterTrack(global_name_id);
-  context_->event_tracker->PushCounter(ts, total_bytes, track);
+  context_->event_tracker->PushCounter(ts, static_cast<double>(total_bytes),
+                                       track);
 
   // Push the change counter.
   // TODO(b/121331269): these should really be instant events.
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   track =
       context_->track_tracker->InternThreadCounterTrack(change_name_id, utid);
-  context_->event_tracker->PushCounter(ts, change_bytes, track);
+  context_->event_tracker->PushCounter(ts, static_cast<double>(change_bytes),
+                                       track);
 
   // We are reusing the same function for ion_heap_grow and ion_heap_shrink.
   // It is fine as the arguments are the same, but we need to be sure that the
@@ -709,14 +711,16 @@ void FtraceParser::ParseIonStat(int64_t ts,
   // Push the global counter.
   TrackId track =
       context_->track_tracker->InternGlobalCounterTrack(ion_total_id_);
-  context_->event_tracker->PushCounter(ts, ion.total_allocated(), track);
+  context_->event_tracker->PushCounter(
+      ts, static_cast<double>(ion.total_allocated()), track);
 
   // Push the change counter.
   // TODO(b/121331269): these should really be instant events.
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   track =
       context_->track_tracker->InternThreadCounterTrack(ion_change_id_, utid);
-  context_->event_tracker->PushCounter(ts, ion.len(), track);
+  context_->event_tracker->PushCounter(ts, static_cast<double>(ion.len()),
+                                       track);
 }
 
 // This event has both the pid of the thread that sent the signal and the
@@ -964,7 +968,8 @@ void FtraceParser::ClockRate(int64_t timestamp,
            subtitle.data());
   StringId name = context_->storage->InternString(counter_name);
   TrackId track = context_->track_tracker->InternGlobalCounterTrack(name);
-  context_->event_tracker->PushCounter(timestamp, rate, track);
+  context_->event_tracker->PushCounter(timestamp, static_cast<double>(rate),
+                                       track);
 }
 
 void FtraceParser::ParseScmCallStart(int64_t timestamp,
@@ -1090,11 +1095,13 @@ void FtraceParser::ParseGpuMemTotal(int64_t ts, protozero::ConstBytes data) {
     // Pid 0 is used to indicate the global total
     TrackId track = context_->track_tracker->InternGlobalCounterTrack(
         gpu_mem_total_global_id_);
-    context_->event_tracker->PushCounter(ts, gpu_mem_total.size(), track);
+    context_->event_tracker->PushCounter(
+        ts, static_cast<double>(gpu_mem_total.size()), track);
   } else {
     UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
     context_->event_tracker->PushProcessCounterForThread(
-        ts, gpu_mem_total.size(), gpu_mem_total_process_id_, utid);
+        ts, static_cast<double>(gpu_mem_total.size()),
+        gpu_mem_total_process_id_, utid);
   }
 }
 
