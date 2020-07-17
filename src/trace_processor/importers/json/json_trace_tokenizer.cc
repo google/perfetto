@@ -17,6 +17,8 @@
 
 #include "src/trace_processor/importers/json/json_trace_tokenizer.h"
 
+#include <memory>
+
 #include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/string_utils.h"
 
@@ -425,7 +427,7 @@ util::Status JsonTraceTokenizer::ParseInternal(const char* start,
             "Failed to parse: illegal JSON format when parsing metadata");
       }
 
-      std::unique_ptr<Json::Value> value(new Json::Value());
+      auto value = std::unique_ptr<Json::Value>(new Json::Value());
       const auto res = ReadOneJsonDict(next, end, value.get(), &next);
       if (res == ReadDictRes::kFatalError || res == ReadDictRes::kEndOfArray)
         return util::ErrStatus("Encountered fatal error while parsing JSON");
@@ -440,7 +442,7 @@ util::Status JsonTraceTokenizer::ParseInternal(const char* start,
     }
     case TracePosition::kTraceEventsArray: {
       while (next < end) {
-        std::unique_ptr<Json::Value> value(new Json::Value());
+        auto value = std::unique_ptr<Json::Value>(new Json::Value());
         const auto res = ReadOneJsonDict(next, end, value.get(), &next);
         if (res == ReadDictRes::kFatalError)
           return util::ErrStatus("Encountered fatal error while parsing JSON");

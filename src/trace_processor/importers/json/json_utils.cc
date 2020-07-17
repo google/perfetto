@@ -121,10 +121,12 @@ base::Optional<Json::Value> ParseJsonString(base::StringView raw_string) {
   PERFETTO_DCHECK(IsJsonSupported());
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
-  Json::Reader reader;
+  Json::CharReaderBuilder b;
+  auto reader = std::unique_ptr<Json::CharReader>(b.newCharReader());
+
   Json::Value value;
   const char* begin = raw_string.data();
-  return reader.parse(begin, begin + raw_string.size(), value)
+  return reader->parse(begin, begin + raw_string.size(), &value, nullptr)
              ? base::make_optional(std::move(value))
              : base::nullopt;
 #else
@@ -145,7 +147,7 @@ bool AddJsonValueToArgs(const Json::Value& value,
     auto it = value.begin();
     bool inserted = false;
     for (; it != value.end(); ++it) {
-      std::string child_name = it.memberName();
+      std::string child_name = it.name();
       std::string child_flat_key = flat_key.ToStdString() + "." + child_name;
       std::string child_key = key.ToStdString() + "." + child_name;
       inserted |=
