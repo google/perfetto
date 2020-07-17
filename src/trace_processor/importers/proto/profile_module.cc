@@ -135,7 +135,6 @@ void ProfileModule::ParseStreamingProfilePacket(
         *callstack_it, &intern_lookup);
     if (!opt_cs_id) {
       context_->storage->IncrementStats(stats::stackprofile_parser_error);
-      PERFETTO_ELOG("StreamingProfilePacket referencing invalid callstack!");
       continue;
     }
 
