@@ -1,0 +1,5 @@
+# Chrome metrics (found in the trace_processor/chrome directory).
+../../data/chrome_scroll_without_vsync.pftrace scroll_jank_general_validation.sql scroll_jank_general_validation.out
+../../data/chrome_scroll_without_vsync.pftrace scroll_jank.sql scroll_jank.out
+../../data/chrome_scroll_without_vsync.pftrace scroll_flow_event.sql scroll_flow_event.out
+../../data/chrome_scroll_without_vsync.pftrace scroll_flow_event_general_validation.sql scroll_flow_event_general_validation.out
