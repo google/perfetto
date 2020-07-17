@@ -25,7 +25,8 @@ namespace {
 TEST(TimeTest, Conversions) {
   TimeMillis ms = GetWallTimeMs();
   TimeNanos ns = GetWallTimeNs();
-  EXPECT_NEAR(ms.count(), ns.count() / 1000000, 1000);
+  EXPECT_NEAR(static_cast<double>(ms.count()),
+              static_cast<double>(ns.count()) / 1000000, 1000);
 
   {
     struct timespec ts = ToPosixTimespec(TimeMillis(0));

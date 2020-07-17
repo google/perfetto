@@ -134,7 +134,9 @@ int BusyThreadsMain(int argc, char** argv) {
     return 1;
   }
 
-  int64_t busy_us = static_cast<int64_t>(period_us * (duty_cycle / 100.0));
+  int64_t busy_us =
+      static_cast<int64_t>(static_cast<double>(period_us) *
+                           (static_cast<double>(duty_cycle) / 100.0));
 
   PERFETTO_LOG("Spawning %" PRId64 " threads; period duration: %" PRId64
                "us; busy duration: %" PRId64 "us.",

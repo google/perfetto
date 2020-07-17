@@ -384,7 +384,7 @@ class JsonExporter {
     }
 
     void SetTelemetryMetadataTimestamp(const char* key, int64_t value) {
-      metadata_["telemetry"][key] = value / 1000.0;
+      metadata_["telemetry"][key] = static_cast<double>(value) / 1000.0;
     }
 
     void SetStats(const char* key, int64_t value) {
