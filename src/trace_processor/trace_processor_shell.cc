@@ -627,15 +627,12 @@ util::Status LoadQueries(FILE* input, std::vector<std::string>* output) {
   return util::OkStatus();
 }
 
-util::Status RunQueryWithoutOutput(const std::vector<std::string>& queries) {
+util::Status RunQueriesWithoutOutput(const std::vector<std::string>& queries) {
   for (const auto& sql_query : queries) {
     PERFETTO_DLOG("Executing query: %s", sql_query.c_str());
 
     auto it = g_tp->ExecuteQuery(sql_query);
-    util::Status status = it.Status();
-    if (!status.ok()) {
-      return status;
-    }
+    RETURN_IF_ERROR(it.Status());
     if (it.Next()) {
       return util::ErrStatus("Unexpected result from a query.");
     }
@@ -643,8 +640,8 @@ util::Status RunQueryWithoutOutput(const std::vector<std::string>& queries) {
   return util::OkStatus();
 }
 
-util::Status RunQueryAndPrintResult(const std::vector<std::string>& queries,
-                                    FILE* output) {
+util::Status RunQueriesAndPrintResult(const std::vector<std::string>& queries,
+                                      FILE* output) {
   bool is_first_query = true;
   bool has_output = false;
   for (const auto& sql_query : queries) {
@@ -656,11 +653,7 @@ util::Status RunQueryAndPrintResult(const std::vector<std::string>& queries,
     PERFETTO_ILOG("Executing query: %s", sql_query.c_str());
 
     auto it = g_tp->ExecuteQuery(sql_query);
-    util::Status status = it.Status();
-    if (!status.ok()) {
-      return util::ErrStatus("Encountered error while running queries: %s",
-                             status.c_message());
-    }
+    RETURN_IF_ERROR(it.Status());
     if (it.ColumnCount() == 0) {
       bool it_has_more = it.Next();
       PERFETTO_DCHECK(!it_has_more);
@@ -676,17 +669,13 @@ util::Status RunQueryAndPrintResult(const std::vector<std::string>& queries,
       // as SELECT RUN_METRIC(<metric file>) as suppress_query_output and
       // RUN_METRIC returns a single null.
       bool has_next = it.Next();
+      RETURN_IF_ERROR(it.Status());
       PERFETTO_DCHECK(has_next);
       PERFETTO_DCHECK(it.Get(0).is_null());
 
       has_next = it.Next();
+      RETURN_IF_ERROR(it.Status());
       PERFETTO_DCHECK(!has_next);
-
-      status = it.Status();
-      if (!status.ok()) {
-        return util::ErrStatus("Encountered error while running queries: %s",
-                               status.c_message());
-      }
       continue;
     }
 
@@ -694,13 +683,8 @@ util::Status RunQueryAndPrintResult(const std::vector<std::string>& queries,
       return util::ErrStatus(
           "More than one query generated result rows. This is unsupported.");
     }
-    status = PrintQueryResultAsCsv(&it, output);
     has_output = true;
-
-    if (!status.ok()) {
-      return util::ErrStatus("Encountered error while running queries: %s",
-                             status.c_message());
-    }
+    RETURN_IF_ERROR(PrintQueryResultAsCsv(&it, output));
   }
   return util::OkStatus();
 }
@@ -1035,11 +1019,18 @@ util::Status RunQueries(const std::string& query_file_path,
                            query_file_path.c_str());
   }
   RETURN_IF_ERROR(LoadQueries(file.get(), &queries));
+
+  util::Status status;
   if (expect_output) {
-    return RunQueryAndPrintResult(queries, stdout);
+    status = RunQueriesAndPrintResult(queries, stdout);
   } else {
-    return RunQueryWithoutOutput(queries);
+    status = RunQueriesWithoutOutput(queries);
   }
+  if (!status.ok()) {
+    return util::ErrStatus("Encountered error while running queries: %s",
+                           status.c_message());
+  }
+  return util::OkStatus();
 }
 
 util::Status RunMetrics(const CommandLineOptions& options) {
