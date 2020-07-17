@@ -58,7 +58,8 @@ void AndroidProbesParser::ParseBatteryCounters(int64_t ts, ConstBytes blob) {
   if (evt.has_charge_counter_uah()) {
     TrackId track =
         context_->track_tracker->InternGlobalCounterTrack(batt_charge_id_);
-    context_->event_tracker->PushCounter(ts, evt.charge_counter_uah(), track);
+    context_->event_tracker->PushCounter(
+        ts, static_cast<double>(evt.charge_counter_uah()), track);
   }
   if (evt.has_capacity_percent()) {
     TrackId track =
@@ -69,12 +70,14 @@ void AndroidProbesParser::ParseBatteryCounters(int64_t ts, ConstBytes blob) {
   if (evt.has_current_ua()) {
     TrackId track =
         context_->track_tracker->InternGlobalCounterTrack(batt_current_id_);
-    context_->event_tracker->PushCounter(ts, evt.current_ua(), track);
+    context_->event_tracker->PushCounter(
+        ts, static_cast<double>(evt.current_ua()), track);
   }
   if (evt.has_current_avg_ua()) {
     TrackId track =
         context_->track_tracker->InternGlobalCounterTrack(batt_current_avg_id_);
-    context_->event_tracker->PushCounter(ts, evt.current_avg_ua(), track);
+    context_->event_tracker->PushCounter(
+        ts, static_cast<double>(evt.current_avg_ua()), track);
   }
 }
 
@@ -114,7 +117,8 @@ void AndroidProbesParser::ParsePowerRails(int64_t ts, ConstBytes blob) {
 
       TrackId track = context_->track_tracker->InternGlobalCounterTrack(
           power_rails_strs_id_[desc.index()]);
-      context_->event_tracker->PushCounter(ts, desc.energy(), track);
+      context_->event_tracker->PushCounter(
+          ts, static_cast<double>(desc.energy()), track);
     } else {
       context_->storage->IncrementStats(stats::power_rail_unknown_index);
     }

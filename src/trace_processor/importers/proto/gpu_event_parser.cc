@@ -203,13 +203,11 @@ void GpuEventParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
         gpu_counter_track_ids_.emplace(counter_id, track);
         context_->storage->IncrementStats(stats::gpu_counters_missing_spec);
       }
-      if (counter.has_int_value()) {
-        context_->event_tracker->PushCounter(
-            ts, counter.int_value(), gpu_counter_track_ids_[counter_id]);
-      } else {
-        context_->event_tracker->PushCounter(
-            ts, counter.double_value(), gpu_counter_track_ids_[counter_id]);
-      }
+      double counter_val = counter.has_int_value()
+                               ? static_cast<double>(counter.int_value())
+                               : counter.double_value();
+      context_->event_tracker->PushCounter(ts, counter_val,
+                                           gpu_counter_track_ids_[counter_id]);
     }
   }
 }
@@ -512,7 +510,8 @@ void GpuEventParser::UpdateVulkanMemoryAllocationCounters(
       track = context_->track_tracker->InternProcessCounterTrack(track_str_id,
                                                                  upid);
       context_->event_tracker->PushCounter(
-          event.timestamp(), vulkan_driver_memory_counters_[allocation_scope],
+          event.timestamp(),
+          static_cast<double>(vulkan_driver_memory_counters_[allocation_scope]),
           track);
       break;
 
@@ -540,7 +539,9 @@ void GpuEventParser::UpdateVulkanMemoryAllocationCounters(
                                                                  upid);
       context_->event_tracker->PushCounter(
           event.timestamp(),
-          vulkan_device_memory_counters_allocate_[memory_type], track);
+          static_cast<double>(
+              vulkan_device_memory_counters_allocate_[memory_type]),
+          track);
       break;
 
     case VulkanMemoryEvent::SOURCE_BUFFER:
@@ -566,7 +567,8 @@ void GpuEventParser::UpdateVulkanMemoryAllocationCounters(
       track = context_->track_tracker->InternProcessCounterTrack(track_str_id,
                                                                  upid);
       context_->event_tracker->PushCounter(
-          event.timestamp(), vulkan_device_memory_counters_bind_[memory_type],
+          event.timestamp(),
+          static_cast<double>(vulkan_device_memory_counters_bind_[memory_type]),
           track);
       break;
     case VulkanMemoryEvent::SOURCE_UNSPECIFIED:

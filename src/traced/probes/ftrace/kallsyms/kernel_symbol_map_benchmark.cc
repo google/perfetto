@@ -110,7 +110,7 @@ static void BM_KallSyms(benchmark::State& state) {
     }
   }
 
-  state.counters["mem"] = kallsyms.size_bytes();
+  state.counters["mem"] = static_cast<double>(kallsyms.size_bytes());
 }
 
 BENCHMARK(BM_KallSyms)->Apply(BenchmarkArgs);
