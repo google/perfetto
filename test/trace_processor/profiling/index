@@ -12,10 +12,6 @@ heap_graph.textproto heap_graph_flamegraph.sql heap_graph_flamegraph.out
 heap_graph.textproto heap_graph_object.sql heap_graph_object.out
 heap_graph.textproto heap_graph_reference.sql heap_graph_reference.out
 heap_graph_two_locations.textproto heap_graph_object.sql heap_graph_two_locations.out
-# TODO(b/153552977): Stop supporting legacy heap graphs. These never made
-#                    it into a public release, so we should eventually stop
-#                    supporting workarounds for them.
-heap_graph_legacy.textproto heap_graph_flamegraph.sql heap_graph_flamegraph.out
 heap_graph_legacy.textproto heap_graph_object.sql heap_graph_object.out
 heap_graph_legacy.textproto heap_graph_reference.sql heap_graph_reference.out
 heap_graph_interleaved.textproto heap_graph_object.sql heap_graph_interleaved_object.out
@@ -27,13 +23,21 @@ heap_profile_tracker_twoheaps.textproto heap_profile_tracker_twoheaps.sql heap_p
 heap_graph_branching.textproto heap_graph_flamegraph_focused.sql heap_graph_flamegraph_focused.out
 heap_graph_superclass.textproto heap_graph_superclass.sql heap_graph_superclass.out
 
+# TODO(b/153552977): Stop supporting legacy heap graphs. These never made
+#                    it into a public release, so we should eventually stop
+#                    supporting workarounds for them.
+heap_graph_legacy.textproto heap_graph_flamegraph.sql heap_graph_flamegraph.out
+
 stack_profile_tracker_empty_callstack.textproto stack_profile_tracker_empty_callstack.sql stack_profile_tracker_empty_callstack.out
 
 # Metrics
 heap_profile.textproto heap_profile_callsites heap_profile_callsites.out
 heap_profile_no_symbols.textproto unsymbolized_frames unsymbolized_frames.out
 
-../../trace_processor/profiling/heap_graph.textproto java_heap_stats java_heap_stats.out
+heap_graph.textproto java_heap_stats java_heap_stats.out
 heap_graph_closest_proc.textproto java_heap_stats heap_stats_closest_proc.out
-../../trace_processor/profiling/heap_graph.textproto java_heap_histogram java_heap_histogram.out
+heap_graph.textproto java_heap_histogram java_heap_histogram.out
 obfuscated_heap_graph.textproto unmapped_java_symbols unmapped_java_symbols.out
+
+# perf_sample table (traced_perf trace as an input).
+../../data/perf_sample.pb perf_sample.sql perf_sample_perf_sample.out

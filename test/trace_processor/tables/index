@@ -1,0 +1,27 @@
+# Window table
+../../data/android_sched_and_ps.pb smoke_window.sql android_sched_and_ps_smoke_window.out
+
+# Sched table
+../common/synth_1.py filter_sched.sql synth_1_filter_sched.out
+../../data/android_sched_and_ps.pb b119496959.sql android_sched_and_ps_b119496959.out
+../../data/android_sched_and_ps.pb b119301023.sql android_sched_and_ps_b119301023.out
+
+# Counters table
+../common/synth_1.py filter_counter.sql synth_1_filter_counter.out
+../../data/memory_counters.pb b120278869_neg_ts_end.sql memory_counters_b120278869_neg_ts_end.out
+counters_where_cpu.py counters_where_cpu.sql counters_where_cpu_counters_where_cpu.out
+counters_group_by_freq.py counters_group_by_freq.sql counters_group_by_freq_counters_group_by_freq.out
+../../data/example_android_trace_30s.pb filter_row_vector.sql filter_row_vector_example_android_trace_30s.out
+../../data/example_android_trace_30s.pb counter_dur.sql counter_dur_example_android_trace_30s.out
+
+# Null printing
+../common/synth_1.py nulls.sql nulls.out
+
+# Thread table
+thread_main_thread.textproto thread_main_thread.sql thread_main_thread.out
+
+# Json output
+../../data/memory_counters.pb trace_metadata trace_metadata.json.out
+
+# Processes as a metric
+process_uids.textproto android_task_names android_task_names.out
