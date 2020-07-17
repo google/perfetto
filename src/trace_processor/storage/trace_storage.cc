@@ -72,18 +72,6 @@ const std::vector<NullTermStringView>& GetRefTypeStringMap() {
 }
 
 TraceStorage::TraceStorage(const Config&) {
-  // Reserve utid/upid 0. These are special as embedders (e.g. Perfetto UI)
-  // exclude them by filtering them out. If the parsed trace contains ftrace
-  // data, ProcessTracker::SetPidZeroIgnoredForIdleProcess will create a mapping
-  // to these rows for tid/pid 0.
-  tables::ThreadTable::Row thread_row;
-  thread_row.tid = 0;
-  thread_table_.Insert(thread_row);
-
-  tables::ProcessTable::Row process_row;
-  process_row.pid = 0;
-  process_table_.Insert(process_row);
-
   for (uint32_t i = 0; i < variadic_type_ids_.size(); ++i) {
     variadic_type_ids_[i] = InternString(Variadic::kTypeNames[i]);
   }
