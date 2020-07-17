@@ -214,29 +214,11 @@ void CreateBuiltinViews(sqlite3* db) {
   }
 
   sqlite3_exec(db,
-               R"(
-                  CREATE VIEW sched AS
-                  SELECT
-                    *,
-                    ts + dur as ts_end
-                  FROM (
-                    SELECT
-                      id,
-                      type,
-                      ts,
-                      case dur
-                        when -1 then (select end_ts from trace_bounds) - ts
-                        else dur
-                      end as dur,
-                      cpu,
-                      utid,
-                      case dur
-                        when -1 then 'R'
-                        else end_state
-                      end as end_state,
-                      priority
-                    FROM internal_sched_slice
-                  );)",
+               "CREATE VIEW sched AS "
+               "SELECT "
+               "*, "
+               "ts + dur as ts_end "
+               "FROM sched_slice;",
                0, 0, &error);
 
   if (error) {
