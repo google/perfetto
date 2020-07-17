@@ -1,3 +1,5 @@
+# Contains tests for graphics related events and tables.
+
 # GPU trace tests.
 gpu_counters.py gpu_counters.sql gpu_counters.out
 gpu_counter_specs.textproto gpu_counter_specs.sql gpu_counter_specs.out
