@@ -55,9 +55,9 @@ base::Optional<CounterId> EventTracker::PushCounter(int64_t timestamp,
                                                     double value,
                                                     TrackId track_id) {
   if (timestamp < max_timestamp_) {
-    PERFETTO_DLOG("counter event (ts: %" PRId64
-                  ") out of order by %.4f ms, skipping",
-                  timestamp, (max_timestamp_ - timestamp) / 1e6);
+    PERFETTO_DLOG(
+        "counter event (ts: %" PRId64 ") out of order by %.4f ms, skipping",
+        timestamp, static_cast<double>(max_timestamp_ - timestamp) / 1e6);
     context_->storage->IncrementStats(stats::counter_events_out_of_order);
     return base::nullopt;
   }

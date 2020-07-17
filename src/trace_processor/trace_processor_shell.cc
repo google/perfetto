@@ -494,7 +494,8 @@ void PrintQueryResultInteractively(Iterator* it,
   if (!status.ok()) {
     PERFETTO_ELOG("SQLite error: %s", status.c_message());
   }
-  printf("\nQuery executed in %.3f ms\n\n", (t_end - t_start).count() / 1E6);
+  printf("\nQuery executed in %.3f ms\n\n",
+         static_cast<double>((t_end - t_start).count()) / 1E6);
 }
 
 void PrintShellUsage() {
@@ -975,7 +976,7 @@ void ExtendPoolWithBinaryDescriptor(google::protobuf::DescriptorPool& pool,
 util::Status LoadTrace(const std::string& trace_file_path, double* size_mb) {
   util::Status read_status =
       ReadTrace(g_tp, trace_file_path.c_str(), [&size_mb](size_t parsed_size) {
-        *size_mb = parsed_size / 1E6;
+        *size_mb = static_cast<double>(parsed_size) / 1E6;
         fprintf(stderr, "\rLoading trace: %.2f MB\r", *size_mb);
       });
   if (!read_status.ok()) {
@@ -1109,7 +1110,7 @@ util::Status TraceProcessorMain(int argc, char** argv) {
     RETURN_IF_ERROR(LoadTrace(options.trace_file_path, &size_mb));
     t_load = base::GetWallTimeNs() - t_load_start;
 
-    double t_load_s = t_load.count() / 1E9;
+    double t_load_s = static_cast<double>(t_load.count()) / 1E9;
     PERFETTO_ILOG("Trace loaded: %.2f MB (%.1f MB/s)", size_mb,
                   size_mb / t_load_s);
 

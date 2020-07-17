@@ -343,7 +343,8 @@ TEST(QueryResultSerializerTest, RandomSizes) {
       expected.emplace_back(SqlValue::Long(static_cast<long>(rnd_engine())));
       insert_values += std::to_string(expected.back().long_value);
     } else if (type == 2) {
-      expected.emplace_back(SqlValue::Double(rnd_engine() * 1.0));
+      expected.emplace_back(
+          SqlValue::Double(static_cast<double>(rnd_engine())));
       insert_values += std::to_string(expected.back().double_value);
     } else if (type == 3 || type == 4) {
       size_t len = (rnd_engine() % 5) * 32;

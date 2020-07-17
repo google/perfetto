@@ -310,7 +310,8 @@ DbSqliteTable::QueryCost DbSqliteTable::EstimateCost(
   // by |qc.order_by().size()| * log(row count). This should act as a crude
   // estimation of the cost.
   double sort_cost =
-      qc.order_by().size() * current_row_count * log2(current_row_count);
+      static_cast<double>(qc.order_by().size() * current_row_count) *
+      log2(current_row_count);
 
   // The cost of iterating rows is more expensive than filtering the rows
   // so multiply by an appropriate factor.
