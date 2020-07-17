@@ -403,8 +403,8 @@ TrackId TrackTracker::ResolveDescriptorTrack(
                     *reservation.pid, *reservation.tid, old_uuid, uuid,
                     reservation.min_timestamp);
 
-      utid = context_->process_tracker->StartNewThread(
-          base::nullopt, *reservation.tid, kNullStringId);
+      utid = context_->process_tracker->StartNewThread(base::nullopt,
+                                                       *reservation.tid);
 
       // Associate the new thread with its process.
       PERFETTO_CHECK(context_->process_tracker->UpdateThread(

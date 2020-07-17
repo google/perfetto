@@ -130,6 +130,29 @@ TEST_F(ProcessTrackerTest, Cmdline) {
             "cmdline blah");
 }
 
+TEST_F(ProcessTrackerTest, UpdateThreadName) {
+  auto name1 = context.storage->InternString("name1");
+  auto name2 = context.storage->InternString("name2");
+  auto name3 = context.storage->InternString("name3");
+
+  context.process_tracker->UpdateThreadName(1, name1,
+                                            ThreadNamePriority::kFtrace);
+  ASSERT_EQ(context.storage->thread_table().row_count(), 2u);
+  ASSERT_EQ(context.storage->thread_table().name()[1], name1);
+
+  context.process_tracker->UpdateThreadName(1, name2,
+                                            ThreadNamePriority::kProcessTree);
+  // The priority is higher: the name should change.
+  ASSERT_EQ(context.storage->thread_table().row_count(), 2u);
+  ASSERT_EQ(context.storage->thread_table().name()[1], name2);
+
+  context.process_tracker->UpdateThreadName(1, name3,
+                                            ThreadNamePriority::kFtrace);
+  // The priority is lower: the name should stay the same.
+  ASSERT_EQ(context.storage->thread_table().row_count(), 2u);
+  ASSERT_EQ(context.storage->thread_table().name()[1], name2);
+}
+
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto

@@ -43,9 +43,9 @@ SystraceLineParser::SystraceLineParser(TraceProcessorContext* ctx)
       workqueue_name_id_(ctx->storage->InternString("workqueue")) {}
 
 util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
-  context_->process_tracker->GetOrCreateThread(line.pid);
-  context_->process_tracker->UpdateThreadName(
-      line.pid, context_->storage->InternString(base::StringView(line.task)));
+  auto utid = context_->process_tracker->UpdateThreadName(
+      line.pid, context_->storage->InternString(base::StringView(line.task)),
+      ThreadNamePriority::kFtrace);
 
   if (!line.tgid_str.empty() && line.tgid_str != "-----") {
     base::Optional<uint32_t> tgid = base::StringToUInt32(line.tgid_str);
@@ -105,8 +105,8 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
     }
 
     StringId name_id = context_->storage->InternString(base::StringView(comm));
-    auto wakee_utid =
-        context_->process_tracker->UpdateThreadName(wakee_pid.value(), name_id);
+    auto wakee_utid = context_->process_tracker->UpdateThreadName(
+        wakee_pid.value(), name_id, ThreadNamePriority::kFtrace);
     context_->event_tracker->PushInstant(line.ts, sched_wakeup_name_id_,
                                          wakee_utid, RefType::kRefUtid);
   } else if (line.event_name == "cpu_idle") {
@@ -191,11 +191,9 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
     auto split = base::SplitString(line.args_str, "function ");
     StringId name_id =
         context_->storage->InternString(base::StringView(split[1]));
-    UniqueTid utid = context_->process_tracker->GetOrCreateThread(line.pid);
     TrackId track = context_->track_tracker->InternThreadTrack(utid);
     context_->slice_tracker->Begin(line.ts, track, workqueue_name_id_, name_id);
   } else if (line.event_name == "workqueue_execute_end") {
-    UniqueTid utid = context_->process_tracker->GetOrCreateThread(line.pid);
     TrackId track = context_->track_tracker->InternThreadTrack(utid);
     context_->slice_tracker->End(line.ts, track, workqueue_name_id_);
   }
