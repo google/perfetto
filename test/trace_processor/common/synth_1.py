@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 # Copyright (C) 2018 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,7 +15,6 @@
 
 from os import sys, path
 
-sys.path.append(path.dirname(path.dirname(path.dirname(path.abspath(__file__)))))
 import synth_common
 
 trace = synth_common.create_trace()
@@ -39,4 +38,4 @@ trace.add_sched(ts=250, prev_pid=0, next_pid=2)
 trace.add_sched(ts=390, prev_pid=2, next_pid=4)
 trace.add_cpufreq(ts=400, freq=100, cpu=0)
 
-print(trace.trace.SerializeToString())
+sys.stdout.buffer.write(trace.trace.SerializeToString())
