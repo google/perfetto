@@ -17,9 +17,6 @@ load("@perfetto_cfg//:perfetto_cfg.bzl", "PERFETTO_CONFIG")
 cc_library(
     name = "jsoncpp",
     srcs = [
-        "src/lib_json/json_batchallocator.h",
-        "src/lib_json/json_internalarray.inl",
-        "src/lib_json/json_internalmap.inl",
         "src/lib_json/json_reader.cpp",
         "src/lib_json/json_tool.h",
         "src/lib_json/json_value.cpp",
@@ -27,12 +24,12 @@ cc_library(
         "src/lib_json/json_writer.cpp",
     ],
     hdrs = [
+        "include/json/allocator.h",
         "include/json/assertions.h",
-        "include/json/autolink.h",
         "include/json/config.h",
-        "include/json/features.h",
         "include/json/forwards.h",
         "include/json/json.h",
+        "include/json/json_features.h",
         "include/json/reader.h",
         "include/json/value.h",
         "include/json/version.h",
