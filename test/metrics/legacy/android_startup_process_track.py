@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 # Copyright (C) 2018 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -56,4 +56,4 @@ add_startup(trace, ts=100, pid=3)
 trace.add_process_free(ts=150, tid=3, comm='', prio=0)
 add_startup(trace, ts=200, pid=4)
 
-print(trace.trace.SerializeToString())
+sys.stdout.buffer.write(trace.trace.SerializeToString())

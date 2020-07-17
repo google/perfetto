@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 # Copyright (C) 2018 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,8 +15,6 @@
 
 from os import sys, path
 
-sys.path.append(
-    path.dirname(path.dirname(path.dirname(path.abspath(__file__)))))
 import synth_common
 
 trace = synth_common.create_trace()
@@ -25,4 +23,4 @@ trace.add_battery_counters(52, 32, 0.8, 8, 93)
 trace.add_battery_counters(80, 15, 0.5, 9, 5)
 trace.add_battery_counters_no_curr_ua(92, 21, 0.3, 25)
 
-print(trace.trace.SerializeToString())
+sys.stdout.buffer.write(trace.trace.SerializeToString())

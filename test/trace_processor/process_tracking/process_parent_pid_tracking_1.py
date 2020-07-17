@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 # Copyright (C) 2019 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,7 +18,7 @@
 
 from os import sys, path
 
-sys.path.append(path.dirname(path.dirname(path.dirname(path.abspath(__file__)))))
+
 from synth_common import CLONE_THREAD
 import synth_common
 
@@ -33,4 +33,4 @@ trace.add_thread(11, 10, "worker_thread")
 trace.add_ftrace_packet(0)
 trace.add_newtask(ts=15, tid=11, new_tid=20, new_comm='child', flags=0)
 
-print(trace.trace.SerializeToString())
+sys.stdout.buffer.write(trace.trace.SerializeToString())

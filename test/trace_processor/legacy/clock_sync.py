@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 # Copyright (C) 2019 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,8 +22,6 @@
 
 from os import sys, path
 
-sys.path.append(
-    path.dirname(path.dirname(path.dirname(path.abspath(__file__)))))
 import synth_common
 from synth_common import CLONE_THREAD
 
@@ -90,4 +88,4 @@ trace.add_gpu_counter(
 # Other sequence's default clock isn't changed, so this should be in BOOTTIME.
 trace.add_gpu_counter(ts=3010, counter_id=42, value=15, seq_id=3)
 
-print(trace.trace.SerializeToString())
+sys.stdout.buffer.write(trace.trace.SerializeToString())

@@ -22,6 +22,9 @@ from google.protobuf import descriptor, descriptor_pb2, message_factory
 from google.protobuf import reflection, text_format
 
 
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
 def create_message_factory(descriptor_file_path, proto_type):
   with open(descriptor_file_path, 'rb') as descriptor_file:
     descriptor_content = descriptor_file.read()
@@ -56,5 +59,13 @@ def serialize_textproto_trace(trace_descriptor_path, text_proto_path,
 
 def serialize_python_trace(trace_descriptor_path, python_trace_path,
                            out_stream):
-  python_cmd = ['python', python_trace_path, trace_descriptor_path]
-  subprocess.check_call(python_cmd, stdout=out_stream)
+  python_cmd = ['python3', python_trace_path, trace_descriptor_path]
+
+  # Add the test dir to the PYTHONPATH to allow synth_common to be found.
+  env = os.environ.copy()
+  if 'PYTHONPATH' in env:
+    env['PYTHONPATH'] = "{}:{}".format(
+        os.path.join(ROOT_DIR, 'test'), env['PYTHONPATH'])
+  else:
+    env['PYTHONPATH'] = os.path.join(ROOT_DIR, 'test')
+  subprocess.check_call(python_cmd, env=env, stdout=out_stream)

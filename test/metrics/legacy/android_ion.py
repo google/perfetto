@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 # Copyright (C) 2018 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,8 +15,6 @@
 
 from os import sys, path
 
-sys.path.append(
-    path.dirname(path.dirname(path.dirname(path.abspath(__file__)))))
 import synth_common
 
 trace = synth_common.create_trace()
@@ -31,4 +29,4 @@ trace.add_ion_event(ts=150, tid=3, heap_name='adsp', len=1000)
 trace.add_ion_event(ts=200, tid=3, heap_name='system', size=1000, len=1000)
 trace.add_ion_event(ts=299, tid=3, heap_name='adsp', size=1000, len=100)
 
-print(trace.trace.SerializeToString())
+sys.stdout.buffer.write(trace.trace.SerializeToString())
