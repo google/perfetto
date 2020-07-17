@@ -62,7 +62,7 @@ void RssStatTracker::ParseRssStat(int64_t ts, uint32_t pid, ConstBytes blob) {
 
   if (utid) {
     context_->event_tracker->PushProcessCounterForThread(
-        ts, size, rss_members_[member], *utid);
+        ts, static_cast<double>(size), rss_members_[member], *utid);
   } else {
     context_->storage->IncrementStats(stats::rss_stat_unknown_thread_for_mm_id);
   }

@@ -74,9 +74,12 @@ void Rpc::NotifyEndOfFile() {
 void Rpc::MaybePrintProgress() {
   if (eof_ || bytes_parsed_ - bytes_last_progress_ > kProgressUpdateBytes) {
     bytes_last_progress_ = bytes_parsed_;
-    auto t_load_s = (base::GetWallTimeNs().count() - t_parse_started_) / 1e9;
+    auto t_load_s =
+        static_cast<double>(base::GetWallTimeNs().count() - t_parse_started_) /
+        1e9;
     fprintf(stderr, "\rLoading trace %.2f MB (%.1f MB/s)%s",
-            bytes_parsed_ / 1e6, bytes_parsed_ / 1e6 / t_load_s,
+            static_cast<double>(bytes_parsed_) / 1e6,
+            static_cast<double>(bytes_parsed_) / 1e6 / t_load_s,
             (eof_ ? "\n" : ""));
     fflush(stderr);
   }
