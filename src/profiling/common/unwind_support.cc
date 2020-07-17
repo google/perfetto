@@ -92,15 +92,17 @@ void FDMaps::Reset() {
 UnwindingMetadata::UnwindingMetadata(base::ScopedFile maps_fd,
                                      base::ScopedFile mem_fd)
     : fd_maps(std::move(maps_fd)),
-      fd_mem(std::make_shared<FDMemory>(std::move(mem_fd)))
+      fd_mem(std::make_shared<FDMemory>(std::move(mem_fd))) {
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
-      ,
-      jit_debug(std::unique_ptr<unwindstack::JitDebug>(
-          new unwindstack::JitDebug(fd_mem))),
-      dex_files(std::unique_ptr<unwindstack::DexFiles>(
-          new unwindstack::DexFiles(fd_mem)))
+  // For managed processes, the unwinder needs to find & read global symbols in
+  // libart. Without this constraint, it would search all mappings.
+  std::vector<std::string> search_libs{"libart.so", "libartd.so"};
+  jit_debug = std::unique_ptr<unwindstack::JitDebug>(
+      new unwindstack::JitDebug(fd_mem, search_libs));
+  dex_files = std::unique_ptr<unwindstack::DexFiles>(
+      new unwindstack::DexFiles(fd_mem, search_libs));
 #endif
-{
+
   if (!fd_maps.Parse())
     PERFETTO_DLOG("Failed initial maps parse");
 }
@@ -110,10 +112,13 @@ void UnwindingMetadata::ReparseMaps() {
   fd_maps.Reset();
   fd_maps.Parse();
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
-  jit_debug =
-      std::unique_ptr<unwindstack::JitDebug>(new unwindstack::JitDebug(fd_mem));
-  dex_files =
-      std::unique_ptr<unwindstack::DexFiles>(new unwindstack::DexFiles(fd_mem));
+  // Reinitialize JIT state, as the referenced memory ranges might have been
+  // unmapped.
+  std::vector<std::string> search_libs{"libart.so", "libartd.so"};
+  jit_debug = std::unique_ptr<unwindstack::JitDebug>(
+      new unwindstack::JitDebug(fd_mem, search_libs));
+  dex_files = std::unique_ptr<unwindstack::DexFiles>(
+      new unwindstack::DexFiles(fd_mem, search_libs));
 #endif
 }
 
