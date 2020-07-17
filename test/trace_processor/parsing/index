@@ -70,6 +70,10 @@ print_systrace_unsigned.py print_systrace.sql print_systrace_unsigned.out
 bad_print.textproto list_slices.sql bad_print_textproto_list_slices.out
 bad_print.systrace list_slices.sql bad_print_systrace_list_slices.out
 
+# Match legacy Catapult behaviour when we see multiple S events b2b with the same cookie
+# name and upid.
+android_b2b_async_begin.textproto list_slices.sql android_b2b_async_begin_list_slices.out
+
 # LMK handling
 kernel_lmk.py lmk.sql lmk_kernel_lmk.out
 ../../data/lmk_userspace.pb lmk.sql lmk_userspace_lmk.out
