@@ -146,10 +146,10 @@ class MockProcessTracker : public ProcessTracker {
                          base::StringView process_name,
                          base::StringView cmdline));
 
-  MOCK_METHOD2(UpdateThreadName,
-               UniqueTid(uint32_t tid, StringId thread_name_id));
-  MOCK_METHOD2(SetThreadNameIfUnset,
-               void(UniqueTid utid, StringId thread_name_id));
+  MOCK_METHOD3(UpdateThreadName,
+               UniqueTid(uint32_t tid,
+                         StringId thread_name_id,
+                         ThreadNamePriority priority));
   MOCK_METHOD2(UpdateThread, UniqueTid(uint32_t tid, uint32_t tgid));
 
   MOCK_METHOD1(GetOrCreateProcess, UniquePid(uint32_t pid));
@@ -720,14 +720,16 @@ TEST_F(ProtoTraceParserTest, ThreadNameFromThreadDescriptor) {
       .WillRepeatedly(testing::Return(1u));
   EXPECT_CALL(*process_, UpdateThread(11, 15)).WillOnce(testing::Return(2u));
 
-  EXPECT_CALL(*process_, SetThreadNameIfUnset(
-                             1u, storage_->InternString("OldThreadName")));
+  EXPECT_CALL(*process_,
+              UpdateThreadName(16u, storage_->InternString("OldThreadName"),
+                               ThreadNamePriority::kTrackDescriptor));
   // Packet with same thread, but different name should update the name.
-  EXPECT_CALL(*process_, SetThreadNameIfUnset(
-                             1u, storage_->InternString("NewThreadName")));
-  EXPECT_CALL(
-      *process_,
-      SetThreadNameIfUnset(2u, storage_->InternString("DifferentThreadName")));
+  EXPECT_CALL(*process_,
+              UpdateThreadName(16u, storage_->InternString("NewThreadName"),
+                               ThreadNamePriority::kTrackDescriptor));
+  EXPECT_CALL(*process_, UpdateThreadName(
+                             11u, storage_->InternString("DifferentThreadName"),
+                             ThreadNamePriority::kTrackDescriptor));
 
   Tokenize();
   context_.sorter->ExtractEventsForced();
@@ -1535,7 +1537,8 @@ TEST_F(ProtoTraceParserTest, TrackEventWithResortedCounterDescriptor) {
       .WillOnce(Return(0u));
 
   EXPECT_CALL(*process_,
-              SetThreadNameIfUnset(1u, storage_->InternString("t1")));
+              UpdateThreadName(1u, storage_->InternString("t1"),
+                               ThreadNamePriority::kTrackDescriptor));
 
   context_.sorter->ExtractEventsForced();
 
