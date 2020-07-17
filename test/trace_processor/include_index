@@ -1,11 +1,13 @@
+chrome/index
 dynamic/index
-ftrace/index
 fuchsia/index
 graphics/index
-legacy/index
+memory/index
+parsing/index
 process_tracking/index
 profiling/index
 smoke/index
 span_join/index
-systrace/index
+startup/index
+tables/index
 track_event/index
