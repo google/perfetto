@@ -1,0 +1,69 @@
+packet {
+  ftrace_events {
+    cpu: 3
+    event {
+      timestamp: 1000
+      pid: 4064
+      print {
+        ip: 18446743562018522420
+        buf: "S|1204|multistart|0\n"
+      }
+    }
+    event {
+      timestamp: 1010
+      pid: 1257
+      print {
+        ip: 18446743562018522420
+        buf: "S|1204|multistart|0\n"
+      }
+    }
+    event {
+      timestamp: 1015
+      pid: 1257
+      print {
+        ip: 18446743562018522420
+        buf: "S|1204|multistart|10\n"
+      }
+    }
+    event {
+      timestamp: 1020
+      pid: 1240
+      print {
+        ip: 18446743562018522420
+        buf: "S|1204|multistart|0\n"
+      }
+    }
+    event {
+      timestamp: 1030
+      pid: 4293
+      print {
+        ip: 18446743562018522420
+        buf: "F|1204|multistart|0\n"
+      }
+    }
+    event {
+      timestamp: 1030
+      pid: 1240
+      print {
+        ip: 18446743562018522420
+        buf: "S|1204|multistart|0\n"
+      }
+    }
+    event {
+      timestamp: 1050
+      pid: 4293
+      print {
+        ip: 18446743562018522420
+        buf: "F|1204|multistart|0\n"
+      }
+    }
+    event {
+      timestamp: 1060
+      pid: 4009
+      print {
+        ip: 18446743562018522420
+        buf: "F|1204|multistart|10\n"
+      }
+    }
+  }
+}
