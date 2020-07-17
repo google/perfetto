@@ -156,8 +156,8 @@ int CpuUtilizationMain(int argc, char** argv) {
     double utime_diff_ms = static_cast<double>(utime_diff * 1000 / ticks_per_s);
     double stime_diff_ms = static_cast<double>(stime_diff * 1000 / ticks_per_s);
 
-    double utime_ratio = utime_diff_ms / wall_diff_ms;
-    double stime_ratio = stime_diff_ms / wall_diff_ms;
+    double utime_ratio = utime_diff_ms / static_cast<double>(wall_diff_ms);
+    double stime_ratio = stime_diff_ms / static_cast<double>(wall_diff_ms);
 
     PERFETTO_LOG("utime ratio   : %f", utime_ratio);
     PERFETTO_LOG("stime ratio   : %f", stime_ratio);
@@ -174,8 +174,8 @@ int CpuUtilizationMain(int argc, char** argv) {
   uint64_t wall_diff_ms = last_walltime_ms - first_walltime_ms;
   double utime_diff_ms = static_cast<double>(utime_diff * 1000 / ticks_per_s);
   double stime_diff_ms = static_cast<double>(stime_diff * 1000 / ticks_per_s);
-  double utime_ratio = utime_diff_ms / wall_diff_ms;
-  double stime_ratio = stime_diff_ms / wall_diff_ms;
+  double utime_ratio = utime_diff_ms / static_cast<double>(wall_diff_ms);
+  double stime_ratio = stime_diff_ms / static_cast<double>(wall_diff_ms);
   PERFETTO_LOG("utime ratio   : %f", utime_ratio);
   PERFETTO_LOG("stime ratio   : %f", stime_ratio);
   PERFETTO_LOG("combined ratio: %f\n", utime_ratio + stime_ratio);

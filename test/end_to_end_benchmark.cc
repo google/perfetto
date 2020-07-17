@@ -91,10 +91,12 @@ void BenchmarkProducer(benchmark::State& state) {
   uint64_t wall_ns =
       static_cast<uint64_t>(base::GetWallTimeNs().count()) - wall_start_ns;
 
-  state.counters["Ser CPU"] = benchmark::Counter(100.0 * service_ns / wall_ns);
-  state.counters["Ser ns/m"] =
-      benchmark::Counter(1.0 * service_ns / message_count);
-  state.counters["Pro CPU"] = benchmark::Counter(100.0 * producer_ns / wall_ns);
+  state.counters["Ser CPU"] = benchmark::Counter(
+      100.0 * static_cast<double>(service_ns) / static_cast<double>(wall_ns));
+  state.counters["Ser ns/m"] = benchmark::Counter(
+      static_cast<double>(service_ns) / static_cast<double>(message_count));
+  state.counters["Pro CPU"] = benchmark::Counter(
+      100.0 * static_cast<double>(producer_ns) / static_cast<double>(wall_ns));
   state.SetBytesProcessed(iterations * message_bytes * message_count);
 
   // Read back the buffer just to check correctness.
@@ -203,13 +205,17 @@ static void BenchmarkConsumer(benchmark::State& state) {
   uint64_t wall_ns =
       static_cast<uint64_t>(base::GetWallTimeNs().count()) - wall_start_ns;
 
-  state.counters["Ser CPU"] = benchmark::Counter(100.0 * service_ns / wall_ns);
+  state.counters["Ser CPU"] = benchmark::Counter(
+      100.0 * static_cast<double>(service_ns) / static_cast<double>(wall_ns));
   state.counters["Ser ns/m"] =
-      benchmark::Counter(1.0 * service_ns / message_count);
-  state.counters["Con CPU"] = benchmark::Counter(100.0 * consumer_ns / wall_ns);
+      benchmark::Counter(1.0 * static_cast<double>(service_ns) /
+                         static_cast<double>(message_count));
+  state.counters["Con CPU"] = benchmark::Counter(
+      100.0 * static_cast<double>(consumer_ns) / static_cast<double>(wall_ns));
   state.counters["Con Speed"] =
-      benchmark::Counter(iterations * 1000.0 * 1000 * 1000 * kBufferSizeBytes /
-                         read_time_taken_ns);
+      benchmark::Counter(static_cast<double>(iterations) * 1000.0 * 1000.0 *
+                         1000.0 * static_cast<double>(kBufferSizeBytes) /
+                         static_cast<double>(read_time_taken_ns));
 }
 
 void SaturateCpuProducerArgs(benchmark::internal::Benchmark* b) {

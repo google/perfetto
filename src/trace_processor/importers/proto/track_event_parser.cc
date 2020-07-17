@@ -471,8 +471,8 @@ class TrackEventParser::EventImporter {
     PERFETTO_DCHECK(storage_->counter_track_table().id().IndexOf(track_id_));
     PERFETTO_DCHECK(event_.has_counter_value());
 
-    context_->event_tracker->PushCounter(ts_, event_data_->counter_value,
-                                         track_id_);
+    context_->event_tracker->PushCounter(
+        ts_, static_cast<double>(event_data_->counter_value), track_id_);
   }
 
   void ParseLegacyThreadTimeAndInstructionsAsCounters() {
@@ -487,14 +487,15 @@ class TrackEventParser::EventImporter {
     if (event_data_->thread_timestamp) {
       TrackId track_id = context_->track_tracker->InternThreadCounterTrack(
           parser_->counter_name_thread_time_id_, *utid_);
-      context_->event_tracker->PushCounter(ts_, event_data_->thread_timestamp,
-                                           track_id);
+      context_->event_tracker->PushCounter(
+          ts_, static_cast<double>(event_data_->thread_timestamp), track_id);
     }
     if (event_data_->thread_instruction_count) {
       TrackId track_id = context_->track_tracker->InternThreadCounterTrack(
           parser_->counter_name_thread_instruction_count_id_, *utid_);
       context_->event_tracker->PushCounter(
-          ts_, event_data_->thread_instruction_count, track_id);
+          ts_, static_cast<double>(event_data_->thread_instruction_count),
+          track_id);
     }
   }
 
@@ -524,7 +525,8 @@ class TrackEventParser::EventImporter {
           storage_->counter_track_table().id().IndexOf(*track_id);
 
       int64_t value = event_data_->extra_counter_values[index];
-      context_->event_tracker->PushCounter(ts_, value, *track_id);
+      context_->event_tracker->PushCounter(ts_, static_cast<double>(value),
+                                           *track_id);
 
       // Also import thread_time and thread_instruction_count counters into
       // slice columns to simplify JSON export.
