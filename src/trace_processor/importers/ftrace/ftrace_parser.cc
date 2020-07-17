@@ -205,8 +205,28 @@ void FtraceParser::ParseFtraceStats(ConstBytes blob) {
 PERFETTO_ALWAYS_INLINE
 util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
                                             const TimestampedTracePiece& ttp) {
-  using protos::pbzero::FtraceEvent;
   int64_t ts = ttp.timestamp;
+
+  // On the first ftrace packet, check the metadata table for the tracing start
+  // ts. If it exists we can use it to filter out ftrace packets which happen
+  // earlier than it.
+  if (PERFETTO_UNLIKELY(!has_seen_first_ftrace_packet_)) {
+    const auto& metadata = context_->storage->metadata_table();
+    base::Optional<uint32_t> opt_row =
+        metadata.name().IndexOf(metadata::kNames[metadata::tracing_started_ns]);
+    if (opt_row) {
+      tracing_start_ts_ = *metadata.int_value()[*opt_row];
+    }
+    has_seen_first_ftrace_packet_ = true;
+  }
+
+  if (PERFETTO_UNLIKELY(ts < tracing_start_ts_)) {
+    context_->storage->IncrementStats(
+        stats::ftrace_packet_before_tracing_start);
+    return util::OkStatus();
+  }
+
+  using protos::pbzero::FtraceEvent;
   SchedEventTracker* sched_tracker = SchedEventTracker::GetOrCreate(context_);
 
   // Handle the (optional) alternative encoding format for sched_switch.

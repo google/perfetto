@@ -151,7 +151,12 @@ namespace stats {
   F(perf_samples_skipped_dataloss,      kSingle,  kDataLoss, kTrace,    ""),   \
   F(thread_time_in_state_out_of_order,  kSingle,  kError,    kAnalysis, ""),   \
   F(thread_time_in_state_unknown_cpu_freq,                                     \
-                                        kSingle,  kError,    kAnalysis, "")
+                                        kSingle,  kError,    kAnalysis, ""),   \
+  F(ftrace_packet_before_tracing_start, kSingle,  kInfo,     kAnalysis,        \
+      "An ftrace packet was seen before the tracing start timestamp from "     \
+      "the tracing service. This happens if the ftrace buffers were not "      \
+      "cleared properly. These packets are silently dropped by trace "         \
+      "processor.")
 // clang-format on
 
 enum Type {
