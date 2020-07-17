@@ -23,8 +23,10 @@ Here is an [example change](https://android-review.googlesource.com/c/platform/e
 4. Add a new SQL file for the metric to [src/trace_processor/metrics](/src/trace_processor/metrics). The appropriate `BUILD.gn` file should be updated as well.
   * To learn how to write new metrics, see the [trace-based metrics documentation](/docs/analysis/metrics.md).
 5. Build all targets in your out directory with `tools/ninja -C out/YOUR_BUILD_DIRECTORY`.
-6. Add a new diff test for the metric. This can be done by adding files to the [test/metrics](/test/metrics) folder and modifying one of the index files listed in
-[/test/metrics/include_index](/test/metrics/include_index).
+6. Add a new diff test for the metric. This can be done by adding files to
+the [test/trace_processor](/test/trace_processor) folder and modifying one
+of the index files listed in
+[/test/trace_processor/include_index](/test/trace_processor/include_index).
 7. Run the newly added test with `tools/diff_test_trace_processor.py <path to trace processor binary>`.
 8. Upload and land your change as normal.
 
