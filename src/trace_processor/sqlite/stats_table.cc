@@ -39,6 +39,8 @@ util::Status StatsTable::Init(int, const char* const*, Schema* schema) {
           SqliteTable::Column(Column::kSource, "source",
                               SqlValue::Type::kString),
           SqliteTable::Column(Column::kValue, "value", SqlValue::Type::kLong),
+          SqliteTable::Column(Column::kDescription, "description",
+                              SqlValue::Type::kString),
       },
       {Column::kName});
   return util::OkStatus();
@@ -104,6 +106,9 @@ int StatsTable::Cursor::Column(sqlite3_context* ctx, int N) {
       } else {
         sqlite3_result_int64(ctx, storage_->stats()[key_].value);
       }
+      break;
+    case Column::kDescription:
+      sqlite3_result_text(ctx, stats::kDescriptions[key_], -1, kSqliteStatic);
       break;
     default:
       PERFETTO_FATAL("Unknown column %d", N);

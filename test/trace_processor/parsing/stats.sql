@@ -13,4 +13,5 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-select * from stats where name like 'ftrace_cpu_%' or name like 'traced_buf_%';
+select name, idx, severity, source, value
+from stats where name like 'ftrace_cpu_%' or name like 'traced_buf_%';
