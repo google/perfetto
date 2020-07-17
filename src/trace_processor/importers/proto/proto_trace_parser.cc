@@ -53,7 +53,6 @@
 #include "protos/perfetto/trace/chrome/chrome_trace_event.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/perfetto/perfetto_metatrace.pbzero.h"
-#include "protos/perfetto/trace/perfetto/tracing_service_event.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
 #include "protos/perfetto/trace/profiling/smaps.pbzero.h"
@@ -152,10 +151,6 @@ void ProtoTraceParser::ParseTracePacketImpl(
 
   if (packet.has_trigger()) {
     ParseTrigger(ts, packet.trigger());
-  }
-
-  if (packet.has_service_event()) {
-    ParseServiceEvent(ts, packet.service_event());
   }
 
   if (packet.has_smaps_packet()) {
@@ -738,14 +733,6 @@ void ProtoTraceParser::ParseTrigger(int64_t ts, ConstBytes blob) {
         args_table->AddArg(trusted_producer_uid_key,
                            Variadic::Integer(trigger.trusted_producer_uid()));
       });
-}
-
-void ProtoTraceParser::ParseServiceEvent(int64_t ts, ConstBytes blob) {
-  protos::pbzero::TracingServiceEvent::Decoder tse(blob.data, blob.size);
-  if (tse.all_data_sources_started()) {
-    context_->metadata_tracker->SetMetadata(
-        metadata::all_data_source_started_ns, Variadic::Integer(ts));
-  }
 }
 
 void ProtoTraceParser::ParseSmapsPacket(int64_t ts, ConstBytes blob) {

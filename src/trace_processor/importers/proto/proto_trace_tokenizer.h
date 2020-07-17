@@ -65,6 +65,7 @@ class ProtoTraceTokenizer : public ChunkedTraceReader {
                              uint8_t* data,
                              size_t size);
   util::Status ParsePacket(TraceBlobView);
+  util::Status ParseServiceEvent(int64_t ts, ConstBytes);
   util::Status ParseClockSnapshot(ConstBytes blob, uint32_t seq_id);
   void HandleIncrementalStateCleared(
       const protos::pbzero::TracePacket_Decoder&);
