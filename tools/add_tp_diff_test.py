@@ -52,6 +52,11 @@ def main():
 
   print('Pick a folder to add a test to. This can either be an existing '
         'folder or a new one to create.')
+  print()
+  print('Picking the correct folder is important to the long term health '
+        'of trace processor. For help in this, please see the guidance at '
+        'http://perfetto.dev/docs/analysis/trace-processor#diff-tests')
+  print()
   print('Existing folders: {}.'.format(existing_folders))
   stdout_write('Folder: ')
 

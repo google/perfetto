@@ -1,3 +1,11 @@
+# Contains tests for the handling of tables by trace processor. The focus of tests here
+# is to check that trace processor is correctly returning and handling constraints on
+# the really important tables in trace processor.
+#
+# Note: It's generally *not* advisable to add tests here. Check the guidance provided by
+# http://perfetto/dev/docs/analysis/trace-processor#diff-tests for choosing which folder
+# to add a new test to.
+
 # Window table
 ../../data/android_sched_and_ps.pb smoke_window.sql android_sched_and_ps_smoke_window.out
 

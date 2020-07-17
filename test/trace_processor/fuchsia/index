@@ -1,5 +1,10 @@
+# Contains tests for parsing Fuchsia traces.
+
+# Smoke test a bunch of different event types.
 ../../data/fuchsia_trace.fxt ../common/smoke.sql fuchsia_smoke.out
 ../../data/fuchsia_trace.fxt ../common/smoke_slices.sql fuchsia_smoke_slices.out
 ../../data/fuchsia_trace.fxt smoke_instants.sql fuchsia_smoke_instants.out
 ../../data/fuchsia_trace.fxt smoke_counters.sql fuchsia_smoke_counters.out
+
+# Smoke test a high-CPU trace.
 ../../data/fuchsia_workstation.fxt ../common/smoke_slices.sql fuchsia_workstation_smoke_slices.out
