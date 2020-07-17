@@ -319,13 +319,15 @@ node_bin("transpile_service_worker_ts") {
 
 scss_root = "src/assets/perfetto.scss"
 scss_srcs = [
-  "src/assets/typefaces.scss",
+  "src/assets/analyze_page.scss",
+  "src/assets/common.scss",
+  "src/assets/details.scss",
+  "src/assets/modal.scss",
+  "src/assets/record.scss",
   "src/assets/sidebar.scss",
   "src/assets/topbar.scss",
-  "src/assets/record.scss",
-  "src/assets/common.scss",
-  "src/assets/modal.scss",
-  "src/assets/details.scss",
+  "src/assets/trace_info_page.scss",
+  "src/assets/typefaces.scss",
 ]
 
 # Build css.

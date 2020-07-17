@@ -47,6 +47,7 @@ import {postMessageHandler} from './post_message_handler';
 import {RecordPage, updateAvailableAdbDevices} from './record_page';
 import {Router} from './router';
 import {CheckHttpRpcConnection} from './rpc_http_dialog';
+import {TraceInfoPage} from './trace_info_page';
 import {ViewerPage} from './viewer_page';
 
 const EXTENSION_ID = 'lfmkphfpdbjijhpomgecfikhfohaoine';
@@ -260,6 +261,7 @@ function main() {
         '/viewer': ViewerPage,
         '/record': RecordPage,
         '/query': AnalyzePage,
+        '/info': TraceInfoPage,
       },
       dispatch);
   forwardRemoteCalls(frontendChannel.port2, new FrontendApi(router));

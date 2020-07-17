@@ -33,7 +33,7 @@ export class TraceErrorController extends Controller<'main'> {
     }
     this.hasRun = true;
     this.args.engine
-        .queryOneRow(`SELECT sum(value) FROM stats WHERE severity = 'error'`)
+        .queryOneRow(`SELECT sum(value) FROM stats WHERE severity != 'info'`)
         .then(result => {
           globals.publish('TraceErrors', result[0]);
         });
