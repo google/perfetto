@@ -30,8 +30,6 @@ const PLACEHOLDER = {
 };
 
 export const DISMISSED_PANNING_HINT_KEY = 'dismissedPanningHint';
-const TRACE_STATS =
-    'select * from stats WHERE severity = \'error\' and value > 0';
 
 let mode: Mode = SEARCH;
 let displayStepThrough = false;
@@ -245,21 +243,14 @@ class TraceErrorIcon implements m.ClassComponent {
     const errors = globals.traceErrors;
     if (!errors || mode === COMMAND) return;
     return m(
-        '.error',
+        'a.error',
+        {href: '#!/info'},
         m('i.material-icons',
           {
-            onclick: () => {
-              globals.dispatch(Actions.executeQuery({
-                engineId: '0',
-                queryId: 'command',
-                query: TRACE_STATS,
-              }));
-            },
-            title: `${
-                globals
-                    .traceErrors} import errors detected. Click for more info.`,
+            title: `${globals.traceErrors} import or data loss errors detected.
+                    Click for more info.`,
           },
-          'warning'));
+          'announcement'));
   }
 }
 
