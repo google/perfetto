@@ -571,7 +571,8 @@ void FtraceParser::ParseSchedWakeup(int64_t ts, ConstBytes blob) {
   protos::pbzero::SchedWakeupFtraceEvent::Decoder sw(blob.data, blob.size);
   uint32_t wakee_pid = static_cast<uint32_t>(sw.pid());
   StringId name_id = context_->storage->InternString(sw.comm());
-  auto utid = context_->process_tracker->UpdateThreadName(wakee_pid, name_id);
+  auto utid = context_->process_tracker->UpdateThreadName(
+      wakee_pid, name_id, ThreadNamePriority::kFtrace);
   context_->event_tracker->PushInstant(ts, sched_wakeup_name_id_, utid,
                                        RefType::kRefUtid);
 }
@@ -580,7 +581,8 @@ void FtraceParser::ParseSchedWaking(int64_t ts, ConstBytes blob) {
   protos::pbzero::SchedWakingFtraceEvent::Decoder sw(blob.data, blob.size);
   uint32_t wakee_pid = static_cast<uint32_t>(sw.pid());
   StringId name_id = context_->storage->InternString(sw.comm());
-  auto utid = context_->process_tracker->UpdateThreadName(wakee_pid, name_id);
+  auto utid = context_->process_tracker->UpdateThreadName(
+      wakee_pid, name_id, ThreadNamePriority::kFtrace);
   context_->event_tracker->PushInstant(ts, sched_waking_name_id_, utid,
                                        RefType::kRefUtid);
 }
@@ -867,7 +869,9 @@ void FtraceParser::ParseTaskNewTask(int64_t ts,
   // This is a pthread_create or similar. Bind the two threads together, so
   // they get resolved to the same process.
   auto source_utid = proc_tracker->GetOrCreateThread(source_tid);
-  auto new_utid = proc_tracker->StartNewThread(ts, new_tid, new_comm);
+  auto new_utid = proc_tracker->StartNewThread(ts, new_tid);
+  proc_tracker->UpdateThreadName(new_tid, new_comm,
+                                 ThreadNamePriority::kFtrace);
   proc_tracker->AssociateThreads(source_utid, new_utid);
 }
 
@@ -875,7 +879,8 @@ void FtraceParser::ParseTaskRename(ConstBytes blob) {
   protos::pbzero::TaskRenameFtraceEvent::Decoder evt(blob.data, blob.size);
   uint32_t tid = static_cast<uint32_t>(evt.pid());
   StringId comm = context_->storage->InternString(evt.newcomm());
-  context_->process_tracker->UpdateThreadName(tid, comm);
+  context_->process_tracker->UpdateThreadName(tid, comm,
+                                              ThreadNamePriority::kFtrace);
   context_->process_tracker->UpdateProcessNameFromThreadName(tid, comm);
 }
 
