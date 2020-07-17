@@ -86,9 +86,12 @@ class ExportJsonTest : public ::testing::Test {
   }
 
   Json::Value ToJsonValue(const std::string& json) {
-    Json::Reader reader;
+    Json::CharReaderBuilder b;
+    auto reader = std::unique_ptr<Json::CharReader>(b.newCharReader());
     Json::Value result;
-    EXPECT_TRUE(reader.parse(json, result)) << json;
+    EXPECT_TRUE(reader->parse(json.data(), json.data() + json.length(), &result,
+                              nullptr))
+        << json;
     return result;
   }
 
