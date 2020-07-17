@@ -1197,16 +1197,16 @@ class JsonExporter {
     const auto& str_values = trace_metadata.str_value();
 
     // Create a mapping from key string ids to keys.
-    std::unordered_map<StringId, metadata::KeyIDs> key_map;
+    std::unordered_map<StringId, metadata::KeyId> key_map;
     for (uint32_t i = 0; i < metadata::kNumKeys; ++i) {
       auto id = *storage_->string_pool().GetId(metadata::kNames[i]);
-      key_map[id] = static_cast<metadata::KeyIDs>(i);
+      key_map[id] = static_cast<metadata::KeyId>(i);
     }
 
     for (uint32_t pos = 0; pos < trace_metadata.row_count(); pos++) {
       // Cast away from enum type, as otherwise -Wswitch-enum will demand an
       // exhaustive list of cases, even if there's a default case.
-      metadata::KeyIDs key = key_map[keys[pos]];
+      metadata::KeyId key = key_map[keys[pos]];
       switch (static_cast<size_t>(key)) {
         case metadata::benchmark_description:
           writer_.AppendTelemetryMetadataString(

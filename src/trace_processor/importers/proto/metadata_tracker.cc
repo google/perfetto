@@ -33,7 +33,7 @@ MetadataTracker::MetadataTracker(TraceProcessorContext* context)
   }
 }
 
-MetadataId MetadataTracker::SetMetadata(metadata::KeyIDs key, Variadic value) {
+MetadataId MetadataTracker::SetMetadata(metadata::KeyId key, Variadic value) {
   PERFETTO_DCHECK(metadata::kKeyTypes[key] == metadata::KeyType::kSingle);
   PERFETTO_DCHECK(value.type == metadata::kValueTypes[key]);
 
@@ -55,7 +55,7 @@ MetadataId MetadataTracker::SetMetadata(metadata::KeyIDs key, Variadic value) {
   return id_and_row.id;
 }
 
-MetadataId MetadataTracker::AppendMetadata(metadata::KeyIDs key,
+MetadataId MetadataTracker::AppendMetadata(metadata::KeyId key,
                                            Variadic value) {
   PERFETTO_DCHECK(key < metadata::kNumKeys);
   PERFETTO_DCHECK(metadata::kKeyTypes[key] == metadata::KeyType::kMulti);

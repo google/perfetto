@@ -33,17 +33,17 @@ class MetadataTracker {
   // SetMetadata(metadata::benchmark_name,
   //             Variadic::String(storage->InternString("foo"));
   // Returns the id of the new entry.
-  MetadataId SetMetadata(metadata::KeyIDs key, Variadic value);
+  MetadataId SetMetadata(metadata::KeyId key, Variadic value);
 
   // Example usage:
   // AppendMetadata(metadata::benchmark_story_tags,
   //                Variadic::String(storage->InternString("bar"));
   // Returns the id of the new entry.
-  MetadataId AppendMetadata(metadata::KeyIDs key, Variadic value);
+  MetadataId AppendMetadata(metadata::KeyId key, Variadic value);
 
  private:
   static constexpr size_t kNumKeys =
-      static_cast<size_t>(metadata::KeyIDs::kNumKeys);
+      static_cast<size_t>(metadata::KeyId::kNumKeys);
   static constexpr size_t kNumKeyTypes =
       static_cast<size_t>(metadata::KeyType::kNumKeyTypes);
 

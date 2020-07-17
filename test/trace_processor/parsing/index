@@ -22,6 +22,9 @@
 # CPU Frequency
 ../../data/cpu_counters.pb b120487929.sql cpu_counters_b120487929.out
 
+# Test the filtering of ftrace events before tracing_start.
+ftrace_with_tracing_start.py list_sched_slice_spans.sql ftrace_with_tracing_start_list_sched_slice_spans.out
+
 # Rss stats
 rss_stat_mm_id.py rss_stat.sql rss_stat_mm_id.out
 rss_stat_mm_id_clone.py rss_stat.sql rss_stat_mm_id_clone.out

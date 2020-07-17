@@ -19,11 +19,6 @@ syntax = "proto2";
 package perfetto.protos;
 
 // Events emitted by the tracing service.
-// Note: like any other packet in the trace, the byte offset at which this
-// packet shows up in the trace is arbitrary and doesn't reflect causal
-// ordering (i.e. it's okay to use this event to reason about the timestamps
-// of other packets, NOT their relative order w.r.t. this packet).
-// Next id: 6
 message TracingServiceEvent {
   oneof event_type {
     // When each of the following booleans are set to true, they report the
@@ -34,7 +29,9 @@ message TracingServiceEvent {
 
     // Emitted when we start tracing and specifically, this will be before any
     // producer is notified about the existence of this trace. This is always
-    // emitted before the all_data_sources_started event.
+    // emitted before the all_data_sources_started event. This event is also
+    // guaranteed to be seen (byte-offset wise) before any data packets from
+    // producers.
     bool tracing_started = 2;
 
     // Emitted after all data sources saw the start event and ACKed it.
