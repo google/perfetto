@@ -1,7 +1,20 @@
-# Smoke tests
+# Contains smoke tests which test the most fundamentally important
+# features of trace processor
+#
+# Note: new tests here should only be added by the Perfetto team.
+
+# JSON trace parsing
 ../../data/sfgate.json ../common/smoke.sql sfgate_smoke.out
 ../../data/sfgate.json ../common/smoke_slices.sql sfgate_smoke_slices.out
+
+# Sched events
 ../../data/android_sched_and_ps.pb ../common/smoke.sql android_sched_and_ps_smoke.out
+
+# Compresesed traces
 ../../data/compressed.pb ../common/smoke.sql compressed_smoke.out
+
+# Sched events from sythetic trace
 ../common/synth_1.py ../common/smoke.sql synth_1_smoke.out
+
+# Compute CPU time metric testing several core tables.
 ../../data/example_android_trace_30s.pb thread_cpu_time.sql thread_cpu_time_example_android_trace_30s.out
