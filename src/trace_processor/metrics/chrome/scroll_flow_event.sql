@@ -15,9 +15,7 @@
 --
 -- While handling a InputLatency::GestureScrollUpdate event a sequence of Flows
 -- define the critical path from Beginning to End. This metric breaks down the
--- estimated queuing delay between each flow event for the same
--- InputLatency::GestureScrollUpdate event (end of the top level ancestor of the
--- flow event and start of the top level ancestor of the next flow event).
+-- flows for the same InputLatency::GestureScrollUpdate event.
 --
 -- WARNING: This metric should not be used as a source of truth. It is under
 --          active development and the values & meaning might change without
