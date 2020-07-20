@@ -12,7 +12,8 @@
 -- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
-SELECT RUN_METRIC('chrome/scroll_flow_event.sql') AS suppress_query_output;
+SELECT RUN_METRIC('chrome/scroll_flow_event_queuing_delay.sql')
+    AS suppress_query_output;
 
 SELECT
   -- Each trace_id (in our example trace not true in general) has 8 steps. There
@@ -24,16 +25,16 @@ SELECT
       SELECT
         trace_id,
         COUNT(*)
-      FROM scroll_flow_event
+      FROM scroll_flow_event_queuing_delay
       GROUP BY trace_id
     )
   ) AS total_scroll_updates,
   (
-    SELECT COUNT(*) FROM scroll_flow_event
+    SELECT COUNT(*) FROM scroll_flow_event_queuing_delay
   ) AS total_flow_event_steps,
   (
-    SELECT COUNT(*) FROM scroll_flow_event WHERE jank
+    SELECT COUNT(*) FROM scroll_flow_event_queuing_delay WHERE jank
   ) AS total_janky_flow_event_steps,
   (
-    SELECT COUNT(*) FROM (SELECT step FROM scroll_flow_event GROUP BY step)
+    SELECT COUNT(*) FROM (SELECT step FROM scroll_flow_event_queuing_delay GROUP BY step)
   ) AS number_of_unique_steps;
