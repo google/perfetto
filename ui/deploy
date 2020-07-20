@@ -18,9 +18,9 @@ set -e
 function print_usage {
   echo "Usage: $0 [--no-clean] [--prod] [--staging]"
   echo "    --no-clean  Don't remove $OUT_DIR"
-  echo "    --prod      Deploy prod version (implies --release)"
+  echo "    --prod      Deploy prod version"
   echo "    --staging   Deploy staging version"
-  echo "    --release   Do a release build"
+  echo "    --debug     Do a debug build"
   echo "    -h|--help   Display this message"
 }
 
@@ -36,7 +36,7 @@ UI_DIST_DIR="$OUT_DIR/ui-dist"
 CLEAN_OUT_DIR=true
 DEPLOY_PROD=false
 DEPLOY_STAGING=false
-DEBUG_BUILD=true
+DEBUG_BUILD=false
 
 while [[ $# -gt 0 ]]; do
   key="$1"
@@ -47,15 +47,14 @@ while [[ $# -gt 0 ]]; do
       ;;
       --prod)
       DEPLOY_PROD=true
-      DEBUG_BUILD=false
       shift
       ;;
       --staging)
       DEPLOY_STAGING=true
       shift
       ;;
-      --release)
-      DEBUG_BUILD=false
+      --debug)
+      DEBUG_BUILD=true
       shift
       ;;
       -h|--help)
