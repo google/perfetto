@@ -12,7 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from urllib.parse import urlparse
+
 from .http import TraceProcessorHttp
+from .parse import parse_file
+from .shell import load_shell
 
 
 class TraceProcessor:
@@ -36,6 +40,7 @@ class TraceProcessor:
   class QueryResultIterator:
 
     def __init__(self, column_names, batches):
+      # TODO(@aninditaghosh): Revisit to handle multiple batches
       self.__cells = batches[0].cells
       self.__varint_cells = batches[0].varint_cells
       self.__float64_cells = batches[0].float64_cells
@@ -72,8 +77,19 @@ class TraceProcessor:
       self.__next_index = self.__next_index + len(self.__column_names)
       return row
 
-  def __init__(self, uri):
-    self.http = TraceProcessorHttp(uri)
+  def __init__(self, uri=None, file_path=None):
+    # Load trace_processor_shell or access via given address
+    if uri:
+      p = urlparse(uri)
+      tp = TraceProcessorHttp(p.netloc if p.netloc else p.path)
+    else:
+      url, self.subprocess = load_shell()
+      tp = TraceProcessorHttp(url)
+    self.http = tp
+
+    # Parse trace by its file_path into the loaded instance of trace_processor
+    if file_path:
+      parse_file(self.http, file_path)
 
   def query(self, sql):
     response = self.http.execute_query(sql)
@@ -85,3 +101,9 @@ class TraceProcessor:
     if response.error:
       raise Exception(response.error)
     return response.metrics
+
+  # TODO(@aninditaghosh): Investigate context managers for
+  # cleaner usage
+  def close(self):
+    if hasattr(self, 'subprocess'):
+      self.subprocess.kill()
