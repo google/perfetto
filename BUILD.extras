@@ -99,7 +99,8 @@ perfetto_py_library(
     name = "trace_processor_py",
     srcs = glob(['src/trace_processor/python/trace_processor/*.py']),
     data = [
-        "src/trace_processor/python/trace_processor/trace_processor.descriptor"
+        "src/trace_processor/python/trace_processor/trace_processor.descriptor",
+        ":trace_processor_shell",
     ],
     deps = [
         ":protobuf_noop",
