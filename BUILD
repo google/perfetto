@@ -783,6 +783,7 @@ genrule(
         "src/trace_processor/metrics/chrome/chrome_processes.sql",
         "src/trace_processor/metrics/chrome/console_error_metric.sql",
         "src/trace_processor/metrics/chrome/scroll_flow_event.sql",
+        "src/trace_processor/metrics/chrome/scroll_flow_event_queuing_delay.sql",
         "src/trace_processor/metrics/chrome/scroll_jank.sql",
         "src/trace_processor/metrics/chrome/scroll_jank_cause.sql",
         "src/trace_processor/metrics/chrome/scroll_jank_cause_blocking_task.sql",
