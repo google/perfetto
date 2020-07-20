@@ -24,21 +24,27 @@ def main():
   parser.add_argument(
       "-a",
       "--address",
-      help="Address at which trace_processor is being run, e.g. 127.0.0.1:9001",
-      required=True,
+      help="Address at which trace_processor is being run, e.g. localhost:9001",
       type=str)
-  parser.add_argument(
-      "-f", "--file", help="Absolute path to trace", required=True, type=str)
+  parser.add_argument("-f", "--file", help="Absolute path to trace", type=str)
   args = parser.parse_args()
 
-  # TODO(@aninditaghosh): Load trace into trace_processor_shell
+  # Pass arguments into api to construct the trace processor and load the trace
+  if args.address == None and args.file == None:
+    raise Exception("You must specify an address or a file path to trace")
+  elif args.address == None:
+    tp = TraceProcessor(file_path=args.file)
+  elif args.file == None:
+    tp = TraceProcessor(uri=args.address)
+  else:
+    tp = TraceProcessor(uri=args.address, file_path=args.file)
 
   # Call functions on the loaded trace
-  tp = TraceProcessor(args.address)
   res_it = tp.query('select * from slice limit 10')
   for row in res_it:
     print(row.name)
   am_metrics = tp.metric(['android_mem'])
+  tp.close()
 
 
 if __name__ == "__main__":
