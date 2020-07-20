@@ -184,6 +184,9 @@ class JsonExporter {
           metadata_filter_(metadata_filter),
           label_filter_(label_filter),
           first_event_(true) {
+      Json::StreamWriterBuilder b;
+      b.settings_["indentation"] = "";
+      writer_.reset(b.newStreamWriter());
       WriteHeader();
     }
 
@@ -358,9 +361,7 @@ class JsonExporter {
       args["name"] = metadata_value;
       value["args"] = args;
 
-      Json::StreamWriterBuilder b;
-      auto writer = std::unique_ptr<Json::StreamWriter>(b.newStreamWriter());
-      writer->write(value, &ss);
+      writer_->write(value, &ss);
       output_->AppendString(ss.str());
       first_event_ = false;
     }
@@ -438,8 +439,6 @@ class JsonExporter {
         }
       }
 
-      Json::StreamWriterBuilder b;
-      auto writer = std::unique_ptr<Json::StreamWriter>(b.newStreamWriter());
       if ((!label_filter_ || label_filter_("traceEvents")) &&
           !user_trace_data_.empty()) {
         user_trace_data_ += "]";
@@ -468,12 +467,12 @@ class JsonExporter {
       if ((!label_filter_ || label_filter_("systemTraceEvents")) &&
           !system_trace_data_.empty()) {
         ss << ",\"systemTraceEvents\":\n";
-        writer->write(Json::Value(system_trace_data_), &ss);
+        writer_->write(Json::Value(system_trace_data_), &ss);
       }
 
       if ((!label_filter_ || label_filter_("metadata")) && !metadata_.empty()) {
         ss << ",\"metadata\":\n";
-        writer->write(metadata_, &ss);
+        writer_->write(metadata_, &ss);
       }
 
       if (!label_filter_)
@@ -487,8 +486,6 @@ class JsonExporter {
       if (!first_event_)
         ss << ",\n";
 
-      Json::StreamWriterBuilder b;
-      auto writer = std::unique_ptr<Json::StreamWriter>(b.newStreamWriter());
       ArgumentNameFilterPredicate argument_name_filter;
       bool strip_args =
           argument_filter_ &&
@@ -505,9 +502,9 @@ class JsonExporter {
               args[member] = kStrippedArgument;
           }
         }
-        writer->write(event_copy, &ss);
+        writer_->write(event_copy, &ss);
       } else {
-        writer->write(event, &ss);
+        writer_->write(event, &ss);
       }
       first_event_ = false;
 
@@ -519,6 +516,7 @@ class JsonExporter {
     MetadataFilterPredicate metadata_filter_;
     LabelFilterPredicate label_filter_;
 
+    std::unique_ptr<Json::StreamWriter> writer_;
     bool first_event_;
     Json::Value metadata_;
     std::string system_trace_data_;
