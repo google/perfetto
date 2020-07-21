@@ -16,13 +16,23 @@
 import os
 
 
-# This function lives in its own module to allow us to use a different
+# These functions live in their own module to allow us to use a different
 # mechanism of loading depending on the build system.
-def read_descriptor():
+def read_tp_descriptor():
   try:
-    from .descriptor_vendor import read_tp_descriptor
-    return read_tp_descriptor()
+    from .descriptor_vendor import read_tp_descriptor_vendor
+    return read_tp_descriptor_vendor()
   except ModuleNotFoundError:
     ws = os.path.dirname(__file__)
     with open(os.path.join(ws, 'trace_processor.descriptor'), 'rb') as x:
+      return x.read()
+
+
+def read_metrics_descriptor():
+  try:
+    from .descriptor_vendor import read_metrics_descriptor_vendor
+    return read_metrics_descriptor_vendor()
+  except ModuleNotFoundError:
+    ws = os.path.dirname(__file__)
+    with open(os.path.join(ws, 'metrics.descriptor'), 'rb') as x:
       return x.read()
