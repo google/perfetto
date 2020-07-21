@@ -984,15 +984,9 @@ util::Status LoadTrace(const std::string& trace_file_path, double* size_mb) {
                            trace_file_path.c_str(), read_status.c_message());
   }
 
-  std::unique_ptr<profiling::Symbolizer> symbolizer;
-  auto binary_path = profiling::GetPerfettoBinaryPath();
-  if (!binary_path.empty()) {
-#if PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
-      symbolizer.reset(new profiling::LocalSymbolizer(std::move(binary_path)));
-#else
-      PERFETTO_FATAL("This build does not support local symbolization.");
-#endif
-  }
+  std::unique_ptr<profiling::Symbolizer> symbolizer =
+      profiling::LocalSymbolizerOrDie(profiling::GetPerfettoBinaryPath(),
+                                      getenv("PERFETTO_SYMBOLIZER_MODE"));
 
   if (symbolizer) {
     profiling::SymbolizeDatabase(
