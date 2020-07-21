@@ -92,15 +92,29 @@ class TraceProcessor:
       parse_file(self.http, file_path)
 
   def query(self, sql):
+    """Executes passed in SQL query using class defined HTTP API, and returns
+    the response as a QueryResultIterator
+
+    Args:
+      sql: SQL query written as a String
+
+    Returns:
+      A class which can iterate through each row of the results table
+    """
     response = self.http.execute_query(sql)
     return TraceProcessor.QueryResultIterator(response.column_names,
                                               response.batch)
 
   def metric(self, metrics):
-    response = self.http.compute_metric(metrics)
-    if response.error:
-      raise Exception(response.error)
-    return response.metrics
+    """Returns the metrics data corresponding to the passed in trace metric.
+
+    Args:
+      metrics: A list of valid metrics as defined in TraceMetrics
+
+    Returns:
+      The metrics data as a proto message
+    """
+    return self.http.compute_metric(metrics)
 
   # TODO(@aninditaghosh): Investigate context managers for
   # cleaner usage
