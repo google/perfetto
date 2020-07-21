@@ -32,7 +32,10 @@ class TraceProcessorHttp:
     with request.urlopen(req) as f:
       result = self.protos.QueryResult()
       result.ParseFromString(f.read())
-      return result
+
+    if result.error:
+      raise Exception(result.error)
+    return result
 
   def compute_metric(self, metrics):
     args = self.protos.ComputeMetricArgs()
@@ -42,7 +45,13 @@ class TraceProcessorHttp:
     with request.urlopen(req) as f:
       result = self.protos.ComputeMetricResult()
       result.ParseFromString(f.read())
-      return result
+
+    if result.error:
+      raise Exception(result.error)
+
+    metrics = self.protos.TraceMetrics()
+    metrics.ParseFromString(result.metrics)
+    return metrics
 
   def parse(self, chunk):
     req = request.Request(self.url + '/parse', data=chunk)
