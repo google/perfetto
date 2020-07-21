@@ -16,26 +16,37 @@ from google.protobuf import descriptor_pb2
 from google.protobuf import message_factory
 from google.protobuf.descriptor_pool import DescriptorPool
 
-from .descriptor import read_descriptor
+from .descriptor import read_metrics_descriptor, read_tp_descriptor
 
 
 class ProtoFactory:
 
   def __init__(self):
-    descriptor_bytes = read_descriptor()
-
-    file_desc_set_pb2 = descriptor_pb2.FileDescriptorSet()
-    file_desc_set_pb2.MergeFromString(descriptor_bytes)
-
+    # Declare descriptor pool
     self.descriptor_pool = DescriptorPool()
 
-    for f_desc_pb2 in file_desc_set_pb2.file:
+    # Load trace processor descriptor and add to descriptor pool
+    tp_descriptor_bytes = read_tp_descriptor()
+    tp_file_desc_set_pb2 = descriptor_pb2.FileDescriptorSet()
+    tp_file_desc_set_pb2.MergeFromString(tp_descriptor_bytes)
+    
+    for f_desc_pb2 in tp_file_desc_set_pb2.file:
+      self.descriptor_pool.Add(f_desc_pb2)
+
+    # Load metrics descriptor and add to descriptor pool
+    metrics_descriptor_bytes = read_metrics_descriptor()
+    metrics_file_desc_set_pb2 = descriptor_pb2.FileDescriptorSet()
+    metrics_file_desc_set_pb2.MergeFromString(metrics_descriptor_bytes)
+
+    for f_desc_pb2 in metrics_file_desc_set_pb2.file:
       self.descriptor_pool.Add(f_desc_pb2)
 
     def create_message_factory(message_type):
       message_desc = self.descriptor_pool.FindMessageTypeByName(message_type)
       return message_factory.MessageFactory().GetPrototype(message_desc)
 
+    # Create proto messages to correctly communicate with the RPC API by sending
+    # and receiving data as protos
     self.StatusResult = create_message_factory('perfetto.protos.StatusResult')
     self.ComputeMetricArgs = create_message_factory(
         'perfetto.protos.ComputeMetricArgs')
@@ -43,3 +54,4 @@ class ProtoFactory:
         'perfetto.protos.ComputeMetricResult')
     self.RawQueryArgs = create_message_factory('perfetto.protos.RawQueryArgs')
     self.QueryResult = create_message_factory('perfetto.protos.QueryResult')
+    self.TraceMetrics = create_message_factory('perfetto.protos.TraceMetrics')
