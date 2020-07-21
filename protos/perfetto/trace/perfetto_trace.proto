@@ -4349,6 +4349,21 @@ message TaskRenameFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/task.proto
 
+// Begin of protos/perfetto/trace/ftrace/thermal.proto
+
+message ThermalTemperatureFtraceEvent {
+  optional int32 id = 1;
+  optional int32 temp = 2;
+  optional int32 temp_prev = 3;
+  optional string thermal_zone = 4;
+}
+message CdevUpdateFtraceEvent {
+  optional uint64 target = 1;
+  optional string type = 2;
+}
+
+// End of protos/perfetto/trace/ftrace/thermal.proto
+
 // Begin of protos/perfetto/trace/ftrace/vmscan.proto
 
 message MmVmscanDirectReclaimBeginFtraceEvent {
@@ -4759,6 +4774,8 @@ message FtraceEvent {
     ScmCallStartFtraceEvent scm_call_start = 338;
     ScmCallEndFtraceEvent scm_call_end = 339;
     GpuMemTotalFtraceEvent gpu_mem_total = 340;
+    ThermalTemperatureFtraceEvent thermal_temperature = 341;
+    CdevUpdateFtraceEvent cdev_update = 342;
   }
 }
 

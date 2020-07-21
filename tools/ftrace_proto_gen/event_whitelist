@@ -335,3 +335,5 @@ kmem/ion_buffer_destroy
 scm/scm_call_start
 scm/scm_call_end
 gpu_mem/gpu_mem_total
+thermal/thermal_temperature
+thermal/cdev_update

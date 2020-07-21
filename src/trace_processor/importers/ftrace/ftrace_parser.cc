@@ -47,6 +47,7 @@
 #include "protos/perfetto/trace/ftrace/signal.pbzero.h"
 #include "protos/perfetto/trace/ftrace/systrace.pbzero.h"
 #include "protos/perfetto/trace/ftrace/task.pbzero.h"
+#include "protos/perfetto/trace/ftrace/thermal.pbzero.h"
 #include "protos/perfetto/trace/ftrace/workqueue.pbzero.h"
 
 namespace perfetto {
@@ -439,6 +440,14 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kGpuMemTotalFieldNumber: {
         ParseGpuMemTotal(ts, data);
+        break;
+      }
+      case FtraceEvent::kThermalTemperatureFieldNumber: {
+        ParseThermalTemperature(ts, data);
+        break;
+      }
+      case FtraceEvent::kCdevUpdateFieldNumber: {
+        ParseCdevUpdate(ts, data);
         break;
       }
       default:
@@ -1108,6 +1117,32 @@ void FtraceParser::ParseGpuMemTotal(int64_t ts, protozero::ConstBytes data) {
         ts, static_cast<double>(gpu_mem_total.size()),
         gpu_mem_total_process_id_, utid);
   }
+}
+
+void FtraceParser::ParseThermalTemperature(int64_t timestamp,
+                                           protozero::ConstBytes blob) {
+  protos::pbzero::ThermalTemperatureFtraceEvent::Decoder evt(blob.data,
+                                                             blob.size);
+  char counter_name[255];
+  base::StringView thermal_zone = evt.thermal_zone();
+  snprintf(counter_name, sizeof(counter_name), "%.*s Temperature",
+           int(thermal_zone.size()), thermal_zone.data());
+  StringId name = context_->storage->InternString(counter_name);
+  TrackId track = context_->track_tracker->InternGlobalCounterTrack(name);
+  context_->event_tracker->PushCounter(timestamp, evt.temp(), track);
+}
+
+void FtraceParser::ParseCdevUpdate(int64_t timestamp,
+                                   protozero::ConstBytes blob) {
+  protos::pbzero::CdevUpdateFtraceEvent::Decoder evt(blob.data, blob.size);
+  char counter_name[255];
+  base::StringView type = evt.type();
+  snprintf(counter_name, sizeof(counter_name), "%.*s Cooling Device",
+           int(type.size()), type.data());
+  StringId name = context_->storage->InternString(counter_name);
+  TrackId track = context_->track_tracker->InternGlobalCounterTrack(name);
+  context_->event_tracker->PushCounter(
+      timestamp, static_cast<double>(evt.target()), track);
 }
 
 }  // namespace trace_processor
