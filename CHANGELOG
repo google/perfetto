@@ -2,7 +2,8 @@ Unreleased:
   Tracing service and probes:
     *
   Trace Processor:
-    *
+    * Local Symbolizer allows to use PERFETTO_SYMBOLIZER_MODE=index to
+      discover symbol files by build id rather than name.
   UI:
     *
 

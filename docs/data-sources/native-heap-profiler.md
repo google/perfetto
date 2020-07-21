@@ -290,6 +290,11 @@ is looked for at:
 4. $PERFETTO_BINARY_PATH/foo.so
 5. $PERFETTO_BINARY_PATH/.build-id/ab/cd1234.debug
 
+Alternatively, you can set the `PERFETTO_SYMBOLIZER_MODE` environment variable
+to `index`, and the symbolizer will recursively search the given directory for
+an ELF file with the given build id. This way, you will not have to worry
+about correct filenames.
+
 ## Troubleshooting
 
 ### Buffer overrun
