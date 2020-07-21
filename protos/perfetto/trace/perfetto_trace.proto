@@ -7162,6 +7162,10 @@ message ChromeProcessDescriptor {
 
   // To support old UI. New UI should determine default sorting by process_type.
   optional int32 legacy_sort_index = 3;
+
+  // Name of the hosting app for WebView. Used to match renderer processes to
+  // their hosting apps.
+  optional string host_app_package_name = 4;
 }
 
 // End of protos/perfetto/trace/track_event/chrome_process_descriptor.proto
