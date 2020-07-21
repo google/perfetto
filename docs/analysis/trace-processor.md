@@ -245,7 +245,7 @@ GROUP BY thread_name
 ```
 
 ## Operator tables
-SQL queries are usually sufficient to retrieive data from trace processor.
+SQL queries are usually sufficient to retrieve data from trace processor.
 Sometimes though, certain constructs can be difficult to express pure SQL.
 
 In these situations, trace processor has special "operator tables" which solve

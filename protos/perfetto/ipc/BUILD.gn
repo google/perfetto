@@ -27,7 +27,7 @@ perfetto_proto_library("@TYPE@") {
     "producer_port.proto",
   ]
   deps = [
-    # Deliberately :cpp and not :@TYPE@. In both cases (:gen and :cpp taraget)
+    # Deliberately :cpp and not :@TYPE@. In both cases (:gen and :cpp target)
     # we want to depend on the "cpp" variants. This is because the generated
     # .ipc.h depends on the .gen.h coming from the various common/xxx.proto.
     "../common:cpp",
