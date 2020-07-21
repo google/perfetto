@@ -15,17 +15,58 @@
  * limitations under the License.
  */
 
-#include "perfetto/base/build_config.h"
-
-// This translation unit is built only on Linux and MacOS. See //gn/BUILD.gn.
-#if PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
-
 #include "src/profiling/symbolizer/local_symbolizer.h"
+
+#include <fcntl.h>
+
+#include <memory>
+#include <string>
+#include <vector>
+
+#include "perfetto/base/build_config.h"
+#include "perfetto/base/compiler.h"
+#include "perfetto/base/logging.h"
+#include "perfetto/ext/base/optional.h"
+#include "perfetto/ext/base/scoped_file.h"
+
+namespace perfetto {
+namespace profiling {
+
+std::unique_ptr<Symbolizer> LocalSymbolizerOrDie(
+    std::vector<std::string> binary_path,
+    const char* mode) {
+  std::unique_ptr<Symbolizer> symbolizer;
+
+  if (!binary_path.empty()) {
+#if PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
+    std::unique_ptr<BinaryFinder> finder;
+    if (!mode || strncmp(mode, "find", 4) == 0)
+      finder.reset(new LocalBinaryFinder(std::move(binary_path)));
+    else if (strncmp(mode, "index", 5) == 0)
+      finder.reset(new LocalBinaryIndexer(std::move(binary_path)));
+    else
+      PERFETTO_FATAL("Invalid symbolizer mode [find | index]: %s", mode);
+    symbolizer.reset(new LocalSymbolizer(std::move(finder)));
+#else
+    base::ignore_result(mode);
+    PERFETTO_FATAL("This build does not support local symbolization.");
+#endif
+  }
+  return symbolizer;
+}
+
+}  // namespace profiling
+}  // namespace perfetto
+
+// Most of this translation unit is built only on Linux and MacOS. See
+// //gn/BUILD.gn.
+#if PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
 
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
 
+#include <fts.h>
 #include <inttypes.h>
 #include <signal.h>
 #include <sys/mman.h>
@@ -257,6 +298,87 @@ std::string SplitBuildID(const std::string& hex_build_id) {
   return hex_build_id.substr(0, 2) + "/" + hex_build_id.substr(2);
 }
 
+bool IsElf(const char* mem, size_t size) {
+  if (size <= EI_MAG3)
+    return false;
+  return (mem[EI_MAG0] == ELFMAG0 && mem[EI_MAG1] == ELFMAG1 &&
+          mem[EI_MAG2] == ELFMAG2 && mem[EI_MAG3] == ELFMAG3);
+}
+
+base::Optional<std::string> GetBuildId(int fd, const struct stat* statbuf) {
+  size_t size = static_cast<size_t>(statbuf->st_size);
+
+  static_assert(EI_CLASS > EI_MAG3, "mem[EI_MAG?] accesses are in range.");
+  if (size <= EI_CLASS)
+    return base::nullopt;
+
+  ScopedMmap map(nullptr, size, PROT_READ, MAP_PRIVATE, fd, 0);
+  if (*map == MAP_FAILED) {
+    PERFETTO_PLOG("mmap");
+    return base::nullopt;
+  }
+  char* mem = static_cast<char*>(*map);
+
+  if (!IsElf(mem, size))
+    return base::nullopt;
+
+  switch (mem[EI_CLASS]) {
+    case ELFCLASS32:
+      return GetBuildId<Elf32>(mem, size);
+    case ELFCLASS64:
+      return GetBuildId<Elf64>(mem, size);
+    default:
+      return base::nullopt;
+  }
+}
+
+template <typename F>
+bool WalkDirectories(std::vector<std::string> dirs, F fn) {
+  std::vector<char*> dir_cstrs;
+  for (std::string& dir : dirs)
+    dir_cstrs.emplace_back(&dir[0]);
+  dir_cstrs.push_back(nullptr);
+  base::ScopedResource<FTS*, fts_close, nullptr> fts(
+      fts_open(&dir_cstrs[0], FTS_LOGICAL | FTS_NOCHDIR, nullptr));
+  if (!fts) {
+    PERFETTO_PLOG("fts_open");
+    return false;
+  }
+  FTSENT* ent;
+  while ((ent = fts_read(*fts))) {
+    if (ent->fts_info & FTS_F)
+      fn(ent->fts_path, ent->fts_statp);
+  }
+  return true;
+}
+
+std::map<std::string, std::string> BuildIdIndex(std::vector<std::string> dirs) {
+  std::map<std::string, std::string> result;
+  WalkDirectories(
+      std::move(dirs), [&result](const char* fname, const struct stat* stat) {
+        char magic[EI_MAG3 + 1];
+        auto fd = base::OpenFile(fname, O_RDONLY | O_CLOEXEC);
+        ssize_t rd = PERFETTO_EINTR(read(*fd, &magic, sizeof(magic)));
+        if (rd == -1) {
+          PERFETTO_PLOG("Failed to read %s", fname);
+          return;
+        }
+        if (!IsElf(magic, static_cast<size_t>(rd))) {
+          PERFETTO_DLOG("%s not an ELF.", fname);
+          return;
+        }
+        if (lseek(*fd, 0, SEEK_SET) == -1) {
+          PERFETTO_PLOG("Failed to seek %s", fname);
+          return;
+        }
+        base::Optional<std::string> build_id = GetBuildId(*fd, stat);
+        if (build_id) {
+          result.emplace(*build_id, fname);
+        }
+      });
+  return result;
+}
+
 }  // namespace
 
 bool ParseLlvmSymbolizerLine(const std::string& line,
@@ -277,6 +399,27 @@ bool ParseLlvmSymbolizerLine(const std::string& line,
   *line_no = static_cast<uint32_t>(*opt_parsed_line_no);
   return true;
 }
+
+BinaryFinder::~BinaryFinder() = default;
+
+LocalBinaryIndexer::LocalBinaryIndexer(std::vector<std::string> roots)
+    : buildid_to_file_(BuildIdIndex(std::move(roots))) {}
+
+base::Optional<std::string> LocalBinaryIndexer::FindBinary(
+    const std::string& abspath,
+    const std::string& build_id) {
+  auto it = buildid_to_file_.find(build_id);
+  if (it != buildid_to_file_.end())
+    return it->second;
+  PERFETTO_ELOG("Could not find Build ID: %s (file %s).",
+                base::ToHex(build_id).c_str(), abspath.c_str());
+  return base::nullopt;
+}
+
+LocalBinaryIndexer::~LocalBinaryIndexer() = default;
+
+LocalBinaryFinder::LocalBinaryFinder(std::vector<std::string> roots)
+    : roots_(std::move(roots)) {}
 
 base::Optional<std::string> LocalBinaryFinder::FindBinary(
     const std::string& abspath,
@@ -302,37 +445,14 @@ bool LocalBinaryFinder::IsCorrectFile(const std::string& symbol_file,
   base::ScopedFile fd(base::OpenFile(symbol_file, O_RDONLY));
   if (!fd)
     return false;
-
   struct stat statbuf;
   if (fstat(*fd, &statbuf) == -1)
     return false;
 
-  size_t size = static_cast<size_t>(statbuf.st_size);
-
-  static_assert(EI_CLASS > EI_MAG3, "mem[EI_MAG?] accesses are in range.");
-  if (size <= EI_CLASS)
+  base::Optional<std::string> file_build_id = GetBuildId(*fd, &statbuf);
+  if (!file_build_id)
     return false;
-
-  ScopedMmap map(nullptr, size, PROT_READ, MAP_PRIVATE, *fd, 0);
-  if (*map == MAP_FAILED) {
-    PERFETTO_PLOG("mmap");
-    return false;
-  }
-  char* mem = static_cast<char*>(*map);
-
-  if (mem[EI_MAG0] != ELFMAG0 || mem[EI_MAG1] != ELFMAG1 ||
-      mem[EI_MAG2] != ELFMAG2 || mem[EI_MAG3] != ELFMAG3) {
-    return false;
-  }
-
-  switch (mem[EI_CLASS]) {
-    case ELFCLASS32:
-      return build_id == GetBuildId<Elf32>(mem, size);
-    case ELFCLASS64:
-      return build_id == GetBuildId<Elf64>(mem, size);
-    default:
-      return false;
-  }
+  return *file_build_id == build_id;
 }
 
 base::Optional<std::string> LocalBinaryFinder::FindBinaryInRoot(
@@ -408,6 +528,8 @@ base::Optional<std::string> LocalBinaryFinder::FindBinaryInRoot(
 
   return base::nullopt;
 }
+
+LocalBinaryFinder::~LocalBinaryFinder() = default;
 
 Subprocess::Subprocess(const std::string& file, std::vector<std::string> args)
     : input_pipe_(base::Pipe::Create(base::Pipe::kBothBlock)),
@@ -486,7 +608,7 @@ std::vector<std::vector<SymbolizedFrame>> LocalSymbolizer::Symbolize(
     const std::string& build_id,
     const std::vector<uint64_t>& addresses) {
   base::Optional<std::string> binary =
-      finder_.FindBinary(mapping_name, build_id);
+      finder_->FindBinary(mapping_name, build_id);
   if (!binary)
     return {};
   std::vector<std::vector<SymbolizedFrame>> result;
