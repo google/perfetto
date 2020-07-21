@@ -26,18 +26,24 @@ def main():
       "--address",
       help="Address at which trace_processor is being run, e.g. localhost:9001",
       type=str)
+  parser.add_argument(
+      "-b",
+      "--binary",
+      help="Absolute path to a trace processor binary",
+      type=str)
   parser.add_argument("-f", "--file", help="Absolute path to trace", type=str)
   args = parser.parse_args()
 
   # Pass arguments into api to construct the trace processor and load the trace
-  if args.address == None and args.file == None:
+  if args.address is None and args.file is None:
     raise Exception("You must specify an address or a file path to trace")
-  elif args.address == None:
-    tp = TraceProcessor(file_path=args.file)
-  elif args.file == None:
-    tp = TraceProcessor(uri=args.address)
+  elif args.address is None:
+    tp = TraceProcessor(file_path=args.file, bin_path=args.binary)
+  elif args.file is None:
+    tp = TraceProcessor(addr=args.address)
   else:
-    tp = TraceProcessor(uri=args.address, file_path=args.file)
+    tp = TraceProcessor(
+        addr=args.address, file_path=args.file, bin_path=args.binary)
 
   # Call functions on the loaded trace
   res_it = tp.query('select * from slice limit 10')
