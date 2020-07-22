@@ -29,6 +29,8 @@
 namespace perfetto {
 namespace profiling {
 
+#if PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
+
 bool ParseLlvmSymbolizerLine(const std::string& line,
                              std::string* file_name,
                              uint32_t* line_no);
@@ -119,6 +121,8 @@ class LocalSymbolizer : public Symbolizer {
   LLVMSymbolizerProcess llvm_symbolizer_;
   std::unique_ptr<BinaryFinder> finder_;
 };
+
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
 
 std::unique_ptr<Symbolizer> LocalSymbolizerOrDie(
     std::vector<std::string> binary_path,
