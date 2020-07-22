@@ -141,7 +141,7 @@ int StartChildHeapprofd(pid_t target_pid,
   base::UnixTaskRunner task_runner;
   base::Watchdog::GetInstance()->Start();  // crash on exceedingly long tasks
   HeapprofdProducer producer(HeapprofdMode::kChild, &task_runner,
-                             /* is_oneshot= */ true);
+                             /* exit_when_done= */ true);
   producer.SetTargetProcess(target_pid, target_cmdline);
   producer.SetInheritedSocket(std::move(inherited_sock_fd));
   producer.ConnectWithRetries(GetProducerSocket());
@@ -158,7 +158,7 @@ int StartCentralHeapprofd() {
   base::UnixTaskRunner task_runner;
   base::Watchdog::GetInstance()->Start();  // crash on exceedingly long tasks
   HeapprofdProducer producer(HeapprofdMode::kCentral, &task_runner,
-                             /* is_oneshot= */ false);
+                             /* exit_when_done= */ false);
 
   int listening_raw_socket = GetListeningSocket();
   auto listening_socket = base::UnixSocket::Listen(
