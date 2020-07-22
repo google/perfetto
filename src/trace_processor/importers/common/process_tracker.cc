@@ -427,6 +427,9 @@ void ProcessTracker::SetPidZeroIgnoredForIdleProcess() {
   // Create a mapping from (t|p)id 0 -> u(t|p)id 0 for the idle process.
   tids_.emplace(0, std::vector<UniqueTid>{0});
   pids_.emplace(0, 0);
+
+  auto swapper_id = context_->storage->InternString("swapper");
+  UpdateThreadName(0, swapper_id, ThreadNamePriority::kTraceProcessorConstant);
 }
 
 }  // namespace trace_processor

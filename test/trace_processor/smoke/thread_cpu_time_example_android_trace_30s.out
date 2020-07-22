@@ -1248,7 +1248,7 @@
 5061,2963,"Binder:2963_8","com.google.process.gapps",179740
 4650,4650,"e.android.volta","com.google.android.volta",173594
 4666,4650,"Binder:4650_1","com.google.android.volta",173594
-0,"[NULL]","swapper/0","[NULL]","[NULL]"
+0,"[NULL]","swapper","[NULL]","[NULL]"
 1610,"[NULL]","ReferenceQueueD","[NULL]","[NULL]"
 1611,"[NULL]","FinalizerDaemon","[NULL]","[NULL]"
 1612,"[NULL]","FinalizerWatchd","[NULL]","[NULL]"
