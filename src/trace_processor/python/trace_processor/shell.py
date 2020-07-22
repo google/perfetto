@@ -13,35 +13,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from urllib import request, error
 import os
 import subprocess
-import tempfile
 import time
+from urllib import request, error
 
-# URL to download script to run trace_processor
-SHELL_URL = 'http://get.perfetto.dev/trace_processor'
+from .loader import get_loader
 
 
 def load_shell(bin_path=None):
-  try:
-    from .shell_vendor import load_shell_vendor
-    shell_path = load_shell_vendor()
-  except ModuleNotFoundError:
-    # Try to use preexisting binary before attempting to download
-    # trace_processor
-    if bin_path is None:
-      with tempfile.NamedTemporaryFile(delete=False) as file:
-        req = request.Request(SHELL_URL)
-        with request.urlopen(req) as req:
-          file.write(req.read())
-      shell_path = file.name
-      subprocess.check_output(['chmod', '+x', shell_path])
-    else:
-      if not os.path.isfile(bin_path):
-        raise Exception('Path to binary is not valid')
-      shell_path = bin_path
-
+  shell_path = get_loader().get_shell_path(bin_path=bin_path)
   p = subprocess.Popen([shell_path, '-D'], stdout=subprocess.DEVNULL)
 
   while True:
