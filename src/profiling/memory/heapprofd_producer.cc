@@ -158,10 +158,10 @@ size_t LogHistogram::GetBucket(uint64_t value) {
 // thread.
 HeapprofdProducer::HeapprofdProducer(HeapprofdMode mode,
                                      base::TaskRunner* task_runner,
-                                     bool is_oneshot)
+                                     bool exit_when_done)
     : task_runner_(task_runner),
       mode_(mode),
-      is_oneshot_(is_oneshot),
+      exit_when_done_(exit_when_done),
       unwinding_workers_(MakeUnwindingWorkers(this, kUnwinderThreads)),
       socket_delegate_(this),
       weak_factory_(this) {
@@ -219,7 +219,7 @@ void HeapprofdProducer::OnDisconnect() {
   PERFETTO_LOG("Disconnected from tracing service");
 
   // Do not attempt to reconnect if we're a process-private process, just quit.
-  if (is_oneshot_) {
+  if (exit_when_done_) {
     TerminateProcess(/*exit_status=*/1);  // does not return
   }
 
@@ -281,17 +281,17 @@ void HeapprofdProducer::Restart() {
   // recreate it again.
 
   // Oneshot producer should not attempt restarts.
-  if (is_oneshot_)
+  if (exit_when_done_)
     PERFETTO_FATAL("Attempting to restart a one shot producer.");
 
   HeapprofdMode mode = mode_;
   base::TaskRunner* task_runner = task_runner_;
   const char* socket_name = producer_sock_name_;
-  const bool is_oneshot = is_oneshot_;
+  const bool exit_when_done = exit_when_done_;
 
   // Invoke destructor and then the constructor again.
   this->~HeapprofdProducer();
-  new (this) HeapprofdProducer(mode, task_runner, is_oneshot);
+  new (this) HeapprofdProducer(mode, task_runner, exit_when_done);
 
   ConnectWithRetries(socket_name);
 }
@@ -1064,6 +1064,12 @@ void HeapprofdProducer::HandleFreeRecord(FreeRecord free_rec) {
   heap_tracker.RecordFree(entry.addr, entry.sequence_number, 0);
 }
 
+void HeapprofdProducer::TerminateWhenDone() {
+  if (data_sources_.empty())
+    TerminateProcess(0);
+  exit_when_done_ = true;
+}
+
 bool HeapprofdProducer::MaybeFinishDataSource(DataSource* ds) {
   if (!ds->process_states.empty() || !ds->rejected_pids.empty() ||
       !ds->shutting_down) {
@@ -1073,8 +1079,8 @@ bool HeapprofdProducer::MaybeFinishDataSource(DataSource* ds) {
   bool was_stopped = ds->was_stopped;
   DataSourceInstanceID ds_id = ds->id;
   auto weak_producer = weak_factory_.GetWeakPtr();
-  bool is_oneshot = is_oneshot_;
-  ds->trace_writer->Flush([weak_producer, is_oneshot, ds_id, was_stopped] {
+  bool exit_when_done = exit_when_done_;
+  ds->trace_writer->Flush([weak_producer, exit_when_done, ds_id, was_stopped] {
     if (!weak_producer)
       return;
 
@@ -1082,7 +1088,7 @@ bool HeapprofdProducer::MaybeFinishDataSource(DataSource* ds) {
       weak_producer->endpoint_->NotifyDataSourceStopped(ds_id);
     weak_producer->data_sources_.erase(ds_id);
 
-    if (is_oneshot) {
+    if (exit_when_done) {
       // Post this as a task to allow NotifyDataSourceStopped to post tasks.
       weak_producer->task_runner_->PostTask([weak_producer] {
         if (!weak_producer)

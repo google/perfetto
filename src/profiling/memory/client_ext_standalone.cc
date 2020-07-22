@@ -16,13 +16,13 @@
 
 #include "src/profiling/memory/client_ext_factory.h"
 
+#include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/unix_socket.h"
-#include "perfetto/ext/base/utils.h"
-#include "perfetto/profiling/memory/client_ext.h"
-
 #include "perfetto/ext/base/unix_task_runner.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/watchdog.h"
 #include "perfetto/ext/tracing/ipc/default_socket.h"
+#include "perfetto/profiling/memory/client_ext.h"
 #include "src/profiling/common/proc_utils.h"
 #include "src/profiling/memory/heapprofd_producer.h"
 
@@ -64,7 +64,9 @@ void MonitorFd() {
   }
 }
 
-__attribute__((constructor)) void ForkHeapprofd() {
+}  // namespace
+
+void StartHeapprofdIfStatic() {
   pid_t pid = getpid();
   std::string cmdline;
 
@@ -83,16 +85,18 @@ __attribute__((constructor)) void ForkHeapprofd() {
     PERFETTO_ELOG("Failed to create socket pair.");
     return;
   }
-
   pid_t f = fork();
+
   if (f == -1) {
     PERFETTO_PLOG("fork");
     return;
   }
+
   if (f != 0) {
     int wstatus;
     if (PERFETTO_EINTR(waitpid(f, &wstatus, 0)) == -1)
       PERFETTO_PLOG("waitpid");
+
     *g_client_sock = std::move(cli_sock);
     std::thread th(MonitorFd);
     th.detach();
@@ -120,35 +124,38 @@ __attribute__((constructor)) void ForkHeapprofd() {
   base::UnixTaskRunner task_runner;
   base::Watchdog::GetInstance()->Start();  // crash on exceedingly long tasks
   HeapprofdProducer producer(HeapprofdMode::kChild, &task_runner,
-                             /* is_oneshot= */ false);
+                             /* exit_when_done= */ false);
   producer.SetTargetProcess(pid, cmdline);
   producer.ConnectWithRetries(GetProducerSocket());
   // Signal MonitorFd in the parent process to start a session.
   producer.SetDataSourceCallback([&srv_sock] { srv_sock.Send("x", 1); });
-  task_runner.AddFileDescriptorWatch(srv_sock.fd(), [&producer, &srv_sock] {
-    base::ScopedFile fd;
-    char buf[1];
-    ssize_t r = srv_sock.Receive(buf, sizeof(buf), &fd, 1);
-    if (r == 0) {
-      PERFETTO_LOG("Child disconnected.");
-      _exit(0);
-    }
-    if (r == -1 && !base::IsAgain(errno)) {
-      PERFETTO_PLOG("Receive");
-    }
-    if (fd) {
-      producer.AdoptSocket(std::move(fd));
-    }
-  });
+  task_runner.AddFileDescriptorWatch(
+      srv_sock.fd(), [&task_runner, &producer, &srv_sock] {
+        base::ScopedFile fd;
+        char buf[1];
+        ssize_t r = srv_sock.Receive(buf, sizeof(buf), &fd, 1);
+        if (r == 0) {
+          PERFETTO_LOG("Child disconnected.");
+          producer.TerminateWhenDone();
+          task_runner.RemoveFileDescriptorWatch(srv_sock.fd());
+        }
+        if (r == -1 && !base::IsAgain(errno)) {
+          PERFETTO_PLOG("Receive");
+        }
+        if (fd) {
+          producer.AdoptSocket(std::move(fd));
+        }
+      });
   task_runner.Run();
 }
-
-}  // namespace
 
 // This is called by heapprofd_init_session (client_ext.cc) to construct a
 // client.
 std::shared_ptr<Client> ConstructClient(
     UnhookedAllocator<perfetto::profiling::Client> unhooked_allocator) {
+  if (!g_client_sock)
+    return nullptr;
+
   std::shared_ptr<perfetto::profiling::Client> client;
   base::UnixSocketRaw srv_session_sock;
   base::UnixSocketRaw client_session_sock;
