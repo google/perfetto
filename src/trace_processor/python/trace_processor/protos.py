@@ -16,7 +16,7 @@ from google.protobuf import descriptor_pb2
 from google.protobuf import message_factory
 from google.protobuf.descriptor_pool import DescriptorPool
 
-from .descriptor import read_metrics_descriptor, read_tp_descriptor
+from .loader import get_loader
 
 
 class ProtoFactory:
@@ -26,15 +26,15 @@ class ProtoFactory:
     self.descriptor_pool = DescriptorPool()
 
     # Load trace processor descriptor and add to descriptor pool
-    tp_descriptor_bytes = read_tp_descriptor()
+    tp_descriptor_bytes = get_loader().read_tp_descriptor()
     tp_file_desc_set_pb2 = descriptor_pb2.FileDescriptorSet()
     tp_file_desc_set_pb2.MergeFromString(tp_descriptor_bytes)
-    
+
     for f_desc_pb2 in tp_file_desc_set_pb2.file:
       self.descriptor_pool.Add(f_desc_pb2)
 
     # Load metrics descriptor and add to descriptor pool
-    metrics_descriptor_bytes = read_metrics_descriptor()
+    metrics_descriptor_bytes = get_loader().read_metrics_descriptor()
     metrics_file_desc_set_pb2 = descriptor_pb2.FileDescriptorSet()
     metrics_file_desc_set_pb2.MergeFromString(metrics_descriptor_bytes)
 
