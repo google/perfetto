@@ -223,6 +223,10 @@ __attribute__((visibility("default"))) uint32_t heapprofd_register_heap(
   if (next_id >= perfetto::base::ArraySize(g_heaps)) {
     return 0;
   }
+
+  if (next_id == kMinHeapId)
+    perfetto::profiling::StartHeapprofdIfStatic();
+
   HeapprofdHeapInfoInternal& heap = GetHeap(next_id);
   memcpy(&heap.info, info, n);
   heap.ready.store(true, std::memory_order_release);
@@ -246,7 +250,8 @@ heapprofd_report_allocation(uint32_t heap_id, uint64_t id, uint64_t size) {
     if (!*g_client_ptr)  // no active client (most likely shutting down)
       return false;
 
-    sampled_alloc_sz = (*g_client_ptr)->GetSampleSizeLocked(size);
+    sampled_alloc_sz =
+        (*g_client_ptr)->GetSampleSizeLocked(static_cast<size_t>(size));
     if (sampled_alloc_sz == 0)  // not sampling
       return false;
 
