@@ -17,6 +17,7 @@ import {DeferredAction} from '../common/actions';
 import {AggregateData} from '../common/aggregation_data';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
 import {CallsiteInfo, createEmptyState, State} from '../common/state';
+import {fromNs, toNs} from '../common/time';
 
 import {FrontendLocalState} from './frontend_local_state';
 import {RafScheduler} from './raf_scheduler';
@@ -281,10 +282,18 @@ class Globals {
   }
 
   getCurResolution() {
-    // Truncate the resolution to the closest power of 2.
-    // This effectively means the resolution changes every 6 zoom levels.
-    const resolution = this.frontendLocalState.timeScale.deltaPxToDuration(1);
-    return Math.pow(2, Math.floor(Math.log2(resolution)));
+    // Truncate the resolution to the closest power of 2 (in nanosecond space).
+    // We choose to work in ns space because resolution is consumed be track
+    // controllers for quantization and they rely on resolution to be a power
+    // of 2 in nanosecond form. This is property does not hold if we work in
+    // second space.
+    //
+    // This effectively means the resolution changes approximately every 6 zoom
+    // levels. Logic: each zoom level represents a delta of 0.1 * (visible
+    // window span). Therefore, zooming out by six levels is 1.1^6 ~= 2.
+    // Similarily, zooming in six levels is 0.9^6 ~= 0.5.
+    const pxToSec = this.frontendLocalState.timeScale.deltaPxToDuration(1);
+    return fromNs(Math.pow(2, Math.floor(Math.log2(toNs(pxToSec)))));
   }
 
   makeSelection(action: DeferredAction<{}>) {
