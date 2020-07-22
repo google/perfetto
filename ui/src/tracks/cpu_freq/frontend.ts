@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {search} from '../../base/binary_search';
+import {searchSegment} from '../../base/binary_search';
 import {assertTrue} from '../../base/logging';
 import {TrackState} from '../../common/state';
 import {checkerboardExcept} from '../../frontend/checkerboard';
@@ -56,17 +56,18 @@ class CpuFreqTrack extends Track<Config, Data> {
     const {timeScale, visibleWindowTime} = globals.frontendLocalState;
     const data = this.data();
 
-    if (data === undefined) return;  // Can't possibly draw anything.
+    if (data === undefined || data.timestamps.length === 0) {
+      // Can't possibly draw anything.
+      return;
+    }
 
-    assertTrue(data.tsStarts.length === data.freqKHz.length);
-    assertTrue(data.freqKHz.length === data.idles.length);
+    assertTrue(data.timestamps.length === data.lastFreqKHz.length);
+    assertTrue(data.timestamps.length === data.minFreqKHz.length);
+    assertTrue(data.timestamps.length === data.maxFreqKHz.length);
+    assertTrue(data.timestamps.length === data.lastIdleValues.length);
 
-    const startPx = Math.floor(timeScale.timeToPx(visibleWindowTime.start));
     const endPx = Math.floor(timeScale.timeToPx(visibleWindowTime.end));
     const zeroY = MARGIN_TOP + RECT_HEIGHT;
-
-    let lastX = startPx;
-    let lastY = zeroY;
 
     // Quantize the Y axis to quarters of powers of tens (7.5K, 10K, 12.5K).
     let yMax = data.maximumValue;
@@ -87,25 +88,40 @@ class CpuFreqTrack extends Track<Config, Data> {
     }
     ctx.fillStyle = `hsl(${hue}, ${saturation}%, 70%)`;
     ctx.strokeStyle = `hsl(${hue}, ${saturation}%, 55%)`;
+
+    const calculateX = (timestamp: number) => {
+      return Math.floor(timeScale.timeToPx(timestamp));
+    };
+    const calculateY = (value: number) => {
+      return zeroY - Math.round((value / yMax) * RECT_HEIGHT);
+    };
+
     ctx.beginPath();
-    ctx.moveTo(lastX, lastY);
+    ctx.moveTo(calculateX(data.timestamps[0]), zeroY);
 
-    for (let i = 0; i < data.freqKHz.length; i++) {
-      const value = data.freqKHz[i];
-      const startTime = data.tsStarts[i];
-      const nextY = zeroY - Math.round((value / yMax) * RECT_HEIGHT);
-      if (nextY === lastY) continue;
+    let lastDrawnY = zeroY;
+    for (let i = 0; i < data.timestamps.length; i++) {
+      const x = calculateX(data.timestamps[i]);
 
-      lastX = Math.floor(timeScale.timeToPx(startTime));
-      ctx.lineTo(lastX, lastY);
-      ctx.lineTo(lastX, nextY);
-      lastY = nextY;
+      const minY = calculateY(data.minFreqKHz[i]);
+      const maxY = calculateY(data.maxFreqKHz[i]);
+      const lastY = calculateY(data.lastFreqKHz[i]);
+
+      ctx.lineTo(x, lastDrawnY);
+      if (minY === maxY) {
+        assertTrue(lastY === minY);
+        ctx.lineTo(x, lastY);
+      } else {
+        ctx.lineTo(x, minY);
+        ctx.lineTo(x, maxY);
+        ctx.lineTo(x, lastY);
+      }
+      lastDrawnY = lastY;
     }
     // Find the end time for the last frequency event and then draw
     // down to zero to show that we do not have data after that point.
-    const endTime = data.tsEnds[data.freqKHz.length - 1];
-    const finalX = Math.floor(timeScale.timeToPx(endTime));
-    ctx.lineTo(finalX, lastY);
+    const finalX = calculateX(data.maxTsEnd);
+    ctx.lineTo(finalX, lastDrawnY);
     ctx.lineTo(finalX, zeroY);
     ctx.lineTo(endPx, zeroY);
     ctx.closePath();
@@ -114,16 +130,25 @@ class CpuFreqTrack extends Track<Config, Data> {
 
     // Draw CPU idle rectangles that overlay the CPU freq graph.
     ctx.fillStyle = `rgba(240, 240, 240, 1)`;
-    const bottomY = MARGIN_TOP + RECT_HEIGHT;
 
-    for (let i = 0; i < data.freqKHz.length; i++) {
-      if (data.idles[i] >= 0) {
-        const value = data.freqKHz[i];
-        const firstX = Math.floor(timeScale.timeToPx(data.tsStarts[i]));
-        const secondX = Math.floor(timeScale.timeToPx(data.tsEnds[i]));
-        const lastY = zeroY - Math.round((value / yMax) * RECT_HEIGHT);
-        ctx.fillRect(firstX, bottomY, secondX - firstX, lastY - bottomY);
+    for (let i = 0; i < data.lastIdleValues.length; i++) {
+      if (data.lastIdleValues[i] < 0) {
+        continue;
       }
+
+      // We intentionally don't use the floor function here when computing x
+      // coordinates. Instead we use floating point which prevents flickering as
+      // we pan and zoom; this relies on the browser anti-aliasing pixels
+      // correctly.
+      const x = timeScale.timeToPx(data.timestamps[i]);
+      const xEnd = i === data.lastIdleValues.length - 1 ?
+          finalX :
+          timeScale.timeToPx(data.timestamps[i + 1]);
+
+      const width = xEnd - x;
+      const height = calculateY(data.lastFreqKHz[i]) - zeroY;
+
+      ctx.fillRect(x, zeroY, width, height);
     }
 
     ctx.font = '10px Roboto Condensed';
@@ -190,11 +215,11 @@ class CpuFreqTrack extends Track<Config, Data> {
     const {timeScale} = globals.frontendLocalState;
     const time = timeScale.pxToTime(x);
 
-    const index = search(data.tsStarts, time);
-    this.hoveredTs = index === -1 ? undefined : data.tsStarts[index];
-    this.hoveredTsEnd = index === -1 ? undefined : data.tsEnds[index];
-    this.hoveredValue = index === -1 ? undefined : data.freqKHz[index];
-    this.hoveredIdle = index === -1 ? undefined : data.idles[index];
+    const [left, right] = searchSegment(data.timestamps, time);
+    this.hoveredTs = left === -1 ? undefined : data.timestamps[left];
+    this.hoveredTsEnd = right === -1 ? undefined : data.timestamps[right];
+    this.hoveredValue = left === -1 ? undefined : data.lastFreqKHz[left];
+    this.hoveredIdle = left === -1 ? undefined : data.lastIdleValues[left];
   }
 
   onMouseOut() {
