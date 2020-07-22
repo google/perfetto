@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {iter, NUM, slowlyCountRows} from '../../common/query_iterator';
 import {fromNs, toNs} from '../../common/time';
 
 import {
@@ -29,6 +30,7 @@ class CpuFreqTrackController extends TrackController<Config, Data> {
   static readonly kind = CPU_FREQ_TRACK_KIND;
   private setup = false;
   private maxDurNs = 0;
+  private maxTsEndNs = 0;
   private maximumValueSeen = 0;
 
   async onBoundsChange(start: number, end: number, resolution: number):
@@ -78,7 +80,7 @@ class CpuFreqTrackController extends TrackController<Config, Data> {
           select
             ts,
             dur,
-            value as idle_value
+            iif(value = 4294967295, -1, value) as idle_value
           from experimental_counter_dur c
           where track_id = ${this.config.idleTrackId};
         `);
@@ -95,60 +97,62 @@ class CpuFreqTrackController extends TrackController<Config, Data> {
                           ${this.tableName('idle')});`);
       }
 
+      const maxTsResult = await this.query(
+          `select max(ts), dur from ${this.tableName('freq_idle')}`);
+      if (maxTsResult.numRecords === 1) {
+        this.maxTsEndNs = maxTsResult.columns[0].longValues![0] +
+            maxTsResult.columns[1].longValues![0];
+      }
+
       this.setup = true;
     }
 
     const geqConstraint = this.config.idleTrackId === undefined ?
         `ts >= ${startNs - this.maxDurNs}` :
-        `source_geq(ts, ${startNs - this.maxDurNs})`;
+        `source_geq(ts, ${startNs} - ${this.maxDurNs})`;
     const freqResult = await this.query(`
       select
         (ts + ${bucketNs / 2}) / ${bucketNs} * ${bucketNs} as tsq,
-        ts,
-        max(dur) as dur,
-        case idle_value
-          when 4294967295 then cast(-1 as double)
-          else cast(idle_value as double)
-        end as idle,
-        freq_value as freq
+        min(freq_value) as minFreq,
+        max(freq_value) as maxFreq,
+        value_at_max_ts(ts, freq_value) as lastFreq,
+        value_at_max_ts(ts, idle_value) as lastIdleValue
       from ${this.tableName('freq_idle')}
       where ${geqConstraint} and ts <= ${endNs}
       group by tsq
     `);
 
-    const numRows = +freqResult.numRecords;
+    const numRows = slowlyCountRows(freqResult);
     const data: Data = {
       start,
       end,
       resolution,
       length: numRows,
       maximumValue: this.maximumValue(),
-      tsStarts: new Float64Array(numRows),
-      tsEnds: new Float64Array(numRows),
-      idles: new Int8Array(numRows),
-      freqKHz: new Uint32Array(numRows),
+      maxTsEnd: this.maxTsEndNs,
+      timestamps: new Float64Array(numRows),
+      minFreqKHz: new Uint32Array(numRows),
+      maxFreqKHz: new Uint32Array(numRows),
+      lastFreqKHz: new Uint32Array(numRows),
+      lastIdleValues: new Int8Array(numRows),
     };
 
-    const cols = freqResult.columns;
-    for (let row = 0; row < numRows; row++) {
-      const startNsQ = +cols[0].longValues![row];
-      const startNs = +cols[1].longValues![row];
-      const durNs = +cols[2].longValues![row];
-      const endNs = startNs + durNs;
-
-      let endNsQ = Math.floor((endNs + bucketNs / 2 - 1) / bucketNs) * bucketNs;
-      endNsQ = Math.max(endNsQ, startNsQ + bucketNs);
-
-      if (startNsQ === endNsQ) {
-        throw new Error('Should never happen');
-      }
-
-      data.tsStarts[row] = fromNs(startNsQ);
-      data.tsEnds[row] = fromNs(endNsQ);
-      data.idles[row] = +cols[3].doubleValues![row];
-      data.freqKHz[row] = +cols[4].doubleValues![row];
+    const it = iter(
+        {
+          'tsq': NUM,
+          'minFreq': NUM,
+          'maxFreq': NUM,
+          'lastFreq': NUM,
+          'lastIdleValue': NUM,
+        },
+        freqResult);
+    for (let i = 0; it.valid(); ++i, it.next()) {
+      data.timestamps[i] = fromNs(it.row.tsq);
+      data.minFreqKHz[i] = it.row.minFreq;
+      data.maxFreqKHz[i] = it.row.maxFreq;
+      data.lastFreqKHz[i] = it.row.lastFreq;
+      data.lastIdleValues[i] = it.row.lastIdleValue;
     }
-
     return data;
   }
 

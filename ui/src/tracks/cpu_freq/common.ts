@@ -18,11 +18,13 @@ export const CPU_FREQ_TRACK_KIND = 'CpuFreqTrack';
 
 export interface Data extends TrackData {
   maximumValue: number;
+  maxTsEnd: number;
 
-  tsStarts: Float64Array;
-  tsEnds: Float64Array;
-  idles: Int8Array;
-  freqKHz: Uint32Array;
+  timestamps: Float64Array;
+  minFreqKHz: Uint32Array;
+  maxFreqKHz: Uint32Array;
+  lastFreqKHz: Uint32Array;
+  lastIdleValues: Int8Array;
 }
 
 export interface Config {
