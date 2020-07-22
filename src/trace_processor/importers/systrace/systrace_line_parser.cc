@@ -196,6 +196,28 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
   } else if (line.event_name == "workqueue_execute_end") {
     TrackId track = context_->track_tracker->InternThreadTrack(utid);
     context_->slice_tracker->End(line.ts, track, workqueue_name_id_);
+  } else if (line.event_name == "thermal_temperature") {
+    std::string thermal_zone = args["thermal_zone"] + " Temperature";
+    StringId track_name =
+        context_->storage->InternString(base::StringView(thermal_zone));
+    TrackId track =
+        context_->track_tracker->InternGlobalCounterTrack(track_name);
+    auto temp = base::StringToInt32(args["temp"]);
+    if (!temp.has_value()) {
+      return util::Status("Could not convert temp");
+    }
+    context_->event_tracker->PushCounter(line.ts, temp.value(), track);
+  } else if (line.event_name == "cdev_update") {
+    std::string type = args["type"] + " Cooling Device";
+    StringId track_name =
+        context_->storage->InternString(base::StringView(type));
+    TrackId track =
+        context_->track_tracker->InternGlobalCounterTrack(track_name);
+    auto target = base::StringToDouble(args["target"]);
+    if (!target.has_value()) {
+      return util::Status("Could not convert target");
+    }
+    context_->event_tracker->PushCounter(line.ts, target.value(), track);
   }
 
   return util::OkStatus();
