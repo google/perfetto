@@ -208,6 +208,8 @@ std::shared_ptr<perfetto::profiling::Client> CreateClientAndPrivateDaemon(
 
 }  // namespace
 
+void StartHeapprofdIfStatic() {}
+
 std::shared_ptr<Client> ConstructClient(
     UnhookedAllocator<perfetto::profiling::Client> unhooked_allocator) {
   std::shared_ptr<perfetto::profiling::Client> client;

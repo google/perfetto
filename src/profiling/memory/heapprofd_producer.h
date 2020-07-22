@@ -117,7 +117,7 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
 
   HeapprofdProducer(HeapprofdMode mode,
                     base::TaskRunner* task_runner,
-                    bool is_oneshot);
+                    bool exit_when_done);
   ~HeapprofdProducer() override;
 
   // Producer Impl:
@@ -173,6 +173,8 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
   // Specific to mode_ == kChild
   void AdoptSocket(base::ScopedFile fd);
 
+  void TerminateWhenDone();
+
  private:
   // State of the connection to tracing service (traced).
   enum State {
@@ -212,7 +214,10 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
   };
 
   struct DataSource {
-    DataSource(std::unique_ptr<TraceWriter> tw) : trace_writer(std::move(tw)) {}
+    DataSource(std::unique_ptr<TraceWriter> tw) : trace_writer(std::move(tw)) {
+      // Make MSAN happy.
+      memset(&client_configuration, 0, sizeof(client_configuration));
+    }
 
     DataSourceInstanceID id;
     std::unique_ptr<TraceWriter> trace_writer;
@@ -281,7 +286,7 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
   // TODO(fmayer): Refactor to make this boolean unnecessary.
   // Whether to terminate this producer after the first data-source has
   // finished.
-  const bool is_oneshot_;
+  bool exit_when_done_;
 
   // State of connection to the tracing service.
   State state_ = kNotStarted;
