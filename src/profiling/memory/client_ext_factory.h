@@ -25,10 +25,12 @@
 namespace perfetto {
 namespace profiling {
 
+void StartHeapprofdIfStatic();
+
 std::shared_ptr<Client> ConstructClient(
     UnhookedAllocator<perfetto::profiling::Client> unhooked_allocator);
 
-}
+}  // namespace profiling
 }  // namespace perfetto
 
 #endif  // SRC_PROFILING_MEMORY_CLIENT_EXT_FACTORY_H_
