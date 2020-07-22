@@ -426,6 +426,57 @@ void CreateLastNonNullFunction(sqlite3* db) {
   }
 }
 
+struct ValueAtMaxTsContext {
+  int64_t max_ts;
+  int64_t value_at_max_ts;
+};
+
+void ValueAtMaxTsStep(sqlite3_context* ctx, int, sqlite3_value** argv) {
+  sqlite3_value* ts = argv[0];
+  sqlite3_value* value = argv[1];
+
+#if PERFETTO_DCHECK_IS_ON()
+  if (sqlite3_value_type(ts) != SQLITE_INTEGER) {
+    sqlite3_result_error(ctx, "VALUE_AT_MAX_TS: ts passed was not an integer",
+                         -1);
+    return;
+  }
+
+  if (sqlite3_value_type(value) != SQLITE_INTEGER) {
+    sqlite3_result_error(
+        ctx, "VALUE_AT_MAX_TS: value passed was not an integer", -1);
+    return;
+  }
+#endif
+
+  ValueAtMaxTsContext* fn_ctx = reinterpret_cast<ValueAtMaxTsContext*>(
+      sqlite3_aggregate_context(ctx, sizeof(ValueAtMaxTsContext)));
+  int64_t ts_int = sqlite3_value_int64(ts);
+  if (fn_ctx->max_ts < ts_int) {
+    fn_ctx->max_ts = ts_int;
+    fn_ctx->value_at_max_ts = sqlite3_value_int64(value);
+  }
+}
+
+void ValueAtMaxTsFinal(sqlite3_context* ctx) {
+  ValueAtMaxTsContext* fn_ctx =
+      reinterpret_cast<ValueAtMaxTsContext*>(sqlite3_aggregate_context(ctx, 0));
+  if (!fn_ctx) {
+    sqlite3_result_null(ctx);
+    return;
+  }
+  sqlite3_result_int64(ctx, fn_ctx->value_at_max_ts);
+}
+
+void CreateValueAtMaxTsFunction(sqlite3* db) {
+  auto ret = sqlite3_create_function_v2(
+      db, "VALUE_AT_MAX_TS", 2, SQLITE_UTF8 | SQLITE_DETERMINISTIC, nullptr,
+      nullptr, &ValueAtMaxTsStep, &ValueAtMaxTsFinal, nullptr);
+  if (ret) {
+    PERFETTO_ELOG("Error initializing VALUE_AT_MAX_TS");
+  }
+}
+
 void ExtractArg(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
   if (argc != 2) {
     sqlite3_result_error(ctx, "EXTRACT_ARG: 2 args required", -1);
@@ -582,6 +633,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   CreateLastNonNullFunction(db);
   CreateExtractArgFunction(context_.storage.get(), db);
   CreateSourceGeqFunction(db);
+  CreateValueAtMaxTsFunction(db);
 
   SetupMetrics(this, *db_, &sql_metrics_);
 
