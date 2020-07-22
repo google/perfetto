@@ -122,6 +122,8 @@ class FtraceParser {
                          protozero::ConstBytes);
   void ParseSoftIrqExit(uint32_t cpu, int64_t timestamp, protozero::ConstBytes);
   void ParseGpuMemTotal(int64_t timestamp, protozero::ConstBytes);
+  void ParseThermalTemperature(int64_t timestamp, protozero::ConstBytes);
+  void ParseCdevUpdate(int64_t timestamp, protozero::ConstBytes);
   TraceProcessorContext* context_;
   RssStatTracker rss_stat_tracker_;
 
