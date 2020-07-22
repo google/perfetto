@@ -15,9 +15,8 @@
 from urllib.parse import urlparse
 
 from .http import TraceProcessorHttp
-from .parse import parse_file
+from .loader import get_loader
 from .shell import load_shell
-
 
 class TraceProcessor:
 
@@ -89,7 +88,7 @@ class TraceProcessor:
 
     # Parse trace by its file_path into the loaded instance of trace_processor
     if file_path:
-      parse_file(self.http, file_path)
+      get_loader().parse_file(self.http, file_path)
 
   def query(self, sql):
     """Executes passed in SQL query using class defined HTTP API, and returns
