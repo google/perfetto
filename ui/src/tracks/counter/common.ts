@@ -20,8 +20,10 @@ export interface Data extends TrackData {
   maximumValue: number;
   minimumValue: number;
   timestamps: Float64Array;
-  ids: Float64Array;
-  values: Float64Array;
+  lastIds: Float64Array;
+  minValues: Float64Array;
+  maxValues: Float64Array;
+  lastValues: Float64Array;
 }
 
 export interface Config {

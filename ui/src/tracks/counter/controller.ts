@@ -68,8 +68,13 @@ class CounterTrackController extends TrackController<Config, Data> {
         `);
       }
 
-      const maxDurResult = await this.query(
-          `select max(dur) from ${this.tableName('counter_view')}`);
+      const maxDurResult = await this.query(`
+          select
+            max(
+              iif(dur != -1, dur, (select end_ts from trace_bounds) - ts)
+            )
+          from ${this.tableName('counter_view')}
+      `);
       if (maxDurResult.numRecords === 1) {
         this.maxDurNs = maxDurResult.columns[0].longValues![0];
       }
@@ -86,12 +91,14 @@ class CounterTrackController extends TrackController<Config, Data> {
     const rawResult = await this.query(`
       select
         (ts + ${bucketNs / 2}) / ${bucketNs} * ${bucketNs} as tsq,
-        max(value),
-        id,
-        value
+        min(value) as minValue,
+        max(value) as maxValue,
+        value_at_max_ts(ts, id) as lastId,
+        value_at_max_ts(ts, value) as lastValue
       from ${this.tableName('counter_view')}
       where ts >= ${startNs - this.maxDurNs} and ts <= ${endNs}
       group by tsq
+      order by tsq
     `);
 
     const numRows = slowlyCountRows(rawResult);
@@ -104,15 +111,27 @@ class CounterTrackController extends TrackController<Config, Data> {
       minimumValue: this.minimumValue(),
       resolution,
       timestamps: new Float64Array(numRows),
-      ids: new Float64Array(numRows),
-      values: new Float64Array(numRows),
+      lastIds: new Float64Array(numRows),
+      minValues: new Float64Array(numRows),
+      maxValues: new Float64Array(numRows),
+      lastValues: new Float64Array(numRows),
     };
 
-    const it = iter({'tsq': NUM, 'id': NUM, 'value': NUM}, rawResult);
+    const it = iter(
+        {
+          'tsq': NUM,
+          'lastId': NUM,
+          'minValue': NUM,
+          'maxValue': NUM,
+          'lastValue': NUM
+        },
+        rawResult);
     for (let i = 0; it.valid(); ++i, it.next()) {
       data.timestamps[i] = fromNs(it.row.tsq);
-      data.ids[i] = it.row.id;
-      data.values[i] = it.row.value;
+      data.lastIds[i] = it.row.lastId;
+      data.minValues[i] = it.row.minValue;
+      data.maxValues[i] = it.row.maxValue;
+      data.lastValues[i] = it.row.lastValue;
     }
 
     return data;
