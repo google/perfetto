@@ -80,15 +80,17 @@ class CounterTrack extends Track<Config, Data> {
     const {timeScale, visibleWindowTime} = globals.frontendLocalState;
     const data = this.data();
 
-    if (data === undefined) return;  // Can't possibly draw anything.
+    // Can't possibly draw anything.
+    if (data === undefined || data.timestamps.length === 0) {
+      return;
+    }
 
-    assertTrue(data.timestamps.length === data.values.length);
+    assertTrue(data.timestamps.length === data.minValues.length);
+    assertTrue(data.timestamps.length === data.maxValues.length);
+    assertTrue(data.timestamps.length === data.lastValues.length);
 
     const endPx = Math.floor(timeScale.timeToPx(visibleWindowTime.end));
     const zeroY = MARGIN_TOP + RECT_HEIGHT / (data.minimumValue < 0 ? 2 : 1);
-
-    let lastX = Math.floor(timeScale.timeToPx(data.timestamps[0]));
-    let lastY = zeroY;
 
     // Quantize the Y axis to quarters of powers of tens (7.5K, 10K, 12.5K).
     const maxValue = Math.max(data.maximumValue, 0);
@@ -125,20 +127,35 @@ class CounterTrack extends Track<Config, Data> {
 
     ctx.fillStyle = `hsl(${hue}, 45%, 75%)`;
     ctx.strokeStyle = `hsl(${hue}, 45%, 45%)`;
-    ctx.beginPath();
-    ctx.moveTo(lastX, lastY);
-    for (let i = 0; i < data.values.length; i++) {
-      const value = data.values[i];
-      const startTime = data.timestamps[i];
-      const nextY = zeroY - Math.round(((value - yMin) / yRange) * RECT_HEIGHT);
-      if (nextY === lastY) continue;
 
-      lastX = Math.floor(timeScale.timeToPx(startTime));
-      ctx.lineTo(lastX, lastY);
-      ctx.lineTo(lastX, nextY);
-      lastY = nextY;
+    const calculateX = (ts: number) => {
+      return Math.floor(timeScale.timeToPx(ts));
+    };
+    const calculateY = (value: number) => {
+      return zeroY - Math.round(((value - yMin) / yRange) * RECT_HEIGHT);
+    };
+
+    ctx.beginPath();
+    ctx.moveTo(calculateX(data.timestamps[0]), zeroY);
+    let lastDrawnY = zeroY;
+    for (let i = 0; i < data.timestamps.length; i++) {
+      const x = calculateX(data.timestamps[i]);
+      const minY = calculateY(data.minValues[i]);
+      const maxY = calculateY(data.maxValues[i]);
+      const lastY = calculateY(data.lastValues[i]);
+
+      ctx.lineTo(x, lastDrawnY);
+      if (minY === maxY) {
+        assertTrue(lastY === minY);
+        ctx.lineTo(x, lastY);
+      } else {
+        ctx.lineTo(x, minY);
+        ctx.lineTo(x, maxY);
+        ctx.lineTo(x, lastY);
+      }
+      lastDrawnY = lastY;
     }
-    ctx.lineTo(endPx, lastY);
+    ctx.lineTo(endPx, lastDrawnY);
     ctx.lineTo(endPx, zeroY);
     ctx.closePath();
     ctx.fill();
@@ -231,7 +248,7 @@ class CounterTrack extends Track<Config, Data> {
     const [left, right] = searchSegment(data.timestamps, time);
     this.hoveredTs = left === -1 ? undefined : data.timestamps[left];
     this.hoveredTsEnd = right === -1 ? undefined : data.timestamps[right];
-    this.hoveredValue = left === -1 ? undefined : data.values[left];
+    this.hoveredValue = left === -1 ? undefined : data.lastValues[left];
   }
 
   onMouseOut() {
@@ -248,7 +265,7 @@ class CounterTrack extends Track<Config, Data> {
     if (left === -1) {
       return false;
     } else {
-      const counterId = data.ids[left];
+      const counterId = data.lastIds[left];
       if (counterId === -1) return true;
       globals.makeSelection(Actions.selectCounter({
         leftTs: toNs(data.timestamps[left]),
