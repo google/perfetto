@@ -35,6 +35,11 @@ enum class ThreadNamePriority {
   kProcessTree = 2,
   kTrackDescriptorThreadType = 3,
   kTrackDescriptor = 4,
+
+  // Priority when trace processor hardcodes a name for a process (e.g. calling
+  // the idle thread "swapper" when parsing ftrace).
+  // Keep this last.
+  kTraceProcessorConstant = 5,
 };
 
 class ProcessTracker {

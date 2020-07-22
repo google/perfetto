@@ -66,7 +66,9 @@ TEST_F(StorageMinimalSmokeTest, GraphicEventsIgnored) {
   std::string& o = output_writer.buffer;
   ASSERT_TRUE(reader->parse(o.data(), o.data() + o.length(), &result, nullptr));
 
-  ASSERT_EQ(result["traceEvents"].size(), 0u);
+  // We should only see a single event (the mapping of the idle thread to have
+  // name "swapper").
+  ASSERT_EQ(result["traceEvents"].size(), 1u);
 }
 
 TEST_F(StorageMinimalSmokeTest, SystraceReturnsError) {
@@ -97,7 +99,10 @@ TEST_F(StorageMinimalSmokeTest, TrackEventsImported) {
   Json::Value result;
   std::string& o = output_writer.buffer;
   ASSERT_TRUE(reader->parse(o.data(), o.data() + o.length(), &result, nullptr));
-  ASSERT_EQ(result["traceEvents"].size(), 4u);
+
+  // We have an "extra" event from the mapping of the idle thread to have name
+  // "swapper".
+  ASSERT_EQ(result["traceEvents"].size(), 5u);
 }
 
 }  // namespace
