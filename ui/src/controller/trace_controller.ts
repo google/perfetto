@@ -1071,7 +1071,8 @@ export class TraceController extends Controller<States> {
              of ['android_startup',
                  'android_ion',
                  'android_thread_time_in_state',
-                 'android_surfaceflinger']) {
+                 'android_surfaceflinger',
+                 'android_batt']) {
       this.updateStatus(`Computing ${metric} metric`);
       // We don't care about the actual result of metric here as we are just
       // interested in the annotation tracks.
