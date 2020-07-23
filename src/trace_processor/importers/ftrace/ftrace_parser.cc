@@ -208,20 +208,35 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
                                             const TimestampedTracePiece& ttp) {
   int64_t ts = ttp.timestamp;
 
-  // On the first ftrace packet, check the metadata table for the tracing start
-  // ts. If it exists we can use it to filter out ftrace packets which happen
-  // earlier than it.
+  // On the first ftrace packet, check the metadata table for the
+  // ts of the event which is specified in the config. If it exists we can use
+  // it to filter out ftrace packets which happen earlier than it.
   if (PERFETTO_UNLIKELY(!has_seen_first_ftrace_packet_)) {
-    const auto& metadata = context_->storage->metadata_table();
-    base::Optional<uint32_t> opt_row =
-        metadata.name().IndexOf(metadata::kNames[metadata::tracing_started_ns]);
-    if (opt_row) {
-      tracing_start_ts_ = *metadata.int_value()[*opt_row];
+    DropFtraceDataBefore drop_before = context_->config.drop_ftrace_data_before;
+    switch (drop_before) {
+      case DropFtraceDataBefore::kNoDrop: {
+        drop_ftrace_data_before_ts_ = 0;
+        break;
+      }
+      case DropFtraceDataBefore::kAllDataSourcesStarted:
+      case DropFtraceDataBefore::kTracingStarted: {
+        metadata::KeyId event_key =
+            drop_before == DropFtraceDataBefore::kAllDataSourcesStarted
+                ? metadata::all_data_source_started_ns
+                : metadata::tracing_started_ns;
+        const auto& metadata = context_->storage->metadata_table();
+        base::Optional<uint32_t> opt_row =
+            metadata.name().IndexOf(metadata::kNames[event_key]);
+        if (opt_row) {
+          drop_ftrace_data_before_ts_ = *metadata.int_value()[*opt_row];
+        }
+        break;
+      }
     }
     has_seen_first_ftrace_packet_ = true;
   }
 
-  if (PERFETTO_UNLIKELY(ts < tracing_start_ts_)) {
+  if (PERFETTO_UNLIKELY(ts < drop_ftrace_data_before_ts_)) {
     context_->storage->IncrementStats(
         stats::ftrace_packet_before_tracing_start);
     return util::OkStatus();
