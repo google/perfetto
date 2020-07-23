@@ -173,10 +173,9 @@ class FtraceParser {
 
   bool has_seen_first_ftrace_packet_ = false;
 
-  // Stores information about the "tracing_start" timestamp from the metadata
-  // table which is used to filter ftrace packets which happen before this
-  // point.
-  int64_t tracing_start_ts_ = 0;
+  // Stores information about the timestamp from the metadata table which is
+  // used to filter ftrace packets which happen before this point.
+  int64_t drop_ftrace_data_before_ts_ = 0;
 };
 
 }  // namespace trace_processor
