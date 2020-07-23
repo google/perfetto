@@ -287,6 +287,7 @@ export class AdbSocketConsumerPort extends AdbBaseConsumerPort {
   sendReadBufferResponse() {
     this.sendMessage(this.generateChunkReadResponse(
         this.traceProtoWriter.finish(), /* last */ true));
+    this.traceProtoWriter = protobuf.Writer.create();
   }
 
   bind() {
