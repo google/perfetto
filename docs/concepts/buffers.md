@@ -347,7 +347,7 @@ There are two mitigations for this:
    [`TraceConfig.IncrementalStateConfig.clear_period_ms`][IncrStateConfig].
    This will cause the data sources that make use of incremental state to
    periodically drop the interning / process mapping tables and re-emit the
-   descriptors / strings on the next occurence. This mitigates quite well the
+   descriptors / strings on the next occurrence. This mitigates quite well the
    problem in the context of ring-buffer traces, as long as the
    `clear_period_ms` is one order of magnitude lower than the estimated length
    of trace data in the central trace buffer.
@@ -363,15 +363,15 @@ There are two mitigations for this:
 Another common problem experienced in traces that involve multiple data sources
 is the non-synchronous nature of trace commits. As explained in the
 [Life of a trace packet](#life-of-a-trace-packet) section above, trace data is
-commited only when a full memory page of the shared memory buffer is filled (or
+committed only when a full memory page of the shared memory buffer is filled (or
 at when the tracing session ends). In most cases, if data sources produce events
 at a regular cadence, pages are filled quite quickly and events are committed
 in the central buffers within seconds.
 
 In some other cases, however, a data source can emit events only sporadically.
 Imagine the case of a data source that emits events when the display is turned
-on/off. Such an infequent event might end up being staged in the shared memory
-buffer for very long times and can end up being commited in the trace buffer
+on/off. Such an infrequent event might end up being staged in the shared memory
+buffer for very long times and can end up being committed in the trace buffer
 hours after it happened.
 
 Another scenario where this can happen is when using ftrace and when a

@@ -58,7 +58,7 @@ examples:
 
 On Android, Perfetto is the next-generation system tracing system and replaces
 the chromium-based systrace.
-[ATrace-based intstrumentation](/docs/data-sources/atrace.md) remains fully
+[ATrace-based instrumentation](/docs/data-sources/atrace.md) remains fully
 supported.
 See [Android developer docs](https://developer.android.com/topic/performance/tracing)
 for more details.

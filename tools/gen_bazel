@@ -207,10 +207,10 @@ PUBLIC_VISIBILITY = 'PERFETTO_CONFIG.public_visibility'
 def get_bazel_label_name(gn_name):
   """Converts a GN target name into a Bazel label name.
 
-  If target is in the public taraget list, returns only the GN target name,
+  If target is in the public target list, returns only the GN target name,
   e.g.: //src/ipc:perfetto_ipc -> perfetto_ipc
 
-  Otherwise, in the case of an intermediate taraget, returns a mangled path.
+  Otherwise, in the case of an intermediate target, returns a mangled path.
   e.g.:  //include/perfetto/base:base -> include_perfetto_base_base.
   """
   if gn_name in default_targets:
