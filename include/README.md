@@ -103,7 +103,7 @@ Usage example
   });
 ```
 
-The passed labmda will be called only if tracing is enabled and the data source
+The passed lambda will be called only if tracing is enabled and the data source
 was enabled in the trace config. It might be called multiple times, one for each
 active tracing session, in case of concurrent tracing sessions (or even within a
 single tracing session, if the data source is listed twice in the trace config).
