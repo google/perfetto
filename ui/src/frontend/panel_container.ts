@@ -236,7 +236,7 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
       this.updateCanvasDimensions();
       this.repositionCanvas();
       if (this.attrs.kind === 'TRACKS') {
-        globals.frontendLocalState.timeScale.setLimitsPx(
+        globals.frontendLocalState.updateLocalLimits(
             0, this.parentWidth - TRACK_SHELL_WIDTH);
       }
       this.redrawCanvas();
