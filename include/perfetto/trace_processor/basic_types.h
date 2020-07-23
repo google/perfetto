@@ -34,6 +34,28 @@ namespace trace_processor {
 // simpler (e.g. use arrays instead of vectors).
 constexpr size_t kMaxCpus = 128;
 
+// Enum which encodes which event (if any) should be used to drop ftrace data
+// from before this timestamp of that event.
+enum class DropFtraceDataBefore {
+  // Drops ftrace data before timestmap specified by the
+  // TracingServiceEvent::tracing_started. If this packet is not in the trace,
+  // no data is dropped.
+  // Note: this event was introduced in S+ so will no data will be dropped on R-
+  // traces.
+  // This is the default approach.
+  kTracingStarted = 0,
+
+  // Retains all ftrace data regardless of timestamp and other events.
+  kNoDrop = 1,
+
+  // Drops ftrace data before timestmap specified by the
+  // TracingServiceEvent::all_data_sources_started. If this packet is not in the
+  // trace, no data is dropped.
+  // This option can be used in cases where R- traces are being considered and
+  // |kTracingStart| cannot be used because the event was not present.
+  kAllDataSourcesStarted = 2,
+};
+
 // Struct for configuring a TraceProcessor instance (see trace_processor.h).
 struct PERFETTO_EXPORT Config {
   // When set to true, this option forces trace processor to perform a full
@@ -49,6 +71,11 @@ struct PERFETTO_EXPORT Config {
   // this flag is false and all other events which parse into the raw table are
   // unaffected by this flag.
   bool ingest_ftrace_in_raw_table = true;
+
+  // Indicates the event which should be used as a marker to drop ftrace data in
+  // the trace before that event. See the ennu documenetation for more details.
+  DropFtraceDataBefore drop_ftrace_data_before =
+      DropFtraceDataBefore::kTracingStarted;
 };
 
 // Represents a dynamically typed value returned by SQL.
