@@ -21,17 +21,14 @@
 namespace perfetto {
 namespace {
 
-bool IsGoodFtracePunctuation(char c) {
-  return c == '_' || c == '/' || c == '*';
-}
-
-bool IsGoodAtracePunctuation(char c) {
-  return c == '_' || c == '.' || c == '*';
+// Excludes \r, \n, escape sequences and control chars.
+bool IsPrintableASCIIOrSpace(char c) {
+  return c >= 32 && c < 127;
 }
 
 bool IsValidAtraceEventName(const std::string& str) {
   for (size_t i = 0; i < str.size(); i++) {
-    if (!isalnum(str[i]) && !IsGoodAtracePunctuation(str[i]))
+    if (!IsPrintableASCIIOrSpace(str[i]))
       return false;
   }
   return true;
@@ -40,7 +37,7 @@ bool IsValidAtraceEventName(const std::string& str) {
 bool IsValidFtraceEventName(const std::string& str) {
   int slash_count = 0;
   for (size_t i = 0; i < str.size(); i++) {
-    if (!isalnum(str[i]) && !IsGoodFtracePunctuation(str[i]))
+    if (!IsPrintableASCIIOrSpace(str[i]))
       return false;
     if (str[i] == '/') {
       slash_count++;
