@@ -80,7 +80,7 @@ class CpuFreqTrackController extends TrackController<Config, Data> {
           select
             ts,
             dur,
-            iif(value = 4294967295, -1, value) as idle_value
+            iif(value = 4294967295, -1, cast(value as int)) as idle_value
           from experimental_counter_dur c
           where track_id = ${this.config.idleTrackId};
         `);
