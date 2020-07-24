@@ -140,7 +140,8 @@ void TestDeserializer::DeserializeBuffer(const uint8_t* start, size_t size) {
       pos = next_sep == std::string::npos ? next_sep : next_sep + 1;
     }
 
-    for (auto it = batch.cells(&parse_error); it; ++it) {
+    uint32_t num_cells = 0;
+    for (auto it = batch.cells(&parse_error); it; ++it, ++num_cells) {
       uint8_t cell_type = static_cast<uint8_t>(*it);
       switch (cell_type) {
         case BatchProto::CELL_INVALID:
@@ -183,6 +184,11 @@ void TestDeserializer::DeserializeBuffer(const uint8_t* start, size_t size) {
       }
 
       EXPECT_FALSE(parse_error);
+    }
+    if (columns.size() == 0) {
+      EXPECT_EQ(num_cells, 0u);
+    } else {
+      EXPECT_EQ(num_cells % columns.size(), 0u);
     }
   }
 }
