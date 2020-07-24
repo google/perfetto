@@ -72,7 +72,8 @@ def main():
     fname = fname[len(strip):]
     # We use b64 instead of hexdigest() because it's handy for handling fetch()
     # subresource integrity.
-    contents += '    \'%s\': \'sha256-%s\',\n' % (fname, b64encode(digest))
+    contents += '    \'%s\': \'sha256-%s\',\n' % (
+        fname, b64encode(digest).decode("ascii"))
   contents += '  },\n'
 
   # Compute the hash of the all resources' hashes.
