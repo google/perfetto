@@ -427,34 +427,66 @@ void CreateLastNonNullFunction(sqlite3* db) {
 }
 
 struct ValueAtMaxTsContext {
+  bool initialized;
+  int value_type;
+
   int64_t max_ts;
-  int64_t value_at_max_ts;
+  int64_t int_value_at_max_ts;
+  double double_value_at_max_ts;
 };
 
 void ValueAtMaxTsStep(sqlite3_context* ctx, int, sqlite3_value** argv) {
   sqlite3_value* ts = argv[0];
   sqlite3_value* value = argv[1];
 
+  // Note that sqlite3_aggregate_context zeros the memory for us so all the
+  // variables of the struct should be zero.
+  ValueAtMaxTsContext* fn_ctx = reinterpret_cast<ValueAtMaxTsContext*>(
+      sqlite3_aggregate_context(ctx, sizeof(ValueAtMaxTsContext)));
+
+  // For performance reasons, we only do the check for the type of ts and value
+  // on the first call of the function.
+  if (PERFETTO_UNLIKELY(!fn_ctx->initialized)) {
+    if (sqlite3_value_type(ts) != SQLITE_INTEGER) {
+      sqlite3_result_error(ctx, "VALUE_AT_MAX_TS: ts passed was not an integer",
+                           -1);
+      return;
+    }
+
+    fn_ctx->value_type = sqlite3_value_type(value);
+    if (fn_ctx->value_type != SQLITE_INTEGER &&
+        fn_ctx->value_type != SQLITE_FLOAT) {
+      sqlite3_result_error(
+          ctx, "VALUE_AT_MAX_TS: value passed was not an integer or float", -1);
+      return;
+    }
+
+    fn_ctx->initialized = true;
+  }
+
+  // On dcheck builds however, we check every passed ts and value.
 #if PERFETTO_DCHECK_IS_ON()
   if (sqlite3_value_type(ts) != SQLITE_INTEGER) {
     sqlite3_result_error(ctx, "VALUE_AT_MAX_TS: ts passed was not an integer",
                          -1);
     return;
   }
-
-  if (sqlite3_value_type(value) != SQLITE_INTEGER) {
-    sqlite3_result_error(
-        ctx, "VALUE_AT_MAX_TS: value passed was not an integer", -1);
+  if (sqlite3_value_type(value) != fn_ctx->value_type) {
+    sqlite3_result_error(ctx, "VALUE_AT_MAX_TS: value type is inconsistent",
+                         -1);
     return;
   }
 #endif
 
-  ValueAtMaxTsContext* fn_ctx = reinterpret_cast<ValueAtMaxTsContext*>(
-      sqlite3_aggregate_context(ctx, sizeof(ValueAtMaxTsContext)));
   int64_t ts_int = sqlite3_value_int64(ts);
-  if (fn_ctx->max_ts < ts_int) {
+  if (PERFETTO_LIKELY(fn_ctx->max_ts < ts_int)) {
     fn_ctx->max_ts = ts_int;
-    fn_ctx->value_at_max_ts = sqlite3_value_int64(value);
+
+    if (fn_ctx->value_type == SQLITE_INTEGER) {
+      fn_ctx->int_value_at_max_ts = sqlite3_value_int64(value);
+    } else {
+      fn_ctx->double_value_at_max_ts = sqlite3_value_double(value);
+    }
   }
 }
 
@@ -465,7 +497,11 @@ void ValueAtMaxTsFinal(sqlite3_context* ctx) {
     sqlite3_result_null(ctx);
     return;
   }
-  sqlite3_result_int64(ctx, fn_ctx->value_at_max_ts);
+  if (fn_ctx->value_type == SQLITE_INTEGER) {
+    sqlite3_result_int64(ctx, fn_ctx->int_value_at_max_ts);
+  } else {
+    sqlite3_result_double(ctx, fn_ctx->double_value_at_max_ts);
+  }
 }
 
 void CreateValueAtMaxTsFunction(sqlite3* db) {
