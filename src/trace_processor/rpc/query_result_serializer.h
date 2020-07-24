@@ -39,6 +39,9 @@ class IteratorImpl;
 // - For each Serialize() call, this class will serialize a batch of cells,
 //   stopping when either when a number of cells (|cells_per_batch_|) is reached
 //   or when the batch size exceeds (batch_split_threshold_).
+//   A batch is guaranteed to contain a number of cells that is an integer
+//   multiple of the column count (i.e. a batch is not truncated in the middle
+//   of a row).
 // The intended use case is streaaming these batches onto through a
 // chunked-encoded HTTP response, or through a repetition of Wasm calls.
 class QueryResultSerializer {
