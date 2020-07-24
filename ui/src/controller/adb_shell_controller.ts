@@ -15,7 +15,7 @@
 import {_TextDecoder} from 'custom_utils';
 
 import {extractTraceConfig} from '../base/extract_utils';
-import {uint8ArrayToBase64} from '../base/string_utils';
+import {base64Encode} from '../base/string_utils';
 
 import {AdbAuthState, AdbBaseConsumerPort} from './adb_base_controller';
 import {Adb, AdbStream} from './adb_interfaces';
@@ -181,7 +181,7 @@ export class AdbConsumerPort extends AdbBaseConsumerPort {
   }
 
   generateStartTracingCommand(tracingConfig: Uint8Array) {
-    const configBase64 = uint8ArrayToBase64(tracingConfig);
+    const configBase64 = base64Encode(tracingConfig);
     const perfettoCmd = `perfetto -c - -o ${this.traceDestFile}`;
     return `echo '${configBase64}' | base64 -d | ${perfettoCmd}`;
   }
