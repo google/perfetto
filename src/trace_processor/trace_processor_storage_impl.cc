@@ -83,6 +83,7 @@ void TraceProcessorStorageImpl::NotifyEndOfFile() {
   context_.event_tracker->FlushPendingEvents();
   context_.slice_tracker->FlushPendingSlices();
   context_.heap_profile_tracker->NotifyEndOfFile();
+  context_.process_tracker->NotifyEndOfFile();
   for (std::unique_ptr<ProtoImporterModule>& module : context_.modules) {
     module->NotifyEndOfFile();
   }
