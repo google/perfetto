@@ -48,6 +48,9 @@ packet {
       pid: 5
       process_name: "p1"
     }
+    chrome_process {
+      host_app_package_name: "host_app"
+    }
   }
 }
 # And we have an async track underneath the process too.
