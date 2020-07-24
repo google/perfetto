@@ -114,14 +114,23 @@ void QueryResultSerializer::SerializeBatch(std::vector<uint8_t>* buf) {
   bool batch_full = false;
 
   // Skip block if the query didn't return any result (e.g. CREATE TABLE).
-  while (num_cols_ > 0) {
-    // Next needs to be called before iterating on a row. col_ is initialized
-    // at MAX_INT in the constructor, so in the very first iteration this causes
-    // a Next() call.
+  for (; num_cols_ > 0; ++cell_idx, ++col_) {
+    // This branch is hit before starting each row. Note that iter_->Next() must
+    // be called before iterating on a row. col_ is initialized at MAX_INT in
+    // the constructor.
     if (col_ >= num_cols_) {
       col_ = 0;
       if (!iter_->Next())
         break;  // EOF or error.
+
+      // We need to guarantee that a batch contains whole rows. Before moving to
+      // the next row, make sure that: (i) there is space for all the columns;
+      // (ii) the batch didn't grow too much.
+      if (cell_idx + num_cols_ > cells_per_batch_ ||
+          approx_batch_size > batch_split_threshold_) {
+        batch_full = true;
+        break;
+      }
     }
 
     auto value = iter_->Get(col_);
@@ -175,18 +184,6 @@ void QueryResultSerializer::SerializeBatch(std::vector<uint8_t>* buf) {
 
     PERFETTO_DCHECK(cell_type != BatchProto::CELL_INVALID);
     cell_types[cell_idx] = cell_type;
-
-    // The wrapping + iter_->Next() is done in the beginning to deal with
-    // the very first Next() call in one place.
-    ++cell_idx;
-    ++col_;
-
-    if (cell_idx >= cells_per_batch_ ||
-        approx_batch_size > batch_split_threshold_) {
-      batch_full = true;
-      break;
-    }
-
   }  // for (cell)
 
   // Backfill the string size.
