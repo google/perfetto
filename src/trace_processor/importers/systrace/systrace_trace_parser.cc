@@ -163,9 +163,10 @@ util::Status SystraceTraceParser::Parse(std::unique_ptr<uint8_t[]> owned_buf,
             PERFETTO_ELOG("Could not parse line '%s'", buffer.c_str());
             return util::ErrStatus("Could not parse PROCESS DUMP line");
           }
-          ctx_->process_tracker->UpdateThread(tid.value(), tgid.value());
-          ctx_->process_tracker->UpdateThreadName(tid.value(), cmd_id,
-                                                  ThreadNamePriority::kOther);
+          UniqueTid utid =
+              ctx_->process_tracker->UpdateThread(tid.value(), tgid.value());
+          ctx_->process_tracker->UpdateThreadNameByUtid(
+              utid, cmd_id, ThreadNamePriority::kOther);
         }
       }
     }
