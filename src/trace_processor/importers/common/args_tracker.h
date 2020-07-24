@@ -125,6 +125,12 @@ class ArgsTracker {
         context_->storage->mutable_vulkan_memory_allocations_table(), id);
   }
 
+  BoundInserter AddArgsTo(UniquePid id) {
+    return BoundInserter(
+        this, context_->storage->mutable_process_table()->mutable_arg_set_id(),
+        id);
+  }
+
   // Commits the added args to storage.
   // Virtual for testing.
   virtual void Flush();

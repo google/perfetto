@@ -20,6 +20,7 @@
 #include <tuple>
 
 #include "perfetto/ext/base/string_view.h"
+#include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -145,6 +146,14 @@ class ProcessTracker {
   // traces, we always have the "swapper" (idle) process having tid/pid 0.
   void SetPidZeroIgnoredForIdleProcess();
 
+  // Returns a BoundInserter to add arguments to the arg set of a process.
+  // Arguments are flushed into trace storage only after the trace was loaded in
+  // its entirety.
+  ArgsTracker::BoundInserter AddArgsTo(UniquePid upid);
+
+  // Called when the trace was fully loaded.
+  void NotifyEndOfFile();
+
  private:
   // Returns the utid of a thread having |tid| and |pid| as the parent process.
   // pid == base::nullopt matches all processes.
@@ -162,6 +171,8 @@ class ProcessTracker {
   void AssociateThreadToProcess(UniqueTid, UniquePid);
 
   TraceProcessorContext* const context_;
+
+  ArgsTracker args_tracker_;
 
   // Each tid can have multiple UniqueTid entries, a new UniqueTid is assigned
   // each time a thread is seen in the trace.
