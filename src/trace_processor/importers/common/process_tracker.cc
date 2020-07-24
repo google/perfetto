@@ -25,7 +25,7 @@ namespace perfetto {
 namespace trace_processor {
 
 ProcessTracker::ProcessTracker(TraceProcessorContext* context)
-    : context_(context) {
+    : context_(context), args_tracker_(context) {
   // Reserve utid/upid 0. These are special as embedders (e.g. Perfetto UI)
   // exclude them by filtering them out. If the parsed trace contains ftrace
   // data, SetPidZeroIgnoredForIdleProcess will create a mapping
@@ -430,6 +430,14 @@ void ProcessTracker::SetPidZeroIgnoredForIdleProcess() {
 
   auto swapper_id = context_->storage->InternString("swapper");
   UpdateThreadName(0, swapper_id, ThreadNamePriority::kTraceProcessorConstant);
+}
+
+ArgsTracker::BoundInserter ProcessTracker::AddArgsTo(UniquePid upid) {
+  return args_tracker_.AddArgsTo(upid);
+}
+
+void ProcessTracker::NotifyEndOfFile() {
+  args_tracker_.Flush();
 }
 
 }  // namespace trace_processor
