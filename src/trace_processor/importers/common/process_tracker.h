@@ -85,6 +85,12 @@ class ProcessTracker {
                                      StringId thread_name_id,
                                      ThreadNamePriority priority);
 
+  // Assigns the given name to the thread if the new name has a higher priority
+  // than the existing one. The thread is identified by utid.
+  virtual void UpdateThreadNameByUtid(UniqueTid utid,
+                                      StringId thread_name_id,
+                                      ThreadNamePriority priority);
+
   // Called when a thread is seen the process tree. Retrieves the matching utid
   // for the tid and the matching upid for the tgid and stores both.
   // Virtual for testing.

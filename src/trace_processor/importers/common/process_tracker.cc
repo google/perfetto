@@ -106,16 +106,22 @@ UniqueTid ProcessTracker::GetOrCreateThread(uint32_t tid) {
 UniqueTid ProcessTracker::UpdateThreadName(uint32_t tid,
                                            StringId thread_name_id,
                                            ThreadNamePriority priority) {
-  auto* thread_table = context_->storage->mutable_thread_table();
   auto utid = GetOrCreateThread(tid);
-  if (thread_name_id.is_null())
-    return utid;
+  UpdateThreadNameByUtid(utid, thread_name_id, priority);
+  return utid;
+}
 
+void ProcessTracker::UpdateThreadNameByUtid(UniqueTid utid,
+                                            StringId thread_name_id,
+                                            ThreadNamePriority priority) {
+  if (thread_name_id.is_null())
+    return;
+
+  auto* thread_table = context_->storage->mutable_thread_table();
   if (priority >= thread_name_priorities_[utid]) {
     thread_table->mutable_name()->Set(utid, thread_name_id);
     thread_name_priorities_[utid] = priority;
   }
-  return utid;
 }
 
 bool ProcessTracker::IsThreadAlive(UniqueTid utid) {

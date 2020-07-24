@@ -879,8 +879,8 @@ void FtraceParser::ParseTaskNewTask(int64_t ts,
   // they get resolved to the same process.
   auto source_utid = proc_tracker->GetOrCreateThread(source_tid);
   auto new_utid = proc_tracker->StartNewThread(ts, new_tid);
-  proc_tracker->UpdateThreadName(new_tid, new_comm,
-                                 ThreadNamePriority::kFtrace);
+  proc_tracker->UpdateThreadNameByUtid(new_utid, new_comm,
+                                       ThreadNamePriority::kFtrace);
   proc_tracker->AssociateThreads(source_utid, new_utid);
 }
 
