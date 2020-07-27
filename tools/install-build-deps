@@ -200,11 +200,11 @@ TYPEFACES_SHA1 = '4fb455de506f8a2859dc5264b8448c2559b08ab8'
 
 UI_DEPS = [
     Dependency('buildtools/nodejs.tgz',
-     'https://storage.googleapis.com/perfetto/node-v10.3.0-darwin-x64.tar.gz',
-     '6d9a122785f38c256add3b25f74adf125497861a', 'darwin'),
+     'https://storage.googleapis.com/perfetto/node-v12.18.3-darwin-x64.tar.gz',
+     '8a7a901b7c1447235bfe8575a1c8a78eb14afbcf', 'darwin'),
     Dependency('buildtools/nodejs.tgz',
-     'https://storage.googleapis.com/perfetto/node-v10.3.0-linux-x64.tar.xz',
-     '118f6ea19f75089b3f12ac2ddfce357bff872b5e', 'linux'),
+     'https://storage.googleapis.com/perfetto/node-v12.18.3-linux-x64.tar.gz',
+     'c02138c2f9a813f88e81d31c4f9e5652dd7a9684', 'linux'),
     Dependency('buildtools/emsdk/emscripten.tgz',
      'https://storage.googleapis.com/perfetto/emscripten-1.37.40.tar.gz',
      '588c28221321ebbdfc8e3a6f47ea6106f589669b', 'all'),
