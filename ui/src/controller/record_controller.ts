@@ -15,7 +15,7 @@
 import {Message, Method, rpc, RPCImplCallback} from 'protobufjs';
 
 import {
-  uint8ArrayToBase64,
+  base64Encode,
 } from '../base/string_utils';
 import {Actions} from '../common/actions';
 import {
@@ -566,7 +566,7 @@ export class RecordController extends Controller<'main'> implements Consumer {
     const configProto =
         genConfigProto(this.config, this.app.state.recordingTarget);
     const configProtoText = toPbtxt(configProto);
-    const configProtoBase64 = uint8ArrayToBase64(configProto);
+    const configProtoBase64 = base64Encode(configProto);
     const commandline = `
       echo '${configProtoBase64}' |
       base64 --decode |
@@ -635,7 +635,7 @@ export class RecordController extends Controller<'main'> implements Consumer {
         globals.publish('BufferUsage', {percentage});
       }
     } else {
-      console.error('Unrecognized consumer port response:', data);
+      console.warn('Unrecognized consumer port response:', data);
     }
   }
 
