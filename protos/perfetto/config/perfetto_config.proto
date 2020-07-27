@@ -323,6 +323,12 @@ message ChromeConfig {
   // When enabled, the data source should only fill in fields in the output that
   // are not potentially privacy sensitive.
   optional bool privacy_filtering_enabled = 2;
+
+  // Instead of emitting binary protobuf, convert the trace data to the legacy
+  // JSON format. Note that the trace data will still be returned as a series of
+  // TracePackets, but the embedded data will be JSON instead of serialized
+  // protobuf.
+  optional bool convert_to_legacy_json = 3;
 }
 
 // End of protos/perfetto/config/chrome/chrome_config.proto
