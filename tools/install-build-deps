@@ -26,7 +26,6 @@ import zipfile
 from collections import namedtuple
 from platform import system
 
-
 # The format for the deps below is the following:
 # (target_folder, source_url, sha1, target_platform)
 # |source_url| can be either a git repo or a http url.
@@ -38,111 +37,128 @@ from platform import system
 # instead just buildtools/protobuf).
 # |target_platform| is either 'darwin', 'linux' or 'all' and applies the dep
 # only on the given platform
-Dependency = namedtuple('Dependency', ['target_folder', 'source_url',
-                                   'sha1', 'target_platform'])
+Dependency = namedtuple(
+    'Dependency', ['target_folder', 'source_url', 'sha1', 'target_platform'])
 
 # Dependencies required to build code on the host or when targeting desktop OS.
 BUILD_DEPS_HOST = [
     # GN
     Dependency('buildtools/mac/gn',
-     'https://storage.googleapis.com/perfetto/gn-mac-1695-83dad00a',
-     '4c0d45772aea4146699772165e8112fa76ceb295', 'darwin'),
-    Dependency('buildtools/linux64/gn',
-     'https://storage.googleapis.com/perfetto/gn-linux64-1695-83dad00a',
-     'fcabfc379bccaa65b4e2fc791594ba124dafc7d0', 'linux'),
+               'https://storage.googleapis.com/perfetto/gn-mac-1695-83dad00a',
+               '4c0d45772aea4146699772165e8112fa76ceb295', 'darwin'),
+    Dependency(
+        'buildtools/linux64/gn',
+        'https://storage.googleapis.com/perfetto/gn-linux64-1695-83dad00a',
+        'fcabfc379bccaa65b4e2fc791594ba124dafc7d0', 'linux'),
 
     # clang-format
-    Dependency('buildtools/mac/clang-format',
-     'https://storage.googleapis.com/chromium-clang-format/025ca7c75f37ef4a40f3a67d81ddd11d7d0cdb9b',
-     '025ca7c75f37ef4a40f3a67d81ddd11d7d0cdb9b', 'darwin'),
-    Dependency('buildtools/linux64/clang-format',
-     'https://storage.googleapis.com/chromium-clang-format/942fc8b1789144b8071d3fc03ff0fcbe1cf81ac8',
-     '942fc8b1789144b8071d3fc03ff0fcbe1cf81ac8', 'linux'),
+    Dependency(
+        'buildtools/mac/clang-format',
+        'https://storage.googleapis.com/chromium-clang-format/025ca7c75f37ef4a40f3a67d81ddd11d7d0cdb9b',
+        '025ca7c75f37ef4a40f3a67d81ddd11d7d0cdb9b', 'darwin'),
+    Dependency(
+        'buildtools/linux64/clang-format',
+        'https://storage.googleapis.com/chromium-clang-format/942fc8b1789144b8071d3fc03ff0fcbe1cf81ac8',
+        '942fc8b1789144b8071d3fc03ff0fcbe1cf81ac8', 'linux'),
     # Keep the SHA1 in sync with |clang_format_rev| in chromium //buildtools/DEPS.
-    Dependency('buildtools/clang_format/script',
-     'https://chromium.googlesource.com/chromium/llvm-project/cfe/tools/clang-format.git',
-     '96636aa0e9f047f17447f2d45a094d0b59ed7917', 'all'),
+    Dependency(
+        'buildtools/clang_format/script',
+        'https://chromium.googlesource.com/chromium/llvm-project/cfe/tools/clang-format.git',
+        '96636aa0e9f047f17447f2d45a094d0b59ed7917', 'all'),
 
     # Ninja
-    Dependency('buildtools/mac/ninja',
-     'https://storage.googleapis.com/perfetto/ninja-mac-c15b0698da038b2bd2e8970c14c75fadc06b1add',
-     'c15b0698da038b2bd2e8970c14c75fadc06b1add', 'darwin'),
-    Dependency('buildtools/linux64/ninja',
-     'https://storage.googleapis.com/perfetto/ninja-linux64-c866952bda50c29a669222477309287119bbb7e8',
-     'c866952bda50c29a669222477309287119bbb7e8', 'linux'),
+    Dependency(
+        'buildtools/mac/ninja',
+        'https://storage.googleapis.com/perfetto/ninja-mac-c15b0698da038b2bd2e8970c14c75fadc06b1add',
+        'c15b0698da038b2bd2e8970c14c75fadc06b1add', 'darwin'),
+    Dependency(
+        'buildtools/linux64/ninja',
+        'https://storage.googleapis.com/perfetto/ninja-linux64-c866952bda50c29a669222477309287119bbb7e8',
+        'c866952bda50c29a669222477309287119bbb7e8', 'linux'),
 
     # Keep in sync with Android's //external/googletest/README.version.
-    Dependency('buildtools/googletest.zip',
-     'https://github.com/google/googletest/archive/3f05f651ae3621db58468153e32016bc1397800b.zip',
-     '86384688f7c533ad325a505efc917e0cdf39a0ce', 'all'),
+    Dependency(
+        'buildtools/googletest.zip',
+        'https://github.com/google/googletest/archive/3f05f651ae3621db58468153e32016bc1397800b.zip',
+        '86384688f7c533ad325a505efc917e0cdf39a0ce', 'all'),
 
     # Keep in sync with Chromium's //third_party/protobuf.
-    Dependency('buildtools/protobuf.zip',
-     'https://github.com/protocolbuffers/protobuf/releases/download/v3.9.0/protobuf-cpp-3.9.0.zip',
-     'c975536dffe9d9a3d362928aef4fb9f199012b98', 'all'),
+    Dependency(
+        'buildtools/protobuf.zip',
+        'https://github.com/protocolbuffers/protobuf/releases/download/v3.9.0/protobuf-cpp-3.9.0.zip',
+        'c975536dffe9d9a3d362928aef4fb9f199012b98', 'all'),
 
     # libc++, libc++abi and libunwind for Linux where we need to rebuild the C++
     # lib from sources. Keep the SHA1s in sync with Chrome's src/buildtools/DEPS.
-    Dependency('buildtools/libcxx',
-     'https://chromium.googlesource.com/chromium/llvm-project/libcxx.git',
-     '78d6a7767ed57b50122a161b91f59f19c9bd0d19', 'all'),
-    Dependency('buildtools/libcxxabi',
-     'https://chromium.googlesource.com/chromium/llvm-project/libcxxabi.git',
-     '0d529660e32d77d9111912d73f2c74fc5fa2a858', 'all'),
-    Dependency('buildtools/libunwind',
-     'https://chromium.googlesource.com/external/llvm.org/libunwind.git',
-     '69d9b84cca8354117b9fe9705a4430d789ee599b', 'all'),
+    Dependency(
+        'buildtools/libcxx',
+        'https://chromium.googlesource.com/chromium/llvm-project/libcxx.git',
+        '78d6a7767ed57b50122a161b91f59f19c9bd0d19', 'all'),
+    Dependency(
+        'buildtools/libcxxabi',
+        'https://chromium.googlesource.com/chromium/llvm-project/libcxxabi.git',
+        '0d529660e32d77d9111912d73f2c74fc5fa2a858', 'all'),
+    Dependency(
+        'buildtools/libunwind',
+        'https://chromium.googlesource.com/external/llvm.org/libunwind.git',
+        '69d9b84cca8354117b9fe9705a4430d789ee599b', 'all'),
 
     # Keep the revision in sync with Chrome's PACKAGE_VERSION in
     # tools/clang/scripts/update.py.
-    Dependency('buildtools/clang.tgz',
-     'https://commondatastorage.googleapis.com/chromium-browser-clang/Linux_x64/clang-n332890-c2443155-2.tgz',
-     'd6501ffdb5dbb0ffe8a4b873cc092a9929e661ec', 'linux'),
+    Dependency(
+        'buildtools/clang.tgz',
+        'https://commondatastorage.googleapis.com/chromium-browser-clang/Linux_x64/clang-n332890-c2443155-2.tgz',
+        'd6501ffdb5dbb0ffe8a4b873cc092a9929e661ec', 'linux'),
 
     # Keep in sync with chromium DEPS.
-    Dependency('buildtools/libfuzzer',
-     'https://chromium.googlesource.com/chromium/llvm-project/compiler-rt/lib/fuzzer.git',
-     'debe7d2d1982e540fbd6bd78604bf001753f9e74', 'linux'),
+    Dependency(
+        'buildtools/libfuzzer',
+        'https://chromium.googlesource.com/chromium/llvm-project/compiler-rt/lib/fuzzer.git',
+        'debe7d2d1982e540fbd6bd78604bf001753f9e74', 'linux'),
 
     # Benchmarking tool.
     Dependency('buildtools/benchmark.zip',
-     'https://github.com/google/benchmark/archive/v1.5.0.zip',
-     'a9c9bd8a28db82f5ba02998197cfcc4db5a67507', 'all'),
+               'https://github.com/google/benchmark/archive/v1.5.0.zip',
+               'a9c9bd8a28db82f5ba02998197cfcc4db5a67507', 'all'),
 
     # Libbacktrace, for stacktraces in Linux/Android debug builds.
-    Dependency('buildtools/libbacktrace.zip',
-     'https://github.com/ianlancetaylor/libbacktrace/archive/177940370e4a6b2509e92a0aaa9749184e64af43.zip',
-     'b723fe9d671d1ab54df1297f6afbf2893a41c3ea', 'all'),
+    Dependency(
+        'buildtools/libbacktrace.zip',
+        'https://github.com/ianlancetaylor/libbacktrace/archive/177940370e4a6b2509e92a0aaa9749184e64af43.zip',
+        'b723fe9d671d1ab54df1297f6afbf2893a41c3ea', 'all'),
 
     # Sqlite for the trace processing library.
     # This is the amalgamated source whose compiled output is meant to be faster.
     # We still pull the full source for the extensions (not amalgamated).
-    Dependency('buildtools/sqlite.zip',
-     'https://storage.googleapis.com/perfetto/sqlite-amalgamation-3320300.zip',
-     '0c805bea134712a903290a26b2a61c3a8a3bd8cc', 'all'),
-    Dependency('buildtools/sqlite_src.zip',
-     'https://storage.googleapis.com/perfetto/sqlite-src-3320300.zip',
-     'd46f60e0fb2b1a959ae59bfa881fc95a510c4d21', 'all'),
+    Dependency(
+        'buildtools/sqlite.zip',
+        'https://storage.googleapis.com/perfetto/sqlite-amalgamation-3320300.zip',
+        '0c805bea134712a903290a26b2a61c3a8a3bd8cc', 'all'),
+    Dependency(
+        'buildtools/sqlite_src.zip',
+        'https://storage.googleapis.com/perfetto/sqlite-src-3320300.zip',
+        'd46f60e0fb2b1a959ae59bfa881fc95a510c4d21', 'all'),
 
     # JsonCpp for legacy json import. Used only by the trace processor in
     # standalone builds.
-    Dependency('buildtools/jsoncpp.zip',
-     'https://github.com/open-source-parsers/jsoncpp/archive/1.9.3.zip',
-     'ec1cf26bf4e60822dbb31576e1a83ce1b9fbc36a', 'all'),
+    Dependency(
+        'buildtools/jsoncpp.zip',
+        'https://github.com/open-source-parsers/jsoncpp/archive/1.9.3.zip',
+        'ec1cf26bf4e60822dbb31576e1a83ce1b9fbc36a', 'all'),
 
     # These dependencies are for libunwindstack, which is used by src/profiling.
     Dependency('buildtools/android-core',
-     'https://android.googlesource.com/platform/system/core.git',
-     '8bf4e29e44098e3232ff646331675fb113064162', 'all'),
+               'https://android.googlesource.com/platform/system/core.git',
+               '8bf4e29e44098e3232ff646331675fb113064162', 'all'),
     Dependency('buildtools/lzma',
-     'https://android.googlesource.com/platform/external/lzma.git',
-     '7851dce6f4ca17f5caa1c93a4e0a45686b1d56c3', 'all'),
+               'https://android.googlesource.com/platform/external/lzma.git',
+               '7851dce6f4ca17f5caa1c93a4e0a45686b1d56c3', 'all'),
     Dependency('buildtools/zlib',
-     'https://android.googlesource.com/platform/external/zlib.git',
-     'dfa0646a03b4e1707469e04dc931b09774968fe6', 'all'),
+               'https://android.googlesource.com/platform/external/zlib.git',
+               'dfa0646a03b4e1707469e04dc931b09774968fe6', 'all'),
     Dependency('buildtools/bionic',
-     'https://android.googlesource.com/platform/bionic.git',
-     'a60488109cda997dfd83832731c8527feaa2825e', 'all'),
+               'https://android.googlesource.com/platform/bionic.git',
+               'a60488109cda997dfd83832731c8527feaa2825e', 'all'),
 
     # Example traces for regression tests.
     Dependency(
@@ -154,8 +170,8 @@ BUILD_DEPS_HOST = [
 
     # Linenoise, used only by trace_processor in standalone builds.
     Dependency('buildtools/linenoise',
-     'https://fuchsia.googlesource.com/third_party/linenoise.git',
-     'c894b9e59f02203dbe4e2be657572cf88c4230c3', 'all'),
+               'https://fuchsia.googlesource.com/third_party/linenoise.git',
+               'c894b9e59f02203dbe4e2be657572cf88c4230c3', 'all'),
 ]
 
 # Dependencies required to build Android code.
@@ -164,33 +180,38 @@ BUILD_DEPS_HOST = [
 # - https://dl.google.com/android/repository/sys-img/android/sys-img.xml
 BUILD_DEPS_ANDROID = [
     # Android NDK
-    Dependency('buildtools/ndk.zip',
-     'https://dl.google.com/android/repository/android-ndk-r17b-darwin-x86_64.zip',
-     'f990aafaffec0b583d2c5420bfa622e52ac14248', 'darwin'),
-    Dependency('buildtools/ndk.zip',
-     'https://dl.google.com/android/repository/android-ndk-r17b-linux-x86_64.zip',
-     'dd5762ee7ef4995ad04fe0c45a608c344d99ca9f', 'linux'),
+    Dependency(
+        'buildtools/ndk.zip',
+        'https://dl.google.com/android/repository/android-ndk-r17b-darwin-x86_64.zip',
+        'f990aafaffec0b583d2c5420bfa622e52ac14248', 'darwin'),
+    Dependency(
+        'buildtools/ndk.zip',
+        'https://dl.google.com/android/repository/android-ndk-r17b-linux-x86_64.zip',
+        'dd5762ee7ef4995ad04fe0c45a608c344d99ca9f', 'linux'),
 ]
 
 # Dependencies required to run Android tests.
 TEST_DEPS_ANDROID = [
     # Android emulator images.
     Dependency('buildtools/aosp-arm.zip',
-     'https://storage.googleapis.com/perfetto/aosp-02022018-arm.zip',
-     'a480d5e7d3ca888b0a58fe15ce76b1791537429a', 'all'),
+               'https://storage.googleapis.com/perfetto/aosp-02022018-arm.zip',
+               'a480d5e7d3ca888b0a58fe15ce76b1791537429a', 'all'),
 
     # platform-tools.zip contains adb binaries.
-    Dependency('buildtools/android_sdk/platform-tools.zip',
-     'https://dl.google.com/android/repository/platform-tools_r26.0.0-darwin.zip',
-     'e75b6137dc444f777eb02f44a6d9819b3aabff82', 'darwin'),
-    Dependency('buildtools/android_sdk/platform-tools.zip',
-     'https://dl.google.com/android/repository/platform-tools_r26.0.0-linux.zip',
-     '00de8a6631405b617c10f68cd11ff2e1cd528e23', 'linux'),
+    Dependency(
+        'buildtools/android_sdk/platform-tools.zip',
+        'https://dl.google.com/android/repository/platform-tools_r26.0.0-darwin.zip',
+        'e75b6137dc444f777eb02f44a6d9819b3aabff82', 'darwin'),
+    Dependency(
+        'buildtools/android_sdk/platform-tools.zip',
+        'https://dl.google.com/android/repository/platform-tools_r26.0.0-linux.zip',
+        '00de8a6631405b617c10f68cd11ff2e1cd528e23', 'linux'),
 
     # Android emulator binaries.
-    Dependency('buildtools/emulator',
-     'https://android.googlesource.com/platform/prebuilts/android-emulator.git',
-     '4b260028dc27bc92c39bee9129cb2ba839970956', 'all'),
+    Dependency(
+        'buildtools/emulator',
+        'https://android.googlesource.com/platform/prebuilts/android-emulator.git',
+        '4b260028dc27bc92c39bee9129cb2ba839970956', 'all'),
 ]
 
 # This variable is updated by tools/roll-catapult-trace-viewer.
@@ -199,33 +220,42 @@ CATAPULT_SHA1 = '5f77256e1b24851a05e8580438b532e2480dd7fd'
 TYPEFACES_SHA1 = '4fb455de506f8a2859dc5264b8448c2559b08ab8'
 
 UI_DEPS = [
-    Dependency('buildtools/nodejs.tgz',
-     'https://storage.googleapis.com/perfetto/node-v12.18.3-darwin-x64.tar.gz',
-     '8a7a901b7c1447235bfe8575a1c8a78eb14afbcf', 'darwin'),
-    Dependency('buildtools/nodejs.tgz',
-     'https://storage.googleapis.com/perfetto/node-v12.18.3-linux-x64.tar.gz',
-     'c02138c2f9a813f88e81d31c4f9e5652dd7a9684', 'linux'),
-    Dependency('buildtools/emsdk/emscripten.tgz',
-     'https://storage.googleapis.com/perfetto/emscripten-1.37.40.tar.gz',
-     '588c28221321ebbdfc8e3a6f47ea6106f589669b', 'all'),
-    Dependency('buildtools/emsdk/llvm.tgz',
-     'https://storage.googleapis.com/perfetto/emscripten-llvm-e1.37.40-darwin.tar.gz',
-     '7a894ef0a52821c62f6abaac552dc4ce5d424607', 'darwin'),
-    Dependency('buildtools/emsdk/llvm.tgz',
-     'https://storage.googleapis.com/perfetto/emscripten-llvm-e1.37.40-static-linux.tar.gz',
-     '478501b9b7a14884e546c84efe209a90052cbb07', 'linux'),
-    Dependency('buildtools/d8.tgz',
-     'https://storage.googleapis.com/perfetto/d8-linux-5.7.492.65.tar.gz',
-     '95e82ad7faf0a6f74d950c2aa65e3858b7bdb6c6', 'linux'),
-    Dependency('buildtools/d8.tgz',
-     'https://storage.googleapis.com/perfetto/d8-darwin-6.6.346.32.tar.gz',
-     '1abd630619bb1977ab62095570a113d782a1545d', 'darwin'),
-    Dependency('buildtools/catapult_trace_viewer.tgz',
-     'https://storage.googleapis.com/perfetto/catapult_trace_viewer-%s.tar.gz' %
-     CATAPULT_SHA1, CATAPULT_SHA1, 'all'),
-    Dependency('buildtools/typefaces.tgz',
-     'https://storage.googleapis.com/perfetto/typefaces-%s.tar.gz' %
-     TYPEFACES_SHA1, TYPEFACES_SHA1, 'all')
+    Dependency(
+        'buildtools/nodejs.tgz',
+        'https://storage.googleapis.com/perfetto/node-v12.18.3-darwin-x64.tar.gz',
+        '8a7a901b7c1447235bfe8575a1c8a78eb14afbcf', 'darwin'),
+    Dependency(
+        'buildtools/nodejs.tgz',
+        'https://storage.googleapis.com/perfetto/node-v12.18.3-linux-x64.tar.gz',
+        'c02138c2f9a813f88e81d31c4f9e5652dd7a9684', 'linux'),
+    Dependency(
+        'buildtools/emsdk/emscripten.tgz',
+        'https://storage.googleapis.com/perfetto/emscripten-1.37.40.tar.gz',
+        '588c28221321ebbdfc8e3a6f47ea6106f589669b', 'all'),
+    Dependency(
+        'buildtools/emsdk/llvm.tgz',
+        'https://storage.googleapis.com/perfetto/emscripten-llvm-e1.37.40-darwin.tar.gz',
+        '7a894ef0a52821c62f6abaac552dc4ce5d424607', 'darwin'),
+    Dependency(
+        'buildtools/emsdk/llvm.tgz',
+        'https://storage.googleapis.com/perfetto/emscripten-llvm-e1.37.40-static-linux.tar.gz',
+        '478501b9b7a14884e546c84efe209a90052cbb07', 'linux'),
+    Dependency(
+        'buildtools/d8.tgz',
+        'https://storage.googleapis.com/perfetto/d8-linux-5.7.492.65.tar.gz',
+        '95e82ad7faf0a6f74d950c2aa65e3858b7bdb6c6', 'linux'),
+    Dependency(
+        'buildtools/d8.tgz',
+        'https://storage.googleapis.com/perfetto/d8-darwin-6.6.346.32.tar.gz',
+        '1abd630619bb1977ab62095570a113d782a1545d', 'darwin'),
+    Dependency(
+        'buildtools/catapult_trace_viewer.tgz',
+        'https://storage.googleapis.com/perfetto/catapult_trace_viewer-%s.tar.gz'
+        % CATAPULT_SHA1, CATAPULT_SHA1, 'all'),
+    Dependency(
+        'buildtools/typefaces.tgz',
+        'https://storage.googleapis.com/perfetto/typefaces-%s.tar.gz' %
+        TYPEFACES_SHA1, TYPEFACES_SHA1, 'all')
 ]
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -290,7 +320,12 @@ def CheckoutGitRepo(path, git_url, revision, check_only):
   return True
 
 
-def InstallNodeModules():
+def InstallNodeModules(force_clean=False):
+  if force_clean:
+    node_modules = os.path.join(UI_DIR, 'node_modules')
+    logging.info('Clearing %s', node_modules)
+    subprocess.check_call(['git', 'clean', '-qxffd', node_modules],
+                          cwd=ROOT_DIR)
   logging.info("Running npm install in {0}".format(UI_DIR))
   subprocess.check_call([os.path.join(UI_DIR, 'npm'), 'install', '--no-save'],
                         cwd=UI_DIR)
@@ -318,7 +353,7 @@ def CheckHashes():
       if dep.source_url.endswith('.git'):
         continue
       logging.info('Downloading %s from %s', dep.target_platform,
-                                             dep.source_url)
+                   dep.source_url)
       with tempfile.NamedTemporaryFile(delete=False) as f:
         f.close()
         DownloadURL(url, f.name)
@@ -345,6 +380,7 @@ def Main():
   if args.ui:
     deps += UI_DEPS
   deps_updated = False
+  nodejs_updated = False
 
   for dep in deps:
     if (dep.target_platform != 'all' and
@@ -378,6 +414,9 @@ def Main():
             download_path, dep.sha1, actual_sha1))
         return 1
       os.rename(download_path, local_path)
+      if 'nodejs' in dep.target_folder:
+        nodejs_updated = True
+
     assert (HashLocalFile(local_path) == dep.sha1)
 
     if is_zip:
@@ -416,7 +455,7 @@ def Main():
     if args.check_only:
       deps_updated = not CheckNodeModules()
     else:
-      InstallNodeModules()
+      InstallNodeModules(force_clean=nodejs_updated)
 
   if args.check_only:
     if not deps_updated:
