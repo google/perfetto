@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {stringToUint8Array} from '../base/string_utils';
+import {binaryDecode} from '../base/string_utils';
 import {ChromeTracingController} from './chrome_tracing_controller';
 
 let chromeTraceController: ChromeTracingController|undefined = undefined;
@@ -38,7 +38,7 @@ function onUIMessage(
   // ChromeExtensionConsumerPort sends the request data as string because
   // chrome.runtime.port doesn't support ArrayBuffers.
   const requestDataArray: Uint8Array = message.requestData ?
-      stringToUint8Array(message.requestData) :
+      binaryDecode(message.requestData) :
       new Uint8Array();
   chromeTraceController.handleCommand(message.method, requestDataArray);
 }

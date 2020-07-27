@@ -12,11 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {stringToUint8Array, uint8ArrayToString} from '../base/string_utils';
+import {binaryDecode, binaryEncode} from '../base/string_utils';
 
 import {
   ConsumerPortResponse,
-  isConsumerPortResponse,
   isReadBuffersResponse,
   Typed
 } from './consumer_port_types';
@@ -45,6 +44,12 @@ function isStatus(obj: Typed): obj is ChromeExtensionStatus {
 // to the frontend. This is needed because we can't directly talk with the
 // extension from a web-worker, so we use a MessagePort to communicate with the
 // frontend, that will consecutively forward it to the extension.
+
+// Rationale for the binaryEncode / binaryDecode calls below:
+// Messages to/from extensions need to be JSON serializable. ArrayBuffers are
+// not supported. For this reason here we use binaryEncode/Decode.
+// See https://developer.chrome.com/extensions/messaging#simple
+
 export class ChromeExtensionConsumerPort extends RpcConsumerPort {
   private extensionPort: MessagePort;
 
@@ -64,23 +69,16 @@ export class ChromeExtensionConsumerPort extends RpcConsumerPort {
       return;
     }
 
-    console.assert(isConsumerPortResponse(message.data));
     // In this else branch message.data will be a ConsumerPortResponse.
     if (isReadBuffersResponse(message.data) && message.data.slices) {
-      // This is needed because we can't send an ArrayBuffer through a
-      // chrome.runtime.port. A string is sent instead, and here converted to
-      // an ArrayBuffer.
       const slice = message.data.slices[0].data as unknown as string;
-      message.data.slices[0].data = stringToUint8Array(slice);
+      message.data.slices[0].data = binaryDecode(slice);
     }
     this.sendMessage(message.data);
   }
 
   handleCommand(method: string, requestData: Uint8Array): void {
-    const buffer = uint8ArrayToString(requestData);
-    // We need to encode the buffer as a string because the message port doesn't
-    // fully support sending ArrayBuffers (they are converted to objects with
-    // indexes as keys).
-    this.extensionPort.postMessage({method, requestData: buffer});
+    const reqEncoded = binaryEncode(requestData);
+    this.extensionPort.postMessage({method, requestData: reqEncoded});
   }
 }
