@@ -28,12 +28,6 @@ export interface GetTraceStatsResponse extends
 export type ConsumerPortResponse =
     EnableTracingResponse|ReadBuffersResponse|GetTraceStatsResponse;
 
-export function isConsumerPortResponse(obj: Typed):
-    obj is ConsumerPortResponse {
-  return isReadBuffersResponse(obj) || isEnableTracingResponse(obj) ||
-      isGetTraceStatsResponse(obj);
-}
-
 export function isReadBuffersResponse(obj: Typed): obj is ReadBuffersResponse {
   return obj.type === 'ReadBuffersResponse';
 }
