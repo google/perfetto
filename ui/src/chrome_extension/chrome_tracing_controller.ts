@@ -28,8 +28,6 @@ import {perfetto} from '../gen/protos';
 
 import {DevToolsSocket} from './devtools_socket';
 
-// The chunk size should be large enough to support reasonable batching of data,
-// but small enough not to cause stack overflows in uint8ArrayToString().
 const CHUNK_SIZE: number = 1024 * 1024 * 16;  // 16Mb
 
 export class ChromeTracingController extends RpcConsumerPort {
