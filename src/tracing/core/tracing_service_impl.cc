@@ -38,7 +38,7 @@
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
+    PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
 #define PERFETTO_HAS_CHMOD
 #include <sys/stat.h>
 #endif
@@ -2550,8 +2550,8 @@ bool TracingServiceImpl::SnapshotClocks(
 
   TracingSession::ClockSnapshotData new_snapshot_data;
 
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX) && \
-    !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) &&    \
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE) && \
+    !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) &&   \
     !PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
   struct {
     clockid_t id;
@@ -2581,7 +2581,7 @@ bool TracingServiceImpl::SnapshotClocks(
         static_cast<uint32_t>(clock.type),
         static_cast<uint64_t>(base::FromPosixTimespec(clock.ts).count())));
   }
-#else   // !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX) &&
+#else   // !PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE) &&
         // !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) &&
         // !PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
   auto wall_time_ns = static_cast<uint64_t>(base::GetWallTimeNs().count());
@@ -2592,7 +2592,7 @@ bool TracingServiceImpl::SnapshotClocks(
       std::make_pair(protos::pbzero::BUILTIN_CLOCK_BOOTTIME, wall_time_ns));
   new_snapshot_data.push_back(
       std::make_pair(protos::pbzero::BUILTIN_CLOCK_MONOTONIC, wall_time_ns));
-#endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX) &&
+#endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE) &&
         // !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) &&
         // !PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
 
