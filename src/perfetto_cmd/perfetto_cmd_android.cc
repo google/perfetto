@@ -107,14 +107,25 @@ void PerfettoCmd::SaveOutputToIncidentTraceOrCrash() {
 
   PERFETTO_CHECK(unlink(kTempIncidentTracePath) == 0 || errno == ENOENT);
 
+  // TODO(b/155024256) These should not be necessary (we flush when destroying
+  // packet writer and sendfile should ignore file offset) however they should
+  // not harm anything and it will help debug the linked issue.
+  PERFETTO_CHECK(fflush(*trace_out_stream_) == 0);
+  PERFETTO_CHECK(fseek(*trace_out_stream_, 0, SEEK_SET) == 0);
+
   // SELinux constrains the set of readers.
   base::ScopedFile staging_fd =
-      base::OpenFile(kTempIncidentTracePath, O_CREAT | O_RDWR, 0666);
+      base::OpenFile(kTempIncidentTracePath, O_CREAT | O_EXCL | O_RDWR, 0666);
   PERFETTO_CHECK(staging_fd);
   off_t offset = 0;
+  errno = 0;
   auto wsize = sendfile(*staging_fd, fileno(*trace_out_stream_), &offset,
                         static_cast<size_t>(bytes_written_));
-  PERFETTO_CHECK(wsize == static_cast<ssize_t>(bytes_written_));
+  if (wsize != static_cast<ssize_t>(bytes_written_)) {
+    PERFETTO_FATAL("sendfile() failed wsize (%zd) and bytes_written_ (%" PRIu64
+                   ") not equal",
+                   wsize, bytes_written_);
+  }
   staging_fd.reset();
   PERFETTO_CHECK(rename(kTempIncidentTracePath, kIncidentTracePath) == 0);
   // Note: not calling fsync(2), as we're not interested in the file being
