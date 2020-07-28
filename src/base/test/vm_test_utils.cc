@@ -92,7 +92,7 @@ bool IsMapped(void* start, size_t size) {
   // Fuchsia doesn't yet support paging (b/119503290).
   return true;
 #else
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
   using PageState = char;
   static constexpr PageState kIncoreMask = MINCORE_INCORE;
 #else

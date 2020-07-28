@@ -22,8 +22,8 @@
 #include "src/base/test/vm_test_utils.h"
 #include "test/gtest_and_gmock.h"
 
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX) && \
-    !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) &&    \
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE) && \
+    !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) &&   \
     !PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
 #include <sys/resource.h>
 #endif
@@ -149,7 +149,7 @@ TEST(PagedMemoryTest, GuardRegions) {
 // MacOS: because it doesn't seem to have an equivalent rlimit to bound mmap().
 // Fuchsia: doesn't support rlimit.
 // Sanitizers: they seem to try to shadow mmaped memory and fail due to OOMs.
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX) &&                                 \
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE) &&                                  \
     !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) &&                                    \
     !PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA) && !defined(ADDRESS_SANITIZER) && \
     !defined(LEAK_SANITIZER) && !defined(THREAD_SANITIZER) &&                  \
