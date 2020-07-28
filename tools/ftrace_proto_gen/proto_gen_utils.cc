@@ -35,7 +35,7 @@ namespace perfetto {
 namespace {
 
 std::string RunClangFmt(const std::string& input) {
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_MAC)
   const std::string platform = "mac";
 #else
   const std::string platform = "linux64";
