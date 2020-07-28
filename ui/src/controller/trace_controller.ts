@@ -600,6 +600,17 @@ export class TraceController extends Controller<States> {
       utidToThreadTrack.set(utid, {maxDepth, trackId});
     }
 
+    // For backwards compatability with older TP versions where
+    // android_thread_time_in_state_event table does not exists.
+    // TODO: remove once the track mega-query is improved.
+    const exists = await engine.query(
+        `select name from sqlite_master where type='table' and
+         name='android_thread_time_in_state_event'`);
+    if (exists.numRecords === 0) {
+      await engine.query(`create view android_thread_time_in_state_event as
+          select null as upid, null as value where 0`);
+    }
+
     // Return all threads
     // sorted by:
     //  total cpu time *for the whole parent process*
@@ -1078,6 +1089,11 @@ export class TraceController extends Controller<States> {
       // interested in the annotation tracks.
       const metricResult = await engine.computeMetric([metric]);
       assertTrue(metricResult.error.length === 0);
+
+      const exists = await engine.query(
+          `SELECT name FROM sqlite_master WHERE type='table' AND name='${
+              metric}_event'`);
+      if (exists.numRecords === 0) return;
 
       this.updateStatus(`Inserting data for ${metric} metric`);
       const result = await engine.query(`
