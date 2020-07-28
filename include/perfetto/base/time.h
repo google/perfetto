@@ -24,7 +24,7 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
 #include <mach/mach_init.h>
 #include <mach/mach_port.h>
 #include <mach/mach_time.h>
@@ -58,7 +58,7 @@ inline TimeNanos GetBootTimeNs() {
   return GetWallTimeNs();
 }
 
-#elif PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
 
 inline TimeNanos GetWallTimeNs() {
   auto init_time_factor = []() -> uint64_t {

@@ -150,7 +150,7 @@ class PERFETTO_EXPORT TrackEventInternal {
 
   // Get the clock used by GetTimeNs().
   static constexpr protos::pbzero::BuiltinClock GetClockId() {
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX) && \
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE) && \
     !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
     return protos::pbzero::BUILTIN_CLOCK_BOOTTIME;
 #else

@@ -55,14 +55,14 @@ action("gen_buildflags") {
   if (enable_perfetto_tools) {
     perfetto_local_symbolizer =
         "PERFETTO_BUILDFLAG_DEFINE_PERFETTO_OS_LINUX() || " +
-        "PERFETTO_BUILDFLAG_DEFINE_PERFETTO_OS_MACOSX()"
+        "PERFETTO_BUILDFLAG_DEFINE_PERFETTO_OS_MAC()"
   } else {
     perfetto_local_symbolizer = "0"
   }
   if (enable_perfetto_trace_processor_httpd) {
     perfetto_tp_httpd = "PERFETTO_BUILDFLAG_DEFINE_PERFETTO_OS_ANDROID() || " +
                         "PERFETTO_BUILDFLAG_DEFINE_PERFETTO_OS_LINUX() || " +
-                        "PERFETTO_BUILDFLAG_DEFINE_PERFETTO_OS_MACOSX()"
+                        "PERFETTO_BUILDFLAG_DEFINE_PERFETTO_OS_MAC()"
   } else {
     perfetto_tp_httpd = "0"
   }
