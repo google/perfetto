@@ -297,7 +297,7 @@ TEST_F(TracingIntegrationTest, WithIPCTransport) {
           Invoke([&num_pack_rx, all_packets_rx, &trace_config,
                   &saw_clock_snapshot, &saw_trace_config, &saw_trace_stats](
                      std::vector<TracePacket>* packets, bool has_more) {
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
             const int kExpectedMinNumberOfClocks = 1;
 #else
             const int kExpectedMinNumberOfClocks = 6;
