@@ -215,10 +215,18 @@ __attribute__((visibility("default"))) uint32_t heapprofd_register_heap(
   // For backwards compatibility, we handle HeapprofdHeapInfo that are shorter
   // than the current one (and assume all new fields are unset). If someone
   // calls us with a *newer* HeapprofdHeapInfo than this version of the library
-  // understands, error out.
+  // understands, error out if any of the new fields are set.
   if (n > sizeof(HeapprofdHeapInfo)) {
-    return 0;
+    for (size_t i = sizeof(HeapprofdHeapInfo); i < n; ++i) {
+      const char* ptr = reinterpret_cast<const char*>(info) + i;
+      if (*ptr)
+        return 0;
+    }
+    n = sizeof(HeapprofdHeapInfo);
   }
+
+  PERFETTO_DCHECK(n <= sizeof(HeapprofdHeapInfo));
+
   uint32_t next_id = g_next_heap_id.fetch_add(1);
   if (next_id >= perfetto::base::ArraySize(g_heaps)) {
     return 0;
