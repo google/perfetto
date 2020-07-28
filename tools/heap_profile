@@ -187,6 +187,11 @@ def main(argv):
       help="Comma-separated list of heaps to collect, e.g: malloc,art. "
       "Requires Android 12.",
       metavar="HEAPS")
+  parse.add_argument(
+      "--all-heaps",
+      action="store_true",
+      help="Collect allocations from all heaps registered by target."
+  )
   parser.add_argument(
       "--disable-selinux",
       action="store_true",
@@ -304,6 +309,8 @@ def main(argv):
     target_cfg += "dump_at_max: true\n"
   if args.disable_fork_teardown:
     target_cfg += "disable_fork_teardown: true\n"
+  if args.all_heaps:
+    target_cfg += "all_heaps: true\n"
   if args.pid:
     for pid in args.pid.split(','):
       try:
