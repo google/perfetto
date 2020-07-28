@@ -88,7 +88,7 @@ identify the problem.
 
 ## Walkthrough: prototyping a metric
 
-TIP: To see how to add to add a new metric to trace processor, see the checklist
+TIP: To see how to add a new metric to trace processor, see the checklist
 [here](/docs/contributing/common-tasks.md#new-metric)
 
 This walkthrough will outline how to prototype a metric locally without needing
