@@ -317,6 +317,13 @@ void UnwindingWorker::HandleBuffer(const SharedRingBuffer::Buffer& buf,
       client_data->free_records.clear();
       client_data->free_records.reserve(kRecordBatchSize);
     }
+  } else if (msg.record_type == RecordType::HeapName) {
+    HeapNameRecord rec;
+    rec.pid = peer_pid;
+    rec.data_source_instance_id = data_source_instance_id;
+    memcpy(&rec.entry, msg.heap_name_header, sizeof(*msg.heap_name_header));
+    rec.entry.heap_name[sizeof(rec.entry.heap_name) - 1] = '\0';
+    delegate->PostHeapNameRecord(std::move(rec));
   } else {
     PERFETTO_DFATAL_OR_ELOG("Invalid record type.");
   }

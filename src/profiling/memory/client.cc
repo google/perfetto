@@ -422,6 +422,22 @@ bool Client::RecordFree(uint32_t heap_id, const uint64_t alloc_address) {
   return true;
 }
 
+bool Client::RecordHeapName(uint32_t heap_id, const char* heap_name) {
+  if (PERFETTO_UNLIKELY(IsPostFork())) {
+    return postfork_return_value_;
+  }
+
+  HeapName hnr;
+  hnr.heap_id = heap_id;
+  strncpy(&hnr.heap_name[0], heap_name, sizeof(hnr.heap_name));
+  hnr.heap_name[sizeof(hnr.heap_name) - 1] = '\0';
+
+  WireMessage msg = {};
+  msg.record_type = RecordType::HeapName;
+  msg.heap_name_header = &hnr;
+  return SendWireMessageWithRetriesIfBlocking(msg);
+}
+
 bool Client::IsConnected() {
   PERFETTO_DCHECK(!sock_.IsBlocking());
   char buf[1];

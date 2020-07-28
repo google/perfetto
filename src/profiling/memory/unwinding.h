@@ -43,6 +43,7 @@ class UnwindingWorker : public base::UnixSocket::EventListener {
    public:
     virtual void PostAllocRecord(std::vector<AllocRecord>) = 0;
     virtual void PostFreeRecord(std::vector<FreeRecord>) = 0;
+    virtual void PostHeapNameRecord(HeapNameRecord rec) = 0;
     virtual void PostSocketDisconnected(DataSourceInstanceID,
                                         pid_t pid,
                                         SharedRingBuffer::Stats stats) = 0;

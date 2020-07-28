@@ -40,6 +40,7 @@
 #include "src/profiling/memory/page_idle_checker.h"
 #include "src/profiling/memory/system_property.h"
 #include "src/profiling/memory/unwinding.h"
+#include "src/profiling/memory/unwound_messages.h"
 
 #include "protos/perfetto/config/profiling/heapprofd_config.gen.h"
 
@@ -140,12 +141,14 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
   // UnwindingWorker::Delegate impl:
   void PostAllocRecord(std::vector<AllocRecord>) override;
   void PostFreeRecord(std::vector<FreeRecord>) override;
+  void PostHeapNameRecord(HeapNameRecord) override;
   void PostSocketDisconnected(DataSourceInstanceID,
                               pid_t,
                               SharedRingBuffer::Stats) override;
 
   void HandleAllocRecord(AllocRecord);
   void HandleFreeRecord(FreeRecord);
+  void HandleHeapNameRecord(HeapNameRecord);
   void HandleSocketDisconnected(DataSourceInstanceID,
                                 pid_t,
                                 SharedRingBuffer::Stats);
@@ -200,6 +203,7 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
     bool dump_at_max_mode;
     LogHistogram unwinding_time_us;
     std::map<uint32_t, HeapTracker> heap_trackers;
+    std::map<uint32_t, std::string> heap_names;
 
     base::Optional<PageIdleChecker> page_idle_checker;
     HeapTracker& GetHeapTracker(uint32_t heap_id) {

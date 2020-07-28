@@ -49,8 +49,11 @@ message HeapprofdConfig {
   repeated uint64 pid = 4;
 
   // Which heaps to sample, e.g. "malloc". If left empty, only samples
-  // "malloc".
+  // "malloc". Introduced in Android 12.
   repeated string heaps = 20;
+
+  // Sample all heaps registered by target process. Introduced in Android 12.
+  optional bool all_heaps = 21;
 
   // Profile all processes eligible for profiling on the system.
   // See
