@@ -1162,9 +1162,6 @@ TEST_P(HeapprofdEndToEnd, ReInitAfterInvalid) {
 }
 
 TEST_P(HeapprofdEndToEnd, ConcurrentSession) {
-  // TODO(fmayer): We do not correctly mark rejected sessions in static mode.
-  if (test_mode() == TestMode::kStatic)
-    GTEST_SKIP();
   constexpr size_t kAllocSize = 1024;
 
   base::Subprocess child = ForkContinuousAlloc(allocator_mode(), kAllocSize);
@@ -1297,13 +1294,11 @@ TEST_P(HeapprofdEndToEnd, NativeProfilingActiveAtProcessExit) {
 #error "Need to start daemons for Linux test."
 #endif
 
-#if !defined(THREAD_SANITIZER)
 INSTANTIATE_TEST_CASE_P(Run,
                         HeapprofdEndToEnd,
                         Values(std::make_tuple(TestMode::kStatic,
                                                AllocatorMode::kCustom)),
                         TestSuffix);
-#endif
 #elif !PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
 INSTANTIATE_TEST_CASE_P(
     Run,
