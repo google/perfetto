@@ -454,12 +454,12 @@ def main(argv):
     if 'heap_profile-' in word:
       profile_path = word
   if profile_path is None:
-    print_no_profile_error();
+    print_no_profile_error()
     return 1
 
   profile_files = os.listdir(profile_path)
   if not profile_files:
-    print_no_profile_error();
+    print_no_profile_error()
     return 1
 
   for profile_file in profile_files:
@@ -471,23 +471,23 @@ def main(argv):
 
   symlink_path = None
   if args.output is None:
-      symlink_path = os.path.join(
-          os.path.dirname(profile_target), "heap_profile-latest")
-      if os.path.lexists(symlink_path):
-        os.unlink(symlink_path)
-      os.symlink(profile_target, symlink_path)
+    symlink_path = os.path.join(
+      os.path.dirname(profile_target), "heap_profile-latest")
+    if os.path.lexists(symlink_path):
+      os.unlink(symlink_path)
+    os.symlink(profile_target, symlink_path)
 
   binary_path = os.getenv('PERFETTO_BINARY_PATH')
   if binary_path is not None:
-      with open(os.path.join(profile_path, 'symbols'), 'w') as fd:
-          ret = subprocess.call([
-              trace_to_text_binary, 'symbolize',
-              os.path.join(profile_target, 'raw-trace')],
-              env=os.environ,
-              stdout=fd)
-          if ret != 0:
-              print("Failed to symbolize. Continuing without symbols.",
-                    file=sys.stderr)
+    with open(os.path.join(profile_path, 'symbols'), 'w') as fd:
+      ret = subprocess.call([
+          trace_to_text_binary, 'symbolize',
+          os.path.join(profile_target, 'raw-trace')],
+          env=os.environ,
+          stdout=fd)
+      if ret != 0:
+        print("Failed to symbolize. Continuing without symbols.",
+              file=sys.stderr)
 
   if symlink_path is not None:
     print("Wrote profiles to {} (symlink {})".format(
