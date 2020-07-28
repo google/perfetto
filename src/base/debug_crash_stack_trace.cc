@@ -220,7 +220,7 @@ void SignalHandler(int sig_num, siginfo_t* info, void* /*ucontext*/) {
 // In order to retrigger it, we have to queue a new signal by calling
 // kill() ourselves.  The special case (si_pid == 0 && sig == SIGABRT) is
 // due to the kernel sending a SIGABRT from a user request via SysRQ.
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
     if (kill(getpid(), sig_num) < 0) {
 #else
     if (syscall(__NR_tgkill, getpid(), syscall(__NR_gettid), sig_num) < 0) {

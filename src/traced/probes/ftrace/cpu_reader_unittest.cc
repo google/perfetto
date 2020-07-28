@@ -1076,7 +1076,7 @@ TEST_F(CpuReaderTableTest, ParseAllFields) {
             static_cast<uint32_t>(kUserspaceBlockDeviceId));
   EXPECT_EQ(event->all_fields().field_inode_32(), 98u);
 // TODO(primiano): for some reason this fails on mac.
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_MACOSX)
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
   EXPECT_EQ(event->all_fields().field_dev_64(), k64BitUserspaceBlockDeviceId);
 #endif
   EXPECT_EQ(event->all_fields().field_inode_64(), 99u);
