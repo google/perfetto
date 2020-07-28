@@ -232,9 +232,9 @@ export class SearchController extends Controller<'main'> {
     const numRows = +rawResult.numRecords;
 
     const searchResults: CurrentSearchResults = {
-      sliceIds: new Float64Array(numRows),
-      tsStarts: new Float64Array(numRows),
-      utids: new Float64Array(numRows),
+      sliceIds: [],
+      tsStarts: [],
+      utids: [],
       trackIds: [],
       sources: [],
       totalResults: +numRows,
@@ -258,9 +258,9 @@ export class SearchController extends Controller<'main'> {
 
       searchResults.trackIds.push(trackId);
       searchResults.sources.push(source);
-      searchResults.sliceIds[row] = +columns[0].longValues![row];
-      searchResults.tsStarts[row] = +columns[1].longValues![row];
-      searchResults.utids[row] = +columns[4].longValues![row];
+      searchResults.sliceIds.push(+columns[0].longValues![row]);
+      searchResults.tsStarts.push(+columns[1].longValues![row]);
+      searchResults.utids.push(+columns[4].longValues![row]);
     }
     return searchResults;
   }
