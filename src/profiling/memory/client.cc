@@ -62,7 +62,7 @@ inline bool IsMainThread() {
 // This is why we find the stack base for the main-thread when constructing
 // the client and remember it.
 char* FindMainThreadStack() {
-  base::ScopedFstream maps(fopen("/proc/self/maps", "r"));
+  base::ScopedFstream maps(fopen("/proc/self/maps", "re"));
   if (!maps) {
     return nullptr;
   }
