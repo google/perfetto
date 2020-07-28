@@ -155,7 +155,7 @@ class Table {
   Table ExtendWithColumn(const char* name,
                          std::unique_ptr<NullableVector<T>> sv,
                          uint32_t flags) const {
-    PERFETTO_DCHECK(sv->size() == row_count_);
+    PERFETTO_CHECK(sv->size() == row_count_);
     uint32_t size = sv->size();
     uint32_t row_map_count = static_cast<uint32_t>(row_maps_.size());
     Table ret = Copy();
@@ -170,7 +170,7 @@ class Table {
   Table ExtendWithColumn(const char* name,
                          NullableVector<T>* sv,
                          uint32_t flags) const {
-    PERFETTO_DCHECK(sv->size() == row_count_);
+    PERFETTO_CHECK(sv->size() == row_count_);
     uint32_t size = sv->size();
     uint32_t row_map_count = static_cast<uint32_t>(row_maps_.size());
     Table ret = Copy();
