@@ -59,7 +59,8 @@ class AsyncSliceTrackController extends TrackController<Config, Data> {
         filter_track_ids = '${this.config.trackIds.join(',')}' and
         ts >= ${startNs - this.maxDurNs} and
         ts <= ${endNs}
-      group by tsq
+      group by tsq, layout_depth
+      order by tsq, layout_depth
     `);
 
     const numRows = +rawResult.numRecords;
