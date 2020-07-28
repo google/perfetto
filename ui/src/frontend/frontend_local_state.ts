@@ -342,6 +342,11 @@ export class FrontendLocalState {
   // Whenever start/end px of the timeScale is changed, update
   // the resolution.
   updateLocalLimits(pxStart: number, pxEnd: number) {
+    // Numbers received here can be negative or equal, but we should fix that
+    // before updating the timescale.
+    pxStart = Math.max(0, pxStart);
+    pxEnd = Math.max(0, pxEnd);
+    if (pxStart === pxEnd) pxEnd = pxStart + 1;
     this.timeScale.setLimitsPx(pxStart, pxEnd);
     this.updateResolution();
   }
