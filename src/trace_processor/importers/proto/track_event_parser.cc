@@ -702,8 +702,9 @@ class TrackEventParser::EventImporter {
       if (!thread_name.size)
         return util::OkStatus();
       auto thread_name_id = storage_->InternString(thread_name);
-      procs->UpdateThreadNameByUtid(*utid_, thread_name_id,
-                                    ThreadNamePriority::kTrackDescriptor);
+      procs->UpdateThreadNameByUtid(
+          *utid_, thread_name_id,
+          ThreadNamePriority::kTrackDescriptorThreadType);
       return util::OkStatus();
     }
     if (strcmp(event_name.c_str(), "process_name") == 0) {
