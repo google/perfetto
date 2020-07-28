@@ -118,9 +118,9 @@ class Globals {
   private _traceErrors?: number = undefined;
 
   private _currentSearchResults: CurrentSearchResults = {
-    sliceIds: new Float64Array(0),
-    tsStarts: new Float64Array(0),
-    utids: new Float64Array(0),
+    sliceIds: [],
+    tsStarts: [],
+    utids: [],
     trackIds: [],
     sources: [],
     totalResults: 0,
@@ -320,9 +320,9 @@ class Globals {
     this._aggregateDataStore = undefined;
     this._numQueriesQueued = 0;
     this._currentSearchResults = {
-      sliceIds: new Float64Array(0),
-      tsStarts: new Float64Array(0),
-      utids: new Float64Array(0),
+      sliceIds: [],
+      tsStarts: [],
+      utids: [],
       trackIds: [],
       sources: [],
       totalResults: 0,
