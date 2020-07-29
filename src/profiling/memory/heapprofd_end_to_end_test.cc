@@ -640,6 +640,32 @@ TEST_P(HeapprofdEndToEnd, TwoAllocators) {
   KillAssertRunning(&child);
 }
 
+TEST_P(HeapprofdEndToEnd, TwoAllocatorsAll) {
+  constexpr size_t kCustomAllocSize = 1024;
+  constexpr size_t kAllocSize = 7;
+
+  base::Subprocess child =
+      ForkContinuousAlloc(allocator_mode(), kAllocSize, kCustomAllocSize);
+  const uint64_t pid = static_cast<uint64_t>(child.pid());
+
+  TraceConfig trace_config = MakeTraceConfig([pid](HeapprofdConfig* cfg) {
+    cfg->set_sampling_interval_bytes(1);
+    cfg->add_pid(pid);
+    cfg->set_all_heaps(true);
+    ContinuousDump(cfg);
+  });
+
+  auto helper = Trace(trace_config);
+  PrintStats(helper.get());
+  ValidateHasSamples(helper.get(), pid, "secondary");
+  ValidateHasSamples(helper.get(), pid, allocator_name());
+  ValidateOnlyPID(helper.get(), pid);
+  ValidateSampleSizes(helper.get(), pid, kCustomAllocSize, "secondary");
+  ValidateSampleSizes(helper.get(), pid, kAllocSize, allocator_name());
+
+  KillAssertRunning(&child);
+}
+
 TEST_P(HeapprofdEndToEnd, AccurateCustom) {
   if (allocator_mode() != AllocatorMode::kCustom)
     GTEST_SKIP();
