@@ -31,6 +31,7 @@ namespace {
 class NopDelegate : public UnwindingWorker::Delegate {
   void PostAllocRecord(std::vector<AllocRecord>) override {}
   void PostFreeRecord(std::vector<FreeRecord>) override {}
+  void PostHeapNameRecord(HeapNameRecord) override {}
   void PostSocketDisconnected(DataSourceInstanceID,
                               pid_t,
                               SharedRingBuffer::Stats) override {}

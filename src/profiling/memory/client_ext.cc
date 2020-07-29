@@ -94,7 +94,6 @@ struct HeapprofdHeapInfoInternal {
   HeapprofdHeapInfo info;
   std::atomic<bool> ready;
   std::atomic<bool> enabled;
-  std::atomic<uint32_t> service_heap_id;
 };
 
 HeapprofdHeapInfoInternal g_heaps[256];
@@ -266,9 +265,7 @@ heapprofd_report_allocation(uint32_t heap_id, uint64_t id, uint64_t size) {
     client = *g_client_ptr;  // owning copy
   }                          // unlock
 
-  if (!client->RecordMalloc(
-          heap.service_heap_id.load(std::memory_order_relaxed),
-          sampled_alloc_sz, size, id)) {
+  if (!client->RecordMalloc(heap_id, sampled_alloc_sz, size, id)) {
     ShutdownLazy(client);
   }
   return true;
@@ -291,8 +288,7 @@ __attribute__((visibility("default"))) void heapprofd_report_free(
   }
 
   if (client) {
-    if (!client->RecordFree(
-            heap.service_heap_id.load(std::memory_order_relaxed), id))
+    if (!client->RecordFree(heap_id, id))
       ShutdownLazy(client);
   }
 }
@@ -349,26 +345,27 @@ __attribute__((visibility("default"))) bool heapprofd_init_session(
   const perfetto::profiling::ClientConfiguration& cli_config =
       client->client_config();
 
-  for (uint32_t j = kMinHeapId; j < g_next_heap_id.load(); ++j) {
-    HeapprofdHeapInfoInternal& heap = GetHeap(j);
+  for (uint32_t i = kMinHeapId; i < g_next_heap_id.load(); ++i) {
+    HeapprofdHeapInfoInternal& heap = GetHeap(i);
     if (!heap.ready.load(std::memory_order_acquire))
       continue;
 
-    bool matched = false;
-    for (uint32_t i = 0; i < cli_config.num_heaps; ++i) {
+    bool matched = cli_config.all_heaps;
+    for (uint32_t j = 0; !matched && j < cli_config.num_heaps; ++j) {
       static_assert(sizeof(g_heaps[0].info.heap_name) == HEAPPROFD_HEAP_NAME_SZ,
                     "correct heap name size");
       static_assert(sizeof(cli_config.heaps[0]) == HEAPPROFD_HEAP_NAME_SZ,
                     "correct heap name size");
-      if (strncmp(&cli_config.heaps[i][0], &heap.info.heap_name[0],
+      if (strncmp(&cli_config.heaps[j][0], &heap.info.heap_name[0],
                   HEAPPROFD_HEAP_NAME_SZ) == 0) {
-        heap.service_heap_id.store(i, std::memory_order_relaxed);
-        if (!heap.enabled.load(std::memory_order_acquire) && heap.info.callback)
-          heap.info.callback(true);
-        heap.enabled.store(true, std::memory_order_release);
         matched = true;
-        break;
       }
+    }
+    if (matched) {
+      if (!heap.enabled.load(std::memory_order_acquire) && heap.info.callback)
+        heap.info.callback(true);
+      heap.enabled.store(true, std::memory_order_release);
+      client->RecordHeapName(i, &heap.info.heap_name[0]);
     }
     if (!matched && heap.enabled.load(std::memory_order_acquire)) {
       heap.enabled.store(false, std::memory_order_release);
