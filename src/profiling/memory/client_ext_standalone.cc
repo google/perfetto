@@ -108,7 +108,7 @@ void StartHeapprofdIfStatic() {
   cli_sock.ReleaseFd();
 
   // Leave stderr open for logging.
-  int null = open("/dev/null", O_RDWR);
+  int null = open("/dev/null", O_RDWR);  // NOLINT(android-cloexec-open)
   dup2(null, STDIN_FILENO);
   dup2(null, STDOUT_FILENO);
   if (null > STDERR_FILENO)
