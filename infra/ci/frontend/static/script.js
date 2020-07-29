@@ -374,7 +374,8 @@ function renderClJobCell(src, jobType) {
 const TermRenderer = {
   oncreate: function (vnode) {
     console.log('Creating terminal object');
-    term = new Terminal({ rows: 6, fontSize: 12, scrollback: 100000 });
+    term = new Terminal(
+        {rows: 6, fontFamily: 'monospace', fontSize: 12, scrollback: 100000});
     term.open(vnode.dom);
     term.fit();
     if (vnode.attrs.focused) term.focus();
