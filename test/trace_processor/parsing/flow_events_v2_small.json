@@ -1,0 +1,66 @@
+{
+    "traceEvents": [
+      {
+        "cat": "ipc",
+        "pid": 15902,
+        "tid": 15903,
+        "ts": 3002,
+        "ph": "X",
+        "name": "SenderA",
+        "args":{},
+        "dur": 10,
+        "bind_id": "0x402",
+        "flow_out": true
+      },
+      {
+        "cat": "ipc",
+        "pid": 15903,
+        "tid": 15904,
+        "ts": 0,
+        "ph": "X",
+        "name": "SenderB",
+        "args":{},
+        "dur": 10,
+        "bind_id": "0x403",
+        "flow_out": true,
+        "flow_in": false
+      },
+      {
+        "cat": "ipc",
+        "pid": 15875,
+        "tid": 15895,
+        "ts": 1001,
+        "ph": "X",
+        "name": "Blergh",
+        "args": {},
+        "dur": 100,
+        "bind_id": "0x403",
+        "flow_in": true
+      },
+      {
+        "cat": "ipc",
+        "pid": 15774,
+        "tid": 15794,
+        "ts": 3200,
+        "ph": "X",
+        "name": "OtherSlice",
+        "args": {},
+        "dur": 500,
+        "bind_id": "0x402",
+        "flow_in": true,
+        "flow_out": true
+      },
+      {
+        "cat": "ipc",
+        "pid": 15874,
+        "tid": 15894,
+        "ts": 3331,
+        "ph": "X",
+        "name": "SomeSlice",
+        "args": {},
+        "dur": 400,
+        "bind_id": "0x402",
+        "flow_in": true,
+      }
+    ]
+  }

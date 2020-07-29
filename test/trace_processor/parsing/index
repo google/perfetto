@@ -127,5 +127,6 @@ android_package_list.py android_package_list android_package_list.out
 # Ensures process -> package matching works as expected.
 process_metadata_matching.textproto process_metadata_matching.sql process_metadata_matching.out
 
-# Flow events vesion 1 importing from json
-flow_events_small.json flow_events_small.sql flow_events_small.out
+# Flow events importing from json
+flow_events_v1_small.json flow_events.sql flow_events_v1_small.out
+flow_events_v2_small.json flow_events.sql flow_events_v2_small.out
