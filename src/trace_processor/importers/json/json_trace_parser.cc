@@ -39,10 +39,12 @@ namespace trace_processor {
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 namespace {
 
-base::Optional<uint64_t> MaybeExtractIdFromJsonValue(const Json::Value& value) {
-  if (!value.isMember("id"))
+base::Optional<uint64_t> MaybeExtractFlowIdentifier(const Json::Value& value,
+                                                    bool version2) {
+  std::string id_key = (version2 ? "bind_id" : "id");
+  if (!value.isMember(id_key))
     return base::nullopt;
-  auto id = value["id"];
+  auto id = value[id_key];
   if (id.isNumeric())
     return id.asUInt64();
   if (!id.isString())
@@ -52,7 +54,7 @@ base::Optional<uint64_t> MaybeExtractIdFromJsonValue(const Json::Value& value) {
 }
 
 }  // namespace
-#endif
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 
 JsonTraceParser::JsonTraceParser(TraceProcessorContext* context)
     : context_(context), systrace_line_parser_(context) {}
@@ -122,6 +124,7 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
     case 'B': {  // TRACE_EVENT_BEGIN.
       TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
       slice_tracker->Begin(timestamp, track_id, cat_id, name_id, args_inserter);
+      MaybeAddFlow(track_id, value);
       break;
     }
     case 'E': {  // TRACE_EVENT_END.
@@ -137,11 +140,13 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
       TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
       slice_tracker->Scoped(timestamp, track_id, cat_id, name_id,
                             opt_dur.value(), args_inserter);
+      MaybeAddFlow(track_id, value);
       break;
     }
     case 's': {  // TRACE_EVENT_FLOW_START
       TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-      auto opt_source_id = MaybeExtractIdFromJsonValue(value);
+      auto opt_source_id =
+          MaybeExtractFlowIdentifier(value, /* version2 = */ false);
       if (opt_source_id) {
         FlowId flow_id = flow_tracker->GetFlowIdForV1Event(
             opt_source_id.value(), cat_id, name_id);
@@ -153,7 +158,8 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
     }
     case 't': {  // TRACE_EVENT_FLOW_STEP
       TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-      auto opt_source_id = MaybeExtractIdFromJsonValue(value);
+      auto opt_source_id =
+          MaybeExtractFlowIdentifier(value, /* version2 = */ false);
       if (opt_source_id) {
         FlowId flow_id = flow_tracker->GetFlowIdForV1Event(
             opt_source_id.value(), cat_id, name_id);
@@ -165,7 +171,8 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
     }
     case 'f': {  // TRACE_EVENT_FLOW_END
       TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-      auto opt_source_id = MaybeExtractIdFromJsonValue(value);
+      auto opt_source_id =
+          MaybeExtractFlowIdentifier(value, /* version2 = */ false);
       if (opt_source_id) {
         FlowId flow_id = flow_tracker->GetFlowIdForV1Event(
             opt_source_id.value(), cat_id, name_id);
@@ -200,6 +207,28 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
   perfetto::base::ignore_result(ttp);
   perfetto::base::ignore_result(context_);
   PERFETTO_ELOG("Cannot parse JSON trace due to missing JSON support");
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
+}
+
+void JsonTraceParser::MaybeAddFlow(TrackId track_id, const Json::Value& event) {
+  PERFETTO_DCHECK(json::IsJsonSupported());
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
+  auto opt_bind_id = MaybeExtractFlowIdentifier(event, /* version2 = */ true);
+  if (opt_bind_id) {
+    FlowTracker* flow_tracker = context_->flow_tracker.get();
+    bool flow_out = event.isMember("flow_out") && event["flow_out"].asBool();
+    bool flow_in = event.isMember("flow_in") && event["flow_in"].asBool();
+    if (flow_in && flow_out) {
+      flow_tracker->Step(track_id, opt_bind_id.value());
+    } else if (flow_out) {
+      flow_tracker->Begin(track_id, opt_bind_id.value());
+    } else if (flow_in) {
+      // bind_enclosing_slice is always true for v2 flow events
+      flow_tracker->End(track_id, opt_bind_id.value(), true);
+    } else {
+      context_->storage->IncrementStats(stats::flow_without_direction);
+    }
+  }
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 }
 
