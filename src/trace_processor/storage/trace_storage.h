@@ -37,6 +37,7 @@
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/tables/android_tables.h"
 #include "src/trace_processor/tables/counter_tables.h"
+#include "src/trace_processor/tables/flow_tables.h"
 #include "src/trace_processor/tables/metadata_tables.h"
 #include "src/trace_processor/tables/profiler_tables.h"
 #include "src/trace_processor/tables/slice_tables.h"
@@ -447,6 +448,9 @@ class TraceStorage {
   const tables::SliceTable& slice_table() const { return slice_table_; }
   tables::SliceTable* mutable_slice_table() { return &slice_table_; }
 
+  const tables::FlowTable& flow_table() const { return flow_table_; }
+  tables::FlowTable* mutable_flow_table() { return &flow_table_; }
+
   const ThreadSlices& thread_slices() const { return thread_slices_; }
   ThreadSlices* mutable_thread_slices() { return &thread_slices_; }
 
@@ -764,6 +768,9 @@ class TraceStorage {
 
   // Slices coming from userspace events (e.g. Chromium TRACE_EVENT macros).
   tables::SliceTable slice_table_{&string_pool_, nullptr};
+
+  // Flow events from userspace events (e.g. Chromium TRACE_EVENT macros).
+  tables::FlowTable flow_table_{&string_pool_, nullptr};
 
   // Slices from CPU scheduling data.
   tables::SchedSliceTable sched_slice_table_{&string_pool_, nullptr};

@@ -22,6 +22,8 @@ source_set("common") {
     "common/clock_tracker.h",
     "common/event_tracker.cc",
     "common/event_tracker.h",
+    "common/flow_tracker.cc",
+    "common/flow_tracker.h",
     "common/global_args_tracker.cc",
     "common/global_args_tracker.h",
     "common/process_tracker.cc",
@@ -48,6 +50,7 @@ source_set("unittests") {
   sources = [
     "common/clock_tracker_unittest.cc",
     "common/event_tracker_unittest.cc",
+    "common/flow_tracker_unittest.cc",
     "common/process_tracker_unittest.cc",
     "common/slice_tracker_unittest.cc",
   ]

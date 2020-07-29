@@ -22,8 +22,10 @@
 #include <string>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
+#include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
@@ -33,6 +35,24 @@
 
 namespace perfetto {
 namespace trace_processor {
+
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
+namespace {
+
+base::Optional<uint64_t> MaybeExtractIdFromJsonValue(const Json::Value& value) {
+  if (!value.isMember("id"))
+    return base::nullopt;
+  auto id = value["id"];
+  if (id.isNumeric())
+    return id.asUInt64();
+  if (!id.isString())
+    return base::nullopt;
+  const char* c_string = id.asCString();
+  return base::CStringToUInt64(c_string, 16);
+}
+
+}  // namespace
+#endif
 
 JsonTraceParser::JsonTraceParser(TraceProcessorContext* context)
     : context_(context), systrace_line_parser_(context) {}
@@ -62,6 +82,7 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
   ProcessTracker* procs = context_->process_tracker.get();
   TraceStorage* storage = context_->storage.get();
   SliceTracker* slice_tracker = context_->slice_tracker.get();
+  FlowTracker* flow_tracker = context_->flow_tracker.get();
 
   auto& ph = value["ph"];
   if (!ph.isString())
@@ -116,6 +137,44 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
       TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
       slice_tracker->Scoped(timestamp, track_id, cat_id, name_id,
                             opt_dur.value(), args_inserter);
+      break;
+    }
+    case 's': {  // TRACE_EVENT_FLOW_START
+      TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+      auto opt_source_id = MaybeExtractIdFromJsonValue(value);
+      if (opt_source_id) {
+        FlowId flow_id = flow_tracker->GetFlowIdForV1Event(
+            opt_source_id.value(), cat_id, name_id);
+        flow_tracker->Begin(track_id, flow_id);
+      } else {
+        context_->storage->IncrementStats(stats::flow_invalid_id);
+      }
+      break;
+    }
+    case 't': {  // TRACE_EVENT_FLOW_STEP
+      TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+      auto opt_source_id = MaybeExtractIdFromJsonValue(value);
+      if (opt_source_id) {
+        FlowId flow_id = flow_tracker->GetFlowIdForV1Event(
+            opt_source_id.value(), cat_id, name_id);
+        flow_tracker->Step(track_id, flow_id);
+      } else {
+        context_->storage->IncrementStats(stats::flow_invalid_id);
+      }
+      break;
+    }
+    case 'f': {  // TRACE_EVENT_FLOW_END
+      TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+      auto opt_source_id = MaybeExtractIdFromJsonValue(value);
+      if (opt_source_id) {
+        FlowId flow_id = flow_tracker->GetFlowIdForV1Event(
+            opt_source_id.value(), cat_id, name_id);
+        bool bind_enclosing_slice =
+            value.isMember("bp") && strcmp(value["bp"].asCString(), "e") == 0;
+        flow_tracker->End(track_id, flow_id, bind_enclosing_slice);
+      } else {
+        context_->storage->IncrementStats(stats::flow_invalid_id);
+      }
       break;
     }
     case 'M': {  // Metadata events (process and thread names).
