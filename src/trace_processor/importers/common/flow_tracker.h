@@ -25,7 +25,7 @@
 namespace perfetto {
 namespace trace_processor {
 
-using FlowId = uint32_t;
+using FlowId = uint64_t;
 
 class FlowTracker {
  public:
