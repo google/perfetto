@@ -305,6 +305,72 @@ TEST(SliceTrackerTest, EndEventOutOfOrder) {
   EXPECT_EQ(context.storage->slice_table().depth()[3], 0u);
 }
 
+TEST(SliceTrackerTest, GetTopmostSliceOnTrack) {
+  TraceProcessorContext context;
+  context.storage.reset(new TraceStorage());
+  SliceTracker tracker(&context);
+
+  TrackId track{1u};
+  TrackId track2{2u};
+
+  EXPECT_EQ(tracker.GetTopmostSliceOnTrack(track), base::nullopt);
+
+  tracker.Begin(100, track, StringId::Raw(11), StringId::Raw(11));
+  SliceId slice1 = context.storage->slice_table().id()[0];
+
+  EXPECT_EQ(tracker.GetTopmostSliceOnTrack(track).value(), slice1);
+
+  tracker.Begin(120, track, StringId::Raw(22), StringId::Raw(22));
+  SliceId slice2 = context.storage->slice_table().id()[1];
+
+  EXPECT_EQ(tracker.GetTopmostSliceOnTrack(track).value(), slice2);
+
+  EXPECT_EQ(tracker.GetTopmostSliceOnTrack(track2), base::nullopt);
+
+  tracker.End(140, track, StringId::Raw(22), StringId::Raw(22));
+
+  EXPECT_EQ(tracker.GetTopmostSliceOnTrack(track).value(), slice1);
+
+  tracker.End(330, track, StringId::Raw(11), StringId::Raw(11));
+
+  EXPECT_EQ(tracker.GetTopmostSliceOnTrack(track), base::nullopt);
+}
+
+TEST(SliceTrackerTest, OnSliceBeginCallback) {
+  TraceProcessorContext context;
+  context.storage.reset(new TraceStorage());
+  SliceTracker tracker(&context);
+
+  TrackId track1{1u};
+  TrackId track2{2u};
+
+  std::vector<TrackId> track_records;
+  std::vector<SliceId> slice_records;
+  tracker.SetOnSliceBeginCallback([&](TrackId track_id, SliceId slice_id) {
+    track_records.emplace_back(track_id);
+    slice_records.emplace_back(slice_id);
+  });
+
+  EXPECT_TRUE(track_records.empty());
+  EXPECT_TRUE(slice_records.empty());
+
+  tracker.Begin(100, track1, StringId::Raw(11), StringId::Raw(11));
+  SliceId slice1 = context.storage->slice_table().id()[0];
+  EXPECT_THAT(track_records, ElementsAre(TrackId{1u}));
+  EXPECT_THAT(slice_records, ElementsAre(slice1));
+
+  tracker.Begin(120, track2, StringId::Raw(22), StringId::Raw(22));
+  SliceId slice2 = context.storage->slice_table().id()[1];
+  EXPECT_THAT(track_records, ElementsAre(TrackId{1u}, TrackId{2u}));
+  EXPECT_THAT(slice_records, ElementsAre(slice1, slice2));
+
+  tracker.Begin(330, track1, StringId::Raw(33), StringId::Raw(33));
+  SliceId slice3 = context.storage->slice_table().id()[2];
+  EXPECT_THAT(track_records,
+              ElementsAre(TrackId{1u}, TrackId{2u}, TrackId{1u}));
+  EXPECT_THAT(slice_records, ElementsAre(slice1, slice2, slice3));
+}
+
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto
