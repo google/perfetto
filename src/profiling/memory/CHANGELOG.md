@@ -1,3 +1,10 @@
+# Changes from Android 11
+
+## New features
+* Support Custom Allocators. This allows developers to instrument their
+  applications to report memory allocations / frees that are not done
+  through the malloc-based system allocators.
+
 # Changes from Android 10
 
 ## New features
