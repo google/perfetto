@@ -85,8 +85,6 @@ void FlowTracker::End(TrackId track_id,
   }
   SliceId slice_out_id = flow_to_slice_map_[flow_id];
   InsertFlow(slice_out_id, open_slice_id.value());
-  // TODO(andrewbb): Don't erase the flow_id if we're a version 2 event.
-  flow_to_slice_map_.erase(flow_id);
 }
 
 FlowId FlowTracker::GetFlowIdForV1Event(uint64_t source_id,
