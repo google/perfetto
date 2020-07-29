@@ -74,7 +74,7 @@ int Daemonize() {
   }
   // best effort chdir & fd close
   chdir("/");
-  int fd = open("/dev/null", O_RDWR, 0);
+  int fd = open("/dev/null", O_RDWR, 0);  // NOLINT(android-cloexec-open)
   if (fd != -1) {
     dup2(fd, STDIN_FILENO);
     dup2(fd, STDOUT_FILENO);
