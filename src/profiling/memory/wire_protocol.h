@@ -49,6 +49,7 @@ struct ClientConfiguration {
   uint64_t block_client_timeout_us;
   bool disable_fork_teardown;
   bool disable_vfork_detection;
+  bool all_heaps;
   char heaps[64][HEAPPROFD_HEAP_NAME_SZ];
   uint64_t num_heaps;
   // Just double check that the array sizes are in correct order.
@@ -89,6 +90,7 @@ constexpr size_t kMaxRegisterDataSize =
 enum class RecordType : uint64_t {
   Free = 0,
   Malloc = 1,
+  HeapName = 2,
 };
 
 struct AllocMetadata {
@@ -114,6 +116,11 @@ struct FreeEntry {
   uint32_t heap_id;
 };
 
+struct HeapName {
+  uint32_t heap_id;
+  char heap_name[HEAPPROFD_HEAP_NAME_SZ];
+};
+
 enum HandshakeFDs : size_t {
   kHandshakeMaps = 0,
   kHandshakeMem,
@@ -126,6 +133,7 @@ struct WireMessage {
 
   AllocMetadata* alloc_header;
   FreeEntry* free_header;
+  HeapName* heap_name_header;
 
   char* payload;
   size_t payload_size;
