@@ -51,6 +51,8 @@ class JsonTraceParser : public TraceParser {
  private:
   TraceProcessorContext* const context_;
   SystraceLineParser systrace_line_parser_;
+
+  void MaybeAddFlow(TrackId track_id, const Json::Value& event);
 };
 
 }  // namespace trace_processor
