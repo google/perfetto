@@ -46,6 +46,12 @@ struct FreeRecord {
   FreeEntry entry;
 };
 
+struct HeapNameRecord {
+  pid_t pid;
+  uint64_t data_source_instance_id;
+  HeapName entry;
+};
+
 }  // namespace profiling
 }  // namespace perfetto
 
