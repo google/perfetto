@@ -18,6 +18,7 @@ source_set("tables") {
   sources = [
     "android_tables.h",
     "counter_tables.h",
+    "flow_tables.h",
     "macros.h",
     "macros_internal.h",
     "metadata_tables.h",

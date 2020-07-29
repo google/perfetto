@@ -71,6 +71,11 @@ namespace stats {
   F(rss_stat_unknown_thread_for_mm_id,  kSingle,  kInfo,     kAnalysis, ""),   \
   F(sched_switch_out_of_order,          kSingle,  kError,    kAnalysis, ""),   \
   F(slice_out_of_order,                 kSingle,  kError,    kAnalysis, ""),   \
+  F(flow_duplicate_id,                  kSingle,  kError,    kAnalysis, ""),   \
+  F(flow_no_enclosing_slice,            kSingle,  kError,    kAnalysis, ""),   \
+  F(flow_step_without_start,            kSingle,  kError,    kAnalysis, ""),   \
+  F(flow_end_without_start,             kSingle,  kError,    kAnalysis, ""),   \
+  F(flow_invalid_id,                    kSingle,  kError,    kAnalysis, ""),   \
   F(stackprofile_invalid_string_id,     kSingle,  kError,    kTrace,    ""),   \
   F(stackprofile_invalid_mapping_id,    kSingle,  kError,    kTrace,    ""),   \
   F(stackprofile_invalid_frame_id,      kSingle,  kError,    kTrace,    ""),   \

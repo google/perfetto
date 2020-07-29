@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/tables/android_tables.h"
 #include "src/trace_processor/tables/counter_tables.h"
+#include "src/trace_processor/tables/flow_tables.h"
 #include "src/trace_processor/tables/metadata_tables.h"
 #include "src/trace_processor/tables/profiler_tables.h"
 #include "src/trace_processor/tables/slice_tables.h"
@@ -64,6 +65,7 @@ GpuCounterGroupTable::~GpuCounterGroupTable() = default;
 
 // slice_tables.h
 SliceTable::~SliceTable() = default;
+FlowTable::~FlowTable() = default;
 InstantTable::~InstantTable() = default;
 SchedSliceTable::~SchedSliceTable() = default;
 GpuSliceTable::~GpuSliceTable() = default;

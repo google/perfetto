@@ -727,6 +727,8 @@ filegroup(
         "src/trace_processor/importers/common/clock_tracker.h",
         "src/trace_processor/importers/common/event_tracker.cc",
         "src/trace_processor/importers/common/event_tracker.h",
+        "src/trace_processor/importers/common/flow_tracker.cc",
+        "src/trace_processor/importers/common/flow_tracker.h",
         "src/trace_processor/importers/common/global_args_tracker.cc",
         "src/trace_processor/importers/common/global_args_tracker.h",
         "src/trace_processor/importers/common/process_tracker.cc",
@@ -877,6 +879,7 @@ filegroup(
     srcs = [
         "src/trace_processor/tables/android_tables.h",
         "src/trace_processor/tables/counter_tables.h",
+        "src/trace_processor/tables/flow_tables.h",
         "src/trace_processor/tables/macros.h",
         "src/trace_processor/tables/macros_internal.h",
         "src/trace_processor/tables/metadata_tables.h",
