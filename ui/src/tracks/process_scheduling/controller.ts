@@ -54,12 +54,11 @@ class ProcessSchedulingTrackController extends TrackController<Config, Data> {
       assertTrue(cpus.length > 0);
       this.maxCpu = Math.max(...cpus) + 1;
 
-      const maxDurResult = await this.query(`select max(dur)
-        from sched
-        join thread using(utid)
-        where
-          utid != 0 and
-          upid = ${this.config.upid}`);
+      const maxDurResult = await this.query(`
+        select max(dur)
+        from experimental_sched_upid
+        where utid != 0 and upid = ${this.config.upid}
+      `);
       if (maxDurResult.numRecords === 1) {
         this.maxDurNs = maxDurResult.columns[0].longValues![0];
       }
@@ -67,20 +66,21 @@ class ProcessSchedulingTrackController extends TrackController<Config, Data> {
       this.setup = true;
     }
 
-    const rawResult = await this.query(`select
+    const rawResult = await this.query(`
+      select
         (ts + ${bucketNs / 2}) / ${bucketNs} * ${bucketNs} as tsq,
         ts,
         max(dur) as dur,
         cpu,
         utid
-      from sched
-      join thread using(utid)
+      from experimental_sched_upid
       where
         ts >= ${startNs - this.maxDurNs} and
         ts <= ${endNs} and
         utid != 0 and
         upid = ${this.config.upid}
-      group by cpu, tsq`);
+      group by cpu, tsq
+    `);
 
     const numRows = +rawResult.numRecords;
     const slices: Data = {
