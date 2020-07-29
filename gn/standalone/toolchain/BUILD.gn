@@ -46,23 +46,19 @@ declare_args() {
 # First of all determine the host toolchain. The user can override this by:
 # 1. setting ar/cc/cxx vars in args.gn.
 # 2. setting is_system_compiler=true in args.gn and the env vars AR/CC/CXX.
-#    This is used by OSSFuzz.
+#    This is used by OSSFuzz and CrOS ebuilds.
 declare_args() {
   sysroot = ""
   gcc_toolchain = ""
   ar = "ar"
+  linker = ""
+
   if (is_linux_host) {
     linker = "gold"
-  } else {
-    linker = ""
   }
 
-  if (is_system_compiler) {
-    ar = "\$AR"
-    cc = "\$CC"
-    cxx = "\$CXX"
-  } else if (is_clang) {
-    if (is_linux_host) {
+  if (is_clang) {
+    if (is_linux_host && !is_system_compiler) {
       cc = linux_clang_bin
       cxx = linux_clangxx_bin
       linker = linux_clang_linker
@@ -123,18 +119,19 @@ declare_args() {
 }
 
 declare_args() {
-  if (!is_cross_compiling || is_perfetto_build_generator) {
+  if (is_linux || is_android) {
+    target_linker = "gold"
+  } else {
+    target_linker = ""
+  }
+
+  if (!is_cross_compiling || is_perfetto_build_generator ||
+      is_system_compiler) {
     target_ar = ar
     target_cc = cc
     target_cxx = cxx
-    target_linker = linker
   } else {
     target_ar = "ar"
-    if (is_linux || is_android) {
-      target_linker = "gold"
-    } else {
-      target_linker = ""
-    }
     if (is_android) {
       target_ar = "$android_toolchain_root/bin/$android_abi_target-ar"
       target_cc = "$android_llvm_dir/bin/clang"
