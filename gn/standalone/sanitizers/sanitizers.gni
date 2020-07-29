@@ -16,20 +16,18 @@ import("//gn/standalone/android.gni")
 import("//gn/standalone/sanitizers/vars.gni")
 import("//gn/standalone/toolchain/llvm.gni")
 
-declare_args() {
-  sanitizer_lib_base_name_ = ""
-  if (is_asan || is_tsan || is_ubsan) {
-    if (is_asan) {
-      sanitizer_lib_base_name_ = "clang_rt.asan"
-    }
-    if (is_tsan) {
-      sanitizer_lib_base_name_ = "clang_rt.tsan"
-    }
-    if (is_ubsan) {
-      sanitizer_lib_base_name_ = "clang_rt.ubsan"
-      if (is_android || is_linux) {
-        sanitizer_lib_base_name_ += "_standalone"
-      }
+_sanitizer_lib_base_name = ""
+if (is_asan || is_tsan || is_ubsan) {
+  if (is_asan) {
+    _sanitizer_lib_base_name = "clang_rt.asan"
+  }
+  if (is_tsan) {
+    _sanitizer_lib_base_name = "clang_rt.tsan"
+  }
+  if (is_ubsan) {
+    _sanitizer_lib_base_name = "clang_rt.ubsan"
+    if (is_android || is_linux) {
+      _sanitizer_lib_base_name += "_standalone"
     }
   }
 }
@@ -38,18 +36,20 @@ declare_args() {
   sanitizer_lib_dir = ""
   sanitizer_lib = ""
   sanitizer_lib_dir_is_static = false
-  if (sanitizer_lib_base_name_ != "") {
+  if (_sanitizer_lib_base_name != "") {
     if (is_mac) {
-      sanitizer_lib = "${sanitizer_lib_base_name_}_osx_dynamic"
+      sanitizer_lib = "${_sanitizer_lib_base_name}_osx_dynamic"
       sanitizer_lib_dir = mac_clangrt_dir
     }
     if (is_linux) {
-      sanitizer_lib = "lib${sanitizer_lib_base_name_}-x86_64.a"
+      sanitizer_lib = "lib${_sanitizer_lib_base_name}-x86_64.a"
       sanitizer_lib_dir_is_static = true
-      sanitizer_lib_dir = linux_clangrt_dir
+
+      # sanitizer_lib_dir is unused on linux. All usages of sanitizer_lib_dir
+      # are gated by an if (!sanitizer_lib_dir_is_static).
     }
     if (is_android) {
-      sanitizer_lib = "${sanitizer_lib_base_name_}-${android_llvm_arch}-android"
+      sanitizer_lib = "${_sanitizer_lib_base_name}-${android_llvm_arch}-android"
       sanitizer_lib_dir = android_clangrt_dir
     }
   }
