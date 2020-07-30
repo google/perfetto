@@ -434,6 +434,7 @@ cc_library_shared {
     "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
     "-DPERFETTO_ANDROID_ASYNC_SAFE_LOG",
   ],
+  stl: "libc++_static",
   version_script: "src/profiling/memory/heapprofd_client_api.map.txt",
 }
 

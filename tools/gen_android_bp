@@ -180,6 +180,7 @@ additional_args = {
     'heapprofd_standalone_client': [
         ('static_libs', {'libasync_safe'}),
         ('version_script', 'src/profiling/memory/heapprofd_client_api.map.txt'),
+        ('stl', 'libc++_static'),
     ],
     'perfetto_unittests': [
         ('data', set(enumerate_data_deps())),
