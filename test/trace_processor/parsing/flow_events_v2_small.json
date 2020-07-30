@@ -60,7 +60,27 @@
         "args": {},
         "dur": 400,
         "bind_id": "0x402",
-        "flow_in": true,
+        "flow_in": true
+      },
+      {
+        "cat": "ipc",
+        "pid": 15875,
+        "tid": 15895,
+        "ts": 3333,
+        "ph": "B",
+        "name": "SomeOtherSlice",
+        "args": {},
+        "bind_id": "0x402",
+        "flow_in": true
+      },
+      {
+        "cat": "ipc",
+        "pid": 15875,
+        "tid": 15895,
+        "ts": 4330,
+        "ph": "E",
+        "name": "SomeOtherSlice",
+        "args": {}
       }
     ]
   }
