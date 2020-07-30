@@ -69,3 +69,20 @@ class TraceProcessorHttp:
       result = self.protos.StatusResult()
       result.ParseFromString(f.read())
       return result
+
+  def enable_metatrace(self):
+    req = request.Request(self.url + '/enable_metatrace')
+    with request.urlopen(req) as f:
+      return f.read()
+
+  def disable_and_read_metatrace(self):
+    req = request.Request(self.url + '/disable_and_read_metatrace')
+    with request.urlopen(req) as f:
+      result = self.protos.DisableAndReadMetatraceResult()
+      result.ParseFromString(f.read())
+
+    # TODO(@aninditaghosh): b/162168559
+    if result.error:
+      raise Exception(result.error)
+
+    return result.metatrace
