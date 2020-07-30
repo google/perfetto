@@ -13,50 +13,6 @@ packet {
 }
 packet {
   trusted_packet_sequence_id: 1
-  timestamp: 0
-  extension_descriptor {
-    extension_set {
-      file {
-        package: "perfetto.protos"
-        message_type {
-          extension {
-            name: "string_extension_for_testing"
-            extendee: ".perfetto.protos.TrackEvent"
-            number: 9900
-            type: TYPE_STRING
-            label: LABEL_OPTIONAL
-          }
-          extension {
-            name: "int_extension_for_testing"
-            extendee: ".perfetto.protos.TrackEvent"
-            number: 9901
-            type: TYPE_INT32
-            label: LABEL_REPEATED
-          }
-          extension {
-            name: "nested_message_extension_for_testing"
-            extendee: ".perfetto.protos.TrackEvent"
-            number: 9903
-            type: TYPE_MESSAGE
-            label: LABEL_OPTIONAL
-            type_name: ".perfetto.protos.TestExtensionChild"
-          }
-        }
-        message_type {
-          name: "TestExtensionChild"
-          field {
-            name: "child_field_for_testing"
-            number: 1
-            type: TYPE_STRING
-            label: LABEL_OPTIONAL
-          }
-        }
-      }
-    }
-  }
-}
-packet {
-  trusted_packet_sequence_id: 1
   timestamp: 1000
   track_event {
     track_uuid: 1
@@ -122,6 +78,50 @@ packet {
         "should be absent from result"
     [perfetto.protos.TestExtension.nested_message_extension_for_testing] {
       child_field_for_testing: "nesting test"
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 5000
+  extension_descriptor {
+    extension_set {
+      file {
+        package: "perfetto.protos"
+        message_type {
+          extension {
+            name: "string_extension_for_testing"
+            extendee: ".perfetto.protos.TrackEvent"
+            number: 9900
+            type: TYPE_STRING
+            label: LABEL_OPTIONAL
+          }
+          extension {
+            name: "int_extension_for_testing"
+            extendee: ".perfetto.protos.TrackEvent"
+            number: 9901
+            type: TYPE_INT32
+            label: LABEL_REPEATED
+          }
+          extension {
+            name: "nested_message_extension_for_testing"
+            extendee: ".perfetto.protos.TrackEvent"
+            number: 9903
+            type: TYPE_MESSAGE
+            label: LABEL_OPTIONAL
+            type_name: ".perfetto.protos.TestExtensionChild"
+          }
+        }
+        message_type {
+          name: "TestExtensionChild"
+          field {
+            name: "child_field_for_testing"
+            number: 1
+            type: TYPE_STRING
+            label: LABEL_OPTIONAL
+          }
+        }
+      }
     }
   }
 }
