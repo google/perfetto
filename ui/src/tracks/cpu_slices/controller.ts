@@ -34,7 +34,7 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
 
     // ns per quantization bucket (i.e. ns per pixel). /2 * 2 is to force it to
     // be an even number, so we can snap in the middle.
-    const bucketNs = Math.round(resolution * 1e9 * pxSize / 2) * 2;
+    const bucketNs = Math.max(Math.round(resolution * 1e9 * pxSize / 2) * 2, 1);
 
     if (this.maxDurNs === 0) {
       const query = `SELECT max(dur) FROM sched WHERE cpu = ${this.config.cpu}`;
