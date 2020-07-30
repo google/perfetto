@@ -68,5 +68,12 @@ JOIN power_profile ON (
   AND power_profile.freq = cpu_freq_view.freq_khz
 );
 
+-- utid = 0 is a reserved value used to mark sched slices where CPU was idle.
+-- It doesn't correspond to any real thread.
+CREATE VIEW sched_real_threads AS
+SELECT *
+FROM sched
+WHERE utid != 0;
+
 CREATE VIRTUAL TABLE power_per_thread
-USING SPAN_LEFT_JOIN(sched PARTITIONED cpu, power_view PARTITIONED cpu);
+USING SPAN_LEFT_JOIN(sched_real_threads PARTITIONED cpu, power_view PARTITIONED cpu);
