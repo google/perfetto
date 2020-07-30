@@ -19,7 +19,7 @@ import {cropText, drawDoubleHeadedArrow} from '../../common/canvas_utils';
 import {TrackState} from '../../common/state';
 import {timeToString} from '../../common/time';
 import {checkerboardExcept} from '../../frontend/checkerboard';
-import {colorForThread, hueForCpu} from '../../frontend/colorizer';
+import {colorForThread} from '../../frontend/colorizer';
 import {globals} from '../../frontend/globals';
 import {Track} from '../../frontend/track';
 import {trackRegistry} from '../../frontend/track_registry';
@@ -28,14 +28,11 @@ import {
   Config,
   CPU_SLICE_TRACK_KIND,
   Data,
-  SliceData,
-  SummaryData
 } from './common';
 
 const MARGIN_TOP = 3;
 const RECT_HEIGHT = 24;
 const TRACK_HEIGHT = MARGIN_TOP * 2 + RECT_HEIGHT;
-const SUMMARY_HEIGHT = TRACK_HEIGHT - MARGIN_TOP;
 
 class CpuSliceTrack extends Track<Config, Data> {
   static readonly kind = CPU_SLICE_TRACK_KIND;
@@ -44,12 +41,10 @@ class CpuSliceTrack extends Track<Config, Data> {
   }
 
   private mouseXpos?: number;
-  private hue: number;
   private utidHoveredInThisTrack = -1;
 
   constructor(trackState: TrackState) {
     super(trackState);
-    this.hue = hueForCpu(this.config.cpu);
   }
 
   getHeight(): number {
@@ -73,40 +68,10 @@ class CpuSliceTrack extends Track<Config, Data> {
         timeScale.timeToPx(data.start),
         timeScale.timeToPx(data.end));
 
-    if (data.kind === 'summary') {
-      this.renderSummary(ctx, data);
-    } else if (data.kind === 'slice') {
-      this.renderSlices(ctx, data);
-    }
+    this.renderSlices(ctx, data);
   }
 
-  renderSummary(ctx: CanvasRenderingContext2D, data: SummaryData): void {
-    const {timeScale, visibleWindowTime} = globals.frontendLocalState;
-    const startPx = Math.floor(timeScale.timeToPx(visibleWindowTime.start));
-    const bottomY = TRACK_HEIGHT;
-
-    let lastX = startPx;
-    let lastY = bottomY;
-
-    ctx.fillStyle = `hsl(${this.hue}, 50%, 60%)`;
-    ctx.beginPath();
-    ctx.moveTo(lastX, lastY);
-    for (let i = 0; i < data.utilizations.length; i++) {
-      const utilization = data.utilizations[i];
-      const startTime = i * data.bucketSizeSeconds + data.start;
-
-      lastX = Math.floor(timeScale.timeToPx(startTime));
-
-      ctx.lineTo(lastX, lastY);
-      lastY = MARGIN_TOP + Math.round(SUMMARY_HEIGHT * (1 - utilization));
-      ctx.lineTo(lastX, lastY);
-    }
-    ctx.lineTo(lastX, bottomY);
-    ctx.closePath();
-    ctx.fill();
-  }
-
-  renderSlices(ctx: CanvasRenderingContext2D, data: SliceData): void {
+  renderSlices(ctx: CanvasRenderingContext2D, data: Data): void {
     const {timeScale, visibleWindowTime} = globals.frontendLocalState;
     assertTrue(data.starts.length === data.ends.length);
     assertTrue(data.starts.length === data.utids.length);
@@ -257,7 +222,7 @@ class CpuSliceTrack extends Track<Config, Data> {
   onMouseMove({x, y}: {x: number, y: number}) {
     const data = this.data();
     this.mouseXpos = x;
-    if (data === undefined || data.kind === 'summary') return;
+    if (data === undefined) return;
     const {timeScale} = globals.frontendLocalState;
     if (y < MARGIN_TOP || y > MARGIN_TOP + RECT_HEIGHT) {
       this.utidHoveredInThisTrack = -1;
@@ -290,7 +255,7 @@ class CpuSliceTrack extends Track<Config, Data> {
 
   onMouseClick({x}: {x: number}) {
     const data = this.data();
-    if (data === undefined || data.kind === 'summary') return false;
+    if (data === undefined) return false;
     const {timeScale} = globals.frontendLocalState;
     const time = timeScale.pxToTime(x);
     const index = search(data.starts, time);
