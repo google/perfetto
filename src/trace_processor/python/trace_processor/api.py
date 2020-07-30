@@ -115,6 +115,18 @@ class TraceProcessor:
     """
     return self.http.compute_metric(metrics)
 
+  def enable_metatrace(self):
+    """Enable metatrace for the currently running trace_processor.
+    """
+    return self.http.enable_metatrace()
+
+  def disable_and_read_metatrace(self):
+    """Disable and return the metatrace formed from the currently running
+    trace_processor. This must be enabled before attempting to disable. This
+    returns the serialized bytes of the metatrace data directly.
+    """
+    return self.http.disable_and_read_metatrace()
+
   # TODO(@aninditaghosh): Investigate context managers for
   # cleaner usage
   def close(self):
