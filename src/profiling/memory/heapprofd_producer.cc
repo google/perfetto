@@ -433,7 +433,9 @@ void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
   HeapprofdConfigToClientConfiguration(heapprofd_config, &cli_config);
   data_source.config = heapprofd_config;
   data_source.normalized_cmdlines = std::move(normalized_cmdlines.value());
-  data_source.stop_timeout_ms = ds_config.stop_timeout_ms();
+  data_source.stop_timeout_ms = ds_config.stop_timeout_ms()
+                                    ? ds_config.stop_timeout_ms()
+                                    : 5000 /* kDataSourceStopTimeoutMs */;
   data_source.start_cputime_sec = start_cputime_sec;
 
   InterningOutputTracker::WriteFixedInterningsPacket(
