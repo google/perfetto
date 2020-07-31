@@ -16,12 +16,13 @@ SELECT RUN_METRIC('chrome/scroll_jank_cause.sql') AS suppress_query_output;
 
 SELECT
   COUNT(*) AS total,
+  SUM(jank) as total_jank,
   SUM(explained_jank + unexplained_jank) AS sum_explained_and_unexplained,
   SUM(
     CASE WHEN explained_jank THEN
       unexplained_jank
     ELSE
-      CASE WHEN NOT unexplained_jank THEN
+      CASE WHEN jank AND NOT unexplained_jank THEN
         1
       ELSE
         0
