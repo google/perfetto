@@ -386,7 +386,8 @@ void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
     } else if (machine == "i686") {
       syscall_tracker->SetArchitecture(kX86);
     } else {
-      PERFETTO_ELOG("Unknown architecture %s", machine.ToStdString().c_str());
+      PERFETTO_ELOG("Unknown architecture %s. Syscall traces will not work.",
+                    machine.ToStdString().c_str());
     }
 
     SystemInfoTracker* system_info_tracker =
