@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from urllib import request
+import http.client
 
 from .protos import ProtoFactory
 
@@ -22,14 +22,14 @@ class TraceProcessorHttp:
 
   def __init__(self, url):
     self.protos = ProtoFactory()
-    self.url = 'http://' + url
+    self.conn = http.client.HTTPConnection(url)
 
   def execute_query(self, query):
     args = self.protos.RawQueryArgs()
     args.sql_query = query
     byte_data = args.SerializeToString()
-    req = request.Request(self.url + '/query', data=byte_data)
-    with request.urlopen(req) as f:
+    self.conn.request('POST', '/query', body=byte_data)
+    with self.conn.getresponse() as f:
       result = self.protos.QueryResult()
       result.ParseFromString(f.read())
 
@@ -41,8 +41,8 @@ class TraceProcessorHttp:
     args = self.protos.ComputeMetricArgs()
     args.metric_names.extend(metrics)
     byte_data = args.SerializeToString()
-    req = request.Request(self.url + '/compute_metric', data=byte_data)
-    with request.urlopen(req) as f:
+    self.conn.request('POST', '/compute_metric', body=byte_data)
+    with self.conn.getresponse() as f:
       result = self.protos.ComputeMetricResult()
       result.ParseFromString(f.read())
 
@@ -54,30 +54,30 @@ class TraceProcessorHttp:
     return metrics
 
   def parse(self, chunk):
-    req = request.Request(self.url + '/parse', data=chunk)
-    with request.urlopen(req) as f:
+    self.conn.request('POST', '/parse', body=chunk)
+    with self.conn.getresponse() as f:
       return f.read()
 
   def notify_eof(self):
-    req = request.Request(self.url + '/notify_eof')
-    with request.urlopen(req) as f:
+    self.conn.request('GET', '/notify_eof')
+    with self.conn.getresponse() as f:
       return f.read()
 
   def status(self):
-    req = request.Request(self.url + '/status')
-    with request.urlopen(req) as f:
+    self.conn.request('GET', '/status')
+    with self.conn.getresponse() as f:
       result = self.protos.StatusResult()
       result.ParseFromString(f.read())
       return result
 
   def enable_metatrace(self):
-    req = request.Request(self.url + '/enable_metatrace')
-    with request.urlopen(req) as f:
+    self.conn.request('GET', '/enable_metatrace')
+    with self.conn.getresponse() as f:
       return f.read()
 
   def disable_and_read_metatrace(self):
-    req = request.Request(self.url + '/disable_and_read_metatrace')
-    with request.urlopen(req) as f:
+    self.conn.request('GET', '/disable_and_read_metatrace')
+    with self.conn.getresponse() as f:
       result = self.protos.DisableAndReadMetatraceResult()
       result.ParseFromString(f.read())
 
