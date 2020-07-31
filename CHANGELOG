@@ -2,10 +2,31 @@ Unreleased:
   Tracing service and probes:
     *
   Trace Processor:
-    * Local Symbolizer allows to use PERFETTO_SYMBOLIZER_MODE=index to
-      discover symbol files by build id rather than name.
+    *
   UI:
     *
+
+
+v6.0 - 2020-08-01:
+  Tracing service and probes:
+    * Added ftrace thermal events.
+    * Added support for custom allocators to the heap profiler. Allows
+      developers to report memory allocations that are not done through malloc.
+    * Added detailed timestamping of key tracing session events.
+    * Added support for building tracing services on CrOS (system-wide tracing).
+    * Fixed filtering out of stale ftrace data that predates the beginning of
+      the tracing session.
+  Trace Processor:
+    * Improved profile symbolizer. PERFETTO_SYMBOLIZER_MODE=index discovers
+      symbol files by build id rather than name.
+    * Added screen-state Android metrics.
+  UI:
+    * Added 'Info and stats' page to debug data losses and trace stats.
+    * Added full cmdline to process detail panel.
+    * Improved performance of async tracks using quantized queries.
+    * Improved performance of counter and slice tracks for long traces by
+      pre-caching quantized track data.
+    * Improved actionablility of crash dialog when the Wasm module OOMs.
 
 
 v5.0 - 2020-07-01:
