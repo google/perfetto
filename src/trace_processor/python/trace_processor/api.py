@@ -16,7 +16,17 @@ from urllib.parse import urlparse
 
 from .http import TraceProcessorHttp
 from .loader import get_loader
+from .protos import ProtoFactory
 from .shell import load_shell
+
+
+# Custom exception raised if any trace_processor functions return a
+# response with an error defined
+class TraceProcessorException(Exception):
+
+  def __init__(self, message):
+    super().__init__(message)
+
 
 class TraceProcessor:
 
@@ -93,6 +103,7 @@ class TraceProcessor:
       url, self.subprocess = load_shell(bin_path=bin_path)
       tp = TraceProcessorHttp(url)
     self.http = tp
+    self.protos = ProtoFactory()
 
     # Parse trace by its file_path into the loaded instance of trace_processor
     if file_path:
@@ -100,7 +111,8 @@ class TraceProcessor:
 
   def query(self, sql):
     """Executes passed in SQL query using class defined HTTP API, and returns
-    the response as a QueryResultIterator
+    the response as a QueryResultIterator. Raises TraceProcessorException if
+    the response returns with an error.
 
     Args:
       sql: SQL query written as a String
@@ -109,11 +121,15 @@ class TraceProcessor:
       A class which can iterate through each row of the results table
     """
     response = self.http.execute_query(sql)
+    if response.error:
+      raise TraceProcessorException(response.error)
+
     return TraceProcessor.QueryResultIterator(response.column_names,
                                               response.batch)
 
   def metric(self, metrics):
     """Returns the metrics data corresponding to the passed in trace metric.
+    Raises TraceProcessorException if the response returns with an error.
 
     Args:
       metrics: A list of valid metrics as defined in TraceMetrics
@@ -121,7 +137,13 @@ class TraceProcessor:
     Returns:
       The metrics data as a proto message
     """
-    return self.http.compute_metric(metrics)
+    response = self.http.compute_metric(metrics)
+    if response.error:
+      raise TraceProcessorException(response.error)
+
+    metrics = self.protos.TraceMetrics()
+    metrics.ParseFromString(response.metrics)
+    return metrics
 
   def enable_metatrace(self):
     """Enable metatrace for the currently running trace_processor.
@@ -131,9 +153,14 @@ class TraceProcessor:
   def disable_and_read_metatrace(self):
     """Disable and return the metatrace formed from the currently running
     trace_processor. This must be enabled before attempting to disable. This
-    returns the serialized bytes of the metatrace data directly.
+    returns the serialized bytes of the metatrace data directly. Raises
+    TraceProcessorException if the response returns with an error.
     """
-    return self.http.disable_and_read_metatrace()
+    response = self.http.disable_and_read_metatrace()
+    if response.error:
+      raise TraceProcessorException(response.error)
+
+    return response.metatrace
 
   # TODO(@aninditaghosh): Investigate context managers for
   # cleaner usage
