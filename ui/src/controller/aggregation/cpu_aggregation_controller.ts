@@ -60,6 +60,8 @@ export class CpuAggregationController extends AggregationController {
     return 'CPU Slices';
   }
 
+  async getExtra() {}
+
   getDefaultSorting(): Sorting {
     return {column: 'total_dur', direction: 'DESC'};
   }
