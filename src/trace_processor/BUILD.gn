@@ -248,6 +248,7 @@ source_set("storage_full") {
     "../protozero",
     "importers:common",
     "storage",
+    "tables",
     "types",
   ]
   if (enable_perfetto_trace_processor_json) {

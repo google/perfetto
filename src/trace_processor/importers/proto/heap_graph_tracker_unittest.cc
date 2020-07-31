@@ -56,6 +56,7 @@ TEST(HeapGraphTrackerTest, BuildFlamegraph) {
   HeapGraphTracker tracker(&context);
 
   constexpr uint64_t kField = 1;
+  constexpr uint64_t kLocation = 0;
 
   constexpr uint64_t kX = 1;
   constexpr uint64_t kY = 2;
@@ -70,10 +71,12 @@ TEST(HeapGraphTrackerTest, BuildFlamegraph) {
 
   tracker.AddInternedFieldName(kSeqId, kField, field);
 
-  tracker.AddInternedType(kSeqId, kX, x);
-  tracker.AddInternedType(kSeqId, kY, y);
-  tracker.AddInternedType(kSeqId, kA, a);
-  tracker.AddInternedType(kSeqId, kB, b);
+  tracker.AddInternedLocationName(kSeqId, kLocation,
+                                  context.storage->InternString("location"));
+  tracker.AddInternedType(kSeqId, kX, x, kLocation, /*object_size=*/0);
+  tracker.AddInternedType(kSeqId, kY, y, kLocation, /*object_size=*/0);
+  tracker.AddInternedType(kSeqId, kA, a, kLocation, /*object_size=*/0);
+  tracker.AddInternedType(kSeqId, kB, b, kLocation, /*object_size=*/0);
 
   {
     HeapGraphTracker::SourceObject obj;
