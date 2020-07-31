@@ -64,25 +64,25 @@ packet {
   trusted_packet_sequence_id: 999
   heap_graph {
     pid: 2
-    type_names {
-      iid: 1
-      str: "RootNode"
+    types {
+      id: 1
+      class_name: "RootNode"
     }
-    type_names {
-      iid: 2
-      str: "LeftChild0"
+    types {
+      id: 2
+      class_name: "LeftChild0"
     }
-    type_names {
-      iid: 3
-      str: "LeftChild1"
+    types {
+      id: 3
+      class_name: "LeftChild1"
     }
-    type_names {
-      iid: 4
-      str: "RightChild0"
+    types {
+      id: 4
+      class_name: "RightChild0"
     }
-    type_names {
-      iid: 5
-      str: "RightChild1"
+    types {
+      id: 5
+      class_name: "RightChild1"
     }
     field_names {
       iid: 1
