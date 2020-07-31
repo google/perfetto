@@ -33,6 +33,8 @@
     "uuid": "^3.4.0"
   },
   "devDependencies": {
+    "@rollup/plugin-commonjs": "^14.0.0",
+    "@rollup/plugin-node-resolve": "^8.4.0",
     "@types/jest": "^22.2.3",
     "@types/puppeteer": "^1.20.6",
     "dingusjs": "^0.0.3",
@@ -40,8 +42,6 @@
     "node-sass": "^4.14.1",
     "puppeteer": "^1.20.0",
     "rollup": "^1.32.1",
-    "rollup-plugin-commonjs": "^9.3.4",
-    "rollup-plugin-node-resolve": "^4.2.4",
     "sorcery": "^0.10.0",
     "tslib": "^1.13.0",
     "tslint": "^5.20.1",
