@@ -49,4 +49,13 @@ export interface AggregateData {
   columns: Column[];
   // For string interning.
   strings: string[];
+  // Some aggregations will have extra info to display;
+  extra?: ThreadStateExtra;
+}
+
+export interface ThreadStateExtra {
+  kind: 'THREAD_STATE';
+  states: string[];
+  values: Float64Array;
+  totalMs: number;
 }
