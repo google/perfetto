@@ -140,3 +140,4 @@ class TraceProcessor:
   def close(self):
     if hasattr(self, 'subprocess'):
       self.subprocess.kill()
+    self.http.conn.close()
