@@ -32,10 +32,7 @@ class TraceProcessorHttp:
     with self.conn.getresponse() as f:
       result = self.protos.QueryResult()
       result.ParseFromString(f.read())
-
-    if result.error:
-      raise Exception(result.error)
-    return result
+      return result
 
   def compute_metric(self, metrics):
     args = self.protos.ComputeMetricArgs()
@@ -45,13 +42,7 @@ class TraceProcessorHttp:
     with self.conn.getresponse() as f:
       result = self.protos.ComputeMetricResult()
       result.ParseFromString(f.read())
-
-    if result.error:
-      raise Exception(result.error)
-
-    metrics = self.protos.TraceMetrics()
-    metrics.ParseFromString(result.metrics)
-    return metrics
+      return result
 
   def parse(self, chunk):
     self.conn.request('POST', '/parse', body=chunk)
@@ -80,9 +71,4 @@ class TraceProcessorHttp:
     with self.conn.getresponse() as f:
       result = self.protos.DisableAndReadMetatraceResult()
       result.ParseFromString(f.read())
-
-    # TODO(@aninditaghosh): b/162168559
-    if result.error:
-      raise Exception(result.error)
-
-    return result.metatrace
+      return result
