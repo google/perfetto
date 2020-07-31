@@ -39,37 +39,45 @@ class TraceProcessor:
   class QueryResultIterator:
 
     def __init__(self, column_names, batches):
-      # TODO(@aninditaghosh): Revisit to handle multiple batches
-      self.__cells = batches[0].cells
-      self.__varint_cells = batches[0].varint_cells
-      self.__float64_cells = batches[0].float64_cells
-      self.__blob_cells = batches[0].blob_cells
+      self.__batches = batches
+      self.__column_names = column_names
+      self.__batch_index = 0
+      self.__next_index = 0
       # TODO(aninditaghosh): Revisit string cells for larger traces
       self.__string_cells = batches[0].string_cells.split('\0')
-      self.__column_names = column_names
 
     def get_cell_list(self, proto_index):
       if proto_index == TraceProcessor.QUERY_CELL_VARINT_FIELD_ID:
-        return self.__varint_cells
+        return self.__batches[self.__batch_index].varint_cells
       elif proto_index == TraceProcessor.QUERY_CELL_FLOAT64_FIELD_ID:
-        return self.__float64_cells
+        return self.__batches[self.__batch_index].float64_cells
       elif proto_index == TraceProcessor.QUERY_CELL_STRING_FIELD_ID:
         return self.__string_cells
       elif proto_index == TraceProcessor.QUERY_CELL_BLOB_FIELD_ID:
-        return self.__blob_cells
+        return self.__batches[self.__batch_index].blob_cells
       else:
         return None
 
+    def cells(self):
+      return self.__batches[self.__batch_index].cells
+
     def __iter__(self):
-      self.__next_index = 0
       return self
 
     def __next__(self):
-      if self.__next_index >= len(self.__cells):
-        raise StopIteration
+      # If all cells are read, then check if last batch before raising
+      # StopIteration
+      if self.__next_index >= len(self.cells()):
+        if self.__batches[self.__batch_index].is_last_batch:
+          raise StopIteration
+        self.__batch_index += 1
+        self.__next_index = 0
+        self.__string_cells = self.__batches[
+            self.__batch_index].string_cells.split('\0')
+
       row = TraceProcessor.Row()
       for num, column_name in enumerate(self.__column_names):
-        cell_list = self.get_cell_list(self.__cells[self.__next_index + num])
+        cell_list = self.get_cell_list(self.cells()[self.__next_index + num])
         if cell_list is not None:
           val = cell_list.pop(0)
         setattr(row, column_name, val or None)
