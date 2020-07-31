@@ -49,7 +49,6 @@ packet {
     objects {
       id: 0x01
       type_id: 1
-      self_size: 64
       reference_field_id: 1
       reference_object_id: 0x02
       reference_field_id: 3
@@ -63,12 +62,10 @@ packet {
     objects {
       id: 0x03
       type_id: 2
-      self_size: 128
     }
     objects {
       id: 0x04
       type_id: 3
-      self_size: 256
       reference_field_id: 2
       reference_object_id: 0x01
     }
@@ -99,16 +96,19 @@ packet {
       id: 1
       class_name: "FactoryProducerDelegateImplActor"
       location_id: 1
+      object_size: 64
     }
     types {
       id: 2
       class_name: "Foo"
       location_id: 1
+      object_size: 128
     }
     types {
       id: 3
       class_name: "a"
       location_id: 1
+      object_size: 256
     }
     types {
       id: 4

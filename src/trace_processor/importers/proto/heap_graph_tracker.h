@@ -103,7 +103,8 @@ class HeapGraphTracker : public Destructible {
   void AddInternedType(uint32_t seq_id,
                        uint64_t intern_id,
                        StringPool::Id strid,
-                       base::Optional<uint64_t> location_id = {});
+                       uint64_t location_id,
+                       uint64_t object_size);
   void AddInternedFieldName(uint32_t seq_id,
                             uint64_t intern_id,
                             base::StringView str);
@@ -153,6 +154,7 @@ class HeapGraphTracker : public Destructible {
   struct InternedType {
     StringPool::Id name;
     base::Optional<uint64_t> location_id;
+    uint64_t object_size;
   };
   struct SequenceState {
     UniquePid current_upid = 0;
@@ -165,6 +167,13 @@ class HeapGraphTracker : public Destructible {
     std::map<uint64_t, std::vector<tables::HeapGraphReferenceTable::Id>>
         references_for_field_name_id;
     base::Optional<uint64_t> prev_index;
+    // For most objects, we need not store the size in the object's message
+    // itself, because all instances of the type have the same type. In this
+    // case, we defer setting self_size in the table until we process the class
+    // message in FinalizeProfile.
+    std::map<tables::HeapGraphClassTable::Id,
+             std::vector<tables::HeapGraphObjectTable::Id>>
+        deferred_size_objects_for_type_;
   };
 
   SequenceState& GetOrCreateSequence(uint32_t seq_id);
