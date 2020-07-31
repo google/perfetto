@@ -25,7 +25,7 @@ ${OUT_PATH}/perfetto_unittests
 ${OUT_PATH}/perfetto_integrationtests
 ${OUT_PATH}/trace_processor_minimal_smoke_tests
 
-# If this is a split host+target build, use the trace_processoer_shell binary
+# If this is a split host+target build, use the trace_processor_shell binary
 # from the host directory. In some cases (e.g. lsan x86 builds) the host binary
 # that is copied into the target directory (OUT_PATH) cannot run because depends
 # on libc++.so within the same folder (which is built using target bitness,
@@ -40,6 +40,8 @@ mkdir -p /ci/artifacts/perf
 tools/diff_test_trace_processor.py \
   --perf-file=/ci/artifacts/perf/tp-perf-all.json \
   ${TP_SHELL}
+
+tools/run_python_api_tests.py ${TP_SHELL}
 
 # Don't run benchmarks under x86 (running out of address space because of 4GB)
 # limit or debug (too slow and pointless).
