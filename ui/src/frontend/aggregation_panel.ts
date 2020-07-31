@@ -15,9 +15,14 @@
 import * as m from 'mithril';
 
 import {Actions} from '../common/actions';
-import {AggregateData, Column} from '../common/aggregation_data';
+import {
+  AggregateData,
+  Column,
+  ThreadStateExtra
+} from '../common/aggregation_data';
 import {translateState} from '../common/thread_state';
 
+import {colorForState, textColorForState} from './colorizer';
 import {globals} from './globals';
 import {Panel} from './panel';
 
@@ -31,6 +36,10 @@ export class AggregationPanel extends Panel<AggregationPanelAttrs> {
     return m(
         '.details-panel',
         m('.details-panel-heading.aggregation',
+          attrs.data.extra !== undefined &&
+                  attrs.data.extra.kind === 'THREAD_STATE' ?
+              this.showStateSummary(attrs.data.extra) :
+              null,
           this.showTimeRange(),
           m('table',
             m('tr',
@@ -94,6 +103,28 @@ export class AggregationPanel extends Panel<AggregationPanelAttrs> {
     if (area === undefined) return undefined;
     const rangeDurationMs = (area.endSec - area.startSec) * 1e3;
     return m('.time-range', `Selected range: ${rangeDurationMs.toFixed(6)} ms`);
+  }
+
+  // Thread state aggregation panel only
+  showStateSummary(data: ThreadStateExtra) {
+    if (data === undefined) return undefined;
+    const states = [];
+    for (let i = 0; i < data.states.length; i++) {
+      const color = colorForState(data.states[i]);
+      const textColor = textColorForState(data.states[i]);
+      const width = data.values[i] / data.totalMs * 100;
+      states.push(
+          m('.state',
+            {
+              style: {
+                background: `hsl(${color.h},${color.s}%,${color.l}%)`,
+                color: `${textColor}`,
+                width: `${width}%`
+              }
+            },
+            `${translateState(data.states[i])}: ${data.values[i]} ms`));
+    }
+    return m('.states', states);
   }
 
   renderCanvas() {}
