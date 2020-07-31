@@ -111,6 +111,11 @@ export function colorForState(stateCode: string): Readonly<Color> {
   return INDIGO;
 }
 
+export function textColorForState(stateCode: string): string {
+  const background = colorForState(stateCode);
+  return background.l > 80 ? '#404040' : '#fff';
+}
+
 export function colorForTid(tid: number): Color {
   const colorIdx = hash(tid.toString(), MD_PALETTE.length);
   return Object.assign({}, MD_PALETTE[colorIdx]);
