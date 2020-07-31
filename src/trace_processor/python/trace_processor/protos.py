@@ -18,7 +18,6 @@ from google.protobuf.descriptor_pool import DescriptorPool
 
 from .loader import get_loader
 
-
 class ProtoFactory:
 
   def __init__(self):
@@ -57,3 +56,5 @@ class ProtoFactory:
     self.TraceMetrics = create_message_factory('perfetto.protos.TraceMetrics')
     self.DisableAndReadMetatraceResult = create_message_factory(
         'perfetto.protos.DisableAndReadMetatraceResult')
+    self.CellsBatch = create_message_factory(
+        'perfetto.protos.QueryResult.CellsBatch')
