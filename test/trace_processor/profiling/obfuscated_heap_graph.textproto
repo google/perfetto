@@ -50,17 +50,17 @@ packet {
   trusted_packet_sequence_id: 999
   heap_graph {
     pid: 2
-    type_names {
-      iid: 1
-      str: "FactoryProducerDelegateImplActor"
+    types {
+      id: 1
+      class_name: "FactoryProducerDelegateImplActor"
     }
-    type_names {
-      iid: 2
-      str: "a"
+    types {
+      id: 2
+      class_name: "a"
     }
-    type_names {
-      iid: 3
-      str: "java.lang.Class<abc[]>"
+    types {
+      id: 3
+      class_name: "java.lang.Class<abc[]>"
     }
     field_names {
       iid: 1

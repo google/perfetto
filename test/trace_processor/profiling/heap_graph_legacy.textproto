@@ -91,25 +91,25 @@ packet {
   timestamp: 10
   heap_graph {
     pid: 2
-    type_names {
-      iid: 1
-      str: "FactoryProducerDelegateImplActor"
+    types {
+      id: 1
+      class_name: "FactoryProducerDelegateImplActor"
     }
-    type_names {
-      iid: 2
-      str: "Foo"
+    types {
+      id: 2
+      class_name: "Foo"
     }
-    type_names {
-      iid: 3
-      str: "a"
+    types {
+      id: 3
+      class_name: "a"
     }
-    type_names {
-      iid: 4
-      str: "a[]"
+    types {
+      id: 4
+      class_name: "a[]"
     }
-    type_names {
-      iid: 5
-      str: "java.lang.Class<a[]>"
+    types {
+      id: 5
+      class_name: "java.lang.Class<a[]>"
     }
     field_names {
       iid: 1
