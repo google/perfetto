@@ -166,7 +166,7 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
 
     heap_graph_tracker->AddInternedType(
         seq_id, entry.id(), context_->storage->InternString(str_view),
-        entry.location_id());
+        entry.location_id(), entry.object_size());
   }
   for (auto it = heap_graph.field_names(); it; ++it) {
     protos::pbzero::InternedString::Decoder entry(*it);

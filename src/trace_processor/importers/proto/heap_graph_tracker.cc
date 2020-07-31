@@ -18,6 +18,7 @@
 
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "src/trace_processor/tables/profiler_tables.h"
 
 #include <set>
 
@@ -417,6 +418,9 @@ void HeapGraphTracker::AddObject(uint32_t seq_id,
   hgo->mutable_self_size()->Set(row, static_cast<int64_t>(obj.self_size));
   hgo->mutable_type_id()->Set(row, type_id);
 
+  if (obj.self_size == 0)
+    sequence_state.deferred_size_objects_for_type_[type_id].push_back(owner_id);
+
   uint32_t reference_set_id =
       context_->storage->heap_graph_reference_table().row_count();
   bool any_references = false;
@@ -469,10 +473,12 @@ void HeapGraphTracker::AddInternedLocationName(uint32_t seq_id,
 void HeapGraphTracker::AddInternedType(uint32_t seq_id,
                                        uint64_t intern_id,
                                        StringPool::Id strid,
-                                       base::Optional<uint64_t> location_id) {
+                                       uint64_t location_id,
+                                       uint64_t object_size) {
   SequenceState& sequence_state = GetOrCreateSequence(seq_id);
   sequence_state.interned_types[intern_id].name = strid;
   sequence_state.interned_types[intern_id].location_id = location_id;
+  sequence_state.interned_types[intern_id].object_size = object_size;
 }
 
 void HeapGraphTracker::AddInternedFieldName(uint32_t seq_id,
@@ -550,6 +556,17 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
     tables::HeapGraphClassTable::Id type_id =
         GetOrInsertType(&sequence_state, id);
 
+    auto it = sequence_state.deferred_size_objects_for_type_.find(type_id);
+    if (it != sequence_state.deferred_size_objects_for_type_.end()) {
+      for (tables::HeapGraphObjectTable::Id obj_id : it->second) {
+        auto* hgo = context_->storage->mutable_heap_graph_object_table();
+        uint32_t row = *hgo->id().IndexOf(obj_id);
+        hgo->mutable_self_size()->Set(
+            row, static_cast<int64_t>(interned_type.object_size));
+      }
+      sequence_state.deferred_size_objects_for_type_.erase(it);
+    }
+
     auto* hgc = context_->storage->mutable_heap_graph_class_table();
     uint32_t row = *hgc->id().IndexOf(type_id);
     hgc->mutable_name()->Set(row, interned_type.name);
@@ -591,6 +608,12 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
                          context_->storage->InternString(normalized_type))]
           .emplace_back(type_id);
     }
+  }
+
+  if (!sequence_state.deferred_size_objects_for_type_.empty()) {
+    context_->storage->IncrementIndexedStats(
+        stats::heap_graph_malformed_packet,
+        static_cast<int>(sequence_state.current_upid));
   }
 
   for (const SourceRoot& root : sequence_state.current_roots) {

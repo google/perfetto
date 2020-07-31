@@ -6506,6 +6506,8 @@ message HeapGraphType {
   optional uint64 id = 1;
   optional uint64 location_id = 2;
   optional string class_name = 3;
+  // Size of objects of this type.
+  optional uint64 object_size = 4;
 }
 
 message HeapGraphObject {
