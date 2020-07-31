@@ -134,6 +134,8 @@ export class CounterAggregationController extends AggregationController {
     ];
   }
 
+  async getExtra() {}
+
   getTabName() {
     return 'Counters';
   }
