@@ -107,7 +107,7 @@ void AssertNoProfileContents(std::vector<protos::gen::TracePacket> packets) {
   for (const auto& packet : packets) {
     ASSERT_EQ(packet.heap_graph().roots_size(), 0);
     ASSERT_EQ(packet.heap_graph().objects_size(), 0);
-    ASSERT_EQ(packet.heap_graph().type_names_size(), 0);
+    ASSERT_EQ(packet.heap_graph().types_size(), 0);
     ASSERT_EQ(packet.heap_graph().field_names_size(), 0);
   }
 }
