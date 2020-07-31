@@ -12,7 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {AggregateData, Column, ColumnDef} from '../../common/aggregation_data';
+import {
+  AggregateData,
+  Column,
+  ColumnDef,
+  ThreadStateExtra,
+} from '../../common/aggregation_data';
 import {Engine} from '../../common/engine';
 import {Sorting, TimestampedAreaSelection} from '../../common/state';
 import {Controller} from '../controller';
@@ -32,6 +37,9 @@ export abstract class AggregationController extends Controller<'main'> {
 
   abstract async createAggregateView(
       engine: Engine, area: TimestampedAreaSelection): Promise<boolean>;
+
+  abstract async getExtra(engine: Engine, area: TimestampedAreaSelection):
+      Promise<ThreadStateExtra|void>;
 
   abstract getTabName(): string;
   abstract getDefaultSorting(): Sorting;
@@ -78,7 +86,11 @@ export abstract class AggregationController extends Controller<'main'> {
       const viewExists =
           await this.createAggregateView(this.args.engine, selectedArea);
       if (!viewExists) {
-        return {tabName: this.getTabName(), columns: [], strings: []};
+        return {
+          tabName: this.getTabName(),
+          columns: [],
+          strings: [],
+        };
       }
     }
 
@@ -96,8 +108,10 @@ export abstract class AggregationController extends Controller<'main'> {
     const numRows = +result.numRecords;
     const columns = defs.map(def => this.columnFromColumnDef(def, numRows));
 
-    const data:
-        AggregateData = {tabName: this.getTabName(), columns, strings: []};
+    const extraData = await this.getExtra(this.args.engine, selectedArea);
+    const extra = extraData ? extraData : undefined;
+    const data: AggregateData =
+        {tabName: this.getTabName(), columns, strings: [], extra};
 
     const stringIndexes = new Map<string, number>();
     function internString(str: string) {
