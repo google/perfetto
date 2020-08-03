@@ -211,6 +211,9 @@ class Table {
   // Returns an iterator into the Table.
   Iterator IterateRows() const { return Iterator(this); }
 
+  // Creates a copy of this table.
+  Table Copy() const;
+
   uint32_t row_count() const { return row_count_; }
   const std::vector<RowMap>& row_maps() const { return row_maps_; }
 
@@ -226,7 +229,6 @@ class Table {
  private:
   friend class Column;
 
-  Table Copy() const;
   Table CopyExceptRowMaps() const;
 };
 
