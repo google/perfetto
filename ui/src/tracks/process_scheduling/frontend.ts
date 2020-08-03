@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {searchEq, searchRange} from '../../base/binary_search';
+import {searchEq, searchRange, searchSegment} from '../../base/binary_search';
 import {assertTrue} from '../../base/logging';
 import {TrackState} from '../../common/state';
 import {checkerboardExcept} from '../../frontend/checkerboard';
@@ -68,16 +68,20 @@ class ProcessSchedulingTrack extends Track<Config, Data> {
     assertTrue(data.starts.length === data.ends.length);
     assertTrue(data.starts.length === data.utids.length);
 
+    const [rawStartIdx, ] = searchSegment(data.ends, visibleWindowTime.start);
+    const [, rawEndIdx] = searchSegment(data.starts, visibleWindowTime.end);
+
+    const startIdx = rawStartIdx === -1 ? 0 : rawStartIdx;
+    const endIdx = rawEndIdx === -1 ? data.starts.length : rawEndIdx;
+
     const cpuTrackHeight = Math.floor(RECT_HEIGHT / data.maxCpu);
 
-    for (let i = 0; i < data.starts.length; i++) {
+    for (let i = startIdx; i < endIdx; i++) {
       const tStart = data.starts[i];
       const tEnd = data.ends[i];
       const utid = data.utids[i];
       const cpu = data.cpus[i];
-      if (tEnd <= visibleWindowTime.start || tStart >= visibleWindowTime.end) {
-        continue;
-      }
+
       const rectStart = timeScale.timeToPx(tStart);
       const rectEnd = timeScale.timeToPx(tEnd);
       const rectWidth = rectEnd - rectStart;
