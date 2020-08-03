@@ -121,7 +121,7 @@ void TraceBuffer::CopyChunkUntrusted(ProducerID producer_id_trusted,
       base::AlignUp<sizeof(ChunkRecord)>(size + sizeof(ChunkRecord));
   if (PERFETTO_UNLIKELY(record_size > max_chunk_size_)) {
     stats_.set_abi_violations(stats_.abi_violations() + 1);
-    PERFETTO_DCHECK(suppress_sanity_dchecks_for_testing_);
+    PERFETTO_DCHECK(suppress_client_dchecks_for_testing_);
     return;
   }
 
@@ -172,7 +172,7 @@ void TraceBuffer::CopyChunkUntrusted(ProducerID producer_id_trusted,
                           prev->num_fragments > num_fragments ||
                           (prev->flags & chunk_flags) != prev->flags)) {
       stats_.set_abi_violations(stats_.abi_violations() + 1);
-      PERFETTO_DCHECK(suppress_sanity_dchecks_for_testing_);
+      PERFETTO_DCHECK(suppress_client_dchecks_for_testing_);
       return;
     }
 
@@ -189,14 +189,14 @@ void TraceBuffer::CopyChunkUntrusted(ProducerID producer_id_trusted,
     if (subsequent_it != index_.end() &&
         subsequent_it->second.num_fragments_read > 0) {
       stats_.set_abi_violations(stats_.abi_violations() + 1);
-      PERFETTO_DCHECK(suppress_sanity_dchecks_for_testing_);
+      PERFETTO_DCHECK(suppress_client_dchecks_for_testing_);
       return;
     }
 
     // If this chunk was previously copied with the same number of fragments and
     // the number didn't change, there's no need to copy it again. If the
     // previous chunk was complete already, this should always be the case.
-    PERFETTO_DCHECK(suppress_sanity_dchecks_for_testing_ ||
+    PERFETTO_DCHECK(suppress_client_dchecks_for_testing_ ||
                     !record_meta->is_complete() ||
                     (chunk_complete && prev->num_fragments == num_fragments));
     if (prev->num_fragments == num_fragments) {
@@ -208,7 +208,7 @@ void TraceBuffer::CopyChunkUntrusted(ProducerID producer_id_trusted,
     if (record_meta->num_fragments_read > prev->num_fragments) {
       PERFETTO_ELOG(
           "TraceBuffer read too many fragments from an incomplete chunk");
-      PERFETTO_DCHECK(suppress_sanity_dchecks_for_testing_);
+      PERFETTO_DCHECK(suppress_client_dchecks_for_testing_);
       return;
     }
 
@@ -826,7 +826,7 @@ TraceBuffer::ReadPacketResult TraceBuffer::ReadNextPacketInChunk(
     // The producer has a bug or is malicious and did declare that the chunk
     // contains more packets beyond its boundaries.
     stats_.set_abi_violations(stats_.abi_violations() + 1);
-    PERFETTO_DCHECK(suppress_sanity_dchecks_for_testing_);
+    PERFETTO_DCHECK(suppress_client_dchecks_for_testing_);
     chunk_meta->cur_fragment_offset = 0;
     chunk_meta->num_fragments_read = chunk_meta->num_fragments;
     if (PERFETTO_LIKELY(chunk_meta->is_complete())) {
@@ -856,7 +856,7 @@ TraceBuffer::ReadPacketResult TraceBuffer::ReadNextPacketInChunk(
     // R).
     if (packet_size != SharedMemoryABI::kPacketSizeDropPacket) {
       stats_.set_abi_violations(stats_.abi_violations() + 1);
-      PERFETTO_DCHECK(suppress_sanity_dchecks_for_testing_);
+      PERFETTO_DCHECK(suppress_client_dchecks_for_testing_);
     } else {
       stats_.set_trace_writer_packet_loss(stats_.trace_writer_packet_loss() +
                                           1);
@@ -884,7 +884,7 @@ TraceBuffer::ReadPacketResult TraceBuffer::ReadNextPacketInChunk(
     // We have at least one more packet to parse. It should be within the chunk.
     if (chunk_meta->cur_fragment_offset + sizeof(ChunkRecord) >=
         chunk_meta->chunk_record->size) {
-      PERFETTO_DCHECK(suppress_sanity_dchecks_for_testing_);
+      PERFETTO_DCHECK(suppress_client_dchecks_for_testing_);
     }
   }
 

@@ -61,16 +61,16 @@ gn_args = ' '.join([
 recurse_in_header_deps = '^//protos/.*(cpp|zero)$'
 
 # Compiler flags which aren't filtered out.
-cflag_whitelist = r'^-(W.*|fno-exceptions|fPIC|std.*|fvisibility.*)$'
+cflag_allowlist = r'^-(W.*|fno-exceptions|fPIC|std.*|fvisibility.*)$'
 
 # Linker flags which aren't filtered out.
-ldflag_whitelist = r'^-()$'
+ldflag_allowlist = r'^-()$'
 
 # Libraries which are filtered out.
-lib_blacklist = r'^(c|gcc_eh)$'
+lib_denylist = r'^(c|gcc_eh)$'
 
 # Macros which aren't filtered out.
-define_whitelist = r'^(PERFETTO.*|GOOGLE_PROTOBUF.*)$'
+define_allowlist = r'^(PERFETTO.*|GOOGLE_PROTOBUF.*)$'
 
 # Includes which will be removed from the generated source.
 includes_to_remove = r'^(gtest).*$'
@@ -138,12 +138,12 @@ preamble = """// Copyright (C) 2019 The Android Open Source Project
 """ % tool_name
 
 
-def apply_blacklist(blacklist, items):
-  return [item for item in items if not re.match(blacklist, item)]
+def apply_denylist(denylist, items):
+  return [item for item in items if not re.match(denylist, item)]
 
 
-def apply_whitelist(whitelist, items):
-  return [item for item in items if re.match(whitelist, item)]
+def apply_allowlist(allowlist, items):
+  return [item for item in items if re.match(allowlist, item)]
 
 
 def normalize_path(path):
@@ -297,7 +297,7 @@ class AmalgamatedProject(object):
         result.append(flag)
       else:
         result[-1] += flag
-    return apply_whitelist(cflag_whitelist, result)
+    return apply_allowlist(cflag_allowlist, result)
 
   def _add_target_flags(self, target_name):
     for target_name in self._iterate_target_and_deps(target_name):
@@ -305,10 +305,10 @@ class AmalgamatedProject(object):
       self.cflags.update(self._filter_cflags(target.get('cflags', [])))
       self.cflags.update(self._filter_cflags(target.get('cflags_cc', [])))
       self.ldflags.update(
-          apply_whitelist(ldflag_whitelist, target.get('ldflags', [])))
-      self.libs.update(apply_blacklist(lib_blacklist, target.get('libs', [])))
+          apply_allowlist(ldflag_allowlist, target.get('ldflags', [])))
+      self.libs.update(apply_denylist(lib_denylist, target.get('libs', [])))
       self.defines.update(
-          apply_whitelist(define_whitelist, target.get('defines', [])))
+          apply_allowlist(define_allowlist, target.get('defines', [])))
 
   def _add_target_headers(self, target_name):
     target = self.desc[target_name]

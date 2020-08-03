@@ -123,7 +123,7 @@ void SharedMemoryABI::Initialize(uint8_t* start,
   static_assert((kAllChunksComplete & kChunkMask) == kChunkComplete,
                 "kAllChunksComplete out of sync with kChunkComplete");
 
-  // Sanity check the consistency of the kMax... constants.
+  // Check the consistency of the kMax... constants.
   static_assert(sizeof(ChunkHeader::writer_id) == sizeof(WriterID),
                 "WriterID size");
   ChunkHeader chunk_header{};

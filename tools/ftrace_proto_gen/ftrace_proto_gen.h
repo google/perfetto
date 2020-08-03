@@ -38,8 +38,8 @@ std::string EventNameToProtoName(const std::string& group,
 std::string EventNameToProtoFieldName(const std::string& group,
                                       const std::string& name);
 
-std::vector<FtraceEventName> ReadWhitelist(const std::string& filename);
-void GenerateFtraceEventProto(const std::vector<FtraceEventName>& raw_whitelist,
+std::vector<FtraceEventName> ReadAllowList(const std::string& filename);
+void GenerateFtraceEventProto(const std::vector<FtraceEventName>& raw_eventlist,
                               const std::set<std::string>& groups,
                               std::ostream* fout);
 std::string SingleEventInfo(perfetto::Proto proto,

@@ -107,7 +107,7 @@ class ProtoToArgsTable {
   //
   // To generate |proto_descriptor_array| please see
   // tools/gen_binary_descriptors and ensure the proto you are interested in is
-  // listed as a whitelisted proto. You can then find your variable inside the
+  // listed in the event_list file. You can then find your variable inside the
   // header location specified inside that python script.
   util::Status AddProtoFileDescriptor(const uint8_t* proto_descriptor_array,
                                       size_t proto_descriptor_array_size);
