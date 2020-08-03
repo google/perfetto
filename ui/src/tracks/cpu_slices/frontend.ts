@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {search, searchEq} from '../../base/binary_search';
+import {search, searchEq, searchSegment} from '../../base/binary_search';
 import {assertTrue} from '../../base/logging';
 import {Actions} from '../../common/actions';
 import {cropText, drawDoubleHeadedArrow} from '../../common/canvas_utils';
@@ -80,36 +80,23 @@ class CpuSliceTrack extends Track<Config, Data> {
     ctx.font = '12px Roboto Condensed';
     const charWidth = ctx.measureText('dbpqaouk').width / 8;
 
-    for (let i = 0; i < data.starts.length; i++) {
+    const [rawStartIdx, ] = searchSegment(data.ends, visibleWindowTime.start);
+    const [, rawEndIdx] = searchSegment(data.starts, visibleWindowTime.end);
+
+    const startIdx = rawStartIdx === -1 ? 0 : rawStartIdx;
+    const endIdx = rawEndIdx === -1 ? data.starts.length : rawEndIdx;
+
+    for (let i = startIdx; i < endIdx; i++) {
       const tStart = data.starts[i];
       const tEnd = data.ends[i];
       const utid = data.utids[i];
-      if (tEnd <= visibleWindowTime.start || tStart >= visibleWindowTime.end) {
-        continue;
-      }
+
       const rectStart = timeScale.timeToPx(tStart);
       const rectEnd = timeScale.timeToPx(tEnd);
       const rectWidth = Math.max(1, rectEnd - rectStart);
-      const threadInfo = globals.threads.get(utid);
 
-      // TODO: consider de-duplicating this code with the copied one from
-      // chrome_slices/frontend.ts.
-      let title = `[utid:${utid}]`;
-      let subTitle = '';
-      let pid = -1;
-      if (threadInfo) {
-        if (threadInfo.pid) {
-          pid = threadInfo.pid;
-          let procName = threadInfo.procName || '';
-          if (procName.startsWith('/')) {  // Remove folder paths from name
-            procName = procName.substring(procName.lastIndexOf('/') + 1);
-          }
-          title = `${procName} [${threadInfo.pid}]`;
-          subTitle = `${threadInfo.threadName} [${threadInfo.tid}]`;
-        } else {
-          title = `${threadInfo.threadName} [${threadInfo.tid}]`;
-        }
-      }
+      const threadInfo = globals.threads.get(utid);
+      const pid = threadInfo && threadInfo.pid ? threadInfo.pid : -1;
 
       const isHovering = globals.frontendLocalState.hoveredUtid !== -1;
       const isThreadHovered = globals.frontendLocalState.hoveredUtid === utid;
@@ -133,6 +120,22 @@ class CpuSliceTrack extends Track<Config, Data> {
       // Don't render text when we have less than 5px to play with.
       if (rectWidth < 5) continue;
 
+      // TODO: consider de-duplicating this code with the copied one from
+      // chrome_slices/frontend.ts.
+      let title = `[utid:${utid}]`;
+      let subTitle = '';
+      if (threadInfo) {
+        if (threadInfo.pid) {
+          let procName = threadInfo.procName || '';
+          if (procName.startsWith('/')) {  // Remove folder paths from name
+            procName = procName.substring(procName.lastIndexOf('/') + 1);
+          }
+          title = `${procName} [${threadInfo.pid}]`;
+          subTitle = `${threadInfo.threadName} [${threadInfo.tid}]`;
+        } else {
+          title = `${threadInfo.threadName} [${threadInfo.tid}]`;
+        }
+      }
       title = cropText(title, charWidth, rectWidth);
       subTitle = cropText(subTitle, charWidth, rectWidth);
       const rectXCenter = rectStart + rectWidth / 2;
