@@ -68,10 +68,11 @@ class ProcessSchedulingTrack extends Track<Config, Data> {
     assertTrue(data.starts.length === data.ends.length);
     assertTrue(data.starts.length === data.utids.length);
 
-    const [rawStartIdx, ] = searchSegment(data.ends, visibleWindowTime.start);
-    const [, rawEndIdx] = searchSegment(data.starts, visibleWindowTime.end);
+    const rawStartIdx =
+        data.ends.findIndex(end => end >= visibleWindowTime.start);
+    const startIdx = rawStartIdx === -1 ? data.starts.length : rawStartIdx;
 
-    const startIdx = rawStartIdx === -1 ? 0 : rawStartIdx;
+    const [, rawEndIdx] = searchSegment(data.starts, visibleWindowTime.end);
     const endIdx = rawEndIdx === -1 ? data.starts.length : rawEndIdx;
 
     const cpuTrackHeight = Math.floor(RECT_HEIGHT / data.maxCpu);
