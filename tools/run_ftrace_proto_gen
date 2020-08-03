@@ -2,7 +2,7 @@
 
 # This script generates .proto files for ftrace events from the /format files
 # in src/traced/probes/ftrace/test/data/*/events/.
-# Only the events in the whitelist are translated.
+# Only the events in the event_list are translated.
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 if [ "$BUILDDIR" == "" ]; then
@@ -23,7 +23,7 @@ DESCRIPTOR='gen/protos/perfetto/trace/ftrace/ftrace.descriptor'
 cd "$DIR/.."
 
 "$BUILDDIR/ftrace_proto_gen" \
-  --whitelist_path "$DIR/ftrace_proto_gen/event_whitelist" \
+  --event_list "$DIR/ftrace_proto_gen/event_list" \
   --output_dir "$DIR/../protos/perfetto/trace/ftrace/" \
   --proto_descriptor "$BUILDDIR/$DESCRIPTOR" \
   --update_build_files \

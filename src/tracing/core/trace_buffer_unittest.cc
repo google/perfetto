@@ -124,8 +124,8 @@ class TraceBufferTest : public testing::Test {
         trace_buffer_->index_.lower_bound(key));
   }
 
-  void SuppressSanityDchecksForTesting() {
-    trace_buffer_->suppress_sanity_dchecks_for_testing_ = true;
+  void SuppressClientDchecksForTesting() {
+    trace_buffer_->suppress_client_dchecks_for_testing_ = true;
   }
 
   std::vector<ChunkMetaKey> GetIndex() {
@@ -978,7 +978,7 @@ TEST_F(TraceBufferTest, Patching_ReadWaitsForPatchComplete) {
 
 TEST_F(TraceBufferTest, Malicious_ZeroSizedChunk) {
   ResetBuffer(4096);
-  SuppressSanityDchecksForTesting();
+  SuppressClientDchecksForTesting();
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
       .AddPacket(32, 'a')
       .CopyIntoTraceBuffer();
@@ -1002,7 +1002,7 @@ TEST_F(TraceBufferTest, Malicious_ZeroSizedChunk) {
 // in a no-op.
 TEST_F(TraceBufferTest, Malicious_ChunkTooBig) {
   ResetBuffer(4096);
-  SuppressSanityDchecksForTesting();
+  SuppressClientDchecksForTesting();
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
       .AddPacket(4096, 'a')
       .AddPacket(2048, 'b')
@@ -1013,7 +1013,7 @@ TEST_F(TraceBufferTest, Malicious_ChunkTooBig) {
 
 TEST_F(TraceBufferTest, Malicious_DeclareMorePacketsBeyondBoundaries) {
   ResetBuffer(4096);
-  SuppressSanityDchecksForTesting();
+  SuppressClientDchecksForTesting();
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
       .AddPacket(64, 'a')
       .IncrementNumPackets()
@@ -1034,7 +1034,7 @@ TEST_F(TraceBufferTest, Malicious_DeclareMorePacketsBeyondBoundaries) {
 
 TEST_F(TraceBufferTest, Malicious_ZeroVarintHeader) {
   ResetBuffer(4096);
-  SuppressSanityDchecksForTesting();
+  SuppressClientDchecksForTesting();
   // Create a standalone chunk where the varint header is == 0.
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
       .AddPacket(4, 'a')
@@ -1054,7 +1054,7 @@ TEST_F(TraceBufferTest, Malicious_ZeroVarintHeader) {
 // end of the buffer).
 TEST_F(TraceBufferTest, Malicious_OverflowingVarintHeader) {
   ResetBuffer(4096);
-  SuppressSanityDchecksForTesting();
+  SuppressClientDchecksForTesting();
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
       .AddPacket(4079, 'a')  // 4079 := 4096 - sizeof(ChunkRecord) - 1
       .AddPacket({0x82})  // 0x8*: that the varint continues on the next byte.
@@ -1067,7 +1067,7 @@ TEST_F(TraceBufferTest, Malicious_OverflowingVarintHeader) {
 
 TEST_F(TraceBufferTest, Malicious_VarintHeaderTooBig) {
   ResetBuffer(4096);
-  SuppressSanityDchecksForTesting();
+  SuppressClientDchecksForTesting();
 
   // Add a valid chunk.
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
@@ -1108,7 +1108,7 @@ TEST_F(TraceBufferTest, Malicious_VarintHeaderTooBig) {
 // contains an enormous varint number that tries to overflow.
 TEST_F(TraceBufferTest, Malicious_JumboVarint) {
   ResetBuffer(64 * 1024);
-  SuppressSanityDchecksForTesting();
+  SuppressClientDchecksForTesting();
 
   std::vector<uint8_t> chunk;
   chunk.insert(chunk.end(), 64 * 1024 - sizeof(ChunkRecord) * 2, 0xff);
@@ -1128,7 +1128,7 @@ TEST_F(TraceBufferTest, Malicious_JumboVarint) {
 // skipped.
 TEST_F(TraceBufferTest, Malicious_ZeroVarintHeaderInSequence) {
   ResetBuffer(4096);
-  SuppressSanityDchecksForTesting();
+  SuppressClientDchecksForTesting();
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
       .AddPacket(4, 'a', kContOnNextChunk)
       .CopyIntoTraceBuffer();
@@ -1161,7 +1161,7 @@ TEST_F(TraceBufferTest, Malicious_ZeroVarintHeaderInSequence) {
 // zero-sized fragment should be skipped.
 TEST_F(TraceBufferTest, Malicious_ZeroVarintHeaderAtEndOfChunk) {
   ResetBuffer(4096);
-  SuppressSanityDchecksForTesting();
+  SuppressClientDchecksForTesting();
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
       .AddPacket(4, 'a')
       .AddPacket(4, 'b', kContOnNextChunk)
@@ -1206,7 +1206,7 @@ TEST_F(TraceBufferTest, Malicious_PatchOutOfBounds) {
 
 TEST_F(TraceBufferTest, Malicious_OverrideWithShorterChunkSize) {
   ResetBuffer(4096);
-  SuppressSanityDchecksForTesting();
+  SuppressClientDchecksForTesting();
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
       .AddPacket(2048, 'a')
       .CopyIntoTraceBuffer();
@@ -1222,7 +1222,7 @@ TEST_F(TraceBufferTest, Malicious_OverrideWithShorterChunkSize) {
 
 TEST_F(TraceBufferTest, Malicious_OverrideWithShorterChunkSizeAfterRead) {
   ResetBuffer(4096);
-  SuppressSanityDchecksForTesting();
+  SuppressClientDchecksForTesting();
 
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
       .AddPacket(30, 'a')
@@ -1256,7 +1256,7 @@ TEST_F(TraceBufferTest, Malicious_OverrideWithShorterChunkSizeAfterRead) {
 
 TEST_F(TraceBufferTest, Malicious_OverrideWithDifferentOffsetAfterRead) {
   ResetBuffer(4096);
-  SuppressSanityDchecksForTesting();
+  SuppressClientDchecksForTesting();
 
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
       .AddPacket(30, 'a')
@@ -1433,7 +1433,7 @@ TEST_F(TraceBufferTest, Override_ReCommitAfterFullRead) {
 
   // Overriding a complete packet here would trigger a DCHECK because the packet
   // was already marked as complete.
-  SuppressSanityDchecksForTesting();
+  SuppressClientDchecksForTesting();
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
       .AddPacket(20, 'a')
       .AddPacket(30, 'b')
@@ -1450,7 +1450,7 @@ TEST_F(TraceBufferTest, Override_ReCommitAfterFullRead) {
 // See also the Malicious_Override* tests above.
 TEST_F(TraceBufferTest, Override_ReCommitInvalid) {
   ResetBuffer(4096);
-  SuppressSanityDchecksForTesting();
+  SuppressClientDchecksForTesting();
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
       .AddPacket(20, 'a')
       .AddPacket(30, 'b')
@@ -1738,7 +1738,7 @@ TEST_F(TraceBufferTest, DiscardPolicy) {
 
 TEST_F(TraceBufferTest, MissingPacketsOnSequence) {
   ResetBuffer(4096);
-  SuppressSanityDchecksForTesting();
+  SuppressClientDchecksForTesting();
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
       .AddPacket(10, 'a')
       .AddPacket(10, 'b')

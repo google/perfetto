@@ -399,9 +399,9 @@ void ProcessStatsDataSource::Tick(
 }
 
 void ProcessStatsDataSource::WriteAllProcessStats() {
-  // TODO(primiano): implement whitelisting of processes by names.
+  // TODO(primiano): implement filtering of processes by names.
   // TODO(primiano): Have a pid cache to avoid wasting cycles reading kthreads
-  // proc files over and over. Same for non-whitelist processes (see above).
+  // proc files over and over. Same for non-filtered processes (see above).
 
   CacheProcFsScanStartTimestamp();
   PERFETTO_METATRACE_SCOPED(TAG_PROC_POLLERS, PS_WRITE_ALL_PROCESS_STATS);
