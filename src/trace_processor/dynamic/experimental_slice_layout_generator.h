@@ -43,13 +43,15 @@ class ExperimentalSliceLayoutGenerator
                                       const std::vector<Order>&) override;
 
  private:
-  std::unique_ptr<Table> AddLayoutColumn(const Table& table,
-                                         const std::set<TrackId>& selected,
-                                         StringPool::Id filter_id);
+  Table ComputeLayoutTable(const Table& table, StringPool::Id filter_id);
   tables::SliceTable::Id InsertSlice(
       std::map<tables::SliceTable::Id, tables::SliceTable::Id>& id_map,
       tables::SliceTable::Id id,
       base::Optional<tables::SliceTable::Id> parent_id);
+
+  // TODO(lalitm): remove this cache and move to having explicitly scoped
+  // lifetimes of dynamic tables.
+  std::unordered_map<StringId, Table> layout_table_cache_;
 
   StringPool* string_pool_;
   const tables::SliceTable* slice_table_;
