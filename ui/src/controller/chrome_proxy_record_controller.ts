@@ -14,13 +14,13 @@
 
 import {binaryDecode, binaryEncode} from '../base/string_utils';
 import {Actions} from '../common/actions';
-import {globals} from '../frontend/globals';
 
 import {
   ConsumerPortResponse,
   isReadBuffersResponse,
   Typed
 } from './consumer_port_types';
+import {globals} from './globals';
 import {Consumer, RpcConsumerPort} from './record_controller_interfaces';
 
 export interface ChromeExtensionError extends Typed {
