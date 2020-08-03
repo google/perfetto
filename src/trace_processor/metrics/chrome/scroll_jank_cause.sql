@@ -74,6 +74,6 @@ DROP VIEW IF EXISTS scroll_jank_cause;
 
 CREATE VIEW scroll_jank_cause AS
   SELECT
-    NOT explained_jank AS unexplained_jank,
+    jank AND NOT explained_jank AS unexplained_jank,
     jank.*
   FROM scroll_jank_cause_explained_jank jank;
