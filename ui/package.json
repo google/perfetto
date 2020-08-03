@@ -16,13 +16,11 @@
     "@types/uuid": "^3.4.9",
     "@types/w3c-web-usb": "^1.0.4",
     "bufferutil": "^4.0.1",
-    "canvas": "^2.6.1",
     "color-convert": "^2.0.1",
     "custom_utils": "file:src/base/utils",
     "devtools-protocol": "0.0.681549",
     "events": "^3.1.0",
     "immer": "^1.12.1",
-    "jsbn-rsa": "^1.0.3",
     "micromodal": "^0.4.6",
     "mithril": "^1.1.7",
     "noice-json-rpc": "^1.2.0",
@@ -41,10 +39,11 @@
     "jest": "^25.5.4",
     "node-sass": "^4.14.1",
     "puppeteer": "^1.20.0",
-    "rollup": "^1.32.1",
+    "rollup": "^2.3.4",
     "sorcery": "^0.10.0",
     "tslib": "^1.13.0",
     "tslint": "^5.20.1",
-    "typescript": "^3.9.3"
+    "typescript": "^3.9.3",
+    "canvas": "^2.6.1"
   }
 }
