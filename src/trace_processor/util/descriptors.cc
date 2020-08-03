@@ -163,14 +163,11 @@ util::Status DescriptorPool::AddFromFileDescriptorSet(
     }
   }
 
-  // Second pass: extract all the extension protos and add them to the real
-  // protos.
-  for (auto it = proto.file(); it; ++it) {
-    for (auto extension : extensions) {
-      auto status = AddExtensionField(extension.first, extension.second);
-      if (!status.ok())
-        return status;
-    }
+  // Second pass: Add extension fields to the real protos.
+  for (auto extension : extensions) {
+    auto status = AddExtensionField(extension.first, extension.second);
+    if (!status.ok())
+      return status;
   }
 
   // Third pass: resolve the types of all the fields to the correct indiices.
