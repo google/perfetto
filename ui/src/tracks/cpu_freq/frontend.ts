@@ -66,7 +66,7 @@ class CpuFreqTrack extends Track<Config, Data> {
     assertTrue(data.timestamps.length === data.maxFreqKHz.length);
     assertTrue(data.timestamps.length === data.lastIdleValues.length);
 
-    const endPx = Math.floor(timeScale.timeToPx(visibleWindowTime.end));
+    const endPx = timeScale.timeToPx(visibleWindowTime.end);
     const zeroY = MARGIN_TOP + RECT_HEIGHT;
 
     // Quantize the Y axis to quarters of powers of tens (7.5K, 10K, 12.5K).
@@ -96,11 +96,18 @@ class CpuFreqTrack extends Track<Config, Data> {
       return zeroY - Math.round((value / yMax) * RECT_HEIGHT);
     };
 
+    const [rawStartIdx,] =
+      searchSegment(data.timestamps, visibleWindowTime.start);
+    const [, rawEndIdx] = searchSegment(data.timestamps, visibleWindowTime.end);
+
+    const startIdx = rawStartIdx === -1 ? 0 : rawStartIdx;
+    const endIdx = rawEndIdx === -1 ? data.timestamps.length : rawEndIdx;
+
     ctx.beginPath();
-    ctx.moveTo(calculateX(data.timestamps[0]), zeroY);
+    ctx.moveTo(Math.max(calculateX(data.timestamps[startIdx]), 0), zeroY);
 
     let lastDrawnY = zeroY;
-    for (let i = 0; i < data.timestamps.length; i++) {
+    for (let i = startIdx; i < endIdx; i++) {
       const x = calculateX(data.timestamps[i]);
 
       const minY = calculateY(data.minFreqKHz[i]);
@@ -120,7 +127,7 @@ class CpuFreqTrack extends Track<Config, Data> {
     }
     // Find the end time for the last frequency event and then draw
     // down to zero to show that we do not have data after that point.
-    const finalX = calculateX(data.maxTsEnd);
+    const finalX = Math.min(calculateX(data.maxTsEnd), endPx);
     ctx.lineTo(finalX, lastDrawnY);
     ctx.lineTo(finalX, zeroY);
     ctx.lineTo(endPx, zeroY);
