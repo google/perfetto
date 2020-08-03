@@ -40,23 +40,23 @@ message PerfEventConfig {
   // If unset, an implementation-defined default is used.
   optional uint32 ring_buffer_pages = 3;
 
-  // Process ID (TGID) whitelist. If this list is not empty, only matching
-  // samples will be retained. If multiple whitelists and blacklists are
+  // Process ID (TGID) allowlist. If this list is not empty, only matching
+  // samples will be retained. If multiple allow/deny-lists are
   // specified by the config, then all of them are evaluated for each sampled
   // process.
   repeated int32 target_pid = 4;
 
-  // Command line whitelist, matched against the
+  // Command line allowlist, matched against the
   // /proc/<pid>/cmdline (not the comm string), with both sides being
   // "normalized". Normalization is as follows: (1) trim everything beyond the
   // first null or "@" byte; (2) if the string contains forward slashes, trim
   // everything up to and including the last one.
   repeated string target_cmdline = 5;
 
-  // PID blacklist.
+  // List of excluded pids.
   repeated int32 exclude_pid = 6;
 
-  // Command line blacklist. Normalized in the same way as |target_cmdline|.
+  // List of excluded cmdlines. Normalized in the same way as |target_cmdline|.
   repeated string exclude_cmdline = 7;
 
   ////////////////////

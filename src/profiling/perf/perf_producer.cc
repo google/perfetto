@@ -89,13 +89,13 @@ bool ShouldRejectDueToFilter(pid_t pid, const TargetFilter& filter) {
   bool reject_cmd = false;
   std::string cmdline;
   if (GetCmdlineForPID(pid, &cmdline)) {  // normalized form
-    // reject if absent from non-empty whitelist, or present in blacklist
+    // reject if absent from non-empty filters, or if excluded.
     reject_cmd = (filter.cmdlines.size() && !filter.cmdlines.count(cmdline)) ||
                  filter.exclude_cmdlines.count(cmdline);
   } else {
     PERFETTO_DLOG("Failed to look up cmdline for pid [%d]",
                   static_cast<int>(pid));
-    // reject only if there's a whitelist present
+    // reject only if there's a filter present
     reject_cmd = filter.cmdlines.size() > 0;
   }
 
@@ -427,7 +427,7 @@ bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
       PERFETTO_DLOG("New pid: [%d]", static_cast<int>(pid));
 
       // Check whether samples for this new process should be
-      // dropped due to the target whitelist/blacklist.
+      // dropped due to the target filtering.
       const TargetFilter& filter = ds->event_config.filter();
       if (ShouldRejectDueToFilter(pid, filter)) {
         process_state = ProcessTrackingStatus::kRejected;
