@@ -13,6 +13,8 @@
 // limitations under the License.
 
 import {binaryDecode, binaryEncode} from '../base/string_utils';
+import {Actions} from '../common/actions';
+import {globals} from '../frontend/globals';
 
 import {
   ConsumerPortResponse,
@@ -29,8 +31,12 @@ export interface ChromeExtensionStatus extends Typed {
   status: string;
 }
 
-export type ChromeExtensionMessage =
-    ChromeExtensionError|ChromeExtensionStatus|ConsumerPortResponse;
+export interface GetCategoriesResponse extends Typed {
+  categories: string[];
+}
+
+export type ChromeExtensionMessage = ChromeExtensionError|ChromeExtensionStatus|
+    ConsumerPortResponse|GetCategoriesResponse;
 
 function isError(obj: Typed): obj is ChromeExtensionError {
   return obj.type === 'ChromeExtensionError';
@@ -38,6 +44,10 @@ function isError(obj: Typed): obj is ChromeExtensionError {
 
 function isStatus(obj: Typed): obj is ChromeExtensionStatus {
   return obj.type === 'ChromeExtensionStatus';
+}
+
+function isGetCategoriesResponse(obj: Typed): obj is GetCategoriesResponse {
+  return obj.type === 'GetCategoriesResponse';
 }
 
 // This class acts as a proxy from the record controller (running in a worker),
@@ -66,6 +76,10 @@ export class ChromeExtensionConsumerPort extends RpcConsumerPort {
     }
     if (isStatus(message.data)) {
       this.sendStatus(message.data.status);
+      return;
+    }
+    if (isGetCategoriesResponse(message.data)) {
+      globals.dispatch(Actions.setChromeCategories(message.data));
       return;
     }
 
