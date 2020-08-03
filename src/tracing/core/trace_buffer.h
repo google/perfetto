@@ -649,7 +649,7 @@ class TraceBuffer {
   // When true disable some DCHECKs that have been put in place to detect
   // bugs in the producers. This is for tests that feed malicious inputs and
   // hence mimic a buggy producer.
-  bool suppress_sanity_dchecks_for_testing_ = false;
+  bool suppress_client_dchecks_for_testing_ = false;
 };
 
 }  // namespace perfetto

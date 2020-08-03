@@ -299,7 +299,7 @@ class GeneratorJob {
     if (source_->weak_dependency_count() > 0)
       Abort("Weak imports are not supported.");
 
-    // Sanity check. Collect public imports (of collected imports) in DFS order.
+    // Validations. Collect public imports (of collected imports) in DFS order.
     // Visibilty for current proto:
     // - all imports listed in current proto,
     // - public imports of everything imported (recursive).
@@ -326,8 +326,8 @@ class GeneratorJob {
     }
 
     // Collect descriptors of messages and enums used in current proto.
-    // It will be used to generate necessary forward declarations and performed
-    // sanity check guarantees that everything lays in the same namespace.
+    // It will be used to generate necessary forward declarations and
+    // check that everything lays in the same namespace.
     for (const Descriptor* message : messages_) {
       for (int i = 0; i < message->field_count(); ++i) {
         const FieldDescriptor* field = message->field(i);
