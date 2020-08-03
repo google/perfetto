@@ -117,17 +117,15 @@ export function genConfig(
   let procThreadAssociationFtrace = false;
   let trackInitialOomScore = false;
 
-  if (uiCfg.cpuSched || uiCfg.cpuLatency) {
+  if (uiCfg.cpuSched) {
     procThreadAssociationPolling = true;
     procThreadAssociationFtrace = true;
     ftraceEvents.add('sched/sched_switch');
     ftraceEvents.add('power/suspend_resume');
-    if (uiCfg.cpuLatency) {
-      ftraceEvents.add('sched/sched_wakeup');
-      ftraceEvents.add('sched/sched_wakeup_new');
-      ftraceEvents.add('sched/sched_waking');
-      ftraceEvents.add('power/suspend_resume');
-    }
+    ftraceEvents.add('sched/sched_wakeup');
+    ftraceEvents.add('sched/sched_wakeup_new');
+    ftraceEvents.add('sched/sched_waking');
+    ftraceEvents.add('power/suspend_resume');
   }
 
   if (uiCfg.cpuFreq) {
