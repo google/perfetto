@@ -414,7 +414,7 @@ std::unique_ptr<ProtoTranslationTable> ProtoTranslationTable::Create(
     if (contents.empty() || !ParseFtraceEvent(contents, &ftrace_event)) {
       if (!strcmp(event.group, "ftrace") && !strcmp(event.name, "print")) {
         // On some "user" builds of Android <P the ftrace/print event is not
-        // selinux-whitelisted. Thankfully this event is an always-on built-in
+        // selinux-allowed. Thankfully this event is an always-on built-in
         // so we don't need to write to its 'enable' file. However we need to
         // know its binary layout to decode it, so we hardcode it.
         ftrace_event.id = 5;  // Seems quite stable across kernels.
