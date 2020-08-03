@@ -49,6 +49,11 @@ bool ConvertValue(const std::string& arg,
     return true;
   }
 
+  if (arg == "0") {
+    *out = 0;
+    return true;
+  }
+
   ValueUnit value_unit{};
   if (!SplitValueAndUnit(arg, &value_unit))
     return false;

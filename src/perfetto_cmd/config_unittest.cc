@@ -45,6 +45,12 @@ TEST_F(CreateConfigFromOptionsTest, MilliSeconds) {
   EXPECT_EQ(config.duration_ms(), 2u);
 }
 
+TEST_F(CreateConfigFromOptionsTest, ZeroTime) {
+  options.time = "0";
+  ASSERT_TRUE(CreateConfigFromOptions(options, &config));
+  EXPECT_EQ(config.duration_ms(), 0u);
+}
+
 TEST_F(CreateConfigFromOptionsTest, Seconds) {
   options.time = "100s";
   ASSERT_TRUE(CreateConfigFromOptions(options, &config));
@@ -61,6 +67,12 @@ TEST_F(CreateConfigFromOptionsTest, Hours) {
   options.time = "2h";
   ASSERT_TRUE(CreateConfigFromOptions(options, &config));
   EXPECT_EQ(config.duration_ms(), 2 * 60 * 60 * 1000u);
+}
+
+TEST_F(CreateConfigFromOptionsTest, ZeroBufferSize) {
+  options.buffer_size = "0";
+  ASSERT_TRUE(CreateConfigFromOptions(options, &config));
+  EXPECT_EQ(config.buffers()[0].size_kb(), 0u);
 }
 
 TEST_F(CreateConfigFromOptionsTest, Kilobyte) {
