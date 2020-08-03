@@ -187,7 +187,7 @@ def main(argv):
       help="Comma-separated list of heaps to collect, e.g: malloc,art. "
       "Requires Android 12.",
       metavar="HEAPS")
-  parse.add_argument(
+  parser.add_argument(
       "--all-heaps",
       action="store_true",
       help="Collect allocations from all heaps registered by target."
