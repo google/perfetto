@@ -820,6 +820,11 @@ function onTargetChange(target: string) {
       globals.state.availableAdbDevices.find(d => d.serial === target) ||
       getDefaultRecordingTargets().find(t => t.os === target) ||
       getDefaultRecordingTargets()[0];
+
+  if (isChromeTarget(recordingTarget)) {
+    globals.dispatch(Actions.setUpdateChromeCategories({update: true}));
+  }
+
   globals.dispatch(Actions.setRecordingTarget({target: recordingTarget}));
   globals.rafScheduler.scheduleFullRedraw();
 }

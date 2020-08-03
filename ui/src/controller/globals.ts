@@ -24,7 +24,7 @@ type PublishKinds = 'OverviewData'|'TrackData'|'Threads'|'QueryResult'|
     'LegacyTrace'|'SliceDetails'|'CounterDetails'|'HeapProfileDetails'|
     'HeapProfileFlamegraph'|'FileDownload'|'Loading'|'Search'|'BufferUsage'|
     'RecordingLog'|'SearchResult'|'AggregateData'|'CpuProfileDetails'|
-    'TraceErrors';
+    'TraceErrors'|'UpdateChromeCategories';
 
 export interface App {
   state: State;

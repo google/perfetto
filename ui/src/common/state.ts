@@ -300,6 +300,7 @@ export interface State {
   lastRecordingError?: string;
   recordingStatus?: string;
 
+  updateChromeCategories: boolean;
   chromeCategories: string[]|undefined;
   analyzePageQuery?: string;
 }
@@ -742,6 +743,7 @@ export function createEmptyState(): State {
     recordingTarget: getDefaultRecordingTargets()[0],
     availableAdbDevices: [],
 
+    updateChromeCategories: false,
     chromeCategories: undefined,
   };
 }
