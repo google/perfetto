@@ -255,15 +255,6 @@ function CpuSettings(cssClass: string) {
         isEnabled: (cfg) => cfg.cpuFreq
       } as ProbeAttrs),
       m(Probe, {
-        title: 'Scheduling chains / latency analysis',
-        img: 'rec_cpu_wakeup.png',
-        descr: `Tracks causality of scheduling transitions. When a task
-                X transitions from blocked -> runnable, keeps track of the
-                task Y that X's transition (e.g. posting a semaphore).`,
-        setEnabled: (cfg, val) => cfg.cpuLatency = val,
-        isEnabled: (cfg) => cfg.cpuLatency
-      } as ProbeAttrs),
-      m(Probe, {
         title: 'Syscalls',
         img: null,
         descr: `Tracks the enter and exit of all syscalls.`,
