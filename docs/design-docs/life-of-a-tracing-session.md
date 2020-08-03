@@ -51,7 +51,7 @@ during a tracing session, with references to code and IPC requests / responses.
     buffer.
 18. The service will check if the given chunk, identified by the tuple
     `{ProducerID (unspoofable), WriterID, ChunkID}` is still present in the
-    trace buffer and if so will proceed to patch it (% sanity checks).
+    trace buffer and if so will proceed to patch it (% checks).
 19. The consumer sends a [`FlushRequest`](/protos/perfetto/ipc/consumer_port.proto#52)
     to the service, asking it commit all data on flight in the trace buffers.
 20. The service, in turn, issues a

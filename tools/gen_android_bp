@@ -99,7 +99,7 @@ target_host_supported = [
 module_prefix = 'perfetto_'
 
 # Shared libraries which are directly translated to Android system equivalents.
-shared_library_whitelist = [
+shared_library_allowlist = [
     'android',
     'android.hardware.atrace@1.0',
     'android.hardware.health@2.0',
@@ -118,7 +118,7 @@ shared_library_whitelist = [
 ]
 
 # Static libraries which are directly translated to Android system equivalents.
-static_library_whitelist = [
+static_library_allowlist = [
     'statslog_perfetto',
 ]
 
@@ -130,10 +130,10 @@ defaults_module = module_prefix + 'defaults'
 tree_path = 'external/perfetto'
 
 # Compiler flags which are passed through to the blueprint.
-cflag_whitelist = r'^-DPERFETTO.*$'
+cflag_allowlist = r'^-DPERFETTO.*$'
 
 # Compiler defines which are passed through to the blueprint.
-define_whitelist = r'^(GOOGLE_PROTO.*)|(ZLIB_.*)|(USE_MMAP)|(HAVE_HIDDEN)$'
+define_allowlist = r'^(GOOGLE_PROTO.*)|(ZLIB_.*)|(USE_MMAP)|(HAVE_HIDDEN)$'
 
 # Shared libraries which are not in PDK.
 library_not_in_pdk = {
@@ -630,10 +630,10 @@ def create_merged_sql_metrics_module(blueprint, target):
 
 
 def _get_cflags(target):
-  cflags = {flag for flag in target.cflags if re.match(cflag_whitelist, flag)}
+  cflags = {flag for flag in target.cflags if re.match(cflag_allowlist, flag)}
   cflags |= set("-D%s" % define
                 for define in target.defines
-                if re.match(define_whitelist, define))
+                if re.match(define_allowlist, define))
   return cflags
 
 
@@ -701,9 +701,9 @@ def create_modules_from_target(blueprint, gn, gn_target_name):
       # Generally library names should be mangled as 'libXXX', unless they
       # are HAL libraries (e.g., android.hardware.health@2.0).
       android_lib = lib if '@' in lib else 'lib' + lib
-      if lib in shared_library_whitelist:
+      if lib in shared_library_allowlist:
         module.shared_libs.add(android_lib)
-      if lib in static_library_whitelist:
+      if lib in static_library_allowlist:
         module.static_libs.add(android_lib)
 
   # If the module is a static library, export all the generated headers.

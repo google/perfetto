@@ -107,7 +107,7 @@ TEST_P(SharedMemoryABITest, NominalCases) {
       ASSERT_EQ(SharedMemoryABI::kChunkBeingWritten,
                 abi.GetChunkState(page_idx, chunk_idx));
 
-      // Sanity check chunk bounds.
+      // Check chunk bounds.
       size_t expected_chunk_size =
           (page_size() - sizeof(SharedMemoryABI::PageHeader)) / num_chunks;
       expected_chunk_size = expected_chunk_size - (expected_chunk_size % 4);

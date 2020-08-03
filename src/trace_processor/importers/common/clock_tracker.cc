@@ -251,8 +251,8 @@ base::Optional<int64_t> ClockTracker::ConvertSlowpath(ClockId src_clock_id,
     // And use that to retrieve the corresponding time in the next clock domain.
     // The snapshot id must exist in the target clock domain. If it doesn't
     // either the hash logic or the pathfinding logic are bugged.
-    // This can also happen if the sanity checks in AddSnapshot fail and we
-    // skip part of the snapshot.
+    // This can also happen if the checks in AddSnapshot fail and we skip part
+    // of the snapshot.
     const ClockSnapshots& next_snap = next_clock->GetSnapshot(hash);
 
     // Using std::lower_bound because snapshot_ids is sorted, so we can do
