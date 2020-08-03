@@ -557,6 +557,14 @@ export class RecordController extends Controller<'main'> implements Consumer {
   }
 
   run() {
+    // TODO(eseckler): Use ConsumerPort's QueryServiceState instead
+    // of posting a custom extension message to retrieve the category list.
+    if (this.app.state.updateChromeCategories === true) {
+      if (this.app.state.extensionInstalled) {
+        this.extensionPort.postMessage({method: 'GetCategories'});
+      }
+      globals.dispatch(Actions.setUpdateChromeCategories({update: false}));
+    }
     if (this.app.state.recordConfig === this.config &&
         this.app.state.recordingInProgress === this.recordingInProgress) {
       return;
@@ -635,7 +643,7 @@ export class RecordController extends Controller<'main'> implements Consumer {
         globals.publish('BufferUsage', {percentage});
       }
     } else {
-      console.warn('Unrecognized consumer port response:', data);
+      console.error('Unrecognized consumer port response:', data);
     }
   }
 
