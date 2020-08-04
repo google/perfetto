@@ -29,6 +29,11 @@
 #include "src/android_internal/statsd_logging.h"
 
 namespace perfetto {
+namespace {
+
+constexpr int64_t kSendfileTimeoutNs = 10UL * 1000 * 1000 * 1000;  // 10s
+
+}  // namespace
 
 void PerfettoCmd::SaveTraceIntoDropboxAndIncidentOrCrash() {
   PERFETTO_CHECK(!dropbox_tag_.empty());
@@ -117,15 +122,34 @@ void PerfettoCmd::SaveOutputToIncidentTraceOrCrash() {
   base::ScopedFile staging_fd =
       base::OpenFile(kTempIncidentTracePath, O_CREAT | O_EXCL | O_RDWR, 0666);
   PERFETTO_CHECK(staging_fd);
+
+  int fd = fileno(*trace_out_stream_);
   off_t offset = 0;
-  errno = 0;
-  auto wsize = sendfile(*staging_fd, fileno(*trace_out_stream_), &offset,
-                        static_cast<size_t>(bytes_written_));
-  if (wsize != static_cast<ssize_t>(bytes_written_)) {
-    PERFETTO_FATAL("sendfile() failed wsize (%zd) and bytes_written_ (%" PRIu64
-                   ") not equal",
-                   wsize, bytes_written_);
+  size_t remaining = static_cast<size_t>(bytes_written_);
+
+  base::TimeNanos start = base::GetBootTimeNs();
+  for (;;) {
+    errno = 0;
+    PERFETTO_DCHECK(static_cast<size_t>(offset) + remaining == bytes_written_);
+    auto wsize = PERFETTO_EINTR(sendfile(*staging_fd, fd, &offset, remaining));
+    if (wsize < 0) {
+      PERFETTO_FATAL("sendfile() failed wsize=%zd, off=%" PRId64
+                     ", initial=%" PRIu64 ", remaining=%zu",
+                     wsize, static_cast<int64_t>(offset), bytes_written_,
+                     remaining);
+    }
+    remaining -= static_cast<size_t>(wsize);
+    if (remaining == 0) {
+      break;
+    }
+    if ((base::GetBootTimeNs() - start).count() > kSendfileTimeoutNs) {
+      PERFETTO_FATAL("sendfile() timed out wsize=%zd, off=%" PRId64
+                     ", initial=%" PRIu64 ", remaining=%zu",
+                     wsize, static_cast<int64_t>(offset), bytes_written_,
+                     remaining);
+    }
   }
+
   staging_fd.reset();
   PERFETTO_CHECK(rename(kTempIncidentTracePath, kIncidentTracePath) == 0);
   // Note: not calling fsync(2), as we're not interested in the file being
