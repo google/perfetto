@@ -80,10 +80,11 @@ class CpuSliceTrack extends Track<Config, Data> {
     ctx.font = '12px Roboto Condensed';
     const charWidth = ctx.measureText('dbpqaouk').width / 8;
 
-    const [rawStartIdx, ] = searchSegment(data.ends, visibleWindowTime.start);
-    const [, rawEndIdx] = searchSegment(data.starts, visibleWindowTime.end);
-
+    const rawStartIdx =
+        data.ends.findIndex(end => end >= visibleWindowTime.start);
     const startIdx = rawStartIdx === -1 ? 0 : rawStartIdx;
+
+    const [, rawEndIdx] = searchSegment(data.starts, visibleWindowTime.end);
     const endIdx = rawEndIdx === -1 ? data.starts.length : rawEndIdx;
 
     for (let i = startIdx; i < endIdx; i++) {
