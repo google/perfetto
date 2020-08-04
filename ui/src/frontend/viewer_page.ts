@@ -198,10 +198,13 @@ class TraceViewer implements m.ClassComponent {
         selectable: true,
       }));
       if (group.collapsed) continue;
-      for (const trackId of group.tracks) {
+      // The first track is the summary track, and is displayed as part of the
+      // group panel, we don't want to display it twice so we start from 1.
+      for (let i = 1; i < group.tracks.length; ++i) {
+        const id = group.tracks[i];
         scrollingPanels.push(m(TrackPanel, {
-          key: `track-${group.id}-${trackId}`,
-          id: trackId,
+          key: `track-${group.id}-${id}`,
+          id,
           selectable: true,
         }));
       }

@@ -101,7 +101,6 @@ export interface TrackGroupState {
   name: string;
   collapsed: boolean;
   tracks: string[];  // Child track ids.
-  summaryTrackId: string;
 }
 
 export interface EngineConfig {

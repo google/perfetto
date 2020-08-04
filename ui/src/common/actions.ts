@@ -191,8 +191,11 @@ export const StateActions = {
         collapsed: boolean;
       }): void {
     state.trackGroups[args.id] = {
-      ...args,
-      tracks: [],
+      engineId: args.engineId,
+      name: args.name,
+      id: args.id,
+      collapsed: args.collapsed,
+      tracks: [args.summaryTrackId],
     };
   },
 
