@@ -6508,6 +6508,7 @@ message HeapGraphType {
   optional string class_name = 3;
   // Size of objects of this type.
   optional uint64 object_size = 4;
+  optional uint64 superclass_id = 5;
 }
 
 message HeapGraphObject {
