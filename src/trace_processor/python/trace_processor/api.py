@@ -32,8 +32,9 @@ class TraceProcessor:
 
   # Values of these constants correspond to the QueryResponse message at
   # protos/perfetto/trace_processor/trace_processor.proto
-  # Values 0 and 1 correspond to CELL_INVALID and CELL_NULL respectively,
-  # which are both represented as None in this class's response
+  # Value 0 corresponds to CELL_INVALID, which is represented as None in
+  # this class
+  QUERY_CELL_NULL_FIELD_ID = 1
   QUERY_CELL_VARINT_FIELD_ID = 2
   QUERY_CELL_FLOAT64_FIELD_ID = 3
   QUERY_CELL_STRING_FIELD_ID = 4
@@ -57,7 +58,9 @@ class TraceProcessor:
       self.__string_cells = batches[0].string_cells.split('\0')
 
     def get_cell_list(self, proto_index):
-      if proto_index == TraceProcessor.QUERY_CELL_VARINT_FIELD_ID:
+      if proto_index == TraceProcessor.QUERY_CELL_NULL_FIELD_ID:
+        return None
+      elif proto_index == TraceProcessor.QUERY_CELL_VARINT_FIELD_ID:
         return self.__batches[self.__batch_index].varint_cells
       elif proto_index == TraceProcessor.QUERY_CELL_FLOAT64_FIELD_ID:
         return self.__batches[self.__batch_index].float64_cells
@@ -70,6 +73,48 @@ class TraceProcessor:
 
     def cells(self):
       return self.__batches[self.__batch_index].cells
+
+    # To use the query result as a populated Pandas dataframe, this
+    # function must be called directly after calling query inside
+    # TraceProcesor.
+    def as_pandas(self):
+      try:
+        import numpy as np
+        import pandas as pd
+
+        batch_index = 0
+        next_index = 0
+        df = pd.DataFrame(columns=self.__column_names)
+        # TODO(aninditaghosh): Revisit string cells for larger traces
+        self.__string_cells = self.__batches[0].string_cells.split('\0')
+
+        # Populate the dataframe with the query results
+        while True:
+          # If all cells are read, then check if last batch before
+          # returning the populated dataframe
+          if next_index >= len(self.__batches[batch_index].cells):
+            if self.__batches[batch_index].is_last_batch:
+              ordered_df = df.reset_index(drop=True)
+              return ordered_df
+            batch_index += 1
+            next_index = 0
+            string_cells = batches[batch_index].string_cells.split('\0')
+
+          row = []
+          for num, column_name in enumerate(self.__column_names):
+            cell_list = self.get_cell_list(
+                self.__batches[batch_index].cells[next_index + num])
+            if cell_list is None:
+              row.append(np.NAN)
+            else:
+              row.append(cell_list.pop(0))
+          df.loc[-1] = row
+          df.index = df.index + 1
+          next_index = next_index + len(self.__column_names)
+
+      except ModuleNotFoundError:
+        raise TraceProcessorException(
+            'The sufficient libraries are not installed')
 
     def __iter__(self):
       return self
@@ -118,7 +163,9 @@ class TraceProcessor:
       sql: SQL query written as a String
 
     Returns:
-      A class which can iterate through each row of the results table
+      A class which can iterate through each row of the results table. This
+      can also be converted to a pandas dataframe by calling the as_pandas()
+      function after calling query.
     """
     response = self.http.execute_query(sql)
     if response.error:
