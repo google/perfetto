@@ -159,7 +159,7 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
     return kJsonTraceType;
 
   // Systrace with header but no leading HTML.
-  if (base::StartsWith(start, "# tracer"))
+  if (start.find("# tracer") != std::string::npos)
     return kSystraceTraceType;
 
   // Systrace with leading HTML.
