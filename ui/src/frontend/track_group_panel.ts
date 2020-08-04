@@ -64,8 +64,7 @@ export class TrackGroupPanel extends Panel<Attrs> {
   }
 
   get summaryTrackState(): TrackState {
-    return assertExists(
-        globals.state.tracks[this.trackGroupState.summaryTrackId]);
+    return assertExists(globals.state.tracks[this.trackGroupState.tracks[0]]);
   }
 
   view({attrs}: m.CVnode<Attrs>) {
