@@ -45,10 +45,21 @@ def main():
     tp = TraceProcessor(
         addr=args.address, file_path=args.file, bin_path=args.binary)
 
-  # Call functions on the loaded trace
+  # Iterate through QueryResultIterator
   res_it = tp.query('select * from slice limit 10')
   for row in res_it:
     print(row.name)
+
+  # Convert QueryResultIterator into a pandas dataframe + iterate. This yields
+  # the same results as the function above.
+  try:
+    res_df = tp.query('select * from slice limit 10').as_pandas()
+    for index, row in res_df.iterrows():
+      print(row['name'])
+  except Exception:
+    pass
+
+  # Call another function on the loaded trace
   am_metrics = tp.metric(['android_mem'])
   tp.close()
 
