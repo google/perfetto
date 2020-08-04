@@ -253,6 +253,8 @@ export function genConfig(
         cdc.dumpPhaseMs = uiCfg.hpContinuousDumpsPhase;
       }
     }
+    // TODO(fmayer): Add a toggle for this to the UI?
+    cfg.blockClient = true;
     heapprofd = cfg;
   }
 
