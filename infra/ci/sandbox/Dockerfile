@@ -37,6 +37,7 @@ RUN set -ex; \
     pip install --quiet protobuf; \
     curl https://bootstrap.pypa.io/get-pip.py | python3 -; \
     pip3 install --quiet protobuf; \
+    pip3 install --quiet pandas; \
     curl -LO https://github.com/bazelbuild/bazel/releases/download/0.29.1/bazel-0.29.1-installer-linux-x86_64.sh; \
     chmod +x bazel-*-installer-linux-x86_64.sh; \
     ./bazel-*-installer-linux-x86_64.sh; \
