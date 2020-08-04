@@ -92,7 +92,8 @@ test('add track to track group', () => {
     });
   });
 
-  expect(afterTrackAdd.trackGroups['123-123-123'].tracks[0]).toBe('1');
+  expect(afterTrackAdd.trackGroups['123-123-123'].tracks[0]).toBe('s');
+  expect(afterTrackAdd.trackGroups['123-123-123'].tracks[1]).toBe('1');
 });
 
 test('reorder tracks', () => {
