@@ -161,12 +161,13 @@ flushCount
 min_size_bytes (RminSizeBytes$
 max_size_bytes (RmaxSizeBytes3
 total_alloc_size_bytes (RtotalAllocSizeBytes
-ÿ
-9protos/perfetto/metrics/android/java_heap_histogram.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"ø
+œ
+9protos/perfetto/metrics/android/java_heap_histogram.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"•
 JavaHeapHistogramW
-instance_stats (20.perfetto.protos.JavaHeapHistogram.InstanceStatsRinstanceStatsu
+instance_stats (20.perfetto.protos.JavaHeapHistogram.InstanceStatsRinstanceStats‘
 	TypeCount
-	type_name (	RtypeName
+	type_name (	RtypeName
+category (	Rcategory
 	obj_count (RobjCount.
 reachable_obj_count (RreachableObjCounte
 Sample
