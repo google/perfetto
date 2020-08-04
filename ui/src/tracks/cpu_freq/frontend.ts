@@ -98,9 +98,9 @@ class CpuFreqTrack extends Track<Config, Data> {
 
     const [rawStartIdx,] =
       searchSegment(data.timestamps, visibleWindowTime.start);
-    const [, rawEndIdx] = searchSegment(data.timestamps, visibleWindowTime.end);
-
     const startIdx = rawStartIdx === -1 ? 0 : rawStartIdx;
+
+    const [, rawEndIdx] = searchSegment(data.timestamps, visibleWindowTime.end);
     const endIdx = rawEndIdx === -1 ? data.timestamps.length : rawEndIdx;
 
     ctx.beginPath();
