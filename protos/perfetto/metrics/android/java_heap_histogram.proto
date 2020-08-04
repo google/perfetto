@@ -19,8 +19,11 @@ package perfetto.protos;
 import "protos/perfetto/metrics/android/process_metadata.proto";
 
 message JavaHeapHistogram {
+  // Next id: 5
   message TypeCount {
     optional string type_name = 1;
+    optional string category = 4;
+
     optional uint32 obj_count = 2;
     optional uint32 reachable_obj_count = 3;
   }
