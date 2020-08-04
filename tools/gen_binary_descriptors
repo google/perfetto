@@ -26,22 +26,36 @@ import hashlib
 import textwrap
 from compat import iteritems
 
-SOURCE_TARGET = {
-    'protos/perfetto/config/perfetto_config.proto':
-        'src/perfetto_cmd/perfetto_config.descriptor.h',
-    'protos/perfetto/metrics/metrics.proto':
-        'src/trace_processor/metrics/metrics.descriptor.h',
-    'src/protozero/test/example_proto/test_messages.proto':
-        'src/protozero/test/example_proto/test_messages.descriptor.h',
-    'protos/perfetto/trace/track_event/track_event.proto':
-        'src/trace_processor/importers/proto/track_event.descriptor.h',
-    'protos/perfetto/metrics/chrome/all_chrome_metrics.proto':
-        'src/trace_processor/metrics/chrome/all_chrome_metrics.descriptor.h',
-    'protos/perfetto/trace_processor/trace_processor.proto':
-        'src/trace_processor/python/trace_processor/trace_processor.descriptor',
-      'protos/perfetto/metrics/metrics.proto':
-        'src/trace_processor/python/trace_processor/metrics.descriptor',
-}
+SOURCE_TARGET = [
+    (
+      'protos/perfetto/config/perfetto_config.proto',
+      'src/perfetto_cmd/perfetto_config.descriptor.h'
+    ),
+    (
+      'protos/perfetto/metrics/metrics.proto',
+      'src/trace_processor/metrics/metrics.descriptor.h'
+    ),
+    (
+      'src/protozero/test/example_proto/test_messages.proto',
+      'src/protozero/test/example_proto/test_messages.descriptor.h'
+    ),
+    (
+      'protos/perfetto/trace/track_event/track_event.proto',
+      'src/trace_processor/importers/proto/track_event.descriptor.h'
+    ),
+    (
+      'protos/perfetto/metrics/chrome/all_chrome_metrics.proto',
+      'src/trace_processor/metrics/chrome/all_chrome_metrics.descriptor.h'
+    ),
+    (
+      'protos/perfetto/trace_processor/trace_processor.proto',
+      'src/trace_processor/python/trace_processor/trace_processor.descriptor'
+    ),
+    (
+      'protos/perfetto/metrics/metrics.proto',
+      'src/trace_processor/python/trace_processor/metrics.descriptor'
+    ),
+]
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
@@ -211,7 +225,7 @@ def main():
   args = parser.parse_args()
 
   try:
-    for source, target in iteritems(SOURCE_TARGET):
+    for source, target in SOURCE_TARGET:
       if args.check_only:
         check(source, target)
       else:
