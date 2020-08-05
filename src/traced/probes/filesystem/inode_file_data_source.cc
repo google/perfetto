@@ -60,20 +60,20 @@ class StaticMapDelegate : public FileScanner::Delegate {
   StaticMapDelegate(
       std::map<BlockDeviceID, std::unordered_map<Inode, InodeMapValue>>* map)
       : map_(map) {}
-  ~StaticMapDelegate() {}
+  ~StaticMapDelegate() override {}
 
  private:
   bool OnInodeFound(BlockDeviceID block_device_id,
                     Inode inode_number,
                     const std::string& path,
-                    InodeFileMap_Entry_Type type) {
+                    InodeFileMap_Entry_Type type) override {
     std::unordered_map<Inode, InodeMapValue>& inode_map =
         (*map_)[block_device_id];
     inode_map[inode_number].SetType(type);
     inode_map[inode_number].AddPath(path);
     return true;
   }
-  void OnInodeScanDone() {}
+  void OnInodeScanDone() override {}
   std::map<BlockDeviceID, std::unordered_map<Inode, InodeMapValue>>* map_;
 };
 
