@@ -19,8 +19,8 @@ syntax = "proto2";
 package perfetto.protos;
 
 import "protos/perfetto/metrics/metrics.proto";
-import "protos/perfetto/metrics/chrome/console_error_metric.proto";
+import "protos/perfetto/metrics/chrome/test_chrome_metric.proto";
 
 extend TraceMetrics {
-  optional ConsoleErrorMetric console_error_metric = 1001;
+  optional TestChromeMetric test_chrome_metric = 1001;
 }
