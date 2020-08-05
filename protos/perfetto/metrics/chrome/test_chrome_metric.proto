@@ -20,8 +20,6 @@ package perfetto.protos;
 
 import "protos/perfetto/metrics/custom_options.proto";
 
-message ConsoleErrorMetric {
-  optional int64 all_errors = 1 [(unit) = "count_smallerIsBetter"];
-  optional int64 js_errors = 2 [(unit) = "count_smallerIsBetter"];
-  optional int64 network_errors = 3 [(unit) = "count_smallerIsBetter"];
+message TestChromeMetric {
+  optional int64 test_value = 1 [(unit) = "count_smallerIsBetter"];
 }
