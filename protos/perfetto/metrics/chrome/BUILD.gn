@@ -18,6 +18,6 @@ perfetto_proto_library("@TYPE@") {
   deps = [ "../metrics:@TYPE@" ]
   sources = [
     "all_chrome_metrics.proto",
-    "console_error_metric.proto",
+    "test_chrome_metric.proto",
   ]
 }
