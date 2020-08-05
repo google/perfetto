@@ -53,7 +53,7 @@ class SqliteRawTable : public DbSqliteTable {
   };
 
   SqliteRawTable(sqlite3*, Context);
-  virtual ~SqliteRawTable();
+  ~SqliteRawTable() override;
 
   static void RegisterTable(sqlite3* db, QueryCache*, TraceProcessorContext*);
 
