@@ -45,6 +45,8 @@ config("test_warning_suppressions") {
       "-Wno-unused-member-function",
       "-Wno-zero-as-null-pointer-constant",
       "-Wno-weak-vtables",
+      "-Wno-suggest-override",
+      "-Wno-suggest-destructor-override",
     ]
   } else {
     cflags = [
