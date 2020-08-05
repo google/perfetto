@@ -32,7 +32,7 @@ namespace perfetto {
 class VerifyStream : public std::ostringstream {
  public:
   VerifyStream(std::string filename);
-  virtual ~VerifyStream();
+  ~VerifyStream() override;
 
  private:
   std::string filename_;

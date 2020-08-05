@@ -45,7 +45,7 @@ class SyscallTracker : public Destructible {
  public:
   SyscallTracker(const SyscallTracker&) = delete;
   SyscallTracker& operator=(const SyscallTracker&) = delete;
-  virtual ~SyscallTracker();
+  ~SyscallTracker() override;
   static SyscallTracker* GetOrCreate(TraceProcessorContext* context) {
     if (!context->syscall_tracker) {
       context->syscall_tracker.reset(new SyscallTracker(context));
