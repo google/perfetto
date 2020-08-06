@@ -269,6 +269,34 @@ TEST(SubprocessTest, KillOnDtor) {
   EXPECT_EQ(kill(pid, SIGWINCH), -1);
 }
 
+// Regression test for b/162505491.
+TEST(SubprocessTest, MoveOperators) {
+  {
+    Subprocess initial = Subprocess({"sleep", "10000"});
+    initial.Start();
+    Subprocess moved(std::move(initial));
+    EXPECT_EQ(moved.Poll(), Subprocess::kRunning);
+    EXPECT_EQ(initial.Poll(), Subprocess::kNotStarted);
+
+    // Check that reuse works
+    initial = Subprocess({"echo", "-n", "hello"});
+    initial.args.stdout_mode = Subprocess::OutputMode::kBuffer;
+    initial.Start();
+    initial.Wait(/*timeout=*/5000);
+    EXPECT_EQ(initial.status(), Subprocess::kExited);
+    EXPECT_EQ(initial.returncode(), 0);
+    EXPECT_EQ(initial.output(), "hello");
+  }
+
+  std::vector<Subprocess> v;
+  for (int i = 0; i < 10; i++) {
+    v.emplace_back(Subprocess({"sleep", "10"}));
+    v.back().Start();
+  }
+  for (auto& p : v)
+    EXPECT_EQ(p.Poll(), Subprocess::kRunning);
+}
+
 }  // namespace
 }  // namespace base
 }  // namespace perfetto
