@@ -116,7 +116,8 @@ class Subprocess {
   enum OutputMode {
     kInherit = 0,  // Inherit's the caller process stdout/stderr.
     kDevNull,      // dup() onto /dev/null
-    kBuffer        // dup() onto a pipe and move it into the output() buffer.
+    kBuffer,       // dup() onto a pipe and move it into the output() buffer.
+    kFd,           // dup() onto the passed args.fd.
   };
 
   // Input arguments for configuring the subprocess behavior.
@@ -153,8 +154,22 @@ class Subprocess {
     OutputMode stdout_mode = kInherit;
     OutputMode stderr_mode = kInherit;
 
+    base::ScopedFile out_fd;
+
     // Returns " ".join(exec_cmd), quoting arguments.
     std::string GetCmdString() const;
+  };
+
+  struct ResourceUsage {
+    uint32_t cpu_utime_ms = 0;
+    uint32_t cpu_stime_ms = 0;
+    uint32_t max_rss_kb = 0;
+    uint32_t min_page_faults = 0;
+    uint32_t maj_page_faults = 0;
+    uint32_t vol_ctx_switch = 0;
+    uint32_t invol_ctx_switch = 0;
+
+    uint32_t cpu_time_ms() const { return cpu_utime_ms + cpu_stime_ms; }
   };
 
   explicit Subprocess(std::initializer_list<std::string> exec_cmd = {});
@@ -183,8 +198,8 @@ class Subprocess {
 
   Status Poll();
 
-  // Sends a SIGKILL and wait to see the process termination.
-  void KillAndWaitForTermination();
+  // Sends a signal (SIGKILL if not specified) and wait for process termination.
+  void KillAndWaitForTermination(int sig_num = 0);
 
   PlatformProcessId pid() const { return s_.pid; }
 
@@ -198,6 +213,7 @@ class Subprocess {
   // This contains both stdout and stderr (if the corresponding _mode ==
   // kBuffer). It's non-const so the caller can std::move() it.
   std::string& output() { return s_.output; }
+  const ResourceUsage& rusage() const { return *s_.rusage; }
 
   Args args;
 
@@ -222,6 +238,7 @@ class Subprocess {
     int returncode = -1;
     std::string output;  // Stdin+stderr. Only when kBuffer.
     std::thread waitpid_thread;
+    std::unique_ptr<ResourceUsage> rusage;
   };
 
   MovableState s_;
