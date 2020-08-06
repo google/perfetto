@@ -27,6 +27,7 @@
 
 #include <algorithm>
 #include <thread>
+#include <tuple>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
@@ -172,16 +173,30 @@ void __attribute__((noreturn)) ChildProcess(ChildProcessArgs* args) {
 Subprocess::Args::Args(Args&&) noexcept = default;
 Subprocess::Args& Subprocess::Args::operator=(Args&&) = default;
 
-Subprocess::Subprocess(std::initializer_list<std::string> _args)
-    : args(_args) {}
+Subprocess::Subprocess(std::initializer_list<std::string> a) : args(a) {}
 
-Subprocess::Subprocess(Subprocess&&) noexcept = default;
-Subprocess& Subprocess::operator=(Subprocess&&) = default;
+Subprocess::Subprocess(Subprocess&& other) noexcept {
+  static_assert(sizeof(Subprocess) == sizeof(std::tuple<MovableState, Args>),
+                "base::Subprocess' move ctor needs updating");
+  s_ = std::move(other.s_);
+  args = std::move(other.args);
+
+  // Reset the state of the moved-from object.
+  other.s_.status = kNotStarted;  // So the dtor doesn't try to kill().
+  other.~Subprocess();
+  new (&other) Subprocess();
+}
+
+Subprocess& Subprocess::operator=(Subprocess&& other) {
+  this->~Subprocess();
+  new (this) Subprocess(std::move(other));
+  return *this;
+}
 
 Subprocess::~Subprocess() {
-  if (status_ == kRunning)
+  if (s_.status == kRunning)
     KillAndWaitForTermination();
-  PERFETTO_CHECK(!waitpid_thread_.joinable());
+  PERFETTO_CHECK(!s_.waitpid_thread.joinable());
 }
 
 void Subprocess::Start() {
@@ -207,42 +222,42 @@ void Subprocess::Start() {
   }
 
   // Setup the pipes for stdin/err redirection.
-  stdin_pipe_ = base::Pipe::Create(base::Pipe::kWrNonBlock);
-  proc_args.stdin_pipe_rd = *stdin_pipe_.rd;
-  stdouterr_pipe_ = base::Pipe::Create(base::Pipe::kRdNonBlock);
-  proc_args.stdouterr_pipe_wr = *stdouterr_pipe_.wr;
+  s_.stdin_pipe = base::Pipe::Create(base::Pipe::kWrNonBlock);
+  proc_args.stdin_pipe_rd = *s_.stdin_pipe.rd;
+  s_.stdouterr_pipe = base::Pipe::Create(base::Pipe::kRdNonBlock);
+  proc_args.stdouterr_pipe_wr = *s_.stdouterr_pipe.wr;
 
   // Spawn the child process that will exec().
-  pid_ = fork();
-  PERFETTO_CHECK(pid_ >= 0);
-  if (pid_ == 0) {
+  s_.pid = fork();
+  PERFETTO_CHECK(s_.pid >= 0);
+  if (s_.pid == 0) {
     // Close the parent-ends of the pipes.
-    stdin_pipe_.wr.reset();
-    stdouterr_pipe_.rd.reset();
+    s_.stdin_pipe.wr.reset();
+    s_.stdouterr_pipe.rd.reset();
     ChildProcess(&proc_args);
     // ChildProcess() doesn't return, not even in case of failures.
     PERFETTO_FATAL("not reached");
   }
 
-  status_ = kRunning;
+  s_.status = kRunning;
 
   // Close the child-end of the pipes.
-  // Deliberately NOT closing the stdin_pipe_.rd. This is to avoid crashing
+  // Deliberately NOT closing the s_.stdin_pipe.rd. This is to avoid crashing
   // with a SIGPIPE if the process exits without consuming its stdin, while
   // the parent tries to write() on the other end of the stdin pipe.
-  stdouterr_pipe_.wr.reset();
+  s_.stdouterr_pipe.wr.reset();
 
   // Spawn a thread that is blocked on waitpid() and writes the termination
   // status onto a pipe. The problem here is that waipid() doesn't have a
   // timeout option and can't be passed to poll(). The alternative would be
   // using a SIGCHLD handler, but anecdotally signal handlers introduce more
   // problems than what they solve.
-  exit_status_pipe_ = base::Pipe::Create(base::Pipe::kRdNonBlock);
+  s_.exit_status_pipe = base::Pipe::Create(base::Pipe::kRdNonBlock);
 
   // Both ends of the pipe are closed after the thread.join().
-  int pid = pid_;
-  int exit_status_pipe_wr = exit_status_pipe_.wr.release();
-  waitpid_thread_ = std::thread([pid, exit_status_pipe_wr] {
+  int pid = s_.pid;
+  int exit_status_pipe_wr = s_.exit_status_pipe.wr.release();
+  s_.waitpid_thread = std::thread([pid, exit_status_pipe_wr] {
     int pid_stat = -1;
     int wait_res = PERFETTO_EINTR(waitpid(pid, &pid_stat, 0));
     PERFETTO_CHECK(wait_res == pid);
@@ -253,11 +268,11 @@ void Subprocess::Start() {
 }
 
 Subprocess::Status Subprocess::Poll() {
-  if (status_ != kRunning)
-    return status_;  // Nothing to poll.
+  if (s_.status != kRunning)
+    return s_.status;  // Nothing to poll.
   while (PollInternal(0 /* don't block*/)) {
   }
-  return status_;
+  return s_.status;
 }
 
 // |timeout_ms| semantic:
@@ -270,18 +285,18 @@ Subprocess::Status Subprocess::Poll() {
 bool Subprocess::PollInternal(int poll_timeout_ms) {
   struct pollfd fds[3]{};
   size_t num_fds = 0;
-  if (exit_status_pipe_.rd) {
-    fds[num_fds].fd = *exit_status_pipe_.rd;
+  if (s_.exit_status_pipe.rd) {
+    fds[num_fds].fd = *s_.exit_status_pipe.rd;
     fds[num_fds].events = POLLIN;
     num_fds++;
   }
-  if (stdouterr_pipe_.rd) {
-    fds[num_fds].fd = *stdouterr_pipe_.rd;
+  if (s_.stdouterr_pipe.rd) {
+    fds[num_fds].fd = *s_.stdouterr_pipe.rd;
     fds[num_fds].events = POLLIN;
     num_fds++;
   }
-  if (stdin_pipe_.wr) {
-    fds[num_fds].fd = *stdin_pipe_.wr;
+  if (s_.stdin_pipe.wr) {
+    fds[num_fds].fd = *s_.stdin_pipe.wr;
     fds[num_fds].events = POLLOUT;
     num_fds++;
   }
@@ -301,7 +316,7 @@ bool Subprocess::PollInternal(int poll_timeout_ms) {
 }
 
 bool Subprocess::Wait(int timeout_ms) {
-  PERFETTO_CHECK(status_ != kNotStarted);
+  PERFETTO_CHECK(s_.status != kNotStarted);
 
   // Break out of the loop only after both conditions are satisfied:
   // - All stdout/stderr data has been read (if kBuffer).
@@ -315,7 +330,7 @@ bool Subprocess::Wait(int timeout_ms) {
   // state where the write(stdin_pipe_.wr) will never unblock.
 
   const int64_t t_start = base::GetWallTimeMs().count();
-  while (exit_status_pipe_.rd || stdouterr_pipe_.rd) {
+  while (s_.exit_status_pipe.rd || s_.stdouterr_pipe.rd) {
     int poll_timeout_ms = -1;  // Block until a FD is ready.
     if (timeout_ms > 0) {
       const int64_t now = GetWallTimeMs().count();
@@ -329,42 +344,42 @@ bool Subprocess::Wait(int timeout_ms) {
 }
 
 bool Subprocess::Call(int timeout_ms) {
-  PERFETTO_CHECK(status_ == kNotStarted);
+  PERFETTO_CHECK(s_.status == kNotStarted);
   Start();
 
   if (!Wait(timeout_ms)) {
     KillAndWaitForTermination();
     // TryReadExitStatus must have joined the thread.
-    PERFETTO_DCHECK(!waitpid_thread_.joinable());
+    PERFETTO_DCHECK(!s_.waitpid_thread.joinable());
   }
-  PERFETTO_DCHECK(status_ != kRunning);
-  return status_ == kExited && returncode_ == 0;
+  PERFETTO_DCHECK(s_.status != kRunning);
+  return s_.status == kExited && s_.returncode == 0;
 }
 
 void Subprocess::TryReadExitStatus() {
-  if (!exit_status_pipe_.rd)
+  if (!s_.exit_status_pipe.rd)
     return;
 
   int pid_stat = -1;
-  int64_t rsize =
-      PERFETTO_EINTR(read(*exit_status_pipe_.rd, &pid_stat, sizeof(pid_stat)));
+  int64_t rsize = PERFETTO_EINTR(
+      read(*s_.exit_status_pipe.rd, &pid_stat, sizeof(pid_stat)));
   if (rsize < 0 && errno == EAGAIN)
     return;
 
   if (rsize > 0) {
     PERFETTO_CHECK(rsize == sizeof(pid_stat));
   } else if (rsize < 0) {
-    PERFETTO_PLOG("Subprocess read(exit_status_pipe_) failed");
+    PERFETTO_PLOG("Subprocess read(s_.exit_status_pipe) failed");
   }
-  waitpid_thread_.join();
-  exit_status_pipe_.rd.reset();
+  s_.waitpid_thread.join();
+  s_.exit_status_pipe.rd.reset();
 
   if (WIFEXITED(pid_stat)) {
-    returncode_ = WEXITSTATUS(pid_stat);
-    status_ = kExited;
+    s_.returncode = WEXITSTATUS(pid_stat);
+    s_.status = kExited;
   } else if (WIFSIGNALED(pid_stat)) {
-    returncode_ = 128 + WTERMSIG(pid_stat);  // Follow bash convention.
-    status_ = kKilledBySignal;
+    s_.returncode = 128 + WTERMSIG(pid_stat);  // Follow bash convention.
+    s_.status = kKilledBySignal;
   } else {
     PERFETTO_FATAL("waitpid() returned an unexpected value (0x%x)", pid_stat);
   }
@@ -372,51 +387,51 @@ void Subprocess::TryReadExitStatus() {
 
 // If the stidn pipe is still open, push input data and close it at the end.
 void Subprocess::TryPushStdin() {
-  if (!stdin_pipe_.wr)
+  if (!s_.stdin_pipe.wr)
     return;
 
-  PERFETTO_DCHECK(args.input.empty() || input_written_ < args.input.size());
+  PERFETTO_DCHECK(args.input.empty() || s_.input_written < args.input.size());
   if (args.input.size()) {
     int64_t wsize =
-        PERFETTO_EINTR(write(*stdin_pipe_.wr, &args.input[input_written_],
-                             args.input.size() - input_written_));
+        PERFETTO_EINTR(write(*s_.stdin_pipe.wr, &args.input[s_.input_written],
+                             args.input.size() - s_.input_written));
     if (wsize < 0 && errno == EAGAIN)
       return;
 
     if (wsize >= 0) {
       // Whether write() can return 0 is one of the greatest mysteries of UNIX.
       // Just ignore it.
-      input_written_ += static_cast<size_t>(wsize);
+      s_.input_written += static_cast<size_t>(wsize);
     } else {
       PERFETTO_PLOG("Subprocess write(stdin) failed");
-      stdin_pipe_.wr.reset();
+      s_.stdin_pipe.wr.reset();
     }
   }
-  PERFETTO_DCHECK(input_written_ <= args.input.size());
-  if (input_written_ == args.input.size())
-    stdin_pipe_.wr.reset();  // Close stdin.
+  PERFETTO_DCHECK(s_.input_written <= args.input.size());
+  if (s_.input_written == args.input.size())
+    s_.stdin_pipe.wr.reset();  // Close stdin.
 }
 
 void Subprocess::TryReadStdoutAndErr() {
-  if (!stdouterr_pipe_.rd)
+  if (!s_.stdouterr_pipe.rd)
     return;
   char buf[4096];
-  int64_t rsize = PERFETTO_EINTR(read(*stdouterr_pipe_.rd, buf, sizeof(buf)));
+  int64_t rsize = PERFETTO_EINTR(read(*s_.stdouterr_pipe.rd, buf, sizeof(buf)));
   if (rsize < 0 && errno == EAGAIN)
     return;
 
   if (rsize > 0) {
-    output_.append(buf, static_cast<size_t>(rsize));
+    s_.output.append(buf, static_cast<size_t>(rsize));
   } else if (rsize == 0 /* EOF */) {
-    stdouterr_pipe_.rd.reset();
+    s_.stdouterr_pipe.rd.reset();
   } else {
     PERFETTO_PLOG("Subprocess read(stdout/err) failed");
-    stdouterr_pipe_.rd.reset();
+    s_.stdouterr_pipe.rd.reset();
   }
 }
 
 void Subprocess::KillAndWaitForTermination() {
-  kill(pid_, SIGKILL);
+  kill(s_.pid, SIGKILL);
   Wait();
 }
 
