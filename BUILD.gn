@@ -81,6 +81,7 @@ if (enable_perfetto_integration_tests) {
   all_targets += [
     ":perfetto_integrationtests",
     "test:client_api_example",
+    "test/stress_test",
   ]
 }
 
