@@ -22,6 +22,7 @@
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_writer.h"
 #include "perfetto/protozero/field.h"
+#include "protos/perfetto/trace/android/gpu_mem_event.pbzero.h"
 #include "protos/perfetto/trace/gpu/gpu_render_stage_event.pbzero.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/proto/proto_incremental_state.h"
@@ -72,6 +73,8 @@ class GpuEventParser {
 
   void ParseVulkanApiEvent(int64_t, ConstBytes);
 
+  void ParseGpuMemTotalEvent(int64_t, ConstBytes);
+
  private:
   const StringId GetFullStageName(
       PacketSequenceStateGeneration* sequence_state,
@@ -120,6 +123,9 @@ class GpuEventParser {
   StringId vk_event_track_id_;
   StringId vk_event_scope_id_;
   StringId vk_queue_submit_id_;
+  // For GpuMemTotalEvent
+  const StringId gpu_mem_total_global_id_;
+  const StringId gpu_mem_total_process_id_;
 };
 }  // namespace trace_processor
 }  // namespace perfetto
