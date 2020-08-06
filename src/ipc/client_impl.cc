@@ -38,16 +38,21 @@ namespace ipc {
 
 // static
 std::unique_ptr<Client> Client::CreateInstance(const char* socket_name,
+                                               bool socket_retry,
                                                base::TaskRunner* task_runner) {
-  std::unique_ptr<Client> client(new ClientImpl(socket_name, task_runner));
+  std::unique_ptr<Client> client(
+      new ClientImpl(socket_name, socket_retry, task_runner));
   return client;
 }
 
-ClientImpl::ClientImpl(const char* socket_name, base::TaskRunner* task_runner)
-    : task_runner_(task_runner), weak_ptr_factory_(this) {
-  sock_ = base::UnixSocket::Connect(socket_name, this, task_runner,
-                                    base::SockFamily::kUnix,
-                                    base::SockType::kStream);
+ClientImpl::ClientImpl(const char* socket_name,
+                       bool socket_retry,
+                       base::TaskRunner* task_runner)
+    : socket_name_(socket_name),
+      socket_retry_(socket_retry),
+      task_runner_(task_runner),
+      weak_ptr_factory_(this) {
+  TryConnect();
 }
 
 ClientImpl::~ClientImpl() {
@@ -55,6 +60,12 @@ ClientImpl::~ClientImpl() {
   PERFETTO_DCHECK(!invoking_method_reply_);
   OnDisconnect(
       nullptr);  // The base::UnixSocket* ptr is not used in OnDisconnect().
+}
+
+void ClientImpl::TryConnect() {
+  sock_ = base::UnixSocket::Connect(socket_name_, this, task_runner_,
+                                    base::SockFamily::kUnix,
+                                    base::SockType::kStream);
 }
 
 void ClientImpl::BindService(base::WeakPtr<ServiceProxy> service_proxy) {
@@ -129,6 +140,22 @@ bool ClientImpl::SendFrame(const Frame& frame, int fd) {
 }
 
 void ClientImpl::OnConnect(base::UnixSocket*, bool connected) {
+  if (!connected && socket_retry_) {
+    socket_backoff_ms_ =
+        (socket_backoff_ms_ < 10000) ? socket_backoff_ms_ + 1000 : 30000;
+    PERFETTO_DLOG(
+        "Connection to traced's UNIX socket failed, retrying in %u seconds",
+        socket_backoff_ms_ / 1000);
+    auto weak_this = weak_ptr_factory_.GetWeakPtr();
+    task_runner_->PostDelayedTask(
+        [weak_this] {
+          if (weak_this)
+            static_cast<ClientImpl&>(*weak_this).TryConnect();
+        },
+        socket_backoff_ms_);
+    return;
+  }
+
   // Drain the BindService() calls that were queued before establishig the
   // connection with the host.
   for (base::WeakPtr<ServiceProxy>& service_proxy : queued_bindings_) {

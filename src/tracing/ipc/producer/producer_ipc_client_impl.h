@@ -51,16 +51,16 @@ class SharedMemoryArbiter;
 class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
                               public ipc::ServiceProxy::EventListener {
  public:
-  ProducerIPCClientImpl(
-      const char* service_sock_name,
-      Producer*,
-      const std::string& producer_name,
-      base::TaskRunner*,
-      TracingService::ProducerSMBScrapingMode,
-      size_t shared_memory_size_hint_bytes = 0,
-      size_t shared_memory_page_size_hint_bytes = 0,
-      std::unique_ptr<SharedMemory> shm = nullptr,
-      std::unique_ptr<SharedMemoryArbiter> shm_arbiter = nullptr);
+  ProducerIPCClientImpl(const char* service_sock_name,
+                        Producer*,
+                        const std::string& producer_name,
+                        base::TaskRunner*,
+                        TracingService::ProducerSMBScrapingMode,
+                        size_t shared_memory_size_hint_bytes,
+                        size_t shared_memory_page_size_hint_bytes,
+                        std::unique_ptr<SharedMemory> shm,
+                        std::unique_ptr<SharedMemoryArbiter> shm_arbiter,
+                        ProducerIPCClient::ConnectionFlags);
   ~ProducerIPCClientImpl() override;
 
   // TracingService::ProducerEndpoint implementation.

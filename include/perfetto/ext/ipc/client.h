@@ -45,6 +45,7 @@ class ServiceProxy;
 class Client {
  public:
   static std::unique_ptr<Client> CreateInstance(const char* socket_name,
+                                                bool socket_retry,
                                                 base::TaskRunner*);
   virtual ~Client();
 
