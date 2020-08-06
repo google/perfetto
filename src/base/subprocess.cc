@@ -21,6 +21,7 @@
 #include <poll.h>
 #include <signal.h>
 #include <stdio.h>
+#include <sys/resource.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -105,6 +106,10 @@ void __attribute__((noreturn)) ChildProcess(ChildProcessArgs* args) {
       if (dup2(args->stdouterr_pipe_wr, STDOUT_FILENO) == -1)
         die("Failed to dup2(STDOUT)");
       break;
+    case Subprocess::kFd:
+      if (dup2(*args->create_args->out_fd, STDOUT_FILENO) == -1)
+        die("Failed to dup2(STDOUT)");
+      break;
   }
 
   switch (args->create_args->stderr_mode) {
@@ -117,6 +122,10 @@ void __attribute__((noreturn)) ChildProcess(ChildProcessArgs* args) {
     }
     case Subprocess::kBuffer:
       if (dup2(args->stdouterr_pipe_wr, STDERR_FILENO) == -1)
+        die("Failed to dup2(STDERR)");
+      break;
+    case Subprocess::kFd:
+      if (dup2(*args->create_args->out_fd, STDERR_FILENO) == -1)
         die("Failed to dup2(STDERR)");
       break;
   }
@@ -173,7 +182,9 @@ void __attribute__((noreturn)) ChildProcess(ChildProcessArgs* args) {
 Subprocess::Args::Args(Args&&) noexcept = default;
 Subprocess::Args& Subprocess::Args::operator=(Args&&) = default;
 
-Subprocess::Subprocess(std::initializer_list<std::string> a) : args(a) {}
+Subprocess::Subprocess(std::initializer_list<std::string> a) : args(a) {
+  s_.rusage.reset(new ResourceUsage());
+}
 
 Subprocess::Subprocess(Subprocess&& other) noexcept {
   static_assert(sizeof(Subprocess) == sizeof(std::tuple<MovableState, Args>),
@@ -257,10 +268,24 @@ void Subprocess::Start() {
   // Both ends of the pipe are closed after the thread.join().
   int pid = s_.pid;
   int exit_status_pipe_wr = s_.exit_status_pipe.wr.release();
-  s_.waitpid_thread = std::thread([pid, exit_status_pipe_wr] {
+  auto* rusage = s_.rusage.get();
+  s_.waitpid_thread = std::thread([pid, exit_status_pipe_wr, rusage] {
     int pid_stat = -1;
-    int wait_res = PERFETTO_EINTR(waitpid(pid, &pid_stat, 0));
+    struct rusage usg {};
+    int wait_res = PERFETTO_EINTR(wait4(pid, &pid_stat, 0, &usg));
     PERFETTO_CHECK(wait_res == pid);
+
+    auto tv_to_ms = [](const struct timeval& tv) {
+      return static_cast<uint32_t>(tv.tv_sec * 1000 + tv.tv_usec / 1000);
+    };
+    rusage->cpu_utime_ms = tv_to_ms(usg.ru_utime);
+    rusage->cpu_stime_ms = tv_to_ms(usg.ru_stime);
+    rusage->max_rss_kb = static_cast<uint32_t>(usg.ru_maxrss) / 1000;
+    rusage->min_page_faults = static_cast<uint32_t>(usg.ru_minflt);
+    rusage->maj_page_faults = static_cast<uint32_t>(usg.ru_majflt);
+    rusage->vol_ctx_switch = static_cast<uint32_t>(usg.ru_nvcsw);
+    rusage->invol_ctx_switch = static_cast<uint32_t>(usg.ru_nivcsw);
+
     base::ignore_result(PERFETTO_EINTR(
         write(exit_status_pipe_wr, &pid_stat, sizeof(pid_stat))));
     PERFETTO_CHECK(close(exit_status_pipe_wr) == 0 || errno == EINTR);
@@ -430,8 +455,8 @@ void Subprocess::TryReadStdoutAndErr() {
   }
 }
 
-void Subprocess::KillAndWaitForTermination() {
-  kill(s_.pid, SIGKILL);
+void Subprocess::KillAndWaitForTermination(int sig_num) {
+  kill(s_.pid, sig_num ? sig_num : SIGKILL);
   Wait();
 }
 
