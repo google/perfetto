@@ -2155,6 +2155,7 @@ genrule {
   srcs: [
     "protos/perfetto/config/chrome/chrome_config.proto",
     "protos/perfetto/config/data_source_config.proto",
+    "protos/perfetto/config/stress_test_config.proto",
     "protos/perfetto/config/test_config.proto",
     "protos/perfetto/config/trace_config.proto",
   ],
@@ -2166,6 +2167,7 @@ genrule {
   out: [
     "external/perfetto/protos/perfetto/config/chrome/chrome_config.gen.cc",
     "external/perfetto/protos/perfetto/config/data_source_config.gen.cc",
+    "external/perfetto/protos/perfetto/config/stress_test_config.gen.cc",
     "external/perfetto/protos/perfetto/config/test_config.gen.cc",
     "external/perfetto/protos/perfetto/config/trace_config.gen.cc",
   ],
@@ -2177,6 +2179,7 @@ genrule {
   srcs: [
     "protos/perfetto/config/chrome/chrome_config.proto",
     "protos/perfetto/config/data_source_config.proto",
+    "protos/perfetto/config/stress_test_config.proto",
     "protos/perfetto/config/test_config.proto",
     "protos/perfetto/config/trace_config.proto",
   ],
@@ -2188,6 +2191,7 @@ genrule {
   out: [
     "external/perfetto/protos/perfetto/config/chrome/chrome_config.gen.h",
     "external/perfetto/protos/perfetto/config/data_source_config.gen.h",
+    "external/perfetto/protos/perfetto/config/stress_test_config.gen.h",
     "external/perfetto/protos/perfetto/config/test_config.gen.h",
     "external/perfetto/protos/perfetto/config/trace_config.gen.h",
   ],
@@ -2533,6 +2537,7 @@ genrule {
   srcs: [
     "protos/perfetto/config/chrome/chrome_config.proto",
     "protos/perfetto/config/data_source_config.proto",
+    "protos/perfetto/config/stress_test_config.proto",
     "protos/perfetto/config/test_config.proto",
     "protos/perfetto/config/trace_config.proto",
   ],
@@ -2543,6 +2548,7 @@ genrule {
   out: [
     "external/perfetto/protos/perfetto/config/chrome/chrome_config.pb.cc",
     "external/perfetto/protos/perfetto/config/data_source_config.pb.cc",
+    "external/perfetto/protos/perfetto/config/stress_test_config.pb.cc",
     "external/perfetto/protos/perfetto/config/test_config.pb.cc",
     "external/perfetto/protos/perfetto/config/trace_config.pb.cc",
   ],
@@ -2554,6 +2560,7 @@ genrule {
   srcs: [
     "protos/perfetto/config/chrome/chrome_config.proto",
     "protos/perfetto/config/data_source_config.proto",
+    "protos/perfetto/config/stress_test_config.proto",
     "protos/perfetto/config/test_config.proto",
     "protos/perfetto/config/trace_config.proto",
   ],
@@ -2564,6 +2571,7 @@ genrule {
   out: [
     "external/perfetto/protos/perfetto/config/chrome/chrome_config.pb.h",
     "external/perfetto/protos/perfetto/config/data_source_config.pb.h",
+    "external/perfetto/protos/perfetto/config/stress_test_config.pb.h",
     "external/perfetto/protos/perfetto/config/test_config.pb.h",
     "external/perfetto/protos/perfetto/config/trace_config.pb.h",
   ],
@@ -3133,6 +3141,7 @@ genrule {
   srcs: [
     "protos/perfetto/config/chrome/chrome_config.proto",
     "protos/perfetto/config/data_source_config.proto",
+    "protos/perfetto/config/stress_test_config.proto",
     "protos/perfetto/config/test_config.proto",
     "protos/perfetto/config/trace_config.proto",
   ],
@@ -3144,6 +3153,7 @@ genrule {
   out: [
     "external/perfetto/protos/perfetto/config/chrome/chrome_config.pbzero.cc",
     "external/perfetto/protos/perfetto/config/data_source_config.pbzero.cc",
+    "external/perfetto/protos/perfetto/config/stress_test_config.pbzero.cc",
     "external/perfetto/protos/perfetto/config/test_config.pbzero.cc",
     "external/perfetto/protos/perfetto/config/trace_config.pbzero.cc",
   ],
@@ -3155,6 +3165,7 @@ genrule {
   srcs: [
     "protos/perfetto/config/chrome/chrome_config.proto",
     "protos/perfetto/config/data_source_config.proto",
+    "protos/perfetto/config/stress_test_config.proto",
     "protos/perfetto/config/test_config.proto",
     "protos/perfetto/config/trace_config.proto",
   ],
@@ -3166,6 +3177,7 @@ genrule {
   out: [
     "external/perfetto/protos/perfetto/config/chrome/chrome_config.pbzero.h",
     "external/perfetto/protos/perfetto/config/data_source_config.pbzero.h",
+    "external/perfetto/protos/perfetto/config/stress_test_config.pbzero.h",
     "external/perfetto/protos/perfetto/config/test_config.pbzero.h",
     "external/perfetto/protos/perfetto/config/trace_config.pbzero.h",
   ],
