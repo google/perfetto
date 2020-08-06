@@ -205,7 +205,8 @@ class ClientImplTest : public ::testing::Test {
   void SetUp() override {
     task_runner_.reset(new base::TestTaskRunner());
     host_.reset(new FakeHost(task_runner_.get()));
-    cli_ = Client::CreateInstance(kSockName, task_runner_.get());
+    cli_ =
+        Client::CreateInstance(kSockName, /*retry=*/false, task_runner_.get());
   }
 
   void TearDown() override {
