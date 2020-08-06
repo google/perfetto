@@ -129,7 +129,6 @@ void ProbesProducer::Restart() {
   // to reset all the data sources. Trying to handle that manually is going to
   // be error prone. What we do here is simply destroying the instance and
   // recreating it again.
-  // TODO(hjd): Add e2e test for this.
 
   base::TaskRunner* task_runner = task_runner_;
   const char* socket_name = socket_name_;

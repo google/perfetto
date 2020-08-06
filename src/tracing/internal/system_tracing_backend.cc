@@ -40,7 +40,8 @@ std::unique_ptr<ProducerEndpoint> SystemTracingBackend::ConnectProducer(
   auto endpoint = ProducerIPCClient::Connect(
       GetProducerSocket(), args.producer, args.producer_name, args.task_runner,
       TracingService::ProducerSMBScrapingMode::kEnabled,
-      args.shmem_size_hint_bytes, args.shmem_page_size_hint_bytes);
+      args.shmem_size_hint_bytes, args.shmem_page_size_hint_bytes, nullptr,
+      nullptr, ProducerIPCClient::ConnectionFlags::kRetryIfUnreachable);
   PERFETTO_CHECK(endpoint);
   return endpoint;
 }
