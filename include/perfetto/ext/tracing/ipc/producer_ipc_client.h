@@ -36,6 +36,16 @@ class Producer;
 //   src/tracing/ipc/producer/producer_ipc_client_impl.cc
 class PERFETTO_EXPORT ProducerIPCClient {
  public:
+  enum class ConnectionFlags {
+    // Fails immediately with OnConnect(false) if the service connection cannot
+    // be established.
+    kDefault = 0,
+
+    // Keeps retrying with exponential backoff indefinitely. The caller will
+    // never see an OnConnect(false).
+    kRetryIfUnreachable = 1,
+  };
+
   // Connects to the producer port of the Service listening on the given
   // |service_sock_name|. If the connection is successful, the OnConnect()
   // method will be invoked asynchronously on the passed Producer interface. If
@@ -61,7 +71,8 @@ class PERFETTO_EXPORT ProducerIPCClient {
       size_t shared_memory_size_hint_bytes = 0,
       size_t shared_memory_page_size_hint_bytes = 0,
       std::unique_ptr<SharedMemory> shm = nullptr,
-      std::unique_ptr<SharedMemoryArbiter> shm_arbiter = nullptr);
+      std::unique_ptr<SharedMemoryArbiter> shm_arbiter = nullptr,
+      ConnectionFlags = ConnectionFlags::kDefault);
 
  protected:
   ProducerIPCClient() = delete;
