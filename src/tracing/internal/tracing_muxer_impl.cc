@@ -86,8 +86,15 @@ void TracingMuxerImpl::ProducerImpl::OnConnect() {
 void TracingMuxerImpl::ProducerImpl::OnDisconnect() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   connected_ = false;
-  // TODO: handle more graceful.
-  PERFETTO_ELOG("Cannot connect to traced. Is it running?");
+  // TODO: handle more gracefully. Right now we only handle the case of retrying
+  // when not being able to reach the service in the first place (this is
+  // handled transparently by ProducerIPCClientImpl).
+  // If the connection is dropped afterwards (e.g., traced crashes), instead, we
+  // don't recover from that. In order to handle that we would have to reconnect
+  // and re-register all the data sources.
+  PERFETTO_ELOG(
+      "The connection to the tracing service dropped. Tracing will no longer "
+      "work until this process is restarted");
 }
 
 void TracingMuxerImpl::ProducerImpl::OnTracingSetup() {
