@@ -89,11 +89,9 @@ data_sources {{
   config {{
     name: "android.heapprofd"
     heapprofd_config {{
-
       shmem_size_bytes: {shmem_size}
       sampling_interval_bytes: {interval}
 {target_cfg}
-{continuous_dump_cfg}
     }}
   }}
 }}
@@ -156,10 +154,10 @@ def main(argv):
   parser.add_argument(
       "-d",
       "--duration",
-      help="Duration of profile (ms). "
-      "Default 7 days.",
+      help="Duration of profile (ms). 0 to run until interrupted. "
+      "Default: until interrupted by user.",
       type=int,
-      default=604800000)
+      default=0)
   # This flag is a no-op now. We never start heapprofd explicitly using system
   # properties.
   parser.add_argument(
@@ -296,21 +294,23 @@ def main(argv):
 
   target_cfg = ""
   if not args.no_block_client:
-    target_cfg += "block_client: true\n"
+    target_cfg += CFG_INDENT + "block_client: true\n"
   if args.block_client_timeout:
-    target_cfg += "block_client_timeout_us: %s\n" % args.block_client_timeout
+    target_cfg += (
+      CFG_INDENT + "block_client_timeout_us: %s\n" % args.block_client_timeout
+    )
   if args.idle_allocations:
-    target_cfg += "idle_allocations: true\n"
+    target_cfg += CFG_INDENT + "idle_allocations: true\n"
   if args.no_startup:
-    target_cfg += "no_startup: true\n"
+    target_cfg += CFG_INDENT + "no_startup: true\n"
   if args.no_running:
-    target_cfg += "no_running: true\n"
+    target_cfg += CFG_INDENT + "no_running: true\n"
   if args.dump_at_max:
-    target_cfg += "dump_at_max: true\n"
+    target_cfg += CFG_INDENT + "dump_at_max: true\n"
   if args.disable_fork_teardown:
-    target_cfg += "disable_fork_teardown: true\n"
+    target_cfg += CFG_INDENT + "disable_fork_teardown: true\n"
   if args.all_heaps:
-    target_cfg += "all_heaps: true\n"
+    target_cfg += CFG_INDENT + "all_heaps: true\n"
   if args.pid:
     for pid in args.pid.split(','):
       try:
@@ -318,19 +318,36 @@ def main(argv):
       except ValueError:
         print("FATAL: invalid PID %s" % pid, file=sys.stderr)
         fail = True
-      target_cfg += '{}pid: {}\n'.format(CFG_INDENT, pid)
+      target_cfg += CFG_INDENT + 'pid: {}\n'.format(pid)
   if args.name:
     for name in args.name.split(','):
-      target_cfg += '{}process_cmdline: "{}"\n'.format(CFG_INDENT, name)
+      target_cfg += CFG_INDENT + 'process_cmdline: "{}"\n'.format(name)
   if args.heaps:
     for heap in args.heaps.split(','):
-      target_cfg += '{}heaps: "{}"\n'.format(CFG_INDENT, heap)
+      target_cfg += CFG_INDENT + 'heaps: "{}"\n'.format(heap)
 
   if fail:
     parser.print_help()
     return 1
 
   trace_to_text_binary = args.trace_to_text_binary
+
+  if args.continuous_dump:
+    target_cfg += CONTINUOUS_DUMP.format(dump_interval=args.continuous_dump)
+  cfg = CFG.format(
+      interval=args.interval,
+      duration=args.duration,
+      target_cfg=target_cfg,
+      shmem_size=args.shmem_size)
+  if not args.no_versions:
+    cfg += PACKAGES_LIST_CFG
+
+  if args.print_config:
+    print(cfg)
+    return 0
+
+  # Do this AFTER print_config so we do not download trace_to_text only to
+  # print out the config.
   if trace_to_text_binary is None:
     platform = None
     if sys.platform.startswith('linux'):
@@ -342,23 +359,6 @@ def main(argv):
       return 1
 
     trace_to_text_binary = load_trace_to_text(platform)
-
-  continuous_dump_cfg = ""
-  if args.continuous_dump:
-    continuous_dump_cfg = CONTINUOUS_DUMP.format(
-        dump_interval=args.continuous_dump)
-  cfg = CFG.format(
-      interval=args.interval,
-      duration=args.duration,
-      target_cfg=target_cfg,
-      continuous_dump_cfg=continuous_dump_cfg,
-      shmem_size=args.shmem_size)
-  if not args.no_versions:
-    cfg += PACKAGES_LIST_CFG
-
-  if args.print_config:
-    print(cfg)
-    return 0
 
   # TODO(fmayer): Maybe feature detect whether we can remove traces instead of
   # this.
