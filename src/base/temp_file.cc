@@ -22,27 +22,26 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#include "perfetto/ext/base/string_utils.h"
+
 namespace perfetto {
 namespace base {
 
-namespace {
+std::string GetSysTempDir() {
+  const char* tmpdir = getenv("TMPDIR");
+  if (tmpdir)
+    return base::StripSuffix(tmpdir, "/");
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-constexpr char kSysTmpPath[] = "/data/local/tmp";
+  return "/data/local/tmp";
 #else
-constexpr char kSysTmpPath[] = "/tmp";
+  return "/tmp";
 #endif
-}  // namespace
+}
 
 // static
 TempFile TempFile::Create() {
   TempFile temp_file;
-  const char* tmpdir = getenv("TMPDIR");
-  if (tmpdir) {
-    temp_file.path_.assign(tmpdir);
-  } else {
-    temp_file.path_.assign(kSysTmpPath);
-  }
-  temp_file.path_.append("/perfetto-XXXXXXXX");
+  temp_file.path_ = GetSysTempDir() + "/perfetto-XXXXXXXX";
   temp_file.fd_.reset(mkstemp(&temp_file.path_[0]));
   if (PERFETTO_UNLIKELY(!temp_file.fd_)) {
     PERFETTO_FATAL("Could not create temp file %s", temp_file.path_.c_str());
@@ -81,8 +80,7 @@ TempFile& TempFile::operator=(TempFile&&) = default;
 // static
 TempDir TempDir::Create() {
   TempDir temp_dir;
-  temp_dir.path_.assign(kSysTmpPath);
-  temp_dir.path_.append("/perfetto-XXXXXXXX");
+  temp_dir.path_ = GetSysTempDir() + "/perfetto-XXXXXXXX";
   PERFETTO_CHECK(mkdtemp(&temp_dir.path_[0]));
   return temp_dir;
 }
@@ -95,6 +93,5 @@ TempDir::~TempDir() {
 
 }  // namespace base
 }  // namespace perfetto
-
 
 #endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
