@@ -186,13 +186,18 @@ class Subprocess {
   // Sends a SIGKILL and wait to see the process termination.
   void KillAndWaitForTermination();
 
-  PlatformProcessId pid() const { return pid_; }
-  Status status() const { return status_; }
-  int returncode() const { return returncode_; }
+  PlatformProcessId pid() const { return s_.pid; }
+
+  // The accessors below are updated only after a call to Poll(), Wait() or
+  // KillAndWaitForTermination().
+  // In most cases you want to call Poll() rather than these accessors.
+
+  Status status() const { return s_.status; }
+  int returncode() const { return s_.returncode; }
 
   // This contains both stdout and stderr (if the corresponding _mode ==
   // kBuffer). It's non-const so the caller can std::move() it.
-  std::string& output() { return output_; }
+  std::string& output() { return s_.output; }
 
   Args args;
 
@@ -205,15 +210,21 @@ class Subprocess {
   void KillAtMostOnce();
   bool PollInternal(int poll_timeout_ms);
 
-  base::Pipe stdin_pipe_;
-  base::Pipe stdouterr_pipe_;
-  base::Pipe exit_status_pipe_;
-  PlatformProcessId pid_;
-  size_t input_written_ = 0;
-  Status status_ = kNotStarted;
-  int returncode_ = -1;
-  std::string output_;  // Stdin+stderr. Only when kBuffer.
-  std::thread waitpid_thread_;
+  // This is to deal robustly with the move operators, without having to
+  // manually maintain member-wise move instructions.
+  struct MovableState {
+    base::Pipe stdin_pipe;
+    base::Pipe stdouterr_pipe;
+    base::Pipe exit_status_pipe;
+    PlatformProcessId pid;
+    size_t input_written = 0;
+    Status status = kNotStarted;
+    int returncode = -1;
+    std::string output;  // Stdin+stderr. Only when kBuffer.
+    std::thread waitpid_thread;
+  };
+
+  MovableState s_;
 };
 
 }  // namespace base
