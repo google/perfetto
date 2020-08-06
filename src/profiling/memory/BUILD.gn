@@ -90,6 +90,15 @@ shared_library("heapprofd_standalone_client") {
   sources = [ "client_ext_standalone.cc" ]
 }
 
+shared_library("heapprofd_standalone_client_noop") {
+  deps = [ "../../../gn:default_deps" ]
+  ldflags = [
+    "-Wl,--version-script",
+    rebase_path("heapprofd_client_api.map.txt", root_build_dir),
+  ]
+  sources = [ "client_ext_noop.cc" ]
+}
+
 shared_library("heapprofd_client_api") {
   configs -= [ "//gn/standalone:android_liblog" ]
   if (perfetto_build_with_android) {
