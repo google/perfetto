@@ -53,7 +53,8 @@ class AsyncSliceTrackController extends TrackController<Config, Data> {
         max(dur) as dur,
         layout_depth,
         name,
-        id
+        id,
+        dur = 0 as is_instant
       from experimental_slice_layout
       where
         filter_track_ids = '${this.config.trackIds.join(',')}' and
@@ -75,6 +76,7 @@ class AsyncSliceTrackController extends TrackController<Config, Data> {
       ends: new Float64Array(numRows),
       depths: new Uint16Array(numRows),
       titles: new Uint16Array(numRows),
+      isInstant: new Uint16Array(numRows),
     };
 
     const stringIndexes = new Map<string, number>();
@@ -106,6 +108,7 @@ class AsyncSliceTrackController extends TrackController<Config, Data> {
       slices.depths[row] = +cols[3].longValues![row];
       slices.titles[row] = internString(cols[4].stringValues![row]);
       slices.sliceIds[row] = +cols[5].longValues![row];
+      slices.isInstant[row] = +cols[6].longValues![row];
     }
     return slices;
   }

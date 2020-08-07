@@ -26,6 +26,8 @@ import {Config, Data, SLICE_TRACK_KIND} from './common';
 const SLICE_HEIGHT = 18;
 const TRACK_PADDING = 4;
 const INCOMPLETE_SLICE_TIME_S = 0.00003;
+const CHEVRON_WIDTH_PX = 10;
+const HALF_CHEVRON_WIDTH_PX = CHEVRON_WIDTH_PX / 2;
 
 function hash(s: string): number {
   let hash = 0x811c9dc5 & 0xfffffff;
@@ -84,6 +86,7 @@ export class ChromeSliceTrack extends Track<Config, Data> {
       const depth = data.depths[i];
       const titleId = data.titles[i];
       const sliceId = data.sliceIds[i];
+      const isInstant = data.isInstant[i];
       const title = data.strings[titleId];
       let incompleteSlice = false;
 
@@ -96,9 +99,15 @@ export class ChromeSliceTrack extends Track<Config, Data> {
         continue;
       }
 
+      const currentSelection = globals.state.currentSelection;
+      const isSelected = currentSelection &&
+          currentSelection.kind === 'CHROME_SLICE' &&
+          currentSelection.id !== undefined && currentSelection.id === sliceId;
+
       const rectXStart = Math.max(timeScale.timeToPx(tStart), 0);
       let rectXEnd = Math.min(timeScale.timeToPx(tEnd), pxEnd);
       let rectWidth = rectXEnd - rectXStart;
+
       // All slices should be at least 1px.
       if (rectWidth < 1) {
         rectWidth = 1;
@@ -107,10 +116,32 @@ export class ChromeSliceTrack extends Track<Config, Data> {
       const rectYStart = TRACK_PADDING + depth * SLICE_HEIGHT;
       const name = title.replace(/( )?\d+/g, '');
       const hue = hash(name);
-      const saturation = 50;
+      const saturation = isSelected ? 80 : 50;
       const hovered = titleId === this.hoveredTitleId;
       const color = `hsl(${hue}, ${saturation}%, ${hovered ? 30 : 65}%)`;
+
       ctx.fillStyle = color;
+
+      // We draw instant events as upward facing chevrons starting at A:
+      //     A
+      //    ###
+      //   ##C##
+      //  ##   ##
+      // D       B
+      // Then B, C, D and back to A:
+      if (isInstant) {
+        ctx.moveTo(rectXStart, rectYStart);
+        ctx.lineTo(
+            rectXStart + HALF_CHEVRON_WIDTH_PX, rectYStart + SLICE_HEIGHT);
+        ctx.lineTo(
+            rectXStart, rectYStart + SLICE_HEIGHT - HALF_CHEVRON_WIDTH_PX);
+        ctx.lineTo(
+            rectXStart - HALF_CHEVRON_WIDTH_PX, rectYStart + SLICE_HEIGHT);
+        ctx.lineTo(rectXStart, rectYStart);
+        ctx.fill();
+        continue;
+      }
+
       if (incompleteSlice && rectWidth > SLICE_HEIGHT / 4) {
         drawIncompleteSlice(
             ctx, rectXStart, rectYStart, rectWidth, SLICE_HEIGHT, color);
@@ -119,10 +150,7 @@ export class ChromeSliceTrack extends Track<Config, Data> {
       }
 
       // Selected case
-      const currentSelection = globals.state.currentSelection;
-      if (currentSelection && currentSelection.kind === 'CHROME_SLICE' &&
-          currentSelection.id !== undefined &&
-          currentSelection.id === sliceId) {
+      if (isSelected) {
         drawRectOnSelected = () => {
           ctx.strokeStyle = `hsl(${hue}, ${saturation}%, 30%)`;
           ctx.beginPath();
@@ -148,16 +176,26 @@ export class ChromeSliceTrack extends Track<Config, Data> {
     if (data === undefined) return;
     const {timeScale} = globals.frontendLocalState;
     if (y < TRACK_PADDING) return;
+    const instantWidthTime = timeScale.deltaPxToDuration(HALF_CHEVRON_WIDTH_PX);
     const t = timeScale.pxToTime(x);
     const depth = Math.floor(y / SLICE_HEIGHT);
     for (let i = 0; i < data.starts.length; i++) {
-      const tStart = data.starts[i];
-      let tEnd = data.ends[i];
-      if (toNs(tEnd) - toNs(tStart) === -1) {
-        tEnd = tStart + INCOMPLETE_SLICE_TIME_S;
+      if (depth !== data.depths[i]) {
+        continue;
       }
-      if (tStart <= t && t <= tEnd && depth === data.depths[i]) {
-        return i;
+      const tStart = data.starts[i];
+      if (data.isInstant[i]) {
+        if (Math.abs(tStart - t) < instantWidthTime) {
+          return i;
+        }
+      } else {
+        let tEnd = data.ends[i];
+        if (toNs(tEnd) - toNs(tStart) === -1) {
+          tEnd = tStart + INCOMPLETE_SLICE_TIME_S;
+        }
+        if (tStart <= t && t <= tEnd) {
+          return i;
+        }
       }
     }
   }
