@@ -61,29 +61,25 @@ TEST(ProtoDecoderTest, SkipVeryLargeFields) {
   const uint64_t data_size = 4096 + kPayloadSize;
   std::unique_ptr<uint8_t, perfetto::base::FreeDeleter> data(
       static_cast<uint8_t*>(malloc(data_size)));
-
-  StaticBufferDelegate delegate(data.get(), data_size);
-  ScatteredStreamWriter writer(&delegate);
-  Message message;
-  message.Reset(&writer);
+  StaticBuffered<Message> message(data.get(), data_size);
 
   // Append a valid field.
-  message.AppendVarInt(/*field_id=*/1, 11);
+  message->AppendVarInt(/*field_id=*/1, 11);
 
   // Append a very large field that will be skipped.
   uint8_t raw[10];
   uint8_t* wptr = raw;
   wptr = WriteVarInt(MakeTagLengthDelimited(2), wptr);
   wptr = WriteVarInt(kPayloadSize, wptr);
-  message.AppendRawProtoBytes(raw, static_cast<size_t>(wptr - raw));
+  message->AppendRawProtoBytes(raw, static_cast<size_t>(wptr - raw));
   const uint8_t padding[1024 * 128]{};
   for (size_t i = 0; i < kPayloadSize / sizeof(padding); i++)
-    message.AppendRawProtoBytes(padding, sizeof(padding));
+    message->AppendRawProtoBytes(padding, sizeof(padding));
 
   // Append another valid field.
-  message.AppendVarInt(/*field_id=*/3, 13);
+  message->AppendVarInt(/*field_id=*/3, 13);
 
-  ProtoDecoder decoder(data.get(), static_cast<size_t>(writer.written()));
+  ProtoDecoder decoder(data.get(), message.Finalize());
   Field field = decoder.ReadField();
   ASSERT_EQ(1u, field.id());
   ASSERT_EQ(11, field.as_int32());
@@ -97,16 +93,10 @@ TEST(ProtoDecoderTest, SkipVeryLargeFields) {
 }
 
 TEST(ProtoDecoderTest, SingleRepeatedField) {
-  Message message;
-  ScatteredHeapBuffer delegate(512, 512);
-  ScatteredStreamWriter writer(&delegate);
-  delegate.set_writer(&writer);
-  message.Reset(&writer);
-  message.AppendVarInt(/*field_id=*/2, 10);
-  delegate.AdjustUsedSizeOfCurrentSlice();
-  auto used_range = delegate.slices()[0].GetUsedRange();
-
-  TypedProtoDecoder<2, true> tpd(used_range.begin, used_range.size());
+  HeapBuffered<Message> message;
+  message->AppendVarInt(/*field_id=*/2, 10);
+  auto data = message.SerializeAsArray();
+  TypedProtoDecoder<2, true> tpd(data.data(), data.size());
   auto it = tpd.GetRepeated<int32_t>(/*field_id=*/2);
   EXPECT_TRUE(it);
   EXPECT_EQ(it.field().as_int32(), 10);
@@ -137,16 +127,11 @@ TEST(ProtoDecoderTest, RepeatedVariableLengthField) {
 }
 
 TEST(ProtoDecoderTest, SingleRepeatedFieldWithExpansion) {
-  Message message;
-  ScatteredHeapBuffer delegate(512, 512);
-  ScatteredStreamWriter writer(&delegate);
-  delegate.set_writer(&writer);
-  message.Reset(&writer);
+  HeapBuffered<Message> message;
   for (int i = 0; i < 2000; i++) {
-    message.AppendVarInt(/*field_id=*/2, i);
+    message->AppendVarInt(/*field_id=*/2, i);
   }
-  std::vector<uint8_t> data = delegate.StitchSlices();
-
+  auto data = message.SerializeAsArray();
   TypedProtoDecoder<2, true> tpd(data.data(), data.size());
   auto it = tpd.GetRepeated<int32_t>(/*field_id=*/2);
   for (int i = 0; i < 2000; i++) {
@@ -166,26 +151,20 @@ TEST(ProtoDecoderTest, NoRepeatedField) {
 }
 
 TEST(ProtoDecoderTest, RepeatedFields) {
-  Message message;
-  ScatteredHeapBuffer delegate(512, 512);
-  ScatteredStreamWriter writer(&delegate);
-  delegate.set_writer(&writer);
-  message.Reset(&writer);
+  HeapBuffered<Message> message;
 
-  message.AppendVarInt(1, 10);
-  message.AppendVarInt(2, 20);
-  message.AppendVarInt(3, 30);
+  message->AppendVarInt(1, 10);
+  message->AppendVarInt(2, 20);
+  message->AppendVarInt(3, 30);
 
-  message.AppendVarInt(1, 11);
-  message.AppendVarInt(2, 21);
-  message.AppendVarInt(2, 22);
-
-  delegate.AdjustUsedSizeOfCurrentSlice();
-  auto used_range = delegate.slices()[0].GetUsedRange();
+  message->AppendVarInt(1, 11);
+  message->AppendVarInt(2, 21);
+  message->AppendVarInt(2, 22);
 
   // When iterating with the simple decoder we should just see fields in parsing
   // order.
-  ProtoDecoder decoder(used_range.begin, used_range.size());
+  auto data = message.SerializeAsArray();
+  ProtoDecoder decoder(data.data(), data.size());
   std::string fields_seen;
   for (auto fld = decoder.ReadField(); fld.valid(); fld = decoder.ReadField()) {
     fields_seen +=
@@ -193,7 +172,7 @@ TEST(ProtoDecoderTest, RepeatedFields) {
   }
   EXPECT_EQ(fields_seen, "1:10;2:20;3:30;1:11;2:21;2:22;");
 
-  TypedProtoDecoder<4, true> tpd(used_range.begin, used_range.size());
+  TypedProtoDecoder<4, true> tpd(data.data(), data.size());
 
   // When parsing with the one-shot decoder and querying the single field id, we
   // should see the last value for each of them, not the first one. This is the
@@ -557,18 +536,14 @@ TEST(ProtoDecoderTest, MalformedPackedVarIntBuffer) {
 // This is a regression test for b/145339282 (DataSourceConfig.for_testing
 // having a very large ID == 268435455 until Android R).
 TEST(ProtoDecoderTest, SkipBigFieldIds) {
-  Message message;
-  ScatteredHeapBuffer delegate(512, 512);
-  ScatteredStreamWriter writer(&delegate);
-  delegate.set_writer(&writer);
-  message.Reset(&writer);
-  message.AppendVarInt(/*field_id=*/1, 11);
-  message.AppendVarInt(/*field_id=*/1000000, 0);  // Will be skipped
-  message.AppendVarInt(/*field_id=*/65535, 99);
-  message.AppendVarInt(/*field_id=*/268435455, 0);  // Will be skipped
-  message.AppendVarInt(/*field_id=*/2, 12);
-  message.AppendVarInt(/*field_id=*/2000000, 0);  // Will be skipped
-  std::vector<uint8_t> data = delegate.StitchSlices();
+  HeapBuffered<Message> message;
+  message->AppendVarInt(/*field_id=*/1, 11);
+  message->AppendVarInt(/*field_id=*/1000000, 0);  // Will be skipped
+  message->AppendVarInt(/*field_id=*/65535, 99);
+  message->AppendVarInt(/*field_id=*/268435455, 0);  // Will be skipped
+  message->AppendVarInt(/*field_id=*/2, 12);
+  message->AppendVarInt(/*field_id=*/2000000, 0);  // Will be skipped
+  auto data = message.SerializeAsArray();
 
   // Check the iterator-based ProtoDecoder.
   {
@@ -606,13 +581,9 @@ TEST(ProtoDecoderTest, SkipBigFieldIds) {
 // very big id. Test that we skip it and return an invalid field, instead of
 // geetting stuck in some loop.
 TEST(ProtoDecoderTest, OneBigFieldIdOnly) {
-  Message message;
-  ScatteredHeapBuffer delegate(512, 512);
-  ScatteredStreamWriter writer(&delegate);
-  delegate.set_writer(&writer);
-  message.Reset(&writer);
-  message.AppendVarInt(/*field_id=*/268435455, 0);
-  std::vector<uint8_t> data = delegate.StitchSlices();
+  HeapBuffered<Message> message;
+  message->AppendVarInt(/*field_id=*/268435455, 0);
+  auto data = message.SerializeAsArray();
 
   // Check the iterator-based ProtoDecoder.
   ProtoDecoder decoder(data.data(), data.size());
