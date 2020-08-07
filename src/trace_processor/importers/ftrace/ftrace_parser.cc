@@ -1127,7 +1127,8 @@ void FtraceParser::ParseGpuMemTotal(int64_t ts, protozero::ConstBytes data) {
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(gpu_mem_total.size()), track);
   } else {
-    UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+    // Process emitting the packet can be different from the pid in the event.
+    UniqueTid utid = context_->process_tracker->UpdateThread(pid, pid);
     context_->event_tracker->PushProcessCounterForThread(
         ts, static_cast<double>(gpu_mem_total.size()),
         gpu_mem_total_process_id_, utid);
