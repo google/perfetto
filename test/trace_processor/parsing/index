@@ -128,5 +128,9 @@ android_package_list.py android_package_list android_package_list.out
 process_metadata_matching.textproto process_metadata_matching.sql process_metadata_matching.out
 
 # Flow events importing from json
-flow_events_v1_small.json flow_events.sql flow_events_v1_small.out
-flow_events_v2_small.json flow_events.sql flow_events_v2_small.out
+flow_events_json_v1.json flow_events.sql flow_events_json_v1.out
+flow_events_json_v2.json flow_events.sql flow_events_json_v2.out
+
+# Flow events importing from proto
+flow_events_proto_v2.textproto flow_events.sql flow_events_proto_v2.out
+flow_events_proto_v1.textproto flow_events.sql flow_events_proto_v1.out

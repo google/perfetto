@@ -1,0 +1,142 @@
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  track_descriptor {
+    uuid: 1
+    thread {
+      pid: 1
+      tid: 1
+      thread_name: "t1"
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  track_descriptor {
+    uuid: 2
+    thread {
+      pid: 2
+      tid: 2
+      thread_name: "t2"
+    }
+  }
+}
+packet {
+  timestamp: 10000
+  trusted_packet_sequence_id: 1
+  track_event {
+    name: "FlowBeginSlice"
+    categories: "test"
+    track_uuid: 1
+    legacy_event {
+      duration_us: 10
+      phase: 88 # 'X'
+    }
+  }
+}
+packet {
+  timestamp: 10000
+  trusted_packet_sequence_id: 1
+  track_event {
+    name: "Flow330"
+    categories: "test"
+    track_uuid: 1
+    legacy_event {
+      phase: 115 # 's'
+      unscoped_id: 330
+    }
+  }
+}
+packet {
+  timestamp: 29999
+  trusted_packet_sequence_id: 1
+  track_event {
+    name: "Flow330"
+    categories: "test"
+    track_uuid: 2
+    legacy_event {
+      phase: 102 # 'f'
+      unscoped_id: 330
+    }
+  }
+}
+packet {
+  timestamp: 30000
+  trusted_packet_sequence_id: 1
+  track_event {
+    name: "FlowEndSlice_1"
+    categories: "test"
+    track_uuid: 2
+    legacy_event {
+      duration_us: 10
+      phase: 88 # 'X'
+    }
+  }
+}
+packet {
+  timestamp: 30001
+  trusted_packet_sequence_id: 1
+  track_event {
+    name: "Flow331"
+    categories: "test"
+    track_uuid: 2
+    legacy_event {
+      phase: 115 # 's'
+      unscoped_id: 331
+    }
+  }
+}
+packet {
+  timestamp: 50000
+  trusted_packet_sequence_id: 1
+  track_event {
+    name: "FlowStepSlice"
+    categories: "test"
+    track_uuid: 1
+    legacy_event {
+      duration_us: 10
+      phase: 88 # 'X'
+    }
+  }
+}
+packet {
+  timestamp: 50100
+  trusted_packet_sequence_id: 1
+  track_event {
+    name: "Flow331"
+    categories: "test"
+    track_uuid: 1
+    legacy_event {
+      phase: 116 # 't'
+      unscoped_id: 331
+    }
+  }
+}
+packet {
+  timestamp: 55000
+  trusted_packet_sequence_id: 1
+  track_event {
+    name: "FlowEndSlice_2"
+    categories: "test"
+    track_uuid: 2
+    legacy_event {
+      duration_us: 10
+      phase: 88 # 'X'
+    }
+  }
+}
+packet {
+  timestamp: 55100
+  trusted_packet_sequence_id: 1
+  track_event {
+    name: "Flow331"
+    categories: "test"
+    track_uuid: 2
+    legacy_event {
+      phase: 102 # 'f'
+      bind_to_enclosing: true
+      unscoped_id: 331
+    }
+  }
+}
