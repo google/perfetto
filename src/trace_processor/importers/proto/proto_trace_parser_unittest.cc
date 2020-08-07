@@ -23,6 +23,7 @@
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
@@ -213,6 +214,7 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.global_args_tracker.reset(new GlobalArgsTracker(&context_));
     context_.args_tracker.reset(new ArgsTracker(&context_));
     context_.metadata_tracker.reset(new MetadataTracker(&context_));
+    context_.flow_tracker.reset(new FlowTracker(&context_));
     event_ = new MockEventTracker(&context_);
     context_.event_tracker.reset(event_);
     sched_ = new MockSchedEventTracker(&context_);

@@ -24,6 +24,7 @@
 #include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/json/json_utils.h"
@@ -164,6 +165,12 @@ class TrackEventParser::EventImporter {
         return ParseThreadEndEvent();
       case 'X':  // TRACE_EVENT_PHASE_COMPLETE.
         return ParseThreadCompleteEvent();
+      case 's':  // TRACE_EVENT_PHASE_FLOW_BEGIN.
+        return ParseFlowEventV1('s');
+      case 't':  // TRACE_EVENT_PHASE_FLOW_STEP.
+        return ParseFlowEventV1('t');
+      case 'f':  // TRACE_EVENT_PHASE_FLOW_END.
+        return ParseFlowEventV1('f');
       case 'i':
       case 'I':  // TRACE_EVENT_PHASE_INSTANT.
         return ParseThreadInstantEvent();
@@ -558,6 +565,7 @@ class TrackEventParser::EventImporter {
           opt_slice_id.value(), event_data_->thread_timestamp,
           kPendingThreadDuration, event_data_->thread_instruction_count,
           kPendingThreadInstructionDelta);
+      MaybeParseFlowEventV2();
     }
 
     return util::OkStatus();
@@ -603,9 +611,70 @@ class TrackEventParser::EventImporter {
           opt_slice_id.value(), event_data_->thread_timestamp,
           thread_duration_ns, event_data_->thread_instruction_count,
           legacy_event_.thread_instruction_delta());
+      MaybeParseFlowEventV2();
     }
 
     return util::OkStatus();
+  }
+
+  base::Optional<uint64_t> GetLegacyEventId() {
+    if (legacy_event_.has_unscoped_id())
+      return legacy_event_.unscoped_id();
+    // TODO(andrewbb): Catapult doesn't support global_id and local_id on flow
+    // events. We could add support in trace processor (e.g. because there seem
+    // to be some callsites supplying local_id in chromium), but we would have
+    // to consider the process ID for local IDs and use a separate ID scope for
+    // global_id and unscoped_id.
+    return base::nullopt;
+  }
+
+  util::Status ParseFlowEventV1(char phase) {
+    auto opt_source_id = GetLegacyEventId();
+    if (!opt_source_id) {
+      storage_->IncrementStats(stats::flow_invalid_id);
+      return ParseLegacyEventAsRawEvent();
+    }
+    FlowId flow_id = context_->flow_tracker->GetFlowIdForV1Event(
+        opt_source_id.value(), category_id_, name_id_);
+    switch (phase) {
+      case 's':
+        context_->flow_tracker->Begin(track_id_, flow_id);
+        break;
+      case 't':
+        context_->flow_tracker->Step(track_id_, flow_id);
+        break;
+      case 'f':
+        context_->flow_tracker->End(track_id_, flow_id,
+                                    legacy_event_.bind_to_enclosing());
+        break;
+    }
+    return ParseLegacyEventAsRawEvent();
+  }
+
+  void MaybeParseFlowEventV2() {
+    if (!legacy_event_.has_bind_id()) {
+      return;
+    }
+    if (!legacy_event_.has_flow_direction()) {
+      storage_->IncrementStats(stats::flow_without_direction);
+      return;
+    }
+
+    auto bind_id = legacy_event_.bind_id();
+    switch (legacy_event_.flow_direction()) {
+      case LegacyEvent::FLOW_OUT:
+        context_->flow_tracker->Begin(track_id_, bind_id);
+        break;
+      case LegacyEvent::FLOW_INOUT:
+        context_->flow_tracker->Step(track_id_, bind_id);
+        break;
+      case LegacyEvent::FLOW_IN:
+        context_->flow_tracker->End(track_id_, bind_id,
+                                    /* bind_enclosing_slice = */ true);
+        break;
+      default:
+        storage_->IncrementStats(stats::flow_without_direction);
+    }
   }
 
   util::Status ParseThreadInstantEvent() {
