@@ -30,4 +30,5 @@ export interface Data extends TrackData {
   ends: Float64Array;
   depths: Uint16Array;
   titles: Uint16Array;  // Index into strings.
+  isInstant: Uint16Array;
 }
