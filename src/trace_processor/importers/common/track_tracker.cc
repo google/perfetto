@@ -552,13 +552,17 @@ TrackId TrackTracker::GetOrCreateTriggerTrack() {
   return *trigger_track_id_;
 }
 
-TrackId TrackTracker::InternGlobalCounterTrack(StringId name) {
+TrackId TrackTracker::InternGlobalCounterTrack(StringId name,
+                                               StringId unit,
+                                               StringId description) {
   auto it = global_counter_tracks_by_name_.find(name);
   if (it != global_counter_tracks_by_name_.end()) {
     return it->second;
   }
 
   tables::CounterTrackTable::Row row(name);
+  row.unit = unit;
+  row.description = description;
   TrackId track =
       context_->storage->mutable_counter_track_table()->Insert(row).id;
   global_counter_tracks_by_name_[name] = track;
@@ -595,7 +599,10 @@ TrackId TrackTracker::InternThreadCounterTrack(StringId name, UniqueTid utid) {
   return track;
 }
 
-TrackId TrackTracker::InternProcessCounterTrack(StringId name, UniquePid upid) {
+TrackId TrackTracker::InternProcessCounterTrack(StringId name,
+                                                UniquePid upid,
+                                                StringId unit,
+                                                StringId description) {
   auto it = upid_counter_tracks_.find(std::make_pair(name, upid));
   if (it != upid_counter_tracks_.end()) {
     return it->second;
@@ -603,6 +610,8 @@ TrackId TrackTracker::InternProcessCounterTrack(StringId name, UniquePid upid) {
 
   tables::ProcessCounterTrackTable::Row row(name);
   row.upid = upid;
+  row.unit = unit;
+  row.description = description;
 
   TrackId track =
       context_->storage->mutable_process_counter_track_table()->Insert(row).id;
