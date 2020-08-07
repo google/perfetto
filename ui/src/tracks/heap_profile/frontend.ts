@@ -16,16 +16,15 @@ import {searchSegment} from '../../base/binary_search';
 import {Actions} from '../../common/actions';
 import {TrackState} from '../../common/state';
 import {fromNs, toNs} from '../../common/time';
-import {
-  HEAP_PROFILE_COLOR,
-  HEAP_PROFILE_HOVERED_COLOR
-} from '../../frontend/flamegraph';
+import {HEAP_PROFILE_HOVERED_COLOR} from '../../frontend/flamegraph';
 import {globals} from '../../frontend/globals';
 import {TimeScale} from '../../frontend/time_scale';
 import {Track} from '../../frontend/track';
 import {trackRegistry} from '../../frontend/track_registry';
 
 import {Config, Data, HEAP_PROFILE_TRACK_KIND} from './common';
+
+const HEAP_PROFILE_COLOR = 'hsl(224, 45%, 70%)';
 
 // 0.5 Makes the horizontal lines sharp.
 const MARGIN_TOP = 4.5;
