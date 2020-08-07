@@ -112,24 +112,20 @@ class CpuReaderTableTest : public ::testing::Test {
 template <class ZeroT, class ProtoT>
 class ProtoProvider {
  public:
-  explicit ProtoProvider(size_t chunk_size)
-      : chunk_size_(chunk_size), delegate_(chunk_size_), stream_(&delegate_) {
-    delegate_.set_writer(&stream_);
-    writer_.Reset(&stream_);
-  }
+  explicit ProtoProvider(size_t chunk_size) : chunk_size_(chunk_size) {}
   ~ProtoProvider() = default;
 
-  ZeroT* writer() { return &writer_; }
+  ZeroT* writer() { return writer_.get(); }
+  void ResetWriter() { writer_.Reset(); }
 
   // Stitch together the scattered chunks into a single buffer then attempt
   // to parse the buffer as a FtraceEventBundle. Returns the FtraceEventBundle
   // on success and nullptr on failure.
   std::unique_ptr<ProtoT> ParseProto() {
     auto bundle = std::unique_ptr<ProtoT>(new ProtoT());
-    std::vector<uint8_t> buffer = delegate_.StitchSlices();
-    if (!bundle->ParseFromArray(buffer.data(), buffer.size())) {
+    std::vector<uint8_t> buffer = writer_.SerializeAsArray();
+    if (!bundle->ParseFromArray(buffer.data(), buffer.size()))
       return nullptr;
-    }
     return bundle;
   }
 
@@ -138,9 +134,7 @@ class ProtoProvider {
   ProtoProvider& operator=(const ProtoProvider&) = delete;
 
   size_t chunk_size_;
-  protozero::ScatteredHeapBuffer delegate_;
-  protozero::ScatteredStreamWriter stream_;
-  ZeroT writer_;
+  protozero::HeapBuffered<ZeroT> writer_;
 };
 
 using BundleProvider = ProtoProvider<protos::pbzero::FtraceEventBundle,
@@ -846,6 +840,7 @@ TEST(CpuReaderTest, ParseSixSchedSwitchCompactFormat) {
   ASSERT_TRUE(bundle);
   EXPECT_EQ(0u, bundle->event().size());
   EXPECT_FALSE(bundle->has_compact_sched());
+  bundle_provider.ResetWriter();
 
   // Instead, sched switch fields were buffered:
   EXPECT_LT(0u, compact_buffer.sched_switch().size());
