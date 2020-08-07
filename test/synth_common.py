@@ -393,9 +393,16 @@ class Trace(object):
       thread.cpu_freq_indices.append(index)
       thread.cpu_freq_ticks.append(freqs[index])
 
-  def add_gpu_mem_total(self, pid, ts, size):
+  def add_gpu_mem_total_ftrace_event(self, pid, ts, size):
     ftrace = self.__add_ftrace_event(ts, pid)
-    gpu_mem_total_event = ftrace.gpu_mem_total
+    gpu_mem_total_ftrace_event = ftrace.gpu_mem_total
+    gpu_mem_total_ftrace_event.pid = pid
+    gpu_mem_total_ftrace_event.size = size
+
+  def add_gpu_mem_total_event(self, pid, ts, size):
+    packet = self.add_packet()
+    packet.timestamp = ts
+    gpu_mem_total_event = packet.gpu_mem_total_event
     gpu_mem_total_event.pid = pid
     gpu_mem_total_event.size = size
 
