@@ -69,7 +69,7 @@ class TraceProcessor:
       elif proto_index == TraceProcessor.QUERY_CELL_BLOB_FIELD_ID:
         return self.__batches[self.__batch_index].blob_cells
       else:
-        return None
+        raise TraceProcessorException('Invalid cell type')
 
     def cells(self):
       return self.__batches[self.__batch_index].cells
@@ -82,7 +82,6 @@ class TraceProcessor:
         import numpy as np
         import pandas as pd
 
-        batch_index = 0
         next_index = 0
         df = pd.DataFrame(columns=self.__column_names)
         # TODO(aninditaghosh): Revisit string cells for larger traces
@@ -92,18 +91,19 @@ class TraceProcessor:
         while True:
           # If all cells are read, then check if last batch before
           # returning the populated dataframe
-          if next_index >= len(self.__batches[batch_index].cells):
-            if self.__batches[batch_index].is_last_batch:
+          if next_index >= len(self.__batches[self.__batch_index].cells):
+            if self.__batches[self.__batch_index].is_last_batch:
               ordered_df = df.reset_index(drop=True)
               return ordered_df
-            batch_index += 1
+            self.__batch_index += 1
             next_index = 0
-            string_cells = batches[batch_index].string_cells.split('\0')
+            self.__string_cells = self.__batches[
+                self.__batch_index].string_cells.split('\0')
 
           row = []
           for num, column_name in enumerate(self.__column_names):
             cell_list = self.get_cell_list(
-                self.__batches[batch_index].cells[next_index + num])
+                self.__batches[self.__batch_index].cells[next_index + num])
             if cell_list is None:
               row.append(np.NAN)
             else:
@@ -135,7 +135,9 @@ class TraceProcessor:
         cell_list = self.get_cell_list(self.cells()[self.__next_index + num])
         if cell_list is not None:
           val = cell_list.pop(0)
-        setattr(row, column_name, val or None)
+          setattr(row, column_name, val)
+        else:
+          setattr(row, column_name, None)
       self.__next_index = self.__next_index + len(self.__column_names)
       return row
 
