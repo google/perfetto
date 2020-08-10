@@ -124,8 +124,10 @@ class GpuEventParser {
   StringId vk_event_scope_id_;
   StringId vk_queue_submit_id_;
   // For GpuMemTotalEvent
-  const StringId gpu_mem_total_global_id_;
-  const StringId gpu_mem_total_process_id_;
+  const StringId gpu_mem_total_name_id_;
+  const StringId gpu_mem_total_unit_id_;
+  const StringId gpu_mem_total_global_desc_id_;
+  const StringId gpu_mem_total_proc_desc_id_;
 };
 }  // namespace trace_processor
 }  // namespace perfetto
