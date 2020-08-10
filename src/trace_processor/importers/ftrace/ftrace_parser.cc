@@ -27,6 +27,7 @@
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/softirq_action.h"
 
+#include "protos/perfetto/common/gpu_counter_descriptor.pbzero.h"
 #include "protos/perfetto/trace/ftrace/binder.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
@@ -89,10 +90,13 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       irq_id_(context_->storage->InternString("irq")),
       ret_arg_id_(context_->storage->InternString("ret")),
       vec_arg_id_(context->storage->InternString("vec")),
-      gpu_mem_total_process_id_(
-          context->storage->InternString("gpumemtotal.process")),
-      gpu_mem_total_global_id_(
-          context->storage->InternString("gpumemtotal.global")) {
+      gpu_mem_total_name_id_(context->storage->InternString("GPU Memory")),
+      gpu_mem_total_unit_id_(context->storage->InternString(
+          std::to_string(protos::pbzero::GpuCounterDescriptor::BYTE).c_str())),
+      gpu_mem_total_global_desc_id_(context->storage->InternString(
+          "Total GPU memory used by the entire system")),
+      gpu_mem_total_proc_desc_id_(context->storage->InternString(
+          "Total GPU memory used by this process")) {
   // Build the lookup table for the strings inside ftrace events (e.g. the
   // name of ftrace event fields and the names of their args).
   for (size_t i = 0; i < GetDescriptorsSize(); i++) {
@@ -1119,20 +1123,23 @@ void FtraceParser::ParseGpuMemTotal(int64_t ts, protozero::ConstBytes data) {
   protos::pbzero::GpuMemTotalFtraceEvent::Decoder gpu_mem_total(data.data,
                                                                 data.size);
 
+  TrackId track = kInvalidTrackId;
   const uint32_t pid = gpu_mem_total.pid();
   if (pid == 0) {
     // Pid 0 is used to indicate the global total
-    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
-        gpu_mem_total_global_id_);
-    context_->event_tracker->PushCounter(
-        ts, static_cast<double>(gpu_mem_total.size()), track);
+    track = context_->track_tracker->InternGlobalCounterTrack(
+        gpu_mem_total_name_id_, gpu_mem_total_unit_id_,
+        gpu_mem_total_global_desc_id_);
   } else {
     // Process emitting the packet can be different from the pid in the event.
     UniqueTid utid = context_->process_tracker->UpdateThread(pid, pid);
-    context_->event_tracker->PushProcessCounterForThread(
-        ts, static_cast<double>(gpu_mem_total.size()),
-        gpu_mem_total_process_id_, utid);
+    UniquePid upid = context_->storage->thread_table().upid()[utid].value_or(0);
+    track = context_->track_tracker->InternProcessCounterTrack(
+        gpu_mem_total_name_id_, upid, gpu_mem_total_unit_id_,
+        gpu_mem_total_proc_desc_id_);
   }
+  context_->event_tracker->PushCounter(
+      ts, static_cast<double>(gpu_mem_total.size()), track);
 }
 
 void FtraceParser::ParseThermalTemperature(int64_t timestamp,
