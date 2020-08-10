@@ -235,6 +235,7 @@ if (build_with_chromium) {
   component("libperfetto") {
     public_configs = [ "gn:public_config" ]
     deps = [
+      "src/trace_processor/importers/memory_tracker:graph_processor",
       "src/tracing:client_api",
       "src/tracing/core",
 
@@ -244,6 +245,7 @@ if (build_with_chromium) {
     configs -= [ "//build/config/compiler:chromium_code" ]
     configs += [ "//build/config/compiler:no_chromium_code" ]
     public_deps = [
+      "include/perfetto/ext/trace_processor/importers/memory_tracker",
       "include/perfetto/ext/tracing/core",
       "include/perfetto/tracing",
       "protos/perfetto/common:zero",
