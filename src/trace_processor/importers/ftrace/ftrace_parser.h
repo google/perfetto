@@ -147,8 +147,10 @@ class FtraceParser {
   const StringId irq_id_;
   const StringId ret_arg_id_;
   const StringId vec_arg_id_;
-  const StringId gpu_mem_total_process_id_;
-  const StringId gpu_mem_total_global_id_;
+  const StringId gpu_mem_total_name_id_;
+  const StringId gpu_mem_total_unit_id_;
+  const StringId gpu_mem_total_global_desc_id_;
+  const StringId gpu_mem_total_proc_desc_id_;
 
   struct FtraceMessageStrings {
     // The string id of name of the event field (e.g. sched_switch's id).
