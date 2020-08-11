@@ -25,6 +25,7 @@ import "protos/perfetto/trace/ftrace/block.proto";
 import "protos/perfetto/trace/ftrace/cgroup.proto";
 import "protos/perfetto/trace/ftrace/clk.proto";
 import "protos/perfetto/trace/ftrace/compaction.proto";
+import "protos/perfetto/trace/ftrace/cpuhp.proto";
 import "protos/perfetto/trace/ftrace/ext4.proto";
 import "protos/perfetto/trace/ftrace/f2fs.proto";
 import "protos/perfetto/trace/ftrace/fence.proto";
@@ -425,5 +426,9 @@ message FtraceEvent {
     GpuMemTotalFtraceEvent gpu_mem_total = 340;
     ThermalTemperatureFtraceEvent thermal_temperature = 341;
     CdevUpdateFtraceEvent cdev_update = 342;
+    CpuhpExitFtraceEvent cpuhp_exit = 343;
+    CpuhpMultiEnterFtraceEvent cpuhp_multi_enter = 344;
+    CpuhpEnterFtraceEvent cpuhp_enter = 345;
+    CpuhpLatencyFtraceEvent cpuhp_latency = 346;
   }
 }
