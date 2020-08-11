@@ -98,7 +98,7 @@ TEST(HeapprofdConfigToClientConfigurationTest, DefaultHeap) {
   HeapprofdConfigToClientConfiguration(cfg, &cli_config);
   EXPECT_EQ(cli_config.num_heaps, 1u);
   EXPECT_EQ(cli_config.interval, 4096u);
-  EXPECT_STREQ(cli_config.heaps[0], "malloc");
+  EXPECT_STREQ(cli_config.heaps[0], "com.android.malloc");
 }
 
 TEST(HeapprofdConfigToClientConfigurationTest, TwoHeaps) {
@@ -115,16 +115,18 @@ TEST(HeapprofdConfigToClientConfigurationTest, TwoHeaps) {
 }
 
 TEST(HeapprofdConfigToClientConfigurationTest, OverflowHeapName) {
+  std::string large_name(100, 'a');
   HeapprofdConfig cfg;
-  cfg.add_heaps("foooooooooooooooooooooooooooooooooooooooooooooo");
+  cfg.add_heaps(large_name);
   ClientConfiguration cli_config;
   HeapprofdConfigToClientConfiguration(cfg, &cli_config);
   EXPECT_EQ(cli_config.num_heaps, 0u);
 }
 
 TEST(HeapprofdConfigToClientConfigurationTest, OverflowHeapNameAndValid) {
+  std::string large_name(100, 'a');
   HeapprofdConfig cfg;
-  cfg.add_heaps("foooooooooooooooooooooooooooooooooooooooooooooo");
+  cfg.add_heaps(large_name);
   cfg.add_heaps("foo");
   ClientConfiguration cli_config;
   HeapprofdConfigToClientConfiguration(cfg, &cli_config);
