@@ -526,7 +526,7 @@ export class TraceController extends Controller<States> {
       const exists = await engine.query(
           `SELECT name FROM sqlite_master WHERE type='table' AND name='${
               metric}_event'`);
-      if (exists.numRecords === 0) return;
+      if (exists.numRecords === 0) continue;
 
       this.updateStatus(`Inserting data for ${metric} metric`);
       const result = await engine.query(`
