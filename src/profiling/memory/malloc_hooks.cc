@@ -105,7 +105,7 @@ void ProfileCallback(bool enabled) {
   }
 }
 
-HeapprofdHeapInfo info{"malloc", ProfileCallback};
+HeapprofdHeapInfo info{"com.android.malloc", ProfileCallback};
 uint32_t g_heap_id = heapprofd_register_heap(&info, sizeof(info));
 
 }  // namespace
