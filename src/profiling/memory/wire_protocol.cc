@@ -24,10 +24,20 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
+#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
+#include <bionic/mte.h>
+#else
+struct ScopedDisableMTE {
+  // Silence unused variable warnings in non-Android builds.
+  ScopedDisableMTE() {}
+};
+#endif
+
 namespace perfetto {
 namespace profiling {
 
 namespace {
+
 template <typename T>
 bool ViewAndAdvance(char** ptr, T** out, const char* end) {
   if (end - sizeof(T) < *ptr)
@@ -40,6 +50,7 @@ bool ViewAndAdvance(char** ptr, T** out, const char* end) {
 // We need this to prevent crashes due to FORTIFY_SOURCE.
 void UnsafeMemcpy(char* dest, const char* src, size_t n)
     __attribute__((no_sanitize("address", "hwaddress"))) {
+  ScopedDisableMTE m;
   for (size_t i = 0; i < n; ++i) {
     dest[i] = src[i];
   }
