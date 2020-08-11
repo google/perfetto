@@ -165,7 +165,6 @@ additional_args = {
     'heapprofd_client_api': [
         ('include_dirs', {'bionic/libc'}),
         ('static_libs', {'libasync_safe'}),
-        ('header_libs', {'bionic_libc_platform_headers'}),
         # heapprofd_client_api MUST NOT have global constructors. Because it
         # is loaded in an __attribute__((constructor)) of libc, we cannot
         # guarantee that the global constructors get run before it is used.
@@ -175,7 +174,6 @@ additional_args = {
     'heapprofd_client': [
         ('include_dirs', {'bionic/libc'}),
         ('static_libs', {'libasync_safe'}),
-        ('header_libs', {'bionic_libc_platform_headers'}),
     ],
     'heapprofd_standalone_client': [
         ('static_libs', {'libasync_safe'}),
@@ -272,6 +270,9 @@ def enable_zlib(module):
 def enable_uapi_headers(module):
   module.include_dirs.add('bionic/libc/kernel')
 
+def enable_bionic_libc_platform_headers_on_android(module):
+  module.header_libs.add('bionic_libc_platform_headers')
+
 
 # Android equivalents for third-party libraries that the upstream project
 # depends on.
@@ -288,6 +289,8 @@ builtin_deps = {
     '//gn:sqlite': enable_sqlite,
     '//gn:zlib': enable_zlib,
     '//gn:bionic_kernel_uapi_headers' : enable_uapi_headers,
+    '//src/profiling/memory:bionic_libc_platform_headers_on_android':
+      enable_bionic_libc_platform_headers_on_android,
 }
 
 # ----------------------------------------------------------------------------
