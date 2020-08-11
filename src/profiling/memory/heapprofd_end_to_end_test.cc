@@ -71,14 +71,14 @@ using ::testing::Values;
 std::string AllocatorName(AllocatorMode mode) {
   switch (mode) {
     case AllocatorMode::kMalloc:
-      return "malloc";
+      return "com.android.malloc";
     case AllocatorMode::kCustom:
       return "test";
   }
 }
 
 AllocatorMode AllocatorModeFromNameOrDie(std::string s) {
-  if (s == "malloc")
+  if (s == "com.android.malloc")
     return AllocatorMode::kMalloc;
   if (s == "test")
     return AllocatorMode::kCustom;
