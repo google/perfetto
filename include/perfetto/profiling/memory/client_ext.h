@@ -14,6 +14,46 @@
  * limitations under the License.
  */
 
+// API to report allocations to heapprofd. This allows users to see the
+// callstacks causing these allocations in heap profiles.
+//
+// In the context of this API, a "heap" is memory associated with an allocator.
+// An example for allocator is the malloc-family of libc functions (malloc /
+// calloc / posix_memalign).
+//
+// A very simple custom allocator would look like this:
+//
+// void* my_malloc(size_t size) {
+//   void* ptr = [code to somehow allocate get size bytes];
+//   return ptr;
+// }
+//
+// void my_free(void* ptr) {
+//   [code to somehow free ptr]
+// }
+//
+// To find out where in a program these two functions get called, we instrument
+// the allocator using this API:
+//
+// static HeapprofdHeapInfo g_info{"invalid.example", nullptr};
+// static uint32_t g_heap_id = heapprofd_register_heap(&g_info, sizeof(g_info));
+// void* my_malloc(size_t size) {
+//   void* ptr = [code to somehow allocate get size bytes];
+//   heapprofd_report_allocation(g_heap_id, static_cast<uintptr_t>(ptr), size);
+//   return ptr;
+// }
+//
+// void my_free(void* ptr) {
+//   heapprofd_report_free(g_heap_id, static_cast<uintptr_t>(ptr));
+//   [code to somehow free ptr]
+// }
+//
+// This will allow users to get a flamegraph of the callstacks calling into
+// these functions.
+//
+// See https://perfetto.dev/docs/data-sources/native-heap-profiler for more
+// information on heapprofd in general.
+
 #ifndef INCLUDE_PERFETTO_PROFILING_MEMORY_CLIENT_EXT_H_
 #define INCLUDE_PERFETTO_PROFILING_MEMORY_CLIENT_EXT_H_
 
