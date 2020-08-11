@@ -40,6 +40,8 @@ struct HeapprofdHeapInfo {
   void (*callback)(bool /* enabled */);
 };
 
+typedef struct HeapprofdHeapInfo HeapprofdHeapInfo;
+
 #ifdef __cplusplus
 static_assert(alignof(HeapprofdHeapInfo) == 8,
               "HeapprofdHeapInfo must be aligned to 64bit.");
