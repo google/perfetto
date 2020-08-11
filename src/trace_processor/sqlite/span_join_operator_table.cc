@@ -311,7 +311,11 @@ util::Status SpanJoinOperatorTable::CreateTableDefinition(
         desc.name.c_str());
   }
 
-  auto cols = sqlite_utils::GetColumnsForTable(db_, desc.name);
+  std::vector<SqliteTable::Column> cols;
+  auto status = sqlite_utils::GetColumnsForTable(db_, desc.name, cols);
+  if (!status.ok()) {
+    return status;
+  }
 
   uint32_t required_columns_found = 0;
   uint32_t ts_idx = std::numeric_limits<uint32_t>::max();
