@@ -210,6 +210,9 @@ cc_binary {
     "-DGOOGLE_PROTOBUF_NO_RTTI",
     "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
   ],
+  header_libs: [
+    "bionic_libc_platform_headers",
+  ],
 }
 
 // GN: //src/profiling/memory:heapprofd_client
@@ -433,6 +436,9 @@ cc_library_shared {
     "-DGOOGLE_PROTOBUF_NO_RTTI",
     "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
     "-DPERFETTO_ANDROID_ASYNC_SAFE_LOG",
+  ],
+  header_libs: [
+    "bionic_libc_platform_headers",
   ],
   stl: "libc++_static",
   version_script: "src/profiling/memory/heapprofd_client_api.map.txt",
@@ -1778,6 +1784,9 @@ cc_test {
   cflags: [
     "-DGOOGLE_PROTOBUF_NO_RTTI",
     "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
+  ],
+  header_libs: [
+    "bionic_libc_platform_headers",
   ],
 }
 
@@ -6274,6 +6283,11 @@ filegroup {
   ],
 }
 
+// GN: //src/profiling/memory:bionic_libc_platform_headers_on_android
+filegroup {
+  name: "perfetto_src_profiling_memory_bionic_libc_platform_headers_on_android",
+}
+
 // GN: //src/profiling/memory:client
 filegroup {
   name: "perfetto_src_profiling_memory_client",
@@ -8059,6 +8073,9 @@ cc_test {
   ],
   include_dirs: [
     "bionic/libc/kernel",
+  ],
+  header_libs: [
+    "bionic_libc_platform_headers",
   ],
   data: [
     "src/traced/probes/filesystem/testdata/**/*",
