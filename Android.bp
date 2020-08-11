@@ -6873,6 +6873,7 @@ filegroup {
     "src/trace_processor/sqlite/query_constraints_unittest.cc",
     "src/trace_processor/sqlite/span_join_operator_table_unittest.cc",
     "src/trace_processor/sqlite/sqlite3_str_split_unittest.cc",
+    "src/trace_processor/sqlite/sqlite_utils_unittest.cc",
   ],
 }
 
