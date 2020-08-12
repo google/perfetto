@@ -596,7 +596,7 @@ util::Status LoadQueries(FILE* input, std::vector<std::string>* output) {
   while (!feof(input) && !ferror(input)) {
     std::string sql_query;
     while (fgets(buffer, sizeof(buffer), input)) {
-      std::string line = buffer;
+      std::string line = base::TrimLeading(buffer);
       if (IsBlankLine(line))
         break;
 
