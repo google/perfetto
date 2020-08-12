@@ -248,31 +248,31 @@ void ProtoTraceParser::ParseProfilePacket(
 
     const char* str = reinterpret_cast<const char*>(entry.str().data);
     auto str_view = base::StringView(str, entry.str().size);
-    sequence_state->state()->stack_profile_tracker().AddString(entry.iid(),
-                                                               str_view);
+    sequence_state->state()->sequence_stack_profile_tracker().AddString(
+        entry.iid(), str_view);
   }
 
   for (auto it = packet.mappings(); it; ++it) {
     protos::pbzero::Mapping::Decoder entry(*it);
-    StackProfileTracker::SourceMapping src_mapping =
+    SequenceStackProfileTracker::SourceMapping src_mapping =
         ProfilePacketUtils::MakeSourceMapping(entry);
-    sequence_state->state()->stack_profile_tracker().AddMapping(entry.iid(),
-                                                                src_mapping);
+    sequence_state->state()->sequence_stack_profile_tracker().AddMapping(
+        entry.iid(), src_mapping);
   }
 
   for (auto it = packet.frames(); it; ++it) {
     protos::pbzero::Frame::Decoder entry(*it);
-    StackProfileTracker::SourceFrame src_frame =
+    SequenceStackProfileTracker::SourceFrame src_frame =
         ProfilePacketUtils::MakeSourceFrame(entry);
-    sequence_state->state()->stack_profile_tracker().AddFrame(entry.iid(),
-                                                              src_frame);
+    sequence_state->state()->sequence_stack_profile_tracker().AddFrame(
+        entry.iid(), src_frame);
   }
 
   for (auto it = packet.callstacks(); it; ++it) {
     protos::pbzero::Callstack::Decoder entry(*it);
-    StackProfileTracker::SourceCallstack src_callstack =
+    SequenceStackProfileTracker::SourceCallstack src_callstack =
         ProfilePacketUtils::MakeSourceCallstack(entry);
-    sequence_state->state()->stack_profile_tracker().AddCallstack(
+    sequence_state->state()->sequence_stack_profile_tracker().AddCallstack(
         entry.iid(), src_callstack);
   }
 
@@ -336,7 +336,7 @@ void ProtoTraceParser::ParseProfilePacket(
     PERFETTO_CHECK(sequence_state);
     ProfilePacketInternLookup intern_lookup(sequence_state);
     context_->heap_profile_tracker->FinalizeProfile(
-        seq_id, &sequence_state->state()->stack_profile_tracker(),
+        seq_id, &sequence_state->state()->sequence_stack_profile_tracker(),
         &intern_lookup);
   }
 }
@@ -374,8 +374,8 @@ void ProtoTraceParser::ParsePerfSample(
   }
 
   // Proper sample, though possibly with an incomplete stack unwind.
-  StackProfileTracker& stack_tracker =
-      sequence_state->state()->stack_profile_tracker();
+  SequenceStackProfileTracker& stack_tracker =
+      sequence_state->state()->sequence_stack_profile_tracker();
   ProfilePacketInternLookup intern_lookup(sequence_state);
 
   uint64_t callstack_iid = sample.callstack_iid();
