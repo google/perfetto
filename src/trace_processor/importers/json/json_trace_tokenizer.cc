@@ -381,6 +381,16 @@ util::Status JsonTraceTokenizer::ParseInternal(const char* start,
       } else if (key == "metadata") {
         position_ = TracePosition::kWaitingForMetadataDictionary;
         return ParseInternal(next + 1, end, out);
+      } else if (key == "displayTimeUnit") {
+        std::string time_unit;
+        auto string_res = ReadOneJsonString(next + 1, end, &time_unit, &next);
+        if (string_res == ReadStringRes::kFatalError)
+          return util::ErrStatus("Could not parse displayTimeUnit");
+        if (string_res == ReadStringRes::kNeedsMoreData)
+          return util::ErrStatus("displayTimeUnit too large");
+        if (time_unit != "ms" && time_unit != "ns")
+          return util::ErrStatus("displayTimeUnit unknown");
+        return ParseInternal(next, end, out);
       } else {
         // If we don't recognize the key, just ignore the rest of the trace and
         // go to EOF.
