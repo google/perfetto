@@ -23,8 +23,12 @@ namespace perfetto {
 namespace profiling {
 namespace {
 
-base::Optional<std::pair<std::string, std::string>> ParseClass(
-    std::string line) {
+struct ProguardClass {
+  std::string obfuscated_name;
+  std::string deobfuscated_name;
+};
+
+base::Optional<ProguardClass> ParseClass(std::string line) {
   base::StringSplitter ss(std::move(line), ' ');
 
   if (!ss.Next()) {
@@ -58,12 +62,22 @@ base::Optional<std::pair<std::string, std::string>> ParseClass(
     PERFETTO_ELOG("Unexpected data.");
     return base::nullopt;
   }
-  return std::make_pair(std::move(obfuscated_name),
-                        std::move(deobfuscated_name));
+  return ProguardClass{std::move(obfuscated_name),
+                       std::move(deobfuscated_name)};
 }
 
-base::Optional<std::pair<std::string, std::string>> ParseMember(
-    std::string line) {
+enum class ProguardMemberType {
+  kField,
+  kMethod,
+};
+
+struct ProguardMember {
+  ProguardMemberType type;
+  std::string obfuscated_name;
+  std::string deobfuscated_name;
+};
+
+base::Optional<ProguardMember> ParseMember(std::string line) {
   base::StringSplitter ss(std::move(line), ' ');
 
   if (!ss.Next()) {
@@ -94,12 +108,22 @@ base::Optional<std::pair<std::string, std::string>> ParseMember(
     PERFETTO_ELOG("Unexpected data.");
     return base::nullopt;
   }
-  return std::make_pair(std::move(obfuscated_name),
-                        std::move(deobfuscated_name));
+
+  ProguardMemberType member_type;
+  auto paren_idx = deobfuscated_name.find("(");
+  if (paren_idx != std::string::npos) {
+    member_type = ProguardMemberType::kMethod;
+  } else {
+    member_type = ProguardMemberType::kField;
+  }
+  return ProguardMember{member_type, std::move(obfuscated_name),
+                        std::move(deobfuscated_name)};
 }
 
 }  // namespace
 
+// See https://www.guardsquare.com/en/products/proguard/manual/retrace for the
+// file format we are parsing.
 bool ProguardParser::AddLine(std::string line) {
   if (line.length() == 0)
     return true;
@@ -109,37 +133,31 @@ bool ProguardParser::AddLine(std::string line) {
     return false;
   }
   if (!is_member) {
-    std::string obfuscated_name;
-    std::string deobfuscated_name;
-    auto opt_pair = ParseClass(std::move(line));
-    if (!opt_pair)
+    auto opt_cls = ParseClass(std::move(line));
+    if (!opt_cls)
       return false;
-    std::tie(obfuscated_name, deobfuscated_name) = *opt_pair;
-    auto p = mapping_.emplace(std::move(obfuscated_name),
-                              std::move(deobfuscated_name));
+    auto p = mapping_.emplace(std::move(opt_cls->obfuscated_name),
+                              std::move(opt_cls->deobfuscated_name));
     if (!p.second) {
       PERFETTO_ELOG("Duplicate class.");
       return false;
     }
     current_class_ = &p.first->second;
   } else {
-    std::string obfuscated_name;
-    std::string deobfuscated_name;
-    auto opt_pair = ParseMember(std::move(line));
-    if (!opt_pair)
+    auto opt_member = ParseMember(std::move(line));
+    if (!opt_member)
       return false;
-    std::tie(obfuscated_name, deobfuscated_name) = *opt_pair;
     // TODO(fmayer): Teach this to properly parse methods.
-    if (deobfuscated_name.find("(") != std::string::npos) {
+    if (opt_member->type == ProguardMemberType::kMethod) {
       // Skip functions, as they will trigger the "Duplicate member" below.
       return true;
     }
-    auto p = current_class_->deobfuscated_fields.emplace(obfuscated_name,
-                                                         deobfuscated_name);
-    if (!p.second && p.first->second != deobfuscated_name) {
+    auto p = current_class_->deobfuscated_fields.emplace(
+        opt_member->obfuscated_name, opt_member->deobfuscated_name);
+    if (!p.second && p.first->second != opt_member->deobfuscated_name) {
       PERFETTO_ELOG("Member redefinition: %s.%s",
                     current_class_->deobfuscated_name.c_str(),
-                    deobfuscated_name.c_str());
+                    opt_member->deobfuscated_name.c_str());
       return false;
     }
   }
