@@ -61,6 +61,17 @@ message ProcessStats {
     optional int64 oom_score_adj = 10;
 
     repeated Thread threads = 11;
+
+    // The peak resident set size is resettable in newer Posix kernels.
+    // This field specifies if reset is supported and if the writer had reset
+    // the peaks after each process stats recording.
+    optional bool is_peak_rss_resettable = 12;
+
+    // Private, shared and swap footprint of the process as measured by
+    // Chrome. To know more about these metrics refer to:
+    // https://docs.google.com/document/d/1_WmgE1F5WUrhwkPqJis3dWyOiUmQKvpXp5cd4w86TvA
+    optional uint32 chrome_private_footprint_kb = 13;
+    optional uint32 chrome_peak_resident_set_kb = 14;
   }
   repeated Process processes = 1;
 
