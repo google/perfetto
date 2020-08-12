@@ -42,6 +42,7 @@ import "protos/perfetto/trace/perfetto/perfetto_metatrace.proto";
 import "protos/perfetto/trace/perfetto/tracing_service_event.proto";
 import "protos/perfetto/trace/power/battery_counters.proto";
 import "protos/perfetto/trace/power/power_rails.proto";
+import "protos/perfetto/trace/profiling/deobfuscation.proto";
 import "protos/perfetto/trace/profiling/heap_graph.proto";
 import "protos/perfetto/trace/profiling/profile_common.proto";
 import "protos/perfetto/trace/profiling/profile_packet.proto";
