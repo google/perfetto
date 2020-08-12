@@ -358,6 +358,10 @@ std::map<std::string, std::string> BuildIdIndex(std::vector<std::string> dirs) {
       std::move(dirs), [&result](const char* fname, const struct stat* stat) {
         char magic[EI_MAG3 + 1];
         auto fd = base::OpenFile(fname, O_RDONLY | O_CLOEXEC);
+        if (!fd) {
+          PERFETTO_PLOG("Failed to open %s", fname);
+          return;
+        }
         ssize_t rd = PERFETTO_EINTR(read(*fd, &magic, sizeof(magic)));
         if (rd == -1) {
           PERFETTO_PLOG("Failed to read %s", fname);
