@@ -23,6 +23,22 @@ message SmapsEntry {
   optional uint64 size_kb = 2;
   optional uint64 private_dirty_kb = 3;
   optional uint64 swap_kb = 4;
+
+  // for field upload (instead of path).
+  optional string file_name = 5;
+
+  // TODO(crbug.com/1098746): Consider encoding this as incremental values.
+  optional uint64 start_address = 6;
+  optional uint64 module_timestamp = 7;
+  optional string module_debugid = 8;
+  optional string module_debug_path = 9;
+  optional uint32 protection_flags = 10;
+
+  optional uint64 private_clean_resident_kb = 11;
+  optional uint64 shared_dirty_resident_kb = 12;
+  optional uint64 shared_clean_resident_kb = 13;
+  optional uint64 locked_kb = 14;
+  optional uint64 proportional_resident_kb = 15;
 };
 
 message SmapsPacket {
