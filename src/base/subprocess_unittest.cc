@@ -171,7 +171,7 @@ TEST(SubprocessTest, StartAndWait) {
   EXPECT_EQ(p.returncode(), 128 + SIGKILL);
 }
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) && defined(ADDRESS_SANITIZER)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 #define MAYBE_PollBehavesProperly DISABLED_PollBehavesProperly
 #else
 #define MAYBE_PollBehavesProperly PollBehavesProperly
