@@ -117,7 +117,11 @@ RowMap SelectIvWithRange(const std::vector<uint32_t>& iv,
 
 RowMap SelectIvWithBv(const std::vector<uint32_t>& iv,
                       const BitVector& selector) {
+  PERFETTO_DCHECK(selector.size() <= iv.size());
+
   std::vector<uint32_t> copy = iv;
+  copy.resize(selector.size());
+
   uint32_t idx = 0;
   auto it = std::remove_if(
       copy.begin(), copy.end(),
