@@ -6583,7 +6583,7 @@ message PowerRails {
 
 // End of protos/perfetto/trace/power/power_rails.proto
 
-// Begin of protos/perfetto/trace/profiling/heap_graph.proto
+// Begin of protos/perfetto/trace/profiling/deobfuscation.proto
 
 message ObfuscatedMember {
   // This is the obfuscated field name relative to the class containing the
@@ -6607,6 +6607,9 @@ message DeobfuscationMapping {
   optional int64 version_code = 2;
   repeated ObfuscatedClass obfuscated_classes = 3;
 }
+// End of protos/perfetto/trace/profiling/deobfuscation.proto
+
+// Begin of protos/perfetto/trace/profiling/heap_graph.proto
 
 message HeapGraphRoot {
   enum Type {
