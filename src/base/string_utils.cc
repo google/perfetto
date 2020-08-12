@@ -161,5 +161,10 @@ std::string ReplaceAll(std::string str,
   return str;
 }
 
+std::string TrimLeading(const std::string& str) {
+  size_t idx = str.find_first_not_of(' ');
+  return idx == std::string::npos ? str : str.substr(idx);
+}
+
 }  // namespace base
 }  // namespace perfetto
