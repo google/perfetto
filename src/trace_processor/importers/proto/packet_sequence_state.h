@@ -224,7 +224,7 @@ class PacketSequenceStateGeneration {
 class PacketSequenceState {
  public:
   PacketSequenceState(TraceProcessorContext* context)
-      : context_(context), stack_profile_tracker_(context) {
+      : context_(context), sequence_stack_profile_tracker_(context) {
     generations_.emplace_back(
         new PacketSequenceStateGeneration(this, generations_.size()));
   }
@@ -297,8 +297,8 @@ class PacketSequenceState {
 
   bool IsIncrementalStateValid() const { return !packet_loss_; }
 
-  StackProfileTracker& stack_profile_tracker() {
-    return stack_profile_tracker_;
+  SequenceStackProfileTracker& sequence_stack_profile_tracker() {
+    return sequence_stack_profile_tracker_;
   }
 
   // Returns a pointer to the current generation.
@@ -351,7 +351,7 @@ class PacketSequenceState {
   int64_t track_event_thread_instruction_count_ = 0;
 
   GenerationList generations_;
-  StackProfileTracker stack_profile_tracker_;
+  SequenceStackProfileTracker sequence_stack_profile_tracker_;
 };
 
 template <uint32_t FieldId, typename MessageType>
