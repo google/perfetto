@@ -94,7 +94,7 @@ class TraceProcessorContext;
 
 // TODO(lalitm): Overhaul this class to make row vs id consistent and use
 // base::Optional instead of int64_t.
-class StackProfileTracker {
+class SequenceStackProfileTracker {
  public:
   using SourceStringId = uint64_t;
 
@@ -150,8 +150,8 @@ class StackProfileTracker {
         SourceCallstackId) const = 0;
   };
 
-  explicit StackProfileTracker(TraceProcessorContext* context);
-  ~StackProfileTracker();
+  explicit SequenceStackProfileTracker(TraceProcessorContext* context);
+  ~SequenceStackProfileTracker();
 
   void AddString(SourceStringId, base::StringView);
   base::Optional<MappingId> AddMapping(
