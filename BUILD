@@ -2524,6 +2524,7 @@ perfetto_cc_proto_library(
 perfetto_proto_library(
     name = "protos_perfetto_trace_profiling_protos",
     srcs = [
+        "protos/perfetto/trace/profiling/deobfuscation.proto",
         "protos/perfetto/trace/profiling/heap_graph.proto",
         "protos/perfetto/trace/profiling/profile_common.proto",
         "protos/perfetto/trace/profiling/profile_packet.proto",
