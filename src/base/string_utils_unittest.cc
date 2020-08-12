@@ -261,6 +261,13 @@ TEST(StringUtilsTest, ReplaceAll) {
   EXPECT_EQ(ReplaceAll("abc", "c", "bbb"), "abbbb");
 }
 
+TEST(StringUtilsTest, TrimLeading) {
+  EXPECT_EQ(TrimLeading(""), "");
+  EXPECT_EQ(TrimLeading("a"), "a");
+  EXPECT_EQ(TrimLeading(" aaaa"), "aaaa");
+  EXPECT_EQ(TrimLeading(" aaaaa     "), "aaaaa     ");
+}
+
 }  // namespace
 }  // namespace base
 }  // namespace perfetto
