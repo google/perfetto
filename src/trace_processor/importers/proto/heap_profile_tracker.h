@@ -40,7 +40,7 @@ class HeapProfileTracker {
     // converts this for us.
     int64_t timestamp = 0;
     StringPool::Id heap_name;
-    StackProfileTracker::SourceCallstackId callstack_id = 0;
+    SequenceStackProfileTracker::SourceCallstackId callstack_id = 0;
     uint64_t self_allocated = 0;
     uint64_t self_freed = 0;
     uint64_t alloc_count = 0;
@@ -56,15 +56,17 @@ class HeapProfileTracker {
   // Call after the last profile packet of a dump to commit the allocations
   // that had been stored using StoreAllocation and clear internal indices
   // for that dump.
-  void FinalizeProfile(uint32_t seq_id,
-                       StackProfileTracker* stack_profile_tracker,
-                       const StackProfileTracker::InternLookup* lookup);
+  void FinalizeProfile(
+      uint32_t seq_id,
+      SequenceStackProfileTracker* sequence_stack_profile_tracker,
+      const SequenceStackProfileTracker::InternLookup* lookup);
 
   // Only commit the allocations that had been stored using StoreAllocations.
   // This is only needed in tests, use FinalizeProfile instead.
-  void CommitAllocations(uint32_t seq_id,
-                         StackProfileTracker* stack_profile_tracker,
-                         const StackProfileTracker::InternLookup* lookup);
+  void CommitAllocations(
+      uint32_t seq_id,
+      SequenceStackProfileTracker* sequence_stack_profile_tracker,
+      const SequenceStackProfileTracker::InternLookup* lookup);
 
   void NotifyEndOfFile();
 
@@ -73,12 +75,12 @@ class HeapProfileTracker {
  private:
   void AddAllocation(
       uint32_t seq_id,
-      StackProfileTracker* stack_profile_tracker,
+      SequenceStackProfileTracker* sequence_stack_profile_tracker,
       const SourceAllocation&,
-      const StackProfileTracker::InternLookup* intern_lookup = nullptr);
+      const SequenceStackProfileTracker::InternLookup* intern_lookup = nullptr);
   struct SourceAllocationIndex {
     UniquePid upid;
-    StackProfileTracker::SourceCallstackId src_callstack_id;
+    SequenceStackProfileTracker::SourceCallstackId src_callstack_id;
     StringPool::Id heap_name;
     bool operator<(const SourceAllocationIndex& o) const {
       return std::tie(upid, src_callstack_id, heap_name) <
@@ -106,10 +108,10 @@ class HeapProfileTracker {
     // SourceCallstackId for a CallsiteId, we put the previous value into
     // the correction maps below.
     std::map<SourceAllocationIndex, std::set<CallsiteId>> seen_callstacks;
-    std::map<StackProfileTracker::SourceCallstackId,
+    std::map<SequenceStackProfileTracker::SourceCallstackId,
              tables::HeapProfileAllocationTable::Row>
         alloc_correction;
-    std::map<StackProfileTracker::SourceCallstackId,
+    std::map<SequenceStackProfileTracker::SourceCallstackId,
              tables::HeapProfileAllocationTable::Row>
         free_correction;
 

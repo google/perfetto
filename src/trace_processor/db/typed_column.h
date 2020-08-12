@@ -34,8 +34,8 @@ namespace trace_processor {
 //    overhead.
 // 2. Ergonomics: having to convert back and forth from/to SqlValue causes
 //    signifcant clutter in parts of the code which can already be quite hard
-//    to follow (e.g. trackers like StackProfileTracker which perform cross
-//    checking of various ids).
+//    to follow (e.g. trackers like SequenceStackProfileTracker which perform
+//    cross checking of various ids).
 //
 // Implementation:
 // TypedColumn is implemented as a memberless subclass of Column. This allows
