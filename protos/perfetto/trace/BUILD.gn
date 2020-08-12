@@ -32,6 +32,7 @@ proto_sources_non_minimal = [
   "trace_packet.proto",
   "trace.proto",
   "extension_descriptor.proto",
+  "memory_graph.proto",
 ]
 
 proto_sources_minimal = [
