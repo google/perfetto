@@ -112,8 +112,8 @@ void ProfileModule::ParseStreamingProfilePacket(
 
   ProcessTracker* procs = context_->process_tracker.get();
   TraceStorage* storage = context_->storage.get();
-  StackProfileTracker& stack_profile_tracker =
-      sequence_state->state()->stack_profile_tracker();
+  SequenceStackProfileTracker& sequence_stack_profile_tracker =
+      sequence_state->state()->sequence_stack_profile_tracker();
   ProfilePacketInternLookup intern_lookup(sequence_state);
 
   uint32_t pid = static_cast<uint32_t>(sequence_state->state()->pid());
@@ -131,7 +131,7 @@ void ProfileModule::ParseStreamingProfilePacket(
       break;
     }
 
-    auto opt_cs_id = stack_profile_tracker.FindOrInsertCallstack(
+    auto opt_cs_id = sequence_stack_profile_tracker.FindOrInsertCallstack(
         *callstack_it, &intern_lookup);
     if (!opt_cs_id) {
       context_->storage->IncrementStats(stats::stackprofile_parser_error);

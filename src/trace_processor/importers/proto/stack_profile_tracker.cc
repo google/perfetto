@@ -24,14 +24,15 @@
 namespace perfetto {
 namespace trace_processor {
 
-StackProfileTracker::InternLookup::~InternLookup() = default;
+SequenceStackProfileTracker::InternLookup::~InternLookup() = default;
 
-StackProfileTracker::StackProfileTracker(TraceProcessorContext* context)
+SequenceStackProfileTracker::SequenceStackProfileTracker(
+    TraceProcessorContext* context)
     : context_(context), empty_(kNullStringId) {}
 
-StackProfileTracker::~StackProfileTracker() = default;
+SequenceStackProfileTracker::~SequenceStackProfileTracker() = default;
 
-StringId StackProfileTracker::GetEmptyStringId() {
+StringId SequenceStackProfileTracker::GetEmptyStringId() {
   if (empty_ == kNullStringId) {
     empty_ = context_->storage->InternString({"", 0});
   }
@@ -39,11 +40,12 @@ StringId StackProfileTracker::GetEmptyStringId() {
   return empty_;
 }
 
-void StackProfileTracker::AddString(SourceStringId id, base::StringView str) {
+void SequenceStackProfileTracker::AddString(SourceStringId id,
+                                            base::StringView str) {
   string_map_.emplace(id, str.ToStdString());
 }
 
-base::Optional<MappingId> StackProfileTracker::AddMapping(
+base::Optional<MappingId> SequenceStackProfileTracker::AddMapping(
     SourceMappingId id,
     const SourceMapping& mapping,
     const InternLookup* intern_lookup) {
@@ -126,7 +128,7 @@ base::Optional<MappingId> StackProfileTracker::AddMapping(
   return cur_id;
 }
 
-base::Optional<FrameId> StackProfileTracker::AddFrame(
+base::Optional<FrameId> SequenceStackProfileTracker::AddFrame(
     SourceFrameId id,
     const SourceFrame& frame,
     const InternLookup* intern_lookup) {
@@ -180,7 +182,7 @@ base::Optional<FrameId> StackProfileTracker::AddFrame(
   return cur_id;
 }
 
-base::Optional<CallsiteId> StackProfileTracker::AddCallstack(
+base::Optional<CallsiteId> SequenceStackProfileTracker::AddCallstack(
     SourceCallstackId id,
     const SourceCallstack& frame_ids,
     const InternLookup* intern_lookup) {
@@ -214,7 +216,7 @@ base::Optional<CallsiteId> StackProfileTracker::AddCallstack(
   return parent_id;
 }
 
-FrameId StackProfileTracker::GetDatabaseFrameIdForTesting(
+FrameId SequenceStackProfileTracker::GetDatabaseFrameIdForTesting(
     SourceFrameId frame_id) {
   auto it = frame_ids_.find(frame_id);
   if (it == frame_ids_.end()) {
@@ -224,10 +226,10 @@ FrameId StackProfileTracker::GetDatabaseFrameIdForTesting(
   return it->second;
 }
 
-base::Optional<StringId> StackProfileTracker::FindAndInternString(
+base::Optional<StringId> SequenceStackProfileTracker::FindAndInternString(
     SourceStringId id,
     const InternLookup* intern_lookup,
-    StackProfileTracker::InternedStringType type) {
+    SequenceStackProfileTracker::InternedStringType type) {
   if (id == 0)
     return GetEmptyStringId();
 
@@ -238,10 +240,10 @@ base::Optional<StringId> StackProfileTracker::FindAndInternString(
   return context_->storage->InternString(base::StringView(*opt_str));
 }
 
-base::Optional<std::string> StackProfileTracker::FindOrInsertString(
+base::Optional<std::string> SequenceStackProfileTracker::FindOrInsertString(
     SourceStringId id,
     const InternLookup* intern_lookup,
-    StackProfileTracker::InternedStringType type) {
+    SequenceStackProfileTracker::InternedStringType type) {
   if (id == 0)
     return "";
 
@@ -263,7 +265,7 @@ base::Optional<std::string> StackProfileTracker::FindOrInsertString(
   return it->second;
 }
 
-base::Optional<MappingId> StackProfileTracker::FindOrInsertMapping(
+base::Optional<MappingId> SequenceStackProfileTracker::FindOrInsertMapping(
     SourceMappingId mapping_id,
     const InternLookup* intern_lookup) {
   base::Optional<MappingId> res;
@@ -283,7 +285,7 @@ base::Optional<MappingId> StackProfileTracker::FindOrInsertMapping(
   return res;
 }
 
-base::Optional<FrameId> StackProfileTracker::FindOrInsertFrame(
+base::Optional<FrameId> SequenceStackProfileTracker::FindOrInsertFrame(
     SourceFrameId frame_id,
     const InternLookup* intern_lookup) {
   base::Optional<FrameId> res;
@@ -305,7 +307,7 @@ base::Optional<FrameId> StackProfileTracker::FindOrInsertFrame(
   return res;
 }
 
-base::Optional<CallsiteId> StackProfileTracker::FindOrInsertCallstack(
+base::Optional<CallsiteId> SequenceStackProfileTracker::FindOrInsertCallstack(
     SourceCallstackId callstack_id,
     const InternLookup* intern_lookup) {
   base::Optional<CallsiteId> res;
@@ -325,7 +327,7 @@ base::Optional<CallsiteId> StackProfileTracker::FindOrInsertCallstack(
   return res;
 }
 
-void StackProfileTracker::ClearIndices() {
+void SequenceStackProfileTracker::ClearIndices() {
   string_map_.clear();
   mapping_ids_.clear();
   callstack_ids_.clear();

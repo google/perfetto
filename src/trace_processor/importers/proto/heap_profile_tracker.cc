@@ -251,12 +251,12 @@ void HeapProfileTracker::SetProfilePacketIndex(uint32_t seq_id,
 
 void HeapProfileTracker::AddAllocation(
     uint32_t seq_id,
-    StackProfileTracker* stack_profile_tracker,
+    SequenceStackProfileTracker* sequence_stack_profile_tracker,
     const SourceAllocation& alloc,
-    const StackProfileTracker::InternLookup* intern_lookup) {
+    const SequenceStackProfileTracker::InternLookup* intern_lookup) {
   SequenceState& sequence_state = sequence_state_[seq_id];
 
-  auto opt_callstack_id = stack_profile_tracker->FindOrInsertCallstack(
+  auto opt_callstack_id = sequence_stack_profile_tracker->FindOrInsertCallstack(
       alloc.callstack_id, intern_lookup);
   if (!opt_callstack_id)
     return;
@@ -366,20 +366,20 @@ void HeapProfileTracker::StoreAllocation(uint32_t seq_id,
 
 void HeapProfileTracker::CommitAllocations(
     uint32_t seq_id,
-    StackProfileTracker* stack_profile_tracker,
-    const StackProfileTracker::InternLookup* intern_lookup) {
+    SequenceStackProfileTracker* sequence_stack_profile_tracker,
+    const SequenceStackProfileTracker::InternLookup* intern_lookup) {
   SequenceState& sequence_state = sequence_state_[seq_id];
   for (const auto& p : sequence_state.pending_allocs)
-    AddAllocation(seq_id, stack_profile_tracker, p, intern_lookup);
+    AddAllocation(seq_id, sequence_stack_profile_tracker, p, intern_lookup);
   sequence_state.pending_allocs.clear();
 }
 
 void HeapProfileTracker::FinalizeProfile(
     uint32_t seq_id,
-    StackProfileTracker* stack_profile_tracker,
-    const StackProfileTracker::InternLookup* intern_lookup) {
-  CommitAllocations(seq_id, stack_profile_tracker, intern_lookup);
-  stack_profile_tracker->ClearIndices();
+    SequenceStackProfileTracker* sequence_stack_profile_tracker,
+    const SequenceStackProfileTracker::InternLookup* intern_lookup) {
+  CommitAllocations(seq_id, sequence_stack_profile_tracker, intern_lookup);
+  sequence_stack_profile_tracker->ClearIndices();
 }
 
 void HeapProfileTracker::NotifyEndOfFile() {
