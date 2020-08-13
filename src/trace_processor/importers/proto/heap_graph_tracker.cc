@@ -326,6 +326,12 @@ base::Optional<std::string> HeapGraphTracker::PackageFromLocation(
     return "com.google.android.inputmethod.latin";
   }
 
+  base::StringView messaging("/product/app/PrebuiltBugle/PrebuiltBugle.apk");
+  if (location.size() >= messaging.size() &&
+      location.substr(0, messaging.size()) == messaging) {
+    return "com.google.android.apps.messaging";
+  }
+
   base::StringView data_app("/data/app/");
   if (location.substr(0, data_app.size()) == data_app) {
     auto package = PackageFromApp(location);
