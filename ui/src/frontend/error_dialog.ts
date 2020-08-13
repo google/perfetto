@@ -35,6 +35,26 @@ export function maybeShowErrorDialog(errLog: string) {
     return;
   }
 
+  if (errLog.includes('Unable to claim interface.') ||
+      errLog.includes('A transfer error has occurred')) {
+    showModal({
+      title: 'A WebUSB error occurred',
+      content: m(
+          'div',
+          m('span', `Is adb already running on the host? Run this command and
+        try again.`),
+          m('br'),
+          m('.modal-bash', '> adb kill-server'),
+          m('br'),
+          m('span', 'For details see '),
+          m('a', {href: 'http://b/159048331', target: '_blank'}, 'b/159048331'),
+          ),
+      buttons: []
+    });
+    timeLastReport = now;
+    return;
+  }
+
   if (timeLastReport > 0 && now - timeLastReport <= MIN_REPORT_PERIOD_MS) {
     queuedErrors.unshift(errLog);
     if (queuedErrors.length > ERR_QUEUE_MAX_LEN) queuedErrors.pop();
@@ -82,7 +102,7 @@ function showOutOfMemoryDialog() {
       'directly in the trace_processor binary.';
 
   showModal({
-    title: 'Opps! Your WASM trace processor ran out of memory',
+    title: 'Oops! Your WASM trace processor ran out of memory',
     content: m(
         'div',
         m('span', description),
