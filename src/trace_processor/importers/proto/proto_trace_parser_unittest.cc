@@ -212,6 +212,8 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.storage.reset(storage_);
     context_.track_tracker.reset(new TrackTracker(&context_));
     context_.global_args_tracker.reset(new GlobalArgsTracker(&context_));
+    context_.global_stack_profile_tracker.reset(
+        new GlobalStackProfileTracker());
     context_.args_tracker.reset(new ArgsTracker(&context_));
     context_.metadata_tracker.reset(new MetadataTracker(&context_));
     context_.flow_tracker.reset(new FlowTracker(&context_));

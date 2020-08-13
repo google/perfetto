@@ -92,6 +92,43 @@ namespace trace_processor {
 
 class TraceProcessorContext;
 
+class GlobalStackProfileTracker {
+ public:
+  std::vector<MappingId> FindMappingRow(StringId name,
+                                        StringId build_id) const {
+    auto it = stack_profile_mapping_index_.find(std::make_pair(name, build_id));
+    if (it == stack_profile_mapping_index_.end())
+      return {};
+    return it->second;
+  }
+
+  void InsertMappingId(StringId name, StringId build_id, MappingId row) {
+    auto pair = std::make_pair(name, build_id);
+    stack_profile_mapping_index_[pair].emplace_back(row);
+  }
+
+  std::vector<FrameId> FindFrameIds(MappingId mapping_row,
+                                    uint64_t rel_pc) const {
+    auto it =
+        stack_profile_frame_index_.find(std::make_pair(mapping_row, rel_pc));
+    if (it == stack_profile_frame_index_.end())
+      return {};
+    return it->second;
+  }
+
+  void InsertFrameRow(MappingId mapping_row, uint64_t rel_pc, FrameId row) {
+    auto pair = std::make_pair(mapping_row, rel_pc);
+    stack_profile_frame_index_[pair].emplace_back(row);
+  }
+
+ private:
+  using MappingKey = std::pair<StringId /* name */, StringId /* build id */>;
+  std::map<MappingKey, std::vector<MappingId>> stack_profile_mapping_index_;
+
+  using FrameKey = std::pair<MappingId, uint64_t /* rel_pc */>;
+  std::map<FrameKey, std::vector<FrameId>> stack_profile_frame_index_;
+};
+
 // TODO(lalitm): Overhaul this class to make row vs id consistent and use
 // base::Optional instead of int64_t.
 class SequenceStackProfileTracker {
