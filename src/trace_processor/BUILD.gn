@@ -98,6 +98,8 @@ source_set("storage_minimal") {
     "importers/proto/profile_module.h",
     "importers/proto/profile_packet_utils.cc",
     "importers/proto/profile_packet_utils.h",
+    "importers/proto/profiler_util.cc",
+    "importers/proto/profiler_util.h",
     "importers/proto/proto_importer_module.cc",
     "importers/proto/proto_importer_module.h",
     "importers/proto/proto_incremental_state.h",

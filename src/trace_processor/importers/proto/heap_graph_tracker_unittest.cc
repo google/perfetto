@@ -16,6 +16,8 @@
 
 #include "src/trace_processor/importers/proto/heap_graph_tracker.h"
 
+#include "src/trace_processor/importers/proto/profiler_util.h"
+
 #include "perfetto/base/logging.h"
 #include "test/gtest_and_gmock.h"
 
@@ -26,14 +28,14 @@ namespace {
 using ::testing::UnorderedElementsAre;
 
 TEST(HeapGraphTrackerTest, PackageFromLocationApp) {
-  TraceProcessorContext context;
-  context.storage.reset(new TraceStorage);
-  HeapGraphTracker tracker(&context);
-  EXPECT_EQ(tracker.PackageFromLocation(
-                "/data/app/~~ASDFGH1234QWerT==/"
-                "com.twitter.android-MNBVCX7890SDTst6==/test.apk"),
-            "com.twitter.android");
-  EXPECT_EQ(tracker.PackageFromLocation(
+  TraceStorage storage;
+  EXPECT_EQ(
+      PackageFromLocation(&storage,
+                          "/data/app/~~ASDFGH1234QWerT==/"
+                          "com.twitter.android-MNBVCX7890SDTst6==/test.apk"),
+      "com.twitter.android");
+  EXPECT_EQ(PackageFromLocation(
+                &storage,
                 "/data/app/com.google.android.webview-6XfQhnaSkFwGK0sYL9is0G==/"
                 "base.apk"),
             "com.google.android.webview");
