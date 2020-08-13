@@ -56,6 +56,7 @@ class HeapProfileTrackerDupTest : public ::testing::Test {
  public:
   HeapProfileTrackerDupTest() {
     context.storage.reset(new TraceStorage());
+    context.global_stack_profile_tracker.reset(new GlobalStackProfileTracker());
     sequence_stack_profile_tracker.reset(
         new SequenceStackProfileTracker(&context));
     context.heap_profile_tracker.reset(new HeapProfileTracker(&context));
@@ -197,6 +198,7 @@ base::Optional<CallsiteId> FindCallstack(const TraceStorage& storage,
 TEST(HeapProfileTrackerTest, SourceMappingPath) {
   TraceProcessorContext context;
   context.storage.reset(new TraceStorage());
+  context.global_stack_profile_tracker.reset(new GlobalStackProfileTracker());
   context.heap_profile_tracker.reset(new HeapProfileTracker(&context));
 
   HeapProfileTracker* hpt = context.heap_profile_tracker.get();
@@ -231,6 +233,7 @@ TEST(HeapProfileTrackerTest, SourceMappingPath) {
 TEST(HeapProfileTrackerTest, Functional) {
   TraceProcessorContext context;
   context.storage.reset(new TraceStorage());
+  context.global_stack_profile_tracker.reset(new GlobalStackProfileTracker());
   context.heap_profile_tracker.reset(new HeapProfileTracker(&context));
 
   HeapProfileTracker* hpt = context.heap_profile_tracker.get();

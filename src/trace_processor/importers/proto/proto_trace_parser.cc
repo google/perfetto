@@ -670,7 +670,7 @@ void ProtoTraceParser::ParseModuleSymbols(ConstBytes blob) {
         module_symbols.build_id().data, module_symbols.build_id().size)));
   }
 
-  auto mapping_ids = context_->storage->FindMappingRow(
+  auto mapping_ids = context_->global_stack_profile_tracker->FindMappingRow(
       context_->storage->InternString(module_symbols.path()), build_id);
   if (mapping_ids.empty()) {
     context_->storage->IncrementStats(stats::stackprofile_invalid_mapping_id);
@@ -695,8 +695,9 @@ void ProtoTraceParser::ParseModuleSymbols(ConstBytes blob) {
     }
     bool frame_found = false;
     for (MappingId mapping_id : mapping_ids) {
-      std::vector<FrameId> frame_ids = context_->storage->FindFrameIds(
-          mapping_id, address_symbols.address());
+      std::vector<FrameId> frame_ids =
+          context_->global_stack_profile_tracker->FindFrameIds(
+              mapping_id, address_symbols.address());
 
       for (const FrameId frame_id : frame_ids) {
         auto* frames = context_->storage->mutable_stack_profile_frame_table();
