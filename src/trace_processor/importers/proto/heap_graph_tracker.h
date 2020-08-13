@@ -116,12 +116,6 @@ class HeapGraphTracker : public Destructible {
   ~HeapGraphTracker() override;
   void NotifyEndOfFile();
 
-  void AddDeobfuscationMapping(base::Optional<StringPool::Id> package_name,
-                               StringPool::Id obfuscated_name,
-                               StringPool::Id deobfuscated_name);
-  StringPool::Id MaybeDeobfuscate(base::Optional<StringPool::Id> package_name,
-                                  StringPool::Id);
-
   const std::vector<tables::HeapGraphClassTable::Id>* RowsForType(
       base::Optional<StringPool::Id> package_name,
       StringPool::Id type_name) const {
