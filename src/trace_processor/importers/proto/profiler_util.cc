@@ -137,5 +137,20 @@ base::Optional<std::string> PackageFromLocation(TraceStorage* storage,
   return base::nullopt;
 }
 
+std::string FullyQualifiedDeobfuscatedName(
+    protos::pbzero::ObfuscatedClass::Decoder& cls,
+    protos::pbzero::ObfuscatedMember::Decoder& member) {
+  std::string member_deobfuscated_name =
+      member.deobfuscated_name().ToStdString();
+  if (member_deobfuscated_name.find('.') == std::string::npos) {
+    // Name relative to class.
+    return cls.deobfuscated_name().ToStdString() + "." +
+           member_deobfuscated_name;
+  } else {
+    // Fully qualified name.
+    return member_deobfuscated_name;
+  }
+}
+
 }  // namespace trace_processor
 }  // namespace perfetto
