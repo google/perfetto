@@ -627,37 +627,6 @@ class TraceStorage {
   // Returns (0, 0) if the trace is empty.
   std::pair<int64_t, int64_t> GetTraceTimestampBoundsNs() const;
 
-  // TODO(lalitm): remove this when we have a better home.
-  std::vector<MappingId> FindMappingRow(StringId name,
-                                        StringId build_id) const {
-    auto it = stack_profile_mapping_index_.find(std::make_pair(name, build_id));
-    if (it == stack_profile_mapping_index_.end())
-      return {};
-    return it->second;
-  }
-
-  // TODO(lalitm): remove this when we have a better home.
-  void InsertMappingId(StringId name, StringId build_id, MappingId row) {
-    auto pair = std::make_pair(name, build_id);
-    stack_profile_mapping_index_[pair].emplace_back(row);
-  }
-
-  // TODO(lalitm): remove this when we have a better home.
-  std::vector<FrameId> FindFrameIds(MappingId mapping_row,
-                                    uint64_t rel_pc) const {
-    auto it =
-        stack_profile_frame_index_.find(std::make_pair(mapping_row, rel_pc));
-    if (it == stack_profile_frame_index_.end())
-      return {};
-    return it->second;
-  }
-
-  // TODO(lalitm): remove this when we have a better home.
-  void InsertFrameRow(MappingId mapping_row, uint64_t rel_pc, FrameId row) {
-    auto pair = std::make_pair(mapping_row, rel_pc);
-    stack_profile_frame_index_[pair].emplace_back(row);
-  }
-
   Variadic GetArgValue(uint32_t row) const {
     Variadic v;
     v.type = *GetVariadicTypeForId(arg_table_.value_type()[row]);
@@ -717,14 +686,6 @@ class TraceStorage {
 
   TraceStorage(TraceStorage&&) = delete;
   TraceStorage& operator=(TraceStorage&&) = delete;
-
-  // TODO(lalitm): remove this when we find a better home for this.
-  using MappingKey = std::pair<StringId /* name */, StringId /* build id */>;
-  std::map<MappingKey, std::vector<MappingId>> stack_profile_mapping_index_;
-
-  // TODO(lalitm): remove this when we find a better home for this.
-  using FrameKey = std::pair<MappingId, uint64_t /* rel_pc */>;
-  std::map<FrameKey, std::vector<FrameId>> stack_profile_frame_index_;
 
   // One entry for each unique string in the trace.
   StringPool string_pool_;

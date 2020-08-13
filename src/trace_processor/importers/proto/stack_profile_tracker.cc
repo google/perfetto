@@ -101,7 +101,8 @@ base::Optional<MappingId> SequenceStackProfileTracker::AddMapping(
     cur_id = it->second;
   } else {
     std::vector<MappingId> db_mappings =
-        context_->storage->FindMappingRow(row.name, row.build_id);
+        context_->global_stack_profile_tracker->FindMappingRow(row.name,
+                                                               row.build_id);
     for (const MappingId preexisting_mapping : db_mappings) {
       uint32_t preexisting_row = *mappings->id().IndexOf(preexisting_mapping);
       tables::StackProfileMappingTable::Row preexisting_data{
@@ -119,7 +120,8 @@ base::Optional<MappingId> SequenceStackProfileTracker::AddMapping(
     }
     if (!cur_id) {
       MappingId mapping_id = mappings->Insert(row).id;
-      context_->storage->InsertMappingId(row.name, row.build_id, mapping_id);
+      context_->global_stack_profile_tracker->InsertMappingId(
+          row.name, row.build_id, mapping_id);
       cur_id = mapping_id;
     }
     mapping_idx_.emplace(row, *cur_id);
@@ -159,7 +161,8 @@ base::Optional<FrameId> SequenceStackProfileTracker::AddFrame(
     cur_id = it->second;
   } else {
     std::vector<FrameId> db_frames =
-        context_->storage->FindFrameIds(mapping_id, frame.rel_pc);
+        context_->global_stack_profile_tracker->FindFrameIds(mapping_id,
+                                                             frame.rel_pc);
     for (const FrameId preexisting_frame : db_frames) {
       uint32_t preexisting_row_id = *frames->id().IndexOf(preexisting_frame);
       tables::StackProfileFrameTable::Row preexisting_row{
@@ -173,7 +176,7 @@ base::Optional<FrameId> SequenceStackProfileTracker::AddFrame(
     }
     if (!cur_id) {
       cur_id = frames->Insert(row).id;
-      context_->storage->InsertFrameRow(
+      context_->global_stack_profile_tracker->InsertFrameRow(
           mapping_id, static_cast<uint64_t>(row.rel_pc), *cur_id);
     }
     frame_idx_.emplace(row, *cur_id);
