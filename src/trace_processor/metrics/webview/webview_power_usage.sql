@@ -34,38 +34,125 @@ CREATE VIEW top_level_slice AS
   ((category like '%toplevel%' OR category = 'Java') AND
   name NOT LIKE '%looper%');
 
-DROP VIEW IF EXISTS webview_threads;
+DROP VIEW IF EXISTS webview_browser_slices;
 
--- Match top-level slices to threads and processes.
--- Process information will be used in the future to determine the contribution of all
--- WebView process types (browser, renderer) to a specific app's power usage.
-CREATE VIEW webview_threads AS
+-- Match top-level slices to threads and hosting apps.
+-- This excludes any renderer slices because renderer processes are counted
+-- as a whole separately.
+-- Slices from Chrome browser processes are also excluded.
+CREATE VIEW webview_browser_slices AS
   SELECT
     top_level_slice.ts,
     top_level_slice.dur,
     thread_track.utid,
-    process.name AS app_name
-FROM top_level_slice
+    process.upid AS upid,
+    extract_arg(process.arg_set_id, 'chrome.host_app_package_name') AS app_name
+  FROM top_level_slice
   INNER JOIN thread_track
   ON top_level_slice.track_id = thread_track.id
   INNER JOIN process
   ON thread.upid = process.upid
   INNER JOIN thread
-  ON thread_track.utid = thread.utid;
+  ON thread_track.utid = thread.utid
+  WHERE process.name NOT LIKE '%SandboxedProcessService%'
+  AND process.name NOT LIKE '%chrome%'
+  AND app_name IS NOT NULL;
 
-DROP TABLE IF EXISTS webview_power;
+DROP TABLE IF EXISTS webview_browser_power;
 
--- Assign power usage to WebView slices.
-CREATE VIRTUAL TABLE webview_power
+-- Assign power usage to WebView browser slices.
+CREATE VIRTUAL TABLE webview_browser_power
 USING SPAN_JOIN(power_per_thread PARTITIONED utid,
-               webview_threads PARTITIONED utid);
+                webview_browser_slices PARTITIONED utid);
+
+DROP VIEW IF EXISTS webview_browser_power_summary;
+
+-- Calculate the power usage of all WebView browser slices for each app
+-- in milliampere-seconds.
+CREATE VIEW webview_browser_power_summary AS
+SELECT
+  app_name,
+  SUM(dur * COALESCE(power_ma, 0) / 1e9) AS power_mas
+  FROM webview_browser_power
+  GROUP BY app_name;
+
+DROP VIEW IF EXISTS webview_renderer_threads;
+
+-- All threads of all WebView renderer processes.
+CREATE VIEW webview_renderer_threads AS
+SELECT
+  thread.utid AS utid,
+  extract_arg(process.arg_set_id, 'chrome.host_app_package_name') as app_name
+  FROM process
+  INNER JOIN thread
+  ON thread.upid = process.upid
+  WHERE process.name LIKE '%webview%SandboxedProcessService%'
+  AND app_name IS NOT NULL;
+
+DROP VIEW IF EXISTS webview_renderer_power_summary;
+
+-- Calculate the power usage of all WebView renderer processes for each app
+-- in milliampere-seconds.
+CREATE VIEW webview_renderer_power_summary AS
+  SELECT
+    app_name,
+    SUM(dur * COALESCE(power_ma, 0) / 1e9) AS power_mas
+  FROM power_per_thread
+  INNER JOIN webview_renderer_threads
+  ON power_per_thread.utid = webview_renderer_threads.utid
+  GROUP BY app_name;
+
+DROP VIEW IF EXISTS host_app_threads;
+
+-- All threads of hosting apps (this is a superset of webview_browser_slices).
+-- 1) select all threads that had any WebView browser slices associated with them;
+-- 2) get all threads for processes matching threads from 1).
+-- For example, only some of app's threads wrote any slices, but we are selecting
+-- all threads for this app's process.
+-- Excludes all renderer processes and Chrome browser processes.
+CREATE VIEW host_app_threads AS
+SELECT
+    thread.utid AS utid,
+    extract_arg(process.arg_set_id, 'chrome.host_app_package_name') as app_name
+  FROM thread
+  JOIN process ON thread.upid = process.upid
+  WHERE thread.upid IN
+    (SELECT DISTINCT(webview_browser_slices.upid) FROM webview_browser_slices)
+  AND process.name NOT LIKE '%SandboxedProcessService%'
+  AND process.name NOT LIKE '%chrome%'
+  AND app_name IS NOT NULL;
+
+DROP VIEW IF EXISTS host_app_power_summary;
+
+-- Calculate the power usage of all WebView (host app+browser) processes for each app
+-- in milliampere-seconds.
+CREATE VIEW host_app_power_summary AS
+  SELECT
+    app_name,
+    SUM(dur * COALESCE(power_ma, 0) / 1e9) AS power_mas
+  FROM power_per_thread
+  INNER JOIN host_app_threads
+  ON power_per_thread.utid = host_app_threads.utid
+  GROUP BY app_name;
+
+DROP VIEW IF EXISTS total_device_power;
+
+-- Calculate the power usage of the device in milliampere-seconds.
+CREATE VIEW total_device_power AS
+  SELECT SUM(dur * COALESCE(power_ma, 0) / 1e9) AS power_mas
+  FROM power_per_thread;
 
 DROP VIEW IF EXISTS webview_power_summary;
 
--- Calculate the power usage of all WebView slices for each app in milliampere-seconds.
 CREATE VIEW webview_power_summary AS
-SELECT
-  app_name,
-  SUM(dur * COALESCE(power_ma, 0) / 1e9) AS webview_power_mas
-  FROM webview_power
-GROUP BY app_name;
+  SELECT
+    webview_browser_power_summary.app_name AS app_name,
+    webview_browser_power_summary.power_mas + webview_renderer_power_summary.power_mas
+    AS webview_power_mas,
+    host_app_power_summary.power_mas + webview_renderer_power_summary.power_mas
+    AS total_app_power_mas
+  FROM webview_browser_power_summary
+  INNER JOIN webview_renderer_power_summary
+  ON webview_browser_power_summary.app_name = webview_renderer_power_summary.app_name
+  INNER JOIN host_app_power_summary
+  ON host_app_power_summary.app_name = webview_browser_power_summary.app_name;
