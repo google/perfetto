@@ -1081,6 +1081,8 @@ filegroup(
         "src/trace_processor/importers/proto/profile_module.h",
         "src/trace_processor/importers/proto/profile_packet_utils.cc",
         "src/trace_processor/importers/proto/profile_packet_utils.h",
+        "src/trace_processor/importers/proto/profiler_util.cc",
+        "src/trace_processor/importers/proto/profiler_util.h",
         "src/trace_processor/importers/proto/proto_importer_module.cc",
         "src/trace_processor/importers/proto/proto_importer_module.h",
         "src/trace_processor/importers/proto/proto_incremental_state.h",
