@@ -739,31 +739,6 @@ void HeapGraphTracker::NotifyEndOfFile() {
   }
 }
 
-StringPool::Id HeapGraphTracker::MaybeDeobfuscate(
-    base::Optional<StringPool::Id> package_name,
-    StringPool::Id id) {
-  base::StringView type_name = context_->storage->GetString(id);
-  auto normalized_type = GetNormalizedType(type_name);
-  auto it = deobfuscation_mapping_.find(std::make_pair(
-      package_name, context_->storage->InternString(normalized_type.name)));
-  if (it == deobfuscation_mapping_.end())
-    return id;
-
-  base::StringView normalized_deobfuscated_name =
-      context_->storage->GetString(it->second);
-  std::string result =
-      DenormalizeTypeName(normalized_type, normalized_deobfuscated_name);
-  return context_->storage->InternString(base::StringView(result));
-}
-
-void HeapGraphTracker::AddDeobfuscationMapping(
-    base::Optional<StringPool::Id> package_name,
-    StringPool::Id obfuscated_name,
-    StringPool::Id deobfuscated_name) {
-  deobfuscation_mapping_.emplace(std::make_pair(package_name, obfuscated_name),
-                                 deobfuscated_name);
-}
-
 HeapGraphTracker::~HeapGraphTracker() = default;
 
 }  // namespace trace_processor
