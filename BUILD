@@ -798,7 +798,7 @@ genrule(
         "src/trace_processor/metrics/sql_metrics.h",
     ],
     cmd = "$(location gen_merged_sql_metrics_py) --cpp_out=$@ $(SRCS)",
-    tools = [
+    exec_tools = [
         ":gen_merged_sql_metrics_py",
     ],
 )
