@@ -61,7 +61,6 @@ void FindPathFromRoot(const TraceStorage& s,
                       tables::HeapGraphObjectTable::Id id,
                       PathFromRoot* path);
 
-base::Optional<std::string> PackageFromLocation(base::StringView location);
 base::Optional<base::StringView> GetStaticClassTypeName(base::StringView type);
 size_t NumberOfArrays(base::StringView type);
 NormalizedType GetNormalizedType(base::StringView type);
@@ -142,9 +141,6 @@ class HeapGraphTracker : public Destructible {
   std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> BuildFlamegraph(
       const int64_t current_ts,
       const UniquePid current_upid);
-
-  // public for testing.
-  base::Optional<std::string> PackageFromLocation(base::StringView location);
 
  private:
   struct InternedField {
