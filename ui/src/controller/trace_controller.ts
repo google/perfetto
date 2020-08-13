@@ -402,67 +402,6 @@ export class TraceController extends Controller<States> {
 
   async initialiseHelperViews() {
     const engine = assertExists<Engine>(this.engine);
-    this.updateStatus('Creating views');
-    let event = 'sched_waking';
-    const waking = await engine.query(
-        `select * from instants where name = 'sched_waking' limit 1`);
-    if (waking.numRecords === 0) {
-      // Only use sched_wakeup if sched_waking is not in the trace.
-      event = 'sched_wakeup';
-    }
-    await engine.query(`create view runnable AS
-      select
-        ts,
-        lead(ts, 1, (select end_ts from trace_bounds))
-          OVER(partition by ref order by ts) - ts as dur,
-        ref as utid
-      from instants
-      where name = '${event}'`);
-
-    // Get the first ts for each utid - whether a sched wakeup/waking
-    // or sched event.
-    await engine.query(`create view first_thread as
-      select min(ts) as ts, utid from
-      (select min(ts) as ts, utid from runnable group by utid
-       UNION
-      select min(ts) as ts,utid from sched group by utid)
-      group by utid`);
-
-    // Create an entry from first ts to either the first sched_wakeup/waking
-    // or to the end if there are no sched wakeup/ings. This means we will
-    // show all information we have even with no sched_wakeup/waking events.
-    await engine.query(`create view fill as
-      select first_thread.ts as ts,
-      coalesce(min(runnable.ts), (select end_ts from trace_bounds)) -
-      first_thread.ts as dur,
-      first_thread.utid as utid
-      from first_thread
-      LEFT JOIN runnable using(utid) group by utid`);
-
-    await engine.query(`create view full_runnable as
-        select * from runnable UNION
-        select * from fill`);
-
-    await engine.query(`create virtual table thread_span
-        using span_left_join(
-          full_runnable partitioned utid,
-          sched partitioned utid)`);
-
-    this.updateStatus('Creating thread state table');
-    // For performance reasons we need to create a table here.
-    // Once b/145350531 is fixed this should be able to revert to a
-    // view and we can recover the extra memory use.
-    await engine.query(`create table thread_state as
-      select ts, dur, utid, cpu,
-      case when end_state is not null then 'Running'
-      when lag(end_state) over ordered is not null
-      then lag(end_state) over ordered else 'R'
-      end as state
-      from thread_span window ordered as
-      (partition by utid order by ts)`);
-
-    this.updateStatus('Creating thread state index');
-    await engine.query(`create index utid_index on thread_state(utid)`);
 
     this.updateStatus('Creating annotation counter track table');
     // Create the helper tables for all the annotations related data.

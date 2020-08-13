@@ -194,13 +194,13 @@ class Table {
   }
 
   template <typename T>
-  const TypedColumn<T>* GetTypedColumnByName(const char* name) const {
-    return TypedColumn<T>::FromColumn(GetColumnByName(name));
+  const TypedColumn<T>& GetTypedColumnByName(const char* name) const {
+    return *TypedColumn<T>::FromColumn(GetColumnByName(name));
   }
 
   template <typename T>
-  const IdColumn<T>* GetIdColumnByName(const char* name) const {
-    return IdColumn<T>::FromColumn(GetColumnByName(name));
+  const IdColumn<T>& GetIdColumnByName(const char* name) const {
+    return *IdColumn<T>::FromColumn(GetColumnByName(name));
   }
 
   // Returns the number of columns in the Table.
