@@ -52,44 +52,35 @@ LEFT JOIN (
 ) USING(ts)
 ORDER BY ts;
 
-DROP TABLE IF EXISTS android_batt_wakelocks_raw_;
-CREATE TABLE android_batt_wakelocks_raw_ AS
+DROP TABLE IF EXISTS android_batt_wakelocks_merged;
+CREATE TABLE android_batt_wakelocks_merged AS
 SELECT
-  ts,
-  dur,
-  ts+dur AS ts_end
-FROM slice
-WHERE slice.name LIKE 'WakeLock %' AND dur != -1;
-
-DROP TABLE IF EXISTS android_batt_wakelocks_labelled_;
-CREATE TABLE android_batt_wakelocks_labelled_ AS
-SELECT
-  *,
-  NOT EXISTS (
-    SELECT *
-    FROM android_batt_wakelocks_raw_ AS t2
-    WHERE t2.ts < t1.ts
-      AND t2.ts_end >= t1.ts
-  ) AS no_overlap_at_start,
-  NOT EXISTS (
-    SELECT *
-    FROM android_batt_wakelocks_raw_ AS t2
-    WHERE t2.ts_end > t1.ts_end
-      AND t2.ts <= t1.ts_end
-  ) AS no_overlap_at_end
-FROM android_batt_wakelocks_raw_ AS t1;
-
-CREATE VIEW android_batt_wakelocks_merged AS
-SELECT
-  ts,
-  (
-    SELECT min(ts_end)
-    FROM android_batt_wakelocks_labelled_ AS ends
-    WHERE no_overlap_at_end
-      AND ends.ts_end >= starts.ts
-  ) AS ts_end
-FROM android_batt_wakelocks_labelled_ AS starts
-WHERE no_overlap_at_start;
+  MIN(ts) AS ts,
+  MAX(ts_end) AS ts_end
+FROM (
+    SELECT
+        *,
+        SUM(new_group) OVER (ORDER BY ts) AS group_id
+    FROM (
+        SELECT
+            ts,
+            ts + dur AS ts_end,
+            -- There is a new group if there was a gap before this wakelock.
+            -- i.e. the max end timestamp of all preceding wakelocks is before
+            -- the start timestamp of this one.
+            -- The null check is for the first row which is always a new group.
+            IFNULL(
+                MAX(ts + dur) OVER (
+                    ORDER BY ts
+                    ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
+                ) < ts,
+                true
+            ) AS new_group
+        FROM slice
+        WHERE slice.name LIKE 'WakeLock %' AND dur != -1
+    )
+)
+GROUP BY group_id;
 
 CREATE TABLE suspend_slice_ AS
 SELECT
