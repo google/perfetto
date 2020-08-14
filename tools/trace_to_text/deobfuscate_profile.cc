@@ -56,26 +56,29 @@ int DeobfuscateProfile(std::istream* input, std::ostream* output) {
     PERFETTO_ELOG("No PERFETTO_PROGUARD_MAP specified.");
     return 1;
   }
-  base::ScopedFstream f(fopen(maybe_map->c_str(), "r"));
-  if (!f) {
-    PERFETTO_ELOG("Failed to open %s", maybe_map->c_str());
-    return 1;
-  }
-  profiling::ProguardParser parser;
-  if (!ParseFile(&parser, *f)) {
-    PERFETTO_ELOG("Failed to parse %s", maybe_map->c_str());
-    return 1;
-  }
-  std::map<std::string, profiling::ObfuscatedClass> obfuscation_map =
-      parser.ConsumeMapping();
+  for (const ProguardMap& map : *maybe_map) {
+    const char* filename = map.filename.c_str();
+    base::ScopedFstream f(fopen(filename, "r"));
+    if (!f) {
+      PERFETTO_ELOG("Failed to open %s", filename);
+      return 1;
+    }
+    profiling::ProguardParser parser;
+    if (!ParseFile(&parser, *f)) {
+      PERFETTO_ELOG("Failed to parse %s", filename);
+      return 1;
+    }
+    std::map<std::string, profiling::ObfuscatedClass> obfuscation_map =
+        parser.ConsumeMapping();
 
-  // TODO(fmayer): right now, we don't use the profile we are given. We can
-  // filter the output to only contain the classes actually seen in the
-  // profile.
-  MakeDeobfuscationPackets(obfuscation_map,
-                           [output](const std::string& packet_proto) {
-                             WriteTracePacket(packet_proto, output);
-                           });
+    // TODO(fmayer): right now, we don't use the profile we are given. We can
+    // filter the output to only contain the classes actually seen in the
+    // profile.
+    MakeDeobfuscationPackets(map.package, obfuscation_map,
+                             [output](const std::string& packet_proto) {
+                               WriteTracePacket(packet_proto, output);
+                             });
+  }
   return 0;
 }
 

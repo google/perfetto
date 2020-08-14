@@ -25,6 +25,8 @@
 #include <utility>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/optional.h"
+#include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/trace_processor.h"
 
@@ -105,12 +107,24 @@ void ForEachPacketBlobInTrace(
   }
 }
 
-base::Optional<std::string> GetPerfettoProguardMapPath() {
-  base::Optional<std::string> proguard_map;
+base::Optional<std::vector<ProguardMap>> GetPerfettoProguardMapPath() {
   const char* env = getenv("PERFETTO_PROGUARD_MAP");
-  if (env != nullptr)
-    proguard_map = env;
-  return proguard_map;
+  if (env == nullptr)
+    return base::nullopt;
+  std::vector<ProguardMap> res;
+  for (base::StringSplitter sp(std::string(env), ':'); sp.Next();) {
+    std::string token(sp.cur_token(), sp.cur_token_size());
+    size_t eq = token.find('=');
+    if (eq == std::string::npos) {
+      PERFETTO_ELOG(
+          "Invalid PERFETTO_PROGUARD_MAP. "
+          "Expected format packagename=filename[:packagename=filename...], "
+          "e.g. com.example.package1=foo.txt:com.example.package2=bar.txt.");
+      return base::nullopt;
+    }
+    res.emplace_back(ProguardMap{token.substr(0, eq), token.substr(eq + 1)});
+  }
+  return std::move(res);  // for Wreturn-std-move-in-c++11.
 }
 
 bool ReadTrace(trace_processor::TraceProcessor* tp, std::istream* input) {
@@ -153,12 +167,14 @@ bool ReadTrace(trace_processor::TraceProcessor* tp, std::istream* input) {
 }
 
 void MakeDeobfuscationPackets(
+    const std::string& package_name,
     const std::map<std::string, profiling::ObfuscatedClass>& mapping,
     std::function<void(const std::string&)> callback) {
   protozero::HeapBuffered<perfetto::protos::pbzero::TracePacket> packet;
   // TODO(fmayer): Add handling for package name and version code here so we
   // can support multiple dumps in the same trace.
   auto* proto_mapping = packet->set_deobfuscation_mapping();
+  proto_mapping->set_package_name(package_name);
   for (const auto& p : mapping) {
     const std::string& obfuscated_class_name = p.first;
     const profiling::ObfuscatedClass& cls = p.second;

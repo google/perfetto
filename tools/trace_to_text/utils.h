@@ -47,6 +47,11 @@ class TracePacket;
 
 namespace trace_to_text {
 
+struct ProguardMap {
+  std::string package;
+  std::string filename;
+};
+
 // When running in Web Assembly, fflush() is a no-op and the stdio buffering
 // sends progress updates to JS only when a write ends with \n.
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WASM)
@@ -59,7 +64,7 @@ void ForEachPacketBlobInTrace(
     std::istream* input,
     const std::function<void(std::unique_ptr<char[]>, size_t)>&);
 
-base::Optional<std::string> GetPerfettoProguardMapPath();
+base::Optional<std::vector<ProguardMap>> GetPerfettoProguardMapPath();
 
 bool ReadTrace(trace_processor::TraceProcessor* tp, std::istream* input);
 
@@ -69,6 +74,7 @@ void WriteTracePacket(const std::string& str, std::ostream* output);
 // database.
 // Wrap them in proto-encoded TracePackets messages and call callback.
 void MakeDeobfuscationPackets(
+    const std::string& package_name,
     const std::map<std::string, profiling::ObfuscatedClass>& mapping,
     std::function<void(const std::string&)> callback);
 
