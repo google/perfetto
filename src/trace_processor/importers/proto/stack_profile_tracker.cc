@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/importers/proto/stack_profile_tracker.h"
 
+#include "src/trace_processor/importers/proto/profiler_util.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 #include "perfetto/base/logging.h"
@@ -134,14 +135,16 @@ base::Optional<FrameId> SequenceStackProfileTracker::AddFrame(
     SourceFrameId id,
     const SourceFrame& frame,
     const InternLookup* intern_lookup) {
-  auto opt_str_id = FindAndInternString(frame.name_id, intern_lookup,
-                                        InternedStringType::kFunctionName);
-  if (!opt_str_id) {
+  base::Optional<std::string> opt_name = FindOrInsertString(
+      frame.name_id, intern_lookup, InternedStringType::kFunctionName);
+  if (!opt_name) {
     context_->storage->IncrementStats(stats::stackprofile_invalid_string_id);
     PERFETTO_DLOG("Invalid string.");
     return base::nullopt;
   }
-  const StringId& str_id = opt_str_id.value();
+  const std::string& name = *opt_name;
+  const StringId str_id =
+      context_->storage->InternString(base::StringView(name));
 
   auto opt_mapping = FindOrInsertMapping(frame.mapping_id, intern_lookup);
   if (!opt_mapping) {
@@ -149,6 +152,10 @@ base::Optional<FrameId> SequenceStackProfileTracker::AddFrame(
     return base::nullopt;
   }
   MappingId mapping_id = *opt_mapping;
+  const auto& mappings = context_->storage->stack_profile_mapping_table();
+  StringId mapping_name_id =
+      mappings.name()[*mappings.id().IndexOf(mapping_id)];
+  auto mapping_name = context_->storage->GetString(mapping_name_id);
 
   tables::StackProfileFrameTable::Row row{str_id, mapping_id,
                                           static_cast<int64_t>(frame.rel_pc)};
@@ -178,6 +185,17 @@ base::Optional<FrameId> SequenceStackProfileTracker::AddFrame(
       cur_id = frames->Insert(row).id;
       context_->global_stack_profile_tracker->InsertFrameRow(
           mapping_id, static_cast<uint64_t>(row.rel_pc), *cur_id);
+      if (name.find('.') != std::string::npos) {
+        // Java frames always contain a '.'
+        base::Optional<std::string> package =
+            PackageFromLocation(context_->storage.get(), mapping_name);
+        if (package) {
+          NameInPackage nip{str_id, context_->storage->InternString(
+                                        base::StringView(*package))};
+          context_->global_stack_profile_tracker->InsertJavaFrameForName(
+              nip, *cur_id);
+        }
+      }
     }
     frame_idx_.emplace(row, *cur_id);
   }
