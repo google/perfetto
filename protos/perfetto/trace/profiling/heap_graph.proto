@@ -71,6 +71,20 @@ message HeapGraphRoot {
 }
 
 message HeapGraphType {
+  enum Kind {
+    KIND_UNKNOWN = 0;
+    KIND_NORMAL = 1;
+    KIND_NOREFERENCES = 2;
+    KIND_STRING = 3;
+    KIND_ARRAY = 4;
+    KIND_CLASS = 5;
+    KIND_CLASSLOADER = 6;
+    KIND_DEXCACHE = 7;
+    KIND_SOFT_REFERENCE = 8;
+    KIND_WEAK_REFERENCE = 9;
+    KIND_FINALIZER_REFERENCE = 10;
+    KIND_PHANTOM_REFERENCE = 11;
+  };
   // TODO(fmayer): Consider removing this and using the index in the repeaed
   // field to save space.
   optional uint64 id = 1;
@@ -79,6 +93,13 @@ message HeapGraphType {
   // Size of objects of this type.
   optional uint64 object_size = 4;
   optional uint64 superclass_id = 5;
+  // Indices for InternedData.field_names for the names of the fields of
+  // instances of this class. This does NOT include the fields from
+  // superclasses. The consumer of this data needs to walk all super
+  // classes to get a full lists of fields. Objects always write the
+  // fields in order of most specific class to the furthest up superclass.
+  repeated uint64 reference_field_id = 6 [packed = true];
+  optional Kind kind = 7;
 }
 
 message HeapGraphObject {
@@ -91,7 +112,9 @@ message HeapGraphObject {
   optional uint64 self_size = 3;
 
   // Indices for InternedData.field_names for the name of the field referring
-  // to the object.
+  // to the object. For Android S+ and for instances of normal classes (e.g.
+  // not instances of java.lang.Class or arrays), this is instead set in the
+  // corresponding HeapGraphType, and this is left empty.
   repeated uint64 reference_field_id = 4 [packed = true];
 
   // Ids of the Object that is referred to.
