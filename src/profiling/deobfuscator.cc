@@ -114,6 +114,10 @@ base::Optional<ProguardMember> ParseMember(std::string line) {
   if (paren_idx != std::string::npos) {
     member_type = ProguardMemberType::kMethod;
     deobfuscated_name = deobfuscated_name.substr(0, paren_idx);
+    auto colon_idx = type_name.find(":");
+    if (colon_idx != std::string::npos) {
+      type_name = type_name.substr(colon_idx + 1);
+    }
   } else {
     member_type = ProguardMemberType::kField;
   }

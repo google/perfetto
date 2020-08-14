@@ -25,6 +25,7 @@
 #include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/profiler_tables.h"
 
 namespace std {
 
@@ -90,6 +91,15 @@ struct hash<std::vector<uint64_t>> {
 namespace perfetto {
 namespace trace_processor {
 
+struct NameInPackage {
+  StringId name;
+  StringId package;
+
+  bool operator<(const NameInPackage& b) const {
+    return std::tie(name, package) < std::tie(b.name, b.package);
+  }
+};
+
 class TraceProcessorContext;
 
 class GlobalStackProfileTracker {
@@ -121,12 +131,28 @@ class GlobalStackProfileTracker {
     stack_profile_frame_index_[pair].emplace_back(row);
   }
 
+  const std::vector<tables::StackProfileFrameTable::Id>* JavaFramesForName(
+      NameInPackage name) {
+    auto it = java_frames_for_name_.find(name);
+    if (it == java_frames_for_name_.end())
+      return nullptr;
+    return &it->second;
+  }
+
+  void InsertJavaFrameForName(NameInPackage name,
+                              tables::StackProfileFrameTable::Id id) {
+    java_frames_for_name_[name].push_back(id);
+  }
+
  private:
   using MappingKey = std::pair<StringId /* name */, StringId /* build id */>;
   std::map<MappingKey, std::vector<MappingId>> stack_profile_mapping_index_;
 
   using FrameKey = std::pair<MappingId, uint64_t /* rel_pc */>;
   std::map<FrameKey, std::vector<FrameId>> stack_profile_frame_index_;
+
+  std::map<NameInPackage, std::vector<tables::StackProfileFrameTable::Id>>
+      java_frames_for_name_;
 };
 
 // TODO(lalitm): Overhaul this class to make row vs id consistent and use

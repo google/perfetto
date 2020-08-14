@@ -69,18 +69,13 @@ int DeobfuscateProfile(std::istream* input, std::ostream* output) {
   std::map<std::string, profiling::ObfuscatedClass> obfuscation_map =
       parser.ConsumeMapping();
 
-  trace_processor::Config config;
-  std::unique_ptr<trace_processor::TraceProcessor> tp =
-      trace_processor::TraceProcessor::CreateInstance(config);
-
-  if (!ReadTrace(tp.get(), input))
-    PERFETTO_FATAL("Failed to read trace.");
-
-  tp->NotifyEndOfFile();
-  DeobfuscateDatabase(tp.get(), obfuscation_map,
-                      [output](const std::string& packet_proto) {
-                        WriteTracePacket(packet_proto, output);
-                      });
+  // TODO(fmayer): right now, we don't use the profile we are given. We can
+  // filter the output to only contain the classes actually seen in the
+  // profile.
+  MakeDeobfuscationPackets(obfuscation_map,
+                           [output](const std::string& packet_proto) {
+                             WriteTracePacket(packet_proto, output);
+                           });
   return 0;
 }
 

@@ -66,6 +66,10 @@ class ProtoTraceParser : public TraceParser {
                           PacketSequenceStateGeneration*,
                           uint32_t seq_id,
                           ConstBytes);
+  void ParseDeobfuscationMapping(int64_t ts,
+                                 PacketSequenceStateGeneration*,
+                                 uint32_t seq_id,
+                                 ConstBytes);
   void ParsePerfSample(int64_t ts, PacketSequenceStateGeneration*, ConstBytes);
   void ParseChromeBenchmarkMetadata(ConstBytes);
   void ParseChromeEvents(int64_t ts, ConstBytes);

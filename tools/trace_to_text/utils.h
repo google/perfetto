@@ -68,8 +68,7 @@ void WriteTracePacket(const std::string& str, std::ostream* output);
 // Generate ObfuscationMapping protos for all obfuscated java names in the
 // database.
 // Wrap them in proto-encoded TracePackets messages and call callback.
-void DeobfuscateDatabase(
-    trace_processor::TraceProcessor* tp,
+void MakeDeobfuscationPackets(
     const std::map<std::string, profiling::ObfuscatedClass>& mapping,
     std::function<void(const std::string&)> callback);
 
