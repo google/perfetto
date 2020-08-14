@@ -99,7 +99,8 @@ PERFETTO_TP_TABLE(PERFETTO_TP_STACK_PROFILE_MAPPING_DEF);
   C(StringPool::Id, name)                                    \
   C(StackProfileMappingTable::Id, mapping)                   \
   C(int64_t, rel_pc)                                         \
-  C(base::Optional<uint32_t>, symbol_set_id)
+  C(base::Optional<uint32_t>, symbol_set_id)                 \
+  C(base::Optional<StringPool::Id>, deobfuscated_name)
 
 PERFETTO_TP_TABLE(PERFETTO_TP_STACK_PROFILE_FRAME_DEF);
 
