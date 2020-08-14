@@ -275,6 +275,7 @@ function popupFileSelectionDialogOldUI(e: Event) {
 function openCurrentTraceWithOldUI(e: Event) {
   e.preventDefault();
   console.assert(isTraceLoaded());
+  globals.logging.logEvent('Trace Actions', 'Open current trace in legacy UI');
   if (!isTraceLoaded) return;
   const engine = Object.values(globals.state.engines)[0];
   const src = engine.source;
@@ -306,6 +307,7 @@ function popupVideoSelectionDialog(e: Event) {
 
 function openTraceUrl(url: string): (e: Event) => void {
   return e => {
+    globals.logging.logEvent('Trace Actions', 'Open example trace');
     e.preventDefault();
     globals.frontendLocalState.localOnlyMode = false;
     globals.dispatch(Actions.openTraceFromUrl({url}));
@@ -349,12 +351,13 @@ function onInputElementFileSelectionChanged(e: Event) {
     globals.dispatch(Actions.openVideoFromFile({file}));
     return;
   }
-
+  globals.logging.logEvent('Trace Actions', 'Open trace from file');
   globals.dispatch(Actions.openTraceFromFile({file}));
 }
 
 async function openWithLegacyUi(file: File) {
   // Switch back to the old catapult UI.
+  globals.logging.logEvent('Trace Actions', 'Open trace in Legacy UI');
   if (await isLegacyTrace(file)) {
     openFileWithLegacyTraceViewer(file);
     return;
@@ -454,12 +457,16 @@ function dispatchCreatePermalink(e: Event) {
   const result = confirm(
       `Upload the trace and generate a permalink. ` +
       `The trace will be accessible by anybody with the permalink.`);
-  if (result) globals.dispatch(Actions.createPermalink({}));
+  if (result) {
+    globals.logging.logEvent('Trace Actions', 'Create permalink');
+    globals.dispatch(Actions.createPermalink({}));
+  }
 }
 
 function downloadTrace(e: Event) {
   e.preventDefault();
   if (!isTraceLoaded() || isDownloadAndShareDisabled()) return;
+  globals.logging.logEvent('Trace Actions', 'Download trace');
 
   const engine = Object.values(globals.state.engines)[0];
   if (!engine) return;

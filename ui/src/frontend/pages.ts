@@ -15,6 +15,8 @@
 import * as m from 'mithril';
 
 import {Actions} from '../common/actions';
+
+import {CookieConsent} from './cookie_consent';
 import {globals} from './globals';
 import {Sidebar} from './sidebar';
 import {Topbar} from './topbar';
@@ -50,6 +52,7 @@ export function createPage(component: m.Component): m.Component {
         m(Topbar),
         m(Alerts),
         m(component),
+        m(CookieConsent),
       ];
       if (globals.frontendLocalState.perfDebug) {
         children.push(m('.perf-stats'));
