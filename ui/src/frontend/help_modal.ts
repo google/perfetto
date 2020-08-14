@@ -15,6 +15,7 @@
 
 import * as m from 'mithril';
 
+import {globals} from './globals';
 import {hideModel, showModal} from './modal';
 
 let helpModelOpen = false;
@@ -23,6 +24,7 @@ export function toggleHelp() {
   if (helpModelOpen) {
     hideHelp();
   } else {
+    globals.logging.logEvent('User Actions', 'Show help');
     showHelp();
   }
 }

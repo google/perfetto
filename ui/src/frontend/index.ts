@@ -240,6 +240,9 @@ function main() {
 
   const dispatch =
       controllerChannel.port2.postMessage.bind(controllerChannel.port2);
+  globals.initialize(dispatch, controller);
+  globals.serviceWorkerController.install();
+
   const router = new Router(
       '/',
       {
@@ -249,10 +252,9 @@ function main() {
         '/query': AnalyzePage,
         '/info': TraceInfoPage,
       },
-      dispatch);
+      dispatch,
+      globals.logging);
   forwardRemoteCalls(frontendChannel.port2, new FrontendApi(router));
-  globals.initialize(dispatch, controller);
-  globals.serviceWorkerController.install();
 
   // We proxy messages between the extension and the controller because the
   // controller's worker can't access chrome.runtime.
