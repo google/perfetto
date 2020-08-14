@@ -4,10 +4,15 @@
   <title>Perfetto UI</title>
   <!-- See b/149573396 for CSP rationale. -->
   <!-- TODO(b/121211019): remove script-src-elem rule once fixed. -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src-elem 'self' https://*.google.com https://*.googleusercontent.com; object-src 'none'; connect-src 'self' http://127.0.0.1:9001 https://*.googleapis.com; navigate-to https://*.perfetto.dev;">
-  <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" name="viewport" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src-elem 'self' https://*.google.com https://*.googleusercontent.com https://*.googletagmanager.com https://*.google-analytics.com 'sha256-eYlPNiizBKy/rhHAaz06RXrXVsKmBN6tTFYwmJTvcwc='; object-src 'none'; connect-src 'self' http://127.0.0.1:9001 https://*.googleapis.com; img-src 'self' https://*.google-analytics.com; navigate-to https://*.perfetto.dev;">  <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" name="viewport" />
   <link href="perfetto.css" rel="stylesheet">
   <link rel="icon" type="image/png" href="assets/favicon.png">
+  <!-- Global site tag (gtag.js) - Google Analytics -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=UA-137828855-1"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+  </script>
 </head>
 <body>
   <main>
