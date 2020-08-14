@@ -6599,7 +6599,9 @@ message ObfuscatedMember {
 message ObfuscatedClass {
   optional string obfuscated_name = 1;
   optional string deobfuscated_name = 2;
+  // fields.
   repeated ObfuscatedMember obfuscated_members = 3;
+  repeated ObfuscatedMember obfuscated_methods = 4;
 }
 
 message DeobfuscationMapping {

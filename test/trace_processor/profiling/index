@@ -1,6 +1,7 @@
 # Contains heap profiling, perf profiling and heap graph tests.
 
 heap_profile_jit.textproto heap_profile_frames.sql heap_profile_jit.out
+heap_profile_deobfuscate.textproto heap_profile_deobfuscate.sql heap_profile_deobfuscate.out
 
 profiler_smaps.textproto profiler_smaps.sql profiler_smaps.out
 
