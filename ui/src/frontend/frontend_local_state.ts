@@ -74,6 +74,7 @@ export class FrontendLocalState {
   localOnlyMode = false;
   sidebarVisible = true;
   showPanningHint = false;
+  showCookieConsent = false;
   visibleTracks = new Set<string>();
   prevVisibleTracks = new Set<string>();
   searchIndex = -1;
