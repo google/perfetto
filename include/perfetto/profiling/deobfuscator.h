@@ -25,11 +25,16 @@ namespace profiling {
 
 struct ObfuscatedClass {
   ObfuscatedClass(std::string d) : deobfuscated_name(std::move(d)) {}
-  ObfuscatedClass(std::string d, std::map<std::string, std::string> f)
-      : deobfuscated_name(std::move(d)), deobfuscated_fields(std::move(f)) {}
+  ObfuscatedClass(std::string d,
+                  std::map<std::string, std::string> f,
+                  std::map<std::string, std::string> m)
+      : deobfuscated_name(std::move(d)),
+        deobfuscated_fields(std::move(f)),
+        deobfuscated_methods(std::move(m)) {}
 
   std::string deobfuscated_name;
   std::map<std::string, std::string> deobfuscated_fields;
+  std::map<std::string, std::string> deobfuscated_methods;
 };
 
 class ProguardParser {
