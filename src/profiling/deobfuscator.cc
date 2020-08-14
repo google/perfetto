@@ -113,6 +113,11 @@ base::Optional<ProguardMember> ParseMember(std::string line) {
   auto paren_idx = deobfuscated_name.find("(");
   if (paren_idx != std::string::npos) {
     member_type = ProguardMemberType::kMethod;
+    deobfuscated_name = deobfuscated_name.substr(0, paren_idx);
+    auto colon_idx = type_name.find(":");
+    if (colon_idx != std::string::npos) {
+      type_name = type_name.substr(colon_idx + 1);
+    }
   } else {
     member_type = ProguardMemberType::kField;
   }
@@ -147,18 +152,32 @@ bool ProguardParser::AddLine(std::string line) {
     auto opt_member = ParseMember(std::move(line));
     if (!opt_member)
       return false;
-    // TODO(fmayer): Teach this to properly parse methods.
-    if (opt_member->type == ProguardMemberType::kMethod) {
-      // Skip functions, as they will trigger the "Duplicate member" below.
-      return true;
-    }
-    auto p = current_class_->deobfuscated_fields.emplace(
-        opt_member->obfuscated_name, opt_member->deobfuscated_name);
-    if (!p.second && p.first->second != opt_member->deobfuscated_name) {
-      PERFETTO_ELOG("Member redefinition: %s.%s",
-                    current_class_->deobfuscated_name.c_str(),
-                    opt_member->deobfuscated_name.c_str());
-      return false;
+    switch (opt_member->type) {
+      case (ProguardMemberType::kField): {
+        auto p = current_class_->deobfuscated_fields.emplace(
+            opt_member->obfuscated_name, opt_member->deobfuscated_name);
+        if (!p.second && p.first->second != opt_member->deobfuscated_name) {
+          PERFETTO_ELOG("Member redefinition: %s.%s. Proguard map invalid",
+                        current_class_->deobfuscated_name.c_str(),
+                        opt_member->deobfuscated_name.c_str());
+          return false;
+        }
+        break;
+      }
+      case (ProguardMemberType::kMethod): {
+        auto p = current_class_->deobfuscated_methods.emplace(
+            opt_member->obfuscated_name, opt_member->deobfuscated_name);
+        if (!p.second && p.first->second != opt_member->deobfuscated_name) {
+          // TODO(fmayer): Add docs that explain method redefinition.
+          PERFETTO_ELOG(
+              "Member redefinition: %s.%s. Some methods will not get "
+              "deobfuscated. Change your obfuscator settings to fix.",
+              current_class_->deobfuscated_name.c_str(),
+              opt_member->deobfuscated_name.c_str());
+          return true;
+        }
+        break;
+      }
     }
   }
   return true;

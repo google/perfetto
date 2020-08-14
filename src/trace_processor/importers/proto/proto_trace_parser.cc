@@ -29,6 +29,7 @@
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/uuid.h"
 #include "perfetto/trace_processor/status.h"
+
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
@@ -40,8 +41,10 @@
 #include "src/trace_processor/importers/proto/metadata_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
 #include "src/trace_processor/importers/proto/profile_packet_utils.h"
+#include "src/trace_processor/importers/proto/profiler_util.h"
 #include "src/trace_processor/importers/proto/stack_profile_tracker.h"
 #include "src/trace_processor/storage/metadata.h"
+#include "src/trace_processor/tables/profiler_tables.h"
 #include "src/trace_processor/timestamped_trace_piece.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
@@ -53,6 +56,7 @@
 #include "protos/perfetto/trace/chrome/chrome_trace_event.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/perfetto/perfetto_metatrace.pbzero.h"
+#include "protos/perfetto/trace/profiling/deobfuscation.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
 #include "protos/perfetto/trace/profiling/smaps.pbzero.h"
@@ -107,6 +111,14 @@ void ProtoTraceParser::ParseTracePacketImpl(
     TimestampedTracePiece ttp,
     const TracePacketData* data,
     const protos::pbzero::TracePacket::Decoder& packet) {
+  // This needs to get handled both by the HeapGraphModule and
+  // ProtoTraceParser (for StackProfileTracker).
+  if (packet.has_deobfuscation_mapping()) {
+    ParseDeobfuscationMapping(ts, data->sequence_state,
+                              packet.trusted_packet_sequence_id(),
+                              packet.deobfuscation_mapping());
+  }
+
   // TODO(eseckler): Propagate statuses from modules.
   auto& modules = context_->modules_by_field;
   for (uint32_t field_id = 1; field_id < modules.size(); ++field_id) {
@@ -338,6 +350,54 @@ void ProtoTraceParser::ParseProfilePacket(
     context_->heap_profile_tracker->FinalizeProfile(
         seq_id, &sequence_state->state()->sequence_stack_profile_tracker(),
         &intern_lookup);
+  }
+}
+
+void ProtoTraceParser::ParseDeobfuscationMapping(int64_t,
+                                                 PacketSequenceStateGeneration*,
+                                                 uint32_t /* seq_id */,
+                                                 ConstBytes blob) {
+  protos::pbzero::DeobfuscationMapping::Decoder deobfuscation_mapping(
+      blob.data, blob.size);
+  if (deobfuscation_mapping.package_name().size == 0)
+    return;
+
+  StringPool::Id package_name_id;
+  auto opt_package_name_id = context_->storage->string_pool().GetId(
+      deobfuscation_mapping.package_name());
+  if (!opt_package_name_id)
+    return;
+  package_name_id = *opt_package_name_id;
+
+  for (auto class_it = deobfuscation_mapping.obfuscated_classes(); class_it;
+       ++class_it) {
+    protos::pbzero::ObfuscatedClass::Decoder cls(*class_it);
+    for (auto member_it = cls.obfuscated_methods(); member_it; ++member_it) {
+      protos::pbzero::ObfuscatedMember::Decoder member(*member_it);
+      std::string merged_obfuscated = cls.obfuscated_name().ToStdString() +
+                                      "." +
+                                      member.obfuscated_name().ToStdString();
+      auto merged_obfuscated_id = context_->storage->string_pool().GetId(
+          base::StringView(merged_obfuscated));
+      if (!merged_obfuscated_id)
+        continue;
+      std::string merged_deobfuscated =
+          FullyQualifiedDeobfuscatedName(cls, member);
+
+      const std::vector<tables::StackProfileFrameTable::Id>* frames =
+          context_->global_stack_profile_tracker->JavaFramesForName(
+              {*merged_obfuscated_id, package_name_id});
+      if (!frames)
+        continue;
+      for (tables::StackProfileFrameTable::Id frame_id : *frames) {
+        auto* frames_tbl =
+            context_->storage->mutable_stack_profile_frame_table();
+        frames_tbl->mutable_deobfuscated_name()->Set(
+            *frames_tbl->id().IndexOf(frame_id),
+            context_->storage->InternString(
+                base::StringView(merged_deobfuscated)));
+      }
+    }
   }
 }
 

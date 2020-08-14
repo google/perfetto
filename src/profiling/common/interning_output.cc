@@ -78,6 +78,8 @@ void InterningOutputTracker::WriteMap(const Interned<Mapping> map,
 
 void InterningOutputTracker::WriteFrame(Interned<Frame> frame,
                                         protos::pbzero::InternedData* out) {
+  // Trace processor depends on the map being written before the
+  // frame. See StackProfileTracker::AddFrame.
   WriteMap(frame->mapping, out);
   WriteFunctionNameString(frame->function_name, out);
   bool inserted;
