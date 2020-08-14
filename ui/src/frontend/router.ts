@@ -15,6 +15,7 @@
 import * as m from 'mithril';
 
 import {Actions, DeferredAction} from '../common/actions';
+import {Analytics} from '../common/analytics';
 
 interface RouteMap {
   [route: string]: m.Component;
@@ -25,7 +26,8 @@ export const ROUTE_PREFIX = '#!';
 export class Router {
   constructor(
       private defaultRoute: string, private routes: RouteMap,
-      private dispatch: (a: DeferredAction) => void) {
+      private dispatch: (a: DeferredAction) => void,
+      private logging: Analytics) {
     if (!(defaultRoute in routes)) {
       throw Error('routes must define a component for defaultRoute.');
     }
@@ -53,6 +55,7 @@ export class Router {
    */
   setRouteOnHash(route: string) {
     history.pushState(undefined, "", ROUTE_PREFIX + route);
+    this.logging.updatePath(route);
 
     if (!(route in this.routes)) {
       console.info(
