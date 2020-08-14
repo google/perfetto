@@ -168,8 +168,10 @@ bool DoUnwind(WireMessage* msg, UnwindingMetadata* metadata, AllocRecord* out) {
     }
     unwinder.Unwind(&kSkipMaps, /*map_suffixes_to_ignore=*/nullptr);
     error_code = unwinder.LastErrorCode();
-    if (error_code != unwindstack::ERROR_INVALID_MAP)
+    if (error_code != unwindstack::ERROR_INVALID_MAP &&
+        (unwinder.warnings() & unwindstack::WARNING_DEX_PC_NOT_IN_MAP) == 0) {
       break;
+    }
   }
   std::vector<unwindstack::FrameData> frames = unwinder.ConsumeFrames();
   for (unwindstack::FrameData& fd : frames) {
