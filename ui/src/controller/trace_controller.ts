@@ -463,8 +463,8 @@ export class TraceController extends Controller<States> {
       assertTrue(metricResult.error.length === 0);
 
       const exists = await engine.query(
-          `SELECT name FROM sqlite_master WHERE type='table' AND name='${
-              metric}_event'`);
+          `SELECT name FROM sqlite_master WHERE (type='table' OR type='view')
+              AND name='${metric}_event'`);
       if (exists.numRecords === 0) continue;
 
       this.updateStatus(`Inserting data for ${metric} metric`);
