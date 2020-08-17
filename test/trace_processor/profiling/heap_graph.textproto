@@ -49,9 +49,7 @@ packet {
     objects {
       id: 0x01
       type_id: 1
-      reference_field_id: 1
       reference_object_id: 0x02
-      reference_field_id: 3
       reference_object_id: 0x02
     }
     objects {
@@ -93,10 +91,26 @@ packet {
       str: "/data/app/ASDFG/invalid.test.android-SDASD/test.apk"
     }
     types {
+      id: 6
+      class_name: "FactoryProducerDelegateImplActorEmptySuper"
+      location_id: 1
+      object_size: 64
+      superclass_id: 7
+    }
+    types {
+      id: 7
+      class_name: "FactoryProducerDelegateImplActorSuperSuper"
+      location_id: 1
+      object_size: 64
+      reference_field_id: 3
+    }
+    types {
       id: 1
       class_name: "FactoryProducerDelegateImplActor"
       location_id: 1
       object_size: 64
+      reference_field_id: 1
+      superclass_id: 6
     }
     types {
       id: 2

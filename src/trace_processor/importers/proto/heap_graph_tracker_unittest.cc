@@ -75,24 +75,26 @@ TEST(HeapGraphTrackerTest, BuildFlamegraph) {
 
   tracker.AddInternedLocationName(kSeqId, kLocation,
                                   context.storage->InternString("location"));
-  tracker.AddInternedType(kSeqId, kX, x, kLocation, /*object_size=*/0);
-  tracker.AddInternedType(kSeqId, kY, y, kLocation, /*object_size=*/0);
-  tracker.AddInternedType(kSeqId, kA, a, kLocation, /*object_size=*/0);
-  tracker.AddInternedType(kSeqId, kB, b, kLocation, /*object_size=*/0);
+  tracker.AddInternedType(kSeqId, kX, x, kLocation, /*object_size=*/0,
+                          /*field_name_ids=*/{}, /*superclass_id=*/0,
+                          /*no_fields=*/false);
+  tracker.AddInternedType(kSeqId, kY, y, kLocation, /*object_size=*/0,
+                          /*field_name_ids=*/{}, /*superclass_id=*/0,
+                          /*no_fields=*/false);
+  tracker.AddInternedType(kSeqId, kA, a, kLocation, /*object_size=*/0,
+                          /*field_name_ids=*/{}, /*superclass_id=*/0,
+                          /*no_fields=*/false);
+  tracker.AddInternedType(kSeqId, kB, b, kLocation, /*object_size=*/0,
+                          /*field_name_ids=*/{}, /*superclass_id=*/0,
+                          /*no_fields=*/false);
 
   {
     HeapGraphTracker::SourceObject obj;
     obj.object_id = 1;
     obj.self_size = 1;
     obj.type_id = kX;
-    HeapGraphTracker::SourceObject::Reference ref;
-    ref.field_name_id = kField;
-    ref.owned_object_id = 2;
-    obj.references.emplace_back(std::move(ref));
-
-    ref.field_name_id = kField;
-    ref.owned_object_id = 3;
-    obj.references.emplace_back(std::move(ref));
+    obj.field_name_ids = {kField, kField};
+    obj.referred_objects = {2, 3};
 
     tracker.AddObject(kSeqId, kPid, kTimestamp, std::move(obj));
   }
@@ -110,14 +112,8 @@ TEST(HeapGraphTrackerTest, BuildFlamegraph) {
     obj.object_id = 3;
     obj.self_size = 3;
     obj.type_id = kY;
-    HeapGraphTracker::SourceObject::Reference ref;
-    ref.field_name_id = kField;
-    ref.owned_object_id = 4;
-    obj.references.emplace_back(std::move(ref));
-
-    ref.field_name_id = kField;
-    ref.owned_object_id = 5;
-    obj.references.emplace_back(std::move(ref));
+    obj.field_name_ids = {kField, kField};
+    obj.referred_objects = {4, 5};
 
     tracker.AddObject(kSeqId, kPid, kTimestamp, std::move(obj));
   }
