@@ -19,17 +19,17 @@ function is_mac {
 tools/gn gen $DIR --args='is_clang=true is_debug=false'
 tools/ninja -C $DIR trace_to_text
 
-if which shasum; then
-  NEW_SHA=$(shasum $DIR/trace_to_text | cut -f1 -d' ') # Mac OS
-else
-  NEW_SHA=$(sha1sum $DIR/trace_to_text | cut -f1 -d' ') # Linux
-fi
-
 if is_mac; then
   platform=mac
 else
   platform=linux
   strip $DIR/trace_to_text
+fi
+
+if which shasum; then
+  NEW_SHA=$(shasum $DIR/trace_to_text | cut -f1 -d' ') # Mac OS
+else
+  NEW_SHA=$(sha1sum $DIR/trace_to_text | cut -f1 -d' ') # Linux
 fi
 
 name=trace_to_text-$platform-$NEW_SHA
