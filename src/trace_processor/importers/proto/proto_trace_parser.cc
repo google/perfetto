@@ -332,14 +332,14 @@ void ProtoTraceParser::ParseProfilePacket(
       }
       src_allocation.timestamp = timestamp;
       src_allocation.callstack_id = sample.callstack_id();
-      if (sample.self_max()) {
+      if (sample.has_self_max()) {
         src_allocation.self_allocated = sample.self_max();
       } else {
         src_allocation.self_allocated = sample.self_allocated();
         src_allocation.self_freed = sample.self_freed();
+        src_allocation.alloc_count = sample.alloc_count();
+        src_allocation.free_count = sample.free_count();
       }
-      src_allocation.alloc_count = sample.alloc_count();
-      src_allocation.free_count = sample.free_count();
 
       context_->heap_profile_tracker->StoreAllocation(seq_id, src_allocation);
     }
