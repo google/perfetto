@@ -27,7 +27,7 @@ namespace stats {
 // clang-format off
 #define PERFETTO_TP_STATS(F)                                                   \
   F(android_log_num_failed,             kSingle,  kError,    kTrace,    ""),   \
-  F(android_log_num_skipped,            kSingle,  kError,    kTrace,    ""),   \
+  F(android_log_num_skipped,            kSingle,  kInfo,     kTrace,    ""),   \
   F(android_log_num_total,              kSingle,  kInfo,     kTrace,    ""),   \
   F(counter_events_out_of_order,        kSingle,  kError,    kAnalysis, ""),   \
   F(ftrace_bundle_tokenizer_errors,     kSingle,  kError,    kAnalysis, ""),   \
