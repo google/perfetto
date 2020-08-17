@@ -29,6 +29,7 @@ if is_mac; then
   platform=mac
 else
   platform=linux
+  strip $DIR/trace_processor_shell
 fi
 
 name=trace_processor_shell-$platform-$NEW_SHA
