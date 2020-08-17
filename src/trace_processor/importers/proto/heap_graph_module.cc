@@ -129,18 +129,22 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
     obj.self_size = object.self_size();
     obj.type_id = object.type_id();
 
-    std::vector<uint64_t> field_ids;
-    std::vector<uint64_t> object_ids;
-
+    // In S+ traces, this field will not be set for normal instances. It will be
+    // set in the corresponding HeapGraphType instead. It will still be set for
+    // class objects.
+    //
+    // grep-friendly: reference_field_id
     bool parse_error = ForEachVarInt<
         protos::pbzero::HeapGraphObject::kReferenceFieldIdFieldNumber>(
-        object, [&field_ids](uint64_t value) { field_ids.push_back(value); });
+        object,
+        [&obj](uint64_t value) { obj.field_name_ids.push_back(value); });
 
     if (!parse_error) {
+      // grep-friendly: reference_object_id
       parse_error = ForEachVarInt<
           protos::pbzero::HeapGraphObject::kReferenceObjectIdFieldNumber>(
           object,
-          [&object_ids](uint64_t value) { object_ids.push_back(value); });
+          [&obj](uint64_t value) { obj.referred_objects.push_back(value); });
     }
 
     if (parse_error) {
@@ -148,27 +152,41 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
           stats::heap_graph_malformed_packet, static_cast<int>(upid));
       break;
     }
-    if (field_ids.size() != object_ids.size()) {
+    if (!obj.field_name_ids.empty() &&
+        (obj.field_name_ids.size() != obj.referred_objects.size())) {
       context_->storage->IncrementIndexedStats(
           stats::heap_graph_malformed_packet, static_cast<int>(upid));
       continue;
     }
-    for (size_t i = 0; i < field_ids.size(); ++i) {
-      HeapGraphTracker::SourceObject::Reference ref;
-      ref.field_name_id = field_ids[i];
-      ref.owned_object_id = object_ids[i];
-      obj.references.emplace_back(std::move(ref));
-    }
     heap_graph_tracker->AddObject(seq_id, upid, ts, std::move(obj));
   }
   for (auto it = heap_graph.types(); it; ++it) {
+    std::vector<uint64_t> field_name_ids;
     protos::pbzero::HeapGraphType::Decoder entry(*it);
     const char* str = reinterpret_cast<const char*>(entry.class_name().data);
     auto str_view = base::StringView(str, entry.class_name().size);
 
+    // grep-friendly: reference_field_id
+    bool parse_error = ForEachVarInt<
+        protos::pbzero::HeapGraphType::kReferenceFieldIdFieldNumber>(
+        entry,
+        [&field_name_ids](uint64_t value) { field_name_ids.push_back(value); });
+
+    if (parse_error) {
+      context_->storage->IncrementIndexedStats(
+          stats::heap_graph_malformed_packet, static_cast<int>(upid));
+      continue;
+    }
+
+    bool no_fields =
+        entry.kind() == protos::pbzero::HeapGraphType::KIND_NOREFERENCES ||
+        entry.kind() == protos::pbzero::HeapGraphType::KIND_ARRAY ||
+        entry.kind() == protos::pbzero::HeapGraphType::KIND_STRING;
+
     heap_graph_tracker->AddInternedType(
         seq_id, entry.id(), context_->storage->InternString(str_view),
-        entry.location_id(), entry.object_size());
+        entry.location_id(), entry.object_size(), std::move(field_name_ids),
+        entry.superclass_id(), no_fields);
   }
   for (auto it = heap_graph.field_names(); it; ++it) {
     protos::pbzero::InternedString::Decoder entry(*it);
@@ -192,6 +210,7 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
 
     HeapGraphTracker::SourceRoot src_root;
     src_root.root_type = context_->storage->InternString(str_view);
+    // grep-friendly: object_ids
     bool parse_error =
         ForEachVarInt<protos::pbzero::HeapGraphRoot::kObjectIdsFieldNumber>(
             entry, [&src_root](uint64_t value) {
