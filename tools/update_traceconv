@@ -29,6 +29,7 @@ if is_mac; then
   platform=mac
 else
   platform=linux
+  strip $DIR/trace_to_text
 fi
 
 name=trace_to_text-$platform-$NEW_SHA
