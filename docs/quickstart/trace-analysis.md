@@ -1,13 +1,15 @@
 # Quickstart: SQL-based analysis and trace-based metrics
 
-_This quickstart explains how to use `trace_processor` to programmatically query
-the trace contents through SQL and compute trace-based metrics._
+_This quickstart explains how to use `trace_processor` as well as its Python API to 
+programmatically query the trace contents through SQL and compute trace-based metrics._
 
-## Get Trace Processor
+## Trace Processor
 
 TraceProcessor is a multi-format trace importing and query engine based on
 SQLite. It comes both as a C++ library and as a standalone executable:
 `trace_processor_shell` (or just `trace_processor`).
+
+### Setup
 
 ```bash
 # Download prebuilts (Linux and Mac only)
@@ -30,12 +32,12 @@ NOTE: In HTTP mode the trace will be loaded into the `trace_processor` and
 See [Trace Processor docs](/docs/analysis/trace-processor.md) for the full
 TraceProcessor guide.
 
-## Sample queries
+### Sample queries
 
 For more exhaustive examples see the _SQL_ section of the various _Data sources_
 docs.
 
-### Slices
+#### Slices
 
 Slices are stackable events which have name and span some duration of time.
 
@@ -53,7 +55,7 @@ ts                   dur                  name
      ...
 ```
 
-### Counters
+#### Counters
 
 Counters are events with a value which changes over time.
 
@@ -72,7 +74,7 @@ ts                   value
 ...
 ```
 
-### Scheduler slices
+#### Scheduler slices
 
 Scheduler slices indicate which thread was scheduled on which CPU at which time.
 
@@ -90,7 +92,7 @@ ts                   dur                  cpu                  utid
 ...
 ```
 
-## Trace-based metrics
+### Trace-based metrics
 
 Trace Processor offers also a higher-level query interface that allows to run
 pre-baked queries, herein called "metrics". Metrics are generally curated by
@@ -104,7 +106,7 @@ The metrics` schema files live in the
 The corresponding SQL queries live in
 [/src/trace_processor/metrics](/src/trace_processor/metrics/).
 
-### Run a single metric
+#### Run a single metric
 
 Let's run the [`android_cpu`](/protos/perfetto/metrics/android/cpu_metric.proto)
 metric. This metrics computes the total CPU time and the total cycles
@@ -175,7 +177,7 @@ android_cpu {
 }
 ```
 
-### Running multiple metrics
+#### Running multiple metrics
 
 Multiple metrics can be flagged using comma separators to the `--run-metrics`
 flag. This will output a text proto with the combined result of running both
@@ -236,7 +238,7 @@ android_cpu {
 }
 ```
 
-### JSON and binary output
+#### JSON and binary output
 
 The trace processor also supports binary protobuf and JSON as alternative output
 formats. This is useful when the intended reader is an offline tool.
@@ -308,6 +310,99 @@ Both single and multiple metrics are supported as with proto text output.
       },
       ...
     ]
+    ...
+  }
+}
+```
+
+## Python API
+
+The API can be run without requiring the `trace_processor` binary to be
+downloaded or installed.
+
+### Example functions
+See the Python API section of
+[Trace Processor (SQL)](/docs/analysis/trace-processor.md) to get
+more details on all available functions.
+
+#### Query
+```
+from trace_processor.api import TraceProcessor
+tp = TraceProcessor(file_path='trace.pftrace')
+
+qr_it = tp.query('SELECT name FROM slice')
+for row in qr_it:
+  print(row.name)
+```
+**Output**
+```
+eglSwapBuffersWithDamageKHR
+onMessageReceived
+queueBuffer
+bufferLoad
+query
+...
+```
+#### Query as Pandas DataFrame
+```
+from trace_processor.api import TraceProcessor
+tp = TraceProcessor(file_path='trace.pftrace')
+
+qr_it = tp.query('SELECT ts, name FROM slice')
+qr_df = qr_it.as_pandas()
+print(qr_df.to_string())
+```
+**Output**
+```
+ts                   name
+-------------------- ---------------------------
+     261187017446933 eglSwapBuffersWithDamageKHR
+     261187017518340 onMessageReceived
+     261187020825163 queueBuffer
+     261187021345235 bufferLoad
+     261187121345235 query
+     ...
+```
+#### Metric
+```
+from trace_processor.api import TraceProcessor
+tp = TraceProcessor(file_path='trace.pftrace')
+
+cpu_metrics = tp.metric(['android_cpu'])
+print(cpu_metrics)
+```
+**Output**
+```
+metrics {
+  android_cpu {
+    process_info {
+      name: "/system/bin/init"
+      threads {
+        name: "init"
+        core {
+          id: 1
+          metrics {
+            mcycles: 1
+            runtime_ns: 570365
+            min_freq_khz: 1900800
+            max_freq_khz: 1900800
+            avg_freq_khz: 1902017
+          }
+        }
+        core {
+          id: 3
+          metrics {
+            mcycles: 0
+            runtime_ns: 366406
+            min_freq_khz: 1900800
+            max_freq_khz: 1900800
+            avg_freq_khz: 1902908
+          }
+        }
+        ...
+      }
+      ...
+    }
     ...
   }
 }
