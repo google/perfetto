@@ -345,11 +345,12 @@ void HeapProfileTracker::AddAllocation(
     return;
   }
 
-  if (alloc_delta.count) {
+  // Dump at max profiles do not have .count set.
+  if (alloc_delta.count || alloc_delta.size) {
     context_->storage->mutable_heap_profile_allocation_table()->Insert(
         alloc_delta);
   }
-  if (free_delta.count) {
+  if (free_delta.count || free_delta.size) {
     context_->storage->mutable_heap_profile_allocation_table()->Insert(
         free_delta);
   }
