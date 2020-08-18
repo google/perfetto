@@ -61,9 +61,10 @@ void DumpState::WriteAllocation(const HeapTracker::CallstackAllocations& alloc,
   } else {
     sample->set_self_allocated(alloc.value.totals.allocated);
     sample->set_self_freed(alloc.value.totals.freed);
+
+    sample->set_alloc_count(alloc.allocation_count);
+    sample->set_free_count(alloc.free_count);
   }
-  sample->set_alloc_count(alloc.allocation_count);
-  sample->set_free_count(alloc.free_count);
 
   auto it = current_process_idle_allocs_.find(alloc.node->id());
   if (it != current_process_idle_allocs_.end())
