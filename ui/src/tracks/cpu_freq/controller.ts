@@ -140,15 +140,18 @@ class CpuFreqTrackController extends TrackController<Config, Data> {
       `);
     }
 
-    const minTsResult = await this.query(`
-      select min(
-        (select ifnull(max(ts), 0) from ${this.tableName('freq')} where ts < ${
-        startNs}),
-        (select ifnull(max(ts), 0) from ${this.tableName('idle')} where ts < ${
-        startNs})
-      )
+    const minTsFreq = await this.query(`
+      select ifnull(max(ts), 0) from ${this.tableName('freq')}
+      where ts < ${startNs}
     `);
-    const minTs = minTsResult.columns[0].longValues![0];
+    let minTs = minTsFreq.columns[0].longValues![0];
+    if (this.config.idleTrackId !== undefined) {
+      const minTsIdle = await this.query(`
+        select ifnull(max(ts), 0) from ${this.tableName('idle')}
+        where ts < ${startNs}
+      `);
+      minTs = Math.min(minTsIdle.columns[0].longValues![0], minTs);
+    }
     const geqConstraint = this.config.idleTrackId === undefined ?
         `ts >= ${minTs}` :
         `source_geq(ts, ${minTs})`;
