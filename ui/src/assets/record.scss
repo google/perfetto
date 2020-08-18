@@ -284,6 +284,77 @@
     opacity: 1;
   }
 
+  .config {
+    height: auto;
+    width: 100%;
+    margin: 5px;
+    padding: 0px;
+
+    &:nth-of-type(2n) {
+      background-color: #e7e7e7;
+      padding: 5px;
+    }
+  }
+
+  .title-config {
+    display: inline-block;
+    width: 70%;
+    max-width: 70%;
+    word-break: break-all;
+    padding-left: 5px;
+  }
+
+  .config-button {
+    border-radius: 10px;
+    margin-left: 10px;
+    text-align: center;
+    justify-items: center;
+    font-family: 'Raleway', sans-serif;
+    padding: 7px;
+
+    &:hover {
+      box-shadow: 0 0 4px 0px #999;
+    }
+
+    &.load {
+      background-color: hsl(88, 50%, 67%);
+    }
+
+    &.delete {
+      background-color: hsl(0, 50%, 67%);
+    }
+
+    &.save {
+      background-color: hsl(197, 50%, 67%);
+    }
+  }
+
+  .input-config {
+    margin-top: 20px;
+    margin-bottom: 20px;
+
+    input {
+      border-radius: 20px;
+      border-color: #0000003d;
+      line-height: 36px;
+
+      padding: 0 10px;
+      font-size: 18px;
+      font-family: 'Roboto Condensed', sans-serif;
+      font-weight: 300;
+      color: #666;
+      background-color: transparent;
+      &:focus {
+        outline: none;
+      }
+      &::placeholder {
+        color: #b4b7ba;
+        font-family: 'Raleway', sans-serif;
+        font-weight: 400;
+      }
+    }
+  }
+
   // By default space all section elements by the same amount.
   --record-section-padding: 20px;
 
