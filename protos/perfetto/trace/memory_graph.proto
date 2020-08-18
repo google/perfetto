@@ -61,10 +61,13 @@ message MemoryTrackerSnapshot {
       // in the current global dump, the current node will be discarded.
       optional bool weak = 3;
 
+      // Size of the node in bytes, used to compute the effective size of the
+      // nodes without double counting.
+      optional uint64 size_bytes = 4;
+
       // Entries in the memory node that contain statistics and additional
-      // debuggable information about the memory. The default entry is "size"
-      // which is used to compute the effective size of the nodes without double
-      // counting.
+      // debuggable information about the memory. The size of the node is
+      // tracked separately in the |size_bytes| field.
       message MemoryNodeEntry {
         optional string name = 1;
 
@@ -79,7 +82,7 @@ message MemoryTrackerSnapshot {
         optional uint64 value_uint64 = 3;
         optional string value_string = 4;
       }
-      repeated MemoryNodeEntry entries = 4;
+      repeated MemoryNodeEntry entries = 5;
     }
     repeated MemoryNode allocator_dumps = 2;
 
