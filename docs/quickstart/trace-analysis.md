@@ -326,7 +326,7 @@ See the Python API section of
 more details on all available functions.
 
 #### Query
-```
+```python
 from trace_processor.api import TraceProcessor
 tp = TraceProcessor(file_path='trace.pftrace')
 
@@ -344,7 +344,7 @@ query
 ...
 ```
 #### Query as Pandas DataFrame
-```
+```python
 from trace_processor.api import TraceProcessor
 tp = TraceProcessor(file_path='trace.pftrace')
 
@@ -364,7 +364,7 @@ ts                   name
      ...
 ```
 #### Metric
-```
+```python
 from trace_processor.api import TraceProcessor
 tp = TraceProcessor(file_path='trace.pftrace')
 

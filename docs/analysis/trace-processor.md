@@ -457,7 +457,7 @@ these functions, see this [`example`](/src/trace_processor/python/example.py).
 The query() function takes an SQL query as input and returns an iterator through the rows
 of the result.
 
-```
+```python
 from trace_processor.api import TraceProcessor
 tp = TraceProcessor(file_path='trace.pftrace')
 
@@ -476,7 +476,7 @@ for row in qr_it:
 ```
 The QueryResultIterator can also be converted to a Pandas DataFrame, although this
 requires you to have both the `NumPy` and `Pandas` modules installed.
-```
+```python
 from trace_processor.api import TraceProcessor
 tp = TraceProcessor(file_path='trace.pftrace')
 
@@ -497,7 +497,7 @@ ts                   dur                  name
 ```
 Furthermore, you can use the query result in a Pandas DataFrame format to easily
 make visualisations from the trace data.
-```
+```python
 from trace_processor.api import TraceProcessor
 tp = TraceProcessor(file_path='trace.pftrace')
 
@@ -591,7 +591,7 @@ The `trace_processor.http` module contains the `TraceProcessorHttp` class which
 provides methods to make HTTP requests to an address at which there already
 exists a running instance of `trace_processor` with a trace loaded in. All
 results are returned in Protobuf format
-(see [`trace_processor_proto`](/protos/perfetto/trace_processor.proto)).
+(see [`trace_processor_proto`](/protos/perfetto/trace_processor/trace_processor.proto)).
 Some functions include:
 * `execute_query()` - Takes in an SQL query and returns a `QueryResult` Protobuf
   message
