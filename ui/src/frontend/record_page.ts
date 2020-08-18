@@ -33,6 +33,7 @@ import {AdbOverWebUsb} from '../controller/adb';
 
 import {globals} from './globals';
 import {createPage} from './pages';
+import {recordConfigStore} from './record_config';
 import {
   CodeSnippet,
   Dropdown,
@@ -45,6 +46,8 @@ import {
   TextareaAttrs
 } from './record_widgets';
 import {Router} from './router';
+
+const LOCAL_STORAGE_SHOW_CONFIG = 'showConfigs';
 
 const POLL_INTERVAL_MS = [250, 500, 1000, 2500, 5000, 30000, 60000];
 
@@ -830,6 +833,81 @@ function Instructions(cssClass: string) {
       recordingLog());
 }
 
+function displayRecordConfigs() {
+  return recordConfigStore.recordConfigs.map((item) => {
+    return m('.config', [
+      m('span.title-config', item.title),
+      m('button',
+        {
+          class: 'config-button load',
+          onclick: () => {
+            globals.dispatch(Actions.setRecordConfig({config: item.config}));
+            globals.rafScheduler.scheduleFullRedraw();
+          }
+        },
+        'load'),
+      m('button',
+        {
+          class: 'config-button delete',
+          onclick: () => {
+            recordConfigStore.delete(item.key);
+            globals.rafScheduler.scheduleFullRedraw();
+          }
+        },
+        'delete'),
+    ]);
+  });
+}
+
+function getSavedConfigList() {
+  if (recordConfigStore.recordConfigs.length === 0) {
+    return [];
+  }
+  return displayRecordConfigs();
+}
+
+export const ConfigTitleState = {
+  title: '',
+  getTitle: () => {
+    return ConfigTitleState.title;
+  },
+  setTitle: (value: string) => {
+    ConfigTitleState.title = value;
+  },
+  clearTitle: () => {
+    ConfigTitleState.title = '';
+  }
+};
+
+function Configurations(cssClass: string) {
+  return m(
+      `.record-section${cssClass}`,
+      {style: {display: 'block'}},  // Doesn't work inside a css class.
+      m('header', 'Save and load configurations'),
+      m('.input-config',
+        [
+          m('input', {
+            value: ConfigTitleState.title,
+            placeholder: 'Title for config',
+            oninput() {
+              ConfigTitleState.setTitle(this.value);
+            }
+          }),
+          m('button',
+            {
+              class: 'config-button save',
+              onclick: () => {
+                recordConfigStore.save(
+                    globals.state.recordConfig, ConfigTitleState.getTitle());
+                globals.rafScheduler.scheduleFullRedraw();
+                ConfigTitleState.clearTitle();
+              }
+            },
+            'Save current config')
+        ]),
+      getSavedConfigList());
+}
+
 function BufferUsageProgressBar() {
   if (!globals.state.recordingInProgress) return [];
 
@@ -1145,7 +1223,19 @@ function recordMenu(routePage: string) {
           m(`li${routePage === 'instructions' ? '.active' : ''}`,
             m('i.material-icons.rec', 'fiber_manual_record'),
             m('.title', 'Instructions'),
-            m('.sub', 'Generate config and instructions')))),
+            m('.sub', 'Generate config and instructions'))),
+        localStorage.hasOwnProperty(LOCAL_STORAGE_SHOW_CONFIG) ?
+            m('a[href="#!/record?p=config"]',
+              {
+                onclick: () => {
+                  recordConfigStore.reloadFromLocalStorage();
+                }
+              },
+              m(`li${routePage === 'config' ? '.active' : ''}`,
+                m('i.material-icons', 'tune'),
+                m('.title', 'Saved configs'),
+                m('.sub', 'Manage local configs'))) :
+            null),
       m('header', 'Probes'),
       m('ul', isChromeTarget(target) ? [chromeProbe] : [
         m('a[href="#!/record?p=cpu"]',
@@ -1188,6 +1278,7 @@ export const RecordPage = createPage({
     const SECTIONS: {[property: string]: (cssClass: string) => m.Child} = {
       buffers: RecSettings,
       instructions: Instructions,
+      config: Configurations,
       cpu: CpuSettings,
       gpu: GpuSettings,
       power: PowerSettings,
