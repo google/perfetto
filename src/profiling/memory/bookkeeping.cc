@@ -160,6 +160,21 @@ uint64_t HeapTracker::GetMaxForTesting(const std::vector<FrameData>& stack) {
   return alloc.value.retain_max.max;
 }
 
+uint64_t HeapTracker::GetMaxCountForTesting(
+    const std::vector<FrameData>& stack) {
+  PERFETTO_DCHECK(dump_at_max_mode_);
+  GlobalCallstackTrie::Node* node = callsites_->CreateCallsite(stack);
+  // Hack to make it go away again if it wasn't used before.
+  // This is only good because this is used for testing only.
+  GlobalCallstackTrie::IncrementNode(node);
+  GlobalCallstackTrie::DecrementNode(node);
+  auto it = callstack_allocations_.find(node);
+  if (it == callstack_allocations_.end()) {
+    return 0;
+  }
+  const CallstackAllocations& alloc = it->second;
+  return alloc.value.retain_max.max_count;
+}
 
 }  // namespace profiling
 }  // namespace perfetto
