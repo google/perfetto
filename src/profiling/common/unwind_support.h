@@ -50,7 +50,7 @@ struct FrameData {
 // TODO(fmayer): Figure out deduplication to other maps.
 class FDMaps : public unwindstack::Maps {
  public:
-  FDMaps(base::ScopedFile fd);
+  explicit FDMaps(base::ScopedFile fd);
 
   FDMaps(const FDMaps&) = delete;
   FDMaps& operator=(const FDMaps&) = delete;
@@ -75,7 +75,7 @@ class FDMaps : public unwindstack::Maps {
 
 class FDMemory : public unwindstack::Memory {
  public:
-  FDMemory(base::ScopedFile mem_fd);
+  explicit FDMemory(base::ScopedFile mem_fd);
   size_t Read(uint64_t addr, void* dst, size_t size) override;
 
  private:

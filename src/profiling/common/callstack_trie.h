@@ -29,7 +29,7 @@ namespace perfetto {
 namespace profiling {
 
 struct Mapping {
-  Mapping(Interned<std::string> b) : build_id(std::move(b)) {}
+  explicit Mapping(Interned<std::string> b) : build_id(std::move(b)) {}
 
   Interned<std::string> build_id;
   uint64_t exact_offset = 0;
@@ -104,7 +104,7 @@ class GlobalCallstackTrie {
     friend class GlobalCallstackTrie;
 
     // Allow building a node out of a frame for base::LookupSet.
-    Node(Interned<Frame> frame) : Node(frame, 0, nullptr) {}
+    explicit Node(Interned<Frame> frame) : Node(frame, 0, nullptr) {}
     Node(Interned<Frame> frame, uint64_t id)
         : Node(std::move(frame), id, nullptr) {}
     Node(Interned<Frame> frame, uint64_t id, Node* parent)

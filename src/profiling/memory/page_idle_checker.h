@@ -32,7 +32,7 @@ uint64_t GetLastPageShare(uint64_t addr, size_t size);
 
 class PageIdleChecker {
  public:
-  PageIdleChecker(base::ScopedFile page_idle_fd)
+  explicit PageIdleChecker(base::ScopedFile page_idle_fd)
       : page_idle_fd_(std::move(page_idle_fd)) {}
 
   // Return number of bytes of allocation of size bytes starting at alloc that
