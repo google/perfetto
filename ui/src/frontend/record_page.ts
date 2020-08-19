@@ -1008,8 +1008,7 @@ function onStartRecordingPressed() {
 
   const target = globals.state.recordingTarget;
   if (isAndroidTarget(target) || isChromeTarget(target)) {
-    globals.logging.logEvent(
-        'Record Trace', `Record ${target.name} (${target.os}) trace`);
+    globals.logging.logEvent('Record Trace', `Record trace (${target.os})`);
     globals.dispatch(Actions.startRecording({}));
   }
 }
