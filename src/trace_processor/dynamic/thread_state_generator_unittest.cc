@@ -74,33 +74,39 @@ class ThreadStateGeneratorUnittest : public testing::Test {
 
   void RunThreadStateComputation(Ts trace_end_ts = Ts{
                                      std::numeric_limits<int64_t>::max()}) {
-    thread_state_table_ =
+    unsorted_table_ =
         thread_state_generator_->ComputeThreadStateTable(trace_end_ts.ts);
+    table_.reset(
+        new Table(unsorted_table_->Sort({unsorted_table_->ts().ascending()})));
   }
 
   void VerifyThreadState(Ts from,
                          base::Optional<Ts> to,
                          UniqueTid utid,
                          const char* state) {
-    uint32_t row = thread_state_verify_row_;
+    uint32_t row = thread_state_verify_row_++;
 
-    ASSERT_LT(row, thread_state_table_->row_count());
-    EXPECT_EQ(thread_state_table_->ts()[row], from.ts);
-    EXPECT_EQ(thread_state_table_->dur()[row], to ? to->ts - from.ts : -1);
-    EXPECT_EQ(thread_state_table_->utid()[row], utid);
+    const auto& ts_col = table_->GetTypedColumnByName<int64_t>("ts");
+    const auto& dur_col = table_->GetTypedColumnByName<int64_t>("dur");
+    const auto& utid_col = table_->GetTypedColumnByName<UniqueTid>("utid");
+    const auto& cpu_col =
+        table_->GetTypedColumnByName<base::Optional<uint32_t>>("cpu");
+    const auto& end_state_col = table_->GetTypedColumnByName<StringId>("state");
+
+    ASSERT_LT(row, table_->row_count());
+    ASSERT_EQ(ts_col[row], from.ts);
+    ASSERT_EQ(dur_col[row], to ? to->ts - from.ts : -1);
+    ASSERT_EQ(utid_col[row], utid);
     if (state == kRunning) {
-      EXPECT_EQ(thread_state_table_->cpu()[row], 0u);
+      ASSERT_EQ(cpu_col[row], 0u);
     } else {
-      EXPECT_EQ(thread_state_table_->cpu()[row], base::nullopt);
+      ASSERT_EQ(cpu_col[row], base::nullopt);
     }
-    EXPECT_EQ(thread_state_table_->state().GetString(row),
-              base::StringView(state));
-
-    thread_state_verify_row_++;
+    ASSERT_EQ(end_state_col.GetString(row), base::StringView(state));
   }
 
   void VerifyEndOfThreadState() {
-    ASSERT_EQ(thread_state_verify_row_, thread_state_table_->row_count());
+    ASSERT_EQ(thread_state_verify_row_, table_->row_count());
   }
 
  protected:
@@ -118,7 +124,8 @@ class ThreadStateGeneratorUnittest : public testing::Test {
   uint32_t thread_state_verify_row_ = 0;
 
   std::unique_ptr<ThreadStateGenerator> thread_state_generator_;
-  std::unique_ptr<tables::ThreadStateTable> thread_state_table_;
+  std::unique_ptr<tables::ThreadStateTable> unsorted_table_;
+  std::unique_ptr<Table> table_;
 };
 
 constexpr char ThreadStateGeneratorUnittest::kRunning[];
@@ -132,12 +139,10 @@ TEST_F(ThreadStateGeneratorUnittest, MultipleThreadWithOnlySched) {
   RunThreadStateComputation();
 
   VerifyThreadState(Ts{0}, Ts{10}, thread_a_, kRunning);
-  VerifyThreadState(Ts{10}, Ts{15}, thread_a_, "S");
-
   VerifyThreadState(Ts{10}, Ts{15}, thread_b_, kRunning);
-  VerifyThreadState(Ts{15}, base::nullopt, thread_b_, "D");
-
+  VerifyThreadState(Ts{10}, Ts{15}, thread_a_, "S");
   VerifyThreadState(Ts{15}, Ts{20}, thread_a_, kRunning);
+  VerifyThreadState(Ts{15}, base::nullopt, thread_b_, "D");
   VerifyThreadState(Ts{20}, base::nullopt, thread_a_, "R");
 
   VerifyEndOfThreadState();
