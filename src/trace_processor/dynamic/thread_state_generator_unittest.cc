@@ -18,6 +18,8 @@
 
 #include <algorithm>
 
+#include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "test/gtest_and_gmock.h"
 
@@ -33,6 +35,8 @@ class ThreadStateGeneratorUnittest : public testing::Test {
 
   ThreadStateGeneratorUnittest() : idle_thread_(0), thread_a_(1), thread_b_(2) {
     context_.storage.reset(new TraceStorage());
+    context_.global_args_tracker.reset(new GlobalArgsTracker(&context_));
+    context_.args_tracker.reset(new ArgsTracker(&context_));
     thread_state_generator_.reset(new ThreadStateGenerator(&context_));
   }
 
@@ -72,6 +76,19 @@ class ThreadStateGeneratorUnittest : public testing::Test {
     sched_insert_ts_ = end ? end->ts : -1;
   }
 
+  void AddBlockedReason(Ts ts, UniqueTid utid, bool io_wait) {
+    tables::InstantTable::Row row;
+    row.ts = ts.ts;
+    row.ref = utid;
+    row.name = context_.storage->InternString("sched_blocked_reason");
+
+    auto id = context_.storage->mutable_instant_table()->Insert(row).id;
+    auto inserter = context_.args_tracker->AddArgsTo(id);
+    inserter.AddArg(context_.storage->InternString("io_wait"),
+                    Variadic::Boolean(io_wait));
+    context_.args_tracker->Flush();
+  }
+
   void RunThreadStateComputation(Ts trace_end_ts = Ts{
                                      std::numeric_limits<int64_t>::max()}) {
     unsorted_table_ =
@@ -83,7 +100,8 @@ class ThreadStateGeneratorUnittest : public testing::Test {
   void VerifyThreadState(Ts from,
                          base::Optional<Ts> to,
                          UniqueTid utid,
-                         const char* state) {
+                         const char* state,
+                         base::Optional<bool> io_wait = base::nullopt) {
     uint32_t row = thread_state_verify_row_++;
 
     const auto& ts_col = table_->GetTypedColumnByName<int64_t>("ts");
@@ -92,6 +110,8 @@ class ThreadStateGeneratorUnittest : public testing::Test {
     const auto& cpu_col =
         table_->GetTypedColumnByName<base::Optional<uint32_t>>("cpu");
     const auto& end_state_col = table_->GetTypedColumnByName<StringId>("state");
+    const auto& io_wait_col =
+        table_->GetTypedColumnByName<base::Optional<uint32_t>>("io_wait");
 
     ASSERT_LT(row, table_->row_count());
     ASSERT_EQ(ts_col[row], from.ts);
@@ -103,6 +123,11 @@ class ThreadStateGeneratorUnittest : public testing::Test {
       ASSERT_EQ(cpu_col[row], base::nullopt);
     }
     ASSERT_EQ(end_state_col.GetString(row), base::StringView(state));
+
+    base::Optional<uint32_t> mapped_io_wait =
+        io_wait ? base::make_optional(static_cast<uint32_t>(*io_wait))
+                : base::nullopt;
+    ASSERT_EQ(io_wait_col[row], mapped_io_wait);
   }
 
   void VerifyEndOfThreadState() {
@@ -289,6 +314,49 @@ TEST_F(ThreadStateGeneratorUnittest, WakingAfterStrechedSched) {
 
   VerifyThreadState(Ts{10}, base::nullopt, thread_a_, kRunning);
   VerifyThreadState(Ts{15}, base::nullopt, thread_a_, "R");
+
+  VerifyEndOfThreadState();
+}
+
+TEST_F(ThreadStateGeneratorUnittest, BlockedReason) {
+  ForwardSchedTo(Ts{10});
+  AddSched(Ts{12}, thread_a_, "D");
+  AddWaking(Ts{15}, thread_a_);
+  AddBlockedReason(Ts{16}, thread_a_, true);
+
+  ForwardSchedTo(Ts{18});
+  AddSched(Ts{20}, thread_a_, "S");
+  AddWaking(Ts{24}, thread_a_);
+  AddBlockedReason(Ts{26}, thread_a_, false);
+
+  ForwardSchedTo(Ts{29});
+  AddSched(Ts{30}, thread_a_, "R");
+
+  ForwardSchedTo(Ts{39});
+  AddSched(Ts{40}, thread_a_, "D");
+  AddBlockedReason(Ts{44}, thread_a_, false);
+
+  ForwardSchedTo(Ts{49});
+  AddSched(Ts{50}, thread_a_, "D");
+
+  RunThreadStateComputation();
+
+  VerifyThreadState(Ts{10}, Ts{12}, thread_a_, kRunning);
+  VerifyThreadState(Ts{12}, Ts{15}, thread_a_, "D", true);
+  VerifyThreadState(Ts{15}, Ts{18}, thread_a_, "R");
+
+  VerifyThreadState(Ts{18}, Ts{20}, thread_a_, kRunning);
+  VerifyThreadState(Ts{20}, Ts{24}, thread_a_, "S", false);
+  VerifyThreadState(Ts{24}, Ts{29}, thread_a_, "R");
+
+  VerifyThreadState(Ts{29}, Ts{30}, thread_a_, kRunning);
+  VerifyThreadState(Ts{30}, Ts{39}, thread_a_, "R", base::nullopt);
+
+  VerifyThreadState(Ts{39}, Ts{40}, thread_a_, kRunning);
+  VerifyThreadState(Ts{40}, Ts{49}, thread_a_, "D", false);
+
+  VerifyThreadState(Ts{49}, Ts{50}, thread_a_, kRunning);
+  VerifyThreadState(Ts{50}, base::nullopt, thread_a_, "D");
 
   VerifyEndOfThreadState();
 }
