@@ -704,6 +704,45 @@ TEST_P(HeapprofdEndToEnd, AccurateCustom) {
   KillAssertRunning(&child);
 }
 
+TEST_P(HeapprofdEndToEnd, AccurateDumpAtMaxCustom) {
+  if (allocator_mode() != AllocatorMode::kCustom)
+    GTEST_SKIP();
+
+  base::Subprocess child({"/proc/self/exe"});
+  child.args.argv0_override = "heapprofd_continuous_malloc";
+  child.args.stdout_mode = base::Subprocess::kDevNull;
+  child.args.stderr_mode = base::Subprocess::kDevNull;
+  child.args.env.push_back("HEAPPROFD_TESTING_RUN_ACCURATE_MALLOC=1");
+  StartAndWaitForHandshake(&child);
+
+  const uint64_t pid = static_cast<uint64_t>(child.pid());
+
+  TraceConfig trace_config = MakeTraceConfig([pid](HeapprofdConfig* cfg) {
+    cfg->set_sampling_interval_bytes(1);
+    cfg->add_pid(pid);
+    cfg->add_heaps("test");
+    cfg->set_dump_at_max(true);
+  });
+
+  auto helper = Trace(trace_config);
+  PrintStats(helper.get());
+  ValidateOnlyPID(helper.get(), pid);
+
+  size_t total_alloc = 0;
+  size_t total_count = 0;
+  for (const protos::gen::TracePacket& packet : helper->trace()) {
+    for (const auto& dump : packet.profile_packet().process_dumps()) {
+      for (const auto& sample : dump.samples()) {
+        total_alloc += sample.self_max();
+        total_count += sample.self_max_count();
+      }
+    }
+  }
+  EXPECT_EQ(total_alloc, 30u);
+  EXPECT_EQ(total_count, 2u);
+  KillAssertRunning(&child);
+}
+
 TEST_P(HeapprofdEndToEnd, TwoProcesses) {
   constexpr size_t kAllocSize = 1024;
   constexpr size_t kAllocSize2 = 7;
