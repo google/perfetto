@@ -106,6 +106,8 @@ bool heapprofd_init_session(void* (*malloc_fn)(size_t), void (*free_fn)(void*));
 //
 // On error, returns 0, which can be safely passed to any function expecting a
 // |heap_id|, and will turn them into a no-op.
+//
+// This is safe to call from a static initializer.
 uint32_t heapprofd_register_heap(const HeapprofdHeapInfo* heap_info,
                                  size_t sizeof_heap_info);
 
