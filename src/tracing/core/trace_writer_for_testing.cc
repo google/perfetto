@@ -29,7 +29,7 @@ TraceWriterForTesting::TraceWriterForTesting()
                 static_cast<size_t>(base::kPageSize)),
       stream_(&delegate_) {
   delegate_.set_writer(&stream_);
-  cur_packet_.reset(new protos::pbzero::TracePacket());
+  cur_packet_.reset(new protozero::RootMessage<protos::pbzero::TracePacket>());
   cur_packet_->Finalize();  // To avoid the DCHECK in NewTracePacket().
 }
 

@@ -16,7 +16,7 @@
 
 #include "perfetto/protozero/message_handle.h"
 
-#include "perfetto/protozero/message.h"
+#include "perfetto/protozero/root_message.h"
 #include "test/gtest_and_gmock.h"
 
 namespace protozero {
@@ -24,8 +24,7 @@ namespace protozero {
 namespace {
 
 TEST(MessageHandleTest, MoveHandleSharedMessageDoesntFinalize) {
-  Message message;
-  message.Reset(nullptr);
+  RootMessage<Message> message;
 
   MessageHandle<Message> handle_1(&message);
   handle_1 = MessageHandle<Message>(&message);
