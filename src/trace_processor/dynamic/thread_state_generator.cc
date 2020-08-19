@@ -65,8 +65,8 @@ ThreadStateGenerator::ComputeThreadStateTable(int64_t trace_end_ts) {
   const auto& instants = context_->storage->instant_table();
 
   // In both tables, exclude utid == 0 which represents the idle thread.
-  auto sched = raw_sched.Filter({raw_sched.utid().ne(0)});
-  auto waking = instants.Filter(
+  Table sched = raw_sched.Filter({raw_sched.utid().ne(0)});
+  Table waking = instants.Filter(
       {instants.name().eq("sched_waking"), instants.ref().ne(0)});
 
   // We prefer to use waking if at all possible and fall back to wakeup if not
@@ -76,21 +76,39 @@ ThreadStateGenerator::ComputeThreadStateTable(int64_t trace_end_ts) {
         {instants.name().eq("sched_wakeup"), instants.ref().ne(0)});
   }
 
-  const auto& sched_ts = sched.GetTypedColumnByName<int64_t>("ts");
-  const auto& waking_ts = waking.GetTypedColumnByName<int64_t>("ts");
+  Table sched_blocked_reason = instants.Filter(
+      {instants.name().eq("sched_blocked_reason"), instants.ref().ne(0)});
+
+  const auto& sched_ts_col = sched.GetTypedColumnByName<int64_t>("ts");
+  const auto& waking_ts_col = waking.GetTypedColumnByName<int64_t>("ts");
+  const auto& blocked_ts_col =
+      sched_blocked_reason.GetTypedColumnByName<int64_t>("ts");
 
   uint32_t sched_idx = 0;
   uint32_t waking_idx = 0;
+  uint32_t blocked_idx = 0;
   std::unordered_map<UniqueTid, ThreadSchedInfo> state_map;
-  while (sched_idx < sched.row_count() || waking_idx < waking.row_count()) {
-    // We go through both tables, picking the earliest timestamp from either
+  while (sched_idx < sched.row_count() || waking_idx < waking.row_count() ||
+         blocked_idx < sched_blocked_reason.row_count()) {
+    int64_t sched_ts = sched_idx < sched.row_count()
+                           ? sched_ts_col[sched_idx]
+                           : std::numeric_limits<int64_t>::max();
+    int64_t waking_ts = waking_idx < waking.row_count()
+                            ? waking_ts_col[waking_idx]
+                            : std::numeric_limits<int64_t>::max();
+    int64_t blocked_ts = blocked_idx < sched_blocked_reason.row_count()
+                             ? blocked_ts_col[blocked_idx]
+                             : std::numeric_limits<int64_t>::max();
+
+    // We go through all tables, picking the earliest timestamp from any
     // to process that event.
-    if (waking_idx >= waking.row_count() ||
-        (sched_idx < sched.row_count() &&
-         sched_ts[sched_idx] <= waking_ts[waking_idx])) {
+    int64_t min_ts = std::min({sched_ts, waking_ts, blocked_ts});
+    if (min_ts == sched_ts) {
       AddSchedEvent(sched, sched_idx++, state_map, trace_end_ts, table.get());
-    } else {
+    } else if (min_ts == waking_ts) {
       AddWakingEvent(waking, waking_idx++, state_map);
+    } else /* (min_ts == blocked_ts) */ {
+      AddBlockedReasonEvent(sched_blocked_reason, blocked_idx++, state_map);
     }
   }
 
@@ -221,6 +239,7 @@ void ThreadStateGenerator::FlushPendingEventsForThread(
     row.dur = dur;
     row.state = *info.desched_end_state;
     row.utid = utid;
+    row.io_wait = info.io_wait;
     table->Insert(row);
   }
 
@@ -233,6 +252,32 @@ void ThreadStateGenerator::FlushPendingEventsForThread(
     row.utid = utid;
     table->Insert(row);
   }
+}
+
+void ThreadStateGenerator::AddBlockedReasonEvent(
+    const Table& blocked_reason,
+    uint32_t blocked_idx,
+    std::unordered_map<UniqueTid, ThreadSchedInfo>& state_map) {
+  const auto& utid_col = blocked_reason.GetTypedColumnByName<int64_t>("ref");
+  const auto& arg_set_id_col =
+      blocked_reason.GetTypedColumnByName<uint32_t>("arg_set_id");
+
+  UniqueTid utid = static_cast<UniqueTid>(utid_col[blocked_idx]);
+  uint32_t arg_set_id = arg_set_id_col[blocked_idx];
+  ThreadSchedInfo& info = state_map[utid];
+
+  base::Optional<Variadic> opt_value;
+  util::Status status =
+      context_->storage->ExtractArg(arg_set_id, "io_wait", &opt_value);
+
+  // We can't do anything better than ignoring any errors here.
+  // TODO(lalitm): see if there's a better way to handle this.
+  if (!status.ok() || !opt_value) {
+    return;
+  }
+
+  PERFETTO_CHECK(opt_value->type == Variadic::Type::kBool);
+  info.io_wait = opt_value->bool_value;
 }
 
 std::string ThreadStateGenerator::TableName() {
