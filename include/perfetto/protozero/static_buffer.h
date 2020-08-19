@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "perfetto/base/export.h"
+#include "perfetto/protozero/root_message.h"
 #include "perfetto/protozero/scattered_stream_writer.h"
 
 namespace protozero {
@@ -79,7 +80,7 @@ class StaticBuffered {
  private:
   StaticBufferDelegate delegate_;
   ScatteredStreamWriter writer_;
-  T msg_;
+  RootMessage<T> msg_;
 };
 
 // Helper function to create stack-based protozero messages in one line.
