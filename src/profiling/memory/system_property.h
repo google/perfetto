@@ -50,7 +50,7 @@ class SystemProperties {
 
     friend class SystemProperties;
     ~Handle();
-    operator bool();
+    explicit operator bool();
 
    private:
     explicit Handle(SystemProperties* system_properties, std::string property);
