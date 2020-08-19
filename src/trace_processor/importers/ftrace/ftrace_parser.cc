@@ -96,7 +96,10 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       gpu_mem_total_global_desc_id_(context->storage->InternString(
           "Total GPU memory used by the entire system")),
       gpu_mem_total_proc_desc_id_(context->storage->InternString(
-          "Total GPU memory used by this process")) {
+          "Total GPU memory used by this process")),
+      sched_blocked_reason_id_(
+          context->storage->InternString("sched_blocked_reason")),
+      io_wait_id_(context->storage->InternString("io_wait")) {
   // Build the lookup table for the strings inside ftrace events (e.g. the
   // name of ftrace event fields and the names of their args).
   for (size_t i = 0; i < GetDescriptorsSize(); i++) {
@@ -467,6 +470,10 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kCdevUpdateFieldNumber: {
         ParseCdevUpdate(ts, data);
+        break;
+      }
+      case FtraceEvent::kSchedBlockedReasonFieldNumber: {
+        ParseSchedBlockedReason(ts, data);
         break;
       }
       default:
@@ -1166,6 +1173,18 @@ void FtraceParser::ParseCdevUpdate(int64_t timestamp,
   TrackId track = context_->track_tracker->InternGlobalCounterTrack(name);
   context_->event_tracker->PushCounter(
       timestamp, static_cast<double>(evt.target()), track);
+}
+
+void FtraceParser::ParseSchedBlockedReason(int64_t timestamp,
+                                           protozero::ConstBytes blob) {
+  protos::pbzero::SchedBlockedReasonFtraceEvent::Decoder evt(blob);
+  uint32_t pid = static_cast<uint32_t>(evt.pid());
+  auto utid = context_->process_tracker->GetOrCreateThread(pid);
+  InstantId id = context_->event_tracker->PushInstant(
+      timestamp, sched_blocked_reason_id_, utid, RefType::kRefUtid, false);
+
+  auto args_tracker = context_->args_tracker->AddArgsTo(id);
+  args_tracker.AddArg(io_wait_id_, Variadic::Boolean(evt.io_wait()));
 }
 
 }  // namespace trace_processor
