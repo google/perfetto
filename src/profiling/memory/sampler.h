@@ -40,7 +40,7 @@ constexpr uint64_t kSamplerSeed = 1;
 // NB: not thread-safe, requires external synchronization.
 class Sampler {
  public:
-  Sampler(uint64_t sampling_interval)
+  explicit Sampler(uint64_t sampling_interval)
       : sampling_interval_(sampling_interval),
         sampling_rate_(1.0 / static_cast<double>(sampling_interval)),
         random_engine_(kSamplerSeed),

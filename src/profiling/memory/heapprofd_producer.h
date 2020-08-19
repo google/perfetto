@@ -104,7 +104,8 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
   // Alternatively, find a better name for this.
   class SocketDelegate : public base::UnixSocket::EventListener {
    public:
-    SocketDelegate(HeapprofdProducer* producer) : producer_(producer) {}
+    explicit SocketDelegate(HeapprofdProducer* producer)
+        : producer_(producer) {}
 
     void OnDisconnect(base::UnixSocket* self) override;
     void OnNewIncomingConnection(
@@ -218,7 +219,8 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
   };
 
   struct DataSource {
-    DataSource(std::unique_ptr<TraceWriter> tw) : trace_writer(std::move(tw)) {
+    explicit DataSource(std::unique_ptr<TraceWriter> tw)
+        : trace_writer(std::move(tw)) {
       // Make MSAN happy.
       memset(&client_configuration, 0, sizeof(client_configuration));
     }

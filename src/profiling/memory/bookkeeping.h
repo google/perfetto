@@ -108,7 +108,7 @@ class HeapTracker {
 
   // Sum of all the allocations for a given callstack.
   struct CallstackAllocations {
-    CallstackAllocations(GlobalCallstackTrie::Node* n) : node(n) {}
+    explicit CallstackAllocations(GlobalCallstackTrie::Node* n) : node(n) {}
 
     uint64_t allocs = 0;
 

@@ -65,7 +65,7 @@ class SharedRingBuffer {
     Buffer(Buffer&&) = default;
     Buffer& operator=(Buffer&&) = default;
 
-    operator bool() const { return data != nullptr; }
+    explicit operator bool() const { return data != nullptr; }
 
     uint8_t* data = nullptr;
     size_t size = 0;

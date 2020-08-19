@@ -206,7 +206,7 @@ class Unwinder {
 // owned state, and consolidate.
 class UnwinderHandle {
  public:
-  UnwinderHandle(Unwinder::Delegate* delegate) {
+  explicit UnwinderHandle(Unwinder::Delegate* delegate) {
     std::mutex init_lock;
     std::condition_variable init_cv;
 
