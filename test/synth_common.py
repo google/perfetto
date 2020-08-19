@@ -406,6 +406,12 @@ class Trace(object):
     gpu_mem_total_event.pid = pid
     gpu_mem_total_event.size = size
 
+  def add_sched_blocked_reason(self, ts, pid, io_wait, unblock_pid):
+    ftrace = self.__add_ftrace_event(ts, unblock_pid)
+    sched_blocked_reason = ftrace.sched_blocked_reason
+    sched_blocked_reason.pid = pid
+    sched_blocked_reason.io_wait = io_wait
+
 
 def create_trace():
   parser = argparse.ArgumentParser()
