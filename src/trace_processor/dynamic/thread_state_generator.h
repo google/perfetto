@@ -49,6 +49,7 @@ class ThreadStateGenerator : public DbSqliteTable::DynamicTableGenerator {
   struct ThreadSchedInfo {
     base::Optional<int64_t> desched_ts;
     base::Optional<StringId> desched_end_state;
+    base::Optional<bool> io_wait;
     base::Optional<int64_t> runnable_ts;
   };
 
@@ -61,6 +62,11 @@ class ThreadStateGenerator : public DbSqliteTable::DynamicTableGenerator {
   void AddWakingEvent(
       const Table& wakeup,
       uint32_t wakeup_idx,
+      std::unordered_map<UniqueTid, ThreadSchedInfo>& state_map);
+
+  void AddBlockedReasonEvent(
+      const Table& blocked_reason,
+      uint32_t blocked_idx,
       std::unordered_map<UniqueTid, ThreadSchedInfo>& state_map);
 
   void FlushPendingEventsForThread(UniqueTid utid,

@@ -534,35 +534,41 @@ void ExtractArg(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
   uint32_t arg_set_id = static_cast<uint32_t>(sqlite3_value_int(argv[0]));
   const char* key = reinterpret_cast<const char*>(sqlite3_value_text(argv[1]));
 
-  const auto& args = storage->arg_table();
-  RowMap filtered = args.FilterToRowMap(
-      {args.arg_set_id().eq(arg_set_id), args.key().eq(key)});
-  if (filtered.size() == 0) {
+  base::Optional<Variadic> opt_value;
+  util::Status status = storage->ExtractArg(arg_set_id, key, &opt_value);
+  if (!status.ok()) {
+    sqlite3_result_error(ctx, status.c_message(), -1);
+    return;
+  }
+
+  if (!opt_value) {
     sqlite3_result_null(ctx);
     return;
   }
-  if (filtered.size() > 1) {
-    sqlite3_result_error(
-        ctx, "EXTRACT_ARG: received multiple args matching arg set id and key",
-        -1);
-  }
 
-  uint32_t idx = filtered.Get(0);
-  Variadic::Type type = *storage->GetVariadicTypeForId(args.value_type()[idx]);
-  switch (type) {
-    case Variadic::kBool:
+  switch (opt_value->type) {
     case Variadic::kInt:
+      sqlite3_result_int64(ctx, opt_value->int_value);
+      break;
+    case Variadic::kBool:
+      sqlite3_result_int64(ctx, opt_value->bool_value);
+      break;
     case Variadic::kUint:
+      sqlite3_result_int64(ctx, static_cast<int64_t>(opt_value->uint_value));
+      break;
     case Variadic::kPointer:
-      sqlite3_result_int64(ctx, *args.int_value()[idx]);
+      sqlite3_result_int64(ctx, static_cast<int64_t>(opt_value->pointer_value));
       break;
     case Variadic::kJson:
+      sqlite3_result_text(ctx, storage->GetString(opt_value->json_value).data(),
+                          -1, nullptr);
+      break;
     case Variadic::kString:
-      sqlite3_result_text(ctx, args.string_value().GetString(idx).data(), -1,
-                          nullptr);
+      sqlite3_result_text(
+          ctx, storage->GetString(opt_value->string_value).data(), -1, nullptr);
       break;
     case Variadic::kReal:
-      sqlite3_result_double(ctx, *args.real_value()[idx]);
+      sqlite3_result_double(ctx, opt_value->real_value);
       break;
   }
 }

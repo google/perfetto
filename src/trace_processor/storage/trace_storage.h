@@ -32,6 +32,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/stats.h"
@@ -626,6 +627,25 @@ class TraceStorage {
   // Start / end ts (in nanoseconds) across the parsed trace events.
   // Returns (0, 0) if the trace is empty.
   std::pair<int64_t, int64_t> GetTraceTimestampBoundsNs() const;
+
+  util::Status ExtractArg(uint32_t arg_set_id,
+                          const char* key,
+                          base::Optional<Variadic>* result) {
+    const auto& args = arg_table();
+    RowMap filtered = args.FilterToRowMap(
+        {args.arg_set_id().eq(arg_set_id), args.key().eq(key)});
+    if (filtered.size() == 0) {
+      *result = base::nullopt;
+      return util::OkStatus();
+    }
+    if (filtered.size() > 1) {
+      return util::ErrStatus(
+          "EXTRACT_ARG: received multiple args matching arg set id and key");
+    }
+    uint32_t idx = filtered.Get(0);
+    *result = GetArgValue(idx);
+    return util::OkStatus();
+  }
 
   Variadic GetArgValue(uint32_t row) const {
     Variadic v;
