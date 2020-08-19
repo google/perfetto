@@ -40,7 +40,10 @@ SystraceLineParser::SystraceLineParser(TraceProcessorContext* ctx)
     : context_(ctx),
       sched_wakeup_name_id_(ctx->storage->InternString("sched_wakeup")),
       cpuidle_name_id_(ctx->storage->InternString("cpuidle")),
-      workqueue_name_id_(ctx->storage->InternString("workqueue")) {}
+      workqueue_name_id_(ctx->storage->InternString("workqueue")),
+      sched_blocked_reason_id_(
+          ctx->storage->InternString("sched_blocked_reason")),
+      io_wait_id_(ctx->storage->InternString("io_wait")) {}
 
 util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
   auto utid = context_->process_tracker->UpdateThreadName(
@@ -218,6 +221,18 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
       return util::Status("Could not convert target");
     }
     context_->event_tracker->PushCounter(line.ts, target.value(), track);
+  } else if (line.event_name == "sched_blocked_reason") {
+    uint32_t wakee_pid = *base::StringToUInt32(args["pid"]);
+    auto wakee_utid = context_->process_tracker->GetOrCreateThread(wakee_pid);
+
+    InstantId id = context_->event_tracker->PushInstant(
+        line.ts, sched_blocked_reason_id_, wakee_utid, RefType::kRefUtid,
+        false);
+
+    auto inserter = context_->args_tracker->AddArgsTo(id);
+    bool io_wait = *base::StringToInt32(args["iowait"]);
+    inserter.AddArg(io_wait_id_, Variadic::Boolean(io_wait));
+    context_->args_tracker->Flush();
   }
 
   return util::OkStatus();
