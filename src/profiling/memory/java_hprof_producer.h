@@ -38,7 +38,7 @@ using JavaHprofConfig = protos::gen::JavaHprofConfig;
 
 class JavaHprofProducer : public Producer {
  public:
-  JavaHprofProducer(base::TaskRunner* task_runner)
+  explicit JavaHprofProducer(base::TaskRunner* task_runner)
       : task_runner_(task_runner), weak_factory_(this) {}
 
   // Producer Impl:
