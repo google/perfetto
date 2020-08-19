@@ -57,7 +57,7 @@ class Interner {
   class Interned {
    public:
     friend class Interner<T>;
-    Interned(Entry* entry) : entry_(entry) {}
+    explicit Interned(Entry* entry) : entry_(entry) {}
     Interned(const Interned& other) : entry_(other.entry_) {
       if (entry_ != nullptr)
         entry_->ref_count++;
