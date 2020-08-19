@@ -30,6 +30,7 @@ source_set("protozero") {
   sources = [
     "field.cc",
     "message.cc",
+    "message_arena.cc",
     "message_handle.cc",
     "packed_repeated_fields.cc",
     "proto_decoder.cc",
