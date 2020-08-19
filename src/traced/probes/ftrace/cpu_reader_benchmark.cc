@@ -15,6 +15,7 @@
 #include <benchmark/benchmark.h>
 
 #include "perfetto/ext/base/utils.h"
+#include "perfetto/protozero/root_message.h"
 #include "perfetto/protozero/scattered_stream_null_delegate.h"
 #include "perfetto/protozero/scattered_stream_writer.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
@@ -310,7 +311,7 @@ static void BM_ParsePageFullOfSchedSwitch(benchmark::State& state) {
 
   ScatteredStreamWriterNullDelegate delegate(perfetto::base::kPageSize);
   ScatteredStreamWriter stream(&delegate);
-  FtraceEventBundle writer;
+  protozero::RootMessage<FtraceEventBundle> writer;
 
   ProtoTranslationTable* table = GetTable(test_case->name);
   auto page = PageFromXxd(test_case->data);

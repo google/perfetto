@@ -23,6 +23,7 @@
 
 #include "perfetto/base/export.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/protozero/root_message.h"
 #include "perfetto/protozero/scattered_stream_writer.h"
 
 namespace protozero {
@@ -165,7 +166,7 @@ class HeapBuffered {
  private:
   ScatteredHeapBuffer shb_;
   ScatteredStreamWriter writer_;
-  T msg_;
+  RootMessage<T> msg_;
 };
 
 }  // namespace protozero

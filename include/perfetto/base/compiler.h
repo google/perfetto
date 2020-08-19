@@ -66,6 +66,21 @@
 #define PERFETTO_THREAD_LOCAL thread_local
 #endif
 
+#if defined(__clang__)
+#if __has_feature(address_sanitizer) || defined(__SANITIZE_ADDRESS__)
+extern "C" void __asan_poison_memory_region(void const volatile*, size_t);
+extern "C" void __asan_unpoison_memory_region(void const volatile*, size_t);
+#define PERFETTO_ASAN_POISON(a, s) __asan_poison_memory_region((a), (s))
+#define PERFETTO_ASAN_UNPOISON(a, s) __asan_unpoison_memory_region((a), (s))
+#else
+#define PERFETTO_ASAN_POISON(addr, size)
+#define PERFETTO_ASAN_UNPOISON(addr, size)
+#endif  // __has_feature(address_sanitizer)
+#else
+#define PERFETTO_ASAN_POISON(addr, size)
+#define PERFETTO_ASAN_UNPOISON(addr, size)
+#endif  // __clang__
+
 namespace perfetto {
 namespace base {
 

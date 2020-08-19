@@ -24,7 +24,9 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/thread_annotations.h"
+#include "perfetto/protozero/message.h"
 #include "perfetto/protozero/proto_utils.h"
+#include "perfetto/protozero/root_message.h"
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -54,7 +56,7 @@ TraceWriterImpl::TraceWriterImpl(SharedMemoryArbiterImpl* shmem_arbiter,
   // more gracefully and always return a no-op TracePacket in NewTracePacket().
   PERFETTO_CHECK(id_ != 0);
 
-  cur_packet_.reset(new protos::pbzero::TracePacket());
+  cur_packet_.reset(new protozero::RootMessage<protos::pbzero::TracePacket>());
   cur_packet_->Finalize();  // To avoid the DCHECK in NewTracePacket().
 }
 
