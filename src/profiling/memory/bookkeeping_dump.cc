@@ -58,12 +58,14 @@ void DumpState::WriteAllocation(const HeapTracker::CallstackAllocations& alloc,
   sample->set_callstack_id(alloc.node->id());
   if (dump_at_max_mode) {
     sample->set_self_max(alloc.value.retain_max.max);
+    sample->set_self_max_count(alloc.value.retain_max.max_count);
   } else {
     sample->set_self_allocated(alloc.value.totals.allocated);
     sample->set_self_freed(alloc.value.totals.freed);
+
+    sample->set_alloc_count(alloc.value.totals.allocation_count);
+    sample->set_free_count(alloc.value.totals.free_count);
   }
-  sample->set_alloc_count(alloc.allocation_count);
-  sample->set_free_count(alloc.free_count);
 
   auto it = current_process_idle_allocs_.find(alloc.node->id());
   if (it != current_process_idle_allocs_.end())
