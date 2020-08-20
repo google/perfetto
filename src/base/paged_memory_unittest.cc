@@ -19,6 +19,7 @@
 #include <stdint.h>
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/ext/base/utils.h"
 #include "src/base/test/vm_test_utils.h"
 #include "test/gtest_and_gmock.h"
 
@@ -60,6 +61,32 @@ TEST(PagedMemoryTest, Basic) {
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
   // Freed memory is necessarily not mapped in to the process.
   ASSERT_FALSE(vm_test_utils::IsMapped(ptr_raw, kSize));
+#endif
+}
+
+TEST(PagedMemoryTest, SubPageGranularity) {
+  const size_t kSize = GetSysPageSize() + 1024;
+  PagedMemory mem = PagedMemory::Allocate(kSize);
+  ASSERT_TRUE(mem.IsValid());
+  ASSERT_EQ(0u, reinterpret_cast<uintptr_t>(mem.Get()) % GetSysPageSize());
+  void* ptr_raw = mem.Get();
+  for (size_t i = 0; i < kSize / sizeof(uint64_t); i++) {
+    auto* ptr64 = reinterpret_cast<volatile uint64_t*>(ptr_raw) + i;
+    ASSERT_EQ(0u, *ptr64);
+    *ptr64 = i;
+  }
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  // Do an AdviseDontNeed on the whole range, which is NOT an integer multiple
+  // of the page size. The initial page must be cleared. The remaining 1024
+  // might or might not be cleared depending on the OS implementation.
+  ASSERT_TRUE(mem.AdviseDontNeed(ptr_raw, kSize));
+  ASSERT_FALSE(vm_test_utils::IsMapped(ptr_raw, GetSysPageSize()));
+  for (size_t i = 0; i < GetSysPageSize() / sizeof(uint64_t); i++) {
+    auto* ptr64 = reinterpret_cast<volatile uint64_t*>(ptr_raw) + i;
+    ASSERT_EQ(0u, *ptr64);
+  }
 #endif
 }
 

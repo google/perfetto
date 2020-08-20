@@ -56,9 +56,8 @@ class PagedMemory {
   };
 
   // Allocates |size| bytes using mmap(MAP_ANONYMOUS). The returned memory is
-  // guaranteed to be page-aligned and guaranteed to be zeroed. |size| must be a
-  // multiple of 4KB (a page size). For |flags|, see the AllocationFlags enum
-  // above.
+  // guaranteed to be page-aligned and guaranteed to be zeroed.
+  // For |flags|, see the AllocationFlags enum above.
   static PagedMemory Allocate(size_t size, int flags = 0);
 
   // Hint to the OS that the memory range is not needed and can be discarded.
@@ -88,6 +87,10 @@ class PagedMemory {
   PagedMemory& operator=(const PagedMemory&) = default;
 
   char* p_ = nullptr;
+
+  // The size originally passed to Allocate(). The actual virtual memory
+  // reservation will be larger due to: (i) guard pages; (ii) rounding up to
+  // the system page size.
   size_t size_ = 0;
 
 #if TRACK_COMMITTED_SIZE()
