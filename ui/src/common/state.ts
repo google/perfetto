@@ -210,7 +210,7 @@ export interface ThreadStateSelection {
   ts: number;
   dur: number;
   state: string;
-  cpu: number;
+  cpu: number|undefined;
 }
 
 type Selection = (NoteSelection|SliceSelection|CounterSelection|
