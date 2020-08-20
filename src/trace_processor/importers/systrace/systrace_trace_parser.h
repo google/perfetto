@@ -46,6 +46,7 @@ class SystraceTraceParser : public ChunkedTraceReader {
     kSystrace,
     kProcessDumpLong,
     kProcessDumpShort,
+    kCgroupDump,
     kEndOfSystrace,
   };
 
