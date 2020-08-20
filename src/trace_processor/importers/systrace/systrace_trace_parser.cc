@@ -97,6 +97,8 @@ util::Status SystraceTraceParser::Parse(std::unique_ptr<uint8_t[]> owned_buf,
         state_ = ParseState::kSystrace;
       } else if (base::StartsWith(buffer, "PROCESS DUMP")) {
         state_ = ParseState::kProcessDumpLong;
+      } else if (base::StartsWith(buffer, "CGROUP DUMP")) {
+        state_ = ParseState::kCgroupDump;
       } else if (base::Contains(buffer, R"(</script>)")) {
         state_ = ParseState::kHtmlBeforeSystrace;
       }
@@ -169,6 +171,11 @@ util::Status SystraceTraceParser::Parse(std::unique_ptr<uint8_t[]> owned_buf,
               utid, cmd_id, ThreadNamePriority::kOther);
         }
       }
+    } else if (state_ == ParseState::kCgroupDump) {
+      if (base::Contains(buffer, R"(</script>)")) {
+        state_ = ParseState::kHtmlBeforeSystrace;
+      }
+      // TODO(lalitm): see if it is important to parse this.
     }
     start_it = line_it + 1;
   }
