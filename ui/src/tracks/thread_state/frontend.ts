@@ -18,7 +18,7 @@ import {cropText} from '../../common/canvas_utils';
 import {TrackState} from '../../common/state';
 import {translateState} from '../../common/thread_state';
 import {checkerboardExcept} from '../../frontend/checkerboard';
-import {Color, colorForState} from '../../frontend/colorizer';
+import {colorForState} from '../../frontend/colorizer';
 import {globals} from '../../frontend/globals';
 import {Track} from '../../frontend/track';
 import {trackRegistry} from '../../frontend/track_registry';
@@ -26,27 +26,12 @@ import {trackRegistry} from '../../frontend/track_registry';
 import {
   Config,
   Data,
-  StatePercent,
   THREAD_STATE_TRACK_KIND,
 } from './common';
 
 const MARGIN_TOP = 4;
 const RECT_HEIGHT = 14;
 const EXCESS_WIDTH = 10;
-
-function groupBusyStates(resolution: number) {
-  return resolution >= 0.0001;
-}
-
-function getSummarizedSliceText(breakdownMap: StatePercent) {
-  let result = 'Various (';
-  const sorted =
-      new Map([...breakdownMap.entries()].sort((a, b) => b[1] - a[1]));
-  for (const [state, value] of sorted.entries()) {
-    result += `${state}: ${Math.round(value * 100)}%, `;
-  }
-  return result.slice(0, result.length - 2) + ')';
-}
 
 class ThreadStateTrack extends Track<Config, Data> {
   static readonly kind = THREAD_STATE_TRACK_KIND;
@@ -78,8 +63,6 @@ class ThreadStateTrack extends Track<Config, Data> {
         timeScale.timeToPx(data.end),
     );
 
-    const shouldGroupBusyStates = groupBusyStates(data.resolution);
-
     ctx.textAlign = 'center';
     ctx.font = '10px Roboto Condensed';
 
@@ -90,37 +73,30 @@ class ThreadStateTrack extends Track<Config, Data> {
       if (tEnd <= visibleWindowTime.start || tStart >= visibleWindowTime.end) {
         continue;
       }
-      if (tStart && tEnd) {
-        // Don't display a slice for Task Dead.
-        if (state === 'x') continue;
-        const rectStart = timeScale.timeToPx(tStart);
-        const rectEnd = timeScale.timeToPx(tEnd);
-        let rectWidth = rectEnd - rectStart;
-        const color = colorForState(state);
-        let text = translateState(state);
-        const breakdown = data.summarisedStateBreakdowns.get(i);
-        if (breakdown) {
-          colorSummarizedSlice(breakdown, rectStart, rectEnd);
-          text = getSummarizedSliceText(breakdown);
-        } else {
-          let colorStr = `hsl(${color.h},${color.s}%,${color.l}%)`;
-          if (color.a) {
-            colorStr = `hsla(${color.h},${color.s}%,${color.l}%, ${color.a})`;
-          }
-          ctx.fillStyle = colorStr;
-        }
-        if (shouldGroupBusyStates && rectWidth < 1) {
-          rectWidth = 1;
-        }
-        ctx.fillRect(rectStart, MARGIN_TOP, rectWidth, RECT_HEIGHT);
 
-        // Don't render text when we have less than 10px to play with.
-        if (rectWidth < 10 || text === 'Sleeping') continue;
-        const title = cropText(text, charWidth, rectWidth);
-        const rectXCenter = rectStart + rectWidth / 2;
-        ctx.fillStyle = color.l > 80 || breakdown ? '#404040' : '#fff';
-        ctx.fillText(title, rectXCenter, MARGIN_TOP + RECT_HEIGHT / 2 + 3);
+      // Don't display a slice for Task Dead.
+      if (state === 'x') continue;
+      const rectStart = timeScale.timeToPx(tStart);
+      const rectEnd = timeScale.timeToPx(tEnd);
+
+      const color = colorForState(state);
+      const text = translateState(state);
+
+      let colorStr = `hsl(${color.h},${color.s}%,${color.l}%)`;
+      if (color.a) {
+        colorStr = `hsla(${color.h},${color.s}%,${color.l}%, ${color.a})`;
       }
+      ctx.fillStyle = colorStr;
+
+      const rectWidth = rectEnd - rectStart;
+      ctx.fillRect(rectStart, MARGIN_TOP, rectWidth, RECT_HEIGHT);
+
+      // Don't render text when we have less than 10px to play with.
+      if (rectWidth < 10 || text === 'Sleeping') continue;
+      const title = cropText(text, charWidth, rectWidth);
+      const rectXCenter = rectStart + rectWidth / 2;
+      ctx.fillStyle = color.l > 80 ? '#404040' : '#fff';
+      ctx.fillText(title, rectXCenter, MARGIN_TOP + RECT_HEIGHT / 2 + 3);
     }
 
     const selection = globals.state.currentSelection;
@@ -150,35 +126,6 @@ class ThreadStateTrack extends Track<Config, Data> {
         ctx.closePath();
       }
     }
-
-    // Make a gradient ordered most common to least based on the colors of the
-    // states within the summarized slice.
-    function colorSummarizedSlice(
-        breakdownMap: StatePercent, rectStart: number, rectEnd: number) {
-      const gradient =
-          ctx.createLinearGradient(rectStart, MARGIN_TOP, rectEnd, MARGIN_TOP);
-      // Sometimes multiple states have the same color e.g R, R+
-      const colorMap = new Map<Color, number>();
-      for (const [state, value] of breakdownMap.entries()) {
-        const color = colorForState(state);
-        const currentColorValue = colorMap.get(color);
-        if (currentColorValue === undefined) {
-          colorMap.set(color, value);
-        } else {
-          colorMap.set(color, currentColorValue + value);
-        }
-      }
-
-      const sorted =
-          new Map([...colorMap.entries()].sort((a, b) => b[1] - a[1]));
-      let colorStop = 0;
-      for (const [color, value] of sorted.entries()) {
-        const colorString = `hsl(${color.h},${color.s}%,${color.l}%)`;
-        colorStop = Math.max(0, Math.min(1, colorStop + value));
-        gradient.addColorStop(colorStop, colorString);
-      }
-      ctx.fillStyle = gradient;
-    }
   }
 
   onMouseClick({x}: {x: number}) {
@@ -187,23 +134,17 @@ class ThreadStateTrack extends Track<Config, Data> {
     const {timeScale} = globals.frontendLocalState;
     const time = timeScale.pxToTime(x);
     const index = search(data.starts, time);
-    const ts = index === -1 ? undefined : data.starts[index];
-    const tsEnd = index === -1 ? undefined : data.ends[index];
-    const state = index === -1 ? undefined : data.strings[data.state[index]];
-    const cpu = index === -1 ? undefined : data.cpu[index];
+    if (index === -1) return false;
+
+    const ts = data.starts[index];
+    const tsEnd = data.ends[index];
+    const state = data.strings[data.state[index]];
+    const cpu = data.cpu[index] === -1 ? undefined : data.cpu[index];
     const utid = this.config.utid;
-    if (ts && state && tsEnd && cpu !== undefined) {
-      globals.makeSelection(Actions.selectThreadState({
-        utid,
-        ts,
-        dur: tsEnd - ts,
-        state,
-        cpu,
-        trackId: this.trackState.id
-      }));
-      return true;
-    }
-    return false;
+
+    globals.makeSelection(Actions.selectThreadState(
+        {utid, ts, dur: tsEnd - ts, state, cpu, trackId: this.trackState.id}));
+    return true;
   }
 }
 

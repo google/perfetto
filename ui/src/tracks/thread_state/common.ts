@@ -20,12 +20,9 @@ export interface Data extends TrackData {
   strings: string[];
   starts: Float64Array;
   ends: Float64Array;
+  cpu: Int8Array;
   state: Uint16Array;  // Index into |strings|.
-  cpu: Uint8Array;
-  summarisedStateBreakdowns: Map<number, StatePercent>;
 }
-
-export type StatePercent = Map<string, number>;
 
 export interface Config {
   utid: number;
