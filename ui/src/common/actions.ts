@@ -553,7 +553,7 @@ export const StateActions = {
     ts: number,
     dur: number,
     state: string,
-    cpu: number,
+    cpu: number|undefined,
     trackId: string
   }): void {
     state.currentSelection = {
