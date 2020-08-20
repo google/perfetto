@@ -111,19 +111,19 @@ FROM (
 -- We want to find the start and end events with action='timekeeping_freeze'.
 -- Unfortunately a bug leads to the action string being lost.
 -- In practice, these events always show up in a sequence like the following:
--- start = 1, event = 1   [string would have been 'machine_suspend']
--- start = 1, event != 1  [string would have been 'timekeeping_freeze'] *
+-- start = 1, event = 1     [string would have been 'machine_suspend']
+-- start = 1, event = (any) [string would have been 'timekeeping_freeze'] *
 --
---                           (sleep happens here)
+--                             (sleep happens here)
 --
--- start = 0, event != 1  [string would have been 'timekeeping_freeze']
--- start = 0, event = 1   [string would have been 'machine_suspend']
+-- start = 0, event = (any) [string would have been 'timekeeping_freeze']
+-- start = 0, event = 1     [string would have been 'machine_suspend']
 --
 -- So we look for this pattern of start and event, anchored on the event marked
 -- with "*".
-WHERE start = 1 AND event != 1
-  AND lag_start = 1 AND lag_event = 1
-  AND lead_start = 0 AND lead_event != 1
+WHERE lag_start = 1 AND lag_event = 1
+  AND start = 1
+  AND lead_start = 0
   AND lead_2_start = 0 AND lead_2_event = 1;
 
 SELECT RUN_METRIC('android/counter_span_view.sql',
