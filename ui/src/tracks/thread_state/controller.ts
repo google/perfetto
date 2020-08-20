@@ -12,9 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {assertFalse} from '../../base/logging';
 import {fromNs, toNs} from '../../common/time';
-import {LIMIT} from '../../common/track_data';
-
 import {
   TrackController,
   trackControllerRegistry
@@ -28,125 +27,107 @@ import {
 
 class ThreadStateTrackController extends TrackController<Config, Data> {
   static readonly kind = THREAD_STATE_TRACK_KIND;
-  private setup = false;
+
+  private maxDurNs = 0;
+
+  async onSetup() {
+    await this.query(`
+      create view ${this.tableName('thread_state')} as
+      select
+        ts,
+        dur,
+        cpu,
+        state,
+        io_wait
+      from thread_state
+      where utid = ${this.config.utid} and utid != 0
+    `);
+
+    const rawResult = await this.query(`
+      select max(dur)
+      from ${this.tableName('thread_state')}
+    `);
+    this.maxDurNs = rawResult.columns[0].longValues![0];
+  }
 
   async onBoundsChange(start: number, end: number, resolution: number):
       Promise<Data> {
+    const resolutionNs = toNs(resolution);
     const startNs = toNs(start);
     const endNs = toNs(end);
-    const minNs = Math.round(resolution * 1e9);
 
-    await this.query(
-        `drop view if exists ${this.tableName('grouped_thread_states')}`);
+    // ns per quantization bucket (i.e. ns per pixel). /2 * 2 is to force it to
+    // be an even number, so we can snap in the middle.
+    const bucketNs =
+        Math.max(Math.round(resolutionNs * this.pxSize() / 2) * 2, 1);
 
-    // This query gives all contiguous slices less than minNs the same grouping.
-    await this.query(`create view ${this.tableName('grouped_thread_states')} as
-    select ts, dur, cpu, state,
-    ifnull(sum(value) over (order by ts), 0) as grouping
-    from
-    (select *,
-    (dur >= ${minNs}) or lag(dur >= ${minNs}) over (order by ts) as value
-    from thread_state
-    where utid = ${this.config.utid})`);
-
-    // Since there are more rows than slices we will output, check the number of
-    // distinct groupings to find the number of slices.
-    const totalSlicesQuery = `select count(distinct(grouping))
-      from ${this.tableName('grouped_thread_states')}
-      where ts <= ${endNs} and ts + dur >= ${startNs}`;
-    const totalSlices = (await this.engine.queryOneRow(totalSlicesQuery))[0];
-
-    // We have ts contraints instead of span joining with the window table
-    // because when selecting a slice we need the real duration (even if it
-    // is outside of the current viewport)
-    // TODO(b/149303809): Return this to using
-    // the window table if possible.
-    const query = `select min(min(ts)) over (partition by grouping) as ts,
-    sum(sum(dur)) over (partition by grouping) as slice_dur,
-    cpu,
-    state,
-    (sum(dur) * 1.0)/(sum(sum(dur)) over (partition by grouping)) as percent,
-    grouping
-    from ${this.tableName('grouped_thread_states')}
-    where ts <= ${endNs} and ts + dur >= ${startNs}
-    group by grouping, state
-    order by grouping
-    limit ${LIMIT}`;
+    const query = `
+      select
+        (ts + ${bucketNs / 2}) / ${bucketNs} * ${bucketNs} as tsq,
+        ts,
+        max(dur) as dur,
+        cpu,
+        state
+      from ${this.tableName('thread_state')}
+      where
+        ts >= ${startNs - this.maxDurNs} and
+        ts <= ${endNs}
+      group by tsq, state
+      order by tsq, state
+    `;
 
     const result = await this.query(query);
     const numRows = +result.numRecords;
 
-    const summary: Data = {
+    const data: Data = {
       start,
       end,
       resolution,
-      length: totalSlices,
-      starts: new Float64Array(totalSlices),
-      ends: new Float64Array(totalSlices),
+      length: numRows,
+      starts: new Float64Array(numRows),
+      ends: new Float64Array(numRows),
       strings: [],
-      state: new Uint16Array(totalSlices),
-      cpu: new Uint8Array(totalSlices),
-      summarisedStateBreakdowns: new Map(),
+      state: new Uint16Array(numRows),
+      cpu: new Int8Array(numRows),
     };
 
     const stringIndexes = new Map<string, number>();
     function internString(str: string) {
       let idx = stringIndexes.get(str);
       if (idx !== undefined) return idx;
-      idx = summary.strings.length;
-      summary.strings.push(str);
+      idx = data.strings.length;
+      data.strings.push(str);
       stringIndexes.set(str, idx);
       return idx;
     }
 
-    let outIndex = 0;
     for (let row = 0; row < numRows; row++) {
       const cols = result.columns;
-      const start = +cols[0].longValues![row];
-      const dur = +cols[1].longValues![row];
-      const state = cols[3].stringValues![row];
-      const percent = +(cols[4].doubleValues![row].toFixed(2));
-      const grouping = +cols[5].longValues![row];
+      const startNsQ = +cols[0].longValues![row];
+      const startNs = +cols[1].longValues![row];
+      const durNs = +cols[2].longValues![row];
+      const endNs = startNs + durNs;
 
-      if (percent !== 1) {
-        let breakdownMap = summary.summarisedStateBreakdowns.get(outIndex);
-        if (!breakdownMap) {
-          breakdownMap = new Map();
-          summary.summarisedStateBreakdowns.set(outIndex, breakdownMap);
-        }
+      let endNsQ = Math.floor((endNs + bucketNs / 2 - 1) / bucketNs) * bucketNs;
+      endNsQ = Math.max(endNsQ, startNsQ + bucketNs);
 
-        const currentPercent = breakdownMap.get(state);
-        if (currentPercent === undefined) {
-          breakdownMap.set(state, percent);
-        } else {
-          breakdownMap.set(state, currentPercent + percent);
-        }
-      }
+      const cpu = cols[3].isNulls![row] ? -1 : cols[3].longValues![row];
+      const state = cols[4].stringValues![row];
 
-      const nextGrouping =
-          row + 1 < numRows ? +cols[5].longValues![row + 1] : -1;
-      // If the next grouping is different then we have reached the end of this
-      // slice.
-      if (grouping !== nextGrouping) {
-        const numStates = summary.summarisedStateBreakdowns.get(outIndex) ?
-            summary.summarisedStateBreakdowns.get(outIndex)!.entries.length :
-            1;
-        summary.starts[outIndex] = fromNs(start);
-        summary.ends[outIndex] = fromNs(start + dur);
-        summary.state[outIndex] =
-            internString(numStates === 1 ? state : 'Various states');
-        summary.cpu[outIndex] = +cols[2].longValues![row];
-        outIndex++;
-      }
+      // We should never have the end timestamp being the same as the bucket
+      // start.
+      assertFalse(startNsQ === endNsQ);
+
+      data.starts[row] = fromNs(startNsQ);
+      data.ends[row] = fromNs(endNsQ);
+      data.state[row] = internString(state);
+      data.cpu[row] = cpu;
     }
-    return summary;
+    return data;
   }
 
-  onDestroy(): void {
-    if (this.setup) {
-      this.query(`drop view ${this.tableName('grouped_thread_states')}`);
-      this.setup = false;
-    }
+  async onDestroy() {
+    await this.query(`drop table if exists ${this.tableName('thread_state')}`);
   }
 }
 
