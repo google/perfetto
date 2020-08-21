@@ -41,7 +41,7 @@ namespace {
 using protos::pbzero::AndroidLogConfig;
 using protos::pbzero::AndroidLogId;
 
-constexpr size_t kBufSize = base::kPageSize;
+constexpr size_t kBufSize = 4096;
 const char kLogTagsPath[] = "/system/etc/event-log-tags";
 const char kLogdrSocket[] = "/dev/socket/logdr";
 

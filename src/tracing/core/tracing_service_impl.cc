@@ -183,12 +183,17 @@ std::tuple<size_t /*shm_size*/, size_t /*page_size*/> EnsureValidShmSizes(
   page_size = std::min<size_t>(page_size, kMaxPageSize);
   shm_size = std::min<size_t>(shm_size, TracingServiceImpl::kMaxShmSize);
 
-  // Page size has to be multiple of system's page size.
-  bool page_size_is_valid = page_size >= base::kPageSize;
-  page_size_is_valid &= page_size % base::kPageSize == 0;
+  // The tracing page size has to be multiple of 4K. On some systems (e.g. Mac
+  // on Arm64) the system page size can be larger (e.g., 16K). That doesn't
+  // matter here, because the tracing page size is just a logical partitioning
+  // and does not have any dependencies on kernel mm syscalls (read: it's fine
+  // to have trace page sizes of 4K on a system where the kernel page size is
+  // 16K).
+  bool page_size_is_valid = page_size >= SharedMemoryABI::kMinPageSize;
+  page_size_is_valid &= page_size % SharedMemoryABI::kMinPageSize == 0;
 
   // Only allow power of two numbers of pages, i.e. 1, 2, 4, 8 pages.
-  size_t num_pages = page_size / base::kPageSize;
+  size_t num_pages = page_size / SharedMemoryABI::kMinPageSize;
   page_size_is_valid &= (num_pages & (num_pages - 1)) == 0;
 
   if (!page_size_is_valid || shm_size < page_size ||
@@ -548,8 +553,14 @@ bool TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
       return false;
     }
     uint64_t buf_size_sum = 0;
-    for (const auto& buf : cfg.buffers())
+    for (const auto& buf : cfg.buffers()) {
+      if (buf.size_kb() % 4 != 0) {
+        PERFETTO_ELOG("buffers.size_kb must be a multiple of 4, got %" PRIu32,
+                      buf.size_kb());
+        return false;
+      }
       buf_size_sum += buf.size_kb();
+    }
     if (buf_size_sum > kGuardrailsMaxTracingBufferSizeKb) {
       PERFETTO_ELOG("Requested too large trace buffer (%" PRIu64
                     "kB  > %" PRIu32 " kB)",
