@@ -73,6 +73,7 @@ inline void ClearChunkHeader(SharedMemoryABI::ChunkHeader* header) {
 constexpr uint32_t SharedMemoryABI::kNumChunksForLayout[];
 constexpr const char* SharedMemoryABI::kChunkStateStr[];
 constexpr const size_t SharedMemoryABI::kInvalidPageIdx;
+constexpr const size_t SharedMemoryABI::kMinPageSize;
 constexpr const size_t SharedMemoryABI::kMaxPageSize;
 constexpr const size_t SharedMemoryABI::kPacketSizeDropPacket;
 
@@ -133,10 +134,10 @@ void SharedMemoryABI::Initialize(uint8_t* start,
   chunk_header.writer_id.store(static_cast<uint16_t>(-1));
   PERFETTO_CHECK(kMaxWriterID <= chunk_header.writer_id.load());
 
-  PERFETTO_CHECK(page_size >= base::kPageSize);
+  PERFETTO_CHECK(page_size >= kMinPageSize);
   PERFETTO_CHECK(page_size <= kMaxPageSize);
-  PERFETTO_CHECK(page_size % base::kPageSize == 0);
-  PERFETTO_CHECK(reinterpret_cast<uintptr_t>(start) % base::kPageSize == 0);
+  PERFETTO_CHECK(page_size % kMinPageSize == 0);
+  PERFETTO_CHECK(reinterpret_cast<uintptr_t>(start) % kMinPageSize == 0);
   PERFETTO_CHECK(size % page_size == 0);
 }
 

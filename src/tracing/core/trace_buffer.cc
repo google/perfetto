@@ -84,9 +84,8 @@ TraceBuffer::~TraceBuffer() = default;
 
 bool TraceBuffer::Initialize(size_t size) {
   static_assert(
-      base::kPageSize % sizeof(ChunkRecord) == 0,
+      SharedMemoryABI::kMinPageSize % sizeof(ChunkRecord) == 0,
       "sizeof(ChunkRecord) must be an integer divider of a page size");
-  PERFETTO_CHECK(size % base::kPageSize == 0);
   data_ = base::PagedMemory::Allocate(
       size, base::PagedMemory::kMayFail | base::PagedMemory::kDontCommit);
   if (!data_.IsValid()) {
