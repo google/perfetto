@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {assertFalse} from '../../base/logging';
+import {translateState} from '../../common/thread_state';
 import {fromNs, toNs} from '../../common/time';
 import {
   TrackController,
@@ -92,12 +93,12 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
     };
 
     const stringIndexes = new Map<string, number>();
-    function internString(str: string) {
-      let idx = stringIndexes.get(str);
+    function internState(shortState: string) {
+      let idx = stringIndexes.get(shortState);
       if (idx !== undefined) return idx;
       idx = data.strings.length;
-      data.strings.push(str);
-      stringIndexes.set(str, idx);
+      data.strings.push(translateState(shortState));
+      stringIndexes.set(shortState, idx);
       return idx;
     }
 
@@ -120,7 +121,7 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
 
       data.starts[row] = fromNs(startNsQ);
       data.ends[row] = fromNs(endNsQ);
-      data.state[row] = internString(state);
+      data.state[row] = internState(state);
       data.cpu[row] = cpu;
     }
     return data;
