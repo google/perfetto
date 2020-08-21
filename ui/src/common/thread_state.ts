@@ -31,7 +31,7 @@ const states: {[key: string]: string} = {
 
 export function translateState(state: string|undefined) {
   if (state === undefined) return '';
-  if (state === 'Running' || state === 'Various states') {
+  if (state === 'Running') {
     return state;
   }
   let result = states[state[0]];
