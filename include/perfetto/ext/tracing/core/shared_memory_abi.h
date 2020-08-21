@@ -143,6 +143,8 @@ namespace perfetto {
 
 class SharedMemoryABI {
  public:
+  static constexpr size_t kMinPageSize = 4 * 1024;
+
   // This is due to Chunk::size being 16 bits.
   static constexpr size_t kMaxPageSize = 64 * 1024;
 

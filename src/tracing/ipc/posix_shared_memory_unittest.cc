@@ -43,12 +43,12 @@ bool IsFileDescriptorClosed(int fd) {
 TEST(PosixSharedMemoryTest, DestructorUnmapsMemory) {
   PosixSharedMemory::Factory factory;
   std::unique_ptr<SharedMemory> shm =
-      factory.CreateSharedMemory(base::kPageSize);
+      factory.CreateSharedMemory(base::GetSysPageSize());
   ASSERT_NE(shm.get(), nullptr);
   void* const shm_start = shm->start();
   const size_t shm_size = shm->size();
   ASSERT_NE(nullptr, shm_start);
-  ASSERT_EQ(base::kPageSize, shm_size);
+  ASSERT_EQ(base::GetSysPageSize(), shm_size);
 
   memcpy(shm_start, "test", 5);
   ASSERT_TRUE(base::vm_test_utils::IsMapped(shm_start, shm_size));
@@ -59,11 +59,11 @@ TEST(PosixSharedMemoryTest, DestructorUnmapsMemory) {
 
 TEST(PosixSharedMemoryTest, DestructorClosesFD) {
   std::unique_ptr<PosixSharedMemory> shm =
-      PosixSharedMemory::Create(base::kPageSize);
+      PosixSharedMemory::Create(base::GetSysPageSize());
   ASSERT_NE(shm.get(), nullptr);
   int fd = shm->fd();
   ASSERT_GE(fd, 0);
-  ASSERT_EQ(static_cast<off_t>(base::kPageSize), lseek(fd, 0, SEEK_END));
+  ASSERT_EQ(static_cast<off_t>(base::GetSysPageSize()), lseek(fd, 0, SEEK_END));
 
   shm.reset();
   ASSERT_TRUE(IsFileDescriptorClosed(fd));
@@ -72,7 +72,7 @@ TEST(PosixSharedMemoryTest, DestructorClosesFD) {
 TEST(PosixSharedMemoryTest, AttachToFdWithoutSeals) {
   base::TempFile tmp_file = base::TempFile::CreateUnlinked();
   const int fd_num = tmp_file.fd();
-  ASSERT_EQ(0, ftruncate(fd_num, base::kPageSize));
+  ASSERT_EQ(0, ftruncate(fd_num, static_cast<off_t>(base::GetSysPageSize())));
   ASSERT_EQ(7, base::WriteAll(fd_num, "foobar", 7));
 
   std::unique_ptr<PosixSharedMemory> shm = PosixSharedMemory::AttachToFd(
@@ -81,7 +81,7 @@ TEST(PosixSharedMemoryTest, AttachToFdWithoutSeals) {
   void* const shm_start = shm->start();
   const size_t shm_size = shm->size();
   ASSERT_NE(nullptr, shm_start);
-  ASSERT_EQ(base::kPageSize, shm_size);
+  ASSERT_EQ(base::GetSysPageSize(), shm_size);
   ASSERT_EQ(0, memcmp("foobar", shm_start, 7));
 
   ASSERT_FALSE(IsFileDescriptorClosed(fd_num));
@@ -94,7 +94,7 @@ TEST(PosixSharedMemoryTest, AttachToFdWithoutSeals) {
 TEST(PosixSharedMemoryTest, AttachToFdRequiresSeals) {
   base::TempFile tmp_file = base::TempFile::CreateUnlinked();
   const int fd_num = tmp_file.fd();
-  ASSERT_EQ(0, ftruncate(fd_num, base::kPageSize));
+  ASSERT_EQ(0, ftruncate(fd_num, static_cast<off_t>(base::GetSysPageSize())));
 
   std::unique_ptr<PosixSharedMemory> shm =
       PosixSharedMemory::AttachToFd(tmp_file.ReleaseFD());
@@ -108,12 +108,15 @@ TEST(PosixSharedMemoryTest, AttachToFdRequiresSeals) {
 }
 
 TEST(PosixSharedMemoryTest, CreateAndMap) {
+  // Deliberately trying to cover cases where the shm size is smaller than the
+  // system page size (crbug.com/1116576).
+  const size_t kLessThanAPage = 2048;
   std::unique_ptr<PosixSharedMemory> shm =
-      PosixSharedMemory::Create(base::kPageSize);
+      PosixSharedMemory::Create(kLessThanAPage);
   void* const shm_start = shm->start();
   const size_t shm_size = shm->size();
   ASSERT_NE(shm_start, nullptr);
-  ASSERT_EQ(shm_size, base::kPageSize);
+  ASSERT_EQ(shm_size, kLessThanAPage);
 
   memcpy(shm_start, "test", 5);
   ASSERT_TRUE(base::vm_test_utils::IsMapped(shm_start, shm_size));
