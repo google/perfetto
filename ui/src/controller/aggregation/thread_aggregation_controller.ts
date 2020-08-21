@@ -15,6 +15,7 @@
 import {ColumnDef, ThreadStateExtra} from '../../common/aggregation_data';
 import {Engine} from '../../common/engine';
 import {Sorting, TimestampedAreaSelection} from '../../common/state';
+import {translateState} from '../../common/thread_state';
 import {toNs} from '../../common/time';
 import {
   Config,
@@ -88,7 +89,7 @@ export class ThreadAggregationController extends AggregationController {
       totalMs: 0
     };
     for (let row = 0; row < numRows; row++) {
-      summary.states.push(result.columns[0].stringValues![row]);
+      summary.states.push(translateState(result.columns[0].stringValues![row]));
       summary.values[row] = result.columns[1].longValues![row] / 1000000;  // ms
     }
     summary.totalMs = summary.values.reduce((a, b) => a + b, 0);

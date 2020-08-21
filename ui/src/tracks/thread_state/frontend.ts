@@ -16,7 +16,6 @@ import {search, searchEq} from '../../base/binary_search';
 import {Actions} from '../../common/actions';
 import {cropText} from '../../common/canvas_utils';
 import {TrackState} from '../../common/state';
-import {translateState} from '../../common/thread_state';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {colorForState} from '../../frontend/colorizer';
 import {globals} from '../../frontend/globals';
@@ -80,7 +79,6 @@ class ThreadStateTrack extends Track<Config, Data> {
       const rectEnd = timeScale.timeToPx(tEnd);
 
       const color = colorForState(state);
-      const text = translateState(state);
 
       let colorStr = `hsl(${color.h},${color.s}%,${color.l}%)`;
       if (color.a) {
@@ -92,8 +90,8 @@ class ThreadStateTrack extends Track<Config, Data> {
       ctx.fillRect(rectStart, MARGIN_TOP, rectWidth, RECT_HEIGHT);
 
       // Don't render text when we have less than 10px to play with.
-      if (rectWidth < 10 || text === 'Sleeping') continue;
-      const title = cropText(text, charWidth, rectWidth);
+      if (rectWidth < 10 || state === 'Sleeping') continue;
+      const title = cropText(state, charWidth, rectWidth);
       const rectXCenter = rectStart + rectWidth / 2;
       ctx.fillStyle = color.l > 80 ? '#404040' : '#fff';
       ctx.fillText(title, rectXCenter, MARGIN_TOP + RECT_HEIGHT / 2 + 3);
