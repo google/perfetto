@@ -27,6 +27,15 @@
 #include <sys/types.h>
 #endif
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#include <unistd.h>  // For getpagesize().
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+#include <mach/vm_page_size.h>
+#endif
+
+#include <atomic>
+
 #define PERFETTO_EINTR(x)                                   \
   ([&] {                                                    \
     decltype(x) eintr_wrapper_result;                       \
@@ -53,7 +62,36 @@ constexpr uid_t kInvalidUid = static_cast<uid_t>(-1);
 constexpr pid_t kInvalidPid = static_cast<pid_t>(-1);
 #endif
 
+// Do not add new usages of kPageSize, consider using GetSysPageSize() below.
+// TODO(primiano): over time the semantic of kPageSize became too ambiguous.
+// Strictly speaking, this constant is incorrect on some new devices where the
+// page size can be 16K (e.g., crbug.com/1116576). Unfortunately too much code
+// ended up depending on kPageSize for purposes that are not strictly related
+// with the kernel's mm subsystem.
 constexpr size_t kPageSize = 4096;
+
+// Returns the system's page size. Use this when dealing with mmap, madvise and
+// similar mm-related syscalls.
+inline uint32_t GetSysPageSize() {
+  ignore_result(kPageSize);  // Just to keep the amalgamated build happy.
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  static std::atomic<uint32_t> page_size{0};
+  // This function might be called in hot paths. Avoid calling getpagesize() all
+  // the times, in many implementations getpagesize() calls sysconf() which is
+  // not cheap.
+  uint32_t cached_value = page_size.load(std::memory_order_relaxed);
+  if (PERFETTO_UNLIKELY(cached_value == 0)) {
+    cached_value = static_cast<uint32_t>(getpagesize());
+    page_size.store(cached_value, std::memory_order_relaxed);
+  }
+  return cached_value;
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+  return static_cast<uint32_t>(vm_page_size);
+#else
+  return 4096;
+#endif
+}
 
 template <typename T>
 constexpr size_t ArraySize(const T& array) {

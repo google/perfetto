@@ -24,8 +24,7 @@
 
 namespace perfetto {
 
-NullTraceWriter::NullTraceWriter()
-    : delegate_(base::kPageSize), stream_(&delegate_) {
+NullTraceWriter::NullTraceWriter() : delegate_(4096), stream_(&delegate_) {
   cur_packet_.reset(new protozero::RootMessage<protos::pbzero::TracePacket>());
   cur_packet_->Finalize();  // To avoid the DCHECK in NewTracePacket().
 }

@@ -33,7 +33,7 @@ TEST(NullTraceWriterTest, WriterIdIsZero) {
 
 TEST(NullTraceWriterTest, Writing) {
   NullTraceWriter writer;
-  for (size_t i = 0; i < 3 * base::kPageSize; i++) {
+  for (size_t i = 0; i < 10000; i++) {
     auto packet = writer.NewTracePacket();
     packet->set_for_testing()->set_str("Hello, world!");
   }

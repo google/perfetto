@@ -34,39 +34,47 @@ namespace base {
 
 namespace {
 
-constexpr size_t kGuardSize = kPageSize;
-
 #if TRACK_COMMITTED_SIZE()
-constexpr size_t kCommitChunkSize = kPageSize * 1024;  // 4mB
-#endif                                                 // TRACK_COMMITTED_SIZE()
+constexpr size_t kCommitChunkSize = 4 * 1024 * 1024;  // 4MB
+#endif
+
+size_t RoundUpToSysPageSize(size_t req_size) {
+  const size_t page_size = GetSysPageSize();
+  return (req_size + page_size - 1) & ~(page_size - 1);
+}
+
+size_t GuardSize() {
+  return GetSysPageSize();
+}
 
 }  // namespace
 
 // static
-PagedMemory PagedMemory::Allocate(size_t size, int flags) {
-  PERFETTO_DCHECK(size % kPageSize == 0);
-  size_t outer_size = size + kGuardSize * 2;
+PagedMemory PagedMemory::Allocate(size_t req_size, int flags) {
+  size_t rounded_up_size = RoundUpToSysPageSize(req_size);
+  PERFETTO_CHECK(rounded_up_size >= req_size);
+  size_t outer_size = rounded_up_size + GuardSize() * 2;
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   void* ptr = VirtualAlloc(nullptr, outer_size, MEM_RESERVE, PAGE_NOACCESS);
   if (!ptr && (flags & kMayFail))
     return PagedMemory();
   PERFETTO_CHECK(ptr);
-  char* usable_region = reinterpret_cast<char*>(ptr) + kGuardSize;
+  char* usable_region = reinterpret_cast<char*>(ptr) + GuardSize();
 #else   // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   void* ptr = mmap(nullptr, outer_size, PROT_READ | PROT_WRITE,
                    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (ptr == MAP_FAILED && (flags & kMayFail))
     return PagedMemory();
   PERFETTO_CHECK(ptr && ptr != MAP_FAILED);
-  char* usable_region = reinterpret_cast<char*>(ptr) + kGuardSize;
-  int res = mprotect(ptr, kGuardSize, PROT_NONE);
-  res |= mprotect(usable_region + size, kGuardSize, PROT_NONE);
+  char* usable_region = reinterpret_cast<char*>(ptr) + GuardSize();
+  int res = mprotect(ptr, GuardSize(), PROT_NONE);
+  res |= mprotect(usable_region + rounded_up_size, GuardSize(), PROT_NONE);
   PERFETTO_CHECK(res == 0);
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 
-  auto memory = PagedMemory(usable_region, size);
+  auto memory = PagedMemory(usable_region, req_size);
 #if TRACK_COMMITTED_SIZE()
-  size_t initial_commit = size;
+  size_t initial_commit = req_size;
   if (flags & kDontCommit)
     initial_commit = std::min(initial_commit, kCommitChunkSize);
   memory.EnsureCommitted(initial_commit);
@@ -97,12 +105,12 @@ PagedMemory::~PagedMemory() {
   if (!p_)
     return;
   PERFETTO_CHECK(size_);
-  char* start = p_ - kGuardSize;
+  char* start = p_ - GuardSize();
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   BOOL res = VirtualFree(start, 0, MEM_RELEASE);
   PERFETTO_CHECK(res != 0);
 #else   // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-  const size_t outer_size = size_ + kGuardSize * 2;
+  const size_t outer_size = RoundUpToSysPageSize(size_) + GuardSize() * 2;
   int res = munmap(start, outer_size);
   PERFETTO_CHECK(res == 0);
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
