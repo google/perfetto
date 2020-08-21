@@ -86,15 +86,15 @@ export class AggregationPanel extends Panel<AggregationPanelAttrs> {
   getFormattedData(data: AggregateData, rowIndex: number, columnIndex: number) {
     switch (data.columns[columnIndex].kind) {
       case 'STRING':
-        return `${data.strings[data.columns[columnIndex].data[rowIndex]]}`;
+        return data.strings[data.columns[columnIndex].data[rowIndex]];
       case 'TIMESTAMP_NS':
         return `${data.columns[columnIndex].data[rowIndex] / 1000000}`;
       case 'STATE':
         return translateState(
-            `${data.strings[data.columns[columnIndex].data[rowIndex]]}`);
+            data.strings[data.columns[columnIndex].data[rowIndex]]);
       case 'NUMBER':
       default:
-        return `${data.columns[columnIndex].data[rowIndex]}`;
+        return data.columns[columnIndex].data[rowIndex];
     }
   }
 
@@ -122,7 +122,7 @@ export class AggregationPanel extends Panel<AggregationPanelAttrs> {
                 width: `${width}%`
               }
             },
-            `${translateState(data.states[i])}: ${data.values[i]} ms`));
+            `${data.states[i]}: ${data.values[i]} ms`));
     }
     return m('.states', states);
   }
