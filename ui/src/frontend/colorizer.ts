@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {hsl} from 'color-convert';
-import {translateState} from '../common/thread_state';
 import {ThreadDesc} from './globals';
 
 export interface Color {
@@ -97,8 +96,7 @@ const INDIGO: Color = {
   l: 48
 };
 
-export function colorForState(stateCode: string): Readonly<Color> {
-  const state = translateState(stateCode);
+export function colorForState(state: string): Readonly<Color> {
   if (state === 'Running') {
     return DARK_GREEN;
   } else if (state.startsWith('Runnable')) {
