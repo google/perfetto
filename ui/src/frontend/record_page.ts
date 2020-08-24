@@ -882,7 +882,6 @@ export const ConfigTitleState = {
 function Configurations(cssClass: string) {
   return m(
       `.record-section${cssClass}`,
-      {style: {display: 'block'}},  // Doesn't work inside a css class.
       m('header', 'Save and load configurations'),
       m('.input-config',
         [
