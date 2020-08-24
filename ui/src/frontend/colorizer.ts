@@ -64,6 +64,12 @@ export function hueForCpu(cpu: number): number {
   return (128 + (32 * cpu)) % 256;
 }
 
+const DESAT_RED: Color = {
+  c: 'desat red',
+  h: 3,
+  s: 30,
+  l: 49
+};
 const DARK_GREEN: Color = {
   c: 'dark green',
   h: 120,
@@ -102,6 +108,9 @@ export function colorForState(state: string): Readonly<Color> {
   } else if (state.startsWith('Runnable')) {
     return LIME_GREEN;
   } else if (state.includes('Uninterruptible Sleep')) {
+    if (state.includes('non-IO')) {
+      return DESAT_RED;
+    }
     return ORANGE;
   } else if (state.includes('Sleeping')) {
     return TRANSPARENT_WHITE;
