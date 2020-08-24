@@ -83,6 +83,21 @@ struct TracingInitArgs {
   // Must be one of [4, 8, 16, 32].
   uint32_t shmem_page_size_hint_kb = 0;
 
+  // [Optional] The length of the period during which shared-memory-buffer
+  // chunks that have been filled with data are accumulated (batched) on the
+  // producer side, before the service is notified of them over an out-of-band
+  // IPC call. If, while this period lasts, the shared memory buffer gets too
+  // full, the IPC call will be sent immediately. The value of this parameter is
+  // a trade-off between IPC traffic overhead and the ability to sustain bursts
+  // of trace writes. The higher the value, the more chunks will be batched and
+  // the less buffer space will be available to hide the latency of the service,
+  // and vice versa. For more details, see the SetBatchCommitsDuration method in
+  // shared_memory_arbiter.h.
+  //
+  // Note: With the default value of 0ms, batching still happens but with a zero
+  // delay, i.e. commits will be sent to the service at the next opportunity.
+  uint32_t shmem_batch_commits_duration_ms = 0;
+
  protected:
   friend class Tracing;
   friend class internal::TracingMuxerImpl;
