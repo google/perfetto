@@ -89,9 +89,14 @@ export class AggregationPanel extends Panel<AggregationPanelAttrs> {
         return data.strings[data.columns[columnIndex].data[rowIndex]];
       case 'TIMESTAMP_NS':
         return `${data.columns[columnIndex].data[rowIndex] / 1000000}`;
-      case 'STATE':
-        return translateState(
-            data.strings[data.columns[columnIndex].data[rowIndex]]);
+      case 'STATE': {
+        const concatState =
+            data.strings[data.columns[columnIndex].data[rowIndex]];
+        const split = concatState.split(',');
+        const ioWait =
+            split[1] === 'NULL' ? undefined : !!Number.parseInt(split[1], 10);
+        return translateState(split[0], ioWait);
+      }
       case 'NUMBER':
       default:
         return data.columns[columnIndex].data[rowIndex];
