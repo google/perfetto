@@ -39,7 +39,7 @@ namespace trace_processor {
 
 namespace {
 
-constexpr char kBindAddr[] = "127.0.0.1:9001";
+constexpr char kBindPort[] = "9001";
 
 // 32 MiB payload + 128K for HTTP headers.
 constexpr size_t kMaxRequestSize = (32 * 1024 + 128) * 1024;
@@ -68,7 +68,7 @@ class HttpServer : public base::UnixSocket::EventListener {
  public:
   explicit HttpServer(std::unique_ptr<TraceProcessor>);
   ~HttpServer() override;
-  void Run();
+  void Run(const char*, const char*);
 
  private:
   size_t ParseOneHttpRequest(Client* client);
@@ -82,7 +82,8 @@ class HttpServer : public base::UnixSocket::EventListener {
 
   Rpc trace_processor_rpc_;
   base::UnixTaskRunner task_runner_;
-  std::unique_ptr<base::UnixSocket> sock_;
+  std::unique_ptr<base::UnixSocket> sock4_;
+  std::unique_ptr<base::UnixSocket> sock6_;
   std::vector<Client> clients_;
 };
 
@@ -126,11 +127,16 @@ HttpServer::HttpServer(std::unique_ptr<TraceProcessor> preloaded_instance)
     : trace_processor_rpc_(std::move(preloaded_instance)) {}
 HttpServer::~HttpServer() = default;
 
-void HttpServer::Run() {
-  PERFETTO_ILOG("[HTTP] Starting RPC server on %s", kBindAddr);
-  sock_ = base::UnixSocket::Listen(kBindAddr, this, &task_runner_,
-                                   base::SockFamily::kInet,
-                                   base::SockType::kStream);
+void HttpServer::Run(const char* kBindAddr4, const char* kBindAddr6) {
+  PERFETTO_ILOG("[HTTP] Starting RPC server on %s and %s", kBindAddr4,
+                kBindAddr6);
+  sock4_ = base::UnixSocket::Listen(kBindAddr4, this, &task_runner_,
+                                    base::SockFamily::kInet,
+                                    base::SockType::kStream);
+  sock6_ = base::UnixSocket::Listen(kBindAddr6, this, &task_runner_,
+                                    base::SockFamily::kInet6Only,
+                                    base::SockType::kStream);
+  PERFETTO_CHECK(sock4_->is_listening() || sock6_->is_listening());
   task_runner_.Run();
 }
 
@@ -339,9 +345,13 @@ void HttpServer::HandleRequest(Client* client, const HttpRequest& req) {
 
 }  // namespace
 
-void RunHttpRPCServer(std::unique_ptr<TraceProcessor> preloaded_instance) {
+void RunHttpRPCServer(std::unique_ptr<TraceProcessor> preloaded_instance,
+                      std::string port_number) {
   HttpServer srv(std::move(preloaded_instance));
-  srv.Run();
+  std::string port = port_number.empty() ? kBindPort : port_number;
+  std::string ipv4_addr = "127.0.0.1:" + port;
+  std::string ipv6_addr = "[::1]:" + port;
+  srv.Run(ipv4_addr.c_str(), ipv6_addr.c_str());
 }
 
 }  // namespace trace_processor

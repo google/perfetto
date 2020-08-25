@@ -21,15 +21,26 @@ from urllib import request, error
 from .loader import get_loader
 
 
-def load_shell(bin_path=None):
+def load_shell(bin_path=None, unique_port=False):
   shell_path = get_loader().get_shell_path(bin_path=bin_path)
-  p = subprocess.Popen([shell_path, '-D'], stdout=subprocess.DEVNULL)
+  port, url = get_loader().get_free_port(unique_port=unique_port)
+  p = subprocess.Popen([shell_path, '-D', '--http-port', port],
+                       stdout=subprocess.DEVNULL)
 
   while True:
     try:
-      req = request.urlretrieve('http://localhost:9001/status')
+      if p.poll() != None:
+        if unique_port:
+          raise Exception(
+              "Random port allocation failed, please file a bug at https://goto.google.com/perfetto-bug"
+          )
+        raise Exception(
+            "Trace processor failed to start, please file a bug at https://goto.google.com/perfetto-bug"
+        )
+      req = request.urlretrieve(f'http://{url}/status')
       time.sleep(1)
       break
     except error.URLError:
       pass
-  return 'localhost:9001', p
+
+  return url, p
