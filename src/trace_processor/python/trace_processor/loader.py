@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import os
+import socket
 import subprocess
 import tempfile
 from urllib import request
@@ -27,6 +28,9 @@ class LoaderStandalone:
 
   # URL to download script to run trace_processor
   SHELL_URL = 'http://get.perfetto.dev/trace_processor'
+
+  # Default port that trace_processor_shell runs on
+  TP_PORT = '9001'
 
   def read_tp_descriptor():
     ws = os.path.dirname(__file__)
@@ -63,6 +67,16 @@ class LoaderStandalone:
       if not os.path.isfile(bin_path):
         raise Exception('Path to binary is not valid')
       return bin_path
+
+  def get_free_port(unique_port=False):
+    if not unique_port:
+      return LoaderStandalone.TP_PORT, f'localhost:{LoaderStandalone.TP_PORT}'
+    free_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    free_socket.bind(('', 0))
+    free_socket.listen(5)
+    port = free_socket.getsockname()[1]
+    free_socket.close()
+    return str(port), f"localhost:{str(port)}"
 
 
 # Return vendor class if it exists before falling back on LoaderStandalone
