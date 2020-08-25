@@ -27,6 +27,7 @@
 #include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/thread_checker.h"
 #include "perfetto/ext/base/waitable_event.h"
+#include "perfetto/ext/tracing/core/shared_memory_arbiter.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/ext/tracing/core/trace_stats.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
@@ -65,9 +66,13 @@ uint64_t ComputeConfigHash(const DataSourceConfig& config) {
 }  // namespace
 
 // ----- Begin of TracingMuxerImpl::ProducerImpl
-TracingMuxerImpl::ProducerImpl::ProducerImpl(TracingMuxerImpl* muxer,
-                                             TracingBackendId backend_id)
-    : muxer_(muxer), backend_id_(backend_id) {}
+TracingMuxerImpl::ProducerImpl::ProducerImpl(
+    TracingMuxerImpl* muxer,
+    TracingBackendId backend_id,
+    uint32_t shmem_batch_commits_duration_ms)
+    : muxer_(muxer),
+      backend_id_(backend_id),
+      shmem_batch_commits_duration_ms_(shmem_batch_commits_duration_ms) {}
 TracingMuxerImpl::ProducerImpl::~ProducerImpl() = default;
 
 void TracingMuxerImpl::ProducerImpl::Initialize(
@@ -99,6 +104,8 @@ void TracingMuxerImpl::ProducerImpl::OnDisconnect() {
 
 void TracingMuxerImpl::ProducerImpl::OnTracingSetup() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
+  service_->MaybeSharedMemoryArbiter()->SetBatchCommitsDuration(
+      shmem_batch_commits_duration_ms_);
 }
 
 void TracingMuxerImpl::ProducerImpl::SetupDataSource(
@@ -479,7 +486,8 @@ void TracingMuxerImpl::Initialize(const TracingInitArgs& args) {
     rb.backend = backend;
     rb.id = backend_id;
     rb.type = type;
-    rb.producer.reset(new ProducerImpl(this, backend_id));
+    rb.producer.reset(new ProducerImpl(this, backend_id,
+                                       args.shmem_batch_commits_duration_ms));
     TracingBackend::ConnectProducerArgs conn_args;
     conn_args.producer = rb.producer.get();
     conn_args.producer_name = platform_->GetCurrentProcessName();
@@ -716,8 +724,12 @@ void TracingMuxerImpl::StopDataSource_AsyncEnd(
   // |backends_| is append-only, Backend instances are always valid.
   PERFETTO_CHECK(backend_id < backends_.size());
   ProducerImpl* producer = backends_[backend_id].producer.get();
-  if (producer && producer->connected_)
+  if (producer && producer->connected_) {
+    // Flush any commits that might have been batched by SharedMemoryArbiter.
+    producer->service_->MaybeSharedMemoryArbiter()
+        ->FlushPendingCommitDataRequests();
     producer->service_->NotifyDataSourceStopped(instance_id);
+  }
 }
 
 void TracingMuxerImpl::DestroyStoppedTraceWritersForCurrentThread() {
