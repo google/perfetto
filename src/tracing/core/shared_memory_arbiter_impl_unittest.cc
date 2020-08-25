@@ -35,8 +35,9 @@
 
 namespace perfetto {
 
-using testing::Invoke;
 using testing::_;
+using testing::Invoke;
+using testing::Mock;
 
 class MockProducerEndpoint : public TracingService::ProducerEndpoint {
  public:
@@ -144,6 +145,69 @@ TEST_P(SharedMemoryArbiterImplTest, GetAndReturnChunks) {
       }));
   arbiter_->ReturnCompletedChunk(std::move(chunks[28]), 43, &ignored);
   task_runner_->RunUntilCheckpoint("on_commit_2");
+}
+
+TEST_P(SharedMemoryArbiterImplTest, BatchCommits) {
+  SharedMemoryArbiterImpl::set_default_layout_for_testing(
+      SharedMemoryABI::PageLayout::kPageDiv1);
+
+  // Batching period is 0s - chunks are being committed as soon as they are
+  // returned.
+  SharedMemoryABI::Chunk chunk =
+      arbiter_->GetNewChunk({}, BufferExhaustedPolicy::kDefault);
+  ASSERT_TRUE(chunk.is_valid());
+  EXPECT_CALL(mock_producer_endpoint_, CommitData(_, _)).Times(1);
+  PatchList ignored;
+  arbiter_->ReturnCompletedChunk(std::move(chunk), 0, &ignored);
+  task_runner_->RunUntilIdle();
+  ASSERT_TRUE(Mock::VerifyAndClearExpectations(&mock_producer_endpoint_));
+
+  // Since we cannot explicitly control the passage of time in task_runner_, to
+  // simulate a batching period and a commit at the end of it, set the batching
+  // duration to a very large value and call FlushPendingCommitDataRequests to
+  // manually trigger the commit.
+  arbiter_->SetBatchCommitsDuration(UINT32_MAX);
+
+  // First chunk that will be batched. CommitData should not be called
+  // immediately this time.
+  chunk = arbiter_->GetNewChunk({}, BufferExhaustedPolicy::kDefault);
+  ASSERT_TRUE(chunk.is_valid());
+  EXPECT_CALL(mock_producer_endpoint_, CommitData(_, _)).Times(0);
+  arbiter_->ReturnCompletedChunk(std::move(chunk), 1, &ignored);
+  task_runner_->RunUntilIdle();
+  ASSERT_TRUE(Mock::VerifyAndClearExpectations(&mock_producer_endpoint_));
+
+  // Add a second chunk to the batch. This should also not trigger an immediate
+  // call to CommitData.
+  chunk = arbiter_->GetNewChunk({}, BufferExhaustedPolicy::kDefault);
+  ASSERT_TRUE(chunk.is_valid());
+  EXPECT_CALL(mock_producer_endpoint_, CommitData(_, _)).Times(0);
+  arbiter_->ReturnCompletedChunk(std::move(chunk), 2, &ignored);
+  task_runner_->RunUntilIdle();
+  ASSERT_TRUE(Mock::VerifyAndClearExpectations(&mock_producer_endpoint_));
+
+  // Make sure that CommitData gets called once (should happen at the end
+  // of the batching period), with the two chunks in the batch.
+  EXPECT_CALL(mock_producer_endpoint_, CommitData(_, _))
+      .WillOnce(Invoke([](const CommitDataRequest& req,
+                          MockProducerEndpoint::CommitDataCallback) {
+        ASSERT_EQ(2, req.chunks_to_move_size());
+
+        // Verify that this is the first chunk that we expect to have been
+        // batched.
+        ASSERT_EQ(1u, req.chunks_to_move()[0].page());
+        ASSERT_EQ(0u, req.chunks_to_move()[0].chunk());
+        ASSERT_EQ(1u, req.chunks_to_move()[0].target_buffer());
+
+        // Verify that this is the second chunk that we expect to have been
+        // batched.
+        ASSERT_EQ(2u, req.chunks_to_move()[1].page());
+        ASSERT_EQ(0u, req.chunks_to_move()[1].chunk());
+        ASSERT_EQ(2u, req.chunks_to_move()[1].target_buffer());
+      }));
+
+  // Pretend we've reached the end of the batching period.
+  arbiter_->FlushPendingCommitDataRequests();
 }
 
 // Helper for verifying trace writer id allocations.
