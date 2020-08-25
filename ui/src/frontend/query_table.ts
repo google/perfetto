@@ -24,6 +24,7 @@ import {copyToClipboard} from './clipboard';
 import {globals} from './globals';
 import {Panel} from './panel';
 import {
+  findUiTrackId,
   horizontalScrollAndZoomToRange,
   verticalScrollToTrack
 } from './scroll_helper';
@@ -42,15 +43,6 @@ class QueryTableRow implements m.ClassComponent<QueryTableRowAttrs> {
     return true;
   }
 
-  static findUiTrackId(traceTrackId: number) {
-    for (const [uiTrackId, trackState] of Object.entries(
-             globals.state.tracks)) {
-      const config = trackState.config as {trackId: number};
-      if (config.trackId === traceTrackId) return uiTrackId;
-    }
-    return null;
-  }
-
   static rowOnClickHandler(event: Event, row: Row) {
     // TODO(dproy): Make click handler work from analyze page.
     if (globals.state.route !== '/viewer') return;
@@ -63,7 +55,7 @@ class QueryTableRow implements m.ClassComponent<QueryTableRowAttrs> {
     const sliceDur = fromNs(Math.max(row.dur as number, 1));
     const sliceEnd = sliceStart + sliceDur;
     const trackId = row.track_id as number;
-    const uiTrackId = this.findUiTrackId(trackId);
+    const uiTrackId = findUiTrackId(trackId);
     if (uiTrackId === null) return;
     verticalScrollToTrack(uiTrackId, true);
     horizontalScrollAndZoomToRange(sliceStart, sliceEnd);
