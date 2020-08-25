@@ -39,7 +39,7 @@ class TaskRunner;
 // assuming that these enum values match the sysroot's SOCK_xxx defines rather
 // than using GetSockType() / GetSockFamily().
 enum class SockType { kStream = 100, kDgram, kSeqPacket };
-enum class SockFamily { kUnix = 200, kInet };
+enum class SockFamily { kUnix = 200, kInet, kInet6Only };
 
 // UnixSocketRaw is a basic wrapper around UNIX sockets. It exposes wrapper
 // methods that take care of most common pitfalls (e.g., marking fd as
