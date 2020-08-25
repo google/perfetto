@@ -255,6 +255,11 @@
   }
 }
 
+.flow-link:hover {
+  cursor: pointer;
+  text-decoration: underline;
+}
+
 table.half-width {
   max-width: 50%;
 }
