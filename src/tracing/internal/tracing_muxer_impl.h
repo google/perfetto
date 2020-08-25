@@ -137,7 +137,9 @@ class TracingMuxerImpl : public TracingMuxer {
   // because the Producer virtual methods don't allow to identify the service.
   class ProducerImpl : public Producer {
    public:
-    ProducerImpl(TracingMuxerImpl*, TracingBackendId);
+    ProducerImpl(TracingMuxerImpl*,
+                 TracingBackendId,
+                 uint32_t shmem_batch_commits_duration_ms);
     ~ProducerImpl() override;
 
     void Initialize(std::unique_ptr<ProducerEndpoint> endpoint);
@@ -161,6 +163,8 @@ class TracingMuxerImpl : public TracingMuxer {
     TracingMuxerImpl* const muxer_;
     TracingBackendId const backend_id_;
     bool connected_ = false;
+
+    const uint32_t shmem_batch_commits_duration_ms_ = 0;
 
     // Set of data sources that have been actually registered on this producer.
     // This can be a subset of the global |data_sources_|, because data sources

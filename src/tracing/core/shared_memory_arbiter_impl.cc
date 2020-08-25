@@ -249,7 +249,9 @@ void SharedMemoryArbiterImpl::UpdateCommitDataRequest(
     MaybeUnboundBufferID target_buffer,
     PatchList* patch_list) {
   // Note: chunk will be invalid if the call came from SendPatches().
-  base::TaskRunner* task_runner_to_post_callback_on = nullptr;
+  base::TaskRunner* task_runner_to_post_delayed_callback_on = nullptr;
+  // The delay with which the flush will be posted.
+  uint32_t flush_delay_ms = 0;
   base::WeakPtr<SharedMemoryArbiterImpl> weak_this;
   {
     std::lock_guard<std::mutex> scoped_lock(lock_);
@@ -259,9 +261,11 @@ void SharedMemoryArbiterImpl::UpdateCommitDataRequest(
 
       // Flushing the commit is only supported while we're |fully_bound_|. If we
       // aren't, we'll flush when |fully_bound_| is updated.
-      if (fully_bound_) {
+      if (fully_bound_ && !delayed_flush_scheduled_) {
         weak_this = weak_ptr_factory_.GetWeakPtr();
-        task_runner_to_post_callback_on = task_runner_;
+        task_runner_to_post_delayed_callback_on = task_runner_;
+        flush_delay_ms = batch_commits_duration_ms_;
+        delayed_flush_scheduled_ = true;
       }
     }
 
@@ -308,16 +312,40 @@ void SharedMemoryArbiterImpl::UpdateCommitDataRequest(
         patch_list->front().chunk_id == last_chunk_id) {
       last_chunk_req->set_has_more_patches(true);
     }
+
+    // If the buffer is filling up, we don't want to wait for the next delayed
+    // flush to happen. So post a flush for immediate execution.
+    if (fully_bound_ && bytes_pending_commit_ >= shmem_abi_.size() / 2) {
+      weak_this = weak_ptr_factory_.GetWeakPtr();
+      task_runner_to_post_delayed_callback_on = task_runner_;
+      flush_delay_ms = 0;
+    }
   }  // scoped_lock(lock_)
 
-  // We shouldn't post tasks while locked. |task_runner_to_post_callback_on|
-  // remains valid after unlocking, because |task_runner_| is never reset.
-  if (task_runner_to_post_callback_on) {
-    task_runner_to_post_callback_on->PostTask([weak_this] {
-      if (weak_this)
-        weak_this->FlushPendingCommitDataRequests();
-    });
+  // We shouldn't post tasks while locked.
+  // |task_runner_to_post_delayed_callback_on| remains valid after unlocking,
+  // because |task_runner_| is never reset.
+  if (task_runner_to_post_delayed_callback_on) {
+    task_runner_to_post_delayed_callback_on->PostDelayedTask(
+        [weak_this] {
+          if (!weak_this)
+            return;
+          {
+            std::lock_guard<std::mutex> scoped_lock(weak_this.get()->lock_);
+            // Clear |delayed_flush_scheduled_|, allowing the next call to
+            // UpdateCommitDataRequest to start another batching period.
+            weak_this.get()->delayed_flush_scheduled_ = false;
+          }
+          weak_this->FlushPendingCommitDataRequests();
+        },
+        flush_delay_ms);
   }
+}
+
+void SharedMemoryArbiterImpl::SetBatchCommitsDuration(
+    uint32_t batch_commits_duration_ms) {
+  std::lock_guard<std::mutex> scoped_lock(lock_);
+  batch_commits_duration_ms_ = batch_commits_duration_ms;
 }
 
 // This function is quite subtle. When making changes keep in mind these two

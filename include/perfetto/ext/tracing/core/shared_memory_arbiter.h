@@ -113,6 +113,37 @@ class PERFETTO_EXPORT SharedMemoryArbiter {
   // committed in the shared memory buffer. Should only be called while bound.
   virtual void NotifyFlushComplete(FlushRequestID) = 0;
 
+  // Sets the duration during which commits are batched. Args:
+  // |batch_commits_duration_ms|: The length of the period, during which commits
+  // by all trace writers are accumulated, before being sent to the service.
+  // When the period ends, all accumulated commits are flushed. On the first
+  // commit after the last flush, another delayed flush is scheduled to run in
+  // |batch_commits_duration_ms|. If an immediate flush occurs (via
+  // FlushPendingCommitDataRequests()) during a batching period, any
+  // accumulated commits up to that point will be sent to the service
+  // immediately. And when the batching period ends, the commits that occurred
+  // after the immediate flush will also be sent to the service.
+  //
+  // If the duration has already been set to a non-zero value before this method
+  // is called, and there is already a scheduled flush with the previously-set
+  // duration, the new duration will take effect after the scheduled flush
+  // occurs.
+  //
+  // If |batch_commits_duration_ms| is non-zero, batched data that hasn't been
+  // sent could be lost at the end of a tracing session. To avoid this,
+  // producers should make sure that FlushPendingCommitDataRequests is called
+  // after the last TraceWriter write and before the service has stopped
+  // listening for commits from the tracing session's data sources (i.e.
+  // data sources should stop asynchronously, see
+  // DataSourceDescriptor.will_notify_on_stop=true).
+  virtual void SetBatchCommitsDuration(uint32_t batch_commits_duration_ms) = 0;
+
+  // Forces an immediate commit of the completed packets, without waiting for
+  // the next task or for a batching period to end. Should only be called while
+  // bound.
+  virtual void FlushPendingCommitDataRequests(
+      std::function<void()> callback = {}) = 0;
+
   // Create a bound arbiter instance. Args:
   // |SharedMemory|: the shared memory buffer to use.
   // |page_size|: a multiple of 4KB that defines the granularity of tracing
