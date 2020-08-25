@@ -68,13 +68,14 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
         ts,
         max(dur) as dur,
         cpu,
-        state
+        state,
+        io_wait
       from ${this.tableName('thread_state')}
       where
         ts >= ${startNs - this.maxDurNs} and
         ts <= ${endNs}
-      group by tsq, state
-      order by tsq, state
+      group by tsq, state, io_wait
+      order by tsq, state, io_wait
     `;
 
     const result = await this.query(query);
@@ -93,11 +94,11 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
     };
 
     const stringIndexes = new Map<string, number>();
-    function internState(shortState: string) {
+    function internState(shortState: string, ioWait: boolean|undefined) {
       let idx = stringIndexes.get(shortState);
       if (idx !== undefined) return idx;
       idx = data.strings.length;
-      data.strings.push(translateState(shortState));
+      data.strings.push(translateState(shortState, ioWait));
       stringIndexes.set(shortState, idx);
       return idx;
     }
@@ -114,6 +115,8 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
 
       const cpu = cols[3].isNulls![row] ? -1 : cols[3].longValues![row];
       const state = cols[4].stringValues![row];
+      const ioWait =
+          cols[5].isNulls![row] ? undefined : !!cols[5].longValues![row];
 
       // We should never have the end timestamp being the same as the bucket
       // start.
@@ -121,7 +124,7 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
 
       data.starts[row] = fromNs(startNsQ);
       data.ends[row] = fromNs(endNsQ);
-      data.state[row] = internState(state);
+      data.state[row] = internState(state, ioWait);
       data.cpu[row] = cpu;
     }
     return data;

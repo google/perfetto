@@ -29,12 +29,18 @@ const states: {[key: string]: string} = {
   '+': '(Preempted)'
 };
 
-export function translateState(state: string|undefined) {
+export function translateState(
+    state: string|undefined, ioWait: boolean|undefined = undefined) {
   if (state === undefined) return '';
   if (state === 'Running') {
     return state;
   }
   let result = states[state[0]];
+  if (ioWait === true) {
+    result += ' (IO)';
+  } else if (ioWait === false) {
+    result += ' (non-IO)';
+  }
   for (let i = 1; i < state.length; i++) {
     result += state[i] === '+' ? ' ' : ' + ';
     result += states[state[i]];
