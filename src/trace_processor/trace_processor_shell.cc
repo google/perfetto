@@ -714,6 +714,7 @@ struct CommandLineOptions {
   std::string metric_names;
   std::string metric_output;
   std::string trace_file_path;
+  std::string port_number;
   bool launch_shell = false;
   bool enable_httpd = false;
   bool wide = false;
@@ -802,6 +803,7 @@ Options:
                                       This query is executed before the selected
                                       metrics and can't output any results.
  -D, --httpd                          Enables the HTTP RPC server.
+ --http-port PORT                     Specify what port to run HTTP RPC server.
  -i, --interactive                    Starts interactive mode even after a query
                                       file is specified with -q or
                                       --run-metrics.
@@ -832,6 +834,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
     OPT_PRE_METRICS,
     OPT_METRICS_OUTPUT,
     OPT_FORCE_FULL_SORT,
+    OPT_HTTP_PORT,
   };
 
   static const struct option long_options[] = {
@@ -849,6 +852,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
       {"pre-metrics", required_argument, nullptr, OPT_PRE_METRICS},
       {"metrics-output", required_argument, nullptr, OPT_METRICS_OUTPUT},
       {"full-sort", no_argument, nullptr, OPT_FORCE_FULL_SORT},
+      {"http-port", required_argument, nullptr, OPT_HTTP_PORT},
       {nullptr, 0, nullptr, 0}};
 
   bool explicit_interactive = false;
@@ -926,6 +930,11 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 
     if (option == OPT_FORCE_FULL_SORT) {
       command_line_options.force_full_sort = true;
+      continue;
+    }
+
+    if (option == OPT_HTTP_PORT) {
+      command_line_options.port_number = optarg;
       continue;
     }
 
@@ -1110,7 +1119,7 @@ util::Status TraceProcessorMain(int argc, char** argv) {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_HTTPD)
   if (options.enable_httpd) {
-    RunHttpRPCServer(std::move(tp));
+    RunHttpRPCServer(std::move(tp), options.port_number);
     PERFETTO_FATAL("Should never return");
   }
 #endif
