@@ -21,6 +21,7 @@ import {ChromeSliceDetailsPanel} from './chrome_slice_panel';
 import {CounterDetailsPanel} from './counter_panel';
 import {CpuProfileDetailsPanel} from './cpu_profile_panel';
 import {DragGestureHandler} from './drag_gesture_handler';
+import {FlowEventsPanel} from './flow_events_panel';
 import {globals} from './globals';
 import {HeapProfileDetailsPanel} from './heap_profile_panel';
 import {LogPanel} from './logs_panel';
@@ -66,6 +67,7 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
   private fullscreenHeight = DEFAULT_DETAILS_HEIGHT_PX;
   private tabNames = new Map<string, string>([
     ['current_selection', 'Current Selection'],
+    ['bound_flows', 'Flow Events'],
     ['android_logs', 'Android Logs'],
   ]);
 
@@ -217,6 +219,10 @@ export class DetailsPanel implements m.ClassComponent {
     }
     if (hasLogs()) {
       detailsPanels.set('android_logs', m(LogPanel, {}));
+    }
+
+    if (globals.boundFlows.length > 0) {
+      detailsPanels.set('bound_flows', m(FlowEventsPanel));
     }
 
     for (const [key, value] of globals.aggregateDataStore.entries()) {

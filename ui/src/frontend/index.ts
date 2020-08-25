@@ -35,6 +35,7 @@ import {maybeShowErrorDialog} from './error_dialog';
 import {
   CounterDetails,
   CpuProfileDetails,
+  Flow,
   globals,
   HeapProfileDetails,
   QuantizedLoad,
@@ -120,6 +121,11 @@ class FrontendApi {
 
   publishSliceDetails(click: SliceDetails) {
     globals.sliceDetails = click;
+    this.redraw();
+  }
+
+  publishBoundFlows(boundFlows: Flow[]) {
+    globals.boundFlows = boundFlows;
     this.redraw();
   }
 

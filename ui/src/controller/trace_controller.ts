@@ -47,6 +47,10 @@ import {
   CpuProfileController,
   CpuProfileControllerArgs
 } from './cpu_profile_controller';
+import {
+  FlowEventsController,
+  FlowEventsControllerArgs
+} from './flow_events_controller';
 import {globals} from './globals';
 import {
   HeapProfileController,
@@ -145,6 +149,10 @@ export class TraceController extends Controller<States> {
         const selectionArgs: SelectionControllerArgs = {engine};
         childControllers.push(
             Child('selection', SelectionController, selectionArgs));
+
+        const flowEventsArgs: FlowEventsControllerArgs = {engine};
+        childControllers.push(
+            Child('flowEvents', FlowEventsController, flowEventsArgs));
 
         const cpuProfileArgs: CpuProfileControllerArgs = {engine};
         childControllers.push(

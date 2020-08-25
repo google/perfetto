@@ -48,6 +48,18 @@ export interface SliceDetails {
   description?: Description;
 }
 
+export interface FlowPoint {
+  sliceName: string;
+  sliceId: number;
+  trackId: number;
+  ts: number;
+}
+
+export interface Flow {
+  begin: FlowPoint;
+  end: FlowPoint;
+}
+
 export interface CounterDetails {
   startTime?: number;
   value?: number;
@@ -111,6 +123,7 @@ class Globals {
   private _aggregateDataStore?: AggregateDataStore = undefined;
   private _threadMap?: ThreadMap = undefined;
   private _sliceDetails?: SliceDetails = undefined;
+  private _boundFlows?: Flow[] = undefined;
   private _counterDetails?: CounterDetails = undefined;
   private _heapProfileDetails?: HeapProfileDetails = undefined;
   private _cpuProfileDetails?: CpuProfileDetails = undefined;
@@ -154,6 +167,7 @@ class Globals {
     this._aggregateDataStore = new Map<string, AggregateData>();
     this._threadMap = new Map<number, ThreadDesc>();
     this._sliceDetails = {};
+    this._boundFlows = [];
     this._counterDetails = {};
     this._heapProfileDetails = {};
     this._cpuProfileDetails = {};
@@ -210,6 +224,14 @@ class Globals {
 
   set sliceDetails(click: SliceDetails) {
     this._sliceDetails = assertExists(click);
+  }
+
+  get boundFlows() {
+    return assertExists(this._boundFlows);
+  }
+
+  set boundFlows(click: Flow[]) {
+    this._boundFlows = assertExists(click);
   }
 
   get counterDetails() {
@@ -303,11 +325,11 @@ class Globals {
     return fromNs(Math.pow(2, Math.floor(Math.log2(toNs(pxToSec)))));
   }
 
-  makeSelection(action: DeferredAction<{}>) {
+  makeSelection(action: DeferredAction<{}>, tabToOpen = 'current_selection') {
     // A new selection should cancel the current search selection.
     globals.frontendLocalState.searchIndex = -1;
     globals.frontendLocalState.currentTab =
-        action.type === 'deselect' ? undefined : 'current_selection';
+        action.type === 'deselect' ? undefined : tabToOpen;
     globals.dispatch(action);
   }
 
