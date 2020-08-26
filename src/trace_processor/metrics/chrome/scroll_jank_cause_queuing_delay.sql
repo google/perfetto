@@ -179,9 +179,9 @@ CREATE VIEW descendant_blocking_tasks_queuing_delay AS
   GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15;
 
 -- Create a common name for each "cause" based on the slice stack we found.
-DROP VIEW IF EXISTS scroll_jank_cause_queuing_delay;
+DROP VIEW IF EXISTS scroll_jank_cause_queuing_delay_temp;
 
-CREATE VIEW scroll_jank_cause_queuing_delay AS
+CREATE VIEW scroll_jank_cause_queuing_delay_temp AS
   SELECT
     'InputLatency.LatencyInfo.Flow.QueuingDelay.' ||
     CASE WHEN jank THEN 'Jank' ELSE 'NoJank' END || '.BlockingTasksUs.' ||
@@ -192,3 +192,29 @@ CREATE VIEW scroll_jank_cause_queuing_delay AS
     END || COALESCE("-" || descendant_name, "") AS metric_name,
     base.*
   FROM descendant_blocking_tasks_queuing_delay base;
+
+-- Figure out the average time taken during non-janky scrolls updates for each
+-- TraceEvent (metric_name) stack.
+DROP VIEW IF EXISTS scroll_jank_cause_queuing_delay_average_time;
+
+CREATE VIEW scroll_jank_cause_queuing_delay_average_no_jank_time AS
+  SELECT
+    metric_name,
+    AVG(dur_overlapping_ns) as avg_dur_overlapping_ns
+  FROM scroll_jank_cause_queuing_delay_temp
+  WHERE NOT jank
+  GROUP BY 1;
+
+-- Join every row (jank and non-jank with the average non-jank time for the given
+-- metric_name).
+DROP VIEW IF EXISTS scroll_jank_cause_queuing_delay;
+
+CREATE VIEW scroll_jank_cause_queuing_delay AS
+  SELECT
+    base.*,
+    COALESCE(avg_no_jank.avg_dur_overlapping_ns, 0)
+        AS avg_no_jank_dur_overlapping_ns
+  FROM
+    scroll_jank_cause_queuing_delay_temp base LEFT JOIN
+    scroll_jank_cause_queuing_delay_average_no_jank_time avg_no_jank ON
+        base.metric_name = avg_no_jank.metric_name;
