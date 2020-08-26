@@ -214,13 +214,23 @@ function PowerSettings(cssClass: string) {
 }
 
 function GpuSettings(cssClass: string) {
-  return m(`.record-section${cssClass}`, m(Probe, {
-             title: 'GPU frequency',
-             img: 'rec_cpu_freq.png',
-             descr: 'Records gpu frequency via ftrace',
-             setEnabled: (cfg, val) => cfg.gpuFreq = val,
-             isEnabled: (cfg) => cfg.gpuFreq
-           } as ProbeAttrs));
+  return m(
+      `.record-section${cssClass}`,
+      m(Probe, {
+        title: 'GPU frequency',
+        img: 'rec_cpu_freq.png',
+        descr: 'Records gpu frequency via ftrace',
+        setEnabled: (cfg, val) => cfg.gpuFreq = val,
+        isEnabled: (cfg) => cfg.gpuFreq
+      } as ProbeAttrs),
+      m(Probe, {
+        title: 'GPU memory',
+        img: 'rec_gpu_mem_total.png',
+        descr: `Allows to track per process and global gpu memory total updates
+                via ftrace. (Available on recent Android 11+ kernels)`,
+        setEnabled: (cfg, val) => cfg.gpuMemTotal = val,
+        isEnabled: (cfg) => cfg.gpuMemTotal
+      } as ProbeAttrs));
 }
 
 function CpuSettings(cssClass: string) {
