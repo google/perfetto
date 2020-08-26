@@ -356,6 +356,7 @@ export interface RecordConfig {
   screenRecord: boolean;
 
   gpuFreq: boolean;
+  gpuMemTotal: boolean;
 
   ftrace: boolean;
   atrace: boolean;
@@ -415,6 +416,7 @@ export function createEmptyRecordConfig(): RecordConfig {
     screenRecord: false,
 
     gpuFreq: false,
+    gpuMemTotal: false,
 
     ftrace: false,
     atrace: false,
