@@ -66,7 +66,7 @@ std::vector<protos::gen::TracePacket> ProfileRuntime(std::string app_name) {
   helper.WaitForConsumerConnect();
 
   TraceConfig trace_config;
-  trace_config.add_buffers()->set_size_kb(20 * 1024);
+  trace_config.add_buffers()->set_size_kb(40 * 1024);
   trace_config.set_duration_ms(6000);
   trace_config.set_unique_session_name(RandomSessionName().c_str());
 
