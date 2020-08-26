@@ -25,6 +25,7 @@ function renderPermalink(): m.Children {
   const permalink = globals.state.permalink;
   if (!permalink.requestId || !permalink.hash) return null;
   const url = `${self.location.origin}/#!/?s=${permalink.hash}`;
+
   return m('.alert-permalink', [
     m('div', 'Permalink: ', m(`a[href=${url}]`, url)),
     m('button',

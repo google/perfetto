@@ -13,11 +13,11 @@
 // limitations under the License.
 
 import {createEmptyRecordConfig, RecordConfig} from '../common/state';
-import {RecordConfigStore} from './record_config';
+import {validateRecordConfig} from './validate_config';
 
-test('validateConfig test valid keys config', () => {
+test('validateRecordConfig test valid keys config', () => {
   const config: RecordConfig = createEmptyRecordConfig();
-  const validationResult = RecordConfigStore.validateConfig(config);
+  const validationResult = validateRecordConfig(config);
 
   expect('errorMessage' in validationResult).toEqual(false);
 
@@ -26,9 +26,9 @@ test('validateConfig test valid keys config', () => {
   }
 });
 
-test('validateConfig test no key config', () => {
+test('validateRecordConfig test no key config', () => {
   const emptyRecord: RecordConfig = createEmptyRecordConfig();
-  const validationResult = RecordConfigStore.validateConfig({});
+  const validationResult = validateRecordConfig({});
 
   expect('errorMessage' in validationResult).toEqual(true);
 
@@ -37,9 +37,9 @@ test('validateConfig test no key config', () => {
   }
 });
 
-test('validateConfig test some valid key config', () => {
+test('validateRecordConfig test some valid key config', () => {
   const emptyRecord: RecordConfig = createEmptyRecordConfig();
-  const validationResult = RecordConfigStore.validateConfig({
+  const validationResult = validateRecordConfig({
     'durationMs': 5.0,
     'cpuSched': true,
   });
@@ -57,9 +57,9 @@ test('validateConfig test some valid key config', () => {
   }
 });
 
-test('validateConfig test some invalid key config', () => {
+test('validateRecordConfig test some invalid key config', () => {
   const emptyRecord: RecordConfig = createEmptyRecordConfig();
-  const validationResult = RecordConfigStore.validateConfig({
+  const validationResult = validateRecordConfig({
     'durationMs': 5.0,
     'invalidKey': 0,
     'cpuSched': true,
@@ -81,9 +81,9 @@ test('validateConfig test some invalid key config', () => {
   }
 });
 
-test('validateConfig test only invalid key config', () => {
+test('validateRecordConfig test only invalid key config', () => {
   const emptyRecord: RecordConfig = createEmptyRecordConfig();
-  const validationResult = RecordConfigStore.validateConfig({
+  const validationResult = validateRecordConfig({
     'invalidKey': 0,
     'anotherInvalidKey': 'foobar',
   });
