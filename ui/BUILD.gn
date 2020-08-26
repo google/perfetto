@@ -384,6 +384,7 @@ copy("assets_dist") {
               "src/assets/rec_cpu_freq.png",
               "src/assets/rec_cpu_voltage.png",
               "src/assets/rec_ftrace.png",
+              "src/assets/rec_gpu_mem_total.png",
               "src/assets/rec_java_heap_dump.png",
               "src/assets/rec_lmk.png",
               "src/assets/rec_logcat.png",
