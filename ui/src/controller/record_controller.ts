@@ -138,6 +138,10 @@ export function genConfig(
     ftraceEvents.add('power/gpu_frequency');
   }
 
+  if (uiCfg.gpuMemTotal) {
+    ftraceEvents.add('gpu_mem/gpu_mem_total');
+  }
+
   if (uiCfg.cpuSyscall) {
     ftraceEvents.add('raw_syscalls/sys_enter');
     ftraceEvents.add('raw_syscalls/sys_exit');
