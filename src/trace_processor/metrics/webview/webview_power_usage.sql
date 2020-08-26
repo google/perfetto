@@ -20,6 +20,7 @@
 -- This file populates a summary table that can be used to produce metrics in different formats.
 
 SELECT RUN_METRIC('android/android_proxy_power.sql');
+SELECT RUN_METRIC('android/cpu_info.sql');
 
 DROP VIEW IF EXISTS top_level_slice;
 
@@ -76,6 +77,20 @@ SELECT
   FROM webview_browser_power
   GROUP BY app_name;
 
+DROP VIEW IF EXISTS webview_browser_power_per_core_type;
+
+-- Calculate the power usage of all WebView browser slices for each app
+-- in milliampere-seconds grouped by core type.
+CREATE VIEW webview_browser_power_per_core_type AS
+SELECT
+  app_name,
+  core_type_per_cpu.core_type AS core_type,
+  SUM(dur * COALESCE(power_ma, 0) / 1e9) AS power_mas
+FROM webview_browser_power
+INNER JOIN core_type_per_cpu
+  ON webview_browser_power.cpu = core_type_per_cpu.cpu
+GROUP BY app_name, core_type_per_cpu.core_type;
+
 DROP VIEW IF EXISTS webview_renderer_threads;
 
 -- All threads of all WebView renderer processes.
@@ -101,6 +116,22 @@ CREATE VIEW webview_renderer_power_summary AS
   INNER JOIN webview_renderer_threads
   ON power_per_thread.utid = webview_renderer_threads.utid
   GROUP BY app_name;
+
+DROP VIEW IF EXISTS webview_renderer_power_per_core_type;
+
+-- Calculate the power usage of all WebView renderer processes for each app
+-- in milliampere-seconds grouped by core type.
+CREATE VIEW webview_renderer_power_per_core_type AS
+SELECT
+  app_name,
+  core_type_per_cpu.core_type AS core_type,
+  SUM(dur * COALESCE(power_ma, 0) / 1e9) AS power_mas
+FROM power_per_thread
+INNER JOIN webview_renderer_threads
+  ON power_per_thread.utid = webview_renderer_threads.utid
+INNER JOIN core_type_per_cpu
+  ON power_per_thread.cpu = core_type_per_cpu.cpu
+GROUP BY app_name, core_type_per_cpu.core_type;
 
 DROP VIEW IF EXISTS host_app_threads;
 
@@ -147,12 +178,36 @@ DROP VIEW IF EXISTS webview_power_summary;
 CREATE VIEW webview_power_summary AS
   SELECT
     webview_browser_power_summary.app_name AS app_name,
+    host_app_power_summary.power_mas + webview_renderer_power_summary.power_mas
+    AS total_app_power_mas,
     webview_browser_power_summary.power_mas + webview_renderer_power_summary.power_mas
     AS webview_power_mas,
-    host_app_power_summary.power_mas + webview_renderer_power_summary.power_mas
-    AS total_app_power_mas
+    webview_browser_little_power.power_mas + webview_renderer_little_power.power_mas
+    AS webview_power_little_cores_mas,
+    webview_browser_big_power.power_mas + webview_renderer_big_power.power_mas
+    AS webview_power_big_cores_mas,
+    webview_browser_bigger_power.power_mas + webview_renderer_bigger_power.power_mas
+    AS webview_power_bigger_cores_mas
   FROM webview_browser_power_summary
   INNER JOIN webview_renderer_power_summary
   ON webview_browser_power_summary.app_name = webview_renderer_power_summary.app_name
   INNER JOIN host_app_power_summary
-  ON host_app_power_summary.app_name = webview_browser_power_summary.app_name;
+  ON host_app_power_summary.app_name = webview_browser_power_summary.app_name
+  LEFT JOIN webview_browser_power_per_core_type AS webview_browser_little_power
+  ON host_app_power_summary.app_name = webview_browser_little_power.app_name
+  AND webview_browser_little_power.core_type = 'little'
+  LEFT JOIN webview_renderer_power_per_core_type AS webview_renderer_little_power
+  ON host_app_power_summary.app_name = webview_renderer_little_power.app_name
+  AND webview_renderer_little_power.core_type = 'little'
+  LEFT JOIN webview_browser_power_per_core_type AS webview_browser_big_power
+  ON host_app_power_summary.app_name = webview_browser_big_power.app_name
+  AND webview_browser_big_power.core_type = 'big'
+  LEFT JOIN webview_renderer_power_per_core_type AS webview_renderer_big_power
+  ON host_app_power_summary.app_name = webview_renderer_big_power.app_name
+  AND webview_renderer_big_power.core_type = 'big'
+  LEFT JOIN webview_browser_power_per_core_type AS webview_browser_bigger_power
+  ON host_app_power_summary.app_name = webview_browser_bigger_power.app_name
+  AND webview_browser_bigger_power.core_type = 'bigger'
+  LEFT JOIN webview_renderer_power_per_core_type AS webview_renderer_bigger_power
+  ON host_app_power_summary.app_name = webview_renderer_bigger_power.app_name
+  AND webview_renderer_bigger_power.core_type = 'bigger';
