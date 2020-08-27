@@ -365,6 +365,10 @@ to not strip them.
 
 ## Known Issues
 
+### Android 11
+
+* 32-bit programs cannot be targeted on 64-bit devices.
+
 ### Android 10
 
 * On ARM32, the bottom-most frame is always `ERROR 2`. This is harmless and
