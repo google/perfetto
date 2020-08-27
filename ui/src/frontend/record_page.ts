@@ -226,8 +226,8 @@ function GpuSettings(cssClass: string) {
       m(Probe, {
         title: 'GPU memory',
         img: 'rec_gpu_mem_total.png',
-        descr: `Allows to track per process and global gpu memory total updates
-                via ftrace. (Available on recent Android 11+ kernels)`,
+        descr: `Allows to track per process and global total GPU memory usages.
+                (Available on recent Android 12+ kernels)`,
         setEnabled: (cfg, val) => cfg.gpuMemTotal = val,
         isEnabled: (cfg) => cfg.gpuMemTotal
       } as ProbeAttrs));
@@ -1255,7 +1255,7 @@ function recordMenu(routePage: string) {
           m(`li${routePage === 'gpu' ? '.active' : ''}`,
             m('i.material-icons', 'aspect_ratio'),
             m('.title', 'GPU'),
-            m('.sub', 'GPU frequency'))),
+            m('.sub', 'GPU frequency, memory'))),
         m('a[href="#!/record?p=power"]',
           m(`li${routePage === 'power' ? '.active' : ''}`,
             m('i.material-icons', 'battery_charging_full'),
