@@ -93,7 +93,9 @@ enum class RecordType : uint64_t {
   HeapName = 2,
 };
 
-struct AllocMetadata {
+// Make the whole struct 8-aligned. This is to make sizeof(AllocMetdata)
+// the same on 32 and 64-bit.
+struct alignas(8) AllocMetadata {
   uint64_t sequence_number;
   // Size of the allocation that was made.
   uint64_t alloc_size;
@@ -104,7 +106,7 @@ struct AllocMetadata {
   // Current value of the stack pointer.
   uint64_t stack_pointer;
   uint64_t clock_monotonic_coarse_timestamp;
-  alignas(uint64_t) char register_data[kMaxRegisterDataSize];
+  char register_data[kMaxRegisterDataSize];
   // CPU architecture of the client.
   unwindstack::ArchEnum arch;
   uint32_t heap_id;
@@ -120,6 +122,9 @@ struct HeapName {
   uint32_t heap_id;
   char heap_name[HEAPPROFD_HEAP_NAME_SZ];
 };
+
+static_assert(sizeof(AllocMetadata) == 328,
+              "AllocMetadata needs to be the same size across ABIs.");
 
 enum HandshakeFDs : size_t {
   kHandshakeMaps = 0,
