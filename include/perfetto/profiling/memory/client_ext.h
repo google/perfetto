@@ -35,16 +35,17 @@
 // To find out where in a program these two functions get called, we instrument
 // the allocator using this API:
 //
-// static HeapprofdHeapInfo g_info{"invalid.example", nullptr};
-// static uint32_t g_heap_id = heapprofd_register_heap(&g_info, sizeof(g_info));
+// static uint32_t g_heap_id =
+//   AHeapProfile_registerHeap(AHeapInfo_create("invalid.example"));
+//
 // void* my_malloc(size_t size) {
 //   void* ptr = [code to somehow allocate get size bytes];
-//   heapprofd_report_allocation(g_heap_id, static_cast<uintptr_t>(ptr), size);
-//   return ptr;
+//   AHeapProfile_reportAllocation(g_heap_id, static_cast<uintptr_t>(ptr),
+//   size); return ptr;
 // }
 //
 // void my_free(void* ptr) {
-//   heapprofd_report_free(g_heap_id, static_cast<uintptr_t>(ptr));
+//   AHeapProfile_reportFree(g_heap_id, static_cast<uintptr_t>(ptr));
 //   [code to somehow free ptr]
 // }
 //
@@ -67,37 +68,37 @@
 extern "C" {
 #endif
 
-typedef struct HeapprofdHeapInfo HeapprofdHeapInfo;
+typedef struct AHeapInfo AHeapInfo;
 
-// Create new HeapprofdHeapInfo, a struct describing a heap.
+// Create new AHeapInfo, a struct describing a heap.
 //
 // Takes name of the heap, up to 64 bytes including NUL-terminator. To
 // guarantee uniqueness, this should include the caller's domain name,
 // e.g. "com.android.malloc".
 //
-// Must eventually be passed to heapprofd_heap_register.
-HeapprofdHeapInfo* heapprofd_heapinfo_create(const char* heap_name);
+// Must eventually be passed to AHeapProfile_registerHeap.
+AHeapInfo* AHeapInfo_create(const char* heap_name);
 
-// Set callback in HeapprofdHeapInfo.
+// Set callback in AHeapInfo.
 //
-// After this HeapprofdHeapInfo is registered via heapprofd_heap_register,
+// After this AHeapInfo is registered via AHeapProfile_registerHeap,
 // this callback is called when profiling of the heap is requested.
-HeapprofdHeapInfo* heapprofd_heapinfo_set_callback(
-    HeapprofdHeapInfo* info,
-    void (*callback)(bool enabled));
+AHeapInfo* AHeapInfo_setCallback(AHeapInfo* info,
+                                 void (*callback)(bool enabled));
 
-// Register heap described in HeapprofdHeapInfo.
+// Register heap described in AHeapInfo.
 //
-// The returned heap_id can be used in heapprofd_report_allocation and
-// heapprofd_report_free.
+// The returned heap_id can be used in AHeapProfile_reportAllocation and
+// AHeapProfile_reportFree.
 //
 // Takes ownership of info.
-uint32_t heapprofd_heap_register(HeapprofdHeapInfo* info);
+uint32_t AHeapProfile_registerHeap(AHeapInfo* info);
 
 // Called by libc upon receipt of the profiling signal.
 // DO NOT CALL EXCEPT FROM LIBC!
 // TODO(fmayer): Maybe move this out of this header.
-bool heapprofd_init_session(void* (*malloc_fn)(size_t), void (*free_fn)(void*));
+bool AHeapProfile_initSession(void* (*malloc_fn)(size_t),
+                              void (*free_fn)(void*));
 
 // Reports an allocation of |size| on the given |heap_id|.
 //
@@ -106,19 +107,20 @@ bool heapprofd_init_session(void* (*malloc_fn)(size_t), void (*free_fn)(void*));
 // associated to the current callstack in the profile.
 //
 // Returns whether the allocation was sampled.
-bool heapprofd_report_allocation(uint32_t heap_id,
-                                 uint64_t alloc_id,
-                                 uint64_t size);
+bool AHeapProfile_reportAllocation(uint32_t heap_id,
+                                   uint64_t alloc_id,
+                                   uint64_t size);
 
 // Report allocation was freed on the given heap.
 //
-// If |alloc_id| was sampled in a previous call to heapprofd_report_allocation,
-// this allocation is marked as freed in the profile.
+// If |alloc_id| was sampled in a previous call to
+// AHeapProfile_reportAllocation, this allocation is marked as freed in the
+// profile.
 //
 // It is allowed to call with an |alloc_id| that was either not sampled or never
-// passed to heapprofd_report_allocation, in which case the call will not
+// passed to AHeapProfile_reportAllocation, in which case the call will not
 // change the output.
-void heapprofd_report_free(uint32_t heap_id, uint64_t alloc_id);
+void AHeapProfile_reportFree(uint32_t heap_id, uint64_t alloc_id);
 
 #ifdef __cplusplus
 }

@@ -18,30 +18,31 @@
 
 #include <inttypes.h>
 
-__attribute__((visibility("default"))) HeapprofdHeapInfo*
-heapprofd_heapinfo_create(const char*) {
+__attribute__((visibility("default"))) AHeapInfo* AHeapInfo_create(
+    const char*) {
   return nullptr;
 }
 
-__attribute__((visibility("default"))) HeapprofdHeapInfo*
-heapprofd_heapinfo_set_callback(HeapprofdHeapInfo*, void (*)(bool enabled)) {
+__attribute__((visibility("default"))) AHeapInfo* AHeapInfo_setCallback(
+    AHeapInfo*,
+    void (*)(bool enabled)) {
   return nullptr;
 }
 
-__attribute__((visibility("default"))) uint32_t heapprofd_heap_register(
-    HeapprofdHeapInfo*) {
+__attribute__((visibility("default"))) uint32_t AHeapProfile_registerHeap(
+    AHeapInfo*) {
   return 0;
 }
 
 __attribute__((visibility("default"))) bool
-heapprofd_report_allocation(uint32_t, uint64_t, uint64_t) {
+AHeapProfile_reportAllocation(uint32_t, uint64_t, uint64_t) {
   return false;
 }
 
-__attribute__((visibility("default"))) void heapprofd_report_free(uint32_t,
-                                                                  uint64_t) {}
+__attribute__((visibility("default"))) void AHeapProfile_reportFree(uint32_t,
+                                                                    uint64_t) {}
 
-__attribute__((visibility("default"))) bool heapprofd_init_session(
+__attribute__((visibility("default"))) bool AHeapProfile_initSession(
     void* (*)(size_t),
     void (*)(void*)) {
   return false;

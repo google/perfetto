@@ -46,7 +46,7 @@
 using perfetto::profiling::ScopedSpinlock;
 using perfetto::profiling::UnhookedAllocator;
 
-struct HeapprofdHeapInfo {
+struct AHeapInfo {
   // Fields set by user.
   char heap_name[HEAPPROFD_HEAP_NAME_SZ];
   void (*callback)(bool enabled);
@@ -100,9 +100,9 @@ std::shared_ptr<perfetto::profiling::Client>* GetClientLocked() {
 
 constexpr auto kMinHeapId = 1;
 
-HeapprofdHeapInfo g_heaps[256];
+AHeapInfo g_heaps[256];
 
-HeapprofdHeapInfo& GetHeap(uint32_t id) {
+AHeapInfo& GetHeap(uint32_t id) {
   return g_heaps[id];
 }
 
@@ -137,7 +137,7 @@ __attribute__((noreturn, noinline)) void AbortOnSpinlockTimeout() {
 
 void DisableAllHeaps() {
   for (uint32_t i = kMinHeapId; i < g_next_heap_id.load(); ++i) {
-    HeapprofdHeapInfo& info = GetHeap(i);
+    AHeapInfo& info = GetHeap(i);
     if (!info.ready.load(std::memory_order_acquire))
       continue;
     if (info.enabled.load(std::memory_order_acquire)) {
@@ -212,10 +212,10 @@ void AtForkChild() {
 
 }  // namespace
 
-__attribute__((visibility("default"))) HeapprofdHeapInfo*
-heapprofd_heapinfo_create(const char* heap_name) {
+__attribute__((visibility("default"))) AHeapInfo* AHeapInfo_create(
+    const char* heap_name) {
   size_t len = strlen(heap_name);
-  if (len >= sizeof(HeapprofdHeapInfo::heap_name)) {
+  if (len >= sizeof(AHeapInfo::heap_name)) {
     return nullptr;
   }
 
@@ -227,14 +227,14 @@ heapprofd_heapinfo_create(const char* heap_name) {
   if (next_id == kMinHeapId)
     perfetto::profiling::StartHeapprofdIfStatic();
 
-  HeapprofdHeapInfo& info = GetHeap(next_id);
+  AHeapInfo& info = GetHeap(next_id);
   strncpy(info.heap_name, heap_name, sizeof(info.heap_name));
   return &info;
 }
 
-__attribute__((visibility("default"))) HeapprofdHeapInfo*
-heapprofd_heapinfo_set_callback(HeapprofdHeapInfo* info,
-                                void (*callback)(bool enabled)) {
+__attribute__((visibility("default"))) AHeapInfo* AHeapInfo_setCallback(
+    AHeapInfo* info,
+    void (*callback)(bool enabled)) {
   if (info == nullptr)
     return nullptr;
   if (info->ready.load(std::memory_order_relaxed))
@@ -243,8 +243,8 @@ heapprofd_heapinfo_set_callback(HeapprofdHeapInfo* info,
   return info;
 }
 
-__attribute__((visibility("default"))) uint32_t heapprofd_heap_register(
-    HeapprofdHeapInfo* info) {
+__attribute__((visibility("default"))) uint32_t AHeapProfile_registerHeap(
+    AHeapInfo* info) {
   if (info == nullptr)
     return 0;
   info->ready.store(true, std::memory_order_release);
@@ -252,8 +252,8 @@ __attribute__((visibility("default"))) uint32_t heapprofd_heap_register(
 }
 
 __attribute__((visibility("default"))) bool
-heapprofd_report_allocation(uint32_t heap_id, uint64_t id, uint64_t size) {
-  const HeapprofdHeapInfo& heap = GetHeap(heap_id);
+AHeapProfile_reportAllocation(uint32_t heap_id, uint64_t id, uint64_t size) {
+  const AHeapInfo& heap = GetHeap(heap_id);
   if (!heap.enabled.load(std::memory_order_acquire)) {
     return false;
   }
@@ -282,10 +282,10 @@ heapprofd_report_allocation(uint32_t heap_id, uint64_t id, uint64_t size) {
   return true;
 }
 
-__attribute__((visibility("default"))) void heapprofd_report_free(
+__attribute__((visibility("default"))) void AHeapProfile_reportFree(
     uint32_t heap_id,
     uint64_t id) {
-  const HeapprofdHeapInfo& heap = GetHeap(heap_id);
+  const AHeapInfo& heap = GetHeap(heap_id);
   if (!heap.enabled.load(std::memory_order_acquire)) {
     return;
   }
@@ -304,7 +304,7 @@ __attribute__((visibility("default"))) void heapprofd_report_free(
   }
 }
 
-__attribute__((visibility("default"))) bool heapprofd_init_session(
+__attribute__((visibility("default"))) bool AHeapProfile_initSession(
     void* (*malloc_fn)(size_t),
     void (*free_fn)(void*)) {
   static bool first_init = true;
@@ -357,7 +357,7 @@ __attribute__((visibility("default"))) bool heapprofd_init_session(
       client->client_config();
 
   for (uint32_t i = kMinHeapId; i < g_next_heap_id.load(); ++i) {
-    HeapprofdHeapInfo& heap = GetHeap(i);
+    AHeapInfo& heap = GetHeap(i);
     if (!heap.ready.load(std::memory_order_acquire))
       continue;
 
