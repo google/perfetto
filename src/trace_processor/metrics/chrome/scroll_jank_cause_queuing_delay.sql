@@ -19,6 +19,10 @@ SELECT RUN_METRIC('chrome/scroll_flow_event_queuing_delay.sql');
 -- flow event from being run (queuing delays). For RunTask we know that its
 -- generic (and thus hard to figure out whats the cause) so we grab the src
 -- location to make it more meaningful.
+--
+-- See b/166441398 & crbug/1094361 for why we remove the -to-End step. In
+-- essence -to-End is often reported on the ThreadPool after the fact with
+-- explicit timestamps so it being blocked isn't noteworthy.
 DROP TABLE IF EXISTS blocking_tasks_queuing_delay;
 
 CREATE TABLE blocking_tasks_queuing_delay AS
@@ -53,8 +57,10 @@ CREATE TABLE blocking_tasks_queuing_delay AS
     slice ON
         slice.ts + slice.dur > queuing.ancestor_end AND
         queuing.maybe_next_ancestor_ts > slice.ts AND
-        slice.track_id = next_track_id AND
-        slice.depth = 0
+        slice.track_id = queuing.next_track_id AND
+        slice.depth = 0 AND
+        queuing.description NOT LIKE
+            "InputLatency.LatencyInfo.%ank.STEP_DRAW_AND_SWAP-to-End"
   WHERE
     queuing_time_ns IS NOT NULL AND
     queuing_time_ns > 0;
