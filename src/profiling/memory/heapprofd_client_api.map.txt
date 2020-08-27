@@ -1,9 +1,11 @@
 {
   global:
+    heapprofd_heapinfo_create;
+    heapprofd_heapinfo_set_callback;
+    heapprofd_heap_register;
     heapprofd_init_session;
-    heapprofd_report_free;
-    heapprofd_register_heap;
     heapprofd_report_allocation;
+    heapprofd_report_free;
   local:
     *;
 };

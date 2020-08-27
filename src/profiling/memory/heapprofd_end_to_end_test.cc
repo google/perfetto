@@ -165,15 +165,15 @@ base::ScopedResource<std::string*, SetModeProperty, nullptr> DisableFork() {
 #endif
 
 void CustomAllocateAndFree(size_t bytes) {
-  HeapprofdHeapInfo info{"test", nullptr};
-  static uint32_t heap_id = heapprofd_register_heap(&info, sizeof(info));
+  static uint32_t heap_id =
+      heapprofd_heap_register(heapprofd_heapinfo_create("test"));
   heapprofd_report_allocation(heap_id, 0x1234abc, bytes);
   heapprofd_report_free(heap_id, 0x1234abc);
 }
 
 void SecondaryAllocAndFree(size_t bytes) {
-  HeapprofdHeapInfo info{"secondary", nullptr};
-  static uint32_t heap_id = heapprofd_register_heap(&info, sizeof(info));
+  static uint32_t heap_id =
+      heapprofd_heap_register(heapprofd_heapinfo_create("secondary"));
   heapprofd_report_allocation(heap_id, 0x1234abc, bytes);
   heapprofd_report_free(heap_id, 0x1234abc);
 }
@@ -288,9 +288,9 @@ void __attribute__((constructor(1024))) RunAccurateMalloc() {
     return;
 
   static std::atomic<bool> initialized{false};
-  HeapprofdHeapInfo info{"test", [](bool) { initialized = true; }};
-
-  static uint32_t heap_id = heapprofd_register_heap(&info, sizeof(info));
+  static uint32_t heap_id =
+      heapprofd_heap_register(heapprofd_heapinfo_set_callback(
+          heapprofd_heapinfo_create("test"), [](bool) { initialized = true; }));
 
   ChildFinishHandshake();
 

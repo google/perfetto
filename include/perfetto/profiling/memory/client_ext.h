@@ -67,49 +67,37 @@
 extern "C" {
 #endif
 
-// Metadata of a custom heap.
-//
-// heapprofd maintainers NB: This struct is append only. Be very careful that
-// the ABI of this does not change. We want to be able to correctly handle
-// structs from clients that compile against old versions of this header,
-// setting all the newly added fields to zero.
-//
-// TODO(fmayer): Sort out alignment etc. before stabilizing the ABI.
-struct HeapprofdHeapInfo {
-  // Name of the heap, up to 64 bytes including NUL-terminator. To guarantee
-  // uniqueness, this should include the caller's domain name, e.g.
-  // "com.android.malloc".
-  // This member MUST be set.
-  alignas(8) char heap_name[HEAPPROFD_HEAP_NAME_SZ];
-
-  // Gets called when heap profiling gets enabled or disabled. Can be NULL if
-  // no function should get called.
-  void (*callback)(bool /* enabled */);
-};
-
 typedef struct HeapprofdHeapInfo HeapprofdHeapInfo;
 
-#ifdef __cplusplus
-static_assert(alignof(HeapprofdHeapInfo) == 8,
-              "HeapprofdHeapInfo must be aligned to 64bit.");
-#endif
+// Create new HeapprofdHeapInfo, a struct describing a heap.
+//
+// Takes name of the heap, up to 64 bytes including NUL-terminator. To
+// guarantee uniqueness, this should include the caller's domain name,
+// e.g. "com.android.malloc".
+//
+// Must eventually be passed to heapprofd_heap_register.
+HeapprofdHeapInfo* heapprofd_heapinfo_create(const char* heap_name);
+
+// Set callback in HeapprofdHeapInfo.
+//
+// After this HeapprofdHeapInfo is registered via heapprofd_heap_register,
+// this callback is called when profiling of the heap is requested.
+HeapprofdHeapInfo* heapprofd_heapinfo_set_callback(
+    HeapprofdHeapInfo* info,
+    void (*callback)(bool enabled));
+
+// Register heap described in HeapprofdHeapInfo.
+//
+// The returned heap_id can be used in heapprofd_report_allocation and
+// heapprofd_report_free.
+//
+// Takes ownership of info.
+uint32_t heapprofd_heap_register(HeapprofdHeapInfo* info);
 
 // Called by libc upon receipt of the profiling signal.
 // DO NOT CALL EXCEPT FROM LIBC!
 // TODO(fmayer): Maybe move this out of this header.
 bool heapprofd_init_session(void* (*malloc_fn)(size_t), void (*free_fn)(void*));
-
-// Register a heap. Options are given in the HeapprofdHeapInfo struct.
-//
-// On success, returns a heap_id that is used in heapprofd_report_allocation
-// and heapprofd_report_free to report operations on this heap.
-//
-// On error, returns 0, which can be safely passed to any function expecting a
-// |heap_id|, and will turn them into a no-op.
-//
-// This is safe to call from a static initializer.
-uint32_t heapprofd_register_heap(const HeapprofdHeapInfo* heap_info,
-                                 size_t sizeof_heap_info);
 
 // Reports an allocation of |size| on the given |heap_id|.
 //

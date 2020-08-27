@@ -18,9 +18,18 @@
 
 #include <inttypes.h>
 
-__attribute__((visibility("default"))) uint32_t heapprofd_register_heap(
-    const HeapprofdHeapInfo*,
-    size_t) {
+__attribute__((visibility("default"))) HeapprofdHeapInfo*
+heapprofd_heapinfo_create(const char*) {
+  return nullptr;
+}
+
+__attribute__((visibility("default"))) HeapprofdHeapInfo*
+heapprofd_heapinfo_set_callback(HeapprofdHeapInfo*, void (*)(bool enabled)) {
+  return nullptr;
+}
+
+__attribute__((visibility("default"))) uint32_t heapprofd_heap_register(
+    HeapprofdHeapInfo*) {
   return 0;
 }
 

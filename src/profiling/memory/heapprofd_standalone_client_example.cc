@@ -19,8 +19,7 @@
 #include <unistd.h>
 
 int main(int, char**) {
-  HeapprofdHeapInfo info{"test", nullptr};
-  uint32_t heap_id = heapprofd_register_heap(&info, sizeof(info));
+  uint32_t heap_id = heapprofd_heap_register(heapprofd_heapinfo_create("test"));
   for (uint64_t i = 0; i < 100000; ++i) {
     heapprofd_report_allocation(heap_id, i, i);
     sleep(1);
