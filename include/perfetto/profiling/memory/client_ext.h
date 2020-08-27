@@ -61,6 +61,15 @@
 #include <inttypes.h>
 #include <stdlib.h>
 
+#pragma GCC diagnostic push
+
+#if defined(__clang__)
+#pragma GCC diagnostic ignored "-Wnullability-extension"
+#else
+#define _Nullable
+#define _Nonnull
+#endif
+
 // Maximum size of heap name, including NUL-byte.
 #define HEAPPROFD_HEAP_NAME_SZ 64
 
@@ -72,33 +81,44 @@ typedef struct AHeapInfo AHeapInfo;
 
 // Create new AHeapInfo, a struct describing a heap.
 //
-// Takes name of the heap, up to 64 bytes including NUL-terminator. To
+// Takes name of the heap, up to 64 bytes including null terminator. To
 // guarantee uniqueness, this should include the caller's domain name,
 // e.g. "com.android.malloc".
 //
+// On error, returns NULL.
+// Errors are:
+//  * Empty or too long (larger than 64 bytes including null terminator)
+//    heap_name.
+//  * Too many heaps have been registered in this process already.
+//
 // Must eventually be passed to AHeapProfile_registerHeap.
-AHeapInfo* AHeapInfo_create(const char* heap_name);
+AHeapInfo* _Nullable AHeapInfo_create(const char* _Nonnull heap_name);
 
 // Set callback in AHeapInfo.
 //
+// If info is NULL, do nothing.
+//
 // After this AHeapInfo is registered via AHeapProfile_registerHeap,
 // this callback is called when profiling of the heap is requested.
-AHeapInfo* AHeapInfo_setCallback(AHeapInfo* info,
-                                 void (*callback)(bool enabled));
+AHeapInfo* _Nullable AHeapInfo_setCallback(
+    AHeapInfo* _Nullable info,
+    void (*_Nonnull callback)(bool enabled));
 
 // Register heap described in AHeapInfo.
+//
+// If info is NULL, return a no-op heap_id.
 //
 // The returned heap_id can be used in AHeapProfile_reportAllocation and
 // AHeapProfile_reportFree.
 //
 // Takes ownership of info.
-uint32_t AHeapProfile_registerHeap(AHeapInfo* info);
+uint32_t AHeapProfile_registerHeap(AHeapInfo* _Nullable info);
 
 // Called by libc upon receipt of the profiling signal.
 // DO NOT CALL EXCEPT FROM LIBC!
 // TODO(fmayer): Maybe move this out of this header.
-bool AHeapProfile_initSession(void* (*malloc_fn)(size_t),
-                              void (*free_fn)(void*));
+bool AHeapProfile_initSession(void* _Nullable (*_Nonnull malloc_fn)(size_t),
+                              void (*_Nonnull free_fn)(void* _Nullable));
 
 // Reports an allocation of |size| on the given |heap_id|.
 //
@@ -125,5 +145,7 @@ void AHeapProfile_reportFree(uint32_t heap_id, uint64_t alloc_id);
 #ifdef __cplusplus
 }
 #endif
+
+#pragma GCC diagnostic pop
 
 #endif  // INCLUDE_PERFETTO_PROFILING_MEMORY_CLIENT_EXT_H_
