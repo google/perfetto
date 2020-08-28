@@ -130,13 +130,25 @@ HttpServer::~HttpServer() = default;
 void HttpServer::Run(const char* kBindAddr4, const char* kBindAddr6) {
   PERFETTO_ILOG("[HTTP] Starting RPC server on %s and %s", kBindAddr4,
                 kBindAddr6);
+
   sock4_ = base::UnixSocket::Listen(kBindAddr4, this, &task_runner_,
                                     base::SockFamily::kInet,
                                     base::SockType::kStream);
+  bool ipv4_listening = sock4_ && sock4_->is_listening();
+  if (!ipv4_listening) {
+    PERFETTO_ILOG("Failed to listen on IPv4 socket");
+  }
+
   sock6_ = base::UnixSocket::Listen(kBindAddr6, this, &task_runner_,
-                                    base::SockFamily::kInet6Only,
+                                    base::SockFamily::kInet6,
                                     base::SockType::kStream);
-  PERFETTO_CHECK(sock4_->is_listening() || sock6_->is_listening());
+  bool ipv6_listening = sock6_ && sock6_->is_listening();
+  if (!ipv6_listening) {
+    PERFETTO_ILOG("Failed to listen on IPv6 socket");
+  }
+
+  PERFETTO_CHECK(ipv4_listening || ipv6_listening);
+
   task_runner_.Run();
 }
 

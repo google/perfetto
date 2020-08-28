@@ -39,7 +39,7 @@ class TaskRunner;
 // assuming that these enum values match the sysroot's SOCK_xxx defines rather
 // than using GetSockType() / GetSockFamily().
 enum class SockType { kStream = 100, kDgram, kSeqPacket };
-enum class SockFamily { kUnix = 200, kInet, kInet6Only };
+enum class SockFamily { kUnix = 200, kInet, kInet6 };
 
 // UnixSocketRaw is a basic wrapper around UNIX sockets. It exposes wrapper
 // methods that take care of most common pitfalls (e.g., marking fd as
@@ -185,9 +185,11 @@ class UnixSocket {
   // |socket_name| starts with a '@', an abstract UNIX dmoain socket will be
   // created instead of a filesystem-linked UNIX socket (Linux/Android only).
   // If SockFamily::kInet, |socket_name| is host:port (e.g., "1.2.3.4:8000").
-  // Returns always an instance. In case of failure (e.g., another socket
-  // with the same name is  already listening) the returned socket will have
-  // is_listening() == false and last_error() will contain the failure reason.
+  // If SockFamily::kInet6, |socket_name| is [host]:port (e.g., "[::1]:8000").
+  // Returns nullptr if the socket creation or bind fails. If listening fails,
+  // (e.g. if another socket with the same name is already listening) the
+  // returned socket will have is_listening() == false and last_error() will
+  // contain the failure reason.
   static std::unique_ptr<UnixSocket> Listen(const std::string& socket_name,
                                             EventListener*,
                                             TaskRunner*,
