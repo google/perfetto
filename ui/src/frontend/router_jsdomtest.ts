@@ -26,7 +26,8 @@ const fakeDispatch = () => {};
 
 const mockLogging = {
   updatePath(_: string) {},
-  logEvent(_x: null, _y: string) {}
+  logEvent(_x: null, _y: string) {},
+  logError(_x: string) {}
 };
 
 beforeEach(() => {

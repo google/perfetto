@@ -31,4 +31,8 @@ export class Analytics {
   logEvent(category: TraceCategories|null, event: string) {
     gtag('event', event, {'event_category': category});
   }
+
+  logError(description: string, fatal = true) {
+    gtag('event', 'exception', {description, fatal});
+  }
 }
