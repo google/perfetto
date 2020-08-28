@@ -14,6 +14,7 @@
 
 import * as m from 'mithril';
 
+import {globals} from './globals';
 import {showModal} from './modal';
 
 // Never show more than one dialog per minute.
@@ -25,6 +26,7 @@ const queuedErrors = new Array<string>();
 const ERR_QUEUE_MAX_LEN = 10;
 
 export function maybeShowErrorDialog(errLog: string) {
+  globals.logging.logError(errLog);
   const now = performance.now();
 
   // Here we rely on the exception message from onCannotGrowMemory function
