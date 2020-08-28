@@ -85,8 +85,11 @@ FROM launch_partitions AS lpart
 JOIN launching_events ON
   (launching_events.ts BETWEEN lpart.ts AND lpart.ts + lpart.dur) AND
   (launching_events.ts_end BETWEEN lpart.ts AND lpart.ts + lpart.dur)
-JOIN activity_intent_launch_successful AS successful
-  ON successful.ts BETWEEN lpart.ts AND lpart.ts + lpart.dur;
+WHERE (
+  SELECT COUNT(1)
+  FROM activity_intent_launch_successful AS successful
+  WHERE successful.ts BETWEEN lpart.ts AND lpart.ts + lpart.dur
+) > 0;
 
 -- Maps a launch to the corresponding set of processes that handled the
 -- activity start. The vast majority of cases should be a single process.
