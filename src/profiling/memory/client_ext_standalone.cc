@@ -54,7 +54,7 @@ void MonitorFd() {
     char buf[1];
     ssize_t r = g_client_sock->Receive(buf, sizeof(buf));
     if (r >= 1) {
-      heapprofd_init_session(malloc, free);
+      AHeapProfile_initSession(malloc, free);
     } else if (r == 0) {
       PERFETTO_ELOG("Server disconneced.");
       break;
@@ -149,7 +149,7 @@ void StartHeapprofdIfStatic() {
   task_runner.Run();
 }
 
-// This is called by heapprofd_init_session (client_ext.cc) to construct a
+// This is called by AHeapProfile_initSession (client_ext.cc) to construct a
 // client.
 std::shared_ptr<Client> ConstructClient(
     UnhookedAllocator<perfetto::profiling::Client> unhooked_allocator) {

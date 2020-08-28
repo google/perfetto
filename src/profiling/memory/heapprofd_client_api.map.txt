@@ -1,9 +1,11 @@
 {
   global:
-    heapprofd_init_session;
-    heapprofd_report_free;
-    heapprofd_register_heap;
-    heapprofd_report_allocation;
+    AHeapInfo_create;
+    AHeapInfo_setCallback;
+    AHeapProfile_registerHeap;
+    AHeapProfile_initSession;
+    AHeapProfile_reportAllocation;
+    AHeapProfile_reportFree;
   local:
     *;
 };

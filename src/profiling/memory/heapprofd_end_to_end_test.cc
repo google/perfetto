@@ -165,17 +165,16 @@ base::ScopedResource<std::string*, SetModeProperty, nullptr> DisableFork() {
 #endif
 
 void CustomAllocateAndFree(size_t bytes) {
-  HeapprofdHeapInfo info{"test", nullptr};
-  static uint32_t heap_id = heapprofd_register_heap(&info, sizeof(info));
-  heapprofd_report_allocation(heap_id, 0x1234abc, bytes);
-  heapprofd_report_free(heap_id, 0x1234abc);
+  static uint32_t heap_id = AHeapProfile_registerHeap(AHeapInfo_create("test"));
+  AHeapProfile_reportAllocation(heap_id, 0x1234abc, bytes);
+  AHeapProfile_reportFree(heap_id, 0x1234abc);
 }
 
 void SecondaryAllocAndFree(size_t bytes) {
-  HeapprofdHeapInfo info{"secondary", nullptr};
-  static uint32_t heap_id = heapprofd_register_heap(&info, sizeof(info));
-  heapprofd_report_allocation(heap_id, 0x1234abc, bytes);
-  heapprofd_report_free(heap_id, 0x1234abc);
+  static uint32_t heap_id =
+      AHeapProfile_registerHeap(AHeapInfo_create("secondary"));
+  AHeapProfile_reportAllocation(heap_id, 0x1234abc, bytes);
+  AHeapProfile_reportFree(heap_id, 0x1234abc);
 }
 
 void AllocateAndFree(size_t bytes) {
@@ -288,9 +287,8 @@ void __attribute__((constructor(1024))) RunAccurateMalloc() {
     return;
 
   static std::atomic<bool> initialized{false};
-  HeapprofdHeapInfo info{"test", [](bool) { initialized = true; }};
-
-  static uint32_t heap_id = heapprofd_register_heap(&info, sizeof(info));
+  static uint32_t heap_id = AHeapProfile_registerHeap(AHeapInfo_setCallback(
+      AHeapInfo_create("test"), [](bool) { initialized = true; }));
 
   ChildFinishHandshake();
 
@@ -300,11 +298,11 @@ void __attribute__((constructor(1024))) RunAccurateMalloc() {
   // We call the callback before setting enabled=true on the heap, so we
   // wait a bit for the assignment to happen.
   usleep(100000);
-  heapprofd_report_allocation(heap_id, 0x1, 10u);
-  heapprofd_report_free(heap_id, 0x1);
-  heapprofd_report_allocation(heap_id, 0x2, 15u);
-  heapprofd_report_allocation(heap_id, 0x3, 15u);
-  heapprofd_report_free(heap_id, 0x2);
+  AHeapProfile_reportAllocation(heap_id, 0x1, 10u);
+  AHeapProfile_reportFree(heap_id, 0x1);
+  AHeapProfile_reportAllocation(heap_id, 0x2, 15u);
+  AHeapProfile_reportAllocation(heap_id, 0x3, 15u);
+  AHeapProfile_reportFree(heap_id, 0x2);
 
   // Wait around so we can verify it did't crash.
   for (;;) {

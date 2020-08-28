@@ -35,16 +35,17 @@
 // To find out where in a program these two functions get called, we instrument
 // the allocator using this API:
 //
-// static HeapprofdHeapInfo g_info{"invalid.example", nullptr};
-// static uint32_t g_heap_id = heapprofd_register_heap(&g_info, sizeof(g_info));
+// static uint32_t g_heap_id =
+//   AHeapProfile_registerHeap(AHeapInfo_create("invalid.example"));
+//
 // void* my_malloc(size_t size) {
 //   void* ptr = [code to somehow allocate get size bytes];
-//   heapprofd_report_allocation(g_heap_id, static_cast<uintptr_t>(ptr), size);
-//   return ptr;
+//   AHeapProfile_reportAllocation(g_heap_id, static_cast<uintptr_t>(ptr),
+//   size); return ptr;
 // }
 //
 // void my_free(void* ptr) {
-//   heapprofd_report_free(g_heap_id, static_cast<uintptr_t>(ptr));
+//   AHeapProfile_reportFree(g_heap_id, static_cast<uintptr_t>(ptr));
 //   [code to somehow free ptr]
 // }
 //
@@ -60,6 +61,15 @@
 #include <inttypes.h>
 #include <stdlib.h>
 
+#pragma GCC diagnostic push
+
+#if defined(__clang__)
+#pragma GCC diagnostic ignored "-Wnullability-extension"
+#else
+#define _Nullable
+#define _Nonnull
+#endif
+
 // Maximum size of heap name, including NUL-byte.
 #define HEAPPROFD_HEAP_NAME_SZ 64
 
@@ -67,49 +77,48 @@
 extern "C" {
 #endif
 
-// Metadata of a custom heap.
+typedef struct AHeapInfo AHeapInfo;
+
+// Create new AHeapInfo, a struct describing a heap.
 //
-// heapprofd maintainers NB: This struct is append only. Be very careful that
-// the ABI of this does not change. We want to be able to correctly handle
-// structs from clients that compile against old versions of this header,
-// setting all the newly added fields to zero.
+// Takes name of the heap, up to 64 bytes including null terminator. To
+// guarantee uniqueness, this should include the caller's domain name,
+// e.g. "com.android.malloc".
 //
-// TODO(fmayer): Sort out alignment etc. before stabilizing the ABI.
-struct HeapprofdHeapInfo {
-  // Name of the heap, up to 64 bytes including NUL-terminator. To guarantee
-  // uniqueness, this should include the caller's domain name, e.g.
-  // "com.android.malloc".
-  // This member MUST be set.
-  alignas(8) char heap_name[HEAPPROFD_HEAP_NAME_SZ];
+// On error, returns NULL.
+// Errors are:
+//  * Empty or too long (larger than 64 bytes including null terminator)
+//    heap_name.
+//  * Too many heaps have been registered in this process already.
+//
+// Must eventually be passed to AHeapProfile_registerHeap.
+AHeapInfo* _Nullable AHeapInfo_create(const char* _Nonnull heap_name);
 
-  // Gets called when heap profiling gets enabled or disabled. Can be NULL if
-  // no function should get called.
-  void (*callback)(bool /* enabled */);
-};
+// Set callback in AHeapInfo.
+//
+// If info is NULL, do nothing.
+//
+// After this AHeapInfo is registered via AHeapProfile_registerHeap,
+// this callback is called when profiling of the heap is requested.
+AHeapInfo* _Nullable AHeapInfo_setCallback(
+    AHeapInfo* _Nullable info,
+    void (*_Nonnull callback)(bool enabled));
 
-typedef struct HeapprofdHeapInfo HeapprofdHeapInfo;
-
-#ifdef __cplusplus
-static_assert(alignof(HeapprofdHeapInfo) == 8,
-              "HeapprofdHeapInfo must be aligned to 64bit.");
-#endif
+// Register heap described in AHeapInfo.
+//
+// If info is NULL, return a no-op heap_id.
+//
+// The returned heap_id can be used in AHeapProfile_reportAllocation and
+// AHeapProfile_reportFree.
+//
+// Takes ownership of info.
+uint32_t AHeapProfile_registerHeap(AHeapInfo* _Nullable info);
 
 // Called by libc upon receipt of the profiling signal.
 // DO NOT CALL EXCEPT FROM LIBC!
 // TODO(fmayer): Maybe move this out of this header.
-bool heapprofd_init_session(void* (*malloc_fn)(size_t), void (*free_fn)(void*));
-
-// Register a heap. Options are given in the HeapprofdHeapInfo struct.
-//
-// On success, returns a heap_id that is used in heapprofd_report_allocation
-// and heapprofd_report_free to report operations on this heap.
-//
-// On error, returns 0, which can be safely passed to any function expecting a
-// |heap_id|, and will turn them into a no-op.
-//
-// This is safe to call from a static initializer.
-uint32_t heapprofd_register_heap(const HeapprofdHeapInfo* heap_info,
-                                 size_t sizeof_heap_info);
+bool AHeapProfile_initSession(void* _Nullable (*_Nonnull malloc_fn)(size_t),
+                              void (*_Nonnull free_fn)(void* _Nullable));
 
 // Reports an allocation of |size| on the given |heap_id|.
 //
@@ -118,22 +127,25 @@ uint32_t heapprofd_register_heap(const HeapprofdHeapInfo* heap_info,
 // associated to the current callstack in the profile.
 //
 // Returns whether the allocation was sampled.
-bool heapprofd_report_allocation(uint32_t heap_id,
-                                 uint64_t alloc_id,
-                                 uint64_t size);
+bool AHeapProfile_reportAllocation(uint32_t heap_id,
+                                   uint64_t alloc_id,
+                                   uint64_t size);
 
 // Report allocation was freed on the given heap.
 //
-// If |alloc_id| was sampled in a previous call to heapprofd_report_allocation,
-// this allocation is marked as freed in the profile.
+// If |alloc_id| was sampled in a previous call to
+// AHeapProfile_reportAllocation, this allocation is marked as freed in the
+// profile.
 //
 // It is allowed to call with an |alloc_id| that was either not sampled or never
-// passed to heapprofd_report_allocation, in which case the call will not
+// passed to AHeapProfile_reportAllocation, in which case the call will not
 // change the output.
-void heapprofd_report_free(uint32_t heap_id, uint64_t alloc_id);
+void AHeapProfile_reportFree(uint32_t heap_id, uint64_t alloc_id);
 
 #ifdef __cplusplus
 }
 #endif
+
+#pragma GCC diagnostic pop
 
 #endif  // INCLUDE_PERFETTO_PROFILING_MEMORY_CLIENT_EXT_H_
