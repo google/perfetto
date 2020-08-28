@@ -32,6 +32,13 @@
 #include "perfetto/profiling/memory/client_ext.h"
 #include "src/profiling/memory/shared_ring_buffer.h"
 
+// Make sure the alignment is the same on 32 and 64 bit architectures. This
+// is to ensure the structs below are laid out in exactly the same way for
+// both of those, at the same build.
+// The maximum alignment of every type T is sizeof(T), so we overalign that.
+// E.g., the alignment for uint64_t is 4 bytes on 32, and 8 bytes on 64 bit.
+#define PERFETTO_CROSS_ABI_ALIGNED(type) alignas(sizeof(type)) type
+
 namespace perfetto {
 
 namespace base {
@@ -44,14 +51,14 @@ struct ClientConfiguration {
   // On average, sample one allocation every interval bytes,
   // If interval == 1, sample every allocation.
   // Must be >= 1.
-  uint64_t interval;
-  bool block_client;
-  uint64_t block_client_timeout_us;
-  bool disable_fork_teardown;
-  bool disable_vfork_detection;
-  bool all_heaps;
-  char heaps[64][HEAPPROFD_HEAP_NAME_SZ];
-  uint64_t num_heaps;
+  PERFETTO_CROSS_ABI_ALIGNED(uint64_t) interval;
+  PERFETTO_CROSS_ABI_ALIGNED(uint64_t) block_client_timeout_us;
+  PERFETTO_CROSS_ABI_ALIGNED(uint64_t) num_heaps;
+  PERFETTO_CROSS_ABI_ALIGNED(char) heaps[64][HEAPPROFD_HEAP_NAME_SZ];
+  PERFETTO_CROSS_ABI_ALIGNED(bool) block_client;
+  PERFETTO_CROSS_ABI_ALIGNED(bool) disable_fork_teardown;
+  PERFETTO_CROSS_ABI_ALIGNED(bool) disable_vfork_detection;
+  PERFETTO_CROSS_ABI_ALIGNED(bool) all_heaps;
   // Just double check that the array sizes are in correct order.
   static_assert(sizeof(heaps[0]) == HEAPPROFD_HEAP_NAME_SZ, "");
 };
@@ -96,35 +103,42 @@ enum class RecordType : uint64_t {
 // Make the whole struct 8-aligned. This is to make sizeof(AllocMetdata)
 // the same on 32 and 64-bit.
 struct alignas(8) AllocMetadata {
-  uint64_t sequence_number;
+  PERFETTO_CROSS_ABI_ALIGNED(uint64_t) sequence_number;
   // Size of the allocation that was made.
-  uint64_t alloc_size;
+  PERFETTO_CROSS_ABI_ALIGNED(uint64_t) alloc_size;
   // Total number of bytes attributed to this allocation.
-  uint64_t sample_size;
+  PERFETTO_CROSS_ABI_ALIGNED(uint64_t) sample_size;
   // Pointer returned by malloc(2) for this allocation.
-  uint64_t alloc_address;
+  PERFETTO_CROSS_ABI_ALIGNED(uint64_t) alloc_address;
   // Current value of the stack pointer.
-  uint64_t stack_pointer;
-  uint64_t clock_monotonic_coarse_timestamp;
-  char register_data[kMaxRegisterDataSize];
+  PERFETTO_CROSS_ABI_ALIGNED(uint64_t) stack_pointer;
+  PERFETTO_CROSS_ABI_ALIGNED(uint64_t) clock_monotonic_coarse_timestamp;
+  // unwindstack::AsmGetRegs assumes this is aligned.
+  alignas(8) char register_data[kMaxRegisterDataSize];
+  PERFETTO_CROSS_ABI_ALIGNED(uint32_t) heap_id;
   // CPU architecture of the client.
-  unwindstack::ArchEnum arch;
-  uint32_t heap_id;
+  PERFETTO_CROSS_ABI_ALIGNED(unwindstack::ArchEnum) arch;
 };
 
 struct FreeEntry {
-  uint64_t sequence_number;
-  uint64_t addr;
-  uint32_t heap_id;
+  PERFETTO_CROSS_ABI_ALIGNED(uint64_t) sequence_number;
+  PERFETTO_CROSS_ABI_ALIGNED(uint64_t) addr;
+  PERFETTO_CROSS_ABI_ALIGNED(uint32_t) heap_id;
 };
 
 struct HeapName {
-  uint32_t heap_id;
-  char heap_name[HEAPPROFD_HEAP_NAME_SZ];
+  PERFETTO_CROSS_ABI_ALIGNED(uint32_t) heap_id;
+  PERFETTO_CROSS_ABI_ALIGNED(char) heap_name[HEAPPROFD_HEAP_NAME_SZ];
 };
 
 static_assert(sizeof(AllocMetadata) == 328,
               "AllocMetadata needs to be the same size across ABIs.");
+static_assert(sizeof(FreeEntry) == 24,
+              "FreeEntry needs to be the same size across ABIs.");
+static_assert(sizeof(HeapName) == 68,
+              "HeapName needs to be the same size across ABIs.");
+static_assert(sizeof(ClientConfiguration) == 4128,
+              "ClientConfiguration needs to be the same size across ABIs.");
 
 enum HandshakeFDs : size_t {
   kHandshakeMaps = 0,
