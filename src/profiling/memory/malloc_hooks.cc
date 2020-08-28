@@ -105,8 +105,9 @@ void ProfileCallback(bool enabled) {
   }
 }
 
-HeapprofdHeapInfo info{"com.android.malloc", ProfileCallback};
-uint32_t g_heap_id = heapprofd_register_heap(&info, sizeof(info));
+uint32_t g_heap_id = AHeapProfile_registerHeap(
+    AHeapInfo_setCallback(AHeapInfo_create("com.android.malloc"),
+                          ProfileCallback));
 
 }  // namespace
 
@@ -125,7 +126,8 @@ bool HEAPPROFD_ADD_PREFIX(_initialize)(const MallocDispatch* malloc_dispatch,
                                        const char*) {
   // Table of pointers to backing implementation.
   g_dispatch.store(malloc_dispatch);
-  return heapprofd_init_session(malloc_dispatch->malloc, malloc_dispatch->free);
+  return AHeapProfile_initSession(malloc_dispatch->malloc,
+                                  malloc_dispatch->free);
 }
 
 void HEAPPROFD_ADD_PREFIX(_finalize)() {
@@ -136,32 +138,32 @@ void HEAPPROFD_ADD_PREFIX(_finalize)() {
 void* HEAPPROFD_ADD_PREFIX(_malloc)(size_t size) {
   const MallocDispatch* dispatch = GetDispatch();
   void* addr = dispatch->malloc(size);
-  heapprofd_report_allocation(g_heap_id, reinterpret_cast<uint64_t>(addr),
-                              size);
+  AHeapProfile_reportAllocation(g_heap_id, reinterpret_cast<uint64_t>(addr),
+                                size);
   return addr;
 }
 
 void* HEAPPROFD_ADD_PREFIX(_calloc)(size_t nmemb, size_t size) {
   const MallocDispatch* dispatch = GetDispatch();
   void* addr = dispatch->calloc(nmemb, size);
-  heapprofd_report_allocation(g_heap_id, reinterpret_cast<uint64_t>(addr),
-                              nmemb * size);
+  AHeapProfile_reportAllocation(g_heap_id, reinterpret_cast<uint64_t>(addr),
+                                nmemb * size);
   return addr;
 }
 
 void* HEAPPROFD_ADD_PREFIX(_aligned_alloc)(size_t alignment, size_t size) {
   const MallocDispatch* dispatch = GetDispatch();
   void* addr = dispatch->aligned_alloc(alignment, size);
-  heapprofd_report_allocation(g_heap_id, reinterpret_cast<uint64_t>(addr),
-                              size);
+  AHeapProfile_reportAllocation(g_heap_id, reinterpret_cast<uint64_t>(addr),
+                                size);
   return addr;
 }
 
 void* HEAPPROFD_ADD_PREFIX(_memalign)(size_t alignment, size_t size) {
   const MallocDispatch* dispatch = GetDispatch();
   void* addr = dispatch->memalign(alignment, size);
-  heapprofd_report_allocation(g_heap_id, reinterpret_cast<uint64_t>(addr),
-                              size);
+  AHeapProfile_reportAllocation(g_heap_id, reinterpret_cast<uint64_t>(addr),
+                                size);
   return addr;
 }
 
@@ -173,8 +175,8 @@ int HEAPPROFD_ADD_PREFIX(_posix_memalign)(void** memptr,
   if (res != 0)
     return res;
 
-  heapprofd_report_allocation(g_heap_id, reinterpret_cast<uint64_t>(*memptr),
-                              size);
+  AHeapProfile_reportAllocation(g_heap_id, reinterpret_cast<uint64_t>(*memptr),
+                                size);
   return 0;
 }
 
@@ -194,7 +196,7 @@ void HEAPPROFD_ADD_PREFIX(_free)(void* pointer) {
     return;
 
   const MallocDispatch* dispatch = GetDispatch();
-  heapprofd_report_free(g_heap_id, reinterpret_cast<uint64_t>(pointer));
+  AHeapProfile_reportFree(g_heap_id, reinterpret_cast<uint64_t>(pointer));
   return dispatch->free(pointer);
 }
 
@@ -209,10 +211,10 @@ void HEAPPROFD_ADD_PREFIX(_free)(void* pointer) {
 void* HEAPPROFD_ADD_PREFIX(_realloc)(void* pointer, size_t size) {
   const MallocDispatch* dispatch = GetDispatch();
   if (pointer)
-    heapprofd_report_free(g_heap_id, reinterpret_cast<uint64_t>(pointer));
+    AHeapProfile_reportFree(g_heap_id, reinterpret_cast<uint64_t>(pointer));
   void* addr = dispatch->realloc(pointer, size);
-  heapprofd_report_allocation(g_heap_id, reinterpret_cast<uint64_t>(addr),
-                              size);
+  AHeapProfile_reportAllocation(g_heap_id, reinterpret_cast<uint64_t>(addr),
+                                size);
   return addr;
 }
 
