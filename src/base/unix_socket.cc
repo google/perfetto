@@ -92,7 +92,7 @@ inline int GetSockFamily(SockFamily family) {
       return AF_UNIX;
     case SockFamily::kInet:
       return AF_INET;
-    case SockFamily::kInet6Only:
+    case SockFamily::kInet6:
       return AF_INET6;
   }
   PERFETTO_CHECK(false);  // For GCC.
@@ -146,7 +146,7 @@ SockaddrAny MakeSockAddr(SockFamily family, const std::string& socket_name) {
       freeaddrinfo(addr_info);
       return res;
     }
-    case SockFamily::kInet6Only: {
+    case SockFamily::kInet6: {
       auto parts = SplitString(socket_name, "]");
       PERFETTO_CHECK(parts.size() == 2);
       auto address = SplitString(parts[0], "[");
@@ -232,7 +232,7 @@ UnixSocketRaw::UnixSocketRaw(ScopedFile fd, SockFamily family, SockType type)
   setsockopt(*fd_, SOL_SOCKET, SO_NOSIGPIPE, &no_sigpipe, sizeof(no_sigpipe));
 #endif
 
-  if (family == SockFamily::kInet || family == SockFamily::kInet6Only) {
+  if (family == SockFamily::kInet || family == SockFamily::kInet6) {
     int flag = 1;
     PERFETTO_CHECK(
         !setsockopt(*fd_, SOL_SOCKET, SO_REUSEADDR, &flag, sizeof(flag)));
@@ -464,13 +464,6 @@ std::unique_ptr<UnixSocket> UnixSocket::Listen(const std::string& socket_name,
                                                SockFamily sock_family,
                                                SockType sock_type) {
   auto sock_raw = UnixSocketRaw::CreateMayFail(sock_family, sock_type);
-
-  // TODO(lalitm): Look further into IPv6 only binding
-  if (sock_family == SockFamily::kInet6Only) {
-    int flag = 1;
-    PERFETTO_CHECK(!setsockopt(sock_raw.fd(), IPPROTO_IPV6, IPV6_V6ONLY, &flag,
-                               sizeof(flag)));
-  }
   if (!sock_raw || !sock_raw.Bind(socket_name))
     return nullptr;
 
