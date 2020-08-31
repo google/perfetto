@@ -459,7 +459,7 @@ function dispatchCreatePermalink(e: Event) {
       `The trace will be accessible by anybody with the permalink.`);
   if (result) {
     globals.logging.logEvent('Trace Actions', 'Create permalink');
-    globals.dispatch(Actions.createPermalink({}));
+    globals.dispatch(Actions.createPermalink({isRecordingConfig: false}));
   }
 }
 
