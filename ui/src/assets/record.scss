@@ -285,32 +285,32 @@
   }
 
   .config {
-    height: auto;
-    width: 100%;
-    margin: 5px;
-    padding: 0px;
-
     &:nth-of-type(2n) {
       background-color: #e7e7e7;
-      padding: 5px;
     }
+
+    height: auto;
+    width: 100%;
+    padding: 0px;
+    display: flex;
+    align-items: center;
   }
 
   .title-config {
     display: inline-block;
-    width: 70%;
-    max-width: 70%;
+    margin: var(--record-section-padding);
+    flex-grow: 1;
     word-break: break-all;
-    padding-left: 5px;
   }
 
   .config-button {
     border-radius: 10px;
-    margin-left: 10px;
+    margin-right: 10px;
     text-align: center;
     justify-items: center;
     font-family: 'Raleway', sans-serif;
     padding: 7px;
+    width: 75px;
 
     &:hover {
       box-shadow: 0 0 4px 0px #999;
@@ -325,6 +325,7 @@
     }
 
     &.save {
+      width: 160px;
       background-color: hsl(197, 50%, 67%);
     }
   }
@@ -332,17 +333,23 @@
   .input-config {
     margin-top: 20px;
     margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    padding: 0px;
 
     input {
       border-radius: 20px;
       border-color: #0000003d;
       line-height: 36px;
-
       padding: 0 10px;
       font-size: 18px;
       font-family: 'Roboto Condensed', sans-serif;
       font-weight: 300;
       color: #666;
+      flex-grow: 1;
+      margin-right: 10px;
+      margin-left: 10px;
+
       background-color: transparent;
       &:focus {
         outline: none;
@@ -940,6 +947,22 @@
           background-color: hsl(88, 50%, 67%);
           box-shadow: 0 0 4px 0px #999;
         }
+      }
+    }
+
+    .permalinkconfig {
+      margin: var(--record-section-padding);
+      height: 40px;
+      max-width: 200px;
+      border-radius: 10px;
+      text-align: center;
+      justify-items: center;
+      font-family: 'Raleway', sans-serif;
+      padding: 7px;
+      background-color: hsl(88, 50%, 67%);
+
+      &:hover {
+        box-shadow: 0 0 4px 0px #999;
       }
     }
 
