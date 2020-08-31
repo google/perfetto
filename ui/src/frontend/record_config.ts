@@ -12,14 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {createEmptyRecordConfig, RecordConfig} from '../common/state';
+import {RecordConfig} from '../common/state';
+import {validateRecordConfig} from '../controller/validate_config';
 
 const LOCAL_STORAGE_RECORD_CONFIGS_KEY = 'recordConfigs';
-
-interface ValidationResult {
-  config: RecordConfig;
-  errorMessage?: string;
-}
 
 class NamedRecordConfig {
   title: string;
@@ -33,7 +29,7 @@ class NamedRecordConfig {
   }
 
   private validateData(config: {}): RecordConfig {
-    const validConfig = RecordConfigStore.validateConfig(config);
+    const validConfig = validateRecordConfig(config);
     if (validConfig.errorMessage) {
       // TODO(bsebastien): Show a warning message to the user in the UI.
       console.warn(validConfig.errorMessage);
@@ -67,43 +63,6 @@ export class RecordConfigStore {
     this.recordConfigs.push(config);
     window.localStorage.setItem(
         LOCAL_STORAGE_RECORD_CONFIGS_KEY, JSON.stringify(this.recordConfigs));
-  }
-
-  static validateConfig(
-      config: {[key: string]: string|number|boolean|string[]|null}):
-      ValidationResult {
-    // Remove the keys that are not in both createEmptyRecordConfig and
-    // config.
-    const newConfig: RecordConfig = createEmptyRecordConfig();
-    const ignoredKeys: string[] = [];
-    // TODO(bsebastien): Also check that types of properties match.
-    Object.entries(newConfig).forEach(([key, value]) => {
-      if (key in config && typeof value === typeof config[key]) {
-        newConfig[key] = config[key];
-      } else {
-        ignoredKeys.push(key);
-      }
-    });
-
-    // Check if config has additional keys that are not in
-    // createEmptyRecordConfig().
-    for (const key of Object.keys(config)) {
-      if (!(key in newConfig)) {
-        ignoredKeys.push(key);
-      }
-    }
-
-    if (ignoredKeys.length > 0) {
-      // At least return an empty RecordConfig if nothing match.
-      return {
-        errorMessage: 'Warning: Loaded config contains incompatible keys.\n\
-        It may have been created with an older version of the UI.\n\
-        Ignored keys: ' +
-            ignoredKeys.join(' '),
-        config: newConfig,
-      };
-    }
-    return {config: newConfig};
   }
 
   delete(key: string): void {
