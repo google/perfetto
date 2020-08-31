@@ -319,8 +319,12 @@ export const StateActions = {
         }
       },
 
-  createPermalink(state: StateDraft, _: {}): void {
-    state.permalink = {requestId: `${state.nextId++}`, hash: undefined};
+  createPermalink(state: StateDraft, args: {isRecordingConfig: boolean}): void {
+    state.permalink = {
+      requestId: `${state.nextId++}`,
+      hash: undefined,
+      isRecordingConfig: args.isRecordingConfig
+    };
   },
 
   setPermalink(state: StateDraft, args: {requestId: string; hash: string}):
@@ -331,10 +335,7 @@ export const StateActions = {
       },
 
   loadPermalink(state: StateDraft, args: {hash: string}): void {
-    state.permalink = {
-      requestId: `${state.nextId++}`,
-      hash: args.hash,
-    };
+    state.permalink = {requestId: `${state.nextId++}`, hash: args.hash};
   },
 
   clearPermalink(state: StateDraft, _: {}): void {

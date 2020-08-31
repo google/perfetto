@@ -837,6 +837,16 @@ function Instructions(cssClass: string) {
   return m(
       `.record-section.instructions${cssClass}`,
       m('header', 'Instructions'),
+      localStorage.hasOwnProperty(LOCAL_STORAGE_SHOW_CONFIG) ?
+          m('button.permalinkconfig',
+            {
+              onclick: () => {
+                globals.dispatch(
+                    Actions.createPermalink({isRecordingConfig: true}));
+              },
+            },
+            'Share recording settings') :
+          null,
       RecordingSnippet(),
       BufferUsageProgressBar(),
       m('.buttons', StopCancelButtons()),
