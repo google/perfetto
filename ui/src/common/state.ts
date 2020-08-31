@@ -120,6 +120,8 @@ export interface QueryConfig {
 export interface PermalinkConfig {
   requestId?: string;  // Set by the frontend to request a new permalink.
   hash?: string;       // Set by the controller when the link has been created.
+  isRecordingConfig?:
+      boolean;  // this permalink request is for a recording config only
 }
 
 export interface TraceTime {
