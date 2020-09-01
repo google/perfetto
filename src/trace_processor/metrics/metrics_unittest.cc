@@ -74,7 +74,8 @@ TEST_F(ProtoBuilderTest, AppendLong) {
   // message TestProto {
   //   optional int64 int_value = 1;
   // }
-  ProtoDescriptor descriptor(".perfetto.protos", ".perfetto.protos.TestProto",
+  ProtoDescriptor descriptor("file.proto", ".perfetto.protos",
+                             ".perfetto.protos.TestProto",
                              ProtoDescriptor::Type::kMessage, base::nullopt);
   descriptor.AddField(FieldDescriptor(
       "int_value", 1, FieldDescriptorProto::TYPE_INT64, "", false));
@@ -95,7 +96,8 @@ TEST_F(ProtoBuilderTest, AppendDouble) {
   // message TestProto {
   //   optional double double_value = 1;
   // }
-  ProtoDescriptor descriptor(".perfetto.protos", ".perfetto.protos.TestProto",
+  ProtoDescriptor descriptor("file.proto", ".perfetto.protos",
+                             ".perfetto.protos.TestProto",
                              ProtoDescriptor::Type::kMessage, base::nullopt);
   descriptor.AddField(FieldDescriptor(
       "double_value", 1, FieldDescriptorProto::TYPE_DOUBLE, "", false));
@@ -116,7 +118,8 @@ TEST_F(ProtoBuilderTest, AppendString) {
   // message TestProto {
   //   optional string string_value = 1;
   // }
-  ProtoDescriptor descriptor(".perfetto.protos", ".perfetto.protos.TestProto",
+  ProtoDescriptor descriptor("file.proto", ".perfetto.protos",
+                             ".perfetto.protos.TestProto",
                              ProtoDescriptor::Type::kMessage, base::nullopt);
   descriptor.AddField(FieldDescriptor(
       "string_value", 1, FieldDescriptorProto::TYPE_STRING, "", false));
@@ -140,13 +143,14 @@ TEST_F(ProtoBuilderTest, AppendNested) {
   //   }
   //   optional NestedProto nested_value = 1;
   // }
-  ProtoDescriptor nested(".perfetto.protos",
+  ProtoDescriptor nested("file.proto", ".perfetto.protos",
                          ".perfetto.protos.TestProto.NestedProto",
                          ProtoDescriptor::Type::kMessage, base::nullopt);
   nested.AddField(FieldDescriptor("nested_int_value", 1,
                                   FieldDescriptorProto::TYPE_INT64, "", false));
 
-  ProtoDescriptor descriptor(".perfetto.protos", ".perfetto.protos.TestProto",
+  ProtoDescriptor descriptor("file.proto", ".perfetto.protos",
+                             ".perfetto.protos.TestProto",
                              ProtoDescriptor::Type::kMessage, base::nullopt);
   auto field =
       FieldDescriptor("nested_value", 1, FieldDescriptorProto::TYPE_MESSAGE,
@@ -186,7 +190,8 @@ TEST_F(ProtoBuilderTest, AppendRepeatedPrimitive) {
   // message TestProto {
   //   repeated int64 int_value = 1;
   // }
-  ProtoDescriptor descriptor(".perfetto.protos", ".perfetto.protos.TestProto",
+  ProtoDescriptor descriptor("file.proto", ".perfetto.protos",
+                             ".perfetto.protos.TestProto",
                              ProtoDescriptor::Type::kMessage, base::nullopt);
   descriptor.AddField(FieldDescriptor(
       "rep_int_value", 1, FieldDescriptorProto::TYPE_INT64, "", true));
