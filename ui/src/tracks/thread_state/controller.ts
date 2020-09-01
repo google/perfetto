@@ -93,13 +93,14 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
       cpu: new Int8Array(numRows),
     };
 
-    const stringIndexes = new Map<string, number>();
+    const stringIndexes =
+        new Map<{shortState: string, ioWait: boolean | undefined}, number>();
     function internState(shortState: string, ioWait: boolean|undefined) {
-      let idx = stringIndexes.get(shortState);
+      let idx = stringIndexes.get({shortState, ioWait});
       if (idx !== undefined) return idx;
       idx = data.strings.length;
       data.strings.push(translateState(shortState, ioWait));
-      stringIndexes.set(shortState, idx);
+      stringIndexes.set({shortState, ioWait}, idx);
       return idx;
     }
 
