@@ -2509,6 +2509,9 @@ perfetto_proto_library(
     visibility = [
         PERFETTO_CONFIG.proto_library_visibility,
     ],
+    deps = [
+        ":protos_perfetto_common_protos",
+    ],
 )
 
 # GN target: //protos/perfetto/trace_processor:zero
@@ -2953,6 +2956,7 @@ perfetto_cc_library(
                ":protos_perfetto_trace_perfetto_zero",
                ":protos_perfetto_trace_power_zero",
                ":protos_perfetto_trace_processor_metrics_impl_zero",
+               ":protos_perfetto_trace_processor_zero",
                ":protos_perfetto_trace_profiling_zero",
                ":protos_perfetto_trace_ps_zero",
                ":protos_perfetto_trace_sys_stats_zero",
@@ -3203,6 +3207,7 @@ perfetto_cc_binary(
                ":protos_perfetto_trace_perfetto_zero",
                ":protos_perfetto_trace_power_zero",
                ":protos_perfetto_trace_processor_metrics_impl_zero",
+               ":protos_perfetto_trace_processor_zero",
                ":protos_perfetto_trace_profiling_zero",
                ":protos_perfetto_trace_ps_zero",
                ":protos_perfetto_trace_sys_stats_zero",

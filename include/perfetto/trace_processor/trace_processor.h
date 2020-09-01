@@ -92,6 +92,12 @@ class PERFETTO_EXPORT TraceProcessor : public TraceProcessorStorage {
   // read.
   virtual util::Status DisableAndReadMetatrace(
       std::vector<uint8_t>* trace_proto) = 0;
+
+  // Gets all the currently loaded proto descriptors used in metric computation.
+  // This includes all compiled-in binary descriptors, and all proto descriptors
+  // loaded by trace processor shell at runtime. The message is encoded as
+  // DescriptorSet, defined in perfetto/trace_processor/trace_processor.proto.
+  virtual std::vector<uint8_t> GetMetricDescriptors() = 0;
 };
 
 // When set, logs SQLite actions on the console.
