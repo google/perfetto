@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_UTIL_DESCRIPTORS_H_
 
 #include <algorithm>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -72,7 +73,8 @@ class ProtoDescriptor {
  public:
   enum class Type { kEnum = 0, kMessage = 1 };
 
-  ProtoDescriptor(std::string package_name,
+  ProtoDescriptor(std::string file_name,
+                  std::string package_name,
                   std::string full_name,
                   Type type,
                   base::Optional<uint32_t> parent_id);
@@ -119,6 +121,8 @@ class ProtoDescriptor {
                                     : base::Optional<std::string>(it->second);
   }
 
+  const std::string& file_name() const { return file_name_; }
+
   const std::string& package_name() const { return package_name_; }
 
   const std::string& full_name() const { return full_name_; }
@@ -127,6 +131,7 @@ class ProtoDescriptor {
   std::vector<FieldDescriptor>* mutable_fields() { return &fields_; }
 
  private:
+  std::string file_name_;  // File in which descriptor was originally defined.
   std::string package_name_;
   std::string full_name_;
   const Type type_;
@@ -151,13 +156,18 @@ class DescriptorPool {
   }
 
  private:
-  void AddNestedProtoDescriptors(const std::string& package_name,
+  void AddNestedProtoDescriptors(const std::string& file_name,
+                                 const std::string& package_name,
                                  base::Optional<uint32_t> parent_idx,
                                  protozero::ConstBytes descriptor_proto,
                                  std::vector<ExtensionInfo>* extensions);
-  void AddEnumProtoDescriptors(const std::string& package_name,
+  void AddEnumProtoDescriptors(const std::string& file_name,
+                               const std::string& package_name,
                                base::Optional<uint32_t> parent_idx,
                                protozero::ConstBytes descriptor_proto);
+
+  void CheckPreviousDefinition(const std::string& file_name,
+                               const std::string& descriptor_name);
 
   util::Status AddExtensionField(const std::string& package_name,
                                  protozero::ConstBytes field_desc_proto);
@@ -168,6 +178,7 @@ class DescriptorPool {
                                             const std::string& short_type);
 
   std::vector<ProtoDescriptor> descriptors_;
+  std::set<std::string> processed_files_;
 };
 
 }  // namespace trace_processor
