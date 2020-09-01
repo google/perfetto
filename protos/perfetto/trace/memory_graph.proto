@@ -18,6 +18,12 @@ syntax = "proto2";
 
 package perfetto.protos;
 
+// Message definitions for app-reported memory breakdowns. At the moment, this
+// is a Chrome-only tracing feature, historically known as 'memory-infra'. See
+// https://chromium.googlesource.com/chromium/src/+/master/docs/memory-infra/ .
+// This is unrelated to the native or java heap profilers (those protos live
+// in //protos/perfetto/trace/profiling/).
+
 message MemoryTrackerSnapshot {
   // Memory snapshot of a process. The snapshot contains memory data that is
   // from 2 different sources, namely system stats and instrumentation stats.
