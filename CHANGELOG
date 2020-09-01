@@ -7,6 +7,38 @@ Unreleased:
     *
 
 
+v7.0 - 2020-09-01:
+  Tracing service and probes:
+    * Added auto-reconnection to the SDK. Tracing::Initialize() now retries in
+      the background, instead of failing, if the tracing service is unrechable.
+    * Added support for recording cpuhp (CPU hotplug) ftrace events.
+    * Fixed heap profiling unwinding on multi-ABI systems.
+    * Fixed reporting of live objects in the native heap profiler when using
+      --dump-at-max.
+    * Fixed crash when writing trace events with field nesting level > 10.
+  Trace Processor:
+    * Added Python bindings, see
+      https://perfetto.dev/docs/analysis/trace-processor#python-api .
+    * Added ingestion for Chrome instant events and Chrome flow events.
+    * Added ingestion for Android GPU memory events and sched_blocked_reason.
+    * Added WebView power metric.
+    * Added support for WSL1 where Async I/O is not available.
+    * Improved detection of Android suspend/resume events.
+  UI:
+    * Added GPU memory recording controls and ingestion code. Requires a recent
+      Android 12+ kernel.
+    * Added details panel for flow events, showed when the user selects a slice
+      involved in a flow (arrows in the UI are still being worked on).
+    * Added instant events rendering.
+    * Added Google Analytics.
+    * Fixed I/O thread-states in 4.14 kernels to deal with the removal of
+      wake-kill using sched_blocked_reason.
+    * Fixed "Perfetto UI started debugging this browser" showing when opening
+      the UI and the Chrome extension is installed.
+  Misc:
+    * Update language to comply with Android's inclusive language guidance.
+
+
 v6.0 - 2020-08-01:
   Tracing service and probes:
     * Added ftrace thermal events.
