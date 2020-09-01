@@ -54,7 +54,7 @@ export class ThreadAggregationController extends AggregationController {
         pid,
         thread.name as thread_name,
         tid,
-        state || ',' || io_wait as concat_state,
+        state || ',' || IFNULL(io_wait, 'NULL') as concat_state,
         sum(dur) AS total_dur,
         sum(dur)/count(1) as avg_dur,
         count(1) as occurrences
