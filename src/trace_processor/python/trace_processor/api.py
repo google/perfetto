@@ -141,11 +141,8 @@ class TraceProcessor:
       self.__next_index = self.__next_index + len(self.__column_names)
       return row
 
-  def __init__(self,
-               addr=None,
-               file_path=None,
-               bin_path=None,
-               unique_port=False):
+  def __init__(self, addr=None, file_path=None, bin_path=None,
+               unique_port=True):
     # Load trace_processor_shell or access via given address
     if addr:
       p = urlparse(addr)
