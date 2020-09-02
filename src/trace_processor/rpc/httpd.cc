@@ -341,6 +341,13 @@ void HttpServer::HandleRequest(Client* client, const HttpRequest& req) {
                      res.size());
   }
 
+  if (req.uri == "/get_metric_descriptors") {
+    std::vector<uint8_t> res = trace_processor_rpc_.GetMetricDescriptors(
+        reinterpret_cast<const uint8_t*>(req.body.data()), req.body.size());
+    return HttpReply(client->sock.get(), "200 OK", headers, res.data(),
+                     res.size());
+  }
+
   if (req.uri == "/enable_metatrace") {
     trace_processor_rpc_.EnableMetatrace();
     return HttpReply(client->sock.get(), "200 OK", headers);
