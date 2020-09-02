@@ -97,6 +97,14 @@ void trace_processor_compute_metric(uint32_t size) {
           static_cast<uint32_t>(res.size()));
 }
 
+void EMSCRIPTEN_KEEPALIVE trace_processor_get_metric_descriptors(uint32_t);
+void trace_processor_get_metric_descriptors(uint32_t size) {
+  std::vector<uint8_t> res =
+      g_trace_processor_rpc->GetMetricDescriptors(g_req_buf, size);
+  g_reply(reinterpret_cast<const char*>(res.data()),
+          static_cast<uint32_t>(res.size()));
+}
+
 void EMSCRIPTEN_KEEPALIVE trace_processor_enable_metatrace(uint32_t);
 void trace_processor_enable_metatrace(uint32_t) {
   g_trace_processor_rpc->EnableMetatrace();

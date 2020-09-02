@@ -17,8 +17,9 @@
 #include "src/trace_processor/util/descriptors.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
-
+#include "perfetto/protozero/scattered_heap_buffer.h"
 #include "protos/perfetto/common/descriptor.pbzero.h"
+#include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -229,6 +230,31 @@ base::Optional<uint32_t> DescriptorPool::FindDescriptorIdx(
   auto idx = static_cast<uint32_t>(std::distance(descriptors_.begin(), it));
   return idx < descriptors_.size() ? base::Optional<uint32_t>(idx)
                                    : base::nullopt;
+}
+
+std::vector<uint8_t> DescriptorPool::SerializeAsDescriptorSet() {
+  protozero::HeapBuffered<protos::pbzero::DescriptorSet> descs;
+  for (auto& desc : descriptors()) {
+    protos::pbzero::DescriptorProto* proto_descriptor =
+        descs->add_descriptors();
+    proto_descriptor->set_name(desc.full_name());
+    for (auto& field : desc.fields()) {
+      protos::pbzero::FieldDescriptorProto* field_descriptor =
+          proto_descriptor->add_field();
+      field_descriptor->set_name(field.name());
+      field_descriptor->set_number(static_cast<int32_t>(field.number()));
+      // We do not support required fields. They will show up as optional
+      // after serialization.
+      field_descriptor->set_label(
+          field.is_repeated()
+              ? protos::pbzero::FieldDescriptorProto::LABEL_REPEATED
+              : protos::pbzero::FieldDescriptorProto::LABEL_OPTIONAL);
+      field_descriptor->set_type_name(field.resolved_type_name());
+      field_descriptor->set_type(
+          static_cast<protos::pbzero::FieldDescriptorProto_Type>(field.type()));
+    }
+  }
+  return descs.SerializeAsArray();
 }
 
 ProtoDescriptor::ProtoDescriptor(std::string file_name,

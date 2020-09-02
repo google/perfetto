@@ -155,6 +155,8 @@ class DescriptorPool {
     return descriptors_;
   }
 
+  std::vector<uint8_t> SerializeAsDescriptorSet();
+
  private:
   void AddNestedProtoDescriptors(const std::string& file_name,
                                  const std::string& package_name,
