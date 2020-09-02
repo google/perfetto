@@ -486,7 +486,7 @@ def main(argv):
 
   binary_path = os.getenv('PERFETTO_BINARY_PATH')
   if binary_path is not None:
-    with open(os.path.join(profile_path, 'symbols'), 'w') as fd:
+    with open(os.path.join(profile_target, 'symbols'), 'w') as fd:
       ret = subprocess.call([
           trace_to_text_binary, 'symbolize',
           os.path.join(profile_target, 'raw-trace')],
@@ -495,6 +495,20 @@ def main(argv):
       if ret != 0:
         print("Failed to symbolize. Continuing without symbols.",
               file=sys.stderr)
+    if ret == 0:
+      with open(os.path.join(profile_target, 'symbolized-trace'), 'w') as out,\
+           open(os.path.join(profile_target, 'raw-trace'), 'r') as in1,\
+           open(os.path.join(profile_target, 'symbols'), 'r') as in2:
+        while True:
+          buf = in1.read(4096)
+          if not buf:
+            break
+          out.write(buf)
+        while True:
+          buf = in2.read(4096)
+          if not buf:
+            break
+          out.write(buf)
 
   if symlink_path is not None:
     print("Wrote profiles to {} (symlink {})".format(
