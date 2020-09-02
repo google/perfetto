@@ -956,6 +956,10 @@ util::Status TraceProcessorImpl::ComputeMetric(
                                  root_descriptor, metrics_proto);
 }
 
+std::vector<uint8_t> TraceProcessorImpl::GetMetricDescriptors() {
+  return pool_.SerializeAsDescriptorSet();
+}
+
 void TraceProcessorImpl::EnableMetatrace() {
   metatrace::Enable();
 }
