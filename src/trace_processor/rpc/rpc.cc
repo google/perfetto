@@ -287,6 +287,19 @@ std::vector<uint8_t> Rpc::ComputeMetric(const uint8_t* data, size_t len) {
   return result.SerializeAsArray();
 }
 
+std::vector<uint8_t> Rpc::GetMetricDescriptors(const uint8_t*, size_t) {
+  protozero::HeapBuffered<protos::pbzero::GetMetricDescriptorsResult> result;
+  if (!trace_processor_) {
+    return result.SerializeAsArray();
+  }
+  std::vector<uint8_t> descriptor_set =
+      trace_processor_->GetMetricDescriptors();
+  result->AppendBytes(
+      protos::pbzero::GetMetricDescriptorsResult::kDescriptorSetFieldNumber,
+      descriptor_set.data(), descriptor_set.size());
+  return result.SerializeAsArray();
+}
+
 void Rpc::EnableMetatrace() {
   if (!trace_processor_)
     return;

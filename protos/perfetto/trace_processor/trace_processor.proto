@@ -18,6 +18,8 @@ syntax = "proto2";
 
 package perfetto.protos;
 
+import "protos/perfetto/common/descriptor.proto";
+
 // This file defines the schema for {,un}marshalling arguments and return values
 // when interfacing to the trace processor binary interface.
 
@@ -170,4 +172,18 @@ message DisableAndReadMetatraceResult {
   // to avoid adding a dependency on trace.proto.
   optional bytes metatrace = 1;
   optional string error = 2;
+}
+
+// Convenience wrapper for multiple descriptors, similar to FileDescriptorSet
+// in descriptor.proto.
+message DescriptorSet {
+  repeated DescriptorProto descriptors = 1;
+}
+
+// Input for the /get_metric_descriptors endpoint.
+message GetMetricDescriptorsArgs {}
+
+// Output for the /get_metric_descriptors endpoint.
+message GetMetricDescriptorsResult {
+  optional DescriptorSet descriptor_set = 1;
 }
