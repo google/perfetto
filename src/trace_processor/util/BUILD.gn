@@ -48,6 +48,7 @@ source_set("descriptors") {
     "../../../gn:default_deps",
     "../../../include/perfetto/trace_processor",
     "../../../protos/perfetto/common:zero",
+    "../../../protos/perfetto/trace_processor:zero",
     "../../base",
     "../../protozero",
   ]
