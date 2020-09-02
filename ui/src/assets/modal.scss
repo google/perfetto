@@ -196,6 +196,7 @@
   font-family: monospace;
   -webkit-user-select: text;
   margin-top: 10px;
+  margin-bottom: 10px;
   min-height: 50px;
   max-height: 40vh;
   overflow: scroll;
@@ -206,4 +207,15 @@
   padding: 5px 0;
   overflow: auto;
   min-height: 0;
+}
+
+.modal-textarea {
+  display: block;
+  margin-top: 10px;
+  margin-bottom: 10px;
+  width: 100%;
+}
+
+.modal-small {
+  font-size: 11px;
 }
