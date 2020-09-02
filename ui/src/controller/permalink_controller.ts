@@ -13,18 +13,21 @@
 // limitations under the License.
 
 import {produce} from 'immer';
-import * as uuidv4 from 'uuid/v4';
 
 import {assertExists, assertTrue} from '../base/logging';
 import {Actions} from '../common/actions';
 import {State} from '../common/state';
 import {RecordConfig} from '../common/state';
+import {
+  BUCKET_NAME,
+  saveState,
+  saveTrace,
+  toSha256
+} from '../common/upload_utils';
 
 import {Controller} from './controller';
 import {globals} from './globals';
 import {validateRecordConfig} from './validate_config';
-
-export const BUCKET_NAME = 'perfetto-ui-data';
 
 export class PermalinkController extends Controller<'main'> {
   private lastRequestId?: string;
@@ -101,7 +104,7 @@ export class PermalinkController extends Controller<'main'> {
 
       if (dataToUpload !== undefined) {
         PermalinkController.updateStatus(`Uploading ${traceName}`);
-        const url = await this.saveTrace(dataToUpload);
+        const url = await saveTrace(dataToUpload);
         // Convert state to use URLs and remove permalink.
         uploadState = produce(globals.state, draft => {
           draft.engines[engine.id].source = {type: 'URL', url};
@@ -112,64 +115,21 @@ export class PermalinkController extends Controller<'main'> {
 
     // Upload state.
     PermalinkController.updateStatus(`Creating permalink...`);
-    const hash = await this.saveState(uploadState);
+    const hash = await saveState(uploadState);
     PermalinkController.updateStatus(`Permalink ready`);
     return hash;
-  }
-
-  private static async saveState(stateOrConfig: State|
-                                 RecordConfig): Promise<string> {
-    const text = JSON.stringify(stateOrConfig);
-    const hash = await this.toSha256(text);
-    const url = 'https://www.googleapis.com/upload/storage/v1/b/' +
-        `${BUCKET_NAME}/o?uploadType=media` +
-        `&name=${hash}&predefinedAcl=publicRead`;
-    const response = await fetch(url, {
-      method: 'post',
-      headers: {
-        'Content-Type': 'application/json; charset=utf-8',
-      },
-      body: text,
-    });
-    await response.json();
-
-    return hash;
-  }
-
-  private static async saveTrace(trace: File|ArrayBuffer): Promise<string> {
-    // TODO(hjd): This should probably also be a hash but that requires
-    // trace processor support.
-    const name = uuidv4();
-    const url = 'https://www.googleapis.com/upload/storage/v1/b/' +
-        `${BUCKET_NAME}/o?uploadType=media` +
-        `&name=${name}&predefinedAcl=publicRead`;
-    const response = await fetch(url, {
-      method: 'post',
-      headers: {'Content-Type': 'application/octet-stream;'},
-      body: trace,
-    });
-    await response.json();
-    return `https://storage.googleapis.com/${BUCKET_NAME}/${name}`;
   }
 
   private static async loadState(id: string): Promise<State|RecordConfig> {
     const url = `https://storage.googleapis.com/${BUCKET_NAME}/${id}`;
     const response = await fetch(url);
     const text = await response.text();
-    const stateHash = await this.toSha256(text);
+    const stateHash = await toSha256(text);
     const state = JSON.parse(text);
     if (stateHash !== id) {
       throw new Error(`State hash does not match ${id} vs. ${stateHash}`);
     }
     return state;
-  }
-
-  private static async toSha256(str: string): Promise<string> {
-    // TODO(hjd): TypeScript bug with definition of TextEncoder.
-    // tslint:disable-next-line no-any
-    const buffer = new (TextEncoder as any)('utf-8').encode(str);
-    const digest = await crypto.subtle.digest('SHA-256', buffer);
-    return Array.from(new Uint8Array(digest)).map(x => x.toString(16)).join('');
   }
 
   private static updateStatus(msg: string): void {
