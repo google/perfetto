@@ -17,10 +17,12 @@
 #include "src/profiling/memory/client.h"
 
 #include <inttypes.h>
+#include <signal.h>
 #include <sys/prctl.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
 #include <unistd.h>
+
 #include <unwindstack/MachineArm.h>
 #include <unwindstack/MachineArm64.h>
 #include <unwindstack/MachineMips.h>
@@ -34,6 +36,7 @@
 #include <atomic>
 #include <new>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/thread_utils.h"
 #include "perfetto/base/time.h"
@@ -344,8 +347,39 @@ bool Client::RecordMalloc(uint32_t heap_id,
   unwindstack::AsmGetRegs(metadata.register_data);
 
   if (PERFETTO_UNLIKELY(stackbase < stacktop)) {
-    PERFETTO_DFATAL_OR_ELOG("Stackbase >= stacktop.");
-    return false;
+    // An invalid stack can be caused by malloc being called from a signal
+    // handler that has its own stack (uses SA_ONSTACK).
+    //
+    // While calling malloc from a signal handler is technically not POSIX-
+    // compliant, it is done in practice if the application can guarantee
+    // that the thread the signal handler is being run on is not currently
+    // calling malloc (see also b/160827189).
+    //
+    // TODO(fmayer): We can also be on a sigaltstack without matching this
+    // condition. Handle that case more gracefully.
+
+    stack_t altstack;
+    if (sigaltstack(nullptr, &altstack) == -1) {
+      PERFETTO_PLOG("sigaltstack");
+      return false;
+    }
+
+    if ((altstack.ss_flags & SS_ONSTACK) == 0) {
+      PERFETTO_ELOG(
+          "Invalid (not signal-alt) stack. Stackbase (%p) < stacktop (%p).",
+          static_cast<const void*>(stackbase),
+          static_cast<const void*>(stacktop));
+      return false;
+    }
+
+    stackbase = static_cast<char*>(altstack.ss_sp) + altstack.ss_size;
+    if (PERFETTO_UNLIKELY(stackbase < stacktop)) {
+      PERFETTO_ELOG(
+          "Invalid (signal-alt) stack. Stackbase (%p) < stacktop (%p).",
+          static_cast<const void*>(stackbase),
+          static_cast<const void*>(stacktop));
+      return false;
+    }
   }
 
   uint64_t stack_size = static_cast<uint64_t>(stackbase - stacktop);
