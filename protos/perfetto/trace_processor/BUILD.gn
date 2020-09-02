@@ -17,6 +17,7 @@ import("proto_files.gni")
 
 perfetto_proto_library("@TYPE@") {
   proto_generators = [ "zero" ]
+  deps = [ "../common:zero" ]  # ../common:zero needed for descriptor.proto.
   sources = []
   foreach(source, trace_processor_protos) {
     sources += [ "$source.proto" ]

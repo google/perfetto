@@ -20,8 +20,12 @@
 #include <string>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/trace_processor/trace_processor.h"
+#include "protos/perfetto/common/descriptor.pbzero.h"
+#include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
+
 #include "src/base/test/utils.h"
 #include "test/gtest_and_gmock.h"
 
@@ -58,6 +62,8 @@ class TraceProcessorIntegrationTest : public ::testing::Test {
   Iterator Query(const std::string& query) {
     return processor_->ExecuteQuery(query.c_str());
   }
+
+  TraceProcessor* Processor() { return processor_.get(); }
 
   size_t RestoreInitialTables() { return processor_->RestoreInitialTables(); }
 
@@ -168,6 +174,26 @@ TEST_F(TraceProcessorIntegrationTest, UnsortedTrace) {
   ASSERT_EQ(it.Get(1).type, SqlValue::kLong);
   ASSERT_EQ(it.Get(1).long_value, 1);
   ASSERT_FALSE(it.Next());
+}
+
+TEST_F(TraceProcessorIntegrationTest, SerializeMetricDescriptors) {
+  std::vector<uint8_t> desc_set_bytes = Processor()->GetMetricDescriptors();
+  protos::pbzero::DescriptorSet::Decoder desc_set(desc_set_bytes.data(),
+                                                  desc_set_bytes.size());
+
+  ASSERT_TRUE(desc_set.has_descriptors());
+  int trace_metrics_count = 0;
+  for (auto desc = desc_set.descriptors(); desc; ++desc) {
+    protos::pbzero::DescriptorProto::Decoder proto_desc(*desc);
+    if (proto_desc.name().ToStdString() == ".perfetto.protos.TraceMetrics") {
+      ASSERT_TRUE(proto_desc.has_field());
+      trace_metrics_count++;
+    }
+  }
+
+  // There should be exactly one definition of TraceMetrics. This can be not
+  // true if we're not deduping descriptors properly.
+  ASSERT_EQ(trace_metrics_count, 1);
 }
 
 // TODO(hjd): Add trace to test_data.
