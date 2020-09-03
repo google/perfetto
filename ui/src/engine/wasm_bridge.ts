@@ -23,10 +23,6 @@ import * as init_trace_processor from '../gen/trace_processor';
 // HEAPU8[reqBufferAddr, +REQ_BUFFER_SIZE].
 const REQ_BUF_SIZE = 32 * 1024 * 1024;
 
-function writeToUIConsole(line: string) {
-  console.log(line);
-}
-
 export interface WasmBridgeRequest {
   id: number;
   methodName: string;
@@ -35,7 +31,6 @@ export interface WasmBridgeRequest {
 
 export interface WasmBridgeResponse {
   id: number;
-  aborted: boolean;  // If true the WASM module crashed.
   data: Uint8Array;
 }
 
@@ -47,6 +42,7 @@ export class WasmBridge {
   private currentRequestResult: WasmBridgeResponse|null;
   private connection: init_trace_processor.Module;
   private reqBufferAddr = 0;
+  private lastStderr: string[] = [];
 
   constructor(init: init_trace_processor.InitWasm) {
     this.aborted = false;
@@ -55,10 +51,9 @@ export class WasmBridge {
     const deferredRuntimeInitialized = defer<void>();
     this.connection = init({
       locateFile: (s: string) => s,
-      print: writeToUIConsole,
-      printErr: writeToUIConsole,
+      print: (line: string) => console.log(line),
+      printErr: (line: string) => this.appendAndLogErr(line),
       onRuntimeInitialized: () => deferredRuntimeInitialized.resolve(),
-      onAbort: () => this.aborted = true,
     });
     this.whenInitialized = deferredRuntimeInitialized.then(() => {
       const fn = this.connection.addFunction(this.onReply.bind(this), 'iii');
@@ -72,26 +67,28 @@ export class WasmBridge {
 
   callWasm(req: WasmBridgeRequest): WasmBridgeResponse {
     if (this.aborted) {
-      return {
-        id: req.id,
-        aborted: true,
-        data: new Uint8Array(),
-      };
+      throw new Error('Wasm module crashed');
     }
     assertTrue(req.data.length <= REQ_BUF_SIZE);
     const endAddr = this.reqBufferAddr + req.data.length;
     this.connection.HEAPU8.subarray(this.reqBufferAddr, endAddr).set(req.data);
-    this.connection.ccall(
-        req.methodName,    // C method name.
-        'void',            // Return type.
-        ['number'],        // Arg types.
-        [req.data.length]  // Args.
-    );
-
-    const result = assertExists(this.currentRequestResult);
-    this.currentRequestResult = null;
-    result.id = req.id;
-    return result;
+    try {
+      this.connection.ccall(
+          req.methodName,    // C method name.
+          'void',            // Return type.
+          ['number'],        // Arg types.
+          [req.data.length]  // Args.
+      );
+      const result = assertExists(this.currentRequestResult);
+      this.currentRequestResult = null;
+      result.id = req.id;
+      return result;
+    } catch (err) {
+      this.aborted = true;
+      let abortReason = typeof err === 'string' ? err : JSON.stringify(err);
+      abortReason += '\n\nstderr: \n' + this.lastStderr.join('\n');
+      throw new Error(abortReason);
+    }
   }
 
   // This is invoked from ccall in the same call stack as callWasm.
@@ -99,8 +96,16 @@ export class WasmBridge {
     const data = this.connection.HEAPU8.slice(heapPtr, heapPtr + size);
     this.currentRequestResult = {
       id: 0,  // Will be set by callWasm()'s epilogue.
-      aborted: false,
       data,
     };
+  }
+
+  private appendAndLogErr(line: string) {
+    console.warn(line);
+    // Keep the last N lines in the |lastStderr| buffer.
+    this.lastStderr.push(line);
+    if (this.lastStderr.length > 512) {
+      this.lastStderr.shift();
+    }
   }
 }
