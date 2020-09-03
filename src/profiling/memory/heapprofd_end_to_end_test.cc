@@ -565,7 +565,8 @@ class HeapprofdEndToEnd
 // This checks that the child is still running (to ensure it didn't crash
 // unxpectedly) and then kills it.
 void KillAssertRunning(base::Subprocess* child) {
-  ASSERT_EQ(child->Poll(), base::Subprocess::kRunning);
+  ASSERT_EQ(child->Poll(), base::Subprocess::kRunning)
+      << "Target process not running. CHECK CRASH LOGS.";
   child->KillAndWaitForTermination();
 }
 
@@ -584,9 +585,9 @@ TEST_P(HeapprofdEndToEnd, Disabled) {
 
   auto helper = Trace(trace_config);
   PrintStats(helper.get());
+  KillAssertRunning(&child);
 
   ValidateNoSamples(helper.get(), pid);
-  KillAssertRunning(&child);
 }
 
 TEST_P(HeapprofdEndToEnd, Smoke) {
@@ -604,11 +605,11 @@ TEST_P(HeapprofdEndToEnd, Smoke) {
 
   auto helper = Trace(trace_config);
   PrintStats(helper.get());
+  KillAssertRunning(&child);
+
   ValidateHasSamples(helper.get(), pid, allocator_name());
   ValidateOnlyPID(helper.get(), pid);
   ValidateSampleSizes(helper.get(), pid, kAllocSize);
-
-  KillAssertRunning(&child);
 }
 
 TEST_P(HeapprofdEndToEnd, TwoAllocators) {
@@ -629,13 +630,13 @@ TEST_P(HeapprofdEndToEnd, TwoAllocators) {
 
   auto helper = Trace(trace_config);
   PrintStats(helper.get());
+  KillAssertRunning(&child);
+
   ValidateHasSamples(helper.get(), pid, "secondary");
   ValidateHasSamples(helper.get(), pid, allocator_name());
   ValidateOnlyPID(helper.get(), pid);
   ValidateSampleSizes(helper.get(), pid, kCustomAllocSize, "secondary");
   ValidateSampleSizes(helper.get(), pid, kAllocSize, allocator_name());
-
-  KillAssertRunning(&child);
 }
 
 TEST_P(HeapprofdEndToEnd, TwoAllocatorsAll) {
@@ -655,13 +656,13 @@ TEST_P(HeapprofdEndToEnd, TwoAllocatorsAll) {
 
   auto helper = Trace(trace_config);
   PrintStats(helper.get());
+  KillAssertRunning(&child);
+
   ValidateHasSamples(helper.get(), pid, "secondary");
   ValidateHasSamples(helper.get(), pid, allocator_name());
   ValidateOnlyPID(helper.get(), pid);
   ValidateSampleSizes(helper.get(), pid, kCustomAllocSize, "secondary");
   ValidateSampleSizes(helper.get(), pid, kAllocSize, allocator_name());
-
-  KillAssertRunning(&child);
 }
 
 TEST_P(HeapprofdEndToEnd, AccurateCustom) {
@@ -685,6 +686,8 @@ TEST_P(HeapprofdEndToEnd, AccurateCustom) {
 
   auto helper = Trace(trace_config);
   PrintStats(helper.get());
+  KillAssertRunning(&child);
+
   ValidateOnlyPID(helper.get(), pid);
 
   size_t total_alloc = 0;
@@ -699,7 +702,6 @@ TEST_P(HeapprofdEndToEnd, AccurateCustom) {
   }
   EXPECT_EQ(total_alloc, 40u);
   EXPECT_EQ(total_freed, 25u);
-  KillAssertRunning(&child);
 }
 
 TEST_P(HeapprofdEndToEnd, AccurateDumpAtMaxCustom) {
@@ -724,6 +726,8 @@ TEST_P(HeapprofdEndToEnd, AccurateDumpAtMaxCustom) {
 
   auto helper = Trace(trace_config);
   PrintStats(helper.get());
+  KillAssertRunning(&child);
+
   ValidateOnlyPID(helper.get(), pid);
 
   size_t total_alloc = 0;
@@ -738,7 +742,6 @@ TEST_P(HeapprofdEndToEnd, AccurateDumpAtMaxCustom) {
   }
   EXPECT_EQ(total_alloc, 30u);
   EXPECT_EQ(total_count, 2u);
-  KillAssertRunning(&child);
 }
 
 TEST_P(HeapprofdEndToEnd, TwoProcesses) {
@@ -760,14 +763,15 @@ TEST_P(HeapprofdEndToEnd, TwoProcesses) {
 
   auto helper = Trace(trace_config);
   PrintStats(helper.get());
+
+  KillAssertRunning(&child);
+  KillAssertRunning(&child2);
+
   ValidateHasSamples(helper.get(), pid, allocator_name());
   ValidateSampleSizes(helper.get(), pid, kAllocSize);
   ValidateHasSamples(helper.get(), static_cast<uint64_t>(pid2),
                      allocator_name());
   ValidateSampleSizes(helper.get(), static_cast<uint64_t>(pid2), kAllocSize2);
-
-  KillAssertRunning(&child);
-  KillAssertRunning(&child2);
 }
 
 TEST_P(HeapprofdEndToEnd, FinalFlush) {
@@ -783,11 +787,11 @@ TEST_P(HeapprofdEndToEnd, FinalFlush) {
 
   auto helper = Trace(trace_config);
   PrintStats(helper.get());
+  KillAssertRunning(&child);
+
   ValidateHasSamples(helper.get(), pid, allocator_name());
   ValidateOnlyPID(helper.get(), pid);
   ValidateSampleSizes(helper.get(), pid, kAllocSize);
-
-  KillAssertRunning(&child);
 }
 
 TEST_P(HeapprofdEndToEnd, NativeStartup) {
@@ -1134,11 +1138,11 @@ TEST_P(HeapprofdEndToEnd, ReInit) {
   helper2->WaitForReadData(0, kWaitForReadDataTimeoutMs);
 
   PrintStats(helper2.get());
+  KillAssertRunning(&child);
+
   ValidateHasSamples(helper2.get(), pid, allocator_name());
   ValidateOnlyPID(helper2.get(), pid);
   ValidateSampleSizes(helper2.get(), pid, kSecondIterationBytes);
-
-  KillAssertRunning(&child);
 }
 
 TEST_P(HeapprofdEndToEnd, ReInitAfterInvalid) {
@@ -1217,11 +1221,11 @@ TEST_P(HeapprofdEndToEnd, ReInitAfterInvalid) {
   helper2->WaitForReadData(0, kWaitForReadDataTimeoutMs);
 
   PrintStats(helper2.get());
+  KillAssertRunning(&child);
+
   ValidateHasSamples(helper2.get(), pid, allocator_name());
   ValidateOnlyPID(helper2.get(), pid);
   ValidateSampleSizes(helper2.get(), pid, kSecondIterationBytes);
-
-  KillAssertRunning(&child);
 }
 
 TEST_P(HeapprofdEndToEnd, ConcurrentSession) {
@@ -1252,19 +1256,20 @@ TEST_P(HeapprofdEndToEnd, ConcurrentSession) {
   helper->ReadData();
   helper->WaitForReadData(0, kWaitForReadDataTimeoutMs);
   PrintStats(helper.get());
-  ValidateHasSamples(helper.get(), pid, allocator_name());
-  ValidateOnlyPID(helper.get(), pid);
-  ValidateSampleSizes(helper.get(), pid, kAllocSize);
-  ValidateRejectedConcurrent(helper_concurrent.get(), pid, false);
 
   helper_concurrent->WaitForTracingDisabled(kTracingDisabledTimeoutMs);
   helper_concurrent->ReadData();
   helper_concurrent->WaitForReadData(0, kWaitForReadDataTimeoutMs);
-  PrintStats(helper.get());
+  PrintStats(helper_concurrent.get());
+  KillAssertRunning(&child);
+
+  ValidateHasSamples(helper.get(), pid, allocator_name());
+  ValidateOnlyPID(helper.get(), pid);
+  ValidateSampleSizes(helper.get(), pid, kAllocSize);
+  ValidateRejectedConcurrent(helper.get(), pid, false);
+
   ValidateOnlyPID(helper_concurrent.get(), pid);
   ValidateRejectedConcurrent(helper_concurrent.get(), pid, true);
-
-  KillAssertRunning(&child);
 }
 
 TEST_P(HeapprofdEndToEnd, NativeProfilingActiveAtProcessExit) {
