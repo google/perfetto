@@ -63,6 +63,6 @@ declare namespace Wasm {
     print(s: string): void;
     printErr(s: string): void;
     onRuntimeInitialized(): void;
-    onAbort(): void;
+    onAbort?(): void;
   }
 }
