@@ -14,9 +14,12 @@
 
 import * as m from 'mithril';
 
+import {TraceUrlSource} from '../common/state';
 import {saveTrace} from '../common/upload_utils';
+
 import {globals} from './globals';
 import {showModal} from './modal';
+import {isShareable} from './trace_attrs';
 
 // Never show more than one dialog per minute.
 const MIN_REPORT_PERIOD_MS = 60000;
@@ -78,7 +81,7 @@ export function maybeShowErrorDialog(errLog: string) {
   const engine = Object.values(globals.state.engines)[0];
 
   const shareTraceSection: m.Vnode[] = [];
-  if (isTraceShareable()) {
+  if (isShareable() && !urlExists()) {
     shareTraceSection.push(
         m(`input[type=checkbox]`, {
           checked,
@@ -152,9 +155,12 @@ function renderModal(
   });
 }
 
-function isTraceShareable() {
+// If there is a trace URL to share, we don't have to show the upload checkbox.
+function urlExists() {
   const engine = Object.values(globals.state.engines)[0];
-  return engine !== undefined && engine.source.type === 'FILE';
+  return engine !== undefined &&
+      (engine.source.type === 'ARRAY_BUFFER' || engine.source.type === 'URL') &&
+      engine.source.url !== undefined;
 }
 
 function createErrorMessage(errLog: string, checked: boolean, url?: string) {
@@ -162,11 +168,8 @@ function createErrorMessage(errLog: string, checked: boolean, url?: string) {
   const engine = Object.values(globals.state.engines)[0];
   if (checked && url !== undefined) {
     errMessage += `Trace: ${url}`;
-  } else if (
-      engine !== undefined &&
-      (engine.source.type === 'ARRAY_BUFFER' || engine.source.type === 'URL') &&
-      engine.source.url !== undefined) {
-    errMessage += `Trace: ${engine.source.url}`;
+  } else if (urlExists()) {
+    errMessage += `Trace: ${(engine.source as TraceUrlSource).url}`;
   } else {
     errMessage += 'To assist with debugging please attach or link to the ' +
         'trace you were viewing.';
