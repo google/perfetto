@@ -27,6 +27,7 @@ import {
   openFileWithLegacyTraceViewer,
 } from './legacy_trace_viewer';
 import {showModal} from './modal';
+import {isDownloadable, isShareable} from './trace_attrs';
 
 const ALL_PROCESSES_QUERY = 'select name, pid from process order by name;';
 
@@ -443,16 +444,9 @@ function navigateViewer(e: Event) {
   globals.dispatch(Actions.navigate({route: '/viewer'}));
 }
 
-function isDownloadAndShareDisabled(): boolean {
-  if (globals.frontendLocalState.localOnlyMode) return true;
-  const engine = Object.values(globals.state.engines)[0];
-  if (engine && engine.source.type === 'HTTP_RPC') return true;
-  return false;
-}
-
 function dispatchCreatePermalink(e: Event) {
   e.preventDefault();
-  if (isDownloadAndShareDisabled() || !isTraceLoaded()) return;
+  if (!isShareable() || !isTraceLoaded()) return;
 
   const result = confirm(
       `Upload the trace and generate a permalink. ` +
@@ -465,7 +459,7 @@ function dispatchCreatePermalink(e: Event) {
 
 function downloadTrace(e: Event) {
   e.preventDefault();
-  if (!isTraceLoaded() || isDownloadAndShareDisabled()) return;
+  if (!isDownloadable() || !isTraceLoaded()) return;
   globals.logging.logEvent('Trace Actions', 'Download trace');
 
   const engine = Object.values(globals.state.engines)[0];
@@ -656,8 +650,7 @@ export class Sidebar implements m.ClassComponent {
         if ((item as {internalUserOnly: boolean}).internalUserOnly === true) {
           if (!globals.isInternalUser) continue;
         }
-        if (isDownloadAndShareDisabled() &&
-            item.hasOwnProperty('checkDownloadDisabled')) {
+        if (!isDownloadable() && item.hasOwnProperty('checkDownloadDisabled')) {
           attrs = {
             onclick: e => {
               e.preventDefault();
