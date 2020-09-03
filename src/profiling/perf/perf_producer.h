@@ -138,6 +138,10 @@ class PerfProducer : public Producer,
     // in the |Unwinder|, which needs to track whether the necessary unwinding
     // inputs for a given process' samples are ready.
     std::map<pid_t, ProcessTrackingStatus> process_states;
+
+    // Command lines we have decided to unwind, up to a total of
+    // additional_cmdline_count values.
+    base::FlatSet<std::string> additional_cmdlines;
   };
 
   // For |EmitSkippedSample|.
