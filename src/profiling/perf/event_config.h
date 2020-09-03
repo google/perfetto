@@ -39,6 +39,7 @@ struct TargetFilter {
   base::FlatSet<std::string> exclude_cmdlines;
   base::FlatSet<pid_t> pids;
   base::FlatSet<pid_t> exclude_pids;
+  uint32_t additional_cmdline_count;
 };
 
 // Describes a single profiling configuration. Bridges the gap between the data
