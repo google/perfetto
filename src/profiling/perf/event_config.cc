@@ -79,6 +79,8 @@ base::Optional<TargetFilter> ParseTargetFilter(
   for (auto it = cfg.exclude_pid(); it; ++it) {
     filter.exclude_pids.insert(*it);
   }
+
+  filter.additional_cmdline_count = cfg.additional_cmdline_count();
   return base::make_optional(std::move(filter));
 }
 
