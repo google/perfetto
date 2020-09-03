@@ -54,8 +54,9 @@ class TraceProcessor:
       self.__column_names = column_names
       self.__batch_index = 0
       self.__next_index = 0
-      # TODO(aninditaghosh): Revisit string cells for larger traces
-      self.__string_cells = batches[0].string_cells.split('\0')
+      # TODO(lalitm): Look into changing string_cells to bytes in the protobuf
+      self.__string_cells = memoryview(bytes(batches[0].string_cells, 'utf-8'))
+      self.__string_index = 0
 
     def get_cell_list(self, proto_index):
       if proto_index == TraceProcessor.QUERY_CELL_NULL_FIELD_ID:
@@ -64,8 +65,6 @@ class TraceProcessor:
         return self.__batches[self.__batch_index].varint_cells
       elif proto_index == TraceProcessor.QUERY_CELL_FLOAT64_FIELD_ID:
         return self.__batches[self.__batch_index].float64_cells
-      elif proto_index == TraceProcessor.QUERY_CELL_STRING_FIELD_ID:
-        return self.__string_cells
       elif proto_index == TraceProcessor.QUERY_CELL_BLOB_FIELD_ID:
         return self.__batches[self.__batch_index].blob_cells
       else:
@@ -82,35 +81,43 @@ class TraceProcessor:
         import numpy as np
         import pandas as pd
 
-        next_index = 0
         df = pd.DataFrame(columns=self.__column_names)
-        # TODO(aninditaghosh): Revisit string cells for larger traces
-        self.__string_cells = self.__batches[0].string_cells.split('\0')
 
         # Populate the dataframe with the query results
         while True:
           # If all cells are read, then check if last batch before
           # returning the populated dataframe
-          if next_index >= len(self.__batches[self.__batch_index].cells):
+          if self.__next_index >= len(self.__batches[self.__batch_index].cells):
             if self.__batches[self.__batch_index].is_last_batch:
               ordered_df = df.reset_index(drop=True)
               return ordered_df
             self.__batch_index += 1
-            next_index = 0
-            self.__string_cells = self.__batches[
-                self.__batch_index].string_cells.split('\0')
+            self.__next_index = 0
+            self.__string_cells = memoryview(
+                bytes(self.__batches[self.__batch_index].string_cells, 'utf-8'))
+            self.__string_index = 0
 
           row = []
           for num, column_name in enumerate(self.__column_names):
-            cell_list = self.get_cell_list(
-                self.__batches[self.__batch_index].cells[next_index + num])
-            if cell_list is None:
-              row.append(np.NAN)
+            cell_type = self.__batches[self.__batch_index].cells[
+                self.__next_index + num]
+            if cell_type == TraceProcessor.QUERY_CELL_STRING_FIELD_ID:
+              start_index = self.__string_index
+              while self.__string_cells[self.__string_index] != 0:
+                self.__string_index += 1
+              row.append(
+                  str(self.__string_cells[start_index:self.__string_index],
+                      'utf-8'))
+              self.__string_index += 1
             else:
-              row.append(cell_list.pop(0))
+              cell_list = self.get_cell_list(cell_type)
+              if cell_list is None:
+                row.append(np.NAN)
+              else:
+                row.append(cell_list.pop(0))
           df.loc[-1] = row
           df.index = df.index + 1
-          next_index = next_index + len(self.__column_names)
+          self.__next_index = self.__next_index + len(self.__column_names)
 
       except ModuleNotFoundError:
         raise TraceProcessorException(
@@ -127,17 +134,29 @@ class TraceProcessor:
           raise StopIteration
         self.__batch_index += 1
         self.__next_index = 0
-        self.__string_cells = self.__batches[
-            self.__batch_index].string_cells.split('\0')
+        self.__string_cells = memoryview(
+            bytes(self.__batches[self.__batch_index].string_cells, 'utf-8'))
+        self.__string_index = 0
 
       row = TraceProcessor.Row()
       for num, column_name in enumerate(self.__column_names):
-        cell_list = self.get_cell_list(self.cells()[self.__next_index + num])
-        if cell_list is not None:
-          val = cell_list.pop(0)
-          setattr(row, column_name, val)
+        cell_type = self.__batches[self.__batch_index].cells[self.__next_index +
+                                                             num]
+        if cell_type == TraceProcessor.QUERY_CELL_STRING_FIELD_ID:
+          start_index = self.__string_index
+          while self.__string_cells[self.__string_index] != 0:
+            self.__string_index += 1
+          setattr(
+              row, column_name,
+              str(self.__string_cells[start_index:self.__string_index],
+                  'utf-8'))
+          self.__string_index += 1
         else:
-          setattr(row, column_name, None)
+          cell_list = self.get_cell_list(cell_type)
+          if cell_list is None:
+            setattr(row, column_name, None)
+          else:
+            setattr(row, column_name, cell_list.pop(0))
       self.__next_index = self.__next_index + len(self.__column_names)
       return row
 
