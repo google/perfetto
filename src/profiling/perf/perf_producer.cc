@@ -85,31 +85,54 @@ uint32_t TimeToNextReadTickMs(DataSourceInstanceID ds_id, uint32_t period_ms) {
   return period_ms - ((now_ms - ds_period_offset) % period_ms);
 }
 
-bool ShouldRejectDueToFilter(pid_t pid, const TargetFilter& filter) {
-  bool reject_cmd = false;
+bool ShouldRejectDueToFilter(pid_t pid,
+                             base::FlatSet<std::string>* additional_cmdlines,
+                             const TargetFilter& filter) {
+  PERFETTO_CHECK(additional_cmdlines);
   std::string cmdline;
-  if (GetCmdlineForPID(pid, &cmdline)) {  // normalized form
-    // reject if absent from non-empty filters, or if excluded.
-    reject_cmd = (filter.cmdlines.size() && !filter.cmdlines.count(cmdline)) ||
-                 filter.exclude_cmdlines.count(cmdline);
-  } else {
+  bool have_cmdline = GetCmdlineForPID(pid, &cmdline);  // normalized form
+  if (!have_cmdline) {
     PERFETTO_DLOG("Failed to look up cmdline for pid [%d]",
                   static_cast<int>(pid));
-    // reject only if there's a filter present
-    reject_cmd = filter.cmdlines.size() > 0;
   }
 
-  bool reject_pid = (filter.pids.size() && !filter.pids.count(pid)) ||
-                    filter.exclude_pids.count(pid);
-
-  if (reject_cmd || reject_pid) {
-    PERFETTO_DLOG(
-        "Rejecting samples for pid [%d] due to cmdline(%d) or pid(%d)",
-        static_cast<int>(pid), reject_cmd, reject_pid);
-
+  if (have_cmdline && filter.exclude_cmdlines.count(cmdline)) {
+    PERFETTO_DLOG("Explicitly rejecting samples for pid [%d] due to cmdline",
+                  static_cast<int>(pid));
     return true;
   }
-  return false;
+  if (filter.exclude_pids.count(pid)) {
+    PERFETTO_DLOG("Explicitly rejecting samples for pid [%d] due to pid",
+                  static_cast<int>(pid));
+    return true;
+  }
+
+  if (have_cmdline && filter.cmdlines.count(cmdline)) {
+    return false;
+  }
+  if (filter.pids.count(pid)) {
+    return false;
+  }
+  if (!filter.cmdlines.size() && !filter.pids.size() &&
+      !filter.additional_cmdline_count) {
+    // If no filters are set allow everything.
+    return false;
+  }
+
+  // If we didn't read the command line that's a good prediction we will not be
+  // able to profile either.
+  if (have_cmdline) {
+    if (additional_cmdlines->count(cmdline)) {
+      return false;
+    }
+    if (additional_cmdlines->size() < filter.additional_cmdline_count) {
+      additional_cmdlines->insert(cmdline);
+      return false;
+    }
+  }
+
+  PERFETTO_DLOG("Rejecting samples for pid [%d]", static_cast<int>(pid));
+  return true;
 }
 
 void MaybeReleaseAllocatorMemToOS() {
@@ -429,7 +452,7 @@ bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
       // Check whether samples for this new process should be
       // dropped due to the target filtering.
       const TargetFilter& filter = ds->event_config.filter();
-      if (ShouldRejectDueToFilter(pid, filter)) {
+      if (ShouldRejectDueToFilter(pid, &ds->additional_cmdlines, filter)) {
         process_state = ProcessTrackingStatus::kRejected;
         continue;
       }
