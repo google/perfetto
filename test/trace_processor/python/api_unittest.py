@@ -37,7 +37,7 @@ class TestQueryResultIterator(unittest.TestCase):
         TestQueryResultIterator.CELL_STRING, TestQueryResultIterator.CELL_VARINT
     ])
     batch.varint_cells.extend(int_values)
-    batch.string_cells = "\0".join(str_values)
+    batch.string_cells = "\0".join(str_values) + "\0"
     batch.is_last_batch = True
 
     qr_iterator = TraceProcessor.QueryResultIterator(['foo_id', 'foo_num'],
@@ -58,7 +58,7 @@ class TestQueryResultIterator(unittest.TestCase):
         TestQueryResultIterator.CELL_STRING, TestQueryResultIterator.CELL_VARINT
     ])
     batch_1.varint_cells.extend(int_values[:2])
-    batch_1.string_cells = "\0".join(str_values[:2])
+    batch_1.string_cells = "\0".join(str_values[:2]) + "\0"
     batch_1.is_last_batch = False
 
     batch_2 = ProtoFactory().CellsBatch()
@@ -68,7 +68,7 @@ class TestQueryResultIterator(unittest.TestCase):
         TestQueryResultIterator.CELL_STRING, TestQueryResultIterator.CELL_VARINT
     ])
     batch_2.varint_cells.extend(int_values[2:])
-    batch_2.string_cells = "\0".join(str_values[2:])
+    batch_2.string_cells = "\0".join(str_values[2:]) + "\0"
     batch_2.is_last_batch = True
 
     qr_iterator = TraceProcessor.QueryResultIterator(['foo_id', 'foo_num'],
@@ -108,7 +108,7 @@ class TestQueryResultIterator(unittest.TestCase):
         TestQueryResultIterator.CELL_VARINT,
         TestQueryResultIterator.CELL_STRING, TestQueryResultIterator.CELL_VARINT
     ])
-    batch.string_cells = "\0".join(str_values)
+    batch.string_cells = "\0".join(str_values) + "\0"
     batch.is_last_batch = True
 
     qr_iterator = TraceProcessor.QueryResultIterator(['foo_id', 'foo_num'],
@@ -170,7 +170,7 @@ class TestQueryResultIterator(unittest.TestCase):
         TestQueryResultIterator.CELL_STRING, TestQueryResultIterator.CELL_VARINT
     ])
     batch.varint_cells.extend(int_values)
-    batch.string_cells = "\0".join(str_values)
+    batch.string_cells = "\0".join(str_values) + "\0"
     batch.is_last_batch = True
 
     qr_iterator = TraceProcessor.QueryResultIterator(['foo_id', 'foo_num'],
@@ -192,7 +192,7 @@ class TestQueryResultIterator(unittest.TestCase):
         TestQueryResultIterator.CELL_STRING, TestQueryResultIterator.CELL_VARINT
     ])
     batch_1.varint_cells.extend(int_values[:2])
-    batch_1.string_cells = "\0".join(str_values[:2])
+    batch_1.string_cells = "\0".join(str_values[:2]) + "\0"
     batch_1.is_last_batch = False
 
     batch_2 = ProtoFactory().CellsBatch()
@@ -202,7 +202,7 @@ class TestQueryResultIterator(unittest.TestCase):
         TestQueryResultIterator.CELL_STRING, TestQueryResultIterator.CELL_VARINT
     ])
     batch_2.varint_cells.extend(int_values[2:])
-    batch_2.string_cells = "\0".join(str_values[2:])
+    batch_2.string_cells = "\0".join(str_values[2:]) + "\0"
     batch_2.is_last_batch = True
 
     qr_iterator = TraceProcessor.QueryResultIterator(['foo_id', 'foo_num'],
@@ -243,7 +243,7 @@ class TestQueryResultIterator(unittest.TestCase):
         TestQueryResultIterator.CELL_VARINT,
         TestQueryResultIterator.CELL_STRING, TestQueryResultIterator.CELL_VARINT
     ])
-    batch.string_cells = "\0".join(str_values)
+    batch.string_cells = "\0".join(str_values) + "\0"
     batch.is_last_batch = True
 
     qr_iterator = TraceProcessor.QueryResultIterator(['foo_id', 'foo_num'],
