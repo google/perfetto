@@ -47,7 +47,7 @@ class PERFETTO_EXPORT GlobalNodeGraph {
 
   // Graph of nodes either associated with a process or with
   // the shared space.
-  class Process {
+  class PERFETTO_EXPORT Process {
    public:
     Process(base::PlatformProcessId pid, GlobalNodeGraph* global_graph);
     ~Process();
@@ -76,11 +76,11 @@ class PERFETTO_EXPORT GlobalNodeGraph {
 
   // A single node in the graph of allocator nodes associated with a
   // certain path and containing the entries for this path.
-  class Node {
+  class PERFETTO_EXPORT Node {
    public:
     // Auxilary data (a scalar number or a string) about this node each
     // associated with a key.
-    struct Entry {
+    struct PERFETTO_EXPORT Entry {
       enum Type {
         kUInt64,
         kString,
@@ -212,7 +212,7 @@ class PERFETTO_EXPORT GlobalNodeGraph {
 
   // An edge in the node graph which indicates ownership between the
   // source and target nodes.
-  class Edge {
+  class PERFETTO_EXPORT Edge {
    public:
     Edge(GlobalNodeGraph::Node* source,
          GlobalNodeGraph::Node* target,
@@ -229,7 +229,7 @@ class PERFETTO_EXPORT GlobalNodeGraph {
   };
 
   // An iterator-esque class which yields nodes in a depth-first pre order.
-  class PreOrderIterator {
+  class PERFETTO_EXPORT PreOrderIterator {
    public:
     explicit PreOrderIterator(std::vector<Node*>&& root_nodes);
     PreOrderIterator(PreOrderIterator&& other);
@@ -244,7 +244,7 @@ class PERFETTO_EXPORT GlobalNodeGraph {
   };
 
   // An iterator-esque class which yields nodes in a depth-first post order.
-  class PostOrderIterator {
+  class PERFETTO_EXPORT PostOrderIterator {
    public:
     explicit PostOrderIterator(std::vector<Node*>&& root_nodes);
     PostOrderIterator(PostOrderIterator&& other);
