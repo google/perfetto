@@ -47,6 +47,7 @@
 // checks that the results are valid).
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/common/trace_stats.gen.h"
+#include "protos/perfetto/common/tracing_service_state.gen.h"
 #include "protos/perfetto/common/track_event_descriptor.gen.h"
 #include "protos/perfetto/config/track_event/track_event_config.gen.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
@@ -2361,6 +2362,7 @@ TEST_F(PerfettoApiTest, GetTraceStats) {
   tracing_session->get()->GetTraceStats(
       [&got_stats](perfetto::TracingSession::GetTraceStatsCallbackArgs args) {
         perfetto::protos::gen::TraceStats trace_stats;
+        EXPECT_TRUE(args.success);
         EXPECT_TRUE(trace_stats.ParseFromArray(args.trace_stats_data.data(),
                                                args.trace_stats_data.size()));
         EXPECT_EQ(1, trace_stats.buffer_stats_size());
@@ -2371,11 +2373,54 @@ TEST_F(PerfettoApiTest, GetTraceStats) {
   // Blocking read.
   auto stats = tracing_session->get()->GetTraceStatsBlocking();
   perfetto::protos::gen::TraceStats trace_stats;
+  EXPECT_TRUE(stats.success);
   EXPECT_TRUE(trace_stats.ParseFromArray(stats.trace_stats_data.data(),
                                          stats.trace_stats_data.size()));
   EXPECT_EQ(1, trace_stats.buffer_stats_size());
 
   tracing_session->get()->StopBlocking();
+}
+
+TEST_F(PerfettoApiTest, QueryServiceState) {
+  class QueryTestDataSource : public perfetto::DataSource<QueryTestDataSource> {
+  };
+  RegisterDataSource<QueryTestDataSource>("query_test_data_source");
+
+  auto tracing_session =
+      perfetto::Tracing::NewTrace(perfetto::BackendType::kInProcessBackend);
+  // Asynchronous read.
+  WaitableTestEvent got_state;
+  tracing_session->QueryServiceState(
+      [&got_state](
+          perfetto::TracingSession::QueryServiceStateCallbackArgs result) {
+        perfetto::protos::gen::TracingServiceState state;
+        EXPECT_TRUE(result.success);
+        EXPECT_TRUE(state.ParseFromArray(result.service_state_data.data(),
+                                         result.service_state_data.size()));
+        EXPECT_EQ(1, state.producers_size());
+        EXPECT_NE(std::string::npos,
+                  state.producers()[0].name().find("integrationtest"));
+        bool found_ds = false;
+        for (const auto& ds : state.data_sources())
+          found_ds |= ds.ds_descriptor().name() == "query_test_data_source";
+        EXPECT_TRUE(found_ds);
+        got_state.Notify();
+      });
+  got_state.Wait();
+
+  // Blocking read.
+  auto result = tracing_session->QueryServiceStateBlocking();
+  perfetto::protos::gen::TracingServiceState state;
+  EXPECT_TRUE(result.success);
+  EXPECT_TRUE(state.ParseFromArray(result.service_state_data.data(),
+                                   result.service_state_data.size()));
+  EXPECT_EQ(1, state.producers_size());
+  EXPECT_NE(std::string::npos,
+            state.producers()[0].name().find("integrationtest"));
+  bool found_ds = false;
+  for (const auto& ds : state.data_sources())
+    found_ds |= ds.ds_descriptor().name() == "query_test_data_source";
+  EXPECT_TRUE(found_ds);
 }
 
 TEST_F(PerfettoApiTest, LegacyTraceEvents) {
