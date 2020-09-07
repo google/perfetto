@@ -3329,11 +3329,11 @@ perfetto_py_binary(
 
 perfetto_py_library(
     name = "trace_processor_py",
-    srcs = glob(["src/trace_processor/python/trace_processor/*.py"]),
+    srcs = glob(["src/trace_processor/python/perfetto/trace_processor/*.py"]),
     data = [
         ":trace_processor_init_noop",
-        "src/trace_processor/python/trace_processor/trace_processor.descriptor",
-        "src/trace_processor/python/trace_processor/metrics.descriptor",
+        "src/trace_processor/python/perfetto/trace_processor/trace_processor.descriptor",
+        "src/trace_processor/python/perfetto/trace_processor/metrics.descriptor",
         ":trace_processor_shell",
     ],
     deps = [

@@ -320,6 +320,12 @@ Both single and multiple metrics are supported as with proto text output.
 The API can be run without requiring the `trace_processor` binary to be
 downloaded or installed.
 
+### Setup
+```
+$ pip install perfetto
+```
+NOTE: The API is only compatible with Python3.
+
 ### Example functions
 See the Python API section of
 [Trace Processor (SQL)](/docs/analysis/trace-processor.md) to get
@@ -327,7 +333,7 @@ more details on all available functions.
 
 #### Query
 ```python
-from trace_processor.api import TraceProcessor
+from perfetto.trace_processor import TraceProcessor
 tp = TraceProcessor(file_path='trace.pftrace')
 
 qr_it = tp.query('SELECT name FROM slice')
@@ -345,7 +351,7 @@ query
 ```
 #### Query as Pandas DataFrame
 ```python
-from trace_processor.api import TraceProcessor
+from perfetto.trace_processor import TraceProcessor
 tp = TraceProcessor(file_path='trace.pftrace')
 
 qr_it = tp.query('SELECT ts, name FROM slice')
@@ -365,7 +371,7 @@ ts                   name
 ```
 #### Metric
 ```python
-from trace_processor.api import TraceProcessor
+from perfetto.trace_processor import TraceProcessor
 tp = TraceProcessor(file_path='trace.pftrace')
 
 cpu_metrics = tp.metric(['android_cpu'])
