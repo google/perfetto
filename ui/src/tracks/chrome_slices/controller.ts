@@ -98,7 +98,11 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
       endNsQ = Math.max(endNsQ, startNsQ + bucketNs);
 
       if (startNsQ === endNsQ) {
-        throw new Error('Should never happen');
+        throw new Error(
+            'Expected startNsQ and endNsQ to differ (' +
+            `startNsQ: ${startNsQ}, startNs: ${startNs},` +
+            ` endNsQ: ${endNsQ}, durNs: ${durNs},` +
+            ` endNs: ${endNs}, bucketNs: ${bucketNs})`);
       }
 
       slices.starts[row] = fromNs(startNsQ);
