@@ -34,6 +34,7 @@
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/tracing/buffer_exhausted_policy.h"
 #include "perfetto/tracing/core/data_source_config.h"
+#include "perfetto/tracing/core/tracing_service_state.h"
 #include "perfetto/tracing/data_source.h"
 #include "perfetto/tracing/internal/data_source_internal.h"
 #include "perfetto/tracing/trace_writer_base.h"
@@ -167,15 +168,22 @@ void TracingMuxerImpl::ConsumerImpl::OnConnect() {
 
   // If the API client configured and started tracing before we connected,
   // tell the backend about it now.
-  if (trace_config_) {
+  if (trace_config_)
     muxer_->SetupTracingSession(session_id_, trace_config_);
-    if (start_pending_)
-      muxer_->StartTracingSession(session_id_);
-    if (get_trace_stats_pending_)
-      muxer_->GetTraceStats(session_id_, std::move(get_trace_stats_callback_));
-    if (stop_pending_)
-      muxer_->StopTracingSession(session_id_);
+  if (start_pending_)
+    muxer_->StartTracingSession(session_id_);
+  if (get_trace_stats_pending_) {
+    auto callback = std::move(get_trace_stats_callback_);
+    get_trace_stats_callback_ = nullptr;
+    muxer_->GetTraceStats(session_id_, std::move(callback));
   }
+  if (query_service_state_callback_) {
+    auto callback = std::move(query_service_state_callback_);
+    query_service_state_callback_ = nullptr;
+    muxer_->QueryServiceState(session_id_, std::move(callback));
+  }
+  if (stop_pending_)
+    muxer_->StopTracingSession(session_id_);
 }
 
 void TracingMuxerImpl::ConsumerImpl::OnDisconnect() {
@@ -447,6 +455,16 @@ void TracingMuxerImpl::TracingSessionImpl::GetTraceStats(
   auto session_id = session_id_;
   muxer->task_runner_->PostTask([muxer, session_id, cb] {
     muxer->GetTraceStats(session_id, std::move(cb));
+  });
+}
+
+// Can be called from any thread.
+void TracingMuxerImpl::TracingSessionImpl::QueryServiceState(
+    QueryServiceStateCallback cb) {
+  auto* muxer = muxer_;
+  auto session_id = session_id_;
+  muxer->task_runner_->PostTask([muxer, session_id, cb] {
+    muxer->QueryServiceState(session_id, std::move(cb));
   });
 }
 
@@ -935,6 +953,32 @@ void TracingMuxerImpl::GetTraceStats(
   }
   consumer->get_trace_stats_pending_ = false;
   consumer->service_->GetTraceStats();
+}
+
+void TracingMuxerImpl::QueryServiceState(
+    TracingSessionGlobalID session_id,
+    TracingSession::QueryServiceStateCallback callback) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  auto* consumer = FindConsumer(session_id);
+  if (!consumer) {
+    TracingSession::QueryServiceStateCallbackArgs callback_arg{};
+    callback_arg.success = false;
+    callback(std::move(callback_arg));
+    return;
+  }
+  PERFETTO_DCHECK(!consumer->query_service_state_callback_);
+  if (!consumer->connected_) {
+    consumer->query_service_state_callback_ = std::move(callback);
+    return;
+  }
+  auto callback_wrapper = [callback](bool success,
+                                     protos::gen::TracingServiceState state) {
+    TracingSession::QueryServiceStateCallbackArgs callback_arg{};
+    callback_arg.success = success;
+    callback_arg.service_state_data = state.SerializeAsArray();
+    callback(std::move(callback_arg));
+  };
+  consumer->service_->QueryServiceState(std::move(callback_wrapper));
 }
 
 TracingMuxerImpl::ConsumerImpl* TracingMuxerImpl::FindConsumer(
