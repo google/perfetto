@@ -256,6 +256,30 @@ class PERFETTO_EXPORT TracingSession {
 
   // Synchronous version of GetTraceStats() for convenience.
   GetTraceStatsCallbackArgs GetTraceStatsBlocking();
+
+  // Struct passed as an argument to the callback for QueryServiceState().
+  // Contains information about registered data sources.
+  struct QueryServiceStateCallbackArgs {
+    // Whether or not getting the service state succeeded.
+    bool success = false;
+    // Serialized TracingServiceState protobuf message. To decode:
+    //
+    //   perfetto::protos::gen::TracingServiceState state;
+    //   state.ParseFromArray(args.service_state_data.data(),
+    //                        args.service_state_data.size());
+    //
+    std::vector<uint8_t> service_state_data;
+  };
+
+  // Requests a snapshot of the tracing service state for this session. Only one
+  // request per session may be active at a time. This callback will be invoked
+  // on an internal perfetto thread.
+  using QueryServiceStateCallback =
+      std::function<void(QueryServiceStateCallbackArgs)>;
+  virtual void QueryServiceState(QueryServiceStateCallback) = 0;
+
+  // Synchronous version of QueryServiceState() for convenience.
+  QueryServiceStateCallbackArgs QueryServiceStateBlocking();
 };
 
 }  // namespace perfetto
