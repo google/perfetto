@@ -1,6 +1,6 @@
 Unreleased:
   Tracing service and probes:
-    *
+    * Added API for querying registered data sources and their capabilities.
   Trace Processor:
     *
   UI:
