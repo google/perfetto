@@ -24,7 +24,8 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 def main():
   # Append test and src paths so that all imports are loaded in correctly
   sys.path.append(os.path.join(ROOT_DIR, 'test', 'trace_processor', 'python'))
-  sys.path.append(os.path.join(ROOT_DIR, 'src', 'trace_processor', 'python'))
+  sys.path.append(
+      os.path.join(ROOT_DIR, 'src', 'trace_processor', 'python', 'perfetto'))
   import api_unittest
   import api_integrationtest
 
