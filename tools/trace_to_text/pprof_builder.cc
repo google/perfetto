@@ -47,10 +47,6 @@ namespace trace_to_text {
 
 namespace {
 
-using ::protozero::proto_utils::kMessageLengthFieldSize;
-using ::protozero::proto_utils::MakeTagLengthDelimited;
-using ::protozero::proto_utils::WriteVarInt;
-
 struct View {
   const char* type;
   const char* unit;

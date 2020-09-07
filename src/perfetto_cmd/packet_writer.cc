@@ -38,9 +38,7 @@
 namespace perfetto {
 namespace {
 
-using protozero::proto_utils::kMessageLengthFieldSize;
 using protozero::proto_utils::MakeTagLengthDelimited;
-using protozero::proto_utils::WriteRedundantVarInt;
 using protozero::proto_utils::WriteVarInt;
 using Preamble = std::array<char, 16>;
 

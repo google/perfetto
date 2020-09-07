@@ -46,7 +46,6 @@ using trace_processor::Iterator;
 constexpr size_t kCompressionBufferSize = 500 * 1024;
 #endif
 
-using ::protozero::proto_utils::kMessageLengthFieldSize;
 using ::protozero::proto_utils::MakeTagLengthDelimited;
 using ::protozero::proto_utils::WriteVarInt;
 

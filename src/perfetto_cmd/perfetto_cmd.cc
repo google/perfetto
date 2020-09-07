@@ -138,9 +138,6 @@ bool IsUserBuild() {
 
 const char* kStateDir = "/data/misc/perfetto-traces";
 
-using protozero::proto_utils::MakeTagLengthDelimited;
-using protozero::proto_utils::WriteVarInt;
-
 int PerfettoCmd::PrintUsage(const char* argv0) {
   PERFETTO_ELOG(R"(
 Usage: %s
