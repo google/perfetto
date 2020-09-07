@@ -18,6 +18,7 @@ from google.protobuf.descriptor_pool import DescriptorPool
 
 from .loader import get_loader
 
+
 class ProtoFactory:
 
   def __init__(self):
