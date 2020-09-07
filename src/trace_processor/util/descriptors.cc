@@ -191,7 +191,7 @@ util::Status DescriptorPool::AddFromFileDescriptorSet(
   }
 
   // Second pass: Add extension fields to the real protos.
-  for (auto extension : extensions) {
+  for (const auto& extension : extensions) {
     auto status = AddExtensionField(extension.first, extension.second);
     if (!status.ok())
       return status;
