@@ -32,8 +32,8 @@ import tempfile
 
 
 TRACE_TO_TEXT_SHAS = {
-    'linux': 'bdbd589acc854a523747f80192ca008cb92a8ec3',
-    'mac': '2f2c1b6304fcaaf536c219e667b96962f5c265db',
+    'linux': '2c1331cee3752d04f1df4b0003454ee8ecff5377',
+    'mac': 'fdfcdaa6be5e36974e68eced7fc6226f6d8b3314',
 }
 TRACE_TO_TEXT_PATH = tempfile.gettempdir()
 TRACE_TO_TEXT_BASE_URL = ('https://storage.googleapis.com/perfetto/')
