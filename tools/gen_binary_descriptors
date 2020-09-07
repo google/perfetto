@@ -49,11 +49,11 @@ SOURCE_TARGET = [
     ),
     (
       'protos/perfetto/trace_processor/trace_processor.proto',
-      'src/trace_processor/python/trace_processor/trace_processor.descriptor'
+      'src/trace_processor/python/perfetto/trace_processor/trace_processor.descriptor'
     ),
     (
       'protos/perfetto/metrics/metrics.proto',
-      'src/trace_processor/python/trace_processor/metrics.descriptor'
+      'src/trace_processor/python/perfetto/trace_processor/metrics.descriptor'
     ),
 ]
 
