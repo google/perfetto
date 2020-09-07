@@ -126,6 +126,8 @@ class TracingMuxerImpl : public TracingMuxer {
       std::function<void(TracingSession::ReadTraceCallbackArgs)>);
   void GetTraceStats(TracingSessionGlobalID,
                      TracingSession::GetTraceStatsCallback);
+  void QueryServiceState(TracingSessionGlobalID,
+                         TracingSession::QueryServiceStateCallback);
 
  private:
   // For each TracingBackend we create and register one ProducerImpl instance.
@@ -252,6 +254,9 @@ class TracingMuxerImpl : public TracingMuxer {
     // Callback passed to GetTraceStats().
     TracingSession::GetTraceStatsCallback get_trace_stats_callback_;
 
+    // Callback for a pending call to QueryServiceState().
+    TracingSession::QueryServiceStateCallback query_service_state_callback_;
+
     // The states of all data sources in this tracing session. |true| means the
     // data source has started tracing.
     using DataSourceHandle = std::pair<std::string, std::string>;
@@ -276,6 +281,7 @@ class TracingMuxerImpl : public TracingMuxer {
     void ReadTrace(ReadTraceCallback) override;
     void SetOnStopCallback(std::function<void()>) override;
     void GetTraceStats(GetTraceStatsCallback) override;
+    void QueryServiceState(QueryServiceStateCallback) override;
 
    private:
     TracingMuxerImpl* const muxer_;
