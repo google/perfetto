@@ -97,7 +97,7 @@ class GeneratorJob {
       GenerateEnumDescriptor(enumeration);
     for (const Descriptor* message : messages_)
       GenerateMessageDescriptor(message);
-    for (auto key_value : extensions_)
+    for (const auto& key_value : extensions_)
       GenerateExtension(key_value.first, key_value.second);
     GenerateEpilogue();
     return error_.empty();
