@@ -835,7 +835,7 @@ void TracingServiceImpl::ChangeTraceConfig(ConsumerEndpointImpl* consumer,
     std::vector<std::string> new_producer_name_filter;
     std::vector<std::string> new_producer_name_regex_filter;
     bool found_data_source = false;
-    for (auto it : updated_cfg.data_sources()) {
+    for (const auto& it : updated_cfg.data_sources()) {
       if (cfg_data_source.config().name() == it.config().name()) {
         new_producer_name_filter = it.producer_name_filter();
         new_producer_name_regex_filter = it.producer_name_regex_filter();
