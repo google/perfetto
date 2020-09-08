@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-* A host running macOS or Linux.
+* [ADB](https://developer.android.com/studio/command-line/adb) installed.
 * A device running Android 10+.
 * A _Profileable_ or _Debuggable_ app. If you are running on a _"user"_ build of
   Android (as opposed to _"userdebug"_ or _"eng"_), your app needs to be marked
@@ -13,20 +13,54 @@
 
 ## Capture a heap profile
 
-Download the `tools/heap_profile` (if you don't have a perfetto checkout) and
-run it as follows:
+### Linux / macOS
+Make sure adb is installed and in your PATH.
+
+```bash
+adb devices -l
+```
+
+If more than one device or emulator is reported you must select one upfront as follows:
+
+```bash
+export ANDROID_SERIAL=SER123456
+```
+
+Download the `tools/heap_profile` (if you don't have a perfetto checkout):
 
 ```bash
 curl -LO https://raw.githubusercontent.com/google/perfetto/master/tools/heap_profile
 chmod +x heap_profile
+```
 
+Then start the profile:
+
+```bash
 ./heap_profile -n system_server
+```
 
-Profiling active. Press Ctrl+C to terminate.
-You may disconnect your device.
+### Windows
 
-Wrote profiles to /tmp/profile-1283e247-2170-4f92-8181-683763e17445 (symlink /tmp/heap_profile-latest)
-These can be viewed using pprof. Googlers: head to pprof/ and upload them.
+Make sure that the downloaded adb.exe is in the PATH.
+
+```bash
+set PATH=%PATH%;%USERPROFILE%\Downloads\platform-tools
+
+adb devices -l
+```
+
+If more than one device or emulator is reported you must select one upfront as follows:
+
+```bash
+set ANDROID_SERIAL=SER123456
+```
+
+Download the
+[heap_profile](https://raw.githubusercontent.com/google/perfetto/master/tools/heap_profile)
+script. Then start the profile:
+
+```bash
+python /path/to/heap_profile -n system_server 
 ```
 
 ## View profile
