@@ -40,7 +40,6 @@ heap_profile_no_symbols.textproto unsymbolized_frames unsymbolized_frames.out
 heap_graph.textproto java_heap_stats java_heap_stats.out
 heap_graph_closest_proc.textproto java_heap_stats heap_stats_closest_proc.out
 heap_graph.textproto java_heap_histogram java_heap_histogram.out
-obfuscated_heap_graph.textproto unmapped_java_symbols unmapped_java_symbols.out
 
 # perf_sample table (traced_perf trace as an input).
 ../../data/perf_sample.pb perf_sample.sql perf_sample_perf_sample.out
