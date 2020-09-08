@@ -721,27 +721,6 @@ message AndroidThreadTimeInStateMetric {
 
 // End of protos/perfetto/metrics/android/thread_time_in_state_metric.proto
 
-// Begin of protos/perfetto/metrics/android/unmapped_java_symbols.proto
-
-message UnmappedJavaSymbols {
-  message Field {
-    optional string field_name = 1;
-    optional string field_type_name = 2;
-  }
-
-  message ProcessSymbols {
-    reserved 3;
-
-    optional AndroidProcessMetadata process_metadata = 1;
-    repeated string type_name = 2;
-    repeated Field field = 4;
-  }
-
-  repeated ProcessSymbols process_symbols = 1;
-}
-
-// End of protos/perfetto/metrics/android/unmapped_java_symbols.proto
-
 // Begin of protos/perfetto/metrics/android/unsymbolized_frames.proto
 
 message UnsymbolizedFrames {
@@ -774,7 +753,7 @@ message TraceMetadata {
 //
 // Next id: 26
 message TraceMetrics {
-  reserved 4, 10, 13, 14;
+  reserved 4, 10, 13, 14, 19;
 
   // Battery counters metric on Android.
   optional AndroidBatteryMetric android_batt = 5;
@@ -823,9 +802,6 @@ message TraceMetrics {
 
   // Metrics used to find potential culprits of low-memory kills.
   optional AndroidLmkReasonMetric android_lmk_reason = 18;
-
-  // Java type names that have no deobfuscation mappings.
-  optional UnmappedJavaSymbols unmapped_java_symbols = 19;
 
   optional AndroidHwuiMetric android_hwui_metric = 20;
 
