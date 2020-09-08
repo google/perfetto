@@ -35,7 +35,6 @@ perfetto_proto_library("@TYPE@") {
     "surfaceflinger.proto",
     "task_names.proto",
     "thread_time_in_state_metric.proto",
-    "unmapped_java_symbols.proto",
     "unsymbolized_frames.proto",
   ]
 }

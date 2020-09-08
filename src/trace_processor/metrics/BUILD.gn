@@ -52,7 +52,6 @@ sql_files = [
   "android/span_view_stats.sql",
   "android/process_counter_span_view.sql",
   "android/counter_span_view.sql",
-  "android/unmapped_java_symbols.sql",
   "android/unsymbolized_frames.sql",
   "chrome/chrome_processes.sql",
   "chrome/scroll_jank.sql",
