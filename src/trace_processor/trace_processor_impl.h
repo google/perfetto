@@ -94,6 +94,7 @@ class TraceProcessorImpl : public TraceProcessor,
                                  std::move(generator));
   }
 
+  bool IsRootMetricField(const std::string& metric_name);
   ScopedDb db_;
   std::unique_ptr<QueryCache> query_cache_;
 
