@@ -59,7 +59,10 @@ std::vector<MergedCallsite> GetMergedCallsites(TraceStorage* storage,
 
   if (!symbol_set_id) {
     StringId frame_name = frames_tbl.name()[frame_idx];
-    return {{frame_name, mapping_name, base::nullopt}};
+    base::Optional<StringId> deobfuscated_name =
+        frames_tbl.deobfuscated_name()[frame_idx];
+    return {{deobfuscated_name ? *deobfuscated_name : frame_name, mapping_name,
+             base::nullopt}};
   }
 
   std::vector<MergedCallsite> result;
