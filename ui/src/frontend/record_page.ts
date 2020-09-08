@@ -314,6 +314,7 @@ function HeapSettings(cssClass: string) {
         title: 'Names or pids of the processes to track',
         placeholder: 'One per line, e.g.:\n' +
             'system_server\n' +
+            'com.google.android.apps.photos\n' +
             '1503',
         set: (cfg, val) => cfg.hpProcesses = val,
         get: (cfg) => cfg.hpProcesses
