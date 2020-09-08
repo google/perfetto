@@ -144,6 +144,11 @@ void CreateBuiltinTables(sqlite3* db) {
     PERFETTO_ELOG("Error initializing: %s", error);
     sqlite3_free(error);
   }
+  sqlite3_exec(db, "CREATE TABLE trace_metrics(name STRING)", 0, 0, &error);
+  if (error) {
+    PERFETTO_ELOG("Error initializing: %s", error);
+    sqlite3_free(error);
+  }
 
   // Initialize the bounds table with some data so even before parsing any data,
   // we still have a valid table.
@@ -644,6 +649,18 @@ void EnsureSqliteInitialized() {
   PERFETTO_CHECK(init_once);
 }
 
+void InsertIntoTraceMetricsTable(sqlite3* db, const std::string& metric_name) {
+  char* insert_sql = sqlite3_mprintf(
+      "INSERT INTO trace_metrics(name) VALUES('%q')", metric_name.c_str());
+  char* insert_error = nullptr;
+  sqlite3_exec(db, insert_sql, nullptr, nullptr, &insert_error);
+  sqlite3_free(insert_sql);
+  if (insert_error) {
+    PERFETTO_ELOG("Error registering table: %s", insert_error);
+    sqlite3_free(insert_error);
+  }
+}
+
 }  // namespace
 
 TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
@@ -876,6 +893,16 @@ void TraceProcessorImpl::InterruptQuery() {
   sqlite3_interrupt(db_.get());
 }
 
+bool TraceProcessorImpl::IsRootMetricField(const std::string& metric_name) {
+  base::Optional<uint32_t> desc_idx =
+      pool_.FindDescriptorIdx(".perfetto.protos.TraceMetrics");
+  if (!desc_idx.has_value())
+    return false;
+  base::Optional<uint32_t> field_idx =
+      pool_.descriptors()[*desc_idx].FindFieldIdxByName(metric_name);
+  return field_idx.has_value();
+}
+
 util::Status TraceProcessorImpl::RegisterMetric(const std::string& path,
                                                 const std::string& sql) {
   std::string stripped_sql;
@@ -908,9 +935,14 @@ util::Status TraceProcessorImpl::RegisterMetric(const std::string& path,
 
   metrics::SqlMetricFile metric;
   metric.path = path;
-  metric.proto_field_name = no_ext_name;
-  metric.output_table_name = no_ext_name + "_output";
   metric.sql = stripped_sql;
+
+  if (IsRootMetricField(no_ext_name)) {
+    metric.proto_field_name = no_ext_name;
+    metric.output_table_name = no_ext_name + "_output";
+    InsertIntoTraceMetricsTable(*db_, no_ext_name);
+  }
+
   sql_metrics_.emplace_back(metric);
   return util::OkStatus();
 }
