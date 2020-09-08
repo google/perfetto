@@ -44,7 +44,7 @@ NOOUT = {
     'stderr': NULL,
 }
 
-UUID = str(uuid.uuid4())
+UUID = str(uuid.uuid4())[-6:]
 
 def check_hash(file_name, sha_value):
   with open(file_name, 'rb') as fd:
@@ -111,7 +111,7 @@ CONTINUOUS_DUMP = """
       }}
 """
 
-PROFILE_LOCAL_PATH = '/tmp/profile-' + UUID
+PROFILE_LOCAL_PATH = os.path.join(tempfile.gettempdir(), UUID)
 
 IS_INTERRUPTED = False
 
@@ -348,17 +348,21 @@ def main(argv):
 
   # Do this AFTER print_config so we do not download trace_to_text only to
   # print out the config.
+  has_trace_to_text = True
   if trace_to_text_binary is None:
     platform = None
     if sys.platform.startswith('linux'):
       platform = 'linux'
     elif sys.platform.startswith('darwin'):
       platform = 'mac'
+    elif sys.platform.startswith('win32'):
+      has_trace_to_text = False
     else:
       print("Invalid platform: {}".format(sys.platform), file=sys.stderr)
       return 1
 
-    trace_to_text_binary = load_trace_to_text(platform)
+    if has_trace_to_text:
+      trace_to_text_binary = load_trace_to_text(platform)
 
   # TODO(fmayer): Maybe feature detect whether we can remove traces instead of
   # this.
@@ -424,6 +428,7 @@ def main(argv):
         ['adb', 'shell', '[ -d /proc/{} ]'.format(perfetto_pid)], **NOOUT) == 0
     device_connected = subprocess.call(['adb', 'shell', 'true'], **NOOUT) == 0
     time.sleep(1)
+  print("Waiting for profiler shutdown...")
   signal.signal(signal.SIGINT, old_handler)
   if IS_INTERRUPTED:
     # Not check_call because it could have existed in the meantime.
@@ -444,13 +449,17 @@ def main(argv):
         ['adb', 'shell', '[ -d /proc/{} ]'.format(perfetto_pid)]) == 0
     time.sleep(1)
 
-  subprocess.check_call([
-      'adb', 'pull', profile_device_path,
-      os.path.join(profile_target, 'raw-trace')
-  ], stdout=NULL)
+  profile_host_path = os.path.join(profile_target, 'raw-trace')
+  subprocess.check_call(
+    ['adb', 'pull', profile_device_path, profile_host_path], stdout=NULL)
   if uuid_trace:
     subprocess.check_call(
           ['adb', 'shell', 'rm', profile_device_path], stdout=NULL)
+
+  if not has_trace_to_text:
+    print('Wrote profile to {}'.format(profile_host_path))
+    print('This file can be opened using the Perfetto UI, https://ui.perfetto.dev')
+    return 0
 
   trace_to_text_output = subprocess.check_output(
       [trace_to_text_binary, 'profile',
