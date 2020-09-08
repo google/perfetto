@@ -366,7 +366,8 @@ class GProfileBuilder {
                    std::set<int64_t>* seen_mappings,
                    std::set<int64_t>* seen_symbol_ids) {
     Iterator frame_it = tp->ExecuteQuery(
-        "SELECT spf.id, spf.name, spf.mapping, spf.rel_pc, spf.symbol_set_id "
+        "SELECT spf.id, IFNULL(spf.deobfuscated_name, spf.name), spf.mapping, "
+        "spf.rel_pc, spf.symbol_set_id "
         "FROM stack_profile_frame spf;");
     size_t frames_no = 0;
     while (frame_it.Next()) {
