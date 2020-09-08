@@ -3,6 +3,8 @@
 ## Prerequisites
 
 * A host running macOS or Linux.
+* [ADB](https://developer.android.com/studio/command-line/adb) installed and
+  in PATH.
 * A device running Android 11+.
 
 If you are profiling your own app and are not running a userdebug build of
