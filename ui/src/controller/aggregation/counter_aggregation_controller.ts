@@ -14,7 +14,7 @@
 
 import {ColumnDef} from '../../common/aggregation_data';
 import {Engine} from '../../common/engine';
-import {Sorting, TimestampedAreaSelection} from '../../common/state';
+import {Area, Sorting} from '../../common/state';
 import {toNs} from '../../common/time';
 import {Config, COUNTER_TRACK_KIND} from '../../tracks/counter/common';
 import {globals} from '../globals';
@@ -22,11 +22,8 @@ import {globals} from '../globals';
 import {AggregationController} from './aggregation_controller';
 
 export class CounterAggregationController extends AggregationController {
-  async createAggregateView(
-      engine: Engine, selectedArea: TimestampedAreaSelection) {
+  async createAggregateView(engine: Engine, area: Area) {
     await engine.query(`drop view if exists ${this.kind};`);
-    const area = selectedArea.area;
-    if (area === undefined) return false;
 
     const ids = [];
     for (const trackId of area.tracks) {

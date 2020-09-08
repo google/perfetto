@@ -15,9 +15,9 @@
 import * as m from 'mithril';
 
 import {assertExists} from '../base/logging';
+import {hueForCpu} from '../common/colorizer';
 import {TimeSpan, timeToString} from '../common/time';
 
-import {hueForCpu} from './colorizer';
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {DragGestureHandler} from './drag_gesture_handler';
 import {globals} from './globals';

@@ -15,10 +15,10 @@
 import * as m from 'mithril';
 
 import {Actions} from '../common/actions';
+import {randomColor} from '../common/colorizer';
 import {AreaNote, Note} from '../common/state';
 import {timeToString} from '../common/time';
 
-import {randomColor} from './colorizer';
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {PerfettoMouseEvent} from './events';
 import {globals} from './globals';
@@ -34,6 +34,14 @@ const MOVIE = '\uE8DA';
 function toSummary(s: string) {
   const newlineIndex = s.indexOf('\n') > 0 ? s.indexOf('\n') : s.length;
   return s.slice(0, Math.min(newlineIndex, s.length, 16));
+}
+
+function getStartTimestamp(note: Note|AreaNote) {
+  if (note.noteType === 'AREA') {
+    return globals.state.areas[note.areaId].startSec;
+  } else {
+    return note.timestamp;
+  }
 }
 
 export class NotesPanel extends Panel {
@@ -85,11 +93,12 @@ export class NotesPanel extends Panel {
     ctx.font = '10px Helvetica';
 
     for (const note of Object.values(globals.state.notes)) {
-      const timestamp = note.timestamp;
+      const timestamp = getStartTimestamp(note);
       if ((note.noteType !== 'AREA' && !timeScale.timeInBounds(timestamp)) ||
           (note.noteType === 'AREA' &&
-           !timeScale.timeInBounds(note.area.endSec) &&
-           !timeScale.timeInBounds(note.area.startSec))) {
+           !timeScale.timeInBounds(globals.state.areas[note.areaId].endSec) &&
+           !timeScale.timeInBounds(
+               globals.state.areas[note.areaId].startSec))) {
         continue;
       }
       const currentIsHovered =
@@ -97,18 +106,19 @@ export class NotesPanel extends Panel {
       if (currentIsHovered) aNoteIsHovered = true;
 
       const selection = globals.state.currentSelection;
-      const isSelected = selection !== null && selection.kind === 'NOTE' &&
-          selection.id === note.id;
+      const isSelected = selection !== null &&
+          ((selection.kind === 'NOTE' && selection.id === note.id) ||
+           (selection.kind === 'AREA' && selection.noteId === note.id));
       const x = timeScale.timeToPx(timestamp);
       const left = Math.floor(x + TRACK_SHELL_WIDTH);
 
       // Draw flag or marker.
       if (note.noteType === 'AREA') {
+        const area = globals.state.areas[note.areaId];
         this.drawAreaMarker(
             ctx,
             left,
-            Math.floor(
-                timeScale.timeToPx(note.area.endSec) + TRACK_SHELL_WIDTH),
+            Math.floor(timeScale.timeToPx(area.endSec) + TRACK_SHELL_WIDTH),
             note.color,
             isSelected);
       } else {
@@ -212,11 +222,13 @@ export class NotesPanel extends Panel {
       if (this.hoveredX && this.mouseOverNote(this.hoveredX, note)) {
         if (note.noteType === 'MOVIE') {
           globals.frontendLocalState.setVidTimestamp(note.timestamp);
-        } else if (note.noteType === 'AREA') {
-          globals.frontendLocalState.selectArea(
-              note.area.startSec, note.area.endSec, note.area.tracks);
         }
-        globals.makeSelection(Actions.selectNote({id: note.id}));
+        if (note.noteType === 'AREA') {
+          globals.makeSelection(
+              Actions.reSelectArea({areaId: note.areaId, noteId: note.id}));
+        } else {
+          globals.makeSelection(Actions.selectNote({id: note.id}));
+        }
         return;
       }
     }
@@ -229,11 +241,12 @@ export class NotesPanel extends Panel {
 
   private mouseOverNote(x: number, note: AreaNote|Note): boolean {
     const timeScale = globals.frontendLocalState.timeScale;
-    const noteX = timeScale.timeToPx(note.timestamp);
+    const noteX = timeScale.timeToPx(getStartTimestamp(note));
     if (note.noteType === 'AREA') {
+      const noteArea = globals.state.areas[note.areaId];
       return (noteX <= x && x < noteX + AREA_TRIANGLE_WIDTH) ||
-          (timeScale.timeToPx(note.area.endSec) > x &&
-           x > timeScale.timeToPx(note.area.endSec) - AREA_TRIANGLE_WIDTH);
+          (timeScale.timeToPx(noteArea.endSec) > x &&
+           x > timeScale.timeToPx(noteArea.endSec) - AREA_TRIANGLE_WIDTH);
     } else {
       const width = (note.noteType === 'MOVIE') ? MOVIE_WIDTH : FLAG_WIDTH;
       return noteX <= x && x < noteX + width;
@@ -248,7 +261,8 @@ interface NotesEditorPanelAttrs {
 export class NotesEditorPanel extends Panel<NotesEditorPanelAttrs> {
   view({attrs}: m.CVnode<NotesEditorPanelAttrs>) {
     const note = globals.state.notes[attrs.id];
-    const startTime = note.timestamp - globals.state.traceTime.startSec;
+    const startTime =
+        getStartTimestamp(note) - globals.state.traceTime.startSec;
     return m(
         '.notes-editor-panel',
         m('.notes-editor-panel-heading-bar',
