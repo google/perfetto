@@ -369,18 +369,6 @@ mainThreadr
 metadata (2'.perfetto.protos.AndroidProcessMetadataRmetadatar
 metrics_by_core_type (2A.perfetto.protos.AndroidThreadTimeInStateMetric.MetricsByCoreTypeRmetricsByCoreTypeP
 threads (26.perfetto.protos.AndroidThreadTimeInStateMetric.ThreadRthreads
-ò
-;protos/perfetto/metrics/android/unmapped_java_symbols.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"è
-UnmappedJavaSymbols\
-process_symbols (23.perfetto.protos.UnmappedJavaSymbols.ProcessSymbolsRprocessSymbolsN
-Field
-
-field_name (	R	fieldName&
-field_type_name (	RfieldTypeName…
-ProcessSymbolsR
-process_metadata (2'.perfetto.protos.AndroidProcessMetadataRprocessMetadata
-	type_name (	RtypeName@
-field (2*.perfetto.protos.UnmappedJavaSymbols.FieldRfieldJ
 ¸
 9protos/perfetto/metrics/android/unsymbolized_frames.protoperfetto.protos"≠
 UnsymbolizedFramesA
@@ -389,8 +377,8 @@ field_name (	R	fieldName&
 module (	Rmodule
 build_id (	RbuildId
 address (Raddress
-
-%protos/perfetto/metrics/metrics.protoperfetto.protos1protos/perfetto/metrics/android/batt_metric.proto0protos/perfetto/metrics/android/cpu_metric.proto5protos/perfetto/metrics/android/display_metrics.proto<protos/perfetto/metrics/android/heap_profile_callsites.proto1protos/perfetto/metrics/android/hwui_metric.proto0protos/perfetto/metrics/android/ion_metric.proto9protos/perfetto/metrics/android/java_heap_histogram.proto5protos/perfetto/metrics/android/java_heap_stats.proto0protos/perfetto/metrics/android/lmk_metric.proto7protos/perfetto/metrics/android/lmk_reason_metric.proto0protos/perfetto/metrics/android/mem_metric.proto6protos/perfetto/metrics/android/mem_unagg_metric.proto2protos/perfetto/metrics/android/package_list.proto5protos/perfetto/metrics/android/powrails_metric.proto4protos/perfetto/metrics/android/startup_metric.proto4protos/perfetto/metrics/android/surfaceflinger.proto0protos/perfetto/metrics/android/task_names.protoAprotos/perfetto/metrics/android/thread_time_in_state_metric.proto;protos/perfetto/metrics/android/unmapped_java_symbols.proto9protos/perfetto/metrics/android/unsymbolized_frames.proto"Ê
+ﬂ
+%protos/perfetto/metrics/metrics.protoperfetto.protos1protos/perfetto/metrics/android/batt_metric.proto0protos/perfetto/metrics/android/cpu_metric.proto5protos/perfetto/metrics/android/display_metrics.proto<protos/perfetto/metrics/android/heap_profile_callsites.proto1protos/perfetto/metrics/android/hwui_metric.proto0protos/perfetto/metrics/android/ion_metric.proto9protos/perfetto/metrics/android/java_heap_histogram.proto5protos/perfetto/metrics/android/java_heap_stats.proto0protos/perfetto/metrics/android/lmk_metric.proto7protos/perfetto/metrics/android/lmk_reason_metric.proto0protos/perfetto/metrics/android/mem_metric.proto6protos/perfetto/metrics/android/mem_unagg_metric.proto2protos/perfetto/metrics/android/package_list.proto5protos/perfetto/metrics/android/powrails_metric.proto4protos/perfetto/metrics/android/startup_metric.proto4protos/perfetto/metrics/android/surfaceflinger.proto0protos/perfetto/metrics/android/task_names.protoAprotos/perfetto/metrics/android/thread_time_in_state_metric.proto9protos/perfetto/metrics/android/unsymbolized_frames.proto"Ê
 TraceMetadata*
 trace_duration_ns (RtraceDurationNs
 
@@ -399,7 +387,7 @@ trace_uuid (	R	traceUuid:
 !statsd_triggering_subscription_id (RstatsdTriggeringSubscriptionId(
 trace_size_bytes (RtraceSizeBytes#
 trace_trigger (	RtraceTrigger.
-unique_session_name (	RuniqueSessionNameJ"Ç
+unique_session_name (	RuniqueSessionNameJ"Æ
 TraceMetricsH
 android_batt (2%.perfetto.protos.AndroidBatteryMetricRandroidBattB
 android_cpu (2!.perfetto.protos.AndroidCpuMetricR
@@ -419,11 +407,10 @@ androidLmkM
 unsymbolized_frames (2#.perfetto.protos.UnsymbolizedFramesRunsymbolizedFramesF
 java_heap_stats (2.perfetto.protos.JavaHeapStatsRjavaHeapStatsR
 java_heap_histogram (2".perfetto.protos.JavaHeapHistogramRjavaHeapHistogramU
-android_lmk_reason (2'.perfetto.protos.AndroidLmkReasonMetricRandroidLmkReasonX
-unmapped_java_symbols (2$.perfetto.protos.UnmappedJavaSymbolsRunmappedJavaSymbolsR
+android_lmk_reason (2'.perfetto.protos.AndroidLmkReasonMetricRandroidLmkReasonR
 android_hwui_metric (2".perfetto.protos.AndroidHwuiMetricRandroidHwuiMetricO
 display_metrics (2&.perfetto.protos.AndroidDisplayMetricsRdisplayMetricsO
 android_task_names (2!.perfetto.protos.AndroidTaskNamesRandroidTaskNameso
 android_thread_time_in_state (2/.perfetto.protos.AndroidThreadTimeInStateMetricRandroidThreadTimeInStatec
 android_surfaceflinger (2,.perfetto.protos.AndroidSurfaceflingerMetricRandroidSurfaceflinger*¬Ù*ÙÈ*È—JJ
-JJ
+JJJ
