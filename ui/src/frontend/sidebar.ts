@@ -284,13 +284,30 @@ function openCurrentTraceWithOldUI(e: Event) {
     openInOldUIWithSizeCheck(new Blob([src.buffer]));
   } else if (src.type === 'FILE') {
     openInOldUIWithSizeCheck(src.file);
+  } else if (src.type === 'URL') {
+    m.request({
+       method: 'GET',
+       url: src.url,
+       // TODO(hjd): Once mithril is updated we can use responseType here rather
+       // than using config and remove the extract below.
+       config: xhr => {
+         xhr.responseType = 'blob';
+         xhr.onprogress = progress => {
+           const percent = (100 * progress.loaded / progress.total).toFixed(1);
+           globals.dispatch(Actions.updateStatus({
+             msg: `Downloading trace ${percent}%`,
+             timestamp: Date.now() / 1000,
+           }));
+         };
+       },
+       extract: xhr => {
+         return xhr.response;
+       }
+     }).then(result => {
+      openInOldUIWithSizeCheck(result as Blob);
+    });
   } else {
-    throw new Error('Loading from a URL to catapult is not yet supported');
-    // TODO(nicomazz): Find how to get the data of the current trace if it is
-    // from a URL. It seems that the trace downloaded is given to the trace
-    // processor, but not kept somewhere accessible. Maybe the only way is to
-    // download the trace (again), and then open it. An alternative can be to
-    // save a copy.
+    throw new Error(`Loading to catapult from source with type ${src.type}`);
   }
 }
 
