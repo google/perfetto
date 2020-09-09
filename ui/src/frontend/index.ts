@@ -312,11 +312,11 @@ function main() {
   // /?s=xxxx for permalinks.
   const stateHash = Router.param('s');
   const urlHash = Router.param('url');
-  if (stateHash) {
+  if (typeof stateHash === 'string' && stateHash) {
     globals.dispatch(Actions.loadPermalink({
       hash: stateHash,
     }));
-  } else if (urlHash) {
+  } else if (typeof urlHash === 'string' && urlHash) {
     globals.dispatch(Actions.openTraceFromUrl({
       url: urlHash,
     }));
