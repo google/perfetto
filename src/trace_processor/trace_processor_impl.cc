@@ -136,9 +136,12 @@ void CreateBuiltinTables(sqlite3* db) {
     PERFETTO_ELOG("Error initializing: %s", error);
     sqlite3_free(error);
   }
+  // Ensure that the entries in power_profile are unique to prevent duplicates
+  // when the power_profile is augmented with additional profiles.
   sqlite3_exec(db,
-               "CREATE TABLE power_profile"
-               "(device STRING, cpu INT, cluster INT, freq INT, power DOUBLE);",
+               "CREATE TABLE power_profile("
+               "device STRING, cpu INT, cluster INT, freq INT, power DOUBLE,"
+               "UNIQUE(device, cpu, cluster, freq));",
                0, 0, &error);
   if (error) {
     PERFETTO_ELOG("Error initializing: %s", error);
