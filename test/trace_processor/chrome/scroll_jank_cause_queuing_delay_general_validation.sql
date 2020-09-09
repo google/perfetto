@@ -16,7 +16,23 @@ SELECT RUN_METRIC('chrome/scroll_jank_cause_queuing_delay.sql')
     AS suppress_query_output;
 
 SELECT
-  COUNT(*) as total
+  COUNT(*) as total,
+  (
+    SELECT
+      DISTINCT(avg_no_jank_dur_overlapping_ns)
+    FROM scroll_jank_cause_queuing_delay
+    WHERE
+      location = "LatencyInfo.Flow" AND
+      jank
+  ) AS janky_latency_info_non_jank_avg_dur,
+  (
+    SELECT
+      DISTINCT(avg_no_jank_dur_overlapping_ns)
+    FROM scroll_jank_cause_queuing_delay
+    WHERE
+      location = "LatencyInfo.Flow" AND
+      NOT jank
+  ) AS non_janky_latency_info_non_jank_avg_dur
 FROM (
   SELECT
     trace_id

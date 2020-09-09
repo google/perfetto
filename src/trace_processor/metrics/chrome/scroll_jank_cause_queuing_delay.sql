@@ -189,13 +189,12 @@ DROP VIEW IF EXISTS scroll_jank_cause_queuing_delay_temp;
 
 CREATE VIEW scroll_jank_cause_queuing_delay_temp AS
   SELECT
-    'InputLatency.LatencyInfo.Flow.QueuingDelay.' ||
-    CASE WHEN jank THEN 'Jank' ELSE 'NoJank' END || '.BlockingTasksUs.' ||
     CASE WHEN name = "ThreadControllerImpl::RunTask" THEN
-      function || '()-in-' || file
+      'posted-from-' || function || '()-in-' || file
     ELSE
       name
-    END || COALESCE("-" || descendant_name, "") AS metric_name,
+    END || COALESCE("-" || descendant_name, "") AS location,
+
     base.*
   FROM descendant_blocking_tasks_queuing_delay base;
 
@@ -205,7 +204,7 @@ DROP VIEW IF EXISTS scroll_jank_cause_queuing_delay_average_time;
 
 CREATE VIEW scroll_jank_cause_queuing_delay_average_no_jank_time AS
   SELECT
-    metric_name,
+    location,
     AVG(dur_overlapping_ns) as avg_dur_overlapping_ns
   FROM scroll_jank_cause_queuing_delay_temp
   WHERE NOT jank
@@ -218,9 +217,12 @@ DROP VIEW IF EXISTS scroll_jank_cause_queuing_delay;
 CREATE VIEW scroll_jank_cause_queuing_delay AS
   SELECT
     base.*,
+    'InputLatency.LatencyInfo.Flow.QueuingDelay.' ||
+    CASE WHEN jank THEN 'Jank' ELSE 'NoJank' END || '.BlockingTasksUs.' ||
+      base.location as metric_name,
     COALESCE(avg_no_jank.avg_dur_overlapping_ns, 0)
         AS avg_no_jank_dur_overlapping_ns
   FROM
     scroll_jank_cause_queuing_delay_temp base LEFT JOIN
     scroll_jank_cause_queuing_delay_average_no_jank_time avg_no_jank ON
-        base.metric_name = avg_no_jank.metric_name;
+        base.location = avg_no_jank.location;
