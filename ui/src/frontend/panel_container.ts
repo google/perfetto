@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import * as m from 'mithril';
-import {TimestampedAreaSelection} from 'src/common/state';
 
 import {assertExists, assertTrue} from '../base/logging';
 
@@ -60,7 +59,6 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
   private panelPositions: PanelPosition[] = [];
   private totalPanelHeight = 0;
   private canvasHeight = 0;
-  private prevAreaSelection?: TimestampedAreaSelection;
 
   private panelPerfStats = new WeakMap<Panel, RunningStatistics>();
   private perfStats = {
@@ -103,12 +101,11 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
     return panels;
   }
 
+  // This finds the tracks covered by the in-progress area selection. When
+  // editing areaY is not set, so this will not be used.
   handleAreaSelection() {
-    const selection = globals.frontendLocalState.selectedArea;
-    const area = selection.area;
-    if ((this.prevAreaSelection &&
-         this.prevAreaSelection.lastUpdate >= selection.lastUpdate) ||
-        area === undefined ||
+    const area = globals.frontendLocalState.selectedArea;
+    if (area === undefined ||
         globals.frontendLocalState.areaY.start === undefined ||
         globals.frontendLocalState.areaY.end === undefined ||
         this.panelPositions.length === 0) {
@@ -153,7 +150,6 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
       }
     }
     globals.frontendLocalState.selectArea(area.startSec, area.endSec, tracks);
-    this.prevAreaSelection = globals.frontendLocalState.selectedArea;
   }
 
   constructor(vnode: m.CVnode<Attrs>) {
@@ -372,12 +368,10 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
   // the whole canvas rather than per panel.
   private drawTopLayerOnCanvas() {
     if (!this.ctx) return;
-    const selection = globals.frontendLocalState.selectedArea;
-    const area = selection.area;
+    const area = globals.frontendLocalState.selectedArea;
     if (area === undefined ||
         globals.frontendLocalState.areaY.start === undefined ||
-        globals.frontendLocalState.areaY.end === undefined ||
-        !globals.frontendLocalState.selectingArea) {
+        globals.frontendLocalState.areaY.end === undefined) {
       return;
     }
     if (this.panelPositions.length === 0 || area.tracks.length === 0) return;

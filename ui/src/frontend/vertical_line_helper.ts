@@ -41,24 +41,3 @@ function drawVerticalLine(ctx: CanvasRenderingContext2D,
     ctx.lineWidth = prevLineWidth;
 }
 
-// This draws two shaded rectangles outside of the area of interest. Effectivly
-// highlighting an area by colouring/darkening the outside areas.
-export function drawVerticalSelection(
-    ctx: CanvasRenderingContext2D,
-    timeScale: TimeScale,
-    timeStart: number,
-    timeEnd: number,
-    height: number,
-    color: string) {
-  const xStartPos =
-      TRACK_SHELL_WIDTH + Math.floor(timeScale.timeToPx(timeStart));
-  const xEndPos = TRACK_SHELL_WIDTH + Math.floor(timeScale.timeToPx(timeEnd));
-  const width = timeScale.endPx;
-  ctx.fillStyle = color;
-  ctx.fillRect(0, 0, xStartPos, height);
-  // In the worst case xEndPos may be far to the left of the canvas (and so be
-  // <0) in this case fill the whole screen.
-  ctx.fillRect(Math.max(xEndPos, 0), 0, width + TRACK_SHELL_WIDTH, height);
-  drawVerticalLine(ctx, xStartPos, height, `rgba(52,69,150)`);
-  drawVerticalLine(ctx, xEndPos, height, `rgba(52,69,150)`);
-}

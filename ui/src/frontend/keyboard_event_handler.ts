@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {Actions} from '../common/actions';
+import {Area} from '../common/state';
 
 import {globals} from './globals';
 import {toggleHelp} from './help_modal';
@@ -26,13 +27,12 @@ import {executeSearch} from './search_handler';
 // pan and zoom handler.
 export function handleKey(e: KeyboardEvent, down: boolean) {
   const key = e.key.toLowerCase();
+  const selection = globals.state.currentSelection;
   if (down && 'm' === key) {
-    const selectedArea = globals.frontendLocalState.selectedArea.area;
-    if (!selectedArea && globals.state.currentSelection !== null) {
-      selectSliceSpan();
-    }
-    if (selectedArea) {
-      globals.frontendLocalState.toggleLockArea();
+    if (selection && selection.kind === 'AREA') {
+      globals.dispatch(Actions.toggleMarkArea({persistent: e.shiftKey}));
+    } else if (selection) {
+      lockSliceSpan(e.shiftKey);
     }
   }
   if (down && 'f' === key) {
@@ -62,6 +62,11 @@ export function handleKey(e: KeyboardEvent, down: boolean) {
     e.preventDefault();
     executeSearch(e.shiftKey);
   }
+  if (down && 'escape' === key) {
+    globals.frontendLocalState.deselectArea();
+    globals.makeSelection(Actions.deselect({}));
+    globals.dispatch(Actions.removeNote({id: '0'}));
+  }
 }
 
 function findTimeRangeOfSelection() {
@@ -86,14 +91,17 @@ function findTimeRangeOfSelection() {
   return {startTs, endTs};
 }
 
-function selectSliceSpan() {
+
+function lockSliceSpan(persistent = false) {
   const range = findTimeRangeOfSelection();
   if (range.startTs !== -1 && range.endTs !== -1 &&
-      globals.state.currentSelection) {
+      globals.state.currentSelection !== null) {
     const tracks = globals.state.currentSelection.trackId ?
         [globals.state.currentSelection.trackId] :
         [];
-    globals.frontendLocalState.selectArea(range.startTs, range.endTs, tracks);
+    const area: Area = {startSec: range.startTs, endSec: range.endTs, tracks};
+    globals.makeSelection(Actions.selectArea({area}));
+    globals.dispatch(Actions.toggleMarkArea({persistent}));
   }
 }
 

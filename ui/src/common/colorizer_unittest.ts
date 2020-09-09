@@ -13,42 +13,28 @@
 // limitations under the License.
 
 import {colorForThread, hueForCpu} from './colorizer';
-import {ThreadDesc} from './globals';
 
-const PROCESS_A_THREAD_A: ThreadDesc = {
-  utid: 1,
+const PROCESS_A_THREAD_A = {
   tid: 100,
-  threadName: 'threadA',
   pid: 100,
-  procName: 'procA',
 };
 
-const PROCESS_A_THREAD_B: ThreadDesc = {
-  utid: 2,
+const PROCESS_A_THREAD_B = {
   tid: 101,
-  threadName: 'threadB',
   pid: 100,
-  procName: 'procA',
 };
 
-const PROCESS_B_THREAD_A: ThreadDesc = {
-  utid: 3,
+const PROCESS_B_THREAD_A = {
   tid: 200,
-  threadName: 'threadA',
   pid: 200,
-  procName: 'procB',
 };
 
-const PROCESS_UNK_THREAD_A: ThreadDesc = {
-  utid: 4,
+const PROCESS_UNK_THREAD_A = {
   tid: 42,
-  threadName: 'unkThreadA',
 };
 
-const PROCESS_UNK_THREAD_B: ThreadDesc = {
-  utid: 5,
+const PROCESS_UNK_THREAD_B = {
   tid: 42,
-  threadName: 'unkThreadB',
 };
 
 test('it gives threads colors by pid if present', () => {

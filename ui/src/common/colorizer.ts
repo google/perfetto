@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {hsl} from 'color-convert';
-import {ThreadDesc} from './globals';
 
 export interface Color {
   c: string;
@@ -128,7 +127,7 @@ export function colorForTid(tid: number): Color {
   return Object.assign({}, MD_PALETTE[colorIdx]);
 }
 
-export function colorForThread(thread: ThreadDesc|undefined): Color {
+export function colorForThread(thread?: {pid?: number, tid: number}): Color {
   if (thread === undefined) {
     return Object.assign({}, GREY_COLOR);
   }
