@@ -15,18 +15,17 @@
 import {Draft} from 'immer';
 
 import {assertExists} from '../base/logging';
-import {
-  Area,
-  CallsiteInfo,
-  HeapProfileFlamegraphViewingOption
-} from '../common/state';
+import {randomColor} from '../common/colorizer';
 import {ConvertTrace, ConvertTraceToPprof} from '../controller/trace_converter';
 
 import {DEFAULT_VIEWING_OPTION} from './flamegraph_util';
 import {
   AdbRecordingTarget,
+  Area,
+  CallsiteInfo,
   createEmptyState,
   EngineMode,
+  HeapProfileFlamegraphViewingOption,
   LogsPagination,
   NewEngineMode,
   OmniboxState,
@@ -35,7 +34,6 @@ import {
   SCROLLING_TRACK_GROUP,
   State,
   Status,
-  TimestampedAreaSelection,
   TraceSource,
   TraceTime,
   TrackState,
@@ -378,7 +376,7 @@ export const StateActions = {
   addNote(
       state: StateDraft,
       args: {timestamp: number, color: string, isMovie: boolean}): void {
-    const id = `${state.nextId++}`;
+    const id = `${state.nextNoteId++}`;
     state.notes[id] = {
       noteType: 'DEFAULT',
       id,
@@ -392,20 +390,34 @@ export const StateActions = {
     this.selectNote(state, {id});
   },
 
-  addAreaNote(
-      state: StateDraft, args: {timestamp: number, area: Area, color: string}):
+  markArea(state: StateDraft, args: {color: string, persistent: boolean}):
       void {
-        const id = `${state.nextId++}`;
+        if (state.currentSelection === null ||
+            state.currentSelection.kind !== 'AREA') {
+          return;
+        }
+        const id = args.persistent ? `${state.nextNoteId++}` : '0';
+        const color = args.persistent ? args.color : '#344596';
         state.notes[id] = {
           noteType: 'AREA',
           id,
-          timestamp: args.timestamp,
-          area: args.area,
-          color: args.color,
+          areaId: state.currentSelection.areaId,
+          color,
           text: '',
         };
-        this.selectNote(state, {id});
+        state.currentSelection.noteId = id;
       },
+
+  toggleMarkArea(state: StateDraft, args: {persistent: boolean}) {
+    const selection = state.currentSelection;
+    if (selection != null && selection.kind === 'AREA' &&
+        selection.noteId !== undefined) {
+      this.removeNote(state, {id: selection.noteId});
+    } else {
+      const color = randomColor();
+      this.markArea(state, {color, persistent: args.persistent});
+    }
+  },
 
   toggleVideo(state: StateDraft, _: {}): void {
     state.videoEnabled = !state.videoEnabled;
@@ -449,16 +461,23 @@ export const StateActions = {
   },
 
   removeNote(state: StateDraft, args: {id: string}): void {
+    if (state.notes[args.id] === undefined) return;
     if (state.notes[args.id].noteType === 'MOVIE') {
       state.videoNoteIds = state.videoNoteIds.filter(id => {
         return id !== args.id;
       });
     }
     delete state.notes[args.id];
+    // For regular notes, we clear the current selection but for an area note
+    // we only want to clear the note/marking and leave the area selected.
     if (state.currentSelection === null) return;
     if (state.currentSelection.kind === 'NOTE' &&
         state.currentSelection.id === args.id) {
       state.currentSelection = null;
+    } else if (
+        state.currentSelection.kind === 'AREA' &&
+        state.currentSelection.noteId === args.id) {
+      state.currentSelection.noteId = undefined;
     }
   },
 
@@ -616,8 +635,61 @@ export const StateActions = {
     state.frontendLocalState.omniboxState = args;
   },
 
-  selectArea(state: StateDraft, args: TimestampedAreaSelection): void {
-    state.frontendLocalState.selectedArea = args;
+  selectArea(state: StateDraft, args: {area: Area}): void {
+    const areaId = `${state.nextAreaId++}`;
+    state.areas[areaId] = {
+      id: areaId,
+      startSec: args.area.startSec,
+      endSec: args.area.endSec,
+      tracks: args.area.tracks
+    };
+    state.currentSelection = {kind: 'AREA', areaId};
+  },
+
+  editArea(state: StateDraft, args: {area: Area, areaId: string}): void {
+    state.areas[args.areaId] = {
+      id: args.areaId,
+      startSec: args.area.startSec,
+      endSec: args.area.endSec,
+      tracks: args.area.tracks
+    };
+  },
+
+  reSelectArea(state: StateDraft, args: {areaId: string, noteId: string}):
+      void {
+        state.currentSelection = {
+          kind: 'AREA',
+          areaId: args.areaId,
+          noteId: args.noteId
+        };
+      },
+
+  toggleTrackSelection(
+      state: StateDraft, args: {id: string, isTrackGroup: boolean}) {
+    const selection = state.currentSelection;
+    if (selection === null || selection.kind !== 'AREA') return;
+    const areaId = selection.areaId;
+    const index = state.areas[areaId].tracks.indexOf(args.id);
+    if (index > -1) {
+      state.areas[areaId].tracks.splice(index, 1);
+      if (args.isTrackGroup) {  // Also remove all child tracks.
+        for (const childTrack of state.trackGroups[args.id].tracks) {
+          const childIndex = state.areas[areaId].tracks.indexOf(childTrack);
+          if (childIndex > -1) {
+            state.areas[areaId].tracks.splice(childIndex, 1);
+          }
+        }
+      }
+    } else {
+      state.areas[areaId].tracks.push(args.id);
+      if (args.isTrackGroup) {  // Also add all child tracks.
+        for (const childTrack of state.trackGroups[args.id].tracks) {
+          if (!state.areas[areaId].tracks.includes(childTrack)) {
+            state.areas[areaId].tracks.push(childTrack);
+          }
+        }
+      }
+    }
   },
 
   setVisibleTraceTime(state: StateDraft, args: VisibleState): void {

@@ -129,14 +129,34 @@ export class TimeSelectionPanel extends Panel {
       ctx.fillRect(xAndTime[0], 0, 1, size.height);
     }
 
-    const selectedArea = globals.frontendLocalState.selectedArea.area;
-    if (selectedArea !== undefined) {
+    const localArea = globals.frontendLocalState.selectedArea;
+    const selection = globals.state.currentSelection;
+    if (localArea !== undefined) {
+      const start = Math.min(localArea.startSec, localArea.endSec);
+      const end = Math.max(localArea.startSec, localArea.endSec);
+      this.renderSpan(ctx, size, new TimeSpan(start, end));
+    } else if (selection !== null && selection.kind === 'AREA') {
+      const selectedArea = globals.state.areas[selection.areaId];
       const start = Math.min(selectedArea.startSec, selectedArea.endSec);
       const end = Math.max(selectedArea.startSec, selectedArea.endSec);
       this.renderSpan(ctx, size, new TimeSpan(start, end));
-    } else if (globals.frontendLocalState.hoveredLogsTimestamp !== -1) {
+    }
+
+    if (globals.frontendLocalState.hoveredLogsTimestamp !== -1) {
       this.renderHover(
           ctx, size, globals.frontendLocalState.hoveredLogsTimestamp);
+    }
+
+    for (const note of Object.values(globals.state.notes)) {
+      const noteIsSelected = selection !== null && selection.kind === 'AREA' &&
+          selection.noteId === note.id;
+      if (note.noteType === 'AREA' && !noteIsSelected) {
+        const selectedArea = globals.state.areas[note.areaId];
+        this.renderSpan(
+            ctx,
+            size,
+            new TimeSpan(selectedArea.startSec, selectedArea.endSec));
+      }
     }
   }
 

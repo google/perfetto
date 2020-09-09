@@ -29,10 +29,20 @@ export type OmniboxState =
 export type VisibleState =
     Timestamped<{startSec: number; endSec: number; resolution: number;}>;
 
-export type TimestampedAreaSelection = Timestamped<AreaSelection>;
 export interface AreaSelection {
-  area?: Area;
+  kind: 'AREA';
+  areaId: string;
+  // When an area is marked it will be assigned a unique note id and saved as
+  // an AreaNote for the user to return to later. id = 0 is the special id that
+  // is overwritten when a new area is marked. Any other id is a persistent
+  // marking that will not be overwritten.
+  // When not set, the area selection will be replaced with any
+  // new area selection (i.e. not saved anywhere).
+  noteId?: string;
 }
+
+export type AreaById = Area&{id: string};
+
 export interface Area {
   startSec: number;
   endSec: number;
@@ -42,7 +52,6 @@ export interface Area {
 export const MAX_TIME = 180;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
-
 
 export type EngineMode = 'WASM'|'HTTP_RPC';
 
@@ -132,7 +141,6 @@ export interface TraceTime {
 export interface FrontendLocalState {
   omniboxState: OmniboxState;
   visibleState: VisibleState;
-  selectedArea: TimestampedAreaSelection;
 }
 
 export interface Status {
@@ -151,8 +159,7 @@ export interface Note {
 export interface AreaNote {
   noteType: 'AREA';
   id: string;
-  timestamp: number;
-  area: Area;
+  areaId: string;
   color: string;
   text: string;
 }
@@ -215,9 +222,10 @@ export interface ThreadStateSelection {
   cpu: number|undefined;
 }
 
-type Selection = (NoteSelection|SliceSelection|CounterSelection|
-                  HeapProfileSelection|CpuProfileSampleSelection|
-                  ChromeSliceSelection|ThreadStateSelection)&{trackId?: string};
+type Selection =
+    (NoteSelection|SliceSelection|CounterSelection|HeapProfileSelection|
+     CpuProfileSampleSelection|ChromeSliceSelection|ThreadStateSelection|
+     AreaSelection)&{trackId?: string};
 
 export interface LogsPagination {
   offset: number;
@@ -248,6 +256,8 @@ export interface State {
   [key: string]: any;
   route: string|null;
   nextId: number;
+  nextNoteId: number;
+  nextAreaId: number;
 
   /**
    * State of the ConfigEditor.
@@ -263,6 +273,7 @@ export interface State {
   traceTime: TraceTime;
   trackGroups: ObjectById<TrackGroupState>;
   tracks: ObjectById<TrackState>;
+  areas: ObjectById<AreaById>;
   aggregatePreferences: ObjectById<AggregationState>;
   visibleTracks: string[];
   scrollingTracks: string[];
@@ -690,6 +701,8 @@ export function createEmptyState(): State {
   return {
     route: null,
     nextId: 0,
+    nextNoteId: 1,  // 0 is reserved for ephemeral area marking.
+    nextAreaId: 0,
     newEngineMode: 'USE_HTTP_RPC_IF_AVAILABLE',
     engines: {},
     traceTime: {...defaultTraceTime},
@@ -699,6 +712,7 @@ export function createEmptyState(): State {
     visibleTracks: [],
     pinnedTracks: [],
     scrollingTracks: [],
+    areas: {},
     queries: {},
     permalink: {},
     notes: {},
@@ -718,9 +732,6 @@ export function createEmptyState(): State {
         lastUpdate: 0,
         resolution: 0,
       },
-      selectedArea: {
-        lastUpdate: 0,
-      }
     },
 
     logsPagination: {
