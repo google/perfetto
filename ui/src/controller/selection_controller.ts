@@ -35,7 +35,7 @@ export class SelectionController extends Controller<'main'> {
 
   run() {
     const selection = globals.state.currentSelection;
-    if (!selection) return;
+    if (!selection || selection.kind === 'AREA') return;
     // TODO(taylori): Ideally thread_state should not be special cased, it
     // should have some form of id like everything else.
     if (selection.kind === 'THREAD_STATE') {
