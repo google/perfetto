@@ -312,6 +312,8 @@ function HeapSettings(cssClass: string) {
       `.${cssClass}`,
       m(Textarea, {
         title: 'Names or pids of the processes to track',
+        docsLink:
+            'https://perfetto.dev/docs/data-sources/native-heap-profiler#heapprofd-targets',
         placeholder: 'One per line, e.g.:\n' +
             'system_server\n' +
             'com.google.android.apps.photos\n' +

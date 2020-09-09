@@ -27,6 +27,24 @@ declare type Setter<T> = (draft: Draft<RecordConfig>, val: T) => void;
 declare type Getter<T> = (cfg: RecordConfig) => T;
 
 // +---------------------------------------------------------------------------+
+// | Docs link with 'i' in circle icon.                                        |
+// +---------------------------------------------------------------------------+
+
+interface DocsChipAttrs {
+  href: string;
+}
+
+class DocsChip implements m.ClassComponent<DocsChipAttrs> {
+  view({attrs}: m.CVnode<DocsChipAttrs>) {
+    return m(
+        'a.inline-chip',
+        {href: attrs.href, title: 'Open docs in new tab', target: '_blank'},
+        m('i.material-icons', 'info'),
+        ' Docs');
+  }
+}
+
+// +---------------------------------------------------------------------------+
 // | Probe: the rectangular box on the right-hand-side with a toggle box.      |
 // +---------------------------------------------------------------------------+
 
@@ -213,6 +231,7 @@ export class Dropdown implements m.ClassComponent<DropdownAttrs> {
 
 export interface TextareaAttrs {
   placeholder: string;
+  docsLink?: string;
   cssClass?: string;
   get: Getter<string>;
   set: Setter<string>;
@@ -230,7 +249,9 @@ export class Textarea implements m.ClassComponent<TextareaAttrs> {
   view({attrs}: m.CVnode<TextareaAttrs>) {
     return m(
         '.textarea-holder',
-        m('header', attrs.title),
+        m('header',
+          attrs.title,
+          attrs.docsLink && [' ', m(DocsChip, {href: attrs.docsLink})]),
         m(`textarea.extra-input${attrs.cssClass || ''}`, {
           onchange: (e: Event) =>
               this.onChange(attrs, e.target as HTMLTextAreaElement),

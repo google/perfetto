@@ -982,3 +982,28 @@
     }
   }
 }  // record-section
+
+.inline-chip { 
+  @include transition();
+  &:hover, &:active {
+    box-shadow: 0 0 2px 0px #ccc;
+    background-color: #fafafa;
+  }
+
+  >i.material-icons {
+    color: rgb(60, 60, 60);
+    font-size: 14px;
+  }
+
+  line-height: 25px;
+  font-size: smaller;
+  padding: 2px 4px;
+  border: 1px solid #eee;
+  margin: 2px;
+  border-radius: 9px;
+}
+
+a.inline-chip, a.inline-chip:link, a.inline-chip:visited {
+  text-decoration: none;
+  color: var(--record-text-color);
+}
