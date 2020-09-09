@@ -121,14 +121,15 @@ function RecSettings(cssClass: string) {
   const recButton = (mode: RecordMode, title: string, img: string) => {
     const checkboxArgs = {
       checked: cfg.mode === mode,
-      onchange: (e: InputEvent) => {
-        const checked = (e.target as HTMLInputElement).checked;
-        if (!checked) return;
-        const traceCfg = produce(globals.state.recordConfig, draft => {
-          draft.mode = mode;
-        });
-        globals.dispatch(Actions.setRecordConfig({config: traceCfg}));
-      },
+      onchange: m.withAttr(
+          'checked',
+          (checked: boolean) => {
+            if (!checked) return;
+            const traceCfg = produce(globals.state.recordConfig, draft => {
+              draft.mode = mode;
+            });
+            globals.dispatch(Actions.setRecordConfig({config: traceCfg}));
+          })
     };
     return m(
         `label${cfg.mode === mode ? '.selected' : ''}`,
@@ -796,9 +797,7 @@ function RecordingPlatformSelection() {
           m('select',
             {
               selectedIndex,
-              onchange: (e: Event) => {
-                onTargetChange((e.target as HTMLSelectElement).value);
-              },
+              onchange: m.withAttr('value', onTargetChange),
               onupdate: (select) => {
                 // Work around mithril bug
                 // (https://github.com/MithrilJS/mithril.js/issues/2107): We may
@@ -1308,8 +1307,7 @@ export const RecordPage = createPage({
     };
 
     const pages: m.Children = [];
-    const routePageParam = Router.param('p');
-    let routePage = typeof routePageParam === 'string' ? routePageParam : '';
+    let routePage = Router.param('p');
     if (!Object.keys(SECTIONS).includes(routePage)) {
       routePage = 'buffers';
     }

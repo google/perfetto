@@ -259,23 +259,25 @@ export class NotesEditorPanel extends Panel<NotesEditorPanelAttrs> {
               e.stopImmediatePropagation();
             },
             value: note.text,
-            onchange: (e: InputEvent) => {
-              const newText = (e.target as HTMLInputElement).value;
-              globals.dispatch(Actions.changeNoteText({
-                id: attrs.id,
-                newText,
-              }));
-            },
+            onchange: m.withAttr(
+                'value',
+                newText => {
+                  globals.dispatch(Actions.changeNoteText({
+                    id: attrs.id,
+                    newText,
+                  }));
+                }),
           }),
           m('span.color-change', `Change color: `, m('input[type=color]', {
               value: note.color,
-              onchange: (e: Event) => {
-                const newColor = (e.target as HTMLInputElement).value;
-                globals.dispatch(Actions.changeNoteColor({
-                  id: attrs.id,
-                  newColor,
-                }));
-              },
+              onchange: m.withAttr(
+                  'value',
+                  newColor => {
+                    globals.dispatch(Actions.changeNoteColor({
+                      id: attrs.id,
+                      newColor,
+                    }));
+                  }),
             })),
           m('button',
             {
