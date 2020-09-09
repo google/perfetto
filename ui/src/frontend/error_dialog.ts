@@ -85,25 +85,20 @@ export function maybeShowErrorDialog(errLog: string) {
     shareTraceSection.push(
         m(`input[type=checkbox]`, {
           checked,
-          oninput: m.withAttr(
-              'checked',
-              value => {
-                checked = value;
-                if (value && engine.source.type === 'FILE') {
-                  saveTrace(engine.source.file).then((url) => {
-                    const errMessage = createErrorMessage(errLog, checked, url);
-                    renderModal(
-                        errTitle,
-                        errMessage,
-                        userDescription,
-                        shareTraceSection);
-                    return;
-                  });
-                }
-                const errMessage = createErrorMessage(errLog, checked);
+          oninput: (ev: InputEvent) => {
+            checked = (ev.target as HTMLInputElement).checked;
+            if (checked && engine.source.type === 'FILE') {
+              saveTrace(engine.source.file).then(url => {
+                const errMessage = createErrorMessage(errLog, checked, url);
                 renderModal(
                     errTitle, errMessage, userDescription, shareTraceSection);
-              })
+                return;
+              });
+            }
+            const errMessage = createErrorMessage(errLog, checked);
+            renderModal(
+                errTitle, errMessage, userDescription, shareTraceSection);
+          },
         }),
         m('span', `Check this box to share the current trace for debugging 
      purposes.`),
@@ -134,11 +129,9 @@ function renderModal(
           m('textarea.modal-textarea', {
             rows: 3,
             maxlength: 1000,
-            oninput: m.withAttr(
-                'value',
-                v => {
-                  userDescription = v;
-                })
+            oninput: (ev: InputEvent) => {
+              userDescription = (ev.target as HTMLTextAreaElement).value;
+            },
           }),
           shareTraceSection),
     buttons: [
