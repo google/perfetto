@@ -58,6 +58,25 @@ TEST(ReadTraceIntegrationTest, CompressedTrace) {
   ASSERT_EQ(packet_count, 2412u);
 }
 
+TEST(ReadTraceIntegrationTest, NonProtobufShouldNotDecompress) {
+  base::ScopedFstream f(
+      fopen(base::GetTestDataPath(std::string("test/data/unsorted_trace.json"))
+                .c_str(),
+            "rb"));
+  std::vector<uint8_t> raw_trace;
+  while (!feof(*f)) {
+    uint8_t buf[4096];
+    auto rsize =
+        fread(reinterpret_cast<char*>(buf), 1, base::ArraySize(buf), *f);
+    raw_trace.insert(raw_trace.end(), buf, buf + rsize);
+  }
+
+  std::vector<uint8_t> decompressed;
+  util::Status status = trace_processor::DecompressTrace(
+      raw_trace.data(), raw_trace.size(), &decompressed);
+  ASSERT_FALSE(status.ok());
+}
+
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto

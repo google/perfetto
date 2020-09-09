@@ -159,6 +159,9 @@ util::Status DecompressTrace(const uint8_t* data,
 
   protos::pbzero::Trace::Decoder decoder(data, size);
   GzipDecompressor decompressor;
+  if (size > 0 && !decoder.packet()) {
+    return util::ErrStatus("Trace does not contain valid packets");
+  }
   for (auto it = decoder.packet(); it; ++it) {
     protos::pbzero::TracePacket::Decoder packet(*it);
     if (!packet.has_compressed_packets()) {
