@@ -214,7 +214,7 @@ base::Optional<uint32_t> SliceTracker::StartSlice(
 
     // If this is an unnestable track, don't start a new slice if one already
     // exists.
-    if (stack->size() != 0) {
+    if (!stack->empty()) {
       return base::nullopt;
     }
   }

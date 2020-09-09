@@ -155,7 +155,7 @@ inline SystraceParseResult ParseSystraceTracePoint(base::StringView str,
       size_t name_index = 2 + tgid_length + 1;
       out->name = base::StringView(
           s + name_index, len - name_index - (s[len - 1] == '\n' ? 1 : 0));
-      if (out->name.size() == 0)
+      if (out->name.empty())
         return SystraceParseResult::kFailure;
       return SystraceParseResult::kSuccess;
     }
