@@ -185,7 +185,7 @@ void TestDeserializer::DeserializeBuffer(const uint8_t* start, size_t size) {
 
       EXPECT_FALSE(parse_error);
     }
-    if (columns.size() == 0) {
+    if (columns.empty()) {
       EXPECT_EQ(num_cells, 0u);
     } else {
       EXPECT_EQ(num_cells % columns.size(), 0u);

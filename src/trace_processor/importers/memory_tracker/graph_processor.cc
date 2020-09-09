@@ -537,7 +537,7 @@ base::Optional<uint64_t> GraphProcessor::AggregateSizeForDescendantNode(
   if (owns_edge && owns_edge->target()->IsDescendentOf(*root))
     return base::make_optional(0UL);
 
-  if (descendant->children()->size() == 0)
+  if (descendant->children()->empty())
     return GetSizeEntryOfNode(descendant).value_or(0ul);
 
   base::Optional<uint64_t> size;

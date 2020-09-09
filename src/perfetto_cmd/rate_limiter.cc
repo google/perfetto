@@ -207,7 +207,7 @@ bool RateLimiter::LoadState(gen::PerfettoCmdState* state) {
     return false;
   std::string s;
   base::ReadFileDescriptor(in_fd.get(), &s);
-  if (s.size() == 0)
+  if (s.empty())
     return false;
   return state->ParseFromString(s);
 }
