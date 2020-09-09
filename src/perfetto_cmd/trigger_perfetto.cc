@@ -60,7 +60,7 @@ TriggerPerfettoMain(int argc, char** argv) {
   for (int i = optind; i < argc; i++)
     triggers_to_activate.push_back(std::string(argv[i]));
 
-  if (triggers_to_activate.size() == 0) {
+  if (triggers_to_activate.empty()) {
     PERFETTO_ELOG("At least one trigger must the specified.");
     return PrintUsage(argv[0]);
   }

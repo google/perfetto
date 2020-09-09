@@ -542,7 +542,7 @@ void BuildProto(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
   // Even if the message is empty, we don't return null here as we want the
   // existence of the message to be respected.
   std::vector<uint8_t> raw = builder.SerializeToProtoBuilderResult();
-  if (raw.size() == 0) {
+  if (raw.empty()) {
     // Passing nullptr to SQLite feels dangerous so just pass an empty string
     // and zero as the size so we don't deref nullptr accidentially somewhere.
     sqlite3_result_blob(ctx, "", 0, nullptr);

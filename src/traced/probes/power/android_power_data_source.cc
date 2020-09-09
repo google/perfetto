@@ -208,7 +208,7 @@ void AndroidPowerDataSource::WritePowerRailsData() {
     // all rail names etc. on each one.
     rail_descriptors_logged_ = true;
     auto rail_descriptors = lib_->GetRailDescriptors();
-    if (rail_descriptors.size() == 0) {
+    if (rail_descriptors.empty()) {
       // No rails to collect data for. Don't try again in the next iteration.
       rails_collection_enabled_ = false;
       return;
