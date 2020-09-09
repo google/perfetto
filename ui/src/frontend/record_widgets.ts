@@ -57,14 +57,9 @@ export class Probe implements m.ClassComponent<ProbeAttrs> {
         }),
         m('label',
           m(`input[type=checkbox]`,
-            {
-              checked: enabled,
-              oninput: (e: InputEvent) => {
-                onToggle(!!((e.target as HTMLInputElement).checked));
-              },
-            },
-            m('span', attrs.title)),
-          m('div', m('div', attrs.descr), m('.probe-config', children))));
+            {checked: enabled, oninput: m.withAttr('checked', onToggle)}),
+          m('span', attrs.title)),
+        m('div', m('div', attrs.descr), m('.probe-config', children)));
   }
 }
 
@@ -127,17 +122,13 @@ export class Slider implements m.ClassComponent<SliderAttrs> {
         type: 'text',
         pattern: '(0[0-9]|1[0-9]|2[0-3])(:[0-5][0-9]){2}',  // hh:mm:ss
         value: new Date(val).toISOString().substr(11, 8),
-        oninput: (e: InputEvent) => {
-          this.onTimeValueChange(attrs, (e.target as HTMLInputElement).value);
-        },
+        oninput: m.withAttr('value', v => this.onTimeValueChange(attrs, v))
       };
     } else {
       spinnerCfg = {
         type: 'number',
         value: val,
-        oninput: (e: InputEvent) => {
-          this.onTimeValueChange(attrs, (e.target as HTMLInputElement).value);
-        },
+        oninput: m.withAttr('value', v => this.onValueChange(attrs, v))
       };
     }
     return m(
@@ -147,11 +138,7 @@ export class Slider implements m.ClassComponent<SliderAttrs> {
         attrs.icon !== undefined ? m('i.material-icons', attrs.icon) : [],
         m(`input[id="${id}"][type=range][min=0][max=${maxIdx}][value=${idx}]
         ${disabled ? '[disabled]' : ''}`,
-          {
-            oninput: (e: InputEvent) => {
-              this.onSliderChange(attrs, +(e.target as HTMLInputElement).value);
-            },
-          }),
+          {oninput: m.withAttr('value', v => this.onSliderChange(attrs, v))}),
         m(`input.spinner[min=${min !== undefined ? min : 1}][for=${id}]`,
           spinnerCfg),
         m('.unit', attrs.unit));
