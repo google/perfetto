@@ -324,8 +324,9 @@ export class HeapProfileController extends Controller<'main'> {
   getMinSizeDisplayed(flamegraphData: CallsiteInfo[], rootSize?: number):
       number {
     const timeState = globals.state.frontendLocalState.visibleState;
-    const width =
-        (timeState.endSec - timeState.startSec) / timeState.resolution;
+    let width = (timeState.endSec - timeState.startSec) / timeState.resolution;
+    // TODO(168048193): Remove screen size hack:
+    width = Math.max(width, 800);
     if (rootSize === undefined) {
       rootSize = findRootSize(flamegraphData);
     }
