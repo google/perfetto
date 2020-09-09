@@ -110,17 +110,16 @@ class Omnibox implements m.ClassComponent {
         `.omnibox${commandMode ? '.command-mode' : ''}`,
         m('input', {
           placeholder: PLACEHOLDER[mode],
-          oninput: m.withAttr(
-              'value',
-              v => {
-                globals.frontendLocalState.setOmnibox(
-                    v, commandMode ? 'COMMAND' : 'SEARCH');
-                if (mode === SEARCH) {
-                  globals.frontendLocalState.setSearchIndex(-1);
-                  displayStepThrough = v.length >= 4;
-                  globals.rafScheduler.scheduleFullRedraw();
-                }
-              }),
+          oninput: (e: InputEvent) => {
+            const value = (e.target as HTMLInputElement).value;
+            globals.frontendLocalState.setOmnibox(
+                value, commandMode ? 'COMMAND' : 'SEARCH');
+            if (mode === SEARCH) {
+              globals.frontendLocalState.setSearchIndex(-1);
+              displayStepThrough = value.length >= 4;
+              globals.rafScheduler.scheduleFullRedraw();
+            }
+          },
           value: globals.frontendLocalState.omnibox,
         }),
         displayStepThrough ?
