@@ -236,7 +236,7 @@ enum BuiltinClock {
   BUILTIN_CLOCK_BOOTTIME = 6;
   BUILTIN_CLOCK_MAX_ID = 63;
 
-  reserved 7, 8;
+  // reserved 7, 8;
 }
 
 // End of protos/perfetto/common/builtin_clock.proto
@@ -6004,7 +6004,7 @@ message TaskExecution {
 // their default track association) can be emitted as part of a
 // TrackEventDefaults message.
 //
-// Next reserved id: 13 (up to 15). Next id: 33.
+// Next reserved id: 13 (up to 15). Next id: 35.
 message TrackEvent {
   // Names of categories of the event. In the client library, categories are a
   // way to turn groups of individual events on or off.
@@ -6115,6 +6115,18 @@ message TrackEvent {
   optional ChromeHistogramSample chrome_histogram_sample = 28;
   optional ChromeLatencyInfo chrome_latency_info = 29;
   optional ChromeFrameReporter chrome_frame_reporter = 32;
+
+  // This field is used only if the source location represents the function that
+  // executes during this event.
+  oneof source_location_field {
+    // Non-interned field.
+    SourceLocation source_location = 33;
+    // TODO(ssid): The interned source locations are not parsed by trace
+    // processor.
+    // Interned field.
+    uint64 source_location_iid = 34;
+  }
+
   // New argument types go here :)
 
   // Extension range for typed events defined externally.
