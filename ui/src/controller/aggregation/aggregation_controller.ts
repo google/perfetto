@@ -19,7 +19,7 @@ import {
   ThreadStateExtra,
 } from '../../common/aggregation_data';
 import {Engine} from '../../common/engine';
-import {Sorting, TimestampedAreaSelection} from '../../common/state';
+import {Area, Sorting} from '../../common/state';
 import {Controller} from '../controller';
 import {globals} from '../globals';
 
@@ -30,15 +30,15 @@ export interface AggregationControllerArgs {
 
 export abstract class AggregationController extends Controller<'main'> {
   readonly kind: string;
-  private previousArea: TimestampedAreaSelection = {lastUpdate: 0};
+  private previousArea?: Area;
   private previousSorting?: Sorting;
   private requestingData = false;
   private queuedRequest = false;
 
-  abstract async createAggregateView(
-      engine: Engine, area: TimestampedAreaSelection): Promise<boolean>;
+  abstract async createAggregateView(engine: Engine, area: Area):
+      Promise<boolean>;
 
-  abstract async getExtra(engine: Engine, area: TimestampedAreaSelection):
+  abstract async getExtra(engine: Engine, area: Area):
       Promise<ThreadStateExtra|void>;
 
   abstract getTabName(): string;
@@ -51,11 +51,13 @@ export abstract class AggregationController extends Controller<'main'> {
   }
 
   run() {
-    const selectedArea = globals.state.frontendLocalState.selectedArea;
+    const selection = globals.state.currentSelection;
+    if (selection === null || selection.kind !== 'AREA') return;
+    const selectedArea = globals.state.areas[selection.areaId];
     const aggregatePreferences =
         globals.state.aggregatePreferences[this.args.kind];
 
-    const areaChanged = this.previousArea.lastUpdate < selectedArea.lastUpdate;
+    const areaChanged = this.previousArea !== selectedArea;
     const sortingChanged = aggregatePreferences &&
         this.previousSorting !== aggregatePreferences.sorting;
     if (!areaChanged && !sortingChanged) return;
@@ -65,8 +67,8 @@ export abstract class AggregationController extends Controller<'main'> {
     } else {
       this.requestingData = true;
       if (sortingChanged) this.previousSorting = aggregatePreferences.sorting;
-      if (areaChanged) this.previousArea = selectedArea;
-      this.getAggregateData(areaChanged)
+      if (areaChanged) this.previousArea = Object.assign({}, selectedArea);
+      this.getAggregateData(selectedArea, areaChanged)
           .then(
               data => globals.publish(
                   'AggregateData', {data, kind: this.args.kind}))
@@ -80,11 +82,10 @@ export abstract class AggregationController extends Controller<'main'> {
     }
   }
 
-  async getAggregateData(areaChanged: boolean): Promise<AggregateData> {
-    const selectedArea = globals.state.frontendLocalState.selectedArea;
+  async getAggregateData(area: Area, areaChanged: boolean):
+      Promise<AggregateData> {
     if (areaChanged) {
-      const viewExists =
-          await this.createAggregateView(this.args.engine, selectedArea);
+      const viewExists = await this.createAggregateView(this.args.engine, area);
       if (!viewExists) {
         return {
           tabName: this.getTabName(),
@@ -108,7 +109,7 @@ export abstract class AggregationController extends Controller<'main'> {
     const numRows = +result.numRecords;
     const columns = defs.map(def => this.columnFromColumnDef(def, numRows));
 
-    const extraData = await this.getExtra(this.args.engine, selectedArea);
+    const extraData = await this.getExtra(this.args.engine, area);
     const extra = extraData ? extraData : undefined;
     const data: AggregateData =
         {tabName: this.getTabName(), columns, strings: [], extra};

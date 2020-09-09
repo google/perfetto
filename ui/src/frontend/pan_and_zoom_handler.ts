@@ -97,8 +97,7 @@ export class PanAndZoomHandler {
   private onSelection:
       (dragStartX: number, dragStartY: number, prevX: number, currentX: number,
        currentY: number, editing: boolean) => void;
-  private selectingStarted: () => void;
-  private selectingEnded: () => void;
+  private endSelection: (edit: boolean) => void;
 
   constructor({
     element,
@@ -107,8 +106,7 @@ export class PanAndZoomHandler {
     onZoomed,
     editSelection,
     onSelection,
-    selectingStarted,
-    selectingEnded
+    endSelection
   }: {
     element: HTMLElement,
     contentOffsetX: number,
@@ -118,8 +116,7 @@ export class PanAndZoomHandler {
     onSelection:
         (dragStartX: number, dragStartY: number, prevX: number,
          currentX: number, currentY: number, editing: boolean) => void,
-    selectingStarted: () => void,
-    selectingEnded: () => void,
+    endSelection: (edit: boolean) => void,
   }) {
     this.element = element;
     this.contentOffsetX = contentOffsetX;
@@ -127,8 +124,7 @@ export class PanAndZoomHandler {
     this.onZoomed = onZoomed;
     this.editSelection = editSelection;
     this.onSelection = onSelection;
-    this.selectingStarted = selectingStarted;
-    this.selectingEnded = selectingEnded;
+    this.endSelection = endSelection;
 
     document.body.addEventListener('keydown', this.boundOnKeyDown);
     document.body.addEventListener('keyup', this.boundOnKeyUp);
@@ -159,7 +155,6 @@ export class PanAndZoomHandler {
           if (edit) {
             this.element.style.cursor = EDITING_RANGE_CURSOR;
           } else if (!this.shiftDown) {
-            this.selectingStarted();
             this.element.style.cursor = DRAG_CURSOR;
           }
         },
@@ -168,7 +163,7 @@ export class PanAndZoomHandler {
           this.element.style.cursor = this.shiftDown ? PAN_CURSOR : DRAG_CURSOR;
           dragStartX = -1;
           dragStartY = -1;
-          this.selectingEnded();
+          this.endSelection(edit);
         });
   }
 

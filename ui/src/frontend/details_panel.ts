@@ -180,6 +180,14 @@ export class DetailsPanel implements m.ClassComponent {
                               id: curSelection.id,
                             }));
           break;
+        case 'AREA':
+          if (curSelection.noteId !== undefined) {
+            detailsPanels.set('current_selection', m(NotesEditorPanel, {
+                                key: 'area_notes',
+                                id: curSelection.noteId,
+                              }));
+          }
+          break;
         case 'SLICE':
           detailsPanels.set('current_selection', m(SliceDetailsPanel, {
                               key: 'slice',
