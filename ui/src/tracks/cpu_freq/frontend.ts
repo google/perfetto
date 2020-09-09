@@ -14,9 +14,9 @@
 
 import {searchSegment} from '../../base/binary_search';
 import {assertTrue} from '../../base/logging';
+import {hueForCpu} from '../../common/colorizer';
 import {TrackState} from '../../common/state';
 import {checkerboardExcept} from '../../frontend/checkerboard';
-import {hueForCpu} from '../../frontend/colorizer';
 import {globals} from '../../frontend/globals';
 import {Track} from '../../frontend/track';
 import {trackRegistry} from '../../frontend/track_registry';
