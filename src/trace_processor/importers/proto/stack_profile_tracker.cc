@@ -207,7 +207,7 @@ base::Optional<CallsiteId> SequenceStackProfileTracker::AddCallstack(
     SourceCallstackId id,
     const SourceCallstack& frame_ids,
     const InternLookup* intern_lookup) {
-  if (frame_ids.size() == 0)
+  if (frame_ids.empty())
     return base::nullopt;
 
   base::Optional<CallsiteId> parent_id;

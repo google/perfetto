@@ -634,7 +634,7 @@ class TraceStorage {
     const auto& args = arg_table();
     RowMap filtered = args.FilterToRowMap(
         {args.arg_set_id().eq(arg_set_id), args.key().eq(key)});
-    if (filtered.size() == 0) {
+    if (filtered.empty()) {
       *result = base::nullopt;
       return util::OkStatus();
     }

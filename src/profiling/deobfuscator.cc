@@ -48,7 +48,7 @@ base::Optional<ProguardClass> ParseClass(std::string line) {
     return base::nullopt;
   }
   std::string obfuscated_name(ss.cur_token(), ss.cur_token_size());
-  if (obfuscated_name.size() == 0) {
+  if (obfuscated_name.empty()) {
     PERFETTO_ELOG("Empty obfuscated name.");
     return base::nullopt;
   }

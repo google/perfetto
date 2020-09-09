@@ -40,7 +40,7 @@ bool Contains(const std::string& haystack, const std::string& needle) {
 }
 
 size_t Find(const StringView& needle, const StringView& haystack) {
-  if (needle.size() == 0)
+  if (needle.empty())
     return 0;
   if (needle.size() > haystack.size())
     return std::string::npos;
