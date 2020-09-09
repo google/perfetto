@@ -56,7 +56,7 @@ heap profiling can be enabled alongside any other tracing data sources.
 
 #### Using the tools/heap_profile script (recommended)
 
-On Linux / MacOS, use the `tools/heap_profile` script. If you are having trouble
+You can use the `tools/heap_profile` script. If you are having trouble
 make sure you are using the
 [latest version](
 https://raw.githubusercontent.com/google/perfetto/master/tools/heap_profile).
