@@ -5763,6 +5763,11 @@ message ChromeFrameReporter {
 
   optional uint64 frame_source = 3;
   optional uint64 frame_sequence = 4;
+
+  // If this is a droped frame (i.e. if |state| is set to |STATE_DROPPED| or
+  // |STATE_PRESENTED_PARTIAL|), then indicates whether this frame impacts
+  // smoothness.
+  optional bool affects_smoothness = 5;
 }
 
 // End of protos/perfetto/trace/track_event/chrome_frame_reporter.proto
