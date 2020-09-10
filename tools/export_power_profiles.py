@@ -45,7 +45,7 @@ def ExportProfiles(device_xmls, sql_path):
     ]
 
   with open(sql_path, 'w') as sql_file:
-    sql_file.write('INSERT INTO power_profile VALUES\n')
+    sql_file.write('INSERT OR REPLACE INTO power_profile VALUES\n')
     sql_file.write(',\n'.join(sql_values))
     sql_file.write(';\n')
 
