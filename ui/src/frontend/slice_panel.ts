@@ -93,13 +93,9 @@ export class SliceDetailsPanel extends Panel {
       }
     }
 
-    if (trackId) {
+    if (trackId && sliceInfo.threadStateId) {
       globals.makeSelection(Actions.selectThreadState({
-        utid: threadInfo.utid,
-        ts: sliceInfo.ts + globals.state.traceTime.startSec,
-        dur: sliceInfo.dur,
-        state: 'Running',
-        cpu: sliceInfo.cpu,
+        id: sliceInfo.threadStateId,
         trackId: trackId.toString(),
       }));
 

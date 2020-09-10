@@ -81,8 +81,11 @@ function findTimeRangeOfSelection() {
         endTs = startTs + slice.dur;
       }
     } else if (selection.kind === 'THREAD_STATE') {
-      startTs = selection.ts;
-      endTs = startTs + selection.dur;
+      const threadState = globals.threadStateDetails;
+      if (threadState.ts && threadState.dur) {
+        startTs = threadState.ts + globals.state.traceTime.startSec;
+        endTs = startTs + threadState.dur;
+      }
     } else if (selection.kind === 'COUNTER') {
       startTs = selection.leftTs;
       endTs = selection.rightTs;
