@@ -14,7 +14,6 @@
 
 import * as m from 'mithril';
 
-import {assertTrue} from '../base/logging';
 import {Actions} from '../common/actions';
 import {timeToCode, toNs} from '../common/time';
 
@@ -22,17 +21,16 @@ import {globals} from './globals';
 import {Panel, PanelSize} from './panel';
 import {scrollToTrackAndTs} from './scroll_helper';
 
-interface ThreadStateDetailsAttr {
-  utid: number;
-  ts: number;
-  dur: number;
-  state: string;
-  cpu: number|undefined;
-}
 
-export class ThreadStatePanel extends Panel<ThreadStateDetailsAttr> {
-  view({attrs}: m.CVnode<ThreadStateDetailsAttr>) {
-    const threadInfo = globals.threads.get(attrs.utid);
+export class ThreadStatePanel extends Panel {
+  view() {
+    const threadState = globals.threadStateDetails;
+    if (threadState === undefined || threadState.utid === undefined ||
+        threadState.ts === undefined || threadState.dur === undefined ||
+        threadState.state === undefined) {
+      return m('.details-panel');
+    }
+    const threadInfo = globals.threads.get(threadState.utid);
     if (threadInfo) {
       return m(
           '.details-panel',
@@ -40,46 +38,45 @@ export class ThreadStatePanel extends Panel<ThreadStateDetailsAttr> {
           m('.details-table', [m('table.half-width', [
               m('tr',
                 m('th', `Start time`),
-                m('td',
-                  `${
-                      timeToCode(
-                          attrs.ts - globals.state.traceTime.startSec)}`)),
+                m('td', `${timeToCode(threadState.ts)}`)),
               m('tr',
                 m('th', `Duration`),
                 m(
                     'td',
-                    `${timeToCode(attrs.dur)} `,
+                    `${timeToCode(threadState.dur)} `,
                     )),
               m('tr',
                 m('th', `State`),
-                m('td', this.getStateContent(attrs.state, attrs.cpu))),
+                m('td',
+                  this.getStateContent(
+                      threadState.state,
+                      threadState.cpu,
+                      threadState.sliceId,
+                      threadState.ts))),
               m('tr',
                 m('th', `Process`),
                 m('td', `${threadInfo.procName} [${threadInfo.pid}]`)),
             ])]));
-    } else {
-      return m('.details-panel');
     }
+    return m('.details-panel');
   }
 
   renderCanvas(_ctx: CanvasRenderingContext2D, _size: PanelSize) {}
 
   // If it is the running state, we want to show which CPU and a button to
   // go to the sched slice. Otherwise, just show the state.
-  getStateContent(state: string, cpu: number|undefined) {
-    if (state !== 'Running') {
+  getStateContent(
+      state: string, cpu: number|undefined, sliceId: number|undefined,
+      ts: number) {
+    if (sliceId === undefined || cpu === undefined) {
       return [state];
     }
-
-    // We should always have a cpu for running slices.
-    assertTrue(cpu !== undefined);
 
     return [
       `${state} on CPU ${cpu}`,
       m('i.material-icons.grey',
         {
           onclick: () => {
-            if (globals.sliceDetails.id && globals.sliceDetails.ts) {
               // TODO(taylori): Use trackId from TP.
               let trackId;
               for (const track of Object.values(globals.state.tracks)) {
@@ -89,15 +86,11 @@ export class ThreadStatePanel extends Panel<ThreadStateDetailsAttr> {
                 }
               }
               if (trackId) {
-                globals.makeSelection(Actions.selectSlice(
-                    {id: globals.sliceDetails.id, trackId}));
+                globals.makeSelection(
+                    Actions.selectSlice({id: sliceId, trackId}));
                 scrollToTrackAndTs(
-                    trackId,
-                    toNs(
-                        globals.sliceDetails.ts +
-                        globals.state.traceTime.startSec));
+                    trackId, toNs(ts + globals.state.traceTime.startSec));
               }
-            }
           },
           title: 'Go to CPU slice'
         },

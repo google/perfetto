@@ -18,6 +18,7 @@ export const THREAD_STATE_TRACK_KIND = 'ThreadStateTrack';
 
 export interface Data extends TrackData {
   strings: string[];
+  ids: Float64Array;
   starts: Float64Array;
   ends: Float64Array;
   cpu: Int8Array;
