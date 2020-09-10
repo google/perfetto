@@ -29,7 +29,7 @@ namespace perfetto {
 namespace trace_processor {
 
 // Base interface for first stage of parsing pipeline
-// (JsonTraceParser, ProtoTraceTokenizer).
+// (JsonTraceParser, ProtoTraceReader).
 class ChunkedTraceReader {
  public:
   virtual ~ChunkedTraceReader();
