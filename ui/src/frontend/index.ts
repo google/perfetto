@@ -40,7 +40,8 @@ import {
   HeapProfileDetails,
   QuantizedLoad,
   SliceDetails,
-  ThreadDesc
+  ThreadDesc,
+  ThreadStateDetails
 } from './globals';
 import {HomePage} from './home_page';
 import {openBufferWithLegacyTraceViewer} from './legacy_trace_viewer';
@@ -121,6 +122,11 @@ class FrontendApi {
 
   publishSliceDetails(click: SliceDetails) {
     globals.sliceDetails = click;
+    this.redraw();
+  }
+
+  publishThreadStateDetails(click: ThreadStateDetails) {
+    globals.threadStateDetails = click;
     this.redraw();
   }
 

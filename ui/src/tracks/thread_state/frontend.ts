@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {search, searchEq} from '../../base/binary_search';
+import {search} from '../../base/binary_search';
 import {Actions} from '../../common/actions';
 import {cropText} from '../../common/canvas_utils';
 import {colorForState} from '../../common/colorizer';
@@ -53,6 +53,10 @@ class ThreadStateTrack extends Track<Config, Data> {
 
     if (data === undefined) return;  // Can't possibly draw anything.
 
+    // The draw of the rect on the selected slice must happen after the other
+    // drawings, otherwise it would result under another rect.
+    let drawRectOnSelected = () => {};
+
     checkerboardExcept(
         ctx,
         this.getHeight(),
@@ -78,6 +82,11 @@ class ThreadStateTrack extends Track<Config, Data> {
       const rectStart = timeScale.timeToPx(tStart);
       const rectEnd = timeScale.timeToPx(tEnd);
 
+      const currentSelection = globals.state.currentSelection;
+      const isSelected = currentSelection &&
+          currentSelection.kind === 'THREAD_STATE' &&
+          currentSelection.id === data.ids[i];
+
       const color = colorForState(state);
 
       let colorStr = `hsl(${color.h},${color.s}%,${color.l}%)`;
@@ -95,35 +104,28 @@ class ThreadStateTrack extends Track<Config, Data> {
       const rectXCenter = rectStart + rectWidth / 2;
       ctx.fillStyle = color.l > 80 ? '#404040' : '#fff';
       ctx.fillText(title, rectXCenter, MARGIN_TOP + RECT_HEIGHT / 2 + 3);
-    }
 
-    const selection = globals.state.currentSelection;
-    if (selection !== null && selection.kind === 'THREAD_STATE' &&
-        selection.utid === this.config.utid) {
-      const [startIndex, endIndex] = searchEq(data.starts, selection.ts);
-      if (startIndex !== endIndex) {
-        const tStart = data.starts[startIndex];
-        const tEnd = data.ends[startIndex];
-        const state = data.strings[data.state[startIndex]];
-
-        // If we try to draw too far off the end of the canvas (+/-4m~),
-        // the line is not drawn. Instead limit drawing to the canvas
-        // boundaries, but allow some excess to ensure that the start and end
-        // of the rect are not shown unless that is truly when it starts/ends.
-        const rectStart =
-            Math.max(0 - EXCESS_WIDTH, timeScale.timeToPx(tStart));
-        const rectEnd = Math.min(
-            timeScale.timeToPx(visibleWindowTime.end) + EXCESS_WIDTH,
-            timeScale.timeToPx(tEnd));
-        const color = colorForState(state);
-        ctx.strokeStyle = `hsl(${color.h},${color.s}%,${color.l * 0.7}%)`;
-        ctx.beginPath();
-        ctx.lineWidth = 3;
-        ctx.strokeRect(
-            rectStart, MARGIN_TOP - 1.5, rectEnd - rectStart, RECT_HEIGHT + 3);
-        ctx.closePath();
+      if (isSelected) {
+        drawRectOnSelected = () => {
+          const rectStart =
+              Math.max(0 - EXCESS_WIDTH, timeScale.timeToPx(tStart));
+          const rectEnd = Math.min(
+              timeScale.timeToPx(visibleWindowTime.end) + EXCESS_WIDTH,
+              timeScale.timeToPx(tEnd));
+          const color = colorForState(state);
+          ctx.strokeStyle = `hsl(${color.h},${color.s}%,${color.l * 0.7}%)`;
+          ctx.beginPath();
+          ctx.lineWidth = 3;
+          ctx.strokeRect(
+              rectStart,
+              MARGIN_TOP - 1.5,
+              rectEnd - rectStart,
+              RECT_HEIGHT + 3);
+          ctx.closePath();
+        };
       }
     }
+    drawRectOnSelected();
   }
 
   onMouseClick({x}: {x: number}) {
@@ -134,14 +136,9 @@ class ThreadStateTrack extends Track<Config, Data> {
     const index = search(data.starts, time);
     if (index === -1) return false;
 
-    const ts = data.starts[index];
-    const tsEnd = data.ends[index];
-    const state = data.strings[data.state[index]];
-    const cpu = data.cpu[index] === -1 ? undefined : data.cpu[index];
-    const utid = this.config.utid;
-
-    globals.makeSelection(Actions.selectThreadState(
-        {utid, ts, dur: tsEnd - ts, state, cpu, trackId: this.trackState.id}));
+    const id = data.ids[index];
+    globals.makeSelection(
+        Actions.selectThreadState({id, trackId: this.trackState.id}));
     return true;
   }
 }

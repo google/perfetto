@@ -568,24 +568,14 @@ export const StateActions = {
         };
       },
 
-  selectThreadState(state: StateDraft, args: {
-    utid: number,
-    ts: number,
-    dur: number,
-    state: string,
-    cpu: number|undefined,
-    trackId: string
-  }): void {
-    state.currentSelection = {
-      kind: 'THREAD_STATE',
-      utid: args.utid,
-      ts: args.ts,
-      dur: args.dur,
-      state: args.state,
-      cpu: args.cpu,
-      trackId: args.trackId,
-    };
-  },
+  selectThreadState(state: StateDraft, args: {id: number, trackId: string}):
+      void {
+        state.currentSelection = {
+          kind: 'THREAD_STATE',
+          id: args.id,
+          trackId: args.trackId,
+        };
+      },
 
   deselect(state: StateDraft, _: {}): void {
     state.currentSelection = null;
