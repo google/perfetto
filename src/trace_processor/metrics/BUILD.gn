@@ -51,7 +51,7 @@ sql_files = [
   "android/mem_stats_priority_breakdown.sql",
   "android/span_view_stats.sql",
   "android/process_counter_span_view.sql",
-  "android/counter_span_view.sql",
+  "android/global_counter_span_view.sql",
   "android/unsymbolized_frames.sql",
   "chrome/chrome_processes.sql",
   "chrome/scroll_jank.sql",
