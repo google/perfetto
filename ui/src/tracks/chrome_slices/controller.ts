@@ -93,11 +93,12 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
       const startNs = +cols[1].longValues![row];
       const durNs = +cols[2].longValues![row];
       const endNs = startNs + durNs;
+      const isInstant = +cols[6].longValues![row];
 
       let endNsQ = Math.floor((endNs + bucketNs / 2 - 1) / bucketNs) * bucketNs;
       endNsQ = Math.max(endNsQ, startNsQ + bucketNs);
 
-      if (startNsQ === endNsQ) {
+      if (!isInstant && startNsQ === endNsQ) {
         throw new Error(
             'Expected startNsQ and endNsQ to differ (' +
             `startNsQ: ${startNsQ}, startNs: ${startNs},` +
@@ -110,7 +111,7 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
       slices.depths[row] = +cols[3].longValues![row];
       slices.sliceIds[row] = +cols[4].longValues![row];
       slices.titles[row] = internString(cols[5].stringValues![row]);
-      slices.isInstant[row] = +cols[6].longValues![row];
+      slices.isInstant[row] = isInstant;
     }
     return slices;
   }
