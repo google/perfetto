@@ -13,8 +13,15 @@
 // limitations under the License.
 
 import {Engine} from '../common/engine';
+import {translateState} from '../common/thread_state';
 import {fromNs, toNs} from '../common/time';
-import {Arg, Args, CounterDetails, SliceDetails} from '../frontend/globals';
+import {
+  Arg,
+  Args,
+  CounterDetails,
+  SliceDetails,
+  ThreadStateDetails
+} from '../frontend/globals';
 import {SLICE_TRACK_KIND} from '../tracks/chrome_slices/common';
 
 import {Controller} from './controller';
@@ -36,20 +43,9 @@ export class SelectionController extends Controller<'main'> {
   run() {
     const selection = globals.state.currentSelection;
     if (!selection || selection.kind === 'AREA') return;
-    // TODO(taylori): Ideally thread_state should not be special cased, it
-    // should have some form of id like everything else.
-    if (selection.kind === 'THREAD_STATE') {
-      const sqlQuery = `SELECT id FROM sched WHERE utid = ${selection.utid}
-                        and ts = ${toNs(selection.ts)}`;
-      this.args.engine.query(sqlQuery).then(result => {
-        if (result.columns[0].longValues!.length === 0) return;
-        this.sliceDetails(+result.columns[0].longValues![0]);
-      });
-      this.lastSelectedKind = selection.kind;
-      return;
-    }
 
-    const selectWithId = ['SLICE', 'COUNTER', 'CHROME_SLICE', 'HEAP_PROFILE'];
+    const selectWithId =
+        ['SLICE', 'COUNTER', 'CHROME_SLICE', 'HEAP_PROFILE', 'THREAD_STATE'];
     if (!selectWithId.includes(selection.kind) ||
         (selectWithId.includes(selection.kind) &&
          selection.id === this.lastSelectedId &&
@@ -76,6 +72,8 @@ export class SelectionController extends Controller<'main'> {
           });
     } else if (selection.kind === 'SLICE') {
       this.sliceDetails(selectedId as number);
+    } else if (selection.kind === 'THREAD_STATE') {
+      this.threadStateDetails(selection.id);
     } else if (selection.kind === 'CHROME_SLICE') {
       const table = selection.table;
       let sqlQuery = `
@@ -185,9 +183,36 @@ export class SelectionController extends Controller<'main'> {
     return trackId;
   }
 
+  async threadStateDetails(id: number) {
+    const query = `SELECT ts, thread_state.dur, state, io_wait,
+    thread_state.utid, thread_state.cpu, sched.id from thread_state
+    left join sched using(ts) where thread_state.id = ${id}`;
+    this.args.engine.query(query).then(result => {
+      const selection = globals.state.currentSelection;
+      const cols = result.columns;
+      if (result.numRecords === 1 && selection) {
+        const ts = cols[0].longValues![0];
+        const timeFromStart = fromNs(ts) - globals.state.traceTime.startSec;
+        const dur = fromNs(cols[1].longValues![0]);
+        const stateStr = cols[2].stringValues![0];
+        const ioWait =
+            cols[3].isNulls![0] ? undefined : !!cols[3].longValues![0];
+        const state = translateState(stateStr, ioWait);
+        const utid = cols[4].longValues![0];
+        const cpu = cols[5].isNulls![0] ? undefined : cols[5].longValues![0];
+        const sliceId =
+            cols[6].isNulls![0] ? undefined : cols[6].longValues![0];
+        const selected: ThreadStateDetails =
+            {ts: timeFromStart, dur, state, utid, cpu, sliceId};
+        globals.publish('ThreadStateDetails', selected);
+      }
+    });
+  }
+
   async sliceDetails(id: number) {
-    const sqlQuery = `SELECT ts, dur, priority, end_state, utid, cpu FROM sched
-    WHERE id = ${id}`;
+    const sqlQuery = `SELECT ts, dur, priority, end_state, utid, cpu,
+    thread_state.id FROM sched join thread_state using(ts, utid, dur, cpu)
+    WHERE sched.id = ${id}`;
     this.args.engine.query(sqlQuery).then(result => {
       // Check selection is still the same on completion of query.
       const selection = globals.state.currentSelection;
@@ -199,8 +224,17 @@ export class SelectionController extends Controller<'main'> {
         const endState = result.columns[3].stringValues![0];
         const utid = result.columns[4].longValues![0];
         const cpu = result.columns[5].longValues![0];
-        const selected: SliceDetails =
-            {ts: timeFromStart, dur, priority, endState, cpu, id, utid};
+        const threadStateId = result.columns[6].longValues![0];
+        const selected: SliceDetails = {
+          ts: timeFromStart,
+          dur,
+          priority,
+          endState,
+          cpu,
+          id,
+          utid,
+          threadStateId
+        };
         this.schedulingDetails(ts, utid)
             .then(wakeResult => {
               Object.assign(selected, wakeResult);

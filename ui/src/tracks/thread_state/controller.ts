@@ -35,6 +35,7 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
     await this.query(`
       create view ${this.tableName('thread_state')} as
       select
+        id,
         ts,
         dur,
         cpu,
@@ -69,7 +70,8 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
         max(dur) as dur,
         cpu,
         state,
-        io_wait
+        io_wait,
+        id
       from ${this.tableName('thread_state')}
       where
         ts >= ${startNs - this.maxDurNs} and
@@ -86,6 +88,7 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
       end,
       resolution,
       length: numRows,
+      ids: new Float64Array(numRows),
       starts: new Float64Array(numRows),
       ends: new Float64Array(numRows),
       strings: [],
@@ -118,6 +121,7 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
       const state = cols[4].stringValues![row];
       const ioWait =
           cols[5].isNulls![row] ? undefined : !!cols[5].longValues![row];
+      const id = cols[6].isNulls![row] ? -1 : cols[6].longValues![row];
 
       // We should never have the end timestamp being the same as the bucket
       // start.
@@ -126,6 +130,7 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
       data.starts[row] = fromNs(startNsQ);
       data.ends[row] = fromNs(endNsQ);
       data.state[row] = internState(state, ioWait);
+      data.ids[row] = id;
       data.cpu[row] = cpu;
     }
     return data;

@@ -215,11 +215,7 @@ export interface ChromeSliceSelection {
 
 export interface ThreadStateSelection {
   kind: 'THREAD_STATE';
-  utid: number;
-  ts: number;
-  dur: number;
-  state: string;
-  cpu: number|undefined;
+  id: number;
 }
 
 type Selection =
