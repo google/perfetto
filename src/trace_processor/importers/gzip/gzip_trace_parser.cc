@@ -22,9 +22,16 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/forwarding_trace_parser.h"
+#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto {
 namespace trace_processor {
+
+namespace {
+
+using ResultCode = GzipDecompressor::ResultCode;
+
+}  // namespace
 
 GzipTraceParser::GzipTraceParser(TraceProcessorContext* context)
     : context_(context) {}
@@ -50,27 +57,37 @@ util::Status GzipTraceParser::Parse(std::unique_ptr<uint8_t[]> data,
       len -= strlen(kSystraceFileHeader) + offset;
     }
   }
-  decompressor_.SetInput(start, len);
+
+  bool ignored = false;
+  return Parse(start, len, &decompressor_, inner_.get(), &ignored);
+}
+
+util::Status GzipTraceParser::Parse(const uint8_t* data,
+                                    size_t size,
+                                    GzipDecompressor* decompressor,
+                                    ChunkedTraceReader* reader,
+                                    bool* needs_more_input) {
+  *needs_more_input = false;
+  decompressor->SetInput(data, size);
 
   // Our default uncompressed buffer size is 32MB as it allows for good
   // throughput.
-  using ResultCode = GzipDecompressor::ResultCode;
   constexpr size_t kUncompressedBufferSize = 32 * 1024 * 1024;
 
   for (auto ret = ResultCode::kOk; ret != ResultCode::kEof;) {
     std::unique_ptr<uint8_t[]> buffer(new uint8_t[kUncompressedBufferSize]);
     auto result =
-        decompressor_.Decompress(buffer.get(), kUncompressedBufferSize);
+        decompressor->Decompress(buffer.get(), kUncompressedBufferSize);
     ret = result.ret;
     if (ret == ResultCode::kError || ret == ResultCode::kNoProgress)
-      return util::ErrStatus("Unable to decompress gzip/ctrace trace");
-    if (ret == ResultCode::kNeedsMoreInput)
-      break;
+      return util::ErrStatus("Failed to decompress trace chunk");
 
-    util::Status status =
-        inner_->Parse(std::move(buffer), result.bytes_written);
-    if (!status.ok())
-      return status;
+    if (ret == ResultCode::kNeedsMoreInput) {
+      *needs_more_input = true;
+      return util::OkStatus();
+    }
+
+    RETURN_IF_ERROR(reader->Parse(std::move(buffer), result.bytes_written));
   }
   return util::OkStatus();
 }
