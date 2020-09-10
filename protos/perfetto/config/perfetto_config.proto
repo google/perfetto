@@ -236,7 +236,7 @@ enum BuiltinClock {
   BUILTIN_CLOCK_BOOTTIME = 6;
   BUILTIN_CLOCK_MAX_ID = 63;
 
-  reserved 7, 8;
+  // reserved 7, 8;
 }
 
 // End of protos/perfetto/common/builtin_clock.proto
