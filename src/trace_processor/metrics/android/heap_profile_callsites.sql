@@ -42,10 +42,11 @@ SELECT
 FROM (
   SELECT
     spf.id AS frame_id,
-    IFNULL(
+    COALESCE(
       (SELECT name FROM stack_profile_symbol symbol
         WHERE symbol.symbol_set_id = spf.symbol_set_id
         LIMIT 1),
+      spf.deobfuscated_name,
       spf.name
     ) AS symbol_name,
     spm.name AS mapping_name
