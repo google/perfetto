@@ -201,7 +201,9 @@ void MakeDeobfuscationPackets(
 
 TraceWriter::TraceWriter(std::ostream* output) : output_(output) {}
 
-TraceWriter::~TraceWriter() = default;
+TraceWriter::~TraceWriter() {
+  output_->flush();
+}
 
 void TraceWriter::Write(const std::string& s) {
   Write(s.data(), s.size());
