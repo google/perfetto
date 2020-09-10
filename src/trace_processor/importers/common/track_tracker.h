@@ -184,7 +184,7 @@ class TrackTracker {
       uint32_t packet_sequence_id,
       int64_t value);
 
-  // Called by ProtoTraceTokenizer whenever incremental state is cleared on a
+  // Called by ProtoTraceReader whenever incremental state is cleared on a
   // packet sequence. Resets counter values for any incremental counters of
   // the sequence identified by |packet_sequence_id|.
   void OnIncrementalStateCleared(uint32_t packet_sequence_id);

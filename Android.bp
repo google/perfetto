@@ -6971,6 +6971,7 @@ filegroup {
     "src/trace_processor/importers/proto/profiler_util.cc",
     "src/trace_processor/importers/proto/proto_importer_module.cc",
     "src/trace_processor/importers/proto/proto_trace_parser.cc",
+    "src/trace_processor/importers/proto/proto_trace_reader.cc",
     "src/trace_processor/importers/proto/proto_trace_tokenizer.cc",
     "src/trace_processor/importers/proto/stack_profile_tracker.cc",
     "src/trace_processor/importers/proto/track_event_module.cc",

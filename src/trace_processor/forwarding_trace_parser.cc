@@ -21,7 +21,7 @@
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/ninja/ninja_log_parser.h"
 #include "src/trace_processor/importers/proto/proto_trace_parser.h"
-#include "src/trace_processor/importers/proto/proto_trace_tokenizer.h"
+#include "src/trace_processor/importers/proto/proto_trace_reader.h"
 #include "src/trace_processor/trace_sorter.h"
 
 namespace perfetto {
@@ -81,7 +81,7 @@ util::Status ForwardingTraceParser::Parse(std::unique_ptr<uint8_t[]> data,
         PERFETTO_DLOG("Proto trace detected");
         // This will be reduced once we read the trace config and we see flush
         // period being set.
-        reader_.reset(new ProtoTraceTokenizer(context_));
+        reader_.reset(new ProtoTraceReader(context_));
         context_->sorter.reset(new TraceSorter(
             std::unique_ptr<TraceParser>(new ProtoTraceParser(context_)),
             kMaxWindowSize));

@@ -105,6 +105,8 @@ source_set("storage_minimal") {
     "importers/proto/proto_incremental_state.h",
     "importers/proto/proto_trace_parser.cc",
     "importers/proto/proto_trace_parser.h",
+    "importers/proto/proto_trace_reader.cc",
+    "importers/proto/proto_trace_reader.h",
     "importers/proto/proto_trace_tokenizer.cc",
     "importers/proto/proto_trace_tokenizer.h",
     "importers/proto/stack_profile_tracker.cc",
