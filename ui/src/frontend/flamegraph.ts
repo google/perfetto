@@ -29,7 +29,7 @@ interface CallsiteInfoWidth {
   width: number;
 }
 
-const NODE_HEIGHT_DEFAULT = 15;
+const NODE_HEIGHT_DEFAULT = 17;
 
 export const HEAP_PROFILE_HOVERED_COLOR = 'hsl(224, 45%, 55%)';
 
@@ -53,7 +53,7 @@ export class Flamegraph {
   private flamegraphData: CallsiteInfo[];
   private maxDepth = -1;
   private totalSize = -1;
-  private textSize = 12;
+  private textSize = 14;
   // Key for the map is depth followed by x coordinate - `depth;x`
   private graphData: Map<string, CallsiteInfoWidth> = new Map();
   private xStartsPerDepth: Map<number, number[]> = new Map();
