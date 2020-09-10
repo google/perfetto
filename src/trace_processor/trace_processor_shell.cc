@@ -1061,15 +1061,17 @@ util::Status RunMetrics(const CommandLineOptions& options) {
       continue;
 
     std::string no_ext_name = metric_or_path.substr(0, ext_idx);
-    util::Status status = RegisterMetric(no_ext_name + ".sql");
+
+    // The proto must be extended before registering the metric.
+    util::Status status = ExtendMetricsProto(no_ext_name + ".proto", &pool);
     if (!status.ok()) {
-      return util::ErrStatus("Unable to register metric %s: %s",
+      return util::ErrStatus("Unable to extend metrics proto %s: %s",
                              metric_or_path.c_str(), status.c_message());
     }
 
-    status = ExtendMetricsProto(no_ext_name + ".proto", &pool);
+    status = RegisterMetric(no_ext_name + ".sql");
     if (!status.ok()) {
-      return util::ErrStatus("Unable to extend metrics proto %s: %s",
+      return util::ErrStatus("Unable to register metric %s: %s",
                              metric_or_path.c_str(), status.c_message());
     }
 
