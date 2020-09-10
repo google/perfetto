@@ -212,14 +212,8 @@ export class DetailsPanel implements m.ClassComponent {
           detailsPanels.set('current_selection', m(ChromeSliceDetailsPanel));
           break;
         case 'THREAD_STATE':
-          detailsPanels.set('current_selection', m(ThreadStatePanel, {
-                              key: 'thread_state',
-                              ts: curSelection.ts,
-                              dur: curSelection.dur,
-                              utid: curSelection.utid,
-                              state: curSelection.state,
-                              cpu: curSelection.cpu
-                            }));
+          detailsPanels.set(
+              'current_selection', m(ThreadStatePanel, {key: 'thread_state'}));
           break;
         default:
           break;
