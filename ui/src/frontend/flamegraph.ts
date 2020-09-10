@@ -91,7 +91,7 @@ export class Flamegraph {
       return '#c0c0c0';
     }
     const hue = this.hash(name);
-    return `hsl(${hue}, 50%, 65%)`;
+    return `hsl(${hue}, 40%, 70%)`;
   }
 
   /**
