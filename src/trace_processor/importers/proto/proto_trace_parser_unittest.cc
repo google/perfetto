@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/importers/proto/proto_trace_tokenizer.h"
+#include "src/trace_processor/importers/proto/proto_trace_reader.h"
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_view.h"
@@ -243,7 +243,7 @@ class ProtoTraceParserTest : public ::testing::Test {
     std::vector<uint8_t> trace_bytes = trace_.SerializeAsArray();
     std::unique_ptr<uint8_t[]> raw_trace(new uint8_t[trace_bytes.size()]);
     memcpy(raw_trace.get(), trace_bytes.data(), trace_bytes.size());
-    context_.chunk_reader.reset(new ProtoTraceTokenizer(&context_));
+    context_.chunk_reader.reset(new ProtoTraceReader(&context_));
     auto status =
         context_.chunk_reader->Parse(std::move(raw_trace), trace_bytes.size());
 
