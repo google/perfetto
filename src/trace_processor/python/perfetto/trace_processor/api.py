@@ -44,8 +44,13 @@ class TraceProcessor:
   # resultant query. Each column name is stored as an attribute of this
   # class, with the value corresponding to the column name and row in
   # the query results table.
-  class Row:
-    pass
+  class Row(object):
+
+    def __str__(self):
+      return str(self.__dict__)
+
+    def __repr__(self):
+      return self.__dict__
 
   class QueryResultIterator:
 
@@ -76,7 +81,7 @@ class TraceProcessor:
     # To use the query result as a populated Pandas dataframe, this
     # function must be called directly after calling query inside
     # TraceProcesor.
-    def as_pandas(self):
+    def as_pandas_dataframe(self):
       try:
         import numpy as np
         import pandas as pd
@@ -187,8 +192,8 @@ class TraceProcessor:
 
     Returns:
       A class which can iterate through each row of the results table. This
-      can also be converted to a pandas dataframe by calling the as_pandas()
-      function after calling query.
+      can also be converted to a pandas dataframe by calling the
+      as_pandas_dataframe() function after calling query.
     """
     response = self.http.execute_query(sql)
     if response.error:
