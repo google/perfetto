@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INSERT INTO power_profile VALUES
+INSERT OR REPLACE INTO power_profile VALUES
 ("marlin", 0, 0, 307200, 11.272),
 ("marlin", 0, 0, 384000, 14.842),
 ("marlin", 0, 0, 460800, 18.497),
