@@ -205,6 +205,16 @@ class MockSliceTracker : public SliceTracker {
                                         SetArgsCallback args_callback));
 };
 
+class MockFlowTracker : public FlowTracker {
+ public:
+  MockFlowTracker(TraceProcessorContext* context) : FlowTracker(context) {}
+
+  MOCK_METHOD2(Begin, void(TrackId track_id, FlowId flow_id));
+  MOCK_METHOD2(Step, void(TrackId track_id, FlowId flow_id));
+  MOCK_METHOD3(End,
+               void(TrackId track_id, FlowId flow_id, bool bind_enclosing));
+};
+
 class ProtoTraceParserTest : public ::testing::Test {
  public:
   ProtoTraceParserTest() {
@@ -216,7 +226,6 @@ class ProtoTraceParserTest : public ::testing::Test {
         new GlobalStackProfileTracker());
     context_.args_tracker.reset(new ArgsTracker(&context_));
     context_.metadata_tracker.reset(new MetadataTracker(&context_));
-    context_.flow_tracker.reset(new FlowTracker(&context_));
     event_ = new MockEventTracker(&context_);
     context_.event_tracker.reset(event_);
     sched_ = new MockSchedEventTracker(&context_);
@@ -225,6 +234,8 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.process_tracker.reset(process_);
     slice_ = new MockSliceTracker(&context_);
     context_.slice_tracker.reset(slice_);
+    flow_ = new MockFlowTracker(&context_);
+    context_.flow_tracker.reset(flow_);
     clock_ = new ClockTracker(&context_);
     context_.clock_tracker.reset(clock_);
     context_.sorter.reset(new TraceSorter(CreateParser(), 0 /*window size*/));
@@ -278,6 +289,7 @@ class ProtoTraceParserTest : public ::testing::Test {
   MockSchedEventTracker* sched_;
   MockProcessTracker* process_;
   MockSliceTracker* slice_;
+  MockFlowTracker* flow_;
   ClockTracker* clock_;
   TraceStorage* storage_;
 };
@@ -1008,9 +1020,8 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
     legacy_event->set_thread_duration_us(12);        // absolute end: 2015.
     legacy_event->set_thread_instruction_delta(50);  // absolute end: 3060.
     legacy_event->set_bind_id(9999);
-    legacy_event->set_bind_to_enclosing(true);
     legacy_event->set_flow_direction(
-        protos::pbzero::TrackEvent::LegacyEvent::FLOW_INOUT);
+        protos::pbzero::TrackEvent::LegacyEvent::FLOW_OUT);
 
     auto* interned_data = packet->set_interned_data();
     auto cat2 = interned_data->add_event_categories();
@@ -1022,6 +1033,37 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
     auto ev2 = interned_data->add_event_names();
     ev2->set_iid(4);
     ev2->set_name("ev2");
+  }
+
+  {
+    auto* packet = trace_->add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+    auto* thread_desc = packet->set_thread_descriptor();
+    thread_desc->set_pid(15);
+    thread_desc->set_tid(16);
+    auto* event = packet->set_track_event();
+    event->set_timestamp_absolute_us(1005);
+    event->add_category_iids(2);
+    auto* legacy_event = event->set_legacy_event();
+    legacy_event->set_name_iid(4);
+    legacy_event->set_phase('t');
+    legacy_event->set_unscoped_id(220);
+  }
+
+  {
+    auto* packet = trace_->add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+    auto* thread_desc = packet->set_thread_descriptor();
+    thread_desc->set_pid(15);
+    thread_desc->set_tid(16);
+    auto* event = packet->set_track_event();
+    event->set_timestamp_absolute_us(1005);
+    event->add_category_iids(2);
+    auto* legacy_event = event->set_legacy_event();
+    legacy_event->set_name_iid(4);
+    legacy_event->set_phase('f');
+    legacy_event->set_unscoped_id(330);
+    legacy_event->set_bind_to_enclosing(false);
   }
 
   Tokenize();
@@ -1053,9 +1095,12 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
                                    thread_instruction_count_track));
   EXPECT_CALL(*slice_, Scoped(1005000, thread_1_track, cat_2_3, ev_2, 23000, _))
       .WillOnce(DoAll(InvokeArgument<5>(&inserter), Return(0u)));
-  EXPECT_CALL(inserter, AddArg(_, _, Variadic::UnsignedInteger(9999u), _));
-  EXPECT_CALL(inserter, AddArg(_, _, Variadic::Boolean(true), _));
-  EXPECT_CALL(inserter, AddArg(_, _, _, _));
+
+  EXPECT_CALL(*flow_, Begin(_, _));
+
+  EXPECT_CALL(*flow_, Step(_, _));
+
+  EXPECT_CALL(*flow_, End(_, _, false));
 
   EXPECT_CALL(*event_, PushCounter(1010000, testing::DoubleEq(2005000),
                                    thread_time_track));
@@ -2238,10 +2283,6 @@ TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {
     legacy_event->set_global_id(99u);
     legacy_event->set_id_scope("scope1");
     legacy_event->set_use_async_tts('?');
-    legacy_event->set_bind_id(98);
-    legacy_event->set_bind_to_enclosing(true);
-    legacy_event->set_flow_direction(
-        protos::pbzero::TrackEvent::LegacyEvent::FLOW_INOUT);
 
     auto* annotation1 = event->add_debug_annotations();
     annotation1->set_name_iid(1);
@@ -2290,7 +2331,7 @@ TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {
   EXPECT_EQ(raw_table.utid()[0], 1u);
   EXPECT_EQ(raw_table.arg_set_id()[0], 1u);
 
-  EXPECT_GE(storage_->arg_table().row_count(), 13u);
+  EXPECT_GE(storage_->arg_table().row_count(), 10u);
 
   EXPECT_TRUE(HasArg(1u, storage_->InternString("legacy_event.category"),
                      Variadic::String(cat_1)));
@@ -2312,13 +2353,6 @@ TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {
                      Variadic::UnsignedInteger(99u)));
   EXPECT_TRUE(HasArg(1u, storage_->InternString("legacy_event.id_scope"),
                      Variadic::String(scope_1)));
-  EXPECT_TRUE(HasArg(1u, storage_->InternString("legacy_event.bind_id"),
-                     Variadic::UnsignedInteger(98u)));
-  EXPECT_TRUE(HasArg(1u,
-                     storage_->InternString("legacy_event.bind_to_enclosing"),
-                     Variadic::Boolean(true)));
-  EXPECT_TRUE(HasArg(1u, storage_->InternString("legacy_event.flow_direction"),
-                     Variadic::String(storage_->InternString("inout"))));
   EXPECT_TRUE(HasArg(1u, debug_an_1, Variadic::UnsignedInteger(10u)));
 }
 
