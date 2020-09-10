@@ -254,6 +254,7 @@ source_set("storage_full") {
     "storage",
     "tables",
     "types",
+    "util",
   ]
   if (enable_perfetto_trace_processor_json) {
     deps += [ "../../gn:jsoncpp" ]
@@ -312,6 +313,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "../../gn:default_deps",
       "../../protos/perfetto/trace/ftrace:zero",
       "../base",
+      "../protozero",
       "analysis",
       "db:lib",
       "importers:common",
