@@ -123,7 +123,7 @@ function sanitizePostedTrace(postedTrace: PostedTrace): PostedTrace {
 }
 
 function sanitizeString(str: string): string {
-  return str.replace(/[^A-Za-z0-9.\-_#:/ ]/g, ' ');
+  return str.replace(/[^A-Za-z0-9.\-_#:/?=&; ]/g, ' ');
 }
 
 // tslint:disable:no-any
