@@ -16,11 +16,10 @@
 
 #include "src/android_internal/incident_service.h"
 
-#include <android/os/IIncidentManager.h>
-#include <android/os/IncidentReportArgs.h>
 #include <binder/IBinder.h>
 #include <binder/IServiceManager.h>
 #include <binder/Status.h>
+#include <incident/incident_report.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -31,34 +30,27 @@ namespace android_internal {
 
 bool StartIncidentReport(const char* dest_pkg,
                          const char* dest_class,
-                         int privacy_level) {
-  android::os::IncidentReportArgs incidentReport;
-  incidentReport.addSection(3026);  // system_trace only
-
-  if (privacy_level != android::os::PRIVACY_POLICY_AUTOMATIC &&
-      privacy_level != android::os::PRIVACY_POLICY_EXPLICIT) {
+                         int privacy_policy) {
+  if (privacy_policy != INCIDENT_REPORT_PRIVACY_POLICY_AUTOMATIC &&
+      privacy_policy != INCIDENT_REPORT_PRIVACY_POLICY_EXPLICIT) {
     return false;
   }
-  incidentReport.setPrivacyPolicy(privacy_level);
 
-  std::string pkg(dest_pkg);
-  std::string cls(dest_class);
-  if (pkg.size() == 0 || cls.size() == 0) {
+  if (strlen(dest_pkg) == 0 || strlen(dest_class) == 0) {
     return false;
   }
-  incidentReport.setReceiverPkg(pkg);
-  incidentReport.setReceiverCls(cls);
 
-  android::sp<android::os::IIncidentManager> service =
-      android::interface_cast<android::os::IIncidentManager>(
-          android::defaultServiceManager()->getService(
-              android::String16("incident")));
+  AIncidentReportArgs* args = AIncidentReportArgs_init();
 
-  if (!service) {
-    return false;
-  }
-  android::binder::Status s = service->reportIncident(incidentReport);
-  return s.isOk();
+  AIncidentReportArgs_addSection(args, 3026);  // system_trace only
+  AIncidentReportArgs_setPrivacyPolicy(args, privacy_policy);
+  AIncidentReportArgs_setReceiverPackage(args, dest_pkg);
+  AIncidentReportArgs_setReceiverClass(args, dest_class);
+
+  int err = AIncidentReportArgs_takeReport(args);
+  AIncidentReportArgs_delete(args);
+
+  return err == 0;
 }
 
 }  // namespace android_internal
