@@ -124,3 +124,30 @@ proto_gen = rule(
     output_to_genfiles = True,
     implementation = _proto_gen_impl,
 )
+
+
+def _proto_descriptor_gen_impl(ctx):
+    descriptors = [
+        f
+        for dep in ctx.attr.deps
+        for f in dep[ProtoInfo].transitive_descriptor_sets.to_list()
+    ]
+    ctx.actions.run_shell(
+        inputs=descriptors,
+        outputs=ctx.outputs.outs,
+        command='cat %s > %s' % (
+            ' '.join([f.path for f in descriptors]), ctx.outputs.outs[0].path)
+    )
+
+
+proto_descriptor_gen = rule(
+    implementation=_proto_descriptor_gen_impl,
+    attrs = {
+        "deps": attr.label_list(
+            mandatory = True,
+            allow_empty = False,
+            providers = [ProtoInfo],
+        ),
+        "outs": attr.output_list(mandatory=True),
+    }
+)
