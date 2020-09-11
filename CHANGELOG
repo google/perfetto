@@ -4,6 +4,7 @@ Unreleased:
   Trace Processor:
     *
   UI:
+    * Flow events are now drawn as arrows for the currently selected slice.
     *
 
 
