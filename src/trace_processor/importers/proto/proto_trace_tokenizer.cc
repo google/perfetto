@@ -21,6 +21,8 @@
 namespace perfetto {
 namespace trace_processor {
 
+ProtoTraceTokenizer::ProtoTraceTokenizer() = default;
+
 util::Status ProtoTraceTokenizer::Decompress(TraceBlobView input,
                                              TraceBlobView* output) {
   PERFETTO_DCHECK(gzip::IsGzipSupported());

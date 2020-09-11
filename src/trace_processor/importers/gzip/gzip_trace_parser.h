@@ -34,6 +34,12 @@ class GzipTraceParser : public ChunkedTraceReader {
   util::Status Parse(std::unique_ptr<uint8_t[]>, size_t) override;
   void NotifyEndOfFile() override;
 
+  static util::Status Parse(const uint8_t*,
+                            size_t,
+                            GzipDecompressor*,
+                            ChunkedTraceReader*,
+                            bool* needs_more_input);
+
  private:
   TraceProcessorContext* const context_;
   GzipDecompressor decompressor_;
