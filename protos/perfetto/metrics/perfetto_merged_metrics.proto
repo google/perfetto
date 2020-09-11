@@ -125,6 +125,30 @@ message AndroidDisplayMetrics {
 }
 // End of protos/perfetto/metrics/android/display_metrics.proto
 
+// Begin of protos/perfetto/metrics/android/gpu_metric.proto
+
+message AndroidGpuMetric {
+  message Process {
+    // Process name.
+    optional string name = 1;
+
+    // max/min/avg GPU memory used by this process.
+    optional int64 mem_max = 2;
+    optional int64 mem_min = 3;
+    optional int64 mem_avg = 4;
+  }
+
+  // GPU metric for processes using GPU.
+  repeated Process processes = 1;
+
+  // max/min/avg GPU memory used by the entire system.
+  optional int64 mem_max = 2;
+  optional int64 mem_min = 3;
+  optional int64 mem_avg = 4;
+}
+
+// End of protos/perfetto/metrics/android/gpu_metric.proto
+
 // Begin of protos/perfetto/metrics/android/process_metadata.proto
 
 message AndroidProcessMetadata {
@@ -751,7 +775,7 @@ message TraceMetadata {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 26
+// Next id: 27
 message TraceMetrics {
   reserved 4, 10, 13, 14, 19;
 
@@ -813,6 +837,9 @@ message TraceMetrics {
 
   // Metric associated with surfaceflinger.
   optional AndroidSurfaceflingerMetric android_surfaceflinger = 25;
+
+  // GPU metrics on Android.
+  optional AndroidGpuMetric android_gpu = 26;
 
   // Demo extensions.
   extensions 450 to 499;
