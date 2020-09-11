@@ -324,7 +324,8 @@ class GnParser(object):
       target.sources.update(desc.get('sources', []))
     elif target.type == 'action':
       self.actions[gn_target_name] = target
-      target.inputs.update(desc['inputs'])
+      target.inputs.update(desc.get('inputs', []))
+      target.sources.update(desc.get('sources', []))
       outs = [re.sub('^//out/.+?/gen/', '', x) for x in desc['outputs']]
       target.outputs.update(outs)
       target.script = desc['script']
@@ -345,7 +346,10 @@ class GnParser(object):
         target.deps.add(dep_name)
       elif dep.type == 'proto_library':
         target.proto_deps.add(dep_name)
-        target.proto_deps.update(dep.proto_deps)  # Bubble up deps.
+
+        # Don't bubble deps for action targets
+        if target.type != 'action':
+          target.proto_deps.update(dep.proto_deps)  # Bubble up deps.
       elif dep.type == 'source_set':
         target.source_set_deps.add(dep_name)
         target.update(dep)  # Bubble up source set's cflags/ldflags etc.
@@ -364,13 +368,29 @@ class GnParser(object):
 
         Returns:
             (None, None): if the target is not a proto library.
-            (plugin, gen_desc) where |plugin| is 'proto' in the default (lite)
-            case or 'protozero' or 'ipc'; |gen_desc| is the GN json descriptor
-            of the _gen target (the one with .proto sources).
+            (plugin, proto_desc) where |plugin| is 'proto' in the default (lite)
+            case or 'protozero' or 'ipc' or 'descriptor'; |proto_desc| is the GN
+            json desc of the target with the .proto sources (_gen target for
+            non-descriptor types or the target itself for descriptor type).
         """
     parts = target.name.split('(', 1)
     name = parts[0]
     toolchain = '(' + parts[1] if len(parts) > 1 else ''
+
+    # Descriptor targets don't have a _gen target; instead we look for the
+    # characteristic flag in the args of the target itself.
+    desc = self.gn_desc_.get(target.name)
+    if '--descriptor_set_out' in desc.get('args', []):
+      return 'descriptor', desc
+
+    # Source set proto targets have a non-empty proto_library_sources in the
+    # metadata of the descirption.
+    metadata = desc.get('metadata', {})
+    if 'proto_library_sources' in metadata:
+      return 'source_set', desc
+
+    # In all other cases, we want to look at the _gen target as that has the
+    # important information.
     gen_desc = self.gn_desc_.get('%s_gen%s' % (name, toolchain))
     if gen_desc is None or gen_desc['type'] != 'action':
       return None, None

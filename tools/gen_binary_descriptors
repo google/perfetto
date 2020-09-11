@@ -29,11 +29,7 @@ from compat import iteritems
 SOURCE_TARGET = [
     (
       'protos/perfetto/config/perfetto_config.proto',
-      'src/perfetto_cmd/perfetto_config.descriptor.h'
-    ),
-    (
-      'protos/perfetto/metrics/metrics.proto',
-      'src/trace_processor/metrics/metrics.descriptor.h'
+      'src/perfetto_cmd/perfetto_config.descriptor.h',
     ),
     (
       'src/protozero/test/example_proto/test_messages.proto',
