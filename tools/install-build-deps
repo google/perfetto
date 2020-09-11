@@ -244,14 +244,6 @@ UI_DEPS = [
         'https://storage.googleapis.com/perfetto/emscripten-llvm-e1.37.40-static-linux.tar.gz',
         '478501b9b7a14884e546c84efe209a90052cbb07', 'linux'),
     Dependency(
-        'buildtools/d8.tgz',
-        'https://storage.googleapis.com/perfetto/d8-linux-5.7.492.65.tar.gz',
-        '95e82ad7faf0a6f74d950c2aa65e3858b7bdb6c6', 'linux'),
-    Dependency(
-        'buildtools/d8.tgz',
-        'https://storage.googleapis.com/perfetto/d8-darwin-6.6.346.32.tar.gz',
-        '1abd630619bb1977ab62095570a113d782a1545d', 'darwin'),
-    Dependency(
         'buildtools/catapult_trace_viewer.tgz',
         'https://storage.googleapis.com/perfetto/catapult_trace_viewer-%s.tar.gz'
         % CATAPULT_SHA1, CATAPULT_SHA1, 'all'),
