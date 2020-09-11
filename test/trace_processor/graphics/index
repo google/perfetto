@@ -19,3 +19,6 @@ clock_sync.py clock_sync.sql clock_sync.out
 
 # Missed frames
 frame_missed.py frame_missed_event.sql frame_missed_event_frame_missed.out
+
+# GPU metrics
+gpu_metric.py android_gpu gpu_metric.out

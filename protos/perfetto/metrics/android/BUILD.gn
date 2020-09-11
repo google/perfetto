@@ -19,6 +19,7 @@ perfetto_proto_library("@TYPE@") {
     "batt_metric.proto",
     "cpu_metric.proto",
     "display_metrics.proto",
+    "gpu_metric.proto",
     "heap_profile_callsites.proto",
     "hwui_metric.proto",
     "ion_metric.proto",

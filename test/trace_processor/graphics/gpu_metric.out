@@ -1,0 +1,17 @@
+android_gpu {
+  processes {
+    name: "app_1"
+    mem_max: 8
+    mem_min: 2
+    mem_avg: 3
+  }
+  processes {
+    name: "app_2"
+    mem_max: 8
+    mem_min: 6
+    mem_avg: 7
+  }
+  mem_max: 4
+  mem_min: 1
+  mem_avg: 2
+}
