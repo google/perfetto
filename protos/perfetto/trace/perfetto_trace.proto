@@ -329,6 +329,16 @@ message ChromeConfig {
   // TracePackets, but the embedded data will be JSON instead of serialized
   // protobuf.
   optional bool convert_to_legacy_json = 3;
+
+  // Priority of the tracing session client. A higher priority session may
+  // preempt a lower priority one in configurations where concurrent sessions
+  // aren't supported.
+  enum ClientPriority {
+    UNKNOWN = 0;
+    BACKGROUND = 1;
+    USER_INITIATED = 2;
+  }
+  optional ClientPriority client_priority = 4;
 }
 
 // End of protos/perfetto/config/chrome/chrome_config.proto
