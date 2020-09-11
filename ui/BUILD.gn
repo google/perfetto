@@ -99,7 +99,16 @@ template("node_bin") {
     if (defined(invoker.suppress_stderr) && invoker.suppress_stderr) {
       args += [ "--suppress_stderr" ]
     }
+
+    # Some of the node_bin rules *cough*transpile_all_ts*cough* don't
+    # accuratly report the output files. This means if they can run,
+    # change something, and not cause their dependees to rerun causing
+    # bugs. Adding a stamp file which is always rewritten avoids this.
+    # See also b/120010518
+    stamp_path = "$ui_dir/$target_name.node_bin.stamp"
+    outputs += [ stamp_path ]
     args += [
+              "--stamp=" + rebase_path(stamp_path, root_build_dir),
               "--path=$nodejs_bin",
               "node",
               rebase_path("node_modules/.bin/$_node_cmd", root_build_dir),
@@ -604,7 +613,7 @@ copy("copy_protobufjs_light_types") {
 
 # This target generates an map containing all the UI subresources and their
 # hashes. This is used by the service worker code for offline caching.
-# This taarget needs to be kept at the end of the BUILD.gn file, because of the
+# This target needs to be kept at the end of the BUILD.gn file, because of the
 # get_target_outputs() call (fails otherwise due to GN's evaluation order).
 action("gen_dist_file_map") {
   out_file_path = "$ui_gen_dir/dist_file_map.ts"
