@@ -19,9 +19,13 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/utils.h"
+#include "perfetto/protozero/proto_utils.h"
 #include "perfetto/trace_processor/trace_processor.h"
 
+#include "src/trace_processor/forwarding_trace_parser.h"
+#include "src/trace_processor/importers/gzip/gzip_trace_parser.h"
 #include "src/trace_processor/importers/gzip/gzip_utils.h"
+#include "src/trace_processor/importers/proto/proto_trace_tokenizer.h"
 #include "src/trace_processor/util/status_macros.h"
 
 #include "protos/perfetto/trace/trace.pbzero.h"
@@ -71,6 +75,37 @@ util::Status ReadTraceUsingRead(
   }
   return util::OkStatus();
 }
+
+class SerializingProtoTraceReader : public ChunkedTraceReader {
+ public:
+  SerializingProtoTraceReader(std::vector<uint8_t>* output) : output_(output) {}
+
+  util::Status Parse(std::unique_ptr<uint8_t[]> data, size_t size) override {
+    return tokenizer_.Tokenize(
+        std::move(data), size, [this](TraceBlobView packet) {
+          uint8_t buffer[protozero::proto_utils::kMaxSimpleFieldEncodedSize];
+
+          uint8_t* pos = buffer;
+          pos = protozero::proto_utils::WriteVarInt(kTracePacketTag, pos);
+          pos = protozero::proto_utils::WriteVarInt(packet.length(), pos);
+          output_->insert(output_->end(), buffer, pos);
+
+          output_->insert(output_->end(), packet.data(),
+                          packet.data() + packet.length());
+          return util::OkStatus();
+        });
+  }
+
+  void NotifyEndOfFile() override {}
+
+ private:
+  static constexpr uint8_t kTracePacketTag =
+      protozero::proto_utils::MakeTagLengthDelimited(
+          protos::pbzero::Trace::kPacketFieldNumber);
+
+  ProtoTraceTokenizer tokenizer_;
+  std::vector<uint8_t>* output_;
+};
 
 }  // namespace
 
@@ -152,10 +187,27 @@ util::Status ReadTrace(
 util::Status DecompressTrace(const uint8_t* data,
                              size_t size,
                              std::vector<uint8_t>* output) {
-  if (!gzip::IsGzipSupported()) {
+  TraceType type = GuessTraceType(data, size);
+  if (type != TraceType::kGzipTraceType && type != TraceType::kProtoTraceType) {
     return util::ErrStatus(
-        "Cannot decompress trace in build where zlib is disabled");
+        "Only GZIP and proto trace types are supported by DecompressTrace");
   }
+
+  if (type == TraceType::kGzipTraceType) {
+    GzipDecompressor decompressor;
+    SerializingProtoTraceReader reader(output);
+
+    bool needs_more_input = false;
+    RETURN_IF_ERROR(GzipTraceParser::Parse(data, size, &decompressor, &reader,
+                                           &needs_more_input));
+
+    if (needs_more_input)
+      return util::ErrStatus("Cannot decompress partial trace file");
+
+    return util::OkStatus();
+  }
+
+  PERFETTO_CHECK(type == TraceType::kProtoTraceType);
 
   protos::pbzero::Trace::Decoder decoder(data, size);
   GzipDecompressor decompressor;
