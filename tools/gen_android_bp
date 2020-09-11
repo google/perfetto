@@ -539,20 +539,46 @@ def create_proto_modules(blueprint, gn, target):
         The source_genrule module.
     """
   assert (target.type == 'proto_library')
+
+  tools = {'aprotoc'}
   cpp_out_dir = '$(genDir)/%s/' % tree_path
+  target_module_name = label_to_module_name(target.name)
+
+  # In GN builds the proto path is always relative to the output directory
+  # (out/tmp.xxx).
   cmd = ['mkdir -p %s &&' % cpp_out_dir, '$(location aprotoc)']
+  cmd += ['--proto_path=%s' % tree_path]
+
+  # We don't generate any targets for source_set proto modules because
+  # they will be inlined into other modules if required.
+  if target.proto_plugin == 'source_set':
+    return None
+
+  # Descriptor targets only generate a single target.
+  if target.proto_plugin == 'descriptor':
+    out = '{}.bin'.format(target_module_name)
+
+    cmd += ['--descriptor_set_out=$(out)', '--include_imports']
+    cmd += ['$(in)']
+
+    descriptor_module = Module('genrule', target_module_name, target.name)
+    descriptor_module.cmd = ' '.join(cmd)
+    descriptor_module.out = [out]
+    descriptor_module.tools = tools
+    blueprint.add_module(descriptor_module)
+
+    return descriptor_module
 
   # We create two genrules for each proto target: one for the headers and
   # another for the sources. This is because the module that depends on the
   # generated files needs to declare two different types of dependencies --
   # source files in 'srcs' and headers in 'generated_headers' -- and it's not
   # valid to generate .h files from a source dependency and vice versa.
-  source_module_name = label_to_module_name(target.name) + '_gen'
+  source_module_name = target_module_name + '_gen'
   source_module = Module('genrule', source_module_name, target.name)
   blueprint.add_module(source_module)
   source_module.srcs.update(
       gn_utils.label_to_path(src) for src in target.sources)
-  tools = {'aprotoc'}
 
   header_module = Module('genrule', source_module_name + '_headers',
                          target.name)
@@ -568,10 +594,6 @@ def create_proto_modules(blueprint, gn, target):
 
   source_module.genrule_srcs.add(':' + source_module.name)
   source_module.genrule_headers.add(header_module.name)
-
-  # In GN builds the proto path is always relative to the output directory
-  # (out/tmp.xxx).
-  cmd += ['--proto_path=%s' % tree_path]
 
   if target.proto_plugin == 'proto':
     suffixes = ['pb']
@@ -615,9 +637,7 @@ def create_proto_modules(blueprint, gn, target):
 
 
 def create_merged_sql_metrics_module(blueprint, target):
-  module = Module('genrule', 'gen_merged_sql_metrics',
-                  '//src/trace_processor/metrics:gen_merged_sql_metrics')
-  module.genrule_headers.add('gen_merged_sql_metrics')
+  module = Module('genrule', 'gen_merged_sql_metrics', target.name)
   module.tool_files = [
       'tools/gen_merged_sql_metrics.py',
   ]
@@ -626,8 +646,28 @@ def create_merged_sql_metrics_module(blueprint, target):
       '--cpp_out=$(out)',
       '$(in)',
   ])
+  module.genrule_headers.add(module.name)
   module.out.update(target.outputs)
   module.srcs.update(gn_utils.label_to_path(src) for src in target.inputs)
+  blueprint.add_module(module)
+  return module
+
+
+def create_cc_metrics_descriptor_module(blueprint, target):
+  module = Module('genrule', 'gen_cc_metrics_descriptor', target.name)
+  module.tool_files = [
+      'tools/gen_cc_proto_descriptor.py',
+  ]
+  module.cmd = ' '.join([
+      '$(location tools/gen_cc_proto_descriptor.py)',
+      '--gen_dir=$(genDir)',
+      '--cpp_out=$(out)',
+      '$(in)'
+  ])
+  module.genrule_headers.add(module.name)
+  module.srcs.update(
+      ':' + label_to_module_name(dep) for dep in target.proto_deps)
+  module.out.update(target.outputs)
   blueprint.add_module(module)
   return module
 
@@ -679,8 +719,13 @@ def create_modules_from_target(blueprint, gn, gn_target_name):
     return None
   elif target.type == 'proto_library':
     module = create_proto_modules(blueprint, gn, target)
-  elif target.type == 'action' and 'gen_merged_sql_metrics' in target.name:
-    module = create_merged_sql_metrics_module(blueprint, target)
+    if module is None:
+      return None
+  elif target.type == 'action':
+    if 'gen_merged_sql_metrics' in target.name:
+      module = create_merged_sql_metrics_module(blueprint, target)
+    elif 'gen_cc_metrics_descriptor' in target.name:
+      module = create_cc_metrics_descriptor_module(blueprint, target)
   else:
     raise Error('Unknown target %s (%s)' % (target.name, target.type))
 

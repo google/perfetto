@@ -13,7 +13,7 @@
 # limitations under the License.
 
 load("@perfetto_cfg//:perfetto_cfg.bzl", "PERFETTO_CONFIG")
-load("@perfetto//bazel:proto_gen.bzl", "proto_gen")
+load("@perfetto//bazel:proto_gen.bzl", "proto_descriptor_gen", "proto_gen")
 
 # +----------------------------------------------------------------------------+
 # | Base C++ rules.                                                            |
@@ -163,7 +163,6 @@ def perfetto_cc_ipc_library(name, deps, **kwargs):
         **kwargs
     )
 
-
 # Generates .gen.{cc,h} from .proto(s).
 def perfetto_cc_protocpp_library(name, deps, **kwargs):
     if _rule_override(
@@ -209,8 +208,39 @@ def perfetto_cc_protocpp_library(name, deps, **kwargs):
         srcs = [":" + name + "_gen"],
         textual_hdrs = [":" + name + "_gen_h"],
         deps = [
-            PERFETTO_CONFIG.root + ":libprotozero"
+            PERFETTO_CONFIG.root + ":libprotozero",
         ] + _cc_deps,
+        **kwargs
+    )
+
+def perfetto_proto_descriptor(name, deps, outs, **kwargs):
+    proto_descriptor_gen(
+        name = name,
+        deps = deps,
+        outs = outs,
+    )
+
+# Generator .descriptor.h from protos
+def perfetto_cc_proto_descriptor(name, deps, outs, **kwargs):
+    cmd = [
+        "$(location gen_cc_proto_descriptor_py)",
+        "--cpp_out=$@",
+        "--gen_dir=$(GENDIR)",
+        "$<"
+    ]
+    native.genrule(
+        name = name + "_gen",
+        cmd = " ".join(cmd),
+        exec_tools = [
+            ":gen_cc_proto_descriptor_py",
+        ],
+        srcs = deps,
+        outs = outs,
+    )
+
+    perfetto_cc_library(
+        name = name,
+        hdrs = [":" + name + "_gen"],
         **kwargs
     )
 

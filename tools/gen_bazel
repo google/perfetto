@@ -102,7 +102,7 @@ external_deps = {
     '//gn:zlib': ['PERFETTO_CONFIG.deps.zlib'],
     '//gn/standalone:gen_git_revision': [],
     '//src/trace_processor/metrics:gen_merged_sql_metrics': [[
-        ":cc_merged_sql_metrics"
+        ':cc_merged_sql_metrics'
     ]]
 }
 
@@ -116,8 +116,18 @@ def gen_sql_metrics(target):
   return [label]
 
 
+def gen_cc_metrics_descriptor(target):
+  label = BazelLabel(
+      get_bazel_label_name(target.name), 'perfetto_cc_proto_descriptor')
+  label.deps += [':' + get_bazel_label_name(x) for x in target.proto_deps]
+  label.outs += target.outputs
+  return [label]
+
+
 custom_actions = {
     '//src/trace_processor/metrics:gen_merged_sql_metrics': gen_sql_metrics,
+    '//src/trace_processor/metrics:gen_cc_metrics_descriptor':
+      gen_cc_metrics_descriptor,
 }
 
 # ------------------------------------------------------------------------------
@@ -226,10 +236,10 @@ def gen_proto_labels(target):
   """ Generates the xx_proto_library label for proto targets.
 
   Bazel requires that each protobuf-related target is modeled with two labels:
-  1. A plugin-dependent target (e.g. cc_library, cc_protozero_library) that has
-     only a dependency on 2 and does NOT refer to any .proto sources.
-  2. A plugin-agnostic target that defines only the .proto sources and their
+  1. A plugin-agnostic target that defines only the .proto sources and their
      dependencies.
+  2. A plugin-dependent target (e.g. cc_library, cc_protozero_library) that has
+     only a dependency on 1 and does NOT refer to any .proto sources.
   """
   assert (target.type == 'proto_library')
 
@@ -240,33 +250,6 @@ def gen_proto_labels(target):
   sources_label_name = get_sources_label(target.name)
 
   # Generates 1.
-  if target.proto_plugin == 'proto':
-    plugin_label_type = 'perfetto_cc_proto_library'
-  elif target.proto_plugin == 'protozero':
-    plugin_label_type = 'perfetto_cc_protozero_library'
-  elif target.proto_plugin == 'cppgen':
-    plugin_label_type = 'perfetto_cc_protocpp_library'
-  elif target.proto_plugin == 'ipc':
-    plugin_label_type = 'perfetto_cc_ipc_library'
-  else:
-    raise Error('Unknown proto plugin: %s' % target.proto_plugin)
-  plugin_label_name = get_bazel_label_name(target.name)
-  plugin_label = BazelLabel(plugin_label_name, plugin_label_type)
-  plugin_label.comment = target.name
-  plugin_label.deps += [':' + sources_label_name]
-
-  # When using the cppgen plugin we need to pass down also the transitive deps.
-  # For instance consider foo.proto including common.proto. The generated
-  # foo.cc will #include "common.gen.h". Hence the generated cc_protocpp_library
-  # rule need to pass down the dependency on the target that generates
-  # common.gen.{cc,h}. This is not needed for protozero because protozero
-  # headers are fully hermetic deps-wise and use only on forward declarations.
-  if target.proto_deps and target.proto_plugin in ('cppgen', 'ipc'):
-    plugin_label.deps += [
-        ':' + get_bazel_label_name(x) for x in target.proto_deps
-    ]
-
-  # Generates 2.
   sources_label = BazelLabel(sources_label_name, 'perfetto_proto_library')
   sources_label.comment = target.name
   assert (all(x.startswith('//') for x in target.sources))
@@ -289,7 +272,44 @@ def gen_proto_labels(target):
   else:
     sources_label.visibility = ['PERFETTO_CONFIG.proto_library_visibility']
 
-  return [plugin_label, sources_label]
+  # For 'source_set' plugins, we don't want to generate any plugin-dependent
+  # targets so just return the label of the proto sources only.
+  if target.proto_plugin == 'source_set':
+    return [sources_label]
+
+  # Generates 2.
+  if target.proto_plugin == 'proto':
+    plugin_label_type = 'perfetto_cc_proto_library'
+  elif target.proto_plugin == 'protozero':
+    plugin_label_type = 'perfetto_cc_protozero_library'
+  elif target.proto_plugin == 'cppgen':
+    plugin_label_type = 'perfetto_cc_protocpp_library'
+  elif target.proto_plugin == 'ipc':
+    plugin_label_type = 'perfetto_cc_ipc_library'
+  elif target.proto_plugin == 'descriptor':
+    plugin_label_type = 'perfetto_proto_descriptor'
+  else:
+    raise Error('Unknown proto plugin: %s' % target.proto_plugin)
+  plugin_label_name = get_bazel_label_name(target.name)
+  plugin_label = BazelLabel(plugin_label_name, plugin_label_type)
+  plugin_label.comment = target.name
+  plugin_label.deps += [':' + sources_label_name]
+
+  # When using the cppgen plugin we need to pass down also the transitive deps.
+  # For instance consider foo.proto including common.proto. The generated
+  # foo.cc will #include "common.gen.h". Hence the generated cc_protocpp_library
+  # rule need to pass down the dependency on the target that generates
+  # common.gen.{cc,h}. This is not needed for protozero because protozero
+  # headers are fully hermetic deps-wise and use only on forward declarations.
+  if target.proto_deps and target.proto_plugin in ('cppgen', 'ipc'):
+    plugin_label.deps += [
+        ':' + get_bazel_label_name(x) for x in target.proto_deps
+    ]
+
+  if target.proto_plugin == 'descriptor':
+    plugin_label.outs = [plugin_label_name + '.bin']
+
+  return [sources_label, plugin_label]
 
 
 def gen_target(gn_target):
@@ -390,12 +410,14 @@ load(
     "perfetto_cc_binary",
     "perfetto_cc_ipc_library",
     "perfetto_cc_library",
+    "perfetto_cc_proto_descriptor",
     "perfetto_cc_proto_library",
     "perfetto_cc_protocpp_library",
     "perfetto_cc_protozero_library",
     "perfetto_java_proto_library",
     "perfetto_java_lite_proto_library",
     "perfetto_proto_library",
+    "perfetto_proto_descriptor",
     "perfetto_py_binary",
     "perfetto_py_library",
     "perfetto_gensignature_internal_only",

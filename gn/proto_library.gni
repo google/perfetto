@@ -180,6 +180,7 @@ template("perfetto_proto_library") {
       "zero",
       "lite",
       "cpp",
+      "source_set",
     ]
   }
 
@@ -264,6 +265,24 @@ template("perfetto_proto_library") {
 
       # Not needed for descriptor proto_library target.
       not_needed([ "propagate_imports_configs_" ])
+    } else if (gen_type == "source_set") {
+      action(target_name_) {
+        out_path = "$target_gen_dir/" + target_name_
+        rebased_out_path =
+            rebase_path(target_gen_dir, root_build_dir) + "/" + target_name_
+
+        script = "$perfetto_root_path/tools/touch_file.py"
+        sources = invoker.sources
+        args = [
+          "--output",
+          rebased_out_path,
+        ]
+        outputs = [ out_path ]
+
+        metadata = {
+          proto_library_sources = invoker.sources
+        }
+      }
     } else {
       assert(false, "Invalid 'proto_generators' value.")
     }
