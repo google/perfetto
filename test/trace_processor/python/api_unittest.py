@@ -176,7 +176,7 @@ class TestQueryResultIterator(unittest.TestCase):
     qr_iterator = TraceProcessor.QueryResultIterator(['foo_id', 'foo_num'],
                                                      [batch])
 
-    qr_df = qr_iterator.as_pandas()
+    qr_df = qr_iterator.as_pandas_dataframe()
     for num, row in qr_df.iterrows():
       self.assertEqual(row['foo_id'], str_values[num])
       self.assertEqual(row['foo_num'], int_values[num])
@@ -208,7 +208,7 @@ class TestQueryResultIterator(unittest.TestCase):
     qr_iterator = TraceProcessor.QueryResultIterator(['foo_id', 'foo_num'],
                                                      [batch_1, batch_2])
 
-    qr_df = qr_iterator.as_pandas()
+    qr_df = qr_iterator.as_pandas_dataframe()
     for num, row in qr_df.iterrows():
       self.assertEqual(row['foo_id'], str_values[num])
       self.assertEqual(row['foo_num'], int_values[num])
@@ -219,7 +219,7 @@ class TestQueryResultIterator(unittest.TestCase):
 
     qr_iterator = TraceProcessor.QueryResultIterator([], [batch])
 
-    qr_df = qr_iterator.as_pandas()
+    qr_df = qr_iterator.as_pandas_dataframe()
     for num, row in qr_df.iterrows():
       self.assertEqual(row['foo_id'], str_values[num])
       self.assertEqual(row['foo_num'], int_values[num])
@@ -232,7 +232,7 @@ class TestQueryResultIterator(unittest.TestCase):
     # Since the batch isn't defined as the last batch, the QueryResultsIterator
     # expects another batch and thus raises IndexError as no next batch exists.
     with self.assertRaises(IndexError):
-      qr_df = qr_iterator.as_pandas()
+      qr_df = qr_iterator.as_pandas_dataframe()
 
   def test_incorrect_cells_batch_as_pandas(self):
     str_values = ['bar1', 'bar2']
@@ -253,7 +253,7 @@ class TestQueryResultIterator(unittest.TestCase):
     # of type STRING, but there are no string cells defined in the batch. Thus
     # an IndexError occurs as it tries to access the empty string cells list.
     with self.assertRaises(IndexError):
-      qr_df = qr_iterator.as_pandas()
+      qr_df = qr_iterator.as_pandas_dataframe()
 
   def test_incorrect_columns_batch_as_pandas(self):
     batch = ProtoFactory().CellsBatch()
@@ -271,7 +271,7 @@ class TestQueryResultIterator(unittest.TestCase):
     # iterator tries to access the cell for the third column, it raises an
     # IndexError due to having exhausted the cells list.
     with self.assertRaises(IndexError):
-      qr_df = qr_iterator.as_pandas()
+      qr_df = qr_iterator.as_pandas_dataframe()
 
   def test_invalid_cell_type_as_pandas(self):
     batch = ProtoFactory().CellsBatch()
@@ -289,4 +289,4 @@ class TestQueryResultIterator(unittest.TestCase):
     # CELL_VARINT but that doesn't match the data which are both ints*
     # so we should raise a TraceProcessorException.
     with self.assertRaises(TraceProcessorException):
-      qr_df = qr_iterator.as_pandas()
+      qr_df = qr_iterator.as_pandas_dataframe()
