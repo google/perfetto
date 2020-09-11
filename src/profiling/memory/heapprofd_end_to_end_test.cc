@@ -24,6 +24,7 @@
 #include <unistd.h>
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/subprocess.h"
@@ -294,10 +295,13 @@ void __attribute__((constructor(1024))) RunAccurateMalloc() {
   // We call the callback before setting enabled=true on the heap, so we
   // wait a bit for the assignment to happen.
   usleep(100000);
-  AHeapProfile_reportAllocation(heap_id, 0x1, 10u);
+  if (!AHeapProfile_reportAllocation(heap_id, 0x1, 10u))
+    PERFETTO_FATAL("Expected allocation to be sampled.");
   AHeapProfile_reportFree(heap_id, 0x1);
-  AHeapProfile_reportAllocation(heap_id, 0x2, 15u);
-  AHeapProfile_reportAllocation(heap_id, 0x3, 15u);
+  if (!AHeapProfile_reportAllocation(heap_id, 0x2, 15u))
+    PERFETTO_FATAL("Expected allocation to be sampled.");
+  if (!AHeapProfile_reportAllocation(heap_id, 0x3, 15u))
+    PERFETTO_FATAL("Expected allocation to be sampled.");
   AHeapProfile_reportFree(heap_id, 0x2);
 
   // Wait around so we can verify it did't crash.
