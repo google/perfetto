@@ -64,6 +64,7 @@ def write_cpp_header(gendir, target, descriptor_bytes):
 
 #include <stddef.h>
 #include <stdint.h>
+#include <array>
 
 namespace perfetto {{
 
