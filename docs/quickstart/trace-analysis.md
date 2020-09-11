@@ -355,7 +355,7 @@ from perfetto.trace_processor import TraceProcessor
 tp = TraceProcessor(file_path='trace.pftrace')
 
 qr_it = tp.query('SELECT ts, name FROM slice')
-qr_df = qr_it.as_pandas()
+qr_df = qr_it.as_pandas_dataframe()
 print(qr_df.to_string())
 ```
 **Output**
