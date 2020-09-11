@@ -211,7 +211,7 @@ base::Optional<int64_t> ClockTracker::ConvertSlowpath(ClockId src_clock_id,
   ClockPath path = FindPath(src_clock_id, target_clock_id);
   if (!path.valid()) {
     // Too many logs maybe emitted when path is invalid.
-    static std::atomic<uint32_t> dlog_count = 0;
+    static std::atomic<uint32_t> dlog_count(0);
     if (dlog_count++ < 10) {
       PERFETTO_DLOG("No path from clock %" PRIu64 " to %" PRIu64
                     " at timestamp %" PRId64,
