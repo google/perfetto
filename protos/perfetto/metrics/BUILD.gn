@@ -20,10 +20,9 @@ perfetto_proto_library("@TYPE@") {
   sources = [ "metrics.proto" ]
 }
 
-if (perfetto_build_standalone) {
-  perfetto_proto_library("descriptor") {
-    proto_generators = [ "descriptor" ]
-    generate_descriptor = "metrics.descriptor"
-    sources = [ "metrics.proto" ]
-  }
+perfetto_proto_library("descriptor") {
+  proto_generators = [ "descriptor" ]
+  generate_descriptor = "metrics.descriptor"
+  deps = [ "android:source_set" ]
+  sources = [ "metrics.proto" ]
 }
