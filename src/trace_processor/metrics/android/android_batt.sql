@@ -126,7 +126,7 @@ WHERE lag_start = 1 AND lag_event = 1
   AND lead_start = 0
   AND lead_2_start = 0 AND lead_2_event = 1;
 
-SELECT RUN_METRIC('android/counter_span_view.sql',
+SELECT RUN_METRIC('android/global_counter_span_view.sql',
   'table_name', 'screen_state',
   'counter_name', 'ScreenState');
 

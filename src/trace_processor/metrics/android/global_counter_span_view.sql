@@ -22,4 +22,5 @@ SELECT
   value AS {{table_name}}_val
 FROM counter c JOIN counter_track t
   ON t.id = c.track_id
-WHERE name = '{{counter_name}}';
+WHERE t.type = 'counter_track'
+  AND name = '{{counter_name}}';
