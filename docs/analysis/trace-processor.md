@@ -484,7 +484,7 @@ from perfetto.trace_processor import TraceProcessor
 tp = TraceProcessor(file_path='trace.pftrace')
 
 qr_it = tp.query('SELECT ts, dur, name FROM slice')
-qr_df = qr_it.as_pandas()
+qr_df = qr_it.as_pandas_dataframe()
 print(qr_df.to_string())
 ```
 **Output**
@@ -505,7 +505,7 @@ from perfetto.trace_processor import TraceProcessor
 tp = TraceProcessor(file_path='trace.pftrace')
 
 qr_it = tp.query('SELECT ts, value FROM counter WHERE track_id=50')
-qr_df = qr_it.as_pandas()
+qr_df = qr_it.as_pandas_dataframe()
 qr_df = qr_df.replace(np.nan,0)
 qr_df = qr_df.set_index('ts')['value'].plot()
 ```
