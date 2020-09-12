@@ -82,12 +82,32 @@ action("gen_merged_sql_metrics") {
   public_configs = [ ":gen_config" ]
 }
 
+action("gen_cc_metrics_descriptor") {
+  descriptor_target = "../../../protos/perfetto/metrics:descriptor"
+  generated_header = "${target_gen_dir}/metrics.descriptor.h"
+
+  descriptor_file_path = get_label_info(descriptor_target, "target_gen_dir") +
+                         "/metrics.descriptor"
+
+  script = "../../../tools/gen_cc_proto_descriptor.py"
+  deps = [ descriptor_target ]
+  args = [
+    "--gen_dir",
+    rebase_path(root_gen_dir, root_build_dir),
+    "--cpp_out",
+    rebase_path(generated_header, root_build_dir),
+    rebase_path(descriptor_file_path, root_build_dir),
+  ]
+  inputs = [ descriptor_file_path ]
+  outputs = [ generated_header ]
+  public_configs = [ ":gen_config" ]
+}
+
 if (enable_perfetto_trace_processor_sqlite) {
   source_set("lib") {
     sources = [
       "chrome/all_chrome_metrics.descriptor.h",
       "metrics.cc",
-      "metrics.descriptor.h",
       "metrics.h",
     ]
     deps = [
@@ -102,6 +122,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "../sqlite",
     ]
     public_deps = [
+      ":gen_cc_metrics_descriptor",
       ":gen_merged_sql_metrics",
       "../util:descriptors",
     ]
