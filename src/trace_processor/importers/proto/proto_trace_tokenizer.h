@@ -35,6 +35,8 @@ namespace trace_processor {
 // (or subfields, for the case of ftrace) with their timestamps.
 class ProtoTraceTokenizer {
  public:
+  ProtoTraceTokenizer();
+
   template <typename Callback = util::Status(TraceBlobView)>
   util::Status Tokenize(std::unique_ptr<uint8_t[]> owned_buf,
                         size_t size,
