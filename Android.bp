@@ -22,6 +22,7 @@ genrule {
     "src/trace_processor/metrics/android/android_cpu.sql",
     "src/trace_processor/metrics/android/android_cpu_agg.sql",
     "src/trace_processor/metrics/android/android_cpu_raw_metrics_per_core.sql",
+    "src/trace_processor/metrics/android/android_gpu.sql",
     "src/trace_processor/metrics/android/android_hwui_metric.sql",
     "src/trace_processor/metrics/android/android_ion.sql",
     "src/trace_processor/metrics/android/android_lmk.sql",
