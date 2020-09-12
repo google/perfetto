@@ -14,10 +14,6 @@
  * limitations under the License.
  */
 
-// End to end tests for heapprofd.
-// None of these tests currently pass on non-Android, but we still build most
-// of it as a best-effort way to maintain the out-of-tree build.
-
 #include <atomic>
 #include <string>
 
@@ -435,9 +431,7 @@ class HeapprofdEndToEnd
       nullptr};
 
   TestMode test_mode() { return std::get<0>(GetParam()); }
-
   AllocatorMode allocator_mode() { return std::get<1>(GetParam()); }
-
   std::string allocator_name() { return AllocatorName(allocator_mode()); }
 
   std::unique_ptr<TestHelper> Trace(const TraceConfig& trace_config) {
