@@ -129,6 +129,12 @@ defaults_module = module_prefix + 'defaults'
 # Location of the project in the Android source tree.
 tree_path = 'external/perfetto'
 
+# Path for the protobuf sources in the standalone build.
+buildtools_protobuf_src = '//buildtools/protobuf/src'
+
+# Location of the protobuf src dir in the Android source tree.
+android_protobuf_src = 'external/protobuf/src'
+
 # Compiler flags which are passed through to the blueprint.
 cflag_allowlist = r'^-DPERFETTO.*$'
 
@@ -549,6 +555,9 @@ def create_proto_modules(blueprint, gn, target):
   cmd = ['mkdir -p %s &&' % cpp_out_dir, '$(location aprotoc)']
   cmd += ['--proto_path=%s' % tree_path]
 
+  if buildtools_protobuf_src in target.proto_paths:
+    cmd += ['--proto_path=%s' % android_protobuf_src]
+
   # We don't generate any targets for source_set proto modules because
   # they will be inlined into other modules if required.
   if target.proto_plugin == 'source_set':
@@ -637,7 +646,8 @@ def create_proto_modules(blueprint, gn, target):
 
 
 def create_merged_sql_metrics_module(blueprint, target):
-  module = Module('genrule', 'gen_merged_sql_metrics', target.name)
+  bp_module_name = label_to_module_name(target.name)
+  module = Module('genrule', bp_module_name, target.name)
   module.tool_files = [
       'tools/gen_merged_sql_metrics.py',
   ]
@@ -653,8 +663,9 @@ def create_merged_sql_metrics_module(blueprint, target):
   return module
 
 
-def create_cc_metrics_descriptor_module(blueprint, target):
-  module = Module('genrule', 'gen_cc_metrics_descriptor', target.name)
+def create_cc_proto_descriptor_module(blueprint, target):
+  bp_module_name = label_to_module_name(target.name)
+  module = Module('genrule', bp_module_name, target.name)
   module.tool_files = [
       'tools/gen_cc_proto_descriptor.py',
   ]
@@ -724,8 +735,9 @@ def create_modules_from_target(blueprint, gn, gn_target_name):
   elif target.type == 'action':
     if 'gen_merged_sql_metrics' in target.name:
       module = create_merged_sql_metrics_module(blueprint, target)
-    elif 'gen_cc_metrics_descriptor' in target.name:
-      module = create_cc_metrics_descriptor_module(blueprint, target)
+    elif 'gen_cc_metrics_descriptor' in target.name or \
+         'gen_cc_all_chrome_metrics_descriptor' in target.name:
+      module = create_cc_proto_descriptor_module(blueprint, target)
   else:
     raise Error('Unknown target %s (%s)' % (target.name, target.type))
 
