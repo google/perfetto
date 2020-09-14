@@ -82,6 +82,9 @@ proto_targets = [
     '//protos/perfetto/config:lite',
 ]
 
+# Path for the protobuf sources in the standalone build.
+buildtools_protobuf_src = '//buildtools/protobuf/src'
+
 # The directory where the generated perfetto_build_flags.h will be copied into.
 buildflags_dir = 'include/perfetto/base/build_configs/bazel'
 
@@ -127,6 +130,8 @@ def gen_cc_metrics_descriptor(target):
 custom_actions = {
     '//src/trace_processor/metrics:gen_merged_sql_metrics': gen_sql_metrics,
     '//src/trace_processor/metrics:gen_cc_metrics_descriptor':
+      gen_cc_metrics_descriptor,
+    '//src/trace_processor/metrics:gen_cc_all_chrome_metrics_descriptor':
       gen_cc_metrics_descriptor,
 }
 
@@ -266,6 +271,17 @@ def gen_proto_labels(target):
       if get_sources_label(x) != sources_label_name
   ]
   sources_label.deps = sorted(deps)
+
+  # In Bazel, proto_paths are not a supported concept becauase strong dependency
+  # checking is enabled. Instead, we need to depend on the target which includes
+  # the proto we want to depend on.
+  # For example, we include the proto_path |buildtools_protobuf_src| because we
+  # want to depend on the "google/protobuf/descriptor.proto" proto file. This
+  # will be exposed by the |protobuf_descriptor_proto| dep.
+  if buildtools_protobuf_src in target.proto_paths:
+    sources_label.external_deps = [
+        'PERFETTO_CONFIG.deps.protobuf_descriptor_proto'
+    ]
 
   if target.name in proto_targets:
     sources_label.visibility = PUBLIC_VISIBILITY
