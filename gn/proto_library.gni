@@ -51,6 +51,13 @@ if (!defined(perfetto_protobuf_gni)) {
     perfetto_protobuf_gni = "//third_party/protobuf/proto_library.gni"
   }
 }
+if (!defined(perfetto_protobuf_src_dir)) {
+  if (perfetto_root_path == "//") {
+    perfetto_protobuf_src_dir = "//buildtools/protobuf/src"
+  } else {
+    perfetto_protobuf_src_dir = "//third_party/protobuf/src"
+  }
+}
 import(perfetto_protobuf_gni)
 
 # Equivalent to proto_library (generation of .h/.cc from .proto files) but
@@ -91,6 +98,7 @@ template("protozero_library") {
                              "visibility",
                              "generate_descriptor",
                              "propagate_imports_configs",
+                             "import_dirs",
                            ])
   }
 }
@@ -135,6 +143,7 @@ template("protozero_cpp_library") {
                              "visibility",
                              "generate_descriptor",
                              "propagate_imports_configs",
+                             "import_dirs",
                            ])
   }
 }
@@ -167,6 +176,7 @@ template("ipc_library") {
                              "testonly",
                              "visibility",
                              "propagate_imports_configs",
+                             "import_dirs",
                            ])
   }
 }
@@ -189,6 +199,12 @@ template("perfetto_proto_library") {
     proto_path = invoker.proto_path
   } else {
     proto_path = perfetto_root_path
+  }
+
+  if (defined(invoker.import_dirs)) {
+    import_dirs_ = invoker.import_dirs
+  } else {
+    import_dirs_ = []
   }
 
   vars_to_forward = [
@@ -221,6 +237,7 @@ template("perfetto_proto_library") {
         generator_plugin_options = "wrapper_namespace=pbzero"
         deps = deps_
         propagate_imports_configs = propagate_imports_configs_
+        import_dirs = import_dirs_
         forward_variables_from(invoker, vars_to_forward)
       }
     } else if (gen_type == "cpp") {
@@ -230,6 +247,7 @@ template("perfetto_proto_library") {
         generator_plugin_options = "wrapper_namespace=gen"
         deps = deps_
         propagate_imports_configs = propagate_imports_configs_
+        import_dirs = import_dirs_
         forward_variables_from(invoker, vars_to_forward)
       }
     } else if (gen_type == "ipc") {
@@ -240,6 +258,7 @@ template("perfetto_proto_library") {
         generator_plugin_options = "wrapper_namespace=gen"
         deps = deps_ + [ ":$cpp_target_name_" ]
         propagate_imports_configs = propagate_imports_configs_
+        import_dirs = import_dirs_
         forward_variables_from(invoker, vars_to_forward)
       }
     } else if (gen_type == "lite") {
@@ -250,6 +269,7 @@ template("perfetto_proto_library") {
         deps = deps_
         cc_generator_options = "lite=true:"
         propagate_imports_configs = propagate_imports_configs_
+        import_dirs = import_dirs_
         forward_variables_from(invoker, vars_to_forward)
       }
     } else if (gen_type == "descriptor") {
@@ -261,6 +281,7 @@ template("perfetto_proto_library") {
         generate_descriptor =
             rebase_path(invoker.generate_descriptor, proto_path)
         deps = deps_
+        import_dirs = import_dirs_
         forward_variables_from(invoker, vars_to_forward)
       }
 
@@ -273,17 +294,22 @@ template("perfetto_proto_library") {
             rebase_path(target_gen_dir, root_build_dir) + "/" + target_name_
 
         script = "$perfetto_root_path/tools/touch_file.py"
-        sources = invoker.sources
         args = [
           "--output",
           rebased_out_path,
         ]
         outputs = [ out_path ]
+        deps = deps_
 
         metadata = {
           proto_library_sources = invoker.sources
+          import_dirs = import_dirs_
         }
+        forward_variables_from(invoker, vars_to_forward)
       }
+
+      # Not needed for source_set proto_library target.
+      not_needed([ "propagate_imports_configs_" ])
     } else {
       assert(false, "Invalid 'proto_generators' value.")
     }

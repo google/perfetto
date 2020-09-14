@@ -748,6 +748,16 @@ filegroup(
 )
 
 perfetto_cc_proto_descriptor(
+    name = "src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
+    deps = [
+        ":protos_perfetto_metrics_chrome_descriptor",
+    ],
+    outs = [
+        "src/trace_processor/metrics/chrome/all_chrome_metrics.descriptor.h",
+    ],
+)
+
+perfetto_cc_proto_descriptor(
     name = "src_trace_processor_metrics_gen_cc_metrics_descriptor",
     deps = [
         ":protos_perfetto_metrics_descriptor",
@@ -822,7 +832,6 @@ genrule(
 filegroup(
     name = "src_trace_processor_metrics_lib",
     srcs = [
-        "src/trace_processor/metrics/chrome/all_chrome_metrics.descriptor.h",
         "src/trace_processor/metrics/metrics.cc",
         "src/trace_processor/metrics/metrics.h",
     ],
@@ -2111,6 +2120,64 @@ perfetto_proto_library(
     ],
 )
 
+# GN target: //protos/perfetto/metrics/chrome:descriptor
+perfetto_proto_descriptor(
+    name = "protos_perfetto_metrics_chrome_descriptor",
+    deps = [
+        ":protos_perfetto_metrics_chrome_descriptor_protos",
+    ],
+    outs = [
+        "protos_perfetto_metrics_chrome_descriptor.bin",
+    ],
+)
+
+# GN target: //protos/perfetto/metrics/chrome:descriptor
+perfetto_proto_library(
+    name = "protos_perfetto_metrics_chrome_descriptor_protos",
+    srcs = [
+        "protos/perfetto/metrics/chrome/all_chrome_metrics.proto",
+    ],
+    visibility = [
+        PERFETTO_CONFIG.proto_library_visibility,
+    ],
+    deps = [
+        ":protos_perfetto_metrics_android_source_set_protos",
+        ":protos_perfetto_metrics_chrome_source_set_protos",
+        ":protos_perfetto_metrics_custom_options_source_set_protos",
+        ":protos_perfetto_metrics_source_set_protos",
+    ] + PERFETTO_CONFIG.deps.protobuf_descriptor_proto,
+)
+
+# GN target: //protos/perfetto/metrics/chrome:source_set
+perfetto_proto_library(
+    name = "protos_perfetto_metrics_chrome_source_set_protos",
+    srcs = [
+        "protos/perfetto/metrics/chrome/all_chrome_metrics.proto",
+        "protos/perfetto/metrics/chrome/test_chrome_metric.proto",
+    ],
+    visibility = [
+        PERFETTO_CONFIG.proto_library_visibility,
+    ],
+    deps = [
+        ":protos_perfetto_metrics_android_source_set_protos",
+        ":protos_perfetto_metrics_custom_options_source_set_protos",
+        ":protos_perfetto_metrics_source_set_protos",
+    ] + PERFETTO_CONFIG.deps.protobuf_descriptor_proto,
+)
+
+# GN target: //protos/perfetto/metrics:custom_options_source_set
+perfetto_proto_library(
+    name = "protos_perfetto_metrics_custom_options_source_set_protos",
+    srcs = [
+        "protos/perfetto/metrics/custom_options.proto",
+    ],
+    visibility = [
+        PERFETTO_CONFIG.proto_library_visibility,
+    ],
+    deps = [
+    ] + PERFETTO_CONFIG.deps.protobuf_descriptor_proto,
+)
+
 # GN target: //protos/perfetto/metrics:descriptor
 perfetto_proto_descriptor(
     name = "protos_perfetto_metrics_descriptor",
@@ -2153,6 +2220,20 @@ perfetto_proto_library(
     visibility = PERFETTO_CONFIG.public_visibility,
     deps = [
         ":protos_perfetto_metrics_android_protos",
+    ],
+)
+
+# GN target: //protos/perfetto/metrics:source_set
+perfetto_proto_library(
+    name = "protos_perfetto_metrics_source_set_protos",
+    srcs = [
+        "protos/perfetto/metrics/metrics.proto",
+    ],
+    visibility = [
+        PERFETTO_CONFIG.proto_library_visibility,
+    ],
+    deps = [
+        ":protos_perfetto_metrics_android_source_set_protos",
     ],
 )
 
@@ -3031,6 +3112,7 @@ perfetto_cc_library(
                ":protos_perfetto_trace_sys_stats_zero",
                ":protos_perfetto_trace_system_info_zero",
                ":protos_perfetto_trace_track_event_zero",
+               ":src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_metrics_descriptor",
            ] + PERFETTO_CONFIG.deps.jsoncpp +
            PERFETTO_CONFIG.deps.sqlite +
@@ -3114,6 +3196,7 @@ perfetto_cc_binary(
                ":protos_perfetto_trace_sys_stats_zero",
                ":protos_perfetto_trace_system_info_zero",
                ":protos_perfetto_trace_track_event_zero",
+               ":src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_metrics_descriptor",
            ] + PERFETTO_CONFIG.deps.jsoncpp +
            PERFETTO_CONFIG.deps.linenoise +
@@ -3285,6 +3368,7 @@ perfetto_cc_binary(
                ":protos_perfetto_trace_system_info_zero",
                ":protos_perfetto_trace_track_event_zero",
                ":protos_third_party_pprof_zero",
+               ":src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_metrics_descriptor",
            ] + PERFETTO_CONFIG.deps.jsoncpp +
            PERFETTO_CONFIG.deps.protobuf_full +

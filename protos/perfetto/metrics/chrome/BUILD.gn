@@ -15,9 +15,24 @@
 import("../../../../gn/proto_library.gni")
 
 perfetto_proto_library("@TYPE@") {
-  deps = [ "../metrics:@TYPE@" ]
+  proto_generators = [
+    "zero",
+    "source_set",
+  ]
+  deps = [
+    "..:@TYPE@",
+    "..:custom_options_@TYPE@",
+  ]
   sources = [
     "all_chrome_metrics.proto",
     "test_chrome_metric.proto",
   ]
+}
+
+perfetto_proto_library("descriptor") {
+  proto_generators = [ "descriptor" ]
+  import_dirs = [ "${perfetto_protobuf_src_dir}" ]
+  generate_descriptor = "all_chrome_metrics.descriptor"
+  deps = [ ":source_set" ]
+  sources = [ "all_chrome_metrics.proto" ]
 }
