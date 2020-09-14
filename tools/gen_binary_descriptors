@@ -40,10 +40,6 @@ SOURCE_TARGET = [
       'src/trace_processor/importers/proto/track_event.descriptor.h'
     ),
     (
-      'protos/perfetto/metrics/chrome/all_chrome_metrics.proto',
-      'src/trace_processor/metrics/chrome/all_chrome_metrics.descriptor.h'
-    ),
-    (
       'protos/perfetto/trace_processor/trace_processor.proto',
       'src/trace_processor/python/perfetto/trace_processor/trace_processor.descriptor'
     ),

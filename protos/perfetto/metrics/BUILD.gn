@@ -20,6 +20,11 @@ perfetto_proto_library("@TYPE@") {
   sources = [ "metrics.proto" ]
 }
 
+perfetto_proto_library("custom_options_@TYPE@") {
+  sources = [ "custom_options.proto" ]
+  import_dirs = [ "${perfetto_protobuf_src_dir}" ]
+}
+
 perfetto_proto_library("descriptor") {
   proto_generators = [ "descriptor" ]
   generate_descriptor = "metrics.descriptor"
