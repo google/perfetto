@@ -2060,7 +2060,7 @@ perfetto_cc_proto_library(
     ],
 )
 
-# GN target: //protos/perfetto/metrics/android:lite
+# GN target: //protos/perfetto/metrics/android:source_set
 perfetto_proto_library(
     name = "protos_perfetto_metrics_android_protos",
     srcs = [
@@ -2089,68 +2089,20 @@ perfetto_proto_library(
     visibility = PERFETTO_CONFIG.public_visibility,
 )
 
-# GN target: //protos/perfetto/metrics/android:source_set
-perfetto_proto_library(
-    name = "protos_perfetto_metrics_android_source_set_protos",
-    srcs = [
-        "protos/perfetto/metrics/android/batt_metric.proto",
-        "protos/perfetto/metrics/android/cpu_metric.proto",
-        "protos/perfetto/metrics/android/display_metrics.proto",
-        "protos/perfetto/metrics/android/gpu_metric.proto",
-        "protos/perfetto/metrics/android/heap_profile_callsites.proto",
-        "protos/perfetto/metrics/android/hwui_metric.proto",
-        "protos/perfetto/metrics/android/ion_metric.proto",
-        "protos/perfetto/metrics/android/java_heap_histogram.proto",
-        "protos/perfetto/metrics/android/java_heap_stats.proto",
-        "protos/perfetto/metrics/android/lmk_metric.proto",
-        "protos/perfetto/metrics/android/lmk_reason_metric.proto",
-        "protos/perfetto/metrics/android/mem_metric.proto",
-        "protos/perfetto/metrics/android/mem_unagg_metric.proto",
-        "protos/perfetto/metrics/android/package_list.proto",
-        "protos/perfetto/metrics/android/powrails_metric.proto",
-        "protos/perfetto/metrics/android/process_metadata.proto",
-        "protos/perfetto/metrics/android/startup_metric.proto",
-        "protos/perfetto/metrics/android/surfaceflinger.proto",
-        "protos/perfetto/metrics/android/task_names.proto",
-        "protos/perfetto/metrics/android/thread_time_in_state_metric.proto",
-        "protos/perfetto/metrics/android/unsymbolized_frames.proto",
-    ],
-    visibility = [
-        PERFETTO_CONFIG.proto_library_visibility,
-    ],
-)
-
 # GN target: //protos/perfetto/metrics/chrome:descriptor
 perfetto_proto_descriptor(
     name = "protos_perfetto_metrics_chrome_descriptor",
     deps = [
-        ":protos_perfetto_metrics_chrome_descriptor_protos",
+        ":protos_perfetto_metrics_chrome_protos",
     ],
     outs = [
         "protos_perfetto_metrics_chrome_descriptor.bin",
     ],
 )
 
-# GN target: //protos/perfetto/metrics/chrome:descriptor
-perfetto_proto_library(
-    name = "protos_perfetto_metrics_chrome_descriptor_protos",
-    srcs = [
-        "protos/perfetto/metrics/chrome/all_chrome_metrics.proto",
-    ],
-    visibility = [
-        PERFETTO_CONFIG.proto_library_visibility,
-    ],
-    deps = [
-        ":protos_perfetto_metrics_android_source_set_protos",
-        ":protos_perfetto_metrics_chrome_source_set_protos",
-        ":protos_perfetto_metrics_custom_options_source_set_protos",
-        ":protos_perfetto_metrics_source_set_protos",
-    ] + PERFETTO_CONFIG.deps.protobuf_descriptor_proto,
-)
-
 # GN target: //protos/perfetto/metrics/chrome:source_set
 perfetto_proto_library(
-    name = "protos_perfetto_metrics_chrome_source_set_protos",
+    name = "protos_perfetto_metrics_chrome_protos",
     srcs = [
         "protos/perfetto/metrics/chrome/all_chrome_metrics.proto",
         "protos/perfetto/metrics/chrome/test_chrome_metric.proto",
@@ -2159,15 +2111,15 @@ perfetto_proto_library(
         PERFETTO_CONFIG.proto_library_visibility,
     ],
     deps = [
-        ":protos_perfetto_metrics_android_source_set_protos",
-        ":protos_perfetto_metrics_custom_options_source_set_protos",
-        ":protos_perfetto_metrics_source_set_protos",
+        ":protos_perfetto_metrics_android_protos",
+        ":protos_perfetto_metrics_custom_options_protos",
+        ":protos_perfetto_metrics_protos",
     ] + PERFETTO_CONFIG.deps.protobuf_descriptor_proto,
 )
 
 # GN target: //protos/perfetto/metrics:custom_options_source_set
 perfetto_proto_library(
-    name = "protos_perfetto_metrics_custom_options_source_set_protos",
+    name = "protos_perfetto_metrics_custom_options_protos",
     srcs = [
         "protos/perfetto/metrics/custom_options.proto",
     ],
@@ -2182,24 +2134,10 @@ perfetto_proto_library(
 perfetto_proto_descriptor(
     name = "protos_perfetto_metrics_descriptor",
     deps = [
-        ":protos_perfetto_metrics_descriptor_protos",
+        ":protos_perfetto_metrics_protos",
     ],
     outs = [
         "protos_perfetto_metrics_descriptor.bin",
-    ],
-)
-
-# GN target: //protos/perfetto/metrics:descriptor
-perfetto_proto_library(
-    name = "protos_perfetto_metrics_descriptor_protos",
-    srcs = [
-        "protos/perfetto/metrics/metrics.proto",
-    ],
-    visibility = [
-        PERFETTO_CONFIG.proto_library_visibility,
-    ],
-    deps = [
-        ":protos_perfetto_metrics_android_source_set_protos",
     ],
 )
 
@@ -2211,7 +2149,7 @@ perfetto_cc_proto_library(
     ],
 )
 
-# GN target: //protos/perfetto/metrics:lite
+# GN target: //protos/perfetto/metrics:source_set
 perfetto_proto_library(
     name = "protos_perfetto_metrics_protos",
     srcs = [
@@ -2220,20 +2158,6 @@ perfetto_proto_library(
     visibility = PERFETTO_CONFIG.public_visibility,
     deps = [
         ":protos_perfetto_metrics_android_protos",
-    ],
-)
-
-# GN target: //protos/perfetto/metrics:source_set
-perfetto_proto_library(
-    name = "protos_perfetto_metrics_source_set_protos",
-    srcs = [
-        "protos/perfetto/metrics/metrics.proto",
-    ],
-    visibility = [
-        PERFETTO_CONFIG.proto_library_visibility,
-    ],
-    deps = [
-        ":protos_perfetto_metrics_android_source_set_protos",
     ],
 )
 

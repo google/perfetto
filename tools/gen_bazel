@@ -249,7 +249,7 @@ def gen_proto_labels(target):
   assert (target.type == 'proto_library')
 
   def get_sources_label(target_name):
-    return re.sub('_(lite|zero|cpp|ipc)$', '',
+    return re.sub('_(lite|zero|cpp|ipc|source_set|descriptor)$', '',
                   get_bazel_label_name(target_name)) + '_protos'
 
   sources_label_name = get_sources_label(target.name)
