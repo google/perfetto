@@ -15,10 +15,7 @@
 import("../../../../gn/proto_library.gni")
 
 perfetto_proto_library("@TYPE@") {
-  proto_generators = [
-    "zero",
-    "source_set",
-  ]
+  proto_generators = [ "source_set" ]
   deps = [
     "..:@TYPE@",
     "..:custom_options_@TYPE@",
