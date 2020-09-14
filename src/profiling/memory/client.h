@@ -78,6 +78,10 @@ class Client {
                   uint64_t alloc_address) PERFETTO_WARN_UNUSED_RESULT;
   bool RecordHeapName(uint32_t heap_id, const char* heap_name);
 
+  void AddClientSpinlockBlockedUs(size_t n) {
+    shmem_.AddClientSpinlockBlockedUs(n);
+  }
+
   // Returns the number of bytes to assign to an allocation with the given
   // |alloc_size|, based on the current sampling rate. A return value of zero
   // means that the allocation should not be recorded. Not idempotent, each

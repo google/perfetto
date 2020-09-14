@@ -688,6 +688,8 @@ void HeapprofdProducer::DumpProcessState(DataSource* data_source,
           stats->set_map_reparses(process_state->map_reparses);
           stats->set_total_unwinding_time_us(
               process_state->total_unwinding_time_us);
+          stats->set_client_spinlock_blocked_us(
+              process_state->client_spinlock_blocked_us);
           auto* unwinding_hist = stats->set_unwinding_time_us();
           for (const auto& p : process_state->unwinding_time_us.GetData()) {
             auto* bucket = unwinding_hist->add_buckets();
@@ -1168,6 +1170,7 @@ void HeapprofdProducer::HandleSocketDisconnected(
   ProcessState& process_state = process_state_it->second;
   process_state.disconnected = !ds.shutting_down;
   process_state.buffer_overran = stats.hit_timeout;
+  process_state.client_spinlock_blocked_us = stats.client_spinlock_blocked_us;
   process_state.buffer_corrupted =
       stats.num_writes_corrupt > 0 || stats.num_reads_corrupt > 0;
 
