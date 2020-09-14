@@ -39,8 +39,8 @@ def write_cpp_header(gendir, target, descriptor_bytes):
       binary, width=80, initial_indent='    ', subsequent_indent='     ')
 
   relative_target = os.path.relpath(target, gendir)
-  include_guard = relative_target.replace('/', '_').replace('.',
-                                                            '_').upper() + '_'
+  include_guard = relative_target.replace('\\', '_').replace('/', '_').replace(
+      '.', '_').upper() + '_'
 
   with open(target, 'wb') as f:
     f.write("""/*
