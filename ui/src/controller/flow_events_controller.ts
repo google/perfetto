@@ -52,8 +52,8 @@ export class FlowEventsController extends Controller<'main'> {
 
     const query = `
       select
-        f.slice_out, t1.track_id, t1.name, (t1.ts+t1.dur),
-        f.slice_in, t2.track_id, t2.name, t2.ts
+        f.slice_out, t1.track_id, t1.name, t1.ts, (t1.ts+t1.dur), t1.depth,
+        f.slice_in, t2.track_id, t2.name, t2.ts, (t2.ts+t2.dur), t2.depth
       from flow f
       join slice t1 on f.slice_out = t1.slice_id
       join slice t2 on f.slice_in = t2.slice_id
@@ -66,25 +66,33 @@ export class FlowEventsController extends Controller<'main'> {
         const beginSliceId = res.columns[0].longValues![i];
         const beginTrackId = res.columns[1].longValues![i];
         const beginSliceName = res.columns[2].stringValues![i];
-        const beginTs = fromNs(res.columns[3].longValues![i]);
+        const beginSliceStartTs = fromNs(res.columns[3].longValues![i]);
+        const beginSliceEndTs = fromNs(res.columns[4].longValues![i]);
+        const beginDepth = res.columns[5].longValues![i];
 
-        const endSliceId = res.columns[4].longValues![i];
-        const endTrackId = res.columns[5].longValues![i];
-        const endSliceName = res.columns[6].stringValues![i];
-        const endTs = fromNs(res.columns[7].longValues![i]);
+        const endSliceId = res.columns[6].longValues![i];
+        const endTrackId = res.columns[7].longValues![i];
+        const endSliceName = res.columns[8].stringValues![i];
+        const endSliceStartTs = fromNs(res.columns[9].longValues![i]);
+        const endSliceEndTs = fromNs(res.columns[10].longValues![i]);
+        const endDepth = res.columns[11].longValues![i];
 
         flows.push({
           begin: {
             trackId: beginTrackId,
             sliceId: beginSliceId,
             sliceName: beginSliceName,
-            ts: beginTs
+            sliceStartTs: beginSliceStartTs,
+            sliceEndTs: beginSliceEndTs,
+            depth: beginDepth
           },
           end: {
             trackId: endTrackId,
             sliceId: endSliceId,
             sliceName: endSliceName,
-            ts: endTs
+            sliceStartTs: endSliceStartTs,
+            sliceEndTs: endSliceEndTs,
+            depth: endDepth
           }
         });
       }
