@@ -41,8 +41,10 @@ class PERFETTO_EXPORT EventContext {
 
   // For Chromium during the transition phase to the client library.
   // TODO(eseckler): Remove once Chromium has switched to client lib entirely.
-  explicit EventContext(protos::pbzero::TrackEvent* event)
-      : event_(event), incremental_state_(nullptr) {}
+  explicit EventContext(
+      protos::pbzero::TrackEvent* event,
+      internal::TrackEventIncrementalState* incremental_state = nullptr)
+      : event_(event), incremental_state_(incremental_state) {}
 
   ~EventContext();
 
