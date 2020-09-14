@@ -238,6 +238,7 @@ cc_library_shared {
     ":perfetto_include_perfetto_ext_base_base",
     ":perfetto_src_base_base",
     ":perfetto_src_profiling_memory_malloc_hooks",
+    ":perfetto_src_profiling_memory_wrap_allocators",
   ],
   shared_libs: [
     "heapprofd_client_api",
@@ -6450,6 +6451,14 @@ filegroup {
   name: "perfetto_src_profiling_memory_wire_protocol",
   srcs: [
     "src/profiling/memory/wire_protocol.cc",
+  ],
+}
+
+// GN: //src/profiling/memory:wrap_allocators
+filegroup {
+  name: "perfetto_src_profiling_memory_wrap_allocators",
+  srcs: [
+    "src/profiling/memory/wrap_allocators.cc",
   ],
 }
 
