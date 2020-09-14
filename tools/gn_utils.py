@@ -224,9 +224,10 @@ class GnParser(object):
       self.testonly = False
       self.toolchain = None
 
-      # Only set when type == proto_library.
+      # These are valid only for type == proto_library.
       # This is typically: 'proto', 'protozero', 'ipc'.
       self.proto_plugin = None
+      self.proto_paths = set()
 
       self.sources = set()
 
@@ -271,7 +272,7 @@ class GnParser(object):
 
     def update(self, other):
       for key in ('cflags', 'defines', 'deps', 'include_dirs', 'ldflags',
-                  'source_set_deps', 'proto_deps', 'libs'):
+                  'source_set_deps', 'proto_deps', 'libs', 'proto_paths'):
         self.__dict__[key].update(other.__dict__.get(key, []))
 
   def __init__(self, gn_desc):
@@ -314,6 +315,7 @@ class GnParser(object):
       self.proto_libs[target.name] = target
       target.type = 'proto_library'
       target.proto_plugin = proto_target_type
+      target.proto_paths.update(self.get_proto_paths(proto_desc))
       target.sources.update(proto_desc.get('sources', []))
       assert (all(x.endswith('.proto') for x in target.sources))
     elif target.type == 'source_set':
@@ -346,6 +348,7 @@ class GnParser(object):
         target.deps.add(dep_name)
       elif dep.type == 'proto_library':
         target.proto_deps.add(dep_name)
+        target.proto_paths.update(dep.proto_paths)
 
         # Don't bubble deps for action targets
         if target.type != 'action':
@@ -362,6 +365,23 @@ class GnParser(object):
         target.deps.add(dep_name)
 
     return target
+
+  def get_proto_paths(self, proto_desc):
+    # import_dirs in metadata will be available for source_set targets.
+    metadata = proto_desc.get('metadata', {})
+    import_dirs = metadata.get('import_dirs', [])
+    if import_dirs:
+      return import_dirs
+
+    # For all non-source-set targets, we need to parse the command line
+    # of the protoc invocation.
+    proto_paths = []
+    args = proto_desc.get('args', [])
+    for i, arg in enumerate(args):
+      if arg != '--proto_path':
+        continue
+      proto_paths.append(re.sub('^../../', '//', args[i + 1]))
+    return proto_paths
 
   def get_proto_target_type_(self, target):
     """ Checks if the target is a proto library and return the plugin.

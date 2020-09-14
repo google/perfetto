@@ -33,6 +33,11 @@ template("proto_library") {
   # generate_python = true.
   assert(defined(invoker.generate_python) && !invoker.generate_python)
 
+  import_dirs = []
+  if (defined(invoker.import_dirs)) {
+    import_dirs = invoker.import_dirs
+  }
+
   # If false will not generate the default .pb.{cc,h} files. Used for custom
   # codegen plugins.
   generate_cc = true
@@ -145,6 +150,14 @@ template("proto_library") {
       "--proto_path",
       rebase_path(proto_in_dir, root_build_dir),
     ]
+
+    foreach(path, import_dirs) {
+      args += [
+        "--proto_path",
+        rebase_path(path, root_build_dir),
+      ]
+    }
+
     if (generate_cc) {
       cc_generator_options_ = ""
       if (defined(invoker.cc_generator_options)) {
