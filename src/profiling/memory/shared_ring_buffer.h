@@ -84,6 +84,7 @@ class SharedRingBuffer {
 
     // Fields below get set by GetStats as copies of atomics in MetadataPage.
     uint64_t failed_spinlocks;
+    uint64_t client_spinlock_blocked_us;
     bool hit_timeout;
   };
 
@@ -112,6 +113,8 @@ class SharedRingBuffer {
     stats.failed_spinlocks =
         meta_->failed_spinlocks.load(std::memory_order_relaxed);
     stats.hit_timeout = meta_->hit_timeout.load(std::memory_order_relaxed);
+    stats.client_spinlock_blocked_us =
+        meta_->client_spinlock_blocked_us.load(std::memory_order_relaxed);
     return stats;
   }
 
@@ -127,12 +130,21 @@ class SharedRingBuffer {
     return lock;
   }
 
+  void AddClientSpinlockBlockedUs(size_t n) {
+    meta_->client_spinlock_blocked_us.fetch_add(n, std::memory_order_relaxed);
+  }
+
+  uint64_t client_spinlock_blocked_us() {
+    return meta_->client_spinlock_blocked_us;
+  }
+
   // Exposed for fuzzers.
   struct MetadataPage {
     alignas(uint64_t) std::atomic<bool> spinlock;
     std::atomic<uint64_t> read_pos;
     std::atomic<uint64_t> write_pos;
 
+    std::atomic<uint64_t> client_spinlock_blocked_us;
     std::atomic<uint64_t> failed_spinlocks;
     alignas(uint64_t) std::atomic<bool> hit_timeout;
     // For stats that are only accessed by a single thread or under the
