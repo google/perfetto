@@ -309,7 +309,10 @@ template("perfetto_proto_library") {
       }
 
       # Not needed for source_set proto_library target.
-      not_needed([ "propagate_imports_configs_" ])
+      not_needed([
+                   "propagate_imports_configs_",
+                   "proto_path",
+                 ])
     } else {
       assert(false, "Invalid 'proto_generators' value.")
     }

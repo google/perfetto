@@ -16,11 +16,16 @@ import("../../../gn/perfetto.gni")
 import("../../../gn/proto_library.gni")
 
 perfetto_proto_library("@TYPE@") {
+  proto_generators = [
+    "lite",
+    "source_set",
+  ]
   deps = [ "android:@TYPE@" ]
   sources = [ "metrics.proto" ]
 }
 
 perfetto_proto_library("custom_options_@TYPE@") {
+  proto_generators = [ "source_set" ]
   sources = [ "custom_options.proto" ]
   import_dirs = [ "${perfetto_protobuf_src_dir}" ]
 }
