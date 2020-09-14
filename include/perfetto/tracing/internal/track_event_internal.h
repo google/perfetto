@@ -44,7 +44,7 @@ class DebugAnnotation;
 namespace internal {
 class TrackEventCategoryRegistry;
 
-class BaseTrackEventInternedDataIndex {
+class PERFETTO_EXPORT BaseTrackEventInternedDataIndex {
  public:
   virtual ~BaseTrackEventInternedDataIndex();
 
