@@ -68,19 +68,19 @@ template("proto_library") {
     }
   }
 
-  cc_out_dir = "$root_gen_dir/" + proto_out_dir
-  rel_cc_out_dir = rebase_path(cc_out_dir, root_build_dir)
+  out_dir = "$root_gen_dir/" + proto_out_dir
+  rel_out_dir = rebase_path(out_dir, root_build_dir)
 
   # Prevent unused errors when generating descriptor only.
   if (generate_descriptor != "") {
-    not_needed([ "rel_cc_out_dir" ])
+    not_needed([ "rel_out_dir" ])
   }
 
   protos = rebase_path(proto_sources, proto_in_dir)
   protogens = []
 
   if (generate_descriptor != "") {
-    protogens += [ "$target_gen_dir/" + generate_descriptor ]
+    protogens += [ "$out_dir/${generate_descriptor}" ]
   }
 
   foreach(proto, protos) {
@@ -95,13 +95,13 @@ template("proto_library") {
 
     if (generate_cc) {
       protogens += [
-        "$cc_out_dir/$proto_path.pb.h",
-        "$cc_out_dir/$proto_path.pb.cc",
+        "$out_dir/$proto_path.pb.h",
+        "$out_dir/$proto_path.pb.cc",
       ]
     }
     if (generate_with_plugin) {
       foreach(suffix, generator_plugin_suffixes) {
-        protogens += [ "$cc_out_dir/${proto_path}${suffix}" ]
+        protogens += [ "$out_dir/${proto_path}${suffix}" ]
       }
     }
   }
@@ -115,7 +115,7 @@ template("proto_library") {
   }
 
   config(config_name) {
-    include_dirs = [ cc_out_dir ]
+    include_dirs = [ out_dir ]
   }
 
   # The XXX_gen action that generates the .pb.{cc,h} files.
@@ -152,15 +152,15 @@ template("proto_library") {
       }
       args += [
         "--cpp_out",
-        cc_generator_options_ + rel_cc_out_dir,
+        cc_generator_options_ + rel_out_dir,
       ]
     }
     if (generate_descriptor != "") {
-      depfile = "$target_gen_dir/$generate_descriptor.d"
+      depfile = "$root_gen_dir/$generate_descriptor.d"
       args += [
         "--include_imports",
         "--descriptor_set_out",
-        rebase_path("$target_gen_dir/$generate_descriptor", root_build_dir),
+        rebase_path("$root_gen_dir/$generate_descriptor", root_build_dir),
         "--dependency_out",
         rebase_path(depfile, root_build_dir),
       ]
@@ -172,7 +172,7 @@ template("proto_library") {
       if (defined(invoker.generator_plugin_options)) {
         plugin_out_args += invoker.generator_plugin_options
       }
-      plugin_out_args += ":$rel_cc_out_dir"
+      plugin_out_args += ":$rel_out_dir"
 
       args += [
         "--plugin=protoc-gen-plugin=$plugin_path_rebased",
