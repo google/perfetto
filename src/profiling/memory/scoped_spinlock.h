@@ -71,10 +71,12 @@ class ScopedSpinlock {
   }
 
   bool locked() const { return locked_; }
+  size_t blocked_us() const { return blocked_us_; }
 
  private:
   void LockSlow(Mode mode);
   std::atomic<bool>* lock_;
+  size_t blocked_us_ = 0;
   bool locked_ = false;
 };
 
