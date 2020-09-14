@@ -88,6 +88,10 @@ config("default") {
   ldflags = []
   libs = []
 
+  if (is_android || is_linux || is_mac) {
+    ldflags += [ "-Wl,--build-id" ]
+  }
+
   cflags += [
     "-fstrict-aliasing",
     "-fstack-protector-strong",
@@ -179,7 +183,6 @@ config("default") {
       "-Wl,--exclude-libs,libunwind.a",
       "-Wl,--exclude-libs,libgcc.a",
       "-Wl,--exclude-libs,libc++_static.a",
-      "-Wl,--build-id",
       "-Wl,--no-undefined",
       "-Wl,-z,noexecstack",
       "-Wl,-z,relro",
