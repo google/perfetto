@@ -24,6 +24,7 @@ namespace trace_processor {
 namespace {
 
 using ::testing::_;
+using ::testing::DoAll;
 using ::testing::Return;
 using ::testing::SaveArg;
 
