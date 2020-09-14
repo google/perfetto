@@ -258,7 +258,8 @@ template("perfetto_proto_library") {
         proto_out_dir = proto_path
         generate_python = false
         generate_cc = false
-        generate_descriptor = invoker.generate_descriptor
+        generate_descriptor =
+            rebase_path(invoker.generate_descriptor, proto_path)
         deps = deps_
         forward_variables_from(invoker, vars_to_forward)
       }
