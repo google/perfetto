@@ -14,11 +14,12 @@
 
 import {Actions} from '../../common/actions';
 import {cropText, drawIncompleteSlice} from '../../common/canvas_utils';
+import {hueForSlice} from '../../common/colorizer';
 import {TrackState} from '../../common/state';
 import {toNs} from '../../common/time';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
-import {Track} from '../../frontend/track';
+import {SliceRect, Track} from '../../frontend/track';
 import {trackRegistry} from '../../frontend/track_registry';
 
 import {Config, Data, SLICE_TRACK_KIND} from './common';
@@ -28,15 +29,6 @@ const TRACK_PADDING = 4;
 const INCOMPLETE_SLICE_TIME_S = 0.00003;
 const CHEVRON_WIDTH_PX = 10;
 const HALF_CHEVRON_WIDTH_PX = CHEVRON_WIDTH_PX / 2;
-
-function hash(s: string): number {
-  let hash = 0x811c9dc5 & 0xfffffff;
-  for (let i = 0; i < s.length; i++) {
-    hash ^= s.charCodeAt(i);
-    hash = (hash * 16777619) & 0xffffffff;
-  }
-  return hash & 0xff;
-}
 
 export class ChromeSliceTrack extends Track<Config, Data> {
   static readonly kind: string = SLICE_TRACK_KIND;
@@ -74,7 +66,6 @@ export class ChromeSliceTrack extends Track<Config, Data> {
 
     // measuretext is expensive so we only use it once.
     const charWidth = ctx.measureText('ACBDLqsdfg').width / 10;
-    const pxEnd = timeScale.timeToPx(visibleWindowTime.end);
 
     // The draw of the rect on the selected slice must happen after the other
     // drawings, otherwise it would result under another rect.
@@ -89,13 +80,13 @@ export class ChromeSliceTrack extends Track<Config, Data> {
       const isInstant = data.isInstant[i];
       const title = data.strings[titleId];
       let incompleteSlice = false;
-
       if (toNs(tEnd) - toNs(tStart) === -1) {  // incomplete slice
         incompleteSlice = true;
         tEnd = tStart + INCOMPLETE_SLICE_TIME_S;
       }
 
-      if (tEnd <= visibleWindowTime.start || tStart >= visibleWindowTime.end) {
+      const rect = this.getSliceRect(tStart, tEnd, depth);
+      if (!rect || !rect.visible) {
         continue;
       }
 
@@ -104,18 +95,8 @@ export class ChromeSliceTrack extends Track<Config, Data> {
           currentSelection.kind === 'CHROME_SLICE' &&
           currentSelection.id !== undefined && currentSelection.id === sliceId;
 
-      const rectXStart = Math.max(timeScale.timeToPx(tStart), 0);
-      let rectXEnd = Math.min(timeScale.timeToPx(tEnd), pxEnd);
-      let rectWidth = rectXEnd - rectXStart;
-
-      // All slices should be at least 1px.
-      if (rectWidth < 1) {
-        rectWidth = 1;
-        rectXEnd = rectXStart + 1;
-      }
-      const rectYStart = TRACK_PADDING + depth * SLICE_HEIGHT;
       const name = title.replace(/( )?\d+/g, '');
-      const hue = hash(name);
+      const hue = hueForSlice(name);
       const saturation = isSelected ? 80 : 50;
       const hovered = titleId === this.hoveredTitleId;
       const color = `hsl(${hue}, ${saturation}%, ${hovered ? 30 : 65}%)`;
@@ -130,25 +111,20 @@ export class ChromeSliceTrack extends Track<Config, Data> {
       // D       B
       // Then B, C, D and back to A:
       if (isInstant) {
-        ctx.moveTo(rectXStart, rectYStart);
-        ctx.lineTo(
-            rectXStart + HALF_CHEVRON_WIDTH_PX, rectYStart + SLICE_HEIGHT);
-        ctx.lineTo(
-            rectXStart, rectYStart + SLICE_HEIGHT - HALF_CHEVRON_WIDTH_PX);
-        ctx.lineTo(
-            rectXStart - HALF_CHEVRON_WIDTH_PX, rectYStart + SLICE_HEIGHT);
-        ctx.lineTo(rectXStart, rectYStart);
+        ctx.moveTo(rect.left, rect.top);
+        ctx.lineTo(rect.left + HALF_CHEVRON_WIDTH_PX, rect.top + SLICE_HEIGHT);
+        ctx.lineTo(rect.left, rect.top + SLICE_HEIGHT - HALF_CHEVRON_WIDTH_PX);
+        ctx.lineTo(rect.left - HALF_CHEVRON_WIDTH_PX, rect.top + SLICE_HEIGHT);
+        ctx.lineTo(rect.left, rect.top);
         ctx.fill();
         continue;
       }
-
-      if (incompleteSlice && rectWidth > SLICE_HEIGHT / 4) {
+      if (incompleteSlice && rect.width > SLICE_HEIGHT / 4) {
         drawIncompleteSlice(
-            ctx, rectXStart, rectYStart, rectWidth, SLICE_HEIGHT, color);
+            ctx, rect.left, rect.top, rect.width, SLICE_HEIGHT, color);
       } else {
-        ctx.fillRect(rectXStart, rectYStart, rectWidth, SLICE_HEIGHT);
+        ctx.fillRect(rect.left, rect.top, rect.width, SLICE_HEIGHT);
       }
-
       // Selected case
       if (isSelected) {
         drawRectOnSelected = () => {
@@ -156,16 +132,16 @@ export class ChromeSliceTrack extends Track<Config, Data> {
           ctx.beginPath();
           ctx.lineWidth = 3;
           ctx.strokeRect(
-              rectXStart, rectYStart - 1.5, rectWidth, SLICE_HEIGHT + 3);
+              rect.left, rect.top - 1.5, rect.width, SLICE_HEIGHT + 3);
           ctx.closePath();
         };
       }
 
       ctx.fillStyle = 'white';
-      const displayText = cropText(title, charWidth, rectWidth);
-      const rectXCenter = rectXStart + rectWidth / 2;
+      const displayText = cropText(title, charWidth, rect.width);
+      const rectXCenter = rect.left + rect.width / 2;
       ctx.textBaseline = "middle";
-      ctx.fillText(displayText, rectXCenter, rectYStart + SLICE_HEIGHT / 2);
+      ctx.fillText(displayText, rectXCenter, rect.top + SLICE_HEIGHT / 2);
     }
     drawRectOnSelected();
   }
@@ -232,6 +208,22 @@ export class ChromeSliceTrack extends Track<Config, Data> {
 
   getHeight() {
     return SLICE_HEIGHT * (this.config.maxDepth + 1) + 2 * TRACK_PADDING;
+  }
+
+  getSliceRect(tStart: number, tEnd: number, depth: number): SliceRect
+      |undefined {
+    const {timeScale, visibleWindowTime} = globals.frontendLocalState;
+    const pxEnd = timeScale.timeToPx(visibleWindowTime.end);
+    const left = Math.max(timeScale.timeToPx(tStart), 0);
+    const right = Math.min(timeScale.timeToPx(tEnd), pxEnd);
+    return {
+      left,
+      width: Math.max(right - left, 1),
+      top: TRACK_PADDING + depth * SLICE_HEIGHT,
+      height: SLICE_HEIGHT,
+      visible:
+          !(tEnd <= visibleWindowTime.start || tStart >= visibleWindowTime.end)
+    };
   }
 }
 

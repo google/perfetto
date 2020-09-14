@@ -17,6 +17,10 @@ import * as m from 'mithril';
 import {assertExists, assertTrue} from '../base/logging';
 
 import {TOPBAR_HEIGHT, TRACK_SHELL_WIDTH} from './css_constants';
+import {
+  FlowEventsRenderer,
+  FlowEventsRendererArgs
+} from './flow_events_renderer';
 import {globals} from './globals';
 import {isPanelVNode, Panel, PanelSize, PanelVNode} from './panel';
 import {
@@ -59,6 +63,8 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
   private panelPositions: PanelPosition[] = [];
   private totalPanelHeight = 0;
   private canvasHeight = 0;
+
+  private flowEventsRenderer: FlowEventsRenderer;
 
   private panelPerfStats = new WeakMap<Panel, RunningStatistics>();
   private perfStats = {
@@ -157,6 +163,7 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
     this.canvasRedrawer = () => this.redrawCanvas();
     globals.rafScheduler.addRedrawCallback(this.canvasRedrawer);
     perfDisplay.addContainer(this);
+    this.flowEventsRenderer = new FlowEventsRenderer();
   }
 
   oncreate(vnodeDom: m.CVnodeDOM<Attrs>) {
@@ -326,17 +333,12 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
     const panels = assertExists(this.attrs).panels;
     assertTrue(panels.length === this.panelPositions.length);
     let totalOnCanvas = 0;
+    const flowEventsRendererArgs =
+        new FlowEventsRendererArgs(this.parentWidth, this.canvasHeight);
     for (let i = 0; i < panels.length; i++) {
       const panel = panels[i];
       const panelHeight = this.panelPositions[i].height;
       const yStartOnCanvas = panelYStart - canvasYStart;
-
-      if (!this.overlapsCanvas(yStartOnCanvas, yStartOnCanvas + panelHeight)) {
-        panelYStart += panelHeight;
-        continue;
-      }
-
-      totalOnCanvas++;
 
       if (!isPanelVNode(panel)) {
         throw new Error('Vnode passed to panel container is not a panel');
@@ -344,6 +346,14 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
 
       // TODO(hjd): This cast should be unnecessary given the type guard above.
       const p = panel as PanelVNode<{}>;
+      flowEventsRendererArgs.registerPanel(p, yStartOnCanvas, panelHeight);
+
+      if (!this.overlapsCanvas(yStartOnCanvas, yStartOnCanvas + panelHeight)) {
+        panelYStart += panelHeight;
+        continue;
+      }
+
+      totalOnCanvas++;
 
       this.ctx.save();
       this.ctx.translate(0, yStartOnCanvas);
@@ -362,6 +372,7 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
     this.drawTopLayerOnCanvas();
     const redrawDur = debugNow() - redrawStart;
     this.updatePerfStats(redrawDur, panels.length, totalOnCanvas);
+    this.flowEventsRenderer.render(this.ctx, flowEventsRendererArgs);
   }
 
   // The panels each draw on the canvas but some details need to be drawn across
