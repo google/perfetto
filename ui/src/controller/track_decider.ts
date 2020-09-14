@@ -175,24 +175,21 @@ export async function decideTracks(
 
   const upidToProcessTracks = new Map();
   const rawProcessTracks = await engine.query(`
-    SELECT
-      pt.upid,
-      pt.name,
-      pt.track_ids,
-      MAX(experimental_slice_layout.layout_depth) as max_depth
-    FROM (
-      SELECT upid, name, GROUP_CONCAT(process_track.id) AS track_ids
-      FROM process_track GROUP BY upid, name
-    ) AS pt CROSS JOIN experimental_slice_layout
-    WHERE pt.track_ids = experimental_slice_layout.filter_track_ids
-    GROUP BY pt.track_ids;
+    SELECT upid, name, GROUP_CONCAT(process_track.id) AS track_ids
+    FROM process_track
+    GROUP BY upid, name
   `);
   for (let i = 0; i < rawProcessTracks.numRecords; i++) {
     const upid = +rawProcessTracks.columns[0].longValues![i];
     const name = rawProcessTracks.columns[1].stringValues![i];
     const rawTrackIds = rawProcessTracks.columns[2].stringValues![i];
     const trackIds = rawTrackIds.split(',').map(v => Number(v));
-    const maxDepth = +rawProcessTracks.columns[3].longValues![i];
+
+    const depthResult = await engine.query(`
+      SELECT MAX(layout_depth) as max_depth
+      FROM experimental_slice_layout('${rawTrackIds}');
+    `);
+    const maxDepth = +depthResult.columns[0].longValues![i];
     const track = {
       engineId,
       kind: 'AsyncSliceTrack',
