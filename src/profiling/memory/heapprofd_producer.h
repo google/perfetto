@@ -22,6 +22,8 @@
 #include <map>
 #include <vector>
 
+#include <inttypes.h>
+
 #include "perfetto/base/task_runner.h"
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/unix_socket.h"
@@ -200,6 +202,7 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
     uint64_t unwinding_errors = 0;
 
     uint64_t total_unwinding_time_us = 0;
+    uint64_t client_spinlock_blocked_us = 0;
     GlobalCallstackTrie* callsites;
     bool dump_at_max_mode;
     LogHistogram unwinding_time_us;
