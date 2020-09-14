@@ -127,6 +127,10 @@ export function colorForTid(tid: number): Color {
   return Object.assign({}, MD_PALETTE[colorIdx]);
 }
 
+export function hueForSlice(sliceName: string): number {
+  return hash(sliceName, 360);
+}
+
 export function colorForThread(thread?: {pid?: number, tid: number}): Color {
   if (thread === undefined) {
     return Object.assign({}, GREY_COLOR);

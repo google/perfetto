@@ -25,7 +25,7 @@ import {drawGridLines} from './gridline_helper';
 import {BLANK_CHECKBOX, CHECKBOX, STAR, STAR_BORDER} from './icons';
 import {Panel, PanelSize} from './panel';
 import {verticalScrollToTrack} from './scroll_helper';
-import {Track} from './track';
+import {SliceRect, Track} from './track';
 import {trackRegistry} from './track_registry';
 import {
   drawVerticalLineAtTime,
@@ -384,5 +384,10 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
             1);
       }
     }
+  }
+
+  getSliceRect(tStart: number, tDur: number, depth: number): SliceRect
+      |undefined {
+    return this.track.getSliceRect(tStart, tDur, depth);
   }
 }
