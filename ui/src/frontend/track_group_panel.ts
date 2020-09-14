@@ -146,8 +146,14 @@ export class TrackGroupPanel extends Panel<Attrs> {
   onupdate({dom}: m.CVnodeDOM<Attrs>) {
     const shell = assertExists(dom.querySelector('.shell'));
     this.shellWidth = shell.getBoundingClientRect().width;
-    this.backgroundColor =
-        getComputedStyle(dom).getPropertyValue('--collapsed-background');
+    // TODO(andrewbb): move this to css_constants
+    if (this.trackGroupState.collapsed) {
+      this.backgroundColor =
+          getComputedStyle(dom).getPropertyValue('--collapsed-background');
+    } else {
+      this.backgroundColor =
+          getComputedStyle(dom).getPropertyValue('--expanded-background');
+    }
   }
 
   highlightIfTrackSelected(ctx: CanvasRenderingContext2D, size: PanelSize) {
@@ -169,12 +175,13 @@ export class TrackGroupPanel extends Panel<Attrs> {
 
   renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
     const collapsed = this.trackGroupState.collapsed;
-    if (!collapsed) return;
-
-    ctx.save();
 
     ctx.fillStyle = this.backgroundColor;
     ctx.fillRect(0, 0, size.width, size.height);
+
+    if (!collapsed) return;
+
+    this.highlightIfTrackSelected(ctx, size);
 
     drawGridLines(
         ctx,
@@ -183,6 +190,7 @@ export class TrackGroupPanel extends Panel<Attrs> {
         size.width,
         size.height);
 
+    ctx.save();
     ctx.translate(this.shellWidth, 0);
     if (this.summaryTrack) {
       this.summaryTrack.render(ctx);

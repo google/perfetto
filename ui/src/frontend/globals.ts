@@ -50,10 +50,14 @@ export interface SliceDetails {
 }
 
 export interface FlowPoint {
+  trackId: number;
+
   sliceName: string;
   sliceId: number;
-  trackId: number;
-  ts: number;
+  sliceStartTs: number;
+  sliceEndTs: number;
+
+  depth: number;
 }
 
 export interface Flow {
@@ -250,8 +254,8 @@ class Globals {
     return assertExists(this._boundFlows);
   }
 
-  set boundFlows(click: Flow[]) {
-    this._boundFlows = assertExists(click);
+  set boundFlows(boundFlows: Flow[]) {
+    this._boundFlows = assertExists(boundFlows);
   }
 
   get counterDetails() {
