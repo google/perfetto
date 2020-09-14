@@ -33,17 +33,23 @@ namespace perfetto {
 namespace profiling {
 
 void ScopedSpinlock::LockSlow(Mode mode) {
-  for (size_t attempt = 0; mode == Mode::Blocking ||
+  size_t sleeps = 0;
+  // We need to start with attempt = 1, otherwise
+  // attempt % kLockAttemptsPerSleep is zero for the first iteration.
+  for (size_t attempt = 1; mode == Mode::Blocking ||
                            attempt < kLockAttemptsPerSleep * kSleepAttempts;
        attempt++) {
     if (!lock_->load(std::memory_order_relaxed) &&
         PERFETTO_LIKELY(!lock_->exchange(true, std::memory_order_acquire))) {
       locked_ = true;
-      return;
+      break;
     }
-    if (attempt && attempt % kLockAttemptsPerSleep == 0)
+    if (attempt && attempt % kLockAttemptsPerSleep == 0) {
       usleep(kSleepDurationUs);
+      sleeps++;
+    }
   }
+  blocked_us_ = kSleepDurationUs * sleeps;
 }
 
 }  // namespace profiling
