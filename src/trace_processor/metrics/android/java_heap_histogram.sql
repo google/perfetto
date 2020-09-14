@@ -26,8 +26,13 @@ WITH RECURSIVE cls_visitor(cls_id, category) AS (
     'android.content.ContentProvider',
     'android.content.BroadcastReceiver',
     'android.content.Context',
+    'android.content.Intent',
+    'android.content.res.ApkAssets',
     'android.os.Handler',
-    'android.graphics.Bitmap')
+    'android.os.Parcel',
+    'android.graphics.Bitmap',
+    'android.graphics.BaseCanvas',
+    'com.android.server.am.PendingIntentRecord')
   UNION ALL
   SELECT child.id, parent.category
   FROM heap_graph_class child JOIN cls_visitor parent ON parent.cls_id = child.superclass_id
