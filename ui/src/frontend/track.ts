@@ -35,6 +35,14 @@ export interface TrackCreator {
   create(TrackState: TrackState): Track;
 }
 
+export interface SliceRect {
+  left: number;
+  width: number;
+  top: number;
+  height: number;
+  visible: boolean;
+}
+
 /**
  * The abstract class that needs to be implemented by all tracks.
  */
@@ -115,5 +123,16 @@ export abstract class Track<Config = {}, Data extends TrackData = TrackData> {
     if (text2 !== undefined) {
       ctx.fillText(text2, xPos + 8, this.getHeight() / 2 + 6);
     }
+  }
+
+  /**
+   * Returns a place where a given slice should be drawn. Should be implemented
+   * only for track types that support slices e.g. chrome_slice, async_slices
+   * tStart - slice start time in seconds, tEnd - slice end time in seconds,
+   * depth - slice depth
+   */
+  getSliceRect(_tStart: number, _tEnd: number, _depth: number): SliceRect
+      |undefined {
+    return undefined;
   }
 }

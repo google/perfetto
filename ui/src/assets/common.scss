@@ -534,6 +534,7 @@ button.query-ctrl {
   --collapsed-background: hsla(190, 49%, 97%, 1);
   --collapsed-transparent: hsla(190, 49%, 97%, 0);
   --expanded-background: hsl(215, 22%, 19%);
+  --expanded-transparent: hsl(215, 22%, 19%, 0);
   display: grid;
   grid-template-columns: auto 1fr;
   grid-template-rows: 1fr;
@@ -547,7 +548,7 @@ button.query-ctrl {
     margin-top: -1px;
   }
   &[collapsed=true] {
-    background-color: var(--collapsed-background-transparent);
+    background-color: var(--collapsed-transparent);
     .shell {
       border-right: 1px solid #c7d0db;
       background-color: var(--collapsed-background);
@@ -557,7 +558,7 @@ button.query-ctrl {
     };
   }
   &[collapsed=false] {
-    background-color: var(--expanded-background);
+    background-color: var(--expanded-transparent);
     color: white;
     font-weight: bold;
     .shell.flash {
