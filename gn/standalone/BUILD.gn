@@ -88,7 +88,7 @@ config("default") {
   ldflags = []
   libs = []
 
-  if (is_android || is_linux || is_mac) {
+  if (is_android || is_linux) {
     ldflags += [ "-Wl,--build-id" ]
   }
 
