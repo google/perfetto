@@ -231,6 +231,15 @@ button.close {
     color: #333;
 }
 
+.privacy {
+  text-decoration: none;
+  font-family: 'Raleway', sans-serif;
+  color: #333;
+  position: absolute;
+  bottom: 60px;
+  font-size: 15px;
+}
+
 .query-table-container {
   width: 100%;
   overflow-x: auto;
