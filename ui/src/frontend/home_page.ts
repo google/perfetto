@@ -21,6 +21,9 @@ export const HomePage = createPage({
     return m(
         '.page.home-page',
         m('.home-page-title', 'Perfetto'),
-        m('img.logo[src=assets/logo-3d.png]'), );
-  },
+        m('img.logo[src=assets/logo-3d.png]'),
+        m('a.privacy',
+          {href: 'https://policies.google.com/privacy', target: '_blank'},
+          'Privacy policy'));
+  }
 });
