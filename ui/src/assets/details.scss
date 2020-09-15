@@ -309,6 +309,14 @@ table.half-width {
   }
 }
 
+.sum {
+  font-weight: bolder;
+  font-size: 12px;
+  .sum-data {
+    border-bottom: 1px solid rgba(60, 76, 92, 0.4);
+  }
+}
+
 .log-panel {
   width: 100%;
   height: 100%;

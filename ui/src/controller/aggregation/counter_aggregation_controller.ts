@@ -101,7 +101,8 @@ export class CounterAggregationController extends AggregationController {
         title: 'Count',
         kind: 'Number',
         columnConstructor: Float64Array,
-        columnId: 'count'
+        columnId: 'count',
+        sum: true,
       },
       {
         title: 'First value',
