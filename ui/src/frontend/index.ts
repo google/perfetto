@@ -12,9 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {enablePatches} from 'immer';
-enablePatches();
-
 import '../tracks/all_frontend';
 
 import {applyPatches, Patch} from 'immer';
