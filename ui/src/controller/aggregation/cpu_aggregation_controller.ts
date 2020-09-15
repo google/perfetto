@@ -93,7 +93,8 @@ export class CpuAggregationController extends AggregationController {
         title: 'Wall duration (ms)',
         kind: 'TIMESTAMP_NS',
         columnConstructor: Float64Array,
-        columnId: 'total_dur'
+        columnId: 'total_dur',
+        sum: true
       },
       {
         title: 'Avg Wall duration (ms)',
@@ -105,7 +106,8 @@ export class CpuAggregationController extends AggregationController {
         title: 'Occurrences',
         kind: 'NUMBER',
         columnConstructor: Uint16Array,
-        columnId: 'occurrences'
+        columnId: 'occurrences',
+        sum: true
       }
     ];
   }
