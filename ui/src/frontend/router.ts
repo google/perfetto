@@ -15,7 +15,7 @@
 import * as m from 'mithril';
 
 import {Actions, DeferredAction} from '../common/actions';
-import {Analytics} from '../common/analytics';
+import {Analytics} from '../frontend/analytics';
 
 interface RouteMap {
   [route: string]: m.Component;
