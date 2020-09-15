@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {globals} from '../frontend/globals';
+
 type TraceCategories = 'Trace Actions'|'Record Trace'|'User Actions';
 const ANALYTICS_ID = 'UA-137828855-1';
 
@@ -24,7 +26,8 @@ export class Analytics {
     gtag('config', ANALYTICS_ID, {
       'anonymize_ip': true,
       'page_path': path,
-      'referrer': document.referrer.split('?')[0]
+      'referrer': document.referrer.split('?')[0],
+      'dimension1': globals.isInternalUser,
     });
   }
 
