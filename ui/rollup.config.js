@@ -14,16 +14,11 @@
 
 import commonjs from '@rollup/plugin-commonjs';
 import nodeResolve from '@rollup/plugin-node-resolve';
-import replace from '@rollup/plugin-replace';
 
 export default {
   output: {name: 'perfetto'},
   plugins:
       [
-        replace({
-          'process.env.NODE_ENV': '"production"',
-        }),
-
         nodeResolve({
           mainFields: ['browser'],
           browser: true,
