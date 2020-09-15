@@ -45,6 +45,12 @@ void* wrap_realloc(uint32_t heap_id,
 void* wrap_pvalloc(uint32_t heap_id, void* (*fn)(size_t), size_t size);
 void* wrap_valloc(uint32_t heap_id, void* (*fn)(size_t), size_t size);
 
+void* wrap_reallocarray(uint32_t heap_id,
+                        void* (*fn)(void*, size_t, size_t),
+                        void* pointer,
+                        size_t nmemb,
+                        size_t size);
+
 }  // namespace profiling
 }  // namespace perfetto
 
