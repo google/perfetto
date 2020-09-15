@@ -1,6 +1,7 @@
 Unreleased:
   Tracing service and probes:
     * Added API for querying registered data sources and their capabilities.
+    * Support malloc heap profiles from GLibc Linux using LD_PRELOAD.
   Trace Processor:
     *
   UI:
