@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {enablePatches} from 'immer';
+enablePatches();
+
 import '../tracks/all_controller';
 
 import {reportError, setErrorHandler} from '../base/logging';
