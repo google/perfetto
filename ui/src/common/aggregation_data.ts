@@ -40,6 +40,7 @@ type TypedArrayConstructor =
 export interface ColumnDef {
   title: string;
   kind: string;
+  sum?: boolean;
   columnConstructor: TypedArrayConstructor;
   columnId: string;
 }
@@ -47,6 +48,7 @@ export interface ColumnDef {
 export interface AggregateData {
   tabName: string;
   columns: Column[];
+  columnSums: string[];
   // For string interning.
   strings: string[];
   // Some aggregations will have extra info to display;

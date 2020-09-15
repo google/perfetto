@@ -91,6 +91,7 @@ export abstract class AggregationController extends Controller<'main'> {
           tabName: this.getTabName(),
           columns: [],
           strings: [],
+          columnSums: [],
         };
       }
     }
@@ -108,11 +109,11 @@ export abstract class AggregationController extends Controller<'main'> {
 
     const numRows = +result.numRecords;
     const columns = defs.map(def => this.columnFromColumnDef(def, numRows));
-
+    const columnSums = await Promise.all(defs.map(def => this.getSum(def)));
     const extraData = await this.getExtra(this.args.engine, area);
     const extra = extraData ? extraData : undefined;
     const data: AggregateData =
-        {tabName: this.getTabName(), columns, strings: [], extra};
+        {tabName: this.getTabName(), columns, columnSums, strings: [], extra};
 
     const stringIndexes = new Map<string, number>();
     function internString(str: string) {
@@ -139,6 +140,17 @@ export abstract class AggregationController extends Controller<'main'> {
       }
     }
     return data;
+  }
+
+  async getSum(def: ColumnDef): Promise<string> {
+    if (!def.sum) return '';
+    const result = await this.args.engine.queryOneRow(
+        `select sum(${def.columnId}) from ${this.kind}`);
+    let sum = result[0];
+    if (def.kind === 'TIMESTAMP_NS') {
+      sum = sum / 1e6;
+    }
+    return `${sum}`;
   }
 
   columnFromColumnDef(def: ColumnDef, numRows: number): Column {
