@@ -1732,6 +1732,10 @@ cc_test {
   header_libs: [
     "bionic_libc_platform_headers",
   ],
+  require_root: true,
+  test_suites: [
+    "general-tests",
+  ],
 }
 
 // GN: //protos/perfetto/common:cpp
