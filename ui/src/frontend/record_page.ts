@@ -586,6 +586,7 @@ function AndroidSettings(cssClass: string) {
         } as ProbeAttrs,
         m(Dropdown, {
           title: 'Buffers',
+          cssClass: '.multicolumn',
           options: LOG_BUFFERS,
           set: (cfg, val) => cfg.androidLogBuffers = val,
           get: (cfg) => cfg.androidLogBuffers
