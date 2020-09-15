@@ -109,11 +109,14 @@ std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> BuildNativeFlamegraph(
     auto opt_parent_id = callsites_tbl.parent_id()[i];
     if (opt_parent_id) {
       parent_idx = callsites_tbl.id().IndexOf(*opt_parent_id);
-      parent_idx = callsite_to_merged_callsite[*parent_idx];
+      // Make sure what we index into has been populated already.
       PERFETTO_CHECK(*parent_idx < i);
+      parent_idx = callsite_to_merged_callsite[*parent_idx];
     }
 
     auto callsites = GetMergedCallsites(storage, i);
+    // Loop below needs to run at least once for parent_idx to get updated.
+    PERFETTO_CHECK(!callsites.empty());
     for (MergedCallsite& merged_callsite : callsites) {
       merged_callsite.parent_idx = parent_idx;
       auto it = merged_callsites_to_table_idx.find(merged_callsite);
@@ -140,6 +143,7 @@ std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> BuildNativeFlamegraph(
       }
       parent_idx = it->second;
     }
+
     PERFETTO_CHECK(parent_idx);
     callsite_to_merged_callsite[i] = *parent_idx;
   }
