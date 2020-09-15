@@ -44,7 +44,11 @@ export class AggregationPanel extends Panel<AggregationPanelAttrs> {
           m('table',
             m('tr',
               attrs.data.columns.map(
-                  col => this.formatColumnHeading(col, attrs.kind))))),
+                  col => this.formatColumnHeading(col, attrs.kind))),
+            m('tr.sum', attrs.data.columnSums.map(sum => {
+              const sumClass = sum === '' ? 'td' : 'td.sum-data';
+              return m(sumClass, sum);
+            })))),
         m(
             '.details-table.aggregation',
             m('table', this.getRows(attrs.data)),
