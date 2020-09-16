@@ -294,6 +294,7 @@ source_set("end_to_end_tests") {
     "../../../gn:gtest_and_gmock",
     "../../../gn:libunwindstack",
     "../../../protos/perfetto/config/profiling:cpp",
+    "../../../protos/perfetto/trace/interned_data:cpp",
     "../../../protos/perfetto/trace/profiling:cpp",
     "../../../test:test_helper",
     "../../base",
