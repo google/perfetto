@@ -190,6 +190,11 @@ additional_args = {
         ('data', set(enumerate_data_deps())),
         ('include_dirs', {'bionic/libc/kernel'}),
     ],
+    'perfetto_integrationtests': [
+      # heapprofd_end_to_end needs root to set a system property.
+      ('require_root', True),
+      ('test_suites', {'general-tests'}),
+    ],
     'traced_probes': [
         ('required', {'libperfetto_android_internal',
                       'trigger_perfetto',
@@ -419,6 +424,8 @@ class Module(object):
     self.genrule_srcs = set()
     self.genrule_shared_libs = set()
     self.version_script = None
+    self.require_root = None
+    self.test_suites = set()
 
   def to_string(self, output):
     if self.comment:
@@ -449,6 +456,8 @@ class Module(object):
     self._output_field(output, 'stl')
     self._output_field(output, 'apex_available')
     self._output_field(output, 'version_script')
+    self._output_field(output, 'require_root')
+    self._output_field(output, 'test_suites')
 
     target_out = []
     self._output_field(target_out, 'android')
@@ -776,6 +785,8 @@ def create_modules_from_target(blueprint, gn, gn_target_name):
     if add_val and isinstance(add_val, set) and isinstance(curr, set):
       curr.update(add_val)
     elif isinstance(add_val, str) and (not curr or isinstance(curr, str)):
+      setattr(module, key, add_val)
+    elif isinstance(add_val, bool) and (not curr or isinstance(curr, bool)):
       setattr(module, key, add_val)
     elif isinstance(add_val, dict) and isinstance(curr, dict):
       curr.update(add_val)
