@@ -53,6 +53,18 @@ taking the shortest path to the root and get cumulative sizes.
 Note that this is **experimental** and the **API is subject to change**.
 From this we can see how much memory is being held by each type of object
 
+For that, we need to find the timestamp and upid of the graph.
+
+```sql
+select distinct graph_sample_ts, upid from heap_graph_object
+```
+
+graph_sample_ts     |        upid        |
+--------------------|--------------------|
+     56785646801    |         1          |
+
+We can then use them to get the flamegraph data.
+
 ```sql
 select name, cumulative_size
        from experimental_flamegraph(56785646801, 1, 'graph')
