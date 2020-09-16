@@ -8324,7 +8324,7 @@ cc_binary_host {
     "src/trace_processor/util/proto_to_json.cc",
   ],
   static_libs: [
-    "libprotoc",
+    "libprotobuf-cpp-full",
     "libsqlite",
     "libz",
   ],
@@ -8443,10 +8443,8 @@ cc_binary_host {
     ":perfetto_tools_trace_to_text_pprofbuilder",
     ":perfetto_tools_trace_to_text_utils",
   ],
-  shared_libs: [
-    "libprotobuf-cpp-full",
-  ],
   static_libs: [
+    "libprotobuf-cpp-full",
     "libsqlite",
     "libz",
   ],
