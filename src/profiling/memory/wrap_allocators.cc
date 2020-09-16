@@ -120,5 +120,18 @@ void* wrap_valloc(uint32_t heap_id, void* (*fn)(size_t), size_t size) {
   return addr;
 }
 
+void* wrap_reallocarray(uint32_t heap_id,
+                        void* (*fn)(void*, size_t, size_t),
+                        void* pointer,
+                        size_t nmemb,
+                        size_t size) {
+  if (pointer)
+    AHeapProfile_reportFree(heap_id, reinterpret_cast<uint64_t>(pointer));
+  void* addr = fn(pointer, nmemb, size);
+  AHeapProfile_reportAllocation(heap_id, reinterpret_cast<uint64_t>(addr),
+                                nmemb * size);
+  return addr;
+}
+
 }  // namespace profiling
 }  // namespace perfetto

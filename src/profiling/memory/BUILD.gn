@@ -76,7 +76,7 @@ executable("heapprofd_standalone_client_example") {
   sources = [ "heapprofd_standalone_client_example.cc" ]
 }
 
-shared_library("heapprofd_standalone_client") {
+source_set("client_ext_standalone") {
   deps = [
     ":client_ext",
     ":daemon",
@@ -85,11 +85,22 @@ shared_library("heapprofd_standalone_client") {
     "../../base",
     "../common:proc_utils",
   ]
+  sources = [ "client_ext_standalone.cc" ]
+}
+
+# This can be used to instrument custom allocators to report their allocations
+# to Perfetto. This bundles a copy of heapprofd in the library, in contrast to
+# heapprofd_client_api (see below), which expects one to be present in the
+# Android platform.
+shared_library("heapprofd_standalone_client") {
+  deps = [
+    ":client_ext_standalone",
+    "../../../gn:default_deps",
+  ]
   ldflags = [
     "-Wl,--version-script",
     rebase_path("heapprofd_client_api.map.txt", root_build_dir),
   ]
-  sources = [ "client_ext_standalone.cc" ]
 }
 
 shared_library("heapprofd_standalone_client_noop") {
@@ -115,6 +126,22 @@ shared_library("heapprofd_client_api") {
   if (perfetto_build_with_android) {
     sources = [ "client_ext_android.cc" ]
   }
+}
+
+# On GLibc Linux, this can be used to override the allocators using
+# LD_PRELOAD. On non-GLibc, this will probably fail to link.
+shared_library("heapprofd_preload") {
+  deps = [
+    ":client_ext_standalone",
+    ":wrap_allocators",
+    "../../../gn:default_deps",
+    "../../base",
+  ]
+  ldflags = [
+    "-Wl,--version-script",
+    rebase_path("heapprofd_preload.map.txt", root_build_dir),
+  ]
+  sources = [ "malloc_preload.cc" ]
 }
 
 # On Android builds, this is converted to
@@ -143,6 +170,10 @@ source_set("client_ext") {
 }
 
 source_set("wrap_allocators") {
+  deps = [
+    "../../../gn:default_deps",
+    "../../base",
+  ]
   sources = [ "wrap_allocators.cc" ]
 }
 
