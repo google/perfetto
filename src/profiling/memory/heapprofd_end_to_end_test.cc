@@ -40,6 +40,7 @@
 #endif
 
 #include "protos/perfetto/config/profiling/heapprofd_config.gen.h"
+#include "protos/perfetto/trace/interned_data/interned_data.gen.h"
 #include "protos/perfetto/trace/profiling/profile_common.gen.h"
 #include "protos/perfetto/trace/profiling/profile_packet.gen.h"
 
@@ -449,6 +450,20 @@ class HeapprofdEndToEnd
     return helper;
   }
 
+  std::vector<std::string> GetUnwindingErrors(TestHelper* helper) {
+    std::vector<std::string> out;
+    const auto& packets = helper->trace();
+    for (const protos::gen::TracePacket& packet : packets) {
+      for (const protos::gen::InternedString& fn :
+           packet.interned_data().function_names()) {
+        if (fn.str().find("ERROR ") == 0) {
+          out.push_back(fn.str());
+        }
+      }
+    }
+    return out;
+  }
+
   void PrintStats(TestHelper* helper) {
     const auto& packets = helper->trace();
     for (const protos::gen::TracePacket& packet : packets) {
@@ -457,6 +472,10 @@ class HeapprofdEndToEnd
         PERFETTO_LOG("Stats for %s: %s", std::to_string(dump.pid()).c_str(),
                      FormatStats(dump.stats()).c_str());
       }
+    }
+    std::vector<std::string> errors = GetUnwindingErrors(helper);
+    for (const std::string& err : errors) {
+      PERFETTO_LOG("Unwinding error: %s", err.c_str());
     }
   }
 
