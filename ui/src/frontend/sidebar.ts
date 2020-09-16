@@ -76,15 +76,15 @@ select process.name as process, thread, core, cpu_sec from (
 
 const HEAP_GRAPH_BYTES_PER_TYPE = `
 select
-  upid,
-  graph_sample_ts,
-  type_name,
-  sum(self_size) as total_self_size
-from heap_graph_object
+  o.upid,
+  o.graph_sample_ts,
+  c.name,
+  sum(o.self_size) as total_self_size
+from heap_graph_object o join heap_graph_class c on o.type_id = c.id
 group by
- upid,
- graph_sample_ts,
- type_name
+ o.upid,
+ o.graph_sample_ts,
+ c.name
 order by total_self_size desc
 limit 100;`;
 
