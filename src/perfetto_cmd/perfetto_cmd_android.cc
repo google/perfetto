@@ -36,65 +36,26 @@ constexpr int64_t kSendfileTimeoutNs = 10UL * 1000 * 1000 * 1000;  // 10s
 }  // namespace
 
 void PerfettoCmd::SaveTraceIntoDropboxAndIncidentOrCrash() {
-  PERFETTO_CHECK(!dropbox_tag_.empty());
-
-  bool use_dropbox = !trace_config_->incident_report_config().skip_dropbox();
-  bool use_incident =
-      !trace_config_->incident_report_config().destination_package().empty();
+  PERFETTO_CHECK(is_uploading_);
+  PERFETTO_CHECK(
+      !trace_config_->incident_report_config().destination_package().empty());
 
   if (bytes_written_ == 0) {
     LogUploadEvent(PerfettoStatsdAtom::kNotUploadingEmptyTrace);
-    if (use_dropbox)
-      PERFETTO_LOG("Skipping write to dropbox. Empty trace.");
-    if (use_incident)
-      PERFETTO_LOG("Skipping write to incident. Empty trace.");
+    PERFETTO_LOG("Skipping write to incident. Empty trace.");
     return;
   }
 
-  // Otherwise, write to Dropbox unless there's a special override in the
-  // incident report config.
-  if (use_dropbox) {
-    SaveOutputToDropboxOrCrash();
-  }
+  // Save the trace as an incident.
+  SaveOutputToIncidentTraceOrCrash();
 
-  // Optionally save the trace as an incident. This is either in addition to, or
-  // instead of, the Dropbox write.
-  if (use_incident) {
-    SaveOutputToIncidentTraceOrCrash();
-
-    // Ask incidentd to create a report, which will read the file we just
-    // wrote.
-    const auto& cfg = trace_config_->incident_report_config();
-    PERFETTO_LAZY_LOAD(android_internal::StartIncidentReport, incident_fn);
-    PERFETTO_CHECK(incident_fn(cfg.destination_package().c_str(),
-                               cfg.destination_class().c_str(),
-                               cfg.privacy_level()));
-  }
-}
-
-void PerfettoCmd::SaveOutputToDropboxOrCrash() {
-  LogUploadEvent(PerfettoStatsdAtom::kUploadDropboxBegin);
-
-  PERFETTO_CHECK(fseek(*trace_out_stream_, 0, SEEK_SET) == 0);
-
-  // DropBox takes ownership of the file descriptor, so give it a duplicate.
-  // Also we need to give it a read-only copy of the fd or will hit a SELinux
-  // violation (about system_server ending up with a writable FD to our dir).
-  char fdpath[64];
-  sprintf(fdpath, "/proc/self/fd/%d", fileno(*trace_out_stream_));
-  base::ScopedFile read_only_fd(base::OpenFile(fdpath, O_RDONLY));
-  PERFETTO_CHECK(read_only_fd);
-
-  PERFETTO_LAZY_LOAD(android_internal::SaveIntoDropbox, dropbox_fn);
-  if (dropbox_fn(dropbox_tag_.c_str(), read_only_fd.release())) {
-    LogUploadEvent(PerfettoStatsdAtom::kUploadDropboxSuccess);
-    PERFETTO_LOG("Wrote %" PRIu64
-                 " bytes (before compression) into DropBox with tag %s",
-                 bytes_written_, dropbox_tag_.c_str());
-  } else {
-    LogUploadEvent(PerfettoStatsdAtom::kUploadDropboxFailure);
-    PERFETTO_FATAL("DropBox upload failed");
-  }
+  // Ask incidentd to create a report, which will read the file we just
+  // wrote.
+  const auto& cfg = trace_config_->incident_report_config();
+  PERFETTO_LAZY_LOAD(android_internal::StartIncidentReport, incident_fn);
+  PERFETTO_CHECK(incident_fn(cfg.destination_package().c_str(),
+                             cfg.destination_class().c_str(),
+                             cfg.privacy_level()));
 }
 
 // Open a staging file (unlinking the previous instance), copy the trace
@@ -168,7 +129,7 @@ base::ScopedFile PerfettoCmd::OpenDropboxTmpFile() {
 }
 
 void PerfettoCmd::LogUploadEventAndroid(PerfettoStatsdAtom atom) {
-  if (dropbox_tag_.empty())
+  if (!is_uploading_)
     return;
   PERFETTO_LAZY_LOAD(android_internal::StatsdLogEvent, log_event_fn);
   base::Uuid uuid(uuid_);
