@@ -1012,6 +1012,8 @@ TEST_F(PerfettoCmdlineTest, DISABLED_NoDataNoFileWithoutTrigger) {
   protos::gen::TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(1024);
   trace_config.set_allow_user_build_tracing(true);
+  auto* incident_config = trace_config.mutable_incident_report_config();
+  incident_config->set_destination_package("foo.bar.baz");
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("android.perfetto.FakeProducer");
   ds_config->mutable_for_testing()->set_message_count(kMessageCount);
@@ -1055,7 +1057,7 @@ TEST_F(PerfettoCmdlineTest, DISABLED_NoDataNoFileWithoutTrigger) {
   background_trace.join();
 
   EXPECT_THAT(stderr_str,
-              ::testing::HasSubstr("Skipping write to dropbox. Empty trace."));
+              ::testing::HasSubstr("Skipping write to incident. Empty trace."));
 }
 
 TEST_F(PerfettoCmdlineTest, NoSanitizers(StopTracingTriggerFromConfig)) {
