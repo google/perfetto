@@ -154,7 +154,7 @@ export class ChromeSliceTrack extends Track<Config, Data> {
     if (y < TRACK_PADDING) return;
     const instantWidthTime = timeScale.deltaPxToDuration(HALF_CHEVRON_WIDTH_PX);
     const t = timeScale.pxToTime(x);
-    const depth = Math.floor(y / SLICE_HEIGHT);
+    const depth = Math.floor((y - TRACK_PADDING) / SLICE_HEIGHT);
     for (let i = 0; i < data.starts.length; i++) {
       if (depth !== data.depths[i]) {
         continue;
