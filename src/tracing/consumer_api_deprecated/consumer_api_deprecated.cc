@@ -287,11 +287,11 @@ class TracingController {
   void ThreadMain();  // Called on |task_runner_| thread.
 
   std::mutex mutex_;
-  std::thread thread_;
   std::unique_ptr<base::UnixTaskRunner> task_runner_;
   std::condition_variable task_runner_initialized_;
   Handle last_handle_ = 0;
   std::map<Handle, std::unique_ptr<TracingSession>> sessions_;
+  std::thread thread_;  // Keep last.
 };
 
 TracingController* TracingController::GetInstance() {
@@ -299,9 +299,9 @@ TracingController* TracingController::GetInstance() {
   return instance;
 }
 
-TracingController::TracingController()
-    : thread_(&TracingController::ThreadMain, this) {
+TracingController::TracingController() {
   std::unique_lock<std::mutex> lock(mutex_);
+  thread_ = std::thread(&TracingController::ThreadMain, this);
   task_runner_initialized_.wait(lock, [this] { return !!task_runner_; });
 }
 
