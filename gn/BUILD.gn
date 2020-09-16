@@ -232,12 +232,10 @@ group("protoc_lib") {
 
 group("protobuf_full") {
   visibility = protobuf_full_deps_allowlist
-  if (current_toolchain == host_toolchain) {
-    if (perfetto_use_system_protobuf) {
-      public_configs = [ ":system_protobuf" ]
-    } else {
-      public_deps = [ "${perfetto_protobuf_target_prefix}:protobuf_full" ]
-    }
+  if (perfetto_use_system_protobuf) {
+    public_configs = [ ":system_protobuf" ]
+  } else {
+    public_deps = [ "${perfetto_protobuf_target_prefix}:protobuf_full" ]
   }
 }
 
