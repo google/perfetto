@@ -227,7 +227,10 @@ def enable_gtest_and_gmock(module):
 
 
 def enable_protobuf_full(module):
-  module.shared_libs.add('libprotobuf-cpp-full')
+  if module.type == 'cc_binary_host':
+    module.static_libs.add('libprotobuf-cpp-full')
+  else:
+    module.shared_libs.add('libprotobuf-cpp-full')
 
 
 def enable_protobuf_lite(module):
