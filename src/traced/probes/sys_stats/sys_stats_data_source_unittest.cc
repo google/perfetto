@@ -130,6 +130,7 @@ pgrefill_movable 0
 pgsteal_kswapd_dma 19471476
 pgsteal_kswapd_normal 21138380
 pgsteal_kswapd_movable 0
+pgsteal_direct 91537
 pgsteal_direct_dma 40625
 pgsteal_direct_normal 50912
 pgsteal_direct_movable 0
@@ -290,6 +291,7 @@ TEST_F(SysStatsDataSourceTest, Vmstat) {
   sys_cfg.add_vmstat_counters(C::VMSTAT_NR_FREE_PAGES);
   sys_cfg.add_vmstat_counters(C::VMSTAT_PGACTIVATE);
   sys_cfg.add_vmstat_counters(C::VMSTAT_PGMIGRATE_FAIL);
+  sys_cfg.add_vmstat_counters(C::VMSTAT_PGSTEAL_DIRECT);
   config.set_sys_stats_config_raw(sys_cfg.SerializeAsString());
   auto data_source = GetSysStatsDataSource(config);
 
@@ -308,7 +310,9 @@ TEST_F(SysStatsDataSourceTest, Vmstat) {
 
   EXPECT_THAT(kvs, UnorderedElementsAre(KV{C::VMSTAT_NR_FREE_PAGES, 16449},  //
                                         KV{C::VMSTAT_PGACTIVATE, 11897892},  //
-                                        KV{C::VMSTAT_PGMIGRATE_FAIL, 3439}));
+                                        KV{C::VMSTAT_PGMIGRATE_FAIL, 3439},  //
+                                        KV{C::VMSTAT_PGSTEAL_DIRECT, 91537}  //
+                                        ));
 }
 
 TEST_F(SysStatsDataSourceTest, VmstatAll) {
