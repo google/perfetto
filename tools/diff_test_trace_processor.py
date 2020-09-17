@@ -341,9 +341,16 @@ def main():
     trace_descriptor_path = args.trace_descriptor
   else:
     out_path = os.path.dirname(args.trace_processor)
-    trace_protos_path = os.path.join(out_path, 'gen', 'protos', 'perfetto',
-                                     'trace')
-    trace_descriptor_path = os.path.join(trace_protos_path, 'trace.descriptor')
+
+    def find_trace_descriptor(parent):
+      trace_protos_path = os.path.join(parent, 'gen', 'protos', 'perfetto',
+                                       'trace')
+      return os.path.join(trace_protos_path, 'trace.descriptor')
+
+    trace_descriptor_path = find_trace_descriptor(out_path)
+    if not os.path.exists(trace_descriptor_path):
+      trace_descriptor_path = find_trace_descriptor(
+          os.path.join(out_path, 'gcc_like_host'))
 
   if args.metrics_descriptor:
     metrics_descriptor_path = args.metrics_descriptor
