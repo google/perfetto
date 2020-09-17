@@ -68,8 +68,10 @@ struct SOLMsg {
   template <typename T>
   void Append(T x) {
     // The reinterpret_cast is to give favorable alignment guarantees.
-    memcpy(reinterpret_cast<T*>(ptr_), &x, sizeof(x));
-    ptr_ += sizeof(x);
+    // The memcpy will be elided by the compiler, which will emit just a
+    // 64-bit aligned mov instruction.
+    memcpy(reinterpret_cast<void*>(ptr_), &x, sizeof(x));
+    ptr_ += sizeof(uint64_t);
   }
 
   void set_field_int32(int32_t x) { Append(x); }
@@ -80,7 +82,7 @@ struct SOLMsg {
 
   SOLMsg* add_field_nested() { return new (this + 1) SOLMsg(); }
 
-  char storage_[sizeof(g_fake_input_simple)];
+  alignas(uint64_t) char storage_[sizeof(g_fake_input_simple) + 8];
   char* ptr_ = &storage_[0];
 };
 
