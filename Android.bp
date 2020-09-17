@@ -198,11 +198,11 @@ cc_library_shared {
     ":perfetto_src_base_unix_socket",
     ":perfetto_src_profiling_common_proc_utils",
     ":perfetto_src_profiling_memory_client",
-    ":perfetto_src_profiling_memory_client_ext",
+    ":perfetto_src_profiling_memory_client_api",
     ":perfetto_src_profiling_memory_ring_buffer",
     ":perfetto_src_profiling_memory_scoped_spinlock",
     ":perfetto_src_profiling_memory_wire_protocol",
-    "src/profiling/memory/client_ext_android.cc",
+    "src/profiling/memory/client_api_android.cc",
   ],
   shared_libs: [
     "libbase",
@@ -298,8 +298,8 @@ cc_library_shared {
     ":perfetto_src_profiling_common_proc_utils",
     ":perfetto_src_profiling_common_unwind_support",
     ":perfetto_src_profiling_memory_client",
-    ":perfetto_src_profiling_memory_client_ext",
-    ":perfetto_src_profiling_memory_client_ext_standalone",
+    ":perfetto_src_profiling_memory_client_api",
+    ":perfetto_src_profiling_memory_client_api_standalone",
     ":perfetto_src_profiling_memory_daemon",
     ":perfetto_src_profiling_memory_ring_buffer",
     ":perfetto_src_profiling_memory_scoped_spinlock",
@@ -6314,19 +6314,19 @@ filegroup {
   ],
 }
 
-// GN: //src/profiling/memory:client_ext
+// GN: //src/profiling/memory:client_api
 filegroup {
-  name: "perfetto_src_profiling_memory_client_ext",
+  name: "perfetto_src_profiling_memory_client_api",
   srcs: [
-    "src/profiling/memory/client_ext.cc",
+    "src/profiling/memory/client_api.cc",
   ],
 }
 
-// GN: //src/profiling/memory:client_ext_standalone
+// GN: //src/profiling/memory:client_api_standalone
 filegroup {
-  name: "perfetto_src_profiling_memory_client_ext_standalone",
+  name: "perfetto_src_profiling_memory_client_api_standalone",
   srcs: [
-    "src/profiling/memory/client_ext_standalone.cc",
+    "src/profiling/memory/client_api_standalone.cc",
   ],
 }
 
