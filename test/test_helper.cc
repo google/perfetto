@@ -64,6 +64,7 @@ void TestHelper::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
     protos::gen::TracePacket packet;
     PERFETTO_CHECK(
         packet.ParseFromString(encoded_packet.GetRawBytesForTesting()));
+    full_trace_.push_back(packet);
     if (packet.has_clock_snapshot() || packet.has_trace_config() ||
         packet.has_trace_stats() || !packet.synchronization_marker().empty() ||
         packet.has_system_info() || packet.has_service_event()) {
