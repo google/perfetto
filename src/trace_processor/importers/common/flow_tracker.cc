@@ -26,7 +26,10 @@
 namespace perfetto {
 namespace trace_processor {
 
-FlowTracker::FlowTracker(TraceProcessorContext* context) : context_(context) {}
+FlowTracker::FlowTracker(TraceProcessorContext* context) : context_(context) {
+  name_key_id_ = context_->storage->InternString("name");
+  cat_key_id_ = context_->storage->InternString("cat");
+}
 
 FlowTracker::~FlowTracker() = default;
 
@@ -62,7 +65,7 @@ void FlowTracker::Step(TrackId track_id, FlowId flow_id) {
     return;
   }
   SliceId slice_out_id = flow_to_slice_map_[flow_id];
-  InsertFlow(slice_out_id, open_slice_id.value());
+  InsertFlow(flow_id, slice_out_id, open_slice_id.value());
   flow_to_slice_map_[flow_id] = open_slice_id.value();
 }
 
@@ -84,7 +87,7 @@ void FlowTracker::End(TrackId track_id,
     return;
   }
   SliceId slice_out_id = flow_to_slice_map_[flow_id];
-  InsertFlow(slice_out_id, open_slice_id.value());
+  InsertFlow(flow_id, slice_out_id, open_slice_id.value());
 }
 
 FlowId FlowTracker::GetFlowIdForV1Event(uint64_t source_id,
@@ -95,7 +98,10 @@ FlowId FlowTracker::GetFlowIdForV1Event(uint64_t source_id,
   if (iter != v1_flow_id_to_flow_id_map_.end()) {
     return iter->second;
   }
-  return v1_flow_id_to_flow_id_map_[v1_flow_id] = v1_id_counter_++;
+  FlowId new_id = v1_id_counter_++;
+  flow_id_to_v1_flow_id_map_[new_id] = v1_flow_id;
+  v1_flow_id_to_flow_id_map_[v1_flow_id] = new_id;
+  return new_id;
 }
 
 void FlowTracker::ClosePendingEventsOnTrack(TrackId track_id,
@@ -106,15 +112,27 @@ void FlowTracker::ClosePendingEventsOnTrack(TrackId track_id,
 
   for (FlowId flow_id : iter->second) {
     SliceId slice_out_id = flow_to_slice_map_[flow_id];
-    InsertFlow(slice_out_id, slice_id);
+    InsertFlow(flow_id, slice_out_id, slice_id);
   }
 
   pending_flow_ids_map_.erase(iter);
 }
 
-void FlowTracker::InsertFlow(SliceId slice_out_id, SliceId slice_in_id) {
-  tables::FlowTable::Row row(slice_out_id, slice_in_id);
-  context_->storage->mutable_flow_table()->Insert(row);
+void FlowTracker::InsertFlow(FlowId flow_id,
+                             SliceId slice_out_id,
+                             SliceId slice_in_id) {
+  tables::FlowTable::Row row(slice_out_id, slice_in_id, kInvalidArgSetId);
+  auto id = context_->storage->mutable_flow_table()->Insert(row).id;
+
+  auto it = flow_id_to_v1_flow_id_map_.find(flow_id);
+  if (it != flow_id_to_v1_flow_id_map_.end()) {
+    // TODO(b/168007725): Add any args from v1 flow events and also export them.
+    auto args_tracker = ArgsTracker(context_);
+    auto inserter = context_->args_tracker->AddArgsTo(id);
+    inserter.AddArg(name_key_id_, Variadic::String(it->second.name));
+    inserter.AddArg(cat_key_id_, Variadic::String(it->second.cat));
+    context_->args_tracker->Flush();
+  }
 }
 
 }  // namespace trace_processor

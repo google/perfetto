@@ -83,12 +83,6 @@ const char kLegacyEventUnscopedIdKey[] = "unscoped_id";
 const char kLegacyEventGlobalIdKey[] = "global_id";
 const char kLegacyEventLocalIdKey[] = "local_id";
 const char kLegacyEventIdScopeKey[] = "id_scope";
-const char kLegacyEventBindIdKey[] = "bind_id";
-const char kLegacyEventBindToEnclosingKey[] = "bind_to_enclosing";
-const char kLegacyEventFlowDirectionKey[] = "flow_direction";
-const char kFlowDirectionValueIn[] = "in";
-const char kFlowDirectionValueOut[] = "out";
-const char kFlowDirectionValueInout[] = "inout";
 const char kStrippedArgument[] = "__stripped__";
 
 const char* GetNonNullString(const TraceStorage* storage, StringId id) {
@@ -99,30 +93,6 @@ std::string PrintUint64(uint64_t x) {
   char hex_str[19];
   sprintf(hex_str, "0x%" PRIx64, x);
   return hex_str;
-}
-
-void ConvertLegacyFlowEventArgs(const Json::Value& legacy_args,
-                                Json::Value* event) {
-  if (legacy_args.isMember(kLegacyEventBindIdKey)) {
-    (*event)["bind_id"] =
-        PrintUint64(legacy_args[kLegacyEventBindIdKey].asUInt64());
-  }
-
-  if (legacy_args.isMember(kLegacyEventBindToEnclosingKey))
-    (*event)["bp"] = "e";
-
-  if (legacy_args.isMember(kLegacyEventFlowDirectionKey)) {
-    const char* val = legacy_args[kLegacyEventFlowDirectionKey].asCString();
-    if (strcmp(val, kFlowDirectionValueIn) == 0) {
-      (*event)["flow_in"] = true;
-    } else if (strcmp(val, kFlowDirectionValueOut) == 0) {
-      (*event)["flow_out"] = true;
-    } else {
-      PERFETTO_DCHECK(strcmp(val, kFlowDirectionValueInout) == 0);
-      (*event)["flow_in"] = true;
-      (*event)["flow_out"] = true;
-    }
-  }
 }
 
 class JsonExporter {
@@ -150,6 +120,10 @@ class JsonExporter {
       return status;
 
     status = ExportSlices();
+    if (!status.ok())
+      return status;
+
+    status = ExportFlows();
     if (!status.ok())
       return status;
 
@@ -765,7 +739,6 @@ class JsonExporter {
       event["args"] =
           args_builder_.GetArgs(slices.arg_set_id()[i]);  // Makes a copy.
       if (event["args"].isMember(kLegacyEventArgsKey)) {
-        ConvertLegacyFlowEventArgs(event["args"][kLegacyEventArgsKey], &event);
 
         if (event["args"][kLegacyEventArgsKey].isMember(
                 kLegacyEventPassthroughUtidKey)) {
@@ -1007,6 +980,77 @@ class JsonExporter {
     return util::OkStatus();
   }
 
+  base::Optional<Json::Value> CreateFlowEventV1(uint32_t flow_id,
+                                                SliceId slice_id,
+                                                std::string name,
+                                                std::string cat,
+                                                bool flow_begin) {
+    const auto& slices = storage_->slice_table();
+    const auto& thread_tracks = storage_->thread_track_table();
+
+    auto opt_slice_idx = slices.id().IndexOf(slice_id);
+    if (!opt_slice_idx)
+      return base::nullopt;
+    uint32_t slice_idx = opt_slice_idx.value();
+
+    TrackId track_id = storage_->slice_table().track_id()[slice_idx];
+    auto opt_thread_track_idx = thread_tracks.id().IndexOf(track_id);
+    // catapult only supports flow events attached to thread-track slices
+    if (!opt_thread_track_idx)
+      return base::nullopt;
+
+    UniqueTid utid = thread_tracks.utid()[opt_thread_track_idx.value()];
+    auto pid_and_tid = UtidToPidAndTid(utid);
+    Json::Value event;
+    event["id"] = flow_id;
+    event["pid"] = Json::Int(pid_and_tid.first);
+    event["tid"] = Json::Int(pid_and_tid.second);
+    event["cat"] = cat;
+    event["name"] = name;
+    event["ph"] = (flow_begin ? "s" : "f");
+    event["ts"] = Json::Int64(slices.ts()[slice_idx] / 1000);
+    if (!flow_begin) {
+      event["bp"] = "e";
+    }
+    return std::move(event);
+  }
+
+  util::Status ExportFlows() {
+    const auto& flow_table = storage_->flow_table();
+    const auto& slice_table = storage_->slice_table();
+    for (uint32_t i = 0; i < flow_table.row_count(); i++) {
+      SliceId slice_out = flow_table.slice_out()[i];
+      SliceId slice_in = flow_table.slice_in()[i];
+      uint32_t arg_set_id = flow_table.arg_set_id()[i];
+
+      std::string cat;
+      std::string name;
+      if (arg_set_id != kInvalidArgSetId) {
+        auto args = args_builder_.GetArgs(arg_set_id);
+        cat = args["cat"].asString();
+        name = args["name"].asString();
+      } else {
+        auto opt_slice_out_idx = slice_table.id().IndexOf(slice_out);
+        PERFETTO_DCHECK(opt_slice_out_idx.has_value());
+        StringId cat_id = slice_table.category()[opt_slice_out_idx.value()];
+        StringId name_id = slice_table.name()[opt_slice_out_idx.value()];
+        cat = GetNonNullString(storage_, cat_id);
+        name = GetNonNullString(storage_, name_id);
+      }
+
+      auto out_event =
+          CreateFlowEventV1(i, slice_out, name, cat, /* flow_begin = */ true);
+      auto in_event =
+          CreateFlowEventV1(i, slice_in, name, cat, /* flow_begin = */ false);
+
+      if (out_event && in_event) {
+        writer_.WriteCommonEvent(out_event.value());
+        writer_.WriteCommonEvent(in_event.value());
+      }
+    }
+    return util::OkStatus();
+  }
+
   Json::Value ConvertLegacyRawEventToJson(uint32_t index) {
     const auto& events = storage_->raw_table();
 
@@ -1078,8 +1122,6 @@ class JsonExporter {
 
     if (legacy_args.isMember(kLegacyEventIdScopeKey))
       event["scope"] = legacy_args[kLegacyEventIdScopeKey];
-
-    ConvertLegacyFlowEventArgs(legacy_args, &event);
 
     event["args"].removeMember(kLegacyEventArgsKey);
 

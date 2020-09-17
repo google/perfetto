@@ -22,14 +22,15 @@
 
 namespace perfetto {
 namespace trace_processor {
-
 namespace tables {
 
+// @param arg_set_id {@joinable args.arg_set_id}
 #define PERFETTO_TP_FLOW_DEF(NAME, PARENT, C) \
   NAME(FlowTable, "flow")                     \
   PERFETTO_TP_ROOT_TABLE(PARENT, C)           \
   C(SliceTable::Id, slice_out)                \
-  C(SliceTable::Id, slice_in)
+  C(SliceTable::Id, slice_in)                 \
+  C(uint32_t, arg_set_id)
 
 PERFETTO_TP_TABLE(PERFETTO_TP_FLOW_DEF);
 
