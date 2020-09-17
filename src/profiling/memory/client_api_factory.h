@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_PROFILING_MEMORY_CLIENT_EXT_FACTORY_H_
-#define SRC_PROFILING_MEMORY_CLIENT_EXT_FACTORY_H_
+#ifndef SRC_PROFILING_MEMORY_CLIENT_API_FACTORY_H_
+#define SRC_PROFILING_MEMORY_CLIENT_API_FACTORY_H_
 
 #include <memory>
 
@@ -33,4 +33,4 @@ std::shared_ptr<Client> ConstructClient(
 }  // namespace profiling
 }  // namespace perfetto
 
-#endif  // SRC_PROFILING_MEMORY_CLIENT_EXT_FACTORY_H_
+#endif  // SRC_PROFILING_MEMORY_CLIENT_API_FACTORY_H_
