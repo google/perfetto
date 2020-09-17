@@ -83,7 +83,7 @@ typedef struct AHeapInfo AHeapInfo;
 //
 // Takes name of the heap, up to 64 bytes including null terminator. To
 // guarantee uniqueness, this should include the caller's domain name,
-// e.g. "com.android.malloc".
+// e.g. "dev.perfetto.largeobjects".
 //
 // On error, returns NULL.
 // Errors are:
