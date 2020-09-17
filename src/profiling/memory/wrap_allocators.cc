@@ -18,7 +18,7 @@
 #include <stdlib.h>
 
 #include "perfetto/ext/base/utils.h"
-#include "perfetto/profiling/memory/client_ext.h"
+#include "perfetto/profiling/memory/heap_profile.h"
 #include "src/profiling/memory/wrap_allocators.h"
 
 namespace perfetto {

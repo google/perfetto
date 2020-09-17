@@ -29,7 +29,7 @@
 #include <unwindstack/MachineX86.h>
 #include <unwindstack/MachineX86_64.h>
 
-#include "perfetto/profiling/memory/client_ext.h"
+#include "perfetto/profiling/memory/heap_profile.h"
 #include "src/profiling/memory/shared_ring_buffer.h"
 
 // Make sure the alignment is the same on 32 and 64 bit architectures. This
