@@ -333,7 +333,7 @@ if (enable_perfetto_trace_processor_sqlite) {
     }
   }
 
-  perfetto_host_executable("trace_processor_shell") {
+  executable("trace_processor_shell") {
     deps = [
       ":lib",
       "../../gn:default_deps",
