@@ -213,8 +213,7 @@ config("system_protobuf") {
   libs = [ "protobuf" ]  # This will link against libprotobuf.so
 }
 
-# protoc compiler library, it's used for building protoc plugins and by
-# trace_processor_shell to dynamically load .proto files for metrics.
+# protoc compiler library, it's used for building protoc plugins.
 group("protoc_lib") {
   visibility = protobuf_full_deps_allowlist
   if (current_toolchain == host_toolchain) {
