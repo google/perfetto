@@ -5,6 +5,9 @@
   applications to report memory allocations / frees that are not done
   through the malloc-based system allocators.
 
+## Bugfixes
+* Fix problems with allocations done in signal handlers using SA_ONSTACK.
+
 # In Android 11
 
 ## New features

@@ -105,27 +105,27 @@ RecordMemory __attribute__((noinline)) GetRecord(WireMessage* msg) {
   std::unique_ptr<AllocMetadata> metadata(new AllocMetadata);
   *metadata = {};
 
-  const char* stackbase = GetThreadStackBase();
-  const char* stacktop = reinterpret_cast<char*>(__builtin_frame_address(0));
+  const char* stackend = GetThreadStackRange().end;
+  const char* stackptr = reinterpret_cast<char*>(__builtin_frame_address(0));
   // Need to zero-initialize to make MSAN happy. MSAN does not see the writes
   // from AsmGetRegs (as it is in assembly) and complains otherwise.
   memset(metadata->register_data, 0, sizeof(metadata->register_data));
   unwindstack::AsmGetRegs(metadata->register_data);
 
-  if (stackbase < stacktop) {
-    PERFETTO_FATAL("Stacktop >= stackbase.");
+  if (stackend < stackptr) {
+    PERFETTO_FATAL("Stacktop >= stackend.");
     return {nullptr, nullptr};
   }
-  size_t stack_size = static_cast<size_t>(stackbase - stacktop);
+  size_t stack_size = static_cast<size_t>(stackend - stackptr);
 
   metadata->alloc_size = 10;
   metadata->alloc_address = 0x10;
-  metadata->stack_pointer = reinterpret_cast<uint64_t>(stacktop);
+  metadata->stack_pointer = reinterpret_cast<uint64_t>(stackptr);
   metadata->arch = unwindstack::Regs::CurrentArch();
   metadata->sequence_number = 1;
 
   std::unique_ptr<uint8_t[]> payload(new uint8_t[stack_size]);
-  UnsafeMemcpy(&payload[0], stacktop, stack_size);
+  UnsafeMemcpy(&payload[0], stackptr, stack_size);
 
   *msg = {};
   msg->alloc_header = metadata.get();
