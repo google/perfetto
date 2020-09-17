@@ -117,7 +117,7 @@ void HeapprofdConfigToClientConfiguration(
         "This is redundant.");
   }
   if (heaps.empty()) {
-    heaps.push_back("com.android.malloc");
+    heaps.push_back("libc.malloc");
   }
   if (heaps.size() > base::ArraySize(cli_config->heaps)) {
     heaps.resize(base::ArraySize(cli_config->heaps));
