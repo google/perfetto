@@ -632,7 +632,7 @@ class TrackEventParser::EventImporter {
     auto opt_source_id = GetLegacyEventId();
     if (!opt_source_id) {
       storage_->IncrementStats(stats::flow_invalid_id);
-      return ParseLegacyEventAsRawEvent();
+      return util::ErrStatus("Invalid id for flow event v1");
     }
     FlowId flow_id = context_->flow_tracker->GetFlowIdForV1Event(
         opt_source_id.value(), category_id_, name_id_);
@@ -648,7 +648,7 @@ class TrackEventParser::EventImporter {
                                     legacy_event_.bind_to_enclosing());
         break;
     }
-    return ParseLegacyEventAsRawEvent();
+    return util::OkStatus();
   }
 
   void MaybeParseFlowEventV2() {
@@ -912,39 +912,6 @@ class TrackEventParser::EventImporter {
       inserter->AddArg(parser_->legacy_event_passthrough_utid_id_,
                        Variadic::UnsignedInteger(*legacy_passthrough_utid_),
                        ArgsTracker::UpdatePolicy::kSkipIfExists);
-    }
-
-    // TODO(eseckler): Parse legacy flow events into flow events table once we
-    // have a design for it.
-    if (legacy_event_.has_bind_id()) {
-      inserter->AddArg(parser_->legacy_event_bind_id_key_id_,
-                       Variadic::UnsignedInteger(legacy_event_.bind_id()));
-    }
-
-    if (legacy_event_.bind_to_enclosing()) {
-      inserter->AddArg(parser_->legacy_event_bind_to_enclosing_key_id_,
-                       Variadic::Boolean(true));
-    }
-
-    if (legacy_event_.flow_direction()) {
-      StringId value = kNullStringId;
-      switch (legacy_event_.flow_direction()) {
-        case LegacyEvent::FLOW_IN:
-          value = parser_->flow_direction_value_in_id_;
-          break;
-        case LegacyEvent::FLOW_OUT:
-          value = parser_->flow_direction_value_out_id_;
-          break;
-        case LegacyEvent::FLOW_INOUT:
-          value = parser_->flow_direction_value_inout_id_;
-          break;
-        default:
-          PERFETTO_ELOG("Unknown flow direction: %d",
-                        legacy_event_.flow_direction());
-          break;
-      }
-      inserter->AddArg(parser_->legacy_event_flow_direction_key_id_,
-                       Variadic::String(value));
     }
   }
 
