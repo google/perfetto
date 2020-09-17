@@ -35,11 +35,20 @@
 namespace perfetto {
 namespace profiling {
 
-uint64_t GetMaxTries(const ClientConfiguration& client_config);
-const char* GetThreadStackBase();
+struct StackRange {
+  const char* begin;
+  // One past the highest address part of the stack.
+  const char* end;
+};
+
+StackRange GetThreadStackRange();
+StackRange GetSigAltStackRange();
+StackRange GetMainThreadStackRange();
 
 constexpr uint64_t kInfiniteTries = 0;
 constexpr uint32_t kClientSockTimeoutMs = 1000;
+
+uint64_t GetMaxTries(const ClientConfiguration& client_config);
 
 // Profiling client, used to sample and record the malloc/free family of calls,
 // and communicate the necessary state to a separate profiling daemon process.
@@ -99,7 +108,7 @@ class Client {
          SharedRingBuffer shmem,
          Sampler sampler,
          pid_t pid_at_creation,
-         const char* main_thread_stack_base);
+         StackRange main_thread_stack_range);
 
   ~Client();
 
@@ -108,7 +117,7 @@ class Client {
   bool IsConnected();
 
  private:
-  const char* GetStackBase();
+  const char* GetStackEnd(const char* stacktop);
   bool SendControlSocketByte() PERFETTO_WARN_UNUSED_RESULT;
   int64_t SendWireMessageWithRetriesIfBlocking(const WireMessage&)
       PERFETTO_WARN_UNUSED_RESULT;
@@ -122,7 +131,7 @@ class Client {
   Sampler sampler_;
   base::UnixSocketRaw sock_;
 
-  const char* main_thread_stack_base_{nullptr};
+  StackRange main_thread_stack_range_{nullptr, nullptr};
   std::atomic<uint64_t>
       sequence_number_[base::ArraySize(ClientConfiguration{}.heaps)] = {};
   SharedRingBuffer shmem_;

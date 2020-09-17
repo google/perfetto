@@ -16,6 +16,8 @@
 
 #include "src/profiling/memory/client.h"
 
+#include <signal.h>
+
 #include <thread>
 
 #include "perfetto/base/thread_utils.h"
@@ -27,16 +29,64 @@ namespace perfetto {
 namespace profiling {
 namespace {
 
-TEST(ClientTest, GetThreadStackBase) {
+TEST(ClientTest, GetThreadStackRangeBase) {
   std::thread th([] {
-    const char* stackbase = GetThreadStackBase();
-    ASSERT_NE(stackbase, nullptr);
+    StackRange stackrange = GetThreadStackRange();
+    ASSERT_NE(stackrange.begin, nullptr);
+    ASSERT_NE(stackrange.end, nullptr);
     // The implementation assumes the stack grows from higher addresses to
     // lower. We will need to rework once we encounter architectures where the
     // stack grows the other way.
-    EXPECT_GT(stackbase, __builtin_frame_address(0));
+    EXPECT_LT(stackrange.begin, __builtin_frame_address(0));
+    EXPECT_GT(stackrange.end, __builtin_frame_address(0));
   });
   th.join();
+}
+
+TEST(ClientTest, GetSigaltStackRange) {
+  char stack[4096];
+  stack_t altstack{};
+  stack_t old_altstack{};
+  altstack.ss_sp = stack;
+  altstack.ss_size = sizeof(stack);
+  ASSERT_NE(sigaltstack(&altstack, &old_altstack), -1);
+
+  struct sigaction oldact;
+  struct sigaction newact {};
+
+  static StackRange stackrange;
+  static const char* stackptr;
+  newact.sa_handler = [](int) {
+    stackrange = GetSigAltStackRange();
+    stackptr = static_cast<char*>(__builtin_frame_address(0));
+  };
+  newact.sa_flags = SA_ONSTACK;
+  int res = sigaction(SIGUSR1, &newact, &oldact);
+  ASSERT_NE(res, -1);
+
+  raise(SIGUSR1);
+
+  PERFETTO_CHECK(sigaction(SIGUSR1, &oldact, nullptr) != -1);
+  PERFETTO_CHECK(sigaltstack(&old_altstack, nullptr) != -1);
+
+  ASSERT_EQ(stackrange.begin, stack);
+  ASSERT_EQ(stackrange.end, &stack[4096]);
+  ASSERT_LT(stackrange.begin, stackptr);
+  ASSERT_GT(stackrange.end, stackptr);
+}
+
+TEST(ClientTest, GetMainThreadStackRange) {
+  if (getpid() != base::GetThreadId())
+    GTEST_SKIP() << "This test has to run on the main thread.";
+
+  StackRange stackrange = GetMainThreadStackRange();
+  ASSERT_NE(stackrange.begin, nullptr);
+  ASSERT_NE(stackrange.end, nullptr);
+  // The implementation assumes the stack grows from higher addresses to
+  // lower. We will need to rework once we encounter architectures where the
+  // stack grows the other way.
+  EXPECT_LT(stackrange.begin, __builtin_frame_address(0));
+  EXPECT_GT(stackrange.end, __builtin_frame_address(0));
 }
 
 TEST(ClientTest, IsMainThread) {
