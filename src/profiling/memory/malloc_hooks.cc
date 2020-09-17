@@ -97,8 +97,7 @@ void ProfileCallback(bool enabled) {
 }
 
 uint32_t g_heap_id = AHeapProfile_registerHeap(
-    AHeapInfo_setCallback(AHeapInfo_create("com.android.malloc"),
-                          ProfileCallback));
+    AHeapInfo_setCallback(AHeapInfo_create("libc.malloc"), ProfileCallback));
 
 }  // namespace
 
