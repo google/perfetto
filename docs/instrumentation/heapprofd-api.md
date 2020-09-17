@@ -86,7 +86,7 @@ To find out where in a program these two functions get called, we instrument
 the allocator using this API:
 
 ```
-#include "path/to/client_ext.h"
+#include "path/to/heap_profile.h"
 
 static uint32_t g_heap_id = AHeapProfile_registerHeap(
   AHeapInfo_create("invalid.example"));

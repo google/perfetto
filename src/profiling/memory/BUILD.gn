@@ -76,16 +76,16 @@ executable("heapprofd_standalone_client_example") {
   sources = [ "heapprofd_standalone_client_example.cc" ]
 }
 
-source_set("client_ext_standalone") {
+source_set("client_api_standalone") {
   deps = [
-    ":client_ext",
+    ":client_api",
     ":daemon",
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/tracing/ipc",
     "../../base",
     "../common:proc_utils",
   ]
-  sources = [ "client_ext_standalone.cc" ]
+  sources = [ "client_api_standalone.cc" ]
 }
 
 # This can be used to instrument custom allocators to report their allocations
@@ -94,7 +94,7 @@ source_set("client_ext_standalone") {
 # Android platform.
 shared_library("heapprofd_standalone_client") {
   deps = [
-    ":client_ext_standalone",
+    ":client_api_standalone",
     "../../../gn:default_deps",
   ]
   ldflags = [
@@ -109,7 +109,7 @@ shared_library("heapprofd_standalone_client_noop") {
     "-Wl,--version-script",
     rebase_path("heapprofd_client_api.map.txt", root_build_dir),
   ]
-  sources = [ "client_ext_noop.cc" ]
+  sources = [ "client_api_noop.cc" ]
 }
 
 shared_library("heapprofd_client_api") {
@@ -122,9 +122,9 @@ shared_library("heapprofd_client_api") {
     # TODO(fmayer): Add async-safe logging for non-Android.
     cflags = [ "-DPERFETTO_DISABLE_LOG" ]
   }
-  deps = [ ":client_ext" ]
+  deps = [ ":client_api" ]
   if (perfetto_build_with_android) {
-    sources = [ "client_ext_android.cc" ]
+    sources = [ "client_api_android.cc" ]
   }
 }
 
@@ -132,7 +132,7 @@ shared_library("heapprofd_client_api") {
 # LD_PRELOAD. On non-GLibc, this will probably fail to link.
 shared_library("heapprofd_preload") {
   deps = [
-    ":client_ext_standalone",
+    ":client_api_standalone",
     ":wrap_allocators",
     "../../../gn:default_deps",
     "../../base",
@@ -149,7 +149,7 @@ shared_library("heapprofd_preload") {
 source_set("bionic_libc_platform_headers_on_android") {
 }
 
-source_set("client_ext") {
+source_set("client_api") {
   if (perfetto_build_with_android) {
     cflags = [ "-DPERFETTO_ANDROID_ASYNC_SAFE_LOG" ]
   } else {
@@ -166,7 +166,7 @@ source_set("client_ext") {
     "../../base",
     "../common:proc_utils",
   ]
-  sources = [ "client_ext.cc" ]
+  sources = [ "client_api.cc" ]
 }
 
 source_set("wrap_allocators") {
