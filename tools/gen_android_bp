@@ -63,6 +63,7 @@ default_targets = [
     '//src/profiling/perf:traced_perf',
     '//src/traced/probes:traced_probes',
     '//src/traced/service:traced',
+    '//src/trace_processor:trace_processor_shell',
     '//test/cts:perfetto_cts_deps',
     '//test/cts:perfetto_cts_jni_deps',
     '//test:perfetto_gtest_logcat_printer',
@@ -76,7 +77,6 @@ cppgen_plugin = '//src/protozero/protoc_plugin:cppgen_plugin(%s)' % (
     gn_utils.HOST_TOOLCHAIN)
 
 default_targets += [
-    '//src/trace_processor:trace_processor_shell(%s)' % gn_utils.HOST_TOOLCHAIN,
     '//tools/trace_to_text:trace_to_text(%s)' % gn_utils.HOST_TOOLCHAIN,
     protozero_plugin,
     ipc_plugin,
@@ -91,8 +91,9 @@ target_initrc = {
 }
 
 target_host_supported = [
-    '//protos/perfetto/trace:perfetto_trace_protos',
     '//:libperfetto',
+    '//protos/perfetto/trace:perfetto_trace_protos',
+    '//src/trace_processor:trace_processor_shell',
 ]
 
 # All module names are prefixed with this string to avoid collisions.
@@ -202,7 +203,9 @@ additional_args = {
     ],
     'libperfetto_android_internal': [('static_libs', {'libhealthhalutils'}),],
     'trace_processor_shell': [
-      ('stl', 'libc++_static'),
+      ('host', {
+        'stl': 'libc++_static'
+      }),
     ],
     'libperfetto_client_experimental': [
       ('apex_available', {
@@ -229,6 +232,9 @@ def enable_gtest_and_gmock(module):
 def enable_protobuf_full(module):
   if module.type == 'cc_binary_host':
     module.static_libs.add('libprotobuf-cpp-full')
+  elif module.host_supported:
+    module.host.static_libs.add('libprotobuf-cpp-full')
+    module.android.shared_libs.add('libprotobuf-cpp-full')
   else:
     module.shared_libs.add('libprotobuf-cpp-full')
 
@@ -265,18 +271,26 @@ def enable_libunwind(module):
 def enable_sqlite(module):
   if module.type == 'cc_binary_host':
     module.static_libs.add('libsqlite')
-  else:
+  elif module.host_supported:
     # Copy what the sqlite3 command line tool does.
     module.android.shared_libs.add('libsqlite')
     module.android.shared_libs.add('libandroidicu')
     module.android.shared_libs.add('liblog')
     module.android.shared_libs.add('libutils')
     module.host.static_libs.add('libsqlite')
+  else:
+    module.shared_libs.add('libsqlite')
+    module.shared_libs.add('libandroidicu')
+    module.shared_libs.add('liblog')
+    module.shared_libs.add('libutils')
 
 
 def enable_zlib(module):
   if module.type == 'cc_binary_host':
     module.static_libs.add('libz')
+  elif module.host_supported:
+    module.android.shared_libs.add('libz')
+    module.host.static_libs.add('libz')
   else:
     module.shared_libs.add('libz')
 
@@ -367,6 +381,7 @@ class Target(object):
     self.static_libs = set()
     self.whole_static_libs = set()
     self.cflags = set()
+    self.stl = None
 
   def to_string(self, output):
     nested_out = []
@@ -374,6 +389,7 @@ class Target(object):
     self._output_field(nested_out, 'static_libs')
     self._output_field(nested_out, 'whole_static_libs')
     self._output_field(nested_out, 'cflags')
+    self._output_field(nested_out, 'stl')
 
     if nested_out:
       output.append('  %s: {' % self.name)
@@ -494,6 +510,25 @@ class Module(object):
       output.append('  },')
     output.append('}')
     output.append('')
+
+
+  def add_android_static_lib(self, lib):
+    if self.type == 'cc_binary_host':
+      raise Exception('Adding Android static lib for host tool is unsupported')
+    elif self.host_supported:
+      self.android.static_libs.add(lib)
+    else:
+      self.static_libs.add(lib)
+
+
+  def add_android_shared_lib(self, lib):
+    if self.type == 'cc_binary_host':
+      raise Exception('Adding Android shared lib for host tool is unsupported')
+    elif self.host_supported:
+      self.android.shared_libs.add(lib)
+    else:
+      self.shared_libs.add(lib)
+
 
   def _output_field(self, output, name, sort=True):
     value = getattr(self, name)
@@ -774,9 +809,9 @@ def create_modules_from_target(blueprint, gn, gn_target_name):
       # are HAL libraries (e.g., android.hardware.health@2.0).
       android_lib = lib if '@' in lib else 'lib' + lib
       if lib in shared_library_allowlist:
-        module.shared_libs.add(android_lib)
+        module.add_android_shared_lib(android_lib)
       if lib in static_library_allowlist:
-        module.static_libs.add(android_lib)
+        module.add_android_static_lib(android_lib)
 
   # If the module is a static library, export all the generated headers.
   if module.type == 'cc_library_static':
@@ -793,6 +828,8 @@ def create_modules_from_target(blueprint, gn, gn_target_name):
       setattr(module, key, add_val)
     elif isinstance(add_val, dict) and isinstance(curr, dict):
       curr.update(add_val)
+    elif isinstance(add_val, dict) and isinstance(curr, Target):
+      curr.__dict__.update(add_val)
     else:
       raise Error('Unimplemented type of additional_args: %r' % key)
 

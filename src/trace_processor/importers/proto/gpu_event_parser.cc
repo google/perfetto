@@ -233,13 +233,13 @@ const StringId GpuEventParser::GetFullStageName(
     }
     stage_name = context_->storage->InternString(decoder->name());
   } else {
-    size_t stage_id = static_cast<size_t>(event.stage_id());
+    uint64_t stage_id = static_cast<uint64_t>(event.stage_id());
 
     if (stage_id < gpu_render_stage_ids_.size()) {
-      stage_name = gpu_render_stage_ids_[stage_id].first;
+      stage_name = gpu_render_stage_ids_[static_cast<size_t>(stage_id)].first;
     } else {
       char buffer[64];
-      snprintf(buffer, sizeof(buffer), "render stage(%zu)", stage_id);
+      snprintf(buffer, sizeof(buffer), "render stage(%" PRIu64 ")", stage_id);
       stage_name = context_->storage->InternString(buffer);
     }
   }
