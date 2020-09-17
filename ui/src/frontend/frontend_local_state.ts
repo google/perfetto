@@ -69,6 +69,7 @@ export class FrontendLocalState {
   hoveredPid = -1;
   hoveredLogsTimestamp = -1;
   hoveredNoteTimestamp = -1;
+  highlightedSliceId = -1;
   vidTimestamp = -1;
   localOnlyMode = false;
   sidebarVisible = true;
@@ -122,6 +123,11 @@ export class FrontendLocalState {
     this.hoveredUtid = utid;
     this.hoveredPid = pid;
     globals.rafScheduler.scheduleRedraw();
+  }
+
+  setHighlightedSliceId(sliceId: number) {
+    this.highlightedSliceId = sliceId;
+    globals.rafScheduler.scheduleFullRedraw();
   }
 
   // Sets the timestamp at which a vertical line will be drawn.
