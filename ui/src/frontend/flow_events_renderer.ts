@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {hueForSlice} from '../common/colorizer';
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {FlowPoint, globals} from './globals';
 import {PanelVNode} from './panel';
@@ -166,16 +165,17 @@ export class FlowEventsRenderer {
       const begin = {
         x: this.getXCoordinate(flow.begin.sliceEndTs),
         y: beginYConnection.y,
-        hue: hueForSlice(flow.begin.sliceName),
         dir: beginDir
       };
       const end = {
         x: this.getXCoordinate(flow.end.sliceStartTs),
         y: endYConnection.y,
-        hue: hueForSlice(flow.end.sliceName),
         dir: endDir
       };
-      this.drawFlowArrow(ctx, begin, end);
+      const highlighted =
+          flow.end.sliceId === globals.frontendLocalState.highlightedSliceId ||
+          flow.begin.sliceId === globals.frontendLocalState.highlightedSliceId;
+      this.drawFlowArrow(ctx, begin, end, 10, highlighted);
     });
 
     ctx.restore();
@@ -213,17 +213,14 @@ export class FlowEventsRenderer {
 
   private drawFlowArrow(
       ctx: CanvasRenderingContext2D,
-      begin: {x: number, y: number, hue: number, dir: LineDirection},
-      end: {x: number, y: number, hue: number, dir: LineDirection}) {
-    const grad = ctx.createLinearGradient(begin.x, begin.y, end.x, end.y);
-    grad.addColorStop(0, `hsl(${begin.hue}, 50%, 65%)`);
-    grad.addColorStop(1, `hsl(${end.hue}, 50%, 65%)`);
-
+      begin: {x: number, y: number, dir: LineDirection},
+      end: {x: number, y: number, dir: LineDirection}, hue: number,
+      highlighted: boolean) {
     const END_OFFSET =
         (end.dir === 'RIGHT' || end.dir === 'LEFT' ? TRIANGLE_SIZE : 0);
-
+    const color = `hsl(${hue}, 50%, ${highlighted ? 60 : 75}%)`;
     // draw curved line from begin to end (bezier curve)
-    ctx.strokeStyle = grad;
+    ctx.strokeStyle = color;
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(begin.x, begin.y);
@@ -241,7 +238,7 @@ export class FlowEventsRenderer {
     // e.g. triangle, circle, square?
     if (begin.dir !== 'RIGHT' && begin.dir !== 'LEFT') {
       // draw a circle if we the line has a vertical connection
-      ctx.fillStyle = `hsl(${begin.hue}, 50%, 65%)`;
+      ctx.fillStyle = color;
       ctx.beginPath();
       ctx.arc(begin.x, begin.y, 3, 0, 2 * Math.PI);
       ctx.closePath();
@@ -251,7 +248,7 @@ export class FlowEventsRenderer {
 
     if (end.dir !== 'RIGHT' && end.dir !== 'LEFT') {
       // draw a circle if we the line has a vertical connection
-      ctx.fillStyle = `hsl(${begin.hue}, 50%, 65%)`;
+      ctx.fillStyle = color;
       ctx.beginPath();
       ctx.arc(end.x, end.y, CIRCLE_RADIUS, 0, 2 * Math.PI);
       ctx.closePath();
@@ -260,7 +257,7 @@ export class FlowEventsRenderer {
       const dx = this.getDeltaX(end.dir, TRIANGLE_SIZE);
       const dy = this.getDeltaY(end.dir, TRIANGLE_SIZE);
       // draw small triangle
-      ctx.fillStyle = `hsl(${end.hue}, 50%, 65%)`;
+      ctx.fillStyle = color;
       ctx.beginPath();
       ctx.moveTo(end.x, end.y);
       ctx.lineTo(end.x - dx - dy, end.y + dx - dy);
