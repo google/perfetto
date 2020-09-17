@@ -49,7 +49,12 @@ export class FlowEventsPanel extends Panel {
             flowsIn.map(flow => {
               const args = {
                 onclick: () =>
-                    flowClickHandler(flow.begin.sliceId, flow.begin.trackId)
+                    flowClickHandler(flow.begin.sliceId, flow.begin.trackId),
+                onmousemove: () =>
+                    globals.frontendLocalState.setHighlightedSliceId(
+                        flow.begin.sliceId),
+                onmouseleave: () =>
+                    globals.frontendLocalState.setHighlightedSliceId(-1)
               };
               return m(
                   'tr',
@@ -69,7 +74,12 @@ export class FlowEventsPanel extends Panel {
             flowsOut.map(flow => {
               const args = {
                 onclick: () =>
-                    flowClickHandler(flow.end.sliceId, flow.end.trackId)
+                    flowClickHandler(flow.end.sliceId, flow.end.trackId),
+                onmousemove: () =>
+                    globals.frontendLocalState.setHighlightedSliceId(
+                        flow.end.sliceId),
+                onmouseleave: () =>
+                    globals.frontendLocalState.setHighlightedSliceId(-1)
               };
               return m(
                   'tr',
