@@ -25,11 +25,14 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/subprocess.h"
 #include "perfetto/ext/tracing/ipc/default_socket.h"
 #include "perfetto/profiling/memory/client_ext.h"
+#include "protos/perfetto/trace/trace.gen.h"
+#include "protos/perfetto/trace/trace.pbzero.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/profiling/memory/heapprofd_producer.h"
 #include "test/gtest_and_gmock.h"
@@ -354,6 +357,20 @@ std::unique_ptr<TestHelper> GetHelper(base::TestTaskRunner* task_runner) {
   return helper;
 }
 
+std::string ToTraceString(
+    const std::vector<protos::gen::TracePacket>& packets) {
+  protos::gen::Trace trace;
+  for (const protos::gen::TracePacket& packet : packets) {
+    *trace.add_packet() = packet;
+  }
+  return trace.SerializeAsString();
+}
+
+#define WRITE_TRACE(trace)                 \
+  do {                                     \
+    WriteTrace(trace, __FILE__, __LINE__); \
+  } while (0)
+
 std::string FormatHistogram(const protos::gen::ProfilePacket_Histogram& hist) {
   std::string out;
   std::string prev_upper_limit = "-inf";
@@ -379,10 +396,9 @@ std::string FormatStats(const protos::gen::ProfilePacket_ProcessStats& stats) {
          "unwinding_time_us: " + FormatHistogram(stats.unwinding_time_us());
 }
 
-__attribute__((unused)) std::string TestSuffix(
-    const ::testing::TestParamInfo<std::tuple<TestMode, AllocatorMode>>& info) {
-  TestMode tm = std::get<0>(info.param);
-  AllocatorMode am = std::get<1>(info.param);
+std::string Suffix(const std::tuple<TestMode, AllocatorMode>& param) {
+  TestMode tm = std::get<0>(param);
+  AllocatorMode am = std::get<1>(param);
 
   std::string result;
   switch (tm) {
@@ -405,6 +421,11 @@ __attribute__((unused)) std::string TestSuffix(
       break;
   }
   return result;
+}
+
+__attribute__((unused)) std::string TestSuffix(
+    const ::testing::TestParamInfo<std::tuple<TestMode, AllocatorMode>>& info) {
+  return Suffix(info.param);
 }
 
 class HeapprofdEndToEnd
@@ -438,6 +459,22 @@ class HeapprofdEndToEnd
   TestMode test_mode() { return std::get<0>(GetParam()); }
   AllocatorMode allocator_mode() { return std::get<1>(GetParam()); }
   std::string allocator_name() { return AllocatorName(allocator_mode()); }
+
+  void WriteTrace(const std::vector<protos::gen::TracePacket>& packets,
+                  const char* filename,
+                  uint64_t lineno) {
+    const char* outdir = getenv("HEAPPROFD_TEST_PROFILE_OUT");
+    if (!outdir)
+      return;
+    const std::string fq_filename =
+        std::string(outdir) + "/" + basename(filename) + ":" +
+        std::to_string(lineno) + "_" + Suffix(GetParam());
+    base::ScopedFile fd(base::OpenFile(fq_filename, O_WRONLY | O_CREAT, 0666));
+    PERFETTO_CHECK(*fd);
+    std::string trace_string = ToTraceString(packets);
+    PERFETTO_CHECK(
+        base::WriteAll(*fd, trace_string.data(), trace_string.size()) >= 0);
+  }
 
   std::unique_ptr<TestHelper> Trace(const TraceConfig& trace_config) {
     auto helper = GetHelper(&task_runner);
@@ -601,6 +638,7 @@ TEST_P(HeapprofdEndToEnd, Disabled) {
   });
 
   auto helper = Trace(trace_config);
+  WRITE_TRACE(helper->full_trace());
   PrintStats(helper.get());
   KillAssertRunning(&child);
 
@@ -621,6 +659,7 @@ TEST_P(HeapprofdEndToEnd, Smoke) {
   });
 
   auto helper = Trace(trace_config);
+  WRITE_TRACE(helper->full_trace());
   PrintStats(helper.get());
   KillAssertRunning(&child);
 
@@ -646,6 +685,7 @@ TEST_P(HeapprofdEndToEnd, TwoAllocators) {
   });
 
   auto helper = Trace(trace_config);
+  WRITE_TRACE(helper->full_trace());
   PrintStats(helper.get());
   KillAssertRunning(&child);
 
@@ -672,6 +712,7 @@ TEST_P(HeapprofdEndToEnd, TwoAllocatorsAll) {
   });
 
   auto helper = Trace(trace_config);
+  WRITE_TRACE(helper->full_trace());
   PrintStats(helper.get());
   KillAssertRunning(&child);
 
@@ -702,6 +743,7 @@ TEST_P(HeapprofdEndToEnd, AccurateCustom) {
   });
 
   auto helper = Trace(trace_config);
+  WRITE_TRACE(helper->full_trace());
   PrintStats(helper.get());
   KillAssertRunning(&child);
 
@@ -742,6 +784,7 @@ TEST_P(HeapprofdEndToEnd, AccurateDumpAtMaxCustom) {
   });
 
   auto helper = Trace(trace_config);
+  WRITE_TRACE(helper->full_trace());
   PrintStats(helper.get());
   KillAssertRunning(&child);
 
@@ -779,6 +822,7 @@ TEST_P(HeapprofdEndToEnd, TwoProcesses) {
       });
 
   auto helper = Trace(trace_config);
+  WRITE_TRACE(helper->full_trace());
   PrintStats(helper.get());
 
   KillAssertRunning(&child);
@@ -803,6 +847,7 @@ TEST_P(HeapprofdEndToEnd, FinalFlush) {
   });
 
   auto helper = Trace(trace_config);
+  WRITE_TRACE(helper->full_trace());
   PrintStats(helper.get());
   KillAssertRunning(&child);
 
@@ -852,6 +897,7 @@ TEST_P(HeapprofdEndToEnd, NativeStartup) {
 
   helper->ReadData();
   helper->WaitForReadData(0, kWaitForReadDataTimeoutMs);
+  WRITE_TRACE(helper->full_trace());
 
   KillAssertRunning(&child);
 
@@ -924,6 +970,7 @@ TEST_P(HeapprofdEndToEnd, NativeStartupDenormalizedCmdline) {
 
   helper->ReadData();
   helper->WaitForReadData(0, kWaitForReadDataTimeoutMs);
+  WRITE_TRACE(helper->full_trace());
 
   KillAssertRunning(&child);
 
@@ -986,6 +1033,7 @@ TEST_P(HeapprofdEndToEnd, DiscoverByName) {
 
   helper->ReadData();
   helper->WaitForReadData(0, kWaitForReadDataTimeoutMs);
+  WRITE_TRACE(helper->full_trace());
 
   KillAssertRunning(&child);
 
@@ -1049,6 +1097,7 @@ TEST_P(HeapprofdEndToEnd, DiscoverByNameDenormalizedCmdline) {
 
   helper->ReadData();
   helper->WaitForReadData(0, kWaitForReadDataTimeoutMs);
+  WRITE_TRACE(helper->full_trace());
 
   KillAssertRunning(&child);
 
@@ -1124,6 +1173,7 @@ TEST_P(HeapprofdEndToEnd, ReInit) {
   });
 
   auto helper = Trace(trace_config);
+  WRITE_TRACE(helper->full_trace());
 
   PrintStats(helper.get());
   ValidateHasSamples(helper.get(), pid, allocator_name());
@@ -1153,6 +1203,7 @@ TEST_P(HeapprofdEndToEnd, ReInit) {
 
   helper2->ReadData();
   helper2->WaitForReadData(0, kWaitForReadDataTimeoutMs);
+  WRITE_TRACE(helper2->trace());
 
   PrintStats(helper2.get());
   KillAssertRunning(&child);
@@ -1207,6 +1258,7 @@ TEST_P(HeapprofdEndToEnd, ReInitAfterInvalid) {
   });
 
   auto helper = Trace(trace_config);
+  WRITE_TRACE(helper->full_trace());
 
   PrintStats(helper.get());
   ValidateHasSamples(helper.get(), pid, allocator_name());
@@ -1236,6 +1288,7 @@ TEST_P(HeapprofdEndToEnd, ReInitAfterInvalid) {
 
   helper2->ReadData();
   helper2->WaitForReadData(0, kWaitForReadDataTimeoutMs);
+  WRITE_TRACE(helper2->trace());
 
   PrintStats(helper2.get());
   KillAssertRunning(&child);
@@ -1272,11 +1325,13 @@ TEST_P(HeapprofdEndToEnd, ConcurrentSession) {
   helper->WaitForTracingDisabled(kTracingDisabledTimeoutMs);
   helper->ReadData();
   helper->WaitForReadData(0, kWaitForReadDataTimeoutMs);
+  WRITE_TRACE(helper->full_trace());
   PrintStats(helper.get());
 
   helper_concurrent->WaitForTracingDisabled(kTracingDisabledTimeoutMs);
   helper_concurrent->ReadData();
   helper_concurrent->WaitForReadData(0, kWaitForReadDataTimeoutMs);
+  WRITE_TRACE(helper_concurrent->trace());
   PrintStats(helper_concurrent.get());
   KillAssertRunning(&child);
 
@@ -1346,6 +1401,7 @@ TEST_P(HeapprofdEndToEnd, NativeProfilingActiveAtProcessExit) {
   helper->WaitForTracingDisabled(kTracingDisabledTimeoutMs);
   helper->ReadData();
   helper->WaitForReadData(0, kWaitForReadDataTimeoutMs);
+  WRITE_TRACE(helper->full_trace());
 
   const auto& packets = helper->trace();
   ASSERT_GT(packets.size(), 0u);
