@@ -29,10 +29,14 @@ namespace profiling {
 
 bool operator==(const AllocMetadata& one, const AllocMetadata& other);
 bool operator==(const AllocMetadata& one, const AllocMetadata& other) {
-  return std::tie(one.sequence_number, one.alloc_size, one.alloc_address,
-                  one.stack_pointer, one.arch) ==
-             std::tie(other.sequence_number, other.alloc_size,
-                      other.alloc_address, other.stack_pointer, other.arch) &&
+  return std::tie(one.sequence_number, one.alloc_size, one.sample_size,
+                  one.alloc_address, one.stack_pointer,
+                  one.clock_monotonic_coarse_timestamp, one.heap_id,
+                  one.arch) == std::tie(other.sequence_number, other.alloc_size,
+                                        other.sample_size, other.alloc_address,
+                                        other.stack_pointer,
+                                        other.clock_monotonic_coarse_timestamp,
+                                        other.heap_id, other.arch) &&
          memcmp(one.register_data, other.register_data, kMaxRegisterDataSize) ==
              0;
 }
