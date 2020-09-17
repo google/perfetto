@@ -1,5 +1,7 @@
 packet {
   system_info {
+    # Use bonito CPU core to cluster mapping.
+    android_build_fingerprint: "bonito"
     hz: 100
   }
 }

@@ -20,7 +20,7 @@ SELECT RUN_METRIC('android/process_metadata.sql');
 CREATE TABLE IF NOT EXISTS android_thread_time_in_state_base AS
 SELECT
   base.*,
-  IFNULL(core_type_per_cpu.core_type, 'unknown') core_type
+  core_type_per_cpu.core_type core_type
 FROM (
   SELECT
     ts,
@@ -32,7 +32,7 @@ FROM (
   JOIN thread_counter_track ON (counter.track_id = thread_counter_track.id)
   WHERE thread_counter_track.name = 'time_in_state'
 ) base
-LEFT JOIN core_type_per_cpu USING (cpu);
+JOIN core_type_per_cpu USING (cpu);
 
 CREATE VIEW android_thread_time_in_state_raw AS
 SELECT
