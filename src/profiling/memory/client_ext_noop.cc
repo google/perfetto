@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "perfetto/profiling/memory/client_ext.h"
+#include "perfetto/profiling/memory/heap_profile.h"
 
 #include <inttypes.h>
 
