@@ -98,7 +98,7 @@ TEST(HeapprofdConfigToClientConfigurationTest, DefaultHeap) {
   HeapprofdConfigToClientConfiguration(cfg, &cli_config);
   EXPECT_EQ(cli_config.num_heaps, 1u);
   EXPECT_EQ(cli_config.interval, 4096u);
-  EXPECT_STREQ(cli_config.heaps[0], "com.android.malloc");
+  EXPECT_STREQ(cli_config.heaps[0], "libc.malloc");
 }
 
 TEST(HeapprofdConfigToClientConfigurationTest, TwoHeaps) {
