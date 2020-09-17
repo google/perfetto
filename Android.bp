@@ -495,9 +495,6 @@ cc_library_shared {
     ":perfetto_src_tracing_ipc_producer_producer",
     ":perfetto_src_tracing_ipc_service_service",
   ],
-  shared_libs: [
-    "liblog",
-  ],
   host_supported: true,
   export_include_dirs: [
     "include",
@@ -553,6 +550,13 @@ cc_library_shared {
     "-DGOOGLE_PROTOBUF_NO_RTTI",
     "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
   ],
+  target: {
+    android: {
+      shared_libs: [
+        "liblog",
+      ],
+    },
+  },
 }
 
 // GN: //src/android_internal:libperfetto_android_internal
@@ -8125,11 +8129,14 @@ cc_test {
     ":perfetto_tools_sanitizers_unittests_sanitizers_unittests",
   ],
   shared_libs: [
+    "libandroidicu",
     "libbase",
     "liblog",
     "libprocinfo",
     "libprotobuf-cpp-lite",
+    "libsqlite",
     "libunwindstack",
+    "libutils",
     "libz",
   ],
   static_libs: [
@@ -8228,21 +8235,6 @@ cc_test {
     "src/traced/probes/filesystem/testdata/**/*",
     "src/traced/probes/ftrace/test/data/**/*",
   ],
-  target: {
-    android: {
-      shared_libs: [
-        "libandroidicu",
-        "liblog",
-        "libsqlite",
-        "libutils",
-      ],
-    },
-    host: {
-      static_libs: [
-        "libsqlite",
-      ],
-    },
-  },
 }
 
 // GN: //src/protozero/protoc_plugin:protozero_plugin
@@ -8267,7 +8259,7 @@ cc_binary_host {
 }
 
 // GN: //src/trace_processor:trace_processor_shell
-cc_binary_host {
+cc_binary {
   name: "trace_processor_shell",
   srcs: [
     ":perfetto_include_perfetto_base_base",
@@ -8331,11 +8323,7 @@ cc_binary_host {
     "src/trace_processor/trace_processor_shell.cc",
     "src/trace_processor/util/proto_to_json.cc",
   ],
-  static_libs: [
-    "libprotobuf-cpp-full",
-    "libsqlite",
-    "libz",
-  ],
+  host_supported: true,
   generated_headers: [
     "perfetto_protos_perfetto_common_zero_gen_headers",
     "perfetto_protos_perfetto_config_android_zero_gen_headers",
@@ -8377,7 +8365,26 @@ cc_binary_host {
     "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
     "-DHAVE_HIDDEN",
   ],
-  stl: "libc++_static",
+  target: {
+    android: {
+      shared_libs: [
+        "libandroidicu",
+        "liblog",
+        "libprotobuf-cpp-full",
+        "libsqlite",
+        "libutils",
+        "libz",
+      ],
+    },
+    host: {
+      static_libs: [
+        "libprotobuf-cpp-full",
+        "libsqlite",
+        "libz",
+      ],
+      stl: "libc++_static",
+    },
+  },
 }
 
 // GN: //tools/trace_to_text:trace_to_text
