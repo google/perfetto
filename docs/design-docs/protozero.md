@@ -397,7 +397,7 @@ struct SOLMsg {
   void Append(T x) {
     // The memcpy will be elided by the compiler, which will emit just a
     // 64-bit aligned mov instruction.
-    memcpy(reinterpret_cast<T*>(ptr_), &x, sizeof(x));
+    memcpy(reinterpret_cast<void*>(ptr_), &x, sizeof(x));
     ptr_ += sizeof(x);
   }
 
@@ -407,7 +407,7 @@ struct SOLMsg {
   void set_field_uint64(uint64_t x) { Append(x); }
   void set_field_string(const char* str) { ptr_ = strcpy(ptr_, str); }
 
-  char storage_[sizeof(g_fake_input_simple)];
+  alignas(uint64_t) char storage_[sizeof(g_fake_input_simple) + 8];
   char* ptr_ = &storage_[0];
 };
 ```
