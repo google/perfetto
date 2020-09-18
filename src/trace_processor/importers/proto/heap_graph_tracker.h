@@ -19,6 +19,7 @@
 
 #include <map>
 #include <set>
+#include <utility>
 #include <vector>
 
 #include "perfetto/ext/base/optional.h"
@@ -172,6 +173,7 @@ class HeapGraphTracker : public Destructible {
     std::map<tables::HeapGraphClassTable::Id,
              std::vector<tables::HeapGraphObjectTable::Id>>
         deferred_size_objects_for_type_;
+    bool truncated = false;
   };
 
   SequenceState& GetOrCreateSequence(uint32_t seq_id);
@@ -184,6 +186,7 @@ class HeapGraphTracker : public Destructible {
   void PopulateSuperClasses(const SequenceState& seq);
   InternedType* GetSuperClass(SequenceState* sequence_state,
                               const InternedType* current_type);
+  bool IsTruncated(UniquePid upid, int64_t ts);
 
   TraceProcessorContext* const context_;
   std::map<uint32_t, SequenceState> sequence_state_;
@@ -199,6 +202,7 @@ class HeapGraphTracker : public Destructible {
   std::map<std::pair<UniquePid, int64_t>,
            std::set<tables::HeapGraphObjectTable::Id>>
       roots_;
+  std::set<std::pair<UniquePid, int64_t>> truncated_graphs_;
 };
 
 }  // namespace trace_processor
