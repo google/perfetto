@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/profiling/memory/client_ext_factory.h"
+#include "src/profiling/memory/client_api_factory.h"
 
 #include <string>
 
