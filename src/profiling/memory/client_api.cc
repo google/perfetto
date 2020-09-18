@@ -38,7 +38,7 @@
 
 #include "src/profiling/common/proc_utils.h"
 #include "src/profiling/memory/client.h"
-#include "src/profiling/memory/client_ext_factory.h"
+#include "src/profiling/memory/client_api_factory.h"
 #include "src/profiling/memory/scoped_spinlock.h"
 #include "src/profiling/memory/unhooked_allocator.h"
 #include "src/profiling/memory/wire_protocol.h"
@@ -115,7 +115,6 @@ AHeapInfo& GetHeap(uint32_t id) {
 std::atomic<bool> g_client_lock{false};
 
 std::atomic<uint32_t> g_next_heap_id{kMinHeapId};
-
 
 // Called only if |g_client_lock| acquisition fails, which shouldn't happen
 // unless we're in a completely unexpected state (which we won't know how to

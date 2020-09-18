@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/profiling/memory/client_ext_factory.h"
+#include "src/profiling/memory/client_api_factory.h"
 
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/unix_socket.h"
@@ -149,7 +149,7 @@ void StartHeapprofdIfStatic() {
   task_runner.Run();
 }
 
-// This is called by AHeapProfile_initSession (client_ext.cc) to construct a
+// This is called by AHeapProfile_initSession (client_api.cc) to construct a
 // client.
 std::shared_ptr<Client> ConstructClient(
     UnhookedAllocator<perfetto::profiling::Client> unhooked_allocator) {
