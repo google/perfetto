@@ -984,6 +984,7 @@ class JsonExporter {
                                                 SliceId slice_id,
                                                 std::string name,
                                                 std::string cat,
+                                                Json::Value args,
                                                 bool flow_begin) {
     const auto& slices = storage_->slice_table();
     const auto& thread_tracks = storage_->thread_track_table();
@@ -1012,6 +1013,7 @@ class JsonExporter {
     if (!flow_begin) {
       event["bp"] = "e";
     }
+    event["args"] = std::move(args);
     return std::move(event);
   }
 
@@ -1025,10 +1027,14 @@ class JsonExporter {
 
       std::string cat;
       std::string name;
+      auto args = args_builder_.GetArgs(arg_set_id);
       if (arg_set_id != kInvalidArgSetId) {
-        auto args = args_builder_.GetArgs(arg_set_id);
         cat = args["cat"].asString();
         name = args["name"].asString();
+        // Don't export these args since they are only used for this export and
+        // weren't part of the original event.
+        args.removeMember("name");
+        args.removeMember("cat");
       } else {
         auto opt_slice_out_idx = slice_table.id().IndexOf(slice_out);
         PERFETTO_DCHECK(opt_slice_out_idx.has_value());
@@ -1038,10 +1044,10 @@ class JsonExporter {
         name = GetNonNullString(storage_, name_id);
       }
 
-      auto out_event =
-          CreateFlowEventV1(i, slice_out, name, cat, /* flow_begin = */ true);
-      auto in_event =
-          CreateFlowEventV1(i, slice_in, name, cat, /* flow_begin = */ false);
+      auto out_event = CreateFlowEventV1(i, slice_out, name, cat, args,
+                                         /* flow_begin = */ true);
+      auto in_event = CreateFlowEventV1(i, slice_in, name, cat, std::move(args),
+                                        /* flow_begin = */ false);
 
       if (out_event && in_event) {
         writer_.WriteCommonEvent(out_event.value());
