@@ -31,6 +31,7 @@ import {
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
 
 import {AnalyzePage} from './analyze_page';
+import {loadAndroidBugToolInfo} from './android_bug_tool';
 import {maybeShowErrorDialog} from './error_dialog';
 import {
   CounterDetails,
@@ -49,6 +50,7 @@ import {postMessageHandler} from './post_message_handler';
 import {RecordPage, updateAvailableAdbDevices} from './record_page';
 import {Router} from './router';
 import {CheckHttpRpcConnection} from './rpc_http_dialog';
+import {taskTracker} from './task_tracker';
 import {TraceInfoPage} from './trace_info_page';
 import {ViewerPage} from './viewer_page';
 
@@ -318,6 +320,7 @@ function main() {
   // /?s=xxxx for permalinks.
   const stateHash = Router.param('s');
   const urlHash = Router.param('url');
+  const androidBugTool = Router.param('openFromAndroidBugTool');
   if (typeof stateHash === 'string' && stateHash) {
     globals.dispatch(Actions.loadPermalink({
       hash: stateHash,
@@ -326,6 +329,23 @@ function main() {
     globals.dispatch(Actions.openTraceFromUrl({
       url: urlHash,
     }));
+  } else if (androidBugTool) {
+    // TODO(hjd): Unify updateStatus and TaskTracker
+    globals.dispatch(Actions.updateStatus({
+      msg: 'Loading trace from ABT extension',
+      timestamp: Date.now() / 1000
+    }));
+    const loadInfo = loadAndroidBugToolInfo();
+    taskTracker.trackPromise(loadInfo, 'Loading trace from ABT extension');
+    loadInfo
+        .then(info => {
+          globals.dispatch(Actions.openTraceFromFile({
+            file: info.file,
+          }));
+        })
+        .catch(e => {
+          console.error(e);
+        });
   }
 
   // Prevent pinch zoom.
