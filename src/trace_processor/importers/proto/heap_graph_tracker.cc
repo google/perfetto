@@ -22,6 +22,7 @@
 #include "src/trace_processor/tables/profiler_tables.h"
 
 #include <set>
+#include <utility>
 
 namespace perfetto {
 namespace trace_processor {
@@ -446,6 +447,7 @@ void HeapGraphTracker::SetPacketIndex(uint32_t seq_id, uint64_t index) {
   }
 
   if (dropped_packet) {
+    sequence_state.truncated = true;
     if (sequence_state.prev_index) {
       PERFETTO_ELOG("Missing packets between %" PRIu64 " and %" PRIu64,
                     *sequence_state.prev_index, index);
@@ -478,6 +480,10 @@ HeapGraphTracker::InternedType* HeapGraphTracker::GetSuperClass(
 
 void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
   SequenceState& sequence_state = GetOrCreateSequence(seq_id);
+  if (sequence_state.truncated) {
+    truncated_graphs_.emplace(
+        std::make_pair(sequence_state.current_upid, sequence_state.current_ts));
+  }
 
   // We do this in FinalizeProfile because the interned_location_names get
   // written at the end of the dump.
@@ -765,22 +771,44 @@ void FindPathFromRoot(const TraceStorage& storage,
 std::unique_ptr<tables::ExperimentalFlamegraphNodesTable>
 HeapGraphTracker::BuildFlamegraph(const int64_t current_ts,
                                   const UniquePid current_upid) {
-  auto it = roots_.find(std::make_pair(current_upid, current_ts));
-  if (it == roots_.end())
-    return nullptr;
-
-  const std::set<tables::HeapGraphObjectTable::Id>& roots = it->second;
+  auto profile_type = context_->storage->InternString("graph");
+  auto java_mapping = context_->storage->InternString("JAVA");
 
   std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> tbl(
       new tables::ExperimentalFlamegraphNodesTable(
           context_->storage->mutable_string_pool(), nullptr));
 
+  auto it = roots_.find(std::make_pair(current_upid, current_ts));
+  if (it == roots_.end()) {
+    // TODO(fmayer): This should not be within the flame graph but some marker
+    // in the UI.
+    if (IsTruncated(current_upid, current_ts)) {
+      tables::ExperimentalFlamegraphNodesTable::Row alloc_row{};
+      alloc_row.ts = current_ts;
+      alloc_row.upid = current_upid;
+      alloc_row.profile_type = profile_type;
+      alloc_row.depth = 0;
+      alloc_row.name =
+          context_->storage->InternString("ERROR: INCOMPLETE GRAPH");
+      alloc_row.map_name = java_mapping;
+      alloc_row.count = 1;
+      alloc_row.cumulative_count = 1;
+      alloc_row.size = 1;
+      alloc_row.cumulative_size = 1;
+      alloc_row.parent_id = base::nullopt;
+      tbl->Insert(alloc_row);
+      return tbl;
+    }
+    // We haven't seen this graph, so we should raise an error.
+    return nullptr;
+  }
+
+  const std::set<tables::HeapGraphObjectTable::Id>& roots = it->second;
+
   PathFromRoot init_path;
   for (tables::HeapGraphObjectTable::Id root : roots) {
     FindPathFromRoot(*context_->storage, root, &init_path);
   }
-  auto profile_type = context_->storage->InternString("graph");
-  auto java_mapping = context_->storage->InternString("JAVA");
 
   std::vector<int32_t> node_to_cumulative_size(init_path.nodes.size());
   std::vector<int32_t> node_to_cumulative_count(init_path.nodes.size());
@@ -841,6 +869,24 @@ void HeapGraphTracker::NotifyEndOfFile() {
       FinalizeProfile(sequence_state_.begin()->first);
     }
   }
+}
+
+bool HeapGraphTracker::IsTruncated(UniquePid upid, int64_t ts) {
+  // The graph was finalized but was missing packets.
+  if (truncated_graphs_.find(std::make_pair(upid, ts)) !=
+      truncated_graphs_.end()) {
+    return true;
+  }
+
+  // Or the graph was never finalized, so is missing packets at the end.
+  for (const auto& p : sequence_state_) {
+    const SequenceState& sequence_state = p.second;
+    if (sequence_state.current_upid == upid &&
+        sequence_state.current_ts == ts) {
+      return true;
+    }
+  }
+  return false;
 }
 
 HeapGraphTracker::~HeapGraphTracker() = default;
