@@ -164,7 +164,7 @@ TEST(PagedMemoryTest, AccessUncommittedMemoryTriggersASAN) {
 #endif  // ADDRESS_SANITIZER
 
 TEST(PagedMemoryTest, GuardRegions) {
-  const size_t kSize = 4096;
+  const size_t kSize = GetSysPageSize();
   PagedMemory mem = PagedMemory::Allocate(kSize);
   ASSERT_TRUE(mem.IsValid());
   volatile char* raw = reinterpret_cast<char*>(mem.Get());
