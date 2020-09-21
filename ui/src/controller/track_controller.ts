@@ -41,6 +41,7 @@ export abstract class TrackController<
   private requestingData = false;
   private queuedRequest = false;
   private isSetup = false;
+  private lastReloadHandled = 0;
 
   // We choose 100000 as the table size to cache as this is roughly the point
   // where SQLite sorts start to become expensive.
@@ -59,6 +60,10 @@ export abstract class TrackController<
   // Can be overriden by the track implementation to allow one time setup work
   // to be performed before the first onBoundsChange invcation.
   async onSetup() {}
+
+  // Can be overriden by the track implementation to allow some one-off work
+  // when requested reload (e.g. recalculating height).
+  async onReload() {}
 
   // Must be overridden by the track implementation. Is invoked when the track
   // frontend runs out of cached data. The derived track controller is expected
@@ -113,8 +118,19 @@ export abstract class TrackController<
     return result;
   }
 
+  private shouldReload(): boolean {
+    const {lastTrackReloadRequest} = globals.state;
+    return !!lastTrackReloadRequest &&
+        this.lastReloadHandled < lastTrackReloadRequest;
+  }
+
+  private markReloadHandled() {
+    this.lastReloadHandled = globals.state.lastTrackReloadRequest || 0;
+  }
+
   shouldRequestData(traceTime: TraceTime): boolean {
     if (this.data === undefined) return true;
+    if (this.shouldReload()) return true;
 
     // If at the limit only request more data if the view has moved.
     const atLimit = this.data.length === LIMIT;
@@ -227,11 +243,13 @@ export abstract class TrackController<
         this.queuedRequest = true;
       } else {
         this.requestingData = true;
-        let setupPromise = Promise.resolve();
+        let promise = Promise.resolve();
         if (!this.isSetup) {
-          setupPromise = this.onSetup();
+          promise = this.onSetup();
+        } else if (this.shouldReload()) {
+          promise = this.onReload().then(() => this.markReloadHandled());
         }
-        setupPromise
+        promise
             .then(() => {
               this.isSetup = true;
               return this.onBoundsChange(

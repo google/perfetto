@@ -47,11 +47,18 @@ export interface SliceRect {
  * The abstract class that needs to be implemented by all tracks.
  */
 export abstract class Track<Config = {}, Data extends TrackData = TrackData> {
-  constructor(protected trackState: TrackState) {}
+  private trackId: string;
+  constructor(trackState: TrackState) {
+    this.trackId = trackState.id;
+  }
   protected abstract renderCanvas(ctx: CanvasRenderingContext2D): void;
 
+  protected get trackState(): TrackState {
+    return globals.state.tracks[this.trackId];
+  }
+
   get config(): Config {
-    return this.trackState.config as Config;
+    return globals.state.tracks[this.trackId].config as Config;
   }
 
   data(): Data|undefined {

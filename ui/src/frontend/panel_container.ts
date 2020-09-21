@@ -218,7 +218,9 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
   view({attrs}: m.CVnode<Attrs>) {
     this.attrs = attrs;
     const renderPanel = (panel: m.Vnode) => perfDebug() ?
-        m('.panel', panel, m('.debug-panel-border')) :
+        m('.panel',
+          {key: panel.key},
+          [panel, m('.debug-panel-border', {key: 'debug-panel-border'})]) :
         m('.panel', {key: panel.key}, panel);
 
     return [
