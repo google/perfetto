@@ -274,6 +274,8 @@ export interface State {
   visibleTracks: string[];
   scrollingTracks: string[];
   pinnedTracks: string[];
+  debugTrackId?: string;
+  lastTrackReloadRequest?: number;
   queries: ObjectById<QueryConfig>;
   permalink: PermalinkConfig;
   notes: ObjectById<Note|AreaNote>;

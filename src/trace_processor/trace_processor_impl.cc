@@ -152,6 +152,17 @@ void CreateBuiltinTables(sqlite3* db) {
     PERFETTO_ELOG("Error initializing: %s", error);
     sqlite3_free(error);
   }
+  // This is a table intended to be used for metric debugging/developing. Data
+  // in the table is shown specially in the UI, and users can insert rows into
+  // this table to draw more things.
+  sqlite3_exec(db,
+               "CREATE TABLE debug_slices (id BIG INT, name STRING, ts BIG INT,"
+               "dur BIG INT, depth BIG INT)",
+               0, 0, &error);
+  if (error) {
+    PERFETTO_ELOG("Error initializing: %s", error);
+    sqlite3_free(error);
+  }
 
   // Initialize the bounds table with some data so even before parsing any data,
   // we still have a valid table.

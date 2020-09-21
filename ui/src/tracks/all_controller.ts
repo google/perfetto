@@ -25,3 +25,4 @@ import './process_scheduling/controller';
 import './process_summary/controller';
 import './thread_state/controller';
 import './async_slices/controller';
+import './debug_slices/controller';
