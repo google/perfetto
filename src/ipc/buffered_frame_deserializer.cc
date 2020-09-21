@@ -39,7 +39,7 @@ constexpr size_t kHeaderSize = sizeof(uint32_t);
 BufferedFrameDeserializer::BufferedFrameDeserializer(size_t max_capacity)
     : capacity_(max_capacity) {
   PERFETTO_CHECK(max_capacity % base::GetSysPageSize() == 0);
-  PERFETTO_CHECK(max_capacity > base::GetSysPageSize());
+  PERFETTO_CHECK(max_capacity >= base::GetSysPageSize());
 }
 
 BufferedFrameDeserializer::~BufferedFrameDeserializer() = default;
