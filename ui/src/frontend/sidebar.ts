@@ -112,6 +112,16 @@ function createCannedQuery(query: string): (_: Event) => void {
   };
 }
 
+function showDebugTrack(): (_: Event) => void {
+  return (e: Event) => {
+    e.preventDefault();
+    globals.dispatch(Actions.addDebugTrack({
+      engineId: Object.keys(globals.state.engines)[0],
+      name: 'Debug Slices',
+    }));
+  };
+}
+
 const EXAMPLE_ANDROID_TRACE_URL =
     'https://storage.googleapis.com/perfetto-misc/example_android_trace_15s';
 
@@ -180,6 +190,11 @@ const SECTIONS = [
     title: 'Metrics and auditors',
     summary: 'Compute summary statistics',
     items: [
+      {
+        t: 'Show Debug Track',
+        a: showDebugTrack(),
+        i: 'view_day',
+      },
       {
         t: 'All Processes',
         a: createCannedQuery(ALL_PROCESSES_QUERY),
