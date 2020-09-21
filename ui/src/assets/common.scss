@@ -650,3 +650,7 @@ button.query-ctrl {
     cursor: pointer;
   }
 }
+
+.disallow-selection {
+  user-select: none;
+}
