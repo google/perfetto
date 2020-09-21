@@ -17,6 +17,7 @@ import {Draft} from 'immer';
 import {assertExists} from '../base/logging';
 import {randomColor} from '../common/colorizer';
 import {ConvertTrace, ConvertTraceToPprof} from '../controller/trace_converter';
+import {DEBUG_SLICE_TRACK_KIND} from '../tracks/debug_slices/common';
 
 import {DEFAULT_VIEWING_OPTION} from './flamegraph_util';
 import {
@@ -197,6 +198,34 @@ export const StateActions = {
     };
   },
 
+  addDebugTrack(state: StateDraft, args: {engineId: string, name: string}):
+      void {
+        if (state.debugTrackId !== undefined) return;
+        const trackId = `${state.nextId++}`;
+        state.debugTrackId = trackId;
+        this.addTrack(state, {
+          id: trackId,
+          engineId: args.engineId,
+          kind: DEBUG_SLICE_TRACK_KIND,
+          name: args.name,
+          trackGroup: SCROLLING_TRACK_GROUP,
+          config: {
+            maxDepth: 1,
+          }
+        });
+        this.toggleTrackPinned(state, {trackId});
+      },
+
+  removeDebugTrack(state: StateDraft, _: {}): void {
+    const {debugTrackId} = state;
+    if (debugTrackId === undefined) return;
+    delete state.tracks[debugTrackId];
+    state.scrollingTracks =
+        state.scrollingTracks.filter(id => id !== debugTrackId);
+    state.pinnedTracks = state.pinnedTracks.filter(id => id !== debugTrackId);
+    state.debugTrackId = undefined;
+  },
+
   updateAggregateSorting(
       state: StateDraft, args: {id: string, column: string}) {
     let prefs = state.aggregatePreferences[args.id];
@@ -297,6 +326,14 @@ export const StateActions = {
         const trackGroup = assertExists(state.trackGroups[id]);
         trackGroup.collapsed = !trackGroup.collapsed;
       },
+
+  requestTrackReload(state: StateDraft, _: {}) {
+    if (state.lastTrackReloadRequest) {
+      state.lastTrackReloadRequest++;
+    } else {
+      state.lastTrackReloadRequest = 1;
+    }
+  },
 
   setEngineReady(
       state: StateDraft,
