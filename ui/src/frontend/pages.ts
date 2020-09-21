@@ -32,7 +32,7 @@ function renderPermalink(): m.Children {
       {
         onclick: () => globals.dispatch(Actions.clearPermalink({})),
       },
-      m('i.material-icons', 'close')),
+      m('i.material-icons.disallow-selection', 'close')),
   ]);
 }
 
