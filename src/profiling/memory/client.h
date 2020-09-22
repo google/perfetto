@@ -91,22 +91,11 @@ class Client {
     shmem_.AddClientSpinlockBlockedUs(n);
   }
 
-  // Returns the number of bytes to assign to an allocation with the given
-  // |alloc_size|, based on the current sampling rate. A return value of zero
-  // means that the allocation should not be recorded. Not idempotent, each
-  // invocation mutates the sampler state.
-  //
-  // Not thread-safe.
-  size_t GetSampleSizeLocked(size_t alloc_size) {
-    return sampler_.SampleSize(alloc_size);
-  }
-
   // Public for std::allocate_shared. Use CreateAndHandshake() to create
   // instances instead.
   Client(base::UnixSocketRaw sock,
          ClientConfiguration client_config,
          SharedRingBuffer shmem,
-         Sampler sampler,
          pid_t pid_at_creation,
          StackRange main_thread_stack_range);
 
@@ -127,8 +116,6 @@ class Client {
 
   ClientConfiguration client_config_;
   uint64_t max_shmem_tries_;
-  // sampler_ operations are not thread-safe.
-  Sampler sampler_;
   base::UnixSocketRaw sock_;
 
   StackRange main_thread_stack_range_{nullptr, nullptr};

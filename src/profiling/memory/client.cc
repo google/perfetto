@@ -252,23 +252,19 @@ std::shared_ptr<Client> Client::CreateAndHandshake(
 
   PERFETTO_DCHECK(client_config.interval >= 1);
   sock.SetBlocking(false);
-  Sampler sampler{client_config.interval};
   // note: the shared_ptr will retain a copy of the unhooked_allocator
   return std::allocate_shared<Client>(unhooked_allocator, std::move(sock),
                                       client_config, std::move(shmem.value()),
-                                      std::move(sampler), getpid(),
-                                      GetMainThreadStackRange());
+                                      getpid(), GetMainThreadStackRange());
 }
 
 Client::Client(base::UnixSocketRaw sock,
                ClientConfiguration client_config,
                SharedRingBuffer shmem,
-               Sampler sampler,
                pid_t pid_at_creation,
                StackRange main_thread_stack_range)
     : client_config_(client_config),
       max_shmem_tries_(GetMaxTries(client_config_)),
-      sampler_(std::move(sampler)),
       sock_(std::move(sock)),
       main_thread_stack_range_(main_thread_stack_range),
       shmem_(std::move(shmem)),
