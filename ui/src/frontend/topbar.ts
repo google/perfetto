@@ -19,6 +19,7 @@ import {EngineConfig} from '../common/state';
 
 import {globals} from './globals';
 import {executeSearch} from './search_handler';
+import {taskTracker} from './task_tracker';
 
 const SEARCH = Symbol('search');
 const COMMAND = Symbol('command');
@@ -178,7 +179,7 @@ class Progress implements m.ClassComponent {
     if (this.progressBar === undefined) return;
     const engine: EngineConfig = globals.state.engines['0'];
     if ((engine !== undefined && !engine.ready) ||
-        globals.numQueuedQueries > 0) {
+        globals.numQueuedQueries > 0 || taskTracker.hasPendingTasks()) {
       this.progressBar.classList.add('progress-anim');
     } else {
       this.progressBar.classList.remove('progress-anim');
