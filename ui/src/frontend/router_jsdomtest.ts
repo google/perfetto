@@ -16,6 +16,7 @@ import {dingus} from 'dingusjs';
 
 import {Actions, DeferredAction} from '../common/actions';
 
+import {NullAnalytics} from './analytics';
 import {Router} from './router';
 
 const mockComponent = {
@@ -24,11 +25,7 @@ const mockComponent = {
 
 const fakeDispatch = () => {};
 
-const mockLogging = {
-  updatePath(_: string) {},
-  logEvent(_x: null, _y: string) {},
-  logError(_x: string) {}
-};
+const mockLogging = new NullAnalytics();
 
 beforeEach(() => {
   window.onhashchange = null;
