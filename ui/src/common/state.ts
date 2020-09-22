@@ -418,7 +418,7 @@ export function createEmptyRecordConfig(): RecordConfig {
     durationMs: 10000.0,
     maxFileSizeMb: 100,
     fileWritePeriodMs: 2500,
-    bufferSizeMb: 10.0,
+    bufferSizeMb: 64.0,
 
     cpuSched: false,
     cpuFreq: false,
