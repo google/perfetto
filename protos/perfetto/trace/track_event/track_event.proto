@@ -25,6 +25,7 @@ import "protos/perfetto/trace/track_event/chrome_histogram_sample.proto";
 import "protos/perfetto/trace/track_event/chrome_keyed_service.proto";
 import "protos/perfetto/trace/track_event/chrome_latency_info.proto";
 import "protos/perfetto/trace/track_event/chrome_legacy_ipc.proto";
+import "protos/perfetto/trace/track_event/chrome_message_pump.proto";
 import "protos/perfetto/trace/track_event/chrome_user_event.proto";
 import "protos/perfetto/trace/track_event/source_location.proto";
 
@@ -211,6 +212,8 @@ message TrackEvent {
     // Interned field.
     uint64 source_location_iid = 34;
   }
+
+  optional ChromeMessagePump chrome_message_pump = 35;
 
   // New argument types go here :)
 
