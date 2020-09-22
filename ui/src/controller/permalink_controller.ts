@@ -123,6 +123,12 @@ export class PermalinkController extends Controller<'main'> {
   private static async loadState(id: string): Promise<State|RecordConfig> {
     const url = `https://storage.googleapis.com/${BUCKET_NAME}/${id}`;
     const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(
+          `Could not fetch permalink.\n` +
+          `Are you sure the id (${id}) is correct?\n` +
+          `URL: ${url}`);
+    }
     const text = await response.text();
     const stateHash = await toSha256(text);
     const state = JSON.parse(text);
