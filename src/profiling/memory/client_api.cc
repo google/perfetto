@@ -52,6 +52,7 @@ struct AHeapInfo {
   void (*callback)(bool enabled);
 
   // Internal fields.
+  perfetto::profiling::Sampler sampler;
   std::atomic<bool> ready;
   std::atomic<bool> enabled;
 };
@@ -252,7 +253,7 @@ __attribute__((visibility("default"))) uint32_t AHeapProfile_registerHeap(
 
 __attribute__((visibility("default"))) bool
 AHeapProfile_reportAllocation(uint32_t heap_id, uint64_t id, uint64_t size) {
-  const AHeapInfo& heap = GetHeap(heap_id);
+  AHeapInfo& heap = GetHeap(heap_id);
   if (!heap.enabled.load(std::memory_order_acquire)) {
     return false;
   }
@@ -271,8 +272,7 @@ AHeapProfile_reportAllocation(uint32_t heap_id, uint64_t id, uint64_t size) {
       (*g_client_ptr)->AddClientSpinlockBlockedUs(s.blocked_us());
     }
 
-    sampled_alloc_sz =
-        (*g_client_ptr)->GetSampleSizeLocked(static_cast<size_t>(size));
+    sampled_alloc_sz = heap.sampler.SampleSize(static_cast<size_t>(size));
     if (sampled_alloc_sz == 0)  // not sampling
       return false;
 
@@ -363,12 +363,15 @@ __attribute__((visibility("default"))) bool AHeapProfile_initSession(
   const perfetto::profiling::ClientConfiguration& cli_config =
       client->client_config();
 
-  for (uint32_t i = kMinHeapId; i < g_next_heap_id.load(); ++i) {
+  bool matched_heaps[perfetto::base::ArraySize(g_heaps)] = {};
+  uint32_t max_heap = g_next_heap_id.load();
+  for (uint32_t i = kMinHeapId; i < max_heap; ++i) {
     AHeapInfo& heap = GetHeap(i);
     if (!heap.ready.load(std::memory_order_acquire))
       continue;
 
-    bool matched = cli_config.all_heaps;
+    bool& matched = matched_heaps[i];
+    matched = cli_config.all_heaps;
     for (uint32_t j = 0; !matched && j < cli_config.num_heaps; ++j) {
       static_assert(sizeof(g_heaps[0].heap_name) == HEAPPROFD_HEAP_NAME_SZ,
                     "correct heap name size");
@@ -379,6 +382,8 @@ __attribute__((visibility("default"))) bool AHeapProfile_initSession(
         matched = true;
       }
     }
+    // The callbacks must be called while NOT LOCKED. Because they run
+    // arbitrary code, it would be very easy to build a deadlock.
     if (matched) {
       if (!heap.enabled.load(std::memory_order_acquire) && heap.callback)
         heap.callback(true);
@@ -391,11 +396,21 @@ __attribute__((visibility("default"))) bool AHeapProfile_initSession(
         heap.callback(false);
     }
   }
+
   PERFETTO_LOG("%s: heapprofd_client initialized.", getprogname());
   {
     ScopedSpinlock s(&g_client_lock, ScopedSpinlock::Mode::Try);
     if (PERFETTO_UNLIKELY(!s.locked()))
       AbortOnSpinlockTimeout();
+
+    // This needs to happen under the lock for mutual exclusion regarding the
+    // random engine.
+    for (uint32_t i = kMinHeapId; i < max_heap; ++i) {
+      AHeapInfo& heap = GetHeap(i);
+      if (matched_heaps[i]) {
+        heap.sampler.SetSamplingInterval(cli_config.interval);
+      }
+    }
 
     // This cannot have been set in the meantime. There are never two concurrent
     // calls to this function, as Bionic uses atomics to guard against that.
