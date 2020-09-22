@@ -5945,7 +5945,6 @@ filegroup {
   name: "perfetto_src_android_internal_android_internal",
   srcs: [
     "src/android_internal/atrace_hal.cc",
-    "src/android_internal/dropbox_service.cc",
     "src/android_internal/health_hal.cc",
     "src/android_internal/incident_service.cc",
     "src/android_internal/power_stats_hal.cc",
