@@ -6311,6 +6311,7 @@ filegroup {
   name: "perfetto_src_profiling_memory_client",
   srcs: [
     "src/profiling/memory/client.cc",
+    "src/profiling/memory/sampler.cc",
   ],
 }
 
