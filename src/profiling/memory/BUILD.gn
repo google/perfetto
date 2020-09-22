@@ -283,6 +283,7 @@ source_set("client") {
   sources = [
     "client.cc",
     "client.h",
+    "sampler.cc",
     "sampler.h",
   ]
 }
