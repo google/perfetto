@@ -30,7 +30,6 @@ source_set("headers") {
   ]
   sources = [
     "atrace_hal.h",
-    "dropbox_service.h",
     "health_hal.h",
     "incident_service.h",
     "power_stats_hal.h",
@@ -62,7 +61,6 @@ source_set("android_internal") {
   if (perfetto_build_with_android) {
     sources = [
       "atrace_hal.cc",
-      "dropbox_service.cc",
       "health_hal.cc",
       "incident_service.cc",
       "power_stats_hal.cc",
