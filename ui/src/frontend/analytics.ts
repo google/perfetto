@@ -17,6 +17,21 @@ import {globals} from '../frontend/globals';
 type TraceCategories = 'Trace Actions'|'Record Trace'|'User Actions';
 const ANALYTICS_ID = 'UA-137828855-1';
 
+export function initAnalytics() {
+  // Only initialize logging on prod or staging
+  if (window.location.origin.endsWith('.perfetto.dev') ||
+      window.location.origin.endsWith('staging-dot-perfetto-ui.appspot.com')) {
+    return new Analytics();
+  }
+  return new NullAnalytics();
+}
+
+export class NullAnalytics {
+  updatePath(_: string) {}
+  logEvent(_x: TraceCategories|null, _y: string) {}
+  logError(_x: string) {}
+}
+
 export class Analytics {
   constructor() {
     gtag('js', new Date());
