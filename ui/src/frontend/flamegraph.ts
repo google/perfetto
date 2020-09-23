@@ -29,7 +29,9 @@ interface CallsiteInfoWidth {
   width: number;
 }
 
-const NODE_HEIGHT = 17;
+// Height of one 'row' on the flame chart including 1px of whitespace
+// below the box.
+const NODE_HEIGHT = 18;
 
 export const HEAP_PROFILE_HOVERED_COLOR = 'hsl(224, 45%, 55%)';
 
@@ -77,15 +79,6 @@ export class Flamegraph {
     this.maxDepth = Math.max(...this.flamegraphData.map(value => value.depth));
   }
 
-  hash(s: string): number {
-    let hash = 0x811c9dc5 & 0xfffffff;
-    for (let i = 0; i < s.length; i++) {
-      hash ^= s.charCodeAt(i);
-      hash = (hash * 16777619) & 0xffffffff;
-    }
-    return hash & 0xff;
-  }
-
   generateColor(name: string, isGreyedOut = false): string {
     if (isGreyedOut) {
       return '#d9d9d9';
@@ -93,8 +86,12 @@ export class Flamegraph {
     if (name === 'unknown' || name === 'root') {
       return '#c0c0c0';
     }
-    const hue = this.hash(name);
-    return `hsl(${hue}, 40%, 70%)`;
+    let x = 0;
+    for (let i = 0; i < name.length; i += 1) {
+      x += name.charCodeAt(i) % 64;
+    }
+    x = x % 360;
+    return `hsl(${x}deg, 45%, 76%)`;
   }
 
   /**
@@ -144,7 +141,7 @@ export class Flamegraph {
 
     // Draw root node.
     ctx.fillStyle = this.generateColor('root', false);
-    ctx.fillRect(x, currentY, width, NODE_HEIGHT);
+    ctx.fillRect(x, currentY, width, NODE_HEIGHT - 1);
     const text = cropText(
         `root: ${
             this.displaySize(
@@ -155,6 +152,9 @@ export class Flamegraph {
     ctx.fillText(text, x + 5, currentY + NODE_HEIGHT - 4);
     currentY += NODE_HEIGHT;
 
+    // Set style for borders.
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 0.5;
 
     for (let i = 0; i < this.flamegraphData.length; i++) {
       if (currentY > height) {
@@ -184,7 +184,7 @@ export class Flamegraph {
       // Draw node.
       const name = this.getCallsiteName(value);
       ctx.fillStyle = this.generateColor(name, isGreyedOut);
-      ctx.fillRect(currentX, currentY, width, NODE_HEIGHT);
+      ctx.fillRect(currentX, currentY, width, NODE_HEIGHT - 1);
 
       // Set current node's data in map for children to use.
       nodesMap.set(value.id, {
@@ -207,16 +207,10 @@ export class Flamegraph {
       ctx.fillStyle = 'black';
       ctx.fillText(text, currentX + 5, currentY + NODE_HEIGHT - 4);
 
-      // Draw border around node.
-      ctx.strokeStyle = 'white';
+      // Draw border on the right of node.
       ctx.beginPath();
-      ctx.moveTo(currentX, currentY);
-      ctx.lineTo(currentX, currentY + NODE_HEIGHT);
+      ctx.moveTo(currentX + width, currentY);
       ctx.lineTo(currentX + width, currentY + NODE_HEIGHT);
-      ctx.lineTo(currentX + width, currentY);
-      ctx.moveTo(currentX, currentY);
-      ctx.lineWidth = 1;
-      ctx.closePath();
       ctx.stroke();
 
       // Add this node for recognizing in click/hover.
