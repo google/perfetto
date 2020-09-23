@@ -560,6 +560,12 @@ if (use_custom_libcxx) {
 
   source_set("libunwind") {
     visibility = _buildtools_visibility
+    cflags = [
+      # libunwind expects to be compiled with unwind tables so it can
+      # unwind its own frames.
+      "-funwind-tables",
+      "-fstrict-aliasing",
+    ]
     sources = [
       "libunwind/src/Unwind-EHABI.cpp",
       "libunwind/src/Unwind-sjlj.c",
