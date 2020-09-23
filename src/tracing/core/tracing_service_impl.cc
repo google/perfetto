@@ -1635,7 +1635,8 @@ void TracingServiceImpl::PeriodicFlushTask(TracingSessionID tsid,
         if (weak_this)
           weak_this->PeriodicFlushTask(tsid, /*post_next_only=*/false);
       },
-      flush_period_ms - (base::GetWallTimeMs().count() % flush_period_ms));
+      flush_period_ms - static_cast<uint32_t>(base::GetWallTimeMs().count() %
+                                              flush_period_ms));
 
   if (post_next_only)
     return;
@@ -1664,7 +1665,8 @@ void TracingServiceImpl::PeriodicClearIncrementalStateTask(
           weak_this->PeriodicClearIncrementalStateTask(
               tsid, /*post_next_only=*/false);
       },
-      clear_period_ms - (base::GetWallTimeMs().count() % clear_period_ms));
+      clear_period_ms - static_cast<uint32_t>(base::GetWallTimeMs().count() %
+                                              clear_period_ms));
 
   if (post_next_only)
     return;
@@ -2483,7 +2485,8 @@ void TracingServiceImpl::PeriodicSnapshotTask(TracingSession* tracing_session) {
           return;
         weak_this->PeriodicSnapshotTask(tracing_session_ptr);
       },
-      interval_ms - (base::GetWallTimeMs().count() % interval_ms));
+      interval_ms -
+          static_cast<uint32_t>(base::GetWallTimeMs().count() % interval_ms));
 }
 
 void TracingServiceImpl::SnapshotLifecyleEvent(TracingSession* tracing_session,

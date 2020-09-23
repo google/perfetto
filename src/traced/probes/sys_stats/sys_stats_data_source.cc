@@ -179,7 +179,9 @@ void SysStatsDataSource::Tick(base::WeakPtr<SysStatsDataSource> weak_this) {
   SysStatsDataSource& thiz = *weak_this;
 
   uint32_t period_ms = thiz.tick_period_ms_;
-  uint32_t delay_ms = period_ms - (base::GetWallTimeMs().count() % period_ms);
+  uint32_t delay_ms =
+      period_ms -
+      static_cast<uint32_t>(base::GetWallTimeMs().count() % period_ms);
   thiz.task_runner_->PostDelayedTask(
       std::bind(&SysStatsDataSource::Tick, weak_this), delay_ms);
   thiz.ReadSysStats();
