@@ -183,10 +183,7 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
   if (base::StartsWith(start, "\x1f\x8b"))
     return kGzipTraceType;
 
-  if (base::StartsWith(start, "\x0a"))
-    return kProtoTraceType;
-
-  return kUnknownTraceType;
+  return kProtoTraceType;
 }
 
 }  // namespace trace_processor
