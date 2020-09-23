@@ -271,18 +271,38 @@ std::vector<uint8_t> Rpc::ComputeMetric(const uint8_t* data, size_t len) {
   PERFETTO_TP_TRACE("RPC_COMPUTE_METRIC", [&](metatrace::Record* r) {
     for (const auto& metric : metric_names) {
       r->AddArg("Metric", metric);
+      r->AddArg("Format", std::to_string(args.format()));
     }
   });
 
-  std::vector<uint8_t> metrics_proto;
-  util::Status status =
-      trace_processor_->ComputeMetric(metric_names, &metrics_proto);
-  if (status.ok()) {
-    result->AppendBytes(
-        protos::pbzero::ComputeMetricResult::kMetricsFieldNumber,
-        metrics_proto.data(), metrics_proto.size());
-  } else {
-    result->set_error(status.message());
+  switch (args.format()) {
+    case protos::pbzero::ComputeMetricArgs::BINARY_PROTOBUF: {
+      std::vector<uint8_t> metrics_proto;
+      util::Status status =
+          trace_processor_->ComputeMetric(metric_names, &metrics_proto);
+      if (status.ok()) {
+        result->AppendBytes(
+            protos::pbzero::ComputeMetricResult::kMetricsFieldNumber,
+            metrics_proto.data(), metrics_proto.size());
+      } else {
+        result->set_error(status.message());
+      }
+      break;
+    }
+    case protos::pbzero::ComputeMetricArgs::TEXTPROTO: {
+      std::string metrics_string;
+      util::Status status = trace_processor_->ComputeMetricText(
+          metric_names, TraceProcessor::MetricResultFormat::kProtoText,
+          &metrics_string);
+      if (status.ok()) {
+        result->AppendString(
+            protos::pbzero::ComputeMetricResult::kMetricsAsPrototextFieldNumber,
+            metrics_string);
+      } else {
+        result->set_error(status.message());
+      }
+      break;
+    }
   }
   return result.SerializeAsArray();
 }

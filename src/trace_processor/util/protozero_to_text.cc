@@ -11,6 +11,8 @@
 
 namespace perfetto {
 namespace trace_processor {
+namespace protozero_to_text {
+
 namespace {
 
 // Recursively determine the size of all the string like things passed in the
@@ -53,7 +55,7 @@ void ConvertProtoTypeToFieldAndValueString(const FieldDescriptor& fd,
                                            const protozero::Field& field,
                                            const std::string& separator,
                                            const std::string& indent,
-                                           DescriptorPool* pool,
+                                           const DescriptorPool& pool,
                                            std::string* out) {
   using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
   switch (fd.type()) {
@@ -100,12 +102,15 @@ void ConvertProtoTypeToFieldAndValueString(const FieldDescriptor& fd,
     case FieldDescriptorProto::TYPE_STRING:
       StrAppend(out, separator, indent, fd.name(), ": ", field.as_std_string());
       return;
+    case FieldDescriptorProto::TYPE_BYTES:
+      // TODO(dproy): Write a bytes to hex function here when we need it.
+      PERFETTO_FATAL("Bytes field cannot be converted to prototext.");
     case FieldDescriptorProto::TYPE_ENUM: {
       auto opt_enum_descriptor_idx =
-          pool->FindDescriptorIdx(fd.resolved_type_name());
+          pool.FindDescriptorIdx(fd.resolved_type_name());
       PERFETTO_DCHECK(opt_enum_descriptor_idx);
       auto opt_enum_string =
-          pool->descriptors()[*opt_enum_descriptor_idx].FindEnumString(
+          pool.descriptors()[*opt_enum_descriptor_idx].FindEnumString(
               field.as_int32());
       PERFETTO_DCHECK(opt_enum_string);
       StrAppend(out, separator, indent, fd.name(), ": ", *opt_enum_string);
@@ -134,21 +139,20 @@ void DecreaseIndents(std::string* out) {
 // |type| and will use |pool| to look up the |type|. All output will be placed
 // in |output| and between fields |separator| will be placed. When called for
 // |indents| will be increased by 2 spaces to improve readability.
-void ProtozeroToText(const std::string& type,
-                     protozero::ConstBytes protobytes,
-                     bool include_new_lines,
-                     DescriptorPool* pool,
-                     std::string* indents,
-                     std::string* output) {
-  auto opt_proto_descriptor_idx = pool->FindDescriptorIdx(type);
+void ProtozeroToTextInternal(const std::string& type,
+                             protozero::ConstBytes protobytes,
+                             NewLinesMode new_lines_mode,
+                             const DescriptorPool& pool,
+                             std::string* indents,
+                             std::string* output) {
+  auto opt_proto_descriptor_idx = pool.FindDescriptorIdx(type);
   PERFETTO_DCHECK(opt_proto_descriptor_idx);
-  auto& proto_descriptor = pool->descriptors()[*opt_proto_descriptor_idx];
+  auto& proto_descriptor = pool.descriptors()[*opt_proto_descriptor_idx];
+  bool include_new_lines = new_lines_mode == kIncludeNewLines;
 
   protozero::ProtoDecoder decoder(protobytes.data, protobytes.size);
   for (auto field = decoder.ReadField(); field.valid();
        field = decoder.ReadField()) {
-    // Since this is only used in debugging or tests we should always have a
-    // valid compiled in binary descriptor.
     auto opt_field_descriptor_idx =
         proto_descriptor.FindFieldIdxByTag(field.id());
     PERFETTO_DCHECK(opt_field_descriptor_idx);
@@ -165,8 +169,9 @@ void ProtozeroToText(const std::string& type,
         StrAppend(output, output->empty() ? "" : " ", field_descriptor.name(),
                   ": {");
       }
-      ProtozeroToText(field_descriptor.resolved_type_name(), field.as_bytes(),
-                      include_new_lines, pool, indents, output);
+      ProtozeroToTextInternal(field_descriptor.resolved_type_name(),
+                              field.as_bytes(), new_lines_mode, pool, indents,
+                              output);
       if (include_new_lines) {
         DecreaseIndents(indents);
         StrAppend(output, "\n", *indents, "}");
@@ -183,28 +188,35 @@ void ProtozeroToText(const std::string& type,
   PERFETTO_DCHECK(decoder.bytes_left() == 0);
 }
 
-std::string ProtozeroToText(const std::string& type,
+}  // namespace
+
+std::string ProtozeroToText(const DescriptorPool& pool,
+                            const std::string& type,
                             protozero::ConstBytes protobytes,
-                            bool include_new_lines) {
+                            NewLinesMode new_lines_mode) {
   std::string indent = "";
   std::string final_result;
+  ProtozeroToTextInternal(type, protobytes, new_lines_mode, pool, &indent,
+                          &final_result);
+  return final_result;
+}
+
+std::string DebugTrackEventProtozeroToText(const std::string& type,
+                                           protozero::ConstBytes protobytes) {
   DescriptorPool pool;
   auto status = pool.AddFromFileDescriptorSet(kTrackEventDescriptor.data(),
                                               kTrackEventDescriptor.size());
   PERFETTO_DCHECK(status.ok());
-  ProtozeroToText(type, protobytes, include_new_lines, &pool, &indent,
-                  &final_result);
-  return final_result;
+  return ProtozeroToText(pool, type, protobytes, kIncludeNewLines);
 }
-}  // namespace
-
-std::string DebugProtozeroToText(const std::string& type,
-                                 protozero::ConstBytes protobytes) {
-  return ProtozeroToText(type, protobytes, /* include_new_lines = */ true);
-}
-std::string ShortDebugProtozeroToText(const std::string& type,
-                                      protozero::ConstBytes protobytes) {
-  return ProtozeroToText(type, protobytes, /* include_new_lines = */ false);
+std::string ShortDebugTrackEventProtozeroToText(
+    const std::string& type,
+    protozero::ConstBytes protobytes) {
+  DescriptorPool pool;
+  auto status = pool.AddFromFileDescriptorSet(kTrackEventDescriptor.data(),
+                                              kTrackEventDescriptor.size());
+  PERFETTO_DCHECK(status.ok());
+  return ProtozeroToText(pool, type, protobytes, kSkipNewLines);
 }
 
 std::string ProtozeroEnumToText(const std::string& type, int32_t enum_value) {
@@ -225,6 +237,6 @@ std::string ProtozeroEnumToText(const std::string& type, int32_t enum_value) {
   }
   return *opt_enum_string;
 }
-
+}  // namespace protozero_to_text
 }  // namespace trace_processor
 }  // namespace perfetto
