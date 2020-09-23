@@ -65,6 +65,19 @@ class PERFETTO_EXPORT TraceProcessor : public TraceProcessorStorage {
       const std::vector<std::string>& metric_names,
       std::vector<uint8_t>* metrics_proto) = 0;
 
+  enum MetricResultFormat {
+    kProtoText = 0,
+    kJson = 1,
+  };
+
+  // Computes metrics as the ComputeMetric function above, but instead of
+  // producing proto encoded bytes, the output argument |metrics_string| is
+  // filled with the metric formatted in the requested |format|.
+  virtual util::Status ComputeMetricText(
+      const std::vector<std::string>& metric_names,
+      MetricResultFormat format,
+      std::string* metrics_string) = 0;
+
   // Interrupts the current query. Typically used by Ctrl-C handler.
   virtual void InterruptQuery() = 0;
 

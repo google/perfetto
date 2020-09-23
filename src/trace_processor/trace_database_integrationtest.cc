@@ -196,6 +196,18 @@ TEST_F(TraceProcessorIntegrationTest, SerializeMetricDescriptors) {
   ASSERT_EQ(trace_metrics_count, 1);
 }
 
+TEST_F(TraceProcessorIntegrationTest, ComputeMetricsFormatted) {
+  std::string metric_output;
+  util::Status status = Processor()->ComputeMetricText(
+      std::vector<std::string>{"test_chrome_metric"},
+      TraceProcessor::MetricResultFormat::kProtoText, &metric_output);
+  ASSERT_TRUE(status.ok());
+  ASSERT_EQ(metric_output,
+            "test_chrome_metric: {\n"
+            "  test_value: 1\n"
+            "}");
+}
+
 // TODO(hjd): Add trace to test_data.
 TEST_F(TraceProcessorIntegrationTest, DISABLED_AndroidBuildTrace) {
   ASSERT_TRUE(LoadTrace("android_build_trace.json", strlen("[\n{")).ok());
