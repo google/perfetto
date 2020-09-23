@@ -939,6 +939,15 @@ filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/util:protozero_to_text
+filegroup(
+    name = "src_trace_processor_util_protozero_to_text",
+    srcs = [
+        "src/trace_processor/util/protozero_to_text.cc",
+        "src/trace_processor/util/protozero_to_text.h",
+    ],
+)
+
 # GN target: //src/trace_processor/util:util
 filegroup(
     name = "src_trace_processor_util_util",
@@ -2992,6 +3001,7 @@ perfetto_cc_library(
         ":src_trace_processor_track_event_descriptor",
         ":src_trace_processor_types_types",
         ":src_trace_processor_util_descriptors",
+        ":src_trace_processor_util_protozero_to_text",
         ":src_trace_processor_util_util",
     ],
     hdrs = [
@@ -3086,6 +3096,7 @@ perfetto_cc_binary(
         ":src_trace_processor_track_event_descriptor",
         ":src_trace_processor_types_types",
         ":src_trace_processor_util_descriptors",
+        ":src_trace_processor_util_protozero_to_text",
         ":src_trace_processor_util_util",
     ],
     visibility = [
@@ -3253,6 +3264,7 @@ perfetto_cc_binary(
         ":src_trace_processor_track_event_descriptor",
         ":src_trace_processor_types_types",
         ":src_trace_processor_util_descriptors",
+        ":src_trace_processor_util_protozero_to_text",
         ":src_trace_processor_util_util",
         ":tools_trace_to_text_common",
         ":tools_trace_to_text_full",
