@@ -1,0 +1,90 @@
+packet {
+  process_tree {
+    processes {
+      pid: 1
+      ppid: 0
+      cmdline: "init"
+      uid: 0
+    }
+    processes {
+      pid: 2
+      ppid: 1
+      cmdline: "system_server"
+      uid: 1000
+    }
+  }
+}
+
+packet {
+  clock_snapshot {
+    clocks: {
+      clock_id: 6 # BOOTTIME
+      timestamp: 0
+    }
+    clocks: {
+      clock_id: 4 # MONOTONIC_COARSE
+      timestamp: 10
+    }
+  }
+}
+
+packet {
+  trusted_packet_sequence_id: 999
+  previous_packet_dropped: true
+  incremental_state_cleared: true
+  timestamp: 10
+  profile_packet {
+    strings {
+      iid: 1
+      str: "a.f1"
+    }
+    strings {
+      iid: 2
+      str: "memfd:jit-cache"
+    }
+    strings {
+      iid: 3
+      str: "build-id"
+    }
+    frames {
+      iid: 1
+      function_name_id: 1
+      mapping_id: 1
+      rel_pc: 0x1000
+    }
+    callstacks {
+      iid: 1
+      frame_ids: 1
+      frame_ids: 1
+    }
+    mappings {
+      iid: 1
+      path_string_ids: 2
+      build_id: 3
+    }
+    process_dumps {
+      pid: 2
+      samples {
+        callstack_id: 1
+        self_allocated: 2000
+        self_freed: 1000
+        alloc_count: 2
+        free_count: 1
+      }
+    }
+  }
+}
+packet {
+  deobfuscation_mapping {
+    package_name: "com.google.android.webview"
+    version_code: 1234
+    obfuscated_classes {
+      obfuscated_name: "a"
+      deobfuscated_name: "Bar"
+      obfuscated_methods {
+        obfuscated_name: "f1"
+        deobfuscated_name: "function1"
+      }
+    }
+  }
+}
