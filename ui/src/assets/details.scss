@@ -322,11 +322,15 @@ table.half-width {
   height: 100%;
   display: grid;
   grid-template-rows: auto 1fr;
+  font-family: 'Roboto Condensed', sans-serif;
 
   header {
     position: sticky;
     top: 0px;
     z-index: 1;
+    background-color: white;
+    color: #3c4b5d;
+    padding: 5px;
   }
 
   header.stale {

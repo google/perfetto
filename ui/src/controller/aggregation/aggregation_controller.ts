@@ -52,7 +52,18 @@ export abstract class AggregationController extends Controller<'main'> {
 
   run() {
     const selection = globals.state.currentSelection;
-    if (selection === null || selection.kind !== 'AREA') return;
+    if (selection === null || selection.kind !== 'AREA') {
+      globals.publish('AggregateData', {
+        data: {
+          tabName: this.getTabName(),
+          columns: [],
+          strings: [],
+          columnSums: [],
+        },
+        kind: this.args.kind
+      });
+      return;
+    }
     const selectedArea = globals.state.areas[selection.areaId];
     const aggregatePreferences =
         globals.state.aggregatePreferences[this.args.kind];
