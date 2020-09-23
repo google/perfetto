@@ -368,6 +368,8 @@ to not strip them.
 ### Android 11
 
 * 32-bit programs cannot be targeted on 64-bit devices.
+* Setting `sampling_interval_bytes` to 0 crashes the target process.
+  This is an invalid config that should be rejected instead.
 
 ### Android 10
 
@@ -384,6 +386,9 @@ to not strip them.
   memory in the child process will prematurely end the profile.
   `java.lang.Runtime.exec` does this, calling it will prematurely end
   the profile. Note that this is in violation of the POSIX standard.
+* 32-bit programs cannot be targeted on 64-bit devices.
+* Setting `sampling_interval_bytes` to 0 crashes the target process.
+  This is an invalid config that should be rejected instead.
 
 ## Heapprofd vs malloc_info() vs RSS
 
