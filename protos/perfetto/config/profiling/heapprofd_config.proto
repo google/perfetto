@@ -19,7 +19,7 @@ syntax = "proto2";
 package perfetto.protos;
 
 // Configuration for go/heapprofd.
-// Next id: 21
+// Next id: 23
 message HeapprofdConfig {
   message ContinuousDumpConfig {
     // ms to wait before first dump.
@@ -28,12 +28,23 @@ message HeapprofdConfig {
     optional uint32 dump_interval_ms = 6;
   }
 
+  // Sampling rate for all heaps not specified via heap_sampling_intervals.
+  //
+  // These are:
+  // * All heaps if heap_sampling_intervals is empty.
+  // * Those profiled due to all_heaps and not named in heaps if
+  //   heap_sampling_intervals is not empty.
+  // * The implicit libc.malloc heap if heaps is empty.
+  //
   // Set to 1 for perfect accuracy.
   // Otherwise, sample every sample_interval_bytes on average.
   //
   // See
   // https://perfetto.dev/docs/data-sources/native-heap-profiler#sampling-interval
   // for more details.
+  //
+  // BUGS
+  // Before Android 12, setting this to 0 would crash the target process.
   optional uint64 sampling_interval_bytes = 1;
 
   // E.g. surfaceflinger, com.android.phone
@@ -48,9 +59,23 @@ message HeapprofdConfig {
   // For watermark based triggering or local debugging.
   repeated uint64 pid = 4;
 
-  // Which heaps to sample, e.g. "malloc". If left empty, only samples
-  // "malloc". Introduced in Android 12.
+  // Which heaps to sample, e.g. "libc.malloc". If left empty, only samples
+  // "malloc".
+  //
+  // Introduced in Android 12.
   repeated string heaps = 20;
+
+  // If given, needs to be the same length as heaps and gives the sampling
+  // interval for the respective entry in heaps.
+  //
+  // Otherwise, sampling_interval_bytes is used.
+  //
+  // It is recommended to set sampling_interval_bytes to a reasonable default
+  // value when using this, as a value of 0 for sampling_interval_bytes will
+  // crash the target process before Android 12.
+  //
+  // Introduced in Android 12.
+  repeated uint64 heap_sampling_intervals = 22;
 
   // Sample all heaps registered by target process. Introduced in Android 12.
   optional bool all_heaps = 21;
