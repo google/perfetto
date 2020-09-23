@@ -54,12 +54,12 @@ BUILD_DEPS_HOST = [
     # clang-format
     Dependency(
         'buildtools/mac/clang-format',
-        'https://storage.googleapis.com/chromium-clang-format/025ca7c75f37ef4a40f3a67d81ddd11d7d0cdb9b',
-        '025ca7c75f37ef4a40f3a67d81ddd11d7d0cdb9b', 'darwin'),
+        'https://storage.googleapis.com/chromium-clang-format/62bde1baa7196ad9df969fc1f06b66360b1a927b',
+        '62bde1baa7196ad9df969fc1f06b66360b1a927b', 'darwin'),
     Dependency(
         'buildtools/linux64/clang-format',
-        'https://storage.googleapis.com/chromium-clang-format/942fc8b1789144b8071d3fc03ff0fcbe1cf81ac8',
-        '942fc8b1789144b8071d3fc03ff0fcbe1cf81ac8', 'linux'),
+        'https://storage.googleapis.com/chromium-clang-format/1baf0089e895c989a311b6a38ed94d0e8be4c0a7',
+        '1baf0089e895c989a311b6a38ed94d0e8be4c0a7', 'linux'),
     # Keep the SHA1 in sync with |clang_format_rev| in chromium //buildtools/DEPS.
     Dependency(
         'buildtools/clang_format/script',
@@ -92,16 +92,16 @@ BUILD_DEPS_HOST = [
     # lib from sources. Keep the SHA1s in sync with Chrome's src/buildtools/DEPS.
     Dependency(
         'buildtools/libcxx',
-        'https://chromium.googlesource.com/chromium/llvm-project/libcxx.git',
-        '78d6a7767ed57b50122a161b91f59f19c9bd0d19', 'all'),
+        'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libcxx.git',
+        'd9040c75cfea5928c804ab7c235fed06a63f743a', 'all'),
     Dependency(
         'buildtools/libcxxabi',
-        'https://chromium.googlesource.com/chromium/llvm-project/libcxxabi.git',
-        '0d529660e32d77d9111912d73f2c74fc5fa2a858', 'all'),
+        'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libcxxabi.git',
+        '196ba1aaa8ac285d94f4ea8d9836390a45360533', 'all'),
     Dependency(
         'buildtools/libunwind',
-        'https://chromium.googlesource.com/external/llvm.org/libunwind.git',
-        '69d9b84cca8354117b9fe9705a4430d789ee599b', 'all'),
+        'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libunwind.git',
+        'd999d54f4bca789543a2eb6c995af2d9b5a1f3ed', 'all'),
 
     # Keep the revision in sync with Chrome's PACKAGE_VERSION in
     # tools/clang/scripts/update.py.
