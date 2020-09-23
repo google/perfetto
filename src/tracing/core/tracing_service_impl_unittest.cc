@@ -3326,12 +3326,12 @@ TEST_F(TracingServiceImplTest, LimitSessionsPerUid) {
 
   // Create a bunch of legit sessions (2 uids * 5 sessions).
   for (int i = 0; i < kMaxConcurrentTracingSessionsPerUid * kUids; i++) {
-    start_new_session(/*uid=*/i % kUids);
+    start_new_session(/*uid=*/static_cast<uid_t>(i) % kUids);
   }
 
   // Any other session now should fail for the two uids.
   for (int i = 0; i <= kUids; i++) {
-    auto* consumer = start_new_session(/*uid=*/i % kUids);
+    auto* consumer = start_new_session(/*uid=*/static_cast<uid_t>(i) % kUids);
     auto on_fail = task_runner.CreateCheckpoint("uid_" + std::to_string(i));
     EXPECT_CALL(*consumer, OnTracingDisabled()).WillOnce(Invoke(on_fail));
   }

@@ -383,7 +383,9 @@ void ProcessStatsDataSource::Tick(
     return;
   ProcessStatsDataSource& thiz = *weak_this;
   uint32_t period_ms = thiz.poll_period_ms_;
-  uint32_t delay_ms = period_ms - (base::GetWallTimeMs().count() % period_ms);
+  uint32_t delay_ms =
+      period_ms -
+      static_cast<uint32_t>(base::GetWallTimeMs().count() % period_ms);
   thiz.task_runner_->PostDelayedTask(
       std::bind(&ProcessStatsDataSource::Tick, weak_this), delay_ms);
   thiz.WriteAllProcessStats();

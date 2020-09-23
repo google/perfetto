@@ -366,7 +366,8 @@ class TracingServiceImpl : public TracingService {
     uint32_t delay_to_next_write_period_ms() const {
       PERFETTO_DCHECK(write_period_ms > 0);
       return write_period_ms -
-             (base::GetWallTimeMs().count() % write_period_ms);
+             static_cast<uint32_t>(base::GetWallTimeMs().count() %
+                                   write_period_ms);
     }
 
     uint32_t flush_timeout_ms() {
