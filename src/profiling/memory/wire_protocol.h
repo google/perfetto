@@ -47,20 +47,24 @@ class UnixSocketRaw;
 
 namespace profiling {
 
+struct ClientConfigurationHeap {
+  char name[HEAPPROFD_HEAP_NAME_SZ];
+  uint64_t interval;
+};
+
 struct ClientConfiguration {
   // On average, sample one allocation every interval bytes,
   // If interval == 1, sample every allocation.
   // Must be >= 1.
-  PERFETTO_CROSS_ABI_ALIGNED(uint64_t) interval;
+  PERFETTO_CROSS_ABI_ALIGNED(uint64_t) default_interval;
   PERFETTO_CROSS_ABI_ALIGNED(uint64_t) block_client_timeout_us;
   PERFETTO_CROSS_ABI_ALIGNED(uint64_t) num_heaps;
-  PERFETTO_CROSS_ABI_ALIGNED(char) heaps[64][HEAPPROFD_HEAP_NAME_SZ];
+  alignas(8) ClientConfigurationHeap heaps[64];
   PERFETTO_CROSS_ABI_ALIGNED(bool) block_client;
   PERFETTO_CROSS_ABI_ALIGNED(bool) disable_fork_teardown;
   PERFETTO_CROSS_ABI_ALIGNED(bool) disable_vfork_detection;
   PERFETTO_CROSS_ABI_ALIGNED(bool) all_heaps;
   // Just double check that the array sizes are in correct order.
-  static_assert(sizeof(heaps[0]) == HEAPPROFD_HEAP_NAME_SZ, "");
 };
 
 // Types needed for the wire format used for communication between the client
@@ -137,7 +141,7 @@ static_assert(sizeof(FreeEntry) == 24,
               "FreeEntry needs to be the same size across ABIs.");
 static_assert(sizeof(HeapName) == 68,
               "HeapName needs to be the same size across ABIs.");
-static_assert(sizeof(ClientConfiguration) == 4128,
+static_assert(sizeof(ClientConfiguration) == 4640,
               "ClientConfiguration needs to be the same size across ABIs.");
 
 enum HandshakeFDs : size_t {
@@ -164,6 +168,9 @@ int64_t SendWireMessage(SharedRingBuffer* buf, const WireMessage& msg);
 // |buf| has to outlive |out|.
 // If buf is not a valid message, return false.
 bool ReceiveWireMessage(char* buf, size_t size, WireMessage* out);
+
+uint64_t GetHeapSamplingInterval(const ClientConfiguration& cli_config,
+                                 const char* heap_name);
 
 constexpr const char* kHeapprofdSocketEnvVar = "ANDROID_SOCKET_heapprofd";
 constexpr const char* kHeapprofdSocketFile = "/dev/socket/heapprofd";

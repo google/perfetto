@@ -130,6 +130,36 @@ TEST(WireProtocolTest, FreeMessage) {
   ASSERT_EQ(recv_msg.payload_size, msg.payload_size);
 }
 
+TEST(GetHeapSamplingInterval, Default) {
+  ClientConfiguration cli_config{};
+  cli_config.all_heaps = true;
+  cli_config.num_heaps = 0;
+  cli_config.default_interval = 4096u;
+  EXPECT_EQ(GetHeapSamplingInterval(cli_config, "something"), 4096u);
+}
+
+TEST(GetHeapSamplingInterval, Selected) {
+  ClientConfiguration cli_config{};
+  cli_config.all_heaps = false;
+  cli_config.num_heaps = 1;
+  cli_config.default_interval = 1;
+  memcpy(cli_config.heaps[0].name, "something", sizeof("something"));
+  cli_config.heaps[0].interval = 4096u;
+  EXPECT_EQ(GetHeapSamplingInterval(cli_config, "something"), 4096u);
+  EXPECT_EQ(GetHeapSamplingInterval(cli_config, "else"), 0u);
+}
+
+TEST(GetHeapSamplingInterval, SelectedAndDefault) {
+  ClientConfiguration cli_config{};
+  cli_config.all_heaps = true;
+  cli_config.num_heaps = 1;
+  cli_config.default_interval = 1;
+  memcpy(cli_config.heaps[0].name, "something", sizeof("something"));
+  cli_config.heaps[0].interval = 4096u;
+  EXPECT_EQ(GetHeapSamplingInterval(cli_config, "something"), 4096u);
+  EXPECT_EQ(GetHeapSamplingInterval(cli_config, "else"), 1u);
+}
+
 }  // namespace
 }  // namespace profiling
 }  // namespace perfetto

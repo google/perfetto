@@ -85,20 +85,20 @@ TEST(HeapprofdConfigToClientConfigurationTest, Smoke) {
   cfg.add_heaps("foo");
   cfg.set_sampling_interval_bytes(4096);
   ClientConfiguration cli_config;
-  HeapprofdConfigToClientConfiguration(cfg, &cli_config);
+  ASSERT_TRUE(HeapprofdConfigToClientConfiguration(cfg, &cli_config));
   EXPECT_EQ(cli_config.num_heaps, 1u);
-  EXPECT_EQ(cli_config.interval, 4096u);
-  EXPECT_STREQ(cli_config.heaps[0], "foo");
+  EXPECT_STREQ(cli_config.heaps[0].name, "foo");
+  EXPECT_EQ(cli_config.heaps[0].interval, 4096u);
 }
 
 TEST(HeapprofdConfigToClientConfigurationTest, DefaultHeap) {
   HeapprofdConfig cfg;
   cfg.set_sampling_interval_bytes(4096);
   ClientConfiguration cli_config;
-  HeapprofdConfigToClientConfiguration(cfg, &cli_config);
+  ASSERT_TRUE(HeapprofdConfigToClientConfiguration(cfg, &cli_config));
   EXPECT_EQ(cli_config.num_heaps, 1u);
-  EXPECT_EQ(cli_config.interval, 4096u);
-  EXPECT_STREQ(cli_config.heaps[0], "libc.malloc");
+  EXPECT_STREQ(cli_config.heaps[0].name, "libc.malloc");
+  EXPECT_EQ(cli_config.heaps[0].interval, 4096u);
 }
 
 TEST(HeapprofdConfigToClientConfigurationTest, TwoHeaps) {
@@ -107,19 +107,36 @@ TEST(HeapprofdConfigToClientConfigurationTest, TwoHeaps) {
   cfg.add_heaps("bar");
   cfg.set_sampling_interval_bytes(4096);
   ClientConfiguration cli_config;
-  HeapprofdConfigToClientConfiguration(cfg, &cli_config);
+  ASSERT_TRUE(HeapprofdConfigToClientConfiguration(cfg, &cli_config));
   EXPECT_EQ(cli_config.num_heaps, 2u);
-  EXPECT_EQ(cli_config.interval, 4096u);
-  EXPECT_STREQ(cli_config.heaps[0], "foo");
-  EXPECT_STREQ(cli_config.heaps[1], "bar");
+  EXPECT_STREQ(cli_config.heaps[0].name, "foo");
+  EXPECT_STREQ(cli_config.heaps[1].name, "bar");
+  EXPECT_EQ(cli_config.heaps[0].interval, 4096u);
+  EXPECT_EQ(cli_config.heaps[1].interval, 4096u);
+}
+
+TEST(HeapprofdConfigToClientConfigurationTest, TwoHeapsIntervals) {
+  HeapprofdConfig cfg;
+  cfg.add_heaps("foo");
+  cfg.add_heap_sampling_intervals(4096u);
+  cfg.add_heaps("bar");
+  cfg.add_heap_sampling_intervals(1u);
+  ClientConfiguration cli_config;
+  ASSERT_TRUE(HeapprofdConfigToClientConfiguration(cfg, &cli_config));
+  EXPECT_EQ(cli_config.num_heaps, 2u);
+  EXPECT_STREQ(cli_config.heaps[0].name, "foo");
+  EXPECT_STREQ(cli_config.heaps[1].name, "bar");
+  EXPECT_EQ(cli_config.heaps[0].interval, 4096u);
+  EXPECT_EQ(cli_config.heaps[1].interval, 1u);
 }
 
 TEST(HeapprofdConfigToClientConfigurationTest, OverflowHeapName) {
   std::string large_name(100, 'a');
   HeapprofdConfig cfg;
   cfg.add_heaps(large_name);
+  cfg.set_sampling_interval_bytes(1);
   ClientConfiguration cli_config;
-  HeapprofdConfigToClientConfiguration(cfg, &cli_config);
+  ASSERT_TRUE(HeapprofdConfigToClientConfiguration(cfg, &cli_config));
   EXPECT_EQ(cli_config.num_heaps, 0u);
 }
 
@@ -128,10 +145,29 @@ TEST(HeapprofdConfigToClientConfigurationTest, OverflowHeapNameAndValid) {
   HeapprofdConfig cfg;
   cfg.add_heaps(large_name);
   cfg.add_heaps("foo");
+  cfg.set_sampling_interval_bytes(1);
   ClientConfiguration cli_config;
-  HeapprofdConfigToClientConfiguration(cfg, &cli_config);
+  ASSERT_TRUE(HeapprofdConfigToClientConfiguration(cfg, &cli_config));
   EXPECT_EQ(cli_config.num_heaps, 1u);
-  EXPECT_STREQ(cli_config.heaps[0], "foo");
+  EXPECT_STREQ(cli_config.heaps[0].name, "foo");
+}
+
+TEST(HeapprofdConfigToClientConfigurationTest, ZeroSampling) {
+  HeapprofdConfig cfg;
+  cfg.add_heaps("foo");
+  cfg.set_sampling_interval_bytes(0);
+  ClientConfiguration cli_config;
+  EXPECT_FALSE(HeapprofdConfigToClientConfiguration(cfg, &cli_config));
+}
+
+TEST(HeapprofdConfigToClientConfigurationTest, ZeroSamplingMultiple) {
+  HeapprofdConfig cfg;
+  cfg.add_heaps("foo");
+  cfg.add_heap_sampling_intervals(4096u);
+  cfg.add_heaps("bar");
+  cfg.add_heap_sampling_intervals(0);
+  ClientConfiguration cli_config;
+  EXPECT_FALSE(HeapprofdConfigToClientConfiguration(cfg, &cli_config));
 }
 
 }  // namespace profiling
