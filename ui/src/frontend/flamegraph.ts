@@ -53,7 +53,10 @@ export class Flamegraph {
   private flamegraphData: CallsiteInfo[];
   private maxDepth = -1;
   private totalSize = -1;
-  private textSize = 14;
+  // Initialised on first draw() call
+  private labelCharWidth = 0;
+  private labelFontStyle = '14px Roboto Mono';
+  private rolloverFontStyle = '12px Roboto Condensed';
   // Key for the map is depth followed by x coordinate - `depth;x`
   private graphData: Map<string, CallsiteInfoWidth> = new Map();
   private xStartsPerDepth: Map<number, number[]> = new Map();
@@ -95,7 +98,7 @@ export class Flamegraph {
   }
 
   /**
-   * Caller will have to call draw method ater updating data to have updated
+   * Caller will have to call draw method after updating data to have updated
    * graph.
    */
   updateDataIfChanged(
@@ -116,15 +119,19 @@ export class Flamegraph {
   draw(
       ctx: CanvasRenderingContext2D, width: number, height: number, x = 0,
       y = 0, unit = 'B') {
-    // TODO(taylori): Instead of pesimistic approach improve displaying text.
-    const name = '____MMMMMMQQwwZZZZZZzzzzzznnnnnnwwwwwwWWWWWqq$$mmmmmm__';
-    const charWidth = ctx.measureText(name).width / name.length;
-    const nodeHeight = this.getNodeHeight();
-    this.startingY = y;
 
     if (this.flamegraphData === undefined) {
       return;
     }
+
+    ctx.font = this.labelFontStyle;
+    if (this.labelCharWidth === 0) {
+      this.labelCharWidth = ctx.measureText('_').width;
+    }
+
+    const nodeHeight = this.getNodeHeight();
+    this.startingY = y;
+
     // For each node, we use this map to get information about it's parent
     // (total size of it, width and where it starts in graph) so we can
     // calculate it's own position in graph.
@@ -132,19 +139,18 @@ export class Flamegraph {
     let currentY = y;
     nodesMap.set(-1, {width, nextXForChildren: x, size: this.totalSize, x});
 
-    // Initialize data needed for click/hover behaivior.
+    // Initialize data needed for click/hover behavior.
     this.graphData = new Map();
     this.xStartsPerDepth = new Map();
 
     // Draw root node.
     ctx.fillStyle = this.generateColor('root', false);
     ctx.fillRect(x, currentY, width, nodeHeight);
-    ctx.font = `${this.textSize}px Roboto Condensed`;
     const text = cropText(
         `root: ${
             this.displaySize(
                 this.totalSize, unit, unit === 'B' ? 1024 : 1000)}`,
-        charWidth,
+        this.labelCharWidth,
         width - 2);
     ctx.fillStyle = 'black';
     ctx.fillText(text, x + 5, currentY + nodeHeight - 4);
@@ -197,8 +203,8 @@ export class Flamegraph {
       });
 
       // Draw name.
-      ctx.font = `${this.textSize}px Roboto Condensed`;
-      const text = cropText(name, charWidth, width - 2);
+      ctx.font = this.labelFontStyle;
+      const text = cropText(name, this.labelCharWidth, width - 2);
       ctx.fillStyle = 'black';
       ctx.fillText(text, currentX + 5, currentY + nodeHeight - 4);
 
@@ -282,7 +288,7 @@ export class Flamegraph {
           height - rectHeight - 8 :
           this.hoveredY + 4;
 
-      ctx.font = '12px Roboto Condensed';
+      ctx.font = this.rolloverFontStyle;
       ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
       ctx.fillRect(rectXStart, rectYStart, rectWidth, rectHeight);
       ctx.fillStyle = 'hsl(200, 50%, 40%)';
