@@ -198,7 +198,7 @@ TokenId KernelSymbolMap::TokenTable::Add(const std::string& token) {
     PERFETTO_DCHECK((token.at(i) & 0x80) == 0);  // |token| must be ASCII only.
     *(tok_wptr++) = token.at(i) & 0x7f;
   }
-  *(tok_wptr++) = token.at(token_size - 1) | 0x80;
+  *(tok_wptr++) = static_cast<char>(token.at(token_size - 1) | 0x80);
   PERFETTO_DCHECK(tok_wptr == &buf_[buf_.size()]);
   return id;
 }
