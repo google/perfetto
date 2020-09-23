@@ -107,8 +107,8 @@ BUILD_DEPS_HOST = [
     # tools/clang/scripts/update.py.
     Dependency(
         'buildtools/clang.tgz',
-        'https://commondatastorage.googleapis.com/chromium-browser-clang/Linux_x64/clang-n362116-1bd7046e-2.tgz',
-        '7c028bced1243c7430509e90f94b23c1cbeccb85', 'linux'),
+        'https://commondatastorage.googleapis.com/chromium-browser-clang/Linux_x64/clang-llvmorg-12-init-5035-gd0abc757-3.tgz',
+        'd5f013c57681a7b07dc17c18eaa927fab43fe5db', 'linux'),
 
     # Keep in sync with chromium DEPS.
     Dependency(
