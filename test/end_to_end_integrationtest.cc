@@ -292,7 +292,7 @@ TEST_F(PerfettoTest, TreeHuggerOnly(TestFtraceProducer)) {
   ds_config->set_ftrace_config_raw(ftrace_config.SerializeAsString());
 
   helper.StartTracing(trace_config);
-  helper.WaitForTracingDisabled();
+  helper.WaitForTracingDisabled(10000);
 
   helper.ReadData();
   helper.WaitForReadData();
