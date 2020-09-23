@@ -75,7 +75,7 @@ class LogHistogram {
 // clients. This can be implemented as an additional mode here.
 enum class HeapprofdMode { kCentral, kChild };
 
-void HeapprofdConfigToClientConfiguration(
+bool HeapprofdConfigToClientConfiguration(
     const HeapprofdConfig& heapprofd_config,
     ClientConfiguration* cli_config);
 

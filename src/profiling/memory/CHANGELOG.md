@@ -9,6 +9,8 @@
 * Fix problems with allocations done in signal handlers using SA_ONSTACK.
 * Fixed heapprofd for multi API. A 64-bit heapprofd service can now correctly
   profile a 32-bit target.
+* Fixed a bug where specifying a sampling rate of 0 would crash the target
+  process.
 
 # In Android 11
 
