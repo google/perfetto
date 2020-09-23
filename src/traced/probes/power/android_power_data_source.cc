@@ -149,7 +149,7 @@ void AndroidPowerDataSource::Tick() {
         if (weak_this)
           weak_this->Tick();
       },
-      poll_interval_ms_ - (now_ms % poll_interval_ms_));
+      poll_interval_ms_ - static_cast<uint32_t>(now_ms % poll_interval_ms_));
 
   WriteBatteryCounters();
   WritePowerRailsData();
