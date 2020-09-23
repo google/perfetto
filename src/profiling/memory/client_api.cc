@@ -363,34 +363,22 @@ __attribute__((visibility("default"))) bool AHeapProfile_initSession(
   const perfetto::profiling::ClientConfiguration& cli_config =
       client->client_config();
 
-  bool matched_heaps[perfetto::base::ArraySize(g_heaps)] = {};
+  uint64_t heap_intervals[perfetto::base::ArraySize(g_heaps)] = {};
   uint32_t max_heap = g_next_heap_id.load();
   for (uint32_t i = kMinHeapId; i < max_heap; ++i) {
     AHeapInfo& heap = GetHeap(i);
     if (!heap.ready.load(std::memory_order_acquire))
       continue;
 
-    bool& matched = matched_heaps[i];
-    matched = cli_config.all_heaps;
-    for (uint32_t j = 0; !matched && j < cli_config.num_heaps; ++j) {
-      static_assert(sizeof(g_heaps[0].heap_name) == HEAPPROFD_HEAP_NAME_SZ,
-                    "correct heap name size");
-      static_assert(sizeof(cli_config.heaps[0]) == HEAPPROFD_HEAP_NAME_SZ,
-                    "correct heap name size");
-      if (strncmp(&cli_config.heaps[j][0], &heap.heap_name[0],
-                  HEAPPROFD_HEAP_NAME_SZ) == 0) {
-        matched = true;
-      }
-    }
+    heap_intervals[i] = GetHeapSamplingInterval(cli_config, heap.heap_name);
     // The callbacks must be called while NOT LOCKED. Because they run
     // arbitrary code, it would be very easy to build a deadlock.
-    if (matched) {
+    if (heap_intervals[i]) {
       if (!heap.enabled.load(std::memory_order_acquire) && heap.callback)
         heap.callback(true);
       heap.enabled.store(true, std::memory_order_release);
       client->RecordHeapName(i, &heap.heap_name[0]);
-    }
-    if (!matched && heap.enabled.load(std::memory_order_acquire)) {
+    } else if (heap.enabled.load(std::memory_order_acquire)) {
       heap.enabled.store(false, std::memory_order_release);
       if (heap.callback)
         heap.callback(false);
@@ -407,8 +395,8 @@ __attribute__((visibility("default"))) bool AHeapProfile_initSession(
     // random engine.
     for (uint32_t i = kMinHeapId; i < max_heap; ++i) {
       AHeapInfo& heap = GetHeap(i);
-      if (matched_heaps[i]) {
-        heap.sampler.SetSamplingInterval(cli_config.interval);
+      if (heap_intervals[i]) {
+        heap.sampler.SetSamplingInterval(heap_intervals[i]);
       }
     }
 
