@@ -29,7 +29,7 @@ interface CallsiteInfoWidth {
   width: number;
 }
 
-const NODE_HEIGHT_DEFAULT = 17;
+const NODE_HEIGHT = 17;
 
 export const HEAP_PROFILE_HOVERED_COLOR = 'hsl(224, 45%, 55%)';
 
@@ -129,7 +129,6 @@ export class Flamegraph {
       this.labelCharWidth = ctx.measureText('_').width;
     }
 
-    const nodeHeight = this.getNodeHeight();
     this.startingY = y;
 
     // For each node, we use this map to get information about it's parent
@@ -145,7 +144,7 @@ export class Flamegraph {
 
     // Draw root node.
     ctx.fillStyle = this.generateColor('root', false);
-    ctx.fillRect(x, currentY, width, nodeHeight);
+    ctx.fillRect(x, currentY, width, NODE_HEIGHT);
     const text = cropText(
         `root: ${
             this.displaySize(
@@ -153,8 +152,8 @@ export class Flamegraph {
         this.labelCharWidth,
         width - 2);
     ctx.fillStyle = 'black';
-    ctx.fillText(text, x + 5, currentY + nodeHeight - 4);
-    currentY += nodeHeight;
+    ctx.fillText(text, x + 5, currentY + NODE_HEIGHT - 4);
+    currentY += NODE_HEIGHT;
 
 
     for (let i = 0; i < this.flamegraphData.length; i++) {
@@ -180,12 +179,12 @@ export class Flamegraph {
           (isFullWidth ? 1 : value.totalSize / parentSize) * parentNode.width;
 
       const currentX = parentNode.nextXForChildren;
-      currentY = y + nodeHeight * (value.depth + 1);
+      currentY = y + NODE_HEIGHT * (value.depth + 1);
 
       // Draw node.
       const name = this.getCallsiteName(value);
       ctx.fillStyle = this.generateColor(name, isGreyedOut);
-      ctx.fillRect(currentX, currentY, width, nodeHeight);
+      ctx.fillRect(currentX, currentY, width, NODE_HEIGHT);
 
       // Set current node's data in map for children to use.
       nodesMap.set(value.id, {
@@ -206,14 +205,14 @@ export class Flamegraph {
       ctx.font = this.labelFontStyle;
       const text = cropText(name, this.labelCharWidth, width - 2);
       ctx.fillStyle = 'black';
-      ctx.fillText(text, currentX + 5, currentY + nodeHeight - 4);
+      ctx.fillText(text, currentX + 5, currentY + NODE_HEIGHT - 4);
 
       // Draw border around node.
       ctx.strokeStyle = 'white';
       ctx.beginPath();
       ctx.moveTo(currentX, currentY);
-      ctx.lineTo(currentX, currentY + nodeHeight);
-      ctx.lineTo(currentX + width, currentY + nodeHeight);
+      ctx.lineTo(currentX, currentY + NODE_HEIGHT);
+      ctx.lineTo(currentX + width, currentY + NODE_HEIGHT);
       ctx.lineTo(currentX + width, currentY);
       ctx.moveTo(currentX, currentY);
       ctx.lineWidth = 1;
@@ -283,7 +282,7 @@ export class Flamegraph {
       const rectXStart = this.hoveredX + 8 + rectWidth > width ?
           width - rectWidth - 8 :
           this.hoveredX + 8;
-      const rectHeight = nodeHeight * (lines.length + 1);
+      const rectHeight = NODE_HEIGHT * (lines.length + 1);
       const rectYStart = this.hoveredY + 4 + rectHeight > height ?
           height - rectHeight - 8 :
           this.hoveredY + 4;
@@ -352,8 +351,8 @@ export class Flamegraph {
   }
 
   private findSelectedCallsite(x: number, y: number): CallsiteInfo|undefined {
-    const depth = Math.trunc((y - this.startingY) / this.getNodeHeight()) -
-        1;  // at 0 is root
+    const depth =
+        Math.trunc((y - this.startingY) / NODE_HEIGHT) - 1;  // at 0 is root
     if (depth >= 0 && this.xStartsPerDepth.has(depth)) {
       const startX = this.searchSmallest(this.xStartsPerDepth.get(depth)!, x);
       const result = this.graphData.get(`${depth};${startX}`);
@@ -372,13 +371,8 @@ export class Flamegraph {
   }
 
   getHeight(): number {
-    return this.flamegraphData.length === 0 ?
-        0 :
-        (this.maxDepth + 2) * this.getNodeHeight();
-  }
-
-  getNodeHeight() {
-    return NODE_HEIGHT_DEFAULT;
+    return this.flamegraphData.length === 0 ? 0 :
+                                              (this.maxDepth + 2) * NODE_HEIGHT;
   }
 }
 
