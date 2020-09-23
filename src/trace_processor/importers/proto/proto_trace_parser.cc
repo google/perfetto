@@ -363,12 +363,11 @@ void ProtoTraceParser::ParseDeobfuscationMapping(int64_t,
   if (deobfuscation_mapping.package_name().size == 0)
     return;
 
-  StringPool::Id package_name_id;
   auto opt_package_name_id = context_->storage->string_pool().GetId(
       deobfuscation_mapping.package_name());
-  if (!opt_package_name_id)
+  auto opt_memfd_id = context_->storage->string_pool().GetId("memfd");
+  if (!opt_package_name_id && !opt_memfd_id)
     return;
-  package_name_id = *opt_package_name_id;
 
   for (auto class_it = deobfuscation_mapping.obfuscated_classes(); class_it;
        ++class_it) {
@@ -385,12 +384,26 @@ void ProtoTraceParser::ParseDeobfuscationMapping(int64_t,
       std::string merged_deobfuscated =
           FullyQualifiedDeobfuscatedName(cls, member);
 
-      const std::vector<tables::StackProfileFrameTable::Id>* frames =
-          context_->global_stack_profile_tracker->JavaFramesForName(
-              {*merged_obfuscated_id, package_name_id});
-      if (!frames)
-        continue;
-      for (tables::StackProfileFrameTable::Id frame_id : *frames) {
+      std::vector<tables::StackProfileFrameTable::Id> frames;
+      if (opt_package_name_id) {
+        const std::vector<tables::StackProfileFrameTable::Id>* pkg_frames =
+            context_->global_stack_profile_tracker->JavaFramesForName(
+                {*merged_obfuscated_id, *opt_package_name_id});
+        if (pkg_frames) {
+          frames.insert(frames.end(), pkg_frames->begin(), pkg_frames->end());
+        }
+      }
+      if (opt_memfd_id) {
+        const std::vector<tables::StackProfileFrameTable::Id>* memfd_frames =
+            context_->global_stack_profile_tracker->JavaFramesForName(
+                {*merged_obfuscated_id, *opt_memfd_id});
+        if (memfd_frames) {
+          frames.insert(frames.end(), memfd_frames->begin(),
+                        memfd_frames->end());
+        }
+      }
+
+      for (tables::StackProfileFrameTable::Id frame_id : frames) {
         auto* frames_tbl =
             context_->storage->mutable_stack_profile_frame_table();
         frames_tbl->mutable_deobfuscated_name()->Set(
