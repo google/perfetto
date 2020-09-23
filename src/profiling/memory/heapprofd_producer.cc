@@ -98,10 +98,10 @@ size_t Log2LessThan(uint64_t value) {
 
 }  // namespace
 
-void HeapprofdConfigToClientConfiguration(
+bool HeapprofdConfigToClientConfiguration(
     const HeapprofdConfig& heapprofd_config,
     ClientConfiguration* cli_config) {
-  cli_config->interval = heapprofd_config.sampling_interval_bytes();
+  cli_config->default_interval = heapprofd_config.sampling_interval_bytes();
   cli_config->block_client = heapprofd_config.block_client();
   cli_config->disable_fork_teardown = heapprofd_config.disable_fork_teardown();
   cli_config->disable_vfork_detection =
@@ -111,31 +111,46 @@ void HeapprofdConfigToClientConfiguration(
   cli_config->all_heaps = heapprofd_config.all_heaps();
   size_t n = 0;
   std::vector<std::string> heaps = heapprofd_config.heaps();
-  if (heapprofd_config.all_heaps() && !heaps.empty()) {
-    PERFETTO_ELOG(
-        "Set all_heaps and heaps explicitely in heapprofd_config. "
-        "This is redundant.");
-  }
+  std::vector<uint64_t> heap_intervals =
+      heapprofd_config.heap_sampling_intervals();
   if (heaps.empty()) {
     heaps.push_back("libc.malloc");
+  }
+
+  if (heap_intervals.empty()) {
+    heap_intervals.assign(heaps.size(),
+                          heapprofd_config.sampling_interval_bytes());
+  }
+  if (heap_intervals.size() != heaps.size()) {
+    PERFETTO_ELOG("heap_sampling_intervals and heaps length mismatch.");
+    return false;
+  }
+  if (std::find(heap_intervals.begin(), heap_intervals.end(), 0u) !=
+      heap_intervals.end()) {
+    PERFETTO_ELOG("zero sampling interval.");
+    return false;
   }
   if (heaps.size() > base::ArraySize(cli_config->heaps)) {
     heaps.resize(base::ArraySize(cli_config->heaps));
     PERFETTO_ELOG("Too many heaps requested. Truncating.");
   }
-  for (const std::string& heap : heaps) {
+  for (size_t i = 0; i < heaps.size(); ++i) {
+    const std::string& heap = heaps[i];
+    const uint64_t interval = heap_intervals[i];
     // -1 for the \0 byte.
     if (heap.size() > HEAPPROFD_HEAP_NAME_SZ - 1) {
       PERFETTO_ELOG("Invalid heap name %s (larger than %d)", heap.c_str(),
                     HEAPPROFD_HEAP_NAME_SZ - 1);
       continue;
     }
-    strncpy(&cli_config->heaps[n][0], heap.c_str(),
-            sizeof(cli_config->heaps[0]));
-    cli_config->heaps[n][sizeof(cli_config->heaps[0]) - 1] = '\0';
+    strncpy(&cli_config->heaps[n].name[0], heap.c_str(),
+            sizeof(cli_config->heaps[0].name));
+    cli_config->heaps[n].name[sizeof(cli_config->heaps[0].name) - 1] = '\0';
+    cli_config->heaps[n].interval = interval;
     n++;
   }
   cli_config->num_heaps = n;
+  return true;
 }
 
 const uint64_t LogHistogram::kMaxBucket = 0;
@@ -430,7 +445,8 @@ void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
   DataSource data_source(endpoint_->CreateTraceWriter(buffer_id));
   data_source.id = id;
   auto& cli_config = data_source.client_configuration;
-  HeapprofdConfigToClientConfiguration(heapprofd_config, &cli_config);
+  if (!HeapprofdConfigToClientConfiguration(heapprofd_config, &cli_config))
+    return;
   data_source.config = heapprofd_config;
   data_source.normalized_cmdlines = std::move(normalized_cmdlines.value());
   data_source.stop_timeout_ms = ds_config.stop_timeout_ms()

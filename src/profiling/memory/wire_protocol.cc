@@ -163,5 +163,21 @@ bool ReceiveWireMessage(char* buf, size_t size, WireMessage* out) {
   return true;
 }
 
+uint64_t GetHeapSamplingInterval(const ClientConfiguration& cli_config,
+                                 const char* heap_name) {
+  for (uint32_t i = 0; i < cli_config.num_heaps; ++i) {
+    const ClientConfigurationHeap& heap = cli_config.heaps[i];
+    static_assert(sizeof(heap.name) == HEAPPROFD_HEAP_NAME_SZ,
+                  "correct heap name size");
+    if (strncmp(&heap.name[0], heap_name, HEAPPROFD_HEAP_NAME_SZ) == 0) {
+      return heap.interval;
+    }
+  }
+  if (cli_config.all_heaps) {
+    return cli_config.default_interval;
+  }
+  return 0;
+}
+
 }  // namespace profiling
 }  // namespace perfetto

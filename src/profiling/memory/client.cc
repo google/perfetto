@@ -250,7 +250,6 @@ std::shared_ptr<Client> Client::CreateAndHandshake(
     return nullptr;
   }
 
-  PERFETTO_DCHECK(client_config.interval >= 1);
   sock.SetBlocking(false);
   // note: the shared_ptr will retain a copy of the unhooked_allocator
   return std::allocate_shared<Client>(unhooked_allocator, std::move(sock),
