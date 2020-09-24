@@ -167,8 +167,6 @@ light configuration flags: (only when NOT using -c/--config)
   --size           -s      : Max file size N[mb,gb] (default: in-memory ring-buffer only)
   ATRACE_CAT               : Record ATRACE_CAT (e.g. wm)
   FTRACE_GROUP/FTRACE_NAME : Record ftrace event (e.g. sched/sched_switch)
-  FTRACE_GROUP/*           : Record all events in group (e.g. sched/*)
-
 
 statsd-specific flags:
   --alert-id           : ID of the alert that triggered this trace.
