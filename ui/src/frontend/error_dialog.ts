@@ -132,6 +132,12 @@ function renderModal(
             oninput: (ev: InputEvent) => {
               userDescription = (ev.target as HTMLTextAreaElement).value;
             },
+            onkeydown: (e: Event) => {
+              e.stopPropagation();
+            },
+            onkeyup: (e: Event) => {
+              e.stopPropagation();
+            },
           }),
           shareTraceSection),
     buttons: [
