@@ -58,6 +58,7 @@ source_set("unittests") {
   sources = [ "protozero_to_text_unittests.cc" ]
   testonly = true
   deps = [
+    ":descriptors",
     ":protozero_to_text",
     "..:track_event_descriptor",
     "../../../gn:default_deps",

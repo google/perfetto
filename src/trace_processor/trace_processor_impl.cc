@@ -52,6 +52,7 @@
 #include "src/trace_processor/sqlite/window_operator_table.h"
 #include "src/trace_processor/tp_metatrace.h"
 #include "src/trace_processor/types/variadic.h"
+#include "src/trace_processor/util/protozero_to_text.h"
 
 #include "protos/perfetto/trace/perfetto/perfetto_metatrace.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
@@ -1000,6 +1001,29 @@ util::Status TraceProcessorImpl::ComputeMetric(
   const auto& root_descriptor = pool_.descriptors()[opt_idx.value()];
   return metrics::ComputeMetrics(this, metric_names, sql_metrics_,
                                  root_descriptor, metrics_proto);
+}
+
+util::Status TraceProcessorImpl::ComputeMetricText(
+    const std::vector<std::string>& metric_names,
+    TraceProcessor::MetricResultFormat format,
+    std::string* metrics_string) {
+  std::vector<uint8_t> metrics_proto;
+  util::Status status = ComputeMetric(metric_names, &metrics_proto);
+  if (!status.ok())
+    return status;
+  switch (format) {
+    case TraceProcessor::MetricResultFormat::kProtoText:
+      *metrics_string = protozero_to_text::ProtozeroToText(
+          pool_, ".perfetto.protos.TraceMetrics",
+          protozero::ConstBytes{metrics_proto.data(), metrics_proto.size()},
+          protozero_to_text::kIncludeNewLines);
+      break;
+    case TraceProcessor::MetricResultFormat::kJson:
+      // TODO(dproy): Implement this.
+      PERFETTO_FATAL("Json formatted metrics not supported yet.");
+      break;
+  }
+  return status;
 }
 
 std::vector<uint8_t> TraceProcessorImpl::GetMetricDescriptors() {

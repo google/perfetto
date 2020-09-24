@@ -24,15 +24,36 @@
 namespace perfetto {
 namespace trace_processor {
 
+class DescriptorPool;
+
+namespace protozero_to_text {
+
+enum NewLinesMode {
+  kIncludeNewLines = 0,
+  kSkipNewLines,
+};
+
 // Given a protozero message |protobytes| which is of fully qualified name
-// |type|. We will convert this into a text proto format string.
+// |type| within TrackEvent proto messages, we will convert this into a text
+// proto format string.
 //
-// DebugProtozeroToText will use new lines between fields, and
-// ShortDebugProtozeroToText will use only a single space.
-std::string DebugProtozeroToText(const std::string& type,
-                                 protozero::ConstBytes protobytes);
-std::string ShortDebugProtozeroToText(const std::string& type,
-                                      protozero::ConstBytes protobytes);
+// DebugTrackEventProtozeroToText will use new lines between fields, and
+// ShortDebugTrackEventProtozeroToText will use only a single space.
+std::string DebugTrackEventProtozeroToText(const std::string& type,
+                                           protozero::ConstBytes protobytes);
+std::string ShortDebugTrackEventProtozeroToText(
+    const std::string& type,
+    protozero::ConstBytes protobytes);
+
+// Given a protozero message |protobytes| which is of fully qualified name
+// |type|, convert this into a text proto format string. All types used in
+// message definition of |type| must be available in |pool|. If
+// |new_lines_modes| == kIncludeNewLines, new lines will be used between fields,
+// otherwise only a space will be used.
+std::string ProtozeroToText(const DescriptorPool& pool,
+                            const std::string& type,
+                            protozero::ConstBytes protobytes,
+                            NewLinesMode new_lines_mode);
 
 // Allow the conversion from a protozero enum to a string. The template is just
 // to allow easy enum passing since we will do the explicit cast to a int32_t
@@ -43,6 +64,7 @@ std::string ProtozeroEnumToText(const std::string& type, Enum enum_value) {
   return ProtozeroEnumToText(type, static_cast<int32_t>(enum_value));
 }
 
+}  // namespace protozero_to_text
 }  // namespace trace_processor
 }  // namespace perfetto
 
