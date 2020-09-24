@@ -84,6 +84,17 @@ class StatsSection implements m.ClassComponent<StatsSectionAttrs> {
   }
 }
 
+class MetricErrors implements m.ClassComponent {
+  view() {
+    if (!globals.metricError) return;
+    return m(
+        `section.errors`,
+        m('h2', `Metric Errors`),
+        m('h3', `One or more metrics were not computed successfully:`),
+        m('div.metric-error', globals.metricError));
+  }
+}
+
 class TraceMetadata implements m.ClassComponent {
   private queryDispatched = false;
   private readonly QUERY_ID = 'info_metadata';
@@ -177,6 +188,7 @@ export const TraceInfoPage = createPage({
   view() {
     return m(
         '.trace-info-page',
+        m(MetricErrors),
         m(StatsSection, {
           queryId: 'info_errors',
           title: 'Import errors',

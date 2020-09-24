@@ -246,14 +246,15 @@ class HelpPanningNotification implements m.ClassComponent {
 class TraceErrorIcon implements m.ClassComponent {
   view() {
     const errors = globals.traceErrors;
-    if (!errors || mode === COMMAND) return;
+    if (!errors && !globals.metricError || mode === COMMAND) return;
+    const message = errors ? `${errors} import or data loss errors detected.` :
+                             `Metric error detected.`;
     return m(
         'a.error',
         {href: '#!/info'},
         m('i.material-icons',
           {
-            title: `${globals.traceErrors} import or data loss errors detected.
-                    Click for more info.`,
+            title: message + ` Click for more info.`,
           },
           'announcement'));
   }
