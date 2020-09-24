@@ -32,6 +32,8 @@ export class NullLoadingTracker implements LoadingTracker {
   endLoading(): void {}
 }
 
+export class QueryError extends Error {}
+
 /**
  * Abstract interface of a trace proccessor.
  * This is the TypeScript equivalent of src/trace_processor/rpc.h.
@@ -87,7 +89,17 @@ export abstract class Engine {
    * Shorthand for sending a SQL query to the engine.
    * Deals with {,un}marshalling of request/response args.
    */
-  async query(sqlQuery: string, userQuery = false): Promise<RawQueryResult> {
+  async query(sqlQuery: string): Promise<RawQueryResult> {
+    const result = await this.uncheckedQuery(sqlQuery);
+    if (result.error) {
+      throw new QueryError(`Query error "${sqlQuery}": ${result.error}`);
+    }
+    return result;
+  }
+
+  // This method is for noncritical queries that shouldn't throw an error
+  // on failure. The caller must handle the failure.
+  async uncheckedQuery(sqlQuery: string): Promise<RawQueryResult> {
     this.loadingTracker.beginLoading();
     try {
       const args = new RawQueryArgs();
@@ -96,9 +108,7 @@ export abstract class Engine {
       const argsEncoded = RawQueryArgs.encode(args).finish();
       const respEncoded = await this.rawQuery(argsEncoded);
       const result = RawQueryResult.decode(respEncoded);
-      if (!result.error || userQuery) return result;
-      // Query failed, throw an error since it was not a user query
-      throw new Error(`Query error "${sqlQuery}": ${result.error}`);
+      return result;
     } finally {
       this.loadingTracker.endLoading();
     }
@@ -113,7 +123,11 @@ export abstract class Engine {
     args.metricNames = metrics;
     const argsEncoded = ComputeMetricArgs.encode(args).finish();
     const respEncoded = await this.rawComputeMetric(argsEncoded);
-    return ComputeMetricResult.decode(respEncoded);
+    const result = ComputeMetricResult.decode(respEncoded);
+    if (result.error.length > 0) {
+      throw new QueryError(result.error);
+    }
+    return result;
   }
 
   /**

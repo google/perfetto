@@ -16,6 +16,7 @@
   overflow-y: auto;
   overflow-x: hidden;
   padding: 0 20px;
+  user-select: text;
 
   section {
     margin: 20px auto;
@@ -26,6 +27,13 @@
 
     &.errors {
       background-color: #F3E5F5;
+    }
+
+    .metric-error {
+      font-family: var(--monospace-font);
+      font-size: 12px;
+      padding: 5px;
+      word-break: break-all;
     }
 
     h2 {
