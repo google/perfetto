@@ -201,8 +201,11 @@ size_t CpuReader::ReadAndProcessBatch(
         // Expected errors:
         // EAGAIN: no data (since we're in non-blocking mode).
         // ENONMEM, EBUSY: temporary ftrace failures (they happen).
-        if (errno != EAGAIN && errno != ENOMEM && errno != EBUSY)
+        // ENODEV: the cpu is offline (b/145583318).
+        if (errno != EAGAIN && errno != ENOMEM && errno != EBUSY &&
+            errno != ENODEV) {
           PERFETTO_PLOG("Unexpected error on raw ftrace read");
+        }
         break;  // stop reading regardless of errno
       }
 
