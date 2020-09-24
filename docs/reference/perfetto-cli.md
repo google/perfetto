@@ -37,7 +37,7 @@ The general syntax for using `perfetto` in *lightweight mode* is as follows:
 
 <pre class="none">
  adb shell perfetto [ --time <var>TIMESPEC</var> ] [ --buffer <var>SIZE</var> ] [ --size <var>SIZE</var> ]
-           [ <var>ATRACE_CAT</var> | <var>FTRACE_GROUP/FTRACE_NAME</var> | <var>FTRACE_GROUP/*</var> ]...
+           [ <var>ATRACE_CAT</var> | <var>FTRACE_GROUP/FTRACE_NAME</var>]...
 </pre>
 
 
@@ -57,7 +57,6 @@ This is followed by a list of event specifiers:
 |--- |--- |
 |`ATRACE_CAT`|Specifies the atrace categories you want to record a trace for. For example, the following command traces Window Manager using atrace: `adb shell perfetto --out FILE wm`. To record other categories, see this [list of atrace categories](https://android.googlesource.com/platform/frameworks/native/+/refs/tags/android-q-preview-5/cmds/atrace/atrace.cpp#100).|
 |`FTRACE_GROUP/FTRACE_NAME`|Specifies the ftrace events you want to record a trace for. For example, the following command traces sched/sched_switch events: `adb shell perfetto --out FILE sched/sched_switch`|
-|`FTRACE_GROUP/*`|Record all events in group (e.g. sched/\*). Specifies the group of ftrace events you want to record a trace for. For example, the following command traces sched/\* events: `adb shell perfetto --out FILE 'sched/*'`|
 
 
 ## Normal mode
