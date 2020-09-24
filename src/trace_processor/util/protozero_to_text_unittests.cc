@@ -19,10 +19,14 @@
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
+#include "src/trace_processor/importers/proto/track_event.descriptor.h"
+#include "src/trace_processor/util/descriptors.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
 namespace trace_processor {
+namespace protozero_to_text {
+
 namespace {
 
 constexpr size_t kChunkSize = 42;
@@ -36,13 +40,14 @@ TEST(ProtozeroToTextTest, TrackEventBasic) {
   msg->set_track_uuid(4);
   msg->set_timestamp_delta_us(3);
   auto binary_proto = msg.SerializeAsArray();
-  EXPECT_EQ("track_uuid: 4\ntimestamp_delta_us: 3",
-            DebugProtozeroToText(".perfetto.protos.TrackEvent",
-                                 protozero::ConstBytes{binary_proto.data(),
-                                                       binary_proto.size()}));
+  EXPECT_EQ(
+      "track_uuid: 4\ntimestamp_delta_us: 3",
+      DebugTrackEventProtozeroToText(
+          ".perfetto.protos.TrackEvent",
+          protozero::ConstBytes{binary_proto.data(), binary_proto.size()}));
   EXPECT_EQ(
       "track_uuid: 4 timestamp_delta_us: 3",
-      ShortDebugProtozeroToText(
+      ShortDebugTrackEventProtozeroToText(
           ".perfetto.protos.TrackEvent",
           protozero::ConstBytes{binary_proto.data(), binary_proto.size()}));
 }
@@ -60,7 +65,8 @@ TEST(ProtozeroToTextTest, TrackEventNestedMsg) {
   msg->set_timestamp_delta_us(3);
   auto binary_proto = msg.SerializeAsArray();
 
-  EXPECT_EQ(R"(track_uuid: 4
+  EXPECT_EQ(
+      R"(track_uuid: 4
 cc_scheduler_state: {
   deadline_us: 7
   state_machine: {
@@ -71,15 +77,15 @@ cc_scheduler_state: {
   observing_begin_frame_source: true
 }
 timestamp_delta_us: 3)",
-            DebugProtozeroToText(".perfetto.protos.TrackEvent",
-                                 protozero::ConstBytes{binary_proto.data(),
-                                                       binary_proto.size()}));
+      DebugTrackEventProtozeroToText(
+          ".perfetto.protos.TrackEvent",
+          protozero::ConstBytes{binary_proto.data(), binary_proto.size()}));
 
   EXPECT_EQ(
       "track_uuid: 4 cc_scheduler_state: { deadline_us: 7 state_machine: { "
       "minor_state: { commit_count: 8 } } observing_begin_frame_source: true } "
       "timestamp_delta_us: 3",
-      ShortDebugProtozeroToText(
+      ShortDebugTrackEventProtozeroToText(
           ".perfetto.protos.TrackEvent",
           protozero::ConstBytes{binary_proto.data(), binary_proto.size()}));
 }
@@ -89,14 +95,83 @@ TEST(ProtozeroToTextTest, TrackEventEnumNames) {
   protozero::HeapBuffered<TrackEvent> msg{kChunkSize, kChunkSize};
   msg->set_type(TrackEvent::TYPE_SLICE_BEGIN);
   auto binary_proto = msg.SerializeAsArray();
-  EXPECT_EQ("type: TYPE_SLICE_BEGIN",
-            DebugProtozeroToText(".perfetto.protos.TrackEvent",
-                                 protozero::ConstBytes{binary_proto.data(),
-                                                       binary_proto.size()}));
-  EXPECT_EQ("type: TYPE_SLICE_BEGIN",
-            DebugProtozeroToText(".perfetto.protos.TrackEvent",
-                                 protozero::ConstBytes{binary_proto.data(),
-                                                       binary_proto.size()}));
+  EXPECT_EQ(
+      "type: TYPE_SLICE_BEGIN",
+      DebugTrackEventProtozeroToText(
+          ".perfetto.protos.TrackEvent",
+          protozero::ConstBytes{binary_proto.data(), binary_proto.size()}));
+  EXPECT_EQ(
+      "type: TYPE_SLICE_BEGIN",
+      DebugTrackEventProtozeroToText(
+          ".perfetto.protos.TrackEvent",
+          protozero::ConstBytes{binary_proto.data(), binary_proto.size()}));
+}
+
+TEST(ProtozeroToTextTest, CustomDescriptorPoolBasic) {
+  using perfetto::protos::pbzero::TrackEvent;
+  protozero::HeapBuffered<TrackEvent> msg{kChunkSize, kChunkSize};
+  msg->set_track_uuid(4);
+  msg->set_timestamp_delta_us(3);
+  auto binary_proto = msg.SerializeAsArray();
+  DescriptorPool pool;
+  auto status = pool.AddFromFileDescriptorSet(kTrackEventDescriptor.data(),
+                                              kTrackEventDescriptor.size());
+  ASSERT_TRUE(status.ok());
+  EXPECT_EQ("track_uuid: 4\ntimestamp_delta_us: 3",
+            ProtozeroToText(
+                pool, ".perfetto.protos.TrackEvent",
+                protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
+                kIncludeNewLines));
+  EXPECT_EQ("track_uuid: 4 timestamp_delta_us: 3",
+            ProtozeroToText(
+                pool, ".perfetto.protos.TrackEvent",
+                protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
+                kSkipNewLines));
+}
+
+TEST(ProtozeroToTextTest, CustomDescriptorPoolNestedMsg) {
+  using perfetto::protos::pbzero::TrackEvent;
+  protozero::HeapBuffered<TrackEvent> msg{kChunkSize, kChunkSize};
+  msg->set_track_uuid(4);
+  auto* state = msg->set_cc_scheduler_state();
+  state->set_deadline_us(7);
+  auto* machine = state->set_state_machine();
+  auto* minor_state = machine->set_minor_state();
+  minor_state->set_commit_count(8);
+  state->set_observing_begin_frame_source(true);
+  msg->set_timestamp_delta_us(3);
+  auto binary_proto = msg.SerializeAsArray();
+
+  DescriptorPool pool;
+  auto status = pool.AddFromFileDescriptorSet(kTrackEventDescriptor.data(),
+                                              kTrackEventDescriptor.size());
+  ASSERT_TRUE(status.ok());
+
+  EXPECT_EQ(
+      R"(track_uuid: 4
+cc_scheduler_state: {
+  deadline_us: 7
+  state_machine: {
+    minor_state: {
+      commit_count: 8
+    }
+  }
+  observing_begin_frame_source: true
+}
+timestamp_delta_us: 3)",
+      ProtozeroToText(
+          pool, ".perfetto.protos.TrackEvent",
+          protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
+          kIncludeNewLines));
+
+  EXPECT_EQ(
+      "track_uuid: 4 cc_scheduler_state: { deadline_us: 7 state_machine: { "
+      "minor_state: { commit_count: 8 } } observing_begin_frame_source: true } "
+      "timestamp_delta_us: 3",
+      ProtozeroToText(
+          pool, ".perfetto.protos.TrackEvent",
+          protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
+          kSkipNewLines));
 }
 
 TEST(ProtozeroToTextTest, EnumToString) {
@@ -106,5 +181,6 @@ TEST(ProtozeroToTextTest, EnumToString) {
                                 TrackEvent::TYPE_SLICE_END));
 }
 }  // namespace
+}  // namespace protozero_to_text
 }  // namespace trace_processor
 }  // namespace perfetto
