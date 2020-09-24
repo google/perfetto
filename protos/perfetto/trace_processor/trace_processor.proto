@@ -142,17 +142,27 @@ message StatusResult {
 
 // Input for the /compute_metric endpoint.
 message ComputeMetricArgs {
+  enum ResultFormat {
+    BINARY_PROTOBUF = 0;
+    TEXTPROTO = 1;
+  }
   repeated string metric_names = 1;
+  optional ResultFormat format = 2;
 }
 
 // Output for the /compute_metric endpoint.
 message ComputeMetricResult {
-  // This is meant to contain a perfetto.protos.TraceMetrics. We're using bytes
-  // instead of the actual type because we do not want to generate protozero
-  // code for the metrics protos. We always encode/decode metrics using a
-  // reflection based mechanism that does not require the compiled C++ code.
-  // This allows us to read in new protos at runtime.
-  optional bytes metrics = 1;
+  oneof result {
+    // This is meant to contain a perfetto.protos.TraceMetrics. We're using
+    // bytes instead of the actual type because we do not want to generate
+    // protozero code for the metrics protos. We always encode/decode metrics
+    // using a reflection based mechanism that does not require the compiled C++
+    // code. This allows us to read in new protos at runtime.
+    bytes metrics = 1;
+
+    // A perfetto.protos.TraceMetrics formatted as prototext.
+    string metrics_as_prototext = 3;
+  }
 
   optional string error = 2;
 }

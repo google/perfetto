@@ -323,6 +323,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "tables",
       "types",
       "util",
+      "util:protozero_to_text",
     ]
     public_deps = [
       "../../gn:sqlite",  # iterator_impl.h includes sqlite3.h.
