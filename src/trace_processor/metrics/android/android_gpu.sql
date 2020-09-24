@@ -25,23 +25,33 @@ SELECT RUN_METRIC('android/process_counter_span_view.sql',
 CREATE VIEW proc_gpu_memory_view AS
 SELECT
   upid,
-  CAST(MAX(proc_gpu_memory_val) as INT64) as mem_max,
-  CAST(MIN(proc_gpu_memory_val) as INT64) as mem_min,
-  CAST(SUM(proc_gpu_memory_val * dur) / SUM(dur) as INT64) as mem_avg
+  MAX(proc_gpu_memory_val) as mem_max,
+  MIN(proc_gpu_memory_val) as mem_min,
+  SUM(proc_gpu_memory_val * dur) as mem_valxdur,
+  SUM(dur) as mem_dur
 FROM proc_gpu_memory_span
 GROUP BY upid;
+
+CREATE VIEW agg_proc_gpu_view AS
+SELECT
+  name,
+  MAX(mem_max) as mem_max,
+  MIN(mem_min) as mem_min,
+  SUM(mem_valxdur) / SUM(mem_dur) as mem_avg
+FROM process
+JOIN proc_gpu_memory_view
+USING(upid)
+GROUP BY name;
 
 CREATE VIEW proc_gpu_view AS
 SELECT
   AndroidGpuMetric_Process(
-    'name', p.name,
-    'mem_max', v.mem_max,
-    'mem_min', v.mem_min,
-    'mem_avg', v.mem_avg
+    'name', name,
+    'mem_max', CAST(mem_max as INT64),
+    'mem_min', CAST(mem_min as INT64),
+    'mem_avg', CAST(mem_avg as INT64)
   ) AS proto
-FROM process p
-JOIN proc_gpu_memory_view v
-ON p.upid = v.upid;
+FROM agg_proc_gpu_view;
 
 CREATE VIEW android_gpu_output AS
 SELECT AndroidGpuMetric(
