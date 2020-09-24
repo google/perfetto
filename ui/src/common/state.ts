@@ -51,6 +51,8 @@ export interface Area {
 
 export const MAX_TIME = 180;
 
+export const STATE_VERSION = 1;
+
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
 export type EngineMode = 'WASM'|'HTTP_RPC';
@@ -250,6 +252,7 @@ export interface AggregationState {
 export interface State {
   // tslint:disable-next-line:no-any
   [key: string]: any;
+  version: number;
   route: string|null;
   nextId: number;
   nextNoteId: number;
@@ -697,6 +700,7 @@ export function getBuiltinChromeCategoryList(): string[] {
 
 export function createEmptyState(): State {
   return {
+    version: STATE_VERSION,
     route: null,
     nextId: 0,
     nextNoteId: 1,  // 0 is reserved for ephemeral area marking.

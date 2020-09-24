@@ -16,8 +16,8 @@ import {produce} from 'immer';
 
 import {assertExists, assertTrue} from '../base/logging';
 import {Actions} from '../common/actions';
-import {State} from '../common/state';
-import {RecordConfig} from '../common/state';
+import {createEmptyState, State} from '../common/state';
+import {RecordConfig, STATE_VERSION} from '../common/state';
 import {
   BUCKET_NAME,
   saveState,
@@ -58,7 +58,7 @@ export class PermalinkController extends Controller<'main'> {
     // Otherwise, this is a request to load the permalink.
     PermalinkController.loadState(globals.state.permalink.hash)
         .then(stateOrConfig => {
-          if (this.isRecordConfig(stateOrConfig)) {
+          if (PermalinkController.isRecordConfig(stateOrConfig)) {
             // This permalink state only contains a RecordConfig. Show the
             // recording page with the config, but keep other state as-is.
             const validConfig = validateRecordConfig(stateOrConfig);
@@ -76,8 +76,25 @@ export class PermalinkController extends Controller<'main'> {
         });
   }
 
-  private isRecordConfig(stateOrConfig: State|
-                         RecordConfig): stateOrConfig is RecordConfig {
+  private static upgradeState(state: State): State {
+    if (state.version !== STATE_VERSION) {
+      const newState = createEmptyState();
+      // Copy the URL of the trace into the empty state.
+      for (const cfg of Object.values(state.engines)) {
+        newState
+            .engines[cfg.id] = {id: cfg.id, ready: false, source: cfg.source};
+      }
+      const message = `Unable to parse old state version. Discarding state ` +
+          `and loading trace.`;
+      console.warn(message);
+      PermalinkController.updateStatus(message);
+      return newState;
+    }
+    return state;
+  }
+
+  private static isRecordConfig(stateOrConfig: State|
+                                RecordConfig): stateOrConfig is RecordConfig {
     return ['STOP_WHEN_FULL', 'RING_BUFFER', 'LONG_TRACE'].includes(
         stateOrConfig.mode);
   }
@@ -134,6 +151,9 @@ export class PermalinkController extends Controller<'main'> {
     const state = JSON.parse(text);
     if (stateHash !== id) {
       throw new Error(`State hash does not match ${id} vs. ${stateHash}`);
+    }
+    if (!this.isRecordConfig(state)) {
+      return this.upgradeState(state);
     }
     return state;
   }
