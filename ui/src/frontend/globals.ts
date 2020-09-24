@@ -146,6 +146,7 @@ class Globals {
   private _bufferUsage?: number = undefined;
   private _recordingLog?: string = undefined;
   private _traceErrors?: number = undefined;
+  private _metricError?: string = undefined;
 
   private _currentSearchResults: CurrentSearchResults = {
     sliceIds: [],
@@ -284,6 +285,14 @@ class Globals {
 
   setTraceErrors(arg: number) {
     this._traceErrors = arg;
+  }
+
+  get metricError() {
+    return this._metricError;
+  }
+
+  setMetricError(arg: string) {
+    this._metricError = arg;
   }
 
   get cpuProfileDetails() {
