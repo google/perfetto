@@ -29,7 +29,9 @@ interface CallsiteInfoWidth {
   width: number;
 }
 
-const NODE_HEIGHT_DEFAULT = 17;
+// Height of one 'row' on the flame chart including 1px of whitespace
+// below the box.
+const NODE_HEIGHT = 18;
 
 export const HEAP_PROFILE_HOVERED_COLOR = 'hsl(224, 45%, 55%)';
 
@@ -53,7 +55,10 @@ export class Flamegraph {
   private flamegraphData: CallsiteInfo[];
   private maxDepth = -1;
   private totalSize = -1;
-  private textSize = 14;
+  // Initialised on first draw() call
+  private labelCharWidth = 0;
+  private labelFontStyle = '14px Roboto Mono';
+  private rolloverFontStyle = '12px Roboto Condensed';
   // Key for the map is depth followed by x coordinate - `depth;x`
   private graphData: Map<string, CallsiteInfoWidth> = new Map();
   private xStartsPerDepth: Map<number, number[]> = new Map();
@@ -74,15 +79,6 @@ export class Flamegraph {
     this.maxDepth = Math.max(...this.flamegraphData.map(value => value.depth));
   }
 
-  hash(s: string): number {
-    let hash = 0x811c9dc5 & 0xfffffff;
-    for (let i = 0; i < s.length; i++) {
-      hash ^= s.charCodeAt(i);
-      hash = (hash * 16777619) & 0xffffffff;
-    }
-    return hash & 0xff;
-  }
-
   generateColor(name: string, isGreyedOut = false): string {
     if (isGreyedOut) {
       return '#d9d9d9';
@@ -90,12 +86,16 @@ export class Flamegraph {
     if (name === 'unknown' || name === 'root') {
       return '#c0c0c0';
     }
-    const hue = this.hash(name);
-    return `hsl(${hue}, 40%, 70%)`;
+    let x = 0;
+    for (let i = 0; i < name.length; i += 1) {
+      x += name.charCodeAt(i) % 64;
+    }
+    x = x % 360;
+    return `hsl(${x}deg, 45%, 76%)`;
   }
 
   /**
-   * Caller will have to call draw method ater updating data to have updated
+   * Caller will have to call draw method after updating data to have updated
    * graph.
    */
   updateDataIfChanged(
@@ -116,15 +116,18 @@ export class Flamegraph {
   draw(
       ctx: CanvasRenderingContext2D, width: number, height: number, x = 0,
       y = 0, unit = 'B') {
-    // TODO(taylori): Instead of pesimistic approach improve displaying text.
-    const name = '____MMMMMMQQwwZZZZZZzzzzzznnnnnnwwwwwwWWWWWqq$$mmmmmm__';
-    const charWidth = ctx.measureText(name).width / name.length;
-    const nodeHeight = this.getNodeHeight();
-    this.startingY = y;
 
     if (this.flamegraphData === undefined) {
       return;
     }
+
+    ctx.font = this.labelFontStyle;
+    if (this.labelCharWidth === 0) {
+      this.labelCharWidth = ctx.measureText('_').width;
+    }
+
+    this.startingY = y;
+
     // For each node, we use this map to get information about it's parent
     // (total size of it, width and where it starts in graph) so we can
     // calculate it's own position in graph.
@@ -132,24 +135,26 @@ export class Flamegraph {
     let currentY = y;
     nodesMap.set(-1, {width, nextXForChildren: x, size: this.totalSize, x});
 
-    // Initialize data needed for click/hover behaivior.
+    // Initialize data needed for click/hover behavior.
     this.graphData = new Map();
     this.xStartsPerDepth = new Map();
 
     // Draw root node.
     ctx.fillStyle = this.generateColor('root', false);
-    ctx.fillRect(x, currentY, width, nodeHeight);
-    ctx.font = `${this.textSize}px Roboto Condensed`;
+    ctx.fillRect(x, currentY, width, NODE_HEIGHT - 1);
     const text = cropText(
         `root: ${
             this.displaySize(
                 this.totalSize, unit, unit === 'B' ? 1024 : 1000)}`,
-        charWidth,
+        this.labelCharWidth,
         width - 2);
     ctx.fillStyle = 'black';
-    ctx.fillText(text, x + 5, currentY + nodeHeight - 4);
-    currentY += nodeHeight;
+    ctx.fillText(text, x + 5, currentY + NODE_HEIGHT - 4);
+    currentY += NODE_HEIGHT;
 
+    // Set style for borders.
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 0.5;
 
     for (let i = 0; i < this.flamegraphData.length; i++) {
       if (currentY > height) {
@@ -174,12 +179,12 @@ export class Flamegraph {
           (isFullWidth ? 1 : value.totalSize / parentSize) * parentNode.width;
 
       const currentX = parentNode.nextXForChildren;
-      currentY = y + nodeHeight * (value.depth + 1);
+      currentY = y + NODE_HEIGHT * (value.depth + 1);
 
       // Draw node.
       const name = this.getCallsiteName(value);
       ctx.fillStyle = this.generateColor(name, isGreyedOut);
-      ctx.fillRect(currentX, currentY, width, nodeHeight);
+      ctx.fillRect(currentX, currentY, width, NODE_HEIGHT - 1);
 
       // Set current node's data in map for children to use.
       nodesMap.set(value.id, {
@@ -197,21 +202,15 @@ export class Flamegraph {
       });
 
       // Draw name.
-      ctx.font = `${this.textSize}px Roboto Condensed`;
-      const text = cropText(name, charWidth, width - 2);
+      ctx.font = this.labelFontStyle;
+      const text = cropText(name, this.labelCharWidth, width - 2);
       ctx.fillStyle = 'black';
-      ctx.fillText(text, currentX + 5, currentY + nodeHeight - 4);
+      ctx.fillText(text, currentX + 5, currentY + NODE_HEIGHT - 4);
 
-      // Draw border around node.
-      ctx.strokeStyle = 'white';
+      // Draw border on the right of node.
       ctx.beginPath();
-      ctx.moveTo(currentX, currentY);
-      ctx.lineTo(currentX, currentY + nodeHeight);
-      ctx.lineTo(currentX + width, currentY + nodeHeight);
-      ctx.lineTo(currentX + width, currentY);
-      ctx.moveTo(currentX, currentY);
-      ctx.lineWidth = 1;
-      ctx.closePath();
+      ctx.moveTo(currentX + width, currentY);
+      ctx.lineTo(currentX + width, currentY + NODE_HEIGHT);
       ctx.stroke();
 
       // Add this node for recognizing in click/hover.
@@ -277,12 +276,12 @@ export class Flamegraph {
       const rectXStart = this.hoveredX + 8 + rectWidth > width ?
           width - rectWidth - 8 :
           this.hoveredX + 8;
-      const rectHeight = nodeHeight * (lines.length + 1);
+      const rectHeight = NODE_HEIGHT * (lines.length + 1);
       const rectYStart = this.hoveredY + 4 + rectHeight > height ?
           height - rectHeight - 8 :
           this.hoveredY + 4;
 
-      ctx.font = '12px Roboto Condensed';
+      ctx.font = this.rolloverFontStyle;
       ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
       ctx.fillRect(rectXStart, rectYStart, rectWidth, rectHeight);
       ctx.fillStyle = 'hsl(200, 50%, 40%)';
@@ -346,8 +345,8 @@ export class Flamegraph {
   }
 
   private findSelectedCallsite(x: number, y: number): CallsiteInfo|undefined {
-    const depth = Math.trunc((y - this.startingY) / this.getNodeHeight()) -
-        1;  // at 0 is root
+    const depth =
+        Math.trunc((y - this.startingY) / NODE_HEIGHT) - 1;  // at 0 is root
     if (depth >= 0 && this.xStartsPerDepth.has(depth)) {
       const startX = this.searchSmallest(this.xStartsPerDepth.get(depth)!, x);
       const result = this.graphData.get(`${depth};${startX}`);
@@ -366,13 +365,8 @@ export class Flamegraph {
   }
 
   getHeight(): number {
-    return this.flamegraphData.length === 0 ?
-        0 :
-        (this.maxDepth + 2) * this.getNodeHeight();
-  }
-
-  getNodeHeight() {
-    return NODE_HEIGHT_DEFAULT;
+    return this.flamegraphData.length === 0 ? 0 :
+                                              (this.maxDepth + 2) * NODE_HEIGHT;
   }
 }
 
