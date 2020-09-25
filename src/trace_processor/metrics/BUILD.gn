@@ -55,6 +55,7 @@ sql_files = [
   "android/global_counter_span_view.sql",
   "android/unsymbolized_frames.sql",
   "chrome/chrome_processes.sql",
+  "chrome/chrome_thread_slice_with_cpu_time.sql",
   "chrome/scroll_jank.sql",
   "chrome/scroll_jank_cause.sql",
   "chrome/scroll_jank_cause_blocking_task.sql",
