@@ -6931,6 +6931,7 @@ genrule {
     "src/trace_processor/metrics/android/span_view_stats.sql",
     "src/trace_processor/metrics/android/unsymbolized_frames.sql",
     "src/trace_processor/metrics/chrome/chrome_processes.sql",
+    "src/trace_processor/metrics/chrome/chrome_thread_slice_with_cpu_time.sql",
     "src/trace_processor/metrics/chrome/scroll_flow_event.sql",
     "src/trace_processor/metrics/chrome/scroll_flow_event_queuing_delay.sql",
     "src/trace_processor/metrics/chrome/scroll_jank.sql",
