@@ -2103,11 +2103,16 @@ void TracingServiceImpl::UnregisterDataSource(ProducerID producer_id,
       if (it->first == producer_id && it->second.data_source_name == name) {
         DataSourceInstanceID ds_inst_id = it->second.instance_id;
         if (it->second.state != DataSourceInstance::STOPPED) {
-          if (it->second.state != DataSourceInstance::STOPPING)
+          if (it->second.state != DataSourceInstance::STOPPING) {
             StopDataSourceInstance(producer, &kv.second, &it->second,
                                    /* disable_immediately = */ false);
+          }
+
           // Mark the instance as stopped immediately, since we are
           // unregistering it below.
+          //
+          //  The StopDataSourceInstance above might have set the state to
+          //  STOPPING so this condition isn't an else.
           if (it->second.state == DataSourceInstance::STOPPING)
             NotifyDataSourceStopped(producer_id, ds_inst_id);
         }
