@@ -203,9 +203,20 @@ export class Flamegraph {
       });
 
       // Draw name.
-      const text = cropText(name, this.labelCharWidth, width - 2);
+      const labelPaddingPx = 5;
+      const maxLabelWidth = width - labelPaddingPx * 2;
+      let text = cropText(name, this.labelCharWidth, maxLabelWidth);
+      // If cropped text and the original text are within 20% we keep the
+      // original text and just squish it a bit.
+      if (text.length * 1.2 > name.length) {
+        text = name;
+      }
       ctx.fillStyle = 'black';
-      ctx.fillText(text, currentX + 5, currentY + (NODE_HEIGHT - 1) / 2);
+      ctx.fillText(
+          text,
+          currentX + labelPaddingPx,
+          currentY + (NODE_HEIGHT - 1) / 2,
+          maxLabelWidth);
 
       // Draw border on the right of node.
       ctx.beginPath();
@@ -411,6 +422,6 @@ export function splitIfTooBig(
     lines.push(line.slice(0, maxLineLen));
     line = line.slice(maxLineLen);
   }
-  lineWidth = Math.min(maxWidth, lineWidth);
+  lineWidth = Math.min(maxLineLen * charWidth, lineWidth);
   return {lineWidth, lines};
 }
