@@ -26,12 +26,12 @@ $loadedTraceName
 
 YES, use loaded trace:
 Will load from the current state of Trace Processor. If you did run
-trace_processor_shell --http file.pftrace this is likely what you want.
+trace_processor_shell --httpd file.pftrace this is likely what you want.
 
 YES, but reset state:
 Use this if you want to open another trace but still use the
 accelerator. This is the equivalent of killing and restarting
-trace_processor_shell --http.
+trace_processor_shell --httpd.
 
 NO, Use builtin WASM:
 Will not use the accelerator in this tab.
@@ -39,6 +39,8 @@ Will not use the accelerator in this tab.
 Using the native accelerator has some minor caveats:
 - Only one tab can be using the accelerator.
 - Sharing, downloading and conversion-to-legacy aren't supported.
+- You may encounter UI errors if the Trace Processor version you are using is
+too old. Get the latest version from get.perfetto.dev/trace_processor.
 `;
 
 // Try to connect to the external Trace Processor HTTP RPC accelerator (if
