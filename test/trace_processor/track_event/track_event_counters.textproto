@@ -28,7 +28,7 @@ packet {
     uuid: 3
     process {
       pid: 5
-      process_name: "p1"
+      process_name: "Browser"
     }
   }
 }
@@ -116,7 +116,7 @@ packet {
     uuid: 3
     process {
       pid: 5
-      process_name: "p1"
+      process_name: "Browser"
     }
   }
 }
@@ -130,7 +130,7 @@ packet {
     parent_uuid: 1
     counter {
       type: 1                # COUNTER_THREAD_TIME_NS.
-      unit_multiplier: 1000  # provided in ys.
+      unit_multiplier: 1000  # provided in us.
       is_incremental: true   # use delta encoding.
     }
   }
@@ -149,6 +149,20 @@ packet {
   }
 }
 
+# Nested value that happens to be emitted at the same timestamp but different
+# thread time value.
+packet {
+  trusted_packet_sequence_id: 1
+  sequence_flags: 2  # SEQ_NEEDS_INCREMENTAL_STATE
+  timestamp: 2000
+  track_event {
+    categories: "cat"
+    name: "event3_on_t1"
+    type: 1                     # TYPE_SLICE_BEGIN.
+    extra_counter_values: 10    # Absolute: 2010
+  }
+}
+
 # End for event above.
 packet {
   trusted_packet_sequence_id: 1
@@ -156,7 +170,18 @@ packet {
   timestamp: 2200
   track_event {
     type: 2                   # TYPE_SLICE_END.
-    extra_counter_values: 10  # Absolute: 2010.
+    extra_counter_values: 10  # Absolute: 2020.
+  }
+}
+
+# End for event for "event2_on_t1".
+packet {
+  trusted_packet_sequence_id: 1
+  sequence_flags: 2  # SEQ_NEEDS_INCREMENTAL_STATE
+  timestamp: 2200
+  track_event {
+    type: 2                   # TYPE_SLICE_END.
+    extra_counter_values: 10  # Absolute: 2030.
   }
 }
 
@@ -189,12 +214,12 @@ packet {
   timestamp: 4000
   track_event {
     categories: "cat"
-    name: "event3_on_t1"
+    name: "event4_on_t1"
     type: 3                        # TYPE_INSTANT.
     extra_counter_track_uuids: 10  # "c1".
     extra_counter_track_uuids: 11  # "MySizeCounter".
-    extra_counter_values: 10       # Absolute: 2020.
-    extra_counter_values: 1024     # Absolute: 2020.
+    extra_counter_values: 10       # Absolute: 2040.
+    extra_counter_values: 1024     # Absolute: 2040.
   }
 }
 
