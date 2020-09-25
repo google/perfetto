@@ -189,7 +189,7 @@ export async function decideTracks(
       SELECT MAX(layout_depth) as max_depth
       FROM experimental_slice_layout('${rawTrackIds}');
     `);
-    const maxDepth = +depthResult.columns[0].longValues![i];
+    const maxDepth = +depthResult.columns[0].longValues![0];
     const track = {
       engineId,
       kind: 'AsyncSliceTrack',
