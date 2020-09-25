@@ -278,7 +278,7 @@ TEST_F(TraceProcessorIntegrationTest, MAYBE_Clusterfuzz20215) {
 }
 
 TEST_F(TraceProcessorIntegrationTest, MAYBE_Clusterfuzz20292) {
-  ASSERT_TRUE(LoadTrace("clusterfuzz_20292", 4096).ok());
+  ASSERT_FALSE(LoadTrace("clusterfuzz_20292", 4096).ok());
 }
 
 TEST_F(TraceProcessorIntegrationTest, MAYBE_Clusterfuzz21178) {
@@ -286,11 +286,11 @@ TEST_F(TraceProcessorIntegrationTest, MAYBE_Clusterfuzz21178) {
 }
 
 TEST_F(TraceProcessorIntegrationTest, MAYBE_Clusterfuzz21890) {
-  ASSERT_TRUE(LoadTrace("clusterfuzz_21890", 4096).ok());
+  ASSERT_FALSE(LoadTrace("clusterfuzz_21890", 4096).ok());
 }
 
 TEST_F(TraceProcessorIntegrationTest, MAYBE_Clusterfuzz23053) {
-  ASSERT_TRUE(LoadTrace("clusterfuzz_23053", 4096).ok());
+  ASSERT_FALSE(LoadTrace("clusterfuzz_23053", 4096).ok());
 }
 
 TEST_F(TraceProcessorIntegrationTest, RestoreInitialTables) {

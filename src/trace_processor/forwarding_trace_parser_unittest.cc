@@ -58,6 +58,13 @@ TEST(TraceProcessorImplTest, GuessTraceType_Fuchsia) {
   EXPECT_EQ(kFuchsiaTraceType, GuessTraceType(prefix, sizeof(prefix)));
 }
 
+TEST(TraceProcessorImplTest, GuessTraceType_Bmp) {
+  const uint8_t prefix[] = {0x42, 0x4d, 0x1e, 0x00, 0x00, 0x00, 0x00,
+                            0x00, 0x00, 0x00, 0x1a, 0x00, 0x00, 0x00,
+                            0x0c, 0x00, 0x00, 0x00, 0x01, 0x00};
+  EXPECT_EQ(kUnknownTraceType, GuessTraceType(prefix, sizeof(prefix)));
+}
+
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto
