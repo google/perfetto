@@ -418,7 +418,9 @@ class Column {
       row_ += diff;
       return *this;
     }
-    uint32_t operator-(const Iterator& other) { return row_ - other.row_; }
+    uint32_t operator-(const Iterator& other) const {
+      return row_ - other.row_;
+    }
 
    private:
     const Column* col_ = nullptr;
