@@ -57,7 +57,7 @@ export class Flamegraph {
   private totalSize = -1;
   // Initialised on first draw() call
   private labelCharWidth = 0;
-  private labelFontStyle = '14px Roboto Mono';
+  private labelFontStyle = '12px Roboto Mono';
   private rolloverFontStyle = '12px Roboto Condensed';
   // Key for the map is depth followed by x coordinate - `depth;x`
   private graphData: Map<string, CallsiteInfoWidth> = new Map();
@@ -122,6 +122,7 @@ export class Flamegraph {
     }
 
     ctx.font = this.labelFontStyle;
+    ctx.textBaseline = 'middle';
     if (this.labelCharWidth === 0) {
       this.labelCharWidth = ctx.measureText('_').width;
     }
@@ -149,7 +150,7 @@ export class Flamegraph {
         this.labelCharWidth,
         width - 2);
     ctx.fillStyle = 'black';
-    ctx.fillText(text, x + 5, currentY + NODE_HEIGHT - 4);
+    ctx.fillText(text, x + 5, currentY + (NODE_HEIGHT - 1) / 2);
     currentY += NODE_HEIGHT;
 
     // Set style for borders.
@@ -202,10 +203,9 @@ export class Flamegraph {
       });
 
       // Draw name.
-      ctx.font = this.labelFontStyle;
       const text = cropText(name, this.labelCharWidth, width - 2);
       ctx.fillStyle = 'black';
-      ctx.fillText(text, currentX + 5, currentY + NODE_HEIGHT - 4);
+      ctx.fillText(text, currentX + 5, currentY + (NODE_HEIGHT - 1) / 2);
 
       // Draw border on the right of node.
       ctx.beginPath();
@@ -227,13 +227,25 @@ export class Flamegraph {
       }
     }
 
+    // Draw the tooltip.
     if (this.hoveredX > -1 && this.hoveredY > -1 && this.hoveredCallsite) {
-      // Draw the tooltip.
+      // Must set these before measureText below.
+      ctx.font = this.rolloverFontStyle;
+      ctx.textBaseline = 'top';
+
+      // Size in px of the border around the text and the edge of the rollover
+      // background.
+      const paddingPx = 8;
+      // Size in px of the x and y offset between the mouse and the top left
+      // corner of the rollover box.
+      const offsetPx = 4;
+
       const lines: string[] = [];
       let lineSplitter: LineSplitter;
       const nameText = this.getCallsiteName(this.hoveredCallsite);
+      const nameTextSize = ctx.measureText(nameText);
       lineSplitter =
-          splitIfTooBig(nameText, width, ctx.measureText(nameText).width);
+          splitIfTooBig(nameText, width - paddingPx, nameTextSize.width);
       let textWidth = lineSplitter.lineWidth;
       lines.push(...lineSplitter.lines);
 
@@ -272,23 +284,36 @@ export class Flamegraph {
         lines.push(...lineSplitter.lines);
       }
 
-      const rectWidth = textWidth + 16;
-      const rectXStart = this.hoveredX + 8 + rectWidth > width ?
-          width - rectWidth - 8 :
-          this.hoveredX + 8;
-      const rectHeight = NODE_HEIGHT * (lines.length + 1);
-      const rectYStart = this.hoveredY + 4 + rectHeight > height ?
-          height - rectHeight - 8 :
-          this.hoveredY + 4;
+      // Compute a line height as the bounding box height + 50%:
+      const heightSample = ctx.measureText(
+          'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ');
+      const lineHeight =
+          Math.round(heightSample.actualBoundingBoxDescent * 1.5);
 
-      ctx.font = this.rolloverFontStyle;
+      const rectWidth = textWidth + 2 * paddingPx;
+      const rectHeight = lineHeight * lines.length + 2 * paddingPx;
+
+      let rectXStart = this.hoveredX + offsetPx;
+      let rectYStart = this.hoveredY + offsetPx;
+
+      if (rectXStart + rectWidth > width) {
+        rectXStart = width - rectWidth;
+      }
+
+      if (rectYStart + rectHeight > height) {
+        rectYStart = height - rectHeight;
+      }
+
       ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
       ctx.fillRect(rectXStart, rectYStart, rectWidth, rectHeight);
       ctx.fillStyle = 'hsl(200, 50%, 40%)';
       ctx.textAlign = 'left';
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
-        ctx.fillText(line, rectXStart + 4, rectYStart + (i + 1) * 18);
+        ctx.fillText(
+            line,
+            rectXStart + paddingPx,
+            rectYStart + paddingPx + i * lineHeight);
       }
     }
   }
