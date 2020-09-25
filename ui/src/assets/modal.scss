@@ -186,6 +186,8 @@
 
 .modal-pre {
   white-space: pre-line;
+  font-size: 13px;
+  user-select: text;
 }
 
 .modal-logs, .modal-bash {
