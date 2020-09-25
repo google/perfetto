@@ -728,7 +728,8 @@ void PerfettoCmd::OnConnect() {
   // Failsafe mechanism to avoid waiting indefinitely if the service hangs.
   if (expected_duration_ms_) {
     uint32_t trace_timeout =
-        expected_duration_ms_ + 60000 + trace_config_->flush_timeout_ms();
+        expected_duration_ms_ + 60000 + trace_config_->flush_timeout_ms() +
+        trace_config_->data_source_stop_timeout_ms();
     task_runner_.PostDelayedTask(std::bind(&PerfettoCmd::OnTimeout, this),
                                  trace_timeout);
   }
