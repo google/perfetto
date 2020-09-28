@@ -330,8 +330,8 @@ CompletedSample Unwinder::UnwindSample(const ParsedSample& sample,
     unwindstack::Unwinder unwinder(kUnwindingMaxFrames, &unwind_state->fd_maps,
                                    regs_copy.get(), overlay_memory);
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
-    unwinder.SetJitDebug(unwind_state->jit_debug.get(), regs_copy->Arch());
-    unwinder.SetDexFiles(unwind_state->dex_files.get(), regs_copy->Arch());
+    unwinder.SetJitDebug(unwind_state->jit_debug.get());
+    unwinder.SetDexFiles(unwind_state->dex_files.get());
 #endif
     unwinder.Unwind(/*initial_map_names_to_skip=*/nullptr,
                     /*map_suffixes_to_ignore=*/nullptr);
