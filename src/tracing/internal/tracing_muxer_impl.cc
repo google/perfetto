@@ -798,7 +798,7 @@ void TracingMuxerImpl::UpdateDataSourcesOnAllBackends() {
       if (!backend.producer->connected_)
         continue;
 
-      PERFETTO_DCHECK(rds.static_state->index < kMaxDataSourceInstances);
+      PERFETTO_DCHECK(rds.static_state->index < kMaxDataSources);
       if (backend.producer->registered_data_sources_.test(
               rds.static_state->index))
         continue;
