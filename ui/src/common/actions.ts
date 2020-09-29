@@ -739,7 +739,34 @@ export const StateActions = {
 
   setAnalyzePageQuery(state: StateDraft, args: {query: string}): void {
     state.analyzePageQuery = args.query;
-  }
+  },
+
+  requestSelectedMetric(state: StateDraft, _: {}): void {
+    if (!state.metrics.availableMetrics) throw Error('No metrics available');
+    if (state.metrics.selectedIndex === undefined) {
+      throw Error('No metric selected');
+    }
+    state.metrics.requestedMetric =
+        state.metrics.availableMetrics[state.metrics.selectedIndex];
+  },
+
+  resetMetricRequest(state: StateDraft, args: {name: string}): void {
+    if (state.metrics.requestedMetric !== args.name) return;
+    state.metrics.requestedMetric = undefined;
+  },
+
+  setAvailableMetrics(state: StateDraft, args: {metrics: string[]}): void {
+    state.metrics.availableMetrics = args.metrics;
+    if (args.metrics.length > 0) state.metrics.selectedIndex = 0;
+  },
+
+  setMetricSelectedIndex(state: StateDraft, args: {index: number}): void {
+    if (!state.metrics.availableMetrics ||
+        args.index >= state.metrics.availableMetrics.length) {
+      throw Error('metric selection out of bounds');
+    }
+    state.metrics.selectedIndex = args.index;
+  },
 };
 
 // When we are on the frontend side, we don't really want to execute the

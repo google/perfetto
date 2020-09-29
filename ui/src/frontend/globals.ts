@@ -15,6 +15,7 @@
 import {assertExists} from '../base/logging';
 import {DeferredAction} from '../common/actions';
 import {AggregateData} from '../common/aggregation_data';
+import {MetricResult} from '../common/metric_data';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
 import {CallsiteInfo, createEmptyState, State} from '../common/state';
 import {fromNs, toNs} from '../common/time';
@@ -147,6 +148,7 @@ class Globals {
   private _recordingLog?: string = undefined;
   private _traceErrors?: number = undefined;
   private _metricError?: string = undefined;
+  private _metricResult?: MetricResult = undefined;
 
   private _currentSearchResults: CurrentSearchResults = {
     sliceIds: [],
@@ -295,6 +297,14 @@ class Globals {
     this._metricError = arg;
   }
 
+  get metricResult() {
+    return this._metricResult;
+  }
+
+  setMetricResult(result: MetricResult) {
+    this._metricResult = result;
+  }
+
   get cpuProfileDetails() {
     return assertExists(this._cpuProfileDetails);
   }
@@ -383,6 +393,7 @@ class Globals {
     this._threadStateDetails = undefined;
     this._aggregateDataStore = undefined;
     this._numQueriesQueued = 0;
+    this._metricResult = undefined;
     this._currentSearchResults = {
       sliceIds: [],
       tsStarts: [],

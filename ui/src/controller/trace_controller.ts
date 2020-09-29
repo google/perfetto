@@ -58,6 +58,7 @@ import {
 } from './heap_profile_controller';
 import {LoadingManager} from './loading_manager';
 import {LogsController} from './logs_controller';
+import {MetricsController} from './metrics_controller';
 import {QueryController, QueryControllerArgs} from './query_controller';
 import {SearchController} from './search_controller';
 import {
@@ -188,6 +189,7 @@ export class TraceController extends Controller<States> {
         }));
         childControllers.push(
             Child('traceError', TraceErrorController, {engine}));
+        childControllers.push(Child('metrics', MetricsController, {engine}));
         return childControllers;
 
       default:
