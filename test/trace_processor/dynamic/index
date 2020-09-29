@@ -5,3 +5,6 @@ relationship_tables.textproto ancestor_slice.sql ancestor_slice.out
 
 # Descendant slice table.
 relationship_tables.textproto descendant_slice.sql descendant_slice.out
+
+# Connected/Following/Perceeding flow table.
+connected_flow_data.json connected_flow.sql connected_flow.out

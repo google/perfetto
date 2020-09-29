@@ -24,6 +24,7 @@
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/dynamic/ancestor_slice_generator.h"
+#include "src/trace_processor/dynamic/connected_flow_generator.h"
 #include "src/trace_processor/dynamic/descendant_slice_generator.h"
 #include "src/trace_processor/dynamic/describe_slice_generator.h"
 #include "src/trace_processor/dynamic/experimental_counter_dur_generator.h"
@@ -743,6 +744,15 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
       new AncestorSliceGenerator(&context_)));
   RegisterDynamicTable(std::unique_ptr<DescendantSliceGenerator>(
       new DescendantSliceGenerator(&context_)));
+  RegisterDynamicTable(
+      std::unique_ptr<ConnectedFlowGenerator>(new ConnectedFlowGenerator(
+          ConnectedFlowGenerator::Direction::BOTH, &context_)));
+  RegisterDynamicTable(
+      std::unique_ptr<ConnectedFlowGenerator>(new ConnectedFlowGenerator(
+          ConnectedFlowGenerator::Direction::FOLLOWING, &context_)));
+  RegisterDynamicTable(
+      std::unique_ptr<ConnectedFlowGenerator>(new ConnectedFlowGenerator(
+          ConnectedFlowGenerator::Direction::PRECEDING, &context_)));
   RegisterDynamicTable(std::unique_ptr<ExperimentalSchedUpidGenerator>(
       new ExperimentalSchedUpidGenerator(storage->sched_slice_table(),
                                          storage->thread_table())));
