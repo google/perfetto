@@ -166,6 +166,7 @@ const SECTIONS = [
       },
       {t: 'Legacy UI', a: openCurrentTraceWithOldUI, i: 'filter_none'},
       {t: 'Query (SQL)', a: navigateAnalyze, i: 'control_camera'},
+      {t: 'Metrics', a: navigateMetrics, i: 'speed'},
       {t: 'Info and stats', a: navigateInfo, i: 'info'},
     ],
   },
@@ -464,6 +465,11 @@ function navigateRecord(e: Event) {
 function navigateAnalyze(e: Event) {
   e.preventDefault();
   globals.dispatch(Actions.navigate({route: '/query'}));
+}
+
+function navigateMetrics(e: Event) {
+  e.preventDefault();
+  globals.dispatch(Actions.navigate({route: '/metrics'}));
 }
 
 function navigateInfo(e: Event) {
