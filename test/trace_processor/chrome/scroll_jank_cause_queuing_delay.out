@@ -1,9 +1,9 @@
 
 "trace_id","jank","dur_overlapping_ns","metric_name"
 2918,0,55000,"InputLatency.LatencyInfo.Flow.QueuingDelay.NoJank.BlockingTasksUs.GestureProvider::OnTouchEvent"
-2918,0,433000,"InputLatency.LatencyInfo.Flow.QueuingDelay.NoJank.BlockingTasksUs.RenderWidgetHostImpl::ForwardTouchEvent"
-2918,0,66000,"InputLatency.LatencyInfo.Flow.QueuingDelay.NoJank.BlockingTasksUs.WidgetInputHandlerImpl::DispatchNonBlockingEvent-LatencyInfo.Flow-WidgetInputHandlerManager::DidHandleInputEventSentToCompositor"
-2918,0,116000,"InputLatency.LatencyInfo.Flow.QueuingDelay.NoJank.BlockingTasksUs.WidgetInputHandlerImpl::DispatchEvent-LatencyInfo.Flow"
+2918,0,433000,"InputLatency.LatencyInfo.Flow.QueuingDelay.NoJank.BlockingTasksUs.RenderWidgetHostImpl::ForwardTouchEvent-PassthroughTouchEventQueue::QueueEvent-InputRouterImpl::FilterAndSendWebInputEvent-LatencyInfo.Flow"
+2918,0,66000,"InputLatency.LatencyInfo.Flow.QueuingDelay.NoJank.BlockingTasksUs.WidgetInputHandlerImpl::DispatchNonBlockingEvent-LatencyInfo.Flow-WidgetInputHandlerManager::DidHandleInputEventSentToCompositor-MainThreadEventQueue::HandleEvent"
+2918,0,116000,"InputLatency.LatencyInfo.Flow.QueuingDelay.NoJank.BlockingTasksUs.WidgetInputHandlerImpl::DispatchEvent-LatencyInfo.Flow-InputHandlerProxy::HandleGestureScrollBegin-WidgetInputHandlerManager::DidHandleInputEventSentToCompositor"
 2918,0,29000,"InputLatency.LatencyInfo.Flow.QueuingDelay.NoJank.BlockingTasksUs.WidgetInputHandlerImpl::DispatchNonBlockingEvent-LatencyInfo.Flow-WidgetInputHandlerManager::DidHandleInputEventSentToCompositor-MainThreadEventQueue::HandleEvent"
 2918,0,7000,"InputLatency.LatencyInfo.Flow.QueuingDelay.NoJank.BlockingTasksUs.ScrollPredictor::ResampleScrollEvents"
 2918,0,25000,"InputLatency.LatencyInfo.Flow.QueuingDelay.NoJank.BlockingTasksUs.InputHandlerProxy::HandleGestureScrollUpdate-DeltaUnits"

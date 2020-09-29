@@ -13,7 +13,9 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+SELECT RUN_METRIC('chrome/chrome_thread_slice_with_cpu_time.sql');
 SELECT RUN_METRIC('chrome/scroll_flow_event_queuing_delay.sql');
+
 
 -- This view grabs any slice that could have prevented any GestureScrollUpdate
 -- flow event from being run (queuing delays). For RunTask we know that its
@@ -54,7 +56,7 @@ CREATE TABLE blocking_tasks_queuing_delay AS
     slice.*
   FROM
     scroll_flow_event_queuing_delay queuing JOIN
-    slice ON
+    chrome_thread_slice_with_cpu_time slice ON
         slice.ts + slice.dur > queuing.ancestor_end AND
         queuing.maybe_next_ancestor_ts > slice.ts AND
         slice.track_id = queuing.next_track_id AND
@@ -86,6 +88,26 @@ CREATE VIEW all_descendant_blocking_tasks_queuing_delay AS
     blocking_tasks_queuing_delay base LEFT JOIN
     descendant_slice(base.id) AS descendant;
 
+DROP VIEW IF EXISTS all_descendant_blocking_tasks_queuing_delay_with_cpu_time;
+
+CREATE VIEW all_descendant_blocking_tasks_queuing_delay_with_cpu_time AS
+  SELECT
+    cpu.slice_cpu_time AS descendant_slice_cpu_time,
+    cpu.slice_cpu_time / descendant.slice_cpu_time AS descendant_cpu_percentage,
+    cpu.slice_cpu_time /
+        (descendant.slice_cpu_time /
+          (1 << (descendant.descendant_depth - 1))) > 0.5
+            AS descendant_cpu_time_above_relative_threshold,
+    descendant_dur / descendant.dur AS descendant_dur_percentage,
+    descendant_dur /
+        (descendant.dur / (1 << (descendant.descendant_depth - 1))) > 0.5
+        AS descendant_dur_above_relative_threshold,
+    descendant.*
+  FROM
+    all_descendant_blocking_tasks_queuing_delay descendant LEFT JOIN
+    chrome_thread_slice_with_cpu_time cpu ON
+        cpu.id = descendant.descendant_id;
+
 -- Now that we've generated the descendant count how many siblings each row
 -- has. Recall that all the top level tasks are repeated but each row represents
 -- a descendant slice. This means since we LEFT JOIN we will say a slice has 0
@@ -99,11 +121,11 @@ CREATE VIEW counted_descendant_blocking_tasks_queuing_delay AS
     base.*,
     COALESCE(single_descendant.number_of_siblings, 0) AS number_of_siblings
   FROM
-    all_descendant_blocking_tasks_queuing_delay base LEFT JOIN (
+    all_descendant_blocking_tasks_queuing_delay_with_cpu_time base LEFT JOIN (
       SELECT
         descendant_parent_id,
         COUNT(*) - 1 AS number_of_siblings
-      FROM all_descendant_blocking_tasks_queuing_delay
+      FROM all_descendant_blocking_tasks_queuing_delay_with_cpu_time
       WHERE descendant_parent_id IS NOT NULL
       GROUP BY 1
   ) single_descendant ON
@@ -118,6 +140,13 @@ DROP VIEW IF EXISTS blocking_tasks_queuing_delay_with_invalid_depth;
 CREATE VIEW blocking_tasks_queuing_delay_with_invalid_depth AS
   SELECT
     base.*,
+    (
+      descendant_cpu_time_above_relative_threshold AND
+      descendant_cpu_percentage > 0.05
+    ) OR (
+      descendant_dur_above_relative_threshold AND
+      descendant_dur_percentage > 0.05
+    ) AS descendant_major_slice,
     COALESCE(depth.invalid_depth, 10) AS invalid_depth
   FROM
     counted_descendant_blocking_tasks_queuing_delay base LEFT JOIN (
@@ -127,7 +156,11 @@ CREATE VIEW blocking_tasks_queuing_delay_with_invalid_depth AS
       FROM counted_descendant_blocking_tasks_queuing_delay
       WHERE number_of_siblings >= 1
       GROUP BY 1
-    ) AS depth ON base.id = depth.id;
+    ) AS depth ON base.id = depth.id
+  ORDER BY
+    descendant_depth ASC,
+    descendant_cpu_percentage DESC,
+    descendant_dur_percentage DESC;
 
 -- Now to get back to a single output per top level task we group by all the
 -- toplevel fields and aggregate the descendant fields. We only include the
@@ -154,35 +187,50 @@ CREATE VIEW descendant_blocking_tasks_queuing_delay AS
     replace(file, rtrim(file, replace(file, '/', '')), '') AS file,
     function,
     GROUP_CONCAT(
-      CASE WHEN descendant_depth < invalid_depth THEN
+      CASE WHEN descendant_depth < invalid_depth OR descendant_major_slice THEN
         descendant_id
       ELSE
         NULL
       END
     , "-") AS descendant_id,
     GROUP_CONCAT(
-      CASE WHEN descendant_depth < invalid_depth THEN
+      CASE WHEN descendant_depth < invalid_depth OR descendant_major_slice THEN
         descendant_ts
       ELSE
         NULL
       END
     , "-") AS descendant_ts,
     GROUP_CONCAT(
-      CASE WHEN descendant_depth < invalid_depth THEN
+      CASE WHEN descendant_depth < invalid_depth OR descendant_major_slice THEN
         descendant_dur
       ELSE
         NULL
       END
     , "-") AS descendant_dur,
     GROUP_CONCAT(
-      CASE WHEN descendant_depth < invalid_depth THEN
+      CASE WHEN descendant_depth < invalid_depth OR descendant_major_slice THEN
         descendant_name
       ELSE
         NULL
-      END, "-") AS descendant_name
+      END, "-") AS descendant_name,
+    GROUP_CONCAT(
+      CASE WHEN descendant_depth < invalid_depth OR descendant_major_slice THEN
+        descendant_slice_cpu_time
+      ELSE
+        NULL
+      END
+    , "-") AS descendant_slice_cpu_time,
+    GROUP_CONCAT(
+      CASE WHEN descendant_depth < invalid_depth OR descendant_major_slice THEN
+        descendant_cpu_percentage
+      ELSE
+        NULL
+      END
+    , "-") AS descendant_cpu_time
   FROM
     blocking_tasks_queuing_delay_with_invalid_depth
-  GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15;
+  GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
+  ORDER BY descendant_cpu_percentage DESC;
 
 -- Create a common name for each "cause" based on the slice stack we found.
 DROP VIEW IF EXISTS scroll_jank_cause_queuing_delay_temp;
@@ -210,8 +258,8 @@ CREATE VIEW scroll_jank_cause_queuing_delay_average_no_jank_time AS
   WHERE NOT jank
   GROUP BY 1;
 
--- Join every row (jank and non-jank with the average non-jank time for the given
--- metric_name).
+-- Join every row (jank and non-jank with the average non-jank time for the
+-- given metric_name).
 DROP VIEW IF EXISTS scroll_jank_cause_queuing_delay;
 
 CREATE VIEW scroll_jank_cause_queuing_delay AS
