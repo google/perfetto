@@ -36,6 +36,7 @@ CREATE VIEW chrome_process AS
     name = 'Zygote' OR
     name = 'SandboxHelper' OR
     name = 'Gpu' OR
+    name = 'GPU Process' OR
     name = 'PpapiPlugin' OR
     name = 'PpapiBroker');
 
