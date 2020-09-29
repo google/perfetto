@@ -1,0 +1,128 @@
+{
+    "traceEvents": [
+      {"args":{"name":"MainProcess"},"cat":"__metadata","name":"process_name","ph":"M","pid":100,"tid":0,"ts":0},
+      {
+        "cat": "ipc",
+        "pid": 100,
+        "tid": 15903,
+        "ts": 420,
+        "ph": "X",
+        "name": "Flow0_Slice0",
+        "args":{},
+        "dur": 150,
+        "bind_id": "0x401",
+        "flow_out": true
+      },
+      {
+        "cat": "ipc",
+        "pid": 100,
+        "tid": 15895,
+        "ts": 720,
+        "ph": "X",
+        "name": "Flow0_Slice1",
+        "args":{},
+        "dur": 200,
+        "bind_id": "0x401",
+        "flow_in": true
+      },
+      {
+        "cat": "ipc",
+        "pid": 100,
+        "tid": 15904,
+        "ts": 400,
+        "ph": "X",
+        "name": "Flow1_Slice0",
+        "args":{},
+        "dur": 600,
+        "bind_id": "0x403",
+        "flow_out": true,
+        "flow_in": false
+      },
+      {
+        "cat": "ipc",
+        "pid": 100,
+        "tid": 15903,
+        "ts": 1300,
+        "ph": "X",
+        "name": "Flow1_Slice1a",
+        "args":{},
+        "dur": 600,
+        "bind_id": "0x403",
+        "flow_in": true
+      },
+      {
+        "cat": "ipc",
+        "pid": 100,
+        "tid": 15794,
+        "ts": 1100,
+        "ph": "X",
+        "name": "Flow1_Slice1b",
+        "args":{},
+        "dur": 900,
+        "bind_id": "0x403",
+        "flow_in": true
+      },
+      {
+        "cat": "ipc",
+        "pid": 100,
+        "tid": 15903,
+        "ts": 1351,
+        "ph": "X",
+        "name": "Flow2_Slice0",
+        "args": {},
+        "dur": 500,
+        "bind_id": "0x402",
+        "flow_out": true
+      },
+      {
+        "cat": "ipc",
+        "pid": 100,
+        "tid": 15903,
+        "ts": 2002,
+        "ph": "X",
+        "name": "Flow2_Slice1",
+        "args":{},
+        "dur": 350,
+        "bind_id": "0x402",
+        "flow_out": true,
+        "flow_in": true
+      },
+      {
+        "cat": "ipc",
+        "pid": 100,
+        "tid": 15794,
+        "ts": 2400,
+        "ph": "X",
+        "name": "Flow2_Slice2",
+        "args": {},
+        "dur": 300,
+        "bind_id": "0x402",
+        "flow_in": true,
+        "flow_out": true
+      },
+      {
+        "cat": "ipc",
+        "pid": 100,
+        "tid": 15904,
+        "ts": 3031,
+        "ph": "X",
+        "name": "Flow2_Slice3a",
+        "args": {},
+        "dur": 400,
+        "bind_id": "0x402",
+        "flow_in": true
+      },
+      {
+        "cat": "ipc",
+        "pid": 100,
+        "tid": 15895,
+        "ts": 3333,
+        "ph": "X",
+        "name": "Flow2_Slice3b",
+        "args": {},
+        "dur": 400,
+        "bind_id": "0x402",
+        "flow_in": true
+      }
+    ]
+  }

@@ -6825,6 +6825,7 @@ filegroup {
   name: "perfetto_src_trace_processor_lib",
   srcs: [
     "src/trace_processor/dynamic/ancestor_slice_generator.cc",
+    "src/trace_processor/dynamic/connected_flow_generator.cc",
     "src/trace_processor/dynamic/descendant_slice_generator.cc",
     "src/trace_processor/dynamic/describe_slice_generator.cc",
     "src/trace_processor/dynamic/experimental_counter_dur_generator.cc",
