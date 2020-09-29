@@ -5442,6 +5442,26 @@ message Callstack {
 
 // End of protos/perfetto/trace/profiling/profile_common.proto
 
+// Begin of protos/perfetto/trace/track_event/chrome_histogram_sample.proto
+
+message HistogramName {
+  optional uint64 iid = 1;
+  optional string name = 2;
+}
+
+// An individual histogram sample logged via Chrome's UMA metrics system.
+message ChromeHistogramSample {
+  // MD5 hash of the metric name. Either |name_hash| or |name|/|name_iid| or
+  // both must be present.
+  optional uint64 name_hash = 1;
+  optional string name = 2;
+  optional int64 sample = 3;
+  // Interned HistogramName. Only one of |name|, |name_iid| can be set.
+  optional uint64 name_iid = 4;
+}
+
+// End of protos/perfetto/trace/track_event/chrome_histogram_sample.proto
+
 // Begin of protos/perfetto/trace/track_event/debug_annotation.proto
 
 // Key/value annotations provided in untyped TRACE_EVENT macros. These
@@ -5843,19 +5863,6 @@ message ChromeFrameReporter {
 }
 
 // End of protos/perfetto/trace/track_event/chrome_frame_reporter.proto
-
-// Begin of protos/perfetto/trace/track_event/chrome_histogram_sample.proto
-
-// An individual histogram sample logged via Chrome's UMA metrics system.
-message ChromeHistogramSample {
-  // MD5 hash of the metric name. Either |name_hash| or |name| or both
-  // must be present.
-  optional uint64 name_hash = 1;
-  optional string name = 2;
-  optional int64 sample = 3;
-}
-
-// End of protos/perfetto/trace/track_event/chrome_histogram_sample.proto
 
 // Begin of protos/perfetto/trace/track_event/chrome_keyed_service.proto
 
@@ -6403,7 +6410,7 @@ message EventName {
 // emitted proactively in advance of referring to them in later packets.
 //
 // Next reserved id: 8 (up to 15).
-// Next id: 25.
+// Next id: 26.
 message InternedData {
   // TODO(eseckler): Replace iid fields inside interned messages with
   // map<iid, message> type fields in InternedData.
@@ -6420,6 +6427,7 @@ message InternedData {
   repeated DebugAnnotationName debug_annotation_names = 3;
   repeated SourceLocation source_locations = 4;
   repeated LogMessageBody log_message_body = 20;
+  repeated HistogramName histogram_names = 25;
 
   // Note: field IDs up to 15 should be used for frequent data only.
 
