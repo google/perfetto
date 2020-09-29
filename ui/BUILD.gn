@@ -333,6 +333,7 @@ scss_srcs = [
   "src/assets/analyze_page.scss",
   "src/assets/common.scss",
   "src/assets/details.scss",
+  "src/assets/metrics_page.scss",
   "src/assets/modal.scss",
   "src/assets/record.scss",
   "src/assets/sidebar.scss",

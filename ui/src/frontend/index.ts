@@ -28,6 +28,7 @@ import {
   LogExists,
   LogExistsKey
 } from '../common/logs';
+import {MetricResult} from '../common/metric_data';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
 
 import {AnalyzePage} from './analyze_page';
@@ -46,6 +47,7 @@ import {
 } from './globals';
 import {HomePage} from './home_page';
 import {openBufferWithLegacyTraceViewer} from './legacy_trace_viewer';
+import {MetricsPage} from './metrics_page';
 import {postMessageHandler} from './post_message_handler';
 import {RecordPage, updateAvailableAdbDevices} from './record_page';
 import {Router} from './router';
@@ -208,6 +210,11 @@ class FrontendApi {
     this.redraw();
   }
 
+  publishMetricResult(metricResult: MetricResult) {
+    globals.setMetricResult(metricResult);
+    this.redraw();
+  }
+
   publishAggregateData(args: {data: AggregateData, kind: string}) {
     globals.setAggregateData(args.kind, args.data);
     this.redraw();
@@ -270,6 +277,7 @@ function main() {
         '/viewer': ViewerPage,
         '/record': RecordPage,
         '/query': AnalyzePage,
+        '/metrics': MetricsPage,
         '/info': TraceInfoPage,
       },
       dispatch,
