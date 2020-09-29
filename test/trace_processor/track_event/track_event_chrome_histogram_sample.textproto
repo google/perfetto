@@ -1,0 +1,127 @@
+# Valid interning of Compositing.Display.DrawToSwapUs.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  incremental_state_cleared: true
+  track_event {
+    categories: "disabled-by-default-histogram_samples"
+    type: 3
+    name_iid: 1
+    chrome_histogram_sample {
+      name_hash: 10
+      sample: 100
+      name_iid: 1
+    }
+  }
+  interned_data {
+    histogram_names {
+      iid: 1
+      name: "Compositing.Display.DrawToSwapUs"
+    }
+  }
+}
+# Valid interning of CompositorLatency.TotalLatency.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  incremental_state_cleared: true
+  track_event {
+    categories: "disabled-by-default-histogram_samples"
+    type: 3
+    name_iid: 1
+    chrome_histogram_sample {
+      name_hash: 20
+      sample: 200
+      name_iid: 2
+    }
+  }
+  interned_data {
+    histogram_names {
+      iid: 2
+      name: "CompositorLatency.TotalLatency"
+    }
+  }
+}
+# Both name_iid and name are set for chrome_histogram_sample: name must not
+# change.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  incremental_state_cleared: true
+  track_event {
+    categories: "disabled-by-default-histogram_samples"
+    type: 3
+    name_iid: 1
+    chrome_histogram_sample {
+      name: "Graphics.Smoothness.Checkerboarding.MainThreadAnimation"
+      name_hash: 30
+      sample: 300
+      name_iid: 3
+    }
+  }
+  interned_data {
+    histogram_names {
+      iid: 3
+      name: "Graphics.Smoothness.Checkerboarding.PinchZoom"
+    }
+  }
+}
+# Invalid interning of CompositorLatency.TotalLatency: wrong iid.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  incremental_state_cleared: true
+  track_event {
+    categories: "disabled-by-default-histogram_samples"
+    type: 3
+    name_iid: 1
+    chrome_histogram_sample {
+      name_hash: 40
+      sample: 400
+      name_iid: 4
+    }
+  }
+  interned_data {
+    histogram_names {
+      iid: 1
+      name: "CompositorLatency.TotalLatency"
+    }
+  }
+}
+# name_iid is not set for chrome_histogram_sample.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  incremental_state_cleared: true
+  track_event {
+    categories: "disabled-by-default-histogram_samples"
+    type: 3
+    name_iid: 1
+    chrome_histogram_sample {
+      name_hash: 50
+      sample: 500
+    }
+  }
+  interned_data {
+    histogram_names {
+      iid: 5
+      name: "CompositorLatency.TotalLatency"
+    }
+  }
+}
+# No name interning.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  incremental_state_cleared: true
+  track_event {
+    categories: "disabled-by-default-histogram_samples"
+    type: 3
+    name_iid: 1
+    chrome_histogram_sample {
+      name_hash: 60
+      sample: 600
+      name: "Memory.GPU.PeakMemoryUsage.PageLoad"
+    }
+  }
+}
