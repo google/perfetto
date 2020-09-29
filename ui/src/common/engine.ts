@@ -74,8 +74,8 @@ export abstract class Engine {
   abstract rawQuery(rawQueryArgs: Uint8Array): Promise<Uint8Array>;
 
   /*
-   * Performs computation of metrics and returns a proto-encoded TraceMetrics
-   * object.
+   * Performs computation of metrics and returns metric result and any errors.
+   * Metric result is a proto binary or text encoded TraceMetrics object.
    */
   abstract rawComputeMetric(computeMetricArgs: Uint8Array): Promise<Uint8Array>;
 
@@ -121,6 +121,7 @@ export abstract class Engine {
   async computeMetric(metrics: string[]): Promise<ComputeMetricResult> {
     const args = new ComputeMetricArgs();
     args.metricNames = metrics;
+    args.format = ComputeMetricArgs.ResultFormat.TEXTPROTO;
     const argsEncoded = ComputeMetricArgs.encode(args).finish();
     const respEncoded = await this.rawComputeMetric(argsEncoded);
     const result = ComputeMetricResult.decode(respEncoded);
