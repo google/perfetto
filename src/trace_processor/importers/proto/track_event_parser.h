@@ -90,6 +90,7 @@ class TrackEventParser {
   const StringId legacy_event_bind_id_key_id_;
   const StringId legacy_event_bind_to_enclosing_key_id_;
   const StringId legacy_event_flow_direction_key_id_;
+  const StringId histogram_name_key_id_;
   const StringId flow_direction_value_in_id_;
   const StringId flow_direction_value_out_id_;
   const StringId flow_direction_value_inout_id_;

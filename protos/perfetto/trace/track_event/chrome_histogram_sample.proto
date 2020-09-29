@@ -18,11 +18,18 @@ syntax = "proto2";
 
 package perfetto.protos;
 
+message HistogramName {
+  optional uint64 iid = 1;
+  optional string name = 2;
+}
+
 // An individual histogram sample logged via Chrome's UMA metrics system.
 message ChromeHistogramSample {
-  // MD5 hash of the metric name. Either |name_hash| or |name| or both
-  // must be present.
+  // MD5 hash of the metric name. Either |name_hash| or |name|/|name_iid| or
+  // both must be present.
   optional uint64 name_hash = 1;
   optional string name = 2;
   optional int64 sample = 3;
+  // Interned HistogramName. Only one of |name|, |name_iid| can be set.
+  optional uint64 name_iid = 4;
 }
