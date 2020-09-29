@@ -25,7 +25,7 @@ type PublishKinds = 'OverviewData'|'TrackData'|'Threads'|'QueryResult'|
     'HeapProfileFlamegraph'|'FileDownload'|'Loading'|'Search'|'BufferUsage'|
     'RecordingLog'|'SearchResult'|'AggregateData'|'CpuProfileDetails'|
     'TraceErrors'|'UpdateChromeCategories'|'BoundFlows'|'ThreadStateDetails'|
-    'MetricError';
+    'MetricError'|'MetricResult';
 
 export interface App {
   state: State;

@@ -249,6 +249,12 @@ export interface AggregationState {
   sorting?: Sorting;
 }
 
+export interface MetricsState {
+  availableMetrics?: string[];  // Undefined until list is loaded.
+  selectedIndex?: number;
+  requestedMetric?: string;  // Unset after metric request is handled.
+}
+
 export interface State {
   // tslint:disable-next-line:no-any
   [key: string]: any;
@@ -280,6 +286,7 @@ export interface State {
   debugTrackId?: string;
   lastTrackReloadRequest?: number;
   queries: ObjectById<QueryConfig>;
+  metrics: MetricsState;
   permalink: PermalinkConfig;
   notes: ObjectById<Note|AreaNote>;
   status: Status;
@@ -716,6 +723,7 @@ export function createEmptyState(): State {
     scrollingTracks: [],
     areas: {},
     queries: {},
+    metrics: {},
     permalink: {},
     notes: {},
 
