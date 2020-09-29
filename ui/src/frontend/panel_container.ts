@@ -39,7 +39,7 @@ const SCROLLING_CANVAS_OVERDRAW_FACTOR = 1.2;
 
 // We need any here so we can accept vnodes with arbitrary attrs.
 // tslint:disable-next-line:no-any
-export type AnyAttrsVnode = m.Vnode<any, {}>;
+export type AnyAttrsVnode = m.Vnode<any, any>;
 
 export interface Attrs {
   panels: AnyAttrsVnode[];
