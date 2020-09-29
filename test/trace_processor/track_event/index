@@ -24,3 +24,6 @@ track_event_counters.textproto track_event_counters.sql track_event_counters_cou
 
 # Clock handling
 track_event_monotonic_trace_clock.textproto track_event_slices.sql track_event_monotonic_trace_clock_slices.out
+
+# HistogramName interning
+track_event_chrome_histogram_sample.textproto track_event_args.sql track_event_chrome_histogram_sample_args.out
