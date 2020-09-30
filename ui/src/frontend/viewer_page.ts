@@ -167,11 +167,11 @@ class TraceViewer implements m.ClassComponent {
                 globals.state.areas[selection.areaId].tracks);
           }
         } else {
-          const startPx = Math.max(
-              Math.min(dragStartX, currentX) - TRACK_SHELL_WIDTH,
-              scale.startPx);
-          const endPx = Math.min(
-              Math.max(dragStartX, currentX) - TRACK_SHELL_WIDTH, scale.endPx);
+          let startPx = Math.min(dragStartX, currentX) - TRACK_SHELL_WIDTH;
+          let endPx = Math.max(dragStartX, currentX) - TRACK_SHELL_WIDTH;
+          if (startPx < 0 && endPx < 0) return;
+          startPx = Math.max(startPx, scale.startPx);
+          endPx = Math.min(endPx, scale.endPx);
           frontendLocalState.selectArea(
               scale.pxToTime(startPx), scale.pxToTime(endPx));
           frontendLocalState.areaY.start = dragStartY;
