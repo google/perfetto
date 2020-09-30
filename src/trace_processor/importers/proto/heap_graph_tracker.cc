@@ -715,13 +715,22 @@ void FindPathFromRoot(const TraceStorage& storage,
 
     tables::HeapGraphClassTable::Id type_id =
         storage.heap_graph_object_table().type_id()[row];
-    auto it = path->nodes[parent_id].children.find(type_id);
+
+    uint32_t type_row = *storage.heap_graph_class_table().id().IndexOf(type_id);
+    base::Optional<StringPool::Id> opt_class_name_id =
+        storage.heap_graph_class_table().deobfuscated_name()[type_row];
+    if (!opt_class_name_id) {
+      opt_class_name_id = storage.heap_graph_class_table().name()[type_row];
+    }
+    PERFETTO_CHECK(opt_class_name_id);
+    StringPool::Id class_name_id = *opt_class_name_id;
+    auto it = path->nodes[parent_id].children.find(class_name_id);
     if (it == path->nodes[parent_id].children.end()) {
       size_t path_id = path->nodes.size();
       path->nodes.emplace_back(PathFromRoot::Node{});
       std::tie(it, std::ignore) =
-          path->nodes[parent_id].children.emplace(type_id, path_id);
-      path->nodes.back().type_id = type_id;
+          path->nodes[parent_id].children.emplace(class_name_id, path_id);
+      path->nodes.back().class_name_id = class_name_id;
       path->nodes.back().depth = depth;
       path->nodes.back().parent_id = parent_id;
     }
@@ -832,22 +841,12 @@ HeapGraphTracker::BuildFlamegraph(const int64_t current_ts,
       parent_id = node_to_id[node.parent_id];
     const uint32_t depth = node.depth;
 
-    uint32_t type_row =
-        *context_->storage->heap_graph_class_table().id().IndexOf(node.type_id);
-    base::Optional<StringPool::Id> name =
-        context_->storage->heap_graph_class_table()
-            .deobfuscated_name()[type_row];
-    if (!name) {
-      name = context_->storage->heap_graph_class_table().name()[type_row];
-    }
-    PERFETTO_CHECK(name);
-
     tables::ExperimentalFlamegraphNodesTable::Row alloc_row{};
     alloc_row.ts = current_ts;
     alloc_row.upid = current_upid;
     alloc_row.profile_type = profile_type;
     alloc_row.depth = depth;
-    alloc_row.name = *name;
+    alloc_row.name = node.class_name_id;
     alloc_row.map_name = java_mapping;
     alloc_row.count = static_cast<int64_t>(node.count);
     alloc_row.cumulative_count =
