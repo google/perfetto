@@ -59,37 +59,23 @@ CREATE VIEW webview_browser_slices AS
   AND process.name NOT LIKE '%chrome%'
   AND app_name IS NOT NULL;
 
-DROP TABLE IF EXISTS webview_browser_power;
+DROP TABLE IF EXISTS webview_browser_slices_power;
 
 -- Assign power usage to WebView browser slices.
-CREATE VIRTUAL TABLE webview_browser_power
+CREATE VIRTUAL TABLE webview_browser_slices_power
 USING SPAN_JOIN(power_per_thread PARTITIONED utid,
                 webview_browser_slices PARTITIONED utid);
 
-DROP VIEW IF EXISTS webview_browser_power_summary;
+DROP VIEW IF EXISTS webview_browser_slices_power_summary;
 
 -- Calculate the power usage of all WebView browser slices for each app
 -- in milliampere-seconds.
-CREATE VIEW webview_browser_power_summary AS
+CREATE VIEW webview_browser_slices_power_summary AS
 SELECT
   app_name,
   SUM(dur * COALESCE(power_ma, 0) / 1e9) AS power_mas
-  FROM webview_browser_power
+  FROM webview_browser_slices_power
   GROUP BY app_name;
-
-DROP VIEW IF EXISTS webview_browser_power_per_core_type;
-
--- Calculate the power usage of all WebView browser slices for each app
--- in milliampere-seconds grouped by core type.
-CREATE VIEW webview_browser_power_per_core_type AS
-SELECT
-  app_name,
-  core_type_per_cpu.core_type AS core_type,
-  SUM(dur * COALESCE(power_ma, 0) / 1e9) AS power_mas
-FROM webview_browser_power
-INNER JOIN core_type_per_cpu
-  ON webview_browser_power.cpu = core_type_per_cpu.cpu
-GROUP BY app_name, core_type_per_cpu.core_type;
 
 DROP VIEW IF EXISTS webview_renderer_threads;
 
@@ -144,6 +130,7 @@ DROP VIEW IF EXISTS host_app_threads;
 CREATE VIEW host_app_threads AS
 SELECT
     thread.utid AS utid,
+    thread.name AS name,
     extract_arg(process.arg_set_id, 'chrome.host_app_package_name') as app_name
   FROM thread
   JOIN process ON thread.upid = process.upid
@@ -166,6 +153,121 @@ CREATE VIEW host_app_power_summary AS
   ON power_per_thread.utid = host_app_threads.utid
   GROUP BY app_name;
 
+DROP VIEW IF EXISTS host_app_power_per_core_type;
+
+-- Calculate the power usage of all WebView (host app+browser) processes for each app
+-- in milliampere-seconds grouped by core type.
+CREATE VIEW host_app_power_per_core_type AS
+SELECT
+  app_name,
+  core_type_per_cpu.core_type AS core_type,
+  SUM(dur * COALESCE(power_ma, 0) / 1e9) AS power_mas
+FROM power_per_thread
+INNER JOIN host_app_threads
+  ON power_per_thread.utid = host_app_threads.utid
+INNER JOIN core_type_per_cpu
+  ON power_per_thread.cpu = core_type_per_cpu.cpu
+GROUP BY app_name, core_type_per_cpu.core_type;
+
+DROP VIEW IF EXISTS webview_only_threads;
+
+-- A subset of the host app threads that are WebView-specific.
+CREATE VIEW webview_only_threads AS
+SELECT *
+FROM host_app_threads
+  WHERE name LIKE 'Chrome%' OR name LIKE 'CookieMonster%'
+  OR name LIKE 'CompositorTileWorker%' OR name LIKE 'ThreadPool%ground%'
+  OR NAME LIKE 'ThreadPoolService%' OR  name like 'VizCompositorThread%'
+  OR name IN ('AudioThread', 'DedicatedWorker thread', 'GpuMemoryThread',
+  'JavaBridge', 'LevelDBEnv.IDB', 'MemoryInfra', 'NetworkService', 'VizWebView');
+
+DROP VIEW IF EXISTS webview_only_power_summary;
+
+-- Calculate the power usage of all WebView-specific host app threads
+-- (browser + in-process renderers) for each app in milliampere-seconds.
+CREATE VIEW webview_only_power_summary AS
+  SELECT
+    app_name,
+    SUM(dur * COALESCE(power_ma, 0) / 1e9) AS power_mas
+  FROM power_per_thread
+  INNER JOIN webview_only_threads
+  ON power_per_thread.utid = webview_only_threads.utid
+  GROUP BY app_name;
+
+DROP VIEW IF EXISTS webview_only_power_per_core_type;
+
+-- Calculate the power usage of all WebView-specific host app threads
+-- for each app in milliampere-seconds grouped by core type.
+CREATE VIEW webview_only_power_per_core_type AS
+  SELECT app_name,
+  core_type_per_cpu.core_type AS core_type,
+  SUM(dur * COALESCE(power_ma, 0) / 1e9) AS power_mas
+FROM power_per_thread
+INNER JOIN webview_only_threads
+  ON power_per_thread.utid = webview_only_threads.utid
+INNER JOIN core_type_per_cpu
+  ON power_per_thread.cpu = core_type_per_cpu.cpu
+GROUP BY app_name, core_type_per_cpu.core_type;
+
+-- Create views for output.
+
+DROP VIEW IF EXISTS total_app_power_output;
+
+CREATE VIEW total_app_power_output AS
+  SELECT
+    host_app_power_summary.app_name as app_name,
+    host_app_power_summary.power_mas AS total_mas,
+    host_app_power_little_cores_mas.power_mas AS little_cores_mas,
+    host_app_power_big_cores_mas.power_mas AS big_cores_mas,
+    host_app_power_bigger_cores_mas.power_mas AS bigger_cores_mas
+  FROM host_app_power_summary LEFT JOIN host_app_power_per_core_type AS host_app_power_little_cores_mas
+  ON host_app_power_summary.app_name = host_app_power_little_cores_mas.app_name
+  AND host_app_power_little_cores_mas.core_type = 'little'
+  LEFT JOIN host_app_power_per_core_type AS host_app_power_big_cores_mas
+  ON host_app_power_summary.app_name = host_app_power_big_cores_mas.app_name
+  AND host_app_power_big_cores_mas.core_type = 'big'
+  LEFT JOIN host_app_power_per_core_type AS host_app_power_bigger_cores_mas
+  ON host_app_power_summary.app_name = host_app_power_bigger_cores_mas.app_name
+  AND host_app_power_bigger_cores_mas.core_type = 'bigger';
+
+DROP VIEW IF EXISTS webview_renderer_power_output;
+
+CREATE VIEW webview_renderer_power_output AS
+  SELECT
+    webview_renderer_power_summary.app_name AS app_name,
+    webview_renderer_power_summary.power_mas AS total_mas,
+    webview_renderer_little_power.power_mas AS little_cores_mas,
+    webview_renderer_big_power.power_mas AS big_cores_mas,
+    webview_renderer_bigger_power.power_mas AS bigger_cores_mas
+  FROM webview_renderer_power_summary LEFT JOIN webview_renderer_power_per_core_type AS webview_renderer_little_power
+  ON webview_renderer_power_summary.app_name = webview_renderer_little_power.app_name
+  AND webview_renderer_little_power.core_type = 'little'
+  LEFT JOIN webview_renderer_power_per_core_type AS webview_renderer_big_power
+  ON webview_renderer_power_summary.app_name = webview_renderer_big_power.app_name
+  AND webview_renderer_big_power.core_type = 'big'
+  LEFT JOIN webview_renderer_power_per_core_type AS webview_renderer_bigger_power
+  ON webview_renderer_power_summary.app_name = webview_renderer_bigger_power.app_name
+  AND webview_renderer_bigger_power.core_type = 'bigger';
+
+DROP VIEW IF EXISTS webview_only_power_output;
+
+CREATE VIEW webview_only_power_output AS
+  SELECT
+    webview_only_power_summary.app_name AS app_name,
+    webview_only_power_summary.power_mas AS total_mas,
+    webview_only_power_little_cores_mas.power_mas AS little_cores_mas,
+    webview_only_power_big_cores_mas.power_mas AS big_cores_mas,
+    webview_only_power_bigger_cores_mas.power_mas AS bigger_cores_mas
+  FROM webview_only_power_summary LEFT JOIN webview_only_power_per_core_type AS webview_only_power_little_cores_mas
+  ON webview_only_power_summary.app_name = webview_only_power_little_cores_mas.app_name
+  AND webview_only_power_little_cores_mas.core_type = 'little'
+  LEFT JOIN webview_only_power_per_core_type AS webview_only_power_big_cores_mas
+  ON webview_only_power_summary.app_name = webview_only_power_big_cores_mas.app_name
+  AND webview_only_power_big_cores_mas.core_type = 'big'
+  LEFT JOIN webview_only_power_per_core_type AS webview_only_power_bigger_cores_mas
+  ON webview_only_power_summary.app_name = webview_only_power_bigger_cores_mas.app_name
+  AND webview_only_power_bigger_cores_mas.core_type = 'bigger';
+
 DROP VIEW IF EXISTS total_device_power;
 
 -- Calculate the power usage of the device in milliampere-seconds.
@@ -175,39 +277,40 @@ CREATE VIEW total_device_power AS
 
 DROP VIEW IF EXISTS webview_power_summary;
 
+-- Left to keep downstream code working before it's switched to use the new tables.
 CREATE VIEW webview_power_summary AS
   SELECT
-    webview_browser_power_summary.app_name AS app_name,
+    webview_only_power_summary.app_name AS app_name,
     host_app_power_summary.power_mas + webview_renderer_power_summary.power_mas
     AS total_app_power_mas,
-    webview_browser_power_summary.power_mas + webview_renderer_power_summary.power_mas
+    webview_only_power_summary.power_mas + webview_renderer_power_summary.power_mas
     AS webview_power_mas,
-    webview_browser_little_power.power_mas + webview_renderer_little_power.power_mas
+    webview_only_power_little_cores_mas.power_mas + webview_renderer_little_power.power_mas
     AS webview_power_little_cores_mas,
-    webview_browser_big_power.power_mas + webview_renderer_big_power.power_mas
+    webview_only_power_big_cores_mas.power_mas + webview_renderer_big_power.power_mas
     AS webview_power_big_cores_mas,
-    webview_browser_bigger_power.power_mas + webview_renderer_bigger_power.power_mas
+    webview_only_power_bigger_cores_mas.power_mas + webview_renderer_bigger_power.power_mas
     AS webview_power_bigger_cores_mas
-  FROM webview_browser_power_summary
+  FROM webview_only_power_summary
   INNER JOIN webview_renderer_power_summary
-  ON webview_browser_power_summary.app_name = webview_renderer_power_summary.app_name
+  ON webview_only_power_summary.app_name = webview_renderer_power_summary.app_name
   INNER JOIN host_app_power_summary
-  ON host_app_power_summary.app_name = webview_browser_power_summary.app_name
-  LEFT JOIN webview_browser_power_per_core_type AS webview_browser_little_power
-  ON host_app_power_summary.app_name = webview_browser_little_power.app_name
-  AND webview_browser_little_power.core_type = 'little'
+  ON host_app_power_summary.app_name = webview_only_power_summary.app_name
+  LEFT JOIN webview_only_power_per_core_type AS webview_only_power_little_cores_mas
+  ON host_app_power_summary.app_name = webview_only_power_little_cores_mas.app_name
+  AND webview_only_power_little_cores_mas.core_type = 'little'
   LEFT JOIN webview_renderer_power_per_core_type AS webview_renderer_little_power
   ON host_app_power_summary.app_name = webview_renderer_little_power.app_name
   AND webview_renderer_little_power.core_type = 'little'
-  LEFT JOIN webview_browser_power_per_core_type AS webview_browser_big_power
-  ON host_app_power_summary.app_name = webview_browser_big_power.app_name
-  AND webview_browser_big_power.core_type = 'big'
+  LEFT JOIN webview_only_power_per_core_type AS webview_only_power_big_cores_mas
+  ON host_app_power_summary.app_name = webview_only_power_big_cores_mas.app_name
+  AND webview_only_power_big_cores_mas.core_type = 'big'
   LEFT JOIN webview_renderer_power_per_core_type AS webview_renderer_big_power
   ON host_app_power_summary.app_name = webview_renderer_big_power.app_name
   AND webview_renderer_big_power.core_type = 'big'
-  LEFT JOIN webview_browser_power_per_core_type AS webview_browser_bigger_power
-  ON host_app_power_summary.app_name = webview_browser_bigger_power.app_name
-  AND webview_browser_bigger_power.core_type = 'bigger'
+  LEFT JOIN webview_only_power_per_core_type AS webview_only_power_bigger_cores_mas
+  ON host_app_power_summary.app_name = webview_only_power_bigger_cores_mas.app_name
+  AND webview_only_power_bigger_cores_mas.core_type = 'bigger'
   LEFT JOIN webview_renderer_power_per_core_type AS webview_renderer_bigger_power
   ON host_app_power_summary.app_name = webview_renderer_bigger_power.app_name
   AND webview_renderer_bigger_power.core_type = 'bigger';
