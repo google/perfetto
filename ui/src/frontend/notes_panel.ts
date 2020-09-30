@@ -216,6 +216,7 @@ export class NotesPanel extends Panel {
 
 
   private onClick(x: number, _: number, isMovie: boolean) {
+    if (x < 0) return;
     const timeScale = globals.frontendLocalState.timeScale;
     const timestamp = timeScale.pxToTime(x);
     for (const note of Object.values(globals.state.notes)) {
