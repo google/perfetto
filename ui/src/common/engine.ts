@@ -15,10 +15,8 @@
 import {
   ComputeMetricArgs,
   ComputeMetricResult,
-  GetMetricDescriptorsArgs,
-  GetMetricDescriptorsResult,
   RawQueryArgs,
-  RawQueryResult,
+  RawQueryResult
 } from './protos';
 import {TimeSpan} from './time';
 
@@ -79,12 +77,6 @@ export abstract class Engine {
    */
   abstract rawComputeMetric(computeMetricArgs: Uint8Array): Promise<Uint8Array>;
 
-  /*
-   * Gets all the metric related proto descriptors from engine.
-   */
-  abstract rawGetMetricDescriptors(getMetricArgs: Uint8Array):
-      Promise<Uint8Array>;
-
   /**
    * Shorthand for sending a SQL query to the engine.
    * Deals with {,un}marshalling of request/response args.
@@ -128,17 +120,6 @@ export abstract class Engine {
       throw new QueryError(result.error);
     }
     return result;
-  }
-
-  /**
-   * Shorthand for getting metric descriptors from engine.
-   * Deals with {,un}marshalling of request/response args.
-   */
-  async getMetricDescriptors(): Promise<GetMetricDescriptorsResult> {
-    const args = new GetMetricDescriptorsArgs();
-    const argsEncoded = GetMetricDescriptorsArgs.encode(args).finish();
-    const respEncoded = await this.rawGetMetricDescriptors(argsEncoded);
-    return GetMetricDescriptorsResult.decode(respEncoded);
   }
 
   async queryOneRow(query: string): Promise<number[]> {
