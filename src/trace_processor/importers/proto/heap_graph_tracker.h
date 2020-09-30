@@ -48,8 +48,8 @@ struct PathFromRoot {
     size_t parent_id = 0;
     int64_t size = 0;
     int64_t count = 0;
-    tables::HeapGraphClassTable::Id type_id = {};
-    std::map<tables::HeapGraphClassTable::Id, size_t> children;
+    StringId class_name_id = {};
+    std::map<StringId, size_t> children;
   };
   std::vector<Node> nodes{Node{}};
   std::set<tables::HeapGraphObjectTable::Id> visited;
