@@ -303,6 +303,7 @@ export class TraceController extends Controller<States> {
 
     await this.listThreads();
     await this.loadTimelineOverview(traceTime);
+    globals.dispatch(Actions.sortThreadTracks({}));
     return engineMode;
   }
 

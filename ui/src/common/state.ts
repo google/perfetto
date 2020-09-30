@@ -102,6 +102,7 @@ export interface TrackState {
   engineId: string;
   kind: string;
   name: string;
+  isMainThread: boolean;
   trackGroup?: string;
   config: {};
 }

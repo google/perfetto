@@ -17,7 +17,14 @@ import {Draft} from 'immer';
 import {assertExists} from '../base/logging';
 import {randomColor} from '../common/colorizer';
 import {ConvertTrace, ConvertTraceToPprof} from '../controller/trace_converter';
+import {ASYNC_SLICE_TRACK_KIND} from '../tracks/async_slices/common';
+import {COUNTER_TRACK_KIND} from '../tracks/counter/common';
 import {DEBUG_SLICE_TRACK_KIND} from '../tracks/debug_slices/common';
+import {HEAP_PROFILE_TRACK_KIND} from '../tracks/heap_profile/common';
+import {
+  PROCESS_SCHEDULING_TRACK_KIND
+} from '../tracks/process_scheduling/common';
+import {PROCESS_SUMMARY_TRACK} from '../tracks/process_summary/common';
 
 import {DEFAULT_VIEWING_OPTION} from './flamegraph_util';
 import {
@@ -48,6 +55,7 @@ export interface AddTrackArgs {
   engineId: string;
   kind: string;
   name: string;
+  isMainThread?: boolean;
   trackGroup?: string;
   config: {};
 }
@@ -163,7 +171,7 @@ export const StateActions = {
 
   addTrack(state: StateDraft, args: {
     id?: string; engineId: string; kind: string; name: string;
-    trackGroup?: string; config: {};
+    trackGroup?: string; config: {}; isMainThread: boolean;
   }): void {
     const id = args.id !== undefined ? args.id : `${state.nextId++}`;
     state.tracks[id] = {
@@ -171,6 +179,7 @@ export const StateActions = {
       engineId: args.engineId,
       kind: args.kind,
       name: args.name,
+      isMainThread: args.isMainThread,
       trackGroup: args.trackGroup,
       config: args.config,
     };
@@ -208,6 +217,7 @@ export const StateActions = {
           engineId: args.engineId,
           kind: DEBUG_SLICE_TRACK_KIND,
           name: args.name,
+          isMainThread: false,
           trackGroup: SCROLLING_TRACK_GROUP,
           config: {
             maxDepth: 1,
@@ -224,6 +234,44 @@ export const StateActions = {
         state.scrollingTracks.filter(id => id !== debugTrackId);
     state.pinnedTracks = state.pinnedTracks.filter(id => id !== debugTrackId);
     state.debugTrackId = undefined;
+  },
+
+  sortThreadTracks(state: StateDraft, _: {}): void {
+    const threadTrackOrder = [
+      PROCESS_SCHEDULING_TRACK_KIND,
+      PROCESS_SUMMARY_TRACK,
+      HEAP_PROFILE_TRACK_KIND,
+      COUNTER_TRACK_KIND,
+      ASYNC_SLICE_TRACK_KIND
+    ];
+    for (const group of Object.values(state.trackGroups)) {
+      group.tracks.sort((a: string, b: string) => {
+        const aKind = threadTrackOrder.indexOf(state.tracks[a].kind);
+        const bKind = threadTrackOrder.indexOf(state.tracks[b].kind);
+        const aName = state.tracks[a].name.toLocaleLowerCase();
+        const bName = state.tracks[b].name.toLocaleLowerCase();
+        if (aKind === bKind) {
+          if (state.tracks[a].isMainThread && state.tracks[b].isMainThread) {
+            return 0;
+          } else if (state.tracks[a].isMainThread) {
+            return -1;
+          } else if (state.tracks[b].isMainThread) {
+            return 1;
+          }
+          if (aName > bName) {
+            return 1;
+          } else if (aName === bName) {
+            return 0;
+          } else {
+            return -1;
+          }
+        } else {
+          if (aKind === -1) return 1;
+          if (bKind === -1) return -1;
+          return aKind - bKind;
+        }
+      });
+    }
   },
 
   updateAggregateSorting(
