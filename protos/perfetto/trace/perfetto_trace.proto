@@ -6801,6 +6801,10 @@ message HeapGraphObject {
   // Bytes occupied by this objects.
   optional uint64 self_size = 3;
 
+  // Add this to all non-zero values in reference_field_id. This is used to
+  // get more compact varint encoding.
+  optional uint64 reference_field_id_base = 6;
+
   // Indices for InternedData.field_names for the name of the field referring
   // to the object. For Android S+ and for instances of normal classes (e.g.
   // not instances of java.lang.Class or arrays), this is instead set in the
