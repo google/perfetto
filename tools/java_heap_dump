@@ -50,7 +50,8 @@ data_sources {{
   }}
 }}
 
-duration_ms: 20000
+data_source_stop_timeout_ms: {data_source_stop_timeout_ms}
+duration_ms: {duration_ms}
 '''
 
 CONTINUOUS_DUMP = """
@@ -63,6 +64,7 @@ CONTINUOUS_DUMP = """
 PERFETTO_CMD = ('CFG=\'{cfg}\'; echo ${{CFG}} | '
                 'perfetto --txt -c - -o '
                 '/data/misc/perfetto-traces/java-profile-{user} -d')
+
 
 def main(argv):
   parser = argparse.ArgumentParser()
@@ -102,7 +104,11 @@ def main(argv):
       "--print-config",
       action="store_true",
       help="Print config instead of running. For debugging.")
-
+  parser.add_argument(
+      "--stop_when_done",
+      action="store_true",
+      help="On recent builds of S, use a new method to stop the profile when "
+           "the dump is done. Previously, we would hardcode a duration.")
   args = parser.parse_args()
 
   fail = False
@@ -139,9 +145,21 @@ def main(argv):
   if args.continuous_dump:
     continuous_dump_cfg = CONTINUOUS_DUMP.format(
         dump_interval=args.continuous_dump)
+
+  # TODO(fmayer): Once the changes have been in S for long enough, make this
+  #               the default for S+.
+  if args.stop_when_done:
+    duration_ms = 1000
+    data_source_stop_timeout_ms = 100000
+  else:
+    duration_ms = 20000
+    data_source_stop_timeout_ms = 0
+
   cfg = CFG.format(
       target_cfg=target_cfg,
-      continuous_dump_config=continuous_dump_cfg)
+      continuous_dump_config=continuous_dump_cfg,
+      duration_ms=duration_ms,
+      data_source_stop_timeout_ms=data_source_stop_timeout_ms)
   if not args.no_versions:
     cfg += PACKAGES_LIST_CFG
 
