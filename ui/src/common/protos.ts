@@ -52,15 +52,6 @@ import RawQueryResult = protos.perfetto.protos.RawQueryResult;
 import StatusResult = protos.perfetto.protos.StatusResult;
 import ComputeMetricArgs = protos.perfetto.protos.ComputeMetricArgs;
 import ComputeMetricResult = protos.perfetto.protos.ComputeMetricResult;
-import GetMetricDescriptorsArgs =
-    protos.perfetto.protos.GetMetricDescriptorsArgs;
-import GetMetricDescriptorsResult =
-    protos.perfetto.protos.GetMetricDescriptorsResult;
-
-import FieldDescriptorProto = protos.perfetto.protos.FieldDescriptorProto;
-import DescriptorProto = protos.perfetto.protos.DescriptorProto;
-
-
 
 // TODO(hjd): Maybe these should go in their own file.
 export interface Row { [key: string]: number|string; }
@@ -223,10 +214,6 @@ export {
   ConsumerPort,
   ComputeMetricArgs,
   ComputeMetricResult,
-  GetMetricDescriptorsArgs,
-  GetMetricDescriptorsResult,
-  FieldDescriptorProto,
-  DescriptorProto,
   DataSourceConfig,
   FtraceConfig,
   HeapprofdConfig,

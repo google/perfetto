@@ -267,7 +267,6 @@ node_bin("protos_to_ts") {
 # Builds all .ts sources in the repo under |src|.
 node_bin("transpile_all_ts") {
   deps = [
-    ":copy_protobufjs",
     ":dist_symlink",
     ":protos_to_ts",
     ":wasm_gen",
@@ -573,43 +572,6 @@ copy("copy_unittests_script") {
 copy("copy_tests_script") {
   sources = [ "config/ui_tests_template" ]
   outputs = [ "$root_build_dir/ui_tests" ]
-}
-
-# We use the prebundled protobufjs light because rollup cannot bundle
-# protobufjs/light (or protobufjs/full) due to circular dependencies. We copy
-# over the correct js and types files, and make small local changes.
-action("copy_protobufjs") {
-  deps = [
-    ":copy_protobufjs_light_sources",
-    ":copy_protobufjs_light_types",
-  ]
-  inputs = [ "../gn/standalone/modify_protobufjs.py" ]
-  script = "../gn/standalone/build_tool_wrapper.py"
-  stamp_file = "$target_out_dir/.$target_name.stamp"
-  args = [
-    "--stamp",
-    rebase_path(stamp_file, root_build_dir),
-    rebase_path("../gn/standalone/modify_protobufjs.py", root_build_dir),
-    rebase_path("$ui_gen_dir/protobufjs-light/protobuf.js"),
-  ]
-  outputs = [ stamp_file ]
-}
-
-copy("copy_protobufjs_light_sources") {
-  deps = [ ":node_modules" ]
-  sources = [
-    "node_modules/protobufjs/dist/light/protobuf.js",
-    "node_modules/protobufjs/dist/light/protobuf.js.map",
-  ]
-  outputs = [ "$ui_gen_dir/protobufjs-light/{{source_file_part}}" ]
-}
-
-copy("copy_protobufjs_light_types") {
-  deps = [ ":node_modules" ]
-
-  # The types are same for light and full.
-  sources = [ "node_modules/protobufjs/index.d.ts" ]
-  outputs = [ "$ui_gen_dir/protobufjs-light/protobuf.d.ts" ]
 }
 
 # This target generates an map containing all the UI subresources and their
