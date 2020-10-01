@@ -120,8 +120,17 @@ TrackId TrackTracker::InternLegacyChromeAsyncTrack(
   tuple.source_scope = source_scope;
 
   auto it = chrome_tracks_.find(tuple);
-  if (it != chrome_tracks_.end())
+  if (it != chrome_tracks_.end()) {
+    if (name != kNullStringId) {
+      // The track may have been created for an end event without name. In that
+      // case, update it with this event's name.
+      auto* tracks = context_->storage->mutable_track_table();
+      uint32_t track_row = *tracks->id().IndexOf(it->second);
+      if (tracks->name()[track_row] == kNullStringId)
+        tracks->mutable_name()->Set(track_row, name);
+    }
     return it->second;
+  }
 
   // Legacy async tracks are always drawn in the context of a process, even if
   // the ID's scope is global.
