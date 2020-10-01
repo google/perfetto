@@ -114,11 +114,6 @@ export class WasmEngineProxy extends Engine {
         'trace_processor_compute_metric', rawComputeMetric);
   }
 
-  rawGetMetricDescriptors(): Promise<Uint8Array> {
-    return this.queueRequest(
-        'trace_processor_get_metric_descriptors', new Uint8Array());
-  }
-
   async enableMetatrace(): Promise<void> {
     await this.queueRequest(
         'trace_processor_enable_metatrace', new Uint8Array());
