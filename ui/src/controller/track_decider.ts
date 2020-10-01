@@ -206,8 +206,8 @@ export async function decideTracks(
     const kind = ASYNC_SLICE_TRACK_KIND;
     const track = {
       engineId,
-      kind: ASYNC_SLICE_TRACK_KIND,
-      name: getTrackName({name, upid, kind}),
+      kind,
+      name,
       config: {
         maxDepth,
         trackIds,
@@ -532,7 +532,16 @@ export async function decideTracks(
 
         if (upidToProcessTracks.has(upid)) {
           for (const track of upidToProcessTracks.get(upid)) {
-            tracksToAdd.push(Object.assign(track, {trackGroup: pUuid}));
+            tracksToAdd.push(Object.assign(track, {
+              name: getTrackName({
+                name: track.name,
+                processName,
+                pid,
+                upid,
+                kind: track.kind,
+              }),
+              trackGroup: pUuid,
+            }));
           }
         }
       }
