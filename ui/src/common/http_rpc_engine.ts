@@ -67,12 +67,6 @@ export class HttpRpcEngine extends Engine {
     return this.enqueueRequest('compute_metric', rawComputeMetricArgs);
   }
 
-  rawGetMetricDescriptors(rawGetMetricDescriptorsArgs: Uint8Array):
-      Promise<Uint8Array> {
-    return this.enqueueRequest(
-        'get_metric_descriptors', rawGetMetricDescriptorsArgs);
-  }
-
   async enableMetatrace(): Promise<void> {
     await this.enqueueRequest('enable_metatrace');
   }
