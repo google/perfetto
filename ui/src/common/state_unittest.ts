@@ -26,6 +26,7 @@ test('getContainingTrackId', () => {
     engineId: 'engine',
     kind: 'Foo',
     name: 'a track',
+    isMainThread: false,
     config: {},
   };
 
@@ -34,6 +35,7 @@ test('getContainingTrackId', () => {
     engineId: 'engine',
     kind: 'Foo',
     name: 'b track',
+    isMainThread: false,
     config: {},
     trackGroup: 'containsB',
   };
