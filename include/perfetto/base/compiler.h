@@ -17,6 +17,7 @@
 #ifndef INCLUDE_PERFETTO_BASE_COMPILER_H_
 #define INCLUDE_PERFETTO_BASE_COMPILER_H_
 
+#include <stddef.h>
 #include <type_traits>
 
 #include "perfetto/base/build_config.h"
