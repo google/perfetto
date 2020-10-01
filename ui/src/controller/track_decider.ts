@@ -424,6 +424,7 @@ export async function decideTracks(
     const hasSchedEvents = !!row.totalDur;
     const threadHasSched = !!row.hasSched;
     const threadHasCpuSamples = !!row.hasCpuSamples;
+    const isMainThread = tid === pid;
 
     const threadTrack = utid === null ? undefined : utidToThreadTrack.get(utid);
     if (threadTrack === undefined &&
@@ -545,6 +546,7 @@ export async function decideTracks(
         kind: THREAD_STATE_TRACK_KIND,
         name: getTrackName({utid, tid, threadName}),
         trackGroup: pUuid,
+        isMainThread,
         config: {utid}
       });
     }
@@ -555,6 +557,7 @@ export async function decideTracks(
         kind: SLICE_TRACK_KIND,
         name: getTrackName({utid, tid, threadName}),
         trackGroup: pUuid,
+        isMainThread,
         config: {maxDepth: threadTrack.maxDepth, trackId: threadTrack.trackId},
       });
     }
