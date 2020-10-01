@@ -440,8 +440,9 @@ def main(argv):
         ['adb', 'shell', '[ -f /proc/$(pidof simpleperf)/exe ]'], **NOOUT) == 0:
       time.sleep(1)
     subprocess.check_call(
-        ['adb', 'pull', '/data/local/tmp/heapprofd_profile', '/tmp'])
-    print("Pulled simpleperf profile to /tmp/heapprofd_profile")
+        ['adb', 'pull', '/data/local/tmp/heapprofd_profile', profile_target])
+    print(
+      "Pulled simpleperf profile to " + profile_target + "/heapprofd_profile")
 
   # Wait for perfetto cmd to return.
   while exists:
