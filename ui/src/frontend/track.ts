@@ -62,7 +62,7 @@ export abstract class Track<Config = {}, Data extends TrackData = TrackData> {
   }
 
   data(): Data|undefined {
-    return globals.trackDataStore.get(this.trackState.id) as Data;
+    return globals.trackDataStore.get(this.trackId) as Data;
   }
 
   getHeight(): number {
