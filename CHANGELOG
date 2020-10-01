@@ -1,12 +1,32 @@
 Unreleased:
   Tracing service and probes:
-    * Added API for querying registered data sources and their capabilities.
-    * Support malloc heap profiles from GLibc Linux using LD_PRELOAD.
+    *
   Trace Processor:
     *
   UI:
-    * Flow events are now drawn as arrows for the currently selected slice.
-    *
+    * Added initial support for running metrics from the UI.
+
+
+v8.0 - 2020-10-01:
+  Tracing service and probes:
+    * Added API for querying registered data sources and their capabilities.
+    * Added support for profiling heap allocations on Linux via LD_PRELOAD.
+    * Fixed possible race when initializing the consumer library.
+    * Fixed subtle bugs on systems with 16KB system pages.
+  Trace Processor:
+    * Added a table which lists available metrics.
+    * Added Python bindings on PyPi in the 'perfetto' package.
+    * Added support for running trace_processor_shell on Android.
+    * Added per-process metrics for GPU memory usage.
+    * Added support for exporting flow events to JSON.
+    * Added dynamic tables for navigating between slices of flows.
+  UI:
+    * Changed time marking: horizontal selection doesn't gray out anymore,
+      pressing 'm' marks the range.
+    * Added initial support for displaying flow event arrows.
+    * Improved ordering of all thread tracks under process grouping.
+    * Fixed UI crashes due to metric errors
+    * Fixed selection of thread state slices.
 
 
 v7.0 - 2020-09-01:
