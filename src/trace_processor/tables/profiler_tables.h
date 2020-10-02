@@ -33,6 +33,19 @@ namespace tables {
 // @param size_kb Total size of the mapping.
 // @param private_dirty_kb KB of this mapping that are private dirty  RSS.
 // @param swap_kb KB of this mapping that are in swap.
+// @param file_name
+// @param file_name_iid
+// @param path_iid
+// @param start_address
+// @param module_timestamp
+// @param module_debugid
+// @param module_debug_path
+// @param protection_flags
+// @param private_clean_resident_kb
+// @param shared_dirty_resident_kb
+// @param shared_clean_resident_kb
+// @param locked_kb
+// @param proportional_resident_kb
 // @tablegroup Callstack profilers
 #define PERFETTO_TP_PROFILER_SMAPS_DEF(NAME, PARENT, C) \
   NAME(ProfilerSmapsTable, "profiler_smaps")            \
@@ -42,7 +55,18 @@ namespace tables {
   C(StringPool::Id, path)                               \
   C(int64_t, size_kb)                                   \
   C(int64_t, private_dirty_kb)                          \
-  C(int64_t, swap_kb)
+  C(int64_t, swap_kb)                                   \
+  C(StringPool::Id, file_name)                          \
+  C(int64_t, start_address)                             \
+  C(int64_t, module_timestamp)                          \
+  C(StringPool::Id, module_debugid)                     \
+  C(StringPool::Id, module_debug_path)                  \
+  C(int64_t, protection_flags)                          \
+  C(int64_t, private_clean_resident_kb)                 \
+  C(int64_t, shared_dirty_resident_kb)                  \
+  C(int64_t, shared_clean_resident_kb)                  \
+  C(int64_t, locked_kb)                                 \
+  C(int64_t, proportional_resident_kb)
 
 PERFETTO_TP_TABLE(PERFETTO_TP_PROFILER_SMAPS_DEF);
 
