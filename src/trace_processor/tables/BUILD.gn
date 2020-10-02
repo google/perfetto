@@ -21,6 +21,7 @@ source_set("tables") {
     "flow_tables.h",
     "macros.h",
     "macros_internal.h",
+    "memory_tables.h",
     "metadata_tables.h",
     "profiler_tables.h",
     "slice_tables.h",

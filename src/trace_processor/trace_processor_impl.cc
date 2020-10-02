@@ -799,6 +799,11 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   RegisterDbTable(storage->metadata_table());
   RegisterDbTable(storage->cpu_table());
   RegisterDbTable(storage->cpu_freq_table());
+
+  RegisterDbTable(storage->memory_snapshot_table());
+  RegisterDbTable(storage->process_memory_snapshot_table());
+  RegisterDbTable(storage->memory_snapshot_node_table());
+  RegisterDbTable(storage->memory_snapshot_edge_table());
 }
 
 TraceProcessorImpl::~TraceProcessorImpl() = default;
