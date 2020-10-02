@@ -88,9 +88,9 @@ CREATE VIEW all_descendant_blocking_tasks_queuing_delay AS
     blocking_tasks_queuing_delay base LEFT JOIN
     descendant_slice(base.id) AS descendant;
 
-DROP VIEW IF EXISTS all_descendant_blocking_tasks_queuing_delay_with_cpu_time;
+DROP TABLE IF EXISTS all_descendant_blocking_tasks_queuing_delay_with_cpu_time;
 
-CREATE VIEW all_descendant_blocking_tasks_queuing_delay_with_cpu_time AS
+CREATE TABLE all_descendant_blocking_tasks_queuing_delay_with_cpu_time AS
   SELECT
     cpu.slice_cpu_time AS descendant_slice_cpu_time,
     cpu.slice_cpu_time / descendant.slice_cpu_time AS descendant_cpu_percentage,
@@ -104,8 +104,11 @@ CREATE VIEW all_descendant_blocking_tasks_queuing_delay_with_cpu_time AS
         AS descendant_dur_above_relative_threshold,
     descendant.*
   FROM
-    all_descendant_blocking_tasks_queuing_delay descendant LEFT JOIN
-    chrome_thread_slice_with_cpu_time cpu ON
+    all_descendant_blocking_tasks_queuing_delay descendant LEFT JOIN (
+      SELECT
+        id, slice_cpu_time
+      FROM chrome_thread_slice_with_cpu_time
+    ) AS cpu ON
         cpu.id = descendant.descendant_id;
 
 -- Now that we've generated the descendant count how many siblings each row
