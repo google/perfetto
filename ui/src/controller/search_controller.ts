@@ -226,6 +226,16 @@ export class SearchController extends Controller<'main'> {
       0 as utid
       from slice
       where slice.name like ${searchLiteral}
+    union
+    select
+      slice_id,
+      ts,
+      'track' as source,
+      track_id as source_id,
+      0 as utid
+      from slice
+      join args using(arg_set_id)
+      where string_value like ${searchLiteral}
     order by ts`);
 
     const numRows = +rawResult.numRecords;
