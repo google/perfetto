@@ -225,8 +225,7 @@ export class SearchController extends Controller<'main'> {
       track_id as source_id,
       0 as utid
       from slice
-      inner join track on slice.track_id = track.id
-      and slice.name like ${searchLiteral}
+      where slice.name like ${searchLiteral}
     order by ts`);
 
     const numRows = +rawResult.numRecords;
