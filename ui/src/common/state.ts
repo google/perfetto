@@ -51,7 +51,7 @@ export interface Area {
 
 export const MAX_TIME = 180;
 
-export const STATE_VERSION = 1;
+export const STATE_VERSION = 2;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
