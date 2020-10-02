@@ -109,6 +109,11 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
   view({attrs}: m.CVnode<DragHandleAttrs>) {
     const icon = this.isClosed ? UP_ICON : DOWN_ICON;
     const title = this.isClosed ? 'Show panel' : 'Hide panel';
+    const activeTabExists = globals.frontendLocalState.currentTab &&
+        attrs.tabs.includes(globals.frontendLocalState.currentTab);
+    if (!activeTabExists) {
+      globals.frontendLocalState.currentTab = undefined;
+    }
     const renderTab = (key: string) => {
       if (globals.frontendLocalState.currentTab === key ||
           globals.frontendLocalState.currentTab === undefined &&
@@ -149,6 +154,9 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
               onclick: () => {
                 if (this.height === DRAG_HANDLE_HEIGHT_PX) {
                   this.isClosed = false;
+                  if (this.previousHeight === 0) {
+                    this.previousHeight = DEFAULT_DETAILS_HEIGHT_PX;
+                  }
                   this.resize(this.previousHeight);
                 } else {
                   this.isFullscreen = false;
@@ -165,7 +173,7 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
 }
 
 export class DetailsPanel implements m.ClassComponent {
-  private detailsHeight = DRAG_HANDLE_HEIGHT_PX;
+  private detailsHeight = DEFAULT_DETAILS_HEIGHT_PX;
   // Used to set details panel to default height on selection.
   private showDetailsPanel = true;
 
@@ -237,12 +245,7 @@ export class DetailsPanel implements m.ClassComponent {
       }
     }
 
-    const wasShowing = this.showDetailsPanel;
     this.showDetailsPanel = detailsPanels.size > 0;
-    // The first time the details panel appears, it should be default height.
-    if (!wasShowing && this.showDetailsPanel) {
-      this.detailsHeight = DEFAULT_DETAILS_HEIGHT_PX;
-    }
 
     const panel = globals.frontendLocalState.currentTab &&
             detailsPanels.has(globals.frontendLocalState.currentTab) ?
