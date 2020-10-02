@@ -174,6 +174,7 @@ bool DoUnwind(WireMessage* msg, UnwindingMetadata* metadata, AllocRecord* out) {
     }
   }
   std::vector<unwindstack::FrameData> frames = unwinder.ConsumeFrames();
+  out->frames.reserve(frames.size() + 1);
   for (unwindstack::FrameData& fd : frames) {
     out->frames.emplace_back(metadata->AnnotateFrame(std::move(fd)));
   }
