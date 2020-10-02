@@ -39,6 +39,7 @@
 #include "src/trace_processor/tables/android_tables.h"
 #include "src/trace_processor/tables/counter_tables.h"
 #include "src/trace_processor/tables/flow_tables.h"
+#include "src/trace_processor/tables/memory_tables.h"
 #include "src/trace_processor/tables/metadata_tables.h"
 #include "src/trace_processor/tables/profiler_tables.h"
 #include "src/trace_processor/tables/slice_tables.h"
@@ -618,6 +619,35 @@ class TraceStorage {
     return &graphics_frame_slice_table_;
   }
 
+  const tables::MemorySnapshotTable& memory_snapshot_table() const {
+    return memory_snapshot_table_;
+  }
+  tables::MemorySnapshotTable* mutable_memory_snapshot_table() {
+    return &memory_snapshot_table_;
+  }
+
+  const tables::ProcessMemorySnapshotTable& process_memory_snapshot_table()
+      const {
+    return process_memory_snapshot_table_;
+  }
+  tables::ProcessMemorySnapshotTable* mutable_process_memory_snapshot_table() {
+    return &process_memory_snapshot_table_;
+  }
+
+  const tables::MemorySnapshotNodeTable& memory_snapshot_node_table() const {
+    return memory_snapshot_node_table_;
+  }
+  tables::MemorySnapshotNodeTable* mutable_memory_snapshot_node_table() {
+    return &memory_snapshot_node_table_;
+  }
+
+  const tables::MemorySnapshotEdgeTable& memory_snapshot_edge_table() const {
+    return memory_snapshot_edge_table_;
+  }
+  tables::MemorySnapshotEdgeTable* mutable_memory_snapshot_edge_table() {
+    return &memory_snapshot_edge_table_;
+  }
+
   const StringPool& string_pool() const { return string_pool_; }
   StringPool* mutable_string_pool() { return &string_pool_; }
 
@@ -818,6 +848,15 @@ class TraceStorage {
 
   tables::GraphicsFrameSliceTable graphics_frame_slice_table_{&string_pool_,
                                                               &slice_table_};
+
+  // Metadata for memory snapshot.
+  tables::MemorySnapshotTable memory_snapshot_table_{&string_pool_, nullptr};
+  tables::ProcessMemorySnapshotTable process_memory_snapshot_table_{
+      &string_pool_, nullptr};
+  tables::MemorySnapshotNodeTable memory_snapshot_node_table_{&string_pool_,
+                                                              nullptr};
+  tables::MemorySnapshotEdgeTable memory_snapshot_edge_table_{&string_pool_,
+                                                              nullptr};
 
   // The below array allow us to map between enums and their string
   // representations.
