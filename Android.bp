@@ -2162,6 +2162,21 @@ genrule {
   ],
 }
 
+// GN: //protos/perfetto/config:descriptor
+genrule {
+  name: "perfetto_protos_perfetto_config_descriptor",
+  srcs: [
+    "protos/perfetto/config/trace_config.proto",
+  ],
+  tools: [
+    "aprotoc",
+  ],
+  cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --descriptor_set_out=$(out) --include_imports $(in)",
+  out: [
+    "perfetto_protos_perfetto_config_descriptor.bin",
+  ],
+}
+
 // GN: //protos/perfetto/config/ftrace:cpp
 genrule {
   name: "perfetto_protos_perfetto_config_ftrace_cpp_gen",
@@ -6808,6 +6823,21 @@ filegroup {
   ],
 }
 
+// GN: //src/trace_processor/importers:gen_cc_config_descriptor
+genrule {
+  name: "perfetto_src_trace_processor_importers_gen_cc_config_descriptor",
+  srcs: [
+    ":perfetto_protos_perfetto_config_descriptor",
+  ],
+  cmd: "$(location tools/gen_cc_proto_descriptor.py) --gen_dir=$(genDir) --cpp_out=$(out) $(in)",
+  out: [
+    "src/trace_processor/importers/config.descriptor.h",
+  ],
+  tool_files: [
+    "tools/gen_cc_proto_descriptor.py",
+  ],
+}
+
 // GN: //src/trace_processor/importers/memory_tracker:graph_processor
 filegroup {
   name: "perfetto_src_trace_processor_importers_memory_tracker_graph_processor",
@@ -8224,6 +8254,7 @@ cc_test {
     "perfetto_src_protozero_testing_messages_cpp_gen_headers",
     "perfetto_src_protozero_testing_messages_lite_gen_headers",
     "perfetto_src_protozero_testing_messages_zero_gen_headers",
+    "perfetto_src_trace_processor_importers_gen_cc_config_descriptor",
     "perfetto_src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
     "perfetto_src_trace_processor_metrics_gen_cc_metrics_descriptor",
     "perfetto_src_trace_processor_metrics_gen_merged_sql_metrics",
@@ -8368,6 +8399,7 @@ cc_binary {
     "perfetto_protos_perfetto_trace_sys_stats_zero_gen_headers",
     "perfetto_protos_perfetto_trace_system_info_zero_gen_headers",
     "perfetto_protos_perfetto_trace_track_event_zero_gen_headers",
+    "perfetto_src_trace_processor_importers_gen_cc_config_descriptor",
     "perfetto_src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
     "perfetto_src_trace_processor_metrics_gen_cc_metrics_descriptor",
     "perfetto_src_trace_processor_metrics_gen_merged_sql_metrics",
@@ -8509,6 +8541,7 @@ cc_binary_host {
     "perfetto_protos_perfetto_trace_system_info_zero_gen_headers",
     "perfetto_protos_perfetto_trace_track_event_zero_gen_headers",
     "perfetto_protos_third_party_pprof_zero_gen_headers",
+    "perfetto_src_trace_processor_importers_gen_cc_config_descriptor",
     "perfetto_src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
     "perfetto_src_trace_processor_metrics_gen_cc_metrics_descriptor",
     "perfetto_src_trace_processor_metrics_gen_merged_sql_metrics",

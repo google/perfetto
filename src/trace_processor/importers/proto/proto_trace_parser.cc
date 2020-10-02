@@ -36,6 +36,7 @@
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/config.descriptor.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
 #include "src/trace_processor/importers/proto/heap_profile_tracker.h"
 #include "src/trace_processor/importers/proto/metadata_tracker.h"
@@ -48,6 +49,8 @@
 #include "src/trace_processor/timestamped_trace_piece.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
+#include "src/trace_processor/util/descriptors.h"
+#include "src/trace_processor/util/protozero_to_text.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/common/trace_stats.pbzero.h"
@@ -730,6 +733,17 @@ void ProtoTraceParser::ParseTraceConfig(ConstBytes blob) {
     context_->metadata_tracker->SetMetadata(metadata::unique_session_name,
                                             Variadic::String(id));
   }
+
+  DescriptorPool pool;
+  pool.AddFromFileDescriptorSet(kConfigDescriptor.data(),
+                                kConfigDescriptor.size());
+
+  std::string text = protozero_to_text::ProtozeroToText(
+      pool, ".perfetto.protos.TraceConfig", blob,
+      protozero_to_text::kIncludeNewLines);
+  StringId id = context_->storage->InternString(base::StringView(text));
+  context_->metadata_tracker->SetMetadata(metadata::trace_config_pbtxt,
+                                          Variadic::String(id));
 }
 
 void ProtoTraceParser::ParseModuleSymbols(ConstBytes blob) {
