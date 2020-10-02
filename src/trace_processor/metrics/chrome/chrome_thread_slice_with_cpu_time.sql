@@ -73,24 +73,30 @@ CREATE VIEW chrome_thread_slice_with_cpu_time AS
     *
   FROM (
     SELECT
-      (
-        SELECT
-          MIN(value)
-        FROM counter
-        WHERE
-          counter.ts = s.ts AND
-          counter.track_id = s.counter_track_id
-      ) AS start_cpu_time,
-      (
-        SELECT
-          MAX(value)
-        FROM counter
-        WHERE
-          counter.ts =
-            CASE WHEN s.dur >= 0 THEN s.ts + s.dur ELSE s.ts END AND
-          counter.track_id = s.counter_track_id
-      ) AS end_cpu_time,
-      *
+      s.*,
+      min_counter.start_cpu_time
     FROM
-      chrome_slice_and_counter_track s
-  );
+      chrome_slice_and_counter_track s LEFT JOIN (
+        SELECT
+          ts,
+          track_id,
+          MIN(value) AS start_cpu_time
+        FROM counter
+        GROUP BY 1, 2
+      ) min_counter ON
+          min_counter.ts = s.ts AND min_counter.track_id = s.counter_track_id
+  ) min_and_slice LEFT JOIN (
+    SELECT
+      ts,
+      track_id,
+      MAX(value) AS end_cpu_time
+    FROM counter
+    GROUP BY 1, 2
+  ) max_counter ON
+      max_counter.ts =
+          CASE WHEN min_and_slice.dur >= 0 THEN
+            min_and_slice.ts + min_and_slice.dur
+          ELSE
+            min_and_slice.ts
+          END AND
+      max_counter.track_id = min_and_slice.counter_track_id;
