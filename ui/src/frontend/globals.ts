@@ -64,6 +64,9 @@ export interface FlowPoint {
 export interface Flow {
   begin: FlowPoint;
   end: FlowPoint;
+
+  category?: string;
+  name?: string;
 }
 
 export interface CounterDetails {
