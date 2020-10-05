@@ -23,6 +23,7 @@ perfetto_proto_library("@TYPE@") {
     "chrome_latency_info.proto",
     "chrome_legacy_ipc.proto",
     "chrome_message_pump.proto",
+    "chrome_mojo_event_info.proto",
     "chrome_process_descriptor.proto",
     "chrome_thread_descriptor.proto",
     "chrome_user_event.proto",
