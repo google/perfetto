@@ -27,3 +27,8 @@ track_event_monotonic_trace_clock.textproto track_event_slices.sql track_event_m
 
 # HistogramName interning
 track_event_chrome_histogram_sample.textproto track_event_args.sql track_event_chrome_histogram_sample_args.out
+
+# Flow events importing from proto
+flow_events_track_event.textproto flow_events.sql flow_events_track_event.out
+flow_events_proto_v2.textproto flow_events.sql flow_events_proto_v2.out
+flow_events_proto_v1.textproto flow_events.sql flow_events_proto_v1.out

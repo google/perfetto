@@ -71,7 +71,8 @@ void FlowTracker::Step(TrackId track_id, FlowId flow_id) {
 
 void FlowTracker::End(TrackId track_id,
                       FlowId flow_id,
-                      bool bind_enclosing_slice) {
+                      bool bind_enclosing_slice,
+                      bool close_flow) {
   if (!bind_enclosing_slice) {
     pending_flow_ids_map_[track_id].push_back(flow_id);
     return;
@@ -87,7 +88,14 @@ void FlowTracker::End(TrackId track_id,
     return;
   }
   SliceId slice_out_id = flow_to_slice_map_[flow_id];
+  if (close_flow) {
+    flow_to_slice_map_.erase(flow_to_slice_map_.find(flow_id));
+  }
   InsertFlow(flow_id, slice_out_id, open_slice_id.value());
+}
+
+bool FlowTracker::IsActive(FlowId flow_id) const {
+  return flow_to_slice_map_.find(flow_id) != flow_to_slice_map_.end();
 }
 
 FlowId FlowTracker::GetFlowIdForV1Event(uint64_t source_id,
