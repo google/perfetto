@@ -194,16 +194,15 @@ util::Status DecompressTrace(const uint8_t* data,
   }
 
   if (type == TraceType::kGzipTraceType) {
-    GzipDecompressor decompressor;
-    SerializingProtoTraceReader reader(output);
+    std::unique_ptr<ChunkedTraceReader> reader(
+        new SerializingProtoTraceReader(output));
+    GzipTraceParser parser(std::move(reader));
 
-    bool needs_more_input = false;
-    RETURN_IF_ERROR(GzipTraceParser::Parse(data, size, &decompressor, &reader,
-                                           &needs_more_input));
-
-    if (needs_more_input)
+    RETURN_IF_ERROR(parser.ParseUnowned(data, size));
+    if (parser.needs_more_input())
       return util::ErrStatus("Cannot decompress partial trace file");
 
+    parser.NotifyEndOfFile();
     return util::OkStatus();
   }
 
