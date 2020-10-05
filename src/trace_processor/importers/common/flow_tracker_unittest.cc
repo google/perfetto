@@ -50,7 +50,8 @@ TEST(FlowTrackerTest, SingleFlowEventExplicitInSliceBinding) {
 
   slice_tracker->Begin(140, track_2, StringId::Raw(2), StringId::Raw(2));
   SliceId in_slice_id = slice_tracker->GetTopmostSliceOnTrack(track_2).value();
-  tracker.End(track_2, flow_id, true);
+  tracker.End(track_2, flow_id, /* bind_enclosing = */ true,
+              /* close_flow = */ false);
   slice_tracker->End(160, track_2, StringId::Raw(2), StringId::Raw(2));
 
   const auto& flows = context.storage->flow_table();
@@ -79,7 +80,8 @@ TEST(FlowTrackerTest, SingleFlowEventWaitForNextSlice) {
   tracker.Begin(track_1, flow_id);
   slice_tracker->End(120, track_1, StringId::Raw(1), StringId::Raw(1));
 
-  tracker.End(track_2, flow_id, false);
+  tracker.End(track_2, flow_id, /* bind_enclosing = */ false,
+              /* close_flow = */ false);
 
   const auto& flows = context.storage->flow_table();
 
@@ -114,7 +116,8 @@ TEST(FlowTrackerTest, SingleFlowEventWaitForNextSliceScoped) {
   tracker.Begin(track_1, flow_id);
   slice_tracker->End(120, track_1, StringId::Raw(1), StringId::Raw(1));
 
-  tracker.End(track_2, flow_id, false);
+  tracker.End(track_2, flow_id, /* bind_enclosing = */ false,
+              /* close_flow = */ false);
 
   const auto& flows = context.storage->flow_table();
 
@@ -149,7 +152,8 @@ TEST(FlowTrackerTest, TwoFlowEventsWaitForNextSlice) {
   SliceId out_slice1_id =
       slice_tracker->GetTopmostSliceOnTrack(track_1).value();
   tracker.Begin(track_1, flow1_id);
-  tracker.End(track_2, flow1_id, false);
+  tracker.End(track_2, flow1_id, /* bind_enclosing = */ false,
+              /* close_flow = */ false);
   slice_tracker->End(120, track_1, StringId::Raw(1), StringId::Raw(1));
 
   // begin flow2 in enclosing slice2
@@ -157,7 +161,8 @@ TEST(FlowTrackerTest, TwoFlowEventsWaitForNextSlice) {
   SliceId out_slice2_id =
       slice_tracker->GetTopmostSliceOnTrack(track_1).value();
   tracker.Begin(track_1, flow2_id);
-  tracker.End(track_2, flow2_id, false);
+  tracker.End(track_2, flow2_id, /* bind_enclosing = */ false,
+              /* close_flow = */ false);
   slice_tracker->End(140, track_1, StringId::Raw(2), StringId::Raw(2));
 
   const auto& flows = context.storage->flow_table();
@@ -211,8 +216,10 @@ TEST(FlowTrackerTest, TwoFlowEventsSliceInSlice) {
   slice_tracker->Begin(160, track_2, StringId::Raw(3), StringId::Raw(3));
   SliceId in_slice_id = slice_tracker->GetTopmostSliceOnTrack(track_2).value();
 
-  tracker.End(track_2, flow1_id, true);
-  tracker.End(track_2, flow2_id, true);
+  tracker.End(track_2, flow1_id, /* bind_enclosing = */ true,
+              /* close_flow = */ false);
+  tracker.End(track_2, flow2_id, /* bind_enclosing = */ true,
+              /* close_flow = */ false);
 
   slice_tracker->End(170, track_2, StringId::Raw(3), StringId::Raw(3));
 
@@ -256,7 +263,8 @@ TEST(FlowTrackerTest, FlowEventsWithStep) {
   // flow end inside slice3 on track3
   slice_tracker->Begin(180, track_1, StringId::Raw(3), StringId::Raw(3));
   SliceId in_slice_id = slice_tracker->GetTopmostSliceOnTrack(track_1).value();
-  tracker.End(track_1, flow_id, true);
+  tracker.End(track_1, flow_id, /* bind_enclosing = */ true,
+              /* close_flow = */ false);
   slice_tracker->End(190, track_1, StringId::Raw(3), StringId::Raw(3));
 
   const auto& flows = context.storage->flow_table();
