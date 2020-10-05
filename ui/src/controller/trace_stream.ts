@@ -120,13 +120,41 @@ export class TraceHttpStream implements TraceStream {
       this.httpStream = (response.body as any).getReader();
     }
 
-    const res =
-        (await this.httpStream!.read()) as {value?: Uint8Array, done: boolean};
-    const data = res.value ? res.value : new Uint8Array();
+    let eof = false;
+    let bytesRead = 0;
+    const chunks = [];
+
+    // httpStream can return very small chunks which can slow down
+    // TraceProcessor. Here we accumulate chunks until we get at least 32mb
+    // or hit EOF.
+    while (!eof && bytesRead < 32 * 1024 * 1024) {
+      const res = (await this.httpStream!.read()) as
+          {value?: Uint8Array, done: boolean};
+      if (res.value) {
+        chunks.push(res.value);
+        bytesRead += res.value.length;
+      }
+      eof = res.done;
+    }
+
+    let data;
+    if (chunks.length === 1) {
+      data = chunks[0];
+    } else {
+      // Stitch all the chunks into one big array:
+      data = new Uint8Array(bytesRead);
+      let offset = 0;
+      for (const chunk of chunks) {
+        data.set(chunk, offset);
+        offset += chunk.length;
+      }
+    }
+
     this.bytesRead += data.length;
+
     return {
       data,
-      eof: res.done,
+      eof,
       bytesRead: this.bytesRead,
       bytesTotal: this.bytesTotal,
     };
