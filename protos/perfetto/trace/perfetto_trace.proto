@@ -6098,7 +6098,7 @@ message TaskExecution {
 // their default track association) can be emitted as part of a
 // TrackEventDefaults message.
 //
-// Next reserved id: 13 (up to 15). Next id: 35.
+// Next reserved id: 13 (up to 15). Next id: 38.
 message TrackEvent {
   // Names of categories of the event. In the client library, categories are a
   // way to turn groups of individual events on or off.
@@ -6189,7 +6189,26 @@ message TrackEvent {
   repeated uint64 extra_counter_track_uuids = 31;
   repeated int64 extra_counter_values = 12;
 
-  // TODO(eseckler): Add flow event support.
+  // IDs of flows originating, passing through, or ending at this event.
+  // Flow IDs are global within a trace.
+  //
+  // A flow connects a sequence of TrackEvents within or across tracks, e.g.
+  // an input event may be handled on one thread but cause another event on
+  // a different thread - a flow between the two events can associate them.
+  //
+  // The direction of the flows between events is inferred from the events'
+  // timestamps. The earliest event with the same flow ID becomes the source
+  // of the flow. Any events thereafter are intermediate steps of the flow,
+  // until the flow terminates at the last event with the flow ID.
+  //
+  // Flows can also be explicitly terminated (see |flow_eof|), so that the
+  // same ID can later be reused for another flow.
+  // Max 64 flows per event.
+  repeated uint64 flow_ids = 36;
+
+  // Bitmask with one bit for each flow in |flow_ids| indicating whether the
+  // flow terminates at this event. Iff bit N is 1, flow N terminates.
+  optional uint64 flow_eof = 37;
 
   // ---------------------------------------------------------------------------
   // TrackEvent arguments:
