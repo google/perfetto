@@ -26,10 +26,6 @@ export class FlowEventsPanel extends Panel {
     if (!selection || selection.kind !== 'CHROME_SLICE') {
       return;
     }
-    const flowsIn =
-        globals.boundFlows.filter(flow => flow.end.sliceId === selection.id);
-    const flowsOut =
-        globals.boundFlows.filter(flow => flow.begin.sliceId === selection.id);
 
     const flowClickHandler = (sliceId: number, trackId: number) => {
       const uiTrackId = findUiTrackId(trackId);
@@ -40,58 +36,53 @@ export class FlowEventsPanel extends Panel {
             'bound_flows');
       }
     };
-    const incomingFlowsTable: m.Vnode[] = [
-      m('.details-panel-heading', m('h2', `Incoming flow events`)),
-      m(
-          '.flow-events-table',
-          m('table.half-width',
-            m('tr', m('th', 'Source Slice ID'), m('th', 'Source Slice Name')),
-            flowsIn.map(flow => {
-              const args = {
-                onclick: () =>
-                    flowClickHandler(flow.begin.sliceId, flow.begin.trackId),
-                onmousemove: () =>
-                    globals.frontendLocalState.setHighlightedSliceId(
-                        flow.begin.sliceId),
-                onmouseleave: () =>
-                    globals.frontendLocalState.setHighlightedSliceId(-1)
-              };
-              return m(
-                  'tr',
-                  m('td.flow-link', args, flow.begin.sliceId.toString()),
-                  m('td.flow-link', args, flow.begin.sliceName));
-            })),
-          )
+
+    // Can happen only for flow events version 1
+    const haveCategories =
+        globals.boundFlows.filter(flow => flow.category).length > 0;
+
+    const columns = [
+      m('th', 'Direction'),
+      m('th', 'Connected Slice ID'),
+      m('th', 'Connected Slice Name')
     ];
-    const outgoingFlowsTable: m.Vnode[] = [
-      m('.details-panel-heading', m('h2', `Outgoing flow events`)),
-      m(
-          '.flow-events-table',
-          m('table.half-width',
-            m('tr',
-              m('th', 'Destination Slice ID'),
-              m('th', 'Destination Slice Name')),
-            flowsOut.map(flow => {
-              const args = {
-                onclick: () =>
-                    flowClickHandler(flow.end.sliceId, flow.end.trackId),
-                onmousemove: () =>
-                    globals.frontendLocalState.setHighlightedSliceId(
-                        flow.end.sliceId),
-                onmouseleave: () =>
-                    globals.frontendLocalState.setHighlightedSliceId(-1)
-              };
-              return m(
-                  'tr',
-                  m('td.flow-link', args, flow.end.sliceId.toString()),
-                  m('td.flow-link', args, flow.end.sliceName));
-            })),
-          )
-    ];
-    return m(
-        '.details-panel',
-        flowsIn.length > 0 ? incomingFlowsTable : [],
-        flowsOut.length > 0 ? outgoingFlowsTable : []);
+
+    if (haveCategories) {
+      columns.push(m('th', 'Flow Category'));
+      columns.push(m('th', 'Flow Name'));
+    }
+
+    const rows = [m('tr', columns)];
+
+    globals.boundFlows.forEach(flow => {
+      const outgoing = selection.id === flow.begin.sliceId;
+      const otherEnd = (outgoing ? flow.end : flow.begin);
+
+      const args = {
+        onclick: () => flowClickHandler(otherEnd.sliceId, otherEnd.trackId),
+        onmousemove: () =>
+            globals.frontendLocalState.setHighlightedSliceId(otherEnd.sliceId),
+        onmouseleave: () => globals.frontendLocalState.setHighlightedSliceId(-1)
+      };
+
+      const data = [
+        m('td.flow-info', outgoing ? 'Outgoing' : 'Incoming'),
+        m('td.flow-link', args, otherEnd.sliceId.toString()),
+        m('td.flow-link', args, otherEnd.sliceName)
+      ];
+
+      if (haveCategories) {
+        data.push(m('td.flow-info', flow.category || '-'));
+        data.push(m('td.flow-info', flow.name || '-'));
+      }
+
+      rows.push(m('tr', data));
+    });
+
+    return m('.details-panel', [
+      m('.details-panel-heading', m('h2', `Flow events`)),
+      m('.flow-events-table', m('table.half-width', rows))
+    ]);
   }
 
   renderCanvas(_ctx: CanvasRenderingContext2D, _size: PanelSize) {}

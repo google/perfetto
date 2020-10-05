@@ -53,7 +53,9 @@ export class FlowEventsController extends Controller<'main'> {
     const query = `
       select
         f.slice_out, t1.track_id, t1.name, t1.ts, (t1.ts+t1.dur), t1.depth,
-        f.slice_in, t2.track_id, t2.name, t2.ts, (t2.ts+t2.dur), t2.depth
+        f.slice_in, t2.track_id, t2.name, t2.ts, (t2.ts+t2.dur), t2.depth,
+        extract_arg(f.arg_set_id, 'cat'),
+        extract_arg(f.arg_set_id, 'name')
       from flow f
       join slice t1 on f.slice_out = t1.slice_id
       join slice t2 on f.slice_in = t2.slice_id
@@ -77,6 +79,15 @@ export class FlowEventsController extends Controller<'main'> {
         const endSliceEndTs = fromNs(res.columns[10].longValues![i]);
         const endDepth = res.columns[11].longValues![i];
 
+        // Category and name present only in version 1 flow events
+        // It is most likelly NULL for all other versions
+        const category = res.columns[12].isNulls![i] ?
+            undefined :
+            res.columns[12].stringValues![i];
+        const name = res.columns[13].isNulls![i] ?
+            undefined :
+            res.columns[13].stringValues![i];
+
         flows.push({
           begin: {
             trackId: beginTrackId,
@@ -93,7 +104,9 @@ export class FlowEventsController extends Controller<'main'> {
             sliceStartTs: endSliceStartTs,
             sliceEndTs: endSliceEndTs,
             depth: endDepth
-          }
+          },
+          category,
+          name
         });
       }
       globals.publish('BoundFlows', flows);

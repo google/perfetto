@@ -127,7 +127,7 @@ export class FrontendLocalState {
 
   setHighlightedSliceId(sliceId: number) {
     this.highlightedSliceId = sliceId;
-    globals.rafScheduler.scheduleFullRedraw();
+    globals.rafScheduler.scheduleRedraw();
   }
 
   // Sets the timestamp at which a vertical line will be drawn.
