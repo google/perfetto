@@ -27,6 +27,7 @@ import "protos/perfetto/trace/track_event/chrome_latency_info.proto";
 import "protos/perfetto/trace/track_event/chrome_legacy_ipc.proto";
 import "protos/perfetto/trace/track_event/chrome_message_pump.proto";
 import "protos/perfetto/trace/track_event/chrome_user_event.proto";
+import "protos/perfetto/trace/track_event/chrome_mojo_event_info.proto";
 import "protos/perfetto/trace/track_event/source_location.proto";
 
 package perfetto.protos;
@@ -90,7 +91,7 @@ package perfetto.protos;
 // their default track association) can be emitted as part of a
 // TrackEventDefaults message.
 //
-// Next reserved id: 13 (up to 15). Next id: 38.
+// Next reserved id: 13 (up to 15). Next id: 39.
 message TrackEvent {
   // Names of categories of the event. In the client library, categories are a
   // way to turn groups of individual events on or off.
@@ -233,6 +234,7 @@ message TrackEvent {
   }
 
   optional ChromeMessagePump chrome_message_pump = 35;
+  optional ChromeMojoEventInfo chrome_mojo_event_info = 38;
 
   // New argument types go here :)
 
