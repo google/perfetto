@@ -1,0 +1,96 @@
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  track_descriptor {
+    uuid: 1
+    thread {
+      pid: 1
+      tid: 1
+      thread_name: "t1"
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  track_descriptor {
+    uuid: 2
+    thread {
+      pid: 2
+      tid: 2
+      thread_name: "t2"
+    }
+  }
+}
+packet {
+  timestamp: 10000
+  trusted_packet_sequence_id: 1
+  track_event {
+    name: "FlowSlice1Start"
+    categories: "test"
+    track_uuid: 1,
+    flow_ids: 1,
+    legacy_event {
+      duration_us: 10
+      phase: 88 # 'X'
+    }
+  }
+}
+packet {
+  timestamp: 30000
+  trusted_packet_sequence_id: 1
+  track_event {
+    name: "FlowSlice1End"
+    categories: "test"
+    track_uuid: 2,
+    flow_ids: 1,
+    flow_eof: 1,
+    legacy_event {
+      duration_us: 10
+      phase: 88 # 'X'
+    }
+  }
+}
+packet {
+  timestamp: 50000
+  trusted_packet_sequence_id: 1
+  track_event {
+    name: "FlowSlice1Start2Start"
+    categories: "test"
+    track_uuid: 1,
+    flow_ids: 1,
+    flow_ids: 2,
+    legacy_event {
+      duration_us: 10
+      phase: 88 # 'X'
+    }
+  }
+}
+packet {
+  timestamp: 55000
+  trusted_packet_sequence_id: 1
+  track_event {
+    name: "FlowSlice1End"
+    categories: "test"
+    track_uuid: 2,
+    flow_ids: 1,
+    legacy_event {
+      duration_us: 10
+      phase: 88 # 'X'
+    }
+  }
+}
+packet {
+  timestamp: 59000
+  trusted_packet_sequence_id: 1
+  track_event {
+    name: "FlowSlice2End"
+    categories: "test"
+    track_uuid: 2,
+    flow_ids: 2,
+    legacy_event {
+      duration_us: 10
+      phase: 88 # 'X'
+    }
+  }
+}

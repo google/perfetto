@@ -213,8 +213,11 @@ class MockFlowTracker : public FlowTracker {
 
   MOCK_METHOD2(Begin, void(TrackId track_id, FlowId flow_id));
   MOCK_METHOD2(Step, void(TrackId track_id, FlowId flow_id));
-  MOCK_METHOD3(End,
-               void(TrackId track_id, FlowId flow_id, bool bind_enclosing));
+  MOCK_METHOD4(End,
+               void(TrackId track_id,
+                    FlowId flow_id,
+                    bool bind_enclosing,
+                    bool close_flow));
 };
 
 class ProtoTraceParserTest : public ::testing::Test {
@@ -1102,7 +1105,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
 
   EXPECT_CALL(*flow_, Step(_, _));
 
-  EXPECT_CALL(*flow_, End(_, _, false));
+  EXPECT_CALL(*flow_, End(_, _, false, false));
 
   EXPECT_CALL(*event_, PushCounter(1010000, testing::DoubleEq(2005000),
                                    thread_time_track));

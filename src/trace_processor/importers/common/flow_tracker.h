@@ -37,7 +37,18 @@ class FlowTracker {
 
   virtual void Step(TrackId track_id, FlowId flow_id);
 
-  virtual void End(TrackId track_id, FlowId flow_id, bool bind_enclosing_slice);
+  // When |bind_enclosing_slice| is true we will connect the flow to the
+  // currently open slice on the track, when false we will connect the flow to
+  // the next slice to be opened on the track.
+  // When |close_flow| is true it will mark this as the singular end of the
+  // flow, however if there are multiple end points this should be set to
+  // false. Both parameters are only needed for v1 flow events support
+  virtual void End(TrackId track_id,
+                   FlowId flow_id,
+                   bool bind_enclosing_slice,
+                   bool close_flow);
+
+  bool IsActive(FlowId flow_id) const;
 
   FlowId GetFlowIdForV1Event(uint64_t source_id, StringId cat, StringId name);
 
