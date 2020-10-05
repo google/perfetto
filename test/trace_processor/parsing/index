@@ -131,10 +131,6 @@ process_metadata_matching.textproto process_metadata_matching.sql process_metada
 flow_events_json_v1.json flow_events.sql flow_events_json_v1.out
 flow_events_json_v2.json flow_events.sql flow_events_json_v2.out
 
-# Flow events importing from proto
-flow_events_proto_v2.textproto flow_events.sql flow_events_proto_v2.out
-flow_events_proto_v1.textproto flow_events.sql flow_events_proto_v1.out
-
 # Importing displayTimeUnit
 ../../data/display_time_unit.json slices.sql display_time_unit_slices.out
 

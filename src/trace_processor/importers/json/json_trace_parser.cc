@@ -178,7 +178,8 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
             opt_source_id.value(), cat_id, name_id);
         bool bind_enclosing_slice =
             value.isMember("bp") && strcmp(value["bp"].asCString(), "e") == 0;
-        flow_tracker->End(track_id, flow_id, bind_enclosing_slice);
+        flow_tracker->End(track_id, flow_id, bind_enclosing_slice,
+                          /* close_flow = */ false);
       } else {
         context_->storage->IncrementStats(stats::flow_invalid_id);
       }
@@ -224,7 +225,8 @@ void JsonTraceParser::MaybeAddFlow(TrackId track_id, const Json::Value& event) {
       flow_tracker->Begin(track_id, opt_bind_id.value());
     } else if (flow_in) {
       // bind_enclosing_slice is always true for v2 flow events
-      flow_tracker->End(track_id, opt_bind_id.value(), true);
+      flow_tracker->End(track_id, opt_bind_id.value(), true,
+                        /* close_flow = */ false);
     } else {
       context_->storage->IncrementStats(stats::flow_without_direction);
     }
