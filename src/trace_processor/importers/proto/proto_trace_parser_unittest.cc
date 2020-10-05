@@ -40,6 +40,7 @@
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/common/sys_stats_counters.pbzero.h"
+#include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/android/packages_list.pbzero.h"
 #include "protos/perfetto/trace/chrome/chrome_benchmark_metadata.pbzero.h"
 #include "protos/perfetto/trace/chrome/chrome_trace_event.pbzero.h"
@@ -76,6 +77,7 @@ using ::testing::Args;
 using ::testing::AtLeast;
 using ::testing::ElementsAreArray;
 using ::testing::Eq;
+using ::testing::HasSubstr;
 using ::testing::InSequence;
 using ::testing::Invoke;
 using ::testing::InvokeArgument;
@@ -2823,6 +2825,29 @@ TEST_F(ProtoTraceParserTest, CPUProfileSamplesTimestampsAreClockMonotonic) {
   EXPECT_EQ(samples.ts()[0], 10015000);
   EXPECT_EQ(samples.callsite_id()[0], CallsiteId{0});
   EXPECT_EQ(samples.utid()[0], 1u);
+}
+
+TEST_F(ProtoTraceParserTest, ConfigUuid) {
+  auto* config = trace_->add_packet()->set_trace_config();
+  config->set_trace_uuid_lsb(1);
+  config->set_trace_uuid_msb(2);
+
+  ASSERT_TRUE(Tokenize().ok());
+
+  SqlValue value =
+      context_.metadata_tracker->GetMetadataForTesting(metadata::trace_uuid);
+  EXPECT_STREQ(value.string_value, "00000000-0000-0002-0000-000000000001");
+}
+
+TEST_F(ProtoTraceParserTest, ConfigPbtxt) {
+  auto* config = trace_->add_packet()->set_trace_config();
+  config->add_buffers()->set_size_kb(42);
+
+  ASSERT_TRUE(Tokenize().ok());
+
+  SqlValue value = context_.metadata_tracker->GetMetadataForTesting(
+      metadata::trace_config_pbtxt);
+  EXPECT_THAT(value.string_value, HasSubstr("size_kb: 42"));
 }
 
 }  // namespace

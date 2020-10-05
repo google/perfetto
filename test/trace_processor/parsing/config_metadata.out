@@ -1,3 +1,5 @@
 "name","str_value"
 "android_build_fingerprint","the fingerprint"
+"trace_config_pbtxt","trace_uuid_msb: 1314564453825188563
+trace_uuid_lsb: -6605018796207623390"
 "trace_uuid","123e4567-e89b-12d3-a456-426655443322"
