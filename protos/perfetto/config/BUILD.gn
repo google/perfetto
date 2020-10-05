@@ -49,3 +49,10 @@ perfetto_proto_library("merged_config") {
   proto_generators = [ "lite" ]
   sources = [ "perfetto_config.proto" ]
 }
+
+perfetto_proto_library("descriptor") {
+  proto_generators = [ "descriptor" ]
+  generate_descriptor = "config.descriptor"
+  deps = [ ":source_set" ]
+  sources = [ "trace_config.proto" ]
+}

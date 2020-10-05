@@ -55,6 +55,17 @@ MetadataId MetadataTracker::SetMetadata(metadata::KeyId key, Variadic value) {
   return id_and_row.id;
 }
 
+SqlValue MetadataTracker::GetMetadataForTesting(metadata::KeyId key) {
+  // KeyType::kMulti not yet supported by this method:
+  PERFETTO_CHECK(metadata::kKeyTypes[key] == metadata::KeyType::kSingle);
+
+  auto* metadata_table = context_->storage->mutable_metadata_table();
+  uint32_t key_idx = static_cast<uint32_t>(key);
+  uint32_t row =
+      metadata_table->name().IndexOf(metadata::kNames[key_idx]).value();
+  return metadata_table->mutable_str_value()->Get(row);
+}
+
 MetadataId MetadataTracker::AppendMetadata(metadata::KeyId key,
                                            Variadic value) {
   PERFETTO_DCHECK(key < metadata::kNumKeys);

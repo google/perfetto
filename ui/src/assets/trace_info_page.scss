@@ -82,6 +82,7 @@
           font-size: 12px;
           padding: 5px;
           word-break: break-all;
+          white-space: pre-wrap;
           &:first-of-type {
             font-weight: 800;
           }

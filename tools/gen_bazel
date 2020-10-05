@@ -133,6 +133,8 @@ custom_actions = {
       gen_cc_metrics_descriptor,
     '//src/trace_processor/metrics:gen_cc_all_chrome_metrics_descriptor':
       gen_cc_metrics_descriptor,
+    '//src/trace_processor/importers:gen_cc_config_descriptor':
+      gen_cc_metrics_descriptor,
 }
 
 # ------------------------------------------------------------------------------
