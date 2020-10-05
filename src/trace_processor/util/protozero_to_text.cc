@@ -15,6 +15,20 @@ namespace protozero_to_text {
 
 namespace {
 
+std::string BytesToHexEncodedString(const std::string& bytes) {
+  // Each byte becomes four chars 'A' -> "\x41" + 1 for trailing null.
+  std::string value(4 * bytes.size() + 1, 'Z');
+  for (size_t i = 0; i < bytes.size(); ++i) {
+    // snprintf prints 5 characters: '\x', then two hex digits, and finally a
+    // null byte. As we write left to right, we keep overwriting the null
+    // byte, except for the last call to snprintf.
+    snprintf(&(value[4 * i]), 5, "\\x%02hhx", bytes[i]);
+  }
+  // Trim trailing null.
+  value.resize(4 * bytes.size());
+  return value;
+}
+
 // Recursively determine the size of all the string like things passed in the
 // parameter pack |rest|.
 size_t SizeOfStr() {
@@ -102,9 +116,11 @@ void ConvertProtoTypeToFieldAndValueString(const FieldDescriptor& fd,
     case FieldDescriptorProto::TYPE_STRING:
       StrAppend(out, separator, indent, fd.name(), ": ", field.as_std_string());
       return;
-    case FieldDescriptorProto::TYPE_BYTES:
-      // TODO(dproy): Write a bytes to hex function here when we need it.
-      PERFETTO_FATAL("Bytes field cannot be converted to prototext.");
+    case FieldDescriptorProto::TYPE_BYTES: {
+      std::string value = BytesToHexEncodedString(field.as_std_string());
+      StrAppend(out, separator, indent, fd.name(), ": ", value);
+      return;
+    }
     case FieldDescriptorProto::TYPE_ENUM: {
       auto opt_enum_descriptor_idx =
           pool.FindDescriptorIdx(fd.resolved_type_name());
@@ -155,7 +171,12 @@ void ProtozeroToTextInternal(const std::string& type,
        field = decoder.ReadField()) {
     auto opt_field_descriptor_idx =
         proto_descriptor.FindFieldIdxByTag(field.id());
-    PERFETTO_DCHECK(opt_field_descriptor_idx);
+    if (!opt_field_descriptor_idx) {
+      StrAppend(
+          output, output->empty() ? "" : "\n", *indents,
+          "# Ignoring unknown field with id: ", std::to_string(field.id()));
+      continue;
+    }
     const auto& field_descriptor =
         proto_descriptor.fields()[*opt_field_descriptor_idx];
 
@@ -209,6 +230,7 @@ std::string DebugTrackEventProtozeroToText(const std::string& type,
   PERFETTO_DCHECK(status.ok());
   return ProtozeroToText(pool, type, protobytes, kIncludeNewLines);
 }
+
 std::string ShortDebugTrackEventProtozeroToText(
     const std::string& type,
     protozero::ConstBytes protobytes) {
@@ -237,6 +259,20 @@ std::string ProtozeroEnumToText(const std::string& type, int32_t enum_value) {
   }
   return *opt_enum_string;
 }
+
+std::string ProtozeroToText(const DescriptorPool& pool,
+                            const std::string& type,
+                            const std::vector<uint8_t>& protobytes,
+                            NewLinesMode new_lines_mode) {
+  return ProtozeroToText(
+      pool, type, protozero::ConstBytes{protobytes.data(), protobytes.size()},
+      new_lines_mode);
+}
+
+std::string BytesToHexEncodedStringForTesting(const std::string& s) {
+  return BytesToHexEncodedString(s);
+}
+
 }  // namespace protozero_to_text
 }  // namespace trace_processor
 }  // namespace perfetto

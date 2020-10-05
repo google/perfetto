@@ -55,6 +55,11 @@ std::string ProtozeroToText(const DescriptorPool& pool,
                             protozero::ConstBytes protobytes,
                             NewLinesMode new_lines_mode);
 
+std::string ProtozeroToText(const DescriptorPool& pool,
+                            const std::string& type,
+                            const std::vector<uint8_t>& protobytes,
+                            NewLinesMode new_lines_mode);
+
 // Allow the conversion from a protozero enum to a string. The template is just
 // to allow easy enum passing since we will do the explicit cast to a int32_t
 // for the user.
@@ -63,6 +68,8 @@ template <typename Enum>
 std::string ProtozeroEnumToText(const std::string& type, Enum enum_value) {
   return ProtozeroEnumToText(type, static_cast<int32_t>(enum_value));
 }
+
+std::string BytesToHexEncodedStringForTesting(const std::string&);
 
 }  // namespace protozero_to_text
 }  // namespace trace_processor
