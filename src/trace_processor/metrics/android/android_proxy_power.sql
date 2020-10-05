@@ -42,6 +42,7 @@
 SELECT RUN_METRIC('android/android_cpu_agg.sql');
 SELECT RUN_METRIC('android/power_profile_data.sql');
 
+DROP VIEW IF EXISTS device;
 CREATE VIEW device AS
 WITH
   after_first_slash(str) AS (
@@ -55,6 +56,7 @@ WITH
   )
 SELECT str AS name FROM before_second_slash;
 
+DROP VIEW IF EXISTS power_view;
 CREATE VIEW power_view AS
 SELECT
   cpu_freq_view.cpu AS cpu,
@@ -70,10 +72,12 @@ JOIN power_profile ON (
 
 -- utid = 0 is a reserved value used to mark sched slices where CPU was idle.
 -- It doesn't correspond to any real thread.
+DROP VIEW IF EXISTS sched_real_threads;
 CREATE VIEW sched_real_threads AS
 SELECT *
 FROM sched
 WHERE utid != 0;
 
+DROP TABLE IF EXISTS power_per_thread;
 CREATE VIRTUAL TABLE power_per_thread
 USING SPAN_LEFT_JOIN(sched_real_threads PARTITIONED cpu, power_view PARTITIONED cpu);
