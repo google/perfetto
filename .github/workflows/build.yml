@@ -21,12 +21,6 @@ jobs:
           with:
             path: "/home/runner/.cache/bazel"
             key: bazel
-        
-        - name: Install dependencies
-          run: sudo apt install -y ccache
 
         - name: Build
           run: bazel build //...
-
-        - name: Test
-          run: ./test/ci/linux_tests.sh
