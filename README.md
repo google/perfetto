@@ -1,5 +1,7 @@
 # Perfetto - System profiling, app tracing and trace analysis
 
+![Build](https://github.com/google/perfetto/workflows/Bazel%20build/badge.svg)
+
 Perfetto is a production-grade open-source stack for performance
 instrumentation and trace analysis. It offers services and libraries and for
 recording system-level and app-level traces, native + java heap profiling, a
