@@ -421,7 +421,8 @@ inline util::Status GetColumnsForTable(
     }
 
     SqlValue::Type type;
-    if (base::CaseInsensitiveEqual(raw_type, "STRING")) {
+    if (base::CaseInsensitiveEqual(raw_type, "STRING") ||
+        base::CaseInsensitiveEqual(raw_type, "TEXT")) {
       type = SqlValue::Type::kString;
     } else if (base::CaseInsensitiveEqual(raw_type, "DOUBLE")) {
       type = SqlValue::Type::kDouble;
