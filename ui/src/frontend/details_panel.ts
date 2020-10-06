@@ -27,6 +27,7 @@ import {HeapProfileDetailsPanel} from './heap_profile_panel';
 import {LogPanel} from './logs_panel';
 import {NotesEditorPanel} from './notes_panel';
 import {AnyAttrsVnode, PanelContainer} from './panel_container';
+import {QueryTable} from './query_table';
 import {SliceDetailsPanel} from './slice_panel';
 import {ThreadStatePanel} from './thread_state_panel';
 
@@ -69,6 +70,7 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
     ['current_selection', 'Current Selection'],
     ['bound_flows', 'Flow Events'],
     ['android_logs', 'Android Logs'],
+    ['query_result', 'Query Result'],
   ]);
 
 
@@ -223,6 +225,11 @@ export class DetailsPanel implements m.ClassComponent {
     }
     if (hasLogs()) {
       detailsPanels.set('android_logs', m(LogPanel, {key: 'logs_panel'}));
+    }
+
+    if (globals.queryResults.has('command')) {
+      detailsPanels.set(
+          'query_result', m(QueryTable, {key: 'query', queryId: 'command'}));
     }
 
     if (globals.boundFlows.length > 0) {

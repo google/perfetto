@@ -25,7 +25,6 @@ import {OverviewTimelinePanel} from './overview_timeline_panel';
 import {createPage} from './pages';
 import {PanAndZoomHandler} from './pan_and_zoom_handler';
 import {AnyAttrsVnode, PanelContainer} from './panel_container';
-import {QueryTable} from './query_table';
 import {TickmarkPanel} from './tickmark_panel';
 import {TimeAxisPanel} from './time_axis_panel';
 import {computeZoom} from './time_scale';
@@ -231,7 +230,6 @@ class TraceViewer implements m.ClassComponent {
         }));
       }
     }
-    scrollingPanels.unshift(m(QueryTable, {key: 'query', queryId: 'command'}));
 
     return m(
         '.page',
