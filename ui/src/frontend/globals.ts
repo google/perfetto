@@ -142,7 +142,7 @@ class Globals {
   private _threadMap?: ThreadMap = undefined;
   private _sliceDetails?: SliceDetails = undefined;
   private _threadStateDetails?: ThreadStateDetails = undefined;
-  private _boundFlows?: Flow[] = undefined;
+  private _connectedFlows?: Flow[] = undefined;
   private _counterDetails?: CounterDetails = undefined;
   private _heapProfileDetails?: HeapProfileDetails = undefined;
   private _cpuProfileDetails?: CpuProfileDetails = undefined;
@@ -188,7 +188,7 @@ class Globals {
     this._aggregateDataStore = new Map<string, AggregateData>();
     this._threadMap = new Map<number, ThreadDesc>();
     this._sliceDetails = {};
-    this._boundFlows = [];
+    this._connectedFlows = [];
     this._counterDetails = {};
     this._threadStateDetails = {};
     this._heapProfileDetails = {};
@@ -256,12 +256,12 @@ class Globals {
     this._threadStateDetails = assertExists(click);
   }
 
-  get boundFlows() {
-    return assertExists(this._boundFlows);
+  get connectedFlows() {
+    return assertExists(this._connectedFlows);
   }
 
-  set boundFlows(boundFlows: Flow[]) {
-    this._boundFlows = assertExists(boundFlows);
+  set connectedFlows(connectedFlows: Flow[]) {
+    this._connectedFlows = assertExists(connectedFlows);
   }
 
   get counterDetails() {
