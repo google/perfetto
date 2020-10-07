@@ -946,13 +946,14 @@ function BufferUsageProgressBar() {
 }
 
 function RecordingNotes() {
-  const docUrl = '//docs.perfetto.dev/#/build-instructions?id=get-the-code';
+  const docUrl =
+      '//docs.perfetto.dev/docs/quickstart/android-tracing#perfetto-cmdline';
   const extensionURL = `https://chrome.google.com/webstore/detail/
       perfetto-ui/lfmkphfpdbjijhpomgecfikhfohaoine`;
 
   const notes: m.Children = [];
-  const doc =
-      m('span', 'Follow the ', m('a', {href: docUrl}, 'instructions here.'));
+  const doc = m(
+      'span', 'Follow the ', m('a', {href: docUrl}, 'instructions here'), '.');
 
   const msgFeatNotSupported =
       m('div', `Some of the probes are only supported in the
