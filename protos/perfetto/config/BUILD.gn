@@ -19,8 +19,6 @@ import("../../../gn/proto_library.gni")
 # data_source_config.proto.
 
 perfetto_proto_library("@TYPE@") {
-  # Chromium shouldn't ignore the "android/" folder.
-  set_sources_assignment_filter([])
   deps = [
     "../common:@TYPE@",
     "android:@TYPE@",
