@@ -131,9 +131,12 @@ class TrackTracker {
   // This is called during parsing. The first call to GetDescriptorTrack() for
   // each |uuid| resolves and inserts the track (and its parent tracks,
   // following the parent_uuid chain recursively) based on reservations made for
-  // the |uuid|. Returns nullopt if no track for a descriptor with this |uuid|
-  // has been reserved.
-  base::Optional<TrackId> GetDescriptorTrack(uint64_t uuid);
+  // the |uuid|. If the track is a child track and doesn't have a name yet,
+  // updates the track's name to event_name. Returns nullopt if no track for a
+  // descriptor with this |uuid| has been reserved.
+  base::Optional<TrackId> GetDescriptorTrack(
+      uint64_t uuid,
+      StringId event_name = kNullStringId);
 
   // Returns the ID of the implicit trace-global default TrackDescriptor track.
   TrackId GetOrCreateDefaultDescriptorTrack();
