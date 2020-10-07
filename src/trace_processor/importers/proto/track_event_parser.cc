@@ -282,18 +282,17 @@ class TrackEventParser::EventImporter {
     // Determine track from track_uuid specified in either TrackEvent or
     // TrackEventDefaults. If a non-default track is not set, we either:
     //   a) fall back to the track specified by the sequence's (or event's) pid
-    //   +
-    //      tid (only in case of legacy tracks/events, i.e. events that don't
+    //      + tid (only in case of legacy tracks/events, i.e. events that don't
     //      specify an explicit track uuid or use legacy event phases instead of
     //      TrackEvent types), or
     //   b) a default track.
     if (track_uuid_) {
       base::Optional<TrackId> opt_track_id =
-          track_tracker->GetDescriptorTrack(track_uuid_);
+          track_tracker->GetDescriptorTrack(track_uuid_, name_id_);
       if (!opt_track_id) {
         track_tracker->ReserveDescriptorChildTrack(track_uuid_,
                                                    /*parent_uuid=*/0, name_id_);
-        opt_track_id = track_tracker->GetDescriptorTrack(track_uuid_);
+        opt_track_id = track_tracker->GetDescriptorTrack(track_uuid_, name_id_);
       }
       track_id_ = *opt_track_id;
 
