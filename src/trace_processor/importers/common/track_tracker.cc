@@ -319,8 +319,29 @@ void TrackTracker::ReserveDescriptorChildTrack(uint64_t uuid,
   context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
 }
 
-base::Optional<TrackId> TrackTracker::GetDescriptorTrack(uint64_t uuid) {
-  return GetDescriptorTrackImpl(uuid);
+base::Optional<TrackId> TrackTracker::GetDescriptorTrack(uint64_t uuid,
+                                                         StringId event_name) {
+  base::Optional<TrackId> track_id = GetDescriptorTrackImpl(uuid);
+  if (event_name != kNullStringId && track_id) {
+    // Update the name of the track if unset and the track is not the primary
+    // track of a process/thread or a counter track.
+    auto* tracks = context_->storage->mutable_track_table();
+    uint32_t row = *tracks->id().IndexOf(*track_id);
+    if (tracks->name()[row] != kNullStringId)
+      return track_id;
+
+    // Check reservation for track type.
+    auto reservation_it = reserved_descriptor_tracks_.find(uuid);
+    PERFETTO_CHECK(reservation_it != reserved_descriptor_tracks_.end());
+
+    if (reservation_it->second.pid || reservation_it->second.tid ||
+        reservation_it->second.is_counter) {
+      return track_id;
+    }
+
+    tracks->mutable_name()->Set(row, event_name);
+  }
+  return track_id;
 }
 
 base::Optional<TrackId> TrackTracker::GetDescriptorTrackImpl(
