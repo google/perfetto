@@ -295,3 +295,25 @@ packet {
     }
   }
 }
+
+# Track descriptor without name and process/thread association derives its
+# name from the first event on the track.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 40000
+  track_descriptor {
+    uuid: 13
+    parent_uuid: 10
+  }
+}
+
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 40000
+  track_event {
+    track_uuid: 13
+    categories: "cat"
+    name: "event_and_track_async3"
+    type: 3
+  }
+}
