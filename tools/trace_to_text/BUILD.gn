@@ -107,6 +107,8 @@ source_set("common") {
     "main.cc",
     "symbolize_profile.cc",
     "symbolize_profile.h",
+    "trace_to_hprof.cc",
+    "trace_to_hprof.h",
     "trace_to_json.cc",
     "trace_to_json.h",
     "trace_to_profile.cc",
