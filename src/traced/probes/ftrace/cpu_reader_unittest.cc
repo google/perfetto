@@ -61,8 +61,11 @@ namespace perfetto {
 namespace {
 
 FtraceDataSourceConfig EmptyConfig() {
-  return FtraceDataSourceConfig{
-      EventFilter{}, DisabledCompactSchedConfigForTesting(), {}, {}};
+  return FtraceDataSourceConfig{EventFilter{},
+                                DisabledCompactSchedConfigForTesting(),
+                                {},
+                                {},
+                                false /*symbolize_ksyms*/};
 }
 
 constexpr uint64_t kNanoInSecond = 1000 * 1000 * 1000;
@@ -812,8 +815,11 @@ TEST(CpuReaderTest, ParseSixSchedSwitchCompactFormat) {
   ProtoTranslationTable* table = GetTable(test_case->name);
   auto page = PageFromXxd(test_case->data);
 
-  FtraceDataSourceConfig ds_config{
-      EventFilter{}, EnabledCompactSchedConfigForTesting(), {}, {}};
+  FtraceDataSourceConfig ds_config{EventFilter{},
+                                   EnabledCompactSchedConfigForTesting(),
+                                   {},
+                                   {},
+                                   false /* symbolize_ksyms*/};
   ds_config.event_filter.AddEnabledEvent(
       table->EventToFtraceId(GroupAndName("sched", "sched_switch")));
 
@@ -1160,7 +1166,8 @@ TEST(CpuReaderTest, NewPacketOnLostEvents) {
 
   TraceWriterForTesting trace_writer;
   CpuReader::ProcessPagesForDataSource(&trace_writer, &metadata, /*cpu=*/1,
-                                       &ds_config, buf, kTestPages, table);
+                                       &ds_config, buf, kTestPages, table,
+                                       /*symbolizer=*/nullptr);
 
   // Each packet should contain the parsed contents of a contiguous run of pages
   // without data loss.

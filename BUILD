@@ -182,6 +182,7 @@ perfetto_cc_library(
         ":src_traced_probes_filesystem_filesystem",
         ":src_traced_probes_ftrace_format_parser",
         ":src_traced_probes_ftrace_ftrace",
+        ":src_traced_probes_ftrace_kallsyms_kallsyms",
         ":src_traced_probes_initial_display_state_initial_display_state",
         ":src_traced_probes_metatrace_metatrace",
         ":src_traced_probes_packages_list_packages_list",
@@ -1210,6 +1211,17 @@ filegroup(
         "src/traced/probes/filesystem/prefix_finder.h",
         "src/traced/probes/filesystem/range_tree.cc",
         "src/traced/probes/filesystem/range_tree.h",
+    ],
+)
+
+# GN target: //src/traced/probes/ftrace/kallsyms:kallsyms
+filegroup(
+    name = "src_traced_probes_ftrace_kallsyms_kallsyms",
+    srcs = [
+        "src/traced/probes/ftrace/kallsyms/kernel_symbol_map.cc",
+        "src/traced/probes/ftrace/kallsyms/kernel_symbol_map.h",
+        "src/traced/probes/ftrace/kallsyms/lazy_kernel_symbolizer.cc",
+        "src/traced/probes/ftrace/kallsyms/lazy_kernel_symbolizer.h",
     ],
 )
 
