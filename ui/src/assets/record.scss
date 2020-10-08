@@ -152,9 +152,9 @@
   }
 
   .note {
-    border: 1px dashed #ddd;
+    border-radius: 3px;
+    margin-bottom: 5px;
     background: #f9eeba;
-    margin: var(--record-section-padding);
     padding: 10px;
     font-family: 'Roboto', sans-serif;
     font-size: 14px;
