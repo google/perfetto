@@ -112,6 +112,7 @@ export class ChromeSliceTrack extends Track<Config, Data> {
       // D       B
       // Then B, C, D and back to A:
       if (isInstant) {
+        ctx.beginPath();
         ctx.moveTo(rect.left, rect.top);
         ctx.lineTo(rect.left + HALF_CHEVRON_WIDTH_PX, rect.top + SLICE_HEIGHT);
         ctx.lineTo(rect.left, rect.top + SLICE_HEIGHT - HALF_CHEVRON_WIDTH_PX);
