@@ -285,7 +285,8 @@ Client::~Client() {
 
 const char* Client::GetStackEnd(const char* stackptr) {
   StackRange thread_stack_range;
-  if (IsMainThread()) {
+  bool is_main_thread = IsMainThread();
+  if (is_main_thread) {
     thread_stack_range = main_thread_stack_range_;
   } else {
     thread_stack_range = GetThreadStackRange();
@@ -296,6 +297,13 @@ const char* Client::GetStackEnd(const char* stackptr) {
   StackRange sigalt_stack_range = GetSigAltStackRange();
   if (Contained(sigalt_stack_range, stackptr)) {
     return sigalt_stack_range.end;
+  }
+  // The main thread might have expanded since we read its bounds. We now know
+  // it is not the sigaltstack, so it has to be the main stack.
+  // TODO(fmayer): We should reparse maps here, because now we will keep
+  //               hitting the slow-path that calls the sigaltstack syscall.
+  if (is_main_thread && stackptr < thread_stack_range.end) {
+    return thread_stack_range.end;
   }
   return nullptr;
 }
