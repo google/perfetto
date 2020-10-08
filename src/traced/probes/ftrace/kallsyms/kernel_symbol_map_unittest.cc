@@ -122,7 +122,10 @@ ffffff8f73e2fa90 t NiNe
   EXPECT_EQ(kallsyms.Lookup(0xffffff8f73e2fa19ULL), "one");
   EXPECT_EQ(kallsyms.Lookup(0xffffff8f73e2fa71ULL), "___se___v_e__n___");
   EXPECT_EQ(kallsyms.Lookup(0xffffff8f73e2fa91ULL), "NiNe");
-  EXPECT_EQ(kallsyms.Lookup(0xffffff8fffffffffULL), "NiNe");
+  EXPECT_EQ(kallsyms.Lookup(0xffffff8f73e2fa99ULL), "NiNe");
+
+  // This is too far from the last symbol and should fail.
+  EXPECT_EQ(kallsyms.Lookup(0xffffff8fffffffffULL), "");
 }
 
 TEST(KernelSymbolMapTest, GoldenTest) {

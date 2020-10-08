@@ -125,6 +125,11 @@ inline bool IsAgain(int err) {
   return err == EAGAIN || err == EWOULDBLOCK;
 }
 
+// Calls mallopt(M_PURGE, 0) on Android. Does nothing on other platforms.
+// This forces the allocator to release freed memory. This is used to work
+// around various Scudo inefficiencies. See b/170217718.
+void MaybeReleaseAllocatorMemToOS();
+
 }  // namespace base
 }  // namespace perfetto
 
