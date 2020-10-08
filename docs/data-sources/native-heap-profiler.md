@@ -142,9 +142,13 @@ message. This is not surfaced in the converted pprof compatible proto.
 ## Runtime profiling
 
 When a profiling session is started, all matching processes (by name or PID)
-are enumerated and profiling is enabled. The resulting profile will contain
-all allocations done between the beginning and the end of the profiling
-session.
+are enumerated and are signalled to request profiling. Profiling isn't actually
+enabled until a few hundred milliseconds after the next allocation that is
+done by the application. If the application is idle when profiling is
+requested, and then does a burst of allocations, these may be missed.
+
+The resulting profile will contain all allocations done between when profiling
+is enabled, and the end of the profiling session.
 
 The resulting [ProfilePacket] will have `from_startup` set to false in the
 corresponding `ProcessHeapSamples` message. This does not get surfaced in the
