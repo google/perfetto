@@ -283,6 +283,7 @@ filegroup(
     srcs = [
         "include/perfetto/ext/base/circular_queue.h",
         "include/perfetto/ext/base/container_annotations.h",
+        "include/perfetto/ext/base/endian.h",
         "include/perfetto/ext/base/event_fd.h",
         "include/perfetto/ext/base/file_utils.h",
         "include/perfetto/ext/base/hash.h",
