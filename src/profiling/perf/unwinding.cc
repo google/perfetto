@@ -22,21 +22,11 @@
 
 #include "perfetto/ext/base/metatrace.h"
 #include "perfetto/ext/base/thread_utils.h"
+#include "perfetto/ext/base/utils.h"
 
 namespace {
 constexpr size_t kUnwindingMaxFrames = 1000;
 constexpr uint32_t kDataSourceShutdownRetryDelayMs = 400;
-
-void MaybeReleaseAllocatorMemToOS() {
-#if defined(__BIONIC__)
-  // TODO(b/152414415): libunwindstack's volume of small allocations is
-  // adverarial to scudo, which doesn't automatically release small
-  // allocation regions back to the OS. Forceful purge does reclaim all size
-  // classes.
-  mallopt(M_PURGE, 0);
-#endif
-}
-
 }  // namespace
 
 namespace perfetto {
@@ -456,7 +446,7 @@ void Unwinder::ClearCachedStatePeriodic(DataSourceInstanceID ds_id,
     pid_and_process.second.unwind_state->fd_maps.Reset();
   }
   ResetAndEnableUnwindstackCache();
-  MaybeReleaseAllocatorMemToOS();
+  base::MaybeReleaseAllocatorMemToOS();
 
   PostClearCachedStatePeriodic(ds_id, period_ms);  // repost
 }

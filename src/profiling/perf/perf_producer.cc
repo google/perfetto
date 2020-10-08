@@ -19,7 +19,6 @@
 #include <random>
 #include <utility>
 
-#include <malloc.h>
 #include <unistd.h>
 
 #include <unwindstack/Error.h>
@@ -28,6 +27,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/ext/base/metatrace.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/producer.h"
@@ -133,16 +133,6 @@ bool ShouldRejectDueToFilter(pid_t pid,
 
   PERFETTO_DLOG("Rejecting samples for pid [%d]", static_cast<int>(pid));
   return true;
-}
-
-void MaybeReleaseAllocatorMemToOS() {
-#if defined(__BIONIC__)
-  // TODO(b/152414415): libunwindstack's volume of small allocations is
-  // adverarial to scudo, which doesn't automatically release small
-  // allocation regions back to the OS. Forceful purge does reclaim all size
-  // classes.
-  mallopt(M_PURGE, 0);
-#endif
 }
 
 protos::pbzero::Profiling::CpuMode ToCpuModeEnum(uint16_t perf_cpu_mode) {
@@ -726,7 +716,7 @@ void PerfProducer::FinishDataSourceStop(DataSourceInstanceID ds_id) {
   // Clean up resources if there are no more active sources.
   if (data_sources_.empty()) {
     callstack_trie_.ClearTrie();  // purge internings
-    MaybeReleaseAllocatorMemToOS();
+    base::MaybeReleaseAllocatorMemToOS();
   }
 }
 
