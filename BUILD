@@ -1503,6 +1503,8 @@ filegroup(
         "tools/trace_to_text/main.cc",
         "tools/trace_to_text/symbolize_profile.cc",
         "tools/trace_to_text/symbolize_profile.h",
+        "tools/trace_to_text/trace_to_hprof.cc",
+        "tools/trace_to_text/trace_to_hprof.h",
         "tools/trace_to_text/trace_to_json.cc",
         "tools/trace_to_text/trace_to_json.h",
         "tools/trace_to_text/trace_to_profile.cc",
