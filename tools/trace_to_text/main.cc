@@ -25,6 +25,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "tools/trace_to_text/deobfuscate_profile.h"
 #include "tools/trace_to_text/symbolize_profile.h"
+#include "tools/trace_to_text/trace_to_hprof.h"
 #include "tools/trace_to_text/trace_to_json.h"
 #include "tools/trace_to_text/trace_to_profile.h"
 #include "tools/trace_to_text/trace_to_systrace.h"
@@ -144,9 +145,11 @@ int Main(int argc, char** argv) {
 
   std::string format(positional_args[0]);
 
-  if (format != "profile" && (pid != 0 || !timestamps.empty())) {
+  if ((format != "profile" && format != "hprof") &&
+      (pid != 0 || !timestamps.empty())) {
     PERFETTO_ELOG(
-        "--pid and --timestamps are supported only for profile format.");
+        "--pid and --timestamps are supported only for profile "
+        "formats.");
     return 1;
   }
 
@@ -179,6 +182,9 @@ int Main(int argc, char** argv) {
 
   if (format == "profile")
     return TraceToProfile(input_stream, output_stream, pid, timestamps);
+
+  if (format == "hprof")
+    return TraceToHprof(input_stream, output_stream, pid, timestamps);
 
   if (format == "symbolize")
     return SymbolizeProfile(input_stream, output_stream);
