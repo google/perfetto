@@ -43,6 +43,7 @@ namespace {
 
 using TokenId = KernelSymbolMap::TokenTable::TokenId;
 constexpr size_t kSymNameMaxLen = 128;
+constexpr size_t kSymMaxSizeBytes = 1024 * 1024;
 
 // Reads a kallsyms file in blocks of 4 pages each and decode its lines using
 // a simple FSM. Calls the passed lambda for each valid symbol.
@@ -246,7 +247,18 @@ size_t KernelSymbolMap::Parse(const std::string& kallsyms_path) {
   TokenMap tokens;
 
   // Keep the (ordered) list of tokens for each symbol.
-  std::multimap<SymAddr, TokenMapPtr> symbols;
+  struct SymAddrAndTokenPtr {
+    SymAddr addr;
+    TokenMapPtr token_map_entry;
+
+    bool operator<(const SymAddrAndTokenPtr& other) const {
+      return addr < other.addr;
+    }
+  };
+  std::vector<SymAddrAndTokenPtr> symbol_tokens;
+
+  // Based on `cat /proc/kallsyms | egrep "\b[tT]\b" | wc -l`.
+  symbol_tokens.reserve(128 * 1024);
 
   ForEachSym(kallsyms_path, [&](SymAddr addr, char type, const char* name) {
     if (addr == 0 || (type != 't' && type != 'T') || name[0] == '$') {
@@ -257,15 +269,26 @@ size_t KernelSymbolMap::Parse(const std::string& kallsyms_path) {
     // "foo_bar" -> ["foo", "bar"]). For each token hash:
     // 1. Keep track of the frequency of each token.
     // 2. Keep track of the list of token hashes for each symbol.
-    Tokenize(name, [&tokens, &symbols, addr](base::StringView token) {
+    Tokenize(name, [&tokens, &symbol_tokens, addr](base::StringView token) {
       // Strip the .cfi part if present.
       if (token.substr(token.size() - 4) == ".cfi")
         token = token.substr(0, token.size() - 4);
       auto it_and_ins = tokens.emplace(token.ToStdString(), TokenInfo{});
       it_and_ins.first->second.count++;
-      symbols.emplace(addr, &*it_and_ins.first);
+      symbol_tokens.emplace_back(SymAddrAndTokenPtr{addr, &*it_and_ins.first});
     });
   });
+
+  symbol_tokens.shrink_to_fit();
+
+  // For each symbol address, T entries are inserted into |symbol_tokens|, one
+  // for each token. These symbols are added in arbitrary address (as seen in
+  // /proc/kallsyms). Here we want to sort symbols by addresses, but at the same
+  // time preserve the order of tokens within each address.
+  // For instance, if kallsyms has: {0x41: connect_socket, 0x42: write_file}:
+  // Before sort: [(0x42, write), (0x42, file), (0x41, connect), (0x41, socket)]
+  // After sort: [(0x41, connect), (0x41, socket), (0x42, write), (0x42, file)]
+  std::stable_sort(symbol_tokens.begin(), symbol_tokens.end());
 
   // At this point we have broken down each symbol into a set of token hashes.
   // Now generate the token ids, putting high freq tokens first, so they use
@@ -291,17 +314,17 @@ size_t KernelSymbolMap::Parse(const std::string& kallsyms_path) {
   tokens_.shrink_to_fit();
 
   buf_.resize(2 * 1024 * 1024);  // Based on real-word observations.
-  base_addr_ = symbols.empty() ? 0 : symbols.begin()->first;
+  base_addr_ = symbol_tokens.empty() ? 0 : symbol_tokens.begin()->addr;
   SymAddr prev_sym_addr = base_addr_;
   uint8_t* wptr = buf_.data();
 
-  for (auto it = symbols.begin(); it != symbols.end();) {
-    const SymAddr sym_addr = it->first;
+  for (auto it = symbol_tokens.begin(); it != symbol_tokens.end();) {
+    const SymAddr sym_addr = it->addr;
 
     // Find the iterator to the first token of the next symbol (or the end).
     auto sym_start = it;
     auto sym_end = it;
-    while (sym_end != symbols.end() && sym_end->first == sym_addr)
+    while (sym_end != symbol_tokens.end() && sym_end->addr == sym_addr)
       ++sym_end;
 
     // The range [sym_start, sym_end) has all the tokens for the current symbol.
@@ -322,8 +345,10 @@ size_t KernelSymbolMap::Parse(const std::string& kallsyms_path) {
     wptr = protozero::proto_utils::WriteVarInt(delta, wptr);
     // Append all the token ids.
     for (it = sym_start; it != sym_end;) {
-      PERFETTO_DCHECK(it->first == sym_addr);
-      TokenId token_id = it->second->second.id << 1;
+      PERFETTO_DCHECK(it->addr == sym_addr);
+      TokenMapPtr const token_map_entry = it->token_map_entry;
+      const TokenInfo& token_info = token_map_entry->second;
+      TokenId token_id = token_info.id << 1;
       ++it;
       token_id |= (it == sym_end) ? 1 : 0;  // Last one has LSB set to 1.
       wptr = protozero::proto_utils::WriteVarInt(token_id, wptr);
@@ -333,6 +358,7 @@ size_t KernelSymbolMap::Parse(const std::string& kallsyms_path) {
 
   buf_.resize(static_cast<size_t>(wptr - buf_.data()));
   buf_.shrink_to_fit();
+  base::MaybeReleaseAllocatorMemToOS();  // For Scudo, b/170217718.
 
   PERFETTO_DLOG(
       "Loaded %zu kalllsyms entries. Mem usage: %zu B (addresses) + %zu B "
@@ -362,6 +388,7 @@ std::string KernelSymbolMap::Lookup(uint64_t sym_addr) {
   const uint8_t* const buf_end = &buf_[buf_.size()];
   bool parsing_addr = true;
   const uint8_t* next_rdptr = nullptr;
+  uint64_t sym_start_addr = 0;
   for (bool is_first_addr = true;; is_first_addr = false) {
     uint64_t v = 0;
     const auto* prev_rdptr = rdptr;
@@ -374,6 +401,7 @@ std::string KernelSymbolMap::Lookup(uint64_t sym_addr) {
       if (addr > sym_rel_addr)
         break;
       next_rdptr = rdptr;
+      sym_start_addr = addr;
     } else {
       // This is a token. Wait for the EOF maker.
       parsing_addr = (v & 1) == 1;
@@ -381,6 +409,14 @@ std::string KernelSymbolMap::Lookup(uint64_t sym_addr) {
   }
 
   if (!next_rdptr)
+    return "";
+
+  PERFETTO_DCHECK(sym_rel_addr >= sym_start_addr);
+
+  // If this address is too far from the start of the symbol, this is likely
+  // a pointer to something else (e.g. some vmalloc struct) and we just picked
+  // the very last symbol for a loader region.
+  if (sym_rel_addr - sym_start_addr > kSymMaxSizeBytes)
     return "";
 
   // The address has been found. Now rejoin the tokens to form the symbol name.
