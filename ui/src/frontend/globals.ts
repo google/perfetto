@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {assertExists} from '../base/logging';
-import {DeferredAction} from '../common/actions';
+import {Actions, DeferredAction} from '../common/actions';
 import {AggregateData} from '../common/aggregation_data';
 import {MetricResult} from '../common/metric_data';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
@@ -23,6 +23,7 @@ import {Analytics, initAnalytics} from '../frontend/analytics';
 
 import {FrontendLocalState} from './frontend_local_state';
 import {RafScheduler} from './raf_scheduler';
+import {findUiTrackId} from './scroll_helper';
 import {ServiceWorkerController} from './service_worker_controller';
 
 type Dispatch = (action: DeferredAction) => void;
@@ -30,6 +31,7 @@ type TrackDataStore = Map<string, {}>;
 type QueryResultsStore = Map<string, {}>;
 type AggregateDataStore = Map<string, AggregateData>;
 type Description = Map<string, string>;
+type Direction = 'Forward'|'Backward';
 export type Arg = string|{kind: 'SLICE', trackId: string, sliceId: number};
 export type Args = Map<string, Arg>;
 export interface SliceDetails {
@@ -375,6 +377,39 @@ class Globals {
     globals.frontendLocalState.currentTab =
         action.type === 'deselect' ? undefined : tabToOpen;
     globals.dispatch(action);
+  }
+
+  moveByFlow(direction: Direction) {
+    if (!globals.state.currentSelection ||
+        globals.state.currentSelection.kind !== 'CHROME_SLICE') {
+      return;
+    }
+    const sliceId = globals.state.currentSelection.id;
+    if (sliceId === -1) {
+      return;
+    }
+    let nextSliceId = -1;
+    let nextTrackId = -1;
+
+    // Choose any flow
+    for (const flow of this.boundFlows) {
+      if (flow.begin.sliceId === sliceId && direction === 'Forward') {
+        nextSliceId = flow.end.sliceId;
+        nextTrackId = flow.end.trackId;
+        break;
+      }
+      if (flow.end.sliceId === sliceId && direction === 'Backward') {
+        nextSliceId = flow.begin.sliceId;
+        nextTrackId = flow.begin.trackId;
+        break;
+      }
+    }
+
+    const uiTrackId = findUiTrackId(nextTrackId);
+    if (uiTrackId) {
+      globals.makeSelection(Actions.selectChromeSlice(
+          {id: nextSliceId, trackId: uiTrackId, table: 'slice'}));
+    }
   }
 
   resetForTesting() {

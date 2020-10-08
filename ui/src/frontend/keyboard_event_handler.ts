@@ -67,6 +67,12 @@ export function handleKey(e: KeyboardEvent, down: boolean) {
     globals.makeSelection(Actions.deselect({}));
     globals.dispatch(Actions.removeNote({id: '0'}));
   }
+  if (down && ']' === key) {
+    globals.moveByFlow('Forward');
+  }
+  if (down && '[' === key) {
+    globals.moveByFlow('Backward');
+  }
 }
 
 function findTimeRangeOfSelection() {
