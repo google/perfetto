@@ -367,6 +367,66 @@ $ readelf -S file.so | grep "gnu_debugdata\|eh_frame\|debug_frame"
 If this does not show one or more of the sections, change your build system
 to not strip them.
 
+## (non-Android) Linux support
+
+NOTE: This is experimental and only for ad-hoc investigations.
+
+You can use a standalone library to profile memory allocations on Linux.
+First [build Perfetto](/docs/contributing/build-instructions.md)
+
+```
+tools/build_all_configs.py
+ninja -C out/linux_clang_release
+```
+
+Then, run traced
+
+```
+out/linux_clang_release/traced
+```
+
+Start the profile (e.g. targeting trace_processor_shell)
+
+```
+out/linux_clang_release/perfetto \
+  -c - --txt \
+  -o ~/heapprofd-trace \
+<<EOF
+
+buffers {
+  size_kb: 32768
+}
+
+data_sources {
+  config {
+    name: "android.heapprofd"
+    heapprofd_config {
+      shmem_size_bytes: 8388608
+      sampling_interval_bytes: 4096
+      block_client: true
+      process_cmdline: "trace_processor_shell"
+      dump_at_max: true
+    }
+  }
+}
+
+duration_ms: 604800000
+write_into_file: true
+flush_timeout_ms: 30000
+flush_period_ms: 604800000
+
+EOF
+```
+
+Finally, run your target (e.g. trace_processor_shell) with LD_PRELOAD
+
+```
+LD_PRELOAD=out/linux_clang_release/libheapprofd_preload.so out/linux_clang_release/trace_processor_shell <trace>
+```
+
+Then, Ctrl-C the Perfetto invocation and upload ~/heapprofd-trace to the
+[Perfetto UI](https://ui.perfetto.dev).
+
 ## Known Issues
 
 ### Android 11
