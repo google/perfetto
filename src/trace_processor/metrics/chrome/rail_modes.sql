@@ -64,10 +64,10 @@ FROM (
   rail_modes
 WHERE (
     (
-      s.ts BETWEEN r.ts AND r.ts + r.dur
+      s.ts >= r.ts AND s.ts < r.ts + r.dur
     )
     OR (
-      s.end_ts BETWEEN r.ts AND r.ts + r.dur
+      s.end_ts > r.ts AND s.end_ts <= r.ts + r.dur
     )
   )
   AND r.rail_mode == rail_modes.mode
