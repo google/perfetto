@@ -361,7 +361,10 @@ class DataSource : public DataSourceBase {
         if (!instance_state || !instance_state->trace_lambda_enabled)
           return;
         tls_inst.backend_id = instance_state->backend_id;
+        tls_inst.backend_connection_id = instance_state->backend_connection_id;
         tls_inst.buffer_id = instance_state->buffer_id;
+        tls_inst.data_source_instance_id =
+            instance_state->data_source_instance_id;
         tls_inst.trace_writer = tracing_impl->CreateTraceWriter(
             instance_state, DataSourceType::kBufferExhaustedPolicy);
         CreateIncrementalState(
