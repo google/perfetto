@@ -672,6 +672,9 @@ cc_library_static {
     ":perfetto_src_tracing_platform_posix",
     ":perfetto_src_tracing_system_backend",
   ],
+  shared_libs: [
+    "liblog",
+  ],
   export_include_dirs: [
     "include",
     "include/perfetto/base/build_configs/android_tree",
