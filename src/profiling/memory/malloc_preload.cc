@@ -28,6 +28,11 @@ namespace {
 #pragma GCC diagnostic ignored "-Wglobal-constructors"
 uint32_t g_heap_id = AHeapProfile_registerHeap(AHeapInfo_create("libc.malloc"));
 #pragma GCC diagnostic pop
+
+bool IsPowerOfTwo(size_t v) {
+  return (v != 0 && ((v & (v - 1)) == 0));
+}
+
 }  // namespace
 
 extern "C" {
@@ -38,7 +43,6 @@ extern void* __libc_malloc(size_t);
 extern void __libc_free(void*);
 extern void* __libc_calloc(size_t, size_t);
 extern void* __libc_realloc(void*, size_t);
-extern int __libc_posix_memalign(void**, size_t, size_t);
 extern void* __libc_memalign(size_t, size_t);
 extern void* __libc_pvalloc(size_t);
 extern void* __libc_valloc(size_t);
@@ -65,8 +69,16 @@ void* realloc(void* ptr, size_t size) {
 }
 
 int posix_memalign(void** memptr, size_t alignment, size_t size) {
-  return perfetto::profiling::wrap_posix_memalign(
-      g_heap_id, __libc_posix_memalign, memptr, alignment, size);
+  if (alignment % sizeof(void*) || !IsPowerOfTwo(alignment / sizeof(void*))) {
+    return EINVAL;
+  }
+  void* alloc = perfetto::profiling::wrap_memalign(g_heap_id, __libc_memalign,
+                                                   alignment, size);
+  if (!alloc) {
+    return ENOMEM;
+  }
+  *memptr = alloc;
+  return 0;
 }
 
 void* aligned_alloc(size_t alignment, size_t size) {
