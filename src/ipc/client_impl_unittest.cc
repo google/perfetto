@@ -576,6 +576,28 @@ TEST_F(ClientImplTest, HostDisconnection) {
   task_runner_->RunUntilCheckpoint("on_disconnect");
 }
 
+TEST_F(ClientImplTest, HostConnectionFailure) {
+  constexpr char kNonexistentSockName[] =
+      TEST_SOCK_NAME("client_impl_unittest_nonexistent");
+  std::unique_ptr<Client> client = Client::CreateInstance(
+      kNonexistentSockName, /*retry=*/false, task_runner_.get());
+
+  // Connect a client to a non-existent socket, which will always fail. The
+  // client will notify the proxy of disconnection.
+  std::unique_ptr<FakeProxy> proxy(new FakeProxy("FakeSvc", &proxy_events_));
+  client->BindService(proxy->GetWeakPtr());
+
+  // Make sure the client copes with being deleted by the disconnection
+  // callback.
+  auto on_disconnect_reached = task_runner_->CreateCheckpoint("on_disconnect");
+  auto on_disconnect = [&] {
+    client.reset();
+    on_disconnect_reached();
+  };
+  EXPECT_CALL(proxy_events_, OnDisconnect()).WillOnce(Invoke(on_disconnect));
+  task_runner_->RunUntilCheckpoint("on_disconnect");
+}
+
 // TODO(primiano): add the tests below.
 // TEST(ClientImplTest, UnparsableReply) {}
 
