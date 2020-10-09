@@ -23,6 +23,8 @@ source_set("kallsyms") {
   sources = [
     "kernel_symbol_map.cc",
     "kernel_symbol_map.h",
+    "lazy_kernel_symbolizer.cc",
+    "lazy_kernel_symbolizer.h",
   ]
 }
 
