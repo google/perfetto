@@ -16,7 +16,6 @@
 
 #include "tools/trace_to_text/trace_to_hprof.h"
 
-#include <endian.h>
 #include <algorithm>
 #include <limits>
 #include <string>
@@ -25,6 +24,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/endian.h"
 #include "tools/trace_to_text/utils.h"
 
 // Spec
@@ -44,23 +44,24 @@ class BigEndianBuffer {
   void WriteId(uint64_t val) { WriteU8(val); }
 
   void WriteU8(uint64_t val) {
-    val = htobe64(val);
+    val = base::HostToBE64(val);
     Write(reinterpret_cast<char*>(&val), sizeof(uint64_t));
   }
 
   void WriteU4(uint32_t val) {
-    val = htobe32(val);
+    val = base::HostToBE32(val);
     Write(reinterpret_cast<char*>(&val), sizeof(uint32_t));
   }
 
   void SetU4(uint32_t val, size_t pos) {
-    val = htobe32(val);
+    val = base::HostToBE32(val);
+    PERFETTO_CHECK(pos + 4 <= buf_.size());
     memcpy(buf_.data() + pos, &val, sizeof(uint32_t));
   }
 
   // Uncomment when needed
   // void WriteU2(uint16_t val) {
-  //   val = htobe16(val);
+  //   val = base::HostToBE16(val);
   //   Write(reinterpret_cast<char*>(&val), sizeof(uint16_t));
   // }
 
