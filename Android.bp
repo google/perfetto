@@ -476,6 +476,7 @@ cc_library_shared {
     ":perfetto_src_traced_probes_filesystem_filesystem",
     ":perfetto_src_traced_probes_ftrace_format_parser",
     ":perfetto_src_traced_probes_ftrace_ftrace",
+    ":perfetto_src_traced_probes_ftrace_kallsyms_kallsyms",
     ":perfetto_src_traced_probes_initial_display_state_initial_display_state",
     ":perfetto_src_traced_probes_metatrace_metatrace",
     ":perfetto_src_traced_probes_packages_list_packages_list",
@@ -992,6 +993,7 @@ cc_library_static {
     ":perfetto_src_traced_probes_filesystem_filesystem",
     ":perfetto_src_traced_probes_ftrace_format_parser",
     ":perfetto_src_traced_probes_ftrace_ftrace",
+    ":perfetto_src_traced_probes_ftrace_kallsyms_kallsyms",
     ":perfetto_src_traced_probes_initial_display_state_initial_display_state",
     ":perfetto_src_traced_probes_metatrace_metatrace",
     ":perfetto_src_traced_probes_packages_list_packages_list",
@@ -1237,6 +1239,7 @@ cc_library_static {
     ":perfetto_src_traced_probes_filesystem_filesystem",
     ":perfetto_src_traced_probes_ftrace_format_parser",
     ":perfetto_src_traced_probes_ftrace_ftrace",
+    ":perfetto_src_traced_probes_ftrace_kallsyms_kallsyms",
     ":perfetto_src_traced_probes_initial_display_state_initial_display_state",
     ":perfetto_src_traced_probes_metatrace_metatrace",
     ":perfetto_src_traced_probes_packages_list_packages_list",
@@ -1629,6 +1632,7 @@ cc_test {
     ":perfetto_src_traced_probes_ftrace_format_parser",
     ":perfetto_src_traced_probes_ftrace_ftrace",
     ":perfetto_src_traced_probes_ftrace_integrationtests",
+    ":perfetto_src_traced_probes_ftrace_kallsyms_kallsyms",
     ":perfetto_src_traced_probes_ftrace_test_support",
     ":perfetto_src_traced_probes_initial_display_state_initial_display_state",
     ":perfetto_src_traced_probes_metatrace_metatrace",
@@ -7350,6 +7354,7 @@ filegroup {
   name: "perfetto_src_traced_probes_ftrace_kallsyms_kallsyms",
   srcs: [
     "src/traced/probes/ftrace/kallsyms/kernel_symbol_map.cc",
+    "src/traced/probes/ftrace/kallsyms/lazy_kernel_symbolizer.cc",
   ],
 }
 
