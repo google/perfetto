@@ -212,6 +212,7 @@ additional_args = {
         '//apex_available:platform',
         'com.android.art.debug',
         'com.android.art.release'}),
+      ('shared_libs', {'liblog'}),
     ],
     'perfetto_trace_protos': [
       ('apex_available', {
