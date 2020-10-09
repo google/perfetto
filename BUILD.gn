@@ -44,7 +44,10 @@ if (enable_perfetto_trace_processor && enable_perfetto_trace_processor_sqlite) {
 }
 
 if (enable_perfetto_heapprofd) {
-  all_targets += [ "src/profiling/memory:heapprofd" ]
+  all_targets += [
+    "src/profiling/memory:heapprofd",
+    "src/profiling/memory:heapprofd_preload",
+  ]
   if (perfetto_build_with_android) {
     all_targets += [
       "src/profiling/memory:heapprofd_client",
