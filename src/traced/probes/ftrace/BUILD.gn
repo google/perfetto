@@ -108,9 +108,12 @@ source_set("ftrace") {
     "../../../../gn:default_deps",
     "../../../../include/perfetto/ext/traced",
     "../../../../protos/perfetto/trace:zero",
+    "../../../../protos/perfetto/trace/interned_data:zero",
+    "../../../../protos/perfetto/trace/profiling:zero",
     "../../../android_internal:lazy_library_loader",
     "../../../base",
     "../../../protozero",
+    "kallsyms",
   ]
   sources = [
     "atrace_hal_wrapper.cc",

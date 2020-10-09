@@ -53,8 +53,11 @@ void FuzzCpuReaderProcessPagesForDataSource(const uint8_t* data, size_t size) {
   memcpy(g_page, data, std::min(base::kPageSize, size));
 
   FtraceMetadata metadata{};
-  FtraceDataSourceConfig ds_config{
-      EventFilter{}, DisabledCompactSchedConfigForTesting(), {}, {}};
+  FtraceDataSourceConfig ds_config{EventFilter{},
+                                   DisabledCompactSchedConfigForTesting(),
+                                   {},
+                                   {},
+                                   /*symbolize_ksyms=*/false};
   ds_config.event_filter.AddEnabledEvent(
       table->EventToFtraceId(GroupAndName("sched", "sched_switch")));
   ds_config.event_filter.AddEnabledEvent(
@@ -63,7 +66,7 @@ void FuzzCpuReaderProcessPagesForDataSource(const uint8_t* data, size_t size) {
   NullTraceWriter null_writer;
   CpuReader::ProcessPagesForDataSource(&null_writer, &metadata, /*cpu=*/0,
                                        &ds_config, g_page, /*pages_read=*/1,
-                                       table);
+                                       table, /*symbolizer*/ nullptr);
 }
 
 }  // namespace perfetto
