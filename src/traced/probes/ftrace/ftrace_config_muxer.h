@@ -34,11 +34,13 @@ struct FtraceDataSourceConfig {
   FtraceDataSourceConfig(EventFilter _event_filter,
                          CompactSchedConfig _compact_sched,
                          std::vector<std::string> _atrace_apps,
-                         std::vector<std::string> _atrace_categories)
+                         std::vector<std::string> _atrace_categories,
+                         bool _symbolize_ksyms)
       : event_filter(std::move(_event_filter)),
         compact_sched(_compact_sched),
         atrace_apps(std::move(_atrace_apps)),
-        atrace_categories(std::move(_atrace_categories)) {}
+        atrace_categories(std::move(_atrace_categories)),
+        symbolize_ksyms(_symbolize_ksyms) {}
 
   // The event filter allows to quickly check if a certain ftrace event with id
   // x is enabled for this data source.
@@ -50,6 +52,9 @@ struct FtraceDataSourceConfig {
   // Used only in Android for ATRACE_EVENT/os.Trace() userspace annotations.
   std::vector<std::string> atrace_apps;
   std::vector<std::string> atrace_categories;
+
+  // When enabled will turn on the the kallsyms symbolizer in CpuReader.
+  const bool symbolize_ksyms;
 };
 
 // Ftrace is a bunch of globally modifiable persistent state.

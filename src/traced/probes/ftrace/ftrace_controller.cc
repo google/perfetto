@@ -44,6 +44,7 @@
 #include "src/traced/probes/ftrace/ftrace_metadata.h"
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
 #include "src/traced/probes/ftrace/ftrace_stats.h"
+#include "src/traced/probes/ftrace/kallsyms/lazy_kernel_symbolizer.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
 
 namespace perfetto {
@@ -97,9 +98,12 @@ void ClearFile(const char* path) {
 
 const char* const FtraceController::kTracingPaths[] = {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-    "/sys/kernel/tracing/", "/sys/kernel/debug/tracing/", nullptr,
+    "/sys/kernel/tracing/",
+    "/sys/kernel/debug/tracing/",
+    nullptr,
 #else
-    "/sys/kernel/debug/tracing/", nullptr,
+    "/sys/kernel/debug/tracing/",
+    nullptr,
 #endif
 };
 
@@ -158,6 +162,7 @@ FtraceController::FtraceController(std::unique_ptr<FtraceProcfs> ftrace_procfs,
                                    Observer* observer)
     : task_runner_(task_runner),
       observer_(observer),
+      symbolizer_(new LazyKernelSymbolizer()),
       ftrace_procfs_(std::move(ftrace_procfs)),
       table_(std::move(table)),
       ftrace_config_muxer_(std::move(model)),
@@ -192,7 +197,8 @@ void FtraceController::StartIfNeeded() {
   size_t period_page_quota = ftrace_config_muxer_->GetPerCpuBufferSizePages();
   for (size_t cpu = 0; cpu < ftrace_procfs_->NumberOfCpus(); cpu++) {
     auto reader = std::unique_ptr<CpuReader>(
-        new CpuReader(cpu, table_.get(), ftrace_procfs_->OpenPipeForCpu(cpu)));
+        new CpuReader(cpu, table_.get(), symbolizer_.get(),
+                      ftrace_procfs_->OpenPipeForCpu(cpu)));
     per_cpu_.emplace_back(std::move(reader), period_page_quota);
   }
 
@@ -237,6 +243,16 @@ void FtraceController::ReadTick(int generation) {
   if (started_data_sources_.empty() || generation != generation_) {
     return;
   }
+
+#if PERFETTO_DCHECK_IS_ON()
+  // The OnFtraceDataWrittenIntoDataSourceBuffers() below is supposed to clear
+  // all metadata, including the |kernel_addrs| map for symbolization.
+  for (FtraceDataSource* ds : started_data_sources_) {
+    FtraceMetadata* ftrace_metadata = ds->mutable_metadata();
+    PERFETTO_DCHECK(ftrace_metadata->kernel_addrs.empty());
+    PERFETTO_DCHECK(ftrace_metadata->last_kernel_addr_index_written == 0);
+  }
+#endif
 
   // Read all cpu buffers with remaining per-period quota.
   bool all_cpus_done = true;
@@ -343,6 +359,7 @@ void FtraceController::StopIfNeeded() {
   // non-graceful stop.
 
   per_cpu_.clear();
+  symbolizer_->Destroy();
 
   if (parsing_mem_.IsValid()) {
     parsing_mem_.AdviseDontNeed(parsing_mem_.Get(), parsing_mem_.size());
@@ -376,6 +393,19 @@ bool FtraceController::StartDataSource(FtraceDataSource* data_source) {
 
   started_data_sources_.insert(data_source);
   StartIfNeeded();
+
+  // If the config is requesting to symbolize kernel addresses, create the
+  // symbolizer and parse /proc/kallsyms (it will take 200-300 ms). This is not
+  // strictly required here but is to avoid hitting the parsing cost while
+  // processing the first ftrace event batch in CpuReader.
+  if (data_source->config().symbolize_ksyms()) {
+    auto weak_this = weak_factory_.GetWeakPtr();
+    task_runner_->PostTask([weak_this] {
+      if (weak_this)
+        weak_this->symbolizer_->GetOrCreateKernelSymbolMap();
+    });
+  }
+
   return true;
 }
 

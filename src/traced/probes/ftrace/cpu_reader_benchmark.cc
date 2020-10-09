@@ -316,8 +316,11 @@ static void BM_ParsePageFullOfSchedSwitch(benchmark::State& state) {
   ProtoTranslationTable* table = GetTable(test_case->name);
   auto page = PageFromXxd(test_case->data);
 
-  FtraceDataSourceConfig ds_config{
-      EventFilter{}, DisabledCompactSchedConfigForTesting(), {}, {}};
+  FtraceDataSourceConfig ds_config{EventFilter{},
+                                   DisabledCompactSchedConfigForTesting(),
+                                   {},
+                                   {},
+                                   false /*symbolize_ksyms*/};
   ds_config.event_filter.AddEnabledEvent(
       table->EventToFtraceId(GroupAndName("sched", "sched_switch")));
 
