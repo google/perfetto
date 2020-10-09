@@ -362,6 +362,12 @@ message FtraceConfig {
     optional bool enabled = 1;
   }
   optional CompactSchedConfig compact_sched = 12;
+
+  // Enables symbol name resolution against /proc/kallsyms.
+  // It requires that either traced_probes is running as root or that
+  // kptr_restrict has been manually lowered.
+  // It does not disclose KASLR, symbol addresses are mangled.
+  optional bool symbolize_ksyms = 13;
 }
 
 // End of protos/perfetto/config/ftrace/ftrace_config.proto
@@ -6444,7 +6450,7 @@ message EventName {
 // emitted proactively in advance of referring to them in later packets.
 //
 // Next reserved id: 8 (up to 15).
-// Next id: 26.
+// Next id: 27.
 message InternedData {
   // TODO(eseckler): Replace iid fields inside interned messages with
   // map<iid, message> type fields in InternedData.
@@ -6492,6 +6498,14 @@ message InternedData {
 
   // Description of a GPU hardware queue or render stage.
   repeated InternedGpuRenderStageSpecification gpu_specifications = 24;
+
+  // This is set when FtraceConfig.symbolize_ksyms = true.
+  // The id of each symbol the number that will be reported in ftrace events
+  // like sched_block_reason.caller and is obtained from a monotonic counter.
+  // The same symbol can have different indexes in different bundles.
+  // This is is NOT the real address. This is to avoid disclosing KASLR through
+  // traces.
+  repeated InternedString kernel_symbols = 26;
 }
 
 // End of protos/perfetto/trace/interned_data/interned_data.proto

@@ -99,6 +99,8 @@ bool SetTranslationStrategy(FtraceFieldType ftrace,
     *out = kBoolToUint64;
   } else if (ftrace == kFtraceDataLoc && proto == ProtoSchemaType::kString) {
     *out = kDataLocToString;
+  } else if (ftrace == kFtraceSymAddr64 && proto == ProtoSchemaType::kUint64) {
+    *out = kFtraceSymAddr64ToUint64;
   } else {
     PERFETTO_DLOG("No translation strategy for '%s' -> '%s'", ToString(ftrace),
                   ProtoSchemaToString(proto));
