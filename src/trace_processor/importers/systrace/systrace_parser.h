@@ -254,6 +254,7 @@ class SystraceParser : public Destructible {
   TraceProcessorContext* const context_;
   const StringId lmk_id_;
   const StringId screen_state_id_;
+  const StringId cookie_id_;
 };
 
 }  // namespace trace_processor

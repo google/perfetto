@@ -1126,6 +1126,8 @@ filegroup(
         "src/trace_processor/importers/ninja/ninja_log_parser.h",
         "src/trace_processor/importers/proto/args_table_utils.cc",
         "src/trace_processor/importers/proto/args_table_utils.h",
+        "src/trace_processor/importers/proto/async_track_set_tracker.cc",
+        "src/trace_processor/importers/proto/async_track_set_tracker.h",
         "src/trace_processor/importers/proto/heap_profile_tracker.cc",
         "src/trace_processor/importers/proto/heap_profile_tracker.h",
         "src/trace_processor/importers/proto/metadata_tracker.cc",

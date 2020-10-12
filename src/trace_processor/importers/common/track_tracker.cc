@@ -150,24 +150,12 @@ TrackId TrackTracker::InternLegacyChromeAsyncTrack(
   return id;
 }
 
-TrackId TrackTracker::InternAndroidAsyncTrack(StringId name,
-                                              UniquePid upid,
-                                              int64_t cookie) {
-  AndroidAsyncTrackTuple tuple{upid, cookie, name};
-
-  auto it = android_async_tracks_.find(tuple);
-  if (it != android_async_tracks_.end())
-    return it->second;
-
+TrackId TrackTracker::CreateAndroidAsyncTrack(StringId name, UniquePid upid) {
   tables::ProcessTrackTable::Row row(name);
   row.upid = upid;
   auto id = context_->storage->mutable_process_track_table()->Insert(row).id;
-  android_async_tracks_[tuple] = id;
-
-  context_->args_tracker->AddArgsTo(id)
-      .AddArg(source_key_, Variadic::String(android_source_))
-      .AddArg(source_id_key_, Variadic::Integer(cookie));
-
+  context_->args_tracker->AddArgsTo(id).AddArg(
+      source_key_, Variadic::String(android_source_));
   return id;
 }
 

@@ -227,9 +227,8 @@ TEST_F(ExportJsonTest, StorageWithThreadName) {
 }
 
 TEST_F(ExportJsonTest, SystemEventsIgnored) {
-  constexpr int64_t kCookie = 22;
-  TrackId track = context_.track_tracker->InternAndroidAsyncTrack(
-      /*name=*/kNullStringId, /*upid=*/0, kCookie);
+  TrackId track = context_.track_tracker->CreateAndroidAsyncTrack(
+      /*name=*/kNullStringId, /*upid=*/0);
   context_.args_tracker->Flush();  // Flush track args.
 
   // System events have no category.

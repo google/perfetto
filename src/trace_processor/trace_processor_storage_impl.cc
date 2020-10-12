@@ -27,6 +27,7 @@
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/default_modules.h"
 #include "src/trace_processor/importers/proto/args_table_utils.h"
+#include "src/trace_processor/importers/proto/async_track_set_tracker.h"
 #include "src/trace_processor/importers/proto/heap_profile_tracker.h"
 #include "src/trace_processor/importers/proto/metadata_tracker.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
@@ -42,6 +43,7 @@ TraceProcessorStorageImpl::TraceProcessorStorageImpl(const Config& cfg) {
   context_.config = cfg;
   context_.storage.reset(new TraceStorage(context_.config));
   context_.track_tracker.reset(new TrackTracker(&context_));
+  context_.async_track_set_tracker.reset(new AsyncTrackSetTracker(&context_));
   context_.args_tracker.reset(new ArgsTracker(&context_));
   context_.slice_tracker.reset(new SliceTracker(&context_));
   context_.flow_tracker.reset(new FlowTracker(&context_));
