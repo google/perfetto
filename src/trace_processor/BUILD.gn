@@ -88,6 +88,8 @@ source_set("storage_minimal") {
     "importers/ninja/ninja_log_parser.h",
     "importers/proto/args_table_utils.cc",
     "importers/proto/args_table_utils.h",
+    "importers/proto/async_track_set_tracker.cc",
+    "importers/proto/async_track_set_tracker.h",
     "importers/proto/heap_profile_tracker.cc",
     "importers/proto/heap_profile_tracker.h",
     "importers/proto/metadata_tracker.cc",
