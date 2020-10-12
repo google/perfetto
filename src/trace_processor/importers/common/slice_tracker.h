@@ -50,7 +50,8 @@ class SliceTracker {
   // as the latest time we saw a begin event. For legacy Android use only. See
   // the comment in SystraceParser::ParseSystracePoint for information on why
   // this method exists.
-  void BeginLegacyUnnestable(tables::SliceTable::Row row);
+  void BeginLegacyUnnestable(tables::SliceTable::Row row,
+                             SetArgsCallback args_callback);
 
   void BeginGpu(tables::GpuSliceTable::Row row,
                 SetArgsCallback args_callback = SetArgsCallback());
