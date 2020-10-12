@@ -7118,6 +7118,7 @@ filegroup {
     "src/trace_processor/importers/json/json_utils.cc",
     "src/trace_processor/importers/ninja/ninja_log_parser.cc",
     "src/trace_processor/importers/proto/args_table_utils.cc",
+    "src/trace_processor/importers/proto/async_track_set_tracker.cc",
     "src/trace_processor/importers/proto/heap_profile_tracker.cc",
     "src/trace_processor/importers/proto/metadata_tracker.cc",
     "src/trace_processor/importers/proto/packet_sequence_state.cc",

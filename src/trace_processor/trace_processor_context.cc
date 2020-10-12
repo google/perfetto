@@ -27,6 +27,7 @@
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
+#include "src/trace_processor/importers/proto/async_track_set_tracker.h"
 #include "src/trace_processor/importers/proto/heap_profile_tracker.h"
 #include "src/trace_processor/importers/proto/metadata_tracker.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"

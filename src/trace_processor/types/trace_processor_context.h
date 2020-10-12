@@ -27,6 +27,7 @@ namespace perfetto {
 namespace trace_processor {
 
 class ArgsTracker;
+class AsyncTrackSetTracker;
 class AndroidProbesTracker;
 class ChunkedTraceReader;
 class ClockTracker;
@@ -68,6 +69,7 @@ class TraceProcessorContext {
   std::unique_ptr<ArgsTracker> args_tracker;
 
   std::unique_ptr<TrackTracker> track_tracker;
+  std::unique_ptr<AsyncTrackSetTracker> async_track_set_tracker;
   std::unique_ptr<SliceTracker> slice_tracker;
   std::unique_ptr<FlowTracker> flow_tracker;
   std::unique_ptr<ProcessTracker> process_tracker;
