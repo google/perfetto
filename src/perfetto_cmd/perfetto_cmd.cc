@@ -495,7 +495,8 @@ int PerfettoCmd::Main(int argc, char** argv) {
     return 1;
   }
 
-  if (trace_config_->incident_report_config().destination_package().empty() &&
+  if (trace_config_->activate_triggers().empty() &&
+      trace_config_->incident_report_config().destination_package().empty() &&
       is_uploading_) {
     PERFETTO_ELOG("Missing IncidentReportConfig with --dropbox / --upload.");
     return 1;
