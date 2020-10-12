@@ -53,7 +53,8 @@ base::Optional<uint32_t> SliceTracker::Begin(int64_t timestamp,
   });
 }
 
-void SliceTracker::BeginLegacyUnnestable(tables::SliceTable::Row row) {
+void SliceTracker::BeginLegacyUnnestable(tables::SliceTable::Row row,
+                                         SetArgsCallback args_callback) {
   // Ensure that the duration is pending for this row.
   // TODO(lalitm): change this to eventually use null instead of -1.
   row.dur = kPendingDuration;
@@ -68,7 +69,7 @@ void SliceTracker::BeginLegacyUnnestable(tables::SliceTable::Row row) {
   // Ensure that StartSlice knows that this track is unnestable.
   stacks_[row.track_id].is_legacy_unnestable = true;
 
-  StartSlice(row.ts, row.track_id, SetArgsCallback{}, [this, &row]() {
+  StartSlice(row.ts, row.track_id, args_callback, [this, &row]() {
     return context_->storage->mutable_slice_table()->Insert(row).id;
   });
 }
