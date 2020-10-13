@@ -69,6 +69,11 @@ struct DataSourceState {
   // source.
   TracingBackendId backend_id = 0;
 
+  // Each backend may connect to the tracing service multiple times if a
+  // disconnection occurs. This counter is used to uniquely identify each
+  // connection so that trace writers don't get reused across connections.
+  uint32_t backend_connection_id = 0;
+
   // The instance id as assigned by the tracing service. Note that because a
   // process can be connected to >1 services, this ID is not globally unique but
   // is only unique within the scope of its backend.
@@ -131,13 +136,17 @@ struct DataSourceInstanceThreadLocalState {
     trace_writer.reset();
     incremental_state.reset();
     backend_id = 0;
+    backend_connection_id = 0;
     buffer_id = 0;
+    data_source_instance_id = 0;
   }
 
   std::unique_ptr<TraceWriterBase> trace_writer;
   IncrementalStatePointer incremental_state = {nullptr, [](void*) {}};
   TracingBackendId backend_id;
+  uint32_t backend_connection_id;
   BufferId buffer_id;
+  uint64_t data_source_instance_id;
 };
 
 // Per-DataSource-type thread-local state.
