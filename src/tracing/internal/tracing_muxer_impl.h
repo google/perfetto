@@ -108,6 +108,7 @@ class TracingMuxerImpl : public TracingMuxer {
   // Producer-side bookkeeping methods.
   void UpdateDataSourcesOnAllBackends();
   void SetupDataSource(TracingBackendId,
+                       uint32_t backend_connection_id,
                        DataSourceInstanceID,
                        const DataSourceConfig&);
   void StartDataSource(TracingBackendId, DataSourceInstanceID);
@@ -165,6 +166,7 @@ class TracingMuxerImpl : public TracingMuxer {
     TracingMuxerImpl* const muxer_;
     TracingBackendId const backend_id_;
     bool connected_ = false;
+    uint32_t connection_id_ = 0;
 
     const uint32_t shmem_batch_commits_duration_ms_ = 0;
 
