@@ -78,6 +78,10 @@ TracingMuxerImpl::ProducerImpl::~ProducerImpl() = default;
 
 void TracingMuxerImpl::ProducerImpl::Initialize(
     std::unique_ptr<ProducerEndpoint> endpoint) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  PERFETTO_DCHECK(!connected_);
+  PERFETTO_DCHECK(!service_);
+  connection_id_++;
   service_ = std::move(endpoint);
 }
 
@@ -113,7 +117,7 @@ void TracingMuxerImpl::ProducerImpl::SetupDataSource(
     DataSourceInstanceID id,
     const DataSourceConfig& cfg) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  muxer_->SetupDataSource(backend_id_, id, cfg);
+  muxer_->SetupDataSource(backend_id_, connection_id_, id, cfg);
 }
 
 void TracingMuxerImpl::ProducerImpl::StartDataSource(DataSourceInstanceID id,
@@ -573,6 +577,7 @@ bool TracingMuxerImpl::RegisterDataSource(
 
 // Called by the service of one of the backends.
 void TracingMuxerImpl::SetupDataSource(TracingBackendId backend_id,
+                                       uint32_t backend_connection_id,
                                        DataSourceInstanceID instance_id,
                                        const DataSourceConfig& cfg) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
@@ -624,6 +629,7 @@ void TracingMuxerImpl::SetupDataSource(TracingBackendId backend_id,
                        DataSourceInstanceID>::value,
           "data_source_instance_id type mismatch");
       internal_state->backend_id = backend_id;
+      internal_state->backend_connection_id = backend_connection_id;
       internal_state->data_source_instance_id = instance_id;
       internal_state->buffer_id =
           static_cast<internal::BufferId>(cfg.target_buffer());
@@ -769,7 +775,9 @@ void TracingMuxerImpl::DestroyStoppedTraceWritersForCurrentThread() {
 
       DataSourceState* ds_state = static_state->TryGet(inst);
       if (ds_state && ds_state->backend_id == ds_tls.backend_id &&
-          ds_state->buffer_id == ds_tls.buffer_id) {
+          ds_state->backend_connection_id == ds_tls.backend_connection_id &&
+          ds_state->buffer_id == ds_tls.buffer_id &&
+          ds_state->data_source_instance_id == ds_tls.data_source_instance_id) {
         continue;
       }
 
