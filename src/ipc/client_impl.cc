@@ -156,16 +156,19 @@ void ClientImpl::OnConnect(base::UnixSocket*, bool connected) {
     return;
   }
 
-  // Drain the BindService() calls that were queued before establishig the
-  // connection with the host.
-  for (base::WeakPtr<ServiceProxy>& service_proxy : queued_bindings_) {
+  // Drain the BindService() calls that were queued before establishing the
+  // connection with the host. Note that if we got disconnected, the call to
+  // OnConnect below might delete |this|, so move everything on the stack first.
+  auto queued_bindings = std::move(queued_bindings_);
+  queued_bindings_.clear();
+  for (base::WeakPtr<ServiceProxy>& service_proxy : queued_bindings) {
     if (connected) {
       BindService(service_proxy);
     } else if (service_proxy) {
       service_proxy->OnConnect(false /* success */);
     }
   }
-  queued_bindings_.clear();
+  // Don't access |this| below here.
 }
 
 void ClientImpl::OnDisconnect(base::UnixSocket*) {
