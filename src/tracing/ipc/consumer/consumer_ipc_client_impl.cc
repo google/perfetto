@@ -65,7 +65,7 @@ void ConsumerIPCClientImpl::OnConnect() {
 void ConsumerIPCClientImpl::OnDisconnect() {
   PERFETTO_DLOG("Tracing service connection failure");
   connected_ = false;
-  consumer_->OnDisconnect();
+  consumer_->OnDisconnect();  // Note: may delete |this|.
 }
 
 void ConsumerIPCClientImpl::EnableTracing(const TraceConfig& trace_config,
