@@ -54,7 +54,8 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
         depth,
         id as slice_id,
         name,
-        dur = 0 as is_instant
+        dur = 0 as is_instant,
+        dur = -1 as is_incomplete
       FROM ${tableName}
       WHERE track_id = ${this.config.trackId} AND
         ts >= (${startNs - this.maxDurNs}) AND
@@ -75,6 +76,7 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
       depths: new Uint16Array(numRows),
       titles: new Uint16Array(numRows),
       isInstant: new Uint16Array(numRows),
+      isIncomplete: new Uint16Array(numRows),
     };
 
     const stringIndexes = new Map<string, number>();
@@ -94,6 +96,7 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
       const durNs = +cols[2].longValues![row];
       const endNs = startNs + durNs;
       const isInstant = +cols[6].longValues![row];
+      const isIncomplete = +cols[7].longValues![row];
 
       let endNsQ = Math.floor((endNs + bucketNs / 2 - 1) / bucketNs) * bucketNs;
       endNsQ = Math.max(endNsQ, startNsQ + bucketNs);
@@ -112,6 +115,7 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
       slices.sliceIds[row] = +cols[4].longValues![row];
       slices.titles[row] = internString(cols[5].stringValues![row]);
       slices.isInstant[row] = isInstant;
+      slices.isIncomplete[row] = isIncomplete;
     }
     return slices;
   }

@@ -59,6 +59,7 @@ class DebugSliceTrackController extends TrackController<Config, Data> {
       depths: new Uint16Array(numRows),
       titles: new Uint16Array(numRows),
       isInstant: new Uint16Array(numRows),
+      isIncomplete: new Uint16Array(numRows),
     };
 
     const stringIndexes = new Map<string, number>();
@@ -88,6 +89,7 @@ class DebugSliceTrackController extends TrackController<Config, Data> {
           nameCol.isNulls![i] ? '[null]' : nameCol.stringValues![i];
       slices.titles[i] = internString(sliceName);
       slices.isInstant[i] = 0;
+      slices.isIncomplete[i] = 0;
     }
 
     return slices;
