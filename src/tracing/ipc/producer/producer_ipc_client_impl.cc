@@ -97,7 +97,9 @@ ProducerIPCClientImpl::ProducerIPCClientImpl(
   PERFETTO_DCHECK_THREAD(thread_checker_);
 }
 
-ProducerIPCClientImpl::~ProducerIPCClientImpl() = default;
+ProducerIPCClientImpl::~ProducerIPCClientImpl() {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+}
 
 // Called by the IPC layer if the BindService() succeeds.
 void ProducerIPCClientImpl::OnConnect() {

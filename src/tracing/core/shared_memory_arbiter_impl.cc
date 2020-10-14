@@ -414,6 +414,13 @@ void SharedMemoryArbiterImpl::FlushPendingCommitDataRequests(
   }
 }
 
+bool SharedMemoryArbiterImpl::TryShutdown() {
+  std::lock_guard<std::mutex> scoped_lock(lock_);
+  did_shutdown_ = true;
+  // Shutdown is safe if there are no active trace writers for this arbiter.
+  return active_writer_ids_.IsEmpty();
+}
+
 std::unique_ptr<TraceWriter> SharedMemoryArbiterImpl::CreateTraceWriter(
     BufferID target_buffer,
     BufferExhaustedPolicy buffer_exhausted_policy) {
@@ -637,8 +644,10 @@ std::unique_ptr<TraceWriter> SharedMemoryArbiterImpl::CreateTraceWriterInternal(
 
   {
     std::lock_guard<std::mutex> scoped_lock(lock_);
-    id = active_writer_ids_.Allocate();
+    if (did_shutdown_)
+      return std::unique_ptr<TraceWriter>(new NullTraceWriter());
 
+    id = active_writer_ids_.Allocate();
     if (!id)
       return std::unique_ptr<TraceWriter>(new NullTraceWriter());
 

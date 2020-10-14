@@ -56,4 +56,12 @@ void IdAllocatorGeneric::FreeGeneric(uint32_t id) {
   ids_[id] = false;
 }
 
+bool IdAllocatorGeneric::IsEmpty() const {
+  for (const auto id : ids_) {
+    if (id)
+      return false;
+  }
+  return true;
+}
+
 }  // namespace perfetto
