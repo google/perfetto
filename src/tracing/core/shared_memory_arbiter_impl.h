@@ -151,6 +151,7 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
 
   void FlushPendingCommitDataRequests(
       std::function<void()> callback = {}) override;
+  bool TryShutdown() override;
 
   base::TaskRunner* task_runner() const { return task_runner_; }
   size_t page_size() const { return shmem_abi_.page_size(); }
@@ -224,6 +225,7 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
   std::unique_ptr<CommitDataRequest> commit_data_req_;
   size_t bytes_pending_commit_ = 0;  // SUM(chunk.size() : commit_data_req_).
   IdAllocator<WriterID> active_writer_ids_;
+  bool did_shutdown_ = false;
 
   // Whether the arbiter itself and all startup target buffer reservations are
   // bound. Note that this can become false again later if a new target buffer
