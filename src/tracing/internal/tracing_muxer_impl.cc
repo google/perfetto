@@ -46,6 +46,9 @@ namespace internal {
 
 namespace {
 
+// Maximum number of times we will try to reconnect producer backend.
+constexpr int kMaxProducerReconnections = 100;
+
 class StopArgsImpl : public DataSourceBase::StopArgs {
  public:
   std::function<void()> HandleStopAsynchronously() const override {
@@ -74,15 +77,28 @@ TracingMuxerImpl::ProducerImpl::ProducerImpl(
     : muxer_(muxer),
       backend_id_(backend_id),
       shmem_batch_commits_duration_ms_(shmem_batch_commits_duration_ms) {}
+
 TracingMuxerImpl::ProducerImpl::~ProducerImpl() = default;
 
 void TracingMuxerImpl::ProducerImpl::Initialize(
     std::unique_ptr<ProducerEndpoint> endpoint) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_DCHECK(!connected_);
-  PERFETTO_DCHECK(!service_);
   connection_id_++;
-  service_ = std::move(endpoint);
+
+  // Adopt the endpoint into a shared pointer so that we can safely share it
+  // across threads that create trace writers. The custom deleter function
+  // ensures that the endpoint is always destroyed on the muxer's thread. (Note
+  // that |task_runner| is assumed to outlive tracing sessions on all threads.)
+  auto* task_runner = muxer_->task_runner_.get();
+  auto deleter = [task_runner](ProducerEndpoint* e) {
+    task_runner->PostTask([e] { delete e; });
+  };
+  std::shared_ptr<ProducerEndpoint> service(endpoint.release(), deleter);
+  // This atomic store is needed because another thread might be concurrently
+  // creating a trace writer using the previous (disconnected) |service_|. See
+  // CreateTraceWriter().
+  std::atomic_store(&service_, std::move(service));
   // Don't try to use the service here since it may not have connected yet. See
   // OnConnect().
 }
@@ -98,15 +114,18 @@ void TracingMuxerImpl::ProducerImpl::OnConnect() {
 void TracingMuxerImpl::ProducerImpl::OnDisconnect() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   connected_ = false;
-  // TODO: handle more gracefully. Right now we only handle the case of retrying
-  // when not being able to reach the service in the first place (this is
-  // handled transparently by ProducerIPCClientImpl).
-  // If the connection is dropped afterwards (e.g., traced crashes), instead, we
-  // don't recover from that. In order to handle that we would have to reconnect
-  // and re-register all the data sources.
-  PERFETTO_ELOG(
-      "The connection to the tracing service dropped. Tracing will no longer "
-      "work until this process is restarted");
+  // Active data sources for this producer will be stopped by
+  // DestroyStoppedTraceWritersForCurrentThread() since the reconnected producer
+  // will have a different connection id (even before it has finished
+  // connecting).
+  registered_data_sources_.reset();
+  // Keep the old service around as a dead connection in case it has active
+  // trace writers. We can't clear |service_| here because other threads may be
+  // concurrently creating new trace writers. The reconnection below will
+  // atomically swap the new service in place of the old one.
+  dead_services_.push_back(service_);
+  // Try reconnecting the producer.
+  muxer_->OnProducerDisconnected(this);
 }
 
 void TracingMuxerImpl::ProducerImpl::OnTracingSetup() {
@@ -149,6 +168,23 @@ void TracingMuxerImpl::ProducerImpl::ClearIncrementalState(
   // TODO(skyostil): Mark each affected data source's incremental state as
   // needing to be cleared.
 }
+
+void TracingMuxerImpl::ProducerImpl::SweepDeadServices() {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  auto is_unused = [](const std::shared_ptr<ProducerEndpoint>& endpoint) {
+    auto* arbiter = endpoint->MaybeSharedMemoryArbiter();
+    return !arbiter || arbiter->TryShutdown();
+  };
+  for (auto it = dead_services_.begin(); it != dead_services_.end();) {
+    auto next_it = it;
+    next_it++;
+    if (is_unused(*it)) {
+      dead_services_.erase(it);
+    }
+    it = next_it;
+  }
+}
+
 // ----- End of TracingMuxerImpl::ProducerImpl methods.
 
 // ----- Begin of TracingMuxerImpl::ConsumerImpl
@@ -515,13 +551,14 @@ void TracingMuxerImpl::Initialize(const TracingInitArgs& args) {
     rb.type = type;
     rb.producer.reset(new ProducerImpl(this, backend_id,
                                        args.shmem_batch_commits_duration_ms));
-    TracingBackend::ConnectProducerArgs conn_args;
-    conn_args.producer = rb.producer.get();
-    conn_args.producer_name = platform_->GetCurrentProcessName();
-    conn_args.task_runner = task_runner_.get();
-    conn_args.shmem_size_hint_bytes = args.shmem_size_hint_kb * 1024;
-    conn_args.shmem_page_size_hint_bytes = args.shmem_page_size_hint_kb * 1024;
-    rb.producer->Initialize(rb.backend->ConnectProducer(conn_args));
+    rb.producer_conn_args.producer = rb.producer.get();
+    rb.producer_conn_args.producer_name = platform_->GetCurrentProcessName();
+    rb.producer_conn_args.task_runner = task_runner_.get();
+    rb.producer_conn_args.shmem_size_hint_bytes =
+        args.shmem_size_hint_kb * 1024;
+    rb.producer_conn_args.shmem_page_size_hint_bytes =
+        args.shmem_page_size_hint_kb * 1024;
+    rb.producer->Initialize(rb.backend->ConnectProducer(rb.producer_conn_args));
   };
 
   if (args.backends & kSystemBackend) {
@@ -753,12 +790,15 @@ void TracingMuxerImpl::StopDataSource_AsyncEnd(
   // |backends_| is append-only, Backend instances are always valid.
   PERFETTO_CHECK(backend_id < backends_.size());
   ProducerImpl* producer = backends_[backend_id].producer.get();
-  if (producer && producer->connected_) {
+  if (!producer)
+    return;
+  if (producer->connected_) {
     // Flush any commits that might have been batched by SharedMemoryArbiter.
     producer->service_->MaybeSharedMemoryArbiter()
         ->FlushPendingCommitDataRequests();
     producer->service_->NotifyDataSourceStopped(instance_id);
   }
+  producer->SweepDeadServices();
 }
 
 void TracingMuxerImpl::DestroyStoppedTraceWritersForCurrentThread() {
@@ -1020,6 +1060,32 @@ void TracingMuxerImpl::OnConsumerDisconnected(ConsumerImpl* consumer) {
   }
 }
 
+void TracingMuxerImpl::OnProducerDisconnected(ProducerImpl* producer) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  for (RegisteredBackend& backend : backends_) {
+    if (backend.producer.get() != producer)
+      continue;
+    // Try reconnecting the disconnected producer. If the connection succeeds,
+    // all the data sources will be automatically re-registered.
+    if (producer->connection_id_ > kMaxProducerReconnections) {
+      // Avoid reconnecting a failing producer too many times. Instead we just
+      // leak the producer instead of trying to avoid further complicating
+      // cross-thread trace writer creation.
+      PERFETTO_ELOG("Producer disconnected too many times; not reconnecting");
+      continue;
+    }
+    backend.producer->Initialize(
+        backend.backend->ConnectProducer(backend.producer_conn_args));
+  }
+
+  // Increment the generation counter to atomically ensure that:
+  // 1. Old trace writers from the severed connection eventually get cleaned up
+  //    by DestroyStoppedTraceWritersForCurrentThread().
+  // 2. No new trace writers can be created for the SharedMemoryArbiter from the
+  //    old connection.
+  TracingMuxer::generation_++;
+}
+
 TracingMuxerImpl::FindDataSourceRes TracingMuxerImpl::FindDataSource(
     TracingBackendId backend_id,
     DataSourceInstanceID instance_id) {
@@ -1042,8 +1108,23 @@ std::unique_ptr<TraceWriterBase> TracingMuxerImpl::CreateTraceWriter(
     DataSourceState* data_source,
     BufferExhaustedPolicy buffer_exhausted_policy) {
   ProducerImpl* producer = backends_[data_source->backend_id].producer.get();
-  return producer->service_->CreateTraceWriter(data_source->buffer_id,
-                                               buffer_exhausted_policy);
+  // Atomically load the current service endpoint. We keep the pointer as a
+  // shared pointer on the stack to guard against it from being concurrently
+  // modified on the thread by ProducerImpl::Initialize() swapping in a
+  // reconnected service on the muxer task runner thread.
+  //
+  // The endpoint may also be concurrently modified by SweepDeadServices()
+  // clearing out old disconnected services. We guard against that by
+  // SharedMemoryArbiter keeping track of any outstanding trace writers. After
+  // shutdown has started, the trace writer created below will be a null one
+  // which will drop any written data. See SharedMemoryArbiter::TryShutdown().
+  //
+  // We use an atomic pointer instead of holding a lock because
+  // CreateTraceWriter posts tasks under the hood.
+  std::shared_ptr<ProducerEndpoint> service =
+      std::atomic_load(&producer->service_);
+  return service->CreateTraceWriter(data_source->buffer_id,
+                                    buffer_exhausted_policy);
 }
 
 // This is called via the public API Tracing::NewTrace().

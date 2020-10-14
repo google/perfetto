@@ -23,6 +23,7 @@
 #include <array>
 #include <atomic>
 #include <bitset>
+#include <list>
 #include <map>
 #include <memory>
 #include <vector>
@@ -162,6 +163,8 @@ class TracingMuxerImpl : public TracingMuxer {
     void Flush(FlushRequestID, const DataSourceInstanceID*, size_t) override;
     void ClearIncrementalState(const DataSourceInstanceID*, size_t) override;
 
+    void SweepDeadServices();
+
     PERFETTO_THREAD_CHECKER(thread_checker_)
     TracingMuxerImpl* const muxer_;
     TracingBackendId const backend_id_;
@@ -175,7 +178,23 @@ class TracingMuxerImpl : public TracingMuxer {
     // can register before the producer is fully connected.
     std::bitset<kMaxDataSources> registered_data_sources_{};
 
-    std::unique_ptr<ProducerEndpoint> service_;  // Keep last.
+    // A collection of disconnected service endpoints. Since trace writers on
+    // arbitrary threads might continue writing data to disconnected services,
+    // we keep the old services around and periodically try to clean up ones
+    // that no longer have any writers (see SweepDeadServices).
+    std::list<std::shared_ptr<ProducerEndpoint>> dead_services_;
+
+    // The currently active service endpoint is maintained as an atomic shared
+    // pointer so it won't get deleted from underneath threads that are creating
+    // trace writers. At any given time one endpoint can be shared (and thus
+    // kept alive) by the |service_| pointer, an entry in |dead_services_| and
+    // as a pointer on the stack in CreateTraceWriter() (on an arbitrary
+    // thread). The endpoint is never shared outside ProducerImpl itself.
+    //
+    // WARNING: Any *write* access to this variable or any *read* access from a
+    // non-muxer thread must be done through std::atomic_{load,store} to avoid
+    // data races.
+    std::shared_ptr<ProducerEndpoint> service_;  // Keep last.
   };
 
   // For each TracingSession created by the API client (Tracing::NewTrace() we
@@ -302,6 +321,7 @@ class TracingMuxerImpl : public TracingMuxer {
     TracingBackendId id = 0;
     BackendType type{};
 
+    TracingBackend::ConnectProducerArgs producer_conn_args;
     std::unique_ptr<ProducerImpl> producer;
 
     // The calling code can request more than one concurrently active tracing
@@ -313,6 +333,7 @@ class TracingMuxerImpl : public TracingMuxer {
   void Initialize(const TracingInitArgs& args);
   ConsumerImpl* FindConsumer(TracingSessionGlobalID session_id);
   void OnConsumerDisconnected(ConsumerImpl* consumer);
+  void OnProducerDisconnected(ProducerImpl* producer);
 
   struct FindDataSourceRes {
     FindDataSourceRes() = default;

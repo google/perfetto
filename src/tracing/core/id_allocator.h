@@ -39,6 +39,8 @@ class IdAllocatorGeneric {
   uint32_t AllocateGeneric();
   void FreeGeneric(uint32_t);
 
+  bool IsEmpty() const;
+
  private:
   IdAllocatorGeneric(const IdAllocatorGeneric&) = delete;
   IdAllocatorGeneric& operator=(const IdAllocatorGeneric&) = delete;
