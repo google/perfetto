@@ -65,6 +65,9 @@ TraceWriterImpl::~TraceWriterImpl() {
     cur_packet_->Finalize();
     Flush();
   }
+  // This call may cause the shared memory arbiter (and the underlying memory)
+  // to get asynchronously deleted if this was the last trace writer targeting
+  // the arbiter and the arbiter was marked for shutdown.
   shmem_arbiter_->ReleaseWriterID(id_);
 }
 

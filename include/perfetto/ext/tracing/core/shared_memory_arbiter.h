@@ -144,6 +144,14 @@ class PERFETTO_EXPORT SharedMemoryArbiter {
   virtual void FlushPendingCommitDataRequests(
       std::function<void()> callback = {}) = 0;
 
+  // Attempts to shut down this arbiter. This function prevents new trace
+  // writers from being created for this this arbiter, but if there are any
+  // existing trace writers, the shutdown cannot proceed and this funtion
+  // returns false. The caller should not delete the arbiter before all of its
+  // associated trace writers have been destroyed and this function returns
+  // true.
+  virtual bool TryShutdown() = 0;
+
   // Create a bound arbiter instance. Args:
   // |SharedMemory|: the shared memory buffer to use.
   // |page_size|: a multiple of 4KB that defines the granularity of tracing
