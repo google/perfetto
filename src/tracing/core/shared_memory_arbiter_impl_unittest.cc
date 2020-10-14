@@ -276,6 +276,22 @@ TEST_P(SharedMemoryArbiterImplTest, WriterIDsAllocation) {
   EXPECT_TRUE(id_checking_endpoint.unregistered_ids_.all());
 }
 
+TEST_P(SharedMemoryArbiterImplTest, Shutdown) {
+  std::unique_ptr<TraceWriter> writer = arbiter_->CreateTraceWriter(1);
+  EXPECT_TRUE(writer);
+  EXPECT_FALSE(arbiter_->TryShutdown());
+
+  // We still get a valid trace writer after shutdown, but it's a null one
+  // that's not connected to the arbiter.
+  std::unique_ptr<TraceWriter> writer2 = arbiter_->CreateTraceWriter(2);
+  EXPECT_TRUE(writer2);
+  EXPECT_EQ(writer2->writer_id(), 0);
+
+  // Shutdown will succeed once the only non-null writer goes away.
+  writer.reset();
+  EXPECT_TRUE(arbiter_->TryShutdown());
+}
+
 // Verify that getting a new chunk doesn't stall when kDrop policy is chosen.
 TEST_P(SharedMemoryArbiterImplTest, BufferExhaustedPolicyDrop) {
   // Grab all chunks in the SMB.
