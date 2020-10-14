@@ -28,6 +28,7 @@ ftrace_proto_names = [
   "cpuhp.proto",
   "ext4.proto",
   "f2fs.proto",
+  "fastrpc.proto",
   "fence.proto",
   "filemap.proto",
   "ftrace.proto",
