@@ -2797,6 +2797,7 @@ perfetto_proto_library(
         "protos/perfetto/trace/track_event/chrome_message_pump.proto",
         "protos/perfetto/trace/track_event/chrome_mojo_event_info.proto",
         "protos/perfetto/trace/track_event/chrome_process_descriptor.proto",
+        "protos/perfetto/trace/track_event/chrome_renderer_scheduler_state.proto",
         "protos/perfetto/trace/track_event/chrome_thread_descriptor.proto",
         "protos/perfetto/trace/track_event/chrome_user_event.proto",
         "protos/perfetto/trace/track_event/counter_descriptor.proto",
