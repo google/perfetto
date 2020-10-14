@@ -83,6 +83,8 @@ void TracingMuxerImpl::ProducerImpl::Initialize(
   PERFETTO_DCHECK(!service_);
   connection_id_++;
   service_ = std::move(endpoint);
+  // Don't try to use the service here since it may not have connected yet. See
+  // OnConnect().
 }
 
 void TracingMuxerImpl::ProducerImpl::OnConnect() {
@@ -161,14 +163,17 @@ void TracingMuxerImpl::ConsumerImpl::Initialize(
     std::unique_ptr<ConsumerEndpoint> endpoint) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   service_ = std::move(endpoint);
-  // Observe data source instance events so we get notified when tracing starts.
-  service_->ObserveEvents(ObservableEvents::TYPE_DATA_SOURCES_INSTANCES);
+  // Don't try to use the service here since it may not have connected yet. See
+  // OnConnect().
 }
 
 void TracingMuxerImpl::ConsumerImpl::OnConnect() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_DCHECK(!connected_);
   connected_ = true;
+
+  // Observe data source instance events so we get notified when tracing starts.
+  service_->ObserveEvents(ObservableEvents::TYPE_DATA_SOURCES_INSTANCES);
 
   // If the API client configured and started tracing before we connected,
   // tell the backend about it now.
