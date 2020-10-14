@@ -78,10 +78,9 @@ export class ChromeSliceTrack extends Track<Config, Data> {
       const titleId = data.titles[i];
       const sliceId = data.sliceIds[i];
       const isInstant = data.isInstant[i];
+      const isIncomplete = data.isIncomplete[i];
       const title = data.strings[titleId];
-      let incompleteSlice = false;
-      if (toNs(tEnd) - toNs(tStart) === -1) {  // incomplete slice
-        incompleteSlice = true;
+      if (isIncomplete) {  // incomplete slice
         tEnd = tStart + INCOMPLETE_SLICE_TIME_S;
       }
 
@@ -121,7 +120,7 @@ export class ChromeSliceTrack extends Track<Config, Data> {
         ctx.fill();
         continue;
       }
-      if (incompleteSlice && rect.width > SLICE_HEIGHT / 4) {
+      if (isIncomplete && rect.width > SLICE_HEIGHT / 4) {
         drawIncompleteSlice(
             ctx, rect.left, rect.top, rect.width, SLICE_HEIGHT, color);
       } else {
