@@ -341,3 +341,4 @@ cpuhp/cpuhp_exit
 cpuhp/cpuhp_multi_enter
 cpuhp/cpuhp_enter
 cpuhp/cpuhp_latency
+fastrpc/fastrpc_dma_stat
