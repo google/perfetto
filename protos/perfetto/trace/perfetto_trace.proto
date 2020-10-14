@@ -6031,6 +6031,28 @@ message ChromeMojoEventInfo {
 
 // End of protos/perfetto/trace/track_event/chrome_mojo_event_info.proto
 
+// Begin of protos/perfetto/trace/track_event/chrome_renderer_scheduler_state.proto
+
+// Describes the state of the RendererScheduler for a given Renderer Process.
+
+// RAIL Mode is an indication of the kind of work that a Renderer is currently
+// performing which is in turn used to prioritise work accordingly.
+// A fuller description of these modes can be found https://web.dev/rail/
+enum ChromeRAILMode {
+  RAIL_MODE_NONE = 0;
+  RAIL_MODE_RESPONSE = 1;
+  RAIL_MODE_ANIMATION = 2;
+  RAIL_MODE_IDLE = 3;
+  RAIL_MODE_LOAD = 4;
+}
+
+// Next id: 2
+message ChromeRendererSchedulerState {
+  optional ChromeRAILMode rail_mode = 1;
+}
+
+// End of protos/perfetto/trace/track_event/chrome_renderer_scheduler_state.proto
+
 // Begin of protos/perfetto/trace/track_event/chrome_user_event.proto
 
 // Details about a UI interaction initiated by the user, such as opening or
@@ -6118,7 +6140,7 @@ message TaskExecution {
 // their default track association) can be emitted as part of a
 // TrackEventDefaults message.
 //
-// Next reserved id: 13 (up to 15). Next id: 39.
+// Next reserved id: 13 (up to 15). Next id: 41.
 message TrackEvent {
   // Names of categories of the event. In the client library, categories are a
   // way to turn groups of individual events on or off.
@@ -6248,6 +6270,7 @@ message TrackEvent {
   optional ChromeHistogramSample chrome_histogram_sample = 28;
   optional ChromeLatencyInfo chrome_latency_info = 29;
   optional ChromeFrameReporter chrome_frame_reporter = 32;
+  optional ChromeRendererSchedulerState chrome_renderer_scheduler_state = 40;
 
   // This field is used only if the source location represents the function that
   // executes during this event.
