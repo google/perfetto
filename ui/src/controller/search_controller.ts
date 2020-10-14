@@ -21,7 +21,10 @@ import {App} from './globals';
 
 export function escapeQuery(s: string): string {
   // See https://www.sqlite.org/lang_expr.html#:~:text=A%20string%20constant
-  return `'%${s.replace('\'', '\'\'')}%'`;
+  s = s.replace(/\'/g, '\'\'');
+  s = s.replace(/_/g, '^_');
+  s = s.replace(/%/g, '^%');
+  return `'%${s}%' escape '^'`;
 }
 
 export interface SearchControllerArgs {
