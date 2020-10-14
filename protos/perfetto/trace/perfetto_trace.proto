@@ -3597,6 +3597,16 @@ message F2fsWriteEndFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/f2fs.proto
 
+// Begin of protos/perfetto/trace/ftrace/fastrpc.proto
+
+message FastrpcDmaStatFtraceEvent {
+  optional int32 cid = 1;
+  optional int64 len = 2;
+  optional uint64 total_allocated = 3;
+}
+
+// End of protos/perfetto/trace/ftrace/fastrpc.proto
+
 // Begin of protos/perfetto/trace/ftrace/fence.proto
 
 message FenceInitFtraceEvent {
@@ -4901,6 +4911,7 @@ message FtraceEvent {
     CpuhpMultiEnterFtraceEvent cpuhp_multi_enter = 344;
     CpuhpEnterFtraceEvent cpuhp_enter = 345;
     CpuhpLatencyFtraceEvent cpuhp_latency = 346;
+    FastrpcDmaStatFtraceEvent fastrpc_dma_stat = 347;
   }
 }
 
