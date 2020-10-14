@@ -85,15 +85,18 @@ GROUP BY group_id;
 CREATE TABLE suspend_slice_ AS
 SELECT
        ts,
-       lead_ts - ts AS dur
+       dur
 FROM (
     SELECT
        ts,
+       ts - lag(ts) OVER w AS lag_dur,
+       lead(ts) OVER w - ts AS dur,
        start,
        event,
        lag(start) OVER w AS lag_start,
        lag(event) OVER w AS lag_event,
-       lead(ts) OVER w AS lead_ts,
+       lag(start, 2) OVER w AS lag_2_start,
+       lag(event, 2) OVER w AS lag_2_event,
        lead(start) OVER w AS lead_start,
        lead(event) OVER w AS lead_event,
        lead(start, 2) OVER w AS lead_2_start,
@@ -109,8 +112,8 @@ FROM (
     WINDOW w AS (ORDER BY ts)
 )
 -- We want to find the start and end events with action='timekeeping_freeze'.
--- Unfortunately a bug leads to the action string being lost.
--- In practice, these events always show up in a sequence like the following:
+-- Unfortunately b/70292203 leads to the action string being lost.
+-- In practice, these events often show up in a sequence like the following:
 -- start = 1, event = 1     [string would have been 'machine_suspend']
 -- start = 1, event = (any) [string would have been 'timekeeping_freeze'] *
 --
@@ -121,10 +124,30 @@ FROM (
 --
 -- So we look for this pattern of start and event, anchored on the event marked
 -- with "*".
-WHERE lag_start = 1 AND lag_event = 1
-  AND start = 1
-  AND lead_start = 0
-  AND lead_2_start = 0 AND lead_2_event = 1;
+WHERE (
+    lag_start = 1 AND lag_event = 1
+    AND start = 1
+    AND lead_start = 0
+    AND lead_2_start = 0 AND lead_2_event = 1
+)
+-- Or in newer kernels we seem to have a very different pattern. We can take
+-- advantage of that fact that we get several events with identical timestamp
+-- just before sleeping (normally this never happens):
+-- gap = 0, start = 1, event = 3
+-- gap = 0, start = 0, event = 3
+-- gap = 0, start = 1, event = 0
+--
+--  (sleep happens here)
+--
+-- gap = (any), start = 0, event = 0
+
+OR (
+    lag_dur = 0
+    AND lead_start = 0 AND lead_event = 0
+    AND start = 1 AND event = 0
+    AND lag_start = 0 AND lag_event = 3
+    AND lag_2_start = 1 AND lag_2_event = 3
+);
 
 SELECT RUN_METRIC('android/global_counter_span_view.sql',
   'table_name', 'screen_state',
