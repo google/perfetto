@@ -28,6 +28,7 @@ import "protos/perfetto/trace/ftrace/compaction.proto";
 import "protos/perfetto/trace/ftrace/cpuhp.proto";
 import "protos/perfetto/trace/ftrace/ext4.proto";
 import "protos/perfetto/trace/ftrace/f2fs.proto";
+import "protos/perfetto/trace/ftrace/fastrpc.proto";
 import "protos/perfetto/trace/ftrace/fence.proto";
 import "protos/perfetto/trace/ftrace/filemap.proto";
 import "protos/perfetto/trace/ftrace/ftrace.proto";
@@ -430,5 +431,6 @@ message FtraceEvent {
     CpuhpMultiEnterFtraceEvent cpuhp_multi_enter = 344;
     CpuhpEnterFtraceEvent cpuhp_enter = 345;
     CpuhpLatencyFtraceEvent cpuhp_latency = 346;
+    FastrpcDmaStatFtraceEvent fastrpc_dma_stat = 347;
   }
 }

@@ -7,3 +7,4 @@ clk:clk_enable
 clk:clk_disable
 clk:clk_set_rate
 sde:tracing_mark_write
+fastrpc:fastrpc_dma_stat
