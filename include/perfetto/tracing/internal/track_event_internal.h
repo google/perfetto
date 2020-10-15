@@ -50,6 +50,7 @@ class PERFETTO_EXPORT BaseTrackEventInternedDataIndex {
 
 #if PERFETTO_DCHECK_IS_ON()
   const char* type_id_ = nullptr;
+  const void* add_function_ptr_ = nullptr;
 #endif  // PERFETTO_DCHECK_IS_ON()
 };
 
