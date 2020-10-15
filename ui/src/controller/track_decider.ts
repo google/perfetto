@@ -37,6 +37,7 @@ import {PROCESS_SUMMARY_TRACK} from '../tracks/process_summary/common';
 import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state/common';
 
 interface ThreadSliceTrack {
+  name: string;
   maxDepth: number;
   trackId: number;
 }
@@ -352,18 +353,29 @@ export async function decideTracks(
   // Local experiments shows getting maxDepth separately is ~2x faster than
   // joining with threads and processes.
   const maxDepthQuery = await engine.query(`
-        select thread_track.utid, thread_track.id, max(depth) as maxDepth
+        select
+          thread_track.utid,
+          thread_track.id,
+          thread_track.name,
+          max(depth) as maxDepth
         from slice
         inner join thread_track on slice.track_id = thread_track.id
         group by thread_track.id
       `);
 
-  const utidToThreadTrack = new Map<number, ThreadSliceTrack>();
+  const utidToThreadTrack = new Map<number, ThreadSliceTrack[]>();
   for (let i = 0; i < maxDepthQuery.numRecords; i++) {
     const utid = maxDepthQuery.columns[0].longValues![i];
     const trackId = maxDepthQuery.columns[1].longValues![i];
-    const maxDepth = maxDepthQuery.columns[2].longValues![i];
-    utidToThreadTrack.set(utid, {maxDepth, trackId});
+    const name = maxDepthQuery.columns[2].stringValues![i];
+    const maxDepth = maxDepthQuery.columns[3].longValues![i];
+    const tracks = utidToThreadTrack.get(utid);
+    const track = {maxDepth, trackId, name};
+    if (tracks) {
+      tracks.push(track);
+    } else {
+      utidToThreadTrack.set(utid, [track]);
+    }
   }
 
   // For backwards compatability with older TP versions where
@@ -440,8 +452,9 @@ export async function decideTracks(
     const threadHasCpuSamples = !!row.hasCpuSamples;
     const isMainThread = tid === pid;
 
-    const threadTrack = utid === null ? undefined : utidToThreadTrack.get(utid);
-    if (threadTrack === undefined &&
+    const threadTracks =
+        utid === null ? undefined : utidToThreadTrack.get(utid);
+    if (threadTracks === undefined &&
         (upid === null || counterUpids.get(upid) === undefined) &&
         counterUtids.get(utid) === undefined && !threadHasSched &&
         (upid === null || upid !== null && !heapUpids.has(upid))) {
@@ -586,16 +599,18 @@ export async function decideTracks(
       });
     }
 
-    if (threadTrack !== undefined) {
+    if (threadTracks !== undefined) {
       const kind = SLICE_TRACK_KIND;
-      tracksToAdd.push({
-        engineId,
-        kind,
-        name: getTrackName({utid, tid, threadName, kind}),
-        trackGroup: pUuid,
-        isMainThread,
-        config: {maxDepth: threadTrack.maxDepth, trackId: threadTrack.trackId},
-      });
+      for (const config of threadTracks) {
+        tracksToAdd.push({
+          engineId,
+          kind,
+          name: getTrackName({name: config.name, utid, tid, threadName, kind}),
+          trackGroup: pUuid,
+          isMainThread,
+          config: {maxDepth: config.maxDepth, trackId: config.trackId},
+        });
+      }
     }
   }
 
