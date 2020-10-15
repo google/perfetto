@@ -79,9 +79,13 @@ void TestHelper::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
   }
 }
 
+void TestHelper::StartService() {
+  service_thread_.Start();
+}
+
 void TestHelper::StartServiceIfRequired() {
 #if PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
-  service_thread_.Start();
+  StartService();
 #endif
 }
 

@@ -18,12 +18,56 @@
 
 #include "perfetto/base/proc_utils.h"
 #include "perfetto/base/time.h"
+#include "perfetto/ext/base/temp_file.h"
+#include "src/tracing/internal/tracing_muxer_impl.h"
+#include "test/test_helper.h"
+
+#include <sstream>
 
 namespace perfetto {
 namespace test {
+namespace {
+
+class InProcessSystemService {
+ public:
+  InProcessSystemService() : test_helper_(&task_runner_) {
+    test_helper_.StartService();
+  }
+
+ private:
+  perfetto::base::TestTaskRunner task_runner_;
+  perfetto::TestHelper test_helper_;
+};
+
+}  // namespace
 
 int32_t GetCurrentProcessId() {
   return static_cast<int32_t>(base::GetProcessId());
+}
+
+void StartSystemService() {
+  static InProcessSystemService* system_service;
+
+  // If there already was a system service running, make sure the new one is
+  // running before tearing down the old one. This avoids a 1 second
+  // reconnection delay between each test since the connection to the new
+  // service succeeds immediately.
+  std::unique_ptr<InProcessSystemService> old_service(system_service);
+  system_service = new InProcessSystemService();
+
+  // Tear down the service at process exit to make sure temporary files get
+  // deleted.
+  static bool cleanup_registered;
+  if (!cleanup_registered) {
+    atexit([] { delete system_service; });
+    cleanup_registered = true;
+  }
+}
+
+void SyncProducers() {
+  auto* muxer = reinterpret_cast<perfetto::internal::TracingMuxerImpl*>(
+      perfetto::internal::TracingMuxer::Get());
+  muxer->SyncProducersForTesting();
 }
 
 }  // namespace test

@@ -1,6 +1,10 @@
 Unreleased:
   Tracing service and probes:
-    *
+    * Added support for recording traces from a system service through the
+      client API.
+    * The client library now reconnects producers automatically if the
+      connection to the tracing service is lost. Also fixed crashes in ongoing
+      tracing sessions when a disconnect occurs.
   Trace Processor:
     *
   UI:
