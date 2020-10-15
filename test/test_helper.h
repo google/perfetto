@@ -53,7 +53,10 @@ class ServiceThread {
       svc_ = ServiceIPCHost::CreateInstance(runner_->get());
       unlink(producer_socket_.c_str());
       unlink(consumer_socket_.c_str());
-
+      setenv("PERFETTO_PRODUCER_SOCK_NAME", producer_socket_.c_str(),
+             /*overwrite=*/true);
+      setenv("PERFETTO_CONSUMER_SOCK_NAME", consumer_socket_.c_str(),
+             /*overwrite=*/true);
       bool res =
           svc_->Start(producer_socket_.c_str(), consumer_socket_.c_str());
       PERFETTO_CHECK(res);
@@ -171,6 +174,11 @@ class TestHelper : public Consumer {
   void OnTraceStats(bool, const TraceStats&) override;
   void OnObservableEvents(const ObservableEvents&) override;
 
+  // Starts the tracing service unconditionally.
+  void StartService();
+
+  // Starts the tracing service unless the build was configured to use an
+  // existing one running on the system.
   void StartServiceIfRequired();
 
   // Connects the producer and waits that the service has seen the
