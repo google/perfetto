@@ -111,7 +111,9 @@ source_set("api_test_support") {
   testonly = true
   deps = [
     "../../../gn:default_deps",
+    "../../../test:test_helper",
     "../../base",
+    "../../tracing:client_api_without_backends",
   ]
   sources = [
     "api_test_support.cc",
