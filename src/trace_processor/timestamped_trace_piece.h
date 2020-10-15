@@ -55,7 +55,11 @@ struct InlineSchedWaking {
 
 struct TracePacketData {
   TraceBlobView packet;
+  PacketSequenceStateGeneration* sequence_state;
+};
 
+struct FtraceEventData {
+  TraceBlobView event;
   PacketSequenceStateGeneration* sequence_state;
 };
 
@@ -95,8 +99,8 @@ struct TimestampedTracePiece {
         packet_idx(idx),
         type(Type::kTracePacket) {}
 
-  TimestampedTracePiece(int64_t ts, uint64_t idx, TraceBlobView tbv)
-      : ftrace_event(std::move(tbv)),
+  TimestampedTracePiece(int64_t ts, uint64_t idx, FtraceEventData fed)
+      : ftrace_event(std::move(fed)),
         timestamp(ts),
         packet_idx(idx),
         type(Type::kFtraceEvent) {}
@@ -153,7 +157,7 @@ struct TimestampedTracePiece {
       case Type::kInvalid:
         break;
       case Type::kFtraceEvent:
-        new (&ftrace_event) TraceBlobView(std::move(ttp.ftrace_event));
+        new (&ftrace_event) FtraceEventData(std::move(ttp.ftrace_event));
         break;
       case Type::kTracePacket:
         new (&packet_data) TracePacketData(std::move(ttp.packet_data));
@@ -208,7 +212,7 @@ struct TimestampedTracePiece {
       case Type::kInlineSchedWaking:
         break;
       case Type::kFtraceEvent:
-        ftrace_event.~TraceBlobView();
+        ftrace_event.~FtraceEventData();
         break;
       case Type::kTracePacket:
         packet_data.~TracePacketData();
@@ -243,7 +247,7 @@ struct TimestampedTracePiece {
 
   // Data for different types of TimestampedTracePiece.
   union {
-    TraceBlobView ftrace_event;
+    FtraceEventData ftrace_event;
     TracePacketData packet_data;
     InlineSchedSwitch sched_switch;
     InlineSchedWaking sched_waking;
