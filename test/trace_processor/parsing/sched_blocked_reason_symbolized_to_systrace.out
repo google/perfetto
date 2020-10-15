@@ -1,0 +1,8 @@
+"line"
+"          <idle>-0     (-----) [002] .... 0.000999: sched_blocked_reason: pid=102 io_wait=1 caller=filemap_fault"
+"          <idle>-0     (-----) [003] .... 0.000999: sched_blocked_reason: pid=105 io_wait=1 caller=some_fn"
+"          <idle>-0     (-----) [001] .... 0.001000: sched_blocked_reason: pid=100 io_wait=0 caller=filemap_fault"
+"          <idle>-0     (-----) [001] .... 0.001001: sched_blocked_reason: pid=101 io_wait=0 caller=2"
+"          <idle>-0     (-----) [002] .... 0.001002: sched_blocked_reason: pid=103 io_wait=1 caller=2"
+"          <idle>-0     (-----) [001] .... 0.001003: sched_blocked_reason: pid=100 io_wait=1 caller=some_other_fn"
+"          <idle>-0     (-----) [002] .... 0.001005: sched_blocked_reason: pid=104 io_wait=1 caller=filemap_fault"
