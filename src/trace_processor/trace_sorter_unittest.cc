@@ -49,9 +49,9 @@ class MockTraceParser : public ProtoTraceParser {
                          int64_t timestamp,
                          TimestampedTracePiece ttp) override {
     bool isNonCompact = ttp.type == TimestampedTracePiece::Type::kFtraceEvent;
-    MOCK_ParseFtracePacket(cpu, timestamp,
-                           isNonCompact ? ttp.ftrace_event.data() : nullptr,
-                           isNonCompact ? ttp.ftrace_event.length() : 0);
+    MOCK_ParseFtracePacket(
+        cpu, timestamp, isNonCompact ? ttp.ftrace_event.event.data() : nullptr,
+        isNonCompact ? ttp.ftrace_event.event.length() : 0);
   }
 
   MOCK_METHOD3(MOCK_ParseTracePacket,
@@ -93,10 +93,11 @@ class TraceSorterTest : public ::testing::Test {
 };
 
 TEST_F(TraceSorterTest, TestFtrace) {
+  PacketSequenceState state(&context_);
   TraceBlobView view = test_buffer_.slice(0, 1);
   EXPECT_CALL(*parser_, MOCK_ParseFtracePacket(0, 1000, view.data(), 1));
   context_.sorter->PushFtraceEvent(0 /*cpu*/, 1000 /*timestamp*/,
-                                   std::move(view));
+                                   std::move(view), &state);
   context_.sorter->FinalizeFtraceEventBatch(0);
   context_.sorter->ExtractEventsForced();
 }
@@ -126,12 +127,12 @@ TEST_F(TraceSorterTest, Ordering) {
 
   context_.sorter->SetWindowSizeNs(200);
   context_.sorter->PushFtraceEvent(2 /*cpu*/, 1200 /*timestamp*/,
-                                   std::move(view_4));
+                                   std::move(view_4), &state);
   context_.sorter->FinalizeFtraceEventBatch(2);
   context_.sorter->PushTracePacket(1001, &state, std::move(view_2));
   context_.sorter->PushTracePacket(1100, &state, std::move(view_3));
   context_.sorter->PushFtraceEvent(0 /*cpu*/, 1000 /*timestamp*/,
-                                   std::move(view_1));
+                                   std::move(view_1), &state);
 
   context_.sorter->FinalizeFtraceEventBatch(0);
   context_.sorter->ExtractEventsForced();
@@ -159,13 +160,13 @@ TEST_F(TraceSorterTest, SetWindowSize) {
 
   context_.sorter->SetWindowSizeNs(200);
   context_.sorter->PushFtraceEvent(2 /*cpu*/, 1200 /*timestamp*/,
-                                   std::move(view_4));
+                                   std::move(view_4), &state);
   context_.sorter->FinalizeFtraceEventBatch(2);
   context_.sorter->PushTracePacket(1001, &state, std::move(view_2));
   context_.sorter->PushTracePacket(1100, &state, std::move(view_3));
 
   context_.sorter->PushFtraceEvent(0 /*cpu*/, 1000 /*timestamp*/,
-                                   std::move(view_1));
+                                   std::move(view_1), &state);
   context_.sorter->FinalizeFtraceEventBatch(0);
 
   // At this point, we should just flush the 1000 and 1001 packets.
@@ -188,6 +189,7 @@ TEST_F(TraceSorterTest, SetWindowSize) {
 // Tests that the output of the TraceSorter matches the timestamp order
 // (% events happening at the same time on different CPUs).
 TEST_F(TraceSorterTest, MultiQueueSorting) {
+  PacketSequenceState state(&context_);
   std::minstd_rand0 rnd_engine(0);
   std::map<int64_t /*ts*/, std::vector<uint32_t /*cpu*/>> expectations;
 
@@ -215,7 +217,8 @@ TEST_F(TraceSorterTest, MultiQueueSorting) {
     for (int j = 0; j < num_cpus; j++) {
       uint32_t cpu = static_cast<uint32_t>(rnd_engine() % 32);
       expectations[ts].push_back(cpu);
-      context_.sorter->PushFtraceEvent(cpu, ts, TraceBlobView(nullptr, 0, 0));
+      context_.sorter->PushFtraceEvent(cpu, ts, TraceBlobView(nullptr, 0, 0),
+                                       &state);
       context_.sorter->FinalizeFtraceEventBatch(cpu);
     }
   }

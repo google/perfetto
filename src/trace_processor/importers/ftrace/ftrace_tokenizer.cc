@@ -35,7 +35,8 @@ using protozero::proto_utils::MakeTagVarInt;
 using protozero::proto_utils::ParseVarInt;
 
 PERFETTO_ALWAYS_INLINE
-void FtraceTokenizer::TokenizeFtraceBundle(TraceBlobView bundle) {
+void FtraceTokenizer::TokenizeFtraceBundle(TraceBlobView bundle,
+                                           PacketSequenceState* state) {
   protos::pbzero::FtraceEventBundle::Decoder decoder(bundle.data(),
                                                      bundle.length());
 
@@ -59,13 +60,15 @@ void FtraceTokenizer::TokenizeFtraceBundle(TraceBlobView bundle) {
   for (auto it = decoder.event(); it; ++it) {
     protozero::ConstBytes event = *it;
     size_t off = bundle.offset_of(event.data);
-    TokenizeFtraceEvent(cpu, bundle.slice(off, event.size));
+    TokenizeFtraceEvent(cpu, bundle.slice(off, event.size), state);
   }
   context_->sorter->FinalizeFtraceEventBatch(cpu);
 }
 
 PERFETTO_ALWAYS_INLINE
-void FtraceTokenizer::TokenizeFtraceEvent(uint32_t cpu, TraceBlobView event) {
+void FtraceTokenizer::TokenizeFtraceEvent(uint32_t cpu,
+                                          TraceBlobView event,
+                                          PacketSequenceState* state) {
   constexpr auto kTimestampFieldNumber =
       protos::pbzero::FtraceEvent::kTimestampFieldNumber;
   const uint8_t* data = event.data();
@@ -96,11 +99,10 @@ void FtraceTokenizer::TokenizeFtraceEvent(uint32_t cpu, TraceBlobView event) {
     return;
   }
 
-  int64_t timestamp = static_cast<int64_t>(raw_timestamp);
-
   // We don't need to parse this packet, just push it to be sorted with
   // the timestamp.
-  context_->sorter->PushFtraceEvent(cpu, timestamp, std::move(event));
+  int64_t timestamp = static_cast<int64_t>(raw_timestamp);
+  context_->sorter->PushFtraceEvent(cpu, timestamp, std::move(event), state);
 }
 
 PERFETTO_ALWAYS_INLINE
