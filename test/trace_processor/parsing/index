@@ -137,3 +137,7 @@ flow_events_json_v2.json flow_events.sql flow_events_json_v2.out
 # Parsing sched_blocked_reason
 sched_blocked_proto.py sched_blocked_reason.sql sched_blocked_proto_sched_blocked_reason.out
 sched_blocked_systrace.systrace sched_blocked_reason.sql sched_blocked_systrace_sched_blocked_reason.out
+
+# Kernel symbolization
+sched_blocked_reason_symbolized.textproto sched_blocked_reason_function.sql sched_blocked_reason_symbolized_sched_blocked_reason_function.out
+sched_blocked_reason_symbolized.textproto ../common/to_systrace.sql sched_blocked_reason_symbolized_to_systrace.out

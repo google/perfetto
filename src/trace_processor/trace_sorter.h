@@ -106,10 +106,12 @@ class TraceSorter {
 
   inline void PushFtraceEvent(uint32_t cpu,
                               int64_t timestamp,
-                              TraceBlobView event) {
+                              TraceBlobView event,
+                              PacketSequenceState* state) {
     set_ftrace_batch_cpu_for_DCHECK(cpu);
-    GetQueue(cpu + 1)->Append(
-        TimestampedTracePiece(timestamp, packet_idx_++, std::move(event)));
+    GetQueue(cpu + 1)->Append(TimestampedTracePiece(
+        timestamp, packet_idx_++,
+        FtraceEventData{std::move(event), state->current_generation()}));
 
     // The caller must call FinalizeFtraceEventBatch() after having pushed a
     // batch of ftrace events. This is to amortize the overhead of handling

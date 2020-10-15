@@ -1,0 +1,112 @@
+packet {
+  ftrace_events {
+    cpu: 1
+    event {
+      timestamp: 1000000
+      pid: 0
+      sched_blocked_reason {
+        pid: 100
+        caller: 1
+        io_wait: 0
+      }
+    }
+    event {
+      timestamp: 1001000
+      pid: 0
+      sched_blocked_reason {
+        pid: 101
+        caller: 2
+        io_wait: 0
+      }
+    }
+  }
+  trusted_uid: 0
+  trusted_packet_sequence_id: 2
+  interned_data {
+    kernel_symbols {
+      iid: 1
+      str: "filemap_fault"
+    }
+  }
+  sequence_flags: 1
+  previous_packet_dropped: true
+}
+packet {
+  ftrace_events {
+    cpu: 2
+    event {
+      timestamp: 999000
+      pid: 0
+      sched_blocked_reason {
+        pid: 102
+        caller: 1
+        io_wait: 1
+      }
+    }
+    event {
+      timestamp: 1002000
+      pid: 0
+      sched_blocked_reason {
+        pid: 103
+        caller: 2
+        io_wait: 1
+      }
+    }
+    event {
+      timestamp: 1005000
+      pid: 0
+      sched_blocked_reason {
+        pid: 104
+        caller: 1
+        io_wait: 1
+      }
+    }
+  }
+  trusted_uid: 0
+  trusted_packet_sequence_id: 2
+}
+packet {
+  ftrace_events {
+    cpu: 3
+    event {
+      timestamp: 999000
+      pid: 0
+      sched_blocked_reason {
+        pid: 105
+        caller: 3
+        io_wait: 1
+      }
+    }
+  }
+  trusted_uid: 0
+  trusted_packet_sequence_id: 2
+  interned_data {
+    kernel_symbols {
+      iid: 3
+      str: "some_fn"
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 1
+    event {
+      timestamp: 1003000
+      pid: 0
+      sched_blocked_reason {
+        pid: 100
+        caller: 1
+        io_wait: 1
+      }
+    }
+  }
+  trusted_uid: 0
+  trusted_packet_sequence_id: 2
+  interned_data {
+    kernel_symbols {
+      iid: 1
+      str: "some_other_fn"
+    }
+  }
+  sequence_flags: 1
+}

@@ -46,7 +46,8 @@ class FtraceParser {
                              int64_t timestamp,
                              uint32_t cpu,
                              uint32_t pid,
-                             protozero::ConstBytes);
+                             protozero::ConstBytes,
+                             PacketSequenceStateGeneration*);
   void ParseSchedSwitch(uint32_t cpu, int64_t timestamp, protozero::ConstBytes);
   void ParseSchedWakeup(int64_t timestamp, protozero::ConstBytes);
   void ParseSchedWaking(int64_t timestamp, protozero::ConstBytes);
@@ -124,7 +125,9 @@ class FtraceParser {
   void ParseGpuMemTotal(int64_t timestamp, protozero::ConstBytes);
   void ParseThermalTemperature(int64_t timestamp, protozero::ConstBytes);
   void ParseCdevUpdate(int64_t timestamp, protozero::ConstBytes);
-  void ParseSchedBlockedReason(int64_t timestamp, protozero::ConstBytes);
+  void ParseSchedBlockedReason(int64_t timestamp,
+                               protozero::ConstBytes,
+                               PacketSequenceStateGeneration*);
   TraceProcessorContext* context_;
   RssStatTracker rss_stat_tracker_;
 
@@ -154,6 +157,7 @@ class FtraceParser {
   const StringId gpu_mem_total_proc_desc_id_;
   const StringId sched_blocked_reason_id_;
   const StringId io_wait_id_;
+  const StringId function_id_;
 
   struct FtraceMessageStrings {
     // The string id of name of the event field (e.g. sched_switch's id).
