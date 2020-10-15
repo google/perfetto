@@ -27,7 +27,7 @@ namespace perfetto {
 static_assert(kInvalidUid == ipc::kInvalidUid, "kInvalidUid mismatching");
 
 const char* GetProducerSocket() {
-  static const char* name = getenv("PERFETTO_PRODUCER_SOCK_NAME");
+  const char* name = getenv("PERFETTO_PRODUCER_SOCK_NAME");
   if (name == nullptr) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
     name = "/dev/socket/traced_producer";
@@ -39,7 +39,7 @@ const char* GetProducerSocket() {
 }
 
 const char* GetConsumerSocket() {
-  static const char* name = getenv("PERFETTO_CONSUMER_SOCK_NAME");
+  const char* name = getenv("PERFETTO_CONSUMER_SOCK_NAME");
   if (name == nullptr) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
     name = "/dev/socket/traced_consumer";
