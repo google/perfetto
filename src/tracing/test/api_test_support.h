@@ -32,6 +32,8 @@ namespace perfetto {
 namespace test {
 
 int32_t GetCurrentProcessId();
+void StartSystemService();
+void SyncProducers();
 
 }  // namespace test
 }  // namespace perfetto
