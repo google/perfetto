@@ -791,7 +791,8 @@ def create_modules_from_target(blueprint, gn, gn_target_name):
     raise Error('Unknown target %s (%s)' % (target.name, target.type))
 
   blueprint.add_module(module)
-  module.host_supported = target.name in target_host_supported
+  module.host_supported = (gn_utils.label_without_toolchain(target.name) in
+                           target_host_supported)
   module.init_rc = target_initrc.get(target.name, [])
   module.srcs.update(
       gn_utils.label_to_path(src)
@@ -956,6 +957,13 @@ def main():
   gn = gn_utils.GnParser(desc)
   blueprint = create_blueprint_for_targets(gn, desc, args.targets or
                                            default_targets)
+
+  # TODO(primiano): enable this on Android after the TODO in
+  # perfetto_component.gni is fixed.
+  # Check for ODR violations
+  # for target_name in default_targets:
+    # checker = gn_utils.ODRChecker(gn, target_name)
+
   output = [
       """// Copyright (C) 2017 The Android Open Source Project
 //
