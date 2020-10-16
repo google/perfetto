@@ -6080,6 +6080,16 @@ message ChromeUserEvent {
 
 // End of protos/perfetto/trace/track_event/chrome_user_event.proto
 
+// Begin of protos/perfetto/trace/track_event/chrome_window_handle_event_info.proto
+
+// Details about HWNDMessageHandler trace events.
+message ChromeWindowHandleEventInfo {
+  optional uint32 dpi = 1;
+  optional uint32 message_id = 2;
+}
+
+// End of protos/perfetto/trace/track_event/chrome_window_handle_event_info.proto
+
 // Begin of protos/perfetto/trace/track_event/task_execution.proto
 
 // TrackEvent arguments describing the execution of a task.
@@ -6151,7 +6161,7 @@ message TaskExecution {
 // their default track association) can be emitted as part of a
 // TrackEventDefaults message.
 //
-// Next reserved id: 13 (up to 15). Next id: 41.
+// Next reserved id: 13 (up to 15). Next id: 42.
 message TrackEvent {
   // Names of categories of the event. In the client library, categories are a
   // way to turn groups of individual events on or off.
@@ -6282,6 +6292,7 @@ message TrackEvent {
   optional ChromeLatencyInfo chrome_latency_info = 29;
   optional ChromeFrameReporter chrome_frame_reporter = 32;
   optional ChromeRendererSchedulerState chrome_renderer_scheduler_state = 40;
+  optional ChromeWindowHandleEventInfo chrome_window_handle_event_info = 41;
 
   // This field is used only if the source location represents the function that
   // executes during this event.
