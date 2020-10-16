@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import("perfetto.gni")
+import("perfetto_component.gni")
 
 # This gni file defines rules for proto generation. There are various types of
 # proto targets that can be defined in our codebase:
@@ -157,10 +158,12 @@ template("ipc_library") {
     generator_plugin_label =
         "$perfetto_root_path/src/ipc/protoc_plugin:ipc_plugin"
     generator_plugin_suffix = ".ipc"
-    deps = [
-      "$perfetto_root_path/gn:default_deps",
-      "$perfetto_root_path/src/ipc:common",
-    ]
+    deps = [ "$perfetto_root_path/gn:default_deps" ]
+    if (perfetto_component_type == "static_library") {
+      deps += [ "$perfetto_root_path/src/ipc:perfetto_ipc" ]
+    } else {
+      deps += [ "$perfetto_root_path/src/ipc:common" ]
+    }
     if (defined(invoker.deps)) {
       deps += invoker.deps
     }

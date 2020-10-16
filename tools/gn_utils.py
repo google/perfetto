@@ -16,6 +16,7 @@
 # projects.
 
 from __future__ import print_function
+import collections
 import errno
 import filecmp
 import json
@@ -30,6 +31,12 @@ BUILDFLAGS_TARGET = '//gn:gen_buildflags'
 TARGET_TOOLCHAIN = '//gn/standalone/toolchain:gcc_like_host'
 HOST_TOOLCHAIN = '//gn/standalone/toolchain:gcc_like_host'
 LINKER_UNIT_TYPES = ('executable', 'shared_library', 'static_library')
+
+# TODO(primiano): investigate these, they require further componentization.
+ODR_VIOLATION_IGNORE_TARGETS = {
+    '//test/cts:perfetto_cts_deps',
+    '//:perfetto_integrationtests',
+}
 
 
 def _check_command_output(cmd, cwd):
@@ -188,6 +195,79 @@ def check_or_commit_generated_files(tmp_files, check):
     else:
       os.rename(tmp_file, target_file)
   return res
+
+
+class ODRChecker(object):
+  """Detects ODR violations in linker units
+
+  When we turn GN source sets into Soong & Bazel file groups, there is the risk
+  to create ODR violations by including the same file group into different
+  linker unit (this is because other build systems don't have a concept
+  equivalent to GN's source_set). This class navigates the transitive
+  dependencies (mostly static libraries) of a target and detects if multiple
+  paths end up including the same file group. This is to avoid situations like:
+
+  traced.exe -> base(file group)
+  traced.exe -> libperfetto(static lib) -> base(file group)
+  """
+
+  def __init__(self, gn, target_name):
+    self.gn = gn
+    self.root = gn.get_target(target_name)
+    self.source_sets = collections.defaultdict(set)
+    self.deps_visited = set()
+    self.source_set_hdr_only = {}
+
+    self._visit(target_name)
+    num_violations = 0
+    if target_name in ODR_VIOLATION_IGNORE_TARGETS:
+      return
+    for sset, paths in self.source_sets.items():
+      if self.is_header_only(sset):
+        continue
+      if len(paths) != 1:
+        num_violations += 1
+        print(
+            'ODR violation in target %s, multiple paths include %s:\n  %s' %
+            (target_name, sset, '\n  '.join(paths)),
+            file=sys.stderr)
+    if num_violations > 0:
+      raise Exception('%d ODR violations detected. Build generation aborted' %
+                      num_violations)
+
+  def _visit(self, target_name, parent_path=''):
+    target = self.gn.get_target(target_name)
+    path = ((parent_path + ' > ') if parent_path else '') + target_name
+    if not target:
+      raise Exception('Cannot find target %s' % target_name)
+    for ssdep in target.source_set_deps:
+      name_and_path = '%s (via %s)' % (target_name, path)
+      self.source_sets[ssdep].add(name_and_path)
+    deps = set(target.deps).union(target.proto_deps) - self.deps_visited
+    for dep_name in deps:
+      dep = self.gn.get_target(dep_name)
+      if dep.type == 'executable':
+        continue  # Execs are strong boundaries and don't cause ODR violations.
+      # static_library dependencies should reset the path. It doesn't matter if
+      # we get to a source file via:
+      # source_set1 > static_lib > source.cc OR
+      # source_set1 > source_set2 > static_lib > source.cc
+      # This is NOT an ODR violation because source.cc is linked from the same
+      # static library
+      next_parent_path = path if dep.type != 'static_library' else ''
+      self.deps_visited.add(dep_name)
+      self._visit(dep_name, next_parent_path)
+
+  def is_header_only(self, source_set_name):
+    cached = self.source_set_hdr_only.get(source_set_name)
+    if cached is not None:
+      return cached
+    target = self.gn.get_target(source_set_name)
+    if target.type != 'source_set':
+      raise TypeError('%s is not a source_set' % source_set_name)
+    res = all(src.endswith('.h') for src in target.sources)
+    self.source_set_hdr_only[source_set_name] = res
+    return res
 
 
 class GnParser(object):
