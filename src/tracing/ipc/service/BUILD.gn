@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import("../../../../gn/perfetto.gni")
+import("../../../../gn/perfetto_component.gni")
 
 assert(enable_perfetto_ipc)
 
@@ -36,7 +37,11 @@ source_set("service") {
     "../../../../gn:default_deps",
     "../../../../protos/perfetto/ipc",
     "../../../base",
-    "../../../ipc:host",
     "../../core:service",
   ]
+  if (perfetto_component_type == "static_library") {
+    deps += [ "../../../ipc:perfetto_ipc" ]
+  } else {
+    deps += [ "../../../ipc:host" ]
+  }
 }

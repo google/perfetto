@@ -113,7 +113,7 @@ def perfetto_cc_protozero_library(name, deps, **kwargs):
         name = name,
         srcs = [":" + name + "_src"],
         hdrs = [":" + name + "_h"],
-        deps = [PERFETTO_CONFIG.root + ":libprotozero"],
+        deps = [PERFETTO_CONFIG.root + ":protozero"],
         **kwargs
     )
 
@@ -158,7 +158,7 @@ def perfetto_cc_ipc_library(name, deps, **kwargs):
         deps = [
             # Generated .ipc.{cc,h} depend on this and protozero.
             PERFETTO_CONFIG.root + ":perfetto_ipc",
-            PERFETTO_CONFIG.root + ":libprotozero",
+            PERFETTO_CONFIG.root + ":protozero",
         ] + _cc_deps,
         **kwargs
     )
@@ -208,7 +208,7 @@ def perfetto_cc_protocpp_library(name, deps, **kwargs):
         srcs = [":" + name + "_gen"],
         textual_hdrs = [":" + name + "_gen_h"],
         deps = [
-            PERFETTO_CONFIG.root + ":libprotozero",
+            PERFETTO_CONFIG.root + ":protozero",
         ] + _cc_deps,
         **kwargs
     )

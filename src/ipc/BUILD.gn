@@ -14,12 +14,22 @@
 
 import("../../gn/fuzzer.gni")
 import("../../gn/perfetto.gni")
+import("../../gn/perfetto_component.gni")
 import("../../gn/proto_library.gni")
 import("../../gn/test.gni")
 
 # This build file should not be leaked into all embedders. Only select
 # projects should be depending on our IPC layer.
 assert(enable_perfetto_ipc)
+
+if (perfetto_component_type == "static_library") {
+  # In build generators everything else outside should just depend on the
+  # :perfetto_ipc static library (at the end of this file) rather than
+  # individual sub-targets.
+  _ipc_visibility = [ ":*" ]  # Only targets defined in this file.
+} else {
+  _ipc_visibility = [ "*" ]  # Default visibility.
+}
 
 source_set("client") {
   public_deps = [
@@ -37,6 +47,7 @@ source_set("client") {
     "client_impl.h",
     "service_proxy.cc",
   ]
+  visibility = _ipc_visibility
 }
 
 source_set("host") {
@@ -54,6 +65,7 @@ source_set("host") {
     "host_impl.cc",
     "host_impl.h",
   ]
+  visibility = _ipc_visibility
 }
 
 source_set("common") {
@@ -71,6 +83,7 @@ source_set("common") {
     "deferred.cc",
     "virtual_destructors.cc",
   ]
+  visibility = _ipc_visibility
 }
 
 perfetto_fuzzer_test("buffered_frame_deserializer_fuzzer") {
@@ -119,10 +132,14 @@ perfetto_proto_library("test_messages_@TYPE@") {
   ]
 }
 
-# This is used by Bazel BUILD rules.
-static_library("perfetto_ipc") {
-  complete_static_lib = true
-  deps = [
+# This is used by Bazel BUILD rules. The problem it solves is the following:
+# In GN builds we want to keep client and host separate. This allows reducing
+# the binary size by splitting targets all the way up to the client library
+# (libperfetto_client_experimental). In bazel/blaze we fuse everything together
+# because handling this split is too complex due to the lack of a
+# source_set-equivalent.
+perfetto_component("perfetto_ipc") {
+  public_deps = [
     ":client",
     ":host",
     "../../gn:default_deps",
