@@ -14,10 +14,11 @@
 
 import("../../gn/fuzzer.gni")
 import("../../gn/perfetto.gni")
+import("../../gn/perfetto_component.gni")
 import("../../gn/proto_library.gni")
 import("../../gn/test.gni")
 
-source_set("protozero") {
+perfetto_component("protozero") {
   public_configs = [ "../../gn:default_config" ]
   public_deps = [
     "../../include/perfetto/base",
@@ -40,11 +41,6 @@ source_set("protozero") {
     "static_buffer.cc",
     "virtual_destructors.cc",
   ]
-}
-
-static_library("libprotozero") {
-  complete_static_lib = true
-  deps = [ ":protozero" ]
 }
 
 perfetto_unittest_source_set("unittests") {

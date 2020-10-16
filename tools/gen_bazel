@@ -65,7 +65,7 @@ default_targets = [
     '//test:client_api_example',
     '//src/ipc:perfetto_ipc',
     '//src/ipc/protoc_plugin:ipc_plugin',
-    '//src/protozero:libprotozero',
+    '//src/protozero:protozero',
     '//src/protozero/protoc_plugin:protozero_plugin',
     '//src/protozero/protoc_plugin:cppgen_plugin',
 ] + public_targets
@@ -508,8 +508,12 @@ exports_files(["NOTICE"])
   res += public_str
   res += '# Content from BUILD.extras\n\n'
   res += extras
-  return res
 
+  # Check for ODR violations
+  for target_name in default_targets + proto_targets:
+    checker = gn_utils.ODRChecker(gn, target_name)
+
+  return res
 
 def main():
   parser = argparse.ArgumentParser(
