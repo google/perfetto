@@ -16,49 +16,49 @@ import("//build_overrides/build.gni")
 import("../gn/fuzzer.gni")
 import("../gn/perfetto.gni")
 
-source_set("end_to_end_integrationtests") {
-  testonly = true
-  deps = [
-    ":test_helper",
-    "../gn:default_deps",
-    "../gn:gtest_and_gmock",
-    "../include/perfetto/ext/ipc",
-    "../include/perfetto/ext/traced",
-    "../include/perfetto/protozero",
-    "../protos/perfetto/config:cpp",
-    "../protos/perfetto/config:zero",
-    "../protos/perfetto/config/power:zero",
-    "../protos/perfetto/trace:cpp",
-    "../protos/perfetto/trace:zero",
-    "../protos/perfetto/trace/ftrace:cpp",
-    "../protos/perfetto/trace/power:cpp",
-    "../src/base:base",
-    "../src/base:test_support",
-    "../src/traced/probes/ftrace",
-  ]
-
-  # These binaries are requires by the cmdline tests, which invoke perfetto
-  # and trigger_perfetto via Subprocess.
-  data_deps = [
-    "../src/perfetto_cmd:perfetto",
-    "../src/perfetto_cmd:trigger_perfetto",
-  ]
-
-  sources = [ "end_to_end_integrationtest.cc" ]
-  if (start_daemons_for_testing) {
-    cflags = [ "-DPERFETTO_START_DAEMONS_FOR_TESTING" ]
-
-    # In CTS mode we use /syste/bin/perfetto for the cmdline tests and the
-    # perfetto_cmd is not required. Outside of CTS mode, instead, we need to
-    # build the cmdline code as part of the test executable.
-    deps += [
-      "../src/perfetto_cmd",
-      "../src/perfetto_cmd:trigger_perfetto_cmd",
-    ]
-  }
-}
-
 if (!build_with_chromium) {
+  source_set("end_to_end_integrationtests") {
+    testonly = true
+    deps = [
+      ":test_helper",
+      "../gn:default_deps",
+      "../gn:gtest_and_gmock",
+      "../include/perfetto/ext/ipc",
+      "../include/perfetto/ext/traced",
+      "../include/perfetto/protozero",
+      "../protos/perfetto/config:cpp",
+      "../protos/perfetto/config:zero",
+      "../protos/perfetto/config/power:zero",
+      "../protos/perfetto/trace:cpp",
+      "../protos/perfetto/trace:zero",
+      "../protos/perfetto/trace/ftrace:cpp",
+      "../protos/perfetto/trace/power:cpp",
+      "../src/base:base",
+      "../src/base:test_support",
+      "../src/traced/probes/ftrace",
+    ]
+
+    # These binaries are requires by the cmdline tests, which invoke perfetto
+    # and trigger_perfetto via Subprocess.
+    data_deps = [
+      "../src/perfetto_cmd:perfetto",
+      "../src/perfetto_cmd:trigger_perfetto",
+    ]
+
+    sources = [ "end_to_end_integrationtest.cc" ]
+    if (start_daemons_for_testing) {
+      cflags = [ "-DPERFETTO_START_DAEMONS_FOR_TESTING" ]
+
+      # In CTS mode we use /syste/bin/perfetto for the cmdline tests and the
+      # perfetto_cmd is not required. Outside of CTS mode, instead, we need to
+      # build the cmdline code as part of the test executable.
+      deps += [
+        "../src/perfetto_cmd",
+        "../src/perfetto_cmd:trigger_perfetto_cmd",
+      ]
+    }
+  }
+
   executable("client_api_example") {
     sources = [ "client_api_example.cc" ]
     deps = [
@@ -108,11 +108,9 @@ source_set("test_helper") {
   ]
   deps = [
     "../gn:default_deps",
-    "../include/perfetto/ext/traced",
     "../protos/perfetto/config:cpp",
     "../protos/perfetto/trace:zero",
     "../src/base:test_support",
-    "../src/traced/probes:probes_src",
     "../src/tracing/ipc:common",
   ]
   sources = [
@@ -123,6 +121,12 @@ source_set("test_helper") {
   ]
   if (start_daemons_for_testing) {
     cflags = [ "-DPERFETTO_START_DAEMONS_FOR_TESTING" ]
+  }
+  if (!build_with_chromium) {
+    deps += [
+      "../include/perfetto/ext/traced",
+      "../src/traced/probes:probes_src",
+    ]
   }
 }
 
