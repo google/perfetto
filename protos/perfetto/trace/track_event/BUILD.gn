@@ -28,6 +28,7 @@ perfetto_proto_library("@TYPE@") {
     "chrome_renderer_scheduler_state.proto",
     "chrome_thread_descriptor.proto",
     "chrome_user_event.proto",
+    "chrome_window_handle_event_info.proto",
     "counter_descriptor.proto",
     "debug_annotation.proto",
     "log_message.proto",
