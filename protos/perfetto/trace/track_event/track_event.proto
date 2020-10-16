@@ -29,6 +29,7 @@ import "protos/perfetto/trace/track_event/chrome_message_pump.proto";
 import "protos/perfetto/trace/track_event/chrome_mojo_event_info.proto";
 import "protos/perfetto/trace/track_event/chrome_renderer_scheduler_state.proto";
 import "protos/perfetto/trace/track_event/chrome_user_event.proto";
+import "protos/perfetto/trace/track_event/chrome_window_handle_event_info.proto";
 import "protos/perfetto/trace/track_event/source_location.proto";
 
 package perfetto.protos;
@@ -92,7 +93,7 @@ package perfetto.protos;
 // their default track association) can be emitted as part of a
 // TrackEventDefaults message.
 //
-// Next reserved id: 13 (up to 15). Next id: 41.
+// Next reserved id: 13 (up to 15). Next id: 42.
 message TrackEvent {
   // Names of categories of the event. In the client library, categories are a
   // way to turn groups of individual events on or off.
@@ -223,6 +224,7 @@ message TrackEvent {
   optional ChromeLatencyInfo chrome_latency_info = 29;
   optional ChromeFrameReporter chrome_frame_reporter = 32;
   optional ChromeRendererSchedulerState chrome_renderer_scheduler_state = 40;
+  optional ChromeWindowHandleEventInfo chrome_window_handle_event_info = 41;
 
   // This field is used only if the source location represents the function that
   // executes during this event.
