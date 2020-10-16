@@ -14,10 +14,11 @@
 
 import("//build_overrides/build.gni")
 import("../../gn/perfetto.gni")
+import("../../gn/perfetto_component.gni")
 import("../../gn/test.gni")
 import("../../gn/wasm.gni")
 
-source_set("base") {
+perfetto_component("base") {
   deps = [ "../../gn:default_deps" ]
   public_deps = [
     "../../include/perfetto/base",
@@ -74,7 +75,7 @@ if (enable_perfetto_stderr_crash_dump) {
 
 if (enable_perfetto_ipc) {
   # This cannot be in :base as it does not build on WASM.
-  source_set("unix_socket") {
+  perfetto_component("unix_socket") {
     deps = [
       "../../gn:default_deps",
       "../../include/perfetto/ext/base",
