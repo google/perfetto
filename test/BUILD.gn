@@ -58,17 +58,19 @@ source_set("end_to_end_integrationtests") {
   }
 }
 
-executable("client_api_example") {
-  sources = [ "client_api_example.cc" ]
-  deps = [
-    "..:libperfetto_client_experimental",
-    "../gn:default_deps",
-    "../include/perfetto/tracing",
-    "../protos/perfetto/config/gpu:zero",
-    "../protos/perfetto/trace:zero",
-    "../protos/perfetto/trace/gpu:zero",
-  ]
-}
+if (!build_with_chromium) {
+  executable("client_api_example") {
+    sources = [ "client_api_example.cc" ]
+    deps = [
+      "..:libperfetto_client_experimental",
+      "../gn:default_deps",
+      "../include/perfetto/tracing",
+      "../protos/perfetto/config/gpu:zero",
+      "../protos/perfetto/trace:zero",
+      "../protos/perfetto/trace/gpu:zero",
+    ]
+  }
+}  # if (!build_with_chromium)
 
 perfetto_fuzzer_test("end_to_end_shared_memory_fuzzer") {
   sources = [ "end_to_end_shared_memory_fuzzer.cc" ]
