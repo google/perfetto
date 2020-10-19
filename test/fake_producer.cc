@@ -21,7 +21,6 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/utils.h"
-#include "perfetto/ext/traced/traced.h"
 #include "perfetto/ext/tracing/core/commit_data_request.h"
 #include "perfetto/ext/tracing/core/shared_memory_arbiter.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
