@@ -332,13 +332,21 @@ class PerfettoApiTest : public ::testing::TestWithParam<perfetto::BackendType> {
 
     // Start a fresh system service for this test, tearing down any previous
     // service that was running.
-    perfetto::test::StartSystemService();
+    uint32_t supported_backends =
+        perfetto::kInProcessBackend | perfetto::kSystemBackend;
+    if (!perfetto::test::StartSystemService())
+      supported_backends &= ~perfetto::kSystemBackend;
+
+    // If the system backend wasn't supported, skip all system backend tests.
+    auto backend = GetParam();
+    if (!(supported_backends & backend))
+      GTEST_SKIP();
 
     // Since the client API can only be initialized once per process, initialize
     // both the in-process and system backends for every test here. The actual
     // service to be used is chosen by the test parameter.
     perfetto::TracingInitArgs args;
-    args.backends = perfetto::kInProcessBackend | perfetto::kSystemBackend;
+    args.backends = supported_backends;
     perfetto::Tracing::Initialize(args);
     RegisterDataSource<MockDataSource>("my_data_source");
     perfetto::TrackEvent::Register();

@@ -20,12 +20,17 @@
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/temp_file.h"
 #include "src/tracing/internal/tracing_muxer_impl.h"
-#include "test/test_helper.h"
 
 #include <sstream>
 
+#if PERFETTO_BUILDFLAG(PERFETTO_IPC)
+#include "test/test_helper.h"
+#endif
+
 namespace perfetto {
 namespace test {
+
+#if PERFETTO_BUILDFLAG(PERFETTO_IPC)
 namespace {
 
 class InProcessSystemService {
@@ -41,11 +46,7 @@ class InProcessSystemService {
 
 }  // namespace
 
-int32_t GetCurrentProcessId() {
-  return static_cast<int32_t>(base::GetProcessId());
-}
-
-void StartSystemService() {
+bool StartSystemService() {
   static InProcessSystemService* system_service;
 
   // If there already was a system service running, make sure the new one is
@@ -62,6 +63,16 @@ void StartSystemService() {
     atexit([] { delete system_service; });
     cleanup_registered = true;
   }
+  return true;
+}
+#else   // !PERFETTO_BUILDFLAG(PERFETTO_IPC)
+bool StartSystemService() {
+  return false;
+}
+#endif  // !PERFETTO_BUILDFLAG(PERFETTO_IPC)
+
+int32_t GetCurrentProcessId() {
+  return static_cast<int32_t>(base::GetProcessId());
 }
 
 void SyncProducers() {

@@ -32,7 +32,7 @@ namespace perfetto {
 namespace test {
 
 int32_t GetCurrentProcessId();
-void StartSystemService();
+bool StartSystemService();
 void SyncProducers();
 
 }  // namespace test
