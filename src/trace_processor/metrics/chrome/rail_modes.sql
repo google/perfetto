@@ -15,14 +15,18 @@
 --
 -- Priority order for RAIL modes where response has the highest priority and
 -- idle has the lowest.
-CREATE TABLE IF NOT EXISTS rail_modes (MODE STRING UNIQUE, ordering INT);
+CREATE TABLE IF NOT EXISTS rail_modes (
+  mode TEXT UNIQUE,
+  ordering INT,
+  short_name TEXT
+);
 
 INSERT
   OR IGNORE INTO rail_modes
-VALUES ('idle', 0),
-  ('load', 1),
-  ('animation', 2),
-  ('response', 3);
+VALUES ('RAIL_MODE_IDLE', 0, 'idle'),
+  ('RAIL_MODE_LOADING', 1, "load"),
+  ('RAIL_MODE_ANIMATION', 2, "animation"),
+  ('RAIL_MODE_RESPONSE', 3, "response");
 
 -- View containing all Scheduler.RAILMode slices across all Chrome renderer
 -- processes.
@@ -35,7 +39,7 @@ SELECT slice.id,
     ELSE dur
   END AS dur,
   track_id,
-  EXTRACT_ARG(slice.arg_set_id, "debug.state") AS rail_mode
+  EXTRACT_ARG(slice.arg_set_id, "chrome_renderer_scheduler_state.rail_mode") AS rail_mode
 FROM trace_bounds,
   slice
 WHERE slice.name = "Scheduler.RAILMode";
@@ -47,7 +51,7 @@ DROP VIEW IF EXISTS overall_rail_mode_slices;
 CREATE VIEW overall_rail_mode_slices AS
 SELECT s.ts,
   s.end_ts,
-  r.rail_mode,
+  rail_modes.short_name AS rail_mode,
   MAX(rail_modes.ordering)
 FROM (
     SELECT ts,
