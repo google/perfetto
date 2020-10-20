@@ -97,14 +97,9 @@ void ClearFile(const char* path) {
 }  // namespace
 
 const char* const FtraceController::kTracingPaths[] = {
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
     "/sys/kernel/tracing/",
     "/sys/kernel/debug/tracing/",
     nullptr,
-#else
-    "/sys/kernel/debug/tracing/",
-    nullptr,
-#endif
 };
 
 // Method of last resort to reset ftrace state.
