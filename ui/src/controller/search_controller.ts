@@ -198,10 +198,16 @@ export class SearchController extends Controller<'main'> {
         cpuToTrackId.set((track.config as {cpu: number}).cpu, track.id);
         continue;
       }
-      if (track.kind === 'ChromeSliceTrack' ||
-          track.kind === 'AsyncSliceTrack') {
-        engineTrackIdToTrackId.set(
-            (track.config as {trackId: number}).trackId, track.id);
+      if (track.kind === 'ChromeSliceTrack') {
+        const config = (track.config as {trackId: number});
+        engineTrackIdToTrackId.set(config.trackId, track.id);
+        continue;
+      }
+      if (track.kind === 'AsyncSliceTrack') {
+        const config = (track.config as {trackIds: number[]});
+        for (const trackId of config.trackIds) {
+          engineTrackIdToTrackId.set(trackId, track.id);
+        }
         continue;
       }
     }
