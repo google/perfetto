@@ -77,16 +77,16 @@ TEST(HeapGraphTrackerTest, BuildFlamegraph) {
                                   context.storage->InternString("location"));
   tracker.AddInternedType(kSeqId, kX, x, kLocation, /*object_size=*/0,
                           /*field_name_ids=*/{}, /*superclass_id=*/0,
-                          /*no_fields=*/false);
+                          /*classloader_id=*/0, /*no_fields=*/false);
   tracker.AddInternedType(kSeqId, kY, y, kLocation, /*object_size=*/0,
                           /*field_name_ids=*/{}, /*superclass_id=*/0,
-                          /*no_fields=*/false);
+                          /*classloader_id=*/0, /*no_fields=*/false);
   tracker.AddInternedType(kSeqId, kA, a, kLocation, /*object_size=*/0,
                           /*field_name_ids=*/{}, /*superclass_id=*/0,
-                          /*no_fields=*/false);
+                          /*classloader_id=*/0, /*no_fields=*/false);
   tracker.AddInternedType(kSeqId, kB, b, kLocation, /*object_size=*/0,
                           /*field_name_ids=*/{}, /*superclass_id=*/0,
-                          /*no_fields=*/false);
+                          /*classloader_id=*/0, /*no_fields=*/false);
 
   {
     HeapGraphTracker::SourceObject obj;
