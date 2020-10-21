@@ -1,4 +1,6 @@
-Checks: android-cloexec-*,bugprone-*,google-explicit-constructor
+Checks: android-cloexec-*,bugprone-*,google-explicit-constructor,android-comparison-in-temp-failure-retry
 CheckOptions:
   - key:             bugprone-assert-side-effect.AssertMacros
     value:           'PERFETTO_DCHECK'
+  - key:             android-comparison-in-temp-failure-retry.RetryMacros
+    value:           'PERFETTO_EINTR,TEMP_FAILURE_RETRY'
