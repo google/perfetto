@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS rail_modes (
 INSERT
   OR IGNORE INTO rail_modes
 VALUES ('RAIL_MODE_IDLE', 0, 'idle'),
-  ('RAIL_MODE_LOADING', 1, "load"),
+  ('RAIL_MODE_LOAD', 1, "load"),
   ('RAIL_MODE_ANIMATION', 2, "animation"),
   ('RAIL_MODE_RESPONSE', 3, "response");
 
