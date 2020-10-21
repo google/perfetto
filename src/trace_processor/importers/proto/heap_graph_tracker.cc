@@ -394,6 +394,7 @@ void HeapGraphTracker::AddInternedType(uint32_t seq_id,
                                        uint64_t object_size,
                                        std::vector<uint64_t> field_name_ids,
                                        uint64_t superclass_id,
+                                       uint64_t classloader_id,
                                        bool no_fields) {
   SequenceState& sequence_state = GetOrCreateSequence(seq_id);
   sequence_state.interned_types[intern_id].name = strid;
@@ -402,6 +403,7 @@ void HeapGraphTracker::AddInternedType(uint32_t seq_id,
   sequence_state.interned_types[intern_id].field_name_ids =
       std::move(field_name_ids);
   sequence_state.interned_types[intern_id].superclass_id = superclass_id;
+  sequence_state.interned_types[intern_id].classloader_id = classloader_id;
   sequence_state.interned_types[intern_id].no_fields = no_fields;
 }
 
@@ -568,6 +570,11 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
     auto* hgc = context_->storage->mutable_heap_graph_class_table();
     uint32_t row = *hgc->id().IndexOf(type_id);
     hgc->mutable_name()->Set(row, interned_type.name);
+    if (interned_type.classloader_id) {
+      auto classloader_object_id =
+          GetOrInsertObject(&sequence_state, interned_type.classloader_id);
+      hgc->mutable_classloader_id()->Set(row, classloader_object_id.value);
+    }
     if (location_name)
       hgc->mutable_location()->Set(row, *location_name);
 
