@@ -6883,6 +6883,7 @@ message HeapGraphType {
   // fields in order of most specific class to the furthest up superclass.
   repeated uint64 reference_field_id = 6 [packed = true];
   optional Kind kind = 7;
+  optional uint64 classloader_id = 8;
 }
 
 message HeapGraphObject {

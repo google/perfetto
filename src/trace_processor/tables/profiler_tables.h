@@ -282,13 +282,18 @@ PERFETTO_TP_TABLE(PERFETTO_TP_EXPERIMENTAL_FLAMEGRAPH_NODES);
 // for it provided, the deobfuscated name.
 // @param location the APK / Dex / JAR file the class is contained in.
 // @tablegroup ART Heap Profiler
-#define PERFETTO_TP_HEAP_GRAPH_CLASS_DEF(NAME, PARENT, C) \
-  NAME(HeapGraphClassTable, "heap_graph_class")           \
-  PERFETTO_TP_ROOT_TABLE(PARENT, C)                       \
-  C(StringPool::Id, name)                                 \
-  C(base::Optional<StringPool::Id>, deobfuscated_name)    \
-  C(base::Optional<StringPool::Id>, location)             \
-  C(base::Optional<HeapGraphClassTable::Id>, superclass_id)
+//
+// classloader_id should really be HeapGraphObject::id, but that would
+// create a loop, which is currently not possible.
+// TODO(lalitm): resolve this
+#define PERFETTO_TP_HEAP_GRAPH_CLASS_DEF(NAME, PARENT, C)   \
+  NAME(HeapGraphClassTable, "heap_graph_class")             \
+  PERFETTO_TP_ROOT_TABLE(PARENT, C)                         \
+  C(StringPool::Id, name)                                   \
+  C(base::Optional<StringPool::Id>, deobfuscated_name)      \
+  C(base::Optional<StringPool::Id>, location)               \
+  C(base::Optional<HeapGraphClassTable::Id>, superclass_id) \
+  C(base::Optional<uint32_t>, classloader_id)
 
 PERFETTO_TP_TABLE(PERFETTO_TP_HEAP_GRAPH_CLASS_DEF);
 
