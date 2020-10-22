@@ -166,6 +166,8 @@ TEST_P(SharedMemoryArbiterImplTest, BatchCommits) {
   // simulate a non-zero batching period and a commit at the end of it, set the
   // batching duration to a very large value and call
   // FlushPendingCommitDataRequests to manually trigger the commit.
+  arbiter_->SetDirectSMBPatchingSupportedByService();
+  ASSERT_TRUE(arbiter_->EnableDirectSMBPatching());
   arbiter_->SetBatchCommitsDuration(UINT32_MAX);
 
   // First chunk that will be batched. CommitData should not be called

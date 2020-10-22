@@ -1102,6 +1102,19 @@ void TracingMuxerImpl::SetBatchCommitsDurationForTesting(
   }
 }
 
+bool TracingMuxerImpl::EnableDirectSMBPatchingForTesting(
+    BackendType backend_type) {
+  for (RegisteredBackend& backend : backends_) {
+    if (backend.producer && backend.producer->connected_ &&
+        backend.type == backend_type &&
+        !backend.producer->service_->MaybeSharedMemoryArbiter()
+             ->EnableDirectSMBPatching()) {
+      return false;
+    }
+  }
+  return true;
+}
+
 TracingMuxerImpl::ConsumerImpl* TracingMuxerImpl::FindConsumer(
     TracingSessionGlobalID session_id) {
   PERFETTO_DCHECK_THREAD(thread_checker_);

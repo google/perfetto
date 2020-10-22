@@ -285,8 +285,9 @@ void SharedMemoryArbiterImpl::UpdateCommitDataRequest(
       // first time. If the producer then fully patched the chunk, thus removing
       // the kChunkNeedsPatching flag, and the service re-read the chunk after
       // the patching, the service would be thrown off by the removed flag.
-      if (chunk.GetPacketCountAndFlags().second &
-          SharedMemoryABI::ChunkHeader::kChunkNeedsPatching) {
+      if (direct_patching_enabled_ &&
+          (chunk.GetPacketCountAndFlags().second &
+           SharedMemoryABI::ChunkHeader::kChunkNeedsPatching)) {
         page_idx = shmem_abi_.GetPageAndChunkIndex(std::move(chunk)).first;
       } else {
         // If the chunk doesn't need patching, we can mark it as complete
@@ -318,9 +319,11 @@ void SharedMemoryArbiterImpl::UpdateCommitDataRequest(
           !patch_list->empty() &&
           patch_list->front().chunk_id == curr_patch.chunk_id;
 
-      if (TryDirectPatchLocked(writer_id, curr_patch,
-                               chunk_needs_more_patching))
+      if (direct_patching_enabled_ &&
+          TryDirectPatchLocked(writer_id, curr_patch,
+                               chunk_needs_more_patching)) {
         continue;
+      }
 
       // The chunk that this patch applies to has already been released to the
       // service, so it cannot be patches here. Add the patch to the commit data
@@ -455,6 +458,20 @@ void SharedMemoryArbiterImpl::SetBatchCommitsDuration(
     uint32_t batch_commits_duration_ms) {
   std::lock_guard<std::mutex> scoped_lock(lock_);
   batch_commits_duration_ms_ = batch_commits_duration_ms;
+}
+
+bool SharedMemoryArbiterImpl::EnableDirectSMBPatching() {
+  std::lock_guard<std::mutex> scoped_lock(lock_);
+  if (!direct_patching_supported_by_service_) {
+    return false;
+  }
+
+  return direct_patching_enabled_ = true;
+}
+
+void SharedMemoryArbiterImpl::SetDirectSMBPatchingSupportedByService() {
+  std::lock_guard<std::mutex> scoped_lock(lock_);
+  direct_patching_supported_by_service_ = true;
 }
 
 // This function is quite subtle. When making changes keep in mind these two

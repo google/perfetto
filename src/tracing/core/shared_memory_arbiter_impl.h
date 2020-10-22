@@ -150,6 +150,10 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
 
   void SetBatchCommitsDuration(uint32_t batch_commits_duration_ms) override;
 
+  bool EnableDirectSMBPatching() override;
+
+  void SetDirectSMBPatchingSupportedByService() override;
+
   void FlushPendingCommitDataRequests(
       std::function<void()> callback = {}) override;
   bool TryShutdown() override;
@@ -255,8 +259,14 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
   // reservation was unbound.
   std::vector<std::function<void()>> pending_flush_callbacks_;
 
-  // See SharedMemoryArbiter.SetBatchCommitsDuration.
+  // See SharedMemoryArbiter::SetBatchCommitsDuration.
   uint32_t batch_commits_duration_ms_ = 0;
+
+  // See SharedMemoryArbiter::EnableDirectSMBPatching.
+  bool direct_patching_enabled_ = false;
+
+  // See SharedMemoryArbiter::SetDirectSMBPatchingSupportedByService.
+  bool direct_patching_supported_by_service_ = false;
 
   // Indicates whether we have already scheduled a delayed flush for the
   // purposes of batching. Set to true at the beginning of a batching period and

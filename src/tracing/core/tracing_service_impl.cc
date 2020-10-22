@@ -2600,9 +2600,9 @@ bool TracingServiceImpl::SnapshotClocks(
         static_cast<uint32_t>(clock.type),
         static_cast<uint64_t>(base::FromPosixTimespec(clock.ts).count())));
   }
-#else   // !PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE) &&
-        // !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) &&
-        // !PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
+#else  // !PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE) &&
+       // !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) &&
+       // !PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
   auto wall_time_ns = static_cast<uint64_t>(base::GetWallTimeNs().count());
   // The default trace clock is boot time, so we always need to emit a path to
   // it. However since we don't actually have a boot time source on these
@@ -3249,6 +3249,7 @@ void TracingServiceImpl::ProducerEndpointImpl::SetupSharedMemory(
     inproc_shmem_arbiter_.reset(new SharedMemoryArbiterImpl(
         shared_memory_->start(), shared_memory_->size(),
         shared_buffer_page_size_kb_ * 1024, this, task_runner_));
+    inproc_shmem_arbiter_->SetDirectSMBPatchingSupportedByService();
   }
 
   OnTracingSetup();

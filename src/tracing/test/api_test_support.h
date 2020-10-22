@@ -39,6 +39,8 @@ void SyncProducers();
 void SetBatchCommitsDuration(uint32_t batch_commits_duration_ms,
                              BackendType backend_type);
 
+bool EnableDirectSMBPatching(BackendType backend_type);
+
 }  // namespace test
 }  // namespace perfetto
 

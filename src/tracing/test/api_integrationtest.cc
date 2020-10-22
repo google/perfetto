@@ -2080,25 +2080,44 @@ TEST_P(PerfettoApiTest, WithBatching) {
   data_source->on_setup.Wait();
   data_source->on_start.Wait();
 
-  // Simulate a normal batching cycle by first setting the batching period to a
-  // very large value and then force-flushing when we are done writing data.
+  std::stringstream first_large_message;
+  for (size_t i = 0; i < 512; i++)
+    first_large_message << i << ". Something wicked this way comes. ";
+  auto first_large_message_str = first_large_message.str();
+
+  // Emit one trace event before we begin batching.
+  MockDataSource::Trace(
+      [&first_large_message_str](MockDataSource::TraceContext ctx) {
+        auto packet = ctx.NewTracePacket();
+        packet->set_timestamp(42);
+        packet->set_for_testing()->set_str(first_large_message_str);
+        packet->Finalize();
+      });
+
+  // Simulate the start of a batching cycle by first setting the batching period
+  // to a very large value and then force-flushing when we are done writing
+  // data.
+  ASSERT_TRUE(
+      perfetto::test::EnableDirectSMBPatching(/*BackendType=*/GetParam()));
   perfetto::test::SetBatchCommitsDuration(UINT32_MAX,
                                           /*BackendType=*/GetParam());
 
-  std::stringstream large_message;
+  std::stringstream second_large_message;
   for (size_t i = 0; i < 512; i++)
-    large_message << i << ". Something wicked this way comes. ";
+    second_large_message << i << ". Something else wicked this way comes. ";
+  auto second_large_message_str = second_large_message.str();
 
-  // Emit one trace event.
-  MockDataSource::Trace([&large_message](MockDataSource::TraceContext ctx) {
-    auto packet = ctx.NewTracePacket();
-    packet->set_timestamp(42);
-    packet->set_for_testing()->set_str(large_message.str());
-    packet->Finalize();
+  // Emit another trace event.
+  MockDataSource::Trace(
+      [&second_large_message_str](MockDataSource::TraceContext ctx) {
+        auto packet = ctx.NewTracePacket();
+        packet->set_timestamp(43);
+        packet->set_for_testing()->set_str(second_large_message_str);
+        packet->Finalize();
 
-    // Simulate the end of the batching cycle.
-    ctx.Flush();
-  });
+        // Simulate the end of the batching cycle.
+        ctx.Flush();
+      });
 
   data_source->on_stop.Wait();
   tracing_session->on_stop.Wait();
@@ -2108,16 +2127,23 @@ TEST_P(PerfettoApiTest, WithBatching) {
 
   perfetto::protos::gen::Trace trace;
   ASSERT_TRUE(trace.ParseFromArray(raw_trace.data(), raw_trace.size()));
-  bool test_packet_found = false;
+  bool test_packet_1_found = false;
+  bool test_packet_2_found = false;
   for (const auto& packet : trace.packet()) {
     if (!packet.has_for_testing())
       continue;
-    EXPECT_FALSE(test_packet_found);
-    EXPECT_EQ(packet.timestamp(), 42U);
-    EXPECT_EQ(packet.for_testing().str(), large_message.str());
-    test_packet_found = true;
+    EXPECT_TRUE(packet.timestamp() == 42U || packet.timestamp() == 43U);
+    if (packet.timestamp() == 42U) {
+      EXPECT_FALSE(test_packet_1_found);
+      EXPECT_EQ(packet.for_testing().str(), first_large_message_str);
+      test_packet_1_found = true;
+    } else {
+      EXPECT_FALSE(test_packet_2_found);
+      EXPECT_EQ(packet.for_testing().str(), second_large_message_str);
+      test_packet_2_found = true;
+    }
   }
-  EXPECT_TRUE(test_packet_found);
+  EXPECT_TRUE(test_packet_1_found && test_packet_2_found);
 }
 
 TEST_P(PerfettoApiTest, BlockingStartAndStop) {
