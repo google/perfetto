@@ -69,4 +69,15 @@ message FtraceStats {
 
   // Per-CPU stats (one entry for each CPU).
   repeated FtraceCpuStats cpu_stats = 2;
+
+  // When FtraceConfig.symbolize_ksyms = true, this records the number of
+  // symbols parsed from /proc/kallsyms, whether they have been seen in the
+  // trace or not. It can be used to debug kptr_restrict or security-related
+  // errors.
+  // Note: this will be valid only when phase = END_OF_TRACE. The symbolizer is
+  // initialized. When START_OF_TRACE is emitted it is not ready yet.
+  optional uint32 kernel_symbols_parsed = 3;
+
+  // The memory used by the kernel symbolizer (KernelSymbolMap.size_bytes()).
+  optional uint32 kernel_symbols_mem_kb = 4;
 }

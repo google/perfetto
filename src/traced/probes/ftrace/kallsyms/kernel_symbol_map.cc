@@ -360,10 +360,17 @@ size_t KernelSymbolMap::Parse(const std::string& kallsyms_path) {
   buf_.shrink_to_fit();
   base::MaybeReleaseAllocatorMemToOS();  // For Scudo, b/170217718.
 
-  PERFETTO_DLOG(
-      "Loaded %zu kalllsyms entries. Mem usage: %zu B (addresses) + %zu B "
-      "(tokens), total: %zu B",
-      num_syms_, addr_bytes(), tokens_.size_bytes(), size_bytes());
+  if (num_syms_ == 0) {
+    PERFETTO_ELOG(
+        "Failed to parse kallsyms. Kernel functions will not be symbolized. On "
+        "Linux this requires either running traced_probes as root or manually "
+        "lowering /proc/sys/kernel/kptr_restrict");
+  } else {
+    PERFETTO_DLOG(
+        "Loaded %zu kalllsyms entries. Mem usage: %zu B (addresses) + %zu B "
+        "(tokens), total: %zu B",
+        num_syms_, addr_bytes(), tokens_.size_bytes(), size_bytes());
+  }
 
   return num_syms_;
 }
