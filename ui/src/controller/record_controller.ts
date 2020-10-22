@@ -53,7 +53,9 @@ import {ChromeExtensionConsumerPort} from './chrome_proxy_record_controller';
 import {
   ConsumerPortResponse,
   GetTraceStatsResponse,
+  isDisableTracingResponse,
   isEnableTracingResponse,
+  isFreeBuffersResponse,
   isGetTraceStatsResponse,
   isReadBuffersResponse,
 } from './consumer_port_types';
@@ -651,6 +653,10 @@ export class RecordController extends Controller<'main'> implements Consumer {
       if (percentage) {
         globals.publish('BufferUsage', {percentage});
       }
+    } else if (isFreeBuffersResponse(data)) {
+      // No action required.
+    } else if (isDisableTracingResponse(data)) {
+      // No action required.
     } else {
       console.error('Unrecognized consumer port response:', data);
     }
