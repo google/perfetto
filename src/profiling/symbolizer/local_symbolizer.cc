@@ -104,6 +104,8 @@ std::vector<std::string> GetLines(FILE* f) {
 // We cannot just include elf.h, as that only exists on Linux, and we want to
 // allow symbolization on other platforms as well. As we only need a small
 // subset, it is easiest to define the constants and structs ourselves.
+constexpr auto PT_LOAD = 1;
+constexpr auto PF_X = 1;
 constexpr auto SHT_NOTE = 7;
 constexpr auto NT_GNU_BUILD_ID = 3;
 constexpr auto ELFCLASS32 = 1;
@@ -157,6 +159,16 @@ struct Elf32 {
     Word n_descsz;
     Word n_type;
   };
+  struct Phdr {
+    uint32_t p_type;
+    Off p_offset;
+    Addr p_vaddr;
+    Addr p_paddr;
+    uint32_t p_filesz;
+    uint32_t p_memsz;
+    uint32_t p_flags;
+    uint32_t p_align;
+  };
 };
 
 struct Elf64 {
@@ -201,6 +213,16 @@ struct Elf64 {
     Word n_descsz;
     Word n_type;
   };
+  struct Phdr {
+    uint32_t p_type;
+    uint32_t p_flags;
+    Off p_offset;
+    Addr p_vaddr;
+    Addr p_paddr;
+    uint64_t p_filesz;
+    uint64_t p_memsz;
+    uint64_t p_align;
+  };
 };
 
 template <typename E>
@@ -209,12 +231,38 @@ typename E::Shdr* GetShdr(void* mem, const typename E::Ehdr* ehdr, size_t i) {
       static_cast<char*>(mem) + ehdr->e_shoff + i * sizeof(typename E::Shdr));
 }
 
+template <typename E>
+typename E::Phdr* GetPhdr(void* mem, const typename E::Ehdr* ehdr, size_t i) {
+  return reinterpret_cast<typename E::Phdr*>(
+      static_cast<char*>(mem) + ehdr->e_phoff + i * sizeof(typename E::Phdr));
+}
+
 bool InRange(const void* base,
              size_t total_size,
              const void* ptr,
              size_t size) {
   return ptr >= base && static_cast<const char*>(ptr) + size <=
                             static_cast<const char*>(base) + total_size;
+}
+
+template <typename E>
+base::Optional<uint64_t> GetLoadBias(void* mem, size_t size) {
+  const typename E::Ehdr* ehdr = static_cast<typename E::Ehdr*>(mem);
+  if (!InRange(mem, size, ehdr, sizeof(typename E::Ehdr))) {
+    PERFETTO_ELOG("Corrupted ELF.");
+    return base::nullopt;
+  }
+  for (size_t i = 0; i < ehdr->e_phnum; ++i) {
+    typename E::Phdr* phdr = GetPhdr<E>(mem, ehdr, i);
+    if (!InRange(mem, size, phdr, sizeof(typename E::Phdr))) {
+      PERFETTO_ELOG("Corrupted ELF.");
+      return base::nullopt;
+    }
+    if (phdr->p_type == PT_LOAD && phdr->p_flags & PF_X) {
+      return phdr->p_vaddr - phdr->p_offset;
+    }
+  }
+  return 0u;
 }
 
 template <typename E>
@@ -305,7 +353,14 @@ bool IsElf(const char* mem, size_t size) {
           mem[EI_MAG2] == ELFMAG2 && mem[EI_MAG3] == ELFMAG3);
 }
 
-base::Optional<std::string> GetBuildId(int fd, const struct stat* statbuf) {
+struct BuildIdAndLoadBias {
+  std::string build_id;
+  uint64_t load_bias;
+};
+
+base::Optional<BuildIdAndLoadBias> GetBuildIdAndLoadBias(
+    int fd,
+    const struct stat* statbuf) {
   size_t size = static_cast<size_t>(statbuf->st_size);
 
   static_assert(EI_CLASS > EI_MAG3, "mem[EI_MAG?] accesses are in range.");
@@ -322,14 +377,24 @@ base::Optional<std::string> GetBuildId(int fd, const struct stat* statbuf) {
   if (!IsElf(mem, size))
     return base::nullopt;
 
+  base::Optional<std::string> build_id;
+  base::Optional<uint64_t> load_bias;
   switch (mem[EI_CLASS]) {
     case ELFCLASS32:
-      return GetBuildId<Elf32>(mem, size);
+      build_id = GetBuildId<Elf32>(mem, size);
+      load_bias = GetLoadBias<Elf32>(mem, size);
+      break;
     case ELFCLASS64:
-      return GetBuildId<Elf64>(mem, size);
+      build_id = GetBuildId<Elf64>(mem, size);
+      load_bias = GetLoadBias<Elf64>(mem, size);
+      break;
     default:
       return base::nullopt;
   }
+  if (build_id && load_bias) {
+    return BuildIdAndLoadBias{*build_id, *load_bias};
+  }
+  return base::nullopt;
 }
 
 template <typename F>
@@ -352,8 +417,8 @@ bool WalkDirectories(std::vector<std::string> dirs, F fn) {
   return true;
 }
 
-std::map<std::string, std::string> BuildIdIndex(std::vector<std::string> dirs) {
-  std::map<std::string, std::string> result;
+std::map<std::string, FoundBinary> BuildIdIndex(std::vector<std::string> dirs) {
+  std::map<std::string, FoundBinary> result;
   WalkDirectories(
       std::move(dirs), [&result](const char* fname, const struct stat* stat) {
         char magic[EI_MAG3 + 1];
@@ -375,9 +440,12 @@ std::map<std::string, std::string> BuildIdIndex(std::vector<std::string> dirs) {
           PERFETTO_PLOG("Failed to seek %s", fname);
           return;
         }
-        base::Optional<std::string> build_id = GetBuildId(*fd, stat);
-        if (build_id) {
-          result.emplace(*build_id, fname);
+        base::Optional<BuildIdAndLoadBias> build_id_and_load_bias =
+            GetBuildIdAndLoadBias(*fd, stat);
+
+        if (build_id_and_load_bias) {
+          result.emplace(build_id_and_load_bias->build_id,
+                         FoundBinary{fname, build_id_and_load_bias->load_bias});
         }
       });
   return result;
@@ -409,7 +477,7 @@ BinaryFinder::~BinaryFinder() = default;
 LocalBinaryIndexer::LocalBinaryIndexer(std::vector<std::string> roots)
     : buildid_to_file_(BuildIdIndex(std::move(roots))) {}
 
-base::Optional<std::string> LocalBinaryIndexer::FindBinary(
+base::Optional<FoundBinary> LocalBinaryIndexer::FindBinary(
     const std::string& abspath,
     const std::string& build_id) {
   auto it = buildid_to_file_.find(build_id);
@@ -425,14 +493,14 @@ LocalBinaryIndexer::~LocalBinaryIndexer() = default;
 LocalBinaryFinder::LocalBinaryFinder(std::vector<std::string> roots)
     : roots_(std::move(roots)) {}
 
-base::Optional<std::string> LocalBinaryFinder::FindBinary(
+base::Optional<FoundBinary> LocalBinaryFinder::FindBinary(
     const std::string& abspath,
     const std::string& build_id) {
   auto p = cache_.emplace(abspath, base::nullopt);
   if (!p.second)
     return p.first->second;
 
-  base::Optional<std::string>& cache_entry = p.first->second;
+  base::Optional<FoundBinary>& cache_entry = p.first->second;
 
   for (const std::string& root_str : roots_) {
     cache_entry = FindBinaryInRoot(root_str, abspath, build_id);
@@ -444,22 +512,30 @@ base::Optional<std::string> LocalBinaryFinder::FindBinary(
   return cache_entry;
 }
 
-bool LocalBinaryFinder::IsCorrectFile(const std::string& symbol_file,
-                                      const std::string& build_id) {
+base::Optional<FoundBinary> LocalBinaryFinder::IsCorrectFile(
+    const std::string& symbol_file,
+    const std::string& build_id) {
+  if (access(symbol_file.c_str(), F_OK) != 0) {
+    return base::nullopt;
+  }
   base::ScopedFile fd(base::OpenFile(symbol_file, O_RDONLY));
   if (!fd)
-    return false;
+    return base::nullopt;
   struct stat statbuf;
   if (fstat(*fd, &statbuf) == -1)
-    return false;
+    return base::nullopt;
 
-  base::Optional<std::string> file_build_id = GetBuildId(*fd, &statbuf);
-  if (!file_build_id)
-    return false;
-  return *file_build_id == build_id;
+  base::Optional<BuildIdAndLoadBias> build_id_and_load_bias =
+      GetBuildIdAndLoadBias(*fd, &statbuf);
+  if (!build_id_and_load_bias)
+    return base::nullopt;
+  if (build_id_and_load_bias->build_id != build_id) {
+    return base::nullopt;
+  }
+  return FoundBinary{symbol_file, build_id_and_load_bias->load_bias};
 }
 
-base::Optional<std::string> LocalBinaryFinder::FindBinaryInRoot(
+base::Optional<FoundBinary> LocalBinaryFinder::FindBinaryInRoot(
     const std::string& root_str,
     const std::string& abspath,
     const std::string& build_id) {
@@ -495,29 +571,35 @@ base::Optional<std::string> LocalBinaryFinder::FindBinaryInRoot(
   // * $ROOT/foo.so
   // * $ROOT/.build-id/ab/cd1234.debug
 
+  base::Optional<FoundBinary> result;
+
   std::string symbol_file = root_str + "/" + dirname + "/" + filename;
-  if (access(symbol_file.c_str(), F_OK) == 0 &&
-      IsCorrectFile(symbol_file, build_id))
-    return {symbol_file};
+  result = IsCorrectFile(symbol_file, build_id);
+  if (result) {
+    return result;
+  }
 
   if (filename.find(kApkPrefix) == 0) {
     symbol_file =
         root_str + "/" + dirname + "/" + filename.substr(sizeof(kApkPrefix));
-    if (access(symbol_file.c_str(), F_OK) == 0 &&
-        IsCorrectFile(symbol_file, build_id))
-      return {symbol_file};
+    result = IsCorrectFile(symbol_file, build_id);
+    if (result) {
+      return result;
+    }
   }
 
   symbol_file = root_str + "/" + filename;
-  if (access(symbol_file.c_str(), F_OK) == 0 &&
-      IsCorrectFile(symbol_file, build_id))
-    return {symbol_file};
+  result = IsCorrectFile(symbol_file, build_id);
+  if (result) {
+    return result;
+  }
 
   if (filename.find(kApkPrefix) == 0) {
     symbol_file = root_str + "/" + filename.substr(sizeof(kApkPrefix));
-    if (access(symbol_file.c_str(), F_OK) == 0 &&
-        IsCorrectFile(symbol_file, build_id))
-      return {symbol_file};
+    result = IsCorrectFile(symbol_file, build_id);
+    if (result) {
+      return result;
+    }
   }
 
   std::string hex_build_id = base::ToHex(build_id.c_str(), build_id.size());
@@ -525,9 +607,10 @@ base::Optional<std::string> LocalBinaryFinder::FindBinaryInRoot(
   if (!split_hex_build_id.empty()) {
     symbol_file =
         root_str + "/" + ".build-id" + "/" + split_hex_build_id + ".debug";
-    if (access(symbol_file.c_str(), F_OK) == 0 &&
-        IsCorrectFile(symbol_file, build_id))
-      return {symbol_file};
+    result = IsCorrectFile(symbol_file, build_id);
+    if (result) {
+      return result;
+    }
   }
 
   return base::nullopt;
@@ -610,15 +693,27 @@ std::vector<SymbolizedFrame> LLVMSymbolizerProcess::Symbolize(
 std::vector<std::vector<SymbolizedFrame>> LocalSymbolizer::Symbolize(
     const std::string& mapping_name,
     const std::string& build_id,
+    uint64_t load_bias,
     const std::vector<uint64_t>& addresses) {
-  base::Optional<std::string> binary =
+  base::Optional<FoundBinary> binary =
       finder_->FindBinary(mapping_name, build_id);
   if (!binary)
     return {};
+  uint64_t load_bias_correction = 0;
+  if (binary->load_bias > load_bias) {
+    // On Android 10, there was a bug in libunwindstack that would incorrectly
+    // calculate the load_bias, and thus the relative PC. This would end up in
+    // frames that made no sense. We can fix this up after the fact if we
+    // detect this situation.
+    load_bias_correction = binary->load_bias - load_bias;
+    PERFETTO_LOG("Correcting load bias by %" PRIu64 " for %s",
+                 load_bias_correction, mapping_name.c_str());
+  }
   std::vector<std::vector<SymbolizedFrame>> result;
   result.reserve(addresses.size());
   for (uint64_t address : addresses)
-    result.emplace_back(llvm_symbolizer_.Symbolize(*binary, address));
+    result.emplace_back(llvm_symbolizer_.Symbolize(
+        binary->file_name, address + load_bias_correction));
   return result;
 }
 
