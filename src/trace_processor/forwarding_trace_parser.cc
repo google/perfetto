@@ -130,7 +130,9 @@ util::Status ForwardingTraceParser::Parse(std::unique_ptr<uint8_t[]> data,
           return util::ErrStatus(kNoZlibErr);
         }
       case kUnknownTraceType:
-        return util::ErrStatus("Unknown trace type provided");
+        // If renaming this error message don't remove the "(ERR:fmt)" part.
+        // The UI's error_dialog.ts uses it to make the dialog more graceful.
+        return util::ErrStatus("Unknown trace type provided (ERR:fmt)");
     }
   }
 
