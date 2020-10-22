@@ -35,10 +35,15 @@ bool ParseLlvmSymbolizerLine(const std::string& line,
                              std::string* file_name,
                              uint32_t* line_no);
 
+struct FoundBinary {
+  std::string file_name;
+  uint64_t load_bias;
+};
+
 class BinaryFinder {
  public:
   virtual ~BinaryFinder();
-  virtual base::Optional<std::string> FindBinary(
+  virtual base::Optional<FoundBinary> FindBinary(
       const std::string& abspath,
       const std::string& build_id) = 0;
 };
@@ -47,34 +52,34 @@ class LocalBinaryIndexer : public BinaryFinder {
  public:
   explicit LocalBinaryIndexer(std::vector<std::string> roots);
 
-  base::Optional<std::string> FindBinary(const std::string& abspath,
+  base::Optional<FoundBinary> FindBinary(const std::string& abspath,
                                          const std::string& build_id) override;
   ~LocalBinaryIndexer() override;
 
  private:
-  std::map<std::string, std::string> buildid_to_file_;
+  std::map<std::string, FoundBinary> buildid_to_file_;
 };
 
 class LocalBinaryFinder : public BinaryFinder {
  public:
   explicit LocalBinaryFinder(std::vector<std::string> roots);
 
-  base::Optional<std::string> FindBinary(const std::string& abspath,
+  base::Optional<FoundBinary> FindBinary(const std::string& abspath,
                                          const std::string& build_id) override;
 
   ~LocalBinaryFinder() override;
 
  private:
-  bool IsCorrectFile(const std::string& symbol_file,
-                     const std::string& build_id);
+  base::Optional<FoundBinary> IsCorrectFile(const std::string& symbol_file,
+                                            const std::string& build_id);
 
-  base::Optional<std::string> FindBinaryInRoot(const std::string& root_str,
+  base::Optional<FoundBinary> FindBinaryInRoot(const std::string& root_str,
                                                const std::string& abspath,
                                                const std::string& build_id);
 
  private:
   std::vector<std::string> roots_;
-  std::map<std::string, base::Optional<std::string>> cache_;
+  std::map<std::string, base::Optional<FoundBinary>> cache_;
 };
 
 class Subprocess {
@@ -113,6 +118,7 @@ class LocalSymbolizer : public Symbolizer {
   std::vector<std::vector<SymbolizedFrame>> Symbolize(
       const std::string& mapping_name,
       const std::string& build_id,
+      uint64_t load_bias,
       const std::vector<uint64_t>& address) override;
 
   ~LocalSymbolizer() override;
