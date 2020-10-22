@@ -43,21 +43,12 @@ export function maybeShowErrorDialog(errLog: string) {
 
   if (errLog.includes('Unable to claim interface.') ||
       errLog.includes('A transfer error has occurred')) {
-    showModal({
-      title: 'A WebUSB error occurred',
-      content: m(
-          'div',
-          m('span', `Is adb already running on the host? Run this command and
-        try again.`),
-          m('br'),
-          m('.modal-bash', '> adb kill-server'),
-          m('br'),
-          m('span', 'For details see '),
-          m('a', {href: 'http://b/159048331', target: '_blank'}, 'b/159048331'),
-          ),
-      buttons: []
-    });
+    showWebUSBError();
     timeLastReport = now;
+  }
+
+  if (errLog.includes('(ERR:fmt)')) {
+    showUnknownFileError();
     return;
   }
 
@@ -100,7 +91,7 @@ export function maybeShowErrorDialog(errLog: string) {
                 errTitle, errMessage, userDescription, shareTraceSection);
           },
         }),
-        m('span', `Check this box to share the current trace for debugging 
+        m('span', `Check this box to share the current trace for debugging
      purposes.`),
         m('div.modal-small',
           `This will create a permalink to this trace, you may
@@ -208,6 +199,45 @@ function showOutOfMemoryDialog() {
         m('.modal-bash', '> trace_processor trace.pftrace --http'),
         m('span', 'For details see '),
         m('a', {href: url, target: '_blank'}, url),
+        ),
+    buttons: []
+  });
+}
+
+function showUnknownFileError() {
+  showModal({
+    title: 'Cannot open this file',
+    content: m(
+        'div',
+        m('p',
+          'The file opened doesn\'t look like a Perfetto trace or any ' +
+              'other format recognized by the Perfetto TraceProcessor.'),
+        m('p', 'Formats supported:'),
+        m(
+            'ul',
+            m('li', 'Perfetto protobuf trace'),
+            m('li', 'chrome://tracing JSON'),
+            m('li', 'Android systrace'),
+            m('li', 'Fuchsia trace'),
+            m('li', 'Ninja build log'),
+            ),
+        ),
+    buttons: []
+  });
+}
+
+function showWebUSBError() {
+  showModal({
+    title: 'A WebUSB error occurred',
+    content: m(
+        'div',
+        m('span', `Is adb already running on the host? Run this command and
+      try again.`),
+        m('br'),
+        m('.modal-bash', '> adb kill-server'),
+        m('br'),
+        m('span', 'For details see '),
+        m('a', {href: 'http://b/159048331', target: '_blank'}, 'b/159048331'),
         ),
     buttons: []
   });
