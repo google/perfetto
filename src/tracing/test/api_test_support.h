@@ -27,6 +27,7 @@
 //  IMPORTANT: This header must not pull any non-public perfetto header.
 
 #include <stdint.h>
+#include "perfetto/tracing.h"
 
 namespace perfetto {
 namespace test {
@@ -34,6 +35,9 @@ namespace test {
 int32_t GetCurrentProcessId();
 bool StartSystemService();
 void SyncProducers();
+
+void SetBatchCommitsDuration(uint32_t batch_commits_duration_ms,
+                             BackendType backend_type);
 
 }  // namespace test
 }  // namespace perfetto

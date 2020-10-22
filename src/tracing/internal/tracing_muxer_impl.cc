@@ -1090,6 +1090,18 @@ void TracingMuxerImpl::QueryServiceState(
   consumer->service_->QueryServiceState(std::move(callback_wrapper));
 }
 
+void TracingMuxerImpl::SetBatchCommitsDurationForTesting(
+    uint32_t batch_commits_duration_ms,
+    BackendType backend_type) {
+  for (RegisteredBackend& backend : backends_) {
+    if (backend.producer && backend.producer->connected_ &&
+        backend.type == backend_type) {
+      backend.producer->service_->MaybeSharedMemoryArbiter()
+          ->SetBatchCommitsDuration(batch_commits_duration_ms);
+    }
+  }
+}
+
 TracingMuxerImpl::ConsumerImpl* TracingMuxerImpl::FindConsumer(
     TracingSessionGlobalID session_id) {
   PERFETTO_DCHECK_THREAD(thread_checker_);

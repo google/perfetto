@@ -131,10 +131,11 @@ TEST_P(TraceWriterImplTest, FragmentingPacket) {
   ASSERT_TRUE(chunk.header()->packets.load().flags &
               SharedMemoryABI::ChunkHeader::kLastPacketContinuesOnNextChunk);
 
-  // Starting a new packet should cause patches to be applied.
+  // Starting a new packet should cause patches to be committed to the service.
   packet->Finalize();
   auto packet2 = writer->NewTracePacket();
   arbiter_->FlushPendingCommitDataRequests();
+
   EXPECT_EQ(0, last_commit.chunks_to_move_size());
   ASSERT_EQ(1, last_commit.chunks_to_patch_size());
   EXPECT_EQ(writer->writer_id(), last_commit.chunks_to_patch()[0].writer_id());
@@ -143,6 +144,51 @@ TEST_P(TraceWriterImplTest, FragmentingPacket) {
             last_commit.chunks_to_patch()[0].chunk_id());
   EXPECT_FALSE(last_commit.chunks_to_patch()[0].has_more_patches());
   ASSERT_EQ(1, last_commit.chunks_to_patch()[0].patches_size());
+}
+
+TEST_P(TraceWriterImplTest, PatchingWhileBatching) {
+  arbiter_->SetBatchCommitsDuration(UINT32_MAX);
+  const BufferID kBufId = 42;
+  std::unique_ptr<TraceWriter> writer = arbiter_->CreateTraceWriter(kBufId);
+
+  // Write a packet that's guaranteed to span more than a single chunk.
+  auto packet = writer->NewTracePacket();
+  size_t chunk_size = page_size() / 4;
+  std::stringstream large_string_writer;
+  for (size_t pos = 0; pos < chunk_size; pos++)
+    large_string_writer << "x";
+  std::string large_string = large_string_writer.str();
+  packet->set_for_testing()->set_str(large_string.data(), large_string.size());
+
+  // Starting a new packet should cause the patches for the previous one to be
+  // applied in the producer.
+  packet->Finalize();
+  auto packet2 = writer->NewTracePacket();
+
+  // Simulate the end of the batching period, which triggers a commit to the
+  // service.
+  arbiter_->FlushPendingCommitDataRequests();
+
+  // The first allocated chunk should be in a complete state and should not need
+  // patching, even though the packet extends past that chunk. This is because
+  // the patches for that chunk were applied in the producer, when the new
+  // packet was started.
+  SharedMemoryABI* abi = arbiter_->shmem_abi_for_testing();
+  ASSERT_EQ(SharedMemoryABI::kChunkComplete, abi->GetChunkState(0u, 0u));
+  auto chunk = abi->TryAcquireChunkForReading(0u, 0u);
+  ASSERT_TRUE(chunk.is_valid());
+  ASSERT_EQ(1, chunk.header()->packets.load().count);
+  ASSERT_TRUE(chunk.header()->packets.load().flags &
+              SharedMemoryABI::ChunkHeader::kLastPacketContinuesOnNextChunk);
+  ASSERT_FALSE(chunk.header()->packets.load().flags &
+               SharedMemoryABI::ChunkHeader::kChunkNeedsPatching);
+
+  const auto& last_commit = fake_producer_endpoint_.last_commit_data_request;
+  ASSERT_EQ(1, last_commit.chunks_to_move_size());
+  EXPECT_EQ(0u, last_commit.chunks_to_move()[0].page());
+  EXPECT_EQ(0u, last_commit.chunks_to_move()[0].chunk());
+  EXPECT_EQ(kBufId, last_commit.chunks_to_move()[0].target_buffer());
+  EXPECT_EQ(0, last_commit.chunks_to_patch_size());
 }
 
 // Sets up a scenario in which the SMB is exhausted and TraceWriter fails to get

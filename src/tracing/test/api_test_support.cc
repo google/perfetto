@@ -81,5 +81,13 @@ void SyncProducers() {
   muxer->SyncProducersForTesting();
 }
 
+void SetBatchCommitsDuration(uint32_t batch_commits_duration_ms,
+                             BackendType backend_type) {
+  auto* muxer = reinterpret_cast<perfetto::internal::TracingMuxerImpl*>(
+      perfetto::internal::TracingMuxer::Get());
+  muxer->SetBatchCommitsDurationForTesting(batch_commits_duration_ms,
+                                           backend_type);
+}
+
 }  // namespace test
 }  // namespace perfetto

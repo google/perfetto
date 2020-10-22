@@ -163,9 +163,9 @@ TEST_P(SharedMemoryArbiterImplTest, BatchCommits) {
   ASSERT_TRUE(Mock::VerifyAndClearExpectations(&mock_producer_endpoint_));
 
   // Since we cannot explicitly control the passage of time in task_runner_, to
-  // simulate a batching period and a commit at the end of it, set the batching
-  // duration to a very large value and call FlushPendingCommitDataRequests to
-  // manually trigger the commit.
+  // simulate a non-zero batching period and a commit at the end of it, set the
+  // batching duration to a very large value and call
+  // FlushPendingCommitDataRequests to manually trigger the commit.
   arbiter_->SetBatchCommitsDuration(UINT32_MAX);
 
   // First chunk that will be batched. CommitData should not be called
@@ -173,9 +173,16 @@ TEST_P(SharedMemoryArbiterImplTest, BatchCommits) {
   chunk = arbiter_->GetNewChunk({}, BufferExhaustedPolicy::kDefault);
   ASSERT_TRUE(chunk.is_valid());
   EXPECT_CALL(mock_producer_endpoint_, CommitData(_, _)).Times(0);
+  // We'll pretend that the chunk needs patching. This is done in order to
+  // verify that chunks that need patching are not marked as complete (i.e. they
+  // are kept in state kChunkBeingWritten) before the batching period ends - in
+  // case a patch for them arrives during the batching period.
+  chunk.SetFlag(SharedMemoryABI::ChunkHeader::kChunkNeedsPatching);
   arbiter_->ReturnCompletedChunk(std::move(chunk), 1, &ignored);
   task_runner_->RunUntilIdle();
   ASSERT_TRUE(Mock::VerifyAndClearExpectations(&mock_producer_endpoint_));
+  ASSERT_EQ(SharedMemoryABI::kChunkBeingWritten,
+            arbiter_->shmem_abi_for_testing()->GetChunkState(1u, 0u));
 
   // Add a second chunk to the batch. This should also not trigger an immediate
   // call to CommitData.
@@ -185,6 +192,11 @@ TEST_P(SharedMemoryArbiterImplTest, BatchCommits) {
   arbiter_->ReturnCompletedChunk(std::move(chunk), 2, &ignored);
   task_runner_->RunUntilIdle();
   ASSERT_TRUE(Mock::VerifyAndClearExpectations(&mock_producer_endpoint_));
+  // This chunk does not need patching, so it should be marked as complete even
+  // before the end of the batching period - to allow the service to read it in
+  // full.
+  ASSERT_EQ(SharedMemoryABI::kChunkComplete,
+            arbiter_->shmem_abi_for_testing()->GetChunkState(2u, 0u));
 
   // Make sure that CommitData gets called once (should happen at the end
   // of the batching period), with the two chunks in the batch.

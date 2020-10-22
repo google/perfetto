@@ -110,6 +110,7 @@ if (enable_perfetto_integration_tests) {
 source_set("api_test_support") {
   testonly = true
   deps = [
+    "../../..:libperfetto_client_experimental",
     "../../../gn:default_deps",
     "../../base",
     "../../tracing:client_api_without_backends",
