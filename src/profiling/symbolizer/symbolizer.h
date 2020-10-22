@@ -40,6 +40,7 @@ class Symbolizer {
   virtual std::vector<std::vector<SymbolizedFrame>> Symbolize(
       const std::string& mapping_name,
       const std::string& build_id,
+      uint64_t load_bias,
       const std::vector<uint64_t>& address) = 0;
   virtual ~Symbolizer();
 };
