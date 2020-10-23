@@ -490,7 +490,11 @@ bool Client::SendControlSocketByte() {
   // is how the service signals the tracing session was torn down.
   if (sock_.Send(kSingleByte, sizeof(kSingleByte)) == -1 &&
       !base::IsAgain(errno)) {
-    PERFETTO_PLOG("Failed to send control socket byte.");
+    if (shmem_.shutting_down()) {
+      PERFETTO_LOG("Profiling session ended.");
+    } else {
+      PERFETTO_PLOG("Failed to send control socket byte.");
+    }
     return false;
   }
   return true;
