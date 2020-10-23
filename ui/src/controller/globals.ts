@@ -24,8 +24,8 @@ type PublishKinds = 'OverviewData'|'TrackData'|'Threads'|'QueryResult'|
     'LegacyTrace'|'SliceDetails'|'CounterDetails'|'HeapProfileDetails'|
     'HeapProfileFlamegraph'|'FileDownload'|'Loading'|'Search'|'BufferUsage'|
     'RecordingLog'|'SearchResult'|'AggregateData'|'CpuProfileDetails'|
-    'TraceErrors'|'UpdateChromeCategories'|'BoundFlows'|'ThreadStateDetails'|
-    'MetricError'|'MetricResult';
+    'TraceErrors'|'UpdateChromeCategories'|'ConnectedFlows'|
+    'ThreadStateDetails'|'MetricError'|'MetricResult';
 
 export interface App {
   state: State;
