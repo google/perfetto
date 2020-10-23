@@ -142,6 +142,14 @@ TEST_P(SharedMemoryABITest, NominalCases) {
           chunk.header()->packets.load().flags &
           SharedMemoryABI::ChunkHeader::kLastPacketContinuesOnNextChunk);
 
+      // Test clearing the needs patching flag.
+      chunk.SetFlag(SharedMemoryABI::ChunkHeader::kChunkNeedsPatching);
+      ASSERT_TRUE(chunk.header()->packets.load().flags &
+                  SharedMemoryABI::ChunkHeader::kChunkNeedsPatching);
+      chunk.ClearNeedsPatchingFlag();
+      ASSERT_FALSE(chunk.header()->packets.load().flags &
+                   SharedMemoryABI::ChunkHeader::kChunkNeedsPatching);
+
       // Reacquiring the same chunk should fail.
       ASSERT_FALSE(abi.TryAcquireChunkForWriting(page_idx, chunk_idx, &header)
                        .is_valid());

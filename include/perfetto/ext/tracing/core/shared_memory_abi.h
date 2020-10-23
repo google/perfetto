@@ -415,11 +415,23 @@ class SharedMemoryABI {
     }
 
     // Flags are cleared by TryAcquireChunk(), by passing the new header for
-    // the chunk.
+    // the chunk, or through ClearNeedsPatchingFlag.
     void SetFlag(ChunkHeader::Flags flag) {
       ChunkHeader* chunk_header = header();
       auto packets = chunk_header->packets.load(std::memory_order_relaxed);
       packets.flags |= flag;
+      chunk_header->packets.store(packets, std::memory_order_release);
+    }
+
+    // This flag can only be cleared by the producer while it is still holding
+    // on to the chunk - i.e. while the chunk is still in state
+    // ChunkState::kChunkBeingWritten and hasn't been transitioned to
+    // ChunkState::kChunkComplete. This is ok, because the service is oblivious
+    // to the needs patching flag before the chunk is released as complete.
+    void ClearNeedsPatchingFlag() {
+      ChunkHeader* chunk_header = header();
+      auto packets = chunk_header->packets.load(std::memory_order_relaxed);
+      packets.flags &= ~ChunkHeader::kChunkNeedsPatching;
       chunk_header->packets.store(packets, std::memory_order_release);
     }
 
@@ -517,7 +529,9 @@ class SharedMemoryABI {
     return TryAcquireChunk(page_idx, chunk_idx, kChunkBeingRead, nullptr);
   }
 
-  // The caller must have successfully TryAcquireAllChunksForReading().
+  // The caller must have successfully TryAcquireAllChunksForReading() or it
+  // needs to guarantee that the chunk is already in the kChunkBeingWritten
+  // state.
   Chunk GetChunkUnchecked(size_t page_idx,
                           uint32_t page_layout,
                           size_t chunk_idx);
