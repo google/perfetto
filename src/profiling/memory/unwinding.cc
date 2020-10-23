@@ -382,6 +382,7 @@ void UnwindingWorker::HandleDisconnectSocket(pid_t pid) {
   }
   ClientData& client_data = it->second;
   // Shutdown and call OnDisconnect handler.
+  client_data.shmem.SetShuttingDown();
   client_data.sock->Shutdown(/* notify= */ true);
 }
 
