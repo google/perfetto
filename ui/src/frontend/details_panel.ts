@@ -21,7 +21,10 @@ import {ChromeSliceDetailsPanel} from './chrome_slice_panel';
 import {CounterDetailsPanel} from './counter_panel';
 import {CpuProfileDetailsPanel} from './cpu_profile_panel';
 import {DragGestureHandler} from './drag_gesture_handler';
-import {FlowEventsPanel} from './flow_events_panel';
+import {
+  FlowEventsAreaSelectedPanel,
+  FlowEventsPanel
+} from './flow_events_panel';
 import {globals} from './globals';
 import {HeapProfileDetailsPanel} from './heap_profile_panel';
 import {LogPanel} from './logs_panel';
@@ -69,6 +72,7 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
   private tabNames = new Map<string, string>([
     ['current_selection', 'Current Selection'],
     ['bound_flows', 'Flow Events'],
+    ['selected_flows', 'Flow Events'],
     ['android_logs', 'Android Logs'],
     ['query_result', 'Query Result'],
   ]);
@@ -250,6 +254,11 @@ export class DetailsPanel implements m.ClassComponent {
         detailsPanels.set(
             value.tabName, m(AggregationPanel, {kind: key, key, data: value}));
       }
+    }
+
+    // Add this after all aggregation panels, to make it appear after 'Slices'
+    if (globals.selectedFlows.length > 0) {
+      detailsPanels.set('selected_flows', m(FlowEventsAreaSelectedPanel));
     }
 
     this.showDetailsPanel = detailsPanels.size > 0;

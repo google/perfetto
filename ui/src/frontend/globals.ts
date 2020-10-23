@@ -56,6 +56,7 @@ export interface FlowPoint {
   trackId: number;
 
   sliceName: string;
+  sliceCategory: string;
   sliceId: number;
   sliceStartTs: number;
   sliceEndTs: number;
@@ -145,6 +146,8 @@ class Globals {
   private _sliceDetails?: SliceDetails = undefined;
   private _threadStateDetails?: ThreadStateDetails = undefined;
   private _connectedFlows?: Flow[] = undefined;
+  private _selectedFlows?: Flow[] = undefined;
+  private _visibleFlowCategories?: Map<string, boolean> = undefined;
   private _counterDetails?: CounterDetails = undefined;
   private _heapProfileDetails?: HeapProfileDetails = undefined;
   private _cpuProfileDetails?: CpuProfileDetails = undefined;
@@ -191,6 +194,8 @@ class Globals {
     this._threadMap = new Map<number, ThreadDesc>();
     this._sliceDetails = {};
     this._connectedFlows = [];
+    this._selectedFlows = [];
+    this._visibleFlowCategories = new Map<string, boolean>();
     this._counterDetails = {};
     this._threadStateDetails = {};
     this._heapProfileDetails = {};
@@ -264,6 +269,22 @@ class Globals {
 
   set connectedFlows(connectedFlows: Flow[]) {
     this._connectedFlows = assertExists(connectedFlows);
+  }
+
+  get selectedFlows() {
+    return assertExists(this._selectedFlows);
+  }
+
+  set selectedFlows(selectedFlows: Flow[]) {
+    this._selectedFlows = assertExists(selectedFlows);
+  }
+
+  get visibleFlowCategories() {
+    return assertExists(this._visibleFlowCategories);
+  }
+
+  set visibleFlowCategories(visibleFlowCategories: Map<string, boolean>) {
+    this._visibleFlowCategories = assertExists(visibleFlowCategories);
   }
 
   get counterDetails() {
@@ -395,7 +416,7 @@ class Globals {
     let nextTrackId = -1;
 
     // Choose any flow
-    for (const flow of this.boundFlows) {
+    for (const flow of this.connectedFlows) {
       if (flow.begin.sliceId === sliceId && direction === 'Forward') {
         nextSliceId = flow.end.sliceId;
         nextTrackId = flow.end.trackId;
