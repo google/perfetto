@@ -24,6 +24,8 @@ void FtraceStats::Write(protos::pbzero::FtraceStats* writer) const {
   for (const FtraceCpuStats& cpu_specific_stats : cpu_stats) {
     cpu_specific_stats.Write(writer->add_cpu_stats());
   }
+  writer->set_kernel_symbols_parsed(kernel_symbols_parsed);
+  writer->set_kernel_symbols_mem_kb(kernel_symbols_mem_kb);
 }
 
 void FtraceCpuStats::Write(protos::pbzero::FtraceCpuStats* writer) const {
