@@ -260,6 +260,47 @@
   text-decoration: underline;
 }
 
+.flow-info i.material-icons {
+  color: rgb(60, 86, 136);
+}
+
+.warning {
+  position: relative;
+  font-size: 13px;
+  color: hsl(45, 100%, 48%);
+}
+
+.warning i.material-icons {
+  font-size: 13px;
+}
+
+.warning .tooltip {
+  visibility: hidden;
+
+  background-color: white;
+  color: #3f4040;
+  box-shadow: 1px 3px 15px rgba(23, 32, 44, 0.3);
+
+  padding: 4px;
+  border-radius: 4px;
+
+  text-align: center;
+  white-space: nowrap;
+
+  position: absolute;
+  z-index: 1;
+  top: -5px;
+  left: 105%;
+}
+
+.warning:hover .tooltip {
+  visibility: visible;
+}
+
+.flow-button {
+  color: rgb(60, 86, 136);
+}
+
 table.half-width {
   max-width: 50%;
 }

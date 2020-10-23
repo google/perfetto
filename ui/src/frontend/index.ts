@@ -139,6 +139,11 @@ class FrontendApi {
     this.redraw();
   }
 
+  publishSelectedFlows(selectedFlows: Flow[]) {
+    globals.selectedFlows = selectedFlows;
+    this.redraw();
+  }
+
   publishCounterDetails(click: CounterDetails) {
     globals.counterDetails = click;
     this.redraw();
