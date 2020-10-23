@@ -46,6 +46,8 @@ class LazyKernelSymbolizer {
   // Returns |instance_|, creating it if doesn't exist or was destroyed.
   KernelSymbolMap* GetOrCreateKernelSymbolMap();
 
+  bool is_valid() const { return !!symbol_map_; }
+
   // Destroys the |symbol_map_| freeing up memory. A further call to
   // GetOrCreateKernelSymbolMap() will create it again.
   void Destroy();
