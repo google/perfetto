@@ -16,9 +16,25 @@ import * as m from 'mithril';
 
 import {Actions} from '../common/actions';
 
-import {globals} from './globals';
+import {Flow, globals} from './globals';
+import {BLANK_CHECKBOX, CHECKBOX} from './icons';
 import {Panel, PanelSize} from './panel';
 import {findUiTrackId} from './scroll_helper';
+
+export const ALL_CATEGORIES = '_all_';
+
+export function getFlowCategories(flow: Flow): string[] {
+  const categories: string[] = [];
+  // v1 flows have their own categories
+  if (flow.category) {
+    categories.push(...flow.category.split(','));
+    return categories;
+  }
+  const beginCats = flow.begin.sliceCategory.split(',');
+  const endCats = flow.end.sliceCategory.split(',');
+  categories.push(...new Set([...beginCats, ...endCats]));
+  return categories;
+}
 
 export class FlowEventsPanel extends Panel {
   view() {
@@ -88,6 +104,91 @@ export class FlowEventsPanel extends Panel {
     return m('.details-panel', [
       m('.details-panel-heading', m('h2', `Flow events`)),
       m('.flow-events-table', m('table.half-width', rows))
+    ]);
+  }
+
+  renderCanvas(_ctx: CanvasRenderingContext2D, _size: PanelSize) {}
+}
+
+export class FlowEventsAreaSelectedPanel extends Panel {
+  view() {
+    const selection = globals.state.currentSelection;
+    if (!selection || selection.kind !== 'AREA') {
+      return;
+    }
+
+    const columns = [
+      m('th', 'Flow Category'),
+      m('th', 'Number of flows'),
+      m('th',
+        'Show',
+        m('a.warning',
+          m('i.material-icons', 'warning'),
+          m('.tooltip',
+            'Showing a large number of flows may impact performance.')))
+    ];
+
+    const rows = [m('tr', columns)];
+
+    const categoryToFlowsNum = new Map<string, number>();
+
+    globals.selectedFlows.forEach(flow => {
+      const categories = getFlowCategories(flow);
+      categories.forEach(cat => {
+        if (!categoryToFlowsNum.has(cat)) {
+          categoryToFlowsNum.set(cat, 0);
+        }
+        categoryToFlowsNum.set(cat, categoryToFlowsNum.get(cat)! + 1);
+      });
+    });
+
+    const allWasChecked = globals.visibleFlowCategories.get(ALL_CATEGORIES);
+    rows.push(m('tr.sum', [
+      m('td.sum-data', 'All'),
+      m('td.sum-data', globals.selectedFlows.length),
+      m('td.sum-data',
+        m('i.material-icons',
+          {
+            onclick: () => {
+              if (allWasChecked) {
+                globals.visibleFlowCategories.clear();
+              } else {
+                categoryToFlowsNum.forEach((_, cat) => {
+                  globals.visibleFlowCategories.set(cat, true);
+                });
+              }
+              globals.visibleFlowCategories.set(ALL_CATEGORIES, !allWasChecked);
+              globals.rafScheduler.scheduleFullRedraw();
+            },
+          },
+          allWasChecked ? CHECKBOX : BLANK_CHECKBOX))
+    ]));
+
+    categoryToFlowsNum.forEach((num, cat) => {
+      const wasChecked = globals.visibleFlowCategories.get(cat) ||
+          globals.visibleFlowCategories.get(ALL_CATEGORIES);
+      const data = [
+        m('td.flow-info', cat),
+        m('td.flow-info', num),
+        m('td.flow-info',
+          m('i.material-icons',
+            {
+              onclick: () => {
+                if (wasChecked) {
+                  globals.visibleFlowCategories.set(ALL_CATEGORIES, false);
+                }
+                globals.visibleFlowCategories.set(cat, !wasChecked);
+                globals.rafScheduler.scheduleFullRedraw();
+              },
+            },
+            wasChecked ? CHECKBOX : BLANK_CHECKBOX))
+      ];
+      rows.push(m('tr', data));
+    });
+
+    return m('.details-panel', [
+      m('.details-panel-heading', m('h2', `Selected flow events`)),
+      m('.flow-events-table', m('table.half-width', rows)),
     ]);
   }
 
