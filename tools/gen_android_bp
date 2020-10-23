@@ -993,6 +993,8 @@ def main():
   out_files.append(args.output + '.swp')
   with open(out_files[-1], 'w') as f:
     f.write('\n'.join(output))
+    # Text files should have a trailing EOL.
+    f.write('\n')
 
   # Generate the perfetto_build_flags.h file.
   out_files.append(os.path.join(buildflags_dir, 'perfetto_build_flags.h.swp'))
