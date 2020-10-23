@@ -94,7 +94,8 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
  private:
   // Invoked soon after having established the connection with the service.
   void OnConnectionInitialized(bool connection_succeeded,
-                               bool using_shmem_provided_by_producer);
+                               bool using_shmem_provided_by_producer,
+                               bool direct_smb_patching_supported);
 
   // Invoked when the remote Service sends an IPC to tell us to do something
   // (e.g. start/stop a data source).
@@ -121,6 +122,7 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   size_t shared_memory_size_hint_bytes_ = 0;
   TracingService::ProducerSMBScrapingMode const smb_scraping_mode_;
   bool is_shmem_provided_by_producer_ = false;
+  bool direct_smb_patching_supported_ = false;
   std::vector<std::function<void()>> pending_sync_reqs_;
   PERFETTO_THREAD_CHECKER(thread_checker_)
 };

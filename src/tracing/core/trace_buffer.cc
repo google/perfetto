@@ -175,6 +175,17 @@ void TraceBuffer::CopyChunkUntrusted(ProducerID producer_id_trusted,
       return;
     }
 
+    // If this chunk was previously copied with the same number of fragments and
+    // the number didn't change, there's no need to copy it again. If the
+    // previous chunk was complete already, this should always be the case.
+    PERFETTO_DCHECK(suppress_client_dchecks_for_testing_ ||
+                    !record_meta->is_complete() ||
+                    (chunk_complete && prev->num_fragments == num_fragments));
+    if (prev->num_fragments == num_fragments) {
+      TRACE_BUFFER_DLOG("  skipping recommit of identical chunk");
+      return;
+    }
+
     // If we've already started reading from chunk N+1 following this chunk N,
     // don't override chunk N. Otherwise we may end up reading a packet from
     // chunk N after having read from chunk N+1, thereby violating sequential
@@ -189,17 +200,6 @@ void TraceBuffer::CopyChunkUntrusted(ProducerID producer_id_trusted,
         subsequent_it->second.num_fragments_read > 0) {
       stats_.set_abi_violations(stats_.abi_violations() + 1);
       PERFETTO_DCHECK(suppress_client_dchecks_for_testing_);
-      return;
-    }
-
-    // If this chunk was previously copied with the same number of fragments and
-    // the number didn't change, there's no need to copy it again. If the
-    // previous chunk was complete already, this should always be the case.
-    PERFETTO_DCHECK(suppress_client_dchecks_for_testing_ ||
-                    !record_meta->is_complete() ||
-                    (chunk_complete && prev->num_fragments == num_fragments));
-    if (prev->num_fragments == num_fragments) {
-      TRACE_BUFFER_DLOG("  skipping recommit of identical chunk");
       return;
     }
 

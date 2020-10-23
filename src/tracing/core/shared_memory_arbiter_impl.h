@@ -35,6 +35,7 @@
 namespace perfetto {
 
 class PatchList;
+class Patch;
 class TraceWriter;
 class TraceWriterImpl;
 
@@ -149,6 +150,10 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
 
   void SetBatchCommitsDuration(uint32_t batch_commits_duration_ms) override;
 
+  bool EnableDirectSMBPatching() override;
+
+  void SetDirectSMBPatchingSupportedByService() override;
+
   void FlushPendingCommitDataRequests(
       std::function<void()> callback = {}) override;
   bool TryShutdown() override;
@@ -185,6 +190,18 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
                                MaybeUnboundBufferID target_buffer,
                                PatchList* patch_list);
 
+  // Search the chunks that are being batched in |commit_data_req_| for a chunk
+  // that needs patching and that matches the provided |writer_id| and
+  // |patch.chunk_id|. If found, apply |patch| to that chunk, and if
+  // |chunk_needs_more_patching| is true, clear the needs patching flag of the
+  // chunk and mark it as complete - to allow the service to read it (and other
+  // chunks after it) during scraping. Returns true if the patch was applied,
+  // false otherwise.
+  //
+  // Note: the caller must be holding |lock_| for the duration of the call.
+  bool TryDirectPatchLocked(WriterID writer_id,
+                            const Patch& patch,
+                            bool chunk_needs_more_patching);
   std::unique_ptr<TraceWriter> CreateTraceWriterInternal(
       MaybeUnboundBufferID target_buffer,
       BufferExhaustedPolicy);
@@ -242,8 +259,14 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
   // reservation was unbound.
   std::vector<std::function<void()>> pending_flush_callbacks_;
 
-  // See SharedMemoryArbiter.SetBatchCommitsDuration.
+  // See SharedMemoryArbiter::SetBatchCommitsDuration.
   uint32_t batch_commits_duration_ms_ = 0;
+
+  // See SharedMemoryArbiter::EnableDirectSMBPatching.
+  bool direct_patching_enabled_ = false;
+
+  // See SharedMemoryArbiter::SetDirectSMBPatchingSupportedByService.
+  bool direct_patching_supported_by_service_ = false;
 
   // Indicates whether we have already scheduled a delayed flush for the
   // purposes of batching. Set to true at the beginning of a batching period and

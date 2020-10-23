@@ -132,6 +132,17 @@ class TracingMuxerImpl : public TracingMuxer {
   void QueryServiceState(TracingSessionGlobalID,
                          TracingSession::QueryServiceStateCallback);
 
+  // Sets the batching period to |batch_commits_duration_ms| on the backends
+  // with type |backend_type|.
+  void SetBatchCommitsDurationForTesting(uint32_t batch_commits_duration_ms,
+                                         BackendType backend_type);
+
+  // Enables direct SMB patching on the backends with type |backend_type| (see
+  // SharedMemoryArbiter::EnableDirectSMBPatching). Returns true if the
+  // operation succeeded for all backends with type |backend_type|, false
+  // otherwise.
+  bool EnableDirectSMBPatchingForTesting(BackendType backend_type);
+
  private:
   // For each TracingBackend we create and register one ProducerImpl instance.
   // This talks to the producer-side of the service, gets start/stop requests
