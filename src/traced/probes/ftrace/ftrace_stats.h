@@ -46,6 +46,8 @@ struct FtraceCpuStats {
 
 struct FtraceStats {
   std::vector<FtraceCpuStats> cpu_stats;
+  uint32_t kernel_symbols_parsed = 0;
+  uint32_t kernel_symbols_mem_kb = 0;
 
   void Write(protos::pbzero::FtraceStats*) const;
 };

@@ -44,6 +44,7 @@
 #include "src/traced/probes/ftrace/ftrace_metadata.h"
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
 #include "src/traced/probes/ftrace/ftrace_stats.h"
+#include "src/traced/probes/ftrace/kallsyms/kernel_symbol_map.h"
 #include "src/traced/probes/ftrace/kallsyms/lazy_kernel_symbolizer.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
 
@@ -415,6 +416,13 @@ void FtraceController::RemoveDataSource(FtraceDataSource* data_source) {
 
 void FtraceController::DumpFtraceStats(FtraceStats* stats) {
   DumpAllCpuStats(ftrace_procfs_.get(), stats);
+  if (symbolizer_ && symbolizer_->is_valid()) {
+    auto* symbol_map = symbolizer_->GetOrCreateKernelSymbolMap();
+    stats->kernel_symbols_parsed =
+        static_cast<uint32_t>(symbol_map->num_syms());
+    stats->kernel_symbols_mem_kb =
+        static_cast<uint32_t>(symbol_map->size_bytes() / 1024);
+  }
 }
 
 FtraceController::Observer::~Observer() = default;
