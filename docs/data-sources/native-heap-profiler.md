@@ -453,6 +453,8 @@ Then, Ctrl-C the Perfetto invocation and upload ~/heapprofd-trace to the
 * 32-bit programs cannot be targeted on 64-bit devices.
 * Setting `sampling_interval_bytes` to 0 crashes the target process.
   This is an invalid config that should be rejected instead.
+* Function names in libraries with load bias might be incorrect. Use
+  [offline symbolization](#symbolization) to resolve this issue.
 
 ## Heapprofd vs malloc_info() vs RSS
 
