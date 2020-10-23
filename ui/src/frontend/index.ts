@@ -134,8 +134,8 @@ class FrontendApi {
     this.redraw();
   }
 
-  publishBoundFlows(boundFlows: Flow[]) {
-    globals.boundFlows = boundFlows;
+  publishConnectedFlows(connectedFlows: Flow[]) {
+    globals.connectedFlows = connectedFlows;
     this.redraw();
   }
 

@@ -38,7 +38,7 @@ export class FlowEventsController extends Controller<'main'> {
         selection.id === undefined) {
       this.lastSelectedId = undefined;
       this.lastSelectedKind = undefined;
-      globals.publish('BoundFlows', []);
+      globals.publish('ConnectedFlows', []);
       return;
     }
 
@@ -56,10 +56,9 @@ export class FlowEventsController extends Controller<'main'> {
         f.slice_in, t2.track_id, t2.name, t2.ts, (t2.ts+t2.dur), t2.depth,
         extract_arg(f.arg_set_id, 'cat'),
         extract_arg(f.arg_set_id, 'name')
-      from flow f
+      from connected_flow(${selection.id}) f
       join slice t1 on f.slice_out = t1.slice_id
       join slice t2 on f.slice_in = t2.slice_id
-      where t1.slice_id = ${selection.id} or t2.slice_id = ${selection.id}
       `;
 
     this.args.engine.query(query).then(res => {
@@ -109,7 +108,7 @@ export class FlowEventsController extends Controller<'main'> {
           name
         });
       }
-      globals.publish('BoundFlows', flows);
+      globals.publish('ConnectedFlows', flows);
     });
   }
 }
