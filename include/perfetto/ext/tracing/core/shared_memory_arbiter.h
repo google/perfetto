@@ -138,6 +138,22 @@ class PERFETTO_EXPORT SharedMemoryArbiter {
   // DataSourceDescriptor.will_notify_on_stop=true).
   virtual void SetBatchCommitsDuration(uint32_t batch_commits_duration_ms) = 0;
 
+  // Called to enable direct producer-side patching of chunks that have not yet
+  // been committed to the service. The return value indicates whether direct
+  // patching was successfully enabled. It will be true if
+  // SharedMemoryArbiter::SetDirectSMBPatchingSupportedByService has been called
+  // and false otherwise.
+  virtual bool EnableDirectSMBPatching() = 0;
+
+  // When the producer and service live in separate processes, this method
+  // should be called if the producer receives an
+  // InitializeConnectionResponse.direct_smb_patching_supported set to true by
+  // the service (see producer_port.proto) .
+  //
+  // In the in-process case, the service will always support direct SMB patching
+  // and this method should always be called.
+  virtual void SetDirectSMBPatchingSupportedByService() = 0;
+
   // Forces an immediate commit of the completed packets, without waiting for
   // the next task or for a batching period to end. Should only be called while
   // bound.
