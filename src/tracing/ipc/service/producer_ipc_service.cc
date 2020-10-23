@@ -136,6 +136,7 @@ void ProducerIPCService::InitializeConnection(
   auto async_res =
       ipc::AsyncResult<protos::gen::InitializeConnectionResponse>::Create();
   async_res->set_using_shmem_provided_by_producer(using_producer_shmem);
+  async_res->set_direct_smb_patching_supported(true);
   response.Resolve(std::move(async_res));
 }
 

@@ -2062,6 +2062,90 @@ TEST_P(PerfettoApiTest, OneDataSourceOneEvent) {
   EXPECT_TRUE(test_packet_found);
 }
 
+TEST_P(PerfettoApiTest, WithBatching) {
+  auto* data_source = &data_sources_["my_data_source"];
+
+  // Setup the trace config.
+  perfetto::TraceConfig cfg;
+  cfg.set_duration_ms(500);
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("my_data_source");
+  ds_cfg->set_legacy_config("test config");
+
+  // Create a new trace session.
+  auto* tracing_session = NewTrace(cfg);
+
+  tracing_session->get()->Start();
+  data_source->on_setup.Wait();
+  data_source->on_start.Wait();
+
+  std::stringstream first_large_message;
+  for (size_t i = 0; i < 512; i++)
+    first_large_message << i << ". Something wicked this way comes. ";
+  auto first_large_message_str = first_large_message.str();
+
+  // Emit one trace event before we begin batching.
+  MockDataSource::Trace(
+      [&first_large_message_str](MockDataSource::TraceContext ctx) {
+        auto packet = ctx.NewTracePacket();
+        packet->set_timestamp(42);
+        packet->set_for_testing()->set_str(first_large_message_str);
+        packet->Finalize();
+      });
+
+  // Simulate the start of a batching cycle by first setting the batching period
+  // to a very large value and then force-flushing when we are done writing
+  // data.
+  ASSERT_TRUE(
+      perfetto::test::EnableDirectSMBPatching(/*BackendType=*/GetParam()));
+  perfetto::test::SetBatchCommitsDuration(UINT32_MAX,
+                                          /*BackendType=*/GetParam());
+
+  std::stringstream second_large_message;
+  for (size_t i = 0; i < 512; i++)
+    second_large_message << i << ". Something else wicked this way comes. ";
+  auto second_large_message_str = second_large_message.str();
+
+  // Emit another trace event.
+  MockDataSource::Trace(
+      [&second_large_message_str](MockDataSource::TraceContext ctx) {
+        auto packet = ctx.NewTracePacket();
+        packet->set_timestamp(43);
+        packet->set_for_testing()->set_str(second_large_message_str);
+        packet->Finalize();
+
+        // Simulate the end of the batching cycle.
+        ctx.Flush();
+      });
+
+  data_source->on_stop.Wait();
+  tracing_session->on_stop.Wait();
+
+  std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
+  ASSERT_GE(raw_trace.size(), 0u);
+
+  perfetto::protos::gen::Trace trace;
+  ASSERT_TRUE(trace.ParseFromArray(raw_trace.data(), raw_trace.size()));
+  bool test_packet_1_found = false;
+  bool test_packet_2_found = false;
+  for (const auto& packet : trace.packet()) {
+    if (!packet.has_for_testing())
+      continue;
+    EXPECT_TRUE(packet.timestamp() == 42U || packet.timestamp() == 43U);
+    if (packet.timestamp() == 42U) {
+      EXPECT_FALSE(test_packet_1_found);
+      EXPECT_EQ(packet.for_testing().str(), first_large_message_str);
+      test_packet_1_found = true;
+    } else {
+      EXPECT_FALSE(test_packet_2_found);
+      EXPECT_EQ(packet.for_testing().str(), second_large_message_str);
+      test_packet_2_found = true;
+    }
+  }
+  EXPECT_TRUE(test_packet_1_found && test_packet_2_found);
+}
+
 TEST_P(PerfettoApiTest, BlockingStartAndStop) {
   auto* data_source = &data_sources_["my_data_source"];
 

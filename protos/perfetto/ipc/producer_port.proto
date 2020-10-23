@@ -159,6 +159,11 @@ message InitializeConnectionResponse {
   // InitializeConnectionRequest (if any). If false, the shared memory buffer FD
   // will provided by the service via the SetupTracing async command.
   optional bool using_shmem_provided_by_producer = 1;
+
+  // Indicates to the producer that the service allows direct SMB patching of
+  // chunks that have not yet been committed to it.
+  // This field has been introduced in Android S.
+  optional bool direct_smb_patching_supported = 2;
 }
 
 // Arguments for rpc RegisterDataSource().
