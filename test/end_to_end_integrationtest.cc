@@ -50,6 +50,7 @@
 #include "protos/perfetto/trace/ftrace/ftrace.gen.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event.gen.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.gen.h"
+#include "protos/perfetto/trace/ftrace/ftrace_stats.gen.h"
 #include "protos/perfetto/trace/power/battery_counters.gen.h"
 #include "protos/perfetto/trace/test_event.gen.h"
 #include "protos/perfetto/trace/trace.gen.h"
@@ -366,6 +367,59 @@ TEST_F(PerfettoTest, TreeHuggerOnly(TestFtraceFlush)) {
     }
   }
   ASSERT_EQ(marker_found, 1);
+}
+
+TEST_F(PerfettoTest, KernelAddressSymbolization) {
+  // On Android in-tree builds (TreeHugger): this test must always run to
+  // prevent selinux / property-related regressions.
+  // On standalone builds and Linux, this can be optionally skipped because
+  // there it requires root to lower kptr_restrict.
+#if !PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
+  if (geteuid() != 0)
+    GTEST_SKIP();
+#endif
+
+  base::TestTaskRunner task_runner;
+
+  TestHelper helper(&task_runner);
+  helper.StartServiceIfRequired();
+
+#if PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
+  ProbesProducerThread probes(TEST_PRODUCER_SOCK_NAME);
+  probes.Connect();
+#endif
+
+  helper.ConnectConsumer();
+  helper.WaitForConsumerConnect();
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(1024);
+  trace_config.set_duration_ms(100);
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("linux.ftrace");
+  protos::gen::FtraceConfig ftrace_cfg;
+  ftrace_cfg.set_symbolize_ksyms(true);
+  ds_config->set_ftrace_config_raw(ftrace_cfg.SerializeAsString());
+
+  helper.StartTracing(trace_config);
+  helper.WaitForTracingDisabled(10000);
+
+  helper.ReadData();
+  helper.WaitForReadData();
+
+  const auto& packets = helper.trace();
+  ASSERT_GT(packets.size(), 0u);
+
+  int symbols_parsed = -1;
+  for (const auto& packet : packets) {
+    if (!packet.has_ftrace_stats())
+      continue;
+    if (packet.ftrace_stats().phase() != protos::gen::FtraceStats::END_OF_TRACE)
+      continue;
+    symbols_parsed =
+        static_cast<int>(packet.ftrace_stats().kernel_symbols_parsed());
+  }
+  ASSERT_GT(symbols_parsed, 100);
 }
 
 // TODO(b/73453011): reenable on more platforms (including standalone Android).
