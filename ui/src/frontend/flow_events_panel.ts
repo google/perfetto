@@ -39,7 +39,7 @@ export class FlowEventsPanel extends Panel {
 
     // Can happen only for flow events version 1
     const haveCategories =
-        globals.boundFlows.filter(flow => flow.category).length > 0;
+        globals.connectedFlows.filter(flow => flow.category).length > 0;
 
     const columns = [
       m('th', 'Direction'),
@@ -54,7 +54,13 @@ export class FlowEventsPanel extends Panel {
 
     const rows = [m('tr', columns)];
 
-    globals.boundFlows.forEach(flow => {
+    // Fill the table with all the directly connected flow events
+    globals.connectedFlows.forEach(flow => {
+      if (selection.id !== flow.begin.sliceId &&
+          selection.id !== flow.end.sliceId) {
+        return;
+      }
+
       const outgoing = selection.id === flow.begin.sliceId;
       const otherEnd = (outgoing ? flow.end : flow.begin);
 
@@ -66,7 +72,7 @@ export class FlowEventsPanel extends Panel {
       };
 
       const data = [
-        m('td.flow-info', outgoing ? 'Outgoing' : 'Incoming'),
+        m('td.flow-link', args, outgoing ? 'Outgoing' : 'Incoming'),
         m('td.flow-link', args, otherEnd.sliceId.toString()),
         m('td.flow-link', args, otherEnd.sliceName)
       ];

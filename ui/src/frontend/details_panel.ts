@@ -240,7 +240,7 @@ export class DetailsPanel implements m.ClassComponent {
           'query_result', m(QueryTable, {key: 'query', queryId: 'command'}));
     }
 
-    if (globals.boundFlows.length > 0) {
+    if (globals.connectedFlows.length > 0) {
       detailsPanels.set(
           'bound_flows', m(FlowEventsPanel, {key: 'flow_events'}));
     }
