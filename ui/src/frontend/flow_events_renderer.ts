@@ -140,7 +140,7 @@ export class FlowEventsRenderer {
     ctx.rect(0, 0, args.canvasWidth - TRACK_SHELL_WIDTH, args.canvasHeight);
     ctx.clip();
 
-    globals.boundFlows.forEach(flow => {
+    globals.connectedFlows.forEach(flow => {
       const beginSliceRect = this.getSliceRect(args, flow.begin);
       const endSliceRect = this.getSliceRect(args, flow.end);
 
