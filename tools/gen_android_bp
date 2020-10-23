@@ -210,15 +210,15 @@ additional_args = {
     'libperfetto_client_experimental': [
       ('apex_available', {
         '//apex_available:platform',
-        'com.android.art.debug',
-        'com.android.art.release'}),
+        'com.android.art',
+        'com.android.art.debug'}),
       ('shared_libs', {'liblog'}),
     ],
     'perfetto_trace_protos': [
       ('apex_available', {
         '//apex_available:platform',
-        'com.android.art.debug',
-        'com.android.art.release'}),
+        'com.android.art',
+        'com.android.art.debug'}),
     ],
 }
 

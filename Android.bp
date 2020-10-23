@@ -774,8 +774,8 @@ cc_library_static {
   ],
   apex_available: [
     "//apex_available:platform",
+    "com.android.art",
     "com.android.art.debug",
-    "com.android.art.release",
   ],
 }
 
@@ -8029,8 +8029,8 @@ cc_library_static {
   ],
   apex_available: [
     "//apex_available:platform",
+    "com.android.art",
     "com.android.art.debug",
-    "com.android.art.release",
   ],
 }
 
