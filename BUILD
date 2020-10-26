@@ -825,6 +825,7 @@ genrule(
         "src/trace_processor/metrics/chrome/scroll_jank_cause.sql",
         "src/trace_processor/metrics/chrome/scroll_jank_cause_blocking_task.sql",
         "src/trace_processor/metrics/chrome/scroll_jank_cause_blocking_touch_move.sql",
+        "src/trace_processor/metrics/chrome/scroll_jank_cause_get_bitmap.sql",
         "src/trace_processor/metrics/chrome/scroll_jank_cause_queuing_delay.sql",
         "src/trace_processor/metrics/chrome/test_chrome_metric.sql",
         "src/trace_processor/metrics/trace_metadata.sql",
