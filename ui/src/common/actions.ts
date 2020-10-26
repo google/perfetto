@@ -386,8 +386,12 @@ export const StateActions = {
   setEngineReady(
       state: StateDraft,
       args: {engineId: string; ready: boolean, mode: EngineMode}): void {
-    state.engines[args.engineId].ready = args.ready;
-    state.engines[args.engineId].mode = args.mode;
+    const engine = state.engines[args.engineId];
+    if (engine === undefined) {
+      return;
+    }
+    engine.ready = args.ready;
+    engine.mode = args.mode;
   },
 
   setNewEngineMode(state: StateDraft, args: {mode: NewEngineMode}): void {
