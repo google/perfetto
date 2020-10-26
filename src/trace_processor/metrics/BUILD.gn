@@ -65,6 +65,7 @@ sql_files = [
   "chrome/scroll_jank_cause.sql",
   "chrome/scroll_jank_cause_blocking_task.sql",
   "chrome/scroll_jank_cause_blocking_touch_move.sql",
+  "chrome/scroll_jank_cause_get_bitmap.sql",
   "chrome/scroll_jank_cause_queuing_delay.sql",
   "chrome/scroll_flow_event.sql",
   "chrome/scroll_flow_event_queuing_delay.sql",
