@@ -143,10 +143,12 @@ export function genConfig(
   if (uiCfg.gpuMemTotal) {
     ftraceEvents.add('gpu_mem/gpu_mem_total');
 
-    const ds = new TraceConfig.DataSource();
-    ds.config = new DataSourceConfig();
-    ds.config.name = 'android.gpu.memory';
-    protoCfg.dataSources.push(ds);
+    if (!isChromeTarget(target)) {
+      const ds = new TraceConfig.DataSource();
+      ds.config = new DataSourceConfig();
+      ds.config.name = 'android.gpu.memory';
+      protoCfg.dataSources.push(ds);
+    }
   }
 
   if (uiCfg.cpuSyscall) {
@@ -173,7 +175,7 @@ export function genConfig(
       AndroidPowerConfig.BatteryCounters.BATTERY_COUNTER_CURRENT,
     ];
     ds.config.androidPowerConfig.collectPowerRails = true;
-    protoCfg.dataSources.push(ds);
+    if (!isChromeTarget(target)) protoCfg.dataSources.push(ds);
   }
 
   if (uiCfg.boardSensors) {
@@ -303,7 +305,7 @@ export function genConfig(
     if (procThreadAssociationPolling || trackInitialOomScore) {
       ds.config.processStatsConfig.scanAllProcessesOnStart = true;
     }
-    protoCfg.dataSources.push(ds);
+    if (!isChromeTarget(target)) protoCfg.dataSources.push(ds);
   }
 
   if (uiCfg.androidLogs) {
@@ -316,7 +318,7 @@ export function genConfig(
       return AndroidLogId[name as any as number] as any as number;
     });
 
-    protoCfg.dataSources.push(ds);
+    if (!isChromeTarget(target)) protoCfg.dataSources.push(ds);
   }
 
   if (uiCfg.chromeLogs) {
@@ -406,7 +408,7 @@ export function genConfig(
 
   // Keep these last. The stages above can enrich them.
 
-  if (sysStatsCfg !== undefined) {
+  if (sysStatsCfg !== undefined && !isChromeTarget(target)) {
     const ds = new TraceConfig.DataSource();
     ds.config = new DataSourceConfig();
     ds.config.name = 'linux.sys_stats';
@@ -414,7 +416,7 @@ export function genConfig(
     protoCfg.dataSources.push(ds);
   }
 
-  if (heapprofd !== undefined) {
+  if (heapprofd !== undefined && !isChromeTarget(target)) {
     const ds = new TraceConfig.DataSource();
     ds.config = new DataSourceConfig();
     ds.config.targetBuffer = 0;
@@ -423,7 +425,7 @@ export function genConfig(
     protoCfg.dataSources.push(ds);
   }
 
-  if (javaHprof !== undefined) {
+  if (javaHprof !== undefined && !isChromeTarget(target)) {
     const ds = new TraceConfig.DataSource();
     ds.config = new DataSourceConfig();
     ds.config.targetBuffer = 0;
@@ -479,7 +481,7 @@ export function genConfig(
     ds.config.ftraceConfig.ftraceEvents = ftraceEventsArray;
     ds.config.ftraceConfig.atraceCategories = Array.from(atraceCats);
     ds.config.ftraceConfig.atraceApps = Array.from(atraceApps);
-    protoCfg.dataSources.push(ds);
+    if (!isChromeTarget(target)) protoCfg.dataSources.push(ds);
   }
 
   return protoCfg;
