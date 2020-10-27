@@ -55,9 +55,8 @@ void TestTaskRunner::RunUntilCheckpoint(const std::string& checkpoint,
                                         uint32_t timeout_ms) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   if (checkpoints_.count(checkpoint) == 0) {
-    fprintf(stderr, "[TestTaskRunner] Checkpoint \"%s\" does not exist.\n",
-            checkpoint.c_str());
-    abort();
+    PERFETTO_FATAL("[TestTaskRunner] Checkpoint \"%s\" does not exist.\n",
+                   checkpoint.c_str());
   }
   if (checkpoints_[checkpoint])
     return;
@@ -66,9 +65,8 @@ void TestTaskRunner::RunUntilCheckpoint(const std::string& checkpoint,
       [this, checkpoint] {
         if (checkpoints_[checkpoint])
           return;
-        fprintf(stderr, "[TestTaskRunner] Failed to reach checkpoint \"%s\"\n",
-                checkpoint.c_str());
-        abort();
+        PERFETTO_FATAL("[TestTaskRunner] Failed to reach checkpoint \"%s\"\n",
+                       checkpoint.c_str());
       },
       timeout_ms);
 
