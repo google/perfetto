@@ -36,7 +36,10 @@ perfetto_unittest_source_set("unittests") {
     "../../../../../gn:gtest_and_gmock",
     "../../../../base",
   ]
-  sources = [ "kernel_symbol_map_unittest.cc" ]
+  sources = [
+    "kernel_symbol_map_unittest.cc",
+    "lazy_kernel_symbolizer_unittest.cc",
+  ]
 }
 
 if (enable_perfetto_benchmarks) {
