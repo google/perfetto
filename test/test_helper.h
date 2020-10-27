@@ -34,6 +34,11 @@
 
 namespace perfetto {
 
+// This value has been bumped to 10s in Oct 2020 because the x86 cuttlefish
+// emulator is sensibly slower (up to 10x) than real hw and caused flakes.
+// See bugs duped against b/171771440.
+constexpr uint32_t kDefaultTestTimeoutMs = 10000;
+
 // This is used only in daemon starting integrations tests.
 class ServiceThread {
  public:
@@ -200,8 +205,9 @@ class TestHelper : public Consumer {
   void WaitForConsumerConnect();
   void WaitForProducerSetup();
   void WaitForProducerEnabled();
-  void WaitForTracingDisabled(uint32_t timeout_ms = 5000);
-  void WaitForReadData(uint32_t read_count = 0, uint32_t timeout_ms = 5000);
+  void WaitForTracingDisabled(uint32_t timeout_ms = kDefaultTestTimeoutMs);
+  void WaitForReadData(uint32_t read_count = 0,
+                       uint32_t timeout_ms = kDefaultTestTimeoutMs);
   void SyncAndWaitProducer();
   TracingServiceState QueryServiceStateAndWait();
 
@@ -214,7 +220,7 @@ class TestHelper : public Consumer {
   }
 
   void RunUntilCheckpoint(const std::string& checkpoint,
-                          uint32_t timeout_ms = 5000) {
+                          uint32_t timeout_ms = kDefaultTestTimeoutMs) {
     return task_runner_->RunUntilCheckpoint(AddID(checkpoint), timeout_ms);
   }
 

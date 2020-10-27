@@ -95,7 +95,7 @@ std::vector<protos::gen::TracePacket> ProfileRuntime(
 
   // start tracing
   helper.StartTracing(trace_config);
-  helper.WaitForTracingDisabled(10000 /*ms*/);
+  helper.WaitForTracingDisabled();
   helper.ReadData();
   helper.WaitForReadData();
 
@@ -142,7 +142,7 @@ std::vector<protos::gen::TracePacket> ProfileStartup(
                    /*delay_ms=*/100);
   task_runner.RunUntilCheckpoint("target.app.running", 2000 /*ms*/);
 
-  helper.WaitForTracingDisabled(8000 /*ms*/);
+  helper.WaitForTracingDisabled();
   helper.ReadData();
   helper.WaitForReadData();
 

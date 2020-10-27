@@ -293,7 +293,7 @@ TEST_F(PerfettoTest, TreeHuggerOnly(TestFtraceProducer)) {
   ds_config->set_ftrace_config_raw(ftrace_config.SerializeAsString());
 
   helper.StartTracing(trace_config);
-  helper.WaitForTracingDisabled(10000);
+  helper.WaitForTracingDisabled();
 
   helper.ReadData();
   helper.WaitForReadData();
@@ -403,7 +403,7 @@ TEST_F(PerfettoTest, DISABLED_KernelAddressSymbolization) {
   ds_config->set_ftrace_config_raw(ftrace_cfg.SerializeAsString());
 
   helper.StartTracing(trace_config);
-  helper.WaitForTracingDisabled(10000);
+  helper.WaitForTracingDisabled();
 
   helper.ReadData();
   helper.WaitForReadData();
