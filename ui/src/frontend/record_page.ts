@@ -1018,6 +1018,9 @@ function RecordingNotes() {
     case 'C':
       if (!globals.state.extensionInstalled) notes.push(msgChrome);
       break;
+    case 'CrOS':
+      if (!globals.state.extensionInstalled) notes.push(msgChrome);
+      break;
     default:
   }
   if (globals.state.recordConfig.mode === 'LONG_TRACE') {
