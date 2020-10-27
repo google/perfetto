@@ -80,7 +80,7 @@ std::vector<protos::gen::TracePacket> ProfileRuntime(std::string app_name) {
 
   // start tracing
   helper.StartTracing(trace_config);
-  helper.WaitForTracingDisabled(10000 /*ms*/);
+  helper.WaitForTracingDisabled();
   helper.ReadData();
   helper.WaitForReadData();
   PERFETTO_CHECK(IsAppRunning(app_name));
