@@ -293,3 +293,24 @@ test('open second trace from file', () => {
   expect(thrice.scrollingTracks.length).toBe(0);
   expect(thrice.route).toBe('/viewer');
 });
+
+test('setEngineReady with missing engine is ignored', () => {
+  const state = createEmptyState();
+  produce(state, draft => {
+    StateActions.setEngineReady(
+        draft, {engineId: '1', ready: true, mode: 'WASM'});
+  });
+});
+
+test('setEngineReady', () => {
+  const state = createEmptyState();
+  state.nextId = 100;
+  const after = produce(state, draft => {
+    StateActions.openTraceFromUrl(draft, {
+      url: 'https://example.com/bar',
+    });
+    StateActions.setEngineReady(
+        draft, {engineId: '100', ready: true, mode: 'WASM'});
+  });
+  expect(after.engines['100'].ready).toBe(true);
+});
