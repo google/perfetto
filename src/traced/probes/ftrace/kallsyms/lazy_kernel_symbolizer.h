@@ -52,6 +52,10 @@ class LazyKernelSymbolizer {
   // GetOrCreateKernelSymbolMap() will create it again.
   void Destroy();
 
+  // Exposed for testing.
+  static bool CanReadKernelSymbolAddresses(
+      const char* ksyms_path_for_testing = nullptr);
+
  private:
   std::unique_ptr<KernelSymbolMap> symbol_map_;
   PERFETTO_THREAD_CHECKER(thread_checker_)
