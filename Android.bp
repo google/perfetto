@@ -7404,6 +7404,7 @@ filegroup {
   name: "perfetto_src_traced_probes_ftrace_kallsyms_unittests",
   srcs: [
     "src/traced/probes/ftrace/kallsyms/kernel_symbol_map_unittest.cc",
+    "src/traced/probes/ftrace/kallsyms/lazy_kernel_symbolizer_unittest.cc",
   ],
 }
 
