@@ -98,19 +98,25 @@ ts | process_name | pid | counter_name | value
 ## TraceConfig
 
 ```protobuf
+buffers {
+  size_kb: 102400
+  fill_policy: RING_BUFFER
+}
+
 data_sources {
   config {
     name: "linux.ftrace"
     ftrace_config {
-      // Enables specific system events tags.
+      # Enables specific system events tags.
       atrace_categories: "am"
       atrace_categories: "pm"
 
-      // Enables events for a specific app.
+      # Enables events for a specific app.
       atrace_apps: "com.google.android.apps.docs"
 
-      // Enables all events for all apps.
+      # Enables all events for all apps.
       atrace_apps: "*"
     }
   }
+}
 ```
