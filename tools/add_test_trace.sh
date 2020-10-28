@@ -52,12 +52,8 @@ echo ""
 gsutil acl ch -u AllUsers:R gs://perfetto/$NEW_TEST_DATA
 
 echo ""
-echo "SHA1 of file $NEW_TEST_DATA is"
-if which shasum > /dev/null; then
-NEW_SHA=$(shasum /tmp/$NEW_TEST_DATA | cut -c1-40)  # Mac OS
-else
-NEW_SHA=$(sha1sum /tmp/$NEW_TEST_DATA | cut -c1-40)  # Linux
-fi
+echo "SHA-256 of file $NEW_TEST_DATA is"
+NEW_SHA=$(shasum -a 256 /tmp/$NEW_TEST_DATA | cut -c1-64)
 echo $NEW_SHA
 
 echo ""
@@ -71,7 +67,7 @@ echo ""
 echo "Updating tools/install-build-deps"
 echo ""
 
-OLD_SHA=$(cat tools/install-build-deps | grep '/test-data-.*.zip' -A1 | tail -n1 | cut -c10-49)
+OLD_SHA=$(cat tools/install-build-deps | grep '/test-data-.*.zip' -A1 | tail -n1 | egrep -o '[a-f0-9]+')
 
 # Cannot easily use sed -i, it has different syntax on Linux vs Mac.
 cat tools/install-build-deps \
