@@ -68,7 +68,6 @@ class ScopedKptrUnrestrict {
 
  private:
   static void WriteKptrRestrict(const std::string&);
-  static bool CanReadKernelSymbolAddresses();
 
   static const bool kUseAndroidProperty;
   std::string initial_value_;
@@ -83,7 +82,7 @@ const bool ScopedKptrUnrestrict::kUseAndroidProperty = false;
 #endif
 
 ScopedKptrUnrestrict::ScopedKptrUnrestrict() {
-  if (CanReadKernelSymbolAddresses()) {
+  if (LazyKernelSymbolizer::CanReadKernelSymbolAddresses()) {
     // Everything seems to work (e.g., we are running as root and kptr_restrict
     // is < 2). Don't touching anything.
     restore_on_dtor_ = false;
@@ -96,11 +95,11 @@ ScopedKptrUnrestrict::ScopedKptrUnrestrict() {
 #endif
     // Init takes some time to react to the property change.
     // Unfortunately, we cannot read kptr_restrict because of SELinux. Instead,
-    // we detect this by reading the initial line of /proc/kallsyms and checking
-    // that it's non-zero. This loop waits for at most 250ms (50 * 5ms)
+    // we detect this by reading the initial lines of kallsyms and checking
+    // that they are non-zero. This loop waits for at most 250ms (50 * 5ms).
     for (int attempt = 1; attempt <= 50; ++attempt) {
       usleep(5000);
-      if (CanReadKernelSymbolAddresses())
+      if (LazyKernelSymbolizer::CanReadKernelSymbolAddresses())
         return;
     }
     PERFETTO_ELOG("kallsyms addresses are still masked after setting %s",
@@ -119,7 +118,7 @@ ScopedKptrUnrestrict::ScopedKptrUnrestrict() {
   // Progressively lower kptr_restrict until we can read kallsyms.
   for (int value = atoi(initial_value_.c_str()); value > 0; --value) {
     WriteKptrRestrict(std::to_string(value));
-    if (CanReadKernelSymbolAddresses())
+    if (LazyKernelSymbolizer::CanReadKernelSymbolAddresses())
       return;
   }
 }
@@ -145,22 +144,6 @@ void ScopedKptrUnrestrict::WriteKptrRestrict(const std::string& value) {
     PERFETTO_PLOG("Failed to set %s to %s", kPtrRestrictPath, value.c_str());
 }
 
-bool ScopedKptrUnrestrict::CanReadKernelSymbolAddresses() {
-  base::ScopedFile fd = base::OpenFile(kKallsymsPath, O_RDONLY);
-  if (!fd) {
-    PERFETTO_PLOG("open(%s) failed", kKallsymsPath);
-    return false;
-  }
-  char buf[64]{};
-  // Don't just use fscanf() as that reads the whole file (b/36473442).
-  auto rsize = PERFETTO_EINTR(read(*fd, buf, sizeof(buf) - 1));
-  if (rsize <= 0) {
-    PERFETTO_PLOG("read(%s) failed", kKallsymsPath);
-    return false;
-  }
-  buf[static_cast<size_t>(rsize)] = '\0';
-  return strtoull(buf, nullptr, 16) != 0;
-}
 }  // namespace
 
 LazyKernelSymbolizer::LazyKernelSymbolizer() = default;
@@ -184,6 +167,54 @@ void LazyKernelSymbolizer::Destroy() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   symbol_map_.reset();
   base::MaybeReleaseAllocatorMemToOS();  // For Scudo, b/170217718.
+}
+
+// static
+bool LazyKernelSymbolizer::CanReadKernelSymbolAddresses(
+    const char* ksyms_path_for_testing) {
+  auto* path = ksyms_path_for_testing ? ksyms_path_for_testing : kKallsymsPath;
+  base::ScopedFile fd = base::OpenFile(path, O_RDONLY);
+  if (!fd) {
+    PERFETTO_PLOG("open(%s) failed", kKallsymsPath);
+    return false;
+  }
+  // Don't just use fscanf() as that might read the whole file (b/36473442).
+  char buf[4096];
+  auto rsize_signed = PERFETTO_EINTR(read(*fd, buf, sizeof(buf) - 1));
+  if (rsize_signed <= 0) {
+    PERFETTO_PLOG("read(%s) failed", kKallsymsPath);
+    return false;
+  }
+  size_t rsize = static_cast<size_t>(rsize_signed);
+  buf[rsize] = '\0';
+
+  // Iterate over the first page of kallsyms. If we find any non-zero address
+  // call it success. If all addresses are 0, pessimistically assume
+  // kptr_restrict is still restricted.
+  // We cannot look only at the first line because on some devices
+  // /proc/kallsyms can look like this (note the zeros in the first two addrs):
+  // 0000000000000000 A fixed_percpu_data
+  // 0000000000000000 A __per_cpu_start
+  // 0000000000001000 A cpu_debug_store
+  bool reading_addr = true;
+  bool addr_is_zero = true;
+  for (size_t i = 0; i < rsize; i++) {
+    const char c = buf[i];
+    if (reading_addr) {
+      const bool is_hex = (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
+      if (is_hex) {
+        addr_is_zero = addr_is_zero && c == '0';
+      } else {
+        if (!addr_is_zero)
+          return true;
+        reading_addr = false;  // Will consume the rest of the line until \n.
+      }
+    } else if (c == '\n') {
+      reading_addr = true;
+    }  // if (!reading_addr)
+  }    // for char in buf
+
+  return false;
 }
 
 }  // namespace perfetto
