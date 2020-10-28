@@ -369,8 +369,15 @@ TEST_F(PerfettoTest, TreeHuggerOnly(TestFtraceFlush)) {
   ASSERT_EQ(marker_found, 1);
 }
 
-// TODO(primiano): Disabled while debugging b/171666020 and CI breakages.
-TEST_F(PerfettoTest, DISABLED_KernelAddressSymbolization) {
+// Disable this test on the cuttlefish emulator. It's too slow and we cannot
+// change the length of the production code in CanReadKernelSymbolAddresses()
+// to deal with it.
+#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD) && defined(__i386__)
+#define MAYBE_KernelAddressSymbolization DISABLED_KernelAddressSymbolization
+#else
+#define MAYBE_KernelAddressSymbolization KernelAddressSymbolization
+#endif
+TEST_F(PerfettoTest, MAYBE_KernelAddressSymbolization) {
   // On Android in-tree builds (TreeHugger): this test must always run to
   // prevent selinux / property-related regressions.
   // On standalone builds and Linux, this can be optionally skipped because
@@ -395,7 +402,14 @@ TEST_F(PerfettoTest, DISABLED_KernelAddressSymbolization) {
 
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(1024);
-  trace_config.set_duration_ms(100);
+
+  // The symbolizer is initialized asynchronously in a dedicated PostTask in
+  // FtraceController::StartDataSource. There is no easy way to linearize with
+  // that. Here the duration needs to be long enough so that the PostTask() for
+  // the deferred parse is enqueued before the stop. The kallsyms parsing can
+  // take longer.
+  trace_config.set_duration_ms(5000);
+
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("linux.ftrace");
   protos::gen::FtraceConfig ftrace_cfg;

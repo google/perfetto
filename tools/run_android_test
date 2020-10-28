@@ -149,6 +149,8 @@ def Main():
   AdbCall('shell', 'test -d "%s" || mkdir -p "%s"' % (2 * (trace_dir,)))
   AdbCall('shell', 'rm -rf "%s/*";  ' % trace_dir)
   AdbCall('shell', 'mkdir -p /data/nativetest')
+  AdbCall('shell', 'echo 0 > /d/tracing/tracing_on')
+
   # This needs to go into /data/nativetest in order to have the system linker
   # namespace applied, which we need in order to link libdexfile_external.so.
   # This gets linked into our tests via libundwindstack.so.
