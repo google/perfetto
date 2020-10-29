@@ -1,11 +1,14 @@
 {
   global:
-    AHeapInfo_create;
-    AHeapInfo_setCallback;
+    AHeapProfileEnableCallbackInfo_getSamplingInterval;
+    AHeapProfile_reportSample;
+    AHeapProfile_reportFree;
+    AHeapProfile_reportAllocation;
     AHeapProfile_registerHeap;
     AHeapProfile_initSession;
-    AHeapProfile_reportAllocation;
-    AHeapProfile_reportFree;
+    AHeapInfo_setEnabledCallback;
+    AHeapInfo_setDisabledCallback;
+    AHeapInfo_create;
   local:
     *;
 };
