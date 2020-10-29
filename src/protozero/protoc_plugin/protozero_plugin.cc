@@ -837,7 +837,8 @@ class GeneratorJob {
     // TODO(ddrone): ensure that this code works when containing_type located in
     // other file or namespace.
     stub_h_->Print("class $name$ : public $extendee$ {\n", "name",
-                   extension_name, "extendee", GetCppClassName(base_message));
+                   extension_name, "extendee",
+                   GetCppClassName(base_message, /*full=*/true));
     stub_h_->Print(" public:\n");
     stub_h_->Indent();
     for (const FieldDescriptor* field : descriptors) {
