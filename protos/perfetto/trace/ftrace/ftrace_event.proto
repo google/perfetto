@@ -26,12 +26,14 @@ import "protos/perfetto/trace/ftrace/cgroup.proto";
 import "protos/perfetto/trace/ftrace/clk.proto";
 import "protos/perfetto/trace/ftrace/compaction.proto";
 import "protos/perfetto/trace/ftrace/cpuhp.proto";
+import "protos/perfetto/trace/ftrace/dpu.proto";
 import "protos/perfetto/trace/ftrace/ext4.proto";
 import "protos/perfetto/trace/ftrace/f2fs.proto";
 import "protos/perfetto/trace/ftrace/fastrpc.proto";
 import "protos/perfetto/trace/ftrace/fence.proto";
 import "protos/perfetto/trace/ftrace/filemap.proto";
 import "protos/perfetto/trace/ftrace/ftrace.proto";
+import "protos/perfetto/trace/ftrace/g2d.proto";
 import "protos/perfetto/trace/ftrace/gpu_mem.proto";
 import "protos/perfetto/trace/ftrace/i2c.proto";
 import "protos/perfetto/trace/ftrace/ion.proto";
@@ -432,5 +434,7 @@ message FtraceEvent {
     CpuhpEnterFtraceEvent cpuhp_enter = 345;
     CpuhpLatencyFtraceEvent cpuhp_latency = 346;
     FastrpcDmaStatFtraceEvent fastrpc_dma_stat = 347;
+    DpuTracingMarkWriteFtraceEvent dpu_tracing_mark_write = 348;
+    G2dTracingMarkWriteFtraceEvent g2d_tracing_mark_write = 349;
   }
 }
