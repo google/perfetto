@@ -25,6 +25,8 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/endian.h"
+#include "perfetto/ext/base/optional.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "tools/trace_to_text/utils.h"
 
 // Spec
@@ -36,8 +38,9 @@ namespace perfetto {
 namespace trace_to_text {
 
 namespace {
-constexpr char HEADER[] = "PERFETTO_JAVA_HEAP";
-constexpr uint32_t ID_SZ = 8;
+constexpr char kHeader[] = "PERFETTO_JAVA_HEAP";
+constexpr uint32_t kIdSz = 8;
+constexpr uint32_t kStackTraceSerialNumber = 1;
 
 class BigEndianBuffer {
  public:
@@ -109,37 +112,186 @@ class HprofWriter {
   std::ostream* output_;
 };
 
-// TODO: sample code really, rewrite this
-std::unordered_map<std::string, uint32_t> WriteStrings(
-    trace_processor::TraceProcessor* tp,
-    HprofWriter* writer) {
-  auto it = tp->ExecuteQuery(R"(
-      SELECT DISTINCT str FROM (
-        SELECT CASE
-          WHEN str LIKE 'java.lang.Class<%' THEN rtrim(substr(str, 17), '>')
-          ELSE str
-        END str
-        FROM (SELECT IFNULL(deobfuscated_name, name) str FROM heap_graph_class)
-        UNION ALL
-        SELECT IFNULL(deobfuscated_field_name, field_name) str
-        FROM heap_graph_reference
-      ))");
+// A Class from the heap dump.
+class ClassData {
+ public:
+  explicit ClassData(uint64_t class_name_string_id)
+      : class_name_string_id_(class_name_string_id) {}
 
-  std::unordered_map<std::string, uint32_t> strings;
-  uint32_t id = 1;
-  while (it.Next()) {
-    std::string name(it.Get(0).AsString());
-    strings[name] = id;
-
-    // Size of record is the id + the string length
-    writer->WriteRecord(0x01, [id, &name](BigEndianBuffer* buf) {
-      buf->WriteId(id);
-      buf->Write(name.c_str(), static_cast<uint32_t>(name.length()));
+  // Writes a HPROF LOAD_CLASS record for this Class
+  void WriteHprofLoadClass(HprofWriter* writer,
+                           uint64_t class_object_id,
+                           uint32_t class_serial_number) const {
+    writer->WriteRecord(0x02, [class_object_id, class_serial_number,
+                               this](BigEndianBuffer* buf) {
+      buf->WriteU4(class_serial_number);
+      buf->WriteId(class_object_id);
+      buf->WriteU4(kStackTraceSerialNumber);
+      buf->WriteId(class_name_string_id_);
     });
-
-    ++id;
   }
-  return strings;
+
+ private:
+  uint64_t class_name_string_id_;
+};
+
+// Ingested data from a Java Heap Profile for a name, location pair.
+// We need to support multiple class datas per pair as name, location is
+// not unique. Classloader should guarantee uniqueness but is not available
+// until S.
+class RawClassData {
+ public:
+  void AddClass(uint64_t id, base::Optional<uint64_t> superclass_id) {
+    ids_.push_back(std::make_pair(id, superclass_id));
+  }
+
+  void AddTemplate(uint64_t template_id) {
+    template_ids_.push_back(template_id);
+  }
+
+  // Transforms the raw data into one or more ClassData and adds them to the
+  // parameter map.
+  void ToClassData(std::unordered_map<uint64_t, ClassData>* id_to_class,
+                   uint64_t class_name_string_id) const {
+    // TODO(dinoderek) assert the two vectors have same length, iterate on both
+    for (auto it_ids = ids_.begin(); it_ids != ids_.end(); ++it_ids) {
+      // TODO(dinoderek) more data will be needed to write CLASS_DUMP
+      id_to_class->emplace(it_ids->first, ClassData(class_name_string_id));
+    }
+  }
+
+ private:
+  // Pair contains class ID and super class ID.
+  std::vector<std::pair<uint64_t, base::Optional<uint64_t>>> ids_;
+  // Class id of the template
+  std::vector<uint64_t> template_ids_;
+};
+
+// The Heap Dump data
+class HeapDump {
+ public:
+  explicit HeapDump(trace_processor::TraceProcessor* tp) : tp_(tp) {}
+
+  void Ingest() { IngestClasses(); }
+
+  void Write(HprofWriter* writer) {
+    WriteStrings(writer);
+    WriteLoadClass(writer);
+  }
+
+ private:
+  trace_processor::TraceProcessor* tp_;
+
+  // String IDs start from 1 as 0 appears to be reserved.
+  uint64_t next_string_id_ = 1;
+  // Strings to corresponding String ID
+  std::unordered_map<std::string, uint64_t> string_to_id_;
+  // Type ID to corresponding Class
+  std::unordered_map<uint64_t, ClassData> id_to_class_;
+
+  // Ingests and processes the class data from the heap dump.
+  void IngestClasses() {
+    // TODO(dinoderek): heap_graph_class does not support pid or ts filtering
+
+    std::map<std::pair<uint64_t, std::string>, RawClassData> raw_classes;
+
+    auto it = tp_->ExecuteQuery(R"(SELECT
+          id,
+          IFNULL(deobfuscated_name, name),
+          superclass_id,
+          location
+        FROM heap_graph_class )");
+
+    while (it.Next()) {
+      uint64_t id = static_cast<uint64_t>(it.Get(0).AsLong());
+
+      std::string raw_dname(it.Get(1).AsString());
+      std::string dname;
+      bool is_template_class =
+          base::StartsWith(raw_dname, std::string("java.lang.Class<"));
+      if (is_template_class) {
+        dname = raw_dname.substr(17, raw_dname.size() - 18);
+      } else {
+        dname = raw_dname;
+      }
+      uint64_t name_id = IngestString(dname);
+
+      auto raw_super_id = it.Get(2);
+      base::Optional<uint64_t> maybe_super_id =
+          raw_super_id.is_null()
+              ? base::nullopt
+              : base::Optional<uint64_t>(
+                    static_cast<uint64_t>(raw_super_id.AsLong()));
+
+      std::string location(it.Get(3).AsString());
+
+      auto raw_classes_it =
+          raw_classes.emplace(std::make_pair(name_id, location), RawClassData())
+              .first;
+      if (is_template_class) {
+        raw_classes_it->second.AddTemplate(id);
+      } else {
+        raw_classes_it->second.AddClass(id, maybe_super_id);
+      }
+    }
+
+    for (const auto& raw : raw_classes) {
+      auto class_name_string_id = raw.first.first;
+      raw.second.ToClassData(&id_to_class_, class_name_string_id);
+    }
+  }
+
+  // Ingests the parameter string and returns the HPROF ID for the string.
+  uint64_t IngestString(const std::string& s) {
+    auto maybe_id = string_to_id_.find(s);
+    if (maybe_id != string_to_id_.end()) {
+      return maybe_id->second;
+    } else {
+      auto id = next_string_id_;
+      next_string_id_ += 1;
+      string_to_id_[s] = id;
+      return id;
+    }
+  }
+
+  // Writes STRING sections to the output
+  void WriteStrings(HprofWriter* writer) {
+    for (const auto& it : string_to_id_) {
+      writer->WriteRecord(0x01, [it](BigEndianBuffer* buf) {
+        buf->WriteId(it.second);
+        // TODO(dinoderek): UTF-8 encoding
+        buf->Write(it.first.c_str(), static_cast<uint32_t>(it.first.length()));
+      });
+    }
+  }
+
+  // Writes LOAD CLASS sections to the output
+  void WriteLoadClass(HprofWriter* writer) {
+    uint32_t class_serial_number = 1;
+    for (const auto& it : id_to_class_) {
+      it.second.WriteHprofLoadClass(writer, it.first, class_serial_number);
+      class_serial_number += 1;
+    }
+  }
+};
+
+void WriteHeaderAndStack(HprofWriter* writer) {
+  BigEndianBuffer header;
+  header.Write(kHeader, sizeof(kHeader));
+  // Identifier size
+  header.WriteU4(kIdSz);
+  // walltime high (unused)
+  header.WriteU4(0);
+  // walltime low (unused)
+  header.WriteU4(0);
+  writer->WriteBuffer(header);
+
+  // Add placeholder stack trace (required by the format).
+  writer->WriteRecord(0x05, [](BigEndianBuffer* buf) {
+    buf->WriteU4(kStackTraceSerialNumber);
+    buf->WriteU4(0);
+    buf->WriteU4(0);
+  });
 }
 }  // namespace
 
@@ -148,24 +300,14 @@ int TraceToHprof(trace_processor::TraceProcessor* tp,
                  uint64_t pid,
                  uint64_t ts) {
   PERFETTO_DCHECK(tp != nullptr && pid != 0 && ts != 0);
-  HprofWriter hprof(output);
-  BigEndianBuffer header;
-  header.Write(HEADER, sizeof(HEADER));
-  // Identifier size
-  header.WriteU4(ID_SZ);
-  // walltime high (unused)
-  header.WriteU4(0);
-  // walltime low (unused)
-  header.WriteU4(0);
-  hprof.WriteBuffer(header);
 
-  const auto interned = WriteStrings(tp, &hprof);
-  // Add placeholder stack trace (required by the format).
-  hprof.WriteRecord(0x05, [](BigEndianBuffer* buf) {
-    buf->WriteU4(0);
-    buf->WriteU4(0);
-    buf->WriteU4(0);
-  });
+  HprofWriter writer(output);
+  HeapDump dump(tp);
+
+  dump.Ingest();
+  WriteHeaderAndStack(&writer);
+  dump.Write(&writer);
+
   return 0;
 }
 
