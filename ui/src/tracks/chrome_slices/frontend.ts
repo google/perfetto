@@ -29,6 +29,9 @@ const TRACK_PADDING = 4;
 const INCOMPLETE_SLICE_TIME_S = 0.00003;
 const CHEVRON_WIDTH_PX = 10;
 const HALF_CHEVRON_WIDTH_PX = CHEVRON_WIDTH_PX / 2;
+const INNER_CHEVRON_OFFSET = -3;
+const INNER_CHEVRON_SCALE =
+    (SLICE_HEIGHT - 2 * INNER_CHEVRON_OFFSET) / SLICE_HEIGHT;
 
 export class ChromeSliceTrack extends Track<Config, Data> {
   static readonly kind: string = SLICE_TRACK_KIND;
@@ -111,13 +114,31 @@ export class ChromeSliceTrack extends Track<Config, Data> {
       // D       B
       // Then B, C, D and back to A:
       if (isInstant) {
-        ctx.beginPath();
-        ctx.moveTo(rect.left, rect.top);
-        ctx.lineTo(rect.left + HALF_CHEVRON_WIDTH_PX, rect.top + SLICE_HEIGHT);
-        ctx.lineTo(rect.left, rect.top + SLICE_HEIGHT - HALF_CHEVRON_WIDTH_PX);
-        ctx.lineTo(rect.left - HALF_CHEVRON_WIDTH_PX, rect.top + SLICE_HEIGHT);
-        ctx.lineTo(rect.left, rect.top);
-        ctx.fill();
+        if (isSelected) {
+          drawRectOnSelected = () => {
+            ctx.save();
+            ctx.translate(rect.left, rect.top);
+
+            // Draw outer chevron as dark border
+            ctx.save();
+            ctx.translate(0, INNER_CHEVRON_OFFSET);
+            ctx.scale(INNER_CHEVRON_SCALE, INNER_CHEVRON_SCALE);
+            ctx.fillStyle = `hsl(${hue}, ${saturation}%, 30%)`;
+            this.drawChevron(ctx);
+            ctx.restore();
+
+            // Draw inner chevron as interior
+            ctx.fillStyle = color;
+            this.drawChevron(ctx);
+
+            ctx.restore();
+          };
+        } else {
+          ctx.save();
+          ctx.translate(rect.left, rect.top);
+          this.drawChevron(ctx);
+          ctx.restore();
+        }
         continue;
       }
       if (isIncomplete && rect.width > SLICE_HEIGHT / 4) {
@@ -145,6 +166,18 @@ export class ChromeSliceTrack extends Track<Config, Data> {
       ctx.fillText(displayText, rectXCenter, rect.top + SLICE_HEIGHT / 2);
     }
     drawRectOnSelected();
+  }
+
+  drawChevron(ctx: CanvasRenderingContext2D) {
+    // Draw a chevron at a fixed location and size. Should be used with
+    // ctx.translate and ctx.scale to alter location and size.
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(HALF_CHEVRON_WIDTH_PX, SLICE_HEIGHT);
+    ctx.lineTo(0, SLICE_HEIGHT - HALF_CHEVRON_WIDTH_PX);
+    ctx.lineTo(-HALF_CHEVRON_WIDTH_PX, SLICE_HEIGHT);
+    ctx.lineTo(0, 0);
+    ctx.fill();
   }
 
   getSliceIndex({x, y}: {x: number, y: number}): number|void {
