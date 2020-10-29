@@ -914,6 +914,7 @@ void HeapprofdProducer::SocketDelegate::OnDataAvailable(
     handoff_data.mem_fd = std::move(fds[kHandshakeMem]);
     handoff_data.shmem = std::move(pending_process.shmem);
     handoff_data.client_config = data_source.client_configuration;
+    handoff_data.stream_allocations = data_source.config.stream_allocations();
 
     producer_->UnwinderForPID(self->peer_pid())
         .PostHandoffSocket(std::move(handoff_data));
@@ -1043,6 +1044,19 @@ void HeapprofdProducer::HandleAllocRecord(AllocRecord alloc_rec) {
     return;
   }
 
+  if (ds.config.stream_allocations()) {
+    auto packet = ds.trace_writer->NewTracePacket();
+    auto* streaming_alloc = packet->set_streaming_allocation();
+    streaming_alloc->add_address(alloc_metadata.alloc_address);
+    streaming_alloc->add_size(alloc_metadata.alloc_size);
+    streaming_alloc->add_sample_size(alloc_metadata.sample_size);
+    streaming_alloc->add_clock_monotonic_coarse_timestamp(
+        alloc_metadata.clock_monotonic_coarse_timestamp);
+    streaming_alloc->add_heap_id(alloc_metadata.heap_id);
+    streaming_alloc->add_sequence_number(alloc_metadata.sequence_number);
+    return;
+  }
+
   const auto& prefixes = ds.config.skip_symbol_prefix();
   if (!prefixes.empty()) {
     for (FrameData& frame_data : alloc_rec.frames) {
@@ -1091,6 +1105,15 @@ void HeapprofdProducer::HandleFreeRecord(FreeRecord free_rec) {
   auto process_state_it = ds.process_states.find(free_rec.pid);
   if (process_state_it == ds.process_states.end()) {
     PERFETTO_LOG("Invalid PID in free record.");
+    return;
+  }
+
+  if (ds.config.stream_allocations()) {
+    auto packet = ds.trace_writer->NewTracePacket();
+    auto* streaming_free = packet->set_streaming_free();
+    streaming_free->add_address(free_rec.entry.addr);
+    streaming_free->add_heap_id(free_rec.entry.heap_id);
+    streaming_free->add_sequence_number(free_rec.entry.sequence_number);
     return;
   }
 

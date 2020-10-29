@@ -299,7 +299,8 @@ void UnwindingWorker::HandleBuffer(const SharedRingBuffer::Buffer& buf,
     rec.pid = peer_pid;
     rec.data_source_instance_id = data_source_instance_id;
     auto start_time_us = base::GetWallTimeNs() / 1000;
-    DoUnwind(&msg, unwinding_metadata, &rec);
+    if (!client_data->stream_allocations)
+      DoUnwind(&msg, unwinding_metadata, &rec);
     rec.unwinding_time_us = static_cast<uint64_t>(
         ((base::GetWallTimeNs() / 1000) - start_time_us).count());
     client_data->alloc_records.emplace_back(std::move(rec));
@@ -359,6 +360,7 @@ void UnwindingWorker::HandleHandoffSocket(HandoffData handoff_data) {
       std::move(metadata),
       std::move(handoff_data.shmem),
       std::move(handoff_data.client_config),
+      handoff_data.stream_allocations,
       {},
       {},
   };
