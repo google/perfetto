@@ -288,8 +288,13 @@ void __attribute__((constructor(1024))) RunAccurateMalloc() {
     return;
 
   static std::atomic<bool> initialized{false};
-  static uint32_t heap_id = AHeapProfile_registerHeap(AHeapInfo_setCallback(
-      AHeapInfo_create("test"), [](bool) { initialized = true; }));
+  static uint32_t heap_id =
+      AHeapProfile_registerHeap(AHeapInfo_setEnabledCallback(
+          AHeapInfo_create("test"),
+          [](void*, const AHeapProfileEnableCallbackInfo*) {
+            initialized = true;
+          },
+          nullptr));
 
   ChildFinishHandshake();
 

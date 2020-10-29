@@ -49,13 +49,22 @@ using perfetto::profiling::UnhookedAllocator;
 struct AHeapInfo {
   // Fields set by user.
   char heap_name[HEAPPROFD_HEAP_NAME_SZ];
-  void (*callback)(bool enabled);
+  void (*enabled_callback)(void*, const AHeapProfileEnableCallbackInfo*);
+  void (*disabled_callback)(void*, const AHeapProfileDisableCallbackInfo*);
+  void* enabled_callback_data;
+  void* disabled_callback_data;
 
   // Internal fields.
   perfetto::profiling::Sampler sampler;
   std::atomic<bool> ready;
   std::atomic<bool> enabled;
 };
+
+struct AHeapProfileEnableCallbackInfo {
+  uint64_t sampling_interval;
+};
+
+struct AHeapProfileDisableCallbackInfo {};
 
 namespace {
 #if defined(__GLIBC__)
@@ -142,8 +151,10 @@ void DisableAllHeaps() {
       continue;
     if (info.enabled.load(std::memory_order_acquire)) {
       info.enabled.store(false, std::memory_order_release);
-      if (info.callback)
-        info.callback(false);
+      if (info.disabled_callback) {
+        AHeapProfileDisableCallbackInfo disable_info;
+        info.disabled_callback(info.disabled_callback_data, &disable_info);
+      }
     }
   }
 }
@@ -212,6 +223,12 @@ void AtForkChild() {
 
 }  // namespace
 
+__attribute__((visibility("default"))) uint64_t
+AHeapProfileEnableCallbackInfo_getSamplingInterval(
+    const AHeapProfileEnableCallbackInfo* session_info) {
+  return session_info->sampling_interval;
+}
+
 __attribute__((visibility("default"))) AHeapInfo* AHeapInfo_create(
     const char* heap_name) {
   size_t len = strlen(heap_name);
@@ -232,14 +249,29 @@ __attribute__((visibility("default"))) AHeapInfo* AHeapInfo_create(
   return &info;
 }
 
-__attribute__((visibility("default"))) AHeapInfo* AHeapInfo_setCallback(
+__attribute__((visibility("default"))) AHeapInfo* AHeapInfo_setEnabledCallback(
     AHeapInfo* info,
-    void (*callback)(bool enabled)) {
+    void (*callback)(void*, const AHeapProfileEnableCallbackInfo*),
+    void* data) {
   if (info == nullptr)
     return nullptr;
   if (info->ready.load(std::memory_order_relaxed))
     return nullptr;
-  info->callback = callback;
+  info->enabled_callback = callback;
+  info->enabled_callback_data = data;
+  return info;
+}
+
+__attribute__((visibility("default"))) AHeapInfo* AHeapInfo_setDisabledCallback(
+    AHeapInfo* info,
+    void (*callback)(void*, const AHeapProfileDisableCallbackInfo*),
+    void* data) {
+  if (info == nullptr)
+    return nullptr;
+  if (info->ready.load(std::memory_order_relaxed))
+    return nullptr;
+  info->disabled_callback = callback;
+  info->disabled_callback_data = data;
   return info;
 }
 
@@ -280,6 +312,35 @@ AHeapProfile_reportAllocation(uint32_t heap_id, uint64_t id, uint64_t size) {
   }                          // unlock
 
   if (!client->RecordMalloc(heap_id, sampled_alloc_sz, size, id)) {
+    ShutdownLazy(client);
+  }
+  return true;
+}
+
+__attribute__((visibility("default"))) bool
+AHeapProfile_reportSample(uint32_t heap_id, uint64_t id, uint64_t size) {
+  const AHeapInfo& heap = GetHeap(heap_id);
+  if (!heap.enabled.load(std::memory_order_acquire)) {
+    return false;
+  }
+  std::shared_ptr<perfetto::profiling::Client> client;
+  {
+    ScopedSpinlock s(&g_client_lock, ScopedSpinlock::Mode::Try);
+    if (PERFETTO_UNLIKELY(!s.locked()))
+      AbortOnSpinlockTimeout();
+
+    auto* g_client_ptr = GetClientLocked();
+    if (!*g_client_ptr)  // no active client (most likely shutting down)
+      return false;
+
+    if (s.blocked_us()) {
+      (*g_client_ptr)->AddClientSpinlockBlockedUs(s.blocked_us());
+    }
+
+    client = *g_client_ptr;  // owning copy
+  }                          // unlock
+
+  if (!client->RecordMalloc(heap_id, size, size, id)) {
     ShutdownLazy(client);
   }
   return true;
@@ -374,14 +435,19 @@ __attribute__((visibility("default"))) bool AHeapProfile_initSession(
     // The callbacks must be called while NOT LOCKED. Because they run
     // arbitrary code, it would be very easy to build a deadlock.
     if (heap_intervals[i]) {
-      if (!heap.enabled.load(std::memory_order_acquire) && heap.callback)
-        heap.callback(true);
+      AHeapProfileEnableCallbackInfo session_info{heap_intervals[i]};
+      if (!heap.enabled.load(std::memory_order_acquire) &&
+          heap.enabled_callback) {
+        heap.enabled_callback(heap.enabled_callback_data, &session_info);
+      }
       heap.enabled.store(true, std::memory_order_release);
       client->RecordHeapName(i, &heap.heap_name[0]);
     } else if (heap.enabled.load(std::memory_order_acquire)) {
       heap.enabled.store(false, std::memory_order_release);
-      if (heap.callback)
-        heap.callback(false);
+      if (heap.disabled_callback) {
+        AHeapProfileDisableCallbackInfo info;
+        heap.disabled_callback(heap.disabled_callback_data, &info);
+      }
     }
   }
 
