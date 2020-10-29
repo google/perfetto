@@ -349,6 +349,10 @@ export function isChromeTarget(target: RecordingTarget) {
   return ['C', 'CrOS'].includes(target.os);
 }
 
+export function isCrOSTarget(target: RecordingTarget) {
+  return target.os === 'CrOS';
+}
+
 export function isLinuxTarget(target: RecordingTarget) {
   return target.os === 'L';
 }
