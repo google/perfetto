@@ -236,6 +236,7 @@ class TracingMuxerImpl : public TracingMuxer {
     void OnObservableEvents(const ObservableEvents&) override;
 
     void NotifyStartComplete();
+    void NotifyError(const TracingError&);
     void NotifyStopComplete();
 
     // Will eventually inform the |muxer_| when it is safe to remove |this|.
@@ -277,6 +278,10 @@ class TracingMuxerImpl : public TracingMuxer {
     // An internal callback used to implement StartBlocking().
     std::function<void()> blocking_start_complete_callback_;
 
+    // If the API client passes a callback to get notification about the
+    // errors, we should invoke this when NotifyError() is invoked.
+    std::function<void(TracingError)> error_callback_;
+
     // If the API client passes a callback to stop, we should invoke this when
     // OnTracingDisabled() is invoked.
     std::function<void()> stop_complete_callback_;
@@ -313,6 +318,7 @@ class TracingMuxerImpl : public TracingMuxer {
     void Start() override;
     void StartBlocking() override;
     void SetOnStartCallback(std::function<void()>) override;
+    void SetOnErrorCallback(std::function<void(TracingError)>) override;
     void Stop() override;
     void StopBlocking() override;
     void ReadTrace(ReadTraceCallback) override;
