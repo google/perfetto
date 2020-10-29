@@ -150,6 +150,23 @@ message ProfilePacket {
   optional uint64 index = 7;
 }
 
+message StreamingAllocation {
+  // TODO(fmayer): Add callstack.
+  repeated uint64 address = 1;
+  repeated uint64 size = 2;
+  repeated uint64 sample_size = 3;
+  repeated uint64 clock_monotonic_coarse_timestamp = 4;
+  repeated uint32 heap_id = 5;
+  repeated uint64 sequence_number = 6;
+};
+
+message StreamingFree {
+  // TODO(fmayer): Add callstack.
+  repeated uint64 address = 1;
+  repeated uint32 heap_id = 2;
+  repeated uint64 sequence_number = 3;
+};
+
 // Message used to represent individual stack samples sampled at discrete
 // points in time, rather than aggregated over an interval.
 message StreamingProfilePacket {
