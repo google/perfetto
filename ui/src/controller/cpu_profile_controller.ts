@@ -168,7 +168,8 @@ export class CpuProfileController extends Controller<'main'> {
         name,
         selfSize: 0,
         mapping,
-        merged: false
+        merged: false,
+        highlighted: false
       });
     }
 
