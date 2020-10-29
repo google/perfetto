@@ -71,6 +71,7 @@ export interface CallsiteInfo {
   selfSize: number;
   mapping: string;
   merged: boolean;
+  highlighted: boolean;
 }
 
 export interface TraceFileSource {
