@@ -59,8 +59,10 @@ using base::StartsWith;
 std::string EventNameToProtoFieldName(const std::string& group,
                                       const std::string& name) {
   std::string event_name = (name == "0") ? "zero" : name;
-  if (group == "sde") {
-    event_name = "sde_" + event_name;
+  // These groups have events where the name alone conflicts with an existing
+  // proto:
+  if (group == "sde" || group == "g2d" || group == "dpu") {
+    event_name = group + "_" + event_name;
   }
   return event_name;
 }
