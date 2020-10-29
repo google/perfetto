@@ -57,6 +57,7 @@ class UnwindingWorker : public base::UnixSocket::EventListener {
     base::ScopedFile mem_fd;
     SharedRingBuffer shmem;
     ClientConfiguration client_config;
+    bool stream_allocations;
   };
 
   UnwindingWorker(Delegate* delegate, base::ThreadTaskRunner thread_task_runner)
@@ -84,6 +85,7 @@ class UnwindingWorker : public base::UnixSocket::EventListener {
     UnwindingMetadata metadata;
     SharedRingBuffer shmem;
     ClientConfiguration client_config;
+    bool stream_allocations;
     std::vector<FreeRecord> free_records;
     std::vector<AllocRecord> alloc_records;
   };
