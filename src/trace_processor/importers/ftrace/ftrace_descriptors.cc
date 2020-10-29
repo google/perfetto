@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<MessageDescriptor, 347> descriptors{{
+std::array<MessageDescriptor, 350> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -3692,6 +3692,42 @@ std::array<MessageDescriptor, 347> descriptors{{
             {"ret", ProtoSchemaType::kInt32},
             {"state", ProtoSchemaType::kUint32},
             {"time", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "fastrpc_dma_stat",
+        3,
+        {
+            {},
+            {"cid", ProtoSchemaType::kInt32},
+            {"len", ProtoSchemaType::kInt64},
+            {"total_allocated", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "dpu_tracing_mark_write",
+        6,
+        {
+            {},
+            {"pid", ProtoSchemaType::kInt32},
+            {"trace_name", ProtoSchemaType::kString},
+            {"trace_begin", ProtoSchemaType::kUint32},
+            {"name", ProtoSchemaType::kString},
+            {"type", ProtoSchemaType::kUint32},
+            {"value", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "g2d_tracing_mark_write",
+        6,
+        {
+            {},
+            {"pid", ProtoSchemaType::kInt32},
+            {"trace_name", ProtoSchemaType::kString},
+            {"trace_begin", ProtoSchemaType::kUint32},
+            {"name", ProtoSchemaType::kString},
+            {"type", ProtoSchemaType::kUint32},
+            {"value", ProtoSchemaType::kInt32},
         },
     },
 }};
