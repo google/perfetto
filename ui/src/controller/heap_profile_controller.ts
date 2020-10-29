@@ -216,15 +216,16 @@ export class HeapProfileController extends Controller<'main'> {
       // id, name, parent_id, depth, total_size
       const tableName =
           await this.prepareViewsAndTables(ts, upid, type, focusRegex);
-      currentData =
-          await this.getFlamegraphDataFromTables(tableName, viewingOption);
+      currentData = await this.getFlamegraphDataFromTables(
+          tableName, viewingOption, focusRegex);
       this.flamegraphDatasets.set(key, currentData);
     }
     return currentData;
   }
 
   async getFlamegraphDataFromTables(
-      tableName: string, viewingOption = DEFAULT_VIEWING_OPTION) {
+      tableName: string, viewingOption = DEFAULT_VIEWING_OPTION,
+      focusRegex: string) {
     let orderBy = '';
     let sizeIndex = 4;
     let selfIndex = 9;
@@ -280,6 +281,8 @@ export class HeapProfileController extends Controller<'main'> {
       const totalSize = +callsites.columns[sizeIndex].longValues![i];
       const mapping = callsites.columns[8].stringValues![i];
       const selfSize = +callsites.columns[selfIndex].longValues![i];
+      const highlighted = focusRegex !== '' &&
+          name.toLocaleLowerCase().includes(focusRegex.toLocaleLowerCase());
       const parentId =
           hashToindex.has(+parentHash) ? hashToindex.get(+parentHash)! : -1;
       if (depth === maxDepth - 1) {
@@ -297,7 +300,8 @@ export class HeapProfileController extends Controller<'main'> {
         name,
         selfSize,
         mapping,
-        merged: false
+        merged: false,
+        highlighted
       });
     }
     return flamegraphData;
