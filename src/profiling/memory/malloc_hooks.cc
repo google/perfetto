@@ -89,15 +89,15 @@ const MallocDispatch* GetDispatch() {
 // heapprofd_initialize. Concurrent calls get discarded, which might be our
 // unpatching attempt if there is a concurrent re-initialization running due to
 // a new signal.
-void ProfileCallback(bool enabled) {
-  if (!enabled) {
-    if (!android_mallopt(M_RESET_HOOKS, nullptr, 0))
-      PERFETTO_PLOG("Unpatching heapprofd hooks failed.");
-  }
+void ProfileDisabledCallback(void*, const AHeapProfileDisableCallbackInfo*) {
+  if (!android_mallopt(M_RESET_HOOKS, nullptr, 0))
+    PERFETTO_PLOG("Unpatching heapprofd hooks failed.");
 }
 
 uint32_t g_heap_id = AHeapProfile_registerHeap(
-    AHeapInfo_setCallback(AHeapInfo_create("libc.malloc"), ProfileCallback));
+    AHeapInfo_setDisabledCallback(AHeapInfo_create("libc.malloc"),
+                                  ProfileDisabledCallback,
+                                  nullptr));
 
 }  // namespace
 
