@@ -62,8 +62,10 @@ export class FlowEventsController extends Controller<'main'> {
         const name = res.columns[15].isNulls![i] ?
             undefined :
             res.columns[15].stringValues![i];
+        const id = res.columns[16].longValues![i];
 
         flows.push({
+          id,
           begin: {
             trackId: beginTrackId,
             sliceId: beginSliceId,
@@ -105,7 +107,8 @@ export class FlowEventsController extends Controller<'main'> {
       f.slice_in, t2.track_id, t2.name,
       t2.category, t2.ts, (t2.ts+t2.dur), t2.depth,
       extract_arg(f.arg_set_id, 'cat'),
-      extract_arg(f.arg_set_id, 'name')
+      extract_arg(f.arg_set_id, 'name'),
+      f.id
     from connected_flow(${sliceId}) f
     join slice t1 on f.slice_out = t1.slice_id
     join slice t2 on f.slice_in = t2.slice_id
@@ -148,7 +151,8 @@ export class FlowEventsController extends Controller<'main'> {
       f.slice_in, t2.track_id, t2.name,
       t2.category, t2.ts, (t2.ts+t2.dur), t2.depth,
       extract_arg(f.arg_set_id, 'cat'),
-      extract_arg(f.arg_set_id, 'name')
+      extract_arg(f.arg_set_id, 'name'),
+      f.id
     from flow f
     join slice t1 on f.slice_out = t1.slice_id
     join slice t2 on f.slice_in = t2.slice_id
