@@ -41,7 +41,7 @@ export class FlowEventsController extends Controller<'main'> {
         const beginSliceId = res.columns[0].longValues![i];
         const beginTrackId = res.columns[1].longValues![i];
         const beginSliceName = res.columns[2].stringValues![i];
-        const beginSliceCategory = res.columns[10].stringValues![i];
+        const beginSliceCategory = res.columns[3].stringValues![i];
         const beginSliceStartTs = fromNs(res.columns[4].longValues![i]);
         const beginSliceEndTs = fromNs(res.columns[5].longValues![i]);
         const beginDepth = res.columns[6].longValues![i];
