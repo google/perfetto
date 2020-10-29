@@ -515,7 +515,7 @@ message ProcessStatsConfig {
 // Begin of protos/perfetto/config/profiling/heapprofd_config.proto
 
 // Configuration for go/heapprofd.
-// Next id: 23
+// Next id: 24
 message HeapprofdConfig {
   message ContinuousDumpConfig {
     // ms to wait before first dump.
@@ -560,6 +560,8 @@ message HeapprofdConfig {
   //
   // Introduced in Android 12.
   repeated string heaps = 20;
+
+  optional bool stream_allocations = 23;
 
   // If given, needs to be the same length as heaps and gives the sampling
   // interval for the respective entry in heaps.
