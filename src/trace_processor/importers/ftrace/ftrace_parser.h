@@ -128,6 +128,10 @@ class FtraceParser {
   void ParseSchedBlockedReason(int64_t timestamp,
                                protozero::ConstBytes,
                                PacketSequenceStateGeneration*);
+  void ParseFastRpcDmaStat(int64_t timestamp,
+                           uint32_t pid,
+                           protozero::ConstBytes);
+
   TraceProcessorContext* context_;
   RssStatTracker rss_stat_tracker_;
 
@@ -175,6 +179,9 @@ class FtraceParser {
     StringId max_lat = kNullStringId;
     StringId avg_lat = kNullStringId;
   };
+
+  static constexpr size_t kFastRpcCounterSize = 4;
+  std::array<StringId, kFastRpcCounterSize> fast_rpc_counter_names_;
 
   // Keep kMmEventCounterSize equal to mm_event_type::MM_TYPE_NUM in the kernel.
   static constexpr size_t kMmEventCounterSize = 7;
