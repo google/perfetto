@@ -1,14 +1,31 @@
 Unreleased:
   Tracing service and probes:
+    *
+  Trace Processor:
+    *
+  UI:
+    *
+
+v9.0 - 2020-11-01:
+  Tracing service and probes:
     * Added support for recording traces from a system service through the
       client API.
     * The client library now reconnects producers automatically if the
       connection to the tracing service is lost. Also fixed crashes in ongoing
       tracing sessions when a disconnect occurs.
+    * Added support for dpu and g2d ftrace events.
+    * Enabled commit batching and producer side patching of chunks.
+    * Add support for symbolizing kernel symbols for ftrace events.
   Trace Processor:
-    *
+    * Fixed type affinity of string columns.
   UI:
     * Added initial support for running metrics from the UI.
+    * Added support for displaying all flows when a slice or area is selected.
+    * Highlight nodes that match the 'focus' string in the flamegraph.
+    * Added search within slice args.
+    * Fixed details panel height and moved query panel into details panel.
+    * Enabled re-sharing of postMessage traces by echoing back the original URL.
+    * Improved record page error messages.
 
 
 v8.0 - 2020-10-01:
