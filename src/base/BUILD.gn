@@ -29,6 +29,7 @@ perfetto_component("base") {
     "logging.cc",
     "metatrace.cc",
     "paged_memory.cc",
+    "status.cc",
     "string_splitter.cc",
     "string_utils.cc",
     "string_view.cc",

@@ -228,7 +228,7 @@ class TracingMuxerImpl : public TracingMuxer {
     // perfetto::Consumer implementation.
     void OnConnect() override;
     void OnDisconnect() override;
-    void OnTracingDisabled() override;
+    void OnTracingDisabled(const std::string& error) override;
     void OnTraceData(std::vector<TracePacket>, bool has_more) override;
     void OnDetach(bool success) override;
     void OnAttach(bool success, const TraceConfig&) override;

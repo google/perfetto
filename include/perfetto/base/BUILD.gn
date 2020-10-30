@@ -22,6 +22,7 @@ source_set("base") {
     "flat_set.h",
     "logging.h",
     "proc_utils.h",
+    "status.h",
     "task_runner.h",
     "thread_utils.h",
     "time.h",

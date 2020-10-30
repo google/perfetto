@@ -770,8 +770,11 @@ void PerfettoCmd::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
     FinalizeTraceAndExit();  // Reached end of trace.
 }
 
-void PerfettoCmd::OnTracingDisabled() {
+void PerfettoCmd::OnTracingDisabled(const std::string& error) {
   LogUploadEvent(PerfettoStatsdAtom::kOnTracingDisabled);
+
+  if (!error.empty())
+    PERFETTO_ELOG("Service error: %s", error.c_str());
 
   if (trace_config_->write_into_file()) {
     // If write_into_file == true, at this point the passed file contains
