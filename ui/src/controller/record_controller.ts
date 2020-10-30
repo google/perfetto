@@ -41,6 +41,7 @@ import {
   isAdbTarget,
   isAndroidP,
   isChromeTarget,
+  isCrOSTarget,
   MAX_TIME,
   RecordConfig,
   RecordingTarget
@@ -143,7 +144,7 @@ export function genConfig(
   if (uiCfg.gpuMemTotal) {
     ftraceEvents.add('gpu_mem/gpu_mem_total');
 
-    if (!isChromeTarget(target)) {
+    if (!isChromeTarget(target) || isCrOSTarget(target)) {
       const ds = new TraceConfig.DataSource();
       ds.config = new DataSourceConfig();
       ds.config.name = 'android.gpu.memory';
@@ -175,7 +176,9 @@ export function genConfig(
       AndroidPowerConfig.BatteryCounters.BATTERY_COUNTER_CURRENT,
     ];
     ds.config.androidPowerConfig.collectPowerRails = true;
-    if (!isChromeTarget(target)) protoCfg.dataSources.push(ds);
+    if (!isChromeTarget(target) || isCrOSTarget(target)) {
+      protoCfg.dataSources.push(ds);
+    }
   }
 
   if (uiCfg.boardSensors) {
@@ -305,7 +308,9 @@ export function genConfig(
     if (procThreadAssociationPolling || trackInitialOomScore) {
       ds.config.processStatsConfig.scanAllProcessesOnStart = true;
     }
-    if (!isChromeTarget(target)) protoCfg.dataSources.push(ds);
+    if (!isChromeTarget(target) || isCrOSTarget(target)) {
+      protoCfg.dataSources.push(ds);
+    }
   }
 
   if (uiCfg.androidLogs) {
@@ -318,7 +323,9 @@ export function genConfig(
       return AndroidLogId[name as any as number] as any as number;
     });
 
-    if (!isChromeTarget(target)) protoCfg.dataSources.push(ds);
+    if (!isChromeTarget(target) || isCrOSTarget(target)) {
+      protoCfg.dataSources.push(ds);
+    }
   }
 
   if (uiCfg.chromeLogs) {
@@ -408,7 +415,8 @@ export function genConfig(
 
   // Keep these last. The stages above can enrich them.
 
-  if (sysStatsCfg !== undefined && !isChromeTarget(target)) {
+  if (sysStatsCfg !== undefined &&
+      (!isChromeTarget(target) || isCrOSTarget(target))) {
     const ds = new TraceConfig.DataSource();
     ds.config = new DataSourceConfig();
     ds.config.name = 'linux.sys_stats';
@@ -416,7 +424,8 @@ export function genConfig(
     protoCfg.dataSources.push(ds);
   }
 
-  if (heapprofd !== undefined && !isChromeTarget(target)) {
+  if (heapprofd !== undefined &&
+      (!isChromeTarget(target) || isCrOSTarget(target))) {
     const ds = new TraceConfig.DataSource();
     ds.config = new DataSourceConfig();
     ds.config.targetBuffer = 0;
@@ -425,7 +434,8 @@ export function genConfig(
     protoCfg.dataSources.push(ds);
   }
 
-  if (javaHprof !== undefined && !isChromeTarget(target)) {
+  if (javaHprof !== undefined &&
+      (!isChromeTarget(target) || isCrOSTarget(target))) {
     const ds = new TraceConfig.DataSource();
     ds.config = new DataSourceConfig();
     ds.config.targetBuffer = 0;
@@ -481,7 +491,9 @@ export function genConfig(
     ds.config.ftraceConfig.ftraceEvents = ftraceEventsArray;
     ds.config.ftraceConfig.atraceCategories = Array.from(atraceCats);
     ds.config.ftraceConfig.atraceApps = Array.from(atraceApps);
-    if (!isChromeTarget(target)) protoCfg.dataSources.push(ds);
+    if (!isChromeTarget(target) || isCrOSTarget(target)) {
+      protoCfg.dataSources.push(ds);
+    }
   }
 
   return protoCfg;
