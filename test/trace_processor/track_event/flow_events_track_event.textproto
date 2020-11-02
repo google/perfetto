@@ -43,8 +43,7 @@ packet {
     name: "FlowSlice1End"
     categories: "test"
     track_uuid: 2,
-    flow_ids: 1,
-    flow_eof: 1,
+    terminating_flow_ids: 1,
     legacy_event {
       duration_us: 10
       phase: 88 # 'X'
