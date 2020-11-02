@@ -654,22 +654,28 @@ class TrackEventParser::EventImporter {
 
   void MaybeParseTrackEventFlows() {
     if (event_.has_flow_ids()) {
-      uint64_t end_of_flow_bitmask = event_.flow_eof();
       auto it = event_.flow_ids();
-      for (int flow_idx = 0; it; it++, flow_idx++) {
+      for (; it; ++it) {
         FlowId flow_id = *it;
         if (!context_->flow_tracker->IsActive(flow_id)) {
           context_->flow_tracker->Begin(track_id_, flow_id);
           continue;
         }
-        bool end_of_flow = end_of_flow_bitmask & (1 << flow_idx);
-        if (end_of_flow) {
-          context_->flow_tracker->End(track_id_, flow_id,
-                                      /* bind_enclosing = */ true,
-                                      /* close_flow = */ true);
-        } else {
-          context_->flow_tracker->Step(track_id_, flow_id);
+        context_->flow_tracker->Step(track_id_, flow_id);
+      }
+    }
+    if (event_.has_terminating_flow_ids()) {
+      auto it = event_.terminating_flow_ids();
+      for (; it; ++it) {
+        FlowId flow_id = *it;
+        if (!context_->flow_tracker->IsActive(flow_id)) {
+          // If we should terminate a flow, do not begin a new one if it's not
+          // active already.
+          continue;
         }
+        context_->flow_tracker->End(track_id_, flow_id,
+                                    /* bind_enclosing = */ true,
+                                    /* close_flow = */ true);
       }
     }
   }
