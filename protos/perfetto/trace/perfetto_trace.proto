@@ -6202,7 +6202,7 @@ message TaskExecution {
 // their default track association) can be emitted as part of a
 // TrackEventDefaults message.
 //
-// Next reserved id: 13 (up to 15). Next id: 42.
+// Next reserved id: 13 (up to 15). Next id: 43.
 message TrackEvent {
   // Names of categories of the event. In the client library, categories are a
   // way to turn groups of individual events on or off.
@@ -6305,14 +6305,15 @@ message TrackEvent {
   // of the flow. Any events thereafter are intermediate steps of the flow,
   // until the flow terminates at the last event with the flow ID.
   //
-  // Flows can also be explicitly terminated (see |flow_eof|), so that the
-  // same ID can later be reused for another flow.
-  // Max 64 flows per event.
+  // Flows can also be explicitly terminated (see |terminating_flow_ids|), so
+  // that the same ID can later be reused for another flow.
   repeated uint64 flow_ids = 36;
 
-  // Bitmask with one bit for each flow in |flow_ids| indicating whether the
-  // flow terminates at this event. Iff bit N is 1, flow N terminates.
-  optional uint64 flow_eof = 37;
+  // List of flow ids which should terminate on this event, otherwise same as
+  // |flow_ids|.
+  // Any one flow ID should be either listed as part of |flow_ids| OR
+  // |terminating_flow_ids|, not both.
+  repeated uint64 terminating_flow_ids = 42;
 
   // ---------------------------------------------------------------------------
   // TrackEvent arguments:
