@@ -105,18 +105,22 @@
     namespace tns = ::PERFETTO_TRACK_EVENT_NAMESPACE;                     \
     /* Compute the category index outside the lambda to work around a */  \
     /* GCC 7 bug */                                                       \
-    constexpr auto PERFETTO_UID(kCatIndex) =                              \
+    constexpr auto PERFETTO_UID(                                          \
+        kCatIndex_ADD_TO_PERFETTO_DEFINE_CATEGORIES_IF_FAILS_) =          \
         PERFETTO_GET_CATEGORY_INDEX(category);                            \
     if (tns::internal::IsDynamicCategory(category)) {                     \
       tns::TrackEvent::CallIfEnabled([&](uint32_t instances) {            \
-        tns::TrackEvent::TraceForCategory<PERFETTO_UID(kCatIndex)>(       \
+        tns::TrackEvent::TraceForCategory<PERFETTO_UID(                   \
+            kCatIndex_ADD_TO_PERFETTO_DEFINE_CATEGORIES_IF_FAILS_)>(      \
             instances, category, ##__VA_ARGS__);                          \
       });                                                                 \
     } else {                                                              \
-      tns::TrackEvent::CallIfCategoryEnabled<PERFETTO_UID(kCatIndex)>(    \
+      tns::TrackEvent::CallIfCategoryEnabled<PERFETTO_UID(                \
+          kCatIndex_ADD_TO_PERFETTO_DEFINE_CATEGORIES_IF_FAILS_)>(        \
           [&](uint32_t instances) {                                       \
             /* TODO(skyostil): Get rid of the category name parameter. */ \
-            tns::TrackEvent::TraceForCategory<PERFETTO_UID(kCatIndex)>(   \
+            tns::TrackEvent::TraceForCategory<PERFETTO_UID(               \
+                kCatIndex_ADD_TO_PERFETTO_DEFINE_CATEGORIES_IF_FAILS_)>(  \
                 instances, nullptr, ##__VA_ARGS__);                       \
           });                                                             \
     }                                                                     \
