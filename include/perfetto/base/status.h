@@ -34,7 +34,7 @@ class PERFETTO_EXPORT Status {
  public:
   Status() : ok_(true) {}
   explicit Status(std::string msg) : ok_(false), message_(std::move(msg)) {
-    PERFETTO_DCHECK(!message_.empty());
+    PERFETTO_CHECK(!message_.empty());
   }
 
   // Copy operations.
@@ -47,19 +47,10 @@ class PERFETTO_EXPORT Status {
 
   bool ok() const { return ok_; }
 
-  // Only valid to call when this message has an Err status (i.e. ok() returned
-  // false or operator bool() returned true).
-  const std::string& message() const {
-    PERFETTO_DCHECK(!ok_);
-    return message_;
-  }
-
-  // Only valid to call when this message has an Err status (i.e. ok() returned
-  // false or operator bool() returned true).
-  const char* c_message() const {
-    PERFETTO_DCHECK(!ok_);
-    return message_.c_str();
-  }
+  // When ok() is false this returns the error message. Returns the empty string
+  // otherwise.
+  const std::string& message() const { return message_; }
+  const char* c_message() const { return message_.c_str(); }
 
  private:
   bool ok_ = false;
