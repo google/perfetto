@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/importers/proto/profiler_util.h"
 
+#include "perfetto/ext/base/optional.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto {
@@ -24,16 +25,19 @@ namespace {
 
 base::Optional<base::StringView> PackageFromApp(base::StringView location) {
   location = location.substr(base::StringView("/data/app/").size());
-  size_t slash = location.find('/');
-  if (slash == std::string::npos) {
+  size_t start = 0;
+  if (location.at(0) == '~') {
+    size_t slash = location.find('/');
+    if (slash == std::string::npos) {
+      return base::nullopt;
+    }
+    start = slash + 1;
+  }
+  size_t end = location.find('/', start + 1);
+  if (end == std::string::npos) {
     return base::nullopt;
   }
-  size_t second_slash = location.find('/', slash + 1);
-  if (second_slash == std::string::npos) {
-    location = location.substr(0, slash);
-  } else {
-    location = location.substr(slash + 1, second_slash - slash);
-  }
+  location = location.substr(start, end);
   size_t minus = location.find('-');
   if (minus == std::string::npos) {
     return base::nullopt;

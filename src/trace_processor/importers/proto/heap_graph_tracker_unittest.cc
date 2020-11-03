@@ -39,6 +39,11 @@ TEST(HeapGraphTrackerTest, PackageFromLocationApp) {
                 "/data/app/com.google.android.webview-6XfQhnaSkFwGK0sYL9is0G==/"
                 "base.apk"),
             "com.google.android.webview");
+  EXPECT_EQ(PackageFromLocation(&storage,
+                                "/data/app/"
+                                "com.google.android.apps.wellbeing-"
+                                "qfQCaB4uJ7P0OPpZQqOu0Q==/oat/arm64/base.odex"),
+            "com.google.android.apps.wellbeing");
 }
 
 TEST(HeapGraphTrackerTest, BuildFlamegraph) {
