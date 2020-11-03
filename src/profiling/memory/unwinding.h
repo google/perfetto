@@ -100,7 +100,13 @@ class UnwindingWorker : public base::UnixSocket::EventListener {
   void HandleHandoffSocket(HandoffData data);
   void HandleDisconnectSocket(pid_t pid);
 
-  void HandleUnwindBatch(pid_t);
+  enum class ReadAndUnwindBatchResult {
+    kHasMore,
+    kReadSome,
+    kReadNone,
+  };
+  ReadAndUnwindBatchResult ReadAndUnwindBatch(ClientData* client_data);
+  void BatchUnwindJob(pid_t);
 
   std::map<pid_t, ClientData> client_data_;
   Delegate* delegate_;
