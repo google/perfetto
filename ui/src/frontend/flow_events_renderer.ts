@@ -27,7 +27,14 @@ const CIRCLE_RADIUS = 3;
 const BEZIER_OFFSET = 30;
 
 const CONNECTED_FLOW_HUE = 10;
-const SELECTED_FLOW_HUE = 210;
+const SELECTED_FLOW_HUE = 230;
+
+const DEFAULT_FLOW_WIDTH = 2;
+const FOCUSED_FLOW_WIDTH = 3;
+
+const HIGHLIGHTED_FLOW_INTENSITY = 45;
+const FOCUSED_FLOW_INTENSITY = 55;
+const DEFAULT_FLOW_INTENSITY = 70;
 
 type LineDirection = 'LEFT'|'RIGHT'|'UP'|'DOWN';
 type ConnectionType = 'TRACK'|'TRACK_GROUP';
@@ -199,7 +206,19 @@ export class FlowEventsRenderer {
     const highlighted =
         flow.end.sliceId === globals.frontendLocalState.highlightedSliceId ||
         flow.begin.sliceId === globals.frontendLocalState.highlightedSliceId;
-    this.drawFlowArrow(ctx, begin, end, hue, highlighted);
+    const focused = flow.id === globals.frontendLocalState.focusedFlowIdLeft ||
+        flow.id === globals.frontendLocalState.focusedFlowIdRight;
+
+    let intensity = DEFAULT_FLOW_INTENSITY;
+    let width = DEFAULT_FLOW_WIDTH;
+    if (focused) {
+      intensity = FOCUSED_FLOW_INTENSITY;
+      width = FOCUSED_FLOW_WIDTH;
+    }
+    if (highlighted) {
+      intensity = HIGHLIGHTED_FLOW_INTENSITY;
+    }
+    this.drawFlowArrow(ctx, begin, end, hue, intensity, width);
   }
 
   private getDeltaX(dir: LineDirection, offset: number): number {
@@ -236,13 +255,13 @@ export class FlowEventsRenderer {
       ctx: CanvasRenderingContext2D,
       begin: {x: number, y: number, dir: LineDirection},
       end: {x: number, y: number, dir: LineDirection}, hue: number,
-      highlighted: boolean) {
+      intensity: number, width: number) {
     const END_OFFSET =
         (end.dir === 'RIGHT' || end.dir === 'LEFT' ? TRIANGLE_SIZE : 0);
-    const color = `hsl(${hue}, 50%, ${highlighted ? 60 : 75}%)`;
+    const color = `hsl(${hue}, 50%, ${intensity}%)`;
     // draw curved line from begin to end (bezier curve)
     ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = width;
     ctx.beginPath();
     ctx.moveTo(begin.x, begin.y);
     ctx.bezierCurveTo(
