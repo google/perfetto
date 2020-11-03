@@ -52,4 +52,19 @@ trace.add_buffer_event_packet(ts=24, buffer_id=1, layer_name="layer1", frame_num
 trace.add_buffer_event_packet(ts=6, buffer_id=-1, layer_name="layer6", frame_number=14, event_type=BufferEvent.HWC_COMPOSITION_QUEUED, duration=0)
 # Missing type.
 trace.add_buffer_event_packet(ts=7, buffer_id=7, layer_name="layer7", frame_number=15, event_type=-1, duration=0)
+# Missing Acquire
+trace.add_buffer_event_packet(ts=31, buffer_id=1, layer_name="layer1", frame_number=21, event_type=BufferEvent.DEQUEUE, duration=0)
+trace.add_buffer_event_packet(ts=34, buffer_id=1, layer_name="layer1", frame_number=21, event_type=BufferEvent.QUEUE, duration=0)
+trace.add_buffer_event_packet(ts=37, buffer_id=1, layer_name="layer1", frame_number=22, event_type=BufferEvent.DEQUEUE, duration=0)
+trace.add_buffer_event_packet(ts=41, buffer_id=1, layer_name="layer1", frame_number=22, event_type=BufferEvent.QUEUE, duration=0)
+trace.add_buffer_event_packet(ts=46, buffer_id=1, layer_name="layer1", frame_number=22, event_type=BufferEvent.ACQUIRE_FENCE, duration=0)
+# Missing queue with acquire
+trace.add_buffer_event_packet(ts=53, buffer_id=2, layer_name="layer2", frame_number=24, event_type=BufferEvent.DEQUEUE, duration=0)
+trace.add_buffer_event_packet(ts=59, buffer_id=2, layer_name="layer2", frame_number=24, event_type=BufferEvent.ACQUIRE_FENCE, duration=0)
+trace.add_buffer_event_packet(ts=61, buffer_id=2, layer_name="layer2", frame_number=24, event_type=BufferEvent.LATCH, duration=0)
+# Missing queue without acquire
+trace.add_buffer_event_packet(ts=63, buffer_id=1, layer_name="layer1", frame_number=25, event_type=BufferEvent.DEQUEUE, duration=0)
+trace.add_buffer_event_packet(ts=73, buffer_id=1, layer_name="layer1", frame_number=26, event_type=BufferEvent.DEQUEUE, duration=0)
+trace.add_buffer_event_packet(ts=75, buffer_id=1, layer_name="layer1", frame_number=26, event_type=BufferEvent.QUEUE, duration=0)
+trace.add_buffer_event_packet(ts=79, buffer_id=1, layer_name="layer1", frame_number=26, event_type=BufferEvent.ACQUIRE_FENCE, duration=0)
 sys.stdout.buffer.write(trace.trace.SerializeToString())
