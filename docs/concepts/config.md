@@ -415,16 +415,18 @@ There are two types of triggers:
 Start triggers allow activating a tracing session only after some significant
 event has happened. Passing a trace config that has `START_TRACING` trigger
 causes the tracing session to stay idle (i.e. not recording any data) until either
-the trigger is hit or the `duration_ms` timeout is hit.
+the trigger is hit or the `trigger_timeout_ms` timeout is hit.
+
+`trace_duration_ms` and triggered traces can not be used at the same time.
 
 Example config:
 ```protobuf
-// If no trigger is hit, the trace will end without having recorded any data
-// after 30s.
-duration_ms: 30000
+# If no trigger is hit, the trace will end without having recorded any data
+# after 30s.
+trigger_timeout_ms: 30000
 
-// If the "myapp_is_slow" is hit, the trace starts recording data and will be
-// stopped after 5s.
+# If the "myapp_is_slow" is hit, the trace starts recording data and will be
+# stopped after 5s.
 trigger_config {
   trigger_mode: START_TRACING
   triggers {
@@ -433,7 +435,7 @@ trigger_config {
   }
 }
 
-// The rest of the config is as usual.
+# The rest of the config is as usual.
 buffers { ... }
 data_sources { ... }
 ```
@@ -453,10 +455,10 @@ detected. This is key for events where the root cause is in the recent past
 
 Example config:
 ```protobuf
-// If no trigger is hit, the trace will end after 30s.
-duration_ms: 30000
+# If no trigger is hit, the trace will end after 30s.
+trigger_timeout_ms: 30000
 
-// If the "missed_frame" is hit, the trace is stopped after 1s.
+# If the "missed_frame" is hit, the trace is stopped after 1s.
 trigger_config {
   trigger_mode: STOP_TRACING
   triggers {
@@ -465,7 +467,7 @@ trigger_config {
   }
 }
 
-// The rest of the config is as usual.
+# The rest of the config is as usual.
 buffers { ... }
 data_sources { ... }
 ```
