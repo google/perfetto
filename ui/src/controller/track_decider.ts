@@ -561,14 +561,17 @@ export async function decideTracks(
     }
     const counterThreadNames = counterUtids.get(utid);
     if (counterThreadNames !== undefined) {
+      const kind = COUNTER_TRACK_KIND;
       counterThreadNames.forEach(element => {
+        const name =
+            getTrackName({name: element.name, utid, tid, kind, threadName});
         tracksToAdd.push({
           engineId,
-          kind: COUNTER_TRACK_KIND,
-          name: `${threadName} (${element.name})`,
+          kind,
+          name,
           trackGroup: pUuid,
           config: {
-            name: element.name,
+            name,
             trackId: element.trackId,
             startTs: element.startTs,
             endTs: element.endTs,
