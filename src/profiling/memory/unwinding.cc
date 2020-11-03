@@ -58,6 +58,7 @@ namespace profiling {
 namespace {
 
 constexpr base::TimeMillis kMapsReparseInterval{500};
+constexpr uint32_t kRetryDelayMs = 100;
 
 constexpr size_t kMaxFrames = 200;
 
@@ -200,8 +201,8 @@ void UnwindingWorker::OnDisconnect(base::UnixSocket* self) {
     return;
   }
 
-  HandleUnwindBatch(peer_pid);
   ClientData& client_data = it->second;
+  ReadAndUnwindBatch(&client_data);
   SharedRingBuffer& shmem = client_data.shmem;
 
   if (!client_data.alloc_records.empty()) {
@@ -233,10 +234,39 @@ void UnwindingWorker::OnDataAvailable(base::UnixSocket* self) {
   // Drain buffer to clear the notification.
   char recv_buf[kUnwindBatchSize];
   self->Receive(recv_buf, sizeof(recv_buf));
-  HandleUnwindBatch(self->peer_pid());
+  BatchUnwindJob(self->peer_pid());
 }
 
-void UnwindingWorker::HandleUnwindBatch(pid_t peer_pid) {
+UnwindingWorker::ReadAndUnwindBatchResult UnwindingWorker::ReadAndUnwindBatch(
+    ClientData* client_data) {
+  SharedRingBuffer& shmem = client_data->shmem;
+  SharedRingBuffer::Buffer buf;
+
+  size_t i;
+  for (i = 0; i < kUnwindBatchSize; ++i) {
+    uint64_t reparses_before = client_data->metadata.reparses;
+    buf = shmem.BeginRead();
+    if (!buf)
+      break;
+    HandleBuffer(buf, client_data, client_data->sock->peer_pid(), delegate_);
+    shmem.EndRead(std::move(buf));
+    // Reparsing takes time, so process the rest in a new batch to avoid timing
+    // out.
+    if (reparses_before < client_data->metadata.reparses) {
+      return ReadAndUnwindBatchResult::kHasMore;
+    }
+  }
+
+  if (i == kUnwindBatchSize) {
+    return ReadAndUnwindBatchResult::kHasMore;
+  } else if (i > 0) {
+    return ReadAndUnwindBatchResult::kReadSome;
+  } else {
+    return ReadAndUnwindBatchResult::kReadNone;
+  }
+}
+
+void UnwindingWorker::BatchUnwindJob(pid_t peer_pid) {
   auto it = client_data_.find(peer_pid);
   if (it == client_data_.end()) {
     // This can happen if the client disconnected before the buffer was fully
@@ -246,33 +276,18 @@ void UnwindingWorker::HandleUnwindBatch(pid_t peer_pid) {
   }
 
   ClientData& client_data = it->second;
-  SharedRingBuffer& shmem = client_data.shmem;
-  SharedRingBuffer::Buffer buf;
-
-  size_t i;
-  bool repost_task = false;
-  for (i = 0; i < kUnwindBatchSize; ++i) {
-    uint64_t reparses_before = client_data.metadata.reparses;
-    buf = shmem.BeginRead();
-    if (!buf)
+  switch (ReadAndUnwindBatch(&client_data)) {
+    case ReadAndUnwindBatchResult::kHasMore:
+      thread_task_runner_.get()->PostTask(
+          [this, peer_pid] { BatchUnwindJob(peer_pid); });
       break;
-    HandleBuffer(buf, &client_data, client_data.sock->peer_pid(), delegate_);
-    shmem.EndRead(std::move(buf));
-    // Reparsing takes time, so process the rest in a new batch to avoid timing
-    // out.
-    if (reparses_before < client_data.metadata.reparses) {
-      repost_task = true;
+    case ReadAndUnwindBatchResult::kReadSome:
+      thread_task_runner_.get()->PostDelayedTask(
+          [this, peer_pid] { BatchUnwindJob(peer_pid); }, kRetryDelayMs);
       break;
-    }
-  }
-
-  // Always repost if we have gone through the whole batch.
-  if (i == kUnwindBatchSize)
-    repost_task = true;
-
-  if (repost_task) {
-    thread_task_runner_.get()->PostTask(
-        [this, peer_pid] { HandleUnwindBatch(peer_pid); });
+    case ReadAndUnwindBatchResult::kReadNone:
+      client_data.shmem.SetReaderPaused();
+      break;
   }
 }
 
@@ -366,6 +381,7 @@ void UnwindingWorker::HandleHandoffSocket(HandoffData handoff_data) {
   };
   client_data.free_records.reserve(kRecordBatchSize);
   client_data.alloc_records.reserve(kRecordBatchSize);
+  client_data.shmem.SetReaderPaused();
   client_data_.emplace(peer_pid, std::move(client_data));
 }
 
