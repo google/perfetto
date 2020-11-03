@@ -29,6 +29,7 @@
 
 #include "protos/perfetto/common/gpu_counter_descriptor.pbzero.h"
 #include "protos/perfetto/trace/ftrace/binder.pbzero.h"
+#include "protos/perfetto/trace/ftrace/fastrpc.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_stats.pbzero.h"
@@ -140,6 +141,13 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
     }
     ftrace_message_strings_.emplace_back(ftrace_strings);
   }
+
+  // Array initialization causes a spurious warning due to llvm bug.
+  // See https://bugs.llvm.org/show_bug.cgi?id=21629 
+  fast_rpc_counter_names_[0] = context->storage->InternString("mem.fastrpc[ASDP]");
+  fast_rpc_counter_names_[1] = context->storage->InternString("mem.fastrpc[MDSP]");
+  fast_rpc_counter_names_[2] = context->storage->InternString("mem.fastrpc[SDSP]");
+  fast_rpc_counter_names_[3] = context->storage->InternString("mem.fastrpc[CDSP]");
 
   mm_event_counter_names_ = {
       {MmEventCounterNames(
@@ -493,6 +501,10 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kSchedBlockedReasonFieldNumber: {
         ParseSchedBlockedReason(ts, data, seq_state);
+        break;
+      }
+      case FtraceEvent::kFastrpcDmaStatFieldNumber: {
+        ParseFastRpcDmaStat(ts, pid, data);
         break;
       }
       default:
@@ -1248,6 +1260,26 @@ void FtraceParser::ParseSchedBlockedReason(
         base::StringView(reinterpret_cast<const char*>(str.data), str.size));
     inserter.AddArg(function_id_, Variadic::String(str_id));
   }
+}
+
+void FtraceParser::ParseFastRpcDmaStat(int64_t timestamp,
+                                       uint32_t pid,
+                                       protozero::ConstBytes blob) {
+  protos::pbzero::FastrpcDmaStatFtraceEvent::Decoder evt(blob.data, blob.size);
+
+  StringId name;
+  if (0 <= evt.cid() && evt.cid() < static_cast<int32_t>(kFastRpcCounterSize)) {
+    name = fast_rpc_counter_names_[static_cast<size_t>(evt.cid())];
+  } else {
+    char str[64];
+    sprintf(str, "mem.fastrpc[%" PRId32 "]", evt.cid());
+    name = context_->storage->InternString(str);
+  }
+
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  TrackId track = context_->track_tracker->InternThreadCounterTrack(name, utid);
+  context_->event_tracker->PushCounter(
+      timestamp, static_cast<double>(evt.total_allocated()), track);
 }
 
 }  // namespace trace_processor
