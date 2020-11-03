@@ -84,7 +84,7 @@ class ConsumerIPCService : public protos::gen::ConsumerPort {
     // no connection here, these methods are posted straight away.
     void OnConnect() override;
     void OnDisconnect() override;
-    void OnTracingDisabled() override;
+    void OnTracingDisabled(const std::string& error) override;
     void OnTraceData(std::vector<TracePacket>, bool has_more) override;
     void OnDetach(bool) override;
     void OnAttach(bool, const TraceConfig&) override;

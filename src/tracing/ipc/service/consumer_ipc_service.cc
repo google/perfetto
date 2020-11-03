@@ -324,11 +324,14 @@ void ConsumerIPCService::RemoteConsumer::OnConnect() {}
 // |service_endpoint| (in the RemoteConsumer dtor).
 void ConsumerIPCService::RemoteConsumer::OnDisconnect() {}
 
-void ConsumerIPCService::RemoteConsumer::OnTracingDisabled() {
+void ConsumerIPCService::RemoteConsumer::OnTracingDisabled(
+    const std::string& error) {
   if (enable_tracing_response.IsBound()) {
     auto result =
         ipc::AsyncResult<protos::gen::EnableTracingResponse>::Create();
     result->set_disabled(true);
+    if (!error.empty())
+      result->set_error(error);
     enable_tracing_response.Resolve(std::move(result));
   }
 }

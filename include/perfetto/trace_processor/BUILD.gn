@@ -34,4 +34,5 @@ source_set("basic_types") {
     "basic_types.h",
     "status.h",
   ]
+  public_deps = [ "../base" ]
 }
