@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 The Android Open Source Project
+ * Copyright (C) 2020 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,26 +14,22 @@
  * limitations under the License.
  */
 
-#ifndef INCLUDE_PERFETTO_TRACE_PROCESSOR_STATUS_H_
-#define INCLUDE_PERFETTO_TRACE_PROCESSOR_STATUS_H_
-
 #include "perfetto/base/status.h"
 
-// Once upon a time Status used to live in perfetto::trace_processor. At some
-// point it has been moved up to base. This forwarding header stayed here
-// because of out-of-repo users.
+#include <stdarg.h>
 
 namespace perfetto {
-namespace trace_processor {
-namespace util {
+namespace base {
 
-using Status = ::perfetto::base::Status;
+Status ErrStatus(const char* format, ...) {
+  char buffer[1024];
+  va_list ap;
+  va_start(ap, format);
+  vsnprintf(buffer, sizeof(buffer), format, ap);
+  va_end(ap);
+  Status status(buffer);
+  return status;
+}
 
-constexpr auto OkStatus = ::perfetto::base::OkStatus;
-constexpr auto ErrStatus = ::perfetto::base::ErrStatus;
-
-}  // namespace util
-}  // namespace trace_processor
+}  // namespace base
 }  // namespace perfetto
-
-#endif  // INCLUDE_PERFETTO_TRACE_PROCESSOR_STATUS_H_
