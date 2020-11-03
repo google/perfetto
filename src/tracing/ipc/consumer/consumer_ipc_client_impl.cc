@@ -182,7 +182,7 @@ void ConsumerIPCClientImpl::OnReadBuffersResponse(
 void ConsumerIPCClientImpl::OnEnableTracingResponse(
     ipc::AsyncResult<protos::gen::EnableTracingResponse> response) {
   if (!response || response->disabled())
-    consumer_->OnTracingDisabled();
+    consumer_->OnTracingDisabled(response->error());
 }
 
 void ConsumerIPCClientImpl::FreeBuffers() {

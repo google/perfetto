@@ -127,6 +127,10 @@ message EnableTracingRequest {
 
 message EnableTracingResponse {
   oneof state { bool disabled = 1; }
+
+  // If present and non-empty tracing was disabled because of an error.
+  // Introduced in Android S.
+  optional string error = 3;
 }
 
 // Arguments for rpc StartTracing().

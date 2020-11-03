@@ -73,7 +73,8 @@ void MockConsumer::WaitForTracingDisabled(uint32_t timeout_ms) {
   static int i = 0;
   auto checkpoint_name = "on_tracing_disabled_consumer_" + std::to_string(i++);
   auto on_tracing_disabled = task_runner_->CreateCheckpoint(checkpoint_name);
-  EXPECT_CALL(*this, OnTracingDisabled()).WillOnce(Invoke(on_tracing_disabled));
+  EXPECT_CALL(*this, OnTracingDisabled(_))
+      .WillOnce(testing::InvokeWithoutArgs(on_tracing_disabled));
   task_runner_->RunUntilCheckpoint(checkpoint_name, timeout_ms);
 }
 

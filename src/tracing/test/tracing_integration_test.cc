@@ -80,7 +80,7 @@ class MockConsumer : public Consumer {
   // Producer implementation.
   MOCK_METHOD0(OnConnect, void());
   MOCK_METHOD0(OnDisconnect, void());
-  MOCK_METHOD0(OnTracingDisabled, void());
+  MOCK_METHOD1(OnTracingDisabled, void(const std::string& /*error*/));
   MOCK_METHOD2(OnTracePackets, void(std::vector<TracePacket>*, bool));
   MOCK_METHOD1(OnDetach, void(bool));
   MOCK_METHOD2(OnAttach, void(bool, const TraceConfig&));
@@ -338,8 +338,8 @@ TEST_F(TracingIntegrationTest, WithIPCTransport) {
   auto on_tracing_disabled =
       task_runner_->CreateCheckpoint("on_tracing_disabled");
   EXPECT_CALL(producer_, StopDataSource(_));
-  EXPECT_CALL(consumer_, OnTracingDisabled())
-      .WillOnce(Invoke(on_tracing_disabled));
+  EXPECT_CALL(consumer_, OnTracingDisabled(_))
+      .WillOnce(InvokeWithoutArgs(on_tracing_disabled));
   task_runner_->RunUntilCheckpoint("on_tracing_disabled");
 }
 
@@ -390,8 +390,8 @@ TEST_F(TracingIntegrationTest, WriteIntoFile) {
   auto on_tracing_disabled =
       task_runner_->CreateCheckpoint("on_tracing_disabled");
   EXPECT_CALL(producer_, StopDataSource(_));
-  EXPECT_CALL(consumer_, OnTracingDisabled())
-      .WillOnce(Invoke(on_tracing_disabled));
+  EXPECT_CALL(consumer_, OnTracingDisabled(_))
+      .WillOnce(InvokeWithoutArgs(on_tracing_disabled));
   task_runner_->RunUntilCheckpoint("on_tracing_disabled");
 
   // Check that |tmp_file| contains a valid trace.proto message.
@@ -517,8 +517,8 @@ TEST_F(TracingIntegrationTestWithSMBScrapingProducer, ScrapeOnFlush) {
   auto on_tracing_disabled =
       task_runner_->CreateCheckpoint("on_tracing_disabled");
   EXPECT_CALL(producer_, StopDataSource(_));
-  EXPECT_CALL(consumer_, OnTracingDisabled())
-      .WillOnce(Invoke(on_tracing_disabled));
+  EXPECT_CALL(consumer_, OnTracingDisabled(_))
+      .WillOnce(InvokeWithoutArgs(on_tracing_disabled));
   task_runner_->RunUntilCheckpoint("on_tracing_disabled");
 }
 
