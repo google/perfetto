@@ -103,25 +103,25 @@ if (enable_perfetto_integration_tests) {
       "tracing_module_categories.h",
     ]
   }
-}
 
-# api_test_support needs to be self-contained and not leak any other perfetto
-# deps. See comment in api_test_support.h
-source_set("api_test_support") {
-  testonly = true
-  deps = [
-    "../../..:libperfetto_client_experimental",
-    "../../../gn:default_deps",
-    "../../base",
-    "../../tracing:client_api_without_backends",
-  ]
+  # api_test_support needs to be self-contained and not leak any other perfetto
+  # deps. See comment in api_test_support.h
+  source_set("api_test_support") {
+    testonly = true
+    deps = [
+      "../../..:libperfetto_client_experimental",
+      "../../../gn:default_deps",
+      "../../base",
+      "../../tracing:client_api_without_backends",
+    ]
 
-  # The system tracing backend requires IPC support.
-  if (enable_perfetto_ipc) {
-    deps += [ "../../../test:test_helper" ]
+    # The system tracing backend requires IPC support.
+    if (enable_perfetto_ipc) {
+      deps += [ "../../../test:test_helper" ]
+    }
+    sources = [
+      "api_test_support.cc",
+      "api_test_support.h",
+    ]
   }
-  sources = [
-    "api_test_support.cc",
-    "api_test_support.h",
-  ]
 }
