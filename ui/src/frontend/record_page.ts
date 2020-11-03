@@ -111,6 +111,7 @@ FTRACE_CATEGORIES.set('sync/*', 'sync');
 FTRACE_CATEGORIES.set('task/*', 'task');
 FTRACE_CATEGORIES.set('task/*', 'task');
 FTRACE_CATEGORIES.set('vmscan/*', 'vmscan');
+FTRACE_CATEGORIES.set('fastrpc/*', 'fastrpc');
 
 function RecSettings(cssClass: string) {
   const S = (x: number) => x * 1000;
