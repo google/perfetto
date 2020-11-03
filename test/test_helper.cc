@@ -54,7 +54,7 @@ void TestHelper::OnDisconnect() {
   PERFETTO_FATAL("Consumer unexpectedly disconnected from the service");
 }
 
-void TestHelper::OnTracingDisabled() {
+void TestHelper::OnTracingDisabled(const std::string& /*error*/) {
   std::move(on_stop_tracing_callback_)();
 }
 

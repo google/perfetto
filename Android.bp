@@ -6081,6 +6081,7 @@ filegroup {
     "src/base/metatrace.cc",
     "src/base/paged_memory.cc",
     "src/base/pipe.cc",
+    "src/base/status.cc",
     "src/base/string_splitter.cc",
     "src/base/string_utils.cc",
     "src/base/string_view.cc",
