@@ -129,7 +129,7 @@ base::Optional<std::string> PackageFromLocation(TraceStorage* storage,
     auto package = PackageFromApp(location);
     if (!package) {
       PERFETTO_DLOG("Failed to parse %s", location.ToStdString().c_str());
-      storage->IncrementStats(stats::heap_graph_location_parse_error);
+      storage->IncrementStats(stats::deobfuscate_location_parse_error);
       return base::nullopt;
     }
     return package->ToStdString();
