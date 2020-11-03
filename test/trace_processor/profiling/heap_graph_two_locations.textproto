@@ -93,11 +93,11 @@ packet {
     pid: 2
     location_names {
       iid: 1
-      str: "/data/app/ASDFG/invalid.test.android-SDASD/test.apk"
+      str: "/data/app/~~ASDFG==/invalid.test.android-SDASD/test.apk"
     }
     location_names {
       iid: 2
-      str: "/data/app/ASDFG/invalid.test2.android-SDASD/test.apk"
+      str: "/data/app/~~ASDFG==/invalid.test2.android-SDASD/test.apk"
     }
     types {
       id: 1
