@@ -136,7 +136,29 @@ class FrontendApi {
 
   publishConnectedFlows(connectedFlows: Flow[]) {
     globals.connectedFlows = connectedFlows;
+    // Call resetFlowFocus() each time connectedFlows is updated to correctly
+    // navigate using hotkeys.
+    this.resetFlowFocus();
     this.redraw();
+  }
+
+  // If a chrome slice is selected and we have any flows in connectedFlows
+  // we will find the flows on the right and left of that slice to set a default
+  // focus. In all other cases the focusedFlowId(Left|Right) will be set to -1.
+  resetFlowFocus() {
+    globals.frontendLocalState.focusedFlowIdLeft = -1;
+    globals.frontendLocalState.focusedFlowIdRight = -1;
+    if (globals.state.currentSelection?.kind === 'CHROME_SLICE') {
+      const sliceId = globals.state.currentSelection.id;
+      for (const flow of globals.connectedFlows) {
+        if (flow.begin.sliceId === sliceId) {
+          globals.frontendLocalState.focusedFlowIdRight = flow.id;
+        }
+        if (flow.end.sliceId === sliceId) {
+          globals.frontendLocalState.focusedFlowIdLeft = flow.id;
+        }
+      }
+    }
   }
 
   publishSelectedFlows(selectedFlows: Flow[]) {

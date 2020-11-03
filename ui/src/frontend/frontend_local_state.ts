@@ -70,6 +70,8 @@ export class FrontendLocalState {
   hoveredLogsTimestamp = -1;
   hoveredNoteTimestamp = -1;
   highlightedSliceId = -1;
+  focusedFlowIdLeft = -1;
+  focusedFlowIdRight = -1;
   vidTimestamp = -1;
   localOnlyMode = false;
   sidebarVisible = true;
@@ -128,6 +130,16 @@ export class FrontendLocalState {
   setHighlightedSliceId(sliceId: number) {
     this.highlightedSliceId = sliceId;
     globals.rafScheduler.scheduleRedraw();
+  }
+
+  setHighlightedFlowLeftId(flowId: number) {
+    this.focusedFlowIdLeft = flowId;
+    globals.rafScheduler.scheduleFullRedraw();
+  }
+
+  setHighlightedFlowRightId(flowId: number) {
+    this.focusedFlowIdRight = flowId;
+    globals.rafScheduler.scheduleFullRedraw();
   }
 
   // Sets the timestamp at which a vertical line will be drawn.
