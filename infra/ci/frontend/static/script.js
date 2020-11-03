@@ -32,16 +32,8 @@ const JOB_TYPES = [
   { id: 'android-clang-arm-asan', label: 'asan' },
 ];
 
-// Chart IDs from the Stackdriver daashboard
-// https://app.google.stackdriver.com/dashboards/5008687313278081798?project=perfetto-ci.
-const STATS_CHART_IDS = [
-  '2617092544855936024',   // Job queue len.
-  '15349606823829051218',  // Workers CPU usage
-  '2339121267466167448',   // E2E CL test time (median).
-  '6055813426334723906',   // Job run time (median).
-  '13112965165933080534',  // Job queue time (P95).
-  '2617092544855936456',   // Job run time (P95).
-];
+const STATS_LINK =
+    'https://app.google.stackdriver.com/dashboards/5008687313278081798?project=perfetto-ci';
 
 const state = {
   // An array of recent CL objects retrieved from Gerrit.
@@ -113,7 +105,6 @@ function main() {
     '/logs/:jobId': LogsPageRenderer,
     '/jobs': JobsPageRenderer,
     '/jobs/:jobId': JobsPageRenderer,
-    '/stats/:period': StatsPageRenderer,
   });
 
   setInterval(fetchGerritCLs, 15000);
@@ -130,20 +121,25 @@ function renderHeader() {
   const logUrl = 'https://goto.google.com/perfetto-ci-logs-';
   const docsUrl =
       'https://perfetto.dev/docs/design-docs/continuous-integration';
-  return m('header',
-    m('a[href=/#!/cls]', m('h1', 'Perfetto ', m('span', 'CI'))),
-    m('nav',
-      m(`div${active('cls')}`, m('a[href=/#!/cls]', 'CLs')),
-      m(`div${active('jobs')}`, m('a[href=/#!/jobs]', 'Jobs')),
-      m(`div${active('stats')}`, m('a[href=/#!/stats/1d]', 'Stats')),
-      m(`div`, m(`a[href=${docsUrl}][target=_blank]`, 'Docs')),
-      m(`div.logs`, 'Logs',
-        m('div', m(`a[href=${logUrl}controller][target=_blank]`, 'Controller')),
-        m('div', m(`a[href=${logUrl}workers][target=_blank]`, 'Workers')),
-        m('div', m(`a[href=${logUrl}frontend][target=_blank]`, 'Frontend')),
-      ),
-    )
-  );
+  return m(
+      'header', m('a[href=/#!/cls]', m('h1', 'Perfetto ', m('span', 'CI'))),
+      m(
+          'nav',
+          m(`div${active('cls')}`, m('a[href=/#!/cls]', 'CLs')),
+          m(`div${active('jobs')}`, m('a[href=/#!/jobs]', 'Jobs')),
+          m(`div${active('stats')}`,
+            m(`a[href=${STATS_LINK}][target=_blank]`, 'Stats')),
+          m(`div`, m(`a[href=${docsUrl}][target=_blank]`, 'Docs')),
+          m(
+              `div.logs`,
+              'Logs',
+              m('div',
+                m(`a[href=${logUrl}controller][target=_blank]`, 'Controller')),
+              m('div', m(`a[href=${logUrl}workers][target=_blank]`, 'Workers')),
+              m('div',
+                m(`a[href=${logUrl}frontend][target=_blank]`, 'Frontend')),
+              ),
+          ));
 }
 
 var CLsPageRenderer = {
@@ -535,28 +531,6 @@ const JobsPageRenderer = {
     ];
   }
 };
-
-const StatsPageRenderer = {
-  view: function (vnode) {
-    const makeIframe = id => {
-      let url = 'https://public.google.stackdriver.com/public/chart';
-      url += `/${id}?timeframe=${vnode.attrs.period}`;
-      url += '&drawMode=color&showLegend=false&theme=light';
-      return m('iframe', {
-        src: url,
-        scrolling: 'no',
-        seamless: 'seamless',
-      });
-    };
-
-    return [
-      renderHeader(),
-      m('main#stats',
-        m('.stats-grid', STATS_CHART_IDS.map(makeIframe))
-      )
-    ];
-  }
-}
 
 // -----------------------------------------------------------------------------
 // Business logic (handles fetching from Gerrit and Firebase DB).
