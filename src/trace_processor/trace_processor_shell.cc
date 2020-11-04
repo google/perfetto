@@ -478,52 +478,6 @@ void PrintQueryResultInteractively(Iterator* it,
          static_cast<double>((t_end - t_start).count()) / 1E6);
 }
 
-void PrintShellUsage() {
-  PERFETTO_ELOG(
-      "Available commands:\n"
-      ".quit, .q    Exit the shell.\n"
-      ".help        This text.\n"
-      ".dump FILE   Export the trace as a sqlite database.\n"
-      ".reset       Destroys all tables/view created by the user.\n");
-}
-
-util::Status StartInteractiveShell(uint32_t column_width) {
-  SetupLineEditor();
-
-  for (;;) {
-    ScopedLine line = GetLine("> ");
-    if (!line)
-      break;
-    if (strcmp(line.get(), "") == 0) {
-      printf("If you want to quit either type .q or press CTRL-D (EOF)\n");
-      continue;
-    }
-    if (line.get()[0] == '.') {
-      char command[32] = {};
-      char arg[1024] = {};
-      sscanf(line.get() + 1, "%31s %1023s", command, arg);
-      if (strcmp(command, "quit") == 0 || strcmp(command, "q") == 0) {
-        break;
-      } else if (strcmp(command, "help") == 0) {
-        PrintShellUsage();
-      } else if (strcmp(command, "dump") == 0 && strlen(arg)) {
-        if (!ExportTraceToDatabase(arg).ok())
-          PERFETTO_ELOG("Database export failed");
-      } else if (strcmp(command, "reset") == 0) {
-        g_tp->RestoreInitialTables();
-      } else {
-        PrintShellUsage();
-      }
-      continue;
-    }
-
-    base::TimeNanos t_start = base::GetWallTimeNs();
-    auto it = g_tp->ExecuteQuery(line.get());
-    PrintQueryResultInteractively(&it, t_start, column_width);
-  }
-  return util::OkStatus();
-}
-
 util::Status PrintQueryResultAsCsv(Iterator* it, FILE* output) {
   for (uint32_t c = 0; c < it->ColumnCount(); c++) {
     if (c > 0)
@@ -1072,6 +1026,58 @@ util::Status RunMetrics(const CommandLineOptions& options) {
     format = OutputFormat::kTextProto;
   }
   return RunMetrics(std::move(metrics), format, pool);
+}
+
+void PrintShellUsage() {
+  PERFETTO_ELOG(
+      "Available commands:\n"
+      ".quit, .q    Exit the shell.\n"
+      ".help        This text.\n"
+      ".dump FILE   Export the trace as a sqlite database.\n"
+      ".read FILE   Executes the queries in the FILE.\n"
+      ".reset       Destroys all tables/view created by the user.\n");
+}
+
+util::Status StartInteractiveShell(uint32_t column_width) {
+  SetupLineEditor();
+
+  for (;;) {
+    ScopedLine line = GetLine("> ");
+    if (!line)
+      break;
+    if (strcmp(line.get(), "") == 0) {
+      printf("If you want to quit either type .q or press CTRL-D (EOF)\n");
+      continue;
+    }
+    if (line.get()[0] == '.') {
+      char command[32] = {};
+      char arg[1024] = {};
+      sscanf(line.get() + 1, "%31s %1023s", command, arg);
+      if (strcmp(command, "quit") == 0 || strcmp(command, "q") == 0) {
+        break;
+      } else if (strcmp(command, "help") == 0) {
+        PrintShellUsage();
+      } else if (strcmp(command, "dump") == 0 && strlen(arg)) {
+        if (!ExportTraceToDatabase(arg).ok())
+          PERFETTO_ELOG("Database export failed");
+      } else if (strcmp(command, "reset") == 0) {
+        g_tp->RestoreInitialTables();
+      } else if (strcmp(command, "read") == 0 && strlen(arg)) {
+        util::Status status = RunQueries(arg, true);
+        if (!status.ok()) {
+          PERFETTO_ELOG("%s", status.c_message());
+        }
+      } else {
+        PrintShellUsage();
+      }
+      continue;
+    }
+
+    base::TimeNanos t_start = base::GetWallTimeNs();
+    auto it = g_tp->ExecuteQuery(line.get());
+    PrintQueryResultInteractively(&it, t_start, column_width);
+  }
+  return util::OkStatus();
 }
 
 util::Status TraceProcessorMain(int argc, char** argv) {
