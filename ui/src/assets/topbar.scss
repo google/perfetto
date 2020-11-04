@@ -62,7 +62,6 @@
             }
         }
         &.command-mode {
-            // background-color: #354252;
             background-color: #111;
             border-radius: 0;
             width: 100%;
@@ -223,4 +222,10 @@
   width: fit-content;
   padding: 3px;
   border-radius: 3px;
+}
+
+.hide-sidebar {
+  .command-mode {
+    padding-left: 48px;
+  }
 }

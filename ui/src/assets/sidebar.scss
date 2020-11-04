@@ -50,7 +50,6 @@
       background-color: #262f3c;
       height: var(--topbar-height);
       left: calc(var(--sidebar-width) - 50px);
-      padding-top: 3px;
       border-radius: 0 5px 5px 0;
       border-bottom: inherit;
       visibility: visible;  // So stays visible when the sidebar is hidden.
