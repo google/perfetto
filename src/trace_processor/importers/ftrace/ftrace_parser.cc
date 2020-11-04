@@ -29,10 +29,12 @@
 
 #include "protos/perfetto/common/gpu_counter_descriptor.pbzero.h"
 #include "protos/perfetto/trace/ftrace/binder.pbzero.h"
+#include "protos/perfetto/trace/ftrace/dpu.pbzero.h"
 #include "protos/perfetto/trace/ftrace/fastrpc.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_stats.pbzero.h"
+#include "protos/perfetto/trace/ftrace/g2d.pbzero.h"
 #include "protos/perfetto/trace/ftrace/generic.pbzero.h"
 #include "protos/perfetto/trace/ftrace/gpu_mem.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ion.pbzero.h"
@@ -507,6 +509,14 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         ParseFastRpcDmaStat(ts, pid, data);
         break;
       }
+      case FtraceEvent::kG2dTracingMarkWriteFieldNumber: {
+        ParseG2dTracingMarkWrite(ts, pid, data);
+        break;
+      }
+      case FtraceEvent::kDpuTracingMarkWriteFieldNumber: {
+        ParseDpuTracingMarkWrite(ts, pid, data);
+        break;
+      }
       default:
         break;
     }
@@ -739,9 +749,41 @@ void FtraceParser::ParseSdeTracingMarkWrite(int64_t ts,
   }
 
   uint32_t tgid = static_cast<uint32_t>(evt.pid());
-  SystraceParser::GetOrCreate(context_)->ParseSdeTracingMarkWrite(
+  SystraceParser::GetOrCreate(context_)->ParseTracingMarkWrite(
       ts, pid, static_cast<char>(evt.trace_type()), evt.trace_begin(),
       evt.trace_name(), tgid, evt.value());
+}
+
+void FtraceParser::ParseDpuTracingMarkWrite(int64_t ts,
+                                            uint32_t pid,
+                                            ConstBytes blob) {
+  protos::pbzero::DpuTracingMarkWriteFtraceEvent::Decoder evt(blob.data,
+                                                              blob.size);
+  if (!evt.type()) {
+    context_->storage->IncrementStats(stats::systrace_parse_failure);
+    return;
+  }
+
+  uint32_t tgid = static_cast<uint32_t>(evt.pid());
+  SystraceParser::GetOrCreate(context_)->ParseTracingMarkWrite(
+      ts, pid, static_cast<char>(evt.type()), false /*trace_begin*/, evt.name(),
+      tgid, evt.value());
+}
+
+void FtraceParser::ParseG2dTracingMarkWrite(int64_t ts,
+                                            uint32_t pid,
+                                            ConstBytes blob) {
+  protos::pbzero::G2dTracingMarkWriteFtraceEvent::Decoder evt(blob.data,
+                                                              blob.size);
+  if (!evt.type()) {
+    context_->storage->IncrementStats(stats::systrace_parse_failure);
+    return;
+  }
+
+  uint32_t tgid = static_cast<uint32_t>(evt.pid());
+  SystraceParser::GetOrCreate(context_)->ParseTracingMarkWrite(
+      ts, pid, static_cast<char>(evt.type()), false /*trace_begin*/, evt.name(),
+      tgid, evt.value());
 }
 
 /** Parses ion heap events present in Pixel kernels. */

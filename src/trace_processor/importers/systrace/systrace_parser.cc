@@ -80,13 +80,13 @@ void SystraceParser::ParseZeroEvent(int64_t ts,
   ParseSystracePoint(ts, pid, point);
 }
 
-void SystraceParser::ParseSdeTracingMarkWrite(int64_t ts,
-                                              uint32_t pid,
-                                              char trace_type,
-                                              bool trace_begin,
-                                              base::StringView trace_name,
-                                              uint32_t /* tgid */,
-                                              int64_t value) {
+void SystraceParser::ParseTracingMarkWrite(int64_t ts,
+                                           uint32_t pid,
+                                           char trace_type,
+                                           bool trace_begin,
+                                           base::StringView trace_name,
+                                           uint32_t /* tgid */,
+                                           int64_t value) {
   systrace_utils::SystraceTracePoint point{};
   point.name = trace_name;
 

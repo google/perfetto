@@ -230,13 +230,13 @@ class SystraceParser : public Destructible {
 
   void ParsePrintEvent(int64_t ts, uint32_t pid, base::StringView event);
 
-  void ParseSdeTracingMarkWrite(int64_t ts,
-                                uint32_t pid,
-                                char trace_type,
-                                bool trace_begin,
-                                base::StringView trace_name,
-                                uint32_t tgid,
-                                int64_t value);
+  void ParseTracingMarkWrite(int64_t ts,
+                             uint32_t pid,
+                             char trace_type,
+                             bool trace_begin,
+                             base::StringView trace_name,
+                             uint32_t tgid,
+                             int64_t value);
 
   void ParseZeroEvent(int64_t ts,
                       uint32_t pid,
