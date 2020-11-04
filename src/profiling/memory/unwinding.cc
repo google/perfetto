@@ -275,20 +275,32 @@ void UnwindingWorker::BatchUnwindJob(pid_t peer_pid) {
     return;
   }
 
+  bool job_reposted = false;
+  bool reader_paused = false;
   ClientData& client_data = it->second;
   switch (ReadAndUnwindBatch(&client_data)) {
     case ReadAndUnwindBatchResult::kHasMore:
       thread_task_runner_.get()->PostTask(
           [this, peer_pid] { BatchUnwindJob(peer_pid); });
+      job_reposted = true;
       break;
     case ReadAndUnwindBatchResult::kReadSome:
       thread_task_runner_.get()->PostDelayedTask(
           [this, peer_pid] { BatchUnwindJob(peer_pid); }, kRetryDelayMs);
+      job_reposted = true;
       break;
     case ReadAndUnwindBatchResult::kReadNone:
       client_data.shmem.SetReaderPaused();
+      reader_paused = true;
       break;
   }
+
+  // We need to either repost the job, or set the reader paused bit. By
+  // setting that bit, we inform the client that we want to be notified when
+  // new data is written to the shared memory buffer.
+  // If we do neither of these things, we will not read from the shared memory
+  // buffer again.
+  PERFETTO_CHECK(job_reposted || reader_paused);
 }
 
 // static
