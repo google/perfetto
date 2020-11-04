@@ -167,11 +167,26 @@ TEST(StringUtilsTest, ToHex) {
   EXPECT_EQ(ToHex("abc123"), "616263313233");
 }
 
-TEST(StringUtilsTest, intToHex) {
+TEST(StringUtilsTest, IntToHex) {
   EXPECT_EQ(IntToHexString(0), "0x00");
   EXPECT_EQ(IntToHexString(1), "0x01");
   EXPECT_EQ(IntToHexString(16), "0x10");
   EXPECT_EQ(IntToHexString(4294967295), "0xffffffff");
+}
+
+TEST(StringUtilsTest, Uint64ToHex) {
+  EXPECT_EQ(Uint64ToHexString(0), "0x0");
+  EXPECT_EQ(Uint64ToHexString(1), "0x1");
+  EXPECT_EQ(Uint64ToHexString(16), "0x10");
+  EXPECT_EQ(Uint64ToHexString(18446744073709551615UL), "0xffffffffffffffff");
+}
+
+TEST(StringUtilsTest, Uint64ToHexNoPrefix) {
+  EXPECT_EQ(Uint64ToHexStringNoPrefix(0), "0");
+  EXPECT_EQ(Uint64ToHexStringNoPrefix(1), "1");
+  EXPECT_EQ(Uint64ToHexStringNoPrefix(16), "10");
+  EXPECT_EQ(Uint64ToHexStringNoPrefix(18446744073709551615UL),
+            "ffffffffffffffff");
 }
 
 TEST(StringUtilsTest, CaseInsensitiveEqual) {

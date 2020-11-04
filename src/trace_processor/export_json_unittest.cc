@@ -24,8 +24,10 @@
 #include <json/reader.h>
 #include <json/value.h>
 
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/temp_file.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/proto/metadata_tracker.h"
@@ -68,6 +70,7 @@ class ExportJsonTest : public ::testing::Test {
   ExportJsonTest() {
     context_.global_args_tracker.reset(new GlobalArgsTracker(&context_));
     context_.args_tracker.reset(new ArgsTracker(&context_));
+    context_.event_tracker.reset(new EventTracker(&context_));
     context_.storage.reset(new TraceStorage());
     context_.track_tracker.reset(new TrackTracker(&context_));
     context_.metadata_tracker.reset(new MetadataTracker(&context_));
@@ -1555,6 +1558,258 @@ TEST_F(ExportJsonTest, LabelFilter) {
   EXPECT_EQ(result[1]["tid"].asInt(), static_cast<int>(kThreadID));
   EXPECT_EQ(result[1]["cat"].asString(), kCategory);
   EXPECT_EQ(result[1]["name"].asString(), kName);
+}
+
+TEST_F(ExportJsonTest, MemorySnapshotOsDumpEvent) {
+  const int64_t kTimestamp = 10000000;
+  const int64_t kPeakResidentSetSize = 100000;
+  const int64_t kPrivateFootprintBytes = 200000;
+  const int64_t kProtectionFlags = 1;
+  const int64_t kStartAddress = 1000000000;
+  const int64_t kSizeKb = 1000;
+  const int64_t kPrivateCleanResidentKb = 2000;
+  const int64_t kPrivateDirtyKb = 3000;
+  const int64_t kProportionalResidentKb = 4000;
+  const int64_t kSharedCleanResidentKb = 5000;
+  const int64_t kSharedDirtyResidentKb = 6000;
+  const int64_t kSwapKb = 7000;
+  const int64_t kModuleTimestamp = 20000000;
+  const uint32_t kProcessID = 100;
+  const bool kIsPeakRssResettable = true;
+  const char* kLevelOfDetail = "detailed";
+  const char* kFileName = "filename";
+  const char* kModuleDebugid = "debugid";
+  const char* kModuleDebugPath = "debugpath";
+
+  UniquePid upid = context_.process_tracker->GetOrCreateProcess(kProcessID);
+  TrackId track = context_.track_tracker->InternProcessTrack(upid);
+  StringId level_of_detail_id =
+      context_.storage->InternString(base::StringView(kLevelOfDetail));
+  auto snapshot_id = context_.storage->mutable_memory_snapshot_table()
+                         ->Insert({kTimestamp, track, level_of_detail_id})
+                         .id;
+
+  StringId peak_resident_set_size_id =
+      context_.storage->InternString("chrome.peak_resident_set_kb");
+  TrackId peak_resident_set_size_counter =
+      context_.track_tracker->InternProcessCounterTrack(
+          peak_resident_set_size_id, upid);
+  context_.event_tracker->PushCounter(kTimestamp, kPeakResidentSetSize,
+                                      peak_resident_set_size_counter);
+
+  StringId private_footprint_bytes_id =
+      context_.storage->InternString("chrome.private_footprint_kb");
+  TrackId private_footprint_bytes_counter =
+      context_.track_tracker->InternProcessCounterTrack(
+          private_footprint_bytes_id, upid);
+  context_.event_tracker->PushCounter(kTimestamp, kPrivateFootprintBytes,
+                                      private_footprint_bytes_counter);
+
+  StringId is_peak_rss_resettable_id =
+      context_.storage->InternString("is_peak_rss_resettable");
+  context_.args_tracker->AddArgsTo(upid).AddArg(
+      is_peak_rss_resettable_id, Variadic::Boolean(kIsPeakRssResettable));
+  context_.args_tracker->Flush();
+
+  context_.storage->mutable_profiler_smaps_table()->Insert(
+      {upid, kTimestamp, kNullStringId, kSizeKb, kPrivateDirtyKb, kSwapKb,
+       context_.storage->InternString(kFileName), kStartAddress,
+       kModuleTimestamp, context_.storage->InternString(kModuleDebugid),
+       context_.storage->InternString(kModuleDebugPath), kProtectionFlags,
+       kPrivateCleanResidentKb, kSharedDirtyResidentKb, kSharedCleanResidentKb,
+       0, kProportionalResidentKb});
+
+  base::TempFile temp_file = base::TempFile::Create();
+  FILE* output = fopen(temp_file.path().c_str(), "w+");
+  util::Status status = ExportJson(context_.storage.get(), output);
+
+  EXPECT_TRUE(status.ok());
+
+  Json::Value result = ToJsonValue(ReadFile(output));
+  EXPECT_EQ(result["traceEvents"].size(), 1u);
+
+  Json::Value event = result["traceEvents"][0];
+  EXPECT_EQ(event["ph"].asString(), "v");
+  EXPECT_EQ(event["cat"].asString(), "disabled-by-default-memory-infra");
+  EXPECT_EQ(event["id"].asString(), base::Uint64ToHexString(snapshot_id.value));
+  EXPECT_EQ(event["ts"].asInt64(), kTimestamp / 1000);
+  EXPECT_EQ(event["name"].asString(), "periodic_interval");
+  EXPECT_EQ(event["pid"].asUInt(), kProcessID);
+  EXPECT_EQ(event["tid"].asInt(), -1);
+
+  EXPECT_TRUE(event["args"].isObject());
+  EXPECT_EQ(event["args"]["dumps"]["level_of_detail"].asString(),
+            kLevelOfDetail);
+
+  EXPECT_EQ(event["args"]["dumps"]["process_totals"]["peak_resident_set_size"]
+                .asString(),
+            base::Uint64ToHexStringNoPrefix(
+                static_cast<uint64_t>(kPeakResidentSetSize)));
+  EXPECT_EQ(event["args"]["dumps"]["process_totals"]["private_footprint_bytes"]
+                .asString(),
+            base::Uint64ToHexStringNoPrefix(
+                static_cast<uint64_t>(kPrivateFootprintBytes)));
+  EXPECT_EQ(event["args"]["dumps"]["process_totals"]["is_peak_rss_resettable"]
+                .asBool(),
+            kIsPeakRssResettable);
+
+  EXPECT_TRUE(event["args"]["dumps"]["process_mmaps"]["vm_regions"].isArray());
+  EXPECT_EQ(event["args"]["dumps"]["process_mmaps"]["vm_regions"].size(), 1u);
+  Json::Value region = event["args"]["dumps"]["process_mmaps"]["vm_regions"][0];
+  EXPECT_EQ(region["mf"].asString(), kFileName);
+  EXPECT_EQ(region["pf"].asInt64(), kProtectionFlags);
+  EXPECT_EQ(region["sa"].asString(), base::Uint64ToHexStringNoPrefix(
+                                         static_cast<uint64_t>(kStartAddress)));
+  EXPECT_EQ(region["sz"].asString(),
+            base::Uint64ToHexStringNoPrefix(static_cast<uint64_t>(kSizeKb)));
+  EXPECT_EQ(region["id"].asString(), kModuleDebugid);
+  EXPECT_EQ(region["df"].asString(), kModuleDebugPath);
+  EXPECT_EQ(region["bs"]["pc"].asString(),
+            base::Uint64ToHexStringNoPrefix(
+                static_cast<uint64_t>(kPrivateCleanResidentKb)));
+  EXPECT_EQ(
+      region["bs"]["pd"].asString(),
+      base::Uint64ToHexStringNoPrefix(static_cast<uint64_t>(kPrivateDirtyKb)));
+  EXPECT_EQ(region["bs"]["pss"].asString(),
+            base::Uint64ToHexStringNoPrefix(
+                static_cast<uint64_t>(kProportionalResidentKb)));
+  EXPECT_EQ(region["bs"]["sc"].asString(),
+            base::Uint64ToHexStringNoPrefix(
+                static_cast<uint64_t>(kSharedCleanResidentKb)));
+  EXPECT_EQ(region["bs"]["sd"].asString(),
+            base::Uint64ToHexStringNoPrefix(
+                static_cast<uint64_t>(kSharedDirtyResidentKb)));
+  EXPECT_EQ(region["bs"]["sw"].asString(),
+            base::Uint64ToHexStringNoPrefix(static_cast<uint64_t>(kSwapKb)));
+}
+
+TEST_F(ExportJsonTest, MemorySnapshotChromeDumpEvent) {
+  const int64_t kTimestamp = 10000000;
+  const int64_t kSize = 1000;
+  const int64_t kEffectiveSize = 2000;
+  const int64_t kScalarAttrValue = 3000;
+  const uint32_t kOsProcessID = 100;
+  const uint32_t kChromeProcessID = 200;
+  const uint32_t kImportance = 1;
+  const char* kLevelOfDetail = "detailed";
+  const char* kPath1 = "path/to_file1";
+  const char* kPath2 = "path/to_file2";
+  const char* kScalarAttrUnits = "scalar_units";
+  const char* kStringAttrValue = "string_value";
+  const std::string kScalarAttrName = "scalar_name";
+  const std::string kStringAttrName = "string_name";
+
+  UniquePid os_upid =
+      context_.process_tracker->GetOrCreateProcess(kOsProcessID);
+  TrackId track = context_.track_tracker->InternProcessTrack(os_upid);
+  StringId level_of_detail_id =
+      context_.storage->InternString(base::StringView(kLevelOfDetail));
+  auto snapshot_id = context_.storage->mutable_memory_snapshot_table()
+                         ->Insert({kTimestamp, track, level_of_detail_id})
+                         .id;
+
+  UniquePid chrome_upid =
+      context_.process_tracker->GetOrCreateProcess(kChromeProcessID);
+  auto process_id = context_.storage->mutable_process_memory_snapshot_table()
+                        ->Insert({snapshot_id, chrome_upid})
+                        .id;
+
+  StringId path1_id = context_.storage->InternString(base::StringView(kPath1));
+  StringId path2_id = context_.storage->InternString(base::StringView(kPath2));
+  SnapshotNodeId node1_id =
+      context_.storage->mutable_memory_snapshot_node_table()
+          ->Insert(
+              {process_id, SnapshotNodeId(0), path1_id, kSize, kEffectiveSize})
+          .id;
+  SnapshotNodeId node2_id =
+      context_.storage->mutable_memory_snapshot_node_table()
+          ->Insert({process_id, SnapshotNodeId(0), path2_id, 0, 0})
+          .id;
+
+  context_.args_tracker->AddArgsTo(node1_id).AddArg(
+      context_.storage->InternString(
+          base::StringView(kScalarAttrName + ".value")),
+      Variadic::Integer(kScalarAttrValue));
+  context_.args_tracker->AddArgsTo(node1_id).AddArg(
+      context_.storage->InternString(
+          base::StringView(kScalarAttrName + ".unit")),
+      Variadic::String(context_.storage->InternString(kScalarAttrUnits)));
+  context_.args_tracker->AddArgsTo(node1_id).AddArg(
+      context_.storage->InternString(
+          base::StringView(kStringAttrName + ".value")),
+      Variadic::String(context_.storage->InternString(kStringAttrValue)));
+  context_.args_tracker->Flush();
+
+  context_.storage->mutable_memory_snapshot_edge_table()->Insert(
+      {node1_id, node2_id, kImportance});
+
+  base::TempFile temp_file = base::TempFile::Create();
+  FILE* output = fopen(temp_file.path().c_str(), "w+");
+  util::Status status = ExportJson(context_.storage.get(), output);
+
+  EXPECT_TRUE(status.ok());
+
+  Json::Value result = ToJsonValue(ReadFile(output));
+  EXPECT_EQ(result["traceEvents"].size(), 1u);
+
+  Json::Value event = result["traceEvents"][0];
+  EXPECT_EQ(event["ph"].asString(), "v");
+  EXPECT_EQ(event["cat"].asString(), "disabled-by-default-memory-infra");
+  EXPECT_EQ(event["id"].asString(), base::Uint64ToHexString(snapshot_id.value));
+  EXPECT_EQ(event["ts"].asInt64(), kTimestamp / 1000);
+  EXPECT_EQ(event["name"].asString(), "periodic_interval");
+  EXPECT_EQ(event["pid"].asUInt(), kChromeProcessID);
+  EXPECT_EQ(event["tid"].asInt(), -1);
+
+  EXPECT_TRUE(event["args"].isObject());
+  EXPECT_EQ(event["args"]["dumps"]["level_of_detail"].asString(),
+            kLevelOfDetail);
+
+  EXPECT_EQ(event["args"]["dumps"]["allocators"].size(), 2u);
+  Json::Value node1 = event["args"]["dumps"]["allocators"][kPath1];
+  EXPECT_TRUE(node1.isObject());
+  EXPECT_EQ(
+      node1["guid"].asString(),
+      base::Uint64ToHexStringNoPrefix(static_cast<uint64_t>(node1_id.value)));
+  EXPECT_TRUE(node1["attrs"]["size"].isObject());
+  EXPECT_EQ(node1["attrs"]["size"]["value"].asString(),
+            base::Uint64ToHexStringNoPrefix(static_cast<uint64_t>(kSize)));
+  EXPECT_EQ(node1["attrs"]["size"]["type"].asString(), "scalar");
+  EXPECT_EQ(node1["attrs"]["size"]["units"].asString(), "bytes");
+  EXPECT_EQ(
+      node1["attrs"]["effective_size"]["value"].asString(),
+      base::Uint64ToHexStringNoPrefix(static_cast<uint64_t>(kEffectiveSize)));
+  EXPECT_TRUE(node1["attrs"][kScalarAttrName].isObject());
+  EXPECT_EQ(
+      node1["attrs"][kScalarAttrName]["value"].asString(),
+      base::Uint64ToHexStringNoPrefix(static_cast<uint64_t>(kScalarAttrValue)));
+  EXPECT_EQ(node1["attrs"][kScalarAttrName]["type"].asString(), "scalar");
+  EXPECT_EQ(node1["attrs"][kScalarAttrName]["units"].asString(),
+            kScalarAttrUnits);
+  EXPECT_TRUE(node1["attrs"][kStringAttrName].isObject());
+  EXPECT_EQ(node1["attrs"][kStringAttrName]["value"].asString(),
+            kStringAttrValue);
+  EXPECT_EQ(node1["attrs"][kStringAttrName]["type"].asString(), "string");
+  EXPECT_EQ(node1["attrs"][kStringAttrName]["units"].asString(), "");
+
+  Json::Value node2 = event["args"]["dumps"]["allocators"][kPath2];
+  EXPECT_TRUE(node2.isObject());
+  EXPECT_EQ(
+      node2["guid"].asString(),
+      base::Uint64ToHexStringNoPrefix(static_cast<uint64_t>(node2_id.value)));
+  EXPECT_TRUE(node2["attrs"].empty());
+
+  Json::Value graph = event["args"]["dumps"]["allocators_graph"];
+  EXPECT_TRUE(graph.isArray());
+  EXPECT_EQ(graph.size(), 1u);
+  EXPECT_EQ(
+      graph[0]["source"].asString(),
+      base::Uint64ToHexStringNoPrefix(static_cast<uint64_t>(node1_id.value)));
+  EXPECT_EQ(
+      graph[0]["target"].asString(),
+      base::Uint64ToHexStringNoPrefix(static_cast<uint64_t>(node2_id.value)));
+  EXPECT_EQ(graph[0]["importance"].asUInt(), kImportance);
+  EXPECT_EQ(graph[0]["type"].asString(), "ownership");
 }
 
 }  // namespace
