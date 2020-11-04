@@ -60,6 +60,12 @@ class FtraceParser {
   void ParseSdeTracingMarkWrite(int64_t timestamp,
                                 uint32_t pid,
                                 protozero::ConstBytes);
+  void ParseDpuTracingMarkWrite(int64_t timestamp,
+                                uint32_t pid,
+                                protozero::ConstBytes);
+  void ParseG2dTracingMarkWrite(int64_t timestamp,
+                                uint32_t pid,
+                                protozero::ConstBytes);
   void ParseIonHeapGrowOrShrink(int64_t ts,
                                 uint32_t pid,
                                 protozero::ConstBytes,
