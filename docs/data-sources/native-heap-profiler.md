@@ -434,6 +434,8 @@ Then, Ctrl-C the Perfetto invocation and upload ~/heapprofd-trace to the
 * 32-bit programs cannot be targeted on 64-bit devices.
 * Setting `sampling_interval_bytes` to 0 crashes the target process.
   This is an invalid config that should be rejected instead.
+* For startup profiles, some frame names might be missing. This will be
+  resolved in Android 12.
 
 ### Android 10
 
@@ -455,6 +457,8 @@ Then, Ctrl-C the Perfetto invocation and upload ~/heapprofd-trace to the
   This is an invalid config that should be rejected instead.
 * Function names in libraries with load bias might be incorrect. Use
   [offline symbolization](#symbolization) to resolve this issue.
+* For startup profiles, some frame names might be missing. This will be
+  resolved in Android 12.
 
 ## Heapprofd vs malloc_info() vs RSS
 
