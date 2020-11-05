@@ -91,6 +91,8 @@ using FlamegraphId = tables::ExperimentalFlamegraphNodesTable::Id;
 
 using VulkanAllocId = tables::VulkanMemoryAllocationsTable::Id;
 
+using SnapshotNodeId = tables::MemorySnapshotNodeTable::Id;
+
 // TODO(lalitm): this is a temporary hack while migrating the counters table and
 // will be removed when the migration is complete.
 static const TrackId kInvalidTrackId =
