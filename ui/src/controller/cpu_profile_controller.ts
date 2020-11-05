@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {Engine} from '../common/engine';
+import {slowlyCountRows} from '../common/query_iterator';
 import {CallsiteInfo, CpuProfileSampleSelection} from '../common/state';
 import {CpuProfileDetails} from '../frontend/globals';
 
@@ -150,12 +151,12 @@ export class CpuProfileController extends Controller<'main'> {
 
     const callsites = await this.args.engine.query(sampleQuery);
 
-    if (callsites.numRecords < 1) {
+    if (slowlyCountRows(callsites) < 1) {
       return undefined;
     }
 
     const sampleData: CallsiteInfo[] = new Array();
-    for (let i = 0; i < callsites.numRecords; i++) {
+    for (let i = 0; i < slowlyCountRows(callsites); i++) {
       const id = +callsites.columns[0].longValues![i];
       const name = callsites.columns[1].stringValues![i];
       const mapping = callsites.columns[2].stringValues![i];
