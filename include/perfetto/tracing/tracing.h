@@ -60,6 +60,25 @@ enum BackendType : uint32_t {
   kCustomBackend = 1 << 2,
 };
 
+struct TracingError {
+  enum ErrorCode : uint32_t {
+    // Peer disconnection.
+    kDisconnected = 1,
+
+    // The Start() method failed. This is typically because errors in the passed
+    // TraceConfig. More details are available in |message|.
+    kTracingFailed = 2,
+  };
+
+  ErrorCode code;
+  std::string message;
+
+  TracingError(ErrorCode cd, std::string msg)
+      : code(cd), message(std::move(msg)) {
+    PERFETTO_CHECK(!message.empty());
+  }
+};
+
 struct TracingInitArgs {
   uint32_t backends = 0;                     // One or more BackendFlags.
   TracingBackend* custom_backend = nullptr;  // [Optional].
@@ -190,6 +209,11 @@ class PERFETTO_EXPORT TracingSession {
   // tracing has started. This callback will be invoked on an internal perfetto
   // thread.
   virtual void SetOnStartCallback(std::function<void()>) = 0;
+
+  // This callback can be used to get a notification when some error occured
+  // (e.g., peer disconnection). Error type will be passed as an argument. This
+  // callback will be invoked on an internal perfetto thread.
+  virtual void SetOnErrorCallback(std::function<void(TracingError)>) = 0;
 
   // Disable tracing asynchronously.
   // Use SetOnStopCallback() to get a notification when the tracing session is
