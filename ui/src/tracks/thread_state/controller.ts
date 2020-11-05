@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {assertFalse} from '../../base/logging';
+import {slowlyCountRows} from '../../common/query_iterator';
 import {translateState} from '../../common/thread_state';
 import {fromNs, toNs} from '../../common/time';
 import {
@@ -81,7 +82,7 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
     `;
 
     const result = await this.query(query);
-    const numRows = +result.numRecords;
+    const numRows = slowlyCountRows(result);
 
     const data: Data = {
       start,
