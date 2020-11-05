@@ -16,6 +16,7 @@
 
 #include "perfetto/ext/base/string_utils.h"
 
+#include <inttypes.h>
 #include <string.h>
 
 #include <algorithm>
@@ -133,6 +134,20 @@ std::string IntToHexString(uint32_t number) {
   std::string buf;
   buf.resize(max_size);
   auto final_size = snprintf(&buf[0], max_size, "0x%02x", number);
+  PERFETTO_DCHECK(final_size >= 0);
+  buf.resize(static_cast<size_t>(final_size));  // Cuts off the final null byte.
+  return buf;
+}
+
+std::string Uint64ToHexString(uint64_t number) {
+  return "0x" + Uint64ToHexStringNoPrefix(number);
+}
+
+std::string Uint64ToHexStringNoPrefix(uint64_t number) {
+  size_t max_size = 17;  // Max uint64 is FFFFFFFFFFFFFFFF + 1 for null byte.
+  std::string buf;
+  buf.resize(max_size);
+  auto final_size = snprintf(&buf[0], max_size, "%" PRIx64 "", number);
   PERFETTO_DCHECK(final_size >= 0);
   buf.resize(static_cast<size_t>(final_size));  // Cuts off the final null byte.
   return buf;
