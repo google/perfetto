@@ -18,6 +18,7 @@
 
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
@@ -38,6 +39,9 @@ constexpr uint32_t kDurationComplete = 4;
 constexpr uint32_t kAsyncBegin = 5;
 constexpr uint32_t kAsyncInstant = 6;
 constexpr uint32_t kAsyncEnd = 7;
+constexpr uint32_t kFlowBegin = 8;
+constexpr uint32_t kFlowStep = 9;
+constexpr uint32_t kFlowEnd = 10;
 
 // Argument Types
 constexpr uint32_t kNull = 0;
@@ -396,6 +400,45 @@ void FuchsiaTraceParser::ParseTracePacket(int64_t, TimestampedTracePiece ttp) {
           TrackId track_id = context_->track_tracker->InternFuchsiaAsyncTrack(
               name, correlation_id);
           slices->End(ts, track_id, cat, name);
+          break;
+        }
+        case kFlowBegin: {
+          uint64_t correlation_id;
+          if (!cursor.ReadUint64(&correlation_id)) {
+            context_->storage->IncrementStats(stats::fuchsia_invalid_event);
+            return;
+          }
+          UniqueTid utid =
+              procs->UpdateThread(static_cast<uint32_t>(tinfo.tid),
+                                  static_cast<uint32_t>(tinfo.pid));
+          TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+          context_->flow_tracker->Begin(track_id, correlation_id);
+          break;
+        }
+        case kFlowStep: {
+          uint64_t correlation_id;
+          if (!cursor.ReadUint64(&correlation_id)) {
+            context_->storage->IncrementStats(stats::fuchsia_invalid_event);
+            return;
+          }
+          UniqueTid utid =
+              procs->UpdateThread(static_cast<uint32_t>(tinfo.tid),
+                                  static_cast<uint32_t>(tinfo.pid));
+          TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+          context_->flow_tracker->Step(track_id, correlation_id);
+          break;
+        }
+        case kFlowEnd: {
+          uint64_t correlation_id;
+          if (!cursor.ReadUint64(&correlation_id)) {
+            context_->storage->IncrementStats(stats::fuchsia_invalid_event);
+            return;
+          }
+          UniqueTid utid =
+              procs->UpdateThread(static_cast<uint32_t>(tinfo.tid),
+                                  static_cast<uint32_t>(tinfo.pid));
+          TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+          context_->flow_tracker->End(track_id, correlation_id, true, true);
           break;
         }
       }
