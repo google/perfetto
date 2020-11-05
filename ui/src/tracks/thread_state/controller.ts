@@ -13,7 +13,13 @@
 // limitations under the License.
 
 import {assertFalse} from '../../base/logging';
-import {slowlyCountRows} from '../../common/query_iterator';
+import {
+  iter,
+  NUM,
+  NUM_NULL,
+  slowlyCountRows,
+  STR
+} from '../../common/query_iterator';
 import {translateState} from '../../common/thread_state';
 import {fromNs, toNs} from '../../common/time';
 import {
@@ -69,7 +75,7 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
         (ts + ${bucketNs / 2}) / ${bucketNs} * ${bucketNs} as tsq,
         ts,
         max(dur) as dur,
-        cpu,
+        cast(cpu as integer) as cpu,
         state,
         io_wait,
         id
@@ -107,7 +113,16 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
       stringIndexes.set({shortState, ioWait}, idx);
       return idx;
     }
-
+    iter(
+        {
+          'ts': NUM,
+          'dur': NUM,
+          'cpu': NUM_NULL,
+          'state': STR,
+          'io_wait': NUM_NULL,
+          'id': NUM_NULL,
+        },
+        result);
     for (let row = 0; row < numRows; row++) {
       const cols = result.columns;
       const startNsQ = +cols[0].longValues![row];
