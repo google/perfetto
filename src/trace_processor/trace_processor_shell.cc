@@ -46,9 +46,9 @@
 #include "src/trace_processor/rpc/httpd.h"
 #endif
 
+#include "src/profiling/symbolizer/local_symbolizer.h"
 #include "src/profiling/symbolizer/symbolize_database.h"
 #include "src/profiling/symbolizer/symbolizer.h"
-#include "src/profiling/symbolizer/local_symbolizer.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
@@ -354,7 +354,7 @@ util::Status ExtendMetricsProto(const std::string& extend_metrics_proto,
   pool->BuildFile(*file_desc);
 
   std::vector<uint8_t> metric_proto;
-  metric_proto.resize(static_cast<size_t>(desc_set.ByteSize()));
+  metric_proto.resize(desc_set.ByteSizeLong());
   desc_set.SerializeToArray(metric_proto.data(),
                             static_cast<int>(metric_proto.size()));
 
