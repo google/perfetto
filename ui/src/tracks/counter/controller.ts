@@ -75,7 +75,7 @@ class CounterTrackController extends TrackController<Config, Data> {
             )
           from ${this.tableName('counter_view')}
       `);
-      if (maxDurResult.numRecords === 1) {
+      if (slowlyCountRows(maxDurResult) === 1) {
         this.maxDurNs = maxDurResult.columns[0].longValues![0];
       }
 

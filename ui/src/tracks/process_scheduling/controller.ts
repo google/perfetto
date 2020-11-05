@@ -14,6 +14,7 @@
 
 import {assertTrue} from '../../base/logging';
 import {RawQueryResult} from '../../common/protos';
+import {slowlyCountRows} from '../../common/query_iterator';
 import {fromNs, toNs} from '../../common/time';
 import {
   TrackController,
@@ -89,7 +90,7 @@ class ProcessSchedulingTrackController extends TrackController<Config, Data> {
 
     const rawResult = await this.queryData(startNs, endNs, bucketNs);
 
-    const numRows = +rawResult.numRecords;
+    const numRows = slowlyCountRows(rawResult);
     const slices: Data = {
       kind: 'slice',
       start,

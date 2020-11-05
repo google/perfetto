@@ -20,6 +20,7 @@ import {
   LogEntriesKey,
   LogExistsKey
 } from '../common/logs';
+import {slowlyCountRows} from '../common/query_iterator';
 import {fromNs, TimeSpan, toNsCeil, toNsFloor} from '../common/time';
 
 import {Controller} from './controller';
@@ -73,7 +74,7 @@ async function updateLogEntries(
         order by ts
         limit ${pagination.start}, ${pagination.count}`);
 
-  if (!rowsResult.numRecords) {
+  if (!slowlyCountRows(rowsResult)) {
     return {
       offset: pagination.start,
       timestamps: [],

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {assertTrue} from '../../base/logging';
+import {slowlyCountRows} from '../../common/query_iterator';
 import {fromNs, toNs} from '../../common/time';
 import {
   TrackController,
@@ -104,7 +105,7 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
       order by tsq
     `);
 
-    const numRows = +rawResult.numRecords;
+    const numRows = slowlyCountRows(rawResult);
     const slices: Data = {
       start,
       end,
