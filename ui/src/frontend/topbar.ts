@@ -264,6 +264,9 @@ export class Topbar implements m.ClassComponent {
   view() {
     return m(
         '.topbar',
+        {
+          class: globals.frontendLocalState.sidebarVisible ? '' : 'hide-sidebar'
+        },
         globals.frontendLocalState.newVersionAvailable ?
             m(NewVersionNotification) :
             m(Omnibox),
