@@ -3321,6 +3321,7 @@ genrule {
   name: "perfetto_protos_perfetto_trace_android_cpp_gen",
   srcs: [
     "protos/perfetto/trace/android/android_log.proto",
+    "protos/perfetto/trace/android/frame_timeline_event.proto",
     "protos/perfetto/trace/android/gpu_mem_event.proto",
     "protos/perfetto/trace/android/graphics_frame_event.proto",
     "protos/perfetto/trace/android/initial_display_state.proto",
@@ -3333,6 +3334,7 @@ genrule {
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/android/android_log.gen.cc",
+    "external/perfetto/protos/perfetto/trace/android/frame_timeline_event.gen.cc",
     "external/perfetto/protos/perfetto/trace/android/gpu_mem_event.gen.cc",
     "external/perfetto/protos/perfetto/trace/android/graphics_frame_event.gen.cc",
     "external/perfetto/protos/perfetto/trace/android/initial_display_state.gen.cc",
@@ -3345,6 +3347,7 @@ genrule {
   name: "perfetto_protos_perfetto_trace_android_cpp_gen_headers",
   srcs: [
     "protos/perfetto/trace/android/android_log.proto",
+    "protos/perfetto/trace/android/frame_timeline_event.proto",
     "protos/perfetto/trace/android/gpu_mem_event.proto",
     "protos/perfetto/trace/android/graphics_frame_event.proto",
     "protos/perfetto/trace/android/initial_display_state.proto",
@@ -3357,6 +3360,7 @@ genrule {
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/android/android_log.gen.h",
+    "external/perfetto/protos/perfetto/trace/android/frame_timeline_event.gen.h",
     "external/perfetto/protos/perfetto/trace/android/gpu_mem_event.gen.h",
     "external/perfetto/protos/perfetto/trace/android/graphics_frame_event.gen.h",
     "external/perfetto/protos/perfetto/trace/android/initial_display_state.gen.h",
@@ -3373,6 +3377,7 @@ genrule {
   name: "perfetto_protos_perfetto_trace_android_lite_gen",
   srcs: [
     "protos/perfetto/trace/android/android_log.proto",
+    "protos/perfetto/trace/android/frame_timeline_event.proto",
     "protos/perfetto/trace/android/gpu_mem_event.proto",
     "protos/perfetto/trace/android/graphics_frame_event.proto",
     "protos/perfetto/trace/android/initial_display_state.proto",
@@ -3384,6 +3389,7 @@ genrule {
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/android/android_log.pb.cc",
+    "external/perfetto/protos/perfetto/trace/android/frame_timeline_event.pb.cc",
     "external/perfetto/protos/perfetto/trace/android/gpu_mem_event.pb.cc",
     "external/perfetto/protos/perfetto/trace/android/graphics_frame_event.pb.cc",
     "external/perfetto/protos/perfetto/trace/android/initial_display_state.pb.cc",
@@ -3396,6 +3402,7 @@ genrule {
   name: "perfetto_protos_perfetto_trace_android_lite_gen_headers",
   srcs: [
     "protos/perfetto/trace/android/android_log.proto",
+    "protos/perfetto/trace/android/frame_timeline_event.proto",
     "protos/perfetto/trace/android/gpu_mem_event.proto",
     "protos/perfetto/trace/android/graphics_frame_event.proto",
     "protos/perfetto/trace/android/initial_display_state.proto",
@@ -3407,6 +3414,7 @@ genrule {
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/android/android_log.pb.h",
+    "external/perfetto/protos/perfetto/trace/android/frame_timeline_event.pb.h",
     "external/perfetto/protos/perfetto/trace/android/gpu_mem_event.pb.h",
     "external/perfetto/protos/perfetto/trace/android/graphics_frame_event.pb.h",
     "external/perfetto/protos/perfetto/trace/android/initial_display_state.pb.h",
@@ -3423,6 +3431,7 @@ genrule {
   name: "perfetto_protos_perfetto_trace_android_zero_gen",
   srcs: [
     "protos/perfetto/trace/android/android_log.proto",
+    "protos/perfetto/trace/android/frame_timeline_event.proto",
     "protos/perfetto/trace/android/gpu_mem_event.proto",
     "protos/perfetto/trace/android/graphics_frame_event.proto",
     "protos/perfetto/trace/android/initial_display_state.proto",
@@ -3435,6 +3444,7 @@ genrule {
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/android/android_log.pbzero.cc",
+    "external/perfetto/protos/perfetto/trace/android/frame_timeline_event.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/android/gpu_mem_event.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/android/graphics_frame_event.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/android/initial_display_state.pbzero.cc",
@@ -3447,6 +3457,7 @@ genrule {
   name: "perfetto_protos_perfetto_trace_android_zero_gen_headers",
   srcs: [
     "protos/perfetto/trace/android/android_log.proto",
+    "protos/perfetto/trace/android/frame_timeline_event.proto",
     "protos/perfetto/trace/android/gpu_mem_event.proto",
     "protos/perfetto/trace/android/graphics_frame_event.proto",
     "protos/perfetto/trace/android/initial_display_state.proto",
@@ -3459,6 +3470,7 @@ genrule {
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
     "external/perfetto/protos/perfetto/trace/android/android_log.pbzero.h",
+    "external/perfetto/protos/perfetto/trace/android/frame_timeline_event.pbzero.h",
     "external/perfetto/protos/perfetto/trace/android/gpu_mem_event.pbzero.h",
     "external/perfetto/protos/perfetto/trace/android/graphics_frame_event.pbzero.h",
     "external/perfetto/protos/perfetto/trace/android/initial_display_state.pbzero.h",
