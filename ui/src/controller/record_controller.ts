@@ -388,10 +388,17 @@ export function genConfig(
     } else {
       chromeRecordMode = 'record-continuously';
     }
-    const traceConfigJson = JSON.stringify({
+    const configStruct = {
       record_mode: chromeRecordMode,
       included_categories: [...chromeCategories.values()],
-    });
+      memory_dump_config: {},
+    };
+    if (chromeCategories.has('disabled-by-default-memory-infra')) {
+      configStruct.memory_dump_config = {
+        triggers: [{mode: 'detailed', periodic_interval_ms: 10000}]
+      };
+    }
+    const traceConfigJson = JSON.stringify(configStruct);
 
     const traceDs = new TraceConfig.DataSource();
     traceDs.config = new DataSourceConfig();
