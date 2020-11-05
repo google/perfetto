@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {slowlyCountRows} from '../../common/query_iterator';
 import {
   TrackController,
   trackControllerRegistry
@@ -45,7 +46,7 @@ class HeapProfileTrackController extends TrackController<Config, Data> {
         select distinct(graph_sample_ts) as ts, 'graph' as type from
         heap_graph_object
         where upid = ${this.config.upid}) order by ts`);
-    const numRows = +result.numRecords;
+    const numRows = slowlyCountRows(result);
     const data: Data = {
       start,
       end,

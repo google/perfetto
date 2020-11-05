@@ -18,6 +18,7 @@ import {
   RawQueryArgs,
   RawQueryResult
 } from './protos';
+import {slowlyCountRows} from './query_iterator';
 import {TimeSpan} from './time';
 
 export interface LoadingTracker {
@@ -126,7 +127,7 @@ export abstract class Engine {
   async queryOneRow(query: string): Promise<number[]> {
     const result = await this.query(query);
     const res: number[] = [];
-    if (result.numRecords === 0) return res;
+    if (slowlyCountRows(result) === 0) return res;
     for (const col of result.columns) {
       if (col.longValues!.length === 0) {
         console.error(
@@ -146,7 +147,7 @@ export abstract class Engine {
     if (!this._cpus) {
       const result =
           await this.query('select distinct(cpu) from sched order by cpu;');
-      if (result.numRecords === 0) return [];
+      if (slowlyCountRows(result) === 0) return [];
       this._cpus = result.columns[0].longValues!.map(n => +n);
     }
     return this._cpus;

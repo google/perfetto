@@ -14,6 +14,7 @@
 
 import {assertFalse, assertTrue} from '../base/logging';
 import * as protos from '../gen/protos';
+import {slowlyCountRows} from './query_iterator';
 
 // Aliases protos to avoid the super nested namespaces.
 // See https://www.typescriptlang.org/docs/handbook/namespaces.html#aliases
@@ -104,7 +105,7 @@ export function rawQueryResultColumns(result: RawQueryResult): string[] {
 export function* rawQueryResultIter(result: RawQueryResult) {
   const columns: Array<[string, number]> = rawQueryResultColumns(result).map(
       (name, i): [string, number] => [name, i]);
-  for (let rowNum = 0; rowNum < result.numRecords; rowNum++) {
+  for (let rowNum = 0; rowNum < slowlyCountRows(result); rowNum++) {
     const row: Row = {};
     for (const [name, colNum] of columns) {
       const cell = getCell(result, colNum, rowNum);
@@ -154,7 +155,7 @@ export function*
     const columnType = raw.columnDescriptors[i].type;
 
     if (columnSpec === NUM || columnSpec === STR) {
-      for (let j = 0; j < raw.numRecords; j++) {
+      for (let j = 0; j < slowlyCountRows(raw); j++) {
         assertFalse(column.isNulls![i], `Unexpected null in ${key} row ${j}`);
       }
     }
@@ -195,7 +196,7 @@ export function*
     columns.push([key, accessor]);
   }
 
-  for (let i = 0; i < raw.numRecords; i++) {
+  for (let i = 0; i < slowlyCountRows(raw); i++) {
     const row: {[_: string]: number | string | null} = {};
     for (const [name, accessor] of columns) {
       row[name] = accessor(i);

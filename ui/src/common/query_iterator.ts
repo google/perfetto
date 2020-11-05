@@ -77,7 +77,7 @@ export function findColumnIndex(
     }
 
     if (disallowNulls) {
-      for (let j = 0; j < result.numRecords; ++j) {
+      for (let j = 0; j < slowlyCountRows(result); ++j) {
         if (column.isNulls![j] === true) {
           throw new Error(`Column ${name} contains nulls`);
         }
@@ -106,7 +106,7 @@ class ColumnarRowIterator {
     const row: Row = querySpec;
     this.row = row;
     this.i_ = 0;
-    this.rowCount_ = +queryResult.numRecords;
+    this.rowCount_ = slowlyCountRows(queryResult);
     this.columnCount_ = 0;
     this.columnNames_ = [];
     this.columns_ = [];
