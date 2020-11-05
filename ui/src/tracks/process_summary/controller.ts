@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {slowlyCountRows} from '../../common/query_iterator';
 import {fromNs, toNs} from '../../common/time';
 import {LIMIT} from '../../common/track_data';
-
 import {
   TrackController,
   trackControllerRegistry
@@ -99,7 +99,7 @@ class ProcessSummaryTrackController extends TrackController<Config, Data> {
       limit ${LIMIT}`;
 
     const rawResult = await this.query(query);
-    const numRows = +rawResult.numRecords;
+    const numRows = slowlyCountRows(rawResult);
 
     const summary: Data = {
       start,

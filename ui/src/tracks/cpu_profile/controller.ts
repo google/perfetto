@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {slowlyCountRows} from '../../common/query_iterator';
 import {
   TrackController,
   trackControllerRegistry
@@ -33,7 +34,7 @@ class CpuProfileTrackController extends TrackController<Config, Data> {
 
     const result = await this.query(query);
 
-    const numRows = +result.numRecords;
+    const numRows = slowlyCountRows(result);
     const data: Data = {
       start,
       end,

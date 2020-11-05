@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {Engine} from '../common/engine';
+import {slowlyCountRows} from '../common/query_iterator';
 import {Area} from '../common/state';
 import {fromNs, toNs} from '../common/time';
 import {Flow} from '../frontend/globals';
@@ -37,7 +38,7 @@ export class FlowEventsController extends Controller<'main'> {
   queryFlowEvents(query: string, callback: (flows: Flow[]) => void) {
     this.args.engine.query(query).then(res => {
       const flows: Flow[] = [];
-      for (let i = 0; i < res.numRecords; i++) {
+      for (let i = 0; i < slowlyCountRows(res); i++) {
         const beginSliceId = res.columns[0].longValues![i];
         const beginTrackId = res.columns[1].longValues![i];
         const beginSliceName = res.columns[2].stringValues![i];

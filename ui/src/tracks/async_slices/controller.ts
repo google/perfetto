@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {slowlyCountRows} from '../../common/query_iterator';
 import {fromNs, toNs} from '../../common/time';
 import {
   TrackController,
@@ -41,7 +42,7 @@ class AsyncSliceTrackController extends TrackController<Config, Data> {
         from experimental_slice_layout
         where filter_track_ids = '${this.config.trackIds.join(',')}'
       `);
-      if (maxDurResult.numRecords === 1) {
+      if (slowlyCountRows(maxDurResult) === 1) {
         this.maxDurNs = maxDurResult.columns[0].longValues![0];
       }
     }
@@ -65,7 +66,7 @@ class AsyncSliceTrackController extends TrackController<Config, Data> {
       order by tsq, layout_depth
     `);
 
-    const numRows = +rawResult.numRecords;
+    const numRows = slowlyCountRows(rawResult);
     const slices: Data = {
       start,
       end,
