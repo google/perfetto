@@ -23,6 +23,7 @@ import {
   OBJECTS_ALLOCATED_NOT_FREED_KEY,
   SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY
 } from '../common/flamegraph_util';
+import {slowlyCountRows} from '../common/query_iterator';
 import {CallsiteInfo, HeapProfileFlamegraph} from '../common/state';
 import {fromNs} from '../common/time';
 import {HeapProfileDetails} from '../frontend/globals';
@@ -273,7 +274,7 @@ export class HeapProfileController extends Controller<'main'> {
 
     const flamegraphData: CallsiteInfo[] = new Array();
     const hashToindex: Map<number, number> = new Map();
-    for (let i = 0; i < callsites.numRecords; i++) {
+    for (let i = 0; i < slowlyCountRows(callsites); i++) {
       const hash = callsites.columns[0].longValues![i];
       let name = callsites.columns[1].stringValues![i];
       const parentHash = callsites.columns[2].longValues![i];

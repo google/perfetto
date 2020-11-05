@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {slowlyCountRows} from '../../common/query_iterator';
 import {fromNs, toNs} from '../../common/time';
 import {
   TrackController,
@@ -41,7 +42,7 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
       const query = `SELECT max(dur) FROM ${tableName} WHERE track_id = ${
           this.config.trackId}`;
       const rawResult = await this.query(query);
-      if (rawResult.numRecords === 1) {
+      if (slowlyCountRows(rawResult) === 1) {
         this.maxDurNs = rawResult.columns[0].longValues![0];
       }
     }
@@ -63,12 +64,12 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
       GROUP BY depth, tsq`;
     const rawResult = await this.query(query);
 
-    const numRows = +rawResult.numRecords;
+    const numRows = slowlyCountRows(rawResult);
     const slices: Data = {
       start,
       end,
       resolution,
-      length: +rawResult.numRecords,
+      length: numRows,
       strings: [],
       sliceIds: new Float64Array(numRows),
       starts: new Float64Array(numRows),

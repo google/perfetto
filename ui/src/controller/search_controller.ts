@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {Engine} from '../common/engine';
+import {slowlyCountRows} from '../common/query_iterator';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
 import {TimeSpan} from '../common/time';
 
@@ -171,7 +172,7 @@ export class SearchController extends Controller<'main'> {
           group by quantum_ts
           order by quantum_ts;`);
 
-    const numRows = +rawResult.numRecords;
+    const numRows = slowlyCountRows(rawResult);
     const summary = {
       tsStarts: new Float64Array(numRows),
       tsEnds: new Float64Array(numRows),
@@ -247,7 +248,7 @@ export class SearchController extends Controller<'main'> {
       where string_value like ${searchLiteral}
     order by ts`);
 
-    const numRows = +rawResult.numRecords;
+    const numRows = slowlyCountRows(rawResult);
 
     const searchResults: CurrentSearchResults = {
       sliceIds: [],
