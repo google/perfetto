@@ -2487,6 +2487,7 @@ TEST_P(PerfettoApiTest, QueryServiceState) {
   class QueryTestDataSource : public perfetto::DataSource<QueryTestDataSource> {
   };
   RegisterDataSource<QueryTestDataSource>("query_test_data_source");
+  perfetto::test::SyncProducers();
 
   auto tracing_session =
       perfetto::Tracing::NewTrace(/*BackendType=*/GetParam());
