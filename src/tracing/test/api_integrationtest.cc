@@ -2450,6 +2450,34 @@ TEST_P(PerfettoApiTest, OnStartCallback) {
   tracing_session->get()->StopBlocking();
 }
 
+TEST_P(PerfettoApiTest, OnErrorCallback) {
+  perfetto::TraceConfig cfg;
+
+  // Requesting too long |duration_ms| will cause EnableTracing() to fail.
+  cfg.set_duration_ms(static_cast<uint32_t>(-1));
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("track_event");
+  auto* tracing_session = NewTrace(cfg);
+
+  WaitableTestEvent got_error;
+  tracing_session->get()->SetOnErrorCallback([&](perfetto::TracingError error) {
+    EXPECT_EQ(perfetto::TracingError::kTracingFailed, error.code);
+    EXPECT_FALSE(error.message.empty());
+    got_error.Notify();
+  });
+
+  tracing_session->get()->Start();
+  got_error.Wait();
+
+  // Registered error callback will be triggered also by OnDisconnect()
+  // function. This may happen after exiting this test what would result in
+  // system crash (|got_error| will not exist at that time). To prevent that
+  // scenario, error callback has to be cleared.
+  tracing_session->get()->SetOnErrorCallback(nullptr);
+  tracing_session->get()->StopBlocking();
+}
+
 TEST_P(PerfettoApiTest, GetTraceStats) {
   perfetto::TraceConfig cfg;
   cfg.set_duration_ms(500);
