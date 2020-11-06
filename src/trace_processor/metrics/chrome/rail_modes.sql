@@ -21,11 +21,21 @@ CREATE TABLE IF NOT EXISTS rail_modes (
   short_name TEXT
 );
 
+-- RAIL_MODE_IDLE is used when no frames are visible in the renderer and so this
+-- interprets that as background.
+-- RAIL_MODE_LOAD is for the time from a navigation until the first meaningful
+-- paint (assuming there are no user interactions).
+-- RAIL_MODE_RESPONSE is used when the main thread is dealing with a
+-- user-interaction (but not for instance for scrolls which may be handled by
+-- the compositor).
+-- RAIL_MODE_ANIMATION is used when none of the above apply.
+-- The enum in chrome is defined in:
+-- https://source.chromium.org/chromium/chromium/src/+/master:third_party/blink/renderer/platform/scheduler/public/rail_mode_observer.h
 INSERT
   OR IGNORE INTO rail_modes
-VALUES ('RAIL_MODE_IDLE', 0, 'idle'),
-  ('RAIL_MODE_LOAD', 1, "load"),
-  ('RAIL_MODE_ANIMATION', 2, "animation"),
+VALUES ('RAIL_MODE_IDLE', 0, 'background'),
+  ('RAIL_MODE_ANIMATION', 1, "animation"),
+  ('RAIL_MODE_LOAD', 2, "load"),
   ('RAIL_MODE_RESPONSE', 3, "response");
 
 -- View containing all Scheduler.RAILMode slices across all Chrome renderer
