@@ -313,7 +313,7 @@ accuracy in the resulting profile) by passing `--interval=16000` or higher.
 ### Profile is empty
 
 Check whether your target process is eligible to be profiled by consulting
-[Target processes](#target-processes) above.
+[Target processes](#heapprofd-targets) above.
 
 Also check the [Known Issues](#known-issues).
 
