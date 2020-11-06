@@ -19,6 +19,7 @@ syntax = "proto2";
 import "protos/perfetto/trace/track_event/debug_annotation.proto";
 import "protos/perfetto/trace/track_event/log_message.proto";
 import "protos/perfetto/trace/track_event/task_execution.proto";
+import "protos/perfetto/trace/track_event/chrome_application_state_info.proto";
 import "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.proto";
 import "protos/perfetto/trace/track_event/chrome_frame_reporter.proto";
 import "protos/perfetto/trace/track_event/chrome_histogram_sample.proto";
@@ -224,6 +225,7 @@ message TrackEvent {
   optional ChromeHistogramSample chrome_histogram_sample = 28;
   optional ChromeLatencyInfo chrome_latency_info = 29;
   optional ChromeFrameReporter chrome_frame_reporter = 32;
+  optional ChromeApplicationStateInfo chrome_application_state_info = 39;
   optional ChromeRendererSchedulerState chrome_renderer_scheduler_state = 40;
   optional ChromeWindowHandleEventInfo chrome_window_handle_event_info = 41;
 
