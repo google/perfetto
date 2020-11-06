@@ -6616,7 +6616,7 @@ message MemoryTrackerSnapshot {
   // timestamp.
   message ProcessSnapshot {
     // Process ID of the process
-    optional uint64 pid = 1;
+    optional int32 pid = 1;
 
     // Memory dumps are represented as a graph of memory nodes which contain
     // statistics. To avoid double counting the same memory across different
