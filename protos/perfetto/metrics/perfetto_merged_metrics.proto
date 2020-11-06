@@ -693,6 +693,28 @@ message AndroidSurfaceflingerMetric {
 
 // End of protos/perfetto/metrics/android/surfaceflinger.proto
 
+// Begin of protos/perfetto/metrics/android/sysui_cuj_metrics.proto
+
+// Metric that stores frame information and potential jank root causes
+// for a single Android system UI interaction/user journey.
+message AndroidSysUiCujMetrics {
+  // A list of all frames within the SysUi user journey.
+  repeated Frame frames = 1;
+
+  message Frame {
+    // Index of the frame within the single user journey.
+    optional int64 number = 1;
+    optional int64 ts = 2;
+    optional int64 dur = 3;
+
+    // A list of identified potential causes for jank.
+    // Optional.
+    repeated string jank_cause = 4;
+  }
+}
+
+// End of protos/perfetto/metrics/android/sysui_cuj_metrics.proto
+
 // Begin of protos/perfetto/metrics/android/task_names.proto
 
 message AndroidTaskNames {
@@ -776,7 +798,7 @@ message TraceMetadata {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 27
+// Next id: 28
 message TraceMetrics {
   reserved 4, 10, 13, 14, 19;
 
@@ -841,6 +863,9 @@ message TraceMetrics {
 
   // GPU metrics on Android.
   optional AndroidGpuMetric android_gpu = 26;
+
+  // Frame timing and jank root causes for system UI interactions.
+  optional AndroidSysUiCujMetrics android_sysui_cuj = 27;
 
   // Demo extensions.
   extensions 450 to 499;
