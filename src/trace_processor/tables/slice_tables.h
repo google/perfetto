@@ -123,6 +123,30 @@ PERFETTO_TP_TABLE(PERFETTO_TP_GRAPHICS_FRAME_SLICES_DEF);
 
 PERFETTO_TP_TABLE(PERFETTO_TP_DESCRIBE_SLICE_TABLE);
 
+#define PERFETTO_TP_EXPECTED_FRAME_TIMELINE_SLICES_DEF(NAME, PARENT, C)  \
+  NAME(ExpectedFrameTimelineSliceTable, "expected_frame_timeline_slice") \
+  PARENT(PERFETTO_TP_SLICE_TABLE_DEF, C)                                 \
+  C(int64_t, display_frame_token)                                        \
+  C(int64_t, surface_frame_token)                                        \
+  C(uint32_t, upid)                                                      \
+  C(StringPool::Id, layer_name)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_EXPECTED_FRAME_TIMELINE_SLICES_DEF);
+
+#define PERFETTO_TP_ACTUAL_FRAME_TIMELINE_SLICES_DEF(NAME, PARENT, C) \
+  NAME(ActualFrameTimelineSliceTable, "actual_frame_timeline_slice")  \
+  PARENT(PERFETTO_TP_SLICE_TABLE_DEF, C)                              \
+  C(int64_t, display_frame_token)                                     \
+  C(int64_t, surface_frame_token)                                     \
+  C(uint32_t, upid)                                                   \
+  C(StringPool::Id, layer_name)                                       \
+  C(StringPool::Id, present_type)                                     \
+  C(int32_t, on_time_finish)                                          \
+  C(int32_t, gpu_composition)                                         \
+  C(StringPool::Id, jank_type)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_ACTUAL_FRAME_TIMELINE_SLICES_DEF);
+
 }  // namespace tables
 }  // namespace trace_processor
 }  // namespace perfetto

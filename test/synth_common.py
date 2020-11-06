@@ -618,6 +618,59 @@ class Trace(object):
 
     return metadata
 
+  def add_expected_display_frame_start_event(self, ts, cookie, token, pid):
+    packet = self.add_packet()
+    packet.timestamp = ts
+    event = packet.frame_timeline_event.expected_display_frame_start
+    if token != -1:
+      event.cookie = cookie
+      event.token = token
+      event.pid = pid
+
+  def add_actual_display_frame_start_event(self, ts, cookie, token, pid, present_type, on_time_finish, gpu_composition, jank_type):
+    packet = self.add_packet()
+    packet.timestamp = ts
+    event = packet.frame_timeline_event.actual_display_frame_start
+    if token != -1:
+      event.cookie = cookie
+      event.token = token
+      event.pid = pid
+      event.present_type = present_type
+      event.on_time_finish = on_time_finish
+      event.gpu_composition = gpu_composition
+      event.jank_type = jank_type
+
+  def add_expected_surface_frame_start_event(self, ts, cookie, token, display_frame_token, pid, layer_name):
+    packet = self.add_packet()
+    packet.timestamp = ts
+    event = packet.frame_timeline_event.expected_surface_frame_start
+    if token != -1 and display_frame_token != -1:
+      event.cookie = cookie
+      event.token = token
+      event.display_frame_token = display_frame_token
+      event.pid = pid
+      event.layer_name = layer_name
+
+  def add_actual_surface_frame_start_event(self, ts, cookie, token, display_frame_token, pid, layer_name, present_type, on_time_finish, gpu_composition, jank_type):
+    packet = self.add_packet()
+    packet.timestamp = ts
+    event = packet.frame_timeline_event.actual_surface_frame_start
+    if token != -1 and display_frame_token != -1:
+      event.cookie = cookie
+      event.token = token
+      event.display_frame_token = display_frame_token
+      event.pid = pid
+      event.layer_name = layer_name
+      event.present_type = present_type
+      event.on_time_finish = on_time_finish
+      event.gpu_composition = gpu_composition
+      event.jank_type = jank_type
+
+  def add_frame_end_event(self, ts, cookie):
+    packet = self.add_packet()
+    packet.timestamp = ts
+    event = packet.frame_timeline_event.frame_end
+    event.cookie = cookie
 
 def create_trace():
   parser = argparse.ArgumentParser()

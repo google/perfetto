@@ -809,6 +809,9 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
 
   RegisterDbTable(storage->graphics_frame_slice_table());
 
+  RegisterDbTable(storage->expected_frame_timeline_slice_table());
+  RegisterDbTable(storage->actual_frame_timeline_slice_table());
+
   RegisterDbTable(storage->metadata_table());
   RegisterDbTable(storage->cpu_table());
   RegisterDbTable(storage->cpu_freq_table());

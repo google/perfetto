@@ -30,8 +30,9 @@ namespace stats {
   F(android_log_num_skipped,            kSingle,  kInfo,     kTrace,    ""),   \
   F(android_log_num_total,              kSingle,  kInfo,     kTrace,    ""),   \
   F(counter_events_out_of_order,        kSingle,  kError,    kAnalysis, ""),   \
-  F(ftrace_bundle_tokenizer_errors,     kSingle,  kError,    kAnalysis, ""),   \
   F(deobfuscate_location_parse_error,   kSingle,  kError,    kTrace,    ""),   \
+  F(frame_timeline_event_parser_errors, kSingle,  kInfo,     kAnalysis, ""),   \
+  F(ftrace_bundle_tokenizer_errors,     kSingle,  kError,    kAnalysis, ""),   \
   F(ftrace_cpu_bytes_read_begin,        kIndexed, kInfo,     kTrace,    ""),   \
   F(ftrace_cpu_bytes_read_end,          kIndexed, kInfo,     kTrace,    ""),   \
   F(ftrace_cpu_commit_overrun_begin,    kIndexed, kError,    kTrace,    ""),   \
