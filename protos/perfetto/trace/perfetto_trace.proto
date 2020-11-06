@@ -5615,6 +5615,25 @@ message SourceLocation {
 
 // End of protos/perfetto/trace/track_event/source_location.proto
 
+// Begin of protos/perfetto/trace/track_event/chrome_application_state_info.proto
+
+
+// Trace event arguments for application state changes.
+message ChromeApplicationStateInfo {
+  // Enum definition taken from:
+  // https://source.chromium.org/chromium/chromium/src/+/master:base/android/application_status_listener.h
+  enum ChromeApplicationState {
+    APPLICATION_STATE_UNKNOWN = 0;
+    APPLICATION_STATE_HAS_RUNNING_ACTIVITIES = 1;
+    APPLICATION_STATE_HAS_PAUSED_ACTIVITIES = 2;
+    APPLICATION_STATE_HAS_STOPPED_ACTIVITIES = 3;
+    APPLICATION_STATE_HAS_DESTROYED_ACTIVITIES = 4;
+  };
+  optional ChromeApplicationState application_state = 1;
+}
+
+// End of protos/perfetto/trace/track_event/chrome_application_state_info.proto
+
 // Begin of protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.proto
 
 // Describes Chrome's Compositor scheduler's current state and associated
@@ -6331,6 +6350,7 @@ message TrackEvent {
   optional ChromeHistogramSample chrome_histogram_sample = 28;
   optional ChromeLatencyInfo chrome_latency_info = 29;
   optional ChromeFrameReporter chrome_frame_reporter = 32;
+  optional ChromeApplicationStateInfo chrome_application_state_info = 39;
   optional ChromeRendererSchedulerState chrome_renderer_scheduler_state = 40;
   optional ChromeWindowHandleEventInfo chrome_window_handle_event_info = 41;
 
