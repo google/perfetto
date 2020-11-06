@@ -60,7 +60,7 @@ namespace {
 constexpr base::TimeMillis kMapsReparseInterval{500};
 constexpr uint32_t kRetryDelayMs = 100;
 
-constexpr size_t kMaxFrames = 200;
+constexpr size_t kMaxFrames = 500;
 
 // We assume average ~300us per unwind. If we handle up to 1000 unwinds, this
 // makes sure other tasks get to be run at least every 300ms if the unwinding
