@@ -30,7 +30,7 @@ export function handleKey(e: KeyboardEvent, down: boolean) {
   const selection = globals.state.currentSelection;
   if (down && 'm' === key) {
     if (selection && selection.kind === 'AREA') {
-      globals.dispatch(Actions.toggleMarkArea({persistent: e.shiftKey}));
+      globals.dispatch(Actions.toggleMarkCurrentArea({persistent: e.shiftKey}));
     } else if (selection) {
       lockSliceSpan(e.shiftKey);
     }
@@ -109,8 +109,7 @@ function lockSliceSpan(persistent = false) {
         [globals.state.currentSelection.trackId] :
         [];
     const area: Area = {startSec: range.startTs, endSec: range.endTs, tracks};
-    globals.makeSelection(Actions.selectArea({area}));
-    globals.dispatch(Actions.toggleMarkArea({persistent}));
+    globals.dispatch(Actions.markArea({area, persistent}));
   }
 }
 
