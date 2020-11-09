@@ -20,6 +20,7 @@
 #include <fcntl.h>
 #include <netdb.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
@@ -236,6 +237,10 @@ UnixSocketRaw::UnixSocketRaw(ScopedFile fd, SockFamily family, SockType type)
     int flag = 1;
     PERFETTO_CHECK(
         !setsockopt(*fd_, SOL_SOCKET, SO_REUSEADDR, &flag, sizeof(flag)));
+    flag = 1;
+    // Disable Nagle's algorithm, optimize for low-latency.
+    // See https://github.com/google/perfetto/issues/70.
+    setsockopt(*fd_, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag));
   }
 
   // There is no reason why a socket should outlive the process in case of
