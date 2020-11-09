@@ -49,6 +49,10 @@ class GraphicsFrameEventParser {
   using GraphicsFrameEvent = protos::pbzero::GraphicsFrameEvent;
   bool CreateBufferEvent(int64_t timestamp, GraphicsFrameEventDecoder& event);
   void CreatePhaseEvent(int64_t timestamp, GraphicsFrameEventDecoder& event);
+  // Invalidate a phase slice that has one of the events missing
+  void InvalidatePhaseEvent(int64_t timestamp,
+                            TrackId track_id,
+                            bool reset_name = false);
 
   TraceProcessorContext* const context_;
   const StringId graphics_event_scope_id_;
