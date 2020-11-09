@@ -118,8 +118,6 @@ class HeapProfileTrack extends Track<Config, Data> {
     if (index !== -1) {
       const ts = data.tsStarts[index];
       const type = data.types[index];
-      globals.dispatch(Actions.showHeapProfileFlamegraph(
-          {id: index, upid: this.config.upid, ts, type}));
       globals.makeSelection(Actions.selectHeapProfile(
           {id: index, upid: this.config.upid, ts, type}));
       return true;

@@ -621,11 +621,6 @@ export const StateActions = {
       ts: args.ts,
       type: args.type,
     };
-  },
-
-  showHeapProfileFlamegraph(
-      state: StateDraft,
-      args: {id: number, upid: number, ts: number, type: string}): void {
     state.currentHeapProfileFlamegraph = {
       kind: 'HEAP_PROFILE_FLAMEGRAPH',
       id: args.id,
