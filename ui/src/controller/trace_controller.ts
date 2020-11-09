@@ -308,7 +308,24 @@ export class TraceController extends Controller<States> {
     await this.listThreads();
     await this.loadTimelineOverview(traceTime);
     globals.dispatch(Actions.sortThreadTracks({}));
+    await this.selectFirstHeapProfile();
+
     return engineMode;
+  }
+
+  private async selectFirstHeapProfile() {
+    const query = `select * from
+    (select distinct(ts) as ts, 'native' as type,
+        upid from heap_profile_allocation
+        union
+        select distinct(graph_sample_ts) as ts, 'graph' as type, upid from
+        heap_graph_object) order by ts limit 1`;
+    const profile = await assertExists(this.engine).query(query);
+    if (profile.numRecords !== 1) return;
+    const ts = profile.columns[0].longValues![0];
+    const type = profile.columns[1].stringValues![0];
+    const upid = profile.columns[2].longValues![0];
+    globals.dispatch(Actions.selectHeapProfile({id: 0, upid, ts, type}));
   }
 
   private async listTracks() {
