@@ -63,7 +63,8 @@ void ProfileModule::ParsePacket(const TracePacket::Decoder& decoder,
   switch (field_id) {
     case TracePacket::kStreamingProfilePacketFieldNumber:
       PERFETTO_DCHECK(ttp.type == TimestampedTracePiece::Type::kTracePacket);
-      ParseStreamingProfilePacket(ttp.timestamp, ttp.packet_data.sequence_state,
+      ParseStreamingProfilePacket(ttp.timestamp,
+                                  ttp.packet_data.sequence_state.get(),
                                   decoder.streaming_profile_packet());
       return;
   }
