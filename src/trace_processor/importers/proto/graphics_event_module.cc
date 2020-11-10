@@ -43,7 +43,7 @@ void GraphicsEventModule::ParsePacket(const TracePacket::Decoder& decoder,
       return;
     case TracePacket::kGpuRenderStageEventFieldNumber:
       parser_.ParseGpuRenderStageEvent(ttp.timestamp,
-                                       ttp.packet_data.sequence_state,
+                                       ttp.packet_data.sequence_state.get(),
                                        decoder.gpu_render_stage_event());
       return;
     case TracePacket::kGpuLogFieldNumber:
@@ -55,7 +55,7 @@ void GraphicsEventModule::ParsePacket(const TracePacket::Decoder& decoder,
       return;
     case TracePacket::kVulkanMemoryEventFieldNumber:
       PERFETTO_DCHECK(ttp.type == TimestampedTracePiece::Type::kTracePacket);
-      parser_.ParseVulkanMemoryEvent(ttp.packet_data.sequence_state,
+      parser_.ParseVulkanMemoryEvent(ttp.packet_data.sequence_state.get(),
                                      decoder.vulkan_memory_event());
       return;
     case TracePacket::kVulkanApiEventFieldNumber:

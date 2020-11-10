@@ -300,7 +300,8 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
 
   PERFETTO_DCHECK(ttp.type == TimestampedTracePiece::Type::kFtraceEvent);
   const TraceBlobView& event = ttp.ftrace_event.event;
-  PacketSequenceStateGeneration* seq_state = ttp.ftrace_event.sequence_state;
+  PacketSequenceStateGeneration* seq_state =
+      ttp.ftrace_event.sequence_state.get();
   ProtoDecoder decoder(event.data(), event.length());
   uint64_t raw_pid = 0;
   if (auto pid_field = decoder.FindField(FtraceEvent::kPidFieldNumber)) {

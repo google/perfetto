@@ -55,17 +55,18 @@ struct InlineSchedWaking {
 
 struct TracePacketData {
   TraceBlobView packet;
-  PacketSequenceStateGeneration* sequence_state;
+  std::shared_ptr<PacketSequenceStateGeneration> sequence_state;
 };
 
 struct FtraceEventData {
   TraceBlobView event;
-  PacketSequenceStateGeneration* sequence_state;
+  std::shared_ptr<PacketSequenceStateGeneration> sequence_state;
 };
 
 struct TrackEventData : public TracePacketData {
-  TrackEventData(TraceBlobView pv, PacketSequenceStateGeneration* generation)
-      : TracePacketData{std::move(pv), generation} {}
+  TrackEventData(TraceBlobView pv,
+                 std::shared_ptr<PacketSequenceStateGeneration> generation)
+      : TracePacketData{std::move(pv), std::move(generation)} {}
 
   static constexpr size_t kMaxNumExtraCounters = 8;
 
@@ -90,11 +91,12 @@ struct TimestampedTracePiece {
     kSystraceLine,
   };
 
-  TimestampedTracePiece(int64_t ts,
-                        uint64_t idx,
-                        TraceBlobView tbv,
-                        PacketSequenceStateGeneration* sequence_state)
-      : packet_data{std::move(tbv), sequence_state},
+  TimestampedTracePiece(
+      int64_t ts,
+      uint64_t idx,
+      TraceBlobView tbv,
+      std::shared_ptr<PacketSequenceStateGeneration> sequence_state)
+      : packet_data{std::move(tbv), std::move(sequence_state)},
         timestamp(ts),
         packet_idx(idx),
         type(Type::kTracePacket) {}

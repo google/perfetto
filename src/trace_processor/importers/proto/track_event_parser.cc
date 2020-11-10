@@ -122,11 +122,11 @@ class TrackEventParser::EventImporter {
         parser_(parser),
         ts_(ts),
         event_data_(event_data),
-        sequence_state_(event_data_->sequence_state),
+        sequence_state_(event_data->sequence_state.get()),
         blob_(std::move(blob)),
         event_(blob_),
         legacy_event_(event_.legacy_event()),
-        defaults_(sequence_state_->GetTrackEventDefaults()) {}
+        defaults_(event_data->sequence_state->GetTrackEventDefaults()) {}
 
   util::Status Import() {
     // TODO(eseckler): This legacy event field will eventually be replaced by
