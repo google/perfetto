@@ -39,7 +39,6 @@
 #include "src/profiling/common/proc_utils.h"
 #include "src/profiling/memory/bookkeeping.h"
 #include "src/profiling/memory/bookkeeping_dump.h"
-#include "src/profiling/memory/page_idle_checker.h"
 #include "src/profiling/memory/system_property.h"
 #include "src/profiling/memory/unwinding.h"
 #include "src/profiling/memory/unwound_messages.h"
@@ -209,7 +208,6 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
     std::map<uint32_t, HeapTracker> heap_trackers;
     std::map<uint32_t, std::string> heap_names;
 
-    base::Optional<PageIdleChecker> page_idle_checker;
     HeapTracker& GetHeapTracker(uint32_t heap_id) {
       auto it = heap_trackers.find(heap_id);
       if (it == heap_trackers.end()) {

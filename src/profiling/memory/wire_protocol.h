@@ -147,7 +147,6 @@ static_assert(sizeof(ClientConfiguration) == 4640,
 enum HandshakeFDs : size_t {
   kHandshakeMaps = 0,
   kHandshakeMem,
-  kHandshakePageIdle,
   kHandshakeSize,
 };
 
