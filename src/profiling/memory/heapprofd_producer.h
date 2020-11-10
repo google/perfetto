@@ -266,7 +266,7 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
   void CheckDataSourceCpu();
 
   void FinishDataSourceFlush(FlushRequestID flush_id);
-  bool DumpProcessesInDataSource(DataSourceInstanceID id);
+  void DumpProcessesInDataSource(DataSource* ds);
   void DumpProcessState(DataSource* ds, pid_t pid, ProcessState* process);
 
   void DoContinuousDump(DataSourceInstanceID id, uint32_t dump_interval);
