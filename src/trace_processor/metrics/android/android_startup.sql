@@ -82,6 +82,7 @@ WHERE slice.name IN (
   'ActivityThreadMain',
   'bindApplication',
   'activityStart',
+  'activityRestart',
   'activityResume',
   'Choreographer#doFrame',
   'inflate')
@@ -198,6 +199,10 @@ SELECT
       'time_activity_resume', (
         SELECT slice_proto FROM main_process_slice
         WHERE launch_id = launches.id AND name = 'activityResume'
+      ),
+      'time_activity_restart', (
+        SELECT slice_proto FROM main_process_slice
+        WHERE launch_id = launches.id AND name = 'activityRestart'
       ),
       'time_choreographer', (
         SELECT slice_proto FROM main_process_slice
