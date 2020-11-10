@@ -1228,12 +1228,12 @@ void HeapprofdProducer::CheckDataSourceCpu() {
       },
       kGuardrailIntervalMs);
 
-  bool any_guardrail = false;
-  for (auto& id_and_ds : data_sources_) {
-    DataSource& ds = id_and_ds.second;
-    if (ds.config.max_heapprofd_cpu_secs() > 0)
-      any_guardrail = true;
-  }
+  bool any_guardrail = std::any_of(
+      data_sources_.begin(), data_sources_.end(),
+      [](const std::pair<const DataSourceInstanceID, DataSource>& id_and_ds) {
+        const DataSource& ds = id_and_ds.second;
+        return ds.config.max_heapprofd_cpu_secs() > 0;
+      });
 
   if (!any_guardrail)
     return;
@@ -1274,12 +1274,12 @@ void HeapprofdProducer::CheckDataSourceMemory() {
       },
       kGuardrailIntervalMs);
 
-  bool any_guardrail = false;
-  for (auto& id_and_ds : data_sources_) {
-    DataSource& ds = id_and_ds.second;
-    if (ds.config.max_heapprofd_memory_kb() > 0)
-      any_guardrail = true;
-  }
+  bool any_guardrail = std::any_of(
+      data_sources_.begin(), data_sources_.end(),
+      [](const std::pair<const DataSourceInstanceID, DataSource>& id_and_ds) {
+        const DataSource& ds = id_and_ds.second;
+        return ds.config.max_heapprofd_memory_kb() > 0;
+      });
 
   if (!any_guardrail)
     return;
