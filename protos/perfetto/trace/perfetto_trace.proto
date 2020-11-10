@@ -644,17 +644,8 @@ message HeapprofdConfig {
   // Introduced in Android 11.
   optional bool no_running = 11;
 
-  // Gather information on how many bytes of allocations are on non-referenced
-  // pages. The way to use this generally is:
-  // 1. Start profile of app.
-  // 2. Start app.
-  // 3. Trigger a dump by sending SIGUSR1 to heapprofd.
-  // 4. Do operations.
-  // 5. End profile.
-  //
-  // You can then find the allocations that were not used for the operations you
-  // did in step 4.
-  optional bool idle_allocations = 12;
+  // deprecated idle_allocations.
+  reserved 12;
 
   // Cause heapprofd to emit a single dump at the end, showing the memory usage
   // at the point in time when the sampled heap usage of the process was at its
@@ -7123,11 +7114,8 @@ message ProfilePacket {
     optional uint64 self_allocated = 2;
     // bytes allocated at this callstack that have been freed.
     optional uint64 self_freed = 3;
-    // bytes allocated at this callstack but not used since the last
-    // dump.
-    // See documentation of idle_allocations in HeapprofdConfig for more
-    // details.
-    optional uint64 self_idle = 7;
+    // deprecated self_idle.
+    reserved 7;
     // Bytes allocated by this callstack but not freed at the time the malloc
     // heap usage of this process was maximal. This is only set if dump_at_max
     // is true in HeapprofdConfig. In that case, self_allocated, self_freed and

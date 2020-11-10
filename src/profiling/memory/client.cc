@@ -194,19 +194,12 @@ std::shared_ptr<Client> Client::CreateAndHandshake(
     return nullptr;
   }
 
-  base::ScopedFile page_idle(base::OpenFile("/proc/self/page_idle", O_RDWR));
-  if (!page_idle) {
-    PERFETTO_DLOG("Failed to open /proc/self/page_idle. Continuing.");
-    num_send_fds = kHandshakeSize - 1;
-  }
-
   // Restore original dumpability value if we overrode it.
   unset_dumpable.reset();
 
   int fds[kHandshakeSize];
   fds[kHandshakeMaps] = *maps;
   fds[kHandshakeMem] = *mem;
-  fds[kHandshakePageIdle] = *page_idle;
 
   // Send an empty record to transfer fds for /proc/self/maps and
   // /proc/self/mem.
