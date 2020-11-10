@@ -1,0 +1,5 @@
+#!/bin/sh
+set -e
+adduser --quiet --system --no-create-home --group traced
+addgroup --quiet --system traced-consumer
+usermod -a -G traced-consumer traced
