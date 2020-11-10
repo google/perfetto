@@ -22,3 +22,6 @@ frame_missed.py frame_missed_event.sql frame_missed_event_frame_missed.out
 
 # GPU metrics
 gpu_metric.py android_gpu gpu_metric.out
+
+# Android SysUI CUJs metrics
+android_sysui_cuj.py android_sysui_cuj android_sysui_cuj.out

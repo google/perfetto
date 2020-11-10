@@ -1,0 +1,20 @@
+android_sysui_cuj {
+ frames {
+   number: 1
+   ts: 0
+   dur: 15000000
+ }
+ frames {
+   number: 2
+   ts: 8000000
+   dur: 27000000
+   jank_cause: "MainThread - binder transaction time"
+ }
+ frames {
+   number: 3
+   ts: 30000000
+   dur: 28000000
+   jank_cause: "MainThread - binder calls count"
+   jank_cause: "RenderThread - long flush layers"
+ }
+}
