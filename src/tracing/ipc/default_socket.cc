@@ -38,16 +38,15 @@ bool UseRunPerfettoBaseDir() {
     PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
   // Note that the trailing / in |kRunPerfettoBaseDir| ensures we are checking
   // against a directory, not a file.
-  int res = PERFETTO_EINTR(access(kRunPerfettoBaseDir, W_OK | X_OK));
+  int res = PERFETTO_EINTR(access(kRunPerfettoBaseDir, X_OK));
   if (!res)
     return true;
 
   // If the path doesn't exist (ENOENT), fail silently to the caller. Otherwise,
   // fail with an explicit error message.
   if (errno != ENOENT) {
-    PERFETTO_PLOG(
-        "%s exists but is not a writable directory. Falling back on /tmp/ ",
-        kRunPerfettoBaseDir);
+    PERFETTO_PLOG("%s exists but cannot be accessed. Falling back on /tmp/ ",
+                  kRunPerfettoBaseDir);
   }
   return false;
 #else
