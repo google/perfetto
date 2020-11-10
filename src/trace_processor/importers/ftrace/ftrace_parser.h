@@ -114,7 +114,8 @@ class FtraceParser {
   void ParseScmCallEnd(int64_t timestamp, uint32_t pid, protozero::ConstBytes);
   void ParseWorkqueueExecuteStart(int64_t timestamp,
                                   uint32_t pid,
-                                  protozero::ConstBytes);
+                                  protozero::ConstBytes,
+                                  PacketSequenceStateGeneration* seq_state);
   void ParseWorkqueueExecuteEnd(int64_t timestamp,
                                 uint32_t pid,
                                 protozero::ConstBytes);

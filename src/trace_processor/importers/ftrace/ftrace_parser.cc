@@ -79,10 +79,17 @@ struct FtraceEventAndFieldId {
 // TODO(lalitm): going through this array is O(n) on a hot-path (see
 // ParseTypedFtraceToRaw). Consider changing this if we end up adding a lot of
 // events here.
-constexpr auto kKernelFunctionFields =
-    std::array<FtraceEventAndFieldId, 1>{{FtraceEventAndFieldId{
-        protos::pbzero::FtraceEvent::kSchedBlockedReasonFieldNumber,
-        protos::pbzero::SchedBlockedReasonFtraceEvent::kCallerFieldNumber}}};
+constexpr auto kKernelFunctionFields = std::array<FtraceEventAndFieldId, 3>{
+    {FtraceEventAndFieldId{
+         protos::pbzero::FtraceEvent::kSchedBlockedReasonFieldNumber,
+         protos::pbzero::SchedBlockedReasonFtraceEvent::kCallerFieldNumber},
+     FtraceEventAndFieldId{
+         protos::pbzero::FtraceEvent::kWorkqueueExecuteStartFieldNumber,
+         protos::pbzero::WorkqueueExecuteStartFtraceEvent::
+             kFunctionFieldNumber},
+     FtraceEventAndFieldId{
+         protos::pbzero::FtraceEvent::kWorkqueueQueueWorkFieldNumber,
+         protos::pbzero::WorkqueueQueueWorkFtraceEvent::kFunctionFieldNumber}}};
 
 }  // namespace
 
@@ -466,7 +473,7 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         break;
       }
       case FtraceEvent::kWorkqueueExecuteStartFieldNumber: {
-        ParseWorkqueueExecuteStart(ts, pid, data);
+        ParseWorkqueueExecuteStart(ts, pid, data, seq_state);
         break;
       }
       case FtraceEvent::kWorkqueueExecuteEndFieldNumber: {
@@ -1137,15 +1144,29 @@ void FtraceParser::ParseScmCallEnd(int64_t timestamp,
   context_->slice_tracker->End(timestamp, track_id);
 }
 
-void FtraceParser::ParseWorkqueueExecuteStart(int64_t timestamp,
-                                              uint32_t pid,
-                                              ConstBytes blob) {
+void FtraceParser::ParseWorkqueueExecuteStart(
+    int64_t timestamp,
+    uint32_t pid,
+    ConstBytes blob,
+    PacketSequenceStateGeneration* seq_state) {
   protos::pbzero::WorkqueueExecuteStartFtraceEvent::Decoder evt(blob.data,
                                                                 blob.size);
-  char slice_name[255];
-  snprintf(slice_name, sizeof(slice_name), "%#" PRIx64, evt.function());
-  StringId name_id =
-      context_->storage->InternString(base::StringView(slice_name));
+
+  auto* interned_string = seq_state->LookupInternedMessage<
+      protos::pbzero::InternedData::kKernelSymbolsFieldNumber,
+      protos::pbzero::InternedString>(static_cast<uint32_t>(evt.function()));
+  StringId name_id;
+  if (interned_string) {
+    protozero::ConstBytes str = interned_string->str();
+    name_id = context_->storage->InternString(
+        base::StringView(reinterpret_cast<const char*>(str.data), str.size));
+  } else {
+    char slice_name[255];
+    snprintf(slice_name, base::ArraySize(slice_name), "%#" PRIx64,
+             evt.function());
+    name_id = context_->storage->InternString(base::StringView(slice_name));
+  }
+
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track = context_->track_tracker->InternThreadTrack(utid);
   context_->slice_tracker->Begin(timestamp, track, workqueue_id_, name_id);
