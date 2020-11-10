@@ -38,6 +38,7 @@ perfetto_proto_library("@TYPE@") {
     "process_metadata.proto",
     "startup_metric.proto",
     "surfaceflinger.proto",
+    "sysui_cuj_metrics.proto",
     "task_names.proto",
     "thread_time_in_state_metric.proto",
     "unsymbolized_frames.proto",
