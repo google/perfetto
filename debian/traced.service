@@ -1,10 +1,11 @@
 [Unit]
-Description=Perfetto trace daemon
+Description=Perfetto tracing service daemon
 
 [Service]
-ExecStart=/usr/sbin/traced
-User=nobody
-Group=nogroup
+ExecStart=/usr/sbin/traced \
+    --set-socket-permissions traced:0666:traced-consumer:0660
+User=traced
+Group=traced
 PrivateTmp=no
 PrivateDevices=yes
 PrivateNetwork=yes

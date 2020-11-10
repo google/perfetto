@@ -1,3 +1,13 @@
+perfetto (9.0-1) unstable; urgency=medium
+
+  * Run traced under a dedicated system user account and set socket
+    permissions accordingly so that any user can write trace events, but
+    only the users in the "traced-consumer" group can read trace data.
+  * Update to debhelper 10.
+  * Bump version to match Perfetto release.
+
+ -- Sami Kyostila <skyostil@google.com>  Mon, 9 Nov 2020 15:24:00 +0000
+
 perfetto (0.1-1) unstable; urgency=medium
 
   * Initial release
