@@ -100,7 +100,7 @@ void ProtoTraceParser::ParseTracePacket(int64_t ts, TimestampedTracePiece ttp) {
   const TraceBlobView& blob = data->packet;
   protos::pbzero::TracePacket::Decoder packet(blob.data(), blob.length());
 
-  ParseTracePacketImpl(ts, std::move(ttp), data, packet);
+  ParseTracePacketImpl(ts, ttp, data->sequence_state.get(), packet);
 
   // TODO(lalitm): maybe move this to the flush method in the trace processor
   // once we have it. This may reduce performance in the ArgsTracker though so
@@ -111,13 +111,13 @@ void ProtoTraceParser::ParseTracePacket(int64_t ts, TimestampedTracePiece ttp) {
 
 void ProtoTraceParser::ParseTracePacketImpl(
     int64_t ts,
-    TimestampedTracePiece ttp,
-    const TracePacketData* data,
+    const TimestampedTracePiece& ttp,
+    PacketSequenceStateGeneration* sequence_state,
     const protos::pbzero::TracePacket::Decoder& packet) {
   // This needs to get handled both by the HeapGraphModule and
   // ProtoTraceParser (for StackProfileTracker).
   if (packet.has_deobfuscation_mapping()) {
-    ParseDeobfuscationMapping(ts, data->sequence_state,
+    ParseDeobfuscationMapping(ts, sequence_state,
                               packet.trusted_packet_sequence_id(),
                               packet.deobfuscation_mapping());
   }
@@ -135,13 +135,12 @@ void ProtoTraceParser::ParseTracePacketImpl(
     ParseTraceStats(packet.trace_stats());
 
   if (packet.has_profile_packet()) {
-    ParseProfilePacket(ts, data->sequence_state,
-                       packet.trusted_packet_sequence_id(),
+    ParseProfilePacket(ts, sequence_state, packet.trusted_packet_sequence_id(),
                        packet.profile_packet());
   }
 
   if (packet.has_perf_sample()) {
-    ParsePerfSample(ts, data->sequence_state, packet.perf_sample());
+    ParsePerfSample(ts, sequence_state, packet.perf_sample());
   }
 
   if (packet.has_chrome_benchmark_metadata()) {
