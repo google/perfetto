@@ -66,10 +66,6 @@ void DumpState::WriteAllocation(const HeapTracker::CallstackAllocations& alloc,
     sample->set_alloc_count(alloc.value.totals.allocation_count);
     sample->set_free_count(alloc.value.totals.free_count);
   }
-
-  auto it = current_process_idle_allocs_.find(alloc.node->id());
-  if (it != current_process_idle_allocs_.end())
-    sample->set_self_idle(it->second);
 }
 
 void DumpState::DumpCallstacks(GlobalCallstackTrie* callsites) {
@@ -87,10 +83,6 @@ void DumpState::DumpCallstacks(GlobalCallstackTrie* callsites) {
     intern_state_->WriteCallstack(node, callsites, GetCurrentInternedData());
   }
   MakeProfilePacket();
-}
-
-void DumpState::AddIdleBytes(uint64_t callstack_id, uint64_t bytes) {
-  current_process_idle_allocs_[callstack_id] += bytes;
 }
 
 ProfilePacket::ProcessHeapSamples* DumpState::GetCurrentProcessHeapSamples() {
