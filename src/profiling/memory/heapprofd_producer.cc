@@ -724,30 +724,11 @@ void HeapprofdProducer::DumpProcessState(DataSource* data_source,
                          std::move(new_heapsamples),
                          &data_source->intern_state);
 
-    if (process_state->page_idle_checker) {
-      PageIdleChecker& page_idle_checker = *process_state->page_idle_checker;
-      heap_tracker.GetAllocations([&dump_state, &page_idle_checker](
-                                      uint64_t addr, uint64_t,
-                                      uint64_t alloc_size,
-                                      uint64_t callstack_id) {
-        int64_t idle =
-            page_idle_checker.OnIdlePage(addr, static_cast<size_t>(alloc_size));
-        if (idle < 0) {
-          PERFETTO_PLOG("OnIdlePage.");
-          return;
-        }
-        if (idle > 0)
-          dump_state.AddIdleBytes(callstack_id, static_cast<uint64_t>(idle));
-      });
-    }
-
     heap_tracker.GetCallstackAllocations(
         [&dump_state,
          &data_source](const HeapTracker::CallstackAllocations& alloc) {
           dump_state.WriteAllocation(alloc, data_source->config.dump_at_max());
         });
-    if (process_state->page_idle_checker)
-      process_state->page_idle_checker->MarkPagesIdle();
     dump_state.DumpCallstacks(&callsites_);
   }
 }
@@ -850,9 +831,7 @@ void HeapprofdProducer::SocketDelegate::OnDataAvailable(
   char buf[1];
   self->Receive(buf, sizeof(buf), fds, base::ArraySize(fds));
 
-  static_assert(kHandshakeSize == 3, "change if and else if below.");
-  // We deliberately do not check for fds[kHandshakePageIdle] so we can
-  // degrade gracefully on kernels that do not have the file yet.
+  static_assert(kHandshakeSize == 2, "change if and else if below.");
   if (fds[kHandshakeMaps] && fds[kHandshakeMem]) {
     auto ds_it =
         producer_->data_sources_.find(pending_process.data_source_instance_id);
@@ -868,23 +847,10 @@ void HeapprofdProducer::SocketDelegate::OnDataAvailable(
       return;
     }
 
-    auto it_and_inserted = data_source.process_states.emplace(
+    data_source.process_states.emplace(
         std::piecewise_construct, std::forward_as_tuple(self->peer_pid()),
         std::forward_as_tuple(&producer_->callsites_,
                               data_source.config.dump_at_max()));
-
-    ProcessState& process_state = it_and_inserted.first->second;
-    if (data_source.config.idle_allocations()) {
-      if (fds[kHandshakePageIdle]) {
-        process_state.page_idle_checker =
-            PageIdleChecker(std::move(fds[kHandshakePageIdle]));
-      } else {
-        PERFETTO_ELOG(
-            "Idle page tracking requested but did not receive "
-            "page_idle file. Continuing without idle page tracking. Please "
-            "check your kernel version.");
-      }
-    }
 
     PERFETTO_DLOG("%d: Received FDs.", self->peer_pid());
     int raw_fd = pending_process.shmem.fd();
@@ -910,8 +876,7 @@ void HeapprofdProducer::SocketDelegate::OnDataAvailable(
     producer_->UnwinderForPID(self->peer_pid())
         .PostHandoffSocket(std::move(handoff_data));
     producer_->pending_processes_.erase(it);
-  } else if (fds[kHandshakeMaps] || fds[kHandshakeMem] ||
-             fds[kHandshakePageIdle]) {
+  } else if (fds[kHandshakeMaps] || fds[kHandshakeMem]) {
     PERFETTO_DFATAL_OR_ELOG("%d: Received partial FDs.", self->peer_pid());
     producer_->pending_processes_.erase(it);
   } else {

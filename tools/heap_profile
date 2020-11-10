@@ -299,8 +299,6 @@ def main(argv):
     target_cfg += (
       CFG_INDENT + "block_client_timeout_us: %s\n" % args.block_client_timeout
     )
-  if args.idle_allocations:
-    target_cfg += CFG_INDENT + "idle_allocations: true\n"
   if args.no_startup:
     target_cfg += CFG_INDENT + "no_startup: true\n"
   if args.no_running:
