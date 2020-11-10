@@ -19,6 +19,7 @@ perfetto_proto_library("@TYPE@") {
 
   sources = [
     "android_log.proto",
+    "frame_timeline_event.proto",
     "gpu_mem_event.proto",
     "graphics_frame_event.proto",
     "initial_display_state.proto",

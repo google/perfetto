@@ -20,6 +20,7 @@ import "protos/perfetto/common/trace_stats.proto";
 import "protos/perfetto/config/trace_config.proto";
 import "protos/perfetto/trace/extension_descriptor.proto";
 import "protos/perfetto/trace/android/android_log.proto";
+import "protos/perfetto/trace/android/frame_timeline_event.proto";
 import "protos/perfetto/trace/android/gpu_mem_event.proto";
 import "protos/perfetto/trace/android/graphics_frame_event.proto";
 import "protos/perfetto/trace/android/initial_display_state.proto";
@@ -82,7 +83,7 @@ package perfetto.protos;
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 13 (up to 15).
-// Next id: 76.
+// Next id: 77.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -141,6 +142,7 @@ message TracePacket {
     InitialDisplayState initial_display_state = 70;
     GpuMemTotalEvent gpu_mem_total_event = 71;
     MemoryTrackerSnapshot memory_tracker_snapshot = 73;
+    FrameTimelineEvent frame_timeline_event = 76;
 
     // Only used in profile packets.
     ProfiledFrameSymbols profiled_frame_symbols = 55;
