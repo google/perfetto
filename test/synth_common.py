@@ -187,10 +187,12 @@ class Trace(object):
       process.uid = uid
     self.proc_map[pid] = cmdline
 
-  def add_thread(self, tid, tgid, cmdline):
+  def add_thread(self, tid, tgid, cmdline, name=None):
     thread = self.packet.process_tree.threads.add()
     thread.tid = tid
     thread.tgid = tgid
+    if name is not None:
+      thread.name = name
     self.proc_map[tid] = cmdline
 
   def add_battery_counters(self, ts, charge_uah, cap_prct, curr_ua,

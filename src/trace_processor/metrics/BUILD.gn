@@ -52,6 +52,7 @@ sql_files = [
   "android/process_oom_score.sql",
   "android/mem_stats_priority_breakdown.sql",
   "android/span_view_stats.sql",
+  "android/android_sysui_cuj.sql",
   "android/process_counter_span_view.sql",
   "android/global_counter_span_view.sql",
   "android/unsymbolized_frames.sql",
