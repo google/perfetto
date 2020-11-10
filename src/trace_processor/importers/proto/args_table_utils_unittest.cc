@@ -137,7 +137,7 @@ TEST_F(ArgsTableUtilsTest, BasicSingleLayerProto) {
   status = helper.InternProtoFieldsIntoArgsTable(
       protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
       ".protozero.test.protos.EveryField", nullptr, &inserter,
-      sequence_state_->current_generation());
+      sequence_state_->current_generation().get());
 
   EXPECT_TRUE(status.ok())
       << "InternProtoFieldsIntoArgsTable failed with error: "
@@ -214,7 +214,7 @@ TEST_F(ArgsTableUtilsTest, NestedProto) {
   status = helper.InternProtoFieldsIntoArgsTable(
       protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
       ".protozero.test.protos.NestedA", nullptr, &inserter,
-      sequence_state_->current_generation());
+      sequence_state_->current_generation().get());
   EXPECT_TRUE(status.ok())
       << "InternProtoFieldsIntoArgsTable failed with error: "
       << status.message();
@@ -243,7 +243,7 @@ TEST_F(ArgsTableUtilsTest, CamelCaseFieldsProto) {
   status = helper.InternProtoFieldsIntoArgsTable(
       protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
       ".protozero.test.protos.CamelCaseFields", nullptr, &inserter,
-      sequence_state_->current_generation());
+      sequence_state_->current_generation().get());
   EXPECT_TRUE(status.ok())
       << "InternProtoFieldsIntoArgsTable failed with error: "
       << status.message();
@@ -287,7 +287,7 @@ TEST_F(ArgsTableUtilsTest, NestedProtoParsingOverrideHandled) {
   status = helper.InternProtoFieldsIntoArgsTable(
       protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
       ".protozero.test.protos.NestedA", nullptr, &inserter,
-      sequence_state_->current_generation());
+      sequence_state_->current_generation().get());
   EXPECT_TRUE(status.ok())
       << "InternProtoFieldsIntoArgsTable failed with error: "
       << status.message();
@@ -328,7 +328,7 @@ TEST_F(ArgsTableUtilsTest, NestedProtoParsingOverrideSkipped) {
   status = helper.InternProtoFieldsIntoArgsTable(
       protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
       ".protozero.test.protos.NestedA", nullptr, &inserter,
-      sequence_state_->current_generation());
+      sequence_state_->current_generation().get());
   EXPECT_TRUE(status.ok())
       << "InternProtoFieldsIntoArgsTable failed with error: "
       << status.message();
@@ -394,7 +394,7 @@ TEST_F(ArgsTableUtilsTest, LookingUpInternedStateParsingOverride) {
   status = helper.InternProtoFieldsIntoArgsTable(
       protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
       ".protozero.test.protos.NestedA", nullptr, &inserter,
-      sequence_state_->current_generation());
+      sequence_state_->current_generation().get());
   EXPECT_TRUE(status.ok())
       << "InternProtoFieldsIntoArgsTable failed with error: "
       << status.message();
