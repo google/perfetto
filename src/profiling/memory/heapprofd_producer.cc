@@ -652,8 +652,11 @@ void HeapprofdProducer::ShutdownDataSource(DataSource* data_source) {
 
 void HeapprofdProducer::DoContinuousDump(DataSourceInstanceID id,
                                          uint32_t dump_interval) {
-  if (!DumpProcessesInDataSource(id))
+  auto it = data_sources_.find(id);
+  if (it == data_sources_.end())
     return;
+  DataSource& data_source = it->second;
+  DumpProcessesInDataSource(&data_source);
   auto weak_producer = weak_factory_.GetWeakPtr();
   task_runner_->PostDelayedTask(
       [weak_producer, id, dump_interval] {
@@ -749,30 +752,18 @@ void HeapprofdProducer::DumpProcessState(DataSource* data_source,
   }
 }
 
-bool HeapprofdProducer::DumpProcessesInDataSource(DataSourceInstanceID id) {
-  auto it = data_sources_.find(id);
-  if (it == data_sources_.end()) {
-    PERFETTO_LOG(
-        "Data source not found (harmless if using continuous_dump_config).");
-    return false;
-  }
-  DataSource& data_source = it->second;
-
+void HeapprofdProducer::DumpProcessesInDataSource(DataSource* ds) {
   for (std::pair<const pid_t, ProcessState>& pid_and_process_state :
-       data_source.process_states) {
+       ds->process_states) {
     pid_t pid = pid_and_process_state.first;
     ProcessState& process_state = pid_and_process_state.second;
-    DumpProcessState(&data_source, pid, &process_state);
+    DumpProcessState(ds, pid, &process_state);
   }
-
-  return true;
 }
 
 void HeapprofdProducer::DumpAll() {
-  for (const auto& id_and_data_source : data_sources_) {
-    if (!DumpProcessesInDataSource(id_and_data_source.first))
-      PERFETTO_DLOG("Failed to dump %" PRIu64, id_and_data_source.first);
-  }
+  for (auto& id_and_data_source : data_sources_)
+    DumpProcessesInDataSource(&id_and_data_source.second);
 }
 
 void HeapprofdProducer::Flush(FlushRequestID flush_id,
