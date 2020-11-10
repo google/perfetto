@@ -35,6 +35,7 @@ import "protos/perfetto/metrics/android/package_list.proto";
 import "protos/perfetto/metrics/android/powrails_metric.proto";
 import "protos/perfetto/metrics/android/startup_metric.proto";
 import "protos/perfetto/metrics/android/surfaceflinger.proto";
+import "protos/perfetto/metrics/android/sysui_cuj_metrics.proto";
 import "protos/perfetto/metrics/android/task_names.proto";
 import "protos/perfetto/metrics/android/thread_time_in_state_metric.proto";
 import "protos/perfetto/metrics/android/unsymbolized_frames.proto";
@@ -53,7 +54,7 @@ message TraceMetadata {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 27
+// Next id: 28
 message TraceMetrics {
   reserved 4, 10, 13, 14, 19;
 
@@ -118,6 +119,9 @@ message TraceMetrics {
 
   // GPU metrics on Android.
   optional AndroidGpuMetric android_gpu = 26;
+
+  // Frame timing and jank root causes for system UI interactions.
+  optional AndroidSysUiCujMetrics android_sysui_cuj = 27;
 
   // Demo extensions.
   extensions 450 to 499;
