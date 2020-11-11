@@ -369,10 +369,14 @@ TEST_F(PerfettoTest, TreeHuggerOnly(TestFtraceFlush)) {
   ASSERT_EQ(marker_found, 1);
 }
 
-// Disable this test on the cuttlefish emulator. It's too slow and we cannot
-// change the length of the production code in CanReadKernelSymbolAddresses()
-// to deal with it.
-#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD) && defined(__i386__)
+// Disable this test:
+// 1. On cuttlefish (x86-kvm). It's too slow when running on GCE (b/171771440).
+//    We cannot change the length of the production code in
+//    CanReadKernelSymbolAddresses() to deal with it.
+// 2. On user (i.e. non-userdebug) builds. As that doesn't work there by design.
+#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD) && \
+    (defined(__i386__) ||                         \
+     !PERFETTO_BUILDFLAG(PERFETTO_ANDROID_USERDEBUG_BUILD))
 #define MAYBE_KernelAddressSymbolization DISABLED_KernelAddressSymbolization
 #else
 #define MAYBE_KernelAddressSymbolization KernelAddressSymbolization
