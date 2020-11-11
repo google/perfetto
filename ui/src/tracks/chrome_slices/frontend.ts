@@ -16,7 +16,6 @@ import {Actions} from '../../common/actions';
 import {cropText, drawIncompleteSlice} from '../../common/canvas_utils';
 import {hueForSlice} from '../../common/colorizer';
 import {TrackState} from '../../common/state';
-import {toNs} from '../../common/time';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {SliceRect, Track} from '../../frontend/track';
@@ -199,7 +198,7 @@ export class ChromeSliceTrack extends Track<Config, Data> {
         }
       } else {
         let tEnd = data.ends[i];
-        if (toNs(tEnd) - toNs(tStart) === -1) {
+        if (data.isIncomplete[i]) {
           tEnd = tStart + INCOMPLETE_SLICE_TIME_S;
         }
         if (tStart <= t && t <= tEnd) {
