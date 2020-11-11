@@ -360,16 +360,16 @@ __attribute__((visibility("default"))) void AHeapProfile_reportFree(
       AbortOnSpinlockTimeout();
 
     client = *GetClientLocked();  // owning copy (or empty)
+    if (!client)
+      return;
 
     if (s.blocked_us()) {
       client->AddClientSpinlockBlockedUs(s.blocked_us());
     }
   }
 
-  if (client) {
-    if (!client->RecordFree(heap_id, id))
-      ShutdownLazy(client);
-  }
+  if (!client->RecordFree(heap_id, id))
+    ShutdownLazy(client);
 }
 
 __attribute__((visibility("default"))) bool AHeapProfile_initSession(
