@@ -151,6 +151,12 @@ std::string StringifyLibUnwindstackError(unwindstack::ErrorCode e) {
       return "REPEATED_FRAME";
     case unwindstack::ERROR_INVALID_ELF:
       return "INVALID_ELF";
+    case unwindstack::ERROR_SYSTEM_CALL:
+      return "SYSTEM_CALL";
+    case unwindstack::ERROR_THREAD_DOES_NOT_EXIST:
+      return "THREAD_DOES_NOT_EXIST";
+    case unwindstack::ERROR_THREAD_TIMEOUT:
+      return "THREAD_TIMEOUT";
   }
 }
 
