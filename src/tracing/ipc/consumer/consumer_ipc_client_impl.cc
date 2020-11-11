@@ -181,8 +181,18 @@ void ConsumerIPCClientImpl::OnReadBuffersResponse(
 
 void ConsumerIPCClientImpl::OnEnableTracingResponse(
     ipc::AsyncResult<protos::gen::EnableTracingResponse> response) {
+  std::string error;
+  // |response| might be empty when the request gets rejected (if the connection
+  // with the service is dropped all outstanding requests are auto-rejected).
+  if (!response) {
+    error =
+        "EnableTracing IPC request rejected. This is likely due to a loss of "
+        "the traced connection";
+  } else {
+    error = response->error();
+  }
   if (!response || response->disabled())
-    consumer_->OnTracingDisabled(response->error());
+    consumer_->OnTracingDisabled(error);
 }
 
 void ConsumerIPCClientImpl::FreeBuffers() {
