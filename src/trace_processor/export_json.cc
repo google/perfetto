@@ -1607,11 +1607,22 @@ class JsonExporter {
 
   uint64_t GetCounterValue(TrackId track_id, int64_t ts) {
     const auto& counter_table = storage_->counter_table();
-    RowMap rm = RowMap(0, counter_table.row_count());
-    counter_table.ts().FilterInto(FilterOp::kEq, SqlValue::Long(ts), &rm);
-    for (auto row_it = rm.IterateRows(); row_it; row_it.Next()) {
-      if (counter_table.track_id()[row_it.row()].value == track_id.value)
-        return static_cast<uint64_t>(counter_table.value()[row_it.row()]);
+    auto begin = counter_table.ts().begin();
+    auto end = counter_table.ts().end();
+    PERFETTO_DCHECK(counter_table.ts().IsSorted() &&
+                    counter_table.ts().IsColumnType<int64_t>());
+    // The timestamp column is sorted, so we can binary search for a matching
+    // timestamp. Note that we don't use RowMap operations like FilterInto()
+    // here because they bloat trace processor's binary size in Chrome too much.
+    auto it = std::lower_bound(begin, end, ts,
+                               [](const SqlValue& value, int64_t expected_ts) {
+                                 return value.AsLong() < expected_ts;
+                               });
+    for (; it < end; ++it) {
+      if ((*it).AsLong() != ts)
+        break;
+      if (counter_table.track_id()[it.row()].value == track_id.value)
+        return static_cast<uint64_t>(counter_table.value()[it.row()]);
     }
     return 0;
   }
