@@ -24,6 +24,26 @@ source_set("symbolizer") {
     "symbolizer.cc",
     "symbolizer.h",
   ]
+  if (is_linux || is_mac || is_android) {
+    sources += [
+      "filesystem.h",
+      "filesystem_posix.cc",
+      "scoped_read_mmap.h",
+      "scoped_read_mmap_posix.cc",
+      "subprocess.h",
+      "subprocess_posix.cc",
+    ]
+  }
+  if (is_win) {
+    sources += [
+      "filesystem.h",
+      "filesystem_windows.cc",
+      "scoped_read_mmap.h",
+      "scoped_read_mmap_windows.cc",
+      "subprocess.h",
+      "subprocess_windows.cc",
+    ]
+  }
 }
 
 source_set("symbolize_database") {
@@ -50,6 +70,7 @@ perfetto_unittest_source_set("unittests") {
     ":symbolizer",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
+    "../../base:test_support",
   ]
   sources = [ "local_symbolizer_unittest.cc" ]
 }

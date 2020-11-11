@@ -663,8 +663,14 @@ filegroup(
 filegroup(
     name = "src_profiling_symbolizer_symbolizer",
     srcs = [
+        "src/profiling/symbolizer/filesystem.h",
+        "src/profiling/symbolizer/filesystem_posix.cc",
         "src/profiling/symbolizer/local_symbolizer.cc",
         "src/profiling/symbolizer/local_symbolizer.h",
+        "src/profiling/symbolizer/scoped_read_mmap.h",
+        "src/profiling/symbolizer/scoped_read_mmap_posix.cc",
+        "src/profiling/symbolizer/subprocess.h",
+        "src/profiling/symbolizer/subprocess_posix.cc",
         "src/profiling/symbolizer/symbolizer.cc",
         "src/profiling/symbolizer/symbolizer.h",
     ],
