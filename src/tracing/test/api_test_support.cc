@@ -89,6 +89,13 @@ void SetBatchCommitsDuration(uint32_t batch_commits_duration_ms,
                                            backend_type);
 }
 
+void DisableReconnectLimit() {
+  auto* muxer = reinterpret_cast<perfetto::internal::TracingMuxerImpl*>(
+      perfetto::internal::TracingMuxer::Get());
+  muxer->SetMaxProducerReconnectionsForTesting(
+      std::numeric_limits<uint32_t>::max());
+}
+
 bool EnableDirectSMBPatching(BackendType backend_type) {
   auto* muxer = reinterpret_cast<perfetto::internal::TracingMuxerImpl*>(
       perfetto::internal::TracingMuxer::Get());

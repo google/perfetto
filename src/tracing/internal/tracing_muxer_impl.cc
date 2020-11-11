@@ -46,9 +46,6 @@ namespace internal {
 
 namespace {
 
-// Maximum number of times we will try to reconnect producer backend.
-constexpr int kMaxProducerReconnections = 100;
-
 class StopArgsImpl : public DataSourceBase::StopArgs {
  public:
   std::function<void()> HandleStopAsynchronously() const override {
@@ -1169,6 +1166,10 @@ void TracingMuxerImpl::OnConsumerDisconnected(ConsumerImpl* consumer) {
   }
 }
 
+void TracingMuxerImpl::SetMaxProducerReconnectionsForTesting(uint32_t count) {
+  max_producer_reconnections_.store(count);
+}
+
 void TracingMuxerImpl::OnProducerDisconnected(ProducerImpl* producer) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   for (RegisteredBackend& backend : backends_) {
@@ -1176,7 +1177,7 @@ void TracingMuxerImpl::OnProducerDisconnected(ProducerImpl* producer) {
       continue;
     // Try reconnecting the disconnected producer. If the connection succeeds,
     // all the data sources will be automatically re-registered.
-    if (producer->connection_id_ > kMaxProducerReconnections) {
+    if (producer->connection_id_ > max_producer_reconnections_.load()) {
       // Avoid reconnecting a failing producer too many times. Instead we just
       // leak the producer instead of trying to avoid further complicating
       // cross-thread trace writer creation.
