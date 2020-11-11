@@ -21,7 +21,9 @@
 #include <unistd.h>
 
 #include <atomic>
+#include <condition_variable>
 #include <iterator>
+#include <mutex>
 #include <thread>
 #include <vector>
 
@@ -33,14 +35,30 @@
 
 namespace {
 
+void EnabledCallback(void*, const AHeapProfileEnableCallbackInfo*);
+
 std::atomic<bool> done;
 std::atomic<uint64_t> allocs{0};
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wglobal-constructors"
-static uint32_t g_heap_id =
-    AHeapProfile_registerHeap(AHeapInfo_create("test_heap"));
+#pragma GCC diagnostic ignored "-Wexit-time-destructors"
+std::mutex g_wake_up_mutex;
+std::condition_variable g_wake_up_cv;
+uint64_t g_rate = 0;
+
+uint32_t g_heap_id = AHeapProfile_registerHeap(
+    AHeapInfo_setEnabledCallback(AHeapInfo_create("test_heap"),
+                                 EnabledCallback,
+                                 nullptr));
+
 #pragma GCC diagnostic pop
+
+void EnabledCallback(void*, const AHeapProfileEnableCallbackInfo* info) {
+  std::lock_guard<std::mutex> l(g_wake_up_mutex);
+  g_rate = AHeapProfileEnableCallbackInfo_getSamplingInterval(info);
+  g_wake_up_cv.notify_all();
+}
 
 void Thread(uint32_t thread_idx) {
   PERFETTO_CHECK(thread_idx < 1 << 24);
@@ -76,6 +94,9 @@ int main(int argc, char** argv) {
   }
   uint64_t runtime_ms = *opt_runtime_ms;
 
+  std::unique_lock<std::mutex> l(g_wake_up_mutex);
+  g_wake_up_cv.wait(l, [] { return g_rate > 0; });
+
   perfetto::base::TimeMillis end =
       perfetto::base::GetWallTimeMs() + perfetto::base::TimeMillis(runtime_ms);
   std::vector<std::thread> threads;
@@ -93,6 +114,7 @@ int main(int argc, char** argv) {
   for (std::thread& th : threads)
     th.join();
 
-  printf("%" PRIu64 "\n", allocs.load(std::memory_order_relaxed));
+  printf("%lld,%lld,%" PRIu64 ",%" PRIu64 "\n", no_threads, runtime_ms, g_rate,
+         allocs.load(std::memory_order_relaxed));
   return 0;
 }
