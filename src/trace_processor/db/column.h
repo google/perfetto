@@ -111,6 +111,53 @@ class Column {
     kDense = 1 << 3,
   };
 
+  // Iterator over a column which conforms to std iterator interface
+  // to allow using std algorithms (e.g. upper_bound, lower_bound etc.).
+  class Iterator {
+   public:
+    using iterator_category = std::random_access_iterator_tag;
+    using value_type = SqlValue;
+    using difference_type = uint32_t;
+    using pointer = uint32_t*;
+    using reference = uint32_t&;
+
+    Iterator(const Column* col, uint32_t row) : col_(col), row_(row) {}
+
+    Iterator(const Iterator&) = default;
+    Iterator& operator=(const Iterator&) = default;
+
+    bool operator==(const Iterator& other) const { return other.row_ == row_; }
+    bool operator!=(const Iterator& other) const { return !(*this == other); }
+    bool operator<(const Iterator& other) const { return row_ < other.row_; }
+    bool operator>(const Iterator& other) const { return other < *this; }
+    bool operator<=(const Iterator& other) const { return !(other < *this); }
+    bool operator>=(const Iterator& other) const { return !(*this < other); }
+
+    SqlValue operator*() const { return col_->Get(row_); }
+    Iterator& operator++() {
+      row_++;
+      return *this;
+    }
+    Iterator& operator--() {
+      row_--;
+      return *this;
+    }
+
+    Iterator& operator+=(uint32_t diff) {
+      row_ += diff;
+      return *this;
+    }
+    uint32_t operator-(const Iterator& other) const {
+      return row_ - other.row_;
+    }
+
+    uint32_t row() const { return row_; }
+
+   private:
+    const Column* col_ = nullptr;
+    uint32_t row_ = 0;
+  };
+
   // Flags specified for an id column.
   static constexpr uint32_t kIdFlags = Flag::kSorted | Flag::kNonNull;
 
@@ -344,6 +391,12 @@ class Column {
   // Returns the JoinKey for this Column.
   JoinKey join_key() const { return JoinKey{col_idx_in_table_}; }
 
+  // Returns an iterator to the first entry in this column.
+  Iterator begin() const { return Iterator(this, 0); }
+
+  // Returns an iterator pointing beyond the last entry in this column.
+  Iterator end() const { return Iterator(this, row_map().size()); }
+
  protected:
   // Returns the backing sparse vector cast to contain data of type T.
   // Should only be called when |type_| == ToColumnType<T>().
@@ -380,51 +433,6 @@ class Column {
 
     // Types generated on the fly.
     kId,
-  };
-
-  // Iterator over a column which conforms to std iterator interface
-  // to allow using std algorithms (e.g. upper_bound, lower_bound etc.).
-  class Iterator {
-   public:
-    using iterator_category = std::random_access_iterator_tag;
-    using value_type = SqlValue;
-    using difference_type = uint32_t;
-    using pointer = uint32_t*;
-    using reference = uint32_t&;
-
-    Iterator(const Column* col, uint32_t row) : col_(col), row_(row) {}
-
-    Iterator(const Iterator&) = default;
-    Iterator& operator=(const Iterator&) = default;
-
-    bool operator==(const Iterator& other) const { return other.row_ == row_; }
-    bool operator!=(const Iterator& other) const { return !(*this == other); }
-    bool operator<(const Iterator& other) const { return other.row_ < row_; }
-    bool operator>(const Iterator& other) const { return other < *this; }
-    bool operator<=(const Iterator& other) const { return !(other < *this); }
-    bool operator>=(const Iterator& other) const { return !(*this < other); }
-
-    SqlValue operator*() const { return col_->Get(row_); }
-    Iterator& operator++() {
-      row_++;
-      return *this;
-    }
-    Iterator& operator--() {
-      row_--;
-      return *this;
-    }
-
-    Iterator& operator+=(uint32_t diff) {
-      row_ += diff;
-      return *this;
-    }
-    uint32_t operator-(const Iterator& other) const {
-      return row_ - other.row_;
-    }
-
-   private:
-    const Column* col_ = nullptr;
-    uint32_t row_ = 0;
   };
 
   friend class Table;
