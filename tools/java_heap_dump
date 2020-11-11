@@ -105,10 +105,11 @@ def main(argv):
       action="store_true",
       help="Print config instead of running. For debugging.")
   parser.add_argument(
-      "--stop_when_done",
+      "--stop-when-done",
       action="store_true",
       help="On recent builds of S, use a new method to stop the profile when "
            "the dump is done. Previously, we would hardcode a duration.")
+
   args = parser.parse_args()
 
   fail = False
