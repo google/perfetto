@@ -45,9 +45,9 @@
 namespace perfetto {
 namespace {
 
+using testing::_;
 using testing::Invoke;
 using testing::InvokeWithoutArgs;
-using testing::_;
 
 constexpr char kProducerSockName[] = TEST_SOCK_NAME("tracing_test-producer");
 constexpr char kConsumerSockName[] = TEST_SOCK_NAME("tracing_test-consumer");
@@ -341,6 +341,36 @@ TEST_F(TracingIntegrationTest, WithIPCTransport) {
   EXPECT_CALL(consumer_, OnTracingDisabled(_))
       .WillOnce(InvokeWithoutArgs(on_tracing_disabled));
   task_runner_->RunUntilCheckpoint("on_tracing_disabled");
+}
+
+// Regression test for b/172950370.
+TEST_F(TracingIntegrationTest, ValidErrorOnDisconnection) {
+  // Start tracing.
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(4096 * 10);
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("perfetto.test");
+  consumer_endpoint_->EnableTracing(trace_config);
+
+  auto on_create_ds_instance =
+      task_runner_->CreateCheckpoint("on_create_ds_instance");
+  EXPECT_CALL(producer_, OnTracingSetup());
+
+  // Store the arguments passed to SetupDataSource() and later check that they
+  // match the ones passed to StartDataSource().
+  EXPECT_CALL(producer_, SetupDataSource(_, _));
+  EXPECT_CALL(producer_, StartDataSource(_, _))
+      .WillOnce(InvokeWithoutArgs(on_create_ds_instance));
+  task_runner_->RunUntilCheckpoint("on_create_ds_instance");
+
+  EXPECT_CALL(consumer_, OnTracingDisabled(_))
+      .WillOnce(Invoke([](const std::string& err) {
+        EXPECT_THAT(err,
+                    testing::HasSubstr("EnableTracing IPC request rejected"));
+      }));
+
+  // TearDown() will destroy the service via svc_.reset(). That will drop the
+  // connection and trigger the EXPECT_CALL(OnTracingDisabled) above.
 }
 
 TEST_F(TracingIntegrationTest, WriteIntoFile) {
