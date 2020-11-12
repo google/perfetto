@@ -85,7 +85,16 @@ template("protozero_library") {
       deps = []
     }
 
-    deps += [ perfetto_root_path + "src/protozero" ]
+    # omit_protozero_dep is intended to be used when protozero_library
+    # is used in Chrome (for generation of code for proto extensions)
+    # to avoid ODR violations in case of component builds. The embedder
+    # (Chrome) is then responsible for adding the appropriate transitive
+    # dependency on Protozero.
+    #
+    # TODO(b/173041866): use fine-grained components instead when available
+    if (!(defined(invoker.omit_protozero_dep) && invoker.omit_protozero_dep)) {
+      deps += [ perfetto_root_path + "src/protozero" ]
+    }
 
     forward_variables_from(invoker,
                            [
