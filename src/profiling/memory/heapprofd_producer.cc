@@ -369,6 +369,20 @@ __attribute__((noreturn)) void HeapprofdProducer::TerminateProcess(
 
 void HeapprofdProducer::OnTracingSetup() {}
 
+void HeapprofdProducer::WriteRejectedConcurrentSession(BufferID buffer_id,
+                                                       pid_t pid) {
+  auto trace_writer = endpoint_->CreateTraceWriter(buffer_id);
+  auto trace_packet = trace_writer->NewTracePacket();
+  trace_packet->set_timestamp(
+      static_cast<uint64_t>(base::GetBootTimeNs().count()));
+  auto profile_packet = trace_packet->set_profile_packet();
+  auto process_dump = profile_packet->add_process_dumps();
+  process_dump->set_pid(static_cast<uint64_t>(pid));
+  process_dump->set_rejected_concurrent(true);
+  trace_packet->Finalize();
+  trace_writer->Flush();
+}
+
 void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
                                         const DataSourceConfig& ds_config) {
   PERFETTO_DLOG("Setting up data source.");
@@ -417,16 +431,7 @@ void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
 
       // Manually write one ProfilePacket about the rejected session.
       auto buffer_id = static_cast<BufferID>(ds_config.target_buffer());
-      auto trace_writer = endpoint_->CreateTraceWriter(buffer_id);
-      auto trace_packet = trace_writer->NewTracePacket();
-      trace_packet->set_timestamp(
-          static_cast<uint64_t>(base::GetBootTimeNs().count()));
-      auto profile_packet = trace_packet->set_profile_packet();
-      auto process_dump = profile_packet->add_process_dumps();
-      process_dump->set_pid(static_cast<uint64_t>(target_process_.pid));
-      process_dump->set_rejected_concurrent(true);
-      trace_packet->Finalize();
-      trace_writer->Flush();
+      WriteRejectedConcurrentSession(buffer_id, target_process_.pid);
       return;
     }
   }
