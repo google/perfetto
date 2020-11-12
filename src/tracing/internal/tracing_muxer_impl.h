@@ -143,6 +143,8 @@ class TracingMuxerImpl : public TracingMuxer {
   // otherwise.
   bool EnableDirectSMBPatchingForTesting(BackendType backend_type);
 
+  void SetMaxProducerReconnectionsForTesting(uint32_t count);
+
  private:
   // For each TracingBackend we create and register one ProducerImpl instance.
   // This talks to the producer-side of the service, gets start/stop requests
@@ -374,6 +376,10 @@ class TracingMuxerImpl : public TracingMuxer {
   std::vector<RegisteredBackend> backends_;
 
   std::atomic<TracingSessionGlobalID> next_tracing_session_id_{};
+
+  // Maximum number of times we will try to reconnect producer backend.
+  // Should only be modified for testing purposes.
+  std::atomic_uint32_t max_producer_reconnections_{100u};
 
   PERFETTO_THREAD_CHECKER(thread_checker_)
 };
