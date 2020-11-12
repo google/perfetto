@@ -23,7 +23,9 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/temp_file.h"
 #include "test/gtest_and_gmock.h"
 
@@ -171,22 +173,26 @@ TEST(SubprocessTest, StartAndWait) {
   EXPECT_EQ(p.returncode(), 128 + SIGKILL);
 }
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-#define MAYBE_PollBehavesProperly DISABLED_PollBehavesProperly
-#else
-#define MAYBE_PollBehavesProperly PollBehavesProperly
-#endif
-
-// TODO(b/158484911): Re-enable once problem is fixed.
-TEST(SubprocessTest, MAYBE_PollBehavesProperly) {
-  Subprocess p({"sh", "-c", "echo foobar"});
-  p.args.stdout_mode = Subprocess::kBuffer;
-  p.args.input = "ignored";
+TEST(SubprocessTest, PollBehavesProperly) {
+  Pipe pipe = Pipe::Create();
+  Subprocess p({"true"});
+  p.args.stdout_mode = Subprocess::kFd;
+  p.args.out_fd = std::move(pipe.wr);
   p.Start();
 
-  // Here we use kill() as a way to tell if the process is still running.
-  // SIGWINCH is ignored by default.
-  while (kill(p.pid(), SIGWINCH) == 0) {
+  // Wait for EOF (which really means the child process has terminated).
+  char buf;
+  while (PERFETTO_EINTR(read(*pipe.rd, &buf, 1)) != 0) {
+    usleep(1000);
+  }
+
+  // The kernel takes some time to detect the termination of the process. The
+  // best thing we can do here is check that we detect the termination within
+  // some reasonable time.
+  auto start_ms = GetWallTimeMs();
+  while (p.Poll() != Subprocess::kExited) {
+    auto elapsed_ms = GetWallTimeMs() - start_ms;
+    ASSERT_LT(elapsed_ms, TimeMillis(10000));
     usleep(1000);
   }
 
@@ -243,14 +249,18 @@ TEST(SubprocessTest, EntrypointAndExec) {
 }
 
 TEST(SubprocessTest, Wait) {
-  Subprocess p({"sleep", "10000"});
+  Subprocess p({"sh", "-c", "echo exec_done; while true; do true; done"});
+  p.args.stdout_mode = Subprocess::kBuffer;
   p.Start();
-  for (int i = 0; i < 3; i++) {
+
+  // Wait for the fork()+exec() to complete.
+  while (p.output().find("exec_done") == std::string::npos) {
     EXPECT_FALSE(p.Wait(1 /*ms*/));
     EXPECT_EQ(p.status(), Subprocess::kRunning);
   }
+
   kill(p.pid(), SIGBUS);
-  EXPECT_TRUE(p.Wait(30000 /*ms*/));
+  EXPECT_TRUE(p.Wait(30000 /*ms*/));  // We shouldn't hit this.
   EXPECT_TRUE(p.Wait());  // Should be a no-op.
   EXPECT_EQ(p.status(), Subprocess::kKilledBySignal);
   EXPECT_EQ(p.returncode(), 128 + SIGBUS);
