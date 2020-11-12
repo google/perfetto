@@ -6614,7 +6614,10 @@ filegroup {
 filegroup {
   name: "perfetto_src_profiling_symbolizer_symbolizer",
   srcs: [
+    "src/profiling/symbolizer/filesystem_posix.cc",
     "src/profiling/symbolizer/local_symbolizer.cc",
+    "src/profiling/symbolizer/scoped_read_mmap_posix.cc",
+    "src/profiling/symbolizer/subprocess_posix.cc",
     "src/profiling/symbolizer/symbolizer.cc",
   ],
 }
