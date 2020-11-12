@@ -18,6 +18,7 @@ from os import sys, path
 import synth_common
 
 PID = 1000
+RTID = 1555
 
 
 def add_main_thread_atrace(trace, ts, ts_end, buf):
@@ -26,8 +27,8 @@ def add_main_thread_atrace(trace, ts, ts_end, buf):
 
 
 def add_render_thread_atrace(trace, ts, ts_end, buf):
-  trace.add_atrace_begin(ts=ts, tid=1555, pid=PID, buf=buf)
-  trace.add_atrace_end(ts=ts_end, tid=1555, pid=PID)
+  trace.add_atrace_begin(ts=ts, tid=RTID, pid=PID, buf=buf)
+  trace.add_atrace_end(ts=ts_end, tid=RTID, pid=PID)
 
 
 def add_gpu_thread_atrace(trace, ts, ts_end, buf):
@@ -52,7 +53,7 @@ trace.add_package_list(
 
 trace.add_process(pid=PID, ppid=1, cmdline="com.android.systemui", uid=10001)
 trace.add_thread(
-    tid=1555, tgid=PID, cmdline="RenderThread", name="RenderThread")
+    tid=RTID, tgid=PID, cmdline="RenderThread", name="RenderThread")
 trace.add_thread(
     tid=1666, tgid=PID, cmdline="GPU completion", name="GPU completion")
 
@@ -114,5 +115,42 @@ add_main_thread_atrace(
     trace, ts=31_800_000, ts_end=31_850_000, buf="binder transaction")
 add_render_thread_atrace(
     trace, ts=40_000_000, ts_end=52_000_000, buf="flush layers")
+
+add_frame(
+    trace,
+    ts_do_frame=40_000_000,
+    ts_end_do_frame=53_000_000,
+    ts_draw_frame=60_000_000,
+    ts_end_draw_frame=66_000_000,
+    ts_gpu=66_500_000,
+    ts_end_gpu=78_000_000)
+
+# Main thread Running for 13 millis
+trace.add_sched(ts=40_000_000, prev_pid=0, next_pid=PID)
+trace.add_sched(ts=53_000_000, prev_pid=PID, next_pid=0, prev_state='R')
+
+# RenderThread Running for 5 millis
+trace.add_sched(ts=61_000_000, prev_pid=0, next_pid=RTID)
+trace.add_sched(ts=66_000_000, prev_pid=RTID, next_pid=0, prev_state='R')
+
+add_frame(
+    trace,
+    ts_do_frame=70_000_000,
+    ts_end_do_frame=80_000_000,
+    ts_draw_frame=78_000_000,
+    ts_end_draw_frame=87_000_000,
+    ts_gpu=86_500_000,
+    ts_end_gpu=88_000_000)
+
+# Main thread Running for 1 millis
+trace.add_sched(ts=70_000_000, prev_pid=0, next_pid=PID)
+trace.add_sched(ts=71_000_000, prev_pid=PID, next_pid=0, prev_state='R')
+
+# RenderThread Running for 1 millis and R for 9.5 millis
+trace.add_sched(ts=78_000_000, prev_pid=0, next_pid=RTID)
+trace.add_sched(ts=78_500_000, prev_pid=RTID, next_pid=0, prev_state='R')
+trace.add_sched(ts=78_500_000, prev_pid=0, next_pid=0)
+trace.add_sched(ts=88_000_000, prev_pid=0, next_pid=RTID)
+trace.add_sched(ts=88_500_000, prev_pid=RTID, next_pid=0, prev_state='R')
 
 sys.stdout.buffer.write(trace.trace.SerializeToString())
