@@ -114,7 +114,7 @@ int main(int argc, char** argv) {
   for (std::thread& th : threads)
     th.join();
 
-  printf("%lld,%lld,%" PRIu64 ",%" PRIu64 "\n", no_threads, runtime_ms, g_rate,
-         allocs.load(std::memory_order_relaxed));
+  printf("%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 "\n", no_threads,
+         runtime_ms, g_rate, allocs.load(std::memory_order_relaxed));
   return 0;
 }
