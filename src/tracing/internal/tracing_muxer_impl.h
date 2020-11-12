@@ -379,7 +379,7 @@ class TracingMuxerImpl : public TracingMuxer {
 
   // Maximum number of times we will try to reconnect producer backend.
   // Should only be modified for testing purposes.
-  std::atomic_uint32_t max_producer_reconnections_{100u};
+  std::atomic<uint32_t> max_producer_reconnections_{100u};
 
   PERFETTO_THREAD_CHECKER(thread_checker_)
 };
