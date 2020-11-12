@@ -5,8 +5,6 @@ creation of a branch in the perfetto repo, cherry-picking of the change(s) to
 the branch, and updating the `DEPS` file in Chrome's milestone branch to point
 to the new perfetto branch's head.
 
-[TOC]
-
 ## Creating the perfetto branch {#branch}
 
 1.  Determine the branch name: **`chromium/XXXX`**, where `XXXX` is the branch
