@@ -107,6 +107,12 @@ class ProfilePacketUtils {
         return "repeated_frame";
       case Profiling::UNWIND_ERROR_INVALID_ELF:
         return "invalid_elf";
+      case Profiling::UNWIND_ERROR_SYSTEM_CALL:
+        return "system_call";
+      case Profiling::UNWIND_ERROR_THREAD_TIMEOUT:
+        return "thread_timeout";
+      case Profiling::UNWIND_ERROR_THREAD_DOES_NOT_EXIST:
+        return "thread_does_not_exist";
     }
     return "unknown";  // switch should be complete, but gcc needs a hint
   }
