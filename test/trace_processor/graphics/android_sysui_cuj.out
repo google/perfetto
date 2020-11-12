@@ -17,4 +17,17 @@ android_sysui_cuj {
    jank_cause: "MainThread - binder calls count"
    jank_cause: "RenderThread - long flush layers"
  }
+ frames {
+   number: 4
+   ts: 40000000
+   dur: 38000000
+   jank_cause: "GPU completion - long completion time"
+   jank_cause: "Long running time"
+ }
+ frames {
+   number: 5
+   ts: 70000000
+   dur: 18000000
+   jank_cause: "RenderThread - scheduler"
+ }
 }
