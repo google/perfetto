@@ -36,7 +36,7 @@ ScopedReadMmap::ScopedReadMmap(const char* fName, size_t length)
     PERFETTO_DLOG("Failed to mmap file");
     return;
   }
-  ptr_ = MapViewOfFile(map_, FILE_MAP_READ, 0, 0, length);
+  ptr_ = MapViewOfFile(map_, FILE_MAP_READ, 0, 0, length_);
   if (ptr_ == nullptr) {
     PERFETTO_DLOG("Failed to map view of file");
   }
