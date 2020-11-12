@@ -41,6 +41,8 @@ void SetBatchCommitsDuration(uint32_t batch_commits_duration_ms,
 
 bool EnableDirectSMBPatching(BackendType backend_type);
 
+void DisableReconnectLimit();
+
 }  // namespace test
 }  // namespace perfetto
 
