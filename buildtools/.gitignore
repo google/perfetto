@@ -1,4 +1,8 @@
 android-core/
+android-libbase/
+android-libprocinfo/
+android-logging/
+android-unwinding/
 android_sdk/
 aosp-*/
 benchmark/
