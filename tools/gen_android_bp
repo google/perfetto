@@ -26,6 +26,7 @@
 # libraries are also mapped to their Android equivalents -- see |builtin_deps|.
 
 import argparse
+import collections
 import json
 import os
 import re
@@ -615,7 +616,7 @@ def create_proto_modules(blueprint, gn, target):
   if target.proto_plugin == 'descriptor':
     out = '{}.bin'.format(target_module_name)
 
-    cmd += ['--descriptor_set_out=$(out)', '--include_imports']
+    cmd += ['--descriptor_set_out=$(out)']
     cmd += ['$(in)']
 
     descriptor_module = Module('genrule', target_module_name, target.name)
@@ -623,6 +624,21 @@ def create_proto_modules(blueprint, gn, target):
     descriptor_module.out = [out]
     descriptor_module.tools = tools
     blueprint.add_module(descriptor_module)
+
+    # Recursively extract the .proto files of all the dependencies and
+    # add them to srcs.
+    target_queue = collections.deque([target.name])
+    seen_targets = set()
+    while target_queue:
+      dep = target_queue.popleft()
+      if dep in seen_targets:
+        continue
+      seen_targets.add(dep)
+
+      current_target = gn.get_target(dep)
+      descriptor_module.srcs.update(
+          gn_utils.label_to_path(src) for src in current_target.sources)
+      target_queue.extend(current_target.proto_deps)
 
     return descriptor_module
 
