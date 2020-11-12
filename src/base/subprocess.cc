@@ -257,6 +257,7 @@ void Subprocess::Start() {
   // with a SIGPIPE if the process exits without consuming its stdin, while
   // the parent tries to write() on the other end of the stdin pipe.
   s_.stdouterr_pipe.wr.reset();
+  proc_args.create_args->out_fd.reset();
 
   // Spawn a thread that is blocked on waitpid() and writes the termination
   // status onto a pipe. The problem here is that waipid() doesn't have a
