@@ -48,7 +48,21 @@ class PERFETTO_EXPORT EventContext {
 
   ~EventContext();
 
-  protos::pbzero::TrackEvent* event() const { return event_; }
+  // Get a TrackEvent message to write typed arguments to.
+  //
+  // event() is a template method to allow callers to specify a subclass of
+  // TrackEvent instead. Those subclasses correspond to TrackEvent message with
+  // application-specific extensions. More information in
+  // design-docs/extensions.md.
+  template <typename EventType = protos::pbzero::TrackEvent>
+  EventType* event() const {
+    // As the method does downcasting, we check that a target subclass does
+    // not add new fields.
+    static_assert(
+        sizeof(EventType) == sizeof(protos::pbzero::TrackEvent),
+        "Event type must be binary-compatible with protos::pbzero::TrackEvent");
+    return static_cast<EventType*>(event_);
+  }
 
  private:
   template <typename, size_t, typename, typename>
