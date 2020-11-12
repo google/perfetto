@@ -285,6 +285,8 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
   void ShutdownDataSource(DataSource* ds);
   bool MaybeFinishDataSource(DataSource* ds);
 
+  void WriteRejectedConcurrentSession(BufferID buffer_id, pid_t pid);
+
   // Class state:
 
   // Task runner is owned by the main thread.
