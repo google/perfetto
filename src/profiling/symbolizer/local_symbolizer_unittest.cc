@@ -34,9 +34,9 @@ void RunAndValidateParseLines(std::string raw_contents) {
     stream.get(buffer, static_cast<int>(size), '\0');
     return strlen(buffer);
   };
-  std::vector<std::string> lines = perfetto::profiling::GetLines(read_callback);
+  std::vector<std::string> lines = GetLines(read_callback);
   std::istringstream validation(raw_contents);
-  for (std::string actual : lines) {
+  for (const std::string& actual : lines) {
     std::string expected;
     getline(validation, expected);
     EXPECT_EQ(actual, expected);
@@ -70,6 +70,29 @@ TEST(LocalSymbolizerTest, ParseLinesErrorOutput) {
       "??\n"
       "??:0:0\n";
   RunAndValidateParseLines(raw_contents);
+}
+
+TEST(LocalSymbolizerTest, ParseLinesSingleCharRead) {
+  std::string raw_contents =
+      "FSlateRHIRenderingPolicy::DrawElements(FRHICommandListImmediate&, "
+      "FSlateBackBuffer&, TRefCountPtr<FRHITexture2D>&, "
+      "TRefCountPtr<FRHITexture2D>&, TRefCountPtr<FRHITexture2D>&, int, "
+      "TArray<FSlateRenderBatch, TSizedDefaultAllocator<32> > const&, "
+      "FSlateRenderingParams const&)\n"
+      "F:/P4/EngineReleaseA/Engine/Source/Runtime/SlateRHIRenderer/"
+      "Private\\SlateRHIRenderingPolicy.cpp:1187:19\n";
+  std::istringstream stream(raw_contents);
+  auto read_callback = [&stream](char* buffer, size_t) {
+    stream.get(buffer, 1, '\0');
+    return strlen(buffer);
+  };
+  std::vector<std::string> lines = GetLines(read_callback);
+  std::istringstream validation(raw_contents);
+  for (const std::string& actual : lines) {
+    std::string expected;
+    getline(validation, expected);
+    EXPECT_EQ(actual, expected);
+  }
 }
 
 }  // namespace
