@@ -20,6 +20,7 @@
 #include <fcntl.h>
 
 #include <memory>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -28,6 +29,8 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/scoped_file.h"
+#include "src/profiling/symbolizer/filesystem.h"
+#include "src/profiling/symbolizer/scoped_read_mmap.h"
 
 namespace perfetto {
 namespace profiling {
@@ -61,46 +64,55 @@ std::unique_ptr<Symbolizer> LocalSymbolizerOrDie(
 // Most of this translation unit is built only on Linux and MacOS. See
 // //gn/BUILD.gn.
 #if PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
-
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
 
-#include <fts.h>
 #include <inttypes.h>
 #include <signal.h>
-#include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <sys/wait.h>
-#include <unistd.h>
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#define F_OK 0
+#endif
 
 namespace perfetto {
 namespace profiling {
 
-namespace {
-
-std::vector<std::string> GetLines(FILE* f) {
+std::vector<std::string> GetLines(
+    std::function<int64_t(char*, size_t)> fn_read) {
   std::vector<std::string> lines;
-  size_t n = 0;
-  char* line = nullptr;
-  ssize_t rd = 0;
-  do {
-    rd = getline(&line, &n, f);
-    // Do not read empty line that terminates the output.
-    if (rd > 1) {
-      // Remove newline character.
-      PERFETTO_DCHECK(line[rd - 1] == '\n');
-      line[rd - 1] = '\0';
-      lines.emplace_back(line);
+  char buffer[512];
+  int64_t rd = 0;
+  // Cache the partial line of the previous read.
+  std::string last_line;
+  while ((rd = fn_read(buffer, sizeof(buffer))) > 0) {
+    std::string data(buffer, static_cast<size_t>(rd));
+    // Create stream buffer of last partial line + new data
+    std::stringstream stream(last_line + data);
+    std::string line;
+    last_line = "";
+    while (std::getline(stream, line)) {
+      // Return from reading when we read an empty line.
+      if (line.empty()) {
+        return lines;
+      } else if (stream.eof()) {
+        // Cache off the partial line when we hit end of stream.
+        last_line += line;
+        break;
+      } else {
+        lines.push_back(line);
+      }
     }
-    free(line);
-    line = nullptr;
-    n = 0;
-  } while (rd > 1);
+  }
+  if (rd == -1) {
+    PERFETTO_ELOG("Failed to read data from subprocess.");
+  }
   return lines;
 }
 
+namespace {
 // We cannot just include elf.h, as that only exists on Linux, and we want to
 // allow symbolization on other platforms as well. As we only need a small
 // subset, it is easiest to define the constants and structs ourselves.
@@ -315,27 +327,6 @@ base::Optional<std::string> GetBuildId(void* mem, size_t size) {
   return base::nullopt;
 }
 
-class ScopedMmap {
- public:
-  ScopedMmap(void* addr,
-             size_t length,
-             int prot,
-             int flags,
-             int fd,
-             off_t offset)
-      : length_(length), ptr_(mmap(addr, length, prot, flags, fd, offset)) {}
-  ~ScopedMmap() {
-    if (ptr_ != MAP_FAILED)
-      munmap(ptr_, length_);
-  }
-
-  void* operator*() { return ptr_; }
-
- private:
-  size_t length_;
-  void* ptr_;
-};
-
 std::string SplitBuildID(const std::string& hex_build_id) {
   if (hex_build_id.size() < 3) {
     PERFETTO_DFATAL_OR_ELOG("Invalid build-id (< 3 char) %s",
@@ -358,17 +349,13 @@ struct BuildIdAndLoadBias {
   uint64_t load_bias;
 };
 
-base::Optional<BuildIdAndLoadBias> GetBuildIdAndLoadBias(
-    int fd,
-    const struct stat* statbuf) {
-  size_t size = static_cast<size_t>(statbuf->st_size);
-
+base::Optional<BuildIdAndLoadBias> GetBuildIdAndLoadBias(const char* fname,
+                                                         size_t size) {
   static_assert(EI_CLASS > EI_MAG3, "mem[EI_MAG?] accesses are in range.");
   if (size <= EI_CLASS)
     return base::nullopt;
-
-  ScopedMmap map(nullptr, size, PROT_READ, MAP_PRIVATE, fd, 0);
-  if (*map == MAP_FAILED) {
+  ScopedReadMmap map(fname, size);
+  if (!map.IsValid()) {
     PERFETTO_PLOG("mmap");
     return base::nullopt;
   }
@@ -397,57 +384,36 @@ base::Optional<BuildIdAndLoadBias> GetBuildIdAndLoadBias(
   return base::nullopt;
 }
 
-template <typename F>
-bool WalkDirectories(std::vector<std::string> dirs, F fn) {
-  std::vector<char*> dir_cstrs;
-  for (std::string& dir : dirs)
-    dir_cstrs.emplace_back(&dir[0]);
-  dir_cstrs.push_back(nullptr);
-  base::ScopedResource<FTS*, fts_close, nullptr> fts(
-      fts_open(&dir_cstrs[0], FTS_LOGICAL | FTS_NOCHDIR, nullptr));
-  if (!fts) {
-    PERFETTO_PLOG("fts_open");
-    return false;
-  }
-  FTSENT* ent;
-  while ((ent = fts_read(*fts))) {
-    if (ent->fts_info & FTS_F)
-      fn(ent->fts_path, ent->fts_statp);
-  }
-  return true;
-}
-
 std::map<std::string, FoundBinary> BuildIdIndex(std::vector<std::string> dirs) {
   std::map<std::string, FoundBinary> result;
-  WalkDirectories(
-      std::move(dirs), [&result](const char* fname, const struct stat* stat) {
-        char magic[EI_MAG3 + 1];
-        auto fd = base::OpenFile(fname, O_RDONLY | O_CLOEXEC);
-        if (!fd) {
-          PERFETTO_PLOG("Failed to open %s", fname);
-          return;
-        }
-        ssize_t rd = PERFETTO_EINTR(read(*fd, &magic, sizeof(magic)));
-        if (rd == -1) {
-          PERFETTO_PLOG("Failed to read %s", fname);
-          return;
-        }
-        if (!IsElf(magic, static_cast<size_t>(rd))) {
-          PERFETTO_DLOG("%s not an ELF.", fname);
-          return;
-        }
-        if (lseek(*fd, 0, SEEK_SET) == -1) {
-          PERFETTO_PLOG("Failed to seek %s", fname);
-          return;
-        }
-        base::Optional<BuildIdAndLoadBias> build_id_and_load_bias =
-            GetBuildIdAndLoadBias(*fd, stat);
-
-        if (build_id_and_load_bias) {
-          result.emplace(build_id_and_load_bias->build_id,
-                         FoundBinary{fname, build_id_and_load_bias->load_bias});
-        }
-      });
+  WalkDirectories(std::move(dirs), [&result](const char* fname, size_t size) {
+    char magic[EI_MAG3 + 1];
+    // Scope file access. On windows OpenFile opens an exclusive lock.
+    // This lock needs to be released before mapping the file.
+    {
+      base::ScopedFile fd(base::OpenFile(fname, O_RDONLY));
+      if (!fd) {
+        PERFETTO_PLOG("Failed to open %s", fname);
+        return;
+      }
+      ssize_t rd = static_cast<ssize_t>(
+          PERFETTO_EINTR(read(*fd, &magic, sizeof(magic))));
+      if (rd != sizeof(magic)) {
+        PERFETTO_PLOG("Failed to read %s", fname);
+        return;
+      }
+      if (!IsElf(magic, static_cast<size_t>(rd))) {
+        PERFETTO_DLOG("%s not an ELF.", fname);
+        return;
+      }
+    }
+    base::Optional<BuildIdAndLoadBias> build_id_and_load_bias =
+        GetBuildIdAndLoadBias(fname, size);
+    if (build_id_and_load_bias) {
+      result.emplace(build_id_and_load_bias->build_id,
+                     FoundBinary{fname, build_id_and_load_bias->load_bias});
+    }
+  });
   return result;
 }
 
@@ -518,15 +484,15 @@ base::Optional<FoundBinary> LocalBinaryFinder::IsCorrectFile(
   if (access(symbol_file.c_str(), F_OK) != 0) {
     return base::nullopt;
   }
-  base::ScopedFile fd(base::OpenFile(symbol_file, O_RDONLY));
-  if (!fd)
+  // Openfile opens the file with an exclusive lock on windows.
+  size_t size = GetFileSize(symbol_file);
+
+  if (size == 0) {
     return base::nullopt;
-  struct stat statbuf;
-  if (fstat(*fd, &statbuf) == -1)
-    return base::nullopt;
+  }
 
   base::Optional<BuildIdAndLoadBias> build_id_and_load_bias =
-      GetBuildIdAndLoadBias(*fd, &statbuf);
+      GetBuildIdAndLoadBias(symbol_file.c_str(), size);
   if (!build_id_and_load_bias)
     return base::nullopt;
   if (build_id_and_load_bias->build_id != build_id) {
@@ -618,50 +584,29 @@ base::Optional<FoundBinary> LocalBinaryFinder::FindBinaryInRoot(
 
 LocalBinaryFinder::~LocalBinaryFinder() = default;
 
-Subprocess::Subprocess(const std::string& file, std::vector<std::string> args)
-    : input_pipe_(base::Pipe::Create(base::Pipe::kBothBlock)),
-      output_pipe_(base::Pipe::Create(base::Pipe::kBothBlock)) {
-  std::vector<char*> c_str_args(args.size() + 1, nullptr);
-  for (std::string& arg : args)
-    c_str_args.push_back(&(arg[0]));
-
-  if ((pid_ = fork()) == 0) {
-    // Child
-    PERFETTO_CHECK(dup2(*input_pipe_.rd, STDIN_FILENO) != -1);
-    PERFETTO_CHECK(dup2(*output_pipe_.wr, STDOUT_FILENO) != -1);
-    input_pipe_.wr.reset();
-    output_pipe_.rd.reset();
-    if (execvp(file.c_str(), &(c_str_args[0])) == -1)
-      PERFETTO_FATAL("Failed to exec %s", file.c_str());
-  }
-  PERFETTO_CHECK(pid_ != -1);
-  input_pipe_.rd.reset();
-  output_pipe_.wr.reset();
-}
-
-Subprocess::~Subprocess() {
-  if (pid_ != -1) {
-    kill(pid_, SIGKILL);
-    int wstatus;
-    PERFETTO_EINTR(waitpid(pid_, &wstatus, 0));
-  }
-}
-
 LLVMSymbolizerProcess::LLVMSymbolizerProcess()
-    : subprocess_("llvm-symbolizer", {"llvm-symbolizer"}),
-      read_file_(fdopen(subprocess_.read_fd(), "r")) {}
+    :
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+      subprocess_("llvm-symbolizer.exe", {}) {
+}
+#else
+      subprocess_("llvm-symbolizer", {"llvm-symbolizer"}) {
+}
+#endif
 
 std::vector<SymbolizedFrame> LLVMSymbolizerProcess::Symbolize(
     const std::string& binary,
     uint64_t address) {
   std::vector<SymbolizedFrame> result;
-
-  if (PERFETTO_EINTR(dprintf(subprocess_.write_fd(), "%s 0x%" PRIx64 "\n",
-                             binary.c_str(), address)) < 0) {
+  char buffer[1024];
+  int size = sprintf(buffer, "%s 0x%" PRIx64 "\n", binary.c_str(), address);
+  if (subprocess_.Write(buffer, static_cast<size_t>(size)) < 0) {
     PERFETTO_ELOG("Failed to write to llvm-symbolizer.");
     return result;
   }
-  auto lines = GetLines(read_file_);
+  auto lines = GetLines([&](char* read_buffer, size_t buffer_size) {
+    return subprocess_.Read(read_buffer, buffer_size);
+  });
   // llvm-symbolizer writes out records in the form of
   // Foo(Bar*)
   // foo.cc:123
