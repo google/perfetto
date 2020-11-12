@@ -52,6 +52,15 @@ if (is_linux && enable_perfetto_heapprofd) {
       "../src/profiling/memory:client",
     ]
   }
+
+  executable("multithreaded_alloc") {
+    sources = [ "multithreaded_alloc.cc" ]
+    deps = [
+      "../gn:default_deps",
+      "../src/base",
+      "../src/profiling/memory:client_api_standalone",
+    ]
+  }
 }
 
 executable("idle_alloc") {
