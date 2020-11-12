@@ -63,11 +63,11 @@ config("libunwindstack_config") {
     # warnings coming from libunwindstack headers. Doing so would mask warnings
     # in our own code.
     "-isystem",
-    rebase_path("android-core/libunwindstack/include", root_build_dir),
+    rebase_path("android-unwinding/libunwindstack/include", root_build_dir),
     "-isystem",
-    rebase_path("android-core/libprocinfo/include", root_build_dir),
+    rebase_path("android-libprocinfo/include", root_build_dir),
     "-isystem",
-    rebase_path("android-core/base/include", root_build_dir),
+    rebase_path("android-libbase/include", root_build_dir),
     "-isystem",
     rebase_path("android-core/demangle/include", root_build_dir),
   ]
@@ -927,12 +927,13 @@ config("zlib_config") {
 source_set("libunwindstack") {
   visibility = _buildtools_visibility
   include_dirs = [
-    "android-core/libunwindstack/include",
-    "android-core/libunwindstack",
-    "android-core/base/include",
-    "android-core/liblog/include",
-    "android-core/libprocinfo/include",
+    "android-unwinding/libunwindstack/include",
+    "android-unwinding/libunwindstack",
+    "android-libbase/include",
+    "android-logging/liblog/include",
+    "android-libprocinfo/include",
     "android-core/include",
+    "android-core/libcutils/include",
     "lzma/C",
   ]
   deps = [
@@ -940,44 +941,44 @@ source_set("libunwindstack") {
     "//gn:default_deps",
   ]
   sources = [
-    "android-core/base/file.cpp",
-    "android-core/base/liblog_symbols.cpp",
-    "android-core/base/logging.cpp",
-    "android-core/base/stringprintf.cpp",
-    "android-core/base/strings.cpp",
-    "android-core/base/threads.cpp",
-    "android-core/liblog/logger_write.cpp",
-    "android-core/liblog/properties.cpp",
-    "android-core/libunwindstack/ArmExidx.cpp",
-    "android-core/libunwindstack/DwarfCfa.cpp",
-    "android-core/libunwindstack/DwarfEhFrameWithHdr.cpp",
-    "android-core/libunwindstack/DwarfMemory.cpp",
-    "android-core/libunwindstack/DwarfOp.cpp",
-    "android-core/libunwindstack/DwarfSection.cpp",
-    "android-core/libunwindstack/Elf.cpp",
-    "android-core/libunwindstack/ElfInterface.cpp",
-    "android-core/libunwindstack/ElfInterfaceArm.cpp",
-    "android-core/libunwindstack/Global.cpp",
-    "android-core/libunwindstack/JitDebug.cpp",
-    "android-core/libunwindstack/LocalUnwinder.cpp",
-    "android-core/libunwindstack/Log.cpp",
-    "android-core/libunwindstack/MapInfo.cpp",
-    "android-core/libunwindstack/Maps.cpp",
-    "android-core/libunwindstack/Memory.cpp",
-    "android-core/libunwindstack/Regs.cpp",
-    "android-core/libunwindstack/RegsArm.cpp",
-    "android-core/libunwindstack/RegsArm64.cpp",
-    "android-core/libunwindstack/RegsMips.cpp",
-    "android-core/libunwindstack/RegsMips64.cpp",
-    "android-core/libunwindstack/RegsX86.cpp",
-    "android-core/libunwindstack/RegsX86_64.cpp",
-    "android-core/libunwindstack/Symbols.cpp",
-    "android-core/libunwindstack/Unwinder.cpp",
+    "android-libbase/file.cpp",
+    "android-libbase/liblog_symbols.cpp",
+    "android-libbase/logging.cpp",
+    "android-libbase/stringprintf.cpp",
+    "android-libbase/strings.cpp",
+    "android-libbase/threads.cpp",
+    "android-logging/liblog/logger_write.cpp",
+    "android-logging/liblog/properties.cpp",
+    "android-unwinding/libunwindstack/ArmExidx.cpp",
+    "android-unwinding/libunwindstack/DwarfCfa.cpp",
+    "android-unwinding/libunwindstack/DwarfEhFrameWithHdr.cpp",
+    "android-unwinding/libunwindstack/DwarfMemory.cpp",
+    "android-unwinding/libunwindstack/DwarfOp.cpp",
+    "android-unwinding/libunwindstack/DwarfSection.cpp",
+    "android-unwinding/libunwindstack/Elf.cpp",
+    "android-unwinding/libunwindstack/ElfInterface.cpp",
+    "android-unwinding/libunwindstack/ElfInterfaceArm.cpp",
+    "android-unwinding/libunwindstack/Global.cpp",
+    "android-unwinding/libunwindstack/JitDebug.cpp",
+    "android-unwinding/libunwindstack/LocalUnwinder.cpp",
+    "android-unwinding/libunwindstack/Log.cpp",
+    "android-unwinding/libunwindstack/MapInfo.cpp",
+    "android-unwinding/libunwindstack/Maps.cpp",
+    "android-unwinding/libunwindstack/Memory.cpp",
+    "android-unwinding/libunwindstack/Regs.cpp",
+    "android-unwinding/libunwindstack/RegsArm.cpp",
+    "android-unwinding/libunwindstack/RegsArm64.cpp",
+    "android-unwinding/libunwindstack/RegsMips.cpp",
+    "android-unwinding/libunwindstack/RegsMips64.cpp",
+    "android-unwinding/libunwindstack/RegsX86.cpp",
+    "android-unwinding/libunwindstack/RegsX86_64.cpp",
+    "android-unwinding/libunwindstack/Symbols.cpp",
+    "android-unwinding/libunwindstack/Unwinder.cpp",
   ]
   if (current_cpu == "x86") {
-    sources += [ "android-core/libunwindstack/AsmGetRegsX86.S" ]
+    sources += [ "android-unwinding/libunwindstack/AsmGetRegsX86.S" ]
   } else if (current_cpu == "x64") {
-    sources += [ "android-core/libunwindstack/AsmGetRegsX86_64.S" ]
+    sources += [ "android-unwinding/libunwindstack/AsmGetRegsX86_64.S" ]
   }
   configs -= [
     "//gn/standalone:extra_warnings",
