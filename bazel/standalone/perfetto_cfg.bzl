@@ -34,12 +34,6 @@ PERFETTO_CONFIG = struct(
         # "perfetto_build_flags.h" file that can be included via:
         # #include "perfetto_build_flags.h".
         build_config = ["//:build_config_hdr"],
-
-        # Target exposing the PERFETTO_VERSION_STRING() and
-        # PERFETTO_VERSION_SCM_REVISION() macros. This is overridden in google
-        # internal builds.
-        version_header = ["//:cc_perfetto_version_header"],
-
         zlib = ["@perfetto_dep_zlib//:zlib"],
         jsoncpp = ["@perfetto_dep_jsoncpp//:jsoncpp"],
         linenoise = ["@perfetto_dep_linenoise//:linenoise"],

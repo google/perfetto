@@ -117,6 +117,9 @@ source_set("common") {
     "trace_to_systrace.h",
     "trace_to_text.h",
   ]
+  if (enable_perfetto_version_gen) {
+    deps += [ "//gn/standalone:gen_git_revision" ]
+  }
 }
 
 # Lite target for the WASM UI. Doesn't have any dependency on libprotobuf-full.

@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import * as version from '../gen/perfetto_version';
-
 export type ErrorHandler = (err: string) => void;
 
 let errorHandler: ErrorHandler = (_: string) => {};
@@ -57,9 +55,7 @@ export function reportError(err: ErrorEvent|PromiseRejectionEvent|{}) {
     errLog += '\n';
     errLog += errStack !== undefined ? errStack : JSON.stringify(errorObj);
   }
-  errLog += '\n\n';
-  errLog += `${version.VERSION} ${version.SCM_REVISION}\n`;
-  errLog += `UA: ${navigator.userAgent}\n`;
+  errLog += `\n\nUA: ${navigator.userAgent}\n`;
 
   console.error(errLog, err);
   errorHandler(errLog);
