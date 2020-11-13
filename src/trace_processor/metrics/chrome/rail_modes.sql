@@ -117,3 +117,90 @@ FROM (
         FROM overall_rail_mode_slices
       )
   );
+
+-- Now we have the RAIL Mode, use other trace events to create a modified RAIL
+-- mode that more accurately reflects what the browser/user are doing.
+
+-- First create slices for when there's no animation as indicated by a large gap
+-- between vsync events (since it's easier to find gaps than runs of adjacent
+-- vsyncs).
+
+-- Mark any large gaps between vsyncs.
+-- The value in "present" doesn't mean anything. It's just there to be a
+-- non-NULL value so the later SPAN_JOIN can find the set-difference.
+DROP VIEW IF EXISTS not_animating_slices;
+CREATE VIEW not_animating_slices AS
+WITH const (vsync_padding, large_gap) AS (
+  SELECT
+    -- Pad 50ms either side of a vsync
+    50000000,
+    -- A gap of >200ms between the adjacent vsyncs is treated as a gap in
+    -- animation.
+    200000000
+)
+SELECT ts + const.vsync_padding AS ts,
+  gap_to_next_vsync - const.vsync_padding * 2 AS dur, 1 AS present
+FROM const, (SELECT name,
+    ts,
+    lead(ts) OVER () - ts AS gap_to_next_vsync,
+    dur
+  FROM slice
+  WHERE name = "VSync")
+WHERE gap_to_next_vsync > const.large_gap
+UNION
+-- Insert a slice between start_ts and the first vsync (or the end of the trace
+-- if there are none).
+SELECT
+  ts,
+  dur,
+  1
+FROM (SELECT start_ts AS ts,
+    COALESCE(MIN(ts) - start_ts - const.vsync_padding, end_ts - start_ts) AS dur
+  FROM trace_bounds, slice, const
+  WHERE name = "VSync") WHERE dur > 0
+UNION
+-- Insert a slice between the last vsync and end_ts
+SELECT last_vsync AS ts,
+  end_ts - last_vsync AS dur,
+  1
+FROM (
+    SELECT MAX(ts) + const.vsync_padding AS last_vsync
+    FROM slice, const
+    WHERE name = "VSync"
+  ),
+  trace_bounds
+WHERE last_vsync < end_ts;
+
+-- Since the scheduler defaults to animation when none of the other RAIL modes
+-- apply, animation overestimates the amount of time that actual animation is
+-- occurring.
+-- So instead we try to divide up animation in other buckets based on other
+-- trace events.
+DROP VIEW IF EXISTS rail_mode_animation_slices;
+CREATE VIEW rail_mode_animation_slices AS
+SELECT * FROM combined_overall_rail_slices WHERE rail_mode = "animation";
+
+-- Left-join rail mode animation slices with not_animating_slices which is
+-- based on the gaps between vsync events.
+DROP TABLE IF EXISTS temp_rail_mode_join_animation;
+CREATE VIRTUAL TABLE temp_rail_mode_join_animation
+USING SPAN_LEFT_JOIN(rail_mode_animation_slices, not_animating_slices);
+
+-- When the RAIL mode is animation, but there is no actual animation (according
+-- to vsync data), then record the mode as foreground_idle instead.
+DROP VIEW IF EXISTS modified_rail_slices;
+CREATE VIEW modified_rail_slices AS
+SELECT ts,
+  dur,
+  IIF(
+    present IS NULL,
+    "animation",
+    "foreground_idle"
+  ) AS mode
+FROM temp_rail_mode_join_animation
+UNION
+SELECT ts,
+  dur,
+  rail_mode AS mode
+FROM combined_overall_rail_slices
+WHERE rail_mode <> "animation";
