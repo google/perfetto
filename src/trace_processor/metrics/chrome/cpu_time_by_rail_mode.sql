@@ -14,52 +14,12 @@
 -- limitations under the License.
 --
 
-SELECT RUN_METRIC('chrome/rail_modes.sql');
-SELECT RUN_METRIC('chrome/chrome_processes.sql');
+SELECT RUN_METRIC('chrome/rail_modes.sql') AS suppress_query_output;
 
--- CPU time slices for Chrome threads.
-DROP VIEW IF EXISTS chrome_cpu_slices;
-CREATE VIEW chrome_cpu_slices AS
-SELECT counters.id AS counter_id,
-  track_id,
-  ts,
-  lead(ts) OVER (
-    PARTITION BY track_id
-    ORDER BY ts
-  ) - ts AS dur,
-  CAST(
-    lead(value) OVER (
-      PARTITION BY track_id
-      ORDER BY ts
-    ) - value AS "INT64"
-  ) AS cpu_dur
-FROM counters,
-  (
-    SELECT thread_counter_track.id
-    FROM chrome_thread
-      JOIN thread_counter_track ON chrome_thread.utid = thread_counter_track.utid
-  ) AS t
-WHERE t.id = track_id;
-
-DROP TABLE IF EXISTS rail_cpu_time;
-CREATE VIRTUAL TABLE rail_cpu_time USING SPAN_JOIN(
-  combined_overall_rail_slices,
-  chrome_cpu_slices PARTITIONED track_id
-);
-
--- View containing the CPU time used (across all cores) for each RAIL mode slice
--- from combined_overall_rail_slices.
--- This will slightly overestimate the CPU time for some RAIL mode slices as the
--- cpu time slices don't always line up with the RAIL mode slices. However the
--- CPU slices are small enough this makes very little difference.
-DROP VIEW IF EXISTS cpu_time_by_rail_mode;
-CREATE VIEW cpu_time_by_rail_mode AS
-SELECT s.id,
-  s.ts,
-  s.dur,
-  s.rail_mode,
-  SUM(cpu_dur) AS cpu_dur
-FROM rail_cpu_time r
-  JOIN combined_overall_rail_slices s
-WHERE r.id = s.id
-GROUP BY r.id;
+-- Creates a view cpu_time_by_rail_mode containing the CPU time used (across all
+-- cores) for each RAIL Mode slice in combined_overall_rail_slices.
+SELECT RUN_METRIC('chrome/cpu_time_by_category.sql',
+    'input', 'combined_overall_rail_slices',
+    'output', 'cpu_time_by_rail_mode',
+    'category', 'rail_mode'
+  );
