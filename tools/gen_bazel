@@ -103,10 +103,10 @@ external_deps = {
         'PERFETTO_CONFIG.deps.sqlite_ext_percentile'
     ],
     '//gn:zlib': ['PERFETTO_CONFIG.deps.zlib'],
+    '//gn/standalone:gen_git_revision': [],
     '//src/trace_processor/metrics:gen_merged_sql_metrics': [[
         ':cc_merged_sql_metrics'
-    ]],
-    gn_utils.GEN_VERSION_TARGET: ['PERFETTO_CONFIG.deps.version_header'],
+    ]]
 }
 
 
@@ -119,15 +119,6 @@ def gen_sql_metrics(target):
   return [label]
 
 
-def gen_version_header(target):
-  label = BazelLabel(get_bazel_label_name(target.name), 'genrule')
-  label.srcs += [re.sub('^//', '', x) for x in sorted(target.inputs)]
-  label.outs += target.outputs
-  label.cmd = r'$(location gen_version_header_py) --cpp_out=$@'
-  label.exec_tools += [':gen_version_header_py']
-  return [label]
-
-
 def gen_cc_metrics_descriptor(target):
   label = BazelLabel(
       get_bazel_label_name(target.name), 'perfetto_cc_proto_descriptor')
@@ -137,7 +128,6 @@ def gen_cc_metrics_descriptor(target):
 
 
 custom_actions = {
-    gn_utils.GEN_VERSION_TARGET: gen_version_header,
     '//src/trace_processor/metrics:gen_merged_sql_metrics': gen_sql_metrics,
     '//src/trace_processor/metrics:gen_cc_metrics_descriptor':
       gen_cc_metrics_descriptor,
