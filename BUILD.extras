@@ -88,6 +88,7 @@ perfetto_cc_library(
 perfetto_py_binary(
     name = "gen_version_header_py",
     srcs = ["tools/write_version_header.py"],
+    data = ["CHANGELOG"],
     main = "tools/write_version_header.py",
     python_version = "PY3",
 )
