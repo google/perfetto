@@ -349,6 +349,9 @@ if (enable_perfetto_trace_processor_sqlite) {
       "metrics:lib",
       "util",
     ]
+    if (enable_perfetto_version_gen) {
+      deps += [ "../../gn/standalone:gen_git_revision" ]
+    }
     if (enable_perfetto_trace_processor_linenoise) {
       deps += [ "../../gn:linenoise" ]
     }

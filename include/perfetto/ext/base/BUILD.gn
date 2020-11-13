@@ -44,7 +44,6 @@ source_set("base") {
     "unix_task_runner.h",
     "utils.h",
     "uuid.h",
-    "version.h",
     "waitable_event.h",
     "watchdog.h",
     "watchdog_noop.h",

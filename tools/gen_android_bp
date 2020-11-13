@@ -747,21 +747,6 @@ def create_cc_proto_descriptor_module(blueprint, target):
   return module
 
 
-def create_gen_version_module(blueprint, target, bp_module_name):
-  module = Module('genrule', bp_module_name, gn_utils.GEN_VERSION_TARGET)
-  script_path = gn_utils.label_to_path(target.script)
-  module.genrule_headers.add(bp_module_name)
-  module.tool_files = [ script_path ]
-  module.out.update(target.outputs)
-  module.srcs.update(gn_utils.label_to_path(src) for src in target.inputs)
-  module.cmd = ' '.join([
-        'python3 $(location %s)' % script_path,
-        '--cpp_out=$(out)'
-  ])
-  blueprint.add_module(module)
-  return module
-
-
 def _get_cflags(target):
   cflags = {flag for flag in target.cflags if re.match(cflag_allowlist, flag)}
   cflags |= set("-D%s" % define
@@ -816,9 +801,6 @@ def create_modules_from_target(blueprint, gn, gn_target_name):
       module = create_merged_sql_metrics_module(blueprint, target)
     elif re.match('.*gen_cc_.*_descriptor$', target.name):
       module = create_cc_proto_descriptor_module(blueprint, target)
-    elif target.type == 'action' and gn_utils.label_without_toolchain(
-        target.name) == gn_utils.GEN_VERSION_TARGET:
-      module = create_gen_version_module(blueprint, target, bp_module_name)
     else:
       raise Error('Unhandled action: {}'.format(target.name))
   else:

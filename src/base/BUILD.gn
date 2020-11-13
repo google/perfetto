@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import("//build_overrides/build.gni")
-import("../../gn/gen_perfetto_version_header.gni")
 import("../../gn/perfetto.gni")
 import("../../gn/perfetto_component.gni")
 import("../../gn/test.gni")
@@ -39,7 +38,6 @@ perfetto_component("base") {
     "time.cc",
     "utils.cc",
     "uuid.cc",
-    "version.cc",
     "virtual_destructors.cc",
     "waitable_event.cc",
     "watchdog_posix.cc",
@@ -58,23 +56,6 @@ perfetto_component("base") {
 
   if (enable_perfetto_stderr_crash_dump) {
     deps += [ ":debug_crash_stack_trace" ]
-  }
-
-  if (enable_perfetto_version_gen) {
-    deps += [ ":version_gen_h" ]
-  }
-}
-
-if (enable_perfetto_version_gen) {
-  config("version_gen_config") {
-    include_dirs = [ root_gen_dir ]
-  }
-
-  # Note: the build file translators (tools/gn_utils.py) depend on the hardcoded
-  # "//src/base:version_gen_h". If you rename this target, update build file
-  # translators accordingly.
-  gen_perfetto_version_header("version_gen_h") {
-    cpp_out = "${root_gen_dir}/perfetto_version.gen.h"
   }
 }
 
