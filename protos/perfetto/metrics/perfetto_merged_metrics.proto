@@ -122,7 +122,11 @@ message AndroidDisplayMetrics {
 
   // Stat reports whether there is any duplicate_frames tracked
   optional uint32 duplicate_frames_logged = 2;
+
+  // Stat that reports the number of dpu underrrun occurs count.
+  optional uint32 total_dpu_underrun_count = 3;
 }
+
 // End of protos/perfetto/metrics/android/display_metrics.proto
 
 // Begin of protos/perfetto/metrics/android/gpu_metric.proto
