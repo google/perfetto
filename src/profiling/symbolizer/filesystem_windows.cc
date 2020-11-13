@@ -25,7 +25,7 @@ namespace profiling {
 bool WalkDirectories(std::vector<std::string> dirs, FileCallback fn) {
   std::vector<std::string> sub_dirs;
   for (const std::string& dir : dirs) {
-    LPWIN32_FIND_DATAA file;
+    WIN32_FIND_DATAA file;
     HANDLE fh = FindFirstFileA((dir + "\\*").c_str(), &file);
     if (fh != INVALID_HANDLE_VALUE) {
       do {
