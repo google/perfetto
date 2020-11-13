@@ -588,8 +588,9 @@ void RunMetric(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
     std::string buffer;
     int ret = TemplateReplace(query, substitutions, &buffer);
     if (ret) {
-      sqlite3_result_error(
-          ctx, "RUN_METRIC: Error when performing substitution", -1);
+      char* error = sqlite3_mprintf(
+          "RUN_METRIC: Error when performing substitutions: %s", query.c_str());
+      sqlite3_result_error(ctx, error, -1);
       return;
     }
 
