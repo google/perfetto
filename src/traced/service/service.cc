@@ -20,7 +20,6 @@
 
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/unix_task_runner.h"
-#include "perfetto/ext/base/version.h"
 #include "perfetto/ext/base/watchdog.h"
 #include "perfetto/ext/traced/traced.h"
 #include "perfetto/ext/tracing/ipc/default_socket.h"
@@ -35,6 +34,12 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#endif
+
+#if PERFETTO_BUILDFLAG(PERFETTO_VERSION_GEN)
+#include "perfetto_version.gen.h"
+#else
+#define PERFETTO_GET_GIT_REVISION() "unknown"
 #endif
 
 namespace perfetto {
@@ -116,7 +121,7 @@ int __attribute__((visibility("default"))) ServiceMain(int argc, char** argv) {
       break;
     switch (option) {
       case OPT_VERSION:
-        printf("%s\n", base::GetVersionString());
+        printf("%s\n", PERFETTO_GET_GIT_REVISION());
         return 0;
       case OPT_SET_SOCKET_PERMISSIONS: {
         // Check that the socket permission argument is well formed.

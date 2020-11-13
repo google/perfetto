@@ -22,12 +22,17 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/unix_task_runner.h"
-#include "perfetto/ext/base/version.h"
 #include "perfetto/ext/traced/traced.h"
 #include "perfetto/ext/tracing/ipc/default_socket.h"
 
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
 #include "src/traced/probes/probes_producer.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_VERSION_GEN)
+#include "perfetto_version.gen.h"
+#else
+#define PERFETTO_GET_GIT_REVISION() "unknown"
+#endif
 
 namespace perfetto {
 
@@ -52,7 +57,7 @@ int __attribute__((visibility("default"))) ProbesMain(int argc, char** argv) {
         HardResetFtraceState();
         return 0;
       case OPT_VERSION:
-        printf("%s\n", base::GetVersionString());
+        printf("%s\n", PERFETTO_GET_GIT_REVISION());
         return 0;
       default:
         PERFETTO_ELOG("Usage: %s [--cleanup-after-crash|--version]", argv[0]);

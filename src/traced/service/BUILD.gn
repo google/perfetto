@@ -42,6 +42,9 @@ source_set("service") {
     "../../tracing/core:service",
     "../../tracing/ipc/service",
   ]
+  if (enable_perfetto_version_gen) {
+    deps += [ "//gn/standalone:gen_git_revision" ]
+  }
   sources = [
     "builtin_producer.cc",
     "builtin_producer.h",
