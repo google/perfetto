@@ -78,6 +78,20 @@ perfetto_gensignature_internal_only(
     ],
 )
 
+# This is overridden in google internal builds via
+# PERFETTO_CONFIG.deps.version_header (see perfetto_cfg.bzl).
+perfetto_cc_library(
+    name = "cc_perfetto_version_header",
+    hdrs = ["perfetto_version.gen.h"],
+)
+
+perfetto_py_binary(
+    name = "gen_version_header_py",
+    srcs = ["tools/write_version_header.py"],
+    main = "tools/write_version_header.py",
+    python_version = "PY3",
+)
+
 # Noop targets used to represent targets of the protobuf library.
 # These will be rewritten in Google3 to be dependencies on the real targets.
 
