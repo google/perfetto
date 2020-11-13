@@ -18,6 +18,7 @@ import {assertTrue} from '../base/logging';
 import {Actions} from '../common/actions';
 import {QueryResponse} from '../common/queries';
 import {EngineMode, TraceArrayBufferSource} from '../common/state';
+import * as version from '../gen/perfetto_version';
 
 import {Animation} from './animation';
 import {copyToClipboard} from './clipboard';
@@ -690,6 +691,16 @@ const SidebarFooter: m.Component = {
             'assessment')),
         m(EngineRPCWidget),
         m(ServiceWorkerWidget),
+        m(
+            '.version',
+            m('a',
+              {
+                href: `https://github.com/google/perfetto/tree/${
+                    version.SCM_REVISION}/ui`,
+                target: '_blank',
+              },
+              `${version.VERSION}`),
+            ),
     );
   }
 };
