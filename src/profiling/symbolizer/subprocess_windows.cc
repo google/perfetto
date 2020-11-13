@@ -101,7 +101,7 @@ Subprocess::~Subprocess() {
   CloseHandle(child_pipe_in_write_);
 }
 
-size_t Subprocess::Write(const char* buffer, size_t size) {
+int64_t Subprocess::Write(const char* buffer, size_t size) {
   if (child_pipe_in_write_ == nullptr) {
     return -1;
   }
