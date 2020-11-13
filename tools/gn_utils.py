@@ -28,7 +28,6 @@ import sys
 from compat import iteritems
 
 BUILDFLAGS_TARGET = '//gn:gen_buildflags'
-GEN_VERSION_TARGET = '//src/base:version_gen_h'
 TARGET_TOOLCHAIN = '//gn/standalone/toolchain:gcc_like_host'
 HOST_TOOLCHAIN = '//gn/standalone/toolchain:gcc_like_host'
 LINKER_UNIT_TYPES = ('executable', 'shared_library', 'static_library')

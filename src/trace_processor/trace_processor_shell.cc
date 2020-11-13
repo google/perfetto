@@ -35,7 +35,6 @@
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "perfetto/ext/base/version.h"
 #include "perfetto/trace_processor/read_trace.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/metrics/chrome/all_chrome_metrics.descriptor.h"
@@ -63,6 +62,12 @@
 #include <linenoise.h>
 #include <pwd.h>
 #include <sys/types.h>
+#endif
+
+#if PERFETTO_BUILDFLAG(PERFETTO_VERSION_GEN)
+#include "perfetto_version.gen.h"
+#else
+#define PERFETTO_GET_GIT_REVISION() "unknown"
 #endif
 
 #if PERFETTO_HAS_SIGNAL_H()
@@ -797,7 +802,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
       break;  // EOF.
 
     if (option == 'v') {
-      printf("%s\n", base::GetVersionString());
+      printf("%s\n", PERFETTO_GET_GIT_REVISION());
       exit(0);
     }
 
