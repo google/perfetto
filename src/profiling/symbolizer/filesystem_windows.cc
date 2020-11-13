@@ -26,7 +26,7 @@ bool WalkDirectories(std::vector<std::string> dirs, FileCallback fn) {
   std::vector<std::string> sub_dirs;
   for (const std::string& dir : dirs) {
     WIN32_FIND_DATA file;
-    HANDLE fh = FindFirstFile((dir + "\\*").c_str(), &file);
+    HANDLE fh = FindFirstFileA((dir + "\\*").c_str(), &file);
     if (fh != INVALID_HANDLE_VALUE) {
       do {
         std::string file_path = dir + "\\" + file.cFileName;
@@ -41,7 +41,7 @@ bool WalkDirectories(std::vector<std::string> dirs, FileCallback fn) {
           size.LowPart = file.nFileSizeLow;
           fn(file_path.c_str(), size.QuadPart);
         }
-      } while (FindNextFile(fh, &file));
+      } while (FindNextFileA(fh, &file));
     }
     CloseHandle(fh);
   }
