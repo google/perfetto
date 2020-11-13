@@ -313,6 +313,7 @@ filegroup(
         "include/perfetto/ext/base/unix_task_runner.h",
         "include/perfetto/ext/base/utils.h",
         "include/perfetto/ext/base/uuid.h",
+        "include/perfetto/ext/base/version.h",
         "include/perfetto/ext/base/waitable_event.h",
         "include/perfetto/ext/base/watchdog.h",
         "include/perfetto/ext/base/watchdog_noop.h",
@@ -561,6 +562,7 @@ perfetto_cc_library(
         "src/base/unix_task_runner.cc",
         "src/base/utils.cc",
         "src/base/uuid.cc",
+        "src/base/version.cc",
         "src/base/virtual_destructors.cc",
         "src/base/waitable_event.cc",
         "src/base/watchdog_posix.cc",
@@ -569,6 +571,8 @@ perfetto_cc_library(
         ":include_perfetto_base_base",
         ":include_perfetto_ext_base_base",
     ],
+    deps = [
+    ] + PERFETTO_CONFIG.deps.version_header,
     linkstatic = True,
 )
 
@@ -583,6 +587,20 @@ perfetto_cc_library(
         ":include_perfetto_ext_base_base",
     ],
     linkstatic = True,
+)
+
+genrule(
+    name = "src_base_version_gen_h",
+    srcs = [
+        "CHANGELOG",
+    ],
+    outs = [
+        "perfetto_version.gen.h",
+    ],
+    cmd = "$(location gen_version_header_py) --cpp_out=$@",
+    exec_tools = [
+        ":gen_version_header_py",
+    ],
 )
 
 # GN target: //src/ipc:client
@@ -3449,6 +3467,20 @@ perfetto_gensignature_internal_only(
         "__TRACE_PROCESSOR_SIG_TAG1",
         "__TRACE_PROCESSOR_SIG_TAG2",
     ],
+)
+
+# This is overridden in google internal builds via
+# PERFETTO_CONFIG.deps.version_header (see perfetto_cfg.bzl).
+perfetto_cc_library(
+    name = "cc_perfetto_version_header",
+    hdrs = ["perfetto_version.gen.h"],
+)
+
+perfetto_py_binary(
+    name = "gen_version_header_py",
+    srcs = ["tools/write_version_header.py"],
+    main = "tools/write_version_header.py",
+    python_version = "PY3",
 )
 
 # Noop targets used to represent targets of the protobuf library.
