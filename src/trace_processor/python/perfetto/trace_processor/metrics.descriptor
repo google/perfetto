@@ -51,11 +51,12 @@ avgFreqKhze
 threads (2(.perfetto.protos.AndroidCpuMetric.ThreadRthreads>
 core (2*.perfetto.protos.AndroidCpuMetric.CoreDataRcoreK
 	core_type (2..perfetto.protos.AndroidCpuMetric.CoreTypeDataRcoreTypeJ
-–
-5protos/perfetto/metrics/android/display_metrics.protoperfetto.protos"Ö
+â
+5protos/perfetto/metrics/android/display_metrics.protoperfetto.protos"æ
 AndroidDisplayMetrics4
 total_duplicate_frames (RtotalDuplicateFrames6
-duplicate_frames_logged (RduplicateFramesLogged
+duplicate_frames_logged (RduplicateFramesLogged7
+total_dpu_underrun_count (RtotalDpuUnderrunCount
 ÷
 0protos/perfetto/metrics/android/gpu_metric.protoperfetto.protos"ê
 AndroidGpuMetricG
