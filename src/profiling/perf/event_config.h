@@ -59,8 +59,8 @@ class EventConfig {
   uint32_t unwind_state_clear_period_ms() const {
     return unwind_state_clear_period_ms_;
   }
-
   const TargetFilter& filter() const { return target_filter_; }
+  bool kernel_frames() const { return kernel_frames_; }
 
   perf_event_attr* perf_attr() const {
     return const_cast<perf_event_attr*>(&perf_event_attr_);
@@ -100,6 +100,9 @@ class EventConfig {
 
   // Optional period for clearing cached unwinder state. Skipped if zero.
   const uint32_t unwind_state_clear_period_ms_;
+
+  // If true, include kernel frames in the callstacks.
+  const bool kernel_frames_;
 };
 
 }  // namespace profiling
