@@ -7148,6 +7148,7 @@ genrule {
     "src/trace_processor/metrics/android/unsymbolized_frames.sql",
     "src/trace_processor/metrics/chrome/actual_power_by_category.sql",
     "src/trace_processor/metrics/chrome/actual_power_by_rail_mode.sql",
+    "src/trace_processor/metrics/chrome/chrome_event_metadata.sql",
     "src/trace_processor/metrics/chrome/chrome_processes.sql",
     "src/trace_processor/metrics/chrome/chrome_thread_slice_with_cpu_time.sql",
     "src/trace_processor/metrics/chrome/cpu_time_by_category.sql",
