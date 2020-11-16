@@ -409,6 +409,7 @@ std::vector<FrameData> Unwinder::SymbolizeKernelCallchain(
   }
 
   auto* kernel_map = kernel_symbolizer_.GetOrCreateKernelSymbolMap();
+  PERFETTO_DCHECK(kernel_map);
   ret.reserve(sample.kernel_ips.size());
   for (size_t i = 1; i < sample.kernel_ips.size(); i++) {
     std::string function_name = kernel_map->Lookup(sample.kernel_ips[i]);

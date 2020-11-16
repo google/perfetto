@@ -33,14 +33,14 @@ namespace {
 
 template <typename T>
 const char* ReadValue(T* value_out, const char* ptr) {
-  memcpy(value_out, ptr, sizeof(T));
+  memcpy(value_out, reinterpret_cast<const void*>(ptr), sizeof(T));
   return ptr + sizeof(T);
 }
 
 template <typename T>
 const char* ReadValues(T* out, const char* ptr, size_t num_values) {
   size_t sz = sizeof(T) * num_values;
-  memcpy(out, ptr, sz);
+  memcpy(out, reinterpret_cast<const void*>(ptr), sz);
   return ptr + sz;
 }
 

@@ -34,6 +34,8 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/metatrace.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
+#include "src/kallsyms/kernel_symbol_map.h"
+#include "src/kallsyms/lazy_kernel_symbolizer.h"
 #include "src/traced/probes/ftrace/atrace_hal_wrapper.h"
 #include "src/traced/probes/ftrace/cpu_reader.h"
 #include "src/traced/probes/ftrace/cpu_stats_parser.h"
@@ -44,8 +46,6 @@
 #include "src/traced/probes/ftrace/ftrace_metadata.h"
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
 #include "src/traced/probes/ftrace/ftrace_stats.h"
-#include "src/traced/probes/ftrace/kallsyms/kernel_symbol_map.h"
-#include "src/traced/probes/ftrace/kallsyms/lazy_kernel_symbolizer.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
 
 namespace perfetto {

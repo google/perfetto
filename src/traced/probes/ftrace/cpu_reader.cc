@@ -27,11 +27,11 @@
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
+#include "src/kallsyms/kernel_symbol_map.h"
+#include "src/kallsyms/lazy_kernel_symbolizer.h"
 #include "src/traced/probes/ftrace/ftrace_config_muxer.h"
 #include "src/traced/probes/ftrace/ftrace_controller.h"
 #include "src/traced/probes/ftrace/ftrace_data_source.h"
-#include "src/traced/probes/ftrace/kallsyms/kernel_symbol_map.h"
-#include "src/traced/probes/ftrace/kallsyms/lazy_kernel_symbolizer.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
 
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"

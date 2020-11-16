@@ -31,13 +31,11 @@
 #include "perfetto/ext/base/thread_checker.h"
 #include "perfetto/ext/base/unix_task_runner.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
+#include "src/kallsyms/kernel_symbol_map.h"
+#include "src/kallsyms/lazy_kernel_symbolizer.h"
 #include "src/profiling/common/unwind_support.h"
 #include "src/profiling/perf/common_types.h"
 #include "src/profiling/perf/unwind_queue.h"
-
-// TODO(rsavitski): move kallsyms code to a common location.
-#include "src/traced/probes/ftrace/kallsyms/kernel_symbol_map.h"
-#include "src/traced/probes/ftrace/kallsyms/lazy_kernel_symbolizer.h"
 
 namespace perfetto {
 namespace profiling {

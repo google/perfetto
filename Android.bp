@@ -468,6 +468,7 @@ cc_library_shared {
     ":perfetto_src_ipc_client",
     ":perfetto_src_ipc_common",
     ":perfetto_src_ipc_host",
+    ":perfetto_src_kallsyms_kallsyms",
     ":perfetto_src_perfetto_cmd_perfetto_atoms",
     ":perfetto_src_protozero_protozero",
     ":perfetto_src_traced_probes_android_log_android_log",
@@ -476,7 +477,6 @@ cc_library_shared {
     ":perfetto_src_traced_probes_filesystem_filesystem",
     ":perfetto_src_traced_probes_ftrace_format_parser",
     ":perfetto_src_traced_probes_ftrace_ftrace",
-    ":perfetto_src_traced_probes_ftrace_kallsyms_kallsyms",
     ":perfetto_src_traced_probes_initial_display_state_initial_display_state",
     ":perfetto_src_traced_probes_metatrace_metatrace",
     ":perfetto_src_traced_probes_packages_list_packages_list",
@@ -988,6 +988,7 @@ cc_library_static {
     ":perfetto_src_ipc_client",
     ":perfetto_src_ipc_common",
     ":perfetto_src_ipc_host",
+    ":perfetto_src_kallsyms_kallsyms",
     ":perfetto_src_perfetto_cmd_perfetto_atoms",
     ":perfetto_src_protozero_protozero",
     ":perfetto_src_traced_probes_android_log_android_log",
@@ -996,7 +997,6 @@ cc_library_static {
     ":perfetto_src_traced_probes_filesystem_filesystem",
     ":perfetto_src_traced_probes_ftrace_format_parser",
     ":perfetto_src_traced_probes_ftrace_ftrace",
-    ":perfetto_src_traced_probes_ftrace_kallsyms_kallsyms",
     ":perfetto_src_traced_probes_initial_display_state_initial_display_state",
     ":perfetto_src_traced_probes_metatrace_metatrace",
     ":perfetto_src_traced_probes_packages_list_packages_list",
@@ -1234,6 +1234,7 @@ cc_library_static {
     ":perfetto_src_ipc_client",
     ":perfetto_src_ipc_common",
     ":perfetto_src_ipc_host",
+    ":perfetto_src_kallsyms_kallsyms",
     ":perfetto_src_perfetto_cmd_perfetto_atoms",
     ":perfetto_src_protozero_protozero",
     ":perfetto_src_traced_probes_android_log_android_log",
@@ -1242,7 +1243,6 @@ cc_library_static {
     ":perfetto_src_traced_probes_filesystem_filesystem",
     ":perfetto_src_traced_probes_ftrace_format_parser",
     ":perfetto_src_traced_probes_ftrace_ftrace",
-    ":perfetto_src_traced_probes_ftrace_kallsyms_kallsyms",
     ":perfetto_src_traced_probes_initial_display_state_initial_display_state",
     ":perfetto_src_traced_probes_metatrace_metatrace",
     ":perfetto_src_traced_probes_packages_list_packages_list",
@@ -1615,6 +1615,7 @@ cc_test {
     ":perfetto_src_ipc_client",
     ":perfetto_src_ipc_common",
     ":perfetto_src_ipc_host",
+    ":perfetto_src_kallsyms_kallsyms",
     ":perfetto_src_perfetto_cmd_perfetto_atoms",
     ":perfetto_src_profiling_common_callstack_trie",
     ":perfetto_src_profiling_common_interner",
@@ -1635,7 +1636,6 @@ cc_test {
     ":perfetto_src_traced_probes_ftrace_format_parser",
     ":perfetto_src_traced_probes_ftrace_ftrace",
     ":perfetto_src_traced_probes_ftrace_integrationtests",
-    ":perfetto_src_traced_probes_ftrace_kallsyms_kallsyms",
     ":perfetto_src_traced_probes_ftrace_test_support",
     ":perfetto_src_traced_probes_initial_display_state_initial_display_state",
     ":perfetto_src_traced_probes_metatrace_metatrace",
@@ -6374,6 +6374,24 @@ filegroup {
   ],
 }
 
+// GN: //src/kallsyms:kallsyms
+filegroup {
+  name: "perfetto_src_kallsyms_kallsyms",
+  srcs: [
+    "src/kallsyms/kernel_symbol_map.cc",
+    "src/kallsyms/lazy_kernel_symbolizer.cc",
+  ],
+}
+
+// GN: //src/kallsyms:unittests
+filegroup {
+  name: "perfetto_src_kallsyms_unittests",
+  srcs: [
+    "src/kallsyms/kernel_symbol_map_unittest.cc",
+    "src/kallsyms/lazy_kernel_symbolizer_unittest.cc",
+  ],
+}
+
 // GN: //src/perfetto_cmd:perfetto_atoms
 filegroup {
   name: "perfetto_src_perfetto_cmd_perfetto_atoms",
@@ -7522,24 +7540,6 @@ filegroup {
   ],
 }
 
-// GN: //src/traced/probes/ftrace/kallsyms:kallsyms
-filegroup {
-  name: "perfetto_src_traced_probes_ftrace_kallsyms_kallsyms",
-  srcs: [
-    "src/traced/probes/ftrace/kallsyms/kernel_symbol_map.cc",
-    "src/traced/probes/ftrace/kallsyms/lazy_kernel_symbolizer.cc",
-  ],
-}
-
-// GN: //src/traced/probes/ftrace/kallsyms:unittests
-filegroup {
-  name: "perfetto_src_traced_probes_ftrace_kallsyms_unittests",
-  srcs: [
-    "src/traced/probes/ftrace/kallsyms/kernel_symbol_map_unittest.cc",
-    "src/traced/probes/ftrace/kallsyms/lazy_kernel_symbolizer_unittest.cc",
-  ],
-}
-
 // GN: //src/traced/probes/ftrace:test_messages_cpp
 genrule {
   name: "perfetto_src_traced_probes_ftrace_test_messages_cpp_gen",
@@ -8259,6 +8259,8 @@ cc_test {
     ":perfetto_src_ipc_test_messages_cpp_gen",
     ":perfetto_src_ipc_test_messages_ipc_gen",
     ":perfetto_src_ipc_unittests",
+    ":perfetto_src_kallsyms_kallsyms",
+    ":perfetto_src_kallsyms_unittests",
     ":perfetto_src_perfetto_cmd_perfetto_atoms",
     ":perfetto_src_perfetto_cmd_perfetto_cmd",
     ":perfetto_src_perfetto_cmd_protos_gen",
@@ -8333,8 +8335,6 @@ cc_test {
     ":perfetto_src_traced_probes_filesystem_unittests",
     ":perfetto_src_traced_probes_ftrace_format_parser",
     ":perfetto_src_traced_probes_ftrace_ftrace",
-    ":perfetto_src_traced_probes_ftrace_kallsyms_kallsyms",
-    ":perfetto_src_traced_probes_ftrace_kallsyms_unittests",
     ":perfetto_src_traced_probes_ftrace_test_messages_cpp_gen",
     ":perfetto_src_traced_probes_ftrace_test_messages_lite_gen",
     ":perfetto_src_traced_probes_ftrace_test_messages_zero_gen",
@@ -8832,6 +8832,7 @@ cc_binary {
     ":perfetto_src_base_unix_socket",
     ":perfetto_src_ipc_client",
     ":perfetto_src_ipc_common",
+    ":perfetto_src_kallsyms_kallsyms",
     ":perfetto_src_profiling_common_callstack_trie",
     ":perfetto_src_profiling_common_interner",
     ":perfetto_src_profiling_common_interning_output",
@@ -8844,7 +8845,6 @@ cc_binary {
     ":perfetto_src_profiling_perf_traced_perf_main",
     ":perfetto_src_profiling_perf_unwinding",
     ":perfetto_src_protozero_protozero",
-    ":perfetto_src_traced_probes_ftrace_kallsyms_kallsyms",
     ":perfetto_src_tracing_common",
     ":perfetto_src_tracing_core_core",
     ":perfetto_src_tracing_core_service",

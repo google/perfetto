@@ -192,7 +192,7 @@ EventConfig::EventConfig(const protos::pbzero::PerfEventConfig::Decoder& cfg,
   pe.sample_regs_user =
       PerfUserRegsMaskForArch(unwindstack::Regs::CurrentArch());
 
-  // Optional kernel call frames (unwound by the kernel itself):
+  // Optional kernel callchains:
   if (kernel_frames_) {
     pe.sample_type |= PERF_SAMPLE_CALLCHAIN;
     pe.exclude_callchain_user = true;
