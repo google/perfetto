@@ -190,17 +190,23 @@ USING SPAN_LEFT_JOIN(rail_mode_animation_slices, not_animating_slices);
 -- to vsync data), then record the mode as foreground_idle instead.
 DROP VIEW IF EXISTS modified_rail_slices;
 CREATE VIEW modified_rail_slices AS
-SELECT ts,
+SELECT ROW_NUMBER() OVER () AS id,
+  ts,
   dur,
-  IIF(
-    present IS NULL,
-    "animation",
-    "foreground_idle"
-  ) AS mode
-FROM temp_rail_mode_join_animation
-UNION
-SELECT ts,
-  dur,
-  rail_mode AS mode
-FROM combined_overall_rail_slices
-WHERE rail_mode <> "animation";
+  mode
+FROM (
+  SELECT
+    ts,
+    dur,
+    IIF(
+      present IS NULL,
+      "animation",
+      "foreground_idle"
+    ) AS mode
+  FROM temp_rail_mode_join_animation
+  UNION
+  SELECT ts,
+    dur,
+    rail_mode AS mode
+  FROM combined_overall_rail_slices
+  WHERE rail_mode <> "animation");
