@@ -33,8 +33,15 @@ namespace {
 
 template <typename T>
 const char* ReadValue(T* value_out, const char* ptr) {
-  memcpy(value_out, reinterpret_cast<const void*>(ptr), sizeof(T));
+  memcpy(value_out, ptr, sizeof(T));
   return ptr + sizeof(T);
+}
+
+template <typename T>
+const char* ReadValues(T* out, const char* ptr, size_t num_values) {
+  size_t sz = sizeof(T) * num_values;
+  memcpy(out, ptr, sz);
+  return ptr + sz;
 }
 
 bool IsPowerOfTwo(size_t v) {
@@ -281,7 +288,7 @@ ParsedSample EventReader::ParseSampleRecord(uint32_t cpu,
                                             const char* record_start) {
   if (event_attr_.sample_type &
       (~uint64_t(PERF_SAMPLE_TID | PERF_SAMPLE_TIME | PERF_SAMPLE_STACK_USER |
-                 PERF_SAMPLE_REGS_USER))) {
+                 PERF_SAMPLE_REGS_USER | PERF_SAMPLE_CALLCHAIN))) {
     PERFETTO_FATAL("Unsupported sampling option");
   }
 
@@ -307,6 +314,14 @@ ParsedSample EventReader::ParseSampleRecord(uint32_t cpu,
 
   if (event_attr_.sample_type & PERF_SAMPLE_TIME) {
     parse_pos = ReadValue(&sample.timestamp, parse_pos);
+  }
+
+  if (event_attr_.sample_type & PERF_SAMPLE_CALLCHAIN) {
+    uint64_t chain_len = 0;
+    parse_pos = ReadValue(&chain_len, parse_pos);
+    sample.kernel_ips.resize(static_cast<size_t>(chain_len));
+    parse_pos = ReadValues<uint64_t>(sample.kernel_ips.data(), parse_pos,
+                                     static_cast<size_t>(chain_len));
   }
 
   if (event_attr_.sample_type & PERF_SAMPLE_REGS_USER) {

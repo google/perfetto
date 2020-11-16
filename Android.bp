@@ -8844,6 +8844,7 @@ cc_binary {
     ":perfetto_src_profiling_perf_traced_perf_main",
     ":perfetto_src_profiling_perf_unwinding",
     ":perfetto_src_protozero_protozero",
+    ":perfetto_src_traced_probes_ftrace_kallsyms_kallsyms",
     ":perfetto_src_tracing_common",
     ":perfetto_src_tracing_core_core",
     ":perfetto_src_tracing_core_service",

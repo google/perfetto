@@ -92,6 +92,7 @@ source_set("unwinding") {
     ":common_types",
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/tracing/core",
+    "../../../src//traced/probes/ftrace/kallsyms",
     "../../../src/base",
     "../common:unwind_support",
   ]
