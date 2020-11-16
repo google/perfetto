@@ -174,6 +174,7 @@ perfetto_cc_library(
     srcs = [
         ":src_android_internal_headers",
         ":src_android_internal_lazy_library_loader",
+        ":src_kallsyms_kallsyms",
         ":src_perfetto_cmd_perfetto_atoms",
         ":src_traced_probes_android_log_android_log",
         ":src_traced_probes_common_common",
@@ -181,7 +182,6 @@ perfetto_cc_library(
         ":src_traced_probes_filesystem_filesystem",
         ":src_traced_probes_ftrace_format_parser",
         ":src_traced_probes_ftrace_ftrace",
-        ":src_traced_probes_ftrace_kallsyms_kallsyms",
         ":src_traced_probes_initial_display_state_initial_display_state",
         ":src_traced_probes_metatrace_metatrace",
         ":src_traced_probes_packages_list_packages_list",
@@ -630,6 +630,17 @@ filegroup(
     srcs = [
         "src/ipc/host_impl.cc",
         "src/ipc/host_impl.h",
+    ],
+)
+
+# GN target: //src/kallsyms:kallsyms
+filegroup(
+    name = "src_kallsyms_kallsyms",
+    srcs = [
+        "src/kallsyms/kernel_symbol_map.cc",
+        "src/kallsyms/kernel_symbol_map.h",
+        "src/kallsyms/lazy_kernel_symbolizer.cc",
+        "src/kallsyms/lazy_kernel_symbolizer.h",
     ],
 )
 
@@ -1239,17 +1250,6 @@ filegroup(
         "src/traced/probes/filesystem/prefix_finder.h",
         "src/traced/probes/filesystem/range_tree.cc",
         "src/traced/probes/filesystem/range_tree.h",
-    ],
-)
-
-# GN target: //src/traced/probes/ftrace/kallsyms:kallsyms
-filegroup(
-    name = "src_traced_probes_ftrace_kallsyms_kallsyms",
-    srcs = [
-        "src/traced/probes/ftrace/kallsyms/kernel_symbol_map.cc",
-        "src/traced/probes/ftrace/kallsyms/kernel_symbol_map.h",
-        "src/traced/probes/ftrace/kallsyms/lazy_kernel_symbolizer.cc",
-        "src/traced/probes/ftrace/kallsyms/lazy_kernel_symbolizer.h",
     ],
 )
 

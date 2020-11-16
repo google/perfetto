@@ -164,7 +164,8 @@ EventConfig::EventConfig(const protos::pbzero::PerfEventConfig::Decoder& cfg,
       samples_per_tick_limit_(samples_per_tick_limit),
       target_filter_(std::move(target_filter)),
       remote_descriptor_timeout_ms_(remote_descriptor_timeout_ms),
-      unwind_state_clear_period_ms_(cfg.unwind_state_clear_period_ms()) {
+      unwind_state_clear_period_ms_(cfg.unwind_state_clear_period_ms()),
+      kernel_frames_(cfg.kernel_frames()) {
   auto& pe = perf_event_attr_;
   pe.size = sizeof(perf_event_attr);
 
@@ -190,6 +191,12 @@ EventConfig::EventConfig(const protos::pbzero::PerfEventConfig::Decoder& cfg,
   // PERF_SAMPLE_REGS_USER:
   pe.sample_regs_user =
       PerfUserRegsMaskForArch(unwindstack::Regs::CurrentArch());
+
+  // Optional kernel callchains:
+  if (kernel_frames_) {
+    pe.sample_type |= PERF_SAMPLE_CALLCHAIN;
+    pe.exclude_callchain_user = true;
+  }
 }
 
 }  // namespace profiling

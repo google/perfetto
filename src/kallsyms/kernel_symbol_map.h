@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACED_PROBES_FTRACE_KALLSYMS_KERNEL_SYMBOL_MAP_H_
-#define SRC_TRACED_PROBES_FTRACE_KALLSYMS_KERNEL_SYMBOL_MAP_H_
+#ifndef SRC_KALLSYMS_KERNEL_SYMBOL_MAP_H_
+#define SRC_KALLSYMS_KERNEL_SYMBOL_MAP_H_
 
 #include <stdint.h>
 #include <array>
@@ -179,4 +179,4 @@ class KernelSymbolMap {
 
 }  // namespace perfetto
 
-#endif  // SRC_TRACED_PROBES_FTRACE_KALLSYMS_KERNEL_SYMBOL_MAP_H_
+#endif  // SRC_KALLSYMS_KERNEL_SYMBOL_MAP_H_

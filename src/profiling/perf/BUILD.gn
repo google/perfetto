@@ -93,6 +93,7 @@ source_set("unwinding") {
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/tracing/core",
     "../../../src/base",
+    "../../../src/kallsyms",
     "../common:unwind_support",
   ]
   sources = [

@@ -21,7 +21,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/utils.h"
 #include "src/base/test/utils.h"
-#include "src/traced/probes/ftrace/kallsyms/kernel_symbol_map.h"
+#include "src/kallsyms/kernel_symbol_map.h"
 
 namespace {
 

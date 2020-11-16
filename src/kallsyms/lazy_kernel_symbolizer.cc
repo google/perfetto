@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/traced/probes/ftrace/kallsyms/lazy_kernel_symbolizer.h"
+#include "src/kallsyms/lazy_kernel_symbolizer.h"
 
 #include <string>
 
@@ -25,7 +25,7 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/utils.h"
-#include "src/traced/probes/ftrace/kallsyms/kernel_symbol_map.h"
+#include "src/kallsyms/kernel_symbol_map.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 #include <sys/system_properties.h>
