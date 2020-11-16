@@ -31,6 +31,8 @@
 #include "perfetto/ext/base/thread_checker.h"
 #include "perfetto/ext/base/unix_task_runner.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
+#include "src/kallsyms/kernel_symbol_map.h"
+#include "src/kallsyms/lazy_kernel_symbolizer.h"
 #include "src/profiling/common/unwind_support.h"
 #include "src/profiling/perf/common_types.h"
 #include "src/profiling/perf/unwind_queue.h"
@@ -85,7 +87,7 @@ class Unwinder {
 
   ~Unwinder() { PERFETTO_DCHECK_THREAD(thread_checker_); }
 
-  void PostStartDataSource(DataSourceInstanceID ds_id);
+  void PostStartDataSource(DataSourceInstanceID ds_id, bool kernel_frames);
   void PostAdoptProcDescriptors(DataSourceInstanceID ds_id,
                                 pid_t pid,
                                 base::ScopedFile maps_fd,
@@ -128,7 +130,8 @@ class Unwinder {
   Unwinder(Delegate* delegate, base::UnixTaskRunner* task_runner);
 
   // Marks the data source as valid and active at the unwinding stage.
-  void StartDataSource(DataSourceInstanceID ds_id);
+  // Initializes kernel address symbolization if needed.
+  void StartDataSource(DataSourceInstanceID ds_id, bool kernel_frames);
 
   void AdoptProcDescriptors(DataSourceInstanceID ds_id,
                             pid_t pid,
@@ -148,6 +151,9 @@ class Unwinder {
   CompletedSample UnwindSample(const ParsedSample& sample,
                                UnwindingMetadata* unwind_state,
                                bool pid_unwound_before);
+
+  // Returns a list of symbolized kernel frames in the sample (if any).
+  std::vector<FrameData> SymbolizeKernelCallchain(const ParsedSample& sample);
 
   // Marks the data source as shutting down at the unwinding stage. It is known
   // that no new samples for this source will be pushed into the queue, but we
@@ -196,6 +202,7 @@ class Unwinder {
   Delegate* const delegate_;
   UnwindQueue<UnwindEntry, kUnwindQueueCapacity> unwind_queue_;
   std::map<DataSourceInstanceID, DataSourceState> data_sources_;
+  LazyKernelSymbolizer kernel_symbolizer_;
 
   PERFETTO_THREAD_CHECKER(thread_checker_)
 };

@@ -257,7 +257,8 @@ void PerfProducer::StartDataSource(DataSourceInstanceID instance_id,
 
   // Inform unwinder of the new data source instance, and optionally start a
   // periodic task to clear its cached state.
-  unwinding_worker_->PostStartDataSource(instance_id);
+  unwinding_worker_->PostStartDataSource(instance_id,
+                                         ds.event_config.kernel_frames());
   if (ds.event_config.unwind_state_clear_period_ms()) {
     unwinding_worker_->PostClearCachedStatePeriodic(
         instance_id, ds.event_config.unwind_state_clear_period_ms());

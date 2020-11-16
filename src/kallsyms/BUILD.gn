@@ -12,13 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../../../../gn/test.gni")
+import("../../gn/test.gni")
 
 source_set("kallsyms") {
   deps = [
-    "../../../../../gn:default_deps",
-    "../../../../../include/perfetto/protozero",
-    "../../../../base",
+    "../../gn:default_deps",
+    "../../include/perfetto/protozero",
+    "../base",
   ]
   sources = [
     "kernel_symbol_map.cc",
@@ -32,9 +32,9 @@ perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
     ":kallsyms",
-    "../../../../../gn:default_deps",
-    "../../../../../gn:gtest_and_gmock",
-    "../../../../base",
+    "../../gn:default_deps",
+    "../../gn:gtest_and_gmock",
+    "../base",
   ]
   sources = [
     "kernel_symbol_map_unittest.cc",
@@ -47,10 +47,10 @@ if (enable_perfetto_benchmarks) {
     testonly = true
     deps = [
       ":kallsyms",
-      "../../../../../gn:benchmark",
-      "../../../../../gn:default_deps",
-      "../../../../base",
-      "../../../../base:test_support",
+      "../../gn:benchmark",
+      "../../gn:default_deps",
+      "../base",
+      "../base:test_support",
     ]
     sources = [ "kernel_symbol_map_benchmark.cc" ]
   }

@@ -53,7 +53,7 @@ if (enable_perfetto_platform_services) {
     "src/traced/probes:unittests",
     "src/traced/probes/filesystem:unittests",
     "src/traced/probes/ftrace:unittests",
-    "src/traced/probes/ftrace/kallsyms:unittests",
+    "src/kallsyms:unittests",
     "src/traced/service:unittests",
   ]
 }
