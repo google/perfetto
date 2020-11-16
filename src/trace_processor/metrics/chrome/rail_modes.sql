@@ -13,6 +13,9 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
+
+SELECT RUN_METRIC('chrome/chrome_event_metadata.sql');
+
 -- Priority order for RAIL modes where response has the highest priority and
 -- idle has the lowest.
 CREATE TABLE IF NOT EXISTS rail_modes (
@@ -186,6 +189,14 @@ DROP TABLE IF EXISTS temp_rail_mode_join_animation;
 CREATE VIRTUAL TABLE temp_rail_mode_join_animation
 USING SPAN_LEFT_JOIN(rail_mode_animation_slices, not_animating_slices);
 
+DROP VIEW IF EXISTS has_modified_rail_slices;
+CREATE VIEW has_modified_rail_slices AS
+SELECT (
+    SELECT value
+    FROM chrome_event_metadata
+    WHERE name == "os-name"
+  ) == "Android" AS value;
+
 -- When the RAIL mode is animation, but there is no actual animation (according
 -- to vsync data), then record the mode as foreground_idle instead.
 DROP VIEW IF EXISTS modified_rail_slices;
@@ -209,4 +220,9 @@ FROM (
     dur,
     rail_mode AS mode
   FROM combined_overall_rail_slices
-  WHERE rail_mode <> "animation");
+  WHERE rail_mode <> "animation")
+-- Since VSync events are only emitted on Android (and this the concept of a
+-- unified RAIL mode only makes sense if there's just a single Chrome window),
+-- don't output anything on other platforms. This will result in all the power
+-- and cpu time tables being empty rather than containing bogus results.
+WHERE (SELECT value FROM has_modified_rail_slices);
