@@ -35,9 +35,6 @@ source_set("probes") {
     "../../../gn:default_deps",
     "../../tracing/ipc/producer",
   ]
-  if (enable_perfetto_version_gen) {
-    deps += [ "//gn/standalone:gen_git_revision" ]
-  }
   sources = [ "probes.cc" ]
 }
 
