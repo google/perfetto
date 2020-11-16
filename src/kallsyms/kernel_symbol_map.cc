@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/traced/probes/ftrace/kallsyms/kernel_symbol_map.h"
+#include "src/kallsyms/kernel_symbol_map.h"
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/metatrace.h"
@@ -233,7 +233,7 @@ base::StringView KernelSymbolMap::TokenTable::Lookup(TokenId id) {
 }
 
 size_t KernelSymbolMap::Parse(const std::string& kallsyms_path) {
-  PERFETTO_METATRACE_SCOPED(TAG_FTRACE, KALLSYMS_PARSE);
+  PERFETTO_METATRACE_SCOPED(TAG_PRODUCER, KALLSYMS_PARSE);
   using SymAddr = uint64_t;
 
   struct TokenInfo {

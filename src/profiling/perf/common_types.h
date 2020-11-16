@@ -49,6 +49,7 @@ struct ParsedSample {
   std::unique_ptr<unwindstack::Regs> regs;
   std::vector<char> stack;
   bool stack_maxed = false;
+  std::vector<uint64_t> kernel_ips;
 };
 
 // Entry in an unwinding queue. Either a sample that requires unwinding, or a
