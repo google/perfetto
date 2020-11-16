@@ -15,51 +15,12 @@
 --
 
 SELECT RUN_METRIC('chrome/rail_modes.sql');
-SELECT RUN_METRIC('chrome/chrome_processes.sql');
-SELECT RUN_METRIC('android/android_proxy_power.sql');
 
--- View containing estimated power slices broken down by cpu.
-DROP VIEW IF EXISTS power_per_chrome_thread;
-CREATE VIEW power_per_chrome_thread AS
-SELECT ts,
-  dur,
-  cpu,
-  power_per_thread.utid,
-  end_state,
-  priority,
-  power_ma,
-  power_per_thread.type,
-  name AS thread_name,
-  upid,
-  is_main_thread
-FROM power_per_thread
-  JOIN chrome_thread
-WHERE power_per_thread.utid = chrome_thread.utid;
-
-DROP TABLE IF EXISTS rail_power;
-CREATE VIRTUAL TABLE rail_power USING SPAN_JOIN(
-  combined_overall_rail_slices,
-  power_per_chrome_thread
-);
-
--- Estimated power usage for chrome across the RAIL mode slices contained in
--- combined_overall_rail_slices.
-DROP VIEW IF EXISTS power_by_rail_mode;
-CREATE VIEW power_by_rail_mode AS
-SELECT id,
-  ts,
-  dur,
-  rail_mode,
-  mas,
-  mas / dur * 1e9 AS ma
-FROM (
-    SELECT s.id,
-      s.ts,
-      s.dur,
-      s.rail_mode,
-      SUM(r.power_ma * r.dur) / 1e9 AS mas
-    FROM rail_power r
-      JOIN combined_overall_rail_slices s
-    WHERE r.id == s.id
-    GROUP BY s.id
+-- Creates a view called power_by_rail_mode, containing the estimated CPU power
+-- usage for chrome broken down by RAIL Mode.
+SELECT RUN_METRIC(
+    'chrome/estimated_power_by_category.sql',
+    'input', 'combined_overall_rail_slices',
+    'output', 'power_by_rail_mode',
+    'category', 'rail_mode'
   );
