@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("../gn/gen_perfetto_version_header.gni")
 import("../gn/perfetto.gni")
 import("../gn/perfetto_check_build_deps.gni")
 import("../gn/wasm.gni")
@@ -269,6 +270,7 @@ node_bin("transpile_all_ts") {
   deps = [
     ":dist_symlink",
     ":protos_to_ts",
+    ":version_ts_gen",
     ":wasm_gen",
   ]
   inputs = [ "tsconfig.json" ]
@@ -597,4 +599,8 @@ action("gen_dist_file_map") {
            "--strip",
            rebase_path(ui_dir, root_build_dir),
          ] + dist_files
+}
+
+gen_perfetto_version_header("version_ts_gen") {
+  ts_out = "$ui_gen_dir/perfetto_version.ts"
 }
