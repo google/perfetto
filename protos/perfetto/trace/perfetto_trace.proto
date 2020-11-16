@@ -722,6 +722,8 @@ message JavaHprofConfig {
 //
 // At the time of writing, the config options are restricted to the periodic
 // system-wide stack sampling use-case (|all_cpus| must be true).
+//
+// Next id: 13
 message PerfEventConfig {
   // If true, sample events on all CPUs.
   optional bool all_cpus = 1;
@@ -739,6 +741,17 @@ message PerfEventConfig {
   // kernel. If set, must be a power of two.
   // If unset, an implementation-defined default is used.
   optional uint32 ring_buffer_pages = 3;
+
+  // If true, callstacks will include the kernel-space frames. Such frames can
+  // be identified by a magical "kernel" string as their mapping name.
+  // Requires traced_perf to be running as root, or kptr_restrict to have been
+  // manually unrestricted.
+  // This does *not* disclose KASLR, as only the function names are emitted.
+  optional bool kernel_frames = 12;
+
+  //
+  // Target process selection:
+  //
 
   // Process ID (TGID) allowlist. If this list is not empty, only matching
   // samples will be retained. If multiple allow/deny-lists are
@@ -764,8 +777,9 @@ message PerfEventConfig {
   // on a first come, first served basis.
   optional uint32 additional_cmdline_count = 11;
 
-  ////////////////////
+  //
   // Uncommon options:
+  //
 
   // Timeout for the remote /proc/<pid>/{maps,mem} file descriptors for a
   // sampled process. This is primarily for Android, where this lookup is

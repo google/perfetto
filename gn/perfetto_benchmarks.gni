@@ -21,7 +21,7 @@ perfetto_benchmarks_targets = [
   "src/trace_processor/sqlite:benchmarks",
   "src/trace_processor/containers:benchmarks",
   "src/trace_processor/tables:benchmarks",
-  "src/traced/probes/ftrace/kallsyms:benchmarks",
+  "src/kallsyms:benchmarks",
   "src/traced/probes/ftrace:benchmarks",
   "src/tracing/core:benchmarks",
   "src/tracing:benchmarks",

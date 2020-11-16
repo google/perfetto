@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/traced/probes/ftrace/kallsyms/kernel_symbol_map.h"
+#include "src/kallsyms/kernel_symbol_map.h"
 
 #include <inttypes.h>
 

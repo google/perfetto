@@ -20,6 +20,8 @@
 
 #include <inttypes.h>
 
+#include <unwindstack/Unwinder.h>
+
 #include "perfetto/ext/base/metatrace.h"
 #include "perfetto/ext/base/thread_utils.h"
 #include "perfetto/ext/base/utils.h"
@@ -40,18 +42,24 @@ Unwinder::Unwinder(Delegate* delegate, base::UnixTaskRunner* task_runner)
   base::MaybeSetThreadName("stack-unwinding");
 }
 
-void Unwinder::PostStartDataSource(DataSourceInstanceID ds_id) {
+void Unwinder::PostStartDataSource(DataSourceInstanceID ds_id,
+                                   bool kernel_frames) {
   // No need for a weak pointer as the associated task runner quits (stops
   // running tasks) strictly before the Unwinder's destruction.
-  task_runner_->PostTask([this, ds_id] { StartDataSource(ds_id); });
+  task_runner_->PostTask(
+      [this, ds_id, kernel_frames] { StartDataSource(ds_id, kernel_frames); });
 }
 
-void Unwinder::StartDataSource(DataSourceInstanceID ds_id) {
+void Unwinder::StartDataSource(DataSourceInstanceID ds_id, bool kernel_frames) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_DLOG("Unwinder::StartDataSource(%zu)", static_cast<size_t>(ds_id));
 
   auto it_and_inserted = data_sources_.emplace(ds_id, DataSourceState{});
   PERFETTO_DCHECK(it_and_inserted.second);
+
+  if (kernel_frames) {
+    kernel_symbolizer_.GetOrCreateKernelSymbolMap();
+  }
 }
 
 // c++11: use shared_ptr to transfer resource handles, so that the resources get
@@ -358,7 +366,12 @@ CompletedSample Unwinder::UnwindSample(const ParsedSample& sample,
     unwind = attempt_unwind();
   }
 
-  ret.frames.reserve(unwind.frames.size());
+  // Symbolize kernel-unwound kernel frames (if any).
+  std::vector<FrameData> kernel_frames = SymbolizeKernelCallchain(sample);
+
+  // Concatenate the kernel and userspace frames.
+  ret.frames = std::move(kernel_frames);
+  ret.frames.reserve(ret.frames.size() + unwind.frames.size());
   for (unwindstack::FrameData& frame : unwind.frames) {
     ret.frames.emplace_back(unwind_state->AnnotateFrame(std::move(frame)));
   }
@@ -376,6 +389,39 @@ CompletedSample Unwinder::UnwindSample(const ParsedSample& sample,
     ret.unwind_error = unwind.error_code;
   }
 
+  return ret;
+}
+
+std::vector<FrameData> Unwinder::SymbolizeKernelCallchain(
+    const ParsedSample& sample) {
+  std::vector<FrameData> ret;
+  if (sample.kernel_ips.empty())
+    return ret;
+
+  // The list of addresses contains special context marker values (inserted by
+  // the kernel's unwinding) to indicate which section of the callchain belongs
+  // to the kernel/user mode (if the kernel can successfully unwind user
+  // stacks). In our case, we request only the kernel frames.
+  if (sample.kernel_ips[0] != PERF_CONTEXT_KERNEL) {
+    PERFETTO_DFATAL_OR_ELOG(
+        "Unexpected: 0th frame of callchain is not PERF_CONTEXT_KERNEL.");
+    return ret;
+  }
+
+  auto* kernel_map = kernel_symbolizer_.GetOrCreateKernelSymbolMap();
+  PERFETTO_DCHECK(kernel_map);
+  ret.reserve(sample.kernel_ips.size());
+  for (size_t i = 1; i < sample.kernel_ips.size(); i++) {
+    std::string function_name = kernel_map->Lookup(sample.kernel_ips[i]);
+
+    // Synthesise a partially-valid libunwindstack frame struct for the kernel
+    // frame. We reuse the type for convenience. The kernel frames are marked by
+    // a magical "kernel" string as their containing mapping.
+    unwindstack::FrameData frame{};
+    frame.function_name = std::move(function_name);
+    frame.map_name = "kernel";
+    ret.emplace_back(FrameData{std::move(frame), /*build_id=*/""});
+  }
   return ret;
 }
 
@@ -414,8 +460,10 @@ void Unwinder::FinishDataSourceStop(DataSourceInstanceID ds_id) {
   data_sources_.erase(it);
 
   // Clean up state if there are no more active sources.
-  if (data_sources_.empty())
+  if (data_sources_.empty()) {
+    kernel_symbolizer_.Destroy();
     ResetAndEnableUnwindstackCache();
+  }
 
   // Inform service thread that the unwinder is done with the source.
   delegate_->PostFinishDataSourceStop(ds_id);

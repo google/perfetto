@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/traced/probes/ftrace/kallsyms/lazy_kernel_symbolizer.h"
+#include "src/kallsyms/lazy_kernel_symbolizer.h"
 
 #include <inttypes.h>
 
