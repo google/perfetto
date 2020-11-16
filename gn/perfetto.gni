@@ -188,11 +188,12 @@ declare_args() {
   enable_perfetto_fuzzers =
       perfetto_build_standalone && defined(is_fuzzer) && is_fuzzer
 
-  # Enables the gen_git_revision tool that generates a .h that contains a macro
-  # with the current git revision. Works only in standalone GN checkouts.
-  # If disabled, the version string will be "unknown".
+  # Enables the write_version_header.py tool that generates a .h that contains a
+  # macro with the current git revision and latest release version from
+  # CHANGELOG. If false base/version.h will return "unknown".
   enable_perfetto_version_gen =
-      perfetto_build_standalone && !is_perfetto_build_generator
+      perfetto_build_standalone || is_perfetto_build_generator ||
+      perfetto_build_with_android
 
   # Only for local development. When true the binaries (perfetto, traced, ...)
   # are monolithic and don't use a common shared library. This is mainly to
