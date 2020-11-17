@@ -60,14 +60,21 @@ void EnabledCallback(void*, const AHeapProfileEnableCallbackInfo* info) {
   g_wake_up_cv.notify_all();
 }
 
-void Thread(uint32_t thread_idx) {
+uint64_t ScrambleAllocId(uint64_t alloc_id, uint32_t thread_idx) {
+  return thread_idx | (~alloc_id << 24);
+}
+
+void Thread(uint32_t thread_idx, uint64_t pending_allocs) {
   PERFETTO_CHECK(thread_idx < 1 << 24);
-  size_t alloc_id = 0;
+  uint64_t alloc_id = 0;
   size_t thread_allocs = 0;
   while (!done.load(std::memory_order_relaxed)) {
-    AHeapProfile_reportAllocation(g_heap_id, alloc_id | thread_idx, 1);
-    AHeapProfile_reportFree(g_heap_id, alloc_id | thread_idx);
-    alloc_id += 1 << 24;
+    AHeapProfile_reportAllocation(g_heap_id,
+                                  ScrambleAllocId(alloc_id, thread_idx), 1);
+    if (alloc_id > pending_allocs)
+      AHeapProfile_reportFree(
+          g_heap_id, ScrambleAllocId(alloc_id - pending_allocs, thread_idx));
+    alloc_id++;
     thread_allocs++;
   }
   allocs.fetch_add(thread_allocs, std::memory_order_relaxed);
@@ -76,8 +83,8 @@ void Thread(uint32_t thread_idx) {
 }  // namespace
 
 int main(int argc, char** argv) {
-  if (argc != 3) {
-    PERFETTO_FATAL("%s NUMBER_THREADS RUNTIME_MS", argv[0]);
+  if (argc != 4) {
+    PERFETTO_FATAL("%s NUMBER_THREADS RUNTIME_MS PENDING_ALLOCS", argv[0]);
   }
 
   perfetto::base::Optional<uint64_t> opt_no_threads =
@@ -94,6 +101,13 @@ int main(int argc, char** argv) {
   }
   uint64_t runtime_ms = *opt_runtime_ms;
 
+  perfetto::base::Optional<uint64_t> opt_pending_allocs =
+      perfetto::base::CStringToUInt64(argv[3]);
+  if (!opt_runtime_ms) {
+    PERFETTO_FATAL("Invalid number of pending allocs: %s", argv[3]);
+  }
+  uint64_t pending_allocs = *opt_pending_allocs;
+
   std::unique_lock<std::mutex> l(g_wake_up_mutex);
   g_wake_up_cv.wait(l, [] { return g_rate > 0; });
 
@@ -101,7 +115,7 @@ int main(int argc, char** argv) {
       perfetto::base::GetWallTimeMs() + perfetto::base::TimeMillis(runtime_ms);
   std::vector<std::thread> threads;
   for (size_t i = 0; i < static_cast<size_t>(no_threads); ++i)
-    threads.emplace_back(Thread, i);
+    threads.emplace_back(Thread, i, pending_allocs);
 
   perfetto::base::TimeMillis current = perfetto::base::GetWallTimeMs();
   while (current < end) {
@@ -114,7 +128,8 @@ int main(int argc, char** argv) {
   for (std::thread& th : threads)
     th.join();
 
-  printf("%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 "\n", no_threads,
-         runtime_ms, g_rate, allocs.load(std::memory_order_relaxed));
+  printf("%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 "\n",
+         no_threads, runtime_ms, pending_allocs, g_rate,
+         allocs.load(std::memory_order_relaxed));
   return 0;
 }
