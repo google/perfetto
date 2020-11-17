@@ -37,15 +37,6 @@
 namespace perfetto {
 namespace profiling {
 
-// libunwindstack's FrameData annotated with the build_id.
-struct FrameData {
-  FrameData(unwindstack::FrameData f, std::string id)
-      : frame(std::move(f)), build_id(std::move(id)) {}
-
-  unwindstack::FrameData frame;
-  std::string build_id;
-};
-
 // Read /proc/[pid]/maps from an open file descriptor.
 // TODO(fmayer): Figure out deduplication to other maps.
 class FDMaps : public unwindstack::Maps {
@@ -112,7 +103,7 @@ struct UnwindingMetadata {
 
   void ReparseMaps();
 
-  FrameData AnnotateFrame(unwindstack::FrameData frame);
+  std::string GetBuildId(const unwindstack::FrameData& frame);
 
   FDMaps fd_maps;
   // The API of libunwindstack expects shared_ptr for Memory.
