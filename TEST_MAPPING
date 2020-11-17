@@ -10,6 +10,9 @@
       "options": [
           {
 	      "include-filter": "FrameTracerTest.*"
+	  },
+	  {
+	      "include-filter": "FrameTimelineTest.*"
 	  }
       ]
     }
