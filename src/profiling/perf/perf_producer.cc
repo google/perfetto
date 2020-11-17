@@ -592,7 +592,7 @@ void PerfProducer::EmitSample(DataSourceInstanceID ds_id,
 
   // intern callsite
   GlobalCallstackTrie::Node* callstack_root =
-      callstack_trie_.CreateCallsite(sample.frames);
+      callstack_trie_.CreateCallsite(sample.frames, sample.build_ids);
   uint64_t callstack_iid = callstack_root->id();
 
   // start packet
