@@ -130,7 +130,8 @@ class HeapTracker {
   explicit HeapTracker(GlobalCallstackTrie* callsites, bool dump_at_max_mode)
       : callsites_(callsites), dump_at_max_mode_(dump_at_max_mode) {}
 
-  void RecordMalloc(const std::vector<FrameData>& stack,
+  void RecordMalloc(const std::vector<unwindstack::FrameData>& callstack,
+                    const std::vector<std::string>& build_ids,
                     uint64_t address,
                     uint64_t sample_size,
                     uint64_t alloc_size,
@@ -195,9 +196,13 @@ class HeapTracker {
   uint64_t committed_timestamp() { return committed_timestamp_; }
   uint64_t max_timestamp() { return max_timestamp_; }
 
-  uint64_t GetSizeForTesting(const std::vector<FrameData>& stack);
-  uint64_t GetMaxForTesting(const std::vector<FrameData>& stack);
-  uint64_t GetMaxCountForTesting(const std::vector<FrameData>& stack);
+  uint64_t GetSizeForTesting(const std::vector<unwindstack::FrameData>& stack,
+                             std::vector<std::string> build_ids);
+  uint64_t GetMaxForTesting(const std::vector<unwindstack::FrameData>& stack,
+                            std::vector<std::string> build_ids);
+  uint64_t GetMaxCountForTesting(
+      const std::vector<unwindstack::FrameData>& stack,
+      std::vector<std::string> build_ids);
 
   uint64_t GetTimestampForTesting() { return committed_timestamp_; }
 

@@ -25,35 +25,39 @@ namespace {
 using ::testing::AnyOf;
 using ::testing::Eq;
 
-std::vector<FrameData> stack() {
-  std::vector<FrameData> res;
+std::vector<unwindstack::FrameData> stack() {
+  std::vector<unwindstack::FrameData> res;
 
   unwindstack::FrameData data{};
   data.function_name = "fun1";
   data.map_name = "map1";
   data.pc = 1;
-  res.emplace_back(std::move(data), "dummy_buildid");
+  res.emplace_back(std::move(data));
   data = {};
   data.function_name = "fun2";
   data.map_name = "map2";
   data.pc = 2;
-  res.emplace_back(std::move(data), "dummy_buildid");
+  res.emplace_back(std::move(data));
   return res;
 }
 
-std::vector<FrameData> stack2() {
-  std::vector<FrameData> res;
+std::vector<unwindstack::FrameData> stack2() {
+  std::vector<unwindstack::FrameData> res;
   unwindstack::FrameData data{};
   data.function_name = "fun1";
   data.map_name = "map1";
   data.pc = 1;
-  res.emplace_back(std::move(data), "dummy_buildid");
+  res.emplace_back(std::move(data));
   data = {};
   data.function_name = "fun3";
   data.map_name = "map3";
   data.pc = 3;
-  res.emplace_back(std::move(data), "dummy_buildid");
+  res.emplace_back(std::move(data));
   return res;
+}
+
+std::vector<std::string> DummyBuildIds(size_t n) {
+  return std::vector<std::string>(n, "dummy_buildid");
 }
 
 TEST(BookkeepingTest, EmptyStack) {
@@ -61,7 +65,7 @@ TEST(BookkeepingTest, EmptyStack) {
   GlobalCallstackTrie c;
   HeapTracker hd(&c, false);
 
-  hd.RecordMalloc({}, 0x1, 5, 5, sequence_number, 100 * sequence_number);
+  hd.RecordMalloc({}, {}, 0x1, 5, 5, sequence_number, 100 * sequence_number);
   sequence_number++;
   hd.RecordFree(0x1, sequence_number, 100 * sequence_number);
   hd.GetCallstackAllocations([](const HeapTracker::CallstackAllocations&) {});
@@ -72,9 +76,11 @@ TEST(BookkeepingTest, Replace) {
   GlobalCallstackTrie c;
   HeapTracker hd(&c, false);
 
-  hd.RecordMalloc(stack(), 1, 5, 5, sequence_number, 100 * sequence_number);
+  hd.RecordMalloc(stack(), DummyBuildIds(stack().size()), 1, 5, 5,
+                  sequence_number, 100 * sequence_number);
   sequence_number++;
-  hd.RecordMalloc(stack2(), 1, 2, 2, sequence_number, 100 * sequence_number);
+  hd.RecordMalloc(stack2(), DummyBuildIds(stack2().size()), 1, 2, 2,
+                  sequence_number, 100 * sequence_number);
 
   // Call GetCallstackAllocations twice to force GC of old CallstackAllocations.
   hd.GetCallstackAllocations([](const HeapTracker::CallstackAllocations&) {});
@@ -86,22 +92,24 @@ TEST(BookkeepingTest, Basic) {
   GlobalCallstackTrie c;
   HeapTracker hd(&c, false);
 
-  hd.RecordMalloc(stack(), 0x1, 5, 5, sequence_number, 100 * sequence_number);
+  hd.RecordMalloc(stack(), DummyBuildIds(stack().size()), 0x1, 5, 5,
+                  sequence_number, 100 * sequence_number);
   sequence_number++;
-  hd.RecordMalloc(stack2(), 0x2, 2, 2, sequence_number, 100 * sequence_number);
+  hd.RecordMalloc(stack2(), DummyBuildIds(stack2().size()), 0x2, 2, 2,
+                  sequence_number, 100 * sequence_number);
   sequence_number++;
-  ASSERT_EQ(hd.GetSizeForTesting(stack()), 5u);
-  ASSERT_EQ(hd.GetSizeForTesting(stack2()), 2u);
+  ASSERT_EQ(hd.GetSizeForTesting(stack(), DummyBuildIds(stack().size())), 5u);
+  ASSERT_EQ(hd.GetSizeForTesting(stack2(), DummyBuildIds(stack2().size())), 2u);
   ASSERT_EQ(hd.GetTimestampForTesting(), 100 * (sequence_number - 1));
   hd.RecordFree(0x2, sequence_number, 100 * sequence_number);
   sequence_number++;
-  ASSERT_EQ(hd.GetSizeForTesting(stack()), 5u);
-  ASSERT_EQ(hd.GetSizeForTesting(stack2()), 0u);
+  ASSERT_EQ(hd.GetSizeForTesting(stack(), DummyBuildIds(stack().size())), 5u);
+  ASSERT_EQ(hd.GetSizeForTesting(stack2(), DummyBuildIds(stack2().size())), 0u);
   ASSERT_EQ(hd.GetTimestampForTesting(), 100 * (sequence_number - 1));
   hd.RecordFree(0x1, sequence_number, 100 * sequence_number);
   sequence_number++;
-  ASSERT_EQ(hd.GetSizeForTesting(stack()), 0u);
-  ASSERT_EQ(hd.GetSizeForTesting(stack2()), 0u);
+  ASSERT_EQ(hd.GetSizeForTesting(stack(), DummyBuildIds(stack().size())), 0u);
+  ASSERT_EQ(hd.GetSizeForTesting(stack2(), DummyBuildIds(stack2().size())), 0u);
   ASSERT_EQ(hd.GetTimestampForTesting(), 100 * (sequence_number - 1));
 }
 
@@ -110,20 +118,25 @@ TEST(BookkeepingTest, Max) {
   GlobalCallstackTrie c;
   HeapTracker hd(&c, true);
 
-  hd.RecordMalloc(stack(), 0x1, 5, 5, sequence_number, 100 * sequence_number);
+  hd.RecordMalloc(stack(), DummyBuildIds(stack().size()), 0x1, 5, 5,
+                  sequence_number, 100 * sequence_number);
   sequence_number++;
-  hd.RecordMalloc(stack2(), 0x2, 2, 2, sequence_number, 100 * sequence_number);
+  hd.RecordMalloc(stack2(), DummyBuildIds(stack2().size()), 0x2, 2, 2,
+                  sequence_number, 100 * sequence_number);
   sequence_number++;
   hd.RecordFree(0x2, sequence_number, 100 * sequence_number);
   sequence_number++;
   hd.RecordFree(0x1, sequence_number, 100 * sequence_number);
   sequence_number++;
-  hd.RecordMalloc(stack2(), 0x2, 1, 2, sequence_number, 100 * sequence_number);
+  hd.RecordMalloc(stack2(), DummyBuildIds(stack2().size()), 0x2, 1, 2,
+                  sequence_number, 100 * sequence_number);
   ASSERT_EQ(hd.max_timestamp(), 200u);
-  ASSERT_EQ(hd.GetMaxForTesting(stack()), 5u);
-  ASSERT_EQ(hd.GetMaxForTesting(stack2()), 2u);
-  ASSERT_EQ(hd.GetMaxCountForTesting(stack()), 1u);
-  ASSERT_EQ(hd.GetMaxCountForTesting(stack2()), 1u);
+  ASSERT_EQ(hd.GetMaxForTesting(stack(), DummyBuildIds(stack().size())), 5u);
+  ASSERT_EQ(hd.GetMaxForTesting(stack2(), DummyBuildIds(stack2().size())), 2u);
+  ASSERT_EQ(hd.GetMaxCountForTesting(stack(), DummyBuildIds(stack().size())),
+            1u);
+  ASSERT_EQ(hd.GetMaxCountForTesting(stack2(), DummyBuildIds(stack2().size())),
+            1u);
 }
 
 TEST(BookkeepingTest, TwoHeapTrackers) {
@@ -133,15 +146,17 @@ TEST(BookkeepingTest, TwoHeapTrackers) {
   {
     HeapTracker hd2(&c, false);
 
-    hd.RecordMalloc(stack(), 0x1, 5, 5, sequence_number, 100 * sequence_number);
-    hd2.RecordMalloc(stack(), 0x2, 2, 2, sequence_number,
-                     100 * sequence_number);
+    hd.RecordMalloc(stack(), DummyBuildIds(stack().size()), 0x1, 5, 5,
+                    sequence_number, 100 * sequence_number);
+    hd2.RecordMalloc(stack(), DummyBuildIds(stack().size()), 0x2, 2, 2,
+                     sequence_number, 100 * sequence_number);
     sequence_number++;
-    ASSERT_EQ(hd2.GetSizeForTesting(stack()), 2u);
-    ASSERT_EQ(hd.GetSizeForTesting(stack()), 5u);
+    ASSERT_EQ(hd2.GetSizeForTesting(stack(), DummyBuildIds(stack().size())),
+              2u);
+    ASSERT_EQ(hd.GetSizeForTesting(stack(), DummyBuildIds(stack().size())), 5u);
     ASSERT_EQ(hd.GetTimestampForTesting(), 100 * (sequence_number - 1));
   }
-  ASSERT_EQ(hd.GetSizeForTesting(stack()), 5u);
+  ASSERT_EQ(hd.GetSizeForTesting(stack(), DummyBuildIds(stack().size())), 5u);
 }
 
 TEST(BookkeepingTest, ReplaceAlloc) {
@@ -149,12 +164,14 @@ TEST(BookkeepingTest, ReplaceAlloc) {
   GlobalCallstackTrie c;
   HeapTracker hd(&c, false);
 
-  hd.RecordMalloc(stack(), 0x1, 5, 5, sequence_number, 100 * sequence_number);
+  hd.RecordMalloc(stack(), DummyBuildIds(stack().size()), 0x1, 5, 5,
+                  sequence_number, 100 * sequence_number);
   sequence_number++;
-  hd.RecordMalloc(stack2(), 0x1, 2, 2, sequence_number, 100 * sequence_number);
+  hd.RecordMalloc(stack2(), DummyBuildIds(stack2().size()), 0x1, 2, 2,
+                  sequence_number, 100 * sequence_number);
   sequence_number++;
-  EXPECT_EQ(hd.GetSizeForTesting(stack()), 0u);
-  EXPECT_EQ(hd.GetSizeForTesting(stack2()), 2u);
+  EXPECT_EQ(hd.GetSizeForTesting(stack(), DummyBuildIds(stack().size())), 0u);
+  EXPECT_EQ(hd.GetSizeForTesting(stack2(), DummyBuildIds(stack2().size())), 2u);
   ASSERT_EQ(hd.GetTimestampForTesting(), 100 * (sequence_number - 1));
 }
 
@@ -162,10 +179,10 @@ TEST(BookkeepingTest, OutOfOrder) {
   GlobalCallstackTrie c;
   HeapTracker hd(&c, false);
 
-  hd.RecordMalloc(stack(), 0x1, 5, 5, 2, 2);
-  hd.RecordMalloc(stack2(), 0x1, 2, 2, 1, 1);
-  EXPECT_EQ(hd.GetSizeForTesting(stack()), 5u);
-  EXPECT_EQ(hd.GetSizeForTesting(stack2()), 0u);
+  hd.RecordMalloc(stack(), DummyBuildIds(stack().size()), 0x1, 5, 5, 2, 2);
+  hd.RecordMalloc(stack2(), DummyBuildIds(stack2().size()), 0x1, 2, 2, 1, 1);
+  EXPECT_EQ(hd.GetSizeForTesting(stack(), DummyBuildIds(stack().size())), 5u);
+  EXPECT_EQ(hd.GetSizeForTesting(stack2(), DummyBuildIds(stack2().size())), 0u);
 }
 
 TEST(BookkeepingTest, ManyAllocations) {
@@ -182,16 +199,21 @@ TEST(BookkeepingTest, ManyAllocations) {
     }
 
     uint64_t addr = sequence_number;
-    hd.RecordMalloc(stack(), addr, 5, 5, sequence_number, sequence_number);
+    hd.RecordMalloc(stack(), DummyBuildIds(stack().size()), addr, 5, 5,
+                    sequence_number, sequence_number);
     sequence_number++;
     batch_frees.emplace_back(addr, sequence_number++);
-    ASSERT_THAT(hd.GetSizeForTesting(stack()), AnyOf(Eq(0u), Eq(5u)));
+    ASSERT_THAT(hd.GetSizeForTesting(stack(), DummyBuildIds(stack().size())),
+                AnyOf(Eq(0u), Eq(5u)));
   }
 }
 
 TEST(BookkeepingTest, ArbitraryOrder) {
-  std::vector<FrameData> s = stack();
-  std::vector<FrameData> s2 = stack2();
+  std::vector<unwindstack::FrameData> s = stack();
+  std::vector<unwindstack::FrameData> s2 = stack2();
+
+  std::vector<std::string> s_b = DummyBuildIds(s.size());
+  std::vector<std::string> s2_b = DummyBuildIds(s2.size());
 
   enum OperationType { kAlloc, kFree, kDump };
 
@@ -200,21 +222,22 @@ TEST(BookkeepingTest, ArbitraryOrder) {
     OperationType type;
     uint64_t address;
     uint64_t bytes;                       // 0 for free
-    const std::vector<FrameData>* stack;  // nullptr for free
+    const std::vector<unwindstack::FrameData>* stack;  // nullptr for free
+    const std::vector<std::string>* build_ids;         // nullptr for free
 
     // For std::next_permutation.
     bool operator<(const Operation& other) const {
       return sequence_number < other.sequence_number;
     }
   } operations[] = {
-      {1, kAlloc, 0x1, 5, &s},       //
-      {2, kAlloc, 0x1, 10, &s2},     //
-      {3, kFree, 0x01, 0, nullptr},  //
-      {4, kFree, 0x02, 0, nullptr},  //
-      {5, kFree, 0x03, 0, nullptr},  //
-      {6, kAlloc, 0x3, 2, &s},       //
-      {7, kAlloc, 0x4, 3, &s2},      //
-      {0, kDump, 0x00, 0, nullptr},  //
+      {1, kAlloc, 0x1, 5, &s, &s_b},          //
+      {2, kAlloc, 0x1, 10, &s2, &s2_b},       //
+      {3, kFree, 0x01, 0, nullptr, nullptr},  //
+      {4, kFree, 0x02, 0, nullptr, nullptr},  //
+      {5, kFree, 0x03, 0, nullptr, nullptr},  //
+      {6, kAlloc, 0x3, 2, &s, &s_b},          //
+      {7, kAlloc, 0x4, 3, &s2, &s2_b},        //
+      {0, kDump, 0x00, 0, nullptr, nullptr},  //
   };
 
   uint64_t s_size = 2;
@@ -231,16 +254,17 @@ TEST(BookkeepingTest, ArbitraryOrder) {
         hd.RecordFree(operation.address, operation.sequence_number,
                       100 * operation.sequence_number);
       } else if (operation.type == OperationType::kAlloc) {
-        hd.RecordMalloc(*operation.stack, operation.address, operation.bytes,
-                        operation.bytes, operation.sequence_number,
+        hd.RecordMalloc(*operation.stack, DummyBuildIds(stack().size()),
+                        operation.address, operation.bytes, operation.bytes,
+                        operation.sequence_number,
                         100 * operation.sequence_number);
       } else {
         hd.GetCallstackAllocations(
             [](const HeapTracker::CallstackAllocations&) {});
       }
     }
-    ASSERT_EQ(hd.GetSizeForTesting(s), s_size);
-    ASSERT_EQ(hd.GetSizeForTesting(s2), s2_size);
+    ASSERT_EQ(hd.GetSizeForTesting(s, s_b), s_size);
+    ASSERT_EQ(hd.GetSizeForTesting(s2, s2_b), s2_size);
   } while (std::next_permutation(std::begin(operations), std::end(operations)));
 }
 
