@@ -164,6 +164,13 @@ std::set<GroupAndName> FtraceConfigMuxer::GetFtraceEvents(
         events.insert(GroupAndName("sde", "sde_evtlog"));
         events.insert(GroupAndName("sde", "sde_encoder_underrun"));
         events.insert(GroupAndName("sde", "sde_cmd_release_bw"));
+
+        AddEventGroup(table, "dpu", &events);
+        events.insert(GroupAndName("dpu", "tracing_mark_write"));
+
+        AddEventGroup(table, "g2d", &events);
+        events.insert(GroupAndName("g2d", "tracing_mark_write"));
+        events.insert(GroupAndName("g2d", "g2d_perf_update_qos"));
         continue;
       }
 
