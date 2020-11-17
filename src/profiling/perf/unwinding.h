@@ -153,7 +153,8 @@ class Unwinder {
                                bool pid_unwound_before);
 
   // Returns a list of symbolized kernel frames in the sample (if any).
-  std::vector<FrameData> SymbolizeKernelCallchain(const ParsedSample& sample);
+  std::vector<unwindstack::FrameData> SymbolizeKernelCallchain(
+      const ParsedSample& sample);
 
   // Marks the data source as shutting down at the unwinding stage. It is known
   // that no new samples for this source will be pushed into the queue, but we

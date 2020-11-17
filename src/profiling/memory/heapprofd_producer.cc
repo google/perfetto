@@ -1020,13 +1020,13 @@ void HeapprofdProducer::HandleAllocRecord(AllocRecord alloc_rec) {
 
   const auto& prefixes = ds.config.skip_symbol_prefix();
   if (!prefixes.empty()) {
-    for (FrameData& frame_data : alloc_rec.frames) {
-      const std::string& map = frame_data.frame.map_name;
+    for (unwindstack::FrameData& frame : alloc_rec.frames) {
+      const std::string& map = frame.map_name;
       if (std::find_if(prefixes.cbegin(), prefixes.cend(),
                        [&map](const std::string& prefix) {
                          return base::StartsWith(map, prefix);
                        }) != prefixes.cend()) {
-        frame_data.frame.function_name = "FILTERED";
+        frame.function_name = "FILTERED";
       }
     }
   }
@@ -1048,11 +1048,11 @@ void HeapprofdProducer::HandleAllocRecord(AllocRecord alloc_rec) {
   if (alloc_rec.reparsed_map)
     heap_tracker.ClearFrameCache();
 
-  heap_tracker.RecordMalloc(alloc_rec.frames, alloc_metadata.alloc_address,
-                            alloc_metadata.sample_size,
-                            alloc_metadata.alloc_size,
-                            alloc_metadata.sequence_number,
-                            alloc_metadata.clock_monotonic_coarse_timestamp);
+  heap_tracker.RecordMalloc(
+      alloc_rec.frames, alloc_rec.build_ids, alloc_metadata.alloc_address,
+      alloc_metadata.sample_size, alloc_metadata.alloc_size,
+      alloc_metadata.sequence_number,
+      alloc_metadata.clock_monotonic_coarse_timestamp);
 }
 
 void HeapprofdProducer::HandleFreeRecord(FreeRecord free_rec) {

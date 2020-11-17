@@ -21,6 +21,8 @@
 #include <typeindex>
 #include <vector>
 
+#include <unwindstack/Unwinder.h>
+
 #include "perfetto/ext/base/lookup_set.h"
 #include "src/profiling/common/interner.h"
 #include "src/profiling/common/unwind_support.h"
@@ -135,9 +137,11 @@ class GlobalCallstackTrie {
   GlobalCallstackTrie(GlobalCallstackTrie&&) = delete;
   GlobalCallstackTrie& operator=(GlobalCallstackTrie&&) = delete;
 
-  Interned<Frame> InternCodeLocation(const FrameData& loc);
+  Interned<Frame> InternCodeLocation(const unwindstack::FrameData& loc,
+                                     const std::string& build_id);
 
-  Node* CreateCallsite(const std::vector<FrameData>& callstack);
+  Node* CreateCallsite(const std::vector<unwindstack::FrameData>& callstack,
+                       const std::vector<std::string>& build_ids);
   Node* CreateCallsite(const std::vector<Interned<Frame>>& callstack);
 
   static void IncrementNode(Node* node);
