@@ -23,6 +23,7 @@
 #include <utility>
 
 #include "perfetto/base/task_runner.h"
+#include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/ipc/service_descriptor.h"
 #include "perfetto/ext/ipc/service_proxy.h"
@@ -63,9 +64,9 @@ ClientImpl::~ClientImpl() {
 }
 
 void ClientImpl::TryConnect() {
-  sock_ = base::UnixSocket::Connect(socket_name_, this, task_runner_,
-                                    base::SockFamily::kUnix,
-                                    base::SockType::kStream);
+  sock_ = base::UnixSocket::Connect(
+      socket_name_, this, task_runner_, base::SockFamily::kUnix,
+      base::SockType::kStream, base::SockPeerCredMode::kIgnore);
 }
 
 void ClientImpl::BindService(base::WeakPtr<ServiceProxy> service_proxy) {
