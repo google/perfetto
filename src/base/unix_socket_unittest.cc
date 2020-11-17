@@ -471,6 +471,37 @@ TEST_F(UnixSocketTest, PeerCredentialsRetainedAfterDisconnect) {
 #endif
 }
 
+// Tests the SockPeerCredMode::kIgnore logic.
+TEST_F(UnixSocketTest, IgnorePeerCredentials) {
+  auto srv = UnixSocket::Listen(kSocketName, &event_listener_, &task_runner_,
+                                SockFamily::kUnix, SockType::kStream);
+  ASSERT_TRUE(srv->is_listening());
+  auto cli1_connected = task_runner_.CreateCheckpoint("cli1_connected");
+  auto cli1 = UnixSocket::Connect(kSocketName, &event_listener_, &task_runner_,
+                                  SockFamily::kUnix, SockType::kStream,
+                                  SockPeerCredMode::kIgnore);
+  EXPECT_CALL(event_listener_, OnConnect(cli1.get(), true))
+      .WillOnce(InvokeWithoutArgs(cli1_connected));
+
+  auto cli2_connected = task_runner_.CreateCheckpoint("cli2_connected");
+  auto cli2 = UnixSocket::Connect(kSocketName, &event_listener_, &task_runner_,
+                                  SockFamily::kUnix, SockType::kStream,
+                                  SockPeerCredMode::kReadOnConnect);
+  EXPECT_CALL(event_listener_, OnConnect(cli2.get(), true))
+      .WillOnce(InvokeWithoutArgs(cli2_connected));
+
+  task_runner_.RunUntilCheckpoint("cli1_connected");
+  task_runner_.RunUntilCheckpoint("cli2_connected");
+
+  ASSERT_EQ(cli1->peer_uid(/*skip_check_for_testing=*/true), kInvalidUid);
+  ASSERT_EQ(cli2->peer_uid(), geteuid());
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  ASSERT_EQ(cli1->peer_pid(/*skip_check_for_testing=*/true), kInvalidPid);
+  ASSERT_EQ(cli2->peer_pid(), getpid());
+#endif
+}
+
 TEST_F(UnixSocketTest, BlockingSend) {
   auto srv = UnixSocket::Listen(kSocketName, &event_listener_, &task_runner_,
                                 SockFamily::kUnix, SockType::kStream);
