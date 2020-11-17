@@ -146,7 +146,7 @@ TEST(UnwindingTest, DoUnwind) {
   ASSERT_GT(out.frames.size(), 0u);
   int st;
   std::unique_ptr<char, base::FreeDeleter> demangled(abi::__cxa_demangle(
-      out.frames[0].frame.function_name.c_str(), nullptr, nullptr, &st));
+      out.frames[0].function_name.c_str(), nullptr, nullptr, &st));
   ASSERT_EQ(st, 0) << "mangled: " << demangled.get()
                    << ", frames: " << out.frames.size();
   ASSERT_STREQ(demangled.get(),
@@ -168,7 +168,7 @@ TEST(UnwindingTest, DoUnwindReparse) {
   ASSERT_GT(out.frames.size(), 0u);
   int st;
   std::unique_ptr<char, base::FreeDeleter> demangled(abi::__cxa_demangle(
-      out.frames[0].frame.function_name.c_str(), nullptr, nullptr, &st));
+      out.frames[0].function_name.c_str(), nullptr, nullptr, &st));
   ASSERT_EQ(st, 0) << "mangled: " << demangled.get()
                    << ", frames: " << out.frames.size();
   ASSERT_STREQ(demangled.get(),

@@ -129,7 +129,8 @@ bool DoUnwind(WireMessage* msg, UnwindingMetadata* metadata, AllocRecord* out) {
     frame_data.function_name = "ERROR READING REGISTERS";
     frame_data.map_name = "ERROR";
 
-    out->frames.emplace_back(frame_data, "");
+    out->frames.emplace_back(std::move(frame_data));
+    out->build_ids.emplace_back("");
     out->error = true;
     return false;
   }
@@ -174,10 +175,10 @@ bool DoUnwind(WireMessage* msg, UnwindingMetadata* metadata, AllocRecord* out) {
       break;
     }
   }
-  std::vector<unwindstack::FrameData> frames = unwinder.ConsumeFrames();
-  out->frames.reserve(frames.size() + 1);
-  for (unwindstack::FrameData& fd : frames) {
-    out->frames.emplace_back(metadata->AnnotateFrame(std::move(fd)));
+  out->frames = unwinder.ConsumeFrames();
+  out->build_ids.reserve(out->frames.size());
+  for (unwindstack::FrameData& fd : out->frames) {
+    out->build_ids.emplace_back(metadata->GetBuildId(fd));
   }
 
   if (error_code != unwindstack::ERROR_NONE) {
@@ -187,7 +188,8 @@ bool DoUnwind(WireMessage* msg, UnwindingMetadata* metadata, AllocRecord* out) {
         "ERROR " + StringifyLibUnwindstackError(error_code);
     frame_data.map_name = "ERROR";
 
-    out->frames.emplace_back(std::move(frame_data), "");
+    out->frames.emplace_back(std::move(frame_data));
+    out->build_ids.emplace_back("");
     out->error = true;
   }
   return true;

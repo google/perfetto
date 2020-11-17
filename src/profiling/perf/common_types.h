@@ -83,7 +83,8 @@ struct CompletedSample {
   pid_t pid = 0;
   pid_t tid = 0;
   uint64_t timestamp = 0;
-  std::vector<FrameData> frames;
+  std::vector<unwindstack::FrameData> frames;
+  std::vector<std::string> build_ids;
   unwindstack::ErrorCode unwind_error = unwindstack::ERROR_NONE;
 };
 

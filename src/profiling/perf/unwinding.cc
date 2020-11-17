@@ -367,14 +367,25 @@ CompletedSample Unwinder::UnwindSample(const ParsedSample& sample,
   }
 
   // Symbolize kernel-unwound kernel frames (if any).
-  std::vector<FrameData> kernel_frames = SymbolizeKernelCallchain(sample);
+  std::vector<unwindstack::FrameData> kernel_frames =
+      SymbolizeKernelCallchain(sample);
 
   // Concatenate the kernel and userspace frames.
+  auto kernel_frames_size = kernel_frames.size();
+
   ret.frames = std::move(kernel_frames);
-  ret.frames.reserve(ret.frames.size() + unwind.frames.size());
+
+  ret.build_ids.reserve(kernel_frames_size + unwind.frames.size());
+  ret.frames.reserve(kernel_frames_size + unwind.frames.size());
+
+  ret.build_ids.resize(kernel_frames_size, "");
+
   for (unwindstack::FrameData& frame : unwind.frames) {
-    ret.frames.emplace_back(unwind_state->AnnotateFrame(std::move(frame)));
+    ret.build_ids.emplace_back(unwind_state->GetBuildId(frame));
+    ret.frames.emplace_back(std::move(frame));
   }
+
+  PERFETTO_CHECK(ret.build_ids.size() == ret.frames.size());
 
   // In case of an unwinding error, add a synthetic error frame (which will
   // appear as a caller of the partially-unwound fragment), for easier
@@ -385,16 +396,17 @@ CompletedSample Unwinder::UnwindSample(const ParsedSample& sample,
     frame_data.function_name =
         "ERROR " + StringifyLibUnwindstackError(unwind.error_code);
     frame_data.map_name = "ERROR";
-    ret.frames.emplace_back(std::move(frame_data), /*build_id=*/"");
+    ret.frames.emplace_back(std::move(frame_data));
+    ret.build_ids.emplace_back("");
     ret.unwind_error = unwind.error_code;
   }
 
   return ret;
 }
 
-std::vector<FrameData> Unwinder::SymbolizeKernelCallchain(
+std::vector<unwindstack::FrameData> Unwinder::SymbolizeKernelCallchain(
     const ParsedSample& sample) {
-  std::vector<FrameData> ret;
+  std::vector<unwindstack::FrameData> ret;
   if (sample.kernel_ips.empty())
     return ret;
 
@@ -420,7 +432,7 @@ std::vector<FrameData> Unwinder::SymbolizeKernelCallchain(
     unwindstack::FrameData frame{};
     frame.function_name = std::move(function_name);
     frame.map_name = "kernel";
-    ret.emplace_back(FrameData{std::move(frame), /*build_id=*/""});
+    ret.emplace_back(std::move(frame));
   }
   return ret;
 }
