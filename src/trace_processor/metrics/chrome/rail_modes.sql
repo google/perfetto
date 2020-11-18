@@ -197,6 +197,19 @@ SELECT (
     WHERE name == "os-name"
   ) == "Android" AS value;
 
+-- Mapping to allow CamelCased names to be produced from the modified rail modes.
+CREATE TABLE IF NOT EXISTS modified_rail_mode_prettier (
+  orig_name TEXT UNIQUE,
+  pretty_name TEXT
+);
+INSERT
+  OR IGNORE INTO modified_rail_mode_prettier
+VALUES ("background", "Background"),
+  ("foreground_idle", "ForegroundIdle"),
+  ("animation", "Animation"),
+  ("load", "Load"),
+  ("response", "Response");
+
 -- When the RAIL mode is animation, but there is no actual animation (according
 -- to vsync data), then record the mode as foreground_idle instead.
 DROP VIEW IF EXISTS modified_rail_slices;
