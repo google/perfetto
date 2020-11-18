@@ -584,6 +584,75 @@ TEST_F(PerfettoTest, VeryLargePackets) {
   }
 }
 
+// This is a regression test see b/169051440 for context.
+//
+// In this test we ensure that traced will not crash if a Producer stops
+// responding or draining the socket (i.e. after we fill up the IPC buffer
+// traced doesn't block on trying to write to the IPC buffer and watchdog
+// doesn't kill it).
+TEST_F(PerfettoTest, UnresponsiveProducer) {
+  base::TestTaskRunner task_runner;
+
+  TestHelper helper(&task_runner);
+  helper.StartServiceIfRequired();
+  auto* producer = helper.ConnectFakeProducer();
+  helper.ConnectConsumer();
+  helper.WaitForConsumerConnect();
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(4096 * 10);
+  trace_config.set_duration_ms(100);
+  trace_config.set_flush_timeout_ms(1);
+  trace_config.set_data_source_stop_timeout_ms(1);
+
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("android.perfetto.FakeProducer");
+
+  static constexpr size_t kNumPackets = 1;
+  static constexpr uint32_t kRandomSeed = 42;
+  static constexpr uint32_t kMsgSize = 1024 * 1024 - 42;
+  ds_config->mutable_for_testing()->set_seed(kRandomSeed);
+  ds_config->mutable_for_testing()->set_message_count(kNumPackets);
+  ds_config->mutable_for_testing()->set_message_size(kMsgSize);
+  ds_config->mutable_for_testing()->set_send_batch_on_register(true);
+
+  // This string is just used to make the StartDataSource IPC larger.
+  ds_config->set_legacy_config(std::string(8192, '.'));
+  ds_config->set_target_buffer(0);
+
+  // Run one legit trace, this ensures that the producer above is
+  // valid and correct and mirrors real life producers.
+  helper.StartTracing(trace_config);
+  helper.WaitForProducerEnabled();
+  helper.WaitForTracingDisabled();
+
+  helper.ReadData();
+  helper.WaitForReadData(/* read_count */ 0, /* timeout_ms */ 10000);
+
+  const auto& packets = helper.trace();
+  ASSERT_EQ(packets.size(), 1u);
+  ASSERT_TRUE(packets[0].has_for_testing());
+  ASSERT_FALSE(packets[0].for_testing().str().empty());
+  helper.FreeBuffers();
+
+  // Switch the producer to ignoring the IPC socket. On a pixel 4 it took 13
+  // traces to fill up the IPC buffer and cause traced to block (and eventually
+  // watchdog to kill it).
+  helper.producer_thread()->get()->RemoveFileDescriptorWatch(
+      producer->unix_socket_fd());
+
+  trace_config.set_duration_ms(1);
+  for (uint32_t i = 0u; i < 15u; i++) {
+    helper.StartTracing(trace_config, base::ScopedFile());
+    helper.WaitForTracingDisabled(/* timeout_ms = */ 20000);
+    helper.FreeBuffers();
+  }
+  // We need to readd the FileDescriptor (otherwise when the UnixSocket attempts
+  // to remove it a the FakeProducer is destroyed will hit a CHECK failure.
+  helper.producer_thread()->get()->AddFileDescriptorWatch(
+      producer->unix_socket_fd(), []() {});
+}
+
 TEST_F(PerfettoTest, DetachAndReattach) {
   base::TestTaskRunner task_runner;
 
