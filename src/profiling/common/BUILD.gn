@@ -76,6 +76,19 @@ source_set("proc_utils") {
   ]
 }
 
+source_set("profiler_guardrails") {
+  deps = [
+    ":proc_utils",
+    "../../../gn:default_deps",
+    "../../../include/perfetto/ext/tracing/core",
+    "../../base",
+  ]
+  sources = [
+    "profiler_guardrails.cc",
+    "profiler_guardrails.h",
+  ]
+}
+
 perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
