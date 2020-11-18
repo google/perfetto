@@ -25,6 +25,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -188,14 +189,24 @@ HeapprofdProducer::HeapprofdProducer(HeapprofdMode mode,
       unwinding_workers_(MakeUnwindingWorkers(this, kUnwinderThreads)),
       socket_delegate_(this),
       weak_factory_(this) {
-  CheckDataSourceMemory();  // Kick off guardrail task.
-  stat_fd_.reset(open("/proc/self/stat", O_RDONLY | O_CLOEXEC));
-  if (!stat_fd_) {
+  auto stat_fd = base::OpenFile("/proc/self/stat", O_RDONLY | O_CLOEXEC);
+  if (!stat_fd) {
     PERFETTO_ELOG(
         "Failed to open /proc/self/stat. Cannot accept profiles "
         "with CPU guardrails.");
   } else {
-    CheckDataSourceCpu();  // Kick off guardrail task.
+    profiler_cpu_guardrails_.emplace(std::move(stat_fd));
+    CheckDataSourceCpuTask();  // Kick off guardrail task.
+  }
+
+  auto status_fd = base::OpenFile("/proc/self/status", O_RDONLY | O_CLOEXEC);
+  if (!status_fd) {
+    PERFETTO_ELOG(
+        "Failed to open /proc/self/status. Cannot accept profiles "
+        "with memory guardrails.");
+  } else {
+    profiler_memory_guardrails_.emplace(std::move(status_fd));
+    CheckDataSourceMemoryTask();  // Kick off guardrail task.
   }
 }
 
@@ -438,12 +449,19 @@ void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
 
   base::Optional<uint64_t> start_cputime_sec;
   if (heapprofd_config.max_heapprofd_cpu_secs() > 0) {
-    start_cputime_sec = GetCputimeSec();
+    if (profiler_cpu_guardrails_)
+      start_cputime_sec = profiler_cpu_guardrails_->GetCputimeSec();
 
     if (!start_cputime_sec) {
       PERFETTO_ELOG("Failed to enforce CPU guardrail. Rejecting config.");
       return;
     }
+  }
+
+  if (heapprofd_config.has_max_heapprofd_memory_kb() &&
+      !profiler_memory_guardrails_) {
+    PERFETTO_ELOG("Failed to enforce memory guardrail. Rejecting config.");
+    return;
   }
 
   auto buffer_id = static_cast<BufferID>(ds_config.target_buffer());
@@ -477,20 +495,6 @@ bool HeapprofdProducer::IsPidProfiled(pid_t pid) {
       return true;
   }
   return false;
-}
-
-base::Optional<uint64_t> HeapprofdProducer::GetCputimeSec() {
-  if (!stat_fd_) {
-    return base::nullopt;
-  }
-  lseek(stat_fd_.get(), 0, SEEK_SET);
-  base::ProcStat stat;
-  if (!ReadProcStat(stat_fd_.get(), &stat)) {
-    PERFETTO_ELOG("Failed to read stat file to enforce guardrails.");
-    return base::nullopt;
-  }
-  return (stat.utime + stat.stime) /
-         static_cast<unsigned long>(sysconf(_SC_CLK_TCK));
 }
 
 void HeapprofdProducer::SetStartupProperties(DataSource* data_source) {
@@ -1179,93 +1183,40 @@ void HeapprofdProducer::HandleSocketDisconnected(
   MaybeFinishDataSource(&ds);
 }
 
-void HeapprofdProducer::CheckDataSourceCpu() {
+void HeapprofdProducer::CheckDataSourceCpuTask() {
   auto weak_producer = weak_factory_.GetWeakPtr();
   task_runner_->PostDelayedTask(
       [weak_producer] {
         if (!weak_producer)
           return;
-        weak_producer->CheckDataSourceCpu();
+        weak_producer->CheckDataSourceCpuTask();
       },
       kGuardrailIntervalMs);
 
-  bool any_guardrail = std::any_of(
-      data_sources_.begin(), data_sources_.end(),
-      [](const std::pair<const DataSourceInstanceID, DataSource>& id_and_ds) {
-        const DataSource& ds = id_and_ds.second;
-        return ds.config.max_heapprofd_cpu_secs() > 0;
+  PERFETTO_DCHECK(profiler_cpu_guardrails_);
+  profiler_cpu_guardrails_->CheckDataSourceCpu(
+      data_sources_.begin(), data_sources_.end(), [this](DataSource* ds) {
+        ds->hit_guardrail = true;
+        ShutdownDataSource(ds);
       });
-
-  if (!any_guardrail)
-    return;
-
-  base::Optional<uint64_t> cputime_sec = GetCputimeSec();
-  if (!cputime_sec) {
-    PERFETTO_ELOG("Failed to get CPU time.");
-    return;
-  }
-
-  for (auto& id_and_ds : data_sources_) {
-    DataSource& ds = id_and_ds.second;
-    uint64_t ds_max_cpu = ds.config.max_heapprofd_cpu_secs();
-    if (ds_max_cpu > 0) {
-      // We reject data-sources with CPU guardrails if we cannot read the
-      // initial value.
-      PERFETTO_CHECK(ds.start_cputime_sec);
-      uint64_t cpu_diff = *cputime_sec - *ds.start_cputime_sec;
-      if (*cputime_sec > *ds.start_cputime_sec && cpu_diff > ds_max_cpu) {
-        PERFETTO_ELOG(
-            "Exceeded data-source CPU guardrail "
-            "(%" PRIu64 " > %" PRIu64 "). Shutting down.",
-            cpu_diff, ds_max_cpu);
-        ds.hit_guardrail = true;
-        ShutdownDataSource(&ds);
-      }
-    }
-  }
 }
 
-void HeapprofdProducer::CheckDataSourceMemory() {
+void HeapprofdProducer::CheckDataSourceMemoryTask() {
   auto weak_producer = weak_factory_.GetWeakPtr();
   task_runner_->PostDelayedTask(
       [weak_producer] {
         if (!weak_producer)
           return;
-        weak_producer->CheckDataSourceMemory();
+        weak_producer->CheckDataSourceMemoryTask();
       },
       kGuardrailIntervalMs);
 
-  bool any_guardrail = std::any_of(
-      data_sources_.begin(), data_sources_.end(),
-      [](const std::pair<const DataSourceInstanceID, DataSource>& id_and_ds) {
-        const DataSource& ds = id_and_ds.second;
-        return ds.config.max_heapprofd_memory_kb() > 0;
+  PERFETTO_DCHECK(profiler_memory_guardrails_);
+  profiler_memory_guardrails_->CheckDataSourceMemory(
+      data_sources_.begin(), data_sources_.end(), [this](DataSource* ds) {
+        ds->hit_guardrail = true;
+        ShutdownDataSource(ds);
       });
-
-  if (!any_guardrail)
-    return;
-
-  base::Optional<uint32_t> anon_and_swap;
-  base::Optional<std::string> status = ReadStatus(getpid());
-  if (status)
-    anon_and_swap = GetRssAnonAndSwap(*status);
-
-  if (!anon_and_swap) {
-    PERFETTO_ELOG("Failed to read heapprofd memory.");
-    return;
-  }
-
-  for (auto& id_and_ds : data_sources_) {
-    DataSource& ds = id_and_ds.second;
-    uint32_t ds_max_mem = ds.config.max_heapprofd_memory_kb();
-    if (ds_max_mem > 0 && *anon_and_swap > ds_max_mem) {
-      PERFETTO_ELOG("Exceeded data-source memory guardrail (%" PRIu32
-                    " > %" PRIu32 "). Shutting down.",
-                    *anon_and_swap, ds_max_mem);
-      ds.hit_guardrail = true;
-      ShutdownDataSource(&ds);
-    }
-  }
 }
 
 }  // namespace profiling
