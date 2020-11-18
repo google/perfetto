@@ -18,8 +18,10 @@
 #define SRC_KALLSYMS_KERNEL_SYMBOL_MAP_H_
 
 #include <stdint.h>
+
 #include <array>
 #include <forward_list>
+#include <string>
 #include <vector>
 
 namespace perfetto {
