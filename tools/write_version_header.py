@@ -39,14 +39,15 @@ PROJECT_ROOT = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 SCM_REV_NOT_AVAILABLE = 'N/A'
 
 
-def get_latest_release():
+def get_latest_release(changelog_path):
   """Returns a string like 'v9.0'.
 
   It does so by searching the latest version mentioned in the CHANGELOG."""
-  if os.path.exists('CHANGELOG'):
-    changelog_path = 'CHANGELOG'
-  else:
-    changelog_path = os.path.join(PROJECT_ROOT, 'CHANGELOG')
+  if not changelog_path:
+    if os.path.exists('CHANGELOG'):
+      changelog_path = 'CHANGELOG'
+    else:
+      changelog_path = os.path.join(PROJECT_ROOT, 'CHANGELOG')
   with open(changelog_path) as f:
     for line in f.readlines():
       m = re.match('^(v\d+[.]\d+)\s.*$', line)
@@ -100,9 +101,10 @@ def main():
       help='Skips running git rev-parse, emits only the version from CHANGELOG')
   parser.add_argument('--cpp_out', help='Path of the generated .h file.')
   parser.add_argument('--ts_out', help='Path of the generated .ts file.')
+  parser.add_argument('--changelog', help='Path to CHANGELOG.')
   args = parser.parse_args()
 
-  release = get_latest_release()
+  release = get_latest_release(args.changelog)
   if args.no_git:
     git_sha1, commits_since_release = (SCM_REV_NOT_AVAILABLE, '')
   else:
