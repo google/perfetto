@@ -241,6 +241,7 @@ source_set("daemon") {
     "../common:interner",
     "../common:interning_output",
     "../common:proc_utils",
+    "../common:profiler_guardrails",
     "../common:unwind_support",
   ]
   public_deps = [
