@@ -6537,6 +6537,7 @@ filegroup {
   srcs: [
     "src/profiling/common/interner_unittest.cc",
     "src/profiling/common/proc_utils_unittest.cc",
+    "src/profiling/common/profiler_guardrails_unittest.cc",
   ],
 }
 
