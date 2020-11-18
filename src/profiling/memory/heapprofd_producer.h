@@ -37,6 +37,7 @@
 
 #include "src/profiling/common/interning_output.h"
 #include "src/profiling/common/proc_utils.h"
+#include "src/profiling/common/profiler_guardrails.h"
 #include "src/profiling/memory/bookkeeping.h"
 #include "src/profiling/memory/bookkeeping_dump.h"
 #include "src/profiling/memory/system_property.h"
@@ -226,6 +227,15 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
       memset(&client_configuration, 0, sizeof(client_configuration));
     }
 
+    // For ProfilerCpuGuardrails.
+    uint64_t GetCpuGuardrailSecs() { return config.max_heapprofd_cpu_secs(); }
+
+    // For ProfilerCpuGuardrails.
+    base::Optional<uint64_t> GetCpuStartSecs() { return start_cputime_sec; }
+
+    // For CheckDataSourceMemory.
+    uint32_t GetMemoryGuardrailKb() { return config.max_heapprofd_memory_kb(); }
+
     DataSourceInstanceID id;
     std::unique_ptr<TraceWriter> trace_writer;
     HeapprofdConfig config;
@@ -258,10 +268,8 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
   void ResetConnectionBackoff();
   void IncreaseConnectionBackoff();
 
-  base::Optional<uint64_t> GetCputimeSec();
-
-  void CheckDataSourceMemory();
-  void CheckDataSourceCpu();
+  void CheckDataSourceMemoryTask();
+  void CheckDataSourceCpuTask();
 
   void FinishDataSourceFlush(FlushRequestID flush_id);
   void DumpProcessesInDataSource(DataSource* ds);
@@ -331,7 +339,8 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
   base::Optional<std::function<void()>> data_source_callback_;
 
   SocketDelegate socket_delegate_;
-  base::ScopedFile stat_fd_;
+  base::Optional<ProfilerCpuGuardrails> profiler_cpu_guardrails_;
+  base::Optional<ProfilerMemoryGuardrails> profiler_memory_guardrails_;
 
   base::WeakPtrFactory<HeapprofdProducer> weak_factory_;  // Keep last.
 };
