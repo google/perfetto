@@ -6274,7 +6274,7 @@ genrule {
   srcs: [
     "CHANGELOG",
   ],
-  cmd: "python3 $(location tools/write_version_header.py) --no_git --cpp_out=$(out)",
+  cmd: "python3 $(location tools/write_version_header.py) --no_git --changelog=$(location CHANGELOG) --cpp_out=$(out)",
   out: [
     "perfetto_version.gen.h",
   ],
