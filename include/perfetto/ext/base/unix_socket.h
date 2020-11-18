@@ -251,6 +251,12 @@ class UnixSocket {
   // be reused with Listen() or Connect().
   void Shutdown(bool notify);
 
+  void SetTxTimeout(uint32_t timeout_ms) {
+    PERFETTO_CHECK(sock_raw_.SetTxTimeout(timeout_ms));
+  }
+  void SetRxTimeout(uint32_t timeout_ms) {
+    PERFETTO_CHECK(sock_raw_.SetRxTimeout(timeout_ms));
+  }
   // Returns true is the message was queued, false if there was no space in the
   // output buffer, in which case the client should retry or give up.
   // If any other error happens the socket will be shutdown and

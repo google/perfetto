@@ -81,6 +81,9 @@ class FakeProducer : public Producer {
   void ClearIncrementalState(const DataSourceInstanceID* /*data_source_ids*/,
                              size_t /*num_data_sources*/) override {}
 
+  // For testing, access to the fd used to communicate with the TracingService.
+  int unix_socket_fd();
+
  private:
   void SetupFromConfig(const protos::gen::TestConfig& config);
   void EmitEventBatchOnTaskRunner(std::function<void()> callback);
