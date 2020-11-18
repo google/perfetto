@@ -111,6 +111,7 @@ source_set("test_helper") {
     "../protos/perfetto/config:cpp",
     "../protos/perfetto/trace:zero",
     "../src/base:test_support",
+    "../src/ipc:perfetto_ipc",
     "../src/tracing/ipc:common",
   ]
   sources = [

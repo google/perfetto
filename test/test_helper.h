@@ -196,6 +196,7 @@ class TestHelper : public Consumer {
   void DisableTracing();
   void FlushAndWait(uint32_t timeout_ms);
   void ReadData(uint32_t read_count = 0);
+  void FreeBuffers();
   void DetachConsumer(const std::string& key);
   bool AttachConsumer(const std::string& key);
   void CreateProducerProvidedSmb();
@@ -240,6 +241,7 @@ class TestHelper : public Consumer {
   uint64_t instance_num_;
   base::TestTaskRunner* task_runner_ = nullptr;
   int cur_consumer_num_ = 0;
+  uint64_t trace_count_ = 0;
 
   std::function<void()> on_connect_callback_;
   std::function<void()> on_packets_finished_callback_;
