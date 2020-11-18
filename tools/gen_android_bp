@@ -757,6 +757,7 @@ def create_gen_version_module(blueprint, target, bp_module_name):
   module.cmd = ' '.join([
         'python3 $(location %s)' % script_path,
         '--no_git',
+        '--changelog=$(location CHANGELOG)',
         '--cpp_out=$(out)'
   ])
   blueprint.add_module(module)
