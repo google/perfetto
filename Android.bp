@@ -1005,6 +1005,7 @@ cc_library_static {
     ":perfetto_src_ipc_client",
     ":perfetto_src_ipc_common",
     ":perfetto_src_ipc_host",
+    ":perfetto_src_ipc_perfetto_ipc",
     ":perfetto_src_kallsyms_kallsyms",
     ":perfetto_src_perfetto_cmd_perfetto_atoms",
     ":perfetto_src_protozero_protozero",
@@ -1253,6 +1254,7 @@ cc_library_static {
     ":perfetto_src_ipc_client",
     ":perfetto_src_ipc_common",
     ":perfetto_src_ipc_host",
+    ":perfetto_src_ipc_perfetto_ipc",
     ":perfetto_src_kallsyms_kallsyms",
     ":perfetto_src_perfetto_cmd_perfetto_atoms",
     ":perfetto_src_protozero_protozero",
@@ -1636,6 +1638,7 @@ cc_test {
     ":perfetto_src_ipc_client",
     ":perfetto_src_ipc_common",
     ":perfetto_src_ipc_host",
+    ":perfetto_src_ipc_perfetto_ipc",
     ":perfetto_src_kallsyms_kallsyms",
     ":perfetto_src_perfetto_cmd_perfetto_atoms",
     ":perfetto_src_profiling_common_callstack_trie",
@@ -6311,6 +6314,11 @@ filegroup {
   srcs: [
     "src/ipc/host_impl.cc",
   ],
+}
+
+// GN: //src/ipc:perfetto_ipc
+filegroup {
+  name: "perfetto_src_ipc_perfetto_ipc",
 }
 
 // GN: //src/ipc:test_messages_cpp

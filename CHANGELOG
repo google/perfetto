@@ -1,6 +1,7 @@
 Unreleased:
   Tracing service and probes:
-    *
+    * Fixed crash of tracing service if a client is unresponsive on the IPC
+      channel. Clients are disconnected if they don't respond to IPCs for 10s.
   Trace Processor:
     *
   UI:

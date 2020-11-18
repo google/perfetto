@@ -67,6 +67,8 @@ class ClientImpl : public Client, public base::UnixSocket::EventListener {
                         base::WeakPtr<ServiceProxy>,
                         int fd = -1);
 
+  base::UnixSocket* GetUnixSocketForTesting() { return sock_.get(); }
+
  private:
   struct QueuedRequest {
     QueuedRequest();

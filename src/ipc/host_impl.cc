@@ -92,6 +92,8 @@ void HostImpl::OnNewIncomingConnection(
   clients_by_socket_[new_conn.get()] = client.get();
   client->id = client_id;
   client->sock = std::move(new_conn);
+  // Watchdog is 30 seconds, so set the socket timeout to 10 seconds.
+  client->sock->SetTxTimeout(10000);
   clients_[client_id] = std::move(client);
 }
 
@@ -232,11 +234,14 @@ void HostImpl::ReplyToMethodInvocation(ClientID client_id,
 void HostImpl::SendFrame(ClientConnection* client, const Frame& frame, int fd) {
   std::string buf = BufferedFrameDeserializer::Serialize(frame);
 
-  // TODO(primiano): this should do non-blocking I/O. But then what if the
-  // socket buffer is full? We might want to either drop the request or throttle
-  // the send and PostTask the reply later? Right now we are making Send()
-  // blocking as a workaround. Propagate bakpressure to the caller instead.
+  // When a new Client connects in OnNewClientConnection we set a timeout on
+  // Send (see call to SetTxTimeout).
+  //
+  // The old behaviour was to do a blocking I/O call, which caused crashes from
+  // misbehaving producers (see b/169051440).
   bool res = client->sock->Send(buf.data(), buf.size(), fd);
+  // If we timeout |res| will be false, but the UnixSocket will have called
+  // UnixSocket::ShutDown() and thus |is_connected()| is false.
   PERFETTO_CHECK(res || !client->sock->is_connected());
 }
 
