@@ -91,6 +91,8 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   void OnConnect() override;
   void OnDisconnect() override;
 
+  ipc::Client* GetClientForTesting() { return ipc_channel_.get(); }
+
  private:
   // Invoked soon after having established the connection with the service.
   void OnConnectionInitialized(bool connection_succeeded,
