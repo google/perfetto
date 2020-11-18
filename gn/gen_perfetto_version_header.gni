@@ -24,7 +24,8 @@ import("perfetto.gni")
 template("gen_perfetto_version_header") {
   action(target_name) {
     script = "${perfetto_root_path}tools/write_version_header.py"
-    inputs = [ "${perfetto_root_path}CHANGELOG" ]
+    changelog = "${perfetto_root_path}CHANGELOG"
+    inputs = [ changelog ]
     outputs = []
     args = []
     if (perfetto_build_standalone && !is_perfetto_build_generator) {
@@ -33,6 +34,8 @@ template("gen_perfetto_version_header") {
 
     if (defined(invoker.cpp_out)) {
       args += [
+        "--changelog",
+        rebase_path(changelog, root_build_dir),
         "--cpp_out",
         rebase_path(invoker.cpp_out, root_build_dir),
       ]

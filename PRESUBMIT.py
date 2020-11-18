@@ -25,7 +25,7 @@ def CheckChange(input, output):
         files_to_check='.*',
         files_to_skip=[
             'Android[.]bp', '.*[.]json$', '.*[.]sql$', '.*[.]out$',
-            'test/trace_processor/.*/index$', '.*\bBUILD$', 'WORKSPACE',
+            'test/trace_processor/.*/index$', '(.*/)?BUILD$', 'WORKSPACE',
             '.*/Makefile$', '/perfetto_build_flags.h$'
         ])
 
