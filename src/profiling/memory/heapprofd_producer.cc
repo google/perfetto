@@ -944,21 +944,26 @@ void HeapprofdProducer::HandleClientConnection(
   pending_processes_.emplace(peer_pid, std::move(pending_process));
 }
 
-void HeapprofdProducer::PostAllocRecord(std::vector<AllocRecord> alloc_recs) {
+void HeapprofdProducer::PostAllocRecord(
+    UnwindingWorker* worker,
+    std::vector<std::unique_ptr<AllocRecord>> alloc_recs) {
   // Once we can use C++14, this should be std::moved into the lambda instead.
-  std::vector<AllocRecord>* raw_alloc_recs =
-      new std::vector<AllocRecord>(std::move(alloc_recs));
+  auto* raw_alloc_recs =
+      new std::vector<std::unique_ptr<AllocRecord>>(std::move(alloc_recs));
   auto weak_this = weak_factory_.GetWeakPtr();
-  task_runner_->PostTask([weak_this, raw_alloc_recs] {
+  task_runner_->PostTask([weak_this, raw_alloc_recs, worker] {
     if (weak_this) {
-      for (AllocRecord& alloc_rec : *raw_alloc_recs)
-        weak_this->HandleAllocRecord(std::move(alloc_rec));
+      for (std::unique_ptr<AllocRecord>& alloc_rec : *raw_alloc_recs) {
+        weak_this->HandleAllocRecord(alloc_rec.get());
+        worker->ReturnAllocRecord(std::move(alloc_rec));
+      }
     }
     delete raw_alloc_recs;
   });
 }
 
-void HeapprofdProducer::PostFreeRecord(std::vector<FreeRecord> free_recs) {
+void HeapprofdProducer::PostFreeRecord(UnwindingWorker*,
+                                       std::vector<FreeRecord> free_recs) {
   // Once we can use C++14, this should be std::moved into the lambda instead.
   std::vector<FreeRecord>* raw_free_recs =
       new std::vector<FreeRecord>(std::move(free_recs));
@@ -972,7 +977,8 @@ void HeapprofdProducer::PostFreeRecord(std::vector<FreeRecord> free_recs) {
   });
 }
 
-void HeapprofdProducer::PostHeapNameRecord(HeapNameRecord rec) {
+void HeapprofdProducer::PostHeapNameRecord(UnwindingWorker*,
+                                           HeapNameRecord rec) {
   auto weak_this = weak_factory_.GetWeakPtr();
   task_runner_->PostTask([weak_this, rec] {
     if (weak_this)
@@ -980,7 +986,8 @@ void HeapprofdProducer::PostHeapNameRecord(HeapNameRecord rec) {
   });
 }
 
-void HeapprofdProducer::PostSocketDisconnected(DataSourceInstanceID ds_id,
+void HeapprofdProducer::PostSocketDisconnected(UnwindingWorker*,
+                                               DataSourceInstanceID ds_id,
                                                pid_t pid,
                                                SharedRingBuffer::Stats stats) {
   auto weak_this = weak_factory_.GetWeakPtr();
@@ -990,16 +997,16 @@ void HeapprofdProducer::PostSocketDisconnected(DataSourceInstanceID ds_id,
   });
 }
 
-void HeapprofdProducer::HandleAllocRecord(AllocRecord alloc_rec) {
-  const AllocMetadata& alloc_metadata = alloc_rec.alloc_metadata;
-  auto it = data_sources_.find(alloc_rec.data_source_instance_id);
+void HeapprofdProducer::HandleAllocRecord(AllocRecord* alloc_rec) {
+  const AllocMetadata& alloc_metadata = alloc_rec->alloc_metadata;
+  auto it = data_sources_.find(alloc_rec->data_source_instance_id);
   if (it == data_sources_.end()) {
     PERFETTO_LOG("Invalid data source in alloc record.");
     return;
   }
 
   DataSource& ds = it->second;
-  auto process_state_it = ds.process_states.find(alloc_rec.pid);
+  auto process_state_it = ds.process_states.find(alloc_rec->pid);
   if (process_state_it == ds.process_states.end()) {
     PERFETTO_LOG("Invalid PID in alloc record.");
     return;
@@ -1020,36 +1027,36 @@ void HeapprofdProducer::HandleAllocRecord(AllocRecord alloc_rec) {
 
   const auto& prefixes = ds.config.skip_symbol_prefix();
   if (!prefixes.empty()) {
-    for (unwindstack::FrameData& frame : alloc_rec.frames) {
-      const std::string& map = frame.map_name;
+    for (unwindstack::FrameData& frame_data : alloc_rec->frames) {
+      const std::string& map = frame_data.map_name;
       if (std::find_if(prefixes.cbegin(), prefixes.cend(),
                        [&map](const std::string& prefix) {
                          return base::StartsWith(map, prefix);
                        }) != prefixes.cend()) {
-        frame.function_name = "FILTERED";
+        frame_data.function_name = "FILTERED";
       }
     }
   }
 
   ProcessState& process_state = process_state_it->second;
   HeapTracker& heap_tracker =
-      process_state.GetHeapTracker(alloc_rec.alloc_metadata.heap_id);
+      process_state.GetHeapTracker(alloc_rec->alloc_metadata.heap_id);
 
-  if (alloc_rec.error)
+  if (alloc_rec->error)
     process_state.unwinding_errors++;
-  if (alloc_rec.reparsed_map)
+  if (alloc_rec->reparsed_map)
     process_state.map_reparses++;
   process_state.heap_samples++;
-  process_state.unwinding_time_us.Add(alloc_rec.unwinding_time_us);
-  process_state.total_unwinding_time_us += alloc_rec.unwinding_time_us;
+  process_state.unwinding_time_us.Add(alloc_rec->unwinding_time_us);
+  process_state.total_unwinding_time_us += alloc_rec->unwinding_time_us;
 
   // abspc may no longer refer to the same functions, as we had to reparse
   // maps. Reset the cache.
-  if (alloc_rec.reparsed_map)
+  if (alloc_rec->reparsed_map)
     heap_tracker.ClearFrameCache();
 
   heap_tracker.RecordMalloc(
-      alloc_rec.frames, alloc_rec.build_ids, alloc_metadata.alloc_address,
+      alloc_rec->frames, alloc_rec->build_ids, alloc_metadata.alloc_address,
       alloc_metadata.sample_size, alloc_metadata.alloc_size,
       alloc_metadata.sequence_number,
       alloc_metadata.clock_monotonic_coarse_timestamp);

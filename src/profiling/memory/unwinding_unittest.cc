@@ -176,6 +176,13 @@ TEST(UnwindingTest, DoUnwindReparse) {
                "namespace)::GetRecord(perfetto::profiling::WireMessage*)");
 }
 
+TEST(AllocRecordArenaTest, Smoke) {
+  AllocRecordArena a;
+  auto borrowed = a.BorrowAllocRecord();
+  EXPECT_NE(borrowed, nullptr);
+  a.ReturnAllocRecord(std::move(borrowed));
+}
+
 }  // namespace
 }  // namespace profiling
 }  // namespace perfetto
