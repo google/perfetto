@@ -16,6 +16,8 @@
 
 #include "src/profiling/symbolizer/scoped_read_mmap.h"
 
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+
 #include "perfetto/base/logging.h"
 
 #include <sys/mman.h>
@@ -43,3 +45,5 @@ bool ScopedReadMmap::IsValid() {
 
 }  // namespace profiling
 }  // namespace perfetto
+
+#endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)

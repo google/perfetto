@@ -16,6 +16,7 @@
 
 #include "src/profiling/symbolizer/filesystem.h"
 
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #if PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
 #include <fts.h>
 #include <sys/stat.h>
@@ -65,3 +66,5 @@ size_t GetFileSize(const std::string&) {
 
 }  // namespace profiling
 }  // namespace perfetto
+
+#endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
