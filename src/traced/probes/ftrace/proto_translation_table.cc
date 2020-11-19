@@ -463,9 +463,12 @@ std::unique_ptr<ProtoTranslationTable> ProtoTranslationTable::Create(
   // about their format hold for this kernel.
   CompactSchedEventFormat compact_sched = ValidateFormatForCompactSched(events);
 
-  auto table = std::unique_ptr<ProtoTranslationTable>(
-      new ProtoTranslationTable(ftrace_procfs, events, std::move(common_fields),
-                                header_spec, compact_sched));
+  std::string text = ftrace_procfs->ReadPrintkFormats();
+  PrintkMap printk_formats = ParsePrintkFormats(text);
+
+  auto table = std::unique_ptr<ProtoTranslationTable>(new ProtoTranslationTable(
+      ftrace_procfs, events, std::move(common_fields), header_spec,
+      compact_sched, std::move(printk_formats)));
   return table;
 }
 
@@ -474,13 +477,15 @@ ProtoTranslationTable::ProtoTranslationTable(
     const std::vector<Event>& events,
     std::vector<Field> common_fields,
     FtracePageHeaderSpec ftrace_page_header_spec,
-    CompactSchedEventFormat compact_sched_format)
+    CompactSchedEventFormat compact_sched_format,
+    PrintkMap printk_formats)
     : ftrace_procfs_(ftrace_procfs),
       events_(BuildEventsDeque(events)),
       largest_id_(events_.size() - 1),
       common_fields_(std::move(common_fields)),
       ftrace_page_header_spec_(ftrace_page_header_spec),
-      compact_sched_format_(compact_sched_format) {
+      compact_sched_format_(compact_sched_format),
+      printk_formats_(printk_formats) {
   for (const Event& event : events) {
     group_and_name_to_event_[GroupAndName(event.group, event.name)] =
         &events_.at(event.ftrace_event_id);

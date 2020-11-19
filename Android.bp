@@ -7591,6 +7591,7 @@ filegroup {
     "src/traced/probes/ftrace/ftrace_data_source.cc",
     "src/traced/probes/ftrace/ftrace_procfs.cc",
     "src/traced/probes/ftrace/ftrace_stats.cc",
+    "src/traced/probes/ftrace/printk_formats_parser.cc",
     "src/traced/probes/ftrace/proto_translation_table.cc",
   ],
 }
@@ -7730,6 +7731,7 @@ filegroup {
     "src/traced/probes/ftrace/ftrace_config_unittest.cc",
     "src/traced/probes/ftrace/ftrace_controller_unittest.cc",
     "src/traced/probes/ftrace/ftrace_procfs_unittest.cc",
+    "src/traced/probes/ftrace/printk_formats_parser_unittest.cc",
     "src/traced/probes/ftrace/proto_translation_table_unittest.cc",
   ],
 }

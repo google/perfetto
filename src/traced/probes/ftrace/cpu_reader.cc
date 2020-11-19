@@ -19,6 +19,7 @@
 #include <dirent.h>
 #include <signal.h>
 
+#include <algorithm>
 #include <utility>
 
 #include "perfetto/base/build_config.h"
@@ -620,7 +621,7 @@ bool CpuReader::ParseEvent(uint16_t ftrace_event_id,
 
   bool success = true;
   for (const Field& field : table->common_fields())
-    success &= ParseField(field, start, end, message, metadata);
+    success &= ParseField(field, start, end, table, message, metadata);
 
   protozero::Message* nested =
       message->BeginNestedMessage<protozero::Message>(info.proto_field_id);
@@ -635,11 +636,11 @@ bool CpuReader::ParseEvent(uint16_t ftrace_event_id,
       // TODO(taylori): Avoid outputting field names every time.
       generic_field->AppendString(GenericFtraceEvent::Field::kNameFieldNumber,
                                   field.ftrace_name);
-      success &= ParseField(field, start, end, generic_field, metadata);
+      success &= ParseField(field, start, end, table, generic_field, metadata);
     }
   } else {  // Parse all other events.
     for (const Field& field : info.fields) {
-      success &= ParseField(field, start, end, nested, metadata);
+      success &= ParseField(field, start, end, table, nested, metadata);
     }
   }
 
@@ -666,6 +667,7 @@ bool CpuReader::ParseEvent(uint16_t ftrace_event_id,
 bool CpuReader::ParseField(const Field& field,
                            const uint8_t* start,
                            const uint8_t* end,
+                           const ProtoTranslationTable* table,
                            protozero::Message* message,
                            FtraceMetadata* metadata) {
   PERFETTO_DCHECK(start + field.ftrace_offset + field.ftrace_size <= end);
@@ -709,10 +711,22 @@ bool CpuReader::ParseField(const Field& field,
                             field_id, message);
     case kCStringToString:
       // TODO(hjd): Kernel-dive to check this how size:0 char fields work.
-      return ReadIntoString(field_start, end, field.proto_field_id, message);
-    case kStringPtrToString:
-      // TODO(hjd): Figure out how to read these.
+      return ReadIntoString(field_start, end, field_id, message);
+    case kStringPtrToString: {
+      uint64_t n = 0;
+      // The ftrace field may be 8 or 4 bytes and we need to copy it into the
+      // bottom of n. In the unlikely case where the field is >8 bytes we
+      // should avoid making things worse by corrupting the stack but we
+      // don't need to handle it correctly.
+      size_t size = std::min<size_t>(field.ftrace_size, sizeof(n));
+      memcpy(base::AssumeLittleEndian(&n),
+             reinterpret_cast<const void*>(field_start), size);
+      // Look up the adddress in the printk format map and write it into the
+      // proto.
+      base::StringView name = table->LookupTraceString(n);
+      message->AppendBytes(field_id, name.begin(), name.size());
       return true;
+    }
     case kDataLocToString:
       return ReadDataLoc(start, field_start, end, field, message);
     case kBoolToUint32:

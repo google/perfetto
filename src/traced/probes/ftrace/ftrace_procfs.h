@@ -50,6 +50,9 @@ class FtraceProcfs {
 
   virtual std::string ReadPageHeaderFormat() const;
 
+  // Read the printk formats file.
+  std::string ReadPrintkFormats() const;
+
   // Read the "/per_cpu/cpuXX/stats" file for the given |cpu|.
   std::string ReadCpuStats(size_t cpu) const;
 
