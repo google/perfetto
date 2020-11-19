@@ -32,4 +32,5 @@ message FakeAllFieldsFtraceEvent {
   optional string field_char_16 = 500;
   optional string field_char = 501;
   optional string field_data_loc = 502;
+  optional string field_char_star = 503;
 }

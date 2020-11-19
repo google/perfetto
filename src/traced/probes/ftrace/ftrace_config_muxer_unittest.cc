@@ -84,7 +84,8 @@ class MockProtoTranslationTable : public ProtoTranslationTable {
                               events,
                               common_fields,
                               ftrace_page_header_spec,
-                              compact_sched_format) {}
+                              compact_sched_format,
+                              PrintkMap()) {}
   MOCK_METHOD1(GetOrCreateEvent, Event*(const GroupAndName& group_and_name));
   MOCK_CONST_METHOD1(GetEvent,
                      const Event*(const GroupAndName& group_and_name));
@@ -170,7 +171,7 @@ class FtraceConfigMuxerTest : public ::testing::Test {
     return std::unique_ptr<ProtoTranslationTable>(new ProtoTranslationTable(
         &table_procfs_, events, std::move(common_fields),
         ProtoTranslationTable::DefaultPageHeaderSpecForTesting(),
-        compact_format));
+        compact_format, PrintkMap()));
   }
 
   NiceMock<MockFtraceProcfs> table_procfs_;

@@ -397,7 +397,7 @@ TEST(TranslationTableTest, Getters) {
   ProtoTranslationTable table(
       &ftrace, events, std::move(common_fields),
       ProtoTranslationTable::DefaultPageHeaderSpecForTesting(),
-      InvalidCompactSchedEventFormatForTesting());
+      InvalidCompactSchedEventFormatForTesting(), PrintkMap());
 
   EXPECT_EQ(table.largest_id(), 100ul);
   EXPECT_EQ(table.EventToFtraceId(GroupAndName("group_one", "foo")), 1ul);

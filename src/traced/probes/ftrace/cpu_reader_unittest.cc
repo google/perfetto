@@ -37,6 +37,7 @@
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.gen.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
+#include "protos/perfetto/trace/ftrace/power.gen.h"
 #include "protos/perfetto/trace/ftrace/sched.gen.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
 #include "src/traced/probes/ftrace/test/test_messages.gen.h"
@@ -997,10 +998,21 @@ TEST_F(CpuReaderTableTest, ParseAllFields) {
     }
 
     {
+      // char* -> string
+      event->fields.emplace_back(Field{});
+      Field* field = &event->fields.back();
+      field->ftrace_offset = 56;
+      field->ftrace_size = 8;
+      field->ftrace_type = kFtraceStringPtr;
+      field->proto_field_id = 503;
+      field->proto_field_type = ProtoSchemaType::kString;
+    }
+
+    {
       // dataloc -> string
       event->fields.emplace_back(Field{});
       Field* field = &event->fields.back();
-      field->ftrace_offset = 57;
+      field->ftrace_offset = 65;
       field->ftrace_size = 4;
       field->ftrace_type = kFtraceDataLoc;
       field->proto_field_id = 502;
@@ -1011,7 +1023,7 @@ TEST_F(CpuReaderTableTest, ParseAllFields) {
       // char -> string
       event->fields.emplace_back(Field{});
       Field* field = &event->fields.back();
-      field->ftrace_offset = 61;
+      field->ftrace_offset = 69;
       field->ftrace_size = 0;
       field->ftrace_type = kFtraceCString;
       field->proto_field_id = 501;
@@ -1024,10 +1036,12 @@ TEST_F(CpuReaderTableTest, ParseAllFields) {
     }
   }
 
+  PrintkMap printk_formats;
+  printk_formats.insert(0xffffff8504f51b23, "my_printk_format_string");
   ProtoTranslationTable table(
       &ftrace_, events, std::move(common_fields),
       ProtoTranslationTable::DefaultPageHeaderSpecForTesting(),
-      InvalidCompactSchedEventFormatForTesting());
+      InvalidCompactSchedEventFormatForTesting(), printk_formats);
 
   FakeEventProvider provider(base::kPageSize);
 
@@ -1054,6 +1068,7 @@ TEST_F(CpuReaderTableTest, ParseAllFields) {
   writer.Write<int64_t>(k64BitKernelBlockDeviceId);  // Dev id 64
   writer.Write<int64_t>(99u);                        // Inode 64
   writer.WriteFixedString(16, "Hello");
+  writer.Write<uint64_t>(0xffffff8504f51b23ULL);  // char* (printk formats)
   writer.Write<uint8_t>(0);  // Deliberately mis-aligning.
   writer.Write<uint32_t>(40 | 6 << 16);
   writer.WriteFixedString(300, "Goodbye");
@@ -1084,6 +1099,7 @@ TEST_F(CpuReaderTableTest, ParseAllFields) {
   EXPECT_EQ(event->all_fields().field_char_16(), "Hello");
   EXPECT_EQ(event->all_fields().field_char(), "Goodbye");
   EXPECT_EQ(event->all_fields().field_data_loc(), "Hello");
+  EXPECT_EQ(event->all_fields().field_char_star(), "my_printk_format_string");
   EXPECT_THAT(metadata.pids, Contains(97));
   EXPECT_EQ(metadata.inode_and_device.size(), 2U);
   EXPECT_THAT(metadata.inode_and_device,
@@ -1643,6 +1659,95 @@ TEST(CpuReaderTest, ParseFullPageSchedSwitch) {
   auto bundle = bundle_provider.ParseProto();
   ASSERT_TRUE(bundle);
   EXPECT_EQ(bundle->event().size(), 59u);
+}
+
+// clang-format off
+// # tracer: nop
+// #
+// # entries-in-buffer/entries-written: 18/18   #P:8
+// #
+// #                              _-----=> irqs-off
+// #                             / _----=> need-resched
+// #                            | / _---=> hardirq/softirq
+// #                            || / _--=> preempt-depth
+// #                            ||| /     delay
+// #           TASK-PID   CPU#  ||||    TIMESTAMP  FUNCTION
+// #              | |       |   ||||       |         |
+//            <...>-9290  [000] ....  1352.654573: suspend_resume: sync_filesystems[0] end
+//            <...>-9290  [000] ....  1352.665366: suspend_resume: freeze_processes[0] begin
+//            <...>-9290  [000] ....  1352.699711: suspend_resume: freeze_processes[0] end
+//            <...>-9290  [000] ....  1352.699718: suspend_resume: suspend_enter[1] end
+//            <...>-9290  [000] ....  1352.699723: suspend_resume: dpm_prepare[2] begin
+//            <...>-9290  [000] ....  1352.703470: suspend_resume: dpm_prepare[2] end
+//            <...>-9290  [000] ....  1352.703477: suspend_resume: dpm_suspend[2] begin
+//            <...>-9290  [000] ....  1352.720107: suspend_resume: dpm_resume[16] end
+//            <...>-9290  [000] ....  1352.720113: suspend_resume: dpm_complete[16] begin
+//            <...>-9290  [000] .n..  1352.724540: suspend_resume: dpm_complete[16] end
+//            <...>-9290  [000] ....  1352.724567: suspend_resume: resume_console[1] begin
+//            <...>-9290  [000] ....  1352.724570: suspend_resume: resume_console[1] end
+//            <...>-9290  [000] ....  1352.724574: suspend_resume: thaw_processes[0] begin
+static ExamplePage g_suspend_resume {
+    "synthetic",
+    R"(00000000: edba 155a 3201 0000 7401 0000 0000 0000  ...Z2...t.......
+00000010: 7e58 22cd 1201 0000 0600 0000 ac00 0000  ~X".............
+00000020: 4a24 0000 5a7a f504 85ff ffff 0000 0000  J$..Zz..........
+00000030: 0017 0000 c621 9614 ac00 0000 4a24 0000  .....!......J$..
+00000040: 1c7a f504 85ff ffff 0000 0000 0100 0000  .z..............
+00000050: e6f1 8141 ac00 0000 4a24 0000 1c7a f504  ...A....J$...z..
+00000060: 85ff ffff 0000 0000 0000 0000 8682 0300  ................
+00000070: ac00 0000 4a24 0000 4c7a f504 85ff ffff  ....J$..Lz......
+00000080: 0100 0000 0063 755f 0657 0200 ac00 0000  .....cu_.W......
+00000090: 4a24 0000 8ad5 0105 85ff ffff 0200 0000  J$..............
+000000a0: 0100 0000 06b5 2507 ac00 0000 4a24 0000  ......%.....J$..
+000000b0: 8ad5 0105 85ff ffff 0200 0000 0000 0000  ................
+000000c0: 460d 0300 ac00 0000 4a24 0000 51d5 0105  F.......J$..Q...
+000000d0: 85ff ffff 0200 0000 0117 0000 c63e b81f  .............>..
+000000e0: ac00 0000 4a24 0000 7fd5 0105 85ff ffff  ....J$..........
+000000f0: 1000 0000 0010 0b00 a6f9 0200 ac00 0000  ................
+00000100: 4a24 0000 96d5 0105 85ff ffff 1000 0000  J$..............
+00000110: 01c0 1f00 a6dd 7108 ac00 0400 4a24 0000  ......q.....J$..
+00000120: 96d5 0105 85ff ffff 1000 0000 0000 0000  ................
+00000130: c6f1 0c00 ac00 0000 4a24 0000 3d7a f504  ........J$..=z..
+00000140: 85ff ffff 0100 0000 01ea 24d5 a66c 0100  ..........$..l..
+00000150: ac00 0000 4a24 0000 3d7a f504 85ff ffff  ....J$..=z......
+00000160: 0100 0000 0000 0001 6636 0200 ac00 0000  ........f6......
+00000170: 4a24 0000 d178 f504 85ff ffff 0000 0000  J$...x..........
+00000180: 0100 0000 0000 0000 0000 0000 0000 0000  ................
+00000190: 0000 0000 0000 0000 0000 0000 0000 0000  ................
+)"};
+
+TEST(CpuReaderTest, ParseSuspendResume) {
+  const ExamplePage* test_case = &g_suspend_resume;
+
+  BundleProvider bundle_provider(base::kPageSize);
+  ProtoTranslationTable* table = GetTable(test_case->name);
+  auto page = PageFromXxd(test_case->data);
+
+  FtraceDataSourceConfig ds_config = EmptyConfig();
+  ds_config.event_filter.AddEnabledEvent(
+      table->EventToFtraceId(GroupAndName("power", "suspend_resume")));
+
+  FtraceMetadata metadata{};
+  CompactSchedBuffer compact_buffer;
+  const uint8_t* parse_pos = page.get();
+  base::Optional<CpuReader::PageHeader> page_header =
+      CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
+  ASSERT_TRUE(page_header.has_value());
+
+  CpuReader::ParsePagePayload(
+      parse_pos, &page_header.value(), table, &ds_config, &compact_buffer,
+      bundle_provider.writer(), &metadata);
+  auto bundle = bundle_provider.ParseProto();
+  ASSERT_TRUE(bundle);
+  ASSERT_EQ(bundle->event().size(), 13u);
+  EXPECT_EQ(bundle->event()[0].suspend_resume().action(), "sync_filesystems");
+  EXPECT_EQ(bundle->event()[1].suspend_resume().action(), "freeze_processes");
+  EXPECT_EQ(bundle->event()[2].suspend_resume().action(), "freeze_processes");
+  EXPECT_EQ(bundle->event()[3].suspend_resume().action(), "suspend_enter");
+  // dpm_prepare deliberately missing from:
+  // src/traced/probes/ftrace/test/data/synthetic/printk_formats to ensure we
+  // handle that case correctly.
+  EXPECT_EQ(bundle->event()[4].suspend_resume().action(), "");
 }
 
 // clang-format off
