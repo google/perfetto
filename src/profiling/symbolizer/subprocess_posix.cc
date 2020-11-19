@@ -16,6 +16,8 @@
 
 #include "src/profiling/symbolizer/subprocess.h"
 
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+
 #include <signal.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -72,3 +74,5 @@ int64_t Subprocess::Read(char* buffer, size_t size) {
 
 }  // namespace profiling
 }  // namespace perfetto
+
+#endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
