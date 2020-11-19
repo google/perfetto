@@ -16,6 +16,8 @@
 
 #include "src/profiling/symbolizer/filesystem.h"
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+
 #define WIN32_MEAN_AND_LEAN
 #include <Windows.h>
 
@@ -69,3 +71,5 @@ size_t GetFileSize(const std::string& file_path) {
 
 }  // namespace profiling
 }  // namespace perfetto
+
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)

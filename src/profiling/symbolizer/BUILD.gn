@@ -19,31 +19,20 @@ source_set("symbolizer") {
   public_deps = [ "../../../include/perfetto/ext/base" ]
   deps = [ "../../../gn:default_deps" ]
   sources = [
+    "filesystem.h",
+    "filesystem_posix.cc",
+    "filesystem_windows.cc",
     "local_symbolizer.cc",
     "local_symbolizer.h",
+    "scoped_read_mmap.h",
+    "scoped_read_mmap_posix.cc",
+    "scoped_read_mmap_windows.cc",
+    "subprocess.h",
+    "subprocess_posix.cc",
+    "subprocess_windows.cc",
     "symbolizer.cc",
     "symbolizer.h",
   ]
-  if (is_linux || is_mac || is_android) {
-    sources += [
-      "filesystem.h",
-      "filesystem_posix.cc",
-      "scoped_read_mmap.h",
-      "scoped_read_mmap_posix.cc",
-      "subprocess.h",
-      "subprocess_posix.cc",
-    ]
-  }
-  if (is_win) {
-    sources += [
-      "filesystem.h",
-      "filesystem_windows.cc",
-      "scoped_read_mmap.h",
-      "scoped_read_mmap_windows.cc",
-      "subprocess.h",
-      "subprocess_windows.cc",
-    ]
-  }
 }
 
 source_set("symbolize_database") {
