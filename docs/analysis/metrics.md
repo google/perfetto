@@ -177,11 +177,11 @@ Next, write the SQL to generate the table of the top 5 processes ordered by the
 sum of the CPU time they ran for and the number of threads which were associated
 with the process.
 
-The following SQL should added to a file called `top_five_processes.sql` in the
-workspace:
+The following SQL should be added to a file called `top_five_processes.sql` in
+the workspace:
 
 ```sql
-CREATE VIEW top_five_processes_by_cpu
+CREATE VIEW top_five_processes_by_cpu AS
 SELECT
   process.name as process_name,
   CAST(SUM(sched.dur) / 1e6 as INT64) as cpu_time_ms,
