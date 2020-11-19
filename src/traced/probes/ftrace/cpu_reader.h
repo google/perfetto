@@ -208,6 +208,7 @@ class CpuReader {
   static bool ParseField(const Field& field,
                          const uint8_t* start,
                          const uint8_t* end,
+                         const ProtoTranslationTable* table,
                          protozero::Message* message,
                          FtraceMetadata* metadata);
 
