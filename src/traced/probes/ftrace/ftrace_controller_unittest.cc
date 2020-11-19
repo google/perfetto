@@ -87,7 +87,7 @@ std::unique_ptr<Table> FakeTable(FtraceProcfs* ftrace) {
   return std::unique_ptr<Table>(
       new Table(ftrace, events, std::move(common_fields),
                 ProtoTranslationTable::DefaultPageHeaderSpecForTesting(),
-                InvalidCompactSchedEventFormatForTesting()));
+                InvalidCompactSchedEventFormatForTesting(), PrintkMap()));
 }
 
 std::unique_ptr<FtraceConfigMuxer> FakeModel(FtraceProcfs* ftrace,
