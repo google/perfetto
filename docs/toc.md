@@ -35,6 +35,9 @@
   * [SQL tables](analysis/sql-tables.autogen)
   * [Stats table](analysis/sql-stats.autogen)
 
+* [Trace visualization](#)
+  * [Perfetto UI](visualization/perfetto-ui.md)
+
 * [Core concepts](#)
   * [Trace configuration](concepts/config.md)
   * [Buffers and dataflow](concepts/buffers.md)
