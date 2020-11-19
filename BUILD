@@ -1277,6 +1277,8 @@ filegroup(
         "src/traced/probes/ftrace/ftrace_procfs.h",
         "src/traced/probes/ftrace/ftrace_stats.cc",
         "src/traced/probes/ftrace/ftrace_stats.h",
+        "src/traced/probes/ftrace/printk_formats_parser.cc",
+        "src/traced/probes/ftrace/printk_formats_parser.h",
         "src/traced/probes/ftrace/proto_translation_table.cc",
         "src/traced/probes/ftrace/proto_translation_table.h",
     ],

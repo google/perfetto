@@ -48,7 +48,7 @@ class FlatSet {
 
   FlatSet() = default;
 
-  // Mainly for tests. Deliberately not marked as "expicit".
+  // Mainly for tests. Deliberately not marked as "explicit".
   FlatSet(std::initializer_list<T> initial) : entries_(initial) {
     std::sort(entries_.begin(), entries_.end());
     entries_.erase(std::unique(entries_.begin(), entries_.end()),
