@@ -20,8 +20,13 @@ import {
   DeferredAction,
 } from '../common/actions';
 import {Engine} from '../common/engine';
-import {NUM, NUM_NULL, rawQueryToRows, STR_NULL} from '../common/protos';
-import {slowlyCountRows} from '../common/query_iterator';
+import {
+  iter,
+  NUM,
+  NUM_NULL,
+  slowlyCountRows,
+  STR_NULL
+} from '../common/query_iterator';
 import {SCROLLING_TRACK_GROUP} from '../common/state';
 import {ANDROID_LOGS_TRACK_KIND} from '../tracks/android_log/common';
 import {ASYNC_SLICE_TRACK_KIND} from '../tracks/async_slices/common';
@@ -431,17 +436,21 @@ export async function decideTracks(
   const utidToUuid = new Map<number, string>();
   const addTrackGroupActions: DeferredAction[] = [];
 
-  for (const row of rawQueryToRows(threadQuery, {
-         utid: NUM,
-         upid: NUM_NULL,
-         tid: NUM_NULL,
-         pid: NUM_NULL,
-         threadName: STR_NULL,
-         processName: STR_NULL,
-         totalDur: NUM_NULL,
-         hasSched: NUM,
-         hasCpuSamples: NUM,
-       })) {
+  const it = iter(
+      {
+        utid: NUM,
+        upid: NUM_NULL,
+        tid: NUM_NULL,
+        pid: NUM_NULL,
+        threadName: STR_NULL,
+        processName: STR_NULL,
+        totalDur: NUM_NULL,
+        hasSched: NUM,
+        hasCpuSamples: NUM,
+      },
+      threadQuery);
+  for (let i = 0; it.valid(); ++i, it.next()) {
+    const row = it.row;
     const utid = row.utid;
     const tid = row.tid;
     const upid = row.upid;

@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertFalse, assertTrue} from '../base/logging';
 import * as protos from '../gen/protos';
 import {slowlyCountRows} from './query_iterator';
 
@@ -112,96 +111,6 @@ export function* rawQueryResultIter(result: RawQueryResult) {
       row[name] = cell === null ? '[NULL]' : cell;
     }
     yield row;
-  }
-}
-
-export const NUM = 0;
-export const STR = 'str';
-export const NUM_NULL: number|null = 1;
-export const STR_NULL: string|null = 'str_null';
-
-/**
- * This function allows for type safe use of RawQueryResults.
- * The input is a RawQueryResult (|raw|) and a "spec".
- * A spec is an object where the keys are column names and the values
- * are constants representing the types. For example:
- * {
- *   upid: NUM,
- *   pid: NUM_NULL,
- *   processName: STR_NULL,
- * }
- * The output is a iterable of rows each row looks like the given spec:
- * {
- *   upid: 1,
- *   pid: 42,
- *   processName: null,
- * }
- * Each row has an appropriate typescript type based on the spec so there
- * is no need to use ! or cast when using the result of rawQueryToRows.
- * Note: type checking to ensure that the RawQueryResult matches the spec
- * happens at runtime, so if a query can return null and this is not reflected
- * in the spec this will still crash at runtime.
- */
-export function*
-    rawQueryToRows<T>(raw: RawQueryResult, spec: T): IterableIterator<T> {
-  const allColumns = rawQueryResultColumns(raw);
-  const columns: Array<[string, (row: number) => string | number | null]> = [];
-  for (const [key, columnSpec] of Object.entries(spec)) {
-    const i = allColumns.indexOf(key);
-    assertTrue(i !== -1, `Expected column "${key}" (cols ${allColumns})`);
-
-    const column = raw.columns[i];
-    const isNulls = column.isNulls!;
-    const columnType = raw.columnDescriptors[i].type;
-
-    if (columnSpec === NUM || columnSpec === STR) {
-      for (let j = 0; j < slowlyCountRows(raw); j++) {
-        assertFalse(column.isNulls![i], `Unexpected null in ${key} row ${j}`);
-      }
-    }
-
-    if (columnSpec === NUM || columnSpec === NUM_NULL) {
-      if (columnType === COLUMN_TYPE_STR) {
-        throw new Error(`Expected numbers in column ${key} found strings`);
-      }
-    } else if (columnSpec === STR || columnSpec === STR_NULL) {
-      if (columnType === COLUMN_TYPE_LONG ||
-          columnType === COLUMN_TYPE_DOUBLE) {
-        throw new Error(`Expected strings in column ${key} found numbers`);
-      }
-    }
-
-    let accessor;
-    switch (columnType) {
-      case COLUMN_TYPE_LONG: {
-        const values = column.longValues!;
-        accessor = (i: number) => isNulls[i] ? null : +values[i];
-        break;
-      }
-      case COLUMN_TYPE_DOUBLE: {
-        const values = column.doubleValues!;
-        accessor = (i: number) => isNulls[i] ? null : values[i];
-        break;
-      }
-      case COLUMN_TYPE_STR: {
-        const values = column.stringValues!;
-        accessor = (i: number) => isNulls[i] ? null : values[i];
-        break;
-      }
-      default:
-        // We can only reach here if the column is completely null.
-        accessor = (_: number) => null;
-        break;
-    }
-    columns.push([key, accessor]);
-  }
-
-  for (let i = 0; i < slowlyCountRows(raw); i++) {
-    const row: {[_: string]: number | string | null} = {};
-    for (const [name, accessor] of columns) {
-      row[name] = accessor(i);
-    }
-    yield row as {} as T;
   }
 }
 
