@@ -210,7 +210,8 @@ void TracingMuxerImpl::ConsumerImpl::OnConnect() {
   connected_ = true;
 
   // Observe data source instance events so we get notified when tracing starts.
-  service_->ObserveEvents(ObservableEvents::TYPE_DATA_SOURCES_INSTANCES);
+  service_->ObserveEvents(ObservableEvents::TYPE_DATA_SOURCES_INSTANCES |
+                          ObservableEvents::TYPE_ALL_DATA_SOURCES_STARTED);
 
   // If the API client configured and started tracing before we connected,
   // tell the backend about it now.
@@ -376,9 +377,15 @@ void TracingMuxerImpl::ConsumerImpl::OnObservableEvents(
           state_change.state() ==
           ObservableEvents::DATA_SOURCE_INSTANCE_STATE_STARTED;
     }
+  }
+
+  if (events.instance_state_changes_size() ||
+      events.all_data_sources_started()) {
     // Data sources are first reported as being stopped before starting, so once
     // all the data sources we know about have started we can declare tracing
-    // begun.
+    // begun. In the case where there are no matching data sources for the
+    // session, the service will report the all_data_sources_started() event
+    // without adding any instances (only since Android S / Perfetto v10.0).
     if (start_complete_callback_ || blocking_start_complete_callback_) {
       bool all_data_sources_started = std::all_of(
           data_source_states_.cbegin(), data_source_states_.cend(),
