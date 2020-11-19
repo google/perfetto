@@ -71,7 +71,7 @@ bool ReadProcStat(int fd, ProcStat* out) {
   c[c_pos] = '\0';
 
   if (sscanf(c,
-             "%*d %*s %*c %*d %*d %*d %*d %*d %*u %*u %*u %*u %*u %lu"
+             "%*d %*s %*c %*d %*d %*d %*d %*d %*u %*u %*u %*u %*u %lu "
              "%lu %*d %*d %*d %*d %*d %*d %*u %*u %ld",
              &out->utime, &out->stime, &out->rss_pages) != 3) {
     PERFETTO_ELOG("Invalid stat format: %s", c);
