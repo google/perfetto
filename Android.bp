@@ -6261,6 +6261,7 @@ filegroup {
     "src/base/unix_socket_unittest.cc",
     "src/base/utils_unittest.cc",
     "src/base/uuid_unittest.cc",
+    "src/base/watchdog_posix_unittest.cc",
     "src/base/watchdog_unittest.cc",
     "src/base/weak_ptr_unittest.cc",
   ],
