@@ -14,9 +14,11 @@
  * limitations under the License.
  */
 
-#include "perfetto/ext/base/watchdog_posix.h"
+#include "perfetto/base/build_config.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_WATCHDOG)
+
+#include "perfetto/ext/base/watchdog_posix.h"
 
 #include <stdio.h>
 
