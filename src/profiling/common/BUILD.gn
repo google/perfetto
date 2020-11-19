@@ -94,6 +94,7 @@ perfetto_unittest_source_set("unittests") {
   deps = [
     ":interner",
     ":proc_utils",
+    ":profiler_guardrails",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
     "../../../include/perfetto/profiling:normalize",
@@ -103,5 +104,6 @@ perfetto_unittest_source_set("unittests") {
   sources = [
     "interner_unittest.cc",
     "proc_utils_unittest.cc",
+    "profiler_guardrails_unittest.cc",
   ]
 }
