@@ -648,6 +648,16 @@ void MockDataSource::OnStop(const StopArgs& args) {
 // Test fixtures
 // -------------
 
+TEST_P(PerfettoApiTest, StartAndStopWithoutDataSources) {
+  // Create a new trace session without any data sources configured.
+  perfetto::TraceConfig cfg;
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* tracing_session = NewTrace(cfg);
+  // This should not timeout.
+  tracing_session->get()->StartBlocking();
+  tracing_session->get()->StopBlocking();
+}
+
 TEST_P(PerfettoApiTest, TrackEventStartStopAndDestroy) {
   // This test used to cause a use after free as the tracing session got
   // destroyed. It needed to be run approximately 2000 times to catch it so test
