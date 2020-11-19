@@ -16,6 +16,8 @@
 
 #include "perfetto/ext/base/watchdog_posix.h"
 
+#if PERFETTO_BUILDFLAG(PERFETTO_WATCHDOG)
+
 #include <stdio.h>
 
 #include "perfetto/ext/base/file_utils.h"
@@ -47,3 +49,5 @@ TEST(WatchdogPosixTest, ParseProcStat) {
 }  // namespace
 }  // namespace base
 }  // namespace perfetto
+
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_WATCHDOG)
