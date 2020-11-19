@@ -1007,6 +1007,8 @@ base::Status TracingServiceImpl::StartTracing(TracingSessionID tsid) {
     }
     StartDataSourceInstance(producer, tracing_session, &data_source);
   }
+
+  MaybeNotifyAllDataSourcesStarted(tracing_session);
   return base::OkStatus();
 }
 
