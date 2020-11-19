@@ -3038,6 +3038,40 @@ TEST_F(TracingServiceImplTest, ObserveAllDataSourceStarted) {
   }
 }
 
+TEST_F(TracingServiceImplTest,
+       ObserveAllDataSourceStartedWithoutMatchingInstances) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+
+  consumer->ObserveEvents(ObservableEvents::TYPE_ALL_DATA_SOURCES_STARTED);
+
+  // EnableTracing() should immediately cause ALL_DATA_SOURCES_STARTED, because
+  // there aren't any matching data sources registered.
+  consumer->EnableTracing(trace_config);
+
+  auto events = consumer->WaitForObservableEvents();
+  ObservableEvents::DataSourceInstanceStateChange change;
+  EXPECT_TRUE(events.all_data_sources_started());
+
+  consumer->DisableTracing();
+  consumer->WaitForTracingDisabled();
+
+  EXPECT_THAT(
+      consumer->ReadBuffers(),
+      Contains(Property(
+          &protos::gen::TracePacket::service_event,
+          Property(&protos::gen::TracingServiceEvent::all_data_sources_started,
+                   Eq(true)))));
+  consumer->FreeBuffers();
+
+  task_runner.RunUntilIdle();
+
+  Mock::VerifyAndClearExpectations(consumer.get());
+}
+
 // Similar to ObserveAllDataSourceStarted, but covers the case of some data
 // sources not supporting the |notify_on_start|.
 TEST_F(TracingServiceImplTest, ObserveAllDataSourceStartedOnlySomeWillAck) {
