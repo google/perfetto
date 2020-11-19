@@ -27,13 +27,15 @@ WITH metadata (arg_set_id) AS (
 -- TODO(b/173201788): Once this is fixed, extract all the fields.
 SELECT 'os-name' AS name,
   EXTRACT_ARG(metadata.arg_set_id, 'os-name') AS value
-FROM metadata
-UNION
-SELECT "trace-category" AS name,
-  value AS category
-FROM metadata, json_each(
-    json_extract(
-      EXTRACT_ARG(metadata.arg_set_id, "trace-config"),
-      '$.included_categories'
-    )
-  );
+FROM metadata;
+-- TODO(b/173683842): Add back when json1 is available everywhere we care
+-- about.
+-- UNION
+-- SELECT "trace-category" AS name,
+--   value AS category
+-- FROM metadata, json_each(
+--     json_extract(
+--       EXTRACT_ARG(metadata.arg_set_id, "trace-config"),
+--       '$.included_categories'
+--     )
+--   );
