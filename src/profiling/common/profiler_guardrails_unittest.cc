@@ -33,7 +33,7 @@ class StubDataSource {
  public:
   StubDataSource(uint64_t cpu_guardrails_secs,
                  uint64_t cpu_start_secs,
-                 uint64_t memory_guardrail_kb)
+                 uint32_t memory_guardrail_kb)
       : cpu_guardrails_secs_(cpu_guardrails_secs),
         cpu_start_secs_(cpu_start_secs),
         memory_guardrail_kb_(memory_guardrail_kb) {}
@@ -42,7 +42,7 @@ class StubDataSource {
 
   base::Optional<uint64_t> GetCpuStartSecs() const { return cpu_start_secs_; }
 
-  uint64_t GetMemoryGuardrailKb() const { return memory_guardrail_kb_; }
+  uint32_t GetMemoryGuardrailKb() const { return memory_guardrail_kb_; }
 
   void Delete() { deleted_ = true; }
   bool deleted() { return deleted_; }
@@ -50,7 +50,7 @@ class StubDataSource {
  private:
   uint64_t cpu_guardrails_secs_;
   uint64_t cpu_start_secs_;
-  uint64_t memory_guardrail_kb_;
+  uint32_t memory_guardrail_kb_;
   bool deleted_ = false;
 };
 
@@ -91,6 +91,66 @@ TEST(ProfilerCpuGuardrailsTest, NotExceeded) {
   ProfilerCpuGuardrails gr(f.ReleaseFD());
   gr.CheckDataSourceCpu(ds_map.begin(), ds_map.end(),
                         [](StubDataSource* d) { d->Delete(); });
+  auto it = ds_map.find(1);
+  ASSERT_NE(it, ds_map.end());
+  EXPECT_FALSE(it->second.deleted());
+}
+
+TEST(ProfilerMemoryGuardrailsTest, Exceeded) {
+  StubDataSource ds(0, 0, 77);
+  std::map<int, StubDataSource> ds_map = {{1, std::move(ds)}};
+  base::TempFile f = base::TempFile::CreateUnlinked();
+  constexpr const char status[] =
+      "VmPeak:\t    5432 kB\n"
+      "VmSize:\t    5432 kB\n"
+      "VmLck:\t       0 kB\n"
+      "VmPin:\t       0 kB\n"
+      "VmHWM:\t     584 kB\n"
+      "VmRSS:\t     80 kB\n"
+      "RssAnon:\t      68 kB\n"
+      "RssFile:\t     516 kB\n"
+      "RssShmem:\t       0 kB\n"
+      "VmData:\t     316 kB\n"
+      "VmStk:\t     132 kB\n"
+      "VmExe:\t      20 kB\n"
+      "VmLib:\t    1460 kB\n"
+      "VmPTE:\t      44 kB\n"
+      "VmSwap:\t       10 kB\n";
+
+  base::WriteAll(f.fd(), status, sizeof(status));
+  ProfilerMemoryGuardrails gr(f.ReleaseFD());
+  gr.CheckDataSourceMemory(ds_map.begin(), ds_map.end(),
+                           [](StubDataSource* d) { d->Delete(); });
+  auto it = ds_map.find(1);
+  ASSERT_NE(it, ds_map.end());
+  EXPECT_TRUE(it->second.deleted());
+}
+
+TEST(ProfilerMemoryGuardrailsTest, NotExceeded) {
+  StubDataSource ds(0, 0, 100);
+  std::map<int, StubDataSource> ds_map = {{1, std::move(ds)}};
+  base::TempFile f = base::TempFile::CreateUnlinked();
+  constexpr const char status[] =
+      "VmPeak:\t    5432 kB\n"
+      "VmSize:\t    5432 kB\n"
+      "VmLck:\t       0 kB\n"
+      "VmPin:\t       0 kB\n"
+      "VmHWM:\t     584 kB\n"
+      "VmRSS:\t     80 kB\n"
+      "RssAnon:\t      68 kB\n"
+      "RssFile:\t     516 kB\n"
+      "RssShmem:\t       0 kB\n"
+      "VmData:\t     316 kB\n"
+      "VmStk:\t     132 kB\n"
+      "VmExe:\t      20 kB\n"
+      "VmLib:\t    1460 kB\n"
+      "VmPTE:\t      44 kB\n"
+      "VmSwap:\t       10 kB\n";
+
+  base::WriteAll(f.fd(), status, sizeof(status));
+  ProfilerMemoryGuardrails gr(f.ReleaseFD());
+  gr.CheckDataSourceMemory(ds_map.begin(), ds_map.end(),
+                           [](StubDataSource* d) { d->Delete(); });
   auto it = ds_map.find(1);
   ASSERT_NE(it, ds_map.end());
   EXPECT_FALSE(it->second.deleted());
