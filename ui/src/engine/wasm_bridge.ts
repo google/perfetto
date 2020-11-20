@@ -85,7 +85,10 @@ export class WasmBridge {
       return result;
     } catch (err) {
       this.aborted = true;
-      let abortReason = typeof err === 'string' ? err : JSON.stringify(err);
+      let abortReason = `${err}`;
+      if (err instanceof Error) {
+        abortReason = `${err.name}: ${err.message}\n${err.stack}`;
+      }
       abortReason += '\n\nstderr: \n' + this.lastStderr.join('\n');
       throw new Error(abortReason);
     }
