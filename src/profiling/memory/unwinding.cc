@@ -180,10 +180,9 @@ bool DoUnwind(WireMessage* msg, UnwindingMetadata* metadata, AllocRecord* out) {
     }
   }
   out->frames = unwinder.ConsumeFrames();
-  out->build_ids.reserve(out->frames.size());
-  out->build_ids.clear();
-  for (unwindstack::FrameData& fd : out->frames) {
-    out->build_ids.emplace_back(metadata->GetBuildId(fd));
+  out->build_ids.resize(out->frames.size());
+  for (size_t i = 0; i < out->frames.size(); ++i) {
+    out->build_ids[i] = metadata->GetBuildId(out->frames[i]);
   }
 
   if (error_code != unwindstack::ERROR_NONE) {
