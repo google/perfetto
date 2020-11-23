@@ -47,10 +47,14 @@ NOOUT = {
 UUID = str(uuid.uuid4())[-6:]
 
 def check_hash(file_name, sha_value):
+  file_hash = hashlib.sha1()
   with open(file_name, 'rb') as fd:
-    # TODO(fmayer): Chunking.
-    file_hash = hashlib.sha1(fd.read()).hexdigest()
-    return file_hash == sha_value
+    while True:
+      chunk = fd.read(4096)
+      if not chunk:
+        break
+      file_hash.update(chunk)
+    return file_hash.hexdigest() == sha_value
 
 
 def load_trace_to_text(platform):
