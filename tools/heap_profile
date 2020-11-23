@@ -131,6 +131,23 @@ def print_no_profile_error():
     "https://perfetto.dev/docs/data-sources/native-heap-profiler#troubleshooting.",
     file=sys.stderr)
 
+def known_issues_url(number):
+  return ('https://perfetto.dev/docs/data-sources/native-heap-profiler'
+          '#known-issues-android{}'.format(number))
+
+KNOWN_ISSUES = {
+  '10': known_issues_url(10),
+  'Q': known_issues_url(10),
+  '11': known_issues_url(11),
+  'R': known_issues_url(11),
+}
+
+def maybe_known_issues():
+  release_or_codename = subprocess.check_output(
+    ['adb', 'shell', 'getprop', 'ro.build.version.release_or_codename']
+  ).decode('utf-8').strip()
+  return KNOWN_ISSUES.get(release_or_codename, None)
+
 SDK = {
     'R': 30,
 }
@@ -365,6 +382,11 @@ def main(argv):
 
     if has_trace_to_text:
       trace_to_text_binary = load_trace_to_text(platform)
+
+  known_issues = maybe_known_issues()
+  if known_issues:
+    print('If you are experiencing problems, please see the known issues for '
+          'your release: {}.'.format(known_issues))
 
   # TODO(fmayer): Maybe feature detect whether we can remove traces instead of
   # this.
