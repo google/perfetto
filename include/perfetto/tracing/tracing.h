@@ -229,6 +229,12 @@ class PERFETTO_EXPORT TracingSession {
   // This callback will be invoked on an internal perfetto thread.
   virtual void SetOnStopCallback(std::function<void()>) = 0;
 
+  // Changes the TraceConfig for an active tracing session. The session must
+  // have been configured and started before. Note that the tracing service
+  // only supports changing a subset of TraceConfig fields,
+  // see ConsumerEndpoint::ChangeTraceConfig().
+  virtual void ChangeTraceConfig(const TraceConfig&) = 0;
+
   // Struct passed as argument to the callback passed to ReadTrace().
   // [data, size] is guaranteed to contain 1 or more full trace packets, which
   // can be decoded using trace.proto. No partial or truncated packets are
