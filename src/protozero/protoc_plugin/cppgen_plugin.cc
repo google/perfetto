@@ -754,7 +754,7 @@ void CppObjGenerator::GenClassDef(const Descriptor* msg, Printer* p) const {
     } else {
       std::string statement;
       if (field->type() == TYPE_MESSAGE) {
-        statement = "$rval$.ParseFromString(field.as_std_string());\n";
+        statement = "$rval$.ParseFromArray(field.data(), field.size());\n";
       } else {
         if (field->type() == TYPE_SINT32 || field->type() == TYPE_SINT64) {
           // sint32/64 fields are special and need to be zig-zag-decoded.
