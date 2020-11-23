@@ -456,6 +456,16 @@ void TracingMuxerImpl::TracingSessionImpl::Start() {
       [muxer, session_id] { muxer->StartTracingSession(session_id); });
 }
 
+// Can be called from any thread.
+void TracingMuxerImpl::TracingSessionImpl::ChangeTraceConfig(
+    const TraceConfig& cfg) {
+  auto* muxer = muxer_;
+  auto session_id = session_id_;
+  muxer->task_runner_->PostTask([muxer, session_id, cfg] {
+    muxer->ChangeTracingSessionConfig(session_id, cfg);
+  });
+}
+
 // Can be called from any thread except the service thread.
 void TracingMuxerImpl::TracingSessionImpl::StartBlocking() {
   PERFETTO_DCHECK(!muxer_->task_runner_->RunsTasksOnCurrentThread());
@@ -1000,6 +1010,27 @@ void TracingMuxerImpl::StartTracingSession(TracingSessionGlobalID session_id) {
   }
 
   // TODO implement support for the deferred-start + fast-triggering case.
+}
+
+void TracingMuxerImpl::ChangeTracingSessionConfig(
+    TracingSessionGlobalID session_id,
+    const TraceConfig& trace_config) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+
+  auto* consumer = FindConsumer(session_id);
+
+  if (!consumer)
+    return;
+
+  if (!consumer->trace_config_) {
+    // Changing the config is only supported for started sessions.
+    PERFETTO_ELOG("Must call Setup(config) and Start() first");
+    return;
+  }
+
+  consumer->trace_config_ = std::make_shared<TraceConfig>(trace_config);
+  if (consumer->connected_)
+    consumer->service_->ChangeTraceConfig(trace_config);
 }
 
 void TracingMuxerImpl::StopTracingSession(TracingSessionGlobalID session_id) {
