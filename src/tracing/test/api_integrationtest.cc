@@ -705,6 +705,59 @@ TEST_P(PerfettoApiTest, TrackEventStartStopAndStopBlocking) {
   }
 }
 
+TEST_P(PerfettoApiTest, ChangeTraceConfiguration) {
+  // Setup the trace config.
+  perfetto::TraceConfig trace_config;
+  trace_config.set_duration_ms(2000);
+  trace_config.add_buffers()->set_size_kb(1024);
+  auto* data_source = trace_config.add_data_sources();
+
+  // Configure track events with category "foo".
+  auto* ds_cfg = data_source->mutable_config();
+  ds_cfg->set_name("track_event");
+  perfetto::protos::gen::TrackEventConfig te_cfg;
+  te_cfg.add_disabled_categories("*");
+  te_cfg.add_enabled_categories("foo");
+  ds_cfg->set_track_event_config_raw(te_cfg.SerializeAsString());
+
+  // Initially, exclude all producers (the client library's producer is named
+  // after current process's name, which will not match
+  // "all_producers_excluded").
+  data_source->add_producer_name_filter("all_producers_excluded");
+
+  auto* tracing_session = NewTrace(trace_config);
+
+  tracing_session->get()->StartBlocking();
+
+  // Emit a first trace event, this one should be filtered out due
+  // to the mismatching producer name filter.
+  TRACE_EVENT_BEGIN("foo", "EventFilteredOut");
+  TRACE_EVENT_END("foo");
+
+  // Remove the producer name filter by changing configs.
+  data_source->clear_producer_name_filter();
+  tracing_session->get()->ChangeTraceConfig(trace_config);
+
+  // We don't have a blocking version of ChangeTraceConfig, because there is
+  // currently no response to it from producers or the service. Instead, we sync
+  // the consumer and producer IPC streams for this test, to ensure that the
+  // producer_name_filter change has propagated.
+  tracing_session->get()->GetTraceStatsBlocking();  // sync consumer stream.
+  perfetto::test::SyncProducers();                  // sync producer stream.
+
+  // Emit a second trace event, this one should be included because
+  // the producer name filter was cleared.
+  TRACE_EVENT_BEGIN("foo", "EventIncluded");
+  TRACE_EVENT_END("foo");
+  tracing_session->get()->StopBlocking();
+
+  // Verify that only the second event is in the trace data.
+  std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
+  std::string trace(raw_trace.data(), raw_trace.size());
+  EXPECT_THAT(trace, Not(HasSubstr("EventFilteredOut")));
+  EXPECT_THAT(trace, HasSubstr("EventIncluded"));
+}
+
 // This is a build-only regression test that checks you can have a track event
 // inside a template.
 template <typename T>
