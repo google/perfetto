@@ -54,27 +54,13 @@ namespace {
 // was provided in the config. The cache is trimmed if it exceeds this size.
 const size_t kThreadTimeInStateCacheSize = 10000;
 
-inline int32_t ParseIntValue(const char* str) {
-  int32_t ret = 0;
-  for (;;) {
-    char c = *(str++);
-    if (!c)
-      break;
-    if (c < '0' || c > '9')
-      return 0;
-    ret *= 10;
-    ret += static_cast<int32_t>(c - '0');
-  }
-  return ret;
-}
-
 int32_t ReadNextNumericDir(DIR* dirp) {
   while (struct dirent* dir_ent = readdir(dirp)) {
     if (dir_ent->d_type != DT_DIR)
       continue;
-    int32_t int_value = ParseIntValue(dir_ent->d_name);
+    auto int_value = base::CStringToInt32(dir_ent->d_name);
     if (int_value)
-      return int_value;
+      return *int_value;
   }
   return 0;
 }
