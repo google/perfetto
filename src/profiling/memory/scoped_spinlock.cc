@@ -44,7 +44,7 @@ void ScopedSpinlock::LockSlow(Mode mode) {
       locked_ = true;
       break;
     }
-    if (attempt && attempt % kLockAttemptsPerSleep == 0) {
+    if (attempt % kLockAttemptsPerSleep == 0) {
       usleep(kSleepDurationUs);
       sleeps++;
     }
