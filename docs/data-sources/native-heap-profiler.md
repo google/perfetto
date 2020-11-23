@@ -429,7 +429,7 @@ Then, Ctrl-C the Perfetto invocation and upload ~/heapprofd-trace to the
 
 ## Known Issues
 
-### Android 11
+### {#known-issues-android11} Android 11
 
 * 32-bit programs cannot be targeted on 64-bit devices.
 * Setting `sampling_interval_bytes` to 0 crashes the target process.
@@ -437,12 +437,16 @@ Then, Ctrl-C the Perfetto invocation and upload ~/heapprofd-trace to the
 * For startup profiles, some frame names might be missing. This will be
   resolved in Android 12.
 
-### Android 10
-
-* On ARM32, the bottom-most frame is always `ERROR 2`. This is harmless and
-  the callstacks are still complete.
+### {#known-issues-android10} Android 10
+* Function names in libraries with load bias might be incorrect. Use
+  [offline symbolization](#symbolization) to resolve this issue.
+* For startup profiles, some frame names might be missing. This will be
+  resolved in Android 12.
+* 32-bit programs cannot be targeted on 64-bit devices.
 * x86 platforms are not supported. This includes the Android _Cuttlefish_
   emulator.
+* On ARM32, the bottom-most frame is always `ERROR 2`. This is harmless and
+  the callstacks are still complete.
 * If heapprofd is run standalone (by running `heapprofd` in a root shell, rather
   than through init), `/dev/socket/heapprofd` get assigned an incorrect SELinux
   domain. You will not be able to profile any processes unless you disable
@@ -452,13 +456,8 @@ Then, Ctrl-C the Perfetto invocation and upload ~/heapprofd-trace to the
   memory in the child process will prematurely end the profile.
   `java.lang.Runtime.exec` does this, calling it will prematurely end
   the profile. Note that this is in violation of the POSIX standard.
-* 32-bit programs cannot be targeted on 64-bit devices.
 * Setting `sampling_interval_bytes` to 0 crashes the target process.
   This is an invalid config that should be rejected instead.
-* Function names in libraries with load bias might be incorrect. Use
-  [offline symbolization](#symbolization) to resolve this issue.
-* For startup profiles, some frame names might be missing. This will be
-  resolved in Android 12.
 
 ## Heapprofd vs malloc_info() vs RSS
 
