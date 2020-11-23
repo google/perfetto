@@ -122,6 +122,7 @@ class TracingMuxerImpl : public TracingMuxer {
                            const std::shared_ptr<TraceConfig>&,
                            base::ScopedFile trace_fd = base::ScopedFile());
   void StartTracingSession(TracingSessionGlobalID);
+  void ChangeTracingSessionConfig(TracingSessionGlobalID, const TraceConfig&);
   void StopTracingSession(TracingSessionGlobalID);
   void DestroyTracingSession(TracingSessionGlobalID);
   void ReadTracingSessionData(
@@ -327,6 +328,7 @@ class TracingMuxerImpl : public TracingMuxer {
     void SetOnStopCallback(std::function<void()>) override;
     void GetTraceStats(GetTraceStatsCallback) override;
     void QueryServiceState(QueryServiceStateCallback) override;
+    void ChangeTraceConfig(const TraceConfig&) override;
 
    private:
     TracingMuxerImpl* const muxer_;
