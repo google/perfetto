@@ -205,3 +205,31 @@ test('Columnar iteration over empty query set', () => {
     expect(it.valid()).toBe(false);
   }
 });
+
+test('Columnar iteration first row is null', () => {
+  const r = new RawQueryResult({
+    columnDescriptors: [{
+      name: 'numbers',
+      type: COLUMN_TYPE_STR,
+    }],
+    numRecords: 2,
+    columns: [{
+      stringValues: ['[NULL]'],
+      doubleValues: [0],
+      longValues: [0, 1],
+      isNulls: [true, false],
+    }],
+  });
+
+  const it = iter({'numbers': NUM_NULL}, r);
+
+  expect(it.valid()).toBe(true);
+  expect(it.row.numbers).toBe(null);
+  it.next();
+
+  expect(it.valid()).toBe(true);
+  expect(it.row.numbers).toBe(1);
+  it.next();
+
+  expect(it.valid()).toBe(false);
+});

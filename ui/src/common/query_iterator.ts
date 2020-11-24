@@ -119,13 +119,18 @@ class ColumnarRowIterator {
       this.columnCount_++;
       this.columnNames_.push(columnName);
       let values: string[]|Array<number|Long> = [];
-      if (column.longValues && column.longValues.length > 0) {
+      const isNum = columnType === NUM || columnType === NUM_NULL;
+      const isString = columnType === STR || columnType === STR_NULL;
+      if (isNum && column.longValues &&
+          column.longValues.length === this.rowCount_) {
         values = column.longValues;
       }
-      if (column.doubleValues && column.doubleValues.length > 0) {
+      if (isNum && column.doubleValues &&
+          column.doubleValues.length === this.rowCount_) {
         values = column.doubleValues;
       }
-      if (column.stringValues && column.stringValues.length > 0) {
+      if (isString && column.stringValues &&
+          column.stringValues.length === this.rowCount_) {
         values = column.stringValues;
       }
       this.columns_.push(values as string[]);
