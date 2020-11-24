@@ -2181,6 +2181,56 @@ TEST_P(PerfettoApiTest, OneDataSourceOneEvent) {
   EXPECT_TRUE(test_packet_found);
 }
 
+TEST_P(PerfettoApiTest, ConsumerFlush) {
+  auto* data_source = &data_sources_["my_data_source"];
+
+  // Setup the trace config.
+  perfetto::TraceConfig cfg;
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("my_data_source");
+  ds_cfg->set_legacy_config("test config");
+
+  // Create a new trace session.
+  auto* tracing_session = NewTrace(cfg);
+
+  tracing_session->get()->Start();
+  data_source->on_start.Wait();
+
+  MockDataSource::Trace([&](MockDataSource::TraceContext ctx) {
+    auto packet = ctx.NewTracePacket();
+    packet->set_timestamp(42);
+    packet->set_for_testing()->set_str("flushed event");
+    packet->Finalize();
+
+    // The SMB scraping logic will skip the last packet because it cannot
+    // guarantee it's finalized. Create an empty packet so we get the
+    // previous one and this empty one is ignored.
+    packet = ctx.NewTracePacket();
+  });
+
+  EXPECT_TRUE(tracing_session->get()->FlushBlocking());
+
+  // Deliberately doing ReadTraceBlocking() before StopBlocking() to avoid
+  // hitting the auto scrape-on-stop behavior of the service.
+  std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
+  tracing_session->get()->StopBlocking();
+
+  ASSERT_GE(raw_trace.size(), 0u);
+  perfetto::protos::gen::Trace trace;
+  ASSERT_TRUE(trace.ParseFromArray(raw_trace.data(), raw_trace.size()));
+  bool test_packet_found = false;
+  for (const auto& packet : trace.packet()) {
+    if (!packet.has_for_testing())
+      continue;
+    EXPECT_FALSE(test_packet_found);
+    EXPECT_EQ(packet.timestamp(), 42U);
+    EXPECT_EQ(packet.for_testing().str(), "flushed event");
+    test_packet_found = true;
+  }
+  EXPECT_TRUE(test_packet_found);
+}
+
 TEST_P(PerfettoApiTest, WithBatching) {
   auto* data_source = &data_sources_["my_data_source"];
 
