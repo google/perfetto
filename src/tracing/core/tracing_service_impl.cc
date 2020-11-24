@@ -326,7 +326,11 @@ TracingServiceImpl::ConnectProducer(Producer* producer,
 
   // Producer::OnConnect() should run before Producer::OnTracingSetup(). The
   // latter may be posted by SetupSharedMemory() below, so post OnConnect() now.
-  task_runner_->PostTask(std::bind(&Producer::OnConnect, endpoint->producer_));
+  auto weak_ptr = endpoint->weak_ptr_factory_.GetWeakPtr();
+  task_runner_->PostTask([weak_ptr] {
+    if (weak_ptr)
+      weak_ptr->producer_->OnConnect();
+  });
 
   if (shm) {
     // The producer supplied an SMB. This is used only by Chrome; in the most
@@ -401,12 +405,10 @@ TracingServiceImpl::ConnectConsumer(Consumer* consumer, uid_t uid) {
   PERFETTO_DCHECK(it_and_inserted.second);
   // Consumer might go away before we're able to send the connect notification,
   // if that is the case just bail out.
-  auto weak_ptr = endpoint->GetWeakPtr();
+  auto weak_ptr = endpoint->weak_ptr_factory_.GetWeakPtr();
   task_runner_->PostTask([weak_ptr] {
-    if (!weak_ptr) {
-      return;
-    }
-    weak_ptr->consumer_->OnConnect();
+    if (weak_ptr)
+      weak_ptr->consumer_->OnConnect();
   });
   return std::unique_ptr<ConsumerEndpoint>(std::move(endpoint));
 }
@@ -1968,7 +1970,7 @@ bool TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
   }  // if (tracing_session->write_into_file)
 
   if (has_more) {
-    auto weak_consumer = consumer->GetWeakPtr();
+    auto weak_consumer = consumer->weak_ptr_factory_.GetWeakPtr();
     auto weak_this = weak_ptr_factory_.GetWeakPtr();
     task_runner_->PostTask([weak_this, weak_consumer, tsid] {
       if (!weak_this || !weak_consumer)
@@ -2860,7 +2862,7 @@ TracingServiceImpl::ConsumerEndpointImpl::~ConsumerEndpointImpl() {
 void TracingServiceImpl::ConsumerEndpointImpl::NotifyOnTracingDisabled(
     const std::string& error) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  auto weak_this = GetWeakPtr();
+  auto weak_this = weak_ptr_factory_.GetWeakPtr();
   task_runner_->PostTask([weak_this, error /* deliberate copy */] {
     if (weak_this)
       weak_this->consumer_->OnTracingDisabled(error);
@@ -2940,7 +2942,7 @@ void TracingServiceImpl::ConsumerEndpointImpl::Flush(uint32_t timeout_ms,
 void TracingServiceImpl::ConsumerEndpointImpl::Detach(const std::string& key) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   bool success = service_->DetachConsumer(this, key);
-  auto weak_this = GetWeakPtr();
+  auto weak_this = weak_ptr_factory_.GetWeakPtr();
   task_runner_->PostTask([weak_this, success] {
     if (weak_this)
       weak_this->consumer_->OnDetach(success);
@@ -2950,7 +2952,7 @@ void TracingServiceImpl::ConsumerEndpointImpl::Detach(const std::string& key) {
 void TracingServiceImpl::ConsumerEndpointImpl::Attach(const std::string& key) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   bool success = service_->AttachConsumer(this, key);
-  auto weak_this = GetWeakPtr();
+  auto weak_this = weak_ptr_factory_.GetWeakPtr();
   task_runner_->PostTask([weak_this, success] {
     if (!weak_this)
       return;
@@ -2974,7 +2976,7 @@ void TracingServiceImpl::ConsumerEndpointImpl::GetTraceStats() {
     success = true;
     stats = service_->GetTraceStats(session);
   }
-  auto weak_this = GetWeakPtr();
+  auto weak_this = weak_ptr_factory_.GetWeakPtr();
   task_runner_->PostTask([weak_this, success, stats] {
     if (weak_this)
       weak_this->consumer_->OnTraceStats(success, stats);
@@ -3040,18 +3042,12 @@ void TracingServiceImpl::ConsumerEndpointImpl::OnAllDataSourcesStarted() {
   observable_events->set_all_data_sources_started(true);
 }
 
-base::WeakPtr<TracingServiceImpl::ConsumerEndpointImpl>
-TracingServiceImpl::ConsumerEndpointImpl::GetWeakPtr() {
-  PERFETTO_DCHECK_THREAD(thread_checker_);
-  return weak_ptr_factory_.GetWeakPtr();
-}
-
 ObservableEvents*
 TracingServiceImpl::ConsumerEndpointImpl::AddObservableEvents() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   if (!observable_events_) {
     observable_events_.reset(new ObservableEvents());
-    auto weak_this = GetWeakPtr();
+    auto weak_this = weak_ptr_factory_.GetWeakPtr();
     task_runner_->PostTask([weak_this] {
       if (!weak_this)
         return;
