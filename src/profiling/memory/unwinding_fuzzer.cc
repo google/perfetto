@@ -30,7 +30,7 @@ namespace {
 
 class NopDelegate : public UnwindingWorker::Delegate {
   void PostAllocRecord(UnwindingWorker*,
-                       std::vector<std::unique_ptr<AllocRecord>>) override {}
+                       std::unique_ptr<AllocRecord>) override {}
   void PostFreeRecord(UnwindingWorker*, std::vector<FreeRecord>) override {}
   void PostHeapNameRecord(UnwindingWorker*, HeapNameRecord) override {}
   void PostSocketDisconnected(UnwindingWorker*,

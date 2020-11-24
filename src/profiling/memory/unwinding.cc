@@ -211,10 +211,6 @@ void UnwindingWorker::OnDisconnect(base::UnixSocket* self) {
   ReadAndUnwindBatch(&client_data);
   SharedRingBuffer& shmem = client_data.shmem;
 
-  if (!client_data.alloc_records.empty()) {
-    delegate_->PostAllocRecord(this, std::move(client_data.alloc_records));
-    client_data.alloc_records.clear();
-  }
   if (!client_data.free_records.empty()) {
     delegate_->PostFreeRecord(this, std::move(client_data.free_records));
     client_data.free_records.clear();
@@ -345,12 +341,7 @@ void UnwindingWorker::HandleBuffer(UnwindingWorker* self,
       DoUnwind(&msg, unwinding_metadata, rec.get());
     rec->unwinding_time_us = static_cast<uint64_t>(
         ((base::GetWallTimeNs() / 1000) - start_time_us).count());
-    client_data->alloc_records.emplace_back(std::move(rec));
-    if (client_data->alloc_records.size() == kRecordBatchSize) {
-      delegate->PostAllocRecord(self, std::move(client_data->alloc_records));
-      client_data->alloc_records.clear();
-      client_data->alloc_records.reserve(kRecordBatchSize);
-    }
+    delegate->PostAllocRecord(self, std::move(rec));
   } else if (msg.record_type == RecordType::Free) {
     FreeRecord rec;
     rec.pid = peer_pid;
@@ -404,10 +395,8 @@ void UnwindingWorker::HandleHandoffSocket(HandoffData handoff_data) {
       std::move(handoff_data.client_config),
       handoff_data.stream_allocations,
       {},
-      {},
   };
   client_data.free_records.reserve(kRecordBatchSize);
-  client_data.alloc_records.reserve(kRecordBatchSize);
   client_data.shmem.SetReaderPaused();
   client_data_.emplace(peer_pid, std::move(client_data));
   alloc_record_arena_.Enable();
