@@ -142,8 +142,7 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
   void DumpAll();
 
   // UnwindingWorker::Delegate impl:
-  void PostAllocRecord(UnwindingWorker*,
-                       std::vector<std::unique_ptr<AllocRecord>>) override;
+  void PostAllocRecord(UnwindingWorker*, std::unique_ptr<AllocRecord>) override;
   void PostFreeRecord(UnwindingWorker*, std::vector<FreeRecord>) override;
   void PostHeapNameRecord(UnwindingWorker*, HeapNameRecord) override;
   void PostSocketDisconnected(UnwindingWorker*,
