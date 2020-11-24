@@ -61,7 +61,7 @@ class UnwindingWorker : public base::UnixSocket::EventListener {
   class Delegate {
    public:
     virtual void PostAllocRecord(UnwindingWorker*,
-                                 std::vector<std::unique_ptr<AllocRecord>>) = 0;
+                                 std::unique_ptr<AllocRecord>) = 0;
     virtual void PostFreeRecord(UnwindingWorker*, std::vector<FreeRecord>) = 0;
     virtual void PostHeapNameRecord(UnwindingWorker*, HeapNameRecord rec) = 0;
     virtual void PostSocketDisconnected(UnwindingWorker*,
@@ -111,7 +111,6 @@ class UnwindingWorker : public base::UnixSocket::EventListener {
     ClientConfiguration client_config;
     bool stream_allocations;
     std::vector<FreeRecord> free_records;
-    std::vector<std::unique_ptr<AllocRecord>> alloc_records;
   };
 
   // public for testing/fuzzing

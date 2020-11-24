@@ -950,19 +950,17 @@ void HeapprofdProducer::HandleClientConnection(
 
 void HeapprofdProducer::PostAllocRecord(
     UnwindingWorker* worker,
-    std::vector<std::unique_ptr<AllocRecord>> alloc_recs) {
+    std::unique_ptr<AllocRecord> alloc_rec) {
   // Once we can use C++14, this should be std::moved into the lambda instead.
-  auto* raw_alloc_recs =
-      new std::vector<std::unique_ptr<AllocRecord>>(std::move(alloc_recs));
+  auto* raw_alloc_rec = alloc_rec.release();
   auto weak_this = weak_factory_.GetWeakPtr();
-  task_runner_->PostTask([weak_this, raw_alloc_recs, worker] {
+  task_runner_->PostTask([weak_this, raw_alloc_rec, worker] {
+    std::unique_ptr<AllocRecord> unique_alloc_ref =
+        std::unique_ptr<AllocRecord>(raw_alloc_rec);
     if (weak_this) {
-      for (std::unique_ptr<AllocRecord>& alloc_rec : *raw_alloc_recs) {
-        weak_this->HandleAllocRecord(alloc_rec.get());
-        worker->ReturnAllocRecord(std::move(alloc_rec));
-      }
+      weak_this->HandleAllocRecord(unique_alloc_ref.get());
+      worker->ReturnAllocRecord(std::move(unique_alloc_ref));
     }
-    delete raw_alloc_recs;
   });
 }
 
