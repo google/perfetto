@@ -212,6 +212,12 @@ def main(argv):
       help="Collect allocations from all heaps registered by target."
   )
   parser.add_argument(
+      "--no-android-tree-symbolization",
+      action="store_true",
+      help="Do not symbolize using currently lunched target in the "
+      "Android tree."
+  )
+  parser.add_argument(
       "--disable-selinux",
       action="store_true",
       help="Disable SELinux enforcement for duration of "
@@ -486,10 +492,49 @@ def main(argv):
     print('This file can be opened using the Perfetto UI, https://ui.perfetto.dev')
     return 0
 
-  trace_to_text_output = subprocess.check_output(
-      [trace_to_text_binary, 'profile',
+  binary_path = os.getenv('PERFETTO_BINARY_PATH')
+  if not args.no_android_tree_symbolization:
+    product_out = os.getenv('ANDROID_PRODUCT_OUT')
+    if product_out:
+      product_out_symbols = product_out + '/symbols'
+    else:
+      product_out_symbols = None
+
+    if binary_path is None:
+      binary_path = product_out_symbols
+    elif product_out_symbols is not None:
+      binary_path += ":" + product_out_symbols
+
+  trace_file = os.path.join(profile_target, 'raw-trace')
+
+  if binary_path is not None:
+    with open(os.path.join(profile_target, 'symbols'), 'w') as fd:
+      ret = subprocess.call([
+          trace_to_text_binary, 'symbolize',
           os.path.join(profile_target, 'raw-trace')],
-      env=os.environ)
+          env=dict(os.environ, PERFETTO_BINARY_PATH=binary_path),
+          stdout=fd)
+    if ret == 0:
+      with open(os.path.join(profile_target, 'symbolized-trace'), 'w') as out,\
+           open(os.path.join(profile_target, 'raw-trace'), 'r') as in1,\
+           open(os.path.join(profile_target, 'symbols'), 'r') as in2:
+        while True:
+          buf = in1.read(4096)
+          if not buf:
+            break
+          out.write(buf)
+        while True:
+          buf = in2.read(4096)
+          if not buf:
+            break
+          out.write(buf)
+      trace_file = os.path.join(profile_target, 'symbolized-trace')
+    else:
+      print("Failed to symbolize. Continuing without symbols.",
+      file=sys.stderr)
+
+  trace_to_text_output = subprocess.check_output(
+      [trace_to_text_binary, 'profile', trace_file])
   profile_path = None
   for word in trace_to_text_output.decode('utf-8').split():
     if 'heap_profile-' in word:
@@ -517,32 +562,6 @@ def main(argv):
     if os.path.lexists(symlink_path):
       os.unlink(symlink_path)
     os.symlink(profile_target, symlink_path)
-
-  binary_path = os.getenv('PERFETTO_BINARY_PATH')
-  if binary_path is not None:
-    with open(os.path.join(profile_target, 'symbols'), 'w') as fd:
-      ret = subprocess.call([
-          trace_to_text_binary, 'symbolize',
-          os.path.join(profile_target, 'raw-trace')],
-          env=os.environ,
-          stdout=fd)
-      if ret != 0:
-        print("Failed to symbolize. Continuing without symbols.",
-              file=sys.stderr)
-    if ret == 0:
-      with open(os.path.join(profile_target, 'symbolized-trace'), 'w') as out,\
-           open(os.path.join(profile_target, 'raw-trace'), 'r') as in1,\
-           open(os.path.join(profile_target, 'symbols'), 'r') as in2:
-        while True:
-          buf = in1.read(4096)
-          if not buf:
-            break
-          out.write(buf)
-        while True:
-          buf = in2.read(4096)
-          if not buf:
-            break
-          out.write(buf)
 
   if symlink_path is not None:
     print("Wrote profiles to {} (symlink {})".format(
