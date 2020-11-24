@@ -18,7 +18,7 @@ import {
   NUM,
   NUM_NULL,
   slowlyCountRows,
-  STR
+  STR_NULL
 } from '../../common/query_iterator';
 import {translateState} from '../../common/thread_state';
 import {fromNs, toNs} from '../../common/time';
@@ -118,7 +118,7 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
           'ts': NUM,
           'dur': NUM,
           'cpu': NUM_NULL,
-          'state': STR,
+          'state': STR_NULL,
           'io_wait': NUM_NULL,
           'id': NUM_NULL,
         },
