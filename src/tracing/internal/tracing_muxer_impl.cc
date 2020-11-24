@@ -489,6 +489,23 @@ void TracingMuxerImpl::TracingSessionImpl::StartBlocking() {
 }
 
 // Can be called from any thread.
+void TracingMuxerImpl::TracingSessionImpl::Flush(
+    std::function<void(bool)> user_callback,
+    uint32_t timeout_ms) {
+  auto* muxer = muxer_;
+  auto session_id = session_id_;
+  muxer->task_runner_->PostTask([muxer, session_id, timeout_ms, user_callback] {
+    auto* consumer = muxer->FindConsumer(session_id);
+    if (!consumer) {
+      std::move(user_callback)(false);
+      return;
+    }
+    muxer->FlushTracingSession(session_id, timeout_ms,
+                               std::move(user_callback));
+  });
+}
+
+// Can be called from any thread.
 void TracingMuxerImpl::TracingSessionImpl::Stop() {
   auto* muxer = muxer_;
   auto session_id = session_id_;
@@ -1031,6 +1048,21 @@ void TracingMuxerImpl::ChangeTracingSessionConfig(
   consumer->trace_config_ = std::make_shared<TraceConfig>(trace_config);
   if (consumer->connected_)
     consumer->service_->ChangeTraceConfig(trace_config);
+}
+
+void TracingMuxerImpl::FlushTracingSession(TracingSessionGlobalID session_id,
+                                           uint32_t timeout_ms,
+                                           std::function<void(bool)> callback) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  auto* consumer = FindConsumer(session_id);
+  if (!consumer || consumer->start_pending_ || consumer->stop_pending_ ||
+      !consumer->trace_config_) {
+    PERFETTO_ELOG("Flush() can be called only after Start() and before Stop()");
+    std::move(callback)(false);
+    return;
+  }
+
+  consumer->service_->Flush(timeout_ms, std::move(callback));
 }
 
 void TracingMuxerImpl::StopTracingSession(TracingSessionGlobalID session_id) {
