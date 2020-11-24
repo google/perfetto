@@ -160,12 +160,30 @@ function fetch(url) {
   });
 }
 
-function geturl(url) {
+function delay(t, v) {
+ return new Promise(resolve => { 
+   setTimeout(resolve.bind(null, v), t)
+ });
+}
+
+// Limit the number of outstanding fetch requests to avoid causing
+// problems in the browser.
+let GET_URL_TOKENS = 400;
+async function geturl(url) {
   console.log('Fetch:', url);
   if (gCache.has(url)) return Promise.resolve(gCache.get(url));
+
+  while (GET_URL_TOKENS === 0) {
+    // Retry in 1000ms +/- 250ms to avoid all the requests lining up.
+    await delay(1000 + 500 * (Math.random() - 0.5));
+  }
+  GET_URL_TOKENS -= 1;
+
   return fetch(url).then(r => r.text()).then(text => {
     gCache.set(url, text);
     return text;
+  }).finally(() => {
+    GET_URL_TOKENS += 1;
   });
 }
 
@@ -242,7 +260,7 @@ function contextView(filterText, namesToRecords) {
   return m('.context', [
     m('h1', {class: 'title'}, 'Ftrace Format Explorer'),
     m('input[type=text][placeholder=Filter]', {
-      oninput: m.withAttr('value', value => gFilterText = value),
+      oninput: e => gFilterText = e.target.value,
       value: filterText,
     }),
     m('ul',
@@ -266,7 +284,7 @@ function focusView(records) {
   if (!r2) r2 = records[0];
   let f1 = getfiletext(r1.url);
   let f2 = getfiletext(r2.url);
-  let diff = JsDiff.diffChars(f1, f2);
+  let diff = Diff.diffChars(f1, f2);
 
   let es = diff.map(part => {
     let color = part.added ? 'green' : part.removed ? 'red' : 'grey';
