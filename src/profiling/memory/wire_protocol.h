@@ -47,35 +47,6 @@ class UnixSocketRaw;
 
 namespace profiling {
 
-struct ClientConfigurationHeap {
-  char name[HEAPPROFD_HEAP_NAME_SZ];
-  uint64_t interval;
-};
-
-struct ClientConfiguration {
-  // On average, sample one allocation every interval bytes,
-  // If interval == 1, sample every allocation.
-  // Must be >= 1.
-  PERFETTO_CROSS_ABI_ALIGNED(uint64_t) default_interval;
-  PERFETTO_CROSS_ABI_ALIGNED(uint64_t) block_client_timeout_us;
-  PERFETTO_CROSS_ABI_ALIGNED(uint64_t) num_heaps;
-  alignas(8) ClientConfigurationHeap heaps[64];
-  PERFETTO_CROSS_ABI_ALIGNED(bool) block_client;
-  PERFETTO_CROSS_ABI_ALIGNED(bool) disable_fork_teardown;
-  PERFETTO_CROSS_ABI_ALIGNED(bool) disable_vfork_detection;
-  PERFETTO_CROSS_ABI_ALIGNED(bool) all_heaps;
-  // Just double check that the array sizes are in correct order.
-};
-
-// Types needed for the wire format used for communication between the client
-// and heapprofd. The basic format of a record is
-// record size (uint64_t) | record type (RecordType = uint64_t) | record
-// If record type is malloc, the record format is AllocMetdata | raw stack.
-// If the record type is free, the record is a sequence of FreeBatchEntry.
-
-// Use uint64_t to make sure the following data is aligned as 64bit is the
-// strongest alignment requirement.
-
 // C++11 std::max is not constexpr.
 constexpr size_t constexpr_max(size_t x, size_t y) {
   return x > y ? x : y;
@@ -97,6 +68,38 @@ constexpr size_t kMaxRegisterDataSize =
       sizeof(uint64_t) * unwindstack::MIPS64_REG_LAST
   );
 // clang-format on
+
+// Types needed for the wire format used for communication between the client
+// and heapprofd. The basic format of a record sent by the client is
+// record size (uint64_t) | record type (RecordType = uint64_t) | record
+// If record type is Malloc, the record format is AllocMetdata | raw stack.
+// If the record type is Free, the record is a FreeEntry.
+// If record type is HeapName, the record is a HeapName.
+// On connect, heapprofd sends one ClientConfiguration struct over the control
+// socket.
+
+// Use uint64_t to make sure the following data is aligned as 64bit is the
+// strongest alignment requirement.
+
+struct ClientConfigurationHeap {
+  char name[HEAPPROFD_HEAP_NAME_SZ];
+  uint64_t interval;
+};
+
+struct ClientConfiguration {
+  // On average, sample one allocation every interval bytes,
+  // If interval == 1, sample every allocation.
+  // Must be >= 1.
+  PERFETTO_CROSS_ABI_ALIGNED(uint64_t) default_interval;
+  PERFETTO_CROSS_ABI_ALIGNED(uint64_t) block_client_timeout_us;
+  PERFETTO_CROSS_ABI_ALIGNED(uint64_t) num_heaps;
+  alignas(8) ClientConfigurationHeap heaps[64];
+  PERFETTO_CROSS_ABI_ALIGNED(bool) block_client;
+  PERFETTO_CROSS_ABI_ALIGNED(bool) disable_fork_teardown;
+  PERFETTO_CROSS_ABI_ALIGNED(bool) disable_vfork_detection;
+  PERFETTO_CROSS_ABI_ALIGNED(bool) all_heaps;
+  // Just double check that the array sizes are in correct order.
+};
 
 enum class RecordType : uint64_t {
   Free = 0,
@@ -135,6 +138,7 @@ struct HeapName {
   PERFETTO_CROSS_ABI_ALIGNED(char) heap_name[HEAPPROFD_HEAP_NAME_SZ];
 };
 
+// Make sure the sizes do not change on different architectures.
 static_assert(sizeof(AllocMetadata) == 328,
               "AllocMetadata needs to be the same size across ABIs.");
 static_assert(sizeof(FreeEntry) == 24,
