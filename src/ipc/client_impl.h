@@ -46,7 +46,7 @@ class ServiceDescriptor;
 
 class ClientImpl : public Client, public base::UnixSocket::EventListener {
  public:
-  ClientImpl(const char* socket_name, bool socket_retry, base::TaskRunner*);
+  ClientImpl(ConnArgs, base::TaskRunner*);
   ~ClientImpl() override;
 
   // Client implementation.
