@@ -2322,6 +2322,7 @@ TEST_P(PerfettoApiTest, BlockingStartAndStop) {
   perfetto::DataSourceDescriptor dsd;
   dsd.set_name("my_data_source2");
   MockDataSource2::Register(dsd);
+  perfetto::test::SyncProducers();
 
   // Setup the trace config.
   perfetto::TraceConfig cfg;
@@ -2474,6 +2475,7 @@ TEST_P(PerfettoApiTest, MultipleRegistrations) {
   perfetto::DataSourceDescriptor dsd;
   dsd.set_name("my_data_source");
   EXPECT_TRUE(MockDataSource::Register(dsd));
+  perfetto::test::SyncProducers();
 
   // Setup the trace config.
   perfetto::TraceConfig cfg;
@@ -2501,6 +2503,7 @@ TEST_P(PerfettoApiTest, CustomIncrementalState) {
   perfetto::DataSourceDescriptor dsd;
   dsd.set_name("incr_data_source");
   TestIncrementalDataSource::Register(dsd);
+  perfetto::test::SyncProducers();
 
   // Setup the trace config.
   perfetto::TraceConfig cfg;
