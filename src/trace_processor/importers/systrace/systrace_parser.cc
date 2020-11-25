@@ -220,14 +220,24 @@ void SystraceParser::ParseSystracePoint(
         context_->event_tracker->PushCounter(ts, point.value, track);
         return;
       }
-      // This is per upid on purpose. Some counters are pushed from arbitrary
-      // threads but are really per process.
-      UniquePid upid =
-          context_->process_tracker->GetOrCreateProcess(point.tgid);
+
       StringId name_id = context_->storage->InternString(point.name);
-      TrackId track =
-          context_->track_tracker->InternProcessCounterTrack(name_id, upid);
-      context_->event_tracker->PushCounter(ts, point.value, track);
+      TrackId track_id;
+      if (point.tgid == 0) {
+        // If tgid is 0 (likely because this is a kernel thread), we can do no
+        // better than using a thread track with the pid of the process.
+        UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+        track_id =
+            context_->track_tracker->InternThreadCounterTrack(name_id, utid);
+      } else {
+        // This is per upid on purpose. Some counters are pushed from arbitrary
+        // threads but are really per process.
+        UniquePid upid =
+            context_->process_tracker->GetOrCreateProcess(point.tgid);
+        track_id =
+            context_->track_tracker->InternProcessCounterTrack(name_id, upid);
+      }
+      context_->event_tracker->PushCounter(ts, point.value, track_id);
     }
   }
 }

@@ -62,6 +62,7 @@ android_async_slice.textproto process_track_slices.sql process_track_slices_andr
 # Check the systrace conversion code in the raw table.
 # Print events
 ../../data/lmk_userspace.pb print_systrace.sql print_systrace_lmk_userspace.out
+kernel_tmw_counter.textproto thread_counter_and_track.sql kernel_tmw_counter_thread_counter_and_track.out
 # Unsigned integers
 print_systrace_unsigned.py print_systrace.sql print_systrace_unsigned.out
 
