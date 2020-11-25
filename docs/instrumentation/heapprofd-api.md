@@ -117,20 +117,22 @@ and have recent version of the protoc compiler installed.
 [Learn how to install protoc](https://grpc.io/docs/protoc-installation).
 
 On Linux, you can start a profile using the following pipeline (substitue
-`$APP_NAME` for the name of your app):
+`$APP_NAME` for the name of your app and `$HEAP` for the name of the heap
+you registered using `AHeapProfile_registerHeap`):
 
 ```
-heap_profile -n $APP_NAME --all-heaps --print-config | \
+heap_profile -n $APP_NAME --heaps $HEAP --print-config | \
  path/to/protoc --encode=perfetto.protos.TraceConfig perfetto_trace.proto | \
  adb shell perfetto -c - -o /data/misc/perfetto-traces/profile
 ```
 
-On Windows, you will need [python 3.6](
-https://www.python.org/downloads/) or later. You can start a profile using the following pipeline
-from a command prompt (substitue`%APP_NAME%` for the name of your app):
+On Windows, you will need [python 3.6](https://www.python.org/downloads/) or
+later. You can start a profile using the following pipeline from a command
+prompt (substitue`%APP_NAME%` for the name of your app and `%HEAP%` for
+the name of the heap you registered using `AHeapProfile_registerHeap`):
 
 ```
-python /path/to/heap_profile -n %APP_NAME% --all-heaps --print-config | ^
+python /path/to/heap_profile -n %APP_NAME% --heaps %HEAP% --print-config | ^
  path/to/protoc --encode=perfetto.protos.TraceConfig perfetto_trace.proto | ^
  adb shell perfetto -c - -o /data/misc/perfetto-traces/profile
 ```
