@@ -359,7 +359,7 @@ class DataSource : public DataSourceBase {
             Traits::GetActiveInstances()->load(std::memory_order_acquire);
         instance_state = static_state_.TryGetCached(instances, i);
         if (!instance_state || !instance_state->trace_lambda_enabled)
-          return;
+          continue;
         tls_inst.backend_id = instance_state->backend_id;
         tls_inst.backend_connection_id = instance_state->backend_connection_id;
         tls_inst.buffer_id = instance_state->buffer_id;
