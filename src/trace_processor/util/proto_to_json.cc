@@ -30,42 +30,6 @@ namespace proto_to_json {
 
 namespace {
 
-std::string EscapeJsonString(const std::string& raw) {
-  std::string ret;
-  for (auto it = raw.cbegin(); it != raw.cend(); it++) {
-    switch (*it) {
-      case '\\':
-        ret += "\\\\";
-        break;
-      case '"':
-        ret += "\\\"";
-        break;
-      case '/':
-        ret += "\\/";
-        break;
-      case '\b':
-        ret += "\\b";
-        break;
-      case '\f':
-        ret += "\\f";
-        break;
-      case '\n':
-        ret += "\\n";
-        break;
-      case '\r':
-        ret += "\\r";
-        break;
-      case '\t':
-        ret += "\\t";
-        break;
-      default:
-        ret += *it;
-        break;
-    }
-  }
-  return '"' + ret + '"';
-}
-
 std::string FieldToJson(const google::protobuf::Message& message,
                         const google::protobuf::FieldDescriptor* field_desc,
                         int idx,
@@ -80,7 +44,7 @@ std::string FieldToJson(const google::protobuf::Message& message,
                                 ? ref->GetRepeatedBool(message, field_desc, idx)
                                 : ref->GetBool(message, field_desc));
     case FieldDescriptor::CppType::CPPTYPE_ENUM:
-      return EscapeJsonString(
+      return base::QuoteAndEscapeControlCodes(
           is_repeated ? ref->GetRepeatedEnum(message, field_desc, idx)->name()
                       : ref->GetEnum(message, field_desc)->name());
     case FieldDescriptor::CppType::CPPTYPE_FLOAT:
@@ -102,7 +66,7 @@ std::string FieldToJson(const google::protobuf::Message& message,
           is_repeated ? ref->GetRepeatedDouble(message, field_desc, idx)
                       : ref->GetDouble(message, field_desc));
     case FieldDescriptor::CppType::CPPTYPE_STRING:
-      return EscapeJsonString(
+      return base::QuoteAndEscapeControlCodes(
           is_repeated ? ref->GetRepeatedString(message, field_desc, idx)
                       : ref->GetString(message, field_desc));
     case FieldDescriptor::CppType::CPPTYPE_UINT32:
