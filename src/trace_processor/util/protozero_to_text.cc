@@ -1,5 +1,6 @@
 #include "src/trace_processor/util/protozero_to_text.h"
 
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/protozero/proto_utils.h"
@@ -113,12 +114,14 @@ void ConvertProtoTypeToFieldAndValueString(const FieldDescriptor& fd,
       StrAppend(out, separator, indent, fd.name(), ": ",
                 std::to_string(field.as_float()));
       return;
-    case FieldDescriptorProto::TYPE_STRING:
-      StrAppend(out, separator, indent, fd.name(), ": ", field.as_std_string());
+    case FieldDescriptorProto::TYPE_STRING: {
+      auto s = base::QuoteAndEscapeControlCodes(field.as_std_string());
+      StrAppend(out, separator, indent, fd.name(), ": ", s);
       return;
+    }
     case FieldDescriptorProto::TYPE_BYTES: {
       std::string value = BytesToHexEncodedString(field.as_std_string());
-      StrAppend(out, separator, indent, fd.name(), ": ", value);
+      StrAppend(out, separator, indent, fd.name(), ": \"", value, "\"");
       return;
     }
     case FieldDescriptorProto::TYPE_ENUM: {
