@@ -1,0 +1,77 @@
+packet {
+  ftrace_events {
+    cpu: 2
+    event {
+      timestamp: 795572805481
+      pid: 237
+      g2d_tracing_mark_write {
+        pid: 237
+        name: "g2d_frame_hw#15"
+        type: 67
+        value: 0
+      }
+    }
+    event {
+      timestamp: 795572870504
+      pid: 237
+      g2d_tracing_mark_write {
+        pid: 237
+        name: "g2d_frame_sw#15"
+        type: 67
+        value: 0
+      }
+    }
+    event {
+      timestamp: 795620516581
+      pid: 237
+      g2d_tracing_mark_write {
+        pid: 237
+        name: "g2d_frame_sw#15"
+        type: 67
+        value: 1
+      }
+    }
+    event {
+      timestamp: 795620943421
+      pid: 237
+      g2d_tracing_mark_write {
+        pid: 237
+        name: "g2d_frame_hw#15"
+        type: 67
+        value: 1
+      }
+    }
+    event {
+      timestamp: 795623633810
+      pid: 237
+      g2d_tracing_mark_write {
+        pid: 237
+        name: "g2d_frame_hw#15"
+        type: 67
+        value: 0
+      }
+    }
+    event {
+      timestamp: 795623633810
+      pid: 237
+      g2d_tracing_mark_write {
+        pid: 237
+        name: "g2d_frame_hw#15"
+        type: 67
+        value: 0
+      }
+    }
+    event {
+      timestamp: 795623739848
+      pid: 237
+      g2d_tracing_mark_write {
+        pid: 237
+        name: "g2d_frame_sw#15"
+        type: 67
+        value: 0
+      }
+    }
+  }
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 3
+}
