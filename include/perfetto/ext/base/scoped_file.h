@@ -33,6 +33,7 @@ typedef int mode_t;
 
 #include <string>
 
+#include "perfetto/base/export.h"
 #include "perfetto/base/logging.h"
 
 namespace perfetto {
@@ -45,7 +46,7 @@ template <typename T,
           int (*CloseFunction)(T),
           T InvalidValue,
           bool CheckClose = true>
-class ScopedResource {
+class PERFETTO_EXPORT ScopedResource {
  public:
   explicit ScopedResource(T t = InvalidValue) : t_(t) {}
   ScopedResource(ScopedResource&& other) noexcept {
