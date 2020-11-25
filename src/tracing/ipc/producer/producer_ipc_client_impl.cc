@@ -51,14 +51,17 @@ std::unique_ptr<TracingService::ProducerEndpoint> ProducerIPCClient::Connect(
     ConnectionFlags conn_flags) {
   return std::unique_ptr<TracingService::ProducerEndpoint>(
       new ProducerIPCClientImpl(
-          service_sock_name, producer, producer_name, task_runner,
-          smb_scraping_mode, shared_memory_size_hint_bytes,
-          shared_memory_page_size_hint_bytes, std::move(shm),
-          std::move(shm_arbiter), conn_flags));
+          {service_sock_name,
+           conn_flags ==
+               ProducerIPCClient::ConnectionFlags::kRetryIfUnreachable},
+          producer, producer_name, task_runner, smb_scraping_mode,
+          shared_memory_size_hint_bytes, shared_memory_page_size_hint_bytes,
+          std::move(shm), std::move(shm_arbiter)));
 }
 
-ProducerIPCClientImpl::ProducerIPCClientImpl(
-    const char* service_sock_name,
+// static. (Declared in include/tracing/ipc/producer_ipc_client.h).
+std::unique_ptr<TracingService::ProducerEndpoint> ProducerIPCClient::Connect(
+    ipc::Client::ConnArgs conn_args,
     Producer* producer,
     const std::string& producer_name,
     base::TaskRunner* task_runner,
@@ -66,14 +69,29 @@ ProducerIPCClientImpl::ProducerIPCClientImpl(
     size_t shared_memory_size_hint_bytes,
     size_t shared_memory_page_size_hint_bytes,
     std::unique_ptr<SharedMemory> shm,
-    std::unique_ptr<SharedMemoryArbiter> shm_arbiter,
-    ProducerIPCClient::ConnectionFlags conn_flags)
+    std::unique_ptr<SharedMemoryArbiter> shm_arbiter) {
+  return std::unique_ptr<TracingService::ProducerEndpoint>(
+      new ProducerIPCClientImpl(std::move(conn_args), producer, producer_name,
+                                task_runner, smb_scraping_mode,
+                                shared_memory_size_hint_bytes,
+                                shared_memory_page_size_hint_bytes,
+                                std::move(shm), std::move(shm_arbiter)));
+}
+
+ProducerIPCClientImpl::ProducerIPCClientImpl(
+    ipc::Client::ConnArgs conn_args,
+    Producer* producer,
+    const std::string& producer_name,
+    base::TaskRunner* task_runner,
+    TracingService::ProducerSMBScrapingMode smb_scraping_mode,
+    size_t shared_memory_size_hint_bytes,
+    size_t shared_memory_page_size_hint_bytes,
+    std::unique_ptr<SharedMemory> shm,
+    std::unique_ptr<SharedMemoryArbiter> shm_arbiter)
     : producer_(producer),
       task_runner_(task_runner),
-      ipc_channel_(ipc::Client::CreateInstance(
-          service_sock_name,
-          conn_flags == ProducerIPCClient::ConnectionFlags::kRetryIfUnreachable,
-          task_runner)),
+      ipc_channel_(
+          ipc::Client::CreateInstance(std::move(conn_args), task_runner)),
       producer_port_(this /* event_listener */),
       shared_memory_(std::move(shm)),
       shared_memory_arbiter_(std::move(shm_arbiter)),

@@ -81,7 +81,7 @@ TEST_F(IPCIntegrationTest, SayHelloWaveGoodbye) {
   auto on_connect = task_runner_.CreateCheckpoint("on_connect");
   EXPECT_CALL(svc_proxy_events_, OnConnect()).WillOnce(Invoke(on_connect));
   std::unique_ptr<Client> cli =
-      Client::CreateInstance(kSockName, /*retry=*/false, &task_runner_);
+      Client::CreateInstance({kSockName, /*retry=*/false}, &task_runner_);
   std::unique_ptr<GreeterProxy> svc_proxy(new GreeterProxy(&svc_proxy_events_));
   cli->BindService(svc_proxy->GetWeakPtr());
   task_runner_.RunUntilCheckpoint("on_connect");

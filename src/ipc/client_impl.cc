@@ -38,22 +38,29 @@ namespace perfetto {
 namespace ipc {
 
 // static
-std::unique_ptr<Client> Client::CreateInstance(const char* socket_name,
-                                               bool socket_retry,
+std::unique_ptr<Client> Client::CreateInstance(ConnArgs conn_args,
                                                base::TaskRunner* task_runner) {
   std::unique_ptr<Client> client(
-      new ClientImpl(socket_name, socket_retry, task_runner));
+      new ClientImpl(std::move(conn_args), task_runner));
   return client;
 }
 
-ClientImpl::ClientImpl(const char* socket_name,
-                       bool socket_retry,
-                       base::TaskRunner* task_runner)
-    : socket_name_(socket_name),
-      socket_retry_(socket_retry),
+ClientImpl::ClientImpl(ConnArgs conn_args, base::TaskRunner* task_runner)
+    : socket_name_(conn_args.socket_name),
+      socket_retry_(conn_args.retry),
       task_runner_(task_runner),
       weak_ptr_factory_(this) {
-  TryConnect();
+  if (conn_args.socket_fd) {
+    // Create the client using a connected socket. This code path will never hit
+    // OnConnect().
+    sock_ = base::UnixSocket::AdoptConnected(
+        std::move(conn_args.socket_fd), this, task_runner_,
+        base::SockFamily::kUnix, base::SockType::kStream,
+        base::SockPeerCredMode::kIgnore);
+  } else {
+    // Connect using the socket name.
+    TryConnect();
+  }
 }
 
 ClientImpl::~ClientImpl() {
@@ -64,6 +71,7 @@ ClientImpl::~ClientImpl() {
 }
 
 void ClientImpl::TryConnect() {
+  PERFETTO_DCHECK(socket_name_);
   sock_ = base::UnixSocket::Connect(
       socket_name_, this, task_runner_, base::SockFamily::kUnix,
       base::SockType::kStream, base::SockPeerCredMode::kIgnore);
