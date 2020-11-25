@@ -29,6 +29,8 @@
 namespace perfetto {
 namespace base {
 
+std::string QuoteAndEscapeControlCodes(const std::string& raw);
+
 inline char Lowercase(char c) {
   return ('A' <= c && c <= 'Z') ? static_cast<char>(c - ('A' - 'a')) : c;
 }

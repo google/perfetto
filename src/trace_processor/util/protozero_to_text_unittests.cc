@@ -193,6 +193,22 @@ TEST(ProtozeroToTextTest, UnknownField) {
             "# Ignoring unknown field with id: 24");
 }
 
+TEST(ProtozeroToTextTest, StringField) {
+  using perfetto::protos::pbzero::TrackEvent;
+  // Wrong type to force unknown field:
+  const auto type = ".perfetto.protos.TrackEvent";
+  protozero::HeapBuffered<TrackEvent> msg{kChunkSize, kChunkSize};
+  msg->add_categories(R"(Hello, "World")");
+  auto bytes = msg.SerializeAsArray();
+
+  DescriptorPool pool;
+  auto status = pool.AddFromFileDescriptorSet(kTrackEventDescriptor.data(),
+                                              kTrackEventDescriptor.size());
+  ASSERT_TRUE(status.ok());
+  ASSERT_EQ(ProtozeroToText(pool, type, bytes, kIncludeNewLines),
+            R"(categories: "Hello, \"World\"")");
+}
+
 TEST(ProtozeroToTextTest, BytesField) {
   EXPECT_EQ(BytesToHexEncodedStringForTesting("abc"), R"(\x61\x62\x63)");
 }
