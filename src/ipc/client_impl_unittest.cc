@@ -205,8 +205,8 @@ class ClientImplTest : public ::testing::Test {
   void SetUp() override {
     task_runner_.reset(new base::TestTaskRunner());
     host_.reset(new FakeHost(task_runner_.get()));
-    cli_ =
-        Client::CreateInstance(kSockName, /*retry=*/false, task_runner_.get());
+    cli_ = Client::CreateInstance({kSockName, /*retry=*/false},
+                                  task_runner_.get());
   }
 
   void TearDown() override {
@@ -580,7 +580,7 @@ TEST_F(ClientImplTest, HostConnectionFailure) {
   constexpr char kNonexistentSockName[] =
       TEST_SOCK_NAME("client_impl_unittest_nonexistent");
   std::unique_ptr<Client> client = Client::CreateInstance(
-      kNonexistentSockName, /*retry=*/false, task_runner_.get());
+      {kNonexistentSockName, /*retry=*/false}, task_runner_.get());
 
   // Connect a client to a non-existent socket, which will always fail. The
   // client will notify the proxy of disconnection.

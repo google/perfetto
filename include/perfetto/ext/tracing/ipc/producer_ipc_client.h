@@ -21,6 +21,7 @@
 #include <string>
 
 #include "perfetto/base/export.h"
+#include "perfetto/ext/ipc/client.h"
 #include "perfetto/ext/tracing/core/shared_memory.h"
 #include "perfetto/ext/tracing/core/shared_memory_arbiter.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
@@ -61,6 +62,8 @@ class PERFETTO_EXPORT ProducerIPCClient {
   // until the client is destroyed.
   //
   // TODO(eseckler): Support adoption failure more gracefully.
+  // TODO(primiano): move all the existing use cases to the Connect(ConnArgs)
+  // below. Also move the functionality of ConnectionFlags into ConnArgs.
   static std::unique_ptr<TracingService::ProducerEndpoint> Connect(
       const char* service_sock_name,
       Producer*,
@@ -73,6 +76,20 @@ class PERFETTO_EXPORT ProducerIPCClient {
       std::unique_ptr<SharedMemory> shm = nullptr,
       std::unique_ptr<SharedMemoryArbiter> shm_arbiter = nullptr,
       ConnectionFlags = ConnectionFlags::kDefault);
+
+  // Overload of Connect() to support adopting a connected socket using
+  // ipc::Client::ConnArgs.
+  static std::unique_ptr<TracingService::ProducerEndpoint> Connect(
+      ipc::Client::ConnArgs,
+      Producer*,
+      const std::string& producer_name,
+      base::TaskRunner*,
+      TracingService::ProducerSMBScrapingMode smb_scraping_mode =
+          TracingService::ProducerSMBScrapingMode::kDefault,
+      size_t shared_memory_size_hint_bytes = 0,
+      size_t shared_memory_page_size_hint_bytes = 0,
+      std::unique_ptr<SharedMemory> shm = nullptr,
+      std::unique_ptr<SharedMemoryArbiter> shm_arbiter = nullptr);
 
  protected:
   ProducerIPCClient() = delete;

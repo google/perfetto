@@ -23,6 +23,7 @@
 #include <memory>
 #include <string>
 
+#include "perfetto/base/export.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/utils.h"
@@ -161,7 +162,7 @@ class UnixSocketRaw {
 //                             | (failure or Shutdown())
 //                             V
 //                       OnDisconnect()
-class UnixSocket {
+class PERFETTO_EXPORT UnixSocket {
  public:
   class EventListener {
    public:
