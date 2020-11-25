@@ -607,6 +607,19 @@ class PerfettoApiTest : public ::testing::TestWithParam<perfetto::BackendType> {
     return slices;
   }
 
+  uint32_t GetMainThreadPacketSequenceId(
+      const perfetto::protos::gen::Trace& trace) {
+    for (const auto& packet : trace.packet()) {
+      if (packet.has_track_descriptor() &&
+          packet.track_descriptor().thread().tid() ==
+              static_cast<int32_t>(perfetto::base::GetThreadId())) {
+        return packet.trusted_packet_sequence_id();
+      }
+    }
+    ADD_FAILURE() << "Main thread not found";
+    return 0;
+  }
+
   std::map<std::string, TestDataSourceHandle> data_sources_;
   std::list<TestTracingSessionHandle> sessions_;  // Needs stable pointers.
 };
@@ -1193,10 +1206,10 @@ TEST_P(PerfettoApiTest, TrackEventProcessAndThreadDescriptors) {
 
   std::vector<perfetto::protos::gen::TrackDescriptor> descs;
   std::vector<perfetto::protos::gen::TrackDescriptor> thread_descs;
-  constexpr uint32_t kMainThreadSequence = 2;
+  uint32_t main_thread_sequence = GetMainThreadPacketSequenceId(trace);
   for (const auto& packet : trace.packet()) {
     if (packet.has_track_descriptor()) {
-      if (packet.trusted_packet_sequence_id() == kMainThreadSequence) {
+      if (packet.trusted_packet_sequence_id() == main_thread_sequence) {
         descs.push_back(packet.track_descriptor());
       } else {
         thread_descs.push_back(packet.track_descriptor());
@@ -1248,6 +1261,8 @@ TEST_P(PerfettoApiTest, CustomTrackDescriptor) {
   auto track = perfetto::ProcessTrack::Current();
   auto desc = track.Serialize();
   desc.mutable_process()->set_process_name("testing.exe");
+  desc.mutable_thread()->set_tid(
+      static_cast<int32_t>(perfetto::base::GetThreadId()));
   desc.mutable_chrome_process()->set_process_priority(123);
   perfetto::TrackEvent::SetTrackDescriptor(track, std::move(desc));
   perfetto::TrackEvent::Flush();
@@ -1258,10 +1273,10 @@ TEST_P(PerfettoApiTest, CustomTrackDescriptor) {
   perfetto::protos::gen::Trace trace;
   ASSERT_TRUE(trace.ParseFromArray(raw_trace.data(), raw_trace.size()));
 
-  constexpr uint32_t kMainThreadSequence = 2;
+  uint32_t main_thread_sequence = GetMainThreadPacketSequenceId(trace);
   bool found_desc = false;
   for (const auto& packet : trace.packet()) {
-    if (packet.trusted_packet_sequence_id() != kMainThreadSequence)
+    if (packet.trusted_packet_sequence_id() != main_thread_sequence)
       continue;
     if (packet.has_track_descriptor()) {
       auto td = packet.track_descriptor();
@@ -1318,7 +1333,7 @@ TEST_P(PerfettoApiTest, TrackEventCustomTrack) {
 
   // Check that the track uuids match on the begin and end events.
   const auto track = perfetto::Track(async_id);
-  constexpr uint32_t kMainThreadSequence = 2;
+  uint32_t main_thread_sequence = GetMainThreadPacketSequenceId(trace);
   int event_count = 0;
   bool found_descriptor = false;
   for (const auto& packet : trace.packet()) {
@@ -1338,10 +1353,10 @@ TEST_P(PerfettoApiTest, TrackEventCustomTrack) {
     auto track_event = packet.track_event();
     if (track_event.type() ==
         perfetto::protos::gen::TrackEvent::TYPE_SLICE_BEGIN) {
-      EXPECT_EQ(kMainThreadSequence, packet.trusted_packet_sequence_id());
+      EXPECT_EQ(main_thread_sequence, packet.trusted_packet_sequence_id());
       EXPECT_EQ(track.uuid, track_event.track_uuid());
     } else {
-      EXPECT_NE(kMainThreadSequence, packet.trusted_packet_sequence_id());
+      EXPECT_NE(main_thread_sequence, packet.trusted_packet_sequence_id());
       EXPECT_EQ(track.uuid, track_event.track_uuid());
     }
     event_count++;
