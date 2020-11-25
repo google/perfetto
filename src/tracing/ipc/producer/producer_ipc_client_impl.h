@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "perfetto/ext/base/thread_checker.h"
+#include "perfetto/ext/ipc/client.h"
 #include "perfetto/ext/ipc/service_proxy.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/shared_memory.h"
@@ -37,10 +38,6 @@ namespace base {
 class TaskRunner;
 }  // namespace base
 
-namespace ipc {
-class Client;
-}  // namespace ipc
-
 class Producer;
 class SharedMemoryArbiter;
 
@@ -51,7 +48,7 @@ class SharedMemoryArbiter;
 class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
                               public ipc::ServiceProxy::EventListener {
  public:
-  ProducerIPCClientImpl(const char* service_sock_name,
+  ProducerIPCClientImpl(ipc::Client::ConnArgs,
                         Producer*,
                         const std::string& producer_name,
                         base::TaskRunner*,
@@ -59,8 +56,7 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
                         size_t shared_memory_size_hint_bytes,
                         size_t shared_memory_page_size_hint_bytes,
                         std::unique_ptr<SharedMemory> shm,
-                        std::unique_ptr<SharedMemoryArbiter> shm_arbiter,
-                        ProducerIPCClient::ConnectionFlags);
+                        std::unique_ptr<SharedMemoryArbiter> shm_arbiter);
   ~ProducerIPCClientImpl() override;
 
   // TracingService::ProducerEndpoint implementation.
