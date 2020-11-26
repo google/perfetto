@@ -105,21 +105,21 @@ export class CpuProfileController extends Controller<'main'> {
             stack_profile_mapping.name AS mapping_name
           FROM
             (
-              WITH
-                RECURSIVE
-                  callsite_parser(callsite_id, current_id, position)
-                  AS (
-                    SELECT id, id, 0 FROM stack_profile_callsite
-                    UNION
-                      SELECT callsite_id, parent_id, position + 1
-                      FROM callsite_parser
-                      JOIN
-                        stack_profile_callsite
-                        ON stack_profile_callsite.id = current_id
-                      WHERE stack_profile_callsite.depth > 0
-                  )
-              SELECT *
-              FROM callsite_parser
+              SELECT
+                stack.id as callsite_id,
+                COALESCE(ancestor.id, stack.id) as current_id,
+                stack.depth - COALESCE(ancestor.depth, stack.depth) as position
+              FROM
+                stack_profile_callsite stack LEFT JOIN
+                experimental_ancestor_stack_profile_callsite(stack.id) AS
+                    ancestor
+              UNION ALL
+              SELECT
+                id,
+                id,
+                0
+              FROM stack_profile_callsite
+              WHERE parent_id IS NOT NULL AND id != 0
             ) AS flattened_callsite
           LEFT JOIN stack_profile_callsite AS spc
           LEFT JOIN
