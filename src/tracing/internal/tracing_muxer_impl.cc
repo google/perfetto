@@ -890,26 +890,55 @@ void TracingMuxerImpl::StopDataSource_AsyncEnd(
 void TracingMuxerImpl::SyncProducersForTesting() {
   std::mutex mutex;
   std::condition_variable cv;
-  size_t countdown = std::numeric_limits<size_t>::max();
 
-  task_runner_->PostTask([this, &mutex, &cv, &countdown] {
+  // IPC-based producers don't report connection errors explicitly for each
+  // command, but instead with an asynchronous callback
+  // (ProducerImpl::OnDisconnected). This means that the sync command below
+  // may have completed but failed to reach the service because of a
+  // disconnection, but we can't tell until the disconnection message comes
+  // through. To guard against this, we run two whole rounds of sync round-trips
+  // before returning; the first one will detect any disconnected producers and
+  // the second one will ensure any reconnections have completed and all data
+  // sources are registered in the service again.
+  for (size_t i = 0; i < 2; i++) {
+    size_t countdown = std::numeric_limits<size_t>::max();
+    task_runner_->PostTask([this, &mutex, &cv, &countdown] {
+      {
+        std::unique_lock<std::mutex> countdown_lock(mutex);
+        countdown = backends_.size();
+      }
+      for (auto& backend : backends_) {
+        auto* producer = backend.producer.get();
+        producer->service_->Sync([&mutex, &cv, &countdown] {
+          std::unique_lock<std::mutex> countdown_lock(mutex);
+          countdown--;
+          cv.notify_one();
+        });
+      }
+    });
+
     {
       std::unique_lock<std::mutex> countdown_lock(mutex);
-      countdown = backends_.size();
+      cv.wait(countdown_lock, [&countdown] { return !countdown; });
     }
-    for (auto& backend : backends_) {
-      backend.producer->service_->Sync([&mutex, &cv, &countdown] {
-        std::unique_lock<std::mutex> countdown_lock(mutex);
-        countdown--;
-        cv.notify_one();
-      });
-    }
+  }
+
+  // Check that all producers are indeed connected.
+  bool done = false;
+  bool all_producers_connected = true;
+  task_runner_->PostTask([this, &mutex, &cv, &done, &all_producers_connected] {
+    for (auto& backend : backends_)
+      all_producers_connected &= backend.producer->connected_;
+    std::unique_lock<std::mutex> lock(mutex);
+    done = true;
+    cv.notify_one();
   });
 
   {
-    std::unique_lock<std::mutex> countdown_lock(mutex);
-    cv.wait(countdown_lock, [&countdown] { return !countdown; });
+    std::unique_lock<std::mutex> lock(mutex);
+    cv.wait(lock, [&done] { return done; });
   }
+  PERFETTO_DCHECK(all_producers_connected);
 }
 
 void TracingMuxerImpl::DestroyStoppedTraceWritersForCurrentThread() {
