@@ -1463,14 +1463,15 @@ void TracingServiceImpl::CompleteFlush(TracingSessionID tsid,
                                        ConsumerEndpoint::FlushCallback callback,
                                        bool success) {
   TracingSession* tracing_session = GetTracingSession(tsid);
-  if (tracing_session) {
-    // Producers may not have been able to flush all their data, even if they
-    // indicated flush completion. If possible, also collect uncommitted chunks
-    // to make sure we have everything they wrote so far.
-    for (auto& producer_id_and_producer : producers_) {
-      ScrapeSharedMemoryBuffers(tracing_session,
-                                producer_id_and_producer.second);
-    }
+  if (!tracing_session) {
+    callback(false);
+    return;
+  }
+  // Producers may not have been able to flush all their data, even if they
+  // indicated flush completion. If possible, also collect uncommitted chunks
+  // to make sure we have everything they wrote so far.
+  for (auto& producer_id_and_producer : producers_) {
+    ScrapeSharedMemoryBuffers(tracing_session, producer_id_and_producer.second);
   }
   SnapshotLifecyleEvent(
       tracing_session,
