@@ -124,6 +124,8 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
       if (globals.frontendLocalState.currentTab === key ||
           globals.frontendLocalState.currentTab === undefined &&
               attrs.tabs[0] === key) {
+        // Update currentTab in case we didn't have one before.
+        globals.frontendLocalState.currentTab = key;
         return m(
             '.tab[active]',
             this.tabNames.get(key) === undefined ? key :
