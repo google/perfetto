@@ -113,16 +113,19 @@ void QueryResultSerializer::SerializeBatch(std::vector<uint8_t>* buf) {
   uint32_t cell_idx = 0;
   bool batch_full = false;
 
-  // Skip block if the query didn't return any result (e.g. CREATE TABLE).
-  for (; num_cols_ > 0; ++cell_idx, ++col_) {
+  for (;; ++cell_idx, ++col_) {
     // This branch is hit before starting each row. Note that iter_->Next() must
     // be called before iterating on a row. col_ is initialized at MAX_INT in
     // the constructor.
     if (col_ >= num_cols_) {
       col_ = 0;
+      // If num_cols_ == 0 and the query didn't return any result (e.g. CREATE
+      // TABLE) we should exit at this point. We still need to advance the
+      // iterator via Next() otherwise the statement will have no effect.
       if (!iter_->Next())
         break;  // EOF or error.
 
+      PERFETTO_DCHECK(num_cols_ > 0);
       // We need to guarantee that a batch contains whole rows. Before moving to
       // the next row, make sure that: (i) there is space for all the columns;
       // (ii) the batch didn't grow too much.
@@ -162,7 +165,7 @@ void QueryResultSerializer::SerializeBatch(std::vector<uint8_t>* buf) {
             static_cast<uint32_t>(strlen(value.string_value)) + 1;
         const char* str_begin = value.string_value;
         buf->insert(buf->end(), str_begin, str_begin + len_with_nul);
-        approx_batch_size += len_with_nul;
+        approx_batch_size += len_with_nul + 4;  // 4 is a guess on the preamble.
         break;
       }
       case SqlValue::Type::kBytes: {

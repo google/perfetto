@@ -75,9 +75,14 @@ class QueryResultSerializer {
   bool eof_reached_ = false;
   uint32_t col_ = UINT32_MAX;
 
+  // These params specify the thresholds for splitting the results in batches,
+  // in terms of: (1) max cells (row x cols); (2) serialized batch size in
+  // bytes, whichever is reached first. Note also that the byte limit is not
+  // 100% accurate and can occasionally yield to batches slighly larger than
+  // the limit (it splits on the next row *after* the limit is hit).
   // Overridable for testing only.
-  uint32_t cells_per_batch_ = 2048;
-  uint32_t batch_split_threshold_ = 1024 * 32;
+  uint32_t cells_per_batch_ = 50000;
+  uint32_t batch_split_threshold_ = 1024 * 128;
 };
 
 }  // namespace trace_processor

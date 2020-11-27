@@ -37,4 +37,14 @@ class TestApi(unittest.TestCase):
       self.assertEqual(row.type, 'internal_slice')
       self.assertEqual(row.dur, dur_result[num])
 
+    # Test the batching logic by issuing a large query and ensuring we receive
+    # all rows, not just a truncated subset.
+    qr_iterator = tp.query('select count(*) as cnt from slice')
+    expected_count = next(qr_iterator).cnt
+    self.assertGreater(expected_count, 0)
+
+    qr_iterator = tp.query('select * from slice')
+    count = sum(1 for _ in qr_iterator)
+    self.assertEqual(count, expected_count)
+
     tp.close()
