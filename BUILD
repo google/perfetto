@@ -339,6 +339,19 @@ filegroup(
     ],
 )
 
+# GN target: //include/perfetto/ext/trace_processor/importers/memory_tracker:memory_tracker
+filegroup(
+    name = "include_perfetto_ext_trace_processor_importers_memory_tracker_memory_tracker",
+    srcs = [
+        "include/perfetto/ext/trace_processor/importers/memory_tracker/graph.h",
+        "include/perfetto/ext/trace_processor/importers/memory_tracker/graph_processor.h",
+        "include/perfetto/ext/trace_processor/importers/memory_tracker/memory_allocator_node_id.h",
+        "include/perfetto/ext/trace_processor/importers/memory_tracker/memory_graph_edge.h",
+        "include/perfetto/ext/trace_processor/importers/memory_tracker/raw_memory_graph_node.h",
+        "include/perfetto/ext/trace_processor/importers/memory_tracker/raw_process_memory_node.h",
+    ],
+)
+
 # GN target: //include/perfetto/ext/trace_processor:export_json
 filegroup(
     name = "include_perfetto_ext_trace_processor_export_json",
@@ -757,6 +770,18 @@ filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/importers/memory_tracker:graph_processor
+filegroup(
+    name = "src_trace_processor_importers_memory_tracker_graph_processor",
+    srcs = [
+        "src/trace_processor/importers/memory_tracker/graph.cc",
+        "src/trace_processor/importers/memory_tracker/graph_processor.cc",
+        "src/trace_processor/importers/memory_tracker/memory_allocator_node_id.cc",
+        "src/trace_processor/importers/memory_tracker/raw_memory_graph_node.cc",
+        "src/trace_processor/importers/memory_tracker/raw_process_memory_node.cc",
+    ],
+)
+
 # GN target: //src/trace_processor/importers:common
 filegroup(
     name = "src_trace_processor_importers_common",
@@ -1169,6 +1194,10 @@ filegroup(
         "src/trace_processor/importers/proto/async_track_set_tracker.h",
         "src/trace_processor/importers/proto/heap_profile_tracker.cc",
         "src/trace_processor/importers/proto/heap_profile_tracker.h",
+        "src/trace_processor/importers/proto/memory_tracker_snapshot_module.cc",
+        "src/trace_processor/importers/proto/memory_tracker_snapshot_module.h",
+        "src/trace_processor/importers/proto/memory_tracker_snapshot_parser.cc",
+        "src/trace_processor/importers/proto/memory_tracker_snapshot_parser.h",
         "src/trace_processor/importers/proto/metadata_tracker.cc",
         "src/trace_processor/importers/proto/metadata_tracker.h",
         "src/trace_processor/importers/proto/packet_sequence_state.cc",
@@ -3066,6 +3095,7 @@ perfetto_cc_library(
         ":src_trace_processor_export_json",
         ":src_trace_processor_ftrace_descriptors",
         ":src_trace_processor_importers_common",
+        ":src_trace_processor_importers_memory_tracker_graph_processor",
         ":src_trace_processor_lib",
         ":src_trace_processor_metatrace",
         ":src_trace_processor_metrics_lib",
@@ -3084,6 +3114,7 @@ perfetto_cc_library(
         ":include_perfetto_base_base",
         ":include_perfetto_ext_base_base",
         ":include_perfetto_ext_trace_processor_export_json",
+        ":include_perfetto_ext_trace_processor_importers_memory_tracker_memory_tracker",
         ":include_perfetto_ext_traced_sys_stats_counters",
         ":include_perfetto_protozero_protozero",
         ":include_perfetto_trace_processor_basic_types",
@@ -3146,6 +3177,7 @@ perfetto_cc_binary(
         ":include_perfetto_base_base",
         ":include_perfetto_ext_base_base",
         ":include_perfetto_ext_trace_processor_export_json",
+        ":include_perfetto_ext_trace_processor_importers_memory_tracker_memory_tracker",
         ":include_perfetto_ext_traced_sys_stats_counters",
         ":include_perfetto_protozero_protozero",
         ":include_perfetto_trace_processor_basic_types",
@@ -3159,6 +3191,7 @@ perfetto_cc_binary(
         ":src_trace_processor_export_json",
         ":src_trace_processor_ftrace_descriptors",
         ":src_trace_processor_importers_common",
+        ":src_trace_processor_importers_memory_tracker_graph_processor",
         ":src_trace_processor_lib",
         ":src_trace_processor_metatrace",
         ":src_trace_processor_metrics_lib",
@@ -3315,6 +3348,7 @@ perfetto_cc_binary(
         ":include_perfetto_base_base",
         ":include_perfetto_ext_base_base",
         ":include_perfetto_ext_trace_processor_export_json",
+        ":include_perfetto_ext_trace_processor_importers_memory_tracker_memory_tracker",
         ":include_perfetto_ext_traced_sys_stats_counters",
         ":include_perfetto_profiling_deobfuscator",
         ":include_perfetto_profiling_pprof_builder",
@@ -3331,6 +3365,7 @@ perfetto_cc_binary(
         ":src_trace_processor_export_json",
         ":src_trace_processor_ftrace_descriptors",
         ":src_trace_processor_importers_common",
+        ":src_trace_processor_importers_memory_tracker_graph_processor",
         ":src_trace_processor_lib",
         ":src_trace_processor_metatrace",
         ":src_trace_processor_metrics_lib",

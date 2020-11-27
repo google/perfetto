@@ -798,7 +798,6 @@ void ProtoTraceParser::ParseModuleSymbols(ConstBytes blob) {
       context_->storage->IncrementStats(stats::stackprofile_invalid_frame_id);
       continue;
     }
-
   }
 }
 
@@ -833,7 +832,18 @@ void ProtoTraceParser::ParseSmapsPacket(int64_t ts, ConstBytes blob) {
         {upid, ts, context_->storage->InternString(e.path()),
          static_cast<int64_t>(e.size_kb()),
          static_cast<int64_t>(e.private_dirty_kb()),
-         static_cast<int64_t>(e.swap_kb())});
+         static_cast<int64_t>(e.swap_kb()),
+         context_->storage->InternString(e.file_name()),
+         static_cast<int64_t>(e.start_address()),
+         static_cast<int64_t>(e.module_timestamp()),
+         context_->storage->InternString(e.module_debugid()),
+         context_->storage->InternString(e.module_debug_path()),
+         static_cast<int32_t>(e.protection_flags()),
+         static_cast<int64_t>(e.private_clean_resident_kb()),
+         static_cast<int64_t>(e.shared_dirty_resident_kb()),
+         static_cast<int64_t>(e.shared_clean_resident_kb()),
+         static_cast<int64_t>(e.locked_kb()),
+         static_cast<int64_t>(e.proportional_resident_kb())});
   }
 }
 
