@@ -12,3 +12,12 @@
 ../../data/chrome_scroll_without_vsync.pftrace scroll_jank_cause_queuing_delay_general_validation.sql scroll_jank_cause_queuing_delay_general_validation.out
 ../../data/chrome_scroll_without_vsync.pftrace chrome_thread_slice_with_cpu_time.sql chrome_thread_slice_with_cpu_time.out
 ../track_event/track_event_counters.textproto chrome_thread_slice_with_cpu_time_repeated.sql chrome_thread_slice_with_cpu_time_repeated.out
+
+# Chrome memory snapshots.
+../../data/chrome_memory_snapshot.pftrace memory_snapshot_general_validation.sql memory_snapshot_general_validation.out
+../../data/chrome_memory_snapshot.pftrace memory_snapshot_os_dump_events.sql memory_snapshot_os_dump_events.out
+../../data/chrome_memory_snapshot.pftrace memory_snapshot_chrome_dump_events.sql memory_snapshot_chrome_dump_events.out
+../../data/chrome_memory_snapshot.pftrace memory_snapshot_nodes.sql memory_snapshot_nodes.out
+../../data/chrome_memory_snapshot.pftrace memory_snapshot_edges.sql memory_snapshot_edges.out
+../../data/chrome_memory_snapshot.pftrace memory_snapshot_node_args.sql memory_snapshot_node_args.out
+../../data/chrome_memory_snapshot.pftrace memory_snapshot_smaps.sql memory_snapshot_smaps.out

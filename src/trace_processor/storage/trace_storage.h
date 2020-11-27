@@ -91,6 +91,8 @@ using FlamegraphId = tables::ExperimentalFlamegraphNodesTable::Id;
 
 using VulkanAllocId = tables::VulkanMemoryAllocationsTable::Id;
 
+using ProcessMemorySnapshotId = tables::ProcessMemorySnapshotTable::Id;
+
 using SnapshotNodeId = tables::MemorySnapshotNodeTable::Id;
 
 // TODO(lalitm): this is a temporary hack while migrating the counters table and
