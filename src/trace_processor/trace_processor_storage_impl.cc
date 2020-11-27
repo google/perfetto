@@ -97,6 +97,7 @@ void TraceProcessorStorageImpl::NotifyEndOfFile() {
   for (std::unique_ptr<ProtoImporterModule>& module : context_.modules) {
     module->NotifyEndOfFile();
   }
+  context_.args_tracker->Flush();
 }
 
 }  // namespace trace_processor

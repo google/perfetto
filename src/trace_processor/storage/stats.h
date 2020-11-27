@@ -155,6 +155,7 @@ namespace stats {
   F(ninja_parse_errors,                 kSingle,  kError,    kTrace,    ""),   \
   F(perf_samples_skipped,               kSingle,  kInfo,     kTrace,    ""),   \
   F(perf_samples_skipped_dataloss,      kSingle,  kDataLoss, kTrace,    ""),   \
+  F(memory_snapshot_parser_failure,     kSingle,  kError,    kAnalysis, ""),   \
   F(thread_time_in_state_out_of_order,  kSingle,  kError,    kAnalysis, ""),   \
   F(thread_time_in_state_unknown_cpu_freq,                                     \
                                         kSingle,  kError,    kAnalysis, ""),   \
