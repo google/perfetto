@@ -28,7 +28,9 @@ namespace android_internal {
 extern "C" {
 
 void __attribute__((visibility("default")))
-StatsdLogEvent(PerfettoStatsdAtom atom, int64_t uuid_lsb, int64_t uuid_msb);
+StatsdLogUploadEvent(PerfettoStatsdAtom atom,
+                     int64_t uuid_lsb,
+                     int64_t uuid_msb);
 
 }  // extern "C"
 
