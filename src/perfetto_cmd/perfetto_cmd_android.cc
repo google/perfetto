@@ -134,7 +134,7 @@ base::ScopedFile PerfettoCmd::OpenDropboxTmpFile() {
 void PerfettoCmd::LogUploadEventAndroid(PerfettoStatsdAtom atom) {
   if (!is_uploading_)
     return;
-  PERFETTO_LAZY_LOAD(android_internal::StatsdLogEvent, log_event_fn);
+  PERFETTO_LAZY_LOAD(android_internal::StatsdLogUploadEvent, log_event_fn);
   base::Uuid uuid(uuid_);
   log_event_fn(atom, uuid.lsb(), uuid.msb());
 }
