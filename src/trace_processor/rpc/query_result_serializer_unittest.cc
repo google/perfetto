@@ -428,13 +428,26 @@ TEST(QueryResultSerializerTest, ErrorAfterSomeResults) {
 
 TEST(QueryResultSerializerTest, NoResultQuery) {
   auto tp = TraceProcessor::CreateInstance(trace_processor::Config());
-  auto iter = tp->ExecuteQuery("create table tab (x)");
-  QueryResultSerializer ser(std::move(iter));
-  TestDeserializer deser;
-  deser.SerializeAndDeserialize(&ser);
-  EXPECT_EQ(deser.error, "");
-  EXPECT_EQ(deser.cells.size(), 0u);
-  EXPECT_TRUE(deser.eof_reached);
+  {
+    auto iter = tp->ExecuteQuery("create table tab (x)");
+    QueryResultSerializer ser(std::move(iter));
+    TestDeserializer deser;
+    deser.SerializeAndDeserialize(&ser);
+    EXPECT_EQ(deser.error, "");
+    EXPECT_EQ(deser.cells.size(), 0u);
+    EXPECT_TRUE(deser.eof_reached);
+  }
+
+  // Check that the table has been created for real.
+  {
+    auto iter = tp->ExecuteQuery("select count(*) from tab");
+    QueryResultSerializer ser(std::move(iter));
+    TestDeserializer deser;
+    deser.SerializeAndDeserialize(&ser);
+    EXPECT_EQ(deser.error, "");
+    EXPECT_EQ(deser.cells.size(), 1u);
+    EXPECT_TRUE(deser.eof_reached);
+  }
 }
 
 }  // namespace

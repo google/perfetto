@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_RPC_RPC_H_
 #define SRC_TRACE_PROCESSOR_RPC_RPC_H_
 
+#include <functional>
 #include <memory>
 #include <vector>
 
@@ -58,13 +59,29 @@ class Rpc {
 
   util::Status Parse(const uint8_t* data, size_t len);
   void NotifyEndOfFile();
-  std::vector<uint8_t> Query(const uint8_t* args, size_t len);
   void RestoreInitialTables();
   std::string GetCurrentTraceName();
   std::vector<uint8_t> ComputeMetric(const uint8_t* data, size_t len);
   std::vector<uint8_t> GetMetricDescriptors(const uint8_t* data, size_t len);
   void EnableMetatrace();
   std::vector<uint8_t> DisableAndReadMetatrace();
+
+  // Runs a query and returns results in batch. Each batch is a proto-encoded
+  // TraceProcessor.QueryResult message and contains a variable number of rows.
+  // The callbacks are called inline, so the whole callstack looks as follows:
+  // Query(..., callback)
+  //   callback(..., has_more=true)
+  //   ...
+  //   callback(..., has_more=false)
+  //   (Query() returns at this point).
+  // TODO(primiano): long-term this API should change and be turned into a
+  // bidirectional streaming api (see go/imperative-metrics). The problem with
+  // the current design is that it holds the callstack until the query is done
+  // and makes nested query hard as they cause re-entrancy. It's okay for now
+  // but will change soon.
+  using QueryResultBatchCallback = std::function<
+      void(const uint8_t* /*buf*/, size_t /*len*/, bool /*has_more*/)>;
+  void Query(const uint8_t* args, size_t len, QueryResultBatchCallback);
 
   // DEPRECATED, only for legacy clients. Use |Query()| above.
   std::vector<uint8_t> RawQuery(const uint8_t* args, size_t len);
