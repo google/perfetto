@@ -69,6 +69,12 @@ SystemProbesParser::SystemProbesParser(TraceProcessorContext* context)
       cpu_times_softirq_ns_id_(
           context->storage->InternString("cpu.times.softirq_ns")),
       oom_score_adj_id_(context->storage->InternString("oom_score_adj")),
+      is_peak_rss_resettable_id_(
+          context->storage->InternString("is_peak_rss_resettable")),
+      chrome_private_footprint_kb_(
+          context->storage->InternString("chrome.private_footprint_kb")),
+      chrome_peak_resident_set_kb_(
+          context->storage->InternString("chrome.peak_resident_set_kb")),
       thread_time_in_state_id_(context->storage->InternString("time_in_state")),
       thread_time_in_state_cpu_id_(
           context_->storage->InternString("time_in_state_cpu_id")),
@@ -99,6 +105,12 @@ SystemProbesParser::SystemProbesParser(TraceProcessorContext* context)
       context->storage->InternString("mem.rss.watermark");
   proc_stats_process_names_[ProcessStats::Process::kOomScoreAdjFieldNumber] =
       oom_score_adj_id_;
+  proc_stats_process_names_
+      [ProcessStats::Process::kChromePrivateFootprintKbFieldNumber] =
+          chrome_private_footprint_kb_;
+  proc_stats_process_names_
+      [ProcessStats::Process::kChromePeakResidentSetKbFieldNumber] =
+          chrome_peak_resident_set_kb_;
 }
 
 void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
@@ -281,9 +293,17 @@ void SystemProbesParser::ParseProcessStats(int64_t ts, ConstBytes blob) {
 
     protozero::ProtoDecoder proc(*it);
     uint32_t pid = 0;
+    bool is_peak_rss_resettable = false;
+    bool has_peak_rrs_resettable = false;
     for (auto fld = proc.ReadField(); fld.valid(); fld = proc.ReadField()) {
       if (fld.id() == protos::pbzero::ProcessStats::Process::kPidFieldNumber) {
         pid = fld.as_uint32();
+        continue;
+      }
+      if (fld.id() == protos::pbzero::ProcessStats::Process::
+                          kIsPeakRssResettableFieldNumber) {
+        is_peak_rss_resettable = fld.as_bool();
+        has_peak_rrs_resettable = true;
         continue;
       }
       if (fld.id() ==
@@ -311,18 +331,27 @@ void SystemProbesParser::ParseProcessStats(int64_t ts, ConstBytes blob) {
       }
     }
 
+    if (has_peak_rrs_resettable) {
+      UniquePid upid = context_->process_tracker->GetOrCreateProcess(pid);
+      context_->process_tracker->AddArgsTo(upid).AddArg(
+          is_peak_rss_resettable_id_,
+          Variadic::Boolean(is_peak_rss_resettable));
+    }
     // Skip field_id 0 (invalid) and 1 (pid).
     for (size_t field_id = 2; field_id < counter_values.size(); field_id++) {
-      if (!has_counter[field_id])
+      if (!has_counter[field_id] || field_id ==
+                                        protos::pbzero::ProcessStats::Process::
+                                            kIsPeakRssResettableFieldNumber) {
         continue;
+      }
 
       // Lookup the interned string id from the field name using the
       // pre-cached |proc_stats_process_names_| map.
       StringId name = proc_stats_process_names_[field_id];
-      int64_t value = counter_values[field_id];
       UniquePid upid = context_->process_tracker->GetOrCreateProcess(pid);
       TrackId track =
           context_->track_tracker->InternProcessCounterTrack(name, upid);
+      int64_t value = counter_values[field_id];
       context_->event_tracker->PushCounter(ts, static_cast<double>(value),
                                            track);
     }

@@ -60,6 +60,9 @@ class SystemProbesParser {
   const StringId cpu_times_irq_ns_id_;
   const StringId cpu_times_softirq_ns_id_;
   const StringId oom_score_adj_id_;
+  const StringId is_peak_rss_resettable_id_;
+  const StringId chrome_private_footprint_kb_;
+  const StringId chrome_peak_resident_set_kb_;
   const StringId thread_time_in_state_id_;
   const StringId thread_time_in_state_cpu_id_;
   const StringId cpu_freq_id_;
@@ -69,7 +72,7 @@ class SystemProbesParser {
   // Maps a proto field number for memcounters in ProcessStats::Process to
   // their StringId. Keep kProcStatsProcessSize equal to 1 + max proto field
   // id of ProcessStats::Process.
-  static constexpr size_t kProcStatsProcessSize = 11;
+  static constexpr size_t kProcStatsProcessSize = 15;
   std::array<StringId, kProcStatsProcessSize> proc_stats_process_names_{};
 
   uint64_t ms_per_tick_ = 0;
