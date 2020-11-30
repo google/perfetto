@@ -52,7 +52,7 @@ void PrintUsage(const char* bin_name) {
 }  // namespace
 
 int main(int argc, char** argv) {
-  static struct option long_options[] = {
+  static option long_options[] = {
       {"event_list", required_argument, nullptr, 'w'},
       {"output_dir", required_argument, nullptr, 'o'},
       {"proto_descriptor", required_argument, nullptr, 'd'},

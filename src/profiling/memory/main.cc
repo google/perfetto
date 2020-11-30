@@ -67,7 +67,7 @@ int HeapprofdMain(int argc, char** argv) {
   base::ScopedFile inherited_sock_fd;
 
   enum { kCleanupCrash = 256, kTargetPid, kTargetCmd, kInheritFd };
-  static struct option long_options[] = {
+  static option long_options[] = {
       {"cleanup-after-crash", no_argument, nullptr, kCleanupCrash},
       {"exclusive-for-pid", required_argument, nullptr, kTargetPid},
       {"exclusive-for-cmdline", required_argument, nullptr, kTargetCmd},

@@ -22,7 +22,9 @@
 
 #include <errno.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>
+
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <sys/types.h>
 #endif
@@ -48,7 +50,7 @@
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 // TODO(brucedawson) - create a ::perfetto::base::IOSize to replace this.
 #if defined(_WIN64)
-using ssize_t = __int64;
+using ssize_t = int64_t;
 #else
 using ssize_t = long;
 #endif

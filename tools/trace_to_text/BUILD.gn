@@ -149,10 +149,12 @@ source_set("full") {
   ]
 }
 
-wasm_lib("trace_to_text_wasm") {
-  name = "trace_to_text"
-  deps = [
-    ":lite",
-    "../../gn:default_deps",
-  ]
+if (enable_perfetto_ui) {
+  wasm_lib("trace_to_text_wasm") {
+    name = "trace_to_text"
+    deps = [
+      ":lite",
+      "../../gn:default_deps",
+    ]
+  }
 }

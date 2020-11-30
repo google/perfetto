@@ -16,9 +16,6 @@
 
 #include "tools/ftrace_proto_gen/ftrace_proto_gen.h"
 
-#include <fcntl.h>
-#include <sys/wait.h>
-#include <unistd.h>
 #include <algorithm>
 #include <fstream>
 #include <regex>

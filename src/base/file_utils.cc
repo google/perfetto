@@ -16,6 +16,8 @@
 
 #include <sys/stat.h>
 
+#include <algorithm>
+
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
@@ -76,8 +78,11 @@ bool ReadFile(const std::string& path, std::string* out) {
 ssize_t WriteAll(int fd, const void* buf, size_t count) {
   size_t written = 0;
   while (written < count) {
+    // write() on windows takes an unsigned int size.
+    uint32_t bytes_left = static_cast<uint32_t>(
+        std::min(count - written, static_cast<size_t>(UINT32_MAX)));
     ssize_t wr = PERFETTO_EINTR(
-        write(fd, static_cast<const char*>(buf) + written, count - written));
+        write(fd, static_cast<const char*>(buf) + written, bytes_left));
     if (wr == 0)
       break;
     if (wr < 0)
