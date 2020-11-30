@@ -17,6 +17,7 @@
 #include "src/profiling/memory/java_hprof_producer.h"
 
 #include <signal.h>
+#include <limits>
 
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
@@ -55,8 +56,11 @@ void JavaHprofProducer::SignalDataSource(const DataSource& ds) {
   const std::set<pid_t>& pids = ds.pids;
   for (pid_t pid : pids) {
     PERFETTO_DLOG("Sending %d to %d", kJavaHeapprofdSignal, pid);
-    if (kill(pid, kJavaHeapprofdSignal) != 0) {
-      PERFETTO_DPLOG("kill");
+    union sigval signal_value;
+    signal_value.sival_int = static_cast<int32_t>(
+        ds.tracing_session_id % std::numeric_limits<int32_t>::max());
+    if (sigqueue(pid, kJavaHeapprofdSignal, signal_value) != 0) {
+      PERFETTO_DPLOG("sigqueue");
     }
   }
 }
@@ -94,6 +98,7 @@ void JavaHprofProducer::SetupDataSource(DataSourceInstanceID id,
     RemoveUnderAnonThreshold(config.min_anonymous_memory_kb(), &ds.pids);
 
   ds.config = std::move(config);
+  ds.tracing_session_id = ds_config.tracing_session_id();
   data_sources_.emplace(id, std::move(ds));
 }
 
