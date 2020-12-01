@@ -44,6 +44,7 @@ Dependency = namedtuple(
 # Dependencies required to build code on the host or when targeting desktop OS.
 BUILD_DEPS_HOST = [
     # GN. From https://chrome-infra-packages.appspot.com/dl/gn/gn/.
+    # git_revision:83dad00afb232d7235dd70dff1ee90292d72a01e .
     Dependency(
         'buildtools/mac/gn',
         'https://storage.googleapis.com/perfetto/gn-mac-1695-83dad00a',
@@ -54,6 +55,11 @@ BUILD_DEPS_HOST = [
         'https://storage.googleapis.com/perfetto/gn-linux64-1695-83dad00a',
         '4f589364153f182b05cd845e93407489d6ce8acc03290c897928a7bd22b20cce',
         'linux'),
+    Dependency(
+        'buildtools/win/gn.exe',
+        'https://storage.googleapis.com/perfetto/gn-win-1695-83dad00a',
+        '908c29556539292203d2952ebf55df03697cbc7cf526a3e295f31ba2576e4cac',
+        'windows'),
 
     # clang-format
     # From https://chromium.googlesource.com/chromium/src/buildtools/+/refs/heads/master/mac/clang-format.sha1
@@ -68,6 +74,12 @@ BUILD_DEPS_HOST = [
         'https://storage.googleapis.com/chromium-clang-format/1baf0089e895c989a311b6a38ed94d0e8be4c0a7',
         'd02a97a87e8c28898033aaf5986967b24dc47ebd5b376e1cd93e5009f22cd75e',
         'linux'),
+    # From https://chromium.googlesource.com/chromium/src/buildtools/+/refs/heads/master/win/clang-format.exe.sha1
+    Dependency(
+        'buildtools/win/clang-format.exe',
+        'https://storage.googleapis.com/chromium-clang-format/d4afd4eba27022f5f6d518133aebde57281677c9',
+        '2ba1b4d3ade90ea80316890b598ab5fc16777572be26afec6ce23117da121b80',
+        'windows'),
 
     # Keep the SHA1 in sync with |clang_format_rev| in chromium //buildtools/DEPS.
     Dependency(
@@ -86,6 +98,11 @@ BUILD_DEPS_HOST = [
         'https://storage.googleapis.com/perfetto/ninja-linux64-c866952bda50c29a669222477309287119bbb7e8',
         '54ac6a01362190aaabf4cf276f9c8982cdf11b225438940fdde3339be0f2ecdc',
         'linux'),
+    Dependency(
+        'buildtools/win/ninja.exe',
+        'https://storage.googleapis.com/perfetto/ninja-win-4a5f05c24afef05ef03329a1bbfedee0678b524a',
+        '6f8af488be74ed8787d04e107080d05330587a4198ba047bd5b7f5b0c3150d61',
+        'windows'),
 
     # Keep in sync with Android's //external/googletest/README.version.
     Dependency(
@@ -122,6 +139,11 @@ BUILD_DEPS_HOST = [
         'https://commondatastorage.googleapis.com/chromium-browser-clang/Linux_x64/clang-llvmorg-12-init-5035-gd0abc757-3.tgz',
         'b0c3015209b6d624844ad230064eb5c9b4429a2eafd4854981e73217c563d93d',
         'linux'),
+    Dependency(
+        'buildtools/clang.tgz',
+        'https://commondatastorage.googleapis.com/chromium-browser-clang/Win/clang-llvmorg-12-init-5035-gd0abc757-3.tgz',
+        'b2854d871a466e3a060469b5edb24ca355ef64576d38778f64acbd3c6d7cf530',
+        'windows'),
 
     # Keep in sync with chromium DEPS.
     Dependency(
@@ -343,6 +365,7 @@ def CheckoutGitRepo(path, git_url, revision, check_only):
     return False
   if check_only:
     return True
+  path = path.replace('/', os.sep)
   if os.path.exists(path):
     shutil.rmtree(path)
   MkdirRecursive(path)
@@ -448,7 +471,7 @@ def Main():
         logging.fatal('SHA-256 mismatch for {} expected {} was {}'.format(
             download_path, dep.checksum, actual_checksum))
         return 1
-      os.rename(download_path, local_path)
+      shutil.move(download_path, local_path)
       if 'nodejs' in dep.target_folder:
         nodejs_updated = True
 
