@@ -38,7 +38,6 @@ static_library("perfetto_cts_deps") {
     "heapprofd_java_test_cts.cc",
     "heapprofd_test_cts.cc",
     "traced_perf_test_cts.cc",
-    "utils.cc",
   ]
 }
 

@@ -58,6 +58,10 @@
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/perfetto/trace/trigger.gen.h"
 
+#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
+#include "test/android_test_utils.h"
+#endif
+
 namespace perfetto {
 
 namespace {
@@ -374,19 +378,21 @@ TEST_F(PerfettoTest, TreeHuggerOnly(TestFtraceFlush)) {
 //    We cannot change the length of the production code in
 //    CanReadKernelSymbolAddresses() to deal with it.
 // 2. On user (i.e. non-userdebug) builds. As that doesn't work there by design.
-#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD) && \
-    (defined(__i386__) ||                         \
-     !PERFETTO_BUILDFLAG(PERFETTO_ANDROID_USERDEBUG_BUILD))
+#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD) && defined(__i386__)
 #define MAYBE_KernelAddressSymbolization DISABLED_KernelAddressSymbolization
 #else
 #define MAYBE_KernelAddressSymbolization KernelAddressSymbolization
 #endif
 TEST_F(PerfettoTest, MAYBE_KernelAddressSymbolization) {
   // On Android in-tree builds (TreeHugger): this test must always run to
-  // prevent selinux / property-related regressions.
+  // prevent selinux / property-related regressions. However it can run only on
+  // userdebug.
   // On standalone builds and Linux, this can be optionally skipped because
   // there it requires root to lower kptr_restrict.
-#if !PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
+#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
+  if (!IsDebuggableBuild())
+    GTEST_SKIP();
+#else
   if (geteuid() != 0)
     GTEST_SKIP();
 #endif
