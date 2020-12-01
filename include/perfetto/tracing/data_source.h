@@ -173,7 +173,12 @@ class DataSource : public DataSourceBase {
         ::protozero::MessageHandle<::perfetto::protos::pbzero::TracePacket>;
 
     TraceContext(TraceContext&&) noexcept = default;
-    ~TraceContext() = default;
+    ~TraceContext() {
+      // If the data source is being intercepted, flush the trace writer after
+      // each trace point to make sure the interceptor sees the data right away.
+      if (PERFETTO_UNLIKELY(tls_inst_->is_intercepted))
+        Flush();
+    }
 
     TracePacketHandle NewTracePacket() {
       return tls_inst_->trace_writer->NewTracePacket();
@@ -365,8 +370,10 @@ class DataSource : public DataSourceBase {
         tls_inst.buffer_id = instance_state->buffer_id;
         tls_inst.data_source_instance_id =
             instance_state->data_source_instance_id;
+        tls_inst.is_intercepted = instance_state->interceptor_id != 0;
         tls_inst.trace_writer = tracing_impl->CreateTraceWriter(
-            instance_state, DataSourceType::kBufferExhaustedPolicy);
+            &static_state_, i, instance_state,
+            DataSourceType::kBufferExhaustedPolicy);
         CreateIncrementalState(
             &tls_inst,
             static_cast<typename DataSourceTraits::IncrementalStateType*>(

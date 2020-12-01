@@ -39,6 +39,9 @@
 #include "perfetto/tracing/internal/basic_types.h"
 #include "perfetto/tracing/internal/tracing_muxer.h"
 #include "perfetto/tracing/tracing.h"
+
+#include "protos/perfetto/common/interceptor_descriptor.gen.h"
+
 namespace perfetto {
 
 class ConsumerEndpoint;
@@ -100,9 +103,15 @@ class TracingMuxerImpl : public TracingMuxer {
                           DataSourceFactory,
                           DataSourceStaticState*) override;
   std::unique_ptr<TraceWriterBase> CreateTraceWriter(
+      DataSourceStaticState*,
+      uint32_t data_source_instance_index,
       DataSourceState*,
       BufferExhaustedPolicy buffer_exhausted_policy) override;
   void DestroyStoppedTraceWritersForCurrentThread() override;
+  void RegisterInterceptor(const InterceptorDescriptor&,
+                           InterceptorFactory,
+                           InterceptorBase::TLSFactory,
+                           InterceptorBase::TracePacketCallback) override;
 
   std::unique_ptr<TracingSession> CreateTracingSession(BackendType);
 
@@ -345,6 +354,13 @@ class TracingMuxerImpl : public TracingMuxer {
     DataSourceStaticState* static_state = nullptr;
   };
 
+  struct RegisteredInterceptor {
+    protos::gen::InterceptorDescriptor descriptor;
+    InterceptorFactory factory{};
+    InterceptorBase::TLSFactory tls_factory{};
+    InterceptorBase::TracePacketCallback packet_callback{};
+  };
+
   struct RegisteredBackend {
     // Backends are supposed to have static lifetime.
     TracingBackend* backend = nullptr;
@@ -380,6 +396,7 @@ class TracingMuxerImpl : public TracingMuxer {
   std::unique_ptr<base::TaskRunner> task_runner_;
   std::vector<RegisteredDataSource> data_sources_;
   std::vector<RegisteredBackend> backends_;
+  std::vector<RegisteredInterceptor> interceptors_;
 
   std::atomic<TracingSessionGlobalID> next_tracing_session_id_{};
 
