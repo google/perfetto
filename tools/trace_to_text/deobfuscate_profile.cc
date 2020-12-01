@@ -17,7 +17,10 @@
 #include <stdio.h>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/string_splitter.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/profiling/deobfuscator.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "tools/trace_to_text/deobfuscate_profile.h"
@@ -28,24 +31,15 @@ namespace trace_to_text {
 namespace {
 
 bool ParseFile(profiling::ProguardParser* p, FILE* f) {
-  std::vector<std::string> lines;
-  size_t n = 0;
-  char* line = nullptr;
-  ssize_t rd = 0;
-  bool success = true;
-  do {
-    rd = getline(&line, &n, f);
-    // Do not read empty line that terminates the output.
-    if (rd > 1) {
-      // Remove newline character.
-      PERFETTO_DCHECK(line[rd - 1] == '\n');
-      line[rd - 1] = '\0';
-      success = p->AddLine(line);
-    }
-  } while (rd > 1 && success);
-  free(line);
-  return success;
+  std::string contents;
+  PERFETTO_CHECK(base::ReadFileStream(f, &contents));
+  for (base::StringSplitter lines(std::move(contents), '\n'); lines.Next();) {
+    if (!p->AddLine(lines.cur_token()))
+      return false;
+  }
+  return true;
 }
+
 }  // namespace
 
 int DeobfuscateProfile(std::istream* input, std::ostream* output) {

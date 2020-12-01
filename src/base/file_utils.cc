@@ -14,13 +14,14 @@
  * limitations under the License.
  */
 
+#include "perfetto/ext/base/file_utils.h"
+
 #include <sys/stat.h>
 
 #include <algorithm>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/utils.h"
 
@@ -29,6 +30,7 @@
 #include <unistd.h>
 #else
 #include <corecrt_io.h>
+#include <direct.h>
 #include <io.h>
 #endif
 
@@ -101,6 +103,14 @@ bool FlushFile(int fd) {
   return !PERFETTO_EINTR(_commit(fd));
 #else
   return !PERFETTO_EINTR(fsync(fd));
+#endif
+}
+
+bool Mkdir(const std::string& path) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  return _mkdir(path.c_str()) == 0;
+#else
+  return mkdir(path.c_str(), 0755) == 0;
 #endif
 }
 
