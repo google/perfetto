@@ -177,32 +177,40 @@ jank_causes AS (
   frame_number,
   'MainThread - IO wait time' AS jank_cause
   FROM main_thread_state
-  WHERE state = 'DK' AND dur > 8000000
+  WHERE 
+    ((state = 'D' OR state = 'DK') AND io_wait)
+    OR (state = 'DK' AND io_wait IS NULL)
+  GROUP BY frame_number
+  HAVING SUM(dur) > 8000000
 
   UNION ALL
   SELECT
   frame_number,
   'MainThread - scheduler' AS jank_cause
   FROM main_thread_state
-  WHERE
-    (state = 'R' OR state = 'R+')
-    AND dur > 8000000
+  WHERE (state = 'R' OR state = 'R+')
+  GROUP BY frame_number
+  HAVING SUM(dur) > 8000000
 
   UNION ALL
   SELECT
   frame_number,
   'RenderThread - IO wait time' AS jank_cause
   FROM render_thread_state
-  WHERE state = 'DK' AND dur > 8000000
+  WHERE
+    ((state = 'D' OR state = 'DK') AND io_wait)
+    OR (state = 'DK' AND io_wait IS NULL)
+  GROUP BY frame_number
+  HAVING SUM(dur) > 8000000
 
   UNION ALL
   SELECT
   frame_number,
   'RenderThread - scheduler' AS jank_cause
   FROM render_thread_state
-  WHERE
-    (state = 'R' OR state = 'R+')
-    AND dur > 8000000
+  WHERE (state = 'R' OR state = 'R+')
+  GROUP BY frame_number
+  HAVING SUM(dur) > 8000000
 
   UNION ALL
   SELECT
