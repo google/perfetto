@@ -102,6 +102,8 @@ source_set("client_api_without_backends") {
     "data_source.cc",
     "debug_annotation.cc",
     "event_context.cc",
+    "interceptor.cc",
+    "internal/interceptor_trace_writer.cc",
     "internal/tracing_muxer_impl.cc",
     "internal/tracing_muxer_impl.h",
     "internal/track_event_internal.cc",

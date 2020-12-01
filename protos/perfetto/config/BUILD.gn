@@ -35,6 +35,7 @@ perfetto_proto_library("@TYPE@") {
   sources = [
     "chrome/chrome_config.proto",
     "data_source_config.proto",
+    "interceptor_config.proto",
     "stress_test_config.proto",
     "test_config.proto",
     "trace_config.proto",

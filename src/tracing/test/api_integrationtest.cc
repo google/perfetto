@@ -46,9 +46,11 @@
 // yyy.gen.h includes are for the test readback path (the code in the test that
 // checks that the results are valid).
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
+#include "protos/perfetto/common/interceptor_descriptor.gen.h"
 #include "protos/perfetto/common/trace_stats.gen.h"
 #include "protos/perfetto/common/tracing_service_state.gen.h"
 #include "protos/perfetto/common/track_event_descriptor.gen.h"
+#include "protos/perfetto/config/interceptor_config.gen.h"
 #include "protos/perfetto/config/track_event/track_event_config.gen.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "protos/perfetto/trace/gpu/gpu_render_stage_event.gen.h"
@@ -263,12 +265,19 @@ class MockTracingMuxer : public perfetto::internal::TracingMuxer {
   }
 
   std::unique_ptr<perfetto::TraceWriterBase> CreateTraceWriter(
+      perfetto::internal::DataSourceStaticState*,
+      uint32_t,
       perfetto::internal::DataSourceState*,
       perfetto::BufferExhaustedPolicy) override {
     return nullptr;
   }
 
   void DestroyStoppedTraceWritersForCurrentThread() override {}
+  void RegisterInterceptor(
+      const perfetto::InterceptorDescriptor&,
+      InterceptorFactory,
+      perfetto::InterceptorBase::TLSFactory,
+      perfetto::InterceptorBase::TracePacketCallback) override {}
 
   std::vector<DataSource> data_sources;
 
@@ -2962,6 +2971,146 @@ TEST_P(PerfettoApiTest, CategoryEnabledState) {
   EXPECT_FALSE(TRACE_EVENT_CATEGORY_ENABLED("dynamic"));
   EXPECT_FALSE(TRACE_EVENT_CATEGORY_ENABLED("dynamic_2"));
   EXPECT_FALSE(TRACE_EVENT_CATEGORY_ENABLED(dynamic));
+}
+
+class TestInterceptor : public perfetto::Interceptor<TestInterceptor> {
+ public:
+  static TestInterceptor* instance;
+
+  struct ThreadLocalState : public perfetto::InterceptorBase::ThreadLocalState {
+    ThreadLocalState(ThreadLocalStateArgs& args) {
+      // Test accessing instance state from the TLS constructor.
+      if (auto self = args.GetInterceptorLocked()) {
+        self->tls_initialized = true;
+      }
+    }
+
+    std::map<uint64_t, std::string> event_names;
+  };
+
+  TestInterceptor() {
+    // Note: some tests in this suite register multiple track event data
+    // sources. We only track data for the first in this test.
+    if (!instance)
+      instance = this;
+  }
+
+  ~TestInterceptor() override {
+    if (instance != this)
+      return;
+    instance = nullptr;
+    EXPECT_TRUE(setup_called);
+    EXPECT_TRUE(start_called);
+    EXPECT_TRUE(stop_called);
+    EXPECT_TRUE(tls_initialized);
+  }
+
+  void OnSetup(const SetupArgs&) override {
+    EXPECT_FALSE(setup_called);
+    EXPECT_FALSE(start_called);
+    EXPECT_FALSE(stop_called);
+    setup_called = true;
+  }
+
+  void OnStart(const StartArgs&) override {
+    EXPECT_TRUE(setup_called);
+    EXPECT_FALSE(start_called);
+    EXPECT_FALSE(stop_called);
+    start_called = true;
+  }
+
+  void OnStop(const StopArgs&) override {
+    EXPECT_TRUE(setup_called);
+    EXPECT_TRUE(start_called);
+    EXPECT_FALSE(stop_called);
+    stop_called = true;
+  }
+
+  static void OnTracePacket(InterceptorContext context) {
+    perfetto::protos::pbzero::TracePacket::Decoder packet(
+        context.packet_data.data, context.packet_data.size);
+    EXPECT_TRUE(packet.trusted_packet_sequence_id() > 0);
+    {
+      auto self = context.GetInterceptorLocked();
+      ASSERT_TRUE(self);
+      EXPECT_TRUE(self->setup_called);
+      EXPECT_TRUE(self->start_called);
+      EXPECT_FALSE(self->stop_called);
+      EXPECT_TRUE(self->tls_initialized);
+    }
+
+    auto& tls = context.GetThreadLocalState();
+    if (packet.sequence_flags() &
+        perfetto::protos::pbzero::TracePacket::SEQ_INCREMENTAL_STATE_CLEARED) {
+      tls.event_names.clear();
+    }
+    if (packet.has_interned_data()) {
+      perfetto::protos::pbzero::InternedData::Decoder interned_data(
+          packet.interned_data());
+      for (auto it = interned_data.event_names(); it; it++) {
+        perfetto::protos::pbzero::EventName::Decoder entry(*it);
+        tls.event_names[entry.iid()] = entry.name().ToStdString();
+      }
+    }
+    if (packet.has_track_event()) {
+      perfetto::protos::pbzero::TrackEvent::Decoder track_event(
+          packet.track_event());
+      uint64_t name_iid = track_event.name_iid();
+      auto self = context.GetInterceptorLocked();
+      self->events.push_back(tls.event_names[name_iid].c_str());
+    }
+  }
+
+  bool setup_called = false;
+  bool start_called = false;
+  bool stop_called = false;
+  bool tls_initialized = false;
+  std::vector<std::string> events;
+};
+
+TestInterceptor* TestInterceptor::instance;
+
+TEST_P(PerfettoApiTest, TracePacketInterception) {
+  perfetto::InterceptorDescriptor desc;
+  desc.set_name("test_interceptor");
+  TestInterceptor::Register(desc);
+
+  perfetto::TraceConfig cfg;
+  cfg.set_duration_ms(500);
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("track_event");
+  ds_cfg->mutable_interceptor_config()->set_name("test_interceptor");
+
+  auto* tracing_session = NewTrace(cfg);
+  tracing_session->get()->StartBlocking();
+  EXPECT_EQ(0u, TestInterceptor::instance->events.size());
+
+  // The interceptor should see an event immediately without any explicit
+  // flushing.
+  TRACE_EVENT_BEGIN("foo", "Hip");
+  EXPECT_THAT(TestInterceptor::instance->events, ElementsAre("Hip"));
+
+  // Emit another event with the same title to test interning.
+  TRACE_EVENT_BEGIN("foo", "Hip");
+  EXPECT_THAT(TestInterceptor::instance->events, ElementsAre("Hip", "Hip"));
+
+  // Emit an event from another thread. It should still reach the same
+  // interceptor instance.
+  std::thread thread([] { TRACE_EVENT_BEGIN("foo", "Hooray"); });
+  thread.join();
+  EXPECT_THAT(TestInterceptor::instance->events,
+              ElementsAre("Hip", "Hip", "Hooray"));
+
+  // Emit a packet that spans multiple segments and must be stitched together.
+  TestInterceptor::instance->events.clear();
+  static char long_title[8192];
+  memset(long_title, 'a', sizeof(long_title) - 1);
+  long_title[sizeof(long_title) - 1] = 0;
+  TRACE_EVENT_BEGIN("foo", long_title);
+  EXPECT_THAT(TestInterceptor::instance->events, ElementsAre(long_title));
+
+  tracing_session->get()->StopBlocking();
 }
 
 struct BackendTypeAsString {

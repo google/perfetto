@@ -34,6 +34,7 @@
 namespace perfetto {
 
 class DataSourceBase;
+class InterceptorBase;
 class TraceWriterBase;
 
 namespace internal {
@@ -85,13 +86,23 @@ struct DataSourceState {
   // event).
   uint64_t config_hash = 0;
 
+  // If this data source is being intercepted (see Interceptor), this field
+  // contains the non-zero id of a registered interceptor which should receive
+  // trace packets for this session. Note: interceptor id 1 refers to the first
+  // element of TracingMuxerImpl::interceptors_ with successive numbers using
+  // the following slots.
+  uint32_t interceptor_id = 0;
+
   // This lock is not held to implement Trace() and it's used only if the trace
   // code wants to access its own data source state.
   // This is to prevent that accessing the data source on an arbitrary embedder
   // thread races with the internal IPC thread destroying the data source
   // because of a end-of-tracing notification from the service.
+  // This lock is also used to protect access to a possible interceptor for this
+  // data source session.
   std::recursive_mutex lock;
   std::unique_ptr<DataSourceBase> data_source;
+  std::unique_ptr<InterceptorBase> interceptor;
 };
 
 // This is to allow lazy-initialization and avoid static initializers and
@@ -139,6 +150,7 @@ struct DataSourceInstanceThreadLocalState {
     backend_connection_id = 0;
     buffer_id = 0;
     data_source_instance_id = 0;
+    is_intercepted = false;
   }
 
   std::unique_ptr<TraceWriterBase> trace_writer;
@@ -147,6 +159,7 @@ struct DataSourceInstanceThreadLocalState {
   uint32_t backend_connection_id;
   BufferId buffer_id;
   uint64_t data_source_instance_id;
+  bool is_intercepted;
 };
 
 // Per-DataSource-type thread-local state.
