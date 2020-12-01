@@ -154,7 +154,9 @@ class StringWriter {
 
     if (padding > 0) {
       size_t num_digits = kSizeNeeded - 1 - idx;
-      for (size_t i = num_digits; i < padding; i++) {
+      // std::max() needed to work around GCC not being able to tell that
+      // padding > 0.
+      for (size_t i = num_digits; i < std::max(uint64_t{1u}, padding); i++) {
         data[idx--] = padchar;
       }
     }
