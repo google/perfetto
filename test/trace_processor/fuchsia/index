@@ -9,3 +9,4 @@
 
 # Smoke test a high-CPU trace.
 ../../data/fuchsia_workstation.fxt ../common/smoke_slices.sql fuchsia_workstation_smoke_slices.out
+../../data/fuchsia_workstation.fxt smoke_args.sql fuchsia_workstation_smoke_args.out

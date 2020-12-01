@@ -35,7 +35,9 @@ class TrackTracker {
   TrackId InternProcessTrack(UniquePid upid);
 
   // Interns a Fuchsia async track into the storage.
-  TrackId InternFuchsiaAsyncTrack(StringId name, int64_t correlation_id);
+  TrackId InternFuchsiaAsyncTrack(StringId name,
+                                  uint32_t upid,
+                                  int64_t correlation_id);
 
   // Interns a global track keyed by CPU + name into the storage.
   TrackId InternCpuTrack(StringId name, uint32_t cpu);
