@@ -72,6 +72,10 @@ class PERFETTO_EXPORT ScatteredHeapBuffer
   // protozero::ScatteredStreamWriter::Delegate implementation.
   protozero::ContiguousMemoryRange GetNewBuffer() override;
 
+  // Return the slices backing this buffer, adjusted for the number of bytes the
+  // writer has written.
+  const std::vector<Slice>& GetSlices();
+
   // Stitch all the slices into a single contiguous buffer.
   std::vector<uint8_t> StitchSlices();
 
@@ -79,6 +83,8 @@ class PERFETTO_EXPORT ScatteredHeapBuffer
   // outlive it.
   std::vector<protozero::ContiguousMemoryRange> GetRanges();
 
+  // Note that size of the last slice isn't updated to reflect the number of
+  // bytes written by the trace writer.
   const std::vector<Slice>& slices() const { return slices_; }
 
   void set_writer(protozero::ScatteredStreamWriter* writer) {
@@ -154,6 +160,11 @@ class HeapBuffered {
   std::vector<protozero::ContiguousMemoryRange> GetRanges() {
     msg_.Finalize();
     return shb_.GetRanges();
+  }
+
+  const std::vector<ScatteredHeapBuffer::Slice>& GetSlices() {
+    msg_.Finalize();
+    return shb_.GetSlices();
   }
 
   void Reset() {
