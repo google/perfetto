@@ -613,11 +613,11 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
     }
   }
 
-  const long sessions_for_uid = std::count_if(
+  const int sessions_for_uid = static_cast<int>(std::count_if(
       tracing_sessions_.begin(), tracing_sessions_.end(),
       [consumer](const decltype(tracing_sessions_)::value_type& s) {
         return s.second.consumer_uid == consumer->uid_;
-      });
+      }));
 
   int per_uid_limit = kMaxConcurrentTracingSessionsPerUid;
   if (consumer->uid_ == 1066 /* AID_STATSD*/) {
@@ -625,7 +625,7 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
   }
   if (sessions_for_uid >= per_uid_limit) {
     return PERFETTO_SVC_ERR(
-        "Too many concurrent tracing sesions (%ld) for uid %d limit is %d",
+        "Too many concurrent tracing sesions (%d) for uid %d limit is %d",
         sessions_for_uid, static_cast<int>(consumer->uid_), per_uid_limit);
   }
 

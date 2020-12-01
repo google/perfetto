@@ -118,12 +118,14 @@ int Main(int argc, char** argv) {
       PERFETTO_FATAL("Could not open %s", file_path);
     input_stream = &file_istream;
   } else {
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
     if (isatty(STDIN_FILENO)) {
       PERFETTO_ELOG("Reading from stdin but it's connected to a TTY");
       PERFETTO_LOG("It is unlikely that you want to type in some binary.");
       PERFETTO_LOG("Either pass a file path to the cmdline or pipe stdin");
       return Usage(argv[0]);
     }
+#endif
     input_stream = &std::cin;
   }
 

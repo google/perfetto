@@ -19,13 +19,12 @@
 #include <string>
 #include <vector>
 
-#include "perfetto/base/build_config.h"
-
 #include "src/profiling/symbolizer/symbolize_database.h"
 #include "src/profiling/symbolizer/local_symbolizer.h"
 #include "tools/trace_to_text/utils.h"
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/temp_file.h"
 #include "perfetto/ext/base/utils.h"
@@ -37,10 +36,12 @@ namespace {
 constexpr const char* kDefaultTmp = "/tmp";
 
 std::string GetTemp() {
-  const char* tmp = getenv("TMPDIR");
-  if (tmp == nullptr)
-    tmp = kDefaultTmp;
-  return tmp;
+  const char* tmp = nullptr;
+  if ((tmp = getenv("TMPDIR")))
+    return tmp;
+  if ((tmp = getenv("TEMP")))
+    return tmp;
+  return kDefaultTmp;
 }
 
 }  // namespace
@@ -62,8 +63,9 @@ int TraceToProfile(std::istream* input,
     return 0;
   }
 
-  std::string temp_dir = GetTemp() + "/heap_profile-XXXXXXX";
-  PERFETTO_CHECK(mkdtemp(&temp_dir[0]));
+  std::string temp_dir =
+      GetTemp() + "/heap_profile-" + base::GetTimeFmt("%y%m%d%H%M%S");
+  PERFETTO_CHECK(base::Mkdir(temp_dir));
   size_t itr = 0;
   for (const auto& profile : profiles) {
     std::string filename = temp_dir + "/heap_dump." + std::to_string(++itr) +

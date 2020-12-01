@@ -20,6 +20,7 @@
 #include <time.h>
 
 #include <chrono>
+#include <string>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
@@ -178,6 +179,8 @@ inline struct timespec ToPosixTimespec(TimeMillis time) {
   ts.tv_nsec = (static_cast<long>(time.count()) - time_s * 1000L) * 1000000L;
   return ts;
 }
+
+std::string GetTimeFmt(const std::string& fmt);
 
 }  // namespace base
 }  // namespace perfetto
