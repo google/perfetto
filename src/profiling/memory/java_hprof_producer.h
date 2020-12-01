@@ -23,6 +23,7 @@
 
 #include "perfetto/ext/base/unix_task_runner.h"
 #include "perfetto/ext/base/weak_ptr.h"
+#include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/producer.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/ext/tracing/ipc/producer_ipc_client.h"
@@ -68,6 +69,7 @@ class JavaHprofProducer : public Producer {
   };
 
   struct DataSource {
+    TracingSessionID tracing_session_id;
     DataSourceInstanceID id;
     std::set<pid_t> pids;
     JavaHprofConfig config;
