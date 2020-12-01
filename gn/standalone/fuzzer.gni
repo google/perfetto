@@ -15,10 +15,9 @@
 import("//gn/standalone/sanitizers/sanitizers.gni")
 
 template("perfetto_fuzzer_test") {
-  forward_variables_from(invoker, "*")
-
   if (is_fuzzer) {
     executable(target_name) {
+      forward_variables_from(invoker, "*")
       if (use_libfuzzer) {
         deps += [ "//gn:libfuzzer" ]
       } else {
@@ -27,7 +26,7 @@ template("perfetto_fuzzer_test") {
     }
   } else {
     not_needed(invoker, "*")
-    source_set(target_name) {
+    group(target_name) {
     }
   }
 }  # template

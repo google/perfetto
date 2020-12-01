@@ -37,7 +37,7 @@ int __attribute__((visibility("default"))) ProbesMain(int argc, char** argv) {
     OPT_VERSION,
   };
 
-  static const struct option long_options[] = {
+  static const option long_options[] = {
       {"cleanup-after-crash", no_argument, nullptr, OPT_CLEANUP_AFTER_CRASH},
       {"version", no_argument, nullptr, OPT_VERSION},
       {nullptr, 0, nullptr, 0}};

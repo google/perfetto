@@ -66,7 +66,7 @@ int CpuUtilizationMain(int argc, char** argv) {
   int sleep_intervals = 6;
   int target_pid = -1;
 
-  static struct option long_options[] = {
+  static option long_options[] = {
       {"pid", required_argument, nullptr, 'p'},
       {"sleep-duration-us", required_argument, nullptr, 't'},
       {"sleep-intervals", required_argument, nullptr, 'n'},

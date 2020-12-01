@@ -769,7 +769,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
     OPT_HTTP_PORT,
   };
 
-  static const struct option long_options[] = {
+  static const option long_options[] = {
       {"help", no_argument, nullptr, 'h'},
       {"version", no_argument, nullptr, 'v'},
       {"wide", no_argument, nullptr, 'W'},

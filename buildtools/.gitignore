@@ -32,4 +32,5 @@ sqlite/
 sqlite_src/
 test_data/
 typefaces/
+win/
 zlib/

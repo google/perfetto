@@ -40,8 +40,8 @@ Usage: %s TRIGGER...
 
 int __attribute__((visibility("default")))
 TriggerPerfettoMain(int argc, char** argv) {
-  static const struct option long_options[] = {
-      {"help", no_argument, nullptr, 'h'}, {nullptr, 0, nullptr, 0}};
+  static const option long_options[] = {{"help", no_argument, nullptr, 'h'},
+                                        {nullptr, 0, nullptr, 0}};
 
   int option_index = 0;
 
