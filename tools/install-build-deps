@@ -209,7 +209,7 @@ BUILD_DEPS_HOST = [
                '7851dce6f4ca17f5caa1c93a4e0a45686b1d56c3', 'all'),
     Dependency('buildtools/zlib',
                'https://android.googlesource.com/platform/external/zlib.git',
-               'dfa0646a03b4e1707469e04dc931b09774968fe6', 'all'),
+               '5c85a2da4c13eda07f69d81a1579a5afddd35f59', 'all'),
     Dependency('buildtools/bionic',
                'https://android.googlesource.com/platform/bionic.git',
                'a60488109cda997dfd83832731c8527feaa2825e', 'all'),
