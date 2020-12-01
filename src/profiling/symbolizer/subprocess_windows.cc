@@ -21,7 +21,7 @@
 
 #include <sstream>
 #include <string>
-#define WIN32_MEAN_AND_LEAN
+
 #include <Windows.h>
 
 #include "perfetto/base/logging.h"
@@ -38,7 +38,7 @@ Subprocess::Subprocess(const std::string& file, std::vector<std::string> args) {
   SECURITY_ATTRIBUTES attr;
   attr.nLength = sizeof(SECURITY_ATTRIBUTES);
   attr.bInheritHandle = true;
-  attr.lpSecurityDescriptor = NULL;
+  attr.lpSecurityDescriptor = nullptr;
   // Create a pipe for the child process's STDOUT.
   if (!CreatePipe(&child_pipe_out_read_, &child_pipe_out_write_, &attr, 0) ||
       !SetHandleInformation(child_pipe_out_read_, HANDLE_FLAG_INHERIT, 0)) {
@@ -67,14 +67,14 @@ Subprocess::Subprocess(const std::string& file, std::vector<std::string> args) {
   start_info.dwFlags |= STARTF_USESTDHANDLES;
 
   // Create the child process.
-  success = CreateProcessA(NULL,
+  success = CreateProcessA(nullptr,
                            &(cmd.str()[0]),  // command line
-                           NULL,             // process security attributes
-                           NULL,         // primary thread security attributes
+                           nullptr,          // process security attributes
+                           nullptr,      // primary thread security attributes
                            TRUE,         // handles are inherited
                            0,            // creation flags
-                           NULL,         // use parent's environment
-                           NULL,         // use parent's current directory
+                           nullptr,      // use parent's environment
+                           nullptr,      // use parent's current directory
                            &start_info,  // STARTUPINFO pointer
                            &proc_info);  // receives PROCESS_INFORMATION
 
@@ -108,7 +108,8 @@ int64_t Subprocess::Write(const char* buffer, size_t size) {
     return -1;
   }
   DWORD bytes_written;
-  if (WriteFile(child_pipe_in_write_, buffer, size, &bytes_written, NULL)) {
+  if (WriteFile(child_pipe_in_write_, buffer, static_cast<DWORD>(size),
+                &bytes_written, nullptr)) {
     return static_cast<int64_t>(bytes_written);
   }
   return -1;
@@ -119,7 +120,8 @@ int64_t Subprocess::Read(char* buffer, size_t size) {
     return -1;
   }
   DWORD bytes_read;
-  if (ReadFile(child_pipe_out_read_, buffer, size, &bytes_read, NULL)) {
+  if (ReadFile(child_pipe_out_read_, buffer, static_cast<DWORD>(size),
+               &bytes_read, nullptr)) {
     return static_cast<int64_t>(bytes_read);
   }
   return -1;
