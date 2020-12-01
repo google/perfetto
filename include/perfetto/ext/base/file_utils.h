@@ -41,6 +41,9 @@ ssize_t WriteAll(int fd, const void* buf, size_t count);
 
 bool FlushFile(int fd);
 
+// Returns true if mkdir succeeds, false if it fails (see errno in that case).
+bool Mkdir(const std::string& path);
+
 }  // namespace base
 }  // namespace perfetto
 

@@ -15,7 +15,9 @@
  */
 
 #include "perfetto/base/time.h"
+
 #include "perfetto/base/build_config.h"
+#include "perfetto/base/logging.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <Windows.h>
@@ -65,6 +67,16 @@ void SleepMicroseconds(unsigned interval_us) {
 }
 
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+
+std::string GetTimeFmt(const std::string& fmt) {
+  time_t raw_time;
+  time(&raw_time);
+  struct tm* local_tm;
+  local_tm = localtime(&raw_time);
+  char buf[128];
+  PERFETTO_CHECK(strftime(buf, 80, fmt.c_str(), local_tm) > 0);
+  return buf;
+}
 
 }  // namespace base
 }  // namespace perfetto

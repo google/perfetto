@@ -16,7 +16,12 @@
 
 #include "perfetto/profiling/pprof_builder.h"
 
+#include "perfetto/base/build_config.h"
+
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <cxxabi.h>
+#endif
+
 #include <inttypes.h>
 
 #include <algorithm>
@@ -55,8 +60,12 @@ struct View {
 };
 
 void MaybeDemangle(std::string* name) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  char* data = nullptr;
+#else
   int ignored;
   char* data = abi::__cxa_demangle(name->c_str(), nullptr, nullptr, &ignored);
+#endif
   if (data) {
     *name = data;
     free(data);

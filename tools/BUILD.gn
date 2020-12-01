@@ -22,13 +22,13 @@ group("tools") {
   testonly = true
   deps = [
     ":copy_protoc",
-    ":idle_alloc",
     "compact_reencode",
     "ftrace_proto_gen",
     "protoprofile",
   ]
   if (is_linux || is_android) {
     deps += [
+      ":idle_alloc",
       "busy_threads",
       "cpu_utilization",
       "dump_ftrace_stats",
@@ -63,9 +63,11 @@ if (is_linux && enable_perfetto_heapprofd) {
   }
 }
 
-executable("idle_alloc") {
-  deps = [ "../gn:default_deps" ]
-  sources = [ "idle_alloc.cc" ]
+if (is_linux || is_android) {
+  executable("idle_alloc") {
+    deps = [ "../gn:default_deps" ]
+    sources = [ "idle_alloc.cc" ]
+  }
 }
 
 # The protoc binary can end up in out/protoc or out/gcc_like_host/protoc

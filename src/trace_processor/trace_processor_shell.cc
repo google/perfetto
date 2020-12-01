@@ -85,7 +85,7 @@ TraceProcessor* g_tp;
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_LINENOISE)
 
 bool EnsureDir(const std::string& path) {
-  return mkdir(path.c_str(), 0755) != -1 || errno == EEXIST;
+  return base::Mkdir(path) || errno == EEXIST;
 }
 
 bool EnsureFile(const std::string& path) {

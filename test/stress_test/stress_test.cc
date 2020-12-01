@@ -29,6 +29,7 @@
 #include <vector>
 
 #include "perfetto/base/compiler.h"
+#include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/subprocess.h"
 #include "perfetto/ext/base/temp_file.h"
@@ -105,7 +106,7 @@ class TestHarness {
 TestHarness::TestHarness() {
   results_dir_ = base::GetSysTempDir() + "/perfetto-stress-test";
   system(("rm -r -- \"" + results_dir_ + "\"").c_str());
-  PERFETTO_CHECK(mkdir(results_dir_.c_str(), 0755) == 0);
+  PERFETTO_CHECK(base::Mkdir(results_dir_));
   PERFETTO_LOG("Saving test results in %s", results_dir_.c_str());
 }
 
@@ -137,7 +138,7 @@ void TestHarness::RunConfig(const char* cfg_name,
   g_sig->pids_to_kill.clear();
 
   auto result_dir = results_dir_ + "/" + cfg_name;
-  PERFETTO_CHECK(!mkdir(result_dir.c_str(), 0755));
+  PERFETTO_CHECK(base::Mkdir(result_dir));
   error_log_ = base::OpenFile(result_dir + "/errors.log",
                               O_RDWR | O_CREAT | O_TRUNC, 0644);
 
