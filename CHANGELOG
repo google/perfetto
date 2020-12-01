@@ -1,11 +1,38 @@
 Unreleased:
   Tracing service and probes:
-    * Fixed crash of tracing service if a client is unresponsive on the IPC
-      channel. Clients are disconnected if they don't respond to IPCs for 10s.
+    *
   Trace Processor:
     *
   UI:
     *
+
+
+v10.0 - 2020-12-01:
+  Tracing service and probes:
+    * Fixed crash of tracing service if a client is unresponsive on the IPC
+      channel. Clients are disconnected if they don't respond to IPCs for 10s.
+    * Added cmdline arguments for integration within ChromeOS system image
+      (--{producer,consumer}-socket-{group,mode} for chmod-ing sockets).
+    * Changed path lookup logic for traced socket. /run/perfetto/ is used if the
+      directory exists, falling back on /tmp/ otherwise.
+    * Added support for kernel frame symbolization to the traced_perf callstack
+      sampler.
+    * Added support for resolving ftrace event arguments that require
+      symbolization against printk_format.
+  Trace Processor:
+    * Added .read command to inject a SQL query file, similar to the -q cmdline.
+    * Added trace-based metrics to root cause jank in Android System UI.
+    * Added symbolization support for ELF files on Windows for heap and
+      callstack profilers.
+    * Added support for symbolizing names of workqueue ftrace events.
+    * Improved Android startup metric with activity restart time.
+  UI:
+    * Added support for navigating flows with Ctrl+[ / Ctr+].
+    * Improved query result panel, moved to the bottom group allowing
+      simultaneous query result and timeline views.
+    * Fixed data corruption when recording traces via the WebUSB-based Record
+      page in the UI.
+
 
 v9.0 - 2020-11-01:
   Tracing service and probes:
