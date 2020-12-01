@@ -14,6 +14,8 @@
 
 import("../../../gn/test.gni")
 
+assert(target_os != "win")
+
 # The unprivileged daemon that is allowed to access tracefs (for ftrace).
 # Registers as a Producer on the traced daemon.
 executable("traced_probes") {

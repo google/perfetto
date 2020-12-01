@@ -100,7 +100,7 @@ int __attribute__((visibility("default"))) ServiceMain(int argc, char** argv) {
     OPT_SET_SOCKET_PERMISSIONS = 1001,
   };
 
-  static const struct option long_options[] = {
+  static const option long_options[] = {
       {"version", no_argument, nullptr, OPT_VERSION},
       {"set-socket-permissions", required_argument, nullptr,
        OPT_SET_SOCKET_PERMISSIONS},

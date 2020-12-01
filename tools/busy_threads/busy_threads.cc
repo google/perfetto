@@ -100,7 +100,7 @@ int BusyThreadsMain(int argc, char** argv) {
   int64_t duty_cycle = -1;
   uint32_t thread_name_count = 0;
 
-  static struct option long_options[] = {
+  static option long_options[] = {
     {"background", no_argument, nullptr, 'd'},
     {"threads", required_argument, nullptr, 't'},
     {"period_us", required_argument, nullptr, 'p'},

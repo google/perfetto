@@ -22,7 +22,7 @@ declare_args() {
   } else if (host_os == "mac") {
     android_host = "darwin-x86_64"
   } else {
-    assert(false, "Need Android toolchain support for your build OS.")
+    android_host = "UNSUPPORTED_ON_WINDOWS"
   }
 }
 
