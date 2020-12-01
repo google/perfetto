@@ -35,6 +35,7 @@ perfetto_component("base") {
     "string_utils.cc",
     "string_view.cc",
     "subprocess.cc",
+    "temp_file.cc",
     "thread_checker.cc",
     "time.cc",
     "utils.cc",
@@ -50,7 +51,6 @@ perfetto_component("base") {
     sources += [
       "event_fd.cc",
       "pipe.cc",
-      "temp_file.cc",
       "thread_task_runner.cc",
       "unix_task_runner.cc",
     ]
@@ -148,6 +148,7 @@ perfetto_unittest_source_set("unittests") {
     "string_view_unittest.cc",
     "string_writer_unittest.cc",
     "subprocess_unittest.cc",
+    "temp_file_unittest.cc",
     "time_unittest.cc",
     "uuid_unittest.cc",
     "weak_ptr_unittest.cc",
@@ -158,7 +159,6 @@ perfetto_unittest_source_set("unittests") {
     sources += [
       "metatrace_unittest.cc",
       "task_runner_unittest.cc",
-      "temp_file_unittest.cc",
       "thread_checker_unittest.cc",
       "thread_task_runner_unittest.cc",
       "utils_unittest.cc",
