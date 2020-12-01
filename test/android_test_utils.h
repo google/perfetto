@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef TEST_CTS_UTILS_H_
-#define TEST_CTS_UTILS_H_
+#ifndef TEST_ANDROID_TEST_UTILS_H_
+#define TEST_ANDROID_TEST_UTILS_H_
 
 #include <string>
 
@@ -50,4 +50,4 @@ void StopApp(const std::string& app_name);
 
 }  // namespace perfetto
 
-#endif  // TEST_CTS_UTILS_H_
+#endif  // TEST_ANDROID_TEST_UTILS_H_

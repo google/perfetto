@@ -6,7 +6,6 @@ cc_test {
     "heapprofd_java_test_cts.cc",
     "heapprofd_test_cts.cc",
     "traced_perf_test_cts.cc",
-    "utils.cc",
     ":perfetto_protos_perfetto_config_cpp_gen",
   ],
   generated_headers: [

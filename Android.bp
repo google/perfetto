@@ -1037,7 +1037,6 @@ cc_library_static {
     "test/cts/heapprofd_java_test_cts.cc",
     "test/cts/heapprofd_test_cts.cc",
     "test/cts/traced_perf_test_cts.cc",
-    "test/cts/utils.cc",
   ],
   static_libs: [
     "libgmock",
@@ -8074,6 +8073,7 @@ filegroup {
 filegroup {
   name: "perfetto_test_test_helper",
   srcs: [
+    "test/android_test_utils.cc",
     "test/fake_producer.cc",
     "test/test_helper.cc",
   ],
