@@ -37,9 +37,12 @@
 #include "perfetto/tracing/core/tracing_service_state.h"
 #include "perfetto/tracing/data_source.h"
 #include "perfetto/tracing/internal/data_source_internal.h"
+#include "perfetto/tracing/internal/interceptor_trace_writer.h"
 #include "perfetto/tracing/trace_writer_base.h"
 #include "perfetto/tracing/tracing.h"
 #include "perfetto/tracing/tracing_backend.h"
+
+#include "protos/perfetto/config/interceptor_config.gen.h"
 
 namespace perfetto {
 namespace internal {
@@ -703,6 +706,40 @@ bool TracingMuxerImpl::RegisterDataSource(
   return true;
 }
 
+// Can be called from any thread (but not concurrently).
+void TracingMuxerImpl::RegisterInterceptor(
+    const InterceptorDescriptor& descriptor,
+    InterceptorFactory factory,
+    InterceptorBase::TLSFactory tls_factory,
+    InterceptorBase::TracePacketCallback packet_callback) {
+  task_runner_->PostTask(
+      [this, descriptor, factory, tls_factory, packet_callback] {
+        // Ignore repeated registrations.
+        for (const auto& interceptor : interceptors_) {
+          if (interceptor.descriptor.name() == descriptor.name()) {
+            PERFETTO_DCHECK(interceptor.tls_factory == tls_factory);
+            PERFETTO_DCHECK(interceptor.packet_callback == packet_callback);
+            return;
+          }
+        }
+        // Only allow certain interceptors for now.
+        if (descriptor.name() != "test_interceptor") {
+          PERFETTO_ELOG(
+              "Interceptors are experimental. If you want to use them, please "
+              "get in touch with the project maintainers "
+              "(https://perfetto.dev/docs/contributing/"
+              "getting-started#community).");
+          return;
+        }
+        interceptors_.emplace_back();
+        RegisteredInterceptor& interceptor = interceptors_.back();
+        interceptor.descriptor = descriptor;
+        interceptor.factory = factory;
+        interceptor.tls_factory = tls_factory;
+        interceptor.packet_callback = packet_callback;
+      });
+}
+
 // Called by the service of one of the backends.
 void TracingMuxerImpl::SetupDataSource(TracingBackendId backend_id,
                                        uint32_t backend_connection_id,
@@ -763,6 +800,28 @@ void TracingMuxerImpl::SetupDataSource(TracingBackendId backend_id,
           static_cast<internal::BufferId>(cfg.target_buffer());
       internal_state->config_hash = config_hash;
       internal_state->data_source = rds.factory();
+      internal_state->interceptor = nullptr;
+      internal_state->interceptor_id = 0;
+
+      if (cfg.has_interceptor_config()) {
+        for (size_t j = 0; j < interceptors_.size(); j++) {
+          if (cfg.interceptor_config().name() ==
+              interceptors_[j].descriptor.name()) {
+            PERFETTO_DLOG("Intercepting data source %" PRIu64
+                          " \"%s\" into \"%s\"",
+                          instance_id, cfg.name().c_str(),
+                          cfg.interceptor_config().name().c_str());
+            internal_state->interceptor_id = static_cast<uint32_t>(j + 1);
+            internal_state->interceptor = interceptors_[j].factory();
+            internal_state->interceptor->OnSetup({cfg});
+            break;
+          }
+        }
+        if (!internal_state->interceptor_id) {
+          PERFETTO_ELOG("Unknown interceptor configured for data source: %s",
+                        cfg.interceptor_config().name().c_str());
+        }
+      }
 
       // This must be made at the end. See matching acquire-load in
       // DataSource::Trace().
@@ -798,6 +857,8 @@ void TracingMuxerImpl::StartDataSource(TracingBackendId backend_id,
   start_args.internal_instance_index = ds.instance_idx;
 
   std::lock_guard<std::recursive_mutex> guard(ds.internal_state->lock);
+  if (ds.internal_state->interceptor)
+    ds.internal_state->interceptor->OnStart({});
   ds.internal_state->trace_lambda_enabled = true;
   ds.internal_state->data_source->OnStart(start_args);
 }
@@ -830,6 +891,8 @@ void TracingMuxerImpl::StopDataSource_AsyncBegin(
 
   {
     std::lock_guard<std::recursive_mutex> guard(ds.internal_state->lock);
+    if (ds.internal_state->interceptor)
+      ds.internal_state->interceptor->OnStop({});
     ds.internal_state->data_source->OnStop(stop_args);
   }
 
@@ -1314,8 +1377,22 @@ TracingMuxerImpl::FindDataSourceRes TracingMuxerImpl::FindDataSource(
 
 // Can be called from any thread.
 std::unique_ptr<TraceWriterBase> TracingMuxerImpl::CreateTraceWriter(
+    DataSourceStaticState* static_state,
+    uint32_t data_source_instance_index,
     DataSourceState* data_source,
     BufferExhaustedPolicy buffer_exhausted_policy) {
+  if (PERFETTO_UNLIKELY(data_source->interceptor_id)) {
+    // If the session is being intercepted, return a heap-backed trace writer
+    // instead. This is safe because all the data given to the interceptor is
+    // either thread-local (|instance_index|), statically allocated
+    // (|static_state|) or constant after initialization (|interceptor|). Access
+    // to the interceptor instance itself through |data_source| is protected by
+    // a statically allocated lock (similarly to the data source instance).
+    auto& interceptor = interceptors_[data_source->interceptor_id - 1];
+    return std::unique_ptr<TraceWriterBase>(new InterceptorTraceWriter(
+        interceptor.tls_factory(static_state, data_source_instance_index),
+        interceptor.packet_callback, static_state, data_source_instance_index));
+  }
   ProducerImpl* producer = backends_[data_source->backend_id].producer.get();
   // Atomically load the current service endpoint. We keep the pointer as a
   // shared pointer on the stack to guard against it from being concurrently

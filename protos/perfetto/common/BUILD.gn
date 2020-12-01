@@ -25,6 +25,7 @@ perfetto_proto_library("@TYPE@") {
     "data_source_descriptor.proto",
     "descriptor.proto",
     "gpu_counter_descriptor.proto",
+    "interceptor_descriptor.proto",
     "observable_events.proto",
     "sys_stats_counters.proto",
     "trace_stats.proto",
