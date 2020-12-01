@@ -14,14 +14,13 @@
  * limitations under the License.
  */
 
-#include "test/cts/utils.h"
+#include "test/android_test_utils.h"
 
 #include <stdlib.h>
 #include <sys/system_properties.h>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
-#include "test/gtest_and_gmock.h"
 
 namespace perfetto {
 namespace {
@@ -110,7 +109,7 @@ void StartAppActivity(const std::string& app_name,
                       uint32_t delay_ms) {
   std::string start_cmd = "am start " + app_name + "/." + activity_name;
   int status = system(start_cmd.c_str());
-  ASSERT_TRUE(status >= 0 && WEXITSTATUS(status) == 0) << "status: " << status;
+  PERFETTO_CHECK(status >= 0 && WEXITSTATUS(status) == 0);
   WaitForProcess(app_name, checkpoint_name, task_runner, delay_ms);
 }
 
@@ -119,7 +118,7 @@ void StopApp(const std::string& app_name,
              base::TestTaskRunner* task_runner) {
   std::string stop_cmd = "am force-stop " + app_name;
   int status = system(stop_cmd.c_str());
-  ASSERT_TRUE(status >= 0 && WEXITSTATUS(status) == 0) << "status: " << status;
+  PERFETTO_CHECK(status >= 0 && WEXITSTATUS(status) == 0);
 
   bool desired_run_state = false;
   auto checkpoint = task_runner->CreateCheckpoint(checkpoint_name);
