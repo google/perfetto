@@ -16,7 +16,7 @@ import("//build_overrides/build.gni")
 import("../gn/fuzzer.gni")
 import("../gn/perfetto.gni")
 
-if (!build_with_chromium) {
+if (!build_with_chromium && enable_perfetto_integration_tests) {
   source_set("end_to_end_integrationtests") {
     testonly = true
     deps = [
@@ -70,7 +70,7 @@ if (!build_with_chromium) {
       "../protos/perfetto/trace/gpu:zero",
     ]
   }
-}  # if (!build_with_chromium)
+}  # if (!build_with_chromium && enable_perfetto_integration_tests)
 
 perfetto_fuzzer_test("end_to_end_shared_memory_fuzzer") {
   sources = [ "end_to_end_shared_memory_fuzzer.cc" ]
@@ -98,36 +98,39 @@ perfetto_fuzzer_test("producer_socket_fuzzer") {
   ]
 }
 
-source_set("test_helper") {
-  testonly = true
-  public_deps = [
-    "../protos/perfetto/trace:cpp",
-    "../src/tracing/ipc/consumer",
-    "../src/tracing/ipc/producer",
-    "../src/tracing/ipc/service",
-  ]
-  deps = [
-    "../gn:default_deps",
-    "../protos/perfetto/config:cpp",
-    "../protos/perfetto/trace:zero",
-    "../src/base:test_support",
-    "../src/ipc:perfetto_ipc",
-    "../src/tracing/ipc:common",
-  ]
-  sources = [
-    "fake_producer.cc",
-    "fake_producer.h",
-    "test_helper.cc",
-    "test_helper.h",
-  ]
-  if (start_daemons_for_testing) {
-    cflags = [ "-DPERFETTO_START_DAEMONS_FOR_TESTING" ]
-  }
-  if (!build_with_chromium) {
-    deps += [
-      "../include/perfetto/ext/traced",
-      "../src/traced/probes:probes_src",
+if (enable_perfetto_benchmarks || is_fuzzer ||
+    enable_perfetto_integration_tests) {
+  source_set("test_helper") {
+    testonly = true
+    public_deps = [
+      "../protos/perfetto/trace:cpp",
+      "../src/tracing/ipc/consumer",
+      "../src/tracing/ipc/producer",
+      "../src/tracing/ipc/service",
     ]
+    deps = [
+      "../gn:default_deps",
+      "../protos/perfetto/config:cpp",
+      "../protos/perfetto/trace:zero",
+      "../src/base:test_support",
+      "../src/ipc:perfetto_ipc",
+      "../src/tracing/ipc:common",
+    ]
+    sources = [
+      "fake_producer.cc",
+      "fake_producer.h",
+      "test_helper.cc",
+      "test_helper.h",
+    ]
+    if (start_daemons_for_testing) {
+      cflags = [ "-DPERFETTO_START_DAEMONS_FOR_TESTING" ]
+    }
+    if (!build_with_chromium) {
+      deps += [
+        "../include/perfetto/ext/traced",
+        "../src/traced/probes:probes_src",
+      ]
+    }
   }
 }
 

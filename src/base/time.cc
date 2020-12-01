@@ -33,7 +33,8 @@ TimeNanos GetWallTimeNs() {
   ::QueryPerformanceFrequency(&freq);
   LARGE_INTEGER counter;
   ::QueryPerformanceCounter(&counter);
-  double elapsed_nanoseconds = (1e9 * counter.QuadPart) / freq.QuadPart;
+  double elapsed_nanoseconds = (1e9 * static_cast<double>(counter.QuadPart)) /
+                               static_cast<double>(freq.QuadPart);
   return TimeNanos(static_cast<uint64_t>(elapsed_nanoseconds));
 }
 

@@ -133,7 +133,7 @@ if (build_with_chromium) {
 declare_args() {
   # Platform-wide tracing executables (traced, traced_probes, perfetto_cmd).
   enable_perfetto_platform_services =
-      perfetto_build_standalone || perfetto_build_with_android
+      (perfetto_build_standalone && !is_win) || perfetto_build_with_android
 
   # Allow the embedder to use the IPC layer. In turn this allows to use the
   # system backend in the client library.
@@ -181,9 +181,9 @@ declare_args() {
                               build_with_chromium || perfetto_build_with_android
 
   enable_perfetto_integration_tests =
-      perfetto_build_standalone || perfetto_build_with_android
+      (perfetto_build_standalone && !is_win) || perfetto_build_with_android
 
-  enable_perfetto_benchmarks = perfetto_build_standalone
+  enable_perfetto_benchmarks = perfetto_build_standalone && !is_win
 
   enable_perfetto_fuzzers =
       perfetto_build_standalone && defined(is_fuzzer) && is_fuzzer
@@ -209,7 +209,7 @@ declare_args() {
   # the stack and prints the stack trace on stderr. Requires a dependency on
   # libbacktrace when enabled.
   enable_perfetto_stderr_crash_dump =
-      is_debug && perfetto_build_standalone && !is_wasm
+      is_debug && perfetto_build_standalone && !is_wasm && !is_win
 }
 
 declare_args() {
@@ -239,7 +239,7 @@ declare_args() {
   # Enables httpd RPC support in the trace processor.
   # Further per-OS conditionals are applied in gn/BUILD.gn.
   enable_perfetto_trace_processor_httpd =
-      enable_perfetto_trace_processor && perfetto_build_standalone
+      enable_perfetto_trace_processor && perfetto_build_standalone && !is_win
 
   # Enables Zlib support. This is used both by the "perfetto" cmdline client
   # (for compressing traces) and by trace processor (for compressed traces).
@@ -254,7 +254,8 @@ declare_args() {
 
   # Allows to build the UI (TypeScript/ HTML / WASM)
   enable_perfetto_ui =
-      perfetto_build_standalone && enable_perfetto_trace_processor_sqlite
+      perfetto_build_standalone && enable_perfetto_trace_processor_sqlite &&
+      host_os != "win"
 
   # Skip buildtools dependency checks (needed for ChromeOS).
   skip_buildtools_check = false
