@@ -22,7 +22,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "src/base/test/test_task_runner.h"
-#include "test/cts/utils.h"
+#include "test/android_test_utils.h"
 #include "test/gtest_and_gmock.h"
 #include "test/test_helper.h"
 
