@@ -122,6 +122,12 @@ if (enable_perfetto_benchmarks || is_fuzzer ||
       "test_helper.cc",
       "test_helper.h",
     ]
+    if (is_android) {
+      sources += [
+        "android_test_utils.cc",
+        "android_test_utils.h",
+      ]
+    }
     if (start_daemons_for_testing) {
       cflags = [ "-DPERFETTO_START_DAEMONS_FOR_TESTING" ]
     }
