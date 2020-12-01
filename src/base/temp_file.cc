@@ -108,7 +108,7 @@ void TempFile::Unlink() {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   // If the FD is still open DeleteFile will mark the file as pending deletion
   // and delete it only when the process exists.
-  PERFETTO_CHECK(DeleteFile(path_.c_str()));
+  PERFETTO_CHECK(DeleteFileA(path_.c_str()));
 #else
   PERFETTO_CHECK(unlink(path_.c_str()) == 0);
 #endif
