@@ -1456,9 +1456,25 @@ class JsonExporter {
           continue;
 
         auto process_snapshot_id = process_snapshots.id()[process_index].value;
-        UniquePid upid = process_snapshots.upid()[process_index];
-        Json::Value event =
-            FillInProcessEventDetails(event_base, UpidToPid(upid));
+        uint32_t pid = UpidToPid(process_snapshots.upid()[process_index]);
+
+        // Shared memory nodes are imported into a fake process with pid 0.
+        // Catapult expects them to be associated with one of the real processes
+        // of the snapshot, so we choose the first one we can find and replace
+        // the pid.
+        if (pid == 0) {
+          for (uint32_t i = 0; i < process_snapshots.row_count(); ++i) {
+            if (process_snapshots.snapshot_id()[i].value != snapshot_id)
+              continue;
+            uint32_t new_pid = UpidToPid(process_snapshots.upid()[i]);
+            if (new_pid != 0) {
+              pid = new_pid;
+              break;
+            }
+          }
+        }
+
+        Json::Value event = FillInProcessEventDetails(event_base, pid);
 
         const auto& snapshot_nodes = storage_->memory_snapshot_node_table();
 
