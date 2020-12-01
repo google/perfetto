@@ -26,6 +26,7 @@ import "protos/perfetto/config/ftrace/ftrace_config.proto";
 import "protos/perfetto/config/gpu/gpu_counter_config.proto";
 import "protos/perfetto/config/gpu/vulkan_memory_config.proto";
 import "protos/perfetto/config/inode_file/inode_file_config.proto";
+import "protos/perfetto/config/interceptor_config.proto";
 import "protos/perfetto/config/power/android_power_config.proto";
 import "protos/perfetto/config/process_stats/process_stats_config.proto";
 import "protos/perfetto/config/profiling/heapprofd_config.proto";
@@ -36,6 +37,7 @@ import "protos/perfetto/config/test_config.proto";
 import "protos/perfetto/config/track_event/track_event_config.proto";
 
 // The configuration that is passed to each data source when starting tracing.
+// Next id: 116
 message DataSourceConfig {
   // Data source unique name, e.g., "linux.ftrace". This must match
   // the name passed by the data source when it registers (see
@@ -116,6 +118,16 @@ message DataSourceConfig {
   // just add extra hops on top of the Mojo ser/des. Instead we auto-generate a
   // C++ class for it so it can pass around plain C++ objets.
   optional ChromeConfig chrome_config = 101;
+
+  // If an interceptor is specified here, packets for this data source will be
+  // rerouted to the interceptor instead of the main trace buffer. This can be
+  // used, for example, to write trace data into ETW or for logging trace points
+  // to the console.
+  //
+  // Note that interceptors are only supported by data sources registered
+  // through the Perfetto SDK API. Data sources that don't use that API (e.g.,
+  // traced_probes) may not support interception.
+  optional InterceptorConfig interceptor_config = 115;
 
   // This is a fallback mechanism to send a free-form text config to the
   // producer. In theory this should never be needed. All the code that
