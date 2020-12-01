@@ -890,26 +890,33 @@ source_set("lzma") {
 source_set("zlib") {
   visibility = _buildtools_visibility
   sources = [
-    "zlib/src/adler32.c",
-    "zlib/src/compress.c",
-    "zlib/src/crc32.c",
-    "zlib/src/deflate.c",
-    "zlib/src/gzclose.c",
-    "zlib/src/gzlib.c",
-    "zlib/src/gzread.c",
-    "zlib/src/gzwrite.c",
-    "zlib/src/infback.c",
-    "zlib/src/inffast.c",
-    "zlib/src/inflate.c",
-    "zlib/src/inftrees.c",
-    "zlib/src/trees.c",
-    "zlib/src/uncompr.c",
-    "zlib/src/zutil.c",
+    "zlib/adler32.c",
+    "zlib/compress.c",
+    "zlib/cpu_features.c",
+    "zlib/crc32.c",
+    "zlib/deflate.c",
+    "zlib/gzclose.c",
+    "zlib/gzlib.c",
+    "zlib/gzread.c",
+    "zlib/gzwrite.c",
+    "zlib/infback.c",
+    "zlib/inffast.c",
+    "zlib/inflate.c",
+    "zlib/inftrees.c",
+    "zlib/trees.c",
+    "zlib/uncompr.c",
+    "zlib/zutil.c",
   ]
   configs -= [ "//gn/standalone:extra_warnings" ]
   cflags = []
   public_configs = [ ":zlib_config" ]
   deps = [ "//gn:default_deps" ]
+
+  # TODO(primiano): look into ADLER32_SIMD_SSSE3 and other SIMD optimizations
+  # (from chromium's third_party/zlib/BUILD.gn).
+  if (is_win) {
+    defines = [ "X86_WINDOWS" ]
+  }
 }
 
 config("zlib_config") {
@@ -920,7 +927,7 @@ config("zlib_config") {
     # warnings coming from third-party headers. Doing so would mask warnings in
     # our own code.
     "-isystem",
-    rebase_path("zlib/src", root_build_dir),
+    rebase_path("zlib", root_build_dir),
   ]
 }
 
