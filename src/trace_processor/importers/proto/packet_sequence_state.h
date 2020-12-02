@@ -364,9 +364,7 @@ PacketSequenceStateGeneration::LookupInternedMessage(uint64_t iid) {
   }
   state_->context()->storage->IncrementStats(
       stats::interned_data_tokenizer_errors);
-  PERFETTO_DLOG("Could not find interning entry for field ID %" PRIu32
-                ", generation %zu, and IID %" PRIu64,
-                FieldId, generation_index_, iid);
+  base::ignore_result(generation_index_);
   return nullptr;
 }
 
