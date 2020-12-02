@@ -98,6 +98,7 @@ perfetto_fuzzer_test("producer_socket_fuzzer") {
   ]
 }
 
+# perfetto_fuzzer_test() targets are no-ops if is_fuzzer = false.
 if (enable_perfetto_benchmarks || is_fuzzer ||
     enable_perfetto_integration_tests) {
   source_set("test_helper") {
