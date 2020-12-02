@@ -29,7 +29,6 @@
     PERFETTO_BUILDFLAG(PERFETTO_COMPILER_GCC)
 #include <unistd.h>
 #else
-#include <corecrt_io.h>
 #include <direct.h>
 #include <io.h>
 #endif
