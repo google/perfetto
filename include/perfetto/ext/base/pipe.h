@@ -26,9 +26,11 @@ class Pipe {
  public:
   enum Flags {
     kBothBlock = 0,
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
     kBothNonBlock,
     kRdNonBlock,
     kWrNonBlock,
+#endif
   };
 
   static Pipe Create(Flags = kBothBlock);

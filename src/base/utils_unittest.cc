@@ -16,10 +16,19 @@
 
 #include "perfetto/ext/base/utils.h"
 
+#include "perfetto/base/build_config.h"
+
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <fcntl.h>
 #include <signal.h>
-#include <stdint.h>
 #include <unistd.h>
+#endif
+
+#include <stdint.h>
+
+#include <algorithm>
+#include <random>
+#include <thread>
 
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/pipe.h"
@@ -58,9 +67,37 @@ TEST(UtilsTest, ArraySize) {
   EXPECT_EQ(4u, ArraySize(bar_4));
 }
 
+TEST(UtilsTest, PipeBlockingRW) {
+  Pipe pipe = Pipe::Create();
+  std::string expected;
+  expected.resize(1024 * 512u);
+  for (size_t i = 0; i < expected.size(); i++)
+    expected[i] = '!' + static_cast<char>(i % 64);
+
+  std::thread writer([&] {
+    std::string tx = expected;
+    std::minstd_rand0 rnd_engine(0);
+
+    while (!tx.empty()) {
+      size_t wsize = static_cast<size_t>(rnd_engine() % 4096) + 1;
+      wsize = std::min(wsize, tx.size());
+      WriteAll(*pipe.wr, &tx[0], wsize);
+      tx.erase(0, wsize);
+    }
+    pipe.wr.reset();
+  });
+
+  std::string actual;
+  ASSERT_TRUE(ReadFileDescriptor(*pipe.rd, &actual));
+  ASSERT_EQ(actual, expected);
+  writer.join();
+}
+
 // Fuchsia doesn't currently support sigaction(), see
 // fuchsia.atlassian.net/browse/ZX-560.
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
 TEST(UtilsTest, EintrWrapper) {
   Pipe pipe = Pipe::Create();
 
@@ -101,7 +138,7 @@ TEST(UtilsTest, EintrWrapper) {
   // Restore the old handler.
   sigaction(SIGUSR2, &old_sa, nullptr);
 }
-#endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
+#endif  // LINUX | ANDROID | APPLE
 
 TEST(UtilsTest, Align) {
   EXPECT_EQ(0u, AlignUp<4>(0));
