@@ -28,6 +28,7 @@
 * [App Instrumentation](#)
   * [Tracing SDK](instrumentation/tracing-sdk.md)
   * [Track events](instrumentation/track-events.md)
+  * [Interceptors](instrumentation/interceptors.md)
 
 * [Trace analysis](#)
   * [Trace Processor (SQL)](analysis/trace-processor.md)
