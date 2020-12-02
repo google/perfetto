@@ -1,6 +1,7 @@
 Unreleased:
   Tracing service and probes:
-    *
+    * Added trace packet interceptor API for rerouting trace data into
+      non-Perfetto systems.
   Trace Processor:
     *
   UI:
