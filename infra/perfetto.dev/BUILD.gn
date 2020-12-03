@@ -168,6 +168,14 @@ template("md_to_html") {
   }
 }
 
+all_proto_deps = "$target_out_dir/proto.deps"
+exec_script("../../gn/standalone/glob.py",
+            [
+              "--root=" + rebase_path("../../protos", root_build_dir),
+              "--filter=*.proto",
+              "--output=" + rebase_path(all_proto_deps),
+            ])
+
 # Generates a .md file from a .proto.
 # Args:
 #  proto_src: [in]
@@ -181,6 +189,7 @@ template("gen_proto_reference_md") {
       invoker.proto_src,
       js_src,
     ]
+    inputs += read_file(all_proto_deps, "list lines")
     outputs = [ invoker.markdown_out ]
     args = [
       "--path=$nodejs_bin",
