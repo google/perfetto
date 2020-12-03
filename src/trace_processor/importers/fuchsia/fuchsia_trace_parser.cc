@@ -249,6 +249,13 @@ void FuchsiaTraceParser::ParseTracePacket(int64_t, TimestampedTracePiece ttp) {
         args.push_back(arg);
         cursor.SetWordIndex(arg_base + arg_size_words);
       }
+      auto insert_args = [this, args](ArgsTracker::BoundInserter* inserter) {
+        for (const Arg& arg : args) {
+          inserter->AddArg(
+              arg.name, arg.name,
+              arg.value.ToStorageVariadic(context_->storage.get()));
+        }
+      };
 
       switch (event_type) {
         case kInstant: {
@@ -326,7 +333,7 @@ void FuchsiaTraceParser::ParseTracePacket(int64_t, TimestampedTracePiece ttp) {
               procs->UpdateThread(static_cast<uint32_t>(tinfo.tid),
                                   static_cast<uint32_t>(tinfo.pid));
           TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-          slices->Begin(ts, track_id, cat, name);
+          slices->Begin(ts, track_id, cat, name, insert_args);
           break;
         }
         case kDurationEnd: {
@@ -337,7 +344,7 @@ void FuchsiaTraceParser::ParseTracePacket(int64_t, TimestampedTracePiece ttp) {
           // TODO(b/131181693): |cat| and |name| are not passed here so that
           // if two slices end at the same timestep, the slices get closed in
           // the correct order regardless of which end event is processed first.
-          slices->End(ts, track_id);
+          slices->End(ts, track_id, {}, {}, insert_args);
           break;
         }
         case kDurationComplete: {
@@ -355,7 +362,7 @@ void FuchsiaTraceParser::ParseTracePacket(int64_t, TimestampedTracePiece ttp) {
               procs->UpdateThread(static_cast<uint32_t>(tinfo.tid),
                                   static_cast<uint32_t>(tinfo.pid));
           TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-          slices->Scoped(ts, track_id, cat, name, duration);
+          slices->Scoped(ts, track_id, cat, name, duration, insert_args);
           break;
         }
         case kAsyncBegin: {
@@ -364,9 +371,11 @@ void FuchsiaTraceParser::ParseTracePacket(int64_t, TimestampedTracePiece ttp) {
             context_->storage->IncrementStats(stats::fuchsia_invalid_event);
             return;
           }
+          UniquePid upid =
+              procs->GetOrCreateProcess(static_cast<uint32_t>(tinfo.pid));
           TrackId track_id = context_->track_tracker->InternFuchsiaAsyncTrack(
-              name, correlation_id);
-          slices->Begin(ts, track_id, cat, name);
+              name, upid, correlation_id);
+          slices->Begin(ts, track_id, cat, name, insert_args);
           break;
         }
         case kAsyncInstant: {
@@ -378,8 +387,10 @@ void FuchsiaTraceParser::ParseTracePacket(int64_t, TimestampedTracePiece ttp) {
             context_->storage->IncrementStats(stats::fuchsia_invalid_event);
             return;
           }
+          UniquePid upid =
+              procs->GetOrCreateProcess(static_cast<uint32_t>(tinfo.pid));
           TrackId track_id = context_->track_tracker->InternFuchsiaAsyncTrack(
-              name, correlation_id);
+              name, upid, correlation_id);
           InstantId id = context_->event_tracker->PushInstant(
               ts, name, track_id.value, RefType::kRefTrack);
           auto inserter = context_->args_tracker->AddArgsTo(id);
@@ -397,9 +408,11 @@ void FuchsiaTraceParser::ParseTracePacket(int64_t, TimestampedTracePiece ttp) {
             context_->storage->IncrementStats(stats::fuchsia_invalid_event);
             return;
           }
+          UniquePid upid =
+              procs->GetOrCreateProcess(static_cast<uint32_t>(tinfo.pid));
           TrackId track_id = context_->track_tracker->InternFuchsiaAsyncTrack(
-              name, correlation_id);
-          slices->End(ts, track_id, cat, name);
+              name, upid, correlation_id);
+          slices->End(ts, track_id, cat, name, insert_args);
           break;
         }
         case kFlowBegin: {
