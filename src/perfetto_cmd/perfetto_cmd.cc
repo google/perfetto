@@ -159,6 +159,8 @@ Usage: %s
                              human-readable text.
   --query-raw              : Like --query, but prints raw proto-encoded bytes
                              of tracing_service_state.proto.
+  --save-for-bugreport     : If a trace with bugreport_score > 0 is running, it
+                             saves it into a file. Outputs the path when done.
   --help           -h
 
 
@@ -189,6 +191,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
 
   enum LongOption {
     OPT_ALERT_ID = 1000,
+    OPT_BUGREPORT,
     OPT_CONFIG_ID,
     OPT_CONFIG_UID,
     OPT_SUBSCRIPTION_ID,
@@ -231,6 +234,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
       {"query", no_argument, nullptr, OPT_QUERY},
       {"query-raw", no_argument, nullptr, OPT_QUERY_RAW},
       {"version", no_argument, nullptr, OPT_VERSION},
+      {"save-for-bugreport", no_argument, nullptr, OPT_BUGREPORT},
       {nullptr, 0, nullptr, 0}};
 
   int option_index = 0;
@@ -406,6 +410,11 @@ int PerfettoCmd::Main(int argc, char** argv) {
       return 0;
     }
 
+    if (option == OPT_BUGREPORT) {
+      bugreport_ = true;
+      continue;
+    }
+
     return PrintUsage(argv[0]);
   }
 
@@ -434,6 +443,12 @@ int PerfettoCmd::Main(int argc, char** argv) {
     return 1;
   }
 
+  if (bugreport_ &&
+      (is_attach() | is_detach() || query_service_ || has_config_options)) {
+    PERFETTO_ELOG("--save-for-bugreport cannot take any other argument");
+    return 1;
+  }
+
   // Parse the trace config. It can be either:
   // 1) A proto-encoded file/stdin (-c ...).
   // 2) A proto-text file/stdin (-c ... --txt).
@@ -444,7 +459,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
 
   std::vector<std::string> triggers_to_activate;
   bool parsed = false;
-  const bool will_trace = !is_attach() && !query_service_;
+  const bool will_trace = !is_attach() && !query_service_ && !bugreport_;
   if (!will_trace) {
     if ((!trace_config_raw.empty() || has_config_options)) {
       PERFETTO_ELOG("Cannot specify a trace config with this option");
@@ -623,7 +638,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
     return finished_with_success ? 0 : 1;
   }
 
-  if (query_service_) {
+  if (query_service_ || bugreport_) {
     consumer_endpoint_ =
         ConsumerIPCClient::Connect(GetConsumerSocket(), this, &task_runner_);
     task_runner_.Run();
@@ -704,6 +719,19 @@ void PerfettoCmd::OnConnect() {
           PrintServiceState(success, svc_state);
           fflush(stdout);
           exit(success ? 0 : 1);
+        });
+    return;
+  }
+
+  if (bugreport_) {
+    consumer_endpoint_->SaveTraceForBugreport(
+        [](bool success, const std::string& msg) {
+          if (success) {
+            PERFETTO_ILOG("Trace saved into %s", msg.c_str());
+            exit(0);
+          }
+          PERFETTO_ELOG("%s", msg.c_str());
+          exit(1);
         });
     return;
   }

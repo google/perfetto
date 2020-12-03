@@ -1252,7 +1252,7 @@ message DataSourceConfig {
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 30.
+// Next id: 31.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -1449,6 +1449,15 @@ message TraceConfig {
   // Android-only. If set, sends an intent to the Traceur system app when the
   // trace ends to notify it about the trace readiness.
   optional bool notify_traceur = 16;
+
+  // Android-only. If set to a value > 0, marks the trace session as a candidate
+  // for being attached to a bugreport. This field effectively acts as a z-index
+  // for bugreports. When Android's dumpstate runs perfetto
+  // --save-for-bugreport, traced will pick the tracing session with the highest
+  // score (score <= 0 is ignored), will steal its contents, save the trace into
+  // a known path and stop prematurely.
+  // This field was introduced in Android S.
+  optional int32 bugreport_score = 30;
 
   // Triggers allow producers to start or stop the tracing session when an event
   // occurs.

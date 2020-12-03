@@ -124,6 +124,18 @@ bool TestHelper::AttachConsumer(const std::string& key) {
   return success;
 }
 
+bool TestHelper::SaveTraceForBugreportAndWait() {
+  bool success = false;
+  auto checkpoint = CreateCheckpoint("bugreport");
+  auto callback = [&success, checkpoint](bool s, const std::string&) {
+    success = s;
+    checkpoint();
+  };
+  endpoint_->SaveTraceForBugreport(callback);
+  RunUntilCheckpoint("bugreport");
+  return success;
+}
+
 void TestHelper::CreateProducerProvidedSmb() {
   fake_producer_thread_.CreateProducerProvidedSmb();
 }
