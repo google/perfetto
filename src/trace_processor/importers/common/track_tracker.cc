@@ -66,20 +66,10 @@ TrackId TrackTracker::InternProcessTrack(UniquePid upid) {
 }
 
 TrackId TrackTracker::InternFuchsiaAsyncTrack(StringId name,
+                                              uint32_t upid,
                                               int64_t correlation_id) {
-  auto it = fuchsia_async_tracks_.find(correlation_id);
-  if (it != fuchsia_async_tracks_.end())
-    return it->second;
-
-  tables::TrackTable::Row row(name);
-  auto id = context_->storage->mutable_track_table()->Insert(row).id;
-  fuchsia_async_tracks_[correlation_id] = id;
-
-  context_->args_tracker->AddArgsTo(id)
-      .AddArg(source_key_, Variadic::String(fuchsia_source_))
-      .AddArg(source_id_key_, Variadic::Integer(correlation_id));
-
-  return id;
+  return InternLegacyChromeAsyncTrack(name, upid, correlation_id, false,
+                                      StringId());
 }
 
 TrackId TrackTracker::InternCpuTrack(StringId name, uint32_t cpu) {
