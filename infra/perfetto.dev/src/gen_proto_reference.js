@@ -26,14 +26,30 @@ const PROJECT_ROOT =
 
 const visited = {};
 
+// This function is used to escape:
+// - The message-level comment, which becomes a full paragraph.
+// - The per-field comments, rendered as as table.
+function escapeCommentCommon(comment) {
+  comment = comment || '';
 
+  // Remove Next id: NN lines.
+  comment = comment.replace(/(\n)?^\s*next.*\bid:.*$/img, '');
+
+  // Hide our little dirty secrets.
+  comment = comment.replace(/(\n)?^\s*TODO\(\w+\):.*$/img, '');
+
+  // Turn |variable| references into `variable`.
+  comment = comment.replace(/[|](\w+?)[|]/g, '`$1`');
+  return comment;
+}
+
+// This is used to escape only the per-field comments.
 // Removes \n due to 80col wrapping and preserves only end-of-sentence line
 // breaks.
 function singleLineComment(comment) {
-  comment = comment || '';
+  comment = escapeCommentCommon(comment);
   comment = comment.trim();
-  comment = comment.replace(/[.:?!]\n/g, '<br>');
-  comment = comment.replace(/[|]/g, '`');
+  comment = comment.replace(/([.:?!])\n/g, '$1<br>');
   comment = comment.replace(/\n/g, ' ');
   return comment;
 }
@@ -64,8 +80,7 @@ function genType(pType, depth) {
   const fileName = path.basename(pType.filename);
   const relPath = path.relative(PROJECT_ROOT, pType.filename);
 
-  // Remove Next id: NN lines.
-  md += `${(pType.comment || '').replace(/(\n)?^\s*next.*\bid:.*$/img, '')}`;
+  md += escapeCommentCommon(pType.comment);
   md += `\n\nDefined in [${fileName}](/${relPath})\n\n`;
 
   const subTypes = [];
