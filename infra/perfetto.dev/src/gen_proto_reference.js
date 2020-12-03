@@ -32,7 +32,8 @@ const visited = {};
 function singleLineComment(comment) {
   comment = comment || '';
   comment = comment.trim();
-  comment = comment.replace(/\.\n/g, '<br>');
+  comment = comment.replace(/[.:?!]\n/g, '<br>');
+  comment = comment.replace(/[|]/g, '`');
   comment = comment.replace(/\n/g, ' ');
   return comment;
 }
@@ -62,6 +63,8 @@ function genType(pType, depth) {
   md += '\n';
   const fileName = path.basename(pType.filename);
   const relPath = path.relative(PROJECT_ROOT, pType.filename);
+
+  // Remove Next id: NN lines.
   md += `${(pType.comment || '').replace(/(\n)?^\s*next.*\bid:.*$/img, '')}`;
   md += `\n\nDefined in [${fileName}](/${relPath})\n\n`;
 
