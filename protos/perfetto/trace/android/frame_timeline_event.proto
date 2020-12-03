@@ -82,8 +82,10 @@ message FrameTimelineEvent {
     //    expected_start to max(frame1.actual_end, frame2.actual_end)
     optional int64 actual_end_ns = 9;
 
-    optional string layer_name = 10;
-    optional int32 pid = 11;
+    // Pid of the app. Used in creating the timeline tracks (and slices) inside
+    // the respective process track group.
+    optional int32 pid = 10;
+    optional string layer_name = 11;
   };
 
   // Represents the SurfaceFlinger's work on a frame.
@@ -104,6 +106,10 @@ message FrameTimelineEvent {
     // Actual timeline = actual_start to actual_end.
     optional int64 actual_start_ns = 8;
     optional int64 actual_end_ns = 9;
+
+    // Pid of SurfaceFlinger. Used in creating the timeline tracks (and slices)
+    // inside the SurfaceFlinger process group.
+    optional int32 pid = 10;
   };
 
   oneof event {
