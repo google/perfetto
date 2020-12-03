@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <functional>
+#include <string>
 
 #include <inttypes.h>
 #include <signal.h>
@@ -95,6 +96,20 @@ size_t Log2LessThan(uint64_t value) {
     value >>= 1;
   }
   return i;
+}
+
+bool IsFile(int fd, const char* fn) {
+  struct stat fdstat;
+  struct stat fnstat;
+  if (fstat(fd, &fdstat) == -1) {
+    PERFETTO_PLOG("fstat");
+    return false;
+  }
+  if (lstat(fn, &fnstat) == -1) {
+    PERFETTO_PLOG("lstat");
+    return false;
+  }
+  return fdstat.st_ino == fnstat.st_ino;
 }
 
 }  // namespace
@@ -853,6 +868,21 @@ void HeapprofdProducer::SocketDelegate::OnDataAvailable(
     if (data_source.shutting_down) {
       producer_->pending_processes_.erase(it);
       PERFETTO_LOG("Got handshake for DS that is shutting down. Rejecting.");
+      return;
+    }
+
+    std::string maps_file =
+        "/proc/" + std::to_string(self->peer_pid()) + "/maps";
+    if (!IsFile(*fds[kHandshakeMaps], maps_file.c_str())) {
+      producer_->pending_processes_.erase(it);
+      PERFETTO_ELOG("Received invalid maps FD.");
+      return;
+    }
+
+    std::string mem_file = "/proc/" + std::to_string(self->peer_pid()) + "/mem";
+    if (!IsFile(*fds[kHandshakeMem], mem_file.c_str())) {
+      producer_->pending_processes_.erase(it);
+      PERFETTO_ELOG("Received invalid mem FD.");
       return;
     }
 
