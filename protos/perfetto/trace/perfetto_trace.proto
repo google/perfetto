@@ -6297,6 +6297,7 @@ message TaskExecution {
 // referred to via the track's UUID.
 //
 // A simple TrackEvent packet specifies a timestamp, category, name and type:
+// ```protobuf
 //   trace_packet {
 //     timestamp: 1000
 //     track_event {
@@ -6305,9 +6306,11 @@ message TaskExecution {
 //       type: TYPE_INSTANT
 //      }
 //    }
+// ```
 //
 // To associate an event with a custom track (e.g. a thread), the track is
 // defined in a separate packet and referred to from the TrackEvent by its UUID:
+// ```protobuf
 //   trace_packet {
 //     track_descriptor {
 //       track_uuid: 1234
@@ -6321,8 +6324,11 @@ message TaskExecution {
 //       }
 //     }
 //   }
+// ```
 //
 // A pair of TYPE_SLICE_BEGIN and _END events form a slice on the track:
+//
+// ```protobuf
 //   trace_packet {
 //     timestamp: 1200
 //     track_event {
@@ -6339,7 +6345,7 @@ message TaskExecution {
 //       type: TYPE_SLICE_END
 //     }
 //   }
-//
+// ```
 // TrackEvents also support optimizations to reduce data repetition and encoded
 // data size, e.g. through data interning (names, categories, ...) and delta
 // encoding of timestamps/counters. For details, see the InternedData message.
