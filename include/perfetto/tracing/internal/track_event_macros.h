@@ -26,7 +26,9 @@
 #include "perfetto/tracing/track_event_category_registry.h"
 
 // Ignore GCC warning about a missing argument for a variadic macro parameter.
+#if defined(__GNUC__) || defined(__clang__)
 #pragma GCC system_header
+#endif
 
 // Defines data structures for backing a category registry.
 //

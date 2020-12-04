@@ -167,9 +167,11 @@ perfetto_unittest_source_set("unittests") {
   }
   if (perfetto_build_standalone || perfetto_build_with_android) {
     # This causes some problems on the chromium waterfall.
-    sources += [ "unix_socket_unittest.cc" ]
     if (is_linux || is_android) {
       sources += [ "watchdog_unittest.cc" ]
+    }
+    if (!is_win) {
+      sources += [ "unix_socket_unittest.cc" ]
     }
   }
 }

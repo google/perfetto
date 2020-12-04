@@ -16,8 +16,10 @@
 
 // Comparisions of floats is used extensively in this file. Ignore warnings
 // as we want to stay close to Chromium.
+#if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wfloat-equal"
+#endif
 
 #include <memory>
 #include <set>
@@ -2204,4 +2206,6 @@ TEST(OptionalTest, Noexcept) {
 }  // namespace base
 }  // namespace perfetto
 
+#if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic pop
+#endif
