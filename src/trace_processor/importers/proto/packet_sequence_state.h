@@ -86,7 +86,7 @@ class InternedMessageView {
       PERFETTO_FATAL(
           "Interning entry accessed under different types! previous type: "
           "%s. new type: %s.",
-          decoder_type_, __PRETTY_FUNCTION__);
+          decoder_type_, PERFETTO_DEBUG_FUNCTION_IDENTIFIER());
     }
     return reinterpret_cast<typename MessageType::Decoder*>(decoder_.get());
   }
@@ -190,6 +190,7 @@ class PacketSequenceStateGeneration {
   }
 
   PacketSequenceState* state() const { return state_; }
+  size_t generation_index() const { return generation_index_; }
 
  private:
   friend class PacketSequenceState;
