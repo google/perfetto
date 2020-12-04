@@ -103,8 +103,9 @@ struct UnwindingMetadata {
 
   void ReparseMaps();
 
-  std::string GetBuildId(const unwindstack::FrameData& frame);
+  const std::string& GetBuildId(const unwindstack::FrameData& frame);
 
+  std::string empty_string_;
   FDMaps fd_maps;
   // The API of libunwindstack expects shared_ptr for Memory.
   std::shared_ptr<unwindstack::Memory> fd_mem;
