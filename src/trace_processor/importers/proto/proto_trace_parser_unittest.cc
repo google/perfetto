@@ -2287,7 +2287,7 @@ TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {
     legacy_event->set_thread_duration_us(15);
     legacy_event->set_global_id(99u);
     legacy_event->set_id_scope("scope1");
-    legacy_event->set_use_async_tts('?');
+    legacy_event->set_use_async_tts(true);
 
     auto* annotation1 = event->add_debug_annotations();
     annotation1->set_name_iid(1);

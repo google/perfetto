@@ -24,8 +24,10 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/export.h"
 
+#if defined(__GNUC__) || defined(__clang__)
 // Ignore GCC warning about a missing argument for a variadic macro parameter.
 #pragma GCC system_header
+#endif
 
 // TODO(primiano): move this to base/build_config.h, turn into
 // PERFETTO_BUILDFLAG(DCHECK_IS_ON) and update call sites to use that instead.
@@ -99,11 +101,19 @@ PERFETTO_EXPORT void LogMessage(LogLev,
                                __LINE__, fmt, ##__VA_ARGS__)
 #endif
 
+#if defined(_MSC_VER)
+#define PERFETTO_IMMEDIATE_CRASH() \
+  do {                             \
+    __debugbreak();                \
+    __assume(0);                   \
+  } while (0)
+#else
 #define PERFETTO_IMMEDIATE_CRASH() \
   do {                             \
     __builtin_trap();              \
     __builtin_unreachable();       \
   } while (0)
+#endif
 
 #if PERFETTO_BUILDFLAG(PERFETTO_VERBOSE_LOGS)
 #define PERFETTO_LOG(fmt, ...) \
@@ -122,8 +132,12 @@ PERFETTO_EXPORT void LogMessage(LogLev,
     PERFETTO_IMMEDIATE_CRASH();        \
   } while (0)
 
+#if defined(__GNUC__) || defined(__clang__)
 #define PERFETTO_PLOG(x, ...) \
   PERFETTO_ELOG(x " (errno: %d, %s)", ##__VA_ARGS__, errno, strerror(errno))
+#else
+#define PERFETTO_PLOG(x, ...) PERFETTO_ELOG(x, ##__VA_ARGS__)
+#endif
 
 #define PERFETTO_CHECK(x)                            \
   do {                                               \

@@ -61,7 +61,9 @@ namespace metadata {
 // clang-format
 
 // Ignore GCC warning about a missing argument for a variadic macro parameter.
+#if defined(__GNUC__) || defined(__clang__)
 #pragma GCC system_header
+#endif
 
 #define PERFETTO_TP_META_TYPE_ENUM(varname, ...) varname
 enum class KeyType : size_t {

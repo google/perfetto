@@ -132,6 +132,8 @@ TempDir TempDir::Create() {
 }
 
 TempDir::TempDir() = default;
+TempDir::TempDir(TempDir&&) noexcept = default;
+TempDir& TempDir::operator=(TempDir&&) = default;
 
 TempDir::~TempDir() {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)

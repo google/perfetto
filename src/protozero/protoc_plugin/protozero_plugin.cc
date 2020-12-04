@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <stdlib.h>
+
 #include <limits>
 #include <map>
 #include <memory>
@@ -54,7 +56,7 @@ constexpr int kMaxDecoderFieldId = 999;
 
 void Assert(bool condition) {
   if (!condition)
-    __builtin_trap();
+    abort();
 }
 
 struct FileDescriptorComp {
