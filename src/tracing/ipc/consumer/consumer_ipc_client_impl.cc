@@ -424,4 +424,30 @@ void ConsumerIPCClientImpl::QueryCapabilities(
   consumer_port_.QueryCapabilities(req, std::move(async_response));
 }
 
+void ConsumerIPCClientImpl::SaveTraceForBugreport(
+    SaveTraceForBugreportCallback callback) {
+  if (!connected_) {
+    PERFETTO_DLOG(
+        "Cannot SaveTraceForBugreport(), not connected to tracing service");
+    return;
+  }
+
+  protos::gen::SaveTraceForBugreportRequest req;
+  ipc::Deferred<protos::gen::SaveTraceForBugreportResponse> async_response;
+  async_response.Bind(
+      [callback](ipc::AsyncResult<protos::gen::SaveTraceForBugreportResponse>
+                     response) {
+        if (!response) {
+          // If the IPC fails, we are talking to an older version of the service
+          // that didn't support SaveTraceForBugreport at all.
+          callback(
+              false,
+              "The tracing service doesn't support SaveTraceForBugreport()");
+        } else {
+          callback(response->success(), response->msg());
+        }
+      });
+  consumer_port_.SaveTraceForBugreport(req, std::move(async_response));
+}
+
 }  // namespace perfetto

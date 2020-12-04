@@ -1252,7 +1252,7 @@ message DataSourceConfig {
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 30.
+// Next id: 31.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -1449,6 +1449,15 @@ message TraceConfig {
   // Android-only. If set, sends an intent to the Traceur system app when the
   // trace ends to notify it about the trace readiness.
   optional bool notify_traceur = 16;
+
+  // Android-only. If set to a value > 0, marks the trace session as a candidate
+  // for being attached to a bugreport. This field effectively acts as a z-index
+  // for bugreports. When Android's dumpstate runs perfetto
+  // --save-for-bugreport, traced will pick the tracing session with the highest
+  // score (score <= 0 is ignored), will steal its contents, save the trace into
+  // a known path and stop prematurely.
+  // This field was introduced in Android S.
+  optional int32 bugreport_score = 30;
 
   // Triggers allow producers to start or stop the tracing session when an event
   // occurs.
@@ -6937,6 +6946,14 @@ message TracingServiceEvent {
     // after all packets from producers have been included in the central
     // tracing buffer.
     bool tracing_disabled = 5;
+
+    // Emitted if perfetto --save-for-bugreport was invoked while the current
+    // tracing session was running and it had the highest bugreport_score. In
+    // this case the original consumer will see a nearly empty trace, because
+    // the contents are routed onto the bugreport file. This event flags the
+    // situation explicitly. Traces that contain this marker should be discarded
+    // by test infrastructures / pipelines.
+    bool seized_for_bugreport = 6;
   }
 }
 

@@ -112,6 +112,12 @@ service ConsumerPort {
   // backward/forward compatibility and feature detection.
   rpc QueryCapabilities(QueryCapabilitiesRequest)
       returns (QueryCapabilitiesResponse) {}
+
+  // ----------------------------------------------------
+  // All methods below have been introduced in Android S.
+  // ----------------------------------------------------
+  rpc SaveTraceForBugreport(SaveTraceForBugreportRequest)
+      returns (SaveTraceForBugreportResponse) {}
 }
 
 // Arguments for rpc EnableTracing().
@@ -246,4 +252,18 @@ message QueryCapabilitiesRequest {}
 
 message QueryCapabilitiesResponse {
   optional TracingServiceCapabilities capabilities = 1;
+}
+
+// Arguments for rpc SaveTraceForBugreport.
+message SaveTraceForBugreportRequest {}
+
+// This response is sent only after the trace was saved into file (if succeeded)
+// or something failed.
+message SaveTraceForBugreportResponse {
+  // If true, an eligible the trace was saved into a known location (on Android
+  // /data/misc/perfetto-traces, see kBugreportTracePath).
+  // If false no trace with bugreport_score > 0 was found or an error occurred.
+  // see |msg| in that case for details about the failure.
+  optional bool success = 1;
+  optional string msg = 2;
 }

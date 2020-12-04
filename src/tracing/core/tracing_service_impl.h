@@ -197,6 +197,7 @@ class TracingServiceImpl : public TracingService {
     void ObserveEvents(uint32_t enabled_event_types) override;
     void QueryServiceState(QueryServiceStateCallback) override;
     void QueryCapabilities(QueryCapabilitiesCallback) override;
+    void SaveTraceForBugreport(SaveTraceForBugreportCallback) override;
 
     // Will queue a task to notify the consumer about the state change.
     void OnDataSourceInstanceStateChange(const ProducerEndpointImpl&,
@@ -545,6 +546,11 @@ class TracingServiceImpl : public TracingService {
     uint32_t write_period_ms = 0;
     uint64_t max_file_size_bytes = 0;
     uint64_t bytes_written_into_file = 0;
+
+    // Set when using SaveTraceForBugreport(). This callback will be called
+    // when the tracing session ends and the data has been saved into the file.
+    std::function<void()> on_disable_callback_for_bugreport;
+    bool seized_for_bugreport = false;
   };
 
   TracingServiceImpl(const TracingServiceImpl&) = delete;
@@ -570,30 +576,32 @@ class TracingServiceImpl : public TracingService {
   // shared memory and trace buffers.
   void UpdateMemoryGuardrail();
 
-  void StartDataSourceInstance(ProducerEndpointImpl* producer,
-                               TracingSession* tracing_session,
-                               DataSourceInstance* instance);
-  void StopDataSourceInstance(ProducerEndpointImpl* producer,
-                              TracingSession* tracing_session,
-                              DataSourceInstance* instance,
+  void StartDataSourceInstance(ProducerEndpointImpl*,
+                               TracingSession*,
+                               DataSourceInstance*);
+  void StopDataSourceInstance(ProducerEndpointImpl*,
+                              TracingSession*,
+                              DataSourceInstance*,
                               bool disable_immediately);
-  void PeriodicSnapshotTask(TracingSession* tracing_session);
+  void PeriodicSnapshotTask(TracingSession*);
   void MaybeSnapshotClocksIntoRingBuffer(TracingSession*);
   bool SnapshotClocks(TracingSession::ClockSnapshotData*);
   void SnapshotLifecyleEvent(TracingSession*,
                              uint32_t field_id,
                              bool snapshot_clocks);
-  void EmitClockSnapshot(TracingSession* tracing_session,
+  void EmitClockSnapshot(TracingSession*,
                          TracingSession::ClockSnapshotData,
                          std::vector<TracePacket>*);
   void EmitSyncMarker(std::vector<TracePacket>*);
   void EmitStats(TracingSession*, std::vector<TracePacket>*);
-  TraceStats GetTraceStats(TracingSession* tracing_session);
-  void EmitLifecycleEvents(TracingSession*, std::vector<TracePacket>* packets);
+  TraceStats GetTraceStats(TracingSession*);
+  void EmitLifecycleEvents(TracingSession*, std::vector<TracePacket>*);
+  void EmitSeizedForBugreportLifecycleEvent(std::vector<TracePacket>*);
   void MaybeEmitTraceConfig(TracingSession*, std::vector<TracePacket>*);
   void MaybeEmitSystemInfo(TracingSession*, std::vector<TracePacket>*);
   void MaybeEmitReceivedTriggers(TracingSession*, std::vector<TracePacket>*);
   void MaybeNotifyAllDataSourcesStarted(TracingSession*);
+  bool MaybeSaveTraceForBugreport(std::function<void()> callback);
   void OnFlushTimeout(TracingSessionID, FlushRequestID);
   void OnDisableTracingTimeout(TracingSessionID);
   void DisableTracingNotifyConsumerAndFlushFile(TracingSession*);
@@ -601,8 +609,7 @@ class TracingServiceImpl : public TracingService {
   void CompleteFlush(TracingSessionID tsid,
                      ConsumerEndpoint::FlushCallback callback,
                      bool success);
-  void ScrapeSharedMemoryBuffers(TracingSession* tracing_session,
-                                 ProducerEndpointImpl* producer);
+  void ScrapeSharedMemoryBuffers(TracingSession*, ProducerEndpointImpl*);
   void PeriodicClearIncrementalStateTask(TracingSessionID, bool post_next_only);
   TraceBuffer* GetBufferByID(BufferID);
   void OnStartTriggersTimeout(TracingSessionID tsid);
