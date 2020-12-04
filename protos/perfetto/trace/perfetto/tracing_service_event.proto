@@ -53,5 +53,13 @@ message TracingServiceEvent {
     // after all packets from producers have been included in the central
     // tracing buffer.
     bool tracing_disabled = 5;
+
+    // Emitted if perfetto --save-for-bugreport was invoked while the current
+    // tracing session was running and it had the highest bugreport_score. In
+    // this case the original consumer will see a nearly empty trace, because
+    // the contents are routed onto the bugreport file. This event flags the
+    // situation explicitly. Traces that contain this marker should be discarded
+    // by test infrastructures / pipelines.
+    bool seized_for_bugreport = 6;
   }
 }
