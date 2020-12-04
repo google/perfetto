@@ -308,6 +308,36 @@ void ConsumerIPCService::OnQueryCapabilitiesCallback(
   response.Resolve(std::move(resp));
 }
 
+void ConsumerIPCService::SaveTraceForBugreport(
+    const protos::gen::SaveTraceForBugreportRequest&,
+    DeferredSaveTraceForBugreportResponse resp) {
+  RemoteConsumer* remote_consumer = GetConsumerForCurrentRequest();
+  auto it = pending_bugreport_responses_.insert(
+      pending_bugreport_responses_.end(), std::move(resp));
+  auto weak_this = weak_ptr_factory_.GetWeakPtr();
+  auto callback = [weak_this, it](bool success, const std::string& msg) {
+    if (weak_this)
+      weak_this->OnSaveTraceForBugreportCallback(success, msg, std::move(it));
+  };
+  remote_consumer->service_endpoint->SaveTraceForBugreport(callback);
+}
+
+// Called by the service in response to
+// service_endpoint->SaveTraceForBugreport().
+void ConsumerIPCService::OnSaveTraceForBugreportCallback(
+    bool success,
+    const std::string& msg,
+    PendingSaveTraceForBugreportResponses::iterator pending_response_it) {
+  DeferredSaveTraceForBugreportResponse response(
+      std::move(*pending_response_it));
+  pending_bugreport_responses_.erase(pending_response_it);
+  auto resp =
+      ipc::AsyncResult<protos::gen::SaveTraceForBugreportResponse>::Create();
+  resp->set_success(success);
+  resp->set_msg(msg);
+  response.Resolve(std::move(resp));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // RemoteConsumer methods
 ////////////////////////////////////////////////////////////////////////////////

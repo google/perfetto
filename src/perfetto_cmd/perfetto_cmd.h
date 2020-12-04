@@ -103,6 +103,7 @@ class PerfettoCmd : public Consumer {
   bool redetach_once_attached_ = false;
   bool query_service_ = false;
   bool query_service_output_raw_ = false;
+  bool bugreport_ = false;
   std::string uuid_;
 
   // How long we expect to trace for or 0 if the trace is indefinite.

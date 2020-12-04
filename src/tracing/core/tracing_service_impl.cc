@@ -18,6 +18,7 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/tracing/core/basic_types.h"
 
 #include <errno.h>
 #include <inttypes.h>
@@ -89,6 +90,13 @@
   (PERFETTO_ELOG(__VA_ARGS__), ::perfetto::base::ErrStatus(__VA_ARGS__))
 
 namespace perfetto {
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+const char* kBugreportTracePath =
+    "/data/misc/perfetto-traces/bugreport.pftrace";
+#else
+const char* kBugreportTracePath = "/tmp/bugreport.pftrace";
+#endif
 
 namespace {
 constexpr int kMaxBuffersPerConsumer = 128;
@@ -226,8 +234,10 @@ bool NameMatchesFilter(const std::string& name,
   return filter_matches || filter_regex_matches;
 }
 
-// Used when write_into_file == true and output_path is not empty.
-base::ScopedFile CreateTraceFile(const std::string& path) {
+// Used when:
+// 1. TraceConfig.write_into_file == true and output_path is not empty.
+// 2. Calling SaveTraceForBugreport(), from perfetto --save-for-bugreport.
+base::ScopedFile CreateTraceFile(const std::string& path, bool overwrite) {
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
   static const char kBase[] = "/data/misc/perfetto-traces/";
   if (!base::StartsWith(path, kBase) || path.rfind('/') != strlen(kBase) - 1) {
@@ -237,14 +247,21 @@ base::ScopedFile CreateTraceFile(const std::string& path) {
   }
 #endif
   // O_CREAT | O_EXCL will fail if the file exists already.
-  auto fd = base::OpenFile(path, O_RDWR | O_CREAT | O_EXCL, 0600);
-  if (!fd)
-    PERFETTO_PLOG("Failed to create %s", path.c_str());
+  const int flags = O_RDWR | O_CREAT | (overwrite ? O_TRUNC : O_EXCL);
+  auto fd = base::OpenFile(path, flags, 0600);
+  if (fd) {
 #if defined(PERFETTO_HAS_CHMOD)
-  // Passing 0644 directly above won't work because of umask.
-  PERFETTO_CHECK(fchmod(*fd, 0644) == 0);
+    // Passing 0644 directly above won't work because of umask.
+    PERFETTO_CHECK(fchmod(*fd, 0644) == 0);
 #endif
+  } else {
+    PERFETTO_PLOG("Failed to create %s", path.c_str());
+  }
   return fd;
+}
+
+std::string GetBugreportTmpPath() {
+  return std::string(kBugreportTracePath) + ".tmp";
 }
 
 }  // namespace
@@ -651,7 +668,7 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
           "output_path must be populated (but not both)");
     }
     if (!cfg.output_path().empty()) {
-      fd = CreateTraceFile(cfg.output_path());
+      fd = CreateTraceFile(cfg.output_path(), /*overwrite=*/false);
       if (!fd) {
         tracing_sessions_.erase(tsid);
         return PERFETTO_SVC_ERR("Failed to create the trace file %s",
@@ -1351,6 +1368,11 @@ void TracingServiceImpl::DisableTracingNotifyConsumerAndFlushFile(
     ReadBuffers(tracing_session->id, nullptr);
   }
 
+  if (tracing_session->on_disable_callback_for_bugreport) {
+    std::move(tracing_session->on_disable_callback_for_bugreport)();
+    tracing_session->on_disable_callback_for_bugreport = nullptr;
+  }
+
   if (tracing_session->consumer_maybe_null)
     tracing_session->consumer_maybe_null->NotifyOnTracingDisabled("");
 }
@@ -1740,6 +1762,18 @@ bool TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
 
   std::vector<TracePacket> packets;
   packets.reserve(1024);  // Just an educated guess to avoid trivial expansions.
+
+  // If a bugreport request happened and the trace was stolen for that, give
+  // an empty trace with a clear signal to the consumer.
+  if (tracing_session->seized_for_bugreport && consumer) {
+    if (!tracing_session->config.builtin_data_sources()
+             .disable_service_events()) {
+      EmitSeizedForBugreportLifecycleEvent(&packets);
+    }
+    EmitLifecycleEvents(tracing_session, &packets);
+    consumer->consumer_->OnTraceData(std::move(packets), /*has_more=*/false);
+    return true;
+  }
 
   if (!tracing_session->initial_clock_snapshot.empty()) {
     EmitClockSnapshot(tracing_session,
@@ -2818,6 +2852,18 @@ void TracingServiceImpl::EmitLifecycleEvents(
     SerializeAndAppendPacket(packets, std::move(pair.second));
 }
 
+void TracingServiceImpl::EmitSeizedForBugreportLifecycleEvent(
+    std::vector<TracePacket>* packets) {
+  protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
+  packet->set_timestamp(static_cast<uint64_t>(base::GetBootTimeNs().count()));
+  packet->set_trusted_uid(static_cast<int32_t>(uid_));
+  packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
+  auto* service_event = packet->set_service_event();
+  service_event->AppendVarInt(
+      protos::pbzero::TracingServiceEvent::kSeizedForBugreportFieldNumber, 1);
+  SerializeAndAppendPacket(packets, packet.SerializeAsArray());
+}
+
 void TracingServiceImpl::MaybeEmitReceivedTriggers(
     TracingSession* tracing_session,
     std::vector<TracePacket>* packets) {
@@ -2838,6 +2884,57 @@ void TracingServiceImpl::MaybeEmitReceivedTriggers(
     SerializeAndAppendPacket(packets, packet.SerializeAsArray());
     ++tracing_session->num_triggers_emitted_into_trace;
   }
+}
+
+bool TracingServiceImpl::MaybeSaveTraceForBugreport(
+    std::function<void()> callback) {
+  TracingSession* max_session = nullptr;
+  TracingSessionID max_tsid = 0;
+  for (auto& session_id_and_session : tracing_sessions_) {
+    auto& session = session_id_and_session.second;
+    const int32_t score = session.config.bugreport_score();
+    // Exclude sessions with 0 (or below) score. By default tracing sessions
+    // should NOT be eligible to be attached to bugreports. Also don't try to
+    // steal long traces with write_into_file as their content is already
+    // partially flushed onto a file and we can't easily recover it (also that
+    // could lead to enormous traces).
+    if (score <= 0 || session.state != TracingSession::STARTED ||
+        session.write_into_file) {
+      continue;
+    }
+
+    // If we are already in the process of finalizing another trace for
+    // bugreport, don't even start another one, as they would try to write onto
+    // the same file.
+    if (session.on_disable_callback_for_bugreport)
+      return false;
+
+    if (!max_session || score > max_session->config.bugreport_score()) {
+      max_session = &session;
+      max_tsid = session_id_and_session.first;
+    }
+  }
+
+  // No eligible trace found.
+  if (!max_session)
+    return false;
+
+  auto br_fd = CreateTraceFile(GetBugreportTmpPath(), /*overwrite=*/true);
+  if (!br_fd)
+    return false;
+  max_session->write_into_file = std::move(br_fd);
+  max_session->on_disable_callback_for_bugreport = std::move(callback);
+  max_session->seized_for_bugreport = true;
+
+  // Post a task to avoid that early FlushAndDisableTracing() failures invoke
+  // the callback before we return. That would re-enter in a weird way the
+  // callstack of the calling ConsumerEndpointImpl::SaveTraceForBugreport().
+  auto weak_this = weak_ptr_factory_.GetWeakPtr();
+  task_runner_->PostTask([weak_this, max_tsid] {
+    if (weak_this)
+      weak_this->FlushAndDisableTracing(max_tsid);
+  });
+  return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3103,6 +3200,25 @@ void TracingServiceImpl::ConsumerEndpointImpl::QueryCapabilities(
                     ObservableEvents::TYPE_ALL_DATA_SOURCES_STARTED,
                 "");
   callback(caps);
+}
+
+void TracingServiceImpl::ConsumerEndpointImpl::SaveTraceForBugreport(
+    SaveTraceForBugreportCallback consumer_callback) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  auto on_complete_callback = [consumer_callback] {
+    if (rename(GetBugreportTmpPath().c_str(), kBugreportTracePath)) {
+      consumer_callback(false, "rename(" + GetBugreportTmpPath() + ", " +
+                                   kBugreportTracePath + ") failed (" +
+                                   strerror(errno) + ")");
+    } else {
+      consumer_callback(true, kBugreportTracePath);
+    }
+  };
+  if (!service_->MaybeSaveTraceForBugreport(std::move(on_complete_callback))) {
+    consumer_callback(false,
+                      "No trace with TraceConfig.bugreport_score > 0 eligible "
+                      "for bug reporting was found");
+  }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
