@@ -199,6 +199,7 @@ class TestHelper : public Consumer {
   void FreeBuffers();
   void DetachConsumer(const std::string& key);
   bool AttachConsumer(const std::string& key);
+  bool SaveTraceForBugreportAndWait();
   void CreateProducerProvidedSmb();
   bool IsShmemProvidedByProducer();
   void ProduceStartupEventBatch(const protos::gen::TestConfig& config);
