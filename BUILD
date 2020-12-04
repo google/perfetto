@@ -612,7 +612,7 @@ genrule(
     outs = [
         "perfetto_version.gen.h",
     ],
-    cmd = "$(location gen_version_header_py) --cpp_out=$@ --changelog=CHANGELOG",
+    cmd = "$(location gen_version_header_py) --cpp_out=$@ --changelog=$(location CHANGELOG)",
     exec_tools = [
         ":gen_version_header_py",
     ],
