@@ -432,18 +432,13 @@ class BitVector {
 
     // Returns the number of set bits.
     uint32_t GetNumBitsSet() const {
-      // We use __builtin_popcountll here as it's available natively for the two
-      // targets we care most about (x64 and WASM).
-      return static_cast<uint32_t>(__builtin_popcountll(word_));
+      return static_cast<uint32_t>(PERFETTO_POPCOUNT(word_));
     }
 
     // Returns the number of set bits up to and including the bit at |idx|.
     uint32_t GetNumBitsSet(uint32_t idx) const {
       PERFETTO_DCHECK(idx < kBits);
-
-      // We use __builtin_popcountll here as it's available natively for the two
-      // targets we care most about (x64 and WASM).
-      return static_cast<uint32_t>(__builtin_popcountll(WordUntil(idx)));
+      return static_cast<uint32_t>(PERFETTO_POPCOUNT(WordUntil(idx)));
     }
 
     // Retains all bits up to and including the bit at |idx| and clears
