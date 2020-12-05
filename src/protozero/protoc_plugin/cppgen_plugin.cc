@@ -153,8 +153,10 @@ bool CppObjGenerator::Generate(const google::protobuf::FileDescriptor* file,
   cc_printer.Print("#include \"perfetto/protozero/proto_decoder.h\"\n");
   cc_printer.Print("#include \"perfetto/protozero/scattered_heap_buffer.h\"\n");
   cc_printer.Print(kHeader);
+  cc_printer.Print("#if defined(__GNUC__) || defined(__clang__)\n");
   cc_printer.Print("#pragma GCC diagnostic push\n");
   cc_printer.Print("#pragma GCC diagnostic ignored \"-Wfloat-equal\"\n");
+  cc_printer.Print("#endif\n");
 
   // Generate includes for translated types of dependencies.
 
@@ -335,8 +337,10 @@ bool CppObjGenerator::Generate(const google::protobuf::FileDescriptor* file,
     h_printer.Print("}  // namespace $n$\n", "n", ns);
     cc_printer.Print("}  // namespace $n$\n", "n", ns);
   }
-
+  cc_printer.Print("#if defined(__GNUC__) || defined(__clang__)\n");
   cc_printer.Print("#pragma GCC diagnostic pop\n");
+  cc_printer.Print("#endif\n");
+
   h_printer.Print("\n#endif  // $g$\n", "g", include_guard);
 
   return true;

@@ -140,7 +140,9 @@ class MacroTable : public Table {
 }  // namespace macros_internal
 
 // Ignore GCC warning about a missing argument for a variadic macro parameter.
+#if defined(__GNUC__) || defined(__clang__)
 #pragma GCC system_header
+#endif
 
 // Basic helper macros.
 #define PERFETTO_TP_NOOP(...)
@@ -223,11 +225,15 @@ class MacroTable : public Table {
 
 #define PERFETTO_TP_COLUMN_FLAG_CHOOSER(type, name, maybe_flags, fn, ...) fn
 
-#define PERFETTO_TP_COLUMN_FLAG(...)                                    \
-  PERFETTO_TP_COLUMN_FLAG_CHOOSER(__VA_ARGS__,                          \
-                                  PERFETTO_TP_COLUMN_FLAG_HAS_FLAG_COL, \
-                                  PERFETTO_TP_COLUMN_FLAG_NO_FLAG_COL)  \
-  (__VA_ARGS__)
+// MSVC has slightly different rules about __VA_ARGS__ expansion. This makes it
+// behave similarly to GCC/Clang.
+// See https://stackoverflow.com/q/5134523/14028266 .
+#define PERFETTO_TP_EXPAND_VA_ARGS(x) x
+
+#define PERFETTO_TP_COLUMN_FLAG(...)                          \
+  PERFETTO_TP_EXPAND_VA_ARGS(PERFETTO_TP_COLUMN_FLAG_CHOOSER( \
+      __VA_ARGS__, PERFETTO_TP_COLUMN_FLAG_HAS_FLAG_COL,      \
+      PERFETTO_TP_COLUMN_FLAG_NO_FLAG_COL)(__VA_ARGS__))
 
 // Creates the sparse vector with the given flags.
 #define PERFETTO_TP_TABLE_CONSTRUCTOR_SV(type, name, ...)               \

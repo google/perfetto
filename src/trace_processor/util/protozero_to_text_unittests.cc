@@ -206,7 +206,7 @@ TEST(ProtozeroToTextTest, StringField) {
                                               kTrackEventDescriptor.size());
   ASSERT_TRUE(status.ok());
   ASSERT_EQ(ProtozeroToText(pool, type, bytes, kIncludeNewLines),
-            R"(categories: "Hello, \"World\"")");
+            "categories: \"Hello, \\\"World\\\"\"");
 }
 
 TEST(ProtozeroToTextTest, BytesField) {

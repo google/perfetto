@@ -22,8 +22,13 @@
 
 #include "perfetto/base/build_config.h"
 
+#if defined(__GNUC__) || defined(__clang__)
 #define PERFETTO_LIKELY(_x) __builtin_expect(!!(_x), 1)
 #define PERFETTO_UNLIKELY(_x) __builtin_expect(!!(_x), 0)
+#else
+#define PERFETTO_LIKELY(_x) (_x)
+#define PERFETTO_UNLIKELY(_x) (_x)
+#endif
 
 #if defined(__GNUC__) || defined(__clang__)
 #define PERFETTO_WARN_UNUSED_RESULT __attribute__((warn_unused_result))

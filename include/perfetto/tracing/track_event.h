@@ -218,7 +218,9 @@ constexpr bool IsStaticString(...) {
       perfetto::internal::TrackEventDataSourceTraits)
 
 // Ignore GCC warning about a missing argument for a variadic macro parameter.
+#if defined(__GNUC__) || defined(__clang__)
 #pragma GCC system_header
+#endif
 
 // Ensure that |string| is a static constant string.
 //
