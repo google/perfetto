@@ -217,7 +217,7 @@ TEST(ProtoUtilsTest, RejectVarIntTooBig) {
   uint64_t value = static_cast<uint64_t>(-1);
   const uint8_t* res = ParseVarInt(&good[0], &good[sizeof(good)], &value);
   EXPECT_EQ(&good[sizeof(good)], res);
-  EXPECT_EQ(value, static_cast<uint64_t>(-1ULL));
+  EXPECT_EQ(value, static_cast<uint64_t>(-1));
 
   uint8_t bad[] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
                    0xff, 0xff, 0xff, 0xff, 0x01};
