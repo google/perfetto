@@ -78,29 +78,3 @@ genrule {
         "statslog_perfetto.cpp",
     ],
 }
-
-cc_genrule {
-  name: "trace_processor_shell.stripped",
-  device_supported: false,
-  host_supported: true,
-  cmd: "$(location tools/strip_android_host_binary.py) $(in) -o $(out)",
-  enabled: false,
-  compile_multilib: "64",
-  tool_files: [
-    "tools/strip_android_host_binary.py",
-  ],
-  dist: {
-    targets: [
-      "sdk_repo",
-    ],
-  },
-  target: {
-    linux: {
-      out: [
-        "trace_processor_shell.stripped",
-      ],
-      srcs: [":trace_processor_shell"],
-      enabled: true,
-    },
-  },
-}
