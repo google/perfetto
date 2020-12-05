@@ -205,7 +205,9 @@ additional_args = {
     'libperfetto_android_internal': [('static_libs', {'libhealthhalutils'}),],
     'trace_processor_shell': [
       ('host', {
-        'stl': 'libc++_static'
+        'stl': 'libc++_static',
+        'strip': {'all': True},
+        'dist': {'targets': ['sdk_repo']},
       }),
     ],
     'libperfetto_client_experimental': [
@@ -383,6 +385,8 @@ class Target(object):
     self.static_libs = set()
     self.whole_static_libs = set()
     self.cflags = set()
+    self.dist = dict()
+    self.strip = dict()
     self.stl = None
 
   def to_string(self, output):
@@ -392,6 +396,8 @@ class Target(object):
     self._output_field(nested_out, 'whole_static_libs')
     self._output_field(nested_out, 'cflags')
     self._output_field(nested_out, 'stl')
+    self._output_field(nested_out, 'dist')
+    self._output_field(nested_out, 'strip')
 
     if nested_out:
       output.append('  %s: {' % self.name)
