@@ -20,7 +20,7 @@
 namespace perfetto {
 
 // This must match the values of the PerfettoUploadEvent enum in:
-// frameworks/base/cmds/statsd/src/atoms.proto
+// frameworks/proto_logging/stats/atoms.proto
 enum class PerfettoStatsdAtom {
   kUndefined = 0,
 
