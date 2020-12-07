@@ -132,7 +132,7 @@ void MemoryTrackerSnapshotParser::ReadProtoSnapshot(
       std::unique_ptr<RawMemoryGraphNode> raw_graph_node(new RawMemoryGraphNode(
           absolute_name, level_of_detail, node_id, std::move(entries)));
       raw_graph_node->set_flags(flags);
-      nodes_map.emplace(
+      nodes_map.insert(
           std::make_pair(absolute_name, std::move(raw_graph_node)));
     }
 
@@ -146,12 +146,12 @@ void MemoryTrackerSnapshotParser::ReadProtoSnapshot(
           MemoryAllocatorNodeId(edge.target_id()),
           static_cast<int>(edge.importance()), edge.overridable()));
 
-      edges_map.emplace(std::make_pair(MemoryAllocatorNodeId(edge.source_id()),
-                                       std::move(graph_edge)));
+      edges_map.insert(std::make_pair(MemoryAllocatorNodeId(edge.source_id()),
+                                      std::move(graph_edge)));
     }
-    raw_nodes.emplace(
-        pid, new RawProcessMemoryNode(level_of_detail, std::move(edges_map),
-                                      std::move(nodes_map)));
+    std::unique_ptr<RawProcessMemoryNode> raw_node(new RawProcessMemoryNode(
+        level_of_detail, std::move(edges_map), std::move(nodes_map)));
+    raw_nodes.insert(std::make_pair(pid, std::move(raw_node)));
   }
 }
 
