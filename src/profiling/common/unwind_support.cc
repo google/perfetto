@@ -122,15 +122,15 @@ void UnwindingMetadata::ReparseMaps() {
 #endif
 }
 
-std::string UnwindingMetadata::GetBuildId(const unwindstack::FrameData& frame) {
-  std::string build_id;
+const std::string& UnwindingMetadata::GetBuildId(
+    const unwindstack::FrameData& frame) {
   if (!frame.map_name.empty()) {
     unwindstack::MapInfo* map_info = fd_maps.Find(frame.pc);
     if (map_info)
-      build_id = map_info->GetBuildID();
+      return map_info->GetBuildID();
   }
 
-  return build_id;
+  return empty_string_;
 }
 
 std::string StringifyLibUnwindstackError(unwindstack::ErrorCode e) {
