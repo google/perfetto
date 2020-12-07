@@ -289,8 +289,8 @@ source_set("export_json") {
 if (enable_perfetto_trace_processor_sqlite) {
   source_set("lib") {
     sources = [
-      "dynamic/ancestor_slice_generator.cc",
-      "dynamic/ancestor_slice_generator.h",
+      "dynamic/ancestor_generator.cc",
+      "dynamic/ancestor_generator.h",
       "dynamic/connected_flow_generator.cc",
       "dynamic/connected_flow_generator.h",
       "dynamic/descendant_slice_generator.cc",
