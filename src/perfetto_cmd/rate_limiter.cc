@@ -51,9 +51,9 @@ RateLimiter::~RateLimiter() = default;
 bool RateLimiter::ShouldTrace(const Args& args) {
   uint64_t now_in_s = static_cast<uint64_t>(args.current_time.count());
 
-  // Not storing in Dropbox?
+  // Not uploading?
   // -> We can just trace.
-  if (!args.is_dropbox)
+  if (!args.is_uploading)
     return true;
 
   // If we're tracing a user build we should only trace if the override in
@@ -142,7 +142,7 @@ bool RateLimiter::OnTraceDone(const Args& args, bool success, uint64_t bytes) {
   if (!success)
     return false;
 
-  if (!args.is_dropbox)
+  if (!args.is_uploading)
     return true;
 
   // If the first trace timestamp is 0 (either because this is the
