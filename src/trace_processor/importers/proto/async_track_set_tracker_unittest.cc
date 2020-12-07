@@ -24,7 +24,6 @@
 
 namespace perfetto {
 namespace trace_processor {
-namespace {
 
 class AsyncTrackSetTrackerUnittest : public testing::Test {
  public:
@@ -37,22 +36,30 @@ class AsyncTrackSetTrackerUnittest : public testing::Test {
 
     storage_ = context_.storage.get();
     tracker_ = context_.async_track_set_tracker.get();
+
+    unnestable_id_ = tracker_->CreateUnnestableTrackSetForTesting(
+        1, storage_->InternString("test"));
+    legacy_unnestable_id_ =
+        tracker_->InternAndroidSet(2, storage_->InternString("test"));
   }
 
  protected:
   TraceStorage* storage_ = nullptr;
   AsyncTrackSetTracker* tracker_ = nullptr;
 
+  AsyncTrackSetTracker::TrackSetId unnestable_id_;
+  AsyncTrackSetTracker::TrackSetId legacy_unnestable_id_;
+
  private:
   TraceProcessorContext context_;
 };
 
+namespace {
+
 TEST_F(AsyncTrackSetTrackerUnittest, Smoke) {
   auto set_id = tracker_->InternAndroidSet(1, storage_->InternString("test"));
 
-  auto begin = tracker_->Begin(
-      set_id, 1,
-      AsyncTrackSetTracker::NestingBehaviour::kLegacySaturatingUnnestable);
+  auto begin = tracker_->Begin(set_id, 1);
   auto end = tracker_->End(set_id, 1);
 
   ASSERT_EQ(begin, end);
@@ -64,8 +71,7 @@ TEST_F(AsyncTrackSetTrackerUnittest, Smoke) {
 }
 
 TEST_F(AsyncTrackSetTrackerUnittest, EndFirst) {
-  auto set_id = tracker_->InternAndroidSet(1, storage_->InternString("test"));
-  auto end = tracker_->End(set_id, 1);
+  auto end = tracker_->End(unnestable_id_, 1);
 
   uint32_t row = *storage_->process_track_table().id().IndexOf(end);
   ASSERT_EQ(storage_->process_track_table().upid()[row], 1u);
@@ -74,38 +80,25 @@ TEST_F(AsyncTrackSetTrackerUnittest, EndFirst) {
 }
 
 TEST_F(AsyncTrackSetTrackerUnittest, LegacySaturating) {
-  auto set_id = tracker_->InternAndroidSet(1, storage_->InternString("test"));
-
-  auto begin = tracker_->Begin(
-      set_id, 1,
-      AsyncTrackSetTracker::NestingBehaviour::kLegacySaturatingUnnestable);
-  auto begin_2 = tracker_->Begin(
-      set_id, 1,
-      AsyncTrackSetTracker::NestingBehaviour::kLegacySaturatingUnnestable);
+  auto begin = tracker_->Begin(legacy_unnestable_id_, 1);
+  auto begin_2 = tracker_->Begin(legacy_unnestable_id_, 1);
 
   ASSERT_EQ(begin, begin_2);
 }
 
 TEST_F(AsyncTrackSetTrackerUnittest, Unnestable) {
-  auto set_id = tracker_->InternAndroidSet(1, storage_->InternString("test"));
-
-  auto begin = tracker_->Begin(
-      set_id, 1, AsyncTrackSetTracker::NestingBehaviour::kUnnestable);
-  auto end = tracker_->End(set_id, 1);
-  auto begin_2 = tracker_->Begin(
-      set_id, 1, AsyncTrackSetTracker::NestingBehaviour::kUnnestable);
+  auto begin = tracker_->Begin(unnestable_id_, 1);
+  auto end = tracker_->End(unnestable_id_, 1);
+  auto begin_2 = tracker_->Begin(unnestable_id_, 1);
 
   ASSERT_EQ(begin, end);
   ASSERT_EQ(begin, begin_2);
 }
 
 TEST_F(AsyncTrackSetTrackerUnittest, UnnestableMultipleEndAfterBegin) {
-  auto set_id = tracker_->InternAndroidSet(1, storage_->InternString("test"));
-
-  auto begin = tracker_->Begin(
-      set_id, 1, AsyncTrackSetTracker::NestingBehaviour::kUnnestable);
-  auto end = tracker_->End(set_id, 1);
-  auto end_2 = tracker_->End(set_id, 1);
+  auto begin = tracker_->Begin(unnestable_id_, 1);
+  auto end = tracker_->End(unnestable_id_, 1);
+  auto end_2 = tracker_->End(unnestable_id_, 1);
 
   ASSERT_EQ(begin, end);
   ASSERT_EQ(end, end_2);

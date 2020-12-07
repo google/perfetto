@@ -39,27 +39,19 @@ AsyncTrackSetTracker::TrackSetId AsyncTrackSetTracker::InternAndroidSet(
   TrackSet set;
   set.android_tuple = tuple;
   set.type = TrackSetType::kAndroid;
+  set.nesting_behaviour = NestingBehaviour::kLegacySaturatingUnnestable;
   track_sets_.emplace_back(set);
+
   android_track_set_ids_[tuple] = id;
   return id;
 }
 
-TrackId AsyncTrackSetTracker::Begin(TrackSetId id,
-                                    int64_t cookie,
-                                    NestingBehaviour nest) {
+TrackId AsyncTrackSetTracker::Begin(TrackSetId id, int64_t cookie) {
   PERFETTO_DCHECK(id < track_sets_.size());
 
   TrackSet& set = track_sets_[id];
-
-  auto it = std::find_if(
-      set.tracks.begin(), set.tracks.end(),
-      [cookie](const TrackState& state) { return state.cookie == cookie; });
-  TrackState& state = it == set.tracks.end()
-                          ? set.tracks[GetOrCreateEmptyTrack(set, cookie)]
-                          : *it;
-  PERFETTO_DCHECK(it != set.tracks.end() || state.nest_count == 0);
-
-  switch (nest) {
+  TrackState& state = GetOrCreateTrackForCookie(set, cookie);
+  switch (set.nesting_behaviour) {
     case NestingBehaviour::kLegacySaturatingUnnestable:
       PERFETTO_DCHECK(state.nest_count <= 1);
       state.nest_count = 1;
@@ -76,11 +68,7 @@ TrackId AsyncTrackSetTracker::End(TrackSetId id, int64_t cookie) {
   PERFETTO_DCHECK(id < track_sets_.size());
 
   TrackSet& set = track_sets_[id];
-  auto it = std::find_if(
-      set.tracks.begin(), set.tracks.end(),
-      [cookie](const TrackState& state) { return state.cookie == cookie; });
-  if (it == set.tracks.end())
-    return set.tracks[GetOrCreateEmptyTrack(set, cookie)].id;
+  TrackState& state = GetOrCreateTrackForCookie(set, cookie);
 
   // It's possible to have a nest count of 0 even when we know about the track.
   // Suppose the following sequence of events for some |id| and |cookie|:
@@ -89,32 +77,41 @@ TrackId AsyncTrackSetTracker::End(TrackSetId id, int64_t cookie) {
   //   Begin
   //   End
   //   End <- nest count == 0 here even though we have a record of this track.
-  if (it->nest_count > 0)
-    it->nest_count--;
-  return it->id;
+  if (state.nest_count > 0)
+    state.nest_count--;
+  return state.id;
 }
 
-uint32_t AsyncTrackSetTracker::GetOrCreateEmptyTrack(TrackSet& set,
-                                                     int64_t cookie) {
+AsyncTrackSetTracker::TrackState&
+AsyncTrackSetTracker::GetOrCreateTrackForCookie(TrackSet& set, int64_t cookie) {
   auto it = std::find_if(
+      set.tracks.begin(), set.tracks.end(),
+      [cookie](const TrackState& state) { return state.cookie == cookie; });
+  if (it != set.tracks.end())
+    return *it;
+
+  it = std::find_if(
       set.tracks.begin(), set.tracks.end(),
       [](const TrackState& state) { return state.nest_count == 0; });
   if (it != set.tracks.end())
-    return static_cast<uint32_t>(std::distance(set.tracks.begin(), it));
+    return *it;
 
   TrackState state;
+  state.id = CreateTrackForSet(set);
   state.cookie = cookie;
   state.nest_count = 0;
+  set.tracks.emplace_back(state);
+
+  return set.tracks.back();
+}
+
+TrackId AsyncTrackSetTracker::CreateTrackForSet(const TrackSet& set) {
   switch (set.type) {
     case TrackSetType::kAndroid:
-      state.id = context_->track_tracker->CreateAndroidAsyncTrack(
+      return context_->track_tracker->CreateAndroidAsyncTrack(
           set.android_tuple.name, set.android_tuple.upid);
-      break;
   }
-
-  uint32_t idx = static_cast<uint32_t>(set.tracks.size());
-  set.tracks.emplace_back(state);
-  return idx;
+  PERFETTO_FATAL("For GCC");
 }
 
 }  // namespace trace_processor
