@@ -162,9 +162,10 @@ inline typename std::make_unsigned<T>::type ZigZagEncode(T value) {
 template <typename T>
 inline typename std::make_signed<T>::type ZigZagDecode(T value) {
   using UnsignedType = typename std::make_unsigned<T>::type;
+  using SignedType = typename std::make_signed<T>::type;
   auto u_value = static_cast<UnsignedType>(value);
-  return static_cast<typename std::make_signed<T>::type>(
-      ((u_value >> 1) ^ -(u_value & 1)));
+  auto mask = static_cast<UnsignedType>(-static_cast<SignedType>(u_value & 1));
+  return static_cast<SignedType>((u_value >> 1) ^ mask);
 }
 
 template <typename T>

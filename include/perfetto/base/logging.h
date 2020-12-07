@@ -136,7 +136,8 @@ PERFETTO_EXPORT void LogMessage(LogLev,
 #define PERFETTO_PLOG(x, ...) \
   PERFETTO_ELOG(x " (errno: %d, %s)", ##__VA_ARGS__, errno, strerror(errno))
 #else
-#define PERFETTO_PLOG(x, ...) PERFETTO_ELOG(x, ##__VA_ARGS__)
+// MSVC expands __VA_ARGS__ in a different order. Give up, not worth it.
+#define PERFETTO_PLOG PERFETTO_ELOG
 #endif
 
 #define PERFETTO_CHECK(x)                            \
@@ -152,8 +153,13 @@ PERFETTO_EXPORT void LogMessage(LogLev,
 #define PERFETTO_DLOG(fmt, ...) \
   PERFETTO_XLOG(::perfetto::base::kLogDebug, fmt, ##__VA_ARGS__)
 
+#if defined(__GNUC__) || defined(__clang__)
 #define PERFETTO_DPLOG(x, ...) \
   PERFETTO_DLOG(x " (errno: %d, %s)", ##__VA_ARGS__, errno, strerror(errno))
+#else
+// MSVC expands __VA_ARGS__ in a different order. Give up, not worth it.
+#define PERFETTO_DPLOG PERFETTO_DLOG
+#endif
 
 #else  // PERFETTO_DLOG_IS_ON()
 

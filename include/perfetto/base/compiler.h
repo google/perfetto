@@ -72,6 +72,13 @@
 #define PERFETTO_THREAD_LOCAL thread_local
 #endif
 
+#if defined(__GNUC__) || defined(__clang__)
+#define PERFETTO_POPCOUNT(x) __builtin_popcountll(x)
+#else
+#include <intrin.h>
+#define PERFETTO_POPCOUNT(x) __popcnt64(x)
+#endif
+
 #if defined(__clang__)
 #if __has_feature(address_sanitizer) || defined(__SANITIZE_ADDRESS__)
 extern "C" void __asan_poison_memory_region(void const volatile*, size_t);
