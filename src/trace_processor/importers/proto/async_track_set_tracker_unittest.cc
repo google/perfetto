@@ -16,6 +16,8 @@
 
 #include "src/trace_processor/importers/proto/async_track_set_tracker.h"
 
+#include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "test/gtest_and_gmock.h"
@@ -24,10 +26,12 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-class AsyncTrackSetTrackerUnittest {
+class AsyncTrackSetTrackerUnittest : public testing::Test {
  public:
   AsyncTrackSetTrackerUnittest() {
     context_.storage.reset(new TraceStorage());
+    context_.global_args_tracker.reset(new GlobalArgsTracker(&context_));
+    context_.args_tracker.reset(new ArgsTracker(&context_));
     context_.track_tracker.reset(new TrackTracker(&context_));
     context_.async_track_set_tracker.reset(new AsyncTrackSetTracker(&context_));
 
@@ -48,13 +52,13 @@ TEST_F(AsyncTrackSetTrackerUnittest, Smoke) {
 
   auto begin = tracker_->Begin(
       set_id, 1,
-      AsyncTrackSetTracker::NestingType::kLegacySaturatingUnnestable);
+      AsyncTrackSetTracker::NestingBehaviour::kLegacySaturatingUnnestable);
   auto end = tracker_->End(set_id, 1);
 
   ASSERT_EQ(begin, end);
 
   uint32_t row = *storage_->process_track_table().id().IndexOf(begin);
-  ASSERT_EQ(storage_->process_track_table().upid()[row], 1);
+  ASSERT_EQ(storage_->process_track_table().upid()[row], 1u);
   ASSERT_EQ(storage_->process_track_table().name()[row],
             storage_->InternString("test"));
 }
@@ -64,7 +68,7 @@ TEST_F(AsyncTrackSetTrackerUnittest, EndFirst) {
   auto end = tracker_->End(set_id, 1);
 
   uint32_t row = *storage_->process_track_table().id().IndexOf(end);
-  ASSERT_EQ(storage_->process_track_table().upid()[row], 1);
+  ASSERT_EQ(storage_->process_track_table().upid()[row], 1u);
   ASSERT_EQ(storage_->process_track_table().name()[row],
             storage_->InternString("test"));
 }
@@ -74,12 +78,37 @@ TEST_F(AsyncTrackSetTrackerUnittest, LegacySaturating) {
 
   auto begin = tracker_->Begin(
       set_id, 1,
-      AsyncTrackSetTracker::NestingType::kLegacySaturatingUnnestable);
+      AsyncTrackSetTracker::NestingBehaviour::kLegacySaturatingUnnestable);
   auto begin_2 = tracker_->Begin(
       set_id, 1,
-      AsyncTrackSetTracker::NestingType::kLegacySaturatingUnnestable);
+      AsyncTrackSetTracker::NestingBehaviour::kLegacySaturatingUnnestable);
 
   ASSERT_EQ(begin, begin_2);
+}
+
+TEST_F(AsyncTrackSetTrackerUnittest, Unnestable) {
+  auto set_id = tracker_->InternAndroidSet(1, storage_->InternString("test"));
+
+  auto begin = tracker_->Begin(
+      set_id, 1, AsyncTrackSetTracker::NestingBehaviour::kUnnestable);
+  auto end = tracker_->End(set_id, 1);
+  auto begin_2 = tracker_->Begin(
+      set_id, 1, AsyncTrackSetTracker::NestingBehaviour::kUnnestable);
+
+  ASSERT_EQ(begin, end);
+  ASSERT_EQ(begin, begin_2);
+}
+
+TEST_F(AsyncTrackSetTrackerUnittest, UnnestableMultipleEndAfterBegin) {
+  auto set_id = tracker_->InternAndroidSet(1, storage_->InternString("test"));
+
+  auto begin = tracker_->Begin(
+      set_id, 1, AsyncTrackSetTracker::NestingBehaviour::kUnnestable);
+  auto end = tracker_->End(set_id, 1);
+  auto end_2 = tracker_->End(set_id, 1);
+
+  ASSERT_EQ(begin, end);
+  ASSERT_EQ(end, end_2);
 }
 
 }  // namespace
