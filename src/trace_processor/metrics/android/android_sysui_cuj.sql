@@ -13,9 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-CREATE VIEW IF NOT EXISTS android_sysui_cuj_output AS
-
-WITH last_cuj AS (
+CREATE TABLE IF NOT EXISTS android_sysui_cuj_last_cuj AS
   SELECT
     process.name AS process_name,
     process.upid AS upid,
@@ -37,40 +35,41 @@ WITH last_cuj AS (
       'com.android.systemui',
       'com.google.android.apps.nexuslauncher')
   ORDER BY ts desc
-  LIMIT 1
-),
-render_thread AS (
+  LIMIT 1;
+
+CREATE VIEW IF NOT EXISTS android_sysui_cuj_render_thread AS
   SELECT thread.*, last_cuj.ts_start as ts_cuj_start, last_cuj.ts_end as ts_cuj_end
   FROM thread
-  JOIN last_cuj USING (upid)
-  WHERE thread.name = 'RenderThread'
-),
-gpu_completion_thread AS (
+  JOIN android_sysui_cuj_last_cuj last_cuj USING (upid)
+  WHERE thread.name = 'RenderThread';
+
+CREATE VIEW IF NOT EXISTS android_sysui_cuj_gpu_completion_thread AS
   SELECT thread.*, last_cuj.ts_start as ts_cuj_start, last_cuj.ts_end as ts_cuj_end
   FROM thread
-  JOIN last_cuj USING (upid)
-  WHERE thread.name = 'GPU completion'
-),
-hwc_release_thread AS (
+  JOIN android_sysui_cuj_last_cuj last_cuj USING (upid)
+  WHERE thread.name = 'GPU completion';
+
+CREATE VIEW IF NOT EXISTS android_sysui_cuj_hwc_release_thread AS
   SELECT thread.*, last_cuj.ts_start as ts_cuj_start, last_cuj.ts_end as ts_cuj_end
   FROM thread
-  JOIN last_cuj USING (upid)
-  WHERE thread.name = 'HWC release'
-),
-main_thread_slices AS (
+  JOIN android_sysui_cuj_last_cuj last_cuj USING (upid)
+  WHERE thread.name = 'HWC release';
+
+CREATE TABLE IF NOT EXISTS android_sysui_cuj_main_thread_slices AS
   SELECT slice.*, ts + dur AS ts_end
   FROM slice
-  JOIN last_cuj ON slice.track_id = last_cuj.main_thread_track_id
-  WHERE ts >= last_cuj.ts_start AND ts <= last_cuj.ts_end
-),
-render_thread_slices AS (
+  JOIN android_sysui_cuj_last_cuj last_cuj
+    ON slice.track_id = last_cuj.main_thread_track_id
+  WHERE ts >= last_cuj.ts_start AND ts <= last_cuj.ts_end;
+
+CREATE TABLE IF NOT EXISTS android_sysui_cuj_render_thread_slices AS
   SELECT slice.*, ts + dur AS ts_end
   FROM slice
   JOIN thread_track ON slice.track_id = thread_track.id
-  JOIN render_thread USING (utid)
-  WHERE ts >= ts_cuj_start AND ts <= ts_cuj_end
-),
-gpu_completion_slices AS (
+  JOIN android_sysui_cuj_render_thread USING (utid)
+  WHERE ts >= ts_cuj_start AND ts <= ts_cuj_end;
+
+CREATE TABLE IF NOT EXISTS android_sysui_cuj_gpu_completion_slices AS
   SELECT
     slice.*,
     ts + dur AS ts_end,
@@ -78,12 +77,12 @@ gpu_completion_slices AS (
     CAST(STR_SPLIT(slice.name, ' ', 4) AS INTEGER) as idx
   FROM slice
   JOIN thread_track ON slice.track_id = thread_track.id
-  JOIN gpu_completion_thread USING (utid)
+  JOIN android_sysui_cuj_gpu_completion_thread USING (utid)
   WHERE
     slice.name LIKE 'waiting for GPU completion %'
-    AND ts >= ts_cuj_start AND ts <= ts_cuj_end
-),
-hwc_release_slices AS (
+    AND ts >= ts_cuj_start AND ts <= ts_cuj_end;
+
+CREATE TABLE IF NOT EXISTS android_sysui_cuj_hwc_release_slices AS
   SELECT
     slice.*,
     ts + dur as ts_end,
@@ -91,39 +90,40 @@ hwc_release_slices AS (
     CAST(STR_SPLIT(slice.name, ' ', 4) AS INTEGER) as idx
   FROM slice
   JOIN thread_track ON slice.track_id = thread_track.id
-  JOIN hwc_release_thread USING (utid)
+  JOIN android_sysui_cuj_hwc_release_thread USING (utid)
   WHERE
     slice.name LIKE 'waiting for HWC release %'
-    AND ts >= ts_cuj_start AND ts <= ts_cuj_end
-),
-gcs_to_rt_match AS (
-  -- Match GPU Completion with the last RT slice before it
-  SELECT
-    gcs.ts as gcs_ts,
-    gcs.ts_end as gcs_ts_end,
-    MAX(rts.ts) as rts_ts
-  FROM gpu_completion_slices gcs
-  JOIN render_thread_slices rts ON rts.ts < gcs.ts
-  -- dispatchFrameCallbacks might be seen in case of
-  -- drawing that happens on RT only (e.g. ripple effect)
-  WHERE (rts.name = 'DrawFrame' OR rts.name = 'dispatchFrameCallbacks')
-  GROUP BY gcs.ts, gcs.ts_end
-),
-frame_boundaries AS (
-  -- Match main thread doFrame with RT DrawFrame and optional GPU Completion
-  SELECT
-    mts.ts as mts_ts,
-    mts.ts_end as mts_ts_end,
-    mts.dur as mts_dur,
-    MAX(gcs_rt.gcs_ts) as gcs_ts_start,
-    MAX(gcs_rt.gcs_ts_end) as gcs_ts_end
-  FROM main_thread_slices mts
-  JOIN render_thread_slices rts ON mts.ts < rts.ts AND mts.ts_end >= rts.ts
-  LEFT JOIN gcs_to_rt_match gcs_rt ON gcs_rt.rts_ts = rts.ts
-  WHERE mts.name = 'Choreographer#doFrame' AND rts.name = 'DrawFrame'
-  GROUP BY mts.ts, mts.ts_end, mts.dur
-),
-frames AS (
+    AND ts >= ts_cuj_start AND ts <= ts_cuj_end;
+
+CREATE TABLE IF NOT EXISTS android_sysui_cuj_frames AS
+  WITH gcs_to_rt_match AS (
+    -- Match GPU Completion with the last RT slice before it
+    SELECT
+      gcs.ts as gcs_ts,
+      gcs.ts_end as gcs_ts_end,
+      MAX(rts.ts) as rts_ts
+    FROM android_sysui_cuj_gpu_completion_slices gcs
+    JOIN android_sysui_cuj_render_thread_slices rts ON rts.ts < gcs.ts
+    -- dispatchFrameCallbacks might be seen in case of
+    -- drawing that happens on RT only (e.g. ripple effect)
+    WHERE (rts.name = 'DrawFrame' OR rts.name = 'dispatchFrameCallbacks')
+    GROUP BY gcs.ts, gcs.ts_end
+  ),
+  frame_boundaries AS (
+    -- Match main thread doFrame with RT DrawFrame and optional GPU Completion
+    SELECT
+      mts.ts as mts_ts,
+      mts.ts_end as mts_ts_end,
+      mts.dur as mts_dur,
+      MAX(gcs_rt.gcs_ts) as gcs_ts_start,
+      MAX(gcs_rt.gcs_ts_end) as gcs_ts_end
+    FROM android_sysui_cuj_main_thread_slices mts
+    JOIN android_sysui_cuj_render_thread_slices rts
+      ON mts.ts < rts.ts AND mts.ts_end >= rts.ts
+    LEFT JOIN gcs_to_rt_match gcs_rt ON gcs_rt.rts_ts = rts.ts
+    WHERE mts.name = 'Choreographer#doFrame' AND rts.name = 'DrawFrame'
+    GROUP BY mts.ts, mts.ts_end, mts.dur
+  )
   SELECT
     ROW_NUMBER() OVER (ORDER BY f.mts_ts) AS frame_number,
     f.mts_ts as ts_main_thread_start,
@@ -137,57 +137,57 @@ frames AS (
     COUNT(DISTINCT(rts.ts)) as draw_frames,
     COUNT(DISTINCT(gcs_rt.gcs_ts)) as gpu_completions
   FROM frame_boundaries f
-  JOIN render_thread_slices rts
+  JOIN android_sysui_cuj_render_thread_slices rts
     ON f.mts_ts < rts.ts AND f.mts_ts_end >= rts.ts
   LEFT JOIN gcs_to_rt_match gcs_rt
     ON rts.ts = gcs_rt.rts_ts
   WHERE rts.name = 'DrawFrame'
   GROUP BY f.mts_ts
-  HAVING gpu_completions >= 1
-),
-main_thread_state AS (
+  HAVING gpu_completions >= 1;
+
+CREATE TABLE IF NOT EXISTS android_sysui_cuj_main_thread_state AS
   SELECT
     f.frame_number,
     mts.state,
     SUM(mts.dur) AS dur,
     SUM(mts.io_wait) AS io_wait
-  FROM frames f
+  FROM android_sysui_cuj_frames f
   JOIN thread_state mts
     ON mts.ts >= f.ts_main_thread_start AND mts.ts < f.ts_main_thread_end
-  WHERE mts.utid = (SELECT main_thread_utid FROM last_cuj)
+  WHERE mts.utid = (SELECT main_thread_utid FROM android_sysui_cuj_last_cuj)
   GROUP BY f.frame_number, mts.state
-  HAVING mts.dur > 0
-),
-render_thread_state AS (
+  HAVING mts.dur > 0;
+
+CREATE TABLE IF NOT EXISTS android_sysui_cuj_render_thread_state AS
   SELECT
     f.frame_number,
     rts.state,
     SUM(rts.dur) AS dur,
     SUM(rts.io_wait) AS io_wait
-  FROM frames f
+  FROM android_sysui_cuj_frames f
   JOIN thread_state rts
     ON rts.ts >= f.ts_render_thread_start AND rts.ts < f.ts_render_thread_end
-  WHERE rts.utid in (SELECT utid FROM render_thread)
+  WHERE rts.utid in (SELECT utid FROM android_sysui_cuj_render_thread)
   GROUP BY f.frame_number, rts.state
-  HAVING rts.dur > 0
-),
-main_thread_binder AS (
+  HAVING rts.dur > 0;
+
+CREATE TABLE IF NOT EXISTS android_sysui_cuj_main_thread_binder AS
   SELECT
     f.frame_number,
     SUM(mts.dur) AS dur,
     COUNT(*) AS call_count
-  FROM frames f
-  JOIN main_thread_slices mts
+  FROM android_sysui_cuj_frames f
+  JOIN android_sysui_cuj_main_thread_slices mts
     ON mts.ts >= f.ts_main_thread_start AND mts.ts < f.ts_main_thread_end
   WHERE mts.name = 'binder transaction'
-  GROUP BY f.frame_number
-),
-jank_causes AS (
+  GROUP BY f.frame_number;
+
+CREATE TABLE IF NOT EXISTS android_sysui_cuj_jank_causes AS
   SELECT
   frame_number,
   'RenderThread - long shader_compile' AS jank_cause
-  FROM frames f
-  JOIN render_thread_slices rts
+  FROM android_sysui_cuj_frames f
+  JOIN android_sysui_cuj_render_thread_slices rts
     ON rts.ts >= f.ts_render_thread_start AND rts.ts < f.ts_render_thread_end
   WHERE rts.name = 'shader_compile'
   AND rts.dur > 8000000
@@ -196,8 +196,8 @@ jank_causes AS (
   SELECT
   frame_number,
   'RenderThread - long flush layers' AS jank_cause
-  FROM frames f
-  JOIN render_thread_slices rts
+  FROM android_sysui_cuj_frames f
+  JOIN android_sysui_cuj_render_thread_slices rts
     ON rts.ts >= f.ts_render_thread_start AND rts.ts < f.ts_render_thread_end
   WHERE rts.name = 'flush layers'
   AND rts.dur > 8000000
@@ -206,8 +206,8 @@ jank_causes AS (
   SELECT
   frame_number,
   'MainThread - IO wait time' AS jank_cause
-  FROM main_thread_state
-  WHERE 
+  FROM android_sysui_cuj_main_thread_state
+  WHERE
     ((state = 'D' OR state = 'DK') AND io_wait)
     OR (state = 'DK' AND io_wait IS NULL)
   GROUP BY frame_number
@@ -217,7 +217,7 @@ jank_causes AS (
   SELECT
   frame_number,
   'MainThread - scheduler' AS jank_cause
-  FROM main_thread_state
+  FROM android_sysui_cuj_main_thread_state
   WHERE (state = 'R' OR state = 'R+')
   GROUP BY frame_number
   HAVING SUM(dur) > 8000000
@@ -226,7 +226,7 @@ jank_causes AS (
   SELECT
   frame_number,
   'RenderThread - IO wait time' AS jank_cause
-  FROM render_thread_state
+  FROM android_sysui_cuj_render_thread_state
   WHERE
     ((state = 'D' OR state = 'DK') AND io_wait)
     OR (state = 'DK' AND io_wait IS NULL)
@@ -237,7 +237,7 @@ jank_causes AS (
   SELECT
   frame_number,
   'RenderThread - scheduler' AS jank_cause
-  FROM render_thread_state
+  FROM android_sysui_cuj_render_thread_state
   WHERE (state = 'R' OR state = 'R+')
   GROUP BY frame_number
   HAVING SUM(dur) > 8000000
@@ -246,36 +246,37 @@ jank_causes AS (
   SELECT
   frame_number,
   'MainThread - binder transaction time' AS jank_cause
-  FROM main_thread_binder
+  FROM android_sysui_cuj_main_thread_binder
   WHERE dur > 8000000
 
   UNION ALL
   SELECT
   frame_number,
   'MainThread - binder calls count' AS jank_cause
-  FROM main_thread_binder
+  FROM android_sysui_cuj_main_thread_binder
   WHERE call_count > 8
 
   UNION ALL
   SELECT
   frame_number,
   'GPU completion - long completion time' AS jank_cause
-  FROM frames f
-  JOIN gpu_completion_slices gpu ON gpu.ts_end = f.ts_frame_end
-  LEFT JOIN hwc_release_slices hwc USING (idx)
+  FROM android_sysui_cuj_frames f
+  JOIN android_sysui_cuj_gpu_completion_slices gpu ON gpu.ts_end = f.ts_frame_end
+  LEFT JOIN android_sysui_cuj_hwc_release_slices hwc USING (idx)
   WHERE (gpu.ts_end - MAX(COALESCE(hwc.ts_end, 0), gpu.ts)) > 8000000
 
   UNION ALL
   SELECT
   frame_number,
   'Long running time' as jank_cause
-  FROM main_thread_state mts
-  JOIN render_thread_state rts USING(frame_number)
+  FROM android_sysui_cuj_main_thread_state mts
+  JOIN android_sysui_cuj_render_thread_state rts USING(frame_number)
   WHERE
     mts.state = 'Running'
     AND rts.state = 'Running'
-    AND mts.dur + rts.dur > 15000000
-)
+    AND mts.dur + rts.dur > 15000000;
+
+CREATE VIEW IF NOT EXISTS android_sysui_cuj_output AS
 SELECT
   AndroidSysUiCujMetrics(
       'frames',
@@ -286,6 +287,6 @@ SELECT
            'dur', f.dur_frame,
            'jank_cause',
               (SELECT RepeatedField(jc.jank_cause)
-              FROM jank_causes jc WHERE jc.frame_number = f.frame_number)))
-       FROM frames f
-       ORDER BY frame_number ASC))
+              FROM android_sysui_cuj_jank_causes jc WHERE jc.frame_number = f.frame_number)))
+       FROM android_sysui_cuj_frames f
+       ORDER BY frame_number ASC));
