@@ -37,6 +37,7 @@ is_linux_host = host_os == "linux"
 is_mac = current_os == "mac"
 is_mac_host = host_os == "mac"
 is_win = current_os == "win"
+is_win_host = host_os == "win"
 
 # Building with Windows/Fuchsia/nacl is currently only supported in the Chromium
 # tree so always set this to false.
@@ -67,6 +68,10 @@ default_configs = [
   "//gn/standalone/libc++:config",
   "//gn/standalone/sanitizers:sanitizers_cflags",
 ]
+
+if (is_win) {
+  default_configs += [ "//gn/standalone:win32_lean_and_mean" ]
+}
 
 if (!is_debug) {
   default_configs -= [ "//gn/standalone:debug_symbols" ]
@@ -100,7 +105,11 @@ set_defaults("executable") {
   configs += [ "//gn/standalone:android_liblog" ]
 }
 
-_default_toolchain = "//gn/standalone/toolchain:gcc_like"
+if (is_win) {
+  _default_toolchain = "//gn/standalone/toolchain:msvc"
+} else {
+  _default_toolchain = "//gn/standalone/toolchain:gcc_like"
+}
 set_default_toolchain(_default_toolchain)
 
 if (is_cross_compiling) {
