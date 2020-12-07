@@ -660,7 +660,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
 
   RateLimiter::Args args{};
   args.is_user_build = IsUserBuild();
-  args.is_dropbox = is_uploading_;
+  args.is_uploading = is_uploading_;
   args.current_time = base::GetWallTimeS();
   args.ignore_guardrails = ignore_guardrails;
   args.allow_user_build_tracing = trace_config_->allow_user_build_tracing();
@@ -674,7 +674,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
   if (!args.unique_session_name.empty())
     base::MaybeSetThreadName("p-" + args.unique_session_name);
 
-  if (args.is_dropbox && !args.ignore_guardrails &&
+  if (args.is_uploading && !args.ignore_guardrails &&
       (trace_config_->duration_ms() == 0 &&
        trace_config_->trigger_config().trigger_timeout_ms() == 0)) {
     PERFETTO_ELOG("Can't trace indefinitely when tracing to Dropbox.");
