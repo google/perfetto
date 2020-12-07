@@ -96,24 +96,54 @@ hwc_release_slices AS (
     slice.name LIKE 'waiting for HWC release %'
     AND ts >= ts_cuj_start AND ts <= ts_cuj_end
 ),
+gcs_to_rt_match AS (
+  -- Match GPU Completion with the last RT slice before it
+  SELECT
+    gcs.ts as gcs_ts,
+    gcs.ts_end as gcs_ts_end,
+    MAX(rts.ts) as rts_ts
+  FROM gpu_completion_slices gcs
+  JOIN render_thread_slices rts ON rts.ts < gcs.ts
+  -- dispatchFrameCallbacks might be seen in case of
+  -- drawing that happens on RT only (e.g. ripple effect)
+  WHERE (rts.name = 'DrawFrame' OR rts.name = 'dispatchFrameCallbacks')
+  GROUP BY gcs.ts, gcs.ts_end
+),
+frame_boundaries AS (
+  -- Match main thread doFrame with RT DrawFrame and optional GPU Completion
+  SELECT
+    mts.ts as mts_ts,
+    mts.ts_end as mts_ts_end,
+    mts.dur as mts_dur,
+    MAX(gcs_rt.gcs_ts) as gcs_ts_start,
+    MAX(gcs_rt.gcs_ts_end) as gcs_ts_end
+  FROM main_thread_slices mts
+  JOIN render_thread_slices rts ON mts.ts < rts.ts AND mts.ts_end >= rts.ts
+  LEFT JOIN gcs_to_rt_match gcs_rt ON gcs_rt.rts_ts = rts.ts
+  WHERE mts.name = 'Choreographer#doFrame' AND rts.name = 'DrawFrame'
+  GROUP BY mts.ts, mts.ts_end, mts.dur
+),
 frames AS (
   SELECT
-    ROW_NUMBER() OVER (ORDER BY mts.ts) AS frame_number,
-    mts.ts AS ts_frame_start,
-    MIN(gcs.ts_end) AS ts_frame_end,
-    mts.ts AS ts_main_thread_start,
-    mts.ts_end AS ts_main_thread_end,
-    mts.dur AS dur_main_thread,
-    rts.ts AS ts_render_thread_start,
-    rts.ts_end AS ts_render_thread_end,
-    rts.dur AS dur_render_thread,
-    (MIN(gcs.ts_end) - mts.ts) AS dur
-  FROM main_thread_slices mts
+    ROW_NUMBER() OVER (ORDER BY f.mts_ts) AS frame_number,
+    f.mts_ts as ts_main_thread_start,
+    f.mts_ts_end as ts_main_thread_end,
+    f.mts_dur AS dur_main_thread,
+    MIN(rts.ts) AS ts_render_thread_start,
+    MAX(rts.ts_end) AS ts_render_thread_end,
+    SUM(rts.dur) AS dur_render_thread,
+    MAX(gcs_rt.gcs_ts_end) AS ts_frame_end,
+    (MAX(gcs_rt.gcs_ts_end) - f.mts_ts) AS dur_frame,
+    COUNT(DISTINCT(rts.ts)) as draw_frames,
+    COUNT(DISTINCT(gcs_rt.gcs_ts)) as gpu_completions
+  FROM frame_boundaries f
   JOIN render_thread_slices rts
-    ON mts.ts < rts.ts AND rts.name = 'DrawFrame'
-  JOIN gpu_completion_slices gcs ON rts.ts < gcs.ts
-  WHERE mts.name = 'Choreographer#doFrame'
-  GROUP BY mts.ts
+    ON f.mts_ts < rts.ts AND f.mts_ts_end >= rts.ts
+  LEFT JOIN gcs_to_rt_match gcs_rt
+    ON rts.ts = gcs_rt.rts_ts
+  WHERE rts.name = 'DrawFrame'
+  GROUP BY f.mts_ts
+  HAVING gpu_completions >= 1
 ),
 main_thread_state AS (
   SELECT
@@ -252,8 +282,8 @@ SELECT
        (SELECT RepeatedField(
          AndroidSysUiCujMetrics_Frame(
            'number', f.frame_number,
-           'ts', f.ts_frame_start,
-           'dur', f.dur,
+           'ts', f.ts_main_thread_start,
+           'dur', f.dur_frame,
            'jank_cause',
               (SELECT RepeatedField(jc.jank_cause)
               FROM jank_causes jc WHERE jc.frame_number = f.frame_number)))
