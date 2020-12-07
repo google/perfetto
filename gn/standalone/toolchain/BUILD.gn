@@ -16,6 +16,7 @@ import("//gn/perfetto.gni")
 import("//gn/standalone/android.gni")
 import("//gn/standalone/wasm.gni")
 import("llvm.gni")
+import("msvc.gni")
 
 # This file is evaluated once, within the context of the default toolchain,
 # which is the target toolchain.
@@ -47,6 +48,7 @@ declare_args() {
 # 1. setting ar/cc/cxx vars in args.gn.
 # 2. setting is_system_compiler=true in args.gn and the env vars AR/CC/CXX.
 #    This is used by OSSFuzz and CrOS ebuilds.
+
 declare_args() {
   sysroot = ""
   gcc_toolchain = ""
@@ -62,11 +64,19 @@ declare_args() {
       cc = linux_clang_bin
       cxx = linux_clangxx_bin
       linker = linux_clang_linker
+    } else if (is_win_host && !is_system_compiler) {
+      cc = win_clang_bin
+      cxx = win_clangxx_bin
+      linker = win_clang_linker
     } else {
       cc = "clang"
       cxx = "clang++"
       linker = ""
     }
+  } else if (is_win) {  # MSVC
+    cc = "${win_msvc_bin_dir}\\cl.exe"
+    cxx = "${win_msvc_bin_dir}\\cl.exe"
+    linker = "${win_msvc_bin_dir}\\link.exe"
   } else {  # GCC
     cc = "gcc"
     cxx = "g++"
@@ -333,4 +343,113 @@ gcc_like_toolchain("wasm") {
   ar = "$emsdk_dir/emscripten/emar --em-config $em_config"
   cc = "$emsdk_dir/emscripten/emcc --em-config $em_config"
   cxx = "$emsdk_dir/emscripten/em++ --em-config $em_config"
+}
+
+# This is used both for MSVC anc clang-cl. clang-cl cmdline interface pretends
+# to be MSVC's cl.exe.
+toolchain("msvc") {
+  lib_switch = ""
+  lib_dir_switch = "/LIBPATH:"
+
+  sys_lib_flags = "/LIBPATH:\"${win_sdk_lib_dir}\\ucrt\\x64\" "
+  sys_lib_flags += "/LIBPATH:\"${win_sdk_lib_dir}\\um\\x64\" "
+  sys_lib_flags += "/LIBPATH:\"${win_msvc_lib_dir}\" "
+
+  # Note: /showIncludes below is required for ninja, to build a complete
+  # dependency graph for headers. Removing it breaks incremental builds.
+
+  tool("cc") {
+    precompiled_header_type = "msvc"
+    pdbname = "{{target_out_dir}}/{{label_name}}_c.pdb"
+    command = "$cc_wrapper $cc /nologo /showIncludes /FC {{defines}} {{include_dirs}} {{cflags}} {{cflags_c}} /c {{source}} /Fo{{output}} /Fd\"$pdbname\""
+    depsformat = "msvc"
+    outputs =
+        [ "{{source_out_dir}}/{{target_output_name}}.{{source_name_part}}.obj" ]
+    description = "compile {{source}}"
+  }
+
+  tool("cxx") {
+    precompiled_header_type = "msvc"
+    pdbname = "{{target_out_dir}}/{{label_name}}_c.pdb"
+    command = "$cc_wrapper $cxx /nologo /showIncludes /FC {{defines}} {{include_dirs}} {{cflags}} {{cflags_cc}} /c {{source}} /Fo{{output}} /Fd\"$pdbname\""
+    depsformat = "msvc"
+    outputs =
+        [ "{{source_out_dir}}/{{target_output_name}}.{{source_name_part}}.obj" ]
+    description = "compile {{source}}"
+  }
+
+  tool("alink") {
+    rspfile = "{{output}}.rsp"
+    command = "$linker /lib /nologo /ignore:4221 {{arflags}} /OUT:{{output}} @$rspfile"
+    outputs = [
+      # Ignore {{output_extension}} and always use .lib, there's no reason to
+      # allow targets to override this extension on Windows.
+      "{{root_out_dir}}/{{target_output_name}}{{output_extension}}",
+    ]
+    default_output_extension = ".lib"
+    default_output_dir = "{{target_out_dir}}"
+
+    # inputs_newline works around a fixed per-line buffer size in the linker.
+    rspfile_content = "{{inputs_newline}}"
+    description = "link {{output}}"
+  }
+
+  tool("solink") {
+    dllname = "{{output_dir}}/{{target_output_name}}{{output_extension}}"
+    libname = "${dllname}.lib"
+    pdbname = "${dllname}.pdb"
+    rspfile = "${dllname}.rsp"
+
+    command = "$linker /nologo /IMPLIB:$libname ${sys_lib_flags} /DLL /OUT:$dllname /PDB:$pdbname @$rspfile"
+    outputs = [
+      dllname,
+      libname,
+      pdbname,
+    ]
+    default_output_extension = ".dll"
+    default_output_dir = "{{root_out_dir}}"
+
+    link_output = libname
+    depend_output = libname
+    runtime_outputs = [
+      dllname,
+      pdbname,
+    ]
+
+    # Since the above commands only updates the .lib file when it changes, ask
+    # Ninja to check if the timestamp actually changed to know if downstream
+    # dependencies should be recompiled.
+    restat = true
+
+    # inputs_newline works around a fixed per-line buffer size in the linker.
+    rspfile_content = "{{inputs_newline}} {{libs}} {{solibs}} {{ldflags}}"
+    description = "link {{output}}"
+  }
+
+  tool("link") {
+    exename = "{{root_out_dir}}/{{target_output_name}}{{output_extension}}"
+    pdbname = "$exename.pdb"
+    rspfile = "$exename.rsp"
+
+    command =
+        "$linker /nologo /OUT:$exename ${sys_lib_flags} /PDB:$pdbname @$rspfile"
+    default_output_extension = ".exe"
+    default_output_dir = "{{root_out_dir}}"
+    outputs = [ exename ]
+
+    # inputs_newline works around a fixed per-line buffer size in the linker.
+    rspfile_content = "{{inputs_newline}} {{libs}} {{solibs}} {{ldflags}}"
+    description = "link {{output}}"
+  }
+
+  tool("stamp") {
+    command = "cmd /c type nul > \"{{output}}\""
+    description = "stamp {{output}}"
+  }
+
+  tool("copy") {
+    cp_py = rebase_path("../cp.py")
+    command = "cmd.exe /c python \"$cp_py\" {{source}} {{output}}"
+    description = "copy {{source}} {{output}}"
+  }
 }

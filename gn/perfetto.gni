@@ -265,6 +265,13 @@ declare_args() {
   perfetto_use_system_protobuf = false
 }
 
+if (is_win) {
+  # clang-cl
+  perfetto_isystem_cflag = "/I"
+} else {
+  perfetto_isystem_cflag = "-isystem"
+}
+
 # +---------------------------------------------------------------------------+
 # | Cross-checks                                                              |
 # +---------------------------------------------------------------------------+

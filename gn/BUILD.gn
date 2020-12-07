@@ -262,19 +262,33 @@ config("protobuf_gen_config") {
     "GOOGLE_PROTOBUF_NO_RTTI",
     "GOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
   ]
-  cflags = [
-    "-Wno-unknown-warning-option",
-    "-Wno-deprecated",
-    "-Wno-undef",
-    "-Wno-zero-as-null-pointer-constant",
-  ]
+  cflags = []
+  if (is_clang || !is_win) {
+    cflags += [
+      "-Wno-unknown-warning-option",
+      "-Wno-deprecated",
+      "-Wno-undef",
+      "-Wno-zero-as-null-pointer-constant",
+    ]
+  }
+  if (is_clang && is_win) {
+    cflags += [
+      "-Wno-reserved-id-macro",
+      "-Wno-language-extension-token",
+      "-Wno-sign-conversion",
+      "-Wno-suggest-destructor-override",
+      "-Wno-undefined-reinterpret-cast",
+      "-Wno-inconsistent-missing-destructor-override",
+      "-Wno-unused-parameter",
+    ]
+  }
 
   if (!perfetto_use_system_protobuf) {
     cflags += [
       # Using -isystem instead of include_dirs (-I), so we don't need to
       # suppress warnings coming from libprotobuf headers. Doing so would mask
       # warnings in our own code.
-      "-isystem",
+      perfetto_isystem_cflag,
       rebase_path("../buildtools/protobuf/src", root_build_dir),
     ]
   }
