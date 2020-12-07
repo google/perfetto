@@ -1064,8 +1064,8 @@ filegroup(
 filegroup(
     name = "src_trace_processor_lib",
     srcs = [
-        "src/trace_processor/dynamic/ancestor_slice_generator.cc",
-        "src/trace_processor/dynamic/ancestor_slice_generator.h",
+        "src/trace_processor/dynamic/ancestor_generator.cc",
+        "src/trace_processor/dynamic/ancestor_generator.h",
         "src/trace_processor/dynamic/connected_flow_generator.cc",
         "src/trace_processor/dynamic/connected_flow_generator.h",
         "src/trace_processor/dynamic/descendant_slice_generator.cc",

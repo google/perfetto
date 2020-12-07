@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_DYNAMIC_ANCESTOR_SLICE_GENERATOR_H_
-#define SRC_TRACE_PROCESSOR_DYNAMIC_ANCESTOR_SLICE_GENERATOR_H_
+#ifndef SRC_TRACE_PROCESSOR_DYNAMIC_ANCESTOR_GENERATOR_H_
+#define SRC_TRACE_PROCESSOR_DYNAMIC_ANCESTOR_GENERATOR_H_
 
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
 
@@ -29,10 +29,11 @@ class TraceProcessorContext;
 // Dynamic table for implementing the  table.
 // See /docs/analysis.md for details about the functionality and usage of this
 // table.
-class AncestorSliceGenerator : public DbSqliteTable::DynamicTableGenerator {
+class AncestorGenerator : public DbSqliteTable::DynamicTableGenerator {
  public:
-  explicit AncestorSliceGenerator(TraceProcessorContext* context);
-  ~AncestorSliceGenerator() override;
+  enum class Ancestor { kSlice = 1, kStackProfileCallsite = 2 };
+
+  AncestorGenerator(Ancestor type, TraceProcessorContext* context);
 
   Table::Schema CreateSchema() override;
   std::string TableName() override;
@@ -42,10 +43,11 @@ class AncestorSliceGenerator : public DbSqliteTable::DynamicTableGenerator {
                                       const std::vector<Order>& ob) override;
 
  private:
+  Ancestor type_;
   TraceProcessorContext* context_ = nullptr;
 };
 
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_DYNAMIC_ANCESTOR_SLICE_GENERATOR_H_
+#endif  // SRC_TRACE_PROCESSOR_DYNAMIC_ANCESTOR_GENERATOR_H_
