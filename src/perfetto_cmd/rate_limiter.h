@@ -26,7 +26,7 @@ class RateLimiter {
  public:
   struct Args {
     bool is_user_build = false;
-    bool is_dropbox = false;
+    bool is_uploading = false;
     bool ignore_guardrails = false;
     bool allow_user_build_tracing = false;
     base::TimeSeconds current_time = base::TimeSeconds(0);
