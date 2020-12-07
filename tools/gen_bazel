@@ -124,7 +124,7 @@ def gen_version_header(target):
   label.srcs += [re.sub('^//', '', x) for x in sorted(target.inputs)]
   label.outs += target.outputs
   label.cmd = r'$(location gen_version_header_py)'
-  label.cmd += r' --cpp_out=$@ --changelog=CHANGELOG'
+  label.cmd += r' --cpp_out=$@ --changelog=$(location CHANGELOG)'
   label.exec_tools += [':gen_version_header_py']
   return [label]
 
