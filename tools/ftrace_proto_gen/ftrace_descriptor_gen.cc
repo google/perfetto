@@ -16,6 +16,9 @@
 
 #include "tools/ftrace_proto_gen/ftrace_descriptor_gen.h"
 
+#include <google/protobuf/descriptor.h>
+#include <google/protobuf/descriptor.pb.h>
+
 namespace perfetto {
 
 void GenerateFtraceDescriptors(

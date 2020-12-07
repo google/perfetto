@@ -17,11 +17,14 @@
 #ifndef TOOLS_FTRACE_PROTO_GEN_FTRACE_DESCRIPTOR_GEN_H_
 #define TOOLS_FTRACE_PROTO_GEN_FTRACE_DESCRIPTOR_GEN_H_
 
-#include <google/protobuf/descriptor.h>
-#include <google/protobuf/descriptor.pb.h>
-
 #include "perfetto/base/logging.h"
 #include "tools/ftrace_proto_gen/ftrace_proto_gen.h"
+
+namespace google {
+namespace protobuf {
+class DescriptorPool;
+}
+}  // namespace google
 
 namespace perfetto {
 
