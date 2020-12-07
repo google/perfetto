@@ -14,8 +14,8 @@ android_sysui_cuj {
    number: 3
    ts: 30000000
    dur: 22000000
-   jank_cause: "MainThread - binder calls count"
    jank_cause: "RenderThread - long flush layers"
+   jank_cause: "MainThread - binder calls count"
  }
  frames {
    number: 4
