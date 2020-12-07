@@ -599,7 +599,7 @@ std::vector<SymbolizedFrame> LLVMSymbolizerProcess::Symbolize(
     uint64_t address) {
   std::vector<SymbolizedFrame> result;
   char buffer[1024];
-  int size = sprintf(buffer, "%s 0x%" PRIx64 "\n", binary.c_str(), address);
+  int size = sprintf(buffer, "\"%s\" 0x%" PRIx64 "\n", binary.c_str(), address);
   if (subprocess_.Write(buffer, static_cast<size_t>(size)) < 0) {
     PERFETTO_ELOG("Failed to write to llvm-symbolizer.");
     return result;
