@@ -37,18 +37,21 @@ config("test_warning_suppressions") {
   visibility = _buildtools_visibility
   if (is_clang) {
     cflags = [
-      "-Wno-unknown-warning-option",
-      "-Wno-global-constructors",
       "-Wno-covered-switch-default",
-      "-Wno-used-but-marked-unused",
+      "-Wno-deprecated-copy-dtor",
+      "-Wno-global-constructors",
       "-Wno-inconsistent-missing-override",
-      "-Wno-unused-member-function",
-      "-Wno-zero-as-null-pointer-constant",
-      "-Wno-weak-vtables",
-      "-Wno-suggest-override",
+      "-Wno-language-extension-token",
       "-Wno-suggest-destructor-override",
+      "-Wno-suggest-override",
+      "-Wno-undef",
+      "-Wno-unknown-warning-option",
+      "-Wno-unused-member-function",
+      "-Wno-used-but-marked-unused",
+      "-Wno-weak-vtables",
+      "-Wno-zero-as-null-pointer-constant",
     ]
-  } else {
+  } else if (!is_win) {
     cflags = [
       "-Wno-unknown-warning-option",
       "-Wno-deprecated-copy",
@@ -62,18 +65,18 @@ config("libunwindstack_config") {
     # Using -isystem instead of include_dirs (-I), so we don't need to suppress
     # warnings coming from libunwindstack headers. Doing so would mask warnings
     # in our own code.
-    "-isystem",
+    perfetto_isystem_cflag,
     rebase_path("android-unwinding/libunwindstack/include", root_build_dir),
-    "-isystem",
+    perfetto_isystem_cflag,
     rebase_path("android-libprocinfo/include", root_build_dir),
-    "-isystem",
+    perfetto_isystem_cflag,
     rebase_path("android-libbase/include", root_build_dir),
-    "-isystem",
+    perfetto_isystem_cflag,
     rebase_path("android-core/demangle/include", root_build_dir),
   ]
   if (is_android) {
     cflags += [
-      "-isystem",
+      perfetto_isystem_cflag,
       rebase_path("bionic/libc/include", root_build_dir),
     ]
   }
@@ -130,15 +133,31 @@ config("protobuf_config") {
   configs = [ "//gn:protobuf_gen_config" ]
 
   defines = [ "HAVE_PTHREAD=1" ]
+  cflags = []
   if (is_clang) {
-    cflags = [
+    # We do NOT build libprotobuf with -Wextra or -Weverything. But still it
+    # hits some warnings that we need to suppress.
+    cflags += [
       "-Wno-unknown-warning-option",
       "-Wno-enum-compare-switch",
       "-Wno-user-defined-warnings",
       "-Wno-tautological-constant-compare",
+      "-Wno-inconsistent-missing-override",
     ]
-  } else {  # implies gcc
-    cflags = [ "-Wno-return-type" ]
+  } else if (!is_win) {  # implies gcc
+    cflags += [ "-Wno-return-type" ]
+  }
+  if (is_win) {
+    cflags += [ "/W0" ]
+  }
+}
+
+# Configuration propagated to targets depending on protobuf_full.
+config("protobuf_full_public_config") {
+  visibility = _buildtools_visibility
+  cflags = []
+  if (is_clang) {
+    cflags += [ "-Wno-switch-enum" ]
   }
 }
 
@@ -220,6 +239,10 @@ source_set("protobuf_lite") {
     "protobuf/src/google/protobuf/wire_format_lite.h",
   ]
   configs -= [ "//gn/standalone:extra_warnings" ]
+  if (is_win) {
+    # Protobuf has its own #define WIN32_LEAN_AND_MEAN.
+    configs -= [ "//gn/standalone:win32_lean_and_mean" ]
+  }
   configs += [ ":protobuf_config" ]
   public_configs = [ "//gn:protobuf_gen_config" ]
   deps = [ "//gn:default_deps" ]
@@ -348,8 +371,15 @@ source_set("protobuf_full") {
     "protobuf/src/google/protobuf/wrappers.pb.h",
   ]
   configs -= [ "//gn/standalone:extra_warnings" ]
+  if (is_win) {
+    # Protobuf has its own #define WIN32_LEAN_AND_MEAN.
+    configs -= [ "//gn/standalone:win32_lean_and_mean" ]
+  }
   configs += [ ":protobuf_config" ]
-  public_configs = [ "//gn:protobuf_gen_config" ]
+  public_configs = [
+    "//gn:protobuf_gen_config",
+    ":protobuf_full_public_config",
+  ]
 }
 
 source_set("protoc_lib") {
@@ -527,8 +557,15 @@ source_set("protoc_lib") {
     "protobuf/src/google/protobuf/compiler/zip_writer.h",
   ]
   configs -= [ "//gn/standalone:extra_warnings" ]
+  if (is_win) {
+    # Protobuf does has its own #define WIN32_LEAN_AND_MEAN.
+    configs -= [ "//gn/standalone:win32_lean_and_mean" ]
+  }
   configs += [ ":protobuf_config" ]
-  public_configs = [ "//gn:protobuf_gen_config" ]
+  public_configs = [
+    "//gn:protobuf_gen_config",
+    ":protobuf_full_public_config",
+  ]
 }
 
 if (current_toolchain == host_toolchain) {
@@ -540,6 +577,10 @@ if (current_toolchain == host_toolchain) {
     ]
     sources = [ "protobuf/src/google/protobuf/compiler/main.cc" ]
     configs -= [ "//gn/standalone:extra_warnings" ]
+    if (is_win) {
+      # Protobuf does has its own #define WIN32_LEAN_AND_MEAN.
+      configs -= [ "//gn/standalone:win32_lean_and_mean" ]
+    }
   }
 }  # host_toolchain
 
@@ -552,10 +593,7 @@ if (use_custom_libcxx) {
       "_LIBCXXABI_NO_EXCEPTIONS",
       "_LIBCPP_OVERRIDABLE_FUNC_VIS=__attribute__((__visibility__(\"default\")))",
     ]
-    cflags = [
-      "-fPIC",
-      "-fstrict-aliasing",
-    ]
+    cflags = [ "-fstrict-aliasing" ]
   }
 
   source_set("libunwind") {
@@ -921,12 +959,14 @@ source_set("zlib") {
 
 config("zlib_config") {
   visibility = _buildtools_visibility
-  defines = [ "HAVE_HIDDEN" ]
+  if (!is_win) {
+    defines = [ "HAVE_HIDDEN" ]
+  }
   cflags = [
     # Using -isystem instead of include_dirs (-I), so we don't need to suppress
     # warnings coming from third-party headers. Doing so would mask warnings in
     # our own code.
-    "-isystem",
+    perfetto_isystem_cflag,
     rebase_path("zlib", root_build_dir),
   ]
 }
@@ -1000,7 +1040,7 @@ source_set("libunwindstack") {
 config("bionic_kernel_uapi_headers") {
   visibility = _buildtools_visibility
   cflags = [
-    "-isystem",
+    perfetto_isystem_cflag,
     rebase_path("bionic/libc/kernel", root_build_dir),
   ]
 }
@@ -1013,7 +1053,7 @@ config("jsoncpp_config") {
     # Using -isystem instead of include_dirs (-I), so we don't need to suppress
     # warnings coming from third-party headers. Doing so would mask warnings in
     # our own code.
-    "-isystem",
+    perfetto_isystem_cflag,
     rebase_path("jsoncpp/include", root_build_dir),
   ]
 }
@@ -1036,7 +1076,7 @@ config("linenoise_config") {
     # Using -isystem instead of include_dirs (-I), so we don't need to suppress
     # warnings coming from third-party headers. Doing so would mask warnings in
     # our own code.
-    "-isystem",
+    perfetto_isystem_cflag,
     rebase_path("linenoise", root_build_dir),
   ]
 }

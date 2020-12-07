@@ -14,69 +14,123 @@
 
 import("//gn/perfetto_check_build_deps.gni")
 import("//gn/standalone/android.gni")
+import("//gn/standalone/libc++/libc++.gni")
 import("//gn/standalone/sanitizers/sanitizers.gni")
+import("//gn/standalone/toolchain/msvc.gni")
 import("//gn/standalone/wasm.gni")
 
 # These warnings have been introduced with the newest version of clang (only in
 # the hermetic build) and are enabled just with -Werror.
 hermetic_clang_suppressions = [ "-Wno-c99-designator" ]
 
+# We deal with three toolchains here:
+# 1. Clang, used in most cases.
+# 2. GCC, used in some Linux cases.
+# 3. MSVC, used in some Windows cases.
+# Clang vs gcc is typically not a problem: both support roughly the same
+# switches. -Wno-unknown-warning-option fixes the mismatching ones.
+# The situation on Windows is a bit trickier: clang-cl.exe really pretends to be
+# cl.exe (MSVC), so we should use MSVC-style switches (e.g. /W2). However,
+# clang-cl.exe still supports some -Wclang-style-switches for flags that don't
+# have a corresponding version in MSVC.
+#
+# In the rules below, the conditionals should be interpreted as follows:
+# is_win -> can be either clang-cl.exe or cl.exe (MSVC). Only MSVC-style
+#           switches (the common denominator) should be used.
+# is_clang -> could be clang-on-linux, clang-on-mac or clang-cl.exe.
+
 config("extra_warnings") {
-  cflags = [
-    "-Wall",
-    "-Wextra",
-    "-Wpedantic",
-  ]
+  if (is_win) {
+    cflags = [
+      "/W2",
+      "/wd4244",  # conversion from 'float' to 'int', possible loss of data
+      "/wd4267",  # conversion from 'size_t' to 'int', possible loss of data
+    ]
+    if (is_clang) {
+      cflags += [
+        "-Wno-float-equal",
+        "-Wno-unused-macros",
+        "-Wno-old-style-cast",
+      ]
+    }
+  } else {
+    # Clang or Gcc. On linux, Android and Mac.
+    cflags = [
+      "-Wall",
+      "-Wextra",
+      "-Wpedantic",
+    ]
+  }
 
   # Disable variadic macro warning as we make extensive use of them in trace
   # processor and client API.
   if (is_clang) {
-    cflags += [ "-Wno-gnu-zero-variadic-macro-arguments" ]
-  }
-
-  # Disable Weverything on fuzzers to avoid breakages when new versions of clang
-  # are rolled into OSS-fuzz.
-  if (is_clang && !is_fuzzer) {
+    if (!is_fuzzer) {
+      # Disable Weverything on fuzzers to avoid breakages when new versions of
+      # clang are rolled into OSS-fuzz.
+      cflags += [ "-Weverything" ]
+    }
     cflags += [
-      "-Weverything",
       "-Wno-c++98-compat-pedantic",
       "-Wno-c++98-compat",
       "-Wno-disabled-macro-expansion",
+      "-Wno-documentation-unknown-command",
       "-Wno-gnu-include-next",
       "-Wno-gnu-statement-expression",
+      "-Wno-gnu-zero-variadic-macro-arguments",
       "-Wno-padded",
+      "-Wno-poison-system-directories",
       "-Wno-reserved-id-macro",
       "-Wno-unknown-sanitizers",
       "-Wno-unknown-warning-option",
-      "-Wno-poison-system-directories",
     ]
-  }
-
-  if (!is_clang) {
-    # Use return std::move(...) for compatibility with old compilers.
+  } else if (!is_clang && !is_win) {
+    # Use return std::move(...) for compatibility with old GCC compilers.
     cflags += [ "-Wno-redundant-move" ]
   }
 }
 
 config("no_exceptions") {
-  cflags_cc = [ "-fno-exceptions" ]
+  # Exceptions are disabled by default on Windows (Use /EHsc to enable them).
+  if (!is_win) {
+    cflags_cc = [ "-fno-exceptions" ]
+  }
 }
 
 config("no_rtti") {
-  cflags_cc = [ "-fno-rtti" ]
+  if (is_win) {
+    cflags_cc = [ "/GR-" ]
+  } else {
+    cflags_cc = [ "-fno-rtti" ]
+  }
 }
 
 config("c++11") {
-  cflags_cc = [ "-std=c++11" ]
+  # C++11 is the default on Windows.
+  if (!is_win) {
+    cflags_cc = [ "-std=c++11" ]
+  }
 }
 
 # This is needed to compile libunwindstack.
 config("c++17") {
-  cflags_cc = [ "-std=c++17" ]
+  if (is_win) {
+    cflags_cc = [ "/std:c++17" ]
+  } else {
+    cflags_cc = [ "-std=c++17" ]
+  }
 }
 
 config("visibility_hidden") {
-  cflags = [ "-fvisibility=hidden" ]
+  if (!is_win) {
+    cflags = [ "-fvisibility=hidden" ]
+  }
+}
+
+config("win32_lean_and_mean") {
+  if (is_win) {
+    defines = [ "WIN32_LEAN_AND_MEAN" ]
+  }
 }
 
 config("default") {
@@ -85,6 +139,7 @@ config("default") {
   cflags_c = []
   cflags_cc = []
   defines = []
+  include_dirs = []
   ldflags = []
   libs = []
 
@@ -92,24 +147,50 @@ config("default") {
     ldflags += [ "-Wl,--build-id" ]
   }
 
-  cflags += [
-    "-fstrict-aliasing",
-    "-fstack-protector-strong",
-    "-fPIC",
-    "-g",
-    "-Wformat",
-  ]
+  if (is_clang || !is_win) {  # Clang or GCC, but not MSVC.
+    cflags += [
+      "-fstrict-aliasing",
+      "-Wformat",
+    ]
+  }
 
+  if (is_win) {
+    cflags += [
+      "/bigobj",  # Some of our files are bigger than the regular limits.
+      "/Gy",  # Enable function-level linking.
+    ]
+    defines += [
+      "_CRT_NONSTDC_NO_WARNINGS",
+      "_CRT_SECURE_NO_DEPRECATE",
+      "_CRT_SECURE_NO_WARNINGS",  # Disables warnings on some POSIX-compat API.
+      "_SCL_SECURE_NO_DEPRECATE",
+      "NOMINMAX",
+    ]
+    if (!use_custom_libcxx) {
+      defines += [ "_HAS_EXCEPTIONS=0" ]  # Disables exceptions in MSVC STL.
+    }
+  } else {  # !is_win
+    cflags += [
+      "-g",
+      "-fPIC",
+      "-fstack-protector-strong",
+    ]
+  }
+
+  # Treat warnings as errors, but give up on fuzzer builds.
   if (!is_fuzzer) {
-    cflags += [ "-Werror" ]
+    if (is_win) {
+      cflags += [ "/WX" ]
+    } else {
+      cflags += [ "-Werror" ]
+    }
   }
 
   if (is_clang) {
-    cflags += [
-      # Color compiler output, see https://github.com/ninja-build/ninja/wiki/FAQ
-      "-fcolor-diagnostics",
-      "-fdiagnostics-show-template-tree",
-    ]
+    cflags += [ "-fcolor-diagnostics" ]
+    if (!is_win) {
+      cflags += [ "-fdiagnostics-show-template-tree" ]
+    }
   }
 
   if (is_hermetic_clang && is_linux && !is_wasm) {
@@ -122,6 +203,9 @@ config("default") {
     cflags += [ "-flto=full" ]
     ldflags += [ "-flto=full" ]
   }
+
+  # We support only x64 builds on Windows.
+  assert(!is_win || current_cpu == "x64")
 
   if (current_cpu == "arm") {
     cflags += [
@@ -151,8 +235,24 @@ config("default") {
     ]
   }
 
+  if (is_win && !is_clang) {
+    # When using MSVC we need to manually pass the include dirs. clang-cl.exe
+    # doesn't need them because it's smart enough to figure out the right path
+    # by querying the registry on its own.
+    include_dirs = win_msvc_inc_dirs  # Defined in msvc.gni.
+  }
+
   if (is_debug) {
-    libs += [ "dl" ]
+    if (is_win) {
+      cflags += [ "/Z7" ]
+      if (is_clang) {
+        # Required to see symbols in windbg when building with clang-cl.exe.
+        cflags += [ "-gcodeview-ghash" ]
+        ldflags = [ "/DEBUG:GHASH" ]
+      }
+    } else {
+      libs += [ "dl" ]
+    }
   }
 
   if (is_android) {
@@ -207,27 +307,49 @@ config("default") {
 }
 
 config("debug_symbols") {
-  cflags = [ "-O0" ]
+  cflags = []
+  if (is_win) {
+    cflags = [ "/Od" ]
+  } else {
+    cflags = [ "-O0" ]
+  }
   if (is_android || is_linux) {
     cflags += [ "-funwind-tables" ]
   }
 }
 
 config("release") {
-  cflags = [
-    "-fdata-sections",
-    "-ffunction-sections",
-  ]
-  if (is_android) {
-    cflags += [ "-O2" ]
+  # Compiler flags for release builds.
+  if (is_win) {
+    cflags = [
+      "/O2",
+      "/Zc:inline",
+    ]
+  } else if (is_android) {
+    cflags = [ "-O2" ]
   } else if (is_fuzzer) {
-    cflags += [ "-O1" ]
+    cflags = [ "-O1" ]
   } else {
-    cflags += [ "-O3" ]
+    cflags = [ "-O3" ]
   }
-  if (is_mac) {
+  if (!is_win) {
+    cflags += [
+      "-fdata-sections",
+      "-ffunction-sections",
+    ]
+  }
+
+  # Linker flags for release builds.
+  if (is_win) {
+    ldflags = [
+      "/OPT:REF",
+      "/OPT:ICF",
+      "/INCREMENTAL:NO",
+      "/FIXED:NO",
+    ]
+  } else if (is_mac) {
     ldflags = [ "-dead_strip" ]
-  } else {
+  } else if (!is_win) {
     ldflags = [
       "-Wl,--gc-sections",
       "-Wl,--icf=all",
