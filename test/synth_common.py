@@ -22,6 +22,15 @@ CLONE_THREAD = 0x00010000
 CLONE_VFORK = 0x00004000
 CLONE_VM = 0x00000100
 
+# TODO(b/174825244): These magic numbers should go away.
+TYPE_SLICE_BEGIN = 1
+TYPE_SLICE_END = 2
+
+RAIL_MODE_RESPONSE = 1
+RAIL_MODE_ANIMATION = 2
+RAIL_MODE_IDLE = 3
+RAIL_MODE_LOAD = 4
+
 
 class Trace(object):
 
@@ -413,6 +422,43 @@ class Trace(object):
     sched_blocked_reason = ftrace.sched_blocked_reason
     sched_blocked_reason.pid = pid
     sched_blocked_reason.io_wait = io_wait
+
+
+  def add_track_event(self, name=None, ts=None, track=None):
+    packet = self.add_packet(ts=ts)
+    if name is not None:
+      packet.track_event.name = name
+    if track is not None:
+      packet.track_event.track_uuid = track
+    packet.trusted_packet_sequence_id = 0
+    return packet
+
+  def add_track_descriptor(self, uuid, name, pid=None, tid=None):
+    packet = self.add_packet()
+    track_descriptor = packet.track_descriptor
+    track_descriptor.uuid = uuid
+    track_descriptor.name = name
+    track_descriptor.thread.pid = pid
+    track_descriptor.thread.tid = tid
+    return packet
+
+  def add_track_event_slice_begin(self, name, ts, track=None):
+    packet = self.add_track_event(name, ts=ts, track=track)
+    packet.track_event.type = TYPE_SLICE_BEGIN
+    return packet
+
+  def add_track_event_slice_end(self, ts, track=None):
+    packet = self.add_track_event(ts=ts, track=track)
+    packet.track_event.type = TYPE_SLICE_END
+    return packet
+
+  def add_rail_mode_slice(self, ts, dur, track, mode):
+    packet = self.add_track_event_slice_begin(
+        "Scheduler.RAILMode", ts=ts, track=track)
+    packet.track_event.chrome_renderer_scheduler_state.rail_mode = mode
+
+    if dur >= 0:
+      packet = self.add_track_event_slice_end(ts=ts + dur, track=track)
 
 
 def create_trace():

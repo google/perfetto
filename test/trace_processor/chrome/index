@@ -21,3 +21,6 @@
 ../../data/chrome_memory_snapshot.pftrace memory_snapshot_edges.sql memory_snapshot_edges.out
 ../../data/chrome_memory_snapshot.pftrace memory_snapshot_node_args.sql memory_snapshot_node_args.out
 ../../data/chrome_memory_snapshot.pftrace memory_snapshot_smaps.sql memory_snapshot_smaps.out
+
+# RAIL modes.
+combined_rail_modes.py combined_rail_modes.sql combined_rail_modes.out
