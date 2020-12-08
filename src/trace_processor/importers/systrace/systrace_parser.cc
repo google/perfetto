@@ -180,10 +180,8 @@ void SystraceParser::ParseSystracePoint(
         // issues. No other code should ever use this method.
         tables::SliceTable::Row row;
         row.ts = ts;
-        row.track_id = context_->async_track_set_tracker->Begin(
-            track_set_id, cookie,
-            AsyncTrackSetTracker::NestingBehaviour::
-                kLegacySaturatingUnnestable);
+        row.track_id =
+            context_->async_track_set_tracker->Begin(track_set_id, cookie);
         row.name = name_id;
         context_->slice_tracker->BeginLegacyUnnestable(
             row, [this, cookie](ArgsTracker::BoundInserter* inserter) {
