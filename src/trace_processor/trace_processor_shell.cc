@@ -70,6 +70,7 @@
 #endif
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#include <io.h>
 #define ftruncate _chsize
 #else
 #include <dirent.h>
