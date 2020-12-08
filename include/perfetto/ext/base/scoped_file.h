@@ -19,16 +19,10 @@
 
 #include "perfetto/base/build_config.h"
 
-#include <fcntl.h>
 #include <stdio.h>
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) && \
-    !PERFETTO_BUILDFLAG(PERFETTO_COMPILER_GCC)
-#include <corecrt_io.h>
-typedef int mode_t;
-#else
-#include <dirent.h>
-#include <unistd.h>
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#include <dirent.h>  // For DIR* / opendir().
 #endif
 
 #include <string>
@@ -38,8 +32,6 @@ typedef int mode_t;
 
 namespace perfetto {
 namespace base {
-
-constexpr mode_t kInvalidMode = static_cast<mode_t>(-1);
 
 // RAII classes for auto-releasing fds and dirs.
 template <typename T,
@@ -83,20 +75,11 @@ class PERFETTO_EXPORT ScopedResource {
   T t_;
 };
 
-using ScopedFile = ScopedResource<int, close, -1>;
-inline static ScopedFile OpenFile(const std::string& path,
-                                  int flags,
-                                  mode_t mode = kInvalidMode) {
-  PERFETTO_DCHECK((flags & O_CREAT) == 0 || mode != kInvalidMode);
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-  // Always use O_BINARY on Windows, to avoid silly EOL translations.
-  ScopedFile fd(open(path.c_str(), flags | O_BINARY, mode));
-#else
-  // Always open a ScopedFile with O_CLOEXEC so we can safely fork and exec.
-  ScopedFile fd(open(path.c_str(), flags | O_CLOEXEC, mode));
-#endif
-  return fd;
-}
+// Declared in file_utils.h. Forward declared to avoid #include cycles.
+int CloseFile(int fd);
+
+using ScopedFile = ScopedResource<int, CloseFile, -1>;
+
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 using ScopedDir = ScopedResource<DIR*, closedir, nullptr>;
 #endif

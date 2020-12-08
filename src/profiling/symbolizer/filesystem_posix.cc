@@ -16,11 +16,18 @@
 
 #include "src/profiling/symbolizer/filesystem.h"
 
+#include "perfetto/base/build_config.h"
+
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #if PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
 #include <fts.h>
 #include <sys/stat.h>
 #endif
+
+#include <string>
+
+#include "perfetto/ext/base/file_utils.h"
+
 namespace perfetto {
 namespace profiling {
 #if PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)

@@ -21,6 +21,7 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/uuid.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "src/android_internal/incident_service.h"

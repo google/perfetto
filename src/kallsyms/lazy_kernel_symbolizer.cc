@@ -180,7 +180,7 @@ bool LazyKernelSymbolizer::CanReadKernelSymbolAddresses(
   }
   // Don't just use fscanf() as that might read the whole file (b/36473442).
   char buf[4096];
-  auto rsize_signed = PERFETTO_EINTR(read(*fd, buf, sizeof(buf) - 1));
+  auto rsize_signed = base::Read(*fd, buf, sizeof(buf) - 1);
   if (rsize_signed <= 0) {
     PERFETTO_PLOG("read(%s) failed", kKallsymsPath);
     return false;

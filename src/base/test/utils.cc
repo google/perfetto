@@ -20,6 +20,7 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/file_utils.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
@@ -31,7 +32,6 @@
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) && \
     !PERFETTO_BUILDFLAG(PERFETTO_COMPILER_GCC)
-#include <corecrt_io.h>
 #include <io.h>
 #endif
 
@@ -68,10 +68,10 @@ std::string GetCurExecutableDir() {
 std::string GetTestDataPath(const std::string& path) {
   std::string self_path = GetCurExecutableDir();
   std::string full_path = self_path + "/../../" + path;
-  if (access(full_path.c_str(), 0 /*F_OK*/) == 0)
+  if (FileExists(full_path))
     return full_path;
   full_path = self_path + "/" + path;
-  if (access(full_path.c_str(), 0 /*F_OK*/) == 0)
+  if (FileExists(full_path))
     return full_path;
   // Fall back to relative to root dir.
   return path;

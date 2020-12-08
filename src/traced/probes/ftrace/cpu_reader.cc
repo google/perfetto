@@ -17,6 +17,7 @@
 #include "src/traced/probes/ftrace/cpu_reader.h"
 
 #include <dirent.h>
+#include <fcntl.h>
 #include <signal.h>
 
 #include <algorithm>

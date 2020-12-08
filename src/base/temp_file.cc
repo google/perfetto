@@ -31,6 +31,7 @@
 #endif
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/string_utils.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
@@ -138,13 +139,8 @@ TempDir& TempDir::operator=(TempDir&&) = default;
 TempDir::~TempDir() {
   if (path_.empty())
     return;  // For objects that get std::move()d.
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-  PERFETTO_CHECK(_rmdir(path_.c_str()) == 0);
-#else
-  PERFETTO_CHECK(rmdir(path_.c_str()) == 0);
-#endif
+  PERFETTO_CHECK(Rmdir(path_));
 }
 
 }  // namespace base
 }  // namespace perfetto
-

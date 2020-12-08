@@ -16,7 +16,10 @@
 
 #include "src/profiling/common/profiler_guardrails.h"
 
+#include <unistd.h>
+
 #include <algorithm>
+
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/watchdog_posix.h"
 

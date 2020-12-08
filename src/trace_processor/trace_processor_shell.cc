@@ -76,6 +76,11 @@
 #include <getopt.h>
 #endif
 
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_LINENOISE) && \
+    !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#include <unistd.h>  // For getuid() in GetConfigPath().
+#endif
+
 namespace perfetto {
 namespace trace_processor {
 
@@ -94,8 +99,15 @@ bool EnsureFile(const std::string& path) {
 
 std::string GetConfigPath() {
   const char* homedir = getenv("HOME");
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
   if (homedir == nullptr)
     homedir = getpwuid(getuid())->pw_dir;
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  if (homedir == nullptr)
+    homedir = getenv("USERPROFILE");
+#endif
   if (homedir == nullptr)
     return "";
   return std::string(homedir) + "/.config";
