@@ -19,6 +19,7 @@
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/file_utils.h"
 
 #include <sys/mman.h>
 

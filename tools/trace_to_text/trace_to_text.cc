@@ -22,6 +22,7 @@
 #include <google/protobuf/text_format.h>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "tools/trace_to_text/proto_full_utils.h"
 #include "tools/trace_to_text/utils.h"

@@ -24,17 +24,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
-
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <sys/types.h>
-#endif
-
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-#include <unistd.h>  // For getpagesize().
-#elif PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
-#include <mach/vm_page_size.h>
-#endif
 
 #include <atomic>
 
@@ -74,26 +64,7 @@ constexpr size_t kPageSize = 4096;
 
 // Returns the system's page size. Use this when dealing with mmap, madvise and
 // similar mm-related syscalls.
-inline uint32_t GetSysPageSize() {
-  ignore_result(kPageSize);  // Just to keep the amalgamated build happy.
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-  static std::atomic<uint32_t> page_size{0};
-  // This function might be called in hot paths. Avoid calling getpagesize() all
-  // the times, in many implementations getpagesize() calls sysconf() which is
-  // not cheap.
-  uint32_t cached_value = page_size.load(std::memory_order_relaxed);
-  if (PERFETTO_UNLIKELY(cached_value == 0)) {
-    cached_value = static_cast<uint32_t>(getpagesize());
-    page_size.store(cached_value, std::memory_order_relaxed);
-  }
-  return cached_value;
-#elif PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
-  return static_cast<uint32_t>(vm_page_size);
-#else
-  return 4096;
-#endif
-}
+uint32_t GetSysPageSize();
 
 template <typename T>
 constexpr size_t ArraySize(const T& array) {

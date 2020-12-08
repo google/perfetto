@@ -27,6 +27,7 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "src/profiling/symbolizer/filesystem.h"
@@ -396,8 +397,7 @@ std::map<std::string, FoundBinary> BuildIdIndex(std::vector<std::string> dirs) {
         PERFETTO_PLOG("Failed to open %s", fname);
         return;
       }
-      ssize_t rd = static_cast<ssize_t>(
-          PERFETTO_EINTR(read(*fd, &magic, sizeof(magic))));
+      ssize_t rd = base::Read(*fd, &magic, sizeof(magic));
       if (rd != sizeof(magic)) {
         PERFETTO_PLOG("Failed to read %s", fname);
         return;
@@ -481,7 +481,7 @@ base::Optional<FoundBinary> LocalBinaryFinder::FindBinary(
 base::Optional<FoundBinary> LocalBinaryFinder::IsCorrectFile(
     const std::string& symbol_file,
     const std::string& build_id) {
-  if (access(symbol_file.c_str(), F_OK) != 0) {
+  if (!base::FileExists(symbol_file)) {
     return base::nullopt;
   }
   // Openfile opens the file with an exclusive lock on windows.

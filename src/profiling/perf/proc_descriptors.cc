@@ -16,6 +16,7 @@
 
 #include "src/profiling/perf/proc_descriptors.h"
 
+#include <fcntl.h>
 #include <signal.h>
 #include <sys/stat.h>
 #include <unistd.h>
