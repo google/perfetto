@@ -18,10 +18,11 @@
 
 #include "perfetto/base/build_config.h"
 
+#include <fcntl.h>  // For O_BINARY (Windows) and F_SETxx (UNIX)
+
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <io.h>
 #else
-#include <fcntl.h>
 #include <sys/types.h>
 #include <unistd.h>
 #endif
