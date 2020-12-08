@@ -15,11 +15,13 @@
  */
 
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <deque>
 #include <thread>
 
 #include "perfetto/ext/base/metatrace.h"
+#include "perfetto/ext/base/thread_annotations.h"
 #include "src/base/test/test_task_runner.h"
 #include "test/gtest_and_gmock.h"
 
@@ -164,7 +166,7 @@ TEST_F(MetatraceTest, HandleOverruns) {
 // consistently without gaps.
 TEST_F(MetatraceTest, InterleavedReadWrites) {
   Enable(m::TAG_ANY);
-  constexpr int kMaxValue = m::RingBuffer::kCapacity * 10;
+  constexpr int kMaxValue = m::RingBuffer::kCapacity * 3;
 
   std::atomic<int> last_value_read{-1};
   auto read_task = [&last_value_read] {
@@ -172,8 +174,14 @@ TEST_F(MetatraceTest, InterleavedReadWrites) {
     for (auto it = m::RingBuffer::GetReadIterator(); it; ++it) {
       if (it->type_and_id.load(std::memory_order_acquire) == 0)
         break;
-      EXPECT_EQ(it->counter_value, last + 1);
-      last = it->counter_value;
+      // TSan doesn't know about the happens-before relationship between the
+      // type_and_id marker and the value being valid. Fixing this properly
+      // would require making all accesses to the metatrace object as
+      // std::atomic and read them with memory_order_relaxed, which is overkill.
+      PERFETTO_ANNOTATE_BENIGN_RACE_SIZED(&it->counter_value, sizeof(int), "")
+      int32_t counter_value = it->counter_value;
+      EXPECT_EQ(counter_value, last + 1);
+      last = counter_value;
     }
     // The read pointer is incremented only after destroying the iterator.
     // Publish the last read value after the loop.
@@ -190,8 +198,13 @@ TEST_F(MetatraceTest, InterleavedReadWrites) {
       const int kCapacity = static_cast<int>(m::RingBuffer::kCapacity);
 
       // Wait for the reader to avoid overruns.
-      while (i - last_value_read >= kCapacity - 1)
-        std::this_thread::sleep_for(std::chrono::nanoseconds(1));
+      // Using memory_order_relaxed because the QEMU arm emulator seems to incur
+      // in very high costs when dealing with full barriers, causing timeouts.
+      for (int sleep_us = 1;
+           i - last_value_read.load(std::memory_order_relaxed) >= kCapacity - 1;
+           sleep_us = std::min(sleep_us * 10, 1000)) {
+        std::this_thread::sleep_for(std::chrono::microseconds(sleep_us));
+      }
     }
     task_runner_.PostTask(writer_done);
   });
