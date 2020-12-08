@@ -23,6 +23,7 @@
 #include <string>
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/base/export.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/utils.h"
 
@@ -59,7 +60,9 @@ ScopedFile OpenFile(const std::string& path,
                     FileOpenMode = kFileModeInvalid);
 
 // This is an alias for close(). It's to avoid leaking Windows.h in headers.
-int CloseFile(int fd);
+// Exported because ScopedFile is used in the /include/ext API by Chromium
+// component builds.
+int PERFETTO_EXPORT CloseFile(int fd);
 
 bool FlushFile(int fd);
 
