@@ -36,6 +36,7 @@
 #include "perfetto/ext/tracing/ipc/producer_ipc_client.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
+#include "src/profiling/common/profiler_guardrails.h"
 #include "src/profiling/memory/unwound_messages.h"
 #include "src/profiling/memory/wire_protocol.h"
 
@@ -204,25 +205,8 @@ HeapprofdProducer::HeapprofdProducer(HeapprofdMode mode,
       unwinding_workers_(MakeUnwindingWorkers(this, kUnwinderThreads)),
       socket_delegate_(this),
       weak_factory_(this) {
-  auto stat_fd = base::OpenFile("/proc/self/stat", O_RDONLY | O_CLOEXEC);
-  if (!stat_fd) {
-    PERFETTO_ELOG(
-        "Failed to open /proc/self/stat. Cannot accept profiles "
-        "with CPU guardrails.");
-  } else {
-    profiler_cpu_guardrails_.emplace(std::move(stat_fd));
-    CheckDataSourceCpuTask();  // Kick off guardrail task.
-  }
-
-  auto status_fd = base::OpenFile("/proc/self/status", O_RDONLY | O_CLOEXEC);
-  if (!status_fd) {
-    PERFETTO_ELOG(
-        "Failed to open /proc/self/status. Cannot accept profiles "
-        "with memory guardrails.");
-  } else {
-    profiler_memory_guardrails_.emplace(std::move(status_fd));
-    CheckDataSourceMemoryTask();  // Kick off guardrail task.
-  }
+  CheckDataSourceCpuTask();
+  CheckDataSourceMemoryTask();
 }
 
 HeapprofdProducer::~HeapprofdProducer() = default;
@@ -464,19 +448,12 @@ void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
 
   base::Optional<uint64_t> start_cputime_sec;
   if (heapprofd_config.max_heapprofd_cpu_secs() > 0) {
-    if (profiler_cpu_guardrails_)
-      start_cputime_sec = profiler_cpu_guardrails_->GetCputimeSec();
+    start_cputime_sec = GetCputimeSecForCurrentProcess();
 
     if (!start_cputime_sec) {
       PERFETTO_ELOG("Failed to enforce CPU guardrail. Rejecting config.");
       return;
     }
-  }
-
-  if (heapprofd_config.has_max_heapprofd_memory_kb() &&
-      !profiler_memory_guardrails_) {
-    PERFETTO_ELOG("Failed to enforce memory guardrail. Rejecting config.");
-    return;
   }
 
   auto buffer_id = static_cast<BufferID>(ds_config.target_buffer());
@@ -490,7 +467,11 @@ void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
   data_source.stop_timeout_ms = ds_config.stop_timeout_ms()
                                     ? ds_config.stop_timeout_ms()
                                     : 5000 /* kDataSourceStopTimeoutMs */;
-  data_source.start_cputime_sec = start_cputime_sec;
+  data_source.guardrail_config.cpu_start_secs = start_cputime_sec;
+  data_source.guardrail_config.memory_guardrail_kb =
+      heapprofd_config.max_heapprofd_memory_kb();
+  data_source.guardrail_config.cpu_guardrail_sec =
+      heapprofd_config.max_heapprofd_cpu_secs();
 
   InterningOutputTracker::WriteFixedInterningsPacket(
       data_source.trace_writer.get());
@@ -1228,12 +1209,14 @@ void HeapprofdProducer::CheckDataSourceCpuTask() {
       },
       kGuardrailIntervalMs);
 
-  PERFETTO_DCHECK(profiler_cpu_guardrails_);
-  profiler_cpu_guardrails_->CheckDataSourceCpu(
-      data_sources_.begin(), data_sources_.end(), [this](DataSource* ds) {
-        ds->hit_guardrail = true;
-        ShutdownDataSource(ds);
-      });
+  ProfilerCpuGuardrails gr;
+  for (auto& p : data_sources_) {
+    DataSource& ds = p.second;
+    if (gr.IsOverCpuThreshold(ds.guardrail_config)) {
+      ds.hit_guardrail = true;
+      ShutdownDataSource(&ds);
+    }
+  }
 }
 
 void HeapprofdProducer::CheckDataSourceMemoryTask() {
@@ -1245,13 +1228,14 @@ void HeapprofdProducer::CheckDataSourceMemoryTask() {
         weak_producer->CheckDataSourceMemoryTask();
       },
       kGuardrailIntervalMs);
-
-  PERFETTO_DCHECK(profiler_memory_guardrails_);
-  profiler_memory_guardrails_->CheckDataSourceMemory(
-      data_sources_.begin(), data_sources_.end(), [this](DataSource* ds) {
-        ds->hit_guardrail = true;
-        ShutdownDataSource(ds);
-      });
+  ProfilerMemoryGuardrails gr;
+  for (auto& p : data_sources_) {
+    DataSource& ds = p.second;
+    if (gr.IsOverMemoryThreshold(ds.guardrail_config)) {
+      ds.hit_guardrail = true;
+      ShutdownDataSource(&ds);
+    }
+  }
 }
 
 }  // namespace profiling
