@@ -378,6 +378,7 @@ perfetto_unittest_source_set("unittests") {
     "importers/memory_tracker/graph_unittest.cc",
     "importers/memory_tracker/raw_process_memory_node_unittest.cc",
     "importers/proto/args_table_utils_unittest.cc",
+    "importers/proto/async_track_set_tracker_unittest.cc",
     "importers/proto/heap_graph_tracker_unittest.cc",
     "importers/proto/heap_profile_tracker_unittest.cc",
     "importers/proto/proto_trace_parser_unittest.cc",
