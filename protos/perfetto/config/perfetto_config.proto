@@ -373,6 +373,13 @@ message FtraceConfig {
   // kptr_restrict has been manually lowered.
   // It does not disclose KASLR, symbol addresses are mangled.
   optional bool symbolize_ksyms = 13;
+
+  // By default the kernel symbolizer is lazily initialized on a deferred task
+  // to reduce ftrace's time-to-start-recording. Unfortunately that makes
+  // ksyms integration tests hard. This flag forces the kernel symbolizer to be
+  // initialized synchronously on the data source start and hence avoiding
+  // timing races in tests.
+  optional bool initialize_ksyms_synchronously_for_testing = 14;
 }
 
 // End of protos/perfetto/config/ftrace/ftrace_config.proto

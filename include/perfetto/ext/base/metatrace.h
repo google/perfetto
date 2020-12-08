@@ -26,7 +26,6 @@
 #include "perfetto/base/thread_utils.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/metatrace_events.h"
-#include "perfetto/ext/base/thread_annotations.h"
 #include "perfetto/ext/base/utils.h"
 
 // A facility to trace execution of the perfetto codebase itself.
@@ -143,7 +142,7 @@ struct Record {
     // Only one of the two elements can be zero initialized, clang complains
     // about "initializing multiple members of union" otherwise.
     uint32_t duration_ns = 0;  // If type == event.
-    int32_t counter_value;  // If type == counter.
+    int32_t counter_value;     // If type == counter.
   };
 };
 
