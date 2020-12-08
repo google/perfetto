@@ -135,7 +135,7 @@ int CloseFile(int fd) {
   return close(fd);
 }
 
-ScopedFile OpenFile(const std::string& path, int flags, mode_t mode) {
+ScopedFile OpenFile(const std::string& path, int flags, FileOpenMode mode) {
   PERFETTO_DCHECK((flags & O_CREAT) == 0 || mode != kFileModeInvalid);
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   // Always use O_BINARY on Windows, to avoid silly EOL translations.
