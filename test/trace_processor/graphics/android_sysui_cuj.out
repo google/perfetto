@@ -33,7 +33,8 @@ android_sysui_cuj {
   frames {
     number: 6
     ts: 100000000
-    dur: 15000000
+    dur: 22000000
+   jank_cause: "GPU completion - long completion time"
   }
   frames {
     number: 7

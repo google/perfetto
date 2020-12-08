@@ -160,14 +160,14 @@ add_frame(
     ts_draw_frame=102_000_000,
     ts_end_draw_frame=104_000_000,
     ts_gpu=108_000_000,
-    ts_end_gpu=110_000_000)
+    ts_end_gpu=115_600_000)
 
 add_render_thread_atrace(
     trace, ts=108_000_000, ts_end=114_000_000, buf="DrawFrame")
 add_gpu_thread_atrace(
     trace,
-    ts=113_500_000,
-    ts_end=115_000_000,
+    ts=121_500_000,
+    ts_end=122_000_000,
     buf="waiting for GPU completion 123")
 
 add_frame(
