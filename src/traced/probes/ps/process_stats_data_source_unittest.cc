@@ -18,6 +18,7 @@
 
 #include <dirent.h>
 
+#include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/temp_file.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/tracing/core/data_source_config.h"
@@ -393,7 +394,7 @@ TEST_F(ProcessStatsDataSourceTest, ProcessStats) {
 
   // Cleanup |fake_proc|. TempDir checks that the directory is empty.
   for (std::string& path : dirs_to_delete)
-    rmdir(path.c_str());
+    base::Rmdir(path);
 }
 
 TEST_F(ProcessStatsDataSourceTest, CacheProcessStats) {
@@ -461,7 +462,7 @@ TEST_F(ProcessStatsDataSourceTest, CacheProcessStats) {
   }
 
   // Cleanup |fake_proc|. TempDir checks that the directory is empty.
-  rmdir(path);
+  base::Rmdir(path);
 }
 
 TEST_F(ProcessStatsDataSourceTest, ThreadTimeInState) {
@@ -649,7 +650,7 @@ TEST_F(ProcessStatsDataSourceTest, ThreadTimeInState) {
   EXPECT_THAT(thread.cpu_freq_full(), true);
 
   for (const std::string& path : dirs_to_delete)
-    rmdir(path.c_str());
+    base::Rmdir(path);
 }
 
 }  // namespace

@@ -19,7 +19,7 @@
 #include "perfetto/base/build_config.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-#include <corecrt_io.h>
+#include <io.h>
 #else
 #include <fcntl.h>
 #include <unistd.h>
