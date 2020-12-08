@@ -26,6 +26,7 @@
 #include <Windows.h>
 #include <direct.h>
 #include <fileapi.h>
+#include <io.h>
 #else
 #include <unistd.h>
 #endif
