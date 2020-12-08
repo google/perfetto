@@ -18,10 +18,11 @@
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/base/build_config.h"
 
+#include <fcntl.h>
+
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <io.h>
 #else
-#include <fcntl.h>
 #include <unistd.h>
 // Double closing of file handles on Windows leads to invocation of the invalid
 // parameter handler or asserts and therefore it cannot be tested, but it can
