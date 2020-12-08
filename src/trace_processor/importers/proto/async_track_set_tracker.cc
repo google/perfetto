@@ -50,25 +50,26 @@ TrackId AsyncTrackSetTracker::Begin(TrackSetId id,
   PERFETTO_DCHECK(id < track_sets_.size());
 
   TrackSet& set = track_sets_[id];
+
   auto it = std::find_if(
       set.tracks.begin(), set.tracks.end(),
       [cookie](const TrackState& state) { return state.cookie == cookie; });
-  if (it == set.tracks.end()) {
-    TrackState& state = set.tracks[GetOrCreateEmptyTrack(set, cookie)];
-    PERFETTO_DCHECK(state.nest_count == 0);
-    state.nest_count = 1;
-    return state.id;
-  }
+  TrackState& state = it == set.tracks.end()
+                          ? set.tracks[GetOrCreateEmptyTrack(set, cookie)]
+                          : *it;
+  PERFETTO_DCHECK(it != set.tracks.end() || state.nest_count == 0);
 
   switch (nest) {
     case NestingBehaviour::kLegacySaturatingUnnestable:
-      PERFETTO_DCHECK(it->nest_count <= 1);
+      PERFETTO_DCHECK(state.nest_count <= 1);
+      state.nest_count = 1;
       break;
     case NestingBehaviour::kUnnestable:
-      PERFETTO_DCHECK(it->nest_count == 0);
+      PERFETTO_DCHECK(state.nest_count == 0);
+      state.nest_count++;
       break;
   }
-  return it->id;
+  return state.id;
 }
 
 TrackId AsyncTrackSetTracker::End(TrackSetId id, int64_t cookie) {
@@ -80,6 +81,16 @@ TrackId AsyncTrackSetTracker::End(TrackSetId id, int64_t cookie) {
       [cookie](const TrackState& state) { return state.cookie == cookie; });
   if (it == set.tracks.end())
     return set.tracks[GetOrCreateEmptyTrack(set, cookie)].id;
+
+  // It's possible to have a nest count of 0 even when we know about the track.
+  // Suppose the following sequence of events for some |id| and |cookie|:
+  //   Begin
+  //   (trace starts)
+  //   Begin
+  //   End
+  //   End <- nest count == 0 here even though we have a record of this track.
+  if (it->nest_count > 0)
+    it->nest_count--;
   return it->id;
 }
 

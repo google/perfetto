@@ -7480,6 +7480,7 @@ filegroup {
     "src/trace_processor/importers/memory_tracker/graph_unittest.cc",
     "src/trace_processor/importers/memory_tracker/raw_process_memory_node_unittest.cc",
     "src/trace_processor/importers/proto/args_table_utils_unittest.cc",
+    "src/trace_processor/importers/proto/async_track_set_tracker_unittest.cc",
     "src/trace_processor/importers/proto/heap_graph_tracker_unittest.cc",
     "src/trace_processor/importers/proto/heap_profile_tracker_unittest.cc",
     "src/trace_processor/importers/proto/proto_trace_parser_unittest.cc",
