@@ -24,3 +24,4 @@
 
 # RAIL modes.
 combined_rail_modes.py combined_rail_modes.sql combined_rail_modes.out
+cpu_time_by_combined_rail_mode.py cpu_time_by_combined_rail_mode.sql cpu_time_by_combined_rail_mode.out
