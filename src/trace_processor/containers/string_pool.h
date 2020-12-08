@@ -20,9 +20,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <limits>
 #include <unordered_map>
 #include <vector>
-#include <limits>
 
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/paged_memory.h"

@@ -51,6 +51,8 @@ class AsyncTrackSetTrackerUnittest;
 //  } else {
 //    ... (same thing with end)
 //  }
+// Alternatively, instead of Begin/End, Scoped can also be called if supported
+// by the track type.
 class AsyncTrackSetTracker {
  public:
   using TrackSetId = uint32_t;
@@ -60,6 +62,7 @@ class AsyncTrackSetTracker {
 
   // Interns a set of Android async slice tracks associated with the given
   // upid and name.
+  // Scoped is *not* supported for this track set type.
   TrackSetId InternAndroidSet(UniquePid, StringId name);
 
   // Starts a new slice on the given async track set which has the given cookie.
@@ -67,6 +70,13 @@ class AsyncTrackSetTracker {
 
   // Ends a new slice on the given async track set which has the given cookie.
   TrackId End(TrackSetId id, int64_t cookie);
+
+  // Creates a scoped slice on the given async track set.
+  // This method makes sure that any other slice in this track set does
+  // not happen simultaneously on the returned track.
+  // Only supported on selected track set types; read the documentation for
+  // the Intern* method for your track type to check if supported.
+  TrackId Scoped(TrackSetId id, int64_t ts, int64_t dur);
 
  private:
   friend class AsyncTrackSetTrackerUnittest;
@@ -104,8 +114,20 @@ class AsyncTrackSetTracker {
 
   struct TrackState {
     TrackId id;
+
+    enum class SliceType { kCookie, kTimestamp };
+    SliceType slice_type;
+
+    union {
+      // Only valid for |slice_type| == |SliceType::kCookie|.
+      int64_t cookie;
+
+      // Only valid for |slice_type| == |SliceType::kTimestamp|.
+      int64_t ts_end;
+    };
+
+    // Only used for |slice_type| == |SliceType::kCookie|.
     uint32_t nest_count;
-    int64_t cookie;
   };
 
   struct TrackSet {

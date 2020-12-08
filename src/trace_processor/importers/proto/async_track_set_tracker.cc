@@ -82,22 +82,50 @@ TrackId AsyncTrackSetTracker::End(TrackSetId id, int64_t cookie) {
   return state.id;
 }
 
+TrackId AsyncTrackSetTracker::Scoped(TrackSetId id, int64_t ts, int64_t dur) {
+  PERFETTO_DCHECK(id < track_sets_.size());
+
+  TrackSet& set = track_sets_[id];
+  PERFETTO_DCHECK(set.nesting_behaviour == NestingBehaviour::kUnnestable);
+
+  auto it = std::find_if(
+      set.tracks.begin(), set.tracks.end(), [ts](const TrackState& state) {
+        return state.slice_type == TrackState::SliceType::kTimestamp &&
+               state.ts_end <= ts;
+      });
+  if (it != set.tracks.end())
+    return it->id;
+
+  TrackState state;
+  state.slice_type = TrackState::SliceType::kTimestamp;
+  state.ts_end = ts + dur;
+  state.id = CreateTrackForSet(set);
+  set.tracks.emplace_back(state);
+
+  return state.id;
+}
+
 AsyncTrackSetTracker::TrackState&
 AsyncTrackSetTracker::GetOrCreateTrackForCookie(TrackSet& set, int64_t cookie) {
   auto it = std::find_if(
-      set.tracks.begin(), set.tracks.end(),
-      [cookie](const TrackState& state) { return state.cookie == cookie; });
+      set.tracks.begin(), set.tracks.end(), [cookie](const TrackState& state) {
+        return state.slice_type == TrackState::SliceType::kCookie &&
+               state.cookie == cookie;
+      });
   if (it != set.tracks.end())
     return *it;
 
   it = std::find_if(
-      set.tracks.begin(), set.tracks.end(),
-      [](const TrackState& state) { return state.nest_count == 0; });
+      set.tracks.begin(), set.tracks.end(), [](const TrackState& state) {
+        return state.slice_type == TrackState::SliceType::kCookie &&
+               state.nest_count == 0;
+      });
   if (it != set.tracks.end())
     return *it;
 
   TrackState state;
   state.id = CreateTrackForSet(set);
+  state.slice_type = TrackState::SliceType::kCookie;
   state.cookie = cookie;
   state.nest_count = 0;
   set.tracks.emplace_back(state);
