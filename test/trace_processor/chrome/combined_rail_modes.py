@@ -22,23 +22,23 @@ trace = synth_common.create_trace()
 track1 = 1234
 track2 = 4567
 
-trace.add_track_descriptor(track1, "Renderer Thread 1", pid=0, tid=1)
-trace.add_track_descriptor(track2, "Renderer Thread 2", pid=2, tid=3)
+trace.add_process_track_descriptor(track1, pid=0)
+trace.add_process_track_descriptor(track2, pid=2)
 
 trace.add_rail_mode_slice(
-    ts=0, dur=10, track=track1, mode=synth_common.RAIL_MODE_RESPONSE)
+    ts=0, dur=10000, track=track1, mode=synth_common.RAIL_MODE_RESPONSE)
 trace.add_rail_mode_slice(
-    ts=10, dur=20, track=track1, mode=synth_common.RAIL_MODE_LOAD)
+    ts=10000, dur=20000, track=track1, mode=synth_common.RAIL_MODE_LOAD)
 trace.add_rail_mode_slice(
-    ts=30, dur=-1, track=track1, mode=synth_common.RAIL_MODE_IDLE)
+    ts=30000, dur=-1, track=track1, mode=synth_common.RAIL_MODE_IDLE)
 
 trace.add_rail_mode_slice(
-    ts=0, dur=10, track=track2, mode=synth_common.RAIL_MODE_ANIMATION)
+    ts=0, dur=10000, track=track2, mode=synth_common.RAIL_MODE_ANIMATION)
 trace.add_rail_mode_slice(
-    ts=10, dur=25, track=track2, mode=synth_common.RAIL_MODE_IDLE)
+    ts=10000, dur=25000, track=track2, mode=synth_common.RAIL_MODE_IDLE)
 trace.add_rail_mode_slice(
-    ts=25, dur=10, track=track2, mode=synth_common.RAIL_MODE_ANIMATION)
+    ts=25000, dur=10000, track=track2, mode=synth_common.RAIL_MODE_ANIMATION)
 trace.add_rail_mode_slice(
-    ts=35, dur=10, track=track2, mode=synth_common.RAIL_MODE_IDLE)
+    ts=35000, dur=10000, track=track2, mode=synth_common.RAIL_MODE_IDLE)
 
 sys.stdout.buffer.write(trace.trace.SerializeToString())
