@@ -16,9 +16,6 @@
 
 #include "src/traced/probes/common/cpu_freq_info_for_testing.h"
 
-#include <dirent.h>
-#include <sys/stat.h>
-
 #include <algorithm>
 #include <memory>
 
@@ -65,10 +62,10 @@ CpuFreqInfoForTesting::CpuFreqInfoForTesting()
 
 CpuFreqInfoForTesting::~CpuFreqInfoForTesting() {
   for (auto path : files_to_remove_)
-    RmFile(path);
+    PERFETTO_CHECK(remove(AbsolutePath(path).c_str()) == 0);
   std::reverse(dirs_to_remove_.begin(), dirs_to_remove_.end());
   for (auto path : dirs_to_remove_)
-    RmDir(path);
+    base::Rmdir(AbsolutePath(path));
 }
 
 std::unique_ptr<CpuFreqInfo> CpuFreqInfoForTesting::GetInstance() {
@@ -77,7 +74,7 @@ std::unique_ptr<CpuFreqInfo> CpuFreqInfoForTesting::GetInstance() {
 
 void CpuFreqInfoForTesting::AddDir(std::string path) {
   dirs_to_remove_.push_back(path);
-  mkdir(AbsolutePath(path).c_str(), 0755);
+  base::Mkdir(AbsolutePath(path).c_str());
 }
 
 void CpuFreqInfoForTesting::AddFile(std::string path, std::string content) {
@@ -86,14 +83,6 @@ void CpuFreqInfoForTesting::AddFile(std::string path, std::string content) {
       base::OpenFile(AbsolutePath(path), O_WRONLY | O_CREAT | O_TRUNC, 0600));
   PERFETTO_CHECK(base::WriteAll(fd.get(), content.c_str(), content.size()) ==
                  static_cast<ssize_t>(content.size()));
-}
-
-void CpuFreqInfoForTesting::RmDir(std::string path) {
-  PERFETTO_CHECK(rmdir(AbsolutePath(path).c_str()) == 0);
-}
-
-void CpuFreqInfoForTesting::RmFile(std::string path) {
-  PERFETTO_CHECK(remove(AbsolutePath(path).c_str()) == 0);
 }
 
 std::string CpuFreqInfoForTesting::AbsolutePath(std::string path) {

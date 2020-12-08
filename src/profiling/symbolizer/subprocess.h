@@ -24,6 +24,8 @@
 #include "perfetto/base/build_config.h"
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#include <sys/types.h>
+#include <unistd.h>
 #include "perfetto/ext/base/pipe.h"
 #endif
 

@@ -20,6 +20,7 @@
 #include <type_traits>
 
 #include <errno.h>
+#include <fcntl.h>
 #include <inttypes.h>
 #include <sys/mman.h>
 #include <sys/stat.h>

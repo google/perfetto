@@ -18,6 +18,7 @@
 #define SRC_PROFILING_COMMON_PROFILER_GUARDRAILS_H_
 
 #include <inttypes.h>
+#include <unistd.h>
 
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/optional.h"

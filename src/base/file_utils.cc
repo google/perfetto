@@ -17,6 +17,7 @@
 #include "perfetto/ext/base/file_utils.h"
 
 #include <sys/stat.h>
+#include <sys/types.h>
 
 #include <algorithm>
 
@@ -25,18 +26,27 @@
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/utils.h"
 
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) || \
-    PERFETTO_BUILDFLAG(PERFETTO_COMPILER_GCC)
-#include <unistd.h>
-#else
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#include <Windows.h>
 #include <direct.h>
 #include <io.h>
+#else
+#include <dirent.h>
+#include <unistd.h>
 #endif
 
 namespace perfetto {
 namespace base {
 namespace {
 constexpr size_t kBufSize = 2048;
+}
+
+ssize_t Read(int fd, void* dst, size_t dst_size) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  return _read(fd, dst, static_cast<unsigned>(dst_size));
+#else
+  return PERFETTO_EINTR(read(fd, dst, dst_size));
+#endif
 }
 
 bool ReadFileDescriptor(int fd, std::string* out) {
@@ -54,7 +64,7 @@ bool ReadFileDescriptor(int fd, std::string* out) {
     if (out->size() < i + kBufSize)
       out->resize(out->size() + kBufSize);
 
-    bytes_read = PERFETTO_EINTR(read(fd, &((*out)[i]), kBufSize));
+    bytes_read = Read(fd, &((*out)[i]), kBufSize);
     if (bytes_read > 0) {
       i += static_cast<size_t>(bytes_read);
     } else {
@@ -110,6 +120,38 @@ bool Mkdir(const std::string& path) {
   return _mkdir(path.c_str()) == 0;
 #else
   return mkdir(path.c_str(), 0755) == 0;
+#endif
+}
+
+bool Rmdir(const std::string& path) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  return _rmdir(path.c_str()) == 0;
+#else
+  return rmdir(path.c_str()) == 0;
+#endif
+}
+
+int CloseFile(int fd) {
+  return close(fd);
+}
+
+ScopedFile OpenFile(const std::string& path, int flags, mode_t mode) {
+  PERFETTO_DCHECK((flags & O_CREAT) == 0 || mode != kFileModeInvalid);
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  // Always use O_BINARY on Windows, to avoid silly EOL translations.
+  ScopedFile fd(_open(path.c_str(), flags | O_BINARY, mode));
+#else
+  // Always open a ScopedFile with O_CLOEXEC so we can safely fork and exec.
+  ScopedFile fd(open(path.c_str(), flags | O_CLOEXEC, mode));
+#endif
+  return fd;
+}
+
+bool FileExists(const std::string& path) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  return _access(path.c_str(), 0) == 0;
+#else
+  return access(path.c_str(), F_OK) == 0;
 #endif
 }
 

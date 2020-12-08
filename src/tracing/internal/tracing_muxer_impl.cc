@@ -44,6 +44,10 @@
 
 #include "protos/perfetto/config/interceptor_config.gen.h"
 
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#include <unistd.h>  // For dup()
+#endif
+
 namespace perfetto {
 namespace internal {
 
@@ -443,8 +447,14 @@ void TracingMuxerImpl::TracingSessionImpl::Setup(const TraceConfig& cfg,
   auto session_id = session_id_;
   std::shared_ptr<TraceConfig> trace_config(new TraceConfig(cfg));
   if (fd >= 0) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+    PERFETTO_FATAL(
+        "Passing a file descriptor to TracingSession::Setup() is not supported "
+        "on Windows yet. Use TracingSession::ReadTrace() instead");
+#else
     trace_config->set_write_into_file(true);
     fd = dup(fd);
+#endif
   }
   muxer->task_runner_->PostTask([muxer, session_id, trace_config, fd] {
     muxer->SetupTracingSession(session_id, trace_config, base::ScopedFile(fd));

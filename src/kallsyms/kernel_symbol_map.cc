@@ -16,7 +16,9 @@
 
 #include "src/kallsyms/kernel_symbol_map.h"
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/metatrace.h"
 #include "perfetto/ext/base/paged_memory.h"
 #include "perfetto/ext/base/scoped_file.h"
@@ -75,7 +77,7 @@ void ForEachSym(const std::string& kallsyms_path, Lambda fn) {
   size_t sym_name_len = 0;
   for (;;) {
     char* buf = static_cast<char*>(buffer.Get());
-    auto rsize = PERFETTO_EINTR(read(*fd, buf, kBufSize));
+    auto rsize = base::Read(*fd, buf, kBufSize);
     if (rsize < 0) {
       PERFETTO_PLOG("read(%s) failed", kallsyms_path.c_str());
       return;
