@@ -25,7 +25,7 @@ export class CpuProfileDetailsPanel extends Panel<CpuProfileDetailsPanelAttrs> {
     const sampleDetails = globals.cpuProfileDetails;
     const header =
         m('.details-panel-heading', m('h2', `CPU Profile Sample Details`));
-    if (!sampleDetails || !sampleDetails.id) {
+    if (!sampleDetails || sampleDetails.id === undefined) {
       return m('.details-panel', header);
     }
 
