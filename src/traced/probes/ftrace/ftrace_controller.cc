@@ -395,11 +395,15 @@ bool FtraceController::StartDataSource(FtraceDataSource* data_source) {
   // strictly required here but is to avoid hitting the parsing cost while
   // processing the first ftrace event batch in CpuReader.
   if (data_source->config().symbolize_ksyms()) {
-    auto weak_this = weak_factory_.GetWeakPtr();
-    task_runner_->PostTask([weak_this] {
-      if (weak_this)
-        weak_this->symbolizer_->GetOrCreateKernelSymbolMap();
-    });
+    if (data_source->config().initialize_ksyms_synchronously_for_testing()) {
+      symbolizer_->GetOrCreateKernelSymbolMap();
+    } else {
+      auto weak_this = weak_factory_.GetWeakPtr();
+      task_runner_->PostTask([weak_this] {
+        if (weak_this)
+          weak_this->symbolizer_->GetOrCreateKernelSymbolMap();
+      });
+    }
   }
 
   return true;
