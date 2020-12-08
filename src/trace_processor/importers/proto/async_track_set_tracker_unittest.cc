@@ -104,6 +104,41 @@ TEST_F(AsyncTrackSetTrackerUnittest, UnnestableMultipleEndAfterBegin) {
   ASSERT_EQ(end, end_2);
 }
 
+TEST_F(AsyncTrackSetTrackerUnittest, OnlyScoped) {
+  TrackId a = tracker_->Scoped(unnestable_id_, 100, 10);
+  TrackId b = tracker_->Scoped(unnestable_id_, 105, 2);
+  TrackId c = tracker_->Scoped(unnestable_id_, 107, 3);
+  TrackId d = tracker_->Scoped(unnestable_id_, 110, 5);
+
+  ASSERT_NE(a, b);
+  ASSERT_EQ(b, c);
+  ASSERT_EQ(a, d);
+}
+
+TEST_F(AsyncTrackSetTrackerUnittest, MixScopedAndBeginEnd) {
+  TrackId a = tracker_->Scoped(unnestable_id_, 100, 10);
+
+  TrackId begin = tracker_->Begin(unnestable_id_, 777);
+  TrackId end = tracker_->End(unnestable_id_, 777);
+
+  TrackId b = tracker_->Scoped(unnestable_id_, 105, 2);
+
+  ASSERT_NE(a, begin);
+  ASSERT_NE(b, begin);
+  ASSERT_EQ(begin, end);
+}
+
+TEST_F(AsyncTrackSetTrackerUnittest, DifferentTracks) {
+  TrackId b1 = tracker_->Begin(unnestable_id_, 666);
+  TrackId b2 = tracker_->Begin(legacy_unnestable_id_, 777);
+  TrackId e1 = tracker_->End(unnestable_id_, 666);
+  TrackId e2 = tracker_->End(legacy_unnestable_id_, 777);
+
+  ASSERT_EQ(b1, e1);
+  ASSERT_EQ(b2, e2);
+  ASSERT_NE(b1, b2);
+}
+
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto

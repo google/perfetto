@@ -38,6 +38,7 @@ struct BaseId {
   explicit constexpr BaseId(uint32_t v) : value(v) {}
 
   bool operator==(const BaseId& o) const { return o.value == value; }
+  bool operator!=(const BaseId& o) const { return !(*this == o); }
   bool operator<(const BaseId& o) const { return value < o.value; }
 
   uint32_t value;
