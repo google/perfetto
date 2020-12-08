@@ -76,7 +76,7 @@ class PERFETTO_EXPORT ScopedResource {
 };
 
 // Declared in file_utils.h. Forward declared to avoid #include cycles.
-int CloseFile(int fd);
+int PERFETTO_EXPORT CloseFile(int fd);
 
 using ScopedFile = ScopedResource<int, CloseFile, -1>;
 
