@@ -101,13 +101,15 @@ CREATE TABLE IF NOT EXISTS android_sysui_cuj_frames AS
     SELECT
       gcs.ts as gcs_ts,
       gcs.ts_end as gcs_ts_end,
+      gcs.dur as gcs_dur,
+      gcs.idx as idx,
       MAX(rts.ts) as rts_ts
     FROM android_sysui_cuj_gpu_completion_slices gcs
     JOIN android_sysui_cuj_render_thread_slices rts ON rts.ts < gcs.ts
     -- dispatchFrameCallbacks might be seen in case of
     -- drawing that happens on RT only (e.g. ripple effect)
     WHERE (rts.name = 'DrawFrame' OR rts.name = 'dispatchFrameCallbacks')
-    GROUP BY gcs.ts, gcs.ts_end
+    GROUP BY gcs.ts, gcs.ts_end, gcs.dur, gcs.idx
   ),
   frame_boundaries AS (
     -- Match main thread doFrame with RT DrawFrame and optional GPU Completion
@@ -133,7 +135,8 @@ CREATE TABLE IF NOT EXISTS android_sysui_cuj_frames AS
     MAX(rts.ts_end) AS ts_render_thread_end,
     SUM(rts.dur) AS dur_render_thread,
     MAX(gcs_rt.gcs_ts_end) AS ts_frame_end,
-    (MAX(gcs_rt.gcs_ts_end) - f.mts_ts) AS dur_frame,
+    MAX(gcs_rt.gcs_ts_end) - f.mts_ts AS dur_frame,
+    SUM(gcs_rt.gcs_ts_end - MAX(COALESCE(hwc.ts_end, 0), gcs_rt.gcs_ts)) as dur_gcs,
     COUNT(DISTINCT(rts.ts)) as draw_frames,
     COUNT(DISTINCT(gcs_rt.gcs_ts)) as gpu_completions
   FROM frame_boundaries f
@@ -141,6 +144,7 @@ CREATE TABLE IF NOT EXISTS android_sysui_cuj_frames AS
     ON f.mts_ts < rts.ts AND f.mts_ts_end >= rts.ts
   LEFT JOIN gcs_to_rt_match gcs_rt
     ON rts.ts = gcs_rt.rts_ts
+  LEFT JOIN android_sysui_cuj_hwc_release_slices hwc USING (idx)
   WHERE rts.name = 'DrawFrame'
   GROUP BY f.mts_ts
   HAVING gpu_completions >= 1;
@@ -261,9 +265,7 @@ CREATE TABLE IF NOT EXISTS android_sysui_cuj_jank_causes AS
   frame_number,
   'GPU completion - long completion time' AS jank_cause
   FROM android_sysui_cuj_frames f
-  JOIN android_sysui_cuj_gpu_completion_slices gpu ON gpu.ts_end = f.ts_frame_end
-  LEFT JOIN android_sysui_cuj_hwc_release_slices hwc USING (idx)
-  WHERE (gpu.ts_end - MAX(COALESCE(hwc.ts_end, 0), gpu.ts)) > 8000000
+  WHERE dur_gcs > 8000000
 
   UNION ALL
   SELECT
