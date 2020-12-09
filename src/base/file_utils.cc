@@ -23,6 +23,7 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/base/platform_handle.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/utils.h"
 
@@ -152,6 +153,16 @@ bool FileExists(const std::string& path) {
   return _access(path.c_str(), 0) == 0;
 #else
   return access(path.c_str(), F_OK) == 0;
+#endif
+}
+
+// Declared in base/platform_handle.h.
+int ClosePlatformHandle(PlatformHandle handle) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  // Make the return value UNIX-style.
+  return CloseHandle(handle) ? 0 : -1;
+#else
+  return close(handle);
 #endif
 }
 
