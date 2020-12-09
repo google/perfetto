@@ -29,6 +29,7 @@
 
 #include "perfetto/base/export.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/base/platform_handle.h"
 
 namespace perfetto {
 namespace base {
@@ -78,7 +79,13 @@ class PERFETTO_EXPORT ScopedResource {
 // Declared in file_utils.h. Forward declared to avoid #include cycles.
 int PERFETTO_EXPORT CloseFile(int fd);
 
+// Use this for file resources obtained via open() and similar APIs.
 using ScopedFile = ScopedResource<int, CloseFile, -1>;
+
+// Use this for resources that are HANDLE on Windows. See comments in
+// platform_handle.h
+using ScopedPlatformHandle =
+    ScopedResource<PlatformHandle, ClosePlatformHandle, InvalidPlatformHandle>;
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 using ScopedDir = ScopedResource<DIR*, closedir, nullptr>;
