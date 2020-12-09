@@ -125,7 +125,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     // threads, in which case it has to use absolute values on a different
     // track_uuid. Right now these absolute values are imported onto a separate
     // counter track than the other thread's regular thread time values.)
-    if (name_id == kNullStringId) {
+    if (name_id.is_null()) {
       switch (counter.type()) {
         case CounterDescriptor::COUNTER_UNSPECIFIED:
           break;

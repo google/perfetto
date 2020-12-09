@@ -157,9 +157,9 @@ class TrackEventParser::EventImporter {
 
     // TODO(eseckler): Replace phase with type and remove handling of
     // legacy_event_.phase() once it is no longer used by producers.
-    int32_t phase = ParsePhaseOrType();
+    char phase = static_cast<char>(ParsePhaseOrType());
 
-    switch (static_cast<char>(phase)) {
+    switch (phase) {
       case 'B':  // TRACE_EVENT_PHASE_BEGIN.
         return ParseThreadBeginEvent();
       case 'E':  // TRACE_EVENT_PHASE_END.
@@ -167,11 +167,9 @@ class TrackEventParser::EventImporter {
       case 'X':  // TRACE_EVENT_PHASE_COMPLETE.
         return ParseThreadCompleteEvent();
       case 's':  // TRACE_EVENT_PHASE_FLOW_BEGIN.
-        return ParseFlowEventV1('s');
       case 't':  // TRACE_EVENT_PHASE_FLOW_STEP.
-        return ParseFlowEventV1('t');
       case 'f':  // TRACE_EVENT_PHASE_FLOW_END.
-        return ParseFlowEventV1('f');
+        return ParseFlowEventV1(phase);
       case 'i':
       case 'I':  // TRACE_EVENT_PHASE_INSTANT.
         return ParseThreadInstantEvent();
