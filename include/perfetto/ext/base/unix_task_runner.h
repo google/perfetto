@@ -25,12 +25,15 @@
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/thread_checker.h"
 
-#include <poll.h>
 #include <chrono>
 #include <deque>
 #include <map>
 #include <mutex>
 #include <vector>
+
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#include <poll.h>
+#endif
 
 namespace perfetto {
 namespace base {
@@ -50,6 +53,8 @@ namespace base {
 //
 // TODO(rsavitski): consider adding a thread-check in the destructor, after
 // auditing existing usages.
+// TODO(primiano): rename this to TaskRunnerImpl. The "Unix" part is misleading
+// now as it supports also Windows.
 class UnixTaskRunner : public TaskRunner {
  public:
   UnixTaskRunner();
@@ -67,8 +72,8 @@ class UnixTaskRunner : public TaskRunner {
   // TaskRunner implementation:
   void PostTask(std::function<void()>) override;
   void PostDelayedTask(std::function<void()>, uint32_t delay_ms) override;
-  void AddFileDescriptorWatch(int fd, std::function<void()>) override;
-  void RemoveFileDescriptorWatch(int fd) override;
+  void AddFileDescriptorWatch(PlatformHandle, std::function<void()>) override;
+  void RemoveFileDescriptorWatch(PlatformHandle) override;
   bool RunsTasksOnCurrentThread() const override;
 
   // Returns true if the task runner is quitting, or has quit and hasn't been
@@ -78,22 +83,23 @@ class UnixTaskRunner : public TaskRunner {
 
  private:
   void WakeUp();
-
   void UpdateWatchTasksLocked();
-
   int GetDelayMsToNextTaskLocked() const;
   void RunImmediateAndDelayedTask();
-  void PostFileDescriptorWatches();
-  void RunFileDescriptorWatch(int fd);
+  void PostFileDescriptorWatches(uint64_t windows_wait_result);
+  void RunFileDescriptorWatch(PlatformHandle);
 
   ThreadChecker thread_checker_;
   PlatformThreadId created_thread_id_ = GetThreadId();
 
-  // On Linux, an eventfd(2) used to waking up the task runner when a new task
-  // is posted. Otherwise the read end of a pipe used for the same purpose.
   EventFd event_;
 
+// The array of fds/handles passed to poll(2) / WaitForMultipleObjects().
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  std::vector<PlatformHandle> poll_fds_;
+#else
   std::vector<struct pollfd> poll_fds_;
+#endif
 
   // --- Begin lock-protected members ---
 
@@ -105,10 +111,17 @@ class UnixTaskRunner : public TaskRunner {
 
   struct WatchTask {
     std::function<void()> callback;
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+    // On UNIX systems we make the FD number negative in |poll_fds_| to avoid
+    // polling it again until the queued task runs. On Windows we can't do that.
+    // Instead we keep track of its state here.
+    bool pending = false;
+#else
     size_t poll_fd_index;  // Index into |poll_fds_|.
+#endif
   };
 
-  std::map<int, WatchTask> watch_tasks_;
+  std::map<PlatformHandle, WatchTask> watch_tasks_;
   bool watch_tasks_changed_ = false;
 
   // --- End lock-protected members ---

@@ -15,67 +15,96 @@
  */
 
 #include "perfetto/base/build_config.h"
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 
+#include <errno.h>
 #include <stdint.h>
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#include <Windows.h>
+#include <synchapi.h>
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#include <sys/eventfd.h>
 #include <unistd.h>
+#else  // Mac, Fuchsia and other non-Linux UNIXes
+#include <unistd.h>
+#endif
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/event_fd.h"
 #include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/utils.h"
 
-#if PERFETTO_USE_EVENTFD()
-#include <sys/eventfd.h>
-#endif
-
 namespace perfetto {
 namespace base {
 
-EventFd::EventFd() {
-#if PERFETTO_USE_EVENTFD()
-  fd_.reset(eventfd(/* start value */ 0, EFD_CLOEXEC | EFD_NONBLOCK));
-  PERFETTO_CHECK(fd_);
-#else
-  // Make the pipe non-blocking so that we never block the waking thread (either
-  // the main thread or another one) when scheduling a wake-up.
-  Pipe pipe = Pipe::Create(Pipe::kBothNonBlock);
-  fd_ = std::move(pipe.rd);
-  write_fd_ = std::move(pipe.wr);
-#endif  // !PERFETTO_USE_EVENTFD()
-}
-
 EventFd::~EventFd() = default;
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+EventFd::EventFd() {
+  event_handle_.reset(
+      CreateEventA(/*lpEventAttributes=*/nullptr, /*bManualReset=*/true,
+                   /*bInitialState=*/false, /*bInitialState=*/nullptr));
+}
+
 void EventFd::Notify() {
-  const uint64_t value = 1;
-
-#if PERFETTO_USE_EVENTFD()
-  ssize_t ret = write(fd_.get(), &value, sizeof(value));
-#else
-  ssize_t ret = write(write_fd_.get(), &value, sizeof(uint8_t));
-#endif
-
-  if (ret <= 0 && errno != EAGAIN) {
-    PERFETTO_DFATAL("write()");
-  }
+  if (!SetEvent(event_handle_.get()))  // 0: fail, !0: success, unlike UNIX.
+    PERFETTO_DFATAL("EventFd::Notify()");
 }
 
 void EventFd::Clear() {
-#if PERFETTO_USE_EVENTFD()
+  if (!ResetEvent(event_handle_.get()))  // 0: fail, !0: success, unlike UNIX.
+    PERFETTO_DFATAL("EventFd::Clear()");
+}
+
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+
+EventFd::EventFd() {
+  event_handle_.reset(eventfd(/*initval=*/0, EFD_CLOEXEC | EFD_NONBLOCK));
+  PERFETTO_CHECK(event_handle_);
+}
+
+void EventFd::Notify() {
+  const uint64_t value = 1;
+  ssize_t ret = write(event_handle_.get(), &value, sizeof(value));
+  if (ret <= 0 && errno != EAGAIN)
+    PERFETTO_DFATAL("EventFd::Notify()");
+}
+
+void EventFd::Clear() {
   uint64_t value;
-  ssize_t ret = read(fd_.get(), &value, sizeof(value));
+  ssize_t ret = read(event_handle_.get(), &value, sizeof(value));
+  if (ret <= 0 && errno != EAGAIN)
+    PERFETTO_DFATAL("EventFd::Clear()");
+}
+
 #else
+
+EventFd::EventFd() {
+  // Make the pipe non-blocking so that we never block the waking thread (either
+  // the main thread or another one) when scheduling a wake-up.
+  Pipe pipe = Pipe::Create(Pipe::kBothNonBlock);
+  event_handle_ = ScopedPlatformHandle(std::move(pipe.rd).release());
+  write_fd_ = std::move(pipe.wr);
+}
+
+void EventFd::Notify() {
+  const uint64_t value = 1;
+  ssize_t ret = write(write_fd_.get(), &value, sizeof(uint8_t));
+  if (ret <= 0 && errno != EAGAIN)
+    PERFETTO_DFATAL("EventFd::Notify()");
+}
+
+void EventFd::Clear() {
   // Drain the byte(s) written to the wake-up pipe. We can potentially read
   // more than one byte if several wake-ups have been scheduled.
   char buffer[16];
-  ssize_t ret = read(fd_.get(), &buffer[0], sizeof(buffer));
-#endif
+  ssize_t ret = read(event_handle_.get(), &buffer[0], sizeof(buffer));
   if (ret <= 0 && errno != EAGAIN)
-    PERFETTO_DPLOG("read()");
+    PERFETTO_DFATAL("EventFd::Clear()");
 }
+#endif
 
 }  // namespace base
 }  // namespace perfetto
-
-#endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)

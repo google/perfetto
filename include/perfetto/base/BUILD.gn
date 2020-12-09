@@ -21,6 +21,7 @@ source_set("base") {
     "export.h",
     "flat_set.h",
     "logging.h",
+    "platform_handle.h",
     "proc_utils.h",
     "status.h",
     "task_runner.h",

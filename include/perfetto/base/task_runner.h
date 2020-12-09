@@ -22,6 +22,7 @@
 #include <functional>
 
 #include "perfetto/base/export.h"
+#include "perfetto/base/platform_handle.h"
 
 namespace perfetto {
 namespace base {
@@ -49,18 +50,19 @@ class PERFETTO_EXPORT TaskRunner {
   // called from any thread.
   virtual void PostDelayedTask(std::function<void()>, uint32_t delay_ms) = 0;
 
-  // Schedule a task to run when |fd| becomes readable. The same |fd| can only
-  // be monitored by one function. Note that this function only needs to be
-  // implemented on platforms where the built-in ipc framework is used. Can be
-  // called from any thread.
+  // Schedule a task to run when the handle becomes readable. The same handle
+  // can only be monitored by one function. Note that this function only needs
+  // to be implemented on platforms where the built-in ipc framework is used.
+  // Can be called from any thread.
   // TODO(skyostil): Refactor this out of the shared interface.
-  virtual void AddFileDescriptorWatch(int fd, std::function<void()>) = 0;
+  virtual void AddFileDescriptorWatch(PlatformHandle,
+                                      std::function<void()>) = 0;
 
-  // Remove a previously scheduled watch for |fd|. If this is run on the target
-  // thread of this TaskRunner, guarantees that the task registered to this fd
-  // will not be executed after this function call. Can be called from any
-  // thread.
-  virtual void RemoveFileDescriptorWatch(int fd) = 0;
+  // Remove a previously scheduled watch for the handle. If this is run on the
+  // target thread of this TaskRunner, guarantees that the task registered to
+  // this handle will not be executed after this function call.
+  // Can be called from any thread.
+  virtual void RemoveFileDescriptorWatch(PlatformHandle) = 0;
 
   // Checks if the current thread is the same thread where the TaskRunner's task
   // run. This allows single threaded task runners (like the ones used in

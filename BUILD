@@ -272,6 +272,7 @@ filegroup(
         "include/perfetto/base/export.h",
         "include/perfetto/base/flat_set.h",
         "include/perfetto/base/logging.h",
+        "include/perfetto/base/platform_handle.h",
         "include/perfetto/base/proc_utils.h",
         "include/perfetto/base/status.h",
         "include/perfetto/base/task_runner.h",
