@@ -228,15 +228,6 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
       memset(&client_configuration, 0, sizeof(client_configuration));
     }
 
-    // For ProfilerCpuGuardrails.
-    uint64_t GetCpuGuardrailSecs() { return config.max_heapprofd_cpu_secs(); }
-
-    // For ProfilerCpuGuardrails.
-    base::Optional<uint64_t> GetCpuStartSecs() { return start_cputime_sec; }
-
-    // For CheckDataSourceMemory.
-    uint32_t GetMemoryGuardrailKb() { return config.max_heapprofd_memory_kb(); }
-
     DataSourceInstanceID id;
     std::unique_ptr<TraceWriter> trace_writer;
     HeapprofdConfig config;
@@ -252,7 +243,7 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
     bool hit_guardrail = false;
     bool was_stopped = false;
     uint32_t stop_timeout_ms;
-    base::Optional<uint64_t> start_cputime_sec;
+    GuardrailConfig guardrail_config;
   };
 
   struct PendingProcess {
@@ -340,8 +331,6 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
   base::Optional<std::function<void()>> data_source_callback_;
 
   SocketDelegate socket_delegate_;
-  base::Optional<ProfilerCpuGuardrails> profiler_cpu_guardrails_;
-  base::Optional<ProfilerMemoryGuardrails> profiler_memory_guardrails_;
 
   base::WeakPtrFactory<HeapprofdProducer> weak_factory_;  // Keep last.
 };
