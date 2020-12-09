@@ -22,6 +22,7 @@
 #include <map>
 
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/temp_file.h"
 #include "test/gtest_and_gmock.h"
 
@@ -29,35 +30,8 @@ namespace perfetto {
 namespace profiling {
 namespace {
 
-class StubDataSource {
- public:
-  StubDataSource(uint64_t cpu_guardrails_secs,
-                 uint64_t cpu_start_secs,
-                 uint32_t memory_guardrail_kb)
-      : cpu_guardrails_secs_(cpu_guardrails_secs),
-        cpu_start_secs_(cpu_start_secs),
-        memory_guardrail_kb_(memory_guardrail_kb) {}
-
-  uint64_t GetCpuGuardrailSecs() const { return cpu_guardrails_secs_; }
-
-  base::Optional<uint64_t> GetCpuStartSecs() const { return cpu_start_secs_; }
-
-  uint32_t GetMemoryGuardrailKb() const { return memory_guardrail_kb_; }
-
-  void Delete() { deleted_ = true; }
-  bool deleted() { return deleted_; }
-
- private:
-  uint64_t cpu_guardrails_secs_;
-  uint64_t cpu_start_secs_;
-  uint32_t memory_guardrail_kb_;
-  bool deleted_ = false;
-};
-
 TEST(ProfilerCpuGuardrailsTest, Exceeded) {
   const auto clk = static_cast<unsigned long>(sysconf(_SC_CLK_TCK));
-  StubDataSource ds(5000000 / clk, 1000000 / clk, 0);
-  std::map<int, StubDataSource> ds_map = {{1, std::move(ds)}};
   base::TempFile f = base::TempFile::CreateUnlinked();
   constexpr const char stat[] =
       "2965981 (zsh) S 2965977 2965981 2965981 34822 2966607 4194304 6632 6697 "
@@ -67,18 +41,17 @@ TEST(ProfilerCpuGuardrailsTest, Exceeded) {
       "0 0 0 17 2 0 0 0 0 0 94823961905904 94823961935208 94823993954304 "
       "140722993543678 140722993543691 140722993543691 140722993545195 0";
   base::WriteAll(f.fd(), stat, sizeof(stat));
+  ASSERT_NE(lseek(f.fd(), 0, SEEK_SET), -1);
   ProfilerCpuGuardrails gr(f.ReleaseFD());
-  gr.CheckDataSourceCpu(ds_map.begin(), ds_map.end(),
-                        [](StubDataSource* d) { d->Delete(); });
-  auto it = ds_map.find(1);
-  ASSERT_NE(it, ds_map.end());
-  EXPECT_TRUE(it->second.deleted());
+
+  GuardrailConfig gc;
+  gc.cpu_guardrail_sec = 5000000 / clk;
+  gc.cpu_start_secs = 1000000 / clk;
+  EXPECT_TRUE(gr.IsOverCpuThreshold(gc));
 }
 
 TEST(ProfilerCpuGuardrailsTest, NotExceeded) {
   const auto clk = static_cast<unsigned long>(sysconf(_SC_CLK_TCK));
-  StubDataSource ds(7000000 / clk, 1000000 / clk, 0);
-  std::map<int, StubDataSource> ds_map = {{1, std::move(ds)}};
   base::TempFile f = base::TempFile::CreateUnlinked();
   constexpr const char stat[] =
       "2965981 (zsh) S 2965977 2965981 2965981 34822 2966607 4194304 6632 6697 "
@@ -88,17 +61,16 @@ TEST(ProfilerCpuGuardrailsTest, NotExceeded) {
       "0 0 0 17 2 0 0 0 0 0 94823961905904 94823961935208 94823993954304 "
       "140722993543678 140722993543691 140722993543691 140722993545195 0";
   base::WriteAll(f.fd(), stat, sizeof(stat));
+  ASSERT_NE(lseek(f.fd(), 0, SEEK_SET), -1);
   ProfilerCpuGuardrails gr(f.ReleaseFD());
-  gr.CheckDataSourceCpu(ds_map.begin(), ds_map.end(),
-                        [](StubDataSource* d) { d->Delete(); });
-  auto it = ds_map.find(1);
-  ASSERT_NE(it, ds_map.end());
-  EXPECT_FALSE(it->second.deleted());
+
+  GuardrailConfig gc;
+  gc.cpu_guardrail_sec = 7000000 / clk;
+  gc.cpu_start_secs = 1000000 / clk;
+  EXPECT_FALSE(gr.IsOverCpuThreshold(gc));
 }
 
 TEST(ProfilerMemoryGuardrailsTest, Exceeded) {
-  StubDataSource ds(0, 0, 77);
-  std::map<int, StubDataSource> ds_map = {{1, std::move(ds)}};
   base::TempFile f = base::TempFile::CreateUnlinked();
   constexpr const char status[] =
       "VmPeak:\t    5432 kB\n"
@@ -118,17 +90,15 @@ TEST(ProfilerMemoryGuardrailsTest, Exceeded) {
       "VmSwap:\t       10 kB\n";
 
   base::WriteAll(f.fd(), status, sizeof(status));
+  ASSERT_NE(lseek(f.fd(), 0, SEEK_SET), -1);
   ProfilerMemoryGuardrails gr(f.ReleaseFD());
-  gr.CheckDataSourceMemory(ds_map.begin(), ds_map.end(),
-                           [](StubDataSource* d) { d->Delete(); });
-  auto it = ds_map.find(1);
-  ASSERT_NE(it, ds_map.end());
-  EXPECT_TRUE(it->second.deleted());
+
+  GuardrailConfig gc;
+  gc.memory_guardrail_kb = 77;
+  EXPECT_TRUE(gr.IsOverMemoryThreshold(gc));
 }
 
 TEST(ProfilerMemoryGuardrailsTest, NotExceeded) {
-  StubDataSource ds(0, 0, 100);
-  std::map<int, StubDataSource> ds_map = {{1, std::move(ds)}};
   base::TempFile f = base::TempFile::CreateUnlinked();
   constexpr const char status[] =
       "VmPeak:\t    5432 kB\n"
@@ -148,12 +118,11 @@ TEST(ProfilerMemoryGuardrailsTest, NotExceeded) {
       "VmSwap:\t       10 kB\n";
 
   base::WriteAll(f.fd(), status, sizeof(status));
+  ASSERT_NE(lseek(f.fd(), 0, SEEK_SET), -1);
   ProfilerMemoryGuardrails gr(f.ReleaseFD());
-  gr.CheckDataSourceMemory(ds_map.begin(), ds_map.end(),
-                           [](StubDataSource* d) { d->Delete(); });
-  auto it = ds_map.find(1);
-  ASSERT_NE(it, ds_map.end());
-  EXPECT_FALSE(it->second.deleted());
+  GuardrailConfig gc;
+  gc.memory_guardrail_kb = 100;
+  EXPECT_FALSE(gr.IsOverMemoryThreshold(gc));
 }
 
 }  // namespace
