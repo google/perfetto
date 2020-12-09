@@ -26,6 +26,7 @@ perfetto_component("base") {
     "../../include/perfetto/ext/base",
   ]
   sources = [
+    "event_fd.cc",
     "file_utils.cc",
     "logging.cc",
     "metatrace.cc",
@@ -39,6 +40,7 @@ perfetto_component("base") {
     "temp_file.cc",
     "thread_checker.cc",
     "time.cc",
+    "unix_task_runner.cc",
     "utils.cc",
     "uuid.cc",
     "version.cc",
@@ -49,11 +51,7 @@ perfetto_component("base") {
 
   # TODO(brucedawson): Enable these for Windows when possible.
   if (!is_win && !is_nacl) {
-    sources += [
-      "event_fd.cc",
-      "thread_task_runner.cc",
-      "unix_task_runner.cc",
-    ]
+    sources += [ "thread_task_runner.cc" ]
   }
 
   if (enable_perfetto_stderr_crash_dump) {
@@ -148,7 +146,9 @@ perfetto_unittest_source_set("unittests") {
     "string_view_unittest.cc",
     "string_writer_unittest.cc",
     "subprocess_unittest.cc",
+    "task_runner_unittest.cc",
     "temp_file_unittest.cc",
+    "thread_checker_unittest.cc",
     "time_unittest.cc",
     "utils_unittest.cc",
     "uuid_unittest.cc",
@@ -159,8 +159,6 @@ perfetto_unittest_source_set("unittests") {
   if (!is_win) {
     sources += [
       "metatrace_unittest.cc",
-      "task_runner_unittest.cc",
-      "thread_checker_unittest.cc",
       "thread_task_runner_unittest.cc",
       "watchdog_posix_unittest.cc",
     ]
