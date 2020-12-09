@@ -278,6 +278,19 @@ CREATE TABLE IF NOT EXISTS android_sysui_cuj_jank_causes AS
     AND rts.state = 'Running'
     AND mts.dur + rts.dur > 15000000;
 
+-- TODO(b/175098682): Switch to use async slices
+CREATE VIEW IF NOT EXISTS android_sysui_cuj_event AS
+ SELECT
+    'slice' as track_type,
+    (SELECT slice_name FROM android_sysui_cuj_last_cuj)
+        || ' - jank cause' as track_name,
+    f.ts_main_thread_start as ts,
+    f.dur_main_thread as dur,
+    group_concat(jc.jank_cause) as slice_name
+FROM android_sysui_cuj_frames f
+JOIN android_sysui_cuj_jank_causes jc USING (frame_number)
+GROUP BY track_type, track_name, ts, dur;
+
 CREATE VIEW IF NOT EXISTS android_sysui_cuj_output AS
 SELECT
   AndroidSysUiCujMetrics(

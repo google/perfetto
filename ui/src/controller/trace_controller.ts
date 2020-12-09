@@ -485,7 +485,8 @@ export class TraceController extends Controller<States> {
                  'android_ion',
                  'android_thread_time_in_state',
                  'android_surfaceflinger',
-                 'android_batt']) {
+                 'android_batt',
+                 'android_sysui_cuj']) {
       this.updateStatus(`Computing ${metric} metric`);
       try {
         // We don't care about the actual result of metric here as we are just
