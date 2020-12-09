@@ -40,7 +40,6 @@ perfetto_component("base") {
     "temp_file.cc",
     "thread_checker.cc",
     "time.cc",
-    "unix_task_runner.cc",
     "utils.cc",
     "uuid.cc",
     "version.cc",
@@ -52,6 +51,10 @@ perfetto_component("base") {
   # TODO(brucedawson): Enable these for Windows when possible.
   if (!is_win && !is_nacl) {
     sources += [ "thread_task_runner.cc" ]
+  }
+
+  if (!is_nacl) {
+    sources += [ "unix_task_runner.cc" ]
   }
 
   if (enable_perfetto_stderr_crash_dump) {
