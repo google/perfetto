@@ -59,8 +59,10 @@ class ProtoTraceTokenizer {
       const uint8_t* pos = &partial_buf_[0];
       uint8_t proto_field_tag = *pos;
       uint64_t field_size = 0;
+      // We cannot do &partial_buf_[partial_buf_.size()] because that crashes
+      // on MSVC STL debug builds, so does &*partial_buf_.end().
       const uint8_t* next = protozero::proto_utils::ParseVarInt(
-          ++pos, &*partial_buf_.end(), &field_size);
+          ++pos, &partial_buf_.front() + partial_buf_.size(), &field_size);
       bool parse_failed = next == pos;
       pos = next;
       if (proto_field_tag != kTracePacketTag || field_size == 0 ||
