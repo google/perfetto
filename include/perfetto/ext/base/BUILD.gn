@@ -22,7 +22,6 @@ source_set("base") {
     "event_fd.h",
     "file_utils.h",
     "hash.h",
-    "lookup_set.h",
     "metatrace.h",
     "metatrace_events.h",
     "no_destructor.h",

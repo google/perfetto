@@ -17,13 +17,13 @@
 #ifndef SRC_PROFILING_COMMON_CALLSTACK_TRIE_H_
 #define SRC_PROFILING_COMMON_CALLSTACK_TRIE_H_
 
+#include <set>
 #include <string>
 #include <typeindex>
 #include <vector>
 
 #include <unwindstack/Unwinder.h>
 
-#include "perfetto/ext/base/lookup_set.h"
 #include "src/profiling/common/interner.h"
 #include "src/profiling/common/unwind_support.h"
 
@@ -105,8 +105,11 @@ class GlobalCallstackTrie {
     // This is opaque except to GlobalCallstackTrie.
     friend class GlobalCallstackTrie;
 
-    // Allow building a node out of a frame for base::LookupSet.
+    // Allow building a node out of a frame for GetChild.
     explicit Node(Interned<Frame> frame) : Node(frame, 0, nullptr) {}
+    Node(const Node&) = default;
+    Node(Node&&) = default;
+
     Node(Interned<Frame> frame, uint64_t id)
         : Node(std::move(frame), id, nullptr) {}
     Node(Interned<Frame> frame, uint64_t id, Node* parent)
@@ -119,13 +122,26 @@ class GlobalCallstackTrie {
    private:
     Node* GetOrCreateChild(const Interned<Frame>& loc);
     // Deletes all descendant nodes, regardless of |ref_count_|.
-    void DeleteChildren() { children_.Clear(); }
+    void DeleteChildren() { children_.clear(); }
 
     uint64_t ref_count_ = 0;
     uint64_t id_;
     Node* const parent_;
     const Interned<Frame> location_;
-    base::LookupSet<Node, const Interned<Frame>, &Node::location_> children_;
+
+    class NodeComparator {
+     public:
+      bool operator()(const Node& one, const Node& other) const {
+        return one.location_ < other.location_;
+      }
+    };
+    Node* AddChild(const Interned<Frame>& loc,
+                   uint64_t next_callstack_id_,
+                   Node* parent);
+    void RemoveChild(Node* node);
+    Node* GetChild(const Interned<Frame>& loc);
+
+    std::set<Node, NodeComparator> children_;
   };
 
   GlobalCallstackTrie() = default;
