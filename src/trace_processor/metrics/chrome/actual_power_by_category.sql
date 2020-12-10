@@ -24,10 +24,24 @@
 SELECT RUN_METRIC('chrome/chrome_processes.sql');
 SELECT RUN_METRIC('android/power_drain_in_watts.sql');
 
+DROP TABLE IF EXISTS power_rail_name_mapping;
+CREATE TABLE power_rail_name_mapping AS
+SELECT DISTINCT name,
+  ROW_NUMBER() OVER() AS idx
+FROM drain_in_watts;
+
+-- SPAN_JOIN does not yet support non-integer partitions so add an integer
+-- column that corresponds to the power rail name.
+DROP VIEW IF EXISTS mapped_drain_in_watts;
+CREATE VIEW mapped_drain_in_watts AS
+SELECT d.name, ts, dur, drain_w, idx
+FROM drain_in_watts d
+  JOIN power_rail_name_mapping p ON d.name = p.name;
+
 DROP TABLE IF EXISTS real_{{input}}_power;
 CREATE VIRTUAL TABLE real_{{input}}_power USING SPAN_JOIN(
     {{input}},
-    drain_in_watts
+    mapped_drain_in_watts PARTITIONED idx
 );
 
 -- Actual power usage for chrome across the categorised slices contained in the
@@ -54,3 +68,12 @@ FROM (
   JOIN {{input}} s
 WHERE s.id = p.id
 ORDER BY s.id;
+
+SELECT id,
+      subsystem,
+      SUM(drain_w * dur / 1e9) AS joules
+    FROM real_{{input}}_power
+      JOIN power_counters
+    WHERE real_{{input}}_power.name = power_counters.name
+    GROUP BY id,
+      subsystem
