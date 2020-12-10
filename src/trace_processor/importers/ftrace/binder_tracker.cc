@@ -138,11 +138,8 @@ void BinderTracker::Transaction(int64_t ts,
                                    transaction_slice_id_, args_inserter);
     transaction_await_rcv[transaction_id] = track_id;
   } else {
-    // TODO(taylori): Change these to instant events with 0 duration
-    // once instants are displayed properly.
     context_->slice_tracker->Scoped(ts, track_id, binder_category_id_,
-                                    transaction_async_id_, 10000,
-                                    args_inserter);
+                                    transaction_async_id_, 0, args_inserter);
     awaiting_async_rcv_[transaction_id] = args_inserter;
   }
 }
@@ -195,7 +192,7 @@ void BinderTracker::TransactionReceived(int64_t ts,
   if (awaiting_async_rcv_.count(transaction_id) > 0) {
     auto args = awaiting_async_rcv_[transaction_id];
     context_->slice_tracker->Scoped(ts, track_id, binder_category_id_,
-                                    async_rcv_id_, 10000, args);
+                                    async_rcv_id_, 0, args);
     awaiting_async_rcv_.erase(transaction_id);
     return;
   }
@@ -203,6 +200,11 @@ void BinderTracker::TransactionReceived(int64_t ts,
 
 void BinderTracker::Lock(int64_t ts, uint32_t pid) {
   attempt_lock_[pid] = ts;
+
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+  context_->slice_tracker->Begin(ts, track_id, binder_category_id_,
+                                 lock_waiting_id_);
 }
 
 void BinderTracker::Locked(int64_t ts, uint32_t pid) {
@@ -212,9 +214,10 @@ void BinderTracker::Locked(int64_t ts, uint32_t pid) {
     return;
 
   TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-  context_->slice_tracker->Scoped(attempt_lock_[pid], track_id,
-                                  binder_category_id_, lock_waiting_id_,
-                                  ts - attempt_lock_[pid]);
+  context_->slice_tracker->End(ts, track_id, binder_category_id_,
+                               lock_waiting_id_);
+  context_->slice_tracker->Begin(ts, track_id, binder_category_id_,
+                                 lock_held_id_);
 
   lock_acquired_[pid] = ts;
   attempt_lock_.erase(pid);
@@ -227,9 +230,8 @@ void BinderTracker::Unlock(int64_t ts, uint32_t pid) {
     return;
 
   TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-  context_->slice_tracker->Scoped(lock_acquired_[pid], track_id,
-                                  binder_category_id_, lock_held_id_,
-                                  ts - lock_acquired_[pid]);
+  context_->slice_tracker->End(ts, track_id, binder_category_id_,
+                               lock_held_id_);
   lock_acquired_.erase(pid);
 }
 
