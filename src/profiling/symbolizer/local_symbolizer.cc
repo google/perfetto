@@ -75,7 +75,9 @@ std::unique_ptr<Symbolizer> LocalSymbolizerOrDie(
 #include <sys/types.h>
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-#define F_OK 0
+constexpr const char* kDefaultSymbolizer = "llvm-symbolizer.exe";
+#else
+constexpr const char* kDefaultSymbolizer = "llvm-symbolizer";
 #endif
 
 namespace perfetto {
@@ -584,13 +586,13 @@ base::Optional<FoundBinary> LocalBinaryFinder::FindBinaryInRoot(
 
 LocalBinaryFinder::~LocalBinaryFinder() = default;
 
-LLVMSymbolizerProcess::LLVMSymbolizerProcess()
+LLVMSymbolizerProcess::LLVMSymbolizerProcess(const std::string& symbolizer_path)
     :
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-      subprocess_("llvm-symbolizer.exe", {}) {
+      subprocess_(symbolizer_path, {}) {
 }
 #else
-      subprocess_("llvm-symbolizer", {"llvm-symbolizer"}) {
+      subprocess_(symbolizer_path, {"llvm-symbolizer"}) {
 }
 #endif
 
@@ -661,6 +663,13 @@ std::vector<std::vector<SymbolizedFrame>> LocalSymbolizer::Symbolize(
         binary->file_name, address + load_bias_correction));
   return result;
 }
+
+LocalSymbolizer::LocalSymbolizer(const std::string& symbolizer_path,
+                                 std::unique_ptr<BinaryFinder> finder)
+    : llvm_symbolizer_(symbolizer_path), finder_(std::move(finder)) {}
+
+LocalSymbolizer::LocalSymbolizer(std::unique_ptr<BinaryFinder> finder)
+    : LocalSymbolizer(kDefaultSymbolizer, std::move(finder)) {}
 
 LocalSymbolizer::~LocalSymbolizer() = default;
 
