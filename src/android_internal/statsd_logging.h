@@ -20,7 +20,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "src/perfetto_cmd/perfetto_atoms.h"
+#include "src/android_stats/perfetto_atoms.h"
 
 namespace perfetto {
 namespace android_internal {

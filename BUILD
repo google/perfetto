@@ -174,8 +174,8 @@ perfetto_cc_library(
     srcs = [
         ":src_android_internal_headers",
         ":src_android_internal_lazy_library_loader",
+        ":src_android_stats_perfetto_atoms",
         ":src_kallsyms_kallsyms",
-        ":src_perfetto_cmd_perfetto_atoms",
         ":src_traced_probes_android_log_android_log",
         ":src_traced_probes_common_common",
         ":src_traced_probes_data_source",
@@ -556,6 +556,14 @@ filegroup(
     ],
 )
 
+# GN target: //src/android_stats:perfetto_atoms
+filegroup(
+    name = "src_android_stats_perfetto_atoms",
+    srcs = [
+        "src/android_stats/perfetto_atoms.h",
+    ],
+)
+
 # GN target: //src/base:base
 perfetto_cc_library(
     name = "src_base_base",
@@ -657,14 +665,6 @@ filegroup(
         "src/kallsyms/kernel_symbol_map.h",
         "src/kallsyms/lazy_kernel_symbolizer.cc",
         "src/kallsyms/lazy_kernel_symbolizer.h",
-    ],
-)
-
-# GN target: //src/perfetto_cmd:perfetto_atoms
-filegroup(
-    name = "src_perfetto_cmd_perfetto_atoms",
-    srcs = [
-        "src/perfetto_cmd/perfetto_atoms.h",
     ],
 )
 
@@ -3034,7 +3034,7 @@ perfetto_cc_binary(
         ":include_perfetto_tracing_tracing",
         ":src_android_internal_headers",
         ":src_android_internal_lazy_library_loader",
-        ":src_perfetto_cmd_perfetto_atoms",
+        ":src_android_stats_perfetto_atoms",
         ":src_perfetto_cmd_perfetto_cmd",
         ":src_perfetto_cmd_trigger_producer",
         ":src_tracing_common",
