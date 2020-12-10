@@ -7410,6 +7410,7 @@ filegroup {
     "src/trace_processor/importers/proto/track_event_module.cc",
     "src/trace_processor/importers/proto/track_event_parser.cc",
     "src/trace_processor/importers/proto/track_event_tokenizer.cc",
+    "src/trace_processor/importers/proto/track_event_tracker.cc",
     "src/trace_processor/trace_processor_context.cc",
     "src/trace_processor/trace_processor_storage.cc",
     "src/trace_processor/trace_processor_storage_impl.cc",
