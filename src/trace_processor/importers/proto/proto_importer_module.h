@@ -110,6 +110,13 @@ class ProtoImporterModule {
       PacketSequenceState*,
       uint32_t field_id);
 
+  // Called by ProtoTraceReader during the tokenization stage i.e. before
+  // sorting. Indicates that sequence with id |packet_sequence_id| has cleared
+  // its incremental state. This should be used to clear any cached state the
+  // tokenizer has built up while reading packets until this point for this
+  // packet sequence.
+  virtual void OnIncrementalStateCleared(uint32_t /* packet_sequence_id */) {}
+
   // Called by ProtoTraceParser after the sorting stage for each non-ftrace
   // TracePacket that contains fields for which the module was registered.
   virtual void ParsePacket(const protos::pbzero::TracePacket_Decoder&,

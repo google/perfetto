@@ -31,6 +31,7 @@
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/proto/metadata_tracker.h"
+#include "src/trace_processor/importers/proto/track_event_tracker.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 #include "test/gtest_and_gmock.h"
@@ -739,14 +740,15 @@ TEST_F(ExportJsonTest, InstantEvent) {
       {kTimestamp, 0, track, cat_id, name_id, 0, 0, 0});
 
   // Global track.
-  TrackId track2 = context_.track_tracker->GetOrCreateDefaultDescriptorTrack();
+  TrackEventTracker track_event_tracker(&context_);
+  TrackId track2 = track_event_tracker.GetOrCreateDefaultDescriptorTrack();
   context_.args_tracker->Flush();  // Flush track args.
   context_.storage->mutable_slice_table()->Insert(
       {kTimestamp2, 0, track2, cat_id, name_id, 0, 0, 0});
 
   // Async event track.
-  context_.track_tracker->ReserveDescriptorChildTrack(1234, 0, kNullStringId);
-  TrackId track3 = *context_.track_tracker->GetDescriptorTrack(1234);
+  track_event_tracker.ReserveDescriptorChildTrack(1234, 0, kNullStringId);
+  TrackId track3 = *track_event_tracker.GetDescriptorTrack(1234);
   context_.args_tracker->Flush();  // Flush track args.
   context_.storage->mutable_slice_table()->Insert(
       {kTimestamp3, 0, track3, cat_id, name_id, 0, 0, 0});

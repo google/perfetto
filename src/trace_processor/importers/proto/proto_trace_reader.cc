@@ -258,8 +258,10 @@ void ProtoTraceReader::HandleIncrementalStateCleared(
   GetIncrementalStateForPacketSequence(
       packet_decoder.trusted_packet_sequence_id())
       ->OnIncrementalStateCleared();
-  context_->track_tracker->OnIncrementalStateCleared(
-      packet_decoder.trusted_packet_sequence_id());
+  for (auto& module : context_->modules) {
+    module->OnIncrementalStateCleared(
+        packet_decoder.trusted_packet_sequence_id());
+  }
 }
 
 void ProtoTraceReader::HandlePreviousPacketDropped(
