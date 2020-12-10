@@ -43,6 +43,10 @@ CHROME_THREAD_COMPOSITOR = 8
 COUNTER_THREAD_TIME_NS = 1
 
 
+def ms_to_ns(time_in_ms):
+  return time_in_ms * 1000000
+
+
 class Trace(object):
 
   def __init__(self, trace):
