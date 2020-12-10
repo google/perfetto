@@ -40,10 +40,6 @@ executable("trigger_perfetto") {
   sources = [ "trigger_perfetto_main.cc" ]
 }
 
-source_set("perfetto_atoms") {
-  sources = [ "perfetto_atoms.h" ]
-}
-
 # Contains all the implementation but not the main() entry point. This target
 # is shared both by the executable and tests.
 source_set("perfetto_cmd") {
@@ -52,13 +48,13 @@ source_set("perfetto_cmd") {
     "../../include/perfetto/ext/traced",
   ]
   deps = [
-    ":perfetto_atoms",
     ":trigger_producer",
     "../../gn:default_deps",
     "../../protos/perfetto/common:cpp",
     "../../protos/perfetto/config:cpp",
     "../../protos/perfetto/config/ftrace:cpp",
     "../android_internal:lazy_library_loader",
+    "../android_stats:perfetto_atoms",
     "../base",
     "../protozero",
     "../tracing/ipc/consumer",
