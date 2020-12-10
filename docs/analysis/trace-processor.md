@@ -291,7 +291,7 @@ specified on both, the same column name has to be specified on each table.
 
 WARNING: An important restriction on span joined tables is that spans from
 the same table in the same partition *cannot* overlap. For performance
-reasons, span join does attempt to dectect and error out in this situation;
+reasons, span join does not attempt to detect and error out in this situation;
 instead, incorrect rows will silently be produced.
 
 ### Ancestor slice
