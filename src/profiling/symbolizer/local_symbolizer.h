@@ -85,7 +85,7 @@ class LocalBinaryFinder : public BinaryFinder {
 
 class LLVMSymbolizerProcess {
  public:
-  LLVMSymbolizerProcess();
+  explicit LLVMSymbolizerProcess(const std::string& symbolizer_path);
 
   std::vector<SymbolizedFrame> Symbolize(const std::string& binary,
                                          uint64_t address);
@@ -96,8 +96,10 @@ class LLVMSymbolizerProcess {
 
 class LocalSymbolizer : public Symbolizer {
  public:
-  explicit LocalSymbolizer(std::unique_ptr<BinaryFinder> finder)
-      : finder_(std::move(finder)) {}
+  LocalSymbolizer(const std::string& symbolizer_path,
+                  std::unique_ptr<BinaryFinder> finder);
+
+  explicit LocalSymbolizer(std::unique_ptr<BinaryFinder> finder);
 
   std::vector<std::vector<SymbolizedFrame>> Symbolize(
       const std::string& mapping_name,
