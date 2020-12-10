@@ -26,7 +26,7 @@ shared_library("libperfetto_android_internal") {
 source_set("headers") {
   deps = [
     "../../gn:default_deps",
-    "../../src/perfetto_cmd:perfetto_atoms",
+    "../android_stats:perfetto_atoms",
   ]
   sources = [
     "atrace_hal.h",

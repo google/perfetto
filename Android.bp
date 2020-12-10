@@ -476,13 +476,13 @@ cc_library_shared {
     ":perfetto_protos_perfetto_trace_track_event_zero_gen",
     ":perfetto_src_android_internal_headers",
     ":perfetto_src_android_internal_lazy_library_loader",
+    ":perfetto_src_android_stats_perfetto_atoms",
     ":perfetto_src_base_base",
     ":perfetto_src_base_unix_socket",
     ":perfetto_src_ipc_client",
     ":perfetto_src_ipc_common",
     ":perfetto_src_ipc_host",
     ":perfetto_src_kallsyms_kallsyms",
-    ":perfetto_src_perfetto_cmd_perfetto_atoms",
     ":perfetto_src_protozero_protozero",
     ":perfetto_src_traced_probes_android_log_android_log",
     ":perfetto_src_traced_probes_common_common",
@@ -580,7 +580,7 @@ cc_library_shared {
   srcs: [
     ":perfetto_src_android_internal_android_internal",
     ":perfetto_src_android_internal_headers",
-    ":perfetto_src_perfetto_cmd_perfetto_atoms",
+    ":perfetto_src_android_stats_perfetto_atoms",
   ],
   shared_libs: [
     "android.hardware.atrace@1.0",
@@ -852,11 +852,11 @@ cc_binary {
     ":perfetto_protos_perfetto_trace_track_event_zero_gen",
     ":perfetto_src_android_internal_headers",
     ":perfetto_src_android_internal_lazy_library_loader",
+    ":perfetto_src_android_stats_perfetto_atoms",
     ":perfetto_src_base_base",
     ":perfetto_src_base_unix_socket",
     ":perfetto_src_ipc_client",
     ":perfetto_src_ipc_common",
-    ":perfetto_src_perfetto_cmd_perfetto_atoms",
     ":perfetto_src_perfetto_cmd_perfetto_cmd",
     ":perfetto_src_perfetto_cmd_protos_gen",
     ":perfetto_src_perfetto_cmd_trigger_producer",
@@ -999,6 +999,7 @@ cc_library_static {
     ":perfetto_protos_perfetto_trace_track_event_zero_gen",
     ":perfetto_src_android_internal_headers",
     ":perfetto_src_android_internal_lazy_library_loader",
+    ":perfetto_src_android_stats_perfetto_atoms",
     ":perfetto_src_base_base",
     ":perfetto_src_base_test_support",
     ":perfetto_src_base_unix_socket",
@@ -1007,7 +1008,6 @@ cc_library_static {
     ":perfetto_src_ipc_host",
     ":perfetto_src_ipc_perfetto_ipc",
     ":perfetto_src_kallsyms_kallsyms",
-    ":perfetto_src_perfetto_cmd_perfetto_atoms",
     ":perfetto_src_protozero_protozero",
     ":perfetto_src_traced_probes_android_log_android_log",
     ":perfetto_src_traced_probes_common_common",
@@ -1247,6 +1247,7 @@ cc_library_static {
     ":perfetto_protos_perfetto_trace_track_event_zero_gen",
     ":perfetto_src_android_internal_headers",
     ":perfetto_src_android_internal_lazy_library_loader",
+    ":perfetto_src_android_stats_perfetto_atoms",
     ":perfetto_src_base_base",
     ":perfetto_src_base_test_support",
     ":perfetto_src_base_unix_socket",
@@ -1255,7 +1256,6 @@ cc_library_static {
     ":perfetto_src_ipc_host",
     ":perfetto_src_ipc_perfetto_ipc",
     ":perfetto_src_kallsyms_kallsyms",
-    ":perfetto_src_perfetto_cmd_perfetto_atoms",
     ":perfetto_src_protozero_protozero",
     ":perfetto_src_traced_probes_android_log_android_log",
     ":perfetto_src_traced_probes_common_common",
@@ -1631,6 +1631,7 @@ cc_test {
     ":perfetto_protos_perfetto_trace_track_event_zero_gen",
     ":perfetto_src_android_internal_headers",
     ":perfetto_src_android_internal_lazy_library_loader",
+    ":perfetto_src_android_stats_perfetto_atoms",
     ":perfetto_src_base_base",
     ":perfetto_src_base_test_support",
     ":perfetto_src_base_unix_socket",
@@ -1639,7 +1640,6 @@ cc_test {
     ":perfetto_src_ipc_host",
     ":perfetto_src_ipc_perfetto_ipc",
     ":perfetto_src_kallsyms_kallsyms",
-    ":perfetto_src_perfetto_cmd_perfetto_atoms",
     ":perfetto_src_profiling_common_callstack_trie",
     ":perfetto_src_profiling_common_interner",
     ":perfetto_src_profiling_common_interning_output",
@@ -6223,6 +6223,11 @@ filegroup {
   ],
 }
 
+// GN: //src/android_stats:perfetto_atoms
+filegroup {
+  name: "perfetto_src_android_stats_perfetto_atoms",
+}
+
 // GN: //src/base:base
 filegroup {
   name: "perfetto_src_base_base",
@@ -6463,11 +6468,6 @@ filegroup {
     "src/kallsyms/kernel_symbol_map_unittest.cc",
     "src/kallsyms/lazy_kernel_symbolizer_unittest.cc",
   ],
-}
-
-// GN: //src/perfetto_cmd:perfetto_atoms
-filegroup {
-  name: "perfetto_src_perfetto_cmd_perfetto_atoms",
 }
 
 // GN: //src/perfetto_cmd:perfetto_cmd
@@ -8345,6 +8345,7 @@ cc_test {
     ":perfetto_protos_perfetto_trace_track_event_zero_gen",
     ":perfetto_src_android_internal_headers",
     ":perfetto_src_android_internal_lazy_library_loader",
+    ":perfetto_src_android_stats_perfetto_atoms",
     ":perfetto_src_base_base",
     ":perfetto_src_base_test_support",
     ":perfetto_src_base_unittests",
@@ -8357,7 +8358,6 @@ cc_test {
     ":perfetto_src_ipc_unittests",
     ":perfetto_src_kallsyms_kallsyms",
     ":perfetto_src_kallsyms_unittests",
-    ":perfetto_src_perfetto_cmd_perfetto_atoms",
     ":perfetto_src_perfetto_cmd_perfetto_cmd",
     ":perfetto_src_perfetto_cmd_protos_gen",
     ":perfetto_src_perfetto_cmd_trigger_producer",
