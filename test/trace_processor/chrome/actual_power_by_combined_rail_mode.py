@@ -16,6 +16,7 @@
 from os import sys
 
 import synth_common
+from synth_common import ms_to_ns
 
 trace = synth_common.create_trace()
 
@@ -70,41 +71,47 @@ trace.add_track_descriptor(rail_track1, parent=process_track1)
 trace.add_track_descriptor(rail_track2, parent=process_track2)
 
 trace.add_rail_mode_slice(
-    ts=0, dur=10000000, track=rail_track1, mode=synth_common.RAIL_MODE_RESPONSE)
+    ts=0,
+    dur=ms_to_ns(10),
+    track=rail_track1,
+    mode=synth_common.RAIL_MODE_RESPONSE)
 trace.add_rail_mode_slice(
-    ts=10000000,
-    dur=20000000,
+    ts=ms_to_ns(10),
+    dur=ms_to_ns(20),
     track=rail_track1,
     mode=synth_common.RAIL_MODE_LOAD)
 trace.add_rail_mode_slice(
-    ts=30000000, dur=-1, track=rail_track1, mode=synth_common.RAIL_MODE_IDLE)
+    ts=ms_to_ns(30),
+    dur=-1,
+    track=rail_track1,
+    mode=synth_common.RAIL_MODE_IDLE)
 
 trace.add_track_event_slice(
     "task",
     0,
-    10000000,
+    ms_to_ns(10),
     trusted_sequence_id=seq2,
     cpu_start=0,
-    cpu_delta=10000000)
+    cpu_delta=ms_to_ns(10))
 
 trace.add_rail_mode_slice(
     ts=0,
-    dur=10000000,
+    dur=ms_to_ns(10),
     track=rail_track2,
     mode=synth_common.RAIL_MODE_ANIMATION)
 trace.add_rail_mode_slice(
-    ts=10000000,
-    dur=25000000,
+    ts=ms_to_ns(10),
+    dur=ms_to_ns(25),
     track=rail_track2,
     mode=synth_common.RAIL_MODE_IDLE)
 trace.add_rail_mode_slice(
-    ts=35000000,
-    dur=10000000,
+    ts=ms_to_ns(35),
+    dur=ms_to_ns(10),
     track=rail_track2,
     mode=synth_common.RAIL_MODE_ANIMATION)
 trace.add_rail_mode_slice(
-    ts=45000000,
-    dur=10000000,
+    ts=ms_to_ns(45),
+    dur=ms_to_ns(10),
     track=rail_track2,
     mode=synth_common.RAIL_MODE_IDLE)
 
