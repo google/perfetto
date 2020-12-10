@@ -32,7 +32,6 @@ class Value;
 }
 
 namespace perfetto {
-
 namespace trace_processor {
 
 // Field numbers to be added to args table automatically via reflection
@@ -45,10 +44,11 @@ static constexpr uint16_t kReflectFields[] = {24, 25, 26, 27, 28, 29, 32,
 
 class PacketSequenceStateGeneration;
 class TraceProcessorContext;
+class TrackEventTracker;
 
 class TrackEventParser {
  public:
-  explicit TrackEventParser(TraceProcessorContext* context);
+  TrackEventParser(TraceProcessorContext*, TrackEventTracker*);
 
   void ParseTrackDescriptor(protozero::ConstBytes);
   UniquePid ParseProcessDescriptor(protozero::ConstBytes);
@@ -66,6 +66,7 @@ class TrackEventParser {
   void ParseCounterDescriptor(TrackId, protozero::ConstBytes);
 
   TraceProcessorContext* context_;
+  TrackEventTracker* track_event_tracker_;
 
   const StringId counter_name_thread_time_id_;
   const StringId counter_name_thread_instruction_count_id_;

@@ -31,6 +31,7 @@
 #include "src/trace_processor/importers/proto/args_table_utils.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
 #include "src/trace_processor/importers/proto/track_event.descriptor.h"
+#include "src/trace_processor/importers/proto/track_event_tracker.h"
 #include "src/trace_processor/util/status_macros.h"
 
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
@@ -118,6 +119,7 @@ class TrackEventParser::EventImporter {
                 TrackEventData* event_data,
                 ConstBytes blob)
       : context_(parser->context_),
+        track_event_tracker_(parser->track_event_tracker_),
         storage_(context_->storage.get()),
         parser_(parser),
         ts_(ts),
@@ -286,11 +288,13 @@ class TrackEventParser::EventImporter {
     //   b) a default track.
     if (track_uuid_) {
       base::Optional<TrackId> opt_track_id =
-          track_tracker->GetDescriptorTrack(track_uuid_, name_id_);
+          track_event_tracker_->GetDescriptorTrack(track_uuid_, name_id_);
       if (!opt_track_id) {
-        track_tracker->ReserveDescriptorChildTrack(track_uuid_,
-                                                   /*parent_uuid=*/0, name_id_);
-        opt_track_id = track_tracker->GetDescriptorTrack(track_uuid_, name_id_);
+        track_event_tracker_->ReserveDescriptorChildTrack(track_uuid_,
+                                                          /*parent_uuid=*/0,
+                                                          name_id_);
+        opt_track_id =
+            track_event_tracker_->GetDescriptorTrack(track_uuid_, name_id_);
       }
       track_id_ = *opt_track_id;
 
@@ -364,7 +368,7 @@ class TrackEventParser::EventImporter {
         upid_ = storage_->thread_table().upid()[*utid_];
         track_id_ = track_tracker->InternThreadTrack(*utid_);
       } else {
-        track_id_ = track_tracker->GetOrCreateDefaultDescriptorTrack();
+        track_id_ = track_event_tracker_->GetOrCreateDefaultDescriptorTrack();
       }
     }
 
@@ -525,7 +529,7 @@ class TrackEventParser::EventImporter {
       PERFETTO_DCHECK(index < TrackEventData::kMaxNumExtraCounters);
 
       base::Optional<TrackId> track_id =
-          context_->track_tracker->GetDescriptorTrack(*track_uuid_it);
+          track_event_tracker_->GetDescriptorTrack(*track_uuid_it);
       base::Optional<uint32_t> counter_row =
           storage_->counter_track_table().id().IndexOf(*track_id);
 
@@ -1159,6 +1163,7 @@ class TrackEventParser::EventImporter {
   }
 
   TraceProcessorContext* context_;
+  TrackEventTracker* track_event_tracker_;
   TraceStorage* storage_;
   TrackEventParser* parser_;
   int64_t ts_;
@@ -1183,8 +1188,10 @@ class TrackEventParser::EventImporter {
   base::Optional<UniqueTid> legacy_passthrough_utid_;
 };
 
-TrackEventParser::TrackEventParser(TraceProcessorContext* context)
+TrackEventParser::TrackEventParser(TraceProcessorContext* context,
+                                   TrackEventTracker* track_event_tracker)
     : context_(context),
+      track_event_tracker_(track_event_tracker),
       counter_name_thread_time_id_(
           context->storage->InternString("thread_time")),
       counter_name_thread_instruction_count_id_(
@@ -1353,8 +1360,7 @@ void TrackEventParser::ParseTrackDescriptor(
 
   // Ensure that the track and its parents are resolved. This may start a new
   // process and/or thread (i.e. new upid/utid).
-  TrackId track_id =
-      *context_->track_tracker->GetDescriptorTrack(decoder.uuid());
+  TrackId track_id = *track_event_tracker_->GetDescriptorTrack(decoder.uuid());
 
   if (decoder.has_thread()) {
     UniqueTid utid = ParseThreadDescriptor(decoder.thread());

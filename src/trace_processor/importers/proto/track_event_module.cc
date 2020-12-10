@@ -18,6 +18,7 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/proto/track_event_tracker.h"
 #include "src/trace_processor/timestamped_trace_piece.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -31,7 +32,9 @@ namespace trace_processor {
 using perfetto::protos::pbzero::TracePacket;
 
 TrackEventModule::TrackEventModule(TraceProcessorContext* context)
-    : tokenizer_(context), parser_(context) {
+    : track_event_tracker_(new TrackEventTracker(context)),
+      tokenizer_(context, track_event_tracker_.get()),
+      parser_(context, track_event_tracker_.get()) {
   RegisterForField(TracePacket::kTrackEventFieldNumber, context);
   RegisterForField(TracePacket::kTrackDescriptorFieldNumber, context);
   RegisterForField(TracePacket::kThreadDescriptorFieldNumber, context);
@@ -85,6 +88,10 @@ void TrackEventModule::ParsePacket(const TracePacket::Decoder& decoder,
       parser_.ParseThreadDescriptor(decoder.thread_descriptor());
       break;
   }
+}
+
+void TrackEventModule::OnIncrementalStateCleared(uint32_t packet_sequence_id) {
+  track_event_tracker_->OnIncrementalStateCleared(packet_sequence_id);
 }
 
 }  // namespace trace_processor

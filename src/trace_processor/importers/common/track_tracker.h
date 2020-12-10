@@ -62,85 +62,6 @@ class TrackTracker {
   // Lazily creates the track for legacy Chrome global instant events.
   TrackId GetOrCreateLegacyChromeGlobalInstantTrack();
 
-  // Associate a TrackDescriptor track identified by the given |uuid| with a
-  // process's |pid|. This is called during tokenization. If a reservation for
-  // the same |uuid| already exists, verifies that the present reservation
-  // matches the new one.
-  //
-  // The track will be resolved to the process track (see InternProcessTrack())
-  // upon the first call to GetDescriptorTrack() with the same |uuid|. At this
-  // time, |pid| will also be resolved to a |upid|.
-  void ReserveDescriptorProcessTrack(uint64_t uuid,
-                                     StringId name,
-                                     uint32_t pid,
-                                     int64_t timestamp);
-
-  // Associate a TrackDescriptor track identified by the given |uuid| with a
-  // thread's |pid| and |tid|. This is called during tokenization. If a
-  // reservation for the same |uuid| already exists, verifies that the present
-  // reservation matches the new one.
-  //
-  // The track will be resolved to the thread track (see InternThreadTrack())
-  // upon the first call to GetDescriptorTrack() with the same |uuid|. At this
-  // time, |pid| will also be resolved to a |upid|.
-  void ReserveDescriptorThreadTrack(uint64_t uuid,
-                                    uint64_t parent_uuid,
-                                    StringId name,
-                                    uint32_t pid,
-                                    uint32_t tid,
-                                    int64_t timestamp);
-
-  // Associate a TrackDescriptor track identified by the given |uuid| with a
-  // parent track (usually a process- or thread-associated track). This is
-  // called during tokenization. If a reservation for the same |uuid| already
-  // exists, will attempt to update it.
-  //
-  // The track will be created upon the first call to GetDescriptorTrack() with
-  // the same |uuid|. If |parent_uuid| is 0, the track will become a global
-  // track. Otherwise, it will become a new track of the same type as its parent
-  // track.
-  void ReserveDescriptorChildTrack(uint64_t uuid,
-                                   uint64_t parent_uuid,
-                                   StringId name);
-
-  // Associate a counter-type TrackDescriptor track identified by the given
-  // |uuid| with a parent track (usually a process or thread track). This is
-  // called during tokenization. If a reservation for the same |uuid| already
-  // exists, will attempt to update it. The provided |category| will be stored
-  // into the track's args.
-  //
-  // If |is_incremental| is true, the counter will only be valid on the packet
-  // sequence identified by |packet_sequence_id|. |unit_multiplier| is an
-  // optional multiplication factor applied to counter values. Values for the
-  // counter will be translated during tokenization via
-  // ConvertToAbsoluteCounterValue().
-  //
-  // The track will be created upon the first call to GetDescriptorTrack() with
-  // the same |uuid|. If |parent_uuid| is 0, the track will become a global
-  // track. Otherwise, it will become a new counter track for the same
-  // process/thread as its parent track.
-  void ReserveDescriptorCounterTrack(uint64_t uuid,
-                                     uint64_t parent_uuid,
-                                     StringId name,
-                                     StringId category,
-                                     int64_t unit_multiplier,
-                                     bool is_incremental,
-                                     uint32_t packet_sequence_id);
-
-  // Returns the ID of the track for the TrackDescriptor with the given |uuid|.
-  // This is called during parsing. The first call to GetDescriptorTrack() for
-  // each |uuid| resolves and inserts the track (and its parent tracks,
-  // following the parent_uuid chain recursively) based on reservations made for
-  // the |uuid|. If the track is a child track and doesn't have a name yet,
-  // updates the track's name to event_name. Returns nullopt if no track for a
-  // descriptor with this |uuid| has been reserved.
-  base::Optional<TrackId> GetDescriptorTrack(
-      uint64_t uuid,
-      StringId event_name = kNullStringId);
-
-  // Returns the ID of the implicit trace-global default TrackDescriptor track.
-  TrackId GetOrCreateDefaultDescriptorTrack();
-
   // Returns the ID of the implicit trace-global default track for triggers
   // received by the service.
   TrackId GetOrCreateTriggerTrack();
@@ -177,21 +98,6 @@ class TrackTracker {
                                 StringId description = StringId::Null(),
                                 StringId unit = StringId::Null());
 
-  // Converts the given counter value to an absolute value in the unit of the
-  // counter, applying incremental delta encoding or unit multipliers as
-  // necessary. If the counter uses incremental encoding, |packet_sequence_id|
-  // must match the one in its track reservation. Returns base::nullopt if the
-  // counter track is unknown or an invalid |packet_sequence_id| was passed.
-  base::Optional<int64_t> ConvertToAbsoluteCounterValue(
-      uint64_t counter_track_uuid,
-      uint32_t packet_sequence_id,
-      int64_t value);
-
-  // Called by ProtoTraceReader whenever incremental state is cleared on a
-  // packet sequence. Resets counter values for any incremental counters of
-  // the sequence identified by |packet_sequence_id|.
-  void OnIncrementalStateCleared(uint32_t packet_sequence_id);
-
  private:
   struct GpuTrackTuple {
     StringId track_name;
@@ -214,41 +120,6 @@ class TrackTracker {
              std::tie(r.source_id, r.upid, r.source_scope);
     }
   };
-  struct DescriptorTrackReservation {
-    uint64_t parent_uuid = 0;
-    base::Optional<uint32_t> pid;
-    base::Optional<uint32_t> tid;
-    int64_t min_timestamp = 0;  // only set if |pid| and/or |tid| is set.
-    StringId name = kNullStringId;
-
-    // For counter tracks.
-    bool is_counter = false;
-    StringId category = kNullStringId;
-    int64_t unit_multiplier = 1;
-    bool is_incremental = false;
-    uint32_t packet_sequence_id = 0;
-    int64_t latest_value = 0;
-
-    // Whether |other| is a valid descriptor for this track reservation. A track
-    // should always remain nested underneath its original parent.
-    bool IsForSameTrack(const DescriptorTrackReservation& other) {
-      // Note that |min_timestamp|, |latest_value|, and |name| are ignored for
-      // this comparison.
-      return std::tie(parent_uuid, pid, tid, is_counter, category,
-                      unit_multiplier, is_incremental, packet_sequence_id) ==
-             std::tie(other.parent_uuid, pid, tid, is_counter, category,
-                      unit_multiplier, is_incremental, packet_sequence_id);
-    }
-  };
-
-  base::Optional<TrackId> GetDescriptorTrackImpl(
-      uint64_t uuid,
-      std::vector<uint64_t>* descendent_uuids = nullptr);
-  TrackId ResolveDescriptorTrack(uint64_t uuid,
-                                 const DescriptorTrackReservation&,
-                                 std::vector<uint64_t>* descendent_uuids);
-
-  static constexpr uint64_t kDefaultDescriptorTrackUuid = 0u;
 
   std::map<UniqueTid, TrackId> thread_tracks_;
   std::map<UniquePid, TrackId> process_tracks_;
@@ -259,10 +130,6 @@ class TrackTracker {
   std::map<GpuTrackTuple, TrackId> gpu_tracks_;
   std::map<ChromeTrackTuple, TrackId> chrome_tracks_;
   std::map<UniquePid, TrackId> chrome_process_instant_tracks_;
-  base::Optional<TrackId> chrome_global_instant_track_id_;
-  std::map<uint64_t /* uuid */, DescriptorTrackReservation>
-      reserved_descriptor_tracks_;
-  std::map<uint64_t /* uuid */, TrackId> resolved_descriptor_tracks_;
   std::map<UniquePid, TrackId> perf_stack_tracks_;
 
   std::map<StringId, TrackId> global_counter_tracks_by_name_;
@@ -273,11 +140,7 @@ class TrackTracker {
   std::map<std::pair<StringId, int32_t>, TrackId> softirq_counter_tracks_;
   std::map<std::pair<StringId, uint32_t>, TrackId> gpu_counter_tracks_;
 
-  // Stores the descriptor uuid used for the primary process/thread track
-  // for the given upid / utid. Used for pid/tid reuse detection.
-  std::map<UniquePid, uint64_t /*uuid*/> descriptor_uuids_by_upid_;
-  std::map<UniqueTid, uint64_t /*uuid*/> descriptor_uuids_by_utid_;
-
+  base::Optional<TrackId> chrome_global_instant_track_id_;
   base::Optional<TrackId> trigger_track_id_;
 
   const StringId source_key_ = kNullStringId;
@@ -290,9 +153,6 @@ class TrackTracker {
   const StringId fuchsia_source_ = kNullStringId;
   const StringId chrome_source_ = kNullStringId;
   const StringId android_source_ = kNullStringId;
-  const StringId descriptor_source_ = kNullStringId;
-
-  const StringId default_descriptor_track_name_ = kNullStringId;
 
   TraceProcessorContext* const context_;
 };

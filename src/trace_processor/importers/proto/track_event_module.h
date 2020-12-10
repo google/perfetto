@@ -39,11 +39,14 @@ class TrackEventModule : public ProtoImporterModule {
       PacketSequenceState* state,
       uint32_t field_id) override;
 
+  void OnIncrementalStateCleared(uint32_t) override;
+
   void ParsePacket(const protos::pbzero::TracePacket::Decoder& decoder,
                    const TimestampedTracePiece& ttp,
                    uint32_t field_id) override;
 
  private:
+  std::unique_ptr<TrackEventTracker> track_event_tracker_;
   TrackEventTokenizer tokenizer_;
   TrackEventParser parser_;
 };
