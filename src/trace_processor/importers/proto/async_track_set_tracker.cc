@@ -120,8 +120,12 @@ AsyncTrackSetTracker::GetOrCreateTrackForCookie(TrackSet& set, int64_t cookie) {
         return state.slice_type == TrackState::SliceType::kCookie &&
                state.nest_count == 0;
       });
-  if (it != set.tracks.end())
+  if (it != set.tracks.end()) {
+    // Adopt this track for the cookie to make sure future slices with this
+    // cookie also get associated to this track.
+    it->cookie = cookie;
     return *it;
+  }
 
   TrackState state;
   state.id = CreateTrackForSet(set);

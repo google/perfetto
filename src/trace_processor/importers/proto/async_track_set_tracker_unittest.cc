@@ -128,7 +128,7 @@ TEST_F(AsyncTrackSetTrackerUnittest, MixScopedAndBeginEnd) {
   ASSERT_EQ(begin, end);
 }
 
-TEST_F(AsyncTrackSetTrackerUnittest, DifferentTracks) {
+TEST_F(AsyncTrackSetTrackerUnittest, DifferentTracksInterleave) {
   TrackId b1 = tracker_->Begin(unnestable_id_, 666);
   TrackId b2 = tracker_->Begin(legacy_unnestable_id_, 777);
   TrackId e1 = tracker_->End(unnestable_id_, 666);
@@ -137,6 +137,28 @@ TEST_F(AsyncTrackSetTrackerUnittest, DifferentTracks) {
   ASSERT_EQ(b1, e1);
   ASSERT_EQ(b2, e2);
   ASSERT_NE(b1, b2);
+}
+
+TEST_F(AsyncTrackSetTrackerUnittest, DifferentCookieInterleave) {
+  TrackId b1 = tracker_->Begin(legacy_unnestable_id_, 666);
+  TrackId b2 = tracker_->Begin(legacy_unnestable_id_, 777);
+  TrackId e1 = tracker_->End(legacy_unnestable_id_, 666);
+  TrackId e2 = tracker_->End(legacy_unnestable_id_, 777);
+
+  ASSERT_EQ(b1, e1);
+  ASSERT_EQ(b2, e2);
+  ASSERT_NE(b1, b2);
+}
+
+TEST_F(AsyncTrackSetTrackerUnittest, DifferentCookieSequential) {
+  TrackId b1 = tracker_->Begin(legacy_unnestable_id_, 666);
+  TrackId e1 = tracker_->End(legacy_unnestable_id_, 666);
+  TrackId b2 = tracker_->Begin(legacy_unnestable_id_, 777);
+  TrackId e2 = tracker_->End(legacy_unnestable_id_, 777);
+
+  ASSERT_EQ(b1, e1);
+  ASSERT_EQ(b1, b2);
+  ASSERT_EQ(b2, e2);
 }
 
 }  // namespace
