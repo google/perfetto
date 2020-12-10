@@ -123,6 +123,8 @@ source_set("storage_minimal") {
     "importers/proto/track_event_parser.h",
     "importers/proto/track_event_tokenizer.cc",
     "importers/proto/track_event_tokenizer.h",
+    "importers/proto/track_event_tracker.cc",
+    "importers/proto/track_event_tracker.h",
     "importers/syscalls/syscall_tracker.h",
     "importers/systrace/systrace_line.h",
     "timestamped_trace_piece.h",

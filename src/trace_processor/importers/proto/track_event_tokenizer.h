@@ -38,10 +38,11 @@ namespace trace_processor {
 class PacketSequenceState;
 class TraceProcessorContext;
 class TraceBlobView;
+class TrackEventTracker;
 
 class TrackEventTokenizer {
  public:
-  explicit TrackEventTokenizer(TraceProcessorContext* context);
+  explicit TrackEventTokenizer(TraceProcessorContext*, TrackEventTracker*);
 
   ModuleResult TokenizeTrackDescriptorPacket(
       PacketSequenceState* state,
@@ -61,6 +62,7 @@ class TrackEventTokenizer {
       const protos::pbzero::ThreadDescriptor_Decoder&);
 
   TraceProcessorContext* context_;
+  TrackEventTracker* track_event_tracker_;
 
   const StringId counter_name_thread_time_id_;
   const StringId counter_name_thread_instruction_count_id_;
