@@ -28,6 +28,7 @@
 #include <unistd.h>
 #endif
 
+#include <algorithm>
 #include <limits>
 
 #include "perfetto/ext/base/watchdog.h"
