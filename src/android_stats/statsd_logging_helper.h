@@ -18,6 +18,7 @@
 #define SRC_ANDROID_STATS_STATSD_LOGGING_HELPER_H_
 
 #include <stdint.h>
+#include <string>
 #include <vector>
 
 #include "src/android_stats/perfetto_atoms.h"
