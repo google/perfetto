@@ -28,7 +28,6 @@ TrackTracker::TrackTracker(TraceProcessorContext* context)
       source_id_is_process_scoped_key_(
           context->storage->InternString("source_id_is_process_scoped")),
       source_scope_key_(context->storage->InternString("source_scope")),
-      parent_track_id_key_(context->storage->InternString("parent_track_id")),
       category_key_(context->storage->InternString("category")),
       fuchsia_source_(context->storage->InternString("fuchsia")),
       chrome_source_(context->storage->InternString("chrome")),
