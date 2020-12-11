@@ -32,6 +32,9 @@ StatsdLogUploadEvent(PerfettoStatsdAtom atom,
                      int64_t uuid_lsb,
                      int64_t uuid_msb);
 
+void __attribute__((visibility("default")))
+StatsdLogTriggerEvent(PerfettoTriggerAtom atom, const char* trigger_name);
+
 }  // extern "C"
 
 }  // namespace android_internal

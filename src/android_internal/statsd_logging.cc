@@ -30,5 +30,9 @@ void StatsdLogUploadEvent(PerfettoStatsdAtom atom,
               uuid_msb, "");
 }
 
+void StatsdLogTriggerEvent(PerfettoTriggerAtom atom, const char* trigger_name) {
+  stats_write(PERFETTO_TRIGGER, static_cast<int32_t>(atom), trigger_name);
+}
+
 }  // namespace android_internal
 }  // namespace perfetto
