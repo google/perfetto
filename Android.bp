@@ -852,6 +852,7 @@ cc_binary {
     ":perfetto_protos_perfetto_trace_track_event_zero_gen",
     ":perfetto_src_android_internal_headers",
     ":perfetto_src_android_internal_lazy_library_loader",
+    ":perfetto_src_android_stats_android_stats",
     ":perfetto_src_android_stats_perfetto_atoms",
     ":perfetto_src_base_base",
     ":perfetto_src_base_unix_socket",
@@ -6223,6 +6224,14 @@ filegroup {
   ],
 }
 
+// GN: //src/android_stats:android_stats
+filegroup {
+  name: "perfetto_src_android_stats_android_stats",
+  srcs: [
+    "src/android_stats/statsd_logging_helper.cc",
+  ],
+}
+
 // GN: //src/android_stats:perfetto_atoms
 filegroup {
   name: "perfetto_src_android_stats_perfetto_atoms",
@@ -8346,6 +8355,7 @@ cc_test {
     ":perfetto_protos_perfetto_trace_track_event_zero_gen",
     ":perfetto_src_android_internal_headers",
     ":perfetto_src_android_internal_lazy_library_loader",
+    ":perfetto_src_android_stats_android_stats",
     ":perfetto_src_android_stats_perfetto_atoms",
     ":perfetto_src_base_base",
     ":perfetto_src_base_test_support",

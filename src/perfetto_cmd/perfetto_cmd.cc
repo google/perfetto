@@ -50,6 +50,7 @@
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "perfetto/tracing/core/tracing_service_state.h"
+#include "src/android_stats/statsd_logging_helper.h"
 #include "src/perfetto_cmd/config.h"
 #include "src/perfetto_cmd/packet_writer.h"
 #include "src/perfetto_cmd/pbtxt_to_pb.h"
@@ -621,6 +622,8 @@ int PerfettoCmd::Main(int argc, char** argv) {
   // the options.
   if (!triggers_to_activate.empty()) {
     LogUploadEvent(PerfettoStatsdAtom::kTriggerBegin);
+    LogTriggerEvents(PerfettoTriggerAtom::kCmdTrigger, triggers_to_activate);
+
     bool finished_with_success = false;
     TriggerProducer producer(
         &task_runner_,
@@ -634,6 +637,8 @@ int PerfettoCmd::Main(int argc, char** argv) {
       LogUploadEvent(PerfettoStatsdAtom::kTriggerSuccess);
     } else {
       LogUploadEvent(PerfettoStatsdAtom::kTriggerFailure);
+      LogTriggerEvents(PerfettoTriggerAtom::kCmdTriggerFail,
+                       triggers_to_activate);
     }
     return finished_with_success ? 0 : 1;
   }
@@ -988,11 +993,18 @@ void PerfettoCmd::OnObservableEvents(
     const ObservableEvents& /*observable_events*/) {}
 
 void PerfettoCmd::LogUploadEvent(PerfettoStatsdAtom atom) {
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-  LogUploadEventAndroid(atom);
-#else
-  base::ignore_result(atom);
-#endif
+  if (!is_uploading_)
+    return;
+  base::Uuid uuid(uuid_);
+  android_stats::MaybeLogUploadEvent(atom, uuid.lsb(), uuid.msb());
+}
+
+void PerfettoCmd::LogTriggerEvents(
+    PerfettoTriggerAtom atom,
+    const std::vector<std::string>& trigger_names) {
+  if (!is_uploading_)
+    return;
+  android_stats::MaybeLogTriggerEvents(atom, trigger_names);
 }
 
 int __attribute__((visibility("default")))

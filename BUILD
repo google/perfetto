@@ -556,6 +556,15 @@ filegroup(
     ],
 )
 
+# GN target: //src/android_stats:android_stats
+filegroup(
+    name = "src_android_stats_android_stats",
+    srcs = [
+        "src/android_stats/statsd_logging_helper.cc",
+        "src/android_stats/statsd_logging_helper.h",
+    ],
+)
+
 # GN target: //src/android_stats:perfetto_atoms
 filegroup(
     name = "src_android_stats_perfetto_atoms",
@@ -3034,6 +3043,7 @@ perfetto_cc_binary(
         ":include_perfetto_tracing_tracing",
         ":src_android_internal_headers",
         ":src_android_internal_lazy_library_loader",
+        ":src_android_stats_android_stats",
         ":src_android_stats_perfetto_atoms",
         ":src_perfetto_cmd_perfetto_cmd",
         ":src_perfetto_cmd_trigger_producer",

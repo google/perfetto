@@ -53,8 +53,7 @@ source_set("perfetto_cmd") {
     "../../protos/perfetto/common:cpp",
     "../../protos/perfetto/config:cpp",
     "../../protos/perfetto/config/ftrace:cpp",
-    "../android_internal:lazy_library_loader",
-    "../android_stats:perfetto_atoms",
+    "../android_stats",
     "../base",
     "../protozero",
     "../tracing/ipc/consumer",
@@ -76,6 +75,7 @@ source_set("perfetto_cmd") {
     "rate_limiter.h",
   ]
   if (is_android) {
+    deps += [ "../android_internal:lazy_library_loader" ]
     sources += [ "perfetto_cmd_android.cc" ]
   }
 }
