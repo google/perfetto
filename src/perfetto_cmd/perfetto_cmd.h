@@ -79,9 +79,10 @@ class PerfettoCmd : public Consumer {
   static base::ScopedFile OpenDropboxTmpFile();
   void SaveTraceIntoDropboxAndIncidentOrCrash();
   void SaveOutputToIncidentTraceOrCrash();
-  void LogUploadEventAndroid(PerfettoStatsdAtom atom);
 #endif
   void LogUploadEvent(PerfettoStatsdAtom atom);
+  void LogTriggerEvents(PerfettoTriggerAtom atom,
+                        const std::vector<std::string>& trigger_names);
 
   base::UnixTaskRunner task_runner_;
 

@@ -26,7 +26,6 @@
 #include "perfetto/tracing/core/trace_config.h"
 #include "src/android_internal/incident_service.h"
 #include "src/android_internal/lazy_library_loader.h"
-#include "src/android_internal/statsd_logging.h"
 
 namespace perfetto {
 namespace {
@@ -130,14 +129,6 @@ base::ScopedFile PerfettoCmd::OpenDropboxTmpFile() {
   if (!fd)
     PERFETTO_PLOG("Could not create a temporary trace file in %s", kStateDir);
   return fd;
-}
-
-void PerfettoCmd::LogUploadEventAndroid(PerfettoStatsdAtom atom) {
-  if (!is_uploading_)
-    return;
-  PERFETTO_LAZY_LOAD(android_internal::StatsdLogUploadEvent, log_event_fn);
-  base::Uuid uuid(uuid_);
-  log_event_fn(atom, uuid.lsb(), uuid.msb());
 }
 
 }  // namespace perfetto
