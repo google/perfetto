@@ -154,12 +154,55 @@ class TrackEventTracker {
     }
   };
 
-  base::Optional<TrackId> GetDescriptorTrackImpl(
+  class ResolvedDescriptorTrack {
+   public:
+    enum class Scope {
+      kThread,
+      kProcess,
+      kGlobal,
+    };
+
+    static ResolvedDescriptorTrack Process(UniquePid upid,
+                                           bool is_counter,
+                                           bool is_root);
+    static ResolvedDescriptorTrack Thread(UniqueTid utid,
+                                          bool is_counter,
+                                          bool is_root);
+    static ResolvedDescriptorTrack Global(bool is_counter, bool is_root);
+
+    Scope scope() const { return scope_; }
+    bool is_counter() const { return is_counter_; }
+    UniqueTid utid() const {
+      PERFETTO_DCHECK(scope() == Scope::kThread);
+      return utid_;
+    }
+    UniquePid upid() const {
+      PERFETTO_DCHECK(scope() == Scope::kProcess);
+      return upid_;
+    }
+    UniqueTid is_root_in_scope() const { return is_root_in_scope_; }
+
+   private:
+    Scope scope_;
+    bool is_counter_;
+    bool is_root_in_scope_;
+
+    // Only set when |scope| == |Scope::kThread|.
+    UniqueTid utid_;
+
+    // Only set when |scope| == |Scope::kProcess|.
+    UniquePid upid_;
+  };
+
+  base::Optional<TrackId> GetDescriptorTrackImpl(uint64_t uuid);
+  TrackId CreateTrackFromResolved(const ResolvedDescriptorTrack&);
+  base::Optional<ResolvedDescriptorTrack> ResolveDescriptorTrack(
       uint64_t uuid,
-      std::vector<uint64_t>* descendent_uuids = nullptr);
-  TrackId ResolveDescriptorTrack(uint64_t uuid,
-                                 const DescriptorTrackReservation&,
-                                 std::vector<uint64_t>* descendent_uuids);
+      std::vector<uint64_t>* descendent_uuids);
+  ResolvedDescriptorTrack ResolveDescriptorTrackImpl(
+      uint64_t uuid,
+      const DescriptorTrackReservation&,
+      std::vector<uint64_t>* descendent_uuids);
 
   static constexpr uint64_t kDefaultDescriptorTrackUuid = 0u;
 
@@ -168,7 +211,9 @@ class TrackEventTracker {
 
   std::map<uint64_t /* uuid */, DescriptorTrackReservation>
       reserved_descriptor_tracks_;
-  std::map<uint64_t /* uuid */, TrackId> resolved_descriptor_tracks_;
+  std::map<uint64_t /* uuid */, ResolvedDescriptorTrack>
+      resolved_descriptor_tracks_;
+  std::map<uint64_t /* uuid */, TrackId> descriptor_tracks_;
 
   // Stores the descriptor uuid used for the primary process/thread track
   // for the given upid / utid. Used for pid/tid reuse detection.
@@ -177,7 +222,7 @@ class TrackEventTracker {
 
   const StringId source_key_ = kNullStringId;
   const StringId source_id_key_ = kNullStringId;
-  const StringId parent_track_id_key_ = kNullStringId;
+  const StringId is_root_in_scope_key_ = kNullStringId;
   const StringId category_key_ = kNullStringId;
 
   const StringId descriptor_source_ = kNullStringId;

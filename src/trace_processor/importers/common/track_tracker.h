@@ -147,7 +147,6 @@ class TrackTracker {
   const StringId source_id_key_ = kNullStringId;
   const StringId source_id_is_process_scoped_key_ = kNullStringId;
   const StringId source_scope_key_ = kNullStringId;
-  const StringId parent_track_id_key_ = kNullStringId;
   const StringId category_key_ = kNullStringId;
 
   const StringId fuchsia_source_ = kNullStringId;

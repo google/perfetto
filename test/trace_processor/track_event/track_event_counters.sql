@@ -19,7 +19,6 @@ select
   thread.name as thread,
   thread_process.name as thread_process,
   counter_track.unit as unit,
-  counter_track.source_arg_set_id as track_args,
   counter.ts,
   counter.value
 from counter
