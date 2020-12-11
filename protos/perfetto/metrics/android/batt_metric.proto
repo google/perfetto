@@ -44,9 +44,17 @@ message AndroidBatteryMetric {
     optional int64 sleep_screen_doze_ns = 8;
   }
 
+  // Period of time during the trace that the device went to sleep completely.
+  message SuspendPeriod {
+    optional int64 timestamp_ns = 1;
+    optional int64 duration_ns = 2;
+  }
+
   // Battery counters info for each ts of the trace. This should only be
   // extracted for short traces.
   repeated BatteryCounters battery_counters = 1;
 
   optional BatteryAggregates battery_aggregates = 2;
+
+  repeated SuspendPeriod suspend_period = 3;
 }
