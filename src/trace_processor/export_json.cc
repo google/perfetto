@@ -764,7 +764,8 @@ class JsonExporter {
       if (track_args_id) {
         track_args = &args_builder_.GetArgs(*track_args_id);
         legacy_chrome_track = (*track_args)["source"].asString() == "chrome";
-        is_child_track = track_args->isMember("parent_track_id");
+        is_child_track = track_args->isMember("is_root_in_scope") &&
+                         !(*track_args)["is_root_in_scope"].asBool();
       }
 
       const auto& thread_track = storage_->thread_track_table();
