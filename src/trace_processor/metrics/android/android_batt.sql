@@ -108,7 +108,8 @@ CREATE TABLE suspend_slice_ AS
 -- for it.
 SELECT
     ts,
-    dur
+    dur,
+    true as trustworthy
 FROM (
     SELECT
         ts,
@@ -129,8 +130,9 @@ UNION ALL
 -- action string so we do some convoluted pattern matching that mostly works.
 -- TODO(simonmacm) remove this when enough time has passed (mid 2021?)
 SELECT
-       ts,
-       dur
+    ts,
+    dur,
+    false as trustworthy
 FROM (
     SELECT
        ts,
@@ -255,5 +257,15 @@ SELECT AndroidBatteryMetric(
          SELECT dur, screen_state_val AS state, 'sleep' AS tbl
          FROM screen_state_span_with_suspend
     )
+  ),
+  'suspend_period', (
+    SELECT RepeatedField(
+      AndroidBatteryMetric_SuspendPeriod(
+        'timestamp_ns', ts,
+        'duration_ns', dur
+      )
+    )
+    FROM suspend_slice_
+    WHERE trustworthy
   )
 );
