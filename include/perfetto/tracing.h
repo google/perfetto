@@ -24,15 +24,18 @@
 // concern (e.g. chromium), which migh prefer sticking to strict IWYU.
 
 #include "perfetto/tracing/buffer_exhausted_policy.h"
+#include "perfetto/tracing/console_interceptor.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "perfetto/tracing/data_source.h"
+#include "perfetto/tracing/interceptor.h"
 #include "perfetto/tracing/platform.h"
 #include "perfetto/tracing/tracing.h"
 #include "perfetto/tracing/tracing_backend.h"
 #include "perfetto/tracing/track_event.h"
 #include "perfetto/tracing/track_event_interned_data_index.h"
 #include "perfetto/tracing/track_event_legacy.h"
+#include "perfetto/tracing/track_event_state_tracker.h"
 
 #endif  // INCLUDE_PERFETTO_TRACING_H_
