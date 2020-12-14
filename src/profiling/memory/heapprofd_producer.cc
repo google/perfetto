@@ -32,6 +32,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/thread_task_runner.h"
 #include "perfetto/ext/base/watchdog_posix.h"
+#include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/ext/tracing/ipc/producer_ipc_client.h"
 #include "perfetto/tracing/core/data_source_config.h"
@@ -485,12 +486,12 @@ void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
 }
 
 bool HeapprofdProducer::IsPidProfiled(pid_t pid) {
-  for (const auto& pair : data_sources_) {
-    const DataSource& ds = pair.second;
-    if (ds.process_states.find(pid) != ds.process_states.cend())
-      return true;
-  }
-  return false;
+  return std::any_of(
+      data_sources_.cbegin(), data_sources_.cend(),
+      [pid](const std::pair<const DataSourceInstanceID, DataSource>& p) {
+        const DataSource& ds = p.second;
+        return ds.process_states.count(pid) > 0;
+      });
 }
 
 void HeapprofdProducer::SetStartupProperties(DataSource* data_source) {
