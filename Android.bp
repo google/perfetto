@@ -155,6 +155,21 @@ cc_binary {
   ],
 }
 
+// GN: //src/profiling/memory:heapprofd_api_noop
+cc_library_shared {
+  name: "heapprofd_api_noop",
+  srcs: [
+    "src/profiling/memory/client_api_noop.cc",
+  ],
+  export_include_dirs: [
+    "include",
+    "include/perfetto/base/build_configs/android_tree",
+  ],
+  defaults: [
+    "perfetto_defaults",
+  ],
+}
+
 // GN: //src/profiling/memory:heapprofd_client
 cc_library_shared {
   name: "heapprofd_client",
