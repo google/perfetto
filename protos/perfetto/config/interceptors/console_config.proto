@@ -15,17 +15,14 @@
  */
 
 syntax = "proto2";
-
 package perfetto.protos;
 
-import "protos/perfetto/config/interceptors/console_config.proto";
-
-// Configuration for trace packet interception. Used for diverting trace data to
-// non-Perfetto sources (e.g., logging to the console, ETW) when using the
-// Perfetto SDK.
-message InterceptorConfig {
-  // Matches the name given to RegisterInterceptor().
-  optional string name = 1;
-
-  optional ConsoleConfig console_config = 100 [lazy = true];
+message ConsoleConfig {
+  enum Output {
+    OUTPUT_UNSPECIFIED = 0;
+    OUTPUT_STDOUT = 1;
+    OUTPUT_STDERR = 2;
+  }
+  optional Output output = 1;
+  optional bool enable_colors = 2;
 }
