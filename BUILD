@@ -142,6 +142,7 @@ perfetto_cc_binary(
         ":protos_perfetto_config_ftrace_zero",
         ":protos_perfetto_config_gpu_zero",
         ":protos_perfetto_config_inode_file_zero",
+        ":protos_perfetto_config_interceptors_zero",
         ":protos_perfetto_config_power_zero",
         ":protos_perfetto_config_process_stats_zero",
         ":protos_perfetto_config_profiling_zero",
@@ -228,6 +229,8 @@ perfetto_cc_library(
         ":protos_perfetto_config_gpu_zero",
         ":protos_perfetto_config_inode_file_cpp",
         ":protos_perfetto_config_inode_file_zero",
+        ":protos_perfetto_config_interceptors_cpp",
+        ":protos_perfetto_config_interceptors_zero",
         ":protos_perfetto_config_power_cpp",
         ":protos_perfetto_config_power_zero",
         ":protos_perfetto_config_process_stats_cpp",
@@ -507,6 +510,7 @@ filegroup(
     name = "include_perfetto_tracing_tracing",
     srcs = [
         "include/perfetto/tracing/buffer_exhausted_policy.h",
+        "include/perfetto/tracing/console_interceptor.h",
         "include/perfetto/tracing/data_source.h",
         "include/perfetto/tracing/debug_annotation.h",
         "include/perfetto/tracing/event_context.h",
@@ -531,6 +535,7 @@ filegroup(
         "include/perfetto/tracing/track_event_category_registry.h",
         "include/perfetto/tracing/track_event_interned_data_index.h",
         "include/perfetto/tracing/track_event_legacy.h",
+        "include/perfetto/tracing/track_event_state_tracker.h",
     ],
 )
 
@@ -1535,6 +1540,7 @@ filegroup(
 filegroup(
     name = "src_tracing_client_api_without_backends",
     srcs = [
+        "src/tracing/console_interceptor.cc",
         "src/tracing/data_source.cc",
         "src/tracing/debug_annotation.cc",
         "src/tracing/event_context.cc",
@@ -1548,6 +1554,7 @@ filegroup(
         "src/tracing/track.cc",
         "src/tracing/track_event_category_registry.cc",
         "src/tracing/track_event_legacy.cc",
+        "src/tracing/track_event_state_tracker.cc",
         "src/tracing/virtual_destructors.cc",
     ],
 )
@@ -1736,6 +1743,7 @@ perfetto_cc_protocpp_library(
         ":protos_perfetto_config_ftrace_cpp",
         ":protos_perfetto_config_profiling_cpp",
         ":protos_perfetto_config_gpu_cpp",
+        ":protos_perfetto_config_interceptors_cpp",
         ":protos_perfetto_config_power_cpp",
         ":protos_perfetto_common_cpp",
         ":protos_perfetto_config_sys_stats_cpp",
@@ -1856,6 +1864,45 @@ perfetto_cc_protozero_library(
     name = "protos_perfetto_config_inode_file_zero",
     deps = [
         ":protos_perfetto_config_inode_file_protos",
+    ],
+)
+
+# GN target: //protos/perfetto/config/interceptors:cpp
+perfetto_cc_protocpp_library(
+    name = "protos_perfetto_config_interceptors_cpp",
+    deps = [
+        ":protos_perfetto_config_interceptors_protos",
+        ":protos_perfetto_common_cpp",
+    ],
+)
+
+# GN target: //protos/perfetto/config/interceptors:lite
+perfetto_cc_proto_library(
+    name = "protos_perfetto_config_interceptors_lite",
+    deps = [
+        ":protos_perfetto_config_interceptors_protos",
+    ],
+)
+
+# GN target: //protos/perfetto/config/interceptors:zero
+perfetto_proto_library(
+    name = "protos_perfetto_config_interceptors_protos",
+    srcs = [
+        "protos/perfetto/config/interceptors/console_config.proto",
+    ],
+    visibility = [
+        PERFETTO_CONFIG.proto_library_visibility,
+    ],
+    deps = [
+        ":protos_perfetto_common_protos",
+    ],
+)
+
+# GN target: //protos/perfetto/config/interceptors:zero
+perfetto_cc_protozero_library(
+    name = "protos_perfetto_config_interceptors_zero",
+    deps = [
+        ":protos_perfetto_config_interceptors_protos",
     ],
 )
 
@@ -2009,6 +2056,7 @@ perfetto_proto_library(
         ":protos_perfetto_config_ftrace_protos",
         ":protos_perfetto_config_gpu_protos",
         ":protos_perfetto_config_inode_file_protos",
+        ":protos_perfetto_config_interceptors_protos",
         ":protos_perfetto_config_power_protos",
         ":protos_perfetto_config_process_stats_protos",
         ":protos_perfetto_config_profiling_protos",
@@ -2111,6 +2159,7 @@ perfetto_cc_protocpp_library(
         ":protos_perfetto_config_ftrace_cpp",
         ":protos_perfetto_config_profiling_cpp",
         ":protos_perfetto_config_gpu_cpp",
+        ":protos_perfetto_config_interceptors_cpp",
         ":protos_perfetto_config_cpp",
         ":protos_perfetto_config_power_cpp",
         ":protos_perfetto_common_cpp",
@@ -2125,6 +2174,7 @@ perfetto_cc_ipc_library(
         ":protos_perfetto_ipc_protos",
         ":protos_perfetto_config_android_cpp",
         ":protos_perfetto_config_track_event_cpp",
+        ":protos_perfetto_config_interceptors_cpp",
         ":protos_perfetto_common_cpp",
         ":protos_perfetto_config_process_stats_cpp",
         ":protos_perfetto_config_ftrace_cpp",
@@ -2154,6 +2204,7 @@ perfetto_proto_library(
         ":protos_perfetto_config_ftrace_protos",
         ":protos_perfetto_config_gpu_protos",
         ":protos_perfetto_config_inode_file_protos",
+        ":protos_perfetto_config_interceptors_protos",
         ":protos_perfetto_config_power_protos",
         ":protos_perfetto_config_process_stats_protos",
         ":protos_perfetto_config_profiling_protos",
@@ -2560,6 +2611,7 @@ perfetto_proto_library(
         ":protos_perfetto_config_ftrace_protos",
         ":protos_perfetto_config_gpu_protos",
         ":protos_perfetto_config_inode_file_protos",
+        ":protos_perfetto_config_interceptors_protos",
         ":protos_perfetto_config_power_protos",
         ":protos_perfetto_config_process_stats_protos",
         ":protos_perfetto_config_profiling_protos",
@@ -2603,6 +2655,7 @@ perfetto_proto_library(
         ":protos_perfetto_config_ftrace_protos",
         ":protos_perfetto_config_gpu_protos",
         ":protos_perfetto_config_inode_file_protos",
+        ":protos_perfetto_config_interceptors_protos",
         ":protos_perfetto_config_power_protos",
         ":protos_perfetto_config_process_stats_protos",
         ":protos_perfetto_config_profiling_protos",
@@ -2990,6 +3043,8 @@ perfetto_cc_library(
         ":protos_perfetto_config_gpu_zero",
         ":protos_perfetto_config_inode_file_cpp",
         ":protos_perfetto_config_inode_file_zero",
+        ":protos_perfetto_config_interceptors_cpp",
+        ":protos_perfetto_config_interceptors_zero",
         ":protos_perfetto_config_power_cpp",
         ":protos_perfetto_config_power_zero",
         ":protos_perfetto_config_process_stats_cpp",
@@ -3068,6 +3123,8 @@ perfetto_cc_binary(
         ":protos_perfetto_config_gpu_zero",
         ":protos_perfetto_config_inode_file_cpp",
         ":protos_perfetto_config_inode_file_zero",
+        ":protos_perfetto_config_interceptors_cpp",
+        ":protos_perfetto_config_interceptors_zero",
         ":protos_perfetto_config_power_cpp",
         ":protos_perfetto_config_power_zero",
         ":protos_perfetto_config_process_stats_cpp",
@@ -3148,6 +3205,7 @@ perfetto_cc_library(
                ":protos_perfetto_config_ftrace_zero",
                ":protos_perfetto_config_gpu_zero",
                ":protos_perfetto_config_inode_file_zero",
+               ":protos_perfetto_config_interceptors_zero",
                ":protos_perfetto_config_power_zero",
                ":protos_perfetto_config_process_stats_zero",
                ":protos_perfetto_config_profiling_zero",
@@ -3235,6 +3293,7 @@ perfetto_cc_binary(
                ":protos_perfetto_config_ftrace_zero",
                ":protos_perfetto_config_gpu_zero",
                ":protos_perfetto_config_inode_file_zero",
+               ":protos_perfetto_config_interceptors_zero",
                ":protos_perfetto_config_power_zero",
                ":protos_perfetto_config_process_stats_zero",
                ":protos_perfetto_config_profiling_zero",
@@ -3333,6 +3392,7 @@ perfetto_cc_library(
         ":protos_perfetto_config_ftrace_zero",
         ":protos_perfetto_config_gpu_zero",
         ":protos_perfetto_config_inode_file_zero",
+        ":protos_perfetto_config_interceptors_zero",
         ":protos_perfetto_config_power_zero",
         ":protos_perfetto_config_process_stats_zero",
         ":protos_perfetto_config_profiling_zero",
@@ -3411,6 +3471,7 @@ perfetto_cc_binary(
                ":protos_perfetto_config_ftrace_zero",
                ":protos_perfetto_config_gpu_zero",
                ":protos_perfetto_config_inode_file_zero",
+               ":protos_perfetto_config_interceptors_zero",
                ":protos_perfetto_config_power_zero",
                ":protos_perfetto_config_process_stats_zero",
                ":protos_perfetto_config_profiling_zero",
