@@ -28,6 +28,7 @@ source_set("tracing") {
 
   sources = [
     "buffer_exhausted_policy.h",
+    "console_interceptor.h",
     "data_source.h",
     "debug_annotation.h",
     "event_context.h",
@@ -52,5 +53,6 @@ source_set("tracing") {
     "track_event_category_registry.h",
     "track_event_interned_data_index.h",
     "track_event_legacy.h",
+    "track_event_state_tracker.h",
   ]
 }

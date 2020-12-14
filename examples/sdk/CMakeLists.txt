@@ -30,6 +30,7 @@ add_executable(example example.cc trace_categories.cc)
 add_executable(example_system_wide example_system_wide.cc
                trace_categories.cc)
 add_executable(example_custom_data_source example_custom_data_source.cc)
+add_executable(example_console example_console.cc trace_categories.cc)
 
 target_link_libraries(example perfetto
                       ${CMAKE_THREAD_LIBS_INIT})
@@ -37,10 +38,13 @@ target_link_libraries(example_system_wide perfetto
                       ${CMAKE_THREAD_LIBS_INIT})
 target_link_libraries(example_custom_data_source perfetto
                       ${CMAKE_THREAD_LIBS_INIT})
+target_link_libraries(example_console perfetto
+                      ${CMAKE_THREAD_LIBS_INIT})
 
 # On Android we also need the logging library.
 if (ANDROID)
   target_link_libraries(example log)
   target_link_libraries(example_system_wide log)
   target_link_libraries(example_custom_data_source log)
+  target_link_libraries(example_console log)
 endif (ANDROID)

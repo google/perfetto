@@ -90,6 +90,7 @@ source_set("client_api_without_backends") {
     "../../include/perfetto/tracing/core",
     "../../protos/perfetto/common:zero",
     "../../protos/perfetto/config:cpp",
+    "../../protos/perfetto/config/interceptors:zero",
     "../../protos/perfetto/config/track_event:cpp",
     "../base",
     "core",
@@ -99,6 +100,7 @@ source_set("client_api_without_backends") {
     "../../include/perfetto/tracing",
   ]
   sources = [
+    "console_interceptor.cc",
     "data_source.cc",
     "debug_annotation.cc",
     "event_context.cc",
@@ -112,6 +114,7 @@ source_set("client_api_without_backends") {
     "track.cc",
     "track_event_category_registry.cc",
     "track_event_legacy.cc",
+    "track_event_state_tracker.cc",
     "virtual_destructors.cc",
   ]
   assert_no_deps = [ "core:service" ]

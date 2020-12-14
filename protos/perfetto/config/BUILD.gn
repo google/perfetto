@@ -25,6 +25,7 @@ perfetto_proto_library("@TYPE@") {
     "ftrace:@TYPE@",
     "gpu:@TYPE@",
     "inode_file:@TYPE@",
+    "interceptors:@TYPE@",
     "power:@TYPE@",
     "process_stats:@TYPE@",
     "profiling:@TYPE@",

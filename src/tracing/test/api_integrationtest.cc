@@ -21,6 +21,7 @@
 #include <functional>
 #include <list>
 #include <mutex>
+#include <regex>
 #include <thread>
 #include <vector>
 
@@ -167,6 +168,7 @@ uint64_t ConvertTimestampToTraceTimeNs(const MyTimestamp& timestamp) {
 namespace {
 
 using ::testing::_;
+using ::testing::ContainerEq;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::Invoke;
@@ -3111,6 +3113,129 @@ TEST_P(PerfettoApiTest, TracePacketInterception) {
   EXPECT_THAT(TestInterceptor::instance->events, ElementsAre(long_title));
 
   tracing_session->get()->StopBlocking();
+}
+
+void EmitConsoleEvents() {
+  TRACE_EVENT_INSTANT("foo", "Instant event");
+  TRACE_EVENT("foo", "Scoped event");
+  TRACE_EVENT_BEGIN("foo", "Nested event");
+  TRACE_EVENT_INSTANT("foo", "Instant event");
+  TRACE_EVENT_INSTANT("foo", "Annotated event", "foo", 1, "bar", "hello");
+  TRACE_EVENT_END("foo");
+  uint64_t async_id = 4004;
+  auto track = perfetto::Track(async_id, perfetto::ThreadTrack::Current());
+  perfetto::TrackEvent::SetTrackDescriptor(
+      track, [](perfetto::protos::pbzero::TrackDescriptor* desc) {
+        desc->set_name("AsyncTrack");
+      });
+  TRACE_EVENT_BEGIN("test", "AsyncEvent", track);
+
+  std::thread thread([&] {
+    TRACE_EVENT("foo", "EventFromAnotherThread");
+    TRACE_EVENT_INSTANT("foo", "Instant event");
+    TRACE_EVENT_END("test", track);
+  });
+  thread.join();
+
+  TRACE_EVENT_INSTANT(
+      "foo", "More annotations", [](perfetto::EventContext ctx) {
+        {
+          auto* dbg = ctx.event()->add_debug_annotations();
+          dbg->set_name("dict");
+          auto* nested = dbg->set_nested_value();
+          nested->set_nested_type(
+              perfetto::protos::pbzero::DebugAnnotation::NestedValue::DICT);
+          nested->add_dict_keys("key");
+          auto* value = nested->add_dict_values();
+          value->set_int_value(123);
+        }
+        {
+          auto* dbg = ctx.event()->add_debug_annotations();
+          dbg->set_name("array");
+          auto* nested = dbg->set_nested_value();
+          nested->set_nested_type(
+              perfetto::protos::pbzero::DebugAnnotation::NestedValue::ARRAY);
+          auto* value = nested->add_array_values();
+          value->set_string_value("first");
+          value = nested->add_array_values();
+          value->set_string_value("second");
+        }
+      });
+}
+
+TEST_P(PerfettoApiTest, ConsoleInterceptorPrint) {
+  perfetto::ConsoleInterceptor::Register();
+
+  perfetto::TraceConfig cfg;
+  cfg.set_duration_ms(500);
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("track_event");
+  ds_cfg->mutable_interceptor_config()->set_name("console");
+
+  auto* tracing_session = NewTrace(cfg);
+  tracing_session->get()->StartBlocking();
+  EmitConsoleEvents();
+  tracing_session->get()->StopBlocking();
+}
+
+TEST_P(PerfettoApiTest, ConsoleInterceptorVerify) {
+  perfetto::ConsoleInterceptor::Register();
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  char temp_file[] = "/data/local/tmp/perfetto-XXXXXXXX";
+#else
+  char temp_file[] = "/tmp/perfetto-XXXXXXXX";
+#endif
+  int fd = mkstemp(temp_file);
+  ASSERT_TRUE(fd >= 0);
+  perfetto::ConsoleInterceptor::SetOutputFdForTesting(fd);
+
+  perfetto::TraceConfig cfg;
+  cfg.set_duration_ms(500);
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("track_event");
+  ds_cfg->mutable_interceptor_config()->set_name("console");
+
+  auto* tracing_session = NewTrace(cfg);
+  tracing_session->get()->StartBlocking();
+  EmitConsoleEvents();
+  tracing_session->get()->StopBlocking();
+  perfetto::ConsoleInterceptor::SetOutputFdForTesting(0);
+
+  std::vector<std::string> lines;
+  FILE* f = fdopen(fd, "r");
+  fseek(f, 0u, SEEK_SET);
+  std::array<char, 128> line{};
+  while (fgets(line.data(), line.size(), f)) {
+    // Ignore timestamps and process/thread ids.
+    std::string s(line.data() + 28);
+    // Filter out durations.
+    s = std::regex_replace(s, std::regex(" [+][0-9]*ms"), "");
+    lines.push_back(std::move(s));
+  }
+  fclose(f);
+  EXPECT_EQ(0, unlink(temp_file));
+
+  // clang-format off
+  std::vector<std::string> golden_lines = {
+      "foo   Instant event\n",
+      "foo   Scoped event {\n",
+      "foo   -  Nested event {\n",
+      "foo   -  -  Instant event\n",
+      "foo   -  -  Annotated event(foo:1, bar:hello)\n",
+      "foo   -  } Nested event\n",
+      "test  AsyncEvent {\n",
+      "foo   EventFromAnotherThread {\n",
+      "foo   -  Instant event\n",
+      "test  } AsyncEvent\n",
+      "foo   } EventFromAnotherThread\n",
+      "foo   -  More annotations(dict:{key:123}, array:[first, second])\n",
+      "foo   } Scoped event\n",
+  };
+  // clang-format on
+  EXPECT_THAT(lines, ContainerEq(golden_lines));
 }
 
 struct BackendTypeAsString {
