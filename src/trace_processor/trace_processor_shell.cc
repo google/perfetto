@@ -36,6 +36,7 @@
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/version.h"
+#include "perfetto/profiling/deobfuscator.h"
 #include "perfetto/trace_processor/read_trace.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/metrics/chrome/all_chrome_metrics.descriptor.h"
@@ -952,6 +953,21 @@ util::Status LoadTrace(const std::string& trace_file_path, double* size_mb) {
           }
         });
     g_tp->NotifyEndOfFile();
+  }
+
+  auto maybe_map = profiling::GetPerfettoProguardMapPath();
+  if (!maybe_map.empty()) {
+    profiling::ReadProguardMapsToDeobfuscationPackets(
+        maybe_map, [](const std::string& trace_proto) {
+          std::unique_ptr<uint8_t[]> buf(new uint8_t[trace_proto.size()]);
+          memcpy(buf.get(), trace_proto.data(), trace_proto.size());
+          auto status = g_tp->Parse(std::move(buf), trace_proto.size());
+          if (!status.ok()) {
+            PERFETTO_DFATAL_OR_ELOG("Failed to parse: %s",
+                                    status.message().c_str());
+            return;
+          }
+        });
   }
   return util::OkStatus();
 }

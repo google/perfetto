@@ -15,9 +15,15 @@
  */
 
 #include "perfetto/profiling/deobfuscator.h"
+#include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_splitter.h"
 
 #include "perfetto/ext/base/optional.h"
+#include "perfetto/protozero/scattered_heap_buffer.h"
+#include "protos/perfetto/trace/profiling/deobfuscation.pbzero.h"
+#include "protos/perfetto/trace/trace.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
 namespace profiling {
@@ -181,6 +187,97 @@ bool ProguardParser::AddLine(std::string line) {
     }
   }
   return true;
+}
+
+bool ProguardParser::AddLines(std::string contents) {
+  for (base::StringSplitter lines(std::move(contents), '\n'); lines.Next();) {
+    if (!AddLine(lines.cur_token()))
+      return false;
+  }
+  return true;
+}
+
+void MakeDeobfuscationPackets(
+    const std::string& package_name,
+    const std::map<std::string, profiling::ObfuscatedClass>& mapping,
+    std::function<void(const std::string&)> callback) {
+  protozero::HeapBuffered<perfetto::protos::pbzero::Trace> trace;
+  auto* packet = trace->add_packet();
+  // TODO(fmayer): Add handling for package name and version code here so we
+  // can support multiple dumps in the same trace.
+  auto* proto_mapping = packet->set_deobfuscation_mapping();
+  proto_mapping->set_package_name(package_name);
+  for (const auto& p : mapping) {
+    const std::string& obfuscated_class_name = p.first;
+    const profiling::ObfuscatedClass& cls = p.second;
+
+    auto* proto_class = proto_mapping->add_obfuscated_classes();
+    proto_class->set_obfuscated_name(obfuscated_class_name);
+    proto_class->set_deobfuscated_name(cls.deobfuscated_name);
+    for (const auto& field_p : cls.deobfuscated_fields) {
+      const std::string& obfuscated_field_name = field_p.first;
+      const std::string& deobfuscated_field_name = field_p.second;
+      auto* proto_member = proto_class->add_obfuscated_members();
+      proto_member->set_obfuscated_name(obfuscated_field_name);
+      proto_member->set_deobfuscated_name(deobfuscated_field_name);
+    }
+    for (const auto& field_p : cls.deobfuscated_methods) {
+      const std::string& obfuscated_method_name = field_p.first;
+      const std::string& deobfuscated_method_name = field_p.second;
+      auto* proto_member = proto_class->add_obfuscated_methods();
+      proto_member->set_obfuscated_name(obfuscated_method_name);
+      proto_member->set_deobfuscated_name(deobfuscated_method_name);
+    }
+  }
+  callback(trace.SerializeAsString());
+}
+
+bool ReadProguardMapsToDeobfuscationPackets(
+    const std::vector<ProguardMap>& maps,
+    std::function<void(std::string)> fn) {
+  for (const ProguardMap& map : maps) {
+    const char* filename = map.filename.c_str();
+    base::ScopedFstream f(fopen(filename, "r"));
+    if (!f) {
+      PERFETTO_ELOG("Failed to open %s", filename);
+      return false;
+    }
+    profiling::ProguardParser parser;
+    std::string contents;
+    PERFETTO_CHECK(base::ReadFileStream(*f, &contents));
+    if (!parser.AddLines(std::move(contents))) {
+      PERFETTO_ELOG("Failed to parse %s", filename);
+      return false;
+    }
+    std::map<std::string, profiling::ObfuscatedClass> obfuscation_map =
+        parser.ConsumeMapping();
+
+    // TODO(fmayer): right now, we don't use the profile we are given. We can
+    // filter the output to only contain the classes actually seen in the
+    // profile.
+    MakeDeobfuscationPackets(map.package, obfuscation_map, fn);
+  }
+  return true;
+}
+
+std::vector<ProguardMap> GetPerfettoProguardMapPath() {
+  const char* env = getenv("PERFETTO_PROGUARD_MAP");
+  if (env == nullptr)
+    return {};
+  std::vector<ProguardMap> res;
+  for (base::StringSplitter sp(std::string(env), ':'); sp.Next();) {
+    std::string token(sp.cur_token(), sp.cur_token_size());
+    size_t eq = token.find('=');
+    if (eq == std::string::npos) {
+      PERFETTO_ELOG(
+          "Invalid PERFETTO_PROGUARD_MAP. "
+          "Expected format packagename=filename[:packagename=filename...], "
+          "e.g. com.example.package1=foo.txt:com.example.package2=bar.txt.");
+      return {};
+    }
+    res.emplace_back(ProguardMap{token.substr(0, eq), token.substr(eq + 1)});
+  }
+  return res;  // for Wreturn-std-move-in-c++11.
 }
 
 }  // namespace profiling
