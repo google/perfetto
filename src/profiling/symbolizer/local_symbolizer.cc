@@ -36,6 +36,8 @@
 namespace perfetto {
 namespace profiling {
 
+// TODO(fmayer): Fix up name. This suggests it always returns a symbolizer or
+// dies, which isn't the case.
 std::unique_ptr<Symbolizer> LocalSymbolizerOrDie(
     std::vector<std::string> binary_path,
     const char* mode) {

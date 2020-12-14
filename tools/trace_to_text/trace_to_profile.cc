@@ -19,8 +19,9 @@
 #include <string>
 #include <vector>
 
-#include "src/profiling/symbolizer/symbolize_database.h"
+#include "perfetto/trace_processor/trace_processor.h"
 #include "src/profiling/symbolizer/local_symbolizer.h"
+#include "src/profiling/symbolizer/symbolize_database.h"
 #include "tools/trace_to_text/utils.h"
 
 #include "perfetto/base/logging.h"
@@ -48,17 +49,46 @@ std::string GetTemp() {
 
 namespace perfetto {
 namespace trace_to_text {
+namespace {
+
+void MaybeSymbolize(trace_processor::TraceProcessor* tp) {
+  std::unique_ptr<profiling::Symbolizer> symbolizer =
+      profiling::LocalSymbolizerOrDie(profiling::GetPerfettoBinaryPath(),
+                                      getenv("PERFETTO_SYMBOLIZER_MODE"));
+  if (!symbolizer)
+    return;
+  profiling::SymbolizeDatabase(
+      tp, symbolizer.get(), [tp](const std::string& trace_proto) {
+        std::unique_ptr<uint8_t[]> buf(new uint8_t[trace_proto.size()]);
+        memcpy(buf.get(), trace_proto.data(), trace_proto.size());
+        auto status = tp->Parse(std::move(buf), trace_proto.size());
+        if (!status.ok()) {
+          PERFETTO_DFATAL_OR_ELOG("Failed to parse: %s",
+                                  status.message().c_str());
+          return;
+        }
+      });
+  tp->NotifyEndOfFile();
+}
+
+}  // namespace
 
 int TraceToProfile(std::istream* input,
                    std::ostream* output,
                    uint64_t pid,
                    std::vector<uint64_t> timestamps) {
-  std::unique_ptr<profiling::Symbolizer> symbolizer =
-      profiling::LocalSymbolizerOrDie(profiling::GetPerfettoBinaryPath(),
-                                      getenv("PERFETTO_SYMBOLIZER_MODE"));
-
   std::vector<SerializedProfile> profiles;
-  TraceToPprof(input, &profiles, symbolizer.get(), pid, timestamps);
+  trace_processor::Config config;
+  std::unique_ptr<trace_processor::TraceProcessor> tp =
+      trace_processor::TraceProcessor::CreateInstance(config);
+
+  if (!ReadTrace(tp.get(), input))
+    return false;
+
+  tp->NotifyEndOfFile();
+  MaybeSymbolize(tp.get());
+
+  TraceToPprof(tp.get(), &profiles, pid, timestamps);
   if (profiles.empty()) {
     return 0;
   }

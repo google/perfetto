@@ -513,42 +513,10 @@ class GProfileBuilder {
 
 }  // namespace
 
-bool TraceToPprof(std::istream* input,
-                  std::vector<SerializedProfile>* output,
-                  profiling::Symbolizer* symbolizer,
-                  uint64_t pid,
-                  const std::vector<uint64_t>& timestamps) {
-  trace_processor::Config config;
-  std::unique_ptr<trace_processor::TraceProcessor> tp =
-      trace_processor::TraceProcessor::CreateInstance(config);
-
-  if (!ReadTrace(tp.get(), input))
-    return false;
-
-  tp->NotifyEndOfFile();
-  return TraceToPprof(tp.get(), output, symbolizer, pid, timestamps);
-}
-
 bool TraceToPprof(trace_processor::TraceProcessor* tp,
                   std::vector<SerializedProfile>* output,
-                  profiling::Symbolizer* symbolizer,
                   uint64_t pid,
                   const std::vector<uint64_t>& timestamps) {
-  if (symbolizer) {
-    profiling::SymbolizeDatabase(
-        tp, symbolizer, [tp](const std::string& trace_proto) {
-          std::unique_ptr<uint8_t[]> buf(new uint8_t[trace_proto.size()]);
-          memcpy(buf.get(), trace_proto.data(), trace_proto.size());
-          auto status = tp->Parse(std::move(buf), trace_proto.size());
-          if (!status.ok()) {
-            PERFETTO_DFATAL_OR_ELOG("Failed to parse: %s",
-                                    status.message().c_str());
-            return;
-          }
-        });
-  }
-
-  tp->NotifyEndOfFile();
   auto max_symbol_id_it =
       tp->ExecuteQuery("SELECT MAX(id) from stack_profile_symbol");
   if (!max_symbol_id_it.Next()) {
@@ -602,13 +570,6 @@ bool TraceToPprof(trace_processor::TraceProcessor* tp,
     return false;
   }
   return true;
-}
-
-bool TraceToPprof(std::istream* input,
-                  std::vector<SerializedProfile>* output,
-                  uint64_t pid,
-                  const std::vector<uint64_t>& timestamps) {
-  return TraceToPprof(input, output, nullptr, pid, timestamps);
 }
 
 }  // namespace trace_to_text
