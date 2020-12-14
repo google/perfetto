@@ -28,9 +28,9 @@ namespace profiling {
 GlobalCallstackTrie::Node* GlobalCallstackTrie::GetOrCreateChild(
     Node* self,
     const Interned<Frame>& loc) {
-  Node* child = self->children_.Get(loc);
+  Node* child = self->GetChild(loc);
   if (!child)
-    child = self->children_.Emplace(loc, ++next_callstack_id_, self);
+    child = self->AddChild(loc, ++next_callstack_id_, self);
   return child;
 }
 
@@ -88,7 +88,7 @@ void GlobalCallstackTrie::DecrementNode(Node* node) {
   Node* prev = nullptr;
   while (node != nullptr) {
     if (delete_prev)
-      node->children_.Remove(*prev);
+      node->RemoveChild(prev);
     node->ref_count_ -= 1;
     delete_prev = node->ref_count_ == 0;
     prev = node;
@@ -122,6 +122,31 @@ Interned<Frame> GlobalCallstackTrie::MakeRootFrame() {
               string_interner_.Intern(""), 0);
 
   return frame_interner_.Intern(frame);
+}
+
+GlobalCallstackTrie::Node* GlobalCallstackTrie::Node::AddChild(
+    const Interned<Frame>& loc,
+    uint64_t callstack_id,
+    Node* parent) {
+  auto it = children_.emplace(loc, callstack_id, parent);
+  return const_cast<Node*>(&(*it.first));
+}
+void GlobalCallstackTrie::Node::RemoveChild(Node* node) {
+  children_.erase(*node);
+}
+
+GlobalCallstackTrie::Node* GlobalCallstackTrie::Node::GetChild(
+    const Interned<Frame>& loc) {
+  // This will be nicer with C++14 transparent comparators.
+  // Then we will be able to look up by just the key using a sutiable
+  // comparator.
+  //
+  // For now we need to allow to construct Node from the key.
+  Node node(loc);
+  auto it = children_.find(node);
+  if (it == children_.end())
+    return nullptr;
+  return const_cast<Node*>(&(*it));
 }
 
 }  // namespace profiling
