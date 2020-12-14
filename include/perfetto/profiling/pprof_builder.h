@@ -41,18 +41,6 @@ struct SerializedProfile {
 
 bool TraceToPprof(trace_processor::TraceProcessor*,
                   std::vector<SerializedProfile>* output,
-                  profiling::Symbolizer* symbolizer = nullptr,
-                  uint64_t pid = 0,
-                  const std::vector<uint64_t>& timestamps = {});
-
-bool TraceToPprof(std::istream* input,
-                  std::vector<SerializedProfile>* output,
-                  profiling::Symbolizer* symbolizer,
-                  uint64_t pid = 0,
-                  const std::vector<uint64_t>& timestamps = {});
-
-bool TraceToPprof(std::istream* input,
-                  std::vector<SerializedProfile>* output,
                   uint64_t pid = 0,
                   const std::vector<uint64_t>& timestamps = {});
 
