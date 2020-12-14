@@ -59,6 +59,7 @@ default_targets = [
     '//src/perfetto_cmd:trigger_perfetto',
     '//src/profiling/memory:heapprofd_client',
     '//src/profiling/memory:heapprofd_client_api',
+    '//src/profiling/memory:heapprofd_api_noop',
     '//src/profiling/memory:heapprofd',
     '//src/profiling/memory:heapprofd_standalone_client',
     '//src/profiling/perf:traced_perf',
