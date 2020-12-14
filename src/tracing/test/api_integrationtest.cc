@@ -235,8 +235,11 @@ class MockDataSource : public perfetto::DataSource<MockDataSource> {
   TestDataSourceHandle* handle_ = nullptr;
 };
 
+constexpr int kTestDataSourceArg = 123;
+
 class MockDataSource2 : public perfetto::DataSource<MockDataSource2> {
  public:
+  MockDataSource2(int arg) { EXPECT_EQ(arg, kTestDataSourceArg); }
   void OnSetup(const SetupArgs&) override {}
   void OnStart(const StartArgs&) override {}
   void OnStop(const StopArgs&) override {}
@@ -2345,7 +2348,7 @@ TEST_P(PerfettoApiTest, BlockingStartAndStop) {
   // Register a second data source to get a bit more coverage.
   perfetto::DataSourceDescriptor dsd;
   dsd.set_name("my_data_source2");
-  MockDataSource2::Register(dsd);
+  MockDataSource2::Register(dsd, kTestDataSourceArg);
   perfetto::test::SyncProducers();
 
   // Setup the trace config.
@@ -2988,7 +2991,8 @@ class TestInterceptor : public perfetto::Interceptor<TestInterceptor> {
     std::map<uint64_t, std::string> event_names;
   };
 
-  TestInterceptor() {
+  TestInterceptor(const std::string& constructor_arg) {
+    EXPECT_EQ(constructor_arg, "Constructor argument");
     // Note: some tests in this suite register multiple track event data
     // sources. We only track data for the first in this test.
     if (!instance)
@@ -3073,7 +3077,7 @@ TestInterceptor* TestInterceptor::instance;
 TEST_P(PerfettoApiTest, TracePacketInterception) {
   perfetto::InterceptorDescriptor desc;
   desc.set_name("test_interceptor");
-  TestInterceptor::Register(desc);
+  TestInterceptor::Register(desc, std::string("Constructor argument"));
 
   perfetto::TraceConfig cfg;
   cfg.set_duration_ms(500);
