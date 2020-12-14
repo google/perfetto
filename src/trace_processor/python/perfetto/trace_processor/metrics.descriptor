@@ -1,9 +1,10 @@
 
-ó
-1protos/perfetto/metrics/android/batt_metric.protoperfetto.protos"¬
+¤
+1protos/perfetto/metrics/android/batt_metric.protoperfetto.protos"Ý
 AndroidBatteryMetric`
 battery_counters (25.perfetto.protos.AndroidBatteryMetric.BatteryCountersRbatteryCountersf
-battery_aggregates (27.perfetto.protos.AndroidBatteryMetric.BatteryAggregatesRbatteryAggregatesÒ
+battery_aggregates (27.perfetto.protos.AndroidBatteryMetric.BatteryAggregatesRbatteryAggregatesZ
+suspend_period (23.perfetto.protos.AndroidBatteryMetric.SuspendPeriodRsuspendPeriodÒ
 BatteryCounters!
 timestamp_ns (RtimestampNs,
 charge_counter_uah (RchargeCounterUah)
@@ -19,7 +20,11 @@ current_ua (R	currentUa$
 sleep_ns (RsleepNs-
 sleep_screen_off_ns (RsleepScreenOffNs+
 sleep_screen_on_ns (RsleepScreenOnNs/
-sleep_screen_doze_ns (RsleepScreenDozeNs
+sleep_screen_doze_ns (RsleepScreenDozeNsS
+SuspendPeriod!
+timestamp_ns (RtimestampNs
+duration_ns (R
+durationNs
 Ô
 0protos/perfetto/metrics/android/cpu_metric.protoperfetto.protos"Ž
 AndroidCpuMetricL

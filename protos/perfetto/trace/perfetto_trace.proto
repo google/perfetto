@@ -446,6 +446,20 @@ message InodeFileConfig {
 
 // End of protos/perfetto/config/inode_file/inode_file_config.proto
 
+// Begin of protos/perfetto/config/interceptors/console_config.proto
+
+message ConsoleConfig {
+  enum Output {
+    OUTPUT_UNSPECIFIED = 0;
+    OUTPUT_STDOUT = 1;
+    OUTPUT_STDERR = 2;
+  }
+  optional Output output = 1;
+  optional bool enable_colors = 2;
+}
+
+// End of protos/perfetto/config/interceptors/console_config.proto
+
 // Begin of protos/perfetto/config/interceptor_config.proto
 
 // Configuration for trace packet interception. Used for diverting trace data to
@@ -454,6 +468,8 @@ message InodeFileConfig {
 message InterceptorConfig {
   // Matches the name given to RegisterInterceptor().
   optional string name = 1;
+
+  optional ConsoleConfig console_config = 100 [lazy = true];
 }
 
 // End of protos/perfetto/config/interceptor_config.proto
