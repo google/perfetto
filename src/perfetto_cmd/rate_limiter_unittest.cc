@@ -158,7 +158,7 @@ TEST(RateLimiterTest, LoadFromGarbageFails) {
 TEST(RateLimiterTest, NotDropBox) {
   StrictMock<MockRateLimiter> limiter;
 
-  ASSERT_TRUE(limiter.ShouldTrace({}));
+  ASSERT_EQ(limiter.ShouldTrace({}), RateLimiter::kOkToTrace);
   ASSERT_TRUE(limiter.OnTraceDone({}, true, 10000));
   ASSERT_FALSE(limiter.StateFileExists());
 }
@@ -181,7 +181,7 @@ TEST(RateLimiterTest, DropBox_IgnoreGuardrails) {
 
   EXPECT_CALL(limiter, SaveState(_));
   EXPECT_CALL(limiter, LoadState(_));
-  ASSERT_TRUE(limiter.ShouldTrace(args));
+  ASSERT_EQ(limiter.ShouldTrace(args), RateLimiter::kOkToTrace);
 
   EXPECT_CALL(limiter, SaveState(_));
   ASSERT_TRUE(limiter.OnTraceDone(args, true, 42u));
@@ -203,7 +203,7 @@ TEST(RateLimiterTest, DropBox_EmptyState) {
 
   EXPECT_CALL(limiter, SaveState(_));
   EXPECT_CALL(limiter, LoadState(_));
-  ASSERT_TRUE(limiter.ShouldTrace(args));
+  ASSERT_EQ(limiter.ShouldTrace(args), RateLimiter::kOkToTrace);
 
   EXPECT_CALL(limiter, SaveState(_));
   ASSERT_TRUE(limiter.OnTraceDone(args, true, 1024 * 1024));
@@ -230,7 +230,7 @@ TEST(RateLimiterTest, DropBox_NormalUpload) {
   args.current_time = base::TimeSeconds(input.last_trace_timestamp() + 60 * 10);
 
   EXPECT_CALL(limiter, LoadState(_));
-  ASSERT_TRUE(limiter.ShouldTrace(args));
+  ASSERT_EQ(limiter.ShouldTrace(args), RateLimiter::kOkToTrace);
 
   EXPECT_CALL(limiter, SaveState(_));
   ASSERT_TRUE(limiter.OnTraceDone(args, true, 1024 * 1024));
@@ -259,7 +259,7 @@ TEST(RateLimiterTest, DropBox_NormalUploadWithSessionName) {
   args.current_time = base::TimeSeconds(input.last_trace_timestamp() + 60 * 10);
 
   EXPECT_CALL(limiter, LoadState(_));
-  ASSERT_TRUE(limiter.ShouldTrace(args));
+  ASSERT_EQ(limiter.ShouldTrace(args), RateLimiter::kOkToTrace);
 
   EXPECT_CALL(limiter, SaveState(_));
   ASSERT_TRUE(limiter.OnTraceDone(args, true, 1024 * 1024));
@@ -293,7 +293,7 @@ TEST(RateLimiterTest, DropBox_FailedToLoadState) {
 
   EXPECT_CALL(limiter, LoadState(_));
   EXPECT_CALL(limiter, SaveState(_));
-  ASSERT_FALSE(limiter.ShouldTrace(args));
+  ASSERT_EQ(limiter.ShouldTrace(args), RateLimiter::kInvalidState);
 
   gen::PerfettoCmdState output{};
   ASSERT_TRUE(limiter.LoadStateConcrete(&output));
@@ -317,7 +317,7 @@ TEST(RateLimiterTest, DropBox_NoTimeTravel) {
 
   EXPECT_CALL(limiter, LoadState(_));
   EXPECT_CALL(limiter, SaveState(_));
-  ASSERT_FALSE(limiter.ShouldTrace(args));
+  ASSERT_EQ(limiter.ShouldTrace(args), RateLimiter::kInvalidState);
 
   gen::PerfettoCmdState output{};
   ASSERT_TRUE(limiter.LoadStateConcrete(&output));
@@ -344,7 +344,7 @@ TEST(RateLimiterTest, DropBox_TooMuch_OtherSession) {
   args.current_time = base::TimeSeconds(60 * 60);
 
   EXPECT_CALL(limiter, LoadState(_));
-  ASSERT_TRUE(limiter.ShouldTrace(args));
+  ASSERT_EQ(limiter.ShouldTrace(args), RateLimiter::kOkToTrace);
 }
 
 TEST(RateLimiterTest, DropBox_TooMuch_Session) {
@@ -365,7 +365,7 @@ TEST(RateLimiterTest, DropBox_TooMuch_Session) {
   args.current_time = base::TimeSeconds(60 * 60);
 
   EXPECT_CALL(limiter, LoadState(_));
-  ASSERT_FALSE(limiter.ShouldTrace(args));
+  ASSERT_EQ(limiter.ShouldTrace(args), RateLimiter::kHitUploadLimit);
 }
 
 TEST(RateLimiterTest, DropBox_TooMuch_User) {
@@ -382,7 +382,7 @@ TEST(RateLimiterTest, DropBox_TooMuch_User) {
   args.current_time = base::TimeSeconds(60 * 60);
 
   EXPECT_CALL(limiter, LoadState(_));
-  ASSERT_FALSE(limiter.ShouldTrace(args));
+  ASSERT_EQ(limiter.ShouldTrace(args), RateLimiter::kHitUploadLimit);
 }
 
 TEST(RateLimiterTest, DropBox_TooMuch_Override) {
@@ -402,7 +402,7 @@ TEST(RateLimiterTest, DropBox_TooMuch_Override) {
   args.unique_session_name = "foo";
 
   EXPECT_CALL(limiter, LoadState(_));
-  ASSERT_TRUE(limiter.ShouldTrace(args));
+  ASSERT_EQ(limiter.ShouldTrace(args), RateLimiter::kOkToTrace);
 }
 
 // Override doesn't apply to traces without session name.
@@ -420,7 +420,7 @@ TEST(RateLimiterTest, DropBox_OverrideOnEmptySesssionName) {
   args.max_upload_bytes_override = 10 * 1024 * 1024 + 2;
 
   EXPECT_CALL(limiter, LoadState(_));
-  ASSERT_FALSE(limiter.ShouldTrace(args));
+  ASSERT_EQ(limiter.ShouldTrace(args), RateLimiter::kHitUploadLimit);
 }
 
 TEST(RateLimiterTest, DropBox_TooMuchWasUploaded) {
@@ -437,7 +437,7 @@ TEST(RateLimiterTest, DropBox_TooMuchWasUploaded) {
   args.current_time = base::TimeSeconds(60 * 60 * 24 + 2);
 
   EXPECT_CALL(limiter, LoadState(_));
-  ASSERT_TRUE(limiter.ShouldTrace(args));
+  ASSERT_EQ(limiter.ShouldTrace(args), RateLimiter::kOkToTrace);
 
   EXPECT_CALL(limiter, SaveState(_));
   ASSERT_TRUE(limiter.OnTraceDone(args, true, 1024 * 1024));
@@ -460,7 +460,7 @@ TEST(RateLimiterTest, DropBox_FailedToUpload) {
 
   EXPECT_CALL(limiter, SaveState(_));
   EXPECT_CALL(limiter, LoadState(_));
-  ASSERT_TRUE(limiter.ShouldTrace(args));
+  ASSERT_EQ(limiter.ShouldTrace(args), RateLimiter::kOkToTrace);
   ASSERT_FALSE(limiter.OnTraceDone(args, false, 1024 * 1024));
 }
 
@@ -473,7 +473,7 @@ TEST(RateLimiterTest, DropBox_FailedToSave) {
 
   EXPECT_CALL(limiter, SaveState(_));
   EXPECT_CALL(limiter, LoadState(_));
-  ASSERT_TRUE(limiter.ShouldTrace(args));
+  ASSERT_EQ(limiter.ShouldTrace(args), RateLimiter::kOkToTrace);
 
   EXPECT_CALL(limiter, SaveState(_)).WillOnce(Return(false));
   ASSERT_FALSE(limiter.OnTraceDone(args, true, 1024 * 1024));
@@ -488,7 +488,7 @@ TEST(RateLimiterTest, DropBox_CantTraceOnUser) {
   args.is_uploading = true;
   args.current_time = base::TimeSeconds(10000);
 
-  ASSERT_FALSE(limiter.ShouldTrace(args));
+  ASSERT_EQ(limiter.ShouldTrace(args), RateLimiter::kNotAllowedOnUserBuild);
 }
 
 TEST(RateLimiterTest, DropBox_CanTraceOnUser) {
@@ -502,7 +502,7 @@ TEST(RateLimiterTest, DropBox_CanTraceOnUser) {
 
   EXPECT_CALL(limiter, SaveState(_));
   EXPECT_CALL(limiter, LoadState(_));
-  ASSERT_TRUE(limiter.ShouldTrace(args));
+  ASSERT_EQ(limiter.ShouldTrace(args), RateLimiter::kOkToTrace);
 }
 
 }  // namespace

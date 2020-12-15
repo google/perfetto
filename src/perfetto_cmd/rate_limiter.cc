@@ -48,13 +48,13 @@ using PerSessionState = gen::PerfettoCmdState::PerSessionState;
 RateLimiter::RateLimiter() = default;
 RateLimiter::~RateLimiter() = default;
 
-bool RateLimiter::ShouldTrace(const Args& args) {
+RateLimiter::ShouldTraceResponse RateLimiter::ShouldTrace(const Args& args) {
   uint64_t now_in_s = static_cast<uint64_t>(args.current_time.count());
 
   // Not uploading?
   // -> We can just trace.
   if (!args.is_uploading)
-    return true;
+    return ShouldTraceResponse::kOkToTrace;
 
   // If we're tracing a user build we should only trace if the override in
   // the config is set:
@@ -62,7 +62,7 @@ bool RateLimiter::ShouldTrace(const Args& args) {
     PERFETTO_ELOG(
         "Guardrail: allow_user_build_tracing must be set to trace on user "
         "builds");
-    return false;
+    return ShouldTraceResponse::kNotAllowedOnUserBuild;
   }
 
   // The state file is gone.
@@ -74,7 +74,7 @@ bool RateLimiter::ShouldTrace(const Args& args) {
     // -> Give up.
     if (!ClearState()) {
       PERFETTO_ELOG("Guardrail: failed to initialize guardrail state.");
-      return false;
+      return ShouldTraceResponse::kFailedToInitState;
     }
   }
 
@@ -90,7 +90,7 @@ bool RateLimiter::ShouldTrace(const Args& args) {
     ClearState();
     PERFETTO_ELOG("Guardrail: state invalid, clearing it.");
     if (!args.ignore_guardrails)
-      return false;
+      return ShouldTraceResponse::kInvalidState;
   }
 
   // First trace was more than 24h ago? Reset state.
@@ -99,7 +99,7 @@ bool RateLimiter::ShouldTrace(const Args& args) {
     state_.set_first_trace_timestamp(0);
     state_.set_last_trace_timestamp(0);
     state_.set_total_bytes_uploaded(0);
-    return true;
+    return ShouldTraceResponse::kOkToTrace;
   }
 
   uint64_t max_upload_guardrail = kMaxUploadInBytes;
@@ -129,10 +129,10 @@ bool RateLimiter::ShouldTrace(const Args& args) {
                   " in the last 24h. Limit is %" PRIu64 ".",
                   uploaded_so_far, max_upload_guardrail);
     if (!args.ignore_guardrails)
-      return false;
+      return ShouldTraceResponse::kHitUploadLimit;
   }
 
-  return true;
+  return ShouldTraceResponse::kOkToTrace;
 }
 
 bool RateLimiter::OnTraceDone(const Args& args, bool success, uint64_t bytes) {
