@@ -136,6 +136,23 @@ bool IsUserBuild() {
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
 }
 
+base::Optional<PerfettoStatsdAtom> ConvertRateLimiterResponseToAtom(
+    RateLimiter::ShouldTraceResponse resp) {
+  switch (resp) {
+    case RateLimiter::kNotAllowedOnUserBuild:
+      return PerfettoStatsdAtom::kCmdUserBuildTracingNotAllowed;
+    case RateLimiter::kFailedToInitState:
+      return PerfettoStatsdAtom::kCmdFailedToInitGuardrailState;
+    case RateLimiter::kInvalidState:
+      return PerfettoStatsdAtom::kCmdInvalidGuardrailState;
+    case RateLimiter::kHitUploadLimit:
+      return PerfettoStatsdAtom::kCmdHitUploadLimit;
+    case RateLimiter::kOkToTrace:
+      return base::nullopt;
+  }
+  PERFETTO_FATAL("For GCC");
+}
+
 }  // namespace
 
 const char* kStateDir = "/data/misc/perfetto-traces";
@@ -702,8 +719,11 @@ int PerfettoCmd::Main(int argc, char** argv) {
     LogUploadEvent(PerfettoStatsdAtom::kBackgroundTraceBegin);
   }
 
-  if (!limiter.ShouldTrace(args)) {
+  auto err_atom = ConvertRateLimiterResponseToAtom(limiter.ShouldTrace(args));
+  if (err_atom) {
+    // TODO(lalitm): remove this once we're ready on server side.
     LogUploadEvent(PerfettoStatsdAtom::kHitGuardrails);
+    LogUploadEvent(err_atom.value());
     return 1;
   }
 
