@@ -131,7 +131,28 @@ base::Optional<ProguardMember> ParseMember(std::string line) {
                         std::move(deobfuscated_name)};
 }
 
+std::string FlattenMethods(const std::vector<std::string>& v) {
+  if (v.size() == 1) {
+    return v[0];
+  }
+  return "[ambiguous]";
+}
+
 }  // namespace
+
+std::string FlattenClasses(
+    const std::map<std::string, std::vector<std::string>>& m) {
+  std::string result;
+  bool first = true;
+  for (const auto& p : m) {
+    if (!first) {
+      result += " | ";
+    }
+    result += p.first + "." + FlattenMethods(p.second);
+    first = false;
+  }
+  return result;
+}
 
 // See https://www.guardsquare.com/en/products/proguard/manual/retrace for the
 // file format we are parsing.
@@ -160,28 +181,18 @@ bool ProguardParser::AddLine(std::string line) {
       return false;
     switch (opt_member->type) {
       case (ProguardMemberType::kField): {
-        auto p = current_class_->deobfuscated_fields.emplace(
-            opt_member->obfuscated_name, opt_member->deobfuscated_name);
-        if (!p.second && p.first->second != opt_member->deobfuscated_name) {
+        if (!current_class_->AddField(opt_member->obfuscated_name,
+                                      opt_member->deobfuscated_name)) {
           PERFETTO_ELOG("Member redefinition: %s.%s. Proguard map invalid",
-                        current_class_->deobfuscated_name.c_str(),
+                        current_class_->deobfuscated_name().c_str(),
                         opt_member->deobfuscated_name.c_str());
           return false;
         }
         break;
       }
       case (ProguardMemberType::kMethod): {
-        auto p = current_class_->deobfuscated_methods.emplace(
-            opt_member->obfuscated_name, opt_member->deobfuscated_name);
-        if (!p.second && p.first->second != opt_member->deobfuscated_name) {
-          // TODO(fmayer): Add docs that explain method redefinition.
-          PERFETTO_ELOG(
-              "Member redefinition: %s.%s. Some methods will not get "
-              "deobfuscated. Change your obfuscator settings to fix.",
-              current_class_->deobfuscated_name.c_str(),
-              opt_member->deobfuscated_name.c_str());
-          return true;
-        }
+        current_class_->AddMethod(opt_member->obfuscated_name,
+                                  opt_member->deobfuscated_name);
         break;
       }
     }
@@ -213,15 +224,15 @@ void MakeDeobfuscationPackets(
 
     auto* proto_class = proto_mapping->add_obfuscated_classes();
     proto_class->set_obfuscated_name(obfuscated_class_name);
-    proto_class->set_deobfuscated_name(cls.deobfuscated_name);
-    for (const auto& field_p : cls.deobfuscated_fields) {
+    proto_class->set_deobfuscated_name(cls.deobfuscated_name());
+    for (const auto& field_p : cls.deobfuscated_fields()) {
       const std::string& obfuscated_field_name = field_p.first;
       const std::string& deobfuscated_field_name = field_p.second;
       auto* proto_member = proto_class->add_obfuscated_members();
       proto_member->set_obfuscated_name(obfuscated_field_name);
       proto_member->set_deobfuscated_name(deobfuscated_field_name);
     }
-    for (const auto& field_p : cls.deobfuscated_methods) {
+    for (const auto& field_p : cls.deobfuscated_methods()) {
       const std::string& obfuscated_method_name = field_p.first;
       const std::string& deobfuscated_method_name = field_p.second;
       auto* proto_member = proto_class->add_obfuscated_methods();

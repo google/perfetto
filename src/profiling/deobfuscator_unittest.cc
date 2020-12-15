@@ -23,14 +23,17 @@ namespace profiling {
 
 bool operator==(const ObfuscatedClass& a, const ObfuscatedClass& b);
 bool operator==(const ObfuscatedClass& a, const ObfuscatedClass& b) {
-  return a.deobfuscated_name == b.deobfuscated_name &&
-         a.deobfuscated_fields == b.deobfuscated_fields &&
-         a.deobfuscated_methods == b.deobfuscated_methods;
+  return a.deobfuscated_name() == b.deobfuscated_name() &&
+         a.deobfuscated_fields() == b.deobfuscated_fields() &&
+         a.deobfuscated_methods() == b.deobfuscated_methods();
 }
 
 namespace {
 
+using ::testing::_;
 using ::testing::ElementsAre;
+using ::testing::Eq;
+using ::testing::Pair;
 
 TEST(ProguardParserTest, ReadClass) {
   ProguardParser p;
@@ -74,14 +77,78 @@ TEST(ProguardParserTest, Method) {
   ASSERT_TRUE(p.AddLine(
       "android.arch.core.executor.ArchTaskExecutor -> android.arch.a.a.a:"));
   ASSERT_TRUE(p.AddLine("    15:15:boolean isMainThread():116:116 -> b"));
-  std::map<std::string, std::string> deobfuscated_methods{
-      {"b", "isMainThread"}};
-  ASSERT_THAT(
-      p.ConsumeMapping(),
-      ElementsAre(std::pair<std::string, ObfuscatedClass>(
-          "android.arch.a.a.a", {"android.arch.core.executor.ArchTaskExecutor",
-                                 {},
-                                 std::move(deobfuscated_methods)})));
+  auto mapping = p.ConsumeMapping();
+  ASSERT_THAT(mapping, ElementsAre(Pair("android.arch.a.a.a", _)));
+  EXPECT_THAT(
+      mapping.find("android.arch.a.a.a")->second.deobfuscated_methods(),
+      ElementsAre(Pair(
+          "b", "android.arch.core.executor.ArchTaskExecutor.isMainThread")));
+}
+
+TEST(ProguardParserTest, AmbiguousMethodSameCls) {
+  ProguardParser p;
+  ASSERT_TRUE(p.AddLine(
+      "android.arch.core.executor.ArchTaskExecutor -> android.arch.a.a.a:"));
+  ASSERT_TRUE(p.AddLine("    15:15:boolean isMainThread():116:116 -> b"));
+  ASSERT_TRUE(
+      p.AddLine("    15:15:boolean somethingDifferent(int):116:116 -> b"));
+  auto mapping = p.ConsumeMapping();
+  ASSERT_THAT(mapping, ElementsAre(Pair("android.arch.a.a.a", _)));
+  EXPECT_THAT(
+      mapping.find("android.arch.a.a.a")->second.deobfuscated_methods(),
+      ElementsAre(Pair(
+          "b", "android.arch.core.executor.ArchTaskExecutor.[ambiguous]")));
+}
+
+TEST(ProguardParserTest, AmbiguousMethodDifferentCls) {
+  ProguardParser p;
+  ASSERT_TRUE(p.AddLine(
+      "android.arch.core.executor.ArchTaskExecutor -> android.arch.a.a.a:"));
+  ASSERT_TRUE(p.AddLine("    15:15:boolean isMainThread():116:116 -> b"));
+  ASSERT_TRUE(
+      p.AddLine("    15:15:boolean Foo.somethingDifferent(int):116:116 -> b"));
+  auto mapping = p.ConsumeMapping();
+  ASSERT_THAT(mapping, ElementsAre(Pair("android.arch.a.a.a", _)));
+  EXPECT_THAT(mapping.find("android.arch.a.a.a")->second.deobfuscated_methods(),
+              ElementsAre(Pair(
+                  "b",
+                  "Foo.somethingDifferent | "
+                  "android.arch.core.executor.ArchTaskExecutor.isMainThread")));
+}
+
+TEST(ProguardParserTest, AmbiguousMethodSameAndDifferentCls) {
+  ProguardParser p;
+  ASSERT_TRUE(p.AddLine(
+      "android.arch.core.executor.ArchTaskExecutor -> android.arch.a.a.a:"));
+  ASSERT_TRUE(p.AddLine("    15:15:boolean isMainThread():116:116 -> b"));
+  ASSERT_TRUE(p.AddLine("    15:15:boolean what(String):116:116 -> b"));
+  ASSERT_TRUE(
+      p.AddLine("    15:15:boolean Foo.somethingDifferent(int):116:116 -> b"));
+  auto mapping = p.ConsumeMapping();
+  ASSERT_THAT(mapping, ElementsAre(Pair("android.arch.a.a.a", _)));
+  EXPECT_THAT(mapping.find("android.arch.a.a.a")->second.deobfuscated_methods(),
+              ElementsAre(Pair(
+                  "b",
+                  "Foo.somethingDifferent | "
+                  "android.arch.core.executor.ArchTaskExecutor.[ambiguous]")));
+}
+
+TEST(ProguardParserTest, AmbiguousMethodSameAndDifferentCls2) {
+  ProguardParser p;
+  ASSERT_TRUE(p.AddLine(
+      "android.arch.core.executor.ArchTaskExecutor -> android.arch.a.a.a:"));
+  ASSERT_TRUE(p.AddLine("    15:15:boolean isMainThread():116:116 -> b"));
+  ASSERT_TRUE(p.AddLine("    15:15:boolean what(String):116:116 -> b"));
+  ASSERT_TRUE(
+      p.AddLine("    15:15:boolean Foo.somethingDifferent(int):116:116 -> b"));
+  ASSERT_TRUE(p.AddLine("    15:15:boolean Foo.third(int,int):116:116 -> b"));
+  auto mapping = p.ConsumeMapping();
+  ASSERT_THAT(mapping, ElementsAre(Pair("android.arch.a.a.a", _)));
+  EXPECT_THAT(mapping.find("android.arch.a.a.a")->second.deobfuscated_methods(),
+              ElementsAre(Pair(
+                  "b",
+                  "Foo.[ambiguous] | "
+                  "android.arch.core.executor.ArchTaskExecutor.[ambiguous]")));
 }
 
 TEST(ProguardParserTest, DuplicateClass) {

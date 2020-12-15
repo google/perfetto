@@ -26,18 +26,64 @@
 namespace perfetto {
 namespace profiling {
 
-struct ObfuscatedClass {
-  explicit ObfuscatedClass(std::string d) : deobfuscated_name(std::move(d)) {}
-  ObfuscatedClass(std::string d,
-                  std::map<std::string, std::string> f,
-                  std::map<std::string, std::string> m)
-      : deobfuscated_name(std::move(d)),
-        deobfuscated_fields(std::move(f)),
-        deobfuscated_methods(std::move(m)) {}
+std::string FlattenClasses(
+    const std::map<std::string, std::vector<std::string>>& m);
 
-  std::string deobfuscated_name;
-  std::map<std::string, std::string> deobfuscated_fields;
-  std::map<std::string, std::string> deobfuscated_methods;
+class ObfuscatedClass {
+ public:
+  explicit ObfuscatedClass(std::string d) : deobfuscated_name_(std::move(d)) {}
+  ObfuscatedClass(
+      std::string d,
+      std::map<std::string, std::string> f,
+      std::map<std::string, std::map<std::string, std::vector<std::string>>> m)
+      : deobfuscated_name_(std::move(d)),
+        deobfuscated_fields_(std::move(f)),
+        deobfuscated_methods_(std::move(m)) {}
+
+  const std::string& deobfuscated_name() const { return deobfuscated_name_; }
+
+  const std::map<std::string, std::string>& deobfuscated_fields() const {
+    return deobfuscated_fields_;
+  }
+
+  std::map<std::string, std::string> deobfuscated_methods() const {
+    std::map<std::string, std::string> result;
+    for (const auto& p : deobfuscated_methods_) {
+      result.emplace(p.first, FlattenClasses(p.second));
+    }
+    return result;
+  }
+
+  bool redefined_methods() const { return redefined_methods_; }
+
+  bool AddField(std::string obfuscated_name, std::string deobfuscated_name) {
+    auto p = deobfuscated_fields_.emplace(std::move(obfuscated_name),
+                                          deobfuscated_name);
+    return p.second && p.first->second == deobfuscated_name;
+  }
+
+  void AddMethod(std::string obfuscated_name, std::string deobfuscated_name) {
+    std::string cls = deobfuscated_name_;
+    auto dot = deobfuscated_name.rfind('.');
+    if (dot != std::string::npos) {
+      cls = deobfuscated_name.substr(0, dot);
+      deobfuscated_name = deobfuscated_name.substr(dot + 1);
+    }
+    auto& deobfuscated_names_for_cls =
+        deobfuscated_methods_[std::move(obfuscated_name)][std::move(cls)];
+    deobfuscated_names_for_cls.push_back(std::move(deobfuscated_name));
+    if (deobfuscated_names_for_cls.size() > 1 ||
+        deobfuscated_methods_.size() > 1) {
+      redefined_methods_ = true;
+    }
+  }
+
+ private:
+  std::string deobfuscated_name_;
+  std::map<std::string, std::string> deobfuscated_fields_;
+  std::map<std::string, std::map<std::string, std::vector<std::string>>>
+      deobfuscated_methods_;
+  bool redefined_methods_ = false;
 };
 
 class ProguardParser {
