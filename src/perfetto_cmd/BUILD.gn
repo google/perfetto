@@ -88,6 +88,7 @@ source_set("trigger_perfetto_cmd") {
   deps = [
     ":trigger_producer",
     "../../gn:default_deps",
+    "../android_stats",
     "../base",
     "../tracing/ipc/producer",
   ]

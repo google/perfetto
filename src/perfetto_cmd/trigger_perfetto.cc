@@ -22,6 +22,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/unix_task_runner.h"
 #include "perfetto/ext/traced/traced.h"
+#include "src/android_stats/statsd_logging_helper.h"
 #include "src/perfetto_cmd/trigger_producer.h"
 
 namespace perfetto {
@@ -65,6 +66,9 @@ TriggerPerfettoMain(int argc, char** argv) {
     return PrintUsage(argv[0]);
   }
 
+  android_stats::MaybeLogTriggerEvents(
+      PerfettoTriggerAtom::kTriggerPerfettoTrigger, triggers_to_activate);
+
   bool finished_with_success = false;
   base::UnixTaskRunner task_runner;
   TriggerProducer producer(
@@ -76,7 +80,12 @@ TriggerPerfettoMain(int argc, char** argv) {
       &triggers_to_activate);
   task_runner.Run();
 
-  return finished_with_success ? 0 : 1;
+  if (!finished_with_success) {
+    android_stats::MaybeLogTriggerEvents(
+        PerfettoTriggerAtom::kTriggerPerfettoTriggerFail, triggers_to_activate);
+    return 1;
+  }
+  return 0;
 }
 
 }  // namespace perfetto
