@@ -33,11 +33,18 @@ class RateLimiter {
     uint64_t max_upload_bytes_override = 0;
     std::string unique_session_name = "";
   };
+  enum ShouldTraceResponse {
+    kOkToTrace,
+    kNotAllowedOnUserBuild,
+    kFailedToInitState,
+    kInvalidState,
+    kHitUploadLimit,
+  };
 
   RateLimiter();
   virtual ~RateLimiter();
 
-  bool ShouldTrace(const Args& args);
+  ShouldTraceResponse ShouldTrace(const Args& args);
   bool OnTraceDone(const Args& args, bool success, uint64_t bytes);
 
   bool ClearState();
