@@ -57,16 +57,21 @@ void MaybeSymbolize(trace_processor::TraceProcessor* tp) {
                                       getenv("PERFETTO_SYMBOLIZER_MODE"));
   if (!symbolizer)
     return;
-  profiling::SymbolizeDatabase(
-      tp, symbolizer.get(), [tp](const std::string& trace_proto) {
-        std::unique_ptr<uint8_t[]> buf(new uint8_t[trace_proto.size()]);
-        memcpy(buf.get(), trace_proto.data(), trace_proto.size());
-        auto status = tp->Parse(std::move(buf), trace_proto.size());
-        if (!status.ok()) {
-          PERFETTO_DFATAL_OR_ELOG("Failed to parse: %s",
-                                  status.message().c_str());
-          return;
-        }
+  profiling::SymbolizeDatabase(tp, symbolizer.get(),
+                               [tp](const std::string& trace_proto) {
+                                 IngestTraceOrDie(tp, trace_proto);
+                               });
+  tp->NotifyEndOfFile();
+}
+
+void MaybeDeobfuscate(trace_processor::TraceProcessor* tp) {
+  auto maybe_map = profiling::GetPerfettoProguardMapPath();
+  if (maybe_map.empty()) {
+    return;
+  }
+  profiling::ReadProguardMapsToDeobfuscationPackets(
+      maybe_map, [tp](const std::string& trace_proto) {
+        IngestTraceOrDie(tp, trace_proto);
       });
   tp->NotifyEndOfFile();
 }
@@ -87,6 +92,7 @@ int TraceToProfile(std::istream* input,
 
   tp->NotifyEndOfFile();
   MaybeSymbolize(tp.get());
+  MaybeDeobfuscate(tp.get());
 
   TraceToPprof(tp.get(), &profiles, pid, timestamps);
   if (profiles.empty()) {

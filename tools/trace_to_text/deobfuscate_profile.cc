@@ -28,51 +28,22 @@
 
 namespace perfetto {
 namespace trace_to_text {
-namespace {
-
-bool ParseFile(profiling::ProguardParser* p, FILE* f) {
-  std::string contents;
-  PERFETTO_CHECK(base::ReadFileStream(f, &contents));
-  for (base::StringSplitter lines(std::move(contents), '\n'); lines.Next();) {
-    if (!p->AddLine(lines.cur_token()))
-      return false;
-  }
-  return true;
-}
-
-}  // namespace
 
 int DeobfuscateProfile(std::istream* input, std::ostream* output) {
   base::ignore_result(input);
   base::ignore_result(output);
-  auto maybe_map = GetPerfettoProguardMapPath();
-  if (!maybe_map) {
+  auto maybe_map = profiling::GetPerfettoProguardMapPath();
+  if (maybe_map.empty()) {
     PERFETTO_ELOG("No PERFETTO_PROGUARD_MAP specified.");
     return 1;
   }
-  for (const ProguardMap& map : *maybe_map) {
-    const char* filename = map.filename.c_str();
-    base::ScopedFstream f(fopen(filename, "r"));
-    if (!f) {
-      PERFETTO_ELOG("Failed to open %s", filename);
-      return 1;
-    }
-    profiling::ProguardParser parser;
-    if (!ParseFile(&parser, *f)) {
-      PERFETTO_ELOG("Failed to parse %s", filename);
-      return 1;
-    }
-    std::map<std::string, profiling::ObfuscatedClass> obfuscation_map =
-        parser.ConsumeMapping();
-
-    // TODO(fmayer): right now, we don't use the profile we are given. We can
-    // filter the output to only contain the classes actually seen in the
-    // profile.
-    MakeDeobfuscationPackets(map.package, obfuscation_map,
-                             [output](const std::string& packet_proto) {
-                               WriteTracePacket(packet_proto, output);
-                             });
+  if (!profiling::ReadProguardMapsToDeobfuscationPackets(
+          maybe_map, [output](const std::string& trace_proto) {
+            *output << trace_proto;
+          })) {
+    return 1;
   }
+
   return 0;
 }
 
