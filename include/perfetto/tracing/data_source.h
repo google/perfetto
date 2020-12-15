@@ -396,14 +396,19 @@ class DataSource : public DataSourceBase {
   // Can return false to signal failure if attemping to register more than
   // kMaxDataSources (32) data sources types or if tracing hasn't been
   // initialized.
-  static bool Register(const DataSourceDescriptor& descriptor) {
+  // The optional |constructor_args| will be passed to the data source when it
+  // is constructed.
+  template <class... Args>
+  static bool Register(const DataSourceDescriptor& descriptor,
+                       const Args&... constructor_args) {
     // Silences -Wunused-variable warning in case the trace method is not used
     // by the translation unit that declares the data source.
     (void)static_state_;
     (void)tls_state_;
 
-    auto factory = [] {
-      return std::unique_ptr<DataSourceBase>(new DataSourceType());
+    auto factory = [constructor_args...]() {
+      return std::unique_ptr<DataSourceBase>(
+          new DataSourceType(constructor_args...));
     };
     auto* tracing_impl = internal::TracingMuxer::Get();
     if (!tracing_impl)
