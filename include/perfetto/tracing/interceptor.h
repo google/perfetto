@@ -312,9 +312,14 @@ class PERFETTO_EXPORT Interceptor : public InterceptorBase {
   };
 
   // Register the interceptor for use in tracing sessions.
-  static void Register(const InterceptorDescriptor& descriptor) {
-    auto factory = []() {
-      return std::unique_ptr<InterceptorBase>(new InterceptorType());
+  // The optional |constructor_args| will be passed to the interceptor when it
+  // is constructed.
+  template <class... Args>
+  static void Register(const InterceptorDescriptor& descriptor,
+                       const Args&... constructor_args) {
+    auto factory = [constructor_args...]() {
+      return std::unique_ptr<InterceptorBase>(
+          new InterceptorType(constructor_args...));
     };
     auto tls_factory = [](internal::DataSourceStaticState* static_state,
                           uint32_t data_source_instance_index) {
