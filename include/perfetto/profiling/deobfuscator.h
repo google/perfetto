@@ -17,14 +17,17 @@
 #ifndef INCLUDE_PERFETTO_PROFILING_DEOBFUSCATOR_H_
 #define INCLUDE_PERFETTO_PROFILING_DEOBFUSCATOR_H_
 
+#include <functional>
 #include <map>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace perfetto {
 namespace profiling {
 
 struct ObfuscatedClass {
-  ObfuscatedClass(std::string d) : deobfuscated_name(std::move(d)) {}
+  explicit ObfuscatedClass(std::string d) : deobfuscated_name(std::move(d)) {}
   ObfuscatedClass(std::string d,
                   std::map<std::string, std::string> f,
                   std::map<std::string, std::string> m)
@@ -42,6 +45,7 @@ class ProguardParser {
   // A return value of false means this line failed to parse. This leaves the
   // parser in an undefined state and it should no longer be used.
   bool AddLine(std::string line);
+  bool AddLines(std::string contents);
 
   std::map<std::string, ObfuscatedClass> ConsumeMapping() {
     return std::move(mapping_);
@@ -51,6 +55,22 @@ class ProguardParser {
   std::map<std::string, ObfuscatedClass> mapping_;
   ObfuscatedClass* current_class_ = nullptr;
 };
+
+struct ProguardMap {
+  std::string package;
+  std::string filename;
+};
+
+void MakeDeobfuscationPackets(
+    const std::string& package_name,
+    const std::map<std::string, profiling::ObfuscatedClass>& mapping,
+    std::function<void(const std::string&)> callback);
+
+std::vector<ProguardMap> GetPerfettoProguardMapPath();
+
+bool ReadProguardMapsToDeobfuscationPackets(
+    const std::vector<ProguardMap>& maps,
+    std::function<void(std::string)> fn);
 
 }  // namespace profiling
 }  // namespace perfetto
