@@ -45,7 +45,7 @@ WHERE power_per_thread.utid = chrome_thread.utid;
 DROP TABLE IF EXISTS {{input}}_power;
 CREATE VIRTUAL TABLE {{input}}_power USING SPAN_JOIN(
   {{input}},
-  power_per_chrome_thread
+  power_per_chrome_thread PARTITIONED utid
 );
 
 -- Estimated power usage for chrome across the categroy slices contained in
