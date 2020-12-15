@@ -20,6 +20,9 @@ source_set("deobfuscator") {
   deps = [
     "../../gn:default_deps",
     "../../include/perfetto/ext/base:base",
+    "../../protos/perfetto/trace:zero",
+    "../../protos/perfetto/trace/profiling:zero",
+    "../../src/protozero:protozero",
   ]
   public_deps = [ "../../include/perfetto/profiling:deobfuscator" ]
 }
