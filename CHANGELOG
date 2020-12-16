@@ -2,6 +2,7 @@ Unreleased:
   Tracing service and probes:
     * Added trace packet interceptor API for rerouting trace data into
       non-Perfetto systems.
+    * Added support for printing track events to the console.
   Trace Processor:
     *
   UI:
