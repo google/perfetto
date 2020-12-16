@@ -33,14 +33,24 @@ class Symbolizer;
 
 namespace trace_to_text {
 
-struct SerializedProfile {
-  uint64_t pid;
-  std::string heap_name;
-  std::string serialized;
+enum class ProfileType {
+  kHeapProfile,
+  kPerfProfile,
 };
 
-bool TraceToPprof(trace_processor::TraceProcessor*,
+struct SerializedProfile {
+  ProfileType profile_type;
+  uint64_t pid;
+  std::string serialized;
+  // non-empty if profile_type == kHeapProfile
+  std::string heap_name;
+};
+
+enum class ConversionMode { kHeapProfile, kPerfProfile };
+
+bool TraceToPprof(trace_processor::TraceProcessor* tp,
                   std::vector<SerializedProfile>* output,
+                  ConversionMode mode = ConversionMode::kHeapProfile,
                   uint64_t pid = 0,
                   const std::vector<uint64_t>& timestamps = {});
 

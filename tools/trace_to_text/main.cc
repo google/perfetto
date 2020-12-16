@@ -50,6 +50,7 @@ int Usage(const char* argv0) {
           "[trace.pb] "
           "[trace.txt]\n"
           "\nProfile mode only:\n"
+          "\t--perf generate a perf profile\n"
           "\t--timestamps TIMESTAMP1,TIMESTAMP2,... generate profiles "
           "only for these timestamps\n"
           "\t--pid PID generate profiles only for this process id\n",
@@ -73,6 +74,7 @@ int Main(int argc, char** argv) {
   uint64_t pid = 0;
   std::vector<uint64_t> timestamps;
   bool full_sort = false;
+  bool perf_profile = false;
   for (int i = 1; i < argc; i++) {
     if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--version") == 0) {
       printf("%s\n", base::GetVersionString());
@@ -99,6 +101,8 @@ int Main(int argc, char** argv) {
       for (const std::string& ts : ts_strings) {
         timestamps.emplace_back(StringToUint64OrDie(ts.c_str()));
       }
+    } else if (strcmp(argv[i], "--perf") == 0) {
+      perf_profile = true;
     } else if (strcmp(argv[i], "--full-sort") == 0) {
       full_sort = true;
     } else {
@@ -150,6 +154,10 @@ int Main(int argc, char** argv) {
         "formats.");
     return 1;
   }
+  if (perf_profile && format != "profile") {
+    PERFETTO_ELOG("--perf requires profile format.");
+    return 1;
+  }
 
   if (format == "json")
     return TraceToJson(input_stream, output_stream, /*compress=*/false,
@@ -178,8 +186,12 @@ int Main(int argc, char** argv) {
   if (format == "text")
     return TraceToText(input_stream, output_stream);
 
-  if (format == "profile")
-    return TraceToProfile(input_stream, output_stream, pid, timestamps);
+  if (format == "profile") {
+    return perf_profile ? TraceToPerfProfile(input_stream, output_stream, pid,
+                                             timestamps)
+                        : TraceToHeapProfile(input_stream, output_stream, pid,
+                                             timestamps);
+  }
 
   if (format == "hprof")
     return TraceToHprof(input_stream, output_stream, pid, timestamps);
