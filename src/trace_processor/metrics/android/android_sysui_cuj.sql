@@ -149,31 +149,47 @@ CREATE TABLE IF NOT EXISTS android_sysui_cuj_frames AS
   GROUP BY f.mts_ts
   HAVING gpu_completions >= 1;
 
+CREATE VIEW IF NOT EXISTS android_sysui_cuj_frame_main_thread_bounds AS
+SELECT frame_number, ts_main_thread_start as ts, dur_main_thread as dur
+FROM android_sysui_cuj_frames;
+
+CREATE VIEW IF NOT EXISTS android_sysui_cuj_main_thread_state_data AS
+SELECT * FROM thread_state
+WHERE utid = (SELECT main_thread_utid FROM android_sysui_cuj_last_cuj);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS android_sysui_cuj_main_thread_state_vt
+USING span_left_join(android_sysui_cuj_frame_main_thread_bounds, android_sysui_cuj_main_thread_state_data PARTITIONED utid);
+
 CREATE TABLE IF NOT EXISTS android_sysui_cuj_main_thread_state AS
   SELECT
-    f.frame_number,
-    mts.state,
-    SUM(mts.dur) AS dur,
-    SUM(mts.io_wait) AS io_wait
-  FROM android_sysui_cuj_frames f
-  JOIN thread_state mts
-    ON mts.ts >= f.ts_main_thread_start AND mts.ts < f.ts_main_thread_end
-  WHERE mts.utid = (SELECT main_thread_utid FROM android_sysui_cuj_last_cuj)
-  GROUP BY f.frame_number, mts.state
-  HAVING mts.dur > 0;
+    frame_number,
+    state,
+    io_wait AS io_wait,
+    SUM(dur) AS dur
+  FROM android_sysui_cuj_main_thread_state_vt
+  GROUP BY frame_number, state, io_wait
+  HAVING dur > 0;
+
+CREATE VIEW IF NOT EXISTS android_sysui_cuj_frame_render_thread_bounds AS
+SELECT frame_number, ts_render_thread_start as ts, dur_render_thread as dur
+FROM android_sysui_cuj_frames;
+
+CREATE VIEW IF NOT EXISTS android_sysui_cuj_render_thread_state_data AS
+SELECT * FROM thread_state
+WHERE utid in (SELECT utid FROM android_sysui_cuj_render_thread);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS android_sysui_cuj_render_thread_state_vt
+USING span_left_join(android_sysui_cuj_frame_render_thread_bounds, android_sysui_cuj_render_thread_state_data PARTITIONED utid);
 
 CREATE TABLE IF NOT EXISTS android_sysui_cuj_render_thread_state AS
   SELECT
-    f.frame_number,
-    rts.state,
-    SUM(rts.dur) AS dur,
-    SUM(rts.io_wait) AS io_wait
-  FROM android_sysui_cuj_frames f
-  JOIN thread_state rts
-    ON rts.ts >= f.ts_render_thread_start AND rts.ts < f.ts_render_thread_end
-  WHERE rts.utid in (SELECT utid FROM android_sysui_cuj_render_thread)
-  GROUP BY f.frame_number, rts.state
-  HAVING rts.dur > 0;
+    frame_number,
+    state,
+    io_wait AS io_wait,
+    SUM(dur) AS dur
+  FROM android_sysui_cuj_render_thread_state_vt
+  GROUP BY frame_number, state, io_wait
+  HAVING dur > 0;
 
 CREATE TABLE IF NOT EXISTS android_sysui_cuj_main_thread_binder AS
   SELECT
