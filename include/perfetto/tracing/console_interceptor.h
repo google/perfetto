@@ -23,17 +23,27 @@
 #include "perfetto/tracing/track_event_state_tracker.h"
 
 #include <stdarg.h>
-#include <unistd.h>
 
 #include <functional>
 #include <map>
 #include <vector>
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#include <io.h>
+#else
+#include <unistd.h>
+#endif
 
 #if defined(__GNUC__) || defined(__clang__)
 #define PERFETTO_PRINTF_ATTR \
   __attribute__((format(printf, /*format_index=*/2, /*first_to_check=*/3)))
 #else
 #define PERFETTO_PRINTF_ATTR
+#endif
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) && !defined(STDOUT_FILENO)
+#define STDOUT_FILENO 1
+#define STDERR_FILENO 2
 #endif
 
 namespace perfetto {
