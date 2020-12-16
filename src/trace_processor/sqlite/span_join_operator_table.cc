@@ -387,11 +387,16 @@ int SpanJoinOperatorTable::Cursor::Filter(const QueryConstraints& qc,
                                           FilterHistory) {
   PERFETTO_TP_TRACE("SPAN_JOIN_XFILTER");
 
-  util::Status status = t1_.Initialize(qc, argv);
+  util::Status status =
+      t1_.Initialize(qc, argv, Query::InitialEofBehavior::kTreatAsEof);
   if (!status.ok())
     return SQLITE_ERROR;
 
-  status = t2_.Initialize(qc, argv);
+  status = t2_.Initialize(
+      qc, argv,
+      table_->IsLeftJoin()
+          ? Query::InitialEofBehavior::kTreatAsMissingPartitionShadow
+          : Query::InitialEofBehavior::kTreatAsEof);
   if (!status.ok())
     return SQLITE_ERROR;
 
@@ -469,7 +474,7 @@ util::Status SpanJoinOperatorTable::Cursor::FindOverlappingSpan() {
     // Find which slice finishes first.
     next_query_ = FindEarliestFinishQuery();
 
-    // If the current span is overlapping, just finsh there to emit the current
+    // If the current span is overlapping, just finish there to emit the current
     // slice.
     if (IsOverlappingSpan())
       break;
@@ -581,11 +586,19 @@ SpanJoinOperatorTable::Query::~Query() = default;
 
 util::Status SpanJoinOperatorTable::Query::Initialize(
     const QueryConstraints& qc,
-    sqlite3_value** argv) {
+    sqlite3_value** argv,
+    InitialEofBehavior eof_behavior) {
   *this = Query(table_, definition(), db_);
   sql_query_ = CreateSqlQuery(
       table_->ComputeSqlConstraintsForDefinition(*defn_, qc, argv));
-  return Rewind();
+  util::Status status = Rewind();
+  if (!status.ok())
+    return status;
+  if (eof_behavior == InitialEofBehavior::kTreatAsMissingPartitionShadow &&
+      IsEof()) {
+    state_ = State::kMissingPartitionShadow;
+  }
+  return status;
 }
 
 util::Status SpanJoinOperatorTable::Query::Next() {
