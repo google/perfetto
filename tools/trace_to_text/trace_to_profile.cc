@@ -33,7 +33,6 @@
 #include "src/profiling/symbolizer/symbolizer.h"
 
 namespace {
-
 constexpr const char* kDefaultTmp = "/tmp";
 
 std::string GetTemp() {
@@ -44,7 +43,6 @@ std::string GetTemp() {
     return tmp;
   return kDefaultTmp;
 }
-
 }  // namespace
 
 namespace perfetto {
@@ -76,37 +74,36 @@ void MaybeDeobfuscate(trace_processor::TraceProcessor* tp) {
   tp->NotifyEndOfFile();
 }
 
-}  // namespace
-
-int TraceToProfile(std::istream* input,
-                   std::ostream* output,
-                   uint64_t pid,
-                   std::vector<uint64_t> timestamps) {
+int TraceToProfile(
+    std::istream* input,
+    std::ostream* output,
+    uint64_t pid,
+    std::vector<uint64_t> timestamps,
+    ConversionMode conversion_mode,
+    std::string dirname_prefix,
+    std::function<std::string(const SerializedProfile&)> filename_fn) {
   std::vector<SerializedProfile> profiles;
   trace_processor::Config config;
   std::unique_ptr<trace_processor::TraceProcessor> tp =
       trace_processor::TraceProcessor::CreateInstance(config);
 
   if (!ReadTrace(tp.get(), input))
-    return false;
+    return -1;
 
   tp->NotifyEndOfFile();
   MaybeSymbolize(tp.get());
   MaybeDeobfuscate(tp.get());
 
-  TraceToPprof(tp.get(), &profiles, pid, timestamps);
+  TraceToPprof(tp.get(), &profiles, conversion_mode, pid, timestamps);
   if (profiles.empty()) {
     return 0;
   }
 
   std::string temp_dir =
-      GetTemp() + "/heap_profile-" + base::GetTimeFmt("%y%m%d%H%M%S");
+      GetTemp() + "/" + dirname_prefix + base::GetTimeFmt("%y%m%d%H%M%S");
   PERFETTO_CHECK(base::Mkdir(temp_dir));
-  size_t itr = 0;
   for (const auto& profile : profiles) {
-    std::string filename = temp_dir + "/heap_dump." + std::to_string(++itr) +
-                           "." + std::to_string(profile.pid) + "." +
-                           profile.heap_name + ".pb";
+    std::string filename = temp_dir + "/" + filename_fn(profile);
     base::ScopedFile fd(base::OpenFile(filename, O_CREAT | O_WRONLY, 0700));
     if (!fd)
       PERFETTO_FATAL("Failed to open %s", filename.c_str());
@@ -116,6 +113,38 @@ int TraceToProfile(std::istream* input,
   }
   *output << "Wrote profiles to " << temp_dir << std::endl;
   return 0;
+}
+
+}  // namespace
+
+int TraceToHeapProfile(std::istream* input,
+                       std::ostream* output,
+                       uint64_t pid,
+                       std::vector<uint64_t> timestamps) {
+  int file_idx = 0;
+  auto filename_fn = [&file_idx](const SerializedProfile& profile) {
+    return "heap_dump." + std::to_string(++file_idx) + "." +
+           std::to_string(profile.pid) + "." + profile.heap_name + ".pb";
+  };
+
+  return TraceToProfile(input, output, pid, timestamps,
+                        ConversionMode::kHeapProfile, "heap_profile-",
+                        filename_fn);
+}
+
+int TraceToPerfProfile(std::istream* input,
+                       std::ostream* output,
+                       uint64_t pid,
+                       std::vector<uint64_t> timestamps) {
+  int file_idx = 0;
+  auto filename_fn = [&file_idx](const SerializedProfile& profile) {
+    return "profile." + std::to_string(++file_idx) + ".pid." +
+           std::to_string(profile.pid) + ".pb";
+  };
+
+  return TraceToProfile(input, output, pid, timestamps,
+                        ConversionMode::kPerfProfile, "perf_profile-",
+                        filename_fn);
 }
 
 }  // namespace trace_to_text
