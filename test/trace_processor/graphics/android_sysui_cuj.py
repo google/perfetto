@@ -125,8 +125,8 @@ add_frame(
     ts_gpu=66_500_000,
     ts_end_gpu=78_000_000)
 
-# Main thread Running for 13 millis
-trace.add_sched(ts=40_000_000, prev_pid=0, next_pid=PID)
+# Main thread Running for 14 millis
+trace.add_sched(ts=39_000_000, prev_pid=0, next_pid=PID)
 trace.add_sched(ts=53_000_000, prev_pid=PID, next_pid=0, prev_state='R')
 
 # RenderThread Running for 5 millis
