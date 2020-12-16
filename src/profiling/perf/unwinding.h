@@ -95,6 +95,7 @@ class Unwinder {
   void PostRecordTimedOutProcDescriptors(DataSourceInstanceID ds_id, pid_t pid);
   void PostProcessQueue();
   void PostInitiateDataSourceStop(DataSourceInstanceID ds_id);
+  void PostPurgeDataSource(DataSourceInstanceID ds_id);
 
   void PostClearCachedStatePeriodic(DataSourceInstanceID ds_id,
                                     uint32_t period_ms);
@@ -166,6 +167,9 @@ class Unwinder {
   // samples, and informs the service that it can continue the shutdown
   // sequence.
   void FinishDataSourceStop(DataSourceInstanceID ds_id);
+
+  // Immediately destroys the data source state, used for abrupt stops.
+  void PurgeDataSource(DataSourceInstanceID ds_id);
 
   // Clears the parsed maps for all previously-sampled processes, and resets the
   // libunwindstack cache. This has the effect of deallocating the cached Elf

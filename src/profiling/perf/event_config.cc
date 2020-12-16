@@ -108,9 +108,14 @@ base::Optional<uint32_t> ChooseActualRingBufferPages(uint32_t config_value) {
 // static
 base::Optional<EventConfig> EventConfig::Create(
     const DataSourceConfig& ds_config) {
-  protos::pbzero::PerfEventConfig::Decoder pb_config(
+  protos::pbzero::PerfEventConfig::Decoder event_config_pb(
       ds_config.perf_event_config_raw());
+  return EventConfig::Create(event_config_pb);
+}
 
+// static
+base::Optional<EventConfig> EventConfig::Create(
+    const protos::pbzero::PerfEventConfig::Decoder& pb_config) {
   base::Optional<TargetFilter> filter = ParseTargetFilter(pb_config);
   if (!filter.has_value())
     return base::nullopt;
