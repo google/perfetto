@@ -506,6 +506,7 @@ def main(argv):
       binary_path += ":" + product_out_symbols
 
   trace_file = os.path.join(profile_target, 'raw-trace')
+  concat_files = [trace_file]
 
   if binary_path is not None:
     with open(os.path.join(profile_target, 'symbols'), 'w') as fd:
@@ -515,23 +516,36 @@ def main(argv):
           env=dict(os.environ, PERFETTO_BINARY_PATH=binary_path),
           stdout=fd)
     if ret == 0:
-      with open(os.path.join(profile_target, 'symbolized-trace'), 'w') as out,\
-           open(os.path.join(profile_target, 'raw-trace'), 'r') as in1,\
-           open(os.path.join(profile_target, 'symbols'), 'r') as in2:
-        while True:
-          buf = in1.read(4096)
-          if not buf:
-            break
-          out.write(buf)
-        while True:
-          buf = in2.read(4096)
-          if not buf:
-            break
-          out.write(buf)
-      trace_file = os.path.join(profile_target, 'symbolized-trace')
+      concat_files.append(os.path.join(profile_target, 'symbols'))
     else:
       print("Failed to symbolize. Continuing without symbols.",
       file=sys.stderr)
+
+  proguard_map = os.getenv('PERFETTO_PROGUARD_MAP')
+  if proguard_map is not None:
+    with open(os.path.join(profile_target, 'deobfuscation-packets'), 'w') as fd:
+      ret = subprocess.call([
+          trace_to_text_binary, 'deobfuscate',
+          os.path.join(profile_target, 'raw-trace')],
+          env=dict(os.environ, PERFETTO_PROGUARD_MAP=proguard_map),
+          stdout=fd)
+    if ret == 0:
+      concat_files.append(
+        os.path.join(profile_target, 'deobfuscation-packets'))
+    else:
+      print("Failed to deobfuscate. Continuing without deobfuscated.",
+      file=sys.stderr)
+
+  if len(concat_files) > 1:
+    with open(os.path.join(profile_target, 'symbolized-trace'), 'w') as out:
+      for fn in concat_files:
+        with open(fn, 'r') as inp:
+          while True:
+            buf = inp.read(4096)
+            if not buf:
+              break
+            out.write(buf)
+    trace_file = os.path.join(profile_target, 'symbolized-trace')
 
   trace_to_text_output = subprocess.check_output(
       [trace_to_text_binary, 'profile', trace_file])
