@@ -208,10 +208,11 @@ message Profiling {
 // Individual performance sampling packet payload. Typically corresponds to a
 // stack sample on a configration-dependent counter overflow.
 // Timestamps are within the root packet (in the CLOCK_BOOTTIME domain).
-// There are three distinct views of this message:
+// There are several distinct views of this message:
 // * completely processed sample (callstack_iid set)
 // * indication of kernel buffer data loss (kernel_records_lost set)
 // * indication of skipped samples (sample_skipped_reason set)
+// * notable event in the sampling implementation (producer_event set)
 message PerfSample {
   optional uint32 cpu = 1;
   optional uint32 pid = 2;
@@ -253,4 +254,16 @@ message PerfSample {
   oneof optional_sample_skipped_reason {
     SampleSkipReason sample_skipped_reason = 18;
   };
+
+  // A notable event within the sampling implementation.
+  message ProducerEvent {
+    enum DataSourceStopReason {
+      PROFILER_STOP_UNKNOWN = 0;
+      PROFILER_STOP_GUARDRAIL = 1;
+    }
+    oneof optional_source_stop_reason {
+      DataSourceStopReason source_stop_reason = 1;
+    }
+  }
+  optional ProducerEvent producer_event = 19;
 }
