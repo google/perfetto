@@ -158,9 +158,15 @@ SELECT
   dur,
   1
 FROM (SELECT start_ts AS ts,
-    COALESCE(MIN(ts) - start_ts - const.vsync_padding, end_ts - start_ts) AS dur
-  FROM trace_bounds, slice, const
-  WHERE name = "VSync") WHERE dur > 0
+          COALESCE((
+              SELECT MIN(ts)
+              FROM slice
+              WHERE name = "VSync"
+            ) - start_ts - const.vsync_padding,
+            end_ts - start_ts
+          ) AS dur
+FROM trace_bounds, const)
+WHERE dur > 0
 UNION
 -- Insert a slice between the last vsync and end_ts
 SELECT last_vsync AS ts,
