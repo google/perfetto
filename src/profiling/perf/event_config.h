@@ -48,6 +48,8 @@ struct TargetFilter {
 class EventConfig {
  public:
   static base::Optional<EventConfig> Create(const DataSourceConfig& ds_config);
+  static base::Optional<EventConfig> Create(
+      const protos::pbzero::PerfEventConfig::Decoder& ds_config);
 
   uint32_t target_all_cpus() const { return target_all_cpus_; }
   uint32_t ring_buffer_pages() const { return ring_buffer_pages_; }

@@ -9140,6 +9140,7 @@ cc_binary {
     ":perfetto_src_profiling_common_interner",
     ":perfetto_src_profiling_common_interning_output",
     ":perfetto_src_profiling_common_proc_utils",
+    ":perfetto_src_profiling_common_profiler_guardrails",
     ":perfetto_src_profiling_common_unwind_support",
     ":perfetto_src_profiling_perf_common_types",
     ":perfetto_src_profiling_perf_proc_descriptors",

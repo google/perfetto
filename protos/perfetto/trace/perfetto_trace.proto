@@ -763,7 +763,7 @@ message JavaHprofConfig {
 // At the time of writing, the config options are restricted to the periodic
 // system-wide stack sampling use-case (|all_cpus| must be true).
 //
-// Next id: 13
+// Next id: 14
 message PerfEventConfig {
   // If true, sample events on all CPUs.
   optional bool all_cpus = 1;
@@ -816,6 +816,14 @@ message PerfEventConfig {
   // explicitly included nor excluded will be considered. Processes are accepted
   // on a first come, first served basis.
   optional uint32 additional_cmdline_count = 11;
+
+  //
+  // Daemon's resource usage limits:
+  //
+
+  // Stop the data source if traced_perf's combined {RssAnon + Swap} memory
+  // footprint exceeds this value.
+  optional uint32 max_daemon_memory_kb = 13;
 
   //
   // Uncommon options:
@@ -7377,10 +7385,11 @@ message Profiling {
 // Individual performance sampling packet payload. Typically corresponds to a
 // stack sample on a configration-dependent counter overflow.
 // Timestamps are within the root packet (in the CLOCK_BOOTTIME domain).
-// There are three distinct views of this message:
+// There are several distinct views of this message:
 // * completely processed sample (callstack_iid set)
 // * indication of kernel buffer data loss (kernel_records_lost set)
 // * indication of skipped samples (sample_skipped_reason set)
+// * notable event in the sampling implementation (producer_event set)
 message PerfSample {
   optional uint32 cpu = 1;
   optional uint32 pid = 2;
@@ -7422,6 +7431,18 @@ message PerfSample {
   oneof optional_sample_skipped_reason {
     SampleSkipReason sample_skipped_reason = 18;
   };
+
+  // A notable event within the sampling implementation.
+  message ProducerEvent {
+    enum DataSourceStopReason {
+      PROFILER_STOP_UNKNOWN = 0;
+      PROFILER_STOP_GUARDRAIL = 1;
+    }
+    oneof optional_source_stop_reason {
+      DataSourceStopReason source_stop_reason = 1;
+    }
+  }
+  optional ProducerEvent producer_event = 19;
 }
 
 // End of protos/perfetto/trace/profiling/profile_packet.proto
