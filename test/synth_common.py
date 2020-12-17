@@ -44,7 +44,11 @@ COUNTER_THREAD_TIME_NS = 1
 
 
 def ms_to_ns(time_in_ms):
-  return time_in_ms * 1000000
+  return int(time_in_ms * 1000000)
+
+
+def s_to_ns(time_in_s):
+  return int(time_in_s * 1000000000)
 
 
 class Trace(object):
@@ -611,6 +615,14 @@ class Trace(object):
     packet = self.add_track_event_slice(
         "Scheduler.RAILMode", ts=ts, dur=dur, track=track)
     packet.track_event.chrome_renderer_scheduler_state.rail_mode = mode
+
+  def add_chrome_metadata(self, os_name=None):
+    metadata = self.add_packet().chrome_events.metadata.add()
+    if os_name is not None:
+      metadata.name = "os-name"
+      metadata.string_value = os_name
+
+    return metadata
 
 
 def create_trace():
