@@ -202,6 +202,15 @@ class PerfProducer : public Producer,
   // Destroys the state belonging to this instance, and acks the stop to the
   // tracing service.
   void FinishDataSourceStop(DataSourceInstanceID ds_id);
+  // Immediately destroys the data source state, and instructs the unwinder to
+  // do the same. This is used for abrupt stops.
+  void PurgeDataSource(DataSourceInstanceID ds_id);
+
+  // Immediately stops the data source if this daemon's overall memory footprint
+  // is above the given threshold. This periodic task is started only for data
+  // sources that specify a limit.
+  void CheckMemoryFootprintPeriodic(DataSourceInstanceID ds_id,
+                                    uint32_t max_daemon_memory_kb);
 
   void StartMetatraceSource(DataSourceInstanceID ds_id, BufferID target_buffer);
 

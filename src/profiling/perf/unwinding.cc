@@ -100,7 +100,8 @@ void Unwinder::AdoptProcDescriptors(DataSourceInstanceID ds_id,
                 maps_fd.get(), mem_fd.get());
 
   auto it = data_sources_.find(ds_id);
-  PERFETTO_CHECK(it != data_sources_.end());
+  if (it == data_sources_.end())
+    return;
   DataSourceState& ds = it->second;
 
   ProcessState& proc_state = ds.process_states[pid];  // insert if new
@@ -127,7 +128,8 @@ void Unwinder::RecordTimedOutProcDescriptors(DataSourceInstanceID ds_id,
                 static_cast<size_t>(ds_id), static_cast<int>(pid));
 
   auto it = data_sources_.find(ds_id);
-  PERFETTO_CHECK(it != data_sources_.end());
+  if (it == data_sources_.end())
+    return;
   DataSourceState& ds = it->second;
 
   ProcessState& proc_state = ds.process_states[pid];  // insert if new
@@ -210,8 +212,12 @@ base::FlatSet<DataSourceInstanceID> Unwinder::ConsumeAndUnwindReadySamples() {
     if (!entry.valid)
       continue;  // already processed
 
+    // Data source might be gone due to an abrupt stop.
     auto it = data_sources_.find(entry.data_source_id);
-    PERFETTO_CHECK(it != data_sources_.end());
+    if (it == data_sources_.end()) {
+      entry = UnwindEntry::Invalid();
+      continue;
+    }
     DataSourceState& ds = it->second;
 
     pid_t pid = entry.sample.pid;
@@ -447,7 +453,8 @@ void Unwinder::InitiateDataSourceStop(DataSourceInstanceID ds_id) {
                 static_cast<size_t>(ds_id));
 
   auto it = data_sources_.find(ds_id);
-  PERFETTO_CHECK(it != data_sources_.end());
+  if (it == data_sources_.end())
+    return;
   DataSourceState& ds = it->second;
 
   PERFETTO_CHECK(ds.status == DataSourceState::Status::kActive);
@@ -464,7 +471,8 @@ void Unwinder::FinishDataSourceStop(DataSourceInstanceID ds_id) {
                 static_cast<size_t>(ds_id));
 
   auto it = data_sources_.find(ds_id);
-  PERFETTO_CHECK(it != data_sources_.end());
+  if (it == data_sources_.end())
+    return;
   DataSourceState& ds = it->second;
 
   // Drop unwinder's state tied to the source.
@@ -479,6 +487,31 @@ void Unwinder::FinishDataSourceStop(DataSourceInstanceID ds_id) {
 
   // Inform service thread that the unwinder is done with the source.
   delegate_->PostFinishDataSourceStop(ds_id);
+}
+
+void Unwinder::PostPurgeDataSource(DataSourceInstanceID ds_id) {
+  task_runner_->PostTask([this, ds_id] { PurgeDataSource(ds_id); });
+}
+
+void Unwinder::PurgeDataSource(DataSourceInstanceID ds_id) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  PERFETTO_DLOG("Unwinder::PurgeDataSource(%zu)", static_cast<size_t>(ds_id));
+
+  auto it = data_sources_.find(ds_id);
+  if (it == data_sources_.end())
+    return;
+
+  data_sources_.erase(it);
+
+  // Clean up state if there are no more active sources.
+  if (data_sources_.empty()) {
+    kernel_symbolizer_.Destroy();
+    ResetAndEnableUnwindstackCache();
+    // Also purge scudo on Android, which would normally be done by the service
+    // thread in |FinishDataSourceStop|. This is important as most of the scudo
+    // overhead comes from libunwindstack.
+    base::MaybeReleaseAllocatorMemToOS();
+  }
 }
 
 void Unwinder::PostClearCachedStatePeriodic(DataSourceInstanceID ds_id,
