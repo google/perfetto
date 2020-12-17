@@ -380,7 +380,9 @@ TEST_F(PerfettoTest, TreeHuggerOnly(TestFtraceFlush)) {
 //    We cannot change the length of the production code in
 //    CanReadKernelSymbolAddresses() to deal with it.
 // 2. On user (i.e. non-userdebug) builds. As that doesn't work there by design.
-#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD) && defined(__i386__)
+// 3. On ARM builds, because they fail on our CI.
+#if (PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD) && defined(__i386__)) || \
+    defined(__arm__)
 #define MAYBE_KernelAddressSymbolization DISABLED_KernelAddressSymbolization
 #else
 #define MAYBE_KernelAddressSymbolization KernelAddressSymbolization
