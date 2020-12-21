@@ -23,7 +23,7 @@ perfetto_host_executable("ftrace_proto_gen") {
     "../../gn:default_deps",
     "../../gn:protobuf_full",
     "../../src/base",
-    "../../src/traced/probes/ftrace:format_parser",
+    "../../src/traced/probes/ftrace/format_parser",
   ]
 }
 
@@ -52,6 +52,6 @@ source_set("lib") {
     "../../gn:default_deps",
     "../../gn:protobuf_full",
     "../../src/base",
-    "../../src/traced/probes/ftrace:format_parser",
+    "../../src/traced/probes/ftrace/format_parser",
   ]
 }
