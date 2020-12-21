@@ -18,7 +18,9 @@
 
 #include "perfetto/base/build_config.h"
 
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#include <Windows.h>
+#else
 #include <fcntl.h>
 #include <signal.h>
 #include <unistd.h>
@@ -32,6 +34,7 @@
 
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/pipe.h"
+#include "perfetto/ext/base/temp_file.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -81,16 +84,61 @@ TEST(UtilsTest, PipeBlockingRW) {
     while (!tx.empty()) {
       size_t wsize = static_cast<size_t>(rnd_engine() % 4096) + 1;
       wsize = std::min(wsize, tx.size());
-      WriteAll(*pipe.wr, &tx[0], wsize);
+      WriteAllHandle(*pipe.wr, &tx[0], wsize);
       tx.erase(0, wsize);
     }
     pipe.wr.reset();
   });
 
   std::string actual;
-  ASSERT_TRUE(ReadFileDescriptor(*pipe.rd, &actual));
+  ASSERT_TRUE(ReadPlatformHandle(*pipe.rd, &actual));
   ASSERT_EQ(actual, expected);
   writer.join();
+}
+
+// Tests that WriteAllHandle and ReadPlatformHandle work as advertised.
+// TODO(primiano): normalize File handling on Windows. Right now some places
+// use POSIX-compat APIs that use "int" file descriptors (_open, _read, _write),
+// some other places use WINAPI files (CreateFile(), ReadFile()), where the file
+// is a HANDLE.
+TEST(UtilsTest, ReadWritePlatformHandle) {
+  auto tmp = TempDir::Create();
+  std::string payload = "foo\nbar\0baz\r\nqux";
+  std::string tmp_path = tmp.path() + "/temp.txt";
+
+  // Write a file using PlatformHandle. Note: the {} blocks are to make sure
+  // that the file is automatically closed via RAII before being reopened.
+  {
+    ScopedPlatformHandle handle {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+      ::CreateFileA(tmp_path.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS,
+                    FILE_ATTRIBUTE_NORMAL, nullptr)
+#else
+      OpenFile(tmp_path, O_WRONLY | O_CREAT | O_TRUNC, 0644)
+#endif
+    };
+    ASSERT_TRUE(handle);
+    ASSERT_EQ(WriteAllHandle(*handle, payload.data(), payload.size()),
+              static_cast<ssize_t>(payload.size()));
+  }
+
+  // Read it back.
+  {
+    ScopedPlatformHandle handle {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+      ::CreateFileA(tmp_path.c_str(), GENERIC_READ, 0, nullptr, OPEN_EXISTING,
+                    FILE_ATTRIBUTE_NORMAL, nullptr)
+#else
+      OpenFile(tmp_path, O_RDONLY)
+#endif
+    };
+    ASSERT_TRUE(handle);
+    std::string actual = "preserve_existing:";
+    ASSERT_TRUE(ReadPlatformHandle(*handle, &actual));
+    ASSERT_EQ(actual, "preserve_existing:" + payload);
+  }
+
+  ASSERT_EQ(remove(tmp_path.c_str()), 0);
 }
 
 // Fuchsia doesn't currently support sigaction(), see
