@@ -17,6 +17,7 @@
 #ifndef INCLUDE_PERFETTO_EXT_BASE_PIPE_H_
 #define INCLUDE_PERFETTO_EXT_BASE_PIPE_H_
 
+#include "perfetto/base/platform_handle.h"
 #include "perfetto/ext/base/scoped_file.h"
 
 namespace perfetto {
@@ -39,8 +40,8 @@ class Pipe {
   Pipe(Pipe&&) noexcept;
   Pipe& operator=(Pipe&&);
 
-  ScopedFile rd;
-  ScopedFile wr;
+  ScopedPlatformHandle rd;
+  ScopedPlatformHandle wr;
 };
 
 }  // namespace base

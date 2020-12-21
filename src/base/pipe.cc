@@ -21,7 +21,8 @@
 #include <fcntl.h>  // For O_BINARY (Windows) and F_SETxx (UNIX)
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-#include <io.h>
+#include <Windows.h>
+#include <namedpipeapi.h>
 #else
 #include <sys/types.h>
 #include <unistd.h>
@@ -37,9 +38,10 @@ Pipe::Pipe(Pipe&&) noexcept = default;
 Pipe& Pipe::operator=(Pipe&&) = default;
 
 Pipe Pipe::Create(Flags flags) {
-  int fds[2];
+  PlatformHandle fds[2];
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-  PERFETTO_CHECK(_pipe(fds, 256, O_BINARY) == 0);
+  PERFETTO_CHECK(::CreatePipe(&fds[0], &fds[1], /*lpPipeAttributes=*/nullptr,
+                              0 /*default size*/));
 #else
   PERFETTO_CHECK(pipe(fds) == 0);
   PERFETTO_CHECK(fcntl(fds[0], F_SETFD, FD_CLOEXEC) == 0);

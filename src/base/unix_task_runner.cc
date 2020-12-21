@@ -268,7 +268,7 @@ void UnixTaskRunner::PostDelayedTask(std::function<void()> task,
 
 void UnixTaskRunner::AddFileDescriptorWatch(PlatformHandle fd,
                                             std::function<void()> task) {
-  PERFETTO_DCHECK(fd != InvalidPlatformHandle);
+  PERFETTO_DCHECK(PlatformHandleChecker::IsValid(fd));
   {
     std::lock_guard<std::mutex> lock(lock_);
     PERFETTO_DCHECK(!watch_tasks_.count(fd));
@@ -285,7 +285,7 @@ void UnixTaskRunner::AddFileDescriptorWatch(PlatformHandle fd,
 }
 
 void UnixTaskRunner::RemoveFileDescriptorWatch(PlatformHandle fd) {
-  PERFETTO_DCHECK(fd != InvalidPlatformHandle);
+  PERFETTO_DCHECK(PlatformHandleChecker::IsValid(fd));
   {
     std::lock_guard<std::mutex> lock(lock_);
     PERFETTO_DCHECK(watch_tasks_.count(fd));

@@ -75,6 +75,35 @@ bool ReadFileDescriptor(int fd, std::string* out) {
   }
 }
 
+bool ReadPlatformHandle(PlatformHandle h, std::string* out) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  // Do not override existing data in string.
+  size_t i = out->size();
+
+  for (;;) {
+    if (out->size() < i + kBufSize)
+      out->resize(out->size() + kBufSize);
+    DWORD bytes_read = 0;
+    auto res = ::ReadFile(h, &((*out)[i]), kBufSize, &bytes_read, nullptr);
+    if (res && bytes_read > 0) {
+      i += static_cast<size_t>(bytes_read);
+    } else {
+      out->resize(i);
+      const bool is_eof = res && bytes_read == 0;
+      auto err = res ? 0 : GetLastError();
+      // The "Broken pipe" error on Windows is slighly different than Unix:
+      // On Unix: a "broken pipe" error can happen only on the writer side. On
+      // the reader there is no broken pipe, just a EOF.
+      // On windows: the reader also sees a broken pipe error.
+      // Here we normalize on the Unix behavior, treating broken pipe as EOF.
+      return is_eof || err == ERROR_BROKEN_PIPE;
+    }
+  }
+#else
+  return ReadFileDescriptor(h, out);
+#endif
+}
+
 bool ReadFileStream(FILE* f, std::string* out) {
   return ReadFileDescriptor(fileno(f), out);
 }
@@ -102,6 +131,19 @@ ssize_t WriteAll(int fd, const void* buf, size_t count) {
     written += static_cast<size_t>(wr);
   }
   return static_cast<ssize_t>(written);
+}
+
+ssize_t WriteAllHandle(PlatformHandle h, const void* buf, size_t count) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  DWORD wsize = 0;
+  if (::WriteFile(h, buf, static_cast<DWORD>(count), &wsize, nullptr)) {
+    return wsize;
+  } else {
+    return -1;
+  }
+#else
+  return WriteAll(h, buf, count);
+#endif
 }
 
 bool FlushFile(int fd) {
