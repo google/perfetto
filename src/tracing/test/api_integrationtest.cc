@@ -3242,6 +3242,130 @@ TEST_P(PerfettoApiTest, ConsoleInterceptorVerify) {
   EXPECT_THAT(lines, ContainerEq(golden_lines));
 }
 
+TEST_P(PerfettoApiTest, TrackEventObserver) {
+  class Observer : public perfetto::TrackEventSessionObserver {
+   public:
+    ~Observer() override = default;
+
+    void OnSetup(const perfetto::DataSourceBase::SetupArgs&) {
+      // Since other tests here register multiple track event data sources,
+      // ignore all but the first notifications.
+      if (setup_called)
+        return;
+      setup_called = true;
+      if (unsubscribe_at_setup)
+        perfetto::TrackEvent::RemoveSessionObserver(this);
+      // This event isn't recorded in the trace because tracing isn't active yet
+      // when OnSetup is called.
+      TRACE_EVENT_INSTANT("foo", "OnSetup");
+      // However the active tracing categories have already been updated at this
+      // point.
+      EXPECT_TRUE(perfetto::TrackEvent::IsEnabled());
+      EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("foo"));
+    }
+
+    void OnStart(const perfetto::DataSourceBase::StartArgs&) {
+      if (start_called)
+        return;
+      start_called = true;
+      EXPECT_TRUE(perfetto::TrackEvent::IsEnabled());
+      EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("foo"));
+      TRACE_EVENT_INSTANT("foo", "OnStart");
+    }
+
+    void OnStop(const perfetto::DataSourceBase::StopArgs&) {
+      if (stop_called)
+        return;
+      stop_called = true;
+      EXPECT_TRUE(perfetto::TrackEvent::IsEnabled());
+      EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("foo"));
+      TRACE_EVENT_INSTANT("foo", "OnStop");
+      perfetto::TrackEvent::Flush();
+    }
+
+    bool setup_called{};
+    bool start_called{};
+    bool stop_called{};
+    bool unsubscribe_at_setup{};
+  };
+
+  EXPECT_FALSE(perfetto::TrackEvent::IsEnabled());
+  {
+    Observer observer;
+    perfetto::TrackEvent::AddSessionObserver(&observer);
+
+    auto* tracing_session = NewTraceWithCategories({"foo"});
+    tracing_session->get()->StartBlocking();
+    EXPECT_TRUE(observer.setup_called);
+    EXPECT_TRUE(observer.start_called);
+    tracing_session->get()->StopBlocking();
+    EXPECT_TRUE(observer.stop_called);
+    perfetto::TrackEvent::RemoveSessionObserver(&observer);
+    auto slices = ReadSlicesFromTrace(tracing_session->get());
+    EXPECT_THAT(slices, ElementsAre("I:foo.OnStart", "I:foo.OnStop"));
+  }
+
+  // No notifications after removing observer.
+  {
+    Observer observer;
+    perfetto::TrackEvent::AddSessionObserver(&observer);
+    perfetto::TrackEvent::RemoveSessionObserver(&observer);
+    auto* tracing_session = NewTraceWithCategories({"foo"});
+    tracing_session->get()->StartBlocking();
+    EXPECT_FALSE(observer.setup_called);
+    EXPECT_FALSE(observer.start_called);
+    tracing_session->get()->StopBlocking();
+    EXPECT_FALSE(observer.stop_called);
+  }
+
+  // Removing observer in a callback.
+  {
+    Observer observer;
+    observer.unsubscribe_at_setup = true;
+    perfetto::TrackEvent::AddSessionObserver(&observer);
+    auto* tracing_session = NewTraceWithCategories({"foo"});
+    tracing_session->get()->StartBlocking();
+    EXPECT_TRUE(observer.setup_called);
+    EXPECT_FALSE(observer.start_called);
+    tracing_session->get()->StopBlocking();
+    EXPECT_FALSE(observer.stop_called);
+    perfetto::TrackEvent::RemoveSessionObserver(&observer);
+  }
+
+  // Multiple observers.
+  {
+    Observer observer1;
+    Observer observer2;
+    perfetto::TrackEvent::AddSessionObserver(&observer1);
+    perfetto::TrackEvent::AddSessionObserver(&observer2);
+    auto* tracing_session = NewTraceWithCategories({"foo"});
+    tracing_session->get()->StartBlocking();
+    tracing_session->get()->StopBlocking();
+    perfetto::TrackEvent::RemoveSessionObserver(&observer1);
+    perfetto::TrackEvent::RemoveSessionObserver(&observer2);
+    auto slices = ReadSlicesFromTrace(tracing_session->get());
+    EXPECT_THAT(slices, ElementsAre("I:foo.OnStart", "I:foo.OnStart",
+                                    "I:foo.OnStop", "I:foo.OnStop"));
+  }
+
+  // Multiple observers with one being removed midway.
+  {
+    Observer observer1;
+    Observer observer2;
+    perfetto::TrackEvent::AddSessionObserver(&observer1);
+    perfetto::TrackEvent::AddSessionObserver(&observer2);
+    auto* tracing_session = NewTraceWithCategories({"foo"});
+    tracing_session->get()->StartBlocking();
+    perfetto::TrackEvent::RemoveSessionObserver(&observer1);
+    tracing_session->get()->StopBlocking();
+    perfetto::TrackEvent::RemoveSessionObserver(&observer2);
+    auto slices = ReadSlicesFromTrace(tracing_session->get());
+    EXPECT_THAT(slices,
+                ElementsAre("I:foo.OnStart", "I:foo.OnStart", "I:foo.OnStop"));
+  }
+  EXPECT_FALSE(perfetto::TrackEvent::IsEnabled());
+}
+
 struct BackendTypeAsString {
   std::string operator()(
       const ::testing::TestParamInfo<perfetto::BackendType>& info) const {

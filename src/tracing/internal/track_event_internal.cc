@@ -31,6 +31,12 @@
 #include "protos/perfetto/trace/track_event/track_descriptor.pbzero.h"
 
 namespace perfetto {
+
+TrackEventSessionObserver::~TrackEventSessionObserver() = default;
+void TrackEventSessionObserver::OnSetup(const DataSourceBase::SetupArgs&) {}
+void TrackEventSessionObserver::OnStart(const DataSourceBase::StartArgs&) {}
+void TrackEventSessionObserver::OnStop(const DataSourceBase::StopArgs&) {}
+
 namespace internal {
 
 BaseTrackEventInternedDataIndex::~BaseTrackEventInternedDataIndex() = default;
@@ -41,6 +47,19 @@ std::atomic<perfetto::base::PlatformThreadId> g_main_thread;
 static constexpr const char kLegacySlowPrefix[] = "disabled-by-default-";
 static constexpr const char kSlowTag[] = "slow";
 static constexpr const char kDebugTag[] = "debug";
+
+void ForEachObserver(
+    std::function<bool(TrackEventSessionObserver*&)> callback) {
+  // Session observers, shared by all track event data source instances.
+  static constexpr int kMaxObservers = 8;
+  static std::recursive_mutex* mutex = new std::recursive_mutex{};  // Leaked.
+  static std::array<TrackEventSessionObserver*, kMaxObservers> observers{};
+  std::unique_lock<std::recursive_mutex> lock(*mutex);
+  for (auto& o : observers) {
+    if (!callback(o))
+      break;
+  }
+}
 
 struct InternedEventCategory
     : public TrackEventInternedDataIndex<
@@ -152,22 +171,68 @@ bool TrackEventInternal::Initialize(
 }
 
 // static
+bool TrackEventInternal::AddSessionObserver(
+    TrackEventSessionObserver* observer) {
+  bool result = false;
+  ForEachObserver([&](TrackEventSessionObserver*& o) {
+    if (!o) {
+      o = observer;
+      result = true;
+      return false;
+    }
+    return true;
+  });
+  return result;
+}
+
+// static
+void TrackEventInternal::RemoveSessionObserver(
+    TrackEventSessionObserver* observer) {
+  ForEachObserver([&](TrackEventSessionObserver*& o) {
+    if (o == observer) {
+      o = nullptr;
+      return false;
+    }
+    return true;
+  });
+}
+
+// static
 void TrackEventInternal::EnableTracing(
     const TrackEventCategoryRegistry& registry,
     const protos::gen::TrackEventConfig& config,
-    uint32_t instance_index) {
+    const DataSourceBase::SetupArgs& args) {
   for (size_t i = 0; i < registry.category_count(); i++) {
     if (IsCategoryEnabled(registry, config, *registry.GetCategory(i)))
-      registry.EnableCategoryForInstance(i, instance_index);
+      registry.EnableCategoryForInstance(i, args.internal_instance_index);
   }
+  ForEachObserver([&](TrackEventSessionObserver*& o) {
+    if (o)
+      o->OnSetup(args);
+    return true;
+  });
+}
+
+// static
+void TrackEventInternal::OnStart(const DataSourceBase::StartArgs& args) {
+  ForEachObserver([&](TrackEventSessionObserver*& o) {
+    if (o)
+      o->OnStart(args);
+    return true;
+  });
 }
 
 // static
 void TrackEventInternal::DisableTracing(
     const TrackEventCategoryRegistry& registry,
-    uint32_t instance_index) {
+    const DataSourceBase::StopArgs& args) {
+  ForEachObserver([&](TrackEventSessionObserver*& o) {
+    if (o)
+      o->OnStop(args);
+    return true;
+  });
   for (size_t i = 0; i < registry.category_count(); i++)
-    registry.DisableCategoryForInstance(i, instance_index);
+    registry.DisableCategoryForInstance(i, args.internal_instance_index);
 }
 
 // static
