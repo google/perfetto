@@ -43,8 +43,8 @@ VALUES ('RAIL_MODE_IDLE', 0, 'background'),
 
 -- View containing all Scheduler.RAILMode slices across all Chrome renderer
 -- processes.
-DROP VIEW IF EXISTS rail_mode_slices;
-CREATE VIEW rail_mode_slices AS
+DROP VIEW IF EXISTS original_rail_mode_slices;
+CREATE VIEW original_rail_mode_slices AS
 SELECT slice.id,
   ts,
   CASE
@@ -56,6 +56,17 @@ SELECT slice.id,
 FROM trace_bounds,
   slice
 WHERE slice.name = "Scheduler.RAILMode";
+
+-- RAIL_MODE_LOAD seems to get stuck which makes it not very useful so remap it
+-- to RAIL_MODE_ANIMATION so it doesn't dominate the overall RAIL mode.
+DROP VIEW IF EXISTS rail_mode_slices;
+CREATE VIEW rail_mode_slices AS
+SELECT ts, dur, track_id,
+    CASE
+      WHEN rail_mode == "RAIL_MODE_LOAD" THEN "RAIL_MODE_ANIMATION"
+      ELSE rail_mode
+    END AS rail_mode
+FROM original_rail_mode_slices;
 
 -- View containing a collapsed view of rail_mode_slices where there is only one
 -- RAIL mode active at a given time. The mode is derived using the priority

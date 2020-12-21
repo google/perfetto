@@ -146,9 +146,10 @@ def run_query_test(trace_processor_path, gen_trace_path, query_path,
 
 
 def run_all_tests(trace_processor, trace_descriptor_path,
-                  metrics_message_factory, tests, keep_input):
+                  metrics_message_factory, tests, keep_input, rebase):
   perf_data = []
   test_failure = 0
+  rebased = 0
   for test in tests:
     trace_path = test.trace_path
     expected_path = test.expected_path
@@ -236,6 +237,16 @@ def run_all_tests(trace_processor, trace_descriptor_path,
           os.path.basename(test.query_path_or_metric),
           os.path.basename(trace_path)))
 
+      if rebase:
+        if result.exit_code == 0:
+          sys.stderr.write('Rebasing {}\n'.format(expected_path))
+          with open(expected_path, 'w') as f:
+            f.write(result.actual)
+          rebase += 1
+        else:
+          sys.stderr.write(
+              'Rebase failed for {} as query failed\n'.format(expected_path))
+
       test_failure += 1
     else:
       assert len(perf_lines) == 1
@@ -253,7 +264,7 @@ def run_all_tests(trace_processor, trace_descriptor_path,
               perf_result.ingest_time_ns / 1000000,
               perf_result.real_time_ns / 1000000))
 
-  return test_failure, perf_data
+  return test_failure, perf_data, rebased
 
 
 def read_all_tests_from_index(index_path, query_metric_pattern, trace_pattern):
@@ -328,6 +339,10 @@ def main():
       action='store_true',
       help='Save the (generated) input pb file for debugging')
   parser.add_argument(
+      '--rebase',
+      action='store_true',
+      help='Update the expected output file with the actual result')
+  parser.add_argument(
       'trace_processor', type=str, help='location of trace processor binary')
   args = parser.parse_args()
 
@@ -365,14 +380,18 @@ def main():
       metrics_descriptor_path)
 
   test_run_start = datetime.datetime.now()
-  test_failure, perf_data = run_all_tests(
-      args.trace_processor, trace_descriptor_path, metrics_message_factory,
-      tests, args.keep_input)
+  test_failure, perf_data, rebased = run_all_tests(args.trace_processor,
+                                                   trace_descriptor_path,
+                                                   metrics_message_factory,
+                                                   tests, args.keep_input,
+                                                   args.rebase)
   test_run_end = datetime.datetime.now()
 
   sys.stderr.write('[==========] {} tests ran. ({} ms total)\n'.format(
       len(tests), int((test_run_end - test_run_start).total_seconds() * 1000)))
   sys.stderr.write('[  PASSED  ] {} tests.\n'.format(len(tests) - test_failure))
+  if args.rebase:
+    sys.stderr.write('{} tests rebased.\n'.format(rebased))
 
   if test_failure == 0:
     if args.perf_file:

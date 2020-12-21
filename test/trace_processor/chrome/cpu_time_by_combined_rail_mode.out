@@ -1,7 +1,7 @@
 
 "id","ts","dur","rail_mode","cpu_dur"
 1,0,10000,"response",26000
-2,10000,20000,"load",20000
+2,10000,20000,"animation",20000
 3,30000,5000,"background",8000
 4,35000,10000,"animation",21000
 5,45000,10000,"background",1000
