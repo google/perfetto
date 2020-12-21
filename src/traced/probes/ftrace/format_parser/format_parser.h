@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACED_PROBES_FTRACE_FORMAT_PARSER_H_
-#define SRC_TRACED_PROBES_FTRACE_FORMAT_PARSER_H_
+#ifndef SRC_TRACED_PROBES_FTRACE_FORMAT_PARSER_FORMAT_PARSER_H_
+#define SRC_TRACED_PROBES_FTRACE_FORMAT_PARSER_FORMAT_PARSER_H_
 
 #include <stdint.h>
 #include <string>
@@ -92,4 +92,4 @@ bool ParseFtraceEvent(std::string input, FtraceEvent* output = nullptr);
 
 }  // namespace perfetto
 
-#endif  // SRC_TRACED_PROBES_FTRACE_FORMAT_PARSER_H_
+#endif  // SRC_TRACED_PROBES_FTRACE_FORMAT_PARSER_FORMAT_PARSER_H_
