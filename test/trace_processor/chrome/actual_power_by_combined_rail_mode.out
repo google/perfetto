@@ -2,8 +2,8 @@
 "id","ts","dur","rail_mode","subsystem","joules","drain_w"
 1,0,10000000,"response","cellular",0.000000,0.000000
 1,0,10000000,"response","cpu_little",0.000140,0.014000
-2,10000000,20000000,"load","cellular",0.000350,0.017500
-2,10000000,20000000,"load","cpu_little",0.000140,0.007000
+2,10000000,20000000,"animation","cellular",0.000350,0.017500
+2,10000000,20000000,"animation","cpu_little",0.000140,0.007000
 3,30000000,5000000,"background","cellular",0.000018,0.003500
 3,30000000,5000000,"background","cpu_little",0.000007,0.001400
 4,35000000,10000000,"animation","cellular",0.000021,0.002100
