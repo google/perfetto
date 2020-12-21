@@ -16,6 +16,7 @@
 
 #include "perfetto/tracing/console_interceptor.h"
 
+#include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/scoped_file.h"
@@ -342,15 +343,8 @@ void ConsoleInterceptor::Printf(InterceptorContext& context,
 // static
 void ConsoleInterceptor::Flush(InterceptorContext& context) {
   auto& tls = context.GetThreadLocalState();
-  size_t offset = 0;
-  while (offset < tls.buffer_pos) {
-    ssize_t written =
-        write(tls.fd, &tls.message_buffer[offset], tls.buffer_pos - offset);
-    PERFETTO_DCHECK(written > 0);
-    if (written <= 0)
-      break;
-    offset += static_cast<size_t>(written);
-  }
+  ssize_t res = base::WriteAll(tls.fd, &tls.message_buffer[0], tls.buffer_pos);
+  PERFETTO_DCHECK(res == static_cast<ssize_t>(tls.buffer_pos));
   tls.buffer_pos = 0;
 }
 
