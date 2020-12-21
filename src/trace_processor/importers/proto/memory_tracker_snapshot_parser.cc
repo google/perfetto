@@ -165,7 +165,7 @@ std::unique_ptr<GlobalNodeGraph> MemoryTrackerSnapshotParser::GenerateGraph(
 void MemoryTrackerSnapshotParser::EmitRows(int64_t ts,
                                            GlobalNodeGraph& graph,
                                            LevelOfDetail level_of_detail) {
-  IdNodeMap id_node_table;
+  IdNodeMap id_node_map;
 
   // For now, we use the existing global instant event track for chrome events,
   // since memory dumps are global.
@@ -189,7 +189,7 @@ void MemoryTrackerSnapshotParser::EmitRows(int64_t ts,
             ->Insert(process_row)
             .id;
     EmitMemorySnapshotNodeRows(*(it_process.second->root()),
-                               proc_snapshot_row_id, id_node_table);
+                               proc_snapshot_row_id, id_node_map);
   }
 
   // For each snapshot nodes from shared_memory_graph will be associated
@@ -204,15 +204,21 @@ void MemoryTrackerSnapshotParser::EmitRows(int64_t ts,
           ->Insert(fake_process_row)
           .id;
   EmitMemorySnapshotNodeRows(*(graph.shared_memory_graph()->root()),
-                             fake_proc_snapshot_row_id, id_node_table);
+                             fake_proc_snapshot_row_id, id_node_map);
 
-  for (const auto& it_edge : graph.edges()) {
+  for (const auto& edge : graph.edges()) {
     tables::MemorySnapshotEdgeTable::Row edge_row;
-    edge_row.source_node_id = static_cast<tables::MemorySnapshotNodeTable::Id>(
-        id_node_table.find(it_edge.source()->id())->second);
-    edge_row.target_node_id = static_cast<tables::MemorySnapshotNodeTable::Id>(
-        id_node_table.find(it_edge.target()->id())->second);
-    edge_row.importance = static_cast<uint32_t>(it_edge.priority());
+    auto source_it = id_node_map.find(edge.source()->id());
+    if (source_it == id_node_map.end())
+      continue;
+    edge_row.source_node_id =
+        static_cast<tables::MemorySnapshotNodeTable::Id>(source_it->second);
+    auto target_it = id_node_map.find(edge.target()->id());
+    if (target_it == id_node_map.end())
+      continue;
+    edge_row.target_node_id =
+        static_cast<tables::MemorySnapshotNodeTable::Id>(target_it->second);
+    edge_row.importance = static_cast<uint32_t>(edge.priority());
     context_->storage->mutable_memory_snapshot_edge_table()->Insert(edge_row);
   }
 }
