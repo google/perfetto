@@ -20,6 +20,7 @@
 #include "perfetto/base/flat_set.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/tracing/core/forward_decls.h"
+#include "perfetto/tracing/data_source.h"
 #include "perfetto/tracing/debug_annotation.h"
 #include "perfetto/tracing/trace_writer_base.h"
 #include "perfetto/tracing/track.h"
@@ -31,6 +32,7 @@
 
 namespace perfetto {
 class EventContext;
+class TrackEventSessionObserver;
 struct Category;
 namespace protos {
 namespace gen {
@@ -40,6 +42,24 @@ namespace pbzero {
 class DebugAnnotation;
 }  // namespace pbzero
 }  // namespace protos
+
+// A callback interface for observing track event tracing sessions starting and
+// stopping. See TrackEvent::{Add,Remove}SessionObserver. Note that all methods
+// will be called on an internal Perfetto thread.
+class TrackEventSessionObserver {
+ public:
+  virtual ~TrackEventSessionObserver();
+  // Called when a track event tracing session is configured. Note tracing isn't
+  // active yet, so track events emitted here won't be recorded. See
+  // DataSourceBase::OnSetup.
+  virtual void OnSetup(const DataSourceBase::SetupArgs&);
+  // Called when a track event tracing session is started. It is possible to
+  // emit track events from this callback.
+  virtual void OnStart(const DataSourceBase::StartArgs&);
+  // Called when a track event tracing session is stopped. It is still possible
+  // to emit track events from this callback.
+  virtual void OnStop(const DataSourceBase::StopArgs&);
+};
 
 namespace internal {
 class TrackEventCategoryRegistry;
@@ -99,11 +119,15 @@ class PERFETTO_EXPORT TrackEventInternal {
       const TrackEventCategoryRegistry&,
       bool (*register_data_source)(const DataSourceDescriptor&));
 
+  static bool AddSessionObserver(TrackEventSessionObserver*);
+  static void RemoveSessionObserver(TrackEventSessionObserver*);
+
   static void EnableTracing(const TrackEventCategoryRegistry& registry,
                             const protos::gen::TrackEventConfig& config,
-                            uint32_t instance_index);
+                            const DataSourceBase::SetupArgs&);
+  static void OnStart(const DataSourceBase::StartArgs&);
   static void DisableTracing(const TrackEventCategoryRegistry& registry,
-                             uint32_t instance_index);
+                             const DataSourceBase::StopArgs&);
   static bool IsCategoryEnabled(const TrackEventCategoryRegistry& registry,
                                 const protos::gen::TrackEventConfig& config,
                                 const Category& category);
