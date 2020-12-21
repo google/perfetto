@@ -513,7 +513,7 @@ cc_library_shared {
     ":perfetto_src_traced_probes_common_common",
     ":perfetto_src_traced_probes_data_source",
     ":perfetto_src_traced_probes_filesystem_filesystem",
-    ":perfetto_src_traced_probes_ftrace_format_parser",
+    ":perfetto_src_traced_probes_ftrace_format_parser_format_parser",
     ":perfetto_src_traced_probes_ftrace_ftrace",
     ":perfetto_src_traced_probes_initial_display_state_initial_display_state",
     ":perfetto_src_traced_probes_metatrace_metatrace",
@@ -1053,7 +1053,7 @@ cc_library_static {
     ":perfetto_src_traced_probes_common_common",
     ":perfetto_src_traced_probes_data_source",
     ":perfetto_src_traced_probes_filesystem_filesystem",
-    ":perfetto_src_traced_probes_ftrace_format_parser",
+    ":perfetto_src_traced_probes_ftrace_format_parser_format_parser",
     ":perfetto_src_traced_probes_ftrace_ftrace",
     ":perfetto_src_traced_probes_initial_display_state_initial_display_state",
     ":perfetto_src_traced_probes_metatrace_metatrace",
@@ -1307,7 +1307,7 @@ cc_library_static {
     ":perfetto_src_traced_probes_common_common",
     ":perfetto_src_traced_probes_data_source",
     ":perfetto_src_traced_probes_filesystem_filesystem",
-    ":perfetto_src_traced_probes_ftrace_format_parser",
+    ":perfetto_src_traced_probes_ftrace_format_parser_format_parser",
     ":perfetto_src_traced_probes_ftrace_ftrace",
     ":perfetto_src_traced_probes_initial_display_state_initial_display_state",
     ":perfetto_src_traced_probes_metatrace_metatrace",
@@ -1709,7 +1709,7 @@ cc_test {
     ":perfetto_src_traced_probes_common_common",
     ":perfetto_src_traced_probes_data_source",
     ":perfetto_src_traced_probes_filesystem_filesystem",
-    ":perfetto_src_traced_probes_ftrace_format_parser",
+    ":perfetto_src_traced_probes_ftrace_format_parser_format_parser",
     ":perfetto_src_traced_probes_ftrace_ftrace",
     ":perfetto_src_traced_probes_ftrace_integrationtests",
     ":perfetto_src_traced_probes_ftrace_test_support",
@@ -7763,11 +7763,19 @@ filegroup {
   ],
 }
 
-// GN: //src/traced/probes/ftrace:format_parser
+// GN: //src/traced/probes/ftrace/format_parser:format_parser
 filegroup {
-  name: "perfetto_src_traced_probes_ftrace_format_parser",
+  name: "perfetto_src_traced_probes_ftrace_format_parser_format_parser",
   srcs: [
-    "src/traced/probes/ftrace/format_parser.cc",
+    "src/traced/probes/ftrace/format_parser/format_parser.cc",
+  ],
+}
+
+// GN: //src/traced/probes/ftrace/format_parser:unittests
+filegroup {
+  name: "perfetto_src_traced_probes_ftrace_format_parser_unittests",
+  srcs: [
+    "src/traced/probes/ftrace/format_parser/format_parser_unittest.cc",
   ],
 }
 
@@ -7924,7 +7932,6 @@ filegroup {
     "src/traced/probes/ftrace/cpu_stats_parser_unittest.cc",
     "src/traced/probes/ftrace/discover_vendor_tracepoints_unittest.cc",
     "src/traced/probes/ftrace/event_info_unittest.cc",
-    "src/traced/probes/ftrace/format_parser_unittest.cc",
     "src/traced/probes/ftrace/ftrace_config_muxer_unittest.cc",
     "src/traced/probes/ftrace/ftrace_config_unittest.cc",
     "src/traced/probes/ftrace/ftrace_controller_unittest.cc",
@@ -8608,7 +8615,8 @@ cc_test {
     ":perfetto_src_traced_probes_data_source",
     ":perfetto_src_traced_probes_filesystem_filesystem",
     ":perfetto_src_traced_probes_filesystem_unittests",
-    ":perfetto_src_traced_probes_ftrace_format_parser",
+    ":perfetto_src_traced_probes_ftrace_format_parser_format_parser",
+    ":perfetto_src_traced_probes_ftrace_format_parser_unittests",
     ":perfetto_src_traced_probes_ftrace_ftrace",
     ":perfetto_src_traced_probes_ftrace_test_messages_cpp_gen",
     ":perfetto_src_traced_probes_ftrace_test_messages_lite_gen",

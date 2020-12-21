@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/traced/probes/ftrace/format_parser.h"
+#include "src/traced/probes/ftrace/format_parser/format_parser.h"
 
 #include <string.h>
 
