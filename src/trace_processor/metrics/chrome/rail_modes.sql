@@ -14,7 +14,7 @@
 -- limitations under the License.
 --
 
-SELECT RUN_METRIC('chrome/chrome_event_metadata.sql');
+SELECT RUN_METRIC('chrome/chrome_event_metadata.sql') AS suppress_query_output;
 
 -- Priority order for RAIL modes where response has the highest priority and
 -- idle has the lowest.
@@ -129,8 +129,8 @@ FROM (
 -- vsyncs).
 
 -- Mark any large gaps between vsyncs.
--- The value in "present" doesn't mean anything. It's just there to be a
--- non-NULL value so the later SPAN_JOIN can find the set-difference.
+-- The value in "not_animating" is always 1. It's just there to be a non-NULL
+-- value so the later SPAN_JOIN can find the set-difference.
 DROP VIEW IF EXISTS not_animating_slices;
 CREATE VIEW not_animating_slices AS
 WITH const (vsync_padding, large_gap) AS (
@@ -142,7 +142,7 @@ WITH const (vsync_padding, large_gap) AS (
     200000000
 )
 SELECT ts + const.vsync_padding AS ts,
-  gap_to_next_vsync - const.vsync_padding * 2 AS dur, 1 AS present
+  gap_to_next_vsync - const.vsync_padding * 2 AS dur, 1 AS not_animating
 FROM const, (SELECT name,
     ts,
     lead(ts) OVER () - ts AS gap_to_next_vsync,
@@ -180,6 +180,195 @@ FROM (
   trace_bounds
 WHERE last_vsync < end_ts;
 
+-- There are two types of InputLatency:: events:
+-- 1) Simple ones that begin at ts and end at ts+dur
+-- 2) Paired ones that begin with a "begin" slice and end at an "end" slice.
+--
+-- Paired events are even trickier because we can't guarantee that the "begin"
+-- slice will even be in the trace and because it's possible for multiple begin
+-- slices to appear without an intervening end slice.
+
+-- Table of begin and end events along with the increment/decrement to be
+-- applied to the appropriate counter (one for each type of paired event). Final
+-- column dur_multiplier is used to find the timestamp to mark the event at in
+-- the equation event_ts = ts + dur * dur_multiplier. End events have
+-- dur_multiplier of 1, which makes their ts the end of the slice rather than
+-- the start.
+CREATE TABLE IF NOT EXISTS input_latency_begin_end_names
+(
+  full_name TEXT UNIQUE,
+  prefix TEXT,
+  scroll_increment INT,
+  pinch_increment INT,
+  touch_increment INT,
+  fling_increment INT,
+  pointer_increment INT,
+  dur_multiplier INT
+);
+
+INSERT
+  OR IGNORE INTO input_latency_begin_end_names
+VALUES
+  ("InputLatency::GestureScrollBegin",
+     "InputLatency::GestureScroll", 1, 0, 0, 0, 0, 0),
+  ("InputLatency::GestureScrollEnd",
+     "InputLatency::GestureScroll", -1, 0, 0, 0, 0, 1),
+  ("InputLatency::GesturePinchBegin",
+     "InputLatency::GesturePinch", 0, 1, 0, 0, 0, 0),
+  ("InputLatency::GesturePinchEnd",
+     "InputLatency::GesturePinch", 0, -1, 0, 0, 0, 1),
+  ("InputLatency::TouchStart",
+     "InputLatency::Touch", 0, 0, 1, 0, 0, 0),
+  ("InputLatency::TouchEnd",
+     "InputLatency::Touch", 0, 0, -1, 0, 0, 1),
+  ("InputLatency::GestureFlingStart",
+     "InputLatency::GestureFling", 0, 0, 0, 1, 0, 0),
+  ("InputLatency::GestureFlingCancel",
+     "InputLatency::GestureFling", 0, 0, 0, -1, 0, 1),
+  ("InputLatency::PointerDown",
+     "InputLatency::Pointer", 0, 0, 0, 0, 1, 0),
+  ("InputLatency::PointerUp",
+     "InputLatency::Pointer", 0, 0, 0, 0, -1, 1),
+  ("InputLatency::PointerCancel",
+     "InputLatency::Pointer", 0, 0, 0, 0, -1, 1);
+
+-- Find all the slices that have split "begin" and "end" slices and maintain a
+-- running total for each type, where >0 means that type of input event is
+-- ongoing.
+DROP VIEW IF EXISTS input_begin_end_slices;
+CREATE VIEW input_begin_end_slices AS
+SELECT prefix,
+  -- Mark the change at the start of "start" slices and the end of "end" slices.
+  ts + dur * dur_multiplier AS ts,
+  scroll_increment,
+  pinch_increment,
+  touch_increment,
+  fling_increment,
+  pointer_increment
+FROM slice
+JOIN input_latency_begin_end_names ON name = full_name
+ORDER BY ts;
+
+-- Combine all the paired input events to get an indication of when any paired
+-- input event is ongoing.
+DROP VIEW IF EXISTS unified_input_pair_increments;
+CREATE VIEW unified_input_pair_increments AS
+SELECT ts,
+  scroll_increment +
+  pinch_increment +
+  touch_increment +
+  fling_increment +
+  pointer_increment AS increment
+FROM input_begin_end_slices;
+
+-- It's possible there's an end slice without a start slice (as it occurred
+-- before the trace started) which would result in (starts - ends) going
+-- negative at some point. So find an offset that shifts up all counts so the
+-- lowest values becomes zero. It's possible this could still do the wrong thing
+-- if there were start AND end slices that are outside the trace bounds, in
+-- which case it should count as covering the entire trace, but it's impossible
+-- to compensate for that without augmenting the trace events themselves.
+DROP VIEW IF EXISTS initial_paired_increment;
+CREATE VIEW initial_paired_increment AS
+SELECT ts,
+  MIN(0, MIN(scroll_total)) +
+  MIN(0, MIN(pinch_total))  +
+  MIN(0, MIN(touch_total))  +
+  MIN(0, MIN(fling_total))  +
+  MIN(0, MIN(pointer_total)) AS offset
+FROM (
+    SELECT ts,
+      SUM(scroll_increment) OVER(ROWS UNBOUNDED PRECEDING) AS scroll_total,
+      SUM(pinch_increment)  OVER(ROWS UNBOUNDED PRECEDING) AS pinch_total,
+      SUM(touch_increment)  OVER(ROWS UNBOUNDED PRECEDING) AS touch_total,
+      SUM(fling_increment)  OVER(ROWS UNBOUNDED PRECEDING) AS fling_total,
+      SUM(pointer_increment)  OVER(ROWS UNBOUNDED PRECEDING) AS pointer_total
+    FROM input_begin_end_slices
+  );
+
+-- Now find all the simple input slices that fully enclose the input they're
+-- marking (i.e. not the start or end of a pair).
+DROP VIEW IF EXISTS simple_input_slices;
+CREATE VIEW simple_input_slices AS
+SELECT id,
+  name,
+  ts,
+  dur
+FROM slice s
+WHERE name LIKE "InputLatency::%"
+  AND NOT EXISTS (
+    SELECT 1
+    FROM slice
+      JOIN input_latency_begin_end_names
+    WHERE s.name == full_name
+  );
+
+-- Turn the simple input slices into +1s and -1s at the start and end of each
+-- slice.
+DROP VIEW IF EXISTS simple_input_increments;
+CREATE VIEW simple_input_increments AS
+SELECT ts,
+  1 AS increment
+FROM simple_input_slices
+UNION ALL
+SELECT ts + dur,
+  -1
+FROM simple_input_slices
+ORDER BY ts;
+
+-- Combine simple and paired inputs into one, summing all the increments at a
+-- given ts.
+DROP VIEW IF EXISTS all_input_increments;
+CREATE VIEW all_input_increments AS
+SELECT ts,
+  SUM(increment) AS increment
+FROM (
+    SELECT *
+    FROM simple_input_increments
+    UNION ALL
+    SELECT *
+    FROM unified_input_pair_increments
+    ORDER BY ts
+  )
+GROUP BY ts;
+
+-- Now calculate the cumulative sum of the increments as each ts, giving the
+-- total number of outstanding input events at a given time.
+DROP VIEW IF EXISTS all_input_totals;
+CREATE VIEW all_input_totals AS
+SELECT ts,
+  SUM(increment) OVER(ROWS UNBOUNDED PRECEDING) > 0 AS input_total
+FROM all_input_increments;
+
+-- Now find the transitions from and to 0 and use that to create slices where
+-- input events were occurring. The input_active column always contains 1, but
+-- is there so that the SPAN_JOIN_LEFT can put NULL in it for RAIL Mode slices
+-- that do not have corresponding input events.
+DROP VIEW IF EXISTS all_input_slices;
+CREATE VIEW all_input_slices AS
+SELECT ts,
+  dur,
+  input_active
+FROM (
+    SELECT ts,
+      lead(ts, 1, end_ts) OVER() - ts AS dur,
+      input_active
+    FROM trace_bounds,
+      (
+        SELECT ts,
+          input_total > 0 AS input_active
+        FROM (
+            SELECT ts,
+              input_total,
+              lag(input_total) OVER() AS prev_input_total
+            FROM all_input_totals
+          )
+        WHERE (input_total > 0 <> prev_input_total > 0)
+          OR prev_input_total IS NULL
+      )
+  )
+WHERE input_active > 0;
+
 -- Since the scheduler defaults to animation when none of the other RAIL modes
 -- apply, animation overestimates the amount of time that actual animation is
 -- occurring.
@@ -189,11 +378,17 @@ DROP VIEW IF EXISTS rail_mode_animation_slices;
 CREATE VIEW rail_mode_animation_slices AS
 SELECT * FROM combined_overall_rail_slices WHERE rail_mode = "animation";
 
+-- Left-join rail mode animation slices with all_input_slices to find all
+-- "animation" slices that should actually be labelled "response".
+DROP TABLE IF EXISTS rail_mode_join_inputs;
+CREATE VIRTUAL TABLE rail_mode_join_inputs
+USING SPAN_LEFT_JOIN(rail_mode_animation_slices, all_input_slices);
+
 -- Left-join rail mode animation slices with not_animating_slices which is
 -- based on the gaps between vsync events.
-DROP TABLE IF EXISTS temp_rail_mode_join_animation;
-CREATE VIRTUAL TABLE temp_rail_mode_join_animation
-USING SPAN_LEFT_JOIN(rail_mode_animation_slices, not_animating_slices);
+DROP TABLE IF EXISTS rail_mode_join_inputs_join_animation;
+CREATE VIRTUAL TABLE rail_mode_join_inputs_join_animation
+USING SPAN_LEFT_JOIN(rail_mode_join_inputs, not_animating_slices);
 
 DROP VIEW IF EXISTS has_modified_rail_slices;
 CREATE VIEW has_modified_rail_slices AS
@@ -203,7 +398,8 @@ SELECT (
     WHERE name == "os-name"
   ) == "Android" AS value;
 
--- Mapping to allow CamelCased names to be produced from the modified rail modes.
+-- Mapping to allow CamelCased names to be produced from the modified rail
+-- modes.
 CREATE TABLE IF NOT EXISTS modified_rail_mode_prettier (
   orig_name TEXT UNIQUE,
   pretty_name TEXT
@@ -216,32 +412,94 @@ VALUES ("background", "Background"),
   ("load", "Load"),
   ("response", "Response");
 
--- When the RAIL mode is animation, but there is no actual animation (according
--- to vsync data), then record the mode as foreground_idle instead.
-DROP VIEW IF EXISTS modified_rail_slices;
-CREATE VIEW modified_rail_slices AS
+-- When the RAIL mode is animation, use input/vsync data to conditionally change
+-- the mode to response or foreground_idle.
+DROP VIEW IF EXISTS unmerged_modified_rail_slices;
+CREATE VIEW unmerged_modified_rail_slices AS
 SELECT ROW_NUMBER() OVER () AS id,
   ts,
   dur,
   mode
 FROM (
-  SELECT
-    ts,
-    dur,
-    IIF(
-      present IS NULL,
-      "animation",
-      "foreground_idle"
-    ) AS mode
-  FROM temp_rail_mode_join_animation
-  UNION
-  SELECT ts,
-    dur,
-    rail_mode AS mode
-  FROM combined_overall_rail_slices
-  WHERE rail_mode <> "animation")
--- Since VSync events are only emitted on Android (and this the concept of a
--- unified RAIL mode only makes sense if there's just a single Chrome window),
--- don't output anything on other platforms. This will result in all the power
--- and cpu time tables being empty rather than containing bogus results.
-WHERE (SELECT value FROM has_modified_rail_slices);
+    SELECT ts,
+      dur,
+      CASE
+        WHEN input_active IS NOT NULL THEN "response"
+        WHEN not_animating IS NULL THEN "animation"
+        ELSE "foreground_idle"
+      END AS mode
+    FROM rail_mode_join_inputs_join_animation
+    UNION
+    SELECT ts,
+      dur,
+      rail_mode AS mode
+    FROM combined_overall_rail_slices
+    WHERE rail_mode <> "animation"
+  )
+  -- Since VSync events are only emitted on Android (and the concept of a
+  -- unified RAIL mode only makes sense if there's just a single Chrome window),
+  -- don't output anything on other platforms. This will result in all the power
+  -- and cpu time tables being empty rather than containing bogus results.
+WHERE (
+    SELECT value
+    FROM has_modified_rail_slices
+  );
+
+-- The previous query creating unmerged_modified_rail_slices, can create
+-- adjacent slices with the same mode. This merges them together as well as
+-- adding a unique id to each slice. Rather than directly merging slices
+-- together, this instead looks for all the transitions and uses this to
+-- reconstruct the slices that should occur between them.
+DROP VIEW IF EXISTS modified_rail_slices;
+CREATE VIEW modified_rail_slices AS
+WITH const (end_ts) AS (SELECT ts + dur
+              FROM unmerged_modified_rail_slices
+              ORDER BY ts DESC
+              LIMIT 1)
+SELECT ROW_NUMBER() OVER () AS id, lag(next_ts) OVER() AS ts,
+  ts + dur - lag(next_ts) OVER() AS dur,
+  mode AS mode
+FROM (
+    -- For each row in the original table, create a new row with the information
+    -- from the following row, since you can't use lag/lead in WHERE clause.
+    --
+    -- Transition row at the beginning. "mode" is invalid, so a transition will
+    -- always be recorded.
+    SELECT *
+    FROM (SELECT
+          0 AS ts,
+          ts AS dur,
+          "" AS mode,
+          ts AS next_ts,
+          dur AS next_dur,
+          mode AS next_mode
+        FROM unmerged_modified_rail_slices
+        LIMIT 1
+      )
+    UNION ALL
+    SELECT ts,
+      dur,
+      mode,
+      lead(ts, 1, end_ts) OVER() AS next_ts,
+      lead(dur) OVER() AS next_dur,
+      lead(mode) OVER() AS next_mode
+    FROM unmerged_modified_rail_slices, const
+    UNION ALL
+    -- Transition row at the end. "next_mode" is invalid, so a transition will
+    -- always be recorded.
+    SELECT *
+    FROM (SELECT
+          ts + dur AS ts,
+          0 AS dur,
+          mode,
+          ts + dur AS next_ts,
+          0,
+          "" AS next_mode
+        FROM unmerged_modified_rail_slices
+        ORDER BY ts DESC
+        LIMIT 1
+      )
+  )
+WHERE mode <> next_mode
+-- Retrieve all but the first row.
+LIMIT -1 OFFSET 1;
