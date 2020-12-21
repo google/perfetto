@@ -34,10 +34,18 @@ namespace base {
 // Windows.h typedefs HANDLE to void*. We use void* here to avoid leaking
 // Windows.h through our headers.
 using PlatformHandle = void*;
-static constexpr PlatformHandle InvalidPlatformHandle = nullptr;
+
+// On Windows both nullptr and 0xffff... (INVALID_HANDLE_VALUE) are invalid.
+struct PlatformHandleChecker {
+  static inline bool IsValid(PlatformHandle h) {
+    return h && h != reinterpret_cast<PlatformHandle>(-1);
+  }
+};
 #else
 using PlatformHandle = int;
-static constexpr PlatformHandle InvalidPlatformHandle = -1;
+struct PlatformHandleChecker {
+  static inline bool IsValid(PlatformHandle h) { return h >= 0; }
+};
 #endif
 
 // The definition of this lives in base/file_utils.cc (to avoid creating an

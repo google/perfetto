@@ -38,6 +38,7 @@ using FileOpenMode = mode_t;
 
 constexpr FileOpenMode kFileModeInvalid = static_cast<FileOpenMode>(-1);
 
+bool ReadPlatformHandle(PlatformHandle, std::string* out);
 bool ReadFileDescriptor(int fd, std::string* out);
 bool ReadFileStream(FILE* f, std::string* out);
 bool ReadFile(const std::string& path, std::string* out);
@@ -54,6 +55,8 @@ ssize_t Read(int fd, void* dst, size_t dst_size);
 //   interrupted after at least one byte has been written, the call
 //   succeeds, and returns the number of bytes written.
 ssize_t WriteAll(int fd, const void* buf, size_t count);
+
+ssize_t WriteAllHandle(PlatformHandle, const void* buf, size_t count);
 
 ScopedFile OpenFile(const std::string& path,
                     int flags,
