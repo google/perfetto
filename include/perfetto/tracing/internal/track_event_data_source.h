@@ -91,23 +91,44 @@ class TrackEventDataSource
   using Base = DataSource<DataSourceType, TrackEventDataSourceTraits>;
 
  public:
+  // Add or remove a session observer for this track event data source. The
+  // observer will be notified about started and stopped tracing sessions.
+  // Returns |true| if the observer was succesfully added (i.e., the maximum
+  // number of observers wasn't exceeded).
+  static bool AddSessionObserver(TrackEventSessionObserver* observer) {
+    return TrackEventInternal::AddSessionObserver(observer);
+  }
+
+  static void RemoveSessionObserver(TrackEventSessionObserver* observer) {
+    TrackEventInternal::RemoveSessionObserver(observer);
+  }
+
   // DataSource implementation.
   void OnSetup(const DataSourceBase::SetupArgs& args) override {
     auto config_raw = args.config->track_event_config_raw();
     bool ok = config_.ParseFromArray(config_raw.data(), config_raw.size());
     PERFETTO_DCHECK(ok);
-    TrackEventInternal::EnableTracing(*Registry, config_,
-                                      args.internal_instance_index);
+    TrackEventInternal::EnableTracing(*Registry, config_, args);
   }
 
-  void OnStart(const DataSourceBase::StartArgs&) override {}
+  void OnStart(const DataSourceBase::StartArgs& args) override {
+    TrackEventInternal::OnStart(args);
+  }
 
   void OnStop(const DataSourceBase::StopArgs& args) override {
-    TrackEventInternal::DisableTracing(*Registry, args.internal_instance_index);
+    TrackEventInternal::DisableTracing(*Registry, args);
   }
 
   static void Flush() {
     Base::template Trace([](typename Base::TraceContext ctx) { ctx.Flush(); });
+  }
+
+  // Determine if *any* tracing category is enabled.
+  static bool IsEnabled() {
+    bool enabled = false;
+    Base::template CallIfEnabled(
+        [&](uint32_t /*instances*/) { enabled = true; });
+    return enabled;
   }
 
   // Determine if tracing for the given static category is enabled.
