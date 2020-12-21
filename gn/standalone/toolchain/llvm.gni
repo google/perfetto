@@ -22,7 +22,8 @@ assert(!is_hermetic_clang || is_clang, "is_hermetic_clang requires is_clang")
 
 if (is_linux_host) {
   if (is_hermetic_clang) {
-    _hermetic_llvm_dir = rebase_path("//buildtools/clang", root_build_dir)
+    _hermetic_llvm_dir =
+        rebase_path("//buildtools/linux64/clang", root_build_dir)
     linux_clang_bin = "$_hermetic_llvm_dir/bin/clang"
     linux_clangxx_bin = "$_hermetic_llvm_dir/bin/clang++"
     linux_clang_linker = "lld"
@@ -45,7 +46,7 @@ if (is_linux_host) {
   if (is_hermetic_clang) {
     # Use the toolchain pulled by //tools/install-build-deps. This tracks
     # chromium's llvm dist.
-    _llvm_win_path = rebase_path("//buildtools/clang/bin", root_build_dir)
+    _llvm_win_path = rebase_path("//buildtools/win/clang/bin", root_build_dir)
     win_clang_bin = "${_llvm_win_path}\clang-cl.exe"
     win_clangxx_bin = "${_llvm_win_path}\clang-cl.exe"
     win_clang_linker = "${_llvm_win_path}\lld-link.exe"

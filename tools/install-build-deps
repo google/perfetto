@@ -19,6 +19,7 @@ import logging
 import os
 import shutil
 import subprocess
+import stat
 import sys
 import tempfile
 import zipfile
@@ -135,12 +136,12 @@ BUILD_DEPS_HOST = [
     # Keep the revision in sync with Chrome's PACKAGE_VERSION in
     # tools/clang/scripts/update.py.
     Dependency(
-        'buildtools/clang.tgz',
+        'buildtools/linux64/clang.tgz',
         'https://commondatastorage.googleapis.com/chromium-browser-clang/Linux_x64/clang-llvmorg-12-init-5035-gd0abc757-3.tgz',
         'b0c3015209b6d624844ad230064eb5c9b4429a2eafd4854981e73217c563d93d',
         'linux'),
     Dependency(
-        'buildtools/clang.tgz',
+        'buildtools/win/clang.tgz',
         'https://commondatastorage.googleapis.com/chromium-browser-clang/Win/clang-llvmorg-12-init-5035-gd0abc757-3.tgz',
         'b2854d871a466e3a060469b5edb24ca355ef64576d38778f64acbd3c6d7cf530',
         'windows'),
@@ -366,8 +367,16 @@ def CheckoutGitRepo(path, git_url, revision, check_only):
   if check_only:
     return True
   path = path.replace('/', os.sep)
+
+  # Git creates read-only files on windows, which cause failures with rmtree.
+  # This seems the socially accepted way to deal with it.
+  # See https://bugs.python.org/issue19643 .
+  def del_read_only_for_windows(_action, name, _exc):
+    os.chmod(name, stat.S_IWRITE)
+    os.remove(name)
+
   if os.path.exists(path):
-    shutil.rmtree(path)
+    shutil.rmtree(path, onerror=del_read_only_for_windows)
   MkdirRecursive(path)
   logging.info('Fetching %s @ %s into %s', git_url, revision, path)
   subprocess.check_call(['git', 'init', path], cwd=path)
