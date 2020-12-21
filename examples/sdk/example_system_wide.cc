@@ -19,8 +19,30 @@
 #include "trace_categories.h"
 
 #include <chrono>
+#include <condition_variable>
 #include <fstream>
 #include <thread>
+
+class Observer : public perfetto::TrackEventSessionObserver {
+ public:
+  Observer() { perfetto::TrackEvent::AddSessionObserver(this); }
+  ~Observer() { perfetto::TrackEvent::RemoveSessionObserver(this); }
+
+  void OnStart(const perfetto::DataSourceBase::StartArgs&) override {
+    std::unique_lock<std::mutex> lock(mutex);
+    cv.notify_one();
+  }
+
+  void WaitForTracingStart() {
+    PERFETTO_LOG("Waiting for tracing to start...");
+    std::unique_lock<std::mutex> lock(mutex);
+    cv.wait(lock, [] { return perfetto::TrackEvent::IsEnabled(); });
+    PERFETTO_LOG("Tracing started");
+  }
+
+  std::mutex mutex;
+  std::condition_variable cv;
+};
 
 void InitializePerfetto() {
   perfetto::TracingInitArgs args;
@@ -31,14 +53,6 @@ void InitializePerfetto() {
 
   perfetto::Tracing::Initialize(args);
   perfetto::TrackEvent::Register();
-}
-
-void WaitForTracingStart() {
-  PERFETTO_LOG("Waiting for tracing to start...");
-  while (!TRACE_EVENT_CATEGORY_ENABLED("rendering")) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-  }
-  PERFETTO_LOG("Tracing started");
 }
 
 void DrawPlayer(int player_number) {
@@ -55,7 +69,9 @@ void DrawGame() {
 
 int main(int, const char**) {
   InitializePerfetto();
-  WaitForTracingStart();
+
+  Observer observer;
+  observer.WaitForTracingStart();
 
   // Simulate some work that emits trace events.
   // Note that we don't start and stop tracing here; for system-wide tracing
