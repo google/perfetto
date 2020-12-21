@@ -30,7 +30,7 @@
 #include "perfetto/ext/base/scoped_file.h"
 #include "src/traced/probes/ftrace/compact_sched.h"
 #include "src/traced/probes/ftrace/event_info.h"
-#include "src/traced/probes/ftrace/format_parser.h"
+#include "src/traced/probes/ftrace/format_parser/format_parser.h"
 #include "src/traced/probes/ftrace/printk_formats_parser.h"
 
 namespace perfetto {
