@@ -72,10 +72,19 @@ TempFile TempFile::Create() {
   TempFile temp_file;
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   temp_file.path_ = GetSysTempDir() + "\\" + GetTempName();
-  temp_file.fd_.reset(
-      _open(temp_file.path_.c_str(),
-            O_CREAT | _O_TEMPORARY | _O_BINARY | _O_RDWR | _O_TRUNC,
-            _S_IREAD | _S_IWRITE));
+  // Several tests want to read-back the temp file while still open. On Windows,
+  // that requires FILE_SHARE_READ. FILE_SHARE_READ is NOT settable when using
+  // the POSIX-compat equivalent function _open(). Hence the CreateFileA +
+  // _open_osfhandle dance here.
+  HANDLE h =
+      ::CreateFileA(temp_file.path_.c_str(), GENERIC_READ | GENERIC_WRITE,
+                    FILE_SHARE_DELETE | FILE_SHARE_READ, nullptr, CREATE_ALWAYS,
+                    FILE_ATTRIBUTE_TEMPORARY, nullptr);
+  PERFETTO_CHECK(PlatformHandleChecker::IsValid(h));
+  // According to MSDN, when using _open_osfhandle the caller must not call
+  // CloseHandle(). Ownership is moved to the file descriptor, which then needs
+  // to be closed with just with _close().
+  temp_file.fd_.reset(_open_osfhandle(reinterpret_cast<intptr_t>(h), 0));
 #else
   temp_file.path_ = GetSysTempDir() + "/perfetto-XXXXXXXX";
   temp_file.fd_.reset(mkstemp(&temp_file.path_[0]));
