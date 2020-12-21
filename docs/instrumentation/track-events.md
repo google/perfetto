@@ -15,8 +15,8 @@ See the [Getting started](/docs/instrumentation/tracing-sdk#getting-started)
 section of the Tracing SDK page for instructions on how to check out and
 build the SDK.
 
-TIP: The code from this example is also available as a
-     [GitHub repository](https://github.com/skyostil/perfetto-sdk-example).
+TIP: The code from these examples is also available [in the
+repository](/examples/sdk/README.md).
 
 There are a few main types of track events:
 
@@ -436,5 +436,63 @@ TRACE_EVENT(
 
 Note that interned data is strongly typed, i.e., each class of interned data
 uses a separate namespace for identifiers.
+
+### Tracing session observers
+
+The session observer interface allows applications to be notified when track
+event tracing starts and stops:
+
+```C++
+class Observer : public perfetto::TrackEventSessionObserver {
+  public:
+  ~Observer() override = default;
+
+  void OnSetup(const perfetto::DataSourceBase::SetupArgs&) override {
+    // Called when tracing session is configured. Note tracing isn't active yet,
+    // so track events emitted here won't be recorded.
+  }
+
+  void OnStart(const DataSourceBase::SetupArgs&) override {
+    // Called when a tracing session is started. It is possible to emit track
+    // events from this callback.
+  }
+
+  void OnStop(const DataSourceBase::StartArgs&) override {
+    // Called when a tracing session is stopped. It is still possible to emit
+    // track events from this callback.
+  }
+};
+```
+
+Note that all methods of the interface are called on an internal Perfetto
+thread.
+
+For example, here's how to wait for any tracing session to start:
+
+```C++
+class Observer : public perfetto::TrackEventSessionObserver {
+ public:
+  Observer() { perfetto::TrackEvent::AddSessionObserver(this); }
+  ~Observer() { perfetto::TrackEvent::RemoveSessionObserver(this); }
+
+  void OnStart(const perfetto::DataSourceBase::StartArgs&) override {
+    std::unique_lock<std::mutex> lock(mutex);
+    cv.notify_one();
+  }
+
+  void WaitForTracingStart() {
+    printf("Waiting for tracing to start...\n");
+    std::unique_lock<std::mutex> lock(mutex);
+    cv.wait(lock, [] { return perfetto::TrackEvent::IsEnabled(); });
+    printf("Tracing started\n");
+  }
+
+  std::mutex mutex;
+  std::condition_variable cv;
+};
+
+Observer observer;
+observer.WaitForTracingToStart();
+```
 
 [RAII]: https://en.cppreference.com/w/cpp/language/raii
