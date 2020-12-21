@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include "src/traced/probes/ftrace/format_parser.h"
+#include "src/traced/probes/ftrace/format_parser/format_parser.h"
 
 #include "test/gtest_and_gmock.h"
 

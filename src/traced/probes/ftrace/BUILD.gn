@@ -17,6 +17,8 @@ import("../../../../gn/perfetto.gni")
 import("../../../../gn/proto_library.gni")
 import("../../../../gn/test.gni")
 
+assert(target_os != "win")
+
 # For use_libfuzzer.
 if (perfetto_root_path == "//") {
   import("//gn/standalone/sanitizers/vars.gni")
@@ -43,7 +45,6 @@ source_set("test_support") {
 perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
-    ":format_parser",
     ":ftrace",
     ":test_messages_cpp",
     ":test_messages_lite",
@@ -56,13 +57,14 @@ perfetto_unittest_source_set("unittests") {
     "../../../../protos/perfetto/trace/ftrace:zero",
     "../../../base:test_support",
     "../../../tracing/test:test_support",
+    "format_parser",
+    "format_parser:unittests",
   ]
   sources = [
     "cpu_reader_unittest.cc",
     "cpu_stats_parser_unittest.cc",
     "discover_vendor_tracepoints_unittest.cc",
     "event_info_unittest.cc",
-    "format_parser_unittest.cc",
     "ftrace_config_muxer_unittest.cc",
     "ftrace_config_unittest.cc",
     "ftrace_controller_unittest.cc",
@@ -104,7 +106,6 @@ source_set("ftrace") {
     "../../../tracing/core",
   ]
   deps = [
-    ":format_parser",
     "..:data_source",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/ext/traced",
@@ -115,6 +116,7 @@ source_set("ftrace") {
     "../../../base",
     "../../../kallsyms",
     "../../../protozero",
+    "format_parser",
   ]
   sources = [
     "atrace_hal_wrapper.cc",
@@ -150,17 +152,6 @@ source_set("ftrace") {
     "printk_formats_parser.h",
     "proto_translation_table.cc",
     "proto_translation_table.h",
-  ]
-}
-
-source_set("format_parser") {
-  deps = [
-    "../../../../gn:default_deps",
-    "../../../base",
-  ]
-  sources = [
-    "format_parser.cc",
-    "format_parser.h",
   ]
 }
 

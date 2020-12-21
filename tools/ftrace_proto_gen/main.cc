@@ -29,7 +29,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
-#include "src/traced/probes/ftrace/format_parser.h"
+#include "src/traced/probes/ftrace/format_parser/format_parser.h"
 #include "tools/ftrace_proto_gen/ftrace_descriptor_gen.h"
 #include "tools/ftrace_proto_gen/ftrace_proto_gen.h"
 
