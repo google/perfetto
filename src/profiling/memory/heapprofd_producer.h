@@ -253,6 +253,8 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
   void FinishDataSourceFlush(FlushRequestID flush_id);
   void DumpProcessesInDataSource(DataSource* ds);
   void DumpProcessState(DataSource* ds, pid_t pid, ProcessState* process);
+  static void SetStats(protos::pbzero::ProfilePacket::ProcessStats* stats,
+                       const ProcessState& process_state);
 
   void DoContinuousDump(DataSourceInstanceID id, uint32_t dump_interval);
 

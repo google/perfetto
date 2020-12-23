@@ -33,7 +33,7 @@ class LogHistogram {
   static constexpr size_t kBuckets = 20;
 
   void Add(uint64_t value) { values_[GetBucket(value)]++; }
-  std::vector<std::pair<uint64_t, uint64_t>> GetData();
+  std::vector<std::pair<uint64_t, uint64_t>> GetData() const;
 
  private:
   size_t GetBucket(uint64_t value);

@@ -640,6 +640,27 @@ void HeapprofdProducer::DoContinuousDump(DataSourceInstanceID id,
       dump_interval);
 }
 
+// static
+void HeapprofdProducer::SetStats(
+    protos::pbzero::ProfilePacket::ProcessStats* stats,
+    const ProcessState& process_state) {
+  stats->set_unwinding_errors(process_state.unwinding_errors);
+  stats->set_heap_samples(process_state.heap_samples);
+  stats->set_map_reparses(process_state.map_reparses);
+  stats->set_total_unwinding_time_us(process_state.total_unwinding_time_us);
+  stats->set_client_spinlock_blocked_us(
+      process_state.client_spinlock_blocked_us);
+  auto* unwinding_hist = stats->set_unwinding_time_us();
+  for (const auto& p : process_state.unwinding_time_us.GetData()) {
+    auto* bucket = unwinding_hist->add_buckets();
+    if (p.first == LogHistogram::kMaxBucket)
+      bucket->set_max_bucket(true);
+    else
+      bucket->set_upper_limit(p.first);
+    bucket->set_count(p.second);
+  }
+}
+
 void HeapprofdProducer::DumpProcessState(DataSource* data_source,
                                          pid_t pid,
                                          ProcessState* process_state) {
@@ -675,22 +696,7 @@ void HeapprofdProducer::DumpProcessState(DataSource* data_source,
           if (heap_name)
             proto->set_heap_name(heap_name);
           auto* stats = proto->set_stats();
-          stats->set_unwinding_errors(process_state->unwinding_errors);
-          stats->set_heap_samples(process_state->heap_samples);
-          stats->set_map_reparses(process_state->map_reparses);
-          stats->set_total_unwinding_time_us(
-              process_state->total_unwinding_time_us);
-          stats->set_client_spinlock_blocked_us(
-              process_state->client_spinlock_blocked_us);
-          auto* unwinding_hist = stats->set_unwinding_time_us();
-          for (const auto& p : process_state->unwinding_time_us.GetData()) {
-            auto* bucket = unwinding_hist->add_buckets();
-            if (p.first == LogHistogram::kMaxBucket)
-              bucket->set_max_bucket(true);
-            else
-              bucket->set_upper_limit(p.first);
-            bucket->set_count(p.second);
-          }
+          SetStats(stats, *process_state);
         };
 
     DumpState dump_state(data_source->trace_writer.get(),

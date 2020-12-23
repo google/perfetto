@@ -40,7 +40,7 @@ size_t Log2LessThan(uint64_t value) {
 
 const uint64_t LogHistogram::kMaxBucket = 0;
 
-std::vector<std::pair<uint64_t, uint64_t>> LogHistogram::GetData() {
+std::vector<std::pair<uint64_t, uint64_t>> LogHistogram::GetData() const {
   std::vector<std::pair<uint64_t, uint64_t>> data;
   data.reserve(kBuckets);
   for (size_t i = 0; i < kBuckets; ++i) {
