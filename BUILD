@@ -411,14 +411,6 @@ filegroup(
     ],
 )
 
-# GN target: //include/perfetto/profiling:deobfuscator
-filegroup(
-    name = "include_perfetto_profiling_deobfuscator",
-    srcs = [
-        "include/perfetto/profiling/deobfuscator.h",
-    ],
-)
-
 # GN target: //include/perfetto/profiling:pprof_builder
 filegroup(
     name = "include_perfetto_profiling_pprof_builder",
@@ -742,6 +734,7 @@ filegroup(
     name = "src_profiling_deobfuscator",
     srcs = [
         "src/profiling/deobfuscator.cc",
+        "src/profiling/deobfuscator.h",
     ],
 )
 
@@ -3255,7 +3248,6 @@ perfetto_cc_binary(
         ":include_perfetto_ext_trace_processor_export_json",
         ":include_perfetto_ext_trace_processor_importers_memory_tracker_memory_tracker",
         ":include_perfetto_ext_traced_sys_stats_counters",
-        ":include_perfetto_profiling_deobfuscator",
         ":include_perfetto_protozero_protozero",
         ":include_perfetto_trace_processor_basic_types",
         ":include_perfetto_trace_processor_storage",
@@ -3378,7 +3370,6 @@ perfetto_cc_library(
     hdrs = [
         ":include_perfetto_base_base",
         ":include_perfetto_ext_base_base",
-        ":include_perfetto_profiling_deobfuscator",
         ":include_perfetto_profiling_pprof_builder",
         ":include_perfetto_protozero_protozero",
         ":include_perfetto_trace_processor_basic_types",
@@ -3431,7 +3422,6 @@ perfetto_cc_binary(
         ":include_perfetto_ext_trace_processor_export_json",
         ":include_perfetto_ext_trace_processor_importers_memory_tracker_memory_tracker",
         ":include_perfetto_ext_traced_sys_stats_counters",
-        ":include_perfetto_profiling_deobfuscator",
         ":include_perfetto_profiling_pprof_builder",
         ":include_perfetto_protozero_protozero",
         ":include_perfetto_trace_processor_basic_types",

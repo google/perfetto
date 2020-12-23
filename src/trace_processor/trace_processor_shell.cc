@@ -36,7 +36,7 @@
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/version.h"
-#include "perfetto/profiling/deobfuscator.h"
+
 #include "perfetto/trace_processor/read_trace.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/metrics/chrome/all_chrome_metrics.descriptor.h"
@@ -47,7 +47,7 @@
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_HTTPD)
 #include "src/trace_processor/rpc/httpd.h"
 #endif
-
+#include "src/profiling/deobfuscator.h"
 #include "src/profiling/symbolizer/local_symbolizer.h"
 #include "src/profiling/symbolizer/symbolize_database.h"
 #include "src/profiling/symbolizer/symbolizer.h"
