@@ -36,8 +36,10 @@ __attribute__((visibility("default"))) AHeapInfo* AHeapInfo_setEnabledCallback(
   return nullptr;
 }
 
-__attribute__((visibility("default"))) AHeapInfo*
-AHeapInfo_setDisabledCallback(AHeapInfo*, void (*)(void*), void*) {
+__attribute__((visibility("default"))) AHeapInfo* AHeapInfo_setDisabledCallback(
+    AHeapInfo*,
+    void (*)(void*, const AHeapProfileDisableCallbackInfo*),
+    void*) {
   return nullptr;
 }
 
