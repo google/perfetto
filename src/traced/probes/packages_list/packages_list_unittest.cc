@@ -25,6 +25,7 @@
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "protos/perfetto/trace/android/packages_list.gen.h"
 #include "protos/perfetto/trace/android/packages_list.pbzero.h"
+#include "src/traced/probes/packages_list/packages_list_parser.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {

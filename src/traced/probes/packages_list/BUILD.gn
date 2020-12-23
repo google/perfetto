@@ -14,9 +14,21 @@
 
 import("../../../../gn/test.gni")
 
+source_set("packages_list_parser") {
+  deps = [
+    "../../../../gn:default_deps",
+    "../../../base",
+  ]
+  sources = [
+    "packages_list_parser.cc",
+    "packages_list_parser.h",
+  ]
+}
+
 source_set("packages_list") {
   public_deps = [ "../../../tracing/core" ]
   deps = [
+    ":packages_list_parser",
     "..:data_source",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/ext/traced",
@@ -36,6 +48,7 @@ perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
     ":packages_list",
+    ":packages_list_parser",
     "../../../../gn:default_deps",
     "../../../../gn:gtest_and_gmock",
     "../../../../protos/perfetto/trace/android:cpp",
@@ -43,5 +56,5 @@ perfetto_unittest_source_set("unittests") {
     "../../../../src/base:test_support",
     "../../../../src/tracing/test:test_support",
   ]
-  sources = [ "packages_list_data_source_unittest.cc" ]
+  sources = [ "packages_list_unittest.cc" ]
 }
