@@ -71,7 +71,13 @@ class StringWriter {
   template <char padchar, uint64_t padding>
   void AppendPaddedInt(int64_t sign_value) {
     const bool negate = std::signbit(static_cast<double>(sign_value));
-    uint64_t absolute_value = static_cast<uint64_t>(std::abs(sign_value));
+    uint64_t absolute_value;
+    if (sign_value == std::numeric_limits<int64_t>::min()) {
+      absolute_value =
+          static_cast<uint64_t>(std::numeric_limits<int64_t>::max()) + 1;
+    } else {
+      absolute_value = static_cast<uint64_t>(std::abs(sign_value));
+    }
     AppendPaddedInt<padchar, padding>(absolute_value, negate);
   }
 
