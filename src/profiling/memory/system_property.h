@@ -45,8 +45,8 @@ class SystemProperties {
     Handle(const Handle&) = delete;
     Handle& operator=(const Handle&) = delete;
 
-    Handle(Handle&&);
-    Handle& operator=(Handle&&);
+    Handle(Handle&&) noexcept;
+    Handle& operator=(Handle&&) noexcept;
 
     friend class SystemProperties;
     ~Handle();

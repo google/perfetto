@@ -95,7 +95,7 @@ class SharedRingBuffer {
   SharedRingBuffer() = default;
 
   SharedRingBuffer(SharedRingBuffer&&) noexcept;
-  SharedRingBuffer& operator=(SharedRingBuffer&&);
+  SharedRingBuffer& operator=(SharedRingBuffer&&) noexcept;
 
   bool is_valid() const { return !!mem_; }
   size_t size() const { return size_; }
