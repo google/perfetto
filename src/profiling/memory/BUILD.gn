@@ -264,6 +264,8 @@ source_set("daemon") {
     "heapprofd_producer.h",
     "java_hprof_producer.cc",
     "java_hprof_producer.h",
+    "log_histogram.cc",
+    "log_histogram.h",
     "system_property.cc",
     "system_property.h",
     "unwinding.cc",

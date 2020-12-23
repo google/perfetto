@@ -90,15 +90,6 @@ bool ConfigTargetsProcess(const HeapprofdConfig& cfg,
   return false;
 }
 
-// Return largest n such that pow(2, n) < value.
-size_t Log2LessThan(uint64_t value) {
-  size_t i = 0;
-  while (value) {
-    i++;
-    value >>= 1;
-  }
-  return i;
-}
 
 bool IsFile(int fd, const char* fn) {
   struct stat fdstat;
@@ -169,30 +160,6 @@ bool HeapprofdConfigToClientConfiguration(
   }
   cli_config->num_heaps = n;
   return true;
-}
-
-const uint64_t LogHistogram::kMaxBucket = 0;
-
-std::vector<std::pair<uint64_t, uint64_t>> LogHistogram::GetData() {
-  std::vector<std::pair<uint64_t, uint64_t>> data;
-  data.reserve(kBuckets);
-  for (size_t i = 0; i < kBuckets; ++i) {
-    if (i == kBuckets - 1)
-      data.emplace_back(kMaxBucket, values_[i]);
-    else
-      data.emplace_back(1 << i, values_[i]);
-  }
-  return data;
-}
-
-size_t LogHistogram::GetBucket(uint64_t value) {
-  if (value == 0)
-    return 0;
-
-  size_t hibit = Log2LessThan(value);
-  if (hibit >= kBuckets)
-    return kBuckets - 1;
-  return hibit;
 }
 
 // We create kUnwinderThreads unwinding threads. Bookkeeping is done on the main
