@@ -86,6 +86,7 @@ cc_binary {
     ":perfetto_src_profiling_memory_scoped_spinlock",
     ":perfetto_src_profiling_memory_wire_protocol",
     ":perfetto_src_protozero_protozero",
+    ":perfetto_src_traced_probes_packages_list_packages_list_parser",
     ":perfetto_src_tracing_common",
     ":perfetto_src_tracing_core_core",
     ":perfetto_src_tracing_ipc_common",
@@ -335,6 +336,7 @@ cc_library_shared {
     ":perfetto_src_profiling_memory_scoped_spinlock",
     ":perfetto_src_profiling_memory_wire_protocol",
     ":perfetto_src_protozero_protozero",
+    ":perfetto_src_traced_probes_packages_list_packages_list_parser",
     ":perfetto_src_tracing_common",
     ":perfetto_src_tracing_core_core",
     ":perfetto_src_tracing_ipc_common",
@@ -518,6 +520,7 @@ cc_library_shared {
     ":perfetto_src_traced_probes_initial_display_state_initial_display_state",
     ":perfetto_src_traced_probes_metatrace_metatrace",
     ":perfetto_src_traced_probes_packages_list_packages_list",
+    ":perfetto_src_traced_probes_packages_list_packages_list_parser",
     ":perfetto_src_traced_probes_power_power",
     ":perfetto_src_traced_probes_probes",
     ":perfetto_src_traced_probes_probes_src",
@@ -1058,6 +1061,7 @@ cc_library_static {
     ":perfetto_src_traced_probes_initial_display_state_initial_display_state",
     ":perfetto_src_traced_probes_metatrace_metatrace",
     ":perfetto_src_traced_probes_packages_list_packages_list",
+    ":perfetto_src_traced_probes_packages_list_packages_list_parser",
     ":perfetto_src_traced_probes_power_power",
     ":perfetto_src_traced_probes_probes_src",
     ":perfetto_src_traced_probes_ps_ps",
@@ -1312,6 +1316,7 @@ cc_library_static {
     ":perfetto_src_traced_probes_initial_display_state_initial_display_state",
     ":perfetto_src_traced_probes_metatrace_metatrace",
     ":perfetto_src_traced_probes_packages_list_packages_list",
+    ":perfetto_src_traced_probes_packages_list_packages_list_parser",
     ":perfetto_src_traced_probes_power_power",
     ":perfetto_src_traced_probes_probes_src",
     ":perfetto_src_traced_probes_ps_ps",
@@ -1716,6 +1721,7 @@ cc_test {
     ":perfetto_src_traced_probes_initial_display_state_initial_display_state",
     ":perfetto_src_traced_probes_metatrace_metatrace",
     ":perfetto_src_traced_probes_packages_list_packages_list",
+    ":perfetto_src_traced_probes_packages_list_packages_list_parser",
     ":perfetto_src_traced_probes_power_power",
     ":perfetto_src_traced_probes_probes_src",
     ":perfetto_src_traced_probes_ps_ps",
@@ -7973,11 +7979,19 @@ filegroup {
   ],
 }
 
+// GN: //src/traced/probes/packages_list:packages_list_parser
+filegroup {
+  name: "perfetto_src_traced_probes_packages_list_packages_list_parser",
+  srcs: [
+    "src/traced/probes/packages_list/packages_list_parser.cc",
+  ],
+}
+
 // GN: //src/traced/probes/packages_list:unittests
 filegroup {
   name: "perfetto_src_traced_probes_packages_list_unittests",
   srcs: [
-    "src/traced/probes/packages_list/packages_list_data_source_unittest.cc",
+    "src/traced/probes/packages_list/packages_list_unittest.cc",
   ],
 }
 
@@ -8627,6 +8641,7 @@ cc_test {
     ":perfetto_src_traced_probes_initial_display_state_unittests",
     ":perfetto_src_traced_probes_metatrace_metatrace",
     ":perfetto_src_traced_probes_packages_list_packages_list",
+    ":perfetto_src_traced_probes_packages_list_packages_list_parser",
     ":perfetto_src_traced_probes_packages_list_unittests",
     ":perfetto_src_traced_probes_power_power",
     ":perfetto_src_traced_probes_probes_src",

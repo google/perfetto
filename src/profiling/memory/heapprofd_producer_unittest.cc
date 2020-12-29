@@ -16,6 +16,8 @@
 
 #include "src/profiling/memory/heapprofd_producer.h"
 
+#include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/temp_file.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/commit_data_request.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
@@ -168,6 +170,96 @@ TEST(HeapprofdConfigToClientConfigurationTest, ZeroSamplingMultiple) {
   cfg.add_heap_sampling_intervals(0);
   ClientConfiguration cli_config;
   EXPECT_FALSE(HeapprofdConfigToClientConfiguration(cfg, &cli_config));
+}
+
+TEST(CanProfileAndroidTest, NonUserSystemExtraGuardrails) {
+  DataSourceConfig ds_config;
+  ds_config.set_enable_extra_guardrails(true);
+  EXPECT_TRUE(CanProfileAndroid(ds_config, 1, "userdebug", "/dev/null"));
+}
+
+TEST(CanProfileAndroidTest, NonUserNonProfileableApp) {
+  DataSourceConfig ds_config;
+  ds_config.set_enable_extra_guardrails(false);
+  auto tmp = base::TempFile::Create();
+  constexpr char content[] =
+      "invalid.example.profileable 10001 0 "
+      "/data/user/0/invalid.example.profileable default:targetSdkVersion=10000 "
+      "none 0 1\n";
+  base::WriteAll(tmp.fd(), content, sizeof(content));
+  EXPECT_TRUE(CanProfileAndroid(ds_config, 10001, "userdebug", tmp.path()));
+}
+
+TEST(CanProfileAndroidTest, NonUserNonProfileableAppExtraGuardrails) {
+  DataSourceConfig ds_config;
+  ds_config.set_enable_extra_guardrails(true);
+  auto tmp = base::TempFile::Create();
+  constexpr char content[] =
+      "invalid.example.profileable 10001 0 "
+      "/data/user/0/invalid.example.profileable default:targetSdkVersion=10000 "
+      "none 0 1\n";
+  base::WriteAll(tmp.fd(), content, sizeof(content));
+  EXPECT_TRUE(CanProfileAndroid(ds_config, 10001, "userdebug", tmp.path()));
+}
+
+TEST(CanProfileAndroidTest, UserProfileableApp) {
+  DataSourceConfig ds_config;
+  ds_config.set_enable_extra_guardrails(false);
+  auto tmp = base::TempFile::Create();
+  constexpr char content[] =
+      "invalid.example.profileable 10001 0 "
+      "/data/user/0/invalid.example.profileable default:targetSdkVersion=10000 "
+      "none 1 1\n";
+  base::WriteAll(tmp.fd(), content, sizeof(content));
+  EXPECT_TRUE(CanProfileAndroid(ds_config, 10001, "user", tmp.path()));
+}
+
+TEST(CanProfileAndroidTest, UserProfileableAppExtraGuardrails) {
+  DataSourceConfig ds_config;
+  ds_config.set_enable_extra_guardrails(true);
+  auto tmp = base::TempFile::Create();
+  constexpr char content[] =
+      "invalid.example.profileable 10001 0 "
+      "/data/user/0/invalid.example.profileable default:targetSdkVersion=10000 "
+      "none 1 1\n";
+  base::WriteAll(tmp.fd(), content, sizeof(content));
+  EXPECT_FALSE(CanProfileAndroid(ds_config, 10001, "user", tmp.path()));
+}
+
+TEST(CanProfileAndroidTest, UserProfileableAppMultiuser) {
+  DataSourceConfig ds_config;
+  ds_config.set_enable_extra_guardrails(false);
+  auto tmp = base::TempFile::Create();
+  constexpr char content[] =
+      "invalid.example.profileable 10001 0 "
+      "/data/user/0/invalid.example.profileable default:targetSdkVersion=10000 "
+      "none 1 1\n";
+  base::WriteAll(tmp.fd(), content, sizeof(content));
+  EXPECT_TRUE(CanProfileAndroid(ds_config, 210001, "user", tmp.path()));
+}
+
+TEST(CanProfileAndroidTest, UserNonProfileableApp) {
+  DataSourceConfig ds_config;
+  ds_config.set_enable_extra_guardrails(false);
+  auto tmp = base::TempFile::Create();
+  constexpr char content[] =
+      "invalid.example.profileable 10001 0 "
+      "/data/user/0/invalid.example.profileable default:targetSdkVersion=10000 "
+      "none 0 1\n";
+  base::WriteAll(tmp.fd(), content, sizeof(content));
+  EXPECT_FALSE(CanProfileAndroid(ds_config, 10001, "user", tmp.path()));
+}
+
+TEST(CanProfileAndroidTest, UserDebuggableApp) {
+  DataSourceConfig ds_config;
+  ds_config.set_enable_extra_guardrails(false);
+  auto tmp = base::TempFile::Create();
+  constexpr char content[] =
+      "invalid.example.profileable 10001 1 "
+      "/data/user/0/invalid.example.profileable default:targetSdkVersion=10000 "
+      "none 0 1\n";
+  base::WriteAll(tmp.fd(), content, sizeof(content));
+  EXPECT_TRUE(CanProfileAndroid(ds_config, 10001, "user", tmp.path()));
 }
 
 }  // namespace profiling
