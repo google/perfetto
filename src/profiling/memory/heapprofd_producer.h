@@ -35,6 +35,7 @@
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/tracing/core/data_source_config.h"
 
+#include "perfetto/tracing/core/forward_decls.h"
 #include "src/profiling/common/interning_output.h"
 #include "src/profiling/common/proc_utils.h"
 #include "src/profiling/common/profiler_guardrails.h"
@@ -78,6 +79,12 @@ enum class HeapprofdMode { kCentral, kChild };
 bool HeapprofdConfigToClientConfiguration(
     const HeapprofdConfig& heapprofd_config,
     ClientConfiguration* cli_config);
+
+bool CanProfile(const DataSourceConfig& ds_config, uint64_t uid);
+bool CanProfileAndroid(const DataSourceConfig& ds_config,
+                       uint64_t uid,
+                       const std::string& build_type,
+                       const std::string& packages_list_path);
 
 // Heap profiling producer. Can be instantiated in two modes, central and
 // child (also referred to as fork mode).
@@ -230,6 +237,7 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
 
     DataSourceInstanceID id;
     std::unique_ptr<TraceWriter> trace_writer;
+    DataSourceConfig ds_config;
     HeapprofdConfig config;
     ClientConfiguration client_configuration;
     std::vector<SystemProperties::Handle> properties;

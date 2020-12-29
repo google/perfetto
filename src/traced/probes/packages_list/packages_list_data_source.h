@@ -35,15 +35,6 @@ namespace perfetto {
 
 class TraceWriter;
 
-struct Package {
-  std::string name;
-  uint64_t uid = 0;
-  bool debuggable = false;
-  bool profileable_from_shell = false;
-  int64_t version_code = 0;
-};
-
-bool ReadPackagesListLine(char* line, Package* package);
 bool ParsePackagesListStream(protos::pbzero::PackagesList* packages_list,
                              const base::ScopedFstream& fs,
                              const std::set<std::string>& package_name_filter);
