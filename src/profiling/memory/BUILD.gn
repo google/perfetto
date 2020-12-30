@@ -239,6 +239,7 @@ source_set("daemon") {
     "../../../protos/perfetto/config/profiling:cpp",
     "../../base",
     "../../base:unix_socket",
+    "../../traced/probes/packages_list:packages_list_parser",
     "../../tracing/core",
     "../../tracing/ipc/producer",
     "../common:callstack_trie",

@@ -186,6 +186,7 @@ perfetto_cc_library(
         ":src_traced_probes_initial_display_state_initial_display_state",
         ":src_traced_probes_metatrace_metatrace",
         ":src_traced_probes_packages_list_packages_list",
+        ":src_traced_probes_packages_list_packages_list_parser",
         ":src_traced_probes_power_power",
         ":src_traced_probes_probes",
         ":src_traced_probes_probes_src",
@@ -1376,6 +1377,15 @@ filegroup(
     srcs = [
         "src/traced/probes/packages_list/packages_list_data_source.cc",
         "src/traced/probes/packages_list/packages_list_data_source.h",
+    ],
+)
+
+# GN target: //src/traced/probes/packages_list:packages_list_parser
+filegroup(
+    name = "src_traced_probes_packages_list_packages_list_parser",
+    srcs = [
+        "src/traced/probes/packages_list/packages_list_parser.cc",
+        "src/traced/probes/packages_list/packages_list_parser.h",
     ],
 )
 
