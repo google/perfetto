@@ -33,7 +33,6 @@
         <option name="append-bitness" value="true" />
     </target_preparer>
     <target_preparer class="com.android.tradefed.targetprep.RunCommandTargetPreparer">
-        <option name="run-command" value="setprop persist.heapprofd.enable 1" />
         <option name="run-command" value="setprop persist.traced_perf.enable 1" />
     </target_preparer>
     <test class="com.android.tradefed.testtype.GTest" >
