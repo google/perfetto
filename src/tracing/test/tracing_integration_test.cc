@@ -15,7 +15,6 @@
  */
 
 #include <inttypes.h>
-#include <unistd.h>
 
 #include "perfetto/ext/base/temp_file.h"
 #include "perfetto/ext/tracing/core/consumer.h"
@@ -546,9 +545,12 @@ TEST_F(TracingIntegrationTestWithSMBScrapingProducer, ScrapeOnFlush) {
 
   auto on_tracing_disabled =
       task_runner_->CreateCheckpoint("on_tracing_disabled");
-  EXPECT_CALL(producer_, StopDataSource(_));
+  auto on_stop_ds = task_runner_->CreateCheckpoint("on_stop_ds");
+  EXPECT_CALL(producer_, StopDataSource(_))
+      .WillOnce(InvokeWithoutArgs(on_stop_ds));
   EXPECT_CALL(consumer_, OnTracingDisabled(_))
       .WillOnce(InvokeWithoutArgs(on_tracing_disabled));
+  task_runner_->RunUntilCheckpoint("on_stop_ds");
   task_runner_->RunUntilCheckpoint("on_tracing_disabled");
 }
 

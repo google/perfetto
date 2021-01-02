@@ -203,7 +203,11 @@ declare_args() {
   # Only for local development. When true the binaries (perfetto, traced, ...)
   # are monolithic and don't use a common shared library. This is mainly to
   # avoid LD_LIBRARY_PATH dances when testing locally.
-  monolithic_binaries = false
+  # On Windows we default to monolithic executables, because pairing
+  # dllexport/import adds extra complexity for little benefit. Te only reason
+  # for monolithic_binaries=false is saving binary size, which matters mainly on
+  # Android. See also comments on PERFETTO_EXPORTED_ENTRYPOINT in compiler.h.
+  monolithic_binaries = is_win
 
   # Whether DLOG should be enabled on debug builds (""), all builds ("on"), or
   # none ("off"). We disable it by default for embedders to avoid spamming their
