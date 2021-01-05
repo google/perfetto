@@ -35,8 +35,10 @@ if (enable_perfetto_platform_services) {
     "src/perfetto_cmd:perfetto",
     "src/perfetto_cmd:trigger_perfetto",
     "src/traced/service:traced",
-    "src/traced/probes:traced_probes",
   ]
+  if (enable_perfetto_traced_probes) {
+    all_targets += [ "src/traced/probes:traced_probes" ]
+  }
 }
 
 if (enable_perfetto_trace_processor && enable_perfetto_trace_processor_sqlite) {
@@ -208,10 +210,16 @@ if (enable_perfetto_platform_services) {
     }
     deps = [
       "gn:default_deps",
-      "src/traced/probes",
       "src/traced/service",
-      "src/tracing/consumer_api_deprecated",
     ]
+    if (enable_perfetto_traced_probes) {
+      deps += [ "src/traced/probes" ]
+    }
+    if (is_linux || is_android || is_mac) {
+      # TODO(primiano): this is here only for Android's iorapd. At some point
+      # we need to migrate iorapd to the Perfetto SDK.
+      deps += [ "src/tracing/consumer_api_deprecated" ]
+    }
   }
 }
 

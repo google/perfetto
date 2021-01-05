@@ -36,8 +36,10 @@ if (!build_with_chromium && enable_perfetto_integration_tests) {
       "../protos/perfetto/trace/power:cpp",
       "../src/base:base",
       "../src/base:test_support",
-      "../src/traced/probes/ftrace",
     ]
+    if (enable_perfetto_traced_probes) {
+      deps += [ "../src/traced/probes/ftrace" ]
+    }
 
     # These binaries are requires by the cmdline tests, which invoke perfetto
     # and trigger_perfetto via Subprocess.
@@ -133,7 +135,7 @@ if (enable_perfetto_benchmarks || is_fuzzer ||
     if (start_daemons_for_testing) {
       cflags = [ "-DPERFETTO_START_DAEMONS_FOR_TESTING" ]
     }
-    if (!build_with_chromium) {
+    if (!build_with_chromium && enable_perfetto_traced_probes) {
       deps += [
         "../include/perfetto/ext/traced",
         "../src/traced/probes:probes_src",

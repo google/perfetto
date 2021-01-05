@@ -12,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("../../../gn/perfetto.gni")
 import("../../../gn/test.gni")
 
-assert(target_os != "win")
+assert(enable_perfetto_traced_probes)
 
 # The unprivileged daemon that is allowed to access tracefs (for ftrace).
 # Registers as a Producer on the traced daemon.
