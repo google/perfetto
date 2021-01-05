@@ -173,6 +173,33 @@ void ShutdownLazy(const std::shared_ptr<perfetto::profiling::Client>& client) {
   GetClientLocked()->reset();
 }
 
+uint64_t MaybeToggleHeap(uint32_t heap_id,
+                         perfetto::profiling::Client* client) {
+  AHeapInfo& heap = GetHeap(heap_id);
+  if (!heap.ready.load(std::memory_order_acquire))
+    return 0;
+  auto interval =
+      GetHeapSamplingInterval(client->client_config(), heap.heap_name);
+  // The callbacks must be called while NOT LOCKED. Because they run
+  // arbitrary code, it would be very easy to build a deadlock.
+  if (interval) {
+    AHeapProfileEnableCallbackInfo session_info{interval};
+    if (!heap.enabled.load(std::memory_order_acquire) &&
+        heap.enabled_callback) {
+      heap.enabled_callback(heap.enabled_callback_data, &session_info);
+    }
+    heap.enabled.store(true, std::memory_order_release);
+    client->RecordHeapName(heap_id, &heap.heap_name[0]);
+  } else if (heap.enabled.load(std::memory_order_acquire)) {
+    heap.enabled.store(false, std::memory_order_release);
+    if (heap.disabled_callback) {
+      AHeapProfileDisableCallbackInfo info;
+      heap.disabled_callback(heap.disabled_callback_data, &info);
+    }
+  }
+  return interval;
+}
+
 // We're a library loaded into a potentially-multithreaded process, which might
 // not be explicitly aware of this possiblity. Deadling with forks/clones is
 // extremely complicated in such situations, but we attempt to handle certain
@@ -280,7 +307,27 @@ __attribute__((visibility("default"))) uint32_t AHeapProfile_registerHeap(
   if (info == nullptr)
     return 0;
   info->ready.store(true, std::memory_order_release);
-  return static_cast<uint32_t>(info - &g_heaps[0]);
+  auto heap_id = static_cast<uint32_t>(info - &g_heaps[0]);
+  std::shared_ptr<perfetto::profiling::Client> client;
+  {
+    ScopedSpinlock s(&g_client_lock, ScopedSpinlock::Mode::Try);
+    if (PERFETTO_UNLIKELY(!s.locked()))
+      AbortOnSpinlockTimeout();
+
+    client = *GetClientLocked();
+  }
+
+  // Enable the heap immediately if there's a matching ongoing session.
+  if (client) {
+    uint64_t interval = MaybeToggleHeap(heap_id, client.get());
+    if (interval) {
+      ScopedSpinlock s(&g_client_lock, ScopedSpinlock::Mode::Try);
+      if (PERFETTO_UNLIKELY(!s.locked()))
+        AbortOnSpinlockTimeout();
+      info->sampler.SetSamplingInterval(interval);
+    }
+  }
+  return heap_id;
 }
 
 __attribute__((visibility("default"))) bool
@@ -421,34 +468,11 @@ __attribute__((visibility("default"))) bool AHeapProfile_initSession(
                  getprogname());
     return false;
   }
-  const perfetto::profiling::ClientConfiguration& cli_config =
-      client->client_config();
 
   uint64_t heap_intervals[perfetto::base::ArraySize(g_heaps)] = {};
   uint32_t max_heap = g_next_heap_id.load();
   for (uint32_t i = kMinHeapId; i < max_heap; ++i) {
-    AHeapInfo& heap = GetHeap(i);
-    if (!heap.ready.load(std::memory_order_acquire))
-      continue;
-
-    heap_intervals[i] = GetHeapSamplingInterval(cli_config, heap.heap_name);
-    // The callbacks must be called while NOT LOCKED. Because they run
-    // arbitrary code, it would be very easy to build a deadlock.
-    if (heap_intervals[i]) {
-      AHeapProfileEnableCallbackInfo session_info{heap_intervals[i]};
-      if (!heap.enabled.load(std::memory_order_acquire) &&
-          heap.enabled_callback) {
-        heap.enabled_callback(heap.enabled_callback_data, &session_info);
-      }
-      heap.enabled.store(true, std::memory_order_release);
-      client->RecordHeapName(i, &heap.heap_name[0]);
-    } else if (heap.enabled.load(std::memory_order_acquire)) {
-      heap.enabled.store(false, std::memory_order_release);
-      if (heap.disabled_callback) {
-        AHeapProfileDisableCallbackInfo info;
-        heap.disabled_callback(heap.disabled_callback_data, &info);
-      }
-    }
+    heap_intervals[i] = MaybeToggleHeap(i, client.get());
   }
 
   PERFETTO_LOG("%s: heapprofd_client initialized.", getprogname());
