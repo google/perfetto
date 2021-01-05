@@ -43,9 +43,6 @@
 #include "src/profiling/memory/unhooked_allocator.h"
 #include "src/profiling/memory/wire_protocol.h"
 
-using perfetto::profiling::ScopedSpinlock;
-using perfetto::profiling::UnhookedAllocator;
-
 struct AHeapInfo {
   // Fields set by user.
   char heap_name[HEAPPROFD_HEAP_NAME_SZ];
@@ -67,6 +64,10 @@ struct AHeapProfileEnableCallbackInfo {
 struct AHeapProfileDisableCallbackInfo {};
 
 namespace {
+
+using perfetto::profiling::ScopedSpinlock;
+using perfetto::profiling::UnhookedAllocator;
+
 #if defined(__GLIBC__)
 const char* getprogname() {
   return program_invocation_short_name;
