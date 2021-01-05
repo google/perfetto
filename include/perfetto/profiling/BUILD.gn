@@ -19,7 +19,3 @@ source_set("pprof_builder") {
 source_set("normalize") {
   sources = [ "normalize.h" ]
 }
-
-source_set("deobfuscator") {
-  sources = [ "deobfuscator.h" ]
-}

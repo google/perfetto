@@ -1558,11 +1558,6 @@ filegroup {
   name: "perfetto_include_perfetto_ext_tracing_ipc_ipc",
 }
 
-// GN: //include/perfetto/profiling:deobfuscator
-filegroup {
-  name: "perfetto_include_perfetto_profiling_deobfuscator",
-}
-
 // GN: //include/perfetto/profiling:normalize
 filegroup {
   name: "perfetto_include_perfetto_profiling_normalize",
@@ -8473,7 +8468,6 @@ cc_test {
     ":perfetto_include_perfetto_ext_traced_traced",
     ":perfetto_include_perfetto_ext_tracing_core_core",
     ":perfetto_include_perfetto_ext_tracing_ipc_ipc",
-    ":perfetto_include_perfetto_profiling_deobfuscator",
     ":perfetto_include_perfetto_profiling_normalize",
     ":perfetto_include_perfetto_protozero_protozero",
     ":perfetto_include_perfetto_trace_processor_basic_types",
@@ -8814,7 +8808,6 @@ cc_binary {
     ":perfetto_include_perfetto_ext_trace_processor_export_json",
     ":perfetto_include_perfetto_ext_trace_processor_importers_memory_tracker_memory_tracker",
     ":perfetto_include_perfetto_ext_traced_sys_stats_counters",
-    ":perfetto_include_perfetto_profiling_deobfuscator",
     ":perfetto_include_perfetto_protozero_protozero",
     ":perfetto_include_perfetto_trace_processor_basic_types",
     ":perfetto_include_perfetto_trace_processor_storage",
@@ -8960,7 +8953,6 @@ cc_binary_host {
     ":perfetto_include_perfetto_ext_trace_processor_export_json",
     ":perfetto_include_perfetto_ext_trace_processor_importers_memory_tracker_memory_tracker",
     ":perfetto_include_perfetto_ext_traced_sys_stats_counters",
-    ":perfetto_include_perfetto_profiling_deobfuscator",
     ":perfetto_include_perfetto_profiling_pprof_builder",
     ":perfetto_include_perfetto_protozero_protozero",
     ":perfetto_include_perfetto_trace_processor_basic_types",
