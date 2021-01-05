@@ -313,6 +313,7 @@ AHeapProfile_reportAllocation(uint32_t heap_id, uint64_t id, uint64_t size) {
 
   if (!client->RecordMalloc(heap_id, sampled_alloc_sz, size, id)) {
     ShutdownLazy(client);
+    return false;
   }
   return true;
 }
@@ -342,6 +343,7 @@ AHeapProfile_reportSample(uint32_t heap_id, uint64_t id, uint64_t size) {
 
   if (!client->RecordMalloc(heap_id, size, size, id)) {
     ShutdownLazy(client);
+    return false;
   }
   return true;
 }
