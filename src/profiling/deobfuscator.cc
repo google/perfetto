@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-#include "perfetto/profiling/deobfuscator.h"
+#include "src/profiling/deobfuscator.h"
+
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_splitter.h"

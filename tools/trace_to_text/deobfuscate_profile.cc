@@ -21,8 +21,8 @@
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/utils.h"
-#include "perfetto/profiling/deobfuscator.h"
 #include "perfetto/trace_processor/trace_processor.h"
+#include "src/profiling/deobfuscator.h"
 #include "tools/trace_to_text/deobfuscate_profile.h"
 #include "tools/trace_to_text/utils.h"
 
