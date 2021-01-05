@@ -227,7 +227,7 @@ cc_library_shared {
     ":perfetto_src_profiling_memory_ring_buffer",
     ":perfetto_src_profiling_memory_scoped_spinlock",
     ":perfetto_src_profiling_memory_wire_protocol",
-    "src/profiling/memory/client_api_android.cc",
+    "src/profiling/memory/client_api_factory_android.cc",
   ],
   shared_libs: [
     "libbase",
@@ -6807,7 +6807,7 @@ filegroup {
 filegroup {
   name: "perfetto_src_profiling_memory_client_api_standalone",
   srcs: [
-    "src/profiling/memory/client_api_standalone.cc",
+    "src/profiling/memory/client_api_factory_standalone.cc",
   ],
 }
 
