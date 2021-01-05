@@ -17,14 +17,15 @@
 #ifndef INCLUDE_PERFETTO_EXT_BASE_ENDIAN_H_
 #define INCLUDE_PERFETTO_EXT_BASE_ENDIAN_H_
 
-#if __BYTE_ORDER__ != __ORDER_LITTLE_ENDIAN__
-#error "endian.h supports only little-endian archs"
-#endif
-
 #include <stdint.h>
 #include <stdlib.h>  // For MSVC
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/base/compiler.h"
+
+#if !PERFETTO_IS_LITTLE_ENDIAN()
+#error "endian.h supports only little-endian archs"
+#endif
 
 namespace perfetto {
 namespace base {

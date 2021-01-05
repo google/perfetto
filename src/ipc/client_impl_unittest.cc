@@ -17,7 +17,6 @@
 #include "src/ipc/client_impl.h"
 
 #include <stdio.h>
-#include <unistd.h>
 
 #include <string>
 

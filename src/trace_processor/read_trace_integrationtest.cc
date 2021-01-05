@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/trace_processor/read_trace.h"
@@ -30,6 +31,7 @@ namespace {
 
 base::ScopedFstream OpenTestTrace(const std::string& path) {
   std::string full_path = base::GetTestDataPath(path);
+  EXPECT_TRUE(base::FileExists(full_path)) << full_path;
   return base::ScopedFstream(fopen(full_path.c_str(), "rb"));
 }
 
