@@ -34,6 +34,20 @@ export class NullAnalytics {
 
 export class Analytics {
   constructor() {
+    // The code below is taken from the official Google Analytics docs [1] and
+    // adapted to TypeScript. We have it here rather than as an inline script
+    // in index.html (as suggested by GA's docs) because inline scripts don't
+    // play nicely with the CSP policy, at least in Firefox (Firefox doesn't
+    // support all CSP 3 features we use).
+    // [1] https://developers.google.com/analytics/devguides/collection/gtagjs .
+    const gtagGlobals = window as {} as {
+      dataLayer: IArguments[],
+      gtag: () => void,
+    };
+    gtagGlobals.dataLayer = gtagGlobals.dataLayer || [];
+    if (gtagGlobals.gtag === undefined) {
+      gtagGlobals.gtag = () => gtagGlobals.dataLayer.push(arguments);
+    }
     gtag('js', new Date());
   }
 
