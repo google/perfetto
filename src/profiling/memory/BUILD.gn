@@ -86,7 +86,7 @@ source_set("client_api_standalone") {
     "../../base",
     "../common:proc_utils",
   ]
-  sources = [ "client_api_standalone.cc" ]
+  sources = [ "client_api_factory_standalone.cc" ]
 }
 
 # This can be used to instrument custom allocators to report their allocations
@@ -129,7 +129,7 @@ shared_library("heapprofd_client_api") {
   }
   deps = [ ":client_api" ]
   if (perfetto_build_with_android) {
-    sources = [ "client_api_android.cc" ]
+    sources = [ "client_api_factory_android.cc" ]
   }
 }
 
