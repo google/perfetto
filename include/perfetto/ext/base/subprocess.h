@@ -17,27 +17,19 @@
 #ifndef INCLUDE_PERFETTO_EXT_BASE_SUBPROCESS_H_
 #define INCLUDE_PERFETTO_EXT_BASE_SUBPROCESS_H_
 
-#include "perfetto/base/build_config.h"
-
-// This is a #if as opposite to a GN condition, because GN conditions aren't propagated when
-// translating to Bazel or other build systems, as they get resolved at translation time. Without
-// this, the Bazel build breaks on Windows.
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
-#define PERFETTO_HAS_SUBPROCESS() 1
-#else
-#define PERFETTO_HAS_SUBPROCESS() 0
-#endif
-
+#include <condition_variable>
 #include <functional>
 #include <initializer_list>
+#include <mutex>
 #include <string>
 #include <thread>
 #include <vector>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/base/platform_handle.h"
 #include "perfetto/base/proc_utils.h"
+#include "perfetto/ext/base/event_fd.h"
 #include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/scoped_file.h"
 
@@ -51,7 +43,7 @@ namespace base {
 //    This happens when |args.exec_cmd| is not empty.
 //    This is safe to use even in a multi-threaded environment.
 // 2) fork(): for spawning a process and running a function.
-//    This happens when |args.entrypoint_for_testing| is not empty.
+//    This happens when |args.posix_entrypoint_for_testing| is not empty.
 //    This is intended only for tests as it is extremely subtle.
 //    This mode must be used with extreme care. Before the entrypoint is
 //    invoked all file descriptors other than stdin/out/err and the ones
@@ -102,15 +94,15 @@ namespace base {
 //     p.Start();
 //     p.Wait();
 // )
-// EXPECT_EQ(p.status(), base::Subprocess::kExited);
+// EXPECT_EQ(p.status(), base::Subprocess::kTerminated);
 // EXPECT_EQ(p.returncode(), 0);
 class Subprocess {
  public:
   enum Status {
     kNotStarted = 0,  // Before calling Start() or Call().
     kRunning,         // After calling Start(), before Wait().
-    kExited,          // The subprocess exited (either succesully or not).
-    kKilledBySignal,  // The subprocess has been killed by a signal.
+    kTerminated,      // The subprocess terminated, either successfully or not.
+                      // This includes crashes or other signals on UNIX.
   };
 
   enum OutputMode {
@@ -128,19 +120,20 @@ class Subprocess {
     // If non-empty this will cause an exec() when Start()/Call() are called.
     std::vector<std::string> exec_cmd;
 
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
     // If non-empty, it changes the argv[0] argument passed to exec. If
     // unset, argv[0] == exec_cmd[0]. This is to handle cases like:
     // exec_cmd = {"/proc/self/exec"}, argv0: "my_custom_test_override".
-    std::string argv0_override;
+    std::string posix_argv0_override_for_testing;
 
     // If non-empty this will be invoked on the fork()-ed child process, after
     // stdin/out/err has been redirected and all other file descriptor are
-    // closed.
-    // It is valid to specify both |exec_cmd| AND |entrypoint_for_testing|.
-    // In this case |entrypoint_for_testing| will be invoked just before the
-    // exec() call, but after having closed all fds % stdin/out/err.
+    // closed. It is valid to specify both |exec_cmd| AND
+    // |posix_entrypoint_for_testing|. In this case the latter will be invoked
+    // just before the exec() call, but after having closed all fds % stdin/o/e.
     // This is for synchronization barriers in tests.
-    std::function<void()> entrypoint_for_testing;
+    std::function<void()> posix_entrypoint_for_testing;
+#endif
 
     // If non-empty, replaces the environment passed to exec().
     std::vector<std::string> env;
@@ -154,7 +147,7 @@ class Subprocess {
     OutputMode stdout_mode = kInherit;
     OutputMode stderr_mode = kInherit;
 
-    base::ScopedFile out_fd;
+    base::ScopedPlatformHandle out_fd;
 
     // Returns " ".join(exec_cmd), quoting arguments.
     std::string GetCmdString() const;
@@ -201,47 +194,71 @@ class Subprocess {
   // Sends a signal (SIGKILL if not specified) and wait for process termination.
   void KillAndWaitForTermination(int sig_num = 0);
 
-  PlatformProcessId pid() const { return s_.pid; }
+  PlatformProcessId pid() const { return s_->pid; }
 
   // The accessors below are updated only after a call to Poll(), Wait() or
   // KillAndWaitForTermination().
   // In most cases you want to call Poll() rather than these accessors.
 
-  Status status() const { return s_.status; }
-  int returncode() const { return s_.returncode; }
+  Status status() const { return s_->status; }
+  int returncode() const { return s_->returncode; }
+  bool timed_out() const { return s_->timed_out; }
 
   // This contains both stdout and stderr (if the corresponding _mode ==
   // kBuffer). It's non-const so the caller can std::move() it.
-  std::string& output() { return s_.output; }
-  const ResourceUsage& rusage() const { return *s_.rusage; }
+  std::string& output() { return s_->output; }
+  const std::string& output() const { return s_->output; }
+
+  const ResourceUsage& posix_rusage() const { return *s_->rusage; }
 
   Args args;
 
  private:
+  // The signal/exit code used when killing the process in case of a timeout.
+  static const int kTimeoutSignal;
+
   Subprocess(const Subprocess&) = delete;
   Subprocess& operator=(const Subprocess&) = delete;
-  void TryPushStdin();
-  void TryReadStdoutAndErr();
-  void TryReadExitStatus();
-  void KillAtMostOnce();
-  bool PollInternal(int poll_timeout_ms);
 
   // This is to deal robustly with the move operators, without having to
   // manually maintain member-wise move instructions.
   struct MovableState {
     base::Pipe stdin_pipe;
     base::Pipe stdouterr_pipe;
-    base::Pipe exit_status_pipe;
     PlatformProcessId pid;
-    size_t input_written = 0;
     Status status = kNotStarted;
     int returncode = -1;
     std::string output;  // Stdin+stderr. Only when kBuffer.
+    std::unique_ptr<ResourceUsage> rusage{new ResourceUsage()};
+    bool timed_out = false;
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+    std::thread stdouterr_thread;
+    std::thread stdin_thread;
+    ScopedPlatformHandle win_proc_handle;
+    ScopedPlatformHandle win_thread_handle;
+
+    base::EventFd stdouterr_done_event;
+    std::mutex mutex;  // Protects locked_outerr_buf and the two pipes.
+    std::string locked_outerr_buf;
+#else
+    base::Pipe exit_status_pipe;
+    size_t input_written = 0;
     std::thread waitpid_thread;
-    std::unique_ptr<ResourceUsage> rusage;
+#endif
   };
 
-  MovableState s_;
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  static void StdinThread(MovableState*, std::string input);
+  static void StdoutErrThread(MovableState*);
+#else
+  void TryPushStdin();
+  void TryReadStdoutAndErr();
+  void TryReadExitStatus();
+  void KillAtMostOnce();
+  bool PollInternal(int poll_timeout_ms);
+#endif
+
+  std::unique_ptr<MovableState> s_;
 };
 
 }  // namespace base

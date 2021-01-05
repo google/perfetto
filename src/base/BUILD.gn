@@ -36,7 +36,9 @@ perfetto_component("base") {
     "string_splitter.cc",
     "string_utils.cc",
     "string_view.cc",
+    "subprocess.cc",
     "subprocess_posix.cc",
+    "subprocess_windows.cc",
     "temp_file.cc",
     "thread_checker.cc",
     "time.cc",
@@ -148,7 +150,6 @@ perfetto_unittest_source_set("unittests") {
     "string_utils_unittest.cc",
     "string_view_unittest.cc",
     "string_writer_unittest.cc",
-    "subprocess_unittest.cc",
     "task_runner_unittest.cc",
     "temp_file_unittest.cc",
     "thread_checker_unittest.cc",
@@ -157,6 +158,11 @@ perfetto_unittest_source_set("unittests") {
     "uuid_unittest.cc",
     "weak_ptr_unittest.cc",
   ]
+  if (is_linux || is_android || is_mac || is_win) {
+    # Don't run on Fuchsia, NaCL. They pretend to be POSIX but then give up on
+    # execve(2).
+    sources += [ "subprocess_unittest.cc" ]
+  }
 
   # TODO: Enable these for Windows when possible.
   if (!is_win) {
