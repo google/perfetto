@@ -22,6 +22,8 @@ source_set("base") {
     "endian.h",
     "event_fd.h",
     "file_utils.h",
+    "getopt.h",
+    "getopt_compat.h",
     "hash.h",
     "metatrace.h",
     "metatrace_events.h",

@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#include <getopt.h>
 #include <inttypes.h>
 #include <stdint.h>
 #include <unistd.h>
@@ -24,6 +23,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/getopt.h"
 #include "perfetto/ext/base/scoped_file.h"
 
 #define PERFETTO_HAVE_PTHREADS                \
@@ -111,9 +111,8 @@ int BusyThreadsMain(int argc, char** argv) {
 #endif
     {nullptr, 0, nullptr, 0}
   };
-  int option_index;
   int c;
-  while ((c = getopt_long(argc, argv, "", long_options, &option_index)) != -1) {
+  while ((c = getopt_long(argc, argv, "", long_options, nullptr)) != -1) {
     switch (c) {
       case 'd':
         background = true;
