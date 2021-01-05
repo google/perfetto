@@ -142,9 +142,6 @@ __attribute__((noreturn, noinline)) void AbortOnSpinlockTimeout() {
   abort();
 }
 
-// Note: g_client can be reset by heapprofd_initialize without calling this
-// function.
-
 void DisableAllHeaps() {
   for (uint32_t i = kMinHeapId; i < g_next_heap_id.load(); ++i) {
     AHeapInfo& info = GetHeap(i);
@@ -160,6 +157,8 @@ void DisableAllHeaps() {
   }
 }
 
+// Note: g_client can be reset by AHeapProfile_initSession without calling this
+// function.
 void ShutdownLazy(const std::shared_ptr<perfetto::profiling::Client>& client) {
   ScopedSpinlock s(&g_client_lock, ScopedSpinlock::Mode::Try);
   if (PERFETTO_UNLIKELY(!s.locked()))
