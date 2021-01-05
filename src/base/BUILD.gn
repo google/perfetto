@@ -36,9 +36,6 @@ perfetto_component("base") {
     "string_splitter.cc",
     "string_utils.cc",
     "string_view.cc",
-    "subprocess.cc",
-    "subprocess_posix.cc",
-    "subprocess_windows.cc",
     "temp_file.cc",
     "thread_checker.cc",
     "time.cc",
@@ -56,7 +53,12 @@ perfetto_component("base") {
   }
 
   if (!is_nacl) {
-    sources += [ "unix_task_runner.cc" ]
+    sources += [
+      "subprocess.cc",
+      "subprocess_posix.cc",
+      "subprocess_windows.cc",
+      "unix_task_runner.cc",
+    ]
   }
 
   if (enable_perfetto_stderr_crash_dump) {
