@@ -215,12 +215,12 @@ void TestHarness::RunConfig(const char* cfg_name,
 
   for (auto& producer : producers) {
     producer.KillAndWaitForTermination();
-    test_result.prod_rusage = producer.rusage();  // Only keep last one
+    test_result.prod_rusage = producer.posix_rusage();  // Only keep last one
   }
   producers.clear();
   traced.KillAndWaitForTermination();
 
-  test_result.svc_rusage = traced.rusage();
+  test_result.svc_rusage = traced.posix_rusage();
   test_result.run_time_ms = static_cast<uint32_t>((t_end - t_start) / 1000000);
 
   // Verify
