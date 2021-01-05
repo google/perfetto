@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "perfetto/profiling/deobfuscator.h"
+#include "src/profiling/deobfuscator.h"
 
 #include "test/gtest_and_gmock.h"
 
