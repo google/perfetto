@@ -168,7 +168,7 @@ class Exec {
     // This lambda will be called on the forked child process after having
     // setup pipe redirection and closed all FDs, right before the exec().
     // The Subprocesss harness will take care of closing also |sync_pipe_.wr|.
-    subprocess_.args.entrypoint_for_testing = [sync_pipe_rd] {
+    subprocess_.args.posix_entrypoint_for_testing = [sync_pipe_rd] {
       // Don't add any logging here, all file descriptors are closed and trying
       // to log will likely cause undefined behaviors.
       char ignored = 0;
