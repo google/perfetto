@@ -19,11 +19,12 @@
 
 #include <memory>
 
-#include "src/profiling/memory/client.h"
 #include "src/profiling/memory/unhooked_allocator.h"
 
 namespace perfetto {
 namespace profiling {
+
+class Client;
 
 void StartHeapprofdIfStatic();
 
