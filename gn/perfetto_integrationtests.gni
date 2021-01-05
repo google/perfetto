@@ -20,7 +20,8 @@ perfetto_integrationtests_targets = [
   "src/tracing/test:client_api_integrationtests",
 ]
 
-if (enable_perfetto_platform_services) {
+if (enable_perfetto_traced_probes) {
+  # enable_perfetto_traced_probes implies enable_perfetto_platform_services.
   perfetto_integrationtests_targets += [
     "src/traced/probes/ftrace:integrationtests",
     "test:end_to_end_integrationtests",
