@@ -862,10 +862,7 @@ TEST_P(HeapprofdEndToEnd, FinalFlush) {
 }
 
 TEST_P(HeapprofdEndToEnd, NativeStartup) {
-  // We only enable heaps on initialization of the session. The custom heap is
-  // only registered later, so we do not see the allocations.
-  if (test_mode() == TestMode::kStatic ||
-      allocator_mode() == AllocatorMode::kCustom)
+  if (test_mode() == TestMode::kStatic)
     GTEST_SKIP();
 
   auto helper = GetHelper(&task_runner);
@@ -934,10 +931,7 @@ TEST_P(HeapprofdEndToEnd, NativeStartup) {
 }
 
 TEST_P(HeapprofdEndToEnd, NativeStartupDenormalizedCmdline) {
-  // We only enable heaps on initialization of the session. The custom heap is
-  // only registered later, so we do not see the allocations.
-  if (test_mode() == TestMode::kStatic ||
-      allocator_mode() == AllocatorMode::kCustom)
+  if (test_mode() == TestMode::kStatic)
     GTEST_SKIP();
 
   auto helper = GetHelper(&task_runner);
