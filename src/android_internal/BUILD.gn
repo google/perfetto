@@ -47,7 +47,9 @@ source_set("lazy_library_loader") {
     "lazy_library_loader.cc",
     "lazy_library_loader.h",
   ]
-  libs = [ "dl" ]
+  if (!is_win) {
+    libs = [ "dl" ]
+  }
 }
 
 # This target proxies calls to Android internal libraries that are not part of
