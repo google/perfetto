@@ -116,7 +116,7 @@ bool ShouldRejectDueToFilter(pid_t pid,
   if (filter.pids.count(pid)) {
     return false;
   }
-  if (!filter.cmdlines.size() && !filter.pids.size() &&
+  if (filter.cmdlines.empty() && filter.pids.empty() &&
       !filter.additional_cmdline_count) {
     // If no filters are set allow everything.
     return false;

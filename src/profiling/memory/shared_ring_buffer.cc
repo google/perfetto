@@ -311,7 +311,8 @@ SharedRingBuffer::SharedRingBuffer(SharedRingBuffer&& other) noexcept {
   *this = std::move(other);
 }
 
-SharedRingBuffer& SharedRingBuffer::operator=(SharedRingBuffer&& other) {
+SharedRingBuffer& SharedRingBuffer::operator=(
+    SharedRingBuffer&& other) noexcept {
   mem_fd_ = std::move(other.mem_fd_);
   std::tie(meta_, mem_, size_) = std::tie(other.meta_, other.mem_, other.size_);
   std::tie(other.meta_, other.mem_, other.size_) =
