@@ -41,6 +41,7 @@
 #include "src/profiling/common/profiler_guardrails.h"
 #include "src/profiling/memory/bookkeeping.h"
 #include "src/profiling/memory/bookkeeping_dump.h"
+#include "src/profiling/memory/log_histogram.h"
 #include "src/profiling/memory/system_property.h"
 #include "src/profiling/memory/unwinding.h"
 #include "src/profiling/memory/unwound_messages.h"
@@ -55,20 +56,6 @@ using HeapprofdConfig = protos::gen::HeapprofdConfig;
 struct Process {
   pid_t pid;
   std::string cmdline;
-};
-
-class LogHistogram {
- public:
-  static const uint64_t kMaxBucket;
-  static constexpr size_t kBuckets = 20;
-
-  void Add(uint64_t value) { values_[GetBucket(value)]++; }
-  std::vector<std::pair<uint64_t, uint64_t>> GetData();
-
- private:
-  size_t GetBucket(uint64_t value);
-
-  std::array<uint64_t, kBuckets> values_ = {};
 };
 
 // TODO(rsavitski): central daemon can do less work if it knows that the global
@@ -274,6 +261,8 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
   void FinishDataSourceFlush(FlushRequestID flush_id);
   void DumpProcessesInDataSource(DataSource* ds);
   void DumpProcessState(DataSource* ds, pid_t pid, ProcessState* process);
+  static void SetStats(protos::pbzero::ProfilePacket::ProcessStats* stats,
+                       const ProcessState& process_state);
 
   void DoContinuousDump(DataSourceInstanceID id, uint32_t dump_interval);
 

@@ -6817,6 +6817,7 @@ filegroup {
     "src/profiling/memory/bookkeeping_dump.cc",
     "src/profiling/memory/heapprofd_producer.cc",
     "src/profiling/memory/java_hprof_producer.cc",
+    "src/profiling/memory/log_histogram.cc",
     "src/profiling/memory/system_property.cc",
     "src/profiling/memory/unwinding.cc",
   ],
