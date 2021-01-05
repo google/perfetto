@@ -225,10 +225,9 @@ TEST(SharedRingBufferTest, MultiThreadingTest) {
           // Failing to read after the writers are done means that there is no
           // data left in the ring buffer.
           return;
-        } else {
-          std::this_thread::yield();
-          continue;
         }
+        std::this_thread::yield();
+        continue;
       }
       ASSERT_GT(buf_and_size.size, 0u);
       std::string data = ToString(buf_and_size);
