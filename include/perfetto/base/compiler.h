@@ -94,6 +94,27 @@ extern "C" void __asan_unpoison_memory_region(void const volatile*, size_t);
 #define PERFETTO_ASAN_UNPOISON(addr, size)
 #endif  // __clang__
 
+#if defined(__GNUC__) || defined(__clang__)
+#define PERFETTO_IS_LITTLE_ENDIAN() __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#else
+// Assume all MSVC targets are little endian.
+#define PERFETTO_IS_LITTLE_ENDIAN() 1
+#endif
+
+// This is used for exporting xxxMain() symbols (e.g., PerfettoCmdMain,
+// ProbesMain) from libperfetto.so when the GN arg monolithic_binaries = false.
+#if defined(__GNUC__) || defined(__clang__)
+#define PERFETTO_EXPORT_ENTRYPOINT __attribute__((visibility("default")))
+#else
+// TODO(primiano): on Windows this should be a pair of dllexport/dllimport. But
+// that requires a -DXXX_IMPLEMENTATION depending on whether we are on the
+// impl-site or call-site. Right now it's not worth the trouble as we
+// force-export the xxxMain() symbols only on Android, where we pack all the
+// code for N binaries into one .so to save binary size. On Windows we support
+// only monolithic binaries, as they are easier to deal with.
+#define PERFETTO_EXPORT_ENTRYPOINT
+#endif
+
 namespace perfetto {
 namespace base {
 
