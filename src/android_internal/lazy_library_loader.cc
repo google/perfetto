@@ -16,11 +16,21 @@
 
 #include "src/android_internal/lazy_library_loader.h"
 
-#include <dlfcn.h>
-#include <stdlib.h>
-
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+namespace perfetto {
+namespace android_internal {
+void* LazyLoadFunction(const char*) {
+  PERFETTO_CHECK(false);
+}
+}  // namespace android_internal
+}  // namespace perfetto
+#else
+
+#include <dlfcn.h>
+#include <stdlib.h>
 
 namespace perfetto {
 namespace android_internal {
@@ -67,3 +77,5 @@ void* LazyLoadFunction(const char* name) {
 
 }  // namespace android_internal
 }  // namespace perfetto
+
+#endif  // !OS_WIN
