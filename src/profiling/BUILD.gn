@@ -16,7 +16,10 @@ import("../../gn/perfetto.gni")
 import("../../gn/test.gni")
 
 source_set("deobfuscator") {
-  sources = [ "deobfuscator.cc" ]
+  sources = [
+    "deobfuscator.cc",
+    "deobfuscator.h",
+  ]
   deps = [
     "../../gn:default_deps",
     "../../include/perfetto/ext/base:base",
@@ -24,7 +27,6 @@ source_set("deobfuscator") {
     "../../protos/perfetto/trace/profiling:zero",
     "../../src/protozero:protozero",
   ]
-  public_deps = [ "../../include/perfetto/profiling:deobfuscator" ]
 }
 
 perfetto_unittest_source_set("unittests") {

@@ -39,7 +39,6 @@ perfetto_host_executable("trace_to_text_lite") {
 source_set("utils") {
   deps = [
     "../../gn:default_deps",
-    "../../include/perfetto/profiling:deobfuscator",
     "../../include/perfetto/protozero",
     "../../include/perfetto/trace_processor",
     "../../protos/perfetto/trace:zero",
@@ -49,10 +48,7 @@ source_set("utils") {
     "../../src/profiling/symbolizer",
     "../../src/profiling/symbolizer:symbolize_database",
   ]
-  public_deps = [
-    "../../include/perfetto/ext/base",
-    "../../include/perfetto/profiling:deobfuscator",
-  ]
+  public_deps = [ "../../include/perfetto/ext/base" ]
   if (enable_perfetto_zlib) {
     public_deps += [ "../../gn:zlib" ]
   }
@@ -94,9 +90,9 @@ source_set("common") {
     "../../gn:default_deps",
     "../../include/perfetto/base",
     "../../include/perfetto/ext/traced:sys_stats_counters",
-    "../../include/perfetto/profiling:deobfuscator",
     "../../include/perfetto/protozero",
     "../../protos/perfetto/trace:zero",
+    "../../src/profiling:deobfuscator",
     "../../src/profiling/symbolizer",
     "../../src/profiling/symbolizer:symbolize_database",
     "../../src/trace_processor:lib",
