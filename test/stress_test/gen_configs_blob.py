@@ -58,7 +58,8 @@ def main():
 
   blobs = {}
   for cfg_path in args.cfgfiles:
-    cfg_name = os.path.splitext(cfg_path)[0].split(os.sep)[-1]
+    cfg_path = cfg_path.replace('\\', '/')
+    cfg_name = os.path.splitext(cfg_path)[0].split('/')[-1]
     with open(cfg_path, 'r') as in_file:
       compiled_proto = subprocess.check_output([
           protoc,

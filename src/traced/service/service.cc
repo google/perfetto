@@ -94,7 +94,7 @@ Example: %s --set-socket-permissions traced-producer:0660:traced-consumer:0660
 }
 }  // namespace
 
-int __attribute__((visibility("default"))) ServiceMain(int argc, char** argv) {
+int PERFETTO_EXPORT_ENTRYPOINT ServiceMain(int argc, char** argv) {
   enum LongOption {
     OPT_VERSION = 1000,
     OPT_SET_SOCKET_PERMISSIONS = 1001,
@@ -149,9 +149,13 @@ int __attribute__((visibility("default"))) ServiceMain(int argc, char** argv) {
   PERFETTO_CHECK((!env_prod && !env_cons) || (env_prod && env_cons));
   bool started;
   if (env_prod) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+    PERFETTO_CHECK(false);
+#else
     base::ScopedFile producer_fd(atoi(env_prod));
     base::ScopedFile consumer_fd(atoi(env_cons));
     started = svc->Start(std::move(producer_fd), std::move(consumer_fd));
+#endif
   } else {
     unlink(GetProducerSocket());
     unlink(GetConsumerSocket());

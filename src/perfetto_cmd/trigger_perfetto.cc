@@ -39,8 +39,7 @@ Usage: %s TRIGGER...
 
 }  // namespace
 
-int __attribute__((visibility("default")))
-TriggerPerfettoMain(int argc, char** argv) {
+int PERFETTO_EXPORT_ENTRYPOINT TriggerPerfettoMain(int argc, char** argv) {
   static const option long_options[] = {{"help", no_argument, nullptr, 'h'},
                                         {nullptr, 0, nullptr, 0}};
 

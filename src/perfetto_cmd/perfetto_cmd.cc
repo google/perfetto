@@ -16,6 +16,8 @@
 
 #include "src/perfetto_cmd/perfetto_cmd.h"
 
+#include "perfetto/base/build_config.h"
+
 #include <fcntl.h>
 #include <getopt.h>
 #include <signal.h>
@@ -23,10 +25,17 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <time.h>
-#include <unistd.h>
+
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 #include <sys/system_properties.h>
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+
+// For dup().
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#include <io.h>
+#else
+#include <unistd.h>
+#endif
 
 #include <fstream>
 #include <iostream>
@@ -205,8 +214,9 @@ Detach mode. DISCOURAGED, read https://perfetto.dev/docs/concepts/detached-mode 
 }
 
 int PerfettoCmd::Main(int argc, char** argv) {
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   umask(0000);  // make sure that file creation is not affected by umask.
-
+#endif
   enum LongOption {
     OPT_ALERT_ID = 1000,
     OPT_BUGREPORT,
@@ -560,7 +570,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
           "trace config");
       return 1;
     }
-    if (access(trace_config_->output_path().c_str(), F_OK) == 0) {
+    if (base::FileExists(trace_config_->output_path())) {
       PERFETTO_ELOG(
           "The output_path must not exist, the service cannot overwrite "
           "existing files for security reasons. Remove %s or use a different "
@@ -611,6 +621,9 @@ int PerfettoCmd::Main(int argc, char** argv) {
   }
 
   if (background) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+    PERFETTO_FATAL("--background is not supported on Windows");
+#else
     pid_t pid;
     switch (pid = fork()) {
       case -1:
@@ -632,6 +645,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
         printf("%d\n", pid);
         exit(0);
     }
+#endif  // OS_WIN
   }
 
   // If we are just activating triggers then we don't need to rate limit,
@@ -888,7 +902,7 @@ bool PerfettoCmd::OpenOutputFile() {
     fd = OpenDropboxTmpFile();
 #endif
   } else if (trace_out_path_ == "-") {
-    fd.reset(dup(STDOUT_FILENO));
+    fd.reset(dup(fileno(stdout)));
   } else {
     fd = base::OpenFile(trace_out_path_, O_RDWR | O_CREAT | O_TRUNC, 0600);
   }
@@ -1027,8 +1041,7 @@ void PerfettoCmd::LogTriggerEvents(
   android_stats::MaybeLogTriggerEvents(atom, trigger_names);
 }
 
-int __attribute__((visibility("default")))
-PerfettoCmdMain(int argc, char** argv) {
+int PERFETTO_EXPORT_ENTRYPOINT PerfettoCmdMain(int argc, char** argv) {
   g_consumer_cmd = new perfetto::PerfettoCmd();
   return g_consumer_cmd->Main(argc, argv);
 }
