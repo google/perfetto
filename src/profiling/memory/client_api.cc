@@ -282,8 +282,12 @@ __attribute__((visibility("default"))) AHeapInfo* AHeapInfo_setEnabledCallback(
     void* data) {
   if (info == nullptr)
     return nullptr;
-  if (info->ready.load(std::memory_order_relaxed))
+  if (info->ready.load(std::memory_order_relaxed)) {
+    PERFETTO_ELOG(
+        "AHeapInfo_setEnabledCallback called after heap was registered. "
+        "This is always a bug.");
     return nullptr;
+  }
   info->enabled_callback = callback;
   info->enabled_callback_data = data;
   return info;
@@ -295,8 +299,12 @@ __attribute__((visibility("default"))) AHeapInfo* AHeapInfo_setDisabledCallback(
     void* data) {
   if (info == nullptr)
     return nullptr;
-  if (info->ready.load(std::memory_order_relaxed))
+  if (info->ready.load(std::memory_order_relaxed)) {
+    PERFETTO_ELOG(
+        "AHeapInfo_setDisabledCallback called after heap was registered. "
+        "This is always a bug.");
     return nullptr;
+  }
   info->disabled_callback = callback;
   info->disabled_callback_data = data;
   return info;
