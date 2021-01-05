@@ -31,7 +31,7 @@
 
 namespace perfetto {
 
-int __attribute__((visibility("default"))) ProbesMain(int argc, char** argv) {
+int PERFETTO_EXPORT_ENTRYPOINT ProbesMain(int argc, char** argv) {
   enum LongOption {
     OPT_CLEANUP_AFTER_CRASH = 1000,
     OPT_VERSION,

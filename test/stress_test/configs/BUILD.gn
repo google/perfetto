@@ -35,12 +35,16 @@ action("configs") {
   protoc_rel_dir = rebase_path(protoc_out_dir, root_build_dir)
   out_header = "$target_gen_dir/stress_test_config_blobs.h"
   out_header_rel = rebase_path(out_header, root_build_dir)
+  protoc_ext = ""
+  if (host_os == "win") {
+    protoc_ext = ".exe"
+  }
 
   deps = [ protoc_target ]
   script = "../gen_configs_blob.py"
   outputs = [ out_header ]
   args = [
-    "--protoc=$protoc_rel_dir/protoc",
+    "--protoc=$protoc_rel_dir/protoc${protoc_ext}",
     "--out=$out_header_rel",
   ]
   foreach(source, sources) {

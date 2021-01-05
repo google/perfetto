@@ -23,7 +23,6 @@
 #include <signal.h>
 #include <stdio.h>
 #include <sys/stat.h>
-#include <unistd.h>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/paged_memory.h"
