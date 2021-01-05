@@ -445,7 +445,7 @@ class HeapprofdEndToEnd
     switch (test_mode()) {
       case TestMode::kCentral:
         fork_prop_ = DisableFork();
-        PERFETTO_CHECK(ReadProperty(kHeapprofdModeProperty, "") == "");
+        PERFETTO_CHECK(ReadProperty(kHeapprofdModeProperty, "").empty());
         break;
       case TestMode::kFork:
         fork_prop_ = EnableFork();
@@ -914,7 +914,7 @@ TEST_P(HeapprofdEndToEnd, NativeStartup) {
   uint64_t total_freed = 0;
   for (const protos::gen::TracePacket& packet : packets) {
     if (packet.has_profile_packet() &&
-        packet.profile_packet().process_dumps().size() > 0) {
+        !packet.profile_packet().process_dumps().empty()) {
       const auto& dumps = packet.profile_packet().process_dumps();
       ASSERT_EQ(dumps.size(), 1u);
       const protos::gen::ProfilePacket_ProcessHeapSamples& dump = dumps[0];
@@ -987,7 +987,7 @@ TEST_P(HeapprofdEndToEnd, NativeStartupDenormalizedCmdline) {
   uint64_t total_freed = 0;
   for (const protos::gen::TracePacket& packet : packets) {
     if (packet.has_profile_packet() &&
-        packet.profile_packet().process_dumps().size() > 0) {
+        !packet.profile_packet().process_dumps().empty()) {
       const auto& dumps = packet.profile_packet().process_dumps();
       ASSERT_EQ(dumps.size(), 1u);
       const protos::gen::ProfilePacket_ProcessHeapSamples& dump = dumps[0];
@@ -1050,7 +1050,7 @@ TEST_P(HeapprofdEndToEnd, DiscoverByName) {
   uint64_t total_freed = 0;
   for (const protos::gen::TracePacket& packet : packets) {
     if (packet.has_profile_packet() &&
-        packet.profile_packet().process_dumps().size() > 0) {
+        !packet.profile_packet().process_dumps().empty()) {
       const auto& dumps = packet.profile_packet().process_dumps();
       ASSERT_EQ(dumps.size(), 1u);
       const protos::gen::ProfilePacket_ProcessHeapSamples& dump = dumps[0];
@@ -1114,7 +1114,7 @@ TEST_P(HeapprofdEndToEnd, DiscoverByNameDenormalizedCmdline) {
   uint64_t total_freed = 0;
   for (const protos::gen::TracePacket& packet : packets) {
     if (packet.has_profile_packet() &&
-        packet.profile_packet().process_dumps().size() > 0) {
+        !packet.profile_packet().process_dumps().empty()) {
       const auto& dumps = packet.profile_packet().process_dumps();
       ASSERT_EQ(dumps.size(), 1u);
       const protos::gen::ProfilePacket_ProcessHeapSamples& dump = dumps[0];
@@ -1415,7 +1415,7 @@ TEST_P(HeapprofdEndToEnd, NativeProfilingActiveAtProcessExit) {
   uint64_t total_allocated = 0;
   for (const protos::gen::TracePacket& packet : packets) {
     if (packet.has_profile_packet() &&
-        packet.profile_packet().process_dumps().size() > 0) {
+        !packet.profile_packet().process_dumps().empty()) {
       const auto& dumps = packet.profile_packet().process_dumps();
       ASSERT_EQ(dumps.size(), 1u);
       const protos::gen::ProfilePacket_ProcessHeapSamples& dump = dumps[0];
