@@ -24,6 +24,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/profiling/memory/heap_profile.h"
+#include "src/profiling/memory/heap_profile_internal.h"
 
 #include "src/profiling/memory/wrap_allocators.h"
 
