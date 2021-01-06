@@ -15,6 +15,7 @@
  */
 
 #include "perfetto/profiling/memory/heap_profile.h"
+#include "src/profiling/memory/heap_profile_internal.h"
 
 #include <inttypes.h>
 #include <malloc.h>
