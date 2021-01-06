@@ -19,6 +19,10 @@ import("../../gn/perfetto_component.gni")
 import("../../gn/test.gni")
 import("../../gn/wasm.gni")
 
+# On standalone builds this is all the OSes we support. On chromium builds,
+# though, this really means !is_fuchsia && !is_nacl.
+_subprocess_supported = is_linux || is_android || is_mac || is_win
+
 perfetto_component("base") {
   deps = [ "../../gn:default_deps" ]
   public_deps = [
@@ -53,11 +57,14 @@ perfetto_component("base") {
   }
 
   if (!is_nacl) {
+    sources += [ "unix_task_runner.cc" ]
+  }
+
+  if (_subprocess_supported) {
     sources += [
       "subprocess.cc",
       "subprocess_posix.cc",
       "subprocess_windows.cc",
-      "unix_task_runner.cc",
     ]
   }
 
@@ -160,7 +167,7 @@ perfetto_unittest_source_set("unittests") {
     "uuid_unittest.cc",
     "weak_ptr_unittest.cc",
   ]
-  if (is_linux || is_android || is_mac || is_win) {
+  if (_subprocess_supported) {
     # Don't run on Fuchsia, NaCL. They pretend to be POSIX but then give up on
     # execve(2).
     sources += [ "subprocess_unittest.cc" ]
