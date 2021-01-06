@@ -108,9 +108,9 @@ def run_metrics_test(trace_processor_path, gen_trace_path, metric,
       '--run-metrics',
       metric,
       '--metrics-output=%s' % ('json' if json_output else 'binary'),
-      gen_trace_path,
       '--perf-file',
       perf_path,
+      gen_trace_path,
   ]
   tp = subprocess.Popen(
       cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=ENV)
@@ -147,9 +147,9 @@ def run_query_test(trace_processor_path, gen_trace_path, query_path,
       trace_processor_path,
       '-q',
       query_path,
-      gen_trace_path,
       '--perf-file',
       perf_path,
+      gen_trace_path,
   ]
 
   tp = subprocess.Popen(
@@ -191,30 +191,36 @@ def run_all_tests(trace_processor, trace_descriptor_path,
       gen_trace_file = None
       gen_trace_path = trace_path
 
-    with tempfile.NamedTemporaryFile() as tmp_perf_file:
-      sys.stderr.write('[ RUN      ] {} {}\n'.format(
-          os.path.basename(test.query_path_or_metric),
-          os.path.basename(trace_path)))
+    # We can't use delete=True here. When using that on Windwows, the resulting
+    # file is opened in exclusive mode (in turn that's a subtle side-effect of
+    # the underlying CreateFile(FILE_ATTRIBUTE_TEMPORARY)) and TP fails to open
+    # the passed path.
+    tmp_perf_file = tempfile.NamedTemporaryFile(delete=False)
+    sys.stderr.write('[ RUN      ] {} {}\n'.format(
+        os.path.basename(test.query_path_or_metric),
+        os.path.basename(trace_path)))
 
-      tmp_perf_path = tmp_perf_file.name
-      if test.type == 'queries':
-        query_path = test.query_path_or_metric
+    tmp_perf_path = tmp_perf_file.name
+    if test.type == 'queries':
+      query_path = test.query_path_or_metric
 
-        if not os.path.exists(test.query_path_or_metric):
-          print('Query file not found {}'.format(query_path))
-          test_failure += 1
-          continue
+      if not os.path.exists(test.query_path_or_metric):
+        print('Query file not found {}'.format(query_path))
+        test_failure += 1
+        continue
 
-        result = run_query_test(trace_processor, gen_trace_path, query_path,
-                                expected_path, tmp_perf_path)
-      elif test.type == 'metrics':
-        result = run_metrics_test(trace_processor, gen_trace_path,
-                                  test.query_path_or_metric, expected_path,
-                                  tmp_perf_path, metrics_message_factory)
-      else:
-        assert False
+      result = run_query_test(trace_processor, gen_trace_path, query_path,
+                              expected_path, tmp_perf_path)
+    elif test.type == 'metrics':
+      result = run_metrics_test(trace_processor, gen_trace_path,
+                                test.query_path_or_metric, expected_path,
+                                tmp_perf_path, metrics_message_factory)
+    else:
+      assert False
 
-      perf_lines = [line.decode('utf8') for line in tmp_perf_file.readlines()]
+    perf_lines = [line.decode('utf8') for line in tmp_perf_file.readlines()]
+    tmp_perf_file.close()
+    os.remove(tmp_perf_file.name)
 
     if gen_trace_file:
       if keep_input:
@@ -234,7 +240,10 @@ def run_all_tests(trace_processor, trace_descriptor_path,
                 os.path.relpath(gen_trace_path, ROOT_DIR)))
       sys.stderr.write('Command line:\n{}\n'.format(' '.join(result.cmd)))
 
-    if result.exit_code != 0 or result.expected != result.actual:
+    contents_equal = (
+        result.expected.replace('\r\n',
+                                '\n') == result.actual.replace('\r\n', '\n'))
+    if result.exit_code != 0 or not contents_equal:
       sys.stderr.write(result.stderr)
 
       if result.exit_code == 0:
