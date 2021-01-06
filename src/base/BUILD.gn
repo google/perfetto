@@ -30,6 +30,7 @@ perfetto_component("base") {
     "../../include/perfetto/ext/base",
   ]
   sources = [
+    "ctrl_c_handler.cc",
     "event_fd.cc",
     "file_utils.cc",
     "logging.cc",

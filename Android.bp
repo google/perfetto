@@ -6402,6 +6402,7 @@ filegroup {
 filegroup {
   name: "perfetto_src_base_base",
   srcs: [
+    "src/base/ctrl_c_handler.cc",
     "src/base/event_fd.cc",
     "src/base/file_utils.cc",
     "src/base/logging.cc",
