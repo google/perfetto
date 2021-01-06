@@ -35,6 +35,18 @@ from google.protobuf import reflection, text_format
 from proto_utils import create_message_factory, serialize_textproto_trace, serialize_python_trace
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ENV = {
+    'PERFETTO_BINARY_PATH': os.path.join(ROOT_DIR, 'test', 'data'),
+}
+if sys.platform.startswith('linux'):
+  ENV['PATH'] = os.path.join(ROOT_DIR, 'buildtools', 'linux64', 'clang', 'bin')
+elif sys.platform.startswith('dawin'):
+  # Sadly, on macOS we need to check out the Android deps to get
+  # llvm symbolizer.
+  ENV['PATH'] = os.path.join(ROOT_DIR, 'buildtools', 'ndk', 'toolchains',
+                             'llvm', 'prebuilt', 'darwin-x86_64', 'bin')
+elif sys.platform.startswith('win32'):
+  ENV['PATH'] = os.path.join(ROOT_DIR, 'buildtools', 'win', 'clang', 'bin')
 
 
 class Test(object):
@@ -100,7 +112,8 @@ def run_metrics_test(trace_processor_path, gen_trace_path, metric,
       '--perf-file',
       perf_path,
   ]
-  tp = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+  tp = subprocess.Popen(
+      cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=ENV)
   (stdout, stderr) = tp.communicate()
 
   if json_output:
@@ -139,7 +152,8 @@ def run_query_test(trace_processor_path, gen_trace_path, query_path,
       perf_path,
   ]
 
-  tp = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+  tp = subprocess.Popen(
+      cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=ENV)
   (stdout, stderr) = tp.communicate()
   return TestResult('query', query_path, gen_trace_path, cmd, expected,
                     stdout.decode('utf8'), stderr.decode('utf8'), tp.returncode)
