@@ -1140,10 +1140,8 @@ class TrackEventParser::EventImporter {
 
   util::Status ParseHistogramName(ConstBytes blob, BoundInserter* inserter) {
     protos::pbzero::ChromeHistogramSample::Decoder sample(blob);
-    if (!sample.has_name_iid()) {
-      PERFETTO_DLOG("name_iid is not set for ChromeHistogramSample");
+    if (!sample.has_name_iid())
       return util::OkStatus();
-    }
 
     if (sample.has_name()) {
       return util::ErrStatus(
