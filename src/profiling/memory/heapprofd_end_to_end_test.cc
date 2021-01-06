@@ -318,6 +318,42 @@ void __attribute__((constructor(1024))) RunAccurateMalloc() {
   }
 }
 
+void __attribute__((constructor(1024))) RunAccurateSample() {
+  const char* a0 = getenv("HEAPPROFD_TESTING_RUN_ACCURATE_SAMPLE");
+  if (a0 == nullptr)
+    return;
+
+  static std::atomic<bool> initialized{false};
+  static uint32_t heap_id =
+      AHeapProfile_registerHeap(AHeapInfo_setEnabledCallback(
+          AHeapInfo_create("test"),
+          [](void*, const AHeapProfileEnableCallbackInfo*) {
+            initialized = true;
+          },
+          nullptr));
+
+  ChildFinishHandshake();
+
+  // heapprofd_client needs malloc to see the signal.
+  while (!initialized)
+    AllocateAndFree(1);
+  // We call the callback before setting enabled=true on the heap, so we
+  // wait a bit for the assignment to happen.
+  usleep(100000);
+  if (!AHeapProfile_reportSample(heap_id, 0x1, 10u))
+    PERFETTO_FATAL("Expected allocation to be sampled.");
+  AHeapProfile_reportFree(heap_id, 0x1);
+  if (!AHeapProfile_reportSample(heap_id, 0x2, 15u))
+    PERFETTO_FATAL("Expected allocation to be sampled.");
+  if (!AHeapProfile_reportSample(heap_id, 0x3, 15u))
+    PERFETTO_FATAL("Expected allocation to be sampled.");
+  AHeapProfile_reportFree(heap_id, 0x2);
+
+  // Wait around so we can verify it did't crash.
+  for (;;) {
+  }
+}
+
 void __attribute__((constructor(1024))) RunReInit() {
   const char* a0 = getenv("HEAPPROFD_TESTING_RUN_REINIT_ARG0");
   if (a0 == nullptr)
@@ -351,6 +387,57 @@ void __attribute__((constructor(1024))) RunReInit() {
     usleep(10 * kMsToUs);
   }
   PERFETTO_FATAL("Should be unreachable");
+}
+
+void __attribute__((constructor(1024))) RunCustomLifetime() {
+  const char* a0 = getenv("HEAPPROFD_TESTING_RUN_LIFETIME_ARG0");
+  const char* a1 = getenv("HEAPPROFD_TESTING_RUN_LIFETIME_ARG1");
+  if (a0 == nullptr)
+    return;
+  uint64_t arg0 = a0 ? base::StringToUInt64(a0).value() : 0;
+  uint64_t arg1 = a0 ? base::StringToUInt64(a1).value() : 0;
+
+  PERFETTO_CHECK(arg1);
+
+  static std::atomic<bool> initialized{false};
+  static std::atomic<bool> disabled{false};
+  static std::atomic<uint64_t> sampling_interval;
+
+  auto enabled_callback = [](void*,
+                             const AHeapProfileEnableCallbackInfo* info) {
+    sampling_interval =
+        AHeapProfileEnableCallbackInfo_getSamplingInterval(info);
+    initialized = true;
+  };
+  auto disabled_callback = [](void*, const AHeapProfileDisableCallbackInfo*) {
+    disabled = true;
+  };
+  static uint32_t heap_id =
+      AHeapProfile_registerHeap(AHeapInfo_setDisabledCallback(
+          AHeapInfo_setEnabledCallback(AHeapInfo_create("test"),
+                                       enabled_callback, nullptr),
+          disabled_callback, nullptr));
+
+  ChildFinishHandshake();
+
+  // heapprofd_client needs malloc to see the signal.
+  while (!initialized)
+    AllocateAndFree(1);
+
+  if (sampling_interval.load() != arg0) {
+    PERFETTO_FATAL("%" PRIu64 " != %" PRIu64, sampling_interval.load(), arg0);
+  }
+
+  while (!disabled)
+    AHeapProfile_reportFree(heap_id, 0x2);
+
+  char x = 'x';
+  PERFETTO_CHECK(base::WriteAll(static_cast<int>(arg1), &x, sizeof(x)) == 1);
+  close(static_cast<int>(arg1));
+
+  // Wait around so we can verify it didn't crash.
+  for (;;) {
+  }
 }
 
 std::unique_ptr<TestHelper> GetHelper(base::TestTaskRunner* task_runner) {
@@ -728,7 +815,7 @@ TEST_P(HeapprofdEndToEnd, TwoAllocatorsAll) {
   ValidateSampleSizes(helper.get(), pid, kAllocSize, allocator_name());
 }
 
-TEST_P(HeapprofdEndToEnd, AccurateCustom) {
+TEST_P(HeapprofdEndToEnd, AccurateCustomReportAllocation) {
   if (allocator_mode() != AllocatorMode::kCustom)
     GTEST_SKIP();
 
@@ -743,6 +830,46 @@ TEST_P(HeapprofdEndToEnd, AccurateCustom) {
 
   TraceConfig trace_config = MakeTraceConfig([pid](HeapprofdConfig* cfg) {
     cfg->set_sampling_interval_bytes(1);
+    cfg->add_pid(pid);
+    cfg->add_heaps("test");
+  });
+
+  auto helper = Trace(trace_config);
+  WRITE_TRACE(helper->full_trace());
+  PrintStats(helper.get());
+  KillAssertRunning(&child);
+
+  ValidateOnlyPID(helper.get(), pid);
+
+  size_t total_alloc = 0;
+  size_t total_freed = 0;
+  for (const protos::gen::TracePacket& packet : helper->trace()) {
+    for (const auto& dump : packet.profile_packet().process_dumps()) {
+      for (const auto& sample : dump.samples()) {
+        total_alloc += sample.self_allocated();
+        total_freed += sample.self_freed();
+      }
+    }
+  }
+  EXPECT_EQ(total_alloc, 40u);
+  EXPECT_EQ(total_freed, 25u);
+}
+
+TEST_P(HeapprofdEndToEnd, AccurateCustomReportSample) {
+  if (allocator_mode() != AllocatorMode::kCustom)
+    GTEST_SKIP();
+
+  base::Subprocess child({"/proc/self/exe"});
+  child.args.posix_argv0_override_for_testing = "heapprofd_continuous_malloc";
+  child.args.stdout_mode = base::Subprocess::kDevNull;
+  child.args.stderr_mode = base::Subprocess::kDevNull;
+  child.args.env.push_back("HEAPPROFD_TESTING_RUN_ACCURATE_SAMPLE=1");
+  StartAndWaitForHandshake(&child);
+
+  const uint64_t pid = static_cast<uint64_t>(child.pid());
+
+  TraceConfig trace_config = MakeTraceConfig([pid](HeapprofdConfig* cfg) {
+    cfg->set_sampling_interval_bytes(1000000);
     cfg->add_pid(pid);
     cfg->add_heaps("test");
   });
@@ -807,6 +934,47 @@ TEST_P(HeapprofdEndToEnd, AccurateDumpAtMaxCustom) {
   }
   EXPECT_EQ(total_alloc, 30u);
   EXPECT_EQ(total_count, 2u);
+}
+
+TEST_P(HeapprofdEndToEnd, CustomLifetime) {
+  if (allocator_mode() != AllocatorMode::kCustom)
+    GTEST_SKIP();
+
+  int disabled_pipe[2];
+  PERFETTO_CHECK(pipe(disabled_pipe) == 0);  // NOLINT(android-cloexec-pipe)
+
+  int disabled_pipe_rd = disabled_pipe[0];
+  int disabled_pipe_wr = disabled_pipe[1];
+
+  base::Subprocess child({"/proc/self/exe"});
+  child.args.posix_argv0_override_for_testing = "heapprofd_continuous_malloc";
+  child.args.stdout_mode = base::Subprocess::kDevNull;
+  child.args.stderr_mode = base::Subprocess::kDevNull;
+  child.args.env.push_back("HEAPPROFD_TESTING_RUN_LIFETIME_ARG0=1000000");
+  child.args.env.push_back("HEAPPROFD_TESTING_RUN_LIFETIME_ARG1=" +
+                           std::to_string(disabled_pipe_wr));
+  child.args.preserve_fds.push_back(disabled_pipe_wr);
+  StartAndWaitForHandshake(&child);
+  close(disabled_pipe_wr);
+
+  const uint64_t pid = static_cast<uint64_t>(child.pid());
+
+  TraceConfig trace_config = MakeTraceConfig([pid](HeapprofdConfig* cfg) {
+    cfg->set_sampling_interval_bytes(1000000);
+    cfg->add_pid(pid);
+    cfg->add_heaps("test");
+  });
+
+  auto helper = Trace(trace_config);
+  WRITE_TRACE(helper->full_trace());
+  PrintStats(helper.get());
+  // Give client some time to notice the disconnect.
+  sleep(2);
+  KillAssertRunning(&child);
+
+  char x;
+  EXPECT_EQ(base::Read(disabled_pipe_rd, &x, sizeof(x)), 1);
+  close(disabled_pipe_rd);
 }
 
 TEST_P(HeapprofdEndToEnd, TwoProcesses) {
