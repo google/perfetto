@@ -75,6 +75,7 @@ namespace {
 using ::testing::_;
 using ::testing::Args;
 using ::testing::AtLeast;
+using ::testing::DoAll;
 using ::testing::ElementsAreArray;
 using ::testing::Eq;
 using ::testing::HasSubstr;
