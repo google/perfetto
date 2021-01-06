@@ -17,6 +17,7 @@
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/unix_task_runner.h"
 #include "perfetto/profiling/memory/heap_profile.h"
+#include "src/profiling/memory/heap_profile_internal.h"
 
 #include "src/profiling/memory/client.h"
 #include "src/profiling/memory/client_api_factory.h"

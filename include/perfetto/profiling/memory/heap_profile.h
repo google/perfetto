@@ -137,12 +137,6 @@ AHeapInfo* _Nullable AHeapInfo_setDisabledCallback(
 // Takes ownership of |info|.
 uint32_t AHeapProfile_registerHeap(AHeapInfo* _Nullable info);
 
-// Called by libc upon receipt of the profiling signal.
-// DO NOT CALL EXCEPT FROM LIBC!
-// TODO(fmayer): Maybe move this out of this header.
-bool AHeapProfile_initSession(void* _Nullable (*_Nonnull malloc_fn)(size_t),
-                              void (*_Nonnull free_fn)(void* _Nullable));
-
 // Reports an allocation of |size| on the given |heap_id|.
 //
 // If a profiling session is active, this function decides whether the reported
