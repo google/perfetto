@@ -18,10 +18,18 @@
 
 #include <unistd.h>
 
+namespace {
+
+void OtherFn(uint32_t heap_id, uint64_t i) {
+  AHeapProfile_reportAllocation(heap_id, i, i);
+}
+
+}  // namespace
+
 int main(int, char**) {
   uint32_t heap_id = AHeapProfile_registerHeap(AHeapInfo_create("test"));
   for (uint64_t i = 0; i < 100000; ++i) {
-    AHeapProfile_reportAllocation(heap_id, i, i);
+    OtherFn(heap_id, i);
     sleep(1);
   }
 }
