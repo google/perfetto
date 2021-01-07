@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-#include <getopt.h>
 #include <stdio.h>
 #include <algorithm>
 
+#include "perfetto/ext/base/getopt.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/unix_task_runner.h"
 #include "perfetto/ext/base/version.h"
@@ -109,9 +109,8 @@ int PERFETTO_EXPORT_ENTRYPOINT ServiceMain(int argc, char** argv) {
   std::string producer_socket_group, consumer_socket_group,
       producer_socket_mode, consumer_socket_mode;
 
-  int option_index;
   for (;;) {
-    int option = getopt_long(argc, argv, "", long_options, &option_index);
+    int option = getopt_long(argc, argv, "", long_options, nullptr);
     if (option == -1)
       break;
     switch (option) {

@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#include <getopt.h>
 #include <sys/stat.h>
 #include <fstream>
 #include <map>
@@ -29,6 +28,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/getopt.h"
 #include "src/traced/probes/ftrace/format_parser/format_parser.h"
 #include "tools/ftrace_proto_gen/ftrace_descriptor_gen.h"
 #include "tools/ftrace_proto_gen/ftrace_proto_gen.h"
@@ -60,7 +60,6 @@ int main(int argc, char** argv) {
       {"check_only", no_argument, nullptr, 'c'},
       {nullptr, 0, nullptr, 0}};
 
-  int option_index;
   int c;
 
   std::string event_list_path;
@@ -71,7 +70,7 @@ int main(int argc, char** argv) {
   std::unique_ptr<std::ostream> (*ostream_factory)(const std::string&) =
       &MakeOFStream;
 
-  while ((c = getopt_long(argc, argv, "", long_options, &option_index)) != -1) {
+  while ((c = getopt_long(argc, argv, "", long_options, nullptr)) != -1) {
     switch (c) {
       case 'w':
         event_list_path = optarg;

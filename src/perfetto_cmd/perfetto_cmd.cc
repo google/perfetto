@@ -19,7 +19,6 @@
 #include "perfetto/base/build_config.h"
 
 #include <fcntl.h>
-#include <getopt.h>
 #include <stdio.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -46,6 +45,7 @@
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/ctrl_c_handler.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/getopt.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/thread_utils.h"
 #include "perfetto/ext/base/utils.h"
@@ -265,7 +265,6 @@ int PerfettoCmd::Main(int argc, char** argv) {
       {"save-for-bugreport", no_argument, nullptr, OPT_BUGREPORT},
       {nullptr, 0, nullptr, 0}};
 
-  int option_index = 0;
   std::string config_file_name;
   std::string trace_config_raw;
   bool background = false;
@@ -278,8 +277,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
   bool has_config_options = false;
 
   for (;;) {
-    int option =
-        getopt_long(argc, argv, "hc:o:dt:b:s:", long_options, &option_index);
+    int option = getopt_long(argc, argv, "hc:o:dt:b:s:", long_options, nullptr);
 
     if (option == -1)
       break;  // EOF.

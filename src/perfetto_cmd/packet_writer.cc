@@ -19,12 +19,12 @@
 #include <array>
 
 #include <fcntl.h>
-#include <getopt.h>
 #include <signal.h>
 #include <stdio.h>
 #include <sys/stat.h>
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/ext/base/getopt.h"
 #include "perfetto/ext/base/paged_memory.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
