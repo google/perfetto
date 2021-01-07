@@ -128,8 +128,9 @@ std::shared_ptr<perfetto::profiling::Client> CreateClientAndPrivateDaemon(
   PERFETTO_LOG("Setting up fork mode profiling.");
   perfetto::base::UnixSocketRaw parent_sock;
   perfetto::base::UnixSocketRaw child_sock;
-  std::tie(parent_sock, child_sock) = perfetto::base::UnixSocketRaw::CreatePair(
-      perfetto::base::SockFamily::kUnix, perfetto::base::SockType::kStream);
+  std::tie(parent_sock, child_sock) =
+      perfetto::base::UnixSocketRaw::CreatePairPosix(
+          perfetto::base::SockFamily::kUnix, perfetto::base::SockType::kStream);
 
   if (!parent_sock || !child_sock) {
     PERFETTO_PLOG("Failed to create socketpair.");

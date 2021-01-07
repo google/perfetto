@@ -89,14 +89,14 @@ void AndroidRemoteDescriptorGetter::OnNewIncomingConnection(
     base::UnixSocket*,
     std::unique_ptr<base::UnixSocket> new_connection) {
   PERFETTO_DLOG("remote fds: new connection from pid [%d]",
-                static_cast<int>(new_connection->peer_pid()));
+                static_cast<int>(new_connection->peer_pid_linux()));
 
   active_connections_.emplace(new_connection.get(), std::move(new_connection));
 }
 
 void AndroidRemoteDescriptorGetter::OnDisconnect(base::UnixSocket* self) {
   PERFETTO_DLOG("remote fds: disconnect from pid [%d]",
-                static_cast<int>(self->peer_pid()));
+                static_cast<int>(self->peer_pid_linux()));
 
   auto it = active_connections_.find(self);
   PERFETTO_CHECK(it != active_connections_.end());
@@ -117,7 +117,7 @@ void AndroidRemoteDescriptorGetter::OnDataAvailable(base::UnixSocket* self) {
   if (!received_bytes)
     return;
 
-  delegate_->OnProcDescriptors(self->peer_pid(), std::move(fds[0]),
+  delegate_->OnProcDescriptors(self->peer_pid_linux(), std::move(fds[0]),
                                std::move(fds[1]));
 }
 

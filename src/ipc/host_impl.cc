@@ -33,6 +33,18 @@
 namespace perfetto {
 namespace ipc {
 
+namespace {
+uid_t GetPosixPeerUid(base::UnixSocket* sock) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  base::ignore_result(sock);
+  // Unsupported. Must be != kInvalidUid or the PacketValidator will fail.
+  return 0;
+#else
+  return sock->peer_uid_posix();
+#endif
+}
+}  // namespace
+
 // static
 std::unique_ptr<Host> Host::CreateInstance(const char* socket_name,
                                            base::TaskRunner* task_runner) {
@@ -199,7 +211,8 @@ void HostImpl::OnInvokeMethod(ClientConnection* client,
     });
   }
 
-  service->client_info_ = ClientInfo(client->id, client->sock->peer_uid());
+  service->client_info_ =
+      ClientInfo(client->id, GetPosixPeerUid(client->sock.get()));
   service->received_fd_ = &client->received_fd;
   method.invoker(service, *decoded_req_args, std::move(deferred_reply));
   service->received_fd_ = nullptr;
@@ -251,7 +264,8 @@ void HostImpl::OnDisconnect(base::UnixSocket* sock) {
   if (it == clients_by_socket_.end())
     return;
   ClientID client_id = it->second->id;
-  ClientInfo client_info(client_id, sock->peer_uid());
+
+  ClientInfo client_info(client_id, GetPosixPeerUid(sock));
   clients_by_socket_.erase(it);
   PERFETTO_DCHECK(clients_.count(client_id));
   clients_.erase(client_id);
