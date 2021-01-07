@@ -930,9 +930,8 @@ bool TraceProcessorImpl::IsRootMetricField(const std::string& metric_name) {
       pool_.FindDescriptorIdx(".perfetto.protos.TraceMetrics");
   if (!desc_idx.has_value())
     return false;
-  base::Optional<uint32_t> field_idx =
-      pool_.descriptors()[*desc_idx].FindFieldIdxByName(metric_name);
-  return field_idx.has_value();
+  auto field_idx = pool_.descriptors()[*desc_idx].FindFieldByName(metric_name);
+  return field_idx != nullptr;
 }
 
 util::Status TraceProcessorImpl::RegisterMetric(const std::string& path,

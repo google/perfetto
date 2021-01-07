@@ -145,6 +145,7 @@ source_set("storage_minimal") {
     "../protozero",
     "containers",
     "importers:common",
+    "importers:gen_cc_chrome_track_event_descriptor",
     "importers/memory_tracker:graph_processor",
     "storage",
     "tables",
