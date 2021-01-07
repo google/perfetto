@@ -783,7 +783,7 @@ void HeapprofdProducer::FinishDataSourceFlush(FlushRequestID flush_id) {
 }
 
 void HeapprofdProducer::SocketDelegate::OnDisconnect(base::UnixSocket* self) {
-  auto it = producer_->pending_processes_.find(self->peer_pid());
+  auto it = producer_->pending_processes_.find(self->peer_pid_linux());
   if (it == producer_->pending_processes_.end()) {
     PERFETTO_DFATAL_OR_ELOG("Unexpected disconnect.");
     return;
@@ -797,7 +797,7 @@ void HeapprofdProducer::SocketDelegate::OnNewIncomingConnection(
     base::UnixSocket*,
     std::unique_ptr<base::UnixSocket> new_connection) {
   Process peer_process;
-  peer_process.pid = new_connection->peer_pid();
+  peer_process.pid = new_connection->peer_pid_linux();
   if (!GetCmdlineForPID(peer_process.pid, &peer_process.cmdline))
     PERFETTO_PLOG("Failed to get cmdline for %d", peer_process.pid);
 
@@ -806,7 +806,7 @@ void HeapprofdProducer::SocketDelegate::OnNewIncomingConnection(
 
 void HeapprofdProducer::SocketDelegate::OnDataAvailable(
     base::UnixSocket* self) {
-  auto it = producer_->pending_processes_.find(self->peer_pid());
+  auto it = producer_->pending_processes_.find(self->peer_pid_linux());
   if (it == producer_->pending_processes_.end()) {
     PERFETTO_DFATAL_OR_ELOG("Unexpected data.");
     return;
@@ -835,14 +835,15 @@ void HeapprofdProducer::SocketDelegate::OnDataAvailable(
     }
 
     std::string maps_file =
-        "/proc/" + std::to_string(self->peer_pid()) + "/maps";
+        "/proc/" + std::to_string(self->peer_pid_linux()) + "/maps";
     if (!IsFile(*fds[kHandshakeMaps], maps_file.c_str())) {
       producer_->pending_processes_.erase(it);
       PERFETTO_ELOG("Received invalid maps FD.");
       return;
     }
 
-    std::string mem_file = "/proc/" + std::to_string(self->peer_pid()) + "/mem";
+    std::string mem_file =
+        "/proc/" + std::to_string(self->peer_pid_linux()) + "/mem";
     if (!IsFile(*fds[kHandshakeMem], mem_file.c_str())) {
       producer_->pending_processes_.erase(it);
       PERFETTO_ELOG("Received invalid mem FD.");
@@ -850,11 +851,11 @@ void HeapprofdProducer::SocketDelegate::OnDataAvailable(
     }
 
     data_source.process_states.emplace(
-        std::piecewise_construct, std::forward_as_tuple(self->peer_pid()),
+        std::piecewise_construct, std::forward_as_tuple(self->peer_pid_linux()),
         std::forward_as_tuple(&producer_->callsites_,
                               data_source.config.dump_at_max()));
 
-    PERFETTO_DLOG("%d: Received FDs.", self->peer_pid());
+    PERFETTO_DLOG("%d: Received FDs.", self->peer_pid_linux());
     int raw_fd = pending_process.shmem.fd();
     // TODO(fmayer): Full buffer could deadlock us here.
     if (!self->Send(&data_source.client_configuration,
@@ -875,14 +876,15 @@ void HeapprofdProducer::SocketDelegate::OnDataAvailable(
     handoff_data.client_config = data_source.client_configuration;
     handoff_data.stream_allocations = data_source.config.stream_allocations();
 
-    producer_->UnwinderForPID(self->peer_pid())
+    producer_->UnwinderForPID(self->peer_pid_linux())
         .PostHandoffSocket(std::move(handoff_data));
     producer_->pending_processes_.erase(it);
   } else if (fds[kHandshakeMaps] || fds[kHandshakeMem]) {
-    PERFETTO_DFATAL_OR_ELOG("%d: Received partial FDs.", self->peer_pid());
+    PERFETTO_DFATAL_OR_ELOG("%d: Received partial FDs.",
+                            self->peer_pid_linux());
     producer_->pending_processes_.erase(it);
   } else {
-    PERFETTO_ELOG("%d: Received no FDs.", self->peer_pid());
+    PERFETTO_ELOG("%d: Received no FDs.", self->peer_pid_linux());
   }
 }
 
@@ -919,7 +921,7 @@ void HeapprofdProducer::HandleClientConnection(
   // In fork mode, right now we check whether the target is not profileable
   // in the client, because we cannot read packages.list there.
   if (mode_ == HeapprofdMode::kCentral &&
-      !CanProfile(data_source->ds_config, new_connection->peer_uid())) {
+      !CanProfile(data_source->ds_config, new_connection->peer_uid_posix())) {
     PERFETTO_ELOG("%d (%s) is not profileable.", process.pid,
                   process.cmdline.c_str());
     return;
@@ -937,7 +939,7 @@ void HeapprofdProducer::HandleClientConnection(
     return;
   }
 
-  pid_t peer_pid = new_connection->peer_pid();
+  pid_t peer_pid = new_connection->peer_pid_linux();
   if (peer_pid != process.pid) {
     PERFETTO_DFATAL_OR_ELOG("Invalid PID connected.");
     return;

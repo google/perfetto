@@ -57,7 +57,7 @@ std::shared_ptr<Client> ConstructClient(
     UnhookedAllocator<perfetto::profiling::Client> unhooked_allocator) {
   base::UnixSocketRaw cli_sock;
   base::UnixSocketRaw& srv_sock = GlobalServerSocket();
-  std::tie(cli_sock, srv_sock) = base::UnixSocketRaw::CreatePair(
+  std::tie(cli_sock, srv_sock) = base::UnixSocketRaw::CreatePairPosix(
       base::SockFamily::kUnix, base::SockType::kStream);
   auto ringbuf = SharedRingBuffer::Create(8 * 1048576);
   PERFETTO_CHECK(ringbuf);
