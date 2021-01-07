@@ -30,6 +30,9 @@ message ChromeThreadDescriptor {
     THREAD_MAIN = 1;
     THREAD_IO = 2;
 
+    // Browser:
+    THREAD_NETWORK_SERVICE = 12;
+
     // Scheduler:
     THREAD_POOL_BG_WORKER = 3;
     THREAD_POOL_FG_WORKER = 4;
