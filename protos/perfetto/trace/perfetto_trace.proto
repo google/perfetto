@@ -1864,70 +1864,114 @@ message FrameTimelineEvent {
     PRESENT_DROPPED = 4;
   };
 
-  // Represents the app's work on a frame.
-  // Next id: 13
-  message SurfaceFrame {
+  // Indicates the start of expected timeline slice for SurfaceFrames.
+  message ExpectedSurfaceFrameStart {
+    // Cookie used to correlate between the start and end messages of the same
+    // frame. Since all values except the ts are same for start and end, cookie
+    // helps in preventing redundant data transmission.
+    // The same cookie is used only by start and end messages of a single frame
+    // and is otherwise unique.
+    optional int64 cookie = 1;
+
     // Token received by the app for its work. Can be shared between multiple
     // layers of the same app (example: pip mode).
-    optional int64 token = 1;
-
+    optional int64 token = 2;
     // The corresponding DisplayFrame token is required to link the App's work
     // with SurfaceFlinger's work. Many SurfaceFrames can be mapped to a single
     // DisplayFrame.
     // this.display_frame_token = DisplayFrame.token
-    optional int64 display_frame_token = 12;
-
-    optional PresentType present_type = 2;
-    optional bool on_time_finish = 3;
-    optional bool gpu_composition = 4;
-    optional JankType jank_type = 5;
-
-    // Timestamps in nanoseconds using CLOCK_MONOTONIC.
-    // Expected timeline = expected_start to expected_end.
-    optional int64 expected_start_ns = 6;
-    optional int64 expected_end_ns = 7;
-
-    // (b/172587309) Apps currently do not provide actual start time.
-    // Actual timeline = expected_start to actual_end.
-    optional int64 actual_start_ns = 8;
-    // If two SufaceFrames have the same token and same pid, then
-    //  actual timeline =
-    //    expected_start to max(frame1.actual_end, frame2.actual_end)
-    optional int64 actual_end_ns = 9;
+    optional int64 display_frame_token = 3;
 
     // Pid of the app. Used in creating the timeline tracks (and slices) inside
     // the respective process track group.
-    optional int32 pid = 10;
-    optional string layer_name = 11;
+    optional int32 pid = 4;
+    optional string layer_name = 5;
   };
 
-  // Represents the SurfaceFlinger's work on a frame.
-  message DisplayFrame {
+  // Indicates the start of actual timeline slice for SurfaceFrames. Also
+  // includes the jank information.
+  message ActualSurfaceFrameStart {
+    // Cookie used to correlate between the start and end messages of the same
+    // frame. Since all values except the ts are same for start and end, cookie
+    // helps in preventing redundant data transmission.
+    // The same cookie is used only by start and end messages of a single frame
+    // and is otherwise unique.
+    optional int64 cookie = 1;
+
+    // Token received by the app for its work. Can be shared between multiple
+    // layers of the same app (example: pip mode).
+    optional int64 token = 2;
+    // The corresponding DisplayFrame token is required to link the App's work
+    // with SurfaceFlinger's work. Many SurfaceFrames can be mapped to a single
+    // DisplayFrame.
+    // this.display_frame_token = DisplayFrame.token
+    optional int64 display_frame_token = 3;
+
+    // Pid of the app. Used in creating the timeline tracks (and slices) inside
+    // the respective process track group.
+    optional int32 pid = 4;
+    optional string layer_name = 5;
+
+    optional PresentType present_type = 6;
+    optional bool on_time_finish = 7;
+    optional bool gpu_composition = 8;
+    optional JankType jank_type = 9;
+  };
+
+  // Indicates the start of expected timeline slice for DisplayFrames.
+  message ExpectedDisplayFrameStart {
+    // Cookie used to correlate between the start and end messages of the same
+    // frame. Since all values except the ts are same for start and end, cookie
+    // helps in preventing redundant data transmission.
+    // The same cookie is used only by start and end messages of a single frame
+    // and is otherwise unique.
+    optional int64 cookie = 1;
+
     // Token received by SurfaceFlinger for its work
     // this.token = SurfaceFrame.display_frame_token
-    optional int64 token = 1;
-    optional PresentType present_type = 2;
-    optional bool on_time_finish = 3;
-    optional bool gpu_composition = 4;
-    optional JankType jank_type = 5;
-
-    // Timestamps in nanoseconds using CLOCK_MONOTONIC.
-    // Expected timeline = expected_start to expected_end.
-    optional int64 expected_start_ns = 6;
-    optional int64 expected_end_ns = 7;
-
-    // Actual timeline = actual_start to actual_end.
-    optional int64 actual_start_ns = 8;
-    optional int64 actual_end_ns = 9;
+    optional int64 token = 2;
 
     // Pid of SurfaceFlinger. Used in creating the timeline tracks (and slices)
     // inside the SurfaceFlinger process group.
-    optional int32 pid = 10;
+    optional int32 pid = 3;
   };
 
+  // Indicates the start of actual timeline slice for DisplayFrames. Also
+  // includes the jank information.
+  message ActualDisplayFrameStart {
+    // Cookie used to correlate between the start and end messages of the same
+    // frame. Since all values except the ts are same for start and end, cookie
+    // helps in preventing redundant data transmission.
+    // The same cookie is used only by start and end messages of a single frame
+    // and is otherwise unique.
+    optional int64 cookie = 1;
+
+    // Token received by SurfaceFlinger for its work
+    // this.token = SurfaceFrame.display_frame_token
+    optional int64 token = 2;
+
+    // Pid of SurfaceFlinger. Used in creating the timeline tracks (and slices)
+    // inside the SurfaceFlinger process group.
+    optional int32 pid = 3;
+
+    optional PresentType present_type = 4;
+    optional bool on_time_finish = 5;
+    optional bool gpu_composition = 6;
+    optional JankType jank_type = 7;
+  };
+
+  // FrameEnd just sends the cookie to indicate that the corresponding
+  // <display/surface>frame slice's end.
+  message FrameEnd { optional int64 cookie = 1; };
+
   oneof event {
-    DisplayFrame display_frame = 1;
-    SurfaceFrame surface_frame = 2;
+    ExpectedDisplayFrameStart expected_display_frame_start = 1;
+    ActualDisplayFrameStart actual_display_frame_start = 2;
+
+    ExpectedSurfaceFrameStart expected_surface_frame_start = 3;
+    ActualSurfaceFrameStart actual_surface_frame_start = 4;
+
+    FrameEnd frame_end = 5;
   }
 }
 
