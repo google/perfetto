@@ -22,6 +22,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_writer.h"
 #include "perfetto/trace_processor/status.h"
+#include "src/trace_processor/importers/chrome_track_event.descriptor.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
@@ -1322,6 +1323,11 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
                          context_->storage->InternString("bytes")}} {
   auto status = context_->proto_to_args_table_->AddProtoFileDescriptor(
       kTrackEventDescriptor.data(), kTrackEventDescriptor.size());
+
+  PERFETTO_DCHECK(status.ok());
+
+  status = context_->proto_to_args_table_->AddProtoFileDescriptor(
+      kChromeTrackEventDescriptor.data(), kChromeTrackEventDescriptor.size());
 
   PERFETTO_DCHECK(status.ok());
 

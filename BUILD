@@ -825,6 +825,16 @@ filegroup(
 )
 
 perfetto_cc_proto_descriptor(
+    name = "src_trace_processor_importers_gen_cc_chrome_track_event_descriptor",
+    deps = [
+        ":protos_third_party_chromium_chrome_track_event_descriptor",
+    ],
+    outs = [
+        "src/trace_processor/importers/chrome_track_event.descriptor.h",
+    ],
+)
+
+perfetto_cc_proto_descriptor(
     name = "src_trace_processor_importers_gen_cc_config_descriptor",
     deps = [
         ":protos_perfetto_config_descriptor",
@@ -2967,6 +2977,31 @@ perfetto_cc_protozero_library(
     ],
 )
 
+# GN target: //protos/third_party/chromium:chrome_track_event_descriptor
+perfetto_proto_descriptor(
+    name = "protos_third_party_chromium_chrome_track_event_descriptor",
+    deps = [
+        ":protos_third_party_chromium_chrome_track_event_protos",
+    ],
+    outs = [
+        "protos_third_party_chromium_chrome_track_event_descriptor.bin",
+    ],
+)
+
+# GN target: //protos/third_party/chromium:chrome_track_event_descriptor
+perfetto_proto_library(
+    name = "protos_third_party_chromium_chrome_track_event_protos",
+    srcs = [
+        "protos/third_party/chromium/chrome_track_event.proto",
+    ],
+    visibility = [
+        PERFETTO_CONFIG.proto_library_visibility,
+    ],
+    deps = [
+        ":protos_perfetto_trace_track_event_protos",
+    ],
+)
+
 # GN target: //protos/third_party/pprof:zero
 perfetto_proto_library(
     name = "protos_third_party_pprof_protos",
@@ -3241,6 +3276,7 @@ perfetto_cc_library(
                ":protos_perfetto_trace_track_event_zero",
                ":protozero",
                ":src_base_base",
+               ":src_trace_processor_importers_gen_cc_chrome_track_event_descriptor",
                ":src_trace_processor_importers_gen_cc_config_descriptor",
                ":src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_metrics_descriptor",
@@ -3331,6 +3367,7 @@ perfetto_cc_binary(
                ":protozero",
                ":src_base_base",
                ":src_base_unix_socket",
+               ":src_trace_processor_importers_gen_cc_chrome_track_event_descriptor",
                ":src_trace_processor_importers_gen_cc_config_descriptor",
                ":src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_metrics_descriptor",
@@ -3508,6 +3545,7 @@ perfetto_cc_binary(
                ":protos_third_party_pprof_zero",
                ":protozero",
                ":src_base_base",
+               ":src_trace_processor_importers_gen_cc_chrome_track_event_descriptor",
                ":src_trace_processor_importers_gen_cc_config_descriptor",
                ":src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_metrics_descriptor",
