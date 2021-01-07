@@ -55,7 +55,8 @@ trace.add_chrome_thread_with_cpu_counter(
     counter_track=thread1_counter,
     pid=process_pid1,
     tid=thread_tid1,
-    thread_type=synth_common.CHROME_THREAD_MAIN)
+    thread_type=trace.prototypes.ThreadDescriptor.ChromeThreadType
+    .CHROME_THREAD_MAIN)
 
 trace.add_chrome_thread_with_cpu_counter(
     process_track2,
@@ -64,7 +65,8 @@ trace.add_chrome_thread_with_cpu_counter(
     counter_track=thread2_counter,
     pid=process_pid2,
     tid=thread_tid2,
-    thread_type=synth_common.CHROME_THREAD_MAIN)
+    thread_type=trace.prototypes.ThreadDescriptor.ChromeThreadType
+    .CHROME_THREAD_MAIN)
 
 trace.add_track_descriptor(rail_track1, parent=process_track1)
 trace.add_track_descriptor(rail_track2, parent=process_track2)
@@ -73,38 +75,38 @@ trace.add_rail_mode_slice(
     ts=0,
     dur=ms_to_ns(10),
     track=rail_track1,
-    mode=synth_common.RAIL_MODE_RESPONSE)
+    mode=trace.prototypes.ChromeRAILMode.RAIL_MODE_RESPONSE)
 trace.add_rail_mode_slice(
     ts=ms_to_ns(10),
     dur=ms_to_ns(20),
     track=rail_track1,
-    mode=synth_common.RAIL_MODE_LOAD)
+    mode=trace.prototypes.ChromeRAILMode.RAIL_MODE_LOAD)
 trace.add_rail_mode_slice(
     ts=ms_to_ns(30),
     dur=-1,
     track=rail_track1,
-    mode=synth_common.RAIL_MODE_IDLE)
+    mode=trace.prototypes.ChromeRAILMode.RAIL_MODE_IDLE)
 
 trace.add_rail_mode_slice(
     ts=0,
     dur=ms_to_ns(10),
     track=rail_track2,
-    mode=synth_common.RAIL_MODE_ANIMATION)
+    mode=trace.prototypes.ChromeRAILMode.RAIL_MODE_ANIMATION)
 trace.add_rail_mode_slice(
     ts=ms_to_ns(10),
     dur=ms_to_ns(25),
     track=rail_track2,
-    mode=synth_common.RAIL_MODE_IDLE)
+    mode=trace.prototypes.ChromeRAILMode.RAIL_MODE_IDLE)
 trace.add_rail_mode_slice(
     ts=ms_to_ns(35),
     dur=ms_to_ns(10),
     track=rail_track2,
-    mode=synth_common.RAIL_MODE_ANIMATION)
+    mode=trace.prototypes.ChromeRAILMode.RAIL_MODE_ANIMATION)
 trace.add_rail_mode_slice(
     ts=ms_to_ns(45),
     dur=ms_to_ns(10),
     track=rail_track2,
-    mode=synth_common.RAIL_MODE_IDLE)
+    mode=trace.prototypes.ChromeRAILMode.RAIL_MODE_IDLE)
 
 # Create process tree
 trace.add_packet()

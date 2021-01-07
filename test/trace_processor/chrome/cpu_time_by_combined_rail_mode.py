@@ -51,7 +51,8 @@ trace.add_chrome_thread_with_cpu_counter(
     counter_track=thread1_counter,
     pid=process_pid1,
     tid=thread_tid1,
-    thread_type=synth_common.CHROME_THREAD_MAIN)
+    thread_type=trace.prototypes.ThreadDescriptor.ChromeThreadType
+    .CHROME_THREAD_MAIN)
 
 trace.add_chrome_thread_with_cpu_counter(
     process_track2,
@@ -60,7 +61,8 @@ trace.add_chrome_thread_with_cpu_counter(
     counter_track=thread2_counter,
     pid=process_pid2,
     tid=thread_tid2,
-    thread_type=synth_common.CHROME_THREAD_MAIN)
+    thread_type=trace.prototypes.ThreadDescriptor.ChromeThreadType
+    .CHROME_THREAD_MAIN)
 
 trace.add_track_descriptor(rail_track1, parent=process_track1)
 trace.add_track_descriptor(rail_track2, parent=process_track2)
@@ -99,11 +101,20 @@ trace.add_track_event_slice(
     cpu_delta=1000)
 
 trace.add_rail_mode_slice(
-    ts=0, dur=10000, track=rail_track1, mode=synth_common.RAIL_MODE_RESPONSE)
+    ts=0,
+    dur=10000,
+    track=rail_track1,
+    mode=trace.prototypes.ChromeRAILMode.RAIL_MODE_RESPONSE)
 trace.add_rail_mode_slice(
-    ts=10000, dur=20000, track=rail_track1, mode=synth_common.RAIL_MODE_LOAD)
+    ts=10000,
+    dur=20000,
+    track=rail_track1,
+    mode=trace.prototypes.ChromeRAILMode.RAIL_MODE_LOAD)
 trace.add_rail_mode_slice(
-    ts=30000, dur=-1, track=rail_track1, mode=synth_common.RAIL_MODE_IDLE)
+    ts=30000,
+    dur=-1,
+    track=rail_track1,
+    mode=trace.prototypes.ChromeRAILMode.RAIL_MODE_IDLE)
 
 trace.add_track_event_slice(
     "task", 0, 10000, trusted_sequence_id=seq2, cpu_start=0, cpu_delta=10000)
@@ -133,15 +144,24 @@ trace.add_track_event_slice(
     cpu_delta=1000)
 
 trace.add_rail_mode_slice(
-    ts=0, dur=10000, track=rail_track2, mode=synth_common.RAIL_MODE_ANIMATION)
+    ts=0,
+    dur=10000,
+    track=rail_track2,
+    mode=trace.prototypes.ChromeRAILMode.RAIL_MODE_ANIMATION)
 trace.add_rail_mode_slice(
-    ts=10000, dur=25000, track=rail_track2, mode=synth_common.RAIL_MODE_IDLE)
+    ts=10000,
+    dur=25000,
+    track=rail_track2,
+    mode=trace.prototypes.ChromeRAILMode.RAIL_MODE_IDLE)
 trace.add_rail_mode_slice(
     ts=35000,
     dur=10000,
     track=rail_track2,
-    mode=synth_common.RAIL_MODE_ANIMATION)
+    mode=trace.prototypes.ChromeRAILMode.RAIL_MODE_ANIMATION)
 trace.add_rail_mode_slice(
-    ts=45000, dur=10000, track=rail_track2, mode=synth_common.RAIL_MODE_IDLE)
+    ts=45000,
+    dur=10000,
+    track=rail_track2,
+    mode=trace.prototypes.ChromeRAILMode.RAIL_MODE_IDLE)
 
 sys.stdout.buffer.write(trace.trace.SerializeToString())

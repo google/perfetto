@@ -52,31 +52,40 @@ trace.add_track_event_slice(
     "InputLatency::GestureScrollEnd", ts=s_to_ns(3) + frame_period * 4, dur=10)
 
 trace.add_rail_mode_slice(
-    ts=0, dur=s_to_ns(1), track=track1, mode=synth_common.RAIL_MODE_RESPONSE)
+    ts=0,
+    dur=s_to_ns(1),
+    track=track1,
+    mode=trace.prototypes.ChromeRAILMode.RAIL_MODE_RESPONSE)
 trace.add_rail_mode_slice(
     ts=s_to_ns(1),
     dur=s_to_ns(2),
     track=track1,
-    mode=synth_common.RAIL_MODE_LOAD)
+    mode=trace.prototypes.ChromeRAILMode.RAIL_MODE_LOAD)
 trace.add_rail_mode_slice(
-    ts=s_to_ns(3), dur=-1, track=track1, mode=synth_common.RAIL_MODE_IDLE)
+    ts=s_to_ns(3),
+    dur=-1,
+    track=track1,
+    mode=trace.prototypes.ChromeRAILMode.RAIL_MODE_IDLE)
 
 trace.add_rail_mode_slice(
-    ts=0, dur=s_to_ns(1), track=track2, mode=synth_common.RAIL_MODE_ANIMATION)
+    ts=0,
+    dur=s_to_ns(1),
+    track=track2,
+    mode=trace.prototypes.ChromeRAILMode.RAIL_MODE_ANIMATION)
 trace.add_rail_mode_slice(
     ts=s_to_ns(1),
     dur=s_to_ns(2.5),
     track=track2,
-    mode=synth_common.RAIL_MODE_IDLE)
+    mode=trace.prototypes.ChromeRAILMode.RAIL_MODE_IDLE)
 trace.add_rail_mode_slice(
     ts=s_to_ns(2.5),
     dur=s_to_ns(1),
     track=track2,
-    mode=synth_common.RAIL_MODE_ANIMATION)
+    mode=trace.prototypes.ChromeRAILMode.RAIL_MODE_ANIMATION)
 trace.add_rail_mode_slice(
     ts=s_to_ns(3.5),
     dur=s_to_ns(1),
     track=track2,
-    mode=synth_common.RAIL_MODE_IDLE)
+    mode=trace.prototypes.ChromeRAILMode.RAIL_MODE_IDLE)
 
 sys.stdout.buffer.write(trace.trace.SerializeToString())
