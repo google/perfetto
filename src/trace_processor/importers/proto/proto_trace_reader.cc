@@ -67,8 +67,9 @@ util::Status ProtoTraceReader::ParseExtensionDescriptor(ConstBytes descriptor) {
                                                        descriptor.size);
 
   auto extension = decoder.extension_set();
-  return context_->proto_to_args_table_->AddProtoFileDescriptor(extension.data,
-                                                                extension.size);
+  return context_->proto_to_args_table_->AddProtoFileDescriptor(
+      extension.data, extension.size,
+      /*merge_existing_messages=*/true);
 }
 
 util::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {

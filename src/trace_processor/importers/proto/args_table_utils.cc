@@ -36,9 +36,11 @@ ProtoToArgsTable::ProtoToArgsTable(TraceProcessorContext* context)
 
 util::Status ProtoToArgsTable::AddProtoFileDescriptor(
     const uint8_t* proto_descriptor_array,
-    size_t proto_descriptor_array_size) {
+    size_t proto_descriptor_array_size,
+    bool merge_existing_messages) {
   return pool_.AddFromFileDescriptorSet(proto_descriptor_array,
-                                        proto_descriptor_array_size);
+                                        proto_descriptor_array_size,
+                                        merge_existing_messages);
 }
 
 util::Status ProtoToArgsTable::InternProtoFieldsIntoArgsTable(
@@ -59,17 +61,16 @@ util::Status ProtoToArgsTable::InternProtoFieldsIntoArgsTable(
   protozero::ProtoDecoder decoder(cb);
   for (protozero::Field f = decoder.ReadField(); f.valid();
        f = decoder.ReadField()) {
-    auto field_idx = descriptor.FindFieldIdxByTag(f.id());
-    if (!field_idx) {
+    auto field = descriptor.FindFieldByTag(f.id());
+    if (!field) {
       // Unknown field, possibly an unknown extension.
       continue;
     }
-    auto field = descriptor.fields()[*field_idx];
 
     // If allowlist is not provided, reflect all fields. Otherwise, check if the
     // current field either an extension or is in allowlist.
     bool is_allowed =
-        field.is_extension() || fields == nullptr ||
+        field->is_extension() || !fields ||
         std::find(fields->begin(), fields->end(), f.id()) != fields->end();
 
     if (!is_allowed) {
@@ -79,8 +80,8 @@ util::Status ProtoToArgsTable::InternProtoFieldsIntoArgsTable(
     }
     ParsingOverrideState state{context_, sequence_state};
     RETURN_IF_ERROR(InternFieldIntoArgsTable(
-        field, repeated_field_index[f.id()], state, inserter, f));
-    if (field.is_repeated()) {
+        *field, repeated_field_index[f.id()], state, inserter, f));
+    if (field->is_repeated()) {
       repeated_field_index[f.id()]++;
     }
   }
@@ -150,29 +151,25 @@ util::Status ProtoToArgsTable::InternProtoIntoArgsTableInternal(
   }
   auto proto_descriptor = pool_.descriptors()[*opt_proto_descriptor_idx];
 
-  // For repeated fields, contains mapping from field descriptor index to
-  // current count of how many fields have been serialized with this field.
+  // For repeated fields, contains mapping from numeric field ID to
+  // current count of how many values have been serialized with this field.
   std::unordered_map<size_t, int> repeated_field_index;
 
   // Parse this message field by field until there are no bytes left.
   protozero::ProtoDecoder decoder(cb.data, cb.size);
   for (auto field = decoder.ReadField(); field.valid();
        field = decoder.ReadField()) {
-    auto opt_field_descriptor_idx =
-        proto_descriptor.FindFieldIdxByTag(field.id());
-    if (!opt_field_descriptor_idx) {
+    auto field_descriptor = proto_descriptor.FindFieldByTag(field.id());
+    if (!field_descriptor) {
       // Since the binary descriptor is compiled in it is possible we're seeing
       // a new message that our descriptors don't have. Just skip the field.
       continue;
     }
-    const auto& field_descriptor =
-        proto_descriptor.fields()[*opt_field_descriptor_idx];
-
-    InternFieldIntoArgsTable(field_descriptor,
-                             repeated_field_index[*opt_field_descriptor_idx],
-                             state, inserter, field);
-    if (field_descriptor.is_repeated()) {
-      repeated_field_index[*opt_field_descriptor_idx]++;
+    InternFieldIntoArgsTable(*field_descriptor,
+                             repeated_field_index[field.id()], state, inserter,
+                             field);
+    if (field_descriptor->is_repeated()) {
+      repeated_field_index[field.id()]++;
     }
   }
   PERFETTO_DCHECK(decoder.bytes_left() == 0);

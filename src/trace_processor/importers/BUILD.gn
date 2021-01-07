@@ -95,3 +95,24 @@ action("gen_cc_config_descriptor") {
   outputs = [ generated_header ]
   public_configs = [ ":gen_config" ]
 }
+
+action("gen_cc_chrome_track_event_descriptor") {
+  descriptor_target =
+      "../../../protos/third_party/chromium:chrome_track_event_descriptor"
+  generated_header = "${target_gen_dir}/chrome_track_event.descriptor.h"
+
+  descriptor_file_path = get_label_info(descriptor_target, "target_gen_dir") +
+                         "/chrome_track_event.descriptor"
+
+  script = "../../../tools/gen_cc_proto_descriptor.py"
+  deps = [ descriptor_target ]
+  args = [
+    "--gen_dir",
+    rebase_path(root_gen_dir, root_build_dir),
+    "--cpp_out",
+    rebase_path(generated_header, root_build_dir),
+    rebase_path(descriptor_file_path, root_build_dir),
+  ]
+  inputs = [ descriptor_file_path ]
+  outputs = [ generated_header ]
+}
