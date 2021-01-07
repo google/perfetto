@@ -166,7 +166,7 @@ std::shared_ptr<Client> Client::CreateAndHandshake(
     return nullptr;
   }
 
-  PERFETTO_DCHECK(sock.IsBlocking());
+  sock.DcheckIsBlocking(true);
 
   // We might be running in a process that is not dumpable (such as app
   // processes on user builds), in which case the /proc/self/mem will be chown'd
@@ -469,7 +469,7 @@ bool Client::RecordHeapName(uint32_t heap_id, const char* heap_name) {
 }
 
 bool Client::IsConnected() {
-  PERFETTO_DCHECK(!sock_.IsBlocking());
+  sock_.DcheckIsBlocking(false);
   char buf[1];
   ssize_t recv_bytes = sock_.Receive(buf, sizeof(buf), nullptr, 0);
   if (recv_bytes == 0)
