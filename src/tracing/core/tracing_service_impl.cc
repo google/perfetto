@@ -34,7 +34,11 @@
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 #include <sys/system_properties.h>
-#endif
+#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
+#include "src/android_internal/lazy_library_loader.h"    // nogncheck
+#include "src/android_internal/tracing_service_proxy.h"  // nogncheck
+#endif // PERFETTO_ANDROID_BUILD
+#endif // PERFETTO_OS_ANDROID
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
@@ -116,6 +120,7 @@ constexpr int kMaxConcurrentTracingSessionsForStatsdUid = 10;
 constexpr int64_t kMinSecondsBetweenTracesGuardrail = 5 * 60;
 
 constexpr uint32_t kMillisPerHour = 3600000;
+constexpr uint32_t kMillisPerDay = kMillisPerHour * 24;
 constexpr uint32_t kMaxTracingDurationMillis = 7 * 24 * kMillisPerHour;
 
 // These apply only if enable_extra_guardrails is true.
@@ -2133,18 +2138,27 @@ void TracingServiceImpl::FreeBuffers(TracingSessionID tsid) {
     buffers_.erase(buffer_id);
   }
   bool notify_traceur = tracing_session->config.notify_traceur();
+  bool is_long_trace = (tracing_session->config.write_into_file() &&
+          tracing_session->config.file_write_period_ms() < kMillisPerDay);
+  bool seized_for_bugreport = tracing_session->seized_for_bugreport;
   tracing_sessions_.erase(tsid);
+  tracing_session = nullptr;
   UpdateMemoryGuardrail();
 
   PERFETTO_LOG("Tracing session %" PRIu64 " ended, total sessions:%zu", tsid,
                tracing_sessions_.size());
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-  static const char kTraceurProp[] = "sys.trace.trace_end_signal";
-  if (notify_traceur && __system_property_set(kTraceurProp, "1"))
-    PERFETTO_ELOG("Failed to setprop %s=1", kTraceurProp);
+#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD) && \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  if (notify_traceur && (seized_for_bugreport || is_long_trace)) {
+    PERFETTO_LAZY_LOAD(android_internal::NotifyTraceSessionEnded, notify_fn);
+    if (!notify_fn || !notify_fn(seized_for_bugreport))
+      PERFETTO_ELOG("Failed to notify Traceur long tracing has ended");
+  }
 #else
   base::ignore_result(notify_traceur);
+  base::ignore_result(is_long_trace);
+  base::ignore_result(seized_for_bugreport);
 #endif
 }
 
