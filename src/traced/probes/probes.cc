@@ -15,12 +15,12 @@
  */
 
 #include <fcntl.h>
-#include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/getopt.h"
 #include "perfetto/ext/base/unix_task_runner.h"
 #include "perfetto/ext/base/version.h"
 #include "perfetto/ext/traced/traced.h"
@@ -42,9 +42,8 @@ int PERFETTO_EXPORT_ENTRYPOINT ProbesMain(int argc, char** argv) {
       {"version", no_argument, nullptr, OPT_VERSION},
       {nullptr, 0, nullptr, 0}};
 
-  int option_index;
   for (;;) {
-    int option = getopt_long(argc, argv, "", long_options, &option_index);
+    int option = getopt_long(argc, argv, "", long_options, nullptr);
     if (option == -1)
       break;
     switch (option) {

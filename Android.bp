@@ -6405,6 +6405,7 @@ filegroup {
     "src/base/ctrl_c_handler.cc",
     "src/base/event_fd.cc",
     "src/base/file_utils.cc",
+    "src/base/getopt_compat.cc",
     "src/base/logging.cc",
     "src/base/metatrace.cc",
     "src/base/paged_memory.cc",
@@ -6446,6 +6447,7 @@ filegroup {
   srcs: [
     "src/base/circular_queue_unittest.cc",
     "src/base/flat_set_unittest.cc",
+    "src/base/getopt_compat_unittest.cc",
     "src/base/metatrace_unittest.cc",
     "src/base/no_destructor_unittest.cc",
     "src/base/optional_unittest.cc",
