@@ -63,15 +63,19 @@ def main():
     filt = lambda x: os.path.exists(os.path.join(x, 'ucrt', 'x64', 'ucrt.lib'))
     out[1] = find_max_subdir(lib_base, filt)
 
-  msvc_base = 'C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\BuildTools\\VC\\Tools\\MSVC'
-  if os.path.exists(msvc_base):
-    filt = lambda x: os.path.exists(os.path.join(x, 'lib', 'x64', 'libcmt.lib'))
-    max_msvc = find_max_subdir(msvc_base, filt)
-    if max_msvc is not None:
-      out[2] = os.path.join(msvc_base, max_msvc)
+  for version in ['BuildTools', 'Community']:
+    msvc_base = ('C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\'
+                 '{}\\VC\\Tools\\MSVC').format(version)
+    if os.path.exists(msvc_base):
+      filt = lambda x: os.path.exists(
+          os.path.join(x, 'lib', 'x64', 'libcmt.lib'))
+      max_msvc = find_max_subdir(msvc_base, filt)
+      if max_msvc is not None:
+        out[2] = os.path.join(msvc_base, max_msvc)
+      break
 
   # Don't error in case of failure, GN scripts are supposed to deal with
-  # failures and allow the user to ovveride the dirs.
+  # failures and allow the user to override the dirs.
 
   print('\n'.join(out))
   return 0
