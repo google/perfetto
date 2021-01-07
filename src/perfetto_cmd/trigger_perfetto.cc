@@ -14,12 +14,11 @@
  * limitations under the License.
  */
 
-#include <getopt.h>
-
 #include <string>
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/getopt.h"
 #include "perfetto/ext/base/unix_task_runner.h"
 #include "perfetto/ext/traced/traced.h"
 #include "src/android_stats/statsd_logging_helper.h"
@@ -39,17 +38,14 @@ Usage: %s TRIGGER...
 
 }  // namespace
 
-int __attribute__((visibility("default")))
-TriggerPerfettoMain(int argc, char** argv) {
+int PERFETTO_EXPORT_ENTRYPOINT TriggerPerfettoMain(int argc, char** argv) {
   static const option long_options[] = {{"help", no_argument, nullptr, 'h'},
                                         {nullptr, 0, nullptr, 0}};
-
-  int option_index = 0;
 
   std::vector<std::string> triggers_to_activate;
 
   for (;;) {
-    int option = getopt_long(argc, argv, "h", long_options, &option_index);
+    int option = getopt_long(argc, argv, "h", long_options, nullptr);
 
     if (option == 'h')
       return PrintUsage(argv[0]);

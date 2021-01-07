@@ -24,6 +24,7 @@ import {
 } from './scroll_helper';
 import {executeSearch} from './search_handler';
 
+const INSTANT_FOCUS_DURATION_S = 1 / 100;
 type Direction = 'Forward'|'Backward';
 
 // Handles all key events than are not handled by the
@@ -174,6 +175,10 @@ function findTimeRangeOfSelection() {
       if (slice.ts && slice.dur) {
         startTs = slice.ts + globals.state.traceTime.startSec;
         endTs = startTs + slice.dur;
+      } else if (slice.ts) {
+        startTs = slice.ts - INSTANT_FOCUS_DURATION_S / 2 +
+            globals.state.traceTime.startSec;
+        endTs = startTs + INSTANT_FOCUS_DURATION_S;
       }
     } else if (selection.kind === 'THREAD_STATE') {
       const threadState = globals.threadStateDetails;

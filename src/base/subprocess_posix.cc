@@ -16,7 +16,11 @@
 
 #include "perfetto/ext/base/subprocess.h"
 
-#if PERFETTO_HAS_SUBPROCESS()
+#include "perfetto/base/build_config.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
 
 #include <fcntl.h>
 #include <poll.h>
@@ -31,15 +35,14 @@
 #include <thread>
 #include <tuple>
 
-#include "perfetto/base/build_config.h"
-#include "perfetto/base/logging.h"
-#include "perfetto/base/time.h"
-#include "perfetto/ext/base/utils.h"
-
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 #include <sys/prctl.h>
 #endif
+
+#include "perfetto/base/logging.h"
+#include "perfetto/base/time.h"
+#include "perfetto/ext/base/utils.h"
 
 // In MacOS this is not defined in any header.
 extern "C" char** environ;
@@ -154,8 +157,8 @@ void __attribute__((noreturn)) ChildProcess(ChildProcessArgs* args) {
   set_fd_close_on_exec(STDERR_FILENO, false);
 
   // If the caller specified a std::function entrypoint, run that first.
-  if (args->create_args->entrypoint_for_testing)
-    args->create_args->entrypoint_for_testing();
+  if (args->create_args->posix_entrypoint_for_testing)
+    args->create_args->posix_entrypoint_for_testing();
 
   // If the caller specified only an entrypoint, without any args, exit now.
   // Otherwise proceed with the exec() below.
@@ -180,36 +183,8 @@ void __attribute__((noreturn)) ChildProcess(ChildProcessArgs* args) {
 
 }  // namespace
 
-Subprocess::Args::Args(Args&&) noexcept = default;
-Subprocess::Args& Subprocess::Args::operator=(Args&&) = default;
-
-Subprocess::Subprocess(std::initializer_list<std::string> a) : args(a) {
-  s_.rusage.reset(new ResourceUsage());
-}
-
-Subprocess::Subprocess(Subprocess&& other) noexcept {
-  static_assert(sizeof(Subprocess) == sizeof(std::tuple<MovableState, Args>),
-                "base::Subprocess' move ctor needs updating");
-  s_ = std::move(other.s_);
-  args = std::move(other.args);
-
-  // Reset the state of the moved-from object.
-  other.s_.status = kNotStarted;  // So the dtor doesn't try to kill().
-  other.~Subprocess();
-  new (&other) Subprocess();
-}
-
-Subprocess& Subprocess::operator=(Subprocess&& other) {
-  this->~Subprocess();
-  new (this) Subprocess(std::move(other));
-  return *this;
-}
-
-Subprocess::~Subprocess() {
-  if (s_.status == kRunning)
-    KillAndWaitForTermination();
-  PERFETTO_CHECK(!s_.waitpid_thread.joinable());
-}
+// static
+const int Subprocess::kTimeoutSignal = SIGKILL;
 
 void Subprocess::Start() {
   ChildProcessArgs proc_args;
@@ -222,8 +197,10 @@ void Subprocess::Start() {
       proc_args.argv.push_back(const_cast<char*>(arg.c_str()));
     proc_args.argv.push_back(nullptr);
 
-    if (!args.argv0_override.empty())
-      proc_args.argv[0] = const_cast<char*>(args.argv0_override.c_str());
+    if (!args.posix_argv0_override_for_testing.empty()) {
+      proc_args.argv[0] =
+          const_cast<char*>(args.posix_argv0_override_for_testing.c_str());
+    }
   }
 
   // Setup env.
@@ -234,30 +211,30 @@ void Subprocess::Start() {
   }
 
   // Setup the pipes for stdin/err redirection.
-  s_.stdin_pipe = base::Pipe::Create(base::Pipe::kWrNonBlock);
-  proc_args.stdin_pipe_rd = *s_.stdin_pipe.rd;
-  s_.stdouterr_pipe = base::Pipe::Create(base::Pipe::kRdNonBlock);
-  proc_args.stdouterr_pipe_wr = *s_.stdouterr_pipe.wr;
+  s_->stdin_pipe = base::Pipe::Create(base::Pipe::kWrNonBlock);
+  proc_args.stdin_pipe_rd = *s_->stdin_pipe.rd;
+  s_->stdouterr_pipe = base::Pipe::Create(base::Pipe::kRdNonBlock);
+  proc_args.stdouterr_pipe_wr = *s_->stdouterr_pipe.wr;
 
   // Spawn the child process that will exec().
-  s_.pid = fork();
-  PERFETTO_CHECK(s_.pid >= 0);
-  if (s_.pid == 0) {
+  s_->pid = fork();
+  PERFETTO_CHECK(s_->pid >= 0);
+  if (s_->pid == 0) {
     // Close the parent-ends of the pipes.
-    s_.stdin_pipe.wr.reset();
-    s_.stdouterr_pipe.rd.reset();
+    s_->stdin_pipe.wr.reset();
+    s_->stdouterr_pipe.rd.reset();
     ChildProcess(&proc_args);
     // ChildProcess() doesn't return, not even in case of failures.
     PERFETTO_FATAL("not reached");
   }
 
-  s_.status = kRunning;
+  s_->status = kRunning;
 
   // Close the child-end of the pipes.
-  // Deliberately NOT closing the s_.stdin_pipe.rd. This is to avoid crashing
+  // Deliberately NOT closing the s_->stdin_pipe.rd. This is to avoid crashing
   // with a SIGPIPE if the process exits without consuming its stdin, while
   // the parent tries to write() on the other end of the stdin pipe.
-  s_.stdouterr_pipe.wr.reset();
+  s_->stdouterr_pipe.wr.reset();
   proc_args.create_args->out_fd.reset();
 
   // Spawn a thread that is blocked on waitpid() and writes the termination
@@ -265,13 +242,13 @@ void Subprocess::Start() {
   // timeout option and can't be passed to poll(). The alternative would be
   // using a SIGCHLD handler, but anecdotally signal handlers introduce more
   // problems than what they solve.
-  s_.exit_status_pipe = base::Pipe::Create(base::Pipe::kRdNonBlock);
+  s_->exit_status_pipe = base::Pipe::Create(base::Pipe::kRdNonBlock);
 
   // Both ends of the pipe are closed after the thread.join().
-  int pid = s_.pid;
-  int exit_status_pipe_wr = s_.exit_status_pipe.wr.release();
-  auto* rusage = s_.rusage.get();
-  s_.waitpid_thread = std::thread([pid, exit_status_pipe_wr, rusage] {
+  int pid = s_->pid;
+  int exit_status_pipe_wr = s_->exit_status_pipe.wr.release();
+  auto* rusage = s_->rusage.get();
+  s_->waitpid_thread = std::thread([pid, exit_status_pipe_wr, rusage] {
     int pid_stat = -1;
     struct rusage usg {};
     int wait_res = PERFETTO_EINTR(wait4(pid, &pid_stat, 0, &usg));
@@ -295,11 +272,11 @@ void Subprocess::Start() {
 }
 
 Subprocess::Status Subprocess::Poll() {
-  if (s_.status != kRunning)
-    return s_.status;  // Nothing to poll.
+  if (s_->status != kRunning)
+    return s_->status;  // Nothing to poll.
   while (PollInternal(0 /* don't block*/)) {
   }
-  return s_.status;
+  return s_->status;
 }
 
 // |timeout_ms| semantic:
@@ -312,18 +289,18 @@ Subprocess::Status Subprocess::Poll() {
 bool Subprocess::PollInternal(int poll_timeout_ms) {
   struct pollfd fds[3]{};
   size_t num_fds = 0;
-  if (s_.exit_status_pipe.rd) {
-    fds[num_fds].fd = *s_.exit_status_pipe.rd;
+  if (s_->exit_status_pipe.rd) {
+    fds[num_fds].fd = *s_->exit_status_pipe.rd;
     fds[num_fds].events = POLLIN;
     num_fds++;
   }
-  if (s_.stdouterr_pipe.rd) {
-    fds[num_fds].fd = *s_.stdouterr_pipe.rd;
+  if (s_->stdouterr_pipe.rd) {
+    fds[num_fds].fd = *s_->stdouterr_pipe.rd;
     fds[num_fds].events = POLLIN;
     num_fds++;
   }
-  if (s_.stdin_pipe.wr) {
-    fds[num_fds].fd = *s_.stdin_pipe.wr;
+  if (s_->stdin_pipe.wr) {
+    fds[num_fds].fd = *s_->stdin_pipe.wr;
     fds[num_fds].events = POLLOUT;
     num_fds++;
   }
@@ -343,7 +320,7 @@ bool Subprocess::PollInternal(int poll_timeout_ms) {
 }
 
 bool Subprocess::Wait(int timeout_ms) {
-  PERFETTO_CHECK(s_.status != kNotStarted);
+  PERFETTO_CHECK(s_->status != kNotStarted);
 
   // Break out of the loop only after both conditions are satisfied:
   // - All stdout/stderr data has been read (if kBuffer).
@@ -357,7 +334,7 @@ bool Subprocess::Wait(int timeout_ms) {
   // state where the write(stdin_pipe_.wr) will never unblock.
 
   const int64_t t_start = base::GetWallTimeMs().count();
-  while (s_.exit_status_pipe.rd || s_.stdouterr_pipe.rd) {
+  while (s_->exit_status_pipe.rd || s_->stdouterr_pipe.rd) {
     int poll_timeout_ms = -1;  // Block until a FD is ready.
     if (timeout_ms > 0) {
       const int64_t now = GetWallTimeMs().count();
@@ -370,43 +347,29 @@ bool Subprocess::Wait(int timeout_ms) {
   return true;
 }
 
-bool Subprocess::Call(int timeout_ms) {
-  PERFETTO_CHECK(s_.status == kNotStarted);
-  Start();
-
-  if (!Wait(timeout_ms)) {
-    KillAndWaitForTermination();
-    // TryReadExitStatus must have joined the thread.
-    PERFETTO_DCHECK(!s_.waitpid_thread.joinable());
-  }
-  PERFETTO_DCHECK(s_.status != kRunning);
-  return s_.status == kExited && s_.returncode == 0;
-}
-
 void Subprocess::TryReadExitStatus() {
-  if (!s_.exit_status_pipe.rd)
+  if (!s_->exit_status_pipe.rd)
     return;
 
   int pid_stat = -1;
   int64_t rsize = PERFETTO_EINTR(
-      read(*s_.exit_status_pipe.rd, &pid_stat, sizeof(pid_stat)));
+      read(*s_->exit_status_pipe.rd, &pid_stat, sizeof(pid_stat)));
   if (rsize < 0 && errno == EAGAIN)
     return;
 
   if (rsize > 0) {
     PERFETTO_CHECK(rsize == sizeof(pid_stat));
   } else if (rsize < 0) {
-    PERFETTO_PLOG("Subprocess read(s_.exit_status_pipe) failed");
+    PERFETTO_PLOG("Subprocess read(s_->exit_status_pipe) failed");
   }
-  s_.waitpid_thread.join();
-  s_.exit_status_pipe.rd.reset();
+  s_->waitpid_thread.join();
+  s_->exit_status_pipe.rd.reset();
 
+  s_->status = kTerminated;
   if (WIFEXITED(pid_stat)) {
-    s_.returncode = WEXITSTATUS(pid_stat);
-    s_.status = kExited;
+    s_->returncode = WEXITSTATUS(pid_stat);
   } else if (WIFSIGNALED(pid_stat)) {
-    s_.returncode = 128 + WTERMSIG(pid_stat);  // Follow bash convention.
-    s_.status = kKilledBySignal;
+    s_->returncode = 128 + WTERMSIG(pid_stat);  // Follow bash convention.
   } else {
     PERFETTO_FATAL("waitpid() returned an unexpected value (0x%x)", pid_stat);
   }
@@ -414,65 +377,58 @@ void Subprocess::TryReadExitStatus() {
 
 // If the stidn pipe is still open, push input data and close it at the end.
 void Subprocess::TryPushStdin() {
-  if (!s_.stdin_pipe.wr)
+  if (!s_->stdin_pipe.wr)
     return;
 
-  PERFETTO_DCHECK(args.input.empty() || s_.input_written < args.input.size());
+  PERFETTO_DCHECK(args.input.empty() || s_->input_written < args.input.size());
   if (args.input.size()) {
     int64_t wsize =
-        PERFETTO_EINTR(write(*s_.stdin_pipe.wr, &args.input[s_.input_written],
-                             args.input.size() - s_.input_written));
+        PERFETTO_EINTR(write(*s_->stdin_pipe.wr, &args.input[s_->input_written],
+                             args.input.size() - s_->input_written));
     if (wsize < 0 && errno == EAGAIN)
       return;
 
     if (wsize >= 0) {
       // Whether write() can return 0 is one of the greatest mysteries of UNIX.
       // Just ignore it.
-      s_.input_written += static_cast<size_t>(wsize);
+      s_->input_written += static_cast<size_t>(wsize);
     } else {
       PERFETTO_PLOG("Subprocess write(stdin) failed");
-      s_.stdin_pipe.wr.reset();
+      s_->stdin_pipe.wr.reset();
     }
   }
-  PERFETTO_DCHECK(s_.input_written <= args.input.size());
-  if (s_.input_written == args.input.size())
-    s_.stdin_pipe.wr.reset();  // Close stdin.
+  PERFETTO_DCHECK(s_->input_written <= args.input.size());
+  if (s_->input_written == args.input.size())
+    s_->stdin_pipe.wr.reset();  // Close stdin.
 }
 
 void Subprocess::TryReadStdoutAndErr() {
-  if (!s_.stdouterr_pipe.rd)
+  if (!s_->stdouterr_pipe.rd)
     return;
   char buf[4096];
-  int64_t rsize = PERFETTO_EINTR(read(*s_.stdouterr_pipe.rd, buf, sizeof(buf)));
+  int64_t rsize =
+      PERFETTO_EINTR(read(*s_->stdouterr_pipe.rd, buf, sizeof(buf)));
   if (rsize < 0 && errno == EAGAIN)
     return;
 
   if (rsize > 0) {
-    s_.output.append(buf, static_cast<size_t>(rsize));
+    s_->output.append(buf, static_cast<size_t>(rsize));
   } else if (rsize == 0 /* EOF */) {
-    s_.stdouterr_pipe.rd.reset();
+    s_->stdouterr_pipe.rd.reset();
   } else {
     PERFETTO_PLOG("Subprocess read(stdout/err) failed");
-    s_.stdouterr_pipe.rd.reset();
+    s_->stdouterr_pipe.rd.reset();
   }
 }
 
 void Subprocess::KillAndWaitForTermination(int sig_num) {
-  kill(s_.pid, sig_num ? sig_num : SIGKILL);
+  kill(s_->pid, sig_num ? sig_num : SIGKILL);
   Wait();
-}
-
-std::string Subprocess::Args::GetCmdString() const {
-  std::string str;
-  for (size_t i = 0; i < exec_cmd.size(); i++) {
-    str += i > 0 ? " \"" : "";
-    str += exec_cmd[i];
-    str += i > 0 ? "\"" : "";
-  }
-  return str;
+  // TryReadExitStatus must have joined the thread.
+  PERFETTO_DCHECK(!s_->waitpid_thread.joinable());
 }
 
 }  // namespace base
 }  // namespace perfetto
 
-#endif  // PERFETTO_HAS_SUBPROCESS()
+#endif  // PERFETTO_OS_LINUX || PERFETTO_OS_ANDROID || PERFETTO_OS_APPLE

@@ -49,10 +49,14 @@ action_foreach("configs") {
   # pure host build and "gcc_like_host" for android builds
   protoc_out_dir = get_label_info(protoc_target, "root_out_dir")
   protoc_rel_dir = rebase_path(protoc_out_dir, root_build_dir)
+  protoc_ext = ""
+  if (host_os == "win") {
+    protoc_ext = ".exe"
+  }
 
   args = [
     "encode",
-    "--protoc=$protoc_rel_dir/protoc",
+    "--protoc=$protoc_rel_dir/protoc${protoc_ext}",
     "--input={{source}}",
     "--output={{source_file_part}}.protobuf",
   ]

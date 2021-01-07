@@ -131,9 +131,14 @@ if (build_with_chromium) {
 }
 
 declare_args() {
-  # Platform-wide tracing executables (traced, traced_probes, perfetto_cmd).
+  # Enables build of platform-wide tracing services (traced, traced_probes)
+  # and executables (perfetto_cmd, trigger_perfetto).
+  # When disabled, only the client library and other auxiliary tools can be
+  # built (for Chromium and other GN embedders).
+  # Note that traced_probes is further conditioned by the GN variable
+  # enable_perfetto_traced_probes, in the declare_args() section below.
   enable_perfetto_platform_services =
-      (perfetto_build_standalone && !is_win) || perfetto_build_with_android
+      perfetto_build_standalone || perfetto_build_with_android
 
   # Allow the embedder to use the IPC layer. In turn this allows to use the
   # system backend in the client library.
@@ -198,7 +203,11 @@ declare_args() {
   # Only for local development. When true the binaries (perfetto, traced, ...)
   # are monolithic and don't use a common shared library. This is mainly to
   # avoid LD_LIBRARY_PATH dances when testing locally.
-  monolithic_binaries = false
+  # On Windows we default to monolithic executables, because pairing
+  # dllexport/import adds extra complexity for little benefit. Te only reason
+  # for monolithic_binaries=false is saving binary size, which matters mainly on
+  # Android. See also comments on PERFETTO_EXPORTED_ENTRYPOINT in compiler.h.
+  monolithic_binaries = is_win
 
   # Whether DLOG should be enabled on debug builds (""), all builds ("on"), or
   # none ("off"). We disable it by default for embedders to avoid spamming their
@@ -213,6 +222,15 @@ declare_args() {
 }
 
 declare_args() {
+  # The traced_probes daemon is very Linux-specific, as it depends on ftrace and
+  # various /proc interfaces. There is no point making its code platform-neutral
+  # as it won't do anything useful on Windows.
+  # The only reason why we still build it on Mac OS is to be able to run the
+  # unittests there and making dev on mac less cumbersome. The traced_probes
+  # code happens to build cleanly and for now the mainteinance cost on Mac is
+  # extremely low.
+  enable_perfetto_traced_probes = enable_perfetto_platform_services && !is_win
+
   # Whether info-level logging is enabled.
   perfetto_verbose_logs_enabled =
       !build_with_chromium || perfetto_force_dlog == "on"
@@ -307,3 +325,8 @@ assert(enable_perfetto_watchdog || !perfetto_build_with_android)
 
 assert(perfetto_force_dlog == "" || perfetto_force_dlog == "on" ||
        perfetto_force_dlog == "off")
+
+# If enable_perfetto_traced_probes is set, enable_perfetto_platform_services
+# must be set as well. Doesn't make sense to build traced_probes without the
+# rest. traced_probes integration tests depend on traced.
+assert(!enable_perfetto_traced_probes || enable_perfetto_platform_services)

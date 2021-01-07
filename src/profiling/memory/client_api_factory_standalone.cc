@@ -24,6 +24,8 @@
 #include "perfetto/ext/tracing/ipc/default_socket.h"
 #include "perfetto/profiling/memory/heap_profile.h"
 #include "src/profiling/common/proc_utils.h"
+#include "src/profiling/memory/client.h"
+#include "src/profiling/memory/heap_profile_internal.h"
 #include "src/profiling/memory/heapprofd_producer.h"
 
 #include <string>

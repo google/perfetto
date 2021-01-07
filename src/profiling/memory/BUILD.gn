@@ -78,6 +78,7 @@ executable("heapprofd_standalone_client_example") {
 
 source_set("client_api_standalone") {
   deps = [
+    ":client",
     ":client_api",
     ":daemon",
     "../../../gn:default_deps",
@@ -85,7 +86,7 @@ source_set("client_api_standalone") {
     "../../base",
     "../common:proc_utils",
   ]
-  sources = [ "client_api_standalone.cc" ]
+  sources = [ "client_api_factory_standalone.cc" ]
 }
 
 # This can be used to instrument custom allocators to report their allocations
@@ -128,7 +129,7 @@ shared_library("heapprofd_client_api") {
   }
   deps = [ ":client_api" ]
   if (perfetto_build_with_android) {
-    sources = [ "client_api_android.cc" ]
+    sources = [ "client_api_factory_android.cc" ]
   }
 }
 
@@ -265,6 +266,8 @@ source_set("daemon") {
     "heapprofd_producer.h",
     "java_hprof_producer.cc",
     "java_hprof_producer.h",
+    "log_histogram.cc",
+    "log_histogram.h",
     "system_property.cc",
     "system_property.h",
     "unwinding.cc",
@@ -297,6 +300,7 @@ perfetto_unittest_source_set("unittests") {
   deps = [
     ":client",
     ":daemon",
+    ":ring_buffer",
     ":wire_protocol",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
@@ -317,6 +321,13 @@ perfetto_unittest_source_set("unittests") {
     "unwinding_unittest.cc",
     "wire_protocol_unittest.cc",
   ]
+
+  # Do not build with Android to avoid applying PERFETTO_ANDROID_ASYNC_SAFE_LOG
+  # to the whole perfetto_unittests target.
+  if (!perfetto_build_with_android) {
+    sources += [ "client_api_unittest.cc" ]
+    deps += [ ":client_api" ]
+  }
 }
 
 source_set("end_to_end_tests") {

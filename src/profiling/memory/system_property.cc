@@ -26,14 +26,15 @@
 namespace perfetto {
 namespace profiling {
 
-SystemProperties::Handle::Handle(Handle&& other) {
+SystemProperties::Handle::Handle(Handle&& other) noexcept {
   system_properties_ = other.system_properties_;
   property_ = std::move(other.property_);
   all_ = other.all_;
   other.system_properties_ = nullptr;
 }
 
-SystemProperties::Handle& SystemProperties::Handle::operator=(Handle&& other) {
+SystemProperties::Handle& SystemProperties::Handle::operator=(
+    Handle&& other) noexcept {
   // Construct this temporary because the RHS could be an lvalue cast to an
   // rvalue reference whose lifetime we do not know.
   Handle tmp(std::move(other));

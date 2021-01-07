@@ -16,17 +16,24 @@
 
 #include "src/perfetto_cmd/perfetto_cmd.h"
 
+#include "perfetto/base/build_config.h"
+
 #include <fcntl.h>
-#include <getopt.h>
-#include <signal.h>
 #include <stdio.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <time.h>
-#include <unistd.h>
+
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 #include <sys/system_properties.h>
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+
+// For dup().
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#include <io.h>
+#else
+#include <unistd.h>
+#endif
 
 #include <fstream>
 #include <iostream>
@@ -36,7 +43,9 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/time.h"
+#include "perfetto/ext/base/ctrl_c_handler.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/getopt.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/thread_utils.h"
 #include "perfetto/ext/base/utils.h"
@@ -205,8 +214,9 @@ Detach mode. DISCOURAGED, read https://perfetto.dev/docs/concepts/detached-mode 
 }
 
 int PerfettoCmd::Main(int argc, char** argv) {
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   umask(0000);  // make sure that file creation is not affected by umask.
-
+#endif
   enum LongOption {
     OPT_ALERT_ID = 1000,
     OPT_BUGREPORT,
@@ -255,7 +265,6 @@ int PerfettoCmd::Main(int argc, char** argv) {
       {"save-for-bugreport", no_argument, nullptr, OPT_BUGREPORT},
       {nullptr, 0, nullptr, 0}};
 
-  int option_index = 0;
   std::string config_file_name;
   std::string trace_config_raw;
   bool background = false;
@@ -268,8 +277,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
   bool has_config_options = false;
 
   for (;;) {
-    int option =
-        getopt_long(argc, argv, "hc:o:dt:b:s:", long_options, &option_index);
+    int option = getopt_long(argc, argv, "hc:o:dt:b:s:", long_options, nullptr);
 
     if (option == -1)
       break;  // EOF.
@@ -560,7 +568,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
           "trace config");
       return 1;
     }
-    if (access(trace_config_->output_path().c_str(), F_OK) == 0) {
+    if (base::FileExists(trace_config_->output_path())) {
       PERFETTO_ELOG(
           "The output_path must not exist, the service cannot overwrite "
           "existing files for security reasons. Remove %s or use a different "
@@ -611,6 +619,9 @@ int PerfettoCmd::Main(int argc, char** argv) {
   }
 
   if (background) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+    PERFETTO_FATAL("--background is not supported on Windows");
+#else
     pid_t pid;
     switch (pid = fork()) {
       case -1:
@@ -632,6 +643,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
         printf("%d\n", pid);
         exit(0);
     }
+#endif  // OS_WIN
   }
 
   // If we are just activating triggers then we don't need to rate limit,
@@ -888,7 +900,7 @@ bool PerfettoCmd::OpenOutputFile() {
     fd = OpenDropboxTmpFile();
 #endif
   } else if (trace_out_path_ == "-") {
-    fd.reset(dup(STDOUT_FILENO));
+    fd.reset(dup(fileno(stdout)));
   } else {
     fd = base::OpenFile(trace_out_path_, O_RDWR | O_CREAT | O_TRUNC, 0600);
   }
@@ -906,20 +918,7 @@ bool PerfettoCmd::OpenOutputFile() {
 }
 
 void PerfettoCmd::SetupCtrlCSignalHandler() {
-  // Setup signal handler.
-  struct sigaction sa {};
-
-// Glibc headers for sa_sigaction trigger this.
-#pragma GCC diagnostic push
-#if defined(__clang__)
-#pragma GCC diagnostic ignored "-Wdisabled-macro-expansion"
-#endif
-  sa.sa_handler = [](int) { g_consumer_cmd->SignalCtrlC(); };
-  sa.sa_flags = static_cast<decltype(sa.sa_flags)>(SA_RESETHAND | SA_RESTART);
-#pragma GCC diagnostic pop
-  sigaction(SIGINT, &sa, nullptr);
-  sigaction(SIGTERM, &sa, nullptr);
-
+  base::InstallCtrCHandler([] { g_consumer_cmd->SignalCtrlC(); });
   task_runner_.AddFileDescriptorWatch(ctrl_c_evt_.fd(), [this] {
     PERFETTO_LOG("SIGINT/SIGTERM received: disabling tracing.");
     ctrl_c_evt_.Clear();
@@ -1027,8 +1026,7 @@ void PerfettoCmd::LogTriggerEvents(
   android_stats::MaybeLogTriggerEvents(atom, trigger_names);
 }
 
-int __attribute__((visibility("default")))
-PerfettoCmdMain(int argc, char** argv) {
+int PERFETTO_EXPORT_ENTRYPOINT PerfettoCmdMain(int argc, char** argv) {
   g_consumer_cmd = new perfetto::PerfettoCmd();
   return g_consumer_cmd->Main(argc, argv);
 }

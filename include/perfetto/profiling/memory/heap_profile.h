@@ -18,7 +18,7 @@
 // callstacks causing these allocations in heap profiles.
 //
 // In the context of this API, a "heap" is memory associated with an allocator.
-// An example for allocator is the malloc-family of libc functions (malloc /
+// An example of an allocator is the malloc-family of libc functions (malloc /
 // calloc / posix_memalign).
 //
 // A very simple custom allocator would look like this:
@@ -41,7 +41,8 @@
 // void* my_malloc(size_t size) {
 //   void* ptr = [code to somehow allocate get size bytes];
 //   AHeapProfile_reportAllocation(g_heap_id, static_cast<uintptr_t>(ptr),
-//   size); return ptr;
+//                                 size);
+//   return ptr;
 // }
 //
 // void my_free(void* ptr) {
@@ -133,14 +134,8 @@ AHeapInfo* _Nullable AHeapInfo_setDisabledCallback(
 // The returned heap_id can be used in AHeapProfile_reportAllocation and
 // AHeapProfile_reportFree.
 //
-// Takes ownership of info.
+// Takes ownership of |info|.
 uint32_t AHeapProfile_registerHeap(AHeapInfo* _Nullable info);
-
-// Called by libc upon receipt of the profiling signal.
-// DO NOT CALL EXCEPT FROM LIBC!
-// TODO(fmayer): Maybe move this out of this header.
-bool AHeapProfile_initSession(void* _Nullable (*_Nonnull malloc_fn)(size_t),
-                              void (*_Nonnull free_fn)(void* _Nullable));
 
 // Reports an allocation of |size| on the given |heap_id|.
 //

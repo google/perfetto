@@ -16,10 +16,10 @@
 
 #include "src/perfetto_cmd/rate_limiter.h"
 
+#include <fcntl.h>
 #include <inttypes.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <unistd.h>
 
 #include <algorithm>
 

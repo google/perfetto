@@ -58,8 +58,14 @@ void LogcatPrinter::OnTestStart(const testing::TestInfo& test_info) {
 void LogcatPrinter::OnTestEnd(const testing::TestInfo& test_info) {
   const auto* result = test_info.result();
   const char* state = "N/A";
-  if (result)
-    state = result->Passed() ? "PASS" : "FAIL";
+  if (result) {
+    if (result->Passed())
+      state = "PASS";
+    else if (result->Skipped())
+      state = "SKIPPED";
+    else if (result->Failed())
+      state = "FAIL";
+  }
   PERFETTO_TEST_LOG("Test end: %s.%s [%s]", test_info.test_case_name(),
                     test_info.name(), state);
 }

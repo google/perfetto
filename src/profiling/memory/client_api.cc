@@ -15,6 +15,7 @@
  */
 
 #include "perfetto/profiling/memory/heap_profile.h"
+#include "src/profiling/memory/heap_profile_internal.h"
 
 #include <inttypes.h>
 #include <malloc.h>
@@ -43,9 +44,6 @@
 #include "src/profiling/memory/unhooked_allocator.h"
 #include "src/profiling/memory/wire_protocol.h"
 
-using perfetto::profiling::ScopedSpinlock;
-using perfetto::profiling::UnhookedAllocator;
-
 struct AHeapInfo {
   // Fields set by user.
   char heap_name[HEAPPROFD_HEAP_NAME_SZ];
@@ -67,6 +65,10 @@ struct AHeapProfileEnableCallbackInfo {
 struct AHeapProfileDisableCallbackInfo {};
 
 namespace {
+
+using perfetto::profiling::ScopedSpinlock;
+using perfetto::profiling::UnhookedAllocator;
+
 #if defined(__GLIBC__)
 const char* getprogname() {
   return program_invocation_short_name;
@@ -141,9 +143,6 @@ __attribute__((noreturn, noinline)) void AbortOnSpinlockTimeout() {
   abort();
 }
 
-// Note: g_client can be reset by heapprofd_initialize without calling this
-// function.
-
 void DisableAllHeaps() {
   for (uint32_t i = kMinHeapId; i < g_next_heap_id.load(); ++i) {
     AHeapInfo& info = GetHeap(i);
@@ -159,6 +158,8 @@ void DisableAllHeaps() {
   }
 }
 
+// Note: g_client can be reset by AHeapProfile_initSession without calling this
+// function.
 void ShutdownLazy(const std::shared_ptr<perfetto::profiling::Client>& client) {
   ScopedSpinlock s(&g_client_lock, ScopedSpinlock::Mode::Try);
   if (PERFETTO_UNLIKELY(!s.locked()))
@@ -171,6 +172,33 @@ void ShutdownLazy(const std::shared_ptr<perfetto::profiling::Client>& client) {
   DisableAllHeaps();
   // Clear primary shared pointer, such that later hook invocations become nops.
   GetClientLocked()->reset();
+}
+
+uint64_t MaybeToggleHeap(uint32_t heap_id,
+                         perfetto::profiling::Client* client) {
+  AHeapInfo& heap = GetHeap(heap_id);
+  if (!heap.ready.load(std::memory_order_acquire))
+    return 0;
+  auto interval =
+      GetHeapSamplingInterval(client->client_config(), heap.heap_name);
+  // The callbacks must be called while NOT LOCKED. Because they run
+  // arbitrary code, it would be very easy to build a deadlock.
+  if (interval) {
+    AHeapProfileEnableCallbackInfo session_info{interval};
+    if (!heap.enabled.load(std::memory_order_acquire) &&
+        heap.enabled_callback) {
+      heap.enabled_callback(heap.enabled_callback_data, &session_info);
+    }
+    heap.enabled.store(true, std::memory_order_release);
+    client->RecordHeapName(heap_id, &heap.heap_name[0]);
+  } else if (heap.enabled.load(std::memory_order_acquire)) {
+    heap.enabled.store(false, std::memory_order_release);
+    if (heap.disabled_callback) {
+      AHeapProfileDisableCallbackInfo info;
+      heap.disabled_callback(heap.disabled_callback_data, &info);
+    }
+  }
+  return interval;
 }
 
 // We're a library loaded into a potentially-multithreaded process, which might
@@ -255,8 +283,12 @@ __attribute__((visibility("default"))) AHeapInfo* AHeapInfo_setEnabledCallback(
     void* data) {
   if (info == nullptr)
     return nullptr;
-  if (info->ready.load(std::memory_order_relaxed))
+  if (info->ready.load(std::memory_order_relaxed)) {
+    PERFETTO_ELOG(
+        "AHeapInfo_setEnabledCallback called after heap was registered. "
+        "This is always a bug.");
     return nullptr;
+  }
   info->enabled_callback = callback;
   info->enabled_callback_data = data;
   return info;
@@ -268,8 +300,12 @@ __attribute__((visibility("default"))) AHeapInfo* AHeapInfo_setDisabledCallback(
     void* data) {
   if (info == nullptr)
     return nullptr;
-  if (info->ready.load(std::memory_order_relaxed))
+  if (info->ready.load(std::memory_order_relaxed)) {
+    PERFETTO_ELOG(
+        "AHeapInfo_setDisabledCallback called after heap was registered. "
+        "This is always a bug.");
     return nullptr;
+  }
   info->disabled_callback = callback;
   info->disabled_callback_data = data;
   return info;
@@ -280,7 +316,27 @@ __attribute__((visibility("default"))) uint32_t AHeapProfile_registerHeap(
   if (info == nullptr)
     return 0;
   info->ready.store(true, std::memory_order_release);
-  return static_cast<uint32_t>(info - &g_heaps[0]);
+  auto heap_id = static_cast<uint32_t>(info - &g_heaps[0]);
+  std::shared_ptr<perfetto::profiling::Client> client;
+  {
+    ScopedSpinlock s(&g_client_lock, ScopedSpinlock::Mode::Try);
+    if (PERFETTO_UNLIKELY(!s.locked()))
+      AbortOnSpinlockTimeout();
+
+    client = *GetClientLocked();
+  }
+
+  // Enable the heap immediately if there's a matching ongoing session.
+  if (client) {
+    uint64_t interval = MaybeToggleHeap(heap_id, client.get());
+    if (interval) {
+      ScopedSpinlock s(&g_client_lock, ScopedSpinlock::Mode::Try);
+      if (PERFETTO_UNLIKELY(!s.locked()))
+        AbortOnSpinlockTimeout();
+      info->sampler.SetSamplingInterval(interval);
+    }
+  }
+  return heap_id;
 }
 
 __attribute__((visibility("default"))) bool
@@ -313,6 +369,7 @@ AHeapProfile_reportAllocation(uint32_t heap_id, uint64_t id, uint64_t size) {
 
   if (!client->RecordMalloc(heap_id, sampled_alloc_sz, size, id)) {
     ShutdownLazy(client);
+    return false;
   }
   return true;
 }
@@ -342,6 +399,7 @@ AHeapProfile_reportSample(uint32_t heap_id, uint64_t id, uint64_t size) {
 
   if (!client->RecordMalloc(heap_id, size, size, id)) {
     ShutdownLazy(client);
+    return false;
   }
   return true;
 }
@@ -421,34 +479,11 @@ __attribute__((visibility("default"))) bool AHeapProfile_initSession(
                  getprogname());
     return false;
   }
-  const perfetto::profiling::ClientConfiguration& cli_config =
-      client->client_config();
 
   uint64_t heap_intervals[perfetto::base::ArraySize(g_heaps)] = {};
   uint32_t max_heap = g_next_heap_id.load();
   for (uint32_t i = kMinHeapId; i < max_heap; ++i) {
-    AHeapInfo& heap = GetHeap(i);
-    if (!heap.ready.load(std::memory_order_acquire))
-      continue;
-
-    heap_intervals[i] = GetHeapSamplingInterval(cli_config, heap.heap_name);
-    // The callbacks must be called while NOT LOCKED. Because they run
-    // arbitrary code, it would be very easy to build a deadlock.
-    if (heap_intervals[i]) {
-      AHeapProfileEnableCallbackInfo session_info{heap_intervals[i]};
-      if (!heap.enabled.load(std::memory_order_acquire) &&
-          heap.enabled_callback) {
-        heap.enabled_callback(heap.enabled_callback_data, &session_info);
-      }
-      heap.enabled.store(true, std::memory_order_release);
-      client->RecordHeapName(i, &heap.heap_name[0]);
-    } else if (heap.enabled.load(std::memory_order_acquire)) {
-      heap.enabled.store(false, std::memory_order_release);
-      if (heap.disabled_callback) {
-        AHeapProfileDisableCallbackInfo info;
-        heap.disabled_callback(heap.disabled_callback_data, &info);
-      }
-    }
+    heap_intervals[i] = MaybeToggleHeap(i, client.get());
   }
 
   PERFETTO_LOG("%s: heapprofd_client initialized.", getprogname());

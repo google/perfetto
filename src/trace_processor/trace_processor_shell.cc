@@ -32,11 +32,12 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/getopt.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/version.h"
-#include "perfetto/profiling/deobfuscator.h"
+
 #include "perfetto/trace_processor/read_trace.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/metrics/chrome/all_chrome_metrics.descriptor.h"
@@ -47,7 +48,7 @@
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_HTTPD)
 #include "src/trace_processor/rpc/httpd.h"
 #endif
-
+#include "src/profiling/deobfuscator.h"
 #include "src/profiling/symbolizer/local_symbolizer.h"
 #include "src/profiling/symbolizer/symbolize_database.h"
 #include "src/profiling/symbolizer/symbolizer.h"
@@ -75,7 +76,6 @@
 #define ftruncate _chsize
 #else
 #include <dirent.h>
-#include <getopt.h>
 #endif
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_LINENOISE) && \
@@ -668,63 +668,6 @@ struct CommandLineOptions {
   std::string metatrace_path;
 };
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-void PrintUsage(char** argv) {
-  PERFETTO_ELOG(R"(
-Interactive trace processor shell.
-Usage: %s [OPTIONS] trace_file.pb
-
-Options:
- -q, --query-file FILE                Read and execute an SQL query from a file.
-                                      If used with --run-metrics, the query is
-                                      executed after the selected metrics and
-                                      the metrics output is suppressed.
- --pre-metrics FILE                   Read and execute an SQL query from a file.
-                                      This query is executed before the selected
-                                      metrics and can't output any results.
- --run-metrics x,y,z                  Runs a comma separated list of metrics and
-                                      prints the result as a TraceMetrics proto
-                                      to stdout. The specified can either be
-                                      in-built metrics or SQL/proto files of
-                                      extension metrics.
- --metrics-output [binary|text|json]  Allows the output of --run-metrics to be
-                                      specified in either proto binary, proto
-                                      text format or JSON format (default: proto
-                                      text).)",
-                argv[0]);
-}
-
-CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
-  CommandLineOptions command_line_options;
-
-  if (argc < 2 || argc % 2 == 1) {
-    PrintUsage(argv);
-    exit(1);
-  }
-
-  for (int i = 1; i < argc - 1; i += 2) {
-    if (strcmp(argv[i], "-q") == 0 || strcmp(argv[i], "--query-file") == 0) {
-      command_line_options.query_file_path = argv[i + 1];
-    } else if (strcmp(argv[i], "--pre-metrics") == 0) {
-      command_line_options.pre_metrics_path = argv[i + 1];
-    } else if (strcmp(argv[i], "--run-metrics") == 0) {
-      command_line_options.metric_names = argv[i + 1];
-    } else if (strcmp(argv[i], "--metrics-output") == 0) {
-      command_line_options.metric_output = argv[i + 1];
-    } else {
-      PrintUsage(argv);
-      exit(1);
-    }
-  }
-  command_line_options.trace_file_path = argv[argc - 1];
-  command_line_options.launch_shell =
-      command_line_options.metric_names.empty() &&
-      command_line_options.query_file_path.empty();
-  return command_line_options;
-}
-
-#else  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-
 void PrintUsage(char** argv) {
   PERFETTO_ELOG(R"(
 Interactive trace processor shell.
@@ -802,10 +745,9 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
       {nullptr, 0, nullptr, 0}};
 
   bool explicit_interactive = false;
-  int option_index = 0;
   for (;;) {
     int option =
-        getopt_long(argc, argv, "hvWiDdm:p:q:e:", long_options, &option_index);
+        getopt_long(argc, argv, "hvWiDdm:p:q:e:", long_options, nullptr);
 
     if (option == -1)
       break;  // EOF.
@@ -912,8 +854,6 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
   }
   return command_line_options;
 }
-
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 
 void ExtendPoolWithBinaryDescriptor(google::protobuf::DescriptorPool& pool,
                                     const void* data,

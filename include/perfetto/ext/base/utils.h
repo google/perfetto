@@ -27,6 +27,7 @@
 #include <sys/types.h>
 
 #include <atomic>
+#include <string>
 
 #define PERFETTO_EINTR(x)                                   \
   ([&] {                                                    \
@@ -82,8 +83,9 @@ struct FreeDeleter {
 
 template <typename T>
 constexpr T AssumeLittleEndian(T value) {
-  static_assert(__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__,
-                "Unimplemented on big-endian archs");
+#if !PERFETTO_IS_LITTLE_ENDIAN()
+  static_assert(false, "Unimplemented on big-endian archs");
+#endif
   return value;
 }
 

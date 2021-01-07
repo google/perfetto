@@ -19,6 +19,10 @@ import("../../gn/perfetto_component.gni")
 import("../../gn/test.gni")
 import("../../gn/wasm.gni")
 
+# On standalone builds this is all the OSes we support. On chromium builds,
+# though, this really means !is_fuchsia && !is_nacl.
+_subprocess_supported = is_linux || is_android || is_mac || is_win
+
 perfetto_component("base") {
   deps = [ "../../gn:default_deps" ]
   public_deps = [
@@ -26,8 +30,10 @@ perfetto_component("base") {
     "../../include/perfetto/ext/base",
   ]
   sources = [
+    "ctrl_c_handler.cc",
     "event_fd.cc",
     "file_utils.cc",
+    "getopt_compat.cc",
     "logging.cc",
     "metatrace.cc",
     "paged_memory.cc",
@@ -36,7 +42,6 @@ perfetto_component("base") {
     "string_splitter.cc",
     "string_utils.cc",
     "string_view.cc",
-    "subprocess_posix.cc",
     "temp_file.cc",
     "thread_checker.cc",
     "time.cc",
@@ -55,6 +60,14 @@ perfetto_component("base") {
 
   if (!is_nacl) {
     sources += [ "unix_task_runner.cc" ]
+  }
+
+  if (_subprocess_supported) {
+    sources += [
+      "subprocess.cc",
+      "subprocess_posix.cc",
+      "subprocess_windows.cc",
+    ]
   }
 
   if (enable_perfetto_stderr_crash_dump) {
@@ -140,6 +153,7 @@ perfetto_unittest_source_set("unittests") {
   sources = [
     "circular_queue_unittest.cc",
     "flat_set_unittest.cc",
+    "getopt_compat_unittest.cc",
     "no_destructor_unittest.cc",
     "optional_unittest.cc",
     "paged_memory_unittest.cc",
@@ -148,7 +162,6 @@ perfetto_unittest_source_set("unittests") {
     "string_utils_unittest.cc",
     "string_view_unittest.cc",
     "string_writer_unittest.cc",
-    "subprocess_unittest.cc",
     "task_runner_unittest.cc",
     "temp_file_unittest.cc",
     "thread_checker_unittest.cc",
@@ -157,6 +170,11 @@ perfetto_unittest_source_set("unittests") {
     "uuid_unittest.cc",
     "weak_ptr_unittest.cc",
   ]
+  if (_subprocess_supported) {
+    # Don't run on Fuchsia, NaCL. They pretend to be POSIX but then give up on
+    # execve(2).
+    sources += [ "subprocess_unittest.cc" ]
+  }
 
   # TODO: Enable these for Windows when possible.
   if (!is_win) {

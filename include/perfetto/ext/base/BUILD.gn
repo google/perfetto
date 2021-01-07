@@ -18,9 +18,12 @@ source_set("base") {
   sources = [
     "circular_queue.h",
     "container_annotations.h",
+    "ctrl_c_handler.h",
     "endian.h",
     "event_fd.h",
     "file_utils.h",
+    "getopt.h",
+    "getopt_compat.h",
     "hash.h",
     "metatrace.h",
     "metatrace_events.h",

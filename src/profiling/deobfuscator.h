@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef INCLUDE_PERFETTO_PROFILING_DEOBFUSCATOR_H_
-#define INCLUDE_PERFETTO_PROFILING_DEOBFUSCATOR_H_
+#ifndef SRC_PROFILING_DEOBFUSCATOR_H_
+#define SRC_PROFILING_DEOBFUSCATOR_H_
 
 #include <functional>
 #include <map>
@@ -121,4 +121,4 @@ bool ReadProguardMapsToDeobfuscationPackets(
 }  // namespace profiling
 }  // namespace perfetto
 
-#endif  // INCLUDE_PERFETTO_PROFILING_DEOBFUSCATOR_H_
+#endif  // SRC_PROFILING_DEOBFUSCATOR_H_

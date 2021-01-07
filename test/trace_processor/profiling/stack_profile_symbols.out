@@ -1,0 +1,5 @@
+"name","source_file","line_number"
+"[NULL]","[NULL]",0
+"_start","??",0
+"(anonymous namespace)::OtherFn(unsigned int, unsigned long)","/builds/master/experiment/external/perfetto/out/linux_clang_release/../../src/profiling/memory/heapprofd_standalone_client_example.cc",24
+"main","/builds/master/experiment/external/perfetto/out/linux_clang_release/../../src/profiling/memory/heapprofd_standalone_client_example.cc",32
