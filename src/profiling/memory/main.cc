@@ -20,10 +20,10 @@
 #include <memory>
 #include <vector>
 
-#include <getopt.h>
 #include <signal.h>
 
 #include "perfetto/ext/base/event_fd.h"
+#include "perfetto/ext/base/getopt.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/watchdog.h"
@@ -73,9 +73,8 @@ int HeapprofdMain(int argc, char** argv) {
       {"exclusive-for-cmdline", required_argument, nullptr, kTargetCmd},
       {"inherit-socket-fd", required_argument, nullptr, kInheritFd},
       {nullptr, 0, nullptr, 0}};
-  int option_index;
   int c;
-  while ((c = getopt_long(argc, argv, "", long_options, &option_index)) != -1) {
+  while ((c = getopt_long(argc, argv, "", long_options, nullptr)) != -1) {
     switch (c) {
       case kCleanupCrash:
         cleanup_crash = true;

@@ -33,6 +33,7 @@ perfetto_component("base") {
     "ctrl_c_handler.cc",
     "event_fd.cc",
     "file_utils.cc",
+    "getopt_compat.cc",
     "logging.cc",
     "metatrace.cc",
     "paged_memory.cc",
@@ -152,6 +153,7 @@ perfetto_unittest_source_set("unittests") {
   sources = [
     "circular_queue_unittest.cc",
     "flat_set_unittest.cc",
+    "getopt_compat_unittest.cc",
     "no_destructor_unittest.cc",
     "optional_unittest.cc",
     "paged_memory_unittest.cc",
