@@ -47,6 +47,12 @@
 #endif
 
 #if defined(__GNUC__) || defined(__clang__)
+#define PERFETTO_NORETURN __attribute__((__noreturn__))
+#else
+#define PERFETTO_NORETURN __declspec(noreturn)
+#endif
+
+#if defined(__GNUC__) || defined(__clang__)
 #define PERFETTO_DEBUG_FUNCTION_IDENTIFIER() __PRETTY_FUNCTION__
 #elif defined(_MSC_VER)
 #define PERFETTO_DEBUG_FUNCTION_IDENTIFIER() __FUNCSIG__
