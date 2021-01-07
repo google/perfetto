@@ -51,7 +51,7 @@ namespace {
 base::UnixSocketRaw* g_client_sock;
 
 void MonitorFd() {
-  PERFETTO_DCHECK(g_client_sock->IsBlocking());
+  g_client_sock->DcheckIsBlocking(true);
   for (;;) {
     char buf[1];
     ssize_t r = g_client_sock->Receive(buf, sizeof(buf));
@@ -80,7 +80,7 @@ void StartHeapprofdIfStatic() {
   base::UnixSocketRaw srv_sock;
   base::UnixSocketRaw cli_sock;
 
-  std::tie(cli_sock, srv_sock) = base::UnixSocketRaw::CreatePair(
+  std::tie(cli_sock, srv_sock) = base::UnixSocketRaw::CreatePairPosix(
       base::SockFamily::kUnix, base::SockType::kStream);
 
   if (!cli_sock || !srv_sock) {
@@ -163,8 +163,8 @@ std::shared_ptr<Client> ConstructClient(
   base::UnixSocketRaw client_session_sock;
 
   std::tie(srv_session_sock, client_session_sock) =
-      base::UnixSocketRaw::CreatePair(base::SockFamily::kUnix,
-                                      base::SockType::kStream);
+      base::UnixSocketRaw::CreatePairPosix(base::SockFamily::kUnix,
+                                           base::SockType::kStream);
   if (!client_session_sock || !srv_session_sock) {
     PERFETTO_ELOG("Failed to create socket pair.");
     return nullptr;

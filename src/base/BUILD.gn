@@ -111,9 +111,11 @@ if (enable_perfetto_ipc) {
     deps = [
       "../../gn:default_deps",
       "../../include/perfetto/ext/base",
-      "../../include/perfetto/ext/base",
     ]
     sources = [ "unix_socket.cc" ]
+    if (is_win && perfetto_build_standalone) {
+      libs = [ "Ws2_32.lib" ]
+    }
   }
 }
 
@@ -181,9 +183,8 @@ perfetto_unittest_source_set("unittests") {
     if (is_linux || is_android) {
       sources += [ "watchdog_unittest.cc" ]
     }
-    if (!is_win) {
-      sources += [ "unix_socket_unittest.cc" ]
-    }
+    sources += [ "unix_socket_unittest.cc" ]
+    deps += [ ":unix_socket" ]
   }
 }
 

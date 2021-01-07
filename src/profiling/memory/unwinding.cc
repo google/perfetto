@@ -201,7 +201,7 @@ bool DoUnwind(WireMessage* msg, UnwindingMetadata* metadata, AllocRecord* out) {
 }
 
 void UnwindingWorker::OnDisconnect(base::UnixSocket* self) {
-  pid_t peer_pid = self->peer_pid();
+  pid_t peer_pid = self->peer_pid_linux();
   auto it = client_data_.find(peer_pid);
   if (it == client_data_.end()) {
     PERFETTO_DFATAL_OR_ELOG("Disconnected unexpected socket.");
@@ -243,7 +243,7 @@ void UnwindingWorker::OnDataAvailable(base::UnixSocket* self) {
   // Drain buffer to clear the notification.
   char recv_buf[kUnwindBatchSize];
   self->Receive(recv_buf, sizeof(recv_buf));
-  BatchUnwindJob(self->peer_pid());
+  BatchUnwindJob(self->peer_pid_linux());
 }
 
 UnwindingWorker::ReadAndUnwindBatchResult UnwindingWorker::ReadAndUnwindBatch(
@@ -258,7 +258,7 @@ UnwindingWorker::ReadAndUnwindBatchResult UnwindingWorker::ReadAndUnwindBatch(
     if (!buf)
       break;
     HandleBuffer(this, &alloc_record_arena_, buf, client_data,
-                 client_data->sock->peer_pid(), delegate_);
+                 client_data->sock->peer_pid_linux(), delegate_);
     shmem.EndRead(std::move(buf));
     // Reparsing takes time, so process the rest in a new batch to avoid timing
     // out.
@@ -384,7 +384,7 @@ void UnwindingWorker::HandleHandoffSocket(HandoffData handoff_data) {
   auto sock = base::UnixSocket::AdoptConnected(
       handoff_data.sock.ReleaseFd(), this, this->thread_task_runner_.get(),
       base::SockFamily::kUnix, base::SockType::kStream);
-  pid_t peer_pid = sock->peer_pid();
+  pid_t peer_pid = sock->peer_pid_linux();
 
   UnwindingMetadata metadata(std::move(handoff_data.maps_fd),
                              std::move(handoff_data.mem_fd));
