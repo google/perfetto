@@ -17,14 +17,13 @@
 #ifndef SRC_BASE_TEST_TEST_TASK_RUNNER_H_
 #define SRC_BASE_TEST_TEST_TASK_RUNNER_H_
 
-#include <sys/select.h>
-
 #include <functional>
 #include <list>
 #include <map>
 #include <string>
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/base/compiler.h"
 #include "perfetto/ext/base/thread_checker.h"
 #include "perfetto/ext/base/unix_task_runner.h"
 
@@ -37,7 +36,7 @@ class TestTaskRunner : public TaskRunner {
   ~TestTaskRunner() override;
 
   void RunUntilIdle();
-  void __attribute__((__noreturn__)) Run();
+  void PERFETTO_NORETURN Run();
 
   std::function<void()> CreateCheckpoint(const std::string& checkpoint);
   void RunUntilCheckpoint(const std::string& checkpoint,
@@ -46,8 +45,9 @@ class TestTaskRunner : public TaskRunner {
   // TaskRunner implementation.
   void PostTask(std::function<void()> closure) override;
   void PostDelayedTask(std::function<void()>, uint32_t delay_ms) override;
-  void AddFileDescriptorWatch(int fd, std::function<void()> callback) override;
-  void RemoveFileDescriptorWatch(int fd) override;
+  void AddFileDescriptorWatch(PlatformHandle,
+                              std::function<void()> callback) override;
+  void RemoveFileDescriptorWatch(PlatformHandle) override;
   bool RunsTasksOnCurrentThread() const override;
 
  private:

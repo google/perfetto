@@ -15,7 +15,6 @@
  */
 
 #include "perfetto/base/build_config.h"
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 
 #include "perfetto/ext/base/thread_task_runner.h"
 
@@ -117,5 +116,3 @@ uint64_t ThreadTaskRunner::GetThreadCPUTimeNsForTesting() {
 
 }  // namespace base
 }  // namespace perfetto
-
-#endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)

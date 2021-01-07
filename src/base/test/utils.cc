@@ -30,8 +30,8 @@
 #include <unistd.h>
 #endif
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) && \
-    !PERFETTO_BUILDFLAG(PERFETTO_COMPILER_GCC)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#include <Windows.h>
 #include <io.h>
 #endif
 
@@ -57,6 +57,11 @@ std::string GetCurExecutableDir() {
   PERFETTO_CHECK(_NSGetExecutablePath(nullptr, &size));
   self_path.resize(size);
   PERFETTO_CHECK(_NSGetExecutablePath(&self_path[0], &size) == 0);
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  char buf[MAX_PATH];
+  auto len = ::GetModuleFileNameA(nullptr /*current*/, buf, sizeof(buf));
+  self_path = std::string(buf, len);
+  self_path = self_path.substr(0, self_path.find_last_of("\\"));
 #else
   PERFETTO_FATAL(
       "GetCurExecutableDir() not implemented on the current platform");
