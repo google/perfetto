@@ -1273,6 +1273,17 @@ class PERFETTO_EXPORT TrackEventLegacy {
               ::PERFETTO_TRACK_EVENT_NAMESPACE::internal::kCategoryRegistry \
                   .Find(category, /*is_dynamic=*/false)))
 
+// Given a pointer returned by TRACE_EVENT_API_GET_CATEGORY_GROUP_ENABLED,
+// yields a pointer to the name of the corresponding category group.
+#define TRACE_EVENT_API_GET_CATEGORY_GROUP_NAME(category_enabled_ptr)       \
+  ::PERFETTO_TRACK_EVENT_NAMESPACE::internal::kConstExprCategoryRegistry    \
+      .GetCategory(                                                         \
+          category_enabled_ptr -                                            \
+          reinterpret_cast<const uint8_t*>(                                 \
+              ::PERFETTO_TRACK_EVENT_NAMESPACE::internal::kCategoryRegistry \
+                  .GetCategoryState(0u)))                                   \
+      ->name
+
 #endif  // PERFETTO_ENABLE_LEGACY_TRACE_EVENTS
 
 #endif  // INCLUDE_PERFETTO_TRACING_TRACK_EVENT_LEGACY_H_
