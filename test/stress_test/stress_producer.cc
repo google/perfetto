@@ -189,6 +189,7 @@ void StressTestDataSource::Worker::FillPayload(
 }
 }  // namespace
 
+PERFETTO_DECLARE_DATA_SOURCE_STATIC_MEMBERS(StressTestDataSource);
 PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(StressTestDataSource);
 
 }  // namespace perfetto
