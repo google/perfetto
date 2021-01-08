@@ -124,6 +124,8 @@ AHeapInfo& GetHeap(uint32_t id) {
 // We rely on this atomic's destuction being a nop, as it is possible for the
 // hooks to attempt to acquire the spinlock after its destructor should have run
 // (technically a use-after-destruct scenario).
+static_assert(std::is_trivially_destructible<std::atomic<bool>>::value,
+              "lock must be trivially destructible.");
 std::atomic<bool> g_client_lock{false};
 
 std::atomic<uint32_t> g_next_heap_id{kMinHeapId};
