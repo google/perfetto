@@ -58,6 +58,8 @@ if (enable_perfetto_ipc) {
     testonly = true
     deps = [
       ":test_support",
+      "..:client_api_without_backends",
+      "..:platform_impl",
       "../../../gn:default_deps",
       "../../../gn:gtest_and_gmock",
       "../../base",
@@ -67,7 +69,10 @@ if (enable_perfetto_ipc) {
       "../ipc/producer",
       "../ipc/service",
     ]
-    sources = [ "tracing_integration_test.cc" ]
+    sources = [
+      "platform_unittest.cc",
+      "tracing_integration_test.cc",
+    ]
   }
 }
 
@@ -77,7 +82,7 @@ if (enable_perfetto_integration_tests) {
     deps = [
       ":api_test_support",
       "../:client_api",
-      "../:platform_posix",
+      "../:platform_impl",
       "../../../:libperfetto_client_experimental",
       "../../../gn:default_deps",
       "../../../gn:gtest_and_gmock",

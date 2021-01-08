@@ -75,6 +75,14 @@ void ConsumerIPCClientImpl::EnableTracing(const TraceConfig& trace_config,
     return;
   }
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  if (fd) {
+    consumer_->OnTracingDisabled(
+        "Passing FDs for write_into_file is not supported on Windows");
+    return;
+  }
+#endif
+
   protos::gen::EnableTracingRequest req;
   *req.mutable_trace_config() = trace_config;
   ipc::Deferred<protos::gen::EnableTracingResponse> async_response;

@@ -51,15 +51,13 @@ if (perfetto_build_standalone) {
 }
 
 # Separate target because the embedder might not want this (e.g. on Windows).
-if (is_linux || is_mac || is_android) {
-  source_set("platform_posix") {
-    deps = [
-      "../../gn:default_deps",
-      "../../include/perfetto/tracing",
-      "../base",
-    ]
-    sources = [ "platform_posix.cc" ]
-  }
+source_set("platform_impl") {
+  deps = [
+    "../../gn:default_deps",
+    "../../include/perfetto/tracing",
+    "../base",
+  ]
+  sources = [ "platform_posix.cc" ]
 }
 
 # Fake platform that allows buiding the client lib on all OSes. You can only use
@@ -172,7 +170,7 @@ if (enable_perfetto_benchmarks) {
   source_set("benchmarks") {
     testonly = true
     deps = [
-      ":platform_posix",
+      ":platform_impl",
       "../..:libperfetto_client_experimental",
       "../../gn:benchmark",
       "../../gn:default_deps",

@@ -44,7 +44,9 @@
 
 #include "protos/perfetto/config/interceptor_config.gen.h"
 
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#include <io.h>  // For dup()
+#else
 #include <unistd.h>  // For dup()
 #endif
 
@@ -429,8 +431,9 @@ void TracingMuxerImpl::ConsumerImpl::OnAttach(bool, const TraceConfig&) {}
 
 TracingMuxerImpl::TracingSessionImpl::TracingSessionImpl(
     TracingMuxerImpl* muxer,
-    TracingSessionGlobalID session_id)
-    : muxer_(muxer), session_id_(session_id) {}
+    TracingSessionGlobalID session_id,
+    BackendType backend_type)
+    : muxer_(muxer), session_id_(session_id), backend_type_(backend_type) {}
 
 // Can be destroyed from any thread.
 TracingMuxerImpl::TracingSessionImpl::~TracingSessionImpl() {
@@ -447,14 +450,17 @@ void TracingMuxerImpl::TracingSessionImpl::Setup(const TraceConfig& cfg,
   auto session_id = session_id_;
   std::shared_ptr<TraceConfig> trace_config(new TraceConfig(cfg));
   if (fd >= 0) {
+    base::ignore_result(backend_type_);  // For -Wunused in the amalgamation.
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-    PERFETTO_FATAL(
-        "Passing a file descriptor to TracingSession::Setup() is not supported "
-        "on Windows yet. Use TracingSession::ReadTrace() instead");
-#else
+    if (backend_type_ != kInProcessBackend) {
+      PERFETTO_FATAL(
+          "Passing a file descriptor to TracingSession::Setup() is only "
+          "supported with the kInProcessBackend on Windows. Use "
+          "TracingSession::ReadTrace() instead");
+    }
+#endif
     trace_config->set_write_into_file(true);
     fd = dup(fd);
-#endif
   }
   muxer->task_runner_->PostTask([muxer, session_id, trace_config, fd] {
     muxer->SetupTracingSession(session_id, trace_config, base::ScopedFile(fd));
@@ -1454,7 +1460,7 @@ std::unique_ptr<TracingSession> TracingMuxerImpl::CreateTracingSession(
   });
 
   return std::unique_ptr<TracingSession>(
-      new TracingSessionImpl(this, session_id));
+      new TracingSessionImpl(this, session_id, backend_type));
 }
 
 void TracingMuxerImpl::InitializeInstance(const TracingInitArgs& args) {

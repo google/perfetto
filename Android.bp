@@ -715,7 +715,7 @@ cc_library_static {
     ":perfetto_src_tracing_ipc_consumer_consumer",
     ":perfetto_src_tracing_ipc_producer_producer",
     ":perfetto_src_tracing_ipc_service_service",
-    ":perfetto_src_tracing_platform_posix",
+    ":perfetto_src_tracing_platform_impl",
     ":perfetto_src_tracing_system_backend",
   ],
   shared_libs: [
@@ -1731,7 +1731,7 @@ cc_test {
     ":perfetto_src_tracing_ipc_consumer_consumer",
     ":perfetto_src_tracing_ipc_producer_producer",
     ":perfetto_src_tracing_ipc_service_service",
-    ":perfetto_src_tracing_platform_posix",
+    ":perfetto_src_tracing_platform_impl",
     ":perfetto_src_tracing_system_backend",
     ":perfetto_src_tracing_test_api_test_support",
     ":perfetto_src_tracing_test_client_api_integrationtests",
@@ -8283,9 +8283,9 @@ filegroup {
   ],
 }
 
-// GN: //src/tracing:platform_posix
+// GN: //src/tracing:platform_impl
 filegroup {
-  name: "perfetto_src_tracing_platform_posix",
+  name: "perfetto_src_tracing_platform_impl",
   srcs: [
     "src/tracing/platform_posix.cc",
   ],
@@ -8333,6 +8333,7 @@ filegroup {
 filegroup {
   name: "perfetto_src_tracing_test_tracing_integration_test",
   srcs: [
+    "src/tracing/test/platform_unittest.cc",
     "src/tracing/test/tracing_integration_test.cc",
   ],
 }
@@ -8707,6 +8708,7 @@ cc_test {
     ":perfetto_src_traced_probes_unittests",
     ":perfetto_src_traced_service_service",
     ":perfetto_src_traced_service_unittests",
+    ":perfetto_src_tracing_client_api_without_backends",
     ":perfetto_src_tracing_common",
     ":perfetto_src_tracing_core_core",
     ":perfetto_src_tracing_core_service",
@@ -8717,6 +8719,7 @@ cc_test {
     ":perfetto_src_tracing_ipc_producer_producer",
     ":perfetto_src_tracing_ipc_service_service",
     ":perfetto_src_tracing_ipc_unittests",
+    ":perfetto_src_tracing_platform_impl",
     ":perfetto_src_tracing_test_test_support",
     ":perfetto_src_tracing_test_tracing_integration_test",
     ":perfetto_tools_sanitizers_unittests_sanitizers_unittests",

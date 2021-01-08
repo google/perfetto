@@ -340,6 +340,8 @@ TEST_F(ClientImplTest, BindAndInvokeStreamingMethod) {
   ASSERT_EQ(kNumReplies, replies_seen);
 }
 
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+// File descriptor sending over IPC is not supported on Windows.
 TEST_F(ClientImplTest, ReceiveFileDescriptor) {
   auto* host_svc = host_->AddFakeService("FakeSvc");
   auto* host_method = host_svc->AddFakeMethod("FakeMethod1");
@@ -429,6 +431,7 @@ TEST_F(ClientImplTest, SendFileDescriptor) {
             PERFETTO_EINTR(read(*rx_fd, buf, sizeof(buf))));
   ASSERT_STREQ(kFileContent, buf);
 }
+#endif  // !OS_WIN
 
 TEST_F(ClientImplTest, BindSameServiceMultipleTimesShouldFail) {
   host_->AddFakeService("FakeSvc");

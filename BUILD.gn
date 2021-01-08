@@ -233,7 +233,7 @@ if (!build_with_chromium) {
     public_deps = [
       "gn:default_deps",
       "src/tracing:client_api",
-      "src/tracing:platform_posix",
+      "src/tracing:platform_impl",
     ]
     sources = [ "include/perfetto/tracing.h" ]
     assert_no_deps = [ "//gn:protobuf_lite" ]

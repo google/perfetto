@@ -21,6 +21,7 @@
 
 #include "perfetto/base/export.h"
 #include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 
 namespace perfetto {
@@ -48,8 +49,8 @@ class PERFETTO_EXPORT ServiceIPCHost {
   // Like the above, but takes two file descriptors to already bound sockets.
   // This is used when building as part of the Android tree, where init opens
   // and binds the socket beore exec()-ing us.
-  virtual bool Start(base::ScopedFile producer_socket_fd,
-                     base::ScopedFile consumer_socket_fd) = 0;
+  virtual bool Start(base::ScopedSocketHandle producer_socket_fd,
+                     base::ScopedSocketHandle consumer_socket_fd) = 0;
 
   virtual TracingService* service() const = 0;
 
