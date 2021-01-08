@@ -259,6 +259,12 @@ cc_library_shared {
     "bionic_libc_platform_headers",
   ],
   version_script: "src/profiling/memory/heapprofd_client_api.map.txt",
+  stubs: {
+    symbol_file: "src/profiling/memory/heapprofd_client_api.map.txt",
+    versions: [
+      "S",
+    ],
+  },
 }
 
 // GN: //src/profiling/memory:heapprofd_standalone_client
