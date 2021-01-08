@@ -257,7 +257,7 @@ declare_args() {
   # Enables httpd RPC support in the trace processor.
   # Further per-OS conditionals are applied in gn/BUILD.gn.
   enable_perfetto_trace_processor_httpd =
-      enable_perfetto_trace_processor && perfetto_build_standalone && !is_win
+      enable_perfetto_trace_processor && perfetto_build_standalone
 
   # Enables Zlib support. This is used both by the "perfetto" cmdline client
   # (for compressing traces) and by trace processor (for compressed traces).
