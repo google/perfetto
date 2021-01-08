@@ -792,6 +792,14 @@ void TestTrackEventInsideTemplate(T) {
   TRACE_EVENT_BEGIN("cat", "Name");
 }
 
+// This is a build-only regression test that checks you can specify the tracing
+// category as a template argument.
+constexpr const char kTestCategory[] = "foo";
+template <const char* category>
+void TestCategoryAsTemplateParameter() {
+  TRACE_EVENT_BEGIN(category, "Name");
+}
+
 TEST_P(PerfettoApiTest, TrackEvent) {
   // Create a new trace session.
   auto* tracing_session = NewTraceWithCategories({"test"});
@@ -905,8 +913,9 @@ TEST_P(PerfettoApiTest, TrackEvent) {
   EXPECT_TRUE(begin_found);
   EXPECT_TRUE(end_found);
 
-  // Dummy instantiation of test template.
+  // Dummy instantiation of test templates.
   TestTrackEventInsideTemplate(true);
+  TestCategoryAsTemplateParameter<kTestCategory>();
 }
 
 TEST_P(PerfettoApiTest, TrackEventCategories) {
@@ -2934,6 +2943,11 @@ TEST_P(PerfettoApiTest, LegacyCategoryGroupEnabledState) {
   const uint8_t* computed_enabled =
       TRACE_EVENT_API_GET_CATEGORY_GROUP_ENABLED(computed_cat.c_str());
   EXPECT_FALSE(*computed_enabled);
+
+  // The enabled pointers can be converted back to category names.
+  EXPECT_EQ("foo", TRACE_EVENT_API_GET_CATEGORY_GROUP_NAME(foo_enabled));
+  EXPECT_EQ("bar", TRACE_EVENT_API_GET_CATEGORY_GROUP_NAME(bar_enabled));
+  EXPECT_EQ("cat", TRACE_EVENT_API_GET_CATEGORY_GROUP_NAME(computed_enabled));
 
   auto* tracing_session = NewTraceWithCategories({"foo", "dynamic", "cat"});
   tracing_session->get()->StartBlocking();
