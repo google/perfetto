@@ -60,14 +60,6 @@ action("gen_buildflags") {
   } else {
     perfetto_local_symbolizer = "0"
   }
-  if (enable_perfetto_trace_processor_httpd) {
-    perfetto_tp_httpd = "PERFETTO_BUILDFLAG_DEFINE_PERFETTO_OS_ANDROID() || " +
-                        "PERFETTO_BUILDFLAG_DEFINE_PERFETTO_OS_LINUX() || " +
-                        "PERFETTO_BUILDFLAG_DEFINE_PERFETTO_OS_MAC()"
-  } else {
-    perfetto_tp_httpd = "0"
-  }
-
   response_file_contents = [
     "--flags",  # Keep this marker first.
     "PERFETTO_ANDROID_BUILD=$perfetto_build_with_android",
@@ -83,7 +75,7 @@ action("gen_buildflags") {
     "PERFETTO_VERSION_GEN=$enable_perfetto_version_gen",
     "PERFETTO_TP_PERCENTILE=$enable_perfetto_trace_processor_percentile",
     "PERFETTO_TP_LINENOISE=$enable_perfetto_trace_processor_linenoise",
-    "PERFETTO_TP_HTTPD=$perfetto_tp_httpd",
+    "PERFETTO_TP_HTTPD=$enable_perfetto_trace_processor_httpd",
     "PERFETTO_TP_JSON=$enable_perfetto_trace_processor_json",
     "PERFETTO_LOCAL_SYMBOLIZER=$perfetto_local_symbolizer",
     "PERFETTO_ZLIB=$enable_perfetto_zlib",
