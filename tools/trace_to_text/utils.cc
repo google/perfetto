@@ -42,8 +42,6 @@ namespace perfetto {
 namespace trace_to_text {
 namespace {
 
-using trace_processor::Iterator;
-
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 constexpr size_t kCompressionBufferSize = 500 * 1024;
 #endif
