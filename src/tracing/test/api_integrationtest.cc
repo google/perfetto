@@ -2928,7 +2928,14 @@ TEST_P(PerfettoApiTest, LegacyCategoryGroupEnabledState) {
   EXPECT_FALSE(*foo_enabled);
   EXPECT_FALSE(*bar_enabled);
 
-  auto* tracing_session = NewTraceWithCategories({"foo", "dynamic"});
+  // The category group enabled pointer can also be retrieved with a
+  // runtime-computed category name.
+  std::string computed_cat("cat");
+  const uint8_t* computed_enabled =
+      TRACE_EVENT_API_GET_CATEGORY_GROUP_ENABLED(computed_cat.c_str());
+  EXPECT_FALSE(*computed_enabled);
+
+  auto* tracing_session = NewTraceWithCategories({"foo", "dynamic", "cat"});
   tracing_session->get()->StartBlocking();
   TRACE_EVENT_CATEGORY_GROUP_ENABLED("foo", &foo_status);
   TRACE_EVENT_CATEGORY_GROUP_ENABLED("bar", &bar_status);
@@ -2939,6 +2946,7 @@ TEST_P(PerfettoApiTest, LegacyCategoryGroupEnabledState) {
 
   EXPECT_TRUE(*foo_enabled);
   EXPECT_FALSE(*bar_enabled);
+  EXPECT_TRUE(*computed_enabled);
 
   tracing_session->get()->StopBlocking();
   TRACE_EVENT_CATEGORY_GROUP_ENABLED("foo", &foo_status);
@@ -2949,6 +2957,7 @@ TEST_P(PerfettoApiTest, LegacyCategoryGroupEnabledState) {
   EXPECT_FALSE(dynamic_status);
   EXPECT_FALSE(*foo_enabled);
   EXPECT_FALSE(*bar_enabled);
+  EXPECT_FALSE(*computed_enabled);
 }
 
 TEST_P(PerfettoApiTest, CategoryEnabledState) {
