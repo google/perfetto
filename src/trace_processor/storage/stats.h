@@ -163,7 +163,9 @@ namespace stats {
       "An ftrace packet was seen before the tracing start timestamp from "     \
       "the tracing service. This happens if the ftrace buffers were not "      \
       "cleared properly. These packets are silently dropped by trace "         \
-      "processor.")
+      "processor."),                                                           \
+  F(trace_too_short,                  kSingle,  kError,    kTrace,             \
+      "The trace is shorter than one microsecond.")
 // clang-format on
 
 enum Type {
@@ -176,7 +178,6 @@ enum Severity {
   kDataLoss,  // Correct operation that still resulted in data loss
   kError      // If any kError counter is > 0 trace_processor_shell will
               // raise an error. This is *not* surfaced in the web UI.
-              // TODO(b/148587181): Surface these errors in the UI.
 };
 
 enum Source {
