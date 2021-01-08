@@ -1259,17 +1259,19 @@ class PERFETTO_EXPORT TrackEventLegacy {
 // non-zero indicates at least one tracing session for this category is active.
 // Note that callers should not make any assumptions at what each bit represents
 // in the status byte. Does not support dynamic categories.
-#define TRACE_EVENT_API_GET_CATEGORY_GROUP_ENABLED(category)                 \
-  reinterpret_cast<const uint8_t*>(                                          \
-      [&] {                                                                  \
-        static_assert(                                                       \
-            !::PERFETTO_TRACK_EVENT_NAMESPACE::internal::IsDynamicCategory(  \
-                category),                                                   \
-            "Enabled flag pointers are not supported for dynamic trace "     \
-            "categories.");                                                  \
-      },                                                                     \
-      ::PERFETTO_TRACK_EVENT_NAMESPACE::internal::kConstExprCategoryRegistry \
-          .GetCategoryState(PERFETTO_GET_CATEGORY_INDEX(category)))
+#define TRACE_EVENT_API_GET_CATEGORY_GROUP_ENABLED(category)                \
+  reinterpret_cast<const uint8_t*>(                                         \
+      [&] {                                                                 \
+        static_assert(                                                      \
+            !std::is_same<::perfetto::DynamicCategory,                      \
+                          decltype(category)>::value,                       \
+            "Enabled flag pointers are not supported for dynamic trace "    \
+            "categories.");                                                 \
+      },                                                                    \
+      PERFETTO_TRACK_EVENT_NAMESPACE::internal::kConstExprCategoryRegistry  \
+          .GetCategoryState(                                                \
+              ::PERFETTO_TRACK_EVENT_NAMESPACE::internal::kCategoryRegistry \
+                  .Find(category, /*is_dynamic=*/false)))
 
 #endif  // PERFETTO_ENABLE_LEGACY_TRACE_EVENTS
 
