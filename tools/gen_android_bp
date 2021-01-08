@@ -179,6 +179,10 @@ additional_args = {
         # guarantee that the global constructors get run before it is used.
         ('cflags', {'-Wglobal-constructors', '-Werror=global-constructors'}),
         ('version_script', 'src/profiling/memory/heapprofd_client_api.map.txt'),
+        ('stubs', {
+          'versions': ['S'],
+          'symbol_file': 'src/profiling/memory/heapprofd_client_api.map.txt',
+        })
     ],
     'heapprofd_client': [
         ('include_dirs', {'bionic/libc'}),
@@ -454,6 +458,7 @@ class Module(object):
     self.version_script = None
     self.require_root = None
     self.test_suites = set()
+    self.stubs = {}
 
   def to_string(self, output):
     if self.comment:
@@ -486,6 +491,7 @@ class Module(object):
     self._output_field(output, 'version_script')
     self._output_field(output, 'require_root')
     self._output_field(output, 'test_suites')
+    self._output_field(output, 'stubs')
 
     target_out = []
     self._output_field(target_out, 'android')
