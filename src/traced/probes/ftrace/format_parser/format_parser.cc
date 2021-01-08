@@ -18,6 +18,7 @@
 
 #include <string.h>
 
+#include <cctype>
 #include <iosfwd>
 #include <iostream>
 #include <memory>
