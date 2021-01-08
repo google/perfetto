@@ -1866,7 +1866,7 @@ TEST_P(PerfettoApiTest, TrackEventDebugAnnotations) {
   TRACE_EVENT_BEGIN("test", "E", "str_arg", "hello", "str_arg2",
                     std::string("tracing"));
   TRACE_EVENT_BEGIN("test", "E", "ptr_arg",
-                    reinterpret_cast<void*>(0xbaadf00d));
+                    reinterpret_cast<void*>(static_cast<intptr_t>(0xbaadf00d)));
   TRACE_EVENT_BEGIN("test", "E", "size_t_arg", size_t{42});
   TRACE_EVENT_BEGIN("test", "E", "ptrdiff_t_arg", ptrdiff_t{-7});
   TRACE_EVENT_BEGIN("test", "E", "enum_arg", ENUM_BAR);
@@ -3390,6 +3390,11 @@ INSTANTIATE_TEST_SUITE_P(PerfettoApiTest,
                          BackendTypeAsString());
 
 }  // namespace
+
+PERFETTO_DECLARE_DATA_SOURCE_STATIC_MEMBERS(MockDataSource);
+PERFETTO_DECLARE_DATA_SOURCE_STATIC_MEMBERS(MockDataSource2);
+PERFETTO_DECLARE_DATA_SOURCE_STATIC_MEMBERS(TestIncrementalDataSource,
+                                            TestIncrementalDataSourceTraits);
 
 PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(MockDataSource);
 PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(MockDataSource2);
