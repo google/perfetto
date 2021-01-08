@@ -1,14 +1,18 @@
-{
+HEAPPROFD_API_S { # introduced=S
   global:
-    AHeapProfileEnableCallbackInfo_getSamplingInterval;
-    AHeapProfile_reportSample;
-    AHeapProfile_reportFree;
-    AHeapProfile_reportAllocation;
-    AHeapProfile_registerHeap;
+    AHeapProfileEnableCallbackInfo_getSamplingInterval; # apex
+    AHeapProfile_reportSample; # apex
+    AHeapProfile_reportFree; # apex
+    AHeapProfile_reportAllocation; # apex
+    AHeapProfile_registerHeap; # apex
+    AHeapInfo_setEnabledCallback; # apex
+    AHeapInfo_setDisabledCallback; # apex
+    AHeapInfo_create; # apex
+};
+
+PRIVATE {
+  global:
     AHeapProfile_initSession;
-    AHeapInfo_setEnabledCallback;
-    AHeapInfo_setDisabledCallback;
-    AHeapInfo_create;
   local:
     *;
-};
+} HEAPPROFD_API_S;
