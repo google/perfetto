@@ -142,7 +142,6 @@ void ConvertProtoTypeToFieldAndValueString(const FieldDescriptor& fd,
           fd.name().c_str(), fd.resolved_type_name().c_str(), fd.type());
     }
   }
-  return;
 }
 
 void IncreaseIndents(std::string* out) {
