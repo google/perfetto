@@ -109,6 +109,9 @@ config("c++11") {
   # C++11 is the default on Windows.
   if (!is_win) {
     cflags_cc = [ "-std=c++11" ]
+  } else if (is_win && !is_clang) {
+    # Enable standards-conforming compiler behavior.
+    cflags_cc = [ "/permissive-" ]
   }
 }
 
