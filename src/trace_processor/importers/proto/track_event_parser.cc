@@ -1303,37 +1303,48 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
            context_->storage->InternString("PpapiPlugin"),
            context_->storage->InternString("PpapiBroker")}},
       chrome_thread_name_ids_{
-          {protos::pbzero::ChromeThreadDescriptor::THREAD_UNSPECIFIED,
+          {protos::pbzero::ChromeThreadDescriptor_ThreadType_THREAD_UNSPECIFIED,
            kNullStringId},
-          {protos::pbzero::ChromeThreadDescriptor::THREAD_MAIN,
+          {protos::pbzero::ChromeThreadDescriptor_ThreadType_THREAD_MAIN,
            context_->storage->InternString("CrProcessMain")},
-          {protos::pbzero::ChromeThreadDescriptor::THREAD_IO,
+          {protos::pbzero::ChromeThreadDescriptor_ThreadType_THREAD_IO,
            context_->storage->InternString("ChromeIOThread")},
-          {protos::pbzero::ChromeThreadDescriptor::THREAD_NETWORK_SERVICE,
+          {protos::pbzero::
+               ChromeThreadDescriptor_ThreadType_THREAD_NETWORK_SERVICE,
            context_->storage->InternString("NetworkService")},
-          {protos::pbzero::ChromeThreadDescriptor::THREAD_POOL_BG_WORKER,
+          {protos::pbzero::
+               ChromeThreadDescriptor_ThreadType_THREAD_POOL_BG_WORKER,
            context_->storage->InternString("ThreadPoolBackgroundWorker&")},
-          {protos::pbzero::ChromeThreadDescriptor::THREAD_POOL_FG_WORKER,
+          {protos::pbzero::
+               ChromeThreadDescriptor_ThreadType_THREAD_POOL_FG_WORKER,
            context_->storage->InternString("ThreadPoolForegroundWorker&")},
-          {protos::pbzero::ChromeThreadDescriptor::THREAD_POOL_BG_BLOCKING,
+          {protos::pbzero::
+               ChromeThreadDescriptor_ThreadType_THREAD_POOL_BG_BLOCKING,
            context_->storage->InternString(
                "ThreadPoolSingleThreadBackgroundBlocking&")},
-          {protos::pbzero::ChromeThreadDescriptor::THREAD_POOL_FG_BLOCKING,
+          {protos::pbzero::
+               ChromeThreadDescriptor_ThreadType_THREAD_POOL_FG_BLOCKING,
            context_->storage->InternString(
                "ThreadPoolSingleThreadForegroundBlocking&")},
-          {protos::pbzero::ChromeThreadDescriptor::THREAD_POOL_SERVICE,
+          {protos::pbzero::
+               ChromeThreadDescriptor_ThreadType_THREAD_POOL_SERVICE,
            context_->storage->InternString("ThreadPoolService")},
-          {protos::pbzero::ChromeThreadDescriptor::THREAD_COMPOSITOR,
+          {protos::pbzero::ChromeThreadDescriptor_ThreadType_THREAD_COMPOSITOR,
            context_->storage->InternString("Compositor")},
-          {protos::pbzero::ChromeThreadDescriptor::THREAD_VIZ_COMPOSITOR,
+          {protos::pbzero::
+               ChromeThreadDescriptor_ThreadType_THREAD_VIZ_COMPOSITOR,
            context_->storage->InternString("VizCompositorThread")},
-          {protos::pbzero::ChromeThreadDescriptor::THREAD_COMPOSITOR_WORKER,
+          {protos::pbzero::
+               ChromeThreadDescriptor_ThreadType_THREAD_COMPOSITOR_WORKER,
            context_->storage->InternString("CompositorTileWorker&")},
-          {protos::pbzero::ChromeThreadDescriptor::THREAD_SERVICE_WORKER,
+          {protos::pbzero::
+               ChromeThreadDescriptor_ThreadType_THREAD_SERVICE_WORKER,
            context_->storage->InternString("ServiceWorkerThread&")},
-          {protos::pbzero::ChromeThreadDescriptor::THREAD_MEMORY_INFRA,
+          {protos::pbzero::
+               ChromeThreadDescriptor_ThreadType_THREAD_MEMORY_INFRA,
            context_->storage->InternString("MemoryInfra")},
-          {protos::pbzero::ChromeThreadDescriptor::THREAD_SAMPLING_PROFILER,
+          {protos::pbzero::
+               ChromeThreadDescriptor_ThreadType_THREAD_SAMPLING_PROFILER,
            context_->storage->InternString("StackSamplingProfiler")}},
       counter_unit_ids_{{kNullStringId, context_->storage->InternString("ns"),
                          context_->storage->InternString("count"),
