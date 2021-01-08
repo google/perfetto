@@ -193,12 +193,12 @@ class OptionsConverter {
       }
       std::string nested_fields =
           NestedMessageFieldOptionsToJson(message, field_desc, indent + 2);
-      if (nested_fields != "") {
+      if (!nested_fields.empty()) {
         field_entries.push_back(std::move(nested_fields));
       }
       // We don't output annotations for a field if that field and all its
       // descendants have no field options.
-      if (field_entries.size() > 0) {
+      if (!field_entries.empty()) {
         if (field_desc->is_repeated()) {
           field_entries.push_back(std::string(indent, ' ') +
                                   R"("__repeated": true)");
@@ -273,13 +273,13 @@ std::string MessageToJsonWithAnnotations(
   ret = "{" + MessageFieldsToJson(message, indent + 2);
   std::string annotation_fields =
       options_converter.MessageFieldOptionsToJson(message, indent + 4);
-  if (annotation_fields != "") {
+  if (annotation_fields.empty()) {
+    ret += "\n";
+  } else {
     ret += ",\n";
     ret += std::string(indent + 2, ' ') + "\"__annotations\": {\n";
     ret += annotation_fields + "\n";
     ret += std::string(indent + 2, ' ') + "}\n";
-  } else {
-    ret += "\n";
   }
   ret += std::string(indent, ' ') + "}\n";
   return ret;

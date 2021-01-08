@@ -275,7 +275,7 @@ SpanJoinOperatorTable::ComputeSqlConstraintsForDefinition(
   for (size_t i = 0; i < qc.constraints().size(); i++) {
     const auto& cs = qc.constraints()[i];
     auto col_name = GetNameForGlobalColumnIndex(defn, cs.column);
-    if (col_name == "")
+    if (col_name.empty())
       continue;
 
     // Le constraints can be passed straight to the child tables as they won't

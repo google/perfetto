@@ -99,7 +99,7 @@ util::Status FuchsiaTraceTokenizer::Parse(std::unique_ptr<uint8_t[]> data,
                            data.get() + size);
     return util::OkStatus();
   }
-  if (leftover_bytes_.size() > 0) {
+  if (!leftover_bytes_.empty()) {
     // There is a record starting from leftover bytes.
     if (leftover_bytes_.size() < 8) {
       // Header was previously incomplete, but we have enough now.
