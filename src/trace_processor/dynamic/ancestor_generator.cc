@@ -36,8 +36,9 @@ uint32_t GetConstraintColumnIndex(AncestorGenerator::Ancestor type,
 }
 
 template <typename T>
-std::unique_ptr<Table> BuildAncestors(const T& table, uint32_t starting_id) {
-  auto start_row = table.id().IndexOf(typename T::Id(starting_id));
+base::Optional<RowMap> BuildAncestorsRowMap(const T& table,
+                                            typename T::Id starting_id) {
+  auto start_row = table.id().IndexOf(starting_id);
 
   if (!start_row) {
     // TODO(lalitm): Ideally this should result in an error, or be filtered out
@@ -46,24 +47,34 @@ std::unique_ptr<Table> BuildAncestors(const T& table, uint32_t starting_id) {
     // filtering for so can't ensure it exists. For now we return a nullptr
     // which will cause the query to surface an error with the message "SQL
     // error: constraint failed".
-    return nullptr;
+    return base::nullopt;
   }
 
-  // Build up all the parents row ids, and a new column that includes the
-  // constraint.
   std::vector<uint32_t> ids;
-  std::unique_ptr<NullableVector<uint32_t>> child_ids(
-      new NullableVector<uint32_t>());
-
   auto maybe_parent_id = table.parent_id()[*start_row];
   while (maybe_parent_id) {
     ids.push_back(maybe_parent_id.value().value);
-    child_ids->Append(starting_id);
     // Update the loop variable by looking up the next parent_id.
     maybe_parent_id = table.parent_id()[*table.id().IndexOf(*maybe_parent_id)];
   }
+  return RowMap(std::move(ids));
+}
+
+template <typename T>
+std::unique_ptr<Table> BuildAncestorsTable(const T& table,
+                                           typename T::Id starting_id) {
+  // Build up all the parents row ids.
+  auto ancestors = BuildAncestorsRowMap(table, starting_id);
+  if (!ancestors) {
+    return nullptr;
+  }
+  // Add a new column that includes the constraint.
+  std::unique_ptr<NullableVector<uint32_t>> child_ids(
+      new NullableVector<uint32_t>());
+  for (uint32_t i = 0; i < ancestors->size(); ++i)
+    child_ids->Append(starting_id.value);
   return std::unique_ptr<Table>(
-      new Table(table.Apply(RowMap(std::move(ids)))
+      new Table(table.Apply(std::move(*ancestors))
                     .ExtendWithColumn("start_id", std::move(child_ids),
                                       TypedColumn<uint32_t>::default_flags() |
                                           TypedColumn<uint32_t>::kHidden)));
@@ -99,10 +110,12 @@ std::unique_ptr<Table> AncestorGenerator::ComputeTable(
   auto start_id = static_cast<uint32_t>(it->value.AsLong());
   switch (type_) {
     case Ancestor::kSlice:
-      return BuildAncestors(context_->storage->slice_table(), start_id);
+      return BuildAncestorsTable(context_->storage->slice_table(),
+                                 SliceId(start_id));
     case Ancestor::kStackProfileCallsite:
-      return BuildAncestors(context_->storage->stack_profile_callsite_table(),
-                            start_id);
+      return BuildAncestorsTable(
+          context_->storage->stack_profile_callsite_table(),
+          CallsiteId(start_id));
   }
   return nullptr;
 }
@@ -136,5 +149,13 @@ std::string AncestorGenerator::TableName() {
 uint32_t AncestorGenerator::EstimateRowCount() {
   return 1;
 }
+
+// static
+base::Optional<RowMap> AncestorGenerator::GetAncestorSlices(
+    const tables::SliceTable& slices,
+    SliceId slice_id) {
+  return BuildAncestorsRowMap(slices, slice_id);
+}
+
 }  // namespace trace_processor
 }  // namespace perfetto

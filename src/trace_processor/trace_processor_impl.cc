@@ -748,13 +748,13 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
       new DescendantSliceGenerator(&context_)));
   RegisterDynamicTable(
       std::unique_ptr<ConnectedFlowGenerator>(new ConnectedFlowGenerator(
-          ConnectedFlowGenerator::Direction::BOTH, &context_)));
+          ConnectedFlowGenerator::Mode::kDirectlyConnectedFlow, &context_)));
   RegisterDynamicTable(
       std::unique_ptr<ConnectedFlowGenerator>(new ConnectedFlowGenerator(
-          ConnectedFlowGenerator::Direction::FOLLOWING, &context_)));
+          ConnectedFlowGenerator::Mode::kPrecedingFlow, &context_)));
   RegisterDynamicTable(
       std::unique_ptr<ConnectedFlowGenerator>(new ConnectedFlowGenerator(
-          ConnectedFlowGenerator::Direction::PRECEDING, &context_)));
+          ConnectedFlowGenerator::Mode::kFollowingFlow, &context_)));
   RegisterDynamicTable(std::unique_ptr<ExperimentalSchedUpidGenerator>(
       new ExperimentalSchedUpidGenerator(storage->sched_slice_table(),
                                          storage->thread_table())));

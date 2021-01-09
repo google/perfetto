@@ -110,7 +110,7 @@ export class FlowEventsController extends Controller<'main'> {
       extract_arg(f.arg_set_id, 'cat'),
       extract_arg(f.arg_set_id, 'name'),
       f.id
-    from connected_flow(${sliceId}) f
+    from directly_connected_flow(${sliceId}) f
     join slice t1 on f.slice_out = t1.slice_id
     join slice t2 on f.slice_in = t2.slice_id
     `;
