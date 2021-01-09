@@ -103,13 +103,26 @@
       {
         "cat": "ipc",
         "pid": 100,
+        "tid": 15794,
+        "ts": 2450,
+        "ph": "X",
+        "name": "Flow2_Slice2a",
+        "args": {},
+        "dur": 200,
+        "bind_id": "0x404",
+        "flow_in": false,
+        "flow_out": true
+      },
+      {
+        "cat": "ipc",
+        "pid": 100,
         "tid": 15904,
         "ts": 3031,
         "ph": "X",
         "name": "Flow2_Slice3a",
         "args": {},
         "dur": 400,
-        "bind_id": "0x402",
+        "bind_id": "0x404",
         "flow_in": true
       },
       {
