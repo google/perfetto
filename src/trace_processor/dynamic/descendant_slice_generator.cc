@@ -50,7 +50,6 @@ util::Status DescendantSliceGenerator::ValidateConstraints(
 std::unique_ptr<Table> DescendantSliceGenerator::ComputeTable(
     const std::vector<Constraint>& cs,
     const std::vector<Order>&) {
-  using S = tables::SliceTable;
   const auto& slice = context_->storage->slice_table();
 
   auto it = std::find_if(cs.begin(), cs.end(), [&slice](const Constraint& c) {
@@ -59,26 +58,10 @@ std::unique_ptr<Table> DescendantSliceGenerator::ComputeTable(
   PERFETTO_DCHECK(it != cs.end());
 
   uint32_t start_id = static_cast<uint32_t>(it->value.AsLong());
-  auto start_row = slice.id().IndexOf(S::Id(start_id));
-  // The query gave an invalid ID that doesn't exist in the slice table.
-  if (!start_row) {
-    // TODO(lalitm): Ideally this should result in an error, or be filtered out
-    // during ValidateConstraints so we can just dereference |start_row|
-    // directly. However ValidateConstraints doesn't know the value we're
-    // filtering for so can't ensure it exists. For now we return a nullptr
-    // which will cause the query to surface an error with the message "SQL
-    // error: constraint failed".
+  auto descendants = GetDescendantSlices(slice, SliceId(start_id));
+  if (!descendants)
     return nullptr;
-  }
-
-  // All nested descendents must be on the same track, with a ts between
-  // |start_id.ts| and |start_id.ts| + |start_id.dur|, and who's depth is larger
-  // then |start_row|'s. So we just use Filter to select all relevant slices.
-  Table reduced_slice = slice.Filter(
-      {slice.ts().ge(slice.ts()[*start_row]),
-       slice.ts().le(slice.ts()[*start_row] + slice.dur()[*start_row]),
-       slice.track_id().eq(slice.track_id()[*start_row].value),
-       slice.depth().gt(slice.depth()[*start_row])});
+  Table reduced_slice = slice.Apply(std::move(*descendants));
 
   // For every row extend it to match the schema, and return it.
   std::unique_ptr<NullableVector<uint32_t>> start_ids(
@@ -108,5 +91,32 @@ std::string DescendantSliceGenerator::TableName() {
 uint32_t DescendantSliceGenerator::EstimateRowCount() {
   return 1;
 }
+
+// static
+base::Optional<RowMap> DescendantSliceGenerator::GetDescendantSlices(
+    const tables::SliceTable& slice,
+    SliceId start_id) {
+  auto start_row = slice.id().IndexOf(start_id);
+  // The query gave an invalid ID that doesn't exist in the slice table.
+  if (!start_row) {
+    // TODO(lalitm): Ideally this should result in an error, or be filtered out
+    // during ValidateConstraints so we can just dereference |start_row|
+    // directly. However ValidateConstraints doesn't know the value we're
+    // filtering for so can't ensure it exists. For now we return a nullptr
+    // which will cause the query to surface an error with the message "SQL
+    // error: constraint failed".
+    return base::nullopt;
+  }
+
+  // All nested descendents must be on the same track, with a ts between
+  // |start_id.ts| and |start_id.ts| + |start_id.dur|, and who's depth is larger
+  // then |start_row|'s. So we just use Filter to select all relevant slices.
+  return slice.FilterToRowMap(
+      {slice.ts().ge(slice.ts()[*start_row]),
+       slice.ts().le(slice.ts()[*start_row] + slice.dur()[*start_row]),
+       slice.track_id().eq(slice.track_id()[*start_row].value),
+       slice.depth().gt(slice.depth()[*start_row])});
+}
+
 }  // namespace trace_processor
 }  // namespace perfetto

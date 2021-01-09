@@ -21,21 +21,33 @@
 
 #include "src/trace_processor/storage/trace_storage.h"
 
+#include <queue>
+#include <set>
+
 namespace perfetto {
 namespace trace_processor {
 
 class TraceProcessorContext;
 
-// Implementation of tables: CONNECTED_FLOW, FOLLOWING_FLOW, PERCEEDING_FLOW
-// Searches for all entries of flow events table that are dirrectly or
-// indirectly connected to the given slice (slice id). It is possible to
-// restrict the direction of search.
+// Implementation of tables:
+// - DIRECTLY_CONNECTED_FLOW
+// - PRECEDING_FLOW
+// - FOLLOWING_FLOW
 class ConnectedFlowGenerator : public DbSqliteTable::DynamicTableGenerator {
  public:
-  enum class Direction { BOTH = 0, FOLLOWING = 1, PRECEDING = 2 };
+  enum class Mode {
+    // Directly connected slices through the same flow ID given by the trace
+    // writer.
+    kDirectlyConnectedFlow,
+    // Flow events which can be reached from the given slice by going over
+    // incoming flow events or to parent slices.
+    kPrecedingFlow,
+    // Flow events which can be reached from the given slice by going over
+    // outgoing flow events or to child slices.
+    kFollowingFlow,
+  };
 
-  explicit ConnectedFlowGenerator(Direction type,
-                                  TraceProcessorContext* context);
+  ConnectedFlowGenerator(Mode mode, TraceProcessorContext* context);
   ~ConnectedFlowGenerator() override;
 
   Table::Schema CreateSchema() override;
@@ -46,16 +58,8 @@ class ConnectedFlowGenerator : public DbSqliteTable::DynamicTableGenerator {
                                       const std::vector<Order>& ob) override;
 
  private:
-  // This function runs BFS on the flow events table as on directed graph
-  // It starts from start_id slice and returns all flow rows that are
-  // directly or indirectly connected to the starting slice.
-  // If dir is FOLLOWING BFS will move in direction (slice_out -> slice_in)
-  // If dir is PRECEDING BFS will move in direction (slice_in -> slice_out)
-  // IMPORTANT: dir must not be set to BOTH for this method
-  std::vector<uint32_t> GetConnectedFlowRows(SliceId start_id, Direction dir);
-
+  Mode mode_;
   TraceProcessorContext* context_ = nullptr;
-  Direction direction_;
 };
 
 }  // namespace trace_processor

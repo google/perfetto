@@ -13,8 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-SELECT "connected" as type, s.name, s1.name as start_name, s2.name as end_name  FROM slice s
-JOIN CONNECTED_FLOW(s.id) c
+SELECT "directly_connected" as type, s.name, s1.name as start_name, s2.name as end_name  FROM slice s
+JOIN DIRECTLY_CONNECTED_FLOW(s.id) c
 JOIN slice s1 ON s1.id = c.slice_out
 JOIN slice s2 ON s2.id = c.slice_in
 UNION
