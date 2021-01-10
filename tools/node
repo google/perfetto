@@ -1,0 +1,47 @@
+#!/bin/bash
+# Copyright (C) 2021 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+set -e -u
+
+# Note: this script is both executed standalone via tools/node and
+# sourced by tools/npm.
+
+ROOT_DIR="$(dirname $(cd -P ${BASH_SOURCE[0]%/*}; pwd))"
+
+if [ "$(uname -s)" == "Darwin" ]; then
+readonly NODE_DIR="$ROOT_DIR/buildtools/mac/nodejs"
+else
+readonly NODE_DIR="$ROOT_DIR/buildtools/linux64/nodejs"
+fi
+
+if [ ! -e "$NODE_DIR" ]; then
+  echo 'Could not find Node.js hermetic installation. Please run:'
+  echo 'tools/install-build-deps --ui'
+  exit 1
+fi
+
+exec_node() {
+  # Rationale for adding $ROOT_DIR/tools: some packages (notably protobufjs)
+  # have the bad habit of executing "npm install ..." at runtime on the first
+  # run. That will pick whatever "npm" is in the PATH which might be strongly
+  # different than ours in /buildtools.
+  export PATH="$NODE_DIR/bin:$ROOT_DIR/tools:$PATH"
+  exec node "$@"
+}
+
+# If the script is sourced (from //tools/npm) stop here. Otherwise run node.
+if [ "$0" == "${BASH_SOURCE[0]}" ]; then
+  exec_node "$@"
+fi

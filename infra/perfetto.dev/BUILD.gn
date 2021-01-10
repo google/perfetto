@@ -19,8 +19,7 @@ assert(enable_perfetto_ui)
 
 dist_dir = "$root_build_dir/site"
 gen_dir = "$target_out_dir/gen"
-nodejs_root = "../buildtools/nodejs"
-nodejs_bin = rebase_path("$nodejs_root/bin", root_build_dir)
+nodejs_bin = rebase_path("//tools/node", root_build_dir)
 
 # +----------------------------------------------------------------------------+
 # | The outer "ui" target to just ninja -C out/xxx ui                          |
