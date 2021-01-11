@@ -406,8 +406,8 @@ mainThreadr
 module (	Rmodule
 build_id (	RbuildId
 address (Raddress
-ã
-%protos/perfetto/metrics/metrics.protoperfetto.protos1protos/perfetto/metrics/android/batt_metric.proto0protos/perfetto/metrics/android/cpu_metric.proto5protos/perfetto/metrics/android/display_metrics.proto0protos/perfetto/metrics/android/gpu_metric.proto<protos/perfetto/metrics/android/heap_profile_callsites.proto1protos/perfetto/metrics/android/hwui_metric.proto0protos/perfetto/metrics/android/ion_metric.proto9protos/perfetto/metrics/android/java_heap_histogram.proto5protos/perfetto/metrics/android/java_heap_stats.proto0protos/perfetto/metrics/android/lmk_metric.proto7protos/perfetto/metrics/android/lmk_reason_metric.proto0protos/perfetto/metrics/android/mem_metric.proto6protos/perfetto/metrics/android/mem_unagg_metric.proto2protos/perfetto/metrics/android/package_list.proto5protos/perfetto/metrics/android/powrails_metric.proto4protos/perfetto/metrics/android/startup_metric.proto4protos/perfetto/metrics/android/surfaceflinger.proto7protos/perfetto/metrics/android/sysui_cuj_metrics.proto0protos/perfetto/metrics/android/task_names.protoAprotos/perfetto/metrics/android/thread_time_in_state_metric.proto9protos/perfetto/metrics/android/unsymbolized_frames.proto"æ
+‘
+%protos/perfetto/metrics/metrics.protoperfetto.protos1protos/perfetto/metrics/android/batt_metric.proto0protos/perfetto/metrics/android/cpu_metric.proto5protos/perfetto/metrics/android/display_metrics.proto0protos/perfetto/metrics/android/gpu_metric.proto<protos/perfetto/metrics/android/heap_profile_callsites.proto1protos/perfetto/metrics/android/hwui_metric.proto0protos/perfetto/metrics/android/ion_metric.proto9protos/perfetto/metrics/android/java_heap_histogram.proto5protos/perfetto/metrics/android/java_heap_stats.proto0protos/perfetto/metrics/android/lmk_metric.proto7protos/perfetto/metrics/android/lmk_reason_metric.proto0protos/perfetto/metrics/android/mem_metric.proto6protos/perfetto/metrics/android/mem_unagg_metric.proto2protos/perfetto/metrics/android/package_list.proto5protos/perfetto/metrics/android/powrails_metric.proto4protos/perfetto/metrics/android/startup_metric.proto4protos/perfetto/metrics/android/surfaceflinger.proto7protos/perfetto/metrics/android/sysui_cuj_metrics.proto0protos/perfetto/metrics/android/task_names.protoAprotos/perfetto/metrics/android/thread_time_in_state_metric.proto9protos/perfetto/metrics/android/unsymbolized_frames.proto"”
 TraceMetadata*
 trace_duration_ns (RtraceDurationNs
 
@@ -416,7 +416,8 @@ trace_uuid (	R	traceUuid:
 !statsd_triggering_subscription_id (RstatsdTriggeringSubscriptionId(
 trace_size_bytes (RtraceSizeBytes#
 trace_trigger (	RtraceTrigger.
-unique_session_name (	RuniqueSessionNameJ"Ç
+unique_session_name (	RuniqueSessionName,
+trace_config_pbtxt	 (	RtraceConfigPbtxtJ"Ç
 TraceMetricsH
 android_batt (2%.perfetto.protos.AndroidBatteryMetricRandroidBattB
 android_cpu (2!.perfetto.protos.AndroidCpuMetricR
