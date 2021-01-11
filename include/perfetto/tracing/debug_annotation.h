@@ -85,7 +85,7 @@ void WriteDebugAnnotation(
     typename std::enable_if<std::is_integral<T>::value &&
                             !std::is_same<T, bool>::value &&
                             std::is_signed<T>::value>::type* = nullptr) {
-  annotation->set_int_value(value);
+  annotation->set_int_value(static_cast<int64_t>(value));
 }
 
 template <typename T>
@@ -96,7 +96,7 @@ void WriteDebugAnnotation(
         std::is_enum<T>::value &&
         std::is_signed<typename safe_underlying_type<T>::type>::value>::type* =
         nullptr) {
-  annotation->set_int_value(value);
+  annotation->set_int_value(static_cast<int64_t>(value));
 }
 
 template <typename T>
@@ -106,7 +106,7 @@ void WriteDebugAnnotation(
     typename std::enable_if<std::is_enum<T>::value &&
                             std::is_unsigned<typename safe_underlying_type<
                                 T>::type>::value>::type* = nullptr) {
-  annotation->set_uint_value(value);
+  annotation->set_uint_value(static_cast<uint64_t>(value));
 }
 
 template <typename T>
@@ -116,7 +116,7 @@ void WriteDebugAnnotation(
     typename std::enable_if<std::is_integral<T>::value &&
                             !std::is_same<T, bool>::value &&
                             std::is_unsigned<T>::value>::type* = nullptr) {
-  annotation->set_uint_value(value);
+  annotation->set_uint_value(static_cast<uint64_t>(value));
 }
 
 template <typename T>
@@ -124,7 +124,7 @@ void WriteDebugAnnotation(
     protos::pbzero::DebugAnnotation* annotation,
     T value,
     typename std::enable_if<std::is_same<T, bool>::value>::type* = nullptr) {
-  annotation->set_bool_value(value);
+  annotation->set_bool_value(static_cast<bool>(value));
 }
 
 template <typename T>
