@@ -1595,9 +1595,9 @@ filegroup(
     ],
 )
 
-# GN target: //src/tracing:platform_posix
+# GN target: //src/tracing:platform_impl
 filegroup(
-    name = "src_tracing_platform_posix",
+    name = "src_tracing_platform_impl",
     srcs = [
         "src/tracing/platform_posix.cc",
     ],
@@ -3057,7 +3057,7 @@ perfetto_cc_library(
         ":src_tracing_ipc_consumer_consumer",
         ":src_tracing_ipc_producer_producer",
         ":src_tracing_ipc_service_service",
-        ":src_tracing_platform_posix",
+        ":src_tracing_platform_impl",
         ":src_tracing_system_backend",
     ],
     hdrs = [

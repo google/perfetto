@@ -158,7 +158,7 @@ void ProducerIPCClientImpl::OnConnect() {
 
   int shm_fd = -1;
   if (shared_memory_) {
-    shm_fd = shared_memory_->fd();
+    shm_fd = static_cast<PosixSharedMemory*>(shared_memory_.get())->fd();
     req.set_producer_provided_shmem(true);
   }
 

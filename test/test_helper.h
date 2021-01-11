@@ -17,8 +17,13 @@
 #ifndef TEST_TEST_HELPER_H_
 #define TEST_TEST_HELPER_H_
 
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/thread_task_runner.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/tracing/core/consumer.h"
 #include "perfetto/ext/tracing/core/shared_memory_arbiter.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
@@ -26,9 +31,15 @@
 #include "perfetto/ext/tracing/ipc/service_ipc_host.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "src/base/test/test_task_runner.h"
+#include "test/fake_producer.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+// TODO(primiano): uncomment in next CL.
+// #include "src/tracing/ipc/shared_memory_windows.h"
+#else
 #include "src/traced/probes/probes_producer.h"
 #include "src/tracing/ipc/posix_shared_memory.h"
-#include "test/fake_producer.h"
+#endif
 
 #include "protos/perfetto/trace/trace_packet.gen.h"
 
@@ -56,12 +67,10 @@ class ServiceThread {
     runner_ = base::ThreadTaskRunner::CreateAndStart("perfetto.svc");
     runner_->PostTaskAndWaitForTesting([this]() {
       svc_ = ServiceIPCHost::CreateInstance(runner_->get());
-      unlink(producer_socket_.c_str());
-      unlink(consumer_socket_.c_str());
-      setenv("PERFETTO_PRODUCER_SOCK_NAME", producer_socket_.c_str(),
-             /*overwrite=*/true);
-      setenv("PERFETTO_CONSUMER_SOCK_NAME", consumer_socket_.c_str(),
-             /*overwrite=*/true);
+      remove(producer_socket_.c_str());
+      remove(consumer_socket_.c_str());
+      base::SetEnv("PERFETTO_PRODUCER_SOCK_NAME", producer_socket_);
+      base::SetEnv("PERFETTO_CONSUMER_SOCK_NAME", consumer_socket_);
       bool res =
           svc_->Start(producer_socket_.c_str(), consumer_socket_.c_str());
       PERFETTO_CHECK(res);
@@ -79,6 +88,15 @@ class ServiceThread {
 };
 
 // This is used only in daemon starting integrations tests.
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+// On Windows we don't have any traced_probes, make this a no-op to avoid
+// propagating #ifdefs to the outer test.
+class ProbesProducerThread {
+ public:
+  ProbesProducerThread(const std::string& /*producer_socket*/) {}
+  void Connect() {}
+};
+#else
 class ProbesProducerThread {
  public:
   ProbesProducerThread(const std::string& producer_socket)
@@ -104,6 +122,7 @@ class ProbesProducerThread {
   std::string producer_socket_;
   std::unique_ptr<ProbesProducer> producer_;
 };
+#endif  // !OS_WIN
 
 class FakeProducerThread {
  public:
@@ -139,9 +158,13 @@ class FakeProducerThread {
   FakeProducer* producer() { return producer_.get(); }
 
   void CreateProducerProvidedSmb() {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+    // TODO(primiano): in next CLs introduce SharedMemoryWindows.
+#else
     PosixSharedMemory::Factory factory;
     shm_ = factory.CreateSharedMemory(1024 * 1024);
     shm_arbiter_ = SharedMemoryArbiter::CreateUnboundInstance(shm_.get(), 4096);
+#endif
   }
 
   void ProduceStartupEventBatch(const protos::gen::TestConfig& config,

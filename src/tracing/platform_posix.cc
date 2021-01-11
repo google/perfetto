@@ -15,6 +15,11 @@
  */
 
 #include "perfetto/base/build_config.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/thread_task_runner.h"
 #include "perfetto/tracing/internal/tracing_tls.h"
@@ -42,23 +47,6 @@ class PlatformPosix : public Platform {
   pthread_key_t tls_key_{};
 };
 
-// TODO(primiano): make base::ThreadTaskRunner directly inherit TaskRunner, so
-// we can avoid this boilerplate.
-class TaskRunnerInstance : public base::TaskRunner {
- public:
-  TaskRunnerInstance();
-  ~TaskRunnerInstance() override;
-
-  void PostTask(std::function<void()>) override;
-  void PostDelayedTask(std::function<void()>, uint32_t delay_ms) override;
-  void AddFileDescriptorWatch(int fd, std::function<void()>) override;
-  void RemoveFileDescriptorWatch(int fd) override;
-  bool RunsTasksOnCurrentThread() const override;
-
- private:
-  base::ThreadTaskRunner thread_task_runner_;
-};
-
 using ThreadLocalObject = Platform::ThreadLocalObject;
 
 PlatformPosix::PlatformPosix() {
@@ -84,7 +72,8 @@ ThreadLocalObject* PlatformPosix::GetOrCreateThreadLocalObject() {
 
 std::unique_ptr<base::TaskRunner> PlatformPosix::CreateTaskRunner(
     const CreateTaskRunnerArgs&) {
-  return std::unique_ptr<base::TaskRunner>(new TaskRunnerInstance());
+  return std::unique_ptr<base::TaskRunner>(
+      new base::ThreadTaskRunner(base::ThreadTaskRunner::CreateAndStart()));
 }
 
 std::string PlatformPosix::GetCurrentProcessName() {
@@ -100,31 +89,6 @@ std::string PlatformPosix::GetCurrentProcessName() {
 #endif
 }
 
-TaskRunnerInstance::TaskRunnerInstance()
-    : thread_task_runner_(base::ThreadTaskRunner::CreateAndStart()) {}
-TaskRunnerInstance::~TaskRunnerInstance() = default;
-void TaskRunnerInstance::PostTask(std::function<void()> func) {
-  thread_task_runner_.get()->PostTask(func);
-}
-
-void TaskRunnerInstance::PostDelayedTask(std::function<void()> func,
-                                         uint32_t delay_ms) {
-  thread_task_runner_.get()->PostDelayedTask(func, delay_ms);
-}
-
-void TaskRunnerInstance::AddFileDescriptorWatch(int fd,
-                                                std::function<void()> func) {
-  thread_task_runner_.get()->AddFileDescriptorWatch(fd, func);
-}
-
-void TaskRunnerInstance::RemoveFileDescriptorWatch(int fd) {
-  thread_task_runner_.get()->RemoveFileDescriptorWatch(fd);
-}
-
-bool TaskRunnerInstance::RunsTasksOnCurrentThread() const {
-  return thread_task_runner_.get()->RunsTasksOnCurrentThread();
-}
-
 }  // namespace
 
 // static
@@ -134,3 +98,4 @@ Platform* Platform::GetDefaultPlatform() {
 }
 
 }  // namespace perfetto
+#endif  // OS_LINUX || OS_ANDROID || OS_APPLE
