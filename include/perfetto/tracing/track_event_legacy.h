@@ -497,16 +497,17 @@ class PERFETTO_EXPORT TrackEventLegacy {
         TrackEventLegacy::AddDebugAnnotations(&ctx, ##__VA_ARGS__); \
       })
 
-#define INTERNAL_TRACE_EVENT_ADD_SCOPED_WITH_FLOW(category, name, bind_id, \
-                                                  flags, ...)              \
-  PERFETTO_INTERNAL_SCOPED_TRACK_EVENT(                                    \
-      category, ::perfetto::StaticString{name},                            \
-      [&](perfetto::EventContext ctx) {                                    \
-        using ::perfetto::internal::TrackEventLegacy;                      \
-        ::perfetto::internal::LegacyTraceId trace_id{bind_id};             \
-        TrackEventLegacy::WriteLegacyEventWithIdAndTid(                    \
-            std::move(ctx), TRACE_EVENT_PHASE_BEGIN, flags, trace_id,      \
-            TRACE_EVENT_API_CURRENT_THREAD_ID, ##__VA_ARGS__);             \
+#define INTERNAL_TRACE_EVENT_ADD_SCOPED_WITH_FLOW(category, name, bind_id,   \
+                                                  flags, ...)                \
+  PERFETTO_INTERNAL_SCOPED_TRACK_EVENT(                                      \
+      category, ::perfetto::StaticString{name},                              \
+      [&](perfetto::EventContext ctx) {                                      \
+        using ::perfetto::internal::TrackEventLegacy;                        \
+        ::perfetto::internal::LegacyTraceId PERFETTO_UID(trace_id){bind_id}; \
+        TrackEventLegacy::WriteLegacyEventWithIdAndTid(                      \
+            std::move(ctx), TRACE_EVENT_PHASE_BEGIN, flags,                  \
+            PERFETTO_UID(trace_id), TRACE_EVENT_API_CURRENT_THREAD_ID,       \
+            ##__VA_ARGS__);                                                  \
       })
 
 #define INTERNAL_TRACE_EVENT_ADD_WITH_TIMESTAMP(phase, category, name,   \
@@ -521,17 +522,18 @@ class PERFETTO_EXPORT TrackEventLegacy {
                                            ##__VA_ARGS__);               \
       })
 
-#define INTERNAL_TRACE_EVENT_ADD_WITH_ID_TID_AND_TIMESTAMP(                    \
-    phase, category, name, id, thread_id, timestamp, flags, ...)               \
-  PERFETTO_INTERNAL_TRACK_EVENT(                                               \
-      category, ::perfetto::StaticString{name},                                \
-      ::perfetto::internal::TrackEventLegacy::PhaseToType(phase),              \
-      ::perfetto::legacy::ConvertTimestampToTraceTimeNs(timestamp),            \
-      [&](perfetto::EventContext ctx) {                                        \
-        using ::perfetto::internal::TrackEventLegacy;                          \
-        ::perfetto::internal::LegacyTraceId trace_id{id};                      \
-        TrackEventLegacy::WriteLegacyEventWithIdAndTid(                        \
-            std::move(ctx), phase, flags, trace_id, thread_id, ##__VA_ARGS__); \
+#define INTERNAL_TRACE_EVENT_ADD_WITH_ID_TID_AND_TIMESTAMP(                  \
+    phase, category, name, id, thread_id, timestamp, flags, ...)             \
+  PERFETTO_INTERNAL_TRACK_EVENT(                                             \
+      category, ::perfetto::StaticString{name},                              \
+      ::perfetto::internal::TrackEventLegacy::PhaseToType(phase),            \
+      ::perfetto::legacy::ConvertTimestampToTraceTimeNs(timestamp),          \
+      [&](perfetto::EventContext ctx) {                                      \
+        using ::perfetto::internal::TrackEventLegacy;                        \
+        ::perfetto::internal::LegacyTraceId PERFETTO_UID(trace_id){id};      \
+        TrackEventLegacy::WriteLegacyEventWithIdAndTid(                      \
+            std::move(ctx), phase, flags, PERFETTO_UID(trace_id), thread_id, \
+            ##__VA_ARGS__);                                                  \
       })
 
 #define INTERNAL_TRACE_EVENT_ADD_WITH_ID(phase, category, name, id, flags, \
@@ -541,9 +543,9 @@ class PERFETTO_EXPORT TrackEventLegacy {
       ::perfetto::internal::TrackEventLegacy::PhaseToType(phase),          \
       [&](perfetto::EventContext ctx) {                                    \
         using ::perfetto::internal::TrackEventLegacy;                      \
-        ::perfetto::internal::LegacyTraceId trace_id{id};                  \
+        ::perfetto::internal::LegacyTraceId PERFETTO_UID(trace_id){id};    \
         TrackEventLegacy::WriteLegacyEventWithIdAndTid(                    \
-            std::move(ctx), phase, flags, trace_id,                        \
+            std::move(ctx), phase, flags, PERFETTO_UID(trace_id),          \
             TRACE_EVENT_API_CURRENT_THREAD_ID, ##__VA_ARGS__);             \
       })
 
@@ -1257,17 +1259,30 @@ class PERFETTO_EXPORT TrackEventLegacy {
 // non-zero indicates at least one tracing session for this category is active.
 // Note that callers should not make any assumptions at what each bit represents
 // in the status byte. Does not support dynamic categories.
-#define TRACE_EVENT_API_GET_CATEGORY_GROUP_ENABLED(category)                 \
-  reinterpret_cast<const uint8_t*>(                                          \
-      [&] {                                                                  \
-        static_assert(                                                       \
-            !::PERFETTO_TRACK_EVENT_NAMESPACE::internal::IsDynamicCategory(  \
-                category),                                                   \
-            "Enabled flag pointers are not supported for dynamic trace "     \
-            "categories.");                                                  \
-      },                                                                     \
-      ::PERFETTO_TRACK_EVENT_NAMESPACE::internal::kConstExprCategoryRegistry \
-          .GetCategoryState(PERFETTO_GET_CATEGORY_INDEX(category)))
+#define TRACE_EVENT_API_GET_CATEGORY_GROUP_ENABLED(category)                \
+  reinterpret_cast<const uint8_t*>(                                         \
+      [&] {                                                                 \
+        static_assert(                                                      \
+            !std::is_same<::perfetto::DynamicCategory,                      \
+                          decltype(category)>::value,                       \
+            "Enabled flag pointers are not supported for dynamic trace "    \
+            "categories.");                                                 \
+      },                                                                    \
+      PERFETTO_TRACK_EVENT_NAMESPACE::internal::kConstExprCategoryRegistry  \
+          .GetCategoryState(                                                \
+              ::PERFETTO_TRACK_EVENT_NAMESPACE::internal::kCategoryRegistry \
+                  .Find(category, /*is_dynamic=*/false)))
+
+// Given a pointer returned by TRACE_EVENT_API_GET_CATEGORY_GROUP_ENABLED,
+// yields a pointer to the name of the corresponding category group.
+#define TRACE_EVENT_API_GET_CATEGORY_GROUP_NAME(category_enabled_ptr)       \
+  ::PERFETTO_TRACK_EVENT_NAMESPACE::internal::kConstExprCategoryRegistry    \
+      .GetCategory(                                                         \
+          category_enabled_ptr -                                            \
+          reinterpret_cast<const uint8_t*>(                                 \
+              ::PERFETTO_TRACK_EVENT_NAMESPACE::internal::kCategoryRegistry \
+                  .GetCategoryState(0u)))                                   \
+      ->name
 
 #endif  // PERFETTO_ENABLE_LEGACY_TRACE_EVENTS
 

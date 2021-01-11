@@ -541,7 +541,7 @@ base::Optional<uint64_t> GraphProcessor::AggregateSizeForDescendantNode(
     return GetSizeEntryOfNode(descendant).value_or(0ul);
 
   base::Optional<uint64_t> size;
-  for (auto path_to_child : *descendant->children()) {
+  for (const auto& path_to_child : *descendant->children()) {
     auto c_size = AggregateSizeForDescendantNode(root, path_to_child.second);
     if (size) {
       *size += c_size.value_or(0);
@@ -560,7 +560,7 @@ void GraphProcessor::CalculateSizeForNode(Node* node) {
 
   // Aggregate the size of all the child nodes.
   base::Optional<uint64_t> aggregated_size;
-  for (auto path_to_child : *node->children()) {
+  for (const auto& path_to_child : *node->children()) {
     auto c_size = AggregateSizeForDescendantNode(node, path_to_child.second);
     if (aggregated_size) {
       *aggregated_size += c_size.value_or(0ul);

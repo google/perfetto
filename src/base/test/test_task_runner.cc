@@ -17,7 +17,6 @@
 #include "src/base/test/test_task_runner.h"
 
 #include <stdio.h>
-#include <unistd.h>
 
 #include <chrono>
 
@@ -99,12 +98,12 @@ void TestTaskRunner::PostDelayedTask(std::function<void()> closure,
   task_runner_.PostDelayedTask(std::move(closure), delay_ms);
 }
 
-void TestTaskRunner::AddFileDescriptorWatch(int fd,
+void TestTaskRunner::AddFileDescriptorWatch(PlatformHandle fd,
                                             std::function<void()> callback) {
   task_runner_.AddFileDescriptorWatch(fd, std::move(callback));
 }
 
-void TestTaskRunner::RemoveFileDescriptorWatch(int fd) {
+void TestTaskRunner::RemoveFileDescriptorWatch(PlatformHandle fd) {
   task_runner_.RemoveFileDescriptorWatch(fd);
 }
 

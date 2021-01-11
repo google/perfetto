@@ -110,7 +110,8 @@ class ProtoToArgsTable {
   // listed in the event_list file. You can then find your variable inside the
   // header location specified inside that python script.
   util::Status AddProtoFileDescriptor(const uint8_t* proto_descriptor_array,
-                                      size_t proto_descriptor_array_size);
+                                      size_t proto_descriptor_array_size,
+                                      bool merge_existing_messages = false);
 
   // Given a view of bytes that represent a serialized protozero message of
   // |type| we will parse each field into the Args table using RowId |row|.

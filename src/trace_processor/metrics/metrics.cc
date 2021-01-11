@@ -97,43 +97,43 @@ util::Status ProtoBuilder::AppendSqlValue(const std::string& field_name,
 util::Status ProtoBuilder::AppendLong(const std::string& field_name,
                                       int64_t value,
                                       bool is_inside_repeated) {
-  auto field_idx = descriptor_->FindFieldIdxByName(field_name);
-  if (!field_idx.has_value()) {
+  auto field = descriptor_->FindFieldByName(field_name);
+  if (!field) {
     return util::ErrStatus("Field with name %s not found in proto type %s",
                            field_name.c_str(),
                            descriptor_->full_name().c_str());
   }
 
   using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
-  const auto& field = descriptor_->fields()[field_idx.value()];
-  if (field.is_repeated() && !is_inside_repeated) {
+  if (field->is_repeated() && !is_inside_repeated) {
     return util::ErrStatus(
         "Unexpected long value for repeated field %s in proto type %s",
         field_name.c_str(), descriptor_->full_name().c_str());
   }
 
-  switch (field.type()) {
+  switch (field->type()) {
     case FieldDescriptorProto::TYPE_INT32:
     case FieldDescriptorProto::TYPE_INT64:
     case FieldDescriptorProto::TYPE_UINT32:
     case FieldDescriptorProto::TYPE_BOOL:
-      message_->AppendVarInt(field.number(), value);
+      message_->AppendVarInt(field->number(), value);
       break;
     case FieldDescriptorProto::TYPE_SINT32:
     case FieldDescriptorProto::TYPE_SINT64:
-      message_->AppendSignedVarInt(field.number(), value);
+      message_->AppendSignedVarInt(field->number(), value);
       break;
     case FieldDescriptorProto::TYPE_FIXED32:
     case FieldDescriptorProto::TYPE_SFIXED32:
     case FieldDescriptorProto::TYPE_FIXED64:
     case FieldDescriptorProto::TYPE_SFIXED64:
-      message_->AppendFixed(field.number(), value);
+      message_->AppendFixed(field->number(), value);
       break;
     default: {
       return util::ErrStatus(
           "Tried to write value of type long into field %s (in proto type %s) "
           "which has type %d",
-          field.name().c_str(), descriptor_->full_name().c_str(), field.type());
+          field->name().c_str(), descriptor_->full_name().c_str(),
+          field->type());
     }
   }
   return util::OkStatus();
@@ -142,28 +142,27 @@ util::Status ProtoBuilder::AppendLong(const std::string& field_name,
 util::Status ProtoBuilder::AppendDouble(const std::string& field_name,
                                         double value,
                                         bool is_inside_repeated) {
-  auto field_idx = descriptor_->FindFieldIdxByName(field_name);
-  if (!field_idx.has_value()) {
+  auto field = descriptor_->FindFieldByName(field_name);
+  if (!field) {
     return util::ErrStatus("Field with name %s not found in proto type %s",
                            field_name.c_str(),
                            descriptor_->full_name().c_str());
   }
 
   using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
-  const auto& field = descriptor_->fields()[field_idx.value()];
-  if (field.is_repeated() && !is_inside_repeated) {
+  if (field->is_repeated() && !is_inside_repeated) {
     return util::ErrStatus(
         "Unexpected double value for repeated field %s in proto type %s",
         field_name.c_str(), descriptor_->full_name().c_str());
   }
 
-  switch (field.type()) {
+  switch (field->type()) {
     case FieldDescriptorProto::TYPE_FLOAT:
     case FieldDescriptorProto::TYPE_DOUBLE: {
-      if (field.type() == FieldDescriptorProto::TYPE_FLOAT) {
-        message_->AppendFixed(field.number(), static_cast<float>(value));
+      if (field->type() == FieldDescriptorProto::TYPE_FLOAT) {
+        message_->AppendFixed(field->number(), static_cast<float>(value));
       } else {
-        message_->AppendFixed(field.number(), value);
+        message_->AppendFixed(field->number(), value);
       }
       break;
     }
@@ -171,7 +170,8 @@ util::Status ProtoBuilder::AppendDouble(const std::string& field_name,
       return util::ErrStatus(
           "Tried to write value of type double into field %s (in proto type "
           "%s) which has type %d",
-          field.name().c_str(), descriptor_->full_name().c_str(), field.type());
+          field->name().c_str(), descriptor_->full_name().c_str(),
+          field->type());
     }
   }
   return util::OkStatus();
@@ -180,31 +180,31 @@ util::Status ProtoBuilder::AppendDouble(const std::string& field_name,
 util::Status ProtoBuilder::AppendString(const std::string& field_name,
                                         base::StringView data,
                                         bool is_inside_repeated) {
-  auto field_idx = descriptor_->FindFieldIdxByName(field_name);
-  if (!field_idx.has_value()) {
+  const FieldDescriptor* field = descriptor_->FindFieldByName(field_name);
+  if (!field) {
     return util::ErrStatus("Field with name %s not found in proto type %s",
                            field_name.c_str(),
                            descriptor_->full_name().c_str());
   }
 
   using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
-  const auto& field = descriptor_->fields()[field_idx.value()];
-  if (field.is_repeated() && !is_inside_repeated) {
+  if (field->is_repeated() && !is_inside_repeated) {
     return util::ErrStatus(
         "Unexpected string value for repeated field %s in proto type %s",
         field_name.c_str(), descriptor_->full_name().c_str());
   }
 
-  switch (field.type()) {
+  switch (field->type()) {
     case FieldDescriptorProto::TYPE_STRING: {
-      message_->AppendBytes(field.number(), data.data(), data.size());
+      message_->AppendBytes(field->number(), data.data(), data.size());
       break;
     }
     default: {
       return util::ErrStatus(
           "Tried to write value of type string into field %s (in proto type "
           "%s) which has type %d",
-          field.name().c_str(), descriptor_->full_name().c_str(), field.type());
+          field->name().c_str(), descriptor_->full_name().c_str(),
+          field->type());
     }
   }
   return util::OkStatus();
@@ -214,20 +214,19 @@ util::Status ProtoBuilder::AppendBytes(const std::string& field_name,
                                        const uint8_t* ptr,
                                        size_t size,
                                        bool is_inside_repeated) {
-  auto field_idx = descriptor_->FindFieldIdxByName(field_name);
-  if (!field_idx.has_value()) {
+  const FieldDescriptor* field = descriptor_->FindFieldByName(field_name);
+  if (!field) {
     return util::ErrStatus("Field with name %s not found in proto type %s",
                            field_name.c_str(),
                            descriptor_->full_name().c_str());
   }
 
   using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
-  const auto& field = descriptor_->fields()[field_idx.value()];
-  if (field.is_repeated() && !is_inside_repeated)
-    return AppendRepeated(field, ptr, size);
+  if (field->is_repeated() && !is_inside_repeated)
+    return AppendRepeated(*field, ptr, size);
 
-  if (field.type() == FieldDescriptorProto::TYPE_MESSAGE)
-    return AppendSingleMessage(field, ptr, size);
+  if (field->type() == FieldDescriptorProto::TYPE_MESSAGE)
+    return AppendSingleMessage(*field, ptr, size);
 
   if (size == 0) {
     return util::ErrStatus(
@@ -235,13 +234,13 @@ util::Status ProtoBuilder::AppendBytes(const std::string& field_name,
         "Nulls are only supported for message protos; all other types should"
         "ensure that nulls are not passed to proto builder functions by using"
         "the SQLite IFNULL/COALESCE functions.",
-        field.name().c_str(), descriptor_->full_name().c_str());
+        field->name().c_str(), descriptor_->full_name().c_str());
   }
 
   return util::ErrStatus(
       "Tried to write value of type bytes into field %s (in proto type %s) "
       "which has type %d",
-      field.name().c_str(), descriptor_->full_name().c_str(), field.type());
+      field->name().c_str(), descriptor_->full_name().c_str(), field->type());
 }
 
 util::Status ProtoBuilder::AppendSingleMessage(const FieldDescriptor& field,

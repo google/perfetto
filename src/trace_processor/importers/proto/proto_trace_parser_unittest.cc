@@ -58,6 +58,7 @@
 #include "protos/perfetto/trace/sys_stats/sys_stats.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "protos/perfetto/trace/track_event/chrome_thread_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/counter_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/debug_annotation.pbzero.h"
 #include "protos/perfetto/trace/track_event/log_message.pbzero.h"
@@ -1326,6 +1327,9 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
     auto* thread_desc = track_desc->set_thread();
     thread_desc->set_pid(15);
     thread_desc->set_tid(16);
+    auto* chrome_thread = track_desc->set_chrome_thread();
+    chrome_thread->set_thread_type(
+        protos::pbzero::ChromeThreadDescriptor::THREAD_SAMPLING_PROFILER);
   }
   {
     auto* packet = trace_->add_packet();
@@ -1426,6 +1430,16 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
     ev1->set_name("ev3");
   }
 
+  EXPECT_CALL(*process_,
+              UpdateThreadNameByUtid(
+                  1u, storage_->InternString("StackSamplingProfiler"),
+                  ThreadNamePriority::kTrackDescriptorThreadType));
+  EXPECT_CALL(*process_,
+              UpdateThreadNameByUtid(2u, kNullStringId,
+                                     ThreadNamePriority::kTrackDescriptor));
+  EXPECT_CALL(*process_,
+              UpdateThreadNameByUtid(1u, kNullStringId,
+                                     ThreadNamePriority::kTrackDescriptor));
   EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1));
   EXPECT_CALL(*process_, UpdateThread(17, 15)).WillRepeatedly(Return(2));
 

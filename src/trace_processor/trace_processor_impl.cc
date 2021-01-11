@@ -51,6 +51,7 @@
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/sqlite/stats_table.h"
 #include "src/trace_processor/sqlite/window_operator_table.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/tp_metatrace.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/protozero_to_text.h"
@@ -748,13 +749,13 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
       new DescendantSliceGenerator(&context_)));
   RegisterDynamicTable(
       std::unique_ptr<ConnectedFlowGenerator>(new ConnectedFlowGenerator(
-          ConnectedFlowGenerator::Direction::BOTH, &context_)));
+          ConnectedFlowGenerator::Mode::kDirectlyConnectedFlow, &context_)));
   RegisterDynamicTable(
       std::unique_ptr<ConnectedFlowGenerator>(new ConnectedFlowGenerator(
-          ConnectedFlowGenerator::Direction::FOLLOWING, &context_)));
+          ConnectedFlowGenerator::Mode::kPrecedingFlow, &context_)));
   RegisterDynamicTable(
       std::unique_ptr<ConnectedFlowGenerator>(new ConnectedFlowGenerator(
-          ConnectedFlowGenerator::Direction::PRECEDING, &context_)));
+          ConnectedFlowGenerator::Mode::kFollowingFlow, &context_)));
   RegisterDynamicTable(std::unique_ptr<ExperimentalSchedUpidGenerator>(
       new ExperimentalSchedUpidGenerator(storage->sched_slice_table(),
                                          storage->thread_table())));
@@ -847,7 +848,13 @@ void TraceProcessorImpl::NotifyEndOfFile() {
   context_.metadata_tracker->SetMetadata(
       metadata::trace_size_bytes,
       Variadic::Integer(static_cast<int64_t>(bytes_parsed_)));
-  BuildBoundsTable(*db_, context_.storage->GetTraceTimestampBoundsNs());
+
+  std::pair<int64_t, int64_t> bounds =
+      context_.storage->GetTraceTimestampBoundsNs();
+  BuildBoundsTable(*db_, bounds);
+  if ((bounds.second - bounds.first) < 1000) {
+    context_.storage->SetStats(stats::trace_too_short, 1);
+  }
 
   // Create a snapshot of all tables and views created so far. This is so later
   // we can drop all extra tables created by the UI and reset to the original
@@ -930,9 +937,8 @@ bool TraceProcessorImpl::IsRootMetricField(const std::string& metric_name) {
       pool_.FindDescriptorIdx(".perfetto.protos.TraceMetrics");
   if (!desc_idx.has_value())
     return false;
-  base::Optional<uint32_t> field_idx =
-      pool_.descriptors()[*desc_idx].FindFieldIdxByName(metric_name);
-  return field_idx.has_value();
+  auto field_idx = pool_.descriptors()[*desc_idx].FindFieldByName(metric_name);
+  return field_idx != nullptr;
 }
 
 util::Status TraceProcessorImpl::RegisterMetric(const std::string& path,

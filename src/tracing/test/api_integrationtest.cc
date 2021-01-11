@@ -792,6 +792,14 @@ void TestTrackEventInsideTemplate(T) {
   TRACE_EVENT_BEGIN("cat", "Name");
 }
 
+// This is a build-only regression test that checks you can specify the tracing
+// category as a template argument.
+constexpr const char kTestCategory[] = "foo";
+template <const char* category>
+void TestCategoryAsTemplateParameter() {
+  TRACE_EVENT_BEGIN(category, "Name");
+}
+
 TEST_P(PerfettoApiTest, TrackEvent) {
   // Create a new trace session.
   auto* tracing_session = NewTraceWithCategories({"test"});
@@ -905,8 +913,9 @@ TEST_P(PerfettoApiTest, TrackEvent) {
   EXPECT_TRUE(begin_found);
   EXPECT_TRUE(end_found);
 
-  // Dummy instantiation of test template.
+  // Dummy instantiation of test templates.
   TestTrackEventInsideTemplate(true);
+  TestCategoryAsTemplateParameter<kTestCategory>();
 }
 
 TEST_P(PerfettoApiTest, TrackEventCategories) {
@@ -1866,7 +1875,7 @@ TEST_P(PerfettoApiTest, TrackEventDebugAnnotations) {
   TRACE_EVENT_BEGIN("test", "E", "str_arg", "hello", "str_arg2",
                     std::string("tracing"));
   TRACE_EVENT_BEGIN("test", "E", "ptr_arg",
-                    reinterpret_cast<void*>(0xbaadf00d));
+                    reinterpret_cast<void*>(static_cast<intptr_t>(0xbaadf00d)));
   TRACE_EVENT_BEGIN("test", "E", "size_t_arg", size_t{42});
   TRACE_EVENT_BEGIN("test", "E", "ptrdiff_t_arg", ptrdiff_t{-7});
   TRACE_EVENT_BEGIN("test", "E", "enum_arg", ENUM_BAR);
@@ -2928,7 +2937,19 @@ TEST_P(PerfettoApiTest, LegacyCategoryGroupEnabledState) {
   EXPECT_FALSE(*foo_enabled);
   EXPECT_FALSE(*bar_enabled);
 
-  auto* tracing_session = NewTraceWithCategories({"foo", "dynamic"});
+  // The category group enabled pointer can also be retrieved with a
+  // runtime-computed category name.
+  std::string computed_cat("cat");
+  const uint8_t* computed_enabled =
+      TRACE_EVENT_API_GET_CATEGORY_GROUP_ENABLED(computed_cat.c_str());
+  EXPECT_FALSE(*computed_enabled);
+
+  // The enabled pointers can be converted back to category names.
+  EXPECT_EQ("foo", TRACE_EVENT_API_GET_CATEGORY_GROUP_NAME(foo_enabled));
+  EXPECT_EQ("bar", TRACE_EVENT_API_GET_CATEGORY_GROUP_NAME(bar_enabled));
+  EXPECT_EQ("cat", TRACE_EVENT_API_GET_CATEGORY_GROUP_NAME(computed_enabled));
+
+  auto* tracing_session = NewTraceWithCategories({"foo", "dynamic", "cat"});
   tracing_session->get()->StartBlocking();
   TRACE_EVENT_CATEGORY_GROUP_ENABLED("foo", &foo_status);
   TRACE_EVENT_CATEGORY_GROUP_ENABLED("bar", &bar_status);
@@ -2939,6 +2960,7 @@ TEST_P(PerfettoApiTest, LegacyCategoryGroupEnabledState) {
 
   EXPECT_TRUE(*foo_enabled);
   EXPECT_FALSE(*bar_enabled);
+  EXPECT_TRUE(*computed_enabled);
 
   tracing_session->get()->StopBlocking();
   TRACE_EVENT_CATEGORY_GROUP_ENABLED("foo", &foo_status);
@@ -2949,6 +2971,7 @@ TEST_P(PerfettoApiTest, LegacyCategoryGroupEnabledState) {
   EXPECT_FALSE(dynamic_status);
   EXPECT_FALSE(*foo_enabled);
   EXPECT_FALSE(*bar_enabled);
+  EXPECT_FALSE(*computed_enabled);
 }
 
 TEST_P(PerfettoApiTest, CategoryEnabledState) {
@@ -3390,6 +3413,11 @@ INSTANTIATE_TEST_SUITE_P(PerfettoApiTest,
                          BackendTypeAsString());
 
 }  // namespace
+
+PERFETTO_DECLARE_DATA_SOURCE_STATIC_MEMBERS(MockDataSource);
+PERFETTO_DECLARE_DATA_SOURCE_STATIC_MEMBERS(MockDataSource2);
+PERFETTO_DECLARE_DATA_SOURCE_STATIC_MEMBERS(TestIncrementalDataSource,
+                                            TestIncrementalDataSourceTraits);
 
 PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(MockDataSource);
 PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(MockDataSource2);

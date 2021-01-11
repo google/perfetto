@@ -22,6 +22,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_writer.h"
 #include "perfetto/trace_processor/status.h"
+#include "src/trace_processor/importers/chrome_track_event.descriptor.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
@@ -1140,10 +1141,8 @@ class TrackEventParser::EventImporter {
 
   util::Status ParseHistogramName(ConstBytes blob, BoundInserter* inserter) {
     protos::pbzero::ChromeHistogramSample::Decoder sample(blob);
-    if (!sample.has_name_iid()) {
-      PERFETTO_DLOG("name_iid is not set for ChromeHistogramSample");
+    if (!sample.has_name_iid())
       return util::OkStatus();
-    }
 
     if (sample.has_name()) {
       return util::ErrStatus(
@@ -1302,26 +1301,59 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
            context_->storage->InternString("PpapiPlugin"),
            context_->storage->InternString("PpapiBroker")}},
       chrome_thread_name_ids_{
-          {kNullStringId, context_->storage->InternString("CrProcessMain"),
-           context_->storage->InternString("ChromeIOThread"),
-           context_->storage->InternString("ThreadPoolBackgroundWorker&"),
-           context_->storage->InternString("ThreadPoolForegroundWorker&"),
+          {protos::pbzero::ChromeThreadDescriptor_ThreadType_THREAD_UNSPECIFIED,
+           kNullStringId},
+          {protos::pbzero::ChromeThreadDescriptor_ThreadType_THREAD_MAIN,
+           context_->storage->InternString("CrProcessMain")},
+          {protos::pbzero::ChromeThreadDescriptor_ThreadType_THREAD_IO,
+           context_->storage->InternString("ChromeIOThread")},
+          {protos::pbzero::
+               ChromeThreadDescriptor_ThreadType_THREAD_NETWORK_SERVICE,
+           context_->storage->InternString("NetworkService")},
+          {protos::pbzero::
+               ChromeThreadDescriptor_ThreadType_THREAD_POOL_BG_WORKER,
+           context_->storage->InternString("ThreadPoolBackgroundWorker&")},
+          {protos::pbzero::
+               ChromeThreadDescriptor_ThreadType_THREAD_POOL_FG_WORKER,
+           context_->storage->InternString("ThreadPoolForegroundWorker&")},
+          {protos::pbzero::
+               ChromeThreadDescriptor_ThreadType_THREAD_POOL_BG_BLOCKING,
            context_->storage->InternString(
-               "ThreadPoolSingleThreadForegroundBlocking&"),
+               "ThreadPoolSingleThreadBackgroundBlocking&")},
+          {protos::pbzero::
+               ChromeThreadDescriptor_ThreadType_THREAD_POOL_FG_BLOCKING,
            context_->storage->InternString(
-               "ThreadPoolSingleThreadBackgroundBlocking&"),
-           context_->storage->InternString("ThreadPoolService"),
-           context_->storage->InternString("Compositor"),
-           context_->storage->InternString("VizCompositorThread"),
-           context_->storage->InternString("CompositorTileWorker&"),
-           context_->storage->InternString("ServiceWorkerThread&"),
-           context_->storage->InternString("MemoryInfra"),
+               "ThreadPoolSingleThreadForegroundBlocking&")},
+          {protos::pbzero::
+               ChromeThreadDescriptor_ThreadType_THREAD_POOL_SERVICE,
+           context_->storage->InternString("ThreadPoolService")},
+          {protos::pbzero::ChromeThreadDescriptor_ThreadType_THREAD_COMPOSITOR,
+           context_->storage->InternString("Compositor")},
+          {protos::pbzero::
+               ChromeThreadDescriptor_ThreadType_THREAD_VIZ_COMPOSITOR,
+           context_->storage->InternString("VizCompositorThread")},
+          {protos::pbzero::
+               ChromeThreadDescriptor_ThreadType_THREAD_COMPOSITOR_WORKER,
+           context_->storage->InternString("CompositorTileWorker&")},
+          {protos::pbzero::
+               ChromeThreadDescriptor_ThreadType_THREAD_SERVICE_WORKER,
+           context_->storage->InternString("ServiceWorkerThread&")},
+          {protos::pbzero::
+               ChromeThreadDescriptor_ThreadType_THREAD_MEMORY_INFRA,
+           context_->storage->InternString("MemoryInfra")},
+          {protos::pbzero::
+               ChromeThreadDescriptor_ThreadType_THREAD_SAMPLING_PROFILER,
            context_->storage->InternString("StackSamplingProfiler")}},
       counter_unit_ids_{{kNullStringId, context_->storage->InternString("ns"),
                          context_->storage->InternString("count"),
                          context_->storage->InternString("bytes")}} {
   auto status = context_->proto_to_args_table_->AddProtoFileDescriptor(
       kTrackEventDescriptor.data(), kTrackEventDescriptor.size());
+
+  PERFETTO_DCHECK(status.ok());
+
+  status = context_->proto_to_args_table_->AddProtoFileDescriptor(
+      kChromeTrackEventDescriptor.data(), kChromeTrackEventDescriptor.size());
 
   PERFETTO_DCHECK(status.ok());
 
@@ -1441,12 +1473,16 @@ UniqueTid TrackEventParser::ParseThreadDescriptor(
     name_id = context_->storage->InternString(decoder.thread_name());
   } else if (decoder.has_chrome_thread_type()) {
     // TODO(skyostil): Remove parsing for legacy chrome_thread_type field.
-    auto thread_type = decoder.chrome_thread_type();
-    size_t name_index =
-        static_cast<size_t>(thread_type) < chrome_thread_name_ids_.size()
-            ? static_cast<size_t>(thread_type)
-            : 0u;
-    name_id = chrome_thread_name_ids_[name_index];
+    uint32_t name_index = static_cast<uint32_t>(decoder.chrome_thread_type());
+    if (chrome_thread_name_ids_.find(name_index) !=
+        chrome_thread_name_ids_.end()) {
+      name_id = chrome_thread_name_ids_[name_index];
+    } else {
+      PERFETTO_DLOG(
+          "ParseThreadDescriptor error: Unknown chrome thread type %u",
+          name_index);
+      name_id = chrome_thread_name_ids_[0];
+    }
   }
   context_->process_tracker->UpdateThreadNameByUtid(
       utid, name_id, ThreadNamePriority::kTrackDescriptor);
@@ -1461,12 +1497,16 @@ void TrackEventParser::ParseChromeThreadDescriptor(
   if (!decoder.has_thread_type())
     return;
 
-  auto thread_type = decoder.thread_type();
-  size_t name_index =
-      static_cast<size_t>(thread_type) < chrome_thread_name_ids_.size()
-          ? static_cast<size_t>(thread_type)
-          : 0u;
-  StringId name_id = chrome_thread_name_ids_[name_index];
+  uint32_t name_index = static_cast<uint32_t>(decoder.thread_type());
+  StringId name_id = kNullStringId;
+  if (chrome_thread_name_ids_.find(name_index) !=
+      chrome_thread_name_ids_.end()) {
+    name_id = chrome_thread_name_ids_[name_index];
+  } else {
+    PERFETTO_DLOG("ParseThreadDescriptor error: Unknown chrome thread type %u",
+                  name_index);
+    name_id = chrome_thread_name_ids_[0];
+  }
   context_->process_tracker->UpdateThreadNameByUtid(
       utid, name_id, ThreadNamePriority::kTrackDescriptorThreadType);
 }
