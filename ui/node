@@ -13,11 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-set -e
-
-readonly ROOT_DIR="$(dirname $(cd -P ${BASH_SOURCE[0]%/*}; pwd))"
-readonly NODE_DIR="$ROOT_DIR/buildtools/nodejs/bin"
-readonly WRAPPER="$ROOT_DIR/gn/standalone/build_tool_wrapper.py"
-
-exec python "$WRAPPER" --path $NODE_DIR node "$@"
-
+set -e -u
+ROOT_DIR="$(dirname $(cd -P ${BASH_SOURCE[0]%/*}; pwd))"
+exec "$ROOT_DIR/tools/node" "$@"

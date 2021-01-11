@@ -90,6 +90,7 @@ class ArgsTracker {
   };
 
   explicit ArgsTracker(TraceProcessorContext*);
+  ArgsTracker(const ArgsTracker&) = default;
   virtual ~ArgsTracker();
 
   BoundInserter AddArgsTo(RawId id) {
