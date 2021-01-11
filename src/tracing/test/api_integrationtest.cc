@@ -3385,6 +3385,46 @@ TEST_P(PerfettoApiTest, TrackEventObserver) {
   EXPECT_FALSE(perfetto::TrackEvent::IsEnabled());
 }
 
+#if PERFETTO_BUILDFLAG(PERFETTO_COMPILER_CLANG)
+struct __attribute__((capability("mutex"))) MockMutex {
+  void Lock() __attribute__((acquire_capability())) {}
+  void Unlock() __attribute__((release_capability())) {}
+};
+
+struct AnnotatedObject {
+  MockMutex mutex;
+  int value __attribute__((guarded_by(mutex))) = {};
+};
+
+TEST_P(PerfettoApiTest, ThreadSafetyAnnotation) {
+  AnnotatedObject obj;
+
+  // Access to the locked field is only allowed while holding the mutex.
+  obj.mutex.Lock();
+  obj.value = 1;
+  obj.mutex.Unlock();
+
+  auto* tracing_session = NewTraceWithCategories({"cat"});
+  tracing_session->get()->StartBlocking();
+
+  // It should be possible to trace the field while holding the lock.
+  obj.mutex.Lock();
+  TRACE_EVENT_INSTANT("cat", "Instant", "value", obj.value);
+  TRACE_EVENT_INSTANT1("cat", "InstantLegacy", 0, "value", obj.value);
+  { TRACE_EVENT("cat", "Scoped", "value", obj.value); }
+  { TRACE_EVENT1("cat", "ScopedLegacy", "value", obj.value); }
+  obj.mutex.Unlock();
+
+  perfetto::TrackEvent::Flush();
+  tracing_session->get()->StopBlocking();
+  auto slices = ReadSlicesFromTrace(tracing_session->get());
+  EXPECT_THAT(slices, ElementsAre("I:cat.Instant(value=(int)1)",
+                                  "I:cat.InstantLegacy(value=(int)1)",
+                                  "B:cat.Scoped(value=(int)1)", "E",
+                                  "B:cat.ScopedLegacy(value=(int)1)", "E"));
+}
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_COMPILER_CLANG)
+
 struct BackendTypeAsString {
   std::string operator()(
       const ::testing::TestParamInfo<perfetto::BackendType>& info) const {
