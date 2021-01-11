@@ -18,7 +18,6 @@
 -- TODO(skyostil): Create this table in the trace processor internally so we
 -- can expose the process type.
 DROP VIEW IF EXISTS chrome_process;
-
 CREATE VIEW chrome_process AS
   SELECT *
   FROM process WHERE (
@@ -42,7 +41,6 @@ CREATE VIEW chrome_process AS
 
 -- A view of all Chrome threads.
 DROP VIEW IF EXISTS chrome_thread;
-
 CREATE VIEW chrome_thread AS
   SELECT thread.*
   FROM thread, chrome_process

@@ -15,12 +15,14 @@
 --
 
 -- View of Power Rail counters with ts converted from ns to ms.
+DROP VIEW IF EXISTS power_rails_counters;
 CREATE VIEW power_rails_counters AS
 SELECT value, ts/1000000 AS ts, name
 FROM counter c
 JOIN counter_track t on c.track_id = t.id
 WHERE name LIKE 'power.%';
 
+DROP VIEW IF EXISTS power_rails_view;
 CREATE VIEW power_rails_view AS
 WITH RECURSIVE name AS (SELECT DISTINCT name FROM power_rails_counters)
 SELECT
@@ -39,6 +41,7 @@ FROM power_rails_counters
 GROUP BY name
 ORDER BY ts ASC;
 
+DROP VIEW IF EXISTS android_powrails_output;
 CREATE VIEW android_powrails_output AS
 SELECT AndroidPowerRails(
   'power_rails', (

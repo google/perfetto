@@ -39,12 +39,10 @@ SELECT RUN_METRIC('android/process_oom_score.sql');
 
 -- Anon RSS + Swap
 DROP TABLE IF EXISTS anon_and_swap_join;
-
 CREATE VIRTUAL TABLE anon_and_swap_join
 USING SPAN_OUTER_JOIN(anon_rss_span PARTITIONED upid, swap_span PARTITIONED upid);
 
 DROP VIEW IF EXISTS anon_and_swap_span;
-
 CREATE VIEW anon_and_swap_span AS
 SELECT
   ts, dur, upid,
@@ -53,7 +51,6 @@ FROM anon_and_swap_join;
 
 -- Anon RSS + file RSS + Swap
 DROP TABLE IF EXISTS anon_and_file_and_swap_join;
-
 CREATE VIRTUAL TABLE anon_and_file_and_swap_join
 USING SPAN_OUTER_JOIN(
   anon_and_swap_join PARTITIONED upid,
@@ -61,9 +58,7 @@ USING SPAN_OUTER_JOIN(
 );
 
 -- RSS + Swap
-
 DROP TABLE IF EXISTS rss_and_swap_join;
-
 CREATE VIRTUAL TABLE rss_and_swap_join
 USING SPAN_OUTER_JOIN(
   anon_and_file_and_swap_join PARTITIONED upid,
@@ -71,7 +66,6 @@ USING SPAN_OUTER_JOIN(
 );
 
 DROP VIEW IF EXISTS rss_and_swap_span;
-
 CREATE VIEW rss_and_swap_span AS
 SELECT
 ts, dur, upid,
@@ -92,32 +86,26 @@ SELECT RUN_METRIC('android/process_counter_span_view.sql',
   'counter_name', 'Heap size (KB)');
 
 DROP VIEW IF EXISTS java_heap_span;
-
 CREATE VIEW java_heap_span AS
 SELECT ts, dur, upid, java_heap_kb_val * 1024 AS java_heap_val
 FROM java_heap_kb_span;
 
 DROP TABLE IF EXISTS anon_rss_by_oom_span;
-
 CREATE VIRTUAL TABLE anon_rss_by_oom_span
 USING SPAN_JOIN(anon_rss_span PARTITIONED upid, oom_score_span PARTITIONED upid);
 
 DROP TABLE IF EXISTS file_rss_by_oom_span;
-
 CREATE VIRTUAL TABLE file_rss_by_oom_span
 USING SPAN_JOIN(file_rss_span PARTITIONED upid, oom_score_span PARTITIONED upid);
 
 DROP TABLE IF EXISTS swap_by_oom_span;
-
 CREATE VIRTUAL TABLE swap_by_oom_span
 USING SPAN_JOIN(swap_span PARTITIONED upid, oom_score_span PARTITIONED upid);
 
 DROP TABLE IF EXISTS anon_and_swap_by_oom_span;
-
 CREATE VIRTUAL TABLE anon_and_swap_by_oom_span
 USING SPAN_JOIN(anon_and_swap_span PARTITIONED upid, oom_score_span PARTITIONED upid);
 
 DROP TABLE IF EXISTS java_heap_by_oom_span;
-
 CREATE VIRTUAL TABLE java_heap_by_oom_span
 USING SPAN_JOIN(java_heap_span PARTITIONED upid, oom_score_span PARTITIONED upid);

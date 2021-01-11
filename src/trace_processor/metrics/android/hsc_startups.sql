@@ -15,6 +15,7 @@
 --
 
 -- Must be invoked after populating launches table in android_startup.
+DROP VIEW IF EXISTS functions;
 CREATE VIEW functions AS
 SELECT
     slices.ts as ts,
@@ -28,6 +29,7 @@ INNER JOIN thread USING(utid)
 INNER JOIN process USING(upid);
 
 -- Animators don't occur on threads, so add them here.
+DROP VIEW IF EXISTS animators;
 CREATE VIEW animators AS
 SELECT
     slices.ts AS ts,
@@ -39,6 +41,7 @@ INNER JOIN process_track on slices.track_id = process_track.id
 INNER JOIN thread USING(upid)
 WHERE slices.name LIKE "animator%";
 
+DROP VIEW IF EXISTS frame_times;
 CREATE VIEW frame_times AS
 SELECT
     functions.ts AS ts,
@@ -50,6 +53,7 @@ FROM functions
 INNER JOIN launches on launches.package LIKE '%' || functions.process_name || '%'
 WHERE functions.function_name="Choreographer#doFrame" AND functions.ts > launches.ts;
 
+DROP TABLE IF EXISTS hsc_based_startup_times;
 CREATE TABLE hsc_based_startup_times(package STRING, id INT, ts_total INT);
 
 -- Calculator

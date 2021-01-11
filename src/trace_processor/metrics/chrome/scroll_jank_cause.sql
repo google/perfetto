@@ -34,7 +34,6 @@ SELECT RUN_METRIC('chrome/scroll_jank_cause_blocking_task.sql');
 SELECT RUN_METRIC('chrome/scroll_jank_cause_get_bitmap.sql');
 
 DROP VIEW IF EXISTS scroll_jank_cause_joined;
-
 CREATE VIEW scroll_jank_cause_joined AS
   SELECT
     COALESCE(move.blocking_touch_move, 0) AS blocking_touch_move,
@@ -56,7 +55,6 @@ CREATE VIEW scroll_jank_cause_joined AS
         ON jank.id = bitmap.scroll_id;
 
 DROP VIEW IF EXISTS scroll_jank_cause_explained_jank;
-
 CREATE VIEW scroll_jank_cause_explained_jank AS
   SELECT
     CASE WHEN
@@ -79,7 +77,6 @@ CREATE VIEW scroll_jank_cause_explained_jank AS
   FROM scroll_jank_cause_joined jank;
 
 DROP VIEW IF EXISTS scroll_jank_cause;
-
 CREATE VIEW scroll_jank_cause AS
   SELECT
     jank AND NOT explained_jank AS unexplained_jank,

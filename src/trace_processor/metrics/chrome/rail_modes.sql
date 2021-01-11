@@ -18,7 +18,8 @@ SELECT RUN_METRIC('chrome/chrome_event_metadata.sql') AS suppress_query_output;
 
 -- Priority order for RAIL modes where response has the highest priority and
 -- idle has the lowest.
-CREATE TABLE IF NOT EXISTS rail_modes (
+DROP TABLE IF EXISTS rail_modes;
+CREATE TABLE rail_modes (
   mode TEXT UNIQUE,
   ordering INT,
   short_name TEXT
@@ -34,8 +35,7 @@ CREATE TABLE IF NOT EXISTS rail_modes (
 -- RAIL_MODE_ANIMATION is used when none of the above apply.
 -- The enum in chrome is defined in:
 -- https://source.chromium.org/chromium/chromium/src/+/master:third_party/blink/renderer/platform/scheduler/public/rail_mode_observer.h
-INSERT
-  OR IGNORE INTO rail_modes
+INSERT INTO rail_modes
 VALUES ('RAIL_MODE_IDLE', 0, 'background'),
   ('RAIL_MODE_ANIMATION', 1, "animation"),
   ('RAIL_MODE_LOAD', 2, "load"),
@@ -103,7 +103,8 @@ GROUP BY s.ts;
 
 -- Contains the same data as overall_rail_mode_slices except adjacent slices
 -- with the same RAIL mode are combined.
-CREATE TABLE IF NOT EXISTS combined_overall_rail_slices AS
+DROP TABLE IF EXISTS combined_overall_rail_slices;
+CREATE TABLE combined_overall_rail_slices AS
 SELECT ROW_NUMBER() OVER () AS id,
   ts,
   end_ts - ts AS dur,
@@ -205,7 +206,8 @@ WHERE last_vsync < end_ts;
 -- the equation event_ts = ts + dur * dur_multiplier. End events have
 -- dur_multiplier of 1, which makes their ts the end of the slice rather than
 -- the start.
-CREATE TABLE IF NOT EXISTS input_latency_begin_end_names
+DROP TABLE IF EXISTS input_latency_begin_end_names;
+CREATE TABLE input_latency_begin_end_names
 (
   full_name TEXT UNIQUE,
   prefix TEXT,
@@ -411,12 +413,12 @@ SELECT (
 
 -- Mapping to allow CamelCased names to be produced from the modified rail
 -- modes.
-CREATE TABLE IF NOT EXISTS modified_rail_mode_prettier (
+DROP TABLE IF EXISTS modified_rail_mode_prettier;
+CREATE TABLE modified_rail_mode_prettier (
   orig_name TEXT UNIQUE,
   pretty_name TEXT
 );
-INSERT
-  OR IGNORE INTO modified_rail_mode_prettier
+INSERT INTO modified_rail_mode_prettier
 VALUES ("background", "Background"),
   ("foreground_idle", "ForegroundIdle"),
   ("animation", "Animation"),

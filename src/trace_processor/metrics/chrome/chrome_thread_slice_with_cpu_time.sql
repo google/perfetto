@@ -18,7 +18,6 @@ SELECT RUN_METRIC('chrome/chrome_processes.sql');
 
 -- Grab all the thread tracks which are found in chrome threads.
 DROP VIEW IF EXISTS chrome_track;
-
 CREATE VIEW chrome_track AS
   SELECT
     *
@@ -28,7 +27,6 @@ CREATE VIEW chrome_track AS
 -- From all the chrome thread tracks select all the slice details as well as
 -- the utid of the track so we can join with counter table later.
 DROP VIEW IF EXISTS chrome_slice;
-
 CREATE VIEW chrome_slice AS
   SELECT
     slice.*,
@@ -44,7 +42,6 @@ CREATE VIEW chrome_slice AS
 -- the filtering of the counter table to only counters associated to these
 -- threads.
 DROP VIEW IF EXISTS chrome_slice_and_counter_track;
-
 CREATE VIEW chrome_slice_and_counter_track AS
   SELECT
     s.*,
@@ -66,7 +63,6 @@ CREATE VIEW chrome_slice_and_counter_track AS
 -- means this is always an overestimate, but events being emitted at exactly the
 -- same timestamp is relatively rare so shouldn't cause to much inflation.
 DROP VIEW IF EXISTS chrome_thread_slice_with_cpu_time;
-
 CREATE VIEW chrome_thread_slice_with_cpu_time AS
   SELECT
     end_cpu_time - start_cpu_time AS slice_cpu_time,
