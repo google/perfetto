@@ -161,12 +161,13 @@ bool ConvertThreadId(const MyThreadId& thread,
   return true;
 }
 
+}  // namespace legacy
+
 template <>
-uint64_t ConvertTimestampToTraceTimeNs(const MyTimestamp& timestamp) {
-  return timestamp.ts;
+TraceTimestamp ConvertTimestampToTraceTimeNs(const MyTimestamp& timestamp) {
+  return {TrackEvent::GetTraceClockId(), timestamp.ts};
 }
 
-}  // namespace legacy
 }  // namespace perfetto
 
 namespace {
@@ -1403,7 +1404,7 @@ TEST_P(PerfettoApiTest, TrackEventCustomTrackAndTimestamp) {
 
   auto empty_lambda = [](perfetto::EventContext) {};
   constexpr uint64_t kBeginEventTime = 10;
-  constexpr uint64_t kEndEventTime = 15;
+  const MyTimestamp kEndEventTime{15};
   TRACE_EVENT_BEGIN("bar", "Event", track, kBeginEventTime, empty_lambda);
   TRACE_EVENT_END("bar", track, kEndEventTime, empty_lambda);
 
@@ -1428,7 +1429,7 @@ TEST_P(PerfettoApiTest, TrackEventCustomTrackAndTimestamp) {
         EXPECT_EQ(packet.timestamp(), kBeginEventTime);
         break;
       case perfetto::protos::gen::TrackEvent::TYPE_SLICE_END:
-        EXPECT_EQ(packet.timestamp(), kEndEventTime);
+        EXPECT_EQ(packet.timestamp(), kEndEventTime.ts);
         break;
       case perfetto::protos::gen::TrackEvent::TYPE_INSTANT:
         EXPECT_EQ(packet.timestamp(), kInstantEventTime);
