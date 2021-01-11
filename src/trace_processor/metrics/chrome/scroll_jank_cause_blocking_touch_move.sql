@@ -19,7 +19,6 @@ SELECT RUN_METRIC('chrome/scroll_jank.sql');
 -- GestureScrollUpdates. This table gets the TouchMove slice and joins it with
 -- the data from the first flow event for that TouchMove.
 DROP TABLE IF EXISTS touch_move_and_begin_flow;
-
 CREATE TABLE touch_move_and_begin_flow AS
   SELECT
     flow.begin_flow_id,
@@ -51,7 +50,6 @@ CREATE TABLE touch_move_and_begin_flow AS
 -- if it was blocking because if they share the same parent stack then they
 -- weren't blocking.
 DROP TABLE IF EXISTS touch_move_begin_and_end_flow;
-
 CREATE TABLE touch_move_begin_and_end_flow AS
   SELECT
     flow.end_flow_id,
@@ -80,7 +78,6 @@ CREATE TABLE touch_move_begin_and_end_flow AS
 -- both. If the end didn't happen on the browser (end is NULL), then we can
 -- ignore it because it couldn't have generated a GestureScrollUpdate.
 DROP TABLE IF EXISTS touch_move_with_ancestor;
-
 CREATE TABLE touch_move_with_ancestor AS
   SELECT
     begin.id AS begin_ancestor_id,
@@ -99,7 +96,6 @@ CREATE TABLE touch_move_with_ancestor AS
 -- This is the GestureScrollUpdate that the TouchMove blocked (or didn't block)
 -- depending on if the begin flow event is in the same stack.
 DROP TABLE IF EXISTS blocking_touch_move_with_scroll_update;
-
 CREATE TABLE blocking_touch_move_with_scroll_update AS
   SELECT
       move.begin_ancestor_id != move.end_ancestor_id AS blocking_touch_move,
@@ -147,7 +143,6 @@ CREATE TABLE blocking_touch_move_with_scroll_update AS
 -- the other ones will be null anyway since they won't have
 -- GestureScrollUpdates.
 DROP VIEW IF EXISTS scroll_jank_cause_blocking_touch_move;
-
 CREATE VIEW scroll_jank_cause_blocking_touch_move AS
    SELECT
       id,

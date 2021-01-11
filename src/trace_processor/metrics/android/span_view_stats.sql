@@ -15,7 +15,6 @@
 --
 
 DROP TABLE IF EXISTS {{table_name}}_stats;
-
 CREATE TABLE {{table_name}}_stats (
   process_name TEXT PRIMARY KEY,
   min_value REAL,
@@ -35,7 +34,6 @@ GROUP BY 1
 ORDER BY 1;
 
 DROP VIEW IF EXISTS {{table_name}}_stats_proto;
-
 CREATE VIEW {{table_name}}_stats_proto AS
 SELECT
   process_name,
