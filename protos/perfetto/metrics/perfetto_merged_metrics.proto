@@ -806,6 +806,7 @@ message TraceMetadata {
   optional int64 trace_size_bytes = 6;
   repeated string trace_trigger = 7;
   optional string unique_session_name = 8;
+  optional string trace_config_pbtxt = 9;
 }
 
 // Root message for all Perfetto-based metrics.
