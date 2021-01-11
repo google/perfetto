@@ -24,7 +24,6 @@ SELECT RUN_METRIC('chrome/scroll_jank.sql');
 -- only occurs on the browser. This saves us the trouble of dealing with all the
 -- different possible names of the browser (when including system tracing).
 DROP VIEW IF EXISTS browser_main_track_id;
-
 CREATE VIEW browser_main_track_id AS
 SELECT
   track_id AS id
@@ -37,7 +36,6 @@ LIMIT 1;
 -- Grab the last LatencyInfo.Flow for each trace_id on the browser main.
 --------------------------------------------------------------------------------
 DROP VIEW IF EXISTS browser_flows;
-
 CREATE VIEW browser_flows AS
 SELECT
   EXTRACT_ARG(arg_set_id, "chrome_latency_info.trace_id") AS trace_id,
@@ -59,7 +57,6 @@ WHERE
 -- Keeping only the GestureScrollUpdates join the maximum flows on the browser
 -- thread. 
 DROP VIEW IF EXISTS scroll_with_browser_flows;
-
 CREATE VIEW scroll_with_browser_flows AS
 SELECT
   scroll.trace_id,
@@ -85,7 +82,6 @@ FROM (
 -- Below we determine if there was any bitmaps taken on the browser main.
 --------------------------------------------------------------------------------
 DROP VIEW IF EXISTS get_bitmap_calls;
-
 CREATE VIEW get_bitmap_calls AS
   SELECT
     id,
@@ -98,7 +94,6 @@ CREATE VIEW get_bitmap_calls AS
     track_id = (SELECT id FROM browser_main_track_id);
 
 DROP VIEW IF EXISTS toolbar_bitmaps;
-
 CREATE VIEW toolbar_bitmaps AS
   SELECT
     slice.id,
@@ -116,7 +111,6 @@ CREATE VIEW toolbar_bitmaps AS
     slice.track_id = (SELECT id FROM browser_main_track_id);
 
 DROP VIEW IF EXISTS get_bitmaps_and_toolbar;
-
 CREATE VIEW get_bitmaps_and_toolbar AS
   SELECT
     bitmap.id AS id,
@@ -139,7 +133,6 @@ CREATE VIEW get_bitmaps_and_toolbar AS
 -- by a browser thread slice once its done on the browser thread).
 --------------------------------------------------------------------------------
 DROP VIEW IF EXISTS blocking_bitmap_tasks;
-
 CREATE VIEW blocking_bitmap_tasks AS
 SELECT
   scroll.scroll_id,
@@ -183,7 +176,6 @@ FROM
 -- scroll_id.
 --------------------------------------------------------------------------------
 DROP VIEW IF EXISTS scroll_jank_cause_get_bitmap;
-
 CREATE VIEW scroll_jank_cause_get_bitmap AS
 SELECT
   scroll_id,

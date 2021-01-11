@@ -14,7 +14,8 @@
 -- limitations under the License.
 --
 
-CREATE VIEW IF NOT EXISTS trace_metadata_output AS
+DROP VIEW IF EXISTS trace_metadata_output;
+CREATE VIEW trace_metadata_output AS
 SELECT TraceMetadata(
   'trace_duration_ns', (SELECT end_ts - start_ts FROM trace_bounds),
   'trace_uuid', (SELECT str_value FROM metadata WHERE name = 'trace_uuid'),

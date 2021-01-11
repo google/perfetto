@@ -17,6 +17,7 @@
 -- The start of the launching event corresponds to the end of the AM handling
 -- the startActivity intent, whereas the end corresponds to the first frame drawn.
 -- Only successful app launches have a launching event.
+DROP TABLE IF EXISTS launching_events;
 CREATE TABLE launching_events AS
 SELECT
   ts,
@@ -31,12 +32,14 @@ AND (process.name IS NULL OR process.name = 'system_server');
 
 -- Marks the beginning of the trace and is equivalent to when the statsd launch
 -- logging begins.
+DROP VIEW IF EXISTS activity_intent_received;
 CREATE VIEW activity_intent_received AS
 SELECT ts FROM slice
 WHERE name = 'MetricsLogger:launchObserverNotifyIntentStarted';
 
 -- Successful activity launch. The end of the 'launching' event is not related
 -- to whether it actually succeeded or not.
+DROP VIEW IF EXISTS activity_intent_launch_successful;
 CREATE VIEW activity_intent_launch_successful AS
 SELECT ts FROM slice
 WHERE name = 'MetricsLogger:launchObserverNotifyActivityLaunchFinished';
@@ -44,6 +47,7 @@ WHERE name = 'MetricsLogger:launchObserverNotifyActivityLaunchFinished';
 -- We partition the trace into spans based on posted activity intents.
 -- We will refine these progressively in the next steps to only encompass
 -- activity starts.
+DROP TABLE IF EXISTS activity_intent_recv_spans;
 CREATE TABLE activity_intent_recv_spans(id INT, ts BIG INT, dur BIG INT);
 
 INSERT INTO activity_intent_recv_spans
@@ -57,6 +61,7 @@ ORDER BY ts;
 
 -- Filter activity_intent_recv_spans, keeping only the ones that triggered
 -- a launch.
+DROP VIEW IF EXISTS launch_partitions;
 CREATE VIEW launch_partitions AS
 SELECT * FROM activity_intent_recv_spans AS spans
 WHERE 1 = (
@@ -65,6 +70,7 @@ WHERE 1 = (
   WHERE launching_events.ts BETWEEN spans.ts AND spans.ts + spans.dur);
 
 -- All activity launches in the trace, keyed by ID.
+DROP TABLE IF EXISTS launches;
 CREATE TABLE launches(
   ts BIG INT,
   ts_end BIG INT,
@@ -95,6 +101,7 @@ WHERE (
 -- activity start. The vast majority of cases should be a single process.
 -- However it is possible that the process dies during the activity launch
 -- and is respawned.
+DROP TABLE IF EXISTS launch_processes;
 CREATE TABLE launch_processes(launch_id INT, upid BIG INT);
 
 -- We make the (not always correct) simplification that process == package

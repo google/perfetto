@@ -23,10 +23,12 @@ SELECT RUN_METRIC('android/hsc_startups.sql');
 -- Slices for forked processes. Never present in hot starts.
 -- Prefer this over process start_ts, since the process might have
 -- been preforked.
+DROP VIEW IF EXISTS zygote_fork_slice;
 CREATE VIEW zygote_fork_slice AS
 SELECT slice.ts, slice.dur, STR_SPLIT(slice.name, ": ", 1) AS process_name
 FROM slice WHERE name LIKE 'Start proc: %';
 
+DROP TABLE IF EXISTS zygote_forks_by_id;
 CREATE TABLE zygote_forks_by_id AS
 SELECT
   launches.id,
@@ -39,6 +41,7 @@ ON (launches.ts < zygote_fork_slice.ts
     AND zygote_fork_slice.process_name = launches.package
 );
 
+DROP VIEW IF EXISTS launch_main_threads;
 CREATE VIEW launch_main_threads AS
 SELECT
   launches.ts AS ts,
@@ -51,17 +54,20 @@ JOIN process USING(upid)
 JOIN thread ON (process.upid = thread.upid AND process.pid = thread.tid)
 ORDER BY ts;
 
+DROP TABLE IF EXISTS main_thread_state;
 CREATE VIRTUAL TABLE main_thread_state
 USING SPAN_JOIN(
   launch_main_threads PARTITIONED utid,
   task_state PARTITIONED utid);
 
+DROP VIEW IF EXISTS launch_by_thread_state;
 CREATE VIEW launch_by_thread_state AS
 SELECT launch_id, state, SUM(dur) AS dur
 FROM main_thread_state
 GROUP BY 1, 2;
 
 -- Tracks all slices for the main process threads
+DROP TABLE IF EXISTS main_process_slice;
 CREATE TABLE main_process_slice AS
 SELECT
   launches.id AS launch_id,
@@ -88,6 +94,7 @@ WHERE slice.name IN (
   'inflate')
 GROUP BY 1, 2;
 
+DROP VIEW IF EXISTS to_event_protos;
 CREATE VIEW to_event_protos AS
 SELECT
   slice.name as slice_name,
@@ -102,6 +109,7 @@ JOIN slice ON (
   slice.track_id = thread_track.id
   AND slice.ts BETWEEN l.ts AND l.ts + l.dur);
 
+DROP VIEW IF EXISTS startup_view;
 CREATE VIEW startup_view AS
 SELECT
   AndroidStartupMetric_Startup(
@@ -237,6 +245,7 @@ SELECT
   ) as startup
 FROM launches;
 
+DROP VIEW IF EXISTS android_startup_event;
 CREATE VIEW android_startup_event AS
 SELECT
   'slice' as track_type,
@@ -246,6 +255,7 @@ SELECT
   l.package as slice_name
 FROM launches l;
 
+DROP VIEW IF EXISTS android_startup_output;
 CREATE VIEW android_startup_output AS
 SELECT
   AndroidStartupMetric(

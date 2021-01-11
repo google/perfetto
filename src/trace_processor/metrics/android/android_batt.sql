@@ -13,6 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
+DROP VIEW IF EXISTS battery_view;
 CREATE VIEW battery_view AS
 SELECT
   all_ts.ts as ts,
@@ -84,6 +85,7 @@ GROUP BY group_id;
 
 -- Different device kernels log different actions when suspending. This table
 -- tells us the action that straddles the actual suspend period.
+DROP TABLE IF EXISTS device_action_mapping;
 CREATE TABLE device_action_mapping (device TEXT, action TEXT);
 INSERT INTO device_action_mapping VALUES
 ('blueline', 'timekeeping_freeze'),
@@ -96,6 +98,7 @@ INSERT INTO device_action_mapping VALUES
 ('redfin', 'syscore_resume'),
 ('bramble', 'syscore_resume');
 
+DROP TABLE IF EXISTS device_action;
 CREATE TABLE device_action AS
 SELECT action
 FROM device_action_mapping dam
@@ -103,6 +106,7 @@ WHERE EXISTS (
   SELECT 1 FROM metadata
   WHERE name = 'android_build_fingerprint' AND str_value LIKE '%' || dam.device || '%');
 
+DROP TABLE IF EXISTS suspend_slice_;
 CREATE TABLE suspend_slice_ AS
 -- Traces from after b/70292203 was fixed have the action string so just look
 -- for it.
@@ -205,9 +209,11 @@ SELECT RUN_METRIC('android/global_counter_span_view.sql',
   'table_name', 'screen_state',
   'counter_name', 'ScreenState');
 
+DROP TABLE IF EXISTS screen_state_span_with_suspend;
 CREATE VIRTUAL TABLE screen_state_span_with_suspend
     USING span_join(screen_state_span, suspend_slice_);
 
+DROP VIEW IF EXISTS android_batt_event;
 CREATE VIEW android_batt_event AS
 SELECT
        ts,
@@ -217,6 +223,7 @@ SELECT
        'slice' AS track_type
 FROM suspend_slice_;
 
+DROP VIEW IF EXISTS android_batt_output;
 CREATE VIEW android_batt_output AS
 SELECT AndroidBatteryMetric(
   'battery_counters', (

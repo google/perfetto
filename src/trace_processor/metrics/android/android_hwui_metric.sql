@@ -16,6 +16,7 @@
 
 
 -- TOP processes that have a RenderThread, sorted by CPU time on RT
+DROP VIEW IF EXISTS hwui_processes;
 CREATE VIEW hwui_processes AS
 SELECT
   process.name as process_name,
@@ -28,6 +29,7 @@ INNER JOIN process ON (process.upid = thread.upid)
 GROUP BY process.name
 ORDER BY rt_cpu_time_ms DESC;
 
+DROP VIEW IF EXISTS hwui_draw_frame;
 CREATE VIEW hwui_draw_frame AS
 SELECT
   count(*) as draw_frame_count,
@@ -40,6 +42,7 @@ INNER JOIN thread_track ON (thread_track.id = slice.track_id)
 WHERE slice.name='DrawFrame' AND slice.dur >= 0
 GROUP BY thread_track.utid;
 
+DROP VIEW IF EXISTS hwui_flush_commands;
 CREATE VIEW hwui_flush_commands AS
 SELECT
   count(*) as flush_count,
@@ -52,6 +55,7 @@ INNER JOIN thread_track ON (thread_track.id = slice.track_id)
 WHERE slice.name='flush commands' AND slice.dur >= 0
 GROUP BY thread_track.utid;
 
+DROP VIEW IF EXISTS hwui_prepare_tree;
 CREATE VIEW hwui_prepare_tree AS
 SELECT
   count(*) as prepare_tree_count,
@@ -64,6 +68,7 @@ INNER JOIN thread_track ON (thread_track.id = slice.track_id)
 WHERE slice.name='prepareTree' AND slice.dur >= 0
 GROUP BY thread_track.utid;
 
+DROP VIEW IF EXISTS hwui_gpu_completion;
 CREATE VIEW hwui_gpu_completion AS
 SELECT
   count(*) as gpu_completion_count,
@@ -77,6 +82,7 @@ INNER JOIN thread ON (thread.name='GPU completion' AND thread.utid = thread_trac
 WHERE slice.name LIKE 'waiting for GPU completion%' AND slice.dur >= 0
 GROUP BY thread_track.utid;
 
+DROP VIEW IF EXISTS hwui_ui_record;
 CREATE VIEW hwui_ui_record AS
 SELECT
   count(*) as ui_record_count,
@@ -91,6 +97,7 @@ INNER JOIN process ON (process.upid = thread.upid)
 WHERE slice.name='Record View#draw()' AND slice.dur >= 0
 GROUP BY thread_track.utid;
 
+DROP VIEW IF EXISTS hwui_shader_compile;
 CREATE VIEW hwui_shader_compile AS
 SELECT
   count(*) as shader_compile_count,
@@ -102,6 +109,7 @@ INNER JOIN thread_track ON (thread_track.id = slice.track_id)
 WHERE slice.name='shader_compile' AND slice.dur >= 0
 GROUP BY thread_track.utid;
 
+DROP VIEW IF EXISTS hwui_cache_hit;
 CREATE VIEW hwui_cache_hit AS
 SELECT
   count(*) as cache_hit_count,
@@ -113,6 +121,7 @@ INNER JOIN thread_track ON (thread_track.id = slice.track_id)
 WHERE slice.name='cache_hit' AND slice.dur >= 0
 GROUP BY thread_track.utid;
 
+DROP VIEW IF EXISTS hwui_cache_miss;
 CREATE VIEW hwui_cache_miss AS
 SELECT
   count(*) as cache_miss_count,
@@ -124,6 +133,7 @@ INNER JOIN thread_track ON (thread_track.id = slice.track_id)
 WHERE slice.name='cache_miss' AND slice.dur >= 0
 GROUP BY thread_track.utid;
 
+DROP VIEW IF EXISTS hwui_graphics_cpu_mem;
 CREATE VIEW hwui_graphics_cpu_mem AS
 SELECT
   max(value) as graphics_cpu_mem_max,
@@ -135,6 +145,7 @@ INNER JOIN process_counter_track ON (counter.track_id = process_counter_track.id
 WHERE name='HWUI CPU Memory' AND counter.value >= 0
 GROUP BY process_counter_track.upid;
 
+DROP VIEW IF EXISTS hwui_graphics_gpu_mem;
 CREATE VIEW hwui_graphics_gpu_mem AS
 SELECT
   max(value) as graphics_gpu_mem_max,
@@ -146,6 +157,7 @@ INNER JOIN process_counter_track ON (counter.track_id = process_counter_track.id
 WHERE name='HWUI Misc Memory' AND counter.value >= 0
 GROUP BY process_counter_track.upid;
 
+DROP VIEW IF EXISTS hwui_texture_mem;
 CREATE VIEW hwui_texture_mem AS
 SELECT
   max(value) as texture_mem_max,
@@ -157,6 +169,7 @@ INNER JOIN process_counter_track ON (counter.track_id = process_counter_track.id
 WHERE name='HWUI Texture Memory' AND counter.value >= 0
 GROUP BY process_counter_track.upid;
 
+DROP VIEW IF EXISTS hwui_all_mem;
 CREATE VIEW hwui_all_mem AS
 SELECT
   max(value) as all_mem_max,
@@ -168,6 +181,7 @@ INNER JOIN process_counter_track ON (counter.track_id = process_counter_track.id
 WHERE name='HWUI All Memory' AND counter.value >= 0
 GROUP BY process_counter_track.upid;
 
+DROP VIEW IF EXISTS android_hwui_metric_output;
 CREATE VIEW android_hwui_metric_output AS
 SELECT AndroidHwuiMetric(
   'process_info', (
