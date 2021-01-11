@@ -24,8 +24,7 @@ assert(enable_perfetto_ui)
 ui_dir = "$root_build_dir/ui"
 chrome_extension_dir = "$root_build_dir/chrome_extension"
 ui_gen_dir = "$target_out_dir/gen"
-nodejs_root = "../buildtools/nodejs"
-nodejs_bin = rebase_path("$nodejs_root/bin", root_build_dir)
+nodejs_bin = rebase_path("//tools/node", root_build_dir)
 
 # +----------------------------------------------------------------------------+
 # | The outer "ui" target to just ninja -C out/xxx ui                          |
@@ -110,8 +109,7 @@ template("node_bin") {
     outputs += [ stamp_path ]
     args += [
               "--stamp=" + rebase_path(stamp_path, root_build_dir),
-              "--path=$nodejs_bin",
-              "node",
+              nodejs_bin,
               rebase_path("node_modules/.bin/$_node_cmd", root_build_dir),
             ] + invoker.args
   }
