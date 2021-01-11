@@ -17,18 +17,13 @@ set -e
 
 readonly CUR_DIR="$(cd -P ${BASH_SOURCE[0]%/*}; pwd)"
 readonly ROOT_DIR=$(dirname $(dirname "$CUR_DIR"))
-readonly NODE_DIR="$ROOT_DIR/buildtools/nodejs/bin"
-readonly WRAPPER="$ROOT_DIR/gn/standalone/build_tool_wrapper.py"
+readonly NPM="$ROOT_DIR/tools/npm"
 
 cd $CUR_DIR
 
 function echo_and_do {
   echo $@
   $@
-}
-
-function npm {
-  echo_and_do python "$WRAPPER" --path $NODE_DIR npm $@
 }
 
 CLEAN_OUT_DIR=true
@@ -63,10 +58,10 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [ "$CLEAN_OUT_DIR" = true ]; then
-  npm run clean
+  echo_and_do $NPM run clean
 fi
 
-npm run build
+echo_and_do $NPM run build
 
 if [ "$DEPLOY_PROD" = true ]; then
   echo_and_do gcloud app deploy app.yaml --project perfetto-site \

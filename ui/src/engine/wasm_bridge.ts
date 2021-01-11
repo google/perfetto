@@ -56,7 +56,7 @@ export class WasmBridge {
       onRuntimeInitialized: () => deferredRuntimeInitialized.resolve(),
     });
     this.whenInitialized = deferredRuntimeInitialized.then(() => {
-      const fn = this.connection.addFunction(this.onReply.bind(this), 'iii');
+      const fn = this.connection.addFunction(this.onReply.bind(this), 'vii');
       this.reqBufferAddr = this.connection.ccall(
           'Initialize',
           /*return=*/ 'number',
