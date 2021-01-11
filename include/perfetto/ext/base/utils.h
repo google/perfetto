@@ -114,6 +114,7 @@ void SetEnv(const std::string& key, const std::string& value);
 // around various Scudo inefficiencies. See b/170217718.
 void MaybeReleaseAllocatorMemToOS();
 
+// geteuid() on POSIX OSes, returns 0 on Windows (See comment in utils.cc).
 uid_t GetCurrentUserId();
 
 }  // namespace base

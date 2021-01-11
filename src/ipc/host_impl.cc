@@ -55,7 +55,7 @@ std::unique_ptr<Host> Host::CreateInstance(const char* socket_name,
 }
 
 // static
-std::unique_ptr<Host> Host::CreateInstance(base::ScopedFile socket_fd,
+std::unique_ptr<Host> Host::CreateInstance(base::ScopedSocketHandle socket_fd,
                                            base::TaskRunner* task_runner) {
   std::unique_ptr<HostImpl> host(
       new HostImpl(std::move(socket_fd), task_runner));
@@ -64,7 +64,8 @@ std::unique_ptr<Host> Host::CreateInstance(base::ScopedFile socket_fd,
   return std::unique_ptr<Host>(std::move(host));
 }
 
-HostImpl::HostImpl(base::ScopedFile socket_fd, base::TaskRunner* task_runner)
+HostImpl::HostImpl(base::ScopedSocketHandle socket_fd,
+                   base::TaskRunner* task_runner)
     : task_runner_(task_runner), weak_ptr_factory_(this) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   sock_ = base::UnixSocket::Listen(std::move(socket_fd), this, task_runner_,

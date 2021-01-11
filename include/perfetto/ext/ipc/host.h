@@ -20,6 +20,7 @@
 #include <memory>
 
 #include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/ipc/basic_types.h"
 
 namespace perfetto {
@@ -45,7 +46,7 @@ class Host {
 
   // Like the above but takes a file descriptor to a pre-bound unix socket.
   // Returns nullptr if listening on the socket fails.
-  static std::unique_ptr<Host> CreateInstance(base::ScopedFile socket_fd,
+  static std::unique_ptr<Host> CreateInstance(base::ScopedSocketHandle,
                                               base::TaskRunner*);
 
   virtual ~Host();

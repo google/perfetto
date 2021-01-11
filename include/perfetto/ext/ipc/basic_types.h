@@ -21,6 +21,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/cpp_message_obj.h"
 
 namespace perfetto {

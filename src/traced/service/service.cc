@@ -156,8 +156,8 @@ int PERFETTO_EXPORT_ENTRYPOINT ServiceMain(int argc, char** argv) {
     started = svc->Start(std::move(producer_fd), std::move(consumer_fd));
 #endif
   } else {
-    unlink(GetProducerSocket());
-    unlink(GetConsumerSocket());
+    remove(GetProducerSocket());
+    remove(GetConsumerSocket());
     started = svc->Start(GetProducerSocket(), GetConsumerSocket());
 
     if (!producer_socket_group.empty()) {

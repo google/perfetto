@@ -298,6 +298,8 @@ TEST_F(TracingIntegrationTest, WithIPCTransport) {
                      std::vector<TracePacket>* packets, bool has_more) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
             const int kExpectedMinNumberOfClocks = 1;
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+            const int kExpectedMinNumberOfClocks = 2;
 #else
             const int kExpectedMinNumberOfClocks = 6;
 #endif
@@ -372,6 +374,7 @@ TEST_F(TracingIntegrationTest, ValidErrorOnDisconnection) {
   // connection and trigger the EXPECT_CALL(OnTracingDisabled) above.
 }
 
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 TEST_F(TracingIntegrationTest, WriteIntoFile) {
   // Start tracing.
   TraceConfig trace_config;
@@ -452,6 +455,7 @@ TEST_F(TracingIntegrationTest, WriteIntoFile) {
   ASSERT_GT(num_clock_snapshot_packet, 0u);
   ASSERT_GT(num_system_info_packet, 0u);
 }
+#endif
 
 class TracingIntegrationTestWithSMBScrapingProducer
     : public TracingIntegrationTest {
