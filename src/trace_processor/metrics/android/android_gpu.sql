@@ -22,6 +22,7 @@ SELECT RUN_METRIC('android/process_counter_span_view.sql',
   'table_name', 'proc_gpu_memory',
   'counter_name', 'GPU Memory');
 
+DROP VIEW IF EXISTS proc_gpu_memory_view;
 CREATE VIEW proc_gpu_memory_view AS
 SELECT
   upid,
@@ -32,6 +33,7 @@ SELECT
 FROM proc_gpu_memory_span
 GROUP BY upid;
 
+DROP VIEW IF EXISTS agg_proc_gpu_view;
 CREATE VIEW agg_proc_gpu_view AS
 SELECT
   name,
@@ -43,6 +45,7 @@ JOIN proc_gpu_memory_view
 USING(upid)
 GROUP BY name;
 
+DROP VIEW IF EXISTS proc_gpu_view;
 CREATE VIEW proc_gpu_view AS
 SELECT
   AndroidGpuMetric_Process(
@@ -53,6 +56,7 @@ SELECT
   ) AS proto
 FROM agg_proc_gpu_view;
 
+DROP VIEW IF EXISTS android_gpu_output;
 CREATE VIEW android_gpu_output AS
 SELECT AndroidGpuMetric(
   'processes', (SELECT RepeatedField(proto) FROM proc_gpu_view),

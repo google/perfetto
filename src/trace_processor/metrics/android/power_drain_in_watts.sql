@@ -16,9 +16,10 @@
 
 -- This is a mapping from counter names on different devices
 -- to what subsystems they are measuring.
-CREATE TABLE IF NOT EXISTS power_counters (name TEXT UNIQUE, subsystem TEXT);
+DROP TABLE IF EXISTS power_counters;
+CREATE TABLE power_counters (name TEXT UNIQUE, subsystem TEXT);
 
-INSERT OR IGNORE INTO power_counters
+INSERT INTO power_counters
 VALUES ('power.VPH_PWR_S5C_S6C_uws', 'cpu_big'),
   ('power.VPH_PWR_S4C_uws', 'cpu_little'),
   ('power.VPH_PWR_S2C_S3C_uws', 'soc'),

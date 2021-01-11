@@ -15,6 +15,7 @@
 --
 
 -- Spans for each thread not in a running state.
+DROP TABLE IF EXISTS unsched_state;
 CREATE TABLE unsched_state (ts BIG INT, dur BIG INT, utid BIG INT, state STRING);
 
 INSERT INTO unsched_state
@@ -30,6 +31,7 @@ SELECT
 FROM sched;
 
 -- Create a single view for the task states.
+DROP VIEW IF EXISTS task_state;
 CREATE VIEW task_state AS
 SELECT utid, state, ts, dur FROM unsched_state
 UNION
