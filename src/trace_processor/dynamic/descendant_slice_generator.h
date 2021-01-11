@@ -19,7 +19,7 @@
 
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
 
-#include "include/perfetto/ext/base/optional.h"
+#include "perfetto/ext/base/optional.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto {
