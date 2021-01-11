@@ -320,6 +320,8 @@ TEST_F(HostImplTest, InvokeMethodDropReply) {
   task_runner_->RunUntilCheckpoint("on_reply_received");
 }
 
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+// File descriptor sending over IPC is not supported on Windows.
 TEST_F(HostImplTest, SendFileDescriptor) {
   FakeService* fake_service = new FakeService("FakeService");
   ASSERT_TRUE(host_->ExposeService(std::unique_ptr<Service>(fake_service)));
@@ -398,6 +400,7 @@ TEST_F(HostImplTest, ReceiveFileDescriptor) {
             PERFETTO_EINTR(read(*rx_fd, buf, sizeof(buf))));
   ASSERT_STREQ(kFileContent, buf);
 }
+#endif  // !OS_WIN
 
 // Invoke a method and immediately after disconnect the client.
 TEST_F(HostImplTest, OnClientDisconnect) {

@@ -31,6 +31,10 @@
 #include "perfetto/tracing.h"
 #include "test/gtest_and_gmock.h"
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#include <Windows.h>  // For CreateFile().
+#endif
+
 // Deliberately not pulling any non-public perfetto header to spot accidental
 // header public -> non-public dependency while building this file.
 
@@ -1517,7 +1521,7 @@ TEST_P(PerfettoApiTest, TrackEventTypedArgs) {
   auto* tracing_session = NewTraceWithCategories({"foo"});
   tracing_session->get()->StartBlocking();
 
-  auto random_value = random();
+  auto random_value = rand();
   TRACE_EVENT_BEGIN("foo", "EventWithTypedArg",
                     [random_value](perfetto::EventContext ctx) {
                       auto* log = ctx.event()->set_log_message();
@@ -1864,8 +1868,8 @@ TEST_P(PerfettoApiTest, TrackEventDebugAnnotations) {
   auto* tracing_session = NewTraceWithCategories({"test"});
   tracing_session->get()->StartBlocking();
 
-  enum MyEnum { ENUM_FOO, ENUM_BAR };
-  enum MySignedEnum { SIGNED_ENUM_FOO = -1, SIGNED_ENUM_BAR };
+  enum MyEnum : uint32_t { ENUM_FOO, ENUM_BAR };
+  enum MySignedEnum : int32_t { SIGNED_ENUM_FOO = -1, SIGNED_ENUM_BAR };
 
   TRACE_EVENT_BEGIN("test", "E", "bool_arg", false);
   TRACE_EVENT_BEGIN("test", "E", "int_arg", -123);
@@ -2425,7 +2429,7 @@ TEST_P(PerfettoApiTest, WriteEventsAfterDeferredStop) {
   // This usleep is here just to prevent that we accidentally pass the test
   // just by virtue of hitting some race. We should be able to trace up until
   // 5 seconds after seeing the stop when using the deferred stop mechanism.
-  usleep(250 * 1000);
+  std::this_thread::sleep_for(std::chrono::milliseconds(250));
 
   MockDataSource::Trace([&lambda_called](MockDataSource::TraceContext ctx) {
     auto packet = ctx.NewTracePacket();
@@ -2482,30 +2486,29 @@ TEST_P(PerfettoApiTest, RepeatedStartAndStop) {
 }
 
 TEST_P(PerfettoApiTest, SetupWithFile) {
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-  char temp_file[] = "/data/local/tmp/perfetto-XXXXXXXX";
-#else
-  char temp_file[] = "/tmp/perfetto-XXXXXXXX";
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  if (GetParam() == perfetto::kSystemBackend)
+    GTEST_SKIP() << "write_into_file + system mode is not supported on Windows";
 #endif
-  int fd = mkstemp(temp_file);
-  ASSERT_TRUE(fd >= 0);
-
+  auto temp_file = perfetto::test::CreateTempFile();
   perfetto::TraceConfig cfg;
   cfg.set_duration_ms(500);
   cfg.add_buffers()->set_size_kb(1024);
   auto* ds_cfg = cfg.add_data_sources()->mutable_config();
   ds_cfg->set_name("my_data_source");
   // Write a trace into |fd|.
-  auto* tracing_session = NewTrace(cfg, fd);
+  auto* tracing_session = NewTrace(cfg, temp_file.fd);
   tracing_session->get()->StartBlocking();
   tracing_session->get()->StopBlocking();
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   // Check that |fd| didn't get closed.
-  EXPECT_EQ(0, fcntl(fd, F_GETFD, 0));
+  EXPECT_EQ(0, fcntl(temp_file.fd, F_GETFD, 0));
+#endif
   // Check that the trace got written.
-  EXPECT_GT(lseek(fd, 0, SEEK_END), 0);
-  EXPECT_EQ(0, close(fd));
+  EXPECT_GT(lseek(temp_file.fd, 0, SEEK_END), 0);
+  EXPECT_EQ(0, close(temp_file.fd));
   // Clean up.
-  EXPECT_EQ(0, unlink(temp_file));
+  EXPECT_EQ(0, remove(temp_file.path.c_str()));
 }
 
 TEST_P(PerfettoApiTest, MultipleRegistrations) {
@@ -3208,15 +3211,8 @@ TEST_P(PerfettoApiTest, ConsoleInterceptorPrint) {
 
 TEST_P(PerfettoApiTest, ConsoleInterceptorVerify) {
   perfetto::ConsoleInterceptor::Register();
-
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-  char temp_file[] = "/data/local/tmp/perfetto-XXXXXXXX";
-#else
-  char temp_file[] = "/tmp/perfetto-XXXXXXXX";
-#endif
-  int fd = mkstemp(temp_file);
-  ASSERT_TRUE(fd >= 0);
-  perfetto::ConsoleInterceptor::SetOutputFdForTesting(fd);
+  auto temp_file = perfetto::test::CreateTempFile();
+  perfetto::ConsoleInterceptor::SetOutputFdForTesting(temp_file.fd);
 
   perfetto::TraceConfig cfg;
   cfg.set_duration_ms(500);
@@ -3232,7 +3228,7 @@ TEST_P(PerfettoApiTest, ConsoleInterceptorVerify) {
   perfetto::ConsoleInterceptor::SetOutputFdForTesting(0);
 
   std::vector<std::string> lines;
-  FILE* f = fdopen(fd, "r");
+  FILE* f = fdopen(temp_file.fd, "r");
   fseek(f, 0u, SEEK_SET);
   std::array<char, 128> line{};
   while (fgets(line.data(), line.size(), f)) {
@@ -3243,7 +3239,7 @@ TEST_P(PerfettoApiTest, ConsoleInterceptorVerify) {
     lines.push_back(std::move(s));
   }
   fclose(f);
-  EXPECT_EQ(0, unlink(temp_file));
+  EXPECT_EQ(0, remove(temp_file.path.c_str()));
 
   // clang-format off
   std::vector<std::string> golden_lines = {

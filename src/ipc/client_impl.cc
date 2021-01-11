@@ -18,7 +18,6 @@
 
 #include <fcntl.h>
 #include <inttypes.h>
-#include <unistd.h>
 
 #include <utility>
 
@@ -198,12 +197,16 @@ void ClientImpl::OnDataAvailable(base::UnixSocket*) {
     auto buf = frame_deserializer_.BeginReceive();
     base::ScopedFile fd;
     rsize = sock_->Receive(buf.data, buf.size, &fd);
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+    PERFETTO_DCHECK(!fd);
+#else
     if (fd) {
       PERFETTO_DCHECK(!received_fd_);
       int res = fcntl(*fd, F_SETFD, FD_CLOEXEC);
       PERFETTO_DCHECK(res == 0);
       received_fd_ = std::move(fd);
     }
+#endif
     if (!frame_deserializer_.EndReceive(rsize)) {
       // The endpoint tried to send a frame that is way too large.
       return sock_->Shutdown(true);  // In turn will trigger an OnDisconnect().

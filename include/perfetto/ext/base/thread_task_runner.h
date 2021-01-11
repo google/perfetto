@@ -32,7 +32,7 @@ namespace base {
 // * the UnixTaskRunner will be constructed and destructed on the task thread.
 // * the task thread will live for the lifetime of the UnixTaskRunner.
 //
-class ThreadTaskRunner {
+class ThreadTaskRunner : public TaskRunner {
  public:
   static ThreadTaskRunner CreateAndStart(const std::string& name = "") {
     return ThreadTaskRunner(name);
@@ -43,7 +43,7 @@ class ThreadTaskRunner {
 
   ThreadTaskRunner(ThreadTaskRunner&&) noexcept;
   ThreadTaskRunner& operator=(ThreadTaskRunner&&);
-  ~ThreadTaskRunner();
+  ~ThreadTaskRunner() override;
 
   // Executes the given function on the task runner thread and blocks the caller
   // thread until the function has run.
@@ -61,6 +61,14 @@ class ThreadTaskRunner {
   // Warning: do not call Quit() on the returned runner pointer, the termination
   // should be handled exclusively by this class' destructor.
   UnixTaskRunner* get() const { return task_runner_; }
+
+  // TaskRunner implementation.
+  // These methods just proxy to the underlying task_runner_.
+  void PostTask(std::function<void()>) override;
+  void PostDelayedTask(std::function<void()>, uint32_t delay_ms) override;
+  void AddFileDescriptorWatch(PlatformHandle, std::function<void()>) override;
+  void RemoveFileDescriptorWatch(PlatformHandle) override;
+  bool RunsTasksOnCurrentThread() const override;
 
  private:
   explicit ThreadTaskRunner(const std::string& name);

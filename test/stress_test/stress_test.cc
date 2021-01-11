@@ -124,9 +124,9 @@ class TestHarness {
 TestHarness::TestHarness() {
   results_dir_ = base::GetSysTempDir() + "/perfetto-stress-test";
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-  system(("rmdir \"" + results_dir_ + "\" /s /q").c_str());
+  base::ignore_result(system(("rmdir \"" + results_dir_ + "\" /s /q").c_str()));
 #else
-  system(("rm -r -- \"" + results_dir_ + "\"").c_str());
+  base::ignore_result(system(("rm -r -- \"" + results_dir_ + "\"").c_str()));
 #endif
   PERFETTO_CHECK(base::Mkdir(results_dir_));
   PERFETTO_LOG("Saving test results in %s", results_dir_.c_str());

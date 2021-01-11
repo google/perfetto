@@ -102,5 +102,29 @@ bool EnableDirectSMBPatching(BackendType backend_type) {
   return muxer->EnableDirectSMBPatchingForTesting(backend_type);
 }
 
+TestTempFile CreateTempFile() {
+  TestTempFile res{};
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  char temp_file[255]{};
+  sprintf(temp_file, "%s\\perfetto-XXXXXX", getenv("TMP"));
+  PERFETTO_CHECK(_mktemp_s(temp_file, strlen(temp_file) + 1) == 0);
+  HANDLE handle =
+      ::CreateFileA(temp_file, GENERIC_READ | GENERIC_WRITE,
+                    FILE_SHARE_DELETE | FILE_SHARE_READ, nullptr, CREATE_ALWAYS,
+                    FILE_ATTRIBUTE_TEMPORARY, nullptr);
+  PERFETTO_CHECK(handle && handle != INVALID_HANDLE_VALUE);
+  res.fd = _open_osfhandle(reinterpret_cast<intptr_t>(handle), 0);
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  char temp_file[] = "/data/local/tmp/perfetto-XXXXXXXX";
+  res.fd = mkstemp(temp_file);
+#else
+  char temp_file[] = "/tmp/perfetto-XXXXXXXX";
+  res.fd = mkstemp(temp_file);
+#endif
+  res.path = temp_file;
+  PERFETTO_CHECK(res.fd > 0);
+  return res;
+}
+
 }  // namespace test
 }  // namespace perfetto
