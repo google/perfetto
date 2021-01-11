@@ -46,6 +46,7 @@ def CheckChange(input, output):
   results += CheckMergedTraceConfigProto(input, output)
   results += CheckProtoEventList(input, output)
   results += CheckBannedCpp(input, output)
+  results += CheckSqlMetrics(input, output)
   return results
 
 
@@ -218,6 +219,20 @@ def CheckProtoComments(input_api, output_api):
   def file_filter(x):
     return input_api.FilterSourceFile(
         x, files_to_check=['protos/perfetto/.*[.]proto$', tool])
+
+  if not input_api.AffectedSourceFiles(file_filter):
+    return []
+  if subprocess.call([tool]):
+    return [output_api.PresubmitError(tool + ' failed')]
+  return []
+
+
+def CheckSqlMetrics(input_api, output_api):
+  tool = 'tools/check_sql_metrics.py'
+
+  def file_filter(x):
+    return input_api.FilterSourceFile(
+        x, files_to_check=['src/trace_processor/metrics/.*[.]sql$', tool])
 
   if not input_api.AffectedSourceFiles(file_filter):
     return []

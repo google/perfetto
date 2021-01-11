@@ -15,7 +15,6 @@
 --
 
 DROP TABLE IF EXISTS {{table_name}}_by_priority_stats;
-
 CREATE TABLE {{table_name}}_by_priority_stats (
   process_name TEXT,
   priority TEXT,
@@ -53,7 +52,6 @@ GROUP BY 1, 2
 ORDER BY 1, 2;
 
 DROP VIEW IF EXISTS {{table_name}}_by_priority_stats_proto;
-
 CREATE VIEW {{table_name}}_by_priority_stats_proto AS
 SELECT
   process_name,

@@ -13,5 +13,6 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+DROP VIEW IF EXISTS test_chrome_metric_output;
 CREATE VIEW test_chrome_metric_output AS
 SELECT TestChromeMetric('test_value', 1)

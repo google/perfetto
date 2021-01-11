@@ -24,7 +24,6 @@ SELECT RUN_METRIC('chrome/scroll_jank.sql');
 -- only occurs on the browser. This saves us the trouble of dealing with all the
 -- different possible names of the browser (when including system tracing).
 DROP VIEW IF EXISTS browser_main_track_id;
-
 CREATE VIEW browser_main_track_id AS
 SELECT
   track_id AS id
@@ -34,7 +33,6 @@ WHERE
 LIMIT 1;
 
 DROP VIEW IF EXISTS viz_compositor_track_id;
-
 CREATE VIEW viz_compositor_track_id AS
 SELECT
   id
@@ -54,7 +52,6 @@ LIMIT 1;
 -- all the different possible names of the GPU process (when including system
 -- tracing).
 DROP VIEW IF EXISTS gpu_main_track_id;
-
 CREATE VIEW gpu_main_track_id AS
 SELECT
   track_id AS id
@@ -73,9 +70,7 @@ LIMIT 1;
 --------------------------------------------------------------------------------
 -- Grab the last LatencyInfo.Flow for each trace_id on the browser main.
 --------------------------------------------------------------------------------
-
 DROP VIEW IF EXISTS browser_flows;
-
 CREATE VIEW browser_flows AS
 SELECT
   EXTRACT_ARG(arg_set_id, "chrome_latency_info.trace_id") AS trace_id,
@@ -92,7 +87,6 @@ WHERE
 
 -- Grab the last LatencyInfo.Flow for each trace_id on the VizCompositor.
 DROP VIEW IF EXISTS viz_flows;
-
 CREATE VIEW viz_flows AS
 SELECT
   EXTRACT_ARG(arg_set_id, "chrome_latency_info.trace_id") AS trace_id,
@@ -109,7 +103,6 @@ WHERE
 
 -- Grab the last LatencyInfo.Flow for each trace_id on the GPU main.
 DROP VIEW IF EXISTS gpu_flows;
-
 CREATE VIEW gpu_flows AS
 SELECT
   EXTRACT_ARG(arg_set_id, "chrome_latency_info.trace_id") AS trace_id,
@@ -131,7 +124,6 @@ WHERE
 -- Keeping only the GestureScrollUpdates join the maximum flows with their
 -- associated scrolls. We only keep non-coalesced scrolls.
 DROP VIEW IF EXISTS scroll_with_browser_gpu_and_viz_flows;
-
 CREATE VIEW scroll_with_browser_gpu_and_viz_flows AS
 SELECT
   scroll.trace_id,
@@ -171,7 +163,6 @@ FROM (
 
 -- These are the events that block the Browser Main or the VizCompositor thread.
 DROP VIEW IF EXISTS blocking_browser_gpu_and_viz_copies;
-
 CREATE VIEW blocking_browser_gpu_and_viz_copies AS
 SELECT
   id,
@@ -198,7 +189,6 @@ WHERE
 -- Determine based on the LatencyInfo.Flow timestamp and the copy task overlap
 -- if this scroll might have been delayed because of the copy.
 DROP VIEW IF EXISTS blocking_copy_tasks;
-
 CREATE VIEW blocking_copy_tasks AS
 SELECT
   scroll.scroll_id,
@@ -237,7 +227,6 @@ FROM
 -- Group by scroll so we can equally join one reply to the ScrollJankAndCauses
 -- view.
 DROP VIEW IF EXISTS screenshot_overlapping_scrolls;
-
 CREATE VIEW screenshot_overlapping_scrolls AS
 SELECT
   scroll_id, trace_id, SUM(blocked_by_copy) > 0 AS blocked_by_copy_request
@@ -247,9 +236,7 @@ GROUP BY 1, 2;
 --------------------------------------------------------------------------------
 -- Check for blocking language_detection on the browser thread
 --------------------------------------------------------------------------------
-
 DROP VIEW IF EXISTS blocking_browser_language_detection;
-
 CREATE VIEW blocking_browser_language_detection AS
 SELECT
   id,
@@ -264,7 +251,6 @@ WHERE
   );
 
 DROP VIEW IF EXISTS blocking_language_detection_tasks;
-
 CREATE VIEW blocking_language_detection_tasks AS
 SELECT
   scroll.scroll_id,
@@ -287,7 +273,6 @@ FROM
   lang.ts + lang.dur >= scroll.ts;
 
 DROP VIEW IF EXISTS language_detection_overlapping_scrolls;
-
 CREATE VIEW language_detection_overlapping_scrolls AS
 SELECT
   scroll_id, trace_id,
@@ -299,7 +284,6 @@ GROUP BY 1, 2;
 -- Finally join the causes together for easy grouping.
 --------------------------------------------------------------------------------
 DROP VIEW IF EXISTS scroll_jank_cause_blocking_task;
-
 CREATE VIEW scroll_jank_cause_blocking_task AS
   SELECT
     lang.scroll_id,
