@@ -17,9 +17,8 @@
 #ifndef INCLUDE_PERFETTO_EXT_IPC_CLIENT_INFO_H_
 #define INCLUDE_PERFETTO_EXT_IPC_CLIENT_INFO_H_
 
-#include <unistd.h>
-
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/ipc/basic_types.h"
 
 namespace perfetto {

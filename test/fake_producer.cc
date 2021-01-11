@@ -17,6 +17,7 @@
 #include "test/fake_producer.h"
 
 #include <mutex>
+#include <thread>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/time.h"
@@ -161,7 +162,7 @@ void FakeProducer::Flush(FlushRequestID flush_request_id,
   endpoint_->NotifyFlushComplete(flush_request_id);
 }
 
-int FakeProducer::unix_socket_fd() {
+base::SocketHandle FakeProducer::unix_socket_fd() {
   // Since FakeProducer is only used in tests we can include and assume the
   // implementation.
   auto* producer = static_cast<ProducerIPCClientImpl*>(endpoint_.get());
@@ -210,8 +211,8 @@ void FakeProducer::EmitEventBatchOnTaskRunner(std::function<void()> callback) {
       int64_t expected_time_taken = iterations * 1000;
       base::TimeMillis time_taken = base::GetWallTimeMs() - start;
       while (time_taken.count() < expected_time_taken) {
-        usleep(static_cast<useconds_t>(
-            (expected_time_taken - time_taken.count()) * 1000));
+        std::this_thread::sleep_for(
+            base::TimeMillis(expected_time_taken - time_taken.count()));
         time_taken = base::GetWallTimeMs() - start;
       }
     }

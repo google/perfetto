@@ -1167,7 +1167,8 @@ TEST_F(TracingServiceImplTest, LockdownMode) {
   consumer->Connect(svc.get());
 
   std::unique_ptr<MockProducer> producer = CreateMockProducer();
-  producer->Connect(svc.get(), "mock_producer_sameuid", geteuid());
+  producer->Connect(svc.get(), "mock_producer_sameuid",
+                    base::GetCurrentUserId());
   producer->RegisterDataSource("data_source");
 
   TraceConfig trace_config;
@@ -1182,8 +1183,9 @@ TEST_F(TracingServiceImplTest, LockdownMode) {
   producer->WaitForDataSourceStart("data_source");
 
   std::unique_ptr<MockProducer> producer_otheruid = CreateMockProducer();
-  auto x = svc->ConnectProducer(producer_otheruid.get(), geteuid() + 1,
-                                "mock_producer_ouid");
+  auto x =
+      svc->ConnectProducer(producer_otheruid.get(),
+                           base::GetCurrentUserId() + 1, "mock_producer_ouid");
   EXPECT_CALL(*producer_otheruid, OnConnect()).Times(0);
   task_runner.RunUntilIdle();
   Mock::VerifyAndClearExpectations(producer_otheruid.get());
@@ -1199,7 +1201,8 @@ TEST_F(TracingServiceImplTest, LockdownMode) {
   producer->WaitForDataSourceStart("data_source");
 
   std::unique_ptr<MockProducer> producer_otheruid2 = CreateMockProducer();
-  producer_otheruid->Connect(svc.get(), "mock_producer_ouid2", geteuid() + 1);
+  producer_otheruid->Connect(svc.get(), "mock_producer_ouid2",
+                             base::GetCurrentUserId() + 1);
 
   consumer->DisableTracing();
   producer->WaitForDataSourceStop("data_source");
@@ -1549,7 +1552,7 @@ TEST_F(TracingServiceImplTest, ProducerShmAndPageSizeOverriddenByTraceConfig) {
   for (size_t i = 0; i < kNumProducers; i++) {
     auto name = "mock_producer_" + std::to_string(i);
     producer[i] = CreateMockProducer();
-    producer[i]->Connect(svc.get(), name, geteuid(),
+    producer[i]->Connect(svc.get(), name, base::GetCurrentUserId(),
                          kSizes[i].hint_size_kb * 1024,
                          kSizes[i].hint_page_size_kb * 1024);
     producer[i]->RegisterDataSource("data_source");

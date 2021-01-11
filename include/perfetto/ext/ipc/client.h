@@ -21,6 +21,7 @@
 #include <memory>
 
 #include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/ipc/basic_types.h"
 
@@ -51,14 +52,14 @@ class Client {
   struct ConnArgs {
     ConnArgs(const char* sock_name, bool sock_retry)
         : socket_name(sock_name), retry(sock_retry) {}
-    explicit ConnArgs(base::ScopedFile sock_fd)
+    explicit ConnArgs(base::ScopedSocketHandle sock_fd)
         : socket_fd(std::move(sock_fd)) {}
 
     // Disallow copy. Only supports move.
     ConnArgs(const ConnArgs& other) = delete;
     ConnArgs(ConnArgs&& other) = default;
 
-    base::ScopedFile socket_fd;
+    base::ScopedSocketHandle socket_fd;
     const char* socket_name = nullptr;
     bool retry = false;  // Only for connecting with |socket_name|.
   };

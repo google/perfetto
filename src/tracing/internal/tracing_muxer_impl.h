@@ -327,7 +327,7 @@ class TracingMuxerImpl : public TracingMuxer {
   // Tracing::CreateTracingSession().
   class TracingSessionImpl : public TracingSession {
    public:
-    TracingSessionImpl(TracingMuxerImpl*, TracingSessionGlobalID);
+    TracingSessionImpl(TracingMuxerImpl*, TracingSessionGlobalID, BackendType);
     ~TracingSessionImpl() override;
     void Setup(const TraceConfig&, int fd) override;
     void Start() override;
@@ -346,6 +346,7 @@ class TracingMuxerImpl : public TracingMuxer {
    private:
     TracingMuxerImpl* const muxer_;
     TracingSessionGlobalID const session_id_;
+    BackendType const backend_type_;
   };
 
   struct RegisteredDataSource {

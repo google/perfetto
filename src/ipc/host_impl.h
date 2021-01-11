@@ -35,7 +35,7 @@ namespace ipc {
 class HostImpl : public Host, public base::UnixSocket::EventListener {
  public:
   HostImpl(const char* socket_name, base::TaskRunner*);
-  HostImpl(base::ScopedFile socket_fd, base::TaskRunner*);
+  HostImpl(base::ScopedSocketHandle, base::TaskRunner*);
   ~HostImpl() override;
 
   // Host implementation.
