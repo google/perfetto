@@ -213,6 +213,10 @@ Table::Schema ThreadStateGenerator::CreateSchema() {
       schema.columns.begin(), schema.columns.end(),
       [](const Table::Schema::Column& col) { return col.name == "ts"; });
   ts_it->is_sorted = true;
+  auto id_it = std::find_if(
+      schema.columns.begin(), schema.columns.end(),
+      [](const Table::Schema::Column& col) { return col.name == "id"; });
+  id_it->is_sorted = false;
 
   return schema;
 }
