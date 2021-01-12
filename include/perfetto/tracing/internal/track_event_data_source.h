@@ -32,6 +32,25 @@
 #include <type_traits>
 
 namespace perfetto {
+
+struct TraceTimestamp {
+  protos::pbzero::BuiltinClock clock_id;
+  uint64_t nanoseconds;
+};
+
+// A function for converting an abstract timestamp into the trace clock timebase
+// in nanoseconds. By overriding this template the user can register additional
+// timestamp types. The return value should specify the clock used by the
+// timestamp as well as its value in nanoseconds.
+template <typename T>
+TraceTimestamp ConvertTimestampToTraceTimeNs(const T&);
+
+// A pass-through implementation for raw uint64_t nanosecond timestamps.
+template <>
+TraceTimestamp inline ConvertTimestampToTraceTimeNs(const uint64_t& timestamp) {
+  return {internal::TrackEventInternal::GetClockId(), timestamp};
+}
+
 namespace internal {
 namespace {
 
@@ -58,6 +77,20 @@ static constexpr bool IsValidTraceLambdaImpl(...) {
 template <typename T>
 static constexpr bool IsValidTraceLambda() {
   return IsValidTraceLambdaImpl<T>(nullptr);
+}
+
+// Because the user can use arbitrary timestamp types, we can't compare against
+// any known base type here. Instead, we check that a track or a trace lambda
+// isn't being interpreted as a timestamp.
+template <typename T,
+          typename CanBeConvertedToNsCheck = decltype(
+              ::perfetto::ConvertTimestampToTraceTimeNs(std::declval<T>())),
+          typename NotTrackCheck = typename std::enable_if<
+              !std::is_convertible<T, Track>::value>::type,
+          typename NotLambdaCheck =
+              typename std::enable_if<!IsValidTraceLambda<T>()>::type>
+static constexpr bool IsValidTimestamp() {
+  return true;
 }
 
 }  // namespace
@@ -207,16 +240,20 @@ class TrackEventDataSource
 
   // Trace point which takes a lambda function argument and an overridden
   // timestamp. |timestamp| must be in nanoseconds in the trace clock timebase.
-  template <size_t CategoryIndex,
-            typename CategoryType,
-            typename ArgumentFunction = void (*)(EventContext),
-            typename ArgumentFunctionCheck = typename std::enable_if<
-                IsValidTraceLambda<ArgumentFunction>()>::type>
+  template <
+      size_t CategoryIndex,
+      typename CategoryType,
+      typename TimestampType = uint64_t,
+      typename TimestampTypeCheck =
+          typename std::enable_if<IsValidTimestamp<TimestampType>()>::type,
+      typename ArgumentFunction = void (*)(EventContext),
+      typename ArgumentFunctionCheck =
+          typename std::enable_if<IsValidTraceLambda<ArgumentFunction>()>::type>
   static void TraceForCategory(uint32_t instances,
                                const CategoryType& dynamic_category,
                                const char* event_name,
                                perfetto::protos::pbzero::TrackEvent::Type type,
-                               uint64_t timestamp,
+                               TimestampType timestamp,
                                ArgumentFunction arg_function)
       PERFETTO_NO_INLINE {
     TraceForCategoryImpl<CategoryIndex>(instances, dynamic_category, event_name,
@@ -265,6 +302,9 @@ class TrackEventDataSource
   template <size_t CategoryIndex,
             typename CategoryType,
             typename TrackType,
+            typename TimestampType = uint64_t,
+            typename TimestampTypeCheck = typename std::enable_if<
+                IsValidTimestamp<TimestampType>()>::type,
             typename TrackTypeCheck = typename std::enable_if<
                 std::is_convertible<TrackType, Track>::value>::type>
   static void TraceForCategory(uint32_t instances,
@@ -272,25 +312,29 @@ class TrackEventDataSource
                                const char* event_name,
                                perfetto::protos::pbzero::TrackEvent::Type type,
                                const TrackType& track,
-                               uint64_t timestamp) PERFETTO_NO_INLINE {
+                               TimestampType timestamp) PERFETTO_NO_INLINE {
     TraceForCategoryImpl<CategoryIndex>(instances, dynamic_category, event_name,
                                         type, track, timestamp);
   }
 
   // Trace point with a track, a lambda function and an overridden timestamp.
   // |timestamp| must be in nanoseconds in the trace clock timebase.
-  template <size_t CategoryIndex,
-            typename TrackType,
-            typename CategoryType,
-            typename ArgumentFunction = void (*)(EventContext),
-            typename ArgumentFunctionCheck = typename std::enable_if<
-                IsValidTraceLambda<ArgumentFunction>()>::type>
+  template <
+      size_t CategoryIndex,
+      typename TrackType,
+      typename CategoryType,
+      typename TimestampType = uint64_t,
+      typename TimestampTypeCheck =
+          typename std::enable_if<IsValidTimestamp<TimestampType>()>::type,
+      typename ArgumentFunction = void (*)(EventContext),
+      typename ArgumentFunctionCheck =
+          typename std::enable_if<IsValidTraceLambda<ArgumentFunction>()>::type>
   static void TraceForCategory(uint32_t instances,
                                const CategoryType& dynamic_category,
                                const char* event_name,
                                perfetto::protos::pbzero::TrackEvent::Type type,
                                const TrackType& track,
-                               uint64_t timestamp,
+                               TimestampType timestamp,
                                ArgumentFunction arg_function)
       PERFETTO_NO_INLINE {
     TraceForCategoryImpl<CategoryIndex>(instances, dynamic_category, event_name,
@@ -505,21 +549,25 @@ class TrackEventDataSource
 
   // TODO(skyostil): Make |CategoryIndex| a regular parameter to reuse trace
   // point code across different categories.
-  template <size_t CategoryIndex,
-            typename CategoryType,
-            typename TrackType = Track,
-            typename ArgumentFunction = void (*)(EventContext),
-            typename ArgumentFunctionCheck = typename std::enable_if<
-                IsValidTraceLambda<ArgumentFunction>()>::type,
-            typename TrackTypeCheck = typename std::enable_if<
-                std::is_convertible<TrackType, Track>::value>::type>
+  template <
+      size_t CategoryIndex,
+      typename CategoryType,
+      typename TrackType = Track,
+      typename TimestampType = uint64_t,
+      typename TimestampTypeCheck =
+          typename std::enable_if<IsValidTimestamp<TimestampType>()>::type,
+      typename ArgumentFunction = void (*)(EventContext),
+      typename ArgumentFunctionCheck =
+          typename std::enable_if<IsValidTraceLambda<ArgumentFunction>()>::type,
+      typename TrackTypeCheck = typename std::enable_if<
+          std::is_convertible<TrackType, Track>::value>::type>
   static void TraceForCategoryImpl(
       uint32_t instances,
       const CategoryType& dynamic_category,
       const char* event_name,
       perfetto::protos::pbzero::TrackEvent::Type type,
       const TrackType& track = Track(),
-      uint64_t timestamp = TrackEventInternal::GetTimeNs(),
+      TimestampType timestamp = TrackEventInternal::GetTimeNs(),
       ArgumentFunction arg_function = [](EventContext) {
       }) PERFETTO_ALWAYS_INLINE {
     TraceWithInstances<CategoryIndex>(
@@ -537,9 +585,14 @@ class TrackEventDataSource
             // TODO(skyostil): Intern categories at compile time.
             const Category* static_category =
                 kIsDynamic ? nullptr : Registry->GetCategory(CategoryIndex);
+            TraceTimestamp trace_timestamp =
+                ::perfetto::ConvertTimestampToTraceTimeNs(timestamp);
+            // TODO(skyostil): Support additional clock ids.
+            PERFETTO_DCHECK(trace_timestamp.clock_id ==
+                            TrackEventInternal::GetClockId());
             auto event_ctx = TrackEventInternal::WriteEvent(
                 ctx.tls_inst_->trace_writer.get(), ctx.GetIncrementalState(),
-                static_category, event_name, type, timestamp);
+                static_category, event_name, type, trace_timestamp.nanoseconds);
             if (kIsDynamic) {
               Category category{
                   Category::FromDynamicCategory(dynamic_category)};

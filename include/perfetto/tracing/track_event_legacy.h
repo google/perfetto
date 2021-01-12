@@ -184,11 +184,6 @@ bool ConvertThreadId(const T&,
                      int32_t* pid_override_out,
                      int32_t* tid_override_out);
 
-// User-provided function to convert an abstract timestamp into the trace clock
-// timebase in nanoseconds.
-template <typename T>
-uint64_t ConvertTimestampToTraceTimeNs(const T&);
-
 // Built-in implementation for events referring to the current thread.
 template <>
 bool PERFETTO_EXPORT ConvertThreadId(const PerfettoLegacyCurrentThreadId&,
@@ -510,24 +505,22 @@ class PERFETTO_EXPORT TrackEventLegacy {
             ##__VA_ARGS__);                                                  \
       })
 
-#define INTERNAL_TRACE_EVENT_ADD_WITH_TIMESTAMP(phase, category, name,     \
-                                                timestamp, flags, ...)     \
-  PERFETTO_INTERNAL_TRACK_EVENT(                                           \
-      category, ::perfetto::StaticString{name},                            \
-      ::perfetto::internal::TrackEventLegacy::PhaseToType(phase),          \
-      ::perfetto::legacy::ConvertTimestampToTraceTimeNs(timestamp),        \
-      [&](perfetto::EventContext ctx) PERFETTO_NO_THREAD_SAFETY_ANALYSIS { \
-        using ::perfetto::internal::TrackEventLegacy;                      \
-        TrackEventLegacy::WriteLegacyEvent(std::move(ctx), phase, flags,   \
-                                           ##__VA_ARGS__);                 \
+#define INTERNAL_TRACE_EVENT_ADD_WITH_TIMESTAMP(phase, category, name,       \
+                                                timestamp, flags, ...)       \
+  PERFETTO_INTERNAL_TRACK_EVENT(                                             \
+      category, ::perfetto::StaticString{name},                              \
+      ::perfetto::internal::TrackEventLegacy::PhaseToType(phase), timestamp, \
+      [&](perfetto::EventContext ctx) PERFETTO_NO_THREAD_SAFETY_ANALYSIS {   \
+        using ::perfetto::internal::TrackEventLegacy;                        \
+        TrackEventLegacy::WriteLegacyEvent(std::move(ctx), phase, flags,     \
+                                           ##__VA_ARGS__);                   \
       })
 
 #define INTERNAL_TRACE_EVENT_ADD_WITH_ID_TID_AND_TIMESTAMP(                  \
     phase, category, name, id, thread_id, timestamp, flags, ...)             \
   PERFETTO_INTERNAL_TRACK_EVENT(                                             \
       category, ::perfetto::StaticString{name},                              \
-      ::perfetto::internal::TrackEventLegacy::PhaseToType(phase),            \
-      ::perfetto::legacy::ConvertTimestampToTraceTimeNs(timestamp),          \
+      ::perfetto::internal::TrackEventLegacy::PhaseToType(phase), timestamp, \
       [&](perfetto::EventContext ctx) PERFETTO_NO_THREAD_SAFETY_ANALYSIS {   \
         using ::perfetto::internal::TrackEventLegacy;                        \
         ::perfetto::internal::LegacyTraceId PERFETTO_UID(trace_id){id};      \
