@@ -539,7 +539,6 @@ export function getBuiltinChromeCategoryList(): string[] {
     'content_capture',
     'devtools',
     'devtools.timeline',
-    'devtools.timeline.async',
     'download',
     'download_service',
     'drm',
