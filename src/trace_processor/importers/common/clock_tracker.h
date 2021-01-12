@@ -187,7 +187,8 @@ class ClockTracker {
 
   void SetTraceTimeClock(ClockId clock_id) {
     PERFETTO_DCHECK(!IsReservedSeqScopedClockId(clock_id));
-    if (trace_time_clock_id_used_for_conversion_) {
+    if (trace_time_clock_id_used_for_conversion_ &&
+        trace_time_clock_id_ != clock_id) {
       PERFETTO_ELOG("Not updating trace time clock from %" PRIu64 " to %" PRIu64
                     " because the old clock was already used for timestamp "
                     "conversion - ClockSnapshot too late in trace?",
