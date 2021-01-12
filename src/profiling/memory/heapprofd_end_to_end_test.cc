@@ -59,9 +59,7 @@ constexpr size_t kStartupAllocSize = 10;
 constexpr size_t kFirstIterationBytes = 5;
 constexpr size_t kSecondIterationBytes = 7;
 
-constexpr const char* kHeapprofdModeProperty = "heapprofd.userdebug.mode";
-
-enum class TestMode { kCentral, kFork, kStatic };
+enum class TestMode { kCentral, kStatic };
 enum class AllocatorMode { kMalloc, kCustom };
 
 using ::testing::AnyOf;
@@ -108,62 +106,6 @@ TraceConfig MakeTraceConfig(F fn) {
   ds_config->set_heapprofd_config_raw(heapprofd_config.SerializeAsString());
   return trace_config;
 }
-
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-
-std::string ReadProperty(const std::string& name, std::string def) {
-  const prop_info* pi = __system_property_find(name.c_str());
-  if (pi) {
-    __system_property_read_callback(
-        pi,
-        [](void* cookie, const char*, const char* value, uint32_t) {
-          *reinterpret_cast<std::string*>(cookie) = value;
-        },
-        &def);
-  }
-  return def;
-}
-
-int SetModeProperty(std::string* value) {
-  if (value) {
-    __system_property_set(kHeapprofdModeProperty, value->c_str());
-    delete value;
-  }
-  return 0;
-}
-
-base::ScopedResource<std::string*, SetModeProperty, nullptr> EnableFork() {
-  std::string prev_property_value = ReadProperty(kHeapprofdModeProperty, "");
-  __system_property_set(kHeapprofdModeProperty, "fork");
-  return base::ScopedResource<std::string*, SetModeProperty, nullptr>(
-      new std::string(prev_property_value));
-}
-
-base::ScopedResource<std::string*, SetModeProperty, nullptr> DisableFork() {
-  std::string prev_property_value = ReadProperty(kHeapprofdModeProperty, "");
-  __system_property_set(kHeapprofdModeProperty, "");
-  return base::ScopedResource<std::string*, SetModeProperty, nullptr>(
-      new std::string(prev_property_value));
-}
-
-#else
-std::string ReadProperty(const std::string&, std::string) {
-  PERFETTO_FATAL("Only works on Android.");
-}
-
-int SetModeProperty(std::string*) {
-  PERFETTO_FATAL("Only works on Android.");
-}
-
-base::ScopedResource<std::string*, SetModeProperty, nullptr> EnableFork() {
-  PERFETTO_FATAL("Only works on Android.");
-}
-
-base::ScopedResource<std::string*, SetModeProperty, nullptr> DisableFork() {
-  PERFETTO_FATAL("Only works on Android.");
-}
-
-#endif
 
 void CustomAllocateAndFree(size_t bytes) {
   static uint32_t heap_id = AHeapProfile_registerHeap(AHeapInfo_create("test"));
@@ -497,9 +439,6 @@ std::string Suffix(const std::tuple<TestMode, AllocatorMode>& param) {
     case TestMode::kCentral:
       result += "CentralMode";
       break;
-    case TestMode::kFork:
-      result += "ForkMode";
-      break;
     case TestMode::kStatic:
       result += "StaticMode";
       break;
@@ -529,24 +468,10 @@ class HeapprofdEndToEnd
     // and then set to 1 again too quickly, init decides that the service is
     // "restarting" and waits before restarting it.
     usleep(50000);
-    switch (test_mode()) {
-      case TestMode::kCentral:
-        fork_prop_ = DisableFork();
-        PERFETTO_CHECK(ReadProperty(kHeapprofdModeProperty, "").empty());
-        break;
-      case TestMode::kFork:
-        fork_prop_ = EnableFork();
-        PERFETTO_CHECK(ReadProperty(kHeapprofdModeProperty, "") == "fork");
-        break;
-      case TestMode::kStatic:
-        break;
-    }
   }
 
  protected:
   base::TestTaskRunner task_runner;
-  base::ScopedResource<std::string*, SetModeProperty, nullptr> fork_prop_{
-      nullptr};
 
   TestMode test_mode() { return std::get<0>(GetParam()); }
   AllocatorMode allocator_mode() { return std::get<1>(GetParam()); }
@@ -1612,9 +1537,7 @@ INSTANTIATE_TEST_CASE_P(
     Run,
     HeapprofdEndToEnd,
     Values(std::make_tuple(TestMode::kCentral, AllocatorMode::kMalloc),
-           std::make_tuple(TestMode::kFork, AllocatorMode::kMalloc),
-           std::make_tuple(TestMode::kCentral, AllocatorMode::kCustom),
-           std::make_tuple(TestMode::kFork, AllocatorMode::kCustom)),
+           std::make_tuple(TestMode::kCentral, AllocatorMode::kCustom)),
     TestSuffix);
 #endif
 
