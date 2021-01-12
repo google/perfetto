@@ -174,12 +174,14 @@ class ProfilePacketInternLookup
 
   base::Optional<SequenceStackProfileTracker::SourceCallstack> GetCallstack(
       SequenceStackProfileTracker::SourceCallstackId iid) const override {
-    auto* decoder = seq_state_->LookupInternedMessage<
-        protos::pbzero::InternedData::kCallstacksFieldNumber,
-        protos::pbzero::Callstack>(iid);
-    if (!decoder)
+    auto* interned_message_view = seq_state_->GetInternedMessageView<
+        protos::pbzero::InternedData::kCallstacksFieldNumber>(iid);
+    if (!interned_message_view)
       return base::nullopt;
-    return ProfilePacketUtils::MakeSourceCallstack(*decoder);
+    protos::pbzero::Callstack::Decoder decoder(
+        interned_message_view->message().data(),
+        interned_message_view->message().length());
+    return ProfilePacketUtils::MakeSourceCallstack(std::move(decoder));
   }
 
  private:
