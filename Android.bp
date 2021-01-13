@@ -8984,6 +8984,9 @@ cc_binary {
     "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
     "-DHAVE_HIDDEN",
   ],
+  strip: {
+    all: true,
+  },
   target: {
     android: {
       shared_libs: [
@@ -9006,9 +9009,6 @@ cc_binary {
         targets: [
           "sdk_repo",
         ],
-      },
-      strip: {
-        all: true,
       },
     },
   },
