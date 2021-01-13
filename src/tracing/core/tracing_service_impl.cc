@@ -1327,6 +1327,10 @@ void TracingServiceImpl::ActivateTriggers(
           PERFETTO_DLOG("Triggering '%s' on tracing session %" PRIu64
                         " with duration of %" PRIu32 "ms.",
                         iter->name().c_str(), tsid, iter->stop_delay_ms());
+          MaybeLogUploadEvent(tracing_session.config,
+                              PerfettoStatsdAtom::kTracedTriggerStartTracing,
+                              iter->name());
+
           // We override the trace duration to be the trigger's requested
           // value, this ensures that the trace will end after this amount
           // of time has passed.
@@ -1344,6 +1348,10 @@ void TracingServiceImpl::ActivateTriggers(
           PERFETTO_DLOG("Triggering '%s' on tracing session %" PRIu64
                         " with duration of %" PRIu32 "ms.",
                         iter->name().c_str(), tsid, iter->stop_delay_ms());
+          MaybeLogUploadEvent(tracing_session.config,
+                              PerfettoStatsdAtom::kTracedTriggerStopTracing,
+                              iter->name());
+
           // Now that we've seen a trigger we need to stop, flush, and disable
           // this session after the configured |stop_delay_ms|.
           task_runner_->PostDelayedTask(
@@ -2982,7 +2990,8 @@ bool TracingServiceImpl::MaybeSaveTraceForBugreport(
 }
 
 void TracingServiceImpl::MaybeLogUploadEvent(const TraceConfig& cfg,
-                                             PerfettoStatsdAtom atom) {
+                                             PerfettoStatsdAtom atom,
+                                             const std::string& trigger_name) {
   // Only log events when extra guardrails are enabled.
   if (!cfg.enable_extra_guardrails())
     return;
@@ -2992,7 +3001,7 @@ void TracingServiceImpl::MaybeLogUploadEvent(const TraceConfig& cfg,
     return;
 
   android_stats::MaybeLogUploadEvent(atom, cfg.trace_uuid_lsb(),
-                                     cfg.trace_uuid_msb());
+                                     cfg.trace_uuid_msb(), trigger_name);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

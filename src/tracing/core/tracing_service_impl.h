@@ -614,7 +614,9 @@ class TracingServiceImpl : public TracingService {
   void PeriodicClearIncrementalStateTask(TracingSessionID, bool post_next_only);
   TraceBuffer* GetBufferByID(BufferID);
   void OnStartTriggersTimeout(TracingSessionID tsid);
-  void MaybeLogUploadEvent(const TraceConfig&, PerfettoStatsdAtom atom);
+  void MaybeLogUploadEvent(const TraceConfig&,
+                           PerfettoStatsdAtom atom,
+                           const std::string& trigger_name = "");
 
   base::TaskRunner* const task_runner_;
   std::unique_ptr<SharedMemory::Factory> shm_factory_;

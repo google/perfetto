@@ -96,7 +96,7 @@ class PerfettoCmd : public Consumer {
   std::string trace_out_path_;
   base::EventFd ctrl_c_evt_;
   bool is_uploading_ = false;
-  bool did_process_full_trace_ = false;
+  bool update_guardrail_state_ = false;
   uint64_t bytes_written_ = 0;
   std::string detach_key_;
   std::string attach_key_;
