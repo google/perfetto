@@ -22,7 +22,7 @@
 #include "perfetto/base/compiler.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-#include "src/android_internal/lazy_library_loader.h"
+#include "src/android_internal/lazy_library_loader.h"  // nogncheck
 #include "src/android_internal/statsd_logging.h"
 #endif
 
