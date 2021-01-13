@@ -29,12 +29,12 @@ source_set("protozero_to_text") {
   ]
   deps = [
     ":descriptors",
-    "..:track_event_descriptor",
     "../../../gn:default_deps",
     "../../../protos/perfetto/common:zero",
     "../../../protos/perfetto/trace/track_event:zero",
     "../../base",
     "../../protozero",
+    "../importers:gen_cc_track_event_descriptor",
   ]
 }
 
@@ -45,13 +45,13 @@ source_set("descriptors") {
   ]
   deps = [
     ":util",
-    "..:track_event_descriptor",
     "../../../gn:default_deps",
     "../../../include/perfetto/trace_processor",
     "../../../protos/perfetto/common:zero",
     "../../../protos/perfetto/trace_processor:zero",
     "../../base",
     "../../protozero",
+    "../importers:gen_cc_track_event_descriptor",
   ]
 }
 
@@ -61,10 +61,10 @@ source_set("unittests") {
   deps = [
     ":descriptors",
     ":protozero_to_text",
-    "..:track_event_descriptor",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
     "../../../protos/perfetto/trace/track_event:zero",
     "../../protozero",
+    "../importers:gen_cc_track_event_descriptor",
   ]
 }
