@@ -38,10 +38,11 @@ namespace android_stats {
 
 void MaybeLogUploadEvent(PerfettoStatsdAtom atom,
                          int64_t uuid_lsb,
-                         int64_t uuid_msb) {
+                         int64_t uuid_msb,
+                         const std::string& trigger_name) {
   PERFETTO_LAZY_LOAD(android_internal::StatsdLogUploadEvent, log_event_fn);
   if (log_event_fn) {
-    log_event_fn(atom, uuid_lsb, uuid_msb);
+    log_event_fn(atom, uuid_lsb, uuid_msb, trigger_name.c_str());
   }
 }
 
@@ -56,7 +57,10 @@ void MaybeLogTriggerEvents(PerfettoTriggerAtom atom,
 }
 
 #else
-void MaybeLogUploadEvent(PerfettoStatsdAtom, int64_t, int64_t) {}
+void MaybeLogUploadEvent(PerfettoStatsdAtom,
+                         int64_t,
+                         int64_t,
+                         const std::string&) {}
 void MaybeLogTriggerEvents(PerfettoTriggerAtom,
                            const std::vector<std::string>&) {}
 #endif

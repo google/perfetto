@@ -25,9 +25,10 @@ namespace android_internal {
 
 void StatsdLogUploadEvent(PerfettoStatsdAtom atom,
                           int64_t uuid_lsb,
-                          int64_t uuid_msb) {
+                          int64_t uuid_msb,
+                          const char* trigger_name) {
   stats_write(PERFETTO_UPLOADED, static_cast<int32_t>(atom), uuid_lsb, uuid_msb,
-              "");
+              trigger_name ? trigger_name : "");
 }
 
 void StatsdLogTriggerEvent(PerfettoTriggerAtom atom, const char* trigger_name) {
