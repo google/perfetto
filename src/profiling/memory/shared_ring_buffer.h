@@ -100,6 +100,12 @@ class SharedRingBuffer {
   bool is_valid() const { return !!mem_; }
   size_t size() const { return size_; }
   int fd() const { return *mem_fd_; }
+  size_t write_avail() {
+    auto pos = GetPointerPositions();
+    if (!pos)
+      return 0;
+    return write_avail(*pos);
+  }
 
   Buffer BeginWrite(const ScopedSpinlock& spinlock, size_t size);
   void EndWrite(Buffer buf);
