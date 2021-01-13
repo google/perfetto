@@ -56,6 +56,8 @@ struct AHeapInfo {
   perfetto::profiling::Sampler sampler;
   std::atomic<bool> ready;
   std::atomic<bool> enabled;
+  std::atomic<uint64_t> adaptive_sampling_shmem_threshold;
+  std::atomic<uint64_t> adaptive_sampling_max_sampling_interval_bytes;
 };
 
 struct AHeapProfileEnableCallbackInfo {
@@ -191,8 +193,14 @@ uint64_t MaybeToggleHeap(uint32_t heap_id,
         heap.enabled_callback) {
       heap.enabled_callback(heap.enabled_callback_data, &session_info);
     }
+    heap.adaptive_sampling_shmem_threshold.store(
+        client->client_config().adaptive_sampling_shmem_threshold,
+        std::memory_order_relaxed);
+    heap.adaptive_sampling_max_sampling_interval_bytes.store(
+        client->client_config().adaptive_sampling_max_sampling_interval_bytes,
+        std::memory_order_relaxed);
     heap.enabled.store(true, std::memory_order_release);
-    client->RecordHeapName(heap_id, &heap.heap_name[0]);
+    client->RecordHeapInfo(heap_id, &heap.heap_name[0], interval);
   } else if (heap.enabled.load(std::memory_order_acquire)) {
     heap.enabled.store(false, std::memory_order_release);
     if (heap.disabled_callback) {
@@ -357,17 +365,32 @@ AHeapProfile_reportAllocation(uint32_t heap_id, uint64_t id, uint64_t size) {
     auto* g_client_ptr = GetClientLocked();
     if (!*g_client_ptr)  // no active client (most likely shutting down)
       return false;
+    auto& client_ptr = *g_client_ptr;
 
     if (s.blocked_us()) {
-      (*g_client_ptr)->AddClientSpinlockBlockedUs(s.blocked_us());
+      client_ptr->AddClientSpinlockBlockedUs(s.blocked_us());
     }
 
     sampled_alloc_sz = heap.sampler.SampleSize(static_cast<size_t>(size));
     if (sampled_alloc_sz == 0)  // not sampling
       return false;
+    if (client_ptr->write_avail() <
+        client_ptr->adaptive_sampling_shmem_threshold()) {
+      bool should_increment = true;
+      if (client_ptr->adaptive_sampling_max_sampling_interval_bytes() != 0) {
+        should_increment =
+            heap.sampler.sampling_interval() <
+            client_ptr->adaptive_sampling_max_sampling_interval_bytes();
+      }
+      if (should_increment) {
+        uint64_t new_interval = 2 * heap.sampler.sampling_interval();
+        heap.sampler.SetSamplingInterval(2 * heap.sampler.sampling_interval());
+        client_ptr->RecordHeapInfo(heap_id, "", new_interval);
+      }
+    }
 
-    client = *g_client_ptr;  // owning copy
-  }                          // unlock
+    client = client_ptr;  // owning copy
+  }                       // unlock
 
   if (!client->RecordMalloc(heap_id, sampled_alloc_sz, size, id)) {
     ShutdownLazy(client);

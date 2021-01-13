@@ -85,7 +85,9 @@ class Client {
   // Add address to buffer of deallocations. Flushes the buffer if necessary.
   bool RecordFree(uint32_t heap_id,
                   uint64_t alloc_address) PERFETTO_WARN_UNUSED_RESULT;
-  bool RecordHeapName(uint32_t heap_id, const char* heap_name);
+  bool RecordHeapInfo(uint32_t heap_id,
+                      const char* heap_name,
+                      uint64_t interval);
 
   void AddClientSpinlockBlockedUs(size_t n) {
     shmem_.AddClientSpinlockBlockedUs(n);
@@ -102,6 +104,13 @@ class Client {
   ~Client();
 
   const ClientConfiguration& client_config() { return client_config_; }
+  uint64_t adaptive_sampling_shmem_threshold() {
+    return client_config_.adaptive_sampling_shmem_threshold;
+  }
+  uint64_t adaptive_sampling_max_sampling_interval_bytes() {
+    return client_config_.adaptive_sampling_max_sampling_interval_bytes;
+  }
+  uint64_t write_avail() { return shmem_.write_avail(); }
 
   bool IsConnected();
 
