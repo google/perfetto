@@ -182,7 +182,7 @@ cc_library_shared {
     ":perfetto_include_perfetto_base_base",
     ":perfetto_include_perfetto_ext_base_base",
     ":perfetto_src_base_base",
-    ":perfetto_src_profiling_memory_malloc_hooks",
+    ":perfetto_src_profiling_memory_malloc_interceptor_bionic_hooks",
     ":perfetto_src_profiling_memory_wrap_allocators",
   ],
   shared_libs: [
@@ -6880,11 +6880,11 @@ filegroup {
   ],
 }
 
-// GN: //src/profiling/memory:malloc_hooks
+// GN: //src/profiling/memory:malloc_interceptor_bionic_hooks
 filegroup {
-  name: "perfetto_src_profiling_memory_malloc_hooks",
+  name: "perfetto_src_profiling_memory_malloc_interceptor_bionic_hooks",
   srcs: [
-    "src/profiling/memory/malloc_hooks.cc",
+    "src/profiling/memory/malloc_interceptor_bionic_hooks.cc",
   ],
 }
 

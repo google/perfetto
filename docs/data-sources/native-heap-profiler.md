@@ -441,7 +441,7 @@ EOF
 Finally, run your target (e.g. trace_processor_shell) with LD_PRELOAD
 
 ```
-LD_PRELOAD=out/linux_clang_release/libheapprofd_preload.so out/linux_clang_release/trace_processor_shell <trace>
+LD_PRELOAD=out/linux_clang_release/libheapprofd_glibc_preload.so out/linux_clang_release/trace_processor_shell <trace>
 ```
 
 Then, Ctrl-C the Perfetto invocation and upload ~/heapprofd-trace to the
