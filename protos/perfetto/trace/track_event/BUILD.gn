@@ -41,3 +41,10 @@ perfetto_proto_library("@TYPE@") {
     "track_event.proto",
   ]
 }
+
+perfetto_proto_library("track_event_@TYPE@") {
+  proto_generators = [ "descriptor" ]
+  generate_descriptor = "track_event.descriptor"
+  sources = [ "track_event.proto" ]
+  deps = [ ":source_set" ]
+}
