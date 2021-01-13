@@ -42,6 +42,7 @@
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/forward_decls.h"
 #include "perfetto/tracing/core/trace_config.h"
+#include "src/android_stats/perfetto_atoms.h"
 #include "src/tracing/core/id_allocator.h"
 
 namespace perfetto {
@@ -613,6 +614,7 @@ class TracingServiceImpl : public TracingService {
   void PeriodicClearIncrementalStateTask(TracingSessionID, bool post_next_only);
   TraceBuffer* GetBufferByID(BufferID);
   void OnStartTriggersTimeout(TracingSessionID tsid);
+  void MaybeLogUploadEvent(const TraceConfig&, PerfettoStatsdAtom atom);
 
   base::TaskRunner* const task_runner_;
   std::unique_ptr<SharedMemory::Factory> shm_factory_;
