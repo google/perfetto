@@ -53,7 +53,34 @@ base::Optional<std::string> HasDuplicateColumns(
   return base::nullopt;
 }
 
-inline std::string EscapedSqliteValueAsString(sqlite3_value* value) {
+std::string OpToString(int op) {
+  switch (op) {
+    case SQLITE_INDEX_CONSTRAINT_EQ:
+      return "=";
+    case SQLITE_INDEX_CONSTRAINT_NE:
+      return "!=";
+    case SQLITE_INDEX_CONSTRAINT_GE:
+      return ">=";
+    case SQLITE_INDEX_CONSTRAINT_GT:
+      return ">";
+    case SQLITE_INDEX_CONSTRAINT_LE:
+      return "<=";
+    case SQLITE_INDEX_CONSTRAINT_LT:
+      return "<";
+    case SQLITE_INDEX_CONSTRAINT_LIKE:
+      return "like";
+    case SQLITE_INDEX_CONSTRAINT_ISNULL:
+      // The "null" will be added below in EscapedSqliteValueAsString.
+      return " is ";
+    case SQLITE_INDEX_CONSTRAINT_ISNOTNULL:
+      // The "null" will be added below in EscapedSqliteValueAsString.
+      return " is not";
+    default:
+      PERFETTO_FATAL("Operator to string conversion not impemented for %d", op);
+  }
+}
+
+std::string EscapedSqliteValueAsString(sqlite3_value* value) {
   switch (sqlite3_value_type(value)) {
     case SQLITE_INTEGER:
       return std::to_string(sqlite3_value_int64(value));
@@ -66,6 +93,8 @@ inline std::string EscapedSqliteValueAsString(sqlite3_value* value) {
           reinterpret_cast<const char*>(sqlite3_value_text(value));
       return "'" + base::ReplaceAll(str, "'", "''") + "'";
     }
+    case SQLITE_NULL:
+      return " null";
     default:
       PERFETTO_FATAL("Unknown value type %d", sqlite3_value_type(value));
   }
@@ -291,8 +320,13 @@ SpanJoinOperatorTable::ComputeSqlConstraintsForDefinition(
     if (col_name == kDurColumnName && cs.op != kSourceGeqOpCode)
       continue;
 
-    auto op = sqlite_utils::OpToString(
-        cs.op == kSourceGeqOpCode ? SQLITE_INDEX_CONSTRAINT_GE : cs.op);
+    // If we're emitting shadow slices, don't propogate any constraints
+    // on this table as this will break the shadow slice computation.
+    if (defn.ShouldEmitPresentPartitionShadow())
+      continue;
+
+    auto op = OpToString(cs.op == kSourceGeqOpCode ? SQLITE_INDEX_CONSTRAINT_GE
+                                                   : cs.op);
     auto value = EscapedSqliteValueAsString(argv[i]);
 
     constraints.emplace_back("`" + col_name + "`" + op + value);
