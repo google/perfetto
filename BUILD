@@ -175,6 +175,7 @@ perfetto_cc_library(
     srcs = [
         ":src_android_internal_headers",
         ":src_android_internal_lazy_library_loader",
+        ":src_android_stats_android_stats",
         ":src_android_stats_perfetto_atoms",
         ":src_kallsyms_kallsyms",
         ":src_traced_probes_android_log_android_log",
@@ -3048,6 +3049,9 @@ perfetto_proto_library(
 perfetto_cc_library(
     name = "libperfetto_client_experimental",
     srcs = [
+        ":src_android_internal_headers",
+        ":src_android_stats_android_stats",
+        ":src_android_stats_perfetto_atoms",
         ":src_tracing_client_api_without_backends",
         ":src_tracing_common",
         ":src_tracing_core_core",
@@ -3141,7 +3145,6 @@ perfetto_cc_binary(
         ":include_perfetto_tracing_core_forward_decls",
         ":include_perfetto_tracing_tracing",
         ":src_android_internal_headers",
-        ":src_android_internal_lazy_library_loader",
         ":src_android_stats_android_stats",
         ":src_android_stats_perfetto_atoms",
         ":src_perfetto_cmd_perfetto_cmd",
