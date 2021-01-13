@@ -33,7 +33,8 @@ namespace android_stats {
 // Logs the upload event to statsd if built in the Android tree.
 void MaybeLogUploadEvent(PerfettoStatsdAtom atom,
                          int64_t uuid_lsb,
-                         int64_t uuid_msb);
+                         int64_t uuid_msb,
+                         const std::string& trigger_name = "");
 
 // Logs the trigger events to statsd if built in the Android tree.
 void MaybeLogTriggerEvents(PerfettoTriggerAtom atom,
