@@ -177,8 +177,9 @@ function createLink(
     link +=
         encodeURIComponent('User description:\n' + userDescription + '\n\n');
   }
-  link += encodeURIComponent(errMessage.substr(0, 32768));
-  return link;
+  link += encodeURIComponent(errMessage);
+  // 8kb is common limit on request size so restrict links to that long:
+  return link.substr(0, 8000);
 }
 
 function showOutOfMemoryDialog() {
