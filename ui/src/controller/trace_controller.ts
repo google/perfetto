@@ -39,6 +39,9 @@ import {
   CpuAggregationController
 } from './aggregation/cpu_aggregation_controller';
 import {
+  CpuByProcessAggregationController
+} from './aggregation/cpu_by_process_aggregation_controller';
+import {
   SliceAggregationController
 } from './aggregation/slice_aggregation_controller';
 import {
@@ -172,6 +175,10 @@ export class TraceController extends Controller<States> {
             'thread_aggregation',
             ThreadAggregationController,
             {engine, kind: 'thread_state_aggregation'}));
+        childControllers.push(Child(
+            'cpu_process_aggregation',
+            CpuByProcessAggregationController,
+            {engine, kind: 'cpu_by_process_aggregation'}));
         childControllers.push(Child(
             'slice_aggregation',
             SliceAggregationController,
