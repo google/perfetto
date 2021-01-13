@@ -129,7 +129,10 @@ base::Optional<int64_t> GetMaxSymbolId(trace_processor::TraceProcessor* tp) {
                             max_symbol_id_it.Status().message().c_str());
     return base::nullopt;
   }
-  return base::make_optional(max_symbol_id_it.Get(0).AsLong());
+  auto value = max_symbol_id_it.Get(0);
+  if (value.is_null())
+    return base::nullopt;
+  return base::make_optional(value.AsLong());
 }
 
 struct Line {
