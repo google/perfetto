@@ -116,6 +116,7 @@ message ProfilePacket {
     optional bool hit_guardrail = 10;
 
     optional string heap_name = 11;
+    optional uint64 sampling_interval_bytes = 12;
 
     // Timestamp of the state of the target process that this dump represents.
     // This can be different to the timestamp of the TracePackets for various

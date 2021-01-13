@@ -452,7 +452,9 @@ bool Client::RecordFree(uint32_t heap_id, const uint64_t alloc_address) {
   return true;
 }
 
-bool Client::RecordHeapName(uint32_t heap_id, const char* heap_name) {
+bool Client::RecordHeapInfo(uint32_t heap_id,
+                            const char* heap_name,
+                            uint64_t interval) {
   if (PERFETTO_UNLIKELY(IsPostFork())) {
     return postfork_return_value_;
   }
@@ -461,6 +463,7 @@ bool Client::RecordHeapName(uint32_t heap_id, const char* heap_name) {
   hnr.heap_id = heap_id;
   strncpy(&hnr.heap_name[0], heap_name, sizeof(hnr.heap_name));
   hnr.heap_name[sizeof(hnr.heap_name) - 1] = '\0';
+  hnr.sample_interval = interval;
 
   WireMessage msg = {};
   msg.record_type = RecordType::HeapName;
