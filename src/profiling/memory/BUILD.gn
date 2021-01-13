@@ -48,12 +48,13 @@ if (perfetto_build_with_android) {
     cflags = [ "-DPERFETTO_ANDROID_ASYNC_SAFE_LOG" ]
     deps = [
       ":heapprofd_client_api",
-      ":malloc_hooks",
+      ":malloc_interceptor_bionic_hooks",
     ]
   }
 
-  # This will export publicly visible symbols for the malloc_hooks.
-  source_set("malloc_hooks") {
+  # This will export publicly visible symbols for the
+  # malloc_interceptor_bionic_hooks.
+  source_set("malloc_interceptor_bionic_hooks") {
     deps = [
       ":bionic_libc_platform_headers_on_android",
       ":wrap_allocators",
@@ -64,7 +65,7 @@ if (perfetto_build_with_android) {
       "-isystem",
       rebase_path("../../../buildtools/bionic/libc", root_build_dir),
     ]
-    sources = [ "malloc_hooks.cc" ]
+    sources = [ "malloc_interceptor_bionic_hooks.cc" ]
   }
 }  # if (perfetto_build_with_android)
 
@@ -135,7 +136,7 @@ shared_library("heapprofd_client_api") {
 
 # On GLibc Linux, this can be used to override the allocators using
 # LD_PRELOAD. On non-GLibc, this will probably fail to link.
-shared_library("heapprofd_preload") {
+shared_library("heapprofd_glibc_preload") {
   deps = [
     ":client_api_standalone",
     ":wrap_allocators",
@@ -146,7 +147,7 @@ shared_library("heapprofd_preload") {
     "-Wl,--version-script",
     rebase_path("heapprofd_preload.map.txt", root_build_dir),
   ]
-  sources = [ "malloc_preload.cc" ]
+  sources = [ "malloc_interceptor_glibc_preload.cc" ]
 }
 
 # On Android builds, this is converted to
