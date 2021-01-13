@@ -31,7 +31,7 @@ using UnitMultipler = std::pair<const char*, uint64_t>;
 
 bool SplitValueAndUnit(const std::string& arg, ValueUnit* out) {
   char* end;
-  if (!arg.size())
+  if (arg.empty())
     return false;
   out->first = strtoull(arg.c_str(), &end, 10);
   if (end == arg.data())

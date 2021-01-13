@@ -117,14 +117,14 @@ std::string GetConfigPath() {
 
 std::string GetPerfettoPath() {
   std::string config = GetConfigPath();
-  if (config == "")
+  if (config.empty())
     return "";
   return config + "/perfetto";
 }
 
 std::string GetHistoryPath() {
   std::string perfetto = GetPerfettoPath();
-  if (perfetto == "")
+  if (perfetto.empty())
     return "";
   return perfetto + "/.trace_processor_shell_history";
 }
@@ -133,7 +133,7 @@ void SetupLineEditor() {
   linenoiseSetMultiLine(true);
   linenoiseHistorySetMaxLen(1000);
 
-  bool success = GetHistoryPath() != "";
+  bool success = !GetHistoryPath().empty();
   success = success && EnsureDir(GetConfigPath());
   success = success && EnsureDir(GetPerfettoPath());
   success = success && EnsureFile(GetHistoryPath());
