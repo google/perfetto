@@ -845,6 +845,16 @@ perfetto_cc_proto_descriptor(
 )
 
 perfetto_cc_proto_descriptor(
+    name = "src_trace_processor_importers_gen_cc_track_event_descriptor",
+    deps = [
+        ":protos_perfetto_trace_track_event_track_event_descriptor",
+    ],
+    outs = [
+        "src/trace_processor/importers/track_event.descriptor.h",
+    ],
+)
+
+perfetto_cc_proto_descriptor(
     name = "src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
     deps = [
         ":protos_perfetto_metrics_chrome_descriptor",
@@ -1266,14 +1276,6 @@ filegroup(
         "src/trace_processor/trace_sorter.cc",
         "src/trace_processor/trace_sorter.h",
         "src/trace_processor/virtual_destructors.cc",
-    ],
-)
-
-# GN target: //src/trace_processor:track_event_descriptor
-filegroup(
-    name = "src_trace_processor_track_event_descriptor",
-    srcs = [
-        "src/trace_processor/importers/proto/track_event.descriptor.h",
     ],
 )
 
@@ -2969,6 +2971,31 @@ perfetto_proto_library(
     ],
 )
 
+# GN target: //protos/perfetto/trace/track_event:track_event_descriptor
+perfetto_proto_descriptor(
+    name = "protos_perfetto_trace_track_event_track_event_descriptor",
+    deps = [
+        ":protos_perfetto_trace_track_event_track_event_protos",
+    ],
+    outs = [
+        "protos_perfetto_trace_track_event_track_event_descriptor.bin",
+    ],
+)
+
+# GN target: //protos/perfetto/trace/track_event:track_event_descriptor
+perfetto_proto_library(
+    name = "protos_perfetto_trace_track_event_track_event_protos",
+    srcs = [
+        "protos/perfetto/trace/track_event/track_event.proto",
+    ],
+    visibility = [
+        PERFETTO_CONFIG.proto_library_visibility,
+    ],
+    deps = [
+        ":protos_perfetto_trace_track_event_protos",
+    ],
+)
+
 # GN target: //protos/perfetto/trace/track_event:zero
 perfetto_cc_protozero_library(
     name = "protos_perfetto_trace_track_event_zero",
@@ -3224,7 +3251,6 @@ perfetto_cc_library(
         ":src_trace_processor_storage_minimal",
         ":src_trace_processor_storage_storage",
         ":src_trace_processor_tables_tables",
-        ":src_trace_processor_track_event_descriptor",
         ":src_trace_processor_types_types",
         ":src_trace_processor_util_descriptors",
         ":src_trace_processor_util_protozero_to_text",
@@ -3278,6 +3304,7 @@ perfetto_cc_library(
                ":src_base_base",
                ":src_trace_processor_importers_gen_cc_chrome_track_event_descriptor",
                ":src_trace_processor_importers_gen_cc_config_descriptor",
+               ":src_trace_processor_importers_gen_cc_track_event_descriptor",
                ":src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_metrics_descriptor",
            ] + PERFETTO_CONFIG.deps.jsoncpp +
@@ -3325,7 +3352,6 @@ perfetto_cc_binary(
         ":src_trace_processor_storage_minimal",
         ":src_trace_processor_storage_storage",
         ":src_trace_processor_tables_tables",
-        ":src_trace_processor_track_event_descriptor",
         ":src_trace_processor_types_types",
         ":src_trace_processor_util_descriptors",
         ":src_trace_processor_util_protozero_to_text",
@@ -3369,6 +3395,7 @@ perfetto_cc_binary(
                ":src_base_unix_socket",
                ":src_trace_processor_importers_gen_cc_chrome_track_event_descriptor",
                ":src_trace_processor_importers_gen_cc_config_descriptor",
+               ":src_trace_processor_importers_gen_cc_track_event_descriptor",
                ":src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_metrics_descriptor",
            ] + PERFETTO_CONFIG.deps.jsoncpp +
@@ -3499,7 +3526,6 @@ perfetto_cc_binary(
         ":src_trace_processor_storage_minimal",
         ":src_trace_processor_storage_storage",
         ":src_trace_processor_tables_tables",
-        ":src_trace_processor_track_event_descriptor",
         ":src_trace_processor_types_types",
         ":src_trace_processor_util_descriptors",
         ":src_trace_processor_util_protozero_to_text",
@@ -3547,6 +3573,7 @@ perfetto_cc_binary(
                ":src_base_base",
                ":src_trace_processor_importers_gen_cc_chrome_track_event_descriptor",
                ":src_trace_processor_importers_gen_cc_config_descriptor",
+               ":src_trace_processor_importers_gen_cc_track_event_descriptor",
                ":src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_metrics_descriptor",
            ] + PERFETTO_CONFIG.deps.jsoncpp +
