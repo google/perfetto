@@ -36,10 +36,6 @@ SOURCE_TARGET = [
       'src/protozero/test/example_proto/test_messages.descriptor.h'
     ),
     (
-      'protos/perfetto/trace/track_event/track_event.proto',
-      'src/trace_processor/importers/proto/track_event.descriptor.h'
-    ),
-    (
       'protos/perfetto/trace_processor/trace_processor.proto',
       'src/trace_processor/python/perfetto/trace_processor/trace_processor.descriptor'
     ),

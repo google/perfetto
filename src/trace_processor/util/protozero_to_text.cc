@@ -8,7 +8,7 @@
 #include "src/trace_processor/util/descriptors.h"
 
 // This is the highest level that this protozero to text supports.
-#include "src/trace_processor/importers/proto/track_event.descriptor.h"
+#include "src/trace_processor/importers/track_event.descriptor.h"
 
 namespace perfetto {
 namespace trace_processor {
