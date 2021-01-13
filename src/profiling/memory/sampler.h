@@ -59,6 +59,8 @@ class Sampler {
     return static_cast<size_t>(sampling_interval_ * NumberOfSamples(alloc_sz));
   }
 
+  uint64_t sampling_interval() const { return sampling_interval_; }
+
  private:
   int64_t NextSampleInterval() {
     std::exponential_distribution<double> dist(sampling_rate_);
