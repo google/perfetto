@@ -21,9 +21,10 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/compiler.h"
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) && \
+    PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
 #include "src/android_internal/lazy_library_loader.h"  // nogncheck
-#include "src/android_internal/statsd_logging.h"
+#include "src/android_internal/statsd_logging.h"       // nogncheck
 #endif
 
 namespace perfetto {

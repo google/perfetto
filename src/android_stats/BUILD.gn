@@ -23,7 +23,6 @@ source_set("android_stats") {
   deps = [
     "../../gn:default_deps",
     "../../include/perfetto/base",
-    "../android_internal:headers",
   ]
   public_deps = [ ":perfetto_atoms" ]
   sources = [
@@ -31,6 +30,9 @@ source_set("android_stats") {
     "statsd_logging_helper.h",
   ]
   if (is_android && perfetto_build_with_android) {
-    deps += [ "../android_internal:lazy_library_loader" ]
+    deps += [
+      "../android_internal:headers",
+      "../android_internal:lazy_library_loader",
+    ]
   }
 }
