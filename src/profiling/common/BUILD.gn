@@ -76,6 +76,19 @@ source_set("proc_utils") {
   ]
 }
 
+source_set("producer_support") {
+  deps = [
+    "../../../gn:default_deps",
+    "../../base",
+    "../../traced/probes/packages_list:packages_list_parser",
+    "../../tracing/core",
+  ]
+  sources = [
+    "producer_support.cc",
+    "producer_support.h",
+  ]
+}
+
 source_set("profiler_guardrails") {
   deps = [
     ":proc_utils",
@@ -94,16 +107,19 @@ perfetto_unittest_source_set("unittests") {
   deps = [
     ":interner",
     ":proc_utils",
+    ":producer_support",
     ":profiler_guardrails",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
     "../../../include/perfetto/profiling:normalize",
     "../../base",
     "../../base:test_support",
+    "../../tracing/core",
   ]
   sources = [
     "interner_unittest.cc",
     "proc_utils_unittest.cc",
+    "producer_support_unittest.cc",
     "profiler_guardrails_unittest.cc",
   ]
 }
