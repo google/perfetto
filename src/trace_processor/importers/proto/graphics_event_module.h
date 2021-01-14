@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_GRAPHICS_EVENT_MODULE_H_
 
 #include "perfetto/base/build_config.h"
+#include "src/trace_processor/importers/proto/frame_timeline_event_parser.h"
 #include "src/trace_processor/importers/proto/gpu_event_parser.h"
 #include "src/trace_processor/importers/proto/graphics_frame_event_parser.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
@@ -41,6 +42,7 @@ class GraphicsEventModule : public ProtoImporterModule {
  private:
   GpuEventParser parser_;
   GraphicsFrameEventParser frame_parser_;
+  FrameTimelineEventParser frame_timeline_parser_;
 };
 
 }  // namespace trace_processor
