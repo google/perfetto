@@ -39,10 +39,10 @@
 #include "perfetto/ext/tracing/ipc/producer_ipc_client.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
+#include "src/profiling/common/producer_support.h"
 #include "src/profiling/common/profiler_guardrails.h"
 #include "src/profiling/memory/unwound_messages.h"
 #include "src/profiling/memory/wire_protocol.h"
-#include "src/traced/probes/packages_list/packages_list_parser.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 #include <sys/system_properties.h>
@@ -1233,62 +1233,6 @@ void HeapprofdProducer::CheckDataSourceMemoryTask() {
       ShutdownDataSource(&ds);
     }
   }
-}
-
-bool CanProfile(const DataSourceConfig& ds_config, uint64_t uid) {
-#if !PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
-  base::ignore_result(ds_config);
-  base::ignore_result(uid);
-  return true;
-#else
-  char buf[PROP_VALUE_MAX + 1] = {};
-  int ret = __system_property_get("ro.build.type", buf);
-  PERFETTO_CHECK(ret >= 0);
-  return CanProfileAndroid(ds_config, uid, std::string(buf),
-                           "/data/system/packages.list");
-#endif
-}
-
-bool CanProfileAndroid(const DataSourceConfig& ds_config,
-                       uint64_t uid,
-                       const std::string& build_type,
-                       const std::string& packages_list_path) {
-  // These are replicated constants from libcutils android_filesystem_config.h
-  constexpr auto kAidAppStart = 10000;     // AID_APP_START
-  constexpr auto kAidAppEnd = 19999;       // AID_APP_END
-  constexpr auto kAidUserOffset = 100000;  // AID_USER_OFFSET
-
-  if (build_type != "user") {
-    return true;
-  }
-
-  if (ds_config.enable_extra_guardrails()) {
-    return false;  // no extra guardrails on user builds.
-  }
-
-  uint64_t uid_without_profile = uid % kAidUserOffset;
-  if (uid_without_profile < kAidAppStart || kAidAppEnd < uid_without_profile) {
-    // TODO(fmayer): relax this.
-    return false;  // no native services on user.
-  }
-
-  std::string content;
-  if (!base::ReadFile(packages_list_path, &content)) {
-    PERFETTO_ELOG("Failed to read %s.", packages_list_path.c_str());
-    return false;
-  }
-  for (base::StringSplitter ss(std::move(content), '\n'); ss.Next();) {
-    Package pkg;
-    if (!ReadPackagesListLine(ss.cur_token(), &pkg)) {
-      PERFETTO_ELOG("Failed to parse packages.list.");
-      return false;
-    }
-    if (pkg.uid == uid_without_profile &&
-        (pkg.profileable_from_shell || pkg.debuggable)) {
-      return true;
-    }
-  }
-  return false;
 }
 
 }  // namespace profiling

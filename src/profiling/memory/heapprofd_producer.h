@@ -67,12 +67,6 @@ bool HeapprofdConfigToClientConfiguration(
     const HeapprofdConfig& heapprofd_config,
     ClientConfiguration* cli_config);
 
-bool CanProfile(const DataSourceConfig& ds_config, uint64_t uid);
-bool CanProfileAndroid(const DataSourceConfig& ds_config,
-                       uint64_t uid,
-                       const std::string& build_type,
-                       const std::string& packages_list_path);
-
 // Heap profiling producer. Can be instantiated in two modes, central and
 // child (also referred to as fork mode).
 //
