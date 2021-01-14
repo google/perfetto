@@ -92,9 +92,16 @@
 
 namespace perfetto {
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) && \
+    PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
+// This is the only SELinux approved dir for trace files that are created
+// directly by traced.
+const char* kTraceDirBasePath = "/data/misc/perfetto-traces/";
+#endif
+
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 const char* kBugreportTracePath =
-    "/data/misc/perfetto-traces/bugreport.pftrace";
+    "/data/misc/perfetto-traces/bugreport/systrace.pftrace";
 #else
 const char* kBugreportTracePath = "/tmp/bugreport.pftrace";
 #endif
@@ -232,11 +239,15 @@ bool NameMatchesFilter(const std::string& name,
 // 1. TraceConfig.write_into_file == true and output_path is not empty.
 // 2. Calling SaveTraceForBugreport(), from perfetto --save-for-bugreport.
 base::ScopedFile CreateTraceFile(const std::string& path, bool overwrite) {
-#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
-  static const char kBase[] = "/data/misc/perfetto-traces/";
-  if (!base::StartsWith(path, kBase) || path.rfind('/') != strlen(kBase) - 1) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) && \
+    PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
+  // This is NOT trying to preserve any security property, SELinux does that.
+  // It just improves the actionability of the error when people try to save the
+  // trace in a location that is not SELinux-allowed (a generic "permission
+  // denied" vs "don't put it here, put it there").
+  if (!base::StartsWith(path, kTraceDirBasePath)) {
     PERFETTO_ELOG("Invalid output_path %s. On Android it must be within %s.",
-                  path.c_str(), kBase);
+                  path.c_str(), kTraceDirBasePath);
     return base::ScopedFile();
   }
 #endif
