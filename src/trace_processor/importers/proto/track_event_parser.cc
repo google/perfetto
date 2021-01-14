@@ -677,7 +677,7 @@ class TrackEventParser::EventImporter {
           continue;
         }
         context_->flow_tracker->End(track_id_, flow_id,
-                                    /* bind_enclosing = */ true,
+                                    /* bind_enclosing_slice = */ true,
                                     /* close_flow = */ true);
       }
     }
