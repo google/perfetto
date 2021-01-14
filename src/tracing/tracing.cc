@@ -25,12 +25,14 @@
 #include "src/tracing/internal/tracing_muxer_impl.h"
 
 namespace perfetto {
+namespace {
+bool g_was_initialized = false;
+}
 
 // static
 void Tracing::InitializeInternal(const TracingInitArgs& args) {
-  static bool was_initialized = false;
   static TracingInitArgs init_args;
-  if (was_initialized) {
+  if (g_was_initialized) {
     if (!(init_args == args)) {
       PERFETTO_ELOG(
           "Tracing::Initialize() called more than once with different args. "
@@ -44,8 +46,13 @@ void Tracing::InitializeInternal(const TracingInitArgs& args) {
   PERFETTO_CHECK(args.dcheck_is_on_ == PERFETTO_DCHECK_IS_ON());
   internal::TracingMuxerImpl::InitializeInstance(args);
   internal::TrackRegistry::InitializeInstance();
-  was_initialized = true;
+  g_was_initialized = true;
   init_args = args;
+}
+
+// static
+bool Tracing::IsInitialized() {
+  return g_was_initialized;
 }
 
 //  static

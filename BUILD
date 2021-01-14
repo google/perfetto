@@ -1569,6 +1569,8 @@ filegroup(
         "src/tracing/event_context.cc",
         "src/tracing/interceptor.cc",
         "src/tracing/internal/interceptor_trace_writer.cc",
+        "src/tracing/internal/tracing_muxer_fake.cc",
+        "src/tracing/internal/tracing_muxer_fake.h",
         "src/tracing/internal/tracing_muxer_impl.cc",
         "src/tracing/internal/tracing_muxer_impl.h",
         "src/tracing/internal/track_event_internal.cc",
