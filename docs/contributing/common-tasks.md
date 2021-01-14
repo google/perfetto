@@ -65,8 +65,8 @@ To extend a metric with annotations:
   * For example, for the [`android_startup`]() metric, we create a view named `android_startup_event`.
   * Note that the trailing `_event` suffix in the table name is important.
   * The schema required for this table is given below.
-
-2. Upload and land your change as normal.
+2. List your metric in the `initialiseHelperViews` method of `trace_controller.ts`.
+3. Upload and land your change as normal.
 
 The schema of the `<metric name>_event` table/view is as follows:
 
