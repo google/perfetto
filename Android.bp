@@ -79,6 +79,7 @@ cc_binary {
     ":perfetto_src_profiling_common_interner",
     ":perfetto_src_profiling_common_interning_output",
     ":perfetto_src_profiling_common_proc_utils",
+    ":perfetto_src_profiling_common_producer_support",
     ":perfetto_src_profiling_common_profiler_guardrails",
     ":perfetto_src_profiling_common_unwind_support",
     ":perfetto_src_profiling_memory_daemon",
@@ -332,6 +333,7 @@ cc_library_shared {
     ":perfetto_src_profiling_common_interner",
     ":perfetto_src_profiling_common_interning_output",
     ":perfetto_src_profiling_common_proc_utils",
+    ":perfetto_src_profiling_common_producer_support",
     ":perfetto_src_profiling_common_profiler_guardrails",
     ":perfetto_src_profiling_common_unwind_support",
     ":perfetto_src_profiling_memory_client",
@@ -1714,6 +1716,7 @@ cc_test {
     ":perfetto_src_profiling_common_interner",
     ":perfetto_src_profiling_common_interning_output",
     ":perfetto_src_profiling_common_proc_utils",
+    ":perfetto_src_profiling_common_producer_support",
     ":perfetto_src_profiling_common_profiler_guardrails",
     ":perfetto_src_profiling_common_unwind_support",
     ":perfetto_src_profiling_memory_client",
@@ -6831,6 +6834,14 @@ filegroup {
   ],
 }
 
+// GN: //src/profiling/common:producer_support
+filegroup {
+  name: "perfetto_src_profiling_common_producer_support",
+  srcs: [
+    "src/profiling/common/producer_support.cc",
+  ],
+}
+
 // GN: //src/profiling/common:profiler_guardrails
 filegroup {
   name: "perfetto_src_profiling_common_profiler_guardrails",
@@ -6845,6 +6856,7 @@ filegroup {
   srcs: [
     "src/profiling/common/interner_unittest.cc",
     "src/profiling/common/proc_utils_unittest.cc",
+    "src/profiling/common/producer_support_unittest.cc",
     "src/profiling/common/profiler_guardrails_unittest.cc",
   ],
 }
@@ -8672,6 +8684,7 @@ cc_test {
     ":perfetto_src_profiling_common_interner",
     ":perfetto_src_profiling_common_interning_output",
     ":perfetto_src_profiling_common_proc_utils",
+    ":perfetto_src_profiling_common_producer_support",
     ":perfetto_src_profiling_common_profiler_guardrails",
     ":perfetto_src_profiling_common_unittests",
     ":perfetto_src_profiling_common_unwind_support",
