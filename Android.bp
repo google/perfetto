@@ -615,9 +615,13 @@ cc_library_shared {
 cc_library_shared {
   name: "libperfetto_android_internal",
   srcs: [
-    ":perfetto_src_android_internal_android_internal",
     ":perfetto_src_android_internal_headers",
     ":perfetto_src_android_stats_perfetto_atoms",
+    "src/android_internal/atrace_hal.cc",
+    "src/android_internal/health_hal.cc",
+    "src/android_internal/incident_service.cc",
+    "src/android_internal/power_stats_hal.cc",
+    "src/android_internal/statsd_logging.cc",
   ],
   shared_libs: [
     "android.hardware.atrace@1.0",
@@ -6446,18 +6450,6 @@ genrule {
   export_include_dirs: [
     ".",
     "protos",
-  ],
-}
-
-// GN: //src/android_internal:android_internal
-filegroup {
-  name: "perfetto_src_android_internal_android_internal",
-  srcs: [
-    "src/android_internal/atrace_hal.cc",
-    "src/android_internal/health_hal.cc",
-    "src/android_internal/incident_service.cc",
-    "src/android_internal/power_stats_hal.cc",
-    "src/android_internal/statsd_logging.cc",
   ],
 }
 
