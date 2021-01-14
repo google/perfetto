@@ -65,7 +65,7 @@ void BuiltinProducer::ConnectInProcess(TracingService* svc) {
       this, base::GetCurrentUserId(), "traced",
       /*shared_memory_size_hint_bytes=*/16 * 1024, /*in_process=*/true,
       TracingService::ProducerSMBScrapingMode::kDisabled,
-      /*shmem_page_size_hint_bytes=*/4096);
+      /*shared_memory_page_size_hint_bytes=*/4096);
 }
 
 void BuiltinProducer::OnConnect() {
