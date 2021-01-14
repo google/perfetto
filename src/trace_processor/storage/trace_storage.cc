@@ -135,6 +135,7 @@ std::pair<int64_t, int64_t> TraceStorage::GetTraceTimestampBoundsNs() const {
   DbTableMaybeUpdateMinMax(android_log_table_.ts(), &start_ns, &end_ns);
   DbTableMaybeUpdateMinMax(heap_graph_object_table_.graph_sample_ts(),
                            &start_ns, &end_ns);
+  DbTableMaybeUpdateMinMax(perf_sample_table_.ts(), &start_ns, &end_ns);
 
   if (start_ns == std::numeric_limits<int64_t>::max()) {
     return std::make_pair(0, 0);
