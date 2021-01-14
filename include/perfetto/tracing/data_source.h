@@ -411,8 +411,6 @@ class DataSource : public DataSourceBase {
           new DataSourceType(constructor_args...));
     };
     auto* tracing_impl = internal::TracingMuxer::Get();
-    if (!tracing_impl)
-      return false;
     return tracing_impl->RegisterDataSource(descriptor, factory,
                                             &static_state_);
   }
