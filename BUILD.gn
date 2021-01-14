@@ -63,7 +63,7 @@ if (enable_perfetto_traced_perf) {
 }
 
 if (perfetto_build_with_android) {
-  all_targets += [ "src/android_internal/:libperfetto_android_internal" ]
+  all_targets += [ "src/android_internal:libperfetto_android_internal" ]
 }
 
 if (enable_perfetto_tools) {
