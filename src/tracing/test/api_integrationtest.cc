@@ -364,6 +364,14 @@ class PerfettoApiTest : public ::testing::TestWithParam<perfetto::BackendType> {
     if (!(supported_backends & backend))
       GTEST_SKIP();
 
+    static bool was_initialized;
+    if (!was_initialized) {
+      EXPECT_FALSE(perfetto::Tracing::IsInitialized());
+      was_initialized = true;
+    } else {
+      EXPECT_TRUE(perfetto::Tracing::IsInitialized());
+    }
+
     // Since the client API can only be initialized once per process, initialize
     // both the in-process and system backends for every test here. The actual
     // service to be used is chosen by the test parameter.

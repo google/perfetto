@@ -44,6 +44,8 @@
 
 #include "protos/perfetto/config/interceptor_config.gen.h"
 
+#include "src/tracing/internal/tracing_muxer_fake.h"
+
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <io.h>  // For dup()
 #else
@@ -621,7 +623,7 @@ void TracingMuxerImpl::TracingSessionImpl::QueryServiceState(
 // ----- End of TracingMuxerImpl::TracingSessionImpl
 
 // static
-TracingMuxer* TracingMuxer::instance_ = nullptr;
+TracingMuxer* TracingMuxer::instance_ = TracingMuxerFake::Get();
 
 // This is called by perfetto::Tracing::Initialize().
 // Can be called on any thread. Typically, but not necessarily, that will be
@@ -1464,7 +1466,7 @@ std::unique_ptr<TracingSession> TracingMuxerImpl::CreateTracingSession(
 }
 
 void TracingMuxerImpl::InitializeInstance(const TracingInitArgs& args) {
-  if (instance_)
+  if (instance_ != TracingMuxerFake::Get())
     PERFETTO_FATAL("Tracing already initialized");
   instance_ = new TracingMuxerImpl(args);
 }

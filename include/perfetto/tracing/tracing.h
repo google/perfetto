@@ -169,6 +169,9 @@ class PERFETTO_EXPORT Tracing {
     InitializeInternal(args_copy);
   }
 
+  // Checks if tracing has been initialized by calling |Initialize|.
+  static bool IsInitialized();
+
   // Start a new tracing session using the given tracing backend. Use
   // |kUnspecifiedBackend| to select an available backend automatically.
   // For the moment this can be used only when initializing tracing in
