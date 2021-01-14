@@ -98,6 +98,34 @@ void SliceTracker::BeginFrameEvent(tables::GraphicsFrameSliceTable::Row row,
   });
 }
 
+void SliceTracker::BeginFrameTimeline(
+    tables::ExpectedFrameTimelineSliceTable::Row row,
+    SetArgsCallback args_callback) {
+  // Ensure that the duration is pending for this row.
+  // TODO(lalitm): change this to eventually use null instead of -1.
+  row.dur = kPendingDuration;
+
+  StartSlice(row.ts, row.track_id, args_callback, [this, &row]() {
+    return context_->storage->mutable_expected_frame_timeline_slice_table()
+        ->Insert(row)
+        .id;
+  });
+}
+
+void SliceTracker::BeginFrameTimeline(
+    tables::ActualFrameTimelineSliceTable::Row row,
+    SetArgsCallback args_callback) {
+  // Ensure that the duration is pending for this row.
+  // TODO(lalitm): change this to eventually use null instead of -1.
+  row.dur = kPendingDuration;
+
+  StartSlice(row.ts, row.track_id, args_callback, [this, &row]() {
+    return context_->storage->mutable_actual_frame_timeline_slice_table()
+        ->Insert(row)
+        .id;
+  });
+}
+
 base::Optional<uint32_t> SliceTracker::Scoped(int64_t timestamp,
                                               TrackId track_id,
                                               StringId category,
@@ -184,6 +212,15 @@ base::Optional<SliceId> SliceTracker::EndGpu(int64_t ts,
 }
 
 base::Optional<SliceId> SliceTracker::EndFrameEvent(
+    int64_t ts,
+    TrackId t_id,
+    SetArgsCallback args_callback) {
+  return CompleteSlice(ts, t_id, args_callback, [](const SlicesStack& stack) {
+    return static_cast<uint32_t>(stack.size() - 1);
+  });
+}
+
+base::Optional<SliceId> SliceTracker::EndFrameTimeline(
     int64_t ts,
     TrackId t_id,
     SetArgsCallback args_callback) {

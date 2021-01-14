@@ -218,6 +218,8 @@ source_set("storage_full") {
     "importers/proto/gpu_event_parser.h",
     "importers/proto/graphics_event_module.cc",
     "importers/proto/graphics_event_module.h",
+    "importers/proto/frame_timeline_event_parser.cc",
+    "importers/proto/frame_timeline_event_parser.h",
     "importers/proto/graphics_frame_event_parser.cc",
     "importers/proto/graphics_frame_event_parser.h",
     "importers/proto/heap_graph_module.cc",

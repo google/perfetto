@@ -142,6 +142,13 @@ TrackId TrackTracker::CreateAndroidAsyncTrack(StringId name, UniquePid upid) {
   return id;
 }
 
+TrackId TrackTracker::CreateFrameTimelineAsyncTrack(StringId name,
+                                                    UniquePid upid) {
+  tables::ProcessTrackTable::Row row(name);
+  row.upid = upid;
+  return context_->storage->mutable_process_track_table()->Insert(row).id;
+}
+
 TrackId TrackTracker::InternLegacyChromeProcessInstantTrack(UniquePid upid) {
   auto it = chrome_process_instant_tracks_.find(upid);
   if (it != chrome_process_instant_tracks_.end())

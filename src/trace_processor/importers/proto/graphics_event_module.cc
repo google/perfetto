@@ -22,7 +22,10 @@ namespace trace_processor {
 using perfetto::protos::pbzero::TracePacket;
 
 GraphicsEventModule::GraphicsEventModule(TraceProcessorContext* context)
-    : parser_(context), frame_parser_(context) {
+    : parser_(context),
+      frame_parser_(context),
+      frame_timeline_parser_(context) {
+  RegisterForField(TracePacket::kFrameTimelineEventFieldNumber, context);
   RegisterForField(TracePacket::kGpuCounterEventFieldNumber, context);
   RegisterForField(TracePacket::kGpuRenderStageEventFieldNumber, context);
   RegisterForField(TracePacket::kGpuLogFieldNumber, context);
@@ -38,6 +41,10 @@ void GraphicsEventModule::ParsePacket(const TracePacket::Decoder& decoder,
                                       const TimestampedTracePiece& ttp,
                                       uint32_t field_id) {
   switch (field_id) {
+    case TracePacket::kFrameTimelineEventFieldNumber:
+      frame_timeline_parser_.ParseFrameTimelineEvent(
+          ttp.timestamp, decoder.frame_timeline_event());
+      return;
     case TracePacket::kGpuCounterEventFieldNumber:
       parser_.ParseGpuCounterEvent(ttp.timestamp, decoder.gpu_counter_event());
       return;
