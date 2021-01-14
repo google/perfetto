@@ -252,7 +252,7 @@ void MemoryTrackerSnapshotParser::EmitMemorySnapshotNodeRowsRecursively(
     child_path += name_and_child.first;
 
     EmitMemorySnapshotNodeRowsRecursively(*(name_and_child.second), child_path,
-                                          /*parent_node_id=*/node_id,
+                                          /*parent_node_row_id=*/node_id,
                                           proc_snapshot_row_id, id_node_map);
   }
 }

@@ -47,7 +47,7 @@ ConsumerIPCClientImpl::ConsumerIPCClientImpl(const char* service_sock_name,
                                              base::TaskRunner* task_runner)
     : consumer_(consumer),
       ipc_channel_(
-          ipc::Client::CreateInstance({service_sock_name, /*retry=*/false},
+          ipc::Client::CreateInstance({service_sock_name, /*sock_retry=*/false},
                                       task_runner)),
       consumer_port_(this /* event_listener */),
       weak_ptr_factory_(this) {
