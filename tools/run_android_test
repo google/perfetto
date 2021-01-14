@@ -145,7 +145,7 @@ def Main():
   # Some tests require the trace directory to exist, while true for android
   # devices in general some emulators might not have it set up. So we check to
   # see if it exists, and if not create it.
-  trace_dir = '/data/misc/perfetto-traces'
+  trace_dir = '/data/misc/perfetto-traces/bugreport'
   AdbCall('shell', 'test -d "%s" || mkdir -p "%s"' % (2 * (trace_dir,)))
   AdbCall('shell', 'rm -rf "%s/*";  ' % trace_dir)
   AdbCall('shell', 'mkdir -p /data/nativetest')
