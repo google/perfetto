@@ -493,17 +493,6 @@ export async function decideTracks(
     }
   }
 
-  // For backwards compatability with older TP versions where
-  // android_thread_time_in_state_event table does not exists.
-  // TODO: remove once the track mega-query is improved.
-  const exists =
-      await engine.query(`select name from sqlite_master where type='table' and
-       name='android_thread_time_in_state_event'`);
-  if (slowlyCountRows(exists) === 0) {
-    await engine.query(`create view android_thread_time_in_state_event as
-        select null as upid, null as value where 0`);
-  }
-
   // Return all threads
   // sorted by:
   //  total cpu time *for the whole parent process*
