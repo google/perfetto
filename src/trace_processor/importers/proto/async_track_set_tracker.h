@@ -68,6 +68,10 @@ class AsyncTrackSetTracker {
   // Starts a new slice on the given async track set which has the given cookie.
   TrackId Begin(TrackSetId id, int64_t cookie);
 
+  // Interns the expected and actual timeline tracks coming from FrameTimeline
+  // producer for the associated upid.
+  TrackSetId InternFrameTimelineSet(UniquePid, StringId name);
+
   // Ends a new slice on the given async track set which has the given cookie.
   TrackId End(TrackSetId id, int64_t cookie);
 
@@ -86,6 +90,16 @@ class AsyncTrackSetTracker {
     StringId name;
 
     friend bool operator<(const AndroidTuple& l, const AndroidTuple& r) {
+      return std::tie(l.upid, l.name) < std::tie(r.upid, r.name);
+    }
+  };
+
+  struct FrameTimelineTuple {
+    UniquePid upid;
+    StringId name;
+
+    friend bool operator<(const FrameTimelineTuple& l,
+                          const FrameTimelineTuple& r) {
       return std::tie(l.upid, l.name) < std::tie(r.upid, r.name);
     }
   };
@@ -110,6 +124,7 @@ class AsyncTrackSetTracker {
 
   enum class TrackSetType {
     kAndroid,
+    kFrameTimeline,
   };
 
   struct TrackState {
@@ -135,6 +150,8 @@ class AsyncTrackSetTracker {
     union {
       // Only set when |type| == |TrackSetType::kAndroid|.
       AndroidTuple android_tuple;
+      // Only set when |type| == |TrackSetType::kFrameTimeline|.
+      FrameTimelineTuple frame_timeline_tuple;
     };
     NestingBehaviour nesting_behaviour;
     std::vector<TrackState> tracks;
@@ -160,6 +177,7 @@ class AsyncTrackSetTracker {
   TrackId CreateTrackForSet(const TrackSet& set);
 
   std::map<AndroidTuple, TrackSetId> android_track_set_ids_;
+  std::map<FrameTimelineTuple, TrackSetId> frame_timeline_track_set_ids_;
   std::vector<TrackSet> track_sets_;
 
   TraceProcessorContext* const context_;

@@ -1,0 +1,8 @@
+"ts","dur","pid","display_frame_token","surface_frame_token","layer_name","present_type","on_time_finish","gpu_composition","jank_type"
+20,6,666,2,0,"[NULL]","On-time Present",1,0,"No Jank"
+21,16,1000,4,1,"Layer1","On-time Present",1,0,"No Jank"
+41,33,1000,6,5,"Layer1","Late Present",0,0,"App Deadline Missed"
+42,5,666,4,0,"[NULL]","On-time Present",1,0,"No Jank"
+81,7,666,6,0,"[NULL]","On-time Present",1,0,"No Jank"
+90,16,1000,8,7,"Layer1","Early Present",1,0,"SurfaceFlinger Scheduling"
+108,4,666,8,0,"[NULL]","Early Present",1,0,"SurfaceFlinger Scheduling"

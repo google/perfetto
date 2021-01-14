@@ -25,3 +25,7 @@ gpu_metric.py android_gpu gpu_metric.out
 
 # Android SysUI CUJs metrics
 android_sysui_cuj.py android_sysui_cuj android_sysui_cuj.out
+
+# Frame Timeline event trace tests
+frame_timeline_events.py expected_frame_timeline_events.sql expected_frame_timeline_events.out
+frame_timeline_events.py actual_frame_timeline_events.sql actual_frame_timeline_events.out
