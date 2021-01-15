@@ -34,8 +34,9 @@ class Hash {
   Hash() {}
 
   // Hashes a numeric value.
-  template <typename T,
-            typename std::enable_if<std::is_arithmetic<T>::value>* = nullptr>
+  template <
+      typename T,
+      typename std::enable_if<std::is_arithmetic<T>::value, bool>::type = true>
   void Update(T data) {
     Update(reinterpret_cast<const char*>(&data), sizeof(data));
   }
