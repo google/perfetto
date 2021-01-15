@@ -110,6 +110,7 @@ source_set("client_api_without_backends") {
     "internal/tracing_muxer_impl.h",
     "internal/track_event_internal.cc",
     "platform.cc",
+    "traced_value.cc",
     "tracing.cc",
     "track.cc",
     "track_event_category_registry.cc",
@@ -123,6 +124,34 @@ source_set("client_api_without_backends") {
       "../ipc:common",
       "ipc/common",
     ]
+  }
+}
+
+perfetto_unittest_source_set("unittests") {
+  testonly = true
+  deps = [
+    "../../protos/perfetto/trace:lite",
+    "../../protos/perfetto/trace/track_event:lite",
+    "../base",
+    "../base:test_support",
+    "test:test_support",
+  ]
+
+  sources = []
+
+  # TODO(primiano): remove the build_with_chromium conditional once the root
+  # //BUILD.gn:libperfetto (in chromium) stops adding tracing:platform_fake.
+  # The problem is the following: in chrome builds we end up with duplicate
+  # symbol definitions in the test because both platorm (impl and fake) are
+  # present: impl added here and fake coming from chromium's base (full path:
+  # perfetto_unittests -> //(chromium)base:test_support -> //(chromium)base
+  # -> libperfetto -> platform_fake.
+  if (!build_with_chromium) {
+    deps += [
+      ":client_api_without_backends",
+      ":platform_impl",
+    ]
+    sources += [ "traced_value_unittest.cc" ]
   }
 }
 

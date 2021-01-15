@@ -46,6 +46,7 @@ source_set("tracing") {
     "locked_handle.h",
     "platform.h",
     "trace_writer_base.h",
+    "traced_value.h",
     "tracing.h",
     "tracing_backend.h",
     "track.h",
