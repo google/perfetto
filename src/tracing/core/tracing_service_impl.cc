@@ -1296,7 +1296,17 @@ void TracingServiceImpl::ActivateTriggers(
   PERFETTO_DCHECK_THREAD(thread_checker_);
   auto* producer = GetProducer(producer_id);
   PERFETTO_DCHECK(producer);
+
+  int64_t now_ns = base::GetBootTimeNs().count();
   for (const auto& trigger_name : triggers) {
+    base::Hash hash;
+    hash.Update(trigger_name.c_str(), trigger_name.size());
+
+    uint64_t trigger_name_hash = hash.digest();
+    size_t count_in_window =
+        PurgeExpiredAndCountTriggerInWindow(now_ns, trigger_name_hash);
+
+    bool trigger_applied = false;
     for (auto& id_and_tracing_session : tracing_sessions_) {
       auto& tracing_session = id_and_tracing_session.second;
       TracingSessionID tsid = id_and_tracing_session.first;
@@ -1320,11 +1330,18 @@ void TracingServiceImpl::ActivateTriggers(
         continue;
       }
 
+      // If we already triggered more times than the limit, silently ignore
+      // this trigger.
+      if (iter->max_per_24_h() > 0 && count_in_window >= iter->max_per_24_h()) {
+        continue;
+      }
+      trigger_applied = true;
+
       const bool triggers_already_received =
           !tracing_session.received_triggers.empty();
       tracing_session.received_triggers.push_back(
-          {static_cast<uint64_t>(base::GetBootTimeNs().count()), iter->name(),
-           producer->name_, producer->uid_});
+          {static_cast<uint64_t>(now_ns), iter->name(), producer->name_,
+           producer->uid_});
       auto weak_this = weak_ptr_factory_.GetWeakPtr();
       switch (tracing_session.config.trigger_config().trigger_mode()) {
         case TraceConfig::TriggerConfig::START_TRACING:
@@ -1381,6 +1398,10 @@ void TracingServiceImpl::ActivateTriggers(
           PERFETTO_ELOG("Trigger activated but trigger mode unspecified.");
           break;
       }
+    }  // for (.. : tracing_sessions_)
+
+    if (trigger_applied) {
+      trigger_history_.emplace_back(TriggerHistory{now_ns, trigger_name_hash});
     }
   }
 }
@@ -3013,6 +3034,24 @@ void TracingServiceImpl::MaybeLogUploadEvent(const TraceConfig& cfg,
 
   android_stats::MaybeLogUploadEvent(atom, cfg.trace_uuid_lsb(),
                                      cfg.trace_uuid_msb(), trigger_name);
+}
+
+size_t TracingServiceImpl::PurgeExpiredAndCountTriggerInWindow(
+    int64_t now_ns,
+    uint64_t trigger_name_hash) {
+  PERFETTO_DCHECK(
+      std::is_sorted(trigger_history_.begin(), trigger_history_.end()));
+  size_t remove_count = 0;
+  size_t trigger_count = 0;
+  for (const TriggerHistory& h : trigger_history_) {
+    if (h.timestamp_ns < now_ns - trigger_window_ns_) {
+      remove_count++;
+    } else if (h.name_hash == trigger_name_hash) {
+      trigger_count++;
+    }
+  }
+  trigger_history_.erase_front(remove_count);
+  return trigger_count;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
