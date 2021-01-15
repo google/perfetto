@@ -1,7 +1,9 @@
 Unreleased:
   Tracing service and probes:
-    * Print more helpful error messages if the client library is used without
+    * Added more helpful error messages if the client library is used without
       having been initialized.
+    * Added //tools/record_android_trace script to facilitate recording traces
+      from Android devices, automating start + stop-via-ctrl+c + pull + open.
   Trace Processor:
     *
   UI:
