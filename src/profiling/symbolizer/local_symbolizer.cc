@@ -64,8 +64,6 @@ std::unique_ptr<Symbolizer> LocalSymbolizerOrDie(
 }  // namespace profiling
 }  // namespace perfetto
 
-// Most of this translation unit is built only on Linux and MacOS. See
-// //gn/BUILD.gn.
 #if PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
