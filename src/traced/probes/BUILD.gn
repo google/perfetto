@@ -67,6 +67,8 @@ source_set("probes_src") {
   sources = [
     "probes_producer.cc",
     "probes_producer.h",
+    "kmem_activity_trigger.cc",
+    "kmem_activity_trigger.h",
   ]
 }
 
