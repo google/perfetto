@@ -125,3 +125,14 @@ packet {
     }
   }
 }
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 6000
+  track_event {
+    track_uuid: 1
+    categories: "cat"
+    name: "name5"
+    type: 3
+    [perfetto.protos.ChromeTrackEvent.chrome_app_state]: APP_STATE_FOREGROUND
+  }
+}

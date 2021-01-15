@@ -8381,24 +8381,3 @@ message Trace {
 }
 
 // End of protos/perfetto/trace/trace.proto
-
-// Begin of protos/perfetto/trace/test_extensions.proto
-
-// Extensions for TrackEvent used for integration testing. This proto file is
-// compiled to descriptor and is used in tools/diff_test_trace_processor.py.
-//
-// See docs/design-docs/extensions.md for more details.
-message TestExtension {
-  extend TrackEvent {
-    optional string string_extension_for_testing = 9900;
-    repeated int32 int_extension_for_testing = 9901;
-    optional string omitted_extension_for_testing = 9902;
-    optional TestExtensionChild nested_message_extension_for_testing = 9903;
-  }
-}
-
-message TestExtensionChild {
-  optional string child_field_for_testing = 1;
-}
-
-// End of protos/perfetto/trace/test_extensions.proto
