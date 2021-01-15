@@ -466,8 +466,8 @@ int64_t SliceTracker::GetStackHash(const SlicesStack& stack) {
   base::Hash hash;
   for (size_t i = 0; i < stack.size(); i++) {
     uint32_t slice_idx = stack[i].row;
-    hash.Update(slices.category()[slice_idx]);
-    hash.Update(slices.name()[slice_idx]);
+    hash.Update(slices.category()[slice_idx].raw_id());
+    hash.Update(slices.name()[slice_idx].raw_id());
   }
 
   // For clients which don't have an integer type (i.e. Javascript), returning
