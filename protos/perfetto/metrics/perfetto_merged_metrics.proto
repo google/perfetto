@@ -251,6 +251,24 @@ message HeapProfileCallsites {
 
 // End of protos/perfetto/metrics/android/heap_profile_callsites.proto
 
+// Begin of protos/perfetto/metrics/android/hwcomposer.proto
+
+message AndroidHwcomposerMetrics {
+  // Counts the number of composition total layers in the trace. (non-weighted average)
+  optional double composition_total_layers = 1;
+
+  // Counts the number of composition dpu layers in the trace. (non-weighted average)
+  optional double composition_dpu_layers = 2;
+
+  // Counts the number of composition gpu layers in the trace. (non-weighted average)
+  optional double composition_gpu_layers = 3;
+
+  // Counts the number of composition dpu cached layers in the trace. (non-weighted average)
+  optional double composition_dpu_cached_layers = 4;
+}
+
+// End of protos/perfetto/metrics/android/hwcomposer.proto
+
 // Begin of protos/perfetto/metrics/android/hwui_metric.proto
 
 // Android HWUI graphics performance and graphics memory usage metrics.
@@ -811,7 +829,7 @@ message TraceMetadata {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 28
+// Next id: 29
 message TraceMetrics {
   reserved 4, 10, 13, 14, 19;
 
@@ -879,6 +897,9 @@ message TraceMetrics {
 
   // Frame timing and jank root causes for system UI interactions.
   optional AndroidSysUiCujMetrics android_sysui_cuj = 27;
+
+  // Metric associated with hwcomposer.
+  optional AndroidHwcomposerMetrics android_hwcomposer = 28;
 
   // Demo extensions.
   extensions 450 to 499;
