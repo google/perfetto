@@ -18,7 +18,7 @@ import os
 import subprocess
 import tempfile
 
-from google.protobuf import descriptor, descriptor_pb2, message_factory
+from google.protobuf import descriptor, descriptor_pb2, message_factory, descriptor_pool
 from google.protobuf import reflection, text_format
 
 
@@ -46,11 +46,31 @@ def create_message_factory(descriptor_file_path, proto_type):
   return message_factory.MessageFactory().GetPrototype(desc_by_path[proto_type])
 
 
-def serialize_textproto_trace(trace_descriptor_path, text_proto_path,
-                              out_stream):
-  trace_message_factory = create_message_factory(trace_descriptor_path,
-                                                 'perfetto.protos.Trace')
-  proto = trace_message_factory()
+def read_descriptor(file_name):
+  with open(file_name, 'rb') as f:
+    contents = f.read()
+
+  descriptor = descriptor_pb2.FileDescriptorSet()
+  descriptor.MergeFromString(contents)
+
+  return descriptor
+
+
+def serialize_textproto_trace(trace_descriptor_path, extension_descriptor_paths,
+                              text_proto_path, out_stream):
+  pool = descriptor_pool.DescriptorPool()
+  trace_descriptor = read_descriptor(trace_descriptor_path)
+  for file in trace_descriptor.file:
+    pool.Add(file)
+
+  for path in extension_descriptor_paths:
+    descriptor = read_descriptor(path)
+    for file in descriptor.file:
+      pool.Add(file)
+
+  proto = message_factory.MessageFactory().GetPrototype(
+      pool.FindMessageTypeByName('perfetto.protos.Trace'))()
+
   with open(text_proto_path, 'r') as text_proto_file:
     text_format.Merge(text_proto_file.read(), proto)
   out_stream.write(proto.SerializeToString())
@@ -59,7 +79,11 @@ def serialize_textproto_trace(trace_descriptor_path, text_proto_path,
 
 def serialize_python_trace(trace_descriptor_path, python_trace_path,
                            out_stream):
-  python_cmd = ['python3', python_trace_path, trace_descriptor_path]
+  python_cmd = [
+      'python3',
+      python_trace_path,
+      trace_descriptor_path,
+  ]
 
   # Add the test dir to the PYTHONPATH to allow synth_common to be found.
   env = os.environ.copy()
