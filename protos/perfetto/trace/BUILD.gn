@@ -111,7 +111,7 @@ if (perfetto_build_standalone) {
   perfetto_proto_library("descriptor") {
     proto_generators = [ "descriptor" ]
     generate_descriptor = "trace.descriptor"
-    sources = [ "perfetto_trace.proto" ]
+    sources = [ "trace.proto" ]
   }
 }
 
@@ -120,4 +120,11 @@ if (perfetto_build_standalone) {
 static_library("perfetto_trace_protos") {
   complete_static_lib = true
   deps = [ ":lite" ]
+}
+
+perfetto_proto_library("test_extensions_descriptor") {
+  proto_generators = [ "descriptor" ]
+  generate_descriptor = "test_extensions.descriptor"
+  sources = [ "test_extensions.proto" ]
+  deps = [ "track_event:source_set" ]
 }

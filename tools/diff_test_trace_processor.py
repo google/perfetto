@@ -160,7 +160,8 @@ def run_query_test(trace_processor_path, gen_trace_path, query_path,
 
 
 def run_all_tests(trace_processor, trace_descriptor_path,
-                  metrics_message_factory, tests, keep_input, rebase):
+                  extension_descriptor_paths, metrics_message_factory, tests,
+                  keep_input, rebase):
   perf_data = []
   test_failure = 0
   rebased = 0
@@ -184,7 +185,8 @@ def run_all_tests(trace_processor, trace_descriptor_path,
       gen_trace_path = os.path.realpath(gen_trace_file.name)
     elif trace_path.endswith('.textproto'):
       gen_trace_file = tempfile.NamedTemporaryFile(delete=False)
-      serialize_textproto_trace(trace_descriptor_path, trace_path,
+      serialize_textproto_trace(trace_descriptor_path,
+                                extension_descriptor_paths, trace_path,
                                 gen_trace_file)
       gen_trace_path = os.path.realpath(gen_trace_file.name)
     else:
@@ -375,11 +377,10 @@ def main():
   tests = read_all_tests(query_metric_pattern, trace_pattern)
   sys.stderr.write('[==========] Running {} tests.\n'.format(len(tests)))
 
+  out_path = os.path.dirname(args.trace_processor)
   if args.trace_descriptor:
     trace_descriptor_path = args.trace_descriptor
   else:
-    out_path = os.path.dirname(args.trace_processor)
-
     def find_trace_descriptor(parent):
       trace_protos_path = os.path.join(parent, 'gen', 'protos', 'perfetto',
                                        'trace')
@@ -393,21 +394,24 @@ def main():
   if args.metrics_descriptor:
     metrics_descriptor_path = args.metrics_descriptor
   else:
-    out_path = os.path.dirname(args.trace_processor)
     metrics_protos_path = os.path.join(out_path, 'gen', 'protos', 'perfetto',
                                        'metrics')
     metrics_descriptor_path = os.path.join(metrics_protos_path,
                                            'metrics.descriptor')
 
+  chrome_extensions = os.path.join(out_path, 'gen', 'protos', 'third_party',
+                                   'chromium', 'chrome_track_event.descriptor')
+  test_extensions = os.path.join(out_path, 'gen', 'protos', 'perfetto', 'trace',
+                                 'test_extensions.descriptor')
+
   metrics_message_factory = create_metrics_message_factory(
       metrics_descriptor_path)
 
   test_run_start = datetime.datetime.now()
-  test_failure, perf_data, rebased = run_all_tests(args.trace_processor,
-                                                   trace_descriptor_path,
-                                                   metrics_message_factory,
-                                                   tests, args.keep_input,
-                                                   args.rebase)
+  test_failure, perf_data, rebased = run_all_tests(
+      args.trace_processor, trace_descriptor_path,
+      [chrome_extensions, test_extensions], metrics_message_factory, tests,
+      args.keep_input, args.rebase)
   test_run_end = datetime.datetime.now()
 
   sys.stderr.write('[==========] {} tests ran. ({} ms total)\n'.format(

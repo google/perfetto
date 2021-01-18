@@ -16,7 +16,7 @@
 import argparse
 
 from collections import namedtuple
-from google.protobuf import descriptor, descriptor_pb2, message_factory
+from google.protobuf import descriptor, descriptor_pb2, message_factory, descriptor_pool
 
 CLONE_THREAD = 0x00010000
 CLONE_VFORK = 0x00004000
@@ -672,34 +672,37 @@ class Trace(object):
     event = packet.frame_timeline_event.frame_end
     event.cookie = cookie
 
+
+def read_descriptor(file_name):
+  with open(file_name, 'rb') as f:
+    contents = f.read()
+
+  descriptor = descriptor_pb2.FileDescriptorSet()
+  descriptor.MergeFromString(contents)
+
+  return descriptor
+
+
+def create_pool(args):
+  trace_descriptor = read_descriptor(args.trace_descriptor)
+
+  pool = descriptor_pool.DescriptorPool()
+  for file in trace_descriptor.file:
+    pool.Add(file)
+
+  return pool
+
+
 def create_trace():
   parser = argparse.ArgumentParser()
   parser.add_argument(
       'trace_descriptor', type=str, help='location of trace descriptor')
   args = parser.parse_args()
 
-  with open(args.trace_descriptor, 'rb') as t:
-    fileContent = t.read()
-
-  file_desc_set_pb2 = descriptor_pb2.FileDescriptorSet()
-  file_desc_set_pb2.MergeFromString(fileContent)
-
-  desc_by_path = {}
-  for f_desc_pb2 in file_desc_set_pb2.file:
-    f_desc_pb2_encode = f_desc_pb2.SerializeToString()
-    f_desc = descriptor.FileDescriptor(
-        name=f_desc_pb2.name,
-        package=f_desc_pb2.package,
-        serialized_pb=f_desc_pb2_encode)
-
-    for desc in f_desc.message_types_by_name.values():
-      desc_by_path[desc.full_name] = desc
-
-    for desc in f_desc.enum_types_by_name.values():
-      desc_by_path[desc.full_name] = desc
-
-  factory = message_factory.MessageFactory()
-  ProtoTrace = factory.GetPrototype(desc_by_path['perfetto.protos.Trace'])
+  pool = create_pool(args)
+  factory = message_factory.MessageFactory(pool)
+  ProtoTrace = factory.GetPrototype(
+      pool.FindMessageTypeByName('perfetto.protos.Trace'))
 
   class EnumPrototype(object):
 
@@ -719,14 +722,15 @@ def create_trace():
   ])
   prototypes = Prototypes(
       TrackEvent=factory.GetPrototype(
-          desc_by_path['perfetto.protos.TrackEvent']),
+          pool.FindMessageTypeByName('perfetto.protos.TrackEvent')),
       ChromeRAILMode=EnumPrototype.from_descriptor(
-          desc_by_path['perfetto.protos.ChromeRAILMode']),
+          pool.FindEnumTypeByName('perfetto.protos.ChromeRAILMode')),
       ThreadDescriptor=factory.GetPrototype(
-          desc_by_path['perfetto.protos.ThreadDescriptor']),
+          pool.FindMessageTypeByName('perfetto.protos.ThreadDescriptor')),
       ChromeProcessDescriptor=factory.GetPrototype(
-          desc_by_path['perfetto.protos.ChromeProcessDescriptor']),
+          pool.FindMessageTypeByName(
+              'perfetto.protos.ChromeProcessDescriptor')),
       CounterDescriptor=factory.GetPrototype(
-          desc_by_path['perfetto.protos.CounterDescriptor']),
+          pool.FindMessageTypeByName('perfetto.protos.CounterDescriptor')),
   )
   return Trace(ProtoTrace(), prototypes)
