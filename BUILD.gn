@@ -135,8 +135,9 @@ if (perfetto_build_standalone) {
     "protos/perfetto/common:cpp",
 
     # The diff testing framework depends on these descriptors.
-    "protos/perfetto/metrics:descriptor($host_toolchain)",
-    "protos/perfetto/trace:descriptor($host_toolchain)",
+    "protos/perfetto/metrics:descriptor",
+    "protos/perfetto/trace:descriptor",
+    "protos/perfetto/trace:test_extensions_descriptor",
 
     # Used in the when updating the ftrace protos
     "protos/perfetto/trace/ftrace:descriptor",
