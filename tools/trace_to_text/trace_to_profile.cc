@@ -16,6 +16,7 @@
 
 #include "tools/trace_to_text/trace_to_profile.h"
 
+#include <random>
 #include <string>
 #include <vector>
 
@@ -48,6 +49,17 @@ std::string GetTemp() {
 namespace perfetto {
 namespace trace_to_text {
 namespace {
+
+std::string GetRandomString(size_t n) {
+  std::random_device r;
+  auto rng = std::default_random_engine(r());
+  std::uniform_int_distribution<char> dist('a', 'z');
+  std::string result(n, ' ');
+  for (size_t i = 0; i < n; ++i) {
+    result[i] = dist(rng);
+  }
+  return result;
+}
 
 void MaybeSymbolize(trace_processor::TraceProcessor* tp) {
   std::unique_ptr<profiling::Symbolizer> symbolizer =
@@ -99,8 +111,8 @@ int TraceToProfile(
     return 0;
   }
 
-  std::string temp_dir =
-      GetTemp() + "/" + dirname_prefix + base::GetTimeFmt("%y%m%d%H%M%S");
+  std::string temp_dir = GetTemp() + "/" + dirname_prefix +
+                         base::GetTimeFmt("%y%m%d%H%M%S") + GetRandomString(5);
   PERFETTO_CHECK(base::Mkdir(temp_dir));
   for (const auto& profile : profiles) {
     std::string filename = temp_dir + "/" + filename_fn(profile);
