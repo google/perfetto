@@ -8194,7 +8194,7 @@ message Trigger {
 //
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
-// Next reserved id: 13 (up to 15).
+// Next reserved id: 14 (up to 15).
 // Next id: 77.
 message TracePacket {
   // The timestamp of the TracePacket.
