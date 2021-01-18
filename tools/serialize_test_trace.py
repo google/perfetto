@@ -21,7 +21,7 @@ import argparse
 import os
 import sys
 
-from proto_utils import create_message_factory, serialize_python_trace, serialize_textproto_trace
+from proto_utils import serialize_python_trace, serialize_textproto_trace
 
 
 def main():
@@ -38,19 +38,29 @@ def main():
   if args.out and not args.descriptor:
     trace_protos_path = os.path.join(args.out, 'gen', 'protos', 'perfetto',
                                      'trace')
+    chrome_extension_descriptor_path = os.path.join(
+        args.out, 'gen', 'protos', 'third_party', 'chromium',
+        'chrome_track_event.descriptor')
     trace_descriptor_path = os.path.join(trace_protos_path, 'trace.descriptor')
+    test_extensions_descriptor_path = os.path.join(
+        trace_protos_path, 'test_extensions.descriptor')
+    extension_descriptors = [
+        chrome_extension_descriptor_path, test_extensions_descriptor_path
+    ]
   elif args.descriptor and not args.out:
     trace_descriptor_path = args.descriptor
+    extension_descriptors = []
   else:
-    raise RuntimeError('Exactly one of --out and --descriptor should be provided')
+    raise RuntimeError(
+        'Exactly one of --out and --descriptor should be provided')
 
   trace_path = args.trace_path
 
   if trace_path.endswith('.py'):
     serialize_python_trace(trace_descriptor_path, trace_path, sys.stdout.buffer)
   elif trace_path.endswith('.textproto'):
-    serialize_textproto_trace(trace_descriptor_path, trace_path,
-                              sys.stdout.buffer)
+    serialize_textproto_trace(trace_descriptor_path, extension_descriptors,
+                              trace_path, sys.stdout.buffer)
   else:
     raise RuntimeError('Invalid extension for unserialized trace file')
 
