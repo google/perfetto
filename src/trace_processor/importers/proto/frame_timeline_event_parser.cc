@@ -44,25 +44,42 @@ using ActualSurfaceFrameStartDecoder =
 
 using FrameEndDecoder = protos::pbzero::FrameTimelineEvent_FrameEnd_Decoder;
 
+static StringId JankTypeBitmaskToStringId(TraceProcessorContext* context,
+                                          int32_t jank_type) {
+  if (jank_type == FrameTimelineEvent::JANK_UNSPECIFIED)
+    return context->storage->InternString("Unspecified");
+  if (jank_type == FrameTimelineEvent::JANK_NONE)
+    return context->storage->InternString("None");
+
+  std::vector<std::string> jank_reasons;
+  if (jank_type & FrameTimelineEvent::JANK_SF_SCHEDULING)
+    jank_reasons.emplace_back("SurfaceFlinger Scheduling");
+  if (jank_type & FrameTimelineEvent::JANK_PREDICTION_ERROR)
+    jank_reasons.emplace_back("Prediction Error");
+  if (jank_type & FrameTimelineEvent::JANK_DISPLAY_HAL)
+    jank_reasons.emplace_back("Display HAL");
+  if (jank_type & FrameTimelineEvent::JANK_SF_CPU_DEADLINE_MISSED)
+    jank_reasons.emplace_back("SurfaceFlinger CPU Deadline Missed");
+  if (jank_type & FrameTimelineEvent::JANK_SF_GPU_DEADLINE_MISSED)
+    jank_reasons.emplace_back("SurfaceFlinger GPU Deadline Missed");
+  if (jank_type & FrameTimelineEvent::JANK_APP_DEADLINE_MISSED)
+    jank_reasons.emplace_back("App Deadline Missed");
+  if (jank_type & FrameTimelineEvent::JANK_BUFFER_STUFFING)
+    jank_reasons.emplace_back("Buffer Stuffing");
+  if (jank_type & FrameTimelineEvent::JANK_UNKNOWN)
+    jank_reasons.emplace_back("Unknown jank");
+
+  std::string jank_str(
+      std::accumulate(jank_reasons.begin(), jank_reasons.end(), std::string(),
+                      [](const std::string& l, const std::string& r) {
+                        return l.empty() ? r : l + ", " + r;
+                      }));
+  return context->storage->InternString(base::StringView(jank_str));
+}
+
 FrameTimelineEventParser::FrameTimelineEventParser(
     TraceProcessorContext* context)
     : context_(context),
-      jank_type_ids_{
-          {context->storage->InternString(
-               "Unspecified Jank") /* JANK_UNSPECIFIED */,
-           context->storage->InternString("No Jank") /* JANK_NONE */,
-           context->storage->InternString(
-               "SurfaceFlinger Scheduling") /* JANK_SF_SCHEDULING */,
-           context->storage->InternString(
-               "Prediction Error") /* JANK_PREDICTION_ERROR */,
-           context->storage->InternString("Display HAL") /* JANK_DISPLAY_HAL */,
-           context->storage->InternString(
-               "SurfaceFlinger Deadline Missed") /*JANK_SF_DEADLINE_MISSED */,
-           context->storage->InternString(
-               "App Deadline Missed") /* JANK_APP_DEADLINE_MISSED */,
-           context->storage->InternString(
-               "Buffer Stuffing") /* JANK_BUFFER_STUFFING */,
-           context->storage->InternString("Unknown Jank") /* JANK_UNKNOWN */}},
       present_type_ids_{
           {context->storage->InternString(
                "Unspecified Present") /* PRESENT_UNSPECIFIED */,
@@ -167,7 +184,7 @@ void FrameTimelineEventParser::ParseActualDisplayFrameStart(
       present_type_ids_[static_cast<size_t>(event.present_type())];
   actual_row.on_time_finish = event.on_time_finish();
   actual_row.gpu_composition = event.gpu_composition();
-  actual_row.jank_type = jank_type_ids_[static_cast<size_t>(event.jank_type())];
+  actual_row.jank_type = JankTypeBitmaskToStringId(context_, event.jank_type());
   context_->slice_tracker->BeginFrameTimeline(actual_row);
 }
 
@@ -289,7 +306,7 @@ void FrameTimelineEventParser::ParseActualSurfaceFrameStart(
       present_type_ids_[static_cast<size_t>(event.present_type())];
   actual_row.on_time_finish = event.on_time_finish();
   actual_row.gpu_composition = event.gpu_composition();
-  actual_row.jank_type = jank_type_ids_[static_cast<size_t>(event.jank_type())];
+  actual_row.jank_type = JankTypeBitmaskToStringId(context_, event.jank_type());
   context_->slice_tracker->BeginFrameTimeline(actual_row);
 }
 
