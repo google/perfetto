@@ -28,17 +28,19 @@ package perfetto.protos;
 // This relationship can be reconstructed by using
 //    DisplayFrame.token = SurfaceFrame.display_frame_token
 message FrameTimelineEvent {
-  // Specifies which component was the main source for the jank.
+  // Specifies the reason(s) most likely to have caused the jank.
+  // Used as a bitmask.
   enum JankType {
     JANK_UNSPECIFIED = 0;
     JANK_NONE = 1;
     JANK_SF_SCHEDULING = 2;
-    JANK_PREDICTION_ERROR = 3;
-    JANK_DISPLAY_HAL = 4;
-    JANK_SF_DEADLINE_MISSED = 5;
-    JANK_APP_DEADLINE_MISSED = 6;
-    JANK_BUFFER_STUFFING = 7;
-    JANK_UNKNOWN = 8;
+    JANK_PREDICTION_ERROR = 4;
+    JANK_DISPLAY_HAL = 8;
+    JANK_SF_CPU_DEADLINE_MISSED = 16;
+    JANK_SF_GPU_DEADLINE_MISSED = 32;
+    JANK_APP_DEADLINE_MISSED = 64;
+    JANK_BUFFER_STUFFING = 128;
+    JANK_UNKNOWN = 256;
   };
 
   // Specifies how a frame was presented on screen w.r.t. timing.
@@ -102,7 +104,9 @@ message FrameTimelineEvent {
     optional PresentType present_type = 6;
     optional bool on_time_finish = 7;
     optional bool gpu_composition = 8;
-    optional JankType jank_type = 9;
+    // A bitmask of JankType. More than one reason can be attributed to a janky
+    // frame.
+    optional int32 jank_type = 9;
   };
 
   // Indicates the start of expected timeline slice for DisplayFrames.
@@ -144,7 +148,9 @@ message FrameTimelineEvent {
     optional PresentType present_type = 4;
     optional bool on_time_finish = 5;
     optional bool gpu_composition = 6;
-    optional JankType jank_type = 7;
+    // A bitmask of JankType. More than one reason can be attributed to a janky
+    // frame.
+    optional int32 jank_type = 7;
   };
 
   // FrameEnd just sends the cookie to indicate that the corresponding
