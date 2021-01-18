@@ -29,6 +29,9 @@ namespace perfetto {
 
 namespace trace_processor {
 
+using FrameTimelineEvent = protos::pbzero::FrameTimelineEvent;
+using FrameTimelineEventDecoder = protos::pbzero::FrameTimelineEvent_Decoder;
+
 class TraceProcessorContext;
 
 // Class for parsing graphics frame related events.
@@ -41,8 +44,6 @@ class FrameTimelineEventParser {
   void ParseFrameTimelineEvent(int64_t timestamp, ConstBytes);
 
  private:
-  using FrameTimelineEvent = protos::pbzero::FrameTimelineEvent;
-  using FrameTimelineEventDecoder = protos::pbzero::FrameTimelineEvent_Decoder;
   void ParseExpectedDisplayFrameStart(int64_t timestamp, ConstBytes);
   void ParseActualDisplayFrameStart(int64_t timestamp, ConstBytes);
 
@@ -59,7 +60,6 @@ class FrameTimelineEventParser {
   // of the cookie makes it so that we can end a slice with just the cookie and
   // the TrackSetId.
   std::map<int64_t, TrackSetId> cookie_track_set_id_map_;
-  std::array<StringId, 9> jank_type_ids_;
   std::array<StringId, 5> present_type_ids_;
   StringId expected_timeline_track_name_;
   StringId actual_timeline_track_name_;
