@@ -48,7 +48,7 @@ if (enable_perfetto_trace_processor && enable_perfetto_trace_processor_sqlite) {
 if (enable_perfetto_heapprofd) {
   all_targets += [
     "src/profiling/memory:heapprofd",
-    "src/profiling/memory:heapprofd_preload",
+    "src/profiling/memory:heapprofd_glibc_preload",
   ]
   if (perfetto_build_with_android) {
     all_targets += [
@@ -63,7 +63,7 @@ if (enable_perfetto_traced_perf) {
 }
 
 if (perfetto_build_with_android) {
-  all_targets += [ "src/android_internal/:libperfetto_android_internal" ]
+  all_targets += [ "src/android_internal:libperfetto_android_internal" ]
 }
 
 if (enable_perfetto_tools) {
@@ -135,8 +135,9 @@ if (perfetto_build_standalone) {
     "protos/perfetto/common:cpp",
 
     # The diff testing framework depends on these descriptors.
-    "protos/perfetto/metrics:descriptor($host_toolchain)",
-    "protos/perfetto/trace:descriptor($host_toolchain)",
+    "protos/perfetto/metrics:descriptor",
+    "protos/perfetto/trace:descriptor",
+    "protos/perfetto/trace:test_extensions_descriptor",
 
     # Used in the when updating the ftrace protos
     "protos/perfetto/trace/ftrace:descriptor",
@@ -233,7 +234,7 @@ if (!build_with_chromium) {
     public_deps = [
       "gn:default_deps",
       "src/tracing:client_api",
-      "src/tracing:platform_posix",
+      "src/tracing:platform_impl",
     ]
     sources = [ "include/perfetto/tracing.h" ]
     assert_no_deps = [ "//gn:protobuf_lite" ]

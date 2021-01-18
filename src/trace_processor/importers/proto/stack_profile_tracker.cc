@@ -70,7 +70,7 @@ base::Optional<MappingId> SequenceStackProfileTracker::AddMapping(
   NullTermStringView raw_build_id_str =
       context_->storage->GetString(raw_build_id);
   StringId build_id = GetEmptyStringId();
-  if (raw_build_id_str.size() > 0) {
+  if (!raw_build_id_str.empty()) {
     // If the build_id is 33 characters long, we assume it's a Breakpad debug
     // identifier which is already in Hex and doesn't need conversion.
     // TODO(b/148109467): Remove workaround once all active Chrome versions

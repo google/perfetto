@@ -32,7 +32,8 @@ SELECT RUN_METRIC('chrome/scroll_jank.sql');
 -- flows with a trace_id of -1 are incomplete and are difficult to reason about
 -- (especially if GestureScrollUpdate flows end up getting -1). so ignore them
 -- for this table.
-CREATE VIEW IF NOT EXISTS latency_info_flow_step AS
+DROP VIEW IF EXISTS latency_info_flow_step;
+CREATE VIEW latency_info_flow_step AS
   SELECT
     *
   FROM (
@@ -102,7 +103,8 @@ CREATE VIEW IF NOT EXISTS latency_info_flow_step AS
 -- limiting by the GestureScrollUpdate end we can prevent incorrect duplication.
 -- This breaks of course if the same trace_id happens at the exact same time in
 -- both browsers but this is hopefully unlikely.
-CREATE VIEW IF NOT EXISTS max_latency_info_ts_per_trace_id AS
+DROP VIEW IF EXISTS max_latency_info_ts_per_trace_id;
+CREATE VIEW max_latency_info_ts_per_trace_id AS
   SELECT
     scroll_slice_id,
     MIN(ts) AS max_flow_ts
@@ -119,7 +121,8 @@ CREATE VIEW IF NOT EXISTS max_latency_info_ts_per_trace_id AS
 --
 -- Note: Must be a TABLE because it uses a window function which can behave
 --       strangely in views.
-CREATE TABLE IF NOT EXISTS latency_info_flow_step_filtered AS
+DROP TABLE IF EXISTS latency_info_flow_step_filtered;
+CREATE TABLE latency_info_flow_step_filtered AS
   SELECT
     ROW_NUMBER() OVER (ORDER BY
       flow.gesture_scroll_id ASC, trace_id ASC, ts ASC) AS row_number,
@@ -140,7 +143,8 @@ CREATE TABLE IF NOT EXISTS latency_info_flow_step_filtered AS
 --
 -- Note: Must be a TABLE because it uses a window function which can behave
 --       strangely in views.
-CREATE TABLE IF NOT EXISTS latency_info_flow_null_step_removed AS
+DROP TABLE IF EXISTS latency_info_flow_null_step_removed;
+CREATE TABLE latency_info_flow_null_step_removed AS
   SELECT
     ROW_NUMBER() OVER (ORDER BY
       curr.gesture_scroll_id ASC, curr.trace_id ASC, curr.ts ASC
@@ -189,7 +193,8 @@ CREATE TABLE IF NOT EXISTS latency_info_flow_null_step_removed AS
 -- Now that we've got the steps all named properly we want to join them with the
 -- next step so we can compute the difference between the end of the current
 -- step and the beginning of the next step.
-CREATE VIEW IF NOT EXISTS scroll_flow_event AS
+DROP VIEW IF EXISTS scroll_flow_event;
+CREATE VIEW scroll_flow_event AS
   SELECT
     curr.trace_id,
     curr.id,

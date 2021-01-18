@@ -146,7 +146,7 @@ config("default") {
   ldflags = []
   libs = []
 
-  if (is_android || is_linux) {
+  if ((is_android || is_linux) && !is_wasm) {
     ldflags += [ "-Wl,--build-id" ]
   }
 
@@ -172,7 +172,7 @@ config("default") {
     if (!use_custom_libcxx) {
       defines += [ "_HAS_EXCEPTIONS=0" ]  # Disables exceptions in MSVC STL.
     }
-  } else {  # !is_win
+  } else if (!is_wasm) {  # !is_win
     cflags += [
       "-g",
       "-fPIC",
@@ -352,7 +352,7 @@ config("release") {
     ]
   } else if (is_mac) {
     ldflags = [ "-dead_strip" ]
-  } else if (!is_win) {
+  } else if (!is_win && !is_wasm) {
     ldflags = [
       "-Wl,--gc-sections",
       "-Wl,--icf=all",
@@ -373,7 +373,7 @@ config("executable") {
 
   # Android will refuse to run executables if they aren't position independent.
   # Instead on Linux there isn't any need and they break ASan (goo.gl/paFR6K).
-  if (is_android || is_linux) {
+  if ((is_android || is_linux) && !is_wasm) {
     asmflags = [ "-fPIE" ]
     cflags = [ "-fPIE" ]
     ldflags += [ "-pie" ]
@@ -384,7 +384,7 @@ config("executable") {
   # supported only by Linux, not Android. But concretely we need this only when
   # use_custom_libcxx=true && custom_libcxx_is_static=false, which happens only
   # on Linux right now.
-  if (is_linux) {
+  if (is_linux && !is_wasm) {
     ldflags += [
       "-Wl,-rpath=\$ORIGIN/.",
       "-Wl,-rpath-link=.",

@@ -652,6 +652,26 @@ class TraceStorage {
     return &memory_snapshot_edge_table_;
   }
 
+  const tables::ExpectedFrameTimelineSliceTable&
+  expected_frame_timeline_slice_table() const {
+    return expected_frame_timeline_slice_table_;
+  }
+
+  tables::ExpectedFrameTimelineSliceTable*
+  mutable_expected_frame_timeline_slice_table() {
+    return &expected_frame_timeline_slice_table_;
+  }
+
+  const tables::ActualFrameTimelineSliceTable&
+  actual_frame_timeline_slice_table() const {
+    return actual_frame_timeline_slice_table_;
+  }
+
+  tables::ActualFrameTimelineSliceTable*
+  mutable_actual_frame_timeline_slice_table() {
+    return &actual_frame_timeline_slice_table_;
+  }
+
   const StringPool& string_pool() const { return string_pool_; }
   StringPool* mutable_string_pool() { return &string_pool_; }
 
@@ -861,6 +881,12 @@ class TraceStorage {
                                                               nullptr};
   tables::MemorySnapshotEdgeTable memory_snapshot_edge_table_{&string_pool_,
                                                               nullptr};
+
+  // FrameTimeline tables
+  tables::ExpectedFrameTimelineSliceTable expected_frame_timeline_slice_table_{
+      &string_pool_, &slice_table_};
+  tables::ActualFrameTimelineSliceTable actual_frame_timeline_slice_table_{
+      &string_pool_, &slice_table_};
 
   // The below array allow us to map between enums and their string
   // representations.

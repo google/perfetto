@@ -16,7 +16,8 @@
 
 SELECT RUN_METRIC('android/process_metadata.sql');
 
-CREATE TABLE IF NOT EXISTS android_special_classes AS
+DROP TABLE IF EXISTS android_special_classes;
+CREATE TABLE android_special_classes AS
 WITH RECURSIVE cls_visitor(cls_id, category) AS (
   SELECT id, name FROM heap_graph_class WHERE name IN (
     'android.view.View',
@@ -39,7 +40,8 @@ WITH RECURSIVE cls_visitor(cls_id, category) AS (
 )
 SELECT * FROM cls_visitor;
 
-CREATE VIEW IF NOT EXISTS java_heap_histogram_output AS
+DROP VIEW IF EXISTS java_heap_histogram_output;
+CREATE VIEW java_heap_histogram_output AS
 WITH
 -- Base histogram table
 heap_obj_histograms AS (

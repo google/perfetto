@@ -51,7 +51,6 @@
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/sqlite/stats_table.h"
 #include "src/trace_processor/sqlite/window_operator_table.h"
-#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/tp_metatrace.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/protozero_to_text.h"
@@ -809,6 +808,9 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
 
   RegisterDbTable(storage->graphics_frame_slice_table());
 
+  RegisterDbTable(storage->expected_frame_timeline_slice_table());
+  RegisterDbTable(storage->actual_frame_timeline_slice_table());
+
   RegisterDbTable(storage->metadata_table());
   RegisterDbTable(storage->cpu_table());
   RegisterDbTable(storage->cpu_freq_table());
@@ -848,13 +850,7 @@ void TraceProcessorImpl::NotifyEndOfFile() {
   context_.metadata_tracker->SetMetadata(
       metadata::trace_size_bytes,
       Variadic::Integer(static_cast<int64_t>(bytes_parsed_)));
-
-  std::pair<int64_t, int64_t> bounds =
-      context_.storage->GetTraceTimestampBoundsNs();
-  BuildBoundsTable(*db_, bounds);
-  if ((bounds.second - bounds.first) < 1000) {
-    context_.storage->SetStats(stats::trace_too_short, 1);
-  }
+  BuildBoundsTable(*db_, context_.storage->GetTraceTimestampBoundsNs());
 
   // Create a snapshot of all tables and views created so far. This is so later
   // we can drop all extra tables created by the UI and reset to the original

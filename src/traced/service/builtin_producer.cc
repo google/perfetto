@@ -17,11 +17,11 @@
 #include "src/traced/service/builtin_producer.h"
 
 #include <sys/types.h>
-#include <unistd.h>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/metatrace.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
@@ -62,10 +62,10 @@ BuiltinProducer::~BuiltinProducer() {
 
 void BuiltinProducer::ConnectInProcess(TracingService* svc) {
   endpoint_ = svc->ConnectProducer(
-      this, geteuid(), "traced",
+      this, base::GetCurrentUserId(), "traced",
       /*shared_memory_size_hint_bytes=*/16 * 1024, /*in_process=*/true,
       TracingService::ProducerSMBScrapingMode::kDisabled,
-      /*shmem_page_size_hint_bytes=*/4096);
+      /*shared_memory_page_size_hint_bytes=*/4096);
 }
 
 void BuiltinProducer::OnConnect() {

@@ -13,7 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-CREATE TABLE IF NOT EXISTS android_sysui_cuj_last_cuj AS
+DROP TABLE IF EXISTS android_sysui_cuj_last_cuj;
+CREATE TABLE android_sysui_cuj_last_cuj AS
   SELECT
     process.name AS process_name,
     process.upid AS upid,
@@ -37,39 +38,45 @@ CREATE TABLE IF NOT EXISTS android_sysui_cuj_last_cuj AS
   ORDER BY ts desc
   LIMIT 1;
 
-CREATE VIEW IF NOT EXISTS android_sysui_cuj_render_thread AS
+DROP VIEW IF EXISTS android_sysui_cuj_render_thread;
+CREATE VIEW android_sysui_cuj_render_thread AS
   SELECT thread.*, last_cuj.ts_start as ts_cuj_start, last_cuj.ts_end as ts_cuj_end
   FROM thread
   JOIN android_sysui_cuj_last_cuj last_cuj USING (upid)
   WHERE thread.name = 'RenderThread';
 
-CREATE VIEW IF NOT EXISTS android_sysui_cuj_gpu_completion_thread AS
+DROP VIEW IF EXISTS android_sysui_cuj_gpu_completion_thread;
+CREATE VIEW android_sysui_cuj_gpu_completion_thread AS
   SELECT thread.*, last_cuj.ts_start as ts_cuj_start, last_cuj.ts_end as ts_cuj_end
   FROM thread
   JOIN android_sysui_cuj_last_cuj last_cuj USING (upid)
   WHERE thread.name = 'GPU completion';
 
-CREATE VIEW IF NOT EXISTS android_sysui_cuj_hwc_release_thread AS
+DROP VIEW IF EXISTS android_sysui_cuj_hwc_release_thread;
+CREATE VIEW android_sysui_cuj_hwc_release_thread AS
   SELECT thread.*, last_cuj.ts_start as ts_cuj_start, last_cuj.ts_end as ts_cuj_end
   FROM thread
   JOIN android_sysui_cuj_last_cuj last_cuj USING (upid)
   WHERE thread.name = 'HWC release';
 
-CREATE TABLE IF NOT EXISTS android_sysui_cuj_main_thread_slices AS
+DROP TABLE IF EXISTS android_sysui_cuj_main_thread_slices;
+CREATE TABLE android_sysui_cuj_main_thread_slices AS
   SELECT slice.*, ts + dur AS ts_end
   FROM slice
   JOIN android_sysui_cuj_last_cuj last_cuj
     ON slice.track_id = last_cuj.main_thread_track_id
   WHERE ts >= last_cuj.ts_start AND ts <= last_cuj.ts_end;
 
-CREATE TABLE IF NOT EXISTS android_sysui_cuj_render_thread_slices AS
+DROP TABLE IF EXISTS android_sysui_cuj_render_thread_slices;
+CREATE TABLE android_sysui_cuj_render_thread_slices AS
   SELECT slice.*, ts + dur AS ts_end
   FROM slice
   JOIN thread_track ON slice.track_id = thread_track.id
   JOIN android_sysui_cuj_render_thread USING (utid)
   WHERE ts >= ts_cuj_start AND ts <= ts_cuj_end;
 
-CREATE TABLE IF NOT EXISTS android_sysui_cuj_gpu_completion_slices AS
+DROP TABLE IF EXISTS android_sysui_cuj_gpu_completion_slices;
+CREATE TABLE android_sysui_cuj_gpu_completion_slices AS
   SELECT
     slice.*,
     ts + dur AS ts_end,
@@ -82,7 +89,8 @@ CREATE TABLE IF NOT EXISTS android_sysui_cuj_gpu_completion_slices AS
     slice.name LIKE 'waiting for GPU completion %'
     AND ts >= ts_cuj_start AND ts <= ts_cuj_end;
 
-CREATE TABLE IF NOT EXISTS android_sysui_cuj_hwc_release_slices AS
+DROP TABLE IF EXISTS android_sysui_cuj_hwc_release_slices;
+CREATE TABLE android_sysui_cuj_hwc_release_slices AS
   SELECT
     slice.*,
     ts + dur as ts_end,
@@ -95,7 +103,8 @@ CREATE TABLE IF NOT EXISTS android_sysui_cuj_hwc_release_slices AS
     slice.name LIKE 'waiting for HWC release %'
     AND ts >= ts_cuj_start AND ts <= ts_cuj_end;
 
-CREATE TABLE IF NOT EXISTS android_sysui_cuj_frames AS
+DROP TABLE IF EXISTS android_sysui_cuj_frames;
+CREATE TABLE android_sysui_cuj_frames AS
   WITH gcs_to_rt_match AS (
     -- Match GPU Completion with the last RT slice before it
     SELECT
@@ -149,18 +158,22 @@ CREATE TABLE IF NOT EXISTS android_sysui_cuj_frames AS
   GROUP BY f.mts_ts
   HAVING gpu_completions >= 1;
 
-CREATE VIEW IF NOT EXISTS android_sysui_cuj_frame_main_thread_bounds AS
+DROP VIEW IF EXISTS android_sysui_cuj_frame_main_thread_bounds;
+CREATE VIEW android_sysui_cuj_frame_main_thread_bounds AS
 SELECT frame_number, ts_main_thread_start as ts, dur_main_thread as dur
 FROM android_sysui_cuj_frames;
 
-CREATE VIEW IF NOT EXISTS android_sysui_cuj_main_thread_state_data AS
+DROP VIEW IF EXISTS android_sysui_cuj_main_thread_state_data;
+CREATE VIEW android_sysui_cuj_main_thread_state_data AS
 SELECT * FROM thread_state
 WHERE utid = (SELECT main_thread_utid FROM android_sysui_cuj_last_cuj);
 
-CREATE VIRTUAL TABLE IF NOT EXISTS android_sysui_cuj_main_thread_state_vt
+DROP TABLE IF EXISTS android_sysui_cuj_main_thread_state_vt;
+CREATE VIRTUAL TABLE android_sysui_cuj_main_thread_state_vt
 USING span_left_join(android_sysui_cuj_frame_main_thread_bounds, android_sysui_cuj_main_thread_state_data PARTITIONED utid);
 
-CREATE TABLE IF NOT EXISTS android_sysui_cuj_main_thread_state AS
+DROP TABLE IF EXISTS android_sysui_cuj_main_thread_state;
+CREATE TABLE android_sysui_cuj_main_thread_state AS
   SELECT
     frame_number,
     state,
@@ -170,18 +183,22 @@ CREATE TABLE IF NOT EXISTS android_sysui_cuj_main_thread_state AS
   GROUP BY frame_number, state, io_wait
   HAVING dur > 0;
 
-CREATE VIEW IF NOT EXISTS android_sysui_cuj_frame_render_thread_bounds AS
+DROP VIEW IF EXISTS android_sysui_cuj_frame_render_thread_bounds;
+CREATE VIEW android_sysui_cuj_frame_render_thread_bounds AS
 SELECT frame_number, ts_render_thread_start as ts, dur_render_thread as dur
 FROM android_sysui_cuj_frames;
 
-CREATE VIEW IF NOT EXISTS android_sysui_cuj_render_thread_state_data AS
+DROP VIEW IF EXISTS android_sysui_cuj_render_thread_state_data;
+CREATE VIEW android_sysui_cuj_render_thread_state_data AS
 SELECT * FROM thread_state
 WHERE utid in (SELECT utid FROM android_sysui_cuj_render_thread);
 
-CREATE VIRTUAL TABLE IF NOT EXISTS android_sysui_cuj_render_thread_state_vt
+DROP TABLE IF EXISTS android_sysui_cuj_render_thread_state_vt;
+CREATE VIRTUAL TABLE android_sysui_cuj_render_thread_state_vt
 USING span_left_join(android_sysui_cuj_frame_render_thread_bounds, android_sysui_cuj_render_thread_state_data PARTITIONED utid);
 
-CREATE TABLE IF NOT EXISTS android_sysui_cuj_render_thread_state AS
+DROP TABLE IF EXISTS android_sysui_cuj_render_thread_state;
+CREATE TABLE android_sysui_cuj_render_thread_state AS
   SELECT
     frame_number,
     state,
@@ -191,7 +208,8 @@ CREATE TABLE IF NOT EXISTS android_sysui_cuj_render_thread_state AS
   GROUP BY frame_number, state, io_wait
   HAVING dur > 0;
 
-CREATE TABLE IF NOT EXISTS android_sysui_cuj_main_thread_binder AS
+DROP TABLE IF EXISTS android_sysui_cuj_main_thread_binder;
+CREATE TABLE android_sysui_cuj_main_thread_binder AS
   SELECT
     f.frame_number,
     SUM(mts.dur) AS dur,
@@ -202,7 +220,8 @@ CREATE TABLE IF NOT EXISTS android_sysui_cuj_main_thread_binder AS
   WHERE mts.name = 'binder transaction'
   GROUP BY f.frame_number;
 
-CREATE TABLE IF NOT EXISTS android_sysui_cuj_jank_causes AS
+DROP TABLE IF EXISTS android_sysui_cuj_jank_causes;
+CREATE TABLE android_sysui_cuj_jank_causes AS
   SELECT
   frame_number,
   'RenderThread - long shader_compile' AS jank_cause
@@ -295,7 +314,8 @@ CREATE TABLE IF NOT EXISTS android_sysui_cuj_jank_causes AS
     AND mts.dur + rts.dur > 15000000;
 
 -- TODO(b/175098682): Switch to use async slices
-CREATE VIEW IF NOT EXISTS android_sysui_cuj_event AS
+DROP VIEW IF EXISTS android_sysui_cuj_event;
+CREATE VIEW android_sysui_cuj_event AS
  SELECT
     'slice' as track_type,
     (SELECT slice_name FROM android_sysui_cuj_last_cuj)
@@ -307,7 +327,8 @@ FROM android_sysui_cuj_frames f
 JOIN android_sysui_cuj_jank_causes jc USING (frame_number)
 GROUP BY track_type, track_name, ts, dur;
 
-CREATE VIEW IF NOT EXISTS android_sysui_cuj_output AS
+DROP VIEW IF EXISTS android_sysui_cuj_output;
+CREATE VIEW android_sysui_cuj_output AS
 SELECT
   AndroidSysUiCujMetrics(
       'frames',

@@ -53,6 +53,10 @@ on property:persist.traced.enable=1
     # - Read by shell and incidentd.
     mkdir /data/misc/perfetto-traces 0773 root shell
 
+    # Traces in this directory are only accessed by dumpstate (read+unlink) and
+    # by the bug reporting UI (ls+getattr).
+    mkdir /data/misc/perfetto-traces/bugreport 0773 root shell
+
     # This directory allows shell to save configs file in a place where the
     # perfetto cmdline client can read then. /data/local/tmp/ isn't safe because
     # too many other domains can write into that. See b/170404111.

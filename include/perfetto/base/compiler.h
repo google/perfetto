@@ -121,6 +121,24 @@ extern "C" void __asan_unpoison_memory_region(void const volatile*, size_t);
 #define PERFETTO_EXPORT_ENTRYPOINT
 #endif
 
+// Disables thread safety analysis for functions where the compiler can't
+// accurate figure out which locks are being held.
+#if defined(__clang__)
+#define PERFETTO_NO_THREAD_SAFETY_ANALYSIS \
+  __attribute__((no_thread_safety_analysis))
+#else
+#define PERFETTO_NO_THREAD_SAFETY_ANALYSIS
+#endif
+
+// Avoid calling the exit-time destructor on an object with static lifetime.
+#if defined(__clang__) && __has_attribute(no_destroy)
+#define PERFETTO_HAS_NO_DESTROY() 1
+#define PERFETTO_NO_DESTROY __attribute__((no_destroy))
+#else
+#define PERFETTO_HAS_NO_DESTROY() 0
+#define PERFETTO_NO_DESTROY
+#endif
+
 namespace perfetto {
 namespace base {
 

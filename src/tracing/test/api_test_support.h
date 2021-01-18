@@ -43,6 +43,14 @@ bool EnableDirectSMBPatching(BackendType backend_type);
 
 void DisableReconnectLimit();
 
+struct TestTempFile {
+  int fd;
+  std::string path;
+};
+
+// The caller must close(2) the returned TempFile.fd.
+TestTempFile CreateTempFile();
+
 }  // namespace test
 }  // namespace perfetto
 

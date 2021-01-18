@@ -555,7 +555,7 @@ message ProcessStatsConfig {
 // Begin of protos/perfetto/config/profiling/heapprofd_config.proto
 
 // Configuration for go/heapprofd.
-// Next id: 24
+// Next id: 26
 message HeapprofdConfig {
   message ContinuousDumpConfig {
     // ms to wait before first dump.
@@ -582,6 +582,14 @@ message HeapprofdConfig {
   // BUGS
   // Before Android 12, setting this to 0 would crash the target process.
   optional uint64 sampling_interval_bytes = 1;
+
+  // If less than the given numbers of bytes are left free in the shared
+  // memory buffer, increase sampling interval by a factor of two.
+  // Adaptive sampling is disabled when set to 0.
+  optional uint64 adaptive_sampling_shmem_threshold = 24;
+  // Stop doubling the sampling_interval once the sampling interval has reached
+  // this value.
+  optional uint64 adaptive_sampling_max_sampling_interval_bytes = 25;
 
   // E.g. surfaceflinger, com.android.phone
   // This input is normalized in the following way: if it contains slashes,
@@ -1530,7 +1538,7 @@ message TraceConfig {
       // The producer must specify this name to activate the trigger.
       optional string name = 1;
 
-      // The a std::regex that will match the producer that can activate this
+      // An std::regex that will match the producer that can activate this
       // trigger. This is optional. If unset any producers can activate this
       // trigger.
       optional string producer_name_regex = 2;
@@ -1538,6 +1546,11 @@ message TraceConfig {
       // After a trigger is received either in START_TRACING or STOP_TRACING
       // mode then the trace will end |stop_delay_ms| after triggering.
       optional uint32 stop_delay_ms = 3;
+
+      // Limits the number of traces this trigger can start/stop in a rolling
+      // 24 hour window. If this field is unset or zero, no limit is applied and
+      // activiation of this trigger *always* starts/stops the trace.
+      optional uint32 max_per_24_h = 4;
     }
     // A list of triggers which are related to this configuration. If ANY
     // trigger is seen then an action will be performed based on |trigger_mode|.
@@ -1596,9 +1609,9 @@ message TraceConfig {
   }
   optional CompressionType compression_type = 24;
 
-  // Android-only. Debug builds only. Not for general use. If set, saves a
-  // Dropbox trace into an incident. This field is read by perfetto_cmd, rather
-  // than the tracing service. All fields are mandatory.
+  // Android-only. Not for general use. If set, saves a Dropbox trace into an
+  // incident. This field is read by perfetto_cmd, rather than the tracing
+  // service. All fields are mandatory.
   message IncidentReportConfig {
     optional string destination_package = 1;
     optional string destination_class = 2;
@@ -1864,70 +1877,114 @@ message FrameTimelineEvent {
     PRESENT_DROPPED = 4;
   };
 
-  // Represents the app's work on a frame.
-  // Next id: 13
-  message SurfaceFrame {
+  // Indicates the start of expected timeline slice for SurfaceFrames.
+  message ExpectedSurfaceFrameStart {
+    // Cookie used to correlate between the start and end messages of the same
+    // frame. Since all values except the ts are same for start and end, cookie
+    // helps in preventing redundant data transmission.
+    // The same cookie is used only by start and end messages of a single frame
+    // and is otherwise unique.
+    optional int64 cookie = 1;
+
     // Token received by the app for its work. Can be shared between multiple
     // layers of the same app (example: pip mode).
-    optional int64 token = 1;
-
+    optional int64 token = 2;
     // The corresponding DisplayFrame token is required to link the App's work
     // with SurfaceFlinger's work. Many SurfaceFrames can be mapped to a single
     // DisplayFrame.
     // this.display_frame_token = DisplayFrame.token
-    optional int64 display_frame_token = 12;
-
-    optional PresentType present_type = 2;
-    optional bool on_time_finish = 3;
-    optional bool gpu_composition = 4;
-    optional JankType jank_type = 5;
-
-    // Timestamps in nanoseconds using CLOCK_MONOTONIC.
-    // Expected timeline = expected_start to expected_end.
-    optional int64 expected_start_ns = 6;
-    optional int64 expected_end_ns = 7;
-
-    // (b/172587309) Apps currently do not provide actual start time.
-    // Actual timeline = expected_start to actual_end.
-    optional int64 actual_start_ns = 8;
-    // If two SufaceFrames have the same token and same pid, then
-    //  actual timeline =
-    //    expected_start to max(frame1.actual_end, frame2.actual_end)
-    optional int64 actual_end_ns = 9;
+    optional int64 display_frame_token = 3;
 
     // Pid of the app. Used in creating the timeline tracks (and slices) inside
     // the respective process track group.
-    optional int32 pid = 10;
-    optional string layer_name = 11;
+    optional int32 pid = 4;
+    optional string layer_name = 5;
   };
 
-  // Represents the SurfaceFlinger's work on a frame.
-  message DisplayFrame {
+  // Indicates the start of actual timeline slice for SurfaceFrames. Also
+  // includes the jank information.
+  message ActualSurfaceFrameStart {
+    // Cookie used to correlate between the start and end messages of the same
+    // frame. Since all values except the ts are same for start and end, cookie
+    // helps in preventing redundant data transmission.
+    // The same cookie is used only by start and end messages of a single frame
+    // and is otherwise unique.
+    optional int64 cookie = 1;
+
+    // Token received by the app for its work. Can be shared between multiple
+    // layers of the same app (example: pip mode).
+    optional int64 token = 2;
+    // The corresponding DisplayFrame token is required to link the App's work
+    // with SurfaceFlinger's work. Many SurfaceFrames can be mapped to a single
+    // DisplayFrame.
+    // this.display_frame_token = DisplayFrame.token
+    optional int64 display_frame_token = 3;
+
+    // Pid of the app. Used in creating the timeline tracks (and slices) inside
+    // the respective process track group.
+    optional int32 pid = 4;
+    optional string layer_name = 5;
+
+    optional PresentType present_type = 6;
+    optional bool on_time_finish = 7;
+    optional bool gpu_composition = 8;
+    optional JankType jank_type = 9;
+  };
+
+  // Indicates the start of expected timeline slice for DisplayFrames.
+  message ExpectedDisplayFrameStart {
+    // Cookie used to correlate between the start and end messages of the same
+    // frame. Since all values except the ts are same for start and end, cookie
+    // helps in preventing redundant data transmission.
+    // The same cookie is used only by start and end messages of a single frame
+    // and is otherwise unique.
+    optional int64 cookie = 1;
+
     // Token received by SurfaceFlinger for its work
     // this.token = SurfaceFrame.display_frame_token
-    optional int64 token = 1;
-    optional PresentType present_type = 2;
-    optional bool on_time_finish = 3;
-    optional bool gpu_composition = 4;
-    optional JankType jank_type = 5;
-
-    // Timestamps in nanoseconds using CLOCK_MONOTONIC.
-    // Expected timeline = expected_start to expected_end.
-    optional int64 expected_start_ns = 6;
-    optional int64 expected_end_ns = 7;
-
-    // Actual timeline = actual_start to actual_end.
-    optional int64 actual_start_ns = 8;
-    optional int64 actual_end_ns = 9;
+    optional int64 token = 2;
 
     // Pid of SurfaceFlinger. Used in creating the timeline tracks (and slices)
     // inside the SurfaceFlinger process group.
-    optional int32 pid = 10;
+    optional int32 pid = 3;
   };
 
+  // Indicates the start of actual timeline slice for DisplayFrames. Also
+  // includes the jank information.
+  message ActualDisplayFrameStart {
+    // Cookie used to correlate between the start and end messages of the same
+    // frame. Since all values except the ts are same for start and end, cookie
+    // helps in preventing redundant data transmission.
+    // The same cookie is used only by start and end messages of a single frame
+    // and is otherwise unique.
+    optional int64 cookie = 1;
+
+    // Token received by SurfaceFlinger for its work
+    // this.token = SurfaceFrame.display_frame_token
+    optional int64 token = 2;
+
+    // Pid of SurfaceFlinger. Used in creating the timeline tracks (and slices)
+    // inside the SurfaceFlinger process group.
+    optional int32 pid = 3;
+
+    optional PresentType present_type = 4;
+    optional bool on_time_finish = 5;
+    optional bool gpu_composition = 6;
+    optional JankType jank_type = 7;
+  };
+
+  // FrameEnd just sends the cookie to indicate that the corresponding
+  // <display/surface>frame slice's end.
+  message FrameEnd { optional int64 cookie = 1; };
+
   oneof event {
-    DisplayFrame display_frame = 1;
-    SurfaceFrame surface_frame = 2;
+    ExpectedDisplayFrameStart expected_display_frame_start = 1;
+    ActualDisplayFrameStart actual_display_frame_start = 2;
+
+    ExpectedSurfaceFrameStart expected_surface_frame_start = 3;
+    ActualSurfaceFrameStart actual_surface_frame_start = 4;
+
+    FrameEnd frame_end = 5;
   }
 }
 
@@ -7293,6 +7350,7 @@ message ProfilePacket {
     optional bool hit_guardrail = 10;
 
     optional string heap_name = 11;
+    optional uint64 sampling_interval_bytes = 12;
 
     // Timestamp of the state of the target process that this dump represents.
     // This can be different to the timestamp of the TracePackets for various
@@ -8328,24 +8386,3 @@ message Trace {
 }
 
 // End of protos/perfetto/trace/trace.proto
-
-// Begin of protos/perfetto/trace/test_extensions.proto
-
-// Extensions for TrackEvent used for integration testing. This proto file is
-// compiled to descriptor and is used in tools/diff_test_trace_processor.py.
-//
-// See docs/design-docs/extensions.md for more details.
-message TestExtension {
-  extend TrackEvent {
-    optional string string_extension_for_testing = 9900;
-    repeated int32 int_extension_for_testing = 9901;
-    optional string omitted_extension_for_testing = 9902;
-    optional TestExtensionChild nested_message_extension_for_testing = 9903;
-  }
-}
-
-message TestExtensionChild {
-  optional string child_field_for_testing = 1;
-}
-
-// End of protos/perfetto/trace/test_extensions.proto

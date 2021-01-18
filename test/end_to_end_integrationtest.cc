@@ -147,7 +147,7 @@ class Exec {
       cmd.insert(cmd.end(), args.begin(), args.end());
     }
 
-    if (access(cmd[0].c_str(), F_OK)) {
+    if (!base::FileExists(cmd[0])) {
       PERFETTO_FATAL(
           "Cannot find %s. Make sure that the target has been built and, on "
           "Android, pushed to the device.",

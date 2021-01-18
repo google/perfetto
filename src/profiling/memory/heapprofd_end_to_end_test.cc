@@ -59,9 +59,7 @@ constexpr size_t kStartupAllocSize = 10;
 constexpr size_t kFirstIterationBytes = 5;
 constexpr size_t kSecondIterationBytes = 7;
 
-constexpr const char* kHeapprofdModeProperty = "heapprofd.userdebug.mode";
-
-enum class TestMode { kCentral, kFork, kStatic };
+enum class TestMode { kCentral, kStatic };
 enum class AllocatorMode { kMalloc, kCustom };
 
 using ::testing::AnyOf;
@@ -108,62 +106,6 @@ TraceConfig MakeTraceConfig(F fn) {
   ds_config->set_heapprofd_config_raw(heapprofd_config.SerializeAsString());
   return trace_config;
 }
-
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-
-std::string ReadProperty(const std::string& name, std::string def) {
-  const prop_info* pi = __system_property_find(name.c_str());
-  if (pi) {
-    __system_property_read_callback(
-        pi,
-        [](void* cookie, const char*, const char* value, uint32_t) {
-          *reinterpret_cast<std::string*>(cookie) = value;
-        },
-        &def);
-  }
-  return def;
-}
-
-int SetModeProperty(std::string* value) {
-  if (value) {
-    __system_property_set(kHeapprofdModeProperty, value->c_str());
-    delete value;
-  }
-  return 0;
-}
-
-base::ScopedResource<std::string*, SetModeProperty, nullptr> EnableFork() {
-  std::string prev_property_value = ReadProperty(kHeapprofdModeProperty, "");
-  __system_property_set(kHeapprofdModeProperty, "fork");
-  return base::ScopedResource<std::string*, SetModeProperty, nullptr>(
-      new std::string(prev_property_value));
-}
-
-base::ScopedResource<std::string*, SetModeProperty, nullptr> DisableFork() {
-  std::string prev_property_value = ReadProperty(kHeapprofdModeProperty, "");
-  __system_property_set(kHeapprofdModeProperty, "");
-  return base::ScopedResource<std::string*, SetModeProperty, nullptr>(
-      new std::string(prev_property_value));
-}
-
-#else
-std::string ReadProperty(const std::string&, std::string) {
-  PERFETTO_FATAL("Only works on Android.");
-}
-
-int SetModeProperty(std::string*) {
-  PERFETTO_FATAL("Only works on Android.");
-}
-
-base::ScopedResource<std::string*, SetModeProperty, nullptr> EnableFork() {
-  PERFETTO_FATAL("Only works on Android.");
-}
-
-base::ScopedResource<std::string*, SetModeProperty, nullptr> DisableFork() {
-  PERFETTO_FATAL("Only works on Android.");
-}
-
-#endif
 
 void CustomAllocateAndFree(size_t bytes) {
   static uint32_t heap_id = AHeapProfile_registerHeap(AHeapInfo_create("test"));
@@ -497,9 +439,6 @@ std::string Suffix(const std::tuple<TestMode, AllocatorMode>& param) {
     case TestMode::kCentral:
       result += "CentralMode";
       break;
-    case TestMode::kFork:
-      result += "ForkMode";
-      break;
     case TestMode::kStatic:
       result += "StaticMode";
       break;
@@ -529,24 +468,10 @@ class HeapprofdEndToEnd
     // and then set to 1 again too quickly, init decides that the service is
     // "restarting" and waits before restarting it.
     usleep(50000);
-    switch (test_mode()) {
-      case TestMode::kCentral:
-        fork_prop_ = DisableFork();
-        PERFETTO_CHECK(ReadProperty(kHeapprofdModeProperty, "").empty());
-        break;
-      case TestMode::kFork:
-        fork_prop_ = EnableFork();
-        PERFETTO_CHECK(ReadProperty(kHeapprofdModeProperty, "") == "fork");
-        break;
-      case TestMode::kStatic:
-        break;
-    }
   }
 
  protected:
   base::TestTaskRunner task_runner;
-  base::ScopedResource<std::string*, SetModeProperty, nullptr> fork_prop_{
-      nullptr};
 
   TestMode test_mode() { return std::get<0>(GetParam()); }
   AllocatorMode allocator_mode() { return std::get<1>(GetParam()); }
@@ -670,7 +595,8 @@ class HeapprofdEndToEnd
 
   void ValidateHasSamples(TestHelper* helper,
                           uint64_t pid,
-                          const std::string& heap_name) {
+                          const std::string& heap_name,
+                          uint64_t sampling_interval) {
     const auto& packets = helper->trace();
     ASSERT_GT(packets.size(), 0u);
     size_t profile_packets = 0;
@@ -681,6 +607,7 @@ class HeapprofdEndToEnd
       for (const auto& dump : packet.profile_packet().process_dumps()) {
         if (dump.pid() != pid || dump.heap_name() != heap_name)
           continue;
+        EXPECT_EQ(dump.sampling_interval_bytes(), sampling_interval);
         for (const auto& sample : dump.samples()) {
           last_allocated = sample.self_allocated();
           last_freed = sample.self_freed();
@@ -739,12 +666,13 @@ TEST_P(HeapprofdEndToEnd, Disabled) {
 
 TEST_P(HeapprofdEndToEnd, Smoke) {
   constexpr size_t kAllocSize = 1024;
+  constexpr size_t kSamplingInterval = 1;
 
   base::Subprocess child = ForkContinuousAlloc(allocator_mode(), kAllocSize);
   const uint64_t pid = static_cast<uint64_t>(child.pid());
 
   TraceConfig trace_config = MakeTraceConfig([this, pid](HeapprofdConfig* cfg) {
-    cfg->set_sampling_interval_bytes(1);
+    cfg->set_sampling_interval_bytes(kSamplingInterval);
     cfg->add_pid(pid);
     cfg->add_heaps(allocator_name());
     ContinuousDump(cfg);
@@ -755,7 +683,7 @@ TEST_P(HeapprofdEndToEnd, Smoke) {
   PrintStats(helper.get());
   KillAssertRunning(&child);
 
-  ValidateHasSamples(helper.get(), pid, allocator_name());
+  ValidateHasSamples(helper.get(), pid, allocator_name(), kSamplingInterval);
   ValidateOnlyPID(helper.get(), pid);
   ValidateSampleSizes(helper.get(), pid, kAllocSize);
 }
@@ -763,13 +691,14 @@ TEST_P(HeapprofdEndToEnd, Smoke) {
 TEST_P(HeapprofdEndToEnd, TwoAllocators) {
   constexpr size_t kCustomAllocSize = 1024;
   constexpr size_t kAllocSize = 7;
+  constexpr size_t kSamplingInterval = 1;
 
   base::Subprocess child =
       ForkContinuousAlloc(allocator_mode(), kAllocSize, kCustomAllocSize);
   const uint64_t pid = static_cast<uint64_t>(child.pid());
 
   TraceConfig trace_config = MakeTraceConfig([this, pid](HeapprofdConfig* cfg) {
-    cfg->set_sampling_interval_bytes(1);
+    cfg->set_sampling_interval_bytes(kSamplingInterval);
     cfg->add_pid(pid);
     cfg->add_heaps(allocator_name());
     cfg->add_heaps("secondary");
@@ -781,8 +710,8 @@ TEST_P(HeapprofdEndToEnd, TwoAllocators) {
   PrintStats(helper.get());
   KillAssertRunning(&child);
 
-  ValidateHasSamples(helper.get(), pid, "secondary");
-  ValidateHasSamples(helper.get(), pid, allocator_name());
+  ValidateHasSamples(helper.get(), pid, "secondary", kSamplingInterval);
+  ValidateHasSamples(helper.get(), pid, allocator_name(), kSamplingInterval);
   ValidateOnlyPID(helper.get(), pid);
   ValidateSampleSizes(helper.get(), pid, kCustomAllocSize, "secondary");
   ValidateSampleSizes(helper.get(), pid, kAllocSize, allocator_name());
@@ -791,13 +720,14 @@ TEST_P(HeapprofdEndToEnd, TwoAllocators) {
 TEST_P(HeapprofdEndToEnd, TwoAllocatorsAll) {
   constexpr size_t kCustomAllocSize = 1024;
   constexpr size_t kAllocSize = 7;
+  constexpr size_t kSamplingInterval = 1;
 
   base::Subprocess child =
       ForkContinuousAlloc(allocator_mode(), kAllocSize, kCustomAllocSize);
   const uint64_t pid = static_cast<uint64_t>(child.pid());
 
   TraceConfig trace_config = MakeTraceConfig([pid](HeapprofdConfig* cfg) {
-    cfg->set_sampling_interval_bytes(1);
+    cfg->set_sampling_interval_bytes(kSamplingInterval);
     cfg->add_pid(pid);
     cfg->set_all_heaps(true);
     ContinuousDump(cfg);
@@ -808,8 +738,8 @@ TEST_P(HeapprofdEndToEnd, TwoAllocatorsAll) {
   PrintStats(helper.get());
   KillAssertRunning(&child);
 
-  ValidateHasSamples(helper.get(), pid, "secondary");
-  ValidateHasSamples(helper.get(), pid, allocator_name());
+  ValidateHasSamples(helper.get(), pid, "secondary", kSamplingInterval);
+  ValidateHasSamples(helper.get(), pid, allocator_name(), kSamplingInterval);
   ValidateOnlyPID(helper.get(), pid);
   ValidateSampleSizes(helper.get(), pid, kCustomAllocSize, "secondary");
   ValidateSampleSizes(helper.get(), pid, kAllocSize, allocator_name());
@@ -980,6 +910,7 @@ TEST_P(HeapprofdEndToEnd, CustomLifetime) {
 TEST_P(HeapprofdEndToEnd, TwoProcesses) {
   constexpr size_t kAllocSize = 1024;
   constexpr size_t kAllocSize2 = 7;
+  constexpr size_t kSamplingInterval = 1;
 
   base::Subprocess child = ForkContinuousAlloc(allocator_mode(), kAllocSize);
   base::Subprocess child2 = ForkContinuousAlloc(allocator_mode(), kAllocSize2);
@@ -988,7 +919,7 @@ TEST_P(HeapprofdEndToEnd, TwoProcesses) {
 
   TraceConfig trace_config =
       MakeTraceConfig([this, pid, pid2](HeapprofdConfig* cfg) {
-        cfg->set_sampling_interval_bytes(1);
+        cfg->set_sampling_interval_bytes(kSamplingInterval);
         cfg->add_pid(pid);
         cfg->add_pid(static_cast<uint64_t>(pid2));
         cfg->add_heaps(allocator_name());
@@ -1001,20 +932,21 @@ TEST_P(HeapprofdEndToEnd, TwoProcesses) {
   KillAssertRunning(&child);
   KillAssertRunning(&child2);
 
-  ValidateHasSamples(helper.get(), pid, allocator_name());
+  ValidateHasSamples(helper.get(), pid, allocator_name(), kSamplingInterval);
   ValidateSampleSizes(helper.get(), pid, kAllocSize);
   ValidateHasSamples(helper.get(), static_cast<uint64_t>(pid2),
-                     allocator_name());
+                     allocator_name(), kSamplingInterval);
   ValidateSampleSizes(helper.get(), static_cast<uint64_t>(pid2), kAllocSize2);
 }
 
 TEST_P(HeapprofdEndToEnd, FinalFlush) {
   constexpr size_t kAllocSize = 1024;
+  constexpr size_t kSamplingInterval = 1;
 
   base::Subprocess child = ForkContinuousAlloc(allocator_mode(), kAllocSize);
   const uint64_t pid = static_cast<uint64_t>(child.pid());
   TraceConfig trace_config = MakeTraceConfig([this, pid](HeapprofdConfig* cfg) {
-    cfg->set_sampling_interval_bytes(1);
+    cfg->set_sampling_interval_bytes(kSamplingInterval);
     cfg->add_pid(pid);
     cfg->add_heaps(allocator_name());
   });
@@ -1024,7 +956,7 @@ TEST_P(HeapprofdEndToEnd, FinalFlush) {
   PrintStats(helper.get());
   KillAssertRunning(&child);
 
-  ValidateHasSamples(helper.get(), pid, allocator_name());
+  ValidateHasSamples(helper.get(), pid, allocator_name(), kSamplingInterval);
   ValidateOnlyPID(helper.get(), pid);
   ValidateSampleSizes(helper.get(), pid, kAllocSize);
 }
@@ -1296,6 +1228,8 @@ TEST_P(HeapprofdEndToEnd, DiscoverByNameDenormalizedCmdline) {
 }
 
 TEST_P(HeapprofdEndToEnd, ReInit) {
+  constexpr size_t kSamplingInterval = 1;
+
   // We cannot use base::Pipe because that assumes we want CLOEXEC.
   // We do NOT want CLOEXEC as this gets used by the RunReInit in the child.
   int signal_pipe[2];
@@ -1334,7 +1268,7 @@ TEST_P(HeapprofdEndToEnd, ReInit) {
   close(ack_pipe_wr);
 
   TraceConfig trace_config = MakeTraceConfig([this, pid](HeapprofdConfig* cfg) {
-    cfg->set_sampling_interval_bytes(1);
+    cfg->set_sampling_interval_bytes(kSamplingInterval);
     cfg->add_pid(pid);
     cfg->add_heaps(allocator_name());
   });
@@ -1343,7 +1277,7 @@ TEST_P(HeapprofdEndToEnd, ReInit) {
   WRITE_TRACE(helper->full_trace());
 
   PrintStats(helper.get());
-  ValidateHasSamples(helper.get(), pid, allocator_name());
+  ValidateHasSamples(helper.get(), pid, allocator_name(), kSamplingInterval);
   ValidateOnlyPID(helper.get(), pid);
   ValidateSampleSizes(helper.get(), pid, kFirstIterationBytes);
 
@@ -1375,12 +1309,14 @@ TEST_P(HeapprofdEndToEnd, ReInit) {
   PrintStats(helper2.get());
   KillAssertRunning(&child);
 
-  ValidateHasSamples(helper2.get(), pid, allocator_name());
+  ValidateHasSamples(helper2.get(), pid, allocator_name(), kSamplingInterval);
   ValidateOnlyPID(helper2.get(), pid);
   ValidateSampleSizes(helper2.get(), pid, kSecondIterationBytes);
 }
 
 TEST_P(HeapprofdEndToEnd, ReInitAfterInvalid) {
+  constexpr size_t kSamplingInterval = 1;
+
   // We cannot use base::Pipe because that assumes we want CLOEXEC.
   // We do NOT want CLOEXEC as this gets used by the RunReInit in the child.
   int signal_pipe[2];
@@ -1419,7 +1355,7 @@ TEST_P(HeapprofdEndToEnd, ReInitAfterInvalid) {
   close(ack_pipe_wr);
 
   TraceConfig trace_config = MakeTraceConfig([this, pid](HeapprofdConfig* cfg) {
-    cfg->set_sampling_interval_bytes(1);
+    cfg->set_sampling_interval_bytes(kSamplingInterval);
     cfg->add_pid(pid);
     cfg->add_heaps(allocator_name());
   });
@@ -1428,7 +1364,7 @@ TEST_P(HeapprofdEndToEnd, ReInitAfterInvalid) {
   WRITE_TRACE(helper->full_trace());
 
   PrintStats(helper.get());
-  ValidateHasSamples(helper.get(), pid, allocator_name());
+  ValidateHasSamples(helper.get(), pid, allocator_name(), kSamplingInterval);
   ValidateOnlyPID(helper.get(), pid);
   ValidateSampleSizes(helper.get(), pid, kFirstIterationBytes);
 
@@ -1460,19 +1396,20 @@ TEST_P(HeapprofdEndToEnd, ReInitAfterInvalid) {
   PrintStats(helper2.get());
   KillAssertRunning(&child);
 
-  ValidateHasSamples(helper2.get(), pid, allocator_name());
+  ValidateHasSamples(helper2.get(), pid, allocator_name(), kSamplingInterval);
   ValidateOnlyPID(helper2.get(), pid);
   ValidateSampleSizes(helper2.get(), pid, kSecondIterationBytes);
 }
 
 TEST_P(HeapprofdEndToEnd, ConcurrentSession) {
   constexpr size_t kAllocSize = 1024;
+  constexpr size_t kSamplingInterval = 1;
 
   base::Subprocess child = ForkContinuousAlloc(allocator_mode(), kAllocSize);
   const uint64_t pid = static_cast<uint64_t>(child.pid());
 
   TraceConfig trace_config = MakeTraceConfig([this, pid](HeapprofdConfig* cfg) {
-    cfg->set_sampling_interval_bytes(1);
+    cfg->set_sampling_interval_bytes(kSamplingInterval);
     cfg->add_pid(pid);
     cfg->add_heaps(allocator_name());
     ContinuousDump(cfg);
@@ -1502,7 +1439,7 @@ TEST_P(HeapprofdEndToEnd, ConcurrentSession) {
   PrintStats(helper_concurrent.get());
   KillAssertRunning(&child);
 
-  ValidateHasSamples(helper.get(), pid, allocator_name());
+  ValidateHasSamples(helper.get(), pid, allocator_name(), kSamplingInterval);
   ValidateOnlyPID(helper.get(), pid);
   ValidateSampleSizes(helper.get(), pid, kAllocSize);
   ValidateRejectedConcurrent(helper.get(), pid, false);
@@ -1612,9 +1549,7 @@ INSTANTIATE_TEST_CASE_P(
     Run,
     HeapprofdEndToEnd,
     Values(std::make_tuple(TestMode::kCentral, AllocatorMode::kMalloc),
-           std::make_tuple(TestMode::kFork, AllocatorMode::kMalloc),
-           std::make_tuple(TestMode::kCentral, AllocatorMode::kCustom),
-           std::make_tuple(TestMode::kFork, AllocatorMode::kCustom)),
+           std::make_tuple(TestMode::kCentral, AllocatorMode::kCustom)),
     TestSuffix);
 #endif
 

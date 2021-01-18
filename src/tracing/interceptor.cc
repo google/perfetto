@@ -30,12 +30,6 @@ void InterceptorBase::RegisterImpl(
     InterceptorBase::TLSFactory tls_factory,
     InterceptorBase::TracePacketCallback on_trace_packet) {
   auto* tracing_impl = internal::TracingMuxer::Get();
-  PERFETTO_DCHECK(tracing_impl);
-  if (!tracing_impl) {
-    PERFETTO_ELOG(
-        "Call Tracing::Initialize() before registering interceptors.");
-    return;
-  }
   tracing_impl->RegisterInterceptor(descriptor, factory, tls_factory,
                                     on_trace_packet);
 }

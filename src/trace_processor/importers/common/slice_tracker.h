@@ -58,6 +58,10 @@ class SliceTracker {
 
   void BeginFrameEvent(tables::GraphicsFrameSliceTable::Row row,
                        SetArgsCallback args_callback = SetArgsCallback());
+  void BeginFrameTimeline(tables::ExpectedFrameTimelineSliceTable::Row row,
+                          SetArgsCallback args_callback = SetArgsCallback());
+  void BeginFrameTimeline(tables::ActualFrameTimelineSliceTable::Row row,
+                          SetArgsCallback args_callback = SetArgsCallback());
 
   // virtual for testing
   virtual base::Optional<uint32_t> Scoped(
@@ -98,6 +102,11 @@ class SliceTracker {
       SetArgsCallback args_callback = SetArgsCallback());
 
   base::Optional<SliceId> EndFrameEvent(
+      int64_t ts,
+      TrackId track_id,
+      SetArgsCallback args_callback = SetArgsCallback());
+
+  base::Optional<SliceId> EndFrameTimeline(
       int64_t ts,
       TrackId track_id,
       SetArgsCallback args_callback = SetArgsCallback());

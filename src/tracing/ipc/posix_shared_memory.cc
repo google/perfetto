@@ -16,6 +16,10 @@
 
 #include "src/tracing/ipc/posix_shared_memory.h"
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+
 #include <fcntl.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -127,3 +131,5 @@ std::unique_ptr<SharedMemory> PosixSharedMemory::Factory::CreateSharedMemory(
 }
 
 }  // namespace perfetto
+
+#endif  // OS_LINUX || OS_ANDROID || OS_APPLE

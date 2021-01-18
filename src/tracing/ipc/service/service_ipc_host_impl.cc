@@ -52,8 +52,8 @@ bool ServiceIPCHostImpl::Start(const char* producer_socket_name,
   return DoStart();
 }
 
-bool ServiceIPCHostImpl::Start(base::ScopedFile producer_socket_fd,
-                               base::ScopedFile consumer_socket_fd) {
+bool ServiceIPCHostImpl::Start(base::ScopedSocketHandle producer_socket_fd,
+                               base::ScopedSocketHandle consumer_socket_fd) {
   PERFETTO_CHECK(!svc_);  // Check if already started.
 
   // Initialize the IPC transport.

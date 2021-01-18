@@ -25,6 +25,21 @@ service heapprofd /system/bin/heapprofd
     # permission is userdebug_or_eng only.
     capabilities KILL DAC_READ_SEARCH
 
+# Allow to start a second heapprofd. We can use that one to profile the
+# primary one. See src/memory/profiling/README.md.
+service heapprofd_secondary /system/bin/heapprofd
+    disabled
+    oneshot
+    socket heapprofd stream 0666 root root
+    user nobody
+    group nobody readproc
+    # By default, this  daemon is idle. When profiling an app, we should unwind
+    # as fast as possible in the interest of the app being profiled.
+    writepid /dev/cpuset/foreground/tasks
+    # DAC_READ_SEARCH is denied by SELinux on user builds because the SELinux
+    # permission is userdebug_or_eng only.
+    capabilities KILL DAC_READ_SEARCH
+
 on property:persist.heapprofd.enable=1
     start heapprofd
 

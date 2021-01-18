@@ -93,6 +93,9 @@ struct ClientConfiguration {
   PERFETTO_CROSS_ABI_ALIGNED(uint64_t) default_interval;
   PERFETTO_CROSS_ABI_ALIGNED(uint64_t) block_client_timeout_us;
   PERFETTO_CROSS_ABI_ALIGNED(uint64_t) num_heaps;
+  PERFETTO_CROSS_ABI_ALIGNED(uint64_t) adaptive_sampling_shmem_threshold;
+  PERFETTO_CROSS_ABI_ALIGNED(uint64_t)
+  adaptive_sampling_max_sampling_interval_bytes;
   alignas(8) ClientConfigurationHeap heaps[64];
   PERFETTO_CROSS_ABI_ALIGNED(bool) block_client;
   PERFETTO_CROSS_ABI_ALIGNED(bool) disable_fork_teardown;
@@ -134,6 +137,7 @@ struct FreeEntry {
 };
 
 struct HeapName {
+  PERFETTO_CROSS_ABI_ALIGNED(uint64_t) sample_interval;
   PERFETTO_CROSS_ABI_ALIGNED(uint32_t) heap_id;
   PERFETTO_CROSS_ABI_ALIGNED(char) heap_name[HEAPPROFD_HEAP_NAME_SZ];
 };
@@ -143,9 +147,9 @@ static_assert(sizeof(AllocMetadata) == 328,
               "AllocMetadata needs to be the same size across ABIs.");
 static_assert(sizeof(FreeEntry) == 24,
               "FreeEntry needs to be the same size across ABIs.");
-static_assert(sizeof(HeapName) == 68,
+static_assert(sizeof(HeapName) == 80,
               "HeapName needs to be the same size across ABIs.");
-static_assert(sizeof(ClientConfiguration) == 4640,
+static_assert(sizeof(ClientConfiguration) == 4656,
               "ClientConfiguration needs to be the same size across ABIs.");
 
 enum HandshakeFDs : size_t {

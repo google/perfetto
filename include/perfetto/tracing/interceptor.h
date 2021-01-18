@@ -172,6 +172,7 @@ using protos::gen::InterceptorDescriptor;
 namespace internal {
 class InterceptorTraceWriter;
 class TracingMuxer;
+class TracingMuxerFake;
 class TracingMuxerImpl;
 }  // namespace internal
 
@@ -213,6 +214,7 @@ class PERFETTO_EXPORT InterceptorBase {
  private:
   friend class internal::InterceptorTraceWriter;
   friend class internal::TracingMuxer;
+  friend class internal::TracingMuxerFake;
   friend class internal::TracingMuxerImpl;
   friend MockTracingMuxer;
   template <class T>

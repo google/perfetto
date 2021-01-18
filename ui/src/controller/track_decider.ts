@@ -94,22 +94,12 @@ function getTrackName(args: Partial<{
   return 'Unknown';
 }
 
-export async function decideTracks(
-    engineId: string, engine: Engine): Promise<DeferredAction[]> {
-  const numGpus = await engine.getNumberOfGpus();
-  const tracksToAdd: AddTrackArgs[] = [];
-
-  const maxCpuFreq = await engine.query(`
-    select max(value)
-    from counter c
-    inner join cpu_counter_track t on c.track_id = t.id
-    where name = 'cpufreq';
-  `);
-
+async function getCpuSchedulingTracks(
+    engineId: string, engine: Engine): Promise<AddTrackArgs[]> {
+  const tracks: AddTrackArgs[] = [];
   const cpus = await engine.getCpus();
-
   for (const cpu of cpus) {
-    tracksToAdd.push({
+    tracks.push({
       engineId,
       kind: CPU_SLICE_TRACK_KIND,
       name: `Cpu ${cpu}`,
@@ -119,6 +109,20 @@ export async function decideTracks(
       }
     });
   }
+  return tracks;
+}
+
+async function getCpuFreqTracks(
+    engineId: string, engine: Engine): Promise<AddTrackArgs[]> {
+  const tracks: AddTrackArgs[] = [];
+  const cpus = await engine.getCpus();
+
+  const maxCpuFreq = await engine.query(`
+    select max(value)
+    from counter c
+    inner join cpu_counter_track t on c.track_id = t.id
+    where name = 'cpufreq';
+  `);
 
   for (const cpu of cpus) {
     // Only add a cpu freq track if we have
@@ -146,7 +150,7 @@ export async function decideTracks(
       const idleTrackId =
           idleTrackExists ? +cpuFreqIdle.columns[1].longValues![0] : undefined;
 
-      tracksToAdd.push({
+      tracks.push({
         engineId,
         kind: CPU_FREQ_TRACK_KIND,
         name: `Cpu ${cpu} Frequency`,
@@ -160,7 +164,12 @@ export async function decideTracks(
       });
     }
   }
+  return tracks;
+}
 
+async function getGlobalAsyncTracks(
+    engineId: string, engine: Engine): Promise<AddTrackArgs[]> {
+  const tracks: AddTrackArgs[] = [];
   const rawGlobalAsyncTracks = await engine.query(`
     SELECT
       t.name,
@@ -190,8 +199,163 @@ export async function decideTracks(
         trackIds,
       },
     };
-    tracksToAdd.push(track);
+    tracks.push(track);
   }
+  return tracks;
+}
+
+async function getGpuFreqTracks(
+    engineId: string, engine: Engine): Promise<AddTrackArgs[]> {
+  const tracks: AddTrackArgs[] = [];
+  const numGpus = await engine.getNumberOfGpus();
+  const maxGpuFreq = await engine.query(`
+    select max(value)
+    from counter c
+    inner join gpu_counter_track t on c.track_id = t.id
+    where name = 'gpufreq';
+  `);
+
+  for (let gpu = 0; gpu < numGpus; gpu++) {
+    // Only add a gpu freq track if we have
+    // gpu freq data.
+    const freqExists = await engine.query(`
+      select id
+      from gpu_counter_track
+      where name = 'gpufreq' and gpu_id = ${gpu}
+      limit 1;
+    `);
+    if (slowlyCountRows(freqExists) > 0) {
+      tracks.push({
+        engineId,
+        kind: COUNTER_TRACK_KIND,
+        name: `Gpu ${gpu} Frequency`,
+        trackGroup: SCROLLING_TRACK_GROUP,
+        config: {
+          trackId: +freqExists.columns[0].longValues![0],
+          maximumValue: +maxGpuFreq.columns[0].doubleValues![0],
+        }
+      });
+    }
+  }
+  return tracks;
+}
+
+async function getGlobalCounterTracks(
+    engineId: string, engine: Engine): Promise<AddTrackArgs[]> {
+  const tracks: AddTrackArgs[] = [];
+  // Add global or GPU counter tracks that are not bound to any pid/tid.
+  const globalCounters = await engine.query(`
+    select name, id
+    from counter_track
+    where type = 'counter_track'
+    union
+    select name, id
+    from gpu_counter_track
+    where name != 'gpufreq'
+  `);
+  for (let i = 0; i < slowlyCountRows(globalCounters); i++) {
+    const name = globalCounters.columns[0].stringValues![i];
+    const trackId = +globalCounters.columns[1].longValues![i];
+    tracks.push({
+      engineId,
+      kind: COUNTER_TRACK_KIND,
+      name,
+      trackGroup: SCROLLING_TRACK_GROUP,
+      config: {
+        name,
+        trackId,
+      }
+    });
+  }
+  return tracks;
+}
+
+async function getLogsTrack(
+    engineId: string, engine: Engine): Promise<AddTrackArgs[]> {
+  const logCount = await engine.query(`select count(1) from android_logs`);
+  if (logCount.columns[0].longValues![0] > 0) {
+    return [{
+      engineId,
+      kind: ANDROID_LOGS_TRACK_KIND,
+      name: 'Android logs',
+      trackGroup: SCROLLING_TRACK_GROUP,
+      config: {}
+    }];
+  }
+  return [];
+}
+
+async function getAnnotationTracks(
+    engineId: string, engine: Engine, upidToUuid: Map<number, string>):
+    Promise<AddTrackArgs[]> {
+  const tracks: AddTrackArgs[] = [];
+  const annotationSliceRows = await engine.query(`
+    SELECT id, name, upid FROM annotation_slice_track`);
+  for (let i = 0; i < slowlyCountRows(annotationSliceRows); i++) {
+    const id = annotationSliceRows.columns[0].longValues![i];
+    const name = annotationSliceRows.columns[1].stringValues![i];
+    const upid = annotationSliceRows.columns[2].longValues![i];
+    tracks.push({
+      engineId,
+      kind: SLICE_TRACK_KIND,
+      name,
+      trackGroup: upid === 0 ? SCROLLING_TRACK_GROUP : upidToUuid.get(upid),
+      config: {
+        maxDepth: 0,
+        namespace: 'annotation',
+        trackId: id,
+      },
+    });
+  }
+
+  const annotationCounterRows = await engine.query(`
+    SELECT id, name, upid, min_value, max_value
+    FROM annotation_counter_track`);
+  for (let i = 0; i < slowlyCountRows(annotationCounterRows); i++) {
+    const id = annotationCounterRows.columns[0].longValues![i];
+    const name = annotationCounterRows.columns[1].stringValues![i];
+    const upid = annotationCounterRows.columns[2].longValues![i];
+    const minimumValue = annotationCounterRows.columns[3].isNulls![i] ?
+        undefined :
+        annotationCounterRows.columns[3].doubleValues![i];
+    const maximumValue = annotationCounterRows.columns[4].isNulls![i] ?
+        undefined :
+        annotationCounterRows.columns[4].doubleValues![i];
+    tracks.push({
+      engineId,
+      kind: 'CounterTrack',
+      name,
+      trackGroup: upid === 0 ? SCROLLING_TRACK_GROUP : upidToUuid.get(upid),
+      config: {
+        name,
+        namespace: 'annotation',
+        trackId: id,
+        minimumValue,
+        maximumValue,
+      }
+    });
+  }
+
+  return tracks;
+}
+
+function extend<T>(arr: T[], additional: T[]) {
+  const offset = arr.length;
+  arr.length += additional.length;
+  for (let i = 0; i < additional.length; ++i) {
+    arr[offset + i] = additional[i];
+  }
+}
+
+export async function decideTracks(
+    engineId: string, engine: Engine): Promise<DeferredAction[]> {
+  const tracksToAdd: AddTrackArgs[] = [];
+
+  extend(tracksToAdd, await getCpuSchedulingTracks(engineId, engine));
+  extend(tracksToAdd, await getCpuFreqTracks(engineId, engine));
+  extend(tracksToAdd, await getGlobalAsyncTracks(engineId, engine));
+  extend(tracksToAdd, await getGpuFreqTracks(engineId, engine));
+  extend(tracksToAdd, await getGlobalCounterTracks(engineId, engine));
 
   const upidToProcessTracks = new Map();
   const rawProcessTracks = await engine.query(`
@@ -237,61 +401,6 @@ export async function decideTracks(
   for (let i = 0; i < slowlyCountRows(heapProfiles); i++) {
     const upid = heapProfiles.columns[0].longValues![i];
     heapUpids.add(+upid);
-  }
-
-  const maxGpuFreq = await engine.query(`
-    select max(value)
-    from counter c
-    inner join gpu_counter_track t on c.track_id = t.id
-    where name = 'gpufreq';
-  `);
-
-  for (let gpu = 0; gpu < numGpus; gpu++) {
-    // Only add a gpu freq track if we have
-    // gpu freq data.
-    const freqExists = await engine.query(`
-      select id
-      from gpu_counter_track
-      where name = 'gpufreq' and gpu_id = ${gpu}
-      limit 1;
-    `);
-    if (slowlyCountRows(freqExists) > 0) {
-      tracksToAdd.push({
-        engineId,
-        kind: COUNTER_TRACK_KIND,
-        name: `Gpu ${gpu} Frequency`,
-        trackGroup: SCROLLING_TRACK_GROUP,
-        config: {
-          trackId: +freqExists.columns[0].longValues![0],
-          maximumValue: +maxGpuFreq.columns[0].doubleValues![0],
-        }
-      });
-    }
-  }
-
-  // Add global or GPU counter tracks that are not bound to any pid/tid.
-  const globalCounters = await engine.query(`
-    select name, id
-    from counter_track
-    where type = 'counter_track'
-    union
-    select name, id
-    from gpu_counter_track
-    where name != 'gpufreq'
-  `);
-  for (let i = 0; i < slowlyCountRows(globalCounters); i++) {
-    const name = globalCounters.columns[0].stringValues![i];
-    const trackId = +globalCounters.columns[1].longValues![i];
-    tracksToAdd.push({
-      engineId,
-      kind: COUNTER_TRACK_KIND,
-      name,
-      trackGroup: SCROLLING_TRACK_GROUP,
-      config: {
-        name,
-        trackId,
-      }
-    });
   }
 
   interface CounterTrack {
@@ -382,17 +491,6 @@ export async function decideTracks(
     } else {
       utidToThreadTrack.set(utid, [track]);
     }
-  }
-
-  // For backwards compatability with older TP versions where
-  // android_thread_time_in_state_event table does not exists.
-  // TODO: remove once the track mega-query is improved.
-  const exists =
-      await engine.query(`select name from sqlite_master where type='table' and
-       name='android_thread_time_in_state_event'`);
-  if (slowlyCountRows(exists) === 0) {
-    await engine.query(`create view android_thread_time_in_state_event as
-        select null as upid, null as value where 0`);
   }
 
   // Return all threads
@@ -627,63 +725,8 @@ export async function decideTracks(
     }
   }
 
-  const logCount = await engine.query(`select count(1) from android_logs`);
-  if (logCount.columns[0].longValues![0] > 0) {
-    tracksToAdd.push({
-      engineId,
-      kind: ANDROID_LOGS_TRACK_KIND,
-      name: 'Android logs',
-      trackGroup: SCROLLING_TRACK_GROUP,
-      config: {}
-    });
-  }
-
-  const annotationSliceRows = await engine.query(`
-    SELECT id, name, upid FROM annotation_slice_track`);
-  for (let i = 0; i < slowlyCountRows(annotationSliceRows); i++) {
-    const id = annotationSliceRows.columns[0].longValues![i];
-    const name = annotationSliceRows.columns[1].stringValues![i];
-    const upid = annotationSliceRows.columns[2].longValues![i];
-    tracksToAdd.push({
-      engineId,
-      kind: SLICE_TRACK_KIND,
-      name,
-      trackGroup: upid === 0 ? SCROLLING_TRACK_GROUP : upidToUuid.get(upid),
-      config: {
-        maxDepth: 0,
-        namespace: 'annotation',
-        trackId: id,
-      },
-    });
-  }
-
-  const annotationCounterRows = await engine.query(`
-    SELECT id, name, upid, min_value, max_value
-    FROM annotation_counter_track`);
-  for (let i = 0; i < slowlyCountRows(annotationCounterRows); i++) {
-    const id = annotationCounterRows.columns[0].longValues![i];
-    const name = annotationCounterRows.columns[1].stringValues![i];
-    const upid = annotationCounterRows.columns[2].longValues![i];
-    const minimumValue = annotationCounterRows.columns[3].isNulls![i] ?
-        undefined :
-        annotationCounterRows.columns[3].doubleValues![i];
-    const maximumValue = annotationCounterRows.columns[4].isNulls![i] ?
-        undefined :
-        annotationCounterRows.columns[4].doubleValues![i];
-    tracksToAdd.push({
-      engineId,
-      kind: 'CounterTrack',
-      name,
-      trackGroup: upid === 0 ? SCROLLING_TRACK_GROUP : upidToUuid.get(upid),
-      config: {
-        name,
-        namespace: 'annotation',
-        trackId: id,
-        minimumValue,
-        maximumValue,
-      }
-    });
-  }
+  extend(tracksToAdd, await getLogsTrack(engineId, engine));
+  extend(tracksToAdd, await getAnnotationTracks(engineId, engine, upidToUuid));
 
   addTrackGroupActions.push(Actions.addTracks({tracks: tracksToAdd}));
   return addTrackGroupActions;

@@ -67,12 +67,6 @@ bool HeapprofdConfigToClientConfiguration(
     const HeapprofdConfig& heapprofd_config,
     ClientConfiguration* cli_config);
 
-bool CanProfile(const DataSourceConfig& ds_config, uint64_t uid);
-bool CanProfileAndroid(const DataSourceConfig& ds_config,
-                       uint64_t uid,
-                       const std::string& build_type,
-                       const std::string& packages_list_path);
-
 // Heap profiling producer. Can be instantiated in two modes, central and
 // child (also referred to as fork mode).
 //
@@ -186,6 +180,13 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
   };
 
   struct ProcessState {
+    struct HeapInfo {
+      HeapInfo(GlobalCallstackTrie* cs, bool dam) : heap_tracker(cs, dam) {}
+
+      HeapTracker heap_tracker;
+      std::string heap_name;
+      uint64_t sampling_interval;
+    };
     ProcessState(GlobalCallstackTrie* c, bool d)
         : callsites(c), dump_at_max_mode(d) {}
     bool disconnected = false;
@@ -201,17 +202,20 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
     GlobalCallstackTrie* callsites;
     bool dump_at_max_mode;
     LogHistogram unwinding_time_us;
-    std::map<uint32_t, HeapTracker> heap_trackers;
-    std::map<uint32_t, std::string> heap_names;
+    std::map<uint32_t, HeapInfo> heap_infos;
 
-    HeapTracker& GetHeapTracker(uint32_t heap_id) {
-      auto it = heap_trackers.find(heap_id);
-      if (it == heap_trackers.end()) {
-        std::tie(it, std::ignore) = heap_trackers.emplace(
+    HeapInfo& GetHeapInfo(uint32_t heap_id) {
+      auto it = heap_infos.find(heap_id);
+      if (it == heap_infos.end()) {
+        std::tie(it, std::ignore) = heap_infos.emplace(
             std::piecewise_construct, std::forward_as_tuple(heap_id),
             std::forward_as_tuple(callsites, dump_at_max_mode));
       }
       return it->second;
+    }
+
+    HeapTracker& GetHeapTracker(uint32_t heap_id) {
+      return GetHeapInfo(heap_id).heap_tracker;
     }
   };
 

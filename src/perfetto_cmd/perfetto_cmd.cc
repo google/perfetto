@@ -744,7 +744,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
   SetupCtrlCSignalHandler();
   task_runner_.Run();
 
-  return limiter.OnTraceDone(args, did_process_full_trace_, bytes_written_) ? 0
+  return limiter.OnTraceDone(args, update_guardrail_state_, bytes_written_) ? 0
                                                                             : 1;
 }
 
@@ -801,9 +801,9 @@ void PerfettoCmd::OnConnect() {
 
   // Failsafe mechanism to avoid waiting indefinitely if the service hangs.
   if (expected_duration_ms_) {
-    uint32_t trace_timeout =
-        expected_duration_ms_ + 60000 + trace_config_->flush_timeout_ms() +
-        trace_config_->data_source_stop_timeout_ms();
+    uint32_t trace_timeout = expected_duration_ms_ + 60000 +
+                             trace_config_->flush_timeout_ms() +
+                             trace_config_->data_source_stop_timeout_ms();
     task_runner_.PostDelayedTask(std::bind(&PerfettoCmd::OnTimeout, this),
                                  trace_timeout);
   }
@@ -844,10 +844,24 @@ void PerfettoCmd::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
 }
 
 void PerfettoCmd::OnTracingDisabled(const std::string& error) {
-  LogUploadEvent(PerfettoStatsdAtom::kOnTracingDisabled);
-
-  if (!error.empty())
+  if (!error.empty()) {
     PERFETTO_ELOG("Service error: %s", error.c_str());
+
+    // Update guardrail state even if we failed. This is for two
+    // reasons:
+    // 1. Keeps compatibility with pre-stats code which used to
+    // ignore errors from the service and always update state.
+    // 2. We want to prevent failure storms and the guardrails help
+    // by preventing tracing too frequently with the same session.
+    update_guardrail_state_ = true;
+    task_runner_.Quit();
+    return;
+  }
+
+  // Make sure to only log this atom if |error| is empty; traced
+  // would have logged a terminal error atom corresponding to |error|
+  // and we don't want to log anything after that.
+  LogUploadEvent(PerfettoStatsdAtom::kOnTracingDisabled);
 
   if (trace_config_->write_into_file()) {
     // If write_into_file == true, at this point the passed file contains
@@ -889,7 +903,7 @@ void PerfettoCmd::FinalizeTraceAndExit() {
     }
   }
 
-  did_process_full_trace_ = true;
+  update_guardrail_state_ = true;
   task_runner_.Quit();
 }
 

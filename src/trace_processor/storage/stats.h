@@ -30,8 +30,9 @@ namespace stats {
   F(android_log_num_skipped,            kSingle,  kInfo,     kTrace,    ""),   \
   F(android_log_num_total,              kSingle,  kInfo,     kTrace,    ""),   \
   F(counter_events_out_of_order,        kSingle,  kError,    kAnalysis, ""),   \
-  F(ftrace_bundle_tokenizer_errors,     kSingle,  kError,    kAnalysis, ""),   \
   F(deobfuscate_location_parse_error,   kSingle,  kError,    kTrace,    ""),   \
+  F(frame_timeline_event_parser_errors, kSingle,  kInfo,     kAnalysis, ""),   \
+  F(ftrace_bundle_tokenizer_errors,     kSingle,  kError,    kAnalysis, ""),   \
   F(ftrace_cpu_bytes_read_begin,        kIndexed, kInfo,     kTrace,    ""),   \
   F(ftrace_cpu_bytes_read_end,          kIndexed, kInfo,     kTrace,    ""),   \
   F(ftrace_cpu_commit_overrun_begin,    kIndexed, kError,    kTrace,    ""),   \
@@ -163,9 +164,7 @@ namespace stats {
       "An ftrace packet was seen before the tracing start timestamp from "     \
       "the tracing service. This happens if the ftrace buffers were not "      \
       "cleared properly. These packets are silently dropped by trace "         \
-      "processor."),                                                           \
-  F(trace_too_short,                  kSingle,  kError,    kTrace,             \
-      "The trace is shorter than one microsecond.")
+      "processor.")
 // clang-format on
 
 enum Type {
@@ -178,6 +177,7 @@ enum Severity {
   kDataLoss,  // Correct operation that still resulted in data loss
   kError      // If any kError counter is > 0 trace_processor_shell will
               // raise an error. This is *not* surfaced in the web UI.
+              // TODO(b/148587181): Surface these errors in the UI.
 };
 
 enum Source {

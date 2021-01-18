@@ -55,6 +55,9 @@ class TrackTracker {
   // Creates and inserts a Android async track into the storage.
   TrackId CreateAndroidAsyncTrack(StringId name, UniquePid upid);
 
+  // Creates and inserts a FrameTimeline async track into the storage.
+  TrackId CreateFrameTimelineAsyncTrack(StringId name, UniquePid upid);
+
   // Interns a track for legacy Chrome process-scoped instant events into the
   // storage.
   TrackId InternLegacyChromeProcessInstantTrack(UniquePid upid);

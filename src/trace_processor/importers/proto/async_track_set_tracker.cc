@@ -46,6 +46,27 @@ AsyncTrackSetTracker::TrackSetId AsyncTrackSetTracker::InternAndroidSet(
   return id;
 }
 
+AsyncTrackSetTracker::TrackSetId AsyncTrackSetTracker::InternFrameTimelineSet(
+    UniquePid upid,
+    StringId name) {
+  FrameTimelineTuple tuple{upid, name};
+
+  auto it = frame_timeline_track_set_ids_.find(tuple);
+  if (it != frame_timeline_track_set_ids_.end())
+    return it->second;
+
+  uint32_t id = static_cast<uint32_t>(track_sets_.size());
+
+  TrackSet set;
+  set.frame_timeline_tuple = tuple;
+  set.type = TrackSetType::kFrameTimeline;
+  set.nesting_behaviour = NestingBehaviour::kUnnestable;
+  track_sets_.emplace_back(set);
+
+  frame_timeline_track_set_ids_[tuple] = id;
+  return id;
+}
+
 TrackId AsyncTrackSetTracker::Begin(TrackSetId id, int64_t cookie) {
   PERFETTO_DCHECK(id < track_sets_.size());
 
@@ -142,6 +163,9 @@ TrackId AsyncTrackSetTracker::CreateTrackForSet(const TrackSet& set) {
     case TrackSetType::kAndroid:
       return context_->track_tracker->CreateAndroidAsyncTrack(
           set.android_tuple.name, set.android_tuple.upid);
+    case TrackSetType::kFrameTimeline:
+      return context_->track_tracker->CreateFrameTimelineAsyncTrack(
+          set.frame_timeline_tuple.name, set.frame_timeline_tuple.upid);
   }
   PERFETTO_FATAL("For GCC");
 }

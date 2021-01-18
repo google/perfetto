@@ -39,10 +39,10 @@
 #include "perfetto/ext/tracing/ipc/producer_ipc_client.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
+#include "src/profiling/common/producer_support.h"
 #include "src/profiling/common/profiler_guardrails.h"
 #include "src/profiling/memory/unwound_messages.h"
 #include "src/profiling/memory/wire_protocol.h"
-#include "src/traced/probes/packages_list/packages_list_parser.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 #include <sys/system_properties.h>
@@ -125,6 +125,10 @@ bool HeapprofdConfigToClientConfiguration(
   cli_config->block_client_timeout_us =
       heapprofd_config.block_client_timeout_us();
   cli_config->all_heaps = heapprofd_config.all_heaps();
+  cli_config->adaptive_sampling_shmem_threshold =
+      heapprofd_config.adaptive_sampling_shmem_threshold();
+  cli_config->adaptive_sampling_max_sampling_interval_bytes =
+      heapprofd_config.adaptive_sampling_max_sampling_interval_bytes();
   size_t n = 0;
   std::vector<std::string> heaps = heapprofd_config.heaps();
   std::vector<uint64_t> heap_intervals =
@@ -672,46 +676,44 @@ void HeapprofdProducer::SetStats(
 void HeapprofdProducer::DumpProcessState(DataSource* data_source,
                                          pid_t pid,
                                          ProcessState* process_state) {
-  for (auto& heap_id_and_heap_tracker : process_state->heap_trackers) {
-    uint32_t heap_id = heap_id_and_heap_tracker.first;
-    HeapTracker& heap_tracker = heap_id_and_heap_tracker.second;
+  for (auto& heap_id_and_heap_info : process_state->heap_infos) {
+    ProcessState::HeapInfo& heap_info = heap_id_and_heap_info.second;
 
     bool from_startup = data_source->signaled_pids.find(pid) ==
                         data_source->signaled_pids.cend();
     uint64_t dump_timestamp;
     if (data_source->config.dump_at_max())
-      dump_timestamp = heap_tracker.max_timestamp();
+      dump_timestamp = heap_info.heap_tracker.max_timestamp();
     else
-      dump_timestamp = heap_tracker.committed_timestamp();
+      dump_timestamp = heap_info.heap_tracker.committed_timestamp();
 
     const char* heap_name = nullptr;
-    auto it = process_state->heap_names.find(heap_id);
-    if (it != process_state->heap_names.end())
-      heap_name = it->second.c_str();
-    else
-      PERFETTO_ELOG("Invalid heap id %" PRIu32, heap_id);
+    if (!heap_info.heap_name.empty())
+      heap_name = heap_info.heap_name.c_str();
+    uint64_t sampling_interval = heap_info.sampling_interval;
 
-    auto new_heapsamples =
-        [pid, from_startup, dump_timestamp, process_state, data_source,
-         heap_name](ProfilePacket::ProcessHeapSamples* proto) {
-          proto->set_pid(static_cast<uint64_t>(pid));
-          proto->set_timestamp(dump_timestamp);
-          proto->set_from_startup(from_startup);
-          proto->set_disconnected(process_state->disconnected);
-          proto->set_buffer_overran(process_state->buffer_overran);
-          proto->set_buffer_corrupted(process_state->buffer_corrupted);
-          proto->set_hit_guardrail(data_source->hit_guardrail);
-          if (heap_name)
-            proto->set_heap_name(heap_name);
-          auto* stats = proto->set_stats();
-          SetStats(stats, *process_state);
-        };
+    auto new_heapsamples = [pid, from_startup, dump_timestamp, process_state,
+                            data_source, heap_name, sampling_interval](
+                               ProfilePacket::ProcessHeapSamples* proto) {
+      proto->set_pid(static_cast<uint64_t>(pid));
+      proto->set_timestamp(dump_timestamp);
+      proto->set_from_startup(from_startup);
+      proto->set_disconnected(process_state->disconnected);
+      proto->set_buffer_overran(process_state->buffer_overran);
+      proto->set_buffer_corrupted(process_state->buffer_corrupted);
+      proto->set_hit_guardrail(data_source->hit_guardrail);
+      if (heap_name)
+        proto->set_heap_name(heap_name);
+      proto->set_sampling_interval_bytes(sampling_interval);
+      auto* stats = proto->set_stats();
+      SetStats(stats, *process_state);
+    };
 
     DumpState dump_state(data_source->trace_writer.get(),
                          std::move(new_heapsamples),
                          &data_source->intern_state);
 
-    heap_tracker.GetCallstackAllocations(
+    heap_info.heap_tracker.GetCallstackAllocations(
         [&dump_state,
          &data_source](const HeapTracker::CallstackAllocations& alloc) {
           dump_state.WriteAllocation(alloc, data_source->config.dump_at_max());
@@ -1114,21 +1116,23 @@ void HeapprofdProducer::HandleHeapNameRecord(HeapNameRecord rec) {
 
   ProcessState& process_state = process_state_it->second;
   const HeapName& entry = rec.entry;
-  std::string heap_name = entry.heap_name;
-  if (heap_name.empty()) {
-    PERFETTO_ELOG("Ignoring empty heap name.");
-    return;
+  if (entry.heap_name[0] != '\0') {
+    std::string heap_name = entry.heap_name;
+    if (entry.heap_id == 0) {
+      PERFETTO_ELOG("Invalid zero heap ID.");
+      return;
+    }
+    ProcessState::HeapInfo& hi = process_state.GetHeapInfo(entry.heap_id);
+    if (!hi.heap_name.empty() && hi.heap_name != heap_name) {
+      PERFETTO_ELOG("Overriding heap name %s with %s", hi.heap_name.c_str(),
+                    heap_name.c_str());
+    }
+    hi.heap_name = entry.heap_name;
   }
-  if (entry.heap_id == 0) {
-    PERFETTO_ELOG("Invalid zero heap ID.");
-    return;
+  if (entry.sample_interval != 0) {
+    ProcessState::HeapInfo& hi = process_state.GetHeapInfo(entry.heap_id);
+    hi.sampling_interval = entry.sample_interval;
   }
-  std::string& existing_heap_name = process_state.heap_names[entry.heap_id];
-  if (!existing_heap_name.empty() && existing_heap_name != heap_name) {
-    PERFETTO_ELOG("Overriding heap name %s with %s", existing_heap_name.c_str(),
-                  heap_name.c_str());
-  }
-  existing_heap_name = entry.heap_name;
 }
 
 void HeapprofdProducer::TerminateWhenDone() {
@@ -1229,62 +1233,6 @@ void HeapprofdProducer::CheckDataSourceMemoryTask() {
       ShutdownDataSource(&ds);
     }
   }
-}
-
-bool CanProfile(const DataSourceConfig& ds_config, uint64_t uid) {
-#if !PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
-  base::ignore_result(ds_config);
-  base::ignore_result(uid);
-  return true;
-#else
-  char buf[PROP_VALUE_MAX + 1] = {};
-  int ret = __system_property_get("ro.build.type", buf);
-  PERFETTO_CHECK(ret >= 0);
-  return CanProfileAndroid(ds_config, uid, std::string(buf),
-                           "/data/system/packages.list");
-#endif
-}
-
-bool CanProfileAndroid(const DataSourceConfig& ds_config,
-                       uint64_t uid,
-                       const std::string& build_type,
-                       const std::string& packages_list_path) {
-  // These are replicated constants from libcutils android_filesystem_config.h
-  constexpr auto kAidAppStart = 10000;     // AID_APP_START
-  constexpr auto kAidAppEnd = 19999;       // AID_APP_END
-  constexpr auto kAidUserOffset = 100000;  // AID_USER_OFFSET
-
-  if (build_type != "user") {
-    return true;
-  }
-
-  if (ds_config.enable_extra_guardrails()) {
-    return false;  // no extra guardrails on user builds.
-  }
-
-  uint64_t uid_without_profile = uid % kAidUserOffset;
-  if (uid_without_profile < kAidAppStart || kAidAppEnd < uid_without_profile) {
-    // TODO(fmayer): relax this.
-    return false;  // no native services on user.
-  }
-
-  std::string content;
-  if (!base::ReadFile(packages_list_path, &content)) {
-    PERFETTO_ELOG("Failed to read %s.", packages_list_path.c_str());
-    return false;
-  }
-  for (base::StringSplitter ss(std::move(content), '\n'); ss.Next();) {
-    Package pkg;
-    if (!ReadPackagesListLine(ss.cur_token(), &pkg)) {
-      PERFETTO_ELOG("Failed to parse packages.list.");
-      return false;
-    }
-    if (pkg.uid == uid_without_profile &&
-        (pkg.profileable_from_shell || pkg.debuggable)) {
-      return true;
-    }
-  }
-  return false;
 }
 
 }  // namespace profiling

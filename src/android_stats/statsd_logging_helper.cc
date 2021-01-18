@@ -21,9 +21,10 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/compiler.h"
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-#include "src/android_internal/lazy_library_loader.h"
-#include "src/android_internal/statsd_logging.h"
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) && \
+    PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
+#include "src/android_internal/lazy_library_loader.h"  // nogncheck
+#include "src/android_internal/statsd_logging.h"       // nogncheck
 #endif
 
 namespace perfetto {
@@ -38,10 +39,11 @@ namespace android_stats {
 
 void MaybeLogUploadEvent(PerfettoStatsdAtom atom,
                          int64_t uuid_lsb,
-                         int64_t uuid_msb) {
+                         int64_t uuid_msb,
+                         const std::string& trigger_name) {
   PERFETTO_LAZY_LOAD(android_internal::StatsdLogUploadEvent, log_event_fn);
   if (log_event_fn) {
-    log_event_fn(atom, uuid_lsb, uuid_msb);
+    log_event_fn(atom, uuid_lsb, uuid_msb, trigger_name.c_str());
   }
 }
 
@@ -56,7 +58,10 @@ void MaybeLogTriggerEvents(PerfettoTriggerAtom atom,
 }
 
 #else
-void MaybeLogUploadEvent(PerfettoStatsdAtom, int64_t, int64_t) {}
+void MaybeLogUploadEvent(PerfettoStatsdAtom,
+                         int64_t,
+                         int64_t,
+                         const std::string&) {}
 void MaybeLogTriggerEvents(PerfettoTriggerAtom,
                            const std::vector<std::string>&) {}
 #endif

@@ -44,7 +44,11 @@
 
 #include "protos/perfetto/config/interceptor_config.gen.h"
 
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#include "src/tracing/internal/tracing_muxer_fake.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#include <io.h>  // For dup()
+#else
 #include <unistd.h>  // For dup()
 #endif
 
@@ -364,7 +368,7 @@ void TracingMuxerImpl::ConsumerImpl::OnTraceData(
   auto callback = read_trace_callback_;
   muxer_->task_runner_->PostTask([callback, buf, has_more] {
     TracingSession::ReadTraceCallbackArgs callback_arg{};
-    callback_arg.data = buf->size() ? &(*buf)[0] : nullptr;
+    callback_arg.data = buf->empty() ? nullptr : &(*buf)[0];
     callback_arg.size = buf->size();
     callback_arg.has_more = has_more;
     callback(callback_arg);
@@ -429,8 +433,9 @@ void TracingMuxerImpl::ConsumerImpl::OnAttach(bool, const TraceConfig&) {}
 
 TracingMuxerImpl::TracingSessionImpl::TracingSessionImpl(
     TracingMuxerImpl* muxer,
-    TracingSessionGlobalID session_id)
-    : muxer_(muxer), session_id_(session_id) {}
+    TracingSessionGlobalID session_id,
+    BackendType backend_type)
+    : muxer_(muxer), session_id_(session_id), backend_type_(backend_type) {}
 
 // Can be destroyed from any thread.
 TracingMuxerImpl::TracingSessionImpl::~TracingSessionImpl() {
@@ -447,14 +452,17 @@ void TracingMuxerImpl::TracingSessionImpl::Setup(const TraceConfig& cfg,
   auto session_id = session_id_;
   std::shared_ptr<TraceConfig> trace_config(new TraceConfig(cfg));
   if (fd >= 0) {
+    base::ignore_result(backend_type_);  // For -Wunused in the amalgamation.
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-    PERFETTO_FATAL(
-        "Passing a file descriptor to TracingSession::Setup() is not supported "
-        "on Windows yet. Use TracingSession::ReadTrace() instead");
-#else
+    if (backend_type_ != kInProcessBackend) {
+      PERFETTO_FATAL(
+          "Passing a file descriptor to TracingSession::Setup() is only "
+          "supported with the kInProcessBackend on Windows. Use "
+          "TracingSession::ReadTrace() instead");
+    }
+#endif
     trace_config->set_write_into_file(true);
     fd = dup(fd);
-#endif
   }
   muxer->task_runner_->PostTask([muxer, session_id, trace_config, fd] {
     muxer->SetupTracingSession(session_id, trace_config, base::ScopedFile(fd));
@@ -615,7 +623,7 @@ void TracingMuxerImpl::TracingSessionImpl::QueryServiceState(
 // ----- End of TracingMuxerImpl::TracingSessionImpl
 
 // static
-TracingMuxer* TracingMuxer::instance_ = nullptr;
+TracingMuxer* TracingMuxer::instance_ = TracingMuxerFake::Get();
 
 // This is called by perfetto::Tracing::Initialize().
 // Can be called on any thread. Typically, but not necessarily, that will be
@@ -1454,11 +1462,11 @@ std::unique_ptr<TracingSession> TracingMuxerImpl::CreateTracingSession(
   });
 
   return std::unique_ptr<TracingSession>(
-      new TracingSessionImpl(this, session_id));
+      new TracingSessionImpl(this, session_id, backend_type));
 }
 
 void TracingMuxerImpl::InitializeInstance(const TracingInitArgs& args) {
-  if (instance_)
+  if (instance_ != TracingMuxerFake::Get())
     PERFETTO_FATAL("Tracing already initialized");
   instance_ = new TracingMuxerImpl(args);
 }

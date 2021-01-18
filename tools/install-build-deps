@@ -42,6 +42,15 @@ Dependency = namedtuple(
     'Dependency',
     ['target_folder', 'source_url', 'checksum', 'target_platform'])
 
+# This is to remove old directories when build tools get {re,}moved. This is to
+# avoid accidentally referring to stale dir in custom user scripts.
+CLEANUP_OLD_DIRS = [
+    'buildtools/nodejs',  # Moved to buildtools/{mac,linux64}/nodejs
+    'buildtools/emsdk',  # Moved to buildtools/{mac,linux64}/emsdk
+    'buildtools/test_data',  # Moved to test/data by r.android.com/1539381 .
+    'buildtools/d8',  # Removed by r.android.com/1424334 .
+]
+
 # Dependencies required to build code on the host or when targeting desktop OS.
 BUILD_DEPS_HOST = [
     # GN. From https://chrome-infra-packages.appspot.com/dl/gn/gn/.
@@ -193,18 +202,20 @@ BUILD_DEPS_HOST = [
     Dependency('buildtools/android-core',
                'https://android.googlesource.com/platform/system/core.git',
                '9e6cef7f07d8c11b3ea820938aeb7ff2e9dbaa52', 'all'),
-    Dependency('buildtools/android-unwinding',
-               'https://android.googlesource.com/platform/system/unwinding.git',
-               'a449157de3531a05c138bfac2894e4831c869f6b', 'all'),
+    Dependency(
+        'buildtools/android-unwinding',
+        'https://android.googlesource.com/platform/system/unwinding.git',
+        'a449157de3531a05c138bfac2894e4831c869f6b', 'all'),
     Dependency('buildtools/android-logging',
                'https://android.googlesource.com/platform/system/logging.git',
                '7b36b566c9113fc703d68f76e8f40c0c2432481c', 'all'),
     Dependency('buildtools/android-libbase',
                'https://android.googlesource.com/platform/system/libbase.git',
                '78f1c2f83e625bdf66d55b48bdb3a301c20d2fb3', 'all'),
-    Dependency('buildtools/android-libprocinfo',
-               'https://android.googlesource.com/platform/system/libprocinfo.git',
-               'bd752195f52109fb0dca525236ab9dec74b986e1', 'all'),
+    Dependency(
+        'buildtools/android-libprocinfo',
+        'https://android.googlesource.com/platform/system/libprocinfo.git',
+        'bd752195f52109fb0dca525236ab9dec74b986e1', 'all'),
     Dependency('buildtools/lzma',
                'https://android.googlesource.com/platform/external/lzma.git',
                '7851dce6f4ca17f5caa1c93a4e0a45686b1d56c3', 'all'),
@@ -282,29 +293,24 @@ TYPEFACES_SHA256 = 'b3f0f14eeecd4555ae94f897ec246b2c6e046ce0ea417407553f5767e781
 
 UI_DEPS = [
     Dependency(
-        'buildtools/nodejs.tgz',
-        'https://storage.googleapis.com/perfetto/node-v12.18.3-darwin-x64.tar.gz',
-        'af376caf114bdd5d7e566dbf7590e9077ffc01f9b2692eb2651f31d7219a30bb',
+        'buildtools/mac/nodejs.tgz',
+        'https://storage.googleapis.com/chromium-nodejs/14.15.4/17ba7216e09de1bffb9dc80b7ec617a1cee40330',
+        'b81a466347d2ae34b1370b6681ba173e9fb082338170a41624b37be7a2052b7e',
         'darwin'),
     Dependency(
-        'buildtools/nodejs.tgz',
-        'https://storage.googleapis.com/perfetto/node-v12.18.3-linux-x64.tar.gz',
-        '0be428afce5b24f799f3b1ab8902d9d91094b929ac58d2b1cec29436ea2d742c',
+        'buildtools/linux64/nodejs.tgz',
+        'https://storage.googleapis.com/chromium-nodejs/14.15.4/b2e40ddbac04d05baafbb007f203c6663c9d4ca9',
+        '5aa88f1e2bf036950790277f3431634f64044ec78362f3e4f0dc8da28d61e9a4',
         'linux'),
     Dependency(
-        'buildtools/emsdk/emscripten.tgz',
-        'https://storage.googleapis.com/perfetto/emscripten-1.37.40.tar.gz',
-        '40d8a095c510e5e5e2032131e0dc5d38f996172deb0415588b702146d1ea8bd5',
-        'all'),
-    Dependency(
-        'buildtools/emsdk/llvm.tgz',
-        'https://storage.googleapis.com/perfetto/emscripten-llvm-e1.37.40-darwin.tar.gz',
-        'ed51f3a467c0a5af5365abb448794734affcc2932fa19d62be233dee435c89ea',
+        'buildtools/mac/emsdk.tgz',
+        'https://storage.googleapis.com/perfetto/emscripten-2.0.12-mac.tgz',
+        'aa125f8c8ff8a386d43e18c8ea0c98c875cc19160a899403e8967a5478f96f31',
         'darwin'),
     Dependency(
-        'buildtools/emsdk/llvm.tgz',
-        'https://storage.googleapis.com/perfetto/emscripten-llvm-e1.37.40-static-linux.tar.gz',
-        '257da419f92d305025777f340b79ee9f3d3077af38f5e7efb0fac1060d3ea6d9',
+        'buildtools/linux64/emsdk.tgz',
+        'https://storage.googleapis.com/perfetto/emscripten-2.0.12-linux.tgz',
+        'bfff9fb0326363c12e19b542f27a5f12cedbfc310f30621dc497c9af51d2d2e3',
         'linux'),
     Dependency(
         'buildtools/catapult_trace_viewer.tgz',
@@ -318,6 +324,7 @@ UI_DEPS = [
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 UI_DIR = os.path.join(ROOT_DIR, 'ui')
+TOOLS_DIR = os.path.join(ROOT_DIR, 'tools')
 NODE_MODULES_STATUS_FILE = os.path.join(UI_DIR, 'node_modules', '.last_install')
 
 
@@ -361,13 +368,7 @@ def IsGitRepoCheckoutOutAtRevision(path, revision):
   return ReadFile(os.path.join(path, '.git', 'HEAD')) == revision
 
 
-def CheckoutGitRepo(path, git_url, revision, check_only):
-  if IsGitRepoCheckoutOutAtRevision(path, revision):
-    return False
-  if check_only:
-    return True
-  path = path.replace('/', os.sep)
-
+def RmtreeIfExists(path):
   # Git creates read-only files on windows, which cause failures with rmtree.
   # This seems the socially accepted way to deal with it.
   # See https://bugs.python.org/issue19643 .
@@ -375,8 +376,25 @@ def CheckoutGitRepo(path, git_url, revision, check_only):
     os.chmod(name, stat.S_IWRITE)
     os.remove(name)
 
-  if os.path.exists(path):
-    shutil.rmtree(path, onerror=del_read_only_for_windows)
+  if not os.path.exists(path):
+    return
+  buildtools_path = os.path.abspath(os.path.join(ROOT_DIR, 'buildtools'))
+  if not os.path.abspath(path).startswith(buildtools_path):
+    # Safety check to prevent that some merge confilct ends up doing some
+    # rm -rf / or similar.
+    logging.fatal('Cannot remove %s: outside of buildtools')
+    sys.exit(1)
+  logging.info('Removing %s' % path)
+  shutil.rmtree(path, onerror=del_read_only_for_windows)
+
+
+def CheckoutGitRepo(path, git_url, revision, check_only):
+  if IsGitRepoCheckoutOutAtRevision(path, revision):
+    return False
+  if check_only:
+    return True
+  path = path.replace('/', os.sep)
+  RmtreeIfExists(path)
   MkdirRecursive(path)
   logging.info('Fetching %s @ %s into %s', git_url, revision, path)
   subprocess.check_call(['git', 'init', path], cwd=path)
@@ -394,8 +412,13 @@ def InstallNodeModules(force_clean=False):
     subprocess.check_call(['git', 'clean', '-qxffd', node_modules],
                           cwd=ROOT_DIR)
   logging.info("Running npm install in {0}".format(UI_DIR))
-  subprocess.check_call([os.path.join(UI_DIR, 'npm'), 'install', '--no-save'],
-                        cwd=UI_DIR)
+  subprocess.check_call(
+      [os.path.join(TOOLS_DIR, 'npm'), 'install', '--no-save'], cwd=UI_DIR)
+  # pbjs has the bad habit of installing extra packages on its first run. Run
+  # it here, so we avoid fetches while building.
+  node_bin = os.path.join(TOOLS_DIR, 'node')
+  pbjs = [node_bin, 'node_modules/.bin/pbjs', '/dev/null', '-o', '/dev/null']
+  subprocess.call(pbjs, cwd=UI_DIR)
   with open(NODE_MODULES_STATUS_FILE, 'w') as f:
     f.write(HashLocalFile(os.path.join(UI_DIR, 'package-lock.json')))
 
@@ -449,6 +472,9 @@ def Main():
   deps_updated = False
   nodejs_updated = False
 
+  for old_dir in CLEANUP_OLD_DIRS:
+    RmtreeIfExists(os.path.join(ROOT_DIR, old_dir))
+
   for dep in deps:
     if (dep.target_platform != 'all' and
         dep.target_platform != system().lower()):
@@ -489,9 +515,7 @@ def Main():
     if is_zip:
       logging.info('Extracting %s into %s' % (local_path, zip_target_dir))
       assert (os.path.commonprefix((ROOT_DIR, zip_target_dir)) == ROOT_DIR)
-      if os.path.exists(zip_target_dir):
-        logging.info('Deleting stale dir %s' % zip_target_dir)
-        shutil.rmtree(zip_target_dir)
+      RmtreeIfExists(zip_target_dir)
 
       # Decompress the archive.
       if local_path.endswith('.tgz'):
@@ -530,8 +554,8 @@ def Main():
         f.write('OK')  # The content is irrelevant, just keep GN happy.
       return 0
     argz = ' '.join([x for x in sys.argv[1:] if '--check-only' not in x])
-    sys.stderr.write('\033[91mBuild deps are stale. ' +
-                     'Please run tools/install-build-deps %s\033[0m' % argz)
+    print('\033[91mBuild deps are stale. ' +
+          'Please run tools/install-build-deps %s\033[0m' % argz)
     return 1
 
   if deps_updated:

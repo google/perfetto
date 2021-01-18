@@ -53,10 +53,6 @@ source_set("metatrace") {
   ]
 }
 
-source_set("track_event_descriptor") {
-  sources = [ "importers/proto/track_event.descriptor.h" ]
-}
-
 source_set("ftrace_descriptors") {
   sources = [
     "importers/ftrace/ftrace_descriptors.cc",
@@ -139,13 +135,13 @@ source_set("storage_minimal") {
     "virtual_destructors.cc",
   ]
   deps = [
-    ":track_event_descriptor",
     "../../gn:default_deps",
     "../base",
     "../protozero",
     "containers",
     "importers:common",
     "importers:gen_cc_chrome_track_event_descriptor",
+    "importers:gen_cc_track_event_descriptor",
     "importers/memory_tracker:graph_processor",
     "storage",
     "tables",
@@ -222,6 +218,8 @@ source_set("storage_full") {
     "importers/proto/gpu_event_parser.h",
     "importers/proto/graphics_event_module.cc",
     "importers/proto/graphics_event_module.h",
+    "importers/proto/frame_timeline_event_parser.cc",
+    "importers/proto/frame_timeline_event_parser.h",
     "importers/proto/graphics_frame_event_parser.cc",
     "importers/proto/graphics_frame_event_parser.h",
     "importers/proto/heap_graph_module.cc",

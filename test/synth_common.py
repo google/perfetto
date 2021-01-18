@@ -16,7 +16,7 @@
 import argparse
 
 from collections import namedtuple
-from google.protobuf import descriptor, descriptor_pb2, message_factory
+from google.protobuf import descriptor, descriptor_pb2, message_factory, descriptor_pool
 
 CLONE_THREAD = 0x00010000
 CLONE_VFORK = 0x00004000
@@ -618,6 +618,80 @@ class Trace(object):
 
     return metadata
 
+  def add_expected_display_frame_start_event(self, ts, cookie, token, pid):
+    packet = self.add_packet()
+    packet.timestamp = ts
+    event = packet.frame_timeline_event.expected_display_frame_start
+    if token != -1:
+      event.cookie = cookie
+      event.token = token
+      event.pid = pid
+
+  def add_actual_display_frame_start_event(self, ts, cookie, token, pid, present_type, on_time_finish, gpu_composition, jank_type):
+    packet = self.add_packet()
+    packet.timestamp = ts
+    event = packet.frame_timeline_event.actual_display_frame_start
+    if token != -1:
+      event.cookie = cookie
+      event.token = token
+      event.pid = pid
+      event.present_type = present_type
+      event.on_time_finish = on_time_finish
+      event.gpu_composition = gpu_composition
+      event.jank_type = jank_type
+
+  def add_expected_surface_frame_start_event(self, ts, cookie, token, display_frame_token, pid, layer_name):
+    packet = self.add_packet()
+    packet.timestamp = ts
+    event = packet.frame_timeline_event.expected_surface_frame_start
+    if token != -1 and display_frame_token != -1:
+      event.cookie = cookie
+      event.token = token
+      event.display_frame_token = display_frame_token
+      event.pid = pid
+      event.layer_name = layer_name
+
+  def add_actual_surface_frame_start_event(self, ts, cookie, token, display_frame_token, pid, layer_name, present_type, on_time_finish, gpu_composition, jank_type):
+    packet = self.add_packet()
+    packet.timestamp = ts
+    event = packet.frame_timeline_event.actual_surface_frame_start
+    if token != -1 and display_frame_token != -1:
+      event.cookie = cookie
+      event.token = token
+      event.display_frame_token = display_frame_token
+      event.pid = pid
+      event.layer_name = layer_name
+      event.present_type = present_type
+      event.on_time_finish = on_time_finish
+      event.gpu_composition = gpu_composition
+      event.jank_type = jank_type
+
+  def add_frame_end_event(self, ts, cookie):
+    packet = self.add_packet()
+    packet.timestamp = ts
+    event = packet.frame_timeline_event.frame_end
+    event.cookie = cookie
+
+
+def read_descriptor(file_name):
+  with open(file_name, 'rb') as f:
+    contents = f.read()
+
+  descriptor = descriptor_pb2.FileDescriptorSet()
+  descriptor.MergeFromString(contents)
+
+  return descriptor
+
+
+def create_pool(args):
+  trace_descriptor = read_descriptor(args.trace_descriptor)
+
+  pool = descriptor_pool.DescriptorPool()
+  for file in trace_descriptor.file:
+    pool.Add(file)
+
+  return pool
+
 
 def create_trace():
   parser = argparse.ArgumentParser()
@@ -625,28 +699,10 @@ def create_trace():
       'trace_descriptor', type=str, help='location of trace descriptor')
   args = parser.parse_args()
 
-  with open(args.trace_descriptor, 'rb') as t:
-    fileContent = t.read()
-
-  file_desc_set_pb2 = descriptor_pb2.FileDescriptorSet()
-  file_desc_set_pb2.MergeFromString(fileContent)
-
-  desc_by_path = {}
-  for f_desc_pb2 in file_desc_set_pb2.file:
-    f_desc_pb2_encode = f_desc_pb2.SerializeToString()
-    f_desc = descriptor.FileDescriptor(
-        name=f_desc_pb2.name,
-        package=f_desc_pb2.package,
-        serialized_pb=f_desc_pb2_encode)
-
-    for desc in f_desc.message_types_by_name.values():
-      desc_by_path[desc.full_name] = desc
-
-    for desc in f_desc.enum_types_by_name.values():
-      desc_by_path[desc.full_name] = desc
-
-  factory = message_factory.MessageFactory()
-  ProtoTrace = factory.GetPrototype(desc_by_path['perfetto.protos.Trace'])
+  pool = create_pool(args)
+  factory = message_factory.MessageFactory(pool)
+  ProtoTrace = factory.GetPrototype(
+      pool.FindMessageTypeByName('perfetto.protos.Trace'))
 
   class EnumPrototype(object):
 
@@ -666,14 +722,15 @@ def create_trace():
   ])
   prototypes = Prototypes(
       TrackEvent=factory.GetPrototype(
-          desc_by_path['perfetto.protos.TrackEvent']),
+          pool.FindMessageTypeByName('perfetto.protos.TrackEvent')),
       ChromeRAILMode=EnumPrototype.from_descriptor(
-          desc_by_path['perfetto.protos.ChromeRAILMode']),
+          pool.FindEnumTypeByName('perfetto.protos.ChromeRAILMode')),
       ThreadDescriptor=factory.GetPrototype(
-          desc_by_path['perfetto.protos.ThreadDescriptor']),
+          pool.FindMessageTypeByName('perfetto.protos.ThreadDescriptor')),
       ChromeProcessDescriptor=factory.GetPrototype(
-          desc_by_path['perfetto.protos.ChromeProcessDescriptor']),
+          pool.FindMessageTypeByName(
+              'perfetto.protos.ChromeProcessDescriptor')),
       CounterDescriptor=factory.GetPrototype(
-          desc_by_path['perfetto.protos.CounterDescriptor']),
+          pool.FindMessageTypeByName('perfetto.protos.CounterDescriptor')),
   )
   return Trace(ProtoTrace(), prototypes)

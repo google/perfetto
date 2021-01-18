@@ -17,11 +17,13 @@
 SELECT RUN_METRIC('android/process_metadata.sql');
 SELECT RUN_METRIC('android/process_mem.sql');
 
+DROP VIEW IF EXISTS memory_delta;
 CREATE VIEW memory_delta AS
 SELECT upid, SUM(size) AS delta
 FROM heap_profile_allocation
 GROUP BY 1;
 
+DROP VIEW IF EXISTS memory_total;
 CREATE VIEW memory_total AS
 SELECT upid, SUM(size) AS total
 FROM heap_profile_allocation
@@ -29,6 +31,7 @@ WHERE size > 0
 GROUP BY 1;
 
 -- Join frames with symbols and mappings to get a textual representation.
+DROP TABLE IF EXISTS symbolized_frame;
 CREATE TABLE symbolized_frame AS
 SELECT
   frame_id,
@@ -56,10 +59,12 @@ FROM (
 );
 
 -- Required to join with callsites
+DROP INDEX IF EXISTS symbolized_frame_idx;
 CREATE UNIQUE INDEX symbolized_frame_idx ON symbolized_frame(frame_id);
 
 -- View that joins callsites with frames. Allocation-agnostic, only used to
 -- generated the hashed callsites.
+DROP TABLE IF EXISTS callsites;
 CREATE TABLE callsites AS
 SELECT cs.id, cs.parent_id, cs.depth, sf.frame_hash
 FROM stack_profile_callsite cs
@@ -72,6 +77,7 @@ DROP INDEX symbolized_frame_idx;
 -- Create a unique ID for each subtree by traversing from the root.
 -- 1 self_hash can correspond to N callsite_ids (which can then be used to join
 -- with allocs).
+DROP TABLE IF EXISTS hashed_callsites;
 CREATE TABLE hashed_callsites AS
 WITH RECURSIVE callsite_hasher(id, self_hash, parent_hash, frame_hash) AS (
   SELECT
@@ -100,14 +106,17 @@ FROM callsite_hasher;
 
 DROP TABLE callsites;
 
+DROP VIEW IF EXISTS hashed_callsite_tree;
 CREATE VIEW hashed_callsite_tree AS
 SELECT DISTINCT self_hash, parent_hash, frame_hash
 FROM hashed_callsites;
 
 -- Required to join with allocs
+DROP INDEX IF EXISTS hashed_callsites_id_idx;
 CREATE INDEX hashed_callsites_id_idx ON hashed_callsites(callsite_id);
 
 -- Computes the allocations for each hash-based callsite.
+DROP TABLE IF EXISTS self_allocs;
 CREATE TABLE self_allocs AS
 SELECT
   hc.self_hash,
@@ -124,6 +133,7 @@ DROP INDEX hashed_callsites_id_idx;
 
 -- For each allocation (each self_alloc), emit a row for each ancestor and
 -- aggregate them by self_hash.
+DROP TABLE IF EXISTS child_allocs;
 CREATE TABLE child_allocs AS
 WITH RECURSIVE parent_traversal(
   self_hash, parent_hash, upid,
@@ -161,6 +171,7 @@ SELECT
 FROM parent_traversal
 GROUP BY 1, 2;
 
+DROP VIEW IF EXISTS self_allocs_proto;
 CREATE VIEW self_allocs_proto AS
 SELECT
   self_hash,
@@ -171,6 +182,7 @@ SELECT
   ) AS allocs_proto
 FROM self_allocs;
 
+DROP VIEW IF EXISTS child_allocs_proto;
 CREATE VIEW child_allocs_proto AS
 SELECT
   self_hash,
@@ -182,8 +194,10 @@ SELECT
 FROM child_allocs;
 
 -- Required to map back to the symbol.
+DROP INDEX IF EXISTS symbolized_frame_hash_idx;
 CREATE INDEX symbolized_frame_hash_idx ON symbolized_frame(frame_hash);
 
+DROP TABLE IF EXISTS process_callsite;
 CREATE TABLE process_callsite AS
 SELECT
   ca.upid,
@@ -203,6 +217,7 @@ ORDER BY 1, 2;
 
 DROP INDEX symbolized_frame_hash_idx;
 
+DROP VIEW IF EXISTS process_callsite_proto;
 CREATE VIEW process_callsite_proto AS
 SELECT
   upid,
@@ -216,6 +231,7 @@ SELECT
 FROM process_callsite
 GROUP BY 1;
 
+DROP VIEW IF EXISTS instance_stats_view;
 CREATE VIEW instance_stats_view AS
 SELECT HeapProfileCallsites_InstanceStats(
     'pid', process.pid,
@@ -235,6 +251,7 @@ JOIN memory_delta USING (upid)
 JOIN process USING (upid)
 JOIN process_metadata USING (upid);
 
+DROP VIEW IF EXISTS heap_profile_callsites_output;
 CREATE VIEW heap_profile_callsites_output AS
 SELECT HeapProfileCallsites(
   'instance_stats',

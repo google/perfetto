@@ -47,7 +47,7 @@ ConsumerIPCClientImpl::ConsumerIPCClientImpl(const char* service_sock_name,
                                              base::TaskRunner* task_runner)
     : consumer_(consumer),
       ipc_channel_(
-          ipc::Client::CreateInstance({service_sock_name, /*retry=*/false},
+          ipc::Client::CreateInstance({service_sock_name, /*sock_retry=*/false},
                                       task_runner)),
       consumer_port_(this /* event_listener */),
       weak_ptr_factory_(this) {
@@ -74,6 +74,14 @@ void ConsumerIPCClientImpl::EnableTracing(const TraceConfig& trace_config,
     PERFETTO_DLOG("Cannot EnableTracing(), not connected to tracing service");
     return;
   }
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  if (fd) {
+    consumer_->OnTracingDisabled(
+        "Passing FDs for write_into_file is not supported on Windows");
+    return;
+  }
+#endif
 
   protos::gen::EnableTracingRequest req;
   *req.mutable_trace_config() = trace_config;
