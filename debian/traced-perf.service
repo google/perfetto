@@ -1,0 +1,7 @@
+[Unit]
+Description=Perfetto sampling and profiling data source
+
+[Service]
+ExecStart=/usr/sbin/traced_perf
+User=root
+Group=root
