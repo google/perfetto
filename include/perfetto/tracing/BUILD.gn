@@ -34,6 +34,7 @@ source_set("tracing") {
     "event_context.h",
     "interceptor.h",
     "internal/basic_types.h",
+    "internal/checked_scope.h",
     "internal/data_source_internal.h",
     "internal/in_process_tracing_backend.h",
     "internal/interceptor_trace_writer.h",
