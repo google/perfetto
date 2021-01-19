@@ -7,6 +7,40 @@ For documentation, see https://perfetto.dev/docs/data-sources/native-heap-profil
 
 For design doc, see https://perfetto.dev/docs/design-docs/heapprofd-design.
 
+## GN Targets
+### Factories
+android: connects to the system heapprofd. The client API will need to have
+         been built at *exactly* the same version. This means this can only
+         be used by the API shipped in the platform.
+
+standalone: executes an in-process heapprofd. Can be used on old platform
+            versions.
+
+noop: ignores all calls to the client API. This can be used as a stand-in when
+      compiling, or when executing without profiling.
+
+### Interceptors
+bionic: uses bionic [malloc dispatch](
+https://cs.android.com/android/platform/superproject/+/master:bionic/libc/private/bionic_malloc_dispatch.h)
+to intercept allocation functions on Android. This works by placing a library
+on a pre-defined path, which gets [loaded by Bionic](
+https://cs.android.com/android/platform/superproject/+/master:bionic/libc/bionic/malloc_heapprofd.cpp).
+
+glibc: generates a library exposing the allocation functions. This library
+       should be used for `LD_PRELOAD` and uses the glibc specific symbols
+       like `__libc_malloc` to use the system allocator.
+
+### Shared libraries
+
+| GN target                   | factory    | interceptor | distribution |
+|-----------------------------|------------|-------------|--------------|
+| heapprofd_client            | android    | bionic      | platform     |
+| heapprofd_client_api        | android    | none        | platform     |
+| heapprofd_glibc_preload     | standalone | glibc       | unbundled    |
+| heapprofd_standalone_client | standalone | none        | unbundled    |
+| heapprofd_api_noop          | noop       | none        | unbundled    |
+
+
 ## Heap profile heapprofd
 
 For development, you might want to get a heap profile of heapprofd while it
