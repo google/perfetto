@@ -170,4 +170,49 @@ TEST(TracedValueTest, Hierarchy_Explicit) {
       MessageToJSON(message.SerializeAsString()));
 }
 
+#if PERFETTO_DCHECK_IS_ON()
+// This death test makes sense only when dchecks are enabled.
+TEST(TracedValueTest, FailOnIncorrectUsage) {
+  // A new call to AddItem is not allowed before the previous result is
+  // consumed.
+  EXPECT_DEATH(
+
+      {
+        protozero::HeapBuffered<protos::pbzero::DebugAnnotation> message;
+        auto dict = TracedValue::CreateForTest(message.get()).WriteDictionary();
+        auto scope1 = dict.AddItem("key1");
+        auto scope2 = dict.AddItem("key2");
+        std::move(scope1).WriteInt64(1);
+        std::move(scope2).WriteInt64(2);
+      },
+      "");
+
+  // A new call to AppendItem is not allowed before the previous result is
+  // consumed.
+  EXPECT_DEATH(
+      {
+        protozero::HeapBuffered<protos::pbzero::DebugAnnotation> message;
+        auto array = TracedValue::CreateForTest(message.get()).WriteArray();
+        auto scope1 = array.AppendItem();
+        auto scope2 = array.AppendItem();
+        std::move(scope1).WriteInt64(1);
+        std::move(scope2).WriteInt64(2);
+      },
+      "");
+
+  // Writing to parent scope is not allowed.
+  EXPECT_DEATH(
+      {
+        protozero::HeapBuffered<protos::pbzero::DebugAnnotation> message;
+        auto outer_dict =
+            TracedValue::CreateForTest(message.get()).WriteDictionary();
+        {
+          auto inner_dict = outer_dict.AddDictionary("inner");
+          outer_dict.AddItem("key").WriteString("value");
+        }
+      },
+      "");
+}
+#endif  // PERFETTO_DCHECK_IS_ON()
+
 }  // namespace perfetto
