@@ -1,4 +1,4 @@
-// Copyright (C) 2020 The Android Open Source Project
+// Copyright (C) 2021 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,8 +21,7 @@ import {globals} from '../globals';
 
 import {AggregationController} from './aggregation_controller';
 
-
-export class CpuAggregationController extends AggregationController {
+export class CpuByProcessAggregationController extends AggregationController {
   async createAggregateView(engine: Engine, area: Area) {
     await engine.query(`drop view if exists ${this.kind};`);
 
@@ -37,8 +36,8 @@ export class CpuAggregationController extends AggregationController {
     if (selectedCpus.length === 0) return false;
 
     const query = `create view ${this.kind} as
-        SELECT process.name as process_name, pid, thread.name as thread_name,
-        tid, sum(dur) AS total_dur,
+        SELECT process.name as process_name, pid,
+        sum(dur) AS total_dur,
         sum(dur)/count(1) as avg_dur,
         count(1) as occurrences
         FROM process
@@ -47,14 +46,14 @@ export class CpuAggregationController extends AggregationController {
         WHERE cpu IN (${selectedCpus}) AND
         state = "Running" AND
         thread_state.ts + thread_state.dur > ${toNs(area.startSec)} AND
-        thread_state.ts < ${toNs(area.endSec)} group by utid`;
+        thread_state.ts < ${toNs(area.endSec)} group by upid`;
 
     await engine.query(query);
     return true;
   }
 
   getTabName() {
-    return 'CPU by thread';
+    return 'CPU by process';
   }
 
   async getExtra() {}
@@ -76,18 +75,6 @@ export class CpuAggregationController extends AggregationController {
         kind: 'NUMBER',
         columnConstructor: Uint16Array,
         columnId: 'pid'
-      },
-      {
-        title: 'Thread',
-        kind: 'STRING',
-        columnConstructor: Uint16Array,
-        columnId: 'thread_name'
-      },
-      {
-        title: 'TID',
-        kind: 'NUMBER',
-        columnConstructor: Uint16Array,
-        columnId: 'tid'
       },
       {
         title: 'Wall duration (ms)',
