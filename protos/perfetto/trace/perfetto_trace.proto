@@ -6125,6 +6125,17 @@ message CompositorTimingHistory {
 
 // End of protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.proto
 
+// Begin of protos/perfetto/trace/track_event/chrome_content_settings_event_info.proto
+
+// Details about ContentSettings trace events.
+message ChromeContentSettingsEventInfo {
+  // The number of user defined hostname patterns for content settings at
+  // browser start. Similar to UMA histogram
+  // 'ContentSettings.NumberOfExceptions'.
+  optional uint32 number_of_exceptions = 1;
+}
+// End of protos/perfetto/trace/track_event/chrome_content_settings_event_info.proto
+
 // Begin of protos/perfetto/trace/track_event/chrome_frame_reporter.proto
 
 message ChromeFrameReporter {
@@ -6467,7 +6478,7 @@ message TaskExecution {
 // their default track association) can be emitted as part of a
 // TrackEventDefaults message.
 //
-// Next reserved id: 13 (up to 15). Next id: 43.
+// Next reserved id: 13 (up to 15). Next id: 44.
 message TrackEvent {
   // Names of categories of the event. In the client library, categories are a
   // way to turn groups of individual events on or off.
@@ -6601,6 +6612,8 @@ message TrackEvent {
   optional ChromeApplicationStateInfo chrome_application_state_info = 39;
   optional ChromeRendererSchedulerState chrome_renderer_scheduler_state = 40;
   optional ChromeWindowHandleEventInfo chrome_window_handle_event_info = 41;
+  optional ChromeContentSettingsEventInfo chrome_content_settings_event_info =
+      43;
 
   // This field is used only if the source location represents the function that
   // executes during this event.

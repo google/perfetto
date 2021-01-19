@@ -2956,6 +2956,7 @@ perfetto_proto_library(
     srcs = [
         "protos/perfetto/trace/track_event/chrome_application_state_info.proto",
         "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.proto",
+        "protos/perfetto/trace/track_event/chrome_content_settings_event_info.proto",
         "protos/perfetto/trace/track_event/chrome_frame_reporter.proto",
         "protos/perfetto/trace/track_event/chrome_histogram_sample.proto",
         "protos/perfetto/trace/track_event/chrome_keyed_service.proto",
