@@ -540,6 +540,13 @@ class PerfettoApiTest : public ::testing::TestWithParam<perfetto::BackendType> {
       }
       const auto& track_event = packet.track_event();
       std::string slice;
+
+      if (track_event.has_track_uuid()) {
+        std::stringstream track;
+        track << "[track=" << track_event.track_uuid() << "]";
+        slice += track.str();
+      }
+
       switch (track_event.type()) {
         case perfetto::protos::gen::TrackEvent::TYPE_SLICE_BEGIN:
           slice += "B";
@@ -1876,6 +1883,21 @@ TEST_P(PerfettoApiTest, TrackEventInstant) {
   EXPECT_THAT(slices, ElementsAre("I:test.TestEvent", "I:test.AnotherEvent"));
 }
 
+TEST_P(PerfettoApiTest, TrackEventDefaultGlobalTrack) {
+  // Create a new trace session.
+  auto* tracing_session = NewTraceWithCategories({"test"});
+  tracing_session->get()->StartBlocking();
+
+  TRACE_EVENT_INSTANT("test", "ThreadEvent");
+  TRACE_EVENT_INSTANT("test", "GlobalEvent", perfetto::Track::Global(0u));
+  perfetto::TrackEvent::Flush();
+
+  tracing_session->get()->StopBlocking();
+  auto slices = ReadSlicesFromTrace(tracing_session->get());
+  EXPECT_THAT(slices,
+              ElementsAre("I:test.ThreadEvent", "[track=0]I:test.GlobalEvent"));
+}
+
 TEST_P(PerfettoApiTest, TrackEventDebugAnnotations) {
   // Create a new trace session.
   auto* tracing_session = NewTraceWithCategories({"test"});
@@ -2824,13 +2846,14 @@ TEST_P(PerfettoApiTest, LegacyTraceEvents) {
   EXPECT_THAT(
       slices,
       ElementsAre(
-          "I:cat.LegacyEvent", "B:cat.LegacyEvent(arg=(int)123)",
+          "[track=0]I:cat.LegacyEvent", "B:cat.LegacyEvent(arg=(int)123)",
           "E.LegacyEvent(arg=(string)string,arg2=(double)0.123)",
           "B:cat.ScopedLegacyEvent", "E",
           "B(bind_id=3671771902)(flow_direction=1):disabled-by-default-cat."
           "LegacyFlowEvent",
-          "I:cat.LegacyInstantEvent",
-          "Legacy_S(unscoped_id=1)(pid_override=123)(tid_override=456):cat."
+          "[track=0]I:cat.LegacyInstantEvent",
+          "[track=0]Legacy_S(unscoped_id=1)(pid_override=123)(tid_override=456)"
+          ":cat."
           "LegacyWithIdTidAndTimestamp",
           "Legacy_C:cat.LegacyCounter(value=(int)1234)",
           "Legacy_C(unscoped_id=1234):cat.LegacyCounterWithId(value=(int)9000)",
@@ -3439,7 +3462,7 @@ TEST_P(PerfettoApiTest, ThreadSafetyAnnotation) {
   tracing_session->get()->StopBlocking();
   auto slices = ReadSlicesFromTrace(tracing_session->get());
   EXPECT_THAT(slices, ElementsAre("I:cat.Instant(value=(int)1)",
-                                  "I:cat.InstantLegacy(value=(int)1)",
+                                  "[track=0]I:cat.InstantLegacy(value=(int)1)",
                                   "B:cat.Scoped(value=(int)1)", "E",
                                   "B:cat.ScopedLegacy(value=(int)1)", "E"));
 }
