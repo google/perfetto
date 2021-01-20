@@ -19,6 +19,7 @@
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/export.h"
+#include "perfetto/tracing/internal/checked_scope.h"
 #include "protos/perfetto/trace/track_event/debug_annotation.pbzero.h"
 
 #include <type_traits>
@@ -149,11 +150,13 @@ class PERFETTO_EXPORT TracedValue {
   friend class TracedArray;
   friend class TracedDictionary;
 
-  inline explicit TracedValue(protos::pbzero::DebugAnnotation* root_context)
-      : root_context_(root_context) {}
+  inline explicit TracedValue(protos::pbzero::DebugAnnotation* root_context,
+                              internal::CheckedScope* parent_scope)
+      : root_context_(root_context), checked_scope_(parent_scope) {}
   inline explicit TracedValue(
-      protos::pbzero::DebugAnnotation::NestedValue* nested_context)
-      : nested_context_(nested_context) {}
+      protos::pbzero::DebugAnnotation::NestedValue* nested_context,
+      internal::CheckedScope* parent_scope)
+      : nested_context_(nested_context), checked_scope_(parent_scope) {}
 
   // Temporary support for perfetto::DebugAnnotation C++ class before it's going
   // to be replaced by TracedValue.
@@ -165,6 +168,8 @@ class PERFETTO_EXPORT TracedValue {
   // this duplication.
   protos::pbzero::DebugAnnotation* root_context_ = nullptr;
   protos::pbzero::DebugAnnotation::NestedValue* nested_context_ = nullptr;
+
+  internal::CheckedScope checked_scope_;
 };
 
 class TracedArray {
@@ -173,7 +178,7 @@ class TracedArray {
   TracedArray& operator=(const TracedArray&) = delete;
   TracedArray& operator=(TracedArray&&) = delete;
   TracedArray(TracedArray&&) = default;
-  ~TracedArray() { value_->Finalize(); }
+  ~TracedArray() = default;
 
   TracedValue AppendItem();
 
@@ -184,10 +189,13 @@ class TracedArray {
   friend class TracedValue;
 
   inline explicit TracedArray(
-      protos::pbzero::DebugAnnotation::NestedValue* value)
-      : value_(value) {}
+      protos::pbzero::DebugAnnotation::NestedValue* value,
+      internal::CheckedScope* parent_scope)
+      : value_(value), checked_scope_(parent_scope) {}
 
   protos::pbzero::DebugAnnotation::NestedValue* value_;
+
+  internal::CheckedScope checked_scope_;
 };
 
 class TracedDictionary {
@@ -196,7 +204,7 @@ class TracedDictionary {
   TracedDictionary& operator=(const TracedDictionary&) = delete;
   TracedDictionary& operator=(TracedDictionary&&) = delete;
   TracedDictionary(TracedDictionary&&) = default;
-  ~TracedDictionary() {}
+  ~TracedDictionary() = default;
 
   TracedValue AddItem(const char* key);
 
@@ -207,10 +215,13 @@ class TracedDictionary {
   friend class TracedValue;
 
   inline explicit TracedDictionary(
-      protos::pbzero::DebugAnnotation::NestedValue* value)
-      : value_(value) {}
+      protos::pbzero::DebugAnnotation::NestedValue* value,
+      internal::CheckedScope* parent_scope)
+      : value_(value), checked_scope_(parent_scope) {}
 
   protos::pbzero::DebugAnnotation::NestedValue* value_;
+
+  internal::CheckedScope checked_scope_;
 };
 
 }  // namespace perfetto
