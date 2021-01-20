@@ -63,6 +63,7 @@ source_set("producer") {
     "../common:interner",
     "../common:interning_output",
     "../common:proc_utils",
+    "../common:producer_support",
     "../common:profiler_guardrails",
   ]
   sources = [
