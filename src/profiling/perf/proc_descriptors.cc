@@ -36,26 +36,43 @@ void DirectDescriptorGetter::SetDelegate(ProcDescriptorDelegate* delegate) {
 }
 
 void DirectDescriptorGetter::GetDescriptorsForPid(pid_t pid) {
-  char buf[128] = {};
-  snprintf(buf, sizeof(buf), "/proc/%d/maps", pid);
-  auto maps_fd = base::ScopedFile{open(buf, O_RDONLY | O_CLOEXEC)};
+  char dir_buf[128] = {};
+  snprintf(dir_buf, sizeof(dir_buf), "/proc/%d", pid);
+  auto dir_fd =
+      base::ScopedFile(open(dir_buf, O_DIRECTORY | O_RDONLY | O_CLOEXEC));
+  if (!dir_fd) {
+    if (errno != ENOENT)  // not surprising if the process has quit
+      PERFETTO_PLOG("Failed to open [%s]", dir_buf);
+
+    return;
+  }
+
+  struct stat stat_buf;
+  if (fstat(dir_fd.get(), &stat_buf) == -1) {
+    PERFETTO_PLOG("Failed to stat [%s]", dir_buf);
+    return;
+  }
+
+  auto maps_fd =
+      base::ScopedFile{openat(dir_fd.get(), "maps", O_RDONLY | O_CLOEXEC)};
   if (!maps_fd) {
     if (errno != ENOENT)  // not surprising if the process has quit
-      PERFETTO_PLOG("Failed to open [%s]", buf);
+      PERFETTO_PLOG("Failed to open %s/maps", dir_buf);
 
     return;
   }
 
-  snprintf(buf, sizeof(buf), "/proc/%d/mem", pid);
-  auto mem_fd = base::ScopedFile{open(buf, O_RDONLY | O_CLOEXEC)};
+  auto mem_fd =
+      base::ScopedFile{openat(dir_fd.get(), "mem", O_RDONLY | O_CLOEXEC)};
   if (!mem_fd) {
     if (errno != ENOENT)  // not surprising if the process has quit
-      PERFETTO_PLOG("Failed to open [%s]", buf);
+      PERFETTO_PLOG("Failed to open %s/mem", dir_buf);
 
     return;
   }
 
-  delegate_->OnProcDescriptors(pid, std::move(maps_fd), std::move(mem_fd));
+  delegate_->OnProcDescriptors(pid, stat_buf.st_uid, std::move(maps_fd),
+                               std::move(mem_fd));
 }
 
 // AndroidRemoteDescriptorGetter:
@@ -117,8 +134,8 @@ void AndroidRemoteDescriptorGetter::OnDataAvailable(base::UnixSocket* self) {
   if (!received_bytes)
     return;
 
-  delegate_->OnProcDescriptors(self->peer_pid_linux(), std::move(fds[0]),
-                               std::move(fds[1]));
+  delegate_->OnProcDescriptors(self->peer_pid_linux(), self->peer_uid_posix(),
+                               std::move(fds[0]), std::move(fds[1]));
 }
 
 }  // namespace perfetto

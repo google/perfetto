@@ -84,6 +84,7 @@ class PerfProducer : public Producer,
 
   // ProcDescriptorDelegate impl:
   void OnProcDescriptors(pid_t pid,
+                         uid_t uid,
                          base::ScopedFile maps_fd,
                          base::ScopedFile mem_fd) override;
 
