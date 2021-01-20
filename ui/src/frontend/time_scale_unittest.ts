@@ -73,5 +73,5 @@ test('it clamps zoom in', () => {
   const scale = new TimeScale(span, [200, 300]);
   const newSpan = computeZoom(scale, span, 0.0000000001, 225);
   expect((newSpan.end - newSpan.start) / 2 + newSpan.start).toBeCloseTo(1010);
-  expect(newSpan.end - newSpan.start).toBeCloseTo(1e-4, 8);
+  expect(newSpan.end - newSpan.start).toBeCloseTo(1e-6, 8);
 });
