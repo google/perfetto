@@ -18,6 +18,7 @@ perfetto_proto_library("@TYPE@") {
   sources = [
     "chrome_application_state_info.proto",
     "chrome_compositor_scheduler_state.proto",
+    "chrome_content_settings_event_info.proto",
     "chrome_frame_reporter.proto",
     "chrome_histogram_sample.proto",
     "chrome_keyed_service.proto",
