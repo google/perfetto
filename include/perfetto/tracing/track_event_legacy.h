@@ -331,7 +331,7 @@ class PERFETTO_EXPORT TrackEventLegacy {
                                uint32_t flags,
                                Args&&... args) PERFETTO_NO_INLINE {
     AddDebugAnnotations(&ctx, std::forward<Args>(args)...);
-    SetTrackIfNeeded(&ctx, flags);
+    SetTrackIfNeeded(&ctx, phase, flags);
     if (NeedLegacyFlags(phase, flags)) {
       auto legacy_event = ctx.event()->set_legacy_event();
       SetLegacyFlags(legacy_event, phase, flags);
@@ -372,7 +372,7 @@ class PERFETTO_EXPORT TrackEventLegacy {
       ctx.event()->set_track_uuid(0);
     } else {
       // No pid/tid/track overrides => obey the flags instead.
-      SetTrackIfNeeded(&ctx, flags);
+      SetTrackIfNeeded(&ctx, phase, flags);
     }
     if (NeedLegacyFlags(phase, flags) || pid_override || tid_override) {
       auto legacy_event = ctx.event()->set_legacy_event();
@@ -409,7 +409,10 @@ class PERFETTO_EXPORT TrackEventLegacy {
   }
 
  private:
-  static void SetTrackIfNeeded(EventContext* ctx, uint32_t flags) {
+  static void SetTrackIfNeeded(EventContext* ctx, char phase, uint32_t flags) {
+    // Scopes are only relevant for instant events.
+    if (phase != TRACE_EVENT_PHASE_INSTANT)
+      return;
     // Note: This avoids the need to set LegacyEvent::instant_event_scope.
     auto scope = flags & TRACE_EVENT_FLAG_SCOPE_MASK;
     switch (scope) {
