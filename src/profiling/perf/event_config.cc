@@ -110,12 +110,13 @@ base::Optional<EventConfig> EventConfig::Create(
     const DataSourceConfig& ds_config) {
   protos::pbzero::PerfEventConfig::Decoder event_config_pb(
       ds_config.perf_event_config_raw());
-  return EventConfig::Create(event_config_pb);
+  return EventConfig::Create(event_config_pb, ds_config);
 }
 
 // static
 base::Optional<EventConfig> EventConfig::Create(
-    const protos::pbzero::PerfEventConfig::Decoder& pb_config) {
+    const protos::pbzero::PerfEventConfig::Decoder& pb_config,
+    const DataSourceConfig& raw_ds_config) {
   base::Optional<TargetFilter> filter = ParseTargetFilter(pb_config);
   if (!filter.has_value())
     return base::nullopt;
@@ -151,12 +152,14 @@ base::Optional<EventConfig> EventConfig::Create(
   PERFETTO_DLOG("Capping samples (not records) per tick to [%" PRIu32 "]",
                 samples_per_tick_limit);
 
-  return EventConfig(pb_config, sampling_frequency, ring_buffer_pages.value(),
-                     read_tick_period_ms, samples_per_tick_limit,
-                     remote_descriptor_timeout_ms, std::move(filter.value()));
+  return EventConfig(pb_config, raw_ds_config, sampling_frequency,
+                     ring_buffer_pages.value(), read_tick_period_ms,
+                     samples_per_tick_limit, remote_descriptor_timeout_ms,
+                     std::move(filter.value()));
 }
 
 EventConfig::EventConfig(const protos::pbzero::PerfEventConfig::Decoder& cfg,
+                         const DataSourceConfig& raw_ds_config,
                          uint32_t sampling_frequency,
                          uint32_t ring_buffer_pages,
                          uint32_t read_tick_period_ms,
@@ -170,7 +173,8 @@ EventConfig::EventConfig(const protos::pbzero::PerfEventConfig::Decoder& cfg,
       target_filter_(std::move(target_filter)),
       remote_descriptor_timeout_ms_(remote_descriptor_timeout_ms),
       unwind_state_clear_period_ms_(cfg.unwind_state_clear_period_ms()),
-      kernel_frames_(cfg.kernel_frames()) {
+      kernel_frames_(cfg.kernel_frames()),
+      raw_ds_config_(raw_ds_config) /* copy */ {
   auto& pe = perf_event_attr_;
   pe.size = sizeof(perf_event_attr);
 
