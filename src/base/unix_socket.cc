@@ -521,6 +521,9 @@ ssize_t UnixSocketRaw::Receive(void* msg,
   if (msg_hdr.msg_flags & MSG_TRUNC || msg_hdr.msg_flags & MSG_CTRUNC) {
     for (size_t i = 0; fds && i < fds_len; ++i)
       close(fds[i]);
+    PERFETTO_ELOG(
+        "Socket message truncated. This might be due to a SELinux denial on "
+        "fd:use.");
     errno = EMSGSIZE;
     return -1;
   }
