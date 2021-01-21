@@ -1,4 +1,5 @@
 .android_config
+.cache
 .ccls
 .ccls-cache
 .clangd
