@@ -1,3 +1,8 @@
+perfetto (11.0-1) unstable; urgency=medium
+  * Add the Perfetto perf sampling and profiling service.
+
+ -- Sami Kyostila <skyostil@google.com>  Mon, 18 Jan 2021 12:10:00 +0000
+
 perfetto (9.0-1) unstable; urgency=medium
 
   * Run traced under a dedicated system user account and set socket

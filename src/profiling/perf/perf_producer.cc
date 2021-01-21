@@ -37,6 +37,7 @@
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "src/profiling/common/callstack_trie.h"
 #include "src/profiling/common/proc_utils.h"
+#include "src/profiling/common/producer_support.h"
 #include "src/profiling/common/profiler_guardrails.h"
 #include "src/profiling/common/unwind_support.h"
 #include "src/profiling/perf/common_types.h"
@@ -218,7 +219,7 @@ void PerfProducer::StartDataSource(DataSourceInstanceID ds_id,
   protos::pbzero::PerfEventConfig::Decoder event_config_pb(
       config.perf_event_config_raw());
   base::Optional<EventConfig> event_config =
-      EventConfig::Create(event_config_pb);
+      EventConfig::Create(event_config_pb, config);
   if (!event_config.has_value()) {
     PERFETTO_ELOG("PerfEventConfig rejected.");
     return;
@@ -529,6 +530,7 @@ bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
 // Note: first-fit makes descriptor request fulfillment not true FIFO. But the
 // edge-cases where it matters are very unlikely.
 void PerfProducer::OnProcDescriptors(pid_t pid,
+                                     uid_t uid,
                                      base::ScopedFile maps_fd,
                                      base::ScopedFile mem_fd) {
   // Find first-fit data source that requested descriptors for the process.
@@ -537,6 +539,13 @@ void PerfProducer::OnProcDescriptors(pid_t pid,
     auto proc_status_it = ds.process_states.find(pid);
     if (proc_status_it == ds.process_states.end())
       continue;
+
+    if (!CanProfile(ds.event_config.raw_ds_config(), uid)) {
+      PERFETTO_DLOG("Not profileable: pid [%d], uid [%d] for DS [%zu]",
+                    static_cast<int>(pid), static_cast<int>(uid),
+                    static_cast<size_t>(it.first));
+      continue;
+    }
 
     // Match against either resolving, or expired state. In the latter
     // case, it means that the async response was slow enough that we've marked

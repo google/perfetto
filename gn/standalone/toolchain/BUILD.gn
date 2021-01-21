@@ -140,6 +140,7 @@ declare_args() {
     target_ar = ar
     target_cc = cc
     target_cxx = cxx
+    target_linker = linker
   } else {
     target_ar = "ar"
     if (is_android) {

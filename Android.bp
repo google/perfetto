@@ -3559,6 +3559,7 @@ genrule {
     "protos/perfetto/metrics/android/display_metrics.proto",
     "protos/perfetto/metrics/android/gpu_metric.proto",
     "protos/perfetto/metrics/android/heap_profile_callsites.proto",
+    "protos/perfetto/metrics/android/hwcomposer.proto",
     "protos/perfetto/metrics/android/hwui_metric.proto",
     "protos/perfetto/metrics/android/ion_metric.proto",
     "protos/perfetto/metrics/android/java_heap_histogram.proto",
@@ -3599,6 +3600,7 @@ genrule {
     "protos/perfetto/metrics/android/display_metrics.proto",
     "protos/perfetto/metrics/android/gpu_metric.proto",
     "protos/perfetto/metrics/android/heap_profile_callsites.proto",
+    "protos/perfetto/metrics/android/hwcomposer.proto",
     "protos/perfetto/metrics/android/hwui_metric.proto",
     "protos/perfetto/metrics/android/ion_metric.proto",
     "protos/perfetto/metrics/android/java_heap_histogram.proto",
@@ -5981,6 +5983,7 @@ genrule {
   srcs: [
     "protos/perfetto/trace/track_event/chrome_application_state_info.proto",
     "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.proto",
+    "protos/perfetto/trace/track_event/chrome_content_settings_event_info.proto",
     "protos/perfetto/trace/track_event/chrome_frame_reporter.proto",
     "protos/perfetto/trace/track_event/chrome_histogram_sample.proto",
     "protos/perfetto/trace/track_event/chrome_keyed_service.proto",
@@ -6011,6 +6014,7 @@ genrule {
   out: [
     "external/perfetto/protos/perfetto/trace/track_event/chrome_application_state_info.gen.cc",
     "external/perfetto/protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.gen.cc",
+    "external/perfetto/protos/perfetto/trace/track_event/chrome_content_settings_event_info.gen.cc",
     "external/perfetto/protos/perfetto/trace/track_event/chrome_frame_reporter.gen.cc",
     "external/perfetto/protos/perfetto/trace/track_event/chrome_histogram_sample.gen.cc",
     "external/perfetto/protos/perfetto/trace/track_event/chrome_keyed_service.gen.cc",
@@ -6041,6 +6045,7 @@ genrule {
   srcs: [
     "protos/perfetto/trace/track_event/chrome_application_state_info.proto",
     "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.proto",
+    "protos/perfetto/trace/track_event/chrome_content_settings_event_info.proto",
     "protos/perfetto/trace/track_event/chrome_frame_reporter.proto",
     "protos/perfetto/trace/track_event/chrome_histogram_sample.proto",
     "protos/perfetto/trace/track_event/chrome_keyed_service.proto",
@@ -6071,6 +6076,7 @@ genrule {
   out: [
     "external/perfetto/protos/perfetto/trace/track_event/chrome_application_state_info.gen.h",
     "external/perfetto/protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.gen.h",
+    "external/perfetto/protos/perfetto/trace/track_event/chrome_content_settings_event_info.gen.h",
     "external/perfetto/protos/perfetto/trace/track_event/chrome_frame_reporter.gen.h",
     "external/perfetto/protos/perfetto/trace/track_event/chrome_histogram_sample.gen.h",
     "external/perfetto/protos/perfetto/trace/track_event/chrome_keyed_service.gen.h",
@@ -6105,6 +6111,7 @@ genrule {
   srcs: [
     "protos/perfetto/trace/track_event/chrome_application_state_info.proto",
     "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.proto",
+    "protos/perfetto/trace/track_event/chrome_content_settings_event_info.proto",
     "protos/perfetto/trace/track_event/chrome_frame_reporter.proto",
     "protos/perfetto/trace/track_event/chrome_histogram_sample.proto",
     "protos/perfetto/trace/track_event/chrome_keyed_service.proto",
@@ -6134,6 +6141,7 @@ genrule {
   out: [
     "external/perfetto/protos/perfetto/trace/track_event/chrome_application_state_info.pb.cc",
     "external/perfetto/protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.pb.cc",
+    "external/perfetto/protos/perfetto/trace/track_event/chrome_content_settings_event_info.pb.cc",
     "external/perfetto/protos/perfetto/trace/track_event/chrome_frame_reporter.pb.cc",
     "external/perfetto/protos/perfetto/trace/track_event/chrome_histogram_sample.pb.cc",
     "external/perfetto/protos/perfetto/trace/track_event/chrome_keyed_service.pb.cc",
@@ -6164,6 +6172,7 @@ genrule {
   srcs: [
     "protos/perfetto/trace/track_event/chrome_application_state_info.proto",
     "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.proto",
+    "protos/perfetto/trace/track_event/chrome_content_settings_event_info.proto",
     "protos/perfetto/trace/track_event/chrome_frame_reporter.proto",
     "protos/perfetto/trace/track_event/chrome_histogram_sample.proto",
     "protos/perfetto/trace/track_event/chrome_keyed_service.proto",
@@ -6193,6 +6202,7 @@ genrule {
   out: [
     "external/perfetto/protos/perfetto/trace/track_event/chrome_application_state_info.pb.h",
     "external/perfetto/protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.pb.h",
+    "external/perfetto/protos/perfetto/trace/track_event/chrome_content_settings_event_info.pb.h",
     "external/perfetto/protos/perfetto/trace/track_event/chrome_frame_reporter.pb.h",
     "external/perfetto/protos/perfetto/trace/track_event/chrome_histogram_sample.pb.h",
     "external/perfetto/protos/perfetto/trace/track_event/chrome_keyed_service.pb.h",
@@ -6227,6 +6237,7 @@ genrule {
   srcs: [
     "protos/perfetto/trace/track_event/chrome_application_state_info.proto",
     "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.proto",
+    "protos/perfetto/trace/track_event/chrome_content_settings_event_info.proto",
     "protos/perfetto/trace/track_event/chrome_frame_reporter.proto",
     "protos/perfetto/trace/track_event/chrome_histogram_sample.proto",
     "protos/perfetto/trace/track_event/chrome_keyed_service.proto",
@@ -6264,6 +6275,7 @@ genrule {
   srcs: [
     "protos/perfetto/trace/track_event/chrome_application_state_info.proto",
     "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.proto",
+    "protos/perfetto/trace/track_event/chrome_content_settings_event_info.proto",
     "protos/perfetto/trace/track_event/chrome_frame_reporter.proto",
     "protos/perfetto/trace/track_event/chrome_histogram_sample.proto",
     "protos/perfetto/trace/track_event/chrome_keyed_service.proto",
@@ -6294,6 +6306,7 @@ genrule {
   out: [
     "external/perfetto/protos/perfetto/trace/track_event/chrome_application_state_info.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.pbzero.cc",
+    "external/perfetto/protos/perfetto/trace/track_event/chrome_content_settings_event_info.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/track_event/chrome_frame_reporter.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/track_event/chrome_histogram_sample.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/track_event/chrome_keyed_service.pbzero.cc",
@@ -6324,6 +6337,7 @@ genrule {
   srcs: [
     "protos/perfetto/trace/track_event/chrome_application_state_info.proto",
     "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.proto",
+    "protos/perfetto/trace/track_event/chrome_content_settings_event_info.proto",
     "protos/perfetto/trace/track_event/chrome_frame_reporter.proto",
     "protos/perfetto/trace/track_event/chrome_histogram_sample.proto",
     "protos/perfetto/trace/track_event/chrome_keyed_service.proto",
@@ -6354,6 +6368,7 @@ genrule {
   out: [
     "external/perfetto/protos/perfetto/trace/track_event/chrome_application_state_info.pbzero.h",
     "external/perfetto/protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.pbzero.h",
+    "external/perfetto/protos/perfetto/trace/track_event/chrome_content_settings_event_info.pbzero.h",
     "external/perfetto/protos/perfetto/trace/track_event/chrome_frame_reporter.pbzero.h",
     "external/perfetto/protos/perfetto/trace/track_event/chrome_histogram_sample.pbzero.h",
     "external/perfetto/protos/perfetto/trace/track_event/chrome_keyed_service.pbzero.h",
@@ -6388,6 +6403,7 @@ genrule {
   srcs: [
     "protos/perfetto/trace/track_event/chrome_application_state_info.proto",
     "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.proto",
+    "protos/perfetto/trace/track_event/chrome_content_settings_event_info.proto",
     "protos/perfetto/trace/track_event/chrome_frame_reporter.proto",
     "protos/perfetto/trace/track_event/chrome_histogram_sample.proto",
     "protos/perfetto/trace/track_event/chrome_keyed_service.proto",
@@ -7517,6 +7533,7 @@ genrule {
     "src/trace_processor/metrics/android/android_cpu_agg.sql",
     "src/trace_processor/metrics/android/android_cpu_raw_metrics_per_core.sql",
     "src/trace_processor/metrics/android/android_gpu.sql",
+    "src/trace_processor/metrics/android/android_hwcomposer.sql",
     "src/trace_processor/metrics/android/android_hwui_metric.sql",
     "src/trace_processor/metrics/android/android_ion.sql",
     "src/trace_processor/metrics/android/android_lmk.sql",
@@ -7533,6 +7550,7 @@ genrule {
     "src/trace_processor/metrics/android/android_task_names.sql",
     "src/trace_processor/metrics/android/android_task_state.sql",
     "src/trace_processor/metrics/android/android_thread_time_in_state.sql",
+    "src/trace_processor/metrics/android/composition_layers.sql",
     "src/trace_processor/metrics/android/cpu_info.sql",
     "src/trace_processor/metrics/android/display_metrics.sql",
     "src/trace_processor/metrics/android/frame_missed.sql",
@@ -8218,6 +8236,7 @@ filegroup {
     "src/tracing/debug_annotation.cc",
     "src/tracing/event_context.cc",
     "src/tracing/interceptor.cc",
+    "src/tracing/internal/checked_scope.cc",
     "src/tracing/internal/interceptor_trace_writer.cc",
     "src/tracing/internal/tracing_muxer_fake.cc",
     "src/tracing/internal/tracing_muxer_impl.cc",
@@ -9356,6 +9375,7 @@ cc_binary {
     ":perfetto_src_profiling_common_interner",
     ":perfetto_src_profiling_common_interning_output",
     ":perfetto_src_profiling_common_proc_utils",
+    ":perfetto_src_profiling_common_producer_support",
     ":perfetto_src_profiling_common_profiler_guardrails",
     ":perfetto_src_profiling_common_unwind_support",
     ":perfetto_src_profiling_perf_common_types",
@@ -9365,6 +9385,7 @@ cc_binary {
     ":perfetto_src_profiling_perf_traced_perf_main",
     ":perfetto_src_profiling_perf_unwinding",
     ":perfetto_src_protozero_protozero",
+    ":perfetto_src_traced_probes_packages_list_packages_list_parser",
     ":perfetto_src_tracing_common",
     ":perfetto_src_tracing_core_core",
     ":perfetto_src_tracing_core_service",

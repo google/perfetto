@@ -32,6 +32,7 @@ namespace perfetto {
 class ProcDescriptorDelegate {
  public:
   virtual void OnProcDescriptors(pid_t pid,
+                                 uid_t uid,
                                  base::ScopedFile maps_fd,
                                  base::ScopedFile mem_fd) = 0;
 

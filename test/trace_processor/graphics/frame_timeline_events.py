@@ -21,12 +21,13 @@ class JankType:
   JANK_UNSPECIFIED = 0;
   JANK_NONE = 1;
   JANK_SF_SCHEDULING = 2;
-  JANK_PREDICTION_ERROR = 3;
-  JANK_DISPLAY_HAL = 4;
-  JANK_SF_DEADLINE_MISSED = 5;
-  JANK_APP_DEADLINE_MISSED = 6;
-  JANK_BUFFER_STUFFING = 7;
-  JANK_UNKNOWN = 8;
+  JANK_PREDICTION_ERROR = 4;
+  JANK_DISPLAY_HAL = 8;
+  JANK_SF_CPU_DEADLINE_MISSED = 16;
+  JANK_SF_GPU_DEADLINE_MISSED = 32;
+  JANK_APP_DEADLINE_MISSED = 64;
+  JANK_BUFFER_STUFFING = 128;
+  JANK_UNKNOWN = 256;
 
 class PresentType:
   PRESENT_UNSPECIFIED = 0;
@@ -74,5 +75,11 @@ trace.add_expected_surface_frame_start_event(ts=90, cookie=13, token=7, display_
 trace.add_frame_end_event(ts=106, cookie=13)
 trace.add_actual_surface_frame_start_event(ts=90, cookie=14, token=7, display_frame_token=8, pid=1000, layer_name="Layer1", present_type=PresentType.PRESENT_EARLY, on_time_finish=1, gpu_composition=0, jank_type=JankType.JANK_SF_SCHEDULING)
 trace.add_frame_end_event(ts=106, cookie=14)
+
+# DisplayFrame with multiple jank reasons
+trace.add_expected_display_frame_start_event(ts=140, cookie=15, token=12, pid=666)
+trace.add_frame_end_event(ts=146, cookie=15)
+trace.add_actual_display_frame_start_event(ts=148, cookie=16, token=12, pid=666, present_type=PresentType.PRESENT_LATE, on_time_finish=0, gpu_composition=0, jank_type=JankType.JANK_SF_CPU_DEADLINE_MISSED | JankType.JANK_SF_SCHEDULING)
+trace.add_frame_end_event(ts=156, cookie=16)
 
 sys.stdout.buffer.write(trace.trace.SerializeToString())
