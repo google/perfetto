@@ -13,7 +13,7 @@ $ tools/ninja -C out/debug ui
 ```
 
 For more details on `gn` configs see
-[Build Instructions](../docs/build-instructions.md).
+[Build Instructions](../docs/contributing/build-instructions.md).
 
 To run the tests:
 ```bash
