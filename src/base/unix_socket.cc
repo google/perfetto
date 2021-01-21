@@ -978,8 +978,8 @@ size_t UnixSocket::Receive(void* msg,
 std::string UnixSocket::ReceiveString(size_t max_length) {
   std::unique_ptr<char[]> buf(new char[max_length + 1]);
   size_t rsize = Receive(buf.get(), max_length);
-  PERFETTO_CHECK(static_cast<size_t>(rsize) <= max_length);
-  buf[static_cast<size_t>(rsize)] = '\0';
+  PERFETTO_CHECK(rsize <= max_length);
+  buf[rsize] = '\0';
   return std::string(buf.get());
 }
 
