@@ -20,8 +20,10 @@
 
 #include "perfetto/protozero/packed_repeated_fields.h"
 #include "perfetto/protozero/proto_utils.h"
-#include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
+#include "perfetto/protozero/scattered_heap_buffer.h"
 #include "src/trace_processor/iterator_impl.h"
+
+#include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -49,16 +51,19 @@ QueryResultSerializer::QueryResultSerializer(Iterator iter)
 QueryResultSerializer::~QueryResultSerializer() = default;
 
 bool QueryResultSerializer::Serialize(std::vector<uint8_t>* buf) {
+  const size_t slice = batch_split_threshold_ + 4096;
+  protozero::HeapBuffered<protos::pbzero::QueryResult> result(slice, slice);
+  bool has_more = Serialize(result.get());
+  auto arr = result.SerializeAsArray();
+  buf->insert(buf->end(), arr.begin(), arr.end());
+  return has_more;
+}
+
+bool QueryResultSerializer::Serialize(protos::pbzero::QueryResult* res) {
   PERFETTO_CHECK(!eof_reached_);
 
-  // In non-production builds avoid the big reservation. This is to avoid hiding
-  // bugs that accidentally depend on pointer stability across resizes.
-#if !PERFETTO_DCHECK_IS_ON()
-  buf->reserve(buf->size() + batch_split_threshold_ + 4096);
-#endif
-
   if (!did_write_column_names_) {
-    SerializeColumnNames(buf);
+    SerializeColumnNames(res);
     did_write_column_names_ = true;
   }
 
@@ -66,13 +71,12 @@ bool QueryResultSerializer::Serialize(std::vector<uint8_t>* buf) {
   // write an empty batch with the EOF marker. Errors can happen also in the
   // middle of a query, not just before starting it.
 
-  SerializeBatch(buf);
-  MaybeSerializeError(buf);
-
+  SerializeBatch(res);
+  MaybeSerializeError(res);
   return !eof_reached_;
 }
 
-void QueryResultSerializer::SerializeBatch(std::vector<uint8_t>* buf) {
+void QueryResultSerializer::SerializeBatch(protos::pbzero::QueryResult* res) {
   // The buffer is filled in this way:
   // - Append all the strings as we iterate through the results. The rationale
   //   is that strings are typically the largest part of the result and we want
@@ -82,23 +86,19 @@ void QueryResultSerializer::SerializeBatch(std::vector<uint8_t>* buf) {
 
   // Note: this function uses uint32_t instead of size_t because Wasm doesn't
   // have yet native 64-bit integers and this is perf-sensitive.
-  const uint32_t initial_size = static_cast<uint32_t>(buf->size());
 
-  buf->push_back(MakeLenDelimTag(ResultProto::kBatchFieldNumber));
-  const uint32_t batch_size_hdr = static_cast<uint32_t>(buf->size());
-  buf->resize(batch_size_hdr + pu::kMessageLengthFieldSize);
+  const auto& writer = *res->stream_writer();
+  auto* batch = res->add_batch();
 
   // Start the |string_cells|.
-  buf->push_back(MakeLenDelimTag(BatchProto::kStringCellsFieldNumber));
-  const uint32_t strings_hdr_off = static_cast<uint32_t>(buf->size());
-  buf->resize(strings_hdr_off + pu::kMessageLengthFieldSize);
-  const uint32_t strings_start_off = static_cast<uint32_t>(buf->size());
+  auto* strings = batch->BeginNestedMessage<protozero::Message>(
+      BatchProto::kStringCellsFieldNumber);
 
   // This keeps track of the overall size of the batch. It is used to decide if
   // we need to prematurely end the batch, even if the batch_split_threshold_ is
   // not reached. This is to guard against the degenerate case of appending a
   // lot of very large strings and ending up with an enormous batch.
-  auto approx_batch_size = static_cast<uint32_t>(buf->size()) - initial_size;
+  uint32_t approx_batch_size = 16;
 
   std::vector<uint8_t> cell_types(cells_per_batch_);
 
@@ -164,7 +164,7 @@ void QueryResultSerializer::SerializeBatch(std::vector<uint8_t>* buf) {
         uint32_t len_with_nul =
             static_cast<uint32_t>(strlen(value.string_value)) + 1;
         const char* str_begin = value.string_value;
-        buf->insert(buf->end(), str_begin, str_begin + len_with_nul);
+        strings->AppendRawProtoBytes(str_begin, len_with_nul);
         approx_batch_size += len_with_nul + 4;  // 4 is a guess on the preamble.
         break;
       }
@@ -190,29 +190,16 @@ void QueryResultSerializer::SerializeBatch(std::vector<uint8_t>* buf) {
   }  // for (cell)
 
   // Backfill the string size.
-  auto strings_size = static_cast<uint32_t>(buf->size() - strings_start_off);
-  pu::WriteRedundantVarInt(strings_size, buf->data() + strings_hdr_off);
+  strings->Finalize();
+  strings = nullptr;
 
   // Write the cells headers (1 byte per cell).
-  {
-    uint8_t preamble[16];
-    uint8_t* preamble_end = &preamble[0];
-    *(preamble_end++) = MakeLenDelimTag(BatchProto::kCellsFieldNumber);
-    preamble_end = pu::WriteVarInt(cell_idx, preamble_end);
-    buf->insert(buf->end(), preamble, preamble_end);
-    buf->insert(buf->end(), cell_types.data(), cell_types.data() + cell_idx);
-  }
+  batch->AppendBytes(BatchProto::kCellsFieldNumber, cell_types.data(),
+                     cell_idx);
 
   // Append the |varint_cells|, copying over the packed varint buffer.
-  const uint32_t varints_size = static_cast<uint32_t>(varints.size());
-  if (varints_size > 0) {
-    uint8_t preamble[16];
-    uint8_t* preamble_end = &preamble[0];
-    *(preamble_end++) = MakeLenDelimTag(BatchProto::kVarintCellsFieldNumber);
-    preamble_end = pu::WriteVarInt(varints_size, preamble_end);
-    buf->insert(buf->end(), preamble, preamble_end);
-    buf->insert(buf->end(), varints.data(), varints.data() + varints_size);
-  }
+  if (varints.size())
+    batch->set_varint_cells(varints);
 
   // Append the |float64_cells|, copying over the packed fixed64 buffer. This is
   // appended at a 64-bit aligned offset, so that JS can access these by overlay
@@ -227,42 +214,40 @@ void QueryResultSerializer::SerializeBatch(std::vector<uint8_t>* buf) {
 
     // The byte after the preamble must start at a 64bit-aligned offset.
     // The padding needs to be > 1 Byte because of proto encoding.
-    const uint32_t off = static_cast<uint32_t>(buf->size() + preamble_size);
+    const uint32_t off =
+        static_cast<uint32_t>(writer.written() + preamble_size);
     const uint32_t aligned_off = (off + 7) & ~7u;
     uint32_t padding = aligned_off - off;
-    if (padding == 1)
-      padding = 9;
-
+    padding = padding == 1 ? 9 : padding;
     if (padding > 0) {
-      buf->push_back(pu::MakeTagVarInt(kPaddingFieldId));
+      uint8_t pad_buf[10];
+      uint8_t* pad = pad_buf;
+      *(pad++) = pu::MakeTagVarInt(kPaddingFieldId);
       for (uint32_t i = 0; i < padding - 2; i++)
-        buf->push_back(0x80);
-      buf->push_back(0);
+        *(pad++) = 0x80;
+      *(pad++) = 0;
+      batch->AppendRawProtoBytes(pad_buf, static_cast<size_t>(pad - pad_buf));
     }
-
-    buf->insert(buf->end(), preamble, preamble_end);
-    PERFETTO_CHECK(buf->size() % 8 == 0);
-    buf->insert(buf->end(), doubles.data(), doubles.data() + doubles_size);
+    batch->AppendRawProtoBytes(preamble, preamble_size);
+    PERFETTO_CHECK(writer.written() % 8 == 0);
+    batch->AppendRawProtoBytes(doubles.data(), doubles_size);
   }  // if (doubles_size > 0)
 
   // Append the blobs.
-  buf->insert(buf->end(), blobs.begin(), blobs.end());
+  batch->AppendRawProtoBytes(blobs.data(), blobs.size());
 
   // If this is the last batch, write the EOF field.
   if (!batch_full) {
     eof_reached_ = true;
-    auto kEofTag = pu::MakeTagVarInt(BatchProto::kIsLastBatchFieldNumber);
-    buf->push_back(static_cast<uint8_t>(kEofTag));
-    buf->push_back(1);
+    batch->set_is_last_batch(true);
   }
 
   // Finally backfill the size of the whole |batch| sub-message.
-  const uint32_t batch_size = static_cast<uint32_t>(
-      buf->size() - batch_size_hdr - pu::kMessageLengthFieldSize);
-  pu::WriteRedundantVarInt(batch_size, buf->data() + batch_size_hdr);
+  batch->Finalize();
 }
 
-void QueryResultSerializer::MaybeSerializeError(std::vector<uint8_t>* buf) {
+void QueryResultSerializer::MaybeSerializeError(
+    protos::pbzero::QueryResult* res) {
   if (iter_->Status().ok())
     return;
   std::string err = iter_->Status().message();
@@ -270,27 +255,14 @@ void QueryResultSerializer::MaybeSerializeError(std::vector<uint8_t>* buf) {
   // the client can tell some error happened.
   if (err.empty())
     err = "Unknown error";
-
-  // Write the error and return.
-  uint8_t preamble[16];
-  uint8_t* preamble_end = &preamble[0];
-  *(preamble_end++) = MakeLenDelimTag(ResultProto::kErrorFieldNumber);
-  preamble_end = pu::WriteVarInt(err.size(), preamble_end);
-  buf->insert(buf->end(), preamble, preamble_end);
-  buf->insert(buf->end(), err.begin(), err.end());
+  res->set_error(err);
 }
 
-void QueryResultSerializer::SerializeColumnNames(std::vector<uint8_t>* buf) {
+void QueryResultSerializer::SerializeColumnNames(
+    protos::pbzero::QueryResult* res) {
   PERFETTO_DCHECK(!did_write_column_names_);
-  for (uint32_t c = 0; c < num_cols_; c++) {
-    std::string col_name = iter_->GetColumnName(c);
-    uint8_t preamble[16];
-    uint8_t* preamble_end = &preamble[0];
-    *(preamble_end++) = MakeLenDelimTag(ResultProto::kColumnNamesFieldNumber);
-    preamble_end = pu::WriteVarInt(col_name.size(), preamble_end);
-    buf->insert(buf->end(), preamble, preamble_end);
-    buf->insert(buf->end(), col_name.begin(), col_name.end());
-  }
+  for (uint32_t c = 0; c < num_cols_; c++)
+    res->add_column_names(iter_->GetColumnName(c));
 }
 
 }  // namespace trace_processor
