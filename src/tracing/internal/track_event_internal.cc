@@ -138,6 +138,9 @@ bool NameMatchesPatternList(const std::vector<std::string>& patterns,
 }  // namespace
 
 // static
+const Track TrackEventInternal::kDefaultTrack{};
+
+// static
 bool TrackEventInternal::Initialize(
     const TrackEventCategoryRegistry& registry,
     bool (*register_data_source)(const DataSourceDescriptor&)) {
