@@ -58,8 +58,9 @@ trace.add_thread(
     tid=1666, tgid=PID, cmdline="GPU completion", name="GPU completion")
 
 trace.add_ftrace_packet(cpu=0)
-trace.add_atrace_async_begin(ts=0, tid=PID, pid=PID, buf="Cuj<5>")
-trace.add_atrace_async_end(ts=1_000_000_000, tid=PID, pid=PID, buf="Cuj<5>")
+trace.add_atrace_async_begin(ts=0, tid=PID, pid=PID, buf="J<SHADE_ROW_EXPAND>")
+trace.add_atrace_async_end(
+    ts=1_000_000_000, tid=PID, pid=PID, buf="J<SHADE_ROW_EXPAND>")
 
 add_frame(
     trace,
