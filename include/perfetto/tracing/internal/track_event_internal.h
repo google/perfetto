@@ -183,6 +183,9 @@ class PERFETTO_EXPORT TrackEventInternal {
 #endif
   }
 
+  // Represents the default track for the calling thread.
+  static const Track kDefaultTrack;
+
  private:
   static void ResetIncrementalState(TraceWriterBase*, uint64_t timestamp);
   static protozero::MessageHandle<protos::pbzero::TracePacket> NewTracePacket(
