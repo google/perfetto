@@ -21,7 +21,8 @@ import("../../gn/wasm.gni")
 
 # On standalone builds this is all the OSes we support. On chromium builds,
 # though, this really means !is_fuchsia && !is_nacl.
-_subprocess_supported = is_linux || is_android || is_mac || is_win
+_subprocess_supported =
+    is_linux || is_chromeos || is_android || is_mac || is_win
 
 perfetto_component("base") {
   deps = [ "../../gn:default_deps" ]
