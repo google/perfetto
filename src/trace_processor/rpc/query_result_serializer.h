@@ -25,6 +25,13 @@
 #include <stdint.h>
 
 namespace perfetto {
+
+namespace protos {
+namespace pbzero {
+class QueryResult;
+}  // namespace pbzero
+}  // namespace protos
+
 namespace trace_processor {
 
 class Iterator;
@@ -53,10 +60,13 @@ class QueryResultSerializer {
   QueryResultSerializer(const QueryResultSerializer&) = delete;
   QueryResultSerializer& operator=(const QueryResultSerializer&) = delete;
 
-  // Appends the data to the passed vector (note: does NOT clear() the vector
-  // before starting). It returns true if more chunks are available (i.e.
-  // it returns NOT(|eof_reached_||)). The caller is supposed to keep calling
-  // this function until it returns false.
+  // Appends the data to the passed protozero message. It returns true if more
+  // chunks are available (i.e. it returns NOT(|eof_reached_||)). The caller is
+  // supposed to keep calling this function until it returns false.
+  bool Serialize(protos::pbzero::QueryResult*);
+
+  // Like the above but stitches everything together in a vector. Incurs in
+  // extra copies.
   bool Serialize(std::vector<uint8_t>*);
 
   void set_batch_size_for_testing(uint32_t cells_per_batch, uint32_t thres) {
@@ -65,9 +75,9 @@ class QueryResultSerializer {
   }
 
  private:
-  void SerializeColumnNames(std::vector<uint8_t>*);
-  void SerializeBatch(std::vector<uint8_t>*);
-  void MaybeSerializeError(std::vector<uint8_t>*);
+  void SerializeColumnNames(protos::pbzero::QueryResult*);
+  void SerializeBatch(protos::pbzero::QueryResult*);
+  void MaybeSerializeError(protos::pbzero::QueryResult*);
 
   std::unique_ptr<IteratorImpl> iter_;
   const uint32_t num_cols_;
