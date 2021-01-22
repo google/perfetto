@@ -83,7 +83,7 @@ class FakeProducer : public Producer {
         static_cast<BufferID>(source_config.target_buffer()));
     {
       auto packet = trace_writer->NewTracePacket();
-      packet->stream_writer_for_testing()->WriteBytes(data_, size_);
+      packet->AppendRawProtoBytes(data_, size_);
     }
     trace_writer->Flush();
 
