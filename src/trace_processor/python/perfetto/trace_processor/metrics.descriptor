@@ -365,10 +365,11 @@ startup_id (R	startupId!
 missed_frames (RmissedFrames*
 missed_hwc_frames (RmissedHwcFrames*
 missed_gpu_frames (RmissedGpuFrames
-Ž
-7protos/perfetto/metrics/android/sysui_cuj_metrics.protoperfetto.protos"Á
+©
+7protos/perfetto/metrics/android/sysui_cuj_metrics.protoperfetto.protos"Ü
 AndroidSysUiCujMetricsE
-frames (2-.perfetto.protos.AndroidSysUiCujMetrics.FrameRframes`
+frames (2-.perfetto.protos.AndroidSysUiCujMetrics.FrameRframes
+cuj_name (	RcujName`
 Frame
 number (Rnumber
 ts (Rts

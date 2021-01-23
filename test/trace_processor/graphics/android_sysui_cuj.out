@@ -1,4 +1,5 @@
 android_sysui_cuj {
+ cuj_name: "SHADE_ROW_EXPAND"
  frames {
    number: 1
    ts: 0
