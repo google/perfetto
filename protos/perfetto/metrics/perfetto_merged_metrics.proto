@@ -731,6 +731,8 @@ message AndroidSysUiCujMetrics {
   // A list of all frames within the SysUi user journey.
   repeated Frame frames = 1;
 
+  optional string cuj_name = 2;
+
   message Frame {
     // Index of the frame within the single user journey.
     optional int64 number = 1;
