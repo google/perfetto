@@ -21,7 +21,7 @@ CREATE TABLE android_sysui_cuj_last_cuj AS
     main_thread.utid AS main_thread_utid,
     main_thread.name AS main_thread_name,
     thread_track.id AS main_thread_track_id,
-    slice.name AS slice_name,
+    SUBSTR(slice.name, 3, LENGTH(slice.name) - 3) AS cuj_name,
     ts AS ts_start,
     ts + dur AS ts_end
   FROM slice
@@ -30,7 +30,7 @@ CREATE TABLE android_sysui_cuj_last_cuj AS
   JOIN thread AS main_thread ON main_thread.upid = process.upid AND main_thread.is_main_thread
   JOIN thread_track USING (utid)
   WHERE
-    slice.name LIKE 'Cuj<%>'
+    slice.name LIKE 'J<%>'
     AND slice.dur > 0
     AND process.name IN (
       'com.android.systemui',
@@ -331,6 +331,7 @@ DROP VIEW IF EXISTS android_sysui_cuj_output;
 CREATE VIEW android_sysui_cuj_output AS
 SELECT
   AndroidSysUiCujMetrics(
+      'cuj_name', (SELECT cuj_name from android_sysui_cuj_last_cuj),
       'frames',
        (SELECT RepeatedField(
          AndroidSysUiCujMetrics_Frame(
