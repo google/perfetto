@@ -32,6 +32,7 @@ if (current_os == "") {
 }
 
 is_android = current_os == "android"
+is_chromeos = current_os == "chromeos"
 is_linux = current_os == "linux"
 is_linux_host = host_os == "linux"
 is_mac = current_os == "mac"

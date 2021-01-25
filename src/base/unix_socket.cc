@@ -521,6 +521,9 @@ ssize_t UnixSocketRaw::Receive(void* msg,
   if (msg_hdr.msg_flags & MSG_TRUNC || msg_hdr.msg_flags & MSG_CTRUNC) {
     for (size_t i = 0; fds && i < fds_len; ++i)
       close(fds[i]);
+    PERFETTO_ELOG(
+        "Socket message truncated. This might be due to a SELinux denial on "
+        "fd:use.");
     errno = EMSGSIZE;
     return -1;
   }
@@ -975,8 +978,8 @@ size_t UnixSocket::Receive(void* msg,
 std::string UnixSocket::ReceiveString(size_t max_length) {
   std::unique_ptr<char[]> buf(new char[max_length + 1]);
   size_t rsize = Receive(buf.get(), max_length);
-  PERFETTO_CHECK(static_cast<size_t>(rsize) <= max_length);
-  buf[static_cast<size_t>(rsize)] = '\0';
+  PERFETTO_CHECK(rsize <= max_length);
+  buf[rsize] = '\0';
   return std::string(buf.get());
 }
 

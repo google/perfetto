@@ -1,0 +1,96 @@
+[
+  {
+    "cmd": [],
+    "name": "git"
+  },
+  {
+    "cmd": [
+      "vpython",
+      "-u",
+      "RECIPE_MODULE[recipe_engine::file]/resources/fileutil.py",
+      "--json-output",
+      "/path/to/tmp/json",
+      "ensure-directory",
+      "--mode",
+      "0777",
+      "[CACHE]/builder/perfetto"
+    ],
+    "infra_step": true,
+    "name": "git.ensure source dir",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "git",
+      "init",
+      "[CACHE]/builder/perfetto"
+    ],
+    "infra_step": true,
+    "name": "git.init",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "git",
+      "fetch",
+      "--tags",
+      "https://android.googlesource.com/platform/external/perfetto",
+      "2d72510e447ab60a9728aeea2362d8be2cbd7789"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "infra_step": true,
+    "name": "git.fetch",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "git",
+      "checkout",
+      "FETCH_HEAD"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "infra_step": true,
+    "name": "git.checkout",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "tools/install-build-deps",
+      "--ui",
+      "--android"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "infra_step": true,
+    "name": "build-deps"
+  },
+  {
+    "cmd": [
+      "tools/gn",
+      "gen",
+      "out/dist",
+      "--args=is_debug=false"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "gn gen"
+  },
+  {
+    "cmd": [
+      "tools/ninja",
+      "-C",
+      "out/dist"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "ninja"
+  },
+  {
+    "name": "$result"
+  }
+]
