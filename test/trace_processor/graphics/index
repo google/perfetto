@@ -32,3 +32,6 @@ frame_timeline_events.py actual_frame_timeline_events.sql actual_frame_timeline_
 
 # Composition layer
 composition_layer.py composition_layer_count.sql composition_layer_count.out
+
+# Android Jank metrics
+android_jank.py android_jank android_jank.out

@@ -195,4 +195,14 @@ add_frame(
 add_render_thread_atrace(
     trace, ts=305_000_000, ts_end=308_000_000, buf="dispatchFrameCallbacks")
 
+# One more frame after the CUJ is finished
+add_frame(
+    trace,
+    ts_do_frame=1_100_000_000,
+    ts_end_do_frame=1_200_000_000,
+    ts_draw_frame=1_150_000_000,
+    ts_end_draw_frame=1_300_000_000,
+    ts_gpu=1_400_000_000,
+    ts_end_gpu=1_500_000_000)
+
 sys.stdout.buffer.write(trace.trace.SerializeToString())
