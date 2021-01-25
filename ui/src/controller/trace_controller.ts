@@ -84,6 +84,8 @@ import {decideTracks} from './track_decider';
 
 type States = 'init'|'loading_trace'|'ready';
 
+const TRACE_MARGIN_TIME_S = 1 / 1e7;
+
 // TraceController handles handshakes with the frontend for everything that
 // concerns a single trace. It owns the WASM trace processor engine, handles
 // tracks data and SQL queries. There is one TraceController instance for each
@@ -284,9 +286,13 @@ export class TraceController extends Controller<States> {
     }
 
     const traceTime = await this.engine.getTraceTimeBounds();
+    let startSec = traceTime.start;
+    let endSec = traceTime.end;
+    startSec -= TRACE_MARGIN_TIME_S;
+    endSec += TRACE_MARGIN_TIME_S;
     const traceTimeState = {
-      startSec: traceTime.start,
-      endSec: traceTime.end,
+      startSec,
+      endSec,
     };
     const actions: DeferredAction[] = [
       Actions.setTraceTime(traceTimeState),
