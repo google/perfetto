@@ -28,6 +28,7 @@ perfetto_proto_library("@TYPE@") {
     "hwcomposer.proto",
     "hwui_metric.proto",
     "ion_metric.proto",
+    "jank_metric.proto",
     "java_heap_histogram.proto",
     "java_heap_stats.proto",
     "lmk_metric.proto",

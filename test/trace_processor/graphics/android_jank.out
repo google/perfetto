@@ -1,0 +1,38 @@
+android_jank: {
+  warnings {
+    ts: 4000500
+    dur: 4999500
+    process_name: "com.android.systemui"
+    warning_text: "Expensive measure/layout pass"
+  }
+  warnings {
+    ts: 4001000
+    dur: 3499500
+    process_name: "com.android.systemui"
+    warning_text: "Inflation during ListView recycling"
+  }
+  warnings {
+    ts: 8000000
+    dur: 900000
+    process_name: "com.android.systemui"
+    warning_text: "Inflation during ListView recycling"
+  }
+  warnings {
+    ts: 1000000
+    dur: 19000000
+    process_name: "com.android.systemui"
+    warning_text: "Scheduling delay"
+  }
+  warnings {
+    ts: 116000000
+    dur: 1300000
+    process_name: "com.google.android.inputmethod.latin"
+    warning_text: "Expensive rendering with Canvas#saveLayer()"
+  }
+  warnings {
+    ts: 108000000
+    dur: 4000000
+    process_name: "com.google.android.inputmethod.latin"
+    warning_text: "Expensive Bitmap uploads"
+  }
+}
