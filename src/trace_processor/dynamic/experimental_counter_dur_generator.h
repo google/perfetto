@@ -39,10 +39,12 @@ class ExperimentalCounterDurGenerator
 
   // public + static for testing
   static NullableVector<int64_t> ComputeDurColumn(const Table& table);
+  static NullableVector<double> ComputeDeltaColumn(const Table& table);
 
  private:
   const tables::CounterTable* counter_table_ = nullptr;
   std::unique_ptr<NullableVector<int64_t>> dur_column_;
+  std::unique_ptr<NullableVector<double>> delta_column_;
 };
 
 }  // namespace trace_processor

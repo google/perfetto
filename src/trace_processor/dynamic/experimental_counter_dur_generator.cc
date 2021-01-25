@@ -29,6 +29,9 @@ Table::Schema ExperimentalCounterDurGenerator::CreateSchema() {
   schema.columns.emplace_back(
       Table::Schema::Column{"dur", SqlValue::Type::kLong, false /* is_id */,
                             false /* is_sorted */, false /* is_hidden */});
+  schema.columns.emplace_back(
+      Table::Schema::Column{"delta", SqlValue::Type::kLong, false /* is_id */,
+                            false /* is_sorted */, false /* is_hidden */});
   return schema;
 }
 
@@ -51,9 +54,17 @@ std::unique_ptr<Table> ExperimentalCounterDurGenerator::ComputeTable(
   if (!dur_column_) {
     dur_column_.reset(
         new NullableVector<int64_t>(ComputeDurColumn(*counter_table_)));
+    delta_column_.reset(
+        new NullableVector<double>(ComputeDeltaColumn(*counter_table_)));
   }
-  return std::unique_ptr<Table>(new Table(counter_table_->ExtendWithColumn(
-      "dur", dur_column_.get(), TypedColumn<int64_t>::default_flags())));
+
+  Table t = counter_table_
+                ->ExtendWithColumn("dur", std::move(dur_column_.get()),
+                                   TypedColumn<int64_t>::default_flags())
+                .ExtendWithColumn("delta", std::move(delta_column_.get()),
+                                  TypedColumn<int64_t>::default_flags());
+
+  return std::unique_ptr<Table>(new Table(t.Copy()));
 }
 
 // static
@@ -89,6 +100,39 @@ NullableVector<int64_t> ExperimentalCounterDurGenerator::ComputeDurColumn(
     dur.Append(-1);
   }
   return dur;
+}
+
+// static
+NullableVector<double> ExperimentalCounterDurGenerator::ComputeDeltaColumn(
+    const Table& table) {
+  // Keep track of the last seen row for each track id.
+  std::unordered_map<TrackId, uint32_t> last_row_for_track_id;
+  NullableVector<double> delta;
+
+  const auto* value_col =
+      TypedColumn<double>::FromColumn(table.GetColumnByName("value"));
+  const auto* track_id_col =
+      TypedColumn<tables::CounterTrackTable::Id>::FromColumn(
+          table.GetColumnByName("track_id"));
+
+  for (uint32_t i = 0; i < table.row_count(); ++i) {
+    // Check if we already have a previous row for the current track id.
+    TrackId track_id = (*track_id_col)[i];
+    auto it = last_row_for_track_id.find(track_id);
+    if (it == last_row_for_track_id.end()) {
+      // This means we don't have any row - start tracking this row for the
+      // future.
+      last_row_for_track_id.emplace(track_id, i);
+    } else {
+      // This means we have an previous row for the current track id. Update
+      // the duration of the previous row to be up to the current ts.
+      uint32_t old_row = it->second;
+      it->second = i;
+      delta.Set(old_row, (*value_col)[i] - (*value_col)[old_row]);
+    }
+    delta.Append(0);
+  }
+  return delta;
 }
 
 }  // namespace trace_processor
