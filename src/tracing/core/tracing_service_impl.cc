@@ -1844,7 +1844,7 @@ bool TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
     // If the consumer enabled tracing and asked to save the contents into the
     // passed file makes little sense to also try to read the buffers over IPC,
     // as that would just steal data from the periodic draining task.
-    PERFETTO_DFATAL("Consumer trying to read from write_into_file session.");
+    PERFETTO_ELOG("Consumer trying to read from write_into_file session.");
     return false;
   }
 
@@ -1852,7 +1852,9 @@ bool TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
   packets.reserve(1024);  // Just an educated guess to avoid trivial expansions.
 
   // If a bugreport request happened and the trace was stolen for that, give
-  // an empty trace with a clear signal to the consumer.
+  // an empty trace with a clear signal to the consumer. This deals only with
+  // the case of readback-from-IPC. A similar code-path deals with the
+  // write_into_file case in MaybeSaveTraceForBugreport().
   if (tracing_session->seized_for_bugreport && consumer) {
     if (!tracing_session->config.builtin_data_sources()
              .disable_service_events()) {
@@ -2978,14 +2980,21 @@ bool TracingServiceImpl::MaybeSaveTraceForBugreport(
     auto& session = session_id_and_session.second;
     const int32_t score = session.config.bugreport_score();
     // Exclude sessions with 0 (or below) score. By default tracing sessions
-    // should NOT be eligible to be attached to bugreports. Also don't try to
-    // steal long traces with write_into_file as their content is already
-    // partially flushed onto a file and we can't easily recover it (also that
-    // could lead to enormous traces).
-    if (score <= 0 || session.state != TracingSession::STARTED ||
-        session.write_into_file) {
+    // should NOT be eligible to be attached to bugreports.
+    if (score <= 0 || session.state != TracingSession::STARTED)
       continue;
-    }
+
+    // Also don't try to steal long traces with write_into_file if their content
+    // has been already partially written into a file, as we would get partial
+    // traces on both sides. We can't just copy the original file into the
+    // bugreport because the file could be too big (GBs) for bugreports.
+    // The only case where it's legit to steal traces with write_into_file, is
+    // when the consumer specified a very large write_period_ms (e.g. 24h),
+    // meaning that this is effectively a ring-buffer trace. Traceur (the
+    // Android System Tracing app), which uses --detach, does this to have a
+    // consistent invocation path for long-traces and ring-buffer-mode traces.
+    if (session.write_into_file && session.bytes_written_into_file > 0)
+      continue;
 
     // If we are already in the process of finalizing another trace for
     // bugreport, don't even start another one, as they would try to write onto
@@ -3006,6 +3015,27 @@ bool TracingServiceImpl::MaybeSaveTraceForBugreport(
   auto br_fd = CreateTraceFile(GetBugreportTmpPath(), /*overwrite=*/true);
   if (!br_fd)
     return false;
+
+  if (max_session->write_into_file) {
+    auto fd = *max_session->write_into_file;
+    // If we are stealing a write_into_file session, add a marker that explains
+    // why the trace has been stolen rather than creating an empty file. This is
+    // only for write_into_file traces. A similar code path deals with the case
+    // of reading-back a seized trace from IPC in ReadBuffers().
+    if (!max_session->config.builtin_data_sources().disable_service_events()) {
+      std::vector<TracePacket> packets;
+      EmitSeizedForBugreportLifecycleEvent(&packets);
+      for (auto& packet : packets) {
+        char* preamble;
+        size_t preamble_size = 0;
+        std::tie(preamble, preamble_size) = packet.GetProtoPreamble();
+        base::WriteAll(fd, preamble, preamble_size);
+        for (const Slice& slice : packet.slices()) {
+          base::WriteAll(fd, slice.start, slice.size);
+        }
+      }  // for (packets)
+    }    // if (!disable_service_events())
+  }      // if (max_session->write_into_file)
   max_session->write_into_file = std::move(br_fd);
   max_session->on_disable_callback_for_bugreport = std::move(callback);
   max_session->seized_for_bugreport = true;
