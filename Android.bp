@@ -8159,6 +8159,7 @@ filegroup {
 filegroup {
   name: "perfetto_src_traced_probes_probes_src",
   srcs: [
+    "src/traced/probes/kmem_activity_trigger.cc",
     "src/traced/probes/probes_producer.cc",
   ],
 }
