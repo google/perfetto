@@ -186,14 +186,32 @@ function RecSettings(cssClass: string) {
 }
 
 function PowerSettings(cssClass: string) {
+  const DOC_URL = 'https://perfetto.dev/docs/data-sources/battery-counters';
+  const descr =
+      [m('div',
+         m('span', `Polls charge counters and instantaneous power draw from
+                    the battery power management IC and the power rails from
+                    the PowerStats HAL (`),
+         m('a', {href: DOC_URL, target: '_blank'}, 'see docs for more'),
+         m('span', ')'))];
+  if (globals.isInternalUser) {
+    descr.push(m(
+        'div',
+        m('span', 'Googlers: See '),
+        m('a',
+          {href: 'http://go/power-rails-internal-doc', target: '_blank'},
+          'this doc'),
+        m('span', ` for instructions on how to change the refault rail selection
+                  on internal devices.`),
+        ));
+  }
   return m(
       `.record-section${cssClass}`,
       m(Probe,
         {
-          title: 'Battery drain',
+          title: 'Battery drain & power rails',
           img: 'rec_battery_counters.png',
-          descr: `Polls charge counters and instantaneous power draw from
-                    the battery power management IC.`,
+          descr,
           setEnabled: (cfg, val) => cfg.batteryDrain = val,
           isEnabled: (cfg) => cfg.batteryDrain
         } as ProbeAttrs,
