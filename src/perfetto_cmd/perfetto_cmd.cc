@@ -607,6 +607,15 @@ int PerfettoCmd::Main(int argc, char** argv) {
     // In detached mode we must pass the file descriptor to the service and
     // let that one write the trace. We cannot use the IPC readback code path
     // because the client process is about to exit soon after detaching.
+    // We could support detach && !write_into_file, but that would make the
+    // cmdline logic more complex. The feasible configurations are:
+    // 1. Using write_into_file and passing the file path on the --detach call.
+    // 2. Using pure ring-buffer mode, setting write_into_file = false and
+    //    passing the output file path to the --attach call.
+    // This is too complicated and harder to reason about, so we support only 1.
+    // Traceur gets around this by always setting write_into_file and specifying
+    // write_into_file_period = 1week (which effectively means: write into the
+    // file only at the end of the trace) to achieve ring buffer traces.
     PERFETTO_ELOG(
         "TraceConfig's write_into_file must be true when using --detach");
     return 1;
