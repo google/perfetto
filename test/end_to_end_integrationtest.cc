@@ -253,6 +253,33 @@ class PerfettoCmdlineTest : public ::testing::Test {
   TestHelper test_helper_{&task_runner_};
 };
 
+// For the SaveForBugreport* tests.
+void SetTraceConfigForBugreportTest(TraceConfig* trace_config) {
+  trace_config->add_buffers()->set_size_kb(4096);
+  trace_config->set_duration_ms(60000);  // Will never hit this.
+  trace_config->set_bugreport_score(10);
+  auto* ds_config = trace_config->add_data_sources()->mutable_config();
+  ds_config->set_name("android.perfetto.FakeProducer");
+  ds_config->mutable_for_testing()->set_message_count(3);
+  ds_config->mutable_for_testing()->set_message_size(10);
+  ds_config->mutable_for_testing()->set_send_batch_on_register(true);
+}
+
+// For the SaveForBugreport* tests.
+static void VerifyBugreportTraceContents() {
+  // Read the trace written in the fixed location (/data/misc/perfetto-traces/
+  // on Android, /tmp/ on Linux/Mac) and make sure it has the right contents.
+  std::string trace_str;
+  base::ReadFile(kBugreportTracePath, &trace_str);
+  ASSERT_FALSE(trace_str.empty());
+  protos::gen::Trace trace;
+  ASSERT_TRUE(trace.ParseFromString(trace_str));
+  int test_packets = 0;
+  for (const auto& p : trace.packet())
+    test_packets += p.has_for_testing() ? 1 : 0;
+  ASSERT_EQ(test_packets, 3);
+}
+
 }  // namespace
 
 // If we're building on Android and starting the daemons ourselves,
@@ -852,14 +879,7 @@ TEST_F(PerfettoTest, SaveForBugreport) {
   helper.WaitForConsumerConnect();
 
   TraceConfig trace_config;
-  trace_config.add_buffers()->set_size_kb(4096);
-  trace_config.set_duration_ms(10000);
-  trace_config.set_bugreport_score(10);
-  auto* ds_config = trace_config.add_data_sources()->mutable_config();
-  ds_config->set_name("android.perfetto.FakeProducer");
-  ds_config->mutable_for_testing()->set_message_count(3);
-  ds_config->mutable_for_testing()->set_message_size(10);
-  ds_config->mutable_for_testing()->set_send_batch_on_register(true);
+  SetTraceConfigForBugreportTest(&trace_config);
 
   helper.StartTracing(trace_config);
   helper.WaitForProducerEnabled();
@@ -867,17 +887,7 @@ TEST_F(PerfettoTest, SaveForBugreport) {
   EXPECT_TRUE(helper.SaveTraceForBugreportAndWait());
   helper.WaitForTracingDisabled();
 
-  // Read the trace written in the fixed location (/data/misc/perfetto-traces/
-  // on Android, /tmp/ on Linux/Mac) and make sure it has the right contents.
-  std::string trace_str;
-  base::ReadFile(kBugreportTracePath, &trace_str);
-  ASSERT_FALSE(trace_str.empty());
-  protos::gen::Trace trace;
-  ASSERT_TRUE(trace.ParseFromString(trace_str));
-  int test_packets = 0;
-  for (const auto& p : trace.packet())
-    test_packets += p.has_for_testing() ? 1 : 0;
-  ASSERT_EQ(test_packets, 3);
+  VerifyBugreportTraceContents();
 
   // Now read the trace returned to the consumer via ReadBuffers. This should
   // be always empty because --save-for-bugreport takes it over and makes the
@@ -889,6 +899,43 @@ TEST_F(PerfettoTest, SaveForBugreport) {
   const auto& packets = helper.full_trace();
   ASSERT_EQ(packets.size(), 1u);
   for (const auto& p : packets) {
+    ASSERT_TRUE(p.has_service_event());
+    ASSERT_TRUE(p.service_event().seized_for_bugreport());
+  }
+}
+
+// Tests that the SaveForBugreport logic works also for traces with
+// write_into_file = true (with a passed file descriptor).
+TEST_F(PerfettoTest, SaveForBugreport_WriteIntoFile) {
+  base::TestTaskRunner task_runner;
+
+  TestHelper helper(&task_runner);
+  helper.StartServiceIfRequired();
+  helper.ConnectFakeProducer();
+  helper.ConnectConsumer();
+  helper.WaitForConsumerConnect();
+
+  TraceConfig trace_config;
+  SetTraceConfigForBugreportTest(&trace_config);
+  trace_config.set_file_write_period_ms(60000);  // Will never hit this.
+  trace_config.set_write_into_file(true);
+
+  auto pipe_pair = base::Pipe::Create();
+  helper.StartTracing(trace_config, std::move(pipe_pair.wr));
+  helper.WaitForProducerEnabled();
+
+  EXPECT_TRUE(helper.SaveTraceForBugreportAndWait());
+  helper.WaitForTracingDisabled();
+
+  VerifyBugreportTraceContents();
+
+  // Now read the original file descriptor passed in.
+  std::string trace_bytes;
+  ASSERT_TRUE(base::ReadPlatformHandle(*pipe_pair.rd, &trace_bytes));
+  protos::gen::Trace trace;
+  ASSERT_TRUE(trace.ParseFromString(trace_bytes));
+  ASSERT_EQ(trace.packet().size(), 1u);
+  for (const auto& p : trace.packet()) {
     ASSERT_TRUE(p.has_service_event());
     ASSERT_TRUE(p.service_event().seized_for_bugreport());
   }
