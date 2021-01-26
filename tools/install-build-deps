@@ -205,7 +205,7 @@ BUILD_DEPS_HOST = [
     Dependency(
         'buildtools/android-unwinding',
         'https://android.googlesource.com/platform/system/unwinding.git',
-        'a449157de3531a05c138bfac2894e4831c869f6b', 'all'),
+        '706149b745e847bb66ee965135499e196fa11b66', 'all'),
     Dependency('buildtools/android-logging',
                'https://android.googlesource.com/platform/system/logging.git',
                '7b36b566c9113fc703d68f76e8f40c0c2432481c', 'all'),
@@ -215,7 +215,7 @@ BUILD_DEPS_HOST = [
     Dependency(
         'buildtools/android-libprocinfo',
         'https://android.googlesource.com/platform/system/libprocinfo.git',
-        'bd752195f52109fb0dca525236ab9dec74b986e1', 'all'),
+        'fd214c13ededecae97a3b15b5fccc8925a749a84', 'all'),
     Dependency('buildtools/lzma',
                'https://android.googlesource.com/platform/external/lzma.git',
                '7851dce6f4ca17f5caa1c93a4e0a45686b1d56c3', 'all'),
