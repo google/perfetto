@@ -1012,6 +1012,7 @@ source_set("libunwindstack") {
     "android-unwinding/libunwindstack/MapInfo.cpp",
     "android-unwinding/libunwindstack/Maps.cpp",
     "android-unwinding/libunwindstack/Memory.cpp",
+    "android-unwinding/libunwindstack/MemoryMte.cpp",
     "android-unwinding/libunwindstack/Regs.cpp",
     "android-unwinding/libunwindstack/RegsArm.cpp",
     "android-unwinding/libunwindstack/RegsArm64.cpp",
