@@ -11,7 +11,7 @@ link_fuzzer=\"-lFuzzingEngine\" is_asan=true is_hermetic_clang=false \
 use_custom_libcxx=false \
 extra_cflags=\"$CFLAGS -Wno-implicit-int-float-conversion\" \
 extra_cxxflags=\"$CXXFLAGS\" extra_ldflags=\"$CXXFLAGS\" \
-is_system_compiler=true"
+is_system_compiler=true cc=\"$CC\" cxx=\"$CXX\" linker=\"gold\""
 
 OUTDIR=$WORK/build
 $SRC/perfetto/tools/gn gen "$OUTDIR" --args="${GN_ARGS}" --check
