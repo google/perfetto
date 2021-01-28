@@ -32,6 +32,7 @@ Subprocess::Subprocess(const std::string& file, std::vector<std::string> args)
     : input_pipe_(base::Pipe::Create(base::Pipe::kBothBlock)),
       output_pipe_(base::Pipe::Create(base::Pipe::kBothBlock)) {
   std::vector<char*> c_str_args;
+  c_str_args.reserve(args.size());
   for (std::string& arg : args)
     c_str_args.push_back(&(arg[0]));
   c_str_args.push_back(nullptr);
