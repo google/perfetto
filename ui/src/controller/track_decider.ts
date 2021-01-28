@@ -444,7 +444,7 @@ async function getThreadCounterTracks(
     from thread_counter_track
     join thread using(utid)
     left join process using(upid)
-    where thread_counter_track.name not in ('time_in_state')
+    where thread_counter_track.name not in ('time_in_state', 'thread_time')
   `);
 
   const it = iter(
