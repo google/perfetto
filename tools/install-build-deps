@@ -229,8 +229,8 @@ BUILD_DEPS_HOST = [
     # Example traces for regression tests.
     Dependency(
         'test/data.zip',
-        'https://storage.googleapis.com/perfetto/test-data-20210105-174747.zip',
-        'e4fe27c8aad5bf0c447b2e853302d5431d0f134e368b73b68e5f56a293945d52',
+        'https://storage.googleapis.com/perfetto/test-data-20210128-172149.zip',
+        'f83f9336a2d0d9ac5c3154b949e3237a6c7119b2e8a70b31c7789aff0066b9eb',
         'all',
     ),
 
