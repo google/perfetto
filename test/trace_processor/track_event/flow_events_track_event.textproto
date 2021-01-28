@@ -79,6 +79,20 @@ packet {
     }
   }
 }
+
+packet {
+  timestamp: 58000
+  trusted_packet_sequence_id: 1
+  track_event {
+    name: "FlowSlice3Begin"
+    categories: "test"
+    track_uuid: 2,
+    flow_ids: 3,
+    legacy_event {
+      phase: 73 # 'I'
+    }
+  }
+}
 packet {
   timestamp: 59000
   trusted_packet_sequence_id: 1
@@ -90,6 +104,73 @@ packet {
     legacy_event {
       duration_us: 10
       phase: 88 # 'X'
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  track_descriptor {
+    uuid: 11
+    name: "async"
+  }
+}
+packet {
+  timestamp: 60000
+  trusted_packet_sequence_id: 1
+  track_event {
+    name: "FlowSlice3End4Begin"
+    categories: "test"
+    track_uuid: 11,
+    terminating_flow_ids: 3,
+    flow_ids: 4,
+    type: 1, # 'TYPE_SLICE_BEGIN'
+  }
+}
+packet {
+  timestamp: 61000
+  trusted_packet_sequence_id: 1
+  track_event {
+    name: "FlowSlice4Step"
+    categories: "test"
+    track_uuid: 11,
+    flow_ids: 4,
+    type: 3, # 'TYPE_SLICE_INSTANT'
+  }
+}
+packet {
+  timestamp: 62000
+  trusted_packet_sequence_id: 1
+  track_event {
+    name: "FlowSlice3End4Begin"
+    categories: "test"
+    track_uuid: 11,
+    type: 2, # 'TYPE_SLICE_END'
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  track_descriptor {
+    uuid: 13
+    name: "processTrack"
+    process {
+      pid: 3
+      process_name: "processTrack"
+    }
+  }
+}
+packet {
+  timestamp: 65000
+  trusted_packet_sequence_id: 1
+  track_event {
+    name: "FlowSlice4End"
+    categories: "test"
+    track_uuid: 13,
+    terminating_flow_ids: 4,
+    legacy_event {
+      phase: 105  # 'i'
+      instant_event_scope: 2  # SCOPE_PROCESS
     }
   }
 }
