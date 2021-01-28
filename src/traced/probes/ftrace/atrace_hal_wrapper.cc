@@ -57,6 +57,7 @@ struct AtraceHalWrapper::DynamicLibLoader {
     if (!enable_categories_)
       return false;
     std::vector<const char*> args;
+    args.reserve(categories.size());
     for (const std::string& category : categories) {
       args.push_back(category.c_str());
     }
