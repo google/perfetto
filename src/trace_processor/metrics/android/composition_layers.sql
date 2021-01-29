@@ -13,7 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-CREATE VIEW IF NOT EXISTS {{output}} AS
+DROP VIEW IF EXISTS {{output}};
+CREATE VIEW {{output}} AS
 WITH composition_layer_counts AS (
   SELECT
     LAG(ts) OVER (ORDER BY ts) AS ts,
