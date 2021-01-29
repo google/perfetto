@@ -244,6 +244,9 @@ export const StateActions = {
       COUNTER_TRACK_KIND,
       ASYNC_SLICE_TRACK_KIND
     ];
+    // Use a numeric collator so threads are sorted as T1, T2, ..., T10, T11,
+    // rather than T1, T10, T11, ..., T2, T20, T21 .
+    const coll = new Intl.Collator([], {sensitivity: 'base', numeric: true});
     for (const group of Object.values(state.trackGroups)) {
       group.tracks.sort((a: string, b: string) => {
         const aKind = threadTrackOrder.indexOf(state.tracks[a].kind);
@@ -258,13 +261,7 @@ export const StateActions = {
           } else if (state.tracks[b].isMainThread) {
             return 1;
           }
-          if (aName > bName) {
-            return 1;
-          } else if (aName === bName) {
-            return 0;
-          } else {
-            return -1;
-          }
+          return coll.compare(aName, bName);
         } else {
           if (aKind === -1) return 1;
           if (bKind === -1) return -1;
