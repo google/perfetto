@@ -887,7 +887,9 @@ genrule(
         "src/trace_processor/metrics/android/android_gpu.sql",
         "src/trace_processor/metrics/android/android_hwcomposer.sql",
         "src/trace_processor/metrics/android/android_hwui_metric.sql",
+        "src/trace_processor/metrics/android/android_hwui_threads.sql",
         "src/trace_processor/metrics/android/android_ion.sql",
+        "src/trace_processor/metrics/android/android_jank.sql",
         "src/trace_processor/metrics/android/android_lmk.sql",
         "src/trace_processor/metrics/android/android_lmk_reason.sql",
         "src/trace_processor/metrics/android/android_mem.sql",
@@ -1467,6 +1469,8 @@ filegroup(
 filegroup(
     name = "src_traced_probes_probes_src",
     srcs = [
+        "src/traced/probes/kmem_activity_trigger.cc",
+        "src/traced/probes/kmem_activity_trigger.h",
         "src/traced/probes/probes_producer.cc",
         "src/traced/probes/probes_producer.h",
     ],
@@ -2288,6 +2292,7 @@ perfetto_proto_library(
         "protos/perfetto/metrics/android/hwcomposer.proto",
         "protos/perfetto/metrics/android/hwui_metric.proto",
         "protos/perfetto/metrics/android/ion_metric.proto",
+        "protos/perfetto/metrics/android/jank_metric.proto",
         "protos/perfetto/metrics/android/java_heap_histogram.proto",
         "protos/perfetto/metrics/android/java_heap_stats.proto",
         "protos/perfetto/metrics/android/lmk_metric.proto",

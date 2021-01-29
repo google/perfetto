@@ -97,8 +97,6 @@ select query,
 from sqlstats, first
 order by started desc`;
 
-const TRACE_STATS = 'select * from stats order by severity, source, name, idx';
-
 let lastTabTitle = '';
 
 function createCannedQuery(query: string): (_: Event) => void {
@@ -219,11 +217,6 @@ const SECTIONS = [
         t: 'Heap Graph: Bytes per type',
         a: createCannedQuery(HEAP_GRAPH_BYTES_PER_TYPE),
         i: 'search',
-      },
-      {
-        t: 'Trace stats',
-        a: createCannedQuery(TRACE_STATS),
-        i: 'bug_report',
       },
       {
         t: 'Debug SQL performance',

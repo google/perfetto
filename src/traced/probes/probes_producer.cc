@@ -86,8 +86,19 @@ ProbesDataSource::Descriptor const* const kAllDataSources[]{
 //                    +--------------+
 //
 
-ProbesProducer::ProbesProducer() : weak_factory_(this) {}
+ProbesProducer* ProbesProducer::instance_ = nullptr;
+
+ProbesProducer* ProbesProducer::GetInstance() {
+  return instance_;
+}
+
+ProbesProducer::ProbesProducer() : weak_factory_(this) {
+  PERFETTO_CHECK(instance_ == nullptr);
+  instance_ = this;
+}
+
 ProbesProducer::~ProbesProducer() {
+  instance_ = nullptr;
   // The ftrace data sources must be deleted before the ftrace controller.
   data_sources_.clear();
   ftrace_.reset();
@@ -493,7 +504,7 @@ void ProbesProducer::OnFtraceDataWrittenIntoDataSourceBuffers() {
       if (ps->on_demand_dumps_enabled())
         ps_data_source = ps;
     }
-  }    // for (session_data_sources_)
+  }  // for (session_data_sources_)
 }
 
 void ProbesProducer::ConnectWithRetries(const char* socket_name,
@@ -524,6 +535,13 @@ void ProbesProducer::IncreaseConnectionBackoff() {
 
 void ProbesProducer::ResetConnectionBackoff() {
   connection_backoff_ms_ = kInitialConnectionBackoffMs;
+}
+
+void ProbesProducer::ActivateTrigger(std::string trigger) {
+  task_runner_->PostTask([this, trigger]() {
+    if (endpoint_)
+      endpoint_->ActivateTriggers({trigger});
+  });
 }
 
 }  // namespace perfetto
