@@ -6,10 +6,6 @@ $SRC/perfetto/tools/install-build-deps
 
 mkdir -p $WORK/build
 
-if [ "$SANITIZER" = "address" ]; then
-  CXXFLAGS="$CXXFLAGS -DADDRESS_SANITIZER";
-fi;
-
 # sanitize=vptr needs RTTI, which we do not compile with.
 CXXFLAGS="$CXXFLAGS -fno-sanitize=vptr"
 
@@ -19,6 +15,10 @@ use_custom_libcxx=false \
 extra_cflags=\"$CFLAGS -Wno-implicit-int-float-conversion\" \
 extra_cxxflags=\"$CXXFLAGS\" extra_ldflags=\"$CXXFLAGS\" \
 is_system_compiler=true cc=\"$CC\" cxx=\"$CXX\" linker=\"gold\""
+
+if [ "$SANITIZER" = "address" ]; then
+  GN_ARGS="$GN_ARGS is_asan=true";
+fi;
 
 OUTDIR=$WORK/build
 $SRC/perfetto/tools/gn gen "$OUTDIR" --args="${GN_ARGS}" --check
