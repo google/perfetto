@@ -196,6 +196,7 @@ class TestHelper : public Consumer {
   void OnConnect() override;
   void OnDisconnect() override;
   void OnTracingDisabled(const std::string& error) override;
+  virtual void ReadTraceData(std::vector<TracePacket> packets);
   void OnTraceData(std::vector<TracePacket> packets, bool has_more) override;
   void OnDetach(bool) override;
   void OnAttach(bool, const TraceConfig&) override;
