@@ -12,6 +12,7 @@
 ../../data/chrome_scroll_without_vsync.pftrace scroll_jank_cause_queuing_delay_general_validation.sql scroll_jank_cause_queuing_delay_general_validation.out
 ../../data/chrome_scroll_without_vsync.pftrace chrome_thread_slice_with_cpu_time.sql chrome_thread_slice_with_cpu_time.out
 ../track_event/track_event_counters.textproto chrome_thread_slice_with_cpu_time_repeated.sql chrome_thread_slice_with_cpu_time_repeated.out
+../../data/chrome_rendering_desktop.pftrace frame_times_metric.sql frame_times_metric.out
 
 # Chrome memory snapshots.
 ../../data/chrome_memory_snapshot.pftrace memory_snapshot_general_validation.sql memory_snapshot_general_validation.out
