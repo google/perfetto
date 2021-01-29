@@ -320,6 +320,12 @@ void ProtoTraceParser::ParseProfilePacket(
     if (entry.hit_guardrail())
       context_->storage->IncrementIndexedStats(stats::heapprofd_hit_guardrail,
                                                pid);
+    if (entry.orig_sampling_interval_bytes()) {
+      context_->storage->SetIndexedStats(
+          stats::heapprofd_sampling_interval_adjusted, pid,
+          static_cast<int64_t>(entry.sampling_interval_bytes()) -
+              static_cast<int64_t>(entry.orig_sampling_interval_bytes()));
+    }
 
     for (auto sample_it = entry.samples(); sample_it; ++sample_it) {
       protos::pbzero::ProfilePacket::HeapSample::Decoder sample(*sample_it);
