@@ -6335,6 +6335,9 @@ message ChromeLegacyIpc {
 message ChromeMessagePump {
   // True if there are sent messages in the queue.
   optional bool sent_messages_in_queue = 1;
+  // Interned SourceLocation of IO handler that MessagePumpForIO is about to
+  // invoke.
+  optional uint64 io_handler_location_iid = 2;
 }
 
 // End of protos/perfetto/trace/track_event/chrome_message_pump.proto
