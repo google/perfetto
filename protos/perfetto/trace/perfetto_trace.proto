@@ -7477,7 +7477,11 @@ message Profiling {
 
 // Individual performance sampling packet payload. Typically corresponds to a
 // stack sample on a configration-dependent counter overflow.
-// Timestamps are within the root packet (in the CLOCK_BOOTTIME domain).
+//
+// Timestamps are within the root packet. This used to use the CLOCK_BOOTTIME
+// domain, but now the default is CLOCK_MONOTONIC_RAW which is compatible with
+// more event types.
+//
 // There are several distinct views of this message:
 // * completely processed sample (callstack_iid set)
 // * indication of kernel buffer data loss (kernel_records_lost set)
