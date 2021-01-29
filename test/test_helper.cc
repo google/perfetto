@@ -59,7 +59,7 @@ void TestHelper::OnTracingDisabled(const std::string& /*error*/) {
   on_stop_tracing_callback_ = nullptr;
 }
 
-void TestHelper::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
+void TestHelper::ReadTraceData(std::vector<TracePacket> packets) {
   for (auto& encoded_packet : packets) {
     protos::gen::TracePacket packet;
     PERFETTO_CHECK(
@@ -73,7 +73,10 @@ void TestHelper::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
     PERFETTO_CHECK(packet.has_trusted_uid());
     trace_.push_back(std::move(packet));
   }
+}
 
+void TestHelper::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
+  ReadTraceData(std::move(packets));
   if (!has_more) {
     std::move(on_packets_finished_callback_)();
   }
