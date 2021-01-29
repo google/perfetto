@@ -185,7 +185,8 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
 
       HeapTracker heap_tracker;
       std::string heap_name;
-      uint64_t sampling_interval;
+      uint64_t sampling_interval = 0u;
+      uint64_t orig_sampling_interval = 0u;
     };
     ProcessState(GlobalCallstackTrie* c, bool d)
         : callsites(c), dump_at_max_mode(d) {}
