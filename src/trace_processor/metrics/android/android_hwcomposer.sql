@@ -37,6 +37,7 @@ SELECT RUN_METRIC(
   'output', 'cached_layers'
 );
 
+DROP VIEW IF EXISTS android_hwcomposer_output;
 CREATE VIEW android_hwcomposer_output AS
 SELECT AndroidHwcomposerMetrics(
     'composition_total_layers', (SELECT AVG(value)
