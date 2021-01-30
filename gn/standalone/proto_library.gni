@@ -54,6 +54,14 @@ template("proto_library") {
   generate_descriptor = ""
   if (defined(invoker.generate_descriptor)) {
     generate_descriptor = invoker.generate_descriptor
+
+    # Include imports to descriptor by default, but use exclude_imports to omit
+    # them if needed.
+    if (defined(invoker.exclude_imports)) {
+      exclude_imports = invoker.exclude_imports
+    } else {
+      exclude_imports = false
+    }
   }
 
   if (defined(invoker.generator_plugin_label)) {
@@ -174,8 +182,11 @@ template("proto_library") {
     }
     if (generate_descriptor != "") {
       depfile = "$root_gen_dir/$generate_descriptor.d"
+
+      if (!exclude_imports) {
+        args += [ "--include_imports" ]
+      }
       args += [
-        "--include_imports",
         "--descriptor_set_out",
         rebase_path("$root_gen_dir/$generate_descriptor", root_build_dir),
         "--dependency_out",
