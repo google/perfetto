@@ -723,7 +723,11 @@ class TrackEventParser::EventImporter {
     auto opt_slice_id = context_->slice_tracker->Scoped(
         ts_, track_id_, category_id_, name_id_, duration_ns,
         [this](BoundInserter* inserter) { ParseTrackEventArgs(inserter); });
-    if (utid_ && opt_slice_id.has_value()) {
+    if (!opt_slice_id.has_value()) {
+      return util::OkStatus();
+    }
+    MaybeParseFlowEvents();
+    if (utid_) {
       auto* thread_slices = storage_->mutable_thread_slices();
       PERFETTO_DCHECK(!thread_slices->slice_count() ||
                       thread_slices->slice_ids().back() < opt_slice_id.value());
@@ -738,9 +742,13 @@ class TrackEventParser::EventImporter {
     auto opt_slice_id = context_->slice_tracker->Begin(
         ts_, track_id_, category_id_, name_id_,
         [this](BoundInserter* inserter) { ParseTrackEventArgs(inserter); });
+    if (!opt_slice_id.has_value()) {
+      return util::OkStatus();
+    }
+    MaybeParseFlowEvents();
     // For the time beeing, we only create vtrack slice rows if we need to
     // store thread timestamps/counters.
-    if (legacy_event_.use_async_tts() && opt_slice_id.has_value()) {
+    if (legacy_event_.use_async_tts()) {
       auto* vtrack_slices = storage_->mutable_virtual_track_slices();
       PERFETTO_DCHECK(!vtrack_slices->slice_count() ||
                       vtrack_slices->slice_ids().back() < opt_slice_id.value());
@@ -773,7 +781,11 @@ class TrackEventParser::EventImporter {
     auto opt_slice_id = context_->slice_tracker->Scoped(
         ts_, track_id_, category_id_, name_id_, duration_ns,
         [this](BoundInserter* inserter) { ParseTrackEventArgs(inserter); });
-    if (legacy_event_.use_async_tts() && opt_slice_id.has_value()) {
+    if (!opt_slice_id.has_value()) {
+      return util::OkStatus();
+    }
+    MaybeParseFlowEvents();
+    if (legacy_event_.use_async_tts()) {
       auto* vtrack_slices = storage_->mutable_virtual_track_slices();
       PERFETTO_DCHECK(!vtrack_slices->slice_count() ||
                       vtrack_slices->slice_ids().back() < opt_slice_id.value());

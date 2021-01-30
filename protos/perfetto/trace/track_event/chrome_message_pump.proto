@@ -22,4 +22,7 @@ package perfetto.protos;
 message ChromeMessagePump {
   // True if there are sent messages in the queue.
   optional bool sent_messages_in_queue = 1;
+  // Interned SourceLocation of IO handler that MessagePumpForIO is about to
+  // invoke.
+  optional uint64 io_handler_location_iid = 2;
 }

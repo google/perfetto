@@ -51,7 +51,7 @@ class DocsChip implements m.ClassComponent<DocsChipAttrs> {
 export interface ProbeAttrs {
   title: string;
   img: string|null;
-  descr: string;
+  descr: m.Children;
   isEnabled: Getter<boolean>;
   setEnabled: Setter<boolean>;
 }
