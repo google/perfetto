@@ -935,8 +935,12 @@ void HeapprofdProducer::HandleClientConnection(
   uint64_t shmem_size = data_source->config.shmem_size_bytes();
   if (!shmem_size)
     shmem_size = kDefaultShmemSize;
-  if (shmem_size > kMaxShmemSize)
+  if (shmem_size > kMaxShmemSize) {
+    PERFETTO_LOG("Specified shared memory size of %" PRIu64
+                 " exceeds maximum size of %" PRIu64 ". Reducing.",
+                 shmem_size, kMaxShmemSize);
     shmem_size = kMaxShmemSize;
+  }
 
   auto shmem = SharedRingBuffer::Create(static_cast<size_t>(shmem_size));
   if (!shmem || !shmem->is_valid()) {
