@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 The Android Open Source Project
+ * Copyright (C) 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,11 +18,11 @@ syntax = "proto2";
 
 package perfetto.protos;
 
-import "protos/perfetto/metrics/metrics.proto";
-import "protos/perfetto/metrics/chrome/frame_times.proto";
-import "protos/perfetto/metrics/chrome/test_chrome_metric.proto";
+import "protos/perfetto/metrics/custom_options.proto";
 
-extend TraceMetrics {
-  optional TestChromeMetric test_chrome_metric = 1001;
-  optional FrameTimes frame_times = 1002;
+message FrameTimes {
+  repeated double frame_time = 1 [(unit) = "ms_smallerIsBetter"];
+  repeated double exp_frame_time = 2 [(unit) = "ms_smallerIsBetter"];
+  optional double avg_surface_fps = 3 [(unit) = "unitless_biggerIsBetter"];
+  optional double exp_avg_surface_fps = 4 [(unit) = "unitless_biggerIsBetter"];
 }
