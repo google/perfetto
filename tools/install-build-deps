@@ -379,10 +379,13 @@ def RmtreeIfExists(path):
   if not os.path.exists(path):
     return
   buildtools_path = os.path.abspath(os.path.join(ROOT_DIR, 'buildtools'))
-  if not os.path.abspath(path).startswith(buildtools_path):
+  test_path = os.path.abspath(os.path.join(ROOT_DIR, 'test', 'data'))
+  if (not os.path.abspath(path).startswith(buildtools_path) and
+      not os.path.abspath(path).startswith(test_path)):
     # Safety check to prevent that some merge confilct ends up doing some
     # rm -rf / or similar.
-    logging.fatal('Cannot remove %s: outside of buildtools', path)
+    logging.fatal(
+      'Cannot remove %s: outside of buildtools and test/data', path)
     sys.exit(1)
   logging.info('Removing %s' % path)
   shutil.rmtree(path, onerror=del_read_only_for_windows)
