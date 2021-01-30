@@ -716,6 +716,11 @@ message AndroidStartupMetric {
     optional AndroidProcessMetadata process = 7;
 
     optional HscMetrics hsc = 8;
+
+    // The time taken in the startup from intent recieved to the start time
+    // of the reportFullyDrawn slice. This should be longer than the time to
+    // first frame as the application decides this after it starts rendering.
+    optional Slice report_fully_drawn = 9;
   }
 
   repeated Startup startup = 1;
