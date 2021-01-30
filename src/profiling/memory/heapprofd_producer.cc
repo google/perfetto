@@ -691,23 +691,26 @@ void HeapprofdProducer::DumpProcessState(DataSource* data_source,
     if (!heap_info.heap_name.empty())
       heap_name = heap_info.heap_name.c_str();
     uint64_t sampling_interval = heap_info.sampling_interval;
+    uint64_t orig_sampling_interval = heap_info.orig_sampling_interval;
 
-    auto new_heapsamples = [pid, from_startup, dump_timestamp, process_state,
-                            data_source, heap_name, sampling_interval](
-                               ProfilePacket::ProcessHeapSamples* proto) {
-      proto->set_pid(static_cast<uint64_t>(pid));
-      proto->set_timestamp(dump_timestamp);
-      proto->set_from_startup(from_startup);
-      proto->set_disconnected(process_state->disconnected);
-      proto->set_buffer_overran(process_state->buffer_overran);
-      proto->set_buffer_corrupted(process_state->buffer_corrupted);
-      proto->set_hit_guardrail(data_source->hit_guardrail);
-      if (heap_name)
-        proto->set_heap_name(heap_name);
-      proto->set_sampling_interval_bytes(sampling_interval);
-      auto* stats = proto->set_stats();
-      SetStats(stats, *process_state);
-    };
+    auto new_heapsamples =
+        [pid, from_startup, dump_timestamp, process_state, data_source,
+         heap_name, sampling_interval,
+         orig_sampling_interval](ProfilePacket::ProcessHeapSamples* proto) {
+          proto->set_pid(static_cast<uint64_t>(pid));
+          proto->set_timestamp(dump_timestamp);
+          proto->set_from_startup(from_startup);
+          proto->set_disconnected(process_state->disconnected);
+          proto->set_buffer_overran(process_state->buffer_overran);
+          proto->set_buffer_corrupted(process_state->buffer_corrupted);
+          proto->set_hit_guardrail(data_source->hit_guardrail);
+          if (heap_name)
+            proto->set_heap_name(heap_name);
+          proto->set_sampling_interval_bytes(sampling_interval);
+          proto->set_orig_sampling_interval_bytes(orig_sampling_interval);
+          auto* stats = proto->set_stats();
+          SetStats(stats, *process_state);
+        };
 
     DumpState dump_state(data_source->trace_writer.get(),
                          std::move(new_heapsamples),
@@ -1131,6 +1134,8 @@ void HeapprofdProducer::HandleHeapNameRecord(HeapNameRecord rec) {
   }
   if (entry.sample_interval != 0) {
     ProcessState::HeapInfo& hi = process_state.GetHeapInfo(entry.heap_id);
+    if (!hi.sampling_interval)
+      hi.orig_sampling_interval = entry.sample_interval;
     hi.sampling_interval = entry.sample_interval;
   }
 }
