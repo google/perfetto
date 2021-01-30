@@ -94,6 +94,28 @@ WHERE slice.name IN (
   'inflate')
 GROUP BY 1, 2;
 
+DROP TABLE IF EXISTS report_fully_drawn_per_launch;
+CREATE TABLE report_fully_drawn_per_launch AS
+WITH report_fully_drawn_launch_slices AS (
+  SELECT
+    launches.id AS launch_id,
+    launches.ts AS launch_ts,
+    min(slice.ts) as report_fully_drawn_ts
+  FROM launches
+  JOIN launch_processes ON (launches.id = launch_processes.launch_id)
+  JOIN thread ON (launch_processes.upid = thread.upid)
+  JOIN thread_track USING (utid)
+  JOIN slice ON (
+    slice.track_id = thread_track.id
+    AND slice.ts >= launches.ts)
+  WHERE slice.name LIKE 'reportFullyDrawn%'
+  GROUP BY launches.id
+)
+SELECT
+  launch_id,
+  report_fully_drawn_ts - launch_ts as report_fully_drawn_dur
+FROM report_fully_drawn_launch_slices;
+
 DROP VIEW IF EXISTS to_event_protos;
 CREATE VIEW to_event_protos AS
 SELECT
@@ -118,22 +140,23 @@ SELECT
     'process_name', (
       SELECT name FROM process
       WHERE upid IN (
-        SELECT upid FROM launch_processes
-        WHERE launch_id = launches.id
+        SELECT upid FROM launch_processes p
+        WHERE p.launch_id = launches.id
         LIMIT 1
       )
     ),
     'process', (
       SELECT metadata FROM process_metadata
       WHERE upid IN (
-        SELECT upid FROM launch_processes
-        WHERE launch_id = launches.id
+        SELECT upid FROM launch_processes p
+        WHERE p.launch_id = launches.id
         LIMIT 1
       )
     ),
     'zygote_new_process', EXISTS(SELECT TRUE FROM zygote_forks_by_id WHERE id = launches.id),
     'activity_hosting_process_count', (
-      SELECT COUNT(1) FROM launch_processes WHERE launch_id = launches.id
+      SELECT COUNT(1) FROM launch_processes p
+      WHERE p.launch_id = launches.id
     ),
     'to_first_frame', AndroidStartupMetric_ToFirstFrame(
       'dur_ns', launches.dur,
@@ -141,39 +164,39 @@ SELECT
       'main_thread_by_task_state', AndroidStartupMetric_TaskStateBreakdown(
         'running_dur_ns', IFNULL(
             (
-            SELECT dur FROM launch_by_thread_state
-            WHERE launch_id = launches.id AND state = 'running'
+            SELECT dur FROM launch_by_thread_state l
+            WHERE l.launch_id = launches.id AND state = 'running'
             ), 0),
         'runnable_dur_ns', IFNULL(
             (
-            SELECT dur FROM launch_by_thread_state
-            WHERE launch_id = launches.id AND state = 'runnable'
+            SELECT dur FROM launch_by_thread_state l
+            WHERE l.launch_id = launches.id AND state = 'runnable'
             ), 0),
         'uninterruptible_sleep_dur_ns', IFNULL(
             (
-            SELECT dur FROM launch_by_thread_state
-            WHERE launch_id = launches.id AND state = 'uninterruptible'
+            SELECT dur FROM launch_by_thread_state l
+            WHERE l.launch_id = launches.id AND state = 'uninterruptible'
             ), 0),
         'interruptible_sleep_dur_ns', IFNULL(
             (
-            SELECT dur FROM launch_by_thread_state
-            WHERE launch_id = launches.id AND state = 'interruptible'
+            SELECT dur FROM launch_by_thread_state l
+            WHERE l.launch_id = launches.id AND state = 'interruptible'
             ), 0)
       ),
       'to_post_fork', (
         SELECT slice_proto
-        FROM to_event_protos
-        WHERE launch_id = launches.id AND slice_name = 'PostFork'
+        FROM to_event_protos p
+        WHERE p.launch_id = launches.id AND slice_name = 'PostFork'
       ),
       'to_activity_thread_main', (
         SELECT slice_proto
-        FROM to_event_protos
-        WHERE launch_id = launches.id AND slice_name = 'ActivityThreadMain'
+        FROM to_event_protos p
+        WHERE p.launch_id = launches.id AND slice_name = 'ActivityThreadMain'
       ),
       'to_bind_application', (
         SELECT slice_proto
-        FROM to_event_protos
-        WHERE launch_id = launches.id AND slice_name = 'bindApplication'
+        FROM to_event_protos p
+        WHERE p.launch_id = launches.id AND slice_name = 'bindApplication'
       ),
       'other_processes_spawned_count', (
         SELECT COUNT(1) FROM process
@@ -182,65 +205,83 @@ SELECT
       ),
       'time_activity_manager', (
         SELECT AndroidStartupMetric_Slice(
-          'dur_ns', launching_events.ts - launches.ts,
-          'dur_ms', (launching_events.ts - launches.ts) / 1e6
+          'dur_ns', l.ts - launches.ts,
+          'dur_ms', (l.ts - launches.ts) / 1e6
         )
-        FROM launching_events
-        WHERE launching_events.ts BETWEEN launches.ts AND launches.ts + launches.dur
+        FROM launching_events l
+        WHERE l.ts BETWEEN launches.ts AND launches.ts + launches.dur
       ),
       'time_post_fork', (
-        SELECT slice_proto FROM main_process_slice
-        WHERE launch_id = launches.id AND name = 'PostFork'
+        SELECT slice_proto
+        FROM main_process_slice s
+        WHERE s.launch_id = launches.id AND name = 'PostFork'
       ),
       'time_activity_thread_main', (
-        SELECT slice_proto FROM main_process_slice
-        WHERE launch_id = launches.id AND name = 'ActivityThreadMain'
+        SELECT slice_proto
+        FROM main_process_slice s
+        WHERE s.launch_id = launches.id AND name = 'ActivityThreadMain'
       ),
       'time_bind_application', (
-        SELECT slice_proto FROM main_process_slice
-        WHERE launch_id = launches.id AND name = 'bindApplication'
+        SELECT slice_proto
+        FROM main_process_slice s
+        WHERE s.launch_id = launches.id AND name = 'bindApplication'
       ),
       'time_activity_start', (
-        SELECT slice_proto FROM main_process_slice
-        WHERE launch_id = launches.id AND name = 'activityStart'
+        SELECT slice_proto
+        FROM main_process_slice s
+        WHERE s.launch_id = launches.id AND name = 'activityStart'
       ),
       'time_activity_resume', (
-        SELECT slice_proto FROM main_process_slice
-        WHERE launch_id = launches.id AND name = 'activityResume'
+        SELECT slice_proto
+        FROM main_process_slice s
+        WHERE s.launch_id = launches.id AND name = 'activityResume'
       ),
       'time_activity_restart', (
-        SELECT slice_proto FROM main_process_slice
-        WHERE launch_id = launches.id AND name = 'activityRestart'
+        SELECT slice_proto
+        FROM main_process_slice s
+        WHERE s.launch_id = launches.id AND name = 'activityRestart'
       ),
       'time_choreographer', (
-        SELECT slice_proto FROM main_process_slice
-        WHERE launch_id = launches.id AND name = 'Choreographer#doFrame'
+        SELECT slice_proto
+        FROM main_process_slice s
+        WHERE s.launch_id = launches.id AND name = 'Choreographer#doFrame'
       ),
       'time_before_start_process', (
         SELECT AndroidStartupMetric_Slice(
           'dur_ns', ts - launches.ts,
           'dur_ms', (ts - launches.ts) / 1e6
         )
-        FROM zygote_forks_by_id WHERE id = launches.id
+        FROM zygote_forks_by_id z
+        WHERE z.id = launches.id
       ),
       'time_during_start_process', (
         SELECT AndroidStartupMetric_Slice(
           'dur_ns', dur,
           'dur_ms', dur / 1e6
         )
-        FROM zygote_forks_by_id WHERE id = launches.id
+        FROM zygote_forks_by_id z
+        WHERE z.id = launches.id
       )
     ),
     'hsc', (
       SELECT NULL_IF_EMPTY(AndroidStartupMetric_HscMetrics(
         'full_startup', (
           SELECT AndroidStartupMetric_Slice(
-            'dur_ns', hsc_based_startup_times.ts_total,
-            'dur_ms', hsc_based_startup_times.ts_total / 1e6
+            'dur_ns', h.ts_total,
+            'dur_ms', h.ts_total / 1e6
           )
-          FROM hsc_based_startup_times WHERE id = launches.id
+          FROM hsc_based_startup_times h
+          WHERE h.id = launches.id
         )
       ))
+    ),
+    'report_fully_drawn', (
+      SELECT NULL_IF_EMPTY(AndroidStartupMetric_Slice(
+        'dur_ns', report_fully_drawn_dur,
+        'dur_ms', report_fully_drawn_dur / 1e6
+      ))
+      FROM report_fully_drawn_per_launch r
+      WHERE r.launch_id = launches.id
     )
   ) as startup
 FROM launches;
