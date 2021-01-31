@@ -13,18 +13,6 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-DROP VIEW IF EXISTS {{output}};
-CREATE VIEW {{output}} AS
-WITH composition_layer_counts AS (
-  SELECT
-    LAG(ts) OVER (ORDER BY ts) AS ts,
-    value
-  FROM counter c
-  JOIN process_counter_track t ON c.track_id = t.id
-  WHERE t.name = '{{track_name}}'
-)
-SELECT
-  ts,
-  value
-FROM composition_layer_counts
-WHERE value >= 0 AND ts IS NOT NULL;
+SELECT RUN_METRIC('experimental/frame_times.sql') AS suppress_query_output;
+
+SELECT * FROM AvgSurfaceFps;

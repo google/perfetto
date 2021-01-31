@@ -229,8 +229,8 @@ BUILD_DEPS_HOST = [
     # Example traces for regression tests.
     Dependency(
         'test/data.zip',
-        'https://storage.googleapis.com/perfetto/test-data-20210105-174747.zip',
-        'e4fe27c8aad5bf0c447b2e853302d5431d0f134e368b73b68e5f56a293945d52',
+        'https://storage.googleapis.com/perfetto/test-data-20210128-172149.zip',
+        'f83f9336a2d0d9ac5c3154b949e3237a6c7119b2e8a70b31c7789aff0066b9eb',
         'all',
     ),
 
@@ -379,10 +379,13 @@ def RmtreeIfExists(path):
   if not os.path.exists(path):
     return
   buildtools_path = os.path.abspath(os.path.join(ROOT_DIR, 'buildtools'))
-  if not os.path.abspath(path).startswith(buildtools_path):
+  test_path = os.path.abspath(os.path.join(ROOT_DIR, 'test', 'data'))
+  if (not os.path.abspath(path).startswith(buildtools_path) and
+      not os.path.abspath(path).startswith(test_path)):
     # Safety check to prevent that some merge confilct ends up doing some
     # rm -rf / or similar.
-    logging.fatal('Cannot remove %s: outside of buildtools', path)
+    logging.fatal(
+      'Cannot remove %s: outside of buildtools and test/data', path)
     sys.exit(1)
   logging.info('Removing %s' % path)
   shutil.rmtree(path, onerror=del_read_only_for_windows)

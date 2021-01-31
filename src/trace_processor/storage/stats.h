@@ -143,6 +143,10 @@ namespace stats {
       "The target was already profiled by another tracing session, so the "    \
       "profile was not taken. Indexed by target upid."),                       \
   F(heapprofd_non_finalized_profile,    kSingle,  kError,    kTrace,    ""),   \
+  F(heapprofd_sampling_interval_adjusted,                                      \
+      kIndexed, kInfo,    kTrace,                                              \
+      "By how many byes the interval for PID was increased "                   \
+      "by adaptive sampling."),                                                \
   F(metatrace_overruns,                 kSingle,  kError,    kTrace,    ""),   \
   F(packages_list_has_parse_errors,     kSingle,  kError,    kTrace,    ""),   \
   F(packages_list_has_read_errors,      kSingle,  kError,    kTrace,    ""),   \

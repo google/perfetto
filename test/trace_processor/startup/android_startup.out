@@ -34,5 +34,9 @@ android_startup {
       }
       dur_ms: 0.000108
     }
+    report_fully_drawn {
+      dur_ns: 198
+      dur_ms: 0.000198
+    }
   }
 }
