@@ -222,6 +222,20 @@ void FrameTimelineEventParser::ParseExpectedSurfaceFrameStart(
   int64_t display_frame_token = event.display_frame_token();
   UniquePid upid = context_->process_tracker->GetOrCreateProcess(
       static_cast<uint32_t>(event.pid()));
+  auto token_set_it = expected_timeline_token_map_.find(upid);
+  if (token_set_it != expected_timeline_token_map_.end()) {
+    auto& token_set = token_set_it->second;
+    if (token_set.find(token) != token_set.end()) {
+      // If we already have an expected timeline for a token, the expectations
+      // are same for all frames that use the token. No need to add duplicate
+      // entries.
+      return;
+    }
+  }
+  // This is the first time we are seeing this token for this process. Add to
+  // the map.
+  expected_timeline_token_map_[upid].insert(token);
+
   StringId layer_name_id = event.has_layer_name()
                                ? context_->storage->InternString(
                                      base::StringView(event.layer_name()))
