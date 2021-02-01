@@ -7,6 +7,12 @@ Unreleased:
     *
 
 
+v12.1 - 2021-02-01:
+  Misc:
+    * Fixed CHANGELOG which was missed in the 12.0 branch cut, causing
+      mis-labeling of the version code in the v12.x branch as v11.0..N
+
+
 v12.0 - 2021-02-01:
   Tracing service and probes:
     * Added more helpful error messages if the client library is used without
