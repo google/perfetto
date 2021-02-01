@@ -117,11 +117,11 @@ base::Optional<ProguardMember> ParseMember(std::string line) {
   }
 
   ProguardMemberType member_type;
-  auto paren_idx = deobfuscated_name.find("(");
+  auto paren_idx = deobfuscated_name.find('(');
   if (paren_idx != std::string::npos) {
     member_type = ProguardMemberType::kMethod;
     deobfuscated_name = deobfuscated_name.substr(0, paren_idx);
-    auto colon_idx = type_name.find(":");
+    auto colon_idx = type_name.find(':');
     if (colon_idx != std::string::npos) {
       type_name = type_name.substr(colon_idx + 1);
     }
