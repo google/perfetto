@@ -98,11 +98,6 @@ synth_oom.py oom_query.sql synth_oom_oom_query.out
 # Syscalls
 syscall.py sys.sql sys_syscall.out
 
-# Power rails
-../../data/power_rails.pb power_rails.sql power_rails_power_rails.out
-power_rails_custom_clock.textproto power_rails_event.sql power_rails_event_power_rails_custom_clock.out
-power_rails.textproto power_rails_timestamp_sort.sql power_rails_timestamp_sort.out
-
 # Thread time_in_state
 thread_time_in_state.textproto thread_time_in_state.sql thread_time_in_state.out
 thread_time_in_state_event.py thread_time_in_state_event.sql thread_time_in_state_event.out
