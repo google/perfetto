@@ -14,6 +14,7 @@
 -- limitations under the License.
 --
 
+SELECT RUN_METRIC('chrome/chrome_processes.sql') AS suppress_query_output;
 SELECT RUN_METRIC('chrome/chrome_event_metadata.sql') AS suppress_query_output;
 
 -- Priority order for RAIL modes where response has the highest priority and
@@ -41,21 +42,55 @@ VALUES ('RAIL_MODE_IDLE', 0, 'background'),
   ('RAIL_MODE_LOAD', 2, "load"),
   ('RAIL_MODE_RESPONSE', 3, "response");
 
+
+-- Find the max ts + dur for every process
+DROP TABLE IF EXISTS max_ts_per_process;
+CREATE TABLE max_ts_per_process AS
+ -- MAX(dur, 0) means unclosed slices just contribute their start time.
+SELECT upid,
+  MAX(ts + MAX(dur, 0)) AS ts
+FROM (
+    SELECT upid,
+      ts,
+      dur
+    FROM process_track t
+      JOIN slice s
+    WHERE s.track_id = t.id
+    UNION ALL
+    SELECT upid,
+      ts,
+      dur
+    FROM thread_track t
+      JOIN thread
+      JOIN slice
+    WHERE slice.track_id = t.id
+      AND thread.utid = t.utid
+  )
+GROUP BY upid;
+
 -- View containing all Scheduler.RAILMode slices across all Chrome renderer
 -- processes.
 DROP VIEW IF EXISTS original_rail_mode_slices;
 CREATE VIEW original_rail_mode_slices AS
 SELECT slice.id,
-  ts,
+  slice.ts,
   CASE
-    WHEN dur == -1 THEN trace_bounds.end_ts - ts
+    -- Add 1 to the duration to ensure you cannot get a zero-sized RAIL mode
+    -- slice, which can throw off the later queries.
+    WHEN dur == -1 THEN max_ts_per_process.ts - slice.ts + 1
     ELSE dur
   END AS dur,
   track_id,
-  EXTRACT_ARG(slice.arg_set_id, "chrome_renderer_scheduler_state.rail_mode") AS rail_mode
-FROM trace_bounds,
-  slice
-WHERE slice.name = "Scheduler.RAILMode";
+  EXTRACT_ARG(
+    slice.arg_set_id,
+    "chrome_renderer_scheduler_state.rail_mode"
+  ) AS rail_mode
+FROM max_ts_per_process,
+  slice,
+  process_track
+WHERE slice.name = "Scheduler.RAILMode"
+  AND slice.track_id = process_track.id
+  AND process_track.upid = max_ts_per_process.upid;
 
 -- RAIL_MODE_LOAD seems to get stuck which makes it not very useful so remap it
 -- to RAIL_MODE_ANIMATION so it doesn't dominate the overall RAIL mode.
@@ -79,14 +114,13 @@ SELECT s.ts,
   MAX(rail_modes.ordering)
 FROM (
     SELECT ts,
-      LEAD(ts, 1, trace_bounds.end_ts) OVER (
+      LEAD(ts, 1, (SELECT MAX(ts + dur) FROM rail_mode_slices)) OVER (
         ORDER BY ts
       ) AS end_ts
     FROM (
         SELECT DISTINCT ts
         FROM rail_mode_slices
-      ) start_times,
-      trace_bounds
+      ) start_times
   ) s,
   rail_mode_slices r,
   rail_modes
