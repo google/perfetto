@@ -82,4 +82,19 @@ trace.add_frame_end_event(ts=146, cookie=15)
 trace.add_actual_display_frame_start_event(ts=148, cookie=16, token=12, pid=666, present_type=PresentType.PRESENT_LATE, on_time_finish=0, gpu_composition=0, jank_type=JankType.JANK_SF_CPU_DEADLINE_MISSED | JankType.JANK_SF_SCHEDULING)
 trace.add_frame_end_event(ts=156, cookie=16)
 
+# Two SurfaceFrames with same token
+trace.add_expected_display_frame_start_event(ts=170, cookie=17, token=15, pid=666)
+trace.add_frame_end_event(ts=176, cookie=17)
+trace.add_actual_display_frame_start_event(ts=170, cookie=18, token=15, pid=666, present_type=PresentType.PRESENT_ON_TIME, on_time_finish=1, gpu_composition=0, jank_type=JankType.JANK_NONE)
+trace.add_frame_end_event(ts=176, cookie=18)
+trace.add_expected_surface_frame_start_event(ts=150, cookie=19, token=14, display_frame_token=15, pid=1000, layer_name="Layer1")
+trace.add_frame_end_event(ts=170, cookie=19)
+trace.add_actual_surface_frame_start_event(ts=150, cookie=20, token=14, display_frame_token=15, pid=1000, layer_name="Layer1", present_type=PresentType.PRESENT_ON_TIME, on_time_finish=1, gpu_composition=0, jank_type=JankType.JANK_NONE)
+trace.add_frame_end_event(ts=167, cookie=20)
+trace.add_expected_surface_frame_start_event(ts=150, cookie=21, token=14, display_frame_token=15, pid=1000, layer_name="Layer2")
+trace.add_frame_end_event(ts=170, cookie=21)
+trace.add_actual_surface_frame_start_event(ts=150, cookie=22, token=14, display_frame_token=15, pid=1000, layer_name="Layer2", present_type=PresentType.PRESENT_ON_TIME, on_time_finish=1, gpu_composition=0, jank_type=JankType.JANK_NONE)
+trace.add_frame_end_event(ts=167, cookie=22)
+
+
 sys.stdout.buffer.write(trace.trace.SerializeToString())
