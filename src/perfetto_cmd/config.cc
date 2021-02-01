@@ -116,7 +116,7 @@ bool CreateConfigFromOptions(const ConfigOptions& options,
   std::vector<std::string> atrace_apps = options.atrace_apps;
 
   for (const auto& category : options.categories) {
-    if (category.find("/") == std::string::npos) {
+    if (category.find('/') == std::string::npos) {
       atrace_categories.push_back(category);
     } else {
       ftrace_events.push_back(category);

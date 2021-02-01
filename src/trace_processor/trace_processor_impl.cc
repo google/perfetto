@@ -957,7 +957,7 @@ util::Status TraceProcessorImpl::RegisterMetric(const std::string& path,
     return util::OkStatus();
   }
 
-  auto sep_idx = path.rfind("/");
+  auto sep_idx = path.rfind('/');
   std::string basename =
       sep_idx == std::string::npos ? path : path.substr(sep_idx + 1);
 
