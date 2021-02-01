@@ -242,11 +242,10 @@ TEST(HeapprofdCtsTest, ReleaseAppRuntime) {
   std::string app_name = "android.perfetto.cts.app.release";
   const auto& packets = ProfileRuntime(app_name);
 
-  if (IsDebuggableBuild())
-    AssertExpectedAllocationsPresent(packets);
-  else
+  if (IsUserBuild())
     AssertNoProfileContents(packets);
-
+  else
+    AssertExpectedAllocationsPresent(packets);
   StopApp(app_name);
 }
 
@@ -254,11 +253,10 @@ TEST(HeapprofdCtsTest, ReleaseAppStartup) {
   std::string app_name = "android.perfetto.cts.app.release";
   const auto& packets = ProfileStartup(app_name);
 
-  if (IsDebuggableBuild())
-    AssertExpectedAllocationsPresent(packets);
-  else
+  if (IsUserBuild())
     AssertNoProfileContents(packets);
-
+  else
+    AssertExpectedAllocationsPresent(packets);
   StopApp(app_name);
 }
 
