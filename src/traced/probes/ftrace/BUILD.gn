@@ -30,6 +30,7 @@ source_set("test_support") {
   testonly = true
   deps = [
     ":ftrace",
+    ":ftrace_procfs",
     "../../../../gn:default_deps",
     "../../../base:test_support",
     "../../../protozero",
@@ -46,6 +47,7 @@ perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
     ":ftrace",
+    ":ftrace_procfs",
     ":test_messages_cpp",
     ":test_messages_lite",
     ":test_messages_zero",
@@ -90,6 +92,7 @@ source_set("integrationtests") {
   testonly = true
   deps = [
     ":ftrace",
+    ":ftrace_procfs",
     ":test_support",
     "../../../../gn:default_deps",
     "../../../../gn:gtest_and_gmock",
@@ -106,6 +109,7 @@ source_set("ftrace") {
     "../../../tracing/core",
   ]
   deps = [
+    ":ftrace_procfs",
     "..:data_source",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/ext/traced",
@@ -144,14 +148,23 @@ source_set("ftrace") {
     "ftrace_data_source.cc",
     "ftrace_data_source.h",
     "ftrace_metadata.h",
-    "ftrace_procfs.cc",
-    "ftrace_procfs.h",
     "ftrace_stats.cc",
     "ftrace_stats.h",
     "printk_formats_parser.cc",
     "printk_formats_parser.h",
     "proto_translation_table.cc",
     "proto_translation_table.h",
+  ]
+}
+
+source_set("ftrace_procfs") {
+  deps = [
+    "../../../../gn:default_deps",
+    "../../../base",
+  ]
+  sources = [
+    "ftrace_procfs.cc",
+    "ftrace_procfs.h",
   ]
 }
 

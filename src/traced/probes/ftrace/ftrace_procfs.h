@@ -28,6 +28,14 @@ namespace perfetto {
 
 class FtraceProcfs {
  public:
+  static const char* const kTracingPaths[];
+
+  // Tries creating an |FtraceProcfs| at the standard tracefs mount points.
+  // Takes an optional |instance_path| such as "instances/wifi/", in which case
+  // the returned object will be for that ftrace instance path.
+  static std::unique_ptr<FtraceProcfs> CreateGuessingMountPoint(
+      const std::string& instance_path = "");
+
   static std::unique_ptr<FtraceProcfs> Create(const std::string& root);
   static int g_kmesg_fd;
 
@@ -106,6 +114,13 @@ class FtraceProcfs {
 
   virtual const std::set<std::string> GetEventNamesForGroup(
       const std::string& path) const;
+
+  // Returns the |id| for event with the given |group| and |name|. Returns 0 if
+  // the event doesn't exist, or its /id file could not be read. Not typically
+  // needed if already parsing the format file.
+  uint32_t ReadEventId(const std::string& group, const std::string& name) const;
+
+  std::string GetRootPath() const { return root_; }
 
  protected:
   // virtual and protected for testing.

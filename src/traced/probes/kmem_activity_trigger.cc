@@ -30,13 +30,8 @@ constexpr char kTriggerName[] = "kmem_activity";
 }  // namespace
 
 void KmemActivityTriggerThread::InitializeOnThread() {
-  // Create kmem activity FtraceProcfs
-  size_t index = 0;
-  while (!ftrace_procfs_ && FtraceController::kTracingPaths[index]) {
-    std::string root = FtraceController::kTracingPaths[index++] +
-                       std::string("instances/mm_events/");
-    ftrace_procfs_ = FtraceProcfs::Create(root);
-  }
+  ftrace_procfs_ =
+      FtraceProcfs::CreateGuessingMountPoint("instances/mm_events/");
   if (!ftrace_procfs_) {
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
     PERFETTO_LOG(
