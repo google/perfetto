@@ -93,7 +93,7 @@ util::Status SystraceTraceParser::Parse(std::unique_ptr<uint8_t[]> owned_buf,
         state_ = ParseState::kTraceDataSection;
       }
     } else if (state_ == ParseState::kTraceDataSection) {
-      if (base::StartsWith(buffer, "#")) {
+      if (base::StartsWith(buffer, "#") && base::Contains(buffer, "TASK-PID")) {
         state_ = ParseState::kSystrace;
       } else if (base::StartsWith(buffer, "PROCESS DUMP")) {
         state_ = ParseState::kProcessDumpLong;
