@@ -13,11 +13,13 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+DROP VIEW IF EXISTS InteractionEvents;
 CREATE VIEW InteractionEvents AS
 SELECT
   ts, dur, ts AS ts_ir, dur AS dur_ir
 FROM slice WHERE name LIKE 'Interaction.%';
 
+DROP VIEW IF EXISTS GestureLegacyEvents;
 CREATE VIEW GestureLegacyEvents AS
 SELECT
   ts,
@@ -26,6 +28,7 @@ FROM raw
 WHERE EXTRACT_ARG(arg_set_id, 'legacy_event.name') = 'SyntheticGestureController::running';
 
 -- Convert pairs of 'S' and 'F' events into slices with ts and dur.
+DROP VIEW IF EXISTS GestureEvents;
 CREATE VIEW GestureEvents AS
 SELECT
   ts, dur, ts AS ts_ge, dur AS dur_ge
@@ -38,6 +41,7 @@ FROM (
 )
 WHERE phase = 'S';
 
+DROP TABLE IF EXISTS InteractionEventsJoinGestureEvents;
 CREATE VIRTUAL TABLE InteractionEventsJoinGestureEvents
 USING SPAN_LEFT_JOIN(InteractionEvents, GestureEvents);
 
@@ -46,6 +50,7 @@ USING SPAN_LEFT_JOIN(InteractionEvents, GestureEvents);
 -- 1) If there's a gesture overlapping with interaction, then gesture's range.
 -- 2) Else, interaction's range.
 
+DROP VIEW IF EXISTS InterestingSegments;
 CREATE VIEW InterestingSegments AS
 SELECT  -- 1) Gestures overlapping interactions.
   ts_ge AS ts,
@@ -69,6 +74,7 @@ HAVING COUNT(*) = 1;
 -- currently unavailable in proto traces. So results may be different from
 -- the TBMv2 version on this platform.
 
+DROP TABLE IF EXISTS DisplayCompositorPresentationEvents;
 CREATE TABLE DisplayCompositorPresentationEvents AS
 SELECT ts, FALSE AS exp
 FROM slice
@@ -97,6 +103,7 @@ FROM slice
 WHERE name = 'Display::FrameDisplayed'
 GROUP BY ts;
 
+DROP VIEW IF EXISTS FrameSegments;
 CREATE VIEW FrameSegments AS
 SELECT
   ts,
@@ -107,9 +114,11 @@ SELECT
 FROM DisplayCompositorPresentationEvents
 WINDOW wnd AS (PARTITION BY exp ORDER BY ts);
 
+DROP TABLE IF EXISTS FrameSegmentsJoinInterestingSegments;
 CREATE VIRTUAL TABLE FrameSegmentsJoinInterestingSegments USING
 SPAN_JOIN(FrameSegments, InterestingSegments);
 
+DROP VIEW IF EXISTS FrameTimes;
 CREATE VIEW FrameTimes AS
 SELECT dur / 1e6 AS dur_ms, exp
 FROM FrameSegmentsJoinInterestingSegments
@@ -118,11 +127,13 @@ WHERE ts = ts_fs AND dur = dur_fs;
 --------------------------------------------------------------------------------
 -- Determine frame rate
 
+DROP VIEW IF EXISTS RefreshPeriodAndroid;
 CREATE VIEW RefreshPeriodAndroid AS
 -- Not implemented yet.
 SELECT NULL AS interval_ms
 ;
 
+DROP VIEW IF EXISTS RefreshPeriodNonAndroid;
 CREATE VIEW RefreshPeriodNonAndroid AS
 SELECT EXTRACT_ARG(arg_set_id, 'debug.args.interval_us') / 1e3 AS interval_ms
 FROM slice
@@ -131,9 +142,11 @@ JOIN thread ON (thread_track.utid = thread.utid)
 WHERE thread.name = 'Compositor' AND slice.name = 'Scheduler::BeginFrame'
 LIMIT 1;
 
+DROP VIEW IF EXISTS RefreshPeriodDefault;
 CREATE VIEW RefreshPeriodDefault AS
 SELECT 1000.0 / 60 AS interval_ms;
 
+DROP TABLE IF EXISTS RefreshPeriod;
 CREATE TABLE RefreshPeriod AS
 SELECT COALESCE(
   (SELECT interval_ms FROM RefreshPeriodAndroid),
@@ -144,6 +157,7 @@ SELECT COALESCE(
 --------------------------------------------------------------------------------
 -- Compute average FPS
 
+DROP VIEW IF EXISTS ValidFrameTimes;
 CREATE VIEW ValidFrameTimes AS
 SELECT
   dur_ms / (SELECT interval_ms FROM RefreshPeriod) AS length,
@@ -151,6 +165,7 @@ SELECT
 FROM FrameTimes
 WHERE dur_ms / (SELECT interval_ms FROM RefreshPeriod) >= 0.5;
 
+DROP VIEW IF EXISTS AvgSurfaceFps;
 CREATE VIEW AvgSurfaceFps AS
 SELECT
   exp,
@@ -158,6 +173,7 @@ SELECT
 FROM ValidFrameTimes valid
 GROUP BY exp;
 
+DROP VIEW IF EXISTS frame_times_output;
 CREATE VIEW frame_times_output AS
 SELECT FrameTimes(
   'frame_time', (SELECT RepeatedField(dur_ms) FROM FrameTimes WHERE NOT exp),
