@@ -44,6 +44,8 @@
 #include "src/profiling/perf/proc_descriptors.h"
 #include "src/profiling/perf/unwinding.h"
 #include "src/tracing/core/metatrace_writer.h"
+// TODO(rsavitski): move to e.g. src/tracefs/.
+#include "src/traced/probes/ftrace/ftrace_procfs.h"
 
 namespace perfetto {
 namespace profiling {
@@ -246,6 +248,10 @@ class PerfProducer : public Producer,
 
   // Unwinding stage, running on a dedicated thread.
   UnwinderHandle unwinding_worker_;
+
+  // Used for tracepoint name -> id lookups. Initialized lazily, and in general
+  // best effort - can be null if tracefs isn't accessible.
+  std::unique_ptr<FtraceProcfs> tracefs_;
 
   base::WeakPtrFactory<PerfProducer> weak_factory_;  // keep last
 };
