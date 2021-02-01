@@ -15,8 +15,10 @@
 
 select ts, dur, process.pid as pid, display_frame_token, surface_frame_token, layer_name,
     present_type, on_time_finish, gpu_composition, jank_type
-from actual_frame_timeline_slice
-join process_track on process_track.upid = actual_frame_timeline_slice.upid
-join process on process_track.upid = process.upid
-where process_track.name = 'Actual Timeline'
+from
+  (select t.*, process_track.name as track_name from
+    process_track left join actual_frame_timeline_slice t
+    on process_track.id = t.track_id) s
+join process using(upid)
+where s.track_name = 'Actual Timeline'
 order by ts
