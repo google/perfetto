@@ -38,7 +38,10 @@ if (!build_with_chromium && enable_perfetto_integration_tests) {
       "../src/base:test_support",
     ]
     if (enable_perfetto_traced_probes) {
-      deps += [ "../src/traced/probes/ftrace" ]
+      deps += [
+        "../src/traced/probes/ftrace",
+        "../src/traced/probes/ftrace:ftrace_procfs",
+      ]
     }
 
     # These binaries are requires by the cmdline tests, which invoke perfetto
