@@ -184,6 +184,7 @@ perfetto_cc_library(
         ":src_traced_probes_filesystem_filesystem",
         ":src_traced_probes_ftrace_format_parser_format_parser",
         ":src_traced_probes_ftrace_ftrace",
+        ":src_traced_probes_ftrace_ftrace_procfs",
         ":src_traced_probes_initial_display_state_initial_display_state",
         ":src_traced_probes_metatrace_metatrace",
         ":src_traced_probes_packages_list_packages_list",
@@ -1366,14 +1367,21 @@ filegroup(
         "src/traced/probes/ftrace/ftrace_data_source.cc",
         "src/traced/probes/ftrace/ftrace_data_source.h",
         "src/traced/probes/ftrace/ftrace_metadata.h",
-        "src/traced/probes/ftrace/ftrace_procfs.cc",
-        "src/traced/probes/ftrace/ftrace_procfs.h",
         "src/traced/probes/ftrace/ftrace_stats.cc",
         "src/traced/probes/ftrace/ftrace_stats.h",
         "src/traced/probes/ftrace/printk_formats_parser.cc",
         "src/traced/probes/ftrace/printk_formats_parser.h",
         "src/traced/probes/ftrace/proto_translation_table.cc",
         "src/traced/probes/ftrace/proto_translation_table.h",
+    ],
+)
+
+# GN target: //src/traced/probes/ftrace:ftrace_procfs
+filegroup(
+    name = "src_traced_probes_ftrace_ftrace_procfs",
+    srcs = [
+        "src/traced/probes/ftrace/ftrace_procfs.cc",
+        "src/traced/probes/ftrace/ftrace_procfs.h",
     ],
 )
 

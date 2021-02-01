@@ -188,12 +188,7 @@ class Exec {
 class PerfettoTest : public ::testing::Test {
  public:
   void SetUp() override {
-    // TODO(primiano): refactor this, it's copy/pasted in three places now.
-    size_t index = 0;
-    constexpr auto kTracingPaths = FtraceController::kTracingPaths;
-    while (!ftrace_procfs_ && kTracingPaths[index]) {
-      ftrace_procfs_ = FtraceProcfs::Create(kTracingPaths[index++]);
-    }
+    ftrace_procfs_ = FtraceProcfs::CreateGuessingMountPoint();
   }
 
   std::unique_ptr<FtraceProcfs> ftrace_procfs_;
