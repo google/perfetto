@@ -196,10 +196,6 @@ void HeapprofdProducer::SetTargetProcess(pid_t target_pid,
   target_process_.cmdline = target_cmdline;
 }
 
-void HeapprofdProducer::SetInheritedSocket(base::ScopedFile inherited_socket) {
-  inherited_fd_ = std::move(inherited_socket);
-}
-
 void HeapprofdProducer::SetDataSourceCallback(std::function<void()> fn) {
   data_source_callback_ = fn;
 }
@@ -306,22 +302,6 @@ void HeapprofdProducer::Restart() {
   new (this) HeapprofdProducer(mode, task_runner, exit_when_done);
 
   ConnectWithRetries(socket_name);
-}
-
-void HeapprofdProducer::ScheduleActiveDataSourceWatchdog() {
-  PERFETTO_DCHECK(mode_ == HeapprofdMode::kChild);
-
-  // Post the first check after a delay, to let the freshly forked heapprofd
-  // to receive the active data sources from traced. The checks will reschedule
-  // themselves from that point onwards.
-  auto weak_producer = weak_factory_.GetWeakPtr();
-  task_runner_->PostDelayedTask(
-      [weak_producer]() {
-        if (!weak_producer)
-          return;
-        weak_producer->ActiveDataSourceWatchdogCheck();
-      },
-      kChildModeWatchdogPeriodMs);
 }
 
 void HeapprofdProducer::ActiveDataSourceWatchdogCheck() {
@@ -458,8 +438,6 @@ void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
   data_sources_.emplace(id, std::move(data_source));
   PERFETTO_DLOG("Set up data source.");
 
-  if (mode_ == HeapprofdMode::kChild && inherited_fd_)
-    AdoptSocket(std::move(inherited_fd_));
   if (mode_ == HeapprofdMode::kChild && data_source_callback_)
     (*data_source_callback_)();
 }
