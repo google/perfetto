@@ -4,6 +4,7 @@ fuchsia/index
 graphics/index
 memory/index
 parsing/index
+power/index
 process_tracking/index
 profiling/index
 smoke/index
