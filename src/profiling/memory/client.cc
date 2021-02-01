@@ -447,8 +447,10 @@ bool Client::RecordFree(uint32_t heap_id, const uint64_t alloc_address) {
   if (bytes_free == -1)
     return false;
   // Seems like we are filling up the shmem with frees. Flush.
-  if (static_cast<uint64_t>(bytes_free) < shmem_.size() / 2)
+  if (static_cast<uint64_t>(bytes_free) < shmem_.size() / 2 &&
+      shmem_.GetAndResetReaderPaused()) {
     return SendControlSocketByte();
+  }
   return true;
 }
 
