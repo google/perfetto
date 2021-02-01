@@ -1340,10 +1340,25 @@ void FtraceParser::ParseFastRpcDmaStat(int64_t timestamp,
     name = context_->storage->InternString(str);
   }
 
-  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
-  TrackId track = context_->track_tracker->InternThreadCounterTrack(name, utid);
+  // Push the global counter.
+  TrackId track =
+      context_->track_tracker->InternGlobalCounterTrack(ion_total_id_);
   context_->event_tracker->PushCounter(
       timestamp, static_cast<double>(evt.total_allocated()), track);
+
+  // Push the change counter.
+  // TODO(b/121331269): these should really be instant events.
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  base::Optional<UniquePid> upid =
+      context_->storage->thread_table().upid()[utid];
+  if (upid) {
+    // We can't do anything if we don't know which process this thread belongs
+    // too so we give up.
+    TrackId delta_track =
+        context_->track_tracker->InternProcessCounterTrack(name, upid.value());
+    context_->event_tracker->PushCounter(
+        timestamp, static_cast<double>(evt.len()), delta_track);
+  }
 }
 
 }  // namespace trace_processor
