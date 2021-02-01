@@ -1,13 +1,39 @@
 Unreleased:
   Tracing service and probes:
-    * Added more helpful error messages if the client library is used without
-      having been initialized.
-    * Added //tools/record_android_trace script to facilitate recording traces
-      from Android devices, automating start + stop-via-ctrl+c + pull + open.
+    *
   Trace Processor:
     *
   UI:
     *
+
+
+v12.0 - 2021-02-01:
+  Tracing service and probes:
+    * Added more helpful error messages if the client library is used without
+      having been initialized.
+    * Added //tools/record_android_trace script to facilitate recording traces
+      from Android devices, automating start + stop-via-ctrl+c + pull + open.
+    * Added auto-attachment of traces to Android bugreports if dumpstate is
+      invoked when a trace with bugreport_score > 0 is running.
+  SDK:
+    * Added ability to customize the timestamp of events via
+      ConvertTimestampToTraceTimeNs().
+    * Fixed support for category names that contain a space.
+  Trace Processor:
+    * Added ingestion and query support for Android end-to-end frame timing
+      events through the {actual, expected}_frame_timeline_slice tables.
+    * Added time-to-reportFullyDrawn (Android's API) to startup metrics.
+    * Fixed excessive memory usage when decoding traces containing callstacks
+      (https://github.com/google/perfetto/issues/83).
+  UI:
+    * Added ability to inspect the full trace config string from the
+      'Info and stats' page.
+    * Fixed 'TABLE/VIEW XXX already exists' in the Metrics page when running the
+      same metric twice.
+    * Fixed sorting of tracks using numeric sorting instead of lexicographic:
+      Thread {1, 2, 10, 11, 20} rather than Thread {1, 10, 11, 2, 20}.
+    * Fixed CSP-related bug that was preventing the UI to work on Firefox.
+    * Changed max zoom resolution to allow to zoom to sub-us events.
 
 
 v11.0 - 2021-01-01:
