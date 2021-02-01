@@ -77,6 +77,8 @@ const char* MapToFriendlyPowerRailName(base::StringView raw) {
     return "gpu";
   } else if (raw == "L9S_GNSS_CORE") {
     return "gps";
+  } else if (raw == "VSYS_PWR_RFFE") {
+    return "radio.frontend";
   }
   return nullptr;
 }
