@@ -7,3 +7,6 @@
 90,16,1000,8,7,"Layer1","Early Present",1,0,"SurfaceFlinger Scheduling"
 108,4,666,8,0,"[NULL]","Early Present",1,0,"SurfaceFlinger Scheduling"
 148,8,666,12,0,"[NULL]","Late Present",0,0,"SurfaceFlinger Scheduling, SurfaceFlinger CPU Deadline Missed"
+150,17,1000,15,14,"Layer1","On-time Present",1,0,"None"
+150,17,1000,15,14,"Layer2","On-time Present",1,0,"None"
+170,6,666,15,0,"[NULL]","On-time Present",1,0,"None"
