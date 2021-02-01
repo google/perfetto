@@ -42,7 +42,10 @@ source_set("probes") {
 }
 
 source_set("probes_src") {
-  public_deps = [ "ftrace" ]
+  public_deps = [
+    "ftrace",
+    "ftrace:ftrace_procfs",
+  ]
   deps = [
     ":data_source",
     "../../../gn:default_deps",
@@ -65,10 +68,10 @@ source_set("probes_src") {
     "system_info",
   ]
   sources = [
-    "probes_producer.cc",
-    "probes_producer.h",
     "kmem_activity_trigger.cc",
     "kmem_activity_trigger.h",
+    "probes_producer.cc",
+    "probes_producer.h",
   ]
 }
 
