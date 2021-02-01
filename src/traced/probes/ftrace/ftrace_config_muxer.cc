@@ -61,7 +61,7 @@ std::set<GroupAndName> ReadEventsInGroupFromFs(
 
 std::pair<std::string, std::string> EventToStringGroupAndName(
     const std::string& event) {
-  auto slash_pos = event.find("/");
+  auto slash_pos = event.find('/');
   if (slash_pos == std::string::npos)
     return std::make_pair("", event);
   return std::make_pair(event.substr(0, slash_pos),

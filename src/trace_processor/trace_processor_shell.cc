@@ -240,7 +240,7 @@ util::Status PrintStats() {
 }
 
 util::Status ExportTraceToDatabase(const std::string& output_name) {
-  PERFETTO_CHECK(output_name.find("'") == std::string::npos);
+  PERFETTO_CHECK(output_name.find('\'') == std::string::npos);
   {
     base::ScopedFile fd(base::OpenFile(output_name, O_CREAT | O_RDWR, 0600));
     if (!fd)
@@ -265,7 +265,7 @@ util::Status ExportTraceToDatabase(const std::string& output_name) {
       "SELECT name FROM sqlite_master WHERE type='table'");
   for (uint32_t rows = 0; tables_it.Next(); rows++) {
     std::string table_name = tables_it.Get(0).string_value;
-    PERFETTO_CHECK(table_name.find("'") == std::string::npos);
+    PERFETTO_CHECK(table_name.find('\'') == std::string::npos);
     std::string export_sql = "CREATE TABLE perfetto_export." + table_name +
                              " AS SELECT * FROM " + table_name;
 
@@ -957,7 +957,7 @@ util::Status RunMetrics(const CommandLineOptions& options) {
     const std::string& metric_or_path = metrics[i];
 
     // If there is no extension, we assume it is a builtin metric.
-    auto ext_idx = metric_or_path.rfind(".");
+    auto ext_idx = metric_or_path.rfind('.');
     if (ext_idx == std::string::npos)
       continue;
 
