@@ -174,8 +174,6 @@ class BFS {
                               ? VisitType::VIA_INCOMING_FLOW
                               : VisitType::VIA_OUTGOING_FLOW});
     }
-
-    return;
   }
 
   void GoToRelativesImpl(RowMap::Iterator it) {
