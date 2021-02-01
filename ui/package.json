@@ -23,7 +23,7 @@
     "events": "^3.1.0",
     "immer": "^1.12.1",
     "micromodal": "^0.4.6",
-    "mithril": "^1.1.7",
+    "mithril": "^2.0.4",
     "noice-json-rpc": "^1.2.0",
     "pako": "^1.0.11",
     "protobufjs": "^6.9.0",
