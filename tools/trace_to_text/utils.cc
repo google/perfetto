@@ -46,9 +46,6 @@ namespace {
 constexpr size_t kCompressionBufferSize = 500 * 1024;
 #endif
 
-using ::protozero::proto_utils::MakeTagLengthDelimited;
-using ::protozero::proto_utils::WriteVarInt;
-
 }  // namespace
 
 void ForEachPacketBlobInTrace(
