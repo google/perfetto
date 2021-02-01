@@ -771,8 +771,12 @@ message JavaHprofConfig {
 // At the time of writing, the config options are restricted to the periodic
 // system-wide stack sampling use-case (|all_cpus| must be true).
 //
-// Next id: 14
+// Next id: 15
 message PerfEventConfig {
+  // Event (counter) to use as a time base for the sampling.
+  // If unset, implies the CPU timer (PERF_COUNT_SW_CPU_CLOCK) as the event.
+  optional TracepointEventConfig tracepoint = 14;
+
   // If true, sample events on all CPUs.
   optional bool all_cpus = 1;
 
@@ -854,6 +858,14 @@ message PerfEventConfig {
   optional uint32 unwind_state_clear_period_ms = 10;
 }
 
+// TODO(rsavitski): figure out the state of function tracepoints in
+// perf_event_open (they're implemented, but have constraints).
+message TracepointEventConfig {
+  // Group and name for the tracepoint, acceptable forms:
+  // * "sched/sched_switch"
+  // * "sched:sched_switch"
+  optional string name = 1;
+}
 // End of protos/perfetto/config/profiling/perf_event_config.proto
 
 // Begin of protos/perfetto/common/sys_stats_counters.proto
@@ -7465,7 +7477,11 @@ message Profiling {
 
 // Individual performance sampling packet payload. Typically corresponds to a
 // stack sample on a configration-dependent counter overflow.
-// Timestamps are within the root packet (in the CLOCK_BOOTTIME domain).
+//
+// Timestamps are within the root packet. This used to use the CLOCK_BOOTTIME
+// domain, but now the default is CLOCK_MONOTONIC_RAW which is compatible with
+// more event types.
+//
 // There are several distinct views of this message:
 // * completely processed sample (callstack_iid set)
 // * indication of kernel buffer data loss (kernel_records_lost set)
