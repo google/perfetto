@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# This tool checks that every create (table|view) is prefiexed by
+# This tool checks that every create (table|view) is prefixed by
 # drop (table|view).
 
 from __future__ import absolute_import
@@ -43,7 +43,7 @@ def check(path):
       continue
     type, name = m.group(1), m.group(2)
     if type != d_type or name != d_name:
-      sys.stderr.write(('%s:\n  "%s" vs %s %s') % (path, line, d_type, d_name))
+      sys.stderr.write(('%s:\n  "%s" vs %s %s\n') % (path, line, d_type, d_name))
       errors += 1
     d_type, d_name = None, None
   return errors
