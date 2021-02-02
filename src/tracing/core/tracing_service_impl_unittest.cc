@@ -199,6 +199,10 @@ class TracingServiceImplTest : public testing::Test {
     svc->trigger_window_ns_ = window_ns;
   }
 
+  void OverrideNextTriggerRandomNumber(double number) {
+    svc->trigger_rnd_override_for_testing_ = number;
+  }
+
   base::TestTaskRunner task_runner;
   std::unique_ptr<TracingServiceImpl> svc;
 };
@@ -1334,6 +1338,60 @@ TEST_F(TracingServiceImplTest, SecondTriggerDoesntHitLimit) {
         consumer->ReadBuffers(),
         HasTriggerMode(protos::gen::TraceConfig::TriggerConfig::STOP_TRACING));
   }
+}
+
+TEST_F(TracingServiceImplTest, SkipProbability) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+
+  producer->RegisterDataSource("data_source");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  trace_config.add_data_sources()->mutable_config()->set_name("data_source");
+  auto* trigger_config = trace_config.mutable_trigger_config();
+  trigger_config->set_trigger_mode(TraceConfig::TriggerConfig::STOP_TRACING);
+  auto* trigger = trigger_config->add_triggers();
+  trigger->set_name("trigger_name");
+  trigger->set_stop_delay_ms(1);
+  trigger->set_skip_probability(0.15);
+
+  trigger_config->set_trigger_timeout_ms(8.64e+7);
+
+  consumer->EnableTracing(trace_config);
+  producer->WaitForTracingSetup();
+
+  producer->WaitForDataSourceSetup("data_source");
+  producer->WaitForDataSourceStart("data_source");
+
+  std::vector<std::string> req;
+  req.push_back("trigger_name");
+
+  // This is below the probability of 0.15 so should be skipped.
+  OverrideNextTriggerRandomNumber(0.14);
+  producer->endpoint()->ActivateTriggers(req);
+
+  ASSERT_EQ(0u, tracing_session()->received_triggers.size());
+
+  // This is above the probaility of 0.15 so should be allowed.
+  OverrideNextTriggerRandomNumber(0.16);
+  producer->endpoint()->ActivateTriggers(req);
+
+  auto writer = producer->CreateTraceWriter("data_source");
+  producer->WaitForFlush(writer.get());
+
+  ASSERT_EQ(1u, tracing_session()->received_triggers.size());
+  EXPECT_EQ("trigger_name",
+            tracing_session()->received_triggers[0].trigger_name);
+
+  producer->WaitForDataSourceStop("data_source");
+  consumer->WaitForTracingDisabled();
+  EXPECT_THAT(
+      consumer->ReadBuffers(),
+      HasTriggerMode(protos::gen::TraceConfig::TriggerConfig::STOP_TRACING));
 }
 
 TEST_F(TracingServiceImplTest, LockdownMode) {
