@@ -294,6 +294,8 @@ TracingServiceImpl::TracingServiceImpl(
       shm_factory_(std::move(shm_factory)),
       uid_(base::GetCurrentUserId()),
       buffer_ids_(kMaxTraceBufferID),
+      trigger_probability_rand_(
+          static_cast<uint32_t>(base::GetWallTimeNs().count())),
       weak_ptr_factory_(this) {
   PERFETTO_DCHECK(task_runner_);
 }
@@ -1329,6 +1331,16 @@ void TracingServiceImpl::ActivateTriggers(
               std::regex(iter->producer_name_regex(), std::regex::extended))) {
         continue;
       }
+
+      // Use a random number between 0 and 1 to check if we should allow this
+      // trigger through or not.
+      double trigger_rnd =
+          trigger_rnd_override_for_testing_ > 0
+              ? trigger_rnd_override_for_testing_
+              : trigger_probability_dist_(trigger_probability_rand_);
+      PERFETTO_DCHECK(trigger_rnd >= 0 && trigger_rnd < 1);
+      if (trigger_rnd < iter->skip_probability())
+        continue;
 
       // If we already triggered more times than the limit, silently ignore
       // this trigger.
