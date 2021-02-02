@@ -88,10 +88,7 @@ inline uint64_t TraceTimeNowNs() {
 // Useful for skipping unnecessary argument computation if metatracing is off.
 inline bool IsEnabled(uint32_t tag) {
   auto enabled_tags = g_enabled_tags.load(std::memory_order_relaxed);
-  if (PERFETTO_LIKELY((enabled_tags & tag) == 0))
-    return false;
-  else
-    return true;
+  return PERFETTO_UNLIKELY((enabled_tags & tag) != 0);
 }
 
 // Holds the data for a metatrace event or counter.
