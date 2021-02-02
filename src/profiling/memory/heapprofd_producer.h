@@ -148,12 +148,6 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
   // Valid only if mode_ == kChild.
   void SetTargetProcess(pid_t target_pid, std::string target_cmdline);
   void SetDataSourceCallback(std::function<void()> fn);
-  void SetInheritedSocket(base::ScopedFile inherited_socket);
-  // Valid only if mode_ == kChild. Kicks off a periodic check that the child
-  // heapprofd is actively working on a data source (which should correspond to
-  // the target process). The first check is delayed to let the freshly spawned
-  // producer get the data sources from the tracing service (i.e. traced).
-  void ScheduleActiveDataSourceWatchdog();
 
   // Exposed for testing.
   void SetProducerEndpoint(
@@ -326,10 +320,6 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
 
   // Specific to mode_ == kChild
   Process target_process_{base::kInvalidPid, ""};
-  // This is a valid FD only between SetInheritedSocket and
-  // AdoptSocket.
-  // Specific to mode_ == kChild
-  base::ScopedFile inherited_fd_;
   base::Optional<std::function<void()>> data_source_callback_;
 
   SocketDelegate socket_delegate_;

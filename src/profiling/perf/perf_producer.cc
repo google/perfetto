@@ -43,6 +43,7 @@
 #include "src/profiling/perf/common_types.h"
 #include "src/profiling/perf/event_reader.h"
 
+#include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/config/profiling/perf_event_config.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -216,10 +217,20 @@ void PerfProducer::StartDataSource(DataSourceInstanceID ds_id,
   if (config.name() != kDataSourceName)
     return;
 
+  // Tracepoint name -> id lookup in case the config asks for tracepoints:
+  auto tracepoint_id_lookup = [this](const std::string& group,
+                                     const std::string& name) {
+    if (!tracefs_)  // lazy init or retry
+      tracefs_ = FtraceProcfs::CreateGuessingMountPoint();
+    if (!tracefs_)  // still didn't find an accessible tracefs
+      return 0u;
+    return tracefs_->ReadEventId(group, name);
+  };
+
   protos::pbzero::PerfEventConfig::Decoder event_config_pb(
       config.perf_event_config_raw());
   base::Optional<EventConfig> event_config =
-      EventConfig::Create(event_config_pb, config);
+      EventConfig::Create(event_config_pb, config, tracepoint_id_lookup);
   if (!event_config.has_value()) {
     PERFETTO_ELOG("PerfEventConfig rejected.");
     return;
@@ -654,6 +665,7 @@ void PerfProducer::EmitSample(DataSourceInstanceID ds_id,
   // start packet
   auto packet = ds.trace_writer->NewTracePacket();
   packet->set_timestamp(sample.timestamp);
+  packet->set_timestamp_clock_id(protos::pbzero::BUILTIN_CLOCK_MONOTONIC_RAW);
 
   // write new interning data (if any)
   protos::pbzero::InternedData* interned_out = packet->set_interned_data();
