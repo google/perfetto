@@ -737,6 +737,7 @@ void PerfProducer::EmitSkippedSample(DataSourceInstanceID ds_id,
 
   auto packet = ds.trace_writer->NewTracePacket();
   packet->set_timestamp(sample.timestamp);
+  packet->set_timestamp_clock_id(protos::pbzero::BUILTIN_CLOCK_MONOTONIC_RAW);
   auto* perf_sample = packet->set_perf_sample();
   perf_sample->set_cpu(sample.cpu);
   perf_sample->set_pid(static_cast<uint32_t>(sample.pid));
