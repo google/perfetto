@@ -257,7 +257,7 @@ void InodeFileDataSource::OnInodes(
                 PERFETTO_DLOG("Giving up filesystem scan.");
                 return;
               }
-              weak_this.get()->FindMissingInodes();
+              weak_this->FindMissingInodes();
             },
             scan_delay_ms_);
       }
