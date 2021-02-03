@@ -4,3 +4,5 @@
 "[NULL]","[NULL]","t1","Browser",2000,200,"cat","event3_on_t1"
 "[NULL]","[NULL]","t1","Browser",4000,0,"cat","event4_on_t1"
 "[NULL]","[NULL]","t4","Browser",4000,100,"cat","event1_on_t3"
+"[NULL]","[NULL]","t1","Browser",4300,0,"cat","float_counter_on_t1"
+"[NULL]","[NULL]","t1","Browser",4500,0,"cat","float_counter_on_t1"
