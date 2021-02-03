@@ -1,0 +1,4 @@
+"track","process","thread","thread_process","ts","dur","category","name"
+"[NULL]","[NULL]","t1","[NULL]",1000,0,"cat","instant_on_t1"
+"[NULL]","[NULL]","t1","[NULL]",2000,0,"cat","legacy_instant_on_t1"
+"[NULL]","[NULL]","t1","[NULL]",3000,0,"cat","legacy_mark_on_t1"
