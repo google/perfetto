@@ -269,8 +269,10 @@ export function genConfig(
         cdc.dumpPhaseMs = uiCfg.hpContinuousDumpsPhase;
       }
     }
-    // TODO(fmayer): Add a toggle for this to the UI?
-    cfg.blockClient = true;
+    cfg.blockClient = uiCfg.hpBlockClient;
+    if (uiCfg.hpAllHeaps) {
+      cfg.allHeaps = true;
+    }
     heapprofd = cfg;
   }
 
