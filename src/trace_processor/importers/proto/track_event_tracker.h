@@ -111,10 +111,10 @@ class TrackEventTracker {
   // necessary. If the counter uses incremental encoding, |packet_sequence_id|
   // must match the one in its track reservation. Returns base::nullopt if the
   // counter track is unknown or an invalid |packet_sequence_id| was passed.
-  base::Optional<int64_t> ConvertToAbsoluteCounterValue(
+  base::Optional<double> ConvertToAbsoluteCounterValue(
       uint64_t counter_track_uuid,
       uint32_t packet_sequence_id,
-      int64_t value);
+      double value);
 
   // Returns the ID of the implicit trace-global default TrackDescriptor track.
   // TODO(lalitm): this method needs to be moved back to TrackTracker once
@@ -140,7 +140,7 @@ class TrackEventTracker {
     int64_t unit_multiplier = 1;
     bool is_incremental = false;
     uint32_t packet_sequence_id = 0;
-    int64_t latest_value = 0;
+    double latest_value = 0;
 
     // Whether |other| is a valid descriptor for this track reservation. A track
     // should always remain nested underneath its original parent.
