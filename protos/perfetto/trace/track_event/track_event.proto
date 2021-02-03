@@ -101,7 +101,7 @@ package perfetto.protos;
 // their default track association) can be emitted as part of a
 // TrackEventDefaults message.
 //
-// Next reserved id: 13 (up to 15). Next id: 44.
+// Next reserved id: 13 (up to 15). Next id: 47.
 message TrackEvent {
   // Names of categories of the event. In the client library, categories are a
   // way to turn groups of individual events on or off.
@@ -173,7 +173,10 @@ message TrackEvent {
   // of a slice, see |extra_counter_values| and |extra_counter_track_uuids|.
   // Counter values can optionally be encoded in as delta values (positive or
   // negative) on each packet sequence (see CounterIncrementalBase).
-  optional int64 counter_value = 30;
+  oneof counter_value_field {
+    int64 counter_value = 30;
+    double double_counter_value = 44;
+  }
 
   // To encode counter values more efficiently, we support attaching additional
   // counter values to a TrackEvent of any type. All values will share the same
@@ -191,6 +194,10 @@ message TrackEvent {
   // thread-track BEGIN and END event to capture the cpu time delta of a slice.
   repeated uint64 extra_counter_track_uuids = 31;
   repeated int64 extra_counter_values = 12;
+
+  // Counter snapshots using floating point instead of integer values.
+  repeated uint64 extra_double_counter_track_uuids = 45;
+  repeated double extra_double_counter_values = 46;
 
   // IDs of flows originating, passing through, or ending at this event.
   // Flow IDs are global within a trace.
@@ -390,6 +397,7 @@ message TrackEvent {
 message TrackEventDefaults {
   optional uint64 track_uuid = 11;
   repeated uint64 extra_counter_track_uuids = 31;
+  repeated uint64 extra_double_counter_track_uuids = 45;
 
   // TODO(eseckler): Support default values for more TrackEvent fields.
 }

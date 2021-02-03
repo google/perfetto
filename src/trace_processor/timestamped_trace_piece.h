@@ -72,8 +72,8 @@ struct TrackEventData : public TracePacketData {
 
   int64_t thread_timestamp = 0;
   int64_t thread_instruction_count = 0;
-  int64_t counter_value = 0;
-  std::array<int64_t, kMaxNumExtraCounters> extra_counter_values = {};
+  double counter_value = 0;
+  std::array<double, kMaxNumExtraCounters> extra_counter_values = {};
 };
 
 // A TimestampedTracePiece is (usually a reference to) a piece of a trace that
