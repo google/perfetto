@@ -22,6 +22,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <random>
 #include <set>
 #include <utility>
 #include <vector>
@@ -659,6 +660,10 @@ class TracingServiceImpl : public TracingService {
   bool lockdown_mode_ = false;
   uint32_t min_write_period_ms_ = 100;  // Overridable for testing.
   int64_t trigger_window_ns_ = kOneDayInNs;  // Overridable for testing.
+
+  std::minstd_rand trigger_probability_rand_;
+  std::uniform_real_distribution<> trigger_probability_dist_;
+  double trigger_rnd_override_for_testing_ = 0;  // Overridable for testing.
 
   uint8_t sync_marker_packet_[32];  // Lazily initialized.
   size_t sync_marker_packet_size_ = 0;
