@@ -188,7 +188,8 @@ class FtraceParser {
   };
 
   static constexpr size_t kFastRpcCounterSize = 4;
-  std::array<StringId, kFastRpcCounterSize> fast_rpc_counter_names_;
+  std::array<StringId, kFastRpcCounterSize> fast_rpc_delta_names_;
+  std::array<StringId, kFastRpcCounterSize> fast_rpc_total_names_;
 
   // Keep kMmEventCounterSize equal to mm_event_type::MM_TYPE_NUM in the kernel.
   static constexpr size_t kMmEventCounterSize = 7;
