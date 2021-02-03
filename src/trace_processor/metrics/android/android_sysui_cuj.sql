@@ -277,7 +277,7 @@ DROP VIEW IF EXISTS android_sysui_cuj_event;
 CREATE VIEW android_sysui_cuj_event AS
  SELECT
     'slice' as track_type,
-    (SELECT slice_name FROM android_sysui_cuj_last_cuj)
+    (SELECT cuj_name FROM android_sysui_cuj_last_cuj)
         || ' - jank cause' as track_name,
     f.ts_main_thread_start as ts,
     f.dur_main_thread as dur,
