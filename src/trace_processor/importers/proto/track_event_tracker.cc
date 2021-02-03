@@ -457,10 +457,10 @@ TrackId TrackEventTracker::GetOrCreateDefaultDescriptorTrack() {
   return *GetDescriptorTrack(kDefaultDescriptorTrackUuid);
 }
 
-base::Optional<int64_t> TrackEventTracker::ConvertToAbsoluteCounterValue(
+base::Optional<double> TrackEventTracker::ConvertToAbsoluteCounterValue(
     uint64_t counter_track_uuid,
     uint32_t packet_sequence_id,
-    int64_t value) {
+    double value) {
   auto reservation_it = reserved_descriptor_tracks_.find(counter_track_uuid);
   if (reservation_it == reserved_descriptor_tracks_.end()) {
     PERFETTO_DLOG("Unknown counter track with uuid %" PRIu64,
@@ -476,7 +476,7 @@ base::Optional<int64_t> TrackEventTracker::ConvertToAbsoluteCounterValue(
   }
 
   if (reservation.unit_multiplier > 0)
-    value *= reservation.unit_multiplier;
+    value *= static_cast<double>(reservation.unit_multiplier);
 
   if (reservation.is_incremental) {
     if (reservation.packet_sequence_id != packet_sequence_id) {
