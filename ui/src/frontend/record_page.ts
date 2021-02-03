@@ -44,7 +44,9 @@ import {
   Slider,
   SliderAttrs,
   Textarea,
-  TextareaAttrs
+  TextareaAttrs,
+  Toggle,
+  ToggleAttrs
 } from './record_widgets';
 import {Router} from './router';
 
@@ -388,7 +390,14 @@ function HeapSettings(cssClass: string) {
         min: 0,
         set: (cfg, val) => cfg.hpSharedMemoryBuffer = val,
         get: (cfg) => cfg.hpSharedMemoryBuffer
-      } as SliderAttrs)
+      } as SliderAttrs),
+      m(Toggle, {
+        title: 'Block client',
+        cssClass: '.thin',
+        descr: `Slow down target application if profiler cannot keep up.`,
+        setEnabled: (cfg, val) => cfg.hpBlockClient = val,
+        isEnabled: (cfg) => cfg.hpBlockClient
+      } as ToggleAttrs)
       // TODO(taylori): Add advanced options.
   );
 }
