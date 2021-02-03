@@ -143,7 +143,7 @@ class TrackEventParser::EventImporter {
     RETURN_IF_ERROR(ParseTrackAssociation());
 
     // Counter-type events don't support arguments (those are on the
-    // CounterDescriptor instead). All they have is a |counter_value|.
+    // CounterDescriptor instead). All they have is a |{double_,}counter_value|.
     if (event_.type() == TrackEvent::TYPE_COUNTER) {
       ParseCounterEvent();
       return util::OkStatus();
@@ -479,7 +479,8 @@ class TrackEventParser::EventImporter {
     // Tokenizer ensures that TYPE_COUNTER events are associated with counter
     // tracks and have values.
     PERFETTO_DCHECK(storage_->counter_track_table().id().IndexOf(track_id_));
-    PERFETTO_DCHECK(event_.has_counter_value());
+    PERFETTO_DCHECK(event_.has_counter_value() ||
+                    event_.has_double_counter_value());
 
     context_->event_tracker->PushCounter(
         ts_, static_cast<double>(event_data_->counter_value), track_id_);
@@ -510,44 +511,63 @@ class TrackEventParser::EventImporter {
   }
 
   void ParseExtraCounterValues() {
-    if (!event_.has_extra_counter_values())
+    if (!event_.has_extra_counter_values() &&
+        !event_.has_extra_double_counter_values()) {
       return;
+    }
 
+    // Add integer extra counter values.
+    size_t index = 0;
     protozero::RepeatedFieldIterator<uint64_t> track_uuid_it;
     if (event_.has_extra_counter_track_uuids()) {
       track_uuid_it = event_.extra_counter_track_uuids();
     } else if (defaults_ && defaults_->has_extra_counter_track_uuids()) {
       track_uuid_it = defaults_->extra_counter_track_uuids();
     }
-
-    size_t index = 0;
     for (auto value_it = event_.extra_counter_values(); value_it;
          ++value_it, ++track_uuid_it, ++index) {
-      // Tokenizer ensures that there aren't more values than uuids, that we
-      // don't have more values than kMaxNumExtraCounters and that the
-      // track_uuids are for valid counter tracks.
-      PERFETTO_DCHECK(track_uuid_it);
-      PERFETTO_DCHECK(index < TrackEventData::kMaxNumExtraCounters);
+      AddExtraCounterValue(track_uuid_it, index);
+    }
 
-      base::Optional<TrackId> track_id =
-          track_event_tracker_->GetDescriptorTrack(*track_uuid_it);
-      base::Optional<uint32_t> counter_row =
-          storage_->counter_track_table().id().IndexOf(*track_id);
+    // Add double extra counter values.
+    track_uuid_it = protozero::RepeatedFieldIterator<uint64_t>();
+    if (event_.has_extra_double_counter_track_uuids()) {
+      track_uuid_it = event_.extra_double_counter_track_uuids();
+    } else if (defaults_ && defaults_->has_extra_double_counter_track_uuids()) {
+      track_uuid_it = defaults_->extra_double_counter_track_uuids();
+    }
+    for (auto value_it = event_.extra_double_counter_values(); value_it;
+         ++value_it, ++track_uuid_it, ++index) {
+      AddExtraCounterValue(track_uuid_it, index);
+    }
+  }
 
-      int64_t value = event_data_->extra_counter_values[index];
-      context_->event_tracker->PushCounter(ts_, static_cast<double>(value),
-                                           *track_id);
+  void AddExtraCounterValue(
+      protozero::RepeatedFieldIterator<uint64_t> track_uuid_it,
+      size_t index) {
+    // Tokenizer ensures that there aren't more values than uuids, that we
+    // don't have more values than kMaxNumExtraCounters and that the
+    // track_uuids are for valid counter tracks.
+    PERFETTO_DCHECK(track_uuid_it);
+    PERFETTO_DCHECK(index < TrackEventData::kMaxNumExtraCounters);
 
-      // Also import thread_time and thread_instruction_count counters into
-      // slice columns to simplify JSON export.
-      StringId counter_name =
-          storage_->counter_track_table().name()[*counter_row];
-      if (counter_name == parser_->counter_name_thread_time_id_) {
-        event_data_->thread_timestamp = value;
-      } else if (counter_name ==
-                 parser_->counter_name_thread_instruction_count_id_) {
-        event_data_->thread_instruction_count = value;
-      }
+    base::Optional<TrackId> track_id =
+        track_event_tracker_->GetDescriptorTrack(*track_uuid_it);
+    base::Optional<uint32_t> counter_row =
+        storage_->counter_track_table().id().IndexOf(*track_id);
+
+    double value = event_data_->extra_counter_values[index];
+    context_->event_tracker->PushCounter(ts_, value, *track_id);
+
+    // Also import thread_time and thread_instruction_count counters into
+    // slice columns to simplify JSON export.
+    StringId counter_name =
+        storage_->counter_track_table().name()[*counter_row];
+    if (counter_name == parser_->counter_name_thread_time_id_) {
+      event_data_->thread_timestamp = static_cast<int64_t>(value);
+    } else if (counter_name ==
+               parser_->counter_name_thread_instruction_count_id_) {
+      event_data_->thread_instruction_count = static_cast<int64_t>(value);
     }
   }
 

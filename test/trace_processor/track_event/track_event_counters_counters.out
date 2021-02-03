@@ -13,3 +13,7 @@
 "thread_instruction_count","[NULL]","t4","Browser","[NULL]",4000,20.000000
 "thread_time","[NULL]","t4","Browser","[NULL]",4100,15000.000000
 "thread_instruction_count","[NULL]","t4","Browser","[NULL]",4100,25.000000
+"MyDoubleCounter","[NULL]","[NULL]","[NULL]","[NULL]",4200,3.141593
+"MyDoubleCounter","[NULL]","[NULL]","[NULL]","[NULL]",4300,0.500000
+"MySizeCounter","[NULL]","[NULL]","[NULL]","bytes",4500,4096.000000
+"MyDoubleCounter","[NULL]","[NULL]","[NULL]","[NULL]",4500,2.718280
