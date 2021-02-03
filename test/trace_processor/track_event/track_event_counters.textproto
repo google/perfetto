@@ -268,3 +268,67 @@ packet {
     thread_instruction_count_absolute: 25
   }
 }
+
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 4200
+  incremental_state_cleared: true
+  track_descriptor {
+    uuid: 12
+    name: "MyDoubleCounter"
+    counter {
+    }
+  }
+}
+
+# Floating point counter value.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 4200
+  track_event {
+    track_uuid: 12                   # "MyDoubleCounter".
+    type: 4                          # TYPE_COUNTER.
+    double_counter_value: 3.1415926  # Floating point.
+  }
+}
+
+# Floating point extra counter value.
+packet {
+  trusted_packet_sequence_id: 1
+  sequence_flags: 2  # SEQ_NEEDS_INCREMENTAL_STATE
+  timestamp: 4300
+  track_event {
+    categories: "cat"
+    name: "float_counter_on_t1"
+    type: 3                               # TYPE_INSTANT.
+    extra_double_counter_track_uuids: 12  # "MyDoubleCounter".
+    extra_double_counter_values: 0.5
+  }
+}
+
+# Floating point extra counter value with sequence defaults (used together with
+# an integer counter).
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 4400
+  trace_packet_defaults {
+    track_event_defaults {
+      track_uuid: 1
+      extra_counter_track_uuids: 11         # "MySizeCounter"
+      extra_double_counter_track_uuids: 12  # "MyDoubleCounter"
+    }
+  }
+}
+
+packet {
+  trusted_packet_sequence_id: 1
+  sequence_flags: 2  # SEQ_NEEDS_INCREMENTAL_STATE
+  timestamp: 4500
+  track_event {
+    categories: "cat"
+    name: "float_counter_on_t1"
+    type: 3                        # TYPE_INSTANT.
+    extra_counter_values: 4096
+    extra_double_counter_values: 2.71828
+  }
+}
