@@ -29,11 +29,13 @@ if (!build_with_chromium && enable_perfetto_integration_tests) {
       "../protos/perfetto/config:cpp",
       "../protos/perfetto/config:zero",
       "../protos/perfetto/config/power:zero",
+      "../protos/perfetto/config/sys_stats:cpp",
       "../protos/perfetto/trace:cpp",
       "../protos/perfetto/trace:zero",
       "../protos/perfetto/trace/ftrace:cpp",
       "../protos/perfetto/trace/perfetto:cpp",
       "../protos/perfetto/trace/power:cpp",
+      "../protos/perfetto/trace/sys_stats:cpp",
       "../src/base:base",
       "../src/base:test_support",
     ]

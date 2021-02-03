@@ -60,6 +60,10 @@
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/perfetto/trace/trigger.gen.h"
 
+#include "protos/perfetto/common/sys_stats_counters.gen.h"
+#include "protos/perfetto/config/sys_stats/sys_stats_config.gen.h"
+#include "protos/perfetto/trace/sys_stats/sys_stats.gen.h"
+
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
 #include "test/android_test_utils.h"
 #endif
@@ -118,7 +122,6 @@ class Exec {
     return subprocess_.returncode();
   }
 
- private:
   Exec(const std::string& argv0,
        std::initializer_list<std::string> args,
        std::string input = "") {
@@ -180,7 +183,7 @@ class Exec {
     sync_pipe_.rd.reset();
   }
 
-  friend class PerfettoCmdlineTest;
+ private:
   base::Subprocess subprocess_;
   base::Pipe sync_pipe_;
 };
@@ -395,6 +398,139 @@ TEST_F(PerfettoTest, TreeHuggerOnly(TestFtraceFlush)) {
     }
   }
   ASSERT_EQ(marker_found, 1);
+}
+
+TEST_F(PerfettoTest, TreeHuggerOnly(TestKmemActivity)) {
+  using C = protos::gen::VmstatCounters;
+
+  base::TestTaskRunner task_runner;
+
+  TestHelper helper(&task_runner);
+
+  // Create kmem_activity trigger proc before starting service
+  auto kmem_activity_trigger_proc = Exec("trigger_perfetto", {"kmem_activity"});
+
+  helper.StartServiceIfRequired();
+
+#if PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
+  ProbesProducerThread probes(TEST_PRODUCER_SOCK_NAME);
+  probes.Connect();
+#endif
+
+  helper.ConnectConsumer();
+  helper.WaitForConsumerConnect();
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(1024);
+  trace_config.set_unique_session_name("kmem_activity_test");
+
+  auto* ftrace_ds_config = trace_config.add_data_sources()->mutable_config();
+  ftrace_ds_config->set_name("linux.ftrace");
+  protos::gen::FtraceConfig ftrace_config = CreateFtraceConfig({
+      "vmscan/mm_vmscan_kswapd_wake",
+      "vmscan/mm_vmscan_kswapd_sleep",
+      "vmscan/mm_vmscan_direct_reclaim_begin",
+      "vmscan/mm_vmscan_direct_reclaim_end",
+      "compaction/mm_compaction_begin",
+      "compaction/mm_compaction_end",
+  });
+  ftrace_ds_config->set_ftrace_config_raw(ftrace_config.SerializeAsString());
+
+  auto* sys_stats_ds_config = trace_config.add_data_sources()->mutable_config();
+  sys_stats_ds_config->set_name("linux.sys_stats");
+  protos::gen::SysStatsConfig sys_stats_config;
+  sys_stats_config.set_vmstat_period_ms(50);
+  std::vector<C> vmstat_counters = {
+      C::VMSTAT_NR_FREE_PAGES,
+      C::VMSTAT_NR_SLAB_RECLAIMABLE,
+      C::VMSTAT_NR_SLAB_UNRECLAIMABLE,
+      C::VMSTAT_NR_ACTIVE_FILE,
+      C::VMSTAT_NR_INACTIVE_FILE,
+      C::VMSTAT_NR_ACTIVE_ANON,
+      C::VMSTAT_NR_INACTIVE_ANON,
+      C::VMSTAT_WORKINGSET_REFAULT,
+      C::VMSTAT_WORKINGSET_ACTIVATE,
+      C::VMSTAT_NR_FILE_PAGES,
+      C::VMSTAT_PGPGIN,
+      C::VMSTAT_PGPGOUT,
+      C::VMSTAT_PSWPIN,
+      C::VMSTAT_PSWPOUT,
+      C::VMSTAT_PGSTEAL_KSWAPD_DMA,
+      C::VMSTAT_PGSTEAL_KSWAPD_NORMAL,
+      C::VMSTAT_PGSTEAL_KSWAPD_MOVABLE,
+      C::VMSTAT_PGSTEAL_DIRECT_DMA,
+      C::VMSTAT_PGSTEAL_DIRECT_NORMAL,
+      C::VMSTAT_PGSTEAL_DIRECT_MOVABLE,
+      C::VMSTAT_PGSCAN_KSWAPD_DMA,
+      C::VMSTAT_PGSCAN_KSWAPD_NORMAL,
+      C::VMSTAT_PGSCAN_KSWAPD_MOVABLE,
+      C::VMSTAT_PGSCAN_DIRECT_DMA,
+      C::VMSTAT_PGSCAN_DIRECT_NORMAL,
+      C::VMSTAT_PGSCAN_DIRECT_MOVABLE,
+      C::VMSTAT_COMPACT_MIGRATE_SCANNED,
+      C::VMSTAT_COMPACT_FREE_SCANNED,
+  };
+  for (const auto& counter : vmstat_counters) {
+    sys_stats_config.add_vmstat_counters(counter);
+  }
+  sys_stats_ds_config->set_sys_stats_config_raw(
+      sys_stats_config.SerializeAsString());
+
+  auto* trigger_cfg = trace_config.mutable_trigger_config();
+  trigger_cfg->set_trigger_mode(
+      protos::gen::TraceConfig::TriggerConfig::START_TRACING);
+  trigger_cfg->set_trigger_timeout_ms(100);
+  auto* trigger = trigger_cfg->add_triggers();
+  trigger->set_name("kmem_activity");
+  trigger->set_stop_delay_ms(500);
+
+  helper.StartTracing(trace_config);
+
+  // Generating synthetic memory pressure to trigger kmem activity is
+  // inherently flaky on different devices. The same goes for writing
+  // /proc/sys/vm/compact_memory to trigger compaction, since compaction is
+  // only started if needed (even if explicitly triggered from proc).
+  // Trigger kmem activity using perfetto trigger.
+  std::string stderr_str;
+  EXPECT_EQ(0, kmem_activity_trigger_proc.Run(&stderr_str)) << stderr_str;
+
+  helper.WaitForTracingDisabled();
+
+  helper.ReadData();
+  helper.WaitForReadData();
+
+  const auto& packets = helper.trace();
+  ASSERT_GT(packets.size(), 0u);
+
+  bool sys_stats_captured = false;
+  for (const auto& packet : packets) {
+    for (int ev = 0; ev < packet.ftrace_events().event_size(); ev++) {
+      auto ftrace_event =
+          packet.ftrace_events().event()[static_cast<size_t>(ev)];
+      ASSERT_TRUE(ftrace_event.has_mm_vmscan_kswapd_wake() ||
+                  ftrace_event.has_mm_vmscan_kswapd_sleep() ||
+                  ftrace_event.has_mm_vmscan_direct_reclaim_begin() ||
+                  ftrace_event.has_mm_vmscan_direct_reclaim_end() ||
+                  ftrace_event.has_mm_compaction_begin() ||
+                  ftrace_event.has_mm_compaction_end());
+    }
+
+    if (packet.has_sys_stats()) {
+      sys_stats_captured = true;
+      const auto& sys_stats = packet.sys_stats();
+      const auto& vmstat = sys_stats.vmstat();
+      ASSERT_GT(vmstat.size(), 0u);
+      for (const auto& vmstat_value : vmstat) {
+        ASSERT_NE(std::find(vmstat_counters.begin(), vmstat_counters.end(),
+                            vmstat_value.key()),
+                  vmstat_counters.end());
+      }
+    }
+  }
+
+  // Don't explicitly check that ftrace events were captured, since this test
+  // doesn't rely on memory pressure.
+  ASSERT_TRUE(sys_stats_captured);
 }
 
 // Disable this test:
