@@ -28,3 +28,7 @@ cp $WORK/build/*fuzzer $OUT
 mkdir -p $OUT/src/traced/probes/ftrace/test/data
 cp -a $SRC/perfetto/src/traced/probes/ftrace/test/data/synthetic \
   $OUT/src/traced/probes/ftrace/test/data
+
+if [ "$SANITIZER" = "undefined" ]; then
+  rm $OUT/trace_processor_fuzzer
+fi;
