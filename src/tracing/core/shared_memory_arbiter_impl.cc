@@ -373,10 +373,10 @@ void SharedMemoryArbiterImpl::UpdateCommitDataRequest(
           if (!weak_this)
             return;
           {
-            std::lock_guard<std::mutex> scoped_lock(weak_this.get()->lock_);
+            std::lock_guard<std::mutex> scoped_lock(weak_this->lock_);
             // Clear |delayed_flush_scheduled_|, allowing the next call to
             // UpdateCommitDataRequest to start another batching period.
-            weak_this.get()->delayed_flush_scheduled_ = false;
+            weak_this->delayed_flush_scheduled_ = false;
           }
           weak_this->FlushPendingCommitDataRequests();
         },
