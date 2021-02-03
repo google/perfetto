@@ -270,6 +270,9 @@ export function genConfig(
       }
     }
     cfg.blockClient = uiCfg.hpBlockClient;
+    if (uiCfg.hpAllHeaps) {
+      cfg.allHeaps = true;
+    }
     heapprofd = cfg;
   }
 

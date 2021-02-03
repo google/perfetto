@@ -397,6 +397,14 @@ function HeapSettings(cssClass: string) {
         descr: `Slow down target application if profiler cannot keep up.`,
         setEnabled: (cfg, val) => cfg.hpBlockClient = val,
         isEnabled: (cfg) => cfg.hpBlockClient
+      } as ToggleAttrs),
+      m(Toggle, {
+        title: 'All custom allocators (Q+)',
+        cssClass: '.thin',
+        descr: `If the target application exposes custom allocators, also
+sample from those.`,
+        setEnabled: (cfg, val) => cfg.hpAllHeaps = val,
+        isEnabled: (cfg) => cfg.hpAllHeaps
       } as ToggleAttrs)
       // TODO(taylori): Add advanced options.
   );

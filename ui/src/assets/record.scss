@@ -509,7 +509,6 @@
   .toggle {
     transition: color 0.2s ease;
     padding-top: var(--record-section-padding);
-    padding-bottom: var(--record-section-padding);
 
     &:hover {
       >img { opacity: 1; }
@@ -575,9 +574,7 @@
     // The content of the toggle section.
     >div.descr {
       font-size: 12px;
-      min-height: 50px;
       color: #666;
-      line-height: 20px;
     }
   }  // toggle
 
