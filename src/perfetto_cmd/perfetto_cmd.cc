@@ -854,7 +854,10 @@ void PerfettoCmd::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
 
 void PerfettoCmd::OnTracingDisabled(const std::string& error) {
   if (!error.empty()) {
-    PERFETTO_ELOG("Service error: %s", error.c_str());
+    // Some of these errors (e.g. unique session name already exists) are soft
+    // errors and likely to happen in nominal condition. As such they shouldn't
+    // be marked as "E" in the event log. Hence why LOG and not ELOG here.
+    PERFETTO_LOG("Service error: %s", error.c_str());
 
     // Update guardrail state even if we failed. This is for two
     // reasons:
