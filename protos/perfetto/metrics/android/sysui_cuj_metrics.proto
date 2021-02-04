@@ -18,6 +18,8 @@ syntax = "proto2";
 
 package perfetto.protos;
 
+import "protos/perfetto/metrics/android/process_metadata.proto";
+
 // Metric that stores frame information and potential jank root causes
 // for a single Android system UI interaction/user journey.
 message AndroidSysUiCujMetrics {
@@ -25,6 +27,11 @@ message AndroidSysUiCujMetrics {
   repeated Frame frames = 1;
 
   optional string cuj_name = 2;
+  optional int64 cuj_start = 3;
+  optional int64 cuj_dur = 4;
+
+  // Details about the process (uid, version, etc)
+  optional AndroidProcessMetadata process = 5;
 
   message Frame {
     // Index of the frame within the single user journey.

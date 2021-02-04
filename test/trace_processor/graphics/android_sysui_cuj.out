@@ -1,5 +1,11 @@
 android_sysui_cuj {
  cuj_name: "SHADE_ROW_EXPAND"
+  cuj_start: 0
+  cuj_dur: 1000000000
+  process {
+    name: "com.android.systemui"
+    uid: 10001
+ }
  frames {
    number: 1
    ts: 0
