@@ -67,13 +67,22 @@ class ServiceThread {
     runner_ = base::ThreadTaskRunner::CreateAndStart("perfetto.svc");
     runner_->PostTaskAndWaitForTesting([this]() {
       svc_ = ServiceIPCHost::CreateInstance(runner_->get());
-      remove(producer_socket_.c_str());
-      remove(consumer_socket_.c_str());
+      if (remove(producer_socket_.c_str()) == -1) {
+        if (errno != ENOENT)
+          PERFETTO_FATAL("Failed to remove %s", producer_socket_.c_str());
+      }
+      if (remove(consumer_socket_.c_str()) == -1) {
+        if (errno != ENOENT)
+          PERFETTO_FATAL("Failed to remove %s", consumer_socket_.c_str());
+      }
       base::SetEnv("PERFETTO_PRODUCER_SOCK_NAME", producer_socket_);
       base::SetEnv("PERFETTO_CONSUMER_SOCK_NAME", consumer_socket_);
       bool res =
           svc_->Start(producer_socket_.c_str(), consumer_socket_.c_str());
-      PERFETTO_CHECK(res);
+      if (!res) {
+        PERFETTO_FATAL("Failed to start service listening on %s and %s",
+                       producer_socket_.c_str(), consumer_socket_.c_str());
+      }
     });
   }
 
@@ -187,10 +196,19 @@ class FakeProducerThread {
 
 class TestHelper : public Consumer {
  public:
-  static const char* GetConsumerSocketName();
-  static const char* GetProducerSocketName();
+  enum class Mode {
+    kStartDaemons,
+    kUseSystemService,
+  };
+  static Mode kDefaultMode;
 
-  explicit TestHelper(base::TestTaskRunner* task_runner);
+  static const char* GetDefaultModeConsumerSocketName();
+  static const char* GetDefaultModeProducerSocketName();
+
+  explicit TestHelper(base::TestTaskRunner* task_runner)
+      : TestHelper(task_runner, kDefaultMode) {}
+
+  explicit TestHelper(base::TestTaskRunner* task_runner, Mode mode);
 
   // Consumer implementation.
   void OnConnect() override;
@@ -203,11 +221,7 @@ class TestHelper : public Consumer {
   void OnTraceStats(bool, const TraceStats&) override;
   void OnObservableEvents(const ObservableEvents&) override;
 
-  // Starts the tracing service unconditionally.
-  void StartService();
-
-  // Starts the tracing service unless the build was configured to use an
-  // existing one running on the system.
+  // Starts the tracing service if in kStartDaemons mode.
   void StartServiceIfRequired();
 
   // Connects the producer and waits that the service has seen the
@@ -277,6 +291,9 @@ class TestHelper : public Consumer {
   std::vector<protos::gen::TracePacket> full_trace_;
   std::vector<protos::gen::TracePacket> trace_;
 
+  Mode mode_;
+  const char* producer_socket_;
+  const char* consumer_socket_;
   ServiceThread service_thread_;
   FakeProducerThread fake_producer_thread_;
 
