@@ -1,0 +1,50 @@
+# Sequence 1 defaults to track for "t1".
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  incremental_state_cleared: true
+  track_descriptor {
+    uuid: 1
+    thread {
+      pid: 5
+      tid: 1
+      thread_name: "t1"
+    }
+  }
+  trace_packet_defaults {
+    track_event_defaults {
+      track_uuid: 1
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 1000
+  track_event {
+    categories: "cat"
+    name: "instant_on_t1"
+    type: 3
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 2000
+  track_event {
+    categories: "cat"
+    name: "legacy_instant_on_t1"
+    legacy_event {
+      phase: 73               # 'I'
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 3000
+  track_event {
+    categories: "cat"
+    name: "legacy_mark_on_t1"
+    legacy_event {
+      phase: 82               # 'R'
+    }
+  }
+}
