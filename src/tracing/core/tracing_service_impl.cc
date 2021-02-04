@@ -631,9 +631,11 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
       if (kv.second.config.unique_session_name() == name) {
         MaybeLogUploadEvent(
             cfg, PerfettoStatsdAtom::kTracedEnableTracingDuplicateSessionName);
-        return PERFETTO_SVC_ERR(
-            "A trace with this unique session name (%s) already exists",
-            name.c_str());
+        static const char fmt[] =
+            "A trace with this unique session name (%s) already exists";
+        // This happens frequently, don't make it an "E"LOG.
+        PERFETTO_LOG(fmt, name.c_str());
+        return base::ErrStatus(fmt, name.c_str());
       }
     }
   }
