@@ -137,15 +137,19 @@ class Exec {
 
     std::vector<std::string>& cmd = subprocess_.args.exec_cmd;
     if (kUseSystemBinaries) {
+      PERFETTO_CHECK(TestHelper::kDefaultMode ==
+                     TestHelper::Mode::kUseSystemService);
       cmd.push_back("/system/bin/" + argv0);
       cmd.insert(cmd.end(), args.begin(), args.end());
     } else {
+      PERFETTO_CHECK(TestHelper::kDefaultMode ==
+                     TestHelper::Mode::kStartDaemons);
       subprocess_.args.env.push_back(
           std::string("PERFETTO_PRODUCER_SOCK_NAME=") +
-          TestHelper::GetProducerSocketName());
+          TestHelper::GetDefaultModeProducerSocketName());
       subprocess_.args.env.push_back(
           std::string("PERFETTO_CONSUMER_SOCK_NAME=") +
-          TestHelper::GetConsumerSocketName());
+          TestHelper::GetDefaultModeConsumerSocketName());
       cmd.push_back(base::GetCurExecutableDir() + "/" + argv0);
       cmd.insert(cmd.end(), args.begin(), args.end());
     }
