@@ -1,0 +1,7 @@
+
+"track_type","track_name","ts","dur","slice_name"
+"slice","SHADE_ROW_EXPAND - jank cause",8000000,15000000,"MainThread - binder transaction time"
+"slice","SHADE_ROW_EXPAND - jank cause",30000000,3000000,"MainThread - binder calls count,RenderThread - long flush layers"
+"slice","SHADE_ROW_EXPAND - jank cause",40000000,13000000,"GPU completion - long completion time,Long running time"
+"slice","SHADE_ROW_EXPAND - jank cause",70000000,10000000,"RenderThread - scheduler"
+"slice","SHADE_ROW_EXPAND - jank cause",100000000,15000000,"GPU completion - long completion time"
