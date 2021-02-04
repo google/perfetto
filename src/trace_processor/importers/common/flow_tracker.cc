@@ -143,5 +143,10 @@ void FlowTracker::InsertFlow(FlowId flow_id,
   }
 }
 
+void FlowTracker::InsertFlow(SliceId slice_out_id, SliceId slice_in_id) {
+  tables::FlowTable::Row row(slice_out_id, slice_in_id, kInvalidArgSetId);
+  context_->storage->mutable_flow_table()->Insert(row);
+}
+
 }  // namespace trace_processor
 }  // namespace perfetto
