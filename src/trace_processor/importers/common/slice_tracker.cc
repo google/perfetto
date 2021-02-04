@@ -98,32 +98,38 @@ void SliceTracker::BeginFrameEvent(tables::GraphicsFrameSliceTable::Row row,
   });
 }
 
-void SliceTracker::BeginFrameTimeline(
+SliceId SliceTracker::BeginFrameTimeline(
     tables::ExpectedFrameTimelineSliceTable::Row row,
     SetArgsCallback args_callback) {
   // Ensure that the duration is pending for this row.
   // TODO(lalitm): change this to eventually use null instead of -1.
   row.dur = kPendingDuration;
 
-  StartSlice(row.ts, row.track_id, args_callback, [this, &row]() {
-    return context_->storage->mutable_expected_frame_timeline_slice_table()
-        ->Insert(row)
-        .id;
+  SliceId id;
+  StartSlice(row.ts, row.track_id, args_callback, [this, &row, &id]() {
+    id = context_->storage->mutable_expected_frame_timeline_slice_table()
+             ->Insert(row)
+             .id;
+    return id;
   });
+  return id;
 }
 
-void SliceTracker::BeginFrameTimeline(
+SliceId SliceTracker::BeginFrameTimeline(
     tables::ActualFrameTimelineSliceTable::Row row,
     SetArgsCallback args_callback) {
   // Ensure that the duration is pending for this row.
   // TODO(lalitm): change this to eventually use null instead of -1.
   row.dur = kPendingDuration;
 
-  StartSlice(row.ts, row.track_id, args_callback, [this, &row]() {
-    return context_->storage->mutable_actual_frame_timeline_slice_table()
-        ->Insert(row)
-        .id;
+  SliceId id;
+  StartSlice(row.ts, row.track_id, args_callback, [this, &row, &id]() {
+    id = context_->storage->mutable_actual_frame_timeline_slice_table()
+             ->Insert(row)
+             .id;
+    return id;
   });
+  return id;
 }
 
 base::Optional<uint32_t> SliceTracker::Scoped(int64_t timestamp,
