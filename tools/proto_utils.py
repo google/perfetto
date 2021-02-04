@@ -26,24 +26,13 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def create_message_factory(descriptor_file_path, proto_type):
-  with open(descriptor_file_path, 'rb') as descriptor_file:
-    descriptor_content = descriptor_file.read()
+  pool = descriptor_pool.DescriptorPool()
+  descriptor = read_descriptor(descriptor_file_path)
+  for file in descriptor.file:
+    pool.Add(file)
 
-  file_desc_set_pb2 = descriptor_pb2.FileDescriptorSet()
-  file_desc_set_pb2.MergeFromString(descriptor_content)
-
-  desc_by_path = {}
-  for f_desc_pb2 in file_desc_set_pb2.file:
-    f_desc_pb2_encode = f_desc_pb2.SerializeToString()
-    f_desc = descriptor.FileDescriptor(
-        name=f_desc_pb2.name,
-        package=f_desc_pb2.package,
-        serialized_pb=f_desc_pb2_encode)
-
-    for desc in f_desc.message_types_by_name.values():
-      desc_by_path[desc.full_name] = desc
-
-  return message_factory.MessageFactory().GetPrototype(desc_by_path[proto_type])
+  return message_factory.MessageFactory().GetPrototype(
+      pool.FindMessageTypeByName(proto_type))
 
 
 def read_descriptor(file_name):
