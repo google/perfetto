@@ -28,7 +28,7 @@ class CpuProfileTrackController extends TrackController<Config, Data> {
   static readonly kind = CPU_PROFILE_TRACK_KIND;
   async onBoundsChange(start: number, end: number, resolution: number):
       Promise<Data> {
-    const query = `select id, ts from cpu_profile_stack_sample
+    const query = `select id, ts, callsite_id from cpu_profile_stack_sample
         where utid = ${this.config.utid}
         order by ts`;
 
@@ -42,11 +42,13 @@ class CpuProfileTrackController extends TrackController<Config, Data> {
       length: numRows,
       ids: new Float64Array(numRows),
       tsStarts: new Float64Array(numRows),
+      callsiteId: new Uint32Array(numRows),
     };
 
     for (let row = 0; row < numRows; row++) {
       data.ids[row] = +result.columns[0].longValues![row];
       data.tsStarts[row] = +result.columns[1].longValues![row];
+      data.callsiteId[row] = +result.columns[2].longValues![row];
     }
 
     return data;
