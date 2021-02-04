@@ -752,6 +752,11 @@ message AndroidSysUiCujMetrics {
   repeated Frame frames = 1;
 
   optional string cuj_name = 2;
+  optional int64 cuj_start = 3;
+  optional int64 cuj_dur = 4;
+
+  // Details about the process (uid, version, etc)
+  optional AndroidProcessMetadata process = 5;
 
   message Frame {
     // Index of the frame within the single user journey.
