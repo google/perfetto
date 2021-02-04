@@ -85,6 +85,43 @@ export class Probe implements m.ClassComponent<ProbeAttrs> {
   }
 }
 
+// +-------------------------------------------------------------+
+// | Toggle: an on/off switch.
+// +-------------------------------------------------------------+
+
+export interface ToggleAttrs {
+  title: string;
+  descr: string;
+  cssClass?: string;
+  isEnabled: Getter<boolean>;
+  setEnabled: Setter<boolean>;
+}
+
+export class Toggle implements m.ClassComponent<ToggleAttrs> {
+  view({attrs}: m.CVnode<ToggleAttrs>) {
+    const onToggle = (enabled: boolean) => {
+      const traceCfg = produce(globals.state.recordConfig, draft => {
+        attrs.setEnabled(draft, enabled);
+      });
+      globals.dispatch(Actions.setRecordConfig({config: traceCfg}));
+    };
+
+    const enabled = attrs.isEnabled(globals.state.recordConfig);
+
+    return m(
+        `.toggle${enabled ? '.enabled' : ''}${attrs.cssClass || ''}`,
+        m('label',
+          m(`input[type=checkbox]`, {
+            checked: enabled,
+            oninput: (e: InputEvent) => {
+              onToggle((e.target as HTMLInputElement).checked);
+            },
+          }),
+          m('span', attrs.title)),
+        m('.descr', attrs.descr));
+  }
+}
+
 // +---------------------------------------------------------------------------+
 // | Slider: draggable horizontal slider with numeric spinner.                 |
 // +---------------------------------------------------------------------------+
