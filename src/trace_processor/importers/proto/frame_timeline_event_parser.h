@@ -25,6 +25,7 @@
 
 #include "protos/perfetto/trace/android/frame_timeline_event.pbzero.h"
 
+#include <map>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -76,6 +77,8 @@ class FrameTimelineEventParser {
   // SurfaceFlinger.
   std::unordered_map<UniquePid, std::unordered_set<int64_t>>
       expected_timeline_token_map_;
+
+  std::multimap<int64_t, SliceId> display_token_to_surface_slice_;
 };
 }  // namespace trace_processor
 }  // namespace perfetto
