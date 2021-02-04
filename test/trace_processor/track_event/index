@@ -12,6 +12,9 @@ track_event_typed_args.textproto track_event_args.sql track_event_typed_args_arg
 track_event_tracks.textproto track_event_slices.sql track_event_tracks_slices.out
 track_event_tracks.textproto track_event_processes.sql track_event_tracks_processes.out
 
+# Instant events
+track_event_instant.textproto track_event_slices.sql track_event_instant_slices.out
+
 # Legacy atrace
 track_event_with_atrace.textproto track_event_slices.sql track_event_with_atrace.out
 
