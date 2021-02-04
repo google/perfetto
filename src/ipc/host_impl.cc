@@ -79,6 +79,9 @@ HostImpl::HostImpl(const char* socket_name, base::TaskRunner* task_runner)
   sock_ = base::UnixSocket::Listen(socket_name, this, task_runner_,
                                    base::SockFamily::kUnix,
                                    base::SockType::kStream);
+  if (!sock_) {
+    PERFETTO_PLOG("Failed to create %s", socket_name);
+  }
 }
 
 HostImpl::~HostImpl() = default;
