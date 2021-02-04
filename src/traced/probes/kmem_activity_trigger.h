@@ -18,29 +18,48 @@
 #define SRC_TRACED_PROBES_KMEM_ACTIVITY_TRIGGER_H_
 
 #include <memory>
-#include <string>
 #include <vector>
 
-#include "perfetto/base/time.h"
 #include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/thread_checker.h"
 #include "perfetto/ext/base/thread_task_runner.h"
+#include "perfetto/ext/base/weak_ptr.h"
 
 namespace perfetto {
 
 class FtraceProcfs;
 
-class KmemActivityTriggerThread {
+class KmemActivityTrigger {
  public:
-  KmemActivityTriggerThread();
-  ~KmemActivityTriggerThread();
+  KmemActivityTrigger();
+  ~KmemActivityTrigger();
 
  private:
-  void InitializeOnThread();
+  // This object lives entirely on the KmemActivityTrigger |task_runner_|.
+  class WorkerData {
+   public:
+    WorkerData(base::TaskRunner*);
+    ~WorkerData();
+    void InitializeOnThread();
+    void ArmFtraceFDWatches();
+    void DisarmFtraceFDWatches();
+    void OnFtracePipeWakeup(size_t cpu);
 
-  base::ThreadTaskRunner thread_;
-  std::unique_ptr<FtraceProcfs> ftrace_procfs_;
-  std::vector<base::ScopedFile> trace_pipe_fds_;
-  base::TimeSeconds last_trigger_time_{0};
+   private:
+    // All the fields below are accessed only on the dedicated |task_runner_|.
+    base::TaskRunner* const task_runner_;
+    std::unique_ptr<FtraceProcfs> ftrace_procfs_;
+    std::vector<base::ScopedFile> trace_pipe_fds_;
+    size_t num_cpus_ = 0;
+    bool fd_watches_armed_ = false;
+
+    // Keep last.
+    base::WeakPtrFactory<WorkerData> weak_ptr_factory_;
+    PERFETTO_THREAD_CHECKER(thread_checker_)
+  };
+
+  base::ThreadTaskRunner task_runner_;
+  std::unique_ptr<WorkerData> worker_data_;
 };
 
 }  // namespace perfetto
