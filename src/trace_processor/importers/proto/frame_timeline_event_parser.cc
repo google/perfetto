@@ -155,7 +155,6 @@ void FrameTimelineEventParser::ParseActualDisplayFrameStart(
         stats::frame_timeline_event_parser_errors);
     return;
   }
-
   if (!event.has_pid()) {
     context_->storage->IncrementStats(
         stats::frame_timeline_event_parser_errors);
@@ -188,6 +187,11 @@ void FrameTimelineEventParser::ParseActualDisplayFrameStart(
   actual_row.jank_type = JankTypeBitmaskToStringId(context_, event.jank_type());
   SliceId slice_id = context_->slice_tracker->BeginFrameTimeline(actual_row);
 
+  // SurfaceFrames will always be parsed before the matching DisplayFrame
+  // (since the app works on the frame before SurfaceFlinger does). Because
+  // of this it's safe to add all the flow events here and then forget the
+  // surface_slice id - we shouldn't see more surfaces_slices that should be
+  // connected to this slice after this point.
   auto range = display_token_to_surface_slice_.equal_range(token);
   for (auto it = range.first; it != range.second; ++it) {
     SliceId display_slice = slice_id;    // SurfaceFlinger
