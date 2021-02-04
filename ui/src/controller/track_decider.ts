@@ -53,9 +53,20 @@ function getTrackName(args: Partial<{
   threadName: string | null,
   tid: number | null,
   upid: number | null,
-  kind: string
+  kind: string,
+  threadTrack: boolean
 }>) {
-  const {name, upid, utid, processName, threadName, pid, tid, kind} = args;
+  const {
+    name,
+    upid,
+    utid,
+    processName,
+    threadName,
+    pid,
+    tid,
+    kind,
+    threadTrack
+  } = args;
 
   const hasName = name !== undefined && name !== null && name !== '[NULL]';
   const hasUpid = upid !== undefined && upid !== null;
@@ -65,13 +76,16 @@ function getTrackName(args: Partial<{
   const hasTid = tid !== undefined && tid !== null;
   const hasPid = pid !== undefined && pid !== null;
   const hasKind = kind !== undefined;
+  const isThreadTrack = threadTrack !== undefined && threadTrack;
 
   // If we don't have any useful information (better than
   // upid/utid) we show the track kind to help with tracking
   // down where this is coming from.
   const kindSuffix = hasKind ? ` (${kind})` : '';
 
-  if (hasName) {
+  if (isThreadTrack && hasName && hasTid) {
+    return `${name} (${tid})`;
+  } else if (hasName) {
     return `${name}`;
   } else if (hasUpid && hasPid && hasProcessName) {
     return `${processName} ${pid}`;
@@ -471,7 +485,8 @@ async function getThreadCounterTracks(
     const startTs = row.startTs === null ? undefined : row.startTs;
     const endTs = row.endTs === null ? undefined : row.endTs;
     const kind = COUNTER_TRACK_KIND;
-    const name = getTrackName({name: trackName, utid, tid, kind, threadName});
+    const name = getTrackName(
+        {name: trackName, utid, tid, kind, threadName, threadTrack: true});
     tracks.push({
       engineId,
       kind,
