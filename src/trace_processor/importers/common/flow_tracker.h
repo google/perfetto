@@ -33,8 +33,11 @@ class FlowTracker {
   explicit FlowTracker(TraceProcessorContext*);
   virtual ~FlowTracker();
 
-  virtual void Begin(TrackId track_id, FlowId flow_id);
+  void InsertFlow(SliceId outgoing_slice_id, SliceId incoming_slice_id);
 
+  // These methods assume you have created a FlowId via GetFlowIdForV1Event.
+  // If you don't have a v1 event you should use the InsertFlow method above.
+  virtual void Begin(TrackId track_id, FlowId flow_id);
   virtual void Step(TrackId track_id, FlowId flow_id);
 
   // When |bind_enclosing_slice| is true we will connect the flow to the
