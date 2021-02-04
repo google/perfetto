@@ -62,8 +62,8 @@ int FuzzSharedMemory(const uint8_t* data, size_t size) {
       data, size, task_runner.CreateCheckpoint("data_sent"));
 
   std::unique_ptr<base::UnixSocket> sock = base::UnixSocket::Connect(
-      helper.GetProducerSocketName(), &fake_event_listener, &task_runner,
-      base::SockFamily::kUnix, base::SockType::kStream);
+      helper.GetDefaultModeProducerSocketName(), &fake_event_listener,
+      &task_runner, base::SockFamily::kUnix, base::SockType::kStream);
 
   task_runner.RunUntilCheckpoint("data_sent");
   return 0;
