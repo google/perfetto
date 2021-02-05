@@ -203,14 +203,14 @@ bool FtraceProcfs::SetCpuBufferSizeInPages(size_t pages) {
 
 bool FtraceProcfs::EnableTracing() {
   KernelLogWrite("perfetto: enabled ftrace\n");
-  PERFETTO_LOG("enabled ftrace");
+  PERFETTO_LOG("enabled ftrace in %s", root_.c_str());
   std::string path = root_ + "tracing_on";
   return WriteToFile(path, "1");
 }
 
 bool FtraceProcfs::DisableTracing() {
   KernelLogWrite("perfetto: disabled ftrace\n");
-  PERFETTO_LOG("disabled ftrace");
+  PERFETTO_LOG("disabled ftrace in %s", root_.c_str());
   std::string path = root_ + "tracing_on";
   return WriteToFile(path, "0");
 }
