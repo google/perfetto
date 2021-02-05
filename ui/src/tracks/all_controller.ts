@@ -26,3 +26,5 @@ import './process_summary/controller';
 import './thread_state/controller';
 import './async_slices/controller';
 import './debug_slices/controller';
+import './actual_frames/controller';
+import './expected_frames/controller';
