@@ -610,6 +610,44 @@ class Trace(object):
         "Scheduler.RAILMode", ts=ts, dur=dur, track=track)
     packet.track_event.chrome_renderer_scheduler_state.rail_mode = mode
 
+  def add_latency_info_flow(self,
+                            ts,
+                            dur,
+                            track=None,
+                            trusted_sequence_id=None,
+                            trace_id=None,
+                            flow_ids=[],
+                            terminating_flow_ids=[]):
+    packet = self.add_track_event_slice(
+        "LatencyInfo.Flow",
+        ts,
+        dur,
+        track=track,
+        trusted_sequence_id=trusted_sequence_id)
+    if trace_id is not None:
+      packet.track_event.chrome_latency_info.trace_id = trace_id
+    for flow_id in flow_ids:
+      packet.track_event.flow_ids.append(flow_id)
+    for flow_id in terminating_flow_ids:
+      packet.track_event.terminating_flow_ids.append(flow_id)
+    return packet
+
+  def add_input_latency_event_slice(self,
+                                    name,
+                                    ts,
+                                    dur,
+                                    track=None,
+                                    trace_id=None,
+                                    gesture_scroll_id=None,
+                                    is_coalesced=None):
+    packet = self.add_track_event_slice(
+        "InputLatency::" + name, ts=ts, dur=dur, track=track)
+    packet.track_event.chrome_latency_info.trace_id = trace_id
+    packet.track_event.chrome_latency_info.gesture_scroll_id = gesture_scroll_id
+    if is_coalesced is not None:
+      packet.track_event.chrome_latency_info.is_coalesced = is_coalesced
+    return packet
+
   def add_chrome_metadata(self, os_name=None):
     metadata = self.add_packet().chrome_events.metadata.add()
     if os_name is not None:
@@ -627,7 +665,9 @@ class Trace(object):
       event.token = token
       event.pid = pid
 
-  def add_actual_display_frame_start_event(self, ts, cookie, token, pid, present_type, on_time_finish, gpu_composition, jank_type):
+  def add_actual_display_frame_start_event(self, ts, cookie, token, pid,
+                                           present_type, on_time_finish,
+                                           gpu_composition, jank_type):
     packet = self.add_packet()
     packet.timestamp = ts
     event = packet.frame_timeline_event.actual_display_frame_start
@@ -640,7 +680,9 @@ class Trace(object):
       event.gpu_composition = gpu_composition
       event.jank_type = jank_type
 
-  def add_expected_surface_frame_start_event(self, ts, cookie, token, display_frame_token, pid, layer_name):
+  def add_expected_surface_frame_start_event(self, ts, cookie, token,
+                                             display_frame_token, pid,
+                                             layer_name):
     packet = self.add_packet()
     packet.timestamp = ts
     event = packet.frame_timeline_event.expected_surface_frame_start
@@ -651,7 +693,10 @@ class Trace(object):
       event.pid = pid
       event.layer_name = layer_name
 
-  def add_actual_surface_frame_start_event(self, ts, cookie, token, display_frame_token, pid, layer_name, present_type, on_time_finish, gpu_composition, jank_type):
+  def add_actual_surface_frame_start_event(self, ts, cookie, token,
+                                           display_frame_token, pid, layer_name,
+                                           present_type, on_time_finish,
+                                           gpu_composition, jank_type):
     packet = self.add_packet()
     packet.timestamp = ts
     event = packet.frame_timeline_event.actual_surface_frame_start
@@ -709,7 +754,6 @@ def create_trace():
     def from_descriptor(desc):
       res = EnumPrototype()
       for desc in desc.values:
-        print(desc.name)
         setattr(res, desc.name, desc.number)
       return res
 
