@@ -29,6 +29,7 @@ import {
   STR_NULL,
 } from '../common/query_iterator';
 import {SCROLLING_TRACK_GROUP} from '../common/state';
+import {ACTUAL_FRAMES_SLICE_TRACK_KIND} from '../tracks/actual_frames/common';
 import {ANDROID_LOGS_TRACK_KIND} from '../tracks/android_log/common';
 import {ASYNC_SLICE_TRACK_KIND} from '../tracks/async_slices/common';
 import {SLICE_TRACK_KIND} from '../tracks/chrome_slices/common';
@@ -36,6 +37,9 @@ import {COUNTER_TRACK_KIND} from '../tracks/counter/common';
 import {CPU_FREQ_TRACK_KIND} from '../tracks/cpu_freq/common';
 import {CPU_PROFILE_TRACK_KIND} from '../tracks/cpu_profile/common';
 import {CPU_SLICE_TRACK_KIND} from '../tracks/cpu_slices/common';
+import {
+  EXPECTED_FRAMES_SLICE_TRACK_KIND
+} from '../tracks/expected_frames/common';
 import {HEAP_PROFILE_TRACK_KIND} from '../tracks/heap_profile/common';
 import {
   PROCESS_SCHEDULING_TRACK_KIND
@@ -515,6 +519,7 @@ async function getProcessAsyncSliceTracks(
           process.pid as pid
         from process_track
         left join process using(upid)
+        where process_track.name not like "% Timeline"
         group by
           process_track.upid,
           process_track.name
@@ -548,6 +553,138 @@ async function getProcessAsyncSliceTracks(
     const maxDepth = +depthResult.columns[0].longValues![0];
 
     const kind = ASYNC_SLICE_TRACK_KIND;
+    const name = getTrackName({name: trackName, upid, pid, processName, kind});
+    tracks.push({
+      engineId,
+      kind,
+      name,
+      trackGroup: uuid,
+      config: {
+        trackIds,
+        maxDepth,
+      }
+    });
+  }
+  return tracks;
+}
+
+async function getActualFramesTracks(
+    engineId: string, engine: Engine, getUuid: GetUuid) {
+  const tracks: AddTrackArgs[] = [];
+  const query = await engine.query(`
+        select
+          upid,
+          trackName,
+          trackIds,
+          process.name as processName,
+          process.pid as pid
+        from (
+          select
+            process_track.upid as upid,
+            process_track.name as trackName,
+            group_concat(process_track.id) as trackIds
+          from process_track
+          where process_track.name like "Actual Timeline"
+          group by
+            process_track.upid,
+            process_track.name
+        ) left join process using(upid)
+  `);
+
+  const it = iter(
+      {
+        upid: NUM,
+        trackName: STR_NULL,
+        trackIds: STR,
+        processName: STR_NULL,
+        pid: NUM_NULL,
+      },
+      query);
+  for (let i = 0; it.valid(); ++i, it.next()) {
+    const row = it.row;
+    const upid = row.upid;
+    const trackName = row.trackName;
+    const rawTrackIds = row.trackIds;
+    const trackIds = rawTrackIds.split(',').map(v => Number(v));
+    const processName = row.processName;
+    const pid = row.pid;
+
+    const uuid = getUuid(0, upid);
+
+    // TODO(hjd): 1+N queries are bad in the track_decider
+    const depthResult = await engine.query(`
+      SELECT MAX(layout_depth) as max_depth
+      FROM experimental_slice_layout('${rawTrackIds}');
+    `);
+    const maxDepth = +depthResult.columns[0].longValues![0];
+
+    const kind = ACTUAL_FRAMES_SLICE_TRACK_KIND;
+    const name = getTrackName({name: trackName, upid, pid, processName, kind});
+    tracks.push({
+      engineId,
+      kind,
+      name,
+      trackGroup: uuid,
+      config: {
+        trackIds,
+        maxDepth,
+      }
+    });
+  }
+  return tracks;
+}
+
+async function getExpectedFramesTracks(
+    engineId: string, engine: Engine, getUuid: GetUuid) {
+  const tracks: AddTrackArgs[] = [];
+  const query = await engine.query(`
+        select
+          upid,
+          trackName,
+          trackIds,
+          process.name as processName,
+          process.pid as pid
+        from (
+          select
+            process_track.upid as upid,
+            process_track.name as trackName,
+            group_concat(process_track.id) as trackIds
+          from process_track
+          where process_track.name like "Expected Timeline"
+          group by
+            process_track.upid,
+            process_track.name
+        ) left join process using(upid)
+  `);
+
+  const it = iter(
+      {
+        upid: NUM,
+        trackName: STR_NULL,
+        trackIds: STR,
+        processName: STR_NULL,
+        pid: NUM_NULL,
+      },
+      query);
+  for (let i = 0; it.valid(); ++i, it.next()) {
+    const row = it.row;
+    const upid = row.upid;
+    const trackName = row.trackName;
+    const rawTrackIds = row.trackIds;
+    const trackIds = rawTrackIds.split(',').map(v => Number(v));
+    const processName = row.processName;
+    const pid = row.pid;
+
+    const uuid = getUuid(0, upid);
+
+    // TODO(hjd): 1+N queries are bad in the track_decider
+    const depthResult = await engine.query(`
+      SELECT MAX(layout_depth) as max_depth
+      FROM experimental_slice_layout('${rawTrackIds}');
+    `);
+    const maxDepth = +depthResult.columns[0].longValues![0];
+
+    const kind = EXPECTED_FRAMES_SLICE_TRACK_KIND;
     const name = getTrackName({name: trackName, upid, pid, processName, kind});
     tracks.push({
       engineId,
@@ -868,6 +1005,8 @@ export async function decideTracks(
   extend(tracksToAdd, await getProcessCounterTracks(engineId, engine, getUuid));
   extend(
       tracksToAdd, await getProcessAsyncSliceTracks(engineId, engine, getUuid));
+  extend(tracksToAdd, await getActualFramesTracks(engineId, engine, getUuid));
+  extend(tracksToAdd, await getExpectedFramesTracks(engineId, engine, getUuid));
   extend(tracksToAdd, await getThreadCounterTracks(engineId, engine, getUuid));
   extend(tracksToAdd, await getThreadStateTracks(engineId, engine, getUuid));
   extend(tracksToAdd, await getThreadSliceTracks(engineId, engine, getUuid));

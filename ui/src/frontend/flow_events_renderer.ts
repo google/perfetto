@@ -50,15 +50,19 @@ interface TrackGroupPanelInfo {
   height: number;
 }
 
-function HasTrackId(obj: {}): obj is {trackId: number} {
+function hasTrackId(obj: {}): obj is {trackId: number} {
   return (obj as {trackId?: number}).trackId !== undefined;
 }
 
-function HasId(obj: {}): obj is {id: number} {
+function hasManyTrackIds(obj: {}): obj is {trackIds: number[]} {
+  return (obj as {trackIds?: number}).trackIds !== undefined;
+}
+
+function hasId(obj: {}): obj is {id: number} {
   return (obj as {id?: number}).id !== undefined;
 }
 
-function HasTrackGroupId(obj: {}): obj is {trackGroupId: string} {
+function hasTrackGroupId(obj: {}): obj is {trackGroupId: string} {
   return (obj as {trackGroupId?: string}).trackGroupId !== undefined;
 }
 
@@ -72,15 +76,20 @@ export class FlowEventsRendererArgs {
   }
 
   registerPanel(panel: PanelVNode, yStart: number, height: number) {
-    if (panel.state instanceof TrackPanel && HasId(panel.attrs)) {
+    if (panel.state instanceof TrackPanel && hasId(panel.attrs)) {
       const config = globals.state.tracks[panel.attrs.id].config;
-      if (HasTrackId(config)) {
+      if (hasTrackId(config)) {
         this.trackIdToTrackPanel.set(
             config.trackId, {panel: panel.state, yStart});
       }
+      if (hasManyTrackIds(config)) {
+        for (const trackId of config.trackIds) {
+          this.trackIdToTrackPanel.set(trackId, {panel: panel.state, yStart});
+        }
+      }
     } else if (
         panel.state instanceof TrackGroupPanel &&
-        HasTrackGroupId(panel.attrs)) {
+        hasTrackGroupId(panel.attrs)) {
       this.groupIdToTrackGroupPanel.set(
           panel.attrs.trackGroupId, {panel: panel.state, yStart, height});
     }
