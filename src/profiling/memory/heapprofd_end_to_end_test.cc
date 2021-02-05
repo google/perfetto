@@ -461,15 +461,6 @@ __attribute__((unused)) std::string TestSuffix(
 
 class HeapprofdEndToEnd
     : public ::testing::TestWithParam<std::tuple<TestMode, AllocatorMode>> {
- public:
-  HeapprofdEndToEnd() {
-    // This is not needed for correctness, but works around a init behavior that
-    // makes this test take much longer. If persist.heapprofd.enable is set to 0
-    // and then set to 1 again too quickly, init decides that the service is
-    // "restarting" and waits before restarting it.
-    usleep(50000);
-  }
-
  protected:
   base::TestTaskRunner task_runner;
 
