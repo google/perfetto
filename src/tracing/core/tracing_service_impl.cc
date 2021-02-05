@@ -1303,6 +1303,8 @@ void TracingServiceImpl::ActivateTriggers(
 
   int64_t now_ns = base::GetBootTimeNs().count();
   for (const auto& trigger_name : triggers) {
+    PERFETTO_DLOG("Received ActivateTriggers request for \"%s\"",
+                  trigger_name.c_str());
     base::Hash hash;
     hash.Update(trigger_name.c_str(), trigger_name.size());
 
