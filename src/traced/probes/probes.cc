@@ -87,8 +87,10 @@ int PERFETTO_EXPORT_ENTRYPOINT ProbesMain(int argc, char** argv) {
   ProbesProducer producer;
   producer.ConnectWithRetries(GetProducerSocket(), &task_runner);
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   // Start the thread that polls mm_event instance and triggers
-  KmemActivityTriggerThread kmem_activity_trigger;
+  KmemActivityTrigger kmem_activity_trigger;
+#endif
 
   task_runner.Run();
   return 0;
