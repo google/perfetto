@@ -87,7 +87,7 @@ void TracedValue::WritePointer(const void* value) && {
   if (nested_context_) {
     nested_context_->set_int_value(reinterpret_cast<int64_t>(value));
   } else {
-    root_context_->set_uint_value(reinterpret_cast<uint64_t>(value));
+    root_context_->set_pointer_value(reinterpret_cast<uint64_t>(value));
   }
 }
 
