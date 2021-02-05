@@ -1,4 +1,4 @@
-// Copyright (C) 2018 The Android Open Source Project
+// Copyright (C) 2021 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,26 +11,24 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 import {TrackData} from '../../common/track_data';
 
-export const SLICE_TRACK_KIND = 'ChromeSliceTrack';
+export const ACTUAL_FRAMES_SLICE_TRACK_KIND = 'ActualFramesSliceTrack';
 
 export interface Config {
   maxDepth: number;
-  namespace: string;
-  trackId: number;
+  trackIds: number[];
 }
 
 export interface Data extends TrackData {
-  // Slices are stored in a columnar fashion.
+  // Slices are stored in a columnar fashion. All fields have the same length.
   strings: string[];
   sliceIds: Float64Array;
   starts: Float64Array;
   ends: Float64Array;
   depths: Uint16Array;
-  titles: Uint16Array;  // Index into strings.
-  colors?: Uint16Array;  // Index into strings.
+  titles: Uint16Array;   // Index in |strings|.
+  colors?: Uint16Array;  // Index in |strings|.
   isInstant: Uint16Array;
   isIncomplete: Uint16Array;
 }

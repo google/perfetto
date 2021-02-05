@@ -17,7 +17,14 @@ import {slowlyCountRows} from '../common/query_iterator';
 import {Area} from '../common/state';
 import {fromNs, toNs} from '../common/time';
 import {Flow} from '../frontend/globals';
-import {Config, SLICE_TRACK_KIND} from '../tracks/chrome_slices/common';
+import {
+  ACTUAL_FRAMES_SLICE_TRACK_KIND,
+  Config as ActualConfig
+} from '../tracks/actual_frames/common';
+import {
+  Config as SliceConfig,
+  SLICE_TRACK_KIND
+} from '../tracks/chrome_slices/common';
 
 import {Controller} from './controller';
 import {globals} from './globals';
@@ -133,10 +140,17 @@ export class FlowEventsController extends Controller<'main'> {
     const trackIds: number[] = [];
 
     for (const uiTrackId of area.tracks) {
-      if (globals.state.tracks[uiTrackId] &&
-          globals.state.tracks[uiTrackId].kind === SLICE_TRACK_KIND) {
-        trackIds.push(
-            (globals.state.tracks[uiTrackId].config as Config).trackId);
+      const track = globals.state.tracks[uiTrackId];
+      if (track === undefined) {
+        continue;
+      }
+      if (track.kind === SLICE_TRACK_KIND) {
+        trackIds.push((track.config as SliceConfig).trackId);
+      } else if (track.kind === ACTUAL_FRAMES_SLICE_TRACK_KIND) {
+        const actualConfig = track.config as ActualConfig;
+        for (const trackId of actualConfig.trackIds) {
+          trackIds.push(trackId);
+        }
       }
     }
 
