@@ -82,6 +82,7 @@ export class ChromeSliceTrack extends Track<Config, Data> {
       const isInstant = data.isInstant[i];
       const isIncomplete = data.isIncomplete[i];
       const title = data.strings[titleId];
+      const colorOverride = data.colors && data.strings[data.colors[i]];
       if (isIncomplete) {  // incomplete slice
         tEnd = tStart + INCOMPLETE_SLICE_TIME_S;
       }
@@ -101,8 +102,13 @@ export class ChromeSliceTrack extends Track<Config, Data> {
       const saturation = isSelected ? 80 : 50;
       const highlighted = titleId === this.hoveredTitleId ||
           globals.frontendLocalState.highlightedSliceId === sliceId;
-      const color = `hsl(${hue}, ${saturation}%, ${highlighted ? 30 : 65}%)`;
 
+      let color: string;
+      if (colorOverride === undefined) {
+        color = `hsl(${hue}, ${saturation}%, ${highlighted ? 30 : 65}%)`;
+      } else {
+        color = colorOverride;
+      }
       ctx.fillStyle = color;
 
       // We draw instant events as upward facing chevrons starting at A:
