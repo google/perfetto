@@ -48,6 +48,7 @@ source_set("tracing") {
     "platform.h",
     "trace_writer_base.h",
     "traced_value.h",
+    "traced_value_forward.h",
     "tracing.h",
     "tracing_backend.h",
     "track.h",

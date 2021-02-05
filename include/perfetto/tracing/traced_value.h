@@ -20,6 +20,7 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/export.h"
 #include "perfetto/tracing/internal/checked_scope.h"
+#include "perfetto/tracing/traced_value_forward.h"
 #include "protos/perfetto/trace/track_event/debug_annotation.pbzero.h"
 
 #include <type_traits>
@@ -50,11 +51,13 @@ class DebugAnnotation;
 //
 // To define how a custom class should be written into the trace, users should
 // define one of the two following functions:
-// - Foo::WriteIntoTrace(TracedValue) const
+// - Foo::WriteIntoTracedValue(TracedValue) const
 //   (preferred for code which depends on perfetto directly)
-// - perfetto::TraceFormatTraits<T>::WriteIntoTrace(TracedValue, const T&);
+// - perfetto::TraceFormatTraits<T>::WriteIntoTracedValue(
+//       TracedValue, const T&);
 //   (should be used if T is defined in a library which doesn't know anything
 //   about tracing).
+//
 //
 // After definiting a conversion method, the object can be used directly as a
 // TRACE_EVENT argument:
@@ -79,18 +82,18 @@ class DebugAnnotation;
 //   }
 // });
 //
-// template <class T>
-// TraceFormatTraits<std::optional<T>>::WriteIntoTrace(
+// template <typename T>
+// TraceFormatTraits<std::optional<T>>::WriteIntoTracedValue(
 //    TracedValue writer, const std::optional<T>& value) {
 //  if (!value) {
 //    std::move(writer).WritePointer(nullptr);
 //    return;
 //  }
-//  perfetto::Write(std::move(writer), *value);
+//  perfetto::WriteIntoTracedValue(std::move(writer), *value);
 // }
 //
-// template <class T>
-// TraceFormatTraits<std::vector<T>>::WriteIntoTrace(
+// template <typename T>
+// TraceFormatTraits<std::vector<T>>::WriteIntoTracedValue(
 //    TracedValue writer, const std::array<T>& value) {
 //  auto array = std::move(writer).WriteArray();
 //  for (const auto& item: value) {
@@ -99,7 +102,7 @@ class DebugAnnotation;
 // }
 //
 // class Foo {
-//   void WriteIntoTrace(TracedValue writer) const {
+//   void WriteIntoTracedValue(TracedValue writer) const {
 //     auto dict = std::move(writer).WriteDictionary();
 //     dict->Set("key", 42);
 //     dict->Set("foo", "bar");
@@ -182,6 +185,11 @@ class TracedArray {
 
   TracedValue AppendItem();
 
+  template <typename T>
+  void Append(const T& value) {
+    WriteIntoTracedValue(AppendItem(), value);
+  }
+
   TracedDictionary AppendDictionary() PERFETTO_WARN_UNUSED_RESULT;
   TracedArray AppendArray();
 
@@ -208,6 +216,11 @@ class TracedDictionary {
 
   TracedValue AddItem(const char* key);
 
+  template <typename T>
+  void Add(const char* key, const T& value) {
+    WriteIntoTracedValue(AddItem(key), value);
+  }
+
   TracedDictionary AddDictionary(const char* key);
   TracedArray AddArray(const char* key);
 
@@ -222,6 +235,167 @@ class TracedDictionary {
   protos::pbzero::DebugAnnotation::NestedValue* value_;
 
   internal::CheckedScope checked_scope_;
+};
+
+namespace internal {
+
+// std::underlying_type can't be used with non-enum types, so we need this
+// indirection.
+template <typename T, bool = std::is_enum<T>::value>
+struct safe_underlying_type {
+  using type = typename std::underlying_type<T>::type;
+};
+
+template <typename T>
+struct safe_underlying_type<T, false> {
+  using type = T;
+};
+
+// Convert the given type to one which should be passed to TraceFormatTraits,
+// removing const-qualifiers, references and converting C-style array references
+// to pointers.
+template <typename T>
+struct inner_type {
+  using type = typename std::remove_cv<
+      typename std::remove_reference<typename std::decay<T>::type>::type>::type;
+};
+
+}  // namespace internal
+
+template <typename T>
+void WriteIntoTracedValue(TracedValue writer, T&& value) {
+  TraceFormatTraits<typename internal::inner_type<T>::type>::
+      WriteIntoTracedValue(std::move(writer), std::forward<T>(value));
+}
+
+// WriteIntoTracedValue implementations for primitive types.
+
+// Specialisation for signed integer types (note: it excludes enums, which have
+// their own explicit specialisation).
+template <typename T>
+struct TraceFormatTraits<
+    T,
+    typename std::enable_if<std::is_integral<T>::value &&
+                            !std::is_same<T, bool>::value &&
+                            std::is_signed<T>::value>::type> {
+  inline static void WriteIntoTracedValue(TracedValue writer, T value) {
+    std::move(writer).WriteInt64(value);
+  }
+};
+
+// Specialisation for unsigned integer types (note: it excludes enums, which
+// have their own explicit specialisation).
+template <typename T>
+struct TraceFormatTraits<
+    T,
+    typename std::enable_if<std::is_integral<T>::value &&
+                            !std::is_same<T, bool>::value &&
+                            std::is_unsigned<T>::value>::type> {
+  inline static void WriteIntoTracedValue(TracedValue writer, T value) {
+    std::move(writer).WriteUInt64(value);
+  }
+};
+
+// Specialisation for bools.
+template <>
+struct TraceFormatTraits<bool> {
+  inline static void WriteIntoTracedValue(TracedValue writer, bool value) {
+    std::move(writer).WriteBoolean(value);
+  }
+};
+
+// Specialisation for floating point values.
+template <typename T>
+struct TraceFormatTraits<
+    T,
+    typename std::enable_if<std::is_floating_point<T>::value>::type> {
+  inline static void WriteIntoTracedValue(TracedValue writer, T value) {
+    std::move(writer).WriteDouble(static_cast<double>(value));
+  }
+};
+
+// Specialisation for signed enums.
+template <typename T>
+struct TraceFormatTraits<
+    T,
+    typename std::enable_if<
+        std::is_enum<T>::value &&
+        std::is_signed<
+            typename internal::safe_underlying_type<T>::type>::value>::type> {
+  inline static void WriteIntoTracedValue(TracedValue writer, T value) {
+    std::move(writer).WriteInt64(static_cast<int64_t>(value));
+  }
+};
+
+// Specialisation for unsigned enums.
+template <typename T>
+struct TraceFormatTraits<
+    T,
+    typename std::enable_if<
+        std::is_enum<T>::value &&
+        std::is_unsigned<
+            typename internal::safe_underlying_type<T>::type>::value>::type> {
+  inline static void WriteIntoTracedValue(TracedValue writer, T value) {
+    std::move(writer).WriteUInt64(static_cast<uint64_t>(value));
+  }
+};
+
+// Specialisation for C-style strings.
+template <>
+struct TraceFormatTraits<const char*> {
+  inline static void WriteIntoTracedValue(TracedValue writer,
+                                          const char* value) {
+    std::move(writer).WriteString(value);
+  }
+};
+
+// Specialisation for C++ strings.
+template <>
+struct TraceFormatTraits<std::string> {
+  inline static void WriteIntoTracedValue(TracedValue writer,
+                                          const std::string& value) {
+    std::move(writer).WriteString(value);
+  }
+};
+
+// Specialisation for void*, which writes the pointer value.
+template <>
+struct TraceFormatTraits<void*> {
+  inline static void WriteIntoTracedValue(TracedValue writer,
+                                          const void* value) {
+    std::move(writer).WritePointer(value);
+  }
+};
+
+// Specialisation for std::unique_ptr<>, which writes either nullptr or the
+// object it points to.
+template <typename T>
+struct TraceFormatTraits<std::unique_ptr<T>> {
+  inline static void WriteIntoTracedValue(TracedValue writer,
+                                          const std::unique_ptr<T>& value) {
+    ::perfetto::WriteIntoTracedValue(std::move(writer), value.get());
+  }
+};
+
+// Specialisation for raw pointer, which writes either nullptr or the object it
+// points to.
+template <typename T>
+struct TraceFormatTraits<T*> {
+  inline static void WriteIntoTracedValue(TracedValue writer, const T* value) {
+    if (!value) {
+      std::move(writer).WritePointer(nullptr);
+      return;
+    }
+    ::perfetto::WriteIntoTracedValue(std::move(writer), *value);
+  }
+};
+
+// Specialisation for nullptr.
+template <>
+struct TraceFormatTraits<std::nullptr_t> {
+  inline static void WriteIntoTracedValue(TracedValue writer, std::nullptr_t) {
+    std::move(writer).WritePointer(nullptr);
+  }
 };
 
 }  // namespace perfetto

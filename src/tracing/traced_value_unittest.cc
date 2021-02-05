@@ -70,7 +70,11 @@ void WriteAsJSON(const protos::DebugAnnotation::NestedValue& value,
     ss << value.double_value();
     return;
   } else if (value.has_bool_value()) {
-    ss << static_cast<bool>(value.bool_value());
+    if (value.bool_value()) {
+      ss << "true";
+    } else {
+      ss << "false";
+    }
     return;
   } else if (value.has_string_value()) {
     ss << value.string_value();
@@ -80,7 +84,11 @@ void WriteAsJSON(const protos::DebugAnnotation::NestedValue& value,
 
 void WriteAsJSON(const protos::DebugAnnotation& value, std::stringstream& ss) {
   if (value.has_bool_value()) {
-    ss << static_cast<bool>(value.bool_value());
+    if (value.bool_value()) {
+      ss << "true";
+    } else {
+      ss << "false";
+    }
     return;
   } else if (value.has_uint_value()) {
     ss << value.uint_value();
@@ -95,7 +103,9 @@ void WriteAsJSON(const protos::DebugAnnotation& value, std::stringstream& ss) {
     ss << value.string_value();
     return;
   } else if (value.has_pointer_value()) {
-    ss << value.pointer_value();
+    // Printing pointer values via ostream is really platform-specific, so do
+    // not try to convert it to void* before printing.
+    ss << "0x" << std::hex << value.pointer_value() << std::dec;
     return;
   } else if (value.has_nested_value()) {
     WriteAsJSON(value.nested_value(), ss);
@@ -126,7 +136,25 @@ TEST(TracedValueTest, FlatDictionary_Explicit) {
     dict.AddItem("string").WriteString("string");
     dict.AddItem("ptr").WritePointer(reinterpret_cast<void*>(0x1234));
   }
-  EXPECT_EQ("{bool:1,double:0,int:2014,string:string,ptr:4660}",
+  // TODO(altimin): Nested pointers are recorded as ints due to proto
+  // limitation. Fix after sorting out the NestedValue.
+  EXPECT_EQ("{bool:true,double:0,int:2014,string:string,ptr:4660}",
+            MessageToJSON(message.SerializeAsString()));
+}
+
+TEST(TracedValueTest, FlatDictionary_Short) {
+  protozero::HeapBuffered<protos::pbzero::DebugAnnotation> message;
+  {
+    auto dict = TracedValue::CreateForTest(message.get()).WriteDictionary();
+    dict.Add("bool", true);
+    dict.Add("double", 0.0);
+    dict.Add("int", 2014);
+    dict.Add("string", "string");
+    dict.Add("ptr", reinterpret_cast<void*>(0x1234));
+  }
+  // TODO(altimin): Nested pointers are recorded as ints due to proto
+  // limitation. Fix after sorting out the NestedValue.
+  EXPECT_EQ("{bool:true,double:0,int:2014,string:string,ptr:4660}",
             MessageToJSON(message.SerializeAsString()));
 }
 
@@ -161,13 +189,81 @@ TEST(TracedValueTest, Hierarchy_Explicit) {
 
   EXPECT_EQ(
       "{"
-      "a1:[1,1,{i2:3}],"
-      "b0:1,"
+      "a1:[1,true,{i2:3}],"
+      "b0:true,"
       "d0:0,"
-      "dict1:{dict2:{b2:0},i1:2014,s1:foo},"
+      "dict1:{dict2:{b2:false},i1:2014,s1:foo},"
       "i0:2014,"
       "s0:foo}",
       MessageToJSON(message.SerializeAsString()));
+}
+
+TEST(TracedValueTest, Hierarchy_Short) {
+  protozero::HeapBuffered<protos::pbzero::DebugAnnotation> message;
+  {
+    auto root_dict =
+        TracedValue::CreateForTest(message.get()).WriteDictionary();
+    {
+      auto array = root_dict.AddArray("a1");
+      array.Append(1);
+      array.Append(true);
+      {
+        auto dict = array.AppendDictionary();
+        dict.Add("i2", 3);
+      }
+    }
+    root_dict.Add("b0", true);
+    root_dict.Add("d0", 0.0);
+    {
+      auto dict1 = root_dict.AddDictionary("dict1");
+      {
+        auto dict2 = dict1.AddDictionary("dict2");
+        dict2.Add("b2", false);
+      }
+      dict1.Add("i1", 2014);
+      dict1.Add("s1", "foo");
+    }
+    root_dict.Add("i0", 2014);
+    root_dict.Add("s0", "foo");
+  }
+
+  EXPECT_EQ(
+      "{"
+      "a1:[1,true,{i2:3}],"
+      "b0:true,"
+      "d0:0,"
+      "dict1:{dict2:{b2:false},i1:2014,s1:foo},"
+      "i0:2014,"
+      "s0:foo}",
+      MessageToJSON(message.SerializeAsString()));
+}
+
+namespace {
+
+class HasExternalConvertor {};
+
+}  // namespace
+
+template <>
+struct TraceFormatTraits<HasExternalConvertor> {
+  inline static void WriteIntoTracedValue(TracedValue context,
+                                          const HasExternalConvertor&) {
+    std::move(context).WriteString("foo");
+  }
+};
+
+template <typename T>
+std::string ToString(T&& value) {
+  protozero::HeapBuffered<protos::pbzero::DebugAnnotation> message;
+  WriteIntoTracedValue(TracedValue::CreateForTest(message.get()),
+                       std::forward<T>(value));
+  return MessageToJSON(message.SerializeAsString());
+}
+
+TEST(TracedValueTest, UserDefinedConvertors) {
+  HasExternalConvertor value;
+  EXPECT_EQ(ToString(value), "foo");
+  EXPECT_EQ(ToString(&value), "foo");
 }
 
 #if PERFETTO_DCHECK_IS_ON()
@@ -208,11 +304,60 @@ TEST(TracedValueTest, FailOnIncorrectUsage) {
             TracedValue::CreateForTest(message.get()).WriteDictionary();
         {
           auto inner_dict = outer_dict.AddDictionary("inner");
-          outer_dict.AddItem("key").WriteString("value");
+          outer_dict.Add("key", "value");
         }
       },
       "");
 }
 #endif  // PERFETTO_DCHECK_IS_ON()
+
+TEST(TracedValueTest, PrimitiveTypesSupport) {
+  EXPECT_EQ("0x0", ToString(nullptr));
+  EXPECT_EQ("0x1", ToString(reinterpret_cast<void*>(1)));
+  EXPECT_EQ("1", ToString(1));
+  EXPECT_EQ("1.5", ToString(1.5));
+  EXPECT_EQ("true", ToString(true));
+  EXPECT_EQ("foo", ToString("foo"));
+  EXPECT_EQ("bar", ToString(std::string("bar")));
+}
+
+TEST(TracedValueTest, UniquePtrSupport) {
+  std::unique_ptr<int> value1;
+  EXPECT_EQ("0x0", ToString(value1));
+
+  std::unique_ptr<int> value2(new int(4));
+  EXPECT_EQ("4", ToString(value2));
+}
+
+namespace {
+
+enum OldStyleEnum { kFoo, kBar };
+
+enum class NewStyleEnum { kValue1, kValue2 };
+
+enum class EnumWithPrettyPrint { kValue1, kValue2 };
+
+}  // namespace
+
+template <>
+struct TraceFormatTraits<EnumWithPrettyPrint> {
+  static void WriteIntoTracedValue(TracedValue context,
+                                   EnumWithPrettyPrint value) {
+    switch (value) {
+      case EnumWithPrettyPrint::kValue1:
+        std::move(context).WriteString("value1");
+        return;
+      case EnumWithPrettyPrint::kValue2:
+        std::move(context).WriteString("value2");
+        return;
+    }
+  }
+};
+
+TEST(TracedValueTest, EnumSupport) {
+  EXPECT_EQ(ToString(kFoo), "0");
+  EXPECT_EQ(ToString(NewStyleEnum::kValue2), "1");
+  EXPECT_EQ(ToString(EnumWithPrettyPrint::kValue2), "value2");
+}
 
 }  // namespace perfetto

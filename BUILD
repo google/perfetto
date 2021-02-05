@@ -528,6 +528,7 @@ filegroup(
         "include/perfetto/tracing/platform.h",
         "include/perfetto/tracing/trace_writer_base.h",
         "include/perfetto/tracing/traced_value.h",
+        "include/perfetto/tracing/traced_value_forward.h",
         "include/perfetto/tracing/tracing.h",
         "include/perfetto/tracing/tracing_backend.h",
         "include/perfetto/tracing/track.h",
