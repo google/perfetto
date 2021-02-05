@@ -43,7 +43,7 @@ def call(cmd, *args):
   try:
     return subprocess.check_output(command, cwd=ROOT_DIR).decode()
   except subprocess.CalledProcessError as e:
-    assert False, 'Command: %s failed: %s'.format(' '.join(command))
+    assert False, 'Command: %s failed: %s' % (' '.join(command), e)
 
 
 def check_amalgamated_output():
