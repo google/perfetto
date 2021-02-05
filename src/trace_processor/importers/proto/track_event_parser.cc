@@ -175,6 +175,7 @@ class TrackEventParser::EventImporter {
         return ParseFlowEventV1(phase);
       case 'i':
       case 'I':  // TRACE_EVENT_PHASE_INSTANT.
+      case 'R':  // TRACE_EVENT_PHASE_MARK.
         return ParseThreadInstantEvent();
       case 'b':  // TRACE_EVENT_PHASE_NESTABLE_ASYNC_BEGIN
         return ParseAsyncBeginEvent();

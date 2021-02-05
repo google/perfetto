@@ -214,12 +214,12 @@ source_set("storage_full") {
     "importers/proto/android_probes_parser.h",
     "importers/proto/android_probes_tracker.cc",
     "importers/proto/android_probes_tracker.h",
+    "importers/proto/frame_timeline_event_parser.cc",
+    "importers/proto/frame_timeline_event_parser.h",
     "importers/proto/gpu_event_parser.cc",
     "importers/proto/gpu_event_parser.h",
     "importers/proto/graphics_event_module.cc",
     "importers/proto/graphics_event_module.h",
-    "importers/proto/frame_timeline_event_parser.cc",
-    "importers/proto/frame_timeline_event_parser.h",
     "importers/proto/graphics_frame_event_parser.cc",
     "importers/proto/graphics_frame_event_parser.h",
     "importers/proto/heap_graph_module.cc",
@@ -367,6 +367,14 @@ if (enable_perfetto_trace_processor_sqlite) {
       "util/proto_to_json.cc",
       "util/proto_to_json.h",
     ]
+    if (perfetto_build_standalone && !is_perfetto_build_generator) {
+      data_deps = [
+        # The diff testing framework depends on these descriptors.
+        "../../protos/perfetto/metrics:descriptor",
+        "../../protos/perfetto/trace:descriptor",
+        "../../protos/perfetto/trace:test_extensions_descriptor",
+      ]
+    }
   }
 }  # if (enable_perfetto_trace_processor_sqlite)
 

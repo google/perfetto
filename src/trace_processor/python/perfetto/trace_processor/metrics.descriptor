@@ -375,11 +375,14 @@ startup_id (R	startupId!
 missed_frames (RmissedFrames*
 missed_hwc_frames (RmissedHwcFrames*
 missed_gpu_frames (RmissedGpuFrames
-©
-7protos/perfetto/metrics/android/sysui_cuj_metrics.protoperfetto.protos"Ü
+Ú
+7protos/perfetto/metrics/android/sysui_cuj_metrics.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"Õ
 AndroidSysUiCujMetricsE
 frames (2-.perfetto.protos.AndroidSysUiCujMetrics.FrameRframes
-cuj_name (	RcujName`
+cuj_name (	RcujName
+	cuj_start (RcujStart
+cuj_dur (RcujDurA
+process (2'.perfetto.protos.AndroidProcessMetadataRprocess`
 Frame
 number (Rnumber
 ts (Rts

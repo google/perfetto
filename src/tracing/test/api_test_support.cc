@@ -35,8 +35,10 @@ namespace {
 
 class InProcessSystemService {
  public:
-  InProcessSystemService() : test_helper_(&task_runner_) {
-    test_helper_.StartService();
+  InProcessSystemService()
+      : test_helper_(&task_runner_, TestHelper::Mode::kStartDaemons) {
+    // Will always start service because we explicitly set kStartDaemons.
+    test_helper_.StartServiceIfRequired();
   }
 
  private:

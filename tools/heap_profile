@@ -86,7 +86,7 @@ PACKAGES_LIST_CFG = '''data_sources {
 
 CFG_INDENT = '      '
 CFG = '''buffers {{
-  size_kb: 32768
+  size_kb: 63488
 }}
 
 data_sources {{

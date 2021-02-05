@@ -22,6 +22,7 @@
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
@@ -154,7 +155,6 @@ void FrameTimelineEventParser::ParseActualDisplayFrameStart(
         stats::frame_timeline_event_parser_errors);
     return;
   }
-
   if (!event.has_pid()) {
     context_->storage->IncrementStats(
         stats::frame_timeline_event_parser_errors);
@@ -185,7 +185,20 @@ void FrameTimelineEventParser::ParseActualDisplayFrameStart(
   actual_row.on_time_finish = event.on_time_finish();
   actual_row.gpu_composition = event.gpu_composition();
   actual_row.jank_type = JankTypeBitmaskToStringId(context_, event.jank_type());
-  context_->slice_tracker->BeginFrameTimeline(actual_row);
+  SliceId slice_id = context_->slice_tracker->BeginFrameTimeline(actual_row);
+
+  // SurfaceFrames will always be parsed before the matching DisplayFrame
+  // (since the app works on the frame before SurfaceFlinger does). Because
+  // of this it's safe to add all the flow events here and then forget the
+  // surface_slice id - we shouldn't see more surfaces_slices that should be
+  // connected to this slice after this point.
+  auto range = display_token_to_surface_slice_.equal_range(token);
+  for (auto it = range.first; it != range.second; ++it) {
+    SliceId display_slice = slice_id;    // SurfaceFlinger
+    SliceId surface_slice = it->second;  // App
+    context_->flow_tracker->InsertFlow(display_slice, surface_slice);
+  }
+  display_token_to_surface_slice_.erase(range.first, range.second);
 }
 
 void FrameTimelineEventParser::ParseExpectedSurfaceFrameStart(
@@ -293,6 +306,7 @@ void FrameTimelineEventParser::ParseActualSurfaceFrameStart(
   int64_t cookie = event.cookie();
   int64_t token = event.token();
   int64_t display_frame_token = event.display_frame_token();
+
   UniquePid upid = context_->process_tracker->GetOrCreateProcess(
       static_cast<uint32_t>(event.pid()));
   StringId layer_name_id;
@@ -321,7 +335,9 @@ void FrameTimelineEventParser::ParseActualSurfaceFrameStart(
   actual_row.on_time_finish = event.on_time_finish();
   actual_row.gpu_composition = event.gpu_composition();
   actual_row.jank_type = JankTypeBitmaskToStringId(context_, event.jank_type());
-  context_->slice_tracker->BeginFrameTimeline(actual_row);
+  SliceId slice_id = context_->slice_tracker->BeginFrameTimeline(actual_row);
+
+  display_token_to_surface_slice_.emplace(display_frame_token, slice_id);
 }
 
 void FrameTimelineEventParser::ParseFrameEnd(int64_t timestamp,

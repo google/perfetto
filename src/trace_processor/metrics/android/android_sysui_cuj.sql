@@ -13,17 +13,22 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+SELECT RUN_METRIC('android/process_metadata.sql');
+
 DROP TABLE IF EXISTS android_sysui_cuj_last_cuj;
 CREATE TABLE android_sysui_cuj_last_cuj AS
   SELECT
     process.name AS name,
     process.upid AS upid,
+    process_metadata.metadata AS process_metadata,
     SUBSTR(slice.name, 3, LENGTH(slice.name) - 3) AS cuj_name,
     ts AS ts_start,
-    ts + dur AS ts_end
+    ts + dur AS ts_end,
+    dur AS dur
   FROM slice
   JOIN process_track ON slice.track_id = process_track.id
   JOIN process USING (upid)
+  JOIN process_metadata USING (upid)
   WHERE
     slice.name LIKE 'J<%>'
     AND slice.dur > 0
@@ -277,7 +282,7 @@ DROP VIEW IF EXISTS android_sysui_cuj_event;
 CREATE VIEW android_sysui_cuj_event AS
  SELECT
     'slice' as track_type,
-    (SELECT slice_name FROM android_sysui_cuj_last_cuj)
+    (SELECT cuj_name FROM android_sysui_cuj_last_cuj)
         || ' - jank cause' as track_name,
     f.ts_main_thread_start as ts,
     f.dur_main_thread as dur,
@@ -290,7 +295,10 @@ DROP VIEW IF EXISTS android_sysui_cuj_output;
 CREATE VIEW android_sysui_cuj_output AS
 SELECT
   AndroidSysUiCujMetrics(
-      'cuj_name', (SELECT cuj_name from android_sysui_cuj_last_cuj),
+      'cuj_name', cuj_name,
+      'cuj_start', ts_start,
+      'cuj_dur', dur,
+      'process', process_metadata,
       'frames',
        (SELECT RepeatedField(
          AndroidSysUiCujMetrics_Frame(
@@ -301,4 +309,5 @@ SELECT
               (SELECT RepeatedField(jc.jank_cause)
               FROM android_sysui_cuj_jank_causes jc WHERE jc.frame_number = f.frame_number)))
        FROM android_sysui_cuj_frames f
-       ORDER BY frame_number ASC));
+       ORDER BY frame_number ASC))
+  FROM android_sysui_cuj_last_cuj;
