@@ -71,13 +71,20 @@ CREATE TABLE blocking_tasks_queuing_delay AS
 -- descendant slice. So all fields in base.* will be repeated ONCE for each
 -- child, but if it has no slice it will occur only once but all the
 -- |descendant_.*| fields will be NULL because of the LEFT JOIN.
+-- Additionally for mojo events, append "(interface_name)" to the end of the
+-- descendant name.
 DROP VIEW IF EXISTS all_descendant_blocking_tasks_queuing_delay;
 CREATE VIEW all_descendant_blocking_tasks_queuing_delay AS
   SELECT
     descendant.id AS descendant_id,
     descendant.ts AS descendant_ts,
     descendant.dur AS descendant_dur,
-    descendant.name AS descendant_name,
+    COALESCE(descendant.name || "(" ||
+      IIF(descendant.arg_set_id IS NOT NULL,
+          EXTRACT_ARG(descendant.arg_set_id,
+              "chrome_mojo_event_info.watcher_notify_interface_tag"),
+          NULL) || ")",
+      descendant.name) AS descendant_name,
     descendant.parent_id As descendant_parent_id,
     descendant.depth AS descendant_depth,
     base.*
