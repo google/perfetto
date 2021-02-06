@@ -27,6 +27,24 @@ void WriteIntoTracedValue(TracedValue context, T&& value);
 template <typename T, class = void>
 struct TraceFormatTraits;
 
+// Write support checker to allow it to be used when matching.
+//
+// Intended to be used for types like smart pointers, who should support
+// AsTracedValueInto only iff their inner type supports being written into
+// a TracedValue.
+//
+// template <typename T>
+// class SmartPtr {
+//   ...
+//
+//   typename check_traced_value_support<T, void>::value
+//   AsTracedValueInto(perfetto::TracedValue context) const {
+//      WriteIntoTracedValue(std::move(context), *ptr_);
+//   }
+// };
+template <typename T, typename ResultType = void, class = void>
+struct check_traced_value_support;
+
 }  // namespace perfetto
 
 #endif  // INCLUDE_PERFETTO_TRACING_TRACED_VALUE_FORWARD_H_
