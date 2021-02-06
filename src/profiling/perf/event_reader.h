@@ -85,7 +85,9 @@ class EventReader {
   base::Optional<ParsedSample> ReadUntilSample(
       std::function<void(uint64_t)> lost_events_callback);
 
-  void PauseEvents();
+  void EnableEvents();
+  // Pauses the event counting, without invalidating existing samples.
+  void DisableEvents();
 
   uint32_t cpu() const { return cpu_; }
 

@@ -73,6 +73,7 @@ class EventConfig {
   }
   const TargetFilter& filter() const { return target_filter_; }
   bool kernel_frames() const { return kernel_frames_; }
+  const std::string& tracepoint_filter() const { return tracepoint_filter_; }
 
   perf_event_attr* perf_attr() const {
     return const_cast<perf_event_attr*>(&perf_event_attr_);
@@ -88,6 +89,7 @@ class EventConfig {
               uint32_t read_tick_period_ms,
               uint32_t samples_per_tick_limit,
               uint32_t remote_descriptor_timeout_ms,
+              const std::string& tracepoint_filter,
               TargetFilter target_filter);
 
   // If true, process all system-wide samples.
@@ -118,6 +120,11 @@ class EventConfig {
 
   // If true, include kernel frames in the callstacks.
   const bool kernel_frames_;
+
+  // If set, we're counting a tracepoint, and want to apply the following event
+  // filter per the trace config. Validation will be done by the kernel once we
+  // try to set it.
+  const std::string tracepoint_filter_;
 
   // The raw data source config, as a pbzero-generated C++ class.
   const DataSourceConfig raw_ds_config_;
