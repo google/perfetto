@@ -23,7 +23,6 @@
 
 #include "perfetto/base/flat_set.h"
 #include "perfetto/ext/base/optional.h"
-#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/profiling/normalize.h"
 #include "src/profiling/perf/regs_parsing.h"
 
@@ -166,13 +165,18 @@ base::Optional<EventConfig> EventConfig::Create(
   // The counter (aka event or timebase) is either a tracepoint, or the
   // implicit default - CPU timer.
   uint32_t tracepoint_id = 0;
+  std::string tracepoint_filter;
   if (pb_config.has_tracepoint()) {
-    base::Optional<uint32_t> maybe_id = ParseTracepointAndResolveId(
-        protos::pbzero::TracepointEventConfig::Decoder(pb_config.tracepoint()),
-        tracepoint_id_lookup);
+    protos::pbzero::TracepointEventConfig::Decoder tracepoint_pb(
+        pb_config.tracepoint());
+    base::Optional<uint32_t> maybe_id =
+        ParseTracepointAndResolveId(tracepoint_pb, tracepoint_id_lookup);
     if (!maybe_id)
       return base::nullopt;
     tracepoint_id = *maybe_id;
+
+    // Optional event filter. Will be validated by the kernel when used.
+    tracepoint_filter = tracepoint_pb.filter().ToStdString();
   }
 
   base::Optional<TargetFilter> filter = ParseTargetFilter(pb_config);
@@ -214,7 +218,8 @@ base::Optional<EventConfig> EventConfig::Create(
   perf_event_attr pe = {};
   pe.size = sizeof(perf_event_attr);
 
-  pe.disabled = false;
+  // The counter will be activated via ioctl once everything is set up.
+  pe.disabled = true;
 
   // Event being counted (timebase).
   if (tracepoint_id) {
@@ -254,7 +259,8 @@ base::Optional<EventConfig> EventConfig::Create(
 
   return EventConfig(pb_config, raw_ds_config, pe, ring_buffer_pages.value(),
                      read_tick_period_ms, samples_per_tick_limit,
-                     remote_descriptor_timeout_ms, std::move(filter.value()));
+                     remote_descriptor_timeout_ms, std::move(tracepoint_filter),
+                     std::move(filter.value()));
 }
 
 EventConfig::EventConfig(const protos::pbzero::PerfEventConfig::Decoder& cfg,
@@ -264,6 +270,7 @@ EventConfig::EventConfig(const protos::pbzero::PerfEventConfig::Decoder& cfg,
                          uint32_t read_tick_period_ms,
                          uint32_t samples_per_tick_limit,
                          uint32_t remote_descriptor_timeout_ms,
+                         const std::string& tracepoint_filter,
                          TargetFilter target_filter)
     : target_all_cpus_(cfg.all_cpus()),
       ring_buffer_pages_(ring_buffer_pages),
@@ -274,7 +281,8 @@ EventConfig::EventConfig(const protos::pbzero::PerfEventConfig::Decoder& cfg,
       remote_descriptor_timeout_ms_(remote_descriptor_timeout_ms),
       unwind_state_clear_period_ms_(cfg.unwind_state_clear_period_ms()),
       kernel_frames_(cfg.kernel_frames()),
-      raw_ds_config_(raw_ds_config) /* copy */ {}
+      tracepoint_filter_(tracepoint_filter),
+      raw_ds_config_(raw_ds_config) /* full copy */ {}
 
 }  // namespace profiling
 }  // namespace perfetto

@@ -268,6 +268,11 @@ void PerfProducer::StartDataSource(DataSourceInstanceID ds_id,
   PERFETTO_CHECK(inserted);
   DataSourceState& ds = ds_it->second;
 
+  // Start the configured events.
+  for (auto& per_cpu_reader : ds.per_cpu_readers) {
+    per_cpu_reader.EnableEvents();
+  }
+
   // Write out a packet to initialize the incremental state for this sequence.
   InterningOutputTracker::WriteFixedInterningsPacket(
       ds_it->second.trace_writer.get());
@@ -767,7 +772,7 @@ void PerfProducer::InitiateReaderStop(DataSourceState* ds) {
 
   ds->status = DataSourceState::Status::kShuttingDown;
   for (auto& event_reader : ds->per_cpu_readers) {
-    event_reader.PauseEvents();
+    event_reader.DisableEvents();
   }
 }
 
