@@ -25,6 +25,7 @@ source_set("base") {
     "proc_utils.h",
     "status.h",
     "task_runner.h",
+    "template_util.h",
     "thread_utils.h",
     "time.h",
   ]

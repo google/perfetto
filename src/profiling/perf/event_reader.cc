@@ -221,7 +221,7 @@ base::Optional<EventReader> EventReader::ConfigureEvents(
     const EventConfig& event_cfg) {
   auto perf_fd = PerfEventOpen(cpu, event_cfg);
   if (!perf_fd) {
-    PERFETTO_PLOG("failed perf_event_open");
+    PERFETTO_PLOG("Failed perf_event_open");
     return base::nullopt;
   }
 
@@ -229,6 +229,15 @@ base::Optional<EventReader> EventReader::ConfigureEvents(
       PerfRingBuffer::Allocate(perf_fd.get(), event_cfg.ring_buffer_pages());
   if (!ring_buffer.has_value()) {
     return base::nullopt;
+  }
+
+  // If counting tracepoints, set an event filter if requested.
+  if (!event_cfg.tracepoint_filter().empty()) {
+    if (ioctl(perf_fd.get(), PERF_EVENT_IOC_SET_FILTER,
+              event_cfg.tracepoint_filter().c_str()) != 0) {
+      PERFETTO_PLOG("Failed ioctl to set event filter");
+      return base::nullopt;
+    }
   }
 
   return base::make_optional<EventReader>(cpu, *event_cfg.perf_attr(),
@@ -361,7 +370,12 @@ ParsedSample EventReader::ParseSampleRecord(uint32_t cpu,
   return sample;
 }
 
-void EventReader::PauseEvents() {
+void EventReader::EnableEvents() {
+  int ret = ioctl(perf_fd_.get(), PERF_EVENT_IOC_ENABLE);
+  PERFETTO_CHECK(ret == 0);
+}
+
+void EventReader::DisableEvents() {
   int ret = ioctl(perf_fd_.get(), PERF_EVENT_IOC_DISABLE);
   PERFETTO_CHECK(ret == 0);
 }

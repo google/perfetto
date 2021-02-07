@@ -117,4 +117,11 @@ message TracepointEventConfig {
   // * "sched/sched_switch"
   // * "sched:sched_switch"
   optional string name = 1;
+
+  // Optional field-level filter for the tracepoint. Only events matching this
+  // filter will be counted (and therefore contribute to the sampling period).
+  // Example: "prev_pid >= 42 && next_pid == 0".
+  // For full syntax, see kernel documentation on "Event filtering":
+  // https://www.kernel.org/doc/Documentation/trace/events.txt
+  optional string filter = 2;
 }
