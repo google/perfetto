@@ -483,10 +483,12 @@ TEST_F(PerfettoTest, TreeHuggerOnly(TestKmemActivity)) {
   auto* trigger_cfg = trace_config.mutable_trigger_config();
   trigger_cfg->set_trigger_mode(
       protos::gen::TraceConfig::TriggerConfig::START_TRACING);
-  trigger_cfg->set_trigger_timeout_ms(100);
+  trigger_cfg->set_trigger_timeout_ms(15000);
   auto* trigger = trigger_cfg->add_triggers();
   trigger->set_name("kmem_activity");
-  trigger->set_stop_delay_ms(500);
+  // |stop_delay_ms| must be long enough that we can write the packets in
+  // before the trace finishes.
+  trigger->set_stop_delay_ms(1000);
 
   helper.StartTracing(trace_config);
 
