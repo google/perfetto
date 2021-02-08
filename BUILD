@@ -550,6 +550,7 @@ filegroup(
         "src/android_internal/incident_service.h",
         "src/android_internal/power_stats_hal.h",
         "src/android_internal/statsd_logging.h",
+        "src/android_internal/tracing_service_proxy.h",
     ],
 )
 
