@@ -282,7 +282,7 @@ class PERFETTO_EXPORT TrackEventCategoryRegistry {
   }
 
   static constexpr bool IsValidCategoryName(const char* name) {
-    return (!name || *name == '\"' || *name == '*')
+    return (!name || *name == '\"' || *name == '*' || *name == ' ')
                ? false
                : *name ? IsValidCategoryName(name + 1) : true;
   }
