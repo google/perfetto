@@ -33,6 +33,7 @@ if (perfetto_build_with_android) {
       "incident_service.cc",
       "power_stats_hal.cc",
       "statsd_logging.cc",
+      "tracing_service_proxy.cc",
     ]
     libs = [
       "android.hardware.health@2.0",
@@ -47,6 +48,7 @@ if (perfetto_build_with_android) {
       "hidlbase",
       "incident",
       "services",
+      "tracingproxy",
       "utils",
     ]
 
@@ -71,6 +73,7 @@ source_set("headers") {
     "incident_service.h",
     "power_stats_hal.h",
     "statsd_logging.h",
+    "tracing_service_proxy.h",
   ]
 }
 

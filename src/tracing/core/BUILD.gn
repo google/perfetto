@@ -72,6 +72,12 @@ source_set("service") {
     "tracing_service_impl.cc",
     "tracing_service_impl.h",
   ]
+  if (is_android && perfetto_build_with_android) {
+    deps += [
+      "../../android_internal:lazy_library_loader",
+      "../../android_internal:headers",
+    ]
+  }
 }
 
 perfetto_unittest_source_set("unittests") {
