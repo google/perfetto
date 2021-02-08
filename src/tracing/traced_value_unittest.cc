@@ -99,10 +99,10 @@ ASSERT_TYPE_NOT_SUPPORTED(int[]);
 ASSERT_TYPE_NOT_SUPPORTED(const int[]);
 ASSERT_TYPE_NOT_SUPPORTED(NonSupportedType[]);
 ASSERT_TYPE_NOT_SUPPORTED(const NonSupportedType[]);
-ASSERT_TYPE_NOT_SUPPORTED(int[3]);
-ASSERT_TYPE_NOT_SUPPORTED(const int[3]);
-ASSERT_TYPE_NOT_SUPPORTED(NonSupportedType[3]);
-ASSERT_TYPE_NOT_SUPPORTED(const NonSupportedType[3]);
+ASSERT_TYPE_SUPPORTED(int (&)[3]);
+ASSERT_TYPE_SUPPORTED(const int (&)[3]);
+ASSERT_TYPE_NOT_SUPPORTED(NonSupportedType (&)[3]);
+ASSERT_TYPE_NOT_SUPPORTED(const NonSupportedType (&)[3]);
 
 // STL containers.
 ASSERT_TYPE_SUPPORTED(std::vector<int>);
@@ -226,7 +226,8 @@ std::string MessageToJSON(const std::string& data) {
 TEST(TracedValueTest, FlatDictionary_Explicit) {
   protozero::HeapBuffered<protos::pbzero::DebugAnnotation> message;
   {
-    auto dict = TracedValue::CreateForTest(message.get()).WriteDictionary();
+    auto dict =
+        internal::CreateTracedValueFromProto(message.get()).WriteDictionary();
     dict.AddItem("bool").WriteBoolean(true);
     dict.AddItem("double").WriteDouble(0.0);
     dict.AddItem("int").WriteInt64(2014);
@@ -242,7 +243,8 @@ TEST(TracedValueTest, FlatDictionary_Explicit) {
 TEST(TracedValueTest, FlatDictionary_Short) {
   protozero::HeapBuffered<protos::pbzero::DebugAnnotation> message;
   {
-    auto dict = TracedValue::CreateForTest(message.get()).WriteDictionary();
+    auto dict =
+        internal::CreateTracedValueFromProto(message.get()).WriteDictionary();
     dict.Add("bool", true);
     dict.Add("double", 0.0);
     dict.Add("int", 2014);
@@ -259,7 +261,7 @@ TEST(TracedValueTest, Hierarchy_Explicit) {
   protozero::HeapBuffered<protos::pbzero::DebugAnnotation> message;
   {
     auto root_dict =
-        TracedValue::CreateForTest(message.get()).WriteDictionary();
+        internal::CreateTracedValueFromProto(message.get()).WriteDictionary();
     {
       auto array = root_dict.AddItem("a1").WriteArray();
       array.AppendItem().WriteInt64(1);
@@ -299,7 +301,7 @@ TEST(TracedValueTest, Hierarchy_Short) {
   protozero::HeapBuffered<protos::pbzero::DebugAnnotation> message;
   {
     auto root_dict =
-        TracedValue::CreateForTest(message.get()).WriteDictionary();
+        internal::CreateTracedValueFromProto(message.get()).WriteDictionary();
     {
       auto array = root_dict.AddArray("a1");
       array.Append(1);
@@ -361,6 +363,31 @@ class HasAllConversionMethods {
 
 class NoConversions {};
 
+class HasConstWriteMember {
+ public:
+  void WriteIntoTracedValue(TracedValue context) const {
+    std::move(context).WriteString("T::WriteIntoTracedValue const");
+  }
+};
+
+class HasNonConstWriteMember {
+ public:
+  void WriteIntoTracedValue(TracedValue context) {
+    std::move(context).WriteString("T::WriteIntoTracedValue");
+  }
+};
+
+class HasConstAndNonConstWriteMember {
+ public:
+  void WriteIntoTracedValue(TracedValue context) {
+    std::move(context).WriteString("T::WriteIntoTracedValue");
+  }
+
+  void WriteIntoTracedValue(TracedValue context) const {
+    std::move(context).WriteString("T::WriteIntoTracedValue const");
+  }
+};
+
 }  // namespace
 
 template <>
@@ -382,7 +409,7 @@ struct TraceFormatTraits<HasAllConversionMethods> {
 template <typename T>
 std::string ToString(T&& value) {
   protozero::HeapBuffered<protos::pbzero::DebugAnnotation> message;
-  WriteIntoTracedValue(TracedValue::CreateForTest(message.get()),
+  WriteIntoTracedValue(internal::CreateTracedValueFromProto(message.get()),
                        std::forward<T>(value));
   return MessageToJSON(message.SerializeAsString());
 }
@@ -390,14 +417,48 @@ std::string ToString(T&& value) {
 template <typename T>
 std::string ToStringWithFallback(T&& value, const std::string& fallback) {
   protozero::HeapBuffered<protos::pbzero::DebugAnnotation> message;
-  WriteIntoTracedValueWithFallback(TracedValue::CreateForTest(message.get()),
-                                   std::forward<T>(value), fallback);
+  WriteIntoTracedValueWithFallback(
+      internal::CreateTracedValueFromProto(message.get()),
+      std::forward<T>(value), fallback);
   return MessageToJSON(message.SerializeAsString());
 }
 
 ASSERT_TYPE_SUPPORTED(HasConvertorMember);
 ASSERT_TYPE_SUPPORTED(HasExternalConvertor);
 ASSERT_TYPE_SUPPORTED(HasAllConversionMethods);
+
+ASSERT_TYPE_SUPPORTED(HasConstWriteMember);
+ASSERT_TYPE_SUPPORTED(HasConstWriteMember&);
+ASSERT_TYPE_SUPPORTED(HasConstWriteMember*);
+ASSERT_TYPE_SUPPORTED(std::unique_ptr<HasConstWriteMember>);
+ASSERT_TYPE_SUPPORTED(std::vector<HasConstWriteMember>);
+ASSERT_TYPE_SUPPORTED(const HasConstWriteMember);
+ASSERT_TYPE_SUPPORTED(const HasConstWriteMember&);
+ASSERT_TYPE_SUPPORTED(const HasConstWriteMember*);
+ASSERT_TYPE_SUPPORTED(std::unique_ptr<const HasConstWriteMember>);
+ASSERT_TYPE_SUPPORTED(const std::vector<HasConstWriteMember>);
+ASSERT_TYPE_SUPPORTED(std::vector<const HasConstWriteMember*>);
+
+ASSERT_TYPE_SUPPORTED(HasNonConstWriteMember);
+ASSERT_TYPE_SUPPORTED(HasNonConstWriteMember&);
+ASSERT_TYPE_SUPPORTED(HasNonConstWriteMember*);
+ASSERT_TYPE_SUPPORTED(std::unique_ptr<HasNonConstWriteMember>);
+ASSERT_TYPE_SUPPORTED(std::vector<HasNonConstWriteMember>);
+ASSERT_TYPE_NOT_SUPPORTED(const HasNonConstWriteMember);
+ASSERT_TYPE_NOT_SUPPORTED(const HasNonConstWriteMember&);
+ASSERT_TYPE_NOT_SUPPORTED(const HasNonConstWriteMember*);
+ASSERT_TYPE_NOT_SUPPORTED(std::unique_ptr<const HasNonConstWriteMember>);
+ASSERT_TYPE_NOT_SUPPORTED(const std::vector<HasNonConstWriteMember>);
+ASSERT_TYPE_NOT_SUPPORTED(std::vector<const HasNonConstWriteMember*>);
+
+ASSERT_TYPE_SUPPORTED(HasConstAndNonConstWriteMember);
+ASSERT_TYPE_SUPPORTED(HasConstAndNonConstWriteMember&);
+ASSERT_TYPE_SUPPORTED(HasConstAndNonConstWriteMember*);
+ASSERT_TYPE_SUPPORTED(std::unique_ptr<HasConstAndNonConstWriteMember>);
+ASSERT_TYPE_SUPPORTED(const HasConstAndNonConstWriteMember);
+ASSERT_TYPE_SUPPORTED(const HasConstAndNonConstWriteMember&);
+ASSERT_TYPE_SUPPORTED(const HasConstAndNonConstWriteMember*);
+ASSERT_TYPE_SUPPORTED(std::unique_ptr<const HasConstAndNonConstWriteMember*>);
 
 TEST(TracedValueTest, UserDefinedConvertors) {
   HasConvertorMember value1;
@@ -428,7 +489,8 @@ TEST(TracedValueTest, FailOnIncorrectUsage) {
 
       {
         protozero::HeapBuffered<protos::pbzero::DebugAnnotation> message;
-        auto dict = TracedValue::CreateForTest(message.get()).WriteDictionary();
+        auto dict = internal::CreateTracedValueFromProto(message.get())
+                        .WriteDictionary();
         auto scope1 = dict.AddItem("key1");
         auto scope2 = dict.AddItem("key2");
         std::move(scope1).WriteInt64(1);
@@ -441,7 +503,8 @@ TEST(TracedValueTest, FailOnIncorrectUsage) {
   EXPECT_DEATH(
       {
         protozero::HeapBuffered<protos::pbzero::DebugAnnotation> message;
-        auto array = TracedValue::CreateForTest(message.get()).WriteArray();
+        auto array =
+            internal::CreateTracedValueFromProto(message.get()).WriteArray();
         auto scope1 = array.AppendItem();
         auto scope2 = array.AppendItem();
         std::move(scope1).WriteInt64(1);
@@ -453,8 +516,8 @@ TEST(TracedValueTest, FailOnIncorrectUsage) {
   EXPECT_DEATH(
       {
         protozero::HeapBuffered<protos::pbzero::DebugAnnotation> message;
-        auto outer_dict =
-            TracedValue::CreateForTest(message.get()).WriteDictionary();
+        auto outer_dict = internal::CreateTracedValueFromProto(message.get())
+                              .WriteDictionary();
         {
           auto inner_dict = outer_dict.AddDictionary("inner");
           outer_dict.Add("key", "value");
@@ -467,7 +530,11 @@ TEST(TracedValueTest, FailOnIncorrectUsage) {
 TEST(TracedValueTest, PrimitiveTypesSupport) {
   EXPECT_EQ("0x0", ToString(nullptr));
   EXPECT_EQ("0x1", ToString(reinterpret_cast<void*>(1)));
-  EXPECT_EQ("1", ToString(1));
+
+  const int int_value = 1;
+  EXPECT_EQ("1", ToString(int_value));
+  EXPECT_EQ("1", ToString(&int_value));
+
   EXPECT_EQ("1.5", ToString(1.5));
   EXPECT_EQ("true", ToString(true));
   EXPECT_EQ("foo", ToString("foo"));
@@ -522,6 +589,53 @@ TEST(TracedValueTest, WriteWithFallback) {
   EXPECT_EQ("1", ToStringWithFallback(1, "fallback"));
   EXPECT_EQ("true", ToStringWithFallback(true, "fallback"));
   EXPECT_EQ("fallback", ToStringWithFallback(NonSupportedType(), "fallback"));
+}
+
+TEST(TracedValueTest, ConstAndNotConstSupport) {
+  {
+    HasConstWriteMember value;
+    EXPECT_EQ("T::WriteIntoTracedValue const", ToString(value));
+    EXPECT_EQ("T::WriteIntoTracedValue const", ToString(&value));
+
+    std::vector<HasConstWriteMember> arr(1, value);
+    EXPECT_EQ("[T::WriteIntoTracedValue const]", ToString(arr));
+  }
+
+  {
+    const HasConstWriteMember value;
+    EXPECT_EQ("T::WriteIntoTracedValue const", ToString(value));
+    EXPECT_EQ("T::WriteIntoTracedValue const", ToString(&value));
+
+    const std::vector<HasConstWriteMember> arr(1, value);
+    EXPECT_EQ("[T::WriteIntoTracedValue const]", ToString(arr));
+  }
+
+  {
+    HasNonConstWriteMember value;
+    EXPECT_EQ("T::WriteIntoTracedValue", ToString(value));
+    EXPECT_EQ("T::WriteIntoTracedValue", ToString(&value));
+
+    std::vector<HasNonConstWriteMember> arr(1, value);
+    EXPECT_EQ("[T::WriteIntoTracedValue]", ToString(arr));
+  }
+
+  {
+    HasConstAndNonConstWriteMember value;
+    EXPECT_EQ("T::WriteIntoTracedValue", ToString(value));
+    EXPECT_EQ("T::WriteIntoTracedValue", ToString(&value));
+
+    std::vector<HasConstAndNonConstWriteMember> arr(1, value);
+    EXPECT_EQ("[T::WriteIntoTracedValue]", ToString(arr));
+  }
+
+  {
+    const HasConstAndNonConstWriteMember value;
+    EXPECT_EQ("T::WriteIntoTracedValue const", ToString(value));
+    EXPECT_EQ("T::WriteIntoTracedValue const", ToString(&value));
+
+    const std::vector<HasConstAndNonConstWriteMember> arr(1, value);
+    EXPECT_EQ("[T::WriteIntoTracedValue const]", ToString(arr));
+  }
 }
 
 }  // namespace perfetto
