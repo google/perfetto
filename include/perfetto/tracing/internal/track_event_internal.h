@@ -23,6 +23,7 @@
 #include "perfetto/tracing/data_source.h"
 #include "perfetto/tracing/debug_annotation.h"
 #include "perfetto/tracing/trace_writer_base.h"
+#include "perfetto/tracing/traced_value.h"
 #include "perfetto/tracing/track.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
@@ -145,7 +146,8 @@ class PERFETTO_EXPORT TrackEventInternal {
                                  const char* name,
                                  T&& value) {
     auto annotation = AddDebugAnnotation(event_ctx, name);
-    WriteDebugAnnotation(annotation, value);
+    WriteIntoTracedValue(internal::CreateTracedValueFromProto(annotation),
+                         std::forward<T>(value));
   }
 
   // If the given track hasn't been seen by the trace writer yet, write a
