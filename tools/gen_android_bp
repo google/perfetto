@@ -117,6 +117,7 @@ shared_library_allowlist = [
     'log',
     'services',
     'statssocket',
+    "tracingproxy",
     'utils',
 ]
 
