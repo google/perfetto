@@ -31,10 +31,6 @@ namespace perfetto {
 
 class DebugAnnotation;
 
-// *** NOTE ***
-// This is work-in-progress and the examples below do not work yet.
-//
-//
 // These classes provide a JSON-inspired way to write structed data into traces.
 //
 // Each TracedValue can be consumed exactly once to write a value into a trace
@@ -112,6 +108,12 @@ class DebugAnnotation;
 // }
 class TracedArray;
 class TracedDictionary;
+class TracedValue;
+
+namespace internal {
+PERFETTO_EXPORT TracedValue
+CreateTracedValueFromProto(protos::pbzero::DebugAnnotation*);
+}
 
 class PERFETTO_EXPORT TracedValue {
  public:
@@ -148,11 +150,13 @@ class PERFETTO_EXPORT TracedValue {
   // Scope which allows multiple key-value pairs to be added.
   TracedDictionary WriteDictionary() && PERFETTO_WARN_UNUSED_RESULT;
 
-  static TracedValue CreateForTest(protos::pbzero::DebugAnnotation*);
-
  private:
   friend class TracedArray;
   friend class TracedDictionary;
+  friend TracedValue internal::CreateTracedValueFromProto(
+      protos::pbzero::DebugAnnotation*);
+
+  static TracedValue CreateFromProto(protos::pbzero::DebugAnnotation*);
 
   inline explicit TracedValue(protos::pbzero::DebugAnnotation* root_context,
                               internal::CheckedScope* parent_scope)
@@ -176,7 +180,7 @@ class PERFETTO_EXPORT TracedValue {
   internal::CheckedScope checked_scope_;
 };
 
-class TracedArray {
+class PERFETTO_EXPORT TracedArray {
  public:
   TracedArray(const TracedArray&) = delete;
   TracedArray& operator=(const TracedArray&) = delete;
@@ -187,8 +191,8 @@ class TracedArray {
   TracedValue AppendItem();
 
   template <typename T>
-  void Append(const T& value) {
-    WriteIntoTracedValue(AppendItem(), value);
+  void Append(T&& value) {
+    WriteIntoTracedValue(AppendItem(), std::forward<T>(value));
   }
 
   TracedDictionary AppendDictionary() PERFETTO_WARN_UNUSED_RESULT;
@@ -207,7 +211,7 @@ class TracedArray {
   internal::CheckedScope checked_scope_;
 };
 
-class TracedDictionary {
+class PERFETTO_EXPORT TracedDictionary {
  public:
   TracedDictionary(const TracedDictionary&) = delete;
   TracedDictionary& operator=(const TracedDictionary&) = delete;
@@ -218,8 +222,8 @@ class TracedDictionary {
   TracedValue AddItem(const char* key);
 
   template <typename T>
-  void Add(const char* key, const T& value) {
-    WriteIntoTracedValue(AddItem(key), value);
+  void Add(const char* key, T&& value) {
+    WriteIntoTracedValue(AddItem(key), std::forward<T>(value));
   }
 
   TracedDictionary AddDictionary(const char* key);
@@ -274,12 +278,16 @@ WriteImpl(base::priority_tag<2>, TracedValue context, T&& value) {
 }
 
 // If T is a container and its elements have tracing support, use it.
+//
+// Note: a reference to T should be passed to std::begin, otherwise
+// for non-reference types const T& will be passed to std::begin, losing
+// support for non-const WriteIntoTracedValue methods.
 template <typename T>
-typename std::enable_if<check_traced_value_support<base::remove_cvref_t<
-    decltype(*std::begin(std::declval<T>()))>>::value>::type
-WriteImpl(base::priority_tag<1>, TracedValue context, const T& value) {
+typename check_traced_value_support<
+    decltype(*std::begin(std::declval<T&>()))>::type
+WriteImpl(base::priority_tag<1>, TracedValue context, T&& value) {
   auto array = std::move(context).WriteArray();
-  for (const auto& item : value) {
+  for (auto&& item : value) {
     array.Append(item);
   }
 }
@@ -366,7 +374,7 @@ class has_traced_value_support {
 }  // namespace internal
 
 template <typename T>
-void WriteIntoTracedValue(TracedValue context, T&& value) {
+PERFETTO_EXPORT void WriteIntoTracedValue(TracedValue context, T&& value) {
   // TODO(altimin): Add a URL to documentation and a list of common failure
   // patterns.
   static_assert(
@@ -388,18 +396,20 @@ void WriteIntoTracedValue(TracedValue context, T&& value) {
 // See WriteWithFallback test in traced_value_unittest.cc for a concrete
 // example.
 template <typename T>
-typename std::enable_if<internal::has_traced_value_support<T>::value>::type
-WriteIntoTracedValueWithFallback(TracedValue context,
-                                 T&& value,
-                                 const std::string&) {
+PERFETTO_EXPORT
+    typename std::enable_if<internal::has_traced_value_support<T>::value>::type
+    WriteIntoTracedValueWithFallback(TracedValue context,
+                                     T&& value,
+                                     const std::string&) {
   WriteIntoTracedValue(std::move(context), std::forward<T>(value));
 }
 
 template <typename T>
-typename std::enable_if<!internal::has_traced_value_support<T>::value>::type
-WriteIntoTracedValueWithFallback(TracedValue context,
-                                 T&&,
-                                 const std::string& fallback) {
+PERFETTO_EXPORT
+    typename std::enable_if<!internal::has_traced_value_support<T>::value>::type
+    WriteIntoTracedValueWithFallback(TracedValue context,
+                                     T&&,
+                                     const std::string& fallback) {
   std::move(context).WriteString(fallback);
 }
 
@@ -528,7 +538,7 @@ struct TraceFormatTraits<const void*> {
 // Specialisation for std::unique_ptr<>, which writes either nullptr or the
 // object it points to.
 template <typename T>
-struct TraceFormatTraits<std::unique_ptr<T>, check_traced_value_support_t<T*>> {
+struct TraceFormatTraits<std::unique_ptr<T>, check_traced_value_support_t<T>> {
   inline static void WriteIntoTracedValue(TracedValue context,
                                           const std::unique_ptr<T>& value) {
     ::perfetto::WriteIntoTracedValue(std::move(context), value.get());
@@ -538,10 +548,8 @@ struct TraceFormatTraits<std::unique_ptr<T>, check_traced_value_support_t<T*>> {
 // Specialisation for raw pointer, which writes either nullptr or the object it
 // points to.
 template <typename T>
-struct TraceFormatTraits<
-    T*,
-    check_traced_value_support_t<base::remove_cvref_t<T>>> {
-  inline static void WriteIntoTracedValue(TracedValue context, const T* value) {
+struct TraceFormatTraits<T*, check_traced_value_support_t<T>> {
+  inline static void WriteIntoTracedValue(TracedValue context, T* value) {
     if (!value) {
       std::move(context).WritePointer(nullptr);
       return;
