@@ -25,6 +25,7 @@
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "src/trace_processor/metrics/sql_metrics.h"
 #include "src/trace_processor/tp_metatrace.h"
+#include "src/trace_processor/util/status_macros.h"
 
 #include "protos/perfetto/common/descriptor.pbzero.h"
 #include "protos/perfetto/trace_processor/metrics_impl.pbzero.h"
@@ -230,10 +231,10 @@ util::Status ProtoBuilder::AppendBytes(const std::string& field_name,
 
   if (size == 0) {
     return util::ErrStatus(
-        "Tried to write null value into field %s (in proto type %s). "
-        "Nulls are only supported for message protos; all other types should"
-        "ensure that nulls are not passed to proto builder functions by using"
-        "the SQLite IFNULL/COALESCE functions.",
+        "Tried to write zero-sized value into field %s (in proto type "
+        "%s). Nulls are only supported for message protos; all other types "
+        "should ensure that nulls are not passed to proto builder functions by "
+        "using the SQLite IFNULL/COALESCE functions.",
         field->name().c_str(), descriptor_->full_name().c_str());
   }
 
@@ -632,10 +633,7 @@ util::Status ComputeMetrics(TraceProcessor* tp,
       PERFETTO_DLOG("Executing query: %s", query.c_str());
       auto prep_it = tp->ExecuteQuery(query);
       prep_it.Next();
-
-      util::Status status = prep_it.Status();
-      if (!status.ok())
-        return status;
+      RETURN_IF_ERROR(prep_it.Status());
     }
 
     auto output_query =
@@ -647,36 +645,35 @@ util::Status ComputeMetrics(TraceProcessor* tp,
 
     auto it = tp->ExecuteQuery(output_query.c_str());
     auto has_next = it.Next();
-    util::Status status = it.Status();
-    if (!status.ok()) {
-      return status;
-    } else if (!has_next) {
-      return util::ErrStatus("Output table %s should have at least one row",
-                             sql_metric.output_table_name.value().c_str());
-    } else if (it.ColumnCount() != 1) {
+    RETURN_IF_ERROR(it.Status());
+
+    // Allow the query to return no rows. This has the same semantic as an
+    // empty proto being returned.
+    const auto& field_name = sql_metric.proto_field_name.value();
+    if (!has_next) {
+      metric_builder.AppendBytes(field_name, nullptr, 0);
+      continue;
+    }
+
+    if (it.ColumnCount() != 1) {
       return util::ErrStatus("Output table %s should have exactly one column",
                              sql_metric.output_table_name.value().c_str());
     }
 
-    if (it.Get(0).type == SqlValue::kBytes) {
-      const auto& field_name = sql_metric.proto_field_name.value();
-      const auto& col = it.Get(0);
-      status = metric_builder.AppendSqlValue(field_name, col);
-      if (!status.ok())
-        return status;
-    } else if (it.Get(0).type != SqlValue::kNull) {
+    SqlValue col = it.Get(0);
+    if (col.type != SqlValue::kBytes) {
       return util::ErrStatus("Output table %s column has invalid type",
                              sql_metric.output_table_name.value().c_str());
     }
+    RETURN_IF_ERROR(metric_builder.AppendSqlValue(field_name, col));
 
     has_next = it.Next();
-    if (has_next)
-      return util::ErrStatus("Output table %s should only have one row",
+    if (has_next) {
+      return util::ErrStatus("Output table %s should have at most one row",
                              sql_metric.output_table_name.value().c_str());
+    }
 
-    status = it.Status();
-    if (!status.ok())
-      return status;
+    RETURN_IF_ERROR(it.Status());
   }
   *metrics_proto = metric_builder.SerializeRaw();
   return util::OkStatus();
