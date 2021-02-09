@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en-us">
+<head>
+  <title>Perfetto UI</title>
+  <!-- See b/149573396 for CSP rationale. -->
+  <!-- TODO(b/121211019): remove script-src-elem rule once fixed. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'sha256-LirUKeorCU4uRNtNzr8tlB11uy8rzrdmqHCX38JSwHY='; script-src 'self' https://*.google.com https://*.googleusercontent.com https://www.googletagmanager.com https://www.google-analytics.com; object-src 'none'; connect-src 'self' http://127.0.0.1:9001 https://www.google-analytics.com https://*.googleapis.com blob: data:; img-src 'self' data: blob: https://www.google-analytics.com https://www.googletagmanager.com; navigate-to https://*.perfetto.dev;">
+
+  <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" name="viewport" />
+  <link href="perfetto.css" rel="stylesheet">
+  <link rel="icon" type="image/png" href="assets/favicon.png">
+</head>
+<body>
+  <main>
+    <div class="full-page-loading-screen"></div>
+  </main>
+  <div id="main-modal" aria-hidden="true" class="modal micromodal-slide"></div>
+</body>
+</html>
+<script src="frontend_bundle.js"></script>
