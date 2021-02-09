@@ -16,10 +16,8 @@
 INSTALL_BUILD_DEPS_ARGS="--ui"
 source $(dirname ${BASH_SOURCE[0]})/common.sh
 
-tools/gn gen ${OUT_PATH} --args="${PERFETTO_TEST_GN_ARGS}" --check
-tools/ninja -C ${OUT_PATH} ${PERFETTO_TEST_NINJA_ARGS} ui
+tools/node ui/build.js --out ${OUT_PATH}
 
-cp -a ${OUT_PATH}/ui /ci/artifacts/
+cp -a ${OUT_PATH}/ui/dist/ /ci/artifacts/ui
 
-# Run the tests
-${OUT_PATH}/ui_unittests --ci
+tools/node ui/build.js --out ${OUT_PATH} --no-build --run-tests

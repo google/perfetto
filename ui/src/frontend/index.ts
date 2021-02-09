@@ -47,6 +47,7 @@ import {
 } from './globals';
 import {HomePage} from './home_page';
 import {openBufferWithLegacyTraceViewer} from './legacy_trace_viewer';
+import {initLiveReloadIfLocalhost} from './live_reload';
 import {MetricsPage} from './metrics_page';
 import {postMessageHandler} from './post_message_handler';
 import {RecordPage, updateAvailableAdbDevices} from './record_page';
@@ -398,10 +399,22 @@ function main() {
 
   MicroModal.init();
 
+  // Load the script to detect if this is a Googler (see comments on globals.ts)
+  // and initialize GA after that (or after a timeout if something goes wrong).
+  const script = document.createElement('script');
+  script.src =
+      'https://storage.cloud.google.com/perfetto-ui-internal/is_internal_user.js';
+  script.async = true;
+  script.onerror = () => globals.logging.initialize();
+  script.onload = () => globals.logging.initialize();
+  setTimeout(() => globals.logging.initialize(), 5000);
+  document.head.appendChild(script);
+
   // Will update the chip on the sidebar footer that notifies that the RPC is
   // connected. Has no effect on the controller (which will repeat this check
   // before creating a new engine).
   CheckHttpRpcConnection();
+  initLiveReloadIfLocalhost();
 }
 
 main();
