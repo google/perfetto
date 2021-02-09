@@ -1,0 +1,6 @@
+[0;31m
+-------------------------------------------------------
+WARNING: building the UI through GN+ninja is deprecated.
+Going forward use the //ui/build script
+-------------------------------------------------------
+[0;0m
