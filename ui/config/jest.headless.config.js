@@ -13,8 +13,9 @@
 // limitations under the License.
 
 module.exports = {
-    "transform": {},
-    "testRegex": "_jsdomtest.js$",
-    "testEnvironment": "jsdom"
+  transform: {},
+  testRegex: '.*_headlesstest.js$',
+  globalSetup: './headless_setup.js',
+  globalTeardown: './headless_teardown.js',
+  testEnvironment: './headless_environment.js'
 }
-

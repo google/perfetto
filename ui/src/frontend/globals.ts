@@ -136,6 +136,7 @@ class Globals {
   private _rafScheduler?: RafScheduler = undefined;
   private _serviceWorkerController?: ServiceWorkerController = undefined;
   private _logging?: Analytics = undefined;
+  private _isInternalUser: boolean|undefined = undefined;
 
   // TODO(hjd): Unify trackDataStore, queryResults, overviewStore, threads.
   private _trackDataStore?: TrackDataStore = undefined;
@@ -171,11 +172,6 @@ class Globals {
     tsEnds: new Float64Array(0),
     count: new Uint8Array(0),
   };
-
-  // This variable is set by the is_internal_user.js script if the user is a
-  // googler. This is used to avoid exposing features that are not ready yet
-  // for public consumption. The gated features themselves are not secret.
-  isInternalUser = false;
 
   initialize(dispatch: Dispatch, controllerWorker: Worker) {
     this._dispatch = dispatch;
@@ -428,6 +424,24 @@ class Globals {
       sources: [],
       totalResults: 0,
     };
+  }
+
+  // This variable is set by the is_internal_user.js script if the user is a
+  // googler. This is used to avoid exposing features that are not ready yet
+  // for public consumption. The gated features themselves are not secret.
+  // If a user has been detected as a Googler once, make that sticky in
+  // localStorage, so that we keep treating them as such when they connect over
+  // public networks.
+  get isInternalUser() {
+    if (this._isInternalUser === undefined) {
+      this._isInternalUser = localStorage.getItem('isInternalUser') === '1';
+    }
+    return this._isInternalUser;
+  }
+
+  set isInternalUser(value: boolean) {
+    localStorage.setItem('isInternalUser', value ? '1' : '0');
+    this._isInternalUser = value;
   }
 
   // Used when switching to the legacy TraceViewer UI.
