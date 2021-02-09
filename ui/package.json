@@ -10,7 +10,6 @@
     "@tsundoku/micromodal_types": "^0.0.1",
     "@types/chrome": "0.0.86",
     "@types/color-convert": "^1.9.0",
-    "@types/gtag.js": "0.0.3",
     "@types/mithril": "^1.1.17",
     "@types/node": "^14.0.10",
     "@types/pako": "^1.0.1",

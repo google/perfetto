@@ -4,12 +4,11 @@
   <title>Perfetto UI</title>
   <!-- See b/149573396 for CSP rationale. -->
   <!-- TODO(b/121211019): remove script-src-elem rule once fixed. -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src-elem 'self' https://*.google.com https://*.googleusercontent.com https://www.googletagmanager.com https://www.google-analytics.com 'sha256-eYlPNiizBKy/rhHAaz06RXrXVsKmBN6tTFYwmJTvcwc='; object-src 'none'; connect-src 'self' http://127.0.0.1:9001 https://www.google-analytics.com https://*.googleapis.com blob: data:; img-src 'self' https://www.google-analytics.com https://www.googletagmanager.com; navigate-to https://*.perfetto.dev;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'sha256-LirUKeorCU4uRNtNzr8tlB11uy8rzrdmqHCX38JSwHY='; script-src 'self' https://*.google.com https://*.googleusercontent.com https://www.googletagmanager.com https://www.google-analytics.com; object-src 'none'; connect-src 'self' http://127.0.0.1:9001 https://www.google-analytics.com https://*.googleapis.com blob: data:; img-src 'self' data: blob: https://www.google-analytics.com https://www.googletagmanager.com; navigate-to https://*.perfetto.dev;">
+
   <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" name="viewport" />
   <link href="perfetto.css" rel="stylesheet">
   <link rel="icon" type="image/png" href="assets/favicon.png">
-  <!-- Global site tag (gtag.js) - Google Analytics -->
-  <script async src="https://www.googletagmanager.com/gtag/js?id=UA-137828855-1"></script>
 </head>
 <body>
   <main>
@@ -19,4 +18,3 @@
 </body>
 </html>
 <script src="frontend_bundle.js"></script>
-<script src="https://storage.cloud.google.com/perfetto-ui-internal/is_internal_user.js" async defer></script>
