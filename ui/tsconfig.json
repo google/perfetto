@@ -4,7 +4,8 @@
   "exclude": [
     "./node_modules/",
     "./src/service_worker/",
-    "./src/gen/"
+    "./src/gen/",
+    "./out"
   ],
   "compilerOptions": {
     "lib": [

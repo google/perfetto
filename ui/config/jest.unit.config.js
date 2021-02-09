@@ -13,8 +13,8 @@
 // limitations under the License.
 
 module.exports = {
-    "transform": {},
-    "testRegex": "_unittest.js$",
-    "testEnvironment": "node"
+  transform: {},
+  testRegex: '.*_unittest.js$',
+  testEnvironment: 'node',
+  verbose: true,
 }
-
