@@ -146,6 +146,7 @@ static constexpr uint8_t TRACE_VALUE_TYPE_POINTER = 5;
 static constexpr uint8_t TRACE_VALUE_TYPE_STRING = 6;
 static constexpr uint8_t TRACE_VALUE_TYPE_COPY_STRING = 7;
 static constexpr uint8_t TRACE_VALUE_TYPE_CONVERTABLE = 8;
+static constexpr uint8_t TRACE_VALUE_TYPE_PROTO = 9;
 
 // Enum reflecting the scope of an INSTANT event. Must fit within
 // TRACE_EVENT_FLAG_SCOPE_MASK.
