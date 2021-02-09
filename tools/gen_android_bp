@@ -200,6 +200,7 @@ additional_args = {
     ],
     'perfetto_integrationtests': [
       ('test_suites', {'general-tests'}),
+      ('test_config', 'PerfettoIntegrationTests.xml'),
     ],
     'traced_probes': [
         ('required', {'libperfetto_android_internal',
@@ -456,6 +457,7 @@ class Module(object):
     self.genrule_shared_libs = set()
     self.version_script = None
     self.test_suites = set()
+    self.test_config = None
     self.stubs = {}
 
   def to_string(self, output):
@@ -488,6 +490,7 @@ class Module(object):
     self._output_field(output, 'apex_available')
     self._output_field(output, 'version_script')
     self._output_field(output, 'test_suites')
+    self._output_field(output, 'test_config')
     self._output_field(output, 'stubs')
 
     target_out = []
