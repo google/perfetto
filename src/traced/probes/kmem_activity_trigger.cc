@@ -19,6 +19,7 @@
 #include <unistd.h>
 
 #include "perfetto/base/time.h"
+#include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/waitable_event.h"
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
 #include "src/traced/probes/probes_producer.h"
@@ -84,10 +85,19 @@ KmemActivityTrigger::WorkerData::WorkerData(base::TaskRunner* task_runner)
   num_cpus_ = ftrace_procfs_->NumberOfCpus();
   for (size_t cpu = 0; cpu < num_cpus_; cpu++) {
     trace_pipe_fds_.emplace_back(ftrace_procfs_->OpenPipeForCpu(cpu));
-    if (!trace_pipe_fds_.back()) {
+    auto& scoped_fd = trace_pipe_fds_.back();
+    if (!scoped_fd) {
       PERFETTO_PLOG("Failed to open trace_pipe_raw for cpu %zu", cpu);
       // Deliberately keeping this into the |trace_pipe_fds_| array so there is
       // a 1:1 mapping between CPU number and index in the array.
+    } else {
+        // Attempt reading from the trace pipe to detect if the CPU is disabled,
+        // since open() doesn't fail. (b/169210648, b/178929757) This doesn't block
+        // as OpenPipeForCpu() opens the pipe in non-blocking mode.
+        char ch;
+        if (base::Read(scoped_fd.get(), &ch, sizeof(char)) < 0 && errno == ENODEV) {
+            scoped_fd.reset();
+        }
     }
   }
 
