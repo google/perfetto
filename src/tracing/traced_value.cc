@@ -22,8 +22,17 @@
 
 namespace perfetto {
 
+namespace internal {
+
+TracedValue CreateTracedValueFromProto(
+    protos::pbzero::DebugAnnotation* context) {
+  return TracedValue::CreateFromProto(context);
+}
+
+}  // namespace internal
+
 // static
-TracedValue TracedValue::CreateForTest(
+TracedValue TracedValue::CreateFromProto(
     protos::pbzero::DebugAnnotation* context) {
   return TracedValue(context, nullptr);
 }

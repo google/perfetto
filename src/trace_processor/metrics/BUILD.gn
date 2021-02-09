@@ -162,6 +162,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       ":gen_cc_all_chrome_metrics_descriptor",
       ":gen_cc_metrics_descriptor",
       ":gen_merged_sql_metrics",
+      "../util",
       "../util:descriptors",
     ]
   }

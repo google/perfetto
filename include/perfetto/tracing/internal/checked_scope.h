@@ -17,6 +17,7 @@
 #ifndef INCLUDE_PERFETTO_TRACING_INTERNAL_CHECKED_SCOPE_H_
 #define INCLUDE_PERFETTO_TRACING_INTERNAL_CHECKED_SCOPE_H_
 
+#include "perfetto/base/export.h"
 #include "perfetto/base/logging.h"
 
 namespace perfetto {
@@ -30,7 +31,7 @@ namespace internal {
 // being active and the inner scope becomes active instead.
 // - Only an active scope can be destroyed. When this happens, its parent scope
 // becomes active.
-class CheckedScope {
+class PERFETTO_EXPORT CheckedScope {
  public:
   explicit CheckedScope(CheckedScope* parent_scope);
   ~CheckedScope();
