@@ -19,20 +19,37 @@ const ANALYTICS_ID = 'UA-137828855-1';
 
 export function initAnalytics() {
   // Only initialize logging on prod or staging
-  if (window.location.origin.endsWith('.perfetto.dev') ||
+  if (window.location.origin.startsWith('http://localhost:') ||
+      window.location.origin.endsWith('.perfetto.dev') ||
       window.location.origin.endsWith('staging-dot-perfetto-ui.appspot.com')) {
-    return new Analytics();
+    return new AnalyticsImpl();
   }
   return new NullAnalytics();
 }
 
-export class NullAnalytics {
+const gtagGlobals = window as {} as {
+  // tslint:disable-next-line no-any
+  dataLayer: any[];
+  gtag: (command: string, event: string|Date, args?: {}) => void;
+};
+
+export interface Analytics {
+  initialize(): void;
+  updatePath(_: string): void;
+  logEvent(_x: TraceCategories|null, _y: string): void;
+  logError(_x: string, _y?: boolean): void;
+}
+
+export class NullAnalytics implements Analytics {
+  initialize() {}
   updatePath(_: string) {}
   logEvent(_x: TraceCategories|null, _y: string) {}
   logError(_x: string) {}
 }
 
-export class Analytics {
+class AnalyticsImpl implements Analytics {
+  private initialized_ = false;
+
   constructor() {
     // The code below is taken from the official Google Analytics docs [1] and
     // adapted to TypeScript. We have it here rather than as an inline script
@@ -40,31 +57,54 @@ export class Analytics {
     // play nicely with the CSP policy, at least in Firefox (Firefox doesn't
     // support all CSP 3 features we use).
     // [1] https://developers.google.com/analytics/devguides/collection/gtagjs .
-    const gtagGlobals = window as {} as {
-      dataLayer: IArguments[],
-      gtag: () => void,
-    };
     gtagGlobals.dataLayer = gtagGlobals.dataLayer || [];
-    if (gtagGlobals.gtag === undefined) {
-      gtagGlobals.gtag = () => gtagGlobals.dataLayer.push(arguments);
+
+    // tslint:disable-next-line no-any
+    function gtagFunction(..._: any[]) {
+      // This needs to be a function and not a lambda. |arguments| behaves
+      // slightly differently in a lambda and breaks GA.
+      gtagGlobals.dataLayer.push(arguments);
     }
-    gtag('js', new Date());
+    gtagGlobals.gtag = gtagFunction;
+    gtagGlobals.gtag('js', new Date());
+  }
+
+  // This is callled only after the script that sets isInternalUser loads.
+  // It is fine to call updatePath() and log*() functions before initialize().
+  // The gtag() function internally enqueues all requests into |dataLayer|.
+  initialize() {
+    if (this.initialized_) return;
+    this.initialized_ = true;
+    const script = document.createElement('script');
+    script.src = 'https://www.googletagmanager.com/gtag/js?id=' + ANALYTICS_ID;
+    script.defer = true;
+    document.head.appendChild(script);
+    const route = globals.state.route || '/';
+    console.log(
+        `GA initialized. route=${route}`,
+        `isInternalUser=${globals.isInternalUser}`);
+    // GA's reccomendation for SPAs is to disable automatic page views and
+    // manually send page_view events. See:
+    // https://developers.google.com/analytics/devguides/collection/gtagjs/pages#manual_pageviews
+    gtagGlobals.gtag('config', ANALYTICS_ID, {
+      anonymize_ip: true,
+      page_path: route,
+      referrer: document.referrer.split('?')[0],
+      send_page_view: false,
+      dimension1: globals.isInternalUser ? '1' : '0',
+    });
+    this.updatePath(route);
   }
 
   updatePath(path: string) {
-    gtag('config', ANALYTICS_ID, {
-      'anonymize_ip': true,
-      'page_path': path,
-      'referrer': document.referrer.split('?')[0],
-      'dimension1': globals.isInternalUser,
-    });
+    gtagGlobals.gtag('event', 'page_view', {page_path: path});
   }
 
   logEvent(category: TraceCategories|null, event: string) {
-    gtag('event', event, {'event_category': category});
+    gtagGlobals.gtag('event', event, {event_category: category});
   }
 
   logError(description: string, fatal = true) {
-    gtag('event', 'exception', {description, fatal});
+    gtagGlobals.gtag('event', 'exception', {description, fatal});
   }
 }
