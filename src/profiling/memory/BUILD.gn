@@ -346,6 +346,7 @@ source_set("end_to_end_tests") {
     "../../../test:test_helper",
     "../../base",
     "../../base:test_support",
+    "../../trace_processor:lib",
   ]
   sources = [ "heapprofd_end_to_end_test.cc" ]
   if (perfetto_build_with_android) {
