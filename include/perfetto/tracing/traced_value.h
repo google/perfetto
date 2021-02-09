@@ -374,7 +374,7 @@ class has_traced_value_support {
 }  // namespace internal
 
 template <typename T>
-PERFETTO_EXPORT void WriteIntoTracedValue(TracedValue context, T&& value) {
+void WriteIntoTracedValue(TracedValue context, T&& value) {
   // TODO(altimin): Add a URL to documentation and a list of common failure
   // patterns.
   static_assert(
@@ -396,20 +396,18 @@ PERFETTO_EXPORT void WriteIntoTracedValue(TracedValue context, T&& value) {
 // See WriteWithFallback test in traced_value_unittest.cc for a concrete
 // example.
 template <typename T>
-PERFETTO_EXPORT
-    typename std::enable_if<internal::has_traced_value_support<T>::value>::type
-    WriteIntoTracedValueWithFallback(TracedValue context,
-                                     T&& value,
-                                     const std::string&) {
+typename std::enable_if<internal::has_traced_value_support<T>::value>::type
+WriteIntoTracedValueWithFallback(TracedValue context,
+                                 T&& value,
+                                 const std::string&) {
   WriteIntoTracedValue(std::move(context), std::forward<T>(value));
 }
 
 template <typename T>
-PERFETTO_EXPORT
-    typename std::enable_if<!internal::has_traced_value_support<T>::value>::type
-    WriteIntoTracedValueWithFallback(TracedValue context,
-                                     T&&,
-                                     const std::string& fallback) {
+typename std::enable_if<!internal::has_traced_value_support<T>::value>::type
+WriteIntoTracedValueWithFallback(TracedValue context,
+                                 T&&,
+                                 const std::string& fallback) {
   std::move(context).WriteString(fallback);
 }
 
