@@ -36,7 +36,7 @@ UI_DIST_DIR="$OUT_DIR/ui-dist"
 CLEAN_OUT_DIR=true
 DEPLOY_PROD=false
 DEPLOY_STAGING=false
-DEBUG_BUILD=false
+DEBUG_ARG=""
 
 while [[ $# -gt 0 ]]; do
   key="$1"
@@ -54,7 +54,7 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
       --debug)
-      DEBUG_BUILD=true
+      DEBUG_ARG="--debug"
       shift
       ;;
       -h|--help)
@@ -75,13 +75,7 @@ if [ "$CLEAN_OUT_DIR" = true ]; then
 fi
 echo_and_do mkdir -p "$UI_DIST_DIR"
 
-if [ "$DEBUG_BUILD" = true ]; then
-  echo_and_do "$PROJECT_ROOT/tools/gn" gen "$OUT_DIR" --args="is_debug=true"
-else
-  echo_and_do "$PROJECT_ROOT/tools/gn" gen "$OUT_DIR" --args="is_debug=false"
-fi
-
-echo_and_do "$PROJECT_ROOT/tools/ninja" -C "$OUT_DIR" ui
+echo_and_do "$PROJECT_ROOT/ui/build" --out "$OUT_DIR" $DEBUG_ARG
 
 echo "Writing $UI_DIST_DIR/app.yaml"
 cat<<EOF > "$UI_DIST_DIR/app.yaml"
@@ -110,7 +104,7 @@ handlers:
   upload: static/(.*)
 EOF
 
-echo_and_do ln -fs ../ui $UI_DIST_DIR/static
+echo_and_do rm -f $UI_DIST_DIR/static; ln -fs ../ui/dist $UI_DIST_DIR/static
 
 (
   echo_and_do cd "$UI_DIST_DIR";

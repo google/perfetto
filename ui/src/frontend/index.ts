@@ -47,6 +47,7 @@ import {
 } from './globals';
 import {HomePage} from './home_page';
 import {openBufferWithLegacyTraceViewer} from './legacy_trace_viewer';
+import {initLiveReloadIfLocalhost} from './live_reload';
 import {MetricsPage} from './metrics_page';
 import {postMessageHandler} from './post_message_handler';
 import {RecordPage, updateAvailableAdbDevices} from './record_page';
@@ -402,6 +403,7 @@ function main() {
   // connected. Has no effect on the controller (which will repeat this check
   // before creating a new engine).
   CheckHttpRpcConnection();
+  initLiveReloadIfLocalhost();
 }
 
 main();
