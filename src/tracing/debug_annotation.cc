@@ -16,33 +16,20 @@
 
 #include "perfetto/tracing/debug_annotation.h"
 
+#include "perfetto/tracing/traced_value.h"
 #include "protos/perfetto/trace/track_event/debug_annotation.pbzero.h"
 
 namespace perfetto {
 
 DebugAnnotation::~DebugAnnotation() = default;
 
-namespace internal {
-
-void WriteDebugAnnotation(protos::pbzero::DebugAnnotation* annotation,
-                          const char* value) {
-  annotation->set_string_value(value);
+void DebugAnnotation::WriteIntoTracedValue(TracedValue context) const {
+  if (!context.root_context_) {
+    PERFETTO_DFATAL("DebugAnnotation should not be used in non-root contexts.");
+    std::move(context).WriteString("<not supported>");
+    return;
+  }
+  Add(context.root_context_);
 }
 
-void WriteDebugAnnotation(protos::pbzero::DebugAnnotation* annotation,
-                          const std::string& value) {
-  annotation->set_string_value(value);
-}
-
-void WriteDebugAnnotation(protos::pbzero::DebugAnnotation* annotation,
-                          const void* value) {
-  annotation->set_pointer_value(reinterpret_cast<uint64_t>(value));
-}
-
-void WriteDebugAnnotation(protos::pbzero::DebugAnnotation* annotation,
-                          const DebugAnnotation& custom_annotation) {
-  custom_annotation.Add(annotation);
-}
-
-}  // namespace internal
 }  // namespace perfetto
