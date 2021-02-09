@@ -100,7 +100,7 @@ NOTE: See this [GitHub gist][gist] to see how the code should look at the end of
       the walkthrough. The prerequisites and Step 4 below give instructions on
       how to get trace processor and run the metrics code.
 
-[gist]: https://gist.github.com/tilal6991/c221cf0cae17e298dfa82b118edf9080
+[gist]: https://gist.github.com/LalitMaganti/c221cf0cae17e298dfa82b118edf9080
 
 ### Prerequisites
 
@@ -330,7 +330,7 @@ By passing the SQL file for the metric to be computed, trace processor uses the 
 
 _Notes:_
 
-- If something doesn't work as intended, check that the workspace looks the same as the contents of this [GitHub gist](https://gist.github.com/tilal6991/c221cf0cae17e298dfa82b118edf9080).
+- If something doesn't work as intended, check that the workspace looks the same as the contents of this [GitHub gist](https://gist.github.com/LalitMaganti/c221cf0cae17e298dfa82b118edf9080).
 - A good example trace for this metric is the Android example trace used by the Perfetto UI found [here](https://storage.googleapis.com/perfetto-misc/example_android_trace_30s_1).
 - stderr is redirected to remove any noise from parsing the trace that trace processor generates.
 
