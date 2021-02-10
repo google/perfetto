@@ -83,8 +83,8 @@ class TestResult(object):
     self.exit_code = exit_code
 
 
-def create_metrics_message_factory(metrics_descriptor_path):
-  return create_message_factory(metrics_descriptor_path,
+def create_metrics_message_factory(metrics_descriptor_paths):
+  return create_message_factory(metrics_descriptor_paths,
                                 'perfetto.protos.TraceMetrics')
 
 
@@ -391,13 +391,17 @@ def main():
       trace_descriptor_path = find_trace_descriptor(
           os.path.join(out_path, 'gcc_like_host'))
 
+
   if args.metrics_descriptor:
-    metrics_descriptor_path = args.metrics_descriptor
+    metrics_descriptor_paths = [args.metrics_descriptor]
   else:
     metrics_protos_path = os.path.join(out_path, 'gen', 'protos', 'perfetto',
                                        'metrics')
-    metrics_descriptor_path = os.path.join(metrics_protos_path,
-                                           'metrics.descriptor')
+    metrics_descriptor_paths = [
+        os.path.join(metrics_protos_path, 'metrics.descriptor'),
+        os.path.join(metrics_protos_path, 'chrome',
+                     'all_chrome_metrics.descriptor')
+    ]
 
   chrome_extensions = os.path.join(out_path, 'gen', 'protos', 'third_party',
                                    'chromium', 'chrome_track_event.descriptor')
@@ -405,7 +409,7 @@ def main():
                                  'test_extensions.descriptor')
 
   metrics_message_factory = create_metrics_message_factory(
-      metrics_descriptor_path)
+      metrics_descriptor_paths)
 
   test_run_start = datetime.datetime.now()
   test_failure, perf_data, rebased = run_all_tests(

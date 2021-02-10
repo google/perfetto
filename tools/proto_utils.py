@@ -25,11 +25,12 @@ from google.protobuf import reflection, text_format
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
-def create_message_factory(descriptor_file_path, proto_type):
+def create_message_factory(descriptor_file_paths, proto_type):
   pool = descriptor_pool.DescriptorPool()
-  descriptor = read_descriptor(descriptor_file_path)
-  for file in descriptor.file:
-    pool.Add(file)
+  for file_path in descriptor_file_paths:
+    descriptor = read_descriptor(file_path)
+    for file in descriptor.file:
+      pool.Add(file)
 
   return message_factory.MessageFactory().GetPrototype(
       pool.FindMessageTypeByName(proto_type))
@@ -47,18 +48,9 @@ def read_descriptor(file_name):
 
 def serialize_textproto_trace(trace_descriptor_path, extension_descriptor_paths,
                               text_proto_path, out_stream):
-  pool = descriptor_pool.DescriptorPool()
-  trace_descriptor = read_descriptor(trace_descriptor_path)
-  for file in trace_descriptor.file:
-    pool.Add(file)
-
-  for path in extension_descriptor_paths:
-    descriptor = read_descriptor(path)
-    for file in descriptor.file:
-      pool.Add(file)
-
-  proto = message_factory.MessageFactory().GetPrototype(
-      pool.FindMessageTypeByName('perfetto.protos.Trace'))()
+  proto = create_message_factory([trace_descriptor_path] +
+                                 extension_descriptor_paths,
+                                 'perfetto.protos.Trace')()
 
   with open(text_proto_path, 'r') as text_proto_file:
     text_format.Merge(text_proto_file.read(), proto)
