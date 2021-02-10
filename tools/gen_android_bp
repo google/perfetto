@@ -199,9 +199,8 @@ additional_args = {
         ('include_dirs', {'bionic/libc/kernel'}),
     ],
     'perfetto_integrationtests': [
-      # api_end_to_end_test needs root to create a socket.
-      ('require_root', True),
       ('test_suites', {'general-tests'}),
+      ('test_config', 'PerfettoIntegrationTests.xml'),
     ],
     'traced_probes': [
         ('required', {'libperfetto_android_internal',
@@ -457,8 +456,8 @@ class Module(object):
     self.genrule_srcs = set()
     self.genrule_shared_libs = set()
     self.version_script = None
-    self.require_root = None
     self.test_suites = set()
+    self.test_config = None
     self.stubs = {}
 
   def to_string(self, output):
@@ -490,8 +489,8 @@ class Module(object):
     self._output_field(output, 'stl')
     self._output_field(output, 'apex_available')
     self._output_field(output, 'version_script')
-    self._output_field(output, 'require_root')
     self._output_field(output, 'test_suites')
+    self._output_field(output, 'test_config')
     self._output_field(output, 'stubs')
 
     target_out = []
