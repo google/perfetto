@@ -18,12 +18,13 @@ set -eux -o pipefail
 cd $(dirname ${BASH_SOURCE[0]})/../..
 OUT_PATH="out/dist"
 
-if [[ -e buildtools/clang/bin/llvm-symbolizer ]]; then
-  export ASAN_SYMBOLIZER_PATH="buildtools/clang/bin/llvm-symbolizer"
-  export MSAN_SYMBOLIZER_PATH="buildtools/clang/bin/llvm-symbolizer"
-fi
-
 tools/install-build-deps $INSTALL_BUILD_DEPS_ARGS
+
+# Assumes Linux. Windows should use /win/clang instead.
+if [[ -e buildtools/linux64/clang/bin/llvm-symbolizer ]]; then
+  export ASAN_SYMBOLIZER_PATH="$(readlink -f buildtools/linux64/clang/bin/llvm-symbolizer)"
+  export MSAN_SYMBOLIZER_PATH="$(readlink -f buildtools/linux64/clang/bin/llvm-symbolizer)"
+fi
 
 # Performs checks on generated protos and build files.
 tools/gn gen out/tmp.protoc --args="is_debug=false cc_wrapper=\"ccache\""

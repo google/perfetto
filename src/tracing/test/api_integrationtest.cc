@@ -98,7 +98,6 @@ PERFETTO_DEFINE_CATEGORIES(
     perfetto::Category("cat").SetTags("slow"),
     perfetto::Category("cat.verbose").SetTags("debug"),
     perfetto::Category("cat-with-dashes"),
-    perfetto::Category("cat with spaces"),
     perfetto::Category::Group("foo,bar"),
     perfetto::Category::Group("baz,bar,quux"),
     perfetto::Category::Group("red,green,blue,foo"),
@@ -990,7 +989,7 @@ TEST_P(PerfettoApiTest, TrackEventDescriptor) {
 
   // Check that the advertised categories match PERFETTO_DEFINE_CATEGORIES (see
   // above).
-  EXPECT_EQ(8, desc.available_categories_size());
+  EXPECT_EQ(7, desc.available_categories_size());
   EXPECT_EQ("test", desc.available_categories()[0].name());
   EXPECT_EQ("This is a test category",
             desc.available_categories()[0].description());
@@ -1002,9 +1001,8 @@ TEST_P(PerfettoApiTest, TrackEventDescriptor) {
   EXPECT_EQ("cat.verbose", desc.available_categories()[4].name());
   EXPECT_EQ("debug", desc.available_categories()[4].tags()[0]);
   EXPECT_EQ("cat-with-dashes", desc.available_categories()[5].name());
-  EXPECT_EQ("cat with spaces", desc.available_categories()[6].name());
-  EXPECT_EQ("disabled-by-default-cat", desc.available_categories()[7].name());
-  EXPECT_EQ("slow", desc.available_categories()[7].tags()[0]);
+  EXPECT_EQ("disabled-by-default-cat", desc.available_categories()[6].name());
+  EXPECT_EQ("slow", desc.available_categories()[6].tags()[0]);
 }
 
 TEST_P(PerfettoApiTest, TrackEventSharedIncrementalState) {
@@ -1921,6 +1919,10 @@ TEST_P(PerfettoApiTest, TrackEventDebugAnnotations) {
   TRACE_EVENT_BEGIN("test", "E", "enum_arg", ENUM_BAR);
   TRACE_EVENT_BEGIN("test", "E", "signed_enum_arg", SIGNED_ENUM_FOO);
   TRACE_EVENT_BEGIN("test", "E", "class_enum_arg", MyClassEnum::VALUE);
+  TRACE_EVENT_BEGIN("test", "E", "traced_value",
+                    [&](perfetto::TracedValue context) {
+                      std::move(context).WriteInt64(42);
+                    });
   perfetto::TrackEvent::Flush();
 
   tracing_session->get()->StopBlocking();
@@ -1935,7 +1937,7 @@ TEST_P(PerfettoApiTest, TrackEventDebugAnnotations) {
           "B:test.E(ptr_arg=(pointer)baadf00d)",
           "B:test.E(size_t_arg=(uint)42)", "B:test.E(ptrdiff_t_arg=(int)-7)",
           "B:test.E(enum_arg=(uint)1)", "B:test.E(signed_enum_arg=(int)-1)",
-          "B:test.E(class_enum_arg=(int)0)"));
+          "B:test.E(class_enum_arg=(int)0)", "B:test.E(traced_value=(int)42)"));
 }
 
 TEST_P(PerfettoApiTest, TrackEventCustomDebugAnnotations) {
@@ -3024,10 +3026,8 @@ TEST_P(PerfettoApiTest, CategoryEnabledState) {
   EXPECT_FALSE(TRACE_EVENT_CATEGORY_ENABLED("dynamic"));
   EXPECT_FALSE(TRACE_EVENT_CATEGORY_ENABLED("dynamic_2"));
   EXPECT_FALSE(TRACE_EVENT_CATEGORY_ENABLED(dynamic));
-  EXPECT_FALSE(TRACE_EVENT_CATEGORY_ENABLED("cat with spaces"));
 
-  auto* tracing_session =
-      NewTraceWithCategories({"foo", "dynamic", "cat with spaces"});
+  auto* tracing_session = NewTraceWithCategories({"foo", "dynamic"});
   tracing_session->get()->StartBlocking();
   EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("foo"));
   EXPECT_FALSE(TRACE_EVENT_CATEGORY_ENABLED("bar"));
@@ -3035,7 +3035,6 @@ TEST_P(PerfettoApiTest, CategoryEnabledState) {
   EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("dynamic"));
   EXPECT_FALSE(TRACE_EVENT_CATEGORY_ENABLED("dynamic_2"));
   EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED(dynamic));
-  EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("cat with spaces"));
 
   tracing_session->get()->StopBlocking();
   EXPECT_FALSE(TRACE_EVENT_CATEGORY_ENABLED("foo"));
@@ -3044,7 +3043,6 @@ TEST_P(PerfettoApiTest, CategoryEnabledState) {
   EXPECT_FALSE(TRACE_EVENT_CATEGORY_ENABLED("dynamic"));
   EXPECT_FALSE(TRACE_EVENT_CATEGORY_ENABLED("dynamic_2"));
   EXPECT_FALSE(TRACE_EVENT_CATEGORY_ENABLED(dynamic));
-  EXPECT_FALSE(TRACE_EVENT_CATEGORY_ENABLED("cat with spaces"));
 }
 
 class TestInterceptor : public perfetto::Interceptor<TestInterceptor> {

@@ -43,17 +43,19 @@ function isTrustedOrigin(origin: string): boolean {
 // ready, so the message handler always replies to a 'PING' message with 'PONG',
 // which indicates it is ready to receive a trace.
 export function postMessageHandler(messageEvent: MessageEvent) {
+  if (messageEvent.origin === 'https://tagassistant.google.com') {
+    // The GA debugger, does a window.open() and sends messages to the GA
+    // script. Ignore them.
+    return;
+  }
+
   if (document.readyState !== 'complete') {
     console.error('Ignoring message - document not ready yet.');
     return;
   }
 
-  if (messageEvent.source === null) {
-    throw new Error('Incoming message has no source');
-  }
-
-  // This can happen if an extension tries to postMessage.
-  if (messageEvent.source !== window.opener) {
+  if (messageEvent.source === null || messageEvent.source !== window.opener) {
+    // This can happen if an extension tries to postMessage.
     return;
   }
 
@@ -77,7 +79,12 @@ export function postMessageHandler(messageEvent: MessageEvent) {
   } else if (messageEvent.data instanceof ArrayBuffer) {
     postedTrace = {title: 'External trace', buffer: messageEvent.data};
   } else {
-    throw new Error('Incoming message data is not in a usable format');
+    console.warn(
+        'Unknown postMessage() event received. If you are trying to open a ' +
+        'trace via postMessage(), this is a bug in your code. If not, this ' +
+        'could be due to some Chrome extension.');
+    console.log('origin:', messageEvent.origin, 'data:', messageEvent.data);
+    return;
   }
 
   if (postedTrace.buffer.byteLength === 0) {

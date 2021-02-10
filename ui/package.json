@@ -10,13 +10,11 @@
     "@tsundoku/micromodal_types": "^0.0.1",
     "@types/chrome": "0.0.86",
     "@types/color-convert": "^1.9.0",
-    "@types/gtag.js": "0.0.3",
     "@types/mithril": "^1.1.17",
     "@types/node": "^14.0.10",
     "@types/pako": "^1.0.1",
     "@types/uuid": "^3.4.9",
     "@types/w3c-web-usb": "^1.0.4",
-    "bufferutil": "^4.0.1",
     "color-convert": "^2.0.1",
     "custom_utils": "file:src/base/utils",
     "devtools-protocol": "0.0.681549",
@@ -27,7 +25,6 @@
     "noice-json-rpc": "^1.2.0",
     "pako": "^1.0.11",
     "protobufjs": "^6.9.0",
-    "utf-8-validate": "^5.0.2",
     "util": "^0.12.3",
     "uuid": "^3.4.0"
   },
@@ -40,11 +37,15 @@
     "jest": "^25.5.4",
     "node-sass": "^4.14.1",
     "puppeteer": "^1.20.0",
-    "rollup": "^2.3.4",
-    "sorcery": "^0.10.0",
+    "rollup": "^2.38.5",
+    "rollup-plugin-re": "^1.0.7",
+    "rollup-plugin-sourcemaps": "^0.6.3",
     "tslib": "^1.13.0",
     "tslint": "^5.20.1",
-    "typescript": "^3.9.3",
-    "canvas": "^2.6.1"
+    "typescript": "^3.9.3"
+  },
+  "scripts": {
+    "build": "node build.js",
+    "test": "node build.js --run-tests"
   }
 }
