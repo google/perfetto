@@ -80,6 +80,7 @@ sql_files = [
   "chrome/scroll_flow_event_queuing_delay.sql",
   "chrome/test_chrome_metric.sql",
   "experimental/frame_times.sql",
+  "experimental/reported_by_page.sql",
   "webview/webview_power_usage.sql",
 ]
 
