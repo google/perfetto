@@ -406,9 +406,15 @@ class PerfettoApiTest : public ::testing::TestWithParam<perfetto::BackendType> {
 
   TestTracingSessionHandle* NewTrace(const perfetto::TraceConfig& cfg,
                                      int fd = -1) {
+    return NewTrace(cfg, /*backend_type=*/GetParam(), fd);
+  }
+
+  TestTracingSessionHandle* NewTrace(const perfetto::TraceConfig& cfg,
+                                     perfetto::BackendType backend_type,
+                                     int fd = -1) {
     sessions_.emplace_back();
     TestTracingSessionHandle* handle = &sessions_.back();
-    handle->session = perfetto::Tracing::NewTrace(/*BackendType=*/GetParam());
+    handle->session = perfetto::Tracing::NewTrace(backend_type);
     handle->session->SetOnStopCallback([handle] { handle->on_stop.Notify(); });
     handle->session->Setup(cfg, fd);
     return handle;
@@ -2728,6 +2734,28 @@ TEST_P(PerfettoApiTest, OnErrorCallback) {
   // system crash (|got_error| will not exist at that time). To prevent that
   // scenario, error callback has to be cleared.
   tracing_session->get()->SetOnErrorCallback(nullptr);
+  tracing_session->get()->StopBlocking();
+}
+
+TEST_P(PerfettoApiTest, UnsupportedBackend) {
+  // Create a new trace session with an invalid backend type specified.
+  // Specifically, the custom backend isn't initialized for these tests.
+  perfetto::TraceConfig cfg;
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* tracing_session = NewTrace(cfg, perfetto::BackendType::kCustomBackend);
+
+  // Creating the consumer should cause an asynchronous disconnect error.
+  WaitableTestEvent got_error;
+  tracing_session->get()->SetOnErrorCallback([&](perfetto::TracingError error) {
+    EXPECT_EQ(perfetto::TracingError::kDisconnected, error.code);
+    EXPECT_FALSE(error.message.empty());
+    got_error.Notify();
+  });
+  got_error.Wait();
+
+  // Clear the callback for test tear down.
+  tracing_session->get()->SetOnErrorCallback(nullptr);
+  // Synchronize the consumer channel to ensure the callback has propagated.
   tracing_session->get()->StopBlocking();
 }
 

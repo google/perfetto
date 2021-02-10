@@ -82,7 +82,8 @@ source_set("common") {
   sources = [ "trace_writer_base.cc" ]
 }
 
-# Base target for the client API. On its own doesn't provide any backend.
+# Base target for the client API. On its own doesn't provide any backend other
+# than the unsupported one.
 source_set("client_api_without_backends") {
   deps = [
     "../../include/perfetto/tracing/core",
@@ -105,6 +106,7 @@ source_set("client_api_without_backends") {
     "interceptor.cc",
     "internal/checked_scope.cc",
     "internal/interceptor_trace_writer.cc",
+    "internal/tracing_backend_fake.cc",
     "internal/tracing_muxer_fake.cc",
     "internal/tracing_muxer_fake.h",
     "internal/tracing_muxer_impl.cc",
