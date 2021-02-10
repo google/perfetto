@@ -173,7 +173,6 @@ def enumerate_data_deps():
 # Additional arguments to apply to Android.bp rules.
 additional_args = {
     'heapprofd_client_api': [
-        ('include_dirs', {'bionic/libc'}),
         ('static_libs', {'libasync_safe'}),
         # heapprofd_client_api MUST NOT have global constructors. Because it
         # is loaded in an __attribute__((constructor)) of libc, we cannot
