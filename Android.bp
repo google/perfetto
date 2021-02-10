@@ -253,9 +253,6 @@ cc_library_shared {
     "-Werror=global-constructors",
     "-Wglobal-constructors",
   ],
-  include_dirs: [
-    "bionic/libc",
-  ],
   header_libs: [
     "bionic_libc_platform_headers",
   ],
