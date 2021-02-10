@@ -1853,6 +1853,7 @@ cc_test {
   test_suites: [
     "general-tests",
   ],
+  test_config: "PerfettoIntegrationTests.xml",
 }
 
 // GN: //protos/perfetto/common:cpp
