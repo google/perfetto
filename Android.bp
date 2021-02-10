@@ -8260,6 +8260,7 @@ filegroup {
     "src/tracing/interceptor.cc",
     "src/tracing/internal/checked_scope.cc",
     "src/tracing/internal/interceptor_trace_writer.cc",
+    "src/tracing/internal/tracing_backend_fake.cc",
     "src/tracing/internal/tracing_muxer_fake.cc",
     "src/tracing/internal/tracing_muxer_impl.cc",
     "src/tracing/internal/track_event_internal.cc",
