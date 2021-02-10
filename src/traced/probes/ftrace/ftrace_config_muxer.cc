@@ -151,7 +151,7 @@ std::set<GroupAndName> FtraceConfigMuxer::GetFtraceEvents(
         events.insert(GroupAndName("mdss", "mdp_perf_set_qos_luts"));
         events.insert(GroupAndName("mdss", "mdp_sspp_change"));
         events.insert(GroupAndName("mdss", "mdp_sspp_set"));
-        AddEventGroup(table, "mali_systrace", &events);
+        AddEventGroup(table, "mali", &events);
 
         AddEventGroup(table, "sde", &events);
         events.insert(GroupAndName("sde", "tracing_mark_write"));
@@ -266,6 +266,8 @@ std::set<GroupAndName> FtraceConfigMuxer::GetFtraceEvents(
         events.insert(GroupAndName("clk", "clk_enable"));
         events.insert(GroupAndName("power", "cpu_frequency_limits"));
         events.insert(GroupAndName("power", "suspend_resume"));
+        events.insert(GroupAndName("cpuhp", "cpuhp_enter"));
+        events.insert(GroupAndName("cpuhp", "cpuhp_exit"));
         AddEventGroup(table, "msm_bus", &events);
         events.insert(GroupAndName("msm_bus", "bus_update_request_end"));
         events.insert(GroupAndName("msm_bus", "bus_update_request"));
@@ -383,8 +385,6 @@ std::set<GroupAndName> FtraceConfigMuxer::GetFtraceEvents(
 
       if (category == "pagecache") {
         AddEventGroup(table, "filemap", &events);
-        events.insert(
-            GroupAndName("filemap", "mm_filemap_delete_from_page_cache"));
         events.insert(
             GroupAndName("filemap", "mm_filemap_delete_from_page_cache"));
         events.insert(GroupAndName("filemap", "mm_filemap_add_to_page_cache"));
