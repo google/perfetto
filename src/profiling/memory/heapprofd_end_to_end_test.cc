@@ -16,8 +16,10 @@
 
 #include <atomic>
 #include <string>
+#include <vector>
 
 #include <fcntl.h>
+#include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -26,11 +28,13 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/subprocess.h"
 #include "perfetto/ext/tracing/ipc/default_socket.h"
 #include "perfetto/profiling/memory/heap_profile.h"
+#include "perfetto/trace_processor/trace_processor.h"
 #include "protos/perfetto/trace/trace.gen.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "src/base/test/test_task_runner.h"
@@ -62,10 +66,62 @@ constexpr size_t kSecondIterationBytes = 7;
 enum class TestMode { kCentral, kStatic };
 enum class AllocatorMode { kMalloc, kCustom };
 
+using ::testing::AllOf;
 using ::testing::AnyOf;
 using ::testing::Bool;
+using ::testing::Contains;
 using ::testing::Eq;
+using ::testing::Field;
+using ::testing::HasSubstr;
 using ::testing::Values;
+
+constexpr const char* kOnlyFlamegraph =
+    "SELECT id, name, map_name, count, cumulative_count, size, "
+    "cumulative_size, "
+    "alloc_count, cumulative_alloc_count, alloc_size, cumulative_alloc_size, "
+    "parent_id "
+    "FROM experimental_flamegraph WHERE "
+    "(ts, upid) IN (SELECT distinct ts, upid from heap_profile_allocation) AND "
+    "profile_type = 'native' order by abs(cumulative_size) desc;";
+
+struct FlamegraphNode {
+  int64_t id;
+  std::string name;
+  std::string map_name;
+  int64_t count;
+  int64_t cumulative_count;
+  int64_t size;
+  int64_t cumulative_size;
+  int64_t alloc_count;
+  int64_t cumulative_alloc_count;
+  int64_t alloc_size;
+  int64_t cumulative_alloc_size;
+  base::Optional<int64_t> parent_id;
+};
+
+std::vector<FlamegraphNode> GetFlamegraph(trace_processor::TraceProcessor* tp) {
+  std::vector<FlamegraphNode> result;
+  auto it = tp->ExecuteQuery(kOnlyFlamegraph);
+  while (it.Next()) {
+    result.push_back({
+        it.Get(0).AsLong(),
+        it.Get(1).AsString(),
+        it.Get(2).AsString(),
+        it.Get(3).AsLong(),
+        it.Get(4).AsLong(),
+        it.Get(5).AsLong(),
+        it.Get(6).AsLong(),
+        it.Get(7).AsLong(),
+        it.Get(8).AsLong(),
+        it.Get(9).AsLong(),
+        it.Get(10).AsLong(),
+        it.Get(11).is_null() ? base::nullopt
+                             : base::Optional<int64_t>(it.Get(11).AsLong()),
+    });
+  }
+  PERFETTO_CHECK(it.Status().ok());
+  return result;
+}
 
 std::string AllocatorName(AllocatorMode mode) {
   switch (mode) {
@@ -382,13 +438,50 @@ void __attribute__((constructor(1024))) RunCustomLifetime() {
   }
 }
 
-std::unique_ptr<TestHelper> GetHelper(base::TestTaskRunner* task_runner) {
-  std::unique_ptr<TestHelper> helper(new TestHelper(task_runner));
+class TraceProcessorTestHelper : public TestHelper {
+ public:
+  explicit TraceProcessorTestHelper(base::TestTaskRunner* task_runner)
+      : TestHelper(task_runner),
+        tp_(trace_processor::TraceProcessor::CreateInstance({})) {}
+
+  void ReadTraceData(std::vector<TracePacket> packets) override {
+    for (auto& packet : packets) {
+      auto preamble = packet.GetProtoPreamble();
+      std::string payload = packet.GetRawBytesForTesting();
+      char* preamble_payload = std::get<0>(preamble);
+      size_t preamble_size = std::get<1>(preamble);
+      size_t buf_size = preamble_size + payload.size();
+      std::unique_ptr<uint8_t[]> buf =
+          std::unique_ptr<uint8_t[]>(new uint8_t[buf_size]);
+      memcpy(&buf[0], preamble_payload, preamble_size);
+      memcpy(&buf[preamble_size], payload.data(), payload.size());
+      PERFETTO_CHECK(tp_->Parse(std::move(buf), buf_size).ok());
+    }
+    TestHelper::ReadTraceData(std::move(packets));
+  }
+
+  trace_processor::TraceProcessor& tp() { return *tp_; }
+
+ private:
+  std::unique_ptr<trace_processor::TraceProcessor> tp_;
+};
+
+std::unique_ptr<TraceProcessorTestHelper> GetHelper(
+    base::TestTaskRunner* task_runner) {
+  std::unique_ptr<TraceProcessorTestHelper> helper(
+      new TraceProcessorTestHelper(task_runner));
   helper->StartServiceIfRequired();
 
   helper->ConnectConsumer();
   helper->WaitForConsumerConnect();
   return helper;
+}
+
+void ReadAndWait(TraceProcessorTestHelper* helper) {
+  helper->WaitForTracingDisabled(kTracingDisabledTimeoutMs);
+  helper->ReadData();
+  helper->WaitForReadData(0, kWaitForReadDataTimeoutMs);
+  helper->tp().NotifyEndOfFile();
 }
 
 std::string ToTraceString(
@@ -484,18 +577,18 @@ class HeapprofdEndToEnd
         base::WriteAll(*fd, trace_string.data(), trace_string.size()) >= 0);
   }
 
-  std::unique_ptr<TestHelper> Trace(const TraceConfig& trace_config) {
+  std::unique_ptr<TraceProcessorTestHelper> Trace(
+      const TraceConfig& trace_config) {
     auto helper = GetHelper(&task_runner);
 
     helper->StartTracing(trace_config);
-    helper->WaitForTracingDisabled(kTracingDisabledTimeoutMs);
 
-    helper->ReadData();
-    helper->WaitForReadData(0, kWaitForReadDataTimeoutMs);
+    ReadAndWait(helper.get());
     return helper;
   }
 
-  std::vector<std::string> GetUnwindingErrors(TestHelper* helper) {
+  std::vector<std::string> GetUnwindingErrors(
+      TraceProcessorTestHelper* helper) {
     std::vector<std::string> out;
     const auto& packets = helper->trace();
     for (const protos::gen::TracePacket& packet : packets) {
@@ -509,7 +602,7 @@ class HeapprofdEndToEnd
     return out;
   }
 
-  void PrintStats(TestHelper* helper) {
+  void PrintStats(TraceProcessorTestHelper* helper) {
     const auto& packets = helper->trace();
     for (const protos::gen::TracePacket& packet : packets) {
       for (const auto& dump : packet.profile_packet().process_dumps()) {
@@ -524,7 +617,7 @@ class HeapprofdEndToEnd
     }
   }
 
-  void ValidateSampleSizes(TestHelper* helper,
+  void ValidateSampleSizes(TraceProcessorTestHelper* helper,
                            uint64_t pid,
                            uint64_t alloc_size,
                            const std::string& heap_name = "") {
@@ -545,7 +638,7 @@ class HeapprofdEndToEnd
     }
   }
 
-  void ValidateFromStartup(TestHelper* helper,
+  void ValidateFromStartup(TraceProcessorTestHelper* helper,
                            uint64_t pid,
                            bool from_startup) {
     const auto& packets = helper->trace();
@@ -558,7 +651,7 @@ class HeapprofdEndToEnd
     }
   }
 
-  void ValidateRejectedConcurrent(TestHelper* helper,
+  void ValidateRejectedConcurrent(TraceProcessorTestHelper* helper,
                                   uint64_t pid,
                                   bool rejected_concurrent) {
     const auto& packets = helper->trace();
@@ -571,7 +664,7 @@ class HeapprofdEndToEnd
     }
   }
 
-  void ValidateNoSamples(TestHelper* helper, uint64_t pid) {
+  void ValidateNoSamples(TraceProcessorTestHelper* helper, uint64_t pid) {
     const auto& packets = helper->trace();
     size_t samples = 0;
     for (const protos::gen::TracePacket& packet : packets) {
@@ -584,7 +677,7 @@ class HeapprofdEndToEnd
     EXPECT_EQ(samples, 0u);
   }
 
-  void ValidateHasSamples(TestHelper* helper,
+  void ValidateHasSamples(TraceProcessorTestHelper* helper,
                           uint64_t pid,
                           const std::string& heap_name,
                           uint64_t sampling_interval) {
@@ -613,7 +706,7 @@ class HeapprofdEndToEnd
     EXPECT_GT(last_freed, 0u) << heap_name;
   }
 
-  void ValidateOnlyPID(TestHelper* helper, uint64_t pid) {
+  void ValidateOnlyPID(TraceProcessorTestHelper* helper, uint64_t pid) {
     size_t dumps = 0;
     const auto& packets = helper->trace();
     for (const protos::gen::TracePacket& packet : packets) {
@@ -759,6 +852,13 @@ TEST_P(HeapprofdEndToEnd, AccurateCustomReportAllocation) {
   WRITE_TRACE(helper->full_trace());
   PrintStats(helper.get());
   KillAssertRunning(&child);
+
+  auto flamegraph = GetFlamegraph(&helper->tp());
+  EXPECT_THAT(flamegraph,
+              Contains(AllOf(
+                  Field(&FlamegraphNode::name, HasSubstr("RunAccurateMalloc")),
+                  Field(&FlamegraphNode::cumulative_size, Eq(15)),
+                  Field(&FlamegraphNode::cumulative_alloc_size, Eq(40)))));
 
   ValidateOnlyPID(helper.get(), pid);
 
@@ -986,10 +1086,7 @@ TEST_P(HeapprofdEndToEnd, NativeStartup) {
                            std::string("0"));
   StartAndWaitForHandshake(&child);
 
-  helper->WaitForTracingDisabled(kTracingDisabledTimeoutMs);
-
-  helper->ReadData();
-  helper->WaitForReadData(0, kWaitForReadDataTimeoutMs);
+  ReadAndWait(helper.get());
   WRITE_TRACE(helper->full_trace());
 
   KillAssertRunning(&child);
@@ -1056,10 +1153,7 @@ TEST_P(HeapprofdEndToEnd, NativeStartupDenormalizedCmdline) {
 
   StartAndWaitForHandshake(&child);
 
-  helper->WaitForTracingDisabled(kTracingDisabledTimeoutMs);
-
-  helper->ReadData();
-  helper->WaitForReadData(0, kWaitForReadDataTimeoutMs);
+  ReadAndWait(helper.get());
   WRITE_TRACE(helper->full_trace());
 
   KillAssertRunning(&child);
@@ -1119,10 +1213,7 @@ TEST_P(HeapprofdEndToEnd, DiscoverByName) {
   trace_config.set_duration_ms(5000);
 
   helper->StartTracing(trace_config);
-  helper->WaitForTracingDisabled(kTracingDisabledTimeoutMs);
-
-  helper->ReadData();
-  helper->WaitForReadData(0, kWaitForReadDataTimeoutMs);
+  ReadAndWait(helper.get());
   WRITE_TRACE(helper->full_trace());
 
   KillAssertRunning(&child);
@@ -1183,10 +1274,7 @@ TEST_P(HeapprofdEndToEnd, DiscoverByNameDenormalizedCmdline) {
   trace_config.set_duration_ms(5000);
 
   helper->StartTracing(trace_config);
-  helper->WaitForTracingDisabled(kTracingDisabledTimeoutMs);
-
-  helper->ReadData();
-  helper->WaitForReadData(0, kWaitForReadDataTimeoutMs);
+  ReadAndWait(helper.get());
   WRITE_TRACE(helper->full_trace());
 
   KillAssertRunning(&child);
@@ -1285,16 +1373,14 @@ TEST_P(HeapprofdEndToEnd, ReInit) {
   PERFETTO_LOG("HeapprofdEndToEnd::Reinit: Starting second");
 
   // We must keep alive the original helper because it owns the service thread.
-  std::unique_ptr<TestHelper> helper2 =
-      std::unique_ptr<TestHelper>(new TestHelper(&task_runner));
+  std::unique_ptr<TraceProcessorTestHelper> helper2 =
+      std::unique_ptr<TraceProcessorTestHelper>(
+          new TraceProcessorTestHelper(&task_runner));
 
   helper2->ConnectConsumer();
   helper2->WaitForConsumerConnect();
   helper2->StartTracing(trace_config);
-  helper2->WaitForTracingDisabled(kTracingDisabledTimeoutMs);
-
-  helper2->ReadData();
-  helper2->WaitForReadData(0, kWaitForReadDataTimeoutMs);
+  ReadAndWait(helper2.get());
   WRITE_TRACE(helper2->trace());
 
   PrintStats(helper2.get());
@@ -1372,16 +1458,15 @@ TEST_P(HeapprofdEndToEnd, ReInitAfterInvalid) {
   PERFETTO_LOG("HeapprofdEndToEnd::Reinit: Starting second");
 
   // We must keep alive the original helper because it owns the service thread.
-  std::unique_ptr<TestHelper> helper2 =
-      std::unique_ptr<TestHelper>(new TestHelper(&task_runner));
+  std::unique_ptr<TraceProcessorTestHelper> helper2 =
+      std::unique_ptr<TraceProcessorTestHelper>(
+          new TraceProcessorTestHelper(&task_runner));
 
   helper2->ConnectConsumer();
   helper2->WaitForConsumerConnect();
   helper2->StartTracing(trace_config);
-  helper2->WaitForTracingDisabled(kTracingDisabledTimeoutMs);
+  ReadAndWait(helper2.get());
 
-  helper2->ReadData();
-  helper2->WaitForReadData(0, kWaitForReadDataTimeoutMs);
   WRITE_TRACE(helper2->trace());
 
   PrintStats(helper2.get());
@@ -1412,20 +1497,17 @@ TEST_P(HeapprofdEndToEnd, ConcurrentSession) {
   sleep(1);
 
   PERFETTO_LOG("Starting concurrent.");
-  std::unique_ptr<TestHelper> helper_concurrent(new TestHelper(&task_runner));
+  std::unique_ptr<TraceProcessorTestHelper> helper_concurrent(
+      new TraceProcessorTestHelper(&task_runner));
   helper_concurrent->ConnectConsumer();
   helper_concurrent->WaitForConsumerConnect();
   helper_concurrent->StartTracing(trace_config);
 
-  helper->WaitForTracingDisabled(kTracingDisabledTimeoutMs);
-  helper->ReadData();
-  helper->WaitForReadData(0, kWaitForReadDataTimeoutMs);
+  ReadAndWait(helper.get());
   WRITE_TRACE(helper->full_trace());
   PrintStats(helper.get());
 
-  helper_concurrent->WaitForTracingDisabled(kTracingDisabledTimeoutMs);
-  helper_concurrent->ReadData();
-  helper_concurrent->WaitForReadData(0, kWaitForReadDataTimeoutMs);
+  ReadAndWait(helper_concurrent.get());
   WRITE_TRACE(helper_concurrent->trace());
   PrintStats(helper_concurrent.get());
   KillAssertRunning(&child);
@@ -1493,9 +1575,7 @@ TEST_P(HeapprofdEndToEnd, NativeProfilingActiveAtProcessExit) {
   // Assert that we did profile the process.
   helper->FlushAndWait(2000);
   helper->DisableTracing();
-  helper->WaitForTracingDisabled(kTracingDisabledTimeoutMs);
-  helper->ReadData();
-  helper->WaitForReadData(0, kWaitForReadDataTimeoutMs);
+  ReadAndWait(helper.get());
   WRITE_TRACE(helper->full_trace());
 
   const auto& packets = helper->trace();
