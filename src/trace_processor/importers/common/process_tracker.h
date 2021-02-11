@@ -119,6 +119,10 @@ class ProcessTracker {
   // have a name yet.
   virtual void SetProcessNameIfUnset(UniquePid upid, StringId process_name_id);
 
+  // Sets the start timestamp to the process identified by |upid| if it doesn't
+  // have a timestamp yet.
+  void SetStartTsIfUnset(UniquePid upid, int64_t start_ts_nanoseconds);
+
   // Called on a task rename event to set the process name if the tid provided
   // is the main thread of the process.
   void UpdateProcessNameFromThreadName(uint32_t tid, StringId thread_name);
