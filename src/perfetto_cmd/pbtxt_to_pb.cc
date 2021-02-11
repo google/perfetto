@@ -549,7 +549,7 @@ void Parse(const std::string& input, ParserDelegate* delegate) {
           state = kReadingStringValue;
           continue;
         }
-        if (c == '-' || isdigit(c)) {
+        if (c == '-' || isdigit(c) || c == '.') {
           state = kReadingNumericValue;
           continue;
         }
@@ -576,7 +576,7 @@ void Parse(const std::string& input, ParserDelegate* delegate) {
           delegate->NumericField(key, value);
           continue;
         }
-        if (isdigit(c))
+        if (isdigit(c) || c == '.')
           continue;
         break;
 
