@@ -17,6 +17,7 @@
 #include "src/trace_processor/importers/common/process_tracker.h"
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/optional.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "test/gtest_and_gmock.h"
@@ -151,6 +152,16 @@ TEST_F(ProcessTrackerTest, UpdateThreadName) {
   // The priority is lower: the name should stay the same.
   ASSERT_EQ(context.storage->thread_table().row_count(), 2u);
   ASSERT_EQ(context.storage->thread_table().name()[1], name2);
+}
+
+TEST_F(ProcessTrackerTest, SetStartTsIfUnset) {
+  auto upid = context.process_tracker->StartNewProcess(
+      /*timestamp=*/base::nullopt, 0u, 123, kNullStringId);
+  context.process_tracker->SetStartTsIfUnset(upid, 1000);
+  ASSERT_EQ(context.storage->process_table().start_ts()[upid], 1000);
+
+  context.process_tracker->SetStartTsIfUnset(upid, 3000);
+  ASSERT_EQ(context.storage->process_table().start_ts()[upid], 1000);
 }
 
 }  // namespace

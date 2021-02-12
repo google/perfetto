@@ -1457,6 +1457,10 @@ UniquePid TrackEventParser::ParseProcessDescriptor(
     context_->process_tracker->SetProcessNameIfUnset(
         upid, context_->storage->InternString(decoder.process_name()));
   }
+  if (decoder.has_start_timestamp_ns() && decoder.start_timestamp_ns() > 0) {
+    context_->process_tracker->SetStartTsIfUnset(upid,
+                                                 decoder.start_timestamp_ns());
+  }
   // TODO(skyostil): Remove parsing for legacy chrome_process_type field.
   if (decoder.has_chrome_process_type()) {
     auto process_type = decoder.chrome_process_type();
