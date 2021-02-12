@@ -240,8 +240,8 @@ data_sources {
         field_sfixed64: 6;
         field_fixed32: 7;
         field_sfixed32: 8;
-        field_double: 9;
-        field_float: 10;
+        field_double: 9.9;
+        field_float: 10.10;
         field_sint64: 11;
         field_sint32: 12;
         field_string: "13";
@@ -261,12 +261,31 @@ data_sources {
   ASSERT_EQ(fields.field_sfixed64(), 6);
   ASSERT_EQ(fields.field_fixed32(), 7u);
   ASSERT_EQ(fields.field_sfixed32(), 8);
-  ASSERT_DOUBLE_EQ(fields.field_double(), 9);
-  ASSERT_FLOAT_EQ(fields.field_float(), 10);
+  ASSERT_DOUBLE_EQ(fields.field_double(), 9.9);
+  ASSERT_FLOAT_EQ(fields.field_float(), 10.10f);
   ASSERT_EQ(fields.field_sint64(), 11);
   ASSERT_EQ(fields.field_sint32(), 12);
   ASSERT_EQ(fields.field_string(), "13");
   ASSERT_EQ(fields.field_bytes(), "14");
+}
+
+TEST(PbtxtToPb, LeadingDots) {
+  TraceConfig config = ToProto(R"(
+data_sources {
+  config {
+    for_testing {
+      dummy_fields {
+        field_double:  .1;
+        field_float:   .2;
+      }
+    }
+  }
+}
+  )");
+  const auto& fields =
+      config.data_sources()[0].config().for_testing().dummy_fields();
+  ASSERT_DOUBLE_EQ(fields.field_double(), .1);
+  ASSERT_FLOAT_EQ(fields.field_float(), .2f);
 }
 
 TEST(PbtxtToPb, NegativeNumbers) {
@@ -281,8 +300,8 @@ data_sources {
         field_sfixed64: -4;
         field_fixed32: -5;
         field_sfixed32: -6;
-        field_double: -7;
-        field_float: -8;
+        field_double: -7.7;
+        field_float: -8.8;
         field_sint64: -9;
         field_sint32: -10;
       }
@@ -298,8 +317,8 @@ data_sources {
   ASSERT_EQ(fields.field_sfixed64(), -4);
   ASSERT_EQ(fields.field_fixed32(), static_cast<uint32_t>(-5));
   ASSERT_EQ(fields.field_sfixed32(), -6);
-  ASSERT_DOUBLE_EQ(fields.field_double(), -7);
-  ASSERT_FLOAT_EQ(fields.field_float(), -8);
+  ASSERT_DOUBLE_EQ(fields.field_double(), -7.7);
+  ASSERT_FLOAT_EQ(fields.field_float(), -8.8f);
   ASSERT_EQ(fields.field_sint64(), -9);
   ASSERT_EQ(fields.field_sint32(), -10);
 }
