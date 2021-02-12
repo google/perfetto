@@ -64,9 +64,11 @@ inline Optional<uint64_t> CStringToUInt64(const char* s, int base = 10) {
   return (*s && !*endptr) ? base::make_optional(value) : base::nullopt;
 }
 
+double StrToD(const char* nptr, char** endptr);
+
 inline Optional<double> CStringToDouble(const char* s) {
   char* endptr = nullptr;
-  double value = strtod(s, &endptr);
+  double value = StrToD(s, &endptr);
   Optional<double> result(base::nullopt);
   if (*s != '\0' && *endptr == '\0')
     result = value;
