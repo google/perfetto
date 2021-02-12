@@ -6,15 +6,7 @@
     // Additional presubmit tests that explicitly exercise
     // Perfetto's backend
     {
-      "name": "libsurfaceflinger_unittest",
-      "options": [
-          {
-	      "include-filter": "FrameTracerTest.*"
-	  },
-	  {
-	      "include-filter": "FrameTimelineTest.*"
-	  }
-      ]
+      "name": "libsurfaceflinger_unittest"
     }
   ]
 }
