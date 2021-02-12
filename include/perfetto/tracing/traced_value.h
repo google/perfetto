@@ -123,6 +123,11 @@ class PERFETTO_EXPORT TracedValue {
   TracedValue(TracedValue&&) = default;
   ~TracedValue() = default;
 
+  // TracedValue represents a context into which a single value can be written
+  // (either by writing it directly for primitive types, or by creating a
+  // TracedArray or TracedDictionary for the complex types). This is enforced
+  // by allowing Write* methods to be called only on rvalue references.
+
   void WriteInt64(int64_t value) &&;
   void WriteUInt64(uint64_t value) &&;
   void WriteDouble(double value) &&;
