@@ -289,6 +289,13 @@ void ProcessTracker::SetProcessNameIfUnset(UniquePid upid,
     process_table->mutable_name()->Set(upid, process_name_id);
 }
 
+void ProcessTracker::SetStartTsIfUnset(UniquePid upid,
+                                       int64_t start_ts_nanoseconds) {
+  auto* process_table = context_->storage->mutable_process_table();
+  if (!process_table->start_ts()[upid].has_value())
+    process_table->mutable_start_ts()->Set(upid, start_ts_nanoseconds);
+}
+
 void ProcessTracker::UpdateProcessNameFromThreadName(uint32_t tid,
                                                      StringId thread_name) {
   auto* thread_table = context_->storage->mutable_thread_table();

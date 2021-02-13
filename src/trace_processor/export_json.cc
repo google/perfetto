@@ -113,6 +113,10 @@ class JsonExporter {
     if (!status.ok())
       return status;
 
+    status = ExportProcessUptimes();
+    if (!status.ok())
+      return status;
+
     status = ExportSlices();
     if (!status.ok())
       return status;
@@ -311,7 +315,8 @@ class JsonExporter {
     }
 
     void WriteMetadataEvent(const char* metadata_type,
-                            const char* metadata_value,
+                            const char* metadata_arg_name,
+                            const char* metadata_arg_value,
                             uint32_t pid,
                             uint32_t tid) {
       if (label_filter_ && !label_filter_("traceEvents"))
@@ -330,7 +335,7 @@ class JsonExporter {
       value["tid"] = Json::Int(tid);
 
       Json::Value args;
-      args["name"] = metadata_value;
+      args[metadata_arg_name] = metadata_arg_value;
       value["args"] = args;
 
       writer_->write(value, &ss);
@@ -694,7 +699,7 @@ class JsonExporter {
       if (!opt_name.is_null()) {
         const char* thread_name = GetNonNullString(storage_, opt_name);
         auto pid_and_tid = UtidToPidAndTid(utid);
-        writer_.WriteMetadataEvent("thread_name", thread_name,
+        writer_.WriteMetadataEvent("thread_name", "name", thread_name,
                                    pid_and_tid.first, pid_and_tid.second);
       }
     }
@@ -707,11 +712,54 @@ class JsonExporter {
       auto opt_name = process_table.name()[upid];
       if (!opt_name.is_null()) {
         const char* process_name = GetNonNullString(storage_, opt_name);
-        writer_.WriteMetadataEvent("process_name", process_name,
+        writer_.WriteMetadataEvent("process_name", "name", process_name,
                                    UpidToPid(upid), /*tid=*/0);
       }
     }
     return util::OkStatus();
+  }
+
+  // For each process it writes an approximate uptime, based on the process'
+  // start time and the last slice in the entire trace. This same last slice is
+  // used with all processes, so the process could have ended earlier.
+  util::Status ExportProcessUptimes() {
+    int64_t last_timestamp_ns = FindLastSliceTimestamp();
+    if (last_timestamp_ns <= 0)
+      return util::OkStatus();
+
+    const auto& process_table = storage_->process_table();
+    for (UniquePid upid = 0; upid < process_table.row_count(); ++upid) {
+      base::Optional<int64_t> start_timestamp_ns =
+          process_table.start_ts()[upid];
+      if (!start_timestamp_ns.has_value())
+        continue;
+
+      int64_t process_uptime_seconds =
+          (last_timestamp_ns - start_timestamp_ns.value()) /
+          (1000 * 1000 * 1000);
+
+      writer_.WriteMetadataEvent("process_uptime_seconds", "uptime",
+                                 std::to_string(process_uptime_seconds).c_str(),
+                                 UpidToPid(upid), /*tid=*/0);
+    }
+
+    return util::OkStatus();
+  }
+
+  // Returns the last slice's end timestamp for the entire trace. If no slices
+  // are found 0 is returned.
+  int64_t FindLastSliceTimestamp() {
+    int64_t last_ts = 0;
+    const auto& slices = storage_->slice_table();
+    for (uint32_t i = 0; i < slices.row_count(); ++i) {
+      int64_t duration_ns = slices.dur()[i];
+      int64_t timestamp_ns = slices.ts()[i];
+
+      if (duration_ns + timestamp_ns > last_ts) {
+        last_ts = duration_ns + timestamp_ns;
+      }
+    }
+    return last_ts;
   }
 
   util::Status ExportSlices() {
