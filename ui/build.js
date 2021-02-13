@@ -486,8 +486,7 @@ function scanDir(dir, regex) {
   const absDir = path.isAbsolute(dir) ? dir : pjoin(ROOT_DIR, dir);
   // Add a fs watch if in watch mode.
   if (cfg.watch) {
-    fswatch(absDir, {recursive: true}, (_eventType, fileName) => {
-      const filePath = pjoin(absDir, fileName);
+    fswatch(absDir, {recursive: true}, (_eventType, filePath) => {
       if (!filterFn(filePath)) return;
       if (cfg.verbose) {
         console.log('File change detected', _eventType, filePath);
