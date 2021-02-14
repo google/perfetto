@@ -232,12 +232,15 @@ TEST(TracedValueTest, FlatDictionary_Explicit) {
     dict.AddItem("double").WriteDouble(0.0);
     dict.AddItem("int").WriteInt64(2014);
     dict.AddItem("string").WriteString("string");
+    dict.AddItem("truncated_string").WriteString("truncated_string", 9);
     dict.AddItem("ptr").WritePointer(reinterpret_cast<void*>(0x1234));
   }
   // TODO(altimin): Nested pointers are recorded as ints due to proto
   // limitation. Fix after sorting out the NestedValue.
-  EXPECT_EQ("{bool:true,double:0,int:2014,string:string,ptr:4660}",
-            MessageToJSON(message.SerializeAsString()));
+  EXPECT_EQ(
+      "{bool:true,double:0,int:2014,string:string,truncated_string:truncated,"
+      "ptr:4660}",
+      MessageToJSON(message.SerializeAsString()));
 }
 
 TEST(TracedValueTest, FlatDictionary_Short) {

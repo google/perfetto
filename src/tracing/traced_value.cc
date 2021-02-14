@@ -82,6 +82,15 @@ void TracedValue::WriteString(const char* value) && {
   }
 }
 
+void TracedValue::WriteString(const char* value, size_t len) && {
+  PERFETTO_DCHECK(checked_scope_.is_active());
+  if (nested_context_) {
+    nested_context_->set_string_value(value, len);
+  } else {
+    root_context_->set_string_value(value, len);
+  }
+}
+
 void TracedValue::WriteString(const std::string& value) && {
   PERFETTO_DCHECK(checked_scope_.is_active());
   if (nested_context_) {
