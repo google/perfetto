@@ -364,6 +364,7 @@ table.half-width {
   display: grid;
   grid-template-rows: auto 1fr;
   font-family: 'Roboto Condensed', sans-serif;
+  user-select: text;
 
   header {
     position: sticky;
