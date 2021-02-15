@@ -290,4 +290,12 @@ if (build_with_chromium) {
     configs += [ "//build/config/compiler:no_chromium_code" ]
     public_deps = [ "include/perfetto/trace_processor" ]
   }
+  component("perfetto_test_support") {
+    testonly = true
+    public_configs = [ "gn:public_config" ]
+    configs -= [ "//build/config/compiler:chromium_code" ]
+    configs += [ "//build/config/compiler:no_chromium_code" ]
+    public_deps = [ "include/perfetto/test:test_support" ]
+    deps = [ "src/tracing/test:test_support" ]
+  }
 }
