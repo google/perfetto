@@ -1,4 +1,5 @@
-# Copyright (C) 2020 The Android Open Source Project
+#!/bin/bash
+# Copyright (C) 2021 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,16 +13,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from flask import Flask, redirect
+set -eu
 
-app = Flask(__name__)
+# cd into the //infra/perfetto.dev dir, so this works uniformely when invoked by
+# other paths. the cd is required for npm install.
+cd -P ${BASH_SOURCE[0]%/*}
 
+# Ensure that `npm install` has been called and is current. Note that the set of
+# packages that the docs website requires is != the UI ones.
+if ! test node_modules/.stamp -nt package-lock.json; then
+  ../../tools/npm install
+  touch node_modules/.stamp
+fi
 
-@app.route('/', defaults={'path': ''})
-@app.route('/<path:path>')
-def main(path):
-  return redirect('https://perfetto.dev/' + path)
-
-
-if __name__ == '__main__':
-  app.run(host='127.0.0.1', port=8080, debug=True)
+../../tools/node ./build.js "$@"
