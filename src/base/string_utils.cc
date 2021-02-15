@@ -17,7 +17,12 @@
 #include "perfetto/ext/base/string_utils.h"
 
 #include <inttypes.h>
+#include <locale.h>
 #include <string.h>
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+#include <xlocale.h>
+#endif
 
 #include <algorithm>
 
@@ -25,6 +30,20 @@
 
 namespace perfetto {
 namespace base {
+namespace {
+
+locale_t* GetCLocale() {
+  static locale_t locale_s = newlocale(LC_ALL, "C", nullptr);
+  return &locale_s;
+}
+
+}  // namespace
+
+// Locale-independant as possible version of strtod.
+double StrToD(const char* nptr, char** endptr) {
+  locale_t* locale = GetCLocale();
+  return strtod_l(nptr, endptr, *locale);
+}
 
 std::string QuoteAndEscapeControlCodes(const std::string& raw) {
   std::string ret;
