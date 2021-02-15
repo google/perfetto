@@ -1,0 +1,31 @@
+#!/usr/bin/env python3
+
+import sys
+import os
+
+def main():
+  # Typically the target file argument is the last arg. gsutil invokes:
+  # `file -b --mime /path/to/file`. Rathter than depending on it, just pick
+  # the right-most argument which points to a valid file.
+  fname = None
+  for arg in reversed(sys.argv[1:]):
+    if os.path.exists(arg):
+      fname = arg
+      break
+  if fname is None:
+    raise 'File not found in ' + ' '.join(sys.argv)
+
+  ext = os.path.splitext(fname)[1].lower()
+  ext_map = {
+    '.html': 'text/html',
+    '.css': 'text/css',
+    '.js': 'text/javascript',
+    '.jpg': 'image/jpeg',
+    '.png': 'image/png',
+    '.svg': 'image/svg+xml',
+  }
+  print(ext_map.get(ext, 'text/html'))
+  return 0
+
+if __name__ == '__main__':
+  sys.exit(main())

@@ -176,10 +176,6 @@ if (enable_perfetto_ui) {
   group("ui") {
     deps = [ "ui" ]
   }
-
-  group("site") {
-    deps = [ "infra/perfetto.dev:site" ]
-  }
 }
 
 # In Android builds, we build the code of traced and traced_probes in one shared
