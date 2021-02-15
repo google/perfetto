@@ -104,31 +104,31 @@
 
 // Efficiently determines whether tracing is enabled for the given category, and
 // if so, emits one trace event with the given arguments.
-#define PERFETTO_INTERNAL_TRACK_EVENT(category, ...)                      \
-  do {                                                                    \
-    namespace tns = ::PERFETTO_TRACK_EVENT_NAMESPACE;                     \
-    /* Compute the category index outside the lambda to work around a */  \
-    /* GCC 7 bug */                                                       \
-    static constexpr auto PERFETTO_UID(                                   \
-        kCatIndex_ADD_TO_PERFETTO_DEFINE_CATEGORIES_IF_FAILS_) =          \
-        PERFETTO_GET_CATEGORY_INDEX(category);                            \
-    if (tns::internal::IsDynamicCategory(category)) {                     \
-      tns::TrackEvent::CallIfEnabled(                                     \
-          [&](uint32_t instances) PERFETTO_NO_THREAD_SAFETY_ANALYSIS {    \
-            tns::TrackEvent::TraceForCategory<PERFETTO_UID(               \
-                kCatIndex_ADD_TO_PERFETTO_DEFINE_CATEGORIES_IF_FAILS_)>(  \
-                instances, category, ##__VA_ARGS__);                      \
-          });                                                             \
-    } else {                                                              \
-      tns::TrackEvent::CallIfCategoryEnabled<PERFETTO_UID(                \
-          kCatIndex_ADD_TO_PERFETTO_DEFINE_CATEGORIES_IF_FAILS_)>(        \
-          [&](uint32_t instances) PERFETTO_NO_THREAD_SAFETY_ANALYSIS {    \
-            /* TODO(skyostil): Get rid of the category name parameter. */ \
-            tns::TrackEvent::TraceForCategory<PERFETTO_UID(               \
-                kCatIndex_ADD_TO_PERFETTO_DEFINE_CATEGORIES_IF_FAILS_)>(  \
-                instances, nullptr, ##__VA_ARGS__);                       \
-          });                                                             \
-    }                                                                     \
+#define PERFETTO_INTERNAL_TRACK_EVENT(category, ...)                           \
+  do {                                                                         \
+    namespace tns = ::PERFETTO_TRACK_EVENT_NAMESPACE;                          \
+    /* Compute the category index outside the lambda to work around a */       \
+    /* GCC 7 bug */                                                            \
+    static constexpr auto PERFETTO_UID(                                        \
+        kCatIndex_ADD_TO_PERFETTO_DEFINE_CATEGORIES_IF_FAILS_) =               \
+        PERFETTO_GET_CATEGORY_INDEX(category);                                 \
+    if (tns::internal::IsDynamicCategory(category)) {                          \
+      tns::TrackEvent::CallIfEnabled(                                          \
+          [&](uint32_t instances) PERFETTO_NO_THREAD_SAFETY_ANALYSIS {         \
+            tns::TrackEvent::TraceForCategory(instances, category,             \
+                                              ##__VA_ARGS__);                  \
+          });                                                                  \
+    } else {                                                                   \
+      tns::TrackEvent::CallIfCategoryEnabled(                                  \
+          PERFETTO_UID(kCatIndex_ADD_TO_PERFETTO_DEFINE_CATEGORIES_IF_FAILS_), \
+          [&](uint32_t instances) PERFETTO_NO_THREAD_SAFETY_ANALYSIS {         \
+            tns::TrackEvent::TraceForCategory(                                 \
+                instances,                                                     \
+                PERFETTO_UID(                                                  \
+                    kCatIndex_ADD_TO_PERFETTO_DEFINE_CATEGORIES_IF_FAILS_),    \
+                ##__VA_ARGS__);                                                \
+          });                                                                  \
+    }                                                                          \
   } while (false)
 
 #define PERFETTO_INTERNAL_SCOPED_TRACK_EVENT(category, name, ...)             \
@@ -155,7 +155,7 @@
   (::PERFETTO_TRACK_EVENT_NAMESPACE::internal::IsDynamicCategory(category)   \
        ? ::PERFETTO_TRACK_EVENT_NAMESPACE::TrackEvent::                      \
              IsDynamicCategoryEnabled(::perfetto::DynamicCategory(category)) \
-       : ::PERFETTO_TRACK_EVENT_NAMESPACE::TrackEvent::IsCategoryEnabled<    \
-             PERFETTO_GET_CATEGORY_INDEX(category)>())
+       : ::PERFETTO_TRACK_EVENT_NAMESPACE::TrackEvent::IsCategoryEnabled(    \
+             PERFETTO_GET_CATEGORY_INDEX(category)))
 
 #endif  // INCLUDE_PERFETTO_TRACING_INTERNAL_TRACK_EVENT_MACROS_H_
