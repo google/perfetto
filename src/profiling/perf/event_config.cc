@@ -72,7 +72,7 @@ std::pair<std::string, std::string> SplitTracepointString(
 
 // If set, the returned id is guaranteed to be non-zero.
 base::Optional<uint32_t> ParseTracepointAndResolveId(
-    const protos::pbzero::TracepointEventConfig::Decoder& tracepoint,
+    const protos::pbzero::PerfEventConfig::Tracepoint::Decoder& tracepoint,
     EventConfig::tracepoint_id_fn_t tracepoint_id_lookup) {
   std::string full_name = tracepoint.name().ToStdString();
   std::string tp_group;
@@ -167,7 +167,7 @@ base::Optional<EventConfig> EventConfig::Create(
   uint32_t tracepoint_id = 0;
   std::string tracepoint_filter;
   if (pb_config.has_tracepoint()) {
-    protos::pbzero::TracepointEventConfig::Decoder tracepoint_pb(
+    protos::pbzero::PerfEventConfig::Tracepoint::Decoder tracepoint_pb(
         pb_config.tracepoint());
     base::Optional<uint32_t> maybe_id =
         ParseTracepointAndResolveId(tracepoint_pb, tracepoint_id_lookup);
