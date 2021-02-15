@@ -1,5 +1,5 @@
 #!/bin/bash
-# Copyright (C) 2018 The Android Open Source Project
+# Copyright (C) 2021 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,63 +13,61 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-set -e
+# This script builds the perfetto.dev docs website (via ./build) and pushes the
+# contents to the gs://perfetto.dev GCS bucket. It doesn't re-deploy the
+# AppEngine instance, as that doesn't depend on the contents (use
+# ./appengine/deploy for that).
+# This is ran by the Cloud Build infrastructure (./cloudbuild.yaml) whenever a
+# docs/ change is detected. See go/perfetto-ui-autopush for more details.
 
+set -eux
+
+# The directory that contains this script (//infra/perfetto.dev)
 readonly CUR_DIR="$(cd -P ${BASH_SOURCE[0]%/*}; pwd)"
+
+# The repo root.
 readonly ROOT_DIR=$(dirname $(dirname "$CUR_DIR"))
-readonly NPM="$ROOT_DIR/tools/npm"
 
-cd $CUR_DIR
+# The directory that will contain the static website artifacts.
+readonly OUT_DIR="$ROOT_DIR/out/perfetto.dev"
 
-function echo_and_do {
-  echo $@
-  $@
-}
+# Build first.
+"$CUR_DIR/build"
 
-CLEAN_OUT_DIR=true
-DEPLOY_PROD=false
-DEPLOY_STAGING=false
+# The markdown docs are rendered into extension-less HTML files to make the URLs
+# look nice (e.g., /docs/tracing rather than /docs/tracing.html). By default
+# gsutil infers the mime-type from the extension, falling back to octet/stream
+# for extension-less fiels. octect/stream causes the browser to download the
+# file rather than parsing it as a web page.
+# We set use_magicfile = True here, which causes gsutil to infer the MIME type
+# by invoking `file -b --mime /path/to/file`.
+# Unfortunately, that solves the HTML MIME problem but adds another one: the
+# standard `file` util doesn't deal with .css files and marks them as text/plain
+# causing the browser to ignore the CSS.
+# Here what we do is replacing the standard `file` util with a custom made one
+# (mime_util/file) which sets the right MIME types we want. We do this by
+# prepending our script to the PATH.
+export PATH="$CUR_DIR/mime_util:$PATH"
+export BOTO_CONFIG=/tmp/boto
+cat << EOF > $BOTO_CONFIG
+[GSUtil]
+use_magicfile = True
 
-while [[ $# -gt 0 ]]; do
-  key="$1"
-  case $key in
-      --no-clean)
-      CLEAN_OUT_DIR=false
-      shift
-      ;;
-      --prod)
-      DEPLOY_PROD=true
-      shift
-      ;;
-      --staging)
-      DEPLOY_STAGING=true
-      shift
-      ;;
-      -h|--help)
-      echo "Usage: $0 [--no-clean] [--prod] [--staging]"
-      echo "    --no-clean  Don't remove the out directory"
-      echo "    --prod      Deploy prod version (implies --release)"
-      echo "    --staging   Deploy staging version"
-      echo "    -h|--help   Display this message"
-      exit 0
-      shift
-      ;;
-  esac
-done
+EOF
 
-if [ "$CLEAN_OUT_DIR" = true ]; then
-  echo_and_do $NPM run clean
-fi
+# Basic checks before uploading. Test both the existence and the mime type.
+[ "$(file $OUT_DIR/index.html)" == "text/html" ]
+[ "$(file $OUT_DIR/assets/style.css)" == "text/css" ]
+[ "$(file $OUT_DIR/assets/home.png)" == "image/png" ]
+[ "$(file $OUT_DIR/docs/images/perfetto-stack.svg)" == "image/svg+xml" ]
+[ "$(file $OUT_DIR/docs/images/perfetto-stack.svg)" == "image/svg+xml" ]
+[ "$(file $OUT_DIR/docs/analysis/sql-tables)" == "text/html" ]
 
-echo_and_do $NPM run build
-
-if [ "$DEPLOY_PROD" = true ]; then
-  echo_and_do gcloud app deploy app.yaml --project perfetto-site \
-      -v prod --promote --stop-previous-version
-elif [ "$DEPLOY_STAGING" = true ]; then
-  echo_and_do gcloud app deploy app.yaml --project perfetto-site \
-      -v staging --no-promote --stop-previous-version
-else
-  echo_and_do gcloud app deploy app.yaml --project perfetto-site \
-      -v $USER --no-promote --stop-previous-version
-fi
+# -j: apply 'Content-Encoding: gzip' compression to passed extensions.
+# -d: mirror also deletetions.
+# -c: compare checksums, not mtimes.
+# -r: recursive.
+# The trailing slash appended to $OUT_DIR is to prevent that gsutil creates a
+# nested sub-directory inside gs://perfetto.dev/.
+gsutil -m rsync -j html,js,css,svg -d -c -r \
+  "$OUT_DIR/" gs://perfetto.dev/

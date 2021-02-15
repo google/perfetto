@@ -1,0 +1,7 @@
+# See go/perfetto-ui-autopush for docs on how this works end-to-end.
+# Reuse the same Docker container of the UI autopusher.
+steps:
+- name: gcr.io/perfetto-ui/perfetto-ui-builder
+  args:
+  - 'infra/perfetto.dev/cloud_build_entrypoint.sh'
+  timeout: 1200s

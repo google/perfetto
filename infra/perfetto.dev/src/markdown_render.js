@@ -200,7 +200,7 @@ function main() {
     const templateData = {
       markdown: markdownHtml,
       title: title ? `${title} - Perfetto Tracing Docs` : fallbackTitle,
-      fileName: '/' + outFile.split('/').slice(1).join('/'),
+      fileName: '/' + path.relative(outDir, outFile),
     };
     if (fs.existsSync(navFilePath)) {
       templateData['nav'] = fs.readFileSync(navFilePath, 'utf8');
