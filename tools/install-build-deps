@@ -462,6 +462,7 @@ def Main():
   parser.add_argument('--android', action='store_true')
   parser.add_argument('--ui', action='store_true')
   parser.add_argument('--check-only')
+  parser.add_argument('--filter', default='')
   parser.add_argument('--verify', help='Check all URLs', action='store_true')
   args = parser.parse_args()
   if args.verify:
@@ -481,6 +482,8 @@ def Main():
   for dep in deps:
     if (dep.target_platform != 'all' and
         dep.target_platform != system().lower()):
+      continue
+    if args.filter and args.filter not in dep.target_folder:
       continue
     local_path = os.path.join(ROOT_DIR, dep.target_folder)
     if dep.source_url.endswith('.git'):
