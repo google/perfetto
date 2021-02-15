@@ -134,10 +134,13 @@ TEST(StringUtilsTest, StringToDouble) {
   EXPECT_DOUBLE_EQ(StringToDouble("1").value(), 1l);
   EXPECT_DOUBLE_EQ(StringToDouble("-42").value(), -42l);
   EXPECT_DOUBLE_EQ(StringToDouble("-42.5").value(), -42.5l);
+  EXPECT_DOUBLE_EQ(StringToDouble("0.5").value(), .5l);
+  EXPECT_DOUBLE_EQ(StringToDouble(".5").value(), .5l);
   EXPECT_EQ(StringToDouble(""), nullopt);
   EXPECT_EQ(StringToDouble("!?"), nullopt);
   EXPECT_EQ(StringToDouble("abc"), nullopt);
   EXPECT_EQ(StringToDouble("123 abc"), nullopt);
+  EXPECT_EQ(StringToDouble("124,456"), nullopt);
 }
 
 TEST(StringUtilsTest, StartsWith) {
