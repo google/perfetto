@@ -1,0 +1,49 @@
+#!/bin/bash
+# Copyright (C) 2021 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# This script deploys the AppEngine instance that acts as a proxy for the GCS
+# bucket gs://perfetto.dev. This does NOT need to be re-deployed when docs
+# change. See go/perfetto-ui-autopush for details.
+
+set -eu
+
+readonly CUR_DIR="$(cd -P ${BASH_SOURCE[0]%/*}; pwd)"
+
+cd $CUR_DIR
+
+VERSION=testing
+PROMOTE=--no-promote
+
+while [[ $# -gt 0 ]]; do
+  key="$1"
+  case $key in
+      --prod)
+      VERSION=prod
+      PROMOTE=--promote
+      shift
+      ;;
+      *)
+      echo "Usage: $0 [--prod]"
+      echo "    --prod      Deploy prod version"
+      echo "    -h|--help   Display this message"
+      exit 0
+      shift
+      ;;
+  esac
+done
+
+set -x
+gcloud app deploy app.yaml --project perfetto-site \
+    -v $VERSION $PROMOTE --stop-previous-version
