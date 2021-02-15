@@ -1599,6 +1599,11 @@ filegroup {
   name: "perfetto_include_perfetto_public_public",
 }
 
+// GN: //include/perfetto/test:test_support
+filegroup {
+  name: "perfetto_include_perfetto_test_test_support",
+}
+
 // GN: //include/perfetto/trace_processor:basic_types
 filegroup {
   name: "perfetto_include_perfetto_trace_processor_basic_types",
@@ -8474,6 +8479,7 @@ filegroup {
     "src/tracing/test/mock_consumer.cc",
     "src/tracing/test/mock_producer.cc",
     "src/tracing/test/test_shared_memory.cc",
+    "src/tracing/test/traced_value_test_support.cc",
   ],
 }
 
@@ -8686,6 +8692,7 @@ cc_test {
     ":perfetto_include_perfetto_ext_tracing_ipc_ipc",
     ":perfetto_include_perfetto_profiling_normalize",
     ":perfetto_include_perfetto_protozero_protozero",
+    ":perfetto_include_perfetto_test_test_support",
     ":perfetto_include_perfetto_trace_processor_basic_types",
     ":perfetto_include_perfetto_trace_processor_storage",
     ":perfetto_include_perfetto_trace_processor_trace_processor",
