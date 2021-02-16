@@ -5,6 +5,7 @@
     "../gen/"
   ],
   "compilerOptions": {
+    "outDir": "../../out/tsc/service_worker",
     "lib": [
       "webworker",
       "es2018",

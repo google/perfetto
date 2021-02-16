@@ -60,9 +60,32 @@ function defBundle(bundle, distDir) {
   };
 }
 
+function defServiceWorkerBundle() {
+  return {
+    input: `${OUT_SYMLINK}/tsc/service_worker/service_worker.js`,
+    output: {
+      name: 'service_worker',
+      format: 'iife',
+      esModule: false,
+      file: `${OUT_SYMLINK}/dist/service_worker.js`,
+      sourcemap: true,
+    },
+    plugins: [
+      nodeResolve({
+        mainFields: ['browser'],
+        browser: true,
+        preferBuiltins: false,
+      }),
+      commonjs(),
+      sourcemaps(),
+    ],
+  };
+}
+
 export default [
-  defBundle('frontend', 'dist'),
-  defBundle('controller', 'dist'),
-  defBundle('engine', 'dist'),
+  defBundle('frontend', 'dist_version'),
+  defBundle('controller', 'dist_version'),
+  defBundle('engine', 'dist_version'),
   defBundle('chrome_extension', 'chrome_extension'),
+  defServiceWorkerBundle(),
 ]

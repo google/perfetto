@@ -813,8 +813,8 @@ export class Sidebar implements m.ClassComponent {
           ontransitionend: () => this._redrawWhileAnimating.stop(),
         },
         m(
-            'header',
-            m('img[src=assets/brand.png].brand'),
+            `header`,
+            m(`img[src=${globals.root}assets/brand.png].brand`),
             m('button.sidebar-button',
               {
                 onclick: () => {
