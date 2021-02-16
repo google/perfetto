@@ -21,6 +21,7 @@
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/thread_utils.h"
 #include "perfetto/ext/base/uuid.h"
 #include "perfetto/tracing/internal/track_event_data_source.h"
 #include "protos/perfetto/trace/track_event/process_descriptor.gen.h"
@@ -50,7 +51,22 @@ protos::gen::TrackDescriptor ProcessTrack::Serialize() const {
   auto desc = Track::Serialize();
   auto pd = desc.mutable_process();
   pd->set_pid(static_cast<int32_t>(pid));
-  // TODO(skyostil): Record command line.
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  std::string cmdline;
+  if (base::ReadFile("/proc/self/cmdline", &cmdline)) {
+    // Since cmdline is a zero-terminated list of arguments, this ends up
+    // writing just the first element, i.e., the process name, into the process
+    // name field.
+    pd->set_process_name(cmdline.c_str());
+    base::StringSplitter splitter(std::move(cmdline), '\0');
+    while (splitter.Next()) {
+      pd->add_cmdline(
+          std::string(splitter.cur_token(), splitter.cur_token_size()));
+    }
+  }
+  // TODO(skyostil): Record command line on Windows and Mac.
+#endif
   return desc;
 }
 
@@ -64,7 +80,9 @@ protos::gen::TrackDescriptor ThreadTrack::Serialize() const {
   auto td = desc.mutable_thread();
   td->set_pid(static_cast<int32_t>(pid));
   td->set_tid(static_cast<int32_t>(tid));
-  // TODO(skyostil): Record thread name.
+  std::string thread_name;
+  if (base::GetThreadName(thread_name))
+    td->set_thread_name(thread_name);
   return desc;
 }
 
