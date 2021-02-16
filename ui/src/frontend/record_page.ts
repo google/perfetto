@@ -137,7 +137,7 @@ function RecSettings(cssClass: string) {
     return m(
         `label${cfg.mode === mode ? '.selected' : ''}`,
         m(`input[type=radio][name=rec_mode]`, checkboxArgs),
-        m(`img[src=assets/${img}]`),
+        m(`img[src=${globals.root}assets/${img}]`),
         m('span', title));
   };
 

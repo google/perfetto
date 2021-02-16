@@ -8,7 +8,6 @@
     "allowJs": true,
     "declaration": false,                  // Generates corresponding '.d.ts' file.
     "sourceMap": true,                     // Generates corresponding '.map' file.
-    "outDir": "./out/tsc",                 // Redirect output structure to the directory.
     "removeComments": false,               // Do not emit comments to output.
     "importHelpers": true,                 // Import emit helpers from 'tslib'.
     "downlevelIteration": true,            // Provide full support for iterables in 'for-of', spread, and destructuring when targeting 'ES5' or 'ES3'.
