@@ -139,6 +139,16 @@ util::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
     }
   }
 
+  // Workaround a bug in the frame timeline traces which is emitting packets
+  // with zero timestamp (b/179905685).
+  // TODO(primiano): around mid-2021 there should be no traces that have this
+  // bug and we should be able to remove this workaround.
+  if (decoder.has_frame_timeline_event() && decoder.timestamp() == 0) {
+    context_->storage->IncrementStats(
+        stats::frame_timeline_event_parser_errors);
+    return util::OkStatus();
+  }
+
   protos::pbzero::TracePacketDefaults::Decoder* defaults =
       state->current_generation()->GetTracePacketDefaults();
 
