@@ -67,6 +67,15 @@ class FrameTimelineEventParser {
   std::array<StringId, 5> present_type_ids_;
   StringId expected_timeline_track_name_;
   StringId actual_timeline_track_name_;
+
+  StringId surface_frame_token_id_;
+  StringId display_frame_token_id_;
+  StringId present_type_id_;
+  StringId on_time_finish_id_;
+  StringId gpu_composition_id_;
+  StringId jank_type_id_;
+  StringId layer_name_id_;
+
   // upid -> set of tokens map. The expected timeline is the same for a given
   // token no matter how many times its seen. We can safely ignore duplicates
   // for the expected timeline slices by caching the set of tokens seen so far
