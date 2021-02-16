@@ -144,6 +144,9 @@ def main():
   else:
     host_file = args.out
     host_dir = os.path.dirname(host_file)
+    if host_dir == '':
+      host_dir = '.'
+      host_file = './' + host_file
   if not os.path.exists(host_dir):
     shutil.os.makedirs(host_dir)
 
@@ -183,7 +186,7 @@ def main():
 
   if not args.no_open:
     prt('\n')
-    prt('Opening the trace in the browser')
+    prt('Opening the trace (%s) in the browser' % host_file)
     open_trace_in_browser(host_file)
 
 
