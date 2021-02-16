@@ -1,0 +1,6 @@
+.gcloudignore
+.git
+.gitignore
+__pycache__/
+/setup.cfg
+deploy
