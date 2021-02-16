@@ -94,6 +94,7 @@ class AnalyticsImpl implements Analytics {
       send_page_view: false,
       dimension1: globals.isInternalUser ? '1' : '0',
       dimension2: version.VERSION,
+      dimension3: globals.channel,
     });
     this.updatePath(route);
   }
