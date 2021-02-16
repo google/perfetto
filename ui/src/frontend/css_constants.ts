@@ -12,34 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-function readCssVarSlow(prop: string, defaultValue: string): string {
-  // This code can be used in unittests where we can't read CSS variables.
-  if (typeof window === 'undefined') {
-    return defaultValue;
-  } else {
-    const body = window.document.body;
-    return window.getComputedStyle(body).getPropertyValue(prop);
-  }
+// This code can be used in unittests where we can't read CSS variables.
+// Also we cannot have global constructors beacause when the javascript is
+// loaded, the CSS might not be ready yet.
+export let TRACK_SHELL_WIDTH = 100;
+export let TRACK_BORDER_COLOR = '#ffc0cb';
+export let TOPBAR_HEIGHT = 48;
+
+export function initCssConstants() {
+  TRACK_SHELL_WIDTH = getCssNum('--track-shell-width') || TRACK_SHELL_WIDTH;
+  TRACK_BORDER_COLOR = getCssStr('--track-border-color') || TRACK_BORDER_COLOR;
+  TOPBAR_HEIGHT = getCssNum('--topbar-height') || TOPBAR_HEIGHT;
 }
 
-function getTrackShellWidth(): number {
-  const width = readCssVarSlow('--track-shell-width', '100px');
-  const match = width.match(/^\W*(\d+)px$/);
-  if (!match) throw Error(`Could not parse shell width as number (${width})`);
+function getCssStr(prop: string): string|undefined {
+  if (typeof window === 'undefined') return undefined;
+  const body = window.document.body;
+  return window.getComputedStyle(body).getPropertyValue(prop);
+}
+
+function getCssNum(prop: string): number|undefined {
+  const str = getCssStr(prop);
+  if (str === undefined) return undefined;
+  const match = str.match(/^\W*(\d+)px$/);
+  if (!match) throw Error(`Could not parse CSS property "${str}" as a number`);
   return Number(match[1]);
 }
-
-function getTrackBorderColor(): string {
-  return readCssVarSlow('--track-border-color', '#ffc0cb');
-}
-
-function getTopbarHeight(): number {
-  const width = readCssVarSlow('--topbar-height', '48px');
-  const match = width.match(/^\W*(\d+)px$/);
-  if (!match) throw Error(`Could not parse topbar height as number (${width})`);
-  return Number(match[1]);
-}
-
-export const TRACK_SHELL_WIDTH = getTrackShellWidth();
-export const TRACK_BORDER_COLOR = getTrackBorderColor();
-export const TOPBAR_HEIGHT = getTopbarHeight();
