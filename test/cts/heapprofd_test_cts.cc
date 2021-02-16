@@ -36,14 +36,14 @@
 namespace perfetto {
 namespace {
 
-// Size of individual (repeated) allocations done by the test apps (must be kept
-// in sync with their sources).
-constexpr uint64_t kTestSamplingInterval = 4096;
+constexpr uint64_t kTestSamplingInterval = 512;
+// Size of individual (repeated) allocations done by the test apps (must be
+// kept in sync with their sources).
+// Tests rely on the sampling behaviour where large allocations are recorded
+// at their actual size, so kExpectedIndividualAllocSz needs to be greater
+// than GetPassthroughTreshold(kExpectedIndividualAllocSz). See
+// src/profiling/memory/sampler.h.
 constexpr uint64_t kExpectedIndividualAllocSz = 4153;
-// Tests rely on the sampling behaviour where allocations larger than the
-// sampling interval are recorded at their actual size.
-static_assert(kExpectedIndividualAllocSz > kTestSamplingInterval,
-              "kTestSamplingInterval invalid");
 
 std::string RandomSessionName() {
   std::random_device rd;
