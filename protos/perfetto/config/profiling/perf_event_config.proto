@@ -18,24 +18,34 @@ syntax = "proto2";
 
 package perfetto.protos;
 
-// Configuration for the traced_perf profiler.
+// Configuration for the traced_perf profiler. At the time of writing, all
+// configs imply stack sampling.
 //
-// At the time of writing, the config options are restricted to the periodic
-// system-wide stack sampling use-case (|all_cpus| must be true).
+// Example config for basic cpu profiling:
+//   perf_event_config {
+//     timebase {
+//       frequency: 80
+//     }
+//     callstack_sampling {
+//       processes {
+//         target_cmdline: "surfaceflinger"
+//         target_cmdline: "system_server"
+//       }
+//       kernel_frames: true
+//     }
+//   }
 //
-// Next id: 15
+// Next id: 17
 message PerfEventConfig {
-  // Event (counter) to use as a time base for the sampling.
-  // If unset, implies the CPU timer (PERF_COUNT_SW_CPU_CLOCK) as the event.
-  optional TracepointEventConfig tracepoint = 14;
+  // What event to sample on, and how often.
+  optional Timebase timebase = 15;
 
-  // If true, sample events on all CPUs.
-  optional bool all_cpus = 1;
+  // Options for stack sampling.
+  optional CallstackSampling callstack_sampling = 16;
 
-  // Per-cpu sampling frequency (requested from the kernel). Not guaranteed to
-  // be honored as the kernel can throttle the sampling rate if it's too high.
-  // If unset, an implementation-defined default is used.
-  optional uint32 sampling_frequency = 2;
+  //
+  // Kernel <-> userspace ring buffer options:
+  //
 
   // How often the per-cpu ring buffers are read by the producer.
   // If unset, an implementation-defined default is used.
@@ -45,41 +55,6 @@ message PerfEventConfig {
   // kernel. If set, must be a power of two.
   // If unset, an implementation-defined default is used.
   optional uint32 ring_buffer_pages = 3;
-
-  // If true, callstacks will include the kernel-space frames. Such frames can
-  // be identified by a magical "kernel" string as their mapping name.
-  // Requires traced_perf to be running as root, or kptr_restrict to have been
-  // manually unrestricted.
-  // This does *not* disclose KASLR, as only the function names are emitted.
-  optional bool kernel_frames = 12;
-
-  //
-  // Target process selection:
-  //
-
-  // Process ID (TGID) allowlist. If this list is not empty, only matching
-  // samples will be retained. If multiple allow/deny-lists are
-  // specified by the config, then all of them are evaluated for each sampled
-  // process.
-  repeated int32 target_pid = 4;
-
-  // Command line allowlist, matched against the
-  // /proc/<pid>/cmdline (not the comm string), with both sides being
-  // "normalized". Normalization is as follows: (1) trim everything beyond the
-  // first null or "@" byte; (2) if the string contains forward slashes, trim
-  // everything up to and including the last one.
-  repeated string target_cmdline = 5;
-
-  // List of excluded pids.
-  repeated int32 exclude_pid = 6;
-
-  // List of excluded cmdlines. Normalized in the same way as |target_cmdline|.
-  repeated string exclude_cmdline = 7;
-
-  // Number of additional command lines to sample. Only those which are neither
-  // explicitly included nor excluded will be considered. Processes are accepted
-  // on a first come, first served basis.
-  optional uint32 additional_cmdline_count = 11;
 
   //
   // Daemon's resource usage limits:
@@ -108,20 +83,109 @@ message PerfEventConfig {
   // processes, and require the memory footprint to be reset periodically.
   // If unset, the cached state will not be cleared.
   optional uint32 unwind_state_clear_period_ms = 10;
-}
 
-// TODO(rsavitski): figure out the state of function tracepoints in
-// perf_event_open (they're implemented, but have constraints).
-message TracepointEventConfig {
-  // Group and name for the tracepoint, acceptable forms:
-  // * "sched/sched_switch"
-  // * "sched:sched_switch"
-  optional string name = 1;
+  //
+  // Deprecated (superseded by options above):
+  //
+  // Do not set *any* of these fields in new configs.
+  //
 
-  // Optional field-level filter for the tracepoint. Only events matching this
-  // filter will be counted (and therefore contribute to the sampling period).
-  // Example: "prev_pid >= 42 && next_pid == 0".
-  // For full syntax, see kernel documentation on "Event filtering":
-  // https://www.kernel.org/doc/Documentation/trace/events.txt
-  optional string filter = 2;
+  // Note: legacy configs had to set |all_cpus| to true to pass parsing. We
+  // might start relying on this for compatibility detection in the future.
+  optional bool all_cpus = 1;
+  optional uint32 sampling_frequency = 2;
+  optional bool kernel_frames = 12;
+  repeated int32 target_pid = 4;
+  repeated string target_cmdline = 5;
+  repeated int32 exclude_pid = 6;
+  repeated string exclude_cmdline = 7;
+  optional uint32 additional_cmdline_count = 11;
+  optional Tracepoint tracepoint = 14;
+
+  //
+  // Sub-messages (nested for generated code namespacing).
+  //
+
+  message Timebase {
+    // How often the per-cpu sampling will occur. Not guaranteed to be honored
+    // as the kernel can throttle the sampling rate if it's too high.
+    // If unset, an implementation-defined default is used.
+    oneof interval {
+      // Per-cpu sampling frequency in Hz, as requested from the kernel. Not the
+      // same as 1/period.
+      // Details: the actual sampling will still be based on a period, but the
+      // kernel will dynamically adjust it based on the observed event rate, to
+      // approximate this frequency. Works best with steady-rate events like
+      // timers.
+      uint64 frequency = 2;
+
+      // Per-cpu sampling will occur every |period| counts of |event|.
+      // Prefer |frequency| by default, as it's easier to oversample with a
+      // fixed period.
+      uint64 period = 1;
+    }
+
+    // Event (counter) to use as a time base for the sampling.
+    // If unset, implies the CPU timer (PERF_COUNT_SW_CPU_CLOCK) as the event,
+    // which is what you usually want.
+    // TODO(rsavitski): add butiltin software and hardware counters as options.
+    optional Tracepoint tracepoint = 3;
+  }
+
+  message CallstackSampling {
+    // Defines a set of processes for which samples are retained/skipped. If
+    // unset, all userspace samples are kept, but beware that it will be very
+    // heavy on the stack unwinder, which might start dropping samples due to
+    // overload.
+    optional Scope scope = 1;
+
+    // If true, callstacks will include the kernel-space frames. Such frames can
+    // be identified by a magical "kernel" string as their mapping name.
+    // Requires traced_perf to be running as root, or kptr_restrict to have been
+    // manually unrestricted. On Android, the platform should do the right thing
+    // on debug builds.
+    // This does *not* disclose KASLR, as only the function names are emitted.
+    optional bool kernel_frames = 2;
+  }
+
+  message Scope {
+    // Process ID (TGID) allowlist. If this list is not empty, only matching
+    // samples will be retained. If multiple allow/deny-lists are
+    // specified by the config, then all of them are evaluated for each sampled
+    // process.
+    repeated int32 target_pid = 1;
+
+    // Command line allowlist, matched against the
+    // /proc/<pid>/cmdline (not the comm string), with both sides being
+    // "normalized". Normalization is as follows: (1) trim everything beyond the
+    // first null or "@" byte; (2) if the string contains forward slashes, trim
+    // everything up to and including the last one.
+    repeated string target_cmdline = 2;
+
+    // List of excluded pids.
+    repeated int32 exclude_pid = 3;
+
+    // List of excluded cmdlines. Normalized in the same way as
+    // |target_cmdline|.
+    repeated string exclude_cmdline = 4;
+
+    // Number of additional command lines to sample. Only those which are
+    // neither explicitly included nor excluded will be considered. Processes
+    // are accepted on a first come, first served basis.
+    optional uint32 additional_cmdline_count = 5;
+  }
+
+  message Tracepoint {
+    // Group and name for the tracepoint, acceptable forms:
+    // * "sched/sched_switch"
+    // * "sched:sched_switch"
+    optional string name = 1;
+
+    // Optional field-level filter for the tracepoint. Only events matching this
+    // filter will be counted (and therefore contribute to the sampling period).
+    // Example: "prev_pid >= 42 && next_pid == 0".
+    // For full syntax, see kernel documentation on "Event filtering":
+    // https://www.kernel.org/doc/Documentation/trace/events.txt
+    optional string filter = 2;
+  }
 }
