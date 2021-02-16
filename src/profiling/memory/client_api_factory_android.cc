@@ -34,9 +34,6 @@
 #error "Must be built on Android."
 #endif
 
-#include <android/fdsan.h>
-#include <sys/system_properties.h>
-
 namespace perfetto {
 namespace profiling {
 
