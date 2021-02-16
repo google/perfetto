@@ -303,6 +303,7 @@ class HeapTracker {
           // TODO(fmayer): Add an index to speed this up
           CallstackAllocations& csa = p.second;
           csa.value.retain_max.max = csa.value.retain_max.cur;
+          csa.value.retain_max.max_count = csa.value.retain_max.cur_count;
         }
       }
       max_sequence_number_ = alloc.sequence_number;
