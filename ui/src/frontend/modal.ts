@@ -32,8 +32,23 @@ export interface Button {
   action: () => void;
 }
 
+// We need to create a div outside of the mithril's render root (<main>), that's
+// why the manual DOM manipulation.
+function getOrCreateDOM() {
+  let div = document.getElementById('main-modal') as HTMLElement;
+  if (div) return div;
+  div = document.createElement('div');
+  div.id = 'main-modal';
+  div.classList.add('modal');
+  div.classList.add('micromodal-slide');
+  (div as {} as {ariaHidden: boolean}).ariaHidden = true;
+  document.body.appendChild(div);
+  MicroModal.init();
+  return div;
+}
+
 export async function showModal(attrs: ModalDefinition): Promise<void> {
-  const modal = document.querySelector('#main-modal') as HTMLElement;
+  const modal = getOrCreateDOM();
   m.render(
       modal,
       m('.modal-overlay[data-micromodal-close]',
