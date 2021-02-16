@@ -43,6 +43,17 @@
           height: 40px;
           margin-top: 4px;
         }
+        &.canary::before {
+          content: 'CANARY';
+          display: block;
+          color: gold;
+          position: absolute;
+          font-size: 10px;
+          line-height: 10px;
+          font-family: 'Roboto', sans-serif;
+          left: 155px;
+          top: 7px;
+        }
     }
     .sidebar-button {
       position: absolute;

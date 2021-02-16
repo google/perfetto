@@ -212,34 +212,6 @@ button.close {
   }
 }
 
-.home-page {
-    text-align: center;
-    padding-top: 20vh;
-    align-items: center;
-}
-
-.home-page .logo {
-    width: var(--track-shell-width);
-}
-
-.home-page-title {
-    font-size: 60px;
-    margin: 25px;
-    text-align: center;
-    font-family: 'Raleway', sans-serif;
-    font-weight: 100;
-    color: #333;
-}
-
-.privacy {
-  text-decoration: none;
-  font-family: 'Raleway', sans-serif;
-  color: #333;
-  position: absolute;
-  bottom: 60px;
-  font-size: 15px;
-}
-
 .query-table-container {
   width: 100%;
   overflow-x: auto;
