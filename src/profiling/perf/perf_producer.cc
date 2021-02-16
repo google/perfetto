@@ -44,7 +44,7 @@
 #include "src/profiling/perf/event_reader.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
-#include "protos/perfetto/config/profiling/perf_event_config.pbzero.h"
+#include "protos/perfetto/config/profiling/perf_event_config.gen.h"
 #include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
@@ -199,7 +199,6 @@ PerfProducer::PerfProducer(ProcDescriptorGetter* proc_fd_getter,
   proc_fd_getter->SetDelegate(this);
 }
 
-// TODO(rsavitski): consider configure at setup + enable at start instead.
 void PerfProducer::SetupDataSource(DataSourceInstanceID,
                                    const DataSourceConfig&) {}
 
@@ -227,8 +226,11 @@ void PerfProducer::StartDataSource(DataSourceInstanceID ds_id,
     return tracefs_->ReadEventId(group, name);
   };
 
-  protos::pbzero::PerfEventConfig::Decoder event_config_pb(
-      config.perf_event_config_raw());
+  protos::gen::PerfEventConfig event_config_pb;
+  if (!event_config_pb.ParseFromString(config.perf_event_config_raw())) {
+    PERFETTO_ELOG("PerfEventConfig could not be parsed.");
+    return;
+  }
   base::Optional<EventConfig> event_config =
       EventConfig::Create(event_config_pb, config, tracepoint_id_lookup);
   if (!event_config.has_value()) {
@@ -236,11 +238,6 @@ void PerfProducer::StartDataSource(DataSourceInstanceID ds_id,
     return;
   }
 
-  // TODO(rsavitski): consider supporting specific cpu subsets.
-  if (!event_config->target_all_cpus()) {
-    PERFETTO_ELOG("PerfEventConfig{all_cpus} required");
-    return;
-  }
   size_t num_cpus = NumberOfCpus();
   std::vector<EventReader> per_cpu_readers;
   for (uint32_t cpu = 0; cpu < num_cpus; cpu++) {
@@ -429,7 +426,7 @@ void PerfProducer::TickDataSourceRead(DataSourceInstanceID ds_id) {
   PERFETTO_METATRACE_SCOPED(TAG_PRODUCER, PROFILER_READ_TICK);
 
   // Make a pass over all per-cpu readers.
-  uint32_t max_samples = ds.event_config.samples_per_tick_limit();
+  uint64_t max_samples = ds.event_config.samples_per_tick_limit();
   bool more_records_available = false;
   for (EventReader& reader : ds.per_cpu_readers) {
     if (ReadAndParsePerCpuBuffer(&reader, max_samples, ds_id, &ds)) {
@@ -457,7 +454,7 @@ void PerfProducer::TickDataSourceRead(DataSourceInstanceID ds_id) {
 }
 
 bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
-                                            uint32_t max_samples,
+                                            uint64_t max_samples,
                                             DataSourceInstanceID ds_id,
                                             DataSourceState* ds) {
   PERFETTO_METATRACE_SCOPED(TAG_PRODUCER, PROFILER_READ_CPU);
@@ -472,7 +469,7 @@ bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
     });
   };
 
-  for (uint32_t i = 0; i < max_samples; i++) {
+  for (uint64_t i = 0; i < max_samples; i++) {
     base::Optional<ParsedSample> sample =
         reader->ReadUntilSample(records_lost_callback);
     if (!sample) {

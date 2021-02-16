@@ -168,7 +168,7 @@ class PerfProducer : public Producer,
   // on the amount of samples that will be parsed, which might be more than the
   // number of underlying records (as there might be non-sample records).
   bool ReadAndParsePerCpuBuffer(EventReader* reader,
-                                uint32_t max_samples,
+                                uint64_t max_samples,
                                 DataSourceInstanceID ds_id,
                                 DataSourceState* ds);
 
