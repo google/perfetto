@@ -14,8 +14,10 @@
 -- limitations under the License.
 
 select ts, dur, process.pid as pid, display_frame_token, surface_frame_token, layer_name
-from expected_frame_timeline_slice
-join process_track on process_track.upid = expected_frame_timeline_slice.upid
-join process on process_track.upid = process.upid
-where process_track.name = 'Expected Timeline'
+from
+  (select t.*, process_track.name as track_name from
+    process_track left join expected_frame_timeline_slice t
+    on process_track.id = t.track_id) s
+join process using(upid)
+where s.track_name = 'Expected Timeline'
 order by ts
