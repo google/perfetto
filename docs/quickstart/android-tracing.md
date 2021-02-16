@@ -1,62 +1,91 @@
 # Quickstart: Record traces on Android
 
-`perfetto` allows you to collect system-wide performance traces from Android
+Perfetto allows you to collect system-wide performance traces from Android
 devices from a variety of data sources (kernel scheduler via ftrace, userspace
 instrumentation via atrace and all other data sources listed in this site).
 
 ## Starting the tracing services
 
-Due to Perfetto's [service-based architecture](/docs/concepts/service-model.md)
-, the `traced` and `traced_probes` services need to be running to record traces.
-
-These services are shipped on Android system images by default since Android 9
-(Pie) but are not always enabled by default.
-On Android 9 (P) and 10 (Q) those services are enabled by default only on Pixel
-phones and must be manually enabled on other phones.
-Since Android 11 (R), perfetto services are enabled by default on most devices.
-
-To enable perfetto services run:
+Perfetto is based on [platform services](/docs/concepts/service-model.md)
+that are avilable since Android 9 (P) but are enabled by default only since
+Android 11 (R).
+On Android 9 (P) and 10 (Q) you need to do the following to ensure that the
+tracing services are enabled before getting started:
 
 ```bash
-# Will start both traced and traced_probes.
+# Needed only on Android 9 (P) and 10 (Q) on non-Pixel phones.
 adb shell setprop persist.traced.enable 1
 ```
 
 ## Recording a trace
 
-You can collect a trace in the following ways:
+Command line tools (usage examples below in this page):
+
+* Using the [`tools/record_android_trace`](/tools/record_android_trace) helper script.
+* Using directly the `/system/bin/perfetto` command on device [[reference](/docs/reference/perfetto-cli.md)].
+
+UI tools:
 
 * Through the record page in the [Perfetto UI](https://ui.perfetto.dev).
-* Using the `perfetto` command line interface [[reference](/docs/reference/perfetto-cli.md)].
+* Using the on-device [System Tracing App](https://developer.android.com/topic/performance/tracing/on-device)
 
-### Perfetto UI
+### Recording a trace through the Perfetto UI
 
-Navigate to ui.perfetto.dev and select **Record new trace**.
-
-From this page, select and turn on the data sources you want to include in the trace. More detail about the different data sources can be found in the
+Navigate to [ui.perfetto.dev](https://ui.perfetto.dev/#!/record) and select
+**Record new trace** from the left menu.
+From this page, select and turn on the data sources you want to include in the
+trace. More detail about the different data sources can be found in the
 _Data sources_ section of the docs.
 
 ![Record page of the Perfetto UI](/docs/images/record-trace.png)
 
 If you are unsure, start by turning on **Scheduling details** under the **CPU** tab.
 
-Ensure your device is connected and select **Add ADB device**. Once your device has successfully paired (you may need to allow USB debugging on the device), select the **Start Recording** button.
+Ensure your device is connected and select **Add ADB device**. Once your device
+has successfully paired (you may need to allow USB debugging on the device), select the **Start Recording** button.
 
-Allow time for the trace to be collected (10s by default) and then you should see the trace appear.
+Allow time for the trace to be collected (10s by default) and then you should
+see the trace appear.
 
 ![Perfetto UI with a trace loaded](/docs/images/trace-view.png)
 
 Your trace may look different depending on which data sources you enabled.
 
-### Perfetto cmdline
+### Recording a trace through the cmdline
 
-#### Short syntax
+We suggest using the `tools/record_android_trace` script to record traces from
+the command line. It is the equivalent of running `adb shell perfetto` but it
+helps with getting the paths right, auto-pulling the trace once done and opening
+it on the browser.
 
-If you are already familiar with `systrace` or `atrace`, there is an equivalent syntax with `perfetto`:
+If you are already familiar with `systrace` or `atrace`, both cmdline tools
+support a systrace-equivalent syntax:
 
 ```bash
-adb shell perfetto -o /data/misc/perfetto-traces/trace -t 20s sched freq idle am wm gfx view
+curl -O https://raw.githubusercontent.com/google/perfetto/master/tools/record_android_trace
+chmod u+x record_android_trace
+
+# See ./record_android_trace --help for more
+./record_android_trace -o trace_file.pftrace -t 10s -b 32mb sched gfx wm
 ```
+
+Or, if you want to use directly the on-device binary do instead:
+
+```bash
+adb shell perfetto -o /data/misc/perfetto-traces/trace_file.pftrace -t 20s sched freq idle am wm gfx view
+```
+
+Caveats when using directly the `adb shell perfetto` workflow:
+
+* Ctrl+C, which normally causes a graceful termination of the trace, is not
+  propagated by ADB when using `adb shell perfetto` but only when using an
+  interactive PTY-based session via `adb shell`.
+* On non-rooted devices before Android 12, the config can only be passed as
+  `cat config | adb shell perfetto -c -` (-: stdin) because of over-restrictive
+  SELinux rules. Since Android 12 `/data/misc/perfetto-configs` can be used for
+  storing configs.
+* When capturing longer traces, e.g. in the context of benchmarks or CI, use
+  `PID=$(perfetto --background)` and then `kill $PID` to stop.
 
 #### Full trace config
 
@@ -76,10 +105,7 @@ details of this can be found on the
 [_Trace configuration_ page](https://perfetto.dev/docs/concepts/config#pbtx-vs-binary-format).
 
 ```bash
-adb shell perfetto \
-  -c - --txt \
-  -o /data/misc/perfetto-traces/trace \
-<<EOF
+cat<<EOF>config.pbtx
 duration_ms: 10000
 
 buffers: {
@@ -119,30 +145,31 @@ data_sources: {
         }
     }
 }
-
 EOF
+
+./record_android_trace -c config.pbtx -o trace_file.pftrace 
 ```
 
-In all other cases, first push the trace config file and then invoke perfetto:
+Or alternatively, when using directly the on-device command:
+
 ```bash
-adb push config.txt /data/local/tmp/trace_config.txt
-adb shell 'cat /data/local/tmp/trace_config.txt | perfetto --txt -c - -o /data/misc/perfetto-traces/trace'
+cat config.pbtx | adb shell perfetto -c - --txt -o /data/misc/perfetto-traces/trace.pftrace
+```
+
+Alternatively, first push the trace config file and then invoke perfetto:
+
+```bash
+adb push config.pbtx /data/local/tmp/config.pbtx
+adb shell 'cat /data/local/tmp/config.pbtx | perfetto --txt -c - -o /data/misc/perfetto-traces/trace.pftrace'
 ```
 
 NOTE: because of strict SELinux rules, on non-rooted builds of Android, passing
 directly the file path as `-c /data/local/tmp/config` will fail, hence the
-`-c -` + stdin piping above.
+`-c -` + stdin piping above. From Android 12 (S), `/data/misc/perfetto-configs/`
+can be used instead.
 
 Pull the file using `adb pull /data/misc/perfetto-traces/trace ~/trace.pftrace`
-and upload to the [Perfetto UI](https://ui.perfetto.dev).
+and open it in the [Perfetto UI](https://ui.perfetto.dev).
 
 The full reference for the `perfetto` cmdline interface can be found
 [here](/docs/reference/perfetto-cli.md).
-
-## On-device System Tracing app
-
-Since Android 9 (P) it's possible to collect a trace directly from the device
-using the System Tracing app, from Developer Settings.
-
-See https://developer.android.com/topic/performance/tracing/on-device for
-instructions.
