@@ -141,6 +141,8 @@ TEST(StringUtilsTest, StringToDouble) {
   EXPECT_EQ(StringToDouble("abc"), nullopt);
   EXPECT_EQ(StringToDouble("123 abc"), nullopt);
   EXPECT_EQ(StringToDouble("124,456"), nullopt);
+  EXPECT_EQ(StringToDouble("4 2"), nullopt);
+  EXPECT_EQ(StringToDouble(" - 42"), nullopt);
 }
 
 TEST(StringUtilsTest, StartsWith) {
