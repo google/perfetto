@@ -20,6 +20,7 @@
 #include <functional>
 #include <string>
 
+#include <inttypes.h>
 #include <linux/perf_event.h>
 #include <stdint.h>
 #include <sys/types.h>
@@ -28,9 +29,13 @@
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/tracing/core/data_source_config.h"
 
-#include "protos/perfetto/config/profiling/perf_event_config.pbzero.h"
-
 namespace perfetto {
+namespace protos {
+namespace gen {
+class PerfEventConfig;
+}  // namespace gen
+}  // namespace protos
+
 namespace profiling {
 
 // Parsed allow/deny-list for filtering samples.
@@ -40,7 +45,7 @@ struct TargetFilter {
   base::FlatSet<std::string> exclude_cmdlines;
   base::FlatSet<pid_t> pids;
   base::FlatSet<pid_t> exclude_pids;
-  uint32_t additional_cmdline_count;
+  uint32_t additional_cmdline_count = 0;
 };
 
 // Describes a single profiling configuration. Bridges the gap between the data
@@ -57,14 +62,14 @@ class EventConfig {
           [](const std::string&, const std::string&) { return 0; });
 
   static base::Optional<EventConfig> Create(
-      const protos::pbzero::PerfEventConfig::Decoder& pb_config,
+      const protos::gen::PerfEventConfig& pb_config,
       const DataSourceConfig& raw_ds_config,
       tracepoint_id_fn_t tracepoint_id_lookup);
 
-  uint32_t target_all_cpus() const { return target_all_cpus_; }
   uint32_t ring_buffer_pages() const { return ring_buffer_pages_; }
   uint32_t read_tick_period_ms() const { return read_tick_period_ms_; }
-  uint32_t samples_per_tick_limit() const { return samples_per_tick_limit_; }
+
+  uint64_t samples_per_tick_limit() const { return samples_per_tick_limit_; }
   uint32_t remote_descriptor_timeout_ms() const {
     return remote_descriptor_timeout_ms_;
   }
@@ -82,18 +87,16 @@ class EventConfig {
   const DataSourceConfig& raw_ds_config() const { return raw_ds_config_; }
 
  private:
-  EventConfig(const protos::pbzero::PerfEventConfig::Decoder& cfg,
-              const DataSourceConfig& raw_ds_config,
+  EventConfig(const DataSourceConfig& raw_ds_config,
               const perf_event_attr& pe,
               uint32_t ring_buffer_pages,
               uint32_t read_tick_period_ms,
-              uint32_t samples_per_tick_limit,
+              uint64_t samples_per_tick_limit,
               uint32_t remote_descriptor_timeout_ms,
+              uint32_t unwind_state_clear_period_ms,
+              bool kernel_frames,
               const std::string& tracepoint_filter,
               TargetFilter target_filter);
-
-  // If true, process all system-wide samples.
-  const bool target_all_cpus_;
 
   // Size (in 4k pages) of each per-cpu ring buffer shared with the kernel.
   // Must be a power of two.
@@ -107,7 +110,7 @@ class EventConfig {
 
   // Guardrail for the amount of samples a given read attempt will extract from
   // *each* per-cpu buffer.
-  const uint32_t samples_per_tick_limit_;
+  const uint64_t samples_per_tick_limit_;
 
   // Parsed allow/deny-list for filtering samples.
   const TargetFilter target_filter_;

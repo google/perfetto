@@ -54,7 +54,7 @@ source_set("producer") {
     "../../../include/perfetto/profiling:normalize",
     "../../../protos/perfetto/common:zero",
     "../../../protos/perfetto/config:cpp",
-    "../../../protos/perfetto/config/profiling:zero",
+    "../../../protos/perfetto/config/profiling:cpp",
     "../../../protos/perfetto/trace:zero",
     "../../../protos/perfetto/trace/profiling:zero",
     "../../../src/base",

@@ -1,4 +1,5 @@
-# Copyright (C) 2020 The Android Open Source Project
+#!/bin/bash
+# Copyright (C) 2021 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,10 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-dispatch:
-- url: "docs.perfetto.dev/*"
-  service: redirect
-- url: "www.perfetto.dev/*"
-  service: redirect
-- url: "*/*"
-  service: default
+set -eu
+CUR_DIR="$(cd -P ${BASH_SOURCE[0]%/*}; pwd)"
+$CUR_DIR/../infra/perfetto.dev/run-dev-server

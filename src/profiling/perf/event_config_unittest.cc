@@ -26,6 +26,8 @@
 #include "protos/perfetto/config/data_source_config.gen.h"
 #include "protos/perfetto/config/profiling/perf_event_config.gen.h"
 
+using ::testing::UnorderedElementsAreArray;
+
 namespace perfetto {
 namespace profiling {
 namespace {
@@ -119,6 +121,166 @@ TEST(EventConfigTest, RemotePeriodTimeoutDefaultedIfUnset) {
 
     ASSERT_TRUE(event_config.has_value());
     ASSERT_EQ(event_config->remote_descriptor_timeout_ms(), timeout_ms);
+  }
+}
+
+TEST(EventConfigTest, EnableKernelFrames) {
+  {
+    protos::gen::PerfEventConfig cfg;
+    cfg.mutable_callstack_sampling()->set_kernel_frames(true);
+    base::Optional<EventConfig> event_config =
+        EventConfig::Create(AsDataSourceConfig(cfg));
+
+    ASSERT_TRUE(event_config.has_value());
+    EXPECT_TRUE(event_config->kernel_frames());
+  }
+  {  // legacy field:
+    protos::gen::PerfEventConfig cfg;
+    cfg.set_kernel_frames(true);
+    base::Optional<EventConfig> event_config =
+        EventConfig::Create(AsDataSourceConfig(cfg));
+
+    ASSERT_TRUE(event_config.has_value());
+    EXPECT_TRUE(event_config->kernel_frames());
+  }
+  {  // default is false
+    protos::gen::PerfEventConfig cfg;
+    base::Optional<EventConfig> event_config =
+        EventConfig::Create(AsDataSourceConfig(cfg));
+
+    ASSERT_TRUE(event_config.has_value());
+    EXPECT_FALSE(event_config->kernel_frames());
+  }
+}
+
+TEST(EventConfigTest, SelectSamplingInterval) {
+  {  // period:
+    protos::gen::PerfEventConfig cfg;
+    cfg.mutable_timebase()->set_period(100);
+    base::Optional<EventConfig> event_config =
+        EventConfig::Create(AsDataSourceConfig(cfg));
+
+    ASSERT_TRUE(event_config.has_value());
+    EXPECT_FALSE(event_config->perf_attr()->freq);
+    EXPECT_EQ(event_config->perf_attr()->sample_period, 100u);
+  }
+  {  // frequency:
+    protos::gen::PerfEventConfig cfg;
+    cfg.mutable_timebase()->set_frequency(4000);
+    base::Optional<EventConfig> event_config =
+        EventConfig::Create(AsDataSourceConfig(cfg));
+
+    ASSERT_TRUE(event_config.has_value());
+    EXPECT_TRUE(event_config->perf_attr()->freq);
+    EXPECT_EQ(event_config->perf_attr()->sample_freq, 4000u);
+  }
+  {  // legacy frequency field:
+    protos::gen::PerfEventConfig cfg;
+    cfg.set_sampling_frequency(5000);
+    base::Optional<EventConfig> event_config =
+        EventConfig::Create(AsDataSourceConfig(cfg));
+
+    ASSERT_TRUE(event_config.has_value());
+    EXPECT_TRUE(event_config->perf_attr()->freq);
+    EXPECT_EQ(event_config->perf_attr()->sample_freq, 5000u);
+  }
+  {  // default is 10 Hz (implementation-defined)
+    protos::gen::PerfEventConfig cfg;
+    base::Optional<EventConfig> event_config =
+        EventConfig::Create(AsDataSourceConfig(cfg));
+
+    ASSERT_TRUE(event_config.has_value());
+    EXPECT_TRUE(event_config->perf_attr()->freq);
+    EXPECT_EQ(event_config->perf_attr()->sample_freq, 10u);
+  }
+}
+
+TEST(EventConfigTest, SelectTimebaseEvent) {
+  auto id_lookup = [](const std::string& group, const std::string& name) {
+    return (group == "sched" && name == "sched_switch") ? 42 : 0;
+  };
+
+  {
+    protos::gen::PerfEventConfig cfg;
+    protos::gen::PerfEventConfig::Tracepoint* mutable_tracpoint =
+        cfg.mutable_timebase()->mutable_tracepoint();
+    mutable_tracpoint->set_name("sched:sched_switch");
+
+    base::Optional<EventConfig> event_config =
+        EventConfig::Create(AsDataSourceConfig(cfg), id_lookup);
+
+    ASSERT_TRUE(event_config.has_value());
+    EXPECT_EQ(event_config->perf_attr()->type, PERF_TYPE_TRACEPOINT);
+    EXPECT_EQ(event_config->perf_attr()->config, 42u);
+  }
+  {  // legacy field:
+    protos::gen::PerfEventConfig cfg;
+    protos::gen::PerfEventConfig::Tracepoint* mutable_tracepoint =
+        cfg.mutable_tracepoint();
+    mutable_tracepoint->set_name("sched:sched_switch");
+
+    base::Optional<EventConfig> event_config =
+        EventConfig::Create(AsDataSourceConfig(cfg), id_lookup);
+
+    ASSERT_TRUE(event_config.has_value());
+    EXPECT_EQ(event_config->perf_attr()->type, PERF_TYPE_TRACEPOINT);
+    EXPECT_EQ(event_config->perf_attr()->config, 42u);
+  }
+  {  // default is the CPU timer:
+    protos::gen::PerfEventConfig cfg;
+    cfg.mutable_timebase()->set_frequency(1000);
+    base::Optional<EventConfig> event_config =
+        EventConfig::Create(AsDataSourceConfig(cfg));
+
+    ASSERT_TRUE(event_config.has_value());
+    EXPECT_EQ(event_config->perf_attr()->type, PERF_TYPE_SOFTWARE);
+    EXPECT_EQ(event_config->perf_attr()->config, PERF_COUNT_SW_CPU_CLOCK);
+  }
+}
+
+TEST(EventConfigTest, ParseTargetfilter) {
+  {
+    protos::gen::PerfEventConfig cfg;
+    auto* mutable_scope = cfg.mutable_callstack_sampling()->mutable_scope();
+    mutable_scope->add_target_pid(42);
+    mutable_scope->add_target_cmdline("traced_probes");
+    mutable_scope->add_target_cmdline("traced");
+    mutable_scope->set_additional_cmdline_count(3);
+    mutable_scope->add_exclude_cmdline("heapprofd");
+
+    base::Optional<EventConfig> event_config =
+        EventConfig::Create(AsDataSourceConfig(cfg));
+
+    ASSERT_TRUE(event_config.has_value());
+    const auto& filter = event_config->filter();
+    EXPECT_THAT(filter.pids, UnorderedElementsAreArray({42}));
+    EXPECT_THAT(filter.cmdlines,
+                UnorderedElementsAreArray({"traced_probes", "traced"}));
+    EXPECT_EQ(filter.additional_cmdline_count, 3u);
+    EXPECT_TRUE(filter.exclude_pids.empty());
+    EXPECT_THAT(filter.exclude_cmdlines,
+                UnorderedElementsAreArray({"heapprofd"}));
+  }
+  {  // legacy:
+    protos::gen::PerfEventConfig cfg;
+    cfg.add_target_pid(42);
+    cfg.add_target_cmdline("traced_probes");
+    cfg.add_target_cmdline("traced");
+    cfg.set_additional_cmdline_count(3);
+    cfg.add_exclude_cmdline("heapprofd");
+
+    base::Optional<EventConfig> event_config =
+        EventConfig::Create(AsDataSourceConfig(cfg));
+
+    ASSERT_TRUE(event_config.has_value());
+    const auto& filter = event_config->filter();
+    EXPECT_THAT(filter.pids, UnorderedElementsAreArray({42}));
+    EXPECT_THAT(filter.cmdlines,
+                UnorderedElementsAreArray({"traced_probes", "traced"}));
+    EXPECT_EQ(filter.additional_cmdline_count, 3u);
+    EXPECT_TRUE(filter.exclude_pids.empty());
+    EXPECT_THAT(filter.exclude_cmdlines,
+                UnorderedElementsAreArray({"heapprofd"}));
   }
 }
 
