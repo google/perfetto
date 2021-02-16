@@ -23,6 +23,7 @@
 
 #include "perfetto/base/flat_set.h"
 #include "perfetto/ext/base/optional.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/profiling/normalize.h"
 #include "src/profiling/perf/regs_parsing.h"
 
@@ -166,16 +167,20 @@ base::Optional<EventConfig> EventConfig::Create(
     const protos::gen::PerfEventConfig& pb_config,
     const DataSourceConfig& raw_ds_config,
     tracepoint_id_fn_t tracepoint_id_lookup) {
-  // Timebase - sampling frequency.
+  // Timebase - sampling interval.
   uint64_t sampling_frequency = 0;
-  if (pb_config.timebase().frequency()) {
+  uint64_t sampling_period = 0;
+  if (pb_config.timebase().period()) {
+    sampling_period = pb_config.timebase().period();
+  } else if (pb_config.timebase().frequency()) {
     sampling_frequency = pb_config.timebase().frequency();
   } else if (pb_config.sampling_frequency()) {  // backwards compatibility
     sampling_frequency = pb_config.sampling_frequency();
   } else {
     sampling_frequency = kDefaultSamplingFrequencyHz;
   }
-  PERFETTO_CHECK(sampling_frequency);
+  PERFETTO_CHECK(sampling_period && !sampling_frequency ||
+                 !sampling_period && sampling_frequency);
 
   // Timebase event - atm either a tracepoint, or the default - CPU timer.
   uint32_t tracepoint_id = 0;
@@ -198,7 +203,7 @@ base::Optional<EventConfig> EventConfig::Create(
   base::Optional<TargetFilter> target_filter =
       pb_config.callstack_sampling().has_scope()
           ? ParseTargetFilter(pb_config.callstack_sampling().scope())
-          : ParseTargetFilter(pb_config);
+          : ParseTargetFilter(pb_config);  // backwards compatibility
 
   if (!target_filter.has_value())
     return base::nullopt;
@@ -217,18 +222,31 @@ base::Optional<EventConfig> EventConfig::Create(
                                      ? pb_config.ring_buffer_read_period_ms()
                                      : kDefaultReadTickPeriodMs;
 
-  // Take the ratio of sampling and reading frequencies, which gives the
-  // upper bound on number of samples per tick (for a single per-cpu buffer).
-  // Overflow not a concern for sane inputs.
-  uint64_t expected_samples_per_tick =
-      1 + (sampling_frequency * read_tick_period_ms) / 1000;
-
-  // Use double the expected value as the actual guardrail (don't assume that
-  // periodic read task is as exact as the kernel).
-  uint64_t samples_per_tick_limit = 2 * expected_samples_per_tick;
-  PERFETTO_DCHECK(samples_per_tick_limit > 0);
+  // Calculate a rough upper limit for the amount of samples the producer
+  // should read per read tick, as a safeguard against getting stuck chasing the
+  // ring buffer head indefinitely.
+  uint64_t samples_per_tick_limit = 0;
+  if (sampling_frequency) {
+    // expected = rate * period, with a conversion of period from ms to s:
+    uint64_t expected_samples_per_tick =
+        1 + (sampling_frequency * read_tick_period_ms) / 1000;
+    // Double the the limit to account of actual sample rate uncertainties, as
+    // well as any other factors:
+    samples_per_tick_limit = 2 * expected_samples_per_tick;
+  } else {  // sampling_period
+    // We don't know the sample rate that a fixed period would cause, but we can
+    // still estimate how many samples will fit in one pass of the ring buffer
+    // (with the assumption that we don't want to read more than one buffer's
+    // capacity within a tick).
+    // TODO(rsavitski): for now, make an extremely conservative guess of an 8
+    // byte sample (stack sampling samples can be up to 64KB). This is most
+    // likely as good as no limit in practice.
+    samples_per_tick_limit = *ring_buffer_pages * (base::kPageSize / 8);
+  }
   PERFETTO_DLOG("Capping samples (not records) per tick to [%" PRIu64 "]",
                 samples_per_tick_limit);
+  if (samples_per_tick_limit == 0)
+    return base::nullopt;
 
   // Android-specific options.
   uint32_t remote_descriptor_timeout_ms =
@@ -252,9 +270,12 @@ base::Optional<EventConfig> EventConfig::Create(
     pe.config = PERF_COUNT_SW_CPU_CLOCK;
   }
 
-  // Ask the kernel to sample at a given frequency.
-  pe.freq = true;
-  pe.sample_freq = sampling_frequency;
+  if (sampling_frequency) {
+    pe.freq = true;
+    pe.sample_freq = sampling_frequency;
+  } else {
+    pe.sample_period = sampling_period;
+  }
 
   pe.sample_type = PERF_SAMPLE_TID | PERF_SAMPLE_TIME | PERF_SAMPLE_STACK_USER |
                    PERF_SAMPLE_REGS_USER;
