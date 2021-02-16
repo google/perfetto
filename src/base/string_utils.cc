@@ -30,19 +30,17 @@
 
 namespace perfetto {
 namespace base {
-namespace {
-
-locale_t* GetCLocale() {
-  static locale_t locale_s = newlocale(LC_ALL, "C", nullptr);
-  return &locale_s;
-}
-
-}  // namespace
 
 // Locale-independant as possible version of strtod.
 double StrToD(const char* nptr, char** endptr) {
-  locale_t* locale = GetCLocale();
-  return strtod_l(nptr, endptr, *locale);
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+  static auto c_locale = newlocale(LC_ALL, "C", nullptr);
+  return strtod_l(nptr, endptr, c_locale);
+#else
+  return strtod(nptr, endptr);
+#endif
 }
 
 std::string QuoteAndEscapeControlCodes(const std::string& raw) {
