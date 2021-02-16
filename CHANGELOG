@@ -5,6 +5,10 @@ Unreleased:
     *
   UI:
     *
+  SDK:
+    * Use process start time hashed with the process id as a unique process
+      identifier, allowing multiple independent users of the SDK in the same
+      process to interleave their events on shared tracks.
 
 
 v12.1 - 2021-02-01:
