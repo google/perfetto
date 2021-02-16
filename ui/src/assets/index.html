@@ -4,9 +4,9 @@
   <meta charset="utf-8">
   <title>Perfetto UI</title>
   <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" name="viewport" />
-  <link rel="shortcut icon" id="favicon" type="image/png" href="assets/favicon.png">
+  <link rel="shortcut icon" id="favicon" type="image/png" href="data:image/png;base64,iVBORw0KGgo=">
 </head>
-<body>
+<body data-perfetto_version='{"filled_by_build_js":"."}'>
   <!--
     Don't add any content here. The whole <body> is replaced by
     frontend/index.ts when bootstrapping. This is only used for very early
@@ -55,12 +55,17 @@ Technical Information:
       let errTimerId = undefined;
 
       function errHandler(err) {
-        console.error(err);
+        // Note: we deliberately don't clearTimeout(), which means that this
+        // handler is called also in the happy case when the UI loads. In that
+        // case, though, the onCssLoaded() in frontend/index.ts will empty the
+        // <body>, so |div| below will be null and this function becomes a
+        // no-op.
         const div = document.getElementById('app_load_failure');
         if (!div) return;
         div.style.opacity ='1';
         const errDom = document.getElementById('app_load_failure_err');
         if (!errDom) return;
+        console.error(err);
         errDom.innerText += `${err}\n`;
         const storageJson = JSON.stringify(window.localStorage);
         const dbg = document.getElementById('app_load_failure_dbg');
@@ -91,9 +96,19 @@ Technical Information:
       window.onerror = errHandler;
       window.onunhandledrejection = errHandler;
 
+      const versionStr = document.body.dataset['perfetto_version'] || '{}';
+      const versionMap = JSON.parse(versionStr);
+      const channel = localStorage.getItem('perfettoUiChannel') || 'stable';
+
+      // The '.' below is a fallback for the case of opening a pinned version
+      // (e.g., ui.perfetto.dev/v1.2.3./). In that case, the index.html has no
+      // valid version map; we want to load the frontend from the same
+      // sub-directory directory, hence ./frontend_bundle.js.
+      const version = versionMap[channel] || versionMap['stable'] || '.';
+
       const script = document.createElement('script');
       script.async = true;
-      script.src = 'frontend_bundle.js';
+      script.src = version + '/frontend_bundle.js';
       script.onerror = () => errHandler(`Failed to load ${script.src}`);
 
       document.head.append(script);

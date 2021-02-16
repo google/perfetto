@@ -66,6 +66,7 @@
 
 const argparse = require('argparse');
 const child_process = require('child_process');
+var crypto = require('crypto');
 const fs = require('fs');
 const http = require('http');
 const path = require('path');
@@ -85,14 +86,17 @@ const cfg = {
 
   // The fields below will be changed by main() after cmdline parsing.
   // Directory structure:
-  // out/xxx/      -> outDir     : Root build dir, for both ninja/wasm and UI.
-  //   ui/         -> outUiDir   : UI dir. All outputs from this script.
-  //    tsc/       -> outTscDir  : Transpiled .ts -> .js.
-  //      gen/     -> outGenDir  : Auto-generated .ts/.js (e.g. protos).
-  //    dist/      -> outDistDir : Final artifacts (JS bundles, assets).
-  //    chrome_extension/        : Chrome extension.
+  // out/xxx/    -> outDir         : Root build dir, for both ninja/wasm and UI.
+  //   ui/       -> outUiDir       : UI dir. All outputs from this script.
+  //    tsc/     -> outTscDir      : Transpiled .ts -> .js.
+  //      gen/   -> outGenDir      : Auto-generated .ts/.js (e.g. protos).
+  //    dist/    -> outDistRootDir : Only index.html and service_worker.js
+  //      v1.2/  -> outDistDir     : JS bundles and assets
+  //    chrome_extension/          : Chrome extension.
   outDir: pjoin(ROOT_DIR, 'out/ui'),
+  version: '',  // v1.2.3, derived from the CHANGELOG + git.
   outUiDir: '',
+  outDistRootDir: '',
   outTscDir: '',
   outGenDir: '',
   outDistRootDir: '',
@@ -101,14 +105,14 @@ const cfg = {
 };
 
 const RULES = [
-  {r: /ui\/src\/assets\/(index.html)/, f: copyIntoDistRoot},
+  {r: /ui\/src\/assets\/index.html/, f: copyIndexHtml},
   {r: /ui\/src\/assets\/((.*)[.]png)/, f: copyAssets},
   {r: /buildtools\/typefaces\/(.+[.]woff2)/, f: copyAssets},
   {r: /buildtools\/catapult_trace_viewer\/(.+(js|html))/, f: copyAssets},
   {r: /ui\/src\/assets\/.+[.]scss/, f: compileScss},
   {r: /ui\/src\/assets\/.+[.]scss/, f: compileScss},
   {r: /ui\/src\/chrome_extension\/.*/, f: copyExtensionAssets},
-  {r: /.*\/dist\/(?!service_worker).*/, f: genServiceWorkerDistHashes},
+  {r: /.*\/dist\/.+\/(?!manifest\.json).*/, f: genServiceWorkerManifestJson},
   {r: /.*\/dist\/.*/, f: notifyLiveServer},
 ];
 
@@ -136,9 +140,9 @@ function main() {
   cfg.outUiDir = ensureDir(pjoin(cfg.outDir, 'ui'), clean);
   cfg.outExtDir = ensureDir(pjoin(cfg.outUiDir, 'chrome_extension'));
   cfg.outDistRootDir = ensureDir(pjoin(cfg.outUiDir, 'dist'));
-  // TODO(primiano): for now distDir == distRootDir. In next CLs distDir will
-  // become dist/v1.2.3/.
-  cfg.outDistDir = cfg.outDistRootDir;
+  const proc = exec('python3', [VERSION_SCRIPT, '--stdout'], {stdout: 'pipe'});
+  cfg.version = proc.stdout.toString().trim();
+  cfg.outDistDir = ensureDir(pjoin(cfg.outDistRootDir, cfg.version));
   cfg.outTscDir = ensureDir(pjoin(cfg.outUiDir, 'tsc'));
   cfg.outGenDir = ensureDir(pjoin(cfg.outUiDir, 'tsc/gen'));
   cfg.watch = !!args.watch;
@@ -162,7 +166,7 @@ function main() {
   console.log('Entering', cfg.outDir);
   process.chdir(cfg.outDir);
 
-  updateSymilnks();  // Links //ui/out -> //out/xxx/ui/
+  updateSymlinks();  // Links //ui/out -> //out/xxx/ui/
 
   // Enqueue empty task. This is needed only for --no-build --serve. The HTTP
   // server is started when the task queue reaches quiescence, but it takes at
@@ -178,12 +182,9 @@ function main() {
     compileProtos();
     genVersion();
     transpileTsProject('ui');
-    bundleJs('rollup.config.js');
-
-    // ServiceWorker.
-    genServiceWorkerDistHashes();
     transpileTsProject('ui/src/service_worker');
-    bundleJs('rollup-serviceworker.config.js');
+    bundleJs('rollup.config.js');
+    genServiceWorkerManifestJson();
 
     // Watches the /dist. When changed:
     // - Notifies the HTTP live reload clients.
@@ -214,8 +215,23 @@ function runTests() {
   }
 }
 
-function copyIntoDistRoot(src, dst) {
-  addTask(cp, [src, pjoin(cfg.outDistRootDir, dst)]);
+function copyIndexHtml(src) {
+  const index_html = () => {
+    let html = fs.readFileSync(src).toString();
+    // First copy the index.html as-is into the dist/v1.2.3/ directory. This is
+    // only used for archival purporses, so one can open
+    // ui.perfetto.dev/v1.2.3/ to skip the auto-update and channel logic.
+    fs.writeFileSync(pjoin(cfg.outDistDir, 'index.html'), html);
+
+    // Then copy it into the dist/ root by patching the version code.
+    // TODO(primiano): in next CLs, this script should take a
+    // --release_map=xxx.json argument, to populate this with multiple channels.
+    const versionMap = JSON.stringify({'stable': cfg.version});
+    const bodyRegex = /data-perfetto_version='[^']*'/;
+    html = html.replace(bodyRegex, `data-perfetto_version='${versionMap}'`);
+    fs.writeFileSync(pjoin(cfg.outDistRootDir, 'index.html'), html);
+  };
+  addTask(index_html);
 }
 
 function copyAssets(src, dst) {
@@ -267,8 +283,15 @@ function genVersion() {
   addTask(exec, [cmd, args]);
 }
 
-function updateSymilnks() {
+function updateSymlinks() {
   mklink(cfg.outUiDir, pjoin(ROOT_DIR, 'ui/out'));
+
+  // Creates a out/dist_version -> out/dist/v1.2.3 symlink, so rollup config
+  // can point to that without having to know the current version number.
+  mklink(
+      path.relative(cfg.outUiDir, cfg.outDistDir),
+      pjoin(cfg.outUiDir, 'dist_version'));
+
   mklink(
       pjoin(ROOT_DIR, 'ui/node_modules'), pjoin(cfg.outTscDir, 'node_modules'))
 }
@@ -304,12 +327,7 @@ function buildWasm(skipWasmBuild) {
 // This transpiles all the sources (frontend, controller, engine, extension) in
 // one go. The only project that has a dedicated invocation is service_worker.
 function transpileTsProject(project) {
-  const args = [
-    '--project',
-    pjoin(ROOT_DIR, project),
-    '--outDir',
-    cfg.outTscDir,
-  ];
+  const args = ['--project', pjoin(ROOT_DIR, project)];
   if (cfg.watch) {
     args.push('--watch', '--preserveWatchOutput');
     addTask(execNode, ['tsc', args, {async: true}]);
@@ -333,24 +351,23 @@ function bundleJs(cfgName) {
   }
 }
 
-// Generates a map of {"dist_file_name" -> "sha256-01234"} used by the SW.
-function genServiceWorkerDistHashes() {
-  function write_ui_dist_file_map() {
-    const distFiles = [];
-    const skipRegex = /(service_worker\.js)|(\.map$)/;
-    walk(cfg.outDistDir, f => distFiles.push(f), skipRegex);
-    const dst = pjoin(cfg.outGenDir, 'dist_file_map.ts');
-    const cmd = 'python3';
-    const args = [
-      pjoin(ROOT_DIR, 'gn/standalone/write_ui_dist_file_map.py'),
-      '--out',
-      dst,
-      '--strip',
-      cfg.outDistDir,
-    ].concat(distFiles);
-    exec(cmd, args);
+function genServiceWorkerManifestJson() {
+  function make_manifest() {
+    const manifest = {resources: {}};
+    // When building the subresource manifest skip source maps, the manifest
+    // itself and the copy of the index.html which is copied under /v1.2.3/.
+    // The root /index.html will be fetched by service_worker.js separately.
+    const skipRegex = /(\.map|manifest\.json|index.html)$/;
+    walk(cfg.outDistDir, absPath => {
+      const contents = fs.readFileSync(absPath);
+      const relPath = path.relative(cfg.outDistDir, absPath);
+      const b64 = crypto.createHash('sha256').update(contents).digest('base64');
+      manifest.resources[relPath] = 'sha256-' + b64;
+    }, skipRegex);
+    const manifestJson = JSON.stringify(manifest, null, 2);
+    fs.writeFileSync(pjoin(cfg.outDistDir, 'manifest.json'), manifestJson);
   }
-  addTask(write_ui_dist_file_map, []);
+  addTask(make_manifest, []);
 }
 
 function startServer() {
@@ -403,7 +420,8 @@ function startServer() {
             'Cache-Control': 'no-cache',
           };
           res.writeHead(200, head);
-          res.end(data);
+          res.write(data);
+          res.end();
         });
       })
       .listen(port);

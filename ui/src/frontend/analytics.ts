@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {globals} from '../frontend/globals';
+import * as version from '../gen/perfetto_version';
 
 type TraceCategories = 'Trace Actions'|'Record Trace'|'User Actions';
 const ANALYTICS_ID = 'UA-137828855-1';
@@ -92,6 +93,7 @@ class AnalyticsImpl implements Analytics {
       referrer: document.referrer.split('?')[0],
       send_page_view: false,
       dimension1: globals.isInternalUser ? '1' : '0',
+      dimension2: version.VERSION,
     });
     this.updatePath(route);
   }
