@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {TraceConfig} from '../common/protos';
 import {perfetto} from '../gen/protos';
 
 // In this file are contained a few functions to simplify the proto parsing.
@@ -37,3 +38,30 @@ export function extractDurationFromTraceConfig(traceConfigProto: Uint8Array) {
     return undefined;
   }
 }
+
+export function browserSupportsPerfettoConfig(): Boolean {
+  const minimumChromeVersion = '91.0.4448.0';
+  const runningVersion = String(
+      (/Chrome\/(([0-9]+\.?){4})/.exec(navigator.userAgent) || [, 0])[1]);
+
+  if (!runningVersion) return false;
+
+  const minVerArray = minimumChromeVersion.split('.').map(Number);
+  const runVerArray = runningVersion.split('.').map(Number);
+
+  for (var index = 0; index < minVerArray.length; index++) {
+    if (runVerArray[index] == minVerArray[index]) continue;
+    return runVerArray[index] > minVerArray[index];
+  }
+  return true;  // Exact version match.
+};
+
+export function hasSystemDataSourceConfig(config: TraceConfig): Boolean {
+  for (const ds of config.dataSources) {
+    if (ds.config && ds.config.name &&
+        !ds.config.name.startsWith('org.chromium.')) {
+      return true;
+    }
+  }
+  return false;
+};
