@@ -316,9 +316,11 @@ function main() {
   const cssLoadPromise = defer<void>();
   const css = document.createElement('link');
   css.rel = 'stylesheet';
-  css.href = 'perfetto.css';
+  css.href = globals.root + 'perfetto.css';
   css.onload = () => cssLoadPromise.resolve();
   css.onerror = (err) => cssLoadPromise.reject(err);
+  const favicon = document.head.querySelector('#favicon') as HTMLLinkElement;
+  if (favicon) favicon.href = globals.root + 'assets/favicon.png';
 
   // Load the script to detect if this is a Googler (see comments on globals.ts)
   // and initialize GA after that (or after a timeout if something goes wrong).
@@ -337,7 +339,7 @@ function main() {
   window.addEventListener('error', e => reportError(e));
   window.addEventListener('unhandledrejection', e => reportError(e));
 
-  const controller = new Worker('controller_bundle.js');
+  const controller = new Worker(globals.root + 'controller_bundle.js');
   const frontendChannel = new MessageChannel();
   const controllerChannel = new MessageChannel();
   const extensionLocalChannel = new MessageChannel();

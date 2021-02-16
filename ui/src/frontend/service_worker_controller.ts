@@ -74,12 +74,24 @@ export class ServiceWorkerController {
   async install() {
     if (!('serviceWorker' in navigator)) return;  // Not supported.
 
+    if (location.pathname !== '/') {
+      // Disable the service worker when the UI is loaded from a non-root URL
+      // (e.g. from the CI artifacts GCS bucket). Supporting the case of a
+      // nested index.html is too cumbersome and has no benefits.
+      return;
+    }
+
     if (await caches.has(BYPASS_ID)) {
       this._bypassed = true;
       console.log('Skipping service worker registration, disabled by the user');
       return;
     }
-    navigator.serviceWorker.register('service_worker.js').then(registration => {
+    // In production cases versionDir == VERSION. We use this here for ease of
+    // testing (so we can have /v1.0.0a/ /v1.0.0b/ even if they have the same
+    // version code).
+    const versionDir = globals.root.split('/').slice(-2)[0];
+    const swUri = `/service_worker.js?v=${versionDir}`;
+    navigator.serviceWorker.register(swUri).then(registration => {
       this._initialWorker = registration.active;
 
       // At this point there are two options:
@@ -90,8 +102,7 @@ export class ServiceWorkerController {
       this.monitorWorker(registration.installing);
       this.monitorWorker(registration.active);
 
-      // Setup the event that shows the "A new release is available"
-      // notification.
+      // Setup the event that shows the "Updated to v1.2.3" notification.
       registration.addEventListener('updatefound', () => {
         this.monitorWorker(registration.installing);
       });
