@@ -125,10 +125,20 @@ export interface ThreadDesc {
 }
 type ThreadMap = Map<number, ThreadDesc>;
 
+function getRoot() {
+  // Works out the root directory where the content should be served from
+  // e.g. `http://origin/v1.2.3/`.
+  let root = (document.currentScript as HTMLScriptElement).src;
+  root = root.substr(0, root.lastIndexOf('/') + 1);
+  return root;
+}
+
 /**
  * Global accessors for state/dispatch in the frontend.
  */
 class Globals {
+  readonly root = getRoot();
+
   private _dispatch?: Dispatch = undefined;
   private _controllerWorker?: Worker = undefined;
   private _state?: State = undefined;

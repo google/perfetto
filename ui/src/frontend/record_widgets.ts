@@ -70,7 +70,7 @@ export class Probe implements m.ClassComponent<ProbeAttrs> {
     return m(
         `.probe${enabled ? '.enabled' : ''}`,
         attrs.img && m('img', {
-          src: `assets/${attrs.img}`,
+          src: `${globals.root}assets/${attrs.img}`,
           onclick: () => onToggle(!enabled),
         }),
         m('label',
