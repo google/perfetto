@@ -41,11 +41,6 @@ perfetto::DynamicCategory NullCategory(const perfetto::DynamicCategory&) {
   return perfetto::DynamicCategory{};
 }
 
-const Category* TrackEventCategoryRegistry::GetCategory(size_t index) const {
-  PERFETTO_DCHECK(index < category_count_);
-  return &categories_[index];
-}
-
 void TrackEventCategoryRegistry::EnableCategoryForInstance(
     size_t category_index,
     uint32_t instance_index) const {

@@ -401,6 +401,7 @@ EventContext TrackEventInternal::WriteEvent(
 
   // We assume that |category| and |name| point to strings with static lifetime.
   // This means we can use their addresses as interning keys.
+  // TODO(skyostil): Intern categories at compile time.
   if (category && type != protos::pbzero::TrackEvent::TYPE_SLICE_END) {
     category->ForEachGroupMember(
         [&](const char* member_name, size_t name_size) {
