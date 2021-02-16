@@ -110,10 +110,6 @@ JOB_CONFIGS = {
         'PERFETTO_TEST_GN_ARGS': '',
         'PERFETTO_TEST_SCRIPT': 'test/ci/bazel_tests.sh',
     },
-    'ui-clang-x86_64-debug': {
-        'PERFETTO_TEST_GN_ARGS': 'is_debug=true',
-        'PERFETTO_TEST_SCRIPT': 'test/ci/ui_tests.sh',
-    },
     'ui-clang-x86_64-release': {
         'PERFETTO_TEST_GN_ARGS': 'is_debug=false',
         'PERFETTO_TEST_SCRIPT': 'test/ci/ui_tests.sh',
