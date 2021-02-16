@@ -153,8 +153,18 @@ TEST(EventConfigTest, EnableKernelFrames) {
   }
 }
 
-TEST(EventConfigTest, SelectSamplingFrequency) {
-  {
+TEST(EventConfigTest, SelectSamplingInterval) {
+  {  // period:
+    protos::gen::PerfEventConfig cfg;
+    cfg.mutable_timebase()->set_period(100);
+    base::Optional<EventConfig> event_config =
+        EventConfig::Create(AsDataSourceConfig(cfg));
+
+    ASSERT_TRUE(event_config.has_value());
+    EXPECT_FALSE(event_config->perf_attr()->freq);
+    EXPECT_EQ(event_config->perf_attr()->sample_period, 100u);
+  }
+  {  // frequency:
     protos::gen::PerfEventConfig cfg;
     cfg.mutable_timebase()->set_frequency(4000);
     base::Optional<EventConfig> event_config =
@@ -164,7 +174,7 @@ TEST(EventConfigTest, SelectSamplingFrequency) {
     EXPECT_TRUE(event_config->perf_attr()->freq);
     EXPECT_EQ(event_config->perf_attr()->sample_freq, 4000u);
   }
-  {  // legacy field:
+  {  // legacy frequency field:
     protos::gen::PerfEventConfig cfg;
     cfg.set_sampling_frequency(5000);
     base::Optional<EventConfig> event_config =
