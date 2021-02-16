@@ -29,6 +29,10 @@
 #include <algorithm>
 #endif
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#include <sys/prctl.h>
+#endif
+
 // Internal implementation utils that aren't as widely useful/supported as
 // base/thread_utils.h.
 
@@ -51,8 +55,25 @@ inline bool MaybeSetThreadName(const std::string& name) {
   return pthread_setname_np(pthread_self(), buf) == 0;
 #endif
 }
+
+inline bool GetThreadName(std::string& out_result) {
+  char buf[16] = {};
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  if (prctl(PR_GET_NAME, buf) != 0)
+    return false;
+#else
+  if (pthread_getname_np(pthread_self(), buf, sizeof(buf)) != 0)
+    return false;
+#endif
+  out_result = std::string(buf);
+  return true;
+}
+
 #else
 inline void MaybeSetThreadName(const std::string&) {}
+inline bool GetThreadName(std::string&) {
+  return false;
+}
 #endif
 
 }  // namespace base
