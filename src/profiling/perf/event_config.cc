@@ -26,7 +26,7 @@
 #include "perfetto/profiling/normalize.h"
 #include "src/profiling/perf/regs_parsing.h"
 
-#include "protos/perfetto/config/profiling/perf_event_config.pbzero.h"
+#include "protos/perfetto/config/profiling/perf_event_config.gen.h"
 
 namespace perfetto {
 namespace profiling {
@@ -37,11 +37,11 @@ constexpr uint32_t kDefaultDataPagesPerRingBuffer = 256;  // 1 MB: 256x 4k pages
 constexpr uint32_t kDefaultReadTickPeriodMs = 100;
 constexpr uint32_t kDefaultRemoteDescriptorTimeoutMs = 100;
 
-base::Optional<std::string> Normalize(const protozero::ConstChars& src) {
+base::Optional<std::string> Normalize(const std::string& src) {
   // Construct a null-terminated string that will be mutated by the normalizer.
-  std::vector<char> base(src.size + 1);
-  memcpy(base.data(), src.data, src.size);
-  base[src.size] = '\0';
+  std::vector<char> base(src.size() + 1);
+  memcpy(base.data(), src.data(), src.size());
+  base[src.size()] = '\0';
 
   char* new_start = base.data();
   ssize_t new_sz = NormalizeCmdLine(&new_start, base.size());
@@ -72,9 +72,9 @@ std::pair<std::string, std::string> SplitTracepointString(
 
 // If set, the returned id is guaranteed to be non-zero.
 base::Optional<uint32_t> ParseTracepointAndResolveId(
-    const protos::pbzero::TracepointEventConfig::Decoder& tracepoint,
+    const protos::gen::PerfEventConfig::Tracepoint& tracepoint,
     EventConfig::tracepoint_id_fn_t tracepoint_id_lookup) {
-  std::string full_name = tracepoint.name().ToStdString();
+  std::string full_name = tracepoint.name();
   std::string tp_group;
   std::string tp_name;
   std::tie(tp_group, tp_name) = SplitTracepointString(full_name);
@@ -97,33 +97,35 @@ base::Optional<uint32_t> ParseTracepointAndResolveId(
   return base::make_optional(tracepoint_id);
 }
 
-// returns |base::nullopt| if any of the input cmdlines couldn't be normalized.
-base::Optional<TargetFilter> ParseTargetFilter(
-    const protos::pbzero::PerfEventConfig::Decoder& cfg) {
+// Returns |base::nullopt| if any of the input cmdlines couldn't be normalized.
+// |T| is either gen::PerfEventConfig or gen::PerfEventConfig::Scope.
+template <typename T>
+base::Optional<TargetFilter> ParseTargetFilter(const T& cfg) {
   TargetFilter filter;
-  for (auto it = cfg.target_cmdline(); it; ++it) {
-    base::Optional<std::string> opt = Normalize(*it);
+  for (const auto& str : cfg.target_cmdline()) {
+    base::Optional<std::string> opt = Normalize(str);
     if (!opt.has_value())
       return base::nullopt;
     filter.cmdlines.insert(std::move(opt.value()));
   }
 
-  for (auto it = cfg.exclude_cmdline(); it; ++it) {
-    base::Optional<std::string> opt = Normalize(*it);
+  for (const auto& str : cfg.exclude_cmdline()) {
+    base::Optional<std::string> opt = Normalize(str);
     if (!opt.has_value())
       return base::nullopt;
     filter.exclude_cmdlines.insert(std::move(opt.value()));
   }
 
-  for (auto it = cfg.target_pid(); it; ++it) {
-    filter.pids.insert(*it);
+  for (const int32_t pid : cfg.target_pid()) {
+    filter.pids.insert(pid);
   }
 
-  for (auto it = cfg.exclude_pid(); it; ++it) {
-    filter.exclude_pids.insert(*it);
+  for (const int32_t pid : cfg.exclude_pid()) {
+    filter.exclude_pids.insert(pid);
   }
 
   filter.additional_cmdline_count = cfg.additional_cmdline_count();
+
   return base::make_optional(std::move(filter));
 }
 
@@ -152,67 +154,87 @@ base::Optional<uint32_t> ChooseActualRingBufferPages(uint32_t config_value) {
 base::Optional<EventConfig> EventConfig::Create(
     const DataSourceConfig& ds_config,
     tracepoint_id_fn_t tracepoint_id_lookup) {
-  protos::pbzero::PerfEventConfig::Decoder event_config_pb(
-      ds_config.perf_event_config_raw());
-  return EventConfig::Create(event_config_pb, ds_config, tracepoint_id_lookup);
+  protos::gen::PerfEventConfig pb_config;
+  if (!pb_config.ParseFromString(ds_config.perf_event_config_raw()))
+    return base::nullopt;
+
+  return EventConfig::Create(pb_config, ds_config, tracepoint_id_lookup);
 }
 
 // static
 base::Optional<EventConfig> EventConfig::Create(
-    const protos::pbzero::PerfEventConfig::Decoder& pb_config,
+    const protos::gen::PerfEventConfig& pb_config,
     const DataSourceConfig& raw_ds_config,
     tracepoint_id_fn_t tracepoint_id_lookup) {
-  // The counter (aka event or timebase) is either a tracepoint, or the
-  // implicit default - CPU timer.
+  // Timebase - sampling frequency.
+  uint64_t sampling_frequency = 0;
+  if (pb_config.timebase().frequency()) {
+    sampling_frequency = pb_config.timebase().frequency();
+  } else if (pb_config.sampling_frequency()) {  // backwards compatibility
+    sampling_frequency = pb_config.sampling_frequency();
+  } else {
+    sampling_frequency = kDefaultSamplingFrequencyHz;
+  }
+  PERFETTO_CHECK(sampling_frequency);
+
+  // Timebase event - atm either a tracepoint, or the default - CPU timer.
   uint32_t tracepoint_id = 0;
   std::string tracepoint_filter;
-  if (pb_config.has_tracepoint()) {
-    protos::pbzero::TracepointEventConfig::Decoder tracepoint_pb(
-        pb_config.tracepoint());
+  if (pb_config.timebase().has_tracepoint() || pb_config.has_tracepoint()) {
+    const auto& tracepoint_pb =
+        pb_config.timebase().has_tracepoint()
+            ? pb_config.timebase().tracepoint()
+            : pb_config.tracepoint();  // backwards compatibility
     base::Optional<uint32_t> maybe_id =
         ParseTracepointAndResolveId(tracepoint_pb, tracepoint_id_lookup);
     if (!maybe_id)
       return base::nullopt;
     tracepoint_id = *maybe_id;
-
     // Optional event filter. Will be validated by the kernel when used.
-    tracepoint_filter = tracepoint_pb.filter().ToStdString();
+    tracepoint_filter = tracepoint_pb.filter();
   }
 
-  base::Optional<TargetFilter> filter = ParseTargetFilter(pb_config);
-  if (!filter.has_value())
+  // Context sampling - process scoping.
+  base::Optional<TargetFilter> target_filter =
+      pb_config.callstack_sampling().has_scope()
+          ? ParseTargetFilter(pb_config.callstack_sampling().scope())
+          : ParseTargetFilter(pb_config);
+
+  if (!target_filter.has_value())
     return base::nullopt;
 
+  // Context sampling - inclusion of kernel callchains.
+  bool kernel_frames = pb_config.callstack_sampling().kernel_frames() ||
+                       pb_config.kernel_frames();
+
+  // Ring buffer options.
   base::Optional<uint32_t> ring_buffer_pages =
       ChooseActualRingBufferPages(pb_config.ring_buffer_pages());
   if (!ring_buffer_pages.has_value())
     return base::nullopt;
 
-  uint32_t remote_descriptor_timeout_ms =
-      pb_config.remote_descriptor_timeout_ms()
-          ? pb_config.remote_descriptor_timeout_ms()
-          : kDefaultRemoteDescriptorTimeoutMs;
-
   uint32_t read_tick_period_ms = pb_config.ring_buffer_read_period_ms()
                                      ? pb_config.ring_buffer_read_period_ms()
                                      : kDefaultReadTickPeriodMs;
 
-  uint32_t sampling_frequency = pb_config.sampling_frequency()
-                                    ? pb_config.sampling_frequency()
-                                    : kDefaultSamplingFrequencyHz;
-
   // Take the ratio of sampling and reading frequencies, which gives the
   // upper bound on number of samples per tick (for a single per-cpu buffer).
   // Overflow not a concern for sane inputs.
-  uint32_t expected_samples_per_tick =
+  uint64_t expected_samples_per_tick =
       1 + (sampling_frequency * read_tick_period_ms) / 1000;
 
   // Use double the expected value as the actual guardrail (don't assume that
   // periodic read task is as exact as the kernel).
-  uint32_t samples_per_tick_limit = 2 * expected_samples_per_tick;
+  uint64_t samples_per_tick_limit = 2 * expected_samples_per_tick;
   PERFETTO_DCHECK(samples_per_tick_limit > 0);
-  PERFETTO_DLOG("Capping samples (not records) per tick to [%" PRIu32 "]",
+  PERFETTO_DLOG("Capping samples (not records) per tick to [%" PRIu64 "]",
                 samples_per_tick_limit);
+
+  // Android-specific options.
+  uint32_t remote_descriptor_timeout_ms =
+      pb_config.remote_descriptor_timeout_ms()
+          ? pb_config.remote_descriptor_timeout_ms()
+          : kDefaultRemoteDescriptorTimeoutMs;
 
   // Build the underlying syscall config struct.
   perf_event_attr pe = {};
@@ -252,35 +274,36 @@ base::Optional<EventConfig> EventConfig::Create(
       PerfUserRegsMaskForArch(unwindstack::Regs::CurrentArch());
 
   // Optional kernel callchains:
-  if (pb_config.kernel_frames()) {
+  if (kernel_frames) {
     pe.sample_type |= PERF_SAMPLE_CALLCHAIN;
     pe.exclude_callchain_user = true;
   }
 
-  return EventConfig(pb_config, raw_ds_config, pe, ring_buffer_pages.value(),
-                     read_tick_period_ms, samples_per_tick_limit,
-                     remote_descriptor_timeout_ms, std::move(tracepoint_filter),
-                     std::move(filter.value()));
+  return EventConfig(
+      raw_ds_config, pe, ring_buffer_pages.value(), read_tick_period_ms,
+      samples_per_tick_limit, remote_descriptor_timeout_ms,
+      pb_config.unwind_state_clear_period_ms(), kernel_frames,
+      std::move(tracepoint_filter), std::move(target_filter.value()));
 }
 
-EventConfig::EventConfig(const protos::pbzero::PerfEventConfig::Decoder& cfg,
-                         const DataSourceConfig& raw_ds_config,
+EventConfig::EventConfig(const DataSourceConfig& raw_ds_config,
                          const perf_event_attr& pe,
                          uint32_t ring_buffer_pages,
                          uint32_t read_tick_period_ms,
-                         uint32_t samples_per_tick_limit,
+                         uint64_t samples_per_tick_limit,
                          uint32_t remote_descriptor_timeout_ms,
+                         uint32_t unwind_state_clear_period_ms,
+                         bool kernel_frames,
                          const std::string& tracepoint_filter,
                          TargetFilter target_filter)
-    : target_all_cpus_(cfg.all_cpus()),
-      ring_buffer_pages_(ring_buffer_pages),
+    : ring_buffer_pages_(ring_buffer_pages),
       perf_event_attr_(pe),
       read_tick_period_ms_(read_tick_period_ms),
       samples_per_tick_limit_(samples_per_tick_limit),
       target_filter_(std::move(target_filter)),
       remote_descriptor_timeout_ms_(remote_descriptor_timeout_ms),
-      unwind_state_clear_period_ms_(cfg.unwind_state_clear_period_ms()),
-      kernel_frames_(cfg.kernel_frames()),
+      unwind_state_clear_period_ms_(unwind_state_clear_period_ms),
+      kernel_frames_(kernel_frames),
       tracepoint_filter_(tracepoint_filter),
       raw_ds_config_(raw_ds_config) /* full copy */ {}
 
