@@ -4,4 +4,5 @@ steps:
 - name: gcr.io/perfetto-ui/perfetto-ui-builder
   args:
   - 'infra/perfetto.dev/cloud_build_entrypoint.sh'
-  timeout: 1200s
+# Timeout: 15 min (last measured time in Feb 2021: 2 min)
+timeout: 900s
