@@ -39,10 +39,9 @@ trace.add_rail_mode_slice(
     track=track1,
     mode=trace.prototypes.ChromeRAILMode.RAIL_MODE_IDLE)
 
+# Generate an extra trace event long after events on the renderer process have
 # ceased to ensure that the RAIL mode is extended to the end of the process
 # rather than the end of the trace itself.
-# Generate an extra long trace event making the trace longer than 10 minutes
-# causing the trace to be completely excluded.
-trace.add_track_event_slice("VSync", ts=s_to_ns(1000), dur=10, track=gpu_track)
+trace.add_track_event_slice("VSync", ts=s_to_ns(25), dur=10, track=gpu_track)
 
 sys.stdout.buffer.write(trace.trace.SerializeToString())
