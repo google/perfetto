@@ -688,6 +688,7 @@ const SidebarFooter: m.Component = {
               {
                 href: `https://github.com/google/perfetto/tree/${
                     version.SCM_REVISION}/ui`,
+                title: `Channel: ${globals.channel}`,
                 target: '_blank',
               },
               `${version.VERSION}`),
@@ -813,8 +814,8 @@ export class Sidebar implements m.ClassComponent {
           ontransitionend: () => this._redrawWhileAnimating.stop(),
         },
         m(
-            'header',
-            m('img[src=assets/brand.png].brand'),
+            `header.${globals.channel}`,
+            m(`img[src=${globals.root}assets/brand.png].brand`),
             m('button.sidebar-button',
               {
                 onclick: () => {

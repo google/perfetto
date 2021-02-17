@@ -16,6 +16,12 @@
 
 #include "perfetto/tracing/track.h"
 
+#include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/hash.h"
+#include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/string_splitter.h"
+#include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/thread_utils.h"
 #include "perfetto/ext/base/uuid.h"
 #include "perfetto/tracing/internal/track_event_data_source.h"
 #include "protos/perfetto/trace/track_event/process_descriptor.gen.h"
@@ -45,7 +51,22 @@ protos::gen::TrackDescriptor ProcessTrack::Serialize() const {
   auto desc = Track::Serialize();
   auto pd = desc.mutable_process();
   pd->set_pid(static_cast<int32_t>(pid));
-  // TODO(skyostil): Record command line.
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  std::string cmdline;
+  if (base::ReadFile("/proc/self/cmdline", &cmdline)) {
+    // Since cmdline is a zero-terminated list of arguments, this ends up
+    // writing just the first element, i.e., the process name, into the process
+    // name field.
+    pd->set_process_name(cmdline.c_str());
+    base::StringSplitter splitter(std::move(cmdline), '\0');
+    while (splitter.Next()) {
+      pd->add_cmdline(
+          std::string(splitter.cur_token(), splitter.cur_token_size()));
+    }
+  }
+  // TODO(skyostil): Record command line on Windows and Mac.
+#endif
   return desc;
 }
 
@@ -59,7 +80,9 @@ protos::gen::TrackDescriptor ThreadTrack::Serialize() const {
   auto td = desc.mutable_thread();
   td->set_pid(static_cast<int32_t>(pid));
   td->set_tid(static_cast<int32_t>(tid));
-  // TODO(skyostil): Record thread name.
+  std::string thread_name;
+  if (base::GetThreadName(thread_name))
+    td->set_thread_name(thread_name);
   return desc;
 }
 
@@ -69,6 +92,35 @@ void ThreadTrack::Serialize(protos::pbzero::TrackDescriptor* desc) const {
 }
 
 namespace internal {
+namespace {
+
+uint64_t GetProcessStartTime() {
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  std::string stat;
+  if (!base::ReadFile("/proc/self/stat", &stat))
+    return 0u;
+  // The stat file is a single line split into space-separated fields as "pid
+  // (comm) state ppid ...". However because the command name can contain any
+  // characters (including parentheses and spaces), we need to skip past it
+  // before parsing the rest of the fields. To do that, we look for the last
+  // instance of ") " (parentheses followed by space) and parse forward from
+  // that point.
+  size_t comm_end = stat.rfind(") ");
+  if (comm_end == std::string::npos)
+    return 0u;
+  stat = stat.substr(comm_end + strlen(") "));
+  base::StringSplitter splitter(stat, ' ');
+  for (size_t skip = 0; skip < 20; skip++) {
+    if (!splitter.Next())
+      return 0u;
+  }
+  return base::CStringToUInt64(splitter.cur_token()).value_or(0u);
+#else
+  return 0;
+#endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+}
+
+}  // namespace
 
 // static
 TrackRegistry* TrackRegistry::instance_;
@@ -83,7 +135,21 @@ void TrackRegistry::InitializeInstance() {
   if (instance_)
     return;
   instance_ = new TrackRegistry();
-  Track::process_uuid = static_cast<uint64_t>(base::Uuidv4().lsb());
+
+  // Use the process start time + pid as the unique identifier for this process.
+  // This ensures that if there are two independent copies of the Perfetto SDK
+  // in the same process (e.g., one in the app and another in a system
+  // framework), events emitted by each will be consistently interleaved on
+  // common thread and process tracks.
+  if (uint64_t start_time = GetProcessStartTime()) {
+    base::Hash hash;
+    hash.Update(start_time);
+    hash.Update(base::GetProcessId());
+    Track::process_uuid = hash.digest();
+  } else {
+    // Fall back to a randomly generated identifier.
+    Track::process_uuid = static_cast<uint64_t>(base::Uuidv4().lsb());
+  }
 }
 
 void TrackRegistry::UpdateTrack(Track track,

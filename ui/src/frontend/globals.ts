@@ -125,10 +125,20 @@ export interface ThreadDesc {
 }
 type ThreadMap = Map<number, ThreadDesc>;
 
+function getRoot() {
+  // Works out the root directory where the content should be served from
+  // e.g. `http://origin/v1.2.3/`.
+  let root = (document.currentScript as HTMLScriptElement).src;
+  root = root.substr(0, root.lastIndexOf('/') + 1);
+  return root;
+}
+
 /**
  * Global accessors for state/dispatch in the frontend.
  */
 class Globals {
+  readonly root = getRoot();
+
   private _dispatch?: Dispatch = undefined;
   private _controllerWorker?: Worker = undefined;
   private _state?: State = undefined;
@@ -137,6 +147,7 @@ class Globals {
   private _serviceWorkerController?: ServiceWorkerController = undefined;
   private _logging?: Analytics = undefined;
   private _isInternalUser: boolean|undefined = undefined;
+  private _channel: string|undefined = undefined;
 
   // TODO(hjd): Unify trackDataStore, queryResults, overviewStore, threads.
   private _trackDataStore?: TrackDataStore = undefined;
@@ -442,6 +453,13 @@ class Globals {
   set isInternalUser(value: boolean) {
     localStorage.setItem('isInternalUser', value ? '1' : '0');
     this._isInternalUser = value;
+  }
+
+  get channel() {
+    if (this._channel === undefined) {
+      this._channel = localStorage.getItem('perfettoUiChannel') || 'stable';
+    }
+    return this._channel;
   }
 
   // Used when switching to the legacy TraceViewer UI.

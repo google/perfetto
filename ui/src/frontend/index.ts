@@ -15,9 +15,9 @@
 import '../tracks/all_frontend';
 
 import {applyPatches, Patch} from 'immer';
-import * as MicroModal from 'micromodal';
 import * as m from 'mithril';
 
+import {defer} from '../base/deferred';
 import {assertExists, reportError, setErrorHandler} from '../base/logging';
 import {forwardRemoteCalls} from '../base/remote';
 import {Actions} from '../common/actions';
@@ -33,6 +33,7 @@ import {CurrentSearchResults, SearchSummary} from '../common/search_data';
 
 import {AnalyzePage} from './analyze_page';
 import {loadAndroidBugToolInfo} from './android_bug_tool';
+import {initCssConstants} from './css_constants';
 import {maybeShowErrorDialog} from './error_dialog';
 import {
   CounterDetails,
@@ -264,13 +265,81 @@ function setExtensionAvailability(available: boolean) {
   }));
 }
 
+function setupContentSecurityPolicy() {
+  // Note: self and sha-xxx must be quoted, urls data: and blob: must not.
+  const policy = {
+    'default-src': [
+      `'self'`,
+      // Google Tag Manager bootstrap.
+      `'sha256-LirUKeorCU4uRNtNzr8tlB11uy8rzrdmqHCX38JSwHY='`,
+    ],
+    'script-src': [
+      `'self'`,
+      'https://*.google.com',
+      'https://*.googleusercontent.com',
+      'https://www.googletagmanager.com',
+      'https://www.google-analytics.com',
+    ],
+    'object-src': ['none'],
+    'connect-src': [
+      `'self'`,
+      'http://127.0.0.1:9001',  // For trace_processor_shell --http.
+      'https://www.google-analytics.com',
+      'https://*.googleapis.com',  // For Google Cloud Storage fetches.
+      'blob:',
+      'data:',
+    ],
+    'img-src': [
+      `'self'`,
+      'data:',
+      'blob:',
+      'https://www.google-analytics.com',
+      'https://www.googletagmanager.com',
+    ],
+    'navigate-to': ['https://*.perfetto.dev']
+  };
+  const meta = document.createElement('meta');
+  meta.httpEquiv = 'Content-Security-Policy';
+  let policyStr = '';
+  for (const [key, list] of Object.entries(policy)) {
+    policyStr += `${key} ${list.join(' ')}; `;
+  }
+  meta.content = policyStr;
+  document.head.appendChild(meta);
+}
+
 function main() {
+  setupContentSecurityPolicy();
+
+  // Load the css. The load is asynchronous and the CSS is not ready by the time
+  // appenChild returns.
+  const cssLoadPromise = defer<void>();
+  const css = document.createElement('link');
+  css.rel = 'stylesheet';
+  css.href = globals.root + 'perfetto.css';
+  css.onload = () => cssLoadPromise.resolve();
+  css.onerror = (err) => cssLoadPromise.reject(err);
+  const favicon = document.head.querySelector('#favicon') as HTMLLinkElement;
+  if (favicon) favicon.href = globals.root + 'assets/favicon.png';
+
+  // Load the script to detect if this is a Googler (see comments on globals.ts)
+  // and initialize GA after that (or after a timeout if something goes wrong).
+  const script = document.createElement('script');
+  script.src =
+      'https://storage.cloud.google.com/perfetto-ui-internal/is_internal_user.js';
+  script.async = true;
+  script.onerror = () => globals.logging.initialize();
+  script.onload = () => globals.logging.initialize();
+  setTimeout(() => globals.logging.initialize(), 5000);
+
+  document.head.append(script, css);
+
   // Add Error handlers for JS error and for uncaught exceptions in promises.
   setErrorHandler((err: string) => maybeShowErrorDialog(err));
   window.addEventListener('error', e => reportError(e));
   window.addEventListener('unhandledrejection', e => reportError(e));
 
-  const controller = new Worker('controller_bundle.js');
+  const controller = new Worker(globals.root + 'controller_bundle.js');
   const frontendChannel = new MessageChannel();
   const controllerChannel = new MessageChannel();
   const extensionLocalChannel = new MessageChannel();
@@ -333,31 +402,34 @@ function main() {
         });
   }
 
-  updateAvailableAdbDevices();
-  try {
-    navigator.usb.addEventListener(
-        'connect', () => updateAvailableAdbDevices());
-    navigator.usb.addEventListener(
-        'disconnect', () => updateAvailableAdbDevices());
-  } catch (e) {
-    console.error('WebUSB API not supported');
-  }
   // This forwards the messages from the controller to the extension
   extensionLocalChannel.port2.onmessage = ({data}) => {
     if (extensionPort) extensionPort.postMessage(data);
   };
-  const main = assertExists(document.body.querySelector('main'));
-
-  globals.rafScheduler.domRedraw = () =>
-      m.render(main, m(router.resolve(globals.state.route)));
-
-  // Add support for opening traces from postMessage().
-  window.addEventListener('message', postMessageHandler, {passive: true});
 
   // Put these variables in the global scope for better debugging.
   (window as {} as {m: {}}).m = m;
   (window as {} as {globals: {}}).globals = globals;
   (window as {} as {Actions: {}}).Actions = Actions;
+
+  // Prevent pinch zoom.
+  document.body.addEventListener('wheel', (e: MouseEvent) => {
+    if (e.ctrlKey) e.preventDefault();
+  }, {passive: false});
+
+  cssLoadPromise.then(() => onCssLoaded(router));
+}
+
+function onCssLoaded(router: Router) {
+  initCssConstants();
+  // Clear all the contents of the initial page (e.g. the <pre> error message)
+  // And replace it with the root <main> element which will be used by mithril.
+  document.body.innerHTML = '<main></main>';
+  const main = assertExists(document.body.querySelector('main'));
+  globals.rafScheduler.domRedraw = () =>
+      m.render(main, m(router.resolve(globals.state.route)));
+
+  router.navigateToCurrentHash();
 
   // /?s=xxxx for permalinks.
   const stateHash = Router.param('s');
@@ -390,31 +462,24 @@ function main() {
         });
   }
 
-  // Prevent pinch zoom.
-  document.body.addEventListener('wheel', (e: MouseEvent) => {
-    if (e.ctrlKey) e.preventDefault();
-  }, {passive: false});
-
-  router.navigateToCurrentHash();
-
-  MicroModal.init();
-
-  // Load the script to detect if this is a Googler (see comments on globals.ts)
-  // and initialize GA after that (or after a timeout if something goes wrong).
-  const script = document.createElement('script');
-  script.src =
-      'https://storage.cloud.google.com/perfetto-ui-internal/is_internal_user.js';
-  script.async = true;
-  script.onerror = () => globals.logging.initialize();
-  script.onload = () => globals.logging.initialize();
-  setTimeout(() => globals.logging.initialize(), 5000);
-  document.head.appendChild(script);
+  // Add support for opening traces from postMessage().
+  window.addEventListener('message', postMessageHandler, {passive: true});
 
   // Will update the chip on the sidebar footer that notifies that the RPC is
   // connected. Has no effect on the controller (which will repeat this check
   // before creating a new engine).
   CheckHttpRpcConnection();
   initLiveReloadIfLocalhost();
+
+  updateAvailableAdbDevices();
+  try {
+    navigator.usb.addEventListener(
+        'connect', () => updateAvailableAdbDevices());
+    navigator.usb.addEventListener(
+        'disconnect', () => updateAvailableAdbDevices());
+  } catch (e) {
+    console.error('WebUSB API not supported');
+  }
 }
 
 main();

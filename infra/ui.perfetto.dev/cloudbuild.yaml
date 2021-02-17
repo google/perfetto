@@ -1,0 +1,9 @@
+# See go/perfetto-ui-autopush for docs on how this works end-to-end.
+steps:
+- name: gcr.io/$PROJECT_ID/perfetto-ui-builder
+  args:
+  - 'ui/release/builder_entrypoint.sh'
+# Timeout = 30 min (last measured time in Feb 2021: 12 min)
+timeout: 1800s
+options:
+  machineType: E2_HIGHCPU_32

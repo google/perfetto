@@ -8,6 +8,7 @@
     "./out"
   ],
   "compilerOptions": {
+    "outDir": "./out/tsc",
     "lib": [
       "dom",                               // Need to be explicitly mentioned now since we're overriding default included libs.
       "es2018",                            // Need this to use Object.values.

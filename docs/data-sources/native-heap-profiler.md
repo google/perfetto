@@ -458,6 +458,7 @@ Then, Ctrl-C the Perfetto invocation and upload ~/heapprofd-trace to the
   resolved in Android 12.
 * `Failed to send control socket byte.` is displayed in logcat at the end of
   every profile. This is benign.
+* The object count may be incorrect in `dump_at_max` profiles.
 
 ### {#known-issues-android10} Android 10
 * Function names in libraries with load bias might be incorrect. Use
@@ -482,6 +483,7 @@ Then, Ctrl-C the Perfetto invocation and upload ~/heapprofd-trace to the
   This is an invalid config that should be rejected instead.
 * `Failed to send control socket byte.` is displayed in logcat at the end of
   every profile. This is benign.
+* The object count may be incorrect in `dump_at_max` profiles.
 
 ## Heapprofd vs malloc_info() vs RSS
 
