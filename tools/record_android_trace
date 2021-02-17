@@ -209,7 +209,9 @@ def find_adb():
     except OSError:
       continue
   if adb_path is None:
-    prt('Could not find a suitable adb binary', ANSI.RED)
+    sdk_url = 'https://developer.android.com/studio/releases/platform-tools'
+    prt('Could not find a suitable adb binary in the PATH. ', ANSI.RED)
+    prt('You can download adb from %s' % sdk_url, ANSI.RED)
     sys.exit(1)
 
 
@@ -229,8 +231,12 @@ def open_trace_in_browser(path):
 
 def adb(*args, stdin=devnull, stdout=None):
   cmd = [adb_path, *args]
-  proc = subprocess.Popen(
-      cmd, stdin=stdin, stdout=stdout, preexec_fn=lambda: os.setpgrp())
+  setpgrp = None
+  if os.name != 'nt':
+    # On Linux/Mac, start a new process group so all child processes are killed
+    # on exit. Unsupported on Windows.
+    setpgrp = lambda: os.setpgrp()
+  proc = subprocess.Popen(cmd, stdin=stdin, stdout=stdout, preexec_fn=setpgrp)
   procs.append(proc)
   return proc
 
