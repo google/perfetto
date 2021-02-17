@@ -766,8 +766,7 @@ message JavaHprofConfig {
 
 // Begin of protos/perfetto/config/profiling/perf_event_config.proto
 
-// Configuration for the traced_perf profiler. At the time of writing, all
-// configs imply stack sampling.
+// Configuration for the traced_perf profiler.
 //
 // Example config for basic cpu profiling:
 //   perf_event_config {
@@ -775,7 +774,7 @@ message JavaHprofConfig {
 //       frequency: 80
 //     }
 //     callstack_sampling {
-//       processes {
+//       scope {
 //         target_cmdline: "surfaceflinger"
 //         target_cmdline: "system_server"
 //       }
@@ -788,7 +787,9 @@ message PerfEventConfig {
   // What event to sample on, and how often.
   optional Timebase timebase = 15;
 
-  // Options for stack sampling.
+  // If set, the profiler will sample userspace processes' callstacks at the
+  // interval specified by the |timebase|.
+  // If unset, the profiler will record only the event counts.
   optional CallstackSampling callstack_sampling = 16;
 
   //
@@ -873,11 +874,13 @@ message PerfEventConfig {
       uint64 period = 1;
     }
 
-    // Event (counter) to use as a time base for the sampling.
-    // If unset, implies the CPU timer (PERF_COUNT_SW_CPU_CLOCK) as the event,
+    // Counting event to use as a time base for the sampling.
+    // If unset, implies the CPU timer (SW_CPU_CLOCK) as the event,
     // which is what you usually want.
-    // TODO(rsavitski): add butiltin software and hardware counters as options.
-    optional Tracepoint tracepoint = 3;
+    oneof event {
+      Counter counter = 4;
+      Tracepoint tracepoint = 3;
+    }
   }
 
   message CallstackSampling {
@@ -921,6 +924,16 @@ message PerfEventConfig {
     // neither explicitly included nor excluded will be considered. Processes
     // are accepted on a first come, first served basis.
     optional uint32 additional_cmdline_count = 5;
+  }
+
+  enum Counter {
+    UNKNOWN_COUNTER = 0;
+    // software:
+    SW_CPU_CLOCK = 1;
+    SW_PAGE_FAULTS = 2;
+    // hardware:
+    HW_CPU_CYCLES = 10;
+    HW_INSTRUCTIONS = 11;
   }
 
   message Tracepoint {
@@ -7587,6 +7600,9 @@ message PerfSample {
 
   // Execution state that the process was sampled at.
   optional Profiling.CpuMode cpu_mode = 5;
+
+  // Value of the timebase counter (since the beginning).
+  optional uint64 timebase_count = 6;
 
   // Unwound callstack. Might be partial, in which case a synthetic "error"
   // frame is appended, and |unwind_error| is set appropriately.
