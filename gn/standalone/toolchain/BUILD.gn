@@ -147,6 +147,7 @@ declare_args() {
       target_ar = "$android_toolchain_root/bin/$android_abi_target-ar"
       target_cc = "$android_llvm_dir/bin/clang"
       target_cxx = "$android_llvm_dir/bin/clang++"
+      target_linker = "$android_llvm_dir/bin/ld.lld"
     } else {
       assert(_target_triplet != "",
              "target_triplet must be non-empty when cross-compiling")
