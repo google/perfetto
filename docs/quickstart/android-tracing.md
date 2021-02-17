@@ -53,6 +53,14 @@ Your trace may look different depending on which data sources you enabled.
 
 ### Recording a trace through the cmdline
 
+**Prerequisites**
+
+For the cmdline based workflow you will need the `adb` (Android Debug Bridge)
+executable to be in your PATH. ADB binaries for Linux, Mac or Windows can be
+downloaded from https://developer.android.com/studio/releases/platform-tools .
+
+**Using the helper script**
+
 We suggest using the `tools/record_android_trace` script to record traces from
 the command line. It is the equivalent of running `adb shell perfetto` but it
 helps with getting the paths right, auto-pulling the trace once done and opening
@@ -61,6 +69,8 @@ it on the browser.
 If you are already familiar with `systrace` or `atrace`, both cmdline tools
 support a systrace-equivalent syntax:
 
+On Linux and Mac:
+
 ```bash
 curl -O https://raw.githubusercontent.com/google/perfetto/master/tools/record_android_trace
 chmod u+x record_android_trace
@@ -68,6 +78,15 @@ chmod u+x record_android_trace
 # See ./record_android_trace --help for more
 ./record_android_trace -o trace_file.pftrace -t 10s -b 32mb sched gfx wm
 ```
+
+On Windows:
+
+```bash
+curl -O https://raw.githubusercontent.com/google/perfetto/master/tools/record_android_trace
+python3 record_android_trace -o trace_file.pftrace -t 10s -b 32mb sched gfx wm
+```
+
+**Using the on-device /system/bin/perfetto command**
 
 Or, if you want to use directly the on-device binary do instead:
 
