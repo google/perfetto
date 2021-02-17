@@ -92,6 +92,14 @@ WHERE slice.name = "Scheduler.RAILMode"
   AND slice.track_id = process_track.id
   AND process_track.upid = max_ts_per_process.upid;
 
+-- Detect if the trace has an unrealistic length (10 minutes) that probably
+-- means some trace events have faulty timestamps and which could throw off any
+-- metrics that use the trace.
+DROP VIEW IF EXISTS trace_has_realistic_length;
+CREATE VIEW trace_has_realistic_length AS
+SELECT (end_ts - start_ts) < 1e9 * 60 * 10 AS value
+FROM trace_bounds;
+
 -- RAIL_MODE_LOAD seems to get stuck which makes it not very useful so remap it
 -- to RAIL_MODE_ANIMATION so it doesn't dominate the overall RAIL mode.
 DROP VIEW IF EXISTS rail_mode_slices;
@@ -123,7 +131,8 @@ FROM (
       ) start_times
   ) s,
   rail_mode_slices r,
-  rail_modes
+  rail_modes,
+  trace_has_realistic_length
 WHERE (
     (
       s.ts >= r.ts AND s.ts < r.ts + r.dur
@@ -133,6 +142,7 @@ WHERE (
     )
   )
   AND r.rail_mode == rail_modes.mode
+  AND trace_has_realistic_length.value
 GROUP BY s.ts;
 
 -- Contains the same data as overall_rail_mode_slices except adjacent slices
