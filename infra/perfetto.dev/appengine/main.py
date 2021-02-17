@@ -30,6 +30,11 @@ def ignore_app_engine_lifecycle(path):
   return flask.abort(404)
 
 
+@app.route('/docs')
+def docs_redirect():
+  return flask.redirect('/docs/', code=301)
+
+
 # Serve the requests from the GCS bucket.
 @app.route('/', methods=['GET'])
 @app.route('/<path:path>', methods=['GET'])
