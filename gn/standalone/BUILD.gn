@@ -292,6 +292,10 @@ config("default") {
       "-Wl,-z,now",
       "-Wl,--warn-shared-textrel",
       "-Wl,--fatal-warnings",
+
+      # New NDKs need setting this to not give "unable to find library -lc++".
+      # See https://github.com/android/ndk/issues/951#issuecomment-501017894.
+      "-nostdlib++",
     ]
     lib_dirs = [
       "$android_ndk_root/sources/cxx-stl/llvm-libc++/libs/$android_app_abi",

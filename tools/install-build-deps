@@ -248,13 +248,13 @@ BUILD_DEPS_ANDROID = [
     # Android NDK
     Dependency(
         'buildtools/ndk.zip',
-        'https://dl.google.com/android/repository/android-ndk-r17b-darwin-x86_64.zip',
-        'd21072c04ffcf8a723a4dba3837c886bd30c18c0623a4d0ddc53850e2222d27f',
+        'https://dl.google.com/android/repository/android-ndk-r21e-darwin-x86_64.zip',
+        '437278103a3db12632c05b1be5c41bbb8522791a67e415cc54411a65366f499d',
         'darwin'),
     Dependency(
         'buildtools/ndk.zip',
-        'https://dl.google.com/android/repository/android-ndk-r17b-linux-x86_64.zip',
-        '5dfbbdc2d3ba859fed90d0e978af87c71a91a5be1f6e1c40ba697503d48ccecd',
+        'https://dl.google.com/android/repository/android-ndk-r21e-linux-x86_64.zip',
+        'ad7ce5467e18d40050dc51b8e7affc3e635c85bd8c59be62de32352328ed467e',
         'linux'),
 ]
 
