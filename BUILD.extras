@@ -112,6 +112,11 @@ perfetto_py_library(
 )
 
 perfetto_py_library(
+    name = "gfile_noop",
+    srcs = [],
+)
+
+perfetto_py_library(
     name = "trace_processor_init_noop",
     srcs = [],
 )
@@ -134,6 +139,7 @@ perfetto_py_library(
         ":trace_processor_shell",
     ],
     deps = [
+        ":gfile_noop",
         ":protobuf_noop",
         ":protobuf_descriptor_pb2_noop",
         ":pyglib_noop",
