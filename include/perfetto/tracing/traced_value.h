@@ -368,12 +368,12 @@ class has_traced_value_support {
   using No = char[2];
 
   template <typename V>
-  static Yes& check(check_traced_value_support_t<V, int>);
+  static Yes& check_support(check_traced_value_support_t<V, int>);
   template <typename V>
-  static No& check(...);
+  static No& check_support(...);
 
  public:
-  static constexpr bool value = sizeof(Yes) == sizeof(check<T>(0));
+  static constexpr bool value = sizeof(Yes) == sizeof(check_support<T>(0));
 };
 
 }  // namespace internal
