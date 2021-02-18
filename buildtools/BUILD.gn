@@ -991,11 +991,8 @@ source_set("libunwindstack") {
   ]
   sources = [
     "android-libbase/file.cpp",
-    "android-libbase/liblog_symbols.cpp",
-    "android-libbase/logging.cpp",
     "android-libbase/stringprintf.cpp",
     "android-libbase/strings.cpp",
-    "android-libbase/threads.cpp",
     "android-unwinding/libunwindstack/ArmExidx.cpp",
     "android-unwinding/libunwindstack/DwarfCfa.cpp",
     "android-unwinding/libunwindstack/DwarfEhFrameWithHdr.cpp",
@@ -1024,6 +1021,9 @@ source_set("libunwindstack") {
   ]
   if (!is_android) {
     sources += [
+      "android-libbase/liblog_symbols.cpp",
+      "android-libbase/logging.cpp",
+      "android-libbase/threads.cpp",
       "android-logging/liblog/logger_write.cpp",
       "android-logging/liblog/properties.cpp",
       "android-unwinding/libunwindstack/MemoryMte.cpp",
