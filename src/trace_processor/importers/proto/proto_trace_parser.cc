@@ -463,12 +463,13 @@ void ProtoTraceParser::ParsePerfSample(
   uint64_t callstack_iid = sample.callstack_iid();
   base::Optional<CallsiteId> cs_id =
       stack_tracker.FindOrInsertCallstack(callstack_iid, &intern_lookup);
+  // TODO(rsavitski): make the callsite optional in the table, as we're
+  // starting to support counter-only samples, for which an empty callsite is
+  // not an error. On the other hand, if we could classify a sequence as
+  // requiring stack samples, then this would still count as an error.
+  // For now, use an invalid callsite id.
   if (!cs_id) {
-    context_->storage->IncrementStats(stats::stackprofile_parser_error);
-    PERFETTO_ELOG("PerfSample referencing invalid callstack iid [%" PRIu64
-                  "] at timestamp [%" PRIi64 "]",
-                  callstack_iid, ts);
-    return;
+    cs_id = base::make_optional<CallsiteId>(-1u);
   }
 
   UniqueTid utid =
