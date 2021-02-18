@@ -220,7 +220,7 @@ base::FlatSet<DataSourceInstanceID> Unwinder::ConsumeAndUnwindReadySamples() {
     }
     DataSourceState& ds = it->second;
 
-    pid_t pid = entry.sample.pid;
+    pid_t pid = entry.sample.common.pid;
     ProcessState& proc_state = ds.process_states[pid];  // insert if new
 
     // Giving up on the sample (proc-fd lookup timed out).
@@ -294,11 +294,7 @@ CompletedSample Unwinder::UnwindSample(const ParsedSample& sample,
   PERFETTO_DCHECK(unwind_state);
 
   CompletedSample ret;
-  ret.cpu = sample.cpu;
-  ret.pid = sample.pid;
-  ret.tid = sample.tid;
-  ret.timestamp = sample.timestamp;
-  ret.cpu_mode = sample.cpu_mode;
+  ret.common = sample.common;
 
   // Overlay the stack bytes over /proc/<pid>/mem.
   std::shared_ptr<unwindstack::Memory> overlay_memory =
@@ -360,12 +356,12 @@ CompletedSample Unwinder::UnwindSample(const ParsedSample& sample,
   // TODO(rsavitski): consider rate-limiting unwind retries.
   if (should_retry && sample.stack_maxed) {
     PERFETTO_DLOG("Skipping reparse/reunwind due to maxed stack for tid [%d]",
-                  static_cast<int>(sample.tid));
+                  static_cast<int>(sample.common.tid));
   } else if (should_retry) {
     {
       PERFETTO_METATRACE_SCOPED(TAG_PRODUCER, PROFILER_MAPS_REPARSE);
       PERFETTO_DLOG("Reparsing maps for pid [%d]",
-                    static_cast<int>(sample.pid));
+                    static_cast<int>(sample.common.pid));
       unwind_state->ReparseMaps();
     }
     // reunwind attempt

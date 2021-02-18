@@ -227,6 +227,9 @@ message PerfSample {
   // Execution state that the process was sampled at.
   optional Profiling.CpuMode cpu_mode = 5;
 
+  // Value of the timebase counter (since the beginning).
+  optional uint64 timebase_count = 6;
+
   // Unwound callstack. Might be partial, in which case a synthetic "error"
   // frame is appended, and |unwind_error| is set appropriately.
   optional uint64 callstack_iid = 4;

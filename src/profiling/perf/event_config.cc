@@ -105,15 +105,19 @@ base::Optional<TargetFilter> ParseTargetFilter(const T& cfg) {
   TargetFilter filter;
   for (const auto& str : cfg.target_cmdline()) {
     base::Optional<std::string> opt = Normalize(str);
-    if (!opt.has_value())
+    if (!opt.has_value()) {
+      PERFETTO_ELOG("Failure normalizing cmdline: [%s]", str.c_str());
       return base::nullopt;
+    }
     filter.cmdlines.insert(std::move(opt.value()));
   }
 
   for (const auto& str : cfg.exclude_cmdline()) {
     base::Optional<std::string> opt = Normalize(str);
-    if (!opt.has_value())
+    if (!opt.has_value()) {
+      PERFETTO_ELOG("Failure normalizing cmdline: [%s]", str.c_str());
       return base::nullopt;
+    }
     filter.exclude_cmdlines.insert(std::move(opt.value()));
   }
 
@@ -149,6 +153,29 @@ base::Optional<uint32_t> ChooseActualRingBufferPages(uint32_t config_value) {
   return base::make_optional(config_value);
 }
 
+base::Optional<PerfCounter> ToPerfCounter(
+    protos::gen::PerfEventConfig::Counter pb_enum) {
+  using protos::gen::PerfEventConfig;
+  switch (static_cast<int>(pb_enum)) {  // cast to pacify -Wswitch-enum
+    case PerfEventConfig::SW_CPU_CLOCK:
+      return base::make_optional<PerfCounter>(PERF_TYPE_SOFTWARE,
+                                              PERF_COUNT_SW_CPU_CLOCK);
+    case PerfEventConfig::SW_PAGE_FAULTS:
+      return base::make_optional<PerfCounter>(PERF_TYPE_SOFTWARE,
+                                              PERF_COUNT_SW_PAGE_FAULTS);
+    case PerfEventConfig::HW_CPU_CYCLES:
+      return base::make_optional<PerfCounter>(PERF_TYPE_HARDWARE,
+                                              PERF_COUNT_HW_CPU_CYCLES);
+    case PerfEventConfig::HW_INSTRUCTIONS:
+      return base::make_optional<PerfCounter>(PERF_TYPE_HARDWARE,
+                                              PERF_COUNT_HW_INSTRUCTIONS);
+    default:
+      PERFETTO_ELOG("Unrecognised PerfEventConfig::Counter enum value: %zu",
+                    static_cast<size_t>(pb_enum));
+      return base::nullopt;
+  }
+}
+
 }  // namespace
 
 // static
@@ -167,7 +194,7 @@ base::Optional<EventConfig> EventConfig::Create(
     const protos::gen::PerfEventConfig& pb_config,
     const DataSourceConfig& raw_ds_config,
     tracepoint_id_fn_t tracepoint_id_lookup) {
-  // Timebase - sampling interval.
+  // Timebase: sampling interval.
   uint64_t sampling_frequency = 0;
   uint64_t sampling_period = 0;
   if (pb_config.timebase().period()) {
@@ -179,13 +206,19 @@ base::Optional<EventConfig> EventConfig::Create(
   } else {
     sampling_frequency = kDefaultSamplingFrequencyHz;
   }
-  PERFETTO_CHECK(sampling_period && !sampling_frequency ||
-                 !sampling_period && sampling_frequency);
+  PERFETTO_DCHECK(sampling_period && !sampling_frequency ||
+                  !sampling_period && sampling_frequency);
 
-  // Timebase event - atm either a tracepoint, or the default - CPU timer.
-  uint32_t tracepoint_id = 0;
-  std::string tracepoint_filter;
-  if (pb_config.timebase().has_tracepoint() || pb_config.has_tracepoint()) {
+  // Timebase event. Default: CPU timer.
+  PerfCounter timebase_event;
+  if (pb_config.timebase().has_counter()) {
+    auto maybe_counter = ToPerfCounter(pb_config.timebase().counter());
+    if (!maybe_counter)
+      return base::nullopt;
+    timebase_event = *maybe_counter;
+
+  } else if (pb_config.timebase().has_tracepoint() ||
+             pb_config.has_tracepoint()) {
     const auto& tracepoint_pb =
         pb_config.timebase().has_tracepoint()
             ? pb_config.timebase().tracepoint()
@@ -194,23 +227,35 @@ base::Optional<EventConfig> EventConfig::Create(
         ParseTracepointAndResolveId(tracepoint_pb, tracepoint_id_lookup);
     if (!maybe_id)
       return base::nullopt;
-    tracepoint_id = *maybe_id;
-    // Optional event filter. Will be validated by the kernel when used.
-    tracepoint_filter = tracepoint_pb.filter();
+    timebase_event =
+        PerfCounter{PERF_TYPE_TRACEPOINT, *maybe_id, tracepoint_pb.filter()};
+
+  } else {
+    timebase_event = PerfCounter{PERF_TYPE_SOFTWARE, PERF_COUNT_SW_CPU_CLOCK};
   }
 
-  // Context sampling - process scoping.
-  base::Optional<TargetFilter> target_filter =
-      pb_config.callstack_sampling().has_scope()
-          ? ParseTargetFilter(pb_config.callstack_sampling().scope())
-          : ParseTargetFilter(pb_config);  // backwards compatibility
+  // Callstack sampling.
+  bool sample_callstacks = false;
+  bool kernel_frames = false;
+  TargetFilter target_filter;
+  bool legacy_config = pb_config.all_cpus();  // all_cpus was mandatory before
+  if (pb_config.has_callstack_sampling() || legacy_config) {
+    sample_callstacks = true;
 
-  if (!target_filter.has_value())
-    return base::nullopt;
+    // Process scoping.
+    auto maybe_filter =
+        pb_config.callstack_sampling().has_scope()
+            ? ParseTargetFilter(pb_config.callstack_sampling().scope())
+            : ParseTargetFilter(pb_config);  // backwards compatibility
+    if (!maybe_filter.has_value())
+      return base::nullopt;
 
-  // Context sampling - inclusion of kernel callchains.
-  bool kernel_frames = pb_config.callstack_sampling().kernel_frames() ||
-                       pb_config.kernel_frames();
+    target_filter = std::move(maybe_filter.value());
+
+    // Inclusion of kernel callchains.
+    kernel_frames = pb_config.callstack_sampling().kernel_frames() ||
+                    pb_config.kernel_frames();
+  }
 
   // Ring buffer options.
   base::Optional<uint32_t> ring_buffer_pages =
@@ -257,19 +302,11 @@ base::Optional<EventConfig> EventConfig::Create(
   // Build the underlying syscall config struct.
   perf_event_attr pe = {};
   pe.size = sizeof(perf_event_attr);
+  pe.disabled = true;  // will be activated via ioctl
 
-  // The counter will be activated via ioctl once everything is set up.
-  pe.disabled = true;
-
-  // Event being counted (timebase).
-  if (tracepoint_id) {
-    pe.type = PERF_TYPE_TRACEPOINT;
-    pe.config = tracepoint_id;
-  } else {
-    pe.type = PERF_TYPE_SOFTWARE;
-    pe.config = PERF_COUNT_SW_CPU_CLOCK;
-  }
-
+  // Sampling timebase.
+  pe.type = timebase_event.type;
+  pe.config = timebase_event.config;
   if (sampling_frequency) {
     pe.freq = true;
     pe.sample_freq = sampling_frequency;
@@ -277,55 +314,61 @@ base::Optional<EventConfig> EventConfig::Create(
     pe.sample_period = sampling_period;
   }
 
-  pe.sample_type = PERF_SAMPLE_TID | PERF_SAMPLE_TIME | PERF_SAMPLE_STACK_USER |
-                   PERF_SAMPLE_REGS_USER;
+  // What the samples will contain.
+  pe.sample_type = PERF_SAMPLE_TID | PERF_SAMPLE_TIME | PERF_SAMPLE_READ;
   // PERF_SAMPLE_TIME:
   // We used to use CLOCK_BOOTTIME, but that is not nmi-safe, and therefore
   // works only for software events.
   pe.clockid = CLOCK_MONOTONIC_RAW;
   pe.use_clockid = true;
-  // PERF_SAMPLE_STACK_USER:
-  // Needs to be < ((u16)(~0u)), and have bottom 8 bits clear.
-  // Note that the kernel still needs to make space for the other parts of the
-  // sample (up to the max record size of 64k), so the effective maximum
-  // can be lower than this.
-  pe.sample_stack_user = (1u << 16) - 256;
-  // PERF_SAMPLE_REGS_USER:
-  pe.sample_regs_user =
-      PerfUserRegsMaskForArch(unwindstack::Regs::CurrentArch());
 
-  // Optional kernel callchains:
-  if (kernel_frames) {
-    pe.sample_type |= PERF_SAMPLE_CALLCHAIN;
-    pe.exclude_callchain_user = true;
+  if (sample_callstacks) {
+    pe.sample_type |= PERF_SAMPLE_STACK_USER | PERF_SAMPLE_REGS_USER;
+    // PERF_SAMPLE_STACK_USER:
+    // Needs to be < ((u16)(~0u)), and have bottom 8 bits clear.
+    // Note that the kernel still needs to make space for the other parts of the
+    // sample (up to the max record size of 64k), so the effective maximum
+    // can be lower than this.
+    pe.sample_stack_user = (1u << 16) - 256;
+    // PERF_SAMPLE_REGS_USER:
+    pe.sample_regs_user =
+        PerfUserRegsMaskForArch(unwindstack::Regs::CurrentArch());
+
+    // Optional kernel callchains:
+    if (kernel_frames) {
+      pe.sample_type |= PERF_SAMPLE_CALLCHAIN;
+      pe.exclude_callchain_user = true;
+    }
   }
 
-  return EventConfig(
-      raw_ds_config, pe, ring_buffer_pages.value(), read_tick_period_ms,
-      samples_per_tick_limit, remote_descriptor_timeout_ms,
-      pb_config.unwind_state_clear_period_ms(), kernel_frames,
-      std::move(tracepoint_filter), std::move(target_filter.value()));
+  return EventConfig(raw_ds_config, pe, timebase_event, sample_callstacks,
+                     std::move(target_filter), kernel_frames,
+                     ring_buffer_pages.value(), read_tick_period_ms,
+                     samples_per_tick_limit, remote_descriptor_timeout_ms,
+                     pb_config.unwind_state_clear_period_ms());
 }
 
 EventConfig::EventConfig(const DataSourceConfig& raw_ds_config,
                          const perf_event_attr& pe,
+                         const PerfCounter& timebase_event,
+                         bool sample_callstacks,
+                         TargetFilter target_filter,
+                         bool kernel_frames,
                          uint32_t ring_buffer_pages,
                          uint32_t read_tick_period_ms,
                          uint64_t samples_per_tick_limit,
                          uint32_t remote_descriptor_timeout_ms,
-                         uint32_t unwind_state_clear_period_ms,
-                         bool kernel_frames,
-                         const std::string& tracepoint_filter,
-                         TargetFilter target_filter)
-    : ring_buffer_pages_(ring_buffer_pages),
-      perf_event_attr_(pe),
+                         uint32_t unwind_state_clear_period_ms)
+    : perf_event_attr_(pe),
+      timebase_event_(timebase_event),
+      sample_callstacks_(sample_callstacks),
+      target_filter_(std::move(target_filter)),
+      kernel_frames_(kernel_frames),
+      ring_buffer_pages_(ring_buffer_pages),
       read_tick_period_ms_(read_tick_period_ms),
       samples_per_tick_limit_(samples_per_tick_limit),
-      target_filter_(std::move(target_filter)),
       remote_descriptor_timeout_ms_(remote_descriptor_timeout_ms),
       unwind_state_clear_period_ms_(unwind_state_clear_period_ms),
-      kernel_frames_(kernel_frames),
-      tracepoint_filter_(tracepoint_filter),
       raw_ds_config_(raw_ds_config) /* full copy */ {}
 
 }  // namespace profiling
