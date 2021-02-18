@@ -48,6 +48,23 @@ struct TargetFilter {
   uint32_t additional_cmdline_count = 0;
 };
 
+// Information to configure a counter via perf_event_open.
+struct PerfCounter {
+  // perf_event_attr.type
+  uint32_t type = 0;
+  // perf_event_attr.config
+  uint32_t config = 0;
+
+  // Optional filter, ignored unless type == PERF_TYPE_TRACEPOINT.
+  std::string tracepoint_filter;
+
+  PerfCounter() = default;
+  PerfCounter(uint32_t _type,
+              uint32_t _config,
+              std::string filter = std::string())
+      : type(_type), config(_config), tracepoint_filter(filter) {}
+};
+
 // Describes a single profiling configuration. Bridges the gap between the data
 // source config proto, and the raw "perf_event_attr" structs to pass to the
 // perf_event_open syscall.
@@ -68,7 +85,6 @@ class EventConfig {
 
   uint32_t ring_buffer_pages() const { return ring_buffer_pages_; }
   uint32_t read_tick_period_ms() const { return read_tick_period_ms_; }
-
   uint64_t samples_per_tick_limit() const { return samples_per_tick_limit_; }
   uint32_t remote_descriptor_timeout_ms() const {
     return remote_descriptor_timeout_ms_;
@@ -76,34 +92,50 @@ class EventConfig {
   uint32_t unwind_state_clear_period_ms() const {
     return unwind_state_clear_period_ms_;
   }
+  bool sample_callstacks() const { return sample_callstacks_; }
   const TargetFilter& filter() const { return target_filter_; }
   bool kernel_frames() const { return kernel_frames_; }
-  const std::string& tracepoint_filter() const { return tracepoint_filter_; }
-
   perf_event_attr* perf_attr() const {
     return const_cast<perf_event_attr*>(&perf_event_attr_);
   }
-
+  const PerfCounter& timebase_event() const { return timebase_event_; }
   const DataSourceConfig& raw_ds_config() const { return raw_ds_config_; }
 
  private:
   EventConfig(const DataSourceConfig& raw_ds_config,
               const perf_event_attr& pe,
+              const PerfCounter& timebase_event,
+              bool sample_callstacks,
+              TargetFilter target_filter,
+              bool kernel_frames,
               uint32_t ring_buffer_pages,
               uint32_t read_tick_period_ms,
               uint64_t samples_per_tick_limit,
               uint32_t remote_descriptor_timeout_ms,
-              uint32_t unwind_state_clear_period_ms,
-              bool kernel_frames,
-              const std::string& tracepoint_filter,
-              TargetFilter target_filter);
+              uint32_t unwind_state_clear_period_ms);
+
+  // Parameter struct for the leader (timebase) perf_event_open syscall.
+  perf_event_attr perf_event_attr_ = {};
+
+  // Leader event, which is already described by |perf_event_attr_|. But this
+  // additionally carries a tracepoint filter if that needs to be set via an
+  // ioctl after creating the event.
+  const PerfCounter timebase_event_;
+
+  // TODO(rsavitski): consider adding an Optional<CallstackSampling> that
+  // contains the kernel_frames_ and target_filter, once the complexity warrants
+  // it.
+  const bool sample_callstacks_;
+
+  // Parsed allow/deny-list for filtering samples.
+  const TargetFilter target_filter_;
+
+  // If true, include kernel frames in the callstacks.
+  const bool kernel_frames_;
 
   // Size (in 4k pages) of each per-cpu ring buffer shared with the kernel.
   // Must be a power of two.
   const uint32_t ring_buffer_pages_;
-
-  // Parameter struct for |perf_event_open| calls.
-  perf_event_attr perf_event_attr_ = {};
 
   // How often the ring buffers should be read.
   const uint32_t read_tick_period_ms_;
@@ -112,22 +144,11 @@ class EventConfig {
   // *each* per-cpu buffer.
   const uint64_t samples_per_tick_limit_;
 
-  // Parsed allow/deny-list for filtering samples.
-  const TargetFilter target_filter_;
-
   // Timeout for proc-fd lookup.
   const uint32_t remote_descriptor_timeout_ms_;
 
   // Optional period for clearing cached unwinder state. Skipped if zero.
   const uint32_t unwind_state_clear_period_ms_;
-
-  // If true, include kernel frames in the callstacks.
-  const bool kernel_frames_;
-
-  // If set, we're counting a tracepoint, and want to apply the following event
-  // filter per the trace config. Validation will be done by the kernel once we
-  // try to set it.
-  const std::string tracepoint_filter_;
 
   // The raw data source config, as a pbzero-generated C++ class.
   const DataSourceConfig raw_ds_config_;
