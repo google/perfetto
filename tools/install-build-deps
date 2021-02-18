@@ -205,7 +205,7 @@ BUILD_DEPS_HOST = [
     Dependency(
         'buildtools/android-unwinding',
         'https://android.googlesource.com/platform/system/unwinding.git',
-        '706149b745e847bb66ee965135499e196fa11b66', 'all'),
+        '045391306dc6d9fd16a40af612df0400def0e865', 'all'),
     Dependency('buildtools/android-logging',
                'https://android.googlesource.com/platform/system/logging.git',
                '7b36b566c9113fc703d68f76e8f40c0c2432481c', 'all'),
@@ -224,7 +224,7 @@ BUILD_DEPS_HOST = [
                '5c85a2da4c13eda07f69d81a1579a5afddd35f59', 'all'),
     Dependency('buildtools/bionic',
                'https://android.googlesource.com/platform/bionic.git',
-               'a60488109cda997dfd83832731c8527feaa2825e', 'all'),
+               '332065d57e734b65f56474d136d22d767e36cbcd', 'all'),
 
     # Example traces for regression tests.
     Dependency(
