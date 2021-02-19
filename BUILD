@@ -1582,6 +1582,8 @@ filegroup(
         "src/tracing/ipc/memfd.h",
         "src/tracing/ipc/posix_shared_memory.cc",
         "src/tracing/ipc/posix_shared_memory.h",
+        "src/tracing/ipc/shared_memory_windows.cc",
+        "src/tracing/ipc/shared_memory_windows.h",
     ],
 )
 
@@ -1634,6 +1636,7 @@ filegroup(
     name = "src_tracing_platform_impl",
     srcs = [
         "src/tracing/platform_posix.cc",
+        "src/tracing/platform_windows.cc",
     ],
 )
 
