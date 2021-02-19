@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # Copyright (C) 2017 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,7 +15,6 @@
 
 import argparse
 import os
-import shutil
 import sys
 
 
@@ -55,8 +54,8 @@ def Main():
       os.path.join(aosp_path, 'vendor-qemu.img'), '-data',
       os.path.join(aosp_path, 'userdata-qemu.img')
   ]
-  print '\n'.join('='.join(x) for x in env.items())
-  print ' '.join([emulator_bin] + emulator_args)
+  print('\n'.join('='.join(x) for x in env.items()))
+  print(' '.join([emulator_bin] + emulator_args))
   if args.pid:
     with open(args.pid, 'w') as f:
       f.write(str(os.getpid()))
