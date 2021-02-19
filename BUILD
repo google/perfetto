@@ -128,11 +128,11 @@ perfetto_cc_library(
 perfetto_cc_binary(
     name = "client_api_example",
     srcs = [
-        "test/client_api_example.cc",
         ":include_perfetto_base_base",
         ":include_perfetto_protozero_protozero",
         ":include_perfetto_tracing_core_forward_decls",
         ":include_perfetto_tracing_tracing",
+        "test/client_api_example.cc",
     ],
     deps = [
         ":libperfetto_client_experimental",
@@ -1748,8 +1748,8 @@ perfetto_cc_protozero_library(
 perfetto_cc_protocpp_library(
     name = "protos_perfetto_config_android_cpp",
     deps = [
-        ":protos_perfetto_config_android_protos",
         ":protos_perfetto_common_cpp",
+        ":protos_perfetto_config_android_protos",
     ],
 )
 
@@ -1789,18 +1789,18 @@ perfetto_cc_protozero_library(
 perfetto_cc_protocpp_library(
     name = "protos_perfetto_config_cpp",
     deps = [
-        ":protos_perfetto_config_protos",
-        ":protos_perfetto_config_process_stats_cpp",
+        ":protos_perfetto_common_cpp",
         ":protos_perfetto_config_android_cpp",
-        ":protos_perfetto_config_inode_file_cpp",
-        ":protos_perfetto_config_track_event_cpp",
         ":protos_perfetto_config_ftrace_cpp",
-        ":protos_perfetto_config_profiling_cpp",
         ":protos_perfetto_config_gpu_cpp",
+        ":protos_perfetto_config_inode_file_cpp",
         ":protos_perfetto_config_interceptors_cpp",
         ":protos_perfetto_config_power_cpp",
-        ":protos_perfetto_common_cpp",
+        ":protos_perfetto_config_process_stats_cpp",
+        ":protos_perfetto_config_profiling_cpp",
+        ":protos_perfetto_config_protos",
         ":protos_perfetto_config_sys_stats_cpp",
+        ":protos_perfetto_config_track_event_cpp",
     ],
 )
 
@@ -1925,8 +1925,8 @@ perfetto_cc_protozero_library(
 perfetto_cc_protocpp_library(
     name = "protos_perfetto_config_interceptors_cpp",
     deps = [
-        ":protos_perfetto_config_interceptors_protos",
         ":protos_perfetto_common_cpp",
+        ":protos_perfetto_config_interceptors_protos",
     ],
 )
 
@@ -2123,8 +2123,8 @@ perfetto_proto_library(
 perfetto_cc_protocpp_library(
     name = "protos_perfetto_config_sys_stats_cpp",
     deps = [
-        ":protos_perfetto_config_sys_stats_protos",
         ":protos_perfetto_common_cpp",
+        ":protos_perfetto_config_sys_stats_protos",
     ],
 )
 
@@ -2205,19 +2205,19 @@ perfetto_cc_protozero_library(
 perfetto_cc_protocpp_library(
     name = "protos_perfetto_ipc_cpp",
     deps = [
-        ":protos_perfetto_ipc_protos",
-        ":protos_perfetto_config_process_stats_cpp",
-        ":protos_perfetto_config_android_cpp",
-        ":protos_perfetto_config_inode_file_cpp",
-        ":protos_perfetto_config_track_event_cpp",
-        ":protos_perfetto_config_ftrace_cpp",
-        ":protos_perfetto_config_profiling_cpp",
-        ":protos_perfetto_config_gpu_cpp",
-        ":protos_perfetto_config_interceptors_cpp",
-        ":protos_perfetto_config_cpp",
-        ":protos_perfetto_config_power_cpp",
         ":protos_perfetto_common_cpp",
+        ":protos_perfetto_config_android_cpp",
+        ":protos_perfetto_config_cpp",
+        ":protos_perfetto_config_ftrace_cpp",
+        ":protos_perfetto_config_gpu_cpp",
+        ":protos_perfetto_config_inode_file_cpp",
+        ":protos_perfetto_config_interceptors_cpp",
+        ":protos_perfetto_config_power_cpp",
+        ":protos_perfetto_config_process_stats_cpp",
+        ":protos_perfetto_config_profiling_cpp",
         ":protos_perfetto_config_sys_stats_cpp",
+        ":protos_perfetto_config_track_event_cpp",
+        ":protos_perfetto_ipc_protos",
     ],
 )
 
@@ -2225,20 +2225,20 @@ perfetto_cc_protocpp_library(
 perfetto_cc_ipc_library(
     name = "protos_perfetto_ipc_ipc",
     deps = [
-        ":protos_perfetto_ipc_protos",
-        ":protos_perfetto_config_android_cpp",
-        ":protos_perfetto_config_track_event_cpp",
-        ":protos_perfetto_config_interceptors_cpp",
         ":protos_perfetto_common_cpp",
-        ":protos_perfetto_config_process_stats_cpp",
-        ":protos_perfetto_config_ftrace_cpp",
-        ":protos_perfetto_config_inode_file_cpp",
-        ":protos_perfetto_config_profiling_cpp",
-        ":protos_perfetto_config_gpu_cpp",
+        ":protos_perfetto_config_android_cpp",
         ":protos_perfetto_config_cpp",
+        ":protos_perfetto_config_ftrace_cpp",
+        ":protos_perfetto_config_gpu_cpp",
+        ":protos_perfetto_config_inode_file_cpp",
+        ":protos_perfetto_config_interceptors_cpp",
         ":protos_perfetto_config_power_cpp",
-        ":protos_perfetto_ipc_cpp",
+        ":protos_perfetto_config_process_stats_cpp",
+        ":protos_perfetto_config_profiling_cpp",
         ":protos_perfetto_config_sys_stats_cpp",
+        ":protos_perfetto_config_track_event_cpp",
+        ":protos_perfetto_ipc_cpp",
+        ":protos_perfetto_ipc_protos",
     ],
 )
 
@@ -3195,7 +3195,6 @@ perfetto_cc_library(
 perfetto_cc_binary(
     name = "perfetto",
     srcs = [
-        "src/perfetto_cmd/main.cc",
         ":include_perfetto_base_base",
         ":include_perfetto_ext_base_base",
         ":include_perfetto_ext_ipc_ipc",
@@ -3215,6 +3214,7 @@ perfetto_cc_binary(
         ":src_tracing_ipc_common",
         ":src_tracing_ipc_consumer_consumer",
         ":src_tracing_ipc_producer_producer",
+        "src/perfetto_cmd/main.cc",
     ],
     visibility = [
         "//visibility:public",
@@ -3357,9 +3357,6 @@ perfetto_cc_library(
 perfetto_cc_binary(
     name = "trace_processor_shell",
     srcs = [
-        "src/trace_processor/trace_processor_shell.cc",
-        "src/trace_processor/util/proto_to_json.cc",
-        "src/trace_processor/util/proto_to_json.h",
         ":include_perfetto_base_base",
         ":include_perfetto_ext_base_base",
         ":include_perfetto_ext_trace_processor_export_json",
@@ -3393,6 +3390,9 @@ perfetto_cc_binary(
         ":src_trace_processor_util_descriptors",
         ":src_trace_processor_util_protozero_to_text",
         ":src_trace_processor_util_util",
+        "src/trace_processor/trace_processor_shell.cc",
+        "src/trace_processor/util/proto_to_json.cc",
+        "src/trace_processor/util/proto_to_json.h",
     ],
     visibility = [
         "//visibility:public",
@@ -3449,8 +3449,8 @@ perfetto_cc_binary(
 perfetto_cc_binary(
     name = "traced_probes",
     srcs = [
-        "src/traced/probes/main.cc",
         ":include_perfetto_ext_traced_traced",
+        "src/traced/probes/main.cc",
     ],
     visibility = [
         "//visibility:public",
@@ -3464,8 +3464,8 @@ perfetto_cc_binary(
 perfetto_cc_binary(
     name = "traced",
     srcs = [
-        "src/traced/service/main.cc",
         ":include_perfetto_ext_traced_traced",
+        "src/traced/service/main.cc",
     ],
     visibility = [
         "//visibility:public",
