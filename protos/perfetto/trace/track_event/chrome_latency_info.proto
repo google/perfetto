@@ -21,7 +21,7 @@ package perfetto.protos;
 message ChromeLatencyInfo {
   optional int64 trace_id = 1;
 
-  // NEXT ID: 11
+  // NEXT ID: 12
   // All step are optional but the enum is ordered (not by number) below in the
   // order we expect them to appear if they are emitted in trace in a blocking
   // fashion.
@@ -45,6 +45,9 @@ message ChromeLatencyInfo {
     STEP_SWAP_BUFFERS = 6;
     // Happens on the VizCompositor in the GPU process.
     STEP_DRAW_AND_SWAP = 7;
+    // Happens on the GPU main thread after the swap has completed.
+    STEP_FINISHED_SWAP_BUFFERS = 11;
+    // See above for NEXT ID, enum steps are not ordered by tag number.
   };
 
   optional Step step = 2;
