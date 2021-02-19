@@ -182,7 +182,17 @@ additional_args = {
         ('stubs', {
           'versions': ['S'],
           'symbol_file': 'src/profiling/memory/heapprofd_client_api.map.txt',
-        })
+        }),
+        ('export_include_dirs', {'src/profiling/memory/include'}),
+    ],
+    'heapprofd_api_noop': [
+        ('version_script', 'src/profiling/memory/heapprofd_client_api.map.txt'),
+        ('stubs', {
+          'versions': ['S'],
+          'symbol_file': 'src/profiling/memory/heapprofd_client_api.map.txt',
+        }),
+        ('export_include_dirs', {'src/profiling/memory/include'}),
+        ('host_supported', True),
     ],
     'heapprofd_client': [
         ('include_dirs', {'bionic/libc'}),
@@ -191,6 +201,7 @@ additional_args = {
     'heapprofd_standalone_client': [
         ('static_libs', {'libasync_safe'}),
         ('version_script', 'src/profiling/memory/heapprofd_client_api.map.txt'),
+        ('export_include_dirs', {'src/profiling/memory/include'}),
         ('stl', 'libc++_static'),
     ],
     'perfetto_unittests': [
@@ -220,12 +231,16 @@ additional_args = {
         'com.android.art',
         'com.android.art.debug'}),
       ('shared_libs', {'liblog'}),
+      ('export_include_dirs', {'include', buildflags_dir}),
     ],
     'perfetto_trace_protos': [
       ('apex_available', {
         '//apex_available:platform',
         'com.android.art',
         'com.android.art.debug'}),
+    ],
+    'libperfetto': [
+      ('export_include_dirs', {'include', buildflags_dir}),
     ],
 }
 
@@ -799,7 +814,6 @@ def create_modules_from_target(blueprint, gn, gn_target_name):
   if bp_module_name in blueprint.modules:
     return blueprint.modules[bp_module_name]
   target = gn.get_target(gn_target_name)
-  export_include_dirs = {'include', buildflags_dir}
 
   if target.type == 'executable':
     if target.toolchain == gn_utils.HOST_TOOLCHAIN:
@@ -811,10 +825,8 @@ def create_modules_from_target(blueprint, gn, gn_target_name):
     module = Module(module_type, bp_module_name, gn_target_name)
   elif target.type == 'static_library':
     module = Module('cc_library_static', bp_module_name, gn_target_name)
-    module.export_include_dirs = export_include_dirs
   elif target.type == 'shared_library':
     module = Module('cc_library_shared', bp_module_name, gn_target_name)
-    module.export_include_dirs = export_include_dirs
   elif target.type == 'source_set':
     module = Module('filegroup', bp_module_name, gn_target_name)
   elif target.type == 'group':
@@ -882,7 +894,8 @@ def create_modules_from_target(blueprint, gn, gn_target_name):
     elif isinstance(add_val, dict) and isinstance(curr, Target):
       curr.__dict__.update(add_val)
     else:
-      raise Error('Unimplemented type of additional_args: %r' % key)
+      raise Error('Unimplemented type %r of additional_args: %r' %
+                  (type(add_val), key))
 
   # dep_name is an unmangled GN target name (e.g. //foo:bar(toolchain)).
   for dep_name in target.deps | target.source_set_deps | target.proto_deps:
@@ -949,7 +962,8 @@ def create_blueprint_for_targets(gn, desc, targets):
   # become relative to the Android.bp that *uses* cc_defaults (not the one
   # that defines it).s
   defaults.include_dirs = {
-      tree_path, tree_path + '/include', tree_path + '/' + buildflags_dir
+      tree_path, tree_path + '/include', tree_path + '/' + buildflags_dir,
+      tree_path + '/src/profiling/memory/include'
   }
   defaults.cflags = [
       '-Wno-error=return-type',

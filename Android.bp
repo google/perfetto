@@ -167,13 +167,20 @@ cc_library_shared {
   srcs: [
     "src/profiling/memory/client_api_noop.cc",
   ],
+  host_supported: true,
   export_include_dirs: [
-    "include",
-    "include/perfetto/base/build_configs/android_tree",
+    "src/profiling/memory/include",
   ],
   defaults: [
     "perfetto_defaults",
   ],
+  version_script: "src/profiling/memory/heapprofd_client_api.map.txt",
+  stubs: {
+    symbol_file: "src/profiling/memory/heapprofd_client_api.map.txt",
+    versions: [
+      "S",
+    ],
+  },
 }
 
 // GN: //src/profiling/memory:heapprofd_client
@@ -191,10 +198,6 @@ cc_library_shared {
   ],
   static_libs: [
     "libasync_safe",
-  ],
-  export_include_dirs: [
-    "include",
-    "include/perfetto/base/build_configs/android_tree",
   ],
   generated_headers: [
     "perfetto_src_base_version_gen_h",
@@ -239,8 +242,7 @@ cc_library_shared {
     "libasync_safe",
   ],
   export_include_dirs: [
-    "include",
-    "include/perfetto/base/build_configs/android_tree",
+    "src/profiling/memory/include",
   ],
   generated_headers: [
     "perfetto_src_base_version_gen_h",
@@ -359,8 +361,7 @@ cc_library_shared {
     "libunwindstack",
   ],
   export_include_dirs: [
-    "include",
-    "include/perfetto/base/build_configs/android_tree",
+    "src/profiling/memory/include",
   ],
   generated_headers: [
     "perfetto_protos_perfetto_common_cpp_gen_headers",
@@ -642,10 +643,6 @@ cc_library_shared {
   static_libs: [
     "libhealthhalutils",
     "libstatslog_perfetto",
-  ],
-  export_include_dirs: [
-    "include",
-    "include/perfetto/base/build_configs/android_tree",
   ],
   defaults: [
     "perfetto_defaults",
@@ -1109,10 +1106,6 @@ cc_library_static {
   whole_static_libs: [
     "perfetto_gtest_logcat_printer",
   ],
-  export_include_dirs: [
-    "include",
-    "include/perfetto/base/build_configs/android_tree",
-  ],
   generated_headers: [
     "perfetto_protos_perfetto_common_cpp_gen_headers",
     "perfetto_protos_perfetto_common_zero_gen_headers",
@@ -1352,10 +1345,6 @@ cc_library_static {
     ":perfetto_src_tracing_ipc_service_service",
     ":perfetto_test_test_helper",
   ],
-  export_include_dirs: [
-    "include",
-    "include/perfetto/base/build_configs/android_tree",
-  ],
   generated_headers: [
     "perfetto_protos_perfetto_common_cpp_gen_headers",
     "perfetto_protos_perfetto_common_zero_gen_headers",
@@ -1500,6 +1489,7 @@ cc_defaults {
     "external/perfetto",
     "external/perfetto/include",
     "external/perfetto/include/perfetto/base/build_configs/android_tree",
+    "external/perfetto/src/profiling/memory/include",
   ],
   product_variables: {
     debuggable: {
@@ -1524,10 +1514,6 @@ cc_library_static {
   static_libs: [
     "libgmock",
     "libgtest",
-  ],
-  export_include_dirs: [
-    "include",
-    "include/perfetto/base/build_configs/android_tree",
   ],
   defaults: [
     "perfetto_defaults",
@@ -8601,10 +8587,6 @@ cc_library_static {
     "libprotobuf-cpp-lite",
   ],
   host_supported: true,
-  export_include_dirs: [
-    "include",
-    "include/perfetto/base/build_configs/android_tree",
-  ],
   generated_headers: [
     "perfetto_protos_perfetto_common_lite_gen_headers",
     "perfetto_protos_perfetto_config_android_lite_gen_headers",
