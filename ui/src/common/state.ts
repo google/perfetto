@@ -295,6 +295,7 @@ export interface State {
   currentSelection: Selection|null;
   currentHeapProfileFlamegraph: HeapProfileFlamegraph|null;
   logsPagination: LogsPagination;
+  traceConversionInProgress: boolean;
 
   /**
    * This state is updated on the frontend at 60Hz and eventually syncronised to
@@ -762,6 +763,7 @@ export function createEmptyState(): State {
     status: {msg: '', timestamp: 0},
     currentSelection: null,
     currentHeapProfileFlamegraph: null,
+    traceConversionInProgress: false,
 
     video: null,
     videoEnabled: false,
