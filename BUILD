@@ -3769,6 +3769,6 @@ perfetto_py_library(
         ":protobuf_noop",
         ":protobuf_descriptor_pb2_noop",
         ":pyglib_noop",
-    ]
+    ],
     visibility = PERFETTO_CONFIG.public_visibility,
 )
