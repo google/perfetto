@@ -18,6 +18,8 @@ set -eux -o pipefail
 cd $(dirname ${BASH_SOURCE[0]})/../..
 OUT_PATH="out/dist"
 
+export PYTHONUNBUFFERED=1
+
 tools/install-build-deps $INSTALL_BUILD_DEPS_ARGS
 
 # Assumes Linux. Windows should use /win/clang instead.
