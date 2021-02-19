@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # Copyright (C) 2019 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -63,7 +63,7 @@ def check_amalgamated_build():
   if sys.platform.startswith('linux'):
     llvm_script = os.path.join(ROOT_DIR, 'gn', 'standalone', 'toolchain',
                                'linux_find_llvm.py')
-    cxx = subprocess.check_output([llvm_script]).splitlines()[2]
+    cxx = subprocess.check_output([llvm_script]).splitlines()[2].decode()
   else:
     cxx = 'clang++'
   call(cxx, *args)

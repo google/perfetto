@@ -1,18 +1,19 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import re
 import sys
-import urllib2
+
+from  urllib.request import urlopen
 
 syscalls = {}
 
 
 def print_table(name):
   tab = syscalls[name]
-  print '\n\n----------------- BEGIN OF %s -----------------' % name
-  for i in xrange(max(tab.keys()) + 1):
-    print '"%s",  // %d' % (tab.get(i, ''), i)
-  print '----------------- END OF %s -----------------' % name
+  print('\n\n----------------- BEGIN OF %s -----------------' % name)
+  for i in range(max(tab.keys()) + 1):
+    print('"%s",  // %d' % (tab.get(i, ''), i))
+  print('----------------- END OF %s -----------------' % name)
 
 
 # Parses a .tbl file (new format).
@@ -41,24 +42,24 @@ def parse_def(data):
 def Main():
   KSRC = 'https://raw.githubusercontent.com/torvalds/linux/v4.20/'
 
-  response = urllib2.urlopen(KSRC + 'arch/x86/entry/syscalls/syscall_64.tbl')
-  syscalls['x86_64'] = parse_tlb(response.read())
+  response = urlopen(KSRC + 'arch/x86/entry/syscalls/syscall_64.tbl')
+  syscalls['x86_64'] = parse_tlb(response.read().decode())
 
-  response = urllib2.urlopen(KSRC + 'arch/x86/entry/syscalls/syscall_32.tbl')
-  syscalls['x86'] = parse_tlb(response.read())
+  response = urlopen(KSRC + 'arch/x86/entry/syscalls/syscall_32.tbl')
+  syscalls['x86'] = parse_tlb(response.read().decode())
 
-  response = urllib2.urlopen(KSRC + 'arch/arm/tools/syscall.tbl')
-  syscalls['armeabi'] = parse_tlb(response.read())
+  response = urlopen(KSRC + 'arch/arm/tools/syscall.tbl')
+  syscalls['armeabi'] = parse_tlb(response.read().decode())
 
-  response = urllib2.urlopen(KSRC + 'arch/arm64/include/asm/unistd32.h')
-  syscalls['aarch32'] = parse_def(response.read())
+  response = urlopen(KSRC + 'arch/arm64/include/asm/unistd32.h')
+  syscalls['aarch32'] = parse_def(response.read().decode())
 
   # From:
   # arch/arm64/include/asm/unistd.h
   #   -> arch/arm64/include/uapi/asm/unistd.h
   #     -> include/uapi/asm-generic/unistd.h
-  response = urllib2.urlopen(KSRC + 'include/uapi/asm-generic/unistd.h')
-  syscalls['aarch64'] = parse_def(response.read())
+  response = urlopen(KSRC + 'include/uapi/asm-generic/unistd.h')
+  syscalls['aarch64'] = parse_def(response.read().decode())
 
   print_table('x86_64')
   print_table('x86')
