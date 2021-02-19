@@ -116,6 +116,22 @@ body>main {
     overflow: hidden;
 }
 
+body.filedrag::after {
+  content: 'Drop the trace file to open it';
+  position: fixed;
+  z-index: 99;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border: 10px dashed #404854;
+  text-align: center;
+  font-size: 3rem;
+  line-height: 100vh;
+  color: #333;
+  background: rgba(255, 255, 255, 0.5);
+}
+
 button {
   background: none;
   color: inherit;
