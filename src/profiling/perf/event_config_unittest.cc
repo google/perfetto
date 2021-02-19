@@ -134,8 +134,9 @@ TEST(EventConfigTest, EnableKernelFrames) {
     ASSERT_TRUE(event_config.has_value());
     EXPECT_TRUE(event_config->kernel_frames());
   }
-  {  // legacy field:
+  {  // legacy config:
     protos::gen::PerfEventConfig cfg;
+    cfg.set_all_cpus(true);  // used to detect compat mode
     cfg.set_kernel_frames(true);
     base::Optional<EventConfig> event_config =
         EventConfig::Create(AsDataSourceConfig(cfg));
@@ -263,6 +264,7 @@ TEST(EventConfigTest, ParseTargetfilter) {
   }
   {  // legacy:
     protos::gen::PerfEventConfig cfg;
+    cfg.set_all_cpus(true);
     cfg.add_target_pid(42);
     cfg.add_target_cmdline("traced_probes");
     cfg.add_target_cmdline("traced");
@@ -281,6 +283,59 @@ TEST(EventConfigTest, ParseTargetfilter) {
     EXPECT_TRUE(filter.exclude_pids.empty());
     EXPECT_THAT(filter.exclude_cmdlines,
                 UnorderedElementsAreArray({"heapprofd"}));
+  }
+}
+
+TEST(EventConfigTest, CounterOnlyModeDetection) {
+  {  // hardware counter:
+    protos::gen::PerfEventConfig cfg;
+    auto* mutable_timebase = cfg.mutable_timebase();
+    mutable_timebase->set_period(500);
+    mutable_timebase->set_counter(protos::gen::PerfEventConfig::HW_CPU_CYCLES);
+
+    base::Optional<EventConfig> event_config =
+        EventConfig::Create(AsDataSourceConfig(cfg));
+
+    ASSERT_TRUE(event_config.has_value());
+    EXPECT_EQ(event_config->perf_attr()->type, PERF_TYPE_HARDWARE);
+    EXPECT_EQ(event_config->perf_attr()->config, PERF_COUNT_HW_CPU_CYCLES);
+    EXPECT_EQ(event_config->perf_attr()->sample_type &
+                  (PERF_SAMPLE_STACK_USER | PERF_SAMPLE_REGS_USER),
+              0u);
+  }
+  {  // software counter:
+    protos::gen::PerfEventConfig cfg;
+    auto* mutable_timebase = cfg.mutable_timebase();
+    mutable_timebase->set_period(500);
+    mutable_timebase->set_counter(protos::gen::PerfEventConfig::SW_PAGE_FAULTS);
+
+    base::Optional<EventConfig> event_config =
+        EventConfig::Create(AsDataSourceConfig(cfg));
+
+    ASSERT_TRUE(event_config.has_value());
+    EXPECT_EQ(event_config->perf_attr()->type, PERF_TYPE_SOFTWARE);
+    EXPECT_EQ(event_config->perf_attr()->config, PERF_COUNT_SW_PAGE_FAULTS);
+    EXPECT_EQ(event_config->perf_attr()->sample_type &
+                  (PERF_SAMPLE_STACK_USER | PERF_SAMPLE_REGS_USER),
+              0u);
+  }
+}
+
+TEST(EventConfigTest, CallstackSamplingModeDetection) {
+  {  // set-but-empty |callstack_sampling| field enables callstacks
+    protos::gen::PerfEventConfig cfg;
+    cfg.mutable_callstack_sampling();  // set field
+
+    base::Optional<EventConfig> event_config =
+        EventConfig::Create(AsDataSourceConfig(cfg));
+
+    ASSERT_TRUE(event_config.has_value());
+    EXPECT_EQ(event_config->perf_attr()->sample_type &
+                  (PERF_SAMPLE_STACK_USER | PERF_SAMPLE_REGS_USER),
+              PERF_SAMPLE_STACK_USER | PERF_SAMPLE_REGS_USER);
+
+    EXPECT_NE(event_config->perf_attr()->sample_regs_user, 0u);
+    EXPECT_NE(event_config->perf_attr()->sample_stack_user, 0u);
   }
 }
 
