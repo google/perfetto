@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # Copyright (C) 2017 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,12 +15,10 @@
 
 import argparse
 import os
-import re
 import functools
 import logging
 import subprocess
 import sys
-import tempfile
 import time
 """ Runs a test executable on Android.
 
@@ -85,7 +83,7 @@ def RetryOn(exc_type=(), returns_falsy=False, retries=5):
 
 def AdbCall(*args):
   cmd = [ADB_PATH] + list(args)
-  print '> adb ' + ' '.join(args)
+  print('> adb ' + ' '.join(args))
   return subprocess.check_call(cmd)
 
 
@@ -93,18 +91,18 @@ def AdbPush(host, device):
   if not os.path.exists(host):
     logging.fatal('Cannot find %s. Was it built?', host)
   cmd = [ADB_PATH, 'push', host, device]
-  print '> adb push ' + ' '.join(cmd[2:])
-  with open(os.devnull) as devnull:
+  print('> adb push ' + ' '.join(cmd[2:]))
+  with open(os.devnull, 'wb') as devnull:
     return subprocess.check_call(cmd, stdout=devnull)
 
 
 def GetProp(prop):
   cmd = [ADB_PATH, 'shell', 'getprop', prop]
-  print '> adb ' + ' '.join(cmd)
-  output = subprocess.check_output(cmd)
+  print('> adb ' + ' '.join(cmd))
+  output = subprocess.check_output(cmd).decode()
   lines = output.splitlines()
   assert len(lines) == 1, 'Expected output to have one line: {}'.format(output)
-  print lines[0]
+  print(lines[0])
   return lines[0]
 
 
@@ -139,7 +137,7 @@ def Main():
   test_bin = os.path.join(args.out_dir, args.test_name)
   assert os.path.exists(test_bin)
 
-  print 'Waiting for device ...'
+  print('Waiting for device ...')
   AdbCall('wait-for-device')
   # WaitForBootCompletion()
   AdbCall('root')
@@ -183,14 +181,14 @@ def Main():
   if args.cmd_args:
     actual_args = [arg.replace(args.test_name, binary) for arg in args.cmd_args]
     cmd += ' ' + ' '.join(actual_args)
-  print cmd
-  retcode = subprocess.call([ADB_PATH, 'shell', cmd])
+  print(cmd)
+  retcode = subprocess.call([ADB_PATH, 'shell', '-tt', cmd])
   if not args.no_cleanup:
     AdbCall('shell', 'rm -rf "%s"' % target_dir)
 
   # Smoke test that adb shell is actually propagating retcode. adb has a history
   # of breaking this.
-  test_code = subprocess.call([ADB_PATH, 'shell', 'echo Done; exit 42'])
+  test_code = subprocess.call([ADB_PATH, 'shell', '-tt', 'echo Done; exit 42'])
   if test_code != 42:
     logging.fatal('adb is incorrectly propagating the exit code')
     return 1
