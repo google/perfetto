@@ -183,7 +183,7 @@ TEST(TracedPerfCtsTest, SystemWideDebuggableAppExtraGuardrails) {
   int app_pid = PidForProcessName(app_name);
   ASSERT_GT(app_pid, 0) << "failed to find pid for target process";
 
-  if (IsDebuggableBuild())
+  if (!IsUserBuild())
     AssertHasSampledStacksForPid(packets, app_pid);
   else
     AssertNoStacksForPid(packets, app_pid);
@@ -215,7 +215,7 @@ TEST(TracedPerfCtsTest, SystemWideProfileableAppExtraGuardrails) {
   int app_pid = PidForProcessName(app_name);
   ASSERT_GT(app_pid, 0) << "failed to find pid for target process";
 
-  if (IsDebuggableBuild())
+  if (!IsUserBuild())
     AssertHasSampledStacksForPid(packets, app_pid);
   else
     AssertNoStacksForPid(packets, app_pid);
@@ -232,7 +232,7 @@ TEST(TracedPerfCtsTest, SystemWideReleaseApp) {
   int app_pid = PidForProcessName(app_name);
   ASSERT_GT(app_pid, 0) << "failed to find pid for target process";
 
-  if (IsDebuggableBuild())
+  if (!IsUserBuild())
     AssertHasSampledStacksForPid(packets, app_pid);
   else
     AssertNoStacksForPid(packets, app_pid);
@@ -251,7 +251,7 @@ TEST(TracedPerfCtsTest, SystemWideReleaseAppExtraGuardrails) {
   int app_pid = PidForProcessName(app_name);
   ASSERT_GT(app_pid, 0) << "failed to find pid for target process";
 
-  if (IsDebuggableBuild())
+  if (!IsUserBuild())
     AssertHasSampledStacksForPid(packets, app_pid);
   else
     AssertNoStacksForPid(packets, app_pid);
