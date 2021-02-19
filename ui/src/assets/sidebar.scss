@@ -165,6 +165,26 @@
                     padding: 5px 24px;
                     text-decoration: none;
                     display: block;
+                    &.pending {
+                      color: rgba(255, 255, 255, 0.3);
+                      &::after {
+                        content: ' ';
+                        display: inline-block;
+                        vertical-align: middle;
+                        box-sizing: border-box;
+                        width: 18px;
+                        height: 18px;
+                        margin-left: 10px;
+                        border-radius: 50%;
+                        border: 2px solid #b4b7ba;
+                        border-color: #b4b7ba transparent #b4b7ba transparent;
+                        animation: pending-spinner 1.25s linear infinite;
+                      }
+                      @keyframes pending-spinner {
+                        0% { transform: rotate(0deg); }
+                        100% { transform: rotate(360deg); }
+                      }
+                    }
                     &[disabled] {
                       text-decoration: line-through;
                     }

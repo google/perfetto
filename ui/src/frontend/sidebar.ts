@@ -707,12 +707,18 @@ export class Sidebar implements m.ClassComponent {
       if (section.hideIfNoTraceLoaded && !isTraceLoaded()) continue;
       const vdomItems = [];
       for (const item of section.items) {
+        let css = '';
         let attrs = {
           onclick: typeof item.a === 'function' ? item.a : null,
           href: typeof item.a === 'string' ? item.a : '#',
           target: typeof item.a === 'string' ? '_blank' : null,
           disabled: false,
         };
+        if (item.a === openCurrentTraceWithOldUI &&
+            globals.state.traceConversionInProgress) {
+          attrs.onclick = e => e.preventDefault();
+          css = '.pending';
+        }
         if ((item as {internalUserOnly: boolean}).internalUserOnly === true) {
           if (!globals.isInternalUser) continue;
         }
@@ -727,8 +733,8 @@ export class Sidebar implements m.ClassComponent {
             disabled: true,
           };
         }
-        vdomItems.push(
-            m('li', m('a', attrs, m('i.material-icons', item.i), item.t)));
+        vdomItems.push(m(
+            'li', m(`a${css}`, attrs, m('i.material-icons', item.i), item.t)));
       }
       if (section.appendOpenedTraceTitle) {
         const engines = Object.values(globals.state.engines);
