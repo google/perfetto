@@ -206,6 +206,7 @@ class FrontendApi {
     const arr = new Uint8Array(args.data, 0, args.size);
     const str = (new TextDecoder('utf-8')).decode(arr);
     openBufferWithLegacyTraceViewer('trace.json', str, 0);
+    globals.dispatch(Actions.clearConversionInProgress({}));
   }
 
   publishBufferUsage(args: {percentage: number}) {
