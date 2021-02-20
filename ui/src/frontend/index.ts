@@ -35,6 +35,7 @@ import {AnalyzePage} from './analyze_page';
 import {loadAndroidBugToolInfo} from './android_bug_tool';
 import {initCssConstants} from './css_constants';
 import {maybeShowErrorDialog} from './error_dialog';
+import {installFileDropHandler} from './file_drop_handler';
 import {
   CounterDetails,
   CpuProfileDetails,
@@ -206,6 +207,7 @@ class FrontendApi {
     const arr = new Uint8Array(args.data, 0, args.size);
     const str = (new TextDecoder('utf-8')).decode(arr);
     openBufferWithLegacyTraceViewer('trace.json', str, 0);
+    globals.dispatch(Actions.clearConversionInProgress({}));
   }
 
   publishBufferUsage(args: {percentage: number}) {
@@ -480,6 +482,7 @@ function onCssLoaded(router: Router) {
   } catch (e) {
     console.error('WebUSB API not supported');
   }
+  installFileDropHandler();
 }
 
 main();
