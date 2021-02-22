@@ -19,16 +19,25 @@ set -eux -o pipefail
 URL='http://metadata.google.internal/computeMetadata/v1/instance/attributes/num-workers'
 NUM_WORKERS=$(curl --silent --fail -H'Metadata-Flavor:Google' $URL || echo 1)
 
+for SSD in /dev/nvme0n*; do
+mkswap $SSD
+swapon -p -1 $SSD
+done
+
 # This is used by the sandbox containers, NOT needed by the workers.
+# Rationale for size=100G: by default tmpfs mount are set to RAM/2, which makes
+# the CI depend too much on the underlying VM. Here and below, we pick an
+# arbitrary fixed size (we use local scratch NVME as a swap device).
 export SHARED_WORKER_CACHE=/mnt/disks/shared_worker_cache
 rm -rf $SHARED_WORKER_CACHE
 mkdir -p $SHARED_WORKER_CACHE
-mount -t tmpfs tmpfs $SHARED_WORKER_CACHE -o mode=777
+mount -t tmpfs tmpfs $SHARED_WORKER_CACHE -o mode=777,size=100G
 
 # This is used to queue build artifacts that are uploaded to GCS.
-export ARTIFACTS_DIR=/mnt/stateful_partition/artifacts
+export ARTIFACTS_DIR=/mnt/disks/artifacts
 rm -rf $ARTIFACTS_DIR
-mkdir -m 777 -p $ARTIFACTS_DIR
+mkdir -p $ARTIFACTS_DIR
+mount -t tmpfs tmpfs $ARTIFACTS_DIR -o mode=777,size=100G
 
 # Pull the latest images from the registry.
 docker pull eu.gcr.io/perfetto-ci/worker
@@ -48,6 +57,15 @@ export SANDBOX_NETWORK_ARGS="--network sandbox --dns 8.8.8.8"
 # This implies that the worker container is trusted and should never run code
 # from the repo, as opposite to the sandbox container that is isolated.
 for i in $(seq $NUM_WORKERS); do
+
+# We manually mount a tmpfs mount ourselves because Docker doesn't allow to
+# both override tmpfs-size AND "-o exec" (see also
+# https://github.com/moby/moby/issues/32131)
+SANDBOX_TMP=/mnt/disks/sandbox-$i-tmp
+rm -rf $SANDBOX_TMP
+mkdir -p $SANDBOX_TMP
+mount -t tmpfs tmpfs $SANDBOX_TMP -o mode=777,size=100G
+
 docker rm -f worker-$i 2>/dev/null || true
 docker run -d \
   -v /var/run/docker.sock:/var/run/docker.sock \
@@ -55,6 +73,7 @@ docker run -d \
   --env SHARED_WORKER_CACHE="$SHARED_WORKER_CACHE" \
   --env SANDBOX_NETWORK_ARGS="$SANDBOX_NETWORK_ARGS" \
   --env ARTIFACTS_DIR="$ARTIFACTS_DIR" \
+  --env SANDBOX_TMP="$SANDBOX_TMP" \
   --env WORKER_HOST="$(hostname)" \
   --name worker-$i \
   --hostname worker-$i \
