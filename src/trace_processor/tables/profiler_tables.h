@@ -293,7 +293,8 @@ PERFETTO_TP_TABLE(PERFETTO_TP_EXPERIMENTAL_FLAMEGRAPH_NODES);
   C(base::Optional<StringPool::Id>, deobfuscated_name)      \
   C(base::Optional<StringPool::Id>, location)               \
   C(base::Optional<HeapGraphClassTable::Id>, superclass_id) \
-  C(base::Optional<uint32_t>, classloader_id)
+  C(base::Optional<uint32_t>, classloader_id)               \
+  C(StringPool::Id, kind)
 
 PERFETTO_TP_TABLE(PERFETTO_TP_HEAP_GRAPH_CLASS_DEF);
 
