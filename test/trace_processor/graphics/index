@@ -36,3 +36,6 @@ composition_layer.py composition_layer_count.sql composition_layer_count.out
 
 # Android Jank metrics
 android_jank.py android_jank android_jank.out
+
+# G2D metrics
+g2d_metrics.textproto g2d g2d_metrics.out

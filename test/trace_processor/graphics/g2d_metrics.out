@@ -1,0 +1,40 @@
+g2d {
+    g2d_hw {
+        instances {
+            name: "g2d_frame_hw#10"
+            max_dur_ns: 20
+            min_dur_ns: 20
+            avg_dur_ns: 20
+            frame_count: 1
+            error_count: 0
+        }
+        max_dur_ns: 20
+        min_dur_ns: 20
+        avg_dur_ns: 20
+        frame_count: 1
+        error_count: 0
+    }
+    g2d_sw {
+        instances {
+            name: "g2d_frame_sw#10"
+            max_dur_ns: 40
+            min_dur_ns: 20
+            avg_dur_ns: 30
+            frame_count: 2
+            error_count: 0
+        }
+        instances {
+            name: "g2d_frame_sw#11"
+            max_dur_ns: 40
+            min_dur_ns: 40
+            avg_dur_ns: 40
+            frame_count: 1
+            error_count: 2
+        }
+        max_dur_ns: 40
+        min_dur_ns: 20
+        avg_dur_ns: 33
+        frame_count: 3
+        error_count: 2
+    }
+}
