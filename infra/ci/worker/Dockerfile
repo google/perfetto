@@ -34,8 +34,8 @@ COPY worker.py /home/perfetto/
 RUN set -e; \
     echo 'root ALL=(ALL) ALL' /etc/sudoers; \
     echo 'perfetto ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers; \
-    addgroup -S perfetto; \
-    adduser -S -h /home/perfetto perfetto perfetto; \
+    addgroup -S --gid 1337 perfetto; \
+    adduser -S --uid 1337 -h /home/perfetto perfetto perfetto; \
     chown perfetto.perfetto -R /home/perfetto; \
     chmod -R 755 /home/perfetto;
 
