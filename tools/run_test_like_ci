@@ -114,8 +114,11 @@ def main():
                                            'ci'),
                 'BUILDER=%s' % args.runner, 'build-sandbox'))
 
+  bundle_path = '/tmp/perfetto-ci.bundle'
+  check_call(['git', '-C', REPO_ROOT, 'bundle', 'create', bundle_path, 'HEAD' ])
+  os.chmod(bundle_path, 0o664)
   env = {
-      'PERFETTO_TEST_GIT_REF': 'file:///ci/source',
+      'PERFETTO_TEST_GIT_REF': bundle_path,
   }
   env.update(JOB_CONFIGS[args.config])
 
@@ -127,7 +130,7 @@ def main():
       args.runner, 'run', '-it', '--name', 'perfetto_ci', '--cap-add',
       'SYS_PTRACE', '--rm', '--volume',
       '%s:/ci/ramdisk' % workdir, '--tmpfs', '/tmp:exec',
-      '--volume=%s:/ci/source:ro' % REPO_ROOT
+      '--volume=%s:%s:ro' % (bundle_path, bundle_path)
   ]
   for kv in env.items():
     cmd += ['--env', '%s=%s' % kv]
@@ -142,8 +145,6 @@ def main():
       ' '.join('\n  ' + c if c.startswith('--') or c == 'bash' else quote(c)
                for c in cmd))
   print('')
-  print('The VM will have read-only acess to: %s, mounted as /ci/source' %
-        REPO_ROOT)
   print('The VM workdir /ci/ramdisk will be mounted into: %s' % workdir)
   print('The contents of %s will be deleted before starting the VM' % workdir)
   decision(confirm=args.confirm)
