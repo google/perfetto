@@ -67,6 +67,35 @@ const char* HeapGraphRootTypeToString(int32_t type) {
   }
 }
 
+const char* HeapGraphTypeKindToString(int32_t type) {
+  switch (type) {
+    case protos::pbzero::HeapGraphType::KIND_NORMAL:
+      return "KIND_NORMAL";
+    case protos::pbzero::HeapGraphType::KIND_NOREFERENCES:
+      return "KIND_NOREFERENCES";
+    case protos::pbzero::HeapGraphType::KIND_STRING:
+      return "KIND_STRING";
+    case protos::pbzero::HeapGraphType::KIND_ARRAY:
+      return "KIND_ARRAY";
+    case protos::pbzero::HeapGraphType::KIND_CLASS:
+      return "KIND_CLASS";
+    case protos::pbzero::HeapGraphType::KIND_CLASSLOADER:
+      return "KIND_CLASSLOADER";
+    case protos::pbzero::HeapGraphType::KIND_DEXCACHE:
+      return "KIND_DEXCACHE";
+    case protos::pbzero::HeapGraphType::KIND_SOFT_REFERENCE:
+      return "KIND_SOFT_REFERENCE";
+    case protos::pbzero::HeapGraphType::KIND_WEAK_REFERENCE:
+      return "KIND_WEAK_REFERENCE";
+    case protos::pbzero::HeapGraphType::KIND_FINALIZER_REFERENCE:
+      return "KIND_FINALIZER_REFERENCE";
+    case protos::pbzero::HeapGraphType::KIND_PHANTOM_REFERENCE:
+      return "KIND_PHANTOM_REFERENCE";
+    default:
+      return "KIND_UNKNOWN";
+  }
+}
+
 // Iterate over a repeated field of varints, independent of whether it is
 // packed or not.
 template <int32_t field_no, typename T, typename F>
@@ -188,10 +217,13 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
         entry.kind() == protos::pbzero::HeapGraphType::KIND_ARRAY ||
         entry.kind() == protos::pbzero::HeapGraphType::KIND_STRING;
 
+    StringPool::Id kind = context_->storage->InternString(
+        HeapGraphTypeKindToString(entry.kind()));
+
     heap_graph_tracker->AddInternedType(
         seq_id, entry.id(), context_->storage->InternString(str_view),
         entry.location_id(), entry.object_size(), std::move(field_name_ids),
-        entry.superclass_id(), entry.classloader_id(), no_fields);
+        entry.superclass_id(), entry.classloader_id(), no_fields, kind);
   }
   for (auto it = heap_graph.field_names(); it; ++it) {
     protos::pbzero::InternedString::Decoder entry(*it);
