@@ -106,7 +106,8 @@ class HeapGraphTracker : public Destructible {
                        std::vector<uint64_t> field_name_ids,
                        uint64_t superclass_id,
                        uint64_t classloader_id,
-                       bool no_fields);
+                       bool no_fields,
+                       StringPool::Id kind);
   void AddInternedFieldName(uint32_t seq_id,
                             uint64_t intern_id,
                             base::StringView str);
@@ -152,6 +153,7 @@ class HeapGraphTracker : public Destructible {
     uint64_t superclass_id;
     bool no_fields;
     uint64_t classloader_id;
+    StringPool::Id kind;
   };
   struct SequenceState {
     UniquePid current_upid = 0;
