@@ -392,3 +392,18 @@ perfetto_fuzzer_test("shared_ring_buffer_write_fuzzer") {
     "../../base",
   ]
 }
+
+if (enable_perfetto_benchmarks) {
+  source_set("benchmarks") {
+    testonly = true
+    deps = [
+      ":client",
+      ":client_api",
+      "../../../gn:benchmark",
+      "../../../gn:default_deps",
+      "../../base",
+      "../../base:test_support",
+    ]
+    sources = [ "client_api_benchmark.cc" ]
+  }
+}
