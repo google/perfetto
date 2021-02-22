@@ -103,9 +103,7 @@ base::Optional<std::string> PackageFromLocation(TraceStorage* storage,
     return "com.google.android.gm";
   }
 
-  base::StringView gmscore("/product/priv-app/PrebuiltGmsCore/PrebuiltGmsCore");
-  if (location.size() >= gmscore.size() &&
-      location.substr(0, gmscore.size()) == gmscore) {
+  if (location.find("PrebuiltGmsCore") != std::string::npos) {
     return "com.google.android.gms";
   }
 
