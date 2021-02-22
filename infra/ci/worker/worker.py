@@ -77,6 +77,16 @@ def worker_loop():
   if not jobs:
     return
 
+  # Work out the worker number from the hostname. We try to distribute the load
+  # (via the time.sleep below) so that we fill first all the worker-1 of each
+  # vm, then worker-2 and so on. This is designed so that if there is only one
+  # CL (hence N jobs) in the queue, each VM gets only one job, maximizing the
+  # cpu efficiency of each VM.
+  try:
+    worker_num = int(socket.gethostname().split('-')[-1])
+  except ValueError:
+    worker_num = 1
+
   # Transactionally acquire a job. Deal with races (two workers trying to
   # acquire the same job).
   job = None
@@ -86,7 +96,7 @@ def worker_loop():
     if job is not None:
       break
     logging.info('Raced while trying to acquire job %s, retrying', job_id)
-    time.sleep(int(random.random() * 3))
+    time.sleep(worker_num * 2 + random.random())
   if job is None:
     logging.error('Failed to acquire a job')
     return
@@ -173,7 +183,11 @@ def main():
       logging.error('Exception in worker loop:\n%s', traceback.format_exc())
     if sigterm.is_set():
       break
-    time.sleep(5)
+
+    # Synchronize sleeping with the wall clock. This is so all VMs wake up at
+    # the same time. See comment on distributing load above in this file.
+    poll_time_sec = 5
+    time.sleep(poll_time_sec - (time.time() % poll_time_sec))
 
   # The use case here is the VM being terminated by the GCE infrastructure.
   # We mark the worker as terminated and the job as cancelled so we don't wait

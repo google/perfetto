@@ -19,4 +19,5 @@ set -eux
 chmod 777 /ci/cache /ci/artifacts
 chown perfetto.perfetto /ci/ramdisk
 cd /ci/ramdisk
+ls -A1 | xargs rm -rf
 exec sudo -u perfetto -g perfetto -EH bash /ci/testrunner.sh
