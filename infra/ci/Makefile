@@ -77,11 +77,12 @@ clean:
 		--maintenance-policy=MIGRATE \
 		--service-account=gce-ci-worker@perfetto-ci.iam.gserviceaccount.com \
 		--scopes=${GCE_SCOPES} \
-		--image=cos-stable-75-12105-77-0 \
+		--image=cos-85-13310-1209-10 \
 		--image-project=cos-cloud \
-		--boot-disk-size=200GB \
+		--boot-disk-size=100GB \
 		--boot-disk-type=pd-ssd \
-		--boot-disk-device-name=ci-worker-template
+		--boot-disk-device-name=ci-worker-template \
+		--local-ssd=interface=NVME
 	touch $@
 
 .PHONY: deploy-controller
@@ -92,33 +93,32 @@ deploy-controller:
 deploy-frontend:
 	make -C frontend deploy
 
-.PHONY: stop-workers
-stop-workers:
-	gcloud compute --quiet --project=${PROJECT} \
-		instance-groups managed delete ${GCE_GROUP_NAME} --zone=${ZONE} || true
-
-# Fix the replicas to 2. Dynamic scaling causes too jobs to be aborted while
-# scaling down.
-.PHONY: start-workers
-start-workers: .deps/gce-template
-	gcloud beta compute --project=${PROJECT} \
-		instance-groups managed create ${GCE_GROUP_NAME} \
-		--zone=${ZONE} \
-		--base-instance-name=ci-worker-group \
-		--template=ci-worker-template \
-		--size=1
-	gcloud beta compute --quiet --project=${PROJECT} \
-		instance-groups managed set-autoscaling ${GCE_GROUP_NAME} \
-		--zone ${ZONE} \
-		--min-num-replicas "${NUM_VMS}" \
-		--max-num-replicas "${NUM_VMS}" \
-		--cool-down-period "1800" \
-		--stackdriver-metric-filter "resource.type = \"global\"" \
-		--update-stackdriver-metric "custom.googleapis.com/perfetto-ci/ci_job_queue_len" \
-		--stackdriver-metric-single-instance-assignment "10"
-
 .PHONY: restart-workers
 restart-workers: stop-workers start-workers
+
+define start-workers-for-zone
+gcloud compute --project=${PROJECT} \
+	instance-groups managed create ${GCE_GROUP_NAME}-$1 \
+	--zone=$1 \
+	--base-instance-name=ci-$1 \
+	--template=ci-worker-template \
+	--size=${NUM_VMS}
+
+endef
+
+.PHONY: start-workers
+start-workers: .deps/gce-template
+	$(foreach zone,$(GCE_ZONES),$(call start-workers-for-zone,$(zone)))
+
+define stop-workers-for-zone
+gcloud compute --quiet --project=${PROJECT} \
+	instance-groups managed delete ${GCE_GROUP_NAME}-$1 --zone=$1 || true
+
+endef
+
+.PHONY: stop-workers
+stop-workers:
+	$(foreach zone,$(GCE_ZONES),$(call stop-workers-for-zone,$(zone)))
 
 # These are for testing only, start an individual VM. Use start-group for
 # production.
@@ -128,14 +128,14 @@ stop-worker-for-testing:
 	gcloud compute --quiet \
 		--project ${PROJECT} \
 		instances delete ${GCE_VM_NAME} \
-		--zone ${ZONE}
+		--zone us-central1-f
 
 .PHONY: start-worker-for-testing
 start-worker-for-testing: .deps/gce-template
 	gcloud compute --quiet \
 		--project ${PROJECT} \
 		instances create ${GCE_VM_NAME} \
-		--zone ${ZONE} \
+		--zone us-central1-f \
 		--source-instance-template=${GCE_TEMPLATE}
 
 # Debugging client to make OAuth2 authenticated requests manually.

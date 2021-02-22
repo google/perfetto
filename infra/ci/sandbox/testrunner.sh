@@ -30,11 +30,12 @@ set -eux
 
 # Print env vars for debugging. They contain GN args and entrypoint.
 date
+hostname
 env
 
 mkdir src && cd src
 
-if [[ $PERFETTO_TEST_GIT_REF == "file://"* ]]; then
+if [[ -f "$PERFETTO_TEST_GIT_REF" ]]; then
 # This is used only by tools/run_test_like_ci.
 git clone -q --no-tags --single-branch --depth=1 "$PERFETTO_TEST_GIT_REF" .
 else
@@ -73,16 +74,15 @@ fi
 export CCACHE_COMPILERCHECK=string:$(shasum tools/install-build-deps)
 export CCACHE_UMASK=000
 export CCACHE_DEPEND=1
-export CCACHE_MAXSIZE=8G
+export CCACHE_MAXSIZE=32G
 export CCACHE_DIR=/ci/cache/ccache
 export CCACHE_SLOPPINESS=include_file_ctime,include_file_mtime
-export CCACHE_COMPRESS=1
-export CCACHE_COMPRESSLEVEL=4
+export CCACHE_NOCOMPRESS=1
 mkdir -m 777 -p $CCACHE_DIR
 
 export PERFETTO_TEST_GN_ARGS="${PERFETTO_TEST_GN_ARGS} cc_wrapper=\"ccache\""
 
-export PERFETTO_TEST_NINJA_ARGS="-l 100"
+export PERFETTO_TEST_NINJA_ARGS=""
 $PERFETTO_TEST_SCRIPT
 
 # The code after this point will NOT run if the test fails (because of set -e).
@@ -92,8 +92,8 @@ ccache --show-stats
 # Populate the cache on the first run. Do that atomically so in case of races
 # one random worker wins.
 if [ ! -f $PREBUILTS_ARCHIVE ]; then
-  TMPFILE=$(mktemp -p /ci/cache).tar.lz4
+  TMPFILE=/ci/cache/buildtools-$(hostname -s).tar.lz4
   # Add only git-ignored dirs to the cache.
-  git check-ignore buildtools/* | xargs tar c | lz4 -z - $TMPFILE
-  mv -f $TMPFILE $PREBUILTS_ARCHIVE
+  git check-ignore buildtools/* | xargs tar c | lz4 -z - "$TMPFILE"
+  mv -f "$TMPFILE" $PREBUILTS_ARCHIVE
 fi
