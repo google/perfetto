@@ -23,6 +23,7 @@
 #include "src/profiling/memory/scoped_spinlock.h"
 
 #include <atomic>
+#include <limits>
 #include <map>
 #include <memory>
 
@@ -160,6 +161,12 @@ class SharedRingBuffer {
     return meta_->reader_paused.exchange(false, std::memory_order_relaxed);
   }
 
+  void InfiniteBufferForTesting() {
+    // Pretend this buffer is really large, while keeping size_mask_ as
+    // original so it keeps wrapping in circles.
+    size_ = std::numeric_limits<size_t>::max() / 2;
+  }
+
   // Exposed for fuzzers.
   struct MetadataPage {
     alignas(uint64_t) std::atomic<bool> spinlock;
@@ -216,6 +223,11 @@ class SharedRingBuffer {
     return result;
   }
 
+  inline void set_size(size_t size) {
+    size_ = size;
+    size_mask_ = size - 1;
+  }
+
   inline size_t read_avail(const PointerPositions& pos) {
     PERFETTO_DCHECK(pos.write_pos >= pos.read_pos);
     auto res = static_cast<size_t>(pos.write_pos - pos.read_pos);
@@ -227,7 +239,7 @@ class SharedRingBuffer {
     return size_ - read_avail(pos);
   }
 
-  inline uint8_t* at(uint64_t pos) { return mem_ + (pos & (size_ - 1)); }
+  inline uint8_t* at(uint64_t pos) { return mem_ + (pos & size_mask_); }
 
   base::ScopedFile mem_fd_;
   MetadataPage* meta_ = nullptr;  // Start of the mmaped region.
@@ -236,6 +248,7 @@ class SharedRingBuffer {
   // Size of the ring buffer contents, without including metadata or the 2nd
   // mmap.
   size_t size_ = 0;
+  size_t size_mask_ = 0;
 
   // Remember to update the move ctor when adding new fields.
 };
