@@ -69,29 +69,53 @@ TEST(HeapGraphTrackerTest, BuildFlamegraph) {
   constexpr uint64_t kY = 2;
   constexpr uint64_t kA = 3;
   constexpr uint64_t kB = 4;
+  constexpr uint64_t kWeakRef = 5;
 
   base::StringView field = base::StringView("foo");
   StringPool::Id x = context.storage->InternString("X");
   StringPool::Id y = context.storage->InternString("Y");
   StringPool::Id a = context.storage->InternString("A");
   StringPool::Id b = context.storage->InternString("B");
+  StringPool::Id weak_ref = context.storage->InternString("WeakReference");
 
+  StringPool::Id normal_kind = context.storage->InternString("KIND_NORMAL");
+  StringPool::Id weak_ref_kind =
+      context.storage->InternString("KIND_WEAK_REFERENCE");
   tracker.AddInternedFieldName(kSeqId, kField, field);
 
   tracker.AddInternedLocationName(kSeqId, kLocation,
                                   context.storage->InternString("location"));
   tracker.AddInternedType(kSeqId, kX, x, kLocation, /*object_size=*/0,
                           /*field_name_ids=*/{}, /*superclass_id=*/0,
-                          /*classloader_id=*/0, /*no_fields=*/false);
+                          /*classloader_id=*/0, /*no_fields=*/false,
+                          /*kind=*/normal_kind);
   tracker.AddInternedType(kSeqId, kY, y, kLocation, /*object_size=*/0,
                           /*field_name_ids=*/{}, /*superclass_id=*/0,
-                          /*classloader_id=*/0, /*no_fields=*/false);
+                          /*classloader_id=*/0, /*no_fields=*/false,
+                          /*kind=*/normal_kind);
   tracker.AddInternedType(kSeqId, kA, a, kLocation, /*object_size=*/0,
                           /*field_name_ids=*/{}, /*superclass_id=*/0,
-                          /*classloader_id=*/0, /*no_fields=*/false);
+                          /*classloader_id=*/0, /*no_fields=*/false,
+                          /*kind=*/normal_kind);
   tracker.AddInternedType(kSeqId, kB, b, kLocation, /*object_size=*/0,
                           /*field_name_ids=*/{}, /*superclass_id=*/0,
-                          /*classloader_id=*/0, /*no_fields=*/false);
+                          /*classloader_id=*/0, /*no_fields=*/false,
+                          /*kind=*/normal_kind);
+  tracker.AddInternedType(kSeqId, kWeakRef, weak_ref, kLocation,
+                          /*object_size=*/0,
+                          /*field_name_ids=*/{}, /*superclass_id=*/0,
+                          /*classloader_id=*/0, /*no_fields=*/false,
+                          /*kind=*/weak_ref_kind);
+  {
+    HeapGraphTracker::SourceObject obj;
+    obj.object_id = 999;
+    obj.self_size = 999;
+    obj.type_id = kWeakRef;
+    obj.field_name_ids = {kField};
+    obj.referred_objects = {5};
+
+    tracker.AddObject(kSeqId, kPid, kTimestamp, std::move(obj));
+  }
 
   {
     HeapGraphTracker::SourceObject obj;
@@ -142,6 +166,7 @@ TEST(HeapGraphTrackerTest, BuildFlamegraph) {
   HeapGraphTracker::SourceRoot root;
   root.root_type = context.storage->InternString("ROOT");
   root.object_ids.emplace_back(1);
+  root.object_ids.emplace_back(999);
   tracker.AddRoot(kSeqId, kPid, kTimestamp, root);
 
   tracker.FinalizeProfile(kSeqId);
@@ -150,16 +175,16 @@ TEST(HeapGraphTrackerTest, BuildFlamegraph) {
   ASSERT_NE(flame, nullptr);
 
   auto cumulative_sizes = flame->cumulative_size().ToVectorForTesting();
-  EXPECT_THAT(cumulative_sizes, UnorderedElementsAre(15, 4, 14, 5));
+  EXPECT_THAT(cumulative_sizes, UnorderedElementsAre(15, 4, 14, 5, 999));
 
   auto cumulative_counts = flame->cumulative_count().ToVectorForTesting();
-  EXPECT_THAT(cumulative_counts, UnorderedElementsAre(5, 4, 1, 1));
+  EXPECT_THAT(cumulative_counts, UnorderedElementsAre(5, 4, 1, 1, 1));
 
   auto sizes = flame->size().ToVectorForTesting();
-  EXPECT_THAT(sizes, UnorderedElementsAre(1, 5, 4, 5));
+  EXPECT_THAT(sizes, UnorderedElementsAre(1, 5, 4, 5, 999));
 
   auto counts = flame->count().ToVectorForTesting();
-  EXPECT_THAT(counts, UnorderedElementsAre(1, 2, 1, 1));
+  EXPECT_THAT(counts, UnorderedElementsAre(1, 2, 1, 1, 1));
 }
 
 static const char kArray[] = "X[]";
