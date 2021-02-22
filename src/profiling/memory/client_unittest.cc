@@ -43,7 +43,13 @@ TEST(ClientTest, GetThreadStackRangeBase) {
   th.join();
 }
 
-TEST(ClientTest, GetSigaltStackRange) {
+#if defined(ADDRESS_SANITIZER)
+#define MAYBE_GetSigaltStackRange DISABLED_GetSigaltStackRange
+#else
+#define MAYBE_GetSigaltStackRange GetSigaltStackRange
+#endif
+
+TEST(ClientTest, MAYBE_GetSigaltStackRange) {
   char stack[4096];
   stack_t altstack{};
   stack_t old_altstack{};
