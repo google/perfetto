@@ -29,3 +29,7 @@ perfetto_benchmarks_targets = [
   "test:benchmark_main",
   "test:end_to_end_benchmarks",
 ]
+
+if (enable_perfetto_heapprofd) {
+  perfetto_benchmarks_targets += [ "src/profiling/memory:benchmarks" ]
+}
