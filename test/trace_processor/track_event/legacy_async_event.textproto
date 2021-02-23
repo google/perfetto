@@ -1,0 +1,132 @@
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  incremental_state_cleared: true
+  track_descriptor {
+    uuid: 1
+    thread {
+      pid: 5
+      tid: 1
+      thread_name: "t1"
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 2
+  timestamp: 0
+  incremental_state_cleared: true
+  track_descriptor {
+    uuid: 1
+    thread {
+      pid: 5
+      tid: 5
+      thread_name: "t1"
+    }
+  }
+}
+packet {
+  # Emitted on tid 1.
+  # BEGIN parent 1
+  trusted_packet_sequence_id: 1
+  timestamp: 1000
+  track_event {
+    categories: "cat"
+    name: "name1"
+    debug_annotations {
+      name: "arg1"
+      string_value: "value1"
+    }
+    legacy_event {
+      phase: 83  # 'S'
+      global_id: 1234
+    }
+  }
+}
+packet {
+  # Emitted on tid 5.
+  # BEGIN parent 2
+  trusted_packet_sequence_id: 2
+  timestamp: 2000
+  track_event {
+    categories: "cat"
+    name: "name1"
+    legacy_event {
+      phase: 83  # 'S'
+      global_id: 1234
+    }
+  }
+}
+packet {
+  # Emitted on tid 5.
+  # END parent 2
+  trusted_packet_sequence_id: 2
+  timestamp: 3000
+  track_event {
+    categories: "cat"
+    name: "name1"
+    legacy_event {
+      phase: 70  # 'F'
+      global_id: 1234
+    }
+  }
+}
+packet {
+  # Emitted on tid 1.
+  # END parent 1
+  trusted_packet_sequence_id: 1
+  timestamp: 8000
+  track_event {
+    categories: "cat"
+    name: "name1"
+    debug_annotations {
+      name: "arg2"
+      string_value: "value2"
+    }
+    legacy_event {
+      phase: 70  # 'F'
+      global_id: 1234
+    }
+  }
+}
+packet {
+  # Emitted on tid 1.
+  trusted_packet_sequence_id: 1
+  timestamp: 3000
+  track_event {
+    categories: "cat"
+    name: "name1"
+    debug_annotations {
+      name: "arg3"
+      string_value: "value3"
+    }
+    debug_annotations {
+      name: "step"
+      string_value: "Step1"
+    }
+    legacy_event {
+      phase: 84  # 'T'
+      global_id: 1234
+    }
+  }
+}
+packet {
+  # Emitted on tid 1.
+  trusted_packet_sequence_id: 1
+  timestamp: 5000
+  track_event {
+    categories: "cat"
+    name: "name1"
+    debug_annotations {
+      name: "arg4"
+      string_value: "value4"
+    }
+    debug_annotations {
+      name: "step"
+      string_value: "Step2"
+    }
+    legacy_event {
+      phase: 112  # 'p'
+      global_id: 1234
+    }
+  }
+}
