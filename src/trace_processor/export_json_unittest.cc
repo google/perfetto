@@ -1054,6 +1054,151 @@ TEST_F(ExportJsonTest, AsyncEvents) {
   EXPECT_FALSE(end_event3.isMember("use_async_tts"));
 }
 
+TEST_F(ExportJsonTest, LegacyAsyncEvents) {
+  using Arg = GlobalArgsTracker::Arg;
+  const int64_t kTimestamp = 10000000;
+  const int64_t kDuration = 100000;
+  const int64_t kTimestamp2 = 10001000;
+  const int64_t kDuration2 = 0;
+  const int64_t kTimestamp3 = 10005000;
+  const int64_t kDuration3 = 100000;
+  const uint32_t kProcessID = 100;
+  const char* kCategory = "cat";
+  const char* kName = "name";
+  const char* kName2 = "name2";
+  const char* kName3 = "name3";
+
+  UniquePid upid = context_.process_tracker->GetOrCreateProcess(kProcessID);
+  StringId cat_id = context_.storage->InternString(base::StringView(kCategory));
+  StringId name_id = context_.storage->InternString(base::StringView(kName));
+  StringId name2_id = context_.storage->InternString(base::StringView(kName2));
+  StringId name3_id = context_.storage->InternString(base::StringView(kName3));
+
+  auto arg_inserter = [this](base::StringView arg_name,
+                             base::StringView arg_value,
+                             std::vector<Arg>& args) {
+    Arg arg;
+    StringId arg_key_id =
+        context_.storage->InternString(base::StringView(arg_name));
+    arg.flat_key = arg_key_id;
+    arg.key = arg_key_id;
+    StringId value_id = context_.storage->InternString(arg_value);
+    arg.value = Variadic::String(value_id);
+    args.push_back(arg);
+  };
+
+  constexpr int64_t kSourceId = 235;
+  TrackId track = context_.track_tracker->InternLegacyChromeAsyncTrack(
+      name_id, upid, kSourceId, /*source_id_is_process_scoped=*/true,
+      /*source_scope=*/kNullStringId);
+  constexpr int64_t kSourceId2 = 236;
+  TrackId track2 = context_.track_tracker->InternLegacyChromeAsyncTrack(
+      name3_id, upid, kSourceId2, /*source_id_is_process_scoped=*/true,
+      /*source_scope=*/kNullStringId);
+  context_.args_tracker->Flush();  // Flush track args.
+
+  context_.storage->mutable_slice_table()->Insert(
+      {kTimestamp, kDuration, track, cat_id, name_id, 0, 0, 0});
+  std::vector<Arg> args1;
+  arg_inserter("arg1", "value1", args1);
+  arg_inserter("legacy_event.phase", "S", args1);
+  ArgSetId arg_id1 = context_.global_args_tracker->AddArgSet(args1, 0, 2);
+  context_.storage->mutable_slice_table()->mutable_arg_set_id()->Set(0,
+                                                                     arg_id1);
+
+  // Step event with first event as parent.
+  context_.storage->mutable_slice_table()->Insert(
+      {kTimestamp2, kDuration2, track, cat_id, name2_id, 0, 0, 0});
+  std::vector<Arg> step_args;
+  arg_inserter("arg2", "value2", step_args);
+  arg_inserter("legacy_event.phase", "T", step_args);
+  arg_inserter("debug.step", "Step1", step_args);
+  ArgSetId arg_id2 = context_.global_args_tracker->AddArgSet(step_args, 0, 3);
+  context_.storage->mutable_slice_table()->mutable_arg_set_id()->Set(1,
+                                                                     arg_id2);
+
+  // Another overlapping async event on a different track.
+  context_.storage->mutable_slice_table()->Insert(
+      {kTimestamp3, kDuration3, track2, cat_id, name3_id, 0, 0, 0});
+  std::vector<Arg> args3;
+  arg_inserter("legacy_event.phase", "S", args3);
+  ArgSetId arg_id3 = context_.global_args_tracker->AddArgSet(args3, 0, 1);
+  context_.storage->mutable_slice_table()->mutable_arg_set_id()->Set(2,
+                                                                     arg_id3);
+
+  base::TempFile temp_file = base::TempFile::Create();
+  FILE* output = fopen(temp_file.path().c_str(), "w+");
+  util::Status status = ExportJson(context_.storage.get(), output);
+
+  EXPECT_TRUE(status.ok());
+
+  Json::Value result = ToJsonValue(ReadFile(output));
+  EXPECT_EQ(result["traceEvents"].size(), 5u);
+
+  // Events should be sorted by timestamp, with child slice's end before its
+  // parent.
+
+  Json::Value begin_event1 = result["traceEvents"][0];
+  EXPECT_EQ(begin_event1["ph"].asString(), "S");
+  EXPECT_EQ(begin_event1["ts"].asInt64(), kTimestamp / 1000);
+  EXPECT_EQ(begin_event1["pid"].asInt(), static_cast<int>(kProcessID));
+  EXPECT_EQ(begin_event1["id2"]["local"].asString(), "0xeb");
+  EXPECT_EQ(begin_event1["cat"].asString(), kCategory);
+  EXPECT_EQ(begin_event1["name"].asString(), kName);
+  EXPECT_FALSE(begin_event1.isMember("tts"));
+  EXPECT_FALSE(begin_event1.isMember("use_async_tts"));
+  EXPECT_EQ(begin_event1["args"].size(), 1u);
+  EXPECT_EQ(begin_event1["args"]["arg1"].asString(), "value1");
+
+  Json::Value step_event = result["traceEvents"][1];
+  EXPECT_EQ(step_event["ph"].asString(), "T");
+  EXPECT_EQ(step_event["ts"].asInt64(), kTimestamp2 / 1000);
+  EXPECT_EQ(step_event["pid"].asInt(), static_cast<int>(kProcessID));
+  EXPECT_EQ(step_event["id2"]["local"].asString(), "0xeb");
+  EXPECT_EQ(step_event["cat"].asString(), kCategory);
+  EXPECT_EQ(step_event["name"].asString(), kName2);
+  EXPECT_TRUE(step_event["args"].isObject());
+  EXPECT_EQ(step_event["args"].size(), 2u);
+  EXPECT_EQ(step_event["args"]["arg2"].asString(), "value2");
+  EXPECT_EQ(step_event["args"]["step"].asString(), "Step1");
+
+  Json::Value begin_event2 = result["traceEvents"][2];
+  EXPECT_EQ(begin_event2["ph"].asString(), "S");
+  EXPECT_EQ(begin_event2["ts"].asInt64(), kTimestamp3 / 1000);
+  EXPECT_EQ(begin_event2["pid"].asInt(), static_cast<int>(kProcessID));
+  EXPECT_EQ(begin_event2["id2"]["local"].asString(), "0xec");
+  EXPECT_EQ(begin_event2["cat"].asString(), kCategory);
+  EXPECT_EQ(begin_event2["name"].asString(), kName3);
+  EXPECT_TRUE(begin_event2["args"].isObject());
+  EXPECT_EQ(begin_event2["args"].size(), 0u);
+  EXPECT_FALSE(begin_event2.isMember("tts"));
+  EXPECT_FALSE(begin_event2.isMember("use_async_tts"));
+
+  Json::Value end_event1 = result["traceEvents"][3];
+  EXPECT_EQ(end_event1["ph"].asString(), "F");
+  EXPECT_EQ(end_event1["ts"].asInt64(), (kTimestamp + kDuration) / 1000);
+  EXPECT_EQ(end_event1["pid"].asInt(), static_cast<int>(kProcessID));
+  EXPECT_EQ(end_event1["id2"]["local"].asString(), "0xeb");
+  EXPECT_EQ(end_event1["cat"].asString(), kCategory);
+  EXPECT_EQ(end_event1["name"].asString(), kName);
+  EXPECT_TRUE(end_event1["args"].isObject());
+  EXPECT_EQ(end_event1["args"].size(), 0u);
+  EXPECT_FALSE(end_event1.isMember("tts"));
+  EXPECT_FALSE(end_event1.isMember("use_async_tts"));
+
+  Json::Value end_event3 = result["traceEvents"][4];
+  EXPECT_EQ(end_event3["ph"].asString(), "F");
+  EXPECT_EQ(end_event3["ts"].asInt64(), (kTimestamp3 + kDuration3) / 1000);
+  EXPECT_EQ(end_event3["pid"].asInt(), static_cast<int>(kProcessID));
+  EXPECT_EQ(end_event3["id2"]["local"].asString(), "0xec");
+  EXPECT_EQ(end_event3["cat"].asString(), kCategory);
+  EXPECT_EQ(end_event3["name"].asString(), kName3);
+  EXPECT_TRUE(end_event3["args"].isObject());
+  EXPECT_EQ(end_event3["args"].size(), 0u);
+  EXPECT_FALSE(end_event3.isMember("tts"));
+  EXPECT_FALSE(end_event3.isMember("use_async_tts"));
+}
+
 TEST_F(ExportJsonTest, AsyncEventWithThreadTimestamp) {
   const int64_t kTimestamp = 10000000;
   const int64_t kDuration = 100000;
