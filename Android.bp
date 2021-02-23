@@ -176,10 +176,10 @@ cc_library_shared {
   ],
   version_script: "src/profiling/memory/heapprofd_client_api.map.txt",
   stubs: {
-    symbol_file: "src/profiling/memory/heapprofd_client_api.map.txt",
     versions: [
       "S",
     ],
+    symbol_file: "src/profiling/memory/heapprofd_client_api.map.txt",
   },
 }
 
