@@ -72,6 +72,8 @@ def main():
   parser.add_argument('--ccache', action='store_true', default=False)
   parser.add_argument('--host-only', action='store_true', default=False)
   parser.add_argument('--android', action='store_true', default=False)
+  parser.add_argument(
+      '--export-compile-commands', action="store_true", default=False)
   parser.add_argument('--build', metavar='TARGET')
   args = parser.parse_args()
 
@@ -115,6 +117,8 @@ def main():
     if not os.path.isdir(out_dir):
       os.mkdir(out_dir)
     gn_cmd = (gn, 'gen', out_dir, '--args=%s' % (' '.join(gn_args)), '--check')
+    if args.export_compile_commands:
+      gn_cmd += ('--export-compile-commands',)
     print(' '.join(quote(c) for c in gn_cmd))
     subprocess.check_call(gn_cmd, cwd=ROOT_DIR)
     if args.build:
