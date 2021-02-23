@@ -33,7 +33,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/subprocess.h"
 #include "perfetto/ext/tracing/ipc/default_socket.h"
-#include "perfetto/profiling/memory/heap_profile.h"
+#include "perfetto/heap_profile.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "protos/perfetto/trace/trace.gen.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
