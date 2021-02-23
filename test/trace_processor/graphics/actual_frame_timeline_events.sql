@@ -14,7 +14,7 @@
 -- limitations under the License.
 
 select ts, dur, process.pid as pid, display_frame_token, surface_frame_token, layer_name,
-    present_type, on_time_finish, gpu_composition, jank_type
+    present_type, on_time_finish, gpu_composition, jank_type, prediction_type
 from
   (select t.*, process_track.name as track_name from
     process_track left join actual_frame_timeline_slice t
