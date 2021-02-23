@@ -31,7 +31,7 @@
 #include "perfetto/ext/base/getopt.h"
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "perfetto/profiling/memory/heap_profile.h"
+#include "perfetto/heap_profile.h"
 
 namespace {
 
