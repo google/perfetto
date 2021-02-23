@@ -34,6 +34,10 @@ namespace perfetto {
 namespace ipc {
 
 namespace {
+
+constexpr base::SockFamily kHostSockFamily =
+    kUseTCPSocket ? base::SockFamily::kInet : base::SockFamily::kUnix;
+
 uid_t GetPosixPeerUid(base::UnixSocket* sock) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   base::ignore_result(sock);
@@ -43,6 +47,7 @@ uid_t GetPosixPeerUid(base::UnixSocket* sock) {
   return sock->peer_uid_posix();
 #endif
 }
+
 }  // namespace
 
 // static
@@ -69,16 +74,14 @@ HostImpl::HostImpl(base::ScopedSocketHandle socket_fd,
     : task_runner_(task_runner), weak_ptr_factory_(this) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   sock_ = base::UnixSocket::Listen(std::move(socket_fd), this, task_runner_,
-                                   base::SockFamily::kUnix,
-                                   base::SockType::kStream);
+                                   kHostSockFamily, base::SockType::kStream);
 }
 
 HostImpl::HostImpl(const char* socket_name, base::TaskRunner* task_runner)
     : task_runner_(task_runner), weak_ptr_factory_(this) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   sock_ = base::UnixSocket::Listen(socket_name, this, task_runner_,
-                                   base::SockFamily::kUnix,
-                                   base::SockType::kStream);
+                                   kHostSockFamily, base::SockType::kStream);
   if (!sock_) {
     PERFETTO_PLOG("Failed to create %s", socket_name);
   }
