@@ -167,7 +167,6 @@ cc_library_shared {
   srcs: [
     "src/profiling/memory/client_api_noop.cc",
   ],
-  host_supported: true,
   export_include_dirs: [
     "src/profiling/memory/include",
   ],
@@ -176,10 +175,10 @@ cc_library_shared {
   ],
   version_script: "src/profiling/memory/heapprofd_client_api.map.txt",
   stubs: {
-    symbol_file: "src/profiling/memory/heapprofd_client_api.map.txt",
     versions: [
       "S",
     ],
+    symbol_file: "src/profiling/memory/heapprofd_client_api.map.txt",
   },
 }
 
