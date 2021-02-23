@@ -781,16 +781,18 @@ class JsonExporter {
       event["tid"] = 0;
 
       base::Optional<UniqueTid> legacy_utid;
+      std::string legacy_phase;
 
       event["args"] =
           args_builder_.GetArgs(slices.arg_set_id()[i]);  // Makes a copy.
       if (event["args"].isMember(kLegacyEventArgsKey)) {
+        const auto& legacy_args = event["args"][kLegacyEventArgsKey];
 
-        if (event["args"][kLegacyEventArgsKey].isMember(
-                kLegacyEventPassthroughUtidKey)) {
-          legacy_utid =
-              event["args"][kLegacyEventArgsKey][kLegacyEventPassthroughUtidKey]
-                  .asUInt();
+        if (legacy_args.isMember(kLegacyEventPassthroughUtidKey)) {
+          legacy_utid = legacy_args[kLegacyEventPassthroughUtidKey].asUInt();
+        }
+        if (legacy_args.isMember(kLegacyEventPhaseKey)) {
+          legacy_phase = legacy_args[kLegacyEventPhaseKey].asString();
         }
 
         event["args"].removeMember(kLegacyEventArgsKey);
@@ -972,16 +974,23 @@ class JsonExporter {
           event["use_async_tts"] = Json::Int(1);
         }
 
-        if (duration_ns == 0) {  // Instant async event.
-          event["ph"] = "n";
-          writer_.AddAsyncInstantEvent(event);
+        if (duration_ns == 0) {
+          if (legacy_phase.empty()) {
+            // Instant async event.
+            event["ph"] = "n";
+            writer_.AddAsyncInstantEvent(event);
+          } else {
+            // Async step events.
+            event["ph"] = legacy_phase;
+            writer_.AddAsyncBeginEvent(event);
+          }
         } else {  // Async start and end.
-          event["ph"] = "b";
+          event["ph"] = legacy_phase.empty() ? "b" : legacy_phase;
           writer_.AddAsyncBeginEvent(event);
           // If the slice didn't finish, the duration may be negative. Don't
           // write the end event in this case.
           if (duration_ns > 0) {
-            event["ph"] = "e";
+            event["ph"] = legacy_phase.empty() ? "e" : "F";
             event["ts"] = Json::Int64((slices.ts()[i] + duration_ns) / 1000);
             if (thread_ts_ns > 0) {
               event["tts"] =
