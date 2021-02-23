@@ -7,6 +7,10 @@
     {
       "name": "canary",
       "rev": "dc6b46a0a01b7de527a53e1234bd86c0fb200683"
+    },
+    {
+      "name": "autopush",
+      "rev": "HEAD"
     }
   ]
 }
