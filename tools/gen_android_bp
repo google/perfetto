@@ -192,7 +192,6 @@ additional_args = {
           'symbol_file': 'src/profiling/memory/heapprofd_client_api.map.txt',
         }),
         ('export_include_dirs', {'src/profiling/memory/include'}),
-        ('host_supported', True),
     ],
     'heapprofd_client': [
         ('include_dirs', {'bionic/libc'}),
