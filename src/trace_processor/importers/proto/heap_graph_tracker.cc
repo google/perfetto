@@ -54,6 +54,28 @@ void ForReferenceSet(const TraceStorage& storage,
 std::set<tables::HeapGraphObjectTable::Id> GetChildren(
     const TraceStorage& storage,
     tables::HeapGraphObjectTable::Id id) {
+  uint32_t obj_row = *storage.heap_graph_object_table().id().IndexOf(id);
+  uint32_t cls_row = *storage.heap_graph_class_table().id().IndexOf(
+      storage.heap_graph_object_table().type_id()[obj_row]);
+
+  StringPool::Id kind = storage.heap_graph_class_table().kind()[cls_row];
+  base::Optional<StringPool::Id> weakref_kind =
+      storage.string_pool().GetId("KIND_WEAK_REFERENCE");
+  base::Optional<StringPool::Id> softref_kind =
+      storage.string_pool().GetId("KIND_SOFT_REFERENCE");
+  base::Optional<StringPool::Id> finalizerref_kind =
+      storage.string_pool().GetId("KIND_FINALIZER_REFERENCE");
+  base::Optional<StringPool::Id> phantomref_kind =
+      storage.string_pool().GetId("KIND_PHANTOM_REFERENCE");
+
+  if ((weakref_kind && kind == *weakref_kind) ||
+      (softref_kind && kind == *softref_kind) ||
+      (finalizerref_kind && kind == *finalizerref_kind) ||
+      (phantomref_kind && kind == *phantomref_kind)) {
+    // Do not follow weak / soft / finalizer / phantom references.
+    return {};
+  }
+
   std::set<tables::HeapGraphObjectTable::Id> children;
   ForReferenceSet(
       storage, id, [&storage, &children, id](uint32_t reference_row) {
@@ -395,7 +417,8 @@ void HeapGraphTracker::AddInternedType(uint32_t seq_id,
                                        std::vector<uint64_t> field_name_ids,
                                        uint64_t superclass_id,
                                        uint64_t classloader_id,
-                                       bool no_fields) {
+                                       bool no_fields,
+                                       StringPool::Id kind) {
   SequenceState& sequence_state = GetOrCreateSequence(seq_id);
   sequence_state.interned_types[intern_id].name = strid;
   sequence_state.interned_types[intern_id].location_id = location_id;
@@ -405,6 +428,7 @@ void HeapGraphTracker::AddInternedType(uint32_t seq_id,
   sequence_state.interned_types[intern_id].superclass_id = superclass_id;
   sequence_state.interned_types[intern_id].classloader_id = classloader_id;
   sequence_state.interned_types[intern_id].no_fields = no_fields;
+  sequence_state.interned_types[intern_id].kind = kind;
 }
 
 void HeapGraphTracker::AddInternedFieldName(uint32_t seq_id,
@@ -577,6 +601,7 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
     }
     if (location_name)
       hgc->mutable_location()->Set(row, *location_name);
+    hgc->mutable_kind()->Set(row, interned_type.kind);
 
     base::StringView normalized_type =
         NormalizeTypeName(context_->storage->GetString(interned_type.name));
