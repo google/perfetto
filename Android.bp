@@ -167,7 +167,6 @@ cc_library_shared {
   srcs: [
     "src/profiling/memory/client_api_noop.cc",
   ],
-  host_supported: true,
   export_include_dirs: [
     "src/profiling/memory/include",
   ],
