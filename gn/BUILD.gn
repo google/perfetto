@@ -118,7 +118,10 @@ config("default_config") {
   visibility = [ "../*" ]  # Prevent chromium targets from depending on this (breaks component).
   configs = [ ":public_config" ]
   defines = [ "PERFETTO_IMPLEMENTATION" ]
-  include_dirs = [ ".." ]
+  include_dirs = [
+    "..",
+    "../src/profiling/memory/include",
+  ]
 
   if (build_with_chromium && is_android) {
     # Included for __android_log_print
