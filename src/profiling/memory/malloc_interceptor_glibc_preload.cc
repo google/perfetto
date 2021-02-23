@@ -18,7 +18,7 @@
 #include <unistd.h>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/profiling/memory/heap_profile.h"
+#include "perfetto/heap_profile.h"
 #include "src/profiling/memory/wrap_allocators.h"
 
 namespace {
