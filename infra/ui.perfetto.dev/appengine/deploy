@@ -16,5 +16,26 @@
 set -exu
 
 cd -P ${BASH_SOURCE[0]%/*}
+
+VERSION=staging
+PROMOTE=--no-promote
+while [[ $# -gt 0 ]]; do
+  key="$1"
+  case $key in
+      --prod)
+      VERSION=prod
+      PROMOTE=--promote
+      shift
+      ;;
+      *)
+      echo "Usage: $0 [--prod]"
+      echo "    --prod      Deploy prod version"
+      echo "    -h|--help   Display this message"
+      exit 0
+      shift
+      ;;
+  esac
+done
+
 gcloud app deploy app.yaml --project perfetto-ui \
-    -v testing --no-promote --stop-previous-version
+    -v $VERSION $PROMOTE --stop-previous-version
