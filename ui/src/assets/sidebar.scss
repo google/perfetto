@@ -43,16 +43,22 @@
           height: 40px;
           margin-top: 4px;
         }
-        &.canary::before {
-          content: 'CANARY';
+        &.canary::before, &.autopush::before {
           display: block;
-          color: gold;
           position: absolute;
           font-size: 10px;
           line-height: 10px;
           font-family: 'Roboto', sans-serif;
           left: 155px;
           top: 7px;
+        }
+        &.canary::before {
+          content: 'CANARY';
+          color: #ffd700;
+        }
+        &.autopush::before {
+          content: 'AUTOPUSH';
+          color: #aed581;
         }
     }
     .sidebar-button {
