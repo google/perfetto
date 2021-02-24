@@ -41,7 +41,7 @@ function scaleTooltip(scale?: CounterScaleOptions): string {
     case 'RELATIVE':
       return 'Use zero-based scale';
     case 'DELTA':
-      return 'Use deta scale';
+      return 'Use delta scale';
     case 'DEFAULT':
     default:
       return 'Use zero-based scale';
