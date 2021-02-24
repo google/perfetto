@@ -46,6 +46,7 @@
 #include "perfetto/ext/base/utils.h"
 #include "src/profiling/memory/sampler.h"
 #include "src/profiling/memory/scoped_spinlock.h"
+#include "src/profiling/memory/shared_ring_buffer.h"
 #include "src/profiling/memory/wire_protocol.h"
 
 namespace perfetto {
@@ -372,6 +373,7 @@ bool Client::RecordMalloc(uint32_t heap_id,
   const char* stackend = GetStackEnd(stackptr);
   if (!stackend) {
     PERFETTO_ELOG("Failed to find stackend.");
+    shmem_.SetErrorState(SharedRingBuffer::kInvalidStackBounds);
     return false;
   }
   uint64_t stack_size = static_cast<uint64_t>(stackend - stackptr);
@@ -422,7 +424,7 @@ int64_t Client::SendWireMessageWithRetriesIfBlocking(const WireMessage& msg) {
     }
   }
   if (IsConnected())
-    shmem_.SetHitTimeout();
+    shmem_.SetErrorState(SharedRingBuffer::kHitTimeout);
   PERFETTO_PLOG("Failed to write to shared ring buffer. Disconnecting.");
   return -1;
 }
