@@ -6513,6 +6513,7 @@ message ChromeUserEvent {
 message ChromeWindowHandleEventInfo {
   optional uint32 dpi = 1;
   optional uint32 message_id = 2;
+  optional fixed64 hwnd_ptr = 3;
 }
 
 // End of protos/perfetto/trace/track_event/chrome_window_handle_event_info.proto
