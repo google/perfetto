@@ -33,6 +33,16 @@ using MethodID = uint32_t;
 using ClientID = uint64_t;
 using RequestID = uint64_t;
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+// AF_UNIX on Windows is supported only on Windows 10 from build 17063.
+// Also it doesn't bring major advantages compared to a TCP socket.
+// See go/perfetto-win .
+constexpr bool kUseTCPSocket = true;
+#else
+// On Android, Linux, Mac use a AF_UNIX socket.
+constexpr bool kUseTCPSocket = false;
+#endif
+
 // This determines the maximum size allowed for an IPC message. Trying to send
 // or receive a larger message will hit DCHECK(s) and auto-disconnect.
 constexpr size_t kIPCBufferSize = 128 * 1024;
