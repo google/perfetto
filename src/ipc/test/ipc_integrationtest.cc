@@ -37,7 +37,7 @@ using ::perfetto::ipc::ServiceProxy;
 
 using namespace ::ipc_test::gen;
 
-constexpr char kSockName[] = TEST_SOCK_NAME("ipc_integrationtest");
+::perfetto::ipc::TestSocket kTestSocket{"ipc_integrationtest"};
 
 class MockEventListener : public ServiceProxy::EventListener {
  public:
@@ -64,15 +64,16 @@ class MockGreeterService : public ::ipc_test::gen::Greeter {
 
 class IPCIntegrationTest : public ::testing::Test {
  protected:
-  void SetUp() override { DESTROY_TEST_SOCK(kSockName); }
-  void TearDown() override { DESTROY_TEST_SOCK(kSockName); }
+  void SetUp() override { kTestSocket.Destroy(); }
+  void TearDown() override { kTestSocket.Destroy(); }
 
   perfetto::base::TestTaskRunner task_runner_;
   MockEventListener svc_proxy_events_;
 };
 
 TEST_F(IPCIntegrationTest, SayHelloWaveGoodbye) {
-  std::unique_ptr<Host> host = Host::CreateInstance(kSockName, &task_runner_);
+  std::unique_ptr<Host> host =
+      Host::CreateInstance(kTestSocket.name(), &task_runner_);
   ASSERT_TRUE(host);
 
   MockGreeterService* svc = new MockGreeterService();
@@ -80,8 +81,8 @@ TEST_F(IPCIntegrationTest, SayHelloWaveGoodbye) {
 
   auto on_connect = task_runner_.CreateCheckpoint("on_connect");
   EXPECT_CALL(svc_proxy_events_, OnConnect()).WillOnce(Invoke(on_connect));
-  std::unique_ptr<Client> cli =
-      Client::CreateInstance({kSockName, /*retry=*/false}, &task_runner_);
+  std::unique_ptr<Client> cli = Client::CreateInstance(
+      {kTestSocket.name(), /*retry=*/false}, &task_runner_);
   std::unique_ptr<GreeterProxy> svc_proxy(new GreeterProxy(&svc_proxy_events_));
   cli->BindService(svc_proxy->GetWeakPtr());
   task_runner_.RunUntilCheckpoint("on_connect");
