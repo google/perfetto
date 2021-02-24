@@ -14,7 +14,7 @@
 
 #include <benchmark/benchmark.h>
 
-#include "perfetto/profiling/memory/heap_profile.h"
+#include "perfetto/heap_profile.h"
 #include "src/profiling/memory/heap_profile_internal.h"
 
 #include "src/profiling/memory/client.h"

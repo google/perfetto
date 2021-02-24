@@ -56,8 +56,8 @@
 // See https://perfetto.dev/docs/data-sources/native-heap-profiler for more
 // information on heapprofd in general.
 
-#ifndef INCLUDE_PERFETTO_PROFILING_MEMORY_HEAP_PROFILE_H_
-#define INCLUDE_PERFETTO_PROFILING_MEMORY_HEAP_PROFILE_H_
+#ifndef SRC_PROFILING_MEMORY_INCLUDE_PERFETTO_HEAP_PROFILE_H_
+#define SRC_PROFILING_MEMORY_INCLUDE_PERFETTO_HEAP_PROFILE_H_
 
 #include <inttypes.h>
 #include <stdlib.h>
@@ -182,4 +182,4 @@ void AHeapProfile_reportFree(uint32_t heap_id, uint64_t alloc_id);
 
 #pragma GCC diagnostic pop
 
-#endif  // INCLUDE_PERFETTO_PROFILING_MEMORY_HEAP_PROFILE_H_
+#endif  // SRC_PROFILING_MEMORY_INCLUDE_PERFETTO_HEAP_PROFILE_H_

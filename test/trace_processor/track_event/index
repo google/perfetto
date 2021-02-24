@@ -15,6 +15,9 @@ track_event_tracks.textproto track_event_processes.sql track_event_tracks_proces
 # Instant events
 track_event_instant.textproto track_event_slices.sql track_event_instant_slices.out
 
+# Legacy async events
+legacy_async_event.textproto track_event_slice_with_args.sql legacy_async_event.out
+
 # Legacy atrace
 track_event_with_atrace.textproto track_event_slices.sql track_event_with_atrace.out
 
