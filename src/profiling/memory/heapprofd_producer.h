@@ -42,6 +42,7 @@
 #include "src/profiling/memory/bookkeeping.h"
 #include "src/profiling/memory/bookkeeping_dump.h"
 #include "src/profiling/memory/log_histogram.h"
+#include "src/profiling/memory/shared_ring_buffer.h"
 #include "src/profiling/memory/system_property.h"
 #include "src/profiling/memory/unwinding.h"
 #include "src/profiling/memory/unwound_messages.h"
@@ -185,7 +186,7 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
     ProcessState(GlobalCallstackTrie* c, bool d)
         : callsites(c), dump_at_max_mode(d) {}
     bool disconnected = false;
-    bool buffer_overran = false;
+    SharedRingBuffer::ErrorState error_state;
     bool buffer_corrupted = false;
 
     uint64_t heap_samples = 0;
