@@ -73,6 +73,12 @@ class SharedRingBuffer {
     uint64_t bytes_free = 0;
   };
 
+  enum ErrorState : uint64_t {
+    kNoError = 0,
+    kHitTimeout = 1,
+    kInvalidStackBounds = 2,
+  };
+
   struct Stats {
     uint64_t bytes_written;
     uint64_t num_writes_succeeded;
@@ -86,7 +92,7 @@ class SharedRingBuffer {
     // Fields below get set by GetStats as copies of atomics in MetadataPage.
     uint64_t failed_spinlocks;
     uint64_t client_spinlock_blocked_us;
-    bool hit_timeout;
+    ErrorState error_state;
   };
 
   static base::Optional<SharedRingBuffer> Create(size_t);
@@ -119,13 +125,13 @@ class SharedRingBuffer {
     Stats stats = meta_->stats;
     stats.failed_spinlocks =
         meta_->failed_spinlocks.load(std::memory_order_relaxed);
-    stats.hit_timeout = meta_->hit_timeout.load(std::memory_order_relaxed);
+    stats.error_state = meta_->error_state.load(std::memory_order_relaxed);
     stats.client_spinlock_blocked_us =
         meta_->client_spinlock_blocked_us.load(std::memory_order_relaxed);
     return stats;
   }
 
-  void SetHitTimeout() { meta_->hit_timeout.store(true); }
+  void SetErrorState(ErrorState error) { meta_->error_state.store(error); }
 
   // This is used by the caller to be able to hold the SpinLock after
   // BeginWrite has returned. This is so that additional bookkeeping can be
@@ -175,7 +181,7 @@ class SharedRingBuffer {
 
     std::atomic<uint64_t> client_spinlock_blocked_us;
     std::atomic<uint64_t> failed_spinlocks;
-    alignas(uint64_t) std::atomic<bool> hit_timeout;
+    std::atomic<ErrorState> error_state;
     alignas(uint64_t) std::atomic<bool> shutting_down;
     alignas(uint64_t) std::atomic<bool> reader_paused;
     // For stats that are only accessed by a single thread or under the

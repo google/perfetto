@@ -311,9 +311,17 @@ void ProtoTraceParser::ParseProfilePacket(
     if (entry.buffer_corrupted())
       context_->storage->IncrementIndexedStats(
           stats::heapprofd_buffer_corrupted, pid);
-    if (entry.buffer_overran())
+    if (entry.buffer_overran() ||
+        entry.client_error() ==
+            protos::pbzero::ProfilePacket::ProcessHeapSamples::
+                CLIENT_ERROR_HIT_TIMEOUT) {
       context_->storage->IncrementIndexedStats(stats::heapprofd_buffer_overran,
                                                pid);
+    }
+    if (entry.client_error()) {
+      context_->storage->SetIndexedStats(stats::heapprofd_client_error, pid,
+                                         entry.client_error());
+    }
     if (entry.rejected_concurrent())
       context_->storage->IncrementIndexedStats(
           stats::heapprofd_rejected_concurrent, pid);
