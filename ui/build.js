@@ -424,7 +424,7 @@ function startServer() {
           res.end();
         });
       })
-      .listen(port);
+      .listen(port, '127.0.0.1');
 }
 
 // Called whenever a change in the out/dist directory is detected. It sends a
