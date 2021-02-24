@@ -39,8 +39,10 @@
 #include "perfetto/ext/tracing/ipc/producer_ipc_client.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
+#include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
 #include "src/profiling/common/producer_support.h"
 #include "src/profiling/common/profiler_guardrails.h"
+#include "src/profiling/memory/shared_ring_buffer.h"
 #include "src/profiling/memory/unwound_messages.h"
 #include "src/profiling/memory/wire_protocol.h"
 
@@ -110,6 +112,21 @@ bool IsFile(int fd, const char* fn) {
     return false;
   }
   return fdstat.st_ino == fnstat.st_ino;
+}
+
+protos::pbzero::ProfilePacket::ProcessHeapSamples::ClientError
+ErrorStateToProto(SharedRingBuffer::ErrorState state) {
+  switch (state) {
+    case (SharedRingBuffer::kNoError):
+      return protos::pbzero::ProfilePacket::ProcessHeapSamples::
+          CLIENT_ERROR_NONE;
+    case (SharedRingBuffer::kHitTimeout):
+      return protos::pbzero::ProfilePacket::ProcessHeapSamples::
+          CLIENT_ERROR_HIT_TIMEOUT;
+    case (SharedRingBuffer::kInvalidStackBounds):
+      return protos::pbzero::ProfilePacket::ProcessHeapSamples::
+          CLIENT_ERROR_INVALID_STACK_BOUNDS;
+  }
 }
 
 }  // namespace
@@ -679,7 +696,10 @@ void HeapprofdProducer::DumpProcessState(DataSource* data_source,
           proto->set_timestamp(dump_timestamp);
           proto->set_from_startup(from_startup);
           proto->set_disconnected(process_state->disconnected);
-          proto->set_buffer_overran(process_state->buffer_overran);
+          proto->set_buffer_overran(process_state->error_state ==
+                                    SharedRingBuffer::kHitTimeout);
+          proto->set_client_error(
+              ErrorStateToProto(process_state->error_state));
           proto->set_buffer_corrupted(process_state->buffer_corrupted);
           proto->set_hit_guardrail(data_source->hit_guardrail);
           if (heap_name)
@@ -1173,7 +1193,7 @@ void HeapprofdProducer::HandleSocketDisconnected(
     return;
   ProcessState& process_state = process_state_it->second;
   process_state.disconnected = !ds.shutting_down;
-  process_state.buffer_overran = stats.hit_timeout;
+  process_state.error_state = stats.error_state;
   process_state.client_spinlock_blocked_us = stats.client_spinlock_blocked_us;
   process_state.buffer_corrupted =
       stats.num_writes_corrupt > 0 || stats.num_reads_corrupt > 0;
