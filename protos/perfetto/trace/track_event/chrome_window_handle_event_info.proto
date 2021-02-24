@@ -22,4 +22,5 @@ package perfetto.protos;
 message ChromeWindowHandleEventInfo {
   optional uint32 dpi = 1;
   optional uint32 message_id = 2;
+  optional fixed64 hwnd_ptr = 3;
 }
