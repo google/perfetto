@@ -136,6 +136,9 @@ namespace stats {
   F(heapprofd_buffer_overran,           kIndexed, kDataLoss, kTrace,           \
       "The shared memory buffer between the target and heapprofd overran. "    \
       "The profile was truncated early. Indexed by target upid."),             \
+  F(heapprofd_client_error,             kIndexed, kError,    kTrace,           \
+      "The heapprofd client ran into a problem and disconnected. "             \
+      "See profile_packet.proto  for error codes."),                           \
   F(heapprofd_client_disconnected,      kIndexed, kInfo,     kTrace,    ""),   \
   F(heapprofd_malformed_packet,         kIndexed, kError,    kTrace,    ""),   \
   F(heapprofd_missing_packet,           kSingle,  kError,    kTrace,    ""),   \
