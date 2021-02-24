@@ -11,3 +11,6 @@ android_lmk_reason.py android_lmk_reason android_lmk_reason.out
 # ION metric
 android_ion.py android_ion android_ion.out
 android_ion_stat.textproto android_ion android_ion_stat.out
+
+# fastrpc metric
+android_fastrpc_dma_stat.textproto android_fastrpc android_fastrpc_dma_stat.out
