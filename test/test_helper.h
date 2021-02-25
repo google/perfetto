@@ -34,7 +34,8 @@
 #include "test/fake_producer.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-#include "src/tracing/ipc/shared_memory_windows.h"
+// TODO(primiano): uncomment in next CL.
+// #include "src/tracing/ipc/shared_memory_windows.h"
 #else
 #include "src/traced/probes/probes_producer.h"
 #include "src/tracing/ipc/posix_shared_memory.h"
@@ -167,12 +168,12 @@ class FakeProducerThread {
 
   void CreateProducerProvidedSmb() {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-    SharedMemoryWindows::Factory factory;
+    // TODO(primiano): in next CLs introduce SharedMemoryWindows.
 #else
     PosixSharedMemory::Factory factory;
-#endif
     shm_ = factory.CreateSharedMemory(1024 * 1024);
     shm_arbiter_ = SharedMemoryArbiter::CreateUnboundInstance(shm_.get(), 4096);
+#endif
   }
 
   void ProduceStartupEventBatch(const protos::gen::TestConfig& config,
