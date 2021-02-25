@@ -50,17 +50,14 @@ if (perfetto_build_standalone) {
   }
 }
 
-# Separate target because the embedder might not want this.
+# Separate target because the embedder might not want this (e.g. on Windows).
 source_set("platform_impl") {
   deps = [
     "../../gn:default_deps",
     "../../include/perfetto/tracing",
     "../base",
   ]
-  sources = [
-    "platform_posix.cc",
-    "platform_windows.cc",
-  ]
+  sources = [ "platform_posix.cc" ]
 }
 
 # Fake platform that allows buiding the client lib on all OSes. You can only use
