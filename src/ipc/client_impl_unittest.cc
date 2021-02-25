@@ -45,7 +45,7 @@ using ::testing::InSequence;
 using ::testing::Invoke;
 using ::testing::Mock;
 
-constexpr char kSockName[] = TEST_SOCK_NAME("client_impl_unittest");
+ipc::TestSocket kTestSocket{"client_impl_unittest"};
 
 // A fake ServiceProxy. This fakes the client-side class that would be
 // auto-generated from .proto-files.
@@ -78,8 +78,8 @@ class MockEventListener : public ServiceProxy::EventListener {
   MOCK_METHOD0(OnDisconnect, void());
 };
 
-// A fake host implementation. Listens on |kSockName| and replies to IPC
-// metohds like a real one.
+// A fake host implementation. Listens on |kTestSocket.name()| and replies to
+// IPC metohds like a real one.
 class FakeHost : public base::UnixSocket::EventListener {
  public:
   struct FakeMethod {
@@ -104,13 +104,13 @@ class FakeHost : public base::UnixSocket::EventListener {
   };  // FakeService.
 
   explicit FakeHost(base::TaskRunner* task_runner) {
-    DESTROY_TEST_SOCK(kSockName);
-    listening_sock = base::UnixSocket::Listen(kSockName, this, task_runner,
-                                              base::SockFamily::kUnix,
-                                              base::SockType::kStream);
+    kTestSocket.Destroy();
+    listening_sock =
+        base::UnixSocket::Listen(kTestSocket.name(), this, task_runner,
+                                 kTestSocket.family(), base::SockType::kStream);
     EXPECT_TRUE(listening_sock->is_listening());
   }
-  ~FakeHost() override { DESTROY_TEST_SOCK(kSockName); }
+  ~FakeHost() override { kTestSocket.Destroy(); }
 
   FakeService* AddFakeService(const std::string& name) {
     auto it_and_inserted =
@@ -204,7 +204,7 @@ class ClientImplTest : public ::testing::Test {
   void SetUp() override {
     task_runner_.reset(new base::TestTaskRunner());
     host_.reset(new FakeHost(task_runner_.get()));
-    cli_ = Client::CreateInstance({kSockName, /*retry=*/false},
+    cli_ = Client::CreateInstance({kTestSocket.name(), /*retry=*/false},
                                   task_runner_.get());
   }
 
@@ -579,10 +579,9 @@ TEST_F(ClientImplTest, HostDisconnection) {
 }
 
 TEST_F(ClientImplTest, HostConnectionFailure) {
-  constexpr char kNonexistentSockName[] =
-      TEST_SOCK_NAME("client_impl_unittest_nonexistent");
+  ipc::TestSocket kNonexistentSock{"client_impl_unittest_nonexistent"};
   std::unique_ptr<Client> client = Client::CreateInstance(
-      {kNonexistentSockName, /*retry=*/false}, task_runner_.get());
+      {kNonexistentSock.name(), /*retry=*/false}, task_runner_.get());
 
   // Connect a client to a non-existent socket, which will always fail. The
   // client will notify the proxy of disconnection.

@@ -62,7 +62,9 @@ static_assert(kInvalidUid == ipc::kInvalidUid, "kInvalidUid mismatching");
 const char* GetProducerSocket() {
   const char* name = getenv("PERFETTO_PRODUCER_SOCK_NAME");
   if (name == nullptr) {
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+    name = "127.0.0.1:32278";
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
     name = "/dev/socket/traced_producer";
 #else
     // Use /run/perfetto if it exists. Then fallback to /tmp.
@@ -78,7 +80,9 @@ const char* GetProducerSocket() {
 const char* GetConsumerSocket() {
   const char* name = getenv("PERFETTO_CONSUMER_SOCK_NAME");
   if (name == nullptr) {
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+    name = "127.0.0.1:32279";
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
     name = "/dev/socket/traced_consumer";
 #else
     // Use /run/perfetto if it exists. Then fallback to /tmp.

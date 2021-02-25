@@ -36,6 +36,11 @@
 namespace perfetto {
 namespace ipc {
 
+namespace {
+constexpr base::SockFamily kClientSockFamily =
+    kUseTCPSocket ? base::SockFamily::kInet : base::SockFamily::kUnix;
+}  // namespace
+
 // static
 std::unique_ptr<Client> Client::CreateInstance(ConnArgs conn_args,
                                                base::TaskRunner* task_runner) {
@@ -53,9 +58,8 @@ ClientImpl::ClientImpl(ConnArgs conn_args, base::TaskRunner* task_runner)
     // Create the client using a connected socket. This code path will never hit
     // OnConnect().
     sock_ = base::UnixSocket::AdoptConnected(
-        std::move(conn_args.socket_fd), this, task_runner_,
-        base::SockFamily::kUnix, base::SockType::kStream,
-        base::SockPeerCredMode::kIgnore);
+        std::move(conn_args.socket_fd), this, task_runner_, kClientSockFamily,
+        base::SockType::kStream, base::SockPeerCredMode::kIgnore);
   } else {
     // Connect using the socket name.
     TryConnect();
@@ -71,9 +75,9 @@ ClientImpl::~ClientImpl() {
 
 void ClientImpl::TryConnect() {
   PERFETTO_DCHECK(socket_name_);
-  sock_ = base::UnixSocket::Connect(
-      socket_name_, this, task_runner_, base::SockFamily::kUnix,
-      base::SockType::kStream, base::SockPeerCredMode::kIgnore);
+  sock_ = base::UnixSocket::Connect(socket_name_, this, task_runner_,
+                                    kClientSockFamily, base::SockType::kStream,
+                                    base::SockPeerCredMode::kIgnore);
 }
 
 void ClientImpl::BindService(base::WeakPtr<ServiceProxy> service_proxy) {
