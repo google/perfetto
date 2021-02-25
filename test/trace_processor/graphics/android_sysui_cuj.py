@@ -61,7 +61,8 @@ def add_display_frame_events(ts, dur, token_start, has_jank):
       present_type=present_type,
       on_time_finish=on_time_finish,
       gpu_composition=0,
-      jank_type=jank_type)
+      jank_type=jank_type,
+      prediction_type=3)
   trace.add_frame_end_event(ts=ts + dur, cookie=token_start + 1)
   trace.add_expected_surface_frame_start_event(
       ts=ts,
@@ -81,7 +82,8 @@ def add_display_frame_events(ts, dur, token_start, has_jank):
       present_type=present_type,
       on_time_finish=on_time_finish,
       gpu_composition=0,
-      jank_type=jank_type)
+      jank_type=jank_type,
+      prediction_type=3)
   trace.add_frame_end_event(ts=ts + dur, cookie=token_start + 3)
 
 
