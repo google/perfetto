@@ -23,7 +23,12 @@
 #include "perfetto/ext/tracing/core/basic_types.h"
 
 #include <stdlib.h>
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
 #include <unistd.h>
+#endif
 
 namespace perfetto {
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)

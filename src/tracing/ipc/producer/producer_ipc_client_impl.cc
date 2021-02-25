@@ -29,7 +29,12 @@
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/trace_config.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#include "src/tracing/ipc/shared_memory_windows.h"
+#else
 #include "src/tracing/ipc/posix_shared_memory.h"
+#endif
 
 // TODO(fmayer): think to what happens when ProducerIPCClientImpl gets destroyed
 // w.r.t. the Producer pointer. Also think to lifetime of the Producer* during
@@ -158,8 +163,13 @@ void ProducerIPCClientImpl::OnConnect() {
 
   int shm_fd = -1;
   if (shared_memory_) {
-    shm_fd = static_cast<PosixSharedMemory*>(shared_memory_.get())->fd();
     req.set_producer_provided_shmem(true);
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+    auto key = static_cast<SharedMemoryWindows*>(shared_memory_.get())->key();
+    req.set_shm_key_windows(key);
+#else
+    shm_fd = static_cast<PosixSharedMemory*>(shared_memory_.get())->fd();
+#endif
   }
 
 #if PERFETTO_DCHECK_IS_ON()
@@ -253,15 +263,25 @@ void ProducerIPCClientImpl::OnServiceRequest(
   }
 
   if (cmd.has_setup_tracing()) {
+    std::unique_ptr<SharedMemory> ipc_shared_memory;
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+    const std::string& shm_key = cmd.setup_tracing().shm_key_windows();
+    if (!shm_key.empty())
+      ipc_shared_memory = SharedMemoryWindows::Attach(shm_key);
+#else
     base::ScopedFile shmem_fd = ipc_channel_->TakeReceivedFD();
     if (shmem_fd) {
+      // TODO(primiano): handle mmap failure in case of OOM.
+      ipc_shared_memory =
+          PosixSharedMemory::AttachToFd(std::move(shmem_fd),
+                                        /*require_seals_if_supported=*/false);
+    }
+#endif
+    if (ipc_shared_memory) {
       // This is the nominal case used in most configurations, where the service
       // provides the SMB.
       PERFETTO_CHECK(!is_shmem_provided_by_producer_ && !shared_memory_);
-      // TODO(primiano): handle mmap failure in case of OOM.
-      shared_memory_ =
-          PosixSharedMemory::AttachToFd(std::move(shmem_fd),
-                                        /*require_seals_if_supported=*/false);
+      shared_memory_ = std::move(ipc_shared_memory);
       shared_buffer_page_size_kb_ =
           cmd.setup_tracing().shared_buffer_page_size_kb();
       shared_memory_arbiter_ = SharedMemoryArbiter::CreateInstance(
