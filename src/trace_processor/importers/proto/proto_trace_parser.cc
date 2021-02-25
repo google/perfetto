@@ -477,7 +477,7 @@ void ProtoTraceParser::ParsePerfSample(
   // requiring stack samples, then this would still count as an error.
   // For now, use an invalid callsite id.
   if (!cs_id) {
-    cs_id = base::make_optional<CallsiteId>(-1u);
+    cs_id = base::make_optional<CallsiteId>(static_cast<uint32_t>(-1));
   }
 
   UniqueTid utid =

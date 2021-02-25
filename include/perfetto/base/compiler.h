@@ -22,6 +22,14 @@
 
 #include "perfetto/base/build_config.h"
 
+// __has_attribute is supported only by clang and recent versions of GCC.
+// Add a layer to wrap the __has_attribute macro.
+#if defined(__has_attribute)
+#define PERFETTO_HAS_ATTRIBUTE(x) __has_attribute(x)
+#else
+#define PERFETTO_HAS_ATTRIBUTE(x) 0
+#endif
+
 #if defined(__GNUC__) || defined(__clang__)
 #define PERFETTO_LIKELY(_x) __builtin_expect(!!(_x), 1)
 #define PERFETTO_UNLIKELY(_x) __builtin_expect(!!(_x), 0)
@@ -131,7 +139,7 @@ extern "C" void __asan_unpoison_memory_region(void const volatile*, size_t);
 #endif
 
 // Avoid calling the exit-time destructor on an object with static lifetime.
-#if defined(__clang__) && __has_attribute(no_destroy)
+#if PERFETTO_HAS_ATTRIBUTE(no_destroy)
 #define PERFETTO_HAS_NO_DESTROY() 1
 #define PERFETTO_NO_DESTROY __attribute__((no_destroy))
 #else
