@@ -32,8 +32,6 @@ source_set("common") {
     "memfd.h",
     "posix_shared_memory.cc",
     "posix_shared_memory.h",
-    "shared_memory_windows.cc",
-    "shared_memory_windows.h",
   ]
   deps = [
     "../../../gn:default_deps",
