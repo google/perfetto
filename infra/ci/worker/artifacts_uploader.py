@@ -119,7 +119,7 @@ def main():
   # Make all artifacts readable by our user. Some of them are extracted as
   # rw-rw--- and owned by a diffrent user (whatever the "sandbox" docker
   # container uid ends up mapping to).
-  subprocess.call(['sudo', 'chown', '-R', os.geteuid(), dirpath])
+  subprocess.call(['sudo', 'chown', '-R', str(os.geteuid()), dirpath])
 
   total_size = 0
   uploads = 0
