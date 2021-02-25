@@ -67,6 +67,25 @@ SELECT slices.* FROM android_sysui_cuj_gpu_completion_slices slices
 JOIN android_sysui_cuj_last_cuj last_cuj
 ON ts >= last_cuj.ts_start AND ts <= last_cuj.ts_end;
 
+DROP TABLE IF EXISTS android_sysui_cuj_frame_timeline_events;
+CREATE TABLE android_sysui_cuj_frame_timeline_events AS
+  SELECT
+    expected.ts as ts_expected,
+    expected.dur as dur_expected,
+    expected.layer_name as layer_name,
+    actual.ts as ts_actual,
+    actual.dur as dur_actual,
+    actual.jank_type LIKE '%App Deadline Missed%' as app_missed
+  FROM expected_frame_timeline_slice expected
+  JOIN android_sysui_cuj_last_cuj cuj
+    ON expected.upid = cuj.upid
+    AND expected.ts + expected.dur > cuj.ts_start
+    AND expected.ts < cuj.ts_end
+  JOIN actual_frame_timeline_slice actual
+    ON expected.surface_frame_token = actual.surface_frame_token
+    AND expected.upid = actual.upid
+    AND expected.layer_name = actual.layer_name;
+
 DROP TABLE IF EXISTS android_sysui_cuj_frames;
 CREATE TABLE android_sysui_cuj_frames AS
   WITH gcs_to_rt_match AS (
@@ -122,10 +141,28 @@ CREATE TABLE android_sysui_cuj_frames AS
   GROUP BY f.mts_ts
   HAVING gpu_completions >= 1;
 
+DROP TABLE IF EXISTS android_sysui_cuj_missed_frames;
+CREATE TABLE android_sysui_cuj_missed_frames AS
+  WITH frame_timeline_match AS (
+    SELECT f.frame_number, MAX(fte.ts_actual) as ts_actual_match
+    FROM android_sysui_cuj_frames f
+    JOIN android_sysui_cuj_frame_timeline_events fte
+      ON f.ts_main_thread_start >= fte.ts_actual
+      AND f.ts_frame_end <= fte.ts_actual + fte.dur_actual
+    GROUP BY f.frame_number)
+  SELECT
+    f.*,
+    (SELECT MAX(fte.app_missed)
+     FROM android_sysui_cuj_frame_timeline_events fte
+     WHERE match.ts_actual_match = fte.ts_actual) as app_missed
+  FROM android_sysui_cuj_frames f
+  JOIN frame_timeline_match match USING (frame_number)
+  WHERE app_missed;
+
 DROP VIEW IF EXISTS android_sysui_cuj_frame_main_thread_bounds;
 CREATE VIEW android_sysui_cuj_frame_main_thread_bounds AS
 SELECT frame_number, ts_main_thread_start as ts, dur_main_thread as dur
-FROM android_sysui_cuj_frames;
+FROM android_sysui_cuj_missed_frames;
 
 DROP VIEW IF EXISTS android_sysui_cuj_main_thread_state_data;
 CREATE VIEW android_sysui_cuj_main_thread_state_data AS
@@ -150,7 +187,7 @@ CREATE TABLE android_sysui_cuj_main_thread_state AS
 DROP VIEW IF EXISTS android_sysui_cuj_frame_render_thread_bounds;
 CREATE VIEW android_sysui_cuj_frame_render_thread_bounds AS
 SELECT frame_number, ts_render_thread_start as ts, dur_render_thread as dur
-FROM android_sysui_cuj_frames;
+FROM android_sysui_cuj_missed_frames;
 
 DROP VIEW IF EXISTS android_sysui_cuj_render_thread_state_data;
 CREATE VIEW android_sysui_cuj_render_thread_state_data AS
@@ -178,7 +215,7 @@ CREATE TABLE android_sysui_cuj_main_thread_binder AS
     f.frame_number,
     SUM(mts.dur) AS dur,
     COUNT(*) AS call_count
-  FROM android_sysui_cuj_frames f
+  FROM android_sysui_cuj_missed_frames f
   JOIN android_sysui_cuj_main_thread_slices_in_cuj mts
     ON mts.ts >= f.ts_main_thread_start AND mts.ts < f.ts_main_thread_end
   WHERE mts.name = 'binder transaction'
@@ -189,7 +226,7 @@ CREATE TABLE android_sysui_cuj_jank_causes AS
   SELECT
   frame_number,
   'RenderThread - long shader_compile' AS jank_cause
-  FROM android_sysui_cuj_frames f
+  FROM android_sysui_cuj_missed_frames f
   JOIN android_sysui_cuj_render_thread_slices_in_cuj rts
     ON rts.ts >= f.ts_render_thread_start AND rts.ts < f.ts_render_thread_end
   WHERE rts.name = 'shader_compile'
@@ -199,7 +236,7 @@ CREATE TABLE android_sysui_cuj_jank_causes AS
   SELECT
   frame_number,
   'RenderThread - long flush layers' AS jank_cause
-  FROM android_sysui_cuj_frames f
+  FROM android_sysui_cuj_missed_frames f
   JOIN android_sysui_cuj_render_thread_slices_in_cuj rts
     ON rts.ts >= f.ts_render_thread_start AND rts.ts < f.ts_render_thread_end
   WHERE rts.name = 'flush layers'
@@ -263,7 +300,7 @@ CREATE TABLE android_sysui_cuj_jank_causes AS
   SELECT
   frame_number,
   'GPU completion - long completion time' AS jank_cause
-  FROM android_sysui_cuj_frames f
+  FROM android_sysui_cuj_missed_frames f
   WHERE dur_gcs > 8000000
 
   UNION ALL
