@@ -8384,6 +8384,7 @@ filegroup {
     "src/tracing/ipc/default_socket.cc",
     "src/tracing/ipc/memfd.cc",
     "src/tracing/ipc/posix_shared_memory.cc",
+    "src/tracing/ipc/shared_memory_windows.cc",
   ],
 }
 
@@ -8426,6 +8427,7 @@ filegroup {
   name: "perfetto_src_tracing_platform_impl",
   srcs: [
     "src/tracing/platform_posix.cc",
+    "src/tracing/platform_windows.cc",
   ],
 }
 
