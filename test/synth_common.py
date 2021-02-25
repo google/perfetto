@@ -667,7 +667,7 @@ class Trace(object):
 
   def add_actual_display_frame_start_event(self, ts, cookie, token, pid,
                                            present_type, on_time_finish,
-                                           gpu_composition, jank_type):
+                                           gpu_composition, jank_type, prediction_type):
     packet = self.add_packet()
     packet.timestamp = ts
     event = packet.frame_timeline_event.actual_display_frame_start
@@ -679,6 +679,7 @@ class Trace(object):
       event.on_time_finish = on_time_finish
       event.gpu_composition = gpu_composition
       event.jank_type = jank_type
+      event.prediction_type = prediction_type
 
   def add_expected_surface_frame_start_event(self, ts, cookie, token,
                                              display_frame_token, pid,
@@ -696,7 +697,7 @@ class Trace(object):
   def add_actual_surface_frame_start_event(self, ts, cookie, token,
                                            display_frame_token, pid, layer_name,
                                            present_type, on_time_finish,
-                                           gpu_composition, jank_type):
+                                           gpu_composition, jank_type, prediction_type):
     packet = self.add_packet()
     packet.timestamp = ts
     event = packet.frame_timeline_event.actual_surface_frame_start
@@ -710,6 +711,7 @@ class Trace(object):
       event.on_time_finish = on_time_finish
       event.gpu_composition = gpu_composition
       event.jank_type = jank_type
+      event.prediction_type = prediction_type
 
   def add_frame_end_event(self, ts, cookie):
     packet = self.add_packet()
