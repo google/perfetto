@@ -15,15 +15,21 @@
 import {cropText} from './canvas_utils';
 
 test('cropHelper regular text', () => {
+  const tripleDot = '\u2026';
+  const emoji = '\uD83D\uDE00';
   expect(cropText(
              'com.android.camera [4096]',
              /*charWidth=*/ 5,
-             /*rectWidth=*/ 1 * 5 + 2))
+             /*rectWidth=*/ 2 * 5))
       .toBe('c');
-  expect(cropText('com.android.camera [4096]', 5, 4 * 5 + 2)).toBe('c');
-  expect(cropText('com.android.camera [4096]', 5, 5 * 5 + 2)).toBe('co...');
+  expect(cropText('com.android.camera [4096]', 5, 4 * 5 + 2))
+      .toBe('co' + tripleDot);
+  expect(cropText('com.android.camera [4096]', 5, 5 * 5 + 2))
+      .toBe('com' + tripleDot);
   expect(cropText('com.android.camera [4096]', 5, 13 * 5 + 2))
-      .toBe('com.androi...');
-  expect(cropText('com.android.camera [4096]', 5, 25 * 5 + 2))
+      .toBe('com.android' + tripleDot);
+  expect(cropText('com.android.camera [4096]', 5, 26 * 5 + 2))
       .toBe('com.android.camera [4096]');
+  expect(cropText(emoji + 'abc', 5, 2 * 5)).toBe(emoji);
+  expect(cropText(emoji + 'abc', 5, 5 * 5)).toBe(emoji + 'a' + tripleDot);
 });
