@@ -17,6 +17,7 @@ import * as version from '../gen/perfetto_version';
 
 type TraceCategories = 'Trace Actions'|'Record Trace'|'User Actions';
 const ANALYTICS_ID = 'UA-137828855-1';
+const PAGE_TITLE = 'no-page-title';
 
 export function initAnalytics() {
   // Only initialize logging on prod or staging
@@ -88,10 +89,12 @@ class AnalyticsImpl implements Analytics {
     // manually send page_view events. See:
     // https://developers.google.com/analytics/devguides/collection/gtagjs/pages#manual_pageviews
     gtagGlobals.gtag('config', ANALYTICS_ID, {
+      allow_google_signals: false,
       anonymize_ip: true,
       page_path: route,
       referrer: document.referrer.split('?')[0],
       send_page_view: false,
+      page_title: PAGE_TITLE,
       dimension1: globals.isInternalUser ? '1' : '0',
       dimension2: version.VERSION,
       dimension3: globals.channel,
@@ -100,7 +103,8 @@ class AnalyticsImpl implements Analytics {
   }
 
   updatePath(path: string) {
-    gtagGlobals.gtag('event', 'page_view', {page_path: path});
+    gtagGlobals.gtag(
+        'event', 'page_view', {page_path: path, page_title: PAGE_TITLE});
   }
 
   logEvent(category: TraceCategories|null, event: string) {
