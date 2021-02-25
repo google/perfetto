@@ -34,37 +34,39 @@ to get access.
 
 Alternatively, you can build the binaries yourself from AOSP.
 
-First, [check out AOSP](https://source.android.com/setup/build/downloading):
+First, [check out Perfetto](https://perfetto.dev/docs/contributing/build-instructions):
 
 ```
-$ mkdir aosp && cd aosp
-$ repo init -u  https://android.googlesource.com/platform/manifest -b master --partial-clone
-$ repo sync -c -j8
+$ git clone https://android.googlesource.com/platform/external/perfetto/
 ```
 
-Then, build `heapprofd_standalone_client` for arm64.
+Then, change to the project directory, download and build additional
+dependencies, and then build the standalone library:
 
 ```
-$ source build/envsetup.sh
-$ lunch aosp_arm64-eng
-$ make heapprofd_standalone_client
+$ cd perfetto
+perfetto/ $ tools/install-build-deps --android
+perfetto/ $ tools/build_all_configs.py --android
+perfetto/ $ ninja -C out/android_release_incl_heapprofd_arm64 \
+libheapprofd_standalone_client.so
 ```
 
 You will find the built library in
-`out/target/product/generic_arm64/system/lib64/heapprofd_standalone_client.so`.
+`out/android_release_incl_heapprofd_arm64/libheapprofd_standalone_client.so`.
 The header for the API can be found in
-`external/perfetto/src/profiling/memory/include/perfetto/heap_profile.h`.
+`src/profiling/memory/include/perfetto/heap_profile.h`. This library is built
+against SDK version 29, so will work on Android 10 or newer.
 
 WARNING: Only use the header from the checkout you used to build the library,
          as the API is not stable yet.
 
-To make debugging in the future easier, make note of the state of your
-checkout at the time you built.
+To make debugging in the future easier, make note of the revision at the time
+you built.
 
 ```
-repo info > repo-info.txt
+git rev-parse HEAD > perfetto-version.txt
 ```
-Please attach this file to any bugs you file.
+Please include this in any bugs you file.
 
 ## Instrument App
 
