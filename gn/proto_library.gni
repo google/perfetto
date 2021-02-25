@@ -173,6 +173,17 @@ template("ipc_library") {
     } else {
       deps += [ "$perfetto_root_path/src/ipc:common" ]
     }
+    if (is_win) {
+      # TODO(primiano): investigate this. In Windows standalone builds, some
+      # executable targets end up in a state where no code pulls a dep on the
+      # ipc:client (in turn that seems a subtle consequence of not having
+      # traced_probes on Windows). This dep here is effectively needed because
+      # the client-side code in the generated .ipc.cc effectively depends on the
+      # client-side IPC library. Perhaps we just should do this unconditionally
+      # on all platforms?
+      deps += [ "$perfetto_root_path/src/ipc:client" ]
+    }
+
     if (defined(invoker.deps)) {
       deps += invoker.deps
     }

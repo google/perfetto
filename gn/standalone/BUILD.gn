@@ -161,6 +161,8 @@ config("default") {
     cflags += [
       "/bigobj",  # Some of our files are bigger than the regular limits.
       "/Gy",  # Enable function-level linking.
+      "/FS",  # Preserve previous PDB behavior.
+      "/utf-8",  # Assume UTF-8 by default to avoid code page dependencies.
     ]
     defines += [
       "_CRT_NONSTDC_NO_WARNINGS",
