@@ -13,19 +13,23 @@
 // limitations under the License.
 
 export function cropText(str: string, charWidth: number, rectWidth: number) {
-  const maxTextWidth = rectWidth - 1;
   let displayText = '';
-  const nameLength = str.length * charWidth;
-  if (nameLength < maxTextWidth) {
+  const maxLength = Math.floor(rectWidth / charWidth) - 1;
+  if (str.length <= maxLength) {
     displayText = str;
   } else {
-    // -3 for the 3 ellipsis.
-    const displayedChars = Math.floor(maxTextWidth / charWidth) - 3;
-    if (displayedChars >= 2) {
-      displayText = str.substring(0, displayedChars) + '...';
-    } else if (displayedChars >= -2) {
-      displayText = str.substring(0, 1);
+    let limit = maxLength;
+    let maybeTripleDot = '';
+    if (maxLength > 1) {
+      limit = maxLength - 1;
+      maybeTripleDot = '\u2026';
     }
+    // Javascript strings are UTF-16. |limit| could point in the middle of a
+    // 32-bit double-wchar codepoint (e.g., an emoji). Here we detect if the
+    // |limit|-th wchar is a leading surrogate and attach the trailing one.
+    const lastCharCode = str.charCodeAt(limit - 1);
+    limit += (lastCharCode >= 0xD800 && lastCharCode < 0xDC00) ? 1 : 0;
+    displayText = str.substring(0, limit) + maybeTripleDot;
   }
   return displayText;
 }
