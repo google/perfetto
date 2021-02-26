@@ -6310,6 +6310,22 @@ message ChromeFrameReporter {
   // |STATE_PRESENTED_PARTIAL|), then indicates whether this frame impacts
   // smoothness.
   optional bool affects_smoothness = 5;
+
+  enum ScrollState {
+    SCROLL_NONE = 0;
+    SCROLL_MAIN_THREAD = 1;
+    SCROLL_COMPOSITOR_THREAD = 2;
+  }
+
+  // The type of active scroll
+  optional ScrollState scroll_state = 6;
+
+  // If any main thread animation is active during this frame.
+  optional bool has_main_animation = 7;
+  // If any compositor thread animation is active during this frame.
+  optional bool has_compositor_animation = 8;
+  // If any touch-driven UX (not scroll) is active during this frame.
+  optional bool has_smooth_input_main = 9;
 }
 
 // End of protos/perfetto/trace/track_event/chrome_frame_reporter.proto
