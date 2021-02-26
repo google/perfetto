@@ -137,6 +137,26 @@ message AndroidDisplayMetrics {
 
 // End of protos/perfetto/metrics/android/display_metrics.proto
 
+// Begin of protos/perfetto/metrics/android/fastrpc_metric.proto
+
+// fastrpc memory stats on Android.
+message AndroidFastrpcMetric {
+  message Subsystem {
+    optional string name = 1;
+    optional double avg_size_bytes = 2;
+    optional double min_size_bytes = 3;
+    optional double max_size_bytes = 4;
+
+    // Total allocation size.
+    // Essentially the sum of positive allocs.
+    optional double total_alloc_size_bytes = 5;
+  }
+
+  repeated Subsystem subsystem = 1;
+}
+
+// End of protos/perfetto/metrics/android/fastrpc_metric.proto
+
 // Begin of protos/perfetto/metrics/android/g2d_metric.proto
 
 message G2dMetrics {
@@ -890,7 +910,7 @@ message TraceMetadata {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 31
+// Next id: 32
 message TraceMetrics {
   reserved 4, 10, 13, 14, 19;
 
@@ -914,6 +934,9 @@ message TraceMetrics {
 
   // ion buffer memory metrics.
   optional AndroidIonMetric android_ion = 9;
+
+  // fastrpc subsystem memory metrics.
+  optional AndroidFastrpcMetric android_fastrpc = 31;
 
   // Statistics about low memory kills.
   optional AndroidLmkMetric android_lmk = 8;
