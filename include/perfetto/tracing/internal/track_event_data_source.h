@@ -601,15 +601,32 @@ class TrackEventDataSource
             return;
           }
 
+          // TODO(skyostil): Support additional clock ids.
+          TraceTimestamp trace_timestamp =
+              ::perfetto::ConvertTimestampToTraceTimeNs(timestamp);
+          PERFETTO_DCHECK(trace_timestamp.clock_id ==
+                          TrackEventInternal::GetClockId());
+
+          // Make sure incremental state is valid.
+          TraceWriterBase* trace_writer = ctx.tls_inst_->trace_writer.get();
+          TrackEventIncrementalState* incr_state = ctx.GetIncrementalState();
+          if (incr_state->was_cleared) {
+            incr_state->was_cleared = false;
+            TrackEventInternal::ResetIncrementalState(
+                trace_writer, trace_timestamp.nanoseconds);
+          }
+
+          // Write the track descriptor before any event on the track.
+          if (track) {
+            TrackEventInternal::WriteTrackDescriptorIfNeeded(
+                track, trace_writer, incr_state);
+          }
+
+          // Write the event itself.
           {
-            TraceTimestamp trace_timestamp =
-                ::perfetto::ConvertTimestampToTraceTimeNs(timestamp);
-            // TODO(skyostil): Support additional clock ids.
-            PERFETTO_DCHECK(trace_timestamp.clock_id ==
-                            TrackEventInternal::GetClockId());
             auto event_ctx = TrackEventInternal::WriteEvent(
-                ctx.tls_inst_->trace_writer.get(), ctx.GetIncrementalState(),
-                static_category, event_name, type, trace_timestamp.nanoseconds);
+                trace_writer, incr_state, static_category, event_name, type,
+                trace_timestamp.nanoseconds);
             if (CatTraits::kIsDynamic) {
               DynamicCategory dynamic_category =
                   CatTraits::GetDynamicCategory(category);
@@ -624,12 +641,6 @@ class TrackEventDataSource
               event_ctx.event()->set_track_uuid(track.uuid);
             arg_function(std::move(event_ctx));
           }  // event_ctx
-
-          if (track) {
-            TrackEventInternal::WriteTrackDescriptorIfNeeded(
-                track, ctx.tls_inst_->trace_writer.get(),
-                ctx.GetIncrementalState());
-          }
         });
   }
 

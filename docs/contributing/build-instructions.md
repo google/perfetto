@@ -106,7 +106,7 @@ Use a following command in the checkout directory in order to generate the
 compilation database file:
 
 ```bash
-tools/ninja -C out/default -t compdb cc cxx > compile_commands.json
+tools/gn gen out/default --export-compile-commands
 ```
 
 After generating, it can be used in CLion (File -> Open -> Open As Project),
