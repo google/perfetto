@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import * as uuidv4 from 'uuid/v4';
+import {assertExists} from '../base/logging';
 
 import {
   Actions,
@@ -384,7 +385,13 @@ class TrackDecider {
       const pid = row.pid;
       const threadName = row.threadName;
       const isMainThread = tid === pid;
-      const uuid = this.getUuid(utid, upid);
+      const uuid = this.getUuidUnchecked(utid, upid);
+      if (uuid === undefined) {
+        // If a thread has no scheduling activity (i.e. the sched table has zero
+        // rows for that uid) no track group will be created and we want to skip
+        // the track creation as well.
+        continue;
+      }
       const kind = THREAD_STATE_TRACK_KIND;
       this.tracksToAdd.push({
         engineId: this.engineId,
@@ -816,9 +823,17 @@ class TrackDecider {
     }
   }
 
-  getUuid = (utid: number, upid: number|null) => {
-    let uuid =
-        upid === null ? this.utidToUuid.get(utid) : this.upidToUuid.get(upid);
+  getUuidUnchecked(utid: number, upid: number|null) {
+    return upid === null ? this.utidToUuid.get(utid) :
+                           this.upidToUuid.get(upid);
+  }
+
+  getUuid(utid: number, upid: number|null) {
+    return assertExists(this.getUuidUnchecked(utid, upid));
+  }
+
+  getOrCreateUuid(utid: number, upid: number|null) {
+    let uuid = this.getUuidUnchecked(utid, upid);
     if (uuid === undefined) {
       uuid = uuidv4();
       if (upid === null) {
@@ -828,7 +843,7 @@ class TrackDecider {
       }
     }
     return uuid;
-  };
+  }
 
   async addProcessTrackGroups(): Promise<void> {
     // We want to create groups of tracks in a specific order.
@@ -926,7 +941,7 @@ class TrackDecider {
           upid === null ? this.utidToUuid.get(utid) : this.upidToUuid.get(upid);
       // These should only happen once for each track group.
       if (pUuid === undefined) {
-        pUuid = this.getUuid(utid, upid);
+        pUuid = this.getOrCreateUuid(utid, upid);
         const summaryTrackId = uuidv4();
 
         const pidForColor = pid || tid || upid || utid || 0;
@@ -957,12 +972,16 @@ class TrackDecider {
   }
 
   async decideTracks(): Promise<DeferredAction[]> {
+    // Add first the global tracks that don't require per-process track groups.
     await this.addCpuSchedulingTracks();
     await this.addCpuFreqTracks();
     await this.addGlobalAsyncTracks();
     await this.addGpuFreqTracks();
     await this.addGlobalCounterTracks();
 
+    // Create the per-process track groups. Note that this won't necessarily
+    // create a track per process. If a process has been completely idle and has
+    // no sched events, no track group will be emitted.
     // Will populate this.addTrackGroupActions().
     await this.addProcessTrackGroups();
 
