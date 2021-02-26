@@ -21,6 +21,7 @@ package perfetto.protos;
 import "protos/perfetto/metrics/android/batt_metric.proto";
 import "protos/perfetto/metrics/android/cpu_metric.proto";
 import "protos/perfetto/metrics/android/display_metrics.proto";
+import "protos/perfetto/metrics/android/fastrpc_metric.proto";
 import "protos/perfetto/metrics/android/g2d_metric.proto";
 import "protos/perfetto/metrics/android/gpu_metric.proto";
 import "protos/perfetto/metrics/android/heap_profile_callsites.proto";
@@ -58,7 +59,7 @@ message TraceMetadata {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 31
+// Next id: 32
 message TraceMetrics {
   reserved 4, 10, 13, 14, 19;
 
@@ -82,6 +83,9 @@ message TraceMetrics {
 
   // ion buffer memory metrics.
   optional AndroidIonMetric android_ion = 9;
+
+  // fastrpc subsystem memory metrics.
+  optional AndroidFastrpcMetric android_fastrpc = 31;
 
   // Statistics about low memory kills.
   optional AndroidLmkMetric android_lmk = 8;
