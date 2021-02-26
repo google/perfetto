@@ -501,6 +501,7 @@ class PerfettoApiTest : public ::testing::TestWithParam<perfetto::BackendType> {
     std::map<uint64_t, std::string> categories;
     std::map<uint64_t, std::string> event_names;
     std::map<uint64_t, std::string> debug_annotation_names;
+    std::set<uint64_t> seen_tracks;
     perfetto::protos::gen::Trace parsed_trace;
     EXPECT_TRUE(
         parsed_trace.ParseFromArray(raw_trace.data(), raw_trace.size()));
@@ -514,6 +515,14 @@ class PerfettoApiTest : public ::testing::TestWithParam<perfetto::BackendType> {
         categories.clear();
         event_names.clear();
         debug_annotation_names.clear();
+        seen_tracks.clear();
+      }
+
+      if (packet.has_track_descriptor()) {
+        // Make sure we haven't seen any events on this track before the
+        // descriptor was written.
+        EXPECT_EQ(seen_tracks.find(packet.track_descriptor().uuid()),
+                  seen_tracks.end());
       }
 
       if (!packet.has_track_event())
@@ -547,6 +556,7 @@ class PerfettoApiTest : public ::testing::TestWithParam<perfetto::BackendType> {
       std::string slice;
 
       if (track_event.has_track_uuid()) {
+        seen_tracks.insert(track_event.track_uuid());
         std::stringstream track;
         track << "[track=" << track_event.track_uuid() << "]";
         slice += track.str();
@@ -1415,6 +1425,34 @@ TEST_P(PerfettoApiTest, TrackEventCustomTrack) {
   EXPECT_TRUE(found_descriptor);
   EXPECT_EQ(4, event_count);
   perfetto::TrackEvent::EraseTrackDescriptor(track);
+}
+
+TEST_P(PerfettoApiTest, TrackDescriptorWrittenBeforeEvent) {
+  // Create a new trace session.
+  auto* tracing_session = NewTraceWithCategories({"bar"});
+  tracing_session->get()->StartBlocking();
+
+  // Emit an event on a custom track.
+  TRACE_EVENT_INSTANT("bar", "Event", perfetto::Track(8086));
+  perfetto::TrackEvent::Flush();
+  tracing_session->get()->StopBlocking();
+
+  std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
+  perfetto::protos::gen::Trace trace;
+  ASSERT_TRUE(trace.ParseFromArray(raw_trace.data(), raw_trace.size()));
+
+  // Check that the descriptor was written before the event.
+  std::set<uint64_t> seen_descriptors;
+  for (const auto& packet : trace.packet()) {
+    if (packet.has_track_descriptor())
+      seen_descriptors.insert(packet.track_descriptor().uuid());
+
+    if (!packet.has_track_event())
+      continue;
+    auto track_event = packet.track_event();
+    EXPECT_TRUE(seen_descriptors.find(track_event.track_uuid()) !=
+                seen_descriptors.end());
+  }
 }
 
 TEST_P(PerfettoApiTest, TrackEventCustomTrackAndTimestamp) {
