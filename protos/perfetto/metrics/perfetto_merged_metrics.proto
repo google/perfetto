@@ -137,6 +137,40 @@ message AndroidDisplayMetrics {
 
 // End of protos/perfetto/metrics/android/display_metrics.proto
 
+// Begin of protos/perfetto/metrics/android/g2d_metric.proto
+
+message G2dMetrics {
+  message G2dInstance {
+    // G2d name.
+    optional string name = 1;
+
+    optional int64 max_dur_ns = 2;
+    optional int64 min_dur_ns = 3;
+    optional int64 avg_dur_ns = 4;
+    optional uint32 frame_count = 5;
+    optional uint32 error_count = 6;
+  }
+  message G2dMetric {
+    // G2D Metric for each G2D Instance.
+    repeated G2dInstance instances = 1;
+
+    // max/min/avg G2d frame durations for all instances.
+    optional int64 max_dur_ns = 2;
+    optional int64 min_dur_ns = 3;
+    optional int64 avg_dur_ns = 4;
+
+    // the number of frames processed by G2D
+    optional uint32 frame_count = 5;
+    // the number of error events
+    optional uint32 error_count = 6;
+  }
+
+  optional G2dMetric g2d_hw = 1;
+  optional G2dMetric g2d_sw = 2;
+}
+
+// End of protos/perfetto/metrics/android/g2d_metric.proto
+
 // Begin of protos/perfetto/metrics/android/gpu_metric.proto
 
 message AndroidGpuMetric {
@@ -856,7 +890,7 @@ message TraceMetadata {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 29
+// Next id: 31
 message TraceMetrics {
   reserved 4, 10, 13, 14, 19;
 
@@ -930,6 +964,9 @@ message TraceMetrics {
 
   // Detects common bad patterns that might lead to jank.
   optional AndroidJankMetrics android_jank = 29;
+
+  // G2D metrics.
+  optional G2dMetrics g2d = 30;
 
   // Demo extensions.
   extensions 450 to 499;
