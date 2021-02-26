@@ -25,6 +25,7 @@
 #include <atomic>
 #include <map>
 #include <memory>
+#include <type_traits>
 
 #include <stdint.h>
 
@@ -162,7 +163,9 @@ class SharedRingBuffer {
 
   // Exposed for fuzzers.
   struct MetadataPage {
-    alignas(uint64_t) std::atomic<bool> spinlock;
+    static_assert(std::is_trivially_constructible<Spinlock>::value,
+                  "Spinlock needs to be trivially constructible.");
+    alignas(uint64_t) Spinlock spinlock;
     std::atomic<uint64_t> read_pos;
     std::atomic<uint64_t> write_pos;
 
