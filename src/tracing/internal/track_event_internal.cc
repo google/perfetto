@@ -387,11 +387,8 @@ EventContext TrackEventInternal::WriteEvent(
     perfetto::protos::pbzero::TrackEvent::Type type,
     uint64_t timestamp) {
   PERFETTO_DCHECK(g_main_thread);
+  PERFETTO_DCHECK(!incr_state->was_cleared);
 
-  if (incr_state->was_cleared) {
-    incr_state->was_cleared = false;
-    ResetIncrementalState(trace_writer, timestamp);
-  }
   auto packet = NewTracePacket(trace_writer, timestamp);
   EventContext ctx(std::move(packet), incr_state);
 
