@@ -254,25 +254,27 @@ Watchdog::Timer::Timer(uint32_t ms) {
     return;  // No-op timer created when the watchdog is disabled.
 
   struct sigevent sev = {};
+  timer_t timerid;
   sev.sigev_notify = SIGEV_THREAD_ID;
   sev._sigev_un._tid = base::GetThreadId();
   sev.sigev_signo = SIGABRT;
-  PERFETTO_CHECK(timer_create(CLOCK_MONOTONIC, &sev, &timerid_) != -1);
+  PERFETTO_CHECK(timer_create(CLOCK_MONOTONIC, &sev, &timerid) != -1);
+  timerid_ = base::make_optional(timerid);
   struct itimerspec its = {};
   its.it_value.tv_sec = ms / 1000;
   its.it_value.tv_nsec = 1000000L * (ms % 1000);
-  PERFETTO_CHECK(timer_settime(timerid_, 0, &its, nullptr) != -1);
+  PERFETTO_CHECK(timer_settime(timerid_.value(), 0, &its, nullptr) != -1);
 }
 
 Watchdog::Timer::~Timer() {
-  if (timerid_ != nullptr) {
-    timer_delete(timerid_);
+  if (timerid_) {
+    timer_delete(timerid_.value());
   }
 }
 
 Watchdog::Timer::Timer(Timer&& other) noexcept {
-  timerid_ = other.timerid_;
-  other.timerid_ = nullptr;
+  timerid_ = std::move(other.timerid_);
+  other.timerid_ = base::nullopt;
 }
 
 }  // namespace base
