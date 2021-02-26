@@ -302,6 +302,7 @@ struct TestIncrementalState {
   ~TestIncrementalState() { destroyed = true; }
 
   int count = 100;
+  bool flag = false;
   static bool constructed;
   static bool destroyed;
 };
@@ -962,6 +963,44 @@ TEST_P(PerfettoApiTest, TrackEventCategories) {
   // TODO(skyostil): Come up with a nicer way to verify trace contents.
   EXPECT_THAT(trace, HasSubstr("Enabled"));
   EXPECT_THAT(trace, Not(HasSubstr("NotEnabled")));
+}
+
+TEST_P(PerfettoApiTest, ClearIncrementalState) {
+  perfetto::DataSourceDescriptor dsd;
+  dsd.set_name("incr_data_source");
+  TestIncrementalDataSource::Register(dsd);
+  perfetto::test::SyncProducers();
+
+  // Setup the trace config with an incremental state clearing period.
+  perfetto::TraceConfig cfg;
+  cfg.set_duration_ms(500);
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("incr_data_source");
+  auto* is_cfg = cfg.mutable_incremental_state_config();
+  is_cfg->set_clear_period_ms(10);
+
+  // Create a new trace session.
+  auto* tracing_session = NewTrace(cfg);
+  tracing_session->get()->StartBlocking();
+
+  // Observe at least 5 incremental state resets.
+  constexpr size_t kMaxLoops = 100;
+  size_t loops = 0;
+  size_t times_cleared = 0;
+  while (times_cleared < 5) {
+    ASSERT_LT(loops++, kMaxLoops);
+    TestIncrementalDataSource::Trace(
+        [&](TestIncrementalDataSource::TraceContext ctx) {
+          auto* incr_state = ctx.GetIncrementalState();
+          if (!incr_state->flag) {
+            incr_state->flag = true;
+            times_cleared++;
+          }
+        });
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  }
+  tracing_session->get()->StopBlocking();
 }
 
 TEST_P(PerfettoApiTest, TrackEventRegistrationWithModule) {
