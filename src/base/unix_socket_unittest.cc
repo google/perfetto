@@ -47,7 +47,7 @@ using ::testing::Invoke;
 using ::testing::InvokeWithoutArgs;
 using ::testing::Mock;
 
-constexpr char kSocketName[] = TEST_SOCK_NAME("unix_socket_unittest.sock");
+ipc::TestSocket kTestSocket{"unix_socket_unittest"};
 
 class MockEventListener : public UnixSocket::EventListener {
  public:
@@ -78,16 +78,17 @@ class MockEventListener : public UnixSocket::EventListener {
 
 class UnixSocketTest : public ::testing::Test {
  protected:
-  void SetUp() override { DESTROY_TEST_SOCK(kSocketName); }
-  void TearDown() override { DESTROY_TEST_SOCK(kSocketName); }
+  void SetUp() override { kTestSocket.Destroy(); }
+  void TearDown() override { kTestSocket.Destroy(); }
 
   TestTaskRunner task_runner_;
   MockEventListener event_listener_;
 };
 
 TEST_F(UnixSocketTest, ConnectionFailureIfUnreachable) {
-  auto cli = UnixSocket::Connect(kSocketName, &event_listener_, &task_runner_,
-                                 SockFamily::kUnix, SockType::kStream);
+  auto cli =
+      UnixSocket::Connect(kTestSocket.name(), &event_listener_, &task_runner_,
+                          kTestSocket.family(), SockType::kStream);
   ASSERT_FALSE(cli->is_connected());
   auto checkpoint = task_runner_.CreateCheckpoint("failure");
   EXPECT_CALL(event_listener_, OnConnect(cli.get(), false))
@@ -98,8 +99,9 @@ TEST_F(UnixSocketTest, ConnectionFailureIfUnreachable) {
 // Both server and client should see an OnDisconnect() if the server drops
 // incoming connections immediately as they are created.
 TEST_F(UnixSocketTest, ConnectionImmediatelyDroppedByServer) {
-  auto srv = UnixSocket::Listen(kSocketName, &event_listener_, &task_runner_,
-                                SockFamily::kUnix, SockType::kStream);
+  auto srv =
+      UnixSocket::Listen(kTestSocket.name(), &event_listener_, &task_runner_,
+                         kTestSocket.family(), SockType::kStream);
   ASSERT_TRUE(srv->is_listening());
 
   // The server will immediately shutdown the connection upon
@@ -114,8 +116,9 @@ TEST_F(UnixSocketTest, ConnectionImmediatelyDroppedByServer) {
           }));
 
   auto checkpoint = task_runner_.CreateCheckpoint("cli_connected");
-  auto cli = UnixSocket::Connect(kSocketName, &event_listener_, &task_runner_,
-                                 SockFamily::kUnix, SockType::kStream);
+  auto cli =
+      UnixSocket::Connect(kTestSocket.name(), &event_listener_, &task_runner_,
+                          kTestSocket.family(), SockType::kStream);
   EXPECT_CALL(event_listener_, OnConnect(cli.get(), true))
       .WillOnce(InvokeWithoutArgs(checkpoint));
   task_runner_.RunUntilCheckpoint("cli_connected");
@@ -134,12 +137,14 @@ TEST_F(UnixSocketTest, ConnectionImmediatelyDroppedByServer) {
 }
 
 TEST_F(UnixSocketTest, ClientAndServerExchangeData) {
-  auto srv = UnixSocket::Listen(kSocketName, &event_listener_, &task_runner_,
-                                SockFamily::kUnix, SockType::kStream);
+  auto srv =
+      UnixSocket::Listen(kTestSocket.name(), &event_listener_, &task_runner_,
+                         kTestSocket.family(), SockType::kStream);
   ASSERT_TRUE(srv->is_listening());
 
-  auto cli = UnixSocket::Connect(kSocketName, &event_listener_, &task_runner_,
-                                 SockFamily::kUnix, SockType::kStream);
+  auto cli =
+      UnixSocket::Connect(kTestSocket.name(), &event_listener_, &task_runner_,
+                          kTestSocket.family(), SockType::kStream);
   auto cli_connected = task_runner_.CreateCheckpoint("cli_connected");
   EXPECT_CALL(event_listener_, OnConnect(cli.get(), true))
       .WillOnce(InvokeWithoutArgs(cli_connected));
@@ -196,16 +201,17 @@ TEST_F(UnixSocketTest, ClientAndServerExchangeData) {
 
 TEST_F(UnixSocketTest, ListenWithPassedSocketHandle) {
   auto sock_raw =
-      UnixSocketRaw::CreateMayFail(SockFamily::kUnix, SockType::kStream);
-  ASSERT_TRUE(sock_raw.Bind(kSocketName));
+      UnixSocketRaw::CreateMayFail(kTestSocket.family(), SockType::kStream);
+  ASSERT_TRUE(sock_raw.Bind(kTestSocket.name()));
   auto fd = sock_raw.ReleaseFd();
   auto srv = UnixSocket::Listen(std::move(fd), &event_listener_, &task_runner_,
-                                SockFamily::kUnix, SockType::kStream);
+                                kTestSocket.family(), SockType::kStream);
   ASSERT_TRUE(srv->is_listening());
 
   auto cli_connected = task_runner_.CreateCheckpoint("cli_connected");
-  auto cli = UnixSocket::Connect(kSocketName, &event_listener_, &task_runner_,
-                                 SockFamily::kUnix, SockType::kStream);
+  auto cli =
+      UnixSocket::Connect(kTestSocket.name(), &event_listener_, &task_runner_,
+                          kTestSocket.family(), SockType::kStream);
   EXPECT_CALL(event_listener_, OnConnect(cli.get(), true))
       .WillOnce(InvokeWithoutArgs(cli_connected));
   auto srv_connected = task_runner_.CreateCheckpoint("srv_connected");
@@ -231,8 +237,9 @@ TEST_F(UnixSocketTest, ListenWithPassedSocketHandle) {
 // Mostly a stress tests. Connects kNumClients clients to the same server and
 // tests that all can exchange data and can see the expected sequence of events.
 TEST_F(UnixSocketTest, SeveralClients) {
-  auto srv = UnixSocket::Listen(kSocketName, &event_listener_, &task_runner_,
-                                SockFamily::kUnix, SockType::kStream);
+  auto srv =
+      UnixSocket::Listen(kTestSocket.name(), &event_listener_, &task_runner_,
+                         kTestSocket.family(), SockType::kStream);
   ASSERT_TRUE(srv->is_listening());
   constexpr size_t kNumClients = 32;
   std::unique_ptr<UnixSocket> cli[kNumClients];
@@ -248,8 +255,9 @@ TEST_F(UnixSocketTest, SeveralClients) {
       }));
 
   for (size_t i = 0; i < kNumClients; i++) {
-    cli[i] = UnixSocket::Connect(kSocketName, &event_listener_, &task_runner_,
-                                 SockFamily::kUnix, SockType::kStream);
+    cli[i] =
+        UnixSocket::Connect(kTestSocket.name(), &event_listener_, &task_runner_,
+                            kTestSocket.family(), SockType::kStream);
     EXPECT_CALL(event_listener_, OnConnect(cli[i].get(), true))
         .WillOnce(Invoke([](UnixSocket* s, bool success) {
           ASSERT_TRUE(success);
@@ -270,42 +278,10 @@ TEST_F(UnixSocketTest, SeveralClients) {
   }
 }
 
-// Tests the SockPeerCredMode::kIgnore logic.
-TEST_F(UnixSocketTest, IgnorePeerCredentials) {
-  auto srv = UnixSocket::Listen(kSocketName, &event_listener_, &task_runner_,
-                                SockFamily::kUnix, SockType::kStream);
-  ASSERT_TRUE(srv->is_listening());
-  auto cli1_connected = task_runner_.CreateCheckpoint("cli1_connected");
-  auto cli1 = UnixSocket::Connect(kSocketName, &event_listener_, &task_runner_,
-                                  SockFamily::kUnix, SockType::kStream,
-                                  SockPeerCredMode::kIgnore);
-  EXPECT_CALL(event_listener_, OnConnect(cli1.get(), true))
-      .WillOnce(InvokeWithoutArgs(cli1_connected));
-
-  auto cli2_connected = task_runner_.CreateCheckpoint("cli2_connected");
-  auto cli2 = UnixSocket::Connect(kSocketName, &event_listener_, &task_runner_,
-                                  SockFamily::kUnix, SockType::kStream,
-                                  SockPeerCredMode::kReadOnConnect);
-  EXPECT_CALL(event_listener_, OnConnect(cli2.get(), true))
-      .WillOnce(InvokeWithoutArgs(cli2_connected));
-
-  task_runner_.RunUntilCheckpoint("cli1_connected");
-  task_runner_.RunUntilCheckpoint("cli2_connected");
-
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-  ASSERT_EQ(cli1->peer_uid_posix(/*skip_check_for_testing=*/true), kInvalidUid);
-  ASSERT_EQ(cli2->peer_uid_posix(), geteuid());
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-  ASSERT_EQ(cli1->peer_pid_linux(/*skip_check_for_testing=*/true), kInvalidPid);
-  ASSERT_EQ(cli2->peer_pid_linux(), getpid());
-#endif
-#endif
-}
-
 TEST_F(UnixSocketTest, BlockingSend) {
-  auto srv = UnixSocket::Listen(kSocketName, &event_listener_, &task_runner_,
-                                SockFamily::kUnix, SockType::kStream);
+  auto srv =
+      UnixSocket::Listen(kTestSocket.name(), &event_listener_, &task_runner_,
+                         kTestSocket.family(), SockType::kStream);
   ASSERT_TRUE(srv->is_listening());
 
   auto all_frames_done = task_runner_.CreateCheckpoint("all_frames_done");
@@ -332,8 +308,9 @@ TEST_F(UnixSocketTest, BlockingSend) {
   std::thread tx_thread([] {
     TestTaskRunner tx_task_runner;
     MockEventListener tx_events;
-    auto cli = UnixSocket::Connect(kSocketName, &tx_events, &tx_task_runner,
-                                   SockFamily::kUnix, SockType::kStream);
+    auto cli =
+        UnixSocket::Connect(kTestSocket.name(), &tx_events, &tx_task_runner,
+                            kTestSocket.family(), SockType::kStream);
 
     auto cli_connected = tx_task_runner.CreateCheckpoint("cli_connected");
     EXPECT_CALL(tx_events, OnConnect(cli.get(), true))
@@ -358,8 +335,9 @@ TEST_F(UnixSocketTest, BlockingSend) {
 // sender is in the middle of a large send(), the socket should gracefully give
 // up (i.e. Shutdown()) but not crash.
 TEST_F(UnixSocketTest, ReceiverDisconnectsDuringSend) {
-  auto srv = UnixSocket::Listen(kSocketName, &event_listener_, &task_runner_,
-                                SockFamily::kUnix, SockType::kStream);
+  auto srv =
+      UnixSocket::Listen(kTestSocket.name(), &event_listener_, &task_runner_,
+                         kTestSocket.family(), SockType::kStream);
   ASSERT_TRUE(srv->is_listening());
   static constexpr int kTimeoutMs = 30000;
 
@@ -380,8 +358,9 @@ TEST_F(UnixSocketTest, ReceiverDisconnectsDuringSend) {
   std::thread tx_thread([] {
     TestTaskRunner tx_task_runner;
     MockEventListener tx_events;
-    auto cli = UnixSocket::Connect(kSocketName, &tx_events, &tx_task_runner,
-                                   SockFamily::kUnix, SockType::kStream);
+    auto cli =
+        UnixSocket::Connect(kTestSocket.name(), &tx_events, &tx_task_runner,
+                            kTestSocket.family(), SockType::kStream);
 
     auto cli_connected = tx_task_runner.CreateCheckpoint("cli_connected");
     EXPECT_CALL(tx_events, OnConnect(cli.get(), true))
@@ -403,8 +382,9 @@ TEST_F(UnixSocketTest, ReceiverDisconnectsDuringSend) {
 }
 
 TEST_F(UnixSocketTest, ReleaseSocket) {
-  auto srv = UnixSocket::Listen(kSocketName, &event_listener_, &task_runner_,
-                                SockFamily::kUnix, SockType::kStream);
+  auto srv =
+      UnixSocket::Listen(kTestSocket.name(), &event_listener_, &task_runner_,
+                         kTestSocket.family(), SockType::kStream);
   ASSERT_TRUE(srv->is_listening());
   auto srv_connected = task_runner_.CreateCheckpoint("srv_connected");
   UnixSocket* peer = nullptr;
@@ -415,8 +395,9 @@ TEST_F(UnixSocketTest, ReleaseSocket) {
             srv_connected();
           }));
 
-  auto cli = UnixSocket::Connect(kSocketName, &event_listener_, &task_runner_,
-                                 SockFamily::kUnix, SockType::kStream);
+  auto cli =
+      UnixSocket::Connect(kTestSocket.name(), &event_listener_, &task_runner_,
+                          kTestSocket.family(), SockType::kStream);
   auto cli_connected = task_runner_.CreateCheckpoint("cli_connected");
   EXPECT_CALL(event_listener_, OnConnect(cli.get(), true))
       .WillOnce(InvokeWithoutArgs(cli_connected));
@@ -494,12 +475,46 @@ TEST_F(UnixSocketTest, TcpStream) {
 // ---------------------------------
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+
+// Tests the SockPeerCredMode::kIgnore logic.
+TEST_F(UnixSocketTest, IgnorePeerCredentials) {
+  auto srv =
+      UnixSocket::Listen(kTestSocket.name(), &event_listener_, &task_runner_,
+                         kTestSocket.family(), SockType::kStream);
+  ASSERT_TRUE(srv->is_listening());
+  auto cli1_connected = task_runner_.CreateCheckpoint("cli1_connected");
+  auto cli1 = UnixSocket::Connect(kTestSocket.name(), &event_listener_,
+                                  &task_runner_, kTestSocket.family(),
+                                  SockType::kStream, SockPeerCredMode::kIgnore);
+  EXPECT_CALL(event_listener_, OnConnect(cli1.get(), true))
+      .WillOnce(InvokeWithoutArgs(cli1_connected));
+
+  auto cli2_connected = task_runner_.CreateCheckpoint("cli2_connected");
+  auto cli2 = UnixSocket::Connect(
+      kTestSocket.name(), &event_listener_, &task_runner_, kTestSocket.family(),
+      SockType::kStream, SockPeerCredMode::kReadOnConnect);
+  EXPECT_CALL(event_listener_, OnConnect(cli2.get(), true))
+      .WillOnce(InvokeWithoutArgs(cli2_connected));
+
+  task_runner_.RunUntilCheckpoint("cli1_connected");
+  task_runner_.RunUntilCheckpoint("cli2_connected");
+
+  ASSERT_EQ(cli1->peer_uid_posix(/*skip_check_for_testing=*/true), kInvalidUid);
+  ASSERT_EQ(cli2->peer_uid_posix(), geteuid());
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  ASSERT_EQ(cli1->peer_pid_linux(/*skip_check_for_testing=*/true), kInvalidPid);
+  ASSERT_EQ(cli2->peer_pid_linux(), getpid());
+#endif
+}
+
 // Checks that the peer_uid() is retained after the client disconnects. The IPC
 // layer needs to rely on this to validate messages received immediately before
 // a client disconnects.
 TEST_F(UnixSocketTest, PeerCredentialsRetainedAfterDisconnect) {
-  auto srv = UnixSocket::Listen(kSocketName, &event_listener_, &task_runner_,
-                                SockFamily::kUnix, SockType::kStream);
+  auto srv =
+      UnixSocket::Listen(kTestSocket.name(), &event_listener_, &task_runner_,
+                         kTestSocket.family(), SockType::kStream);
   ASSERT_TRUE(srv->is_listening());
   UnixSocket* srv_client_conn = nullptr;
   auto srv_connected = task_runner_.CreateCheckpoint("srv_connected");
@@ -515,8 +530,9 @@ TEST_F(UnixSocketTest, PeerCredentialsRetainedAfterDisconnect) {
         srv_connected();
       }));
   auto cli_connected = task_runner_.CreateCheckpoint("cli_connected");
-  auto cli = UnixSocket::Connect(kSocketName, &event_listener_, &task_runner_,
-                                 SockFamily::kUnix, SockType::kStream);
+  auto cli =
+      UnixSocket::Connect(kTestSocket.name(), &event_listener_, &task_runner_,
+                          kTestSocket.family(), SockType::kStream);
   EXPECT_CALL(event_listener_, OnConnect(cli.get(), true))
       .WillOnce(InvokeWithoutArgs(cli_connected));
 
@@ -549,12 +565,14 @@ TEST_F(UnixSocketTest, PeerCredentialsRetainedAfterDisconnect) {
 TEST_F(UnixSocketTest, ClientAndServerExchangeFDs) {
   static constexpr char cli_str[] = "cli>srv";
   static constexpr char srv_str[] = "srv>cli";
-  auto srv = UnixSocket::Listen(kSocketName, &event_listener_, &task_runner_,
-                                SockFamily::kUnix, SockType::kStream);
+  auto srv =
+      UnixSocket::Listen(kTestSocket.name(), &event_listener_, &task_runner_,
+                         kTestSocket.family(), SockType::kStream);
   ASSERT_TRUE(srv->is_listening());
 
-  auto cli = UnixSocket::Connect(kSocketName, &event_listener_, &task_runner_,
-                                 SockFamily::kUnix, SockType::kStream);
+  auto cli =
+      UnixSocket::Connect(kTestSocket.name(), &event_listener_, &task_runner_,
+                          kTestSocket.family(), SockType::kStream);
   EXPECT_CALL(event_listener_, OnConnect(cli.get(), true));
   auto cli_connected = task_runner_.CreateCheckpoint("cli_connected");
   auto srv_disconnected = task_runner_.CreateCheckpoint("srv_disconnected");
@@ -651,8 +669,9 @@ TEST_F(UnixSocketTest, SharedMemory) {
     ASSERT_NE(nullptr, mem);
     memcpy(mem, "shm rocks", 10);
 
-    auto srv = UnixSocket::Listen(kSocketName, &event_listener_, &task_runner_,
-                                  SockFamily::kUnix, SockType::kStream);
+    auto srv =
+        UnixSocket::Listen(kTestSocket.name(), &event_listener_, &task_runner_,
+                           kTestSocket.family(), SockType::kStream);
     ASSERT_TRUE(srv->is_listening());
     // Signal the other process that it can connect.
     ASSERT_EQ(1, base::WriteAll(*pipe.wr, ".", 1));
@@ -678,8 +697,9 @@ TEST_F(UnixSocketTest, SharedMemory) {
     char sync_cmd = '\0';
     ASSERT_EQ(1, PERFETTO_EINTR(read(*pipe.rd, &sync_cmd, 1)));
     ASSERT_EQ('.', sync_cmd);
-    auto cli = UnixSocket::Connect(kSocketName, &event_listener_, &task_runner_,
-                                   SockFamily::kUnix, SockType::kStream);
+    auto cli =
+        UnixSocket::Connect(kTestSocket.name(), &event_listener_, &task_runner_,
+                            kTestSocket.family(), SockType::kStream);
     EXPECT_CALL(event_listener_, OnConnect(cli.get(), true));
     auto checkpoint = task_runner_.CreateCheckpoint("change_seen_by_client");
     EXPECT_CALL(event_listener_, OnDataAvailable(cli.get()))
@@ -799,7 +819,7 @@ TEST_F(UnixSocketTest, PartialSendMsgAll) {
   UnixSocketRaw send_sock;
   UnixSocketRaw recv_sock;
   std::tie(send_sock, recv_sock) =
-      UnixSocketRaw::CreatePairPosix(SockFamily::kUnix, SockType::kStream);
+      UnixSocketRaw::CreatePairPosix(kTestSocket.family(), SockType::kStream);
   ASSERT_TRUE(send_sock);
   ASSERT_TRUE(recv_sock);
 

@@ -48,8 +48,8 @@ using testing::_;
 using testing::Invoke;
 using testing::InvokeWithoutArgs;
 
-constexpr char kProducerSockName[] = TEST_SOCK_NAME("tracing_test-producer");
-constexpr char kConsumerSockName[] = TEST_SOCK_NAME("tracing_test-consumer");
+ipc::TestSocket kProducerSock{"tracing_test-producer"};
+ipc::TestSocket kConsumerSock{"tracing_test-consumer"};
 
 // TODO(rsavitski): consider using src/tracing/test/mock_producer.h.
 class MockProducer : public Producer {
@@ -118,17 +118,17 @@ void CheckTraceStats(const protos::gen::TracePacket& packet) {
 class TracingIntegrationTest : public ::testing::Test {
  public:
   void SetUp() override {
-    DESTROY_TEST_SOCK(kProducerSockName);
-    DESTROY_TEST_SOCK(kConsumerSockName);
+    kProducerSock.Destroy();
+    kConsumerSock.Destroy();
     task_runner_.reset(new base::TestTaskRunner());
 
     // Create the service host.
     svc_ = ServiceIPCHost::CreateInstance(task_runner_.get());
-    svc_->Start(kProducerSockName, kConsumerSockName);
+    svc_->Start(kProducerSock.name(), kConsumerSock.name());
 
     // Create and connect a Producer.
     producer_endpoint_ = ProducerIPCClient::Connect(
-        kProducerSockName, &producer_, "perfetto.mock_producer",
+        kProducerSock.name(), &producer_, "perfetto.mock_producer",
         task_runner_.get(), GetProducerSMBScrapingMode());
     auto on_producer_connect =
         task_runner_->CreateCheckpoint("on_producer_connect");
@@ -142,7 +142,7 @@ class TracingIntegrationTest : public ::testing::Test {
 
     // Create and connect a Consumer.
     consumer_endpoint_ = ConsumerIPCClient::Connect(
-        kConsumerSockName, &consumer_, task_runner_.get());
+        kConsumerSock.name(), &consumer_, task_runner_.get());
     auto on_consumer_connect =
         task_runner_->CreateCheckpoint("on_consumer_connect");
     EXPECT_CALL(consumer_, OnConnect()).WillOnce(Invoke(on_consumer_connect));
@@ -174,8 +174,8 @@ class TracingIntegrationTest : public ::testing::Test {
     ASSERT_TRUE(testing::Mock::VerifyAndClearExpectations(&consumer_));
 
     task_runner_.reset();
-    DESTROY_TEST_SOCK(kProducerSockName);
-    DESTROY_TEST_SOCK(kConsumerSockName);
+    kProducerSock.Destroy();
+    kConsumerSock.Destroy();
   }
 
   virtual TracingService::ProducerSMBScrapingMode GetProducerSMBScrapingMode() {

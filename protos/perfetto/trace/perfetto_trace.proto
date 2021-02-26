@@ -1987,6 +1987,16 @@ message FrameTimelineEvent {
     PRESENT_LATE = 2;
     PRESENT_EARLY = 3;
     PRESENT_DROPPED = 4;
+    PRESENT_UNKNOWN = 5;
+  };
+
+  // Specifies if the predictions for the frame are still valid, expired or
+  // unknown.
+  enum PredictionType {
+    PREDICTION_UNSPECIFIED = 0;
+    PREDICTION_VALID = 1;
+    PREDICTION_EXPIRED = 2;
+    PREDICTION_UNKNOWN = 3;
   };
 
   // Indicates the start of expected timeline slice for SurfaceFrames.
@@ -2043,6 +2053,7 @@ message FrameTimelineEvent {
     // A bitmask of JankType. More than one reason can be attributed to a janky
     // frame.
     optional int32 jank_type = 9;
+    optional PredictionType prediction_type = 10;
   };
 
   // Indicates the start of expected timeline slice for DisplayFrames.
@@ -2087,6 +2098,7 @@ message FrameTimelineEvent {
     // A bitmask of JankType. More than one reason can be attributed to a janky
     // frame.
     optional int32 jank_type = 7;
+    optional PredictionType prediction_type = 8;
   };
 
   // FrameEnd just sends the cookie to indicate that the corresponding
@@ -6513,6 +6525,7 @@ message ChromeUserEvent {
 message ChromeWindowHandleEventInfo {
   optional uint32 dpi = 1;
   optional uint32 message_id = 2;
+  optional fixed64 hwnd_ptr = 3;
 }
 
 // End of protos/perfetto/trace/track_event/chrome_window_handle_event_info.proto
