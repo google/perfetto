@@ -17,6 +17,7 @@
 #ifndef INCLUDE_PERFETTO_EXT_BASE_WATCHDOG_POSIX_H_
 #define INCLUDE_PERFETTO_EXT_BASE_WATCHDOG_POSIX_H_
 
+#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/thread_checker.h"
 
 #include <atomic>
@@ -54,7 +55,7 @@ class Watchdog {
     Timer(const Timer&) = delete;
     Timer& operator=(const Timer&) = delete;
 
-    timer_t timerid_ = nullptr;
+    Optional<timer_t> timerid_;
   };
   virtual ~Watchdog();
 
