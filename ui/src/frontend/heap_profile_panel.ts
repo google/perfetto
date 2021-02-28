@@ -99,7 +99,6 @@ export class HeapProfileDetailsPanel extends
                 this.onMouseMove({y: e.layerY, x: e.layerX});
                 globals.rafScheduler.scheduleRedraw();
               }
-              return false;
             },
             onmouseout: () => {
               if (this.flamegraph !== undefined) {
