@@ -109,6 +109,9 @@ enum PerfettoTriggerAtom {
 
   kTriggerPerfettoTrigger = 3,
   kTriggerPerfettoTriggerFail = 4,
+
+  kTracedLimitProbability = 5,
+  kTracedLimitMaxPer24h = 6,
 };
 
 }  // namespace perfetto
