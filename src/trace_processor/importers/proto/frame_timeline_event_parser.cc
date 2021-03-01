@@ -177,7 +177,8 @@ void FrameTimelineEventParser::ParseExpectedDisplayFrameStart(
   expected_row.display_frame_token = token;
   expected_row.upid = upid;
 
-  context_->slice_tracker->BeginFrameTimeline(
+  context_->slice_tracker->BeginTyped(
+      context_->storage->mutable_expected_frame_timeline_slice_table(),
       expected_row, [this, token](ArgsTracker::BoundInserter* inserter) {
         inserter->AddArg(display_frame_token_id_, Variadic::Integer(token));
       });
@@ -242,9 +243,11 @@ void FrameTimelineEventParser::ParseActualDisplayFrameStart(
   actual_row.prediction_type = prediction_type;
 
   base::Optional<SliceId> opt_slice_id =
-      context_->slice_tracker->BeginFrameTimeline(
-          actual_row, [this, token, jank_type, present_type, prediction_type,
-                       &event](ArgsTracker::BoundInserter* inserter) {
+      context_->slice_tracker->BeginTyped(
+          context_->storage->mutable_actual_frame_timeline_slice_table(),
+          actual_row,
+          [this, token, jank_type, present_type, prediction_type,
+           &event](ArgsTracker::BoundInserter* inserter) {
             inserter->AddArg(display_frame_token_id_, Variadic::Integer(token));
             inserter->AddArg(present_type_id_, Variadic::String(present_type));
             inserter->AddArg(on_time_finish_id_,
@@ -342,7 +345,8 @@ void FrameTimelineEventParser::ParseExpectedSurfaceFrameStart(
   expected_row.display_frame_token = display_frame_token;
   expected_row.upid = upid;
   expected_row.layer_name = layer_name_id;
-  context_->slice_tracker->BeginFrameTimeline(
+  context_->slice_tracker->BeginTyped(
+      context_->storage->mutable_expected_frame_timeline_slice_table(),
       expected_row,
       [this, token, layer_name_id](ArgsTracker::BoundInserter* inserter) {
         inserter->AddArg(display_frame_token_id_, Variadic::Integer(token));
@@ -425,10 +429,12 @@ void FrameTimelineEventParser::ParseActualSurfaceFrameStart(
   actual_row.prediction_type = prediction_type;
 
   base::Optional<SliceId> opt_slice_id =
-      context_->slice_tracker->BeginFrameTimeline(
-          actual_row, [this, jank_type, present_type, token, layer_name_id,
-                       display_frame_token, prediction_type,
-                       &event](ArgsTracker::BoundInserter* inserter) {
+      context_->slice_tracker->BeginTyped(
+          context_->storage->mutable_actual_frame_timeline_slice_table(),
+          actual_row,
+          [this, jank_type, present_type, token, layer_name_id,
+           display_frame_token, prediction_type,
+           &event](ArgsTracker::BoundInserter* inserter) {
             inserter->AddArg(surface_frame_token_id_, Variadic::Integer(token));
             inserter->AddArg(display_frame_token_id_,
                              Variadic::Integer(display_frame_token));
