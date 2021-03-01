@@ -120,6 +120,8 @@ bool GraphicsFrameEventParser::CreateBufferEvent(
   track.scope = graphics_event_scope_id_;
   TrackId track_id = context_->track_tracker->InternGpuTrack(track);
 
+  auto* graphics_frame_slice_table =
+      context_->storage->mutable_graphics_frame_slice_table();
   {
     tables::GraphicsFrameSliceTable::Row row;
     row.ts = timestamp;
@@ -142,7 +144,8 @@ bool GraphicsFrameEventParser::CreateBufferEvent(
       row.acquire_to_latch_time = latch_ts - acquire_ts;
       row.latch_to_present_time = timestamp - latch_ts;
     }
-    auto opt_slice_id = context_->slice_tracker->ScopedFrameEvent(row);
+    base::Optional<SliceId> opt_slice_id =
+        context_->slice_tracker->ScopedTyped(graphics_frame_slice_table, row);
     if (event.type() == GraphicsFrameEvent::DEQUEUE) {
       if (opt_slice_id) {
         dequeue_slice_ids_[buffer_id] = *opt_slice_id;
@@ -151,8 +154,6 @@ bool GraphicsFrameEventParser::CreateBufferEvent(
       auto it = dequeue_slice_ids_.find(buffer_id);
       if (it != dequeue_slice_ids_.end()) {
         auto dequeue_slice_id = it->second;
-        auto* graphics_frame_slice_table =
-            context_->storage->mutable_graphics_frame_slice_table();
         uint32_t row_idx =
             *graphics_frame_slice_table->id().IndexOf(dequeue_slice_id);
         graphics_frame_slice_table->mutable_frame_number()->Set(row_idx,
@@ -362,7 +363,8 @@ void GraphicsFrameEventParser::CreatePhaseEvent(
     }
     slice.name = context_->storage->InternString(slice_name.GetStringView());
     slice.frame_number = frame_number;
-    context_->slice_tracker->BeginFrameEvent(slice);
+    context_->slice_tracker->BeginTyped(
+        context_->storage->mutable_graphics_frame_slice_table(), slice);
   }
 }
 
