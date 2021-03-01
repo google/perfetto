@@ -26,11 +26,6 @@
 
 namespace perfetto {
 namespace trace_processor {
-namespace {
-// Slices which have been opened but haven't been closed yet will be marked
-// with this duration placeholder.
-constexpr int64_t kPendingDuration = -1;
-}  // namespace
 
 SliceTracker::SliceTracker(TraceProcessorContext* context)
     : legacy_unnestable_begin_count_string_id_(
@@ -74,58 +69,6 @@ void SliceTracker::BeginLegacyUnnestable(tables::SliceTable::Row row,
   });
 }
 
-void SliceTracker::BeginGpu(tables::GpuSliceTable::Row row,
-                            SetArgsCallback args_callback) {
-  // Ensure that the duration is pending for this row.
-  // TODO(lalitm): change this to eventually use null instead of -1.
-  row.dur = kPendingDuration;
-
-  StartSlice(row.ts, row.track_id, args_callback, [this, &row]() {
-    return context_->storage->mutable_gpu_slice_table()->Insert(row).id;
-  });
-}
-
-void SliceTracker::BeginFrameEvent(tables::GraphicsFrameSliceTable::Row row,
-                                   SetArgsCallback args_callback) {
-  // Ensure that the duration is pending for this row.
-  // TODO(lalitm): change this to eventually use null instead of -1.
-  row.dur = kPendingDuration;
-
-  StartSlice(row.ts, row.track_id, args_callback, [this, &row]() {
-    return context_->storage->mutable_graphics_frame_slice_table()
-        ->Insert(row)
-        .id;
-  });
-}
-
-base::Optional<SliceId> SliceTracker::BeginFrameTimeline(
-    tables::ExpectedFrameTimelineSliceTable::Row row,
-    SetArgsCallback args_callback) {
-  // Ensure that the duration is pending for this row.
-  // TODO(lalitm): change this to eventually use null instead of -1.
-  row.dur = kPendingDuration;
-
-  return StartSlice(row.ts, row.track_id, args_callback, [this, &row]() {
-    return context_->storage->mutable_expected_frame_timeline_slice_table()
-        ->Insert(row)
-        .id;
-  });
-}
-
-base::Optional<SliceId> SliceTracker::BeginFrameTimeline(
-    tables::ActualFrameTimelineSliceTable::Row row,
-    SetArgsCallback args_callback) {
-  // Ensure that the duration is pending for this row.
-  // TODO(lalitm): change this to eventually use null instead of -1.
-  row.dur = kPendingDuration;
-
-  return StartSlice(row.ts, row.track_id, args_callback, [this, &row]() {
-    return context_->storage->mutable_actual_frame_timeline_slice_table()
-        ->Insert(row)
-        .id;
-  });
-}
-
 base::Optional<SliceId> SliceTracker::Scoped(int64_t timestamp,
                                              TrackId track_id,
                                              StringId category,
@@ -137,27 +80,6 @@ base::Optional<SliceId> SliceTracker::Scoped(int64_t timestamp,
   tables::SliceTable::Row row(timestamp, duration, track_id, category, name);
   return StartSlice(timestamp, track_id, args_callback, [this, &row]() {
     return context_->storage->mutable_slice_table()->Insert(row).id;
-  });
-}
-
-void SliceTracker::ScopedGpu(const tables::GpuSliceTable::Row& row,
-                             SetArgsCallback args_callback) {
-  PERFETTO_DCHECK(row.dur >= 0);
-
-  StartSlice(row.ts, row.track_id, args_callback, [this, &row]() {
-    return context_->storage->mutable_gpu_slice_table()->Insert(row).id;
-  });
-}
-
-base::Optional<SliceId> SliceTracker::ScopedFrameEvent(
-    const tables::GraphicsFrameSliceTable::Row& row,
-    SetArgsCallback args_callback) {
-  PERFETTO_DCHECK(row.dur >= 0);
-
-  return StartSlice(row.ts, row.track_id, args_callback, [this, &row]() {
-    return context_->storage->mutable_graphics_frame_slice_table()
-        ->Insert(row)
-        .id;
   });
 }
 
