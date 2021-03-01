@@ -25,6 +25,8 @@
 // 1 applies recursively also to the test translation units, 2 applies only
 // to gmock/gtest includes.
 
+#include "perfetto/base/build_config.h"
+
 #if defined(__GNUC__)  // GCC & clang
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wundef"
@@ -36,7 +38,12 @@
 
 #if defined(__clang__)
 #pragma GCC diagnostic ignored "-Wshift-sign-overflow"
+
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
+// -Wcomma isn't supported on NaCL.
 #pragma GCC diagnostic ignored "-Wcomma"
+#endif  // PERFETTO_OS_NACL
+
 #endif
 
 #include <gmock/gmock.h>
