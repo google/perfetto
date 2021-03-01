@@ -130,10 +130,12 @@ TEST_F(ExportJsonTest, StorageWithOneSlice) {
   context_.args_tracker->Flush();  // Flush track args.
   StringId cat_id = context_.storage->InternString(base::StringView(kCategory));
   StringId name_id = context_.storage->InternString(base::StringView(kName));
-  context_.storage->mutable_slice_table()->Insert(
-      {kTimestamp, kDuration, track, cat_id, name_id, 0, 0, 0});
+  SliceId slice_id =
+      context_.storage->mutable_slice_table()
+          ->Insert({kTimestamp, kDuration, track, cat_id, name_id, 0, 0, 0})
+          .id;
   context_.storage->mutable_thread_slices()->AddThreadSlice(
-      0, kThreadTimestamp, kThreadDuration, kThreadInstructionCount,
+      slice_id, kThreadTimestamp, kThreadDuration, kThreadInstructionCount,
       kThreadInstructionDelta);
 
   base::TempFile temp_file = base::TempFile::Create();
@@ -176,10 +178,12 @@ TEST_F(ExportJsonTest, StorageWithOneUnfinishedSlice) {
   context_.args_tracker->Flush();  // Flush track args.
   StringId cat_id = context_.storage->InternString(base::StringView(kCategory));
   StringId name_id = context_.storage->InternString(base::StringView(kName));
-  context_.storage->mutable_slice_table()->Insert(
-      {kTimestamp, kDuration, track, cat_id, name_id, 0, 0, 0});
+  SliceId slice_id =
+      context_.storage->mutable_slice_table()
+          ->Insert({kTimestamp, kDuration, track, cat_id, name_id, 0, 0, 0})
+          .id;
   context_.storage->mutable_thread_slices()->AddThreadSlice(
-      0, kThreadTimestamp, kThreadDuration, kThreadInstructionCount,
+      slice_id, kThreadTimestamp, kThreadDuration, kThreadInstructionCount,
       kThreadInstructionDelta);
 
   base::TempFile temp_file = base::TempFile::Create();
@@ -1222,7 +1226,7 @@ TEST_F(ExportJsonTest, AsyncEventWithThreadTimestamp) {
   auto id_and_row =
       slices->Insert({kTimestamp, kDuration, track, cat_id, name_id, 0, 0, 0});
   context_.storage->mutable_virtual_track_slices()->AddVirtualTrackSlice(
-      id_and_row.id.value, kThreadTimestamp, kThreadDuration, 0, 0);
+      id_and_row.id, kThreadTimestamp, kThreadDuration, 0, 0);
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+");
@@ -1279,7 +1283,7 @@ TEST_F(ExportJsonTest, UnfinishedAsyncEvent) {
           ->Insert({kTimestamp, kDuration, track, cat_id, name_id, 0, 0, 0})
           .id;
   context_.storage->mutable_virtual_track_slices()->AddVirtualTrackSlice(
-      slice_id.value, kThreadTimestamp, kThreadDuration, 0, 0);
+      slice_id, kThreadTimestamp, kThreadDuration, 0, 0);
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+");
