@@ -127,13 +127,20 @@ source_set("test_support") {
     "../../gn:default_deps",
   ]
   sources = [
-    "test/test_task_runner.cc",
-    "test/test_task_runner.h",
     "test/utils.cc",
     "test/utils.h",
     "test/vm_test_utils.cc",
     "test/vm_test_utils.h",
   ]
+
+  if (!is_nacl) {
+    # test_task_runner depends on unix_task_runner, which isn't available on
+    # NaCL.
+    sources += [
+      "test/test_task_runner.cc",
+      "test/test_task_runner.h",
+    ]
+  }
 }
 
 perfetto_unittest_source_set("unittests") {
