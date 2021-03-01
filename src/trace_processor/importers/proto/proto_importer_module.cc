@@ -44,10 +44,9 @@ void ProtoImporterModule::ParseTraceConfig(
 void ProtoImporterModule::RegisterForField(uint32_t field_id,
                                            TraceProcessorContext* context) {
   if (context->modules_by_field.size() <= field_id) {
-    context->modules_by_field.resize(field_id + 1, nullptr);
+    context->modules_by_field.resize(field_id + 1);
   }
-  PERFETTO_DCHECK(!context->modules_by_field[field_id]);
-  context->modules_by_field[field_id] = this;
+  context->modules_by_field[field_id].push_back(this);
 }
 
 }  // namespace trace_processor

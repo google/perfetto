@@ -1456,9 +1456,13 @@ class JsonExporter {
           }
         }
 
-        Json::Value& smaps =
-            event["args"]["dumps"]["process_mmaps"]["vm_regions"];
         const auto& smaps_table = storage_->profiler_smaps_table();
+        // Do not create vm_regions without memory maps, since catapult expects
+        // to have rows.
+        Json::Value* smaps =
+            smaps_table.row_count() > 0
+                ? &event["args"]["dumps"]["process_mmaps"]["vm_regions"]
+                : nullptr;
         for (uint32_t smaps_index = 0; smaps_index < smaps_table.row_count();
              ++smaps_index) {
           if (smaps_table.upid()[smaps_index] != upid)
@@ -1473,34 +1477,39 @@ class JsonExporter {
           region["sa"] = base::Uint64ToHexStringNoPrefix(
               static_cast<uint64_t>(smaps_table.start_address()[smaps_index]));
           region["sz"] = base::Uint64ToHexStringNoPrefix(
-              static_cast<uint64_t>(smaps_table.size_kb()[smaps_index]));
+              static_cast<uint64_t>(smaps_table.size_kb()[smaps_index]) * 1024);
           region["ts"] =
               Json::Int64(smaps_table.module_timestamp()[smaps_index]);
           region["id"] = GetNonNullString(
               storage_, smaps_table.module_debugid()[smaps_index]);
           region["df"] = GetNonNullString(
               storage_, smaps_table.module_debug_path()[smaps_index]);
-          region["bs"]["pc"] =
-              base::Uint64ToHexStringNoPrefix(static_cast<uint64_t>(
-                  smaps_table.private_clean_resident_kb()[smaps_index]));
-          region["bs"]["pd"] =
-              base::Uint64ToHexStringNoPrefix(static_cast<uint64_t>(
-                  smaps_table.private_dirty_kb()[smaps_index]));
-          region["bs"]["pss"] =
-              base::Uint64ToHexStringNoPrefix(static_cast<uint64_t>(
-                  smaps_table.proportional_resident_kb()[smaps_index]));
-          region["bs"]["sc"] =
-              base::Uint64ToHexStringNoPrefix(static_cast<uint64_t>(
-                  smaps_table.shared_clean_resident_kb()[smaps_index]));
-          region["bs"]["sd"] =
-              base::Uint64ToHexStringNoPrefix(static_cast<uint64_t>(
-                  smaps_table.shared_dirty_resident_kb()[smaps_index]));
+          region["bs"]["pc"] = base::Uint64ToHexStringNoPrefix(
+              static_cast<uint64_t>(
+                  smaps_table.private_clean_resident_kb()[smaps_index]) *
+              1024);
+          region["bs"]["pd"] = base::Uint64ToHexStringNoPrefix(
+              static_cast<uint64_t>(
+                  smaps_table.private_dirty_kb()[smaps_index]) *
+              1024);
+          region["bs"]["pss"] = base::Uint64ToHexStringNoPrefix(
+              static_cast<uint64_t>(
+                  smaps_table.proportional_resident_kb()[smaps_index]) *
+              1024);
+          region["bs"]["sc"] = base::Uint64ToHexStringNoPrefix(
+              static_cast<uint64_t>(
+                  smaps_table.shared_clean_resident_kb()[smaps_index]) *
+              1024);
+          region["bs"]["sd"] = base::Uint64ToHexStringNoPrefix(
+              static_cast<uint64_t>(
+                  smaps_table.shared_dirty_resident_kb()[smaps_index]) *
+              1024);
           region["bs"]["sw"] = base::Uint64ToHexStringNoPrefix(
-              static_cast<uint64_t>(smaps_table.swap_kb()[smaps_index]));
-          smaps.append(region);
+              static_cast<uint64_t>(smaps_table.swap_kb()[smaps_index]) * 1024);
+          smaps->append(region);
         }
 
-        if (!totals.empty() || !smaps.empty())
+        if (!totals.empty() || (smaps && !smaps->empty()))
           writer_.WriteCommonEvent(event);
       }
 
