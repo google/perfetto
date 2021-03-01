@@ -829,8 +829,9 @@ class JsonExporter {
       int64_t thread_instruction_count = 0;
       int64_t thread_instruction_delta = 0;
 
+      SliceId id = slices.id()[i];
       base::Optional<uint32_t> thread_slice_row =
-          thread_slices.FindRowForSliceId(i);
+          thread_slices.FindRowForSliceId(id);
       if (thread_slice_row) {
         thread_ts_ns = thread_slices.thread_timestamp_ns()[*thread_slice_row];
         thread_duration_ns =
@@ -841,7 +842,7 @@ class JsonExporter {
             thread_slices.thread_instruction_deltas()[*thread_slice_row];
       } else {
         base::Optional<uint32_t> vtrack_slice_row =
-            virtual_track_slices.FindRowForSliceId(i);
+            virtual_track_slices.FindRowForSliceId(id);
         if (vtrack_slice_row) {
           thread_ts_ns =
               virtual_track_slices.thread_timestamp_ns()[*vtrack_slice_row];
