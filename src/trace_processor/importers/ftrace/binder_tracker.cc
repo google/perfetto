@@ -169,7 +169,7 @@ void BinderTracker::TransactionReceived(int64_t ts,
       inserter->AddArg(dest_name_, Variadic::String(thread_name));
       if (reply_slice_id.has_value())
         inserter->AddArg(dest_slice_id_,
-                         Variadic::UnsignedInteger(reply_slice_id.value()));
+                         Variadic::UnsignedInteger(reply_slice_id->value));
     };
     // Add the dest args to the current transaction slice and get the slice id.
     auto transaction_slice_id = context_->slice_tracker->AddArgs(

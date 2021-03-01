@@ -37,7 +37,7 @@ class SliceTracker {
   virtual ~SliceTracker();
 
   // virtual for testing
-  virtual base::Optional<uint32_t> Begin(
+  virtual base::Optional<SliceId> Begin(
       int64_t timestamp,
       TrackId track_id,
       StringId category,
@@ -58,13 +58,15 @@ class SliceTracker {
 
   void BeginFrameEvent(tables::GraphicsFrameSliceTable::Row row,
                        SetArgsCallback args_callback = SetArgsCallback());
-  SliceId BeginFrameTimeline(tables::ExpectedFrameTimelineSliceTable::Row row,
-                             SetArgsCallback args_callback = SetArgsCallback());
-  SliceId BeginFrameTimeline(tables::ActualFrameTimelineSliceTable::Row row,
-                             SetArgsCallback args_callback = SetArgsCallback());
+  base::Optional<SliceId> BeginFrameTimeline(
+      tables::ExpectedFrameTimelineSliceTable::Row row,
+      SetArgsCallback args_callback = SetArgsCallback());
+  base::Optional<SliceId> BeginFrameTimeline(
+      tables::ActualFrameTimelineSliceTable::Row row,
+      SetArgsCallback args_callback = SetArgsCallback());
 
   // virtual for testing
-  virtual base::Optional<uint32_t> Scoped(
+  virtual base::Optional<SliceId> Scoped(
       int64_t timestamp,
       TrackId track_id,
       StringId category,
@@ -75,11 +77,12 @@ class SliceTracker {
   void ScopedGpu(const tables::GpuSliceTable::Row& row,
                  SetArgsCallback args_callback = SetArgsCallback());
 
-  SliceId ScopedFrameEvent(const tables::GraphicsFrameSliceTable::Row& row,
-                           SetArgsCallback args_callback = SetArgsCallback());
+  base::Optional<SliceId> ScopedFrameEvent(
+      const tables::GraphicsFrameSliceTable::Row& row,
+      SetArgsCallback args_callback = SetArgsCallback());
 
   // virtual for testing
-  virtual base::Optional<uint32_t> End(
+  virtual base::Optional<SliceId> End(
       int64_t timestamp,
       TrackId track_id,
       StringId opt_category = {},
@@ -93,23 +96,6 @@ class SliceTracker {
                                    StringId category,
                                    StringId name,
                                    SetArgsCallback args_callback);
-
-  // TODO(lalitm): eventually this method should become End and End should
-  // be renamed EndChrome.
-  base::Optional<SliceId> EndGpu(
-      int64_t ts,
-      TrackId track_id,
-      SetArgsCallback args_callback = SetArgsCallback());
-
-  base::Optional<SliceId> EndFrameEvent(
-      int64_t ts,
-      TrackId track_id,
-      SetArgsCallback args_callback = SetArgsCallback());
-
-  base::Optional<SliceId> EndFrameTimeline(
-      int64_t ts,
-      TrackId track_id,
-      SetArgsCallback args_callback = SetArgsCallback());
 
   void FlushPendingSlices();
 
@@ -134,10 +120,10 @@ class SliceTracker {
   };
   using StackMap = std::unordered_map<TrackId, TrackInfo>;
 
-  base::Optional<uint32_t> StartSlice(int64_t timestamp,
-                                      TrackId track_id,
-                                      SetArgsCallback args_callback,
-                                      std::function<SliceId()> inserter);
+  base::Optional<SliceId> StartSlice(int64_t timestamp,
+                                     TrackId track_id,
+                                     SetArgsCallback args_callback,
+                                     std::function<SliceId()> inserter);
 
   base::Optional<SliceId> CompleteSlice(
       int64_t timestamp,
