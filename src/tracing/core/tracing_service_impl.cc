@@ -1348,12 +1348,19 @@ void TracingServiceImpl::ActivateTriggers(
               ? trigger_rnd_override_for_testing_
               : trigger_probability_dist_(trigger_probability_rand_);
       PERFETTO_DCHECK(trigger_rnd >= 0 && trigger_rnd < 1);
-      if (trigger_rnd < iter->skip_probability())
+      if (trigger_rnd < iter->skip_probability()) {
+        MaybeLogTriggerEvent(tracing_session.config,
+                             PerfettoTriggerAtom::kTracedLimitProbability,
+                             trigger_name);
         continue;
+      }
 
       // If we already triggered more times than the limit, silently ignore
       // this trigger.
       if (iter->max_per_24_h() > 0 && count_in_window >= iter->max_per_24_h()) {
+        MaybeLogTriggerEvent(tracing_session.config,
+                             PerfettoTriggerAtom::kTracedLimitMaxPer24h,
+                             trigger_name);
         continue;
       }
       trigger_applied = true;
@@ -3094,6 +3101,15 @@ void TracingServiceImpl::MaybeLogUploadEvent(const TraceConfig& cfg,
 
   android_stats::MaybeLogUploadEvent(atom, cfg.trace_uuid_lsb(),
                                      cfg.trace_uuid_msb(), trigger_name);
+}
+
+void TracingServiceImpl::MaybeLogTriggerEvent(const TraceConfig& cfg,
+                                              PerfettoTriggerAtom atom,
+                                              const std::string& trigger_name) {
+  // Only log events when extra guardrails are enabled.
+  if (!cfg.enable_extra_guardrails())
+    return;
+  android_stats::MaybeLogTriggerEvent(atom, trigger_name);
 }
 
 size_t TracingServiceImpl::PurgeExpiredAndCountTriggerInWindow(
