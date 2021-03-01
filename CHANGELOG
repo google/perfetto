@@ -2,7 +2,9 @@ Unreleased:
   Tracing service and probes:
     *
   Trace Processor:
-    *
+    * Added sorting mode to trace processor config to specify how trace
+      processor should sort events. The |force_full_sort| flag has been
+      deprecated (with replacement) and will be removed in the next version.
   UI:
     *
   SDK:

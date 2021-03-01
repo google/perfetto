@@ -35,6 +35,7 @@ namespace perfetto {
 namespace protos {
 namespace pbzero {
 class TracePacket_Decoder;
+class TraceConfig_Decoder;
 }  // namespace pbzero
 }  // namespace protos
 
@@ -72,6 +73,8 @@ class ProtoTraceReader : public ChunkedTraceReader {
                                 TraceBlobView trace_packet_defaults);
   void ParseInternedData(const protos::pbzero::TracePacket_Decoder&,
                          TraceBlobView interned_data);
+  void ParseTraceConfig(ConstBytes);
+
   PacketSequenceState* GetIncrementalStateForPacketSequence(
       uint32_t sequence_id) {
     if (!incremental_state)
