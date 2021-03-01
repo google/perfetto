@@ -47,6 +47,14 @@ void MaybeLogUploadEvent(PerfettoStatsdAtom atom,
   }
 }
 
+void MaybeLogTriggerEvent(PerfettoTriggerAtom atom,
+                          const std::string& trigger_name) {
+  PERFETTO_LAZY_LOAD(android_internal::StatsdLogTriggerEvent, log_event_fn);
+  if (log_event_fn) {
+    log_event_fn(atom, trigger_name.c_str());
+  }
+}
+
 void MaybeLogTriggerEvents(PerfettoTriggerAtom atom,
                            const std::vector<std::string>& triggers) {
   PERFETTO_LAZY_LOAD(android_internal::StatsdLogTriggerEvent, log_event_fn);
@@ -62,6 +70,7 @@ void MaybeLogUploadEvent(PerfettoStatsdAtom,
                          int64_t,
                          int64_t,
                          const std::string&) {}
+void MaybeLogTriggerEvent(PerfettoTriggerAtom, const std::string&) {}
 void MaybeLogTriggerEvents(PerfettoTriggerAtom,
                            const std::vector<std::string>&) {}
 #endif
