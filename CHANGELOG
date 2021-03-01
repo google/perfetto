@@ -10,6 +10,8 @@ Unreleased:
       identifier, allowing multiple independent users of the SDK in the same
       process to interleave their events on shared tracks.
     * Record process and thread names into the trace.
+    * Add ring buffer tracing support, i.e., periodic clearing of incremental
+      state.
 
 
 v12.1 - 2021-02-01:
