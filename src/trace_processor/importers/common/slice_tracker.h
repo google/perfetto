@@ -53,17 +53,16 @@ class SliceTracker {
   void BeginLegacyUnnestable(tables::SliceTable::Row row,
                              SetArgsCallback args_callback);
 
-  void BeginGpu(tables::GpuSliceTable::Row row,
-                SetArgsCallback args_callback = SetArgsCallback());
-
-  void BeginFrameEvent(tables::GraphicsFrameSliceTable::Row row,
-                       SetArgsCallback args_callback = SetArgsCallback());
-  base::Optional<SliceId> BeginFrameTimeline(
-      tables::ExpectedFrameTimelineSliceTable::Row row,
-      SetArgsCallback args_callback = SetArgsCallback());
-  base::Optional<SliceId> BeginFrameTimeline(
-      tables::ActualFrameTimelineSliceTable::Row row,
-      SetArgsCallback args_callback = SetArgsCallback());
+  template <typename Table>
+  base::Optional<SliceId> BeginTyped(
+      Table* table,
+      typename Table::Row row,
+      SetArgsCallback args_callback = SetArgsCallback()) {
+    // Ensure that the duration is pending for this row.
+    row.dur = kPendingDuration;
+    return StartSlice(row.ts, row.track_id, args_callback,
+                      [table, &row]() { return table->Insert(row).id; });
+  }
 
   // virtual for testing
   virtual base::Optional<SliceId> Scoped(
@@ -74,12 +73,15 @@ class SliceTracker {
       int64_t duration,
       SetArgsCallback args_callback = SetArgsCallback());
 
-  void ScopedGpu(const tables::GpuSliceTable::Row& row,
-                 SetArgsCallback args_callback = SetArgsCallback());
-
-  base::Optional<SliceId> ScopedFrameEvent(
-      const tables::GraphicsFrameSliceTable::Row& row,
-      SetArgsCallback args_callback = SetArgsCallback());
+  template <typename Table>
+  base::Optional<SliceId> ScopedTyped(
+      Table* table,
+      const typename Table::Row& row,
+      SetArgsCallback args_callback = SetArgsCallback()) {
+    PERFETTO_DCHECK(row.dur >= 0);
+    return StartSlice(row.ts, row.track_id, args_callback,
+                      [table, &row]() { return table->Insert(row).id; });
+  }
 
   // virtual for testing
   virtual base::Optional<SliceId> End(
@@ -104,6 +106,10 @@ class SliceTracker {
   base::Optional<SliceId> GetTopmostSliceOnTrack(TrackId track_id) const;
 
  private:
+  // Slices which have been opened but haven't been closed yet will be marked
+  // with this duration placeholder.
+  static constexpr int64_t kPendingDuration = -1;
+
   struct SliceInfo {
     uint32_t row;
     ArgsTracker args_tracker;

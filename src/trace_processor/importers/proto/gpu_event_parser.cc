@@ -480,7 +480,8 @@ void GpuEventParser::ParseGpuRenderStageEvent(
     row.submission_id = event.submission_id();
     row.hw_queue_id = static_cast<int64_t>(hw_queue_id);
 
-    context_->slice_tracker->ScopedGpu(row, args_callback);
+    context_->slice_tracker->ScopedTyped(
+        context_->storage->mutable_gpu_slice_table(), row, args_callback);
   }
 }
 
@@ -696,7 +697,8 @@ void GpuEventParser::ParseGpuLog(int64_t ts, ConstBytes blob) {
   row.track_id = track_id;
   row.name = severity_id;
   row.dur = 0;
-  context_->slice_tracker->ScopedGpu(row, args_callback);
+  context_->slice_tracker->ScopedTyped(
+      context_->storage->mutable_gpu_slice_table(), row, args_callback);
 }
 
 void GpuEventParser::ParseVulkanApiEvent(int64_t ts, ConstBytes blob) {
@@ -731,7 +733,8 @@ void GpuEventParser::ParseVulkanApiEvent(int64_t ts, ConstBytes blob) {
       inserter->AddArg(context_->storage->InternString("tid"),
                        Variadic::Integer(event.tid()));
     };
-    context_->slice_tracker->ScopedGpu(row, args_callback);
+    context_->slice_tracker->ScopedTyped(
+        context_->storage->mutable_gpu_slice_table(), row, args_callback);
   }
 }
 
