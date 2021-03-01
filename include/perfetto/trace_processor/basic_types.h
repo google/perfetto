@@ -34,13 +34,43 @@ namespace trace_processor {
 // simpler (e.g. use arrays instead of vectors).
 constexpr size_t kMaxCpus = 128;
 
+// Enum which encodes how trace processor should try to sort the ingested data.
+enum class SortingMode {
+  // This option allows trace processor to use built-in heuristics about how to
+  // sort the data. Generally, this option is correct for most embedders as
+  // trace processor reads information from the trace (e.g. TraceConfig) to make
+  // the best decision.
+  //
+  // The exact heuristics are implementation details but will ensure that all
+  // relevant tables are sorted by timestamp.
+  //
+  // This is the default mode.
+  kDefaultHeureustics = 0,
+
+  // This option forces trace processor to wait for all trace packets to be
+  // passed to it before doing a full sort of all the packets. This causes any
+  // heuristics trace processor would normally use to ingest partially sorted
+  // data to be skipped.
+  kForceFullSort = 1,
+
+  // This option forces trace processor to use the |flush_period_ms| specified
+  // in the TraceConfig to perform a windowed sort of the data. The window size
+  // is not guaranteed to be exactly |flush_period_ms| but will be of the same
+  // order of magnitude; the exact value is an implementation detail and should
+  // not be relied upon.
+  //
+  // If a |flush_period_ms| is not specified in the TraceConfig, this mode will
+  // act the same as |SortingMode::kDefaultHeureustics|.
+  kForceFlushPeriodWindowedSort = 2
+};
+
 // Enum which encodes which event (if any) should be used to drop ftrace data
 // from before this timestamp of that event.
 enum class DropFtraceDataBefore {
   // Drops ftrace data before timestmap specified by the
-  // TracingServiceEvent::tracing_started. If this packet is not in the trace,
-  // no data is dropped.
-  // Note: this event was introduced in S+ so will no data will be dropped on R-
+  // TracingServiceEvent::tracing_started packet. If this packet is not in the
+  // trace, no data is dropped.
+  // Note: this event was introduced in S+ so no data will be dropped on R-
   // traces.
   // This is the default approach.
   kTracingStarted = 0,
@@ -59,8 +89,15 @@ enum class DropFtraceDataBefore {
 // Struct for configuring a TraceProcessor instance (see trace_processor.h).
 struct PERFETTO_EXPORT Config {
   // When set to true, this option forces trace processor to perform a full
-  // sort ignoring any internal heureustics to skip sorting parts of the data.
+  // sort ignoring any internal heuristics to skip sorting parts of the data.
+  // This option was deprecated in v13 and replaced by
+  // setting |sorting_mode| to |SortingMode::kForceFullSort|
+  // This is option is scheduled to be removed in v14.
   bool force_full_sort = false;
+
+  // Indicates the sortinng mode that trace processor should use on the passed
+  // trace packets. See the enum documentation for more details.
+  SortingMode sorting_mode = SortingMode::kDefaultHeureustics;
 
   // When set to false, this option makes the trace processor not include ftrace
   // events in the raw table; this makes converting events back to the systrace

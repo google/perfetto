@@ -1048,7 +1048,9 @@ util::Status TraceProcessorMain(int argc, char** argv) {
   CommandLineOptions options = ParseCommandLineOptions(argc, argv);
 
   Config config;
-  config.force_full_sort = options.force_full_sort;
+  config.sorting_mode = options.force_full_sort
+                            ? SortingMode::kForceFullSort
+                            : SortingMode::kDefaultHeureustics;
 
   std::unique_ptr<TraceProcessor> tp = TraceProcessor::CreateInstance(config);
   g_tp = tp.get();
