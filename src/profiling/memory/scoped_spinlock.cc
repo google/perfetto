@@ -38,6 +38,10 @@ static_assert(IsPowerOfTwo(kLockAttemptsPerSleep),
 namespace perfetto {
 namespace profiling {
 
+void PoisonSpinlock(Spinlock* lock) {
+  lock->poisoned.store(true, std::memory_order_relaxed);
+}
+
 void ScopedSpinlock::LockSlow(Mode mode) {
   size_t sleeps = 0;
   // We need to start with attempt = 1, otherwise
@@ -45,8 +49,9 @@ void ScopedSpinlock::LockSlow(Mode mode) {
   for (size_t attempt = 1; mode == Mode::Blocking ||
                            attempt < kLockAttemptsPerSleep * kSleepAttempts;
        attempt++) {
-    if (!lock_->load(std::memory_order_relaxed) &&
-        PERFETTO_LIKELY(!lock_->exchange(true, std::memory_order_acquire))) {
+    if (!lock_->locked.load(std::memory_order_relaxed) &&
+        PERFETTO_LIKELY(
+            !lock_->locked.exchange(true, std::memory_order_acquire))) {
       locked_ = true;
       break;
     }
