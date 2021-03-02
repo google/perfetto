@@ -37,6 +37,9 @@ void MaybeLogUploadEvent(PerfettoStatsdAtom atom,
                          const std::string& trigger_name = "");
 
 // Logs the trigger events to statsd if built in the Android tree.
+void MaybeLogTriggerEvent(PerfettoTriggerAtom atom, const std::string& trigger);
+
+// Logs the trigger events to statsd if built in the Android tree.
 void MaybeLogTriggerEvents(PerfettoTriggerAtom atom,
                            const std::vector<std::string>& triggers);
 

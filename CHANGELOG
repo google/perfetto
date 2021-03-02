@@ -2,7 +2,9 @@ Unreleased:
   Tracing service and probes:
     *
   Trace Processor:
-    *
+    * Added sorting mode to trace processor config to specify how trace
+      processor should sort events. The |force_full_sort| flag has been
+      deprecated (with replacement) and will be removed in the next version.
   UI:
     *
   SDK:
@@ -10,6 +12,8 @@ Unreleased:
       identifier, allowing multiple independent users of the SDK in the same
       process to interleave their events on shared tracks.
     * Record process and thread names into the trace.
+    * Add ring buffer tracing support, i.e., periodic clearing of incremental
+      state.
 
 
 v12.1 - 2021-02-01:

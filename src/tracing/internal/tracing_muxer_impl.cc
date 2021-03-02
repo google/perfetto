@@ -171,11 +171,12 @@ void TracingMuxerImpl::ProducerImpl::Flush(FlushRequestID flush_id,
 }
 
 void TracingMuxerImpl::ProducerImpl::ClearIncrementalState(
-    const DataSourceInstanceID*,
-    size_t) {
+    const DataSourceInstanceID* instances,
+    size_t instance_count) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  // TODO(skyostil): Mark each affected data source's incremental state as
-  // needing to be cleared.
+  for (size_t inst_idx = 0; inst_idx < instance_count; inst_idx++) {
+    muxer_->ClearDataSourceIncrementalState(backend_id_, instances[inst_idx]);
+  }
 }
 
 void TracingMuxerImpl::ProducerImpl::SweepDeadServices() {
@@ -984,6 +985,23 @@ void TracingMuxerImpl::StopDataSource_AsyncEnd(
   producer->SweepDeadServices();
 }
 
+void TracingMuxerImpl::ClearDataSourceIncrementalState(
+    TracingBackendId backend_id,
+    DataSourceInstanceID instance_id) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  PERFETTO_DLOG("Clearing incremental state for data source %" PRIu64,
+                instance_id);
+  auto ds = FindDataSource(backend_id, instance_id);
+  if (!ds) {
+    PERFETTO_ELOG("Could not find data source to clear incremental state for");
+    return;
+  }
+  // Make DataSource::TraceContext::GetIncrementalState() eventually notice that
+  // the incremental state should be cleared.
+  ds.static_state->incremental_state_generation.fetch_add(
+      1, std::memory_order_relaxed);
+}
+
 void TracingMuxerImpl::SyncProducersForTesting() {
   std::mutex mutex;
   std::condition_variable cv;
@@ -1095,6 +1113,7 @@ void TracingMuxerImpl::UpdateDataSourcesOnAllBackends() {
 
       rds.descriptor.set_will_notify_on_start(true);
       rds.descriptor.set_will_notify_on_stop(true);
+      rds.descriptor.set_handles_incremental_state_clear(true);
       backend.producer->service_->RegisterDataSource(rds.descriptor);
       backend.producer->registered_data_sources_.set(rds.static_state->index);
     }

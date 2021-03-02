@@ -120,6 +120,8 @@ bool GraphicsFrameEventParser::CreateBufferEvent(
   track.scope = graphics_event_scope_id_;
   TrackId track_id = context_->track_tracker->InternGpuTrack(track);
 
+  auto* graphics_frame_slice_table =
+      context_->storage->mutable_graphics_frame_slice_table();
   {
     tables::GraphicsFrameSliceTable::Row row;
     row.ts = timestamp;
@@ -142,15 +144,16 @@ bool GraphicsFrameEventParser::CreateBufferEvent(
       row.acquire_to_latch_time = latch_ts - acquire_ts;
       row.latch_to_present_time = timestamp - latch_ts;
     }
-    auto slice_id = context_->slice_tracker->ScopedFrameEvent(row);
+    base::Optional<SliceId> opt_slice_id =
+        context_->slice_tracker->ScopedTyped(graphics_frame_slice_table, row);
     if (event.type() == GraphicsFrameEvent::DEQUEUE) {
-      dequeue_slice_ids_[buffer_id] = slice_id;
+      if (opt_slice_id) {
+        dequeue_slice_ids_[buffer_id] = *opt_slice_id;
+      }
     } else if (event.type() == GraphicsFrameEvent::QUEUE) {
       auto it = dequeue_slice_ids_.find(buffer_id);
       if (it != dequeue_slice_ids_.end()) {
         auto dequeue_slice_id = it->second;
-        auto* graphics_frame_slice_table =
-            context_->storage->mutable_graphics_frame_slice_table();
         uint32_t row_idx =
             *graphics_frame_slice_table->id().IndexOf(dequeue_slice_id);
         graphics_frame_slice_table->mutable_frame_number()->Set(row_idx,
@@ -164,8 +167,7 @@ bool GraphicsFrameEventParser::CreateBufferEvent(
 void GraphicsFrameEventParser::InvalidatePhaseEvent(int64_t timestamp,
                                                     TrackId track_id,
                                                     bool reset_name) {
-  const auto opt_slice_id =
-      context_->slice_tracker->EndFrameEvent(timestamp, track_id);
+  const auto opt_slice_id = context_->slice_tracker->End(timestamp, track_id);
 
   if (opt_slice_id) {
     auto* graphics_frame_slice_table =
@@ -246,8 +248,8 @@ void GraphicsFrameEventParser::CreatePhaseEvent(
     case GraphicsFrameEvent::QUEUE: {
       auto dequeue_time = dequeue_map_.find(buffer_id);
       if (dequeue_time != dequeue_map_.end()) {
-        const auto opt_slice_id = context_->slice_tracker->EndFrameEvent(
-            timestamp, dequeue_time->second);
+        const auto opt_slice_id =
+            context_->slice_tracker->End(timestamp, dequeue_time->second);
         slice_name.reset();
         slice_name.AppendUnsignedInt(frame_number);
         if (opt_slice_id) {
@@ -287,7 +289,7 @@ void GraphicsFrameEventParser::CreatePhaseEvent(
     case GraphicsFrameEvent::ACQUIRE_FENCE: {
       auto queue_time = queue_map_.find(buffer_id);
       if (queue_time != queue_map_.end()) {
-        context_->slice_tracker->EndFrameEvent(timestamp, queue_time->second);
+        context_->slice_tracker->End(timestamp, queue_time->second);
         queue_map_.erase(queue_time);
       }
       last_acquired_[buffer_id] = timestamp;
@@ -317,12 +319,12 @@ void GraphicsFrameEventParser::CreatePhaseEvent(
     case GraphicsFrameEvent::PRESENT_FENCE: {
       auto latch_time = latch_map_.find(buffer_id);
       if (latch_time != latch_map_.end()) {
-        context_->slice_tracker->EndFrameEvent(timestamp, latch_time->second);
+        context_->slice_tracker->End(timestamp, latch_time->second);
         latch_map_.erase(latch_time);
       }
       auto display_time = display_map_.find(layer_name_id);
       if (display_time != display_map_.end()) {
-        context_->slice_tracker->EndFrameEvent(timestamp, display_time->second);
+        context_->slice_tracker->End(timestamp, display_time->second);
         display_map_.erase(display_time);
       }
       base::StringView layerName(event.layer_name());
@@ -361,7 +363,8 @@ void GraphicsFrameEventParser::CreatePhaseEvent(
     }
     slice.name = context_->storage->InternString(slice_name.GetStringView());
     slice.frame_number = frame_number;
-    context_->slice_tracker->BeginFrameEvent(slice);
+    context_->slice_tracker->BeginTyped(
+        context_->storage->mutable_graphics_frame_slice_table(), slice);
   }
 }
 

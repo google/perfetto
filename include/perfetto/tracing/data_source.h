@@ -224,6 +224,13 @@ class DataSource : public DataSourceBase {
     }
 
     typename DataSourceTraits::IncrementalStateType* GetIncrementalState() {
+      // Recreate incremental state data if it has been reset by the service.
+      if (tls_inst_->incremental_state_generation !=
+          static_state_.incremental_state_generation.load(
+              std::memory_order_relaxed)) {
+        tls_inst_->incremental_state.reset();
+        CreateIncrementalState(tls_inst_);
+      }
       return reinterpret_cast<typename DataSourceTraits::IncrementalStateType*>(
           tls_inst_->incremental_state.get());
     }
@@ -384,10 +391,7 @@ class DataSource : public DataSourceBase {
         tls_inst.trace_writer = tracing_impl->CreateTraceWriter(
             &static_state_, i, instance_state,
             DataSourceType::kBufferExhaustedPolicy);
-        CreateIncrementalState(
-            &tls_inst,
-            static_cast<typename DataSourceTraits::IncrementalStateType*>(
-                nullptr));
+        CreateIncrementalState(&tls_inst);
 
         // Even in the case of out-of-IDs, SharedMemoryArbiterImpl returns a
         // NullTraceWriter. The returned pointer should never be null.
@@ -450,18 +454,29 @@ class DataSource : public DataSourceBase {
   // storage. Note: The second parameter here is used to specialize the case
   // where there is no incremental state type.
   template <typename T>
-  static void CreateIncrementalState(
+  static void CreateIncrementalStateImpl(
       internal::DataSourceInstanceThreadLocalState* tls_inst,
       const T*) {
     PERFETTO_DCHECK(!tls_inst->incremental_state);
+    tls_inst->incremental_state_generation =
+        static_state_.incremental_state_generation.load(
+            std::memory_order_relaxed);
     tls_inst->incremental_state =
         internal::DataSourceInstanceThreadLocalState::IncrementalStatePointer(
             reinterpret_cast<void*>(new T()),
             [](void* p) { delete reinterpret_cast<T*>(p); });
   }
-  static void CreateIncrementalState(
+
+  static void CreateIncrementalStateImpl(
       internal::DataSourceInstanceThreadLocalState*,
       const void*) {}
+
+  static void CreateIncrementalState(
+      internal::DataSourceInstanceThreadLocalState* tls_inst) {
+    CreateIncrementalStateImpl(
+        tls_inst,
+        static_cast<typename DataSourceTraits::IncrementalStateType*>(nullptr));
+  }
 
   // Note that the returned object is one per-thread per-data-source-type, NOT
   // per data-source *instance*.

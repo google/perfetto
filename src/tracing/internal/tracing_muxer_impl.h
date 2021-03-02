@@ -124,6 +124,7 @@ class TracingMuxerImpl : public TracingMuxer {
   void StartDataSource(TracingBackendId, DataSourceInstanceID);
   void StopDataSource_AsyncBegin(TracingBackendId, DataSourceInstanceID);
   void StopDataSource_AsyncEnd(TracingBackendId, DataSourceInstanceID);
+  void ClearDataSourceIncrementalState(TracingBackendId, DataSourceInstanceID);
   void SyncProducersForTesting();
 
   // Consumer-side bookkeeping methods.
