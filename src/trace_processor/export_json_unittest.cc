@@ -1810,27 +1810,29 @@ TEST_F(ExportJsonTest, MemorySnapshotOsDumpEvent) {
   EXPECT_EQ(region["pf"].asInt64(), kProtectionFlags);
   EXPECT_EQ(region["sa"].asString(), base::Uint64ToHexStringNoPrefix(
                                          static_cast<uint64_t>(kStartAddress)));
-  EXPECT_EQ(region["sz"].asString(),
-            base::Uint64ToHexStringNoPrefix(static_cast<uint64_t>(kSizeKb)));
+  EXPECT_EQ(
+      region["sz"].asString(),
+      base::Uint64ToHexStringNoPrefix(static_cast<uint64_t>(kSizeKb * 1024)));
   EXPECT_EQ(region["id"].asString(), kModuleDebugid);
   EXPECT_EQ(region["df"].asString(), kModuleDebugPath);
   EXPECT_EQ(region["bs"]["pc"].asString(),
             base::Uint64ToHexStringNoPrefix(
-                static_cast<uint64_t>(kPrivateCleanResidentKb)));
-  EXPECT_EQ(
-      region["bs"]["pd"].asString(),
-      base::Uint64ToHexStringNoPrefix(static_cast<uint64_t>(kPrivateDirtyKb)));
+                static_cast<uint64_t>(kPrivateCleanResidentKb * 1024)));
+  EXPECT_EQ(region["bs"]["pd"].asString(),
+            base::Uint64ToHexStringNoPrefix(
+                static_cast<uint64_t>(kPrivateDirtyKb * 1024)));
   EXPECT_EQ(region["bs"]["pss"].asString(),
             base::Uint64ToHexStringNoPrefix(
-                static_cast<uint64_t>(kProportionalResidentKb)));
+                static_cast<uint64_t>(kProportionalResidentKb * 1024)));
   EXPECT_EQ(region["bs"]["sc"].asString(),
             base::Uint64ToHexStringNoPrefix(
-                static_cast<uint64_t>(kSharedCleanResidentKb)));
+                static_cast<uint64_t>(kSharedCleanResidentKb * 1024)));
   EXPECT_EQ(region["bs"]["sd"].asString(),
             base::Uint64ToHexStringNoPrefix(
-                static_cast<uint64_t>(kSharedDirtyResidentKb)));
-  EXPECT_EQ(region["bs"]["sw"].asString(),
-            base::Uint64ToHexStringNoPrefix(static_cast<uint64_t>(kSwapKb)));
+                static_cast<uint64_t>(kSharedDirtyResidentKb * 1024)));
+  EXPECT_EQ(
+      region["bs"]["sw"].asString(),
+      base::Uint64ToHexStringNoPrefix(static_cast<uint64_t>(kSwapKb * 1024)));
 }
 
 TEST_F(ExportJsonTest, MemorySnapshotChromeDumpEvent) {
