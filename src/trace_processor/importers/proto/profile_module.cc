@@ -40,6 +40,7 @@ using protozero::ConstBytes;
 ProfileModule::ProfileModule(TraceProcessorContext* context)
     : context_(context) {
   RegisterForField(TracePacket::kStreamingProfilePacketFieldNumber, context);
+  RegisterForField(TracePacket::kPerfSampleFieldNumber, context);
 }
 
 ProfileModule::~ProfileModule() = default;
@@ -66,6 +67,11 @@ void ProfileModule::ParsePacket(const TracePacket::Decoder& decoder,
       ParseStreamingProfilePacket(ttp.timestamp,
                                   ttp.packet_data.sequence_state.get(),
                                   decoder.streaming_profile_packet());
+      return;
+    case TracePacket::kPerfSampleFieldNumber:
+      PERFETTO_DCHECK(ttp.type == TimestampedTracePiece::Type::kTracePacket);
+      ParsePerfSample(ttp.timestamp, ttp.packet_data.sequence_state.get(),
+                      decoder.perf_sample());
       return;
   }
 }
@@ -146,6 +152,77 @@ void ProfileModule::ParseStreamingProfilePacket(
         timestamp, *opt_cs_id, utid, packet.process_priority()};
     storage->mutable_cpu_profile_stack_sample_table()->Insert(sample_row);
   }
+}
+
+void ProfileModule::ParsePerfSample(
+    int64_t ts,
+    PacketSequenceStateGeneration* sequence_state,
+    ConstBytes blob) {
+  using PerfSample = protos::pbzero::PerfSample;
+  PerfSample::Decoder sample(blob.data, blob.size);
+
+  // Not a sample, but an indication of data loss in the ring buffer shared with
+  // the kernel.
+  if (sample.kernel_records_lost() > 0) {
+    PERFETTO_DCHECK(sample.pid() == 0);
+
+    context_->storage->IncrementIndexedStats(
+        stats::perf_cpu_lost_records, static_cast<int>(sample.cpu()),
+        static_cast<int64_t>(sample.kernel_records_lost()));
+    return;
+  }
+
+  // Sample that looked relevant for the tracing session, but had to be skipped.
+  // Either we failed to look up the procfs file descriptors necessary for
+  // remote stack unwinding (not unexpected in most cases), or the unwind queue
+  // was out of capacity (producer lost data on its own).
+  if (sample.has_sample_skipped_reason()) {
+    context_->storage->IncrementStats(stats::perf_samples_skipped);
+
+    if (sample.sample_skipped_reason() ==
+        PerfSample::PROFILER_SKIP_UNWIND_ENQUEUE)
+      context_->storage->IncrementStats(stats::perf_samples_skipped_dataloss);
+
+    return;
+  }
+
+  // Proper sample, though possibly with an incomplete stack unwind.
+  SequenceStackProfileTracker& stack_tracker =
+      sequence_state->state()->sequence_stack_profile_tracker();
+  ProfilePacketInternLookup intern_lookup(sequence_state);
+
+  uint64_t callstack_iid = sample.callstack_iid();
+  base::Optional<CallsiteId> cs_id =
+      stack_tracker.FindOrInsertCallstack(callstack_iid, &intern_lookup);
+  // TODO(rsavitski): make the callsite optional in the table, as we're
+  // starting to support counter-only samples, for which an empty callsite is
+  // not an error. On the other hand, if we could classify a sequence as
+  // requiring stack samples, then this would still count as an error.
+  // For now, use an invalid callsite id.
+  if (!cs_id) {
+    cs_id = base::make_optional<CallsiteId>(static_cast<uint32_t>(-1));
+  }
+
+  UniqueTid utid =
+      context_->process_tracker->UpdateThread(sample.tid(), sample.pid());
+
+  using protos::pbzero::Profiling;
+  TraceStorage* storage = context_->storage.get();
+
+  auto cpu_mode = static_cast<Profiling::CpuMode>(sample.cpu_mode());
+  StringPool::Id cpu_mode_id =
+      storage->InternString(ProfilePacketUtils::StringifyCpuMode(cpu_mode));
+
+  base::Optional<StringPool::Id> unwind_error_id;
+  if (sample.has_unwind_error()) {
+    auto unwind_error =
+        static_cast<Profiling::StackUnwindError>(sample.unwind_error());
+    unwind_error_id = storage->InternString(
+        ProfilePacketUtils::StringifyStackUnwindError(unwind_error));
+  }
+  tables::PerfSampleTable::Row sample_row{
+      ts, cs_id.value(), utid, sample.cpu(), cpu_mode_id, unwind_error_id};
+  context_->storage->mutable_perf_sample_table()->Insert(sample_row);
 }
 
 }  // namespace trace_processor
