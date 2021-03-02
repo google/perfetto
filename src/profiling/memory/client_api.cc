@@ -126,26 +126,12 @@ AHeapInfo& GetHeap(uint32_t id) {
 // We rely on this atomic's destuction being a nop, as it is possible for the
 // hooks to attempt to acquire the spinlock after its destructor should have run
 // (technically a use-after-destruct scenario).
-static_assert(std::is_trivially_destructible<std::atomic<bool>>::value,
-              "lock must be trivially destructible.");
-std::atomic<bool> g_client_lock{false};
+static_assert(
+    std::is_trivially_destructible<perfetto::profiling::Spinlock>::value,
+    "lock must be trivially destructible.");
+perfetto::profiling::Spinlock g_client_lock{};
 
 std::atomic<uint32_t> g_next_heap_id{kMinHeapId};
-
-// Called only if |g_client_lock| acquisition fails, which shouldn't happen
-// unless we're in a completely unexpected state (which we won't know how to
-// recover from). Tries to abort (SIGABRT) the whole process to serve as an
-// explicit indication of a bug.
-//
-// Doesn't use PERFETTO_FATAL as that is a single attempt to self-signal (in
-// practice - SIGTRAP), while abort() tries to make sure the process has
-// exited one way or another.
-__attribute__((noreturn, noinline)) void AbortOnSpinlockTimeout() {
-  PERFETTO_ELOG(
-      "Timed out on the spinlock - something is horribly wrong. "
-      "Aborting whole process.");
-  abort();
-}
 
 void DisableAllHeaps() {
   for (uint32_t i = kMinHeapId; i < g_next_heap_id.load(); ++i) {
@@ -162,12 +148,26 @@ void DisableAllHeaps() {
   }
 }
 
+void OnSpinlockTimeout() {
+  // Give up on profiling the process but leave it running.
+  // The process enters into a poisoned state and will reject all
+  // subsequent profiling requests.  The current session is kept
+  // running but no samples are reported to it.
+  PERFETTO_ELOG(
+      "Timed out on the spinlock - something is horribly wrong. "
+      "Leaking heapprofd client.");
+  DisableAllHeaps();
+  perfetto::profiling::PoisonSpinlock(&g_client_lock);
+}
+
 // Note: g_client can be reset by AHeapProfile_initSession without calling this
 // function.
 void ShutdownLazy(const std::shared_ptr<perfetto::profiling::Client>& client) {
   ScopedSpinlock s(&g_client_lock, ScopedSpinlock::Mode::Try);
-  if (PERFETTO_UNLIKELY(!s.locked()))
-    AbortOnSpinlockTimeout();
+  if (PERFETTO_UNLIKELY(!s.locked())) {
+    OnSpinlockTimeout();
+    return;
+  }
 
   // other invocation already initiated shutdown
   if (*GetClientLocked() != client)
@@ -247,7 +247,8 @@ void AtForkChild() {
   // the spinlock. We're now the only thread post-fork, so we can reset the
   // spinlock, though the state it protects (the |g_client| shared_ptr) might
   // not be in a consistent state.
-  g_client_lock.store(false);
+  g_client_lock.locked.store(false);
+  g_client_lock.poisoned.store(false);
 
   DisableAllHeaps();
 
@@ -330,8 +331,10 @@ __attribute__((visibility("default"))) uint32_t AHeapProfile_registerHeap(
   std::shared_ptr<perfetto::profiling::Client> client;
   {
     ScopedSpinlock s(&g_client_lock, ScopedSpinlock::Mode::Try);
-    if (PERFETTO_UNLIKELY(!s.locked()))
-      AbortOnSpinlockTimeout();
+    if (PERFETTO_UNLIKELY(!s.locked())) {
+      OnSpinlockTimeout();
+      return 0;
+    }
 
     client = *GetClientLocked();
   }
@@ -341,8 +344,10 @@ __attribute__((visibility("default"))) uint32_t AHeapProfile_registerHeap(
     uint64_t interval = MaybeToggleHeap(heap_id, client.get());
     if (interval) {
       ScopedSpinlock s(&g_client_lock, ScopedSpinlock::Mode::Try);
-      if (PERFETTO_UNLIKELY(!s.locked()))
-        AbortOnSpinlockTimeout();
+      if (PERFETTO_UNLIKELY(!s.locked())) {
+        OnSpinlockTimeout();
+        return 0;
+      }
       info->sampler.SetSamplingInterval(interval);
     }
   }
@@ -359,8 +364,10 @@ AHeapProfile_reportAllocation(uint32_t heap_id, uint64_t id, uint64_t size) {
   std::shared_ptr<perfetto::profiling::Client> client;
   {
     ScopedSpinlock s(&g_client_lock, ScopedSpinlock::Mode::Try);
-    if (PERFETTO_UNLIKELY(!s.locked()))
-      AbortOnSpinlockTimeout();
+    if (PERFETTO_UNLIKELY(!s.locked())) {
+      OnSpinlockTimeout();
+      return false;
+    }
 
     auto* g_client_ptr = GetClientLocked();
     if (!*g_client_ptr)  // no active client (most likely shutting down)
@@ -408,8 +415,10 @@ AHeapProfile_reportSample(uint32_t heap_id, uint64_t id, uint64_t size) {
   std::shared_ptr<perfetto::profiling::Client> client;
   {
     ScopedSpinlock s(&g_client_lock, ScopedSpinlock::Mode::Try);
-    if (PERFETTO_UNLIKELY(!s.locked()))
-      AbortOnSpinlockTimeout();
+    if (PERFETTO_UNLIKELY(!s.locked())) {
+      OnSpinlockTimeout();
+      return false;
+    }
 
     auto* g_client_ptr = GetClientLocked();
     if (!*g_client_ptr)  // no active client (most likely shutting down)
@@ -439,8 +448,10 @@ __attribute__((visibility("default"))) void AHeapProfile_reportFree(
   std::shared_ptr<perfetto::profiling::Client> client;
   {
     ScopedSpinlock s(&g_client_lock, ScopedSpinlock::Mode::Try);
-    if (PERFETTO_UNLIKELY(!s.locked()))
-      AbortOnSpinlockTimeout();
+    if (PERFETTO_UNLIKELY(!s.locked())) {
+      OnSpinlockTimeout();
+      return;
+    }
 
     client = *GetClientLocked();  // owning copy (or empty)
     if (!client)
@@ -474,8 +485,10 @@ __attribute__((visibility("default"))) bool AHeapProfile_initSession(
   std::shared_ptr<perfetto::profiling::Client> old_client;
   {
     ScopedSpinlock s(&g_client_lock, ScopedSpinlock::Mode::Try);
-    if (PERFETTO_UNLIKELY(!s.locked()))
-      AbortOnSpinlockTimeout();
+    if (PERFETTO_UNLIKELY(!s.locked())) {
+      OnSpinlockTimeout();
+      return false;
+    }
 
     auto* g_client_ptr = GetClientLocked();
     if (*g_client_ptr && (*g_client_ptr)->IsConnected()) {
@@ -514,8 +527,10 @@ __attribute__((visibility("default"))) bool AHeapProfile_initSession(
   PERFETTO_LOG("%s: heapprofd_client initialized.", getprogname());
   {
     ScopedSpinlock s(&g_client_lock, ScopedSpinlock::Mode::Try);
-    if (PERFETTO_UNLIKELY(!s.locked()))
-      AbortOnSpinlockTimeout();
+    if (PERFETTO_UNLIKELY(!s.locked())) {
+      OnSpinlockTimeout();
+      return false;
+    }
 
     // This needs to happen under the lock for mutual exclusion regarding the
     // random engine.
