@@ -2,11 +2,35 @@ Unreleased:
   Tracing service and probes:
     *
   Trace Processor:
+    *
+  UI:
+    *
+
+
+v13.0 - 2021-03-01:
+  Tracing service and probes:
+    * Added ability to sample callstacks using kernel tracepoints as timebase.
+    * Added abililty to record the perf timebase counter values into the trace,
+      both combined callstack+counter or counter-only.
+    * Added abillity to trigger traces based on VM pressure on Android. Requires
+      a dedicated tracing instance in $tracefs/instances/mm_events.
+  Trace Processor:
     * Added sorting mode to trace processor config to specify how trace
       processor should sort events. The |force_full_sort| flag has been
       deprecated (with replacement) and will be removed in the next version.
+    * Added ingestion of frame timeline events into the
+      {expected,actual}_frame_timeline_slice tables.
+    * Added support for Mali's trace_marker_write ftrace event.
+    * Added memory metric based on newer android_fastrpc kernel events.
   UI:
-    *
+    * Added flow events support for instant events and async tracks.
+    * Added support for Android frame timeline events. They allow inspecting
+      end-to-end expected vs actual app-to-surfaceflinger frame times.
+    * Added ability to switch between Canary and Stable channels in the UI.
+    * Added ability to drag&drop to open trace files.
+    * Changed UI serving infrastructure, old ui versions can be now retrieved by
+      directly opening https://ui.perfetto.dev/v12.1.269/ .
+    * Removed thread state track for threads that have no activity.
   SDK:
     * Use process start time hashed with the process id as a unique process
       identifier, allowing multiple independent users of the SDK in the same
@@ -14,6 +38,8 @@ Unreleased:
     * Record process and thread names into the trace.
     * Add ring buffer tracing support, i.e., periodic clearing of incremental
       state.
+  Misc:
+    * Convert python scripts to python3.
 
 
 v12.1 - 2021-02-01:
