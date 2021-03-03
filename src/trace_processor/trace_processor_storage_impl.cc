@@ -42,11 +42,6 @@ namespace trace_processor {
 TraceProcessorStorageImpl::TraceProcessorStorageImpl(const Config& cfg) {
   context_.config = cfg;
 
-  // TODO(lalitm): remove this code when Config::force_full_sort is removed.
-  if (cfg.force_full_sort) {
-    context_.config.sorting_mode = SortingMode::kForceFullSort;
-  }
-
   context_.storage.reset(new TraceStorage(context_.config));
   context_.track_tracker.reset(new TrackTracker(&context_));
   context_.async_track_set_tracker.reset(new AsyncTrackSetTracker(&context_));
