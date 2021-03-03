@@ -7773,6 +7773,8 @@ filegroup {
     "src/trace_processor/importers/ninja/ninja_log_parser.cc",
     "src/trace_processor/importers/proto/args_table_utils.cc",
     "src/trace_processor/importers/proto/async_track_set_tracker.cc",
+    "src/trace_processor/importers/proto/chrome_system_probes_module.cc",
+    "src/trace_processor/importers/proto/chrome_system_probes_parser.cc",
     "src/trace_processor/importers/proto/heap_profile_tracker.cc",
     "src/trace_processor/importers/proto/memory_tracker_snapshot_module.cc",
     "src/trace_processor/importers/proto/memory_tracker_snapshot_parser.cc",
