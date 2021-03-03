@@ -63,6 +63,14 @@ CREATE TABLE {{table_name_prefix}}_main_thread_slices AS
   JOIN {{table_name_prefix}}_main_thread thread USING (utid)
   WHERE dur > 0;
 
+DROP VIEW IF EXISTS {{table_name_prefix}}_do_frame_slices;
+CREATE VIEW {{table_name_prefix}}_do_frame_slices AS
+  SELECT
+    *,
+    CAST(STR_SPLIT(name, ' ', 1) AS INTEGER) as vsync
+  FROM {{table_name_prefix}}_main_thread_slices
+  WHERE name LIKE 'Choreographer#doFrame%';
+
 DROP TABLE IF EXISTS {{table_name_prefix}}_render_thread_slices;
 CREATE TABLE {{table_name_prefix}}_render_thread_slices AS
   SELECT
@@ -74,6 +82,14 @@ CREATE TABLE {{table_name_prefix}}_render_thread_slices AS
   JOIN thread_track ON slice.track_id = thread_track.id
   JOIN {{table_name_prefix}}_render_thread thread USING (utid)
   WHERE dur > 0;
+
+DROP VIEW IF EXISTS {{table_name_prefix}}_draw_frame_slices;
+CREATE VIEW {{table_name_prefix}}_draw_frame_slices AS
+  SELECT
+    *,
+    CAST(STR_SPLIT(name, ' ', 1) AS INTEGER) as vsync
+  FROM {{table_name_prefix}}_render_thread_slices
+  WHERE name LIKE 'DrawFrame%';
 
 DROP VIEW IF EXISTS {{table_name_prefix}}_gpu_completion_slices;
 CREATE VIEW {{table_name_prefix}}_gpu_completion_slices AS
