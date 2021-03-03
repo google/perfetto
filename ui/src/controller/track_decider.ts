@@ -906,7 +906,7 @@ class TrackDecider {
     left join thread using(utid)
     left join process using(upid)
     order by
-      hasHeapProfiles,
+      hasHeapProfiles desc,
       total_dur desc,
       total_cycles desc,
       the_tracks.upid,
