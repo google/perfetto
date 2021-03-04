@@ -229,6 +229,7 @@ additional_args = {
         '//apex_available:platform',
         'com.android.art',
         'com.android.art.debug'}),
+      ('min_sdk_version', 'S'),
       ('shared_libs', {'liblog'}),
       ('export_include_dirs', {'include', buildflags_dir}),
     ],
@@ -237,6 +238,7 @@ additional_args = {
         '//apex_available:platform',
         'com.android.art',
         'com.android.art.debug'}),
+      ('min_sdk_version', 'S'),
     ],
     'libperfetto': [
       ('export_include_dirs', {'include', buildflags_dir}),
@@ -463,6 +465,7 @@ class Module(object):
     self.strip = dict()
     self.data = set()
     self.apex_available = set()
+    self.min_sdk_version = None
     # The genrule_XXX below are properties that must to be propagated back
     # on the module(s) that depend on the genrule.
     self.genrule_headers = set()
@@ -501,6 +504,7 @@ class Module(object):
     self._output_field(output, 'data')
     self._output_field(output, 'stl')
     self._output_field(output, 'apex_available')
+    self._output_field(output, 'min_sdk_version')
     self._output_field(output, 'version_script')
     self._output_field(output, 'test_suites')
     self._output_field(output, 'test_config')
