@@ -842,6 +842,7 @@ cc_library_static {
     "com.android.art",
     "com.android.art.debug",
   ],
+  min_sdk_version: "S",
 }
 
 // GN: //src/perfetto_cmd:perfetto
@@ -8677,6 +8678,7 @@ cc_library_static {
     "com.android.art",
     "com.android.art.debug",
   ],
+  min_sdk_version: "S",
 }
 
 // GN: //:perfetto_unittests
