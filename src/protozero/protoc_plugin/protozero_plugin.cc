@@ -275,6 +275,9 @@ class GeneratorJob {
         messages_.push_back(message);
         for (int i = 0; i < message->nested_type_count(); ++i) {
           stack.push_back(message->nested_type(i));
+          // Emit a forward declaration of nested message types, as the outer
+          // class will refer to them when creating type aliases.
+          referenced_messages_.insert(message->nested_type(i));
         }
       }
     }
