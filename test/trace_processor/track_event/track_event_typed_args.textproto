@@ -136,3 +136,21 @@ packet {
     [perfetto.protos.ChromeTrackEvent.chrome_app_state]: APP_STATE_FOREGROUND
   }
 }
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 7000
+  track_event {
+    track_uuid: 1
+    categories: "cat"
+    name: "name6"
+    type: 3
+    source_location_iid: 1
+  }
+  interned_data: {
+    source_locations: {
+      iid: 1
+      file_name: "source.cc"
+      function_name: "SourceFunction"
+    }
+  }
+}
