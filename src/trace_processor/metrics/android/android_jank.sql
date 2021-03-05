@@ -148,8 +148,8 @@ JOIN android_jank_view_draw_slices_high_cpu USING (id);
 
 -- Scheduling delay and Blocking I/O delay
 
-DROP TABLE IF EXISTS android_jank_do_frame_slices;
-CREATE TABLE android_jank_do_frame_slices AS
+DROP TABLE IF EXISTS android_jank_long_do_frame_slices;
+CREATE TABLE android_jank_long_do_frame_slices AS
 SELECT
   process_name,
   utid,
@@ -161,7 +161,7 @@ WHERE name = 'Choreographer#doFrame'
 AND dur >= 5000000;
 
 CREATE VIRTUAL TABLE IF NOT EXISTS android_jank_do_frame_slices_state_scheduled
-USING span_join(android_jank_do_frame_slices PARTITIONED utid, android_jank_thread_state_scheduled PARTITIONED utid);
+USING span_join(android_jank_long_do_frame_slices PARTITIONED utid, android_jank_thread_state_scheduled PARTITIONED utid);
 
 
 DROP TABLE IF EXISTS android_jank_do_frame_slices_long_scheduled;
@@ -177,11 +177,11 @@ SELECT
   ts,
   dur,
   'Scheduling delay' as alert_name
-FROM android_jank_do_frame_slices
+FROM android_jank_long_do_frame_slices
 JOIN android_jank_do_frame_slices_long_scheduled USING (id);
 
 CREATE VIRTUAL TABLE IF NOT EXISTS android_jank_do_frame_slices_state_io_wait
-USING span_join(android_jank_do_frame_slices PARTITIONED utid, android_jank_thread_state_io_wait PARTITIONED utid);
+USING span_join(android_jank_long_do_frame_slices PARTITIONED utid, android_jank_thread_state_io_wait PARTITIONED utid);
 
 DROP TABLE IF EXISTS android_jank_do_frame_slices_long_io_wait;
 CREATE TABLE android_jank_do_frame_slices_long_io_wait AS
