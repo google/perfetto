@@ -126,9 +126,10 @@ int player_number = 1;
 TRACE_EVENT("rendering", "DrawPlayer", "player_number", player_number);
 ```
 
-For more complex arguments, you can define [your own protobuf
-messages](/protos/perfetto/trace/track_event/track_event.proto) and emit
-them as a parameter for the event.
+See [below](#track-event-arguments) for the other types of supported track
+event arguments. For more complex arguments, you can define [your own
+protobuf messages](/protos/perfetto/trace/track_event/track_event.proto) and
+emit them as a parameter for the event.
 
 NOTE: Currently custom protobuf messages need to be added directly to the
       Perfetto repository under `protos/perfetto/trace`, and Perfetto itself
@@ -319,6 +320,96 @@ figures:
 | `DataSource::Trace(<lambda>)`              | 133 ns | 58 ns  |
 
 ## Advanced topics
+
+### Track event arguments
+
+The following optional arguments can be passed to `TRACE_EVENT` to add extra
+information to events:
+
+```C++
+TRACE_EVENT("cat", "name"[, track][, timestamp][, lambda]);
+```
+
+or
+
+```C++
+TRACE_EVENT("cat", "name"[, track][, timestamp]
+                         [, "debug_name1", debug_value1]
+                         [, "debug_name2", debug_value2]);
+```
+
+Some examples of valid combinations:
+
+1. A lambda for writing custom TrackEvent fields:
+
+   ```C++
+     TRACE_EVENT("category", "Name", [&](perfetto::EventContext ctx) {
+       ctx.event()->set_custom_value(...);
+     });
+   ```
+
+2. A timestamp and a lambda:
+
+   ```C++
+     TRACE_EVENT("category", "Name", time_in_nanoseconds,
+         [&](perfetto::EventContext ctx) {
+       ctx.event()->set_custom_value(...);
+     });
+   ```
+
+   |time_in_nanoseconds| should be an uint64_t by default. See
+   |ConvertTimestampToTraceTimeNs| on how to use custom timestamp types.
+
+3. Up to two debug annotations:
+
+   ```C++
+     TRACE_EVENT("category", "Name", "arg", value);
+     TRACE_EVENT("category", "Name", "arg", value, "arg2", value2);
+   ```
+
+   See |TracedValue| for recording custom types as debug annotations.
+
+4. An overridden track:
+
+   ```C++
+     TRACE_EVENT("category", "Name", perfetto::Track(1234));
+   ```
+
+   See |Track| for other types of tracks which may be used.
+
+5. A track and a lambda:
+
+   ```C++
+     TRACE_EVENT("category", "Name", perfetto::Track(1234),
+         [&](perfetto::EventContext ctx) {
+       ctx.event()->set_custom_value(...);
+     });
+   ```
+
+6. A track and a timestamp:
+
+   ```C++
+     TRACE_EVENT("category", "Name", perfetto::Track(1234),
+         time_in_nanoseconds);
+   ```
+
+7. A track, a timestamp and a lambda:
+
+   ```C++
+     TRACE_EVENT("category", "Name", perfetto::Track(1234),
+         time_in_nanoseconds, [&](perfetto::EventContext ctx) {
+       ctx.event()->set_custom_value(...);
+     });
+   ```
+
+8. A track and up to two debug annotions:
+
+   ```C++
+     TRACE_EVENT("category", "Name", perfetto::Track(1234),
+                 "arg", value);
+     TRACE_EVENT("category", "Name", perfetto::Track(1234),
+                 "arg", value, "arg2", value2);
+   ```
 
 ### Tracks
 
