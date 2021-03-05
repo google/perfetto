@@ -266,6 +266,72 @@ constexpr bool IsStaticString(...) {
 //    ctx.event()->set_name(dynamic_name);
 //  });
 //
+// The following optional arguments can be passed to `TRACE_EVENT` to add extra
+// information to events:
+//
+//  TRACE_EVENT("cat", "name"[, track][, timestamp][, lambda]);
+//
+//  TRACE_EVENT("cat", "name"[, track][, timestamp]
+//                           [, "debug_name1", debug_value1]
+//                           [, "debug_name2", debug_value2]);
+//
+// Some examples of valid combinations:
+//
+// 1. A lambda for writing custom TrackEvent fields:
+//
+//   TRACE_EVENT("category", "Name", [&](perfetto::EventContext ctx) {
+//     ctx.event()->set_custom_value(...);
+//   });
+//
+// 2. A timestamp and a lambda:
+//
+//   TRACE_EVENT("category", "Name", time_in_nanoseconds,
+//       [&](perfetto::EventContext ctx) {
+//     ctx.event()->set_custom_value(...);
+//   });
+//
+//   |time_in_nanoseconds| should be an uint64_t by default. See
+//   |ConvertTimestampToTraceTimeNs| on how to use custom timestamp types.
+//
+// 3. Up to two debug annotations:
+//
+//   TRACE_EVENT("category", "Name", "arg", value);
+//   TRACE_EVENT("category", "Name", "arg", value, "arg2", value2);
+//
+//   See |TracedValue| for recording custom types as debug annotations.
+//
+// 4. An overridden track:
+//
+//   TRACE_EVENT("category", "Name", perfetto::Track(1234));
+//
+//   See |Track| for other types of tracks which may be used.
+//
+// 5. A track and a lambda:
+//
+//   TRACE_EVENT("category", "Name", perfetto::Track(1234),
+//       [&](perfetto::EventContext ctx) {
+//     ctx.event()->set_custom_value(...);
+//   });
+//
+// 6. A track and a timestamp:
+//
+//   TRACE_EVENT("category", "Name", perfetto::Track(1234),
+//       time_in_nanoseconds);
+//
+// 7. A track, a timestamp and a lambda:
+//
+//   TRACE_EVENT("category", "Name", perfetto::Track(1234),
+//       time_in_nanoseconds, [&](perfetto::EventContext ctx) {
+//     ctx.event()->set_custom_value(...);
+//   });
+//
+// 8. A track and up to two debug annotions:
+//
+//   TRACE_EVENT("category", "Name", perfetto::Track(1234),
+//       "arg", value);
+//   TRACE_EVENT("category", "Name", perfetto::Track(1234),
+//       "arg", value, "arg2", value2);
+//
 #define TRACE_EVENT_BEGIN(category, name, ...)    \
   PERFETTO_INTERNAL_TRACK_EVENT(                  \
       category, PERFETTO_GET_STATIC_STRING(name), \
