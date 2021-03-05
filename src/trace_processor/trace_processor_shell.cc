@@ -1050,7 +1050,7 @@ util::Status TraceProcessorMain(int argc, char** argv) {
   Config config;
   config.sorting_mode = options.force_full_sort
                             ? SortingMode::kForceFullSort
-                            : SortingMode::kDefaultHeureustics;
+                            : SortingMode::kDefaultHeuristics;
 
   std::unique_ptr<TraceProcessor> tp = TraceProcessor::CreateInstance(config);
   g_tp = tp.get();

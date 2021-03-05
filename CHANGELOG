@@ -2,7 +2,8 @@ Unreleased:
   Tracing service and probes:
     *
   Trace Processor:
-    *
+    * Remove |force_full_sort| flag from config. This has been replaced
+      by setting the sorting mode to force a full sort.
   UI:
     *
 
