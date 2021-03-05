@@ -260,7 +260,9 @@ void ProtoTraceReader::ParseTraceConfig(protozero::ConstBytes blob) {
     return;
   }
 
-  PERFETTO_DCHECK(cfg.sorting_mode == SortingMode::kDefaultHeureustics);
+  // If we end up here, we should use heuristics because either the sorting mode
+  // was set as such or we don't have a flush period to force the window size
+  // to.
 
   // If we're not forcing anything and this is a write_into_file trace, then
   // use flush_period_ms as an indiciator for how big the sliding window for the
