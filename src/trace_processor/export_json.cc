@@ -643,6 +643,14 @@ class JsonExporter {
           if (args["task"].empty())
             args.removeMember("task");
         }
+        if (args.isMember("source")) {
+          Json::Value source = args["source"];
+          if (source.isObject() && source.isMember("function_name")) {
+            args["function_name"] = source["function_name"];
+            args["file_name"] = source["file_name"];
+            args.removeMember("source");
+          }
+        }
       }
     }
 

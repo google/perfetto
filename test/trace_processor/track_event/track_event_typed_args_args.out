@@ -16,3 +16,7 @@
 "nested_message_extension_for_testing.child_field_for_testing","nested_message_extension_for_testing.child_field_for_testing","[NULL]","nesting test"
 "string_extension_for_testing","string_extension_for_testing","[NULL]","an extension string!"
 "chrome_app_state","chrome_app_state","[NULL]","APP_STATE_FOREGROUND"
+"source.file_name","source.file_name","[NULL]","source.cc"
+"source.function_name","source.function_name","[NULL]","SourceFunction"
+"source.line_number","source.line_number",0,"[NULL]"
+"source_location_iid","source_location_iid",1,"[NULL]"
