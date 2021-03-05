@@ -1012,6 +1012,10 @@ class TrackEventParser::EventImporter {
       log_errors(ParseDebugAnnotationArgs(*it, inserter));
     }
 
+    if (event_.has_source_location_iid()) {
+      log_errors(AddSourceLocationArgs(event_.source_location_iid(), inserter));
+    }
+
     if (event_.has_task_execution()) {
       log_errors(ParseTaskExecutionArgs(event_.task_execution(), inserter));
     }
@@ -1186,6 +1190,33 @@ class TrackEventParser::EventImporter {
     return util::OkStatus();
   }
 
+  util::Status AddSourceLocationArgs(uint64_t iid, BoundInserter* inserter) {
+    if (!iid)
+      return util::ErrStatus("SourceLocation with invalid iid");
+
+    auto* decoder = sequence_state_->LookupInternedMessage<
+        protos::pbzero::InternedData::kSourceLocationsFieldNumber,
+        protos::pbzero::SourceLocation>(iid);
+    if (!decoder)
+      return util::ErrStatus("SourceLocation with invalid iid");
+
+    StringId file_name_id = kNullStringId;
+    StringId function_name_id = kNullStringId;
+    uint32_t line_number = 0;
+
+    file_name_id = storage_->InternString(decoder->file_name());
+    function_name_id = storage_->InternString(decoder->function_name());
+    line_number = decoder->line_number();
+
+    inserter->AddArg(parser_->source_location_file_name_key_id_,
+                     Variadic::String(file_name_id));
+    inserter->AddArg(parser_->source_location_function_name_key_id_,
+                     Variadic::String(function_name_id));
+    inserter->AddArg(parser_->source_location_line_number_key_id_,
+                     Variadic::UnsignedInteger(line_number));
+    return util::OkStatus();
+  }
+
   util::Status ParseLogMessage(ConstBytes blob, BoundInserter* inserter) {
     if (!utid_)
       return util::ErrStatus("LogMessage without thread association");
@@ -1281,6 +1312,12 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
           context->storage->InternString("task.posted_from.line_number")),
       log_message_body_key_id_(
           context->storage->InternString("track_event.log_message")),
+      source_location_function_name_key_id_(
+          context->storage->InternString("source.function_name")),
+      source_location_file_name_key_id_(
+          context->storage->InternString("source.file_name")),
+      source_location_line_number_key_id_(
+          context->storage->InternString("source.line_number")),
       raw_legacy_event_id_(
           context->storage->InternString("track_event.legacy_event")),
       legacy_event_passthrough_utid_id_(

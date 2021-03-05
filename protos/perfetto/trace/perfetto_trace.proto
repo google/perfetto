@@ -6784,8 +6784,6 @@ message TrackEvent {
   oneof source_location_field {
     // Non-interned field.
     SourceLocation source_location = 33;
-    // TODO(ssid): The interned source locations are not parsed by trace
-    // processor.
     // Interned field.
     uint64 source_location_iid = 34;
   }
