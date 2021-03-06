@@ -49,9 +49,21 @@ SELECT slices.* FROM android_sysui_cuj_main_thread_slices slices
 JOIN android_sysui_cuj_last_cuj last_cuj
 ON ts >= last_cuj.ts_start AND ts <= last_cuj.ts_end;
 
+DROP TABLE IF EXISTS android_sysui_cuj_do_frame_slices_in_cuj;
+CREATE TABLE android_sysui_cuj_do_frame_slices_in_cuj AS
+SELECT slices.* FROM android_sysui_cuj_do_frame_slices slices
+JOIN android_sysui_cuj_last_cuj last_cuj
+ON ts >= last_cuj.ts_start AND ts <= last_cuj.ts_end;
+
 DROP TABLE IF EXISTS android_sysui_cuj_render_thread_slices_in_cuj;
 CREATE TABLE android_sysui_cuj_render_thread_slices_in_cuj AS
 SELECT slices.* FROM android_sysui_cuj_render_thread_slices slices
+JOIN android_sysui_cuj_last_cuj last_cuj
+ON ts >= last_cuj.ts_start AND ts <= last_cuj.ts_end;
+
+DROP TABLE IF EXISTS android_sysui_cuj_draw_frame_slices_in_cuj;
+CREATE TABLE android_sysui_cuj_draw_frame_slices_in_cuj AS
+SELECT slices.* FROM android_sysui_cuj_draw_frame_slices slices
 JOIN android_sysui_cuj_last_cuj last_cuj
 ON ts >= last_cuj.ts_start AND ts <= last_cuj.ts_end;
 
@@ -103,7 +115,7 @@ CREATE TABLE android_sysui_cuj_frames AS
     JOIN android_sysui_cuj_render_thread_slices_in_cuj rts ON rts.ts < gcs.ts
     -- dispatchFrameCallbacks might be seen in case of
     -- drawing that happens on RT only (e.g. ripple effect)
-    WHERE (rts.name = 'DrawFrame' OR rts.name = 'dispatchFrameCallbacks')
+    WHERE (rts.name LIKE 'DrawFrame%' OR rts.name = 'dispatchFrameCallbacks')
     GROUP BY gcs.ts, gcs.ts_end, gcs.dur, gcs.idx
   ),
   frame_boundaries AS (
@@ -114,11 +126,10 @@ CREATE TABLE android_sysui_cuj_frames AS
       mts.dur as mts_dur,
       MAX(gcs_rt.gcs_ts) as gcs_ts_start,
       MAX(gcs_rt.gcs_ts_end) as gcs_ts_end
-    FROM android_sysui_cuj_main_thread_slices_in_cuj mts
-    JOIN android_sysui_cuj_render_thread_slices_in_cuj rts
+    FROM android_sysui_cuj_do_frame_slices_in_cuj mts
+    JOIN android_sysui_cuj_draw_frame_slices_in_cuj rts
       ON mts.ts < rts.ts AND mts.ts_end >= rts.ts
     LEFT JOIN gcs_to_rt_match gcs_rt ON gcs_rt.rts_ts = rts.ts
-    WHERE mts.name = 'Choreographer#doFrame' AND rts.name = 'DrawFrame'
     GROUP BY mts.ts, mts.ts_end, mts.dur
   )
   SELECT
@@ -135,12 +146,11 @@ CREATE TABLE android_sysui_cuj_frames AS
     COUNT(DISTINCT(rts.ts)) as draw_frames,
     COUNT(DISTINCT(gcs_rt.gcs_ts)) as gpu_completions
   FROM frame_boundaries f
-  JOIN android_sysui_cuj_render_thread_slices_in_cuj rts
+  JOIN android_sysui_cuj_draw_frame_slices_in_cuj rts
     ON f.mts_ts < rts.ts AND f.mts_ts_end >= rts.ts
   LEFT JOIN gcs_to_rt_match gcs_rt
     ON rts.ts = gcs_rt.rts_ts
   LEFT JOIN android_sysui_cuj_hwc_release_slices_in_cuj hwc USING (idx)
-  WHERE rts.name = 'DrawFrame'
   GROUP BY f.mts_ts
   HAVING gpu_completions >= 1;
 

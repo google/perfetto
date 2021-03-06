@@ -85,7 +85,9 @@ int TraceToJson(std::istream* input,
       compress ? new DeflateTraceWriter(output) : new TraceWriter(output));
 
   trace_processor::Config config;
-  config.force_full_sort = full_sort;
+  config.sorting_mode = full_sort
+                            ? trace_processor::SortingMode::kForceFullSort
+                            : trace_processor::SortingMode::kDefaultHeuristics;
   std::unique_ptr<trace_processor::TraceProcessor> tp =
       trace_processor::TraceProcessor::CreateInstance(config);
 

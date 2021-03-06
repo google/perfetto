@@ -6327,6 +6327,9 @@ message ChromeFrameReporter {
     SCROLL_NONE = 0;
     SCROLL_MAIN_THREAD = 1;
     SCROLL_COMPOSITOR_THREAD = 2;
+
+    // Used when it can't be determined wheter a scroll is in progress or not.
+    SCROLL_UNKNOWN = 3;
   }
 
   // The type of active scroll
@@ -6784,8 +6787,6 @@ message TrackEvent {
   oneof source_location_field {
     // Non-interned field.
     SourceLocation source_location = 33;
-    // TODO(ssid): The interned source locations are not parsed by trace
-    // processor.
     // Interned field.
     uint64 source_location_iid = 34;
   }
