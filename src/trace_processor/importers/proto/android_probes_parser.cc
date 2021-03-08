@@ -17,7 +17,6 @@
 #include "src/trace_processor/importers/proto/android_probes_parser.h"
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/string_writer.h"
 #include "perfetto/ext/traced/sys_stats_counters.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
@@ -44,46 +43,6 @@
 
 namespace perfetto {
 namespace trace_processor {
-namespace {
-
-const char* MapToFriendlyPowerRailName(base::StringView raw) {
-  if (raw == "S4M_VDD_CPUCL0") {
-    return "cpu.little";
-  } else if (raw == "S3M_VDD_CPUCL1") {
-    return "cpu.mid";
-  } else if (raw == "S2M_VDD_CPUCL2") {
-    return "cpu.big";
-  } else if (raw == "S5M_VDD_INT") {
-    return "system.fabric";
-  } else if (raw == "PPVAR_VSYS_PWR_DISP") {
-    return "display";
-  } else if (raw == "VSYS_PWR_MODEM") {
-    return "modem";
-  } else if (raw == "S1M_VDD_MIF") {
-    return "memory.interface";
-  } else if (raw == "VSYS_PWR_WLAN_BT") {
-    return "wifi.bt";
-  } else if (raw == "L2S_VDD_AOC_RET") {
-    return "aoc.memory";
-  } else if (raw == "S9S_VDD_AOC") {
-    return "aoc.logic";
-  } else if (raw == "S5S_VDDQ_MEM") {
-    return "ddr.a";
-  } else if (raw == "S10S_VDD2L") {
-    return "ddr.b";
-  } else if (raw == "S4S_VDD2H_MEM") {
-    return "ddr.c";
-  } else if (raw == "S2S_VDD_G3D") {
-    return "gpu";
-  } else if (raw == "L9S_GNSS_CORE") {
-    return "gps";
-  } else if (raw == "VSYS_PWR_RFFE") {
-    return "radio.frontend";
-  }
-  return nullptr;
-}
-
-}  // namespace
 
 AndroidProbesParser::AndroidProbesParser(TraceProcessorContext* context)
     : context_(context),
@@ -124,59 +83,36 @@ void AndroidProbesParser::ParseBatteryCounters(int64_t ts, ConstBytes blob) {
 
 void AndroidProbesParser::ParsePowerRails(int64_t ts, ConstBytes blob) {
   protos::pbzero::PowerRails::Decoder evt(blob.data, blob.size);
-  if (evt.has_rail_descriptor()) {
-    for (auto it = evt.rail_descriptor(); it; ++it) {
-      protos::pbzero::PowerRails::RailDescriptor::Decoder desc(*it);
-      uint32_t idx = desc.index();
-      if (PERFETTO_UNLIKELY(idx > 256)) {
-        PERFETTO_DLOG("Skipping excessively large power_rail index %" PRIu32,
-                      idx);
-        continue;
-      }
-      if (power_rails_strs_id_.size() <= idx)
-        power_rails_strs_id_.resize(idx + 1);
 
-      char counter_name[255];
-      base::StringWriter writer(counter_name, base::ArraySize(counter_name));
-      const char* friendly_name = MapToFriendlyPowerRailName(desc.rail_name());
-      if (friendly_name) {
-        writer.AppendStringView("power.rails.");
-        writer.AppendStringView(friendly_name);
-      } else {
-        writer.AppendStringView("power.");
-        writer.AppendStringView(desc.rail_name());
-        writer.AppendStringView("_uws");
-      }
-      power_rails_strs_id_[idx] =
-          context_->storage->InternString(writer.GetStringView());
-    }
+  // Descriptors should have been processed at tokenization time.
+  PERFETTO_DCHECK(evt.has_energy_data());
+
+  // Because we have some special code in the tokenization phase, we
+  // will only every get one EnergyData message per packet. Therefore,
+  // we can just read the data directly.
+  auto it = evt.energy_data();
+  protos::pbzero::PowerRails::EnergyData::Decoder desc(*it);
+
+  auto opt_rail_name =
+      AndroidProbesTracker::GetOrCreate(context_)->GetPowerRailName(
+          desc.index());
+  if (opt_rail_name) {
+    // The tokenization makes sure that this field is always present and
+    // is equal to the packet's timestamp (as the packet was forged in
+    // the tokenizer).
+    PERFETTO_DCHECK(desc.has_timestamp_ms());
+    PERFETTO_DCHECK(ts / 1000000 == static_cast<int64_t>(desc.timestamp_ms()));
+
+    TrackId track =
+        context_->track_tracker->InternGlobalCounterTrack(*opt_rail_name);
+    context_->event_tracker->PushCounter(ts, static_cast<double>(desc.energy()),
+                                         track);
+  } else {
+    context_->storage->IncrementStats(stats::power_rail_unknown_index);
   }
 
-  if (evt.has_energy_data()) {
-    // Because we have some special code in the tokenization phase, we
-    // will only every get one EnergyData message per packet. Therefore,
-    // we can just read the data directly.
-    auto it = evt.energy_data();
-    protos::pbzero::PowerRails::EnergyData::Decoder desc(*it);
-    if (desc.index() < power_rails_strs_id_.size()) {
-      // The tokenization makes sure that this field is always present and
-      // is equal to the packet's timestamp (as the packet was forged in
-      // the tokenizer).
-      PERFETTO_DCHECK(desc.has_timestamp_ms());
-      PERFETTO_DCHECK(ts / 1000000 ==
-                      static_cast<int64_t>(desc.timestamp_ms()));
-
-      TrackId track = context_->track_tracker->InternGlobalCounterTrack(
-          power_rails_strs_id_[desc.index()]);
-      context_->event_tracker->PushCounter(
-          ts, static_cast<double>(desc.energy()), track);
-    } else {
-      context_->storage->IncrementStats(stats::power_rail_unknown_index);
-    }
-
-    // DCHECK that we only got one message.
-    PERFETTO_DCHECK(!++it);
-  }
+  // DCHECK that we only got one message.
+  PERFETTO_DCHECK(!++it);
 }
 
 void AndroidProbesParser::ParseAndroidLogPacket(ConstBytes blob) {
