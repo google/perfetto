@@ -15,7 +15,9 @@
 import("../../../../gn/proto_library.gni")
 
 perfetto_proto_library("@TYPE@") {
+  deps = [ "../../common:@TYPE@" ]
   sources = [
+    "android_energy_estimation_breakdown.proto",
     "battery_counters.proto",
     "power_rails.proto",
   ]

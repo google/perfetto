@@ -1887,6 +1887,7 @@ cc_test {
 genrule {
   name: "perfetto_protos_perfetto_common_cpp_gen",
   srcs: [
+    "protos/perfetto/common/android_energy_consumer_descriptor.proto",
     "protos/perfetto/common/android_log_constants.proto",
     "protos/perfetto/common/builtin_clock.proto",
     "protos/perfetto/common/commit_data_request.proto",
@@ -1907,6 +1908,7 @@ genrule {
   ],
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(in)",
   out: [
+    "external/perfetto/protos/perfetto/common/android_energy_consumer_descriptor.gen.cc",
     "external/perfetto/protos/perfetto/common/android_log_constants.gen.cc",
     "external/perfetto/protos/perfetto/common/builtin_clock.gen.cc",
     "external/perfetto/protos/perfetto/common/commit_data_request.gen.cc",
@@ -1927,6 +1929,7 @@ genrule {
 genrule {
   name: "perfetto_protos_perfetto_common_cpp_gen_headers",
   srcs: [
+    "protos/perfetto/common/android_energy_consumer_descriptor.proto",
     "protos/perfetto/common/android_log_constants.proto",
     "protos/perfetto/common/builtin_clock.proto",
     "protos/perfetto/common/commit_data_request.proto",
@@ -1947,6 +1950,7 @@ genrule {
   ],
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(in)",
   out: [
+    "external/perfetto/protos/perfetto/common/android_energy_consumer_descriptor.gen.h",
     "external/perfetto/protos/perfetto/common/android_log_constants.gen.h",
     "external/perfetto/protos/perfetto/common/builtin_clock.gen.h",
     "external/perfetto/protos/perfetto/common/commit_data_request.gen.h",
@@ -1971,6 +1975,7 @@ genrule {
 genrule {
   name: "perfetto_protos_perfetto_common_lite_gen",
   srcs: [
+    "protos/perfetto/common/android_energy_consumer_descriptor.proto",
     "protos/perfetto/common/android_log_constants.proto",
     "protos/perfetto/common/builtin_clock.proto",
     "protos/perfetto/common/commit_data_request.proto",
@@ -1990,6 +1995,7 @@ genrule {
   ],
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(in)",
   out: [
+    "external/perfetto/protos/perfetto/common/android_energy_consumer_descriptor.pb.cc",
     "external/perfetto/protos/perfetto/common/android_log_constants.pb.cc",
     "external/perfetto/protos/perfetto/common/builtin_clock.pb.cc",
     "external/perfetto/protos/perfetto/common/commit_data_request.pb.cc",
@@ -2010,6 +2016,7 @@ genrule {
 genrule {
   name: "perfetto_protos_perfetto_common_lite_gen_headers",
   srcs: [
+    "protos/perfetto/common/android_energy_consumer_descriptor.proto",
     "protos/perfetto/common/android_log_constants.proto",
     "protos/perfetto/common/builtin_clock.proto",
     "protos/perfetto/common/commit_data_request.proto",
@@ -2029,6 +2036,7 @@ genrule {
   ],
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(in)",
   out: [
+    "external/perfetto/protos/perfetto/common/android_energy_consumer_descriptor.pb.h",
     "external/perfetto/protos/perfetto/common/android_log_constants.pb.h",
     "external/perfetto/protos/perfetto/common/builtin_clock.pb.h",
     "external/perfetto/protos/perfetto/common/commit_data_request.pb.h",
@@ -2053,6 +2061,7 @@ genrule {
 genrule {
   name: "perfetto_protos_perfetto_common_zero_gen",
   srcs: [
+    "protos/perfetto/common/android_energy_consumer_descriptor.proto",
     "protos/perfetto/common/android_log_constants.proto",
     "protos/perfetto/common/builtin_clock.proto",
     "protos/perfetto/common/commit_data_request.proto",
@@ -2073,6 +2082,7 @@ genrule {
   ],
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
+    "external/perfetto/protos/perfetto/common/android_energy_consumer_descriptor.pbzero.cc",
     "external/perfetto/protos/perfetto/common/android_log_constants.pbzero.cc",
     "external/perfetto/protos/perfetto/common/builtin_clock.pbzero.cc",
     "external/perfetto/protos/perfetto/common/commit_data_request.pbzero.cc",
@@ -2093,6 +2103,7 @@ genrule {
 genrule {
   name: "perfetto_protos_perfetto_common_zero_gen_headers",
   srcs: [
+    "protos/perfetto/common/android_energy_consumer_descriptor.proto",
     "protos/perfetto/common/android_log_constants.proto",
     "protos/perfetto/common/builtin_clock.proto",
     "protos/perfetto/common/commit_data_request.proto",
@@ -2113,6 +2124,7 @@ genrule {
   ],
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
+    "external/perfetto/protos/perfetto/common/android_energy_consumer_descriptor.pbzero.h",
     "external/perfetto/protos/perfetto/common/android_log_constants.pbzero.h",
     "external/perfetto/protos/perfetto/common/builtin_clock.pbzero.h",
     "external/perfetto/protos/perfetto/common/commit_data_request.pbzero.h",
@@ -2323,6 +2335,7 @@ genrule {
 genrule {
   name: "perfetto_protos_perfetto_config_descriptor",
   srcs: [
+    "protos/perfetto/common/android_energy_consumer_descriptor.proto",
     "protos/perfetto/common/android_log_constants.proto",
     "protos/perfetto/common/builtin_clock.proto",
     "protos/perfetto/common/commit_data_request.proto",
@@ -5360,6 +5373,7 @@ genrule {
 genrule {
   name: "perfetto_protos_perfetto_trace_power_cpp_gen",
   srcs: [
+    "protos/perfetto/trace/power/android_energy_estimation_breakdown.proto",
     "protos/perfetto/trace/power/battery_counters.proto",
     "protos/perfetto/trace/power/power_rails.proto",
   ],
@@ -5369,6 +5383,7 @@ genrule {
   ],
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(in)",
   out: [
+    "external/perfetto/protos/perfetto/trace/power/android_energy_estimation_breakdown.gen.cc",
     "external/perfetto/protos/perfetto/trace/power/battery_counters.gen.cc",
     "external/perfetto/protos/perfetto/trace/power/power_rails.gen.cc",
   ],
@@ -5378,6 +5393,7 @@ genrule {
 genrule {
   name: "perfetto_protos_perfetto_trace_power_cpp_gen_headers",
   srcs: [
+    "protos/perfetto/trace/power/android_energy_estimation_breakdown.proto",
     "protos/perfetto/trace/power/battery_counters.proto",
     "protos/perfetto/trace/power/power_rails.proto",
   ],
@@ -5387,6 +5403,7 @@ genrule {
   ],
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(in)",
   out: [
+    "external/perfetto/protos/perfetto/trace/power/android_energy_estimation_breakdown.gen.h",
     "external/perfetto/protos/perfetto/trace/power/battery_counters.gen.h",
     "external/perfetto/protos/perfetto/trace/power/power_rails.gen.h",
   ],
@@ -5400,6 +5417,7 @@ genrule {
 genrule {
   name: "perfetto_protos_perfetto_trace_power_lite_gen",
   srcs: [
+    "protos/perfetto/trace/power/android_energy_estimation_breakdown.proto",
     "protos/perfetto/trace/power/battery_counters.proto",
     "protos/perfetto/trace/power/power_rails.proto",
   ],
@@ -5408,6 +5426,7 @@ genrule {
   ],
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(in)",
   out: [
+    "external/perfetto/protos/perfetto/trace/power/android_energy_estimation_breakdown.pb.cc",
     "external/perfetto/protos/perfetto/trace/power/battery_counters.pb.cc",
     "external/perfetto/protos/perfetto/trace/power/power_rails.pb.cc",
   ],
@@ -5417,6 +5436,7 @@ genrule {
 genrule {
   name: "perfetto_protos_perfetto_trace_power_lite_gen_headers",
   srcs: [
+    "protos/perfetto/trace/power/android_energy_estimation_breakdown.proto",
     "protos/perfetto/trace/power/battery_counters.proto",
     "protos/perfetto/trace/power/power_rails.proto",
   ],
@@ -5425,6 +5445,7 @@ genrule {
   ],
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(in)",
   out: [
+    "external/perfetto/protos/perfetto/trace/power/android_energy_estimation_breakdown.pb.h",
     "external/perfetto/protos/perfetto/trace/power/battery_counters.pb.h",
     "external/perfetto/protos/perfetto/trace/power/power_rails.pb.h",
   ],
@@ -5438,6 +5459,7 @@ genrule {
 genrule {
   name: "perfetto_protos_perfetto_trace_power_zero_gen",
   srcs: [
+    "protos/perfetto/trace/power/android_energy_estimation_breakdown.proto",
     "protos/perfetto/trace/power/battery_counters.proto",
     "protos/perfetto/trace/power/power_rails.proto",
   ],
@@ -5447,6 +5469,7 @@ genrule {
   ],
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
+    "external/perfetto/protos/perfetto/trace/power/android_energy_estimation_breakdown.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/power/battery_counters.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/power/power_rails.pbzero.cc",
   ],
@@ -5456,6 +5479,7 @@ genrule {
 genrule {
   name: "perfetto_protos_perfetto_trace_power_zero_gen_headers",
   srcs: [
+    "protos/perfetto/trace/power/android_energy_estimation_breakdown.proto",
     "protos/perfetto/trace/power/battery_counters.proto",
     "protos/perfetto/trace/power/power_rails.proto",
   ],
@@ -5465,6 +5489,7 @@ genrule {
   ],
   cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
   out: [
+    "external/perfetto/protos/perfetto/trace/power/android_energy_estimation_breakdown.pbzero.h",
     "external/perfetto/protos/perfetto/trace/power/battery_counters.pbzero.h",
     "external/perfetto/protos/perfetto/trace/power/power_rails.pbzero.h",
   ],
