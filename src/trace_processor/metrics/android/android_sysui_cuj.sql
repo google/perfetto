@@ -124,6 +124,7 @@ CREATE TABLE android_sysui_cuj_frames AS
       mts.ts as mts_ts,
       mts.ts_end as mts_ts_end,
       mts.dur as mts_dur,
+      mts.vsync as vsync,
       MAX(gcs_rt.gcs_ts) as gcs_ts_start,
       MAX(gcs_rt.gcs_ts_end) as gcs_ts_end
     FROM android_sysui_cuj_do_frame_slices_in_cuj mts
@@ -134,6 +135,7 @@ CREATE TABLE android_sysui_cuj_frames AS
   )
   SELECT
     ROW_NUMBER() OVER (ORDER BY f.mts_ts) AS frame_number,
+    f.vsync as vsync,
     f.mts_ts as ts_main_thread_start,
     f.mts_ts_end as ts_main_thread_end,
     f.mts_dur AS dur_main_thread,
@@ -381,6 +383,7 @@ SELECT
        (SELECT RepeatedField(
          AndroidSysUiCujMetrics_Frame(
            'number', f.frame_number,
+           'vsync', f.vsync,
            'ts', f.ts_main_thread_start,
            'dur', f.dur_frame,
            'jank_cause',
