@@ -152,6 +152,7 @@ std::set<GroupAndName> FtraceConfigMuxer::GetFtraceEvents(
         events.insert(GroupAndName("mdss", "mdp_sspp_change"));
         events.insert(GroupAndName("mdss", "mdp_sspp_set"));
         AddEventGroup(table, "mali", &events);
+        events.insert(GroupAndName("mali", "tracing_mark_write"));
 
         AddEventGroup(table, "sde", &events);
         events.insert(GroupAndName("sde", "tracing_mark_write"));
