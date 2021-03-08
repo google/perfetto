@@ -19,6 +19,7 @@ import("../../../gn/proto_library.gni")
 # a C++ counterpart in tracing/core (i.e. are used also for the non-IPC cases).
 perfetto_proto_library("@TYPE@") {
   sources = [
+    "android_energy_consumer_descriptor.proto",
     "android_log_constants.proto",
     "builtin_clock.proto",
     "commit_data_request.proto",
