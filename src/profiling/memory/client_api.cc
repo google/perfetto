@@ -250,8 +250,12 @@ void AtForkChild() {
   g_client_lock.locked.store(false);
   g_client_lock.poisoned.store(false);
 
-  DisableAllHeaps();
-
+  // We must not call the disabled callbacks here, because they might require
+  // locks that are being held at the fork point.
+  for (uint32_t i = kMinHeapId; i < g_next_heap_id.load(); ++i) {
+    AHeapInfo& info = GetHeap(i);
+    info.enabled.store(false);
+  }
   // Leak the existing shared_ptr contents, including the profiling |Client| if
   // profiling was active at the time of the fork.
   // Note: this code assumes that the creation of the empty shared_ptr does not
