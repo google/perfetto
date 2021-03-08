@@ -50,7 +50,6 @@ class AndroidProbesParser {
   const StringId batt_current_id_;
   const StringId batt_current_avg_id_;
   const StringId screen_state_id_;
-  std::vector<StringId> power_rails_strs_id_;
 };
 }  // namespace trace_processor
 }  // namespace perfetto
