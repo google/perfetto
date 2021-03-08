@@ -17,8 +17,10 @@
 #include "src/trace_processor/importers/proto/android_probes_module.h"
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/ext/base/string_writer.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "src/trace_processor/importers/proto/android_probes_parser.h"
+#include "src/trace_processor/importers/proto/android_probes_tracker.h"
 #include "src/trace_processor/timestamped_trace_piece.h"
 #include "src/trace_processor/trace_sorter.h"
 
@@ -28,6 +30,46 @@
 
 namespace perfetto {
 namespace trace_processor {
+namespace {
+
+const char* MapToFriendlyPowerRailName(base::StringView raw) {
+  if (raw == "S4M_VDD_CPUCL0") {
+    return "cpu.little";
+  } else if (raw == "S3M_VDD_CPUCL1") {
+    return "cpu.mid";
+  } else if (raw == "S2M_VDD_CPUCL2") {
+    return "cpu.big";
+  } else if (raw == "S5M_VDD_INT") {
+    return "system.fabric";
+  } else if (raw == "PPVAR_VSYS_PWR_DISP") {
+    return "display";
+  } else if (raw == "VSYS_PWR_MODEM") {
+    return "modem";
+  } else if (raw == "S1M_VDD_MIF") {
+    return "memory.interface";
+  } else if (raw == "VSYS_PWR_WLAN_BT") {
+    return "wifi.bt";
+  } else if (raw == "L2S_VDD_AOC_RET") {
+    return "aoc.memory";
+  } else if (raw == "S9S_VDD_AOC") {
+    return "aoc.logic";
+  } else if (raw == "S5S_VDDQ_MEM") {
+    return "ddr.a";
+  } else if (raw == "S10S_VDD2L") {
+    return "ddr.b";
+  } else if (raw == "S4S_VDD2H_MEM") {
+    return "ddr.c";
+  } else if (raw == "S2S_VDD_G3D") {
+    return "gpu";
+  } else if (raw == "L9S_GNSS_CORE") {
+    return "gps";
+  } else if (raw == "VSYS_PWR_RFFE") {
+    return "radio.frontend";
+  }
+  return nullptr;
+}
+
+}  // namespace
 
 using perfetto::protos::pbzero::TracePacket;
 
@@ -63,24 +105,27 @@ ModuleResult AndroidProbesModule::TokenizePacket(
   auto power_rails = decoder.power_rails();
   protos::pbzero::PowerRails::Decoder evt(power_rails.data, power_rails.size);
 
-  // Break out the rail descriptor into its own packet with the same timestamp
-  // as the packet itself.
-  if (evt.has_rail_descriptor()) {
-    protozero::HeapBuffered<protos::pbzero::TracePacket> desc_packet;
-    desc_packet->set_timestamp(static_cast<uint64_t>(packet_timestamp));
-
-    auto* rails = desc_packet->set_power_rails();
-    for (auto it = evt.rail_descriptor(); it; ++it) {
-      protozero::ConstBytes desc = *it;
-      rails->add_rail_descriptor()->AppendRawProtoBytes(desc.data, desc.size);
+  for (auto it = evt.rail_descriptor(); it; ++it) {
+    protos::pbzero::PowerRails::RailDescriptor::Decoder desc(*it);
+    uint32_t idx = desc.index();
+    if (PERFETTO_UNLIKELY(idx > 256)) {
+      PERFETTO_DLOG("Skipping excessively large power_rail index %" PRIu32,
+                    idx);
+      continue;
     }
-
-    std::vector<uint8_t> vec = desc_packet.SerializeAsArray();
-    std::unique_ptr<uint8_t[]> buffer(new uint8_t[vec.size()]);
-    memcpy(buffer.get(), vec.data(), vec.size());
-    context_->sorter->PushTracePacket(
-        packet_timestamp, state,
-        TraceBlobView(std::move(buffer), 0, vec.size()));
+    char counter_name[255];
+    base::StringWriter writer(counter_name, base::ArraySize(counter_name));
+    const char* friendly_name = MapToFriendlyPowerRailName(desc.rail_name());
+    if (friendly_name) {
+      writer.AppendStringView("power.rails.");
+      writer.AppendStringView(friendly_name);
+    } else {
+      writer.AppendStringView("power.");
+      writer.AppendStringView(desc.rail_name());
+      writer.AppendStringView("_uws");
+    }
+    AndroidProbesTracker::GetOrCreate(context_)->SetPowerRailName(
+        desc.index(), context_->storage->InternString(writer.GetStringView()));
   }
 
   // For each energy data message, turn it into its own trace packet
