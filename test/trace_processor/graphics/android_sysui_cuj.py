@@ -184,7 +184,7 @@ trace.add_sched(ts=59_000_000, prev_pid=RTID, next_pid=0, prev_state='R')
 
 add_frame(
     trace,
-    vsync=5,
+    vsync=6,
     ts_do_frame=70_000_000,
     ts_end_do_frame=80_000_000,
     ts_draw_frame=78_000_000,
@@ -205,7 +205,7 @@ trace.add_sched(ts=88_500_000, prev_pid=RTID, next_pid=0, prev_state='R')
 
 add_frame(
     trace,
-    vsync=6,
+    vsync=9,
     ts_do_frame=100_000_000,
     ts_end_do_frame=115_000_000,
     ts_draw_frame=102_000_000,
@@ -223,7 +223,7 @@ add_gpu_thread_atrace(
 
 add_frame(
     trace,
-    vsync=7,
+    vsync=10,
     ts_do_frame=200_000_000,
     ts_end_do_frame=215_000_000,
     ts_draw_frame=202_000_000,
