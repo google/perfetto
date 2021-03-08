@@ -815,6 +815,7 @@ message AndroidSysUiCujMetrics {
   message Frame {
     // Index of the frame within the single user journey.
     optional int64 number = 1;
+    optional int64 vsync = 5;
     optional int64 ts = 2;
     optional int64 dur = 3;
 
