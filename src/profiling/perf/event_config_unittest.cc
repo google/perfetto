@@ -23,6 +23,7 @@
 #include "perfetto/ext/base/optional.h"
 #include "test/gtest_and_gmock.h"
 
+#include "protos/perfetto/common/perf_events.gen.h"
 #include "protos/perfetto/config/data_source_config.gen.h"
 #include "protos/perfetto/config/profiling/perf_event_config.gen.h"
 
@@ -203,22 +204,9 @@ TEST(EventConfigTest, SelectTimebaseEvent) {
 
   {
     protos::gen::PerfEventConfig cfg;
-    protos::gen::PerfEventConfig::Tracepoint* mutable_tracpoint =
+    protos::gen::PerfEvents::Tracepoint* mutable_tracpoint =
         cfg.mutable_timebase()->mutable_tracepoint();
     mutable_tracpoint->set_name("sched:sched_switch");
-
-    base::Optional<EventConfig> event_config =
-        EventConfig::Create(AsDataSourceConfig(cfg), id_lookup);
-
-    ASSERT_TRUE(event_config.has_value());
-    EXPECT_EQ(event_config->perf_attr()->type, PERF_TYPE_TRACEPOINT);
-    EXPECT_EQ(event_config->perf_attr()->config, 42u);
-  }
-  {  // legacy field:
-    protos::gen::PerfEventConfig cfg;
-    protos::gen::PerfEventConfig::Tracepoint* mutable_tracepoint =
-        cfg.mutable_tracepoint();
-    mutable_tracepoint->set_name("sched:sched_switch");
 
     base::Optional<EventConfig> event_config =
         EventConfig::Create(AsDataSourceConfig(cfg), id_lookup);
@@ -291,7 +279,7 @@ TEST(EventConfigTest, CounterOnlyModeDetection) {
     protos::gen::PerfEventConfig cfg;
     auto* mutable_timebase = cfg.mutable_timebase();
     mutable_timebase->set_period(500);
-    mutable_timebase->set_counter(protos::gen::PerfEventConfig::HW_CPU_CYCLES);
+    mutable_timebase->set_counter(protos::gen::PerfEvents::HW_CPU_CYCLES);
 
     base::Optional<EventConfig> event_config =
         EventConfig::Create(AsDataSourceConfig(cfg));
@@ -307,7 +295,7 @@ TEST(EventConfigTest, CounterOnlyModeDetection) {
     protos::gen::PerfEventConfig cfg;
     auto* mutable_timebase = cfg.mutable_timebase();
     mutable_timebase->set_period(500);
-    mutable_timebase->set_counter(protos::gen::PerfEventConfig::SW_PAGE_FAULTS);
+    mutable_timebase->set_counter(protos::gen::PerfEvents::SW_PAGE_FAULTS);
 
     base::Optional<EventConfig> event_config =
         EventConfig::Create(AsDataSourceConfig(cfg));

@@ -27,6 +27,7 @@
 #include "perfetto/profiling/normalize.h"
 #include "src/profiling/perf/regs_parsing.h"
 
+#include "protos/perfetto/common/perf_events.gen.h"
 #include "protos/perfetto/config/profiling/perf_event_config.gen.h"
 
 namespace perfetto {
@@ -73,7 +74,7 @@ std::pair<std::string, std::string> SplitTracepointString(
 
 // If set, the returned id is guaranteed to be non-zero.
 base::Optional<uint32_t> ParseTracepointAndResolveId(
-    const protos::gen::PerfEventConfig::Tracepoint& tracepoint,
+    const protos::gen::PerfEvents::Tracepoint& tracepoint,
     EventConfig::tracepoint_id_fn_t tracepoint_id_lookup) {
   std::string full_name = tracepoint.name();
   std::string tp_group;
@@ -154,23 +155,23 @@ base::Optional<uint32_t> ChooseActualRingBufferPages(uint32_t config_value) {
 }
 
 base::Optional<PerfCounter> ToPerfCounter(
-    protos::gen::PerfEventConfig::Counter pb_enum) {
-  using protos::gen::PerfEventConfig;
+    protos::gen::PerfEvents::Counter pb_enum) {
+  using protos::gen::PerfEvents;
   switch (static_cast<int>(pb_enum)) {  // cast to pacify -Wswitch-enum
-    case PerfEventConfig::SW_CPU_CLOCK:
+    case PerfEvents::SW_CPU_CLOCK:
       return base::make_optional<PerfCounter>(PERF_TYPE_SOFTWARE,
                                               PERF_COUNT_SW_CPU_CLOCK);
-    case PerfEventConfig::SW_PAGE_FAULTS:
+    case PerfEvents::SW_PAGE_FAULTS:
       return base::make_optional<PerfCounter>(PERF_TYPE_SOFTWARE,
                                               PERF_COUNT_SW_PAGE_FAULTS);
-    case PerfEventConfig::HW_CPU_CYCLES:
+    case PerfEvents::HW_CPU_CYCLES:
       return base::make_optional<PerfCounter>(PERF_TYPE_HARDWARE,
                                               PERF_COUNT_HW_CPU_CYCLES);
-    case PerfEventConfig::HW_INSTRUCTIONS:
+    case PerfEvents::HW_INSTRUCTIONS:
       return base::make_optional<PerfCounter>(PERF_TYPE_HARDWARE,
                                               PERF_COUNT_HW_INSTRUCTIONS);
     default:
-      PERFETTO_ELOG("Unrecognised PerfEventConfig::Counter enum value: %zu",
+      PERFETTO_ELOG("Unrecognised PerfEvents::Counter enum value: %zu",
                     static_cast<size_t>(pb_enum));
       return base::nullopt;
   }
@@ -217,12 +218,8 @@ base::Optional<EventConfig> EventConfig::Create(
       return base::nullopt;
     timebase_event = *maybe_counter;
 
-  } else if (pb_config.timebase().has_tracepoint() ||
-             pb_config.has_tracepoint()) {
-    const auto& tracepoint_pb =
-        pb_config.timebase().has_tracepoint()
-            ? pb_config.timebase().tracepoint()
-            : pb_config.tracepoint();  // backwards compatibility
+  } else if (pb_config.timebase().has_tracepoint()) {
+    const auto& tracepoint_pb = pb_config.timebase().tracepoint();
     base::Optional<uint32_t> maybe_id =
         ParseTracepointAndResolveId(tracepoint_pb, tracepoint_id_lookup);
     if (!maybe_id)

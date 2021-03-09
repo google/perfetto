@@ -764,6 +764,36 @@ message JavaHprofConfig {
 
 // End of protos/perfetto/config/profiling/java_hprof_config.proto
 
+// Begin of protos/perfetto/common/perf_events.proto
+
+message PerfEvents {
+  enum Counter {
+    UNKNOWN_COUNTER = 0;
+    // software:
+    SW_CPU_CLOCK = 1;
+    SW_PAGE_FAULTS = 2;
+    // hardware:
+    HW_CPU_CYCLES = 10;
+    HW_INSTRUCTIONS = 11;
+  }
+
+  message Tracepoint {
+    // Group and name for the tracepoint, acceptable forms:
+    // * "sched/sched_switch"
+    // * "sched:sched_switch"
+    optional string name = 1;
+
+    // Optional field-level filter for the tracepoint. Only events matching this
+    // filter will be counted (and therefore contribute to the sampling period).
+    // Example: "prev_pid >= 42 && next_pid == 0".
+    // For full syntax, see kernel documentation on "Event filtering":
+    // https://www.kernel.org/doc/Documentation/trace/events.txt
+    optional string filter = 2;
+  }
+}
+
+// End of protos/perfetto/common/perf_events.proto
+
 // Begin of protos/perfetto/config/profiling/perf_event_config.proto
 
 // Configuration for the traced_perf profiler.
@@ -839,8 +869,8 @@ message PerfEventConfig {
   // Do not set *any* of these fields in new configs.
   //
 
-  // Note: legacy configs had to set |all_cpus| to true to pass parsing. We
-  // might start relying on this for compatibility detection in the future.
+  // Note: legacy configs had to set |all_cpus| to true to pass parsing.
+  // We rely on this to detect such configs.
   optional bool all_cpus = 1;
   optional uint32 sampling_frequency = 2;
   optional bool kernel_frames = 12;
@@ -849,7 +879,8 @@ message PerfEventConfig {
   repeated int32 exclude_pid = 6;
   repeated string exclude_cmdline = 7;
   optional uint32 additional_cmdline_count = 11;
-  optional Tracepoint tracepoint = 14;
+  // previously |tracepoint|
+  reserved 14;
 
   //
   // Sub-messages (nested for generated code namespacing).
@@ -874,12 +905,13 @@ message PerfEventConfig {
       uint64 period = 1;
     }
 
-    // Counting event to use as a time base for the sampling.
+    // Counting event to use as a timebase for the sampling.
     // If unset, implies the CPU timer (SW_CPU_CLOCK) as the event,
     // which is what you usually want.
+    // See common/perf_events.proto for the definitions.
     oneof event {
-      Counter counter = 4;
-      Tracepoint tracepoint = 3;
+      PerfEvents.Counter counter = 4;
+      PerfEvents.Tracepoint tracepoint = 3;
     }
   }
 
@@ -924,30 +956,6 @@ message PerfEventConfig {
     // neither explicitly included nor excluded will be considered. Processes
     // are accepted on a first come, first served basis.
     optional uint32 additional_cmdline_count = 5;
-  }
-
-  enum Counter {
-    UNKNOWN_COUNTER = 0;
-    // software:
-    SW_CPU_CLOCK = 1;
-    SW_PAGE_FAULTS = 2;
-    // hardware:
-    HW_CPU_CYCLES = 10;
-    HW_INSTRUCTIONS = 11;
-  }
-
-  message Tracepoint {
-    // Group and name for the tracepoint, acceptable forms:
-    // * "sched/sched_switch"
-    // * "sched:sched_switch"
-    optional string name = 1;
-
-    // Optional field-level filter for the tracepoint. Only events matching this
-    // filter will be counted (and therefore contribute to the sampling period).
-    // Example: "prev_pid >= 42 && next_pid == 0".
-    // For full syntax, see kernel documentation on "Event filtering":
-    // https://www.kernel.org/doc/Documentation/trace/events.txt
-    optional string filter = 2;
   }
 }
 
