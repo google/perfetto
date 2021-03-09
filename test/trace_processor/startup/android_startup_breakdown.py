@@ -42,6 +42,12 @@ trace.add_atrace_begin(ts=125, tid=1, pid=1, buf='bindApplication')
 trace.add_atrace_end(ts=195, tid=1, pid=1)
 
 trace.add_atrace_begin(ts=185, tid=3, pid=3, buf='bindApplication')
+trace.add_atrace_begin(
+    ts=188,
+    tid=3,
+    pid=3,
+    buf='performCreate:com.google.android.calendar.MainActivity')
+trace.add_atrace_end(ts=192, tid=3, pid=3)
 trace.add_atrace_end(ts=195, tid=3, pid=3)
 
 trace.add_atrace_async_end(
