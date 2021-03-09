@@ -92,6 +92,8 @@ WHERE slice.name IN (
   'activityResume',
   'Choreographer#doFrame',
   'inflate')
+  OR slice.name LIKE 'performResume:%'
+  OR slice.name LIKE 'performCreate:%'
 GROUP BY 1, 2;
 
 DROP TABLE IF EXISTS report_fully_drawn_per_launch;
@@ -152,6 +154,13 @@ SELECT
         WHERE p.launch_id = launches.id
         LIMIT 1
       )
+    ),
+    'activity_name', (
+      SELECT STR_SPLIT(name, ':', 1)
+      FROM main_process_slice s
+      WHERE s.launch_id = launches.id
+      AND (name LIKE 'performResume:%' OR name LIKE 'performCreate:%')
+      LIMIT 1
     ),
     'zygote_new_process', EXISTS(SELECT TRUE FROM zygote_forks_by_id WHERE id = launches.id),
     'activity_hosting_process_count', (

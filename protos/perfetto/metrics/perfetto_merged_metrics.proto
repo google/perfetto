@@ -744,7 +744,7 @@ message AndroidStartupMetric {
     optional Slice full_startup = 1;
   }
 
-  // Next id: 8
+  // Next id: 11
   message Startup {
     // Random id uniquely identifying an app startup in this trace.
     optional uint32 startup_id = 1;
@@ -754,6 +754,9 @@ message AndroidStartupMetric {
 
     // Name of the process launched
     optional string process_name = 3;
+
+    // Name of the activity launched
+    optional string activity_name = 10;
 
     // Did we ask the zygote for a new process
     optional bool zygote_new_process = 4;
