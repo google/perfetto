@@ -767,6 +767,37 @@ message JavaHprofConfig {
 // Begin of protos/perfetto/common/perf_events.proto
 
 message PerfEvents {
+  // What event to sample on, and how often. Commented from the perspective of
+  // its use in |PerfEventConfig|.
+  message Timebase {
+    // How often the per-cpu sampling will occur. Not guaranteed to be honored
+    // as the kernel can throttle the sampling rate if it's too high.
+    // If unset, an implementation-defined default is used.
+    oneof interval {
+      // Per-cpu sampling frequency in Hz, as requested from the kernel. Not the
+      // same as 1/period.
+      // Details: the actual sampling will still be based on a period, but the
+      // kernel will dynamically adjust it based on the observed event rate, to
+      // approximate this frequency. Works best with steady-rate events like
+      // timers.
+      uint64 frequency = 2;
+
+      // Per-cpu sampling will occur every |period| counts of |event|.
+      // Prefer |frequency| by default, as it's easier to oversample with a
+      // fixed period.
+      uint64 period = 1;
+    }
+
+    // Counting event to use as a timebase for the sampling.
+    // If unset, implies the CPU timer (SW_CPU_CLOCK) as the event,
+    // which is what you usually want.
+    // See common/perf_events.proto for the definitions.
+    oneof event {
+      PerfEvents.Counter counter = 4;
+      PerfEvents.Tracepoint tracepoint = 3;
+    }
+  }
+
   enum Counter {
     UNKNOWN_COUNTER = 0;
     // software:
@@ -815,7 +846,8 @@ message PerfEvents {
 // Next id: 17
 message PerfEventConfig {
   // What event to sample on, and how often.
-  optional Timebase timebase = 15;
+  // Defined in common/perf_events.proto.
+  optional PerfEvents.Timebase timebase = 15;
 
   // If set, the profiler will sample userspace processes' callstacks at the
   // interval specified by the |timebase|.
@@ -885,35 +917,6 @@ message PerfEventConfig {
   //
   // Sub-messages (nested for generated code namespacing).
   //
-
-  message Timebase {
-    // How often the per-cpu sampling will occur. Not guaranteed to be honored
-    // as the kernel can throttle the sampling rate if it's too high.
-    // If unset, an implementation-defined default is used.
-    oneof interval {
-      // Per-cpu sampling frequency in Hz, as requested from the kernel. Not the
-      // same as 1/period.
-      // Details: the actual sampling will still be based on a period, but the
-      // kernel will dynamically adjust it based on the observed event rate, to
-      // approximate this frequency. Works best with steady-rate events like
-      // timers.
-      uint64 frequency = 2;
-
-      // Per-cpu sampling will occur every |period| counts of |event|.
-      // Prefer |frequency| by default, as it's easier to oversample with a
-      // fixed period.
-      uint64 period = 1;
-    }
-
-    // Counting event to use as a timebase for the sampling.
-    // If unset, implies the CPU timer (SW_CPU_CLOCK) as the event,
-    // which is what you usually want.
-    // See common/perf_events.proto for the definitions.
-    oneof event {
-      PerfEvents.Counter counter = 4;
-      PerfEvents.Tracepoint tracepoint = 3;
-    }
-  }
 
   message CallstackSampling {
     // Defines a set of processes for which samples are retained/skipped. If

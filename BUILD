@@ -2883,6 +2883,9 @@ perfetto_proto_library(
     visibility = [
         PERFETTO_CONFIG.proto_library_visibility,
     ],
+    deps = [
+        ":protos_perfetto_common_protos",
+    ],
 )
 
 # GN target: //protos/perfetto/trace/profiling:zero

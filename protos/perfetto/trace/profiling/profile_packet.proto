@@ -16,6 +16,7 @@
 
 syntax = "proto2";
 
+import "protos/perfetto/common/perf_events.proto";
 import "protos/perfetto/trace/profiling/profile_common.proto";
 
 package perfetto.protos;
@@ -284,4 +285,11 @@ message PerfSample {
     }
   }
   optional ProducerEvent producer_event = 19;
+}
+
+// Submessage for TracePacketDefaults.
+message PerfSampleDefaults {
+  // The sampling timebase. Might not be identical to the data source config if
+  // the implementation decided to default/override some parameters.
+  optional PerfEvents.Timebase timebase = 1;
 }
