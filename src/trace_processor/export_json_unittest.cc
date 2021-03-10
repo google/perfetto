@@ -1540,6 +1540,12 @@ TEST_F(ExportJsonTest, CpuProfileEvent) {
   storage->mutable_cpu_profile_stack_sample_table()->Insert(
       {kTimestamp, frame_callsite_2.id, utid, kProcessPriority});
 
+  storage->mutable_cpu_profile_stack_sample_table()->Insert(
+      {kTimestamp + 10000, frame_callsite_1.id, utid, kProcessPriority});
+
+  storage->mutable_cpu_profile_stack_sample_table()->Insert(
+      {kTimestamp + 20000, frame_callsite_1.id, utid, kProcessPriority});
+
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+");
   util::Status status = ExportJson(storage, output);
@@ -1548,7 +1554,10 @@ TEST_F(ExportJsonTest, CpuProfileEvent) {
 
   Json::Value result = ToJsonValue(ReadFile(output));
 
-  EXPECT_EQ(result["traceEvents"].size(), 1u);
+  // The first sample should generate only a single instant event;
+  // the two following samples should also generate an additional [b, e] pair
+  // (the async duration event).
+  EXPECT_EQ(result["traceEvents"].size(), 5u);
   Json::Value event = result["traceEvents"][0];
   EXPECT_EQ(event["ph"].asString(), "n");
   EXPECT_EQ(event["id"].asString(), "0x1");
@@ -1561,6 +1570,29 @@ TEST_F(ExportJsonTest, CpuProfileEvent) {
             "foo_func - foo_module_name [foo_module_id]\nbar_func - "
             "bar_module_name [bar_module_id]\n");
   EXPECT_EQ(event["args"]["process_priority"].asInt(), kProcessPriority);
+
+  event = result["traceEvents"][1];
+  EXPECT_EQ(event["ph"].asString(), "n");
+  EXPECT_EQ(event["id"].asString(), "0x2");
+  EXPECT_EQ(event["ts"].asInt64(), (kTimestamp + 10000) / 1000);
+
+  event = result["traceEvents"][2];
+  EXPECT_EQ(event["ph"].asString(), "n");
+  EXPECT_EQ(event["id"].asString(), "0x2");
+  EXPECT_EQ(event["ts"].asInt64(), (kTimestamp + 20000) / 1000);
+  Json::String second_callstack_ = event["args"]["frames"].asString();
+  EXPECT_EQ(second_callstack_, "foo_func - foo_module_name [foo_module_id]\n");
+
+  event = result["traceEvents"][3];
+  EXPECT_EQ(event["ph"].asString(), "b");
+  EXPECT_EQ(event["id"].asString(), "0x2");
+  EXPECT_EQ(event["ts"].asInt64(), (kTimestamp + 10000) / 1000 - 1);
+  EXPECT_EQ(event["args"]["frames"].asString(), second_callstack_);
+
+  event = result["traceEvents"][4];
+  EXPECT_EQ(event["ph"].asString(), "e");
+  EXPECT_EQ(event["id"].asString(), "0x2");
+  EXPECT_EQ(event["ts"].asInt64(), (kTimestamp + 20000) / 1000);
 }
 
 TEST_F(ExportJsonTest, ArgumentFilter) {
