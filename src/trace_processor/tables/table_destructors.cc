@@ -88,6 +88,7 @@ CpuCounterTrackTable::~CpuCounterTrackTable() = default;
 IrqCounterTrackTable::~IrqCounterTrackTable() = default;
 SoftirqCounterTrackTable::~SoftirqCounterTrackTable() = default;
 GpuCounterTrackTable::~GpuCounterTrackTable() = default;
+PerfCounterTrackTable::~PerfCounterTrackTable() = default;
 
 // memory_tables.h
 MemorySnapshotTable::~MemorySnapshotTable() = default;
