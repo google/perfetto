@@ -27,9 +27,11 @@ namespace trace_processor {
 
 class TraceProcessorContext;
 
-// Dynamic table for implementing the  table.
-// See /docs/analysis.md for details about the functionality and usage of this
-// table.
+// Implements the following dynamic tables:
+// * ancestor_slice
+// * experimental_ancestor_stack_profile_callsite
+//
+// See docs/analysis/trace-processor for usage.
 class AncestorGenerator : public DbSqliteTable::DynamicTableGenerator {
  public:
   enum class Ancestor { kSlice = 1, kStackProfileCallsite = 2 };
