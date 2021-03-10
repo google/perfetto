@@ -88,7 +88,8 @@ CREATE TABLE android_sysui_cuj_frame_timeline_events AS
     actual.ts as ts_actual,
     actual.dur as dur_actual,
     actual.jank_type LIKE '%App Deadline Missed%' as app_missed,
-    actual.jank_type
+    actual.jank_type,
+    actual.on_time_finish
   FROM expected_frame_timeline_slice expected
   JOIN android_sysui_cuj_last_cuj cuj
     ON expected.upid = cuj.upid
@@ -97,9 +98,7 @@ CREATE TABLE android_sysui_cuj_frame_timeline_events AS
   JOIN actual_frame_timeline_slice actual
     ON expected.surface_frame_token = actual.surface_frame_token
     AND expected.upid = actual.upid
-    AND expected.layer_name = actual.layer_name
-  WHERE actual.jank_type <> 'None'
-  AND actual.on_time_finish = 0;
+    AND expected.layer_name = actual.layer_name;
 
 DROP TABLE IF EXISTS android_sysui_cuj_frames;
 CREATE TABLE android_sysui_cuj_frames AS
@@ -171,7 +170,8 @@ CREATE TABLE android_sysui_cuj_missed_frames AS
     f.*,
     (SELECT MAX(fte.app_missed)
      FROM android_sysui_cuj_frame_timeline_events fte
-     WHERE match.ts_actual_match = fte.ts_actual) as app_missed
+     WHERE match.ts_actual_match = fte.ts_actual
+     AND fte.on_time_finish = 0) as app_missed
   FROM android_sysui_cuj_frames f
   JOIN android_sysui_cuj_frame_timeline_match match USING (frame_number);
 
@@ -254,7 +254,7 @@ CREATE TABLE android_sysui_cuj_sf_jank_causes AS
     WHERE remainder <> "")
   SELECT frame_number, jank_cause
   FROM split_jank_type
-  WHERE jank_cause <> '' AND jank_cause <> 'App Deadline Missed'
+  WHERE jank_cause NOT IN ('', 'App Deadline Missed', 'None')
   ORDER BY frame_number ASC;
 
 DROP TABLE IF EXISTS android_sysui_cuj_jank_causes;
