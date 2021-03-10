@@ -316,11 +316,7 @@ void __attribute__((constructor(1024))) RunAccurateMalloc() {
   }
 }
 
-void __attribute__((constructor(1024))) RunAccurateMallocWithVfork() {
-  const char* a0 = getenv("HEAPPROFD_TESTING_RUN_ACCURATE_MALLOC_WITH_VFORK");
-  if (a0 == nullptr)
-    return;
-
+void __attribute__((noreturn)) RunAccurateMallocWithVforkCommon() {
   static std::atomic<bool> initialized{false};
   static uint32_t heap_id =
       AHeapProfile_registerHeap(AHeapInfo_setEnabledCallback(
@@ -393,6 +389,22 @@ void __attribute__((constructor(1024))) RunAccurateSample() {
   // Wait around so we can verify it did't crash.
   for (;;) {
   }
+}
+
+void __attribute__((constructor(1024))) RunAccurateMallocWithVfork() {
+  const char* a0 = getenv("HEAPPROFD_TESTING_RUN_ACCURATE_MALLOC_WITH_VFORK");
+  if (a0 == nullptr)
+    return;
+  RunAccurateMallocWithVforkCommon();
+}
+
+void __attribute__((constructor(1024))) RunAccurateMallocWithVforkThread() {
+  const char* a0 =
+      getenv("HEAPPROFD_TESTING_RUN_ACCURATE_MALLOC_WITH_VFORK_THREAD");
+  if (a0 == nullptr)
+    return;
+  std::thread th(RunAccurateMallocWithVforkCommon);
+  th.join();
 }
 
 void __attribute__((constructor(1024))) RunReInit() {
@@ -922,9 +934,13 @@ TEST_P(HeapprofdEndToEnd, AccurateCustomReportAllocation) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 #define MAYBE_AccurateCustomReportAllocationWithVfork \
   AccurateCustomReportAllocationWithVfork
+#define MAYBE_AccurateCustomReportAllocationWithVforkThread \
+  AccurateCustomReportAllocationWithVforkThread
 #else
 #define MAYBE_AccurateCustomReportAllocationWithVfork \
   DISABLED_AccurateCustomReportAllocationWithVfork
+#define MAYBE_AccurateCustomReportAllocationWithVforkThread \
+  DISABLED_AccurateCustomReportAllocationWithVforkThread
 #endif
 
 TEST_P(HeapprofdEndToEnd, MAYBE_AccurateCustomReportAllocationWithVfork) {
@@ -937,6 +953,55 @@ TEST_P(HeapprofdEndToEnd, MAYBE_AccurateCustomReportAllocationWithVfork) {
   child.args.stderr_mode = base::Subprocess::kDevNull;
   child.args.env.push_back(
       "HEAPPROFD_TESTING_RUN_ACCURATE_MALLOC_WITH_VFORK=1");
+  StartAndWaitForHandshake(&child);
+
+  const uint64_t pid = static_cast<uint64_t>(child.pid());
+
+  TraceConfig trace_config = MakeTraceConfig([pid](HeapprofdConfig* cfg) {
+    cfg->set_sampling_interval_bytes(1);
+    cfg->add_pid(pid);
+    cfg->add_heaps("test");
+  });
+
+  auto helper = Trace(trace_config);
+  WRITE_TRACE(helper->full_trace());
+  PrintStats(helper.get());
+  KillAssertRunning(&child);
+
+  auto flamegraph = GetFlamegraph(&helper->tp());
+  EXPECT_THAT(flamegraph,
+              Contains(AllOf(
+                  Field(&FlamegraphNode::name, HasSubstr("RunAccurateMalloc")),
+                  Field(&FlamegraphNode::cumulative_size, Eq(15)),
+                  Field(&FlamegraphNode::cumulative_alloc_size, Eq(40)))));
+
+  ValidateOnlyPID(helper.get(), pid);
+
+  size_t total_alloc = 0;
+  size_t total_freed = 0;
+  for (const protos::gen::TracePacket& packet : helper->trace()) {
+    for (const auto& dump : packet.profile_packet().process_dumps()) {
+      EXPECT_FALSE(dump.disconnected());
+      for (const auto& sample : dump.samples()) {
+        total_alloc += sample.self_allocated();
+        total_freed += sample.self_freed();
+      }
+    }
+  }
+  EXPECT_EQ(total_alloc, 40u);
+  EXPECT_EQ(total_freed, 25u);
+}
+
+TEST_P(HeapprofdEndToEnd, MAYBE_AccurateCustomReportAllocationWithVforkThread) {
+  if (allocator_mode() != AllocatorMode::kCustom)
+    GTEST_SKIP();
+
+  base::Subprocess child({"/proc/self/exe"});
+  child.args.posix_argv0_override_for_testing = "heapprofd_continuous_malloc";
+  child.args.stdout_mode = base::Subprocess::kDevNull;
+  child.args.stderr_mode = base::Subprocess::kDevNull;
+  child.args.env.push_back(
+      "HEAPPROFD_TESTING_RUN_ACCURATE_MALLOC_WITH_VFORK_THREAD=1");
   StartAndWaitForHandshake(&child);
 
   const uint64_t pid = static_cast<uint64_t>(child.pid());
