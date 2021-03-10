@@ -6,7 +6,22 @@ android_startup {
     process: {
       name: "com.google.android.calendar"
     }
-    activity_name: "com.google.android.calendar.MainActivity"
+    activities {
+      name: "com.google.android.calendar.MainActivity"
+      method: "performCreate"
+      slice {
+        dur_ns: 4
+        dur_ms: 4e-06
+      }
+    }
+    activities {
+      name: "com.google.android.calendar.MainActivity"
+      method: "performResume"
+      slice {
+        dur_ns: 1
+        dur_ms: 1e-06
+      }
+    }
     zygote_new_process: true
     to_first_frame {
       dur_ns: 108
