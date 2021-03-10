@@ -33,7 +33,8 @@ namespace profiling {
 
 // static
 void InterningOutputTracker::WriteFixedInterningsPacket(
-    TraceWriter* trace_writer) {
+    TraceWriter* trace_writer,
+    uint32_t sequence_flags) {
   constexpr const uint8_t kEmptyString[] = "";
   // Explicitly reserve intern ID 0 for the empty string, so unset string
   // fields get mapped to this.
@@ -51,7 +52,9 @@ void InterningOutputTracker::WriteFixedInterningsPacket(
   interned_string->set_iid(0);
   interned_string->set_str(kEmptyString, 0);
 
-  packet->set_incremental_state_cleared(true);
+  if (sequence_flags) {
+    packet->set_sequence_flags(sequence_flags);
+  }
 }
 
 void InterningOutputTracker::WriteMap(const Interned<Mapping> map,

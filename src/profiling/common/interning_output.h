@@ -34,9 +34,8 @@ namespace profiling {
 class InterningOutputTracker {
  public:
   // Writes out a full packet containing the "empty" (zero) internings.
-  // NB: resulting packet has |incremental_state_cleared| set.
-  static void WriteFixedInterningsPacket(TraceWriter* trace_writer);
-
+  static void WriteFixedInterningsPacket(TraceWriter* trace_writer,
+                                         uint32_t sequence_flags);
   void WriteMap(const Interned<Mapping> map, protos::pbzero::InternedData* out);
   void WriteFrame(Interned<Frame> frame, protos::pbzero::InternedData* out);
   void WriteBuildIDString(const Interned<std::string>& str,
