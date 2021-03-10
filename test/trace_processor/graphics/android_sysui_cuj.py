@@ -47,10 +47,17 @@ def add_frame(trace, vsync, ts_do_frame, ts_end_do_frame, ts_draw_frame,
                         "waiting for GPU completion 123")
 
 
-def add_display_frame_events(ts, dur, token_start, jank=None):
+def add_display_frame_events(ts,
+                             dur,
+                             token_start,
+                             jank=None,
+                             on_time_finish_override=None):
   jank_type = jank if jank is not None else 1
   present_type = 2 if jank is not None else 1
-  on_time_finish = 1 if jank is None else 0
+  if on_time_finish_override is None:
+    on_time_finish = 1 if jank is None else 0
+  else:
+    on_time_finish = on_time_finish_override
   trace.add_expected_display_frame_start_event(
       ts=ts, cookie=token_start, token=token_start, pid=PID)
   trace.add_frame_end_event(ts=ts + 20_500_000, cookie=token_start)
@@ -247,6 +254,19 @@ add_frame(
 add_render_thread_atrace(
     trace, ts=305_000_000, ts_end=308_000_000, buf="dispatchFrameCallbacks")
 
+add_frame(
+    trace,
+    vsync=12,
+    ts_do_frame=400_000_000,
+    ts_end_do_frame=415_000_000,
+    ts_draw_frame=402_000_000,
+    ts_end_draw_frame=404_000_000,
+    ts_gpu=408_000_000,
+    ts_end_gpu=410_000_000)
+
+add_render_thread_atrace(
+    trace, ts=415_000_000, ts_end=418_000_000, buf="dispatchFrameCallbacks")
+
 # One more frame after the CUJ is finished
 add_frame(
     trace,
@@ -268,6 +288,12 @@ add_display_frame_events(
 add_display_frame_events(
     ts=200_000_000, dur=12_000_000, token_start=70, jank=34)
 add_display_frame_events(ts=300_000_000, dur=61_000_000, token_start=80)
+add_display_frame_events(
+    ts=400_000_000,
+    dur=61_000_000,
+    token_start=90,
+    jank=128,
+    on_time_finish_override=1)
 add_display_frame_events(
     ts=1_100_000_000, dur=500_000_000, token_start=100, jank=64)
 
