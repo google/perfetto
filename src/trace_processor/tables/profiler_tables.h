@@ -143,6 +143,9 @@ PERFETTO_TP_TABLE(PERFETTO_TP_STACK_PROFILE_FRAME_DEF);
 
 PERFETTO_TP_TABLE(PERFETTO_TP_STACK_PROFILE_CALLSITE_DEF);
 
+// TODO(rsavitski): rethink what to do with the root table now that only chrome
+// callstacks use it.
+
 // Root table for timestamped stack samples.
 // @param ts timestamp of the sample.
 // @param callsite_id unwound callstack.
@@ -168,27 +171,29 @@ PERFETTO_TP_TABLE(PERFETTO_TP_STACK_SAMPLE_DEF);
 
 PERFETTO_TP_TABLE(PERFETTO_TP_CPU_PROFILE_STACK_SAMPLE_DEF);
 
-// Stack samples from the traced_perf perf sampler.
+// Samples from the traced_perf perf sampler.
 //
 // The table currently provides no means of discriminating between multiple data
 // sources producing samples within a single trace.
 // @param ts timestamp of the sample.
-// @param callsite_id unwound callstack of the sampled thread.
 // @param utid sampled thread. {@joinable thread.utid}.
 // @param cpu the core the sampled thread was running on.
 // @param cpu_mode execution state (userspace/kernelspace) of the sampled
 //        thread.
+// @param callsite_id if set, unwound callstack of the sampled thread.
 // @param unwind_error if set, indicates that the unwinding for this sample
 //        encountered an error. Such samples still reference the best-effort
 //        result via the callsite_id (with a synthetic error frame at the point
 //        where unwinding stopped).
 // @tablegroup Callstack profilers
-#define PERFETTO_TP_PERF_SAMPLE_DEF(NAME, PARENT, C) \
-  NAME(PerfSampleTable, "perf_sample")               \
-  PARENT(PERFETTO_TP_STACK_SAMPLE_DEF, C)            \
-  C(uint32_t, utid)                                  \
-  C(uint32_t, cpu)                                   \
-  C(StringPool::Id, cpu_mode)                        \
+#define PERFETTO_TP_PERF_SAMPLE_DEF(NAME, PARENT, C)            \
+  NAME(PerfSampleTable, "perf_sample")                          \
+  PERFETTO_TP_ROOT_TABLE(PARENT, C)                             \
+  C(int64_t, ts, Column::Flag::kSorted)                         \
+  C(uint32_t, utid)                                             \
+  C(uint32_t, cpu)                                              \
+  C(StringPool::Id, cpu_mode)                                   \
+  C(base::Optional<StackProfileCallsiteTable::Id>, callsite_id) \
   C(base::Optional<StringPool::Id>, unwind_error)
 
 PERFETTO_TP_TABLE(PERFETTO_TP_PERF_SAMPLE_DEF);

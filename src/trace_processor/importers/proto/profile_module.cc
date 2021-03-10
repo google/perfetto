@@ -191,17 +191,12 @@ void ProfileModule::ParsePerfSample(
       sequence_state->state()->sequence_stack_profile_tracker();
   ProfilePacketInternLookup intern_lookup(sequence_state);
 
+  // TODO(rsavitski): empty callsite is not an error for counter-only samples.
+  // But consider identifying sequences which *should* have a callstack in every
+  // sample, as an invalid stack there is a bug.
   uint64_t callstack_iid = sample.callstack_iid();
   base::Optional<CallsiteId> cs_id =
       stack_tracker.FindOrInsertCallstack(callstack_iid, &intern_lookup);
-  // TODO(rsavitski): make the callsite optional in the table, as we're
-  // starting to support counter-only samples, for which an empty callsite is
-  // not an error. On the other hand, if we could classify a sequence as
-  // requiring stack samples, then this would still count as an error.
-  // For now, use an invalid callsite id.
-  if (!cs_id) {
-    cs_id = base::make_optional<CallsiteId>(static_cast<uint32_t>(-1));
-  }
 
   UniqueTid utid =
       context_->process_tracker->UpdateThread(sample.tid(), sample.pid());
@@ -220,8 +215,8 @@ void ProfileModule::ParsePerfSample(
     unwind_error_id = storage->InternString(
         ProfilePacketUtils::StringifyStackUnwindError(unwind_error));
   }
-  tables::PerfSampleTable::Row sample_row{
-      ts, cs_id.value(), utid, sample.cpu(), cpu_mode_id, unwind_error_id};
+  tables::PerfSampleTable::Row sample_row(ts, utid, sample.cpu(), cpu_mode_id,
+                                          cs_id, unwind_error_id);
   context_->storage->mutable_perf_sample_table()->Insert(sample_row);
 }
 
