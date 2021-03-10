@@ -617,8 +617,8 @@ static std::map<uint64_t, ProcessInfo> GetProcessMap(
     trace_processor::TraceProcessor* tp) {
   Iterator it = tp->ExecuteQuery(
       "select distinct process.upid, process.pid, thread.utid from perf_sample "
-      "join thread using (utid) join process using (upid) order by "
-      "process.upid asc");
+      "join thread using (utid) join process using (upid) where callsite_id is "
+      "not null order by process.upid asc");
   std::map<uint64_t, ProcessInfo> process_map;
   while (it.Next()) {
     uint64_t upid = static_cast<uint64_t>(it.Get(0).AsLong());
@@ -709,7 +709,8 @@ static bool TraceToPerfPprof(trace_processor::TraceProcessor* tp,
     builder.WriteSampleTypes({{"samples", "count"}});
 
     std::string query = "select callsite_id from perf_sample where utid in (" +
-                        AsCsvString(process.utids) + ") order by ts asc;";
+                        AsCsvString(process.utids) +
+                        ") and callsite_id is not null order by ts asc;";
 
     protozero::PackedVarInt single_count_value;
     single_count_value.Append(1);
@@ -720,7 +721,8 @@ static bool TraceToPerfPprof(trace_processor::TraceProcessor* tp,
       builder.AddSample(single_count_value, callsite_id);
     }
     if (!it.Status().ok()) {
-      PERFETTO_DFATAL_OR_ELOG("Failed to iterate over samples.");
+      PERFETTO_DFATAL_OR_ELOG("Failed to iterate over samples: %s",
+                              it.Status().c_message());
       return false;
     }
 

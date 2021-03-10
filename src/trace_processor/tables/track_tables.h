@@ -116,6 +116,23 @@ PERFETTO_TP_TABLE(PERFETTO_TP_SOFTIRQ_COUNTER_TRACK_DEF);
 
 PERFETTO_TP_TABLE(PERFETTO_TP_GPU_COUNTER_TRACK_DEF);
 
+// Sampled counters' values for samples in the perf_sample table.
+//
+// @param perf_session_id id of a distict profiling stream.
+//        {@joinable perf_sample.perf_session_id}
+// @param cpu the core the sample was taken on.
+// @is_timebase if true, this counter was the sampling timebase for this
+//              perf_session_id.
+// @tablegroup Tracks
+#define PERFETTO_TP_PERF_COUNTER_TRACK_DEF(NAME, PARENT, C) \
+  NAME(PerfCounterTrackTable, "perf_counter_track")         \
+  PARENT(PERFETTO_TP_COUNTER_TRACK_DEF, C)                  \
+  C(uint32_t, perf_session_id)                              \
+  C(uint32_t, cpu)                                          \
+  C(uint32_t, is_timebase)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_PERF_COUNTER_TRACK_DEF);
+
 }  // namespace tables
 }  // namespace trace_processor
 }  // namespace perfetto
