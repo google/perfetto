@@ -95,6 +95,7 @@ WHERE slice.name IN (
   'ResourcesManager#getResources')
   OR slice.name LIKE 'performResume:%'
   OR slice.name LIKE 'performCreate:%'
+  OR slice.name LIKE 'location=% status=% filter=% reason=%'
 GROUP BY 1, 2;
 
 DROP TABLE IF EXISTS report_fully_drawn_per_launch;
@@ -306,6 +307,16 @@ SELECT
       ))
       FROM report_fully_drawn_per_launch r
       WHERE r.launch_id = launches.id
+    ),
+    'optimization_status',(
+      SELECT RepeatedField(AndroidStartupMetric_OptimizationStatus(
+        'location', SUBSTR(STR_SPLIT(name, ' status=', 0), LENGTH('location=') + 1),
+        'odex_status', STR_SPLIT(STR_SPLIT(name, ' status=', 1), ' filter=', 0),
+        'compilation_filter', STR_SPLIT(STR_SPLIT(name, ' filter=', 1), ' reason=', 0),
+        'compilation_reason', STR_SPLIT(name, ' reason=', 1)
+      ))
+      FROM main_process_slice s
+      WHERE name LIKE 'location=% status=% filter=% reason=%'
     )
   ) as startup
 FROM launches;
