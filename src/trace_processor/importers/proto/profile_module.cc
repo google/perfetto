@@ -18,8 +18,10 @@
 
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
+#include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
+#include "src/trace_processor/importers/proto/perf_sample_tracker.h"
 #include "src/trace_processor/importers/proto/profile_packet_utils.h"
 #include "src/trace_processor/importers/proto/stack_profile_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -29,6 +31,7 @@
 #include "src/trace_processor/types/trace_processor_context.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
+#include "protos/perfetto/common/perf_events.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
 
 namespace perfetto {
@@ -71,7 +74,7 @@ void ProfileModule::ParsePacket(const TracePacket::Decoder& decoder,
     case TracePacket::kPerfSampleFieldNumber:
       PERFETTO_DCHECK(ttp.type == TimestampedTracePiece::Type::kTracePacket);
       ParsePerfSample(ttp.timestamp, ttp.packet_data.sequence_state.get(),
-                      decoder.perf_sample());
+                      decoder);
       return;
   }
 }
@@ -157,9 +160,10 @@ void ProfileModule::ParseStreamingProfilePacket(
 void ProfileModule::ParsePerfSample(
     int64_t ts,
     PacketSequenceStateGeneration* sequence_state,
-    ConstBytes blob) {
+    const TracePacket::Decoder& decoder) {
   using PerfSample = protos::pbzero::PerfSample;
-  PerfSample::Decoder sample(blob.data, blob.size);
+  const auto& sample_raw = decoder.perf_sample();
+  PerfSample::Decoder sample(sample_raw.data, sample_raw.size);
 
   // Not a sample, but an indication of data loss in the ring buffer shared with
   // the kernel.
@@ -186,14 +190,30 @@ void ProfileModule::ParsePerfSample(
     return;
   }
 
-  // Proper sample, though possibly with an incomplete stack unwind.
-  SequenceStackProfileTracker& stack_tracker =
-      sequence_state->state()->sequence_stack_profile_tracker();
-  ProfilePacketInternLookup intern_lookup(sequence_state);
+  // Not a sample, but an event from the producer.
+  // TODO(rsavitski): parse abrupt stops, and see if we can propagate syscall
+  // failures to this field.
+  if (sample.has_producer_event()) {
+    return;
+  }
+
+  // Proper sample, populate the |perf_sample| table with everything except the
+  // recorded counter values, which go to |counter|.
+  uint32_t seq_id = decoder.trusted_packet_sequence_id();
+  PerfSampleTracker::SamplingStreamInfo sampling_stream =
+      context_->perf_sample_tracker->GetSamplingStreamInfo(
+          seq_id, sample.cpu(), sequence_state->GetTracePacketDefaults());
+
+  context_->event_tracker->PushCounter(
+      ts, static_cast<double>(sample.timebase_count()),
+      sampling_stream.timebase_track_id);
 
   // TODO(rsavitski): empty callsite is not an error for counter-only samples.
   // But consider identifying sequences which *should* have a callstack in every
   // sample, as an invalid stack there is a bug.
+  SequenceStackProfileTracker& stack_tracker =
+      sequence_state->state()->sequence_stack_profile_tracker();
+  ProfilePacketInternLookup intern_lookup(sequence_state);
   uint64_t callstack_iid = sample.callstack_iid();
   base::Optional<CallsiteId> cs_id =
       stack_tracker.FindOrInsertCallstack(callstack_iid, &intern_lookup);
@@ -216,7 +236,8 @@ void ProfileModule::ParsePerfSample(
         ProfilePacketUtils::StringifyStackUnwindError(unwind_error));
   }
   tables::PerfSampleTable::Row sample_row(ts, utid, sample.cpu(), cpu_mode_id,
-                                          cs_id, unwind_error_id);
+                                          cs_id, unwind_error_id,
+                                          sampling_stream.perf_session_id);
   context_->storage->mutable_perf_sample_table()->Insert(sample_row);
 }
 

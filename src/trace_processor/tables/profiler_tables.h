@@ -185,6 +185,9 @@ PERFETTO_TP_TABLE(PERFETTO_TP_CPU_PROFILE_STACK_SAMPLE_DEF);
 //        encountered an error. Such samples still reference the best-effort
 //        result via the callsite_id (with a synthetic error frame at the point
 //        where unwinding stopped).
+// @param perf_session_id distinguishes samples from different profiling
+//        streams (i.e. multiple data sources).
+//        {@joinable perf_counter_track.perf_session_id}
 // @tablegroup Callstack profilers
 #define PERFETTO_TP_PERF_SAMPLE_DEF(NAME, PARENT, C)            \
   NAME(PerfSampleTable, "perf_sample")                          \
@@ -194,7 +197,8 @@ PERFETTO_TP_TABLE(PERFETTO_TP_CPU_PROFILE_STACK_SAMPLE_DEF);
   C(uint32_t, cpu)                                              \
   C(StringPool::Id, cpu_mode)                                   \
   C(base::Optional<StackProfileCallsiteTable::Id>, callsite_id) \
-  C(base::Optional<StringPool::Id>, unwind_error)
+  C(base::Optional<StringPool::Id>, unwind_error)               \
+  C(uint32_t, perf_session_id)
 
 PERFETTO_TP_TABLE(PERFETTO_TP_PERF_SAMPLE_DEF);
 
