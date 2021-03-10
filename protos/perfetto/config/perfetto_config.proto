@@ -1730,20 +1730,52 @@ message TraceConfig {
   }
   optional CompressionType compression_type = 24;
 
-  // Android-only. Not for general use. If set, saves a Dropbox trace into an
+  // Android-only. Not for general use. If set, saves the trace into an
   // incident. This field is read by perfetto_cmd, rather than the tracing
-  // service. All fields are mandatory.
+  // service. This field must be set when passing the --upload flag to
+  // perfetto_cmd.
   message IncidentReportConfig {
+    // In this message, either:
+    //  * all of |destination_package|, |destination_class| and |privacy_level|
+    //    must be set.
+    //  * |skip_incidentd| must be explicitly set to true.
+
     optional string destination_package = 1;
     optional string destination_class = 2;
     // Level of filtering in the requested incident. See |Destination| in
     // frameworks/base/core/proto/android/privacy.proto.
     optional int32 privacy_level = 3;
+
+    // If true, then skips saving the trace to incidentd.
+    //
+    // This flag is useful in testing (e.g. Perfetto-statsd integration tests)
+    // or when we explicitly don't want traces to go to incidentd even when they
+    // usually would (e.g. configs deployed using statsd but only used for
+    // inclusion in bugreports using |bugreport_score|).
+    //
+    // The motivation for having this flag, instead of just not setting
+    // |incident_report_config|, is prevent accidents where
+    // |incident_report_config| is omitted by mistake.
+    optional bool skip_incidentd = 5;
+
     // If true, do not write the trace into dropbox (i.e. incident only).
     // Otherwise, write to both dropbox and incident.
-    optional bool skip_dropbox = 4;
+    // TODO(lalitm): remove this field as we no longer use Dropbox.
+    optional bool skip_dropbox = 4 [deprecated = true];
   }
   optional IncidentReportConfig incident_report_config = 25;
+
+  enum StatsdLogging {
+    STATSD_LOGGING_UNSPECIFIED = 0;
+    STATSD_LOGGING_ENABLED = 1;
+    STATSD_LOGGING_DISABLED = 2;
+  }
+
+  // Android-only. Not for general use. If specified, sets the logging to statsd
+  // of guardrails and checkpoints in the tracing service. perfetto_cmd sets
+  // this to enabled (if not explicitly set in the config) when specifying
+  // --upload.
+  optional StatsdLogging statsd_logging = 31;
 
   // DEPRECATED. Was trace_uuid, use trace_uuid_msb and trace_uuid_lsb instead.
   reserved 26;

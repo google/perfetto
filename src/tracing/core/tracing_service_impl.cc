@@ -274,6 +274,19 @@ std::string GetBugreportTmpPath() {
   return std::string(kBugreportTracePath) + ".tmp";
 }
 
+bool ShouldLogEvent(const TraceConfig& cfg) {
+  switch (cfg.statsd_logging()) {
+    case TraceConfig::STATSD_LOGGING_ENABLED:
+      return true;
+    case TraceConfig::STATSD_LOGGING_DISABLED:
+      return false;
+    case TraceConfig::STATSD_LOGGING_UNSPECIFIED:
+      // For backward compatibility with older versions of perfetto_cmd.
+      return cfg.enable_extra_guardrails();
+  }
+  PERFETTO_FATAL("For GCC");
+}
+
 }  // namespace
 
 // These constants instead are defined in the header because are used by tests.
@@ -3091,8 +3104,7 @@ bool TracingServiceImpl::MaybeSaveTraceForBugreport(
 void TracingServiceImpl::MaybeLogUploadEvent(const TraceConfig& cfg,
                                              PerfettoStatsdAtom atom,
                                              const std::string& trigger_name) {
-  // Only log events when extra guardrails are enabled.
-  if (!cfg.enable_extra_guardrails())
+  if (!ShouldLogEvent(cfg))
     return;
 
   // If the UUID is not set for some reason, don't log anything.
@@ -3106,8 +3118,7 @@ void TracingServiceImpl::MaybeLogUploadEvent(const TraceConfig& cfg,
 void TracingServiceImpl::MaybeLogTriggerEvent(const TraceConfig& cfg,
                                               PerfettoTriggerAtom atom,
                                               const std::string& trigger_name) {
-  // Only log events when extra guardrails are enabled.
-  if (!cfg.enable_extra_guardrails())
+  if (!ShouldLogEvent(cfg))
     return;
   android_stats::MaybeLogTriggerEvent(atom, trigger_name);
 }
