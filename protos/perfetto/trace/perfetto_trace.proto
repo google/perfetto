@@ -793,8 +793,8 @@ message PerfEvents {
     // which is what you usually want.
     // See common/perf_events.proto for the definitions.
     oneof event {
-      PerfEvents.Counter counter = 4;
-      PerfEvents.Tracepoint tracepoint = 3;
+      Counter counter = 4;
+      Tracepoint tracepoint = 3;
     }
   }
 

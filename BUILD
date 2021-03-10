@@ -1264,6 +1264,8 @@ filegroup(
         "src/trace_processor/importers/proto/metadata_tracker.h",
         "src/trace_processor/importers/proto/packet_sequence_state.cc",
         "src/trace_processor/importers/proto/packet_sequence_state.h",
+        "src/trace_processor/importers/proto/perf_sample_tracker.cc",
+        "src/trace_processor/importers/proto/perf_sample_tracker.h",
         "src/trace_processor/importers/proto/profile_module.cc",
         "src/trace_processor/importers/proto/profile_module.h",
         "src/trace_processor/importers/proto/profile_packet_utils.cc",

@@ -444,6 +444,13 @@ class TraceStorage {
     return &gpu_counter_group_table_;
   }
 
+  const tables::PerfCounterTrackTable& perf_counter_track_table() const {
+    return perf_counter_track_table_;
+  }
+  tables::PerfCounterTrackTable* mutable_perf_counter_track_table() {
+    return &perf_counter_track_table_;
+  }
+
   const tables::SchedSliceTable& sched_slice_table() const {
     return sched_slice_table_;
   }
@@ -793,6 +800,8 @@ class TraceStorage {
   tables::GpuCounterTrackTable gpu_counter_track_table_{&string_pool_,
                                                         &counter_track_table_};
   tables::GpuCounterGroupTable gpu_counter_group_table_{&string_pool_, nullptr};
+  tables::PerfCounterTrackTable perf_counter_track_table_{
+      &string_pool_, &counter_track_table_};
 
   // Args for all other tables.
   tables::ArgTable arg_table_{&string_pool_, nullptr};
@@ -855,8 +864,7 @@ class TraceStorage {
       &string_pool_, nullptr};
   tables::CpuProfileStackSampleTable cpu_profile_stack_sample_table_{
       &string_pool_, &stack_sample_table_};
-  tables::PerfSampleTable perf_sample_table_{&string_pool_,
-                                             &stack_sample_table_};
+  tables::PerfSampleTable perf_sample_table_{&string_pool_, nullptr};
   tables::PackageListTable package_list_table_{&string_pool_, nullptr};
   tables::ProfilerSmapsTable profiler_smaps_table_{&string_pool_, nullptr};
 

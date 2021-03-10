@@ -56,7 +56,7 @@ class ProfileModule : public ProtoImporterModule {
 
   void ParsePerfSample(int64_t ts,
                        PacketSequenceStateGeneration* sequence_state,
-                       protozero::ConstBytes blob);
+                       const protos::pbzero::TracePacket::Decoder& decoder);
 
   TraceProcessorContext* context_;
 };
