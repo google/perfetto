@@ -107,9 +107,7 @@ struct TimestampedTracePiece {
         packet_idx(idx),
         type(Type::kFtraceEvent) {}
 
-  TimestampedTracePiece(int64_t ts,
-                        uint64_t idx,
-                        std::unique_ptr<Json::Value> value)
+  TimestampedTracePiece(int64_t ts, uint64_t idx, std::string value)
       : json_value(std::move(value)),
         timestamp(ts),
         packet_idx(idx),
@@ -171,8 +169,7 @@ struct TimestampedTracePiece {
         new (&sched_waking) InlineSchedWaking(std::move(ttp.sched_waking));
         break;
       case Type::kJsonValue:
-        new (&json_value)
-            std::unique_ptr<Json::Value>(std::move(ttp.json_value));
+        new (&json_value) std::string(std::move(ttp.json_value));
         break;
       case Type::kFuchsiaRecord:
         new (&fuchsia_record)
@@ -220,7 +217,7 @@ struct TimestampedTracePiece {
         packet_data.~TracePacketData();
         break;
       case Type::kJsonValue:
-        json_value.~unique_ptr();
+        json_value.~basic_string();
         break;
       case Type::kFuchsiaRecord:
         fuchsia_record.~unique_ptr();
@@ -253,7 +250,7 @@ struct TimestampedTracePiece {
     TracePacketData packet_data;
     InlineSchedSwitch sched_switch;
     InlineSchedWaking sched_waking;
-    std::unique_ptr<Json::Value> json_value;
+    std::string json_value;
     std::unique_ptr<FuchsiaRecord> fuchsia_record;
     std::unique_ptr<TrackEventData> track_event_data;
     std::unique_ptr<SystraceLine> systrace_line;
