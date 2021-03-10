@@ -79,13 +79,18 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
     return;
   }
 
-  const Json::Value& value = *(ttp.json_value);
+  auto opt_value = json::ParseJsonString(base::StringView(ttp.json_value));
+  if (!opt_value) {
+    context_->storage->IncrementStats(stats::json_parser_failure);
+    return;
+  }
 
   ProcessTracker* procs = context_->process_tracker.get();
   TraceStorage* storage = context_->storage.get();
   SliceTracker* slice_tracker = context_->slice_tracker.get();
   FlowTracker* flow_tracker = context_->flow_tracker.get();
 
+  const Json::Value& value = *opt_value;
   auto& ph = value["ph"];
   if (!ph.isString())
     return;

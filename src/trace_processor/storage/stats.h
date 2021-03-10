@@ -123,6 +123,7 @@ namespace stats {
   F(clock_sync_cache_miss,              kSingle,  kInfo,     kAnalysis, ""),   \
   F(process_tracker_errors,             kSingle,  kError,    kAnalysis, ""),   \
   F(json_tokenizer_failure,             kSingle,  kError,    kTrace,    ""),   \
+  F(json_parser_failure,                kSingle,  kError,    kTrace,    ""),   \
   F(heap_graph_invalid_string_id,       kIndexed, kError,    kTrace,    ""),   \
   F(heap_graph_non_finalized_graph,     kSingle,  kError,    kTrace,    ""),   \
   F(heap_graph_malformed_packet,        kIndexed, kError,    kTrace,    ""),   \
