@@ -694,7 +694,7 @@ message AndroidStartupMetric {
 
   // Timing information spanning the intent received by the
   // activity manager to the first frame drawn.
-  // Next id: 22.
+  // Next id: 24.
   message ToFirstFrame {
     optional int64 dur_ns = 1;
     optional double dur_ms = 17;
@@ -715,6 +715,8 @@ message AndroidStartupMetric {
     optional Slice time_activity_resume = 8;
     optional Slice time_activity_restart = 21;
     optional Slice time_choreographer = 9;
+    optional Slice time_inflate = 22;
+    optional Slice time_get_resources = 23;
 
     // If we are starting a new process, record the duration from the
     // intent being received to the time we call the zygote.
