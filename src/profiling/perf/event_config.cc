@@ -159,17 +159,19 @@ base::Optional<PerfCounter> ToPerfCounter(
   using protos::gen::PerfEvents;
   switch (static_cast<int>(pb_enum)) {  // cast to pacify -Wswitch-enum
     case PerfEvents::SW_CPU_CLOCK:
-      return base::make_optional<PerfCounter>(PERF_TYPE_SOFTWARE,
-                                              PERF_COUNT_SW_CPU_CLOCK);
+      return PerfCounter::Counter(PerfEvents::SW_CPU_CLOCK, PERF_TYPE_SOFTWARE,
+                                  PERF_COUNT_SW_CPU_CLOCK);
     case PerfEvents::SW_PAGE_FAULTS:
-      return base::make_optional<PerfCounter>(PERF_TYPE_SOFTWARE,
-                                              PERF_COUNT_SW_PAGE_FAULTS);
+      return PerfCounter::Counter(PerfEvents::SW_PAGE_FAULTS,
+                                  PERF_TYPE_SOFTWARE,
+                                  PERF_COUNT_SW_PAGE_FAULTS);
     case PerfEvents::HW_CPU_CYCLES:
-      return base::make_optional<PerfCounter>(PERF_TYPE_HARDWARE,
-                                              PERF_COUNT_HW_CPU_CYCLES);
+      return PerfCounter::Counter(PerfEvents::HW_CPU_CYCLES, PERF_TYPE_HARDWARE,
+                                  PERF_COUNT_HW_CPU_CYCLES);
     case PerfEvents::HW_INSTRUCTIONS:
-      return base::make_optional<PerfCounter>(PERF_TYPE_HARDWARE,
-                                              PERF_COUNT_HW_INSTRUCTIONS);
+      return PerfCounter::Counter(PerfEvents::HW_INSTRUCTIONS,
+                                  PERF_TYPE_HARDWARE,
+                                  PERF_COUNT_HW_INSTRUCTIONS);
     default:
       PERFETTO_ELOG("Unrecognised PerfEvents::Counter enum value: %zu",
                     static_cast<size_t>(pb_enum));
@@ -178,6 +180,28 @@ base::Optional<PerfCounter> ToPerfCounter(
 }
 
 }  // namespace
+
+// static
+PerfCounter PerfCounter::Counter(protos::gen::PerfEvents::Counter counter,
+                                 uint32_t type,
+                                 uint32_t config) {
+  PerfCounter ret;
+  ret.counter = counter;
+  ret.type = type;
+  ret.config = config;
+  return ret;
+}
+
+// static
+PerfCounter PerfCounter::Tracepoint(
+    protos::gen::PerfEvents::Tracepoint tracepoint,
+    uint32_t id) {
+  PerfCounter ret;
+  ret.tracepoint = std::move(tracepoint);
+  ret.type = PERF_TYPE_TRACEPOINT;
+  ret.config = id;
+  return ret;
+}
 
 // static
 base::Optional<EventConfig> EventConfig::Create(
@@ -224,11 +248,12 @@ base::Optional<EventConfig> EventConfig::Create(
         ParseTracepointAndResolveId(tracepoint_pb, tracepoint_id_lookup);
     if (!maybe_id)
       return base::nullopt;
-    timebase_event =
-        PerfCounter{PERF_TYPE_TRACEPOINT, *maybe_id, tracepoint_pb.filter()};
+    timebase_event = PerfCounter::Tracepoint(tracepoint_pb, *maybe_id);
 
   } else {
-    timebase_event = PerfCounter{PERF_TYPE_SOFTWARE, PERF_COUNT_SW_CPU_CLOCK};
+    timebase_event =
+        PerfCounter::Counter(protos::gen::PerfEvents::PerfEvents::SW_CPU_CLOCK,
+                             PERF_TYPE_SOFTWARE, PERF_COUNT_SW_CPU_CLOCK);
   }
 
   // Callstack sampling.
@@ -299,7 +324,7 @@ base::Optional<EventConfig> EventConfig::Create(
   // Build the underlying syscall config struct.
   perf_event_attr pe = {};
   pe.size = sizeof(perf_event_attr);
-  pe.disabled = true;  // will be activated via ioctl
+  pe.disabled = 1;  // will be activated via ioctl
 
   // Sampling timebase.
   pe.type = timebase_event.type;
