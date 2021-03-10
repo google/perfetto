@@ -91,7 +91,8 @@ WHERE slice.name IN (
   'activityRestart',
   'activityResume',
   'Choreographer#doFrame',
-  'inflate')
+  'inflate',
+  'ResourcesManager#getResources')
   OR slice.name LIKE 'performResume:%'
   OR slice.name LIKE 'performCreate:%'
 GROUP BY 1, 2;
@@ -273,6 +274,17 @@ SELECT
         )
         FROM zygote_forks_by_id z
         WHERE z.id = launches.id
+      ),
+      'time_inflate', (
+        SELECT slice_proto
+        FROM main_process_slice s
+        WHERE s.launch_id = launches.id AND name = 'inflate'
+      ),
+      'time_get_resources', (
+        SELECT slice_proto
+        FROM main_process_slice s
+        WHERE s.launch_id = launches.id
+        AND name = 'ResourcesManager#getResources'
       )
     ),
     'hsc', (
