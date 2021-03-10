@@ -16,6 +16,7 @@
 
 syntax = "proto2";
 
+import "protos/perfetto/common/perf_events.proto";
 import "protos/perfetto/trace/profiling/profile_common.proto";
 
 package perfetto.protos;
@@ -236,11 +237,11 @@ message PerfSample {
   // Execution state that the process was sampled at.
   optional Profiling.CpuMode cpu_mode = 5;
 
-  // Value of the timebase counter (since the beginning).
+  // Value of the timebase counter (since the event was configured, no deltas).
   optional uint64 timebase_count = 6;
 
   // Unwound callstack. Might be partial, in which case a synthetic "error"
-  // frame is appended, and |unwind_error| is set appropriately.
+  // frame is appended, and |unwind_error| is set accordingly.
   optional uint64 callstack_iid = 4;
 
   // If set, stack unwinding was incomplete due to an error.
@@ -284,4 +285,11 @@ message PerfSample {
     }
   }
   optional ProducerEvent producer_event = 19;
+}
+
+// Submessage for TracePacketDefaults.
+message PerfSampleDefaults {
+  // The sampling timebase. Might not be identical to the data source config if
+  // the implementation decided to default/override some parameters.
+  optional PerfEvents.Timebase timebase = 1;
 }
