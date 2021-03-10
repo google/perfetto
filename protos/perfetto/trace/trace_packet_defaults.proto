@@ -16,6 +16,7 @@
 
 syntax = "proto2";
 
+import "protos/perfetto/trace/profiling/profile_packet.proto";
 import "protos/perfetto/trace/track_event/track_event.proto";
 
 package perfetto.protos;
@@ -32,4 +33,7 @@ message TracePacketDefaults {
 
   // Default values for TrackEvents (e.g. default track).
   optional TrackEventDefaults track_event_defaults = 11;
+
+  // Defaults for perf profiler packets (PerfSample).
+  optional PerfSampleDefaults perf_sample_defaults = 12;
 }
