@@ -48,6 +48,12 @@ trace.add_atrace_begin(
     pid=3,
     buf='performCreate:com.google.android.calendar.MainActivity')
 trace.add_atrace_end(ts=192, tid=3, pid=3)
+trace.add_atrace_begin(
+    ts=193,
+    tid=3,
+    pid=3,
+    buf='performResume:com.google.android.calendar.MainActivity')
+trace.add_atrace_end(ts=194, tid=3, pid=3)
 trace.add_atrace_end(ts=195, tid=3, pid=3)
 
 trace.add_atrace_async_end(

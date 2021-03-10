@@ -155,12 +155,15 @@ SELECT
         LIMIT 1
       )
     ),
-    'activity_name', (
-      SELECT STR_SPLIT(name, ':', 1)
+    'activities', (
+      SELECT RepeatedField(AndroidStartupMetric_Activity(
+        'name', (SELECT STR_SPLIT(s.name, ':', 1)),
+        'method', (SELECT STR_SPLIT(s.name, ':', 0)),
+        'slice', s.slice_proto
+      ))
       FROM main_process_slice s
       WHERE s.launch_id = launches.id
       AND (name LIKE 'performResume:%' OR name LIKE 'performCreate:%')
-      LIMIT 1
     ),
     'zygote_new_process', EXISTS(SELECT TRUE FROM zygote_forks_by_id WHERE id = launches.id),
     'activity_hosting_process_count', (
