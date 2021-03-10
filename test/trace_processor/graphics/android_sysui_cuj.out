@@ -58,4 +58,11 @@ android_sysui_cuj {
     jank_cause: "SurfaceFlinger Scheduling"
     vsync: 10
   }
+  frames {
+    number: 8
+    ts: 400000000
+    dur: 10000000
+    jank_cause: "Buffer Stuffing"
+    vsync: 12
+  }
 }
