@@ -204,9 +204,9 @@ TEST(EventConfigTest, SelectTimebaseEvent) {
 
   {
     protos::gen::PerfEventConfig cfg;
-    protos::gen::PerfEvents::Tracepoint* mutable_tracpoint =
+    protos::gen::PerfEvents::Tracepoint* mutable_tracepoint =
         cfg.mutable_timebase()->mutable_tracepoint();
-    mutable_tracpoint->set_name("sched:sched_switch");
+    mutable_tracepoint->set_name("sched:sched_switch");
 
     base::Optional<EventConfig> event_config =
         EventConfig::Create(AsDataSourceConfig(cfg), id_lookup);

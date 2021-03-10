@@ -95,8 +95,8 @@ class EventReader {
 
   // move-only
   EventReader(const EventReader&) = delete;
-  EventReader& operator=(const EventReader) = delete;
-  EventReader(EventReader&&) noexcept;
+  EventReader& operator=(const EventReader&) = delete;
+  EventReader(EventReader&&) noexcept = default;
   EventReader& operator=(EventReader&&) noexcept;
 
  private:

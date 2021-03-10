@@ -44,9 +44,12 @@
 #include "src/profiling/perf/event_reader.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
+#include "protos/perfetto/common/perf_events.gen.h"
+#include "protos/perfetto/common/perf_events.pbzero.h"
 #include "protos/perfetto/config/profiling/perf_event_config.gen.h"
 #include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "protos/perfetto/trace/trace_packet_defaults.pbzero.h"
 
 namespace perfetto {
 namespace profiling {
@@ -75,6 +78,54 @@ constexpr char kDataSourceName[] = "linux.perf";
 
 size_t NumberOfCpus() {
   return static_cast<size_t>(sysconf(_SC_NPROCESSORS_CONF));
+}
+
+TraceWriter::TracePacketHandle StartTracePacket(TraceWriter* trace_writer) {
+  auto packet = trace_writer->NewTracePacket();
+  packet->set_sequence_flags(
+      protos::pbzero::TracePacket::SEQ_NEEDS_INCREMENTAL_STATE);
+  return packet;
+}
+
+void WritePerfEventDefaultsPacket(const EventConfig& event_config,
+                                  TraceWriter* trace_writer) {
+  auto packet = trace_writer->NewTracePacket();
+  packet->set_timestamp(static_cast<uint64_t>(base::GetBootTimeNs().count()));
+  packet->set_timestamp_clock_id(protos::pbzero::BUILTIN_CLOCK_BOOTTIME);
+
+  // start new incremental state generation:
+  packet->set_sequence_flags(
+      protos::pbzero::TracePacket::SEQ_INCREMENTAL_STATE_CLEARED);
+
+  // default packet timestamp clockid:
+  auto* defaults = packet->set_trace_packet_defaults();
+  defaults->set_timestamp_clock_id(protos::pbzero::BUILTIN_CLOCK_MONOTONIC_RAW);
+  PERFETTO_DCHECK(event_config.perf_attr()->clockid == CLOCK_MONOTONIC_RAW);
+
+  auto* perf_defaults = defaults->set_perf_sample_defaults();
+  auto* timebase_pb = perf_defaults->set_timebase();
+
+  // frequency/period:
+  perf_event_attr* perf_attr = event_config.perf_attr();
+  if (perf_attr->freq) {
+    timebase_pb->set_frequency(perf_attr->sample_freq);
+  } else {
+    timebase_pb->set_period(perf_attr->sample_period);
+  }
+
+  // event:
+  const PerfCounter& timebase = event_config.timebase_event();
+  if (timebase.is_counter()) {
+    timebase_pb->set_counter(
+        static_cast<protos::pbzero::PerfEvents::Counter>(timebase.counter));
+  } else {
+    PERFETTO_DCHECK(timebase.is_tracepoint());
+    // TODO(rsavitski): reconsider using a struct with two strings instead
+    // of the ::gen::Tracepoint class in the C++ code.
+    auto* tracepoint_pb = timebase_pb->set_tracepoint();
+    tracepoint_pb->set_name(timebase.tracepoint.name());
+    tracepoint_pb->set_filter(timebase.tracepoint.filter());
+  }
 }
 
 uint32_t TimeToNextReadTickMs(DataSourceInstanceID ds_id, uint32_t period_ms) {
@@ -270,9 +321,11 @@ void PerfProducer::StartDataSource(DataSourceInstanceID ds_id,
     per_cpu_reader.EnableEvents();
   }
 
-  // Write out a packet to initialize the incremental state for this sequence.
+  WritePerfEventDefaultsPacket(ds.event_config, ds.trace_writer.get());
+
   InterningOutputTracker::WriteFixedInterningsPacket(
-      ds_it->second.trace_writer.get());
+      ds_it->second.trace_writer.get(),
+      protos::pbzero::TracePacket::SEQ_NEEDS_INCREMENTAL_STATE);
 
   // Inform unwinder of the new data source instance, and optionally start a
   // periodic task to clear its cached state.
@@ -398,9 +451,13 @@ void PerfProducer::ClearIncrementalState(
     }
     DataSourceState& ds = ds_it->second;
 
+    WritePerfEventDefaultsPacket(ds.event_config, ds.trace_writer.get());
+
     // Forget which incremental state we've emitted before.
     ds.interning_output.ClearHistory();
-    InterningOutputTracker::WriteFixedInterningsPacket(ds.trace_writer.get());
+    InterningOutputTracker::WriteFixedInterningsPacket(
+        ds.trace_writer.get(),
+        protos::pbzero::TracePacket::SEQ_NEEDS_INCREMENTAL_STATE);
 
     // Drop the cross-datasource callstack interning trie. This is not
     // necessary for correctness (the preceding step is sufficient). However,
@@ -674,10 +731,9 @@ void PerfProducer::EmitSample(DataSourceInstanceID ds_id,
       callstack_trie_.CreateCallsite(sample.frames, sample.build_ids);
   uint64_t callstack_iid = callstack_root->id();
 
-  // start packet
-  auto packet = ds.trace_writer->NewTracePacket();
+  // start packet, timestamp domain defaults to monotonic_raw
+  auto packet = StartTracePacket(ds.trace_writer.get());
   packet->set_timestamp(sample.common.timestamp);
-  packet->set_timestamp_clock_id(protos::pbzero::BUILTIN_CLOCK_MONOTONIC_RAW);
 
   // write new interning data (if any)
   protos::pbzero::InternedData* interned_out = packet->set_interned_data();
@@ -713,8 +769,10 @@ void PerfProducer::EmitRingBufferLoss(DataSourceInstanceID ds_id,
   // We timestamp the packet with the boot clock for packet ordering purposes,
   // but it no longer has a (precise) interpretation relative to the sample
   // stream from that per-cpu buffer. See the proto comments for more details.
-  auto packet = ds.trace_writer->NewTracePacket();
+  auto packet = StartTracePacket(ds.trace_writer.get());
   packet->set_timestamp(static_cast<uint64_t>(base::GetBootTimeNs().count()));
+  packet->set_timestamp_clock_id(
+      protos::pbzero::BuiltinClock::BUILTIN_CLOCK_BOOTTIME);
 
   auto* perf_sample = packet->set_perf_sample();
   perf_sample->set_cpu(static_cast<uint32_t>(cpu));
@@ -748,14 +806,15 @@ void PerfProducer::EmitSkippedSample(DataSourceInstanceID ds_id,
     return;
   DataSourceState& ds = ds_it->second;
 
-  auto packet = ds.trace_writer->NewTracePacket();
+  // Note: timestamp defaults to the monotonic_raw domain.
+  auto packet = StartTracePacket(ds.trace_writer.get());
   packet->set_timestamp(sample.common.timestamp);
-  packet->set_timestamp_clock_id(protos::pbzero::BUILTIN_CLOCK_MONOTONIC_RAW);
   auto* perf_sample = packet->set_perf_sample();
   perf_sample->set_cpu(sample.common.cpu);
   perf_sample->set_pid(static_cast<uint32_t>(sample.common.pid));
   perf_sample->set_tid(static_cast<uint32_t>(sample.common.tid));
   perf_sample->set_cpu_mode(ToCpuModeEnum(sample.common.cpu_mode));
+  perf_sample->set_timebase_count(sample.common.timebase_count);
 
   using PerfSample = protos::pbzero::PerfSample;
   switch (reason) {
@@ -837,8 +896,10 @@ void PerfProducer::PurgeDataSource(DataSourceInstanceID ds_id) {
 
   // Write a packet indicating the abrupt stop.
   {
-    auto packet = ds.trace_writer->NewTracePacket();
+    auto packet = StartTracePacket(ds.trace_writer.get());
     packet->set_timestamp(static_cast<uint64_t>(base::GetBootTimeNs().count()));
+    packet->set_timestamp_clock_id(
+        protos::pbzero::BuiltinClock::BUILTIN_CLOCK_BOOTTIME);
     auto* perf_sample = packet->set_perf_sample();
     auto* producer_event = perf_sample->set_producer_event();
     producer_event->set_source_stop_reason(
