@@ -363,8 +363,8 @@ PowerRails
 name (	RnameN
 energy_data (2-.perfetto.protos.AndroidPowerRails.EnergyDataR
 energyData
-®
-4protos/perfetto/metrics/android/startup_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"¬
+Ù
+4protos/perfetto/metrics/android/startup_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"×
 AndroidStartupMetricG
 startup (2-.perfetto.protos.AndroidStartupMetric.StartupRstartupà
 TaskStateBreakdown$
@@ -374,7 +374,7 @@ energyData
 interruptible_sleep_dur_ns (RinterruptibleSleepDurNs5
 Slice
 dur_ns (RdurNs
-dur_ms (RdurMsá
+dur_ms (RdurMsŒ
 ToFirstFrame
 dur_ns (RdurNs
 dur_ms (RdurMsr
@@ -386,7 +386,9 @@ energyData
 time_activity_start (2+.perfetto.protos.AndroidStartupMetric.SliceRtimeActivityStart]
 time_activity_resume (2+.perfetto.protos.AndroidStartupMetric.SliceRtimeActivityResume_
 time_activity_restart (2+.perfetto.protos.AndroidStartupMetric.SliceRtimeActivityRestartZ
-time_choreographer	 (2+.perfetto.protos.AndroidStartupMetric.SliceRtimeChoreographerf
+time_choreographer	 (2+.perfetto.protos.AndroidStartupMetric.SliceRtimeChoreographerN
+time_inflate (2+.perfetto.protos.AndroidStartupMetric.SliceRtimeInflateY
+time_get_resources (2+.perfetto.protos.AndroidStartupMetric.SliceRtimeGetResourcesf
 time_before_start_process
  (2+.perfetto.protos.AndroidStartupMetric.SliceRtimeBeforeStartProcessf
 time_during_start_process (2+.perfetto.protos.AndroidStartupMetric.SliceRtimeDuringStartProcessM

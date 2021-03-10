@@ -53,6 +53,14 @@ android_startup {
         dur_ns: 83
         dur_ms: 8.3e-05
       }
+      time_inflate {
+        dur_ns: 3
+        dur_ms: 3e-06
+      }
+      time_get_resources {
+        dur_ns: 1
+        dur_ms: 1e-06
+      }
     }
     activity_hosting_process_count: 1
   }
