@@ -451,7 +451,8 @@ void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
       heapprofd_config.max_heapprofd_cpu_secs();
 
   InterningOutputTracker::WriteFixedInterningsPacket(
-      data_source.trace_writer.get());
+      data_source.trace_writer.get(),
+      protos::pbzero::TracePacket::SEQ_INCREMENTAL_STATE_CLEARED);
   data_sources_.emplace(id, std::move(data_source));
   PERFETTO_DLOG("Set up data source.");
 

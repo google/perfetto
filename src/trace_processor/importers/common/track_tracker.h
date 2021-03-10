@@ -101,6 +101,13 @@ class TrackTracker {
                                 StringId description = StringId::Null(),
                                 StringId unit = StringId::Null());
 
+  // Creaates a counter track for values within perf samples.
+  // The tracks themselves are managed by PerfSampleTracker.
+  TrackId CreatePerfCounterTrack(StringId name,
+                                 uint32_t perf_session_id,
+                                 uint32_t cpu,
+                                 bool is_timebase);
+
  private:
   struct GpuTrackTuple {
     StringId track_name;
@@ -133,7 +140,6 @@ class TrackTracker {
   std::map<GpuTrackTuple, TrackId> gpu_tracks_;
   std::map<ChromeTrackTuple, TrackId> chrome_tracks_;
   std::map<UniquePid, TrackId> chrome_process_instant_tracks_;
-  std::map<UniquePid, TrackId> perf_stack_tracks_;
 
   std::map<StringId, TrackId> global_counter_tracks_by_name_;
   std::map<std::pair<StringId, uint32_t>, TrackId> cpu_counter_tracks_;
