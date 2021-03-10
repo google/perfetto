@@ -1,0 +1,76 @@
+/*
+ * Copyright (C) 2021 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto2";
+
+package perfetto.protos;
+
+message PerfEvents {
+  // What event to sample on, and how often. Commented from the perspective of
+  // its use in |PerfEventConfig|.
+  message Timebase {
+    // How often the per-cpu sampling will occur. Not guaranteed to be honored
+    // as the kernel can throttle the sampling rate if it's too high.
+    // If unset, an implementation-defined default is used.
+    oneof interval {
+      // Per-cpu sampling frequency in Hz, as requested from the kernel. Not the
+      // same as 1/period.
+      // Details: the actual sampling will still be based on a period, but the
+      // kernel will dynamically adjust it based on the observed event rate, to
+      // approximate this frequency. Works best with steady-rate events like
+      // timers.
+      uint64 frequency = 2;
+
+      // Per-cpu sampling will occur every |period| counts of |event|.
+      // Prefer |frequency| by default, as it's easier to oversample with a
+      // fixed period.
+      uint64 period = 1;
+    }
+
+    // Counting event to use as a timebase for the sampling.
+    // If unset, implies the CPU timer (SW_CPU_CLOCK) as the event,
+    // which is what you usually want.
+    // See common/perf_events.proto for the definitions.
+    oneof event {
+      PerfEvents.Counter counter = 4;
+      PerfEvents.Tracepoint tracepoint = 3;
+    }
+  }
+
+  enum Counter {
+    UNKNOWN_COUNTER = 0;
+    // software:
+    SW_CPU_CLOCK = 1;
+    SW_PAGE_FAULTS = 2;
+    // hardware:
+    HW_CPU_CYCLES = 10;
+    HW_INSTRUCTIONS = 11;
+  }
+
+  message Tracepoint {
+    // Group and name for the tracepoint, acceptable forms:
+    // * "sched/sched_switch"
+    // * "sched:sched_switch"
+    optional string name = 1;
+
+    // Optional field-level filter for the tracepoint. Only events matching this
+    // filter will be counted (and therefore contribute to the sampling period).
+    // Example: "prev_pid >= 42 && next_pid == 0".
+    // For full syntax, see kernel documentation on "Event filtering":
+    // https://www.kernel.org/doc/Documentation/trace/events.txt
+    optional string filter = 2;
+  }
+}
