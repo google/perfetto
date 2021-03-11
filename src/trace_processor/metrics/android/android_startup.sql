@@ -71,7 +71,10 @@ DROP TABLE IF EXISTS main_process_slice;
 CREATE TABLE main_process_slice AS
 SELECT
   launches.id AS launch_id,
-  slice.name AS name,
+  CASE
+    WHEN slice.name LIKE 'OpenDexFilesFromOat%' THEN 'OpenDexFilesFromOat'
+    ELSE slice.name
+  END AS name,
   AndroidStartupMetric_Slice(
     'dur_ns', SUM(slice.dur),
     'dur_ms', SUM(slice.dur) / 1e6
@@ -96,6 +99,7 @@ WHERE slice.name IN (
   OR slice.name LIKE 'performResume:%'
   OR slice.name LIKE 'performCreate:%'
   OR slice.name LIKE 'location=% status=% filter=% reason=%'
+  OR slice.name LIKE 'OpenDexFilesFromOat%'
 GROUP BY 1, 2;
 
 DROP TABLE IF EXISTS report_fully_drawn_per_launch;
@@ -286,6 +290,11 @@ SELECT
         FROM main_process_slice s
         WHERE s.launch_id = launches.id
         AND name = 'ResourcesManager#getResources'
+      ),
+      'time_dex_open', (
+        SELECT slice_proto
+        FROM main_process_slice s
+        WHERE s.launch_id = launches.id AND name = 'OpenDexFilesFromOat'
       )
     ),
     'hsc', (
