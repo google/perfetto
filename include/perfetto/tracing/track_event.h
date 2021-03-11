@@ -340,7 +340,7 @@ constexpr bool IsStaticString(...) {
 // End a slice under |category|.
 #define TRACE_EVENT_END(category, ...) \
   PERFETTO_INTERNAL_TRACK_EVENT(       \
-      category, nullptr,               \
+      category, /*name=*/nullptr,      \
       ::perfetto::protos::pbzero::TrackEvent::TYPE_SLICE_END, ##__VA_ARGS__)
 
 // Begin a slice which gets automatically closed when going out of scope.
@@ -358,7 +358,49 @@ constexpr bool IsStaticString(...) {
 #define TRACE_EVENT_CATEGORY_ENABLED(category) \
   PERFETTO_INTERNAL_CATEGORY_ENABLED(category)
 
+// Time-varying numeric data can be recorded with the TRACE_COUNTER macro:
+//
+//   TRACE_COUNTER("cat", counter_track[, timestamp], value);
+//
+// For example, to record a single value for a counter called "MyCounter":
+//
+//   TRACE_COUNTER("category", "MyCounter", 1234.5);
+//
+// This data is displayed as a counter track in the Perfetto UI.
+//
+// Both integer and floating point counter values are supported. Counters can
+// also be annotated with additional information such as units, for example, for
+// tracking the rendering framerate in terms of frames per second or "fps":
+//
+//   TRACE_COUNTER("category", perfetto::CounterTrack("Framerate", "fps"), 120);
+//
+// As another example, a memory counter that records bytes but accepts samples
+// as kilobytes (to reduce trace binary size) can be defined like this:
+//
+//   perfetto::CounterTrack memory_track = perfetto::CounterTrack("Memory")
+//       .set_unit("bytes")
+//       .set_multiplier(1024);
+//   TRACE_COUNTER("category", memory_track, 4 /* = 4096 bytes */);
+//
+// See /protos/perfetto/trace/track_event/counter_descriptor.proto
+// for the full set of attributes for a counter track.
+//
+// To record a counter value at a specific point in time (instead of the current
+// time), you can pass in a custom timestamp:
+//
+//   // First record the current time and counter value.
+//   uint64_t timestamp = perfetto::TrackEvent::GetTraceTimeNs();
+//   int64_t value = 1234;
+//
+//   // Later, emit a sample at that point in time.
+//   TRACE_COUNTER("category", "MyCounter", timestamp, value);
+//
+#define TRACE_COUNTER(category, track, ...)                 \
+  PERFETTO_INTERNAL_TRACK_EVENT(                            \
+      category, /*name=*/nullptr,                           \
+      ::perfetto::protos::pbzero::TrackEvent::TYPE_COUNTER, \
+      ::perfetto::CounterTrack(track), ##__VA_ARGS__)
+
 // TODO(skyostil): Add flow events.
-// TODO(skyostil): Add counters.
 
 #endif  // INCLUDE_PERFETTO_TRACING_TRACK_EVENT_H_
