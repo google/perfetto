@@ -35,7 +35,7 @@ constexpr int64_t kSendfileTimeoutNs = 10UL * 1000 * 1000 * 1000;  // 10s
 }  // namespace
 
 void PerfettoCmd::SaveTraceIntoDropboxAndIncidentOrCrash() {
-  PERFETTO_CHECK(is_uploading_);
+  PERFETTO_CHECK(save_to_incidentd_);
   PERFETTO_CHECK(
       !trace_config_->incident_report_config().destination_package().empty());
 
@@ -122,7 +122,7 @@ void PerfettoCmd::SaveOutputToIncidentTraceOrCrash() {
 }
 
 // static
-base::ScopedFile PerfettoCmd::OpenDropboxTmpFile() {
+base::ScopedFile PerfettoCmd::CreateUnlikedTmpFile() {
   // If we are tracing to DropBox, there's no need to make a
   // filesystem-visible temporary file.
   auto fd = base::OpenFile(kStateDir, O_TMPFILE | O_RDWR, 0600);

@@ -270,6 +270,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
   bool background = false;
   bool ignore_guardrails = false;
   bool parse_as_pbtxt = false;
+  bool upload_flag = false;
   TraceConfig::StatsdMetadata statsd_metadata;
   RateLimiter limiter;
 
@@ -335,7 +336,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
 
     if (option == OPT_UPLOAD) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-      is_uploading_ = true;
+      upload_flag = true;
       continue;
 #else
       PERFETTO_ELOG("--upload is only supported on Android");
@@ -346,7 +347,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
     if (option == OPT_DROPBOX) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
       PERFETTO_CHECK(optarg);
-      is_uploading_ = true;
+      upload_flag = true;
       continue;
 #else
       PERFETTO_ELOG("--dropbox is only supported on Android");
@@ -538,7 +539,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
   }
 
   if (!trace_config_->incident_report_config().destination_package().empty() &&
-      !is_uploading_) {
+      !upload_flag) {
     PERFETTO_ELOG(
         "Unexpected IncidentReportConfig without --dropbox / --upload.");
     return 1;
@@ -546,25 +547,50 @@ int PerfettoCmd::Main(int argc, char** argv) {
 
   if (trace_config_->activate_triggers().empty() &&
       trace_config_->incident_report_config().destination_package().empty() &&
-      is_uploading_) {
-    PERFETTO_ELOG("Missing IncidentReportConfig with --dropbox / --upload.");
+      !trace_config_->incident_report_config().skip_incidentd() &&
+      upload_flag) {
+    PERFETTO_ELOG(
+        "Missing IncidentReportConfig.destination_package with --dropbox / "
+        "--upload.");
     return 1;
   }
 
-  // Set up the output file. Either --out or --dropbox are expected, with the
+  // Only save to incidentd if both --upload is set and |skip_incidentd| is
+  // absent or false.
+  save_to_incidentd_ =
+      upload_flag && !trace_config_->incident_report_config().skip_incidentd();
+
+  // Respect the wishes of the config with respect to statsd logging or fall
+  // back on the presence of the --upload flag if not set.
+  switch (trace_config_->statsd_logging()) {
+    case TraceConfig::STATSD_LOGGING_ENABLED:
+      statsd_logging_ = true;
+      break;
+    case TraceConfig::STATSD_LOGGING_DISABLED:
+      statsd_logging_ = false;
+      break;
+    case TraceConfig::STATSD_LOGGING_UNSPECIFIED:
+      statsd_logging_ = upload_flag;
+      break;
+  }
+  trace_config_->set_statsd_logging(statsd_logging_
+                                        ? TraceConfig::STATSD_LOGGING_ENABLED
+                                        : TraceConfig::STATSD_LOGGING_DISABLED);
+
+  // Set up the output file. Either --out or --upload are expected, with the
   // only exception of --attach. In this case the output file is passed when
   // detaching.
-  if (!trace_out_path_.empty() && is_uploading_) {
+  if (!trace_out_path_.empty() && upload_flag) {
     PERFETTO_ELOG(
-        "Can't log to a file (--out) and DropBox (--dropbox) at the same "
+        "Can't log to a file (--out) and incidentd (--upload) at the same "
         "time");
     return 1;
   }
 
   if (!trace_config_->output_path().empty()) {
-    if (!trace_out_path_.empty() || is_uploading_) {
+    if (!trace_out_path_.empty() || upload_flag) {
       PERFETTO_ELOG(
-          "Can't pass --out or --dropbox if output_path is set in the "
+          "Can't pass --out or --upload if output_path is set in the "
           "trace config");
       return 1;
     }
@@ -592,16 +618,16 @@ int PerfettoCmd::Main(int argc, char** argv) {
   bool open_out_file = true;
   if (!will_trace) {
     open_out_file = false;
-    if (!trace_out_path_.empty() || is_uploading_) {
-      PERFETTO_ELOG("Can't pass an --out file (or --dropbox) with this option");
+    if (!trace_out_path_.empty() || upload_flag) {
+      PERFETTO_ELOG("Can't pass an --out file (or --upload) with this option");
       return 1;
     }
   } else if (!triggers_to_activate.empty() ||
              (trace_config_->write_into_file() &&
               !trace_config_->output_path().empty())) {
     open_out_file = false;
-  } else if (trace_out_path_.empty() && !is_uploading_) {
-    PERFETTO_ELOG("Either --out or --dropbox is required");
+  } else if (trace_out_path_.empty() && !upload_flag) {
+    PERFETTO_ELOG("Either --out or --upload is required");
     return 1;
   } else if (is_detach() && !trace_config_->write_into_file()) {
     // In detached mode we must pass the file descriptor to the service and
@@ -703,7 +729,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
 
   RateLimiter::Args args{};
   args.is_user_build = IsUserBuild();
-  args.is_uploading = is_uploading_;
+  args.is_uploading = save_to_incidentd_;
   args.current_time = base::GetWallTimeS();
   args.ignore_guardrails = ignore_guardrails;
   args.allow_user_build_tracing = trace_config_->allow_user_build_tracing();
@@ -795,7 +821,9 @@ void PerfettoCmd::OnConnect() {
   }
 
   PERFETTO_DCHECK(trace_config_);
-  trace_config_->set_enable_extra_guardrails(is_uploading_);
+  trace_config_->set_enable_extra_guardrails(save_to_incidentd_);
+
+  // Set the statsd logging flag if we're uploading
 
   base::ScopedFile optional_fd;
   if (trace_config_->write_into_file() && trace_config_->output_path().empty())
@@ -900,7 +928,7 @@ void PerfettoCmd::FinalizeTraceAndExit() {
       bytes_written_ = static_cast<size_t>(sz);
   }
 
-  if (is_uploading_) {
+  if (save_to_incidentd_) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
     SaveTraceIntoDropboxAndIncidentOrCrash();
 #endif
@@ -921,9 +949,9 @@ void PerfettoCmd::FinalizeTraceAndExit() {
 
 bool PerfettoCmd::OpenOutputFile() {
   base::ScopedFile fd;
-  if (is_uploading_) {
+  if (save_to_incidentd_) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-    fd = OpenDropboxTmpFile();
+    fd = CreateUnlikedTmpFile();
 #endif
   } else if (trace_out_path_ == "-") {
     fd.reset(dup(fileno(stdout)));
@@ -1038,7 +1066,7 @@ void PerfettoCmd::OnObservableEvents(
     const ObservableEvents& /*observable_events*/) {}
 
 void PerfettoCmd::LogUploadEvent(PerfettoStatsdAtom atom) {
-  if (!is_uploading_)
+  if (!statsd_logging_)
     return;
   base::Uuid uuid(uuid_);
   android_stats::MaybeLogUploadEvent(atom, uuid.lsb(), uuid.msb());
@@ -1047,7 +1075,7 @@ void PerfettoCmd::LogUploadEvent(PerfettoStatsdAtom atom) {
 void PerfettoCmd::LogTriggerEvents(
     PerfettoTriggerAtom atom,
     const std::vector<std::string>& trigger_names) {
-  if (!is_uploading_)
+  if (!statsd_logging_)
     return;
   android_stats::MaybeLogTriggerEvents(atom, trigger_names);
 }
