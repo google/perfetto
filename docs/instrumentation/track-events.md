@@ -483,6 +483,54 @@ track, call EraseTrackDescriptor:
 perfetto::TrackEvent::EraseTrackDescriptor(track);
 ```
 
+### Counters
+
+Time-varying numeric data can be recorded with the `TRACE_COUNTER` macro:
+
+```C++
+TRACE_COUNTER("category", "MyCounter", 1234.5);
+```
+
+This data is displayed as a counter track in the Perfetto UI:
+
+![A counter track shown in the Perfetto UI](
+  /docs/images/counter-events.png "A counter track shown in the Perfetto UI")
+
+Both integer and floating point counter values are supported. Counters can
+also be annotated with additional information such as units, for example, for
+tracking the rendering framerate in terms of frames per second or "fps":
+
+```C++
+TRACE_COUNTER("category", perfetto::CounterTrack("Framerate", "fps"), 120);
+```
+
+As another example, a memory counter that records bytes but accepts samples
+as kilobytes (to reduce trace binary size) can be defined like this:
+
+```C++
+perfetto::CounterTrack memory_track = perfetto::CounterTrack("Memory")
+    .set_unit("bytes")
+    .set_multiplier(1024);
+TRACE_COUNTER("category", memory_track, 4 /* = 4096 bytes */);
+```
+
+See
+[counter_descriptor.proto](
+/protos/perfetto/trace/track_event/counter_descriptor.proto) for the full set
+of attributes for a counter track.
+
+To record a counter value at a specific point in time (instead of the current
+time), you can pass in a custom timestamp:
+
+```C++
+// First record the current time and counter value.
+uint64_t timestamp = perfetto::TrackEvent::GetTraceTimeNs();
+int64_t value = 1234;
+
+// Later, emit a sample at that point in time.
+TRACE_COUNTER("category", "MyCounter", timestamp, value);
+```
+
 ### Interning
 
 Interning can be used to avoid repeating the same constant data (e.g., event
