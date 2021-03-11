@@ -78,8 +78,7 @@ class TraceSorter {
     MaybeExtractEvents(queue);
   }
 
-  inline void PushJsonValue(int64_t timestamp,
-                            std::unique_ptr<Json::Value> json_value) {
+  inline void PushJsonValue(int64_t timestamp, std::string json_value) {
     auto* queue = GetQueue(0);
     queue->Append(
         TimestampedTracePiece(timestamp, packet_idx_++, std::move(json_value)));

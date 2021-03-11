@@ -21,7 +21,7 @@ package perfetto.protos;
 // Describes the attributes for a Chrome process. Must be paired with a
 // ProcessDescriptor in the same TrackDescriptor.
 //
-// Next id: 4.
+// Next id: 6.
 message ChromeProcessDescriptor {
   // See chromium's content::ProcessType.
   enum ProcessType {
@@ -44,4 +44,17 @@ message ChromeProcessDescriptor {
   // Name of the hosting app for WebView. Used to match renderer processes to
   // their hosting apps.
   optional string host_app_package_name = 4;
+
+  // The ID to link crashes to trace.
+  // Notes:
+  // * The ID is per process. So, each trace may contain many IDs, and you need
+  //   to look for the ID from crashed process to find the crash report.
+  // * Having a "chrome-trace-id" in crash doesn't necessarily mean we can
+  //   get an uploaded trace, since uploads could have failed.
+  // * On the other hand, if there was a crash during the session and trace was
+  //   uploaded, it is very likely to find a crash report with the trace ID.
+  // * This is not crash ID or trace ID. It is just a random 64-bit number
+  //   recorded in both traces and crashes. It is possible to have collisions,
+  //   though very rare.
+  optional uint64 crash_trace_id = 5;
 }

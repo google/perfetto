@@ -1234,7 +1234,128 @@ class JsonExporter {
     return util::OkStatus();
   }
 
+  class MergedProfileSamplesEmitter {
+   public:
+    // The TraceFormatWriter must outlive this instance.
+    MergedProfileSamplesEmitter(TraceFormatWriter& writer) : writer_(writer) {}
+
+    uint64_t AddEventForUtid(UniqueTid utid,
+                             int64_t ts,
+                             CallsiteId callsite_id,
+                             const Json::Value& event) {
+      auto current_sample = current_events_.find(utid);
+
+      // If there's a current entry for our thread and it matches the callsite
+      // of the new sample, update the entry with the new timestamp. Otherwise
+      // create a new entry.
+      if (current_sample != current_events_.end() &&
+          current_sample->second.callsite_id() == callsite_id) {
+        current_sample->second.UpdateWithNewSample(ts);
+        return current_sample->second.event_id();
+      } else {
+        if (current_sample != current_events_.end())
+          current_events_.erase(current_sample);
+
+        auto new_entry = current_events_.emplace(
+            std::piecewise_construct, std::forward_as_tuple(utid),
+            std::forward_as_tuple(writer_, callsite_id, ts, event));
+        return new_entry.first->second.event_id();
+      }
+    }
+
+    static uint64_t GenerateNewEventId() {
+      // "n"-phase events are nestable async events which get tied together
+      // with their id, so we need to give each one a unique ID as we only
+      // want the samples to show up on their own track in the trace-viewer
+      // but not nested together (unless they're nested under a merged event).
+      static size_t g_id_counter = 0;
+      return ++g_id_counter;
+    }
+
+   private:
+    class Sample {
+     public:
+      Sample(TraceFormatWriter& writer,
+             CallsiteId callsite_id,
+             int64_t ts,
+             const Json::Value& event)
+          : writer_(writer),
+            callsite_id_(callsite_id),
+            begin_ts_(ts),
+            end_ts_(ts),
+            event_(event),
+            event_id_(MergedProfileSamplesEmitter::GenerateNewEventId()),
+            sample_count_(1) {}
+
+      ~Sample() {
+        // No point writing a merged event if we only got a single sample
+        // as ExportCpuProfileSamples will already be writing the instant event.
+        if (sample_count_ == 1)
+          return;
+
+        event_["id"] = base::Uint64ToHexString(event_id_);
+
+        // Write the BEGIN event.
+        event_["ph"] = "b";
+        // We subtract 1us as a workaround for the first async event not
+        // nesting underneath the parent event if the timestamp is identical.
+        int64_t begin_in_us_ = begin_ts_ / 1000;
+        event_["ts"] = Json::Int64(std::min(begin_in_us_ - 1, begin_in_us_));
+        writer_.WriteCommonEvent(event_);
+
+        // Write the END event.
+        event_["ph"] = "e";
+        event_["ts"] = Json::Int64(end_ts_ / 1000);
+        // No need for args for the end event; remove them to save some space.
+        event_["args"].clear();
+        writer_.WriteCommonEvent(event_);
+      }
+
+      void UpdateWithNewSample(int64_t ts) {
+        // We assume samples for a given thread will appear in timestamp
+        // order; if this assumption stops holding true, we'll have to sort the
+        // samples first.
+        if (ts < end_ts_ || begin_ts_ > ts) {
+          PERFETTO_ELOG(
+              "Got an timestamp out of sequence while merging stack samples "
+              "during JSON export!\n");
+          PERFETTO_DCHECK(false);
+        }
+
+        end_ts_ = ts;
+        sample_count_++;
+      }
+
+      uint64_t event_id() const { return event_id_; }
+      CallsiteId callsite_id() const { return callsite_id_; }
+
+     public:
+      Sample(const Sample&) = delete;
+      Sample& operator=(const Sample&) = delete;
+      Sample& operator=(Sample&& value) = delete;
+
+      TraceFormatWriter& writer_;
+      CallsiteId callsite_id_;
+      int64_t begin_ts_;
+      int64_t end_ts_;
+      Json::Value event_;
+      uint64_t event_id_;
+      size_t sample_count_;
+    };
+
+    MergedProfileSamplesEmitter(const MergedProfileSamplesEmitter&) = delete;
+    MergedProfileSamplesEmitter& operator=(const MergedProfileSamplesEmitter&) =
+        delete;
+    MergedProfileSamplesEmitter& operator=(
+        MergedProfileSamplesEmitter&& value) = delete;
+
+    std::unordered_map<UniqueTid, Sample> current_events_;
+    TraceFormatWriter& writer_;
+  };
+
   util::Status ExportCpuProfileSamples() {
+    MergedProfileSamplesEmitter merged_sample_emitter(writer_);
+
     const tables::CpuProfileStackSampleTable& samples =
         storage_->cpu_profile_stack_sample_table();
     for (uint32_t i = 0; i < samples.row_count(); ++i) {
@@ -1255,13 +1376,6 @@ class JsonExporter {
       // instant events. Useful in the UI to view args of a selected group of
       // samples.
       event["tts"] = Json::Int64(1);
-
-      // "n"-phase events are nestable async events which get tied together with
-      // their id, so we need to give each one a unique ID as we only
-      // want the samples to show up on their own track in the trace-viewer but
-      // not nested together.
-      static size_t g_id_counter = 0;
-      event["id"] = base::Uint64ToHexString(++g_id_counter);
 
       const auto& callsites = storage_->stack_profile_callsite_table();
       const auto& frames = storage_->stack_profile_frame_table();
@@ -1315,6 +1429,22 @@ class JsonExporter {
       // pipeline, should remove once we've switched to looking directly at the
       // tid.
       event["args"]["thread_id"] = Json::Int(pid_and_tid.second);
+
+      // Emit duration events for adjacent samples with the same callsite.
+      // For now, only do this when the trace has already been symbolized i.e.
+      // are not directly output by Chrome, to avoid interfering with other
+      // processing pipelines.
+      base::Optional<CallsiteId> opt_current_callsite_id =
+          samples.callsite_id()[i];
+
+      if (opt_current_callsite_id && storage_->symbol_table().row_count() > 0) {
+        uint64_t parent_event_id = merged_sample_emitter.AddEventForUtid(
+            utid, samples.ts()[i], *opt_current_callsite_id, event);
+        event["id"] = base::Uint64ToHexString(parent_event_id);
+      } else {
+        event["id"] = base::Uint64ToHexString(
+            MergedProfileSamplesEmitter::GenerateNewEventId());
+      }
 
       writer_.WriteCommonEvent(event);
     }

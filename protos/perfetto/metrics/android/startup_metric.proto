@@ -38,7 +38,7 @@ message AndroidStartupMetric {
 
   // Timing information spanning the intent received by the
   // activity manager to the first frame drawn.
-  // Next id: 22.
+  // Next id: 24.
   message ToFirstFrame {
     optional int64 dur_ns = 1;
     optional double dur_ms = 17;
@@ -59,6 +59,8 @@ message AndroidStartupMetric {
     optional Slice time_activity_resume = 8;
     optional Slice time_activity_restart = 21;
     optional Slice time_choreographer = 9;
+    optional Slice time_inflate = 22;
+    optional Slice time_get_resources = 23;
 
     // If we are starting a new process, record the duration from the
     // intent being received to the time we call the zygote.
@@ -88,7 +90,13 @@ message AndroidStartupMetric {
     optional Slice full_startup = 1;
   }
 
-  // Next id: 11
+  message Activity {
+    optional string name = 1;
+    optional string method = 2;
+    optional Slice slice = 3;
+  }
+
+  // Next id: 12
   message Startup {
     // Random id uniquely identifying an app startup in this trace.
     optional uint32 startup_id = 1;
@@ -99,8 +107,8 @@ message AndroidStartupMetric {
     // Name of the process launched
     optional string process_name = 3;
 
-    // Name of the activity launched
-    optional string activity_name = 10;
+    // Details about the activities launched
+    repeated Activity activities = 11;
 
     // Did we ask the zygote for a new process
     optional bool zygote_new_process = 4;
@@ -122,6 +130,8 @@ message AndroidStartupMetric {
     // of the reportFullyDrawn slice. This should be longer than the time to
     // first frame as the application decides this after it starts rendering.
     optional Slice report_fully_drawn = 9;
+
+    reserved 10;
   }
 
   repeated Startup startup = 1;

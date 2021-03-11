@@ -183,8 +183,6 @@ std::shared_ptr<Client> Client::CreateAndHandshake(
     prctl(PR_SET_DUMPABLE, 1);
   }
 
-  size_t num_send_fds = kHandshakeSize;
-
   base::ScopedFile maps(base::OpenFile("/proc/self/maps", O_RDONLY));
   if (!maps) {
     PERFETTO_DFATAL_OR_ELOG("Failed to open /proc/self/maps");
@@ -205,7 +203,7 @@ std::shared_ptr<Client> Client::CreateAndHandshake(
 
   // Send an empty record to transfer fds for /proc/self/maps and
   // /proc/self/mem.
-  if (sock.Send(kSingleByte, sizeof(kSingleByte), fds, num_send_fds) !=
+  if (sock.Send(kSingleByte, sizeof(kSingleByte), fds, kHandshakeSize) !=
       sizeof(kSingleByte)) {
     PERFETTO_DFATAL_OR_ELOG("Failed to send file descriptors.");
     return nullptr;

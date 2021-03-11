@@ -39,7 +39,6 @@ enum class ReadDictRes {
   kNeedsMoreData,
   kEndOfTrace,
   kEndOfArray,
-  kFatalError,
 };
 
 // Parses at most one JSON dictionary and returns a pointer to the end of it,
@@ -50,7 +49,7 @@ enum class ReadDictRes {
 // Visible for testing.
 ReadDictRes ReadOneJsonDict(const char* start,
                             const char* end,
-                            Json::Value* value,
+                            base::StringView* value,
                             const char** next);
 
 enum class ReadKeyRes {
@@ -72,6 +71,16 @@ ReadKeyRes ReadOneJsonKey(const char* start,
                           const char* end,
                           std::string* key,
                           const char** next);
+
+// Takes as input a JSON dictionary and returns the value associated with
+// the provided key (if it exists).
+// Implementation note: this method does not currently support dictionaries
+// which have arrays as JSON values because current users of this method
+// do not require this.
+// Visible for testing.
+util::Status ExtractValueForJsonKey(base::StringView dict,
+                                    const std::string& key,
+                                    base::Optional<std::string>* value);
 
 enum class ReadSystemLineRes {
   kFoundLine,
