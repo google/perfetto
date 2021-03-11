@@ -77,6 +77,7 @@ std::vector<MergedCallsite> GetMergedCallsites(TraceStorage* storage,
     result.emplace_back(
         MergedCallsite{symbols_tbl.name()[i], mapping_name, base::nullopt});
   }
+  std::reverse(result.begin(), result.end());
   return result;
 }
 }  // namespace
