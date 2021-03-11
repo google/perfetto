@@ -38,6 +38,7 @@ void FunctionWithOneTrackEventWithTypedArgument();
 void FunctionWithOneScopedTrackEvent();
 void FunctionWithOneTrackEventWithDebugAnnotations();
 void FunctionWithOneTrackEventWithCustomTrack();
+void FunctionWithOneCounterEvent();
 
 // Legacy events.
 void FunctionWithOneLegacyEvent();
