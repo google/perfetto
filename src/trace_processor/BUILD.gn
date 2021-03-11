@@ -14,6 +14,7 @@
 
 import("../../gn/fuzzer.gni")
 import("../../gn/perfetto.gni")
+import("../../gn/perfetto_cc_proto_descriptor.gni")
 import("../../gn/perfetto_host_executable.gni")
 import("../../gn/test.gni")
 import("../../gn/wasm.gni")
@@ -404,6 +405,7 @@ perfetto_unittest_source_set("unittests") {
     "trace_sorter_unittest.cc",
   ]
   deps = [
+    ":gen_cc_test_messages_descriptor",
     ":storage_full",
     "../../gn:default_deps",
     "../../gn:gtest_and_gmock",
@@ -468,6 +470,11 @@ perfetto_unittest_source_set("unittests") {
       ]
     }
   }
+}
+
+perfetto_cc_proto_descriptor("gen_cc_test_messages_descriptor") {
+  descriptor_name = "test_messages.descriptor"
+  descriptor_target = "../protozero:test_messages_descriptor"
 }
 
 source_set("integrationtests") {
