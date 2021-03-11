@@ -78,6 +78,9 @@ void DrawGame() {
   DrawPlayer(1);
   DrawPlayer(2);
   TRACE_EVENT_END("rendering");
+
+  // Record the rendering framerate as a counter sample.
+  TRACE_COUNTER("rendering", "Framerate", 120);
 }
 
 int main(int, const char**) {

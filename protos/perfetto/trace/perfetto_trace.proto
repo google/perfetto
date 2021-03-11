@@ -8294,7 +8294,7 @@ message ChromeThreadDescriptor {
 // Values for counters that are only emitted on a single packet sequence can
 // optionally be delta-encoded, see |is_incremental|.
 //
-// Next id: 6.
+// Next id: 7.
 message CounterDescriptor {
   // Built-in counters, usually with special meaning in the client library,
   // trace processor, legacy JSON format, or UI. Trace processor will infer a
@@ -8335,6 +8335,10 @@ message CounterDescriptor {
   // Type of the counter's values. Built-in counters imply a value for this
   // field.
   optional Unit unit = 3;
+
+  // In order to use a unit not defined as a part of |Unit|, a free-form unit
+  // name can be used instead.
+  optional string unit_name = 6;
 
   // Multiplication factor of this counter's values, e.g. to supply
   // COUNTER_THREAD_TIME_NS timestamps in microseconds instead.
