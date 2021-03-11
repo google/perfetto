@@ -103,4 +103,11 @@ void FunctionWithOneScopedLegacyEvent() {
   puts("Hello");
 }
 
+void FunctionWithOneCounterEvent() {
+  TRACE_COUNTER("cat1", "CounterName", 4096);
+  // Simulates the non-tracing work of this function, which should take priority
+  // over the above trace event in terms of instruction scheduling.
+  puts("Hello");
+}
+
 }  // namespace tracing_module

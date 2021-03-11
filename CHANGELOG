@@ -6,7 +6,8 @@ Unreleased:
       by setting the sorting mode to force a full sort.
   UI:
     *
-
+  SDK:
+    * Add support for counter trace points with the TRACE_COUNTER macro.
 
 v13.0 - 2021-03-01:
   Tracing service and probes:
