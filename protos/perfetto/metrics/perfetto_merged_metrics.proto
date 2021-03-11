@@ -694,7 +694,7 @@ message AndroidStartupMetric {
 
   // Timing information spanning the intent received by the
   // activity manager to the first frame drawn.
-  // Next id: 24.
+  // Next id: 25.
   message ToFirstFrame {
     optional int64 dur_ns = 1;
     optional double dur_ms = 17;
@@ -731,6 +731,8 @@ message AndroidStartupMetric {
 
     optional Slice time_post_fork = 16;
 
+    // The total time spent on opening dex files.
+    optional Slice time_dex_open = 24;
     // Deprecated was other_process_to_activity_cpu_ratio
     reserved 12;
 
