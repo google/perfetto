@@ -51,7 +51,7 @@ SELECT
     ROW_NUMBER() OVER(PARTITION BY launches.id ORDER BY functions.ts ASC) as number
 FROM functions
 INNER JOIN launches on launches.package LIKE '%' || functions.process_name || '%'
-WHERE functions.function_name="Choreographer#doFrame" AND functions.ts > launches.ts;
+WHERE functions.function_name LIKE "Choreographer#doFrame%" AND functions.ts > launches.ts;
 
 DROP TABLE IF EXISTS hsc_based_startup_times;
 CREATE TABLE hsc_based_startup_times(package STRING, id INT, ts_total INT);
