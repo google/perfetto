@@ -19,16 +19,18 @@ import synth_common
 
 APP_PID = 3
 APP_TID = 1
+SECOND_APP_TID = 3
 SYSTEM_SERVER_PID = 2
 SYSTEM_SERVER_TID = 2
 LAUNCH_START_TS = 100
-LAUNCH_END_TS = 200
+LAUNCH_END_TS = 300
 
 trace = synth_common.create_trace()
 trace.add_packet()
 trace.add_process(1, 0, 'init')
 trace.add_process(SYSTEM_SERVER_PID, 1, 'system_server')
 trace.add_process(APP_PID, 1, 'com.some.app')
+trace.add_thread(tid=SECOND_APP_TID, tgid=APP_PID, cmdline='second_thread')
 
 trace.add_ftrace_packet(cpu=0)
 # Start intent.
@@ -66,6 +68,22 @@ trace.add_atrace_async_end(
     tid=SYSTEM_SERVER_TID,
     pid=SYSTEM_SERVER_PID,
     buf='launching: com.some.app')
+
+# VerifyClass slices within the startup.
+trace.add_atrace_begin(ts=250, pid=APP_PID, tid=APP_TID, buf='VerifyClass vr')
+trace.add_atrace_end(ts=265, pid=APP_PID, tid=APP_TID)
+
+trace.add_atrace_begin(ts=270, pid=APP_PID, tid=APP_TID, buf='VerifyClass dl')
+trace.add_atrace_end(ts=275, pid=APP_PID, tid=APP_TID)
+
+# VerifyClass slice outside the startup.
+trace.add_atrace_begin(ts=55, pid=APP_PID, tid=APP_TID, buf='VerifyClass xf')
+trace.add_atrace_end(ts=65, pid=APP_PID, tid=APP_TID)
+
+# VerifyClass slice on a different thread, overlapping with the other slices.
+trace.add_atrace_begin(
+    ts=260, pid=APP_PID, tid=SECOND_APP_TID, buf='VerifyClass vp')
+trace.add_atrace_end(ts=280, pid=APP_PID, tid=SECOND_APP_TID)
 
 # Intent successful.
 trace.add_atrace_begin(
