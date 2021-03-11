@@ -1367,6 +1367,8 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
           context->storage->InternString("legacy_ipc.line")),
       chrome_host_app_package_name_id_(
           context->storage->InternString("chrome.host_app_package_name")),
+      chrome_crash_trace_id_name_id_(
+          context->storage->InternString("chrome.crash_trace_id")),
       chrome_legacy_ipc_class_ids_{
           {context->storage->InternString("UNSPECIFIED"),
            context->storage->InternString("AUTOMATION"),
@@ -1572,12 +1574,16 @@ void TrackEventParser::ParseChromeProcessDescriptor(
   // Don't override system-provided names.
   context_->process_tracker->SetProcessNameIfUnset(upid, name_id);
 
+  ArgsTracker::BoundInserter process_args =
+      context_->process_tracker->AddArgsTo(upid);
   if (decoder.has_host_app_package_name()) {
-    ArgsTracker::BoundInserter process_args =
-        context_->process_tracker->AddArgsTo(upid);
     process_args.AddArg(chrome_host_app_package_name_id_,
                         Variadic::String(context_->storage->InternString(
                             decoder.host_app_package_name())));
+  }
+  if (decoder.has_crash_trace_id()) {
+    process_args.AddArg(chrome_crash_trace_id_name_id_,
+                        Variadic::UnsignedInteger(decoder.crash_trace_id()));
   }
 }
 
