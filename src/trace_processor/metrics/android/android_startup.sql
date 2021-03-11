@@ -73,6 +73,7 @@ SELECT
   launches.id AS launch_id,
   CASE
     WHEN slice.name LIKE 'OpenDexFilesFromOat%' THEN 'OpenDexFilesFromOat'
+    WHEN slice.name LIKE 'VerifyClass%' THEN 'VerifyClass'
     ELSE slice.name
   END AS name,
   AndroidStartupMetric_Slice(
@@ -100,6 +101,7 @@ WHERE slice.name IN (
   OR slice.name LIKE 'performCreate:%'
   OR slice.name LIKE 'location=% status=% filter=% reason=%'
   OR slice.name LIKE 'OpenDexFilesFromOat%'
+  OR slice.name LIKE 'VerifyClass%'
 GROUP BY 1, 2;
 
 DROP TABLE IF EXISTS report_fully_drawn_per_launch;
@@ -295,6 +297,11 @@ SELECT
         SELECT slice_proto
         FROM main_process_slice s
         WHERE s.launch_id = launches.id AND name = 'OpenDexFilesFromOat'
+      ),
+      'time_verify_class', (
+        SELECT slice_proto
+        FROM main_process_slice s
+        WHERE s.launch_id = launches.id AND name = 'VerifyClass'
       )
     ),
     'hsc', (
