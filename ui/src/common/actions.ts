@@ -14,7 +14,7 @@
 
 import {Draft} from 'immer';
 
-import {assertExists} from '../base/logging';
+import {assertExists, assertTrue} from '../base/logging';
 import {randomColor} from '../common/colorizer';
 import {ConvertTrace, ConvertTraceToPprof} from '../controller/trace_converter';
 import {ACTUAL_FRAMES_SLICE_TRACK_KIND} from '../tracks/actual_frames/common';
@@ -520,6 +520,7 @@ export const StateActions = {
 
   markArea(state: StateDraft, args: {area: Area, persistent: boolean}): void {
     const areaId = `${state.nextAreaId++}`;
+    assertTrue(args.area.endSec >= args.area.startSec);
     state.areas[areaId] = {
       id: areaId,
       startSec: args.area.startSec,
@@ -740,6 +741,7 @@ export const StateActions = {
 
   selectArea(state: StateDraft, args: {area: Area}): void {
     const areaId = `${state.nextAreaId++}`;
+    assertTrue(args.area.endSec >= args.area.startSec);
     state.areas[areaId] = {
       id: areaId,
       startSec: args.area.startSec,
@@ -750,6 +752,7 @@ export const StateActions = {
   },
 
   editArea(state: StateDraft, args: {area: Area, areaId: string}): void {
+    assertTrue(args.area.endSec >= args.area.startSec);
     state.areas[args.areaId] = {
       id: args.areaId,
       startSec: args.area.startSec,
