@@ -94,7 +94,6 @@ WHERE slice.name IN (
   'activityStart',
   'activityRestart',
   'activityResume',
-  'Choreographer#doFrame',
   'inflate',
   'ResourcesManager#getResources')
   OR slice.name LIKE 'performResume:%'
@@ -102,6 +101,7 @@ WHERE slice.name IN (
   OR slice.name LIKE 'location=% status=% filter=% reason=%'
   OR slice.name LIKE 'OpenDexFilesFromOat%'
   OR slice.name LIKE 'VerifyClass%'
+  OR slice.name LIKE 'Choreographer#doFrame%'
 GROUP BY 1, 2;
 
 DROP TABLE IF EXISTS report_fully_drawn_per_launch;
@@ -264,7 +264,7 @@ SELECT
       'time_choreographer', (
         SELECT slice_proto
         FROM main_process_slice s
-        WHERE s.launch_id = launches.id AND name = 'Choreographer#doFrame'
+        WHERE s.launch_id = launches.id AND name LIKE 'Choreographer#doFrame%'
       ),
       'time_before_start_process', (
         SELECT AndroidStartupMetric_Slice(
