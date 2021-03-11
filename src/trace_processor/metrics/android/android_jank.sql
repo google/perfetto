@@ -157,7 +157,7 @@ SELECT
   ts,
   dur
 FROM android_jank_main_thread_slices
-WHERE name = 'Choreographer#doFrame'
+WHERE name LIKE 'Choreographer#doFrame%'
 AND dur >= 5000000;
 
 CREATE VIRTUAL TABLE IF NOT EXISTS android_jank_do_frame_slices_state_scheduled
