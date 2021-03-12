@@ -55,6 +55,7 @@ message TraceMetadata {
   repeated string trace_trigger = 7;
   optional string unique_session_name = 8;
   optional string trace_config_pbtxt = 9;
+  optional int64 sched_duration_ns = 10;
 }
 
 // Root message for all Perfetto-based metrics.
