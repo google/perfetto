@@ -41,18 +41,9 @@ class MetadataTracker {
   // Returns the id of the new entry.
   MetadataId AppendMetadata(metadata::KeyId key, Variadic value);
 
-  // Sets a metadata entry using any interned string as key.
-  // Returns the id of the new entry.
-  MetadataId SetDynamicMetadata(StringId key, Variadic value);
-
   // Reads back a set metadata value.
   // For use in tests only.
   SqlValue GetMetadataForTesting(metadata::KeyId key);
-
-  // Tracks how many ChromeMetadata bundles have been parsed.
-  uint32_t IncrementChromeMetadataBundleCount() {
-    return ++chrome_metadata_bundle_count_;
-  }
 
  private:
   static constexpr size_t kNumKeys =
@@ -64,7 +55,6 @@ class MetadataTracker {
 
   std::array<StringId, kNumKeys> key_ids_;
   std::array<StringId, kNumKeyTypes> key_type_ids_;
-  uint32_t chrome_metadata_bundle_count_ = 0;
 
   TraceProcessorContext* context_;
 };
