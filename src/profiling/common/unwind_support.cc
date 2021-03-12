@@ -94,16 +94,6 @@ UnwindingMetadata::UnwindingMetadata(base::ScopedFile maps_fd,
                                      base::ScopedFile mem_fd)
     : fd_maps(std::move(maps_fd)),
       fd_mem(std::make_shared<FDMemory>(std::move(mem_fd))) {
-#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
-  // For managed processes, the unwinder needs to find & read global symbols in
-  // libart. Without this constraint, it would search all mappings.
-  std::vector<std::string> search_libs{"libart.so", "libartd.so"};
-  jit_debug = std::unique_ptr<unwindstack::JitDebug>(
-      new unwindstack::JitDebug(fd_mem, search_libs));
-  dex_files = std::unique_ptr<unwindstack::DexFiles>(
-      new unwindstack::DexFiles(fd_mem, search_libs));
-#endif
-
   if (!fd_maps.Parse())
     PERFETTO_DLOG("Failed initial maps parse");
 }
@@ -113,15 +103,28 @@ void UnwindingMetadata::ReparseMaps() {
   fd_maps.Reset();
   fd_maps.Parse();
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
-  // Reinitialize JIT state, as the referenced memory ranges might have been
-  // unmapped.
-  std::vector<std::string> search_libs{"libart.so", "libartd.so"};
-  jit_debug = std::unique_ptr<unwindstack::JitDebug>(
-      new unwindstack::JitDebug(fd_mem, search_libs));
-  dex_files = std::unique_ptr<unwindstack::DexFiles>(
-      new unwindstack::DexFiles(fd_mem, search_libs));
+  jit_debug.reset();
+  dex_files.reset();
 #endif
 }
+
+#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
+unwindstack::JitDebug* UnwindingMetadata::GetJitDebug(unwindstack::ArchEnum arch) {
+  if (jit_debug.get() == nullptr) {
+    std::vector<std::string> search_libs{"libart.so", "libartd.so"};
+    jit_debug = unwindstack::CreateJitDebug(arch, fd_mem, search_libs);
+  }
+  return jit_debug.get();
+}
+
+unwindstack::DexFiles* UnwindingMetadata::GetDexFiles(unwindstack::ArchEnum arch) {
+  if (dex_files.get() == nullptr) {
+    std::vector<std::string> search_libs{"libart.so", "libartd.so"};
+    dex_files = unwindstack::CreateDexFiles(arch, fd_mem, search_libs);
+  }
+  return dex_files.get();
+}
+#endif
 
 const std::string& UnwindingMetadata::GetBuildId(
     const unwindstack::FrameData& frame) {

@@ -103,6 +103,11 @@ struct UnwindingMetadata {
 
   void ReparseMaps();
 
+#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
+  unwindstack::JitDebug* GetJitDebug(unwindstack::ArchEnum arch);
+  unwindstack::DexFiles* GetDexFiles(unwindstack::ArchEnum arch);
+#endif
+
   const std::string& GetBuildId(const unwindstack::FrameData& frame);
 
   std::string empty_string_;
