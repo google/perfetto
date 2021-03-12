@@ -2583,53 +2583,6 @@ TEST_F(ProtoTraceParserTest, LoadChromeBenchmarkMetadata) {
                                          std::make_pair(tags, kTag2)}));
 }
 
-TEST_F(ProtoTraceParserTest, LoadChromeMetadata) {
-  context_.sorter.reset(new TraceSorter(
-      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
-
-  auto* track_event = trace_->add_packet()->set_chrome_events();
-  {
-    auto* metadata = track_event->add_metadata();
-    metadata->set_name("str_name");
-    metadata->set_string_value("foostr");
-  }
-
-  {
-    auto* metadata = track_event->add_metadata();
-    metadata->set_name("int_name");
-    metadata->set_int_value(42);
-  }
-
-  {
-    auto* metadata = track_event->add_metadata();
-    metadata->set_name("bool_name");
-    metadata->set_bool_value(true);
-  }
-
-  {
-    auto* metadata = track_event->add_metadata();
-    metadata->set_name("json_name");
-    metadata->set_json_value("{key: value}");
-  }
-
-  Tokenize();
-  context_.sorter->ExtractEventsForced();
-
-  const auto& metadata = storage_->metadata_table();
-
-  EXPECT_STREQ(metadata.name().GetString(0).c_str(), "cr-str_name");
-  EXPECT_STREQ(metadata.str_value().GetString(0).c_str(), "foostr");
-
-  EXPECT_STREQ(metadata.name().GetString(1).c_str(), "cr-int_name");
-  EXPECT_EQ(metadata.int_value()[1], 42);
-
-  EXPECT_STREQ(metadata.name().GetString(2).c_str(), "cr-bool_name");
-  EXPECT_EQ(metadata.int_value()[2], 1);
-
-  EXPECT_STREQ(metadata.name().GetString(3).c_str(), "cr-json_name");
-  EXPECT_STREQ(metadata.str_value().GetString(3).c_str(), "{key: value}");
-}
-
 TEST_F(ProtoTraceParserTest, AndroidPackagesList) {
   auto* packet = trace_->add_packet();
   auto* pkg_list = packet->set_packages_list();
