@@ -56,3 +56,9 @@ perfetto_proto_library("descriptor") {
   deps = [ ":source_set" ]
   sources = [ "trace_config.proto" ]
 }
+
+perfetto_proto_library("perfetto_config_descriptor") {
+  proto_generators = [ "descriptor" ]
+  generate_descriptor = "perfetto_config.descriptor"
+  sources = [ "perfetto_config.proto" ]
+}

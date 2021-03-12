@@ -690,6 +690,16 @@ filegroup(
     ],
 )
 
+perfetto_cc_proto_descriptor(
+    name = "src_perfetto_cmd_gen_cc_config_descriptor",
+    deps = [
+        ":protos_perfetto_config_perfetto_config_descriptor",
+    ],
+    outs = [
+        "src/perfetto_cmd/perfetto_config.descriptor.h",
+    ],
+)
+
 # GN target: //src/perfetto_cmd:perfetto_cmd
 filegroup(
     name = "src_perfetto_cmd_perfetto_cmd",
@@ -702,7 +712,6 @@ filegroup(
         "src/perfetto_cmd/pbtxt_to_pb.h",
         "src/perfetto_cmd/perfetto_cmd.cc",
         "src/perfetto_cmd/perfetto_cmd.h",
-        "src/perfetto_cmd/perfetto_config.descriptor.h",
         "src/perfetto_cmd/rate_limiter.cc",
         "src/perfetto_cmd/rate_limiter.h",
     ],
@@ -1995,6 +2004,28 @@ perfetto_proto_library(
         "protos/perfetto/config/perfetto_config.proto",
     ],
     visibility = PERFETTO_CONFIG.public_visibility,
+)
+
+# GN target: //protos/perfetto/config:perfetto_config_descriptor
+perfetto_proto_descriptor(
+    name = "protos_perfetto_config_perfetto_config_descriptor",
+    deps = [
+        ":protos_perfetto_config_perfetto_config_protos",
+    ],
+    outs = [
+        "protos_perfetto_config_perfetto_config_descriptor.bin",
+    ],
+)
+
+# GN target: //protos/perfetto/config:perfetto_config_descriptor
+perfetto_proto_library(
+    name = "protos_perfetto_config_perfetto_config_protos",
+    srcs = [
+        "protos/perfetto/config/perfetto_config.proto",
+    ],
+    visibility = [
+        PERFETTO_CONFIG.proto_library_visibility,
+    ],
 )
 
 # GN target: //protos/perfetto/config/power:cpp
@@ -3291,6 +3322,7 @@ perfetto_cc_binary(
         ":protos_perfetto_trace_track_event_zero",
         ":protozero",
         ":src_base_base",
+        ":src_perfetto_cmd_gen_cc_config_descriptor",
         ":src_perfetto_cmd_protos",
     ] + PERFETTO_CONFIG.deps.zlib,
 )
