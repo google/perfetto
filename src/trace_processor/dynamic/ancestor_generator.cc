@@ -50,14 +50,15 @@ base::Optional<RowMap> BuildAncestorsRowMap(const T& table,
     return base::nullopt;
   }
 
-  std::vector<uint32_t> ids;
+  std::vector<uint32_t> parent_rows;
   auto maybe_parent_id = table.parent_id()[*start_row];
   while (maybe_parent_id) {
-    ids.push_back(maybe_parent_id.value().value);
+    uint32_t parent_row = table.id().IndexOf(*maybe_parent_id).value();
+    parent_rows.push_back(parent_row);
     // Update the loop variable by looking up the next parent_id.
-    maybe_parent_id = table.parent_id()[*table.id().IndexOf(*maybe_parent_id)];
+    maybe_parent_id = table.parent_id()[parent_row];
   }
-  return RowMap(std::move(ids));
+  return RowMap(std::move(parent_rows));
 }
 
 template <typename T>
