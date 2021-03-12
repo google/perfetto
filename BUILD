@@ -529,6 +529,7 @@ filegroup(
         "include/perfetto/tracing/internal/track_event_macros.h",
         "include/perfetto/tracing/locked_handle.h",
         "include/perfetto/tracing/platform.h",
+        "include/perfetto/tracing/string_helpers.h",
         "include/perfetto/tracing/trace_writer_base.h",
         "include/perfetto/tracing/traced_value.h",
         "include/perfetto/tracing/traced_value_forward.h",
