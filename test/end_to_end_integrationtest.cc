@@ -1133,12 +1133,12 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(InvalidCases)) {
   EXPECT_EQ(1, empty_config.Run(&stderr_));
   EXPECT_THAT(stderr_, HasSubstr("TraceConfig is empty"));
 
-  // Cannot make assertions on --dropbox because on standalone builds it fails
+  // Cannot make assertions on --upload because on standalone builds it fails
   // prematurely due to lack of dropbox.
   EXPECT_EQ(1, missing_dropbox.Run(&stderr_));
 
   EXPECT_EQ(1, either_out_or_dropbox.Run(&stderr_));
-  EXPECT_THAT(stderr_, HasSubstr("Either --out or --dropbox"));
+  EXPECT_THAT(stderr_, HasSubstr("Either --out or --upload"));
 
   // Disallow mixing simple and file config.
   EXPECT_EQ(1, simple_and_file_1.Run(&stderr_));
@@ -1167,7 +1167,7 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(InvalidCases)) {
   EXPECT_THAT(stderr_, ContainsRegex("option.*--detach.*requires an argument"));
 
   EXPECT_EQ(1, detach_without_out_or_dropbox.Run(&stderr_));
-  EXPECT_THAT(stderr_, HasSubstr("--out or --dropbox is required"));
+  EXPECT_THAT(stderr_, HasSubstr("--out or --upload is required"));
 
   // Cannot trace and use --query.
   EXPECT_EQ(1, trace_and_query_1.Run(&stderr_));

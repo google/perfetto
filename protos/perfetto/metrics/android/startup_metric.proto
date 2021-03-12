@@ -38,7 +38,7 @@ message AndroidStartupMetric {
 
   // Timing information spanning the intent received by the
   // activity manager to the first frame drawn.
-  // Next id: 24.
+  // Next id: 26.
   message ToFirstFrame {
     optional int64 dur_ns = 1;
     optional double dur_ms = 17;
@@ -75,6 +75,10 @@ message AndroidStartupMetric {
 
     optional Slice time_post_fork = 16;
 
+    // The total time spent on opening dex files.
+    optional Slice time_dex_open = 24;
+    // Total time spent verifying classes during app startup.
+    optional Slice time_verify_class = 25;
     // Deprecated was other_process_to_activity_cpu_ratio
     reserved 12;
 
@@ -96,7 +100,19 @@ message AndroidStartupMetric {
     optional Slice slice = 3;
   }
 
-  // Next id: 12
+  // Metrics with information about the status of odex files and the outcome
+  // of the loading process.
+  // Multiple files might be loaded for a single startup. Platform might also
+  // decide to discard an odex file and instead load a fallback, for example
+  // in case the OS or apk were updated.
+  message OptimizationStatus {
+    optional string odex_status = 1;
+    optional string compilation_filter = 2;
+    optional string compilation_reason = 3;
+    optional string location = 4;
+  }
+
+  // Next id: 13
   message Startup {
     // Random id uniquely identifying an app startup in this trace.
     optional uint32 startup_id = 1;
@@ -130,6 +146,8 @@ message AndroidStartupMetric {
     // of the reportFullyDrawn slice. This should be longer than the time to
     // first frame as the application decides this after it starts rendering.
     optional Slice report_fully_drawn = 9;
+
+    repeated OptimizationStatus optimization_status = 12;
 
     reserved 10;
   }

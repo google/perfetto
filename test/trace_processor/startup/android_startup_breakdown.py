@@ -63,6 +63,21 @@ trace.add_atrace_begin(
 trace.add_atrace_end(ts=194, tid=3, pid=3)
 trace.add_atrace_end(ts=195, tid=3, pid=3)
 
+trace.add_atrace_begin(
+    ts=200,
+    tid=3,
+    pid=3,
+    buf='location=error status=io-error-no-oat ' \
+        'filter=run-from-apk reason=unknown')
+trace.add_atrace_end(ts=202, tid=3, pid=3)
+trace.add_atrace_begin(
+    ts=204,
+    tid=3,
+    pid=3,
+    buf='location=/system/framework/oat/arm/com.android.location.provider' \
+        '.odex status=up-to-date filter=speed reason=prebuilt')
+trace.add_atrace_end(ts=205, tid=3, pid=3)
+
 trace.add_atrace_async_end(
     ts=210, tid=2, pid=2, buf='launching: com.google.android.calendar')
 trace.add_atrace_begin(

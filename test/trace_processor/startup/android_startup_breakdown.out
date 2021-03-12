@@ -62,6 +62,18 @@ android_startup {
         dur_ms: 1e-06
       }
     }
+    optimization_status {
+      odex_status: "up-to-date"
+      compilation_filter: "speed"
+      compilation_reason: "prebuilt"
+      location: "/system/framework/oat/arm/com.android.location.provider.odex"
+    }
+    optimization_status {
+      odex_status: "io-error-no-oat"
+      compilation_filter: "run-from-apk"
+      compilation_reason: "unknown"
+      location: "error"
+    }
     activity_hosting_process_count: 1
   }
 }

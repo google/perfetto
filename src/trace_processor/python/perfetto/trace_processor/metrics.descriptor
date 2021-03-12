@@ -363,8 +363,8 @@ PowerRails
 name (	RnameN
 energy_data (2-.perfetto.protos.AndroidPowerRails.EnergyDataR
 energyData
-Ù
-4protos/perfetto/metrics/android/startup_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"×
+ 
+4protos/perfetto/metrics/android/startup_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"ž
 AndroidStartupMetricG
 startup (2-.perfetto.protos.AndroidStartupMetric.StartupRstartupà
 TaskStateBreakdown$
@@ -374,7 +374,7 @@ energyData
 interruptible_sleep_dur_ns (RinterruptibleSleepDurNs5
 Slice
 dur_ns (RdurNs
-dur_ms (RdurMsŒ
+dur_ms (RdurMs¶
 ToFirstFrame
 dur_ns (RdurNs
 dur_ms (RdurMsr
@@ -396,14 +396,22 @@ energyData
 toPostForkb
 to_activity_thread_main (2+.perfetto.protos.AndroidStartupMetric.SliceRtoActivityThreadMain[
 to_bind_application (2+.perfetto.protos.AndroidStartupMetric.SliceRtoBindApplicationQ
-time_post_fork (2+.perfetto.protos.AndroidStartupMetric.SliceRtimePostForkJJJJ\
+time_post_fork (2+.perfetto.protos.AndroidStartupMetric.SliceRtimePostForkO
+time_dex_open (2+.perfetto.protos.AndroidStartupMetric.SliceRtimeDexOpenW
+time_verify_class (2+.perfetto.protos.AndroidStartupMetric.SliceRtimeVerifyClassJJJJ\
 
 HscMetricsN
 full_startup (2+.perfetto.protos.AndroidStartupMetric.SliceRfullStartupy
 Activity
 name (	Rname
 method (	RmethodA
-slice (2+.perfetto.protos.AndroidStartupMetric.SliceRsliceó
+slice (2+.perfetto.protos.AndroidStartupMetric.SliceRslice¯
+OptimizationStatus
+odex_status (	R
+odexStatus-
+compilation_filter (	RcompilationFilter-
+compilation_reason (	RcompilationReason
+location (	RlocationÞ
 Startup
 
 startup_id (R	startupId!
@@ -417,7 +425,8 @@ activities,
 to_first_frame (22.perfetto.protos.AndroidStartupMetric.ToFirstFrameRtoFirstFrameA
 process (2'.perfetto.protos.AndroidProcessMetadataRprocessB
 hsc (20.perfetto.protos.AndroidStartupMetric.HscMetricsRhscY
-report_fully_drawn	 (2+.perfetto.protos.AndroidStartupMetric.SliceRreportFullyDrawnJ
+report_fully_drawn	 (2+.perfetto.protos.AndroidStartupMetric.SliceRreportFullyDrawni
+optimization_status (28.perfetto.protos.AndroidStartupMetric.OptimizationStatusRoptimizationStatusJ
 
 ä
 4protos/perfetto/metrics/android/surfaceflinger.protoperfetto.protos"š

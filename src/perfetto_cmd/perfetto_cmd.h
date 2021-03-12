@@ -76,7 +76,7 @@ class PerfettoCmd : public Consumer {
   void CheckTraceDataTimeout();
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-  static base::ScopedFile OpenDropboxTmpFile();
+  static base::ScopedFile CreateUnlikedTmpFile();
   void SaveTraceIntoDropboxAndIncidentOrCrash();
   void SaveOutputToIncidentTraceOrCrash();
 #endif
@@ -95,7 +95,8 @@ class PerfettoCmd : public Consumer {
 
   std::string trace_out_path_;
   base::EventFd ctrl_c_evt_;
-  bool is_uploading_ = false;
+  bool save_to_incidentd_ = false;
+  bool statsd_logging_ = false;
   bool update_guardrail_state_ = false;
   uint64_t bytes_written_ = 0;
   std::string detach_key_;
