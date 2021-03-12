@@ -14,6 +14,7 @@
 
 import("../../gn/fuzzer.gni")
 import("../../gn/perfetto.gni")
+import("../../gn/perfetto_cc_proto_descriptor.gni")
 import("../../gn/perfetto_component.gni")
 import("../../gn/proto_library.gni")
 import("../../gn/test.gni")
@@ -80,6 +81,13 @@ perfetto_proto_library("testing_messages_@TYPE@") {
     "test/example_proto/upper_import.proto",
   ]
   proto_path = perfetto_root_path
+}
+
+perfetto_proto_library("test_messages_descriptor") {
+  proto_generators = [ "descriptor" ]
+  generate_descriptor = "test_messages.descriptor"
+  sources = [ "test/example_proto/test_messages.proto" ]
+  deps = [ ":testing_messages_source_set" ]
 }
 
 perfetto_fuzzer_test("protozero_decoder_fuzzer") {
