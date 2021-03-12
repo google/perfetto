@@ -186,13 +186,14 @@ message TraceConfig {
   optional uint64 max_file_size_bytes = 10;
 
   // Contains flags which override the default values of the guardrails inside
-  // Perfetto. These values are only affect userdebug builds.
+  // Perfetto.
   message GuardrailOverrides {
     // Override the default limit (in bytes) for uploading data to server within
     // a 24 hour period.
+    // On R-, this override only affected userdebug builds. Since S, it also
+    // affects user builds.
     optional uint64 max_upload_per_day_bytes = 1;
   }
-
   optional GuardrailOverrides guardrail_overrides = 11;
 
   // When true, data sources are not started until an explicit call to
