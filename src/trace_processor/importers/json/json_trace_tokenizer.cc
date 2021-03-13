@@ -218,8 +218,15 @@ ReadKeyRes ReadOneJsonKey(const char* start,
         next_token = NextToken::kValue;
         break;
       case NextToken::kValue:
-        *next = s;
-        return ReadKeyRes::kFoundKey;
+        // Allowed value starting chars: [ { digit - "
+        // Also allowed: true, false, null. For simplicities sake, we only check
+        // against the first character as we're not trying to be super accurate.
+        if (*s == '[' || *s == '{' || isdigit(*s) || *s == '-' || *s == '"' ||
+            *s == 't' || *s == 'f' || *s == 'n') {
+          *next = s;
+          return ReadKeyRes::kFoundKey;
+        }
+        return ReadKeyRes::kFatalError;
     }
   }
   return ReadKeyRes::kNeedsMoreData;
@@ -259,6 +266,7 @@ util::Status ExtractValueForJsonKey(base::StringView dict,
       return util::ErrStatus("Unexpected character after JSON dict");
 
     PERFETTO_DCHECK(state == kInsideDict);
+    PERFETTO_DCHECK(s < end);
 
     if (*s == '}') {
       ++s;
@@ -272,16 +280,18 @@ util::Status ExtractValueForJsonKey(base::StringView dict,
       break;
 
     if (res == ReadKeyRes::kFatalError)
-      return util::ErrStatus("Encountered fatal error while parsing JSON");
+      return util::ErrStatus("Failure parsing JSON: encountered fatal error");
 
-    if (res == ReadKeyRes::kNeedsMoreData)
-      return util::ErrStatus("Encountered unexpected partial JSON dictionary");
+    if (res == ReadKeyRes::kNeedsMoreData) {
+      return util::ErrStatus("Failure parsing JSON: partial JSON dictionary");
+    }
 
     PERFETTO_DCHECK(res == ReadKeyRes::kFoundKey);
-    PERFETTO_DCHECK(s < end);
 
-    if (*s == '[')
-      return util::ErrStatus("JSON dictionary with array not supported");
+    if (*s == '[') {
+      return util::ErrStatus(
+          "Failure parsing JSON: unsupported JSON dictionary with array");
+    }
 
     std::string value_str;
     if (*s == '{') {
@@ -290,14 +300,15 @@ util::Status ExtractValueForJsonKey(base::StringView dict,
       if (dict_res == ReadDictRes::kNeedsMoreData ||
           dict_res == ReadDictRes::kEndOfArray ||
           dict_res == ReadDictRes::kEndOfTrace) {
-        return util::ErrStatus("Error while parsing JSON dictionary");
+        return util::ErrStatus(
+            "Failure parsing JSON: unable to parse dictionary");
       }
       value_str = dict_str.ToStdString();
     } else if (*s == '"') {
       auto str_res = ReadOneJsonString(s + 1, end, &value_str, &s);
       if (str_res == ReadStringRes::kNeedsMoreData ||
           str_res == ReadStringRes::kFatalError) {
-        return util::ErrStatus("Error while parsing JSON string");
+        return util::ErrStatus("Failure parsing JSON: unable to parse string");
       }
     } else {
       const char* value_start = s;
@@ -316,6 +327,10 @@ util::Status ExtractValueForJsonKey(base::StringView dict,
       return util::OkStatus();
     }
   }
+
+  if (state != kAfterDict)
+    return util::ErrStatus("Failure parsing JSON: malformed dictionary");
+
   *value = base::nullopt;
   return util::OkStatus();
 }
@@ -388,7 +403,7 @@ util::Status JsonTraceTokenizer::Parse(std::unique_ptr<uint8_t[]> data,
     }
     if (next == end) {
       return util::ErrStatus(
-          "Failed to parse: first chunk has only whitespace");
+          "Failure parsing JSON: first chunk has only whitespace");
     }
 
     // Trace could begin in any of these ways:
@@ -397,7 +412,7 @@ util::Status JsonTraceTokenizer::Parse(std::unique_ptr<uint8_t[]> data,
     // [{
     if (*next != '{' && *next != '[') {
       return util::ErrStatus(
-          "Failed to parse: first non-whitespace character is not [ or {");
+          "Failure parsing JSON: first non-whitespace character is not [ or {");
     }
 
     // Figure out the format of the JSON file based on the first non-whitespace
@@ -445,13 +460,13 @@ util::Status JsonTraceTokenizer::ParseInternal(const char* start,
     case TracePosition::kDictionaryKey: {
       if (format_ != TraceFormat::kOuterDictionary) {
         return util::ErrStatus(
-            "Failed to parse: illegal JSON format when parsing dictionary key");
+            "Failure parsing JSON: illegal format when parsing dictionary key");
       }
 
       std::string key;
       auto res = ReadOneJsonKey(start, end, &key, &next);
       if (res == ReadKeyRes::kFatalError)
-        return util::ErrStatus("Encountered fatal error while parsing JSON");
+        return util::ErrStatus("Failure parsing JSON: encountered fatal error");
 
       if (res == ReadKeyRes::kEndOfDictionary ||
           res == ReadKeyRes::kNeedsMoreData) {
@@ -488,14 +503,15 @@ util::Status JsonTraceTokenizer::ParseInternal(const char* start,
     case TracePosition::kSystemTraceEventsString: {
       if (format_ != TraceFormat::kOuterDictionary) {
         return util::ErrStatus(
-            "Failed to parse: illegal JSON format when parsing system events");
+            "Failure parsing JSON: illegal format when parsing system events");
       }
 
       while (next < end) {
         std::string raw_line;
         auto res = ReadOneSystemTraceLine(next, end, &raw_line, &next);
         if (res == ReadSystemLineRes::kFatalError)
-          return util::ErrStatus("Encountered fatal error while parsing JSON");
+          return util::ErrStatus(
+              "Failure parsing JSON: encountered fatal error");
 
         if (res == ReadSystemLineRes::kNeedsMoreData)
           break;
@@ -520,13 +536,13 @@ util::Status JsonTraceTokenizer::ParseInternal(const char* start,
     case TracePosition::kWaitingForMetadataDictionary: {
       if (format_ != TraceFormat::kOuterDictionary) {
         return util::ErrStatus(
-            "Failed to parse: illegal JSON format when parsing metadata");
+            "Failure parsing JSON: illegal format when parsing metadata");
       }
 
       base::StringView unparsed;
       const auto res = ReadOneJsonDict(next, end, &unparsed, &next);
       if (res == ReadDictRes::kEndOfArray)
-        return util::ErrStatus("Encountered fatal error while parsing JSON");
+        return util::ErrStatus("Failure parsing JSON: encountered fatal error");
       if (res == ReadDictRes::kEndOfTrace ||
           res == ReadDictRes::kNeedsMoreData) {
         break;

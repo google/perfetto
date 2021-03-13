@@ -42,5 +42,8 @@ SELECT TraceMetadata(
   'trace_config_pbtxt', (
     SELECT str_value FROM metadata
     WHERE name = 'trace_config_pbtxt'
+  ),
+  'sched_duration_ns', (
+    SELECT MAX(ts) - MIN(ts) from sched
   )
 );
