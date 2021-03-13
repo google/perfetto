@@ -478,16 +478,19 @@ class PERFETTO_EXPORT TrackEventLegacy {
 
 // Implementations for the INTERNAL_* adapter macros used by the trace points
 // below.
-#define INTERNAL_TRACE_EVENT_ADD(phase, category, name, flags, ...)        \
-  PERFETTO_INTERNAL_TRACK_EVENT(                                           \
-      category, ::perfetto::StaticString{name},                            \
-      ::perfetto::internal::TrackEventLegacy::PhaseToType(phase),          \
-      [&](perfetto::EventContext ctx) PERFETTO_NO_THREAD_SAFETY_ANALYSIS { \
-        using ::perfetto::internal::TrackEventLegacy;                      \
-        TrackEventLegacy::WriteLegacyEvent(std::move(ctx), phase, flags,   \
-                                           ##__VA_ARGS__);                 \
+#define INTERNAL_TRACE_EVENT_ADD(phase, category, name, flags, ...)          \
+  PERFETTO_INTERNAL_TRACK_EVENT(                                             \
+      category,                                                              \
+      ::perfetto::internal::GetStaticString(::perfetto::StaticString{name}), \
+      ::perfetto::internal::TrackEventLegacy::PhaseToType(phase),            \
+      [&](perfetto::EventContext ctx) PERFETTO_NO_THREAD_SAFETY_ANALYSIS {   \
+        using ::perfetto::internal::TrackEventLegacy;                        \
+        TrackEventLegacy::WriteLegacyEvent(std::move(ctx), phase, flags,     \
+                                           ##__VA_ARGS__);                   \
       })
 
+// PERFETTO_INTERNAL_SCOPED_TRACK_EVENT does not require GetStaticString, as it
+// uses TRACE_EVENT_BEGIN/END internally, which already have this call.
 #define INTERNAL_TRACE_EVENT_ADD_SCOPED(category, name, ...)               \
   PERFETTO_INTERNAL_SCOPED_TRACK_EVENT(                                    \
       category, ::perfetto::StaticString{name},                            \
@@ -496,6 +499,8 @@ class PERFETTO_EXPORT TrackEventLegacy {
         TrackEventLegacy::AddDebugAnnotations(&ctx, ##__VA_ARGS__);        \
       })
 
+// PERFETTO_INTERNAL_SCOPED_TRACK_EVENT does not require GetStaticString, as it
+// uses TRACE_EVENT_BEGIN/END internally, which already have this call.
 #define INTERNAL_TRACE_EVENT_ADD_SCOPED_WITH_FLOW(category, name, bind_id,   \
                                                   flags, ...)                \
   PERFETTO_INTERNAL_SCOPED_TRACK_EVENT(                                      \
@@ -512,7 +517,8 @@ class PERFETTO_EXPORT TrackEventLegacy {
 #define INTERNAL_TRACE_EVENT_ADD_WITH_TIMESTAMP(phase, category, name,       \
                                                 timestamp, flags, ...)       \
   PERFETTO_INTERNAL_TRACK_EVENT(                                             \
-      category, ::perfetto::StaticString{name},                              \
+      category,                                                              \
+      ::perfetto::internal::GetStaticString(::perfetto::StaticString{name}), \
       ::perfetto::internal::TrackEventLegacy::PhaseToType(phase), timestamp, \
       [&](perfetto::EventContext ctx) PERFETTO_NO_THREAD_SAFETY_ANALYSIS {   \
         using ::perfetto::internal::TrackEventLegacy;                        \
@@ -523,7 +529,8 @@ class PERFETTO_EXPORT TrackEventLegacy {
 #define INTERNAL_TRACE_EVENT_ADD_WITH_ID_TID_AND_TIMESTAMP(                  \
     phase, category, name, id, thread_id, timestamp, flags, ...)             \
   PERFETTO_INTERNAL_TRACK_EVENT(                                             \
-      category, ::perfetto::StaticString{name},                              \
+      category,                                                              \
+      ::perfetto::internal::GetStaticString(::perfetto::StaticString{name}), \
       ::perfetto::internal::TrackEventLegacy::PhaseToType(phase), timestamp, \
       [&](perfetto::EventContext ctx) PERFETTO_NO_THREAD_SAFETY_ANALYSIS {   \
         using ::perfetto::internal::TrackEventLegacy;                        \
@@ -533,17 +540,18 @@ class PERFETTO_EXPORT TrackEventLegacy {
             ##__VA_ARGS__);                                                  \
       })
 
-#define INTERNAL_TRACE_EVENT_ADD_WITH_ID(phase, category, name, id, flags, \
-                                         ...)                              \
-  PERFETTO_INTERNAL_TRACK_EVENT(                                           \
-      category, ::perfetto::StaticString{name},                            \
-      ::perfetto::internal::TrackEventLegacy::PhaseToType(phase),          \
-      [&](perfetto::EventContext ctx) PERFETTO_NO_THREAD_SAFETY_ANALYSIS { \
-        using ::perfetto::internal::TrackEventLegacy;                      \
-        ::perfetto::internal::LegacyTraceId PERFETTO_UID(trace_id){id};    \
-        TrackEventLegacy::WriteLegacyEventWithIdAndTid(                    \
-            std::move(ctx), phase, flags, PERFETTO_UID(trace_id),          \
-            TRACE_EVENT_API_CURRENT_THREAD_ID, ##__VA_ARGS__);             \
+#define INTERNAL_TRACE_EVENT_ADD_WITH_ID(phase, category, name, id, flags,   \
+                                         ...)                                \
+  PERFETTO_INTERNAL_TRACK_EVENT(                                             \
+      category,                                                              \
+      ::perfetto::internal::GetStaticString(::perfetto::StaticString{name}), \
+      ::perfetto::internal::TrackEventLegacy::PhaseToType(phase),            \
+      [&](perfetto::EventContext ctx) PERFETTO_NO_THREAD_SAFETY_ANALYSIS {   \
+        using ::perfetto::internal::TrackEventLegacy;                        \
+        ::perfetto::internal::LegacyTraceId PERFETTO_UID(trace_id){id};      \
+        TrackEventLegacy::WriteLegacyEventWithIdAndTid(                      \
+            std::move(ctx), phase, flags, PERFETTO_UID(trace_id),            \
+            TRACE_EVENT_API_CURRENT_THREAD_ID, ##__VA_ARGS__);               \
       })
 
 #define INTERNAL_TRACE_EVENT_METADATA_ADD(category, name, ...)         \
