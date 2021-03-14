@@ -48,6 +48,7 @@ source_set("tracing") {
     "internal/track_event_macros.h",
     "locked_handle.h",
     "platform.h",
+    "string_helpers.h",
     "trace_writer_base.h",
     "traced_value.h",
     "traced_value_forward.h",
