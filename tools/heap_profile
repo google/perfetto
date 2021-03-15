@@ -537,9 +537,9 @@ def main(argv):
       file=sys.stderr)
 
   if len(concat_files) > 1:
-    with open(os.path.join(profile_target, 'symbolized-trace'), 'w') as out:
+    with open(os.path.join(profile_target, 'symbolized-trace'), 'wb') as out:
       for fn in concat_files:
-        with open(fn, 'r') as inp:
+        with open(fn, 'rb') as inp:
           while True:
             buf = inp.read(4096)
             if not buf:
