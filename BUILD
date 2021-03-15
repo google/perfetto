@@ -551,6 +551,7 @@ filegroup(
         "src/android_internal/atrace_hal.h",
         "src/android_internal/health_hal.h",
         "src/android_internal/incident_service.h",
+        "src/android_internal/power_stats_aidl.h",
         "src/android_internal/power_stats_hal.h",
         "src/android_internal/statsd_logging.h",
         "src/android_internal/tracing_service_proxy.h",
@@ -1452,6 +1453,8 @@ filegroup(
     srcs = [
         "src/traced/probes/power/android_power_data_source.cc",
         "src/traced/probes/power/android_power_data_source.h",
+        "src/traced/probes/power/android_power_stats_data_source.cc",
+        "src/traced/probes/power/android_power_stats_data_source.h",
     ],
 )
 

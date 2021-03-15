@@ -27,5 +27,7 @@ source_set("power") {
   sources = [
     "android_power_data_source.cc",
     "android_power_data_source.h",
+    "android_power_stats_data_source.cc",
+    "android_power_stats_data_source.h",
   ]
 }
