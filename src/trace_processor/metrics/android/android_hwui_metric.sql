@@ -39,7 +39,7 @@ SELECT
   thread_track.utid as render_thread_id
 FROM slice
 INNER JOIN thread_track ON (thread_track.id = slice.track_id)
-WHERE slice.name='DrawFrame' AND slice.dur >= 0
+WHERE slice.name LIKE 'DrawFrame%' AND slice.dur >= 0
 GROUP BY thread_track.utid;
 
 DROP VIEW IF EXISTS hwui_flush_commands;

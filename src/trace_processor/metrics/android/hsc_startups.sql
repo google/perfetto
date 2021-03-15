@@ -75,7 +75,7 @@ SELECT
 FROM frame_times
 INNER JOIN launches on launches.package LIKE '%' || frame_times.name || '%'
 WHERE frame_times.name LIKE "%id.calendar%" AND frame_times.launch_id = launches.id
-ORDER BY ABS(frame_times.ts_end - (SELECT ts + dur FROM functions WHERE function_name LIKE "DrawFrame" AND process_name LIKE "%id.calendar" ORDER BY ts LIMIT 1)) LIMIT 1;
+ORDER BY ABS(frame_times.ts_end - (SELECT ts + dur FROM functions WHERE function_name LIKE "DrawFrame%" AND process_name LIKE "%id.calendar" ORDER BY ts LIMIT 1)) LIMIT 1;
 
 -- Camera
 INSERT INTO hsc_based_startup_times
