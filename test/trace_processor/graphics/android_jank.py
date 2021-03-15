@@ -91,7 +91,7 @@ trace.add_atrace_begin(ts=105_000_000, tid=2000, pid=2000, buf='draw')
 trace.add_atrace_end(ts=119_000_000, tid=2000, pid=2000)
 trace.add_atrace_end(ts=120_000_000, tid=2000, pid=2000)
 
-trace.add_atrace_begin(ts=105_000_000, tid=2001, pid=2000, buf='DrawFrame')
+trace.add_atrace_begin(ts=105_000_000, tid=2001, pid=2000, buf='DrawFrames 3')
 trace.add_atrace_begin(
     ts=108_000_000, tid=2001, pid=2000, buf='Upload 300x300 Texture')
 trace.add_atrace_end(ts=112_000_000, tid=2001, pid=2000)
