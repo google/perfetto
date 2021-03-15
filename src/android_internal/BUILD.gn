@@ -31,6 +31,7 @@ if (perfetto_build_with_android) {
       "atrace_hal.cc",
       "health_hal.cc",
       "incident_service.cc",
+      "power_stats_aidl.cc",
       "power_stats_hal.cc",
       "statsd_logging.cc",
       "tracing_service_proxy.cc",
@@ -38,6 +39,7 @@ if (perfetto_build_with_android) {
     libs = [
       "android.hardware.health@2.0",
       "android.hardware.power.stats@1.0",
+      "android.hardware.power.stats-V1-cpp",
       "android.hardware.atrace@1.0",
       "statslog_perfetto",
       "statssocket",
@@ -71,6 +73,7 @@ source_set("headers") {
     "atrace_hal.h",
     "health_hal.h",
     "incident_service.h",
+    "power_stats_aidl.h",
     "power_stats_hal.h",
     "statsd_logging.h",
     "tracing_service_proxy.h",

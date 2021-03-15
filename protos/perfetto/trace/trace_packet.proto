@@ -41,6 +41,7 @@ import "protos/perfetto/trace/interned_data/interned_data.proto";
 import "protos/perfetto/trace/memory_graph.proto";
 import "protos/perfetto/trace/perfetto/perfetto_metatrace.proto";
 import "protos/perfetto/trace/perfetto/tracing_service_event.proto";
+import "protos/perfetto/trace/power/android_energy_estimation_breakdown.proto";
 import "protos/perfetto/trace/power/battery_counters.proto";
 import "protos/perfetto/trace/power/power_rails.proto";
 import "protos/perfetto/trace/profiling/deobfuscation.proto";
@@ -83,7 +84,7 @@ package perfetto.protos;
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 77.
+// Next id: 78.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -143,6 +144,7 @@ message TracePacket {
     GpuMemTotalEvent gpu_mem_total_event = 71;
     MemoryTrackerSnapshot memory_tracker_snapshot = 73;
     FrameTimelineEvent frame_timeline_event = 76;
+    AndroidEnergyEstimationBreakdown android_energy_estimation_breakdown = 77;
 
     // Only used in profile packets.
     ProfiledFrameSymbols profiled_frame_symbols = 55;
