@@ -34,7 +34,7 @@ export function maybeShowErrorDialog(errLog: string) {
   const now = performance.now();
 
   // Here we rely on the exception message from onCannotGrowMemory function
-  if (errLog.includes('Cannot enlarge memory arrays')) {
+  if (errLog.includes('Cannot enlarge memory')) {
     showOutOfMemoryDialog();
     // Refresh timeLastReport to prevent a different error showing a dialog
     timeLastReport = now;
@@ -185,19 +185,26 @@ function createLink(
 function showOutOfMemoryDialog() {
   const url =
       'https://perfetto.dev/docs/quickstart/trace-analysis#get-trace-processor';
-  const description = 'This is a limitation of your browser. ' +
-      'You can get around this by loading the trace ' +
-      'directly in the trace_processor binary.';
 
+  const tpCmd = 'curl -LO https://get.perfetto.dev/trace_processor\n' +
+      'chmod +x ./trace_processor\n' +
+      'trace_processor --httpd /path/to/trace.pftrace\n' +
+      '# Reload the UI, it will prompt to use the HTTP+RPC interface';
   showModal({
     title: 'Oops! Your WASM trace processor ran out of memory',
     content: m(
         'div',
-        m('span', description),
+        m('span',
+          'The in-memory representation of the trace is too big ' +
+              'for the browser memory limits (typically 2GB per tab).'),
+        m('br'),
+        m('span',
+          'You can work around this problem by using the trace_processor ' +
+              'native binary as an accelerator for the UI as follows:'),
         m('br'),
         m('br'),
-        m('span', 'Example command:'),
-        m('.modal-bash', '> trace_processor trace.pftrace --http'),
+        m('.modal-bash', tpCmd),
+        m('br'),
         m('span', 'For details see '),
         m('a', {href: url, target: '_blank'}, url),
         ),
