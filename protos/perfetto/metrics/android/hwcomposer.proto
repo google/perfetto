@@ -30,4 +30,8 @@ message AndroidHwcomposerMetrics {
 
   // Counts the number of composition dpu cached layers in the trace. (non-weighted average)
   optional double composition_dpu_cached_layers = 4;
+
+  // Counts the number of composition surfaceflinger cached layers in the trace.
+  // (non-weighted average)
+  optional double composition_sf_cached_layers = 5;
 }

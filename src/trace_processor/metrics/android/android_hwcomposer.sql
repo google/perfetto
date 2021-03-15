@@ -33,8 +33,14 @@ SELECT RUN_METRIC(
 
 SELECT RUN_METRIC(
   'android/composition_layers.sql',
-  'track_name', 'HWComposer: Cached Layer',
-  'output', 'cached_layers'
+  'track_name', 'HWComposer: DPU Cached Layer',
+  'output', 'dpu_cached_layers'
+);
+
+SELECT RUN_METRIC(
+  'android/composition_layers.sql',
+  'track_name', 'HWComposer: SF Cached Layer',
+  'output', 'sf_cached_layers'
 );
 
 DROP VIEW IF EXISTS android_hwcomposer_output;
@@ -47,5 +53,7 @@ SELECT AndroidHwcomposerMetrics(
     'composition_gpu_layers', (SELECT AVG(value)
                             FROM gpu_layers),
     'composition_dpu_cached_layers', (SELECT AVG(value)
-                            FROM cached_layers)
+                            FROM dpu_cached_layers),
+    'composition_sf_cached_layers', (SELECT AVG(value)
+                            FROM sf_cached_layers)
 );
