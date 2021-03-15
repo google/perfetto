@@ -33,6 +33,8 @@ struct Spinlock {
   std::atomic<bool> poisoned;
 };
 
+static_assert(sizeof(Spinlock) == 2, "spinlock size must be ABI independent");
+
 void PoisonSpinlock(Spinlock* lock);
 
 class ScopedSpinlock {
