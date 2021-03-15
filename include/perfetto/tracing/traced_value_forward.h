@@ -20,6 +20,8 @@
 namespace perfetto {
 
 class TracedValue;
+class TracedArray;
+class TracedDictionary;
 
 template <typename T>
 void WriteIntoTracedValue(TracedValue context, T&& value);
