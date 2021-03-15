@@ -21,6 +21,7 @@
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/utils.h"
 #include "src/profiling/memory/scoped_spinlock.h"
+#include "src/profiling/memory/util.h"
 
 #include <atomic>
 #include <limits>
@@ -81,19 +82,19 @@ class SharedRingBuffer {
   };
 
   struct Stats {
-    uint64_t bytes_written;
-    uint64_t num_writes_succeeded;
-    uint64_t num_writes_corrupt;
-    uint64_t num_writes_overflow;
+    PERFETTO_CROSS_ABI_ALIGNED(uint64_t) bytes_written;
+    PERFETTO_CROSS_ABI_ALIGNED(uint64_t) num_writes_succeeded;
+    PERFETTO_CROSS_ABI_ALIGNED(uint64_t) num_writes_corrupt;
+    PERFETTO_CROSS_ABI_ALIGNED(uint64_t) num_writes_overflow;
 
-    uint64_t num_reads_succeeded;
-    uint64_t num_reads_corrupt;
-    uint64_t num_reads_nodata;
+    PERFETTO_CROSS_ABI_ALIGNED(uint64_t) num_reads_succeeded;
+    PERFETTO_CROSS_ABI_ALIGNED(uint64_t) num_reads_corrupt;
+    PERFETTO_CROSS_ABI_ALIGNED(uint64_t) num_reads_nodata;
 
     // Fields below get set by GetStats as copies of atomics in MetadataPage.
-    uint64_t failed_spinlocks;
-    uint64_t client_spinlock_blocked_us;
-    ErrorState error_state;
+    PERFETTO_CROSS_ABI_ALIGNED(uint64_t) failed_spinlocks;
+    PERFETTO_CROSS_ABI_ALIGNED(uint64_t) client_spinlock_blocked_us;
+    PERFETTO_CROSS_ABI_ALIGNED(ErrorState) error_state;
   };
 
   static base::Optional<SharedRingBuffer> Create(size_t);
@@ -178,23 +179,27 @@ class SharedRingBuffer {
   struct MetadataPage {
     static_assert(std::is_trivially_constructible<Spinlock>::value,
                   "Spinlock needs to be trivially constructible.");
-    alignas(uint64_t) Spinlock spinlock;
-    std::atomic<uint64_t> read_pos;
-    std::atomic<uint64_t> write_pos;
+    alignas(8) Spinlock spinlock;
+    PERFETTO_CROSS_ABI_ALIGNED(std::atomic<uint64_t>) read_pos;
+    PERFETTO_CROSS_ABI_ALIGNED(std::atomic<uint64_t>) write_pos;
 
-    std::atomic<uint64_t> client_spinlock_blocked_us;
-    std::atomic<uint64_t> failed_spinlocks;
-    std::atomic<ErrorState> error_state;
-    alignas(uint64_t) std::atomic<bool> shutting_down;
-    alignas(uint64_t) std::atomic<bool> reader_paused;
+    PERFETTO_CROSS_ABI_ALIGNED(std::atomic<uint64_t>)
+    client_spinlock_blocked_us;
+    PERFETTO_CROSS_ABI_ALIGNED(std::atomic<uint64_t>) failed_spinlocks;
+    PERFETTO_CROSS_ABI_ALIGNED(std::atomic<ErrorState>) error_state;
+    alignas(sizeof(uint64_t)) std::atomic<bool> shutting_down;
+    alignas(sizeof(uint64_t)) std::atomic<bool> reader_paused;
     // For stats that are only accessed by a single thread or under the
     // spinlock, members of this struct are directly modified. Other stats use
     // the atomics above this struct.
     //
     // When the user requests stats, the atomics above get copied into this
     // struct, which is then returned.
-    Stats stats;
+    alignas(sizeof(uint64_t)) Stats stats;
   };
+
+  static_assert(sizeof(MetadataPage) == 144,
+                "metadata page size needs to be ABI independent");
 
  private:
   struct PointerPositions {
