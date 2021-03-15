@@ -261,6 +261,7 @@ TEST_F(ExportJsonTest, StorageWithMetadata) {
   const char* kStoryName = "story name";
   const char* kStoryTag1 = "tag1";
   const char* kStoryTag2 = "tag2";
+  const char* kDynamicKey = "dyn_key1";
   const int64_t kBenchmarkStart = 1000000;
   const int64_t kStoryStart = 2000000;
   const bool kHadFailures = true;
@@ -306,6 +307,13 @@ TEST_F(ExportJsonTest, StorageWithMetadata) {
   context_.metadata_tracker->SetMetadata(metadata::benchmark_had_failures,
                                          had_failures);
 
+  // Metadata entries with dynamic keys are not currently exported from the
+  // metadata table (the Chrome metadata is exported directly from the raw
+  // table).
+  StringId dynamic_key_id =
+      context_.storage->InternString(base::StringView(kDynamicKey));
+  context_.metadata_tracker->SetDynamicMetadata(dynamic_key_id, had_failures);
+
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+");
   util::Status status = ExportJson(context_.storage.get(), output);
@@ -340,6 +348,8 @@ TEST_F(ExportJsonTest, StorageWithMetadata) {
 
   EXPECT_EQ(telemetry_metadata["hadFailures"].size(), 1u);
   EXPECT_EQ(telemetry_metadata["hadFailures"][0].asBool(), kHadFailures);
+
+  EXPECT_FALSE(result["metadata"].isMember(kDynamicKey));
 }
 
 TEST_F(ExportJsonTest, StorageWithStats) {
