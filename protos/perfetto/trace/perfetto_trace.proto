@@ -7281,6 +7281,67 @@ message TracingServiceEvent {
 
 // End of protos/perfetto/trace/perfetto/tracing_service_event.proto
 
+// Begin of protos/perfetto/common/android_energy_consumer_descriptor.proto
+
+// Energy consumer based on aidl class:
+// android.hardware.power.stats.EnergyConsumer.
+message AndroidEnergyConsumer {
+  // Unique ID of this energy consumer.  Matches the ID in a
+  // AndroidEnergyEstimationBreakdown.
+  optional int32 energy_consumer_id = 1;
+
+  // For a group of energy consumers of the same logical type, sorting by
+  // ordinal gives their physical order. Ordinals must be consecutive integers
+  // starting from 0.
+  optional int32 ordinal = 2;
+
+  // Type of this energy consumer.
+  optional string type = 3;
+
+  // Unique name of this energy consumer. Vendor/device specific. Opaque to
+  // framework.
+  optional string name = 4;
+}
+
+message AndroidEnergyConsumerDescriptor {
+  repeated AndroidEnergyConsumer energy_consumers = 1;
+}
+
+// End of protos/perfetto/common/android_energy_consumer_descriptor.proto
+
+// Begin of protos/perfetto/trace/power/android_energy_estimation_breakdown.proto
+
+// Energy data retrieve using the ODPM(On Device Power Monitor) API.
+// This proto represents the aidl class:
+// android.hardware.power.stats.EnergyConsumerResult.
+message AndroidEnergyEstimationBreakdown {
+  // The first trace packet of each session should include a energy consumer
+  // descriptor.
+  optional AndroidEnergyConsumerDescriptor energy_consumer_descriptor = 1;
+
+  // ID of the AndroidEnergyConsumer associated with this result.  Matches
+  // the energy_consumer_id in the AndroidEnergyConsumerDescriptor that
+  // should be sent at the beginning of a trace.
+  optional int32 energy_consumer_id = 2;
+
+  // Total accumulated energy since boot in microwatt-seconds (uWs)
+  optional int64 energy_uws = 3;
+
+  message EnergyUidBreakdown {
+    // Android ID/Linux UID, the accumulated energy is attributed to.
+    optional int32 uid = 1;
+
+    // Accumulated energy since boot in microwatt-seconds (uWs).
+    optional int64 energy_uws = 2;
+  }
+  // Optional attributed energy per Android ID / Linux UID for this
+  // EnergyConsumer. Sum total of attributed energy must be less than or equal
+  // to total accumulated energy.
+  repeated EnergyUidBreakdown per_uid_breakdown = 4;
+}
+
+// End of protos/perfetto/trace/power/android_energy_estimation_breakdown.proto
+
 // Begin of protos/perfetto/trace/power/battery_counters.proto
 
 message BatteryCounters {
@@ -8465,7 +8526,7 @@ message Trigger {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 77.
+// Next id: 78.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -8525,6 +8586,7 @@ message TracePacket {
     GpuMemTotalEvent gpu_mem_total_event = 71;
     MemoryTrackerSnapshot memory_tracker_snapshot = 73;
     FrameTimelineEvent frame_timeline_event = 76;
+    AndroidEnergyEstimationBreakdown android_energy_estimation_breakdown = 77;
 
     // Only used in profile packets.
     ProfiledFrameSymbols profiled_frame_symbols = 55;

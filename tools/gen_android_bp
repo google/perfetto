@@ -107,8 +107,10 @@ shared_library_allowlist = [
     'android.hardware.atrace@1.0',
     'android.hardware.health@2.0',
     'android.hardware.power.stats@1.0',
+    "android.hardware.power.stats-V1-cpp",
     'base',
     'binder',
+    'binder_ndk',
     'cutils',
     'hidlbase',
     'hidltransport',
@@ -872,8 +874,9 @@ def create_modules_from_target(blueprint, gn, gn_target_name):
     module.defaults = [defaults_module]
     for lib in target.libs:
       # Generally library names should be mangled as 'libXXX', unless they
-      # are HAL libraries (e.g., android.hardware.health@2.0).
-      android_lib = lib if '@' in lib else 'lib' + lib
+      # are HAL libraries (e.g., android.hardware.health@2.0) or AIDL c++
+      # libraries (e.g. "android.hardware.power.stats-V1-cpp")
+      android_lib = lib if '@' in lib or "-cpp" in lib else 'lib' + lib
       if lib in shared_library_allowlist:
         module.add_android_shared_lib(android_lib)
       if lib in static_library_allowlist:
