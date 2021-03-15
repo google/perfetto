@@ -21,6 +21,7 @@
 #include "perfetto/base/export.h"
 #include "perfetto/base/template_util.h"
 #include "perfetto/tracing/internal/checked_scope.h"
+#include "perfetto/tracing/string_helpers.h"
 #include "perfetto/tracing/traced_value_forward.h"
 #include "protos/perfetto/trace/track_event/debug_annotation.pbzero.h"
 
@@ -220,15 +221,31 @@ class PERFETTO_EXPORT TracedDictionary {
   TracedDictionary(TracedDictionary&&) = default;
   ~TracedDictionary() = default;
 
-  TracedValue AddItem(const char* key);
+  // There are two paths for writing dictionary keys: fast path for writing
+  // compile-time const, whose pointer is remains valid during the entire
+  // runtime of the program and the slow path for dynamic strings, which need to
+  // be copied.
+  // In the most common case, a string literal can be passed to `Add`/`AddItem`.
+  // In other cases, either StaticString or DynamicString declarations are
+  // needed.
+
+  TracedValue AddItem(StaticString key);
+  TracedValue AddItem(DynamicString key);
 
   template <typename T>
-  void Add(const char* key, T&& value) {
+  void Add(StaticString key, T&& value) {
     WriteIntoTracedValue(AddItem(key), std::forward<T>(value));
   }
 
-  TracedDictionary AddDictionary(const char* key);
-  TracedArray AddArray(const char* key);
+  template <typename T>
+  void Add(DynamicString key, T&& value) {
+    WriteIntoTracedValue(AddItem(key), std::forward<T>(value));
+  }
+
+  TracedDictionary AddDictionary(StaticString key);
+  TracedDictionary AddDictionary(DynamicString key);
+  TracedArray AddArray(StaticString key);
+  TracedArray AddArray(DynamicString key);
 
  private:
   friend class TracedValue;
