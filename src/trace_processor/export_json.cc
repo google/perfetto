@@ -1466,9 +1466,16 @@ class JsonExporter {
     }
 
     for (uint32_t pos = 0; pos < trace_metadata.row_count(); pos++) {
+      auto key_it = key_map.find(keys[pos]);
+      // Skip exporting dynamic entries; the cr-xxx entries that come from
+      // the ChromeMetadata proto message are already exported from the raw
+      // table.
+      if (key_it == key_map.end())
+        continue;
+
       // Cast away from enum type, as otherwise -Wswitch-enum will demand an
       // exhaustive list of cases, even if there's a default case.
-      metadata::KeyId key = key_map[keys[pos]];
+      metadata::KeyId key = key_it->second;
       switch (static_cast<size_t>(key)) {
         case metadata::benchmark_description:
           writer_.AppendTelemetryMetadataString(
