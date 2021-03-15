@@ -547,4 +547,37 @@ TEST(TracedValueTest, ConstAndNotConstSupport) {
   }
 }
 
+// Note: interning of the dictionary keys is not implemented yet, so there is no
+// difference in behaviour for StaticString and DynamicString yet.
+TEST(TracedValueTest, DictionaryKeys) {
+  EXPECT_EQ("{literal:1}", TracedValueToString([&](TracedValue context) {
+              auto dict = std::move(context).WriteDictionary();
+              dict.Add("literal", 1);
+            }));
+
+  EXPECT_EQ("{static:1}", TracedValueToString([&](TracedValue context) {
+              auto dict = std::move(context).WriteDictionary();
+              const char* key = "static";
+              dict.Add(StaticString{key}, 1);
+            }));
+
+  EXPECT_EQ("{dynamic:1}", TracedValueToString([&](TracedValue context) {
+              auto dict = std::move(context).WriteDictionary();
+              std::string key = "dynamic";
+              dict.Add(DynamicString{key.data()}, 1);
+            }));
+
+  EXPECT_EQ("{dynamic:1}", TracedValueToString([&](TracedValue context) {
+              auto dict = std::move(context).WriteDictionary();
+              std::string key = "dynamic";
+              dict.Add(DynamicString{key.data(), key.length()}, 1);
+            }));
+
+  EXPECT_EQ("{dynamic:1}", TracedValueToString([&](TracedValue context) {
+              auto dict = std::move(context).WriteDictionary();
+              std::string key = "dynamic";
+              dict.Add(DynamicString{key}, 1);
+            }));
+}
+
 }  // namespace perfetto
