@@ -54,7 +54,7 @@ util::Status ProtoToArgsTable::InternProtoFieldsIntoArgsTable(
     return util::Status("Failed to find proto descriptor");
   }
 
-  auto descriptor = pool_.descriptors()[*idx];
+  auto& descriptor = pool_.descriptors()[*idx];
 
   std::unordered_map<size_t, int> repeated_field_index;
 
