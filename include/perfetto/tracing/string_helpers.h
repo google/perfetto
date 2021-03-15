@@ -68,6 +68,19 @@ constexpr const char* GetStaticString(StaticString string) {
 
 }  // namespace internal
 
+// A explicit wrapper for marking strings as dynamic to ensure that perfetto
+// doesn't try to cache the pointer value.
+class PERFETTO_EXPORT DynamicString {
+ public:
+  explicit DynamicString(const std::string& str)
+      : value(str.data()), length(str.length()) {}
+  explicit DynamicString(const char* str) : value(str), length(strlen(str)) {}
+  DynamicString(const char* str, size_t len) : value(str), length(len) {}
+
+  const char* value;
+  size_t length;
+};
+
 }  // namespace perfetto
 
 #endif  // INCLUDE_PERFETTO_TRACING_STRING_HELPERS_H_
