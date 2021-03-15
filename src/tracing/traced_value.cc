@@ -166,18 +166,34 @@ TracedArray TracedArray::AppendArray() {
   return AppendItem().WriteArray();
 }
 
-TracedValue TracedDictionary::AddItem(const char* key) {
+TracedValue TracedDictionary::AddItem(StaticString key) {
   PERFETTO_DCHECK(checked_scope_.is_active());
-  value_->add_dict_keys(key);
+  value_->add_dict_keys(key.value);
   return TracedValue(value_->add_dict_values(), &checked_scope_);
 }
 
-TracedDictionary TracedDictionary::AddDictionary(const char* key) {
+TracedValue TracedDictionary::AddItem(DynamicString key) {
+  PERFETTO_DCHECK(checked_scope_.is_active());
+  value_->add_dict_keys(key.value, key.length);
+  return TracedValue(value_->add_dict_values(), &checked_scope_);
+}
+
+TracedDictionary TracedDictionary::AddDictionary(StaticString key) {
   PERFETTO_DCHECK(checked_scope_.is_active());
   return AddItem(key).WriteDictionary();
 }
 
-TracedArray TracedDictionary::AddArray(const char* key) {
+TracedDictionary TracedDictionary::AddDictionary(DynamicString key) {
+  PERFETTO_DCHECK(checked_scope_.is_active());
+  return AddItem(key).WriteDictionary();
+}
+
+TracedArray TracedDictionary::AddArray(StaticString key) {
+  PERFETTO_DCHECK(checked_scope_.is_active());
+  return AddItem(key).WriteArray();
+}
+
+TracedArray TracedDictionary::AddArray(DynamicString key) {
   PERFETTO_DCHECK(checked_scope_.is_active());
   return AddItem(key).WriteArray();
 }
