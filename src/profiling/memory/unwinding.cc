@@ -413,7 +413,9 @@ void UnwindingWorker::PostDisconnectSocket(pid_t pid) {
 void UnwindingWorker::HandleDisconnectSocket(pid_t pid) {
   auto it = client_data_.find(pid);
   if (it == client_data_.end()) {
-    PERFETTO_DFATAL_OR_ELOG("Trying to disconnect unknown socket.");
+    // This is expected if the client voluntarily disconnects before the
+    // profiling session ended. In that case, there is a race between the main
+    // thread learning about the disconnect and it calling back here.
     return;
   }
   ClientData& client_data = it->second;
