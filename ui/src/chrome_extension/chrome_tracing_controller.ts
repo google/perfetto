@@ -16,7 +16,12 @@ import {Protocol} from 'devtools-protocol';
 import {ProtocolProxyApi} from 'devtools-protocol/types/protocol-proxy-api';
 import * as rpc from 'noice-json-rpc';
 
-import {extractTraceConfig} from '../base/extract_utils';
+import {base64Encode} from '../base/string_utils';
+import {
+  browserSupportsPerfettoConfig,
+  extractTraceConfig,
+  hasSystemDataSourceConfig
+} from '../base/trace_config_utils';
 import {TraceConfig} from '../common/protos';
 import {
   ConsumerPortResponse,
@@ -91,9 +96,8 @@ export class ChromeTracingController extends RpcConsumerPort {
       this.sendErrorMessage('Invalid trace config');
       return;
     }
-    const traceConfig = TraceConfig.decode(traceConfigProto);
-    const chromeConfig = this.extractChromeConfig(traceConfig);
-    this.handleStartTracing(chromeConfig);
+
+    this.handleStartTracing(traceConfigProto);
   }
 
   toCamelCase(key: string, separator: string): string {
@@ -233,7 +237,7 @@ export class ChromeTracingController extends RpcConsumerPort {
     this.lastBufferUsageEvent = params;
   }
 
-  handleStartTracing(traceConfig: Protocol.Tracing.TraceConfig) {
+  handleStartTracing(traceConfigProto: Uint8Array) {
     this.devtoolsSocket.attachToBrowser(async (error?: string) => {
       if (error) {
         this.sendErrorMessage(
@@ -241,13 +245,35 @@ export class ChromeTracingController extends RpcConsumerPort {
             `(req. Chrome >= M81): ${error}`);
         return;
       }
-      await this.api.Tracing.start({
-        traceConfig,
+
+      const requestParams: Protocol.Tracing.StartRequest = {
         streamFormat: 'proto',
         transferMode: 'ReturnAsStream',
         streamCompression: 'gzip',
         bufferUsageReportingInterval: 200
-      });
+      };
+
+      if (browserSupportsPerfettoConfig()) {
+        const configEncoded = base64Encode(traceConfigProto);
+        await this.api.Tracing.start(
+            {perfettoConfig: configEncoded, ...requestParams});
+      } else {
+        console.log(
+            'Used Chrome version is too old to support ' +
+            'perfettoConfig parameter. Using chrome config only instead.');
+
+        const traceConfig = TraceConfig.decode(traceConfigProto);
+        if (hasSystemDataSourceConfig(traceConfig)) {
+          this.sendErrorMessage(
+              'System tracing is not supported by this Chrome version. Choose' +
+              ' the \'Chrome\' target instead to record a Chrome-only trace.');
+          return;
+        }
+
+        const chromeConfig = this.extractChromeConfig(traceConfig);
+        await this.api.Tracing.start(
+            {traceConfig: chromeConfig, ...requestParams});
+      }
     });
   }
 }
