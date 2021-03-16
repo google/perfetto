@@ -31,13 +31,7 @@
 
 #include "perfetto/heap_profile.h"
 #include "src/profiling/memory/shared_ring_buffer.h"
-
-// Make sure the alignment is the same on 32 and 64 bit architectures. This
-// is to ensure the structs below are laid out in exactly the same way for
-// both of those, at the same build.
-// The maximum alignment of every type T is sizeof(T), so we overalign that.
-// E.g., the alignment for uint64_t is 4 bytes on 32, and 8 bytes on 64 bit.
-#define PERFETTO_CROSS_ABI_ALIGNED(type) alignas(sizeof(type)) type
+#include "src/profiling/memory/util.h"
 
 namespace perfetto {
 
@@ -83,7 +77,7 @@ constexpr size_t kMaxRegisterDataSize =
 
 struct ClientConfigurationHeap {
   char name[HEAPPROFD_HEAP_NAME_SZ];
-  uint64_t interval;
+  PERFETTO_CROSS_ABI_ALIGNED(uint64_t) interval;
 };
 
 struct ClientConfiguration {

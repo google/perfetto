@@ -1,0 +1,103 @@
+#!/usr/bin/env python3
+# Copyright (C) 2017 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""Like llvm-symbolizer for UI JS/TS sources.
+
+This script is used to "symbolize" UI crashes. It takes a crash, typically
+copied from a bug reports, of the form:
+
+(https://ui.perfetto.dev/v12.1.269/frontend_bundle.js:7639:61) at foo()
+(https://ui.perfetto.dev/v12.1.269/frontend_bundle.js:9235:29) at bar()
+
+it fetches the corresponding source maps and emits in output a translated
+crash report, of the form:
+
+(https://github.com/google/perfetto/blob/de4db33f/ui/src/foo.ts#L61) at foo()
+(https://github.com/google/perfetto/blob/de4db33f/ui/src/baz.ts#L300) at bar()
+"""
+
+import logging
+import re
+import sys
+import tempfile
+import urllib.request
+import ssl
+import os
+
+try:
+  import sourcemap
+except:
+  print('Run `pip3 install sourcemap` and try again')
+  sys.exit(1)
+
+
+def fetch_url_cached(url):
+  normalized = re.sub('[^a-zA-Z0-9-._]', '_', url)
+  local_file = os.path.join(tempfile.gettempdir(), normalized)
+  if os.path.exists(local_file):
+    logging.debug('Using %s', local_file)
+    with open(local_file, 'r') as f:
+      return f.read()
+  context = ssl._create_unverified_context()
+  logging.info('Fetching %s', url)
+  resp = urllib.request.urlopen(url, context=context)
+  contents = resp.read().decode()
+  with open(local_file, 'w') as f:
+    f.write(contents)
+  return contents
+
+
+def Main():
+  if len(sys.argv) > 1:
+    with open(sys.argv[1], 'r') as f:
+      txt = f.read()
+  else:
+    if sys.stdin.isatty():
+      print('Paste the crash log and press CTRL-D\n')
+    txt = sys.stdin.read()
+
+  # Look for the GIT commitish appended in crash reports. This is not required
+  # for resolving the sourcemaps but helps generating better links.
+  matches = re.findall(r'([a-f0-9]{40})\sUA', txt)
+  git_rev = matches[0] if matches else 'HEAD'
+
+  matches = re.findall(r'((\bhttp.+?\.js):(\d+):(\d+))', txt)
+  maps_by_url = {}
+  sym_lines = ''
+  for entry in matches:
+    whole_token, script_url, line, col = entry
+    map_url = script_url + '.map'
+    if map_url in maps_by_url:
+      srcmap = maps_by_url[map_url]
+    else:
+      map_file_contents = fetch_url_cached(map_url)
+      srcmap = sourcemap.loads(map_file_contents)
+      maps_by_url[map_url] = srcmap
+    sym = srcmap.lookup(int(line), int(col))
+    src = sym.src.replace('../../', '')
+    sym_url = '%s#%s' % (src, sym.src_line)
+    if src.startswith('../out/ui/'):
+      src = src.replace('../out/ui/', 'ui/')
+      sym_url = 'https://github.com/google/perfetto/blob/%s/%s#L%d' % (
+          git_rev, src, sym.src_line)
+    sym_lines += sym_url + '\n'
+    txt = txt.replace(whole_token, sym_url)
+
+  print(txt)
+  print('\nResolved symbols:\n' + sym_lines)
+
+
+if __name__ == '__main__':
+  logging.basicConfig(level=logging.INFO)
+  sys.exit(Main())

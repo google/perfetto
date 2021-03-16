@@ -159,13 +159,14 @@ selfAllocsQ
 profile_delta_bytes (RprofileDeltaBytes.
 profile_total_bytes (RprofileTotalBytes;
 max_anon_rss_and_swap_bytes (RmaxAnonRssAndSwapBytes
-É
-0protos/perfetto/metrics/android/hwcomposer.protoperfetto.protos"ƒ
+Š
+0protos/perfetto/metrics/android/hwcomposer.protoperfetto.protos"Ä
 AndroidHwcomposerMetrics8
 composition_total_layers (RcompositionTotalLayers4
 composition_dpu_layers (RcompositionDpuLayers4
 composition_gpu_layers (RcompositionGpuLayersA
-composition_dpu_cached_layers (RcompositionDpuCachedLayers
+composition_dpu_cached_layers (RcompositionDpuCachedLayers?
+composition_sf_cached_layers (RcompositionSfCachedLayers
 †
 1protos/perfetto/metrics/android/hwui_metric.protoperfetto.protos"ã
 ProcessRenderInfo!

@@ -106,10 +106,6 @@ class DebugAnnotation;
 //     dict->Set("member", member_);
 //   }
 // }
-class TracedArray;
-class TracedDictionary;
-class TracedValue;
-
 namespace internal {
 PERFETTO_EXPORT TracedValue
 CreateTracedValueFromProto(protos::pbzero::DebugAnnotation*);

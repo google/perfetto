@@ -72,9 +72,23 @@ template("wasm_lib") {
       "-lworkerfs.js",  # For FS.filesystems.WORKERFS
     ]
     if (is_debug) {
-      _target_ldflags += [ "-g4" ]
+      _target_ldflags += [
+        "-s",
+        "ASSERTIONS=2",
+        "-s",
+        "SAFE_HEAP=1",
+        "-s",
+        "STACK_OVERFLOW_CHECK=1",
+        "-g4",
+        "-O0",
+      ]
     } else {
-      _target_ldflags += [ "-O3" ]
+      _target_ldflags += [
+        "-s",
+        "ASSERTIONS=1",
+        "-g2",  # Required for getting C++ symbol names.
+        "-O3",
+      ]
     }
 
     if (defined(invoker.js_library)) {
