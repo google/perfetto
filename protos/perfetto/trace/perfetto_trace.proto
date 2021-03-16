@@ -3101,6 +3101,16 @@ message CpuhpLatencyFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/cpuhp.proto
 
+// Begin of protos/perfetto/trace/ftrace/dmabuf_heap.proto
+
+message DmaHeapStatFtraceEvent {
+  optional uint64 inode = 1;
+  optional int64 len = 2;
+  optional uint64 total_allocated = 3;
+}
+
+// End of protos/perfetto/trace/ftrace/dmabuf_heap.proto
+
 // Begin of protos/perfetto/trace/ftrace/dpu.proto
 
 message DpuTracingMarkWriteFtraceEvent {
@@ -5360,6 +5370,7 @@ message FtraceEvent {
     DpuTracingMarkWriteFtraceEvent dpu_tracing_mark_write = 348;
     G2dTracingMarkWriteFtraceEvent g2d_tracing_mark_write = 349;
     MaliTracingMarkWriteFtraceEvent mali_tracing_mark_write = 350;
+    DmaHeapStatFtraceEvent dma_heap_stat = 351;
   }
 }
 
