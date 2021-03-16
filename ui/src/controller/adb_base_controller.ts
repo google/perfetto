@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {extractDurationFromTraceConfig} from '../base/extract_utils';
-import {extractTraceConfig} from '../base/extract_utils';
+import {extractDurationFromTraceConfig} from '../base/trace_config_utils';
+import {extractTraceConfig} from '../base/trace_config_utils';
 import {isAdbTarget} from '../common/state';
 
 import {Adb} from './adb_interfaces';
