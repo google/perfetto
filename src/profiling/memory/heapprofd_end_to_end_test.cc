@@ -246,8 +246,6 @@ base::Subprocess ForkContinuousAlloc(AllocatorMode mode,
                                      ssize_t max_iter = -1) {
   base::Subprocess child({"/proc/self/exe"});
   child.args.posix_argv0_override_for_testing = "heapprofd_continuous_malloc";
-  child.args.stdout_mode = base::Subprocess::kDevNull;
-  child.args.stderr_mode = base::Subprocess::kDevNull;
   child.args.env.push_back("HEAPPROFD_TESTING_RUN_MALLOC_ARG0=" +
                            AllocatorName(mode));
   child.args.env.push_back("HEAPPROFD_TESTING_RUN_MALLOC_ARG1=" +
@@ -890,8 +888,6 @@ TEST_P(HeapprofdEndToEnd, AccurateCustomReportAllocation) {
 
   base::Subprocess child({"/proc/self/exe"});
   child.args.posix_argv0_override_for_testing = "heapprofd_continuous_malloc";
-  child.args.stdout_mode = base::Subprocess::kDevNull;
-  child.args.stderr_mode = base::Subprocess::kDevNull;
   child.args.env.push_back("HEAPPROFD_TESTING_RUN_ACCURATE_MALLOC=1");
   StartAndWaitForHandshake(&child);
 
@@ -949,8 +945,6 @@ TEST_P(HeapprofdEndToEnd, MAYBE_AccurateCustomReportAllocationWithVfork) {
 
   base::Subprocess child({"/proc/self/exe"});
   child.args.posix_argv0_override_for_testing = "heapprofd_continuous_malloc";
-  child.args.stdout_mode = base::Subprocess::kDevNull;
-  child.args.stderr_mode = base::Subprocess::kDevNull;
   child.args.env.push_back(
       "HEAPPROFD_TESTING_RUN_ACCURATE_MALLOC_WITH_VFORK=1");
   StartAndWaitForHandshake(&child);
@@ -998,8 +992,6 @@ TEST_P(HeapprofdEndToEnd, MAYBE_AccurateCustomReportAllocationWithVforkThread) {
 
   base::Subprocess child({"/proc/self/exe"});
   child.args.posix_argv0_override_for_testing = "heapprofd_continuous_malloc";
-  child.args.stdout_mode = base::Subprocess::kDevNull;
-  child.args.stderr_mode = base::Subprocess::kDevNull;
   child.args.env.push_back(
       "HEAPPROFD_TESTING_RUN_ACCURATE_MALLOC_WITH_VFORK_THREAD=1");
   StartAndWaitForHandshake(&child);
@@ -1047,8 +1039,6 @@ TEST_P(HeapprofdEndToEnd, AccurateCustomReportSample) {
 
   base::Subprocess child({"/proc/self/exe"});
   child.args.posix_argv0_override_for_testing = "heapprofd_continuous_malloc";
-  child.args.stdout_mode = base::Subprocess::kDevNull;
-  child.args.stderr_mode = base::Subprocess::kDevNull;
   child.args.env.push_back("HEAPPROFD_TESTING_RUN_ACCURATE_SAMPLE=1");
   StartAndWaitForHandshake(&child);
 
@@ -1087,8 +1077,6 @@ TEST_P(HeapprofdEndToEnd, AccurateDumpAtMaxCustom) {
 
   base::Subprocess child({"/proc/self/exe"});
   child.args.posix_argv0_override_for_testing = "heapprofd_continuous_malloc";
-  child.args.stdout_mode = base::Subprocess::kDevNull;
-  child.args.stderr_mode = base::Subprocess::kDevNull;
   child.args.env.push_back("HEAPPROFD_TESTING_RUN_ACCURATE_MALLOC=1");
   StartAndWaitForHandshake(&child);
 
@@ -1134,8 +1122,6 @@ TEST_P(HeapprofdEndToEnd, CustomLifetime) {
 
   base::Subprocess child({"/proc/self/exe"});
   child.args.posix_argv0_override_for_testing = "heapprofd_continuous_malloc";
-  child.args.stdout_mode = base::Subprocess::kDevNull;
-  child.args.stderr_mode = base::Subprocess::kDevNull;
   child.args.env.push_back("HEAPPROFD_TESTING_RUN_LIFETIME_ARG0=1000000");
   child.args.env.push_back("HEAPPROFD_TESTING_RUN_LIFETIME_ARG1=" +
                            std::to_string(disabled_pipe_wr));
@@ -1241,8 +1227,6 @@ TEST_P(HeapprofdEndToEnd, NativeStartup) {
 
   base::Subprocess child({"/proc/self/exe"});
   child.args.posix_argv0_override_for_testing = "heapprofd_continuous_malloc";
-  child.args.stdout_mode = base::Subprocess::kDevNull;
-  child.args.stderr_mode = base::Subprocess::kDevNull;
   child.args.env.push_back("HEAPPROFD_TESTING_RUN_MALLOC_ARG0=" +
                            allocator_name());
   child.args.env.push_back("HEAPPROFD_TESTING_RUN_MALLOC_ARG1=" +
@@ -1307,8 +1291,6 @@ TEST_P(HeapprofdEndToEnd, NativeStartupDenormalizedCmdline) {
 
   base::Subprocess child({"/proc/self/exe"});
   child.args.posix_argv0_override_for_testing = "heapprofd_continuous_malloc";
-  child.args.stdout_mode = base::Subprocess::kDevNull;
-  child.args.stderr_mode = base::Subprocess::kDevNull;
   child.args.env.push_back("HEAPPROFD_TESTING_RUN_MALLOC_ARG0=" +
                            allocator_name());
   child.args.env.push_back("HEAPPROFD_TESTING_RUN_MALLOC_ARG1=" +
@@ -1355,8 +1337,6 @@ TEST_P(HeapprofdEndToEnd, DiscoverByName) {
 
   base::Subprocess child({"/proc/self/exe"});
   child.args.posix_argv0_override_for_testing = "heapprofd_continuous_malloc";
-  child.args.stdout_mode = base::Subprocess::kDevNull;
-  child.args.stderr_mode = base::Subprocess::kDevNull;
   child.args.env.push_back("HEAPPROFD_TESTING_RUN_MALLOC_ARG0=" +
                            allocator_name());
   child.args.env.push_back("HEAPPROFD_TESTING_RUN_MALLOC_ARG1=" +
@@ -1416,8 +1396,6 @@ TEST_P(HeapprofdEndToEnd, DiscoverByNameDenormalizedCmdline) {
   // Make sure the forked process does not get reparented to init.
   base::Subprocess child({"/proc/self/exe"});
   child.args.posix_argv0_override_for_testing = "heapprofd_continuous_malloc";
-  child.args.stdout_mode = base::Subprocess::kDevNull;
-  child.args.stderr_mode = base::Subprocess::kDevNull;
   child.args.env.push_back("HEAPPROFD_TESTING_RUN_MALLOC_ARG0=" +
                            allocator_name());
   child.args.env.push_back("HEAPPROFD_TESTING_RUN_MALLOC_ARG1=" +
@@ -1693,8 +1671,6 @@ TEST_P(HeapprofdEndToEnd, NativeProfilingActiveAtProcessExit) {
 
   base::Subprocess child({"/proc/self/exe"});
   child.args.posix_argv0_override_for_testing = "heapprofd_continuous_malloc";
-  child.args.stdout_mode = base::Subprocess::kDevNull;
-  child.args.stderr_mode = base::Subprocess::kDevNull;
   child.args.env.push_back("HEAPPROFD_TESTING_RUN_MALLOC_ARG0=" +
                            allocator_name());
   child.args.env.push_back("HEAPPROFD_TESTING_RUN_MALLOC_ARG1=" +
