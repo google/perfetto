@@ -22,10 +22,11 @@ import {
 
 import {ACTUAL_FRAMES_SLICE_TRACK_KIND, Config, Data} from './common';
 
-const ERROR_COLOR = '#03A9F4';    // Blue 500
-const GOOD_COLOR = '#4CAF50';     // Green 500
-const WARNING_COLOR = '#FFEB3B';  // Yellow 500
-const BAD_COLOR = '#FF5722';      // Red 500
+const BLUE_COLOR = '#03A9F4';    // Blue 500
+const GREEN_COLOR = '#4CAF50';     // Green 500
+const YELLOW_COLOR = '#FFEB3B';  // Yellow 500
+const RED_COLOR = '#FF5722';      // Red 500
+const LIGHT_GREEN_COLOR = '#C0D588'; // Light Green 500
 
 class ActualFramesSliceTrackController extends TrackController<Config, Data> {
   static readonly kind = ACTUAL_FRAMES_SLICE_TRACK_KIND;
@@ -63,11 +64,12 @@ class ActualFramesSliceTrackController extends TrackController<Config, Data> {
         s.id,
         s.dur = 0 as is_instant,
         s.dur = -1 as is_incomplete,
-        CASE
-          WHEN afs.present_type = 'Dropped Frame' THEN '${ERROR_COLOR}'
-          WHEN jank_type = 'None' THEN '${GOOD_COLOR}'
-          WHEN not afs.on_time_finish THEN '${BAD_COLOR}'
-          ELSE '${WARNING_COLOR}'
+        CASE afs.jank_tag
+          WHEN 'Self Jank' THEN '${RED_COLOR}'
+          WHEN 'Other Jank' THEN '${YELLOW_COLOR}'
+          WHEN 'Dropped Frame' THEN '${BLUE_COLOR}'
+          WHEN 'Buffer Stuffing' THEN '${LIGHT_GREEN_COLOR}'
+          ELSE '${GREEN_COLOR}'
         END as color
       from experimental_slice_layout s
       join actual_frame_timeline_slice afs using(id)
