@@ -25,6 +25,11 @@ message ChromeMetadataPacket {
   // Version code of Chrome used by Android's Play Store. This field is only set
   // on Android.
   optional int32 chrome_version_code = 2;
+
+  // Comma separated list of enabled categories for tracing. The list of
+  // possible category strings are listed in code
+  // base/trace_event/builtin_categories.h.
+  optional string enabled_categories = 3;
 }
 
 // Metadata related to background tracing scenarios, states and triggers.

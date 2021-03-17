@@ -2288,6 +2288,11 @@ message ChromeMetadataPacket {
   // Version code of Chrome used by Android's Play Store. This field is only set
   // on Android.
   optional int32 chrome_version_code = 2;
+
+  // Comma separated list of enabled categories for tracing. The list of
+  // possible category strings are listed in code
+  // base/trace_event/builtin_categories.h.
+  optional string enabled_categories = 3;
 }
 
 // Metadata related to background tracing scenarios, states and triggers.
@@ -2439,6 +2444,8 @@ message ChromeLegacyJsonTrace {
 message ChromeEventBundle {
   // Deprecated, use TrackEvent protos instead.
   repeated ChromeTraceEvent trace_events = 1 [deprecated = true];
+  // TODO(ssid): This should be deprecated in favor of ChromeMetadataPacket
+  // which contains typed fields.
   repeated ChromeMetadata metadata = 2;
   // ftrace output from CrOS and Cast system tracing agents.
   // TODO(eseckler): Replace system traces with native perfetto service.
