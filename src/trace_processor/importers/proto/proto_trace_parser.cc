@@ -56,6 +56,7 @@
 #include "protos/perfetto/common/trace_stats.pbzero.h"
 #include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/chrome/chrome_benchmark_metadata.pbzero.h"
+#include "protos/perfetto/trace/chrome/chrome_metadata.pbzero.h"
 #include "protos/perfetto/trace/chrome/chrome_trace_event.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/perfetto/perfetto_metatrace.pbzero.h"
@@ -142,6 +143,10 @@ void ProtoTraceParser::ParseTracePacketImpl(
 
   if (packet.has_chrome_benchmark_metadata()) {
     ParseChromeBenchmarkMetadata(packet.chrome_benchmark_metadata());
+  }
+
+  if (packet.has_chrome_metadata()) {
+    ParseChromeMetadataPacket(packet.chrome_metadata());
   }
 
   if (packet.has_chrome_events()) {
@@ -477,6 +482,26 @@ void ProtoTraceParser::ParseChromeBenchmarkMetadata(ConstBytes blob) {
   }
 }
 
+void ProtoTraceParser::ParseChromeMetadataPacket(ConstBytes blob) {
+  TraceStorage* storage = context_->storage.get();
+  MetadataTracker* metadata = context_->metadata_tracker.get();
+
+  // Typed chrome metadata proto. The untyped metadata is parsed below in
+  // ParseChromeEvents().
+  protos::pbzero::ChromeMetadataPacket::Decoder packet(blob.data, blob.size);
+
+  if (packet.has_chrome_version_code()) {
+    metadata->SetDynamicMetadata(
+        storage->InternString("cr-playstore_version_code"),
+        Variadic::Integer(packet.chrome_version_code()));
+  }
+  if (packet.has_enabled_categories()) {
+    auto categories_id = storage->InternString(packet.enabled_categories());
+    metadata->SetDynamicMetadata(storage->InternString("cr-enabled_categories"),
+                                 Variadic::String(categories_id));
+  }
+}
+
 void ProtoTraceParser::ParseChromeEvents(int64_t ts, ConstBytes blob) {
   TraceStorage* storage = context_->storage.get();
   protos::pbzero::ChromeEventBundle::Decoder bundle(blob.data, blob.size);
@@ -490,7 +515,8 @@ void ProtoTraceParser::ParseChromeEvents(int64_t ts, ConstBytes blob) {
     uint32_t bundle_index =
         context_->metadata_tracker->IncrementChromeMetadataBundleCount();
 
-    // Metadata is proxied via a special event in the raw table to JSON export.
+    // The legacy untyped metadata is proxied via a special event in the raw
+    // table to JSON export.
     for (auto it = bundle.metadata(); it; ++it) {
       protos::pbzero::ChromeMetadata::Decoder metadata(*it);
       Variadic value;
