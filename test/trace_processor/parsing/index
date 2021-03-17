@@ -109,6 +109,7 @@ initial_display_state.textproto initial_display_state.sql initial_display_state.
 # Config & metadata
 config_metadata.textproto metadata.sql config_metadata.out
 trigger_packet_trace.textproto triggers_packets.sql triggers_packets_trigger_packet_trace.out
+chrome_metadata.textproto chrome_metadata.sql chrome_metadata.out
 
 # CPU info
 cpu_info.textproto cpu.sql cpu.out
