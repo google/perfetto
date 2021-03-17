@@ -52,6 +52,8 @@ packet {
       self_size: 64
       reference_field_id: 1
       reference_object_id: 0x02
+      reference_field_id: 4
+      reference_object_id: 0x00
       reference_field_id: 3
       reference_object_id: 0x02
     }
@@ -122,6 +124,10 @@ packet {
     field_names {
       iid: 3
       str: "a.b"
+    }
+    field_names {
+      iid: 4
+      str: "FactoryProducerDelegateImplActor.setToNULL"
     }
     continued: false
     index: 1
