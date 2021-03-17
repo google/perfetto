@@ -50,6 +50,7 @@ packet {
       id: 0x01
       type_id: 1
       reference_object_id: 0x02
+      reference_object_id: 0x00
       reference_object_id: 0x02
     }
     objects {
@@ -110,6 +111,7 @@ packet {
       location_id: 1
       object_size: 64
       reference_field_id: 1
+      reference_field_id: 4
       superclass_id: 6
     }
     types {
@@ -145,6 +147,10 @@ packet {
     field_names {
       iid: 3
       str: "a.b"
+    }
+    field_names {
+      iid: 4
+      str: "FactoryProducerDelegateImplActor.setToNULL"
     }
     continued: false
     index: 1
