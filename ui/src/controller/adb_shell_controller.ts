@@ -14,8 +14,8 @@
 
 import {_TextDecoder} from 'custom_utils';
 
-import {extractTraceConfig} from '../base/extract_utils';
 import {base64Encode} from '../base/string_utils';
+import {extractTraceConfig} from '../base/trace_config_utils';
 
 import {AdbAuthState, AdbBaseConsumerPort} from './adb_base_controller';
 import {Adb, AdbStream} from './adb_interfaces';
