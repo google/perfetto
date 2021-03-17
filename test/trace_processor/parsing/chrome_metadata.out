@@ -1,0 +1,4 @@
+"id","type","name","key_type","int_value","str_value"
+0,"metadata","cr-playstore_version_code","single",101,"[NULL]"
+1,"metadata","cr-enabled_categories","single","[NULL]","cat1,cat2,cat3"
+2,"metadata","trace_size_bytes","single",50,"[NULL]"
