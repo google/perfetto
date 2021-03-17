@@ -64,9 +64,9 @@ class ActualFramesSliceTrackController extends TrackController<Config, Data> {
         s.dur = 0 as is_instant,
         s.dur = -1 as is_incomplete,
         CASE
-          WHEN afs.present_type = 'Dropped' THEN '${ERROR_COLOR}'
-          WHEN not afs.on_time_finish THEN '${BAD_COLOR}'
+          WHEN afs.present_type = 'Dropped Frame' THEN '${ERROR_COLOR}'
           WHEN jank_type = 'None' THEN '${GOOD_COLOR}'
+          WHEN not afs.on_time_finish THEN '${BAD_COLOR}'
           ELSE '${WARNING_COLOR}'
         END as color
       from experimental_slice_layout s
