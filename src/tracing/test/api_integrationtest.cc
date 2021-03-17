@@ -2347,6 +2347,34 @@ TEST_P(PerfettoApiTest, OneDataSourceOneEvent) {
   EXPECT_TRUE(test_packet_found);
 }
 
+TEST_P(PerfettoApiTest, ReentrantTracing) {
+  auto* data_source = &data_sources_["my_data_source"];
+
+  // Setup the trace config.
+  perfetto::TraceConfig cfg;
+  cfg.set_duration_ms(500);
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("my_data_source");
+
+  // Create a new trace session.
+  auto* tracing_session = NewTrace(cfg);
+  tracing_session->get()->Start();
+  data_source->on_start.Wait();
+
+  // Check that only one level of trace lambda calls is allowed.
+  std::atomic<int> trace_lambda_calls{0};
+  MockDataSource::Trace([&trace_lambda_calls](MockDataSource::TraceContext) {
+    trace_lambda_calls++;
+    MockDataSource::Trace([&trace_lambda_calls](MockDataSource::TraceContext) {
+      trace_lambda_calls++;
+    });
+  });
+
+  tracing_session->get()->StopBlocking();
+  EXPECT_EQ(trace_lambda_calls, 1);
+}
+
 TEST_P(PerfettoApiTest, ConsumerFlush) {
   auto* data_source = &data_sources_["my_data_source"];
 
