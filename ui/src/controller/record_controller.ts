@@ -212,6 +212,7 @@ export function genConfig(
     ftraceEvents.add('mm_event/mm_event_record');
     ftraceEvents.add('kmem/rss_stat');
     ftraceEvents.add('ion/ion_stat');
+    ftraceEvents.add('dmabuf_heap/dma_heap_stat');
     ftraceEvents.add('kmem/ion_heap_grow');
     ftraceEvents.add('kmem/ion_heap_shrink');
   }

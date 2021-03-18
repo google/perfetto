@@ -137,6 +137,21 @@ message AndroidDisplayMetrics {
 
 // End of protos/perfetto/metrics/android/display_metrics.proto
 
+// Begin of protos/perfetto/metrics/android/dma_heap_metric.proto
+
+// dma-buf heap memory stats on Android.
+message AndroidDmaHeapMetric {
+    optional double avg_size_bytes = 1;
+    optional double min_size_bytes = 2;
+    optional double max_size_bytes = 3;
+
+    // Total allocation size.
+    // Essentially the sum of positive allocs.
+    optional double total_alloc_size_bytes = 4;
+}
+
+// End of protos/perfetto/metrics/android/dma_heap_metric.proto
+
 // Begin of protos/perfetto/metrics/android/fastrpc_metric.proto
 
 // fastrpc memory stats on Android.
@@ -947,7 +962,7 @@ message TraceMetadata {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 32
+// Next id: 33
 message TraceMetrics {
   reserved 4, 10, 13, 14, 19;
 
@@ -1027,6 +1042,9 @@ message TraceMetrics {
 
   // G2D metrics.
   optional G2dMetrics g2d = 30;
+
+  // Dmabuf heap metrics.
+  optional AndroidDmaHeapMetric android_dma_heap = 32;
 
   // Demo extensions.
   extensions 450 to 499;
