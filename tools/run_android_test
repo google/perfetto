@@ -155,7 +155,7 @@ def Main():
   AdbCall('shell', 'echo 0 > /d/tracing/tracing_on')
 
   # This needs to go into /data/nativetest in order to have the system linker
-  # namespace applied, which we need in order to link libdexfile_external.so.
+  # namespace applied, which we need in order to link libdexfile.so.
   # This gets linked into our tests via libundwindstack.so.
   #
   # See https://android.googlesource.com/platform/system/core/+/master/rootdir/etc/ld.config.txt.
