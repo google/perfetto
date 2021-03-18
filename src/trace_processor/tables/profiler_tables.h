@@ -352,7 +352,7 @@ PERFETTO_TP_TABLE(PERFETTO_TP_HEAP_GRAPH_OBJECT_DEF);
   PERFETTO_TP_ROOT_TABLE(PARENT, C)                           \
   C(uint32_t, reference_set_id, Column::Flag::kSorted)        \
   C(HeapGraphObjectTable::Id, owner_id)                       \
-  C(HeapGraphObjectTable::Id, owned_id)                       \
+  C(base::Optional<HeapGraphObjectTable::Id>, owned_id)       \
   C(StringPool::Id, field_name)                               \
   C(StringPool::Id, field_type_name)                          \
   C(base::Optional<StringPool::Id>, deobfuscated_field_name)

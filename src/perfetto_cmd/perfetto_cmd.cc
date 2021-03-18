@@ -946,7 +946,7 @@ void PerfettoCmd::FinalizeTraceAndExit() {
 
 bool PerfettoCmd::OpenOutputFile() {
   base::ScopedFile fd;
-  if (save_to_incidentd_) {
+  if (trace_out_path_.empty()) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
     fd = CreateUnlikedTmpFile();
 #endif

@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/importers/proto/heap_graph_tracker.h"
 
+#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/importers/proto/profiler_util.h"
@@ -82,8 +83,11 @@ std::set<tables::HeapGraphObjectTable::Id> GetChildren(
         PERFETTO_CHECK(
             storage.heap_graph_reference_table().owner_id()[reference_row] ==
             id);
-        children.emplace(
-            storage.heap_graph_reference_table().owned_id()[reference_row]);
+        auto opt_owned =
+            storage.heap_graph_reference_table().owned_id()[reference_row];
+        if (opt_owned) {
+          children.emplace(*opt_owned);
+        }
         return true;
       });
   return children;
@@ -121,11 +125,14 @@ base::Optional<tables::HeapGraphObjectTable::Id> GetReferredObj(
   if (!refs_it) {
     return {};
   }
-  return tables::HeapGraphObjectTable::Id(static_cast<uint32_t>(
-      refs_it
-          .Get(static_cast<uint32_t>(
-              tables::HeapGraphReferenceTable::ColumnIndex::owned_id))
-          .AsLong()));
+
+  SqlValue sql_owned = refs_it.Get(static_cast<uint32_t>(
+      tables::HeapGraphReferenceTable::ColumnIndex::owned_id));
+  if (sql_owned.is_null()) {
+    return base::nullopt;
+  }
+  return tables::HeapGraphObjectTable::Id(
+      static_cast<uint32_t>(sql_owned.AsLong()));
 }
 
 // Maps from normalized class name and location, to superclass.
@@ -359,10 +366,9 @@ void HeapGraphTracker::AddObject(uint32_t seq_id,
   for (size_t i = 0; i < obj.referred_objects.size(); ++i) {
     uint64_t owned_object_id = obj.referred_objects[i];
     // This is true for unset reference fields.
-    if (owned_object_id == 0)
-      continue;
-    tables::HeapGraphObjectTable::Id owned_id =
-        GetOrInsertObject(&sequence_state, owned_object_id);
+    base::Optional<tables::HeapGraphObjectTable::Id> owned_id;
+    if (owned_object_id != 0)
+      owned_id = GetOrInsertObject(&sequence_state, owned_object_id);
 
     auto ref_id_and_row =
         context_->storage->mutable_heap_graph_reference_table()->Insert(
