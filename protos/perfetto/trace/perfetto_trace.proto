@@ -6570,6 +6570,13 @@ message ChromeMojoEventInfo {
   // handle watcher, recorded when an event if notified to the watcher. The code
   // that runs within the track event belongs to the interface.
   optional string watcher_notify_interface_tag = 1;
+
+  // The hash of the IPC message that is being handled.
+  optional uint32 ipc_hash = 2;
+
+  // A static string representing the mojo interface name of the message that is
+  // being handled.
+  optional string mojo_interface_tag = 3;
 }
 
 // End of protos/perfetto/trace/track_event/chrome_mojo_event_info.proto
