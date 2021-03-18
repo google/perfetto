@@ -26,6 +26,7 @@ import "protos/perfetto/trace/ftrace/cgroup.proto";
 import "protos/perfetto/trace/ftrace/clk.proto";
 import "protos/perfetto/trace/ftrace/compaction.proto";
 import "protos/perfetto/trace/ftrace/cpuhp.proto";
+import "protos/perfetto/trace/ftrace/dmabuf_heap.proto";
 import "protos/perfetto/trace/ftrace/dpu.proto";
 import "protos/perfetto/trace/ftrace/ext4.proto";
 import "protos/perfetto/trace/ftrace/f2fs.proto";
@@ -438,5 +439,6 @@ message FtraceEvent {
     DpuTracingMarkWriteFtraceEvent dpu_tracing_mark_write = 348;
     G2dTracingMarkWriteFtraceEvent g2d_tracing_mark_write = 349;
     MaliTracingMarkWriteFtraceEvent mali_tracing_mark_write = 350;
+    DmaHeapStatFtraceEvent dma_heap_stat = 351;
   }
 }
