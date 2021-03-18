@@ -367,7 +367,7 @@ std::vector<char> trace_data(tracing_session->ReadTraceBlocking());
 
 // Write the trace into a file.
 std::ofstream output;
-output.open("example.pftrace", std::ios::out | std::ios::binary);
+output.open("example.perfetto-trace", std::ios::out | std::ios::binary);
 output.write(&trace_data[0], trace_data.size());
 output.close();
 ```
@@ -377,7 +377,7 @@ directly into a file by passing a file descriptor into Setup(), remembering
 to close the file after tracing is done:
 
 ```C++
-int fd = open("example.pftrace", O_RDWR | O_CREAT | O_TRUNC, 0600);
+int fd = open("example.perfetto-trace", O_RDWR | O_CREAT | O_TRUNC, 0600);
 tracing_session->Setup(cfg, fd);
 tracing_session->StartBlocking();
 // ...
