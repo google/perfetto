@@ -477,7 +477,7 @@ NOTE: The API is only compatible with Python3.
 ```python
 from perfetto.trace_processor import TraceProcessor
 # Initialise TraceProcessor with a trace file
-tp = TraceProcessor(file_path='trace.pftrace')
+tp = TraceProcessor(file_path='trace.perfetto-trace')
 ```
 
 NOTE: The TraceProcessor can be initialized in a combination of ways including:
@@ -485,9 +485,9 @@ NOTE: The TraceProcessor can be initialized in a combination of ways including:
       loaded trace (e.g. `TraceProcessor(addr='localhost:9001')`)
       <br> - An address at which there exists a running instance of `trace_processor` and
       needs a trace to be loaded in
-      (e.g. `TraceProcessor(addr='localhost:9001', file_path='trace.pftrace')`)
+      (e.g. `TraceProcessor(addr='localhost:9001', file_path='trace.perfetto-trace')`)
       <br> - A path to a `trace_processor` binary and the trace to be loaded in
-      (e.g. `TraceProcessor(bin_path='./trace_processor', file_path='trace.pftrace')`)
+      (e.g. `TraceProcessor(bin_path='./trace_processor', file_path='trace.perfetto-trace')`)
 
 
 ### API
@@ -502,7 +502,7 @@ of the result.
 
 ```python
 from perfetto.trace_processor import TraceProcessor
-tp = TraceProcessor(file_path='trace.pftrace')
+tp = TraceProcessor(file_path='trace.perfetto-trace')
 
 qr_it = tp.query('SELECT ts, dur, name FROM slice')
 for row in qr_it:
@@ -521,7 +521,7 @@ The QueryResultIterator can also be converted to a Pandas DataFrame, although th
 requires you to have both the `NumPy` and `Pandas` modules installed.
 ```python
 from perfetto.trace_processor import TraceProcessor
-tp = TraceProcessor(file_path='trace.pftrace')
+tp = TraceProcessor(file_path='trace.perfetto-trace')
 
 qr_it = tp.query('SELECT ts, dur, name FROM slice')
 qr_df = qr_it.as_pandas_dataframe()
@@ -542,7 +542,7 @@ Furthermore, you can use the query result in a Pandas DataFrame format to easily
 make visualisations from the trace data.
 ```python
 from perfetto.trace_processor import TraceProcessor
-tp = TraceProcessor(file_path='trace.pftrace')
+tp = TraceProcessor(file_path='trace.perfetto-trace')
 
 qr_it = tp.query('SELECT ts, value FROM counter WHERE track_id=50')
 qr_df = qr_it.as_pandas_dataframe()
@@ -559,7 +559,7 @@ The metric() function takes in a list of trace metrics and returns the results a
 
 ```python
 from perfetto.trace_processor import TraceProcessor
-tp = TraceProcessor(file_path='trace.pftrace')
+tp = TraceProcessor(file_path='trace.perfetto-trace')
 
 ad_cpu_metrics = tp.metric(['android_cpu'])
 print(ad_cpu_metrics)
