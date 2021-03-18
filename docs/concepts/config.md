@@ -36,7 +36,7 @@ data_sources {
 And is used as follows:
 
 ```bash
-perfetto --txt -c config.pbtx -o trace_file.pftrace
+perfetto --txt -c config.pbtx -o trace_file.perfetto-trace
 ```
 
 TIP: Some more complete examples of trace configs can be found in the repo in
@@ -196,7 +196,7 @@ When using this mode pass the `--txt` flag to `perfetto` to indicate the config
 should be interpreted as a PBTX file:
 
 ```bash
-perfetto -c /path/to/config.pbtx --txt -o trace_file.pftrace
+perfetto -c /path/to/config.pbtx --txt -o trace_file.perfetto-trace
 ```
 
 NOTE: The `--txt` option has been introduced only in Android 10 (Q). Older
@@ -226,7 +226,7 @@ protoc --encode=perfetto.protos.TraceConfig \
 and then passing it to perfetto as follows, without the `--txt` argument:
 
 ```bash
-perfetto -c config.bin -o trace_file.pftrace
+perfetto -c config.bin -o trace_file.perfetto-trace
 ```
 
 ## {#long-traces} Streaming long traces
