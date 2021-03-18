@@ -29,6 +29,7 @@
 
 #include "protos/perfetto/common/gpu_counter_descriptor.pbzero.h"
 #include "protos/perfetto/trace/ftrace/binder.pbzero.h"
+#include "protos/perfetto/trace/ftrace/dmabuf_heap.pbzero.h"
 #include "protos/perfetto/trace/ftrace/dpu.pbzero.h"
 #include "protos/perfetto/trace/ftrace/fastrpc.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace.pbzero.h"
@@ -104,6 +105,9 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       cpu_idle_name_id_(context->storage->InternString("cpuidle")),
       ion_total_id_(context->storage->InternString("mem.ion")),
       ion_change_id_(context->storage->InternString("mem.ion_change")),
+      dma_heap_total_id_(context->storage->InternString("mem.dma_heap")),
+      dma_heap_change_id_(
+          context->storage->InternString("mem.dma_heap_change")),
       ion_total_unknown_id_(context->storage->InternString("mem.ion.unknown")),
       ion_change_unknown_id_(
           context->storage->InternString("mem.ion_change.unknown")),
@@ -396,6 +400,10 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kIonStatFieldNumber: {
         ParseIonStat(ts, pid, data);
+        break;
+      }
+      case FtraceEvent::kDmaHeapStatFieldNumber: {
+        ParseDmaHeapStat(ts, pid, data);
         break;
       }
       case FtraceEvent::kSignalGenerateFieldNumber: {
@@ -901,6 +909,25 @@ void FtraceParser::ParseIonStat(int64_t ts,
   track =
       context_->track_tracker->InternThreadCounterTrack(ion_change_id_, utid);
   context_->event_tracker->PushCounter(ts, static_cast<double>(ion.len()),
+                                       track);
+}
+void FtraceParser::ParseDmaHeapStat(int64_t ts,
+                                    uint32_t pid,
+                                    protozero::ConstBytes data) {
+  protos::pbzero::DmaHeapStatFtraceEvent::Decoder dma_heap(data.data,
+                                                           data.size);
+  // Push the global counter.
+  TrackId track =
+      context_->track_tracker->InternGlobalCounterTrack(dma_heap_total_id_);
+  context_->event_tracker->PushCounter(
+      ts, static_cast<double>(dma_heap.total_allocated()), track);
+
+  // Push the change counter.
+  // TODO(b/121331269): these should really be instant events.
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  track = context_->track_tracker->InternThreadCounterTrack(dma_heap_change_id_,
+                                                            utid);
+  context_->event_tracker->PushCounter(ts, static_cast<double>(dma_heap.len()),
                                        track);
 }
 

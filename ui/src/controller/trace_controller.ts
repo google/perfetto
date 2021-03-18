@@ -496,6 +496,7 @@ export class TraceController extends Controller<States> {
     for (const metric
              of ['android_startup',
                  'android_ion',
+                 'android_dma_heap',
                  'android_thread_time_in_state',
                  'android_surfaceflinger',
                  'android_batt',
