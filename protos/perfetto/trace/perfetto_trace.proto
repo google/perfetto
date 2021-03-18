@@ -6392,6 +6392,10 @@ message ChromeFrameReporter {
   optional bool has_compositor_animation = 8;
   // If any touch-driven UX (not scroll) is active during this frame.
   optional bool has_smooth_input_main = 9;
+
+  // Whether the frame contained any missing content (i.e. whether there was
+  // checkerboarding in the frame).
+  optional bool has_missing_content = 10;
 }
 
 // End of protos/perfetto/trace/track_event/chrome_frame_reporter.proto
