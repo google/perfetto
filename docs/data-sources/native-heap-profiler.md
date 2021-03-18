@@ -466,8 +466,7 @@ Then, Ctrl-C the Perfetto invocation and upload ~/heapprofd-trace to the
 * For startup profiles, some frame names might be missing. This will be
   resolved in Android 12.
 * 32-bit programs cannot be targeted on 64-bit devices.
-* x86 / x86_64 platforms are not supported. This includes the Android
-_Cuttlefish_.
+* x86 platforms are not supported. This includes the Android _Cuttlefish_
   emulator.
 * On ARM32, the bottom-most frame is always `ERROR 2`. This is harmless and
   the callstacks are still complete.

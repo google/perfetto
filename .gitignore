@@ -24,5 +24,4 @@
 /fuzz_out/
 /node_modules/
 /out*
-/ui/dist
 TAGS
