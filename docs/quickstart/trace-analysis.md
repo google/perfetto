@@ -17,10 +17,10 @@ curl -LO https://get.perfetto.dev/trace_processor
 chmod +x ./trace_processor
 
 # Start the interactive shell
-./trace_processor trace.pftrace
+./trace_processor trace.perfetto-trace
 
 # Start a local trace processor instance to replace wasm module in the UI
-./trace_processor trace.pftrace --http
+./trace_processor trace.perfetto-trace --http
 ```
 
 NOTE: In HTTP mode the trace will be loaded into the `trace_processor` and
@@ -114,7 +114,7 @@ metric. This metrics computes the total CPU time and the total cycles
 trace, breaking it down by CPU (_core_) number.
 
 ```protobuf
-./trace_processor --run-metrics android_cpu trace.pftrace
+./trace_processor --run-metrics android_cpu trace.perfetto-trace
 
 android_cpu {
   process_info {
@@ -184,7 +184,7 @@ flag. This will output a text proto with the combined result of running both
 metrics.
 
 ```protobuf
-$ ./trace_processor --run-metrics android_mem,android_cpu trace.pftrace
+$ ./trace_processor --run-metrics android_mem,android_cpu trace.perfetto-trace
 
 android_mem {
   process_metrics {
@@ -246,10 +246,10 @@ formats. This is useful when the intended reader is an offline tool.
 Both single and multiple metrics are supported as with proto text output.
 
 ```
-./trace_processor --run-metrics android_mem --metrics-output=binary trace.pftrace
+./trace_processor --run-metrics android_mem --metrics-output=binary trace.perfetto-trace
 <binary protobuf output>
 
-./trace_processor --run-metrics android_mem,android_cpu --metrics-output=json trace.pftrace
+./trace_processor --run-metrics android_mem,android_cpu --metrics-output=json trace.perfetto-trace
 {
   "android_mem": {
     "process_metrics": [
@@ -334,7 +334,7 @@ more details on all available functions.
 #### Query
 ```python
 from perfetto.trace_processor import TraceProcessor
-tp = TraceProcessor(file_path='trace.pftrace')
+tp = TraceProcessor(file_path='trace.perfetto-trace')
 
 qr_it = tp.query('SELECT name FROM slice')
 for row in qr_it:
@@ -352,7 +352,7 @@ query
 #### Query as Pandas DataFrame
 ```python
 from perfetto.trace_processor import TraceProcessor
-tp = TraceProcessor(file_path='trace.pftrace')
+tp = TraceProcessor(file_path='trace.perfetto-trace')
 
 qr_it = tp.query('SELECT ts, name FROM slice')
 qr_df = qr_it.as_pandas_dataframe()
@@ -372,7 +372,7 @@ ts                   name
 #### Metric
 ```python
 from perfetto.trace_processor import TraceProcessor
-tp = TraceProcessor(file_path='trace.pftrace')
+tp = TraceProcessor(file_path='trace.perfetto-trace')
 
 cpu_metrics = tp.metric(['android_cpu'])
 print(cpu_metrics)

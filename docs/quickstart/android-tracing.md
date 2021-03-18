@@ -76,14 +76,14 @@ curl -O https://raw.githubusercontent.com/google/perfetto/master/tools/record_an
 chmod u+x record_android_trace
 
 # See ./record_android_trace --help for more
-./record_android_trace -o trace_file.pftrace -t 10s -b 32mb sched gfx wm
+./record_android_trace -o trace_file.perfetto-trace -t 10s -b 32mb sched gfx wm
 ```
 
 On Windows:
 
 ```bash
 curl -O https://raw.githubusercontent.com/google/perfetto/master/tools/record_android_trace
-python3 record_android_trace -o trace_file.pftrace -t 10s -b 32mb sched gfx wm
+python3 record_android_trace -o trace_file.perfetto-trace -t 10s -b 32mb sched gfx wm
 ```
 
 **Using the on-device /system/bin/perfetto command**
@@ -91,7 +91,7 @@ python3 record_android_trace -o trace_file.pftrace -t 10s -b 32mb sched gfx wm
 Or, if you want to use directly the on-device binary do instead:
 
 ```bash
-adb shell perfetto -o /data/misc/perfetto-traces/trace_file.pftrace -t 20s sched freq idle am wm gfx view
+adb shell perfetto -o /data/misc/perfetto-traces/trace_file.perfetto-trace -t 20s sched freq idle am wm gfx view
 ```
 
 Caveats when using directly the `adb shell perfetto` workflow:
@@ -166,20 +166,20 @@ data_sources: {
 }
 EOF
 
-./record_android_trace -c config.pbtx -o trace_file.pftrace 
+./record_android_trace -c config.pbtx -o trace_file.perfetto-trace 
 ```
 
 Or alternatively, when using directly the on-device command:
 
 ```bash
-cat config.pbtx | adb shell perfetto -c - --txt -o /data/misc/perfetto-traces/trace.pftrace
+cat config.pbtx | adb shell perfetto -c - --txt -o /data/misc/perfetto-traces/trace.perfetto-trace
 ```
 
 Alternatively, first push the trace config file and then invoke perfetto:
 
 ```bash
 adb push config.pbtx /data/local/tmp/config.pbtx
-adb shell 'cat /data/local/tmp/config.pbtx | perfetto --txt -c - -o /data/misc/perfetto-traces/trace.pftrace'
+adb shell 'cat /data/local/tmp/config.pbtx | perfetto --txt -c - -o /data/misc/perfetto-traces/trace.perfetto-trace'
 ```
 
 NOTE: because of strict SELinux rules, on non-rooted builds of Android, passing
@@ -187,7 +187,7 @@ directly the file path as `-c /data/local/tmp/config` will fail, hence the
 `-c -` + stdin piping above. From Android 12 (S), `/data/misc/perfetto-configs/`
 can be used instead.
 
-Pull the file using `adb pull /data/misc/perfetto-traces/trace ~/trace.pftrace`
+Pull the file using `adb pull /data/misc/perfetto-traces/trace ~/trace.perfetto-trace`
 and open it in the [Perfetto UI](https://ui.perfetto.dev).
 
 The full reference for the `perfetto` cmdline interface can be found
