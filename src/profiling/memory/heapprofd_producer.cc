@@ -518,7 +518,7 @@ void HeapprofdProducer::SignalRunningProcesses(DataSource* data_source) {
 
 void HeapprofdProducer::StartDataSource(DataSourceInstanceID id,
                                         const DataSourceConfig&) {
-  PERFETTO_DLOG("Start DataSource");
+  PERFETTO_DLOG("Starting data source %" PRIu64, id);
 
   auto it = data_sources_.find(id);
   if (it == data_sources_.end()) {
@@ -577,6 +577,8 @@ void HeapprofdProducer::StopDataSource(DataSourceInstanceID id) {
           "Trying to stop non existing data source: %" PRIu64, id);
     return;
   }
+
+  PERFETTO_DLOG("Stopping data source %" PRIu64, id);
 
   DataSource& data_source = it->second;
   data_source.was_stopped = true;
