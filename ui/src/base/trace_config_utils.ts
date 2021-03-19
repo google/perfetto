@@ -39,7 +39,7 @@ export function extractDurationFromTraceConfig(traceConfigProto: Uint8Array) {
   }
 }
 
-export function browserSupportsPerfettoConfig(): Boolean {
+export function browserSupportsPerfettoConfig(): boolean {
   const minimumChromeVersion = '91.0.4448.0';
   const runningVersion = String(
       (/Chrome\/(([0-9]+\.?){4})/.exec(navigator.userAgent) || [, 0])[1]);
@@ -49,14 +49,14 @@ export function browserSupportsPerfettoConfig(): Boolean {
   const minVerArray = minimumChromeVersion.split('.').map(Number);
   const runVerArray = runningVersion.split('.').map(Number);
 
-  for (var index = 0; index < minVerArray.length; index++) {
-    if (runVerArray[index] == minVerArray[index]) continue;
+  for (let index = 0; index < minVerArray.length; index++) {
+    if (runVerArray[index] === minVerArray[index]) continue;
     return runVerArray[index] > minVerArray[index];
   }
   return true;  // Exact version match.
-};
+}
 
-export function hasSystemDataSourceConfig(config: TraceConfig): Boolean {
+export function hasSystemDataSourceConfig(config: TraceConfig): boolean {
   for (const ds of config.dataSources) {
     if (ds.config && ds.config.name &&
         !ds.config.name.startsWith('org.chromium.')) {
@@ -64,4 +64,4 @@ export function hasSystemDataSourceConfig(config: TraceConfig): Boolean {
     }
   }
   return false;
-};
+}
