@@ -21,6 +21,7 @@ package perfetto.protos;
 import "protos/perfetto/metrics/android/batt_metric.proto";
 import "protos/perfetto/metrics/android/cpu_metric.proto";
 import "protos/perfetto/metrics/android/display_metrics.proto";
+import "protos/perfetto/metrics/android/dma_heap_metric.proto";
 import "protos/perfetto/metrics/android/fastrpc_metric.proto";
 import "protos/perfetto/metrics/android/g2d_metric.proto";
 import "protos/perfetto/metrics/android/gpu_metric.proto";
@@ -60,7 +61,7 @@ message TraceMetadata {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 32
+// Next id: 33
 message TraceMetrics {
   reserved 4, 10, 13, 14, 19;
 
@@ -140,6 +141,9 @@ message TraceMetrics {
 
   // G2D metrics.
   optional G2dMetrics g2d = 30;
+
+  // Dmabuf heap metrics.
+  optional AndroidDmaHeapMetric android_dma_heap = 32;
 
   // Demo extensions.
   extensions 450 to 499;
