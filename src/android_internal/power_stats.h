@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 The Android Open Source Project
+ * Copyright (C) 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_ANDROID_INTERNAL_POWER_STATS_HAL_H_
-#define SRC_ANDROID_INTERNAL_POWER_STATS_HAL_H_
+#ifndef SRC_ANDROID_INTERNAL_POWER_STATS_H_
+#define SRC_ANDROID_INTERNAL_POWER_STATS_H_
 
 #include <stddef.h>
 #include <stdint.h>
@@ -64,4 +64,4 @@ GetRailEnergyData(RailEnergyData*, size_t* size_of_arr);
 }  // namespace android_internal
 }  // namespace perfetto
 
-#endif  // SRC_ANDROID_INTERNAL_POWER_STATS_HAL_H_
+#endif  // SRC_ANDROID_INTERNAL_POWER_STATS_H_
