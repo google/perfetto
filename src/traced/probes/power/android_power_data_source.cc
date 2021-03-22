@@ -28,7 +28,7 @@
 #include "perfetto/tracing/core/data_source_config.h"
 #include "src/android_internal/health_hal.h"
 #include "src/android_internal/lazy_library_loader.h"
-#include "src/android_internal/power_stats_hal.h"
+#include "src/android_internal/power_stats.h"
 
 #include "protos/perfetto/config/power/android_power_config.pbzero.h"
 #include "protos/perfetto/trace/power/battery_counters.pbzero.h"
