@@ -78,6 +78,26 @@ static StringId JankTypeBitmaskToStringId(TraceProcessorContext* context,
   return context->storage->InternString(base::StringView(jank_str));
 }
 
+static bool DisplayFrameJanky(int32_t jank_type) {
+  if (jank_type == FrameTimelineEvent::JANK_UNSPECIFIED || jank_type == FrameTimelineEvent::JANK_NONE)
+    return false;
+
+  int32_t display_frame_jank_bitmask = FrameTimelineEvent::JANK_SF_SCHEDULING | FrameTimelineEvent::JANK_PREDICTION_ERROR | FrameTimelineEvent::JANK_DISPLAY_HAL | FrameTimelineEvent::JANK_SF_CPU_DEADLINE_MISSED | FrameTimelineEvent::JANK_SF_GPU_DEADLINE_MISSED;
+  if (jank_type & display_frame_jank_bitmask)
+      return true;
+  return false;
+}
+
+static bool SurfaceFrameJanky(int32_t jank_type) {
+  if (jank_type == FrameTimelineEvent::JANK_UNSPECIFIED || jank_type == FrameTimelineEvent::JANK_NONE)
+    return false;
+
+  int32_t surface_frame_jank_bitmask = FrameTimelineEvent::JANK_APP_DEADLINE_MISSED | FrameTimelineEvent::JANK_UNKNOWN;
+  if (jank_type & surface_frame_jank_bitmask)
+    return true;
+  return false;
+}
+
 static bool ValidatePredictionType(TraceProcessorContext* context,
                                    int32_t prediction_type) {
   if (prediction_type >= FrameTimelineEvent::PREDICTION_VALID /*1*/ &&
@@ -132,7 +152,12 @@ FrameTimelineEventParser::FrameTimelineEventParser(
       gpu_composition_id_(context->storage->InternString("GPU composition")),
       jank_type_id_(context->storage->InternString("Jank type")),
       layer_name_id_(context->storage->InternString("Layer name")),
-      prediction_type_id_(context->storage->InternString("Prediction type")) {}
+      prediction_type_id_(context->storage->InternString("Prediction type")),
+      jank_tag_none_id_(context->storage->InternString("No Jank")),
+      jank_tag_self_id_(context->storage->InternString("Self Jank")),
+      jank_tag_other_id_(context->storage->InternString("Other Jank")),
+      jank_tag_dropped_id_(context->storage->InternString("Dropped Frame")),
+      jank_tag_buffer_stuffing_id_(context->storage->InternString("Buffer Stuffing")) {}
 
 void FrameTimelineEventParser::ParseExpectedDisplayFrameStart(
     int64_t timestamp,
@@ -241,6 +266,10 @@ void FrameTimelineEventParser::ParseActualDisplayFrameStart(
         prediction_type_ids_[static_cast<size_t>(event.prediction_type())];
   }
   actual_row.prediction_type = prediction_type;
+  if (DisplayFrameJanky(event.jank_type()))
+    actual_row.jank_tag = jank_tag_self_id_;
+  else
+    actual_row.jank_tag = jank_tag_none_id_;
 
   base::Optional<SliceId> opt_slice_id =
       context_->slice_tracker->BeginTyped(
@@ -411,8 +440,10 @@ void FrameTimelineEventParser::ParseActualSurfaceFrameStart(
   actual_row.upid = upid;
   actual_row.layer_name = layer_name_id;
   StringId present_type = present_type_ids_[0];
+  bool present_type_validated = false;
   if (event.has_present_type() &&
       ValidatePresentType(context_, event.present_type())) {
+    present_type_validated = true;
     present_type = present_type_ids_[static_cast<size_t>(event.present_type())];
   }
   actual_row.present_type = present_type;
@@ -427,6 +458,16 @@ void FrameTimelineEventParser::ParseActualSurfaceFrameStart(
         prediction_type_ids_[static_cast<size_t>(event.prediction_type())];
   }
   actual_row.prediction_type = prediction_type;
+  if (SurfaceFrameJanky(event.jank_type()))
+    actual_row.jank_tag = jank_tag_self_id_;
+  else if (DisplayFrameJanky(event.jank_type()))
+    actual_row.jank_tag = jank_tag_other_id_;
+  else if (event.jank_type() == FrameTimelineEvent::JANK_BUFFER_STUFFING)
+    actual_row.jank_tag = jank_tag_buffer_stuffing_id_;
+  else if (present_type_validated && event.present_type() == FrameTimelineEvent::PRESENT_DROPPED)
+    actual_row.jank_tag = jank_tag_dropped_id_;
+  else
+    actual_row.jank_tag = jank_tag_none_id_;
 
   base::Optional<SliceId> opt_slice_id =
       context_->slice_tracker->BeginTyped(
