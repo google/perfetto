@@ -83,8 +83,7 @@ source_set("perfetto_cmd") {
 
 perfetto_cc_proto_descriptor("gen_cc_config_descriptor") {
   descriptor_name = "perfetto_config.descriptor"
-  descriptor_target =
-      "../../../protos/perfetto/config:perfetto_config_descriptor"
+  descriptor_target = "../../protos/perfetto/config:perfetto_config_descriptor"
 }
 
 source_set("trigger_perfetto_cmd") {
