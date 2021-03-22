@@ -640,7 +640,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
     //    passing the output file path to the --attach call.
     // This is too complicated and harder to reason about, so we support only 1.
     // Traceur gets around this by always setting write_into_file and specifying
-    // write_into_file_period = 1week (which effectively means: write into the
+    // file_write_period_ms = 1week (which effectively means: write into the
     // file only at the end of the trace) to achieve ring buffer traces.
     PERFETTO_ELOG(
         "TraceConfig's write_into_file must be true when using --detach");
