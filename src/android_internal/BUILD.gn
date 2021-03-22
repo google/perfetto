@@ -32,7 +32,7 @@ if (perfetto_build_with_android) {
       "health_hal.cc",
       "incident_service.cc",
       "power_stats_aidl.cc",
-      "power_stats_hal.cc",
+      "power_stats.cc",
       "statsd_logging.cc",
       "tracing_service_proxy.cc",
     ]
@@ -74,7 +74,7 @@ source_set("headers") {
     "health_hal.h",
     "incident_service.h",
     "power_stats_aidl.h",
-    "power_stats_hal.h",
+    "power_stats.h",
     "statsd_logging.h",
     "tracing_service_proxy.h",
   ]
