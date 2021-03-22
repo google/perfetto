@@ -144,7 +144,8 @@ PERFETTO_TP_TABLE(PERFETTO_TP_EXPECTED_FRAME_TIMELINE_SLICES_DEF);
   C(int32_t, on_time_finish)                                          \
   C(int32_t, gpu_composition)                                         \
   C(StringPool::Id, jank_type)                                        \
-  C(StringPool::Id, prediction_type)
+  C(StringPool::Id, prediction_type)                                  \
+  C(StringPool::Id, jank_tag)
 
 PERFETTO_TP_TABLE(PERFETTO_TP_ACTUAL_FRAME_TIMELINE_SLICES_DEF);
 
