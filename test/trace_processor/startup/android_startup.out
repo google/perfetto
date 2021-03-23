@@ -23,7 +23,7 @@ android_startup {
       dur_ns: 108
       main_thread_by_task_state {
         running_dur_ns: 41
-        runnable_dur_ns: 49
+        runnable_dur_ns: 129
         uninterruptible_sleep_dur_ns: 0
         interruptible_sleep_dur_ns: 10
       }
