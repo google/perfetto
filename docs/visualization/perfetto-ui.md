@@ -23,7 +23,7 @@ magic `debug_slices` table.
 * `depth` (integer) [optional] The row at which the slice is drawn. Depth 0 is
   the first row.
 
-You can open the debug track by going to the "Metrics and auditors" menu on the
+You can open the debug track by going to the "Sample queries" menu on the
 left, and clicking "Show Debug Track". A debug slice track will become pinned to
 the top and will initially be empty. After you insert slices in the
 `debug_slices` table, you can click the reload button on the track to refresh
