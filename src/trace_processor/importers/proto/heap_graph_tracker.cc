@@ -345,6 +345,8 @@ void HeapGraphTracker::AddObject(uint32_t seq_id,
   if (!SetPidAndTimestamp(&sequence_state, upid, ts))
     return;
 
+  sequence_state.last_object_id = obj.object_id;
+
   tables::HeapGraphObjectTable::Id owner_id =
       GetOrInsertObject(&sequence_state, obj.object_id);
   tables::HeapGraphClassTable::Id type_id =
