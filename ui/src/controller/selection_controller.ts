@@ -14,6 +14,7 @@
 
 import {Engine} from '../common/engine';
 import {slowlyCountRows} from '../common/query_iterator';
+import {ChromeSliceSelection} from '../common/state';
 import {translateState} from '../common/thread_state';
 import {fromNs, toNs} from '../common/time';
 import {
@@ -76,50 +77,52 @@ export class SelectionController extends Controller<'main'> {
     } else if (selection.kind === 'THREAD_STATE') {
       this.threadStateDetails(selection.id);
     } else if (selection.kind === 'CHROME_SLICE') {
-      const table = selection.table;
-      let sqlQuery = `
-        SELECT ts, dur, name, cat, arg_set_id
-        FROM slice
-        WHERE id = ${selectedId}
-      `;
-      // TODO(b/155483804): This is a hack to ensure annotation slices are
-      // selectable for now. We should tidy this up when improving this class.
-      if (table === 'annotation') {
-        sqlQuery = `
-        select ts, dur, name, cat, -1
-        from annotation_slice
-        where id = ${selectedId}`;
-      }
-      this.args.engine.query(sqlQuery).then(result => {
-        // Check selection is still the same on completion of query.
-        const selection = globals.state.currentSelection;
-        if (slowlyCountRows(result) === 1 && selection &&
-            selection.kind === selectedKind && selection.id === selectedId) {
-          const ts = result.columns[0].longValues![0];
-          const timeFromStart = fromNs(ts) - globals.state.traceTime.startSec;
-          const name = result.columns[2].stringValues![0];
-          const dur = fromNs(result.columns[1].longValues![0]);
-          const category = result.columns[3].stringValues![0];
-          const argId = result.columns[4].longValues![0];
-          const argsAsync = this.getArgs(argId);
-          // Don't fetch descriptions for annotation slices.
-          const describeId = table === 'annotation' ? -1 : +selectedId;
-          const descriptionAsync = this.describeSlice(describeId);
-          Promise.all([argsAsync, descriptionAsync])
-              .then(([args, description]) => {
-                const selected: SliceDetails = {
-                  ts: timeFromStart,
-                  dur,
-                  category,
-                  name,
-                  id: selectedId as number,
-                  args,
-                  description,
-                };
-                globals.publish('SliceDetails', selected);
-              });
-        }
-      });
+      this.chromeSliceDetails(selection);
+    }
+  }
+
+  async chromeSliceDetails(selection: ChromeSliceSelection) {
+    const selectedId = selection.id;
+    const table = selection.table;
+    let sqlQuery = `
+      SELECT ts, dur, name, cat, arg_set_id
+      FROM slice
+      WHERE id = ${selectedId}
+    `;
+    // TODO(b/155483804): This is a hack to ensure annotation slices are
+    // selectable for now. We should tidy this up when improving this class.
+    if (table === 'annotation') {
+      sqlQuery = `
+      select ts, dur, name, cat, -1
+      from annotation_slice
+      where id = ${selectedId}`;
+    }
+    const result = await this.args.engine.query(sqlQuery);
+    // Check selection is still the same on completion of query.
+    if (slowlyCountRows(result) === 1 &&
+        selection === globals.state.currentSelection) {
+      const ts = result.columns[0].longValues![0];
+      const timeFromStart = fromNs(ts) - globals.state.traceTime.startSec;
+      const name = result.columns[2].stringValues![0];
+      const dur = fromNs(result.columns[1].longValues![0]);
+      const category = result.columns[3].stringValues![0];
+      const argId = result.columns[4].longValues![0];
+      const argsAsync = this.getArgs(argId);
+      // Don't fetch descriptions for annotation slices.
+      const describeId = table === 'annotation' ? -1 : +selectedId;
+      const descriptionAsync = this.describeSlice(describeId);
+      const [args, description] =
+          await Promise.all([argsAsync, descriptionAsync]);
+      const selected: SliceDetails = {
+        ts: timeFromStart,
+        dur,
+        category,
+        name,
+        id: selectedId,
+        args,
+        description,
+      };
+      globals.publish('SliceDetails', selected);
     }
   }
 
