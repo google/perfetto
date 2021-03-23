@@ -135,7 +135,7 @@ Finally, define an extension to the root proto for all metrics (the [TraceMetric
 
 ```protobuf
 extend TraceMetrics {
-  optional TopProcesses top_processes = 450;
+  optional TopProcesses top_five_processes = 450;
 }
 ```
 
@@ -167,7 +167,7 @@ message TopProcesses {
 }
 
 extend TraceMetrics {
-  optional TopProcesses top_processes = 450;
+  optional TopProcesses top_five_processes = 450;
 }
 ```
 
@@ -224,7 +224,7 @@ protos using SQL functions; something which is used extensively in this step.
 Let's look at how it works for our table above.
 
 ```sql
-CREATE VIEW top_processes_output AS
+CREATE VIEW top_five_processes_output AS
 SELECT TopProcesses(
   'process_info', (
     SELECT RepeatedField(
@@ -296,7 +296,7 @@ GROUP BY process.name
 ORDER BY cpu_time_ms DESC
 LIMIT 5;
 
-CREATE top_processes_output AS
+CREATE top_five_processes_output AS
 SELECT TopProcesses(
   'process_info', (
     SELECT RepeatedField(
