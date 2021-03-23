@@ -16,7 +16,6 @@
 
 -- Create the base tables and views containing the launch spans.
 SELECT RUN_METRIC('android/android_startup_launches.sql');
-SELECT RUN_METRIC('android/android_task_state.sql');
 SELECT RUN_METRIC('android/process_metadata.sql');
 SELECT RUN_METRIC('android/hsc_startups.sql');
 
@@ -54,11 +53,20 @@ JOIN process USING(upid)
 JOIN thread ON (process.upid = thread.upid AND process.pid = thread.tid)
 ORDER BY ts;
 
+DROP VIEW IF EXISTS thread_state_extended;
+CREATE VIEW thread_state_extended AS
+SELECT
+  ts,
+  IIF(dur = -1, (SELECT end_ts FROM trace_bounds), dur) AS dur,
+  utid,
+  state
+FROM thread_state;
+
 DROP TABLE IF EXISTS main_thread_state;
 CREATE VIRTUAL TABLE main_thread_state
 USING SPAN_JOIN(
   launch_main_threads PARTITIONED utid,
-  task_state PARTITIONED utid);
+  thread_state_extended PARTITIONED utid);
 
 DROP VIEW IF EXISTS launch_by_thread_state;
 CREATE VIEW launch_by_thread_state AS
@@ -185,22 +193,22 @@ SELECT
         'running_dur_ns', IFNULL(
             (
             SELECT dur FROM launch_by_thread_state l
-            WHERE l.launch_id = launches.id AND state = 'running'
+            WHERE l.launch_id = launches.id AND state = 'Running'
             ), 0),
         'runnable_dur_ns', IFNULL(
             (
             SELECT dur FROM launch_by_thread_state l
-            WHERE l.launch_id = launches.id AND state = 'runnable'
+            WHERE l.launch_id = launches.id AND state = 'R'
             ), 0),
         'uninterruptible_sleep_dur_ns', IFNULL(
             (
             SELECT dur FROM launch_by_thread_state l
-            WHERE l.launch_id = launches.id AND state = 'uninterruptible'
+            WHERE l.launch_id = launches.id AND (state = 'D' or state = 'DK')
             ), 0),
         'interruptible_sleep_dur_ns', IFNULL(
             (
             SELECT dur FROM launch_by_thread_state l
-            WHERE l.launch_id = launches.id AND state = 'interruptible'
+            WHERE l.launch_id = launches.id AND state = 'S'
             ), 0)
       ),
       'to_post_fork', (

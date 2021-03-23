@@ -37,7 +37,6 @@ sql_files = [
   "android/android_powrails.sql",
   "android/android_proxy_power.sql",
   "android/android_startup_launches.sql",
-  "android/android_task_state.sql",
   "android/android_startup.sql",
   "android/android_package_list.sql",
   "android/android_task_names.sql",
