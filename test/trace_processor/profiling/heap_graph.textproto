@@ -63,7 +63,7 @@ packet {
       type_id: 2
     }
     objects {
-      id: 0x04
+      id_delta: 1
       type_id: 3
       reference_field_id: 2
       reference_object_id: 0x01
