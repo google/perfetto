@@ -185,7 +185,7 @@ const SECTIONS = [
     ],
   },
   {
-    title: 'Metrics and auditors',
+    title: 'Sample queries',
     summary: 'Compute summary statistics',
     items: [
       {
