@@ -777,6 +777,7 @@ class HeapprofdEndToEnd
 void KillAssertRunning(base::Subprocess* child) {
   ASSERT_EQ(child->Poll(), base::Subprocess::kRunning)
       << "Target process not running. CHECK CRASH LOGS.";
+  PERFETTO_LOG("Shutting down profile target.");
   child->KillAndWaitForTermination();
 }
 
