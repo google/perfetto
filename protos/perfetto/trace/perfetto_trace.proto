@@ -7517,7 +7517,10 @@ message HeapGraphType {
 }
 
 message HeapGraphObject {
-  optional uint64 id = 1;
+  oneof identifier {
+    uint64 id = 1;
+    uint64 id_delta = 7;
+  }
 
   // Index for InternedData.types for the name of the type of this object.
   optional uint64 type_id = 2;
