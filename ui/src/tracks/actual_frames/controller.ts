@@ -27,6 +27,7 @@ const GREEN_COLOR = '#4CAF50';     // Green 500
 const YELLOW_COLOR = '#FFEB3B';  // Yellow 500
 const RED_COLOR = '#FF5722';      // Red 500
 const LIGHT_GREEN_COLOR = '#C0D588'; // Light Green 500
+const PINK_COLOR = '#F515E0';        // Pink 500
 
 class ActualFramesSliceTrackController extends TrackController<Config, Data> {
   static readonly kind = ACTUAL_FRAMES_SLICE_TRACK_KIND;
@@ -69,7 +70,8 @@ class ActualFramesSliceTrackController extends TrackController<Config, Data> {
           WHEN 'Other Jank' THEN '${YELLOW_COLOR}'
           WHEN 'Dropped Frame' THEN '${BLUE_COLOR}'
           WHEN 'Buffer Stuffing' THEN '${LIGHT_GREEN_COLOR}'
-          ELSE '${GREEN_COLOR}'
+          WHEN 'No Jank' THEN '${GREEN_COLOR}'
+          ELSE '${PINK_COLOR}'
         END as color
       from experimental_slice_layout s
       join actual_frame_timeline_slice afs using(id)

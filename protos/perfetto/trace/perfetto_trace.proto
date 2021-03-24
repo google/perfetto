@@ -2098,6 +2098,7 @@ message FrameTimelineEvent {
     // frame.
     optional int32 jank_type = 9;
     optional PredictionType prediction_type = 10;
+    optional bool is_buffer = 11;
   };
 
   // Indicates the start of expected timeline slice for DisplayFrames.
@@ -7516,7 +7517,10 @@ message HeapGraphType {
 }
 
 message HeapGraphObject {
-  optional uint64 id = 1;
+  oneof identifier {
+    uint64 id = 1;
+    uint64 id_delta = 7;
+  }
 
   // Index for InternedData.types for the name of the type of this object.
   optional uint64 type_id = 2;

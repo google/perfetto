@@ -77,6 +77,7 @@ class FrameTimelineEventParser {
   StringId jank_type_id_;
   StringId layer_name_id_;
   StringId prediction_type_id_;
+  StringId is_buffer_id_;
 
   StringId jank_tag_none_id_;
   StringId jank_tag_self_id_;

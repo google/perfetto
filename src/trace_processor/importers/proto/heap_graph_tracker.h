@@ -140,6 +140,10 @@ class HeapGraphTracker : public Destructible {
       const int64_t current_ts,
       const UniquePid current_upid);
 
+  uint64_t GetLastObjectId(uint32_t seq_id) {
+    return GetOrCreateSequence(seq_id).last_object_id;
+  }
+
  private:
   struct InternedField {
     StringPool::Id name;
@@ -158,6 +162,7 @@ class HeapGraphTracker : public Destructible {
   struct SequenceState {
     UniquePid current_upid = 0;
     int64_t current_ts = 0;
+    uint64_t last_object_id = 0;
     std::vector<SourceRoot> current_roots;
     std::map<uint64_t, InternedType> interned_types;
     std::map<uint64_t, StringPool::Id> interned_location_names;

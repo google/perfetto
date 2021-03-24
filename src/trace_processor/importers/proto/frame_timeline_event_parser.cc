@@ -153,11 +153,13 @@ FrameTimelineEventParser::FrameTimelineEventParser(
       jank_type_id_(context->storage->InternString("Jank type")),
       layer_name_id_(context->storage->InternString("Layer name")),
       prediction_type_id_(context->storage->InternString("Prediction type")),
+      is_buffer_id_(context->storage->InternString("Is Buffer?")),
       jank_tag_none_id_(context->storage->InternString("No Jank")),
       jank_tag_self_id_(context->storage->InternString("Self Jank")),
       jank_tag_other_id_(context->storage->InternString("Other Jank")),
       jank_tag_dropped_id_(context->storage->InternString("Dropped Frame")),
-      jank_tag_buffer_stuffing_id_(context->storage->InternString("Buffer Stuffing")) {}
+      jank_tag_buffer_stuffing_id_(
+          context->storage->InternString("Buffer Stuffing")) {}
 
 void FrameTimelineEventParser::ParseExpectedDisplayFrameStart(
     int64_t timestamp,
@@ -468,13 +470,20 @@ void FrameTimelineEventParser::ParseActualSurfaceFrameStart(
     actual_row.jank_tag = jank_tag_dropped_id_;
   else
     actual_row.jank_tag = jank_tag_none_id_;
+  StringId is_buffer = context_->storage->InternString("Unspecified");
+  if (event.has_is_buffer()) {
+    if (event.is_buffer())
+      is_buffer = context_->storage->InternString("Yes");
+    else
+      is_buffer = context_->storage->InternString("No");
+  }
 
   base::Optional<SliceId> opt_slice_id =
       context_->slice_tracker->BeginTyped(
           context_->storage->mutable_actual_frame_timeline_slice_table(),
           actual_row,
           [this, jank_type, present_type, token, layer_name_id,
-           display_frame_token, prediction_type,
+           display_frame_token, prediction_type, is_buffer,
            &event](ArgsTracker::BoundInserter* inserter) {
             inserter->AddArg(surface_frame_token_id_, Variadic::Integer(token));
             inserter->AddArg(display_frame_token_id_,
@@ -488,6 +497,7 @@ void FrameTimelineEventParser::ParseActualSurfaceFrameStart(
             inserter->AddArg(jank_type_id_, Variadic::String(jank_type));
             inserter->AddArg(prediction_type_id_,
                              Variadic::String(prediction_type));
+            inserter->AddArg(is_buffer_id_, Variadic::String(is_buffer));
           });
 
   if (opt_slice_id) {

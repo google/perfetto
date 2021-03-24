@@ -154,7 +154,12 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
   for (auto it = heap_graph.objects(); it; ++it) {
     protos::pbzero::HeapGraphObject::Decoder object(*it);
     HeapGraphTracker::SourceObject obj;
-    obj.object_id = object.id();
+    if (object.id_delta()) {
+      obj.object_id =
+          heap_graph_tracker->GetLastObjectId(seq_id) + object.id_delta();
+    } else {
+      obj.object_id = object.id();
+    }
     obj.self_size = object.self_size();
     obj.type_id = object.type_id();
 
