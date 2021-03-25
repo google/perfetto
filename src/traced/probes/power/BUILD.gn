@@ -18,6 +18,7 @@ source_set("power") {
     "..:data_source",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/ext/traced",
+    "../../../../protos/perfetto/common:zero",
     "../../../../protos/perfetto/config/power:zero",
     "../../../../protos/perfetto/trace:zero",
     "../../../../protos/perfetto/trace/power:zero",

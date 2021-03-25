@@ -16,6 +16,8 @@
 
 #include "src/android_internal/power_stats.h"
 
+#include "perfetto/ext/base/utils.h"
+
 #include <string.h>
 
 #include <algorithm>
@@ -47,6 +49,8 @@ class PowerStatsDataProvider {
   virtual bool GetRailEnergyData(RailEnergyData*, size_t* size_of_arr) = 0;
 
   // Available from Android S+.
+  virtual bool GetEnergyConsumerInfo(EnergyConsumerInfo* consumers,
+                                     size_t* size_of_arr) = 0;
   virtual bool GetEnergyConsumed(EnergyEstimationBreakdown* breakdown,
                                  size_t* size_of_arr) = 0;
   virtual ~PowerStatsDataProvider() = default;
@@ -56,6 +60,8 @@ class PowerStatsHalDataProvider : public PowerStatsDataProvider {
  public:
   bool GetAvailableRails(RailDescriptor*, size_t* size_of_arr) override;
   bool GetRailEnergyData(RailEnergyData*, size_t* size_of_arr) override;
+  bool GetEnergyConsumerInfo(EnergyConsumerInfo* consumers,
+                             size_t* size_of_arr) override;
   bool GetEnergyConsumed(EnergyEstimationBreakdown* breakdown,
                          size_t* size_of_arr) override;
 
@@ -74,6 +80,8 @@ class PowerStatsAidlDataProvider : public PowerStatsDataProvider {
 
   bool GetAvailableRails(RailDescriptor*, size_t* size_of_arr) override;
   bool GetRailEnergyData(RailEnergyData*, size_t* size_of_arr) override;
+  bool GetEnergyConsumerInfo(EnergyConsumerInfo* consumers,
+                             size_t* size_of_arr) override;
   bool GetEnergyConsumed(EnergyEstimationBreakdown* breakdown,
                          size_t* size_of_arr) override;
 
@@ -110,6 +118,10 @@ bool GetAvailableRails(RailDescriptor* descriptor, size_t* size_of_arr) {
 
 bool GetRailEnergyData(RailEnergyData* data, size_t* size_of_arr) {
   return GetDataProvider()->GetRailEnergyData(data, size_of_arr);
+}
+
+bool GetEnergyConsumerInfo(EnergyConsumerInfo* consumers, size_t* size_of_arr) {
+  return GetDataProvider()->GetEnergyConsumerInfo(consumers, size_of_arr);
 }
 
 bool GetEnergyConsumed(EnergyEstimationBreakdown* breakdown,
@@ -196,6 +208,11 @@ bool PowerStatsHalDataProvider::GetRailEnergyData(
 
   Return<void> ret = svc_->getEnergyData(hidl_vec<uint32_t>(), energy_cb);
   return status == hal::Status::SUCCESS;
+}
+
+bool PowerStatsHalDataProvider::GetEnergyConsumerInfo(EnergyConsumerInfo*,
+                                                      size_t*) {
+  return false;
 }
 
 bool PowerStatsHalDataProvider::GetEnergyConsumed(EnergyEstimationBreakdown*,
@@ -288,6 +305,41 @@ bool PowerStatsAidlDataProvider::GetRailEnergyData(RailEnergyData* data,
   return true;
 }
 
+bool PowerStatsAidlDataProvider::GetEnergyConsumerInfo(
+    EnergyConsumerInfo* consumers,
+    size_t* size_of_arr) {
+  const size_t in_array_size = *size_of_arr;
+  *size_of_arr = 0;
+
+  aidl::IPowerStats* svc = MaybeGetService();
+  if (svc == nullptr) {
+    return false;
+  }
+  std::vector<aidl::EnergyConsumer> results;
+  android::binder::Status status = svc->getEnergyConsumerInfo(&results);
+
+  if (!status.isOk()) {
+    if (status.transactionError() == android::DEAD_OBJECT) {
+      // Service has died.  Reset it to attempt to acquire a new one next time.
+      ResetService();
+    }
+    return false;
+  }
+  size_t max_size = std::min(in_array_size, results.size());
+  for (const auto& result : results) {
+    if (*size_of_arr >= max_size) {
+      break;
+    }
+    auto& cur = consumers[(*size_of_arr)++];
+    cur.energy_consumer_id = result.id;
+    cur.ordinal = result.ordinal;
+    strncpy(cur.type, aidl::toString(result.type).c_str(), sizeof(cur.type));
+    cur.type[sizeof(cur.type) - 1] = '\0';
+    strncpy(cur.name, result.name.c_str(), sizeof(cur.name));
+    cur.name[sizeof(cur.name) - 1] = '\0';
+  }
+  return true;
+}
 bool PowerStatsAidlDataProvider::GetEnergyConsumed(
     EnergyEstimationBreakdown* breakdown,
     size_t* size_of_arr) {
