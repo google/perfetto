@@ -16,6 +16,8 @@ SELECT RUN_METRIC('chrome/scroll_jank_cause_queuing_delay.sql')
     AS suppress_query_output;
 
 SELECT
+  process_name,
+  thread_name,
   trace_id,
   jank,
   dur_overlapping_ns,
