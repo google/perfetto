@@ -261,8 +261,8 @@ CREATE VIEW scroll_jank_cause_queuing_delay_average_no_jank_time AS
 
 -- Join every row (jank and non-jank with the average non-jank time for the
 -- given metric_name).
-DROP VIEW IF EXISTS scroll_jank_cause_queuing_delay;
-CREATE VIEW scroll_jank_cause_queuing_delay AS
+DROP VIEW IF EXISTS scroll_jank_cause_queuing_delay_unannotated;
+CREATE VIEW scroll_jank_cause_queuing_delay_unannotated AS
   SELECT
     base.*,
     'InputLatency.LatencyInfo.Flow.QueuingDelay.' ||
@@ -274,3 +274,14 @@ CREATE VIEW scroll_jank_cause_queuing_delay AS
     scroll_jank_cause_queuing_delay_temp base LEFT JOIN
     scroll_jank_cause_queuing_delay_average_no_jank_time avg_no_jank ON
         base.location = avg_no_jank.location;
+
+-- Annotate with process and thread names.
+DROP VIEW IF EXISTS scroll_jank_cause_queuing_delay;
+CREATE VIEW scroll_jank_cause_queuing_delay AS
+SELECT p.name AS process_name, ct.name AS thread_name, s.*
+FROM scroll_jank_cause_queuing_delay_unannotated s,
+  thread_track tt, chrome_thread ct,
+  chrome_process p
+WHERE s.track_id = tt.id
+  AND tt.utid = ct.utid
+  AND ct.upid = p.upid;
