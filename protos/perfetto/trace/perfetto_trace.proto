@@ -497,6 +497,10 @@ message AndroidPowerConfig {
 
   // Where available enables per-power-rail measurements.
   optional bool collect_power_rails = 3;
+
+  // Provides a breakdown of energy estimation for various subsystem (e.g. GPU).
+  // Available from Android S.
+  optional bool collect_energy_estimation_breakdown = 4;
 }
 
 // End of protos/perfetto/config/power/android_power_config.proto
