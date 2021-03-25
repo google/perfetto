@@ -29,6 +29,8 @@
 namespace perfetto {
 namespace android_internal {
 
+const int32_t ALL_UIDS_FOR_CONSUMER = -1;
+
 struct RailDescriptor {
   // Index corresponding to the rail
   uint32_t index;
@@ -49,6 +51,18 @@ struct RailEnergyData {
   uint64_t energy;
 };
 
+struct EnergyEstimationBreakdown {
+  // Energy consumer ID.
+  int32_t energy_consumer_id;
+
+  // Process uid.  ALL_UIDS_FOR_CONSUMER represents energy for all processes
+  // for the energy_consumer_id.
+  int32_t uid;
+
+  // Energy usage in microwatts-second(µWs).
+  int64_t energy_uws;
+};
+
 extern "C" {
 
 // These functions are not thread safe unless specified otherwise.
@@ -58,6 +72,13 @@ GetAvailableRails(RailDescriptor*, size_t* size_of_arr);
 
 bool __attribute__((visibility("default")))
 GetRailEnergyData(RailEnergyData*, size_t* size_of_arr);
+
+// Retrieve the energy estimation breakdown for all energy consumer.  For each
+// consumer, there will be an entry with a uid of ALL_UIDS_FOR_CONSUMER,
+// followed by the energy breakdown for each process contributing to that
+// consumer.
+bool __attribute__((visibility("default")))
+GetEnergyConsumed(EnergyEstimationBreakdown* breakdown, size_t* size_of_arr);
 
 }  // extern "C"
 
