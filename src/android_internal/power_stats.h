@@ -51,6 +51,24 @@ struct RailEnergyData {
   uint64_t energy;
 };
 
+struct EnergyConsumerInfo {
+  // Unique ID of this energy consumer.  Matches the ID in a
+  // EnergyEstimationBreakdown.
+  int32_t energy_consumer_id;
+
+  // For a group of energy consumers of the same logical type, sorting by
+  // ordinal gives their physical order. Ordinals must be consecutive integers
+  // starting from 0.
+  int32_t ordinal;
+
+  // Type of this energy consumer.
+  char type[64];
+
+  // Unique name of this energy consumer. Vendor/device specific. Opaque to
+  // framework.
+  char name[64];
+};
+
 struct EnergyEstimationBreakdown {
   // Energy consumer ID.
   int32_t energy_consumer_id;
@@ -72,6 +90,9 @@ GetAvailableRails(RailDescriptor*, size_t* size_of_arr);
 
 bool __attribute__((visibility("default")))
 GetRailEnergyData(RailEnergyData*, size_t* size_of_arr);
+
+bool __attribute__((visibility("default")))
+GetEnergyConsumerInfo(EnergyConsumerInfo* consumers, size_t* size_of_arr);
 
 // Retrieve the energy estimation breakdown for all energy consumer.  For each
 // consumer, there will be an entry with a uid of ALL_UIDS_FOR_CONSUMER,
