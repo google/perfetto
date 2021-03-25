@@ -62,6 +62,7 @@ class AndroidPowerDataSource : public ProbesDataSource {
   std::bitset<8> counters_enabled_;
   bool rails_collection_enabled_;
   bool rail_descriptors_logged_;
+  bool energy_consumer_loggged_;
   bool energy_breakdown_collection_enabled_;
   std::unique_ptr<TraceWriter> writer_;
   std::unique_ptr<DynamicLibLoader> lib_;
