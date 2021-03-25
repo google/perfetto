@@ -30,6 +30,7 @@
 #include "src/android_internal/lazy_library_loader.h"
 #include "src/android_internal/power_stats.h"
 
+#include "protos/perfetto/common/android_energy_consumer_descriptor.pbzero.h"
 #include "protos/perfetto/config/power/android_power_config.pbzero.h"
 #include "protos/perfetto/trace/power/android_energy_estimation_breakdown.pbzero.h"
 #include "protos/perfetto/trace/power/battery_counters.pbzero.h"
@@ -41,6 +42,7 @@ namespace perfetto {
 namespace {
 constexpr uint32_t kMinPollIntervalMs = 100;
 constexpr size_t kMaxNumRails = 32;
+constexpr size_t kMaxNumEnergyConsumer = 32;
 constexpr size_t kMaxNumPowerEntities = 256;
 }  // namespace
 
@@ -57,6 +59,8 @@ struct AndroidPowerDataSource::DynamicLibLoader {
   PERFETTO_LAZY_LOAD(android_internal::GetAvailableRails, get_available_rails_);
   PERFETTO_LAZY_LOAD(android_internal::GetRailEnergyData,
                      get_rail_energy_data_);
+  PERFETTO_LAZY_LOAD(android_internal::GetEnergyConsumerInfo,
+                     get_energy_consumer_info_);
   PERFETTO_LAZY_LOAD(android_internal::GetEnergyConsumed, get_energy_consumed_);
 
   base::Optional<int64_t> GetCounter(android_internal::BatteryCounter counter) {
@@ -97,6 +101,21 @@ struct AndroidPowerDataSource::DynamicLibLoader {
     return energy_data;
   }
 
+  std::vector<android_internal::EnergyConsumerInfo> GetEnergyConsumerInfo() {
+    if (!get_energy_consumer_info_)
+      return std::vector<android_internal::EnergyConsumerInfo>();
+
+    std::vector<android_internal::EnergyConsumerInfo> consumers(
+        kMaxNumEnergyConsumer);
+    size_t num_power_entities = consumers.size();
+    if (!get_energy_consumer_info_(&consumers[0], &num_power_entities)) {
+      PERFETTO_ELOG("Failed to retrieve energy consumer info.");
+      num_power_entities = 0;
+    }
+    consumers.resize(num_power_entities);
+    return consumers;
+  }
+
   std::vector<android_internal::EnergyEstimationBreakdown> GetEnergyConsumed() {
     if (!get_energy_consumed_)
       return std::vector<android_internal::EnergyEstimationBreakdown>();
@@ -121,6 +140,7 @@ AndroidPowerDataSource::AndroidPowerDataSource(
     : ProbesDataSource(session_id, &descriptor),
       task_runner_(task_runner),
       rail_descriptors_logged_(false),
+      energy_consumer_loggged_(false),
       writer_(std::move(writer)),
       weak_factory_(this) {
   using protos::pbzero::AndroidPowerConfig;
@@ -261,12 +281,29 @@ void AndroidPowerDataSource::WritePowerRailsData() {
 void AndroidPowerDataSource::WriteEnergyEstimationBreakdown() {
   if (!energy_breakdown_collection_enabled_)
     return;
-  auto energy_breakdowns = lib_->GetEnergyConsumed();
   auto timestamp = static_cast<uint64_t>(base::GetBootTimeNs().count());
 
   TraceWriter::TracePacketHandle packet;
   protos::pbzero::AndroidEnergyEstimationBreakdown* energy_estimation_proto =
       nullptr;
+
+  if (!energy_consumer_loggged_) {
+    energy_consumer_loggged_ = true;
+    packet = writer_->NewTracePacket();
+    energy_estimation_proto = packet->set_android_energy_estimation_breakdown();
+    auto* descriptor_proto =
+        energy_estimation_proto->set_energy_consumer_descriptor();
+    auto consumers = lib_->GetEnergyConsumerInfo();
+    for (const auto& consumer : consumers) {
+      auto* desc_proto = descriptor_proto->add_energy_consumers();
+      desc_proto->set_energy_consumer_id(consumer.energy_consumer_id);
+      desc_proto->set_ordinal(consumer.ordinal);
+      desc_proto->set_type(consumer.type);
+      desc_proto->set_name(consumer.name);
+    }
+  }
+
+  auto energy_breakdowns = lib_->GetEnergyConsumed();
   for (const auto& breakdown : energy_breakdowns) {
     if (breakdown.uid == android_internal::ALL_UIDS_FOR_CONSUMER) {
       // Finalize packet before calling NewTracePacket.
