@@ -120,7 +120,7 @@ arbitrarily chosen value). Instead the recommended pattern is:
 
 * Chose a fully qualified name for the clock domain
   (e.g. `com.example.my_subsystem`)
-* Chose the clock ID as `(HASH("com.example.my_subsystem") + 128) & 0xFFFFFFF`
+* Chose the clock ID as `HASH("com.example.my_subsystem") | 0x80000000`
   where `HASH(x)` is the FNV-1a hash of the fully qualified clock domain name.
 
 ### {#clock_snapshot} The ClockSnapshot trace packet
