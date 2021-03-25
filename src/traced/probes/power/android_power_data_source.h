@@ -55,12 +55,14 @@ class AndroidPowerDataSource : public ProbesDataSource {
   void Tick();
   void WriteBatteryCounters();
   void WritePowerRailsData();
+  void WriteEnergyEstimationBreakdown();
 
   base::TaskRunner* const task_runner_;
   uint32_t poll_interval_ms_ = 0;
   std::bitset<8> counters_enabled_;
   bool rails_collection_enabled_;
   bool rail_descriptors_logged_;
+  bool energy_breakdown_collection_enabled_;
   std::unique_ptr<TraceWriter> writer_;
   std::unique_ptr<DynamicLibLoader> lib_;
   base::WeakPtrFactory<AndroidPowerDataSource> weak_factory_;  // Keep last.
