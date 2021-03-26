@@ -43,7 +43,7 @@ class Node(object):
     return n
 
   def __iter__(self):
-    for child in self.children.itervalues():
+    for child in self.children.values():
       yield self.name + '/' + child.name, child
       for p, ch in child:
         yield self.name + '/' + p, ch
@@ -56,7 +56,7 @@ class Node(object):
 
     self.marked = True
 
-    for child in self.children.itervalues():
+    for child in self.children.values():
       child.Mark(labels)
 
     return True
@@ -89,7 +89,7 @@ def main():
   root = BuildTree()
   for fullpath, elem in root:
     if elem.Mark(args.labels):
-      print fullpath
+      print(fullpath)
 
 
 if __name__ == '__main__':

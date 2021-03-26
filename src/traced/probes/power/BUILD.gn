@@ -18,6 +18,7 @@ source_set("power") {
     "..:data_source",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/ext/traced",
+    "../../../../protos/perfetto/common:zero",
     "../../../../protos/perfetto/config/power:zero",
     "../../../../protos/perfetto/trace:zero",
     "../../../../protos/perfetto/trace/power:zero",
@@ -27,7 +28,5 @@ source_set("power") {
   sources = [
     "android_power_data_source.cc",
     "android_power_data_source.h",
-    "android_power_stats_data_source.cc",
-    "android_power_stats_data_source.h",
   ]
 }

@@ -621,7 +621,6 @@ cc_library_shared {
     "src/android_internal/health_hal.cc",
     "src/android_internal/incident_service.cc",
     "src/android_internal/power_stats.cc",
-    "src/android_internal/power_stats_aidl.cc",
     "src/android_internal/statsd_logging.cc",
     "src/android_internal/tracing_service_proxy.cc",
   ],
@@ -8330,7 +8329,6 @@ filegroup {
   name: "perfetto_src_traced_probes_power_power",
   srcs: [
     "src/traced/probes/power/android_power_data_source.cc",
-    "src/traced/probes/power/android_power_stats_data_source.cc",
   ],
 }
 
