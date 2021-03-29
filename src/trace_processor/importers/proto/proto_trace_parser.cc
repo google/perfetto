@@ -45,6 +45,7 @@
 #include "src/trace_processor/importers/proto/profiler_util.h"
 #include "src/trace_processor/importers/proto/stack_profile_tracker.h"
 #include "src/trace_processor/storage/metadata.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/tables/profiler_tables.h"
 #include "src/trace_processor/timestamped_trace_piece.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -336,6 +337,14 @@ void ProtoTraceParser::ParseProfilePacket(
           static_cast<int64_t>(entry.sampling_interval_bytes()) -
               static_cast<int64_t>(entry.orig_sampling_interval_bytes()));
     }
+
+    protos::pbzero::ProfilePacket::ProcessStats::Decoder stats(entry.stats());
+    context_->storage->IncrementIndexedStats(
+        stats::heapprofd_unwind_time_us, static_cast<int>(entry.pid()),
+        static_cast<int64_t>(stats.total_unwinding_time_us()));
+    context_->storage->IncrementIndexedStats(
+        stats::heapprofd_unwind_samples, static_cast<int>(entry.pid()),
+        static_cast<int64_t>(stats.heap_samples()));
 
     for (auto sample_it = entry.samples(); sample_it; ++sample_it) {
       protos::pbzero::ProfilePacket::HeapSample::Decoder sample(*sample_it);
