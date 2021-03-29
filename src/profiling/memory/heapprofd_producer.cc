@@ -75,7 +75,8 @@ std::vector<UnwindingWorker> MakeUnwindingWorkers(HeapprofdProducer* delegate,
                                                   size_t n) {
   std::vector<UnwindingWorker> ret;
   for (size_t i = 0; i < n; ++i) {
-    ret.emplace_back(delegate, base::ThreadTaskRunner::CreateAndStart());
+    ret.emplace_back(delegate,
+                     base::ThreadTaskRunner::CreateAndStart("heapprofdunwind"));
   }
   return ret;
 }
