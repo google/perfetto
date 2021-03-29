@@ -70,7 +70,9 @@ inline bool GetThreadName(std::string& out_result) {
 }
 
 #else
-inline void MaybeSetThreadName(const std::string&) {}
+inline bool MaybeSetThreadName(const std::string&) {
+  return false;
+}
 inline bool GetThreadName(std::string&) {
   return false;
 }
