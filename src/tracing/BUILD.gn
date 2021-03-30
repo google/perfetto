@@ -115,6 +115,7 @@ source_set("client_api_without_backends") {
     "platform.cc",
     "traced_value.cc",
     "tracing.cc",
+    "tracing_policy.cc",
     "track.cc",
     "track_event_category_registry.cc",
     "track_event_legacy.cc",

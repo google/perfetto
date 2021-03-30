@@ -27,6 +27,7 @@ source_set("tracing") {
   ]
 
   sources = [
+    "backend_type.h",
     "buffer_exhausted_policy.h",
     "console_interceptor.h",
     "data_source.h",
@@ -54,6 +55,7 @@ source_set("tracing") {
     "traced_value_forward.h",
     "tracing.h",
     "tracing_backend.h",
+    "tracing_policy.h",
     "track.h",
     "track_event.h",
     "track_event_category_registry.h",
