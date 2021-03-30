@@ -20,6 +20,8 @@ android_startup {
         dur_ns: 2
         dur_ms: 2e-06
       }
+      mcycles_by_core_type {
+      }
       dur_ms: 4e-06
     }
     activity_hosting_process_count: 1
@@ -44,6 +46,8 @@ android_startup {
       time_activity_manager {
         dur_ns: 2
         dur_ms: 2e-06
+      }
+      mcycles_by_core_type {
       }
       dur_ms: 4e-06
     }
