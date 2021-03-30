@@ -5140,6 +5140,7 @@ genrule {
     "protos/perfetto/trace/trace.proto",
     "protos/perfetto/trace/trace_packet.proto",
     "protos/perfetto/trace/trace_packet_defaults.proto",
+    "protos/perfetto/trace/ui_state.proto",
   ],
   tools: [
     "aprotoc",
@@ -5153,6 +5154,7 @@ genrule {
     "external/perfetto/protos/perfetto/trace/trace.gen.cc",
     "external/perfetto/protos/perfetto/trace/trace_packet.gen.cc",
     "external/perfetto/protos/perfetto/trace/trace_packet_defaults.gen.cc",
+    "external/perfetto/protos/perfetto/trace/ui_state.gen.cc",
   ],
 }
 
@@ -5166,6 +5168,7 @@ genrule {
     "protos/perfetto/trace/trace.proto",
     "protos/perfetto/trace/trace_packet.proto",
     "protos/perfetto/trace/trace_packet_defaults.proto",
+    "protos/perfetto/trace/ui_state.proto",
   ],
   tools: [
     "aprotoc",
@@ -5179,6 +5182,7 @@ genrule {
     "external/perfetto/protos/perfetto/trace/trace.gen.h",
     "external/perfetto/protos/perfetto/trace/trace_packet.gen.h",
     "external/perfetto/protos/perfetto/trace/trace_packet_defaults.gen.h",
+    "external/perfetto/protos/perfetto/trace/ui_state.gen.h",
   ],
   export_include_dirs: [
     ".",
@@ -5196,6 +5200,7 @@ genrule {
     "protos/perfetto/trace/trace.proto",
     "protos/perfetto/trace/trace_packet.proto",
     "protos/perfetto/trace/trace_packet_defaults.proto",
+    "protos/perfetto/trace/ui_state.proto",
   ],
   tools: [
     "aprotoc",
@@ -5208,6 +5213,7 @@ genrule {
     "external/perfetto/protos/perfetto/trace/trace.pb.cc",
     "external/perfetto/protos/perfetto/trace/trace_packet.pb.cc",
     "external/perfetto/protos/perfetto/trace/trace_packet_defaults.pb.cc",
+    "external/perfetto/protos/perfetto/trace/ui_state.pb.cc",
   ],
 }
 
@@ -5221,6 +5227,7 @@ genrule {
     "protos/perfetto/trace/trace.proto",
     "protos/perfetto/trace/trace_packet.proto",
     "protos/perfetto/trace/trace_packet_defaults.proto",
+    "protos/perfetto/trace/ui_state.proto",
   ],
   tools: [
     "aprotoc",
@@ -5233,6 +5240,7 @@ genrule {
     "external/perfetto/protos/perfetto/trace/trace.pb.h",
     "external/perfetto/protos/perfetto/trace/trace_packet.pb.h",
     "external/perfetto/protos/perfetto/trace/trace_packet_defaults.pb.h",
+    "external/perfetto/protos/perfetto/trace/ui_state.pb.h",
   ],
   export_include_dirs: [
     ".",
@@ -5250,6 +5258,7 @@ genrule {
     "protos/perfetto/trace/trace.proto",
     "protos/perfetto/trace/trace_packet.proto",
     "protos/perfetto/trace/trace_packet_defaults.proto",
+    "protos/perfetto/trace/ui_state.proto",
   ],
   tools: [
     "aprotoc",
@@ -5263,6 +5272,7 @@ genrule {
     "external/perfetto/protos/perfetto/trace/trace.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/trace_packet.pbzero.cc",
     "external/perfetto/protos/perfetto/trace/trace_packet_defaults.pbzero.cc",
+    "external/perfetto/protos/perfetto/trace/ui_state.pbzero.cc",
   ],
 }
 
@@ -5276,6 +5286,7 @@ genrule {
     "protos/perfetto/trace/trace.proto",
     "protos/perfetto/trace/trace_packet.proto",
     "protos/perfetto/trace/trace_packet_defaults.proto",
+    "protos/perfetto/trace/ui_state.proto",
   ],
   tools: [
     "aprotoc",
@@ -5289,6 +5300,7 @@ genrule {
     "external/perfetto/protos/perfetto/trace/trace.pbzero.h",
     "external/perfetto/protos/perfetto/trace/trace_packet.pbzero.h",
     "external/perfetto/protos/perfetto/trace/trace_packet_defaults.pbzero.h",
+    "external/perfetto/protos/perfetto/trace/ui_state.pbzero.h",
   ],
   export_include_dirs: [
     ".",
@@ -7898,6 +7910,7 @@ filegroup {
     "src/trace_processor/importers/proto/heap_profile_tracker.cc",
     "src/trace_processor/importers/proto/memory_tracker_snapshot_module.cc",
     "src/trace_processor/importers/proto/memory_tracker_snapshot_parser.cc",
+    "src/trace_processor/importers/proto/metadata_module.cc",
     "src/trace_processor/importers/proto/metadata_tracker.cc",
     "src/trace_processor/importers/proto/packet_sequence_state.cc",
     "src/trace_processor/importers/proto/perf_sample_tracker.cc",
