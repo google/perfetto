@@ -371,22 +371,28 @@ PowerRails
 name (	RnameN
 energy_data (2-.perfetto.protos.AndroidPowerRails.EnergyDataR
 energyData
- 
-4protos/perfetto/metrics/android/startup_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"ž
+û
+4protos/perfetto/metrics/android/startup_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"ù
 AndroidStartupMetricG
 startup (2-.perfetto.protos.AndroidStartupMetric.StartupRstartupà
 TaskStateBreakdown$
 running_dur_ns (RrunningDurNs&
 runnable_dur_ns (RrunnableDurNs?
 uninterruptible_sleep_dur_ns (RuninterruptibleSleepDurNs;
-interruptible_sleep_dur_ns (RinterruptibleSleepDurNs5
+interruptible_sleep_dur_ns (RinterruptibleSleepDurNso
+McyclesByCoreType
+little (Rlittle
+big (Rbig
+bigger (Rbigger
+unknown (Runknown5
 Slice
 dur_ns (RdurNs
-dur_ms (RdurMs¶
+dur_ms (RdurMs 
 ToFirstFrame
 dur_ns (RdurNs
 dur_ms (RdurMsr
-main_thread_by_task_state (28.perfetto.protos.AndroidStartupMetric.TaskStateBreakdownRmainThreadByTaskStateA
+main_thread_by_task_state (28.perfetto.protos.AndroidStartupMetric.TaskStateBreakdownRmainThreadByTaskStateh
+mcycles_by_core_type (27.perfetto.protos.AndroidStartupMetric.McyclesByCoreTypeRmcyclesByCoreTypeA
 other_processes_spawned_count (RotherProcessesSpawnedCount_
 time_activity_manager (2+.perfetto.protos.AndroidStartupMetric.SliceRtimeActivityManagerf
 time_activity_thread_main (2+.perfetto.protos.AndroidStartupMetric.SliceRtimeActivityThreadMain_

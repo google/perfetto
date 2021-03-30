@@ -3,63 +3,59 @@ android_startup {
     startup_id: 1
     package_name: "com.google.android.calendar"
     process_name: "com.google.android.calendar"
-    process: {
+    zygote_new_process: true
+    to_first_frame {
+      dur_ns: 108000000000
+      main_thread_by_task_state {
+        running_dur_ns: 25000000000
+        runnable_dur_ns: 5000000000
+        uninterruptible_sleep_dur_ns: 0
+        interruptible_sleep_dur_ns: 0
+      }
+      other_processes_spawned_count: 0
+      time_activity_manager {
+        dur_ns: 8000000000
+        dur_ms: 8000
+      }
+      time_bind_application {
+        dur_ns: 9000000000
+        dur_ms: 9000
+      }
+      time_before_start_process {
+        dur_ns: 18000000000
+        dur_ms: 18000
+      }
+      time_during_start_process {
+        dur_ns: 35000000000
+        dur_ms: 35000
+      }
+      dur_ms: 108000
+      to_bind_application {
+        dur_ns: 83000000000
+        dur_ms: 83000
+      }
+      time_inflate {
+        dur_ns: 3000000000
+        dur_ms: 3000
+      }
+      time_get_resources {
+        dur_ns: 1000000000
+        dur_ms: 1000
+      }
+      mcycles_by_core_type {
+        unknown: 103
+      }
+    }
+    activity_hosting_process_count: 1
+    process {
       name: "com.google.android.calendar"
     }
     activities {
       name: "com.google.android.calendar.MainActivity"
       method: "performCreate"
       slice {
-        dur_ns: 4
-        dur_ms: 4e-06
-      }
-    }
-    activities {
-      name: "com.google.android.calendar.MainActivity"
-      method: "performResume"
-      slice {
-        dur_ns: 1
-        dur_ms: 1e-06
-      }
-    }
-    zygote_new_process: true
-    to_first_frame {
-      dur_ns: 108
-      main_thread_by_task_state {
-        running_dur_ns: 0
-        runnable_dur_ns: 0
-        uninterruptible_sleep_dur_ns: 0
-        interruptible_sleep_dur_ns: 0
-      }
-      other_processes_spawned_count: 0
-      time_activity_manager {
-        dur_ns: 8
-        dur_ms: 8e-06
-      }
-      time_bind_application {
-        dur_ns: 10
-        dur_ms: 1e-05
-      }
-      time_before_start_process {
-        dur_ns: 18
-        dur_ms: 1.8e-05
-      }
-      time_during_start_process {
-        dur_ns: 35
-        dur_ms: 3.5e-05
-      }
-      dur_ms: 0.000108
-      to_bind_application {
-        dur_ns: 83
-        dur_ms: 8.3e-05
-      }
-      time_inflate {
-        dur_ns: 3
-        dur_ms: 3e-06
-      }
-      time_get_resources {
-        dur_ns: 1
-        dur_ms: 1e-06
+        dur_ns: 4000000000
+        dur_ms: 4000
       }
     }
     optimization_status {
@@ -74,6 +70,5 @@ android_startup {
       compilation_reason: "unknown"
       location: "error"
     }
-    activity_hosting_process_count: 1
   }
 }
