@@ -1273,6 +1273,8 @@ filegroup(
         "src/trace_processor/importers/proto/memory_tracker_snapshot_module.h",
         "src/trace_processor/importers/proto/memory_tracker_snapshot_parser.cc",
         "src/trace_processor/importers/proto/memory_tracker_snapshot_parser.h",
+        "src/trace_processor/importers/proto/metadata_module.cc",
+        "src/trace_processor/importers/proto/metadata_module.h",
         "src/trace_processor/importers/proto/metadata_tracker.cc",
         "src/trace_processor/importers/proto/metadata_tracker.h",
         "src/trace_processor/importers/proto/packet_sequence_state.cc",
@@ -2762,6 +2764,7 @@ perfetto_proto_library(
         "protos/perfetto/trace/trace.proto",
         "protos/perfetto/trace/trace_packet.proto",
         "protos/perfetto/trace/trace_packet_defaults.proto",
+        "protos/perfetto/trace/ui_state.proto",
     ],
     visibility = PERFETTO_CONFIG.public_visibility,
     deps = [
