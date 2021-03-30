@@ -444,6 +444,59 @@ TEST_P(TraceWriterImplTest, FlushBeforeBufferExhausted) {
                SharedMemoryABI::ChunkHeader::kLastPacketContinuesOnNextChunk);
 }
 
+// Regression test that verifies that flushing a TraceWriter while a fragmented
+// packet still has uncommitted patches doesn't hit a DCHECK / crash the writer
+// thread.
+TEST_P(TraceWriterImplTest, FlushAfterFragmentingPacketWhileBufferExhausted) {
+  arbiter_.reset(new SharedMemoryArbiterImpl(buf(), buf_size(), page_size(),
+                                             &fake_producer_endpoint_,
+                                             task_runner_.get()));
+
+  const BufferID kBufId = 42;
+  std::unique_ptr<TraceWriter> writer =
+      arbiter_->CreateTraceWriter(kBufId, BufferExhaustedPolicy::kDrop);
+
+  // Write a small first packet, so that |writer| owns a chunk.
+  auto packet = writer->NewTracePacket();
+  EXPECT_FALSE(reinterpret_cast<TraceWriterImpl*>(writer.get())
+                   ->drop_packets_for_testing());
+  EXPECT_EQ(packet->Finalize(), 0u);
+
+  // Grab all but one of the remaining chunks in the SMB in new writers.
+  std::array<std::unique_ptr<TraceWriter>, kNumPages * 4 - 2> other_writers;
+  for (size_t i = 0; i < other_writers.size(); i++) {
+    other_writers[i] =
+        arbiter_->CreateTraceWriter(kBufId, BufferExhaustedPolicy::kDrop);
+    auto other_writer_packet = other_writers[i]->NewTracePacket();
+    EXPECT_FALSE(reinterpret_cast<TraceWriterImpl*>(other_writers[i].get())
+                     ->drop_packets_for_testing());
+  }
+
+  // Write a packet that's guaranteed to span more than a two chunks, causing
+  // |writer| to attempt to acquire two new chunks, but fail to acquire the
+  // second.
+  auto packet2 = writer->NewTracePacket();
+  size_t chunk_size = page_size() / 4;
+  std::stringstream large_string_writer;
+  for (size_t pos = 0; pos < chunk_size * 2; pos++)
+    large_string_writer << "x";
+  std::string large_string = large_string_writer.str();
+  packet2->set_for_testing()->set_str(large_string.data(), large_string.size());
+
+  EXPECT_TRUE(reinterpret_cast<TraceWriterImpl*>(writer.get())
+                  ->drop_packets_for_testing());
+
+  // First two chunks should be committed.
+  arbiter_->FlushPendingCommitDataRequests();
+  const auto& last_commit = fake_producer_endpoint_.last_commit_data_request;
+  ASSERT_EQ(2, last_commit.chunks_to_move_size());
+
+  // Flushing should succeed, even though some patches are still in the writer's
+  // patch list.
+  packet2->Finalize();
+  writer->Flush();
+}
+
 // TODO(primiano): add multi-writer test.
 // TODO(primiano): add Flush() test.
 
