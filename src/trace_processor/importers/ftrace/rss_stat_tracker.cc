@@ -39,9 +39,26 @@ RssStatTracker::RssStatTracker(TraceProcessorContext* context)
 
 void RssStatTracker::ParseRssStat(int64_t ts, uint32_t pid, ConstBytes blob) {
   protos::pbzero::RssStatFtraceEvent::Decoder rss(blob.data, blob.size);
-  const auto kRssStatUnknown = static_cast<uint32_t>(rss_members_.size()) - 1;
-  auto member = static_cast<uint32_t>(rss.member());
+  uint32_t member = static_cast<uint32_t>(rss.member());
   int64_t size = rss.size();
+  base::Optional<bool> curr;
+  base::Optional<int64_t> mm_id;
+  if (rss.has_curr()) {
+    curr = base::make_optional(static_cast<bool>(rss.curr()));
+  }
+  if (rss.has_mm_id()) {
+    mm_id = base::make_optional(rss.mm_id());
+  }
+  ParseRssStat(ts, pid, size, member, curr, mm_id);
+}
+
+void RssStatTracker::ParseRssStat(int64_t ts,
+                                  uint32_t pid,
+                                  int64_t size,
+                                  uint32_t member,
+                                  base::Optional<bool> curr,
+                                  base::Optional<int64_t> mm_id) {
+  const auto kRssStatUnknown = static_cast<uint32_t>(rss_members_.size()) - 1;
   if (member >= rss_members_.size()) {
     context_->storage->IncrementStats(stats::rss_stat_unknown_keys);
     member = kRssStatUnknown;
@@ -53,9 +70,8 @@ void RssStatTracker::ParseRssStat(int64_t ts, uint32_t pid, ConstBytes blob) {
   }
 
   base::Optional<UniqueTid> utid;
-  if (rss.has_mm_id()) {
-    PERFETTO_DCHECK(rss.has_curr());
-    utid = FindUtidForMmId(rss.mm_id(), rss.curr(), pid);
+  if (mm_id.has_value() && curr.has_value()) {
+    utid = FindUtidForMmId(*mm_id, *curr, pid);
   } else {
     utid = context_->process_tracker->GetOrCreateThread(pid);
   }
