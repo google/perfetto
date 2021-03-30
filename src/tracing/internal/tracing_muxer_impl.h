@@ -380,6 +380,7 @@ class TracingMuxerImpl : public TracingMuxer {
   explicit TracingMuxerImpl(const TracingInitArgs&);
   void Initialize(const TracingInitArgs& args);
   ConsumerImpl* FindConsumer(TracingSessionGlobalID session_id);
+  void InitializeConsumer(TracingSessionGlobalID session_id);
   void OnConsumerDisconnected(ConsumerImpl* consumer);
   void OnProducerDisconnected(ProducerImpl* producer);
 
@@ -399,6 +400,7 @@ class TracingMuxerImpl : public TracingMuxer {
   std::vector<RegisteredDataSource> data_sources_;
   std::vector<RegisteredBackend> backends_;
   std::vector<RegisteredInterceptor> interceptors_;
+  TracingPolicy* policy_ = nullptr;
 
   std::atomic<TracingSessionGlobalID> next_tracing_session_id_{};
 
