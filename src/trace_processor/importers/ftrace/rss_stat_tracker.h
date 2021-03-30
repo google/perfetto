@@ -34,6 +34,12 @@ class RssStatTracker {
   explicit RssStatTracker(TraceProcessorContext*);
 
   void ParseRssStat(int64_t ts, uint32_t pid, ConstBytes blob);
+  void ParseRssStat(int64_t ts,
+                    uint32_t pid,
+                    int64_t size,
+                    uint32_t member,
+                    base::Optional<bool> curr,
+                    base::Optional<int64_t> mm_id);
 
  private:
   base::Optional<UniqueTid> FindUtidForMmId(int64_t mm_id,
