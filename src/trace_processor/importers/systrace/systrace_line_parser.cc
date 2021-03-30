@@ -38,6 +38,7 @@ namespace trace_processor {
 
 SystraceLineParser::SystraceLineParser(TraceProcessorContext* ctx)
     : context_(ctx),
+      rss_stat_tracker_(context_),
       sched_wakeup_name_id_(ctx->storage->InternString("sched_wakeup")),
       cpuidle_name_id_(ctx->storage->InternString("cpuidle")),
       workqueue_name_id_(ctx->storage->InternString("workqueue")),
@@ -222,17 +223,41 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
     }
     context_->event_tracker->PushCounter(line.ts, target.value(), track);
   } else if (line.event_name == "sched_blocked_reason") {
-    uint32_t wakee_pid = *base::StringToUInt32(args["pid"]);
-    auto wakee_utid = context_->process_tracker->GetOrCreateThread(wakee_pid);
+    auto wakee_pid = base::StringToUInt32(args["pid"]);
+    if (!wakee_pid.has_value()) {
+      return util::Status("sched_blocked_reason: could not parse wakee_pid");
+    }
+    auto wakee_utid = context_->process_tracker->GetOrCreateThread(*wakee_pid);
 
     InstantId id = context_->event_tracker->PushInstant(
         line.ts, sched_blocked_reason_id_, wakee_utid, RefType::kRefUtid,
         false);
 
     auto inserter = context_->args_tracker->AddArgsTo(id);
-    bool io_wait = *base::StringToInt32(args["iowait"]);
-    inserter.AddArg(io_wait_id_, Variadic::Boolean(io_wait));
+    auto io_wait = base::StringToInt32(args["iowait"]);
+    if (!io_wait.has_value()) {
+      return util::Status("sched_blocked_reason: could not parse io_wait");
+    }
+    inserter.AddArg(io_wait_id_, Variadic::Boolean(*io_wait));
     context_->args_tracker->Flush();
+  } else if (line.event_name == "rss_stat") {
+    // Format: rss_stat: size=8437760 member=1 curr=1 mm_id=2824390453
+    auto size = base::StringToInt64(args["size"]);
+    auto member = base::StringToUInt32(args["member"]);
+    auto mm_id = base::StringToInt64(args["mm_id"]);
+    auto opt_curr = base::StringToUInt32(args["curr"]);
+    if (!size.has_value()) {
+      return util::Status("rss_stat: could not parse size");
+    }
+    if (!member.has_value()) {
+      return util::Status("rss_stat: could not parse member");
+    }
+    base::Optional<bool> curr;
+    if (!opt_curr.has_value()) {
+      curr = base::make_optional(static_cast<bool>(*opt_curr));
+    }
+    rss_stat_tracker_.ParseRssStat(line.ts, line.pid, *size, *member, curr,
+                                   mm_id);
   }
 
   return util::OkStatus();
