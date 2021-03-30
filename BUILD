@@ -508,6 +508,7 @@ filegroup(
 filegroup(
     name = "include_perfetto_tracing_tracing",
     srcs = [
+        "include/perfetto/tracing/backend_type.h",
         "include/perfetto/tracing/buffer_exhausted_policy.h",
         "include/perfetto/tracing/console_interceptor.h",
         "include/perfetto/tracing/data_source.h",
@@ -535,6 +536,7 @@ filegroup(
         "include/perfetto/tracing/traced_value_forward.h",
         "include/perfetto/tracing/tracing.h",
         "include/perfetto/tracing/tracing_backend.h",
+        "include/perfetto/tracing/tracing_policy.h",
         "include/perfetto/tracing/track.h",
         "include/perfetto/tracing/track_event.h",
         "include/perfetto/tracing/track_event_category_registry.h",
@@ -1625,6 +1627,7 @@ filegroup(
         "src/tracing/platform.cc",
         "src/tracing/traced_value.cc",
         "src/tracing/tracing.cc",
+        "src/tracing/tracing_policy.cc",
         "src/tracing/track.cc",
         "src/tracing/track_event_category_registry.cc",
         "src/tracing/track_event_legacy.cc",
