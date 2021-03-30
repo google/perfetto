@@ -79,8 +79,14 @@ void TraceWriterImpl::Flush(std::function<void()> callback) {
     shmem_arbiter_->ReturnCompletedChunk(std::move(cur_chunk_), target_buffer_,
                                          &patch_list_);
   } else {
-    PERFETTO_DCHECK(patch_list_.empty());
+    // When in stall mode, all patches should have been returned with the last
+    // chunk, since the last packet was completed. In drop_packets_ mode, this
+    // may not be the case because the packet may have been fragmenting when
+    // SMB exhaustion occurred and |cur_chunk_| became invalid. In this case,
+    // drop_packets_ should be true.
+    PERFETTO_DCHECK(patch_list_.empty() || drop_packets_);
   }
+
   // Always issue the Flush request, even if there is nothing to flush, just
   // for the sake of getting the callback posted back.
   shmem_arbiter_->FlushPendingCommitDataRequests(callback);
