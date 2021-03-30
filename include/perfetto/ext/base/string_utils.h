@@ -122,6 +122,7 @@ std::string ReplaceAll(std::string str,
                        const std::string& to_replace,
                        const std::string& replacement);
 std::string TrimLeading(const std::string& str);
+std::string Base64Encode(const void* ptr, size_t size);
 
 }  // namespace base
 }  // namespace perfetto
