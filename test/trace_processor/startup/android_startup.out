@@ -32,6 +32,8 @@ android_startup {
         dur_ns: 8
         dur_ms: 8e-06
       }
+      mcycles_by_core_type {
+      }
       dur_ms: 0.000108
     }
     report_fully_drawn {
