@@ -31,6 +31,13 @@ message AndroidStartupMetric {
     optional int64 interruptible_sleep_dur_ns = 4;
   }
 
+  message McyclesByCoreType {
+    optional int64 little = 1;
+    optional int64 big = 2;
+    optional int64 bigger = 3;
+    optional int64 unknown = 4;
+  }
+
   message Slice {
     optional int64 dur_ns = 1;
     optional double dur_ms = 2;
@@ -38,11 +45,15 @@ message AndroidStartupMetric {
 
   // Timing information spanning the intent received by the
   // activity manager to the first frame drawn.
-  // Next id: 26.
+  // Next id: 27.
   message ToFirstFrame {
     optional int64 dur_ns = 1;
     optional double dur_ms = 17;
     optional TaskStateBreakdown main_thread_by_task_state = 2;
+
+    // The mcycles taken by this startup across all CPUs (broken down by core
+    // type).
+    optional McyclesByCoreType mcycles_by_core_type = 26;
 
     // In this timespan, how many processes (apart from the main activity) were
     // spawned.
