@@ -262,9 +262,42 @@ CREATE TABLE scroll_jank_maybe_null_prev_and_next AS
 DROP VIEW IF EXISTS scroll_jank;
 CREATE VIEW scroll_jank AS
   SELECT
-    *,
+    id AS slice_id,
     (next_jank IS NOT NULL AND next_jank) OR
     (prev_jank IS NOT NULL AND prev_jank)
-    AS jank
+    AS jank,
+    *
   FROM scroll_jank_maybe_null_prev_and_next
   ORDER BY gesture_scroll_id ASC, ts ASC;
+
+DROP VIEW IF EXISTS scroll_jank_ms;
+
+DROP VIEW IF EXISTS scroll_jank_output;
+CREATE VIEW scroll_jank_output AS
+  SELECT
+    ScrollJank(
+      'scroll_jank_percentage', (
+        SELECT
+          (
+            SUM(CASE WHEN jank THEN dur ELSE 0 END)/CAST(SUM(dur) AS REAL)
+          ) * 100.0
+        FROM scroll_jank
+      ),
+      'scroll_ms', (
+        SELECT
+          CAST(SUM(scroll_dur)/1e6 AS REAL)
+        FROM (
+          SELECT
+            MAX(scroll_dur) AS scroll_dur
+          FROM scroll_jank
+          GROUP BY gesture_scroll_id
+        )
+      ),
+      'scroll_processing_ms', CAST(SUM(dur)/1e6 AS REAL),
+      'scroll_jank_processing_ms', (
+        SELECT CAST(SUM(dur)/1e6 AS REAL) FROM scroll_jank WHERE jank
+      ),
+      'num_scroll_update_count', COUNT(*),
+      'num_scroll_update_jank_count', SUM(jank)
+    )
+  FROM scroll_jank;
