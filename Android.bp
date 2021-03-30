@@ -8437,6 +8437,7 @@ filegroup {
     "src/tracing/platform.cc",
     "src/tracing/traced_value.cc",
     "src/tracing/tracing.cc",
+    "src/tracing/tracing_policy.cc",
     "src/tracing/track.cc",
     "src/tracing/track_event_category_registry.cc",
     "src/tracing/track_event_legacy.cc",
