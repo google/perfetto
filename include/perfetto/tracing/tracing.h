@@ -28,9 +28,11 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/export.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/tracing/backend_type.h"
 #include "perfetto/tracing/core/forward_decls.h"
 #include "perfetto/tracing/internal/in_process_tracing_backend.h"
 #include "perfetto/tracing/internal/system_tracing_backend.h"
+#include "perfetto/tracing/tracing_policy.h"
 
 namespace perfetto {
 
@@ -41,24 +43,6 @@ class TracingMuxerImpl;
 class TracingBackend;
 class Platform;
 class TracingSession;  // Declared below.
-
-enum BackendType : uint32_t {
-  kUnspecifiedBackend = 0,
-
-  // Connects to a previously-initialized perfetto tracing backend for
-  // in-process. If the in-process backend has not been previously initialized
-  // it will do so and create the tracing service on a dedicated thread.
-  kInProcessBackend = 1 << 0,
-
-  // Connects to the system tracing service (e.g. on Linux/Android/Mac uses a
-  // named UNIX socket).
-  kSystemBackend = 1 << 1,
-
-  // Used to provide a custom IPC transport to connect to the service.
-  // TracingInitArgs::custom_backend must be non-null and point to an
-  // indefinitely lived instance.
-  kCustomBackend = 1 << 2,
-};
 
 struct TracingError {
   enum ErrorCode : uint32_t {
@@ -80,7 +64,7 @@ struct TracingError {
 };
 
 struct TracingInitArgs {
-  uint32_t backends = 0;                     // One or more BackendFlags.
+  uint32_t backends = 0;                     // One or more BackendTypes.
   TracingBackend* custom_backend = nullptr;  // [Optional].
 
   // [Optional] Platform implementation. It allows the embedder to take control
@@ -116,6 +100,12 @@ struct TracingInitArgs {
   // Note: With the default value of 0ms, batching still happens but with a zero
   // delay, i.e. commits will be sent to the service at the next opportunity.
   uint32_t shmem_batch_commits_duration_ms = 0;
+
+  // [Optional] If set, the policy object is notified when certain SDK events
+  // occur and may apply policy decisions, such as denying connections. The
+  // embedder is responsible for ensuring the object remains alive for the
+  // lifetime of the process.
+  TracingPolicy* tracing_policy = nullptr;
 
  protected:
   friend class Tracing;
