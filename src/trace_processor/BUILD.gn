@@ -97,6 +97,8 @@ source_set("storage_minimal") {
     "importers/proto/memory_tracker_snapshot_module.h",
     "importers/proto/memory_tracker_snapshot_parser.cc",
     "importers/proto/memory_tracker_snapshot_parser.h",
+    "importers/proto/metadata_module.cc",
+    "importers/proto/metadata_module.h",
     "importers/proto/metadata_tracker.cc",
     "importers/proto/metadata_tracker.h",
     "importers/proto/packet_sequence_state.cc",
