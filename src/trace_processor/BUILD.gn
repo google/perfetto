@@ -87,6 +87,8 @@ source_set("storage_minimal") {
     "importers/proto/args_table_utils.h",
     "importers/proto/async_track_set_tracker.cc",
     "importers/proto/async_track_set_tracker.h",
+    "importers/proto/chrome_string_lookup.cc",
+    "importers/proto/chrome_string_lookup.h",
     "importers/proto/chrome_system_probes_module.cc",
     "importers/proto/chrome_system_probes_module.h",
     "importers/proto/chrome_system_probes_parser.cc",
