@@ -8541,6 +8541,13 @@ message Trigger {
 
 // End of protos/perfetto/trace/trigger.proto
 
+// Begin of protos/perfetto/trace/ui_state.proto
+
+// TODO(lalitm): this will be filled in later with definition from
+// go/trace-ui-state.
+message UiState {}
+// End of protos/perfetto/trace/ui_state.proto
+
 // Begin of protos/perfetto/trace/trace_packet.proto
 
 // TracePacket is the root object of a Perfeto trace.
@@ -8563,7 +8570,7 @@ message Trigger {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 78.
+// Next id: 79.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -8624,6 +8631,7 @@ message TracePacket {
     MemoryTrackerSnapshot memory_tracker_snapshot = 73;
     FrameTimelineEvent frame_timeline_event = 76;
     AndroidEnergyEstimationBreakdown android_energy_estimation_breakdown = 77;
+    UiState ui_state = 78;
 
     // Only used in profile packets.
     ProfiledFrameSymbols profiled_frame_symbols = 55;
