@@ -59,6 +59,10 @@ class PERFETTO_EXPORT TraceWriter : public TraceWriterBase {
   // handle go out of scope. The returned handle can be std::move()'d but cannot
   // be used after either: (i) the TraceWriter instance is destroyed, (ii) a
   // subsequence NewTracePacket() call is made on the same TraceWriter instance.
+  // The returned packet handle is always valid, but note that, when using
+  // BufferExhaustedPolicy::kDrop and the SMB is exhausted, it may be assigned
+  // a garbage chunk and any trace data written into it will be lost. For more
+  // details on buffer size choices: https://perfetto.dev/docs/concepts/buffers.
   TracePacketHandle NewTracePacket() override = 0;
 
   // Commits the data pending for the current chunk into the shared memory
