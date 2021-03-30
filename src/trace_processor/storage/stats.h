@@ -151,6 +151,10 @@ namespace stats {
       kIndexed, kInfo,    kTrace,                                              \
       "By how many byes the interval for PID was increased "                   \
       "by adaptive sampling."),                                                \
+  F(heapprofd_unwind_time_us,           kIndexed, kInfo,     kTrace,           \
+      "Time spent unwinding callstacks."),                                     \
+  F(heapprofd_unwind_samples,           kIndexed, kInfo,     kTrace,           \
+      "Number of samples unwound."),                                           \
   F(metatrace_overruns,                 kSingle,  kError,    kTrace,    ""),   \
   F(packages_list_has_parse_errors,     kSingle,  kError,    kTrace,    ""),   \
   F(packages_list_has_read_errors,      kSingle,  kError,    kTrace,    ""),   \
