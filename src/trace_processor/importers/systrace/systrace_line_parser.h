@@ -19,6 +19,7 @@
 
 #include "perfetto/trace_processor/status.h"
 
+#include "src/trace_processor/importers/ftrace/rss_stat_tracker.h"
 #include "src/trace_processor/importers/systrace/systrace_line.h"
 #include "src/trace_processor/trace_parser.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -34,6 +35,7 @@ class SystraceLineParser {
 
  private:
   TraceProcessorContext* const context_;
+  RssStatTracker rss_stat_tracker_;
   const StringId sched_wakeup_name_id_ = kNullStringId;
   const StringId cpuidle_name_id_ = kNullStringId;
   const StringId workqueue_name_id_ = kNullStringId;
