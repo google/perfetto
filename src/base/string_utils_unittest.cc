@@ -288,6 +288,29 @@ TEST(StringUtilsTest, TrimLeading) {
   EXPECT_EQ(TrimLeading(" aaaaa     "), "aaaaa     ");
 }
 
+TEST(StringUtilsTest, Base64Encode) {
+  auto base64_encode = [](const std::string& str) {
+    return Base64Encode(str.c_str(), str.size());
+  };
+
+  EXPECT_EQ(base64_encode(""), "");
+  EXPECT_EQ(base64_encode("f"), "Zg==");
+  EXPECT_EQ(base64_encode("fo"), "Zm8=");
+  EXPECT_EQ(base64_encode("foo"), "Zm9v");
+  EXPECT_EQ(base64_encode("foob"), "Zm9vYg==");
+  EXPECT_EQ(base64_encode("fooba"), "Zm9vYmE=");
+  EXPECT_EQ(base64_encode("foobar"), "Zm9vYmFy");
+
+  EXPECT_EQ(Base64Encode("foo\0bar", 7), "Zm9vAGJhcg==");
+
+  std::vector<uint8_t> buffer = {0x04, 0x53, 0x42, 0x35,
+                                 0x32, 0xFF, 0x00, 0xFE};
+  EXPECT_EQ(Base64Encode(buffer.data(), buffer.size()), "BFNCNTL/AP4=");
+
+  buffer = {0xfb, 0xf0, 0x3e, 0x07, 0xfc};
+  EXPECT_EQ(Base64Encode(buffer.data(), buffer.size()), "+/A+B/w=");
+}
+
 }  // namespace
 }  // namespace base
 }  // namespace perfetto
