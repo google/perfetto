@@ -847,7 +847,7 @@ message PerfEvents {
 //     }
 //   }
 //
-// Next id: 17
+// Next id: 18
 message PerfEventConfig {
   // What event to sample on, and how often.
   // Defined in common/perf_events.proto.
@@ -874,6 +874,12 @@ message PerfEventConfig {
   //
   // Daemon's resource usage limits:
   //
+
+  // Drop samples if the heap memory held by the samples in the unwinder queue
+  // is above the given limit. This counts the memory across all concurrent data
+  // sources (not just this one's), and there is no fairness guarantee - the
+  // whole quota might be used up by a concurrent source.
+  optional uint64 max_enqueued_footprint_kb = 17;
 
   // Stop the data source if traced_perf's combined {RssAnon + Swap} memory
   // footprint exceeds this value.
