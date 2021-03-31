@@ -315,6 +315,10 @@ base::Optional<EventConfig> EventConfig::Create(
   if (samples_per_tick_limit == 0)
     return base::nullopt;
 
+  // Optional footprint controls.
+  uint64_t max_enqueued_footprint_bytes =
+      pb_config.max_enqueued_footprint_kb() * 1024;
+
   // Android-specific options.
   uint32_t remote_descriptor_timeout_ms =
       pb_config.remote_descriptor_timeout_ms()
@@ -363,11 +367,11 @@ base::Optional<EventConfig> EventConfig::Create(
     }
   }
 
-  return EventConfig(raw_ds_config, pe, timebase_event, sample_callstacks,
-                     std::move(target_filter), kernel_frames,
-                     ring_buffer_pages.value(), read_tick_period_ms,
-                     samples_per_tick_limit, remote_descriptor_timeout_ms,
-                     pb_config.unwind_state_clear_period_ms());
+  return EventConfig(
+      raw_ds_config, pe, timebase_event, sample_callstacks,
+      std::move(target_filter), kernel_frames, ring_buffer_pages.value(),
+      read_tick_period_ms, samples_per_tick_limit, remote_descriptor_timeout_ms,
+      pb_config.unwind_state_clear_period_ms(), max_enqueued_footprint_bytes);
 }
 
 EventConfig::EventConfig(const DataSourceConfig& raw_ds_config,
@@ -380,7 +384,8 @@ EventConfig::EventConfig(const DataSourceConfig& raw_ds_config,
                          uint32_t read_tick_period_ms,
                          uint64_t samples_per_tick_limit,
                          uint32_t remote_descriptor_timeout_ms,
-                         uint32_t unwind_state_clear_period_ms)
+                         uint32_t unwind_state_clear_period_ms,
+                         uint64_t max_enqueued_footprint_bytes)
     : perf_event_attr_(pe),
       timebase_event_(timebase_event),
       sample_callstacks_(sample_callstacks),
@@ -391,6 +396,7 @@ EventConfig::EventConfig(const DataSourceConfig& raw_ds_config,
       samples_per_tick_limit_(samples_per_tick_limit),
       remote_descriptor_timeout_ms_(remote_descriptor_timeout_ms),
       unwind_state_clear_period_ms_(unwind_state_clear_period_ms),
+      max_enqueued_footprint_bytes_(max_enqueued_footprint_bytes),
       raw_ds_config_(raw_ds_config) /* full copy */ {}
 
 }  // namespace profiling

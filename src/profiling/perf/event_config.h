@@ -100,6 +100,9 @@ class EventConfig {
   uint32_t unwind_state_clear_period_ms() const {
     return unwind_state_clear_period_ms_;
   }
+  uint64_t max_enqueued_footprint_bytes() const {
+    return max_enqueued_footprint_bytes_;
+  }
   bool sample_callstacks() const { return sample_callstacks_; }
   const TargetFilter& filter() const { return target_filter_; }
   bool kernel_frames() const { return kernel_frames_; }
@@ -120,7 +123,8 @@ class EventConfig {
               uint32_t read_tick_period_ms,
               uint64_t samples_per_tick_limit,
               uint32_t remote_descriptor_timeout_ms,
-              uint32_t unwind_state_clear_period_ms);
+              uint32_t unwind_state_clear_period_ms,
+              uint64_t max_enqueued_footprint_bytes);
 
   // Parameter struct for the leader (timebase) perf_event_open syscall.
   perf_event_attr perf_event_attr_ = {};
@@ -157,6 +161,8 @@ class EventConfig {
 
   // Optional period for clearing cached unwinder state. Skipped if zero.
   const uint32_t unwind_state_clear_period_ms_;
+
+  const uint64_t max_enqueued_footprint_bytes_;
 
   // The raw data source config, as a pbzero-generated C++ class.
   const DataSourceConfig raw_ds_config_;
