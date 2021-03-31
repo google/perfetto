@@ -29,6 +29,7 @@ namespace trace_processor {
 
 class MetadataModule : public ProtoImporterModule {
  public:
+  using ConstBytes = protozero::ConstBytes;
   explicit MetadataModule(TraceProcessorContext* context);
 
   ModuleResult TokenizePacket(
@@ -38,7 +39,15 @@ class MetadataModule : public ProtoImporterModule {
       PacketSequenceState* state,
       uint32_t field_id) override;
 
+  void ParsePacket(const protos::pbzero::TracePacket::Decoder& decoder,
+                   const TimestampedTracePiece& ttp,
+                   uint32_t field_id) override;
+
  private:
+  void ParseChromeBenchmarkMetadata(ConstBytes);
+  void ParseChromeMetadataPacket(ConstBytes);
+  void ParseTrigger(int64_t ts, ConstBytes);
+
   TraceProcessorContext* context_;
 };
 
