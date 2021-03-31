@@ -19,6 +19,7 @@
 
 #include <functional>
 
+#include "perfetto/base/export.h"
 #include "perfetto/tracing/backend_type.h"
 
 namespace perfetto {
@@ -26,7 +27,7 @@ namespace perfetto {
 // Applies policy decisions, such as allowing or denying connections, when
 // certain tracing SDK events occur. All methods are called on an internal
 // perfetto thread.
-class TracingPolicy {
+class PERFETTO_EXPORT TracingPolicy {
  public:
   virtual ~TracingPolicy();
 
