@@ -588,6 +588,21 @@ bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
     PERFETTO_CHECK(process_state == ProcessTrackingStatus::kResolved ||
                    process_state == ProcessTrackingStatus::kResolving);
 
+    // Optionally: drop sample if above a given threshold of sampled stacks
+    // that are waiting in the unwinding queue.
+    uint64_t max_footprint_bytes =
+        ds->event_config.max_enqueued_footprint_bytes();
+    uint64_t sample_stack_size = sample->stack.size();
+    if (max_footprint_bytes) {
+      uint64_t footprint_bytes = unwinding_worker_->GetEnqueuedFootprint();
+      if (footprint_bytes + sample_stack_size >= max_footprint_bytes) {
+        PERFETTO_DLOG("Skipping sample enqueueing due to footprint limit.");
+        PostEmitSkippedSample(ds_id, std::move(sample.value()),
+                              SampleSkipReason::kUnwindEnqueue);
+        continue;
+      }
+    }
+
     // Push the sample into the unwinding queue if there is room.
     auto& queue = unwinding_worker_->unwind_queue();
     WriteView write_view = queue.BeginWrite();
@@ -595,6 +610,7 @@ bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
       queue.at(write_view.write_pos) =
           UnwindEntry{ds_id, std::move(sample.value())};
       queue.CommitWrite();
+      unwinding_worker_->IncrementEnqueuedFootprint(sample_stack_size);
     } else {
       PERFETTO_DLOG("Unwinder queue full, skipping sample");
       PostEmitSkippedSample(ds_id, std::move(sample.value()),
