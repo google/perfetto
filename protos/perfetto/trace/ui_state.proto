@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 The Android Open Source Project
+ * Copyright (C) 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,20 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 syntax = "proto2";
 
 package perfetto.protos;
 
-import "protos/perfetto/metrics/metrics.proto";
-import "protos/perfetto/metrics/chrome/frame_times.proto";
-import "protos/perfetto/metrics/chrome/scroll_jank.proto";
-import "protos/perfetto/metrics/chrome/test_chrome_metric.proto";
-import "protos/perfetto/metrics/chrome/reported_by_page.proto";
-
-extend TraceMetrics {
-  optional TestChromeMetric test_chrome_metric = 1001;
-  optional FrameTimes frame_times = 1002;
-  optional ReportedByPage reported_by_page = 1003;
-  optional ScrollJank scroll_jank = 1004;
-}
+// TODO(lalitm): this will be filled in later with definition from
+// go/trace-ui-state.
+message UiState {}

@@ -50,7 +50,8 @@ namespace metadata {
   F(all_data_source_started_ns,        KeyType::kSingle,  Variadic::kInt),    \
   F(tracing_started_ns,                KeyType::kSingle,  Variadic::kInt),    \
   F(tracing_disabled_ns,               KeyType::kSingle,  Variadic::kInt),    \
-  F(trace_config_pbtxt,                KeyType::kSingle,  Variadic::kString)
+  F(trace_config_pbtxt,                KeyType::kSingle,  Variadic::kString), \
+  F(ui_state,                          KeyType::kSingle,  Variadic::kString)
 // clang-format on
 
 // Compile time list of metadata items.

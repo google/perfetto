@@ -17,6 +17,11 @@ from os import sys, path
 
 import synth_common
 
+
+def to_s(ts):
+  return ts * 1000 * 1000 * 1000
+
+
 trace = synth_common.create_trace()
 trace.add_packet()
 trace.add_process(1, 0, 'init')
@@ -27,64 +32,80 @@ trace.add_ftrace_packet(cpu=0)
 
 # Start intent for a successful launch of calendar
 trace.add_atrace_begin(
-    ts=102, tid=2, pid=2, buf='MetricsLogger:launchObserverNotifyIntentStarted')
-trace.add_atrace_end(ts=103, tid=2, pid=2)
+    ts=to_s(102),
+    tid=2,
+    pid=2,
+    buf='MetricsLogger:launchObserverNotifyIntentStarted')
+trace.add_atrace_end(ts=to_s(103), tid=2, pid=2)
 
 trace.add_atrace_async_begin(
-    ts=110, tid=2, pid=2, buf='launching: com.google.android.calendar')
+    ts=to_s(110), tid=2, pid=2, buf='launching: com.google.android.calendar')
 
 trace.add_atrace_begin(
-    ts=120, tid=2, pid=2, buf='Start proc: com.google.android.calendar')
-trace.add_atrace_end(ts=155, tid=2, pid=2)
+    ts=to_s(120), tid=2, pid=2, buf='Start proc: com.google.android.calendar')
+trace.add_atrace_end(ts=to_s(155), tid=2, pid=2)
 
 # Unrelated process binding, ignored
-trace.add_atrace_begin(ts=125, tid=1, pid=1, buf='bindApplication')
-trace.add_atrace_end(ts=195, tid=1, pid=1)
+trace.add_atrace_begin(ts=to_s(125), tid=1, pid=1, buf='bindApplication')
+trace.add_atrace_end(ts=to_s(195), tid=1, pid=1)
 
-trace.add_atrace_begin(ts=185, tid=3, pid=3, buf='bindApplication')
+trace.add_atrace_begin(ts=to_s(185), tid=3, pid=3, buf='bindApplication')
 trace.add_atrace_begin(
-    ts=188,
+    ts=to_s(188),
     tid=3,
     pid=3,
     buf='performCreate:com.google.android.calendar.MainActivity')
-trace.add_atrace_begin(ts=188, tid=3, pid=3, buf='inflate')
-trace.add_atrace_end(ts=189, tid=3, pid=3)
+trace.add_atrace_begin(ts=to_s(188), tid=3, pid=3, buf='inflate')
+trace.add_atrace_end(ts=to_s(189), tid=3, pid=3)
 trace.add_atrace_begin(
-    ts=188, tid=3, pid=3, buf='ResourcesManager#getResources')
-trace.add_atrace_end(ts=189, tid=3, pid=3)
-trace.add_atrace_begin(ts=190, tid=3, pid=3, buf='inflate')
-trace.add_atrace_end(ts=192, tid=3, pid=3)
-trace.add_atrace_end(ts=192, tid=3, pid=3)
+    ts=to_s(188), tid=3, pid=3, buf='ResourcesManager#getResources')
+trace.add_atrace_end(ts=to_s(189), tid=3, pid=3)
+trace.add_atrace_begin(ts=to_s(190), tid=3, pid=3, buf='inflate')
+trace.add_atrace_end(ts=to_s(192), tid=3, pid=3)
+trace.add_atrace_end(ts=to_s(192), tid=3, pid=3)
 trace.add_atrace_begin(
     ts=193,
     tid=3,
     pid=3,
     buf='performResume:com.google.android.calendar.MainActivity')
-trace.add_atrace_end(ts=194, tid=3, pid=3)
-trace.add_atrace_end(ts=195, tid=3, pid=3)
+trace.add_atrace_end(ts=to_s(194), tid=3, pid=3)
+trace.add_atrace_end(ts=to_s(195), tid=3, pid=3)
 
 trace.add_atrace_begin(
-    ts=200,
+    ts=to_s(200),
     tid=3,
     pid=3,
     buf='location=error status=io-error-no-oat ' \
         'filter=run-from-apk reason=unknown')
-trace.add_atrace_end(ts=202, tid=3, pid=3)
+trace.add_atrace_end(ts=to_s(202), tid=3, pid=3)
 trace.add_atrace_begin(
-    ts=204,
+    ts=to_s(204),
     tid=3,
     pid=3,
     buf='location=/system/framework/oat/arm/com.android.location.provider' \
         '.odex status=up-to-date filter=speed reason=prebuilt')
-trace.add_atrace_end(ts=205, tid=3, pid=3)
+trace.add_atrace_end(ts=to_s(205), tid=3, pid=3)
 
 trace.add_atrace_async_end(
-    ts=210, tid=2, pid=2, buf='launching: com.google.android.calendar')
+    ts=to_s(210), tid=2, pid=2, buf='launching: com.google.android.calendar')
 trace.add_atrace_begin(
-    ts=211,
+    ts=to_s(211),
     tid=2,
     pid=2,
     buf='MetricsLogger:launchObserverNotifyActivityLaunchFinished')
-trace.add_atrace_end(ts=212, tid=2, pid=2)
+trace.add_atrace_end(ts=to_s(212), tid=2, pid=2)
+
+# Add the scheduling data to match the timestamps of events above but with
+# some idle time inbetween to make the computation more realisitic.
+trace.add_cpufreq(ts=to_s(50), freq=1000, cpu=0)
+trace.add_sched(ts=to_s(100), prev_pid=0, next_pid=2)
+trace.add_sched(ts=to_s(115), prev_pid=2, next_pid=0)
+trace.add_sched(ts=to_s(120), prev_pid=0, next_pid=2)
+trace.add_sched(ts=to_s(125), prev_pid=2, next_pid=1)
+trace.add_sched(ts=to_s(150), prev_pid=1, next_pid=2)
+trace.add_sched(ts=to_s(160), prev_pid=2, next_pid=1)
+trace.add_sched(ts=to_s(180), prev_pid=1, next_pid=3)
+trace.add_sched(ts=to_s(205), prev_pid=3, next_pid=2)
+trace.add_sched(ts=to_s(220), prev_pid=2, next_pid=0)
 
 sys.stdout.buffer.write(trace.trace.SerializeToString())
