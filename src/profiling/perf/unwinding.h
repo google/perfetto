@@ -40,7 +40,7 @@
 namespace perfetto {
 namespace profiling {
 
-constexpr static uint32_t kUnwindQueueCapacity = 2048;
+constexpr static uint32_t kUnwindQueueCapacity = 1024;
 
 // Unwinds callstacks based on the sampled stack and register state (see
 // |ParsedSample|). Has a single unwinding ring queue, shared across
@@ -104,6 +104,22 @@ class Unwinder {
     return unwind_queue_;
   }
 
+  uint64_t GetEnqueuedFootprint() {
+    uint64_t freed =
+        footprint_tracker_.stack_bytes_freed.load(std::memory_order_acquire);
+    uint64_t allocated = footprint_tracker_.stack_bytes_allocated.load(
+        std::memory_order_relaxed);
+
+    // overflow not a concern in practice
+    PERFETTO_DCHECK(allocated >= freed);
+    return allocated - freed;
+  }
+
+  void IncrementEnqueuedFootprint(uint64_t increment) {
+    footprint_tracker_.stack_bytes_allocated.fetch_add(
+        increment, std::memory_order_relaxed);
+  }
+
  private:
   struct ProcessState {
     enum class Status {
@@ -125,6 +141,15 @@ class Unwinder {
 
     Status status = Status::kActive;
     std::map<pid_t, ProcessState> process_states;
+  };
+
+  // Accounting for how much heap memory is attached to the enqueued samples at
+  // a given time. Read by the main thread, mutated by both threads.
+  // We track just the heap allocated for the sampled stacks, as it dominates
+  // the per-sample heap use.
+  struct QueueFootprintTracker {
+    std::atomic<uint64_t> stack_bytes_allocated;
+    std::atomic<uint64_t> stack_bytes_freed;
   };
 
   // Must be instantiated via the |UnwinderHandle|.
@@ -171,6 +196,11 @@ class Unwinder {
   // Immediately destroys the data source state, used for abrupt stops.
   void PurgeDataSource(DataSourceInstanceID ds_id);
 
+  void DecrementEnqueuedFootprint(uint64_t decrement) {
+    footprint_tracker_.stack_bytes_freed.fetch_add(decrement,
+                                                   std::memory_order_relaxed);
+  }
+
   // Clears the parsed maps for all previously-sampled processes, and resets the
   // libunwindstack cache. This has the effect of deallocating the cached Elf
   // objects within libunwindstack, which take up non-trivial amounts of memory.
@@ -206,6 +236,7 @@ class Unwinder {
   base::UnixTaskRunner* const task_runner_;
   Delegate* const delegate_;
   UnwindQueue<UnwindEntry, kUnwindQueueCapacity> unwind_queue_;
+  QueueFootprintTracker footprint_tracker_;
   std::map<DataSourceInstanceID, DataSourceState> data_sources_;
   LazyKernelSymbolizer kernel_symbolizer_;
 
