@@ -55,8 +55,6 @@
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/common/trace_stats.pbzero.h"
 #include "protos/perfetto/config/trace_config.pbzero.h"
-#include "protos/perfetto/trace/chrome/chrome_benchmark_metadata.pbzero.h"
-#include "protos/perfetto/trace/chrome/chrome_metadata.pbzero.h"
 #include "protos/perfetto/trace/chrome/chrome_trace_event.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/perfetto/perfetto_metatrace.pbzero.h"
@@ -66,7 +64,6 @@
 #include "protos/perfetto/trace/profiling/smaps.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
-#include "protos/perfetto/trace/trigger.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -141,14 +138,6 @@ void ProtoTraceParser::ParseTracePacketImpl(
                        packet.profile_packet());
   }
 
-  if (packet.has_chrome_benchmark_metadata()) {
-    ParseChromeBenchmarkMetadata(packet.chrome_benchmark_metadata());
-  }
-
-  if (packet.has_chrome_metadata()) {
-    ParseChromeMetadataPacket(packet.chrome_metadata());
-  }
-
   if (packet.has_chrome_events()) {
     ParseChromeEvents(ts, packet.chrome_events());
   }
@@ -163,10 +152,6 @@ void ProtoTraceParser::ParseTracePacketImpl(
 
   if (packet.has_module_symbols()) {
     ParseModuleSymbols(packet.module_symbols());
-  }
-
-  if (packet.has_trigger()) {
-    ParseTrigger(ts, packet.trigger());
   }
 
   if (packet.has_smaps_packet()) {
@@ -430,75 +415,6 @@ void ProtoTraceParser::ParseDeobfuscationMapping(int64_t,
                 base::StringView(merged_deobfuscated)));
       }
     }
-  }
-}
-
-void ProtoTraceParser::ParseChromeBenchmarkMetadata(ConstBytes blob) {
-  TraceStorage* storage = context_->storage.get();
-  MetadataTracker* metadata = context_->metadata_tracker.get();
-
-  protos::pbzero::ChromeBenchmarkMetadata::Decoder packet(blob.data, blob.size);
-  if (packet.has_benchmark_name()) {
-    auto benchmark_name_id = storage->InternString(packet.benchmark_name());
-    metadata->SetMetadata(metadata::benchmark_name,
-                          Variadic::String(benchmark_name_id));
-  }
-  if (packet.has_benchmark_description()) {
-    auto benchmark_description_id =
-        storage->InternString(packet.benchmark_description());
-    metadata->SetMetadata(metadata::benchmark_description,
-                          Variadic::String(benchmark_description_id));
-  }
-  if (packet.has_label()) {
-    auto label_id = storage->InternString(packet.label());
-    metadata->SetMetadata(metadata::benchmark_label,
-                          Variadic::String(label_id));
-  }
-  if (packet.has_story_name()) {
-    auto story_name_id = storage->InternString(packet.story_name());
-    metadata->SetMetadata(metadata::benchmark_story_name,
-                          Variadic::String(story_name_id));
-  }
-  for (auto it = packet.story_tags(); it; ++it) {
-    auto story_tag_id = storage->InternString(*it);
-    metadata->AppendMetadata(metadata::benchmark_story_tags,
-                             Variadic::String(story_tag_id));
-  }
-  if (packet.has_benchmark_start_time_us()) {
-    metadata->SetMetadata(metadata::benchmark_start_time_us,
-                          Variadic::Integer(packet.benchmark_start_time_us()));
-  }
-  if (packet.has_story_run_time_us()) {
-    metadata->SetMetadata(metadata::benchmark_story_run_time_us,
-                          Variadic::Integer(packet.story_run_time_us()));
-  }
-  if (packet.has_story_run_index()) {
-    metadata->SetMetadata(metadata::benchmark_story_run_index,
-                          Variadic::Integer(packet.story_run_index()));
-  }
-  if (packet.has_had_failures()) {
-    metadata->SetMetadata(metadata::benchmark_had_failures,
-                          Variadic::Integer(packet.had_failures()));
-  }
-}
-
-void ProtoTraceParser::ParseChromeMetadataPacket(ConstBytes blob) {
-  TraceStorage* storage = context_->storage.get();
-  MetadataTracker* metadata = context_->metadata_tracker.get();
-
-  // Typed chrome metadata proto. The untyped metadata is parsed below in
-  // ParseChromeEvents().
-  protos::pbzero::ChromeMetadataPacket::Decoder packet(blob.data, blob.size);
-
-  if (packet.has_chrome_version_code()) {
-    metadata->SetDynamicMetadata(
-        storage->InternString("cr-playstore_version_code"),
-        Variadic::Integer(packet.chrome_version_code()));
-  }
-  if (packet.has_enabled_categories()) {
-    auto categories_id = storage->InternString(packet.enabled_categories());
-    metadata->SetDynamicMetadata(storage->InternString("cr-enabled_categories"),
-                                 Variadic::String(categories_id));
   }
 }
 
@@ -783,27 +699,6 @@ void ProtoTraceParser::ParseModuleSymbols(ConstBytes blob) {
       continue;
     }
   }
-}
-
-void ProtoTraceParser::ParseTrigger(int64_t ts, ConstBytes blob) {
-  protos::pbzero::Trigger::Decoder trigger(blob.data, blob.size);
-  StringId cat_id = kNullStringId;
-  TrackId track_id = context_->track_tracker->GetOrCreateTriggerTrack();
-  StringId name_id = context_->storage->InternString(trigger.trigger_name());
-  context_->slice_tracker->Scoped(
-      ts, track_id, cat_id, name_id,
-      /* duration = */ 0,
-      [&trigger, this](ArgsTracker::BoundInserter* args_table) {
-        StringId producer_name_key =
-            context_->storage->InternString("producer_name");
-        args_table->AddArg(producer_name_key,
-                           Variadic::String(context_->storage->InternString(
-                               trigger.producer_name())));
-        StringId trusted_producer_uid_key =
-            context_->storage->InternString("trusted_producer_uid");
-        args_table->AddArg(trusted_producer_uid_key,
-                           Variadic::Integer(trigger.trusted_producer_uid()));
-      });
 }
 
 void ProtoTraceParser::ParseSmapsPacket(int64_t ts, ConstBytes blob) {
