@@ -25,7 +25,7 @@ project(
 fs = import('fs')
 
 if not fs.is_dir('sdk')
-    error('sdk dir not found, please checkout a release tag, e.g. v13.0')
+    error('sdk dir not found, please checkout a release tag, e.g. v14.0')
 endif
 
 dep_threads = dependency('threads')
