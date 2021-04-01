@@ -117,6 +117,7 @@ util::Status ProtoBuilder::AppendLong(const std::string& field_name,
     case FieldDescriptorProto::TYPE_INT64:
     case FieldDescriptorProto::TYPE_UINT32:
     case FieldDescriptorProto::TYPE_BOOL:
+    case FieldDescriptorProto::TYPE_ENUM:
       message_->AppendVarInt(field->number(), value);
       break;
     case FieldDescriptorProto::TYPE_SINT32:
