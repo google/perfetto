@@ -21,13 +21,13 @@ Continue with the appropriate section below.
 
 ## a) Creating a new major version
 
-Create a release branch for the new major version ("5.x" here):
+Create a release branch for the new major version ("v15.x" here):
 
 ```bash
 git fetch origin
-git push origin origin/master:refs/heads/releases/v5.x
+git push origin origin/master:refs/heads/releases/v15.x
 git fetch origin
-git checkout -b releases/v5.x -t origin/releases/v5.x
+git checkout -b releases/v15.x -t origin/releases/v15.x
 ```
 
 Continue with [building the release](#building-and-tagging-the-release).
@@ -38,7 +38,7 @@ Check out the existing release branch ("5.x" here) and merge in the desired
 revision for the new release, resolving any conflicts you may encounter.
 
 ```bash
-git checkout -b releases/v5.x -t origin/releases/v5.x
+git checkout -b releases/v15.x -t origin/releases/v15.x
 ```
 
 If you only want to introduce one or two patches in the new release, consider
@@ -96,7 +96,7 @@ git commit --amend
 git pull
 
 git status
-# Should print: Your branch is up to date with 'origin/releases/v5.x'.
+# Should print: Your branch is up to date with 'origin/releases/v15.x'.
 # Do NOT proceed if your branch has diverged from origin/releases/vX.X
 
 git tag -a -m "Perfetto vX.Y" vX.Y
