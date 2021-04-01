@@ -244,6 +244,7 @@ void ThreadStateGenerator::FlushPendingEventsForThread(
     row.state = *info.desched_end_state;
     row.utid = utid;
     row.io_wait = info.io_wait;
+    row.blocked_function = info.blocked_function;
     table->Insert(row);
   }
 
@@ -276,12 +277,16 @@ void ThreadStateGenerator::AddBlockedReasonEvent(
 
   // We can't do anything better than ignoring any errors here.
   // TODO(lalitm): see if there's a better way to handle this.
-  if (!status.ok() || !opt_value) {
-    return;
+  if (status.ok() && opt_value) {
+    PERFETTO_CHECK(opt_value->type == Variadic::Type::kBool);
+    info.io_wait = opt_value->bool_value;
   }
 
-  PERFETTO_CHECK(opt_value->type == Variadic::Type::kBool);
-  info.io_wait = opt_value->bool_value;
+  status = context_->storage->ExtractArg(arg_set_id, "function", &opt_value);
+  if (status.ok() && opt_value) {
+    PERFETTO_CHECK(opt_value->type == Variadic::Type::kString);
+    info.blocked_function = opt_value->string_value;
+  }
 }
 
 std::string ThreadStateGenerator::TableName() {
