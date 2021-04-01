@@ -56,6 +56,7 @@ export class ThreadStatePanel extends Panel {
               m('tr',
                 m('th', `Process`),
                 m('td', `${threadInfo.procName} [${threadInfo.pid}]`)),
+              this.getBlockedFunctionContent(threadState.blockedFunction),
             ])]));
     }
     return m('.details-panel');
@@ -96,5 +97,12 @@ export class ThreadStatePanel extends Panel {
         },
         'call_made')
     ];
+  }
+
+  getBlockedFunctionContent(blockedFunction: string|undefined) {
+    if (blockedFunction === undefined) {
+      return null;
+    }
+    return m('tr', m('th', `Blocked Function`), m('td', blockedFunction));
   }
 }
