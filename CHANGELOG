@@ -2,12 +2,39 @@ Unreleased:
   Tracing service and probes:
     *
   Trace Processor:
-    * Remove |force_full_sort| flag from config. This has been replaced
-      by setting the sorting mode to force a full sort.
+    *
   UI:
     *
+
+
+v14.0 - 2021-04-01:
+  Tracing service and probes:
+    * Added support for polling power rails on Android from the newer
+      IPowerStats AIDL interface (previously using only the HAL interface).
+    * Fixed native heap profiler crash when ABI of heapprofd and profiled
+      process mismatch.
+    * Changed encoding format of Anroid managed heap profiler to reduce heap
+      dump sizes by delta-encoding object IDs.
+  Trace Processor:
+    * Added activity create/resume, layout inflation and resource timings to
+      the Android startup metric.
+    * Added chrome metadata key/value pairs (e.g. chrome version) into the
+      `metadata` table with 'cr-' prefixed keys.
+    * Added dma-buf-based memory metrics reporting total/avg/min/max dmabuf
+      allocation per-dmabuf-heap and per-process.
+    * Removed |force_full_sort| flag from config. This has been replaced
+      by setting the sorting mode to force a full sort.
+  UI:
+    * Added tools/symbolize-ui-crash script to resolve crash reports via
+      TypeScript source maps.
+    * Fixed newlines when copying Android event log lines into the clipboard.
+    * Fixed crash when selecting "Did not finish" slices.
+    * Fixed OOM dialog to give actionable instructions when opening large traces
+      rather than suggesting to file a bug.
   SDK:
-    * Add support for counter trace points with the TRACE_COUNTER macro.
+    * Added /meson.build for bundling /sdk/perfetto.{cc,h} in Meson builds.
+    * Added support for counter trace points with the TRACE_COUNTER macro.
+
 
 v13.0 - 2021-03-01:
   Tracing service and probes:
