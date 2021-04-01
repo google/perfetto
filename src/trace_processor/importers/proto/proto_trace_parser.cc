@@ -121,6 +121,15 @@ void ProtoTraceParser::ParseTracePacketImpl(
                               packet.deobfuscation_mapping());
   }
 
+  // Chrome doesn't honor the one-of in TracePacket for this field and sets it
+  // together with chrome_metadata, which is handled by a module. Thus, we have
+  // to parse this field before the modules get to parse other fields.
+  // TODO(crbug/1194914): Move this back after the modules (or into a separate
+  // module) once the Chrome-side fix has propagated into all release channels.
+  if (packet.has_chrome_events()) {
+    ParseChromeEvents(ts, packet.chrome_events());
+  }
+
   // TODO(eseckler): Propagate statuses from modules.
   auto& modules = context_->modules_by_field;
   for (uint32_t field_id = 1; field_id < modules.size(); ++field_id) {
@@ -137,10 +146,6 @@ void ProtoTraceParser::ParseTracePacketImpl(
   if (packet.has_profile_packet()) {
     ParseProfilePacket(ts, sequence_state, packet.trusted_packet_sequence_id(),
                        packet.profile_packet());
-  }
-
-  if (packet.has_chrome_events()) {
-    ParseChromeEvents(ts, packet.chrome_events());
   }
 
   if (packet.has_perfetto_metatrace()) {
