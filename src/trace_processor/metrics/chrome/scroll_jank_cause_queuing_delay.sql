@@ -16,6 +16,20 @@
 SELECT RUN_METRIC('chrome/chrome_thread_slice_with_cpu_time.sql');
 SELECT RUN_METRIC('chrome/scroll_flow_event_queuing_delay.sql');
 
+-- See b/184134310 why we remove ThreadController active.
+DROP VIEW IF EXISTS blocking_tasks_no_threadcontroller_active;
+CREATE VIEW blocking_tasks_no_threadcontroller_active AS
+ SELECT
+    slice.*,
+    ancestor.id AS task_ancestor_id,
+    ancestor.name AS task_ancestor_name
+  FROM
+    chrome_thread_slice_with_cpu_time AS slice LEFT JOIN
+    ancestor_slice(slice.id) as ancestor ON ancestor.id = slice.parent_id
+  WHERE
+    slice.name != "ThreadController active" AND
+    (slice.depth = 0 OR ancestor.name = "ThreadController active");
+
 -- This view grabs any slice that could have prevented any GestureScrollUpdate
 -- flow event from being run (queuing delays). For RunTask we know that its
 -- generic (and thus hard to figure out whats the cause) so we grab the src
@@ -24,11 +38,15 @@ SELECT RUN_METRIC('chrome/scroll_flow_event_queuing_delay.sql');
 -- See b/166441398 & crbug/1094361 for why we remove the -to-End step. In
 -- essence -to-End is often reported on the ThreadPool after the fact with
 -- explicit timestamps so it being blocked isn't noteworthy.
+--
+-- See b/184134310 for why we allow depth == 1 and ancestor.id is null (which
+-- implies its a "ThreadController active" slice because we removed it
+-- previously).
 DROP TABLE IF EXISTS blocking_tasks_queuing_delay;
 CREATE TABLE blocking_tasks_queuing_delay AS
   SELECT
-    EXTRACT_ARG(arg_set_id, "task.posted_from.file_name") as file,
-    EXTRACT_ARG(arg_set_id, "task.posted_from.function_name") as function,
+    EXTRACT_ARG(slice.arg_set_id, "task.posted_from.file_name") as file,
+    EXTRACT_ARG(slice.arg_set_id, "task.posted_from.function_name") as function,
     trace_id,
     queuing_time_ns,
     next_track_id,
@@ -54,13 +72,14 @@ CREATE TABLE blocking_tasks_queuing_delay AS
     slice.*
   FROM
     scroll_flow_event_queuing_delay queuing JOIN
-    chrome_thread_slice_with_cpu_time slice ON
+    blocking_tasks_no_threadcontroller_active AS slice ON
         slice.ts + slice.dur > queuing.ancestor_end AND
         queuing.maybe_next_ancestor_ts > slice.ts AND
         slice.track_id = queuing.next_track_id AND
-        slice.depth = 0 AND
         queuing.description NOT LIKE
-            "InputLatency.LatencyInfo.%ank.STEP_DRAW_AND_SWAP-to-End"
+            "InputLatency.LatencyInfo.%ank.STEP_DRAW_AND_SWAP-to-End" AND
+        queuing.description NOT LIKE
+            "InputLatency.LatencyInfo.%ank.STEP_FINISHED_SWAP_BUFFERS-to-End"
   WHERE
     queuing_time_ns IS NOT NULL AND
     queuing_time_ns > 0;
