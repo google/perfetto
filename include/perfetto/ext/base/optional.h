@@ -888,15 +888,11 @@ swap(Optional<T>& lhs, Optional<T>& rhs) {
 }  // namespace base
 }  // namespace perfetto
 
-namespace std {
-
 template <class T>
-struct hash<perfetto::base::Optional<T>> {
+struct std::hash<perfetto::base::Optional<T>> {
   size_t operator()(const perfetto::base::Optional<T>& opt) const {
     return opt == perfetto::base::nullopt ? 0 : std::hash<T>()(*opt);
   }
 };
-
-}  // namespace std
 
 #endif  // INCLUDE_PERFETTO_EXT_BASE_OPTIONAL_H_

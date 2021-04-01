@@ -904,10 +904,8 @@ class TraceStorage {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-namespace std {
-
 template <>
-struct hash<::perfetto::trace_processor::BaseId> {
+struct std::hash<::perfetto::trace_processor::BaseId> {
   using argument_type = ::perfetto::trace_processor::BaseId;
   using result_type = size_t;
 
@@ -917,20 +915,21 @@ struct hash<::perfetto::trace_processor::BaseId> {
 };
 
 template <>
-struct hash<::perfetto::trace_processor::TrackId>
-    : hash<::perfetto::trace_processor::BaseId> {};
+struct std::hash<::perfetto::trace_processor::TrackId>
+    : std::hash<::perfetto::trace_processor::BaseId> {};
 template <>
-struct hash<::perfetto::trace_processor::MappingId>
-    : hash<::perfetto::trace_processor::BaseId> {};
+struct std::hash<::perfetto::trace_processor::MappingId>
+    : std::hash<::perfetto::trace_processor::BaseId> {};
 template <>
-struct hash<::perfetto::trace_processor::CallsiteId>
-    : hash<::perfetto::trace_processor::BaseId> {};
+struct std::hash<::perfetto::trace_processor::CallsiteId>
+    : std::hash<::perfetto::trace_processor::BaseId> {};
 template <>
-struct hash<::perfetto::trace_processor::FrameId>
-    : hash<::perfetto::trace_processor::BaseId> {};
+struct std::hash<::perfetto::trace_processor::FrameId>
+    : std::hash<::perfetto::trace_processor::BaseId> {};
 
 template <>
-struct hash<::perfetto::trace_processor::tables::StackProfileFrameTable::Row> {
+struct std::hash<
+    ::perfetto::trace_processor::tables::StackProfileFrameTable::Row> {
   using argument_type =
       ::perfetto::trace_processor::tables::StackProfileFrameTable::Row;
   using result_type = size_t;
@@ -944,7 +943,7 @@ struct hash<::perfetto::trace_processor::tables::StackProfileFrameTable::Row> {
 };
 
 template <>
-struct hash<
+struct std::hash<
     ::perfetto::trace_processor::tables::StackProfileCallsiteTable::Row> {
   using argument_type =
       ::perfetto::trace_processor::tables::StackProfileCallsiteTable::Row;
@@ -959,7 +958,7 @@ struct hash<
 };
 
 template <>
-struct hash<
+struct std::hash<
     ::perfetto::trace_processor::tables::StackProfileMappingTable::Row> {
   using argument_type =
       ::perfetto::trace_processor::tables::StackProfileMappingTable::Row;
@@ -974,7 +973,5 @@ struct hash<
            std::hash<::perfetto::trace_processor::StringId>{}(r.name);
   }
 };
-
-}  // namespace std
 
 #endif  // SRC_TRACE_PROCESSOR_STORAGE_TRACE_STORAGE_H_
