@@ -25,9 +25,6 @@ from synth_common import ms_to_ns
 trace = synth_common.create_trace()
 
 process_track1 = 1234
-scroll_begin_track = 1
-scroll_update_track = 2
-scroll_end_track = 3
 
 trace.add_process_track_descriptor(process_track1, pid=0)
 
@@ -58,7 +55,7 @@ trace.add_input_latency_event_slice(
     "GestureScrollBegin",
     ts=ms_to_ns(0),
     dur=ms_to_ns(1),
-    track=scroll_begin_track,
+    track=scroll_begin_trace_id,
     trace_id=scroll_begin_trace_id,
     gesture_scroll_id=gesture_scroll_id)
 
@@ -79,7 +76,7 @@ trace.add_input_latency_event_slice(
     "GestureScrollUpdate",
     ts=ms_to_ns(0),
     dur=ms_to_ns(10),
-    track=scroll_update_track,
+    track=trace_id1,
     trace_id=trace_id1,
     gesture_scroll_id=gesture_scroll_id,
     is_coalesced=0)
@@ -111,10 +108,16 @@ trace.add_input_latency_event_slice(
     "GestureScrollUpdate",
     ts=ms_to_ns(16),
     dur=ms_to_ns(33),
-    track=scroll_update_track,
+    track=trace_id2,
     trace_id=trace_id2,
     gesture_scroll_id=gesture_scroll_id,
     is_coalesced=0)
+
+# This is a special event that adds a track event that stretches the entire
+# trace. This should not impact our metric (our metric should ignore it).
+# See b/184134310 for details of why we are testing this.
+trace.add_track_event_slice_begin(
+    "ThreadController active", ts=ms_to_ns(16), trusted_sequence_id=seq1)
 
 trace.add_latency_info_flow(
     ts=ms_to_ns(16),
@@ -143,7 +146,7 @@ trace.add_input_latency_event_slice(
     "GestureScrollUpdate",
     ts=ms_to_ns(55),
     dur=ms_to_ns(33),
-    track=scroll_update_track,
+    track=trace_id3,
     trace_id=trace_id3,
     gesture_scroll_id=gesture_scroll_id,
     is_coalesced=0)
@@ -176,8 +179,11 @@ trace.add_input_latency_event_slice(
     "GestureScrollEnd",
     ts=ms_to_ns(90),
     dur=ms_to_ns(2),
-    track=scroll_end_track,
+    track=scroll_end_trace_id,
     trace_id=scroll_end_trace_id,
     gesture_scroll_id=gesture_scroll_id)
+
+# This ends the "ThreadController active" event.
+trace.add_track_event_slice_end(ts=ms_to_ns(94), trusted_sequence_id=seq1)
 
 sys.stdout.buffer.write(trace.trace.SerializeToString())
