@@ -32,8 +32,8 @@ SELECT RUN_METRIC('chrome/scroll_jank.sql');
 -- flows with a trace_id of -1 are incomplete and are difficult to reason about
 -- (especially if GestureScrollUpdate flows end up getting -1). so ignore them
 -- for this table.
-DROP VIEW IF EXISTS latency_info_flow_step;
-CREATE VIEW latency_info_flow_step AS
+DROP VIEW IF EXISTS latency_info_flow_step_and_ancestors;
+CREATE VIEW latency_info_flow_step_and_ancestors AS
   SELECT
     *
   FROM (
@@ -45,12 +45,19 @@ CREATE VIEW latency_info_flow_step AS
       slice.track_id,
       EXTRACT_ARG(slice.arg_set_id, 'chrome_latency_info.trace_id') AS trace_id,
       EXTRACT_ARG(slice.arg_set_id, 'chrome_latency_info.step') AS step,
-      COALESCE(ancestor.id, slice.id) AS ancestor_id,
-      COALESCE(ancestor.ts, slice.ts) AS ancestor_ts,
-      COALESCE(ancestor.dur, slice.dur) AS ancestor_dur
+      COALESCE(ancestor_zero.name, slice.name) AS ancestor_name_zero,
+      COALESCE(ancestor_zero.id, slice.id) AS ancestor_id_zero,
+      COALESCE(ancestor_zero.ts, slice.ts) AS ancestor_ts_zero,
+      COALESCE(ancestor_zero.dur, slice.dur) AS ancestor_dur_zero,
+      COALESCE(ancestor_one.name, slice.name) AS ancestor_name_one,
+      COALESCE(ancestor_one.id, slice.id) AS ancestor_id_one,
+      COALESCE(ancestor_one.ts, slice.ts) AS ancestor_ts_one,
+      COALESCE(ancestor_one.dur, slice.dur) AS ancestor_dur_one
     FROM
       slice LEFT JOIN
-      ancestor_slice(slice.id) AS ancestor ON ancestor.depth = 0
+      ancestor_slice(slice.id) AS ancestor_zero
+          ON ancestor_zero.depth = 0 LEFT JOIN
+      ancestor_slice(slice.id) AS ancestor_one ON ancestor_one.depth = 1
     WHERE
       slice.name = 'LatencyInfo.Flow' AND
       EXTRACT_ARG(slice.arg_set_id, 'chrome_latency_info.trace_id') != -1
@@ -75,9 +82,14 @@ CREATE VIEW latency_info_flow_step AS
     track_id,
     trace_id,
     'AsyncBegin' AS step,
-    id AS ancestor_id,
-    ts AS ancestor_ts,
-    0 AS ancestor_dur,
+    'InputLatency::GestureScrollUpdate' AS ancestor_name_zero,
+    id AS ancestor_id_zero,
+    ts AS ancestor_ts_zero,
+    0 AS ancestor_dur_zero,
+    'InputLatency::GestureScrollUpdate' AS ancestor_name_one,
+    id AS ancestor_id_one,
+    ts AS ancestor_ts_one,
+    0 AS ancestor_dur_one,
     id AS scroll_slice_id,
     ts AS scroll_ts,
     dur AS scroll_dur,
@@ -87,6 +99,22 @@ CREATE VIEW latency_info_flow_step AS
     gesture_scroll_id
   FROM scroll_jank
   ORDER BY gesture_scroll_id ASC, trace_id ASC, ts ASC;
+
+-- See b/184134310, but "ThreadController active" spans multiple tasks and when
+-- the top level parent is this event we should use the second event instead.
+DROP VIEW IF EXISTS latency_info_flow_step;
+CREATE VIEW latency_info_flow_step AS
+  SELECT
+    *,
+    CASE WHEN ancestor_name_zero != "ThreadController active" THEN
+      ancestor_name_zero ELSE ancestor_name_one END AS ancestor_name,
+    CASE WHEN ancestor_name_zero != "ThreadController active" THEN
+      ancestor_id_zero ELSE ancestor_id_one END AS ancestor_id,
+    CASE WHEN ancestor_name_zero != "ThreadController active" THEN
+      ancestor_ts_zero ELSE ancestor_ts_one END AS ancestor_ts,
+    CASE WHEN ancestor_name_zero != "ThreadController active" THEN
+      ancestor_dur_zero ELSE ancestor_dur_one END AS ancestor_dur
+  FROM latency_info_flow_step_and_ancestors;
 
 -- This is a heuristic to figure out which flow event properly joins this
 -- GestureScrollUpdate. This heuristic is only needed in traces before we added
