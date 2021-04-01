@@ -966,6 +966,7 @@ genrule(
         "src/trace_processor/metrics/experimental/frame_times.sql",
         "src/trace_processor/metrics/experimental/reported_by_page.sql",
         "src/trace_processor/metrics/trace_metadata.sql",
+        "src/trace_processor/metrics/trace_stats.sql",
         "src/trace_processor/metrics/webview/webview_power_usage.sql",
     ],
     outs = [
