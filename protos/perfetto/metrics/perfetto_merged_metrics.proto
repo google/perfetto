@@ -975,9 +975,37 @@ message TraceMetadata {
   optional int64 sched_duration_ns = 10;
 }
 
+// Stats counters for the trace.
+// Defined in src/trace_processor/storage/stats.h
+message TraceStats {
+  enum Severity {
+    SEVERITY_UNKNOWN = 0;
+    SEVERITY_INFO = 1;
+    SEVERITY_DATA_LOSS = 2;
+    SEVERITY_ERROR = 3;
+  }
+
+  enum Source {
+    SOURCE_UNKNOWN = 0;
+    SOURCE_TRACE = 1;
+    SOURCE_ANALYSIS = 2;
+  }
+
+  message Stat {
+    optional string name = 1;
+    optional uint32 idx = 2;
+    optional Severity severity = 3;
+    optional Source source = 4;
+
+    optional int64 count = 5;
+  }
+
+  repeated Stat stat = 1;
+}
+
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 33
+// Next id: 34
 message TraceMetrics {
   reserved 4, 10, 13, 14, 19;
 
@@ -1019,6 +1047,9 @@ message TraceMetrics {
 
   // Trace metadata (applicable to all traces).
   optional TraceMetadata trace_metadata = 3;
+
+  // Trace stats (applicable to all traces).
+  optional TraceStats trace_stats = 33;
 
   // Returns stack frames missing symbols.
   optional UnsymbolizedFrames unsymbolized_frames = 15;

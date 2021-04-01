@@ -501,7 +501,7 @@ mainThreadr
 module (	Rmodule
 build_id (	RbuildId
 address (Raddress
-³ 
+Ÿ$
 %protos/perfetto/metrics/metrics.protoperfetto.protos1protos/perfetto/metrics/android/batt_metric.proto0protos/perfetto/metrics/android/cpu_metric.proto5protos/perfetto/metrics/android/display_metrics.proto5protos/perfetto/metrics/android/dma_heap_metric.proto4protos/perfetto/metrics/android/fastrpc_metric.proto0protos/perfetto/metrics/android/g2d_metric.proto0protos/perfetto/metrics/android/gpu_metric.proto<protos/perfetto/metrics/android/heap_profile_callsites.proto0protos/perfetto/metrics/android/hwcomposer.proto1protos/perfetto/metrics/android/hwui_metric.proto0protos/perfetto/metrics/android/ion_metric.proto1protos/perfetto/metrics/android/jank_metric.proto9protos/perfetto/metrics/android/java_heap_histogram.proto5protos/perfetto/metrics/android/java_heap_stats.proto0protos/perfetto/metrics/android/lmk_metric.proto7protos/perfetto/metrics/android/lmk_reason_metric.proto0protos/perfetto/metrics/android/mem_metric.proto6protos/perfetto/metrics/android/mem_unagg_metric.proto2protos/perfetto/metrics/android/package_list.proto5protos/perfetto/metrics/android/powrails_metric.proto4protos/perfetto/metrics/android/startup_metric.proto4protos/perfetto/metrics/android/surfaceflinger.proto7protos/perfetto/metrics/android/sysui_cuj_metrics.proto0protos/perfetto/metrics/android/task_names.protoAprotos/perfetto/metrics/android/thread_time_in_state_metric.proto9protos/perfetto/metrics/android/unsymbolized_frames.proto"À
 TraceMetadata*
 trace_duration_ns (RtraceDurationNs
@@ -514,7 +514,25 @@ trace_uuid (	R	traceUuid:
 unique_session_name (	RuniqueSessionName,
 trace_config_pbtxt	 (	RtraceConfigPbtxt*
 sched_duration_ns
- (RschedDurationNsJ"¹
+ (RschedDurationNsJ"«
+
+TraceStats4
+stat (2 .perfetto.protos.TraceStats.StatRstatÀ
+Stat
+name (	Rname
+idx (Ridx@
+severity (2$.perfetto.protos.TraceStats.SeverityRseverity:
+source (2".perfetto.protos.TraceStats.SourceRsource
+count (Rcount"_
+Severity
+SEVERITY_UNKNOWN 
+SEVERITY_INFO
+SEVERITY_DATA_LOSS
+SEVERITY_ERROR"C
+Source
+SOURCE_UNKNOWN 
+SOURCE_TRACE
+SOURCE_ANALYSIS"÷
 TraceMetricsH
 android_batt (2%.perfetto.protos.AndroidBatteryMetricRandroidBattB
 android_cpu (2!.perfetto.protos.AndroidCpuMetricR
@@ -531,7 +549,9 @@ androidLmkM
 android_powrails (2".perfetto.protos.AndroidPowerRailsRandroidPowrailsN
 android_startup (2%.perfetto.protos.AndroidStartupMetricRandroidStartup[
 heap_profile_callsites (2%.perfetto.protos.HeapProfileCallsitesRheapProfileCallsitesE
-trace_metadata (2.perfetto.protos.TraceMetadataRtraceMetadataT
+trace_metadata (2.perfetto.protos.TraceMetadataRtraceMetadata<
+trace_stats! (2.perfetto.protos.TraceStatsR
+traceStatsT
 unsymbolized_frames (2#.perfetto.protos.UnsymbolizedFramesRunsymbolizedFramesF
 java_heap_stats (2.perfetto.protos.JavaHeapStatsRjavaHeapStatsR
 java_heap_histogram (2".perfetto.protos.JavaHeapHistogramRjavaHeapHistogramU
