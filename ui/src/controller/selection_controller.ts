@@ -148,7 +148,7 @@ export class SelectionController extends Controller<'main'> {
     const args = new Map<string, Arg>();
     const query = `
       select
-        flat_key AS name,
+        key AS name,
         CAST(COALESCE(int_value, string_value, real_value) AS text) AS value
       FROM args
       WHERE arg_set_id = ${argId}
