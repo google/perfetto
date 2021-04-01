@@ -27,10 +27,8 @@
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables.h"
 
-namespace std {
-
 template <>
-struct hash<std::pair<uint32_t, int64_t>> {
+struct std::hash<std::pair<uint32_t, int64_t>> {
   using argument_type = std::pair<uint32_t, int64_t>;
   using result_type = size_t;
 
@@ -40,7 +38,7 @@ struct hash<std::pair<uint32_t, int64_t>> {
 };
 
 template <>
-struct hash<std::pair<uint32_t, perfetto::trace_processor::CallsiteId>> {
+struct std::hash<std::pair<uint32_t, perfetto::trace_processor::CallsiteId>> {
   using argument_type =
       std::pair<uint32_t, perfetto::trace_processor::CallsiteId>;
   using result_type = size_t;
@@ -52,7 +50,7 @@ struct hash<std::pair<uint32_t, perfetto::trace_processor::CallsiteId>> {
 };
 
 template <>
-struct hash<std::pair<uint32_t, perfetto::trace_processor::MappingId>> {
+struct std::hash<std::pair<uint32_t, perfetto::trace_processor::MappingId>> {
   using argument_type =
       std::pair<uint32_t, perfetto::trace_processor::MappingId>;
   using result_type = size_t;
@@ -64,7 +62,7 @@ struct hash<std::pair<uint32_t, perfetto::trace_processor::MappingId>> {
 };
 
 template <>
-struct hash<std::pair<uint32_t, perfetto::trace_processor::FrameId>> {
+struct std::hash<std::pair<uint32_t, perfetto::trace_processor::FrameId>> {
   using argument_type = std::pair<uint32_t, perfetto::trace_processor::FrameId>;
   using result_type = size_t;
 
@@ -75,7 +73,7 @@ struct hash<std::pair<uint32_t, perfetto::trace_processor::FrameId>> {
 };
 
 template <>
-struct hash<std::vector<uint64_t>> {
+struct std::hash<std::vector<uint64_t>> {
   using argument_type = std::vector<uint64_t>;
   using result_type = size_t;
 
@@ -87,7 +85,6 @@ struct hash<std::vector<uint64_t>> {
   }
 };
 
-}  // namespace std
 namespace perfetto {
 namespace trace_processor {
 
