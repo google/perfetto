@@ -278,7 +278,7 @@ CREATE VIEW scroll_jank_cause_queuing_delay_unannotated AS
 -- Annotate with process and thread names.
 DROP VIEW IF EXISTS scroll_jank_cause_queuing_delay;
 CREATE VIEW scroll_jank_cause_queuing_delay AS
-SELECT p.name AS process_name, ct.name AS thread_name, s.*
+SELECT p.process_type AS process_name, ct.canonical_name AS thread_name, s.*
 FROM scroll_jank_cause_queuing_delay_unannotated s,
   thread_track tt, chrome_thread ct,
   chrome_process p
