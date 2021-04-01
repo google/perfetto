@@ -28,6 +28,7 @@ android_startup {
       }
       mcycles_by_core_type {
       }
+      jit_compiled_methods: 2
     }
     activity_hosting_process_count: 1
     process {
