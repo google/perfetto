@@ -86,6 +86,7 @@ export interface ThreadStateDetails {
   utid?: number;
   cpu?: number;
   sliceId?: number;
+  blockedFunction?: string;
 }
 
 export interface HeapProfileDetails {

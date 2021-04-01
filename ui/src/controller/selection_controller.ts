@@ -188,9 +188,19 @@ export class SelectionController extends Controller<'main'> {
   }
 
   async threadStateDetails(id: number) {
-    const query = `SELECT ts, thread_state.dur, state, io_wait,
-    thread_state.utid, thread_state.cpu, sched.id from thread_state
-    left join sched using(ts) where thread_state.id = ${id}`;
+    const query = `
+      SELECT
+        ts,
+        thread_state.dur,
+        state,
+        io_wait,
+        thread_state.utid,
+        thread_state.cpu,
+        sched.id,
+        thread_state.blocked_function
+      from thread_state
+      left join sched using(ts) where thread_state.id = ${id}
+    `;
     this.args.engine.query(query).then(result => {
       const selection = globals.state.currentSelection;
       const cols = result.columns;
@@ -206,8 +216,17 @@ export class SelectionController extends Controller<'main'> {
         const cpu = cols[5].isNulls![0] ? undefined : cols[5].longValues![0];
         const sliceId =
             cols[6].isNulls![0] ? undefined : cols[6].longValues![0];
-        const selected: ThreadStateDetails =
-            {ts: timeFromStart, dur, state, utid, cpu, sliceId};
+        const blockedFunction =
+            cols[7].isNulls![0] ? undefined : cols[7].stringValues![0];
+        const selected: ThreadStateDetails = {
+          ts: timeFromStart,
+          dur,
+          state,
+          utid,
+          cpu,
+          sliceId,
+          blockedFunction
+        };
         globals.publish('ThreadStateDetails', selected);
       }
     });
