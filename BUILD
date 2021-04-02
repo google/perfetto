@@ -966,6 +966,7 @@ genrule(
         "src/trace_processor/metrics/experimental/frame_times.sql",
         "src/trace_processor/metrics/experimental/reported_by_page.sql",
         "src/trace_processor/metrics/trace_metadata.sql",
+        "src/trace_processor/metrics/trace_stats.sql",
         "src/trace_processor/metrics/webview/webview_power_usage.sql",
     ],
     outs = [
@@ -1263,6 +1264,8 @@ filegroup(
         "src/trace_processor/importers/proto/args_table_utils.h",
         "src/trace_processor/importers/proto/async_track_set_tracker.cc",
         "src/trace_processor/importers/proto/async_track_set_tracker.h",
+        "src/trace_processor/importers/proto/chrome_string_lookup.cc",
+        "src/trace_processor/importers/proto/chrome_string_lookup.h",
         "src/trace_processor/importers/proto/chrome_system_probes_module.cc",
         "src/trace_processor/importers/proto/chrome_system_probes_module.h",
         "src/trace_processor/importers/proto/chrome_system_probes_parser.cc",

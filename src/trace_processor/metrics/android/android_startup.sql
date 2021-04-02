@@ -108,19 +108,15 @@ FROM main_thread_state
 GROUP BY 1, 2;
 
 -- Tracks all slices for the main process threads
-DROP TABLE IF EXISTS main_process_slice;
-CREATE TABLE main_process_slice AS
+DROP VIEW IF EXISTS main_process_slice_unaggregated;
+CREATE VIEW main_process_slice_unaggregated AS
 SELECT
   launches.id AS launch_id,
-  CASE
-    WHEN slice.name LIKE 'OpenDexFilesFromOat%' THEN 'OpenDexFilesFromOat'
-    WHEN slice.name LIKE 'VerifyClass%' THEN 'VerifyClass'
-    ELSE slice.name
-  END AS name,
-  AndroidStartupMetric_Slice(
-    'dur_ns', SUM(slice.dur),
-    'dur_ms', SUM(slice.dur) / 1e6
-  ) AS slice_proto
+  thread.utid AS utid,
+  thread.name AS thread_name,
+  slice.name AS slice_name,
+  slice.ts AS slice_ts,
+  slice.dur AS slice_dur
 FROM launches
 JOIN launch_processes ON (launches.id = launch_processes.launch_id)
 JOIN thread ON (launch_processes.upid = thread.upid)
@@ -143,6 +139,23 @@ WHERE slice.name IN (
   OR slice.name LIKE 'OpenDexFilesFromOat%'
   OR slice.name LIKE 'VerifyClass%'
   OR slice.name LIKE 'Choreographer#doFrame%'
+  OR slice.name LIKE 'JIT compiling%';
+
+DROP TABLE IF EXISTS main_process_slice;
+CREATE TABLE main_process_slice AS
+SELECT
+  launch_id,
+  CASE
+    WHEN slice_name LIKE 'OpenDexFilesFromOat%' THEN 'OpenDexFilesFromOat'
+    WHEN slice_name LIKE 'VerifyClass%' THEN 'VerifyClass'
+    WHEN slice_name LIKE 'JIT compiling%' THEN 'JIT compiling'
+    ELSE slice_name
+  END AS name,
+  AndroidStartupMetric_Slice(
+    'dur_ns', SUM(slice_dur),
+    'dur_ms', SUM(slice_dur) / 1e6
+  ) AS slice_proto
+FROM main_process_slice_unaggregated
 GROUP BY 1, 2;
 
 DROP TABLE IF EXISTS report_fully_drawn_per_launch;
@@ -365,6 +378,12 @@ SELECT
         SELECT slice_proto
         FROM main_process_slice s
         WHERE s.launch_id = launches.id AND name = 'VerifyClass'
+      ),
+      'jit_compiled_methods', (
+        SELECT SUM(1)
+        FROM main_process_slice_unaggregated
+        WHERE slice_name LIKE 'JIT compiling%'
+          AND thread_name = 'Jit thread pool'
       )
     ),
     'hsc', (

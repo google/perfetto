@@ -720,7 +720,7 @@ message AndroidStartupMetric {
 
   // Timing information spanning the intent received by the
   // activity manager to the first frame drawn.
-  // Next id: 27.
+  // Next id: 28.
   message ToFirstFrame {
     optional int64 dur_ns = 1;
     optional double dur_ms = 17;
@@ -765,6 +765,10 @@ message AndroidStartupMetric {
     optional Slice time_dex_open = 24;
     // Total time spent verifying classes during app startup.
     optional Slice time_verify_class = 25;
+
+    // Number of methods compiled by JIT.
+    optional uint32 jit_compiled_methods = 27;
+
     // Deprecated was other_process_to_activity_cpu_ratio
     reserved 12;
 
@@ -971,9 +975,37 @@ message TraceMetadata {
   optional int64 sched_duration_ns = 10;
 }
 
+// Stats counters for the trace.
+// Defined in src/trace_processor/storage/stats.h
+message TraceStats {
+  enum Severity {
+    SEVERITY_UNKNOWN = 0;
+    SEVERITY_INFO = 1;
+    SEVERITY_DATA_LOSS = 2;
+    SEVERITY_ERROR = 3;
+  }
+
+  enum Source {
+    SOURCE_UNKNOWN = 0;
+    SOURCE_TRACE = 1;
+    SOURCE_ANALYSIS = 2;
+  }
+
+  message Stat {
+    optional string name = 1;
+    optional uint32 idx = 2;
+    optional Severity severity = 3;
+    optional Source source = 4;
+
+    optional int64 count = 5;
+  }
+
+  repeated Stat stat = 1;
+}
+
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 33
+// Next id: 34
 message TraceMetrics {
   reserved 4, 10, 13, 14, 19;
 
@@ -1015,6 +1047,9 @@ message TraceMetrics {
 
   // Trace metadata (applicable to all traces).
   optional TraceMetadata trace_metadata = 3;
+
+  // Trace stats (applicable to all traces).
+  optional TraceStats trace_stats = 33;
 
   // Returns stack frames missing symbols.
   optional UnsymbolizedFrames unsymbolized_frames = 15;
