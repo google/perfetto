@@ -111,9 +111,8 @@ using SourceLocation = std::tuple<const char* /* file_name */,
                                   const char* /* function_name */,
                                   uint32_t /* line_number */>;
 
-namespace std {
 template <>
-struct hash<SourceLocation> {
+struct std::hash<SourceLocation> {
   size_t operator()(const SourceLocation& value) const {
     auto hasher = hash<size_t>();
     return hasher(reinterpret_cast<size_t>(get<0>(value))) ^
@@ -121,7 +120,6 @@ struct hash<SourceLocation> {
            hasher(get<2>(value));
   }
 };
-}  // namespace std
 
 // Represents an opaque (from Perfetto's point of view) thread identifier (e.g.,
 // base::PlatformThreadId in Chromium).

@@ -168,15 +168,11 @@ inline bool operator<=(const StringView& x, const StringView& y) {
 }  // namespace base
 }  // namespace perfetto
 
-namespace std {
-
 template <>
-struct hash<::perfetto::base::StringView> {
+struct std::hash<::perfetto::base::StringView> {
   size_t operator()(const ::perfetto::base::StringView& sv) const {
     return static_cast<size_t>(sv.Hash());
   }
 };
-
-}  // namespace std
 
 #endif  // INCLUDE_PERFETTO_EXT_BASE_STRING_VIEW_H_
