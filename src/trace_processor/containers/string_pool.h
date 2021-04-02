@@ -294,10 +294,8 @@ class StringPool {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-namespace std {
-
 template <>
-struct hash< ::perfetto::trace_processor::StringPool::Id> {
+struct std::hash<::perfetto::trace_processor::StringPool::Id> {
   using argument_type = ::perfetto::trace_processor::StringPool::Id;
   using result_type = size_t;
 
@@ -305,7 +303,5 @@ struct hash< ::perfetto::trace_processor::StringPool::Id> {
     return std::hash<uint32_t>{}(r.raw_id());
   }
 };
-
-}  // namespace std
 
 #endif  // SRC_TRACE_PROCESSOR_CONTAINERS_STRING_POOL_H_
