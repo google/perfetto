@@ -18,6 +18,7 @@
 #define INCLUDE_PERFETTO_TRACING_INTERNAL_TRACK_EVENT_DATA_SOURCE_H_
 
 #include "perfetto/base/compiler.h"
+#include "perfetto/base/template_util.h"
 #include "perfetto/protozero/message_handle.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/data_source.h"
@@ -38,18 +39,25 @@ struct TraceTimestamp {
   uint64_t nanoseconds;
 };
 
-// A function for converting an abstract timestamp into the trace clock timebase
-// in nanoseconds. By overriding this template the user can register additional
-// timestamp types. The return value should specify the clock used by the
-// timestamp as well as its value in nanoseconds.
+// This template provides a way to convert an abstract timestamp into the trace
+// clock timebase in nanoseconds. By specialising this template and defining
+// static ConvertTimestampToTraceTimeNs function in it the user can register
+// additional timestamp types. The return value should specify the clock used by
+// the timestamp as well as its value in nanoseconds.
+//
+// The users should see the specialisation for uint64_t below as an example.
+// Note that the specialisation should be defined in perfetto namespace.
 template <typename T>
-TraceTimestamp ConvertTimestampToTraceTimeNs(const T&);
+struct TraceTimestampTraits;
 
 // A pass-through implementation for raw uint64_t nanosecond timestamps.
 template <>
-TraceTimestamp inline ConvertTimestampToTraceTimeNs(const uint64_t& timestamp) {
-  return {internal::TrackEventInternal::GetClockId(), timestamp};
-}
+struct TraceTimestampTraits<uint64_t> {
+  static inline TraceTimestamp ConvertTimestampToTraceTimeNs(
+      const uint64_t& timestamp) {
+    return {internal::TrackEventInternal::GetClockId(), timestamp};
+  }
+};
 
 namespace internal {
 namespace {
@@ -97,7 +105,8 @@ static constexpr bool IsValidNormalTrack() {
 // isn't being interpreted as a timestamp.
 template <typename T,
           typename CanBeConvertedToNsCheck = decltype(
-              ::perfetto::ConvertTimestampToTraceTimeNs(std::declval<T>())),
+              ::perfetto::TraceTimestampTraits<typename base::remove_cvref_t<
+                  T>>::ConvertTimestampToTraceTimeNs(std::declval<T>())),
           typename NotTrackCheck =
               typename std::enable_if<!IsValidNormalTrack<T>()>::type,
           typename NotLambdaCheck =
@@ -638,7 +647,7 @@ class TrackEventDataSource
       const char* event_name,
       perfetto::protos::pbzero::TrackEvent::Type type,
       const TrackType& track = TrackEventInternal::kDefaultTrack,
-      TimestampType timestamp = TrackEventInternal::GetTimeNs(),
+      const TimestampType& timestamp = TrackEventInternal::GetTimeNs(),
       ArgumentFunction arg_function = [](EventContext) {
       }) PERFETTO_ALWAYS_INLINE {
     using CatTraits = CategoryTraits<CategoryType>;
@@ -654,8 +663,8 @@ class TrackEventDataSource
           }
 
           // TODO(skyostil): Support additional clock ids.
-          TraceTimestamp trace_timestamp =
-              ::perfetto::ConvertTimestampToTraceTimeNs(timestamp);
+          TraceTimestamp trace_timestamp = ::perfetto::TraceTimestampTraits<
+              TimestampType>::ConvertTimestampToTraceTimeNs(timestamp);
           PERFETTO_DCHECK(trace_timestamp.clock_id ==
                           TrackEventInternal::GetClockId());
 
