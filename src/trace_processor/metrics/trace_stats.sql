@@ -16,18 +16,18 @@
 
 DROP VIEW IF EXISTS trace_stats_output;
 CREATE VIEW trace_stats_output AS
-SELECT TraceStats(
+SELECT TraceAnalysisStats(
   'stat', (
-    SELECT RepeatedField(TraceStats_Stat(
+    SELECT RepeatedField(TraceAnalysisStats_Stat(
       'name', name,
       'idx', idx,
       'count', value,
-      -- TraceStats.Source enum:
+      -- TraceAnalysisStats.Source enum:
       'source', CASE source
         WHEN 'trace' THEN 1
         WHEN 'analysis' THEN 2
       END,
-      -- TraceStats.Severity enum:
+      -- TraceAnalysisStats.Severity enum:
       'severity', CASE severity
         WHEN 'info' THEN 1
         WHEN 'data_loss' THEN 2
