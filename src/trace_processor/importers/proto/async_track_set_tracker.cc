@@ -25,6 +25,23 @@ namespace trace_processor {
 AsyncTrackSetTracker::AsyncTrackSetTracker(TraceProcessorContext* context)
     : context_(context) {}
 
+AsyncTrackSetTracker::TrackSetId AsyncTrackSetTracker::InternGlobalTrackSet(
+    StringId name) {
+  auto it = global_track_set_ids_.find(name);
+  if (it != global_track_set_ids_.end()) {
+    return it->second;
+  }
+
+  uint32_t id = static_cast<uint32_t>(track_sets_.size());
+  TrackSet set;
+  set.global_track_name = name;
+  set.type = TrackSetType::kGlobal;
+  set.nesting_behaviour = NestingBehaviour::kUnnestable;
+  track_sets_.emplace_back(set);
+
+  return global_track_set_ids_[name] = id;
+}
+
 AsyncTrackSetTracker::TrackSetId AsyncTrackSetTracker::InternAndroidSet(
     UniquePid upid,
     StringId name) {
@@ -160,6 +177,9 @@ AsyncTrackSetTracker::GetOrCreateTrackForCookie(TrackSet& set, int64_t cookie) {
 
 TrackId AsyncTrackSetTracker::CreateTrackForSet(const TrackSet& set) {
   switch (set.type) {
+    case TrackSetType::kGlobal:
+      return context_->track_tracker->CreateGlobalAsyncTrack(
+          set.global_track_name);
     case TrackSetType::kAndroid:
       return context_->track_tracker->CreateAndroidAsyncTrack(
           set.android_tuple.name, set.android_tuple.upid);
