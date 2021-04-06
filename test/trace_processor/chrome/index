@@ -34,3 +34,9 @@ modified_rail_modes_no_vsyncs.py modified_rail_modes.sql modified_rail_modes_no_
 modified_rail_modes_with_input.py modified_rail_modes_with_input.sql modified_rail_modes_with_input.out
 modified_rail_modes_long.py modified_rail_modes.sql modified_rail_modes_long.out
 modified_rail_modes_extra_long.py modified_rail_modes.sql modified_rail_modes_extra_long.out
+
+# Chrome processes.
+../../data/chrome_scroll_without_vsync.pftrace chrome_processes.sql chrome_processes.out
+../../data/chrome_android_systrace.pftrace chrome_processes.sql chrome_processes_android_systrace.out
+../../data/chrome_scroll_without_vsync.pftrace chrome_threads.sql chrome_threads.out
+../../data/chrome_android_systrace.pftrace chrome_threads.sql chrome_threads_android_systrace.out
