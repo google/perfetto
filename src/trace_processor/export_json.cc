@@ -828,26 +828,25 @@ class JsonExporter {
 
       const auto& thread_track = storage_->thread_track_table();
       const auto& process_track = storage_->process_track_table();
-      const auto& thread_slices = storage_->thread_slices();
+      const auto& thread_slices = storage_->thread_slice_table();
       const auto& virtual_track_slices = storage_->virtual_track_slices();
 
       int64_t duration_ns = slices.dur()[i];
-      int64_t thread_ts_ns = 0;
-      int64_t thread_duration_ns = 0;
-      int64_t thread_instruction_count = 0;
-      int64_t thread_instruction_delta = 0;
+      base::Optional<int64_t> thread_ts_ns;
+      base::Optional<int64_t> thread_duration_ns;
+      base::Optional<int64_t> thread_instruction_count;
+      base::Optional<int64_t> thread_instruction_delta;
 
       SliceId id = slices.id()[i];
       base::Optional<uint32_t> thread_slice_row =
-          thread_slices.FindRowForSliceId(id);
+          thread_slices.id().IndexOf(id);
       if (thread_slice_row) {
-        thread_ts_ns = thread_slices.thread_timestamp_ns()[*thread_slice_row];
-        thread_duration_ns =
-            thread_slices.thread_duration_ns()[*thread_slice_row];
+        thread_ts_ns = thread_slices.thread_ts()[*thread_slice_row];
+        thread_duration_ns = thread_slices.thread_dur()[*thread_slice_row];
         thread_instruction_count =
-            thread_slices.thread_instruction_counts()[*thread_slice_row];
+            thread_slices.thread_instruction_count()[*thread_slice_row];
         thread_instruction_delta =
-            thread_slices.thread_instruction_deltas()[*thread_slice_row];
+            thread_slices.thread_instruction_delta()[*thread_slice_row];
       } else {
         base::Optional<uint32_t> vtrack_slice_row =
             virtual_track_slices.FindRowForSliceId(id);
@@ -878,11 +877,11 @@ class JsonExporter {
           // Use "I" instead of "i" phase for backwards-compat with old
           // consumers.
           event["ph"] = "I";
-          if (thread_ts_ns > 0) {
-            event["tts"] = Json::Int64(thread_ts_ns / 1000);
+          if (thread_ts_ns && thread_ts_ns > 0) {
+            event["tts"] = Json::Int64(*thread_ts_ns / 1000);
           }
-          if (thread_instruction_count > 0) {
-            event["ticount"] = Json::Int64(thread_instruction_count);
+          if (thread_instruction_count && *thread_instruction_count > 0) {
+            event["ticount"] = Json::Int64(*thread_instruction_count);
           }
           event["s"] = "t";
         } else {
@@ -894,17 +893,17 @@ class JsonExporter {
             // write a begin event without end event in this case.
             event["ph"] = "B";
           }
-          if (thread_ts_ns > 0) {
-            event["tts"] = Json::Int64(thread_ts_ns / 1000);
+          if (thread_ts_ns && *thread_ts_ns > 0) {
+            event["tts"] = Json::Int64(*thread_ts_ns / 1000);
             // Only write thread duration for completed events.
-            if (duration_ns > 0)
-              event["tdur"] = Json::Int64(thread_duration_ns / 1000);
+            if (duration_ns > 0 && thread_duration_ns)
+              event["tdur"] = Json::Int64(*thread_duration_ns / 1000);
           }
-          if (thread_instruction_count > 0) {
-            event["ticount"] = Json::Int64(thread_instruction_count);
+          if (thread_instruction_count && *thread_instruction_count > 0) {
+            event["ticount"] = Json::Int64(*thread_instruction_count);
             // Only write thread instruction delta for completed events.
-            if (duration_ns > 0)
-              event["tidelta"] = Json::Int64(thread_instruction_delta);
+            if (duration_ns > 0 && thread_instruction_delta)
+              event["tidelta"] = Json::Int64(*thread_instruction_delta);
           }
         }
         writer_.WriteCommonEvent(event);
@@ -974,12 +973,12 @@ class JsonExporter {
           }
         }
 
-        if (thread_ts_ns > 0) {
-          event["tts"] = Json::Int64(thread_ts_ns / 1000);
+        if (thread_ts_ns && *thread_ts_ns > 0) {
+          event["tts"] = Json::Int64(*thread_ts_ns / 1000);
           event["use_async_tts"] = Json::Int(1);
         }
-        if (thread_instruction_count > 0) {
-          event["ticount"] = Json::Int64(thread_instruction_count);
+        if (thread_instruction_count && *thread_instruction_count > 0) {
+          event["ticount"] = Json::Int64(*thread_instruction_count);
           event["use_async_tts"] = Json::Int(1);
         }
 
@@ -1001,13 +1000,14 @@ class JsonExporter {
           if (duration_ns > 0) {
             event["ph"] = legacy_phase.empty() ? "e" : "F";
             event["ts"] = Json::Int64((slices.ts()[i] + duration_ns) / 1000);
-            if (thread_ts_ns > 0) {
+            if (thread_ts_ns && thread_duration_ns && *thread_ts_ns > 0) {
               event["tts"] =
-                  Json::Int64((thread_ts_ns + thread_duration_ns) / 1000);
+                  Json::Int64((*thread_ts_ns + *thread_duration_ns) / 1000);
             }
-            if (thread_instruction_count > 0) {
+            if (thread_instruction_count && thread_instruction_delta &&
+                *thread_instruction_count > 0) {
               event["ticount"] = Json::Int64(
-                  (thread_instruction_count + thread_instruction_delta));
+                  (*thread_instruction_count + *thread_instruction_delta));
             }
             event["args"].clear();
             writer_.AddAsyncEndEvent(event);
