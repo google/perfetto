@@ -22,6 +22,7 @@ import sys
 from codecs import open
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+SELF_PATH = os.path.relpath(__file__, PROJECT_ROOT)
 
 CONFIG_PROTO_ROOTS = [
     'protos/perfetto/common/data_source_descriptor.proto',
@@ -69,15 +70,14 @@ def get_transitive_imports(rel_path, visited):
 
 
 def merge_protos_content(proto_paths):
-  root_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-  merged_content = REPLACEMENT_HEADER.lstrip() % __file__
+  merged_content = REPLACEMENT_HEADER.lstrip() % SELF_PATH
   added_files = set()
   for proto in proto_paths:
     if proto in added_files:
       continue
     added_files.add(proto)
 
-    path = os.path.join(root_dir, proto)
+    path = os.path.join(PROJECT_ROOT, proto)
     with open(path, 'r', encoding='utf-8') as f:
       content = f.read()
 
@@ -119,13 +119,12 @@ def merge_protos_content(proto_paths):
 
 
 def merge_protos(root_paths, output_path):
-  root_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
   all_protos = []
   for root_path in root_paths:
     all_protos += get_transitive_imports(root_path, visited=set())
   merged_content = merge_protos_content(all_protos)
 
-  out_path = os.path.join(root_dir, output_path)
+  out_path = os.path.join(PROJECT_ROOT, output_path)
   prev_content = None
   if os.path.exists(out_path):
     with open(out_path, 'r', encoding='utf-8') as fprev:
