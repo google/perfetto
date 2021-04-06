@@ -110,7 +110,7 @@ int Main(int argc, char** argv) {
     }
   }
 
-  if (positional_args.size() < 1)
+  if (positional_args.empty())
     return Usage(argv[0]);
 
   std::istream* input_stream;

@@ -145,7 +145,7 @@ std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> FocusTable(
     return in;
   }
   std::vector<FocusedState> focused_state =
-      ComputeFocusedState(*in.get(), Matcher(focus_str));
+      ComputeFocusedState(*in, Matcher(focus_str));
   std::unique_ptr<ExperimentalFlamegraphNodesTable> tbl(
       new tables::ExperimentalFlamegraphNodesTable(
           storage->mutable_string_pool(), nullptr));
