@@ -977,7 +977,7 @@ message TraceMetadata {
 
 // Stats counters for the trace.
 // Defined in src/trace_processor/storage/stats.h
-message TraceStats {
+message TraceAnalysisStats {
   enum Severity {
     SEVERITY_UNKNOWN = 0;
     SEVERITY_INFO = 1;
@@ -1049,7 +1049,7 @@ message TraceMetrics {
   optional TraceMetadata trace_metadata = 3;
 
   // Trace stats (applicable to all traces).
-  optional TraceStats trace_stats = 33;
+  optional TraceAnalysisStats trace_stats = 33;
 
   // Returns stack frames missing symbols.
   optional UnsymbolizedFrames unsymbolized_frames = 15;
