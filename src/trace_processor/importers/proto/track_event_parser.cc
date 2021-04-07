@@ -1406,6 +1406,13 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
             "begin_frame_observer_state.last_begin_frame_args", state, field,
             inserter);
       });
+  context_->proto_to_args_table_->AddParsingOverride(
+      "chrome_memory_pressure_notification.creation_location_iid",
+      [](const ProtoToArgsTable::ParsingOverrideState& state,
+         const protozero::Field& field, BoundInserter* inserter) {
+        return MaybeParseSourceLocation("chrome_memory_pressure_notification",
+                                        state, field, inserter);
+      });
 
   for (uint16_t index : kReflectFields) {
     reflect_fields_.push_back(index);
