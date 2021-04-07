@@ -963,6 +963,7 @@ genrule(
         "src/trace_processor/metrics/chrome/scroll_jank_cause_get_bitmap.sql",
         "src/trace_processor/metrics/chrome/scroll_jank_cause_queuing_delay.sql",
         "src/trace_processor/metrics/chrome/test_chrome_metric.sql",
+        "src/trace_processor/metrics/experimental/blink_gc_metric.sql",
         "src/trace_processor/metrics/experimental/frame_times.sql",
         "src/trace_processor/metrics/experimental/reported_by_page.sql",
         "src/trace_processor/metrics/trace_metadata.sql",
@@ -2402,6 +2403,7 @@ perfetto_proto_library(
     name = "protos_perfetto_metrics_chrome_protos",
     srcs = [
         "protos/perfetto/metrics/chrome/all_chrome_metrics.proto",
+        "protos/perfetto/metrics/chrome/blink_gc_metric.proto",
         "protos/perfetto/metrics/chrome/frame_times.proto",
         "protos/perfetto/metrics/chrome/reported_by_page.proto",
         "protos/perfetto/metrics/chrome/scroll_jank.proto",
