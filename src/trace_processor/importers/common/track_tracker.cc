@@ -133,6 +133,12 @@ TrackId TrackTracker::InternLegacyChromeAsyncTrack(
   return id;
 }
 
+TrackId TrackTracker::CreateGlobalAsyncTrack(StringId name) {
+  tables::TrackTable::Row row(name);
+  auto id = context_->storage->mutable_track_table()->Insert(row).id;
+  return id;
+}
+
 TrackId TrackTracker::CreateAndroidAsyncTrack(StringId name, UniquePid upid) {
   tables::ProcessTrackTable::Row row(name);
   row.upid = upid;

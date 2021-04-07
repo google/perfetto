@@ -60,6 +60,9 @@ class AsyncTrackSetTracker {
   explicit AsyncTrackSetTracker(TraceProcessorContext* context);
   ~AsyncTrackSetTracker() = default;
 
+  // Interns a set of global async slice tracks associated with the given name.
+  TrackSetId InternGlobalTrackSet(StringId name);
+
   // Interns a set of Android async slice tracks associated with the given
   // upid and name.
   // Scoped is *not* supported for this track set type.
@@ -123,6 +126,7 @@ class AsyncTrackSetTracker {
   };
 
   enum class TrackSetType {
+    kGlobal,
     kAndroid,
     kFrameTimeline,
   };
@@ -148,6 +152,7 @@ class AsyncTrackSetTracker {
   struct TrackSet {
     TrackSetType type;
     union {
+      StringId global_track_name;
       // Only set when |type| == |TrackSetType::kAndroid|.
       AndroidTuple android_tuple;
       // Only set when |type| == |TrackSetType::kFrameTimeline|.
@@ -176,6 +181,7 @@ class AsyncTrackSetTracker {
 
   TrackId CreateTrackForSet(const TrackSet& set);
 
+  std::map<StringId, TrackSetId> global_track_set_ids_;
   std::map<AndroidTuple, TrackSetId> android_track_set_ids_;
   std::map<FrameTimelineTuple, TrackSetId> frame_timeline_track_set_ids_;
   std::vector<TrackSet> track_sets_;
