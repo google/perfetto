@@ -16,7 +16,7 @@ import {TrackData} from '../../common/track_data';
 
 export const COUNTER_TRACK_KIND = 'CounterTrack';
 
-export type CounterScaleOptions = 'DEFAULT'|'RELATIVE'|'DELTA';
+export type CounterScaleOptions = 'ZERO_BASED'|'MIN_MAX'|'DELTA_FROM_PREVIOUS';
 
 export interface Data extends TrackData {
   maximumValue: number;
