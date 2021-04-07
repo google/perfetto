@@ -70,8 +70,8 @@ struct TrackEventData : public TracePacketData {
 
   static constexpr size_t kMaxNumExtraCounters = 8;
 
-  int64_t thread_timestamp = 0;
-  int64_t thread_instruction_count = 0;
+  base::Optional<int64_t> thread_timestamp;
+  base::Optional<int64_t> thread_instruction_count;
   double counter_value = 0;
   std::array<double, kMaxNumExtraCounters> extra_counter_values = {};
 };

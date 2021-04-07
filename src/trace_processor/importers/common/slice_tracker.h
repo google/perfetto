@@ -126,10 +126,11 @@ class SliceTracker {
   };
   using StackMap = std::unordered_map<TrackId, TrackInfo>;
 
-  base::Optional<SliceId> StartSlice(int64_t timestamp,
-                                     TrackId track_id,
-                                     SetArgsCallback args_callback,
-                                     std::function<SliceId()> inserter);
+  // virtual for testing.
+  virtual base::Optional<SliceId> StartSlice(int64_t timestamp,
+                                             TrackId track_id,
+                                             SetArgsCallback args_callback,
+                                             std::function<SliceId()> inserter);
 
   base::Optional<SliceId> CompleteSlice(
       int64_t timestamp,
