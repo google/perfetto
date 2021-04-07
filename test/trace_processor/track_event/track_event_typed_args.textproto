@@ -145,12 +145,21 @@ packet {
     name: "name6"
     type: 3
     source_location_iid: 1
+    [perfetto.protos.ChromeTrackEvent.chrome_memory_pressure_notification] {
+      creation_location_iid: 2
+    }
   }
   interned_data: {
     source_locations: {
       iid: 1
       file_name: "source.cc"
       function_name: "SourceFunction"
+    }
+    source_locations: {
+      iid: 2
+      file_name: "another_source.cc"
+      function_name: "AnotherSourceFunction"
+      line_number: 1337
     }
   }
 }
