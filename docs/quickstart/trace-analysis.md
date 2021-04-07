@@ -97,7 +97,7 @@ ts                   dur                  cpu                  utid
 Trace Processor offers also a higher-level query interface that allows to run
 pre-baked queries, herein called "metrics". Metrics are generally curated by
 domain experts, often the same people who add the instrumentation points in the
-first lace, and output structured JSON/Protobuf/text.
+first place, and output structured JSON/Protobuf/text.
 Metrics allow to get a summarized view of the trace without having to type any
 SQL or having to load the trace in the UI.
 
