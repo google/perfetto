@@ -9693,6 +9693,7 @@ cc_binary {
   ],
   required: [
     "libperfetto_android_internal",
+    "mm_events",
     "traced_perf",
     "trigger_perfetto",
   ],
@@ -9911,6 +9912,11 @@ genrule {
     out: [
         "statslog_perfetto.cpp",
     ],
+}
+
+sh_binary {
+    name: "mm_events",
+    src: "tools/mm_events",
 }
 
 package {

@@ -216,7 +216,8 @@ additional_args = {
     'traced_probes': [
         ('required', {'libperfetto_android_internal',
                       'trigger_perfetto',
-                      'traced_perf'}),
+                      'traced_perf',
+                      'mm_events'}),
     ],
     'libperfetto_android_internal': [('static_libs', {'libhealthhalutils'}),],
     'trace_processor_shell': [
