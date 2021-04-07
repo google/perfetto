@@ -17,7 +17,6 @@
 'use strict';
 
 const fs = require('fs');
-const path = require('path');
 const argv = require('yargs').argv
 
 // Removes \n due to 80col wrapping and preserves only end-of-sentence line

@@ -66,7 +66,7 @@
 
 const argparse = require('argparse');
 const child_process = require('child_process');
-var crypto = require('crypto');
+const crypto = require('crypto');
 const fs = require('fs');
 const http = require('http');
 const path = require('path');
@@ -99,7 +99,6 @@ const cfg = {
   outDistRootDir: '',
   outTscDir: '',
   outGenDir: '',
-  outDistRootDir: '',
   outDistDir: '',
   outExtDir: '',
 };
@@ -242,7 +241,7 @@ function compileScss() {
   const src = pjoin(ROOT_DIR, 'ui/src/assets/perfetto.scss');
   const dst = pjoin(cfg.outDistDir, 'perfetto.css');
   // In watch mode, don't exit(1) if scss fails. It can easily happen by
-  // having a typo in the css. It will still print an errror.
+  // having a typo in the css. It will still print an error.
   const noErrCheck = !!cfg.watch;
   addTask(execNode, ['node-sass', ['--quiet', src, dst], {noErrCheck}]);
 }
@@ -279,7 +278,7 @@ function compileProtos() {
 function genVersion() {
   const cmd = 'python3';
   const args =
-      [VERSION_SCRIPT, '--ts_out', pjoin(cfg.outGenDir, 'perfetto_version.ts')]
+      [VERSION_SCRIPT, '--ts_out', pjoin(cfg.outGenDir, 'perfetto_version.ts')];
   addTask(exec, [cmd, args]);
 }
 
@@ -304,7 +303,7 @@ function buildWasm(skipWasmBuild) {
     const gnArgs = ['gen', `--args=is_debug=${cfg.debug}`, cfg.outDir];
     addTask(exec, [pjoin(ROOT_DIR, 'tools/gn'), gnArgs]);
 
-    const ninjaArgs = ['-C', cfg.outDir]
+    const ninjaArgs = ['-C', cfg.outDir];
     ninjaArgs.push(...cfg.wasmModules.map(x => `${x}_wasm`));
     addTask(exec, [pjoin(ROOT_DIR, 'tools/ninja'), ninjaArgs]);
   }
@@ -338,7 +337,7 @@ function transpileTsProject(project) {
 
 // Creates the three {frontend, controller, engine}_bundle.js in one invocation.
 function bundleJs(cfgName) {
-  const rcfg = pjoin(ROOT_DIR, 'ui/config', cfgName)
+  const rcfg = pjoin(ROOT_DIR, 'ui/config', cfgName);
   const args = ['-c', rcfg, '--no-indent'];
   args.push(...(cfg.verbose ? [] : ['--silent']));
   if (cfg.watch) {
@@ -372,7 +371,7 @@ function genServiceWorkerManifestJson() {
 
 function startServer() {
   const port = 10000;
-  console.log(`Starting HTTP server on http://localhost:${port}`)
+  console.log(`Starting HTTP server on http://localhost:${port}`);
   http.createServer(function(req, res) {
         console.debug(req.method, req.url);
         let uri = req.url.split('?', 1)[0];
@@ -553,7 +552,6 @@ function execNode(module, args, opts) {
   const modPath = pjoin(ROOT_DIR, 'ui/node_modules/.bin', module);
   const nodeBin = pjoin(ROOT_DIR, 'tools/node');
   args = [modPath].concat(args || []);
-  const argsJson = JSON.stringify(args);
   return exec(nodeBin, args, opts);
 }
 
