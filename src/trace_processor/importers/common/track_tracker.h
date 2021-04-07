@@ -52,6 +52,9 @@ class TrackTracker {
                                        bool source_id_is_process_scoped,
                                        StringId source_scope);
 
+  // Creates and inserts a global async track into the storage.
+  TrackId CreateGlobalAsyncTrack(StringId name);
+
   // Creates and inserts a Android async track into the storage.
   TrackId CreateAndroidAsyncTrack(StringId name, UniquePid upid);
 
