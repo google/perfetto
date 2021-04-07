@@ -9913,6 +9913,40 @@ package {
     default_applicable_licenses: ["external_perfetto_license"],
 }
 
+python_library {
+    name: "perfetto-trace-processor-python",
+    srcs: [
+        ":perfetto-trace-processor-python-srcs",
+    ],
+    data: [
+        ":perfetto-trace-processor-python-data",
+    ],
+    version: {
+        py2: {
+            enabled: false,
+        },
+        py3: {
+            enabled: true,
+        },
+    },
+    libs: [
+        "libprotobuf-python",
+    ],
+    host_supported: true,
+}
+
+filegroup {
+    name: "perfetto-trace-processor-python-srcs",
+    srcs: ["src/trace_processor/python/perfetto/**/*.py"],
+    path: "src/trace_processor/python",
+}
+
+filegroup {
+    name: "perfetto-trace-processor-python-data",
+    srcs: ["src/trace_processor/python/perfetto/**/*.descriptor*"],
+    path: "src/trace_processor/python",
+}
+
 // Added automatically by a large-scale-change that took the approach of
 // 'apply every license found to every target'. While this makes sure we respect
 // every license restriction, it may not be entirely correct.
