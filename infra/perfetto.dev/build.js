@@ -301,7 +301,6 @@ function execNode(script, args, opts) {
   const modPath = path.isAbsolute(script) ? script : pjoin(__dirname, script);
   const nodeBin = pjoin(ROOT_DIR, 'tools/node');
   args = [modPath].concat(args || []);
-  const argsJson = JSON.stringify(args);
   return exec(nodeBin, args, opts);
 }
 

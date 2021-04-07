@@ -42,7 +42,6 @@ import {
   isAndroidP,
   isChromeTarget,
   isCrOSTarget,
-  MAX_TIME,
   RecordConfig,
   RecordingTarget
 } from '../common/state';
@@ -75,12 +74,6 @@ export function genConfig(
     uiCfg: RecordConfig, target: RecordingTarget): TraceConfig {
   const protoCfg = new TraceConfig();
   protoCfg.durationMs = uiCfg.durationMs;
-
-  let time = protoCfg.durationMs / 1000;
-
-  if (time > MAX_TIME) {
-    time = MAX_TIME;
-  }
 
   // Auxiliary buffer for slow-rate events.
   // Set to 1/8th of the main buffer size, with reasonable limits.
