@@ -2341,10 +2341,15 @@ message BackgroundTracingMetadata {
         NAVIGATION = 2;
         STARTUP = 3;
         REACHED_CODE = 4;
+        CONTENT_TRIGGER = 5;
 
         TEST_RULE = 1000;
       }
       optional EventType event_type = 1;
+
+      // If |event_type| is CONTENT_TRIGGER, then this stores the hash of the
+      // content-trigger that actually fired.
+      optional fixed64 content_trigger_name_hash = 2;
     }
     optional NamedRule named_rule = 3;
   }
