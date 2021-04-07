@@ -153,8 +153,10 @@ class FtraceParser {
   const StringId cpu_idle_name_id_;
   const StringId ion_total_id_;
   const StringId ion_change_id_;
+  const StringId ion_buffer_id_;
   const StringId dma_heap_total_id_;
   const StringId dma_heap_change_id_;
+  const StringId dma_buffer_id_;
   const StringId ion_total_unknown_id_;
   const StringId ion_change_unknown_id_;
   const StringId signal_generate_id_;

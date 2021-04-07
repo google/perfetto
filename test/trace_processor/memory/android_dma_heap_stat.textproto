@@ -6,8 +6,8 @@ packet {
       pid: 1
       dma_heap_stat {
         inode: 123
-        len: 1000
-        total_allocated: 2000
+        len: 1024
+        total_allocated: 2048
       }
     }
   }
@@ -20,8 +20,8 @@ packet {
       pid: 1
       dma_heap_stat {
         inode: 123
-        len: -1000
-        total_allocated: 1000
+        len: -1024
+        total_allocated: 1024
       }
     }
   }
