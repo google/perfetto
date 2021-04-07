@@ -5,6 +5,9 @@ Unreleased:
     *
   UI:
     *
+  SDK:
+    * Changed ConvertTimestampToTraceTimeNs to be a member of
+      TraceTimestampTraits<T> struct instead of a standalone function.
 
 
 v14.0 - 2021-04-01:
