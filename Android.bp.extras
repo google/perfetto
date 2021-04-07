@@ -79,6 +79,11 @@ genrule {
     ],
 }
 
+sh_binary {
+    name: "mm_events",
+    src: "tools/mm_events",
+}
+
 package {
     default_applicable_licenses: ["external_perfetto_license"],
 }
