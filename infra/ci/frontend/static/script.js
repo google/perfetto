@@ -380,7 +380,7 @@ const TermRenderer = {
   },
   onupdate: function (vnode) {
     if (state.termClear) {
-      term.clear()
+      term.clear();
       state.termClear = false;
     }
     for (const line of state.termLines) {
@@ -552,13 +552,12 @@ async function fetchGerritCLs() {
   uri += '+-is:abandoned&o=DETAILED_ACCOUNTS&o=CURRENT_REVISION';
   const response = await fetch(uri);
   state.gerritCls = [];
-  let json = '';
   if (response.status !== 200) {
     setTimeout(fetchGerritCLs, 3000);  // Retry.
     return;
   }
 
-  json = (await response.text());
+  const json = (await response.text());
   const cls = [];
   for (const e of JSON.parse(json)) {
     const revHash = Object.keys(e.revisions)[0];
