@@ -67,4 +67,9 @@ trace.add_buffer_event_packet(ts=63, buffer_id=1, layer_name="layer1", frame_num
 trace.add_buffer_event_packet(ts=73, buffer_id=1, layer_name="layer1", frame_number=26, event_type=BufferEvent.DEQUEUE, duration=0)
 trace.add_buffer_event_packet(ts=75, buffer_id=1, layer_name="layer1", frame_number=26, event_type=BufferEvent.QUEUE, duration=0)
 trace.add_buffer_event_packet(ts=79, buffer_id=1, layer_name="layer1", frame_number=26, event_type=BufferEvent.ACQUIRE_FENCE, duration=0)
+# Same buffer in multiple layers
+trace.add_buffer_event_packet(ts=81, buffer_id=1, layer_name="layer1", frame_number=30, event_type=BufferEvent.DEQUEUE, duration=0)
+trace.add_buffer_event_packet(ts=83, buffer_id=1, layer_name="layer1", frame_number=30, event_type=BufferEvent.QUEUE, duration=0)
+trace.add_buffer_event_packet(ts=90, buffer_id=1, layer_name="layer2", frame_number=35, event_type=BufferEvent.DEQUEUE, duration=0)
+trace.add_buffer_event_packet(ts=92, buffer_id=1, layer_name="layer2", frame_number=35, event_type=BufferEvent.QUEUE, duration=0)
 sys.stdout.buffer.write(trace.trace.SerializeToString())
