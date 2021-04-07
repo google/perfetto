@@ -72,3 +72,21 @@ on property:persist.traced.enable=0
 # Reset the Perfetto guard rail state on boot:
 on post-fs-data
     rm /data/misc/perfetto-traces/.guardraildata
+
+#############################################################################
+#  mm_events - Arms a perfetto trace config that is triggered
+#              on memory pressure (kmem_activity trigger)
+#############################################################################
+
+service mm_events /system/bin/mm_events
+    class late_start
+    disabled
+    oneshot
+    user nobody
+    group nobody
+
+on property:persist.mm_events.enabled=true && property:persist.traced.enable=1
+    restart mm_events   # Restart to reset backoff interval
+
+on property:persist.mm_events.enabled=false
+    stop mm_events

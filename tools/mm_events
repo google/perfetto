@@ -1,0 +1,127 @@
+#!/system/bin/sh
+
+# Copyright (C) 2021 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
+# Periodically arms a perfetto trace config for mm_events
+# The config is triggered by the mm_events kmem_activity trigger
+# This script gets executed as a oneshot service from perfetto.rc
+# when persist.mm_events.enabled is set to true.
+
+DEFAULT_TRACE_CONFIG=<<EOF
+unique_session_name: "perfetto_mm_events_session"
+
+bugreport_score: 100
+
+buffers: {
+  size_kb: 512
+  fill_policy: DISCARD
+}
+
+data_sources: {
+  config {
+    name: "linux.sys_stats"
+    sys_stats_config {
+      vmstat_period_ms: 500
+      vmstat_counters: VMSTAT_NR_FREE_PAGES
+      vmstat_counters: VMSTAT_NR_SLAB_RECLAIMABLE
+      vmstat_counters: VMSTAT_NR_SLAB_UNRECLAIMABLE
+      vmstat_counters: VMSTAT_NR_ACTIVE_FILE
+      vmstat_counters: VMSTAT_NR_INACTIVE_FILE
+      vmstat_counters: VMSTAT_NR_ACTIVE_ANON
+      vmstat_counters: VMSTAT_NR_INACTIVE_ANON
+      vmstat_counters: VMSTAT_WORKINGSET_REFAULT
+      vmstat_counters: VMSTAT_WORKINGSET_ACTIVATE
+      vmstat_counters: VMSTAT_NR_FILE_PAGES
+      vmstat_counters: VMSTAT_PGPGIN
+      vmstat_counters: VMSTAT_PGPGOUT
+      vmstat_counters: VMSTAT_PSWPIN
+      vmstat_counters: VMSTAT_PSWPOUT
+      vmstat_counters: VMSTAT_PGSTEAL_KSWAPD_DMA
+      vmstat_counters: VMSTAT_PGSTEAL_KSWAPD_NORMAL
+      vmstat_counters: VMSTAT_PGSTEAL_KSWAPD_MOVABLE
+      vmstat_counters: VMSTAT_PGSTEAL_DIRECT_DMA
+      vmstat_counters: VMSTAT_PGSTEAL_DIRECT_NORMAL
+      vmstat_counters: VMSTAT_PGSTEAL_DIRECT_MOVABLE
+      vmstat_counters: VMSTAT_PGSCAN_KSWAPD_DMA
+      vmstat_counters: VMSTAT_PGSCAN_KSWAPD_NORMAL
+      vmstat_counters: VMSTAT_PGSCAN_KSWAPD_MOVABLE
+      vmstat_counters: VMSTAT_PGSCAN_DIRECT_DMA
+      vmstat_counters: VMSTAT_PGSCAN_DIRECT_NORMAL
+      vmstat_counters: VMSTAT_PGSCAN_DIRECT_MOVABLE
+      vmstat_counters: VMSTAT_COMPACT_MIGRATE_SCANNED
+      vmstat_counters: VMSTAT_COMPACT_FREE_SCANNED
+    }
+  }
+}
+
+data_sources: {
+  config {
+    name: "linux.ftrace"
+    ftrace_config {
+      ftrace_events: "vmscan/mm_vmscan_kswapd_wake"
+      ftrace_events: "vmscan/mm_vmscan_kswapd_sleep"
+      ftrace_events: "vmscan/mm_vmscan_direct_reclaim_begin"
+      ftrace_events: "vmscan/mm_vmscan_direct_reclaim_end"
+      ftrace_events: "compaction/mm_compaction_begin"
+      ftrace_events: "compaction/mm_compaction_end"
+    }
+  }
+}
+
+trigger_config {
+  trigger_mode: START_TRACING
+  trigger_timeout_ms: 3600000
+  triggers {
+    name: "kmem_activity"
+    stop_delay_ms: 360000
+  }
+}
+EOF
+
+VENDOR_TRACE_CONFIG="/vendor/etc/mm_events.cfg"
+
+BASE_SLEEP=30
+SLEEP=$BASE_SLEEP
+BACKOFF_MULTIPLIER=2
+CONSECUTIVE_FAILURES=0
+FAILURES_THRESHOLD=10
+
+# Keep the mm events perfetto trace config armed
+while :
+do
+    sleep $SLEEP
+
+    # If an alternate vendor trace config exists use that instead of the default.
+    if [ -f "$VENDOR_TRACE_CONFIG" ]; then
+        /system/bin/perfetto -c "$VENDOR_TRACE_CONFIG" --txt -o /dev/null
+        EXIT_CODE=$?
+    else
+        echo "$DEFAULT_TRACE_CONFIG" | /system/bin/perfetto -c - --txt -o /dev/null
+        EXIT_CODE=$?
+    fi
+
+    if [[ $EXIT_CODE -ne 0 ]]; then
+        SLEEP=$(($SLEEP * $BACKOFF_MULTIPLIER))
+
+        CONSECUTIVE_FAILURES=$(($CONSECUTIVE_FAILURES + 1))
+        if [ $CONSECUTIVE_FAILURES -ge $FAILURES_THRESHOLD ]; then
+            exit 1
+        fi
+    else
+        SLEEP=$BASE_SLEEP
+        CONSECUTIVE_FAILURES=0
+    fi
+done
