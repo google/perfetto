@@ -29,6 +29,7 @@ import sys
 import tempfile
 import time
 import uuid
+import platform
 
 
 TRACE_TO_TEXT_SHAS = {
@@ -57,9 +58,9 @@ def check_hash(file_name, sha_value):
     return file_hash.hexdigest() == sha_value
 
 
-def load_trace_to_text(platform):
-  sha_value = TRACE_TO_TEXT_SHAS[platform]
-  file_name = 'trace_to_text-' + platform + '-' + sha_value
+def load_trace_to_text(os_name):
+  sha_value = TRACE_TO_TEXT_SHAS[os_name]
+  file_name = 'trace_to_text-' + os_name + '-' + sha_value
   local_file = os.path.join(TRACE_TO_TEXT_PATH, file_name)
 
   if os.path.exists(local_file):
@@ -375,19 +376,23 @@ def main(argv):
   # print out the config.
   has_trace_to_text = True
   if trace_to_text_binary is None:
-    platform = None
+    os_name = None
     if sys.platform.startswith('linux'):
-      platform = 'linux'
+      os_name = 'linux'
     elif sys.platform.startswith('darwin'):
-      platform = 'mac'
+      os_name = 'mac'
     elif sys.platform.startswith('win32'):
       has_trace_to_text = False
     else:
       print("Invalid platform: {}".format(sys.platform), file=sys.stderr)
       return 1
 
+    arch = platform.machine()
+    if arch not in ['x86_64', 'amd64']:
+      has_trace_to_text = False
+
     if has_trace_to_text:
-      trace_to_text_binary = load_trace_to_text(platform)
+      trace_to_text_binary = load_trace_to_text(os_name)
 
   known_issues = maybe_known_issues()
   if known_issues:
