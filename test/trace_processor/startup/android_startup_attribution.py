@@ -96,9 +96,17 @@ trace.add_atrace_begin(
     ts=150, pid=APP_PID, tid=JIT_TID, buf='JIT compiling someting')
 trace.add_atrace_end(ts=160, pid=APP_PID, tid=JIT_TID)
 
+trace.add_sched(ts=155, prev_pid=0, next_pid=JIT_TID)
+trace.add_sched(ts=165, prev_pid=JIT_TID, next_pid=0)
+
 trace.add_atrace_begin(
     ts=170, pid=APP_PID, tid=JIT_TID, buf='JIT compiling something else')
 trace.add_atrace_end(ts=190, pid=APP_PID, tid=JIT_TID)
+
+trace.add_sched(ts=170, prev_pid=0, next_pid=JIT_TID)
+trace.add_sched(ts=175, prev_pid=JIT_TID, next_pid=0, prev_state='R')
+trace.add_sched(ts=185, prev_pid=0, next_pid=JIT_TID)
+trace.add_sched(ts=190, prev_pid=JIT_TID, next_pid=0)
 
 # JIT slice, but not on JIT thread.
 trace.add_atrace_begin(
