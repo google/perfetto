@@ -45,7 +45,7 @@ message AndroidStartupMetric {
 
   // Timing information spanning the intent received by the
   // activity manager to the first frame drawn.
-  // Next id: 28.
+  // Next id: 29.
   message ToFirstFrame {
     optional int64 dur_ns = 1;
     optional double dur_ms = 17;
@@ -91,8 +91,11 @@ message AndroidStartupMetric {
     // Total time spent verifying classes during app startup.
     optional Slice time_verify_class = 25;
 
-    // Number of methods compiled by JIT.
+    // Number of methods that were compiled by JIT during app startup.
     optional uint32 jit_compiled_methods = 27;
+
+    // Time spent running CPU on jit thread pool.
+    optional Slice time_jit_thread_pool_on_cpu = 28;
 
     // Deprecated was other_process_to_activity_cpu_ratio
     reserved 12;
