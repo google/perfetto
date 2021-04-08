@@ -176,7 +176,8 @@ namespace stats {
       "An ftrace packet was seen before the tracing start timestamp from "     \
       "the tracing service. This happens if the ftrace buffers were not "      \
       "cleared properly. These packets are silently dropped by trace "         \
-      "processor.")
+      "processor."),                                                           \
+  F(perf_guardrail_stop_ts,             kIndexed, kDataLoss, kTrace,    "")
 // clang-format on
 
 enum Type {
