@@ -412,6 +412,8 @@ def gen_target_str(gn_target):
 
 def generate_build(gn_desc, targets, extras):
   gn = gn_utils.GnParser(gn_desc)
+  project_root = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
+  tool_name = os.path.relpath(os.path.abspath(__file__), project_root)
   res = '''
 # Copyright (C) 2019 The Android Open Source Project
 #
@@ -454,7 +456,7 @@ licenses(["notice"])
 
 exports_files(["NOTICE"])
 
-'''.format(__file__).lstrip()
+'''.format(tool_name).lstrip()
 
   # Public targets need to be computed at the beginning (to figure out the
   # intermediate deps) but printed at the end (because declaration order matters
