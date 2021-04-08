@@ -107,23 +107,34 @@ SELECT launch_id, state, SUM(dur) AS dur
 FROM main_thread_state
 GROUP BY 1, 2;
 
+-- Tracks all main thread process threads.
+DROP VIEW IF EXISTS launch_threads;
+CREATE VIEW launch_threads AS
+SELECT
+  launches.id AS launch_id,
+  launches.ts AS ts,
+  launches.dur AS dur,
+  thread.utid AS utid,
+  thread.name AS thread_name
+FROM launches
+JOIN launch_processes ON (launches.id = launch_processes.launch_id)
+JOIN thread ON (launch_processes.upid = thread.upid);
+
 -- Tracks all slices for the main process threads
 DROP VIEW IF EXISTS main_process_slice_unaggregated;
 CREATE VIEW main_process_slice_unaggregated AS
 SELECT
-  launches.id AS launch_id,
-  thread.utid AS utid,
-  thread.name AS thread_name,
+  launch_threads.launch_id AS launch_id,
+  launch_threads.utid AS utid,
+  launch_threads.thread_name AS thread_name,
   slice.name AS slice_name,
   slice.ts AS slice_ts,
   slice.dur AS slice_dur
-FROM launches
-JOIN launch_processes ON (launches.id = launch_processes.launch_id)
-JOIN thread ON (launch_processes.upid = thread.upid)
+FROM launch_threads
 JOIN thread_track USING (utid)
 JOIN slice ON (
   slice.track_id = thread_track.id
-  AND slice.ts BETWEEN launches.ts AND launches.ts + launches.dur)
+  AND slice.ts BETWEEN launch_threads.ts AND launch_threads.ts + launch_threads.dur)
 WHERE slice.name IN (
   'PostFork',
   'ActivityThreadMain',
@@ -384,6 +395,19 @@ SELECT
         FROM main_process_slice_unaggregated
         WHERE slice_name LIKE 'JIT compiling%'
           AND thread_name = 'Jit thread pool'
+      ),
+      'time_jit_thread_pool_on_cpu', (
+        SELECT
+        NULL_IF_EMPTY(AndroidStartupMetric_Slice(
+          'dur_ns', SUM(states.dur),
+          'dur_ms', SUM(states.dur) / 1e6))
+        FROM launch_threads
+        JOIN thread_state_extended states USING(utid)
+        WHERE
+          launch_threads.launch_id = launches.id
+          AND launch_threads.thread_name = 'Jit thread pool'
+          AND states.state = 'Running'
+          AND states.ts BETWEEN launch_threads.ts AND launch_threads.ts + launch_threads.dur
       )
     ),
     'hsc', (
