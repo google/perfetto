@@ -29,6 +29,10 @@ android_startup {
       mcycles_by_core_type {
       }
       jit_compiled_methods: 2
+      time_jit_thread_pool_on_cpu {
+        dur_ns: 20
+        dur_ms: 2e-05
+      }
     }
     activity_hosting_process_count: 1
     process {
