@@ -165,6 +165,11 @@ void ProfileModule::ParsePerfSample(
   const auto& sample_raw = decoder.perf_sample();
   PerfSample::Decoder sample(sample_raw.data, sample_raw.size);
 
+  uint32_t seq_id = decoder.trusted_packet_sequence_id();
+  PerfSampleTracker::SamplingStreamInfo sampling_stream =
+      context_->perf_sample_tracker->GetSamplingStreamInfo(
+          seq_id, sample.cpu(), sequence_state->GetTracePacketDefaults());
+
   // Not a sample, but an indication of data loss in the ring buffer shared with
   // the kernel.
   if (sample.kernel_records_lost() > 0) {
@@ -191,19 +196,23 @@ void ProfileModule::ParsePerfSample(
   }
 
   // Not a sample, but an event from the producer.
-  // TODO(rsavitski): parse abrupt stops, and see if we can propagate syscall
-  // failures to this field.
+  // TODO(rsavitski): this stat is indexed by the session id, but the older
+  // stats (see above) aren't. The indexing is relevant if a trace contains more
+  // than one profiling data source. So the older stats should be changed to
+  // being indexed as well.
   if (sample.has_producer_event()) {
+    PerfSample::ProducerEvent::Decoder producer_event(sample.producer_event());
+    if (producer_event.source_stop_reason() ==
+        PerfSample::ProducerEvent::PROFILER_STOP_GUARDRAIL) {
+      context_->storage->SetIndexedStats(
+          stats::perf_guardrail_stop_ts,
+          static_cast<int>(sampling_stream.perf_session_id), ts);
+    }
     return;
   }
 
   // Proper sample, populate the |perf_sample| table with everything except the
   // recorded counter values, which go to |counter|.
-  uint32_t seq_id = decoder.trusted_packet_sequence_id();
-  PerfSampleTracker::SamplingStreamInfo sampling_stream =
-      context_->perf_sample_tracker->GetSamplingStreamInfo(
-          seq_id, sample.cpu(), sequence_state->GetTracePacketDefaults());
-
   context_->event_tracker->PushCounter(
       ts, static_cast<double>(sample.timebase_count()),
       sampling_stream.timebase_track_id);
