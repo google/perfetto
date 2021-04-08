@@ -357,8 +357,10 @@ Some examples of valid combinations:
      });
    ```
 
-   |time_in_nanoseconds| should be an uint64_t by default. See
-   |ConvertTimestampToTraceTimeNs| on how to use custom timestamp types.
+   |time_in_nanoseconds| should be an uint64_t by default. To support custom
+   timestamp types, 
+   |perfetto::TraceTimestampTraits<MyTimestamp>::ConvertTimestampToTraceTimeNs|
+   should be defined. See |ConvertTimestampToTraceTimeNs| for more details.
 
 3. Up to two debug annotations:
 

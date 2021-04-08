@@ -123,70 +123,6 @@ class TraceStorage {
 
   virtual ~TraceStorage();
 
-  class ThreadSlices {
-   public:
-    inline uint32_t AddThreadSlice(SliceId slice_id,
-                                   int64_t thread_timestamp_ns,
-                                   int64_t thread_duration_ns,
-                                   int64_t thread_instruction_count,
-                                   int64_t thread_instruction_delta) {
-      slice_ids_.emplace_back(slice_id);
-      thread_timestamp_ns_.emplace_back(thread_timestamp_ns);
-      thread_duration_ns_.emplace_back(thread_duration_ns);
-      thread_instruction_counts_.emplace_back(thread_instruction_count);
-      thread_instruction_deltas_.emplace_back(thread_instruction_delta);
-      return slice_count() - 1;
-    }
-
-    uint32_t slice_count() const {
-      return static_cast<uint32_t>(slice_ids_.size());
-    }
-
-    const std::deque<SliceId>& slice_ids() const { return slice_ids_; }
-    const std::deque<int64_t>& thread_timestamp_ns() const {
-      return thread_timestamp_ns_;
-    }
-    const std::deque<int64_t>& thread_duration_ns() const {
-      return thread_duration_ns_;
-    }
-    const std::deque<int64_t>& thread_instruction_counts() const {
-      return thread_instruction_counts_;
-    }
-    const std::deque<int64_t>& thread_instruction_deltas() const {
-      return thread_instruction_deltas_;
-    }
-
-    base::Optional<uint32_t> FindRowForSliceId(SliceId slice_id) const {
-      auto it =
-          std::lower_bound(slice_ids().begin(), slice_ids().end(), slice_id);
-      if (it != slice_ids().end() && *it == slice_id) {
-        return static_cast<uint32_t>(std::distance(slice_ids().begin(), it));
-      }
-      return base::nullopt;
-    }
-
-    void UpdateThreadDeltasForSliceId(SliceId slice_id,
-                                      int64_t end_thread_timestamp_ns,
-                                      int64_t end_thread_instruction_count) {
-      auto opt_row = FindRowForSliceId(slice_id);
-      if (!opt_row)
-        return;
-      uint32_t row = *opt_row;
-      int64_t begin_ns = thread_timestamp_ns_[row];
-      thread_duration_ns_[row] = end_thread_timestamp_ns - begin_ns;
-      int64_t begin_ticount = thread_instruction_counts_[row];
-      thread_instruction_deltas_[row] =
-          end_thread_instruction_count - begin_ticount;
-    }
-
-   private:
-    std::deque<SliceId> slice_ids_;
-    std::deque<int64_t> thread_timestamp_ns_;
-    std::deque<int64_t> thread_duration_ns_;
-    std::deque<int64_t> thread_instruction_counts_;
-    std::deque<int64_t> thread_instruction_deltas_;
-  };
-
   class VirtualTrackSlices {
    public:
     inline uint32_t AddVirtualTrackSlice(SliceId slice_id,
@@ -464,8 +400,12 @@ class TraceStorage {
   const tables::FlowTable& flow_table() const { return flow_table_; }
   tables::FlowTable* mutable_flow_table() { return &flow_table_; }
 
-  const ThreadSlices& thread_slices() const { return thread_slices_; }
-  ThreadSlices* mutable_thread_slices() { return &thread_slices_; }
+  const tables::ThreadSliceTable& thread_slice_table() const {
+    return thread_slice_table_;
+  }
+  tables::ThreadSliceTable* mutable_thread_slice_table() {
+    return &thread_slice_table_;
+  }
 
   const VirtualTrackSlices& virtual_track_slices() const {
     return virtual_track_slices_;
@@ -820,7 +760,7 @@ class TraceStorage {
   tables::SchedSliceTable sched_slice_table_{&string_pool_, nullptr};
 
   // Additional attributes for threads slices (sub-type of NestableSlices).
-  ThreadSlices thread_slices_;
+  tables::ThreadSliceTable thread_slice_table_{&string_pool_, &slice_table_};
 
   // Additional attributes for virtual track slices (sub-type of
   // NestableSlices).

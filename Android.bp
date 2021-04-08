@@ -3658,7 +3658,9 @@ genrule {
     "protos/perfetto/metrics/android/thread_time_in_state_metric.proto",
     "protos/perfetto/metrics/android/unsymbolized_frames.proto",
     "protos/perfetto/metrics/chrome/all_chrome_metrics.proto",
+    "protos/perfetto/metrics/chrome/blink_gc_metric.proto",
     "protos/perfetto/metrics/chrome/frame_times.proto",
+    "protos/perfetto/metrics/chrome/media_metric.proto",
     "protos/perfetto/metrics/chrome/reported_by_page.proto",
     "protos/perfetto/metrics/chrome/scroll_jank.proto",
     "protos/perfetto/metrics/chrome/test_chrome_metric.proto",
@@ -7777,7 +7779,9 @@ genrule {
     "src/trace_processor/metrics/chrome/scroll_jank_cause_get_bitmap.sql",
     "src/trace_processor/metrics/chrome/scroll_jank_cause_queuing_delay.sql",
     "src/trace_processor/metrics/chrome/test_chrome_metric.sql",
+    "src/trace_processor/metrics/experimental/blink_gc_metric.sql",
     "src/trace_processor/metrics/experimental/frame_times.sql",
+    "src/trace_processor/metrics/experimental/media_metric.sql",
     "src/trace_processor/metrics/experimental/reported_by_page.sql",
     "src/trace_processor/metrics/trace_metadata.sql",
     "src/trace_processor/metrics/trace_stats.sql",
@@ -9689,6 +9693,7 @@ cc_binary {
   ],
   required: [
     "libperfetto_android_internal",
+    "mm_events",
     "traced_perf",
     "trigger_perfetto",
   ],
@@ -9907,6 +9912,11 @@ genrule {
     out: [
         "statslog_perfetto.cpp",
     ],
+}
+
+sh_binary {
+    name: "mm_events",
+    src: "tools/mm_events",
 }
 
 package {

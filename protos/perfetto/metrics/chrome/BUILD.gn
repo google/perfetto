@@ -22,7 +22,9 @@ perfetto_proto_library("@TYPE@") {
   ]
   sources = [
     "all_chrome_metrics.proto",
+    "blink_gc_metric.proto",
     "frame_times.proto",
+    "media_metric.proto",
     "reported_by_page.proto",
     "scroll_jank.proto",
     "test_chrome_metric.proto",

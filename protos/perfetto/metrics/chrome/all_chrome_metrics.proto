@@ -19,7 +19,9 @@ syntax = "proto2";
 package perfetto.protos;
 
 import "protos/perfetto/metrics/metrics.proto";
+import "protos/perfetto/metrics/chrome/blink_gc_metric.proto";
 import "protos/perfetto/metrics/chrome/frame_times.proto";
+import "protos/perfetto/metrics/chrome/media_metric.proto";
 import "protos/perfetto/metrics/chrome/scroll_jank.proto";
 import "protos/perfetto/metrics/chrome/test_chrome_metric.proto";
 import "protos/perfetto/metrics/chrome/reported_by_page.proto";
@@ -29,4 +31,6 @@ extend TraceMetrics {
   optional FrameTimes frame_times = 1002;
   optional ReportedByPage reported_by_page = 1003;
   optional ScrollJank scroll_jank = 1004;
+  optional BlinkGcMetric blink_gc_metric = 1005;
+  optional MediaMetric media_metric = 1006;
 }

@@ -164,9 +164,12 @@ bool ConvertThreadId(const MyThreadId& thread,
 }  // namespace legacy
 
 template <>
-TraceTimestamp ConvertTimestampToTraceTimeNs(const MyTimestamp& timestamp) {
-  return {TrackEvent::GetTraceClockId(), timestamp.ts};
-}
+struct TraceTimestampTraits<MyTimestamp> {
+  static TraceTimestamp ConvertTimestampToTraceTimeNs(
+      const MyTimestamp& timestamp) {
+    return {TrackEvent::GetTraceClockId(), timestamp.ts};
+  }
+};
 
 }  // namespace perfetto
 
