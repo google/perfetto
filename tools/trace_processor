@@ -29,6 +29,7 @@ import os
 import sys
 import tempfile
 import subprocess
+import platform
 
 TRACE_PROCESSOR_SHELL_SHAS = {
     'linux': 'cb07e9dddf2a6a67bcc8062d1a07209411baaf7e',
@@ -69,16 +70,22 @@ def load_trace_processor_shell(platform):
 
 
 def main(argv):
-  platform = None
+  os_name = None
   if sys.platform.startswith('linux'):
-    platform = 'linux'
+    os_name = 'linux'
   elif sys.platform.startswith('darwin'):
-    platform = 'mac'
+    os_name = 'mac'
   else:
     print("Invalid platform: {}".format(sys.platform))
     return 1
 
-  trace_processor_shell_binary = load_trace_processor_shell(platform)
+  arch = platform.machine()
+  if arch not in ['x86_64', 'amd64']:
+    print("Prebuilts are only available for x86_64 (found '{}' instead).".format(arch))
+    print("Follow https://perfetto.dev/docs/contributing/build-instructions to build locally.")
+    return 1
+
+  trace_processor_shell_binary = load_trace_processor_shell(os_name)
   os.execv(trace_processor_shell_binary,
            [trace_processor_shell_binary] + argv[1:])
 
