@@ -29,6 +29,7 @@ import os
 import sys
 import subprocess
 import tempfile
+import platform
 
 
 TRACE_TO_TEXT_SHAS = {
@@ -70,16 +71,22 @@ def load_trace_to_text(platform):
 
 
 def main(argv):
-  platform = None
+  os_name = None
   if sys.platform.startswith('linux'):
-    platform = 'linux'
+    os_name = 'linux'
   elif sys.platform.startswith('darwin'):
-    platform = 'mac'
+    os_name = 'mac'
   else:
     print("Invalid platform: {}".format(sys.platform))
     return 1
 
-  trace_to_text_binary = load_trace_to_text(platform)
+  arch = platform.machine()
+  if arch not in ['x86_64', 'amd64']:
+    print("Prebuilts are only available for x86_64 (found '{}' instead).".format(arch))
+    print("Follow https://perfetto.dev/docs/contributing/build-instructions to build locally.")
+    return 1
+
+  trace_to_text_binary = load_trace_to_text(os_name)
   os.execv(trace_to_text_binary, [trace_to_text_binary] + argv[1:])
 
 
