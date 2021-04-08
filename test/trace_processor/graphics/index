@@ -40,3 +40,6 @@ android_jank.py android_jank android_jank.out
 
 # G2D metrics
 g2d_metrics.textproto g2d g2d_metrics.out
+
+# Composer execution
+composer_execution.py composer_execution.sql composer_execution.out

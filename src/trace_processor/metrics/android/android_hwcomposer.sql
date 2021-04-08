@@ -43,17 +43,41 @@ SELECT RUN_METRIC(
   'output', 'sf_cached_layers'
 );
 
+SELECT RUN_METRIC(
+  'android/composer_execution.sql',
+  'output', 'hwc_execution_spans'
+);
+
 DROP VIEW IF EXISTS android_hwcomposer_output;
 CREATE VIEW android_hwcomposer_output AS
 SELECT AndroidHwcomposerMetrics(
-    'composition_total_layers', (SELECT AVG(value)
-                            FROM total_layers),
-    'composition_dpu_layers', (SELECT AVG(value)
-                            FROM dpu_layers),
-    'composition_gpu_layers', (SELECT AVG(value)
-                            FROM gpu_layers),
-    'composition_dpu_cached_layers', (SELECT AVG(value)
-                            FROM dpu_cached_layers),
-    'composition_sf_cached_layers', (SELECT AVG(value)
-                            FROM sf_cached_layers)
+  'composition_total_layers', (SELECT AVG(value) FROM total_layers),
+  'composition_dpu_layers', (SELECT AVG(value) FROM dpu_layers),
+  'composition_gpu_layers', (SELECT AVG(value) FROM gpu_layers),
+  'composition_dpu_cached_layers', (SELECT AVG(value) FROM dpu_cached_layers),
+  'composition_sf_cached_layers', (SELECT AVG(value) FROM sf_cached_layers),
+  'skipped_validation_count',
+      (SELECT COUNT(*) FROM hwc_execution_spans
+      WHERE validation_type = 'skipped_validation'),
+  'unskipped_validation_count',
+      (SELECT COUNT(*) FROM hwc_execution_spans
+      WHERE validation_type = 'unskipped_validation'),
+  'separated_validation_count',
+      (SELECT COUNT(*) FROM hwc_execution_spans
+      WHERE validation_type = 'separated_validation'),
+  'unknown_validation_count',
+      (SELECT COUNT(*) FROM hwc_execution_spans
+      WHERE validation_type = 'unknown'),
+  'avg_all_execution_time_ms',
+      (SELECT AVG(execution_time_ns) / 1e6 FROM hwc_execution_spans
+      WHERE validation_type != 'unknown'),
+  'avg_skipped_execution_time_ms',
+      (SELECT AVG(execution_time_ns) / 1e6 FROM hwc_execution_spans
+      WHERE validation_type = 'skipped_validation'),
+  'avg_unskipped_execution_time_ms',
+      (SELECT AVG(execution_time_ns) / 1e6 FROM hwc_execution_spans
+      WHERE validation_type = 'unskipped_validation'),
+  'avg_separated_execution_time_ms',
+      (SELECT AVG(execution_time_ns) / 1e6 FROM hwc_execution_spans
+      WHERE validation_type = 'separated_validation')
 );

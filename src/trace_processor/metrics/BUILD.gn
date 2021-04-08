@@ -30,6 +30,7 @@ sql_files = [
   "android/android_mem.sql",
   "android/android_mem_unagg.sql",
   "android/android_ion.sql",
+  "android/composer_execution.sql",
   "android/composition_layers.sql",
   "android/frame_missed.sql",
   "android/android_jank.sql",
