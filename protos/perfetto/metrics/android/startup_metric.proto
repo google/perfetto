@@ -47,8 +47,12 @@ message AndroidStartupMetric {
   // activity manager to the first frame drawn.
   // Next id: 29.
   message ToFirstFrame {
+    // The duration between the intent received and first frame.
     optional int64 dur_ns = 1;
     optional double dur_ms = 17;
+
+    // Breakdown of time to first frame by task state for the main thread of
+    // the process starting up.
     optional TaskStateBreakdown main_thread_by_task_state = 2;
 
     // The mcycles taken by this startup across all CPUs (broken down by core
@@ -130,7 +134,14 @@ message AndroidStartupMetric {
     optional string location = 4;
   }
 
-  // Next id: 13
+  // Contains timestamps of important events which occurred during the
+  // startup.
+  message EventTimestamps {
+    optional int64 intent_received = 1;
+    optional int64 first_frame = 2;
+  }
+
+  // Next id: 14
   message Startup {
     // Random id uniquely identifying an app startup in this trace.
     optional uint32 startup_id = 1;
@@ -153,11 +164,19 @@ message AndroidStartupMetric {
     // it.
     optional uint32 activity_hosting_process_count = 6;
 
+    // Contains timestamps of important events which happened during
+    // the startup.
+    optional EventTimestamps event_timestamps = 13;
+
+    // Timing information spanning the intent received by the
+    // activity manager to the first frame drawn.
     optional ToFirstFrame to_first_frame = 5;
 
     // Details about the process (uid, version, etc)
     optional AndroidProcessMetadata process = 7;
 
+    // Metrics about startup which were developed by looking at experiments
+    // using high-speed cameras (HSC).
     optional HscMetrics hsc = 8;
 
     // The time taken in the startup from intent recieved to the start time
@@ -165,6 +184,7 @@ message AndroidStartupMetric {
     // first frame as the application decides this after it starts rendering.
     optional Slice report_fully_drawn = 9;
 
+    // Conntains information about the status of odex files.
     repeated OptimizationStatus optimization_status = 12;
 
     reserved 10;
