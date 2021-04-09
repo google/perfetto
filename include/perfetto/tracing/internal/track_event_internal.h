@@ -47,7 +47,7 @@ class DebugAnnotation;
 // A callback interface for observing track event tracing sessions starting and
 // stopping. See TrackEvent::{Add,Remove}SessionObserver. Note that all methods
 // will be called on an internal Perfetto thread.
-class TrackEventSessionObserver {
+class PERFETTO_EXPORT TrackEventSessionObserver {
  public:
   virtual ~TrackEventSessionObserver();
   // Called when a track event tracing session is configured. Note tracing isn't
