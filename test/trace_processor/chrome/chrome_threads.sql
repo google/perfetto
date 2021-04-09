@@ -12,4 +12,6 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 SELECT RUN_METRIC('chrome/chrome_processes.sql') AS suppress_query_output;
-SELECT tid, name, is_main_thread, canonical_name FROM chrome_thread;
+SELECT tid, name, is_main_thread, canonical_name
+FROM chrome_thread
+ORDER BY tid, name;
