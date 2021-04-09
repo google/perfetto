@@ -78,12 +78,30 @@ bool GraphicsFrameEventParser::CreateBufferEvent(
     return false;
   }
 
+  // Use buffer id + layer name as key because sometimes the same buffer can be
+  // used by different layers.
+  char event_key_buffer[4096];
+  base::StringWriter event_key_str(event_key_buffer,
+                                   base::ArraySize(event_key_buffer));
+  const uint32_t buffer_id = event.buffer_id();
+  StringId layer_name_id;
+  event_key_str.AppendUnsignedInt(buffer_id);
+
+  if (event.has_layer_name()) {
+    layer_name_id = context_->storage->InternString(event.layer_name());
+    event_key_str.AppendString(base::StringView(event.layer_name()));
+  } else {
+    layer_name_id = no_layer_name_name_id_;
+  }
+  StringId event_key =
+      context_->storage->InternString(event_key_str.GetStringView());
+
   StringId event_name_id = unknown_event_name_id_;
   if (event.has_type()) {
     const auto type = static_cast<size_t>(event.type());
     if (type < event_type_name_ids_.size()) {
       event_name_id = event_type_name_ids_[type];
-      graphics_frame_stats_map_[event.buffer_id()][type] = timestamp;
+      graphics_frame_stats_map_[event_key][type] = timestamp;
     } else {
       context_->storage->IncrementStats(
           stats::graphics_frame_event_parser_errors);
@@ -95,20 +113,12 @@ bool GraphicsFrameEventParser::CreateBufferEvent(
     PERFETTO_ELOG("GraphicsFrameEvent with missing type field.");
   }
 
-  const uint32_t buffer_id = event.buffer_id();
-  StringId layer_name_id;
-
-  if (event.has_layer_name()) {
-    auto layer_name_str = event.layer_name();
-    const base::StringView layer_name(layer_name_str);
-    layer_name_id = context_->storage->InternString(layer_name);
-  } else {
-    layer_name_id = no_layer_name_name_id_;
-  }
   char buffer[4096];
-  base::StringWriter track_name(buffer, sizeof(buffer));
+  base::StringWriter track_name(buffer, base::ArraySize(buffer));
   track_name.AppendLiteral("Buffer: ");
   track_name.AppendUnsignedInt(buffer_id);
+  track_name.AppendLiteral(" ");
+  track_name.AppendString(base::StringView(event.layer_name()));
 
   const StringId track_name_id =
       context_->storage->InternString(track_name.GetStringView());
@@ -132,12 +142,12 @@ bool GraphicsFrameEventParser::CreateBufferEvent(
     row.layer_name = layer_name_id;
     if (event.type() == GraphicsFrameEvent::PRESENT_FENCE) {
       auto acquire_ts =
-          graphics_frame_stats_map_[event.buffer_id()]
+          graphics_frame_stats_map_[event_key]
                                    [GraphicsFrameEvent::ACQUIRE_FENCE];
-      auto queue_ts = graphics_frame_stats_map_[event.buffer_id()]
-                                               [GraphicsFrameEvent::QUEUE];
-      auto latch_ts = graphics_frame_stats_map_[event.buffer_id()]
-                                               [GraphicsFrameEvent::LATCH];
+      auto queue_ts =
+          graphics_frame_stats_map_[event_key][GraphicsFrameEvent::QUEUE];
+      auto latch_ts =
+          graphics_frame_stats_map_[event_key][GraphicsFrameEvent::LATCH];
 
       row.queue_to_acquire_time =
           std::max(acquire_ts - queue_ts, static_cast<int64_t>(0));
@@ -148,10 +158,10 @@ bool GraphicsFrameEventParser::CreateBufferEvent(
         context_->slice_tracker->ScopedTyped(graphics_frame_slice_table, row);
     if (event.type() == GraphicsFrameEvent::DEQUEUE) {
       if (opt_slice_id) {
-        dequeue_slice_ids_[buffer_id] = *opt_slice_id;
+        dequeue_slice_ids_[event_key] = *opt_slice_id;
       }
     } else if (event.type() == GraphicsFrameEvent::QUEUE) {
-      auto it = dequeue_slice_ids_.find(buffer_id);
+      auto it = dequeue_slice_ids_.find(event_key);
       if (it != dequeue_slice_ids_.end()) {
         auto dequeue_slice_id = it->second;
         uint32_t row_idx =
@@ -196,22 +206,30 @@ void GraphicsFrameEventParser::InvalidatePhaseEvent(int64_t timestamp,
 void GraphicsFrameEventParser::CreatePhaseEvent(
     int64_t timestamp,
     GraphicsFrameEventDecoder& event) {
+  // Use buffer id + layer name as key because sometimes the same buffer can be
+  // used by different layers.
+  char event_key_buffer[4096];
+  base::StringWriter event_key_str(event_key_buffer,
+                                   base::ArraySize(event_key_buffer));
   const uint32_t buffer_id = event.buffer_id();
   uint32_t frame_number = event.has_frame_number() ? event.frame_number() : 0;
+  event_key_str.AppendUnsignedInt(buffer_id);
   StringId layer_name_id;
   if (event.has_layer_name()) {
-    auto layer_name_str = event.layer_name();
-    const base::StringView layer_name(layer_name_str);
-    layer_name_id = context_->storage->InternString(layer_name);
+    layer_name_id = context_->storage->InternString(event.layer_name());
+    event_key_str.AppendString(base::StringView(event.layer_name()));
   } else {
     layer_name_id = no_layer_name_name_id_;
   }
+  StringId event_key =
+      context_->storage->InternString(event_key_str.GetStringView());
+
   char track_buffer[4096];
   char slice_buffer[4096];
   // We'll be using the name StringWriter and name_id for writing track names
   // and slice names.
-  base::StringWriter track_name(track_buffer, sizeof(track_buffer));
-  base::StringWriter slice_name(slice_buffer, sizeof(slice_buffer));
+  base::StringWriter track_name(track_buffer, base::ArraySize(track_buffer));
+  base::StringWriter slice_name(slice_buffer, base::ArraySize(slice_buffer));
   StringId track_name_id;
   TrackId track_id;
   bool start_slice = true;
@@ -222,6 +240,8 @@ void GraphicsFrameEventParser::CreatePhaseEvent(
       track_name.reset();
       track_name.AppendLiteral("APP_");
       track_name.AppendUnsignedInt(buffer_id);
+      track_name.AppendLiteral(" ");
+      track_name.AppendString(base::StringView(event.layer_name()));
       track_name_id =
           context_->storage->InternString(track_name.GetStringView());
       tables::GpuTrackTable::Row app_track(track_name_id);
@@ -229,24 +249,24 @@ void GraphicsFrameEventParser::CreatePhaseEvent(
       track_id = context_->track_tracker->InternGpuTrack(app_track);
 
       // Error handling
-      auto dequeue_time = dequeue_map_.find(buffer_id);
+      auto dequeue_time = dequeue_map_.find(event_key);
       if (dequeue_time != dequeue_map_.end()) {
         InvalidatePhaseEvent(timestamp, dequeue_time->second, true);
         dequeue_map_.erase(dequeue_time);
       }
-      auto queue_time = queue_map_.find(buffer_id);
+      auto queue_time = queue_map_.find(event_key);
       if (queue_time != queue_map_.end()) {
         InvalidatePhaseEvent(timestamp, queue_time->second);
         queue_map_.erase(queue_time);
       }
 
-      dequeue_map_[buffer_id] = track_id;
-      last_dequeued_[buffer_id] = timestamp;
+      dequeue_map_[event_key] = track_id;
+      last_dequeued_[event_key] = timestamp;
       break;
     }
 
     case GraphicsFrameEvent::QUEUE: {
-      auto dequeue_time = dequeue_map_.find(buffer_id);
+      auto dequeue_time = dequeue_map_.find(event_key);
       if (dequeue_time != dequeue_map_.end()) {
         const auto opt_slice_id =
             context_->slice_tracker->End(timestamp, dequeue_time->second);
@@ -270,36 +290,38 @@ void GraphicsFrameEventParser::CreatePhaseEvent(
       }
       // The AcquireFence might be signaled before receiving a QUEUE event
       // sometimes. In that case, we shouldn't start a slice.
-      if (last_acquired_[buffer_id] > last_dequeued_[buffer_id] &&
-          last_acquired_[buffer_id] < timestamp) {
+      if (last_acquired_[event_key] > last_dequeued_[event_key] &&
+          last_acquired_[event_key] < timestamp) {
         start_slice = false;
         break;
       }
       track_name.reset();
       track_name.AppendLiteral("GPU_");
       track_name.AppendUnsignedInt(buffer_id);
+      track_name.AppendLiteral(" ");
+      track_name.AppendString(base::StringView(event.layer_name()));
       track_name_id =
           context_->storage->InternString(track_name.GetStringView());
       tables::GpuTrackTable::Row gpu_track(track_name_id);
       gpu_track.scope = graphics_event_scope_id_;
       track_id = context_->track_tracker->InternGpuTrack(gpu_track);
-      queue_map_[buffer_id] = track_id;
+      queue_map_[event_key] = track_id;
       break;
     }
     case GraphicsFrameEvent::ACQUIRE_FENCE: {
-      auto queue_time = queue_map_.find(buffer_id);
+      auto queue_time = queue_map_.find(event_key);
       if (queue_time != queue_map_.end()) {
         context_->slice_tracker->End(timestamp, queue_time->second);
         queue_map_.erase(queue_time);
       }
-      last_acquired_[buffer_id] = timestamp;
+      last_acquired_[event_key] = timestamp;
       start_slice = false;
       break;
     }
     case GraphicsFrameEvent::LATCH: {
       // b/157578286 - Sometimes Queue event goes missing. To prevent having a
       // wrong slice info, we try to close any existing APP slice.
-      auto dequeue_time = dequeue_map_.find(buffer_id);
+      auto dequeue_time = dequeue_map_.find(event_key);
       if (dequeue_time != dequeue_map_.end()) {
         InvalidatePhaseEvent(timestamp, dequeue_time->second, true);
         dequeue_map_.erase(dequeue_time);
@@ -307,17 +329,19 @@ void GraphicsFrameEventParser::CreatePhaseEvent(
       track_name.reset();
       track_name.AppendLiteral("SF_");
       track_name.AppendUnsignedInt(buffer_id);
+      track_name.AppendLiteral(" ");
+      track_name.AppendString(base::StringView(event.layer_name()));
       track_name_id =
           context_->storage->InternString(track_name.GetStringView());
       tables::GpuTrackTable::Row sf_track(track_name_id);
       sf_track.scope = graphics_event_scope_id_;
       track_id = context_->track_tracker->InternGpuTrack(sf_track);
-      latch_map_[buffer_id] = track_id;
+      latch_map_[event_key] = track_id;
       break;
     }
 
     case GraphicsFrameEvent::PRESENT_FENCE: {
-      auto latch_time = latch_map_.find(buffer_id);
+      auto latch_time = latch_map_.find(event_key);
       if (latch_time != latch_map_.end()) {
         context_->slice_tracker->End(timestamp, latch_time->second);
         latch_map_.erase(latch_time);

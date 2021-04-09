@@ -61,26 +61,27 @@ class GraphicsFrameEventParser {
   const StringId layer_name_key_id_;
   std::array<StringId, 14> event_type_name_ids_;
   const StringId queue_lost_message_id_;
-  // Map of buffer ID -> slice id of the dequeue event
-  std::unordered_map<uint32_t, SliceId> dequeue_slice_ids_;
+  // Map of (buffer ID + layer name) -> slice id of the dequeue event
+  std::unordered_map<StringId, SliceId> dequeue_slice_ids_;
 
   // Row indices of frame stats table. Used to populate the slice_id after
   // inserting the rows.
   std::vector<uint32_t> graphics_frame_stats_idx_;
-  // Map of buffer ID -> (Map of GraphicsFrameEvent -> ts of that event)
-  std::unordered_map<uint32_t, std::unordered_map<uint64_t, int64_t>>
+  // Map of (buffer ID + layer name)
+  //    -> (Map of GraphicsFrameEvent -> ts of that event)
+  std::unordered_map<StringId, std::unordered_map<uint64_t, int64_t>>
       graphics_frame_stats_map_;
 
-  // Maps of buffer id -> track id
-  std::unordered_map<uint32_t, TrackId> dequeue_map_;
-  std::unordered_map<uint32_t, TrackId> queue_map_;
-  std::unordered_map<uint32_t, TrackId> latch_map_;
+  // Maps of (buffer id + layer name) -> track id
+  std::unordered_map<StringId, TrackId> dequeue_map_;
+  std::unordered_map<StringId, TrackId> queue_map_;
+  std::unordered_map<StringId, TrackId> latch_map_;
   // Map of layer name -> track id
   std::unordered_map<StringId, TrackId> display_map_;
 
-  // Maps of buffer id -> timestamp
-  std::unordered_map<uint32_t, int64_t> last_dequeued_;
-  std::unordered_map<uint32_t, int64_t> last_acquired_;
+  // Maps of (buffer id + layer name) -> timestamp
+  std::unordered_map<StringId, int64_t> last_dequeued_;
+  std::unordered_map<StringId, int64_t> last_acquired_;
 };
 }  // namespace trace_processor
 }  // namespace perfetto

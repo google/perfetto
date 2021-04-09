@@ -21,6 +21,7 @@
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/ftrace/binder_tracker.h"
+#include "src/trace_processor/importers/proto/async_track_set_tracker.h"
 #include "src/trace_processor/importers/syscalls/syscall_tracker.h"
 #include "src/trace_processor/importers/systrace/systrace_parser.h"
 #include "src/trace_processor/storage/stats.h"
@@ -105,9 +106,11 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       cpu_idle_name_id_(context->storage->InternString("cpuidle")),
       ion_total_id_(context->storage->InternString("mem.ion")),
       ion_change_id_(context->storage->InternString("mem.ion_change")),
+      ion_buffer_id_(context->storage->InternString("mem.ion_buffer")),
       dma_heap_total_id_(context->storage->InternString("mem.dma_heap")),
       dma_heap_change_id_(
           context->storage->InternString("mem.dma_heap_change")),
+      dma_buffer_id_(context->storage->InternString("mem.dma_buffer")),
       ion_total_unknown_id_(context->storage->InternString("mem.ion.unknown")),
       ion_change_unknown_id_(
           context->storage->InternString("mem.ion_change.unknown")),
@@ -910,7 +913,24 @@ void FtraceParser::ParseIonStat(int64_t ts,
       context_->track_tracker->InternThreadCounterTrack(ion_change_id_, utid);
   context_->event_tracker->PushCounter(ts, static_cast<double>(ion.len()),
                                        track);
+
+  // Global track for individual buffer tracking
+  auto async_track =
+      context_->async_track_set_tracker->InternGlobalTrackSet(ion_buffer_id_);
+  if (ion.len() > 0) {
+    TrackId start_id =
+        context_->async_track_set_tracker->Begin(async_track, ion.buffer_id());
+    std::string buf = std::to_string(ion.len() / 1024) + " kB";
+    context_->slice_tracker->Begin(
+        ts, start_id, kNullStringId,
+        context_->storage->InternString(base::StringView(buf)));
+  } else {
+    TrackId end_id =
+        context_->async_track_set_tracker->End(async_track, ion.buffer_id());
+    context_->slice_tracker->End(ts, end_id);
+  }
 }
+
 void FtraceParser::ParseDmaHeapStat(int64_t ts,
                                     uint32_t pid,
                                     protozero::ConstBytes data) {
@@ -929,6 +949,22 @@ void FtraceParser::ParseDmaHeapStat(int64_t ts,
                                                             utid);
   context_->event_tracker->PushCounter(ts, static_cast<double>(dma_heap.len()),
                                        track);
+
+  // Global track for individual buffer tracking
+  auto async_track =
+      context_->async_track_set_tracker->InternGlobalTrackSet(dma_buffer_id_);
+  if (dma_heap.len() > 0) {
+    TrackId start_id = context_->async_track_set_tracker->Begin(
+        async_track, static_cast<int64_t>(dma_heap.inode()));
+    std::string buf = std::to_string(dma_heap.len() / 1024) + " kB";
+    context_->slice_tracker->Begin(
+        ts, start_id, kNullStringId,
+        context_->storage->InternString(base::StringView(buf)));
+  } else {
+    TrackId end_id = context_->async_track_set_tracker->End(
+        async_track, static_cast<int64_t>(dma_heap.inode()));
+    context_->slice_tracker->End(ts, end_id);
+  }
 }
 
 // This event has both the pid of the thread that sent the signal and the
