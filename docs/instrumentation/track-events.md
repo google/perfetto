@@ -601,12 +601,12 @@ class Observer : public perfetto::TrackEventSessionObserver {
     // so track events emitted here won't be recorded.
   }
 
-  void OnStart(const DataSourceBase::SetupArgs&) override {
+  void OnStart(const perfetto::DataSourceBase::StartArgs&) override {
     // Called when a tracing session is started. It is possible to emit track
     // events from this callback.
   }
 
-  void OnStop(const DataSourceBase::StartArgs&) override {
+  void OnStop(const perfetto::DataSourceBase::StopArgs&) override {
     // Called when a tracing session is stopped. It is still possible to emit
     // track events from this callback.
   }
