@@ -181,8 +181,8 @@ BUILD_DEPS_HOST = [
     # in the amalgamation).
     Dependency(
         'buildtools/sqlite.zip',
-        'https://storage.googleapis.com/perfetto/sqlite-amalgamation-3320300.zip',
-        'e9cec01d4519e2d49b3810615237325263fe1feaceae390ee12b4a29bd73dbe2',
+        'https://storage.googleapis.com/perfetto/sqlite-amalgamation-3350400.zip',
+        'f3bf0df69f5de0675196f4644e05d07dbc698d674dc563a12eff17d5b215cdf5',
         'all'),
     Dependency(
         'buildtools/sqlite_src',
