@@ -243,6 +243,10 @@ SELECT
       SELECT COUNT(1) FROM launch_processes p
       WHERE p.launch_id = launches.id
     ),
+    'event_timestamps', AndroidStartupMetric_EventTimestamps(
+      'intent_received', launches.ts,
+      'first_frame', launches.ts_end
+    ),
     'to_first_frame', AndroidStartupMetric_ToFirstFrame(
       'dur_ns', launches.dur,
       'dur_ms', launches.dur / 1e6,
