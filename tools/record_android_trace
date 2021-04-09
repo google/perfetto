@@ -99,7 +99,7 @@ def main():
   grp.add_argument('-c', '--config', default=None, help=help)
   args = parser.parse_args()
 
-  tstamp = datetime.datetime.now().strftime('%Y-%M-%d_%H-%M')
+  tstamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M')
   fname = '%s.pftrace' % tstamp
   device_file = '/data/misc/perfetto-traces/' + fname
 
