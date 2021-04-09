@@ -38,5 +38,9 @@ android_startup {
     process {
       name: "com.some.app"
     }
+    event_timestamps {
+      intent_received: 100
+      first_frame: 300
+    }
   }
 }
