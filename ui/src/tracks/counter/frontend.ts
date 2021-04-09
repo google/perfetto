@@ -36,38 +36,46 @@ import {
 const MARGIN_TOP = 3.5;
 const RECT_HEIGHT = 24.5;
 
+interface CounterScaleAttribute {
+  follower: CounterScaleOptions;
+  tooltip: string;
+  icon: string;
+}
+
 function scaleTooltip(scale?: CounterScaleOptions): string {
-  switch (scale) {
-    case 'RELATIVE':
-      return 'Use zero-based scale';
-    case 'DELTA':
-      return 'Use delta scale';
-    case 'DEFAULT':
-    default:
-      return 'Use zero-based scale';
-  }
+  const description: CounterScaleAttribute = getCounterScaleAttribute(scale);
+  const source: string = description.tooltip;
+  const destination: string =
+      getCounterScaleAttribute(description.follower).tooltip;
+  return `Toggle scale from ${source} to ${destination}`;
 }
 
 function scaleIcon(scale?: CounterScaleOptions): string {
-  switch (scale) {
-    case 'DELTA':
-      return 'bar_chart';
-    case 'RELATIVE':
-    case 'DEFAULT':
-    default:
-      return 'show_chart';
-  }
+  return getCounterScaleAttribute(scale).icon;
 }
 
 function nextScale(scale?: CounterScaleOptions): CounterScaleOptions {
+  return getCounterScaleAttribute(scale).follower;
+}
+
+function getCounterScaleAttribute(scale?: CounterScaleOptions):
+    CounterScaleAttribute {
   switch (scale) {
-    case 'RELATIVE':
-      return 'DELTA';
-    case 'DELTA':
-      return 'DEFAULT';
-    case 'DEFAULT':
+    case 'MIN_MAX':
+      return {
+        follower: 'DELTA_FROM_PREVIOUS',
+        tooltip: 'min/max',
+        icon: 'show_chart'
+      };
+    case 'DELTA_FROM_PREVIOUS':
+      return {follower: 'ZERO_BASED', tooltip: 'delta', icon: 'bar_chart'};
+    case 'ZERO_BASED':
     default:
-      return 'RELATIVE';
+      return {
+        follower: 'MIN_MAX',
+        tooltip: 'zero based',
+        icon: 'waterfall_chart'
+      };
   }
 }
 
@@ -101,7 +109,7 @@ class CounterTrack extends Track<Config, Data> {
       },
       i: scaleIcon(this.config.scale),
       tooltip: scaleTooltip(this.config.scale),
-      showButton: !!this.config.scale && this.config.scale !== 'DEFAULT',
+      showButton: !!this.config.scale && this.config.scale !== 'ZERO_BASED',
     }));
     return buttons;
   }
@@ -121,14 +129,14 @@ class CounterTrack extends Track<Config, Data> {
     assertTrue(data.timestamps.length === data.lastValues.length);
     assertTrue(data.timestamps.length === data.totalDeltas.length);
 
-    const scale: CounterScaleOptions = this.config.scale || 'DEFAULT';
+    const scale: CounterScaleOptions = this.config.scale || 'ZERO_BASED';
 
     let minValues = data.minValues;
     let maxValues = data.maxValues;
     let lastValues = data.lastValues;
     let maximumValue = data.maximumValue;
     let minimumValue = data.minimumValue;
-    if (scale === 'DELTA') {
+    if (scale === 'DELTA_FROM_PREVIOUS') {
       lastValues = data.totalDeltas;
       minValues = data.totalDeltas;
       maxValues = data.totalDeltas;
@@ -151,7 +159,7 @@ class CounterTrack extends Track<Config, Data> {
     const unitGroup = Math.floor(exp / 3);
     let yMin = 0;
     let yLabel = '';
-    if (scale === 'RELATIVE') {
+    if (scale === 'MIN_MAX') {
       yRange = maximumValue - minimumValue;
       yMin = minimumValue;
       yLabel = 'min - max';
@@ -159,7 +167,7 @@ class CounterTrack extends Track<Config, Data> {
       yRange = minimumValue < 0 ? yMax * 2 : yMax;
       yMin = minimumValue < 0 ? -yMax : 0;
       yLabel = `${yMax / Math.pow(10, unitGroup * 3)} ${kUnits[unitGroup]}`;
-      if (scale === 'DELTA') {
+      if (scale === 'DELTA_FROM_PREVIOUS') {
         yLabel += '\u0394';
       }
     }
@@ -226,7 +234,7 @@ class CounterTrack extends Track<Config, Data> {
 
     if (this.hoveredValue !== undefined && this.hoveredTs !== undefined) {
       // TODO(hjd): Add units.
-      let text = scale === 'DELTA' ? 'delta: ' : 'value: ';
+      let text = scale === 'DELTA_FROM_PREVIOUS' ? 'delta: ' : 'value: ';
       text += `${this.hoveredValue.toLocaleString()}`;
 
       ctx.fillStyle = `hsl(${hue}, 45%, 75%)`;
@@ -296,8 +304,9 @@ class CounterTrack extends Track<Config, Data> {
     const {timeScale} = globals.frontendLocalState;
     const time = timeScale.pxToTime(x);
 
-    const values =
-        this.config.scale === 'DELTA' ? data.totalDeltas : data.lastValues;
+    const values = this.config.scale === 'DELTA_FROM_PREVIOUS' ?
+        data.totalDeltas :
+        data.lastValues;
     const [left, right] = searchSegment(data.timestamps, time);
     this.hoveredTs = left === -1 ? undefined : data.timestamps[left];
     this.hoveredTsEnd = right === -1 ? undefined : data.timestamps[right];
