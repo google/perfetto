@@ -24,6 +24,7 @@
 #include "perfetto/tracing/data_source.h"
 #include "perfetto/tracing/event_context.h"
 #include "perfetto/tracing/internal/track_event_internal.h"
+#include "perfetto/tracing/internal/write_track_event_args.h"
 #include "perfetto/tracing/track.h"
 #include "perfetto/tracing/track_event_category_registry.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
@@ -61,31 +62,6 @@ struct TraceTimestampTraits<uint64_t> {
 
 namespace internal {
 namespace {
-
-// A template helper for determining whether a type can be used as a track event
-// lambda, i.e., it has the signature "void(EventContext)". This is achieved by
-// checking that we can pass an EventContext value (the inner declval) into a T
-// instance (the outer declval). If this is a valid expression, the result
-// evaluates to sizeof(0), i.e., true.
-// TODO(skyostil): Replace this with std::is_convertible<std::function<...>>
-// once we have C++14.
-template <typename T>
-static constexpr bool IsValidTraceLambdaImpl(
-    typename std::enable_if<static_cast<bool>(
-        sizeof(std::declval<T>()(std::declval<EventContext>()), 0))>::type* =
-        nullptr) {
-  return true;
-}
-
-template <typename T>
-static constexpr bool IsValidTraceLambdaImpl(...) {
-  return false;
-}
-
-template <typename T>
-static constexpr bool IsValidTraceLambda() {
-  return IsValidTraceLambdaImpl<T>(nullptr);
-}
 
 // Checks if |T| is a valid track.
 template <typename T>
@@ -162,16 +138,6 @@ struct TrackEventDataSourceTraits : public perfetto::DefaultDataSourceTraits {
                                                       TracingTLS* root_tls) {
     return &root_tls->track_event_tls;
   }
-};
-
-// A helper that ensures movable debug annotations are passed by value to
-// minimize binary size at the call site, while allowing non-movable and
-// non-copiable arguments to be passed by reference.
-// TODO(skyostil): Remove this with C++17.
-template <typename T>
-struct DebugAnnotationArg {
-  using type = typename std::
-      conditional<std::is_move_constructible<T>::value, T, T&&>::type;
 };
 
 // A generic track event data source which is instantiated once per track event
@@ -254,268 +220,84 @@ class TrackEventDataSource
   // write a trace event onto this thread's default track. Outlined to avoid
   // bloating code (mostly stack depth) at the actual trace point.
   //
-  // To minimize call overhead at each trace point, we provide the following
-  // trace point argument variants:
-  //
-  // - None
-  // - Lambda
-  // - Lambda + timestamp
-  // - One debug annotation
-  // - Two debug annotations
-  // - Track
-  // - Track + Lambda
-  // - Track + timestamp
-  // - Track + Lambda + timestamp
-  // - Track + one debug annotation
-  // - Track + two debug annotations
+  // The following combination of parameters is supported (in the given order):
+  // - Zero or one track,
+  // - Zero or one custom timestamp,
+  // - Arbitrary number of debug annotations.
+  // - Zero or one lambda.
 
-  // Trace point which takes no arguments.
-  template <typename CategoryType>
-  static void TraceForCategory(uint32_t instances,
-                               const CategoryType& category,
-                               const char* event_name,
-                               perfetto::protos::pbzero::TrackEvent::Type type)
-      PERFETTO_NO_INLINE {
-    TraceForCategoryImpl(instances, category, event_name, type);
-  }
-
-  // Trace point which takes a lambda function argument.
-  template <typename CategoryType,
-            typename ArgumentFunction = void (*)(EventContext),
-            typename ArgumentFunctionCheck = typename std::enable_if<
-                IsValidTraceLambda<ArgumentFunction>()>::type>
+  // Trace point which does not take a track or timestamp.
+  template <typename CategoryType, typename... Arguments>
   static void TraceForCategory(uint32_t instances,
                                const CategoryType& category,
                                const char* event_name,
                                perfetto::protos::pbzero::TrackEvent::Type type,
-                               ArgumentFunction arg_function)
-      PERFETTO_NO_INLINE {
+                               Arguments&&... args) PERFETTO_NO_INLINE {
     TraceForCategoryImpl(instances, category, event_name, type,
                          TrackEventInternal::kDefaultTrack,
                          TrackEventInternal::GetTimeNs(),
-                         std::move(arg_function));
+                         std::forward<Arguments>(args)...);
   }
 
-  // Trace point which takes a lambda function argument and an overridden
-  // timestamp. |timestamp| must be in nanoseconds in the trace clock timebase.
-  template <
-      typename CategoryType,
-      typename TimestampType = uint64_t,
-      typename TimestampTypeCheck =
-          typename std::enable_if<IsValidTimestamp<TimestampType>()>::type,
-      typename ArgumentFunction = void (*)(EventContext),
-      typename ArgumentFunctionCheck =
-          typename std::enable_if<IsValidTraceLambda<ArgumentFunction>()>::type>
-  static void TraceForCategory(uint32_t instances,
-                               const CategoryType& category,
-                               const char* event_name,
-                               perfetto::protos::pbzero::TrackEvent::Type type,
-                               TimestampType timestamp,
-                               ArgumentFunction arg_function)
-      PERFETTO_NO_INLINE {
-    TraceForCategoryImpl(instances, category, event_name, type,
-                         TrackEventInternal::kDefaultTrack, timestamp,
-                         std::move(arg_function));
-  }
-
-  // This variant of the inner trace point takes a Track argument which can be
-  // used to emit events on a non-default track.
-  template <typename CategoryType,
-            typename TrackType,
+  // Trace point which takes a track, but not timestamp.
+  // NOTE: Here track should be captured using universal reference (TrackType&&)
+  // instead of const TrackType& to ensure that the proper overload is selected
+  // (otherwise the compiler will fail to disambiguate between adding const& and
+  // parsing track as a part of Arguments...).
+  template <typename TrackType,
+            typename CategoryType,
+            typename... Arguments,
             typename TrackTypeCheck = typename std::enable_if<
                 std::is_convertible<TrackType, Track>::value>::type>
   static void TraceForCategory(uint32_t instances,
                                const CategoryType& category,
                                const char* event_name,
                                perfetto::protos::pbzero::TrackEvent::Type type,
-                               const TrackType& track) PERFETTO_NO_INLINE {
-    TraceForCategoryImpl(instances, category, event_name, type, track);
+                               TrackType&& track,
+                               Arguments&&... args) PERFETTO_NO_INLINE {
+    TraceForCategoryImpl(
+        instances, category, event_name, type, std::forward<TrackType>(track),
+        TrackEventInternal::GetTimeNs(), std::forward<Arguments>(args)...);
   }
 
-  // Trace point with a track and a lambda function.
+  // Trace point which takes a timestamp, but not track.
+  template <typename CategoryType,
+            typename TimestampType = uint64_t,
+            typename... Arguments,
+            typename TimestampTypeCheck = typename std::enable_if<
+                IsValidTimestamp<TimestampType>()>::type>
+  static void TraceForCategory(uint32_t instances,
+                               const CategoryType& category,
+                               const char* event_name,
+                               perfetto::protos::pbzero::TrackEvent::Type type,
+                               TimestampType&& timestamp,
+                               Arguments&&... args) PERFETTO_NO_INLINE {
+    TraceForCategoryImpl(instances, category, event_name, type,
+                         TrackEventInternal::kDefaultTrack,
+                         std::forward<TimestampType>(timestamp),
+                         std::forward<Arguments>(args)...);
+  }
+
+  // Trace point which takes a timestamp and a track.
   template <typename TrackType,
             typename CategoryType,
-            typename ArgumentFunction = void (*)(EventContext),
-            typename ArgumentFunctionCheck = typename std::enable_if<
-                IsValidTraceLambda<ArgumentFunction>()>::type,
-            typename TrackTypeCheck =
-                typename std::enable_if<IsValidNormalTrack<TrackType>()>::type>
-  static void TraceForCategory(uint32_t instances,
-                               const CategoryType& category,
-                               const char* event_name,
-                               perfetto::protos::pbzero::TrackEvent::Type type,
-                               const TrackType& track,
-                               ArgumentFunction arg_function)
-      PERFETTO_NO_INLINE {
-    TraceForCategoryImpl(instances, category, event_name, type, track,
-                         TrackEventInternal::GetTimeNs(),
-                         std::move(arg_function));
-  }
-
-  // Trace point with a track and overridden timestamp.
-  template <typename CategoryType,
-            typename TrackType,
             typename TimestampType = uint64_t,
+            typename... Arguments,
+            typename TrackTypeCheck = typename std::enable_if<
+                std::is_convertible<TrackType, Track>::value>::type,
             typename TimestampTypeCheck = typename std::enable_if<
-                IsValidTimestamp<TimestampType>()>::type,
-            typename TrackTypeCheck =
-                typename std::enable_if<IsValidNormalTrack<TrackType>()>::type>
+                IsValidTimestamp<TimestampType>()>::type>
   static void TraceForCategory(uint32_t instances,
                                const CategoryType& category,
                                const char* event_name,
                                perfetto::protos::pbzero::TrackEvent::Type type,
-                               const TrackType& track,
-                               TimestampType timestamp) PERFETTO_NO_INLINE {
-    TraceForCategoryImpl(instances, category, event_name, type, track,
-                         timestamp);
-  }
-
-  // Trace point with a track, a lambda function and an overridden timestamp.
-  // |timestamp| must be in nanoseconds in the trace clock timebase.
-  template <
-      typename TrackType,
-      typename CategoryType,
-      typename TimestampType = uint64_t,
-      typename TimestampTypeCheck =
-          typename std::enable_if<IsValidTimestamp<TimestampType>()>::type,
-      typename ArgumentFunction = void (*)(EventContext),
-      typename ArgumentFunctionCheck =
-          typename std::enable_if<IsValidTraceLambda<ArgumentFunction>()>::type>
-  static void TraceForCategory(uint32_t instances,
-                               const CategoryType& category,
-                               const char* event_name,
-                               perfetto::protos::pbzero::TrackEvent::Type type,
-                               const TrackType& track,
-                               TimestampType timestamp,
-                               ArgumentFunction arg_function)
-      PERFETTO_NO_INLINE {
-    TraceForCategoryImpl(instances, category, event_name, type, track,
-                         timestamp, std::move(arg_function));
-  }
-
-  // Trace point with one debug annotation.
-  //
-  // This type of trace point is implemented with an inner helper function which
-  // ensures |arg_value| is only passed by reference when required (i.e., with a
-  // custom DebugAnnotation type). This avoids the binary and runtime overhead
-  // of unnecessarily passing all types debug annotations by reference.
-  //
-  // Note that for this to work well, the _outer_ function (this function) has
-  // to be inlined at the call site while the _inner_ function
-  // (TraceForCategoryWithDebugAnnotations) is still outlined to minimize
-  // overall binary size.
-  template <typename CategoryType, typename ArgType>
-  static void TraceForCategory(uint32_t instances,
-                               const CategoryType& category,
-                               const char* event_name,
-                               perfetto::protos::pbzero::TrackEvent::Type type,
-                               const char* arg_name,
-                               ArgType&& arg_value) PERFETTO_ALWAYS_INLINE {
-    TraceForCategoryWithDebugAnnotations<CategoryType, Track, ArgType>(
-        instances, category, event_name, type,
-        TrackEventInternal::kDefaultTrack, arg_name,
-        std::forward<ArgType>(arg_value));
-  }
-
-  // A one argument trace point which takes an explicit track.
-  template <typename CategoryType, typename TrackType, typename ArgType>
-  static void TraceForCategory(uint32_t instances,
-                               const CategoryType& category,
-                               const char* event_name,
-                               perfetto::protos::pbzero::TrackEvent::Type type,
-                               const TrackType& track,
-                               const char* arg_name,
-                               ArgType&& arg_value) PERFETTO_ALWAYS_INLINE {
-    PERFETTO_DCHECK(track);
-    TraceForCategoryWithDebugAnnotations<CategoryType, TrackType, ArgType>(
-        instances, category, event_name, type, track, arg_name,
-        std::forward<ArgType>(arg_value));
-  }
-
-  template <typename CategoryType, typename TrackType, typename ArgType>
-  static void TraceForCategoryWithDebugAnnotations(
-      uint32_t instances,
-      const CategoryType& category,
-      const char* event_name,
-      perfetto::protos::pbzero::TrackEvent::Type type,
-      const TrackType& track,
-      const char* arg_name,
-      typename internal::DebugAnnotationArg<ArgType>::type arg_value)
-      PERFETTO_NO_INLINE {
-    TraceForCategoryImpl(
-        instances, category, event_name, type, track,
-        TrackEventInternal::GetTimeNs(), [&](EventContext event_ctx) {
-          TrackEventInternal::AddDebugAnnotation(&event_ctx, arg_name,
-                                                 arg_value);
-        });
-  }
-
-  // Trace point with two debug annotations. Note that we only support up to two
-  // direct debug annotations. For more complicated arguments, you should
-  // define your own argument type in track_event.proto and use a lambda to fill
-  // it in your trace point.
-  template <typename CategoryType, typename ArgType, typename ArgType2>
-  static void TraceForCategory(uint32_t instances,
-                               const CategoryType& category,
-                               const char* event_name,
-                               perfetto::protos::pbzero::TrackEvent::Type type,
-                               const char* arg_name,
-                               ArgType&& arg_value,
-                               const char* arg_name2,
-                               ArgType2&& arg_value2) PERFETTO_ALWAYS_INLINE {
-    TraceForCategoryWithDebugAnnotations<CategoryType, Track, ArgType,
-                                         ArgType2>(
-        instances, category, event_name, type,
-        TrackEventInternal::kDefaultTrack, arg_name,
-        std::forward<ArgType>(arg_value), arg_name2,
-        std::forward<ArgType2>(arg_value2));
-  }
-
-  // A two argument trace point which takes an explicit track.
-  template <typename CategoryType,
-            typename TrackType,
-            typename ArgType,
-            typename ArgType2>
-  static void TraceForCategory(uint32_t instances,
-                               const CategoryType& category,
-                               const char* event_name,
-                               perfetto::protos::pbzero::TrackEvent::Type type,
-                               const TrackType& track,
-                               const char* arg_name,
-                               ArgType&& arg_value,
-                               const char* arg_name2,
-                               ArgType2&& arg_value2) PERFETTO_ALWAYS_INLINE {
-    PERFETTO_DCHECK(track);
-    TraceForCategoryWithDebugAnnotations<CategoryType, TrackType, ArgType,
-                                         ArgType2>(
-        instances, category, event_name, type, track, arg_name,
-        std::forward<ArgType>(arg_value), arg_name2,
-        std::forward<ArgType2>(arg_value2));
-  }
-
-  template <typename CategoryType,
-            typename TrackType,
-            typename ArgType,
-            typename ArgType2>
-  static void TraceForCategoryWithDebugAnnotations(
-      uint32_t instances,
-      const CategoryType& category,
-      const char* event_name,
-      perfetto::protos::pbzero::TrackEvent::Type type,
-      const TrackType& track,
-      const char* arg_name,
-      typename internal::DebugAnnotationArg<ArgType>::type arg_value,
-      const char* arg_name2,
-      typename internal::DebugAnnotationArg<ArgType2>::type arg_value2)
-      PERFETTO_NO_INLINE {
-    TraceForCategoryImpl(
-        instances, category, event_name, type, track,
-        TrackEventInternal::GetTimeNs(), [&](EventContext event_ctx) {
-          TrackEventInternal::AddDebugAnnotation(&event_ctx, arg_name,
-                                                 arg_value);
-          TrackEventInternal::AddDebugAnnotation(&event_ctx, arg_name2,
-                                                 arg_value2);
-        });
+                               TrackType&& track,
+                               TimestampType&& timestamp,
+                               Arguments&&... args) PERFETTO_NO_INLINE {
+    TraceForCategoryImpl(instances, category, event_name, type,
+                         std::forward<TrackType>(track),
+                         std::forward<TimestampType>(timestamp),
+                         std::forward<Arguments>(args)...);
   }
 
   // Trace point with with a counter sample.
@@ -524,7 +306,7 @@ class TrackEventDataSource
                                const CategoryType& category,
                                const char*,
                                perfetto::protos::pbzero::TrackEvent::Type type,
-                               const CounterTrack& track,
+                               CounterTrack track,
                                ValueType value) PERFETTO_ALWAYS_INLINE {
     PERFETTO_DCHECK(type == perfetto::protos::pbzero::TrackEvent::TYPE_COUNTER);
     TraceForCategory(instances, category, /*name=*/nullptr, type, track,
@@ -541,7 +323,7 @@ class TrackEventDataSource
                                const CategoryType& category,
                                const char*,
                                perfetto::protos::pbzero::TrackEvent::Type type,
-                               const CounterTrack& track,
+                               CounterTrack track,
                                TimestampType timestamp,
                                ValueType value) PERFETTO_ALWAYS_INLINE {
     PERFETTO_DCHECK(type == perfetto::protos::pbzero::TrackEvent::TYPE_COUNTER);
@@ -630,26 +412,22 @@ class TrackEventDataSource
     }
   };
 
-  template <
-      typename CategoryType,
-      typename TrackType = Track,
-      typename TimestampType = uint64_t,
-      typename TimestampTypeCheck =
-          typename std::enable_if<IsValidTimestamp<TimestampType>()>::type,
-      typename ArgumentFunction = void (*)(EventContext),
-      typename ArgumentFunctionCheck =
-          typename std::enable_if<IsValidTraceLambda<ArgumentFunction>()>::type,
-      typename TrackTypeCheck =
-          typename std::enable_if<IsValidTrack<TrackType>()>::type>
+  template <typename CategoryType,
+            typename TrackType = Track,
+            typename TimestampType = uint64_t,
+            typename TimestampTypeCheck = typename std::enable_if<
+                IsValidTimestamp<TimestampType>()>::type,
+            typename TrackTypeCheck =
+                typename std::enable_if<IsValidTrack<TrackType>()>::type,
+            typename... Arguments>
   static void TraceForCategoryImpl(
       uint32_t instances,
       const CategoryType& category,
       const char* event_name,
       perfetto::protos::pbzero::TrackEvent::Type type,
-      const TrackType& track = TrackEventInternal::kDefaultTrack,
-      const TimestampType& timestamp = TrackEventInternal::GetTimeNs(),
-      ArgumentFunction arg_function = [](EventContext) {
-      }) PERFETTO_ALWAYS_INLINE {
+      const TrackType& track,
+      const TimestampType& timestamp,
+      Arguments&&... args) PERFETTO_ALWAYS_INLINE {
     using CatTraits = CategoryTraits<CategoryType>;
     const Category* static_category =
         CatTraits::GetStaticCategory(Registry, category);
@@ -706,7 +484,8 @@ class TrackEventDataSource
             }
             if (&track != &TrackEventInternal::kDefaultTrack)
               event_ctx.event()->set_track_uuid(track.uuid);
-            arg_function(std::move(event_ctx));
+            WriteTrackEventArgs(std::move(event_ctx),
+                                std::forward<Arguments>(args)...);
           }  // event_ctx
         });
   }
