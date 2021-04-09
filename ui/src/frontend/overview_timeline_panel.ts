@@ -19,6 +19,10 @@ import {hueForCpu} from '../common/colorizer';
 import {TimeSpan, timeToString} from '../common/time';
 
 import {TRACK_SHELL_WIDTH} from './css_constants';
+import {BorderDragStrategy} from './drag/border_drag_strategy';
+import {DragStrategy} from './drag/drag_strategy';
+import {InnerDragStrategy} from './drag/inner_drag_strategy';
+import {OuterDragStrategy} from './drag/outer_drag_strategy';
 import {DragGestureHandler} from './drag_gesture_handler';
 import {globals} from './globals';
 import {Panel, PanelSize} from './panel';
@@ -26,10 +30,11 @@ import {TimeScale} from './time_scale';
 
 export class OverviewTimelinePanel extends Panel {
   private width = 0;
-  private dragStartPx = 0;
   private gesture?: DragGestureHandler;
   private timeScale?: TimeScale;
   private totTime = new TimeSpan(0, 0);
+  private static BORDER_PIXEL_DELTA = 30;
+  private dragStrategy?: DragStrategy;
 
   // Must explicitly type now; arguments types are no longer auto-inferred.
   // https://github.com/Microsoft/TypeScript/issues/1373
@@ -123,21 +128,33 @@ export class OverviewTimelinePanel extends Panel {
   }
 
   onDrag(x: number) {
-    // Set visible time limits from selection.
-    if (this.timeScale === undefined) return;
-    let tStart = this.timeScale.pxToTime(this.dragStartPx);
-    let tEnd = this.timeScale.pxToTime(x);
-    if (tStart > tEnd) [tStart, tEnd] = [tEnd, tStart];
-    const vizTime = new TimeSpan(tStart, tEnd);
-    globals.frontendLocalState.updateVisibleTime(vizTime);
-    globals.rafScheduler.scheduleRedraw();
+    if (this.dragStrategy === undefined) return;
+    this.dragStrategy.onDrag(x);
   }
 
   onDragStart(x: number) {
-    this.dragStartPx = x;
+    if (this.timeScale === undefined) return;
+    const timeSpan = globals.frontendLocalState.getVisibleStateBounds();
+    const pixelBounds: [number, number] = [
+      this.timeScale.timeToPx(timeSpan[0]),
+      this.timeScale.timeToPx(timeSpan[1])
+    ];
+    if (OverviewTimelinePanel.inBorderRange(x, pixelBounds[0]) ||
+        OverviewTimelinePanel.inBorderRange(x, pixelBounds[1])) {
+      this.dragStrategy = new BorderDragStrategy(this.timeScale, pixelBounds);
+    } else if (x < pixelBounds[0] || pixelBounds[1] < x) {
+      this.dragStrategy = new OuterDragStrategy(this.timeScale);
+    } else {
+      this.dragStrategy = new InnerDragStrategy(this.timeScale, pixelBounds);
+    }
+    this.dragStrategy.onDragStart(x);
   }
 
   onDragEnd() {
-    this.dragStartPx = 0;
+    this.dragStrategy = undefined;
+  }
+
+  private static inBorderRange(a: number, b: number): boolean {
+    return Math.abs(a - b) < this.BORDER_PIXEL_DELTA;
   }
 }
