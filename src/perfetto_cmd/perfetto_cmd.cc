@@ -176,7 +176,7 @@ Usage: %s
   --upload                 : Upload field trace (Android only)
   --dropbox        TAG     : DEPRECATED: Use --upload instead
                              TAG should always be set to 'perfetto'
-  --no-guardrails          : Ignore guardrails triggered when using --dropbox
+  --no-guardrails          : Ignore guardrails triggered when using --upload
                              (for testing).
   --txt                    : Parse config as pbtxt. Not for production use.
                              Not a stable API.
