@@ -70,5 +70,9 @@ android_startup {
       compilation_reason: "unknown"
       location: "error"
     }
+    event_timestamps {
+      intent_received: 102000000000
+      first_frame: 210000000000
+    }
   }
 }
