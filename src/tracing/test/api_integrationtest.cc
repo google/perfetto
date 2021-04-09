@@ -2107,6 +2107,63 @@ TEST_P(PerfettoApiTest, TrackEventCustomRawDebugAnnotations) {
                   "B:test.E(plain_arg=(int)42,raw_arg=(nested)nested_value)"));
 }
 
+TEST_P(PerfettoApiTest, ManyDebugAnnotations) {
+  // Create a new trace session.
+  auto* tracing_session = NewTraceWithCategories({"test"});
+  tracing_session->get()->StartBlocking();
+
+  TRACE_EVENT_BEGIN("test", "E", "arg1", 1, "arg2", 2, "arg3", 3);
+  perfetto::TrackEvent::Flush();
+
+  tracing_session->get()->StopBlocking();
+  auto slices = ReadSlicesFromTrace(tracing_session->get());
+  EXPECT_THAT(slices,
+              ElementsAre("B:test.E(arg1=(int)1,arg2=(int)2,arg3=(int)3)"));
+}
+
+TEST_P(PerfettoApiTest, DebugAnnotationAndLambda) {
+  // Create a new trace session.
+  auto* tracing_session = NewTraceWithCategories({"test"});
+  tracing_session->get()->StartBlocking();
+
+  enum MyEnum : uint32_t { ENUM_FOO, ENUM_BAR };
+  enum MySignedEnum : int32_t { SIGNED_ENUM_FOO = -1, SIGNED_ENUM_BAR };
+  enum class MyClassEnum { VALUE };
+
+  TRACE_EVENT_BEGIN(
+      "test", "E", "key", "value", [](perfetto::EventContext ctx) {
+        ctx.event()->set_log_message()->set_source_location_iid(42);
+      });
+  perfetto::TrackEvent::Flush();
+
+  tracing_session->get()->StopBlocking();
+  std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
+  std::string trace(raw_trace.data(), raw_trace.size());
+
+  perfetto::protos::gen::Trace parsed_trace;
+  ASSERT_TRUE(parsed_trace.ParseFromArray(raw_trace.data(), raw_trace.size()));
+
+  bool found_args = false;
+  for (const auto& packet : parsed_trace.packet()) {
+    if (!packet.has_track_event())
+      continue;
+    const auto& track_event = packet.track_event();
+    if (track_event.type() !=
+        perfetto::protos::gen::TrackEvent::TYPE_SLICE_BEGIN)
+      continue;
+
+    EXPECT_TRUE(track_event.has_log_message());
+    const auto& log = track_event.log_message();
+    EXPECT_EQ(42u, log.source_location_iid());
+
+    const auto& dbg = track_event.debug_annotations()[0];
+    EXPECT_EQ("value", dbg.string_value());
+
+    found_args = true;
+  }
+  EXPECT_TRUE(found_args);
+}
+
 TEST_P(PerfettoApiTest, TrackEventComputedName) {
   // Setup the trace config.
   perfetto::TraceConfig cfg;
