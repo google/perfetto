@@ -267,6 +267,10 @@ export class FrontendLocalState {
     this.ratelimitedUpdateVisible();
   }
 
+  getVisibleStateBounds(): [number, number] {
+    return [this.visibleWindowTime.start, this.visibleWindowTime.end];
+  }
+
   // Whenever start/end px of the timeScale is changed, update
   // the resolution.
   updateLocalLimits(pxStart: number, pxEnd: number) {
