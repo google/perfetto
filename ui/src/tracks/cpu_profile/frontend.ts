@@ -12,9 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {hsluvToHex} from 'hsluv';
+
 import {searchSegment} from '../../base/binary_search';
 import {Actions} from '../../common/actions';
-import {hueForSlice} from '../../common/colorizer';
+import {hslForSlice} from '../../common/colorizer';
 import {TrackState} from '../../common/state';
 import {fromNs, toNs} from '../../common/time';
 import {globals} from '../../frontend/globals';
@@ -28,9 +30,7 @@ const MARGIN_TOP = 4.5;
 const RECT_HEIGHT = 30.5;
 
 function colorForSample(callsiteId: number, isHovered: boolean): string {
-  const hue = hueForSlice(String(callsiteId));
-  const lightness = isHovered ? '55%' : '70%';
-  return `hsl(${hue}, 45%, ${lightness})`;
+  return hsluvToHex(hslForSlice(String(callsiteId), isHovered));
 }
 
 class CpuProfileTrack extends Track<Config, Data> {

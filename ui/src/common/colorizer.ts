@@ -127,10 +127,6 @@ export function colorForTid(tid: number): Color {
   return Object.assign({}, MD_PALETTE[colorIdx]);
 }
 
-export function hueForSlice(sliceName: string): number {
-  return hash(sliceName, 360);
-}
-
 export function colorForThread(thread?: {pid?: number, tid: number}): Color {
   if (thread === undefined) {
     return Object.assign({}, GREY_COLOR);
@@ -143,4 +139,23 @@ export function colorForThread(thread?: {pid?: number, tid: number}): Color {
 export function randomColor(): string {
   const hue = Math.floor(Math.random() * 40) * 9;
   return '#' + hsl.hex([hue, 90, 30]);
+}
+
+// Chooses a color uniform at random based on hash(sliceName).  Returns [hue,
+// saturation, lightness].
+//
+// Prefer converting this to an RGB color using hsluv, not the browser's
+// built-in vanilla HSL handling.  This is because this function chooses
+// hue/lightness uniform at random, but HSL is not perceptually uniform.  See
+// https://www.boronine.com/2012/03/26/Color-Spaces-for-Human-Beings/.
+//
+// If isSelected, the color will be particularly dark, making it stand out.
+export function hslForSlice(
+    sliceName: string, isSelected: boolean|null): [number, number, number] {
+  const hue = hash(sliceName, 360);
+  // Saturation 100 would give the most differentiation between colors, but it's
+  // garish.
+  const saturation = 80;
+  const lightness = isSelected ? 30 : hash(sliceName + 'x', 40) + 40;
+  return [hue, saturation, lightness];
 }
