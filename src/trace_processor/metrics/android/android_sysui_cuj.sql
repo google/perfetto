@@ -85,6 +85,7 @@ CREATE TABLE android_sysui_cuj_frame_timeline_events AS
     expected.ts as ts_expected,
     expected.dur as dur_expected,
     expected.layer_name as layer_name,
+    actual.name as vsync,
     actual.ts as ts_actual,
     actual.dur as dur_actual,
     actual.jank_type LIKE '%App Deadline Missed%' as app_missed,
@@ -128,7 +129,7 @@ CREATE TABLE android_sysui_cuj_frames AS
       MAX(gcs_rt.gcs_ts_end) as gcs_ts_end
     FROM android_sysui_cuj_do_frame_slices_in_cuj mts
     JOIN android_sysui_cuj_draw_frame_slices_in_cuj rts
-      ON mts.ts < rts.ts AND mts.ts_end >= rts.ts
+      ON mts.vsync = rts.vsync
     LEFT JOIN gcs_to_rt_match gcs_rt ON gcs_rt.rts_ts = rts.ts
     GROUP BY mts.ts, mts.ts_end, mts.dur
   )
@@ -148,21 +149,12 @@ CREATE TABLE android_sysui_cuj_frames AS
     COUNT(DISTINCT(gcs_rt.gcs_ts)) as gpu_completions
   FROM frame_boundaries f
   JOIN android_sysui_cuj_draw_frame_slices_in_cuj rts
-    ON f.mts_ts < rts.ts AND f.mts_ts_end >= rts.ts
+    ON f.vsync = rts.vsync
   LEFT JOIN gcs_to_rt_match gcs_rt
     ON rts.ts = gcs_rt.rts_ts
   LEFT JOIN android_sysui_cuj_hwc_release_slices_in_cuj hwc USING (idx)
   GROUP BY f.mts_ts
   HAVING gpu_completions >= 1;
-
--- TODO(marcinoc): This matching does not work well. Fix by using VSYNC id.
-DROP TABLE IF EXISTS android_sysui_cuj_frame_timeline_match;
-CREATE TABLE android_sysui_cuj_frame_timeline_match AS
-  SELECT f.frame_number, MAX(fte.ts_actual) as ts_actual_match
-  FROM android_sysui_cuj_frames f
-  JOIN android_sysui_cuj_frame_timeline_events fte
-    ON f.ts_main_thread_start >= fte.ts_actual
-  GROUP BY f.frame_number;
 
 DROP TABLE IF EXISTS android_sysui_cuj_missed_frames;
 CREATE TABLE android_sysui_cuj_missed_frames AS
@@ -170,10 +162,9 @@ CREATE TABLE android_sysui_cuj_missed_frames AS
     f.*,
     (SELECT MAX(fte.app_missed)
      FROM android_sysui_cuj_frame_timeline_events fte
-     WHERE match.ts_actual_match = fte.ts_actual
+     WHERE f.vsync = fte.vsync
      AND fte.on_time_finish = 0) as app_missed
-  FROM android_sysui_cuj_frames f
-  JOIN android_sysui_cuj_frame_timeline_match match USING (frame_number);
+  FROM android_sysui_cuj_frames f;
 
 DROP VIEW IF EXISTS android_sysui_cuj_frame_main_thread_bounds;
 CREATE VIEW android_sysui_cuj_frame_main_thread_bounds AS
@@ -243,9 +234,9 @@ CREATE TABLE android_sysui_cuj_main_thread_binder AS
 DROP TABLE IF EXISTS android_sysui_cuj_sf_jank_causes;
 CREATE TABLE android_sysui_cuj_sf_jank_causes AS
   WITH RECURSIVE split_jank_type(frame_number, jank_cause, remainder) AS (
-    SELECT match.frame_number, "", fte.jank_type || ","
-    FROM android_sysui_cuj_frame_timeline_match match
-    JOIN android_sysui_cuj_frame_timeline_events fte ON match.ts_actual_match = fte.ts_actual
+    SELECT f.frame_number, "", fte.jank_type || ","
+    FROM android_sysui_cuj_frames f
+    JOIN android_sysui_cuj_frame_timeline_events fte ON f.vsync = fte.vsync
     UNION ALL SELECT
     frame_number,
     STR_SPLIT(remainder, ",", 0) AS jank_cause,

@@ -10,7 +10,7 @@ android_sysui_cuj {
    number: 1
    ts: 0
    dur: 15000000
-   vsync: 1
+   vsync: 10
  }
  frames {
    number: 2
@@ -18,7 +18,7 @@ android_sysui_cuj {
    dur: 27000000
    jank_cause: "MainThread - binder transaction time"
    jank_cause: "SurfaceFlinger Scheduling"
-   vsync: 2
+   vsync: 20
  }
  frames {
    number: 3
@@ -26,7 +26,7 @@ android_sysui_cuj {
    dur: 22000000
    jank_cause: "RenderThread - long flush layers"
    jank_cause: "MainThread - binder calls count"
-   vsync: 3
+   vsync: 30
  }
  frames {
    number: 4
@@ -34,21 +34,21 @@ android_sysui_cuj {
    dur: 38000000
    jank_cause: "GPU completion - long completion time"
    jank_cause: "Long running time"
-   vsync: 4
+   vsync: 40
  }
  frames {
    number: 5
    ts: 70000000
    dur: 18000000
    jank_cause: "RenderThread - scheduler"
-   vsync: 6
+   vsync: 60
  }
   frames {
     number: 6
     ts: 100000000
     dur: 22000000
     jank_cause: "GPU completion - long completion time"
-    vsync: 9
+    vsync: 90
   }
   frames {
     number: 7
@@ -56,13 +56,13 @@ android_sysui_cuj {
     dur: 10000000
     jank_cause: "SurfaceFlinger GPU Deadline Missed"
     jank_cause: "SurfaceFlinger Scheduling"
-    vsync: 10
+    vsync: 100
   }
   frames {
     number: 8
     ts: 400000000
     dur: 10000000
     jank_cause: "Buffer Stuffing"
-    vsync: 12
+    vsync: 120
   }
 }
