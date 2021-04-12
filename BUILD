@@ -1143,6 +1143,8 @@ filegroup(
         "src/trace_processor/dynamic/descendant_slice_generator.h",
         "src/trace_processor/dynamic/describe_slice_generator.cc",
         "src/trace_processor/dynamic/describe_slice_generator.h",
+        "src/trace_processor/dynamic/experimental_annotated_stack_generator.cc",
+        "src/trace_processor/dynamic/experimental_annotated_stack_generator.h",
         "src/trace_processor/dynamic/experimental_counter_dur_generator.cc",
         "src/trace_processor/dynamic/experimental_counter_dur_generator.h",
         "src/trace_processor/dynamic/experimental_flamegraph_generator.cc",
