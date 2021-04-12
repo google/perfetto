@@ -53,10 +53,7 @@ android_startup {
     activities {
       name: "com.google.android.calendar.MainActivity"
       method: "performCreate"
-      slice {
-        dur_ns: 4000000000
-        dur_ms: 4000
-      }
+      ts_method_start: 188000000000
     }
     optimization_status {
       odex_status: "up-to-date"
