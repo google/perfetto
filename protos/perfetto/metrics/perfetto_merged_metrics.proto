@@ -819,7 +819,10 @@ message AndroidStartupMetric {
   message Activity {
     optional string name = 1;
     optional string method = 2;
-    optional Slice slice = 3;
+    optional int64 ts_method_start = 4;
+
+    // Field 3 contained Slice with a sum of durations for matching slices.
+    reserved 3;
   }
 
   // Metrics with information about the status of odex files and the outcome
