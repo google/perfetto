@@ -177,9 +177,14 @@ std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> BuildNativeFlamegraph(
     uint32_t merged_idx =
         callsite_to_merged_callsite[*callsites_tbl.id().IndexOf(
             CallsiteId(static_cast<uint32_t>(callsite_id)))];
-    if (count > 0) {
+    // On Android R, the count field is incorrectly set. As such, we cannot
+    // depend on count == 0 to imply size == 0, so we check for both of them
+    // separately. TODO(fmayer): Hide count on R builds.
+    if (size > 0) {
       tbl->mutable_alloc_size()->Set(merged_idx,
                                      tbl->alloc_size()[merged_idx] + size);
+    }
+    if (count > 0) {
       tbl->mutable_alloc_count()->Set(merged_idx,
                                       tbl->alloc_count()[merged_idx] + count);
     }
