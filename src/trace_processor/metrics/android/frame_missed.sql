@@ -29,6 +29,6 @@ WITH frame_missed_counters AS (
 )
 SELECT
   ts,
-  dur
-FROM frame_missed_counters
-WHERE value = 1 AND ts IS NOT NULL;
+  dur,
+  value
+FROM frame_missed_counters;

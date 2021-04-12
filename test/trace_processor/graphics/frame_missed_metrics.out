@@ -1,0 +1,6 @@
+android_surfaceflinger {
+  missed_frames: 3
+  missed_hwc_frames: 0
+  missed_gpu_frames: 0
+  missed_frame_rate: 0.42857142857142855 # = 3/7
+}
