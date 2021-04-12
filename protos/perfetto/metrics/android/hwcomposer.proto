@@ -34,4 +34,29 @@ message AndroidHwcomposerMetrics {
   // Counts the number of composition surfaceflinger cached layers in the trace.
   // (non-weighted average)
   optional double composition_sf_cached_layers = 5;
+
+  // Counts how many times validateDisplay is skipped.
+  optional int32 skipped_validation_count = 6;
+
+  // Counts how many times validateDisplay cannot be skipped.
+  optional int32 unskipped_validation_count = 7;
+
+  // Counts how many times validateDisplay is already separated from presentDisplay
+  // since the beginning.
+  optional int32 separated_validation_count = 8;
+
+  // Counts how many unhandled validation cases which might be caused by errors.
+  optional int32 unknown_validation_count = 9;
+
+  // the average of overall hwcomposer execution time.
+  optional double avg_all_execution_time_ms = 10;
+
+  // the average of hwcomposer execution time for skipped validation cases.
+  optional double avg_skipped_execution_time_ms = 11;
+
+  // the average of hwcomposer execution time for unskipped validation cases.
+  optional double avg_unskipped_execution_time_ms = 12;
+
+  // the average of hwcomposer execution time for separated validation cases.
+  optional double avg_separated_execution_time_ms = 13;
 }
