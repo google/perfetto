@@ -13,30 +13,19 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-select perf_sample.ts, thread.tid, perf_sample.cpu, perf_sample.cpu_mode,
-       perf_sample.unwind_error, concatenated_callsite.frames_str
-from perf_sample
+
+select ps.ts, ps.cpu, ps.cpu_mode, ps.unwind_error, ps.perf_session_id,
+       pct.name cntr_name, pct.is_timebase,
+       thread.tid,
+       spf.name
+from experimental_annotated_callstack eac
+join perf_sample ps
+  on (eac.start_id == ps.callsite_id)
+join perf_counter_track pct
+  using(perf_session_id, cpu)
 join thread
   using(utid)
-left join (
-  select flattened_callsite.id, group_concat(spf.name) frames_str
-  from (
-    with recursive rec(id, parent_id, frame_id, depth)
-      as (
-        select id, parent_id, frame_id, depth
-        from stack_profile_callsite
-        union all
-          select rec.id, spc.parent_id, spc.frame_id, spc.depth
-          from stack_profile_callsite spc
-          join rec
-            on spc.id == rec.parent_id
-      )
-    select id, frame_id, depth
-    from rec
-    order by id asc, depth desc
-  ) as flattened_callsite
-  left join stack_profile_frame spf
-    on flattened_callsite.frame_id == spf.id
-  group by flattened_callsite.id
-) as concatenated_callsite
-  on perf_sample.callsite_id == concatenated_callsite.id;
+join stack_profile_frame spf
+  on (eac.frame_id == spf.id)
+order by ps.ts asc, eac.depth asc
+
