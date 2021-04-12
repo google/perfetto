@@ -309,6 +309,8 @@ if (enable_perfetto_trace_processor_sqlite) {
       "dynamic/descendant_slice_generator.h",
       "dynamic/describe_slice_generator.cc",
       "dynamic/describe_slice_generator.h",
+      "dynamic/experimental_annotated_stack_generator.cc",
+      "dynamic/experimental_annotated_stack_generator.h",
       "dynamic/experimental_counter_dur_generator.cc",
       "dynamic/experimental_counter_dur_generator.h",
       "dynamic/experimental_flamegraph_generator.cc",
