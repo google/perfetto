@@ -8,3 +8,6 @@ relationship_tables.textproto descendant_slice.sql descendant_slice.out
 
 # Connected/Following/Perceeding flow table.
 connected_flow_data.json connected_flow.sql connected_flow.out
+
+# Annotated callstacks.
+../../data/perf_sample_sc.pb annotated_callstack.sql perf_sample_sc_annotated_callstack.out
