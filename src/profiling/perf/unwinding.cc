@@ -323,7 +323,7 @@ CompletedSample Unwinder::UnwindSample(const ParsedSample& sample,
         : error_code(e), warnings(w), frames(std::move(f)) {}
     UnwindResult(const UnwindResult&) = delete;
     UnwindResult& operator=(const UnwindResult&) = delete;
-    UnwindResult(UnwindResult&&) = default;
+    UnwindResult(UnwindResult&&) __attribute__((unused)) = default;
     UnwindResult& operator=(UnwindResult&&) = default;
   };
   auto attempt_unwind = [&sample, unwind_state, pid_unwound_before,
