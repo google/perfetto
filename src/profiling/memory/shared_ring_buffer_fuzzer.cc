@@ -65,6 +65,7 @@ int FuzzRingBuffer(const uint8_t* data, size_t size) {
   SharedRingBuffer::MetadataPage header = {};
   memcpy(&header, data, sizeof(header));
   header.spinlock.locked = false;
+  header.spinlock.poisoned = false;
 
   PERFETTO_CHECK(ftruncate(*fd, static_cast<off_t>(total_size_pages *
                                                    base::kPageSize)) == 0);
