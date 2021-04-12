@@ -55,12 +55,20 @@ void SystraceParser::ParseZeroEvent(int64_t ts,
                                     uint32_t pid,
                                     int32_t flag,
                                     base::StringView name,
-                                    uint32_t tgid,
+                                    uint32_t /* tgid */,
                                     int64_t value) {
   systrace_utils::SystraceTracePoint point{};
   point.name = name;
-  point.tgid = tgid;
   point.value = static_cast<double>(value);
+
+  // Hardcode the tgid to 0 (i.e. no tgid available) because zero events can
+  // come from kernel threads and as we group kernel threads into the kthreadd
+  // process, we would want |point.tgid == kKthreaddPid|. However, we don't have
+  // acces to the ppid of this process so we have to not associate to any
+  // process and leave the resolution of process to other events.
+  // TODO(lalitm): remove this hack once we move kernel thread grouping to
+  // the UI.
+  point.tgid = 0;
 
   // The value of these constants can be found in the msm-google kernel.
   constexpr int32_t kSystraceEventBegin = 1 << 0;
