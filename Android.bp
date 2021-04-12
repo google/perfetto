@@ -7739,6 +7739,7 @@ genrule {
     "src/trace_processor/metrics/android/android_sysui_cuj.sql",
     "src/trace_processor/metrics/android/android_task_names.sql",
     "src/trace_processor/metrics/android/android_thread_time_in_state.sql",
+    "src/trace_processor/metrics/android/composer_execution.sql",
     "src/trace_processor/metrics/android/composition_layers.sql",
     "src/trace_processor/metrics/android/cpu_info.sql",
     "src/trace_processor/metrics/android/display_metrics.sql",
