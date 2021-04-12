@@ -1752,7 +1752,7 @@ TEST_P(HeapprofdEndToEnd, NativeProfilingActiveAtProcessExit) {
 #error "Need to start daemons for Linux test."
 #endif
 
-INSTANTIATE_TEST_CASE_P(Run,
+INSTANTIATE_TEST_CASE_P(DISABLED_Run,
                         HeapprofdEndToEnd,
                         Values(std::make_tuple(TestMode::kStatic,
                                                AllocatorMode::kCustom)),
