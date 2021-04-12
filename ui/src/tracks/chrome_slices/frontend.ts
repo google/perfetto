@@ -12,9 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {hsluvToHex} from 'hsluv';
+
 import {Actions} from '../../common/actions';
 import {cropText, drawIncompleteSlice} from '../../common/canvas_utils';
-import {hueForSlice} from '../../common/colorizer';
+import {hslForSlice} from '../../common/colorizer';
 import {TrackState} from '../../common/state';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
@@ -98,14 +100,15 @@ export class ChromeSliceTrack extends Track<Config, Data> {
           currentSelection.id !== undefined && currentSelection.id === sliceId;
 
       const name = title.replace(/( )?\d+/g, '');
-      const hue = hueForSlice(name);
-      const saturation = isSelected ? 80 : 50;
       const highlighted = titleId === this.hoveredTitleId ||
           globals.frontendLocalState.highlightedSliceId === sliceId;
 
+      const [hue, saturation, lightness] =
+          hslForSlice(name, highlighted || isSelected);
+
       let color: string;
       if (colorOverride === undefined) {
-        color = `hsl(${hue}, ${saturation}%, ${highlighted ? 30 : 65}%)`;
+        color = hsluvToHex([hue, saturation, lightness]);
       } else {
         color = colorOverride;
       }
@@ -128,7 +131,8 @@ export class ChromeSliceTrack extends Track<Config, Data> {
             ctx.save();
             ctx.translate(0, INNER_CHEVRON_OFFSET);
             ctx.scale(INNER_CHEVRON_SCALE, INNER_CHEVRON_SCALE);
-            ctx.fillStyle = `hsl(${hue}, ${saturation}%, 30%)`;
+            ctx.fillStyle = hsluvToHex([hue, 100, 10]);
+
             this.drawChevron(ctx);
             ctx.restore();
 
@@ -155,7 +159,7 @@ export class ChromeSliceTrack extends Track<Config, Data> {
       // Selected case
       if (isSelected) {
         drawRectOnSelected = () => {
-          ctx.strokeStyle = `hsl(${hue}, ${saturation}%, 30%)`;
+          ctx.strokeStyle = hsluvToHex([hue, 100, 10]);
           ctx.beginPath();
           ctx.lineWidth = 3;
           ctx.strokeRect(
@@ -164,7 +168,7 @@ export class ChromeSliceTrack extends Track<Config, Data> {
         };
       }
 
-      ctx.fillStyle = 'white';
+      ctx.fillStyle = lightness > 65 ? '#404040' : 'white';
       const displayText = cropText(title, charWidth, rect.width);
       const rectXCenter = rect.left + rect.width / 2;
       ctx.textBaseline = "middle";
