@@ -27,6 +27,7 @@
 #include "src/trace_processor/dynamic/connected_flow_generator.h"
 #include "src/trace_processor/dynamic/descendant_slice_generator.h"
 #include "src/trace_processor/dynamic/describe_slice_generator.h"
+#include "src/trace_processor/dynamic/experimental_annotated_stack_generator.h"
 #include "src/trace_processor/dynamic/experimental_counter_dur_generator.h"
 #include "src/trace_processor/dynamic/experimental_flamegraph_generator.h"
 #include "src/trace_processor/dynamic/experimental_sched_upid_generator.h"
@@ -766,6 +767,8 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
                                          storage->thread_table())));
   RegisterDynamicTable(std::unique_ptr<ThreadStateGenerator>(
       new ThreadStateGenerator(&context_)));
+  RegisterDynamicTable(std::unique_ptr<ExperimentalAnnotatedStackGenerator>(
+      new ExperimentalAnnotatedStackGenerator(&context_)));
 
   // New style db-backed tables.
   RegisterDbTable(storage->arg_table());
