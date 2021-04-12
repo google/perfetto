@@ -19,6 +19,7 @@
     "custom_utils": "file:src/base/utils",
     "devtools-protocol": "0.0.847576",
     "events": "^3.1.0",
+    "hsluv": "^0.1.0",
     "immer": "^1.12.1",
     "micromodal": "^0.4.6",
     "mithril": "^2.0.4",
