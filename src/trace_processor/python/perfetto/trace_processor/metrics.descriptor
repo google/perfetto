@@ -166,14 +166,23 @@ selfAllocsQ
 profile_delta_bytes (RprofileDeltaBytes.
 profile_total_bytes (RprofileTotalBytes;
 max_anon_rss_and_swap_bytes (RmaxAnonRssAndSwapBytes
-Š
-0protos/perfetto/metrics/android/hwcomposer.protoperfetto.protos"Ä
+‚
+0protos/perfetto/metrics/android/hwcomposer.protoperfetto.protos"¼
 AndroidHwcomposerMetrics8
 composition_total_layers (RcompositionTotalLayers4
 composition_dpu_layers (RcompositionDpuLayers4
 composition_gpu_layers (RcompositionGpuLayersA
 composition_dpu_cached_layers (RcompositionDpuCachedLayers?
-composition_sf_cached_layers (RcompositionSfCachedLayers
+composition_sf_cached_layers (RcompositionSfCachedLayers8
+skipped_validation_count (RskippedValidationCount<
+unskipped_validation_count (RunskippedValidationCount<
+separated_validation_count (RseparatedValidationCount8
+unknown_validation_count	 (RunknownValidationCount8
+avg_all_execution_time_ms
+ (RavgAllExecutionTimeMs@
+avg_skipped_execution_time_ms (RavgSkippedExecutionTimeMsD
+avg_unskipped_execution_time_ms (RavgUnskippedExecutionTimeMsD
+avg_separated_execution_time_ms (RavgSeparatedExecutionTimeMs
 †
 1protos/perfetto/metrics/android/hwui_metric.protoperfetto.protos"ã
 ProcessRenderInfo!
@@ -371,8 +380,8 @@ PowerRails
 name (	RnameN
 energy_data (2-.perfetto.protos.AndroidPowerRails.EnergyDataR
 energyData
-ì
-4protos/perfetto/metrics/android/startup_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"ê
+Á
+4protos/perfetto/metrics/android/startup_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"¿
 AndroidStartupMetricG
 startup (2-.perfetto.protos.AndroidStartupMetric.StartupRstartupà
 TaskStateBreakdown$
@@ -387,7 +396,7 @@ energyData
 unknown (Runknown5
 Slice
 dur_ns (RdurNs
-dur_ms (RdurMsÒ
+dur_ms (RdurMs¼
 ToFirstFrame
 dur_ns (RdurNs
 dur_ms (RdurMsr
@@ -413,14 +422,15 @@ toPostForkb
 time_post_fork (2+.perfetto.protos.AndroidStartupMetric.SliceRtimePostForkO
 time_dex_open (2+.perfetto.protos.AndroidStartupMetric.SliceRtimeDexOpenW
 time_verify_class (2+.perfetto.protos.AndroidStartupMetric.SliceRtimeVerifyClass0
-jit_compiled_methods (RjitCompiledMethodsJJJJ\
+jit_compiled_methods (RjitCompiledMethodsh
+time_jit_thread_pool_on_cpu (2+.perfetto.protos.AndroidStartupMetric.SliceRtimeJitThreadPoolOnCpuJJJJ\
 
 HscMetricsN
-full_startup (2+.perfetto.protos.AndroidStartupMetric.SliceRfullStartupy
+full_startup (2+.perfetto.protos.AndroidStartupMetric.SliceRfullStartupd
 Activity
 name (	Rname
-method (	RmethodA
-slice (2+.perfetto.protos.AndroidStartupMetric.SliceRslice¯
+method (	Rmethod&
+ts_method_start (RtsMethodStartJ¯
 OptimizationStatus
 odex_status (	R
 odexStatus-

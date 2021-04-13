@@ -1,5 +1,5 @@
 --
--- Copyright 2020 The Android Open Source Project
+-- Copyright 2021 The Android Open Source Project
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
 -- you may not use this file except in compliance with the License.
@@ -12,20 +12,14 @@
 -- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
---
 
-select ps.ts, ps.cpu, ps.cpu_mode, ps.unwind_error, ps.perf_session_id,
-       pct.name cntr_name, pct.is_timebase,
-       thread.tid,
-       spf.name
-from experimental_annotated_callstack eac
-join perf_sample ps
-  on (eac.start_id == ps.callsite_id)
-join perf_counter_track pct
-  using(perf_session_id, cpu)
-join thread
-  using(utid)
-join stack_profile_frame spf
-  on (eac.frame_id == spf.id)
-order by ps.ts asc, eac.depth asc
+SELECT RUN_METRIC('android/composer_execution.sql',
+  'output', 'hwc_execution_spans') AS suppress_query_output;
 
+SELECT
+  validation_type,
+  COUNT(*) as count,
+  SUM(execution_time_ns) as total
+FROM hwc_execution_spans
+GROUP BY validation_type
+ORDER BY validation_type;

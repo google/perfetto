@@ -177,9 +177,15 @@ std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> BuildNativeFlamegraph(
     uint32_t merged_idx =
         callsite_to_merged_callsite[*callsites_tbl.id().IndexOf(
             CallsiteId(static_cast<uint32_t>(callsite_id)))];
-    if (count > 0) {
+    // On old heapprofd producers, the count field is incorrectly set and we
+    // zero it in proto_trace_parser.cc.
+    // As such, we cannot depend on count == 0 to imply size == 0, so we check
+    // for both of them separately.
+    if (size > 0) {
       tbl->mutable_alloc_size()->Set(merged_idx,
                                      tbl->alloc_size()[merged_idx] + size);
+    }
+    if (count > 0) {
       tbl->mutable_alloc_count()->Set(merged_idx,
                                       tbl->alloc_count()[merged_idx] + count);
     }
