@@ -7397,8 +7397,9 @@ message BatteryCounters {
   optional float capacity_percent = 2;
 
   // Instantaneous battery current in microamperes(µA).
-  // Positive values indicate net current entering the battery from a charge
-  // source, negative values indicate net current discharging from the battery.
+  // Positive values indicate current drained from the battery,
+  // negative values current feeding the battery from a charge source (USB).
+  // See https://perfetto.dev/docs/data-sources/battery-counters for more.
   optional int64 current_ua = 3;
 
   // Instantaneous battery current in microamperes(µA).
