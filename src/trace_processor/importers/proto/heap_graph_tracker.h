@@ -101,7 +101,7 @@ class HeapGraphTracker : public Destructible {
   void AddInternedType(uint32_t seq_id,
                        uint64_t intern_id,
                        StringPool::Id strid,
-                       uint64_t location_id,
+                       base::Optional<uint64_t> location_id,
                        uint64_t object_size,
                        std::vector<uint64_t> field_name_ids,
                        uint64_t superclass_id,
