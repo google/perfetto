@@ -208,7 +208,7 @@ BUILD_DEPS_HOST = [
     Dependency(
         'buildtools/android-unwinding',
         'https://android.googlesource.com/platform/system/unwinding.git',
-        '045391306dc6d9fd16a40af612df0400def0e865', 'all', 'all'),
+        '5f15cdbdb71db0eb6512e9432a63b8c4075a6c00', 'all', 'all'),
     Dependency('buildtools/android-logging',
                'https://android.googlesource.com/platform/system/logging.git',
                '7b36b566c9113fc703d68f76e8f40c0c2432481c', 'all', 'all'),
