@@ -1,0 +1,24 @@
+display_metrics {
+  total_duplicate_frames: 0
+  duplicate_frames_logged: 0
+  total_dpu_underrun_count: 0
+  refresh_rate_switches: 5
+  refresh_rate_stats {
+    refresh_rate_fps: 60
+    count: 2
+    total_dur_ms: 2
+    avg_dur_ms: 1
+  }
+  refresh_rate_stats {
+    refresh_rate_fps: 90
+    count: 2
+    total_dur_ms: 2
+    avg_dur_ms: 1
+  }
+  refresh_rate_stats {
+    refresh_rate_fps: 120
+    count: 1
+    total_dur_ms: 2
+    avg_dur_ms: 2
+  }
+}

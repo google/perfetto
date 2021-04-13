@@ -43,3 +43,6 @@ g2d_metrics.textproto g2d g2d_metrics.out
 
 # Composer execution
 composer_execution.py composer_execution.sql composer_execution.out
+
+# Display metrics
+panel_fps.py display_metrics panel_fps.out
