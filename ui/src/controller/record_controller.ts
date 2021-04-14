@@ -329,6 +329,15 @@ export function genConfig(
     }
   }
 
+  if (uiCfg.androidFrameTimeline) {
+    const ds = new TraceConfig.DataSource();
+    ds.config = new DataSourceConfig();
+    ds.config.name = 'android.surfaceflinger.frametimeline';
+    if (!isChromeTarget(target) || isCrOSTarget(target)) {
+      protoCfg.dataSources.push(ds);
+    }
+  }
+
   if (uiCfg.chromeLogs) {
     chromeCategories.add('log');
   }
