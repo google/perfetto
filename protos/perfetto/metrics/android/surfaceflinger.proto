@@ -27,4 +27,16 @@ message AndroidSurfaceflingerMetric {
 
   // Counts the number of missed GPU frames in the trace.
   optional uint32 missed_gpu_frames = 3;
+
+  // Calculate the number of missed frames divided by
+  // total frames
+  optional double missed_frame_rate = 4;
+
+  // Calculate the number of missed HWC frames divided by
+  // total HWC frames
+  optional double missed_hwc_frame_rate = 5;
+
+  // Calculate the number of missed GPU frames divided by
+  // total GPU frames
+  optional double missed_gpu_frame_rate = 6;
 }
