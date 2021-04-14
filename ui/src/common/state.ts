@@ -396,6 +396,7 @@ export interface RecordConfig {
   ftraceDrainPeriodMs: number;
   androidLogs: boolean;
   androidLogBuffers: string[];
+  androidFrameTimeline: boolean;
 
   batteryDrain: boolean;
   batteryDrainPollMs: number;
@@ -458,6 +459,7 @@ export function createEmptyRecordConfig(): RecordConfig {
     ftraceDrainPeriodMs: 250,
     androidLogs: false,
     androidLogBuffers: [],
+    androidFrameTimeline: false,
 
     cpuCoarse: false,
     cpuCoarsePollMs: 1000,
