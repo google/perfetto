@@ -92,9 +92,9 @@ base::Optional<std::string> PackageFromLocation(TraceStorage* storage,
     return "com.google.android.apps.wellbeing";
   }
 
-  base::StringView matchmaker("MatchMaker");
-  if (location.size() >= matchmaker.size() &&
-      location.find(matchmaker) != base::StringView::npos) {
+  if (location.find("DevicePersonalizationPrebuilt") !=
+          base::StringView::npos ||
+      location.find("MatchMaker") != base::StringView::npos) {
     return "com.google.android.as";
   }
 
