@@ -458,12 +458,15 @@ activities,
 report_fully_drawn	 (2+.perfetto.protos.AndroidStartupMetric.SliceRreportFullyDrawni
 optimization_status (28.perfetto.protos.AndroidStartupMetric.OptimizationStatusRoptimizationStatusJ
 
-ä
-4protos/perfetto/metrics/android/surfaceflinger.protoperfetto.protos"š
+ö
+4protos/perfetto/metrics/android/surfaceflinger.protoperfetto.protos"¬
 AndroidSurfaceflingerMetric#
 missed_frames (RmissedFrames*
 missed_hwc_frames (RmissedHwcFrames*
-missed_gpu_frames (RmissedGpuFrames
+missed_gpu_frames (RmissedGpuFrames*
+missed_frame_rate (RmissedFrameRate1
+missed_hwc_frame_rate (RmissedHwcFrameRate1
+missed_gpu_frame_rate (RmissedGpuFrameRate
 ð
 7protos/perfetto/metrics/android/sysui_cuj_metrics.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"ë
 AndroidSysUiCujMetricsE
