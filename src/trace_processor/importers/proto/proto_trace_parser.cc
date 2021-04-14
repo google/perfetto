@@ -335,6 +335,9 @@ void ProtoTraceParser::ParseProfilePacket(
     context_->storage->IncrementIndexedStats(
         stats::heapprofd_unwind_samples, static_cast<int>(entry.pid()),
         static_cast<int64_t>(stats.heap_samples()));
+    context_->storage->IncrementIndexedStats(
+        stats::heapprofd_client_spinlock_blocked, static_cast<int>(entry.pid()),
+        static_cast<int64_t>(stats.client_spinlock_blocked_us()));
 
     // orig_sampling_interval_bytes was introduced slightly after a bug with
     // self_max_count was fixed in the producer. We use this as a proxy
