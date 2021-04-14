@@ -50,6 +50,12 @@ namespace perfetto {
 namespace trace_to_text {
 namespace {
 
+uint64_t ToConversionFlags(bool annotate_frames) {
+  return static_cast<uint64_t>(annotate_frames
+                                   ? ConversionFlags::kAnnotateFrames
+                                   : ConversionFlags::kNone);
+}
+
 std::string GetRandomString(size_t n) {
   std::random_device r;
   auto rng = std::default_random_engine(r());
@@ -92,6 +98,7 @@ int TraceToProfile(
     uint64_t pid,
     std::vector<uint64_t> timestamps,
     ConversionMode conversion_mode,
+    uint64_t conversion_flags,
     std::string dirname_prefix,
     std::function<std::string(const SerializedProfile&)> filename_fn) {
   std::vector<SerializedProfile> profiles;
@@ -106,7 +113,8 @@ int TraceToProfile(
   MaybeSymbolize(tp.get());
   MaybeDeobfuscate(tp.get());
 
-  TraceToPprof(tp.get(), &profiles, conversion_mode, pid, timestamps);
+  TraceToPprof(tp.get(), &profiles, conversion_mode, conversion_flags, pid,
+               timestamps);
   if (profiles.empty()) {
     return 0;
   }
@@ -132,31 +140,33 @@ int TraceToProfile(
 int TraceToHeapProfile(std::istream* input,
                        std::ostream* output,
                        uint64_t pid,
-                       std::vector<uint64_t> timestamps) {
+                       std::vector<uint64_t> timestamps,
+                       bool annotate_frames) {
   int file_idx = 0;
   auto filename_fn = [&file_idx](const SerializedProfile& profile) {
     return "heap_dump." + std::to_string(++file_idx) + "." +
            std::to_string(profile.pid) + "." + profile.heap_name + ".pb";
   };
 
-  return TraceToProfile(input, output, pid, timestamps,
-                        ConversionMode::kHeapProfile, "heap_profile-",
-                        filename_fn);
+  return TraceToProfile(
+      input, output, pid, timestamps, ConversionMode::kHeapProfile,
+      ToConversionFlags(annotate_frames), "heap_profile-", filename_fn);
 }
 
 int TraceToPerfProfile(std::istream* input,
                        std::ostream* output,
                        uint64_t pid,
-                       std::vector<uint64_t> timestamps) {
+                       std::vector<uint64_t> timestamps,
+                       bool annotate_frames) {
   int file_idx = 0;
   auto filename_fn = [&file_idx](const SerializedProfile& profile) {
     return "profile." + std::to_string(++file_idx) + ".pid." +
            std::to_string(profile.pid) + ".pb";
   };
 
-  return TraceToProfile(input, output, pid, timestamps,
-                        ConversionMode::kPerfProfile, "perf_profile-",
-                        filename_fn);
+  return TraceToProfile(
+      input, output, pid, timestamps, ConversionMode::kPerfProfile,
+      ToConversionFlags(annotate_frames), "perf_profile-", filename_fn);
 }
 
 }  // namespace trace_to_text
