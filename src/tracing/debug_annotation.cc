@@ -24,12 +24,7 @@ namespace perfetto {
 DebugAnnotation::~DebugAnnotation() = default;
 
 void DebugAnnotation::WriteIntoTracedValue(TracedValue context) const {
-  if (!context.root_context_) {
-    PERFETTO_DFATAL("DebugAnnotation should not be used in non-root contexts.");
-    std::move(context).WriteString("<not supported>");
-    return;
-  }
-  Add(context.root_context_);
+  Add(context.context_);
 }
 
 }  // namespace perfetto

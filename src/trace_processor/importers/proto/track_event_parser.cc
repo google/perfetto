@@ -104,12 +104,11 @@ bool MaybeParseSourceLocation(
   return true;
 }
 
-std::string SafeDebugAnnotationName(const std::string& raw_name) {
+std::string SanitizeDebugAnnotationName(const std::string& raw_name) {
   std::string result = raw_name;
   std::replace(result.begin(), result.end(), '.', '_');
   std::replace(result.begin(), result.end(), '[', '_');
   std::replace(result.begin(), result.end(), ']', '_');
-  result = "debug." + result;
   return result;
 }
 }  // namespace
@@ -953,7 +952,8 @@ class TrackEventParser::EventImporter {
       auto process_name = annotation.string_value();
       if (!process_name.size)
         return util::OkStatus();
-      auto process_name_id = storage_->InternString(process_name);
+      auto process_name_id =
+          storage_->InternString(base::StringView(process_name));
       // Don't override system-provided names.
       procs->SetProcessNameIfUnset(*upid_, process_name_id);
       return util::OkStatus();
@@ -1056,7 +1056,7 @@ class TrackEventParser::EventImporter {
     };
 
     for (auto it = event_.debug_annotations(); it; ++it) {
-      log_errors(ParseDebugAnnotationArgs(*it, inserter));
+      log_errors(ParseDebugAnnotation(*it, inserter));
     }
 
     if (event_.has_source_location_iid()) {
@@ -1086,12 +1086,20 @@ class TrackEventParser::EventImporter {
     }
   }
 
-  util::Status ParseDebugAnnotationArgs(ConstBytes debug_annotation,
-                                        BoundInserter* inserter) {
-    protos::pbzero::DebugAnnotation::Decoder annotation(debug_annotation);
+  util::Status ParseDebugAnnotation(ConstBytes data, BoundInserter* inserter) {
+    protos::pbzero::DebugAnnotation::Decoder annotation(data);
 
-    StringId name_id = kNullStringId;
+    std::string name;
+    util::Status name_parse_result = ParseDebugAnnotationName(annotation, name);
+    if (!name_parse_result.ok())
+      return name_parse_result;
 
+    return ParseDebugAnnotationValue(annotation, inserter, "debug." + name);
+  }
+
+  util::Status ParseDebugAnnotationName(
+      protos::pbzero::DebugAnnotation::Decoder& annotation,
+      std::string& result) {
     uint64_t name_iid = annotation.name_iid();
     if (PERFETTO_LIKELY(name_iid)) {
       auto* decoder = sequence_state_->LookupInternedMessage<
@@ -1100,14 +1108,20 @@ class TrackEventParser::EventImporter {
       if (!decoder)
         return util::ErrStatus("Debug annotation with invalid name_iid");
 
-      std::string name_prefixed =
-          SafeDebugAnnotationName(decoder->name().ToStdString());
-      name_id = storage_->InternString(base::StringView(name_prefixed));
+      result = SanitizeDebugAnnotationName(decoder->name().ToStdString());
     } else if (annotation.has_name()) {
-      name_id = storage_->InternString(annotation.name());
+      result = SanitizeDebugAnnotationName(annotation.name().ToStdString());
     } else {
       return util::ErrStatus("Debug annotation without name");
     }
+    return util::OkStatus();
+  }
+
+  util::Status ParseDebugAnnotationValue(
+      protos::pbzero::DebugAnnotation::Decoder& annotation,
+      BoundInserter* inserter,
+      const std::string& context_name) {
+    StringId name_id = storage_->InternString(base::StringView(context_name));
 
     if (annotation.has_bool_value()) {
       inserter->AddArg(name_id, Variadic::Boolean(annotation.bool_value()));
@@ -1124,6 +1138,34 @@ class TrackEventParser::EventImporter {
           Variadic::String(storage_->InternString(annotation.string_value())));
     } else if (annotation.has_pointer_value()) {
       inserter->AddArg(name_id, Variadic::Pointer(annotation.pointer_value()));
+    } else if (annotation.has_dict_entries()) {
+      for (auto it = annotation.dict_entries(); it; ++it) {
+        protos::pbzero::DebugAnnotation::Decoder key_value(*it);
+        std::string key;
+        util::Status key_parse_result =
+            ParseDebugAnnotationName(key_value, key);
+        if (!key_parse_result.ok())
+          return key_parse_result;
+
+        std::string child_flat_key = context_name + "." + key;
+        util::Status value_parse_result =
+            ParseDebugAnnotationValue(key_value, inserter, child_flat_key);
+        if (!value_parse_result.ok())
+          return value_parse_result;
+      }
+    } else if (annotation.has_array_values()) {
+      size_t index = 0;
+      for (auto it = annotation.array_values(); it; ++it) {
+        protos::pbzero::DebugAnnotation::Decoder value(*it);
+
+        std::string child_flat_key =
+            context_name + "[" + std::to_string(index) + "]";
+        util::Status value_parse_result =
+            ParseDebugAnnotationValue(value, inserter, child_flat_key);
+        if (!value_parse_result.ok())
+          return value_parse_result;
+        ++index;
+      }
     } else if (annotation.has_legacy_json_value()) {
       if (!json::IsJsonSupported())
         return util::ErrStatus("Ignoring legacy_json_value (no json support)");
@@ -1177,7 +1219,8 @@ class TrackEventParser::EventImporter {
         auto value_it = value.dict_values();
         bool inserted = false;
         for (; key_it && value_it; ++key_it, ++value_it) {
-          std::string child_name = (*key_it).ToStdString();
+          std::string child_name =
+              SanitizeDebugAnnotationName((*key_it).ToStdString());
           std::string child_flat_key =
               flat_key.ToStdString() + "." + child_name;
           std::string child_key = key.ToStdString() + "." + child_name;
