@@ -82,7 +82,7 @@ typedef struct AHeapInfo AHeapInfo;
 typedef struct AHeapProfileEnableCallbackInfo AHeapProfileEnableCallbackInfo;
 typedef struct AHeapProfileDisableCallbackInfo AHeapProfileDisableCallbackInfo;
 
-// Get sampling interval of the profiling session that was started.
+// Get sampling interval (in bytes) of the profiling session that was started.
 uint64_t AHeapProfileEnableCallbackInfo_getSamplingInterval(
     const AHeapProfileEnableCallbackInfo* _Nonnull session_info);
 
@@ -138,6 +138,10 @@ AHeapInfo* _Nullable AHeapInfo_setDisabledCallback(
 uint32_t AHeapProfile_registerHeap(AHeapInfo* _Nullable info);
 
 // Reports an allocation of |size| on the given |heap_id|.
+//
+// The |alloc_id| needs to be a unique identifier for the allocation, and can
+// can be used in AHeapProfile_reportFree to report the allocation has been
+// freed.
 //
 // If a profiling session is active, this function decides whether the reported
 // allocation should be sampled. If the allocation is sampled, it will be
