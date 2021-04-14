@@ -290,8 +290,9 @@ function CpuSettings(cssClass: string) {
       } as ProbeAttrs),
       m(Probe, {
         title: 'Syscalls',
-        img: null,
-        descr: `Tracks the enter and exit of all syscalls.`,
+        img: 'rec_syscalls.png',
+        descr: `Tracks the enter and exit of all syscalls. On Android
+                requires a userdebug or eng build.`,
         setEnabled: (cfg, val) => cfg.cpuSyscall = val,
         isEnabled: (cfg) => cfg.cpuSyscall
       } as ProbeAttrs));
@@ -627,7 +628,15 @@ function AndroidSettings(cssClass: string) {
           options: LOG_BUFFERS,
           set: (cfg, val) => cfg.androidLogBuffers = val,
           get: (cfg) => cfg.androidLogBuffers
-        } as DropdownAttrs)));
+        } as DropdownAttrs)),
+      m(Probe, {
+        title: 'Frame timeline',
+        img: 'rec_frame_timeline.png',
+        descr: `Records expected/actual frame timings from surface_flinger.
+                    Requires Android 12 (S) or above.`,
+        setEnabled: (cfg, val) => cfg.androidFrameTimeline = val,
+        isEnabled: (cfg) => cfg.androidFrameTimeline
+      } as ProbeAttrs));
 }
 
 
@@ -878,7 +887,7 @@ function onTargetChange(target: string) {
 function Instructions(cssClass: string) {
   return m(
       `.record-section.instructions${cssClass}`,
-      m('header', 'Trace command'),
+      m('header', 'Recording command'),
       localStorage.hasOwnProperty(LOCAL_STORAGE_SHOW_CONFIG) ?
           m('button.permalinkconfig',
             {
@@ -1302,7 +1311,7 @@ function recordMenu(routePage: string) {
         m('a[href="#!/record?p=instructions"]',
           m(`li${routePage === 'instructions' ? '.active' : ''}`,
             m('i.material-icons.rec', 'fiber_manual_record'),
-            m('.title', 'Trace command'),
+            m('.title', 'Recording command'),
             m('.sub', 'Manually record trace'))),
         localStorage.hasOwnProperty(LOCAL_STORAGE_SHOW_CONFIG) ?
             m('a[href="#!/record?p=config"]',
