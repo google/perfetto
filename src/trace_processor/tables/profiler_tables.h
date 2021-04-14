@@ -203,7 +203,7 @@ PERFETTO_TP_TABLE(PERFETTO_TP_CPU_PROFILE_STACK_SAMPLE_DEF);
 PERFETTO_TP_TABLE(PERFETTO_TP_PERF_SAMPLE_DEF);
 
 // Symbolization data for a frame. Rows with the same symbol_set_id describe
-// one frame, with the bottom-most inlined frame having id == symbol_set_id.
+// one callframe, with the most-inlined symbol having id == symbol_set_id.
 //
 // For instance, if the function foo has an inlined call to the function bar,
 // which has an inlined call to baz, the stack_profile_symbol table would look
@@ -212,9 +212,9 @@ PERFETTO_TP_TABLE(PERFETTO_TP_PERF_SAMPLE_DEF);
 // ```
 // |id|symbol_set_id|name         |source_file|line_number|
 // |--|-------------|-------------|-----------|-----------|
-// |1 |      1      |foo          |foo.cc     | 60        |
+// |1 |      1      |baz          |foo.cc     | 36        |
 // |2 |      1      |bar          |foo.cc     | 30        |
-// |3 |      1      |baz          |foo.cc     | 36        |
+// |3 |      1      |foo          |foo.cc     | 60        |
 // ```
 // @param name name of the function.
 // @param source_file name of the source file containing the function.
