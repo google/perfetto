@@ -565,7 +565,7 @@ def Main():
   if args.ui:
     # Needs to happen after nodejs is installed above.
     if args.check_only:
-      deps_updated = not CheckNodeModules()
+      deps_updated |= not CheckNodeModules()
     else:
       InstallNodeModules(force_clean=nodejs_updated)
 
