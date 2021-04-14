@@ -155,6 +155,8 @@ namespace stats {
       "Time spent unwinding callstacks."),                                     \
   F(heapprofd_unwind_samples,           kIndexed, kInfo,     kTrace,           \
       "Number of samples unwound."),                                           \
+  F(heapprofd_client_spinlock_blocked,  kIndexed, kInfo,     kTrace,           \
+       "Time (us) the heapprofd client was blocked on the spinlock."),         \
   F(metatrace_overruns,                 kSingle,  kError,    kTrace,    ""),   \
   F(packages_list_has_parse_errors,     kSingle,  kError,    kTrace,    ""),   \
   F(packages_list_has_read_errors,      kSingle,  kError,    kTrace,    ""),   \
