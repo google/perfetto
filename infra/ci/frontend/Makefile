@@ -36,26 +36,26 @@ common_utils.py: ../common_utils.py
 static/config.js: ../config.py
 	../config.py js > $@
 
-static/third_party/xterm-3.14.4.min.css:
-	curl -Sso $@ https://cdnjs.cloudflare.com/ajax/libs/xterm/3.14.4/xterm.min.css
-	echo "ad80f73df001c943cfcd98d706dba050704f715d  $@" | ${SHASUM} -c || rm $@
+static/third_party/xterm-4.11.0.min.css:
+	curl -Sso $@ https://unpkg.com/xterm@4.11.0/css/xterm.css
+	echo "4cee0ccb82803888905fefc8641f0613c0a9081b  $@" | ${SHASUM} -c || rm $@
 
-static/third_party/xterm-3.14.4.min.js:
-	curl -Sso $@ https://cdnjs.cloudflare.com/ajax/libs/xterm/3.14.4/xterm.min.js
-	echo "9a92b3fbb118fd2a672f7eb4e69598384ca91756  $@" | ${SHASUM} -c || rm $@
+static/third_party/xterm-4.11.0.min.js:
+	curl -Sso $@ https://unpkg.com/xterm@4.11.0/lib/xterm.js
+	echo "470644a5cd3e2a443a422c6ecddc85b37a85f329  $@" | ${SHASUM} -c || rm $@
 
-static/third_party/xterm-3.14.4-addon-search.min.js:
-	curl -Sso $@ https://cdnjs.cloudflare.com/ajax/libs/xterm/3.14.4/addons/search/search.min.js
-	echo "73f55082d00c98b372cac1264ba9da70cdf603d0  $@" | ${SHASUM} -c || rm $@
+static/third_party/xterm-0.8.0-addon-search.min.js:
+	curl -Sso $@ https://unpkg.com/xterm-addon-search@0.8.0/lib/xterm-addon-search.js
+	echo "1eae1371cc07677c38f9d01eae4d6a3b996388f8  $@" | ${SHASUM} -c || rm $@
 
-static/third_party/xterm-3.14.4-addon-fit.min.js:
-	curl -Sso $@ https://cdnjs.cloudflare.com/ajax/libs/xterm/3.14.4/addons/fit/fit.min.js
-	echo "64835b1b71e8ca2d5bbb1a8e3c7f8a8f1edb2e5c  $@" | ${SHASUM} -c || rm $@
+static/third_party/xterm-0.5.0-addon-fit.min.js:
+	curl -Sso $@ https://unpkg.com/xterm-addon-fit@0.5.0/lib/xterm-addon-fit.js
+	echo "4c8942910554242336443126e349ac1e3897a64e  $@" | ${SHASUM} -c || rm $@
 
 static/third_party/mithril-1.1.6.min.js:
 	curl -Sso $@ https://cdnjs.cloudflare.com/ajax/libs/mithril/1.1.6/mithril.min.js
 	echo "a204c02ee15c347cf368c3481bdea967b443c8d0  $@" | ${SHASUM} -c || rm $@
 
-static_3p: static/third_party/xterm-3.14.4.min.css static/third_party/xterm-3.14.4.min.js static/third_party/xterm-3.14.4-addon-search.min.js static/third_party/xterm-3.14.4-addon-fit.min.js static/third_party/mithril-1.1.6.min.js
+static_3p: static/third_party/mithril-1.1.6.min.js static/third_party/xterm-4.11.0.min.css static/third_party/xterm-4.11.0.min.js static/third_party/xterm-0.8.0-addon-search.min.js static/third_party/xterm-0.5.0-addon-fit.min.js
 
 .PHONY: test deploy static_3p
