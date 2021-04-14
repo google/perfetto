@@ -507,8 +507,8 @@ WHERE (
 -- adding a unique id to each slice. Rather than directly merging slices
 -- together, this instead looks for all the transitions and uses this to
 -- reconstruct the slices that should occur between them.
-DROP VIEW IF EXISTS modified_rail_slices;
-CREATE VIEW modified_rail_slices AS
+DROP TABLE IF EXISTS modified_rail_slices;
+CREATE TABLE modified_rail_slices AS
 WITH const (end_ts) AS (SELECT ts + dur
               FROM unmerged_modified_rail_slices
               ORDER BY ts DESC
