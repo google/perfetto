@@ -518,13 +518,16 @@ export class TraceController extends Controller<States> {
 
       this.updateStatus(`Inserting data for ${metric} metric`);
       try {
-        const result = await engine.query(`
-        SELECT * FROM ${metric}_event LIMIT 1`);
-
-        const hasSliceName =
-            result.columnDescriptors.some(x => x.name === 'slice_name');
-        const hasDur = result.columnDescriptors.some(x => x.name === 'dur');
-        const hasUpid = result.columnDescriptors.some(x => x.name === 'upid');
+        const result = await engine.query(`pragma table_info(${metric}_event)`);
+        let hasSliceName = false;
+        let hasDur = false;
+        let hasUpid = false;
+        for (let i = 0; i < slowlyCountRows(result); i++) {
+          const name = result.columns[1].stringValues![i];
+          hasSliceName = hasSliceName || name === 'slice_name';
+          hasDur = hasDur || name === 'dur';
+          hasUpid = hasUpid || name === 'upid';
+        }
 
         const upidColumnSelect = hasUpid ? 'upid' : '0 AS upid';
         const upidColumnWhere = hasUpid ? 'upid' : '0';
