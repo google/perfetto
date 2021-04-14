@@ -103,6 +103,9 @@ Caveats when using directly the `adb shell perfetto` workflow:
   `cat config | adb shell perfetto -c -` (-: stdin) because of over-restrictive
   SELinux rules. Since Android 12 `/data/misc/perfetto-configs` can be used for
   storing configs.
+* On devices before Android 10, adb cannot directly pull
+  `/data/misc/perfetto-traces`. Use
+  `adb shell cat /data/misc/perfetto-traces/trace > trace` to work around.
 * When capturing longer traces, e.g. in the context of benchmarks or CI, use
   `PID=$(perfetto --background)` and then `kill $PID` to stop.
 
@@ -189,6 +192,11 @@ can be used instead.
 
 Pull the file using `adb pull /data/misc/perfetto-traces/trace ~/trace.perfetto-trace`
 and open it in the [Perfetto UI](https://ui.perfetto.dev).
+
+NOTE: On devices before Android 10, adb cannot directly pull
+      `/data/misc/perfetto-traces`. Use
+       `adb shell cat /data/misc/perfetto-traces/trace > trace.perfetto-trace`
+       to work around.
 
 The full reference for the `perfetto` cmdline interface can be found
 [here](/docs/reference/perfetto-cli.md).
