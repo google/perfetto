@@ -155,7 +155,7 @@ class SliceTracker {
 
   // Timestamp of the previous event. Used to discard events arriving out
   // of order.
-  int64_t prev_timestamp_ = 0;
+  int64_t prev_timestamp_ = std::numeric_limits<int64_t>::min();
 
   const StringId legacy_unnestable_begin_count_string_id_;
   const StringId legacy_unnestable_last_begin_ts_string_id_;
