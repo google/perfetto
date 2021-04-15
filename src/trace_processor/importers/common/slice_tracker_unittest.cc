@@ -72,6 +72,28 @@ TEST(SliceTrackerTest, OneSliceDetailed) {
   EXPECT_EQ(slices.arg_set_id()[0], kInvalidArgSetId);
 }
 
+TEST(SliceTrackerTest, NegativeTimestamps) {
+  TraceProcessorContext context;
+  context.storage.reset(new TraceStorage());
+  SliceTracker tracker(&context);
+
+  constexpr TrackId track{22u};
+  tracker.Begin(-1000 /*ts*/, track, kNullStringId /*cat*/,
+                StringId::Raw(1) /*name*/);
+  tracker.End(-501 /*ts*/, track, kNullStringId /*cat*/,
+              StringId::Raw(1) /*name*/);
+
+  const auto& slices = context.storage->slice_table();
+  EXPECT_EQ(slices.row_count(), 1u);
+  EXPECT_EQ(slices.ts()[0], -1000);
+  EXPECT_EQ(slices.dur()[0], 499);
+  EXPECT_EQ(slices.track_id()[0], track);
+  EXPECT_EQ(slices.category()[0].raw_id(), 0u);
+  EXPECT_EQ(slices.name()[0].raw_id(), 1u);
+  EXPECT_EQ(slices.depth()[0], 0u);
+  EXPECT_EQ(slices.arg_set_id()[0], kInvalidArgSetId);
+}
+
 TEST(SliceTrackerTest, OneSliceWithArgs) {
   TraceProcessorContext context;
   context.storage.reset(new TraceStorage());
