@@ -160,24 +160,16 @@ class PERFETTO_EXPORT TracedValue {
 
   static TracedValue CreateFromProto(protos::pbzero::DebugAnnotation*);
 
-  inline explicit TracedValue(protos::pbzero::DebugAnnotation* root_context,
+  inline explicit TracedValue(protos::pbzero::DebugAnnotation* context,
                               internal::CheckedScope* parent_scope)
-      : root_context_(root_context), checked_scope_(parent_scope) {}
-  inline explicit TracedValue(
-      protos::pbzero::DebugAnnotation::NestedValue* nested_context,
-      internal::CheckedScope* parent_scope)
-      : nested_context_(nested_context), checked_scope_(parent_scope) {}
+      : context_(context), checked_scope_(parent_scope) {}
 
   // Temporary support for perfetto::DebugAnnotation C++ class before it's going
   // to be replaced by TracedValue.
   // TODO(altimin): Convert v8 to use TracedValue directly and delete it.
   friend class DebugAnnotation;
 
-  // Only one of them can be null.
-  // TODO(altimin): replace DebugAnnotation with something that doesn't require
-  // this duplication.
-  protos::pbzero::DebugAnnotation* root_context_ = nullptr;
-  protos::pbzero::DebugAnnotation::NestedValue* nested_context_ = nullptr;
+  protos::pbzero::DebugAnnotation* const context_ = nullptr;
 
   internal::CheckedScope checked_scope_;
 };
@@ -203,12 +195,11 @@ class PERFETTO_EXPORT TracedArray {
  private:
   friend class TracedValue;
 
-  inline explicit TracedArray(
-      protos::pbzero::DebugAnnotation::NestedValue* value,
-      internal::CheckedScope* parent_scope)
-      : value_(value), checked_scope_(parent_scope) {}
+  inline explicit TracedArray(protos::pbzero::DebugAnnotation* context,
+                              internal::CheckedScope* parent_scope)
+      : context_(context), checked_scope_(parent_scope) {}
 
-  protos::pbzero::DebugAnnotation::NestedValue* value_;
+  protos::pbzero::DebugAnnotation* context_;
 
   internal::CheckedScope checked_scope_;
 };
@@ -250,12 +241,11 @@ class PERFETTO_EXPORT TracedDictionary {
  private:
   friend class TracedValue;
 
-  inline explicit TracedDictionary(
-      protos::pbzero::DebugAnnotation::NestedValue* value,
-      internal::CheckedScope* parent_scope)
-      : value_(value), checked_scope_(parent_scope) {}
+  inline explicit TracedDictionary(protos::pbzero::DebugAnnotation* context,
+                                   internal::CheckedScope* parent_scope)
+      : context_(context), checked_scope_(parent_scope) {}
 
-  protos::pbzero::DebugAnnotation::NestedValue* value_;
+  protos::pbzero::DebugAnnotation* context_;
 
   internal::CheckedScope checked_scope_;
 };
