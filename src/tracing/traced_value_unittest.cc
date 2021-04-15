@@ -147,11 +147,9 @@ TEST(TracedValueTest, FlatDictionary_Explicit) {
     dict.AddItem("truncated_string").WriteString("truncated_string", 9);
     dict.AddItem("ptr").WritePointer(reinterpret_cast<void*>(0x1234));
   }
-  // TODO(altimin): Nested pointers are recorded as ints due to proto
-  // limitation. Fix after sorting out the NestedValue.
   EXPECT_EQ(
       "{bool:true,double:0,int:2014,string:string,truncated_string:truncated,"
-      "ptr:4660}",
+      "ptr:0x1234}",
       internal::DebugAnnotationToString(message.SerializeAsString()));
 }
 
@@ -166,9 +164,7 @@ TEST(TracedValueTest, FlatDictionary_Short) {
     dict.Add("string", "string");
     dict.Add("ptr", reinterpret_cast<void*>(0x1234));
   }
-  // TODO(altimin): Nested pointers are recorded as ints due to proto
-  // limitation. Fix after sorting out the NestedValue.
-  EXPECT_EQ("{bool:true,double:0,int:2014,string:string,ptr:4660}",
+  EXPECT_EQ("{bool:true,double:0,int:2014,string:string,ptr:0x1234}",
             internal::DebugAnnotationToString(message.SerializeAsString()));
 }
 
@@ -577,6 +573,20 @@ TEST(TracedValueTest, DictionaryKeys) {
               auto dict = std::move(context).WriteDictionary();
               std::string key = "dynamic";
               dict.Add(DynamicString{key}, 1);
+            }));
+}
+
+TEST(TracedValueTest, EmptyDict) {
+  EXPECT_EQ("{}", TracedValueToString([&](TracedValue context) {
+              auto dict = std::move(context).WriteDictionary();
+            }));
+}
+
+TEST(TracedValueTest, EmptyArray) {
+  // For now we do not distinguish between empty arrays and empty dicts on proto
+  // level as trace processor ignores them anyway.
+  EXPECT_EQ("{}", TracedValueToString([&](TracedValue context) {
+              auto array = std::move(context).WriteArray();
             }));
 }
 
