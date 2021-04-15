@@ -244,6 +244,45 @@ inline const uint8_t* ParseVarInt(const uint8_t* start,
   return start;
 }
 
+enum class RepetitionType {
+  kNotRepeated,
+  kRepeatedPacked,
+  kRepeatedNotPacked,
+};
+
+// Provide a common base struct for all templated FieldMetadata types to allow
+// simple checks if a given type is a FieldMetadata or not.
+struct FieldMetadataBase {
+  constexpr FieldMetadataBase() = default;
+};
+
+template <uint32_t field_id,
+          RepetitionType repetition_type,
+          ProtoSchemaType proto_schema_type,
+          typename CppFieldType,
+          typename MessageType>
+struct FieldMetadata : public FieldMetadataBase {
+  constexpr FieldMetadata() = default;
+
+  static constexpr int kFieldId = field_id;
+  static constexpr RepetitionType kRepetitionType = repetition_type;
+  static constexpr ProtoSchemaType kProtoFieldType = proto_schema_type;
+  using cpp_proto_schema_type = CppFieldType;
+  using message_type = MessageType;
+};
+
+// Ideally we would create variables of FieldMetadata<...> type directly,
+// but before C++17's support for constexpr inline variables arrive, we have to
+// actually use pointers to inline functions instead to avoid having to define
+// symbols in *.pbzero.cc files.
+//
+// Note: protozero bindings will generate Message::kFieldName variable and then
+// they can be passed to TRACE_EVENT macro for inline writing of typed messages.
+// The fact that the former can be passed to the latter is a part of the stable
+// API, while the particular type is not and users should not rely on it.
+template <typename T>
+using FieldMetadataVariable = T (*)(void);
+
 }  // namespace proto_utils
 }  // namespace protozero
 
