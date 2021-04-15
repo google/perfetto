@@ -64,6 +64,22 @@ packet {
       name: "debug3"
       int_value: 31
     }
+    debug_annotations {
+      name: "debug4"
+      dict_entries {
+        name: "key1"
+        int_value: 10
+      }
+      dict_entries {
+        name: "key2"
+        array_values {
+          int_value: 20
+        }
+        array_values {
+          int_value: 21
+        }
+      }
+    }
     legacy_event {
       phase: 98  # 'b'
       global_id: 1234

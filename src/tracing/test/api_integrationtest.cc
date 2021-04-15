@@ -3445,28 +3445,16 @@ void EmitConsoleEvents() {
   thread.join();
 
   TRACE_EVENT_INSTANT(
-      "foo", "More annotations", [](perfetto::EventContext ctx) {
-        {
-          auto* dbg = ctx.event()->add_debug_annotations();
-          dbg->set_name("dict");
-          auto* nested = dbg->set_nested_value();
-          nested->set_nested_type(
-              perfetto::protos::pbzero::DebugAnnotation::NestedValue::DICT);
-          nested->add_dict_keys("key");
-          auto* value = nested->add_dict_values();
-          value->set_int_value(123);
-        }
-        {
-          auto* dbg = ctx.event()->add_debug_annotations();
-          dbg->set_name("array");
-          auto* nested = dbg->set_nested_value();
-          nested->set_nested_type(
-              perfetto::protos::pbzero::DebugAnnotation::NestedValue::ARRAY);
-          auto* value = nested->add_array_values();
-          value->set_string_value("first");
-          value = nested->add_array_values();
-          value->set_string_value("second");
-        }
+      "foo", "More annotations", "dict",
+      [](perfetto::TracedValue context) {
+        auto dict = std::move(context).WriteDictionary();
+        dict.Add("key", 123);
+      },
+      "array",
+      [](perfetto::TracedValue context) {
+        auto array = std::move(context).WriteArray();
+        array.Append("first");
+        array.Append("second");
       });
 }
 
