@@ -49,7 +49,7 @@
 namespace perfetto {
 namespace protos {
 namespace pbzero {
-class DebugAnnotation_NestedValue_Decoder;
+class DebugAnnotation_Decoder;
 class TracePacket_Decoder;
 class TrackEvent_Decoder;
 }  // namespace pbzero
@@ -102,14 +102,16 @@ class ConsoleInterceptor : public Interceptor<ConsoleInterceptor> {
   static void SetColor(InterceptorContext& context, const ConsoleColor&);
   static void SetColor(InterceptorContext& context, const char*);
 
-  static void PrintAnnotations(InterceptorContext&,
-                               const protos::pbzero::TrackEvent_Decoder&,
-                               const ConsoleColor& slice_color,
-                               const ConsoleColor& highlight_color);
-  static void PrintNestedValue(
+  static void PrintDebugAnnotations(InterceptorContext&,
+                                    const protos::pbzero::TrackEvent_Decoder&,
+                                    const ConsoleColor& slice_color,
+                                    const ConsoleColor& highlight_color);
+  static void PrintDebugAnnotationName(
       InterceptorContext&,
-      const perfetto::protos::pbzero::DebugAnnotation_NestedValue_Decoder&
-          value);
+      const perfetto::protos::pbzero::DebugAnnotation_Decoder& value);
+  static void PrintDebugAnnotationValue(
+      InterceptorContext&,
+      const perfetto::protos::pbzero::DebugAnnotation_Decoder& value);
 
   int fd_ = STDOUT_FILENO;
   bool use_colors_ = true;
