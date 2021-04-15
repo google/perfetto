@@ -2,12 +2,16 @@ Unreleased:
   Tracing service and probes:
     *
   Trace Processor:
-    *
+    * Fixed prepending "debug." prefix to debug annotations with non-interned
+      names.
+    * Started sanitising keys in nested debug annotation dictionaries.
   UI:
     *
   SDK:
     * Changed ConvertTimestampToTraceTimeNs to be a member of
       TraceTimestampTraits<T> struct instead of a standalone function.
+    * Switched TracedValue to use nested DebugAnnotation proto instead of
+      DebugAnnotation::NestedValue.
 
 
 v14.0 - 2021-04-01:

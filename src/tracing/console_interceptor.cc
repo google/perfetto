@@ -234,7 +234,8 @@ void ConsoleInterceptor::Delegate::OnTrackEvent(
 
   // Print annotations.
   if (event.track_event.has_debug_annotations()) {
-    PrintAnnotations(context_, event.track_event, slice_color, highlight_color);
+    PrintDebugAnnotations(context_, event.track_event, slice_color,
+                          highlight_color);
   }
 
   // TODO(skyostil): Print typed arguments.
@@ -367,59 +368,27 @@ void ConsoleInterceptor::SetColor(InterceptorContext& context,
 }
 
 // static
-void ConsoleInterceptor::PrintAnnotations(
+void ConsoleInterceptor::PrintDebugAnnotations(
     InterceptorContext& context,
     const protos::pbzero::TrackEvent_Decoder& track_event,
     const ConsoleColor& slice_color,
     const ConsoleColor& highlight_color) {
-  auto& tls = context.GetThreadLocalState();
-
   SetColor(context, slice_color);
   Printf(context, "(");
 
   bool is_first = true;
   for (auto it = track_event.debug_annotations(); it; it++) {
     perfetto::protos::pbzero::DebugAnnotation::Decoder annotation(*it);
-    protozero::ConstChars name{};
-    if (annotation.name_iid()) {
-      name.data =
-          tls.sequence_state.debug_annotation_names[annotation.name_iid()]
-              .data();
-      name.size =
-          tls.sequence_state.debug_annotation_names[annotation.name_iid()]
-              .size();
-    } else if (annotation.has_name()) {
-      name.data = annotation.name().data;
-      name.size = annotation.name().size;
-    }
     SetColor(context, slice_color);
     if (!is_first)
       Printf(context, ", ");
-    Printf(context, "%.*s:", static_cast<int>(name.size), name.data);
+
+    PrintDebugAnnotationName(context, annotation);
+    Printf(context, ":");
+
     SetColor(context, highlight_color);
-    if (annotation.has_bool_value()) {
-      Printf(context, "%s", annotation.bool_value() ? "true" : "false");
-    } else if (annotation.has_uint_value()) {
-      Printf(context, "%" PRIu64, annotation.uint_value());
-    } else if (annotation.has_int_value()) {
-      Printf(context, "%" PRId64, annotation.int_value());
-    } else if (annotation.has_double_value()) {
-      Printf(context, "%f", annotation.double_value());
-    } else if (annotation.has_string_value()) {
-      Printf(context, "%.*s", static_cast<int>(annotation.string_value().size),
-             annotation.string_value().data);
-    } else if (annotation.has_pointer_value()) {
-      Printf(context, "%p",
-             reinterpret_cast<void*>(annotation.pointer_value()));
-    } else if (annotation.has_nested_value()) {
-      perfetto::protos::pbzero::DebugAnnotation::NestedValue::Decoder value(
-          annotation.nested_value());
-      PrintNestedValue(context, value);
-    } else if (annotation.has_legacy_json_value()) {
-      Printf(context, "%.*s",
-             static_cast<int>(annotation.legacy_json_value().size),
-             annotation.legacy_json_value().data);
-    }
+    PrintDebugAnnotationValue(context, annotation);
+
     is_first = false;
   }
   SetColor(context, slice_color);
@@ -427,53 +396,70 @@ void ConsoleInterceptor::PrintAnnotations(
 }
 
 // static
-void ConsoleInterceptor::PrintNestedValue(
+void ConsoleInterceptor::PrintDebugAnnotationName(
     InterceptorContext& context,
-    const perfetto::protos::pbzero::DebugAnnotation::NestedValue::Decoder&
-        value) {
-  if (value.nested_type() ==
-      protos::pbzero::DebugAnnotation::NestedValue::DICT) {
+    const perfetto::protos::pbzero::DebugAnnotation::Decoder& annotation) {
+  auto& tls = context.GetThreadLocalState();
+  protozero::ConstChars name{};
+  if (annotation.name_iid()) {
+    name.data =
+        tls.sequence_state.debug_annotation_names[annotation.name_iid()].data();
+    name.size =
+        tls.sequence_state.debug_annotation_names[annotation.name_iid()].size();
+  } else if (annotation.has_name()) {
+    name.data = annotation.name().data;
+    name.size = annotation.name().size;
+  }
+  Printf(context, "%.*s", static_cast<int>(name.size), name.data);
+}
+
+// static
+void ConsoleInterceptor::PrintDebugAnnotationValue(
+    InterceptorContext& context,
+    const perfetto::protos::pbzero::DebugAnnotation::Decoder& annotation) {
+  if (annotation.has_bool_value()) {
+    Printf(context, "%s", annotation.bool_value() ? "true" : "false");
+  } else if (annotation.has_uint_value()) {
+    Printf(context, "%" PRIu64, annotation.uint_value());
+  } else if (annotation.has_int_value()) {
+    Printf(context, "%" PRId64, annotation.int_value());
+  } else if (annotation.has_double_value()) {
+    Printf(context, "%f", annotation.double_value());
+  } else if (annotation.has_string_value()) {
+    Printf(context, "%.*s", static_cast<int>(annotation.string_value().size),
+           annotation.string_value().data);
+  } else if (annotation.has_pointer_value()) {
+    Printf(context, "%p", reinterpret_cast<void*>(annotation.pointer_value()));
+  } else if (annotation.has_legacy_json_value()) {
+    Printf(context, "%.*s",
+           static_cast<int>(annotation.legacy_json_value().size),
+           annotation.legacy_json_value().data);
+  } else if (annotation.has_dict_entries()) {
     Printf(context, "{");
-    auto key_it = value.dict_keys();
-    auto value_it = value.dict_values();
     bool is_first = true;
-    while (key_it && value_it) {
-      auto key = *key_it++;
+    for (auto it = annotation.dict_entries(); it; ++it) {
       if (!is_first)
         Printf(context, ", ");
-      Printf(context, "%.*s:", static_cast<int>(key.size), key.data);
-      perfetto::protos::pbzero::DebugAnnotation::NestedValue::Decoder
-          dict_value(*value_it++);
-      PrintNestedValue(context, dict_value);
+      perfetto::protos::pbzero::DebugAnnotation::Decoder key_value(*it);
+      PrintDebugAnnotationName(context, key_value);
+      Printf(context, ":");
+      PrintDebugAnnotationValue(context, key_value);
       is_first = false;
     }
     Printf(context, "}");
-    return;
-  }
-  if (value.nested_type() ==
-      protos::pbzero::DebugAnnotation::NestedValue::ARRAY) {
+  } else if (annotation.has_array_values()) {
     Printf(context, "[");
     bool is_first = true;
-    for (auto it = value.array_values(); it; it++) {
+    for (auto it = annotation.array_values(); it; ++it) {
       if (!is_first)
         Printf(context, ", ");
-      perfetto::protos::pbzero::DebugAnnotation::NestedValue::Decoder
-          array_value(*it);
-      PrintNestedValue(context, array_value);
+      perfetto::protos::pbzero::DebugAnnotation::Decoder key_value(*it);
+      PrintDebugAnnotationValue(context, key_value);
       is_first = false;
     }
     Printf(context, "]");
-    return;
-  }
-  if (value.has_int_value()) {
-    Printf(context, "%" PRId64, value.int_value());
-  } else if (value.has_double_value()) {
-    Printf(context, "%f", value.double_value());
-  } else if (value.has_bool_value()) {
-    Printf(context, "%s", value.bool_value() ? "true" : "false");
-  } else if (value.has_string_value()) {
-    Printf(context, "%.*s", static_cast<int>(value.string_value().size),
-           value.string_value().data);
+  } else {
+    Printf(context, "{}");
   }
 }
 
