@@ -92,11 +92,11 @@ const state = {
 };
 
 let term = undefined;
+let fitAddon = undefined;
+let searchAddon = undefined;
 
 function main() {
   firebase.initializeApp({ databaseURL: cfg.DB_ROOT });
-  Terminal.applyAddon(fit);
-  Terminal.applyAddon(search);
 
   m.route(document.body, '/cls', {
     '/cls': CLsPageRenderer,
@@ -367,18 +367,31 @@ function renderClJobCell(src, jobType) {
 }
 
 const TermRenderer = {
-  oncreate: function (vnode) {
+  oncreate: function(vnode) {
     console.log('Creating terminal object');
-    term = new Terminal(
-        {rows: 6, fontFamily: 'monospace', fontSize: 12, scrollback: 100000});
+    fitAddon = new FitAddon.FitAddon();
+    searchAddon = new SearchAddon.SearchAddon();
+    term = new Terminal({
+      rows: 6,
+      fontFamily: 'monospace',
+      fontSize: 12,
+      scrollback: 100000,
+      disableStdin: true,
+    });
+    term.loadAddon(fitAddon);
+    term.loadAddon(searchAddon);
     term.open(vnode.dom);
-    term.fit();
-    if (vnode.attrs.focused) term.focus();
+    fitAddon.fit();
+    if (vnode.attrs.focused)
+      term.focus();
   },
-  onremove: function (vnode) {
-    term.destroy();
+  onremove: function(vnode) {
+    term.dispose();
+    fitAddon.dispose();
+    searchAddon.dispose();
   },
-  onupdate: function (vnode) {
+  onupdate: function(vnode) {
+    fitAddon.fit();
     if (state.termClear) {
       term.clear();
       state.termClear = false;
@@ -388,7 +401,7 @@ const TermRenderer = {
     }
     state.termLines = [];
   },
-  view: function () {
+  view: function() {
     return m('.term-container',
       {
         onkeydown: (e) => {
@@ -402,9 +415,9 @@ const TermRenderer = {
         onkeydown: (e) => {
           if (e.key !== 'Enter') return;
           if (e.shiftKey) {
-            term.findNext(e.target.value);
+            searchAddon.findNext(e.target.value);
           } else {
-            term.findPrevious(e.target.value);
+            searchAddon.findPrevious(e.target.value);
           }
           e.stopPropagation();
           e.preventDefault();
