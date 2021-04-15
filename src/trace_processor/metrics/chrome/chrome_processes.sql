@@ -114,11 +114,11 @@ DROP VIEW IF EXISTS chrome_thread;
 
 CREATE VIEW chrome_thread AS
 SELECT thread.*,
-  IIF(
-    thread.name GLOB "Cr*Main",
-    "CrProcessMain",
-    thread.name
-  ) AS canonical_name
+  CASE
+    WHEN thread.name GLOB "Cr*Main" THEN "CrProcessMain"
+    WHEN thread.name IS NULL THEN "Unknown"
+    ELSE thread.name
+  END AS canonical_name
 FROM (
     SELECT t.utid,
       p.*
