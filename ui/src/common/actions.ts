@@ -66,6 +66,7 @@ export interface AddTrackArgs {
 
 export interface PostedTrace {
   title: string;
+  fileName?: string;
   url?: string;
   buffer: ArrayBuffer;
 }
