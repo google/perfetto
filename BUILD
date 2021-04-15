@@ -434,6 +434,7 @@ filegroup(
         "include/perfetto/protozero/copyable_ptr.h",
         "include/perfetto/protozero/cpp_message_obj.h",
         "include/perfetto/protozero/field.h",
+        "include/perfetto/protozero/field_writer.h",
         "include/perfetto/protozero/message.h",
         "include/perfetto/protozero/message_arena.h",
         "include/perfetto/protozero/message_handle.h",
