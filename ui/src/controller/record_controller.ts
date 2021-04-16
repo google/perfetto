@@ -18,6 +18,7 @@ import {
   base64Encode,
 } from '../base/string_utils';
 import {Actions} from '../common/actions';
+import {TRACE_SUFFIX} from '../common/constants';
 import {
   AndroidLogConfig,
   AndroidLogId,
@@ -584,6 +585,7 @@ export class RecordController extends Controller<'main'> implements Consumer {
   private traceBuffer: Uint8Array[] = [];
   private bufferUpdateInterval: ReturnType<typeof setTimeout>|undefined;
   private adb = new AdbOverWebUsb();
+  private recordedTraceSuffix = TRACE_SUFFIX;
 
   // We have a different controller for each targetOS. The correct one will be
   // created when needed, and stored here. When the key is a string, it is the
@@ -703,8 +705,11 @@ export class RecordController extends Controller<'main'> implements Consumer {
       return;
     }
     const trace = this.generateTrace();
-    globals.dispatch(Actions.openTraceFromBuffer(
-        {title: 'Recorded trace', buffer: trace.buffer}));
+    globals.dispatch(Actions.openTraceFromBuffer({
+      title: 'Recorded trace',
+      buffer: trace.buffer,
+      fileName: `recorded_trace${this.recordedTraceSuffix}`,
+    }));
     this.traceBuffer = [];
   }
 
@@ -805,8 +810,12 @@ export class RecordController extends Controller<'main'> implements Consumer {
       _callback: RPCImplCallback) {
     try {
       const state = this.app.state;
-      (await this.getTargetController(state.recordingTarget))
-          .handleCommand(method.name, requestData);
+      // TODO(hjd): This is a bit weird. We implicity send each RPC message to
+      // whichever target is currently selected (creating that target if needed)
+      // it would be nicer if the setup/teardown was more explicit.
+      const target = await this.getTargetController(state.recordingTarget);
+      this.recordedTraceSuffix = target.getRecordedTraceSuffix();
+      target.handleCommand(method.name, requestData);
     } catch (e) {
       console.error(`error invoking ${method}: ${e.message}`);
     }
