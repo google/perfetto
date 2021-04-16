@@ -29,6 +29,7 @@ import("../../../gn/proto_library.gni")
 proto_sources_non_minimal = [
   "trace_packet_defaults.proto",
   "test_event.proto",
+  "test_extensions.proto",
   "trace_packet.proto",
   "trace.proto",
   "extension_descriptor.proto",
