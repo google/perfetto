@@ -406,7 +406,12 @@ export function genConfig(
     };
     if (chromeCategories.has('disabled-by-default-memory-infra')) {
       configStruct.memory_dump_config = {
-        triggers: [{mode: 'detailed', periodic_interval_ms: 10000}]
+        allowed_dump_modes: ['background', 'light', 'detailed'],
+        triggers: [{
+          min_time_between_dumps_ms: 10000,
+          mode: 'detailed',
+          type: 'periodic_interval',
+        }],
       };
     }
     const traceConfigJson = JSON.stringify(configStruct);
