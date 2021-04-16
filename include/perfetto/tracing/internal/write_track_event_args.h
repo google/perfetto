@@ -19,6 +19,7 @@
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/tracing/event_context.h"
+#include "perfetto/tracing/traced_proto.h"
 
 namespace perfetto {
 namespace internal {
@@ -87,6 +88,31 @@ PERFETTO_ALWAYS_INLINE void WriteTrackEventArgs(EventContext event_ctx,
                                                 Args&&... args) {
   TrackEventInternal::AddDebugAnnotation(&event_ctx, arg_name,
                                          std::forward<ArgValue>(arg_value));
+  WriteTrackEventArgs(std::move(event_ctx), std::forward<Args>(args)...);
+}
+
+// Write one typed message and recursively write the rest of the arguments.
+template <typename FieldMetadataType,
+          typename ArgValue,
+          typename... Args,
+          typename Check = base::enable_if_t<
+              std::is_base_of<protozero::proto_utils::FieldMetadataBase,
+                              FieldMetadataType>::value>>
+PERFETTO_ALWAYS_INLINE void WriteTrackEventArgs(
+    EventContext event_ctx,
+    const FieldMetadataType& field_name,
+    ArgValue&& arg_value,
+    Args&&... args) {
+  static_assert(
+      std::is_base_of<protos::pbzero::TrackEvent,
+                      typename FieldMetadataType::message_type>::value,
+      "Only fields of TrackEvent (and TrackEvent's extensions) can "
+      "be passed to TRACE_EVENT");
+  WriteIntoTracedProto(
+      TracedProto<typename FieldMetadataType::message_type>::FromProto(
+          event_ctx.event<typename FieldMetadataType::message_type>(),
+          event_ctx),
+      field_name, std::forward<ArgValue>(arg_value));
   WriteTrackEventArgs(std::move(event_ctx), std::forward<Args>(args)...);
 }
 

@@ -12,6 +12,10 @@ Unreleased:
       TraceTimestampTraits<T> struct instead of a standalone function.
     * Switched TracedValue to use nested DebugAnnotation proto instead of
       DebugAnnotation::NestedValue.
+    * Added support for passing arbitrary number of debug annotations to
+      TRACE_EVENT and combining them with lambdas.
+    * Added support for writing typed TrackEvent arguments using TRACE_EVENT
+      inline without lambdas.
 
 
 v14.0 - 2021-04-01:
