@@ -816,7 +816,10 @@ class GeneratorJob {
   }
 
   std::string GetFieldMetadataTypeName(const FieldDescriptor* field) {
-    return "decltype(" + GetFieldMetadataVariableName(field) + "())";
+    std::string name = field->camelcase_name();
+    if (isalpha(name[0]))
+      name[0] = static_cast<char>(toupper(name[0]));
+    return "FieldMetadata_" + name;
   }
 
   std::string GetFieldMetadataVariableName(const FieldDescriptor* field) {
@@ -829,17 +832,21 @@ class GeneratorJob {
   void GenerateFieldMetadata(const std::string& message_cpp_type,
                              const FieldDescriptor* field) {
     const char* code_stub =
-        "static constexpr ::protozero::proto_utils::FieldMetadata<\n"
-        "  $field_id$,\n"
-        "  ::protozero::proto_utils::RepetitionType::$repetition_type$,\n"
-        "  ::protozero::proto_utils::ProtoSchemaType::$proto_field_type$,\n"
-        "  $cpp_type$,\n"
-        "  $message_cpp_type$> $field_metadata$() { return {}; }\n";
+        "using $field_metadata_type$ =\n"
+        "  ::protozero::proto_utils::FieldMetadata<\n"
+        "    $field_id$,\n"
+        "    ::protozero::proto_utils::RepetitionType::$repetition_type$,\n"
+        "    ::protozero::proto_utils::ProtoSchemaType::$proto_field_type$,\n"
+        "    $cpp_type$,\n"
+        "    $message_cpp_type$>;\n"
+        "static constexpr const $field_metadata_type$& $field_metadata_var$ = "
+        "{};\n";
     stub_h_->Print(code_stub, "field_id", std::to_string(field->number()),
                    "repetition_type", FieldToRepetitionType(field),
                    "proto_field_type", FieldToProtoSchemaType(field),
                    "cpp_type", FieldToCppTypeName(field), "message_cpp_type",
-                   message_cpp_type, "field_metadata",
+                   message_cpp_type, "field_metadata_type",
+                   GetFieldMetadataTypeName(field), "field_metadata_var",
                    GetFieldMetadataVariableName(field));
   }
 
