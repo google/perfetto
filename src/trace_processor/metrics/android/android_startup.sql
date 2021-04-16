@@ -150,7 +150,10 @@ WHERE slice.name IN (
   OR slice.name LIKE 'OpenDexFilesFromOat%'
   OR slice.name LIKE 'VerifyClass%'
   OR slice.name LIKE 'Choreographer#doFrame%'
-  OR slice.name LIKE 'JIT compiling%';
+  OR slice.name LIKE 'JIT compiling%'
+  OR slice.name LIKE '%mark sweep GC'
+  OR slice.name LIKE '%concurrent copying GC'
+  OR slice.name LIKE '%semispace GC';
 
 DROP TABLE IF EXISTS main_process_slice;
 CREATE TABLE main_process_slice AS
@@ -160,6 +163,9 @@ SELECT
     WHEN slice_name LIKE 'OpenDexFilesFromOat%' THEN 'OpenDexFilesFromOat'
     WHEN slice_name LIKE 'VerifyClass%' THEN 'VerifyClass'
     WHEN slice_name LIKE 'JIT compiling%' THEN 'JIT compiling'
+    WHEN slice_name LIKE '%mark sweep GC' THEN 'GC'
+    WHEN slice_name LIKE '%concurrent copying GC' THEN 'GC'
+    WHEN slice_name LIKE '%semispace GC' THEN 'GC'
     ELSE slice_name
   END AS name,
   AndroidStartupMetric_Slice(
@@ -205,6 +211,22 @@ JOIN thread_track USING (utid)
 JOIN slice ON (
   slice.track_id = thread_track.id
   AND slice.ts BETWEEN l.ts AND l.ts + l.dur);
+
+DROP VIEW IF EXISTS gc_slices;
+CREATE VIEW gc_slices AS
+  SELECT
+    slice_ts AS ts,
+    slice_dur AS dur,
+    utid,
+    launch_id
+  FROM main_process_slice_unaggregated
+  WHERE (
+    slice_name LIKE '%mark sweep GC'
+    OR slice_name LIKE '%concurrent copying GC'
+    OR slice_name LIKE '%semispace GC');
+
+CREATE VIRTUAL TABLE gc_slices_by_state
+USING SPAN_JOIN(gc_slices PARTITIONED utid, thread_state_extended PARTITIONED utid);
 
 DROP VIEW IF EXISTS startup_view;
 CREATE VIEW startup_view AS
@@ -412,6 +434,20 @@ SELECT
           AND launch_threads.thread_name = 'Jit thread pool'
           AND states.state = 'Running'
           AND states.ts BETWEEN launch_threads.ts AND launch_threads.ts + launch_threads.dur
+      ),
+      'time_gc_total', (
+        SELECT slice_proto
+        FROM main_process_slice s
+        WHERE s.launch_id = launches.id AND name = 'GC'
+      ),
+      'time_gc_on_cpu', (
+        SELECT
+          NULL_IF_EMPTY(AndroidStartupMetric_Slice(
+            'dur_ns', SUM(dur),
+            'dur_ms', SUM(dur) / 1e6
+          ))
+        FROM gc_slices_by_state
+        WHERE launch_id = launches.id AND state = 'Running'
       )
     ),
     'hsc', (
