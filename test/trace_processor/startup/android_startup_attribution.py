@@ -21,10 +21,12 @@ APP_PID = 3
 APP_TID = 1
 SECOND_APP_TID = 3
 JIT_TID = 4
+GC_TID = 5
+GC2_TID = 6
 SYSTEM_SERVER_PID = 2
 SYSTEM_SERVER_TID = 2
 LAUNCH_START_TS = 100
-LAUNCH_END_TS = 300
+LAUNCH_END_TS = 10000
 
 trace = synth_common.create_trace()
 trace.add_packet()
@@ -37,6 +39,10 @@ trace.add_thread(
     tgid=APP_PID,
     cmdline='Jit thread pool',
     name='Jit thread pool')
+trace.add_thread(
+    tid=GC_TID, tgid=APP_PID, cmdline='HeapTaskDaemon', name='HeapTaskDaemon')
+trace.add_thread(
+    tid=GC2_TID, tgid=APP_PID, cmdline='HeapTaskDaemon', name='HeapTaskDaemon')
 
 trace.add_ftrace_packet(cpu=0)
 # Start intent.
@@ -117,6 +123,27 @@ trace.add_atrace_end(ts=210, pid=APP_PID, tid=SECOND_APP_TID)
 trace.add_atrace_begin(
     ts=200, pid=APP_PID, tid=JIT_TID, buf='JIT compiled something')
 trace.add_atrace_end(ts=210, pid=APP_PID, tid=JIT_TID)
+
+# GC slices.
+trace.add_atrace_begin(
+    ts=300, pid=APP_PID, tid=GC_TID, buf='Background concurrent copying GC')
+trace.add_atrace_end(ts=330, pid=APP_PID, tid=GC_TID)
+
+trace.add_atrace_begin(
+    ts=340, pid=APP_PID, tid=GC_TID, buf='CollectorTransition mark sweep GC')
+trace.add_atrace_end(ts=390, pid=APP_PID, tid=GC_TID)
+
+trace.add_atrace_begin(ts=320, pid=APP_PID, tid=GC2_TID, buf='semispace GC')
+trace.add_atrace_end(ts=370, pid=APP_PID, tid=GC2_TID)
+
+# Start running copying slice on the first thread
+trace.add_sched(ts=310, prev_pid=0, next_pid=GC_TID)
+# Switch to the second thread to run semispace slice
+trace.add_sched(ts=325, prev_pid=GC_TID, next_pid=GC2_TID)
+# Switch back to the first thread to run mark sweep slice
+trace.add_sched(ts=350, prev_pid=GC2_TID, next_pid=GC_TID)
+# Finish running for GC.
+trace.add_sched(ts=360, prev_pid=GC_TID, next_pid=0)
 
 # Intent successful.
 trace.add_atrace_begin(
