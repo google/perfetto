@@ -20,9 +20,12 @@ import * as trace_to_text from '../gen/trace_to_text';
 
 import {globals} from './globals';
 
-export function ConvertTrace(trace: Blob, truncate?: 'start'|'end') {
+type Format = 'json'|'systrace';
+
+export function ConvertTrace(
+    trace: Blob, format: Format, truncate?: 'start'|'end') {
   const outPath = '/trace.json';
-  const args = ['json'];
+  const args: string[] = [format];
   if (truncate !== undefined) {
     args.push('--truncate', truncate);
   }
