@@ -65,6 +65,7 @@
 #include "protos/perfetto/trace/profiling/profile_common.gen.h"
 #include "protos/perfetto/trace/test_event.gen.h"
 #include "protos/perfetto/trace/test_event.pbzero.h"
+#include "protos/perfetto/trace/test_extensions.pbzero.h"
 #include "protos/perfetto/trace/trace.gen.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
@@ -1685,6 +1686,84 @@ TEST_P(PerfettoApiTest, TrackEventTypedArgs) {
   EXPECT_TRUE(found_args);
 }
 
+TEST_P(PerfettoApiTest, InlineTrackEventTypedArgs_SimpleRepeated) {
+  // Create a new trace session.
+  auto* tracing_session = NewTraceWithCategories({"foo"});
+  tracing_session->get()->StartBlocking();
+
+  std::vector<uint64_t> flow_ids{1, 2, 3};
+  TRACE_EVENT_BEGIN("foo", "EventWithTypedArg",
+                    perfetto::protos::pbzero::TrackEvent::kFlowIds, flow_ids);
+  TRACE_EVENT_END("foo");
+
+  tracing_session->get()->StopBlocking();
+  std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
+  std::string trace(raw_trace.data(), raw_trace.size());
+
+  perfetto::protos::gen::Trace parsed_trace;
+  ASSERT_TRUE(parsed_trace.ParseFromArray(raw_trace.data(), raw_trace.size()));
+
+  bool found_args = false;
+  for (const auto& packet : parsed_trace.packet()) {
+    if (!packet.has_track_event())
+      continue;
+    const auto& track_event = packet.track_event();
+    if (track_event.type() !=
+        perfetto::protos::gen::TrackEvent::TYPE_SLICE_BEGIN) {
+      continue;
+    }
+
+    EXPECT_THAT(track_event.flow_ids(), testing::ElementsAre(1, 2, 3));
+    found_args = true;
+  }
+  EXPECT_TRUE(found_args);
+}
+
+TEST_P(PerfettoApiTest, InlineTrackEventTypedArgs_NestedSingle) {
+  struct LogMessage {
+    void WriteIntoTrace(
+        perfetto::TracedProto<perfetto::protos::pbzero::LogMessage> context)
+        const {
+      context->set_source_location_iid(1);
+      context->set_body_iid(2);
+    }
+  };
+
+  // Create a new trace session.
+  auto* tracing_session = NewTraceWithCategories({"foo"});
+  tracing_session->get()->StartBlocking();
+
+  TRACE_EVENT_BEGIN("foo", "EventWithTypedArg",
+                    perfetto::protos::pbzero::TrackEvent::kLogMessage,
+                    LogMessage());
+  TRACE_EVENT_END("foo");
+
+  tracing_session->get()->StopBlocking();
+  std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
+  std::string trace(raw_trace.data(), raw_trace.size());
+
+  perfetto::protos::gen::Trace parsed_trace;
+  ASSERT_TRUE(parsed_trace.ParseFromArray(raw_trace.data(), raw_trace.size()));
+
+  bool found_args = false;
+  for (const auto& packet : parsed_trace.packet()) {
+    if (!packet.has_track_event())
+      continue;
+    const auto& track_event = packet.track_event();
+    if (track_event.type() !=
+        perfetto::protos::gen::TrackEvent::TYPE_SLICE_BEGIN) {
+      continue;
+    }
+
+    EXPECT_TRUE(track_event.has_log_message());
+    const auto& log = track_event.log_message();
+    EXPECT_EQ(1u, log.source_location_iid());
+    EXPECT_EQ(2u, log.body_iid());
+    found_args = true;
+  }
+  EXPECT_TRUE(found_args);
+}
+
 struct InternedLogMessageBody
     : public perfetto::TrackEventInternedDataIndex<
           InternedLogMessageBody,
@@ -1936,7 +2015,8 @@ TEST_P(PerfettoApiTest, ExtensionClass) {
   {
     TRACE_EVENT("test", "TestEventWithExtensionArgs",
                 [&](perfetto::EventContext ctx) {
-                  ctx.event<TestTrackEvent>()->set_extension_value(42);
+                  ctx.event<perfetto::protos::pbzero::TestExtension>()
+                      ->add_int_extension_for_testing(42);
                 });
   }
 
@@ -1962,7 +2042,51 @@ TEST_P(PerfettoApiTest, ExtensionClass) {
 
     for (protozero::Field f = decoder.ReadField(); f.valid();
          f = decoder.ReadField()) {
-      if (f.id() == TestTrackEvent::field_number) {
+      if (f.id() == perfetto::protos::pbzero::TestExtension::
+                        FieldMetadata_IntExtensionForTesting::kFieldId) {
+        found_extension = true;
+      }
+    }
+  }
+
+  EXPECT_TRUE(found_extension);
+}
+
+TEST_P(PerfettoApiTest, InlineTypedExtensionField) {
+  auto* tracing_session = NewTraceWithCategories({"test"});
+  tracing_session->get()->StartBlocking();
+
+  {
+    TRACE_EVENT(
+        "test", "TestEventWithExtensionArgs",
+        perfetto::protos::pbzero::TestExtension::kIntExtensionForTesting,
+        std::vector<int>{42});
+  }
+
+  perfetto::TrackEvent::Flush();
+  tracing_session->get()->StopBlocking();
+
+  std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
+  EXPECT_GE(raw_trace.size(), 0u);
+
+  bool found_extension = false;
+  perfetto::protos::pbzero::Trace_Decoder trace(
+      reinterpret_cast<uint8_t*>(raw_trace.data()), raw_trace.size());
+
+  for (auto it = trace.packet(); it; ++it) {
+    perfetto::protos::pbzero::TracePacket_Decoder packet(it->data(),
+                                                         it->size());
+
+    if (!packet.has_track_event())
+      continue;
+
+    auto track_event = packet.track_event();
+    protozero::ProtoDecoder decoder(track_event.data, track_event.size);
+
+    for (protozero::Field f = decoder.ReadField(); f.valid();
+         f = decoder.ReadField()) {
+      if (f.id() == perfetto::protos::pbzero::TestExtension::
+                        FieldMetadata_IntExtensionForTesting::kFieldId) {
         found_extension = true;
       }
     }

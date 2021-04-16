@@ -265,9 +265,14 @@ struct FieldMetadata : public FieldMetadataBase {
   constexpr FieldMetadata() = default;
 
   static constexpr int kFieldId = field_id;
+  // Whether this field is repeated, packed (repeated [packed-true]) or not
+  // (optional).
   static constexpr RepetitionType kRepetitionType = repetition_type;
+  // Proto type of this field (e.g. int64, fixed32 or nested message).
   static constexpr ProtoSchemaType kProtoFieldType = proto_schema_type;
-  using cpp_proto_schema_type = CppFieldType;
+  // C++ type of this field (for nested messages - C++ protozero class).
+  using cpp_field_type = CppFieldType;
+  // Protozero message which this field belongs to.
   using message_type = MessageType;
 };
 
