@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {TRACE_SUFFIX} from '../common/constants';
 import {ConsumerPortResponse} from './consumer_port_types';
 
 export type ConsumerPortCallback = (_: ConsumerPortResponse) => void;
@@ -40,6 +41,14 @@ export abstract class RpcConsumerPort {
 
   sendStatus(status: string) {
     this.consumerPortListener.onStatus(status);
+  }
+
+  // Allows the recording controller to customise the suffix added to recorded
+  // traces when they are downloaded. In the general case this will be
+  // .perfetto-trace however if the trace is recorded compressed if could be
+  // .perfetto-trace.gz etc.
+  getRecordedTraceSuffix(): string {
+    return TRACE_SUFFIX;
   }
 }
 
