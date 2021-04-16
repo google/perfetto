@@ -155,7 +155,10 @@ perfetto_unittest_source_set("unittests") {
       ":client_api_without_backends",
       ":platform_impl",
     ]
-    sources += [ "traced_value_unittest.cc" ]
+    sources += [
+      "traced_proto_unittest.cc",
+      "traced_value_unittest.cc",
+    ]
   }
 }
 
