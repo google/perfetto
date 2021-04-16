@@ -250,7 +250,7 @@ TEST(TracedValueTest, Hierarchy_Short) {
 
 namespace {
 
-class HasConvertorMember {
+class HasWriteIntoTracedValueConvertorMember {
  public:
   void WriteIntoTracedValue(TracedValue context) const {
     auto dict = std::move(context).WriteDictionary();
@@ -259,7 +259,17 @@ class HasConvertorMember {
   }
 };
 
-class HasExternalConvertor {};
+class HasWriteIntoTraceConvertorMember {
+ public:
+  void WriteIntoTrace(TracedValue context) const {
+    auto dict = std::move(context).WriteDictionary();
+    dict.Add("int", 42);
+    dict.Add("bool", false);
+  }
+};
+
+class HasExternalWriteIntoTraceConvertor {};
+class HasExternalWriteIntoTracedValueConvertor {};
 
 class HasAllConversionMethods {
  public:
@@ -302,9 +312,18 @@ class HasConstAndNonConstWriteMember {
 }  // namespace
 
 template <>
-struct TraceFormatTraits<HasExternalConvertor> {
-  static void WriteIntoTracedValue(TracedValue context,
-                                   const HasExternalConvertor&) {
+struct TraceFormatTraits<HasExternalWriteIntoTraceConvertor> {
+  static void WriteIntoTrace(TracedValue context,
+                             const HasExternalWriteIntoTraceConvertor&) {
+    std::move(context).WriteString("TraceFormatTraits::WriteIntoTrace");
+  }
+};
+
+template <>
+struct TraceFormatTraits<HasExternalWriteIntoTracedValueConvertor> {
+  static void WriteIntoTracedValue(
+      TracedValue context,
+      const HasExternalWriteIntoTracedValueConvertor&) {
     std::move(context).WriteString("TraceFormatTraits::WriteIntoTracedValue");
   }
 };
@@ -326,8 +345,10 @@ std::string ToStringWithFallback(T&& value, const std::string& fallback) {
   return internal::DebugAnnotationToString(message.SerializeAsString());
 }
 
-ASSERT_TYPE_SUPPORTED(HasConvertorMember);
-ASSERT_TYPE_SUPPORTED(HasExternalConvertor);
+ASSERT_TYPE_SUPPORTED(HasWriteIntoTraceConvertorMember);
+ASSERT_TYPE_SUPPORTED(HasWriteIntoTracedValueConvertorMember);
+ASSERT_TYPE_SUPPORTED(HasExternalWriteIntoTraceConvertor);
+ASSERT_TYPE_SUPPORTED(HasExternalWriteIntoTracedValueConvertor);
 ASSERT_TYPE_SUPPORTED(HasAllConversionMethods);
 
 ASSERT_TYPE_SUPPORTED(HasConstWriteMember);
@@ -364,19 +385,27 @@ ASSERT_TYPE_SUPPORTED(const HasConstAndNonConstWriteMember*);
 ASSERT_TYPE_SUPPORTED(std::unique_ptr<const HasConstAndNonConstWriteMember*>);
 
 TEST(TracedValueTest, UserDefinedConvertors) {
-  HasConvertorMember value1;
+  HasWriteIntoTraceConvertorMember value1;
   EXPECT_EQ(TracedValueToString(value1), "{int:42,bool:false}");
   EXPECT_EQ(TracedValueToString(&value1), "{int:42,bool:false}");
 
-  HasExternalConvertor value2;
-  EXPECT_EQ(TracedValueToString(value2),
+  HasWriteIntoTracedValueConvertorMember value2;
+  EXPECT_EQ(TracedValueToString(value2), "{int:42,bool:false}");
+  EXPECT_EQ(TracedValueToString(&value2), "{int:42,bool:false}");
+
+  HasExternalWriteIntoTracedValueConvertor value3;
+  EXPECT_EQ(TracedValueToString(value3),
             "TraceFormatTraits::WriteIntoTracedValue");
-  EXPECT_EQ(TracedValueToString(&value2),
+  EXPECT_EQ(TracedValueToString(&value3),
             "TraceFormatTraits::WriteIntoTracedValue");
 
-  HasAllConversionMethods value3;
-  EXPECT_EQ(TracedValueToString(value3), "T::WriteIntoTracedValue");
-  EXPECT_EQ(TracedValueToString(&value3), "T::WriteIntoTracedValue");
+  HasExternalWriteIntoTraceConvertor value4;
+  EXPECT_EQ(TracedValueToString(value4), "TraceFormatTraits::WriteIntoTrace");
+  EXPECT_EQ(TracedValueToString(&value4), "TraceFormatTraits::WriteIntoTrace");
+
+  HasAllConversionMethods value5;
+  EXPECT_EQ(TracedValueToString(value5), "T::WriteIntoTracedValue");
+  EXPECT_EQ(TracedValueToString(&value5), "T::WriteIntoTracedValue");
 }
 
 TEST(TracedValueTest, WriteAsLambda) {
