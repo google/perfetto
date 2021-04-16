@@ -39,74 +39,42 @@ TracedValue TracedValue::CreateFromProto(
 
 void TracedValue::WriteInt64(int64_t value) && {
   PERFETTO_DCHECK(checked_scope_.is_active());
-  if (nested_context_) {
-    nested_context_->set_int_value(value);
-  } else {
-    root_context_->set_int_value(value);
-  }
+  context_->set_int_value(value);
 }
 
 void TracedValue::WriteUInt64(uint64_t value) && {
   PERFETTO_DCHECK(checked_scope_.is_active());
-  if (nested_context_) {
-    nested_context_->set_int_value(static_cast<int64_t>(value));
-  } else {
-    root_context_->set_uint_value(value);
-  }
+  context_->set_uint_value(value);
 }
 
 void TracedValue::WriteDouble(double value) && {
   PERFETTO_DCHECK(checked_scope_.is_active());
-  if (nested_context_) {
-    nested_context_->set_double_value(value);
-  } else {
-    root_context_->set_double_value(value);
-  }
+  context_->set_double_value(value);
 }
 
 void TracedValue::WriteBoolean(bool value) && {
   PERFETTO_DCHECK(checked_scope_.is_active());
-  if (nested_context_) {
-    nested_context_->set_bool_value(value);
-  } else {
-    root_context_->set_bool_value(value);
-  }
+  context_->set_bool_value(value);
 }
 
 void TracedValue::WriteString(const char* value) && {
   PERFETTO_DCHECK(checked_scope_.is_active());
-  if (nested_context_) {
-    nested_context_->set_string_value(value);
-  } else {
-    root_context_->set_string_value(value);
-  }
+  context_->set_string_value(value);
 }
 
 void TracedValue::WriteString(const char* value, size_t len) && {
   PERFETTO_DCHECK(checked_scope_.is_active());
-  if (nested_context_) {
-    nested_context_->set_string_value(value, len);
-  } else {
-    root_context_->set_string_value(value, len);
-  }
+  context_->set_string_value(value, len);
 }
 
 void TracedValue::WriteString(const std::string& value) && {
   PERFETTO_DCHECK(checked_scope_.is_active());
-  if (nested_context_) {
-    nested_context_->set_string_value(value);
-  } else {
-    root_context_->set_string_value(value);
-  }
+  context_->set_string_value(value);
 }
 
 void TracedValue::WritePointer(const void* value) && {
   PERFETTO_DCHECK(checked_scope_.is_active());
-  if (nested_context_) {
-    nested_context_->set_int_value(reinterpret_cast<int64_t>(value));
-  } else {
-    root_context_->set_pointer_value(reinterpret_cast<uint64_t>(value));
-  }
+  context_->set_pointer_value(reinterpret_cast<uint64_t>(value));
 }
 
 TracedDictionary TracedValue::WriteDictionary() && {
@@ -115,19 +83,8 @@ TracedDictionary TracedValue::WriteDictionary() && {
   PERFETTO_DCHECK(checked_scope_.is_active());
   checked_scope_.Reset();
 
-  if (nested_context_) {
-    PERFETTO_DCHECK(!nested_context_->is_finalized());
-    nested_context_->set_nested_type(
-        protos::pbzero::DebugAnnotation_NestedValue_NestedType_DICT);
-    return TracedDictionary(nested_context_, checked_scope_.parent_scope());
-  } else {
-    PERFETTO_DCHECK(!root_context_->is_finalized());
-    protos::pbzero::DebugAnnotation::NestedValue* value =
-        root_context_->set_nested_value();
-    value->set_nested_type(
-        protos::pbzero::DebugAnnotation_NestedValue_NestedType_DICT);
-    return TracedDictionary(value, checked_scope_.parent_scope());
-  }
+  PERFETTO_DCHECK(!context_->is_finalized());
+  return TracedDictionary(context_, checked_scope_.parent_scope());
 }
 
 TracedArray TracedValue::WriteArray() && {
@@ -136,24 +93,13 @@ TracedArray TracedValue::WriteArray() && {
   PERFETTO_DCHECK(checked_scope_.is_active());
   checked_scope_.Reset();
 
-  if (nested_context_) {
-    PERFETTO_DCHECK(!nested_context_->is_finalized());
-    nested_context_->set_nested_type(
-        protos::pbzero::DebugAnnotation_NestedValue_NestedType_ARRAY);
-    return TracedArray(nested_context_, checked_scope_.parent_scope());
-  } else {
-    PERFETTO_DCHECK(!root_context_->is_finalized());
-    protos::pbzero::DebugAnnotation::NestedValue* value =
-        root_context_->set_nested_value();
-    value->set_nested_type(
-        protos::pbzero::DebugAnnotation_NestedValue_NestedType_ARRAY);
-    return TracedArray(value, checked_scope_.parent_scope());
-  }
+  PERFETTO_DCHECK(!context_->is_finalized());
+  return TracedArray(context_, checked_scope_.parent_scope());
 }
 
 TracedValue TracedArray::AppendItem() {
   PERFETTO_DCHECK(checked_scope_.is_active());
-  return TracedValue(value_->add_array_values(), &checked_scope_);
+  return TracedValue(context_->add_array_values(), &checked_scope_);
 }
 
 TracedDictionary TracedArray::AppendDictionary() {
@@ -168,14 +114,16 @@ TracedArray TracedArray::AppendArray() {
 
 TracedValue TracedDictionary::AddItem(StaticString key) {
   PERFETTO_DCHECK(checked_scope_.is_active());
-  value_->add_dict_keys(key.value);
-  return TracedValue(value_->add_dict_values(), &checked_scope_);
+  protos::pbzero::DebugAnnotation* item = context_->add_dict_entries();
+  item->set_name(key.value);
+  return TracedValue(item, &checked_scope_);
 }
 
 TracedValue TracedDictionary::AddItem(DynamicString key) {
   PERFETTO_DCHECK(checked_scope_.is_active());
-  value_->add_dict_keys(key.value, key.length);
-  return TracedValue(value_->add_dict_values(), &checked_scope_);
+  protos::pbzero::DebugAnnotation* item = context_->add_dict_entries();
+  item->set_name(key.value);
+  return TracedValue(item, &checked_scope_);
 }
 
 TracedDictionary TracedDictionary::AddDictionary(StaticString key) {

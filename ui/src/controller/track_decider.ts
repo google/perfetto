@@ -121,7 +121,7 @@ class TrackDecider {
     } else if (hasUtid) {
       return `utid: ${utid}${kindSuffix}`;
     } else if (hasKind) {
-      return `${kind}`;
+      return `Unnamed ${kind}`;
     }
     return 'Unknown';
   }
@@ -210,15 +210,18 @@ class TrackDecider {
     GROUP BY t.track_ids;
   `);
     for (let i = 0; i < slowlyCountRows(rawGlobalAsyncTracks); i++) {
-      const name = rawGlobalAsyncTracks.columns[0].stringValues![i];
+      const name = rawGlobalAsyncTracks.columns[0].isNulls![i] ?
+          undefined :
+          rawGlobalAsyncTracks.columns[0].stringValues![i];
       const rawTrackIds = rawGlobalAsyncTracks.columns[1].stringValues![i];
       const trackIds = rawTrackIds.split(',').map(v => Number(v));
       const maxDepth = +rawGlobalAsyncTracks.columns[2].longValues![i];
+      const kind = ASYNC_SLICE_TRACK_KIND;
       const track = {
         engineId: this.engineId,
-        kind: ASYNC_SLICE_TRACK_KIND,
+        kind,
         trackGroup: SCROLLING_TRACK_GROUP,
-        name,
+        name: TrackDecider.getTrackName({name, kind}),
         config: {
           maxDepth,
           trackIds,

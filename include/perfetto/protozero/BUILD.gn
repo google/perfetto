@@ -19,6 +19,7 @@ source_set("protozero") {
     "copyable_ptr.h",
     "cpp_message_obj.h",
     "field.h",
+    "field_writer.h",
     "message.h",
     "message_arena.h",
     "message_handle.h",
