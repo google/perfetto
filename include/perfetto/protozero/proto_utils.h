@@ -271,18 +271,6 @@ struct FieldMetadata : public FieldMetadataBase {
   using message_type = MessageType;
 };
 
-// Ideally we would create variables of FieldMetadata<...> type directly,
-// but before C++17's support for constexpr inline variables arrive, we have to
-// actually use pointers to inline functions instead to avoid having to define
-// symbols in *.pbzero.cc files.
-//
-// Note: protozero bindings will generate Message::kFieldName variable and then
-// they can be passed to TRACE_EVENT macro for inline writing of typed messages.
-// The fact that the former can be passed to the latter is a part of the stable
-// API, while the particular type is not and users should not rely on it.
-template <typename T>
-using FieldMetadataVariable = T (*)(void);
-
 }  // namespace proto_utils
 }  // namespace protozero
 
