@@ -17,6 +17,7 @@
 #ifndef INCLUDE_PERFETTO_BASE_TEMPLATE_UTIL_H_
 #define INCLUDE_PERFETTO_BASE_TEMPLATE_UTIL_H_
 
+#include <cstddef>
 #include <type_traits>
 
 namespace perfetto {
@@ -30,6 +31,13 @@ struct priority_tag : priority_tag<I - 1> {};
 
 template <>
 struct priority_tag<0> {};
+
+// enable_if_t is an implementation of std::enable_if_t from C++14.
+//
+// Specification:
+// https://en.cppreference.com/w/cpp/types/enable_if
+template <bool B, class T = void>
+using enable_if_t = typename std::enable_if<B, T>::type;
 
 // decay_t is an implementation of std::decay_t from C++14.
 //
