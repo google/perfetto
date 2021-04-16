@@ -153,7 +153,7 @@ export const StateActions = {
   convertTraceToJson(
       state: StateDraft, args: {file: Blob, truncate?: 'start'|'end'}): void {
     state.traceConversionInProgress = true;
-    ConvertTrace(args.file, args.truncate);
+    ConvertTrace(args.file, 'json', args.truncate);
   },
 
   convertTraceToPprof(
