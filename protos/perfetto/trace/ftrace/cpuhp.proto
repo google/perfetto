@@ -29,3 +29,9 @@ message CpuhpLatencyFtraceEvent {
   optional uint32 state = 3;
   optional uint64 time = 4;
 }
+message CpuhpPauseFtraceEvent {
+  optional uint32 active_cpus = 1;
+  optional uint32 cpus = 2;
+  optional uint32 pause = 3;
+  optional uint32 time = 4;
+}

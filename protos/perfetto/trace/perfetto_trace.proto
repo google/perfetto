@@ -3121,6 +3121,12 @@ message CpuhpLatencyFtraceEvent {
   optional uint32 state = 3;
   optional uint64 time = 4;
 }
+message CpuhpPauseFtraceEvent {
+  optional uint32 active_cpus = 1;
+  optional uint32 cpus = 2;
+  optional uint32 pause = 3;
+  optional uint32 time = 4;
+}
 
 // End of protos/perfetto/trace/ftrace/cpuhp.proto
 
@@ -5394,6 +5400,7 @@ message FtraceEvent {
     G2dTracingMarkWriteFtraceEvent g2d_tracing_mark_write = 349;
     MaliTracingMarkWriteFtraceEvent mali_tracing_mark_write = 350;
     DmaHeapStatFtraceEvent dma_heap_stat = 351;
+    CpuhpPauseFtraceEvent cpuhp_pause = 352;
   }
 }
 

@@ -30,6 +30,7 @@
 
 #include "protos/perfetto/common/gpu_counter_descriptor.pbzero.h"
 #include "protos/perfetto/trace/ftrace/binder.pbzero.h"
+#include "protos/perfetto/trace/ftrace/cpuhp.pbzero.h"
 #include "protos/perfetto/trace/ftrace/dmabuf_heap.pbzero.h"
 #include "protos/perfetto/trace/ftrace/dpu.pbzero.h"
 #include "protos/perfetto/trace/ftrace/fastrpc.pbzero.h"
@@ -551,6 +552,10 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kMaliTracingMarkWriteFieldNumber: {
         ParseMaliTracingMarkWrite(ts, pid, data);
+        break;
+      }
+      case FtraceEvent::kCpuhpPauseFieldNumber: {
+        ParseCpuhpPause(ts, pid, data);
         break;
       }
       default:
@@ -1457,6 +1462,13 @@ void FtraceParser::ParseFastRpcDmaStat(int64_t timestamp,
       context_->track_tracker->InternThreadCounterTrack(name, utid);
   context_->event_tracker->PushCounter(
       timestamp, static_cast<double>(evt.len()), delta_track);
+}
+
+void FtraceParser::ParseCpuhpPause(int64_t,
+                                   uint32_t,
+                                   protozero::ConstBytes blob) {
+  protos::pbzero::CpuhpPauseFtraceEvent::Decoder evt(blob.data, blob.size);
+  // TODO(b/183110813): Parse and visualize this event.
 }
 
 }  // namespace trace_processor

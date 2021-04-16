@@ -346,3 +346,4 @@ dpu/tracing_mark_write
 g2d/tracing_mark_write
 mali/tracing_mark_write
 dmabuf_heap/dma_heap_stat
+cpuhp/cpuhp_pause
