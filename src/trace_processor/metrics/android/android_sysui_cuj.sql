@@ -43,6 +43,30 @@ SELECT RUN_METRIC(
   'table_name_prefix', 'android_sysui_cuj',
   'process_allowlist_table', 'android_sysui_cuj_last_cuj');
 
+DROP VIEW IF EXISTS android_sysui_cuj_thread;
+CREATE VIEW android_sysui_cuj_thread AS
+SELECT
+  process.name as process_name,
+  thread.utid,
+  thread.name
+FROM thread
+JOIN android_sysui_cuj_last_cuj process USING (upid);
+
+DROP VIEW IF EXISTS android_sysui_cuj_slices_in_cuj;
+CREATE VIEW android_sysui_cuj_slices_in_cuj AS
+SELECT
+  process_name,
+  thread.utid,
+  thread.name as thread_name,
+  slice.*,
+  ts + slice.dur AS ts_end
+FROM slice
+JOIN thread_track ON slice.track_id = thread_track.id
+JOIN android_sysui_cuj_thread thread USING (utid)
+JOIN android_sysui_cuj_last_cuj last_cuj
+ON ts >= last_cuj.ts_start AND ts <= last_cuj.ts_end
+WHERE slice.dur > 0;
+
 DROP TABLE IF EXISTS android_sysui_cuj_main_thread_slices_in_cuj;
 CREATE TABLE android_sysui_cuj_main_thread_slices_in_cuj AS
 SELECT slices.* FROM android_sysui_cuj_main_thread_slices slices
@@ -78,6 +102,14 @@ CREATE TABLE android_sysui_cuj_gpu_completion_slices_in_cuj AS
 SELECT slices.* FROM android_sysui_cuj_gpu_completion_slices slices
 JOIN android_sysui_cuj_last_cuj last_cuj
 ON ts >= last_cuj.ts_start AND ts <= last_cuj.ts_end;
+
+DROP TABLE IF EXISTS android_sysui_cuj_jit_slices;
+CREATE TABLE android_sysui_cuj_jit_slices AS
+SELECT *
+FROM android_sysui_cuj_slices_in_cuj
+WHERE thread_name LIKE 'Jit thread pool%'
+AND name LIKE 'JIT compiling%'
+AND parent_id IS NULL;
 
 DROP TABLE IF EXISTS android_sysui_cuj_frame_timeline_events;
 CREATE TABLE android_sysui_cuj_frame_timeline_events AS
@@ -248,6 +280,18 @@ CREATE TABLE android_sysui_cuj_sf_jank_causes AS
   WHERE jank_cause NOT IN ('', 'App Deadline Missed', 'None')
   ORDER BY frame_number ASC;
 
+DROP TABLE IF EXISTS android_sysui_cuj_missed_frames_hwui_times;
+CREATE TABLE android_sysui_cuj_missed_frames_hwui_times AS
+SELECT
+  *,
+  ts_main_thread_start AS ts,
+  ts_render_thread_end - ts_main_thread_start AS dur
+FROM android_sysui_cuj_missed_frames;
+
+DROP TABLE IF EXISTS android_sysui_cuj_jit_slices_join_table;
+CREATE VIRTUAL TABLE android_sysui_cuj_jit_slices_join_table
+USING span_join(android_sysui_cuj_missed_frames_hwui_times partitioned frame_number, android_sysui_cuj_jit_slices);
+
 DROP TABLE IF EXISTS android_sysui_cuj_jank_causes;
 CREATE TABLE android_sysui_cuj_jank_causes AS
   SELECT
@@ -343,6 +387,16 @@ CREATE TABLE android_sysui_cuj_jank_causes AS
     mts.state = 'Running'
     AND rts.state = 'Running'
     AND mts.dur + rts.dur > 15000000
+
+  UNION ALL
+  SELECT
+  f.frame_number,
+  'JIT compiling' as jank_cause
+  FROM android_sysui_cuj_missed_frames f
+  JOIN android_sysui_cuj_jit_slices_join_table jit USING (frame_number)
+  WHERE f.app_missed
+  GROUP BY f.frame_number
+  HAVING SUM(jit.dur) > 8000000
 
   UNION ALL
   SELECT frame_number, jank_cause FROM android_sysui_cuj_sf_jank_causes
