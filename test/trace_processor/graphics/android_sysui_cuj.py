@@ -19,6 +19,7 @@ import synth_common
 
 PID = 1000
 RTID = 1555
+JITID = 1777
 LAYER = "TX - NotificationShade#0"
 
 
@@ -35,6 +36,11 @@ def add_render_thread_atrace(trace, ts, ts_end, buf):
 def add_gpu_thread_atrace(trace, ts, ts_end, buf):
   trace.add_atrace_begin(ts=ts, tid=1666, pid=PID, buf=buf)
   trace.add_atrace_end(ts=ts_end, tid=1666, pid=PID)
+
+
+def add_jit_thread_atrace(trace, ts, ts_end, buf):
+  trace.add_atrace_begin(ts=ts, tid=JITID, pid=PID, buf=buf)
+  trace.add_atrace_end(ts=ts_end, tid=JITID, pid=PID)
 
 
 def add_frame(trace, vsync, ts_do_frame, ts_end_do_frame, ts_draw_frame,
@@ -106,7 +112,8 @@ trace.add_thread(
     tid=RTID, tgid=PID, cmdline="RenderThread", name="RenderThread")
 trace.add_thread(
     tid=1666, tgid=PID, cmdline="GPU completion", name="GPU completion")
-
+trace.add_thread(
+    tid=JITID, tgid=PID, cmdline="Jit thread pool", name="Jit thread pool")
 trace.add_ftrace_packet(cpu=0)
 trace.add_atrace_async_begin(ts=0, tid=PID, pid=PID, buf="J<SHADE_ROW_EXPAND>")
 trace.add_atrace_async_end(
@@ -180,6 +187,27 @@ add_frame(
     ts_end_draw_frame=59_000_000,
     ts_gpu=66_500_000,
     ts_end_gpu=78_000_000)
+
+add_jit_thread_atrace(
+    trace,
+    ts=39_000_000,
+    ts_end=45_000_000,
+    buf="JIT compiling void aa.aa(java.lang.Object, bb) (kind=Baseline)")
+add_jit_thread_atrace(
+    trace,
+    ts=46_000_000,
+    ts_end=47_000_000,
+    buf="Lock contention on Jit code cache (owner tid: 12345)")
+add_jit_thread_atrace(
+    trace,
+    ts=52_500_000,
+    ts_end=54_000_000,
+    buf="JIT compiling void cc.bb(java.lang.Object, bb) (kind=Osr)")
+add_jit_thread_atrace(
+    trace,
+    ts=56_500_000,
+    ts_end=60_000_000,
+    buf="JIT compiling void ff.zz(java.lang.Object, bb) (kind=Baseline)")
 
 # Main thread Running for 14 millis
 trace.add_sched(ts=39_000_000, prev_pid=0, next_pid=PID)
