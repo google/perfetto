@@ -14,6 +14,7 @@
 
 import {binaryDecode, binaryEncode} from '../base/string_utils';
 import {Actions} from '../common/actions';
+import {TRACE_SUFFIX} from '../common/constants';
 
 import {
   ConsumerPortResponse,
@@ -94,5 +95,9 @@ export class ChromeExtensionConsumerPort extends RpcConsumerPort {
   handleCommand(method: string, requestData: Uint8Array): void {
     const reqEncoded = binaryEncode(requestData);
     this.extensionPort.postMessage({method, requestData: reqEncoded});
+  }
+
+  getRecordedTraceSuffix(): string {
+    return `${TRACE_SUFFIX}.gz`;
   }
 }
