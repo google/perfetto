@@ -138,3 +138,6 @@ sched_blocked_systrace.systrace sched_blocked_reason.sql sched_blocked_systrace_
 # Kernel symbolization
 sched_blocked_reason_symbolized.textproto sched_blocked_reason_function.sql sched_blocked_reason_symbolized_sched_blocked_reason_function.out
 sched_blocked_reason_symbolized.textproto ../common/to_systrace.sql sched_blocked_reason_symbolized_to_systrace.out
+
+# Floating point numbers
+../../data/decimal_timestamp.json slices.sql decimal_timestamp_slices.out
