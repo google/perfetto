@@ -265,23 +265,16 @@ struct FieldMetadata : public FieldMetadataBase {
   constexpr FieldMetadata() = default;
 
   static constexpr int kFieldId = field_id;
+  // Whether this field is repeated, packed (repeated [packed-true]) or not
+  // (optional).
   static constexpr RepetitionType kRepetitionType = repetition_type;
+  // Proto type of this field (e.g. int64, fixed32 or nested message).
   static constexpr ProtoSchemaType kProtoFieldType = proto_schema_type;
-  using cpp_proto_schema_type = CppFieldType;
+  // C++ type of this field (for nested messages - C++ protozero class).
+  using cpp_field_type = CppFieldType;
+  // Protozero message which this field belongs to.
   using message_type = MessageType;
 };
-
-// Ideally we would create variables of FieldMetadata<...> type directly,
-// but before C++17's support for constexpr inline variables arrive, we have to
-// actually use pointers to inline functions instead to avoid having to define
-// symbols in *.pbzero.cc files.
-//
-// Note: protozero bindings will generate Message::kFieldName variable and then
-// they can be passed to TRACE_EVENT macro for inline writing of typed messages.
-// The fact that the former can be passed to the latter is a part of the stable
-// API, while the particular type is not and users should not rely on it.
-template <typename T>
-using FieldMetadataVariable = T (*)(void);
 
 }  // namespace proto_utils
 }  // namespace protozero

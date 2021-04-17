@@ -7441,8 +7441,9 @@ message BatteryCounters {
   optional float capacity_percent = 2;
 
   // Instantaneous battery current in microamperes(µA).
-  // Positive values indicate net current entering the battery from a charge
-  // source, negative values indicate net current discharging from the battery.
+  // Positive values indicate current drained from the battery,
+  // negative values current feeding the battery from a charge source (USB).
+  // See https://perfetto.dev/docs/data-sources/battery-counters for more.
   optional int64 current_ua = 3;
 
   // Instantaneous battery current in microamperes(µA).
@@ -8214,6 +8215,11 @@ message TestEvent {
   message TestPayload {
     repeated string str = 1;
     repeated TestPayload nested = 2;
+
+    optional string single_string = 4;
+
+    optional int32 single_int = 5;
+    repeated int32 repeated_ints = 6;
 
     // When 0 this is the bottom-most nested message.
     optional uint32 remaining_nesting_depth = 3;

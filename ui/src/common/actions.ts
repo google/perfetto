@@ -66,6 +66,7 @@ export interface AddTrackArgs {
 
 export interface PostedTrace {
   title: string;
+  fileName?: string;
   url?: string;
   buffer: ArrayBuffer;
 }
@@ -152,7 +153,7 @@ export const StateActions = {
   convertTraceToJson(
       state: StateDraft, args: {file: Blob, truncate?: 'start'|'end'}): void {
     state.traceConversionInProgress = true;
-    ConvertTrace(args.file, args.truncate);
+    ConvertTrace(args.file, 'json', args.truncate);
   },
 
   convertTraceToPprof(

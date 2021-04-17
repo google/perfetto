@@ -16,6 +16,7 @@ import * as m from 'mithril';
 
 import {assertExists, assertTrue} from '../base/logging';
 import {Actions} from '../common/actions';
+import {TRACE_SUFFIX} from '../common/constants';
 import {QueryResponse} from '../common/queries';
 import {EngineMode, TraceArrayBufferSource} from '../common/state';
 import * as version from '../gen/perfetto_version';
@@ -519,13 +520,16 @@ function downloadTrace(e: Event) {
   const engine = Object.values(globals.state.engines)[0];
   if (!engine) return;
   let url = '';
-  let fileName = 'trace.pftrace';
+  let fileName = `trace${TRACE_SUFFIX}`;
   const src = engine.source;
   if (src.type === 'URL') {
     url = src.url;
     fileName = url.split('/').slice(-1)[0];
   } else if (src.type === 'ARRAY_BUFFER') {
     const blob = new Blob([src.buffer], {type: 'application/octet-stream'});
+    if (src.fileName) {
+      fileName = src.fileName;
+    }
     url = URL.createObjectURL(blob);
   } else if (src.type === 'FILE') {
     const file = src.file;

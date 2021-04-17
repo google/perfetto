@@ -49,9 +49,9 @@ class DebugAnnotation;
 //
 // To define how a custom class should be written into the trace, users should
 // define one of the two following functions:
-// - Foo::WriteIntoTracedValue(TracedValue) const
+// - Foo::WriteIntoTrace(TracedValue) const
 //   (preferred for code which depends on perfetto directly)
-// - perfetto::TraceFormatTraits<T>::WriteIntoTracedValue(
+// - perfetto::TraceFormatTraits<T>::WriteIntoTrace(
 //       TracedValue, const T&);
 //   (should be used if T is defined in a library which doesn't know anything
 //   about tracing).
@@ -81,17 +81,17 @@ class DebugAnnotation;
 // });
 //
 // template <typename T>
-// TraceFormatTraits<std::optional<T>>::WriteIntoTracedValue(
+// TraceFormatTraits<std::optional<T>>::WriteIntoTrace(
 //    TracedValue context, const std::optional<T>& value) {
 //  if (!value) {
 //    std::move(context).WritePointer(nullptr);
 //    return;
 //  }
-//  perfetto::WriteIntoTracedValue(std::move(context), *value);
+//  perfetto::WriteIntoTrace(std::move(context), *value);
 // }
 //
 // template <typename T>
-// TraceFormatTraits<std::vector<T>>::WriteIntoTracedValue(
+// TraceFormatTraits<std::vector<T>>::WriteIntoTrace(
 //    TracedValue context, const std::array<T>& value) {
 //  auto array = std::move(context).WriteArray();
 //  for (const auto& item: value) {
@@ -100,7 +100,7 @@ class DebugAnnotation;
 // }
 //
 // class Foo {
-//   void WriteIntoTracedValue(TracedValue context) const {
+//   void WriteIntoTrace(TracedValue context) const {
 //     auto dict = std::move(context).WriteDictionary();
 //     dict->Set("key", 42);
 //     dict->Set("foo", "bar");
@@ -265,6 +265,13 @@ WriteImpl(base::priority_tag<4>, TracedValue context, T&& value) {
   value.WriteIntoTracedValue(std::move(context));
 }
 
+// If T has WriteIntoTrace member function, call it.
+template <typename T>
+decltype(std::declval<T>().WriteIntoTrace(std::declval<TracedValue>()), void())
+WriteImpl(base::priority_tag<4>, TracedValue context, T&& value) {
+  value.WriteIntoTrace(std::move(context));
+}
+
 // If perfetto::TraceFormatTraits<T>::WriteIntoTracedValue(TracedValue, const
 // T&) is available, use it.
 template <typename T>
@@ -274,6 +281,18 @@ decltype(TraceFormatTraits<base::remove_cvref_t<T>>::WriteIntoTracedValue(
          void())
 WriteImpl(base::priority_tag<3>, TracedValue context, T&& value) {
   TraceFormatTraits<base::remove_cvref_t<T>>::WriteIntoTracedValue(
+      std::move(context), std::forward<T>(value));
+}
+
+// If perfetto::TraceFormatTraits<T>::WriteIntoTrace(TracedValue, const T&)
+// is available, use it.
+template <typename T>
+decltype(TraceFormatTraits<base::remove_cvref_t<T>>::WriteIntoTrace(
+             std::declval<TracedValue>(),
+             std::declval<T>()),
+         void())
+WriteImpl(base::priority_tag<3>, TracedValue context, T&& value) {
+  TraceFormatTraits<base::remove_cvref_t<T>>::WriteIntoTrace(
       std::move(context), std::forward<T>(value));
 }
 
@@ -429,7 +448,7 @@ struct TraceFormatTraits<
     typename std::enable_if<std::is_integral<T>::value &&
                             !std::is_same<T, bool>::value &&
                             std::is_signed<T>::value>::type> {
-  inline static void WriteIntoTracedValue(TracedValue context, T value) {
+  inline static void WriteIntoTrace(TracedValue context, T value) {
     std::move(context).WriteInt64(value);
   }
 };
@@ -442,7 +461,7 @@ struct TraceFormatTraits<
     typename std::enable_if<std::is_integral<T>::value &&
                             !std::is_same<T, bool>::value &&
                             std::is_unsigned<T>::value>::type> {
-  inline static void WriteIntoTracedValue(TracedValue context, T value) {
+  inline static void WriteIntoTrace(TracedValue context, T value) {
     std::move(context).WriteUInt64(value);
   }
 };
@@ -450,7 +469,7 @@ struct TraceFormatTraits<
 // Specialisation for bools.
 template <>
 struct TraceFormatTraits<bool> {
-  inline static void WriteIntoTracedValue(TracedValue context, bool value) {
+  inline static void WriteIntoTrace(TracedValue context, bool value) {
     std::move(context).WriteBoolean(value);
   }
 };
@@ -460,7 +479,7 @@ template <typename T>
 struct TraceFormatTraits<
     T,
     typename std::enable_if<std::is_floating_point<T>::value>::type> {
-  inline static void WriteIntoTracedValue(TracedValue context, T value) {
+  inline static void WriteIntoTrace(TracedValue context, T value) {
     std::move(context).WriteDouble(static_cast<double>(value));
   }
 };
@@ -473,7 +492,7 @@ struct TraceFormatTraits<
         std::is_enum<T>::value &&
         std::is_signed<
             typename internal::safe_underlying_type<T>::type>::value>::type> {
-  inline static void WriteIntoTracedValue(TracedValue context, T value) {
+  inline static void WriteIntoTrace(TracedValue context, T value) {
     std::move(context).WriteInt64(static_cast<int64_t>(value));
   }
 };
@@ -486,7 +505,7 @@ struct TraceFormatTraits<
         std::is_enum<T>::value &&
         std::is_unsigned<
             typename internal::safe_underlying_type<T>::type>::value>::type> {
-  inline static void WriteIntoTracedValue(TracedValue context, T value) {
+  inline static void WriteIntoTrace(TracedValue context, T value) {
     std::move(context).WriteUInt64(static_cast<uint64_t>(value));
   }
 };
@@ -494,24 +513,21 @@ struct TraceFormatTraits<
 // Specialisations for C-style strings.
 template <>
 struct TraceFormatTraits<const char*> {
-  inline static void WriteIntoTracedValue(TracedValue context,
-                                          const char* value) {
+  inline static void WriteIntoTrace(TracedValue context, const char* value) {
     std::move(context).WriteString(value);
   }
 };
 
 template <>
 struct TraceFormatTraits<char[]> {
-  inline static void WriteIntoTracedValue(TracedValue context,
-                                          const char value[]) {
+  inline static void WriteIntoTrace(TracedValue context, const char value[]) {
     std::move(context).WriteString(value);
   }
 };
 
 template <size_t N>
 struct TraceFormatTraits<char[N]> {
-  inline static void WriteIntoTracedValue(TracedValue context,
-                                          const char value[N]) {
+  inline static void WriteIntoTrace(TracedValue context, const char value[N]) {
     std::move(context).WriteString(value);
   }
 };
@@ -519,8 +535,8 @@ struct TraceFormatTraits<char[N]> {
 // Specialisation for C++ strings.
 template <>
 struct TraceFormatTraits<std::string> {
-  inline static void WriteIntoTracedValue(TracedValue context,
-                                          const std::string& value) {
+  inline static void WriteIntoTrace(TracedValue context,
+                                    const std::string& value) {
     std::move(context).WriteString(value);
   }
 };
@@ -528,15 +544,14 @@ struct TraceFormatTraits<std::string> {
 // Specialisation for (const) void*, which writes the pointer value.
 template <>
 struct TraceFormatTraits<void*> {
-  inline static void WriteIntoTracedValue(TracedValue context, void* value) {
+  inline static void WriteIntoTrace(TracedValue context, void* value) {
     std::move(context).WritePointer(value);
   }
 };
 
 template <>
 struct TraceFormatTraits<const void*> {
-  inline static void WriteIntoTracedValue(TracedValue context,
-                                          const void* value) {
+  inline static void WriteIntoTrace(TracedValue context, const void* value) {
     std::move(context).WritePointer(value);
   }
 };
@@ -545,8 +560,8 @@ struct TraceFormatTraits<const void*> {
 // object it points to.
 template <typename T>
 struct TraceFormatTraits<std::unique_ptr<T>, check_traced_value_support_t<T>> {
-  inline static void WriteIntoTracedValue(TracedValue context,
-                                          const std::unique_ptr<T>& value) {
+  inline static void WriteIntoTrace(TracedValue context,
+                                    const std::unique_ptr<T>& value) {
     ::perfetto::WriteIntoTracedValue(std::move(context), value.get());
   }
 };
@@ -555,7 +570,7 @@ struct TraceFormatTraits<std::unique_ptr<T>, check_traced_value_support_t<T>> {
 // points to.
 template <typename T>
 struct TraceFormatTraits<T*, check_traced_value_support_t<T>> {
-  inline static void WriteIntoTracedValue(TracedValue context, T* value) {
+  inline static void WriteIntoTrace(TracedValue context, T* value) {
     if (!value) {
       std::move(context).WritePointer(nullptr);
       return;
@@ -567,7 +582,7 @@ struct TraceFormatTraits<T*, check_traced_value_support_t<T>> {
 // Specialisation for nullptr.
 template <>
 struct TraceFormatTraits<std::nullptr_t> {
-  inline static void WriteIntoTracedValue(TracedValue context, std::nullptr_t) {
+  inline static void WriteIntoTrace(TracedValue context, std::nullptr_t) {
     std::move(context).WritePointer(nullptr);
   }
 };

@@ -5,7 +5,7 @@ android_startup {
     process_name: "com.some.app"
     zygote_new_process: false
     to_first_frame {
-      dur_ns: 200
+      dur_ns: 9900
       main_thread_by_task_state {
         running_dur_ns: 0
         runnable_dur_ns: 0
@@ -17,7 +17,7 @@ android_startup {
         dur_ns: 2
         dur_ms: 2e-06
       }
-      dur_ms: 0.0002
+      dur_ms: 0.0099
       time_dex_open {
         dur_ns: 20
         dur_ms: 2e-05
@@ -33,6 +33,14 @@ android_startup {
         dur_ns: 20
         dur_ms: 2e-05
       }
+      time_gc_total {
+        dur_ns: 130
+        dur_ms: 0.00013
+      }
+      time_gc_on_cpu {
+        dur_ns: 50
+        dur_ms: 5e-05
+      }
     }
     activity_hosting_process_count: 1
     process {
@@ -40,7 +48,7 @@ android_startup {
     }
     event_timestamps {
       intent_received: 100
-      first_frame: 300
+      first_frame: 10000
     }
   }
 }
