@@ -73,7 +73,11 @@ function main() {
 
   // Check that deps are current before starting.
   const installBuildDeps = pjoin(ROOT_DIR, 'tools/install-build-deps');
-  const depsArgs = ['--check-only', '/dev/null', '--ui'];
+
+  // --filter=nodejs is to match what cloud_build_entrypoint.sh passes to
+  // install-build-deps. It doesn't bother installing the full toolchains
+  // because, unlike the Perfetto UI, it doesn't need Wasm.
+  const depsArgs = ['--check-only=/dev/null', '--ui', '--filter=nodejs'];
   exec(installBuildDeps, depsArgs);
 
   console.log('Entering', cfg.outDir);
