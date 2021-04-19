@@ -100,7 +100,8 @@ template <typename FieldMetadataType,
                               FieldMetadataType>::value>>
 PERFETTO_ALWAYS_INLINE void WriteTrackEventArgs(
     EventContext event_ctx,
-    const FieldMetadataType& field_name,
+    protozero::proto_utils::internal::FieldMetadataHelper<FieldMetadataType>
+        field_name,
     ArgValue&& arg_value,
     Args&&... args) {
   static_assert(
