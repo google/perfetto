@@ -166,9 +166,10 @@ struct TypedProtoWriter {
 }  // namespace internal
 
 template <typename MessageType, typename FieldMetadataType, typename ValueType>
-void WriteIntoTracedProto(TracedProto<MessageType> message,
-                          const FieldMetadataType&,
-                          ValueType&& value) {
+void WriteIntoTracedProto(
+    TracedProto<MessageType> message,
+    protozero::proto_utils::internal::FieldMetadataHelper<FieldMetadataType>,
+    ValueType&& value) {
   static_assert(
       std::is_base_of<protozero::proto_utils::FieldMetadataBase,
                       FieldMetadataType>::value,
