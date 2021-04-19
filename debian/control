@@ -2,7 +2,7 @@ Source: perfetto
 Section: kernel
 Priority: optional
 Maintainer: Sami Kyostila <skyostil@google.com>
-Build-Depends: debhelper (>= 10)
+Build-Depends: debhelper (>= 10), python3, git
 Standards-Version: 3.9.8
 Homepage: https://perfetto.dev
 Vcs-Git: https://android.googlesource.com/platform/external/perfetto/
