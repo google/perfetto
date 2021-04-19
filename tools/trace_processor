@@ -21,7 +21,7 @@
 # cat ./trace_processor | python -
 
 BASH_FALLBACK = """ "
-exec python - "$@" <<'#'EOF
+exec python3 - "$@" <<'#'EOF
 #"""
 
 import hashlib
