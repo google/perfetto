@@ -195,16 +195,10 @@ util::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
           context_->clock_tracker->ToTraceTime(converted_clock_id, timestamp);
       if (!trace_ts.has_value()) {
         // ToTraceTime() will increase the |clock_sync_failure| stat on failure.
-        static const char seq_extra_err[] =
-            " Because the clock id is sequence-scoped, the ClockSnapshot must "
-            "be emitted on the same TraceWriter sequence of the packet that "
-            "refers to that clock id.";
-        return util::ErrStatus(
-            "Failed to convert TracePacket's timestamp from clock_id=%" PRIu32
-            " seq_id=%" PRIu32
-            ". This is usually due to the lack of a prior ClockSnapshot "
-            "proto.%s",
-            timestamp_clock_id, seq_id, is_seq_scoped ? seq_extra_err : "");
+        // We don't return an error here as it will cause the trace to stop
+        // parsing. Instead, we rely on the stat increment in ToTraceTime() to
+        // inform the user about the error.
+        return util::OkStatus();
       }
       timestamp = trace_ts.value();
     }
