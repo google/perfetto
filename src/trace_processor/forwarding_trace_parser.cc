@@ -161,7 +161,7 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
     return kJsonTraceType;
 
   // Systrace with header but no leading HTML.
-  if (start.find("# tracer") != std::string::npos)
+  if (base::Contains(start, "# tracer"))
     return kSystraceTraceType;
 
   // Systrace with leading HTML.
@@ -170,7 +170,7 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
     return kSystraceTraceType;
 
   // Ctrace is deflate'ed systrace.
-  if (start.find("TRACE:") != std::string::npos)
+  if (base::Contains(start, "TRACE:"))
     return kCtraceTraceType;
 
   // Ninja's buils log (.ninja_log).

@@ -265,7 +265,7 @@ util::Status ExportTraceToDatabase(const std::string& output_name) {
       "SELECT name FROM sqlite_master WHERE type='table'");
   for (uint32_t rows = 0; tables_it.Next(); rows++) {
     std::string table_name = tables_it.Get(0).string_value;
-    PERFETTO_CHECK(table_name.find('\'') == std::string::npos);
+    PERFETTO_CHECK(base::Contains(table_name, '\''));
     std::string export_sql = "CREATE TABLE perfetto_export." + table_name +
                              " AS SELECT * FROM " + table_name;
 

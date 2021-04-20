@@ -381,7 +381,7 @@ void Subprocess::TryPushStdin() {
     return;
 
   PERFETTO_DCHECK(args.input.empty() || s_->input_written < args.input.size());
-  if (args.input.size()) {
+  if (!args.input.empty()) {
     int64_t wsize =
         PERFETTO_EINTR(write(*s_->stdin_pipe.wr, &args.input[s_->input_written],
                              args.input.size() - s_->input_written));
