@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # Copyright (C) 2020 The Android Open Source Project
 #
@@ -168,10 +168,11 @@ def main(argv):
     print(cfg)
     return 0
 
-  user = subprocess.check_output(['adb', 'shell', 'whoami']).strip()
+  user = subprocess.check_output(
+    ['adb', 'shell', 'whoami']).strip().decode('utf8')
   perfetto_pid = subprocess.check_output(
       ['adb', 'exec-out',
-       PERFETTO_CMD.format(cfg=cfg, user=user)]).strip()
+       PERFETTO_CMD.format(cfg=cfg, user=user)]).strip().decode('utf8')
   try:
     int(perfetto_pid.strip())
   except ValueError:
