@@ -277,7 +277,7 @@ CREATE TABLE android_sysui_cuj_sf_jank_causes AS
     WHERE remainder <> "")
   SELECT frame_number, jank_cause
   FROM split_jank_type
-  WHERE jank_cause NOT IN ('', 'App Deadline Missed', 'None')
+  WHERE jank_cause NOT IN ('', 'App Deadline Missed', 'None', 'Buffer Stuffing')
   ORDER BY frame_number ASC;
 
 DROP TABLE IF EXISTS android_sysui_cuj_missed_frames_hwui_times;
