@@ -3,11 +3,14 @@
 	dh $@
 
 override_dh_auto_configure:
-	tools/install-build-deps
-	tools/gn gen out/release --args="is_debug=false"
+	tools/install-build-deps --no-toolchain
+	gn gen out/release --args="is_debug=false use_custom_libcxx=false\
+	  is_hermetic_clang=false is_system_compiler=true is_clang=false\
+	  skip_buildtools_check=true enable_perfetto_integration_tests=false\
+	  enable_perfetto_unittests=false perfetto_use_system_protobuf=true"
 
 override_dh_auto_build:
-	tools/ninja -C out/release
+	ninja -C out/release perfetto traced traced_probes
 
 override_dh_auto_clean:
-	tools/gn clean out/release
+	rm -rf out/release
