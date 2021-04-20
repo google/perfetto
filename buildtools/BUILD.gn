@@ -1058,6 +1058,7 @@ config("jsoncpp_config") {
   visibility = _buildtools_visibility
   cflags = [
     "-DJSON_USE_EXCEPTION=0",
+    "-Wno-deprecated-declarations",
 
     # Using -isystem instead of include_dirs (-I), so we don't need to suppress
     # warnings coming from third-party headers. Doing so would mask warnings in
