@@ -76,3 +76,9 @@ message SchedProcessWaitFtraceEvent {
   optional int32 pid = 2;
   optional int32 prio = 3;
 }
+message SchedPiSetprioFtraceEvent {
+  optional string comm = 1;
+  optional int32 newprio = 2;
+  optional int32 oldprio = 3;
+  optional int32 pid = 4;
+}
