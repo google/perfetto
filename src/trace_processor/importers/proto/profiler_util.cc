@@ -17,6 +17,7 @@
 #include "src/trace_processor/importers/proto/profiler_util.h"
 
 #include "perfetto/ext/base/optional.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto {
@@ -144,13 +145,13 @@ std::string FullyQualifiedDeobfuscatedName(
     protos::pbzero::ObfuscatedMember::Decoder& member) {
   std::string member_deobfuscated_name =
       member.deobfuscated_name().ToStdString();
-  if (member_deobfuscated_name.find('.') == std::string::npos) {
+  if (base::Contains(member_deobfuscated_name, '.')) {
+    // Fully qualified name.
+    return member_deobfuscated_name;
+  } else {
     // Name relative to class.
     return cls.deobfuscated_name().ToStdString() + "." +
            member_deobfuscated_name;
-  } else {
-    // Fully qualified name.
-    return member_deobfuscated_name;
   }
 }
 

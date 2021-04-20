@@ -98,6 +98,10 @@ bool Contains(const std::string& haystack, const std::string& needle) {
   return haystack.find(needle) != std::string::npos;
 }
 
+bool Contains(const std::string& haystack, const char needle) {
+  return haystack.find(needle) != std::string::npos;
+}
+
 size_t Find(const StringView& needle, const StringView& haystack) {
   if (needle.empty())
     return 0;
