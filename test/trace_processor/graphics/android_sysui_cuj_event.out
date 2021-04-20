@@ -6,4 +6,3 @@
 "slice","SHADE_ROW_EXPAND - jank cause",70000000,10000000,"RenderThread - scheduler"
 "slice","SHADE_ROW_EXPAND - jank cause",100000000,15000000,"GPU completion - long completion time"
 "slice","SHADE_ROW_EXPAND - jank cause",200000000,15000000,"SurfaceFlinger GPU Deadline Missed,SurfaceFlinger Scheduling"
-"slice","SHADE_ROW_EXPAND - jank cause",400000000,15000000,"Buffer Stuffing"
