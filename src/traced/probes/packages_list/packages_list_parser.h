@@ -26,6 +26,7 @@ struct Package {
   std::string name;
   uint64_t uid = 0;
   bool debuggable = false;
+  bool profileable = false;
   bool profileable_from_shell = false;
   int64_t version_code = 0;
 };
