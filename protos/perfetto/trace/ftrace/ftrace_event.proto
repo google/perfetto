@@ -440,5 +440,6 @@ message FtraceEvent {
     G2dTracingMarkWriteFtraceEvent g2d_tracing_mark_write = 349;
     MaliTracingMarkWriteFtraceEvent mali_tracing_mark_write = 350;
     DmaHeapStatFtraceEvent dma_heap_stat = 351;
+    CpuhpPauseFtraceEvent cpuhp_pause = 352;
   }
 }

@@ -269,6 +269,7 @@ std::set<GroupAndName> FtraceConfigMuxer::GetFtraceEvents(
         events.insert(GroupAndName("power", "suspend_resume"));
         events.insert(GroupAndName("cpuhp", "cpuhp_enter"));
         events.insert(GroupAndName("cpuhp", "cpuhp_exit"));
+        events.insert(GroupAndName("cpuhp", "cpuhp_pause"));
         AddEventGroup(table, "msm_bus", &events);
         events.insert(GroupAndName("msm_bus", "bus_update_request_end"));
         events.insert(GroupAndName("msm_bus", "bus_update_request"));

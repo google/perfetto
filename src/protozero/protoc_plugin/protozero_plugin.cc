@@ -831,16 +831,25 @@ class GeneratorJob {
 
   void GenerateFieldMetadata(const std::string& message_cpp_type,
                              const FieldDescriptor* field) {
-    const char* code_stub =
-        "using $field_metadata_type$ =\n"
-        "  ::protozero::proto_utils::FieldMetadata<\n"
-        "    $field_id$,\n"
-        "    ::protozero::proto_utils::RepetitionType::$repetition_type$,\n"
-        "    ::protozero::proto_utils::ProtoSchemaType::$proto_field_type$,\n"
-        "    $cpp_type$,\n"
-        "    $message_cpp_type$>;\n"
-        "static constexpr const $field_metadata_type$& $field_metadata_var$ = "
-        "{};\n";
+    const char* code_stub = R"(
+using $field_metadata_type$ =
+  ::protozero::proto_utils::FieldMetadata<
+    $field_id$,
+    ::protozero::proto_utils::RepetitionType::$repetition_type$,
+    ::protozero::proto_utils::ProtoSchemaType::$proto_field_type$,
+    $cpp_type$,
+    $message_cpp_type$>;
+
+// Ceci n'est pas une pipe.
+// This is actually a variable of FieldMetadataHelper<FieldMetadata<...>>
+// type (and users are expected to use it as such, hence kCamelCase name).
+// It is declared as a function to keep protozero bindings header-only as
+// inline constexpr variables are not available until C++17 (while inline
+// functions are).
+// TODO(altimin): Use inline variable instead after adopting C++17.  
+static constexpr $field_metadata_type$ $field_metadata_var$() { return {}; }
+)";
+
     stub_h_->Print(code_stub, "field_id", std::to_string(field->number()),
                    "repetition_type", FieldToRepetitionType(field),
                    "proto_field_type", FieldToProtoSchemaType(field),
