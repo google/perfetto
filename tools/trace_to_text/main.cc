@@ -32,6 +32,7 @@
 #include "tools/trace_to_text/trace_to_systrace.h"
 #include "tools/trace_to_text/trace_to_text.h"
 
+
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <unistd.h>
 #endif
@@ -42,19 +43,17 @@ namespace {
 
 int Usage(const char* argv0) {
   fprintf(stderr,
-          "Usage: %s MODE [OPTIONS] [input file] [output file]\n"
-          "modes:\n"
-          "  systrace|json|ctrace|text|profile|hprof|symbolize|deobfuscate\n"
-          "options:\n"
-          "  [--truncate start|end]\n"
-          "  [--full-sort]\n"
-          "\"profile\" mode options:\n"
-          "  [--perf] generate a perf profile instead of a heap profile\n"
-          "  [--no-annotations] do not suffix frame names with derived "
-          "annotations\n"
-          "  [--timestamps TIMESTAMP1,TIMESTAMP2,...] generate profiles "
-          "only for these *specific* timestamps\n"
-          "  [--pid PID] generate profiles only for this process id\n",
+          "Usage: %s systrace|json|ctrace|text|profile [--pid PID] "
+          "[--timestamps TIMESTAMP1,TIMESTAMP2,...] "
+          "[--truncate start|end] "
+          "[--full-sort] "
+          "[trace.pb] "
+          "[trace.txt]\n"
+          "\nProfile mode only:\n"
+          "\t--perf generate a perf profile\n"
+          "\t--timestamps TIMESTAMP1,TIMESTAMP2,... generate profiles "
+          "only for these timestamps\n"
+          "\t--pid PID generate profiles only for this process id\n",
           argv0);
   return 1;
 }
@@ -76,7 +75,6 @@ int Main(int argc, char** argv) {
   std::vector<uint64_t> timestamps;
   bool full_sort = false;
   bool perf_profile = false;
-  bool profile_no_annotations = false;
   for (int i = 1; i < argc; i++) {
     if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--version") == 0) {
       printf("%s\n", base::GetVersionString());
@@ -105,8 +103,6 @@ int Main(int argc, char** argv) {
       }
     } else if (strcmp(argv[i], "--perf") == 0) {
       perf_profile = true;
-    } else if (strcmp(argv[i], "--no-annotations") == 0) {
-      profile_no_annotations = true;
     } else if (strcmp(argv[i], "--full-sort") == 0) {
       full_sort = true;
     } else {
@@ -191,11 +187,10 @@ int Main(int argc, char** argv) {
     return TraceToText(input_stream, output_stream);
 
   if (format == "profile") {
-    return perf_profile
-               ? TraceToPerfProfile(input_stream, output_stream, pid,
-                                    timestamps, !profile_no_annotations)
-               : TraceToHeapProfile(input_stream, output_stream, pid,
-                                    timestamps, !profile_no_annotations);
+    return perf_profile ? TraceToPerfProfile(input_stream, output_stream, pid,
+                                             timestamps)
+                        : TraceToHeapProfile(input_stream, output_stream, pid,
+                                             timestamps);
   }
 
   if (format == "hprof")
