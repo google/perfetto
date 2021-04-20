@@ -50,12 +50,13 @@ bool ReadPackagesListLine(char* line, Package* package) {
       }
       case 6: {
         char* end;
-        long long profilable_from_shell = strtoll(ss.cur_token(), &end, 10);
+        long long profilable_level = strtoll(ss.cur_token(), &end, 10);
         if ((*end != '\0' && *end != '\n') || *ss.cur_token() == '\0') {
           PERFETTO_ELOG("Failed to parse packages.list profilable_from_shell.");
           return false;
         }
-        package->profileable_from_shell = profilable_from_shell != 0;
+        package->profileable_from_shell = profilable_level != 0;
+        package->profileable = profilable_level == 2;
         break;
       }
       case 7: {
