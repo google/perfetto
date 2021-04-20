@@ -17,6 +17,7 @@
 #ifndef INCLUDE_PERFETTO_PROFILING_PPROF_BUILDER_H_
 #define INCLUDE_PERFETTO_PROFILING_PPROF_BUILDER_H_
 
+#include <iostream>
 #include <string>
 #include <vector>
 
@@ -47,19 +48,9 @@ struct SerializedProfile {
 
 enum class ConversionMode { kHeapProfile, kPerfProfile };
 
-enum class ConversionFlags : uint64_t {
-  kNone = 0,
-  // Suffix frame names with additional information. Current annotations are
-  // specific to apps running within the Android runtime, and include
-  // information such as whether the given frame was interpreted / executed
-  // under JIT / etc.
-  kAnnotateFrames = 1
-};
-
 bool TraceToPprof(trace_processor::TraceProcessor* tp,
                   std::vector<SerializedProfile>* output,
                   ConversionMode mode = ConversionMode::kHeapProfile,
-                  uint64_t flags = 0,
                   uint64_t pid = 0,
                   const std::vector<uint64_t>& timestamps = {});
 
