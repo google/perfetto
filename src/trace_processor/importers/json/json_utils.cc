@@ -22,7 +22,7 @@
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 #include <json/reader.h>
-#include "include/perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_utils.h"
 #endif
 
 namespace perfetto {
