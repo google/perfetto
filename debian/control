@@ -2,7 +2,15 @@ Source: perfetto
 Section: kernel
 Priority: optional
 Maintainer: Sami Kyostila <skyostil@google.com>
-Build-Depends: debhelper (>= 10), python3, git
+Build-Depends: debhelper (>= 10),
+  ca-certificates,
+  curl,
+  generate-ninja,
+  git,
+  libprotoc-dev,
+  ninja-build,
+  protobuf-compiler,
+  python3
 Standards-Version: 3.9.8
 Homepage: https://perfetto.dev
 Vcs-Git: https://android.googlesource.com/platform/external/perfetto/
