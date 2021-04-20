@@ -55,7 +55,7 @@ CLEANUP_OLD_DIRS = [
 ]
 
 # Dependencies required to build code on the host or when targeting desktop OS.
-BUILD_DEPS_HOST = [
+BUILD_DEPS_TOOLCHAIN_HOST = [
     # GN. From https://chrome-infra-packages.appspot.com/dl/gn/gn/.
     # git_revision:83dad00afb232d7235dd70dff1ee90292d72a01e .
     Dependency(
@@ -117,6 +117,21 @@ BUILD_DEPS_HOST = [
         '6f8af488be74ed8787d04e107080d05330587a4198ba047bd5b7f5b0c3150d61',
         'windows', 'x64'),
 
+    # Keep the revision in sync with Chrome's PACKAGE_VERSION in
+    # tools/clang/scripts/update.py.
+    Dependency(
+        'buildtools/linux64/clang.tgz',
+        'https://commondatastorage.googleapis.com/chromium-browser-clang/Linux_x64/clang-llvmorg-12-init-5035-gd0abc757-3.tgz',
+        'b0c3015209b6d624844ad230064eb5c9b4429a2eafd4854981e73217c563d93d',
+        'linux', 'x64'),
+    Dependency(
+        'buildtools/win/clang.tgz',
+        'https://commondatastorage.googleapis.com/chromium-browser-clang/Win/clang-llvmorg-12-init-5035-gd0abc757-3.tgz',
+        'b2854d871a466e3a060469b5edb24ca355ef64576d38778f64acbd3c6d7cf530',
+        'windows', 'x64'),
+]
+
+BUILD_DEPS_HOST = [
     # Keep in sync with Android's //external/googletest/README.version.
     Dependency(
         'buildtools/googletest',
@@ -144,19 +159,6 @@ BUILD_DEPS_HOST = [
         'buildtools/libunwind',
         'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libunwind.git',
         'd999d54f4bca789543a2eb6c995af2d9b5a1f3ed', 'all', 'all'),
-
-    # Keep the revision in sync with Chrome's PACKAGE_VERSION in
-    # tools/clang/scripts/update.py.
-    Dependency(
-        'buildtools/linux64/clang.tgz',
-        'https://commondatastorage.googleapis.com/chromium-browser-clang/Linux_x64/clang-llvmorg-12-init-5035-gd0abc757-3.tgz',
-        'b0c3015209b6d624844ad230064eb5c9b4429a2eafd4854981e73217c563d93d',
-        'linux', 'x64'),
-    Dependency(
-        'buildtools/win/clang.tgz',
-        'https://commondatastorage.googleapis.com/chromium-browser-clang/Win/clang-llvmorg-12-init-5035-gd0abc757-3.tgz',
-        'b2854d871a466e3a060469b5edb24ca355ef64576d38778f64acbd3c6d7cf530',
-        'windows', 'x64'),
 
     # Keep in sync with chromium DEPS.
     Dependency(
@@ -476,11 +478,15 @@ def Main():
   parser.add_argument('--check-only')
   parser.add_argument('--filter', default='')
   parser.add_argument('--verify', help='Check all URLs', action='store_true')
+  parser.add_argument('--no-toolchain', help='Do not download toolchain',
+                      action='store_true')
   args = parser.parse_args()
   if args.verify:
     CheckHashes()
     return 0
   deps = BUILD_DEPS_HOST
+  if not args.no_toolchain:
+    deps += BUILD_DEPS_TOOLCHAIN_HOST
   if args.android:
     deps += BUILD_DEPS_ANDROID + TEST_DEPS_ANDROID
   if args.ui:
