@@ -926,6 +926,9 @@ void PerfettoCmd::FinalizeTraceAndExit() {
   }
 
   if (save_to_incidentd_) {
+    if (!uuid_.empty()) {
+      PERFETTO_LOG("go/trace-uuid/%s", uuid_.c_str());
+    }
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
     SaveTraceIntoDropboxAndIncidentOrCrash();
 #endif
