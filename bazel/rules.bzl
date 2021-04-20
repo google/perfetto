@@ -93,9 +93,20 @@ def perfetto_cc_protozero_library(name, deps, **kwargs):
     ):
         return
 
+    # A perfetto_cc_protozero_library has two types of dependencies:
+    # 1. Exactly one dependency on a proto_library target. This defines the
+    #    .proto sources for the target
+    # 2. Zero or more deps on other perfetto_cc_protozero_library targets. This
+    #    to deal with the case of foo.proto including common.proto from another
+    #    target.
+    _proto_deps = [d for d in deps if d.endswith("_protos")]
+    _cc_deps = [d for d in deps if d not in _proto_deps]
+    if len(_proto_deps) != 1:
+        fail("Too many proto deps for target %s" % name)
+
     proto_gen(
         name = name + "_src",
-        deps = deps,
+        deps = _proto_deps,
         suffix = "pbzero",
         plugin = PERFETTO_CONFIG.root + ":protozero_plugin",
         wrapper_namespace = "pbzero",
@@ -113,7 +124,7 @@ def perfetto_cc_protozero_library(name, deps, **kwargs):
         name = name,
         srcs = [":" + name + "_src"],
         hdrs = [":" + name + "_h"],
-        deps = [PERFETTO_CONFIG.root + ":protozero"],
+        deps = [PERFETTO_CONFIG.root + ":protozero"] + _cc_deps,
         **kwargs
     )
 
