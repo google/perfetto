@@ -222,6 +222,8 @@ declare_args() {
 }
 
 declare_args() {
+  perfetto_enable_git_rev_version_header = enable_perfetto_version_gen
+
   # The traced_probes daemon is very Linux-specific, as it depends on ftrace and
   # various /proc interfaces. There is no point making its code platform-neutral
   # as it won't do anything useful on Windows.
