@@ -17,6 +17,7 @@
 #ifndef SRC_PROFILING_PERF_UNWINDING_H_
 #define SRC_PROFILING_PERF_UNWINDING_H_
 
+#include <condition_variable>
 #include <map>
 #include <thread>
 
