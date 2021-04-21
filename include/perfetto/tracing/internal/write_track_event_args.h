@@ -110,9 +110,8 @@ PERFETTO_ALWAYS_INLINE void WriteTrackEventArgs(
       "Only fields of TrackEvent (and TrackEvent's extensions) can "
       "be passed to TRACE_EVENT");
   WriteIntoTracedProto(
-      TracedProto<typename FieldMetadataType::message_type>::FromProto(
-          event_ctx.event<typename FieldMetadataType::message_type>(),
-          event_ctx),
+      event_ctx.Wrap(
+          event_ctx.event<typename FieldMetadataType::message_type>()),
       field_name, std::forward<ArgValue>(arg_value));
   WriteTrackEventArgs(std::move(event_ctx), std::forward<Args>(args)...);
 }
