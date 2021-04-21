@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/utils.h"
 
 #include "perfetto/base/build_config.h"
@@ -22,7 +23,7 @@
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
-#include <unistd.h>  // For getpagesize() and geteuid().
+#include <unistd.h>  // For getpagesize() and geteuid() & fork()
 #endif
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
@@ -106,6 +107,38 @@ void SetEnv(const std::string& key, const std::string& value) {
 #else
   PERFETTO_CHECK(::setenv(key.c_str(), value.c_str(), /*overwrite=*/true) == 0);
 #endif
+}
+
+void Daemonize() {
+   #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
+       PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+       PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+      pid_t pid;
+      switch (pid = fork()) {
+        case -1:
+          PERFETTO_FATAL("fork");
+        case 0: {
+          PERFETTO_CHECK(setsid() != -1);
+          base::ignore_result(chdir("/"));
+          base::ScopedFile null = base::OpenFile("/dev/null", O_RDONLY);
+          PERFETTO_CHECK(null);
+          PERFETTO_CHECK(dup2(*null, STDIN_FILENO) != -1);
+          PERFETTO_CHECK(dup2(*null, STDOUT_FILENO) != -1);
+          PERFETTO_CHECK(dup2(*null, STDERR_FILENO) != -1);
+          // Do not accidentally close stdin/stdout/stderr.
+          if (*null <= 2)
+            null.release();
+          break;
+        }
+        default:
+          printf("%d\n", pid);
+          exit(0);
+      }
+  #else
+    // Avoid -Wunreachable warnings.
+    if (reinterpret_cast<intptr_t>(&Daemonize) != 16)
+      PERFETTO_FATAL("--background is only supported on Linux/Android/Mac");
+  #endif  // OS_WIN
 }
 
 }  // namespace base

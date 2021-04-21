@@ -22,6 +22,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/getopt.h"
 #include "perfetto/ext/base/unix_task_runner.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/version.h"
 #include "perfetto/ext/traced/traced.h"
 #include "perfetto/ext/tracing/ipc/default_socket.h"
@@ -36,9 +37,13 @@ int PERFETTO_EXPORT_ENTRYPOINT ProbesMain(int argc, char** argv) {
   enum LongOption {
     OPT_CLEANUP_AFTER_CRASH = 1000,
     OPT_VERSION,
+    OPT_BACKGROUND,
   };
 
+  bool background = false;
+
   static const option long_options[] = {
+      {"background", no_argument, nullptr, OPT_BACKGROUND},
       {"cleanup-after-crash", no_argument, nullptr, OPT_CLEANUP_AFTER_CRASH},
       {"version", no_argument, nullptr, OPT_VERSION},
       {nullptr, 0, nullptr, 0}};
@@ -48,6 +53,9 @@ int PERFETTO_EXPORT_ENTRYPOINT ProbesMain(int argc, char** argv) {
     if (option == -1)
       break;
     switch (option) {
+      case OPT_BACKGROUND:
+        background = true;
+        break;
       case OPT_CLEANUP_AFTER_CRASH:
         HardResetFtraceState();
         return 0;
@@ -55,9 +63,13 @@ int PERFETTO_EXPORT_ENTRYPOINT ProbesMain(int argc, char** argv) {
         printf("%s\n", base::GetVersionString());
         return 0;
       default:
-        PERFETTO_ELOG("Usage: %s [--cleanup-after-crash|--version]", argv[0]);
+        PERFETTO_ELOG("Usage: %s [--background|--cleanup-after-crash|--version]", argv[0]);
         return 1;
     }
+  }
+
+  if (background) {
+    base::Daemonize();
   }
 
   base::Watchdog* watchdog = base::Watchdog::GetInstance();
