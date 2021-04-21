@@ -7,7 +7,7 @@ override_dh_auto_configure:
 	  is_hermetic_clang=false is_system_compiler=true is_clang=false\
 	  skip_buildtools_check=true enable_perfetto_integration_tests=false\
 	  enable_perfetto_unittests=false perfetto_use_system_protobuf=true\
-	  perfetto_use_system_zlib=true"
+	  perfetto_use_system_zlib=true perfetto_enable_git_rev_version_header=false"
 
 override_dh_auto_build:
 	ninja -C out/release perfetto traced traced_probes
