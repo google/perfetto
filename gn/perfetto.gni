@@ -281,6 +281,8 @@ declare_args() {
   # Used by CrOS system builds. Uses the system version of protobuf
   # from /usr/include instead of the hermetic one.
   perfetto_use_system_protobuf = false
+
+  perfetto_use_system_zlib = false
 }
 
 if (is_win) {
