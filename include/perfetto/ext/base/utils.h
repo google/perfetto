@@ -47,7 +47,7 @@
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 using uid_t = unsigned int;
-#if !PERFETTO_BUILDFLAG(COMPILER_GCC)
+#if !PERFETTO_BUILDFLAG(PERFETTO_COMPILER_GCC)
 using pid_t = unsigned int;
 #endif
 #if defined(_WIN64)
