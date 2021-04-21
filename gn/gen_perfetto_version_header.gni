@@ -28,7 +28,8 @@ template("gen_perfetto_version_header") {
     inputs = [ changelog ]
     outputs = []
     args = []
-    if (perfetto_build_standalone && !is_perfetto_build_generator) {
+    if (perfetto_build_standalone && !is_perfetto_build_generator &&
+        perfetto_enable_git_rev_version_header) {
       inputs += [ "${perfetto_root_path}.git/HEAD" ]
     }
 
@@ -47,6 +48,9 @@ template("gen_perfetto_version_header") {
         rebase_path(invoker.ts_out, root_build_dir),
       ]
       outputs += [ invoker.ts_out ]
+    }
+    if (!perfetto_enable_git_rev_version_header) {
+      args += [ "--no_git" ]
     }
   }
 }
