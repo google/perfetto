@@ -363,10 +363,16 @@ if (enable_perfetto_traced_perf) {
   }
 }
 
+config("system_zlib_config") {
+  libs = [ "z" ]
+}
+
 # Zlib is used both by trace_processor and by perfetto_cmd.
 if (enable_perfetto_zlib) {
   group("zlib") {
-    if (perfetto_root_path == "//") {
+    if (perfetto_use_system_zlib) {
+      public_configs = [ "//gn:system_zlib_config" ]
+    } else if (perfetto_root_path == "//") {
       public_configs = [ "//buildtools:zlib_config" ]
       public_deps = [ "//buildtools:zlib" ]
     } else {
