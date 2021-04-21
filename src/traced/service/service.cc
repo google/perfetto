@@ -20,6 +20,7 @@
 #include "perfetto/ext/base/getopt.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/unix_task_runner.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/version.h"
 #include "perfetto/ext/base/watchdog.h"
 #include "perfetto/ext/traced/traced.h"
@@ -77,6 +78,7 @@ void PrintUsage(const char* prog_name) {
   PERFETTO_ELOG(R"(
 Usage: %s [option] ...
 Options and arguments
+    --background : Exits immediately and continues running in the background
     --version : print the version number and exit.
     --set-socket-permissions <permissions> : sets group ownership and permission
         mode bits of the producer and consumer sockets.
@@ -98,9 +100,13 @@ int PERFETTO_EXPORT_ENTRYPOINT ServiceMain(int argc, char** argv) {
   enum LongOption {
     OPT_VERSION = 1000,
     OPT_SET_SOCKET_PERMISSIONS = 1001,
+    OPT_BACKGROUND,
   };
 
+  bool background = false;
+
   static const option long_options[] = {
+      {"background", no_argument, nullptr, OPT_BACKGROUND},
       {"version", no_argument, nullptr, OPT_VERSION},
       {"set-socket-permissions", required_argument, nullptr,
        OPT_SET_SOCKET_PERMISSIONS},
@@ -114,6 +120,9 @@ int PERFETTO_EXPORT_ENTRYPOINT ServiceMain(int argc, char** argv) {
     if (option == -1)
       break;
     switch (option) {
+      case OPT_BACKGROUND:
+        background = true;
+        break;
       case OPT_VERSION:
         printf("%s\n", base::GetVersionString());
         return 0;
@@ -134,6 +143,10 @@ int PERFETTO_EXPORT_ENTRYPOINT ServiceMain(int argc, char** argv) {
         PrintUsage(argv[0]);
         return 1;
     }
+  }
+
+  if (background) {
+    base::Daemonize();
   }
 
   base::UnixTaskRunner task_runner;
