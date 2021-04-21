@@ -20,11 +20,11 @@
 #include "perfetto/base/template_util.h"
 #include "perfetto/protozero/field_writer.h"
 #include "perfetto/protozero/proto_utils.h"
-#include "perfetto/tracing/event_context.h"
 
 namespace perfetto {
+class EventContext;
 
-// A wrapper around a protozero message to allow C++ classes to specify how it
+// A Wrapper around a protozero message to allow C++ classes to specify how it
 // should be serialised into the trace:
 //
 // class Foo {
@@ -52,10 +52,6 @@ class TracedProto {
   static_assert(std::is_base_of<protozero::Message, MessageType>::value,
                 "TracedProto can be used only with protozero messages");
 
-  static TracedProto FromProto(MessageType* message, EventContext& context) {
-    return TracedProto(message, context);
-  }
-
   TracedProto(const TracedProto&) = delete;
   TracedProto& operator=(const TracedProto&) = delete;
   TracedProto& operator=(TracedProto&&) = delete;
@@ -69,6 +65,8 @@ class TracedProto {
   EventContext& context() const { return context_; }
 
  private:
+  friend class EventContext;
+
   TracedProto(MessageType* message, EventContext& context)
       : message_(message), context_(context) {}
 
@@ -137,11 +135,10 @@ struct TypedProtoWriter {
   Write(TracedProto<Proto> context, ValueType&& value) {
     // TODO(altimin): support TraceFormatTraits here.
     value.WriteIntoTrace(
-        TracedProto<typename FieldMetadata::cpp_field_type>::FromProto(
-            context->template BeginNestedMessage<
-                typename FieldMetadata::cpp_field_type>(
-                FieldMetadata::kFieldId),
-            context.context()));
+        context.context().Wrap(context.message()
+                                   ->template BeginNestedMessage<
+                                       typename FieldMetadata::cpp_field_type>(
+                                       FieldMetadata::kFieldId)));
   }
 
   // Nested repeated non-packed field.
@@ -153,12 +150,11 @@ struct TypedProtoWriter {
   Write(TracedProto<Proto> context, ValueType&& value) {
     // TODO(altimin): support TraceFormatTraits here.
     for (auto&& item : value) {
-      item.WriteIntoTrace(
-          TracedProto<typename FieldMetadata::cpp_field_type>::FromProto(
-              context->template BeginNestedMessage<
+      item.WriteIntoTrace(context.context().Wrap(
+          context.message()
+              ->template BeginNestedMessage<
                   typename FieldMetadata::cpp_field_type>(
-                  FieldMetadata::kFieldId),
-              context.context()));
+                  FieldMetadata::kFieldId)));
     }
   }
 };
