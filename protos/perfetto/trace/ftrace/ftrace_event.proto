@@ -441,5 +441,11 @@ message FtraceEvent {
     MaliTracingMarkWriteFtraceEvent mali_tracing_mark_write = 350;
     DmaHeapStatFtraceEvent dma_heap_stat = 351;
     CpuhpPauseFtraceEvent cpuhp_pause = 352;
+    SchedPiSetprioFtraceEvent sched_pi_setprio = 353;
+    SdeSdeEvtlogFtraceEvent sde_sde_evtlog = 354;
+    SdeSdePerfCalcCrtcFtraceEvent sde_sde_perf_calc_crtc = 355;
+    SdeSdePerfCrtcUpdateFtraceEvent sde_sde_perf_crtc_update = 356;
+    SdeSdePerfSetQosLutsFtraceEvent sde_sde_perf_set_qos_luts = 357;
+    SdeSdePerfUpdateBusFtraceEvent sde_sde_perf_update_bus = 358;
   }
 }
