@@ -19,6 +19,7 @@
 
 #include "perfetto/protozero/message_handle.h"
 #include "perfetto/tracing/internal/track_event_internal.h"
+#include "perfetto/tracing/traced_proto.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
@@ -62,6 +63,13 @@ class PERFETTO_EXPORT EventContext {
         sizeof(EventType) == sizeof(protos::pbzero::TrackEvent),
         "Event type must be binary-compatible with protos::pbzero::TrackEvent");
     return static_cast<EventType*>(event_);
+  }
+
+  // Convert a raw pointer to protozero message to TracedProto which captures
+  // the reference to this EventContext.
+  template <typename MessageType>
+  TracedProto<MessageType> Wrap(MessageType* message) {
+    return TracedProto<MessageType>(message, *this);
   }
 
  private:

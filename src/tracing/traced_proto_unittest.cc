@@ -42,9 +42,8 @@ using TestPayload = protos::pbzero::TestEvent::TestPayload;
 
 TEST_F(TracedProtoTest, SingleInt) {
   protozero::HeapBuffered<TestPayload> event;
-  WriteIntoTracedProto(
-      TracedProto<TestPayload>::FromProto(event.get(), context()),
-      TestPayload::kSingleInt, 42);
+  WriteIntoTracedProto(context().Wrap(event.get()), TestPayload::kSingleInt,
+                       42);
 
   protos::TestEvent::TestPayload result;
   result.ParseFromString(event.SerializeAsString());
@@ -54,9 +53,8 @@ TEST_F(TracedProtoTest, SingleInt) {
 
 TEST_F(TracedProtoTest, RepeatedInt) {
   protozero::HeapBuffered<TestPayload> event;
-  WriteIntoTracedProto(
-      TracedProto<TestPayload>::FromProto(event.get(), context()),
-      TestPayload::kRepeatedInts, std::vector<int>{1, 2, 3});
+  WriteIntoTracedProto(context().Wrap(event.get()), TestPayload::kRepeatedInts,
+                       std::vector<int>{1, 2, 3});
 
   protos::TestEvent::TestPayload result;
   result.ParseFromString(event.SerializeAsString());
@@ -65,9 +63,8 @@ TEST_F(TracedProtoTest, RepeatedInt) {
 
 TEST_F(TracedProtoTest, SingleString) {
   protozero::HeapBuffered<TestPayload> event;
-  WriteIntoTracedProto(
-      TracedProto<TestPayload>::FromProto(event.get(), context()),
-      TestPayload::kSingleString, "foo");
+  WriteIntoTracedProto(context().Wrap(event.get()), TestPayload::kSingleString,
+                       "foo");
 
   protos::TestEvent::TestPayload result;
   result.ParseFromString(event.SerializeAsString());
@@ -77,9 +74,8 @@ TEST_F(TracedProtoTest, SingleString) {
 
 TEST_F(TracedProtoTest, RepeatedString) {
   protozero::HeapBuffered<TestPayload> event;
-  WriteIntoTracedProto(
-      TracedProto<TestPayload>::FromProto(event.get(), context()),
-      TestPayload::kStr, std::vector<std::string>{"foo", "bar"});
+  WriteIntoTracedProto(context().Wrap(event.get()), TestPayload::kStr,
+                       std::vector<std::string>{"foo", "bar"});
 
   protos::TestEvent::TestPayload result;
   result.ParseFromString(event.SerializeAsString());
@@ -98,9 +94,8 @@ struct Foo {
 
 TEST_F(TracedProtoTest, SingleNestedMessage) {
   protozero::HeapBuffered<protos::pbzero::TestEvent> event;
-  WriteIntoTracedProto(
-      TracedProto<protos::pbzero::TestEvent>::FromProto(event.get(), context()),
-      protos::pbzero::TestEvent::kPayload, Foo());
+  WriteIntoTracedProto(context().Wrap(event.get()),
+                       protos::pbzero::TestEvent::kPayload, Foo());
 
   protos::TestEvent result;
   result.ParseFromString(event.SerializeAsString());
@@ -109,9 +104,8 @@ TEST_F(TracedProtoTest, SingleNestedMessage) {
 
 TEST_F(TracedProtoTest, RepeatedNestedMessage) {
   protozero::HeapBuffered<TestPayload> event;
-  WriteIntoTracedProto(
-      TracedProto<TestPayload>::FromProto(event.get(), context()),
-      TestPayload::kNested, std::vector<Foo>{Foo(), Foo()});
+  WriteIntoTracedProto(context().Wrap(event.get()), TestPayload::kNested,
+                       std::vector<Foo>{Foo(), Foo()});
 
   protos::TestEvent::TestPayload result;
   result.ParseFromString(event.SerializeAsString());
