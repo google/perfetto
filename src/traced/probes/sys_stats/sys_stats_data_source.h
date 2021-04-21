@@ -64,6 +64,10 @@ class SysStatsDataSource : public ProbesDataSource {
   void set_ns_per_user_hz_for_testing(uint64_t ns) { ns_per_user_hz_ = ns; }
   uint32_t tick_for_testing() const { return tick_; }
 
+  // Virtual for testing
+  virtual base::ScopedDir OpenDevfreqDir();
+  virtual const char* ReadDevfreqCurFreq(const std::string& name);
+
  private:
   struct CStrCmp {
     bool operator()(const char* a, const char* b) const {
@@ -79,6 +83,7 @@ class SysStatsDataSource : public ProbesDataSource {
   void ReadMeminfo(protos::pbzero::SysStats* sys_stats);
   void ReadVmstat(protos::pbzero::SysStats* sys_stats);
   void ReadStat(protos::pbzero::SysStats* sys_stats);
+  void ReadDevfreq(protos::pbzero::SysStats* sys_stats);
   size_t ReadFile(base::ScopedFile*, const char* path);
 
   base::TaskRunner* const task_runner_;
@@ -97,6 +102,8 @@ class SysStatsDataSource : public ProbesDataSource {
   uint32_t vmstat_ticks_ = 0;
   uint32_t stat_ticks_ = 0;
   uint32_t stat_enabled_fields_ = 0;
+  uint32_t devfreq_ticks_ = 0;
+  bool devfreq_error_logged_ = false;
 
   base::WeakPtrFactory<SysStatsDataSource> weak_factory_;  // Keep last.
 };

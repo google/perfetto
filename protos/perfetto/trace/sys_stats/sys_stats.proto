@@ -94,4 +94,13 @@ message SysStats {
   // the top-level packet timestamp is the time at which
   // we begin collection.
   optional uint64 collection_end_timestamp = 9;
+
+  // Frequencies for /sys/class/devfreq/ entries in kHz.
+  message DevfreqValue {
+    optional string key = 1;
+    optional uint64 value = 2;
+  };
+
+  // One entry per device.
+  repeated DevfreqValue devfreq = 10;
 }
