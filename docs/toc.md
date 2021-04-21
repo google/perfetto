@@ -38,6 +38,7 @@
 
 * [Trace visualization](#)
   * [Perfetto UI](visualization/perfetto-ui.md)
+  * [Visualising large traces](visualization/large-traces.md)
 
 * [Core concepts](#)
   * [Trace configuration](concepts/config.md)
