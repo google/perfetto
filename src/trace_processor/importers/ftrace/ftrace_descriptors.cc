@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<MessageDescriptor, 353> descriptors{{
+std::array<MessageDescriptor, 359> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -3760,6 +3760,85 @@ std::array<MessageDescriptor, 353> descriptors{{
             {"cpus", ProtoSchemaType::kUint32},
             {"pause", ProtoSchemaType::kUint32},
             {"time", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "sched_pi_setprio",
+        4,
+        {
+            {},
+            {"comm", ProtoSchemaType::kString},
+            {"newprio", ProtoSchemaType::kInt32},
+            {"oldprio", ProtoSchemaType::kInt32},
+            {"pid", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "sde_sde_evtlog",
+        3,
+        {
+            {},
+            {"evtlog_tag", ProtoSchemaType::kString},
+            {"pid", ProtoSchemaType::kInt32},
+            {"tag_id", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "sde_sde_perf_calc_crtc",
+        8,
+        {
+            {},
+            {"bw_ctl_ebi", ProtoSchemaType::kUint64},
+            {"bw_ctl_llcc", ProtoSchemaType::kUint64},
+            {"bw_ctl_mnoc", ProtoSchemaType::kUint64},
+            {"core_clk_rate", ProtoSchemaType::kUint32},
+            {"crtc", ProtoSchemaType::kUint32},
+            {"ib_ebi", ProtoSchemaType::kUint64},
+            {"ib_llcc", ProtoSchemaType::kUint64},
+            {"ib_mnoc", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "sde_sde_perf_crtc_update",
+        12,
+        {
+            {},
+            {"bw_ctl_ebi", ProtoSchemaType::kUint64},
+            {"bw_ctl_llcc", ProtoSchemaType::kUint64},
+            {"bw_ctl_mnoc", ProtoSchemaType::kUint64},
+            {"core_clk_rate", ProtoSchemaType::kUint32},
+            {"crtc", ProtoSchemaType::kUint32},
+            {"params", ProtoSchemaType::kInt32},
+            {"per_pipe_ib_ebi", ProtoSchemaType::kUint64},
+            {"per_pipe_ib_llcc", ProtoSchemaType::kUint64},
+            {"per_pipe_ib_mnoc", ProtoSchemaType::kUint64},
+            {"stop_req", ProtoSchemaType::kUint32},
+            {"update_bus", ProtoSchemaType::kUint32},
+            {"update_clk", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "sde_sde_perf_set_qos_luts",
+        6,
+        {
+            {},
+            {"fl", ProtoSchemaType::kUint32},
+            {"fmt", ProtoSchemaType::kUint32},
+            {"lut", ProtoSchemaType::kUint64},
+            {"lut_usage", ProtoSchemaType::kUint32},
+            {"pnum", ProtoSchemaType::kUint32},
+            {"rt", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "sde_sde_perf_update_bus",
+        4,
+        {
+            {},
+            {"ab_quota", ProtoSchemaType::kUint64},
+            {"bus_id", ProtoSchemaType::kUint32},
+            {"client", ProtoSchemaType::kInt32},
+            {"ib_quota", ProtoSchemaType::kUint64},
         },
     },
 }};

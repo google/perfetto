@@ -347,3 +347,9 @@ g2d/tracing_mark_write
 mali/tracing_mark_write
 dmabuf_heap/dma_heap_stat
 cpuhp/cpuhp_pause
+sched/sched_pi_setprio
+sde/sde_evtlog
+sde/sde_perf_calc_crtc
+sde/sde_perf_crtc_update
+sde/sde_perf_set_qos_luts
+sde/sde_perf_update_bus
