@@ -654,31 +654,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
   }
 
   if (background) {
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-    PERFETTO_FATAL("--background is not supported on Windows");
-#else
-    pid_t pid;
-    switch (pid = fork()) {
-      case -1:
-        PERFETTO_FATAL("fork");
-      case 0: {
-        PERFETTO_CHECK(setsid() != -1);
-        base::ignore_result(chdir("/"));
-        base::ScopedFile null = base::OpenFile("/dev/null", O_RDONLY);
-        PERFETTO_CHECK(null);
-        PERFETTO_CHECK(dup2(*null, STDIN_FILENO) != -1);
-        PERFETTO_CHECK(dup2(*null, STDOUT_FILENO) != -1);
-        PERFETTO_CHECK(dup2(*null, STDERR_FILENO) != -1);
-        // Do not accidentally close stdin/stdout/stderr.
-        if (*null <= 2)
-          null.release();
-        break;
-      }
-      default:
-        printf("%d\n", pid);
-        exit(0);
-    }
-#endif  // OS_WIN
+    base::Daemonize();
   }
 
   // If we are just activating triggers then we don't need to rate limit,
