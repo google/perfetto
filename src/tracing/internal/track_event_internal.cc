@@ -409,7 +409,7 @@ EventContext TrackEventInternal::WriteEvent(
           return true;
         });
   }
-  if (name) {
+  if (name && type != protos::pbzero::TrackEvent::TYPE_SLICE_END) {
     size_t name_iid = InternedEventName::Get(&ctx, name);
     track_event->set_name_iid(name_iid);
   }
