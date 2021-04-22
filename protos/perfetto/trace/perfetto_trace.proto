@@ -1190,6 +1190,12 @@ message SysStatsConfig {
     STAT_FORK_COUNT = 4;
   }
   repeated StatCounters stat_counters = 6;
+
+  // Polls /sys/devfreq/*/curfreq every X ms, if non-zero.
+  // This is required to be > 10ms to avoid excessive CPU usage.
+  // This option can be used to record unchanging values.
+  // Updates from frequency changes can come from ftrace/set_clock_rate.
+  optional uint32 devfreq_period_ms = 7;
 }
 
 // End of protos/perfetto/config/sys_stats/sys_stats_config.proto
@@ -8213,6 +8219,15 @@ message SysStats {
   // the top-level packet timestamp is the time at which
   // we begin collection.
   optional uint64 collection_end_timestamp = 9;
+
+  // Frequencies for /sys/class/devfreq/ entries in kHz.
+  message DevfreqValue {
+    optional string key = 1;
+    optional uint64 value = 2;
+  };
+
+  // One entry per device.
+  repeated DevfreqValue devfreq = 10;
 }
 
 // End of protos/perfetto/trace/sys_stats/sys_stats.proto
