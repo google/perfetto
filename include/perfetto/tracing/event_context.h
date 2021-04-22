@@ -69,6 +69,9 @@ class PERFETTO_EXPORT EventContext {
   // the reference to this EventContext.
   template <typename MessageType>
   TracedProto<MessageType> Wrap(MessageType* message) {
+    static_assert(std::is_base_of<protozero::Message, MessageType>::value,
+                  "TracedProto can be used only with protozero messages");
+
     return TracedProto<MessageType>(message, *this);
   }
 
