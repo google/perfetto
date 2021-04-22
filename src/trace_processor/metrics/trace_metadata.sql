@@ -17,7 +17,7 @@
 DROP VIEW IF EXISTS trace_metadata_output;
 CREATE VIEW trace_metadata_output AS
 SELECT TraceMetadata(
-  'trace_duration_ns', (SELECT end_ts - start_ts FROM trace_bounds),
+  'trace_duration_ns', CAST((SELECT end_ts - start_ts FROM trace_bounds) AS INT),
   'trace_uuid', (SELECT str_value FROM metadata WHERE name = 'trace_uuid'),
   'android_build_fingerprint', (
     SELECT str_value FROM metadata WHERE name = 'android_build_fingerprint'
