@@ -32,13 +32,23 @@ message UiState {
 
   // Indicates that the given process should be highlighted by the UI.
   message HighlightProcess {
-    // The pid of the process to highlight. This is useful for UIs to focus
-    // on tracks of a particular process in the trace.
-    //
-    // If more than one process in a trace has the same pid, it is UI
-    // implementation specific how the process to be focused will be
-    // chosen.
-    optional uint32 pid = 1;
+    oneof selector {
+      // The pid of the process to highlight. This is useful for UIs to focus
+      // on tracks of a particular process in the trace.
+      //
+      // If more than one process in a trace has the same pid, it is UI
+      // implementation specific how the process to be focused will be
+      // chosen.
+      uint32 pid = 1;
+
+      // The command line of the process to highlight; for most Android apps,
+      // this is the package name of the app. This is useful for UIs to focus
+      // on a particular app in the trace.
+      //
+      // If more than one process hasthe same cmdline, it is UI implementation
+      // specific how the process to be focused will be chosen.
+      string cmdline = 2;
+    }
   }
   optional HighlightProcess highlight_process = 3;
 }
