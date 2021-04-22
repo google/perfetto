@@ -49,9 +49,6 @@ class EventContext;
 template <typename MessageType>
 class TracedProto {
  public:
-  static_assert(std::is_base_of<protozero::Message, MessageType>::value,
-                "TracedProto can be used only with protozero messages");
-
   TracedProto(const TracedProto&) = delete;
   TracedProto& operator=(const TracedProto&) = delete;
   TracedProto& operator=(TracedProto&&) = delete;
