@@ -580,7 +580,7 @@ def Main():
       with open(args.check_only, 'w') as f:
         f.write('OK')  # The content is irrelevant, just keep GN happy.
       return 0
-    argz = ' '.join([x for x in sys.argv[1:] if '--check-only' not in x])
+    argz = ' '.join([x for x in sys.argv[1:] if not x.startswith('--check-only')])
     print('\033[91mBuild deps are stale. ' +
           'Please run tools/install-build-deps %s\033[0m' % argz)
     return 1
