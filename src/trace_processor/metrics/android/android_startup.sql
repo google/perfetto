@@ -225,8 +225,13 @@ CREATE VIEW gc_slices AS
     OR slice_name LIKE '%concurrent copying GC'
     OR slice_name LIKE '%semispace GC');
 
+DROP TABLE IF EXISTS gc_slices_by_state;
 CREATE VIRTUAL TABLE gc_slices_by_state
 USING SPAN_JOIN(gc_slices PARTITIONED utid, thread_state_extended PARTITIONED utid);
+
+DROP TABLE IF EXISTS launch_threads_cpu;
+CREATE VIRTUAL TABLE launch_threads_cpu
+USING SPAN_JOIN(launch_threads PARTITIONED utid, thread_state_extended PARTITIONED utid);
 
 DROP VIEW IF EXISTS startup_view;
 CREATE VIEW startup_view AS
@@ -425,15 +430,13 @@ SELECT
       'time_jit_thread_pool_on_cpu', (
         SELECT
         NULL_IF_EMPTY(AndroidStartupMetric_Slice(
-          'dur_ns', SUM(states.dur),
-          'dur_ms', SUM(states.dur) / 1e6))
-        FROM launch_threads
-        JOIN thread_state_extended states USING(utid)
+          'dur_ns', SUM(dur),
+          'dur_ms', SUM(dur) / 1e6))
+        FROM launch_threads_cpu
         WHERE
-          launch_threads.launch_id = launches.id
-          AND launch_threads.thread_name = 'Jit thread pool'
-          AND states.state = 'Running'
-          AND states.ts BETWEEN launch_threads.ts AND launch_threads.ts + launch_threads.dur
+          launch_id = launches.id
+          AND thread_name = 'Jit thread pool'
+          AND state = 'Running'
       ),
       'time_gc_total', (
         SELECT slice_proto
