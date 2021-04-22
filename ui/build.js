@@ -159,7 +159,8 @@ function main() {
 
   // Check that deps are current before starting.
   const installBuildDeps = pjoin(ROOT_DIR, 'tools/install-build-deps');
-  const depsArgs = ['--check-only', pjoin(cfg.outDir, '.check_deps'), '--ui'];
+  const checkDepsPath = pjoin(cfg.outDir, '.check_deps');
+  const depsArgs = [`--check-only=${checkDepsPath}`, '--ui'];
   exec(installBuildDeps, depsArgs);
 
   console.log('Entering', cfg.outDir);
