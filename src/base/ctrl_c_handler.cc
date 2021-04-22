@@ -22,7 +22,6 @@
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <Windows.h>
-#include <consoleapi.h>
 #include <io.h>
 #else
 #include <signal.h>

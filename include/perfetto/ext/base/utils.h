@@ -47,7 +47,9 @@
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 using uid_t = unsigned int;
+#if !PERFETTO_BUILDFLAG(PERFETTO_COMPILER_GCC)
 using pid_t = unsigned int;
+#endif
 #if defined(_WIN64)
 using ssize_t = int64_t;
 #else
@@ -116,6 +118,11 @@ void MaybeReleaseAllocatorMemToOS();
 
 // geteuid() on POSIX OSes, returns 0 on Windows (See comment in utils.cc).
 uid_t GetCurrentUserId();
+
+// Forks the process.
+// Parent: prints the PID of the child and exit(0).
+// Child: redirects stdio onto /dev/null and chdirs into .
+void Daemonize();
 
 }  // namespace base
 }  // namespace perfetto
