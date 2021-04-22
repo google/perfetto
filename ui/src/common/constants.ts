@@ -13,3 +13,5 @@
 // limitations under the License.
 
 export const TRACE_SUFFIX = '.perfetto-trace';
+
+export const TRACE_MARGIN_TIME_S = 1 / 1e7;

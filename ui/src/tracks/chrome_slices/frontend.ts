@@ -17,6 +17,7 @@ import {hsluvToHex} from 'hsluv';
 import {Actions} from '../../common/actions';
 import {cropText, drawIncompleteSlice} from '../../common/canvas_utils';
 import {hslForSlice} from '../../common/colorizer';
+import {TRACE_MARGIN_TIME_S} from '../../common/constants';
 import {TrackState} from '../../common/state';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
@@ -259,7 +260,7 @@ export class ChromeSliceTrack extends Track<Config, Data> {
       |undefined {
     const {timeScale, visibleWindowTime} = globals.frontendLocalState;
     const pxEnd = timeScale.timeToPx(visibleWindowTime.end);
-    const left = Math.max(timeScale.timeToPx(tStart), 0);
+    const left = Math.max(timeScale.timeToPx(tStart), -TRACE_MARGIN_TIME_S);
     const right = Math.min(timeScale.timeToPx(tEnd), pxEnd);
     return {
       left,

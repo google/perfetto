@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {TRACE_MARGIN_TIME_S} from '../common/constants';
 import {Engine} from '../common/engine';
 import {slowlyCountRows} from '../common/query_iterator';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
@@ -86,7 +87,7 @@ export class SearchController extends Controller<'main'> {
       return;
     }
     this.previousSpan = new TimeSpan(
-        Math.max(newSpan.start - newSpan.duration, 0),
+        Math.max(newSpan.start - newSpan.duration, -TRACE_MARGIN_TIME_S),
         newSpan.end + newSpan.duration);
     this.previousResolution = newResolution;
     this.previousSearch = newSearch;
