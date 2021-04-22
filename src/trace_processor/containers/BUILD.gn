@@ -12,27 +12,46 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("../../../gn/perfetto_component.gni")
 import("../../../gn/test.gni")
 
-source_set("containers") {
+# These headers are outside of include/, but used by
+# tools/trace_to_text/libpprofbuilder. In Bazel builds with strict header
+# checking, this gets converted to a filegroup of the headers, and therefore
+# allows their inclusion (as if they were directly part of the dependent
+# targets).
+# TODO(rsavitski): The more correct approach would require the use of
+# cc_library with 'hdrs' section (likely derived from 'public' in gn).
+# Otherwise we have to depend on both :containers and :containers_headers
+# everywhere for the sake of strict header checking post-bazel conversion, as
+# the filegroup isn't acting as a 'hdrs'.
+source_set("containers_headers") {
   sources = [
-    "bit_vector.cc",
     "bit_vector.h",
-    "bit_vector_iterators.cc",
     "bit_vector_iterators.h",
     "null_term_string_view.h",
-    "nullable_vector.cc",
     "nullable_vector.h",
-    "row_map.cc",
     "row_map.h",
-    "string_pool.cc",
     "string_pool.h",
   ]
+}
+
+# perfetto_component to turn this into a cc_library in Bazel, to satisfy the
+# hand-rolled ODR checking for targets including two static libs that include
+# this (unclear whether it is actually a problem).
+perfetto_component("containers") {
+  sources = [
+    "bit_vector.cc",
+    "bit_vector_iterators.cc",
+    "nullable_vector.cc",
+    "row_map.cc",
+    "string_pool.cc",
+  ]
+  public_deps = [ ":containers_headers" ]
   deps = [
     "../../../gn:default_deps",
-    "../../../include/perfetto/base",
-    "../../../include/perfetto/ext/base",
     "../../../include/perfetto/protozero",
+    "../../base",
   ]
 }
 
@@ -47,6 +66,7 @@ perfetto_unittest_source_set("unittests") {
   ]
   deps = [
     ":containers",
+    ":containers_headers",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
   ]
@@ -57,6 +77,7 @@ if (enable_perfetto_benchmarks) {
     testonly = true
     deps = [
       ":containers",
+      ":containers_headers",
       "../../../gn:benchmark",
       "../../../gn:default_deps",
     ]

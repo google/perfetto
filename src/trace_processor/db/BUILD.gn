@@ -30,6 +30,7 @@ source_set("lib") {
     "../../../include/perfetto/ext/base",
     "../../../include/perfetto/trace_processor",
     "../containers",
+    "../containers:containers_headers",
   ]
 }
 
