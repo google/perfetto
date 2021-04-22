@@ -138,19 +138,21 @@ SysStatsDataSource::SysStatsDataSource(base::TaskRunner* task_runner,
     stat_enabled_fields_ |= 1ul << static_cast<uint32_t>(*counter);
   }
 
-  std::array<uint32_t, 3> periods_ms{};
-  std::array<uint32_t, 3> ticks{};
+  std::array<uint32_t, 4> periods_ms{};
+  std::array<uint32_t, 4> ticks{};
   static_assert(periods_ms.size() == ticks.size(), "must have same size");
 
   periods_ms[0] = ClampTo10Ms(cfg.meminfo_period_ms(), "meminfo_period_ms");
   periods_ms[1] = ClampTo10Ms(cfg.vmstat_period_ms(), "vmstat_period_ms");
   periods_ms[2] = ClampTo10Ms(cfg.stat_period_ms(), "stat_period_ms");
+  periods_ms[3] = ClampTo10Ms(cfg.devfreq_period_ms(), "devfreq_period_ms");
 
   tick_period_ms_ = 0;
   for (uint32_t ms : periods_ms) {
     if (ms && (ms < tick_period_ms_ || tick_period_ms_ == 0))
       tick_period_ms_ = ms;
   }
+
   if (tick_period_ms_ == 0)
     return;  // No polling configured.
 
@@ -165,6 +167,7 @@ SysStatsDataSource::SysStatsDataSource(base::TaskRunner* task_runner,
   meminfo_ticks_ = ticks[0];
   vmstat_ticks_ = ticks[1];
   stat_ticks_ = ticks[2];
+  devfreq_ticks_ = ticks[3];
 }
 
 void SysStatsDataSource::Start() {
@@ -205,10 +208,59 @@ void SysStatsDataSource::ReadSysStats() {
   if (stat_ticks_ && tick_ % stat_ticks_ == 0)
     ReadStat(sys_stats);
 
+  if (devfreq_ticks_ && tick_ % devfreq_ticks_ == 0)
+    ReadDevfreq(sys_stats);
+
   sys_stats->set_collection_end_timestamp(
       static_cast<uint64_t>(base::GetBootTimeNs().count()));
 
   tick_++;
+}
+
+void SysStatsDataSource::ReadDevfreq(protos::pbzero::SysStats* sys_stats) {
+  base::ScopedDir devfreq_dir = OpenDevfreqDir();
+  if (devfreq_dir) {
+    while (struct dirent* dir_ent = readdir(*devfreq_dir)) {
+      // Entries in /sys/class/devfreq are symlinks to /devices/platform
+      if (dir_ent->d_type != DT_LNK)
+        continue;
+      const char* name = dir_ent->d_name;
+      const char* file_content = ReadDevfreqCurFreq(name);
+      auto value = static_cast<uint64_t>(strtoll(file_content, nullptr, 10));
+      auto* devfreq = sys_stats->add_devfreq();
+      devfreq->set_key(name);
+      devfreq->set_value(value);
+    }
+  }
+}
+
+base::ScopedDir SysStatsDataSource::OpenDevfreqDir() {
+  const char* base_dir = "/sys/class/devfreq/";
+  base::ScopedDir devfreq_dir(opendir(base_dir));
+  if (!devfreq_dir && !devfreq_error_logged_) {
+    devfreq_error_logged_ = true;
+    PERFETTO_PLOG("failed to opendir(/sys/class/devfreq)");
+  }
+  return devfreq_dir;
+}
+
+const char* SysStatsDataSource::ReadDevfreqCurFreq(
+    const std::string& deviceName) {
+  const char* devfreq_base_path = "/sys/class/devfreq";
+  const char* freq_file_name = "cur_freq";
+  char cur_freq_path[256];
+  snprintf(cur_freq_path, sizeof(cur_freq_path), "%s/%s/%s", devfreq_base_path,
+           deviceName.c_str(), freq_file_name);
+  base::ScopedFile fd = OpenReadOnly(cur_freq_path);
+  if (!fd && !devfreq_error_logged_) {
+    devfreq_error_logged_ = true;
+    PERFETTO_PLOG("Failed to open %s", cur_freq_path);
+    return "";
+  }
+  size_t rsize = ReadFile(&fd, cur_freq_path);
+  if (!rsize)
+    return "";
+  return static_cast<char*>(read_buf_.Get());
 }
 
 void SysStatsDataSource::ReadMeminfo(protos::pbzero::SysStats* sys_stats) {
