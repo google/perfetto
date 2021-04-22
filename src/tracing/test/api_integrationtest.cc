@@ -3209,8 +3209,8 @@ TEST_P(PerfettoApiTest, LegacyTraceEvents) {
       slices,
       ElementsAre(
           "[track=0]I:cat.LegacyEvent", "B:cat.LegacyEvent(arg=(int)123)",
-          "E.LegacyEvent(arg=(string)string,arg2=(double)0.123)",
-          "B:cat.ScopedLegacyEvent", "E",
+          "E(arg=(string)string,arg2=(double)0.123)", "B:cat.ScopedLegacyEvent",
+          "E",
           "B(bind_id=3671771902)(flow_direction=1):disabled-by-default-cat."
           "LegacyFlowEvent",
           "[track=0]I:cat.LegacyInstantEvent",
