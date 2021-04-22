@@ -32,6 +32,17 @@
 
 namespace perfetto {
 namespace trace_processor {
+namespace {
+
+bool IsBadTimestamp(int64_t ts) {
+  // Very small or very large timestamps are likely a mistake.
+  // See b/185978397
+  constexpr int64_t kBadTimestamp =
+      std::numeric_limits<int64_t>::max() - (10LL * 1000 * 1000 * 1000);
+  return std::abs(ts) >= kBadTimestamp;
+}
+
+}  // namespace
 
 using ExpectedDisplayFrameStartDecoder =
     protos::pbzero::FrameTimelineEvent_ExpectedDisplayFrameStart_Decoder;
@@ -529,6 +540,13 @@ void FrameTimelineEventParser::ParseFrameTimelineEvent(int64_t timestamp,
                                                        ConstBytes blob) {
   protos::pbzero::FrameTimelineEvent_Decoder frame_event(blob.data, blob.size);
   context_->storage->InternString(base::StringView(std::to_string(timestamp)));
+
+  if (IsBadTimestamp(timestamp)) {
+    context_->storage->IncrementStats(
+        stats::frame_timeline_event_parser_errors);
+    return;
+  }
+
   if (frame_event.has_expected_display_frame_start()) {
     ParseExpectedDisplayFrameStart(timestamp,
                                    frame_event.expected_display_frame_start());
