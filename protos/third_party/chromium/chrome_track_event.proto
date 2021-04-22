@@ -50,7 +50,7 @@ message ChromeTaskPostedToDisabledQueue {
   optional uint64 source_location_iid = 4;
 }
 
-message ChromeTaskGraphRunner {
+message ChromeRasterTask {
   optional int64 source_frame_number = 1;
 }
 
@@ -125,9 +125,16 @@ message FrameTreeNodeInfo {
   optional bool has_speculative_render_frame_host = 3;
 }
 
+message ChromeHashedPerformanceMark {
+  optional uint32 site_hash = 1;
+  optional string site = 2;
+  optional uint32 mark_hash = 3;
+  optional string mark = 4;
+}
+
 message ChromeTrackEvent {
   // Extension range for Chrome: 1000-1999
-  // Next ID: 1011
+  // Next ID: 1012
   extend TrackEvent {
     optional ChromeAppState chrome_app_state = 1000;
 
@@ -143,7 +150,7 @@ message ChromeTrackEvent {
     optional ChromeTaskPostedToDisabledQueue
         chrome_task_posted_to_disabled_queue = 1005;
 
-    optional ChromeTaskGraphRunner chrome_task_graph_runner = 1006;
+    optional ChromeRasterTask chrome_raster_task = 1006;
 
     optional ChromeMessagePumpForUI chrome_message_pump_for_ui = 1007;
 
@@ -153,5 +160,7 @@ message ChromeTrackEvent {
         should_swap_browsing_instances_result = 1009;
 
     optional FrameTreeNodeInfo frame_tree_node_info = 1010;
+
+    optional ChromeHashedPerformanceMark chrome_hashed_performance_mark = 1011;
   }
 }
