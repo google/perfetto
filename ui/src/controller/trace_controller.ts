@@ -19,6 +19,7 @@ import {
   Actions,
   DeferredAction,
 } from '../common/actions';
+import {TRACE_MARGIN_TIME_S} from '../common/constants';
 import {Engine, QueryError} from '../common/engine';
 import {HttpRpcEngine} from '../common/http_rpc_engine';
 import {slowlyCountRows} from '../common/query_iterator';
@@ -83,8 +84,6 @@ import {TrackControllerArgs, trackControllerRegistry} from './track_controller';
 import {decideTracks} from './track_decider';
 
 type States = 'init'|'loading_trace'|'ready';
-
-const TRACE_MARGIN_TIME_S = 1 / 1e7;
 
 // TraceController handles handshakes with the frontend for everything that
 // concerns a single trace. It owns the WASM trace processor engine, handles
