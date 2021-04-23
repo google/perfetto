@@ -813,9 +813,9 @@ filegroup(
     ],
 )
 
-# GN target: //src/trace_processor/db:lib
+# GN target: //src/trace_processor/db:db
 filegroup(
-    name = "src_trace_processor_db_lib",
+    name = "src_trace_processor_db_db",
     srcs = [
         "src/trace_processor/db/column.cc",
         "src/trace_processor/db/column.h",
@@ -827,24 +827,13 @@ filegroup(
     ],
 )
 
-# GN target: //src/trace_processor/importers/memory_tracker:graph_processor
+# GN target: //src/trace_processor/importers/common:common
 filegroup(
-    name = "src_trace_processor_importers_memory_tracker_graph_processor",
-    srcs = [
-        "src/trace_processor/importers/memory_tracker/graph.cc",
-        "src/trace_processor/importers/memory_tracker/graph_processor.cc",
-        "src/trace_processor/importers/memory_tracker/memory_allocator_node_id.cc",
-        "src/trace_processor/importers/memory_tracker/raw_memory_graph_node.cc",
-        "src/trace_processor/importers/memory_tracker/raw_process_memory_node.cc",
-    ],
-)
-
-# GN target: //src/trace_processor/importers:common
-filegroup(
-    name = "src_trace_processor_importers_common",
+    name = "src_trace_processor_importers_common_common",
     srcs = [
         "src/trace_processor/importers/common/args_tracker.cc",
         "src/trace_processor/importers/common/args_tracker.h",
+        "src/trace_processor/importers/common/chunked_trace_reader.h",
         "src/trace_processor/importers/common/clock_tracker.cc",
         "src/trace_processor/importers/common/clock_tracker.h",
         "src/trace_processor/importers/common/event_tracker.cc",
@@ -861,6 +850,18 @@ filegroup(
         "src/trace_processor/importers/common/system_info_tracker.h",
         "src/trace_processor/importers/common/track_tracker.cc",
         "src/trace_processor/importers/common/track_tracker.h",
+    ],
+)
+
+# GN target: //src/trace_processor/importers/memory_tracker:graph_processor
+filegroup(
+    name = "src_trace_processor_importers_memory_tracker_graph_processor",
+    srcs = [
+        "src/trace_processor/importers/memory_tracker/graph.cc",
+        "src/trace_processor/importers/memory_tracker/graph_processor.cc",
+        "src/trace_processor/importers/memory_tracker/memory_allocator_node_id.cc",
+        "src/trace_processor/importers/memory_tracker/raw_memory_graph_node.cc",
+        "src/trace_processor/importers/memory_tracker/raw_process_memory_node.cc",
     ],
 )
 
@@ -1269,7 +1270,6 @@ filegroup(
 filegroup(
     name = "src_trace_processor_storage_minimal",
     srcs = [
-        "src/trace_processor/chunked_trace_reader.h",
         "src/trace_processor/forwarding_trace_parser.cc",
         "src/trace_processor/forwarding_trace_parser.h",
         "src/trace_processor/importers/default_modules.cc",
@@ -3436,10 +3436,10 @@ perfetto_cc_library(
     srcs = [
         ":src_trace_processor_analysis_analysis",
         ":src_trace_processor_containers_containers_headers",
-        ":src_trace_processor_db_lib",
+        ":src_trace_processor_db_db",
         ":src_trace_processor_export_json",
         ":src_trace_processor_ftrace_descriptors",
-        ":src_trace_processor_importers_common",
+        ":src_trace_processor_importers_common_common",
         ":src_trace_processor_importers_memory_tracker_graph_processor",
         ":src_trace_processor_lib",
         ":src_trace_processor_metatrace",
@@ -3532,10 +3532,10 @@ perfetto_cc_binary(
         ":src_profiling_symbolizer_symbolizer",
         ":src_trace_processor_analysis_analysis",
         ":src_trace_processor_containers_containers_headers",
-        ":src_trace_processor_db_lib",
+        ":src_trace_processor_db_db",
         ":src_trace_processor_export_json",
         ":src_trace_processor_ftrace_descriptors",
-        ":src_trace_processor_importers_common",
+        ":src_trace_processor_importers_common_common",
         ":src_trace_processor_importers_memory_tracker_graph_processor",
         ":src_trace_processor_lib",
         ":src_trace_processor_metatrace",
@@ -3714,10 +3714,10 @@ perfetto_cc_binary(
         ":src_profiling_symbolizer_symbolizer",
         ":src_trace_processor_analysis_analysis",
         ":src_trace_processor_containers_containers_headers",
-        ":src_trace_processor_db_lib",
+        ":src_trace_processor_db_db",
         ":src_trace_processor_export_json",
         ":src_trace_processor_ftrace_descriptors",
-        ":src_trace_processor_importers_common",
+        ":src_trace_processor_importers_common_common",
         ":src_trace_processor_importers_memory_tracker_graph_processor",
         ":src_trace_processor_lib",
         ":src_trace_processor_metatrace",
