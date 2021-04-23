@@ -25,10 +25,10 @@
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
+#include "src/trace_processor/importers/common/trace_blob_view.h"
+#include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/timestamped_trace_piece.h"
-#include "src/trace_processor/trace_blob_view.h"
-#include "src/trace_processor/trace_parser.h"
 
 namespace perfetto {
 

@@ -21,10 +21,10 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/string_utils.h"
 
+#include "src/trace_processor/importers/common/trace_blob_view.h"
 #include "src/trace_processor/importers/json/json_tracker.h"
 #include "src/trace_processor/importers/json/json_utils.h"
 #include "src/trace_processor/storage/stats.h"
-#include "src/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/trace_sorter.h"
 #include "src/trace_processor/util/status_macros.h"
 
