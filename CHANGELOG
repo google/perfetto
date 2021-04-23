@@ -1,6 +1,7 @@
 Unreleased:
   Tracing service and probes:
-    *
+    * Changed trigger_perfetto to ignore unknown command line arguments to
+      preserve forward compatibility.
   Trace Processor:
     * Fixed prepending "debug." prefix to debug annotations with non-interned
       names.
