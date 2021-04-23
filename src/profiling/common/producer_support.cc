@@ -61,6 +61,10 @@ bool CanProfileAndroid(const DataSourceConfig& ds_config,
     return true;
   }
 
+  if (ds_config.enable_extra_guardrails()) {
+    return false;  // no extra guardrails on user builds.
+  }
+
   uint64_t uid_without_profile = uid % kAidUserOffset;
   if (uid_without_profile < kAidAppStart || kAidAppEnd < uid_without_profile) {
     // TODO(fmayer): relax this.
@@ -78,14 +82,9 @@ bool CanProfileAndroid(const DataSourceConfig& ds_config,
       PERFETTO_ELOG("Failed to parse packages.list.");
       return false;
     }
-    if (pkg.uid == uid_without_profile) {
-      if (pkg.profileable) {
-        return true;
-      }
-      if (!ds_config.enable_extra_guardrails() &&
-          (pkg.profileable_from_shell || pkg.debuggable)) {
-        return true;
-      }
+    if (pkg.uid == uid_without_profile &&
+        (pkg.profileable_from_shell || pkg.debuggable)) {
+      return true;
     }
   }
   return false;
