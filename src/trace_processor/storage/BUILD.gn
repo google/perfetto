@@ -1,4 +1,4 @@
-# Copyright (C) 20 The Android Open Source Project
+# Copyright (C) 2021 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ source_set("storage") {
     "../../../include/perfetto/ext/base",
     "../../../include/perfetto/trace_processor",
     "../containers",
+    "../containers:containers_headers",
     "../tables",
     "../types",
   ]
