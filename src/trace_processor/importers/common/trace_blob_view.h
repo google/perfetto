@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_TRACE_BLOB_VIEW_H_
-#define SRC_TRACE_PROCESSOR_TRACE_BLOB_VIEW_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_TRACE_BLOB_VIEW_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_TRACE_BLOB_VIEW_H_
 
 #include <stddef.h>
 #include <stdint.h>
@@ -145,4 +145,4 @@ class TraceBlobView {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_TRACE_BLOB_VIEW_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_TRACE_BLOB_VIEW_H_
