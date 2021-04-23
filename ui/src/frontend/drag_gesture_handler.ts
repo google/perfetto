@@ -18,6 +18,7 @@ export class DragGestureHandler {
   private readonly boundOnMouseUp = this.onMouseUp.bind(this);
   private clientRect?: DOMRect;
   private pendingMouseDownEvent?: MouseEvent;
+  private _isDragging = false;
 
   constructor(
       private element: HTMLElement,
@@ -28,6 +29,7 @@ export class DragGestureHandler {
   }
 
   private onMouseDown(e: MouseEvent) {
+    this._isDragging = true;
     document.body.addEventListener('mousemove', this.boundOnMouseMove);
     document.body.addEventListener('mouseup', this.boundOnMouseUp);
     this.pendingMouseDownEvent = e;
@@ -62,11 +64,16 @@ export class DragGestureHandler {
   }
 
   private onMouseUp(e: MouseEvent) {
+    this._isDragging = false;
     document.body.removeEventListener('mousemove', this.boundOnMouseMove);
     document.body.removeEventListener('mouseup', this.boundOnMouseUp);
     if (!this.pendingMouseDownEvent) {
       this.onDragFinished();
     }
     e.stopPropagation();
+  }
+
+  get isDragging() {
+    return this._isDragging;
   }
 }
