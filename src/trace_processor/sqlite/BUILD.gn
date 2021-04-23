@@ -47,8 +47,8 @@ if (enable_perfetto_trace_processor_sqlite) {
       "../../../include/perfetto/trace_processor",
       "../../../protos/perfetto/trace/ftrace:zero",
       "../../base",
-      "../db:lib",
-      "../importers:common",
+      "../db",
+      "../importers/common",
       "../storage",
       "../types",
     ]

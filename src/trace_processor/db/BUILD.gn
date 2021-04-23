@@ -14,7 +14,7 @@
 
 import("../../../gn/test.gni")
 
-source_set("lib") {
+source_set("db") {
   sources = [
     "column.cc",
     "column.h",
@@ -41,7 +41,7 @@ perfetto_unittest_source_set("unittests") {
     "table_unittest.cc",
   ]
   deps = [
-    ":lib",
+    ":db",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
     "../../base:base",
