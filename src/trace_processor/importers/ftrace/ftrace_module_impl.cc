@@ -16,10 +16,10 @@
 
 #include "src/trace_processor/importers/ftrace/ftrace_module_impl.h"
 #include "perfetto/base/build_config.h"
+#include "src/trace_processor/importers/common/trace_blob_view.h"
 #include "src/trace_processor/importers/ftrace/ftrace_parser.h"
 #include "src/trace_processor/importers/ftrace/ftrace_tokenizer.h"
 #include "src/trace_processor/timestamped_trace_piece.h"
-#include "src/trace_processor/trace_blob_view.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
