@@ -30,7 +30,7 @@ source_set("tables") {
   ]
   deps = [
     "../../../gn:default_deps",
-    "../db:lib",
+    "../db",
   ]
 }
 

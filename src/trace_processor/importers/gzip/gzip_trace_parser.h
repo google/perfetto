@@ -17,7 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_GZIP_GZIP_TRACE_PARSER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_GZIP_GZIP_TRACE_PARSER_H_
 
-#include "src/trace_processor/chunked_trace_reader.h"
+#include "src/trace_processor/importers/common/chunked_trace_reader.h"
 #include "src/trace_processor/importers/gzip/gzip_utils.h"
 
 namespace perfetto {
