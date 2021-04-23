@@ -16,11 +16,13 @@
 // Also we cannot have global constructors beacause when the javascript is
 // loaded, the CSS might not be ready yet.
 export let TRACK_SHELL_WIDTH = 100;
+export let SIDEBAR_WIDTH = 100;
 export let TRACK_BORDER_COLOR = '#ffc0cb';
 export let TOPBAR_HEIGHT = 48;
 
 export function initCssConstants() {
   TRACK_SHELL_WIDTH = getCssNum('--track-shell-width') || TRACK_SHELL_WIDTH;
+  SIDEBAR_WIDTH = getCssNum('--sidebar-width') || SIDEBAR_WIDTH;
   TRACK_BORDER_COLOR = getCssStr('--track-border-color') || TRACK_BORDER_COLOR;
   TOPBAR_HEIGHT = getCssNum('--topbar-height') || TOPBAR_HEIGHT;
 }

@@ -18,7 +18,7 @@ import {assertExists} from '../base/logging';
 import {hueForCpu} from '../common/colorizer';
 import {TimeSpan, timeToString} from '../common/time';
 
-import {TRACK_SHELL_WIDTH} from './css_constants';
+import {SIDEBAR_WIDTH, TRACK_SHELL_WIDTH} from './css_constants';
 import {BorderDragStrategy} from './drag/border_drag_strategy';
 import {DragStrategy} from './drag/drag_strategy';
 import {InnerDragStrategy} from './drag/inner_drag_strategy';
@@ -29,12 +29,14 @@ import {Panel, PanelSize} from './panel';
 import {TimeScale} from './time_scale';
 
 export class OverviewTimelinePanel extends Panel {
+  private static HANDLE_SIZE_PX = 7;
+
   private width = 0;
   private gesture?: DragGestureHandler;
   private timeScale?: TimeScale;
   private totTime = new TimeSpan(0, 0);
-  private static BORDER_PIXEL_DELTA = 30;
   private dragStrategy?: DragStrategy;
+  private readonly boundOnMouseMove = this.onMouseMove.bind(this);
 
   // Must explicitly type now; arguments types are no longer auto-inferred.
   // https://github.com/Microsoft/TypeScript/issues/1373
@@ -56,6 +58,13 @@ export class OverviewTimelinePanel extends Panel {
 
   oncreate(vnode: m.CVnodeDOM) {
     this.onupdate(vnode);
+    (vnode.dom as HTMLElement)
+        .addEventListener('mousemove', this.boundOnMouseMove);
+  }
+
+  onremove({dom}: m.CVnodeDOM) {
+    (dom as HTMLElement)
+        .removeEventListener('mousemove', this.boundOnMouseMove);
   }
 
   view() {
@@ -109,9 +118,8 @@ export class OverviewTimelinePanel extends Panel {
     ctx.fillRect(0, size.height - 1, this.width, 1);
 
     // Draw semi-opaque rects that occlude the non-visible time range.
-    const vizTime = globals.frontendLocalState.visibleWindowTime;
-    const vizStartPx = Math.floor(this.timeScale.timeToPx(vizTime.start));
-    const vizEndPx = Math.ceil(this.timeScale.timeToPx(vizTime.end));
+    const [vizStartPx, vizEndPx] =
+        OverviewTimelinePanel.extractBounds(this.timeScale);
 
     ctx.fillStyle = 'rgba(200, 200, 200, 0.8)';
     ctx.fillRect(
@@ -125,6 +133,45 @@ export class OverviewTimelinePanel extends Panel {
     ctx.fillStyle = '#999';
     ctx.fillRect(vizStartPx - 1, headerHeight, 1, tracksHeight);
     ctx.fillRect(vizEndPx, headerHeight, 1, tracksHeight);
+
+    const hbarWidth = OverviewTimelinePanel.HANDLE_SIZE_PX;
+    const hbarDivisionFactor = 3.5;
+    // Draw handlebar
+    ctx.fillRect(
+        vizStartPx - Math.floor(hbarWidth / 2) - 1,
+        headerHeight,
+        hbarWidth,
+        tracksHeight / hbarDivisionFactor);
+    ctx.fillRect(
+        vizEndPx - Math.floor(hbarWidth / 2),
+        headerHeight,
+        hbarWidth,
+        tracksHeight / hbarDivisionFactor);
+  }
+
+  private onMouseMove(e: MouseEvent) {
+    if (this.gesture === undefined || this.gesture.isDragging) {
+      return;
+    }
+    (e.target as HTMLElement).style.cursor = this.chooseCursor(e.x);
+  }
+
+  private chooseCursor(x: number) {
+    if (this.timeScale === undefined) return 'default';
+    const [vizStartPx, vizEndPx] =
+        OverviewTimelinePanel.extractBounds(this.timeScale);
+    const startBound = vizStartPx - 1 + SIDEBAR_WIDTH;
+    const endBound = vizEndPx + SIDEBAR_WIDTH;
+    if (OverviewTimelinePanel.inBorderRange(x, startBound) ||
+        OverviewTimelinePanel.inBorderRange(x, endBound)) {
+      return 'ew-resize';
+    } else if (x < SIDEBAR_WIDTH + TRACK_SHELL_WIDTH) {
+      return 'default';
+    } else if (x < startBound || endBound < x) {
+      return 'crosshair';
+    } else {
+      return 'all-scroll';
+    }
   }
 
   onDrag(x: number) {
@@ -134,11 +181,7 @@ export class OverviewTimelinePanel extends Panel {
 
   onDragStart(x: number) {
     if (this.timeScale === undefined) return;
-    const timeSpan = globals.frontendLocalState.getVisibleStateBounds();
-    const pixelBounds: [number, number] = [
-      this.timeScale.timeToPx(timeSpan[0]),
-      this.timeScale.timeToPx(timeSpan[1])
-    ];
+    const pixelBounds = OverviewTimelinePanel.extractBounds(this.timeScale);
     if (OverviewTimelinePanel.inBorderRange(x, pixelBounds[0]) ||
         OverviewTimelinePanel.inBorderRange(x, pixelBounds[1])) {
       this.dragStrategy = new BorderDragStrategy(this.timeScale, pixelBounds);
@@ -154,7 +197,15 @@ export class OverviewTimelinePanel extends Panel {
     this.dragStrategy = undefined;
   }
 
+  private static extractBounds(timeScale: TimeScale): [number, number] {
+    const vizTime = globals.frontendLocalState.getVisibleStateBounds();
+    return [
+      Math.floor(timeScale.timeToPx(vizTime[0])),
+      Math.ceil(timeScale.timeToPx(vizTime[1]))
+    ];
+  }
+
   private static inBorderRange(a: number, b: number): boolean {
-    return Math.abs(a - b) < this.BORDER_PIXEL_DELTA;
+    return Math.abs(a - b) < this.HANDLE_SIZE_PX / 2;
   }
 }
