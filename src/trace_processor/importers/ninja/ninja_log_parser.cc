@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/importers/ninja/ninja_log_parser.h"
+
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
