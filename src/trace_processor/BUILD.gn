@@ -27,7 +27,7 @@ assert(enable_perfetto_trace_processor)
 if (enable_perfetto_trace_processor_sqlite) {
   static_library("trace_processor") {
     complete_static_lib = true
-    deps = [ ":lib" ]
+    public_deps = [ ":lib" ]
   }
 }
 
@@ -150,6 +150,7 @@ source_set("storage_minimal") {
     "../base",
     "../protozero",
     "containers",
+    "containers:containers_headers",
     "importers:common",
     "importers:gen_cc_chrome_track_event_descriptor",
     "importers:gen_cc_track_event_descriptor",
