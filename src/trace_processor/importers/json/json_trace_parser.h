@@ -23,10 +23,10 @@
 #include <tuple>
 #include <unordered_map>
 
+#include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/json/json_tracker.h"
 #include "src/trace_processor/importers/systrace/systrace_line_parser.h"
 #include "src/trace_processor/timestamped_trace_piece.h"
-#include "src/trace_processor/trace_parser.h"
 
 namespace Json {
 class Value;
