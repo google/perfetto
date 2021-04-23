@@ -19,12 +19,12 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/importers/common/trace_blob_view.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_record.h"
 #include "src/trace_processor/importers/json/json_utils.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
 #include "src/trace_processor/importers/systrace/systrace_line.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 // GCC can't figure out the relationship between TimestampedTracePiece's type
