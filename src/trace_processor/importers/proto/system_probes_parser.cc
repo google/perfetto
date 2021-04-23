@@ -119,6 +119,20 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
         ts, static_cast<double>(mi.value()) * 1024., track);
   }
 
+  for (auto it = sys_stats.devfreq(); it; ++it) {
+    protos::pbzero::SysStats::DevfreqValue::Decoder vm(*it);
+    auto key = static_cast<base::StringView>(vm.key());
+    // Append " Frequency" to align names with FtraceParser::ParseClockSetRate
+    base::StringView devfreq_subtitle("Frequency");
+    char counter_name[255];
+    snprintf(counter_name, sizeof(counter_name), "%.*s %.*s", int(key.size()),
+             key.data(), int(devfreq_subtitle.size()), devfreq_subtitle.data());
+    StringId name = context_->storage->InternString(counter_name);
+    TrackId track = context_->track_tracker->InternGlobalCounterTrack(name);
+    context_->event_tracker->PushCounter(ts, static_cast<double>(vm.value()),
+                                         track);
+  }
+
   for (auto it = sys_stats.vmstat(); it; ++it) {
     protos::pbzero::SysStats::VmstatValue::Decoder vm(*it);
     auto key = static_cast<size_t>(vm.key());
