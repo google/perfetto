@@ -22,7 +22,7 @@
 #include <map>
 #include <string>
 
-#include "src/trace_processor/chunked_trace_reader.h"
+#include "src/trace_processor/importers/common/chunked_trace_reader.h"
 #include "src/trace_processor/trace_parser.h"
 
 namespace perfetto {

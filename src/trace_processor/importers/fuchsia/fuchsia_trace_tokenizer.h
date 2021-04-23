@@ -17,7 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_FUCHSIA_FUCHSIA_TRACE_TOKENIZER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_FUCHSIA_FUCHSIA_TRACE_TOKENIZER_H_
 
-#include "src/trace_processor/chunked_trace_reader.h"
+#include "src/trace_processor/importers/common/chunked_trace_reader.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_utils.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/trace_blob_view.h"
