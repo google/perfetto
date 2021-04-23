@@ -21,9 +21,9 @@
 
 #include "perfetto/ext/base/circular_queue.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/importers/common/trace_blob_view.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/timestamped_trace_piece.h"
-#include "src/trace_processor/trace_blob_view.h"
 
 namespace Json {
 class Value;

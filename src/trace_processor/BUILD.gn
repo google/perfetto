@@ -134,8 +134,6 @@ source_set("storage_minimal") {
     "importers/syscalls/syscall_tracker.h",
     "importers/systrace/systrace_line.h",
     "timestamped_trace_piece.h",
-    "trace_blob_view.h",
-    "trace_parser.h",
     "trace_processor_context.cc",
     "trace_processor_storage.cc",
     "trace_processor_storage_impl.cc",

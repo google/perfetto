@@ -33,6 +33,8 @@ source_set("common") {
     "slice_tracker.h",
     "system_info_tracker.cc",
     "system_info_tracker.h",
+    "trace_blob_view.h",
+    "trace_parser.h",
     "track_tracker.cc",
     "track_tracker.h",
   ]
