@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_TRACE_PARSER_H_
-#define SRC_TRACE_PROCESSOR_TRACE_PARSER_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_TRACE_PARSER_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_TRACE_PARSER_H_
 
 #include <stdint.h>
 
-#include "src/trace_processor/timestamped_trace_piece.h"
-
 namespace perfetto {
 namespace trace_processor {
+
+struct TimestampedTracePiece;
 
 class TraceParser {
  public:
@@ -37,4 +37,4 @@ class TraceParser {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_TRACE_PARSER_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_TRACE_PARSER_H_

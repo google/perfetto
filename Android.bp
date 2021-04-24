@@ -1730,10 +1730,11 @@ cc_test {
     ":perfetto_src_protozero_protozero",
     ":perfetto_src_trace_processor_analysis_analysis",
     ":perfetto_src_trace_processor_containers_containers",
-    ":perfetto_src_trace_processor_db_lib",
+    ":perfetto_src_trace_processor_containers_containers_headers",
+    ":perfetto_src_trace_processor_db_db",
     ":perfetto_src_trace_processor_export_json",
     ":perfetto_src_trace_processor_ftrace_descriptors",
-    ":perfetto_src_trace_processor_importers_common",
+    ":perfetto_src_trace_processor_importers_common_common",
     ":perfetto_src_trace_processor_importers_memory_tracker_graph_processor",
     ":perfetto_src_trace_processor_lib",
     ":perfetto_src_trace_processor_metatrace",
@@ -7518,6 +7519,11 @@ filegroup {
   ],
 }
 
+// GN: //src/trace_processor/containers:containers_headers
+filegroup {
+  name: "perfetto_src_trace_processor_containers_containers_headers",
+}
+
 // GN: //src/trace_processor/containers:unittests
 filegroup {
   name: "perfetto_src_trace_processor_containers_unittests",
@@ -7530,9 +7536,9 @@ filegroup {
   ],
 }
 
-// GN: //src/trace_processor/db:lib
+// GN: //src/trace_processor/db:db
 filegroup {
-  name: "perfetto_src_trace_processor_db_lib",
+  name: "perfetto_src_trace_processor_db_db",
   srcs: [
     "src/trace_processor/db/column.cc",
     "src/trace_processor/db/table.cc",
@@ -7579,9 +7585,9 @@ genrule {
   ],
 }
 
-// GN: //src/trace_processor/importers:common
+// GN: //src/trace_processor/importers/common:common
 filegroup {
-  name: "perfetto_src_trace_processor_importers_common",
+  name: "perfetto_src_trace_processor_importers_common_common",
   srcs: [
     "src/trace_processor/importers/common/args_tracker.cc",
     "src/trace_processor/importers/common/clock_tracker.cc",
@@ -7592,6 +7598,18 @@ filegroup {
     "src/trace_processor/importers/common/slice_tracker.cc",
     "src/trace_processor/importers/common/system_info_tracker.cc",
     "src/trace_processor/importers/common/track_tracker.cc",
+  ],
+}
+
+// GN: //src/trace_processor/importers/common:unittests
+filegroup {
+  name: "perfetto_src_trace_processor_importers_common_unittests",
+  srcs: [
+    "src/trace_processor/importers/common/clock_tracker_unittest.cc",
+    "src/trace_processor/importers/common/event_tracker_unittest.cc",
+    "src/trace_processor/importers/common/flow_tracker_unittest.cc",
+    "src/trace_processor/importers/common/process_tracker_unittest.cc",
+    "src/trace_processor/importers/common/slice_tracker_unittest.cc",
   ],
 }
 
@@ -7649,18 +7667,6 @@ filegroup {
     "src/trace_processor/importers/memory_tracker/memory_allocator_node_id.cc",
     "src/trace_processor/importers/memory_tracker/raw_memory_graph_node.cc",
     "src/trace_processor/importers/memory_tracker/raw_process_memory_node.cc",
-  ],
-}
-
-// GN: //src/trace_processor/importers:unittests
-filegroup {
-  name: "perfetto_src_trace_processor_importers_unittests",
-  srcs: [
-    "src/trace_processor/importers/common/clock_tracker_unittest.cc",
-    "src/trace_processor/importers/common/event_tracker_unittest.cc",
-    "src/trace_processor/importers/common/flow_tracker_unittest.cc",
-    "src/trace_processor/importers/common/process_tracker_unittest.cc",
-    "src/trace_processor/importers/common/slice_tracker_unittest.cc",
   ],
 }
 
@@ -8997,14 +9003,15 @@ cc_test {
     ":perfetto_src_protozero_unittests",
     ":perfetto_src_trace_processor_analysis_analysis",
     ":perfetto_src_trace_processor_containers_containers",
+    ":perfetto_src_trace_processor_containers_containers_headers",
     ":perfetto_src_trace_processor_containers_unittests",
-    ":perfetto_src_trace_processor_db_lib",
+    ":perfetto_src_trace_processor_db_db",
     ":perfetto_src_trace_processor_db_unittests",
     ":perfetto_src_trace_processor_export_json",
     ":perfetto_src_trace_processor_ftrace_descriptors",
-    ":perfetto_src_trace_processor_importers_common",
+    ":perfetto_src_trace_processor_importers_common_common",
+    ":perfetto_src_trace_processor_importers_common_unittests",
     ":perfetto_src_trace_processor_importers_memory_tracker_graph_processor",
-    ":perfetto_src_trace_processor_importers_unittests",
     ":perfetto_src_trace_processor_lib",
     ":perfetto_src_trace_processor_metatrace",
     ":perfetto_src_trace_processor_metrics_lib",
@@ -9293,10 +9300,11 @@ cc_binary {
     ":perfetto_src_protozero_protozero",
     ":perfetto_src_trace_processor_analysis_analysis",
     ":perfetto_src_trace_processor_containers_containers",
-    ":perfetto_src_trace_processor_db_lib",
+    ":perfetto_src_trace_processor_containers_containers_headers",
+    ":perfetto_src_trace_processor_db_db",
     ":perfetto_src_trace_processor_export_json",
     ":perfetto_src_trace_processor_ftrace_descriptors",
-    ":perfetto_src_trace_processor_importers_common",
+    ":perfetto_src_trace_processor_importers_common_common",
     ":perfetto_src_trace_processor_importers_memory_tracker_graph_processor",
     ":perfetto_src_trace_processor_lib",
     ":perfetto_src_trace_processor_metatrace",
@@ -9441,10 +9449,11 @@ cc_binary_host {
     ":perfetto_src_protozero_protozero",
     ":perfetto_src_trace_processor_analysis_analysis",
     ":perfetto_src_trace_processor_containers_containers",
-    ":perfetto_src_trace_processor_db_lib",
+    ":perfetto_src_trace_processor_containers_containers_headers",
+    ":perfetto_src_trace_processor_db_db",
     ":perfetto_src_trace_processor_export_json",
     ":perfetto_src_trace_processor_ftrace_descriptors",
-    ":perfetto_src_trace_processor_importers_common",
+    ":perfetto_src_trace_processor_importers_common_common",
     ":perfetto_src_trace_processor_importers_memory_tracker_graph_processor",
     ":perfetto_src_trace_processor_lib",
     ":perfetto_src_trace_processor_metatrace",

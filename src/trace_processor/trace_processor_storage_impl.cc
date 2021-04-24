@@ -24,6 +24,7 @@
 #include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/trace_blob_view.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/default_modules.h"
 #include "src/trace_processor/importers/proto/args_table_utils.h"
@@ -34,7 +35,6 @@
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
 #include "src/trace_processor/importers/proto/stack_profile_tracker.h"
-#include "src/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/trace_sorter.h"
 
 namespace perfetto {
