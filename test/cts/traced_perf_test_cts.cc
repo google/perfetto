@@ -184,6 +184,23 @@ TEST(TracedPerfCtsTest, SystemWideProfileableApp) {
   StopApp(app_name);
 }
 
+TEST(TracedPerfCtsTest, SystemWideNonProfileableApp) {
+  if (!HasPerfLsmHooks())
+    GTEST_SKIP() << "skipped due to lack of perf_event_open LSM hooks";
+
+  std::string app_name = "android.perfetto.cts.app.nonprofileable";
+  const auto& packets = ProfileSystemWide(app_name);
+  int app_pid = PidForProcessName(app_name);
+  ASSERT_GT(app_pid, 0) << "failed to find pid for target process";
+
+  if (!IsUserBuild())
+    AssertHasSampledStacksForPid(packets, app_pid);
+  else
+    AssertNoStacksForPid(packets, app_pid);
+  PERFETTO_CHECK(IsAppRunning(app_name));
+  StopApp(app_name);
+}
+
 TEST(TracedPerfCtsTest, SystemWideReleaseApp) {
   if (!HasPerfLsmHooks())
     GTEST_SKIP() << "skipped due to lack of perf_event_open LSM hooks";
