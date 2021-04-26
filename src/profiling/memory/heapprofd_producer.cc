@@ -39,6 +39,7 @@
 #include "perfetto/ext/tracing/ipc/producer_ipc_client.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
+#include "perfetto/tracing/core/forward_decls.h"
 #include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
 #include "src/profiling/common/producer_support.h"
 #include "src/profiling/common/profiler_guardrails.h"
@@ -373,7 +374,12 @@ void HeapprofdProducer::WriteRejectedConcurrentSession(BufferID buffer_id,
 
 void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
                                         const DataSourceConfig& ds_config) {
-  PERFETTO_DLOG("Setting up data source.");
+  if (ds_config.session_initiator() ==
+      DataSourceConfig::SESSION_INITIATOR_STATSD) {
+    PERFETTO_LOG("Setting up datasource: statsd initiator.");
+  } else {
+    PERFETTO_LOG("Setting up datasource: non-statsd initiator.");
+  }
   if (mode_ == HeapprofdMode::kChild && ds_config.enable_extra_guardrails()) {
     PERFETTO_ELOG("enable_extra_guardrails is not supported on user.");
     return;
