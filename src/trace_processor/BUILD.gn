@@ -147,7 +147,6 @@ source_set("storage_minimal") {
     "../base",
     "../protozero",
     "containers",
-    "containers:containers_headers",
     "importers:gen_cc_chrome_track_event_descriptor",
     "importers:gen_cc_track_event_descriptor",
     "importers/common",
