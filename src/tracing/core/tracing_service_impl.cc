@@ -17,6 +17,7 @@
 #include "src/tracing/core/tracing_service_impl.h"
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/tracing/core/forward_decls.h"
 
 #include <errno.h>
 #include <inttypes.h>
@@ -2379,6 +2380,14 @@ TracingServiceImpl::DataSourceInstance* TracingServiceImpl::SetupDataSource(
   ds_config.set_stop_timeout_ms(tracing_session->data_source_stop_timeout_ms());
   ds_config.set_enable_extra_guardrails(
       tracing_session->config.enable_extra_guardrails());
+  if (tracing_session->consumer_uid == 1066 /* AID_STATSD */) {
+    ds_config.set_session_initiator(DataSourceConfig::SESSION_INITIATOR_STATSD);
+  } else {
+    // Unset in case the consumer set it.
+    // We need to be able to trust this field.
+    ds_config.set_session_initiator(
+        DataSourceConfig::SESSION_INITIATOR_UNSPECIFIED);
+  }
   ds_config.set_tracing_session_id(tracing_session->id);
   BufferID global_id = tracing_session->buffers_index[relative_buffer_id];
   PERFETTO_DCHECK(global_id);
