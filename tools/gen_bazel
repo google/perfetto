@@ -361,10 +361,19 @@ def gen_target(gn_target):
   label = BazelLabel(get_bazel_label_name(gn_target.name), bazel_type)
   label.comment = gn_target.name
 
+  # Supporting 'public' on source_sets would require not converting them to
+  # filegroups in bazel.
+  if gn_target.public_headers:
+    if bazel_type == 'perfetto_cc_library':
+      label.hdrs += [x[2:] for x in gn_target.public_headers]
+    else:
+      raise Error('%s: \'public\' currently supported only for cc_library' %
+              gn_target.name)
+
   raw_srcs = [x[2:] for x in gn_target.sources]
   if bazel_type == 'perfetto_cc_library':
-    label.srcs = [x for x in raw_srcs if not x.startswith('include')]
-    label.hdrs = [x for x in raw_srcs if x.startswith('include')]
+    label.srcs += [x for x in raw_srcs if not x.startswith('include')]
+    label.hdrs += [x for x in raw_srcs if x.startswith('include')]
 
     # Most Perfetto libraries cannot by dynamically linked as they would
     # cause ODR violations.
