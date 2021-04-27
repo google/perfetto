@@ -193,5 +193,35 @@ void RemoveUnderAnonThreshold(uint32_t min_size_kb, std::set<pid_t>* pids) {
   }
 }
 
+base::Optional<Uids> GetUids(const std::string& status) {
+  auto entry_idx = status.find("Uid:");
+  if (entry_idx == std::string::npos)
+    return base::nullopt;
+
+  Uids uids;
+  const char* str = &status[entry_idx + 4];
+  char* endptr;
+
+  uids.real = strtoull(str, &endptr, 10);
+  if (*endptr != ' ' && *endptr != '\t')
+    return base::nullopt;
+
+  str = endptr;
+  uids.effective = strtoull(str, &endptr, 10);
+  if (*endptr != ' ' && *endptr != '\t')
+    return base::nullopt;
+
+  str = endptr;
+  uids.saved_set = strtoull(str, &endptr, 10);
+  if (*endptr != ' ' && *endptr != '\t')
+    return base::nullopt;
+
+  str = endptr;
+  uids.filesystem = strtoull(str, &endptr, 10);
+  if (*endptr != '\n' && *endptr != '\0')
+    return base::nullopt;
+  return uids;
+}
+
 }  // namespace profiling
 }  // namespace perfetto
