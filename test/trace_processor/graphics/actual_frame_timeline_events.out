@@ -12,3 +12,4 @@
 150,17,1000,15,14,"Layer2","On-time Present",1,0,"None","Valid Prediction","No Jank"
 170,6,666,15,0,"[NULL]","On-time Present",1,0,"None","Valid Prediction","No Jank"
 200,6,666,17,0,"[NULL]","On-time Present",1,0,"None","Valid Prediction","No Jank"
+245,15,666,18,0,"[NULL]","Late Present",0,0,"SurfaceFlinger Stuffing","Valid Prediction","SurfaceFlinger Stuffing"
