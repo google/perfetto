@@ -283,12 +283,13 @@ void FrameTimelineEventParser::ParseActualDisplayFrameStart(
         prediction_type_ids_[static_cast<size_t>(event.prediction_type())];
   }
   actual_row.prediction_type = prediction_type;
-  if (DisplayFrameJanky(event.jank_type()))
+  if (DisplayFrameJanky(event.jank_type())) {
     actual_row.jank_tag = jank_tag_self_id_;
-  else if (event.jank_type() == FrameTimelineEvent::JANK_SF_STUFFING)
+  } else if (event.jank_type() == FrameTimelineEvent::JANK_SF_STUFFING) {
     actual_row.jank_tag = jank_tag_sf_stuffing_id_;
-  else
+  } else {
     actual_row.jank_tag = jank_tag_none_id_;
+  }
 
   base::Optional<SliceId> opt_slice_id =
       context_->slice_tracker->BeginTyped(
@@ -477,16 +478,18 @@ void FrameTimelineEventParser::ParseActualSurfaceFrameStart(
         prediction_type_ids_[static_cast<size_t>(event.prediction_type())];
   }
   actual_row.prediction_type = prediction_type;
-  if (SurfaceFrameJanky(event.jank_type()))
+  if (SurfaceFrameJanky(event.jank_type())) {
     actual_row.jank_tag = jank_tag_self_id_;
-  else if (DisplayFrameJanky(event.jank_type()))
+  } else if (DisplayFrameJanky(event.jank_type())) {
     actual_row.jank_tag = jank_tag_other_id_;
-  else if (event.jank_type() == FrameTimelineEvent::JANK_BUFFER_STUFFING)
+  } else if (event.jank_type() == FrameTimelineEvent::JANK_BUFFER_STUFFING) {
     actual_row.jank_tag = jank_tag_buffer_stuffing_id_;
-  else if (present_type_validated && event.present_type() == FrameTimelineEvent::PRESENT_DROPPED)
+  } else if (present_type_validated &&
+             event.present_type() == FrameTimelineEvent::PRESENT_DROPPED) {
     actual_row.jank_tag = jank_tag_dropped_id_;
-  else
+  } else {
     actual_row.jank_tag = jank_tag_none_id_;
+  }
   StringId is_buffer = context_->storage->InternString("Unspecified");
   if (event.has_is_buffer()) {
     if (event.is_buffer())
