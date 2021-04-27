@@ -6698,6 +6698,7 @@ filegroup {
     "src/base/circular_queue_unittest.cc",
     "src/base/flat_set_unittest.cc",
     "src/base/getopt_compat_unittest.cc",
+    "src/base/logging_unittest.cc",
     "src/base/metatrace_unittest.cc",
     "src/base/no_destructor_unittest.cc",
     "src/base/optional_unittest.cc",
