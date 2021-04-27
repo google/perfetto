@@ -539,7 +539,6 @@ void FrameTimelineEventParser::ParseFrameEnd(int64_t timestamp,
 void FrameTimelineEventParser::ParseFrameTimelineEvent(int64_t timestamp,
                                                        ConstBytes blob) {
   protos::pbzero::FrameTimelineEvent_Decoder frame_event(blob.data, blob.size);
-  context_->storage->InternString(base::StringView(std::to_string(timestamp)));
 
   if (IsBadTimestamp(timestamp)) {
     context_->storage->IncrementStats(
