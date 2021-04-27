@@ -80,6 +80,8 @@ static StringId JankTypeBitmaskToStringId(TraceProcessorContext* context,
     jank_reasons.emplace_back("Buffer Stuffing");
   if (jank_type & FrameTimelineEvent::JANK_UNKNOWN)
     jank_reasons.emplace_back("Unknown Jank");
+  if (jank_type & FrameTimelineEvent::JANK_SF_STUFFING)
+    jank_reasons.emplace_back("SurfaceFlinger Stuffing");
 
   std::string jank_str(
       std::accumulate(jank_reasons.begin(), jank_reasons.end(), std::string(),
@@ -170,7 +172,9 @@ FrameTimelineEventParser::FrameTimelineEventParser(
       jank_tag_other_id_(context->storage->InternString("Other Jank")),
       jank_tag_dropped_id_(context->storage->InternString("Dropped Frame")),
       jank_tag_buffer_stuffing_id_(
-          context->storage->InternString("Buffer Stuffing")) {}
+          context->storage->InternString("Buffer Stuffing")),
+      jank_tag_sf_stuffing_id_(
+          context->storage->InternString("SurfaceFlinger Stuffing")) {}
 
 void FrameTimelineEventParser::ParseExpectedDisplayFrameStart(
     int64_t timestamp,
@@ -281,6 +285,8 @@ void FrameTimelineEventParser::ParseActualDisplayFrameStart(
   actual_row.prediction_type = prediction_type;
   if (DisplayFrameJanky(event.jank_type()))
     actual_row.jank_tag = jank_tag_self_id_;
+  else if (event.jank_type() == FrameTimelineEvent::JANK_SF_STUFFING)
+    actual_row.jank_tag = jank_tag_sf_stuffing_id_;
   else
     actual_row.jank_tag = jank_tag_none_id_;
 
