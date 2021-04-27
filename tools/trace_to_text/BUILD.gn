@@ -72,7 +72,6 @@ source_set("pprofbuilder") {
     "../../src/profiling/symbolizer",
     "../../src/profiling/symbolizer:symbolize_database",
     "../../src/trace_processor/containers:containers",
-    "../../src/trace_processor/containers:containers_headers",
   ]
   sources = [ "pprof_builder.cc" ]
 }
