@@ -70,6 +70,7 @@ class ActualFramesSliceTrackController extends TrackController<Config, Data> {
           WHEN 'Other Jank' THEN '${YELLOW_COLOR}'
           WHEN 'Dropped Frame' THEN '${BLUE_COLOR}'
           WHEN 'Buffer Stuffing' THEN '${LIGHT_GREEN_COLOR}'
+          WHEN 'SurfaceFlinger Stuffing' THEN '${LIGHT_GREEN_COLOR}'
           WHEN 'No Jank' THEN '${GREEN_COLOR}'
           ELSE '${PINK_COLOR}'
         END as color
