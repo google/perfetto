@@ -184,8 +184,8 @@ void ClientImpl::OnConnect(base::UnixSocket*, bool connected) {
 }
 
 void ClientImpl::OnDisconnect(base::UnixSocket*) {
-  for (auto it : service_bindings_) {
-    base::WeakPtr<ServiceProxy>& service_proxy = it.second;
+  for (const auto& it : service_bindings_) {
+    base::WeakPtr<ServiceProxy> service_proxy = it.second;
     task_runner_->PostTask([service_proxy] {
       if (service_proxy)
         service_proxy->OnDisconnect();
