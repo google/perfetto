@@ -47,7 +47,7 @@ class DescendantSliceGenerator : public DbSqliteTable::DynamicTableGenerator {
   // ConnectedFlowGenerator to traverse flow indirectly connected flow events.
   static base::Optional<RowMap> GetDescendantSlices(
       const tables::SliceTable& slices,
-      SliceId slice_id);
+      SliceId start_id);
 
  private:
   TraceProcessorContext* context_ = nullptr;
