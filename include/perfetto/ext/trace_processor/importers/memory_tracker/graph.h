@@ -297,8 +297,8 @@ class PERFETTO_EXPORT GlobalNodeGraph {
 
  private:
   // Creates a node in the arena which is associated with the given
-  // |node_graph| and for the given |parent|.
-  Node* CreateNode(GlobalNodeGraph::Process* node_graph,
+  // |process_graph| and for the given |parent|.
+  Node* CreateNode(GlobalNodeGraph::Process* process_graph,
                    GlobalNodeGraph::Node* parent);
 
   std::forward_list<Node> all_nodes_;

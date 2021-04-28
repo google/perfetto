@@ -32,7 +32,7 @@ class ChromeStringLookup {
   explicit ChromeStringLookup(TraceStorage* storage);
 
   StringId GetProcessName(int32_t process_type) const;
-  StringId GetThreadName(int32_t index) const;
+  StringId GetThreadName(int32_t thread_type) const;
 
  public:
   std::map<int32_t /* ChromeProcessDescriptor::ProcessType */, StringId>

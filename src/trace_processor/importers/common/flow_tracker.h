@@ -33,7 +33,7 @@ class FlowTracker {
   explicit FlowTracker(TraceProcessorContext*);
   virtual ~FlowTracker();
 
-  void InsertFlow(SliceId outgoing_slice_id, SliceId incoming_slice_id);
+  void InsertFlow(SliceId slice_out_id, SliceId slice_in_id);
 
   // These methods assume you have created a FlowId via GetFlowIdForV1Event.
   // If you don't have a v1 event you should use the InsertFlow method above.
