@@ -74,7 +74,10 @@ util::Status DescriptorPool::AddExtensionField(
   auto field = CreateFieldFromDecoder(f_decoder, true);
 
   auto extendee_name = base::StringView(f_decoder.extendee()).ToStdString();
-  PERFETTO_CHECK(!extendee_name.empty());
+  if (extendee_name.empty()) {
+    return util::ErrStatus("Extendee name is empty");
+  }
+
   if (extendee_name[0] != '.') {
     // Only prepend if the extendee is not fully qualified
     extendee_name = package_name + "." + extendee_name;
