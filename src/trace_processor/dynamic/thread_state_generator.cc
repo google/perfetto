@@ -206,7 +206,16 @@ void ThreadStateGenerator::AddWakingEvent(
       waking.GetTypedColumnByName<int64_t>("ref")[waking_idx]);
   ThreadSchedInfo* info = &state_map[utid];
 
-  // As counter-intuitive as it seems, occassionally we can get a waking
+  // Occasionally, it is possible to get a waking event for a thread
+  // which is already in a runnable state. When this happens, we just
+  // ignore the waking event.
+  // See b/186509316 for details and an example on when this happens.
+  if (info->desched_end_state &&
+      *info->desched_end_state == runnable_string_id_) {
+    return;
+  }
+
+  // As counter-intuitive as it seems, occasionally we can get a waking
   // event for a thread which is currently running.
   //
   // There are two cases when this can happen:
