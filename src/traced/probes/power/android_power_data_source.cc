@@ -41,6 +41,7 @@ namespace perfetto {
 
 namespace {
 constexpr uint32_t kMinPollIntervalMs = 100;
+constexpr uint32_t kDefaultPollIntervalMs = 1000;
 constexpr size_t kMaxNumRails = 32;
 constexpr size_t kMaxNumEnergyConsumer = 32;
 constexpr size_t kMaxNumPowerEntities = 256;
@@ -149,6 +150,9 @@ AndroidPowerDataSource::AndroidPowerDataSource(
   rails_collection_enabled_ = pcfg.collect_power_rails();
   energy_breakdown_collection_enabled_ =
       pcfg.collect_energy_estimation_breakdown();
+
+  if (poll_interval_ms_ == 0)
+    poll_interval_ms_ = kDefaultPollIntervalMs;
 
   if (poll_interval_ms_ < kMinPollIntervalMs) {
     PERFETTO_ELOG("Battery poll interval of %" PRIu32
