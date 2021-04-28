@@ -311,6 +311,9 @@ class GnParser(object):
       self.proto_paths = set()
 
       self.sources = set()
+      # TODO(primiano): consider whether the public section should be part of
+      # bubbled-up sources.
+      self.public_headers = set()  # 'public'
 
       # These are valid only for type == 'action'
       self.inputs = set()
@@ -415,6 +418,14 @@ class GnParser(object):
       # Args are typically relative to the root build dir (../../xxx)
       # because root build dir is typically out/xxx/).
       target.args = [re.sub('^../../', '//', x) for x in desc['args']]
+
+    # Default for 'public' is //* - all headers in 'sources' are public.
+    # TODO(primiano): if a 'public' section is specified (even if empty), then
+    # the rest of 'sources' is considered inaccessible by gn. Consider
+    # emulating that, so that generated build files don't end up with overly
+    # accessible headers.
+    public_headers = [x for x in desc.get('public', []) if x != '*']
+    target.public_headers.update(public_headers)
 
     target.cflags.update(desc.get('cflags', []) + desc.get('cflags_cc', []))
     target.libs.update(desc.get('libs', []))
