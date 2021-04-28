@@ -132,9 +132,34 @@ void ThreadStateGenerator::AddSchedEvent(
   UniqueTid utid = sched.GetTypedColumnByName<uint32_t>("utid")[sched_idx];
   ThreadSchedInfo* info = &state_map[utid];
 
-  // Flush the info and reset so we don't have any leftover data on the next
-  // round.
-  FlushPendingEventsForThread(utid, *info, table, ts);
+  // Due to races in the kernel, it is possible for the same thread to be
+  // scheduled on different CPUs at the same time. This will manifest itself
+  // here by having |info->desched_ts| in the future of this scheduling slice
+  // (i.e. there was a scheduling slice in the past which ended after the start
+  // of the current scheduling slice).
+  //
+  // We work around this problem by truncating the previous slice to the start
+  // of this slice and not adding the descheduled slice (i.e. we don't call
+  // |FlushPendingEventsForThread| which adds this slice).
+  //
+  // See b/186509316 for details and an example on when this happens.
+  if (info->desched_ts && info->desched_ts.value() > ts) {
+    uint32_t prev_sched_row = info->scheduled_row.value();
+    int64_t prev_sched_start = table->ts()[prev_sched_row];
+
+    // Just a double check that descheduling slice would have started at the
+    // same time the scheduling slice would have ended.
+    PERFETTO_DCHECK(prev_sched_start + table->dur()[prev_sched_row] ==
+                    info->desched_ts.value());
+
+    // Truncate the duration of the old slice to end at the start of this
+    // scheduling slice.
+    table->mutable_dur()->Set(prev_sched_row, ts - prev_sched_start);
+  } else {
+    FlushPendingEventsForThread(utid, *info, table, ts);
+  }
+
+  // Reset so we don't have any leftover data on the next round.
   *info = {};
 
   // Undo the expansion of the final sched slice for each CPU to the end of the
@@ -155,7 +180,8 @@ void ThreadStateGenerator::AddSchedEvent(
   sched_row.cpu = sched.GetTypedColumnByName<uint32_t>("cpu")[sched_idx];
   sched_row.state = running_string_id_;
   sched_row.utid = utid;
-  table->Insert(sched_row);
+
+  auto id_and_row = table->Insert(sched_row);
 
   // If the sched row had a negative duration, don't add any descheduled slice
   // because it would be meaningless.
@@ -168,6 +194,7 @@ void ThreadStateGenerator::AddSchedEvent(
   info->desched_ts = ts + dur;
   info->desched_end_state =
       sched.GetTypedColumnByName<StringId>("end_state")[sched_idx];
+  info->scheduled_row = id_and_row.row;
 }
 
 void ThreadStateGenerator::AddWakingEvent(
