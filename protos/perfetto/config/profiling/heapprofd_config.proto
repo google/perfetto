@@ -19,7 +19,7 @@ syntax = "proto2";
 package perfetto.protos;
 
 // Configuration for go/heapprofd.
-// Next id: 26
+// Next id: 27
 message HeapprofdConfig {
   message ContinuousDumpConfig {
     // ms to wait before first dump.
@@ -66,6 +66,14 @@ message HeapprofdConfig {
 
   // For watermark based triggering or local debugging.
   repeated uint64 pid = 4;
+
+  // Only profile target if it was installed by one of the packages given.
+  // Special values are:
+  // * @system: installed on the system partition
+  // * @product: installed on the product partition
+  // * @null: sideloaded
+  // Supported on Android 12+.
+  repeated string target_installed_by = 26;
 
   // Which heaps to sample, e.g. "libc.malloc". If left empty, only samples
   // "malloc".

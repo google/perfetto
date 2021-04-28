@@ -19,6 +19,7 @@
 
 #include <functional>
 #include <string>
+#include <vector>
 
 #include <inttypes.h>
 #include <linux/perf_event.h>
@@ -110,6 +111,9 @@ class EventConfig {
     return const_cast<perf_event_attr*>(&perf_event_attr_);
   }
   const PerfCounter& timebase_event() const { return timebase_event_; }
+  const std::vector<std::string>& target_installed_by() const {
+    return target_installed_by_;
+  }
   const DataSourceConfig& raw_ds_config() const { return raw_ds_config_; }
 
  private:
@@ -124,7 +128,8 @@ class EventConfig {
               uint64_t samples_per_tick_limit,
               uint32_t remote_descriptor_timeout_ms,
               uint32_t unwind_state_clear_period_ms,
-              uint64_t max_enqueued_footprint_bytes);
+              uint64_t max_enqueued_footprint_bytes,
+              std::vector<std::string> target_installed_by);
 
   // Parameter struct for the leader (timebase) perf_event_open syscall.
   perf_event_attr perf_event_attr_ = {};
@@ -163,6 +168,13 @@ class EventConfig {
   const uint32_t unwind_state_clear_period_ms_;
 
   const uint64_t max_enqueued_footprint_bytes_;
+
+  // Only profile target if it was installed by one of the packages given.
+  // Special values are:
+  // * @system: installed on the system partition
+  // * @product: installed on the product partition
+  // * @null: sideloaded
+  const std::vector<std::string> target_installed_by_;
 
   // The raw data source config, as a pbzero-generated C++ class.
   const DataSourceConfig raw_ds_config_;
