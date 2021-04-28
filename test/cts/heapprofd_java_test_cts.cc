@@ -128,7 +128,7 @@ TEST(HeapprofdJavaCtsTest, ReleaseAppRuntime) {
   std::string app_name = "android.perfetto.cts.app.release";
   const auto& packets = ProfileRuntime(app_name);
 
-  if (IsDebuggableBuild())
+  if (!IsUserBuild())
     AssertGraphPresent(packets);
   else
     AssertNoProfileContents(packets);
