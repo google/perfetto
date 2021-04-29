@@ -58,8 +58,7 @@ std::string RandomSessionName() {
 }
 
 std::vector<protos::gen::TracePacket> ProfileRuntime(
-    const std::string& app_name,
-    const bool enable_extra_guardrails = false) {
+    const std::string& app_name) {
   base::TestTaskRunner task_runner;
 
   // (re)start the target app's main activity
@@ -79,7 +78,6 @@ std::vector<protos::gen::TracePacket> ProfileRuntime(
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(10 * 1024);
   trace_config.set_duration_ms(4000);
-  trace_config.set_enable_extra_guardrails(enable_extra_guardrails);
   trace_config.set_unique_session_name(RandomSessionName().c_str());
 
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
@@ -211,30 +209,6 @@ TEST(HeapprofdCtsTest, ProfileableAppStartup) {
   std::string app_name = "android.perfetto.cts.app.profileable";
   const auto& packets = ProfileStartup(app_name);
   AssertExpectedAllocationsPresent(packets);
-  StopApp(app_name);
-}
-
-TEST(HeapprofdCtsTest, ProfileableAppRuntimeExtraGuardrails) {
-  std::string app_name = "android.perfetto.cts.app.profileable";
-  const auto& packets = ProfileRuntime(app_name,
-                                       /*enable_extra_guardrails=*/true);
-
-  if (IsUserBuild())
-    AssertNoProfileContents(packets);
-  else
-    AssertExpectedAllocationsPresent(packets);
-  StopApp(app_name);
-}
-
-TEST(HeapprofdCtsTest, ProfileableAppStartupExtraGuardrails) {
-  std::string app_name = "android.perfetto.cts.app.profileable";
-  const auto& packets = ProfileStartup(app_name,
-                                       /*enable_extra_guardrails=*/
-                                       true);
-  if (IsUserBuild())
-    AssertNoProfileContents(packets);
-  else
-    AssertExpectedAllocationsPresent(packets);
   StopApp(app_name);
 }
 

@@ -57,9 +57,7 @@ std::string RandomSessionName() {
   return result;
 }
 
-std::vector<protos::gen::TracePacket> ProfileSystemWide(
-    std::string app_name,
-    bool enable_extra_guardrails = false) {
+std::vector<protos::gen::TracePacket> ProfileSystemWide(std::string app_name) {
   base::TestTaskRunner task_runner;
 
   // (re)start the target app's main activity
@@ -81,7 +79,6 @@ std::vector<protos::gen::TracePacket> ProfileSystemWide(
   trace_config.add_buffers()->set_size_kb(20 * 1024);
   trace_config.set_duration_ms(3000);
   trace_config.set_data_source_stop_timeout_ms(8000);
-  trace_config.set_enable_extra_guardrails(enable_extra_guardrails);
   trace_config.set_unique_session_name(RandomSessionName().c_str());
 
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
@@ -173,24 +170,6 @@ TEST(TracedPerfCtsTest, SystemWideDebuggableApp) {
   StopApp(app_name);
 }
 
-TEST(TracedPerfCtsTest, SystemWideDebuggableAppExtraGuardrails) {
-  if (!HasPerfLsmHooks())
-    GTEST_SKIP() << "skipped due to lack of perf_event_open LSM hooks";
-
-  std::string app_name = "android.perfetto.cts.app.debuggable";
-  const auto& packets =
-      ProfileSystemWide(app_name, /*enable_extra_guardrails=*/true);
-  int app_pid = PidForProcessName(app_name);
-  ASSERT_GT(app_pid, 0) << "failed to find pid for target process";
-
-  if (!IsUserBuild())
-    AssertHasSampledStacksForPid(packets, app_pid);
-  else
-    AssertNoStacksForPid(packets, app_pid);
-  PERFETTO_CHECK(IsAppRunning(app_name));
-  StopApp(app_name);
-}
-
 TEST(TracedPerfCtsTest, SystemWideProfileableApp) {
   if (!HasPerfLsmHooks())
     GTEST_SKIP() << "skipped due to lack of perf_event_open LSM hooks";
@@ -205,49 +184,12 @@ TEST(TracedPerfCtsTest, SystemWideProfileableApp) {
   StopApp(app_name);
 }
 
-TEST(TracedPerfCtsTest, SystemWideProfileableAppExtraGuardrails) {
-  if (!HasPerfLsmHooks())
-    GTEST_SKIP() << "skipped due to lack of perf_event_open LSM hooks";
-
-  std::string app_name = "android.perfetto.cts.app.profileable";
-  const auto& packets =
-      ProfileSystemWide(app_name, /*enable_extra_guardrails=*/true);
-  int app_pid = PidForProcessName(app_name);
-  ASSERT_GT(app_pid, 0) << "failed to find pid for target process";
-
-  if (!IsUserBuild())
-    AssertHasSampledStacksForPid(packets, app_pid);
-  else
-    AssertNoStacksForPid(packets, app_pid);
-  PERFETTO_CHECK(IsAppRunning(app_name));
-  StopApp(app_name);
-}
-
 TEST(TracedPerfCtsTest, SystemWideReleaseApp) {
   if (!HasPerfLsmHooks())
     GTEST_SKIP() << "skipped due to lack of perf_event_open LSM hooks";
 
   std::string app_name = "android.perfetto.cts.app.release";
   const auto& packets = ProfileSystemWide(app_name);
-  int app_pid = PidForProcessName(app_name);
-  ASSERT_GT(app_pid, 0) << "failed to find pid for target process";
-
-  if (!IsUserBuild())
-    AssertHasSampledStacksForPid(packets, app_pid);
-  else
-    AssertNoStacksForPid(packets, app_pid);
-
-  PERFETTO_CHECK(IsAppRunning(app_name));
-  StopApp(app_name);
-}
-
-TEST(TracedPerfCtsTest, SystemWideReleaseAppExtraGuardrails) {
-  if (!HasPerfLsmHooks())
-    GTEST_SKIP() << "skipped due to lack of perf_event_open LSM hooks";
-
-  std::string app_name = "android.perfetto.cts.app.release";
-  const auto& packets =
-      ProfileSystemWide(app_name, /*enable_extra_guardrails=*/true);
   int app_pid = PidForProcessName(app_name);
   ASSERT_GT(app_pid, 0) << "failed to find pid for target process";
 

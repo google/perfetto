@@ -936,7 +936,8 @@ void HeapprofdProducer::HandleClientConnection(
   // In fork mode, right now we check whether the target is not profileable
   // in the client, because we cannot read packages.list there.
   if (mode_ == HeapprofdMode::kCentral &&
-      !CanProfile(data_source->ds_config, new_connection->peer_uid_posix())) {
+      !CanProfile(data_source->ds_config, new_connection->peer_uid_posix(),
+                  data_source->config.target_installed_by())) {
     PERFETTO_ELOG("%d (%s) is not profileable.", process.pid,
                   process.cmdline.c_str());
     return;
