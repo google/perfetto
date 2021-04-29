@@ -1005,7 +1005,7 @@ void FtraceParser::ParseSignalDeliver(int64_t timestamp,
 }
 
 void FtraceParser::ParseLowmemoryKill(int64_t timestamp, ConstBytes blob) {
-  // TODO(taylori): Store the pagecache_size, pagecache_limit and free fields
+  // TODO(hjd): Store the pagecache_size, pagecache_limit and free fields
   // in an args table
   protos::pbzero::LowmemoryKillFtraceEvent::Decoder lmk(blob.data, blob.size);
 

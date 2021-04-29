@@ -210,7 +210,7 @@ export class HeapProfileController extends Controller<'main'> {
     if (this.flamegraphDatasets.has(key)) {
       currentData = this.flamegraphDatasets.get(key)!;
     } else {
-      // TODO(taylori): Show loading state.
+      // TODO(hjd): Show loading state.
 
       // Collecting data for drawing flamegraph for selected heap profile.
       // Data needs to be in following format:
