@@ -208,7 +208,7 @@ const FlagArray* GetBitmaskVersion(VersionNumber version = VersionNumber{4,
   } else if (version >= VersionNumber{4, 4} && version < VersionNumber{4, 14}) {
     return &v4_4;
   } else {  // version >= 4.14
-    // TODO(taylori): Add newer kernel versions once we have access to them.
+    // TODO(hjd): Add newer kernel versions once we have access to them.
     return &v4_14;
   }
 }
