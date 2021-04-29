@@ -166,7 +166,7 @@ export abstract class AggregationController extends Controller<'main'> {
   }
 
   columnFromColumnDef(def: ColumnDef, numRows: number): Column {
-    // TODO(taylori): The Column type should be based on the
+    // TODO(hjd): The Column type should be based on the
     // ColumnDef type or vice versa to avoid this cast.
     return {
       title: def.title,
