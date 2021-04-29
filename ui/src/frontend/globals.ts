@@ -15,6 +15,7 @@
 import {assertExists} from '../base/logging';
 import {DeferredAction} from '../common/actions';
 import {AggregateData} from '../common/aggregation_data';
+import {Args, ArgsTree} from '../common/arg_types';
 import {MetricResult} from '../common/metric_data';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
 import {CallsiteInfo, createEmptyState, State} from '../common/state';
@@ -30,8 +31,6 @@ type TrackDataStore = Map<string, {}>;
 type QueryResultsStore = Map<string, {}>;
 type AggregateDataStore = Map<string, AggregateData>;
 type Description = Map<string, string>;
-export type Arg = string|{kind: 'SLICE', trackId: string, sliceId: number};
-export type Args = Map<string, Arg>;
 export interface SliceDetails {
   ts?: number;
   dur?: number;
@@ -47,6 +46,7 @@ export interface SliceDetails {
   category?: string;
   name?: string;
   args?: Args;
+  argsTree?: ArgsTree;
   description?: Description;
 }
 
