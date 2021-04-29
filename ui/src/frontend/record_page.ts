@@ -22,6 +22,7 @@ import {
   AdbRecordingTarget,
   getBuiltinChromeCategoryList,
   getDefaultRecordingTargets,
+  hasActiveProbes,
   isAdbTarget,
   isAndroidP,
   isAndroidTarget,
@@ -1045,6 +1046,15 @@ function RecordingNotes() {
       m('a',
         {href: cmdlineUrl, target: '_blank'},
         `collect the trace using ADB.`));
+
+  const msgZeroProbes =
+      m('.note',
+        'It looks like you didn\'t add any probes. ' +
+            'Please add at least one to get a non-empty trace.');
+
+  if (!hasActiveProbes(globals.state.recordConfig)) {
+    notes.push(msgZeroProbes);
+  }
 
   if (isAdbTarget(globals.state.recordingTarget)) {
     notes.push(msgRecordingNotSupported);
