@@ -69,6 +69,20 @@ bool ReadPackagesListLine(char* line, Package* package) {
         package->version_code = version_code;
         break;
       }
+      case 8: {
+        char* end;
+        long long profileable = strtoll(ss.cur_token(), &end, 10);
+        if ((*end != '\0' && *end != '\n') || *ss.cur_token() == '\0') {
+          PERFETTO_ELOG("Failed to parse packages.list profileable.");
+          return false;
+        }
+        package->profileable = profileable != 0;
+        break;
+      }
+      case 9:
+        package->installed_by =
+            std::string(ss.cur_token(), ss.cur_token_size());
+        break;
     }
     ++idx;
   }
