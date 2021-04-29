@@ -36,7 +36,7 @@ package perfetto.protos;
 //     }
 //   }
 //
-// Next id: 18
+// Next id: 19
 message PerfEventConfig {
   // What event to sample on, and how often.
   // Defined in common/perf_events.proto.
@@ -107,6 +107,14 @@ message PerfEventConfig {
   optional bool kernel_frames = 12;
   repeated int32 target_pid = 4;
   repeated string target_cmdline = 5;
+
+  // Only profile target if it was installed by one of the packages given.
+  // Special values are:
+  // * @system: installed on the system partition
+  // * @product: installed on the product partition
+  // * @null: sideloaded
+  // Supported on Android 12+.
+  repeated string target_installed_by = 18;
   repeated int32 exclude_pid = 6;
   repeated string exclude_cmdline = 7;
   optional uint32 additional_cmdline_count = 11;

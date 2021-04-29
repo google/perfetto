@@ -20,6 +20,7 @@
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/tracing/core/data_source_config.h"
 
+#include "perfetto/tracing/core/forward_decls.h"
 #include "src/traced/probes/packages_list/packages_list_parser.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
@@ -29,7 +30,9 @@
 namespace perfetto {
 namespace profiling {
 
-bool CanProfile(const DataSourceConfig& ds_config, uint64_t uid) {
+bool CanProfile(const DataSourceConfig& ds_config,
+                uint64_t uid,
+                const std::vector<std::string>& installed_by) {
 // We restrict by !PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD) because a
 // sideloaded heapprofd should not be restricted by this. Do note though that,
 // at the moment, there isn't really a way to sideload a functioning heapprofd
@@ -38,18 +41,20 @@ bool CanProfile(const DataSourceConfig& ds_config, uint64_t uid) {
     !PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   base::ignore_result(ds_config);
   base::ignore_result(uid);
+  base::ignore_result(installed_by);
   return true;
 #else
   char buf[PROP_VALUE_MAX + 1] = {};
   int ret = __system_property_get("ro.build.type", buf);
   PERFETTO_CHECK(ret >= 0);
-  return CanProfileAndroid(ds_config, uid, std::string(buf),
+  return CanProfileAndroid(ds_config, uid, installed_by, std::string(buf),
                            "/data/system/packages.list");
 #endif
 }
 
 bool CanProfileAndroid(const DataSourceConfig& ds_config,
                        uint64_t uid,
+                       const std::vector<std::string>& installed_by,
                        const std::string& build_type,
                        const std::string& packages_list_path) {
   // These are replicated constants from libcutils android_filesystem_config.h
@@ -59,10 +64,6 @@ bool CanProfileAndroid(const DataSourceConfig& ds_config,
 
   if (build_type != "user") {
     return true;
-  }
-
-  if (ds_config.enable_extra_guardrails()) {
-    return false;  // no extra guardrails on user builds.
   }
 
   uint64_t uid_without_profile = uid % kAidUserOffset;
@@ -82,11 +83,28 @@ bool CanProfileAndroid(const DataSourceConfig& ds_config,
       PERFETTO_ELOG("Failed to parse packages.list.");
       return false;
     }
-    if (pkg.uid == uid_without_profile &&
-        (pkg.profileable_from_shell || pkg.debuggable)) {
-      return true;
+    if (pkg.uid != uid_without_profile)
+      continue;
+    if (!installed_by.empty()) {
+      if (pkg.installed_by.empty()) {
+        PERFETTO_ELOG(
+            "installed_by given in TraceConfig, but cannot parse "
+            "installer from packages.list.");
+        return false;
+      }
+      if (std::find(installed_by.cbegin(), installed_by.cend(),
+                    pkg.installed_by) == installed_by.cend()) {
+        return false;
+      }
+    }
+    switch (ds_config.session_initiator()) {
+      case DataSourceConfig::SESSION_INITIATOR_UNSPECIFIED:
+        return pkg.profileable_from_shell || pkg.debuggable;
+      case DataSourceConfig::SESSION_INITIATOR_STATSD:
+        return pkg.profileable || pkg.debuggable;
     }
   }
+  // Did not find package.
   return false;
 }
 

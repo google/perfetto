@@ -40,6 +40,14 @@ message JavaHprofConfig {
   // For watermark based triggering or local debugging.
   repeated uint64 pid = 2;
 
+  // Only profile target if it was installed by one of the packages given.
+  // Special values are:
+  // * @system: installed on the system partition
+  // * @product: installed on the product partition
+  // * @null: sideloaded
+  // Supported on Android 12+.
+  repeated string target_installed_by = 7;
+
   // Dump at a predefined interval.
   optional ContinuousDumpConfig continuous_dump_config = 3;
 
