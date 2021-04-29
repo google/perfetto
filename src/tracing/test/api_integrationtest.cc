@@ -125,9 +125,8 @@ struct std::hash<SourceLocation> {
 // Represents an opaque (from Perfetto's point of view) thread identifier (e.g.,
 // base::PlatformThreadId in Chromium).
 struct MyThreadId {
-  MyThreadId(int pid_, int tid_) : pid(pid_), tid(tid_) {}
+  explicit MyThreadId(int tid_) : tid(tid_) {}
 
-  const int pid = 0;
   const int tid = 0;
 };
 
@@ -143,23 +142,9 @@ namespace perfetto {
 namespace legacy {
 
 template <>
-bool ConvertThreadId(const MyThreadId& thread,
-                     uint64_t* track_uuid_out,
-                     int32_t* pid_override_out,
-                     int32_t* tid_override_out) {
-  if (!thread.pid && !thread.tid)
-    return false;
-  if (!thread.pid) {
-    // Thread in current process.
-    *track_uuid_out = perfetto::ThreadTrack::ForThread(
-                          static_cast<base::PlatformThreadId>(thread.tid))
-                          .uuid;
-  } else {
-    // Thread in another process.
-    *pid_override_out = thread.pid;
-    *tid_override_out = thread.tid;
-  }
-  return true;
+ThreadTrack ConvertThreadId(const MyThreadId& thread) {
+  return perfetto::ThreadTrack::ForThread(
+      static_cast<base::PlatformThreadId>(thread.tid));
 }
 
 }  // namespace legacy
@@ -1486,6 +1471,80 @@ TEST_P(PerfettoApiTest, TrackEventCustomTrack) {
   EXPECT_TRUE(found_descriptor);
   EXPECT_EQ(4, event_count);
   perfetto::TrackEvent::EraseTrackDescriptor(track);
+}
+
+TEST_P(PerfettoApiTest, LegacyEventWithThreadOverride) {
+  // Create a new trace session.
+  auto* tracing_session = NewTraceWithCategories({"cat"});
+  tracing_session->get()->StartBlocking();
+
+  TRACE_EVENT_BEGIN_WITH_ID_TID_AND_TIMESTAMP0("cat", "Name", 1,
+                                               MyThreadId(456), MyTimestamp{0});
+  perfetto::TrackEvent::Flush();
+  tracing_session->get()->StopBlocking();
+
+  std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
+  perfetto::protos::gen::Trace trace;
+  ASSERT_TRUE(trace.ParseFromArray(raw_trace.data(), raw_trace.size()));
+
+  // Check that we wrote a track descriptor for the custom thread track, and
+  // that the event was associated with that track.
+  const auto track = perfetto::ThreadTrack::ForThread(456);
+  bool found_descriptor = false;
+  bool found_event = false;
+  for (const auto& packet : trace.packet()) {
+    if (packet.has_track_descriptor() &&
+        packet.track_descriptor().has_thread()) {
+      auto td = packet.track_descriptor().thread();
+      if (td.tid() == 456) {
+        EXPECT_EQ(track.uuid, packet.track_descriptor().uuid());
+        found_descriptor = true;
+      }
+    }
+
+    if (!packet.has_track_event())
+      continue;
+    auto track_event = packet.track_event();
+    if (track_event.legacy_event().phase() == TRACE_EVENT_PHASE_ASYNC_BEGIN) {
+      EXPECT_EQ(track.uuid, track_event.track_uuid());
+      found_event = true;
+    }
+  }
+  EXPECT_TRUE(found_descriptor);
+  EXPECT_TRUE(found_event);
+  perfetto::TrackEvent::EraseTrackDescriptor(track);
+}
+
+TEST_P(PerfettoApiTest, LegacyEventWithProcessOverride) {
+  // Create a new trace session.
+  auto* tracing_session = NewTraceWithCategories({"cat"});
+  tracing_session->get()->StartBlocking();
+
+  // Note: there's no direct entrypoint for adding trace events for another
+  // process, so we're using the internal support macro here.
+  INTERNAL_TRACE_EVENT_ADD_WITH_ID_TID_AND_TIMESTAMP(
+      TRACE_EVENT_PHASE_INSTANT, "cat", "Name", 0, MyThreadId{789},
+      MyTimestamp{0}, TRACE_EVENT_FLAG_HAS_PROCESS_ID);
+  perfetto::TrackEvent::Flush();
+  tracing_session->get()->StopBlocking();
+
+  std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
+  perfetto::protos::gen::Trace trace;
+  ASSERT_TRUE(trace.ParseFromArray(raw_trace.data(), raw_trace.size()));
+
+  // Check that the event has a pid_override matching MyThread above.
+  bool found_event = false;
+  for (const auto& packet : trace.packet()) {
+    if (!packet.has_track_event())
+      continue;
+    auto track_event = packet.track_event();
+    if (track_event.type() == perfetto::protos::gen::TrackEvent::TYPE_INSTANT) {
+      EXPECT_EQ(789, track_event.legacy_event().pid_override());
+      EXPECT_EQ(-1, track_event.legacy_event().tid_override());
+      found_event = true;
+    }
+  }
+  EXPECT_TRUE(found_event);
 }
 
 TEST_P(PerfettoApiTest, TrackDescriptorWrittenBeforeEvent) {
@@ -3193,7 +3252,7 @@ TEST_P(PerfettoApiTest, LegacyTraceEvents) {
   // Event with id, thread id and timestamp (and dynamic name).
   TRACE_EVENT_COPY_BEGIN_WITH_ID_TID_AND_TIMESTAMP0(
       "cat", std::string("LegacyWithIdTidAndTimestamp").c_str(), 1,
-      MyThreadId(123, 456), MyTimestamp{3});
+      MyThreadId(123), MyTimestamp{3});
 
   // Event with id.
   TRACE_COUNTER1("cat", "LegacyCounter", 1234);
@@ -3214,9 +3273,9 @@ TEST_P(PerfettoApiTest, LegacyTraceEvents) {
           "B(bind_id=3671771902)(flow_direction=1):disabled-by-default-cat."
           "LegacyFlowEvent",
           "[track=0]I:cat.LegacyInstantEvent",
-          "[track=0]Legacy_S(unscoped_id=1)(pid_override=123)(tid_override=456)"
-          ":cat."
-          "LegacyWithIdTidAndTimestamp",
+          std::string("[track=") +
+              std::to_string(perfetto::ThreadTrack::ForThread(123).uuid) +
+              "]Legacy_S(unscoped_id=1):cat.LegacyWithIdTidAndTimestamp",
           "Legacy_C:cat.LegacyCounter(value=(int)1234)",
           "Legacy_C(unscoped_id=1234):cat.LegacyCounterWithId(value=(int)9000)",
           "Legacy_M:cat.LegacyMetadata"));
