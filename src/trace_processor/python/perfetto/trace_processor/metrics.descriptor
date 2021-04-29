@@ -56,12 +56,21 @@ avgFreqKhze
 threads (2(.perfetto.protos.AndroidCpuMetric.ThreadRthreads>
 core (2*.perfetto.protos.AndroidCpuMetric.CoreDataRcoreK
 	core_type (2..perfetto.protos.AndroidCpuMetric.CoreTypeDataRcoreTypeJ
-‰
-5protos/perfetto/metrics/android/display_metrics.protoperfetto.protos"¾
+·
+5protos/perfetto/metrics/android/display_metrics.protoperfetto.protos"ì
 AndroidDisplayMetrics4
 total_duplicate_frames (RtotalDuplicateFrames6
 duplicate_frames_logged (RduplicateFramesLogged7
-total_dpu_underrun_count (RtotalDpuUnderrunCount
+total_dpu_underrun_count (RtotalDpuUnderrunCount2
+refresh_rate_switches (RrefreshRateSwitchesd
+refresh_rate_stats (26.perfetto.protos.AndroidDisplayMetrics.RefreshRateStatRrefreshRateStats‘
+RefreshRateStat(
+refresh_rate_fps (RrefreshRateFps
+count (Rcount 
+total_dur_ms (R
+totalDurMs
+
+avg_dur_ms (RavgDurMs
 ˆ
 5protos/perfetto/metrics/android/dma_heap_metric.protoperfetto.protos"½
 AndroidDmaHeapMetric$
