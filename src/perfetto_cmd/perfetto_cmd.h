@@ -76,7 +76,7 @@ class PerfettoCmd : public Consumer {
   void CheckTraceDataTimeout();
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-  static base::ScopedFile CreateUnlikedTmpFile();
+  static base::ScopedFile CreateUnlinkedTmpFile();
   void SaveTraceIntoDropboxAndIncidentOrCrash();
   void SaveOutputToIncidentTraceOrCrash();
 #endif

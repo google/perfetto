@@ -928,7 +928,7 @@ bool PerfettoCmd::OpenOutputFile() {
   base::ScopedFile fd;
   if (trace_out_path_.empty()) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-    fd = CreateUnlikedTmpFile();
+    fd = CreateUnlinkedTmpFile();
 #endif
   } else if (trace_out_path_ == "-") {
     fd.reset(dup(fileno(stdout)));
