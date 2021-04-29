@@ -2183,6 +2183,25 @@ TEST_P(PerfettoApiTest, TrackEventDefaultGlobalTrack) {
               ElementsAre("I:test.ThreadEvent", "[track=0]I:test.GlobalEvent"));
 }
 
+TEST_P(PerfettoApiTest, TrackEventTrackFromPointer) {
+  // Create a new trace session.
+  auto* tracing_session = NewTraceWithCategories({"test"});
+  tracing_session->get()->StartBlocking();
+
+  perfetto::Track parent_track(1);
+  int* ptr = reinterpret_cast<int*>(2);
+  TRACE_EVENT_INSTANT("test", "Event",
+                      perfetto::Track::FromPointer(ptr, parent_track));
+  perfetto::TrackEvent::Flush();
+
+  perfetto::Track track(reinterpret_cast<uintptr_t>(ptr), parent_track);
+
+  tracing_session->get()->StopBlocking();
+  auto slices = ReadSlicesFromTrace(tracing_session->get());
+  EXPECT_THAT(slices, ElementsAre("[track=" + std::to_string(track.uuid) +
+                                  "]I:test.Event"));
+}
+
 TEST_P(PerfettoApiTest, TrackEventDebugAnnotations) {
   // Create a new trace session.
   auto* tracing_session = NewTraceWithCategories({"test"});
