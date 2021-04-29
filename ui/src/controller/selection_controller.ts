@@ -12,20 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Arg, Args} from '../common/arg_types';
 import {Engine} from '../common/engine';
 import {slowlyCountRows} from '../common/query_iterator';
 import {ChromeSliceSelection} from '../common/state';
 import {translateState} from '../common/thread_state';
 import {fromNs, toNs} from '../common/time';
 import {
-  Arg,
-  Args,
   CounterDetails,
   SliceDetails,
   ThreadStateDetails
 } from '../frontend/globals';
 import {SLICE_TRACK_KIND} from '../tracks/chrome_slices/common';
 
+import {parseArgs} from './args_parser';
 import {Controller} from './controller';
 import {globals} from './globals';
 
@@ -113,6 +113,7 @@ export class SelectionController extends Controller<'main'> {
       const descriptionAsync = this.describeSlice(describeId);
       const [args, description] =
           await Promise.all([argsAsync, descriptionAsync]);
+      const argsTree = parseArgs(args);
       const selected: SliceDetails = {
         ts: timeFromStart,
         dur,
@@ -120,6 +121,7 @@ export class SelectionController extends Controller<'main'> {
         name,
         id: selectedId,
         args,
+        argsTree,
         description,
       };
       globals.publish('SliceDetails', selected);
