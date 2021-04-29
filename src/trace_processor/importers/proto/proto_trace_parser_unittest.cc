@@ -383,7 +383,7 @@ TEST_F(ProtoTraceParserTest, LoadEventsIntoRaw) {
   ASSERT_EQ(args.int_value()[4], 20);
   ASSERT_STREQ(args.string_value().GetString(5).c_str(), buf_value);
 
-  // TODO(taylori): Add test ftrace event with all field types
+  // TODO(hjd): Add test ftrace event with all field types
   // and test here.
 }
 

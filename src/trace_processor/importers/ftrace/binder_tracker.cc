@@ -106,7 +106,7 @@ void BinderTracker::Transaction(int64_t ts,
                                  base::StringView(flag_str))));
     inserter->AddArg(code_, Variadic::String(code));
     inserter->AddArg(calling_tid_, Variadic::UnsignedInteger(tid));
-    // TODO(taylori): The legacy UI included the calling pid in the args,
+    // TODO(hjd): The legacy UI included the calling pid in the args,
     // is this necessary? It's complicated in our case because process
     // association might not happen until after the binder transaction slices
     // have been parsed. We would need to backfill the arg.

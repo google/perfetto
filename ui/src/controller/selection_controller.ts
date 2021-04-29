@@ -176,7 +176,7 @@ export class SelectionController extends Controller<'main'> {
     where slice_id = ${sliceId}`;
     const destResult = await this.args.engine.query(trackIdQuery);
     const trackIdTp = destResult.columns[0].longValues![0];
-    // TODO(taylori): If we had a consistent mapping from TP track_id
+    // TODO(hjd): If we had a consistent mapping from TP track_id
     // UI track id for slice tracks this would be unnecessary.
     let trackId = '';
     for (const track of Object.values(globals.state.tracks)) {

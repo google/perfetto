@@ -154,7 +154,7 @@ class TrackDecider {
     for (const cpu of cpus) {
       // Only add a cpu freq track if we have
       // cpu freq data.
-      // TODO(taylori): Find a way to display cpu idle
+      // TODO(hjd): Find a way to display cpu idle
       // events even if there are no cpu freq events.
       const cpuFreqIdle = await this.engine.query(`
       select
