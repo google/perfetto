@@ -139,7 +139,7 @@ export class NotesPanel extends Panel {
     }
 
     // A real note is hovered so we don't need to see the preview line.
-    // TODO(taylori): Change cursor to pointer here.
+    // TODO(hjd): Change cursor to pointer here.
     if (aNoteIsHovered) globals.frontendLocalState.setHoveredNoteTimestamp(-1);
 
     // View preview note flag when hovering on notes panel.

@@ -246,7 +246,7 @@ export function genConfig(
 
   let heapprofd: HeapprofdConfig|undefined = undefined;
   if (uiCfg.heapProfiling) {
-    // TODO(taylori): Check or inform user if buffer size are too small.
+    // TODO(hjd): Check or inform user if buffer size are too small.
     const cfg = new HeapprofdConfig();
     cfg.samplingIntervalBytes = uiCfg.hpSamplingIntervalBytes;
     if (uiCfg.hpSharedMemoryBuffer >= 8192 &&

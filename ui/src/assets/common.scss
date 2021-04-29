@@ -367,7 +367,7 @@ button.close {
   overflow-x: hidden;
   overflow-y: auto;
   flex: 1 1 auto;
-  // TODO(taylori): This causes the sticky header to flicker when scrolling.
+  // TODO(hjd): This causes the sticky header to flicker when scrolling.
   // Is will-change necessary in the details panel?
   // will-change: transform;
   display: grid;

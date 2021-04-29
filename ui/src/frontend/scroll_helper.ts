@@ -29,7 +29,7 @@ export function horizontalScrollToTs(ts: number) {
   const endNs = toNs(globals.frontendLocalState.visibleWindowTime.end);
   const currentViewNs = endNs - startNs;
   if (ts < startNs || ts > endNs) {
-    // TODO(taylori): This is an ugly jump, we should do a smooth pan instead.
+    // TODO(hjd): This is an ugly jump, we should do a smooth pan instead.
     globals.frontendLocalState.updateVisibleTime(new TimeSpan(
         fromNs(ts - currentViewNs / 2), fromNs(ts + currentViewNs / 2)));
   }
