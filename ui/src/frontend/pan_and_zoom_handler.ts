@@ -279,7 +279,7 @@ export class PanAndZoomHandler {
     handleKey(e, false);
   }
 
-  // TODO(taylori): Move this shift handling into the viewer page.
+  // TODO(hjd): Move this shift handling into the viewer page.
   private updateShift(down: boolean) {
     if (down === this.shiftDown) return;
     this.shiftDown = down;
