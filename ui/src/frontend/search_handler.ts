@@ -61,7 +61,7 @@ export function executeSearch(reverse = false) {
   }
   selectCurrentSearchResult();
 
-  // TODO(taylori): If the user does a search before any other selection,
+  // TODO(hjd): If the user does a search before any other selection,
   // the details panel will pop up when the search is executed. If the search
   // result is behind where the details panel appears then it won't get scrolled
   // to. This time delay is a workaround for this specific situation.

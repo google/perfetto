@@ -31,7 +31,7 @@ export class CounterAggregationController extends AggregationController {
       // Track will be undefined for track groups.
       if (track !== undefined && track.kind === COUNTER_TRACK_KIND) {
         const config = track.config as Config;
-        // TODO(taylori): Also aggregate annotation (with namespace) counters.
+        // TODO(hjd): Also aggregate annotation (with namespace) counters.
         if (config.namespace === undefined) {
           ids.push(config.trackId);
         }
