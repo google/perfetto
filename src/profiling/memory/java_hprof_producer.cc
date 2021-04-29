@@ -69,7 +69,8 @@ void JavaHprofProducer::SignalDataSource(const DataSource& ds) {
           pid);
       continue;
     }
-    if (!CanProfile(ds.ds_config, uids->effective)) {
+    if (!CanProfile(ds.ds_config, uids->effective,
+                    ds.config.target_installed_by())) {
       PERFETTO_ELOG("%d (UID %" PRIu64 ") not profileable.", pid,
                     uids->effective);
       continue;
