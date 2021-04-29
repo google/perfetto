@@ -366,6 +366,17 @@ export function isAdbTarget(target: RecordingTarget):
   return false;
 }
 
+export function hasActiveProbes(config: RecordConfig) {
+  const fieldsWithEmptyResult = new Set<string>(['hpBlockClient']);
+  for (const key in config) {
+    if (typeof (config[key]) === 'boolean' && config[key] === true &&
+        !fieldsWithEmptyResult.has(key)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export interface RecordConfig {
   [key: string]: null|number|boolean|string|string[];
 
