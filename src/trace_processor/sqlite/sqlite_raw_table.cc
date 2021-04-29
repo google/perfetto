@@ -602,7 +602,7 @@ void SystraceSerializer::SerializePrefix(uint32_t raw_row,
   } else if (name.empty()) {
     name = "<unknown>";
   } else if (name == "CrRendererMain") {
-    // TODO(taylori): Remove this when crbug.com/978093 is fixed or
+    // TODO(hjd): Remove this when crbug.com/978093 is fixed or
     // when a better solution is found.
     name = "CrRendererMainThread";
   }
