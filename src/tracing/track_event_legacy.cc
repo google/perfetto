@@ -22,12 +22,11 @@ namespace perfetto {
 namespace legacy {
 
 template <>
-bool ConvertThreadId(const PerfettoLegacyCurrentThreadId&,
-                     uint64_t*,
-                     int32_t*,
-                     int32_t*) {
-  // No need to override anything for events on to the current thread.
-  return false;
+ThreadTrack ConvertThreadId(const PerfettoLegacyCurrentThreadId&) {
+  // Because of the short-circuit in PERFETTO_INTERNAL_LEGACY_EVENT, we should
+  // never get here.
+  PERFETTO_DCHECK(false);
+  return ThreadTrack::Current();
 }
 
 }  // namespace legacy
