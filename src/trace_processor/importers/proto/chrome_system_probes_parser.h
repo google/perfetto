@@ -33,7 +33,7 @@ class ChromeSystemProbesParser {
 
   explicit ChromeSystemProbesParser(TraceProcessorContext*);
 
-  void ParseProcessStats(int64_t timestamp, ConstBytes);
+  void ParseProcessStats(int64_t ts, ConstBytes);
 
  private:
   TraceProcessorContext* const context_;

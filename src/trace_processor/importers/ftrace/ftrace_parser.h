@@ -69,19 +69,23 @@ class FtraceParser {
   void ParseMaliTracingMarkWrite(int64_t timestamp,
                                  uint32_t pid,
                                  protozero::ConstBytes);
-  void ParseIonHeapGrowOrShrink(int64_t ts,
+  void ParseIonHeapGrowOrShrink(int64_t timestamp,
                                 uint32_t pid,
                                 protozero::ConstBytes,
                                 bool grow);
-  void ParseIonStat(int64_t ts, uint32_t pid, protozero::ConstBytes);
-  void ParseDmaHeapStat(int64_t ts, uint32_t pid, protozero::ConstBytes);
-  void ParseSignalGenerate(int64_t ts, protozero::ConstBytes);
-  void ParseSignalDeliver(int64_t ts, uint32_t pid, protozero::ConstBytes);
-  void ParseLowmemoryKill(int64_t ts, protozero::ConstBytes);
-  void ParseOOMScoreAdjUpdate(int64_t ts, protozero::ConstBytes);
-  void ParseOOMKill(int64_t ts, protozero::ConstBytes);
-  void ParseMmEventRecord(int64_t ts, uint32_t pid, protozero::ConstBytes);
-  void ParseSysEvent(int64_t ts,
+  void ParseIonStat(int64_t timestamp, uint32_t pid, protozero::ConstBytes);
+  void ParseDmaHeapStat(int64_t timestamp, uint32_t pid, protozero::ConstBytes);
+  void ParseSignalGenerate(int64_t timestamp, protozero::ConstBytes);
+  void ParseSignalDeliver(int64_t timestamp,
+                          uint32_t pid,
+                          protozero::ConstBytes);
+  void ParseLowmemoryKill(int64_t timestamp, protozero::ConstBytes);
+  void ParseOOMScoreAdjUpdate(int64_t timestamp, protozero::ConstBytes);
+  void ParseOOMKill(int64_t timestamp, protozero::ConstBytes);
+  void ParseMmEventRecord(int64_t timestamp,
+                          uint32_t pid,
+                          protozero::ConstBytes);
+  void ParseSysEvent(int64_t timestamp,
                      uint32_t pid,
                      bool is_enter,
                      protozero::ConstBytes);
