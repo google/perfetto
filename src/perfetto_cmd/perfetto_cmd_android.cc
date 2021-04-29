@@ -122,7 +122,7 @@ void PerfettoCmd::SaveOutputToIncidentTraceOrCrash() {
 }
 
 // static
-base::ScopedFile PerfettoCmd::CreateUnlikedTmpFile() {
+base::ScopedFile PerfettoCmd::CreateUnlinkedTmpFile() {
   // If we are tracing to DropBox, there's no need to make a
   // filesystem-visible temporary file.
   auto fd = base::OpenFile(kStateDir, O_TMPFILE | O_RDWR, 0600);
