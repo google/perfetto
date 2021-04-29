@@ -636,7 +636,8 @@ void PerfProducer::OnProcDescriptors(pid_t pid,
     if (proc_status_it == ds.process_states.end())
       continue;
 
-    if (!CanProfile(ds.event_config.raw_ds_config(), uid)) {
+    if (!CanProfile(ds.event_config.raw_ds_config(), uid,
+                    ds.event_config.target_installed_by())) {
       PERFETTO_DLOG("Not profileable: pid [%d], uid [%d] for DS [%zu]",
                     static_cast<int>(pid), static_cast<int>(uid),
                     static_cast<size_t>(it.first));
