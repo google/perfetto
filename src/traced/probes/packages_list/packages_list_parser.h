@@ -28,6 +28,8 @@ struct Package {
   bool debuggable = false;
   bool profileable_from_shell = false;
   int64_t version_code = 0;
+  bool profileable = false;
+  std::string installed_by;
 };
 
 bool ReadPackagesListLine(char* line, Package* package);
