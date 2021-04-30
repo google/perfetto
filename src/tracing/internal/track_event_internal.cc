@@ -20,6 +20,7 @@
 #include "perfetto/base/thread_utils.h"
 #include "perfetto/base/time.h"
 #include "perfetto/tracing/core/data_source_config.h"
+#include "perfetto/tracing/internal/track_event_interned_fields.h"
 #include "perfetto/tracing/track_event.h"
 #include "perfetto/tracing/track_event_category_registry.h"
 #include "perfetto/tracing/track_event_interned_data_index.h"
@@ -60,53 +61,6 @@ void ForEachObserver(
       break;
   }
 }
-
-struct InternedEventCategory
-    : public TrackEventInternedDataIndex<
-          InternedEventCategory,
-          perfetto::protos::pbzero::InternedData::kEventCategoriesFieldNumber,
-          const char*,
-          SmallInternedDataTraits> {
-  static void Add(protos::pbzero::InternedData* interned_data,
-                  size_t iid,
-                  const char* value,
-                  size_t length) {
-    auto category = interned_data->add_event_categories();
-    category->set_iid(iid);
-    category->set_name(value, length);
-  }
-};
-
-struct InternedEventName
-    : public TrackEventInternedDataIndex<
-          InternedEventName,
-          perfetto::protos::pbzero::InternedData::kEventNamesFieldNumber,
-          const char*,
-          SmallInternedDataTraits> {
-  static void Add(protos::pbzero::InternedData* interned_data,
-                  size_t iid,
-                  const char* value) {
-    auto name = interned_data->add_event_names();
-    name->set_iid(iid);
-    name->set_name(value);
-  }
-};
-
-struct InternedDebugAnnotationName
-    : public TrackEventInternedDataIndex<
-          InternedDebugAnnotationName,
-          perfetto::protos::pbzero::InternedData::
-              kDebugAnnotationNamesFieldNumber,
-          const char*,
-          SmallInternedDataTraits> {
-  static void Add(protos::pbzero::InternedData* interned_data,
-                  size_t iid,
-                  const char* value) {
-    auto name = interned_data->add_debug_annotation_names();
-    name->set_iid(iid);
-    name->set_name(value);
-  }
-};
 
 enum class MatchType { kExact, kPattern };
 
