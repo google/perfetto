@@ -176,7 +176,7 @@ class TrackEventParser::EventImporter {
       case 'i':
       case 'I':  // TRACE_EVENT_PHASE_INSTANT.
       case 'R':  // TRACE_EVENT_PHASE_MARK.
-        return ParseThreadInstantEvent();
+        return ParseThreadInstantEvent(phase);
       case 'b':  // TRACE_EVENT_PHASE_NESTABLE_ASYNC_BEGIN
       case 'S':
         return ParseAsyncBeginEvent(phase);
@@ -758,14 +758,21 @@ class TrackEventParser::EventImporter {
     MaybeParseTrackEventFlows();
   }
 
-  util::Status ParseThreadInstantEvent() {
+  util::Status ParseThreadInstantEvent(char phase) {
     // Handle instant events as slices with zero duration, so that they end
     // up nested underneath their parent slices.
     int64_t duration_ns = 0;
     int64_t tidelta = 0;
     base::Optional<tables::SliceTable::Id> opt_slice_id;
-    auto args_inserter = [this](BoundInserter* inserter) {
+    auto args_inserter = [this, phase](BoundInserter* inserter) {
       ParseTrackEventArgs(inserter);
+      // For legacy MARK event, add phase for JSON exporter.
+      if (phase == 'R') {
+        std::string phase_string(1, static_cast<char>(phase));
+        StringId phase_id = storage_->InternString(phase_string.c_str());
+        inserter->AddArg(parser_->legacy_event_phase_key_id_,
+                         Variadic::String(phase_id));
+      }
     };
     if (utid_) {
       auto* thread_slices = storage_->mutable_thread_slice_table();
