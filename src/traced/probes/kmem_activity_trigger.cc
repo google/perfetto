@@ -77,7 +77,6 @@ KmemActivityTrigger::WorkerData::WorkerData(base::TaskRunner* task_runner)
 
   // Enable mm trace events
   ftrace_procfs_->DisableAllEvents();
-  ftrace_procfs_->EnableEvent("vmscan", "mm_vmscan_kswapd_wake");
   ftrace_procfs_->EnableEvent("vmscan", "mm_vmscan_direct_reclaim_begin");
   ftrace_procfs_->EnableEvent("compaction", "mm_compaction_begin");
   ftrace_procfs_->EnableTracing();
