@@ -408,7 +408,7 @@ sample from those.`,
         setEnabled: (cfg, val) => cfg.hpAllHeaps = val,
         isEnabled: (cfg) => cfg.hpAllHeaps
       } as ToggleAttrs)
-      // TODO(taylori): Add advanced options.
+      // TODO(hjd): Add advanced options.
   );
 }
 
