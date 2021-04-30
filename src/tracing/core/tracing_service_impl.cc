@@ -38,8 +38,8 @@
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
 #include "src/android_internal/lazy_library_loader.h"    // nogncheck
 #include "src/android_internal/tracing_service_proxy.h"  // nogncheck
-#endif // PERFETTO_ANDROID_BUILD
-#endif // PERFETTO_OS_ANDROID
+#endif  // PERFETTO_ANDROID_BUILD
+#endif  // PERFETTO_OS_ANDROID
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
@@ -719,7 +719,9 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
 
   const TracingSessionID tsid = ++last_tracing_session_id_;
   TracingSession* tracing_session =
-      &tracing_sessions_.emplace(tsid, TracingSession(tsid, consumer, cfg))
+      &tracing_sessions_
+           .emplace(std::piecewise_construct, std::forward_as_tuple(tsid),
+                    std::forward_as_tuple(tsid, consumer, cfg, task_runner_))
            .first->second;
 
   if (cfg.write_into_file()) {
@@ -997,6 +999,8 @@ void TracingServiceImpl::ChangeTraceConfig(ConsumerEndpointImpl* consumer,
 
 base::Status TracingServiceImpl::StartTracing(TracingSessionID tsid) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
+
+  auto weak_this = weak_ptr_factory_.GetWeakPtr();
   TracingSession* tracing_session = GetTracingSession(tsid);
   if (!tracing_session) {
     return PERFETTO_SVC_ERR(
@@ -1042,12 +1046,21 @@ base::Status TracingServiceImpl::StartTracing(TracingSessionID tsid) {
   //      snapshots that showed significant new drift between different clocks.
   //      The latter clock snapshots are sampled periodically and at lifecycle
   //      events.
-  PeriodicSnapshotTask(tracing_session);
+  base::PeriodicTask::Args snapshot_task_args;
+  snapshot_task_args.start_first_task_immediately = true;
+  snapshot_task_args.task = [weak_this, tsid] {
+    if (weak_this)
+      weak_this->PeriodicSnapshotTask(tsid);
+  };
+  snapshot_task_args.period_ms =
+      tracing_session->config.builtin_data_sources().snapshot_interval_ms();
+  if (!snapshot_task_args.period_ms)
+    snapshot_task_args.period_ms = kDefaultSnapshotsIntervalMs;
+  tracing_session->snapshot_periodic_task.Start(snapshot_task_args);
 
   // Trigger delayed task if the trace is time limited.
   const uint32_t trace_duration_ms = tracing_session->config.duration_ms();
   if (trace_duration_ms > 0) {
-    auto weak_this = weak_ptr_factory_.GetWeakPtr();
     task_runner_->PostDelayedTask(
         [weak_this, tsid] {
           // Skip entirely the flush if the trace session doesn't exist anymore.
@@ -1073,7 +1086,6 @@ base::Status TracingServiceImpl::StartTracing(TracingSessionID tsid) {
 
   // Start the periodic drain tasks if we should to save the trace into a file.
   if (tracing_session->config.write_into_file()) {
-    auto weak_this = weak_ptr_factory_.GetWeakPtr();
     task_runner_->PostDelayedTask(
         [weak_this, tsid] {
           if (weak_this)
@@ -1188,6 +1200,11 @@ void TracingServiceImpl::DisableTracing(TracingSessionID tsid,
     StopDataSourceInstance(producer, tracing_session, &instance,
                            disable_immediately);
   }
+
+  // If the periodic task is running, we can stop the periodic snapshot timer
+  // here instead of waiting until FreeBuffers to prevent useless snapshots
+  // which won't be read.
+  tracing_session->snapshot_periodic_task.Reset();
 
   // Either this request is flagged with |disable_immediately| or there are no
   // data sources that are requesting a final handshake. In both cases just mark
@@ -2175,8 +2192,9 @@ void TracingServiceImpl::FreeBuffers(TracingSessionID tsid) {
     buffers_.erase(buffer_id);
   }
   bool notify_traceur = tracing_session->config.notify_traceur();
-  bool is_long_trace = (tracing_session->config.write_into_file() &&
-          tracing_session->config.file_write_period_ms() < kMillisPerDay);
+  bool is_long_trace =
+      (tracing_session->config.write_into_file() &&
+       tracing_session->config.file_write_period_ms() < kMillisPerDay);
   bool seized_for_bugreport = tracing_session->seized_for_bugreport;
   tracing_sessions_.erase(tsid);
   tracing_session = nullptr;
@@ -2650,31 +2668,15 @@ void TracingServiceImpl::UpdateMemoryGuardrail() {
 #endif
 }
 
-void TracingServiceImpl::PeriodicSnapshotTask(TracingSession* tracing_session) {
+void TracingServiceImpl::PeriodicSnapshotTask(TracingSessionID tsid) {
+  auto* tracing_session = GetTracingSession(tsid);
+  if (!tracing_session)
+    return;
+  if (tracing_session->state != TracingSession::STARTED)
+    return;
   tracing_session->should_emit_sync_marker = true;
   tracing_session->should_emit_stats = true;
   MaybeSnapshotClocksIntoRingBuffer(tracing_session);
-
-  uint32_t interval_ms =
-      tracing_session->config.builtin_data_sources().snapshot_interval_ms();
-  if (!interval_ms)
-    interval_ms = kDefaultSnapshotsIntervalMs;
-
-  TracingSessionID tsid = tracing_session->id;
-  auto weak_this = weak_ptr_factory_.GetWeakPtr();
-  task_runner_->PostDelayedTask(
-      [weak_this, tsid] {
-        if (!weak_this)
-          return;
-        auto* tracing_session_ptr = weak_this->GetTracingSession(tsid);
-        if (!tracing_session_ptr)
-          return;
-        if (tracing_session_ptr->state != TracingSession::STARTED)
-          return;
-        weak_this->PeriodicSnapshotTask(tracing_session_ptr);
-      },
-      interval_ms -
-          static_cast<uint32_t>(base::GetWallTimeMs().count() % interval_ms));
 }
 
 void TracingServiceImpl::SnapshotLifecyleEvent(TracingSession* tracing_session,
@@ -3732,11 +3734,13 @@ void TracingServiceImpl::ProducerEndpointImpl::Sync(
 TracingServiceImpl::TracingSession::TracingSession(
     TracingSessionID session_id,
     ConsumerEndpointImpl* consumer,
-    const TraceConfig& new_config)
+    const TraceConfig& new_config,
+    base::TaskRunner* task_runner)
     : id(session_id),
       consumer_maybe_null(consumer),
       consumer_uid(consumer->uid_),
-      config(new_config) {
+      config(new_config),
+      snapshot_periodic_task(task_runner) {
   // all_data_sources_flushed is special because we store up to 64 events of
   // this type. Other events will go through the default case in
   // SnapshotLifecycleEvent() where they will be given a max history of 1.
