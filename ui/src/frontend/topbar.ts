@@ -191,12 +191,6 @@ class Progress implements m.ClassComponent {
 
 class NewVersionNotification implements m.ClassComponent {
   view() {
-    const engine: EngineConfig = globals.state.engines['0'];
-    // Don't show the new version toast if a trace is loading (engine exists).
-    if (!globals.frontendLocalState.newVersionAvailable ||
-        engine !== undefined) {
-      return;
-    }
     return m(
         '.new-version-toast',
         `Updated to ${version.VERSION} and ready for offline use!`,
