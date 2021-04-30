@@ -1048,6 +1048,9 @@ base::Status TracingServiceImpl::StartTracing(TracingSessionID tsid) {
   //      events.
   base::PeriodicTask::Args snapshot_task_args;
   snapshot_task_args.start_first_task_immediately = true;
+  snapshot_task_args.use_suspend_aware_timer =
+      tracing_session->config.builtin_data_sources()
+          .prefer_suspend_clock_for_snapshot();
   snapshot_task_args.task = [weak_this, tsid] {
     if (weak_this)
       weak_this->PeriodicSnapshotTask(tsid);
