@@ -68,41 +68,57 @@ Table Table::Sort(const std::vector<Order>& od) const {
   if (od.empty())
     return Copy();
 
+  // Return a copy if there is a single constraint to sort the table
+  // by a column which is already sorted.
+  const auto& first_col = GetColumn(od.front().col_idx);
+  if (od.size() == 1 && first_col.IsSorted() && !od.front().desc)
+    return Copy();
+
   // Build an index vector with all the indices for the first |size_| rows.
   std::vector<uint32_t> idx(row_count_);
-  std::iota(idx.begin(), idx.end(), 0);
 
-  // As our data is columnar, it's always more efficient to sort one column
-  // at a time rather than try and sort lexiographically all at once.
-  // To preserve correctness, we need to stably sort the index vector once
-  // for each order by in *reverse* order. Reverse order is important as it
-  // preserves the lexiographical property.
-  //
-  // For example, suppose we have the following:
-  // Table {
-  //   Column x;
-  //   Column y
-  //   Column z;
-  // }
-  //
-  // Then, to sort "y asc, x desc", we could do one of two things:
-  //  1) sort the index vector all at once and on each index, we compare
-  //     y then z. This is slow as the data is columnar and we need to
-  //     repeatedly branch inside each column.
-  //  2) we can stably sort first on x desc and then sort on y asc. This will
-  //     first put all the x in the correct order such that when we sort on
-  //     y asc, we will have the correct order of x where y is the same (since
-  //     the sort is stable).
-  //
-  // TODO(lalitm): it is possible that we could sort the last constraint (i.e.
-  // the first constraint in the below loop) in a non-stable way. However, this
-  // is more subtle than it appears as we would then need special handling where
-  // there are order bys on a column which is already sorted (e.g. ts, id).
-  // Investigate whether the performance gains from this are worthwhile. This
-  // also needs changes to the constraint modification logic in DbSqliteTable
-  // which currently eliminates constraints on sorted columns.
-  for (auto it = od.rbegin(); it != od.rend(); ++it) {
-    columns_[it->col_idx].StableSort(it->desc, &idx);
+  if (od.size() == 1 && first_col.IsSorted()) {
+    // We special case a single constraint in descending order as this
+    // happens any time the |max| function is used in SQLite. We can be
+    // more efficient as this column is already sorted so we simply need
+    // to reverse the order of this column.
+    PERFETTO_DCHECK(od.front().desc);
+    std::iota(idx.rbegin(), idx.rend(), 0);
+  } else {
+    // As our data is columnar, it's always more efficient to sort one column
+    // at a time rather than try and sort lexiographically all at once.
+    // To preserve correctness, we need to stably sort the index vector once
+    // for each order by in *reverse* order. Reverse order is important as it
+    // preserves the lexiographical property.
+    //
+    // For example, suppose we have the following:
+    // Table {
+    //   Column x;
+    //   Column y
+    //   Column z;
+    // }
+    //
+    // Then, to sort "y asc, x desc", we could do one of two things:
+    //  1) sort the index vector all at once and on each index, we compare
+    //     y then z. This is slow as the data is columnar and we need to
+    //     repeatedly branch inside each column.
+    //  2) we can stably sort first on x desc and then sort on y asc. This will
+    //     first put all the x in the correct order such that when we sort on
+    //     y asc, we will have the correct order of x where y is the same (since
+    //     the sort is stable).
+    //
+    // TODO(lalitm): it is possible that we could sort the last constraint (i.e.
+    // the first constraint in the below loop) in a non-stable way. However,
+    // this is more subtle than it appears as we would then need special
+    // handling where there are order bys on a column which is already sorted
+    // (e.g. ts, id). Investigate whether the performance gains from this are
+    // worthwhile. This also needs changes to the constraint modification logic
+    // in DbSqliteTable which currently eliminates constraints on sorted
+    // columns.
+    std::iota(idx.begin(), idx.end(), 0);
+    for (auto it = od.rbegin(); it != od.rend(); ++it) {
+      columns_[it->col_idx].StableSort(it->desc, &idx);
+    }
   }
 
   // Return a copy of this table with the RowMaps using the computed ordered
@@ -119,8 +135,11 @@ Table Table::Sort(const std::vector<Order>& od) const {
     col.flags_ &= ~Column::Flag::kSorted;
   }
 
-  // For the first order by, make the column flag itself as sorted.
-  table.columns_[od.front().col_idx].flags_ |= Column::Flag::kSorted;
+  // For the first order by, make the column flag itself as sorted but
+  // only if the sort was in ascending order.
+  if (!od.front().desc) {
+    table.columns_[od.front().col_idx].flags_ |= Column::Flag::kSorted;
+  }
 
   return table;
 }
