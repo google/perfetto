@@ -107,7 +107,8 @@ struct PERFETTO_EXPORT Track {
     // processes.
     PERFETTO_DCHECK(parent.uuid != Track().uuid);
 
-    return Track(reinterpret_cast<uintptr_t>(ptr), parent);
+    return Track(static_cast<uint64_t>(reinterpret_cast<uintptr_t>(ptr)),
+                 parent);
   }
 
  protected:
