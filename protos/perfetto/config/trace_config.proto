@@ -103,6 +103,21 @@ message TraceConfig {
     // only keeps track of the first and the most recent snapshot until
     // ReadBuffers() is called.
     optional uint32 snapshot_interval_ms = 6;
+
+    // Hints to the service that a suspend-aware (i.e. counting time in suspend)
+    // clock should be used for periodic snapshots of service-emitted events.
+    // This means, if a snapshot *should* have happened during suspend, it will
+    // happen immediately after the device resumes.
+    //
+    // Choosing a clock like this is done on best-effort basis; not all
+    // platforms (e.g. Windows) expose a clock which can be used for periodic
+    // tasks counting suspend. If such a clock is not available, the service
+    // falls back to the best-available alternative.
+    //
+    // Introduced in Android S.
+    // TODO(lalitm): deprecate this in T and make this the default if nothing
+    // crashes in S.
+    optional bool prefer_suspend_clock_for_snapshot = 7;
   }
   optional BuiltinDataSource builtin_data_sources = 20;
 
