@@ -39,9 +39,9 @@ In practice, the [algorithm] works as follows:
     sample. When an allocation happens, we subtract its size from the arrival
     time of the next sample, and check whether we have brought it below zero. We
     then repeatedly draw from the exponential distribution (which is the
-    interarrival time of Poisson) until the arrival time is brought back above
-    0. The amount of times we had to draw from the exponential distribution is
-    the number of samples the allocation should count as.
+    interarrival time of Poisson) until the arrival time is brought back
+    above 0. The amount of times we had to draw from the exponential
+    distribution is the number of samples the allocation should count as.
 
   * We multiply the number of samples we drew within the allocation by the
     sampling rate to get an estimate of the size of the allocation
