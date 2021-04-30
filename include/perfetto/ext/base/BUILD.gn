@@ -30,6 +30,7 @@ source_set("base") {
     "no_destructor.h",
     "optional.h",
     "paged_memory.h",
+    "periodic_task.h",
     "pipe.h",
     "scoped_file.h",
     "small_set.h",
