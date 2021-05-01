@@ -874,9 +874,13 @@ class JsonExporter {
         event["tid"] = Json::Int(pid_and_tid.second);
 
         if (duration_ns == 0) {
-          // Use "I" instead of "i" phase for backwards-compat with old
-          // consumers.
-          event["ph"] = "I";
+          if (legacy_phase.empty()) {
+            // Use "I" instead of "i" phase for backwards-compat with old
+            // consumers.
+            event["ph"] = "I";
+          } else {
+            event["ph"] = legacy_phase;
+          }
           if (thread_ts_ns && thread_ts_ns > 0) {
             event["tts"] = Json::Int64(*thread_ts_ns / 1000);
           }
@@ -1022,9 +1026,13 @@ class JsonExporter {
           PERFETTO_DLOG(
               "skipping non-instant slice on global or process track");
         } else {
-          // Use "I" instead of "i" phase for backwards-compat with old
-          // consumers.
-          event["ph"] = "I";
+          if (legacy_phase.empty()) {
+            // Use "I" instead of "i" phase for backwards-compat with old
+            // consumers.
+            event["ph"] = "I";
+          } else {
+            event["ph"] = legacy_phase;
+          }
 
           auto opt_process_row = process_track.id().IndexOf(TrackId{track_id});
           if (opt_process_row.has_value()) {
