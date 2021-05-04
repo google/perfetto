@@ -195,6 +195,7 @@ light configuration flags: (only when NOT using -c/--config)
   --time           -t      : Trace duration N[s,m,h] (default: 10s)
   --buffer         -b      : Ring buffer size N[mb,gb] (default: 32mb)
   --size           -s      : Max file size N[mb,gb] (default: in-memory ring-buffer only)
+  --app            -a      : Android (atrace) app name
   ATRACE_CAT               : Record ATRACE_CAT (e.g. wm)
   FTRACE_GROUP/FTRACE_NAME : Record ftrace event (e.g. sched/sched_switch)
 
@@ -227,7 +228,6 @@ int PerfettoCmd::Main(int argc, char** argv) {
     OPT_PBTXT_CONFIG,
     OPT_DROPBOX,
     OPT_UPLOAD,
-    OPT_ATRACE_APP,
     OPT_IGNORE_GUARDRAILS,
     OPT_DETACH,
     OPT_ATTACH,
@@ -245,6 +245,7 @@ int PerfettoCmd::Main(int argc, char** argv) {
       {"time", required_argument, nullptr, 't'},
       {"buffer", required_argument, nullptr, 'b'},
       {"size", required_argument, nullptr, 's'},
+      {"app", required_argument, nullptr, 'a'},
       {"no-guardrails", no_argument, nullptr, OPT_IGNORE_GUARDRAILS},
       {"txt", no_argument, nullptr, OPT_PBTXT_CONFIG},
       {"upload", no_argument, nullptr, OPT_UPLOAD},
@@ -258,7 +259,6 @@ int PerfettoCmd::Main(int argc, char** argv) {
       {"attach", required_argument, nullptr, OPT_ATTACH},
       {"is_detached", required_argument, nullptr, OPT_IS_DETACHED},
       {"stop", no_argument, nullptr, OPT_STOP},
-      {"app", required_argument, nullptr, OPT_ATRACE_APP},
       {"query", no_argument, nullptr, OPT_QUERY},
       {"query-raw", no_argument, nullptr, OPT_QUERY_RAW},
       {"version", no_argument, nullptr, OPT_VERSION},
@@ -278,7 +278,8 @@ int PerfettoCmd::Main(int argc, char** argv) {
   bool has_config_options = false;
 
   for (;;) {
-    int option = getopt_long(argc, argv, "hc:o:dt:b:s:", long_options, nullptr);
+    int option =
+        getopt_long(argc, argv, "hc:o:dt:b:s:a:", long_options, nullptr);
 
     if (option == -1)
       break;  // EOF.
@@ -331,6 +332,12 @@ int PerfettoCmd::Main(int argc, char** argv) {
     if (option == 's') {
       has_config_options = true;
       config_options.max_file_size = std::string(optarg);
+      continue;
+    }
+
+    if (option == 'a') {
+      config_options.atrace_apps.push_back(std::string(optarg));
+      has_config_options = true;
       continue;
     }
 
@@ -388,12 +395,6 @@ int PerfettoCmd::Main(int argc, char** argv) {
 
     if (option == OPT_SUBSCRIPTION_ID) {
       statsd_metadata.set_triggering_subscription_id(atoll(optarg));
-      continue;
-    }
-
-    if (option == OPT_ATRACE_APP) {
-      config_options.atrace_apps.push_back(std::string(optarg));
-      has_config_options = true;
       continue;
     }
 
