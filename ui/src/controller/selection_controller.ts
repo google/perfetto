@@ -14,7 +14,13 @@
 
 import {Arg, Args} from '../common/arg_types';
 import {Engine} from '../common/engine';
-import {slowlyCountRows} from '../common/query_iterator';
+import {
+  NUM,
+  singleRow,
+  singleRowUntyped,
+  slowlyCountRows,
+  STR
+} from '../common/query_iterator';
 import {ChromeSliceSelection} from '../common/state';
 import {translateState} from '../common/thread_state';
 import {fromNs, toNs} from '../common/time';
@@ -84,46 +90,94 @@ export class SelectionController extends Controller<'main'> {
   async chromeSliceDetails(selection: ChromeSliceSelection) {
     const selectedId = selection.id;
     const table = selection.table;
-    let sqlQuery = `
-      SELECT ts, dur, name, cat, arg_set_id
-      FROM slice
-      WHERE id = ${selectedId}
-    `;
+
+    let leafTable: string;
+    let promisedDescription: Promise<Map<string, string>>;
+    let promisedArgs: Promise<Args>;
     // TODO(b/155483804): This is a hack to ensure annotation slices are
     // selectable for now. We should tidy this up when improving this class.
     if (table === 'annotation') {
-      sqlQuery = `
-      select ts, dur, name, cat, -1
-      from annotation_slice
-      where id = ${selectedId}`;
+      leafTable = 'annotation_slice';
+      promisedDescription = Promise.resolve(new Map());
+      promisedArgs = Promise.resolve(new Map());
+    } else {
+      const typeResult = singleRow(
+          {
+            leafTable: STR,
+            argSetId: NUM,
+          },
+          await this.args.engine.query(`
+        SELECT
+          type as leafTable,
+          arg_set_id as argSetId
+        FROM slice WHERE id = ${selectedId}`));
+
+      if (typeResult === undefined) {
+        return;
+      }
+
+      leafTable = typeResult.leafTable;
+      const argSetId = typeResult.argSetId;
+      promisedDescription = this.describeSlice(selectedId);
+      promisedArgs = this.getArgs(argSetId);
     }
-    const result = await this.args.engine.query(sqlQuery);
+
+    const promisedDetails = this.args.engine.query(`
+      SELECT * FROM ${leafTable} WHERE id = ${selectedId};
+    `);
+
+    const [details, args, description] =
+        await Promise.all([promisedDetails, promisedArgs, promisedDescription]);
+
+    const row = singleRowUntyped(details);
+    if (row === undefined) {
+      return;
+    }
+
+    // A few columns are hard coded as part of the SliceDetails interface.
+    // Long term these should be handled generically as args but for now
+    // handle them specially:
+    let ts = undefined;
+    let dur = undefined;
+    let name = undefined;
+    let category = undefined;
+
+    for (const [k, v] of Object.entries(row)) {
+      switch (k) {
+        case 'id':
+          break;
+        case 'ts':
+          ts = fromNs(Number(v)) - globals.state.traceTime.startSec;
+          break;
+        case 'name':
+          name = `${v}`;
+          break;
+        case 'dur':
+          dur = fromNs(Number(v));
+          break;
+        case 'category':
+        case 'cat':
+          category = `${v}`;
+          break;
+        default:
+          args.set(k, `${v}`);
+      }
+    }
+
+    const argsTree = parseArgs(args);
+    const selected: SliceDetails = {
+      id: selectedId,
+      ts,
+      dur,
+      name,
+      category,
+      args,
+      argsTree,
+      description,
+    };
+
     // Check selection is still the same on completion of query.
-    if (slowlyCountRows(result) === 1 &&
-        selection === globals.state.currentSelection) {
-      const ts = result.columns[0].longValues![0];
-      const timeFromStart = fromNs(ts) - globals.state.traceTime.startSec;
-      const name = result.columns[2].stringValues![0];
-      const dur = fromNs(result.columns[1].longValues![0]);
-      const category = result.columns[3].stringValues![0];
-      const argId = result.columns[4].longValues![0];
-      const argsAsync = this.getArgs(argId);
-      // Don't fetch descriptions for annotation slices.
-      const describeId = table === 'annotation' ? -1 : +selectedId;
-      const descriptionAsync = this.describeSlice(describeId);
-      const [args, description] =
-          await Promise.all([argsAsync, descriptionAsync]);
-      const argsTree = parseArgs(args);
-      const selected: SliceDetails = {
-        ts: timeFromStart,
-        dur,
-        category,
-        name,
-        id: selectedId,
-        args,
-        argsTree,
-        description,
-      };
+    if (selection === globals.state.currentSelection) {
       globals.publish('SliceDetails', selected);
     }
   }
