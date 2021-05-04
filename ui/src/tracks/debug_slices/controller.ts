@@ -38,8 +38,9 @@ class DebugSliceTrackController extends TrackController<Config, Data> {
 
   async onBoundsChange(start: number, end: number, resolution: number):
       Promise<Data> {
-    const rawResult = await this.query(
-        `select id, name, ts, dur, depth from debug_slices where
+    const rawResult = await this.query(`select id, name, ts,
+        iif(dur = -1, (SELECT end_ts FROM trace_bounds) - ts, dur),
+        depth from debug_slices where
         (ts + dur) >= ${toNs(start)} and ts <= ${toNs(end)}`);
 
     assertTrue(rawResult.columns.length === 5);
