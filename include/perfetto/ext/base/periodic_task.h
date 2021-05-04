@@ -74,7 +74,7 @@ class PeriodicTask {
   base::TaskRunner* const task_runner_;
   Args args_;
   uint32_t generation_ = 0;
-  base::ScopedFile timer_fd_;
+  base::ScopedPlatformHandle timer_fd_;
 
   PERFETTO_THREAD_CHECKER(thread_checker_)
   base::WeakPtrFactory<PeriodicTask> weak_ptr_factory_;  // Keep last.
