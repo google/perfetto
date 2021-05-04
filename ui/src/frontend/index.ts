@@ -298,7 +298,7 @@ function setupContentSecurityPolicy() {
       'https://www.google-analytics.com',
       'https://www.googletagmanager.com',
     ],
-    'navigate-to': ['https://*.perfetto.dev']
+    'navigate-to': ['https://*.perfetto.dev', 'self'],
   };
   const meta = document.createElement('meta');
   meta.httpEquiv = 'Content-Security-Policy';
