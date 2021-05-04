@@ -447,11 +447,12 @@ function onCssLoaded(router: Router) {
     }));
   } else if (typeof urlHash === 'string' && urlHash) {
     if (isLocalhostTraceUrl(urlHash)) {
+      const fileName = urlHash.split('/').pop() || 'local_trace.pftrace';
       const request = fetch(urlHash)
                           .then(response => response.blob())
                           .then(blob => {
                             globals.dispatch(Actions.openTraceFromFile({
-                              file: new File([blob], 'Local trace'),
+                              file: new File([blob], fileName),
                             }));
                           })
                           .catch(e => alert(`Could not load local trace ${e}`));
