@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {assertTrue} from '../base/logging';
+
 import {RawQueryResult} from './protos';
 
 // Union of all the query result formats that we can turn into forward
@@ -27,7 +29,7 @@ interface Row {
 
 // API:
 // const result = await engine.query("select 42 as n;");
-// const it = getRowIterator({"answer": NUM}, result);
+// const it = iter({"answer": NUM}, result);
 // for (; it.valid(); it.next()) {
 //   console.log(it.row.answer);
 // }
@@ -167,9 +169,32 @@ function iterFromColumns<T extends Row>(
   return iter as unknown as RowIterator<T>;
 }
 
+// Deliberately not exported, use iterUntyped() below to make code easy to
+// switch to other queryResult formats.
+function iterUntypedFromColumns(result: RawQueryResult): RowIterator<Row> {
+  const spec: Row = {};
+  const desc = result.columnDescriptors;
+  for (let i = 0; i < desc.length; ++i) {
+    const name = desc[i].name;
+    if (!name) {
+      continue;
+    }
+    spec[name] = desc[i].type === 3 ? STR_NULL : NUM_NULL;
+  }
+  const iter = new ColumnarRowIterator(spec, result);
+  return iter as unknown as RowIterator<Row>;
+}
 
 function isColumnarQueryResult(result: QueryResult): result is RawQueryResult {
   return (result as RawQueryResult).columnDescriptors !== undefined;
+}
+
+export function iterUntyped(result: QueryResult): RowIterator<Row> {
+  if (isColumnarQueryResult(result)) {
+    return iterUntypedFromColumns(result);
+  } else {
+    throw new Error('Unsuported format');
+  }
 }
 
 export function iter<T extends Row>(
@@ -189,4 +214,33 @@ export function slowlyCountRows(result: QueryResult): number {
   } else {
     throw new Error('Unsuported format');
   }
+}
+
+export function singleRow<T extends Row>(spec: T, result: QueryResult): T|
+    undefined {
+  const numRows = slowlyCountRows(result);
+  if (numRows === 0) {
+    return undefined;
+  }
+  if (numRows > 1) {
+    throw new Error(
+        `Attempted to extract single row but more than ${numRows} rows found.`);
+  }
+  const it = iter(spec, result);
+  assertTrue(it.valid());
+  return it.row;
+}
+
+export function singleRowUntyped(result: QueryResult): Row|undefined {
+  const numRows = slowlyCountRows(result);
+  if (numRows === 0) {
+    return undefined;
+  }
+  if (numRows > 1) {
+    throw new Error(
+        `Attempted to extract single row but more than ${numRows} rows found.`);
+  }
+  const it = iterUntyped(result);
+  assertTrue(it.valid());
+  return it.row;
 }
