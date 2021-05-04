@@ -235,7 +235,7 @@ def open_trace_in_browser(path):
   socketserver.TCPServer.allow_reuse_address = True
   with socketserver.TCPServer(('127.0.0.1', PORT), HttpHandler) as httpd:
     webbrowser.open_new_tab(
-        'https://ui.perfetto.dev/#!/?url=http://127.0.0.1:%d/%s' %
+            'http://localhost:10000/#!/?url=http://127.0.0.1:%d/%s' %
         (PORT, fname))
     while httpd.__dict__.get('last_request') != '/' + fname:
       httpd.handle_request()
