@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "perfetto/base/export.h"
 #include "perfetto/tracing/track_event_interned_data_index.h"
 
 #ifndef INCLUDE_PERFETTO_TRACING_INTERNAL_TRACK_EVENT_INTERNED_FIELDS_H_
@@ -26,7 +27,7 @@ namespace internal {
 // to share the interning buffers with Perfetto internals (e.g.
 // perfetto::TracedValue implementation).
 
-struct InternedEventCategory
+struct PERFETTO_EXPORT InternedEventCategory
     : public TrackEventInternedDataIndex<
           InternedEventCategory,
           perfetto::protos::pbzero::InternedData::kEventCategoriesFieldNumber,
@@ -37,14 +38,10 @@ struct InternedEventCategory
   static void Add(protos::pbzero::InternedData* interned_data,
                   size_t iid,
                   const char* value,
-                  size_t length) {
-    auto category = interned_data->add_event_categories();
-    category->set_iid(iid);
-    category->set_name(value, length);
-  }
+                  size_t length);
 };
 
-struct InternedEventName
+struct PERFETTO_EXPORT InternedEventName
     : public TrackEventInternedDataIndex<
           InternedEventName,
           perfetto::protos::pbzero::InternedData::kEventNamesFieldNumber,
@@ -54,14 +51,10 @@ struct InternedEventName
 
   static void Add(protos::pbzero::InternedData* interned_data,
                   size_t iid,
-                  const char* value) {
-    auto name = interned_data->add_event_names();
-    name->set_iid(iid);
-    name->set_name(value);
-  }
+                  const char* value);
 };
 
-struct InternedDebugAnnotationName
+struct PERFETTO_EXPORT InternedDebugAnnotationName
     : public TrackEventInternedDataIndex<
           InternedDebugAnnotationName,
           perfetto::protos::pbzero::InternedData::
@@ -72,11 +65,7 @@ struct InternedDebugAnnotationName
 
   static void Add(protos::pbzero::InternedData* interned_data,
                   size_t iid,
-                  const char* value) {
-    auto name = interned_data->add_debug_annotation_names();
-    name->set_iid(iid);
-    name->set_name(value);
-  }
+                  const char* value);
 };
 
 }  // namespace internal
