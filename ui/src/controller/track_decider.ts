@@ -29,7 +29,7 @@ import {
   STR,
   STR_NULL,
 } from '../common/query_iterator';
-import {SCROLLING_TRACK_GROUP} from '../common/state';
+import {SCROLLING_TRACK_GROUP, TrackKindPriority} from '../common/state';
 import {ACTUAL_FRAMES_SLICE_TRACK_KIND} from '../tracks/actual_frames/common';
 import {ANDROID_LOGS_TRACK_KIND} from '../tracks/android_log/common';
 import {ASYNC_SLICE_TRACK_KIND} from '../tracks/async_slices/common';
@@ -132,6 +132,7 @@ class TrackDecider {
       this.tracksToAdd.push({
         engineId: this.engineId,
         kind: CPU_SLICE_TRACK_KIND,
+        trackKindPriority: TrackKindPriority.ORDINARY,
         name: `Cpu ${cpu}`,
         trackGroup: SCROLLING_TRACK_GROUP,
         config: {
@@ -181,6 +182,7 @@ class TrackDecider {
         this.tracksToAdd.push({
           engineId: this.engineId,
           kind: CPU_FREQ_TRACK_KIND,
+          trackKindPriority: TrackKindPriority.ORDINARY,
           name: `Cpu ${cpu} Frequency`,
           trackGroup: SCROLLING_TRACK_GROUP,
           config: {
@@ -220,6 +222,7 @@ class TrackDecider {
       const track = {
         engineId: this.engineId,
         kind,
+        trackKindPriority: TrackDecider.inferTrackKindPriority(name),
         trackGroup: SCROLLING_TRACK_GROUP,
         name: TrackDecider.getTrackName({name, kind}),
         config: {
@@ -254,6 +257,7 @@ class TrackDecider {
           engineId: this.engineId,
           kind: COUNTER_TRACK_KIND,
           name: `Gpu ${gpu} Frequency`,
+          trackKindPriority: TrackKindPriority.ORDINARY,
           trackGroup: SCROLLING_TRACK_GROUP,
           config: {
             trackId: +freqExists.columns[0].longValues![0],
@@ -282,6 +286,7 @@ class TrackDecider {
         engineId: this.engineId,
         kind: COUNTER_TRACK_KIND,
         name,
+        trackKindPriority: TrackDecider.inferTrackKindPriority(name),
         trackGroup: SCROLLING_TRACK_GROUP,
         config: {
           name,
@@ -299,6 +304,7 @@ class TrackDecider {
         engineId: this.engineId,
         kind: ANDROID_LOGS_TRACK_KIND,
         name: 'Android logs',
+        trackKindPriority: TrackKindPriority.ORDINARY,
         trackGroup: SCROLLING_TRACK_GROUP,
         config: {}
       });
@@ -316,6 +322,7 @@ class TrackDecider {
         engineId: this.engineId,
         kind: SLICE_TRACK_KIND,
         name,
+        trackKindPriority: TrackDecider.inferTrackKindPriority(name),
         trackGroup: upid === 0 ? SCROLLING_TRACK_GROUP :
                                  this.upidToUuid.get(upid),
         config: {
@@ -343,6 +350,7 @@ class TrackDecider {
         engineId: this.engineId,
         kind: 'CounterTrack',
         name,
+        trackKindPriority: TrackDecider.inferTrackKindPriority(name),
         trackGroup: upid === 0 ? SCROLLING_TRACK_GROUP :
                                  this.upidToUuid.get(upid),
         config: {
@@ -387,7 +395,6 @@ class TrackDecider {
       const upid = row.upid;
       const pid = row.pid;
       const threadName = row.threadName;
-      const isMainThread = tid === pid;
       const uuid = this.getUuidUnchecked(utid, upid);
       if (uuid === undefined) {
         // If a thread has no scheduling activity (i.e. the sched table has zero
@@ -401,7 +408,8 @@ class TrackDecider {
         kind,
         name: TrackDecider.getTrackName({utid, tid, threadName, kind}),
         trackGroup: uuid,
-        isMainThread,
+        trackKindPriority:
+            TrackDecider.inferTrackKindPriority(threadName, tid, pid),
         config: {utid}
       });
     }
@@ -441,6 +449,7 @@ class TrackDecider {
         engineId: this.engineId,
         kind: CPU_PROFILE_TRACK_KIND,
         // TODO(hjd): The threadName can be null, use  instead.
+        trackKindPriority: TrackDecider.inferTrackKindPriority(threadName),
         name: `${threadName} (CPU Stack Samples)`,
         trackGroup: uuid,
         config: {utid},
@@ -495,6 +504,7 @@ class TrackDecider {
         engineId: this.engineId,
         kind,
         name,
+        trackKindPriority: TrackDecider.inferTrackKindPriority(threadName),
         trackGroup: uuid,
         config: {
           name,
@@ -556,6 +566,7 @@ class TrackDecider {
         engineId: this.engineId,
         kind,
         name,
+        trackKindPriority: TrackDecider.inferTrackKindPriority(name),
         trackGroup: uuid,
         config: {
           trackIds,
@@ -620,6 +631,7 @@ class TrackDecider {
         engineId: this.engineId,
         kind,
         name,
+        trackKindPriority: TrackDecider.inferTrackKindPriority(trackName),
         trackGroup: uuid,
         config: {
           trackIds,
@@ -684,6 +696,7 @@ class TrackDecider {
         engineId: this.engineId,
         kind,
         name,
+        trackKindPriority: TrackDecider.inferTrackKindPriority(trackName),
         trackGroup: uuid,
         config: {
           trackIds,
@@ -733,7 +746,8 @@ class TrackDecider {
       const upid = row.upid;
       const pid = row.pid;
       const maxDepth = row.maxDepth;
-      const isMainThread = tid === pid;
+      const trackKindPriority =
+          TrackDecider.inferTrackKindPriority(threadName, tid, pid);
 
       const uuid = this.getUuid(utid, upid);
 
@@ -745,7 +759,7 @@ class TrackDecider {
         kind,
         name,
         trackGroup: uuid,
-        isMainThread,
+        trackKindPriority,
         config: {
           trackId,
           maxDepth,
@@ -795,6 +809,7 @@ class TrackDecider {
         engineId: this.engineId,
         kind,
         name,
+        trackKindPriority: TrackDecider.inferTrackKindPriority(trackName),
         trackGroup: uuid,
         config: {
           name,
@@ -819,6 +834,7 @@ class TrackDecider {
       this.tracksToAdd.push({
         engineId: this.engineId,
         kind: HEAP_PROFILE_TRACK_KIND,
+        trackKindPriority: TrackKindPriority.ORDINARY,
         name: `Heap Profile`,
         trackGroup: uuid,
         config: {upid}
@@ -955,6 +971,7 @@ class TrackDecider {
           id: summaryTrackId,
           engineId: this.engineId,
           kind,
+          trackKindPriority: TrackDecider.inferTrackKindPriority(threadName),
           name: `${upid === null ? tid : pid} summary`,
           config: {pidForColor, upid, utid},
         });
@@ -1003,5 +1020,25 @@ class TrackDecider {
     this.addTrackGroupActions.push(
         Actions.addTracks({tracks: this.tracksToAdd}));
     return this.addTrackGroupActions;
+  }
+
+  private static inferTrackKindPriority(
+      threadName?: string|null, tid?: number|null,
+      pid?: number|null): TrackKindPriority {
+    if (pid !== undefined && pid !== null && pid === tid) {
+      return TrackKindPriority.MAIN_THREAD;
+    }
+    if (threadName === undefined || threadName === null) {
+      return TrackKindPriority.ORDINARY;
+    }
+
+    switch (true) {
+      case /.*RenderThread.*/.test(threadName):
+        return TrackKindPriority.RENDER_THREAD;
+      case /.*GPU completion.*/.test(threadName):
+        return TrackKindPriority.GPU_COMPLETION;
+      default:
+        return TrackKindPriority.ORDINARY;
+    }
   }
 }
