@@ -90,7 +90,7 @@ TEST(PeriodicTaskTest, FallbackIfTimerfdFails) {
       dup2(*dev_null, pt.timer_fd_for_testing());
     }
 #else
-    EXPECT_EQ(pt.timer_fd_for_testing(), -1);
+    EXPECT_EQ(pt.timer_fd_for_testing(), base::ScopedPlatformHandle::kInvalid);
 #endif
     if (num_callbacks == 6)
       quit_closure();
