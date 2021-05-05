@@ -250,7 +250,7 @@ class PERFETTO_EXPORT LegacyTraceId {
     uint32_t id_flags_ = legacy::kTraceEventFlagHasId;
   };
 
-  LegacyTraceId(const void* raw_id)
+  explicit LegacyTraceId(const void* raw_id)
       : raw_id_(static_cast<uint64_t>(reinterpret_cast<uintptr_t>(raw_id))) {
     id_flags_ = legacy::kTraceEventFlagHasLocalId;
   }
