@@ -108,7 +108,9 @@ function clearTraceState(state: StateDraft) {
 function rank(ts: TrackState): number[] {
   const hpRank = rankIndex(ts.kind, highPriorityTrackOrder);
   const lpRank = rankIndex(ts.kind, lowPriorityTrackOrder);
-  return [hpRank, ts.trackKindPriority.valueOf(), lpRank];
+  // TODO(hjd): Create sortBy object on TrackState to avoid this cast.
+  const tid = (ts.config as {tid?: number}).tid || 0;
+  return [hpRank, ts.trackKindPriority.valueOf(), lpRank, tid];
 }
 
 function rankIndex<T>(element: T, array: T[]): number {
