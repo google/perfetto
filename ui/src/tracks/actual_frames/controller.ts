@@ -59,7 +59,7 @@ class ActualFramesSliceTrackController extends TrackController<Config, Data> {
       SELECT
         (s.ts + ${bucketNs / 2}) / ${bucketNs} * ${bucketNs} as tsq,
         s.ts,
-        max(iif(s.dur = -1, (SELECT end_ts FROM trace_bounds) - ts, s.dur)) 
+        max(iif(s.dur = -1, (SELECT end_ts FROM trace_bounds) - s.ts, s.dur))
             as dur,
         s.layout_depth,
         s.name,
