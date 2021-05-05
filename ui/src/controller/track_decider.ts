@@ -763,6 +763,7 @@ class TrackDecider {
         config: {
           trackId,
           maxDepth,
+          tid,
         }
       });
     }
