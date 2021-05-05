@@ -118,6 +118,9 @@ void PeriodicTask::RunTaskAndPostNext(base::WeakPtr<PeriodicTask> thiz,
     return;  // Destroyed or Reset() in the meanwhile.
   PERFETTO_DCHECK_THREAD(thiz->thread_checker_);
   if (thiz->timer_fd_) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+    PERFETTO_FATAL("timerfd for periodic tasks unsupported on Windows");
+#else
     // If we are using a timerfd there is no need to repeatedly call
     // PostDelayedTask(). The kernel will wakeup the timer fd periodically. We
     // just need to read() it.
@@ -130,6 +133,7 @@ void PeriodicTask::RunTaskAndPostNext(base::WeakPtr<PeriodicTask> thiz,
       PERFETTO_PLOG("read(timerfd) failed, falling back on PostDelayedTask");
       thiz->ResetTimerFd();
     }
+#endif
   }
   // The repetition of the if() is to deal with the ResetTimerFd() case above.
   if (!thiz->timer_fd_) {
