@@ -21,9 +21,38 @@ namespace internal {
 
 InternedEventCategory::~InternedEventCategory() = default;
 
+// static
+void InternedEventCategory::Add(protos::pbzero::InternedData* interned_data,
+                                size_t iid,
+                                const char* value,
+                                size_t length) {
+  auto category = interned_data->add_event_categories();
+  category->set_iid(iid);
+  category->set_name(value, length);
+}
+
 InternedEventName::~InternedEventName() = default;
 
+// static
+void InternedEventName::Add(protos::pbzero::InternedData* interned_data,
+                            size_t iid,
+                            const char* value) {
+  auto name = interned_data->add_event_names();
+  name->set_iid(iid);
+  name->set_name(value);
+}
+
 InternedDebugAnnotationName::~InternedDebugAnnotationName() = default;
+
+// static
+void InternedDebugAnnotationName::Add(
+    protos::pbzero::InternedData* interned_data,
+    size_t iid,
+    const char* value) {
+  auto name = interned_data->add_debug_annotation_names();
+  name->set_iid(iid);
+  name->set_name(value);
+}
 
 }  // namespace internal
 }  // namespace perfetto
