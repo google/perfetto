@@ -61,6 +61,10 @@ import {ViewerPage} from './viewer_page';
 
 const EXTENSION_ID = 'lfmkphfpdbjijhpomgecfikhfohaoine';
 
+function isLocalhostTraceUrl(url: string): boolean {
+  return ['127.0.0.1', 'localhost'].includes((new URL(url)).hostname);
+}
+
 /**
  * The API the main thread exposes to the controller.
  */
@@ -298,7 +302,7 @@ function setupContentSecurityPolicy() {
       'https://www.google-analytics.com',
       'https://www.googletagmanager.com',
     ],
-    'navigate-to': ['https://*.perfetto.dev']
+    'navigate-to': ['https://*.perfetto.dev', 'self'],
   };
   const meta = document.createElement('meta');
   meta.httpEquiv = 'Content-Security-Policy';
@@ -442,9 +446,21 @@ function onCssLoaded(router: Router) {
       hash: stateHash,
     }));
   } else if (typeof urlHash === 'string' && urlHash) {
-    globals.dispatch(Actions.openTraceFromUrl({
-      url: urlHash,
-    }));
+    if (isLocalhostTraceUrl(urlHash)) {
+      const request = fetch(urlHash)
+                          .then(response => response.blob())
+                          .then(blob => {
+                            globals.dispatch(Actions.openTraceFromFile({
+                              file: new File([blob], 'Local trace'),
+                            }));
+                          })
+                          .catch(e => alert(`Could not load local trace ${e}`));
+      taskTracker.trackPromise(request, 'Downloading local trace');
+    } else {
+      globals.dispatch(Actions.openTraceFromUrl({
+        url: urlHash,
+      }));
+    }
   } else if (androidBugTool) {
     // TODO(hjd): Unify updateStatus and TaskTracker
     globals.dispatch(Actions.updateStatus({

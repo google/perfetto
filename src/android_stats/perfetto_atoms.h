@@ -112,6 +112,9 @@ enum PerfettoTriggerAtom {
 
   kTracedLimitProbability = 5,
   kTracedLimitMaxPer24h = 6,
+
+  kProbesProducerTrigger = 7,
+  kProbesProducerTriggerFail = 8,
 };
 
 }  // namespace perfetto

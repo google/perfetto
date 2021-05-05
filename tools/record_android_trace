@@ -80,6 +80,15 @@ def main():
   help = 'Ring buffer size N[mb,gb] (default: 32mb)'
   grp.add_argument('-b', '--buffer', default='32mb', help=help)
 
+  help = 'Android (atrace) app names (can be specified multiple times)'
+  grp.add_argument(
+      '-a',
+      '--app',
+      metavar='Atrace apps',
+      action='append',
+      default=[],
+      help=help)
+
   help = 'sched, gfx, am, wm (see --list)'
   grp.add_argument('events', metavar='Atrace events', nargs='*', help=help)
 
@@ -132,7 +141,10 @@ def main():
   if args.config is not None:
     cmd += ['-c', '-']
   else:
-    cmd += ['-t', args.time, '-b', args.buffer] + args.events
+    cmd += ['-t', args.time, '-b', args.buffer]
+    for app in args.app:
+      cmd += ['--app', app]
+    cmd += args.events
 
   # Perfetto will error out with a proper message if both a config file and
   # short options are specified. No need to replicate that logic.
@@ -223,7 +235,7 @@ def open_trace_in_browser(path):
   socketserver.TCPServer.allow_reuse_address = True
   with socketserver.TCPServer(('127.0.0.1', PORT), HttpHandler) as httpd:
     webbrowser.open_new_tab(
-        'https://ui.perfetto.dev/#!/?url=http://127.0.0.1:%d/%s' %
+            'http://localhost:10000/#!/?url=http://127.0.0.1:%d/%s' %
         (PORT, fname))
     while httpd.__dict__.get('last_request') != '/' + fname:
       httpd.handle_request()

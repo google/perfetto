@@ -122,6 +122,14 @@ bool CreateConfigFromOptions(const ConfigOptions& options,
     } else {
       atrace_categories.push_back(category);
     }
+
+    // For the gfx category, also add the frame timeline data source
+    // as it's very useful for debugging gfx issues.
+    if (category == "gfx") {
+      auto* frame_timeline = config->add_data_sources();
+      frame_timeline->mutable_config()->set_name(
+          "android.surfaceflinger.frametimeline");
+    }
   }
 
   config->set_duration_ms(static_cast<unsigned int>(duration_ms));

@@ -24,8 +24,8 @@
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    (PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) && __ANDROID_API__ >= 19)
 #include <sys/timerfd.h>
 #endif
 
@@ -33,10 +33,10 @@ namespace perfetto {
 namespace base {
 
 namespace {
-base::ScopedFile CreateTimerFd(uint32_t period_ms) {
+base::ScopedPlatformHandle CreateTimerFd(uint32_t period_ms) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-  base::ScopedFile tfd(
+    (PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) && __ANDROID_API__ >= 19)
+  base::ScopedPlatformHandle tfd(
       timerfd_create(CLOCK_BOOTTIME, TFD_CLOEXEC | TFD_NONBLOCK));
   // The initial phase, aligned on wall clock.
   uint32_t phase_ms =
@@ -51,11 +51,11 @@ base::ScopedFile CreateTimerFd(uint32_t period_ms) {
   its.it_interval.tv_sec = static_cast<time_t>(period_ms / 1000u);
   its.it_interval.tv_nsec = static_cast<long>((period_ms % 1000u) * 1000000u);
   if (timerfd_settime(*tfd, 0, &its, nullptr) < 0)
-    return base::ScopedFile();
+    return base::ScopedPlatformHandle();
   return tfd;
 #else
   base::ignore_result(period_ms);
-  return base::ScopedFile();
+  return base::ScopedPlatformHandle();
 #endif
 }
 }  // namespace
