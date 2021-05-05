@@ -1,22 +1,44 @@
 Unreleased:
   Tracing service and probes:
-    * Changed trigger_perfetto to ignore unknown command line arguments to
-      preserve forward compatibility.
+    *
   Trace Processor:
-    * Fixed prepending "debug." prefix to debug annotations with non-interned
-      names.
-    * Started sanitising keys in nested debug annotation dictionaries.
+    *
   UI:
     *
   SDK:
-    * Changed ConvertTimestampToTraceTimeNs to be a member of
-      TraceTimestampTraits<T> struct instead of a standalone function.
-    * Switched TracedValue to use nested DebugAnnotation proto instead of
-      DebugAnnotation::NestedValue.
+    *
+
+
+v15.0 - 2021-05-05:
+  Tracing service and probes:
+    * Added support for {host,target}=aarch64 standalone builds.
+    * Added --background cmdline switch to traced and traced_probes services.
+    * Changed trigger_perfetto to ignore unknown command line arguments to
+      preserve forward compatibility.
+    * Added -a / --app cmdline argument to tools/record_android_trace.
+  Trace Processor:
+    * Added sanitisation of keys in nested debug annotation dictionaries.
+    * Changed Android startup metric: count CPU time of JIT thread pool, report
+      timestamp of activities during startup.
+    * Changed android_surfaceflinger metric, added missed frame counters.
+    * Changed version of SQLite to 3.35.4.
+    * Fixed importing of JSON traces with decimal (sub-us) timestamp.
+    * Fixed prepending "debug." prefix to debug annotations with non-interned
+      names.
+  UI:
+    * Added support to visualize the lifetime of individual dmabuf allocations
+      as async slices (datasource: already existing ftrace dmabuf event).
+    * Fixed visualization of unfinished slices to extend to the end of the
+      viewport.
+  SDK:
     * Added support for passing arbitrary number of debug annotations to
       TRACE_EVENT and combining them with lambdas.
     * Added support for writing typed TrackEvent arguments using TRACE_EVENT
       inline without lambdas.
+    * Changed ConvertTimestampToTraceTimeNs to be a member of
+      TraceTimestampTraits<T> struct instead of a standalone function.
+    * Changed TracedValue to use nested DebugAnnotation proto instead of
+      DebugAnnotation::NestedValue.
 
 
 v14.0 - 2021-04-01:
