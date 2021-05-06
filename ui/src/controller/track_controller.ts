@@ -16,7 +16,7 @@ import {assertExists, assertTrue} from '../base/logging';
 import {Engine} from '../common/engine';
 import {Registry} from '../common/registry';
 import {TraceTime, TrackState} from '../common/state';
-import {toNs} from '../common/time';
+import {fromNs, toNs} from '../common/time';
 import {LIMIT, TrackData} from '../common/track_data';
 
 import {Controller} from './controller';
@@ -252,10 +252,18 @@ export abstract class TrackController<
         promise
             .then(() => {
               this.isSetup = true;
+              let resolution = visibleState.resolution;
+              // TODO(hjd): We shouldn't have to be so defensive here.
+              if (Math.log2(toNs(resolution)) % 1 !== 0) {
+                // resolution is in pixels per second so 1000 means
+                // 1px = 1ms.
+                resolution =
+                    fromNs(Math.pow(2, Math.floor(Math.log2(toNs(1000)))));
+              }
               return this.onBoundsChange(
                   visibleState.startSec - dur,
                   visibleState.endSec + dur,
-                  visibleState.resolution);
+                  resolution);
             })
             .then(data => {
               this.publish(data);
