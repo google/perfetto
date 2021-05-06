@@ -400,7 +400,16 @@ class Globals {
     // Similarily, zooming in six levels is 0.9^6 ~= 0.5.
     const pxToSec = this.frontendLocalState.timeScale.deltaPxToDuration(1);
     const pxToNs = Math.max(toNs(pxToSec), 1);
-    return fromNs(Math.pow(2, Math.floor(Math.log2(pxToNs))));
+    const resolution = fromNs(Math.pow(2, Math.floor(Math.log2(pxToNs))));
+    const log2 = Math.log2(toNs(resolution));
+    if (log2 % 1 !== 0) {
+      throw new Error(`Resolution should be a power of two.
+        pxToSec: ${pxToSec},
+        pxToNs: ${pxToNs},
+        resolution: ${resolution},
+        log2: ${Math.log2(toNs(resolution))}`);
+    }
+    return resolution;
   }
 
   makeSelection(action: DeferredAction<{}>, tabToOpen = 'current_selection') {
