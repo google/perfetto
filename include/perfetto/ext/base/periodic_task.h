@@ -63,7 +63,7 @@ class PeriodicTask {
   PeriodicTask(PeriodicTask&&) = delete;
   PeriodicTask& operator=(PeriodicTask&&) = delete;
 
-  int timer_fd_for_testing() { return *timer_fd_; }
+  base::PlatformHandle timer_fd_for_testing() { return *timer_fd_; }
 
  private:
   static void RunTaskAndPostNext(base::WeakPtr<PeriodicTask>,

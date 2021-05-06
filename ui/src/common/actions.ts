@@ -48,18 +48,29 @@ import {
   Status,
   TraceSource,
   TraceTime,
+  TrackKindPriority,
   TrackState,
   VisibleState,
 } from './state';
 
 type StateDraft = Draft<State>;
 
+const highPriorityTrackOrder = [
+  PROCESS_SCHEDULING_TRACK_KIND,
+  PROCESS_SUMMARY_TRACK,
+  EXPECTED_FRAMES_SLICE_TRACK_KIND,
+  ACTUAL_FRAMES_SLICE_TRACK_KIND
+];
+
+const lowPriorityTrackOrder =
+    [HEAP_PROFILE_TRACK_KIND, COUNTER_TRACK_KIND, ASYNC_SLICE_TRACK_KIND];
+
 export interface AddTrackArgs {
   id?: string;
   engineId: string;
   kind: string;
   name: string;
-  isMainThread?: boolean;
+  trackKindPriority: TrackKindPriority;
   trackGroup?: string;
   config: {};
 }
@@ -92,6 +103,20 @@ function clearTraceState(state: StateDraft) {
   state.availableAdbDevices = availableAdbDevices;
   state.chromeCategories = chromeCategories;
   state.newEngineMode = newEngineMode;
+}
+
+function rank(ts: TrackState): number[] {
+  const hpRank = rankIndex(ts.kind, highPriorityTrackOrder);
+  const lpRank = rankIndex(ts.kind, lowPriorityTrackOrder);
+  // TODO(hjd): Create sortBy object on TrackState to avoid this cast.
+  const tid = (ts.config as {tid?: number}).tid || 0;
+  return [hpRank, ts.trackKindPriority.valueOf(), lpRank, tid];
+}
+
+function rankIndex<T>(element: T, array: T[]): number {
+  const index = array.indexOf(element);
+  if (index === -1) return 0;
+  return array.length - index;
 }
 
 export const StateActions = {
@@ -181,7 +206,7 @@ export const StateActions = {
 
   addTrack(state: StateDraft, args: {
     id?: string; engineId: string; kind: string; name: string;
-    trackGroup?: string; config: {}; isMainThread: boolean;
+    trackGroup?: string; config: {}; trackKindPriority: TrackKindPriority;
   }): void {
     const id = args.id !== undefined ? args.id : `${state.nextId++}`;
     state.tracks[id] = {
@@ -189,7 +214,7 @@ export const StateActions = {
       engineId: args.engineId,
       kind: args.kind,
       name: args.name,
-      isMainThread: args.isMainThread,
+      trackKindPriority: args.trackKindPriority,
       trackGroup: args.trackGroup,
       config: args.config,
     };
@@ -227,7 +252,7 @@ export const StateActions = {
           engineId: args.engineId,
           kind: DEBUG_SLICE_TRACK_KIND,
           name: args.name,
-          isMainThread: false,
+          trackKindPriority: TrackKindPriority.ORDINARY,
           trackGroup: SCROLLING_TRACK_GROUP,
           config: {
             maxDepth: 1,
@@ -247,42 +272,23 @@ export const StateActions = {
   },
 
   sortThreadTracks(state: StateDraft, _: {}): void {
-    const threadTrackOrder = [
-      PROCESS_SCHEDULING_TRACK_KIND,
-      PROCESS_SUMMARY_TRACK,
-      EXPECTED_FRAMES_SLICE_TRACK_KIND,
-      ACTUAL_FRAMES_SLICE_TRACK_KIND,
-      HEAP_PROFILE_TRACK_KIND,
-      COUNTER_TRACK_KIND,
-      ASYNC_SLICE_TRACK_KIND
-    ];
     // Use a numeric collator so threads are sorted as T1, T2, ..., T10, T11,
     // rather than T1, T10, T11, ..., T2, T20, T21 .
     const coll = new Intl.Collator([], {sensitivity: 'base', numeric: true});
     for (const group of Object.values(state.trackGroups)) {
       group.tracks.sort((a: string, b: string) => {
-        const aKind = threadTrackOrder.indexOf(state.tracks[a].kind);
-        const bKind = threadTrackOrder.indexOf(state.tracks[b].kind);
+        const aRank = rank(state.tracks[a]);
+        const bRank = rank(state.tracks[b]);
+        for (let i = 0; i < aRank.length; i++) {
+          if (aRank[i] !== bRank[i]) return bRank[i] - aRank[i];
+        }
+
         const aName = state.tracks[a].name.toLocaleLowerCase();
         const bName = state.tracks[b].name.toLocaleLowerCase();
-        if (aKind === bKind) {
-          if (state.tracks[a].isMainThread && state.tracks[b].isMainThread) {
-            return 0;
-          } else if (state.tracks[a].isMainThread) {
-            return -1;
-          } else if (state.tracks[b].isMainThread) {
-            return 1;
-          }
-          return coll.compare(aName, bName);
-        } else {
-          if (aKind === -1) return 1;
-          if (bKind === -1) return -1;
-          return aKind - bKind;
-        }
+        return coll.compare(aName, bName);
       });
     }
   },
-
 
   updateAggregateSorting(
       state: StateDraft, args: {id: string, column: string}) {
