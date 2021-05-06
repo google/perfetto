@@ -58,6 +58,59 @@ namespace internal {
 
 namespace {
 
+// A task runner which prevents calls to DataSource::Trace() while an operation
+// is in progress. Used to guard against unexpected re-entrancy where the
+// user-provided task runner implementation tries to enter a trace point under
+// the hood.
+class NonReentrantTaskRunner : public base::TaskRunner {
+ public:
+  NonReentrantTaskRunner(std::unique_ptr<base::TaskRunner> task_runner)
+      : task_runner_(std::move(task_runner)) {}
+
+  // base::TaskRunner implementation.
+  void PostTask(std::function<void()> task) override {
+    CallWithGuard([&] { task_runner_->PostTask(std::move(task)); });
+  }
+
+  void PostDelayedTask(std::function<void()> task, uint32_t delay_ms) override {
+    CallWithGuard(
+        [&] { task_runner_->PostDelayedTask(std::move(task), delay_ms); });
+  }
+
+  void AddFileDescriptorWatch(base::PlatformHandle fd,
+                              std::function<void()> callback) override {
+    CallWithGuard(
+        [&] { task_runner_->AddFileDescriptorWatch(fd, std::move(callback)); });
+  }
+
+  void RemoveFileDescriptorWatch(base::PlatformHandle fd) override {
+    CallWithGuard([&] { task_runner_->RemoveFileDescriptorWatch(fd); });
+  }
+
+  bool RunsTasksOnCurrentThread() const override {
+    bool result;
+    CallWithGuard([&] { result = task_runner_->RunsTasksOnCurrentThread(); });
+    return result;
+  }
+
+ private:
+  template <typename T>
+  static void CallWithGuard(T lambda) {
+    auto* instance = TracingMuxer::Get();
+    if (PERFETTO_UNLIKELY(
+            instance == TracingMuxerFake::Get() ||
+            instance->GetOrCreateTracingTLS()->is_in_trace_point)) {
+      lambda();
+      return;
+    }
+    ScopedReentrancyAnnotator scoped_annotator(
+        *instance->GetOrCreateTracingTLS());
+    lambda();
+  }
+
+  std::unique_ptr<base::TaskRunner> task_runner_;
+};
+
 class StopArgsImpl : public DataSourceBase::StopArgs {
  public:
   std::function<void()> HandleStopAsynchronously() const override {
@@ -644,7 +697,8 @@ TracingMuxerImpl::TracingMuxerImpl(const TracingInitArgs& args)
   PERFETTO_DETACH_FROM_THREAD(thread_checker_);
 
   // Create the thread where muxer, producers and service will live.
-  task_runner_ = platform_->CreateTaskRunner({});
+  task_runner_.reset(
+      new NonReentrantTaskRunner(platform_->CreateTaskRunner({})));
 
   // Run the initializer on that thread.
   task_runner_->PostTask([this, args] { Initialize(args); });
