@@ -375,7 +375,7 @@ void HeapprofdProducer::WriteRejectedConcurrentSession(BufferID buffer_id,
 void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
                                         const DataSourceConfig& ds_config) {
   if (ds_config.session_initiator() ==
-      DataSourceConfig::SESSION_INITIATOR_STATSD) {
+      DataSourceConfig::SESSION_INITIATOR_TRUSTED_SYSTEM) {
     PERFETTO_LOG("Setting up datasource: statsd initiator.");
   } else {
     PERFETTO_LOG("Setting up datasource: non-statsd initiator.");
