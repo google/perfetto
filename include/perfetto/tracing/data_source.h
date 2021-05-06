@@ -319,6 +319,11 @@ class DataSource : public DataSourceBase {
     if (PERFETTO_UNLIKELY(!tls_state_))
       tls_state_ = GetOrCreateDataSourceTLS(&static_state_);
 
+    // Avoid re-entering the trace point recursively.
+    if (PERFETTO_UNLIKELY(tls_state_->root_tls->is_in_trace_point))
+      return;
+    internal::ScopedReentrancyAnnotator scoped_annotator(*tls_state_->root_tls);
+
     // TracingTLS::generation is a global monotonic counter that is incremented
     // every time a tracing session is stopped. We use that as a signal to force
     // a slow-path garbage collection of all the trace writers for the current
@@ -373,12 +378,6 @@ class DataSource : public DataSourceBase {
       // handshaking to make this extremely unrealistic.
 
       auto& tls_inst = tls_state_->per_instance[i];
-
-      // Avoid re-entering the trace point recursively.
-      if (PERFETTO_UNLIKELY(tls_inst.is_in_trace_point))
-        continue;
-      ScopedReentrancyAnnotator scoped_annotator(tls_inst);
-
       if (PERFETTO_UNLIKELY(!tls_inst.trace_writer)) {
         // Here we need an acquire barrier, which matches the release-store made
         // by TracingMuxerImpl::SetupDataSource(), to ensure that the backend_id
@@ -454,18 +453,6 @@ class DataSource : public DataSourceBase {
     static constexpr std::atomic<uint32_t>* GetActiveInstances(TracePointData) {
       return &static_state_.valid_instances;
     }
-  };
-
-  struct ScopedReentrancyAnnotator {
-    ScopedReentrancyAnnotator(
-        internal::DataSourceInstanceThreadLocalState& tls_inst)
-        : tls_inst_(tls_inst) {
-      tls_inst_.is_in_trace_point = true;
-    }
-    ~ScopedReentrancyAnnotator() { tls_inst_.is_in_trace_point = false; }
-
-   private:
-    internal::DataSourceInstanceThreadLocalState& tls_inst_;
   };
 
   // Create the user provided incremental state in the given thread-local
