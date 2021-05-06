@@ -251,7 +251,9 @@ export class Dropdown implements m.ClassComponent<DropdownAttrs> {
     const options: m.Children = [];
     const selItems = attrs.get(globals.state.recordConfig);
     let numSelected = 0;
-    for (const [key, label] of attrs.options) {
+    const entries = [...attrs.options.entries()];
+    entries.sort((a, b) => a[1].localeCompare(b[1]));
+    for (const [key, label] of entries) {
       const opts = {value: key, selected: false};
       if (selItems.includes(key)) {
         opts.selected = true;
