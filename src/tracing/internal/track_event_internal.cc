@@ -219,6 +219,14 @@ bool TrackEventInternal::IsCategoryEnabled(
         }
         break;
       }
+      // No match? Must be a dynamic category.
+      DynamicCategory dyn_category(std::string(member_name, name_size));
+      Category ref_category{Category::FromDynamicCategory(dyn_category)};
+      if (IsCategoryEnabled(registry, config, ref_category)) {
+        result = true;
+        // Break ForEachGroupMember() loop.
+        return false;
+      }
       // No match found => keep iterating.
       return true;
     });
