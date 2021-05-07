@@ -695,6 +695,7 @@ TracingMuxerImpl::TracingMuxerImpl(const TracingInitArgs& args)
     : TracingMuxer(args.platform ? args.platform
                                  : Platform::GetDefaultPlatform()) {
   PERFETTO_DETACH_FROM_THREAD(thread_checker_);
+  instance_ = this;
 
   // Create the thread where muxer, producers and service will live.
   task_runner_.reset(
@@ -1615,7 +1616,7 @@ std::unique_ptr<TracingSession> TracingMuxerImpl::CreateTracingSession(
 void TracingMuxerImpl::InitializeInstance(const TracingInitArgs& args) {
   if (instance_ != TracingMuxerFake::Get())
     PERFETTO_FATAL("Tracing already initialized");
-  instance_ = new TracingMuxerImpl(args);
+  new TracingMuxerImpl(args);
 }
 
 TracingMuxer::~TracingMuxer() = default;
