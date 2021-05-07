@@ -64,8 +64,9 @@ namespace {
 // the hood.
 class NonReentrantTaskRunner : public base::TaskRunner {
  public:
-  NonReentrantTaskRunner(std::unique_ptr<base::TaskRunner> task_runner)
-      : task_runner_(std::move(task_runner)) {}
+  NonReentrantTaskRunner(TracingMuxer* muxer,
+                         std::unique_ptr<base::TaskRunner> task_runner)
+      : muxer_(muxer), task_runner_(std::move(task_runner)) {}
 
   // base::TaskRunner implementation.
   void PostTask(std::function<void()> task) override {
@@ -95,19 +96,17 @@ class NonReentrantTaskRunner : public base::TaskRunner {
 
  private:
   template <typename T>
-  static void CallWithGuard(T lambda) {
-    auto* instance = TracingMuxer::Get();
-    if (PERFETTO_UNLIKELY(
-            instance == TracingMuxerFake::Get() ||
-            instance->GetOrCreateTracingTLS()->is_in_trace_point)) {
+  void CallWithGuard(T lambda) const {
+    auto* root_tls = muxer_->GetOrCreateTracingTLS();
+    if (PERFETTO_UNLIKELY(root_tls->is_in_trace_point)) {
       lambda();
       return;
     }
-    ScopedReentrancyAnnotator scoped_annotator(
-        *instance->GetOrCreateTracingTLS());
+    ScopedReentrancyAnnotator scoped_annotator(*root_tls);
     lambda();
   }
 
+  TracingMuxer* const muxer_;
   std::unique_ptr<base::TaskRunner> task_runner_;
 };
 
@@ -699,7 +698,7 @@ TracingMuxerImpl::TracingMuxerImpl(const TracingInitArgs& args)
 
   // Create the thread where muxer, producers and service will live.
   task_runner_.reset(
-      new NonReentrantTaskRunner(platform_->CreateTaskRunner({})));
+      new NonReentrantTaskRunner(this, platform_->CreateTaskRunner({})));
 
   // Run the initializer on that thread.
   task_runner_->PostTask([this, args] { Initialize(args); });
