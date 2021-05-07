@@ -2457,7 +2457,8 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
         slices,
         ElementsAre("B:foo.FooEvent", "B:bar.BarEvent", "B:foo,bar.MultiFooBar",
                     "B:baz,bar,quux.MultiBar", "B:red,green,blue,foo.MultiFoo",
-                    "B:test.TagEvent", "B:$dynamic,$foo.DynamicGroupFooEvent",
+                    "B:red,green,blue,yellow.MultiNone", "B:test.TagEvent",
+                    "B:$dynamic,$foo.DynamicGroupFooEvent",
                     "B:$dynamic,$bar.DynamicGroupBarEvent"));
   }
 
@@ -2470,6 +2471,16 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
     EXPECT_THAT(slices, ElementsAre("B:foo.FooEvent", "B:foo,bar.MultiFooBar",
                                     "B:red,green,blue,foo.MultiFoo",
                                     "B:$dynamic,$foo.DynamicGroupFooEvent"));
+  }
+
+  // Enable exactly one dynamic category.
+  {
+    perfetto::protos::gen::TrackEventConfig te_cfg;
+    te_cfg.add_disabled_categories("*");
+    te_cfg.add_enabled_categories("dynamic");
+    auto slices = check_config(te_cfg);
+    EXPECT_THAT(slices, ElementsAre("B:$dynamic,$foo.DynamicGroupFooEvent",
+                                    "B:$dynamic,$bar.DynamicGroupBarEvent"));
   }
 
   // Enable two categories.
@@ -2497,7 +2508,8 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
         slices,
         ElementsAre("B:foo.FooEvent", "B:bar.BarEvent", "B:foo,bar.MultiFooBar",
                     "B:baz,bar,quux.MultiBar", "B:red,green,blue,foo.MultiFoo",
-                    "B:test.TagEvent", "B:$dynamic,$foo.DynamicGroupFooEvent",
+                    "B:red,green,blue,yellow.MultiNone", "B:test.TagEvent",
+                    "B:$dynamic,$foo.DynamicGroupFooEvent",
                     "B:$dynamic,$bar.DynamicGroupBarEvent"));
   }
 
@@ -2539,14 +2551,15 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
     te_cfg.add_enabled_tags("slow");
     te_cfg.add_enabled_tags("debug");
     auto slices = check_config(te_cfg);
-    EXPECT_THAT(slices,
-                ElementsAre("B:foo.FooEvent", "B:bar.BarEvent",
-                            "B:foo,bar.MultiFooBar", "B:baz,bar,quux.MultiBar",
-                            "B:red,green,blue,foo.MultiFoo", "B:cat.SlowEvent",
-                            "B:cat.verbose.DebugEvent", "B:test.TagEvent",
-                            "B:disabled-by-default-cat.SlowDisabledEvent",
-                            "B:$dynamic,$foo.DynamicGroupFooEvent",
-                            "B:$dynamic,$bar.DynamicGroupBarEvent"));
+    EXPECT_THAT(
+        slices,
+        ElementsAre("B:foo.FooEvent", "B:bar.BarEvent", "B:foo,bar.MultiFooBar",
+                    "B:baz,bar,quux.MultiBar", "B:red,green,blue,foo.MultiFoo",
+                    "B:red,green,blue,yellow.MultiNone", "B:cat.SlowEvent",
+                    "B:cat.verbose.DebugEvent", "B:test.TagEvent",
+                    "B:disabled-by-default-cat.SlowDisabledEvent",
+                    "B:$dynamic,$foo.DynamicGroupFooEvent",
+                    "B:$dynamic,$bar.DynamicGroupBarEvent"));
   }
 }
 
