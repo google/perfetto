@@ -852,9 +852,12 @@ export class Sidebar implements m.ClassComponent {
 }
 
 function createTraceLink(title: string, url: string) {
+  if (url === '') {
+    return m('a.trace-file-name', title);
+  }
   const linkProps = {
     href: url,
-    title: url !== '' ? 'Click to copy the URL' : '',
+    title: 'Click to copy the URL',
     target: '_blank',
     onclick: (e: Event) => {
       e.preventDefault();
