@@ -441,7 +441,8 @@ TracingServiceImpl::ProducerEndpointImpl* TracingServiceImpl::GetProducer(
 std::unique_ptr<TracingService::ConsumerEndpoint>
 TracingServiceImpl::ConnectConsumer(Consumer* consumer, uid_t uid) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  PERFETTO_DLOG("Consumer %p connected", reinterpret_cast<void*>(consumer));
+  PERFETTO_DLOG("Consumer %p connected from UID %" PRIu64,
+                reinterpret_cast<void*>(consumer), static_cast<uint64_t>(uid));
   std::unique_ptr<ConsumerEndpointImpl> endpoint(
       new ConsumerEndpointImpl(this, task_runner_, consumer, uid));
   auto it_and_inserted = consumers_.emplace(endpoint.get());
