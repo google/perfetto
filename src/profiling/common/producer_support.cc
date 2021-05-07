@@ -100,7 +100,7 @@ bool CanProfileAndroid(const DataSourceConfig& ds_config,
     switch (ds_config.session_initiator()) {
       case DataSourceConfig::SESSION_INITIATOR_UNSPECIFIED:
         return pkg.profileable_from_shell || pkg.debuggable;
-      case DataSourceConfig::SESSION_INITIATOR_STATSD:
+      case DataSourceConfig::SESSION_INITIATOR_TRUSTED_SYSTEM:
         return pkg.profileable || pkg.debuggable;
     }
   }
