@@ -106,7 +106,8 @@ TEST(CanProfileAndroidTest, UserDebuggableApp) {
 
 TEST(CanProfileAndroidTest, UserProfileableMatchingInstallerStatsd) {
   DataSourceConfig ds_config;
-  ds_config.set_session_initiator(DataSourceConfig::SESSION_INITIATOR_STATSD);
+  ds_config.set_session_initiator(
+      DataSourceConfig::SESSION_INITIATOR_TRUSTED_SYSTEM);
   auto tmp = base::TempFile::Create();
   constexpr char content[] =
       "invalid.example 10001 0 /data/user/0/invalid.example "
@@ -131,7 +132,8 @@ TEST(CanProfileAndroidTest, UserProfileableMatchingInstallerShell) {
 
 TEST(CanProfileAndroidTest, UserProfileableNonMatchingInstallerStatsd) {
   DataSourceConfig ds_config;
-  ds_config.set_session_initiator(DataSourceConfig::SESSION_INITIATOR_STATSD);
+  ds_config.set_session_initiator(
+      DataSourceConfig::SESSION_INITIATOR_TRUSTED_SYSTEM);
   auto tmp = base::TempFile::Create();
   constexpr char content[] =
       "invalid.example 10001 0 /data/user/0/invalid.example "
