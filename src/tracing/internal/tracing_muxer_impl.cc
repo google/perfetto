@@ -64,8 +64,9 @@ namespace {
 // the hood.
 class NonReentrantTaskRunner : public base::TaskRunner {
  public:
-  NonReentrantTaskRunner(std::unique_ptr<base::TaskRunner> task_runner)
-      : task_runner_(std::move(task_runner)) {}
+  NonReentrantTaskRunner(TracingMuxer* muxer,
+                         std::unique_ptr<base::TaskRunner> task_runner)
+      : muxer_(muxer), task_runner_(std::move(task_runner)) {}
 
   // base::TaskRunner implementation.
   void PostTask(std::function<void()> task) override {
@@ -95,19 +96,17 @@ class NonReentrantTaskRunner : public base::TaskRunner {
 
  private:
   template <typename T>
-  static void CallWithGuard(T lambda) {
-    auto* instance = TracingMuxer::Get();
-    if (PERFETTO_UNLIKELY(
-            instance == TracingMuxerFake::Get() ||
-            instance->GetOrCreateTracingTLS()->is_in_trace_point)) {
+  void CallWithGuard(T lambda) const {
+    auto* root_tls = muxer_->GetOrCreateTracingTLS();
+    if (PERFETTO_UNLIKELY(root_tls->is_in_trace_point)) {
       lambda();
       return;
     }
-    ScopedReentrancyAnnotator scoped_annotator(
-        *instance->GetOrCreateTracingTLS());
+    ScopedReentrancyAnnotator scoped_annotator(*root_tls);
     lambda();
   }
 
+  TracingMuxer* const muxer_;
   std::unique_ptr<base::TaskRunner> task_runner_;
 };
 
@@ -695,10 +694,11 @@ TracingMuxerImpl::TracingMuxerImpl(const TracingInitArgs& args)
     : TracingMuxer(args.platform ? args.platform
                                  : Platform::GetDefaultPlatform()) {
   PERFETTO_DETACH_FROM_THREAD(thread_checker_);
+  instance_ = this;
 
   // Create the thread where muxer, producers and service will live.
   task_runner_.reset(
-      new NonReentrantTaskRunner(platform_->CreateTaskRunner({})));
+      new NonReentrantTaskRunner(this, platform_->CreateTaskRunner({})));
 
   // Run the initializer on that thread.
   task_runner_->PostTask([this, args] { Initialize(args); });
@@ -1615,7 +1615,7 @@ std::unique_ptr<TracingSession> TracingMuxerImpl::CreateTracingSession(
 void TracingMuxerImpl::InitializeInstance(const TracingInitArgs& args) {
   if (instance_ != TracingMuxerFake::Get())
     PERFETTO_FATAL("Tracing already initialized");
-  instance_ = new TracingMuxerImpl(args);
+  new TracingMuxerImpl(args);
 }
 
 TracingMuxer::~TracingMuxer() = default;
