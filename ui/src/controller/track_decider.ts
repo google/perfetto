@@ -197,6 +197,7 @@ class TrackDecider {
   }
 
   async addGlobalAsyncTracks(): Promise<void> {
+    // TODO(b/187546438): Re-enable mem.ion_buffer once we can collapse it
     const rawGlobalAsyncTracks = await this.engine.query(`
     SELECT
       t.name,
@@ -209,6 +210,7 @@ class TrackDecider {
       GROUP BY name
     ) AS t CROSS JOIN experimental_slice_layout
     WHERE t.track_ids = experimental_slice_layout.filter_track_ids
+    AND t.name != 'mem.ion_buffer'
     GROUP BY t.track_ids;
   `);
     for (let i = 0; i < slowlyCountRows(rawGlobalAsyncTracks); i++) {
