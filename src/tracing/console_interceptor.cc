@@ -317,7 +317,7 @@ void ConsoleInterceptor::Printf(InterceptorContext& context,
     va_start(args, format);
     written = vsnprintf(&tls.message_buffer[tls.buffer_pos],
                         static_cast<size_t>(remaining), format, args);
-    PERFETTO_DCHECK(written > 0);
+    PERFETTO_DCHECK(written >= 0);
     va_end(args);
   }
 
