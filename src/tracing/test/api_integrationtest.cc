@@ -3259,10 +3259,19 @@ TEST_P(PerfettoApiTest, QueryServiceState) {
 }
 
 TEST_P(PerfettoApiTest, LegacyTraceEvents) {
+  auto is_new_session = [] {
+    bool result;
+    TRACE_EVENT_IS_NEW_TRACE(&result);
+    return result;
+  };
+
   // Create a new trace session.
+  EXPECT_FALSE(is_new_session());
   auto* tracing_session =
       NewTraceWithCategories({"cat", TRACE_DISABLED_BY_DEFAULT("cat")});
   tracing_session->get()->StartBlocking();
+  EXPECT_TRUE(is_new_session());
+  EXPECT_FALSE(is_new_session());
 
   // Basic events.
   TRACE_EVENT_INSTANT0("cat", "LegacyEvent", TRACE_EVENT_SCOPE_GLOBAL);

@@ -187,6 +187,8 @@ class PERFETTO_EXPORT TrackEventInternal {
 #endif
   }
 
+  static int GetSessionCount();
+
   // Represents the default track for the calling thread.
   static const Track kDefaultTrack;
 
@@ -199,6 +201,8 @@ class PERFETTO_EXPORT TrackEventInternal {
   static protos::pbzero::DebugAnnotation* AddDebugAnnotation(
       perfetto::EventContext*,
       const char* name);
+
+  static std::atomic<int> session_count_;
 };
 
 }  // namespace internal
