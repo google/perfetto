@@ -1163,10 +1163,18 @@ class PERFETTO_EXPORT TrackEventLegacy {
   } while (0)
 
 // Macro to efficiently determine, through polling, if a new trace has begun.
-// TODO(skyostil): Implement.
-#define TRACE_EVENT_IS_NEW_TRACE(ret) \
-  do {                                \
-    *ret = false;                     \
+#define TRACE_EVENT_IS_NEW_TRACE(ret)                                \
+  do {                                                               \
+    static int PERFETTO_UID(prev) = -1;                              \
+    int PERFETTO_UID(curr) =                                         \
+        ::perfetto::internal::TrackEventInternal::GetSessionCount(); \
+    if (::PERFETTO_TRACK_EVENT_NAMESPACE::TrackEvent::IsEnabled() && \
+        (PERFETTO_UID(prev) != PERFETTO_UID(curr))) {                \
+      *(ret) = true;                                                 \
+      PERFETTO_UID(prev) = PERFETTO_UID(curr);                       \
+    } else {                                                         \
+      *(ret) = false;                                                \
+    }                                                                \
   } while (0)
 
 // ----------------------------------------------------------------------------
