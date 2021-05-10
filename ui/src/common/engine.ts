@@ -18,7 +18,7 @@ import {
   RawQueryArgs,
   RawQueryResult
 } from './protos';
-import {slowlyCountRows} from './query_iterator';
+import {iter, NUM_NULL, slowlyCountRows, STR} from './query_iterator';
 import {TimeSpan} from './time';
 
 export interface LoadingTracker {
@@ -176,5 +176,26 @@ export abstract class Engine {
     const query = `select start_ts, end_ts from trace_bounds`;
     const res = (await this.queryOneRow(query));
     return new TimeSpan(res[0] / 1e9, res[1] / 1e9);
+  }
+
+  async getTracingMetadataTimeBounds(): Promise<TimeSpan> {
+    const query = await this.query(`select name, int_value from metadata
+         where name = 'tracing_started_ns' or name = 'tracing_disabled_ns'
+         or name = 'all_data_source_started_ns'`);
+    let startBound = -Infinity;
+    let endBound = Infinity;
+    const it = iter({'name': STR, 'int_value': NUM_NULL}, query);
+    for (; it.valid(); it.next()) {
+      const columnName = it.row.name;
+      const timestamp = it.row.int_value;
+      if (timestamp === null) continue;
+      if (columnName === 'tracing_disabled_ns') {
+        endBound = Math.min(endBound, timestamp / 1e9);
+      } else {
+        startBound = Math.max(startBound, timestamp / 1e9);
+      }
+    }
+
+    return new TimeSpan(startBound, endBound);
   }
 }
