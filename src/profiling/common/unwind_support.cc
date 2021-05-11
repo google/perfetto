@@ -67,6 +67,7 @@ bool FDMaps::Parse() {
   if (!base::ReadFileDescriptor(*fd_, &content))
     return false;
 
+  unwindstack::SharedString name("");
   unwindstack::MapInfo* prev_map = nullptr;
   unwindstack::MapInfo* prev_real_map = nullptr;
   return android::procinfo::ReadMapFileContent(
@@ -77,9 +78,13 @@ bool FDMaps::Parse() {
             strncmp(mapinfo.name.c_str() + 5, "ashmem/", 7) != 0) {
           flags |= unwindstack::MAPS_FLAGS_DEVICE_MAP;
         }
+        // Share the string if it matches for consecutive maps.
+        if (name != mapinfo.name) {
+          name = unwindstack::SharedString(mapinfo.name);
+        }
         maps_.emplace_back(new unwindstack::MapInfo(
             prev_map, prev_real_map, mapinfo.start, mapinfo.end, mapinfo.pgoff,
-            flags, mapinfo.name));
+            flags, name));
         prev_map = maps_.back().get();
         if (!prev_map->IsBlank()) {
           prev_real_map = prev_map;
