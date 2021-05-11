@@ -22,6 +22,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include "perfetto/base/status.h"
 
 namespace perfetto {
 namespace profiling {
@@ -90,7 +91,7 @@ class ProguardParser {
  public:
   // A return value of false means this line failed to parse. This leaves the
   // parser in an undefined state and it should no longer be used.
-  bool AddLine(std::string line);
+  base::Status AddLine(std::string line);
   bool AddLines(std::string contents);
 
   std::map<std::string, ObfuscatedClass> ConsumeMapping() {
