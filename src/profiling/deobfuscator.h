@@ -59,7 +59,7 @@ class ObfuscatedClass {
   bool AddField(std::string obfuscated_name, std::string deobfuscated_name) {
     auto p = deobfuscated_fields_.emplace(std::move(obfuscated_name),
                                           deobfuscated_name);
-    return p.second && p.first->second == deobfuscated_name;
+    return p.second || p.first->second == deobfuscated_name;
   }
 
   void AddMethod(std::string obfuscated_name, std::string deobfuscated_name) {
