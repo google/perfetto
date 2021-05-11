@@ -177,6 +177,16 @@ TEST(ProguardParserTest, DuplicateMethod) {
   ASSERT_TRUE(p.AddLine("    15:15:boolean doSomething(boolean):116:116 -> b"));
 }
 
+TEST(ProguardParserTest, DuplicateFieldSame) {
+  ProguardParser p;
+  ASSERT_TRUE(p.AddLine(
+      "android.arch.core.executor.ArchTaskExecutor -> android.arch.a.a.a:"));
+  ASSERT_TRUE(
+      p.AddLine("    android.arch.core.executor.TaskExecutor mDelegate -> b"));
+  ASSERT_TRUE(p.AddLine(
+      "    1:1:android.arch.core.executor.TaskExecutor mDelegate -> b"));
+}
+
 }  // namespace
 }  // namespace profiling
 }  // namespace perfetto
