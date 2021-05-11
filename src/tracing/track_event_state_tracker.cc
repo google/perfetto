@@ -143,8 +143,10 @@ void TrackEventStateTracker::ProcessTracePacket(
   parsed_event.name_hash = name_hash;
   delegate.OnTrackEvent(*track, parsed_event);
 
-  if (track_event.type() == protos::pbzero::TrackEvent::TYPE_SLICE_END)
+  if (track_event.type() == protos::pbzero::TrackEvent::TYPE_SLICE_END &&
+      !track->stack.empty()) {
     track->stack.pop_back();
+  }
 }
 
 // static
