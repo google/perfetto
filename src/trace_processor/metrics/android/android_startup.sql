@@ -229,9 +229,40 @@ DROP TABLE IF EXISTS gc_slices_by_state;
 CREATE VIRTUAL TABLE gc_slices_by_state
 USING SPAN_JOIN(gc_slices PARTITIONED utid, thread_state_extended PARTITIONED utid);
 
+DROP TABLE IF EXISTS gc_slices_by_state_materialized;
+CREATE TABLE gc_slices_by_state_materialized AS
+SELECT launch_id, SUM(dur) as sum_dur
+FROM gc_slices_by_state
+WHERE state = 'Running'
+GROUP BY launch_id;
+
 DROP TABLE IF EXISTS launch_threads_cpu;
 CREATE VIRTUAL TABLE launch_threads_cpu
 USING SPAN_JOIN(launch_threads PARTITIONED utid, thread_state_extended PARTITIONED utid);
+
+DROP TABLE IF EXISTS launch_threads_cpu_materialized;
+CREATE TABLE launch_threads_cpu_materialized AS
+SELECT launch_id, SUM(dur) as sum_dur
+FROM launch_threads_cpu
+WHERE thread_name = 'Jit thread pool' AND state = 'Running'
+GROUP BY launch_id;
+
+DROP TABLE IF EXISTS activity_names_materialized;
+CREATE TABLE activity_names_materialized AS
+SELECT launch_id, slice_name, slice_ts
+FROM main_process_slice_unaggregated
+WHERE (slice_name LIKE 'performResume:%' OR slice_name LIKE 'performCreate:%');
+
+DROP TABLE IF EXISTS jit_compiled_methods_materialized;
+CREATE TABLE jit_compiled_methods_materialized AS
+SELECT
+  launch_id,
+  COUNT(1) as count
+FROM main_process_slice_unaggregated
+WHERE
+  slice_name LIKE 'JIT compiling%'
+  AND thread_name = 'Jit thread pool'
+GROUP BY launch_id;
 
 DROP VIEW IF EXISTS startup_view;
 CREATE VIEW startup_view AS
@@ -240,20 +271,18 @@ SELECT
     'startup_id', launches.id,
     'package_name', launches.package,
     'process_name', (
-      SELECT name FROM process
-      WHERE upid IN (
-        SELECT upid FROM launch_processes p
-        WHERE p.launch_id = launches.id
-        LIMIT 1
-      )
+      SELECT p.name
+      FROM launch_processes lp
+      JOIN process p USING (upid)
+      WHERE lp.launch_id = launches.id
+      LIMIT 1
     ),
     'process', (
-      SELECT metadata FROM process_metadata
-      WHERE upid IN (
-        SELECT upid FROM launch_processes p
-        WHERE p.launch_id = launches.id
-        LIMIT 1
-      )
+      SELECT m.metadata
+      FROM process_metadata m
+      JOIN launch_processes p USING (upid)
+      WHERE p.launch_id = launches.id
+      LIMIT 1
     ),
     'activities', (
       SELECT RepeatedField(AndroidStartupMetric_Activity(
@@ -261,9 +290,8 @@ SELECT
         'method', (SELECT STR_SPLIT(s.slice_name, ':', 0)),
         'ts_method_start', s.slice_ts
       ))
-      FROM main_process_slice_unaggregated s
+      FROM activity_names_materialized s
       WHERE s.launch_id = launches.id
-      AND (slice_name LIKE 'performResume:%' OR slice_name LIKE 'performCreate:%')
     ),
     'zygote_new_process', EXISTS(SELECT TRUE FROM zygote_forks_by_id WHERE id = launches.id),
     'activity_hosting_process_count', (
@@ -422,21 +450,18 @@ SELECT
         WHERE s.launch_id = launches.id AND name = 'VerifyClass'
       ),
       'jit_compiled_methods', (
-        SELECT SUM(1)
-        FROM main_process_slice_unaggregated
-        WHERE slice_name LIKE 'JIT compiling%'
-          AND thread_name = 'Jit thread pool'
+        SELECT count
+        FROM jit_compiled_methods_materialized s
+        WHERE s.launch_id = launches.id
       ),
       'time_jit_thread_pool_on_cpu', (
         SELECT
-        NULL_IF_EMPTY(AndroidStartupMetric_Slice(
-          'dur_ns', SUM(dur),
-          'dur_ms', SUM(dur) / 1e6))
-        FROM launch_threads_cpu
-        WHERE
-          launch_id = launches.id
-          AND thread_name = 'Jit thread pool'
-          AND state = 'Running'
+          NULL_IF_EMPTY(AndroidStartupMetric_Slice(
+            'dur_ns', sum_dur,
+            'dur_ms', sum_dur / 1e6
+          ))
+        FROM launch_threads_cpu_materialized
+        WHERE launch_id = launches.id
       ),
       'time_gc_total', (
         SELECT slice_proto
@@ -446,11 +471,11 @@ SELECT
       'time_gc_on_cpu', (
         SELECT
           NULL_IF_EMPTY(AndroidStartupMetric_Slice(
-            'dur_ns', SUM(dur),
-            'dur_ms', SUM(dur) / 1e6
+            'dur_ns', sum_dur,
+            'dur_ms', sum_dur / 1e6
           ))
-        FROM gc_slices_by_state
-        WHERE launch_id = launches.id AND state = 'Running'
+        FROM gc_slices_by_state_materialized
+        WHERE launch_id = launches.id
       )
     ),
     'hsc', (
