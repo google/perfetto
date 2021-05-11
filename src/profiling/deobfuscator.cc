@@ -16,6 +16,7 @@
 
 #include "src/profiling/deobfuscator.h"
 
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_splitter.h"
@@ -157,37 +158,36 @@ std::string FlattenClasses(
 
 // See https://www.guardsquare.com/en/products/proguard/manual/retrace for the
 // file format we are parsing.
-bool ProguardParser::AddLine(std::string line) {
-  if (line.length() == 0)
-    return true;
+base::Status ProguardParser::AddLine(std::string line) {
+  if (line.length() == 0 || line[0] == '#')
+    return base::Status();
   bool is_member = line[0] == ' ';
   if (is_member && !current_class_) {
-    PERFETTO_ELOG("Failed to parse proguard map. Saw member before class.");
-    return false;
+    return base::Status(
+        "Failed to parse proguard map. Saw member before class.");
   }
   if (!is_member) {
     auto opt_cls = ParseClass(std::move(line));
     if (!opt_cls)
-      return false;
+      return base::Status("Class not found.");
     auto p = mapping_.emplace(std::move(opt_cls->obfuscated_name),
                               std::move(opt_cls->deobfuscated_name));
     if (!p.second) {
-      PERFETTO_ELOG("Duplicate class.");
-      return false;
+      return base::Status("Duplicate class.");
     }
     current_class_ = &p.first->second;
   } else {
     auto opt_member = ParseMember(std::move(line));
     if (!opt_member)
-      return false;
+      return base::Status("Failed to parse member.");
     switch (opt_member->type) {
       case (ProguardMemberType::kField): {
         if (!current_class_->AddField(opt_member->obfuscated_name,
                                       opt_member->deobfuscated_name)) {
-          PERFETTO_ELOG("Member redefinition: %s.%s. Proguard map invalid",
-                        current_class_->deobfuscated_name().c_str(),
-                        opt_member->deobfuscated_name.c_str());
-          return false;
+          return base::Status(std::string("Member redefinition: ") +
+                              current_class_->deobfuscated_name().c_str() +
+                              "." + opt_member->deobfuscated_name.c_str() +
+                              " Proguard map invalid");
         }
         break;
       }
@@ -198,13 +198,19 @@ bool ProguardParser::AddLine(std::string line) {
       }
     }
   }
-  return true;
+  return base::Status();
 }
 
 bool ProguardParser::AddLines(std::string contents) {
+  size_t lineno = 1;
   for (base::StringSplitter lines(std::move(contents), '\n'); lines.Next();) {
-    if (!AddLine(lines.cur_token()))
+    auto status = AddLine(lines.cur_token());
+    if (!status.ok()) {
+      PERFETTO_ELOG("Failed to parse proguard map (line %zu): %s", lineno,
+                    status.c_message());
       return false;
+    }
+    lineno++;
   }
   return true;
 }
