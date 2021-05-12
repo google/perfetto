@@ -102,6 +102,7 @@ syscall.py sys.sql sys_syscall.out
 thread_time_in_state.textproto thread_time_in_state.sql thread_time_in_state.out
 thread_time_in_state_event.py thread_time_in_state_event.sql thread_time_in_state_event.out
 thread_time_in_state.textproto android_thread_time_in_state android_thread_time_in_state.out
+thread_time_in_state_unknown.textproto android_thread_time_in_state android_thread_time_in_state_unknown.out
 
 # Initial display state
 initial_display_state.textproto initial_display_state.sql initial_display_state.out
