@@ -113,13 +113,10 @@ class TrackEventArgsParser : public util::ProtoToArgsParser::Delegate {
                      Variadic::Json(storage_.InternString(value)));
   }
 
-  PacketSequenceStateGeneration& sequence_state() const {
-    return sequence_state_;
+  InternedMessageView* GetInternedMessageView(uint32_t field_id,
+                                              uint64_t iid) final {
+    return sequence_state_.GetInternedMessageView(field_id, iid);
   }
-
-  TraceStorage& storage() const { return storage_; }
-
-  BoundInserter& inserter() const { return inserter_; }
 
  private:
   BoundInserter& inserter_;
@@ -133,31 +130,20 @@ base::Optional<base::Status> MaybeParseSourceLocation(
     std::string prefix,
     const protozero::Field& field,
     util::ProtoToArgsParser::Delegate& delegate) {
-  TrackEventArgsParser& parser = static_cast<TrackEventArgsParser&>(delegate);
-  auto* decoder =
-      parser.sequence_state()
-          .LookupInternedMessage<
-              protos::pbzero::InternedData::kSourceLocationsFieldNumber,
-              protos::pbzero::SourceLocation>(field.as_uint64());
+  auto* decoder = delegate.GetInternedMessage(
+      protos::pbzero::InternedData::kSourceLocations, field.as_uint64());
   if (!decoder) {
     // Lookup failed fall back on default behaviour which will just put
     // the source_location_iid into the args table.
     return base::nullopt;
   }
 
-  TraceStorage& storage = parser.storage();
-  BoundInserter& inserter = parser.inserter();
-
-  inserter.AddArg(storage.InternString(base::StringView(prefix + ".file_name")),
-                  Variadic::String(storage.InternString(
-                      base::StringView(decoder->file_name()))));
-  inserter.AddArg(
-      storage.InternString(base::StringView(prefix + ".function_name")),
-      Variadic::String(
-          storage.InternString(base::StringView(decoder->function_name()))));
-  inserter.AddArg(
-      storage.InternString(base::StringView(prefix + ".line_number")),
-      Variadic::Integer(decoder->line_number()));
+  delegate.AddString(util::ProtoToArgsParser::Key(prefix + ".file_name"),
+                     decoder->file_name());
+  delegate.AddString(util::ProtoToArgsParser::Key(prefix + ".function_name"),
+                     decoder->function_name());
+  delegate.AddInteger(util::ProtoToArgsParser::Key(prefix + ".line_number"),
+                      decoder->line_number());
 
   return base::OkStatus();
 }

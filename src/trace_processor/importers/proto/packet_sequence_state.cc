@@ -51,5 +51,21 @@ void PacketSequenceStateGeneration::InternMessage(uint32_t field_id,
                           message_size) == 0));
 }
 
+InternedMessageView* PacketSequenceStateGeneration::GetInternedMessageView(
+    uint32_t field_id,
+    uint64_t iid) {
+  auto field_it = interned_data_.find(field_id);
+  if (field_it != interned_data_.end()) {
+    auto* message_map = &field_it->second;
+    auto it = message_map->find(iid);
+    if (it != message_map->end()) {
+      return &it->second;
+    }
+  }
+  state_->context()->storage->IncrementStats(
+      stats::interned_data_tokenizer_errors);
+  return nullptr;
+}
+
 }  // namespace trace_processor
 }  // namespace perfetto
