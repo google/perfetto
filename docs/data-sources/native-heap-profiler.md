@@ -389,7 +389,7 @@ to not strip them.
 
 ## (non-Android) Linux support
 
-NOTE: This is experimental and only for ad-hoc investigations.
+NOTE: Do not use this for production purposes.
 
 You can use a standalone library to profile memory allocations on Linux.
 First [build Perfetto](/docs/contributing/build-instructions.md). You only need
