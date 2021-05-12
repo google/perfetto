@@ -57,6 +57,12 @@ class ScopedStringAppender {
 
 }  // namespace
 
+ProtoToArgsParser::Key::Key() = default;
+ProtoToArgsParser::Key::Key(const std::string& k) : flat_key(k), key(k) {}
+ProtoToArgsParser::Key::Key(const std::string& fk, const std::string& k)
+    : flat_key(fk), key(k) {}
+ProtoToArgsParser::Key::~Key() = default;
+
 ProtoToArgsParser::Delegate::~Delegate() = default;
 
 ProtoToArgsParser::ProtoToArgsParser(const DescriptorPool& pool) : pool_(pool) {
