@@ -38,7 +38,7 @@ class AsyncSliceTrackController extends TrackController<Config, Data> {
 
     if (this.maxDurNs === 0) {
       const maxDurResult = await this.query(`
-        select max(dur)
+        select max(iif(dur = -1, (SELECT end_ts FROM trace_bounds) - ts, dur))
         from experimental_slice_layout
         where filter_track_ids = '${this.config.trackIds.join(',')}'
       `);
@@ -51,7 +51,7 @@ class AsyncSliceTrackController extends TrackController<Config, Data> {
       SELECT
         (ts + ${bucketNs / 2}) / ${bucketNs} * ${bucketNs} as tsq,
         ts,
-        max(dur) as dur,
+        max(iif(dur = -1, (SELECT end_ts FROM trace_bounds) - ts, dur)) as dur,
         layout_depth,
         name,
         id,
