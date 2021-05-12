@@ -157,8 +157,7 @@ class PacketSequenceStateGeneration {
   template <uint32_t FieldId, typename MessageType>
   typename MessageType::Decoder* LookupInternedMessage(uint64_t iid);
 
-  template <uint32_t FieldId>
-  InternedMessageView* GetInternedMessageView(uint64_t iid);
+  InternedMessageView* GetInternedMessageView(uint32_t field_id, uint64_t iid);
   // Returns |nullptr| if no defaults were set.
   InternedMessageView* GetTracePacketDefaultsView() {
     if (!trace_packet_defaults_)
@@ -354,26 +353,10 @@ class PacketSequenceState {
   SequenceStackProfileTracker sequence_stack_profile_tracker_;
 };
 
-template <uint32_t FieldId>
-InternedMessageView* PacketSequenceStateGeneration::GetInternedMessageView(
-    uint64_t iid) {
-  auto field_it = interned_data_.find(FieldId);
-  if (field_it != interned_data_.end()) {
-    auto* message_map = &field_it->second;
-    auto it = message_map->find(iid);
-    if (it != message_map->end()) {
-      return &it->second;
-    }
-  }
-  state_->context()->storage->IncrementStats(
-      stats::interned_data_tokenizer_errors);
-  return nullptr;
-}
-
 template <uint32_t FieldId, typename MessageType>
 typename MessageType::Decoder*
 PacketSequenceStateGeneration::LookupInternedMessage(uint64_t iid) {
-  auto* interned_message_view = GetInternedMessageView<FieldId>(iid);
+  auto* interned_message_view = GetInternedMessageView(FieldId, iid);
   if (!interned_message_view)
     return nullptr;
 
