@@ -21,6 +21,8 @@
 #include "protos/perfetto/common/descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/source_location.pbzero.h"
 #include "src/protozero/test/example_proto/test_messages.pbzero.h"
+#include "src/trace_processor/importers/common/trace_blob_view.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state.h"
 #include "src/trace_processor/test_messages.descriptor.h"
 #include "test/gtest_and_gmock.h"
 
@@ -44,6 +46,11 @@ class ProtoToArgsParserTest : public ::testing::Test,
   ProtoToArgsParserTest() {}
 
   const std::vector<std::string>& args() const { return args_; }
+
+  void AddInternedSourceLocation(uint64_t iid, TraceBlobView data) {
+    interned_source_locations_[iid] = std::unique_ptr<InternedMessageView>(
+        new InternedMessageView(std::move(data)));
+  }
 
  private:
   using Key = ProtoToArgsParser::Key;
@@ -92,7 +99,16 @@ class ProtoToArgsParserTest : public ::testing::Test,
     args_.push_back(ss.str());
   }
 
+  InternedMessageView* GetInternedMessageView(uint32_t field_id,
+                                              uint64_t iid) override {
+    if (field_id != protos::pbzero::InternedData::kSourceLocationsFieldNumber)
+      return nullptr;
+    return interned_source_locations_.at(iid).get();
+  }
+
   std::vector<std::string> args_;
+  std::map<uint64_t, std::unique_ptr<InternedMessageView>>
+      interned_source_locations_;
 };
 
 TEST_F(ProtoToArgsParserTest, EnsureTestMessageProtoParses) {
@@ -287,6 +303,63 @@ TEST_F(ProtoToArgsParserTest, NestedProtoParsingOverrideSkipped) {
       << status.message();
   EXPECT_THAT(args(), testing::ElementsAre(
                           "super_nested.value_c super_nested.value_c 3"));
+}
+
+TEST_F(ProtoToArgsParserTest, LookingUpInternedStateParsingOverride) {
+  using namespace protozero::test::protos::pbzero;
+  // The test proto, we will use |value_c| as the source_location iid.
+  protozero::HeapBuffered<NestedA> msg{kChunkSize, kChunkSize};
+  msg->set_super_nested()->set_value_c(3);
+  auto binary_proto = msg.SerializeAsArray();
+
+  // The interned source location.
+  protozero::HeapBuffered<protos::pbzero::SourceLocation> src_loc{kChunkSize,
+                                                                  kChunkSize};
+  const uint64_t kIid = 3;
+  src_loc->set_iid(kIid);
+  src_loc->set_file_name("test_file_name");
+  // We need to update sequence_state to point to it.
+  auto binary_data = src_loc.SerializeAsArray();
+  std::unique_ptr<uint8_t[]> buffer(new uint8_t[binary_data.size()]);
+  for (size_t i = 0; i < binary_data.size(); ++i) {
+    buffer.get()[i] = binary_data[i];
+  }
+  TraceBlobView blob(std::move(buffer), 0, binary_data.size());
+  AddInternedSourceLocation(kIid, std::move(blob));
+
+  DescriptorPool pool;
+  auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                              kTestMessagesDescriptor.size());
+  ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
+                           << status.message();
+
+  ProtoToArgsParser parser(pool);
+  // Now we override the behaviour of |value_c| so we can expand the iid into
+  // multiple args rows.
+  parser.AddParsingOverride(
+      "super_nested.value_c",
+      [](const protozero::Field& field, ProtoToArgsParser::Delegate& delegate)
+          -> base::Optional<base::Status> {
+        auto* decoder = delegate.GetInternedMessage(
+            protos::pbzero::InternedData::kSourceLocations, field.as_uint64());
+        if (!decoder) {
+          // Lookup failed fall back on default behaviour.
+          return base::nullopt;
+        }
+        delegate.AddString(ProtoToArgsParser::Key("file_name"),
+                           protozero::ConstChars{"file", 4});
+        delegate.AddInteger(ProtoToArgsParser::Key("line_number"), 2);
+        return base::OkStatus();
+      });
+
+  status = parser.ParseMessage(
+      protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
+      ".protozero.test.protos.NestedA", nullptr, *this);
+  EXPECT_TRUE(status.ok())
+      << "InternProtoFieldsIntoArgsTable failed with error: "
+      << status.message();
+  EXPECT_THAT(args(), testing::ElementsAre("file_name file_name file",
+                                           "line_number line_number 2"));
 }
 
 }  // namespace

@@ -174,8 +174,8 @@ class ProfilePacketInternLookup
 
   base::Optional<SequenceStackProfileTracker::SourceCallstack> GetCallstack(
       SequenceStackProfileTracker::SourceCallstackId iid) const override {
-    auto* interned_message_view = seq_state_->GetInternedMessageView<
-        protos::pbzero::InternedData::kCallstacksFieldNumber>(iid);
+    auto* interned_message_view = seq_state_->GetInternedMessageView(
+        protos::pbzero::InternedData::kCallstacksFieldNumber, iid);
     if (!interned_message_view)
       return base::nullopt;
     protos::pbzero::Callstack::Decoder decoder(
