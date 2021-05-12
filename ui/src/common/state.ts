@@ -51,7 +51,8 @@ export interface Area {
 
 export const MAX_TIME = 180;
 
-export const STATE_VERSION = 2;
+// 3: TrackKindPriority and related sorting changes.
+export const STATE_VERSION = 3;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
