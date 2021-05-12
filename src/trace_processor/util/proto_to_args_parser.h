@@ -19,10 +19,15 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/protozero/field.h"
+#include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "src/trace_processor/util/descriptors.h"
 
 namespace perfetto {
 namespace trace_processor {
+
+// TODO(altimin): Move InternedMessageView into trace_processor/util.
+class InternedMessageView;
+
 namespace util {
 
 // ProtoToArgsParser encapsulates the process of taking an arbitrary proto and
@@ -58,8 +63,13 @@ class ProtoToArgsParser {
   explicit ProtoToArgsParser(const DescriptorPool& descriptor_pool);
 
   struct Key {
-    std::string key;
+    Key(const std::string& flat_key, const std::string& key);
+    Key(const std::string& key);
+    Key();
+    ~Key();
+
     std::string flat_key;
+    std::string key;
   };
 
   class Delegate {
@@ -75,6 +85,25 @@ class ProtoToArgsParser {
     virtual void AddBoolean(const Key& key, bool value) = 0;
     virtual void AddJson(const Key& key,
                          const protozero::ConstChars& value) = 0;
+
+    template <typename FieldMetadata>
+    typename FieldMetadata::cpp_field_type::Decoder* GetInternedMessage(
+        protozero::proto_utils::internal::FieldMetadataHelper<FieldMetadata>,
+        uint64_t iid) {
+      static_assert(std::is_base_of<protozero::proto_utils::FieldMetadataBase,
+                                    FieldMetadata>::value,
+                    "Field metadata should be a subclass of FieldMetadataBase");
+      static_assert(std::is_same<typename FieldMetadata::message_type,
+                                 protos::pbzero::InternedData>::value,
+                    "Field should belong to InternedData proto");
+      return GetInternedMessageView(FieldMetadata::kFieldId, iid)
+          ->template GetOrCreateDecoder<
+              typename FieldMetadata::cpp_field_type>();
+    }
+
+   protected:
+    virtual InternedMessageView* GetInternedMessageView(uint32_t field_id,
+                                                        uint64_t iid) = 0;
   };
 
   using ParsingOverride =
