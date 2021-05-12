@@ -22,6 +22,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include "perfetto/base/status.h"
 
 namespace perfetto {
 namespace profiling {
@@ -59,7 +60,7 @@ class ObfuscatedClass {
   bool AddField(std::string obfuscated_name, std::string deobfuscated_name) {
     auto p = deobfuscated_fields_.emplace(std::move(obfuscated_name),
                                           deobfuscated_name);
-    return p.second && p.first->second == deobfuscated_name;
+    return p.second || p.first->second == deobfuscated_name;
   }
 
   void AddMethod(std::string obfuscated_name, std::string deobfuscated_name) {
@@ -90,7 +91,7 @@ class ProguardParser {
  public:
   // A return value of false means this line failed to parse. This leaves the
   // parser in an undefined state and it should no longer be used.
-  bool AddLine(std::string line);
+  base::Status AddLine(std::string line);
   bool AddLines(std::string contents);
 
   std::map<std::string, ObfuscatedClass> ConsumeMapping() {
