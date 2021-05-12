@@ -105,7 +105,7 @@ SELECT
     frame_times.ts_end - launches.ts as ts_total
 FROM frame_times
 INNER JOIN launches on launches.package LIKE '%' || frame_times.name || '%'
-WHERE frame_times.ts > (SELECT ts + dur FROM animators WHERE animator_name="animator:translationZ" AND process_name LIKE "%id.deskclock" ORDER BY ts DESC LIMIT 1) AND frame_times.name LIKE "%id.deskclock" AND frame_times.launch_id = launches.id
+WHERE frame_times.ts > (SELECT ts + dur FROM animators WHERE animator_name="animator:translationZ" AND process_name LIKE "%id.deskclock" ORDER BY (ts+dur) DESC LIMIT 1) AND frame_times.name LIKE "%id.deskclock" AND frame_times.launch_id = launches.id
 ORDER BY ts_total LIMIT 1;
 
 -- Contacts
@@ -158,7 +158,7 @@ SELECT
     frame_times.ts_end - launches.ts as ts_total
 FROM frame_times
 INNER JOIN launches on launches.package LIKE '%' || frame_times.name || '%'
-WHERE frame_times.ts > (SELECT ts + dur FROM animators WHERE animator_name="animator:elevation" AND process_name LIKE "%android.gm" ORDER BY ts DESC LIMIT 1) AND frame_times.name LIKE "%android.gm" AND frame_times.launch_id = launches.id
+WHERE frame_times.ts > (SELECT ts + dur FROM animators WHERE animator_name="animator:elevation" AND process_name LIKE "%android.gm" ORDER BY (ts+dur) DESC LIMIT 1) AND frame_times.name LIKE "%android.gm" AND frame_times.launch_id = launches.id
 ORDER BY ts_total LIMIT 1;
 
 -- Instagram
