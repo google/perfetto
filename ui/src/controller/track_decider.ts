@@ -412,7 +412,7 @@ class TrackDecider {
         trackGroup: uuid,
         trackKindPriority:
             TrackDecider.inferTrackKindPriority(threadName, tid, pid),
-        config: {utid}
+        config: {utid, tid}
       });
     }
   }
@@ -508,12 +508,7 @@ class TrackDecider {
         name,
         trackKindPriority: TrackDecider.inferTrackKindPriority(threadName),
         trackGroup: uuid,
-        config: {
-          name,
-          trackId,
-          startTs,
-          endTs,
-        }
+        config: {name, trackId, startTs, endTs, tid}
       });
     }
   }
@@ -762,11 +757,7 @@ class TrackDecider {
         name,
         trackGroup: uuid,
         trackKindPriority,
-        config: {
-          trackId,
-          maxDepth,
-          tid,
-        }
+        config: {trackId, maxDepth, tid}
       });
     }
   }
@@ -976,7 +967,7 @@ class TrackDecider {
           kind,
           trackKindPriority: TrackDecider.inferTrackKindPriority(threadName),
           name: `${upid === null ? tid : pid} summary`,
-          config: {pidForColor, upid, utid},
+          config: {pidForColor, upid, utid, tid},
         });
 
         const name = TrackDecider.getTrackName(
