@@ -42,3 +42,5 @@ gsutil acl ch -u AllUsers:R gs://chromium-telemetry/binary_dependencies/$name
 echo 'Now run the following command to update tools/traceconv:'
 echo "sed \"s/'$platform': '[^']*',/'$platform': '$NEW_SHA',/\" --in-place tools/traceconv"
 
+echo 'Now run the following command to update tools/heap_profile:'
+echo "sed \"s/'$platform': '[^']*',/'$platform': '$NEW_SHA',/\" --in-place tools/heap_profile"
