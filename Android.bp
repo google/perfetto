@@ -1745,6 +1745,7 @@ cc_test {
     ":perfetto_src_trace_processor_tables_tables",
     ":perfetto_src_trace_processor_types_types",
     ":perfetto_src_trace_processor_util_descriptors",
+    ":perfetto_src_trace_processor_util_proto_to_args_parser",
     ":perfetto_src_trace_processor_util_protozero_to_text",
     ":perfetto_src_trace_processor_util_util",
     ":perfetto_src_traced_probes_android_log_android_log",
@@ -7925,7 +7926,6 @@ filegroup {
     "src/trace_processor/importers/gzip/gzip_utils.cc",
     "src/trace_processor/importers/json/json_utils.cc",
     "src/trace_processor/importers/ninja/ninja_log_parser.cc",
-    "src/trace_processor/importers/proto/args_table_utils.cc",
     "src/trace_processor/importers/proto/async_track_set_tracker.cc",
     "src/trace_processor/importers/proto/chrome_string_lookup.cc",
     "src/trace_processor/importers/proto/chrome_system_probes_module.cc",
@@ -8013,7 +8013,6 @@ filegroup {
     "src/trace_processor/importers/memory_tracker/graph_processor_unittest.cc",
     "src/trace_processor/importers/memory_tracker/graph_unittest.cc",
     "src/trace_processor/importers/memory_tracker/raw_process_memory_node_unittest.cc",
-    "src/trace_processor/importers/proto/args_table_utils_unittest.cc",
     "src/trace_processor/importers/proto/async_track_set_tracker_unittest.cc",
     "src/trace_processor/importers/proto/heap_graph_tracker_unittest.cc",
     "src/trace_processor/importers/proto/heap_profile_tracker_unittest.cc",
@@ -8033,6 +8032,14 @@ filegroup {
   ],
 }
 
+// GN: //src/trace_processor/util:proto_to_args_parser
+filegroup {
+  name: "perfetto_src_trace_processor_util_proto_to_args_parser",
+  srcs: [
+    "src/trace_processor/util/proto_to_args_parser.cc",
+  ],
+}
+
 // GN: //src/trace_processor/util:protozero_to_text
 filegroup {
   name: "perfetto_src_trace_processor_util_protozero_to_text",
@@ -8045,6 +8052,7 @@ filegroup {
 filegroup {
   name: "perfetto_src_trace_processor_util_unittests",
   srcs: [
+    "src/trace_processor/util/proto_to_args_parser_unittest.cc",
     "src/trace_processor/util/protozero_to_text_unittests.cc",
   ],
 }
@@ -9026,6 +9034,7 @@ cc_test {
     ":perfetto_src_trace_processor_types_unittests",
     ":perfetto_src_trace_processor_unittests",
     ":perfetto_src_trace_processor_util_descriptors",
+    ":perfetto_src_trace_processor_util_proto_to_args_parser",
     ":perfetto_src_trace_processor_util_protozero_to_text",
     ":perfetto_src_trace_processor_util_unittests",
     ":perfetto_src_trace_processor_util_util",
@@ -9312,6 +9321,7 @@ cc_binary {
     ":perfetto_src_trace_processor_tables_tables",
     ":perfetto_src_trace_processor_types_types",
     ":perfetto_src_trace_processor_util_descriptors",
+    ":perfetto_src_trace_processor_util_proto_to_args_parser",
     ":perfetto_src_trace_processor_util_protozero_to_text",
     ":perfetto_src_trace_processor_util_util",
     "src/trace_processor/trace_processor_shell.cc",
@@ -9460,6 +9470,7 @@ cc_binary_host {
     ":perfetto_src_trace_processor_tables_tables",
     ":perfetto_src_trace_processor_types_types",
     ":perfetto_src_trace_processor_util_descriptors",
+    ":perfetto_src_trace_processor_util_proto_to_args_parser",
     ":perfetto_src_trace_processor_util_protozero_to_text",
     ":perfetto_src_trace_processor_util_util",
     ":perfetto_tools_trace_to_text_common",
