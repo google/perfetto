@@ -1,0 +1,96 @@
+packet {
+  system_info {
+    # No android_build_fingerprint to test the metric without the CPU core to
+    # cluster mapping.
+    hz: 100
+  }
+}
+packet {
+  timestamp: 1
+  process_tree {
+    processes {
+      pid: 5
+      ppid: 1
+      cmdline: "com.google.pid5"
+    }
+    threads {
+      tid: 5
+      tgid: 5
+    }
+    threads {
+      tid: 7
+      tgid: 5
+      name: "tid7"
+    }
+  }
+}
+packet {
+  timestamp: 2
+  process_stats {
+    processes {
+      pid: 5
+      threads {
+        tid: 5
+        cpu_freq_indices: 1
+        cpu_freq_ticks: 1
+        cpu_freq_indices: 2
+        cpu_freq_ticks: 1
+      }
+    }
+  }
+}
+packet {
+  timestamp: 3
+  process_stats {
+    processes {
+      pid: 5
+      threads {
+        tid: 5
+        cpu_freq_indices: 1
+        cpu_freq_ticks: 2
+        cpu_freq_indices: 2
+        cpu_freq_ticks: 1
+      }
+      threads {
+        tid: 7
+        cpu_freq_indices: 5
+        cpu_freq_ticks: 1
+      }
+    }
+  }
+}
+packet {
+  timestamp: 4
+  process_stats {
+    processes {
+      pid: 5
+      threads {
+        tid: 5
+        # cpu_freq_indices: 1 was skipped because it did not change.
+        cpu_freq_indices: 2
+        cpu_freq_ticks: 2
+      }
+    }
+  }
+}
+packet {
+  timestamp: 1
+  cpu_info {
+    cpus {
+      frequencies: 100000
+      frequencies: 200000
+    }
+    cpus {
+      frequencies: 100000
+      frequencies: 200000
+    }
+    cpus {
+      frequencies: 1000000
+      frequencies: 2000000
+    }
+    cpus {
+      frequencies: 1000000
+      frequencies: 2000000
+    }
+  }
+}
