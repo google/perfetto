@@ -302,16 +302,20 @@ class TrackDecider {
 
   async groupGlobalIonTracks(): Promise<void> {
     const ionTracks: AddTrackArgs[] = [];
+    let hasSummary = false;
     for (const track of this.tracksToAdd) {
       const isIon = track.name.startsWith(MEM_ION);
+      const isIonCounter = track.name === MEM_ION;
       const isDmaHeapCounter = track.name === MEM_DMA_COUNTER_NAME;
       const isDmaBuffferSlices = track.name === MEM_DMA;
-      if (isIon || isDmaHeapCounter || isDmaBuffferSlices) {
+      if (isIon || isIonCounter || isDmaHeapCounter || isDmaBuffferSlices) {
         ionTracks.push(track);
       }
+      hasSummary = hasSummary || isIonCounter;
+      hasSummary = hasSummary || isDmaHeapCounter;
     }
 
-    if (ionTracks.length === 0) {
+    if (ionTracks.length === 0 || !hasSummary) {
       return;
     }
 
@@ -328,10 +332,6 @@ class TrackDecider {
       } else {
         track.trackGroup = id;
       }
-    }
-
-    if (!foundSummary) {
-      return;
     }
 
     const addGroup = Actions.addTrackGroup({
