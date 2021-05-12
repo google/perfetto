@@ -67,7 +67,7 @@ TEST(UnwindingTest, FDMapsParse) {
   unwindstack::MapInfo* map_info =
       maps.Find(reinterpret_cast<uint64_t>(&proc_maps));
   ASSERT_NE(map_info, nullptr);
-  ASSERT_EQ(map_info->name, "[stack]");
+  ASSERT_EQ(map_info->name(), "[stack]");
 }
 
 void __attribute__((noinline)) AssertFunctionOffset() {
