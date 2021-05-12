@@ -60,10 +60,10 @@ export type EngineMode = 'WASM'|'HTTP_RPC';
 export type NewEngineMode = 'USE_HTTP_RPC_IF_AVAILABLE'|'FORCE_BUILTIN_WASM';
 
 export enum TrackKindPriority {
-  'MAIN_THREAD' = 3,
-  'RENDER_THREAD' = 2,
-  'GPU_COMPLETION' = 1,
-  'ORDINARY' = 0
+  'MAIN_THREAD' = 0,
+  'RENDER_THREAD' = 1,
+  'GPU_COMPLETION' = 2,
+  'ORDINARY' = 3
 }
 
 export type HeapProfileFlamegraphViewingOption =
