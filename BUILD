@@ -1113,6 +1113,15 @@ filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/util:proto_to_args_parser
+filegroup(
+    name = "src_trace_processor_util_proto_to_args_parser",
+    srcs = [
+        "src/trace_processor/util/proto_to_args_parser.cc",
+        "src/trace_processor/util/proto_to_args_parser.h",
+    ],
+)
+
 # GN target: //src/trace_processor/util:protozero_to_text
 filegroup(
     name = "src_trace_processor_util_protozero_to_text",
@@ -1281,8 +1290,6 @@ filegroup(
         "src/trace_processor/importers/json/json_utils.h",
         "src/trace_processor/importers/ninja/ninja_log_parser.cc",
         "src/trace_processor/importers/ninja/ninja_log_parser.h",
-        "src/trace_processor/importers/proto/args_table_utils.cc",
-        "src/trace_processor/importers/proto/args_table_utils.h",
         "src/trace_processor/importers/proto/async_track_set_tracker.cc",
         "src/trace_processor/importers/proto/async_track_set_tracker.h",
         "src/trace_processor/importers/proto/chrome_string_lookup.cc",
@@ -3446,6 +3453,7 @@ perfetto_cc_library(
         ":src_trace_processor_tables_tables",
         ":src_trace_processor_types_types",
         ":src_trace_processor_util_descriptors",
+        ":src_trace_processor_util_proto_to_args_parser",
         ":src_trace_processor_util_protozero_to_text",
         ":src_trace_processor_util_util",
     ],
@@ -3543,6 +3551,7 @@ perfetto_cc_binary(
         ":src_trace_processor_tables_tables",
         ":src_trace_processor_types_types",
         ":src_trace_processor_util_descriptors",
+        ":src_trace_processor_util_proto_to_args_parser",
         ":src_trace_processor_util_protozero_to_text",
         ":src_trace_processor_util_util",
         "src/trace_processor/trace_processor_shell.cc",
@@ -3721,6 +3730,7 @@ perfetto_cc_binary(
         ":src_trace_processor_tables_tables",
         ":src_trace_processor_types_types",
         ":src_trace_processor_util_descriptors",
+        ":src_trace_processor_util_proto_to_args_parser",
         ":src_trace_processor_util_protozero_to_text",
         ":src_trace_processor_util_util",
         ":tools_trace_to_text_common",
