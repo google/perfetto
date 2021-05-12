@@ -115,8 +115,8 @@ function rank(ts: TrackState): number[] {
 
 function rankIndex<T>(element: T, array: T[]): number {
   const index = array.indexOf(element);
-  if (index === -1) return 0;
-  return array.length - index;
+  if (index === -1) return array.length;
+  return index;
 }
 
 export const StateActions = {
@@ -280,7 +280,7 @@ export const StateActions = {
         const aRank = rank(state.tracks[a]);
         const bRank = rank(state.tracks[b]);
         for (let i = 0; i < aRank.length; i++) {
-          if (aRank[i] !== bRank[i]) return bRank[i] - aRank[i];
+          if (aRank[i] !== bRank[i]) return aRank[i] - bRank[i];
         }
 
         const aName = state.tracks[a].name.toLocaleLowerCase();
