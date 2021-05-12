@@ -290,7 +290,7 @@ PERFETTO_TP_TABLE(PERFETTO_TP_EXPERIMENTAL_FLAMEGRAPH_NODES);
 // @param deobfuscated_name if class name was obfuscated and deobfuscation map
 // for it provided, the deobfuscated name.
 // @param location the APK / Dex / JAR file the class is contained in.
-// @tablegroup ART Heap Profiler
+// @tablegroup ART Heap Graphs
 //
 // classloader_id should really be HeapGraphObject::id, but that would
 // create a loop, which is currently not possible.
@@ -320,7 +320,7 @@ PERFETTO_TP_TABLE(PERFETTO_TP_HEAP_GRAPH_CLASS_DEF);
 // false, this object is uncollected garbage.
 // @param type_id class this object is an instance of.
 // @param root_type if not NULL, this object is a GC root.
-// @tablegroup ART Heap Profiler
+// @tablegroup ART Heap Graphs
 #define PERFETTO_TP_HEAP_GRAPH_OBJECT_DEF(NAME, PARENT, C)            \
   NAME(HeapGraphObjectTable, "heap_graph_object")                     \
   PERFETTO_TP_ROOT_TABLE(PARENT, C)                                   \
@@ -346,7 +346,7 @@ PERFETTO_TP_TABLE(PERFETTO_TP_HEAP_GRAPH_OBJECT_DEF);
 // @param field_type_name the static type of the field. E.g. java.lang.String.
 // @param deobfuscated_field_name if field_name was obfuscated and a
 // deobfuscation mapping was provided for it, the deobfuscated name.
-// @tablegroup ART Heap Profiler
+// @tablegroup ART Heap Graphs
 #define PERFETTO_TP_HEAP_GRAPH_REFERENCE_DEF(NAME, PARENT, C) \
   NAME(HeapGraphReferenceTable, "heap_graph_reference")       \
   PERFETTO_TP_ROOT_TABLE(PARENT, C)                           \
