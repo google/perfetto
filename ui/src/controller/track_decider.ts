@@ -48,6 +48,10 @@ import {
 import {PROCESS_SUMMARY_TRACK} from '../tracks/process_summary/common';
 import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state/common';
 
+const MEM_DMA_COUNTER_NAME = 'mem.dma_heap';
+const MEM_DMA = 'mem.dma_buffer';
+const MEM_ION = 'mem.ion';
+
 export async function decideTracks(
     engineId: string, engine: Engine): Promise<DeferredAction[]> {
   return (new TrackDecider(engineId, engine)).decideTracks();
@@ -197,7 +201,6 @@ class TrackDecider {
   }
 
   async addGlobalAsyncTracks(): Promise<void> {
-    // TODO(b/187546438): Re-enable mem.ion_buffer once we can collapse it
     const rawGlobalAsyncTracks = await this.engine.query(`
     SELECT
       t.name,
@@ -210,7 +213,6 @@ class TrackDecider {
       GROUP BY name
     ) AS t CROSS JOIN experimental_slice_layout
     WHERE t.track_ids = experimental_slice_layout.filter_track_ids
-    AND t.name != 'mem.ion_buffer'
     GROUP BY t.track_ids;
   `);
     for (let i = 0; i < slowlyCountRows(rawGlobalAsyncTracks); i++) {
@@ -296,6 +298,50 @@ class TrackDecider {
         }
       });
     }
+  }
+
+  async groupGlobalIonTracks(): Promise<void> {
+    const ionTracks: AddTrackArgs[] = [];
+    let hasSummary = false;
+    for (const track of this.tracksToAdd) {
+      const isIon = track.name.startsWith(MEM_ION);
+      const isIonCounter = track.name === MEM_ION;
+      const isDmaHeapCounter = track.name === MEM_DMA_COUNTER_NAME;
+      const isDmaBuffferSlices = track.name === MEM_DMA;
+      if (isIon || isIonCounter || isDmaHeapCounter || isDmaBuffferSlices) {
+        ionTracks.push(track);
+      }
+      hasSummary = hasSummary || isIonCounter;
+      hasSummary = hasSummary || isDmaHeapCounter;
+    }
+
+    if (ionTracks.length === 0 || !hasSummary) {
+      return;
+    }
+
+    const id = uuidv4();
+    const summaryTrackId = uuidv4();
+    let foundSummary = false;
+
+    for (const track of ionTracks) {
+      if (!foundSummary &&
+          [MEM_DMA_COUNTER_NAME, MEM_ION].includes(track.name)) {
+        foundSummary = true;
+        track.id = summaryTrackId;
+        track.trackGroup = undefined;
+      } else {
+        track.trackGroup = id;
+      }
+    }
+
+    const addGroup = Actions.addTrackGroup({
+      engineId: this.engineId,
+      summaryTrackId,
+      name: MEM_DMA_COUNTER_NAME,
+      id,
+      collapsed: true,
+    });
+    this.addTrackGroupActions.push(addGroup);
   }
 
   async addLogsTrack(): Promise<void> {
@@ -412,7 +458,7 @@ class TrackDecider {
         trackGroup: uuid,
         trackKindPriority:
             TrackDecider.inferTrackKindPriority(threadName, tid, pid),
-        config: {utid}
+        config: {utid, tid}
       });
     }
   }
@@ -508,12 +554,7 @@ class TrackDecider {
         name,
         trackKindPriority: TrackDecider.inferTrackKindPriority(threadName),
         trackGroup: uuid,
-        config: {
-          name,
-          trackId,
-          startTs,
-          endTs,
-        }
+        config: {name, trackId, startTs, endTs, tid}
       });
     }
   }
@@ -762,11 +803,7 @@ class TrackDecider {
         name,
         trackGroup: uuid,
         trackKindPriority,
-        config: {
-          trackId,
-          maxDepth,
-          tid,
-        }
+        config: {trackId, maxDepth, tid}
       });
     }
   }
@@ -976,7 +1013,7 @@ class TrackDecider {
           kind,
           trackKindPriority: TrackDecider.inferTrackKindPriority(threadName),
           name: `${upid === null ? tid : pid} summary`,
-          config: {pidForColor, upid, utid},
+          config: {pidForColor, upid, utid, tid},
         });
 
         const name = TrackDecider.getTrackName(
@@ -1001,11 +1038,12 @@ class TrackDecider {
     await this.addGlobalAsyncTracks();
     await this.addGpuFreqTracks();
     await this.addGlobalCounterTracks();
+    await this.groupGlobalIonTracks();
 
     // Create the per-process track groups. Note that this won't necessarily
     // create a track per process. If a process has been completely idle and has
     // no sched events, no track group will be emitted.
-    // Will populate this.addTrackGroupActions().
+    // Will populate this.addTrackGroupActions
     await this.addProcessTrackGroups();
 
     await this.addProcessHeapProfileTracks();

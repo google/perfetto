@@ -19,6 +19,7 @@ import {HEAP_PROFILE_TRACK_KIND} from '../tracks/heap_profile/common';
 import {
   PROCESS_SCHEDULING_TRACK_KIND
 } from '../tracks/process_scheduling/common';
+import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state/common';
 
 import {StateActions} from './actions';
 import {
@@ -34,7 +35,8 @@ function fakeTrack(state: State, args: {
   kind?: string,
   trackGroup?: string,
   trackKindPriority?: TrackKindPriority,
-  name?: string
+  name?: string,
+  tid?: string
 }): State {
   return produce(state, draft => {
     StateActions.addTrack(draft, {
@@ -46,7 +48,7 @@ function fakeTrack(state: State, args: {
           TrackKindPriority.ORDINARY :
           args.trackKindPriority,
       trackGroup: args.trackGroup || SCROLLING_TRACK_GROUP,
-      config: {}
+      config: {tid: args.tid || '0'}
     });
   });
 }
@@ -391,4 +393,36 @@ test('sortTracksByPriorityAndKindAndName', () => {
   // 4.Collated name string (ie. 'T2' will be before 'T10')
   expect(after.trackGroups['g'].tracks)
       .toEqual(['a', 'b', 'b', 'c', 'd', 'e', 'f', 'g']);
+});
+
+test('sortTracksByTidThenName', () => {
+  let state = createEmptyState();
+  state = fakeTrackGroup(state, {id: 'g', summaryTrackId: 'a'});
+  state = fakeTrack(state, {
+    id: 'a',
+    kind: SLICE_TRACK_KIND,
+    trackGroup: 'g',
+    name: 'aaa',
+    tid: '1'
+  });
+  state = fakeTrack(state, {
+    id: 'b',
+    kind: SLICE_TRACK_KIND,
+    trackGroup: 'g',
+    name: 'bbb',
+    tid: '2'
+  });
+  state = fakeTrack(state, {
+    id: 'c',
+    kind: THREAD_STATE_TRACK_KIND,
+    trackGroup: 'g',
+    name: 'ccc',
+    tid: '1'
+  });
+
+  const after = produce(state, draft => {
+    StateActions.sortThreadTracks(draft, {});
+  });
+
+  expect(after.trackGroups['g'].tracks).toEqual(['a', 'a', 'c', 'b']);
 });

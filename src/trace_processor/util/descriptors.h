@@ -23,9 +23,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/optional.h"
-#include "perfetto/trace_processor/basic_types.h"
-#include "perfetto/trace_processor/status.h"
 #include "protos/perfetto/common/descriptor.pbzero.h"
 
 namespace protozero {
@@ -149,7 +148,7 @@ using ExtensionInfo = std::pair<std::string, protozero::ConstBytes>;
 
 class DescriptorPool {
  public:
-  util::Status AddFromFileDescriptorSet(
+  base::Status AddFromFileDescriptorSet(
       const uint8_t* file_descriptor_set_proto,
       size_t size,
       bool merge_existing_messages = false);
@@ -164,19 +163,19 @@ class DescriptorPool {
   std::vector<uint8_t> SerializeAsDescriptorSet();
 
  private:
-  util::Status AddNestedProtoDescriptors(const std::string& file_name,
+  base::Status AddNestedProtoDescriptors(const std::string& file_name,
                                          const std::string& package_name,
                                          base::Optional<uint32_t> parent_idx,
                                          protozero::ConstBytes descriptor_proto,
                                          std::vector<ExtensionInfo>* extensions,
                                          bool merge_existing_messages);
-  util::Status AddEnumProtoDescriptors(const std::string& file_name,
+  base::Status AddEnumProtoDescriptors(const std::string& file_name,
                                        const std::string& package_name,
                                        base::Optional<uint32_t> parent_idx,
                                        protozero::ConstBytes descriptor_proto,
                                        bool merge_existing_messages);
 
-  util::Status AddExtensionField(const std::string& package_name,
+  base::Status AddExtensionField(const std::string& package_name,
                                  protozero::ConstBytes field_desc_proto);
 
   // Recursively searches for the given short type in all parent messages

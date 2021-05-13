@@ -23,12 +23,18 @@
 #include "perfetto/tracing/internal/checked_scope.h"
 #include "perfetto/tracing/string_helpers.h"
 #include "perfetto/tracing/traced_value_forward.h"
-#include "protos/perfetto/trace/track_event/debug_annotation.pbzero.h"
 
+#include <memory>
 #include <type_traits>
 #include <utility>
 
 namespace perfetto {
+
+namespace protos {
+namespace pbzero {
+class DebugAnnotation;
+}
+}  // namespace protos
 
 class DebugAnnotation;
 

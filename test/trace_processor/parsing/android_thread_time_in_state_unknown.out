@@ -1,0 +1,22 @@
+android_thread_time_in_state {
+  processes {
+    metadata {
+      name: "com.google.pid5"
+    }
+    metrics_by_core_type {
+      time_in_state_cpu: 0
+      core_type: "unknown"
+      runtime_ms: 20
+      mcycles: 3
+    }
+    threads {
+      main_thread: true
+      metrics_by_core_type {
+        time_in_state_cpu: 0
+        core_type: "unknown"
+        runtime_ms: 20
+        mcycles: 3
+      }
+    }
+  }
+}

@@ -24,10 +24,10 @@
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
-#include "src/trace_processor/importers/proto/args_table_utils.h"
 #include "src/trace_processor/importers/proto/chrome_string_lookup.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/timestamped_trace_piece.h"
+#include "src/trace_processor/util/proto_to_args_parser.h"
 
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
 
@@ -67,6 +67,9 @@ class TrackEventParser {
   void ParseChromeProcessDescriptor(UniquePid, protozero::ConstBytes);
   void ParseChromeThreadDescriptor(UniqueTid, protozero::ConstBytes);
   void ParseCounterDescriptor(TrackId, protozero::ConstBytes);
+
+  // Reflection-based proto TrackEvent field parser.
+  util::ProtoToArgsParser args_parser_;
 
   TraceProcessorContext* context_;
   TrackEventTracker* track_event_tracker_;

@@ -389,10 +389,11 @@ to not strip them.
 
 ## (non-Android) Linux support
 
-NOTE: This is experimental and only for ad-hoc investigations.
+NOTE: Do not use this for production purposes.
 
 You can use a standalone library to profile memory allocations on Linux.
-First [build Perfetto](/docs/contributing/build-instructions.md)
+First [build Perfetto](/docs/contributing/build-instructions.md). You only need
+to do this once.
 
 ```
 tools/build_all_configs.py
@@ -408,34 +409,10 @@ out/linux_clang_release/traced
 Start the profile (e.g. targeting trace_processor_shell)
 
 ```
+tools/heap_profile -n trace_processor_shell --print-config  | \
 out/linux_clang_release/perfetto \
   -c - --txt \
-  -o ~/heapprofd-trace \
-<<EOF
-
-buffers {
-  size_kb: 32768
-}
-
-data_sources {
-  config {
-    name: "android.heapprofd"
-    heapprofd_config {
-      shmem_size_bytes: 8388608
-      sampling_interval_bytes: 4096
-      block_client: true
-      process_cmdline: "trace_processor_shell"
-      dump_at_max: true
-    }
-  }
-}
-
-duration_ms: 604800000
-write_into_file: true
-flush_timeout_ms: 30000
-flush_period_ms: 604800000
-
-EOF
+  -o ~/heapprofd-trace
 ```
 
 Finally, run your target (e.g. trace_processor_shell) with LD_PRELOAD
