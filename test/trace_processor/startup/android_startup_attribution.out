@@ -5,7 +5,7 @@ android_startup {
     process_name: "com.some.app"
     zygote_new_process: false
     to_first_frame {
-      dur_ns: 9900
+      dur_ns: 999999900
       main_thread_by_task_state {
         running_dur_ns: 0
         runnable_dur_ns: 0
@@ -17,7 +17,7 @@ android_startup {
         dur_ns: 2
         dur_ms: 2e-06
       }
-      dur_ms: 0.0099
+      dur_ms: 999.9999
       time_dex_open {
         dur_ns: 20
         dur_ms: 2e-05
@@ -48,7 +48,21 @@ android_startup {
     }
     event_timestamps {
       intent_received: 100
-      first_frame: 10000
+      first_frame: 1000000000
+    }
+    long_binder_transactions {
+      duration {
+        dur_ns: 100000000
+        dur_ms: 100
+      }
+      thread: "Binder"
+    }
+    long_binder_transactions {
+      duration {
+        dur_ns: 200000000
+        dur_ms: 200
+      }
+      thread: "fonts"
     }
   }
 }
