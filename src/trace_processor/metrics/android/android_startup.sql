@@ -143,7 +143,8 @@ WHERE slice.name IN (
   'activityRestart',
   'activityResume',
   'inflate',
-  'ResourcesManager#getResources')
+  'ResourcesManager#getResources',
+  'binder transaction')
   OR slice.name LIKE 'performResume:%'
   OR slice.name LIKE 'performCreate:%'
   OR slice.name LIKE 'location=% status=% filter=% reason=%'
@@ -264,6 +265,16 @@ WHERE
   AND thread_name = 'Jit thread pool'
 GROUP BY launch_id;
 
+DROP TABLE IF EXISTS long_binder_transactions;
+CREATE TABLE long_binder_transactions AS
+SELECT
+  launch_id, slice_dur, thread_name
+FROM
+  main_process_slice_unaggregated
+WHERE
+  slice_name = 'binder transaction'
+  AND slice_dur >= 1e8;
+
 DROP VIEW IF EXISTS startup_view;
 CREATE VIEW startup_view AS
 SELECT
@@ -292,6 +303,17 @@ SELECT
       ))
       FROM activity_names_materialized s
       WHERE s.launch_id = launches.id
+    ),
+    'long_binder_transactions', (
+      SELECT RepeatedField(AndroidStartupMetric_BinderTransaction(
+        'duration', AndroidStartupMetric_Slice(
+          'dur_ns', lbt.slice_dur,
+          'dur_ms', lbt.slice_dur / 1e6
+        ),
+        'thread', lbt.thread_name
+      ))
+      FROM long_binder_transactions lbt
+      WHERE lbt.launch_id = launches.id
     ),
     'zygote_new_process', EXISTS(SELECT TRUE FROM zygote_forks_by_id WHERE id = launches.id),
     'activity_hosting_process_count', (
