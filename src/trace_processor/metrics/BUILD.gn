@@ -47,7 +47,6 @@ sql_files = [
   "android/display_metrics.sql",
   "android/g2d.sql",
   "android/g2d_duration.sql",
-  "android/heap_profile_callsites.sql",
   "android/hsc_startups.sql",
   "android/android_hwcomposer.sql",
   "android/android_hwui_metric.sql",
