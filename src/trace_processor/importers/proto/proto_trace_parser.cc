@@ -243,7 +243,7 @@ void ProtoTraceParser::ParseTraceStats(ConstBytes blob) {
 }
 
 void ProtoTraceParser::ParseProfilePacket(
-    int64_t,
+    int64_t ts,
     PacketSequenceStateGeneration* sequence_state,
     uint32_t seq_id,
     ConstBytes blob) {
@@ -297,6 +297,8 @@ void ProtoTraceParser::ParseProfilePacket(
     int64_t timestamp = *maybe_timestamp;
 
     int pid = static_cast<int>(entry.pid());
+    context_->storage->SetIndexedStats(stats::heapprofd_last_profile_timestamp,
+                                       pid, ts);
 
     if (entry.disconnected())
       context_->storage->IncrementIndexedStats(

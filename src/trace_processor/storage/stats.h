@@ -157,6 +157,8 @@ namespace stats {
       "Number of samples unwound."),                                           \
   F(heapprofd_client_spinlock_blocked,  kIndexed, kInfo,     kTrace,           \
        "Time (us) the heapprofd client was blocked on the spinlock."),         \
+  F(heapprofd_last_profile_timestamp,   kIndexed, kInfo,     kTrace,           \
+       "The timestamp (in trace time) for the last dump for a process"),       \
   F(metatrace_overruns,                 kSingle,  kError,    kTrace,    ""),   \
   F(packages_list_has_parse_errors,     kSingle,  kError,    kTrace,    ""),   \
   F(packages_list_has_read_errors,      kSingle,  kError,    kTrace,    ""),   \
