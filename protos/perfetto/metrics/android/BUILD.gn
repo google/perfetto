@@ -27,7 +27,6 @@ perfetto_proto_library("@TYPE@") {
     "fastrpc_metric.proto",
     "g2d_metric.proto",
     "gpu_metric.proto",
-    "heap_profile_callsites.proto",
     "hwcomposer.proto",
     "hwui_metric.proto",
     "ion_metric.proto",
