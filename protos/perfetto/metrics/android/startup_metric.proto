@@ -128,6 +128,11 @@ message AndroidStartupMetric {
     reserved 3;
   }
 
+  message BinderTransaction {
+    optional Slice duration = 1;
+    optional string thread = 2;
+  }
+
   // Metrics with information about the status of odex files and the outcome
   // of the loading process.
   // Multiple files might be loaded for a single startup. Platform might also
@@ -147,7 +152,7 @@ message AndroidStartupMetric {
     optional int64 first_frame = 2;
   }
 
-  // Next id: 14
+  // Next id: 15
   message Startup {
     // Random id uniquely identifying an app startup in this trace.
     optional uint32 startup_id = 1;
@@ -160,6 +165,10 @@ message AndroidStartupMetric {
 
     // Details about the activities launched
     repeated Activity activities = 11;
+
+    // Details about slow binder transactions during the startup. The definition
+    // of a slow transaction is an implementation detail.
+    repeated BinderTransaction long_binder_transactions = 14;
 
     // Did we ask the zygote for a new process
     optional bool zygote_new_process = 4;
