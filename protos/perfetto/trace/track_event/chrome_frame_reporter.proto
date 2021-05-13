@@ -91,4 +91,7 @@ message ChromeFrameReporter {
   // Whether the frame contained any missing content (i.e. whether there was
   // checkerboarding in the frame).
   optional bool has_missing_content = 10;
+
+  // The id of layer_tree_host that the frame has been produced for.
+  optional uint64 layer_tree_host_id = 11;
 }
