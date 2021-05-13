@@ -23,10 +23,12 @@ SECOND_APP_TID = 3
 JIT_TID = 4
 GC_TID = 5
 GC2_TID = 6
+BINDER_TID = 7
+FONTS_TID = 8
 SYSTEM_SERVER_PID = 2
 SYSTEM_SERVER_TID = 2
 LAUNCH_START_TS = 100
-LAUNCH_END_TS = 10000
+LAUNCH_END_TS = 10**9
 
 trace = synth_common.create_trace()
 trace.add_packet()
@@ -43,6 +45,8 @@ trace.add_thread(
     tid=GC_TID, tgid=APP_PID, cmdline='HeapTaskDaemon', name='HeapTaskDaemon')
 trace.add_thread(
     tid=GC2_TID, tgid=APP_PID, cmdline='HeapTaskDaemon', name='HeapTaskDaemon')
+trace.add_thread(tid=BINDER_TID, tgid=APP_PID, cmdline='Binder', name='Binder')
+trace.add_thread(tid=FONTS_TID, tgid=APP_PID, cmdline='fonts', name='fonts')
 
 trace.add_ftrace_packet(cpu=0)
 # Start intent.
@@ -144,6 +148,20 @@ trace.add_sched(ts=325, prev_pid=GC_TID, next_pid=GC2_TID)
 trace.add_sched(ts=350, prev_pid=GC2_TID, next_pid=GC_TID)
 # Finish running for GC.
 trace.add_sched(ts=360, prev_pid=GC_TID, next_pid=0)
+
+# Long binder transactions.
+trace.add_atrace_begin(
+    ts=10**8, pid=APP_PID, tid=BINDER_TID, buf='binder transaction')
+trace.add_atrace_end(ts=2 * (10**8), pid=APP_PID, tid=BINDER_TID)
+
+trace.add_atrace_begin(
+    ts=3 * (10**8), pid=APP_PID, tid=FONTS_TID, buf='binder transaction')
+trace.add_atrace_end(ts=5 * (10**8), pid=APP_PID, tid=FONTS_TID)
+
+# A short binder transaction.
+trace.add_atrace_begin(
+    ts=10**7, pid=APP_PID, tid=BINDER_TID, buf='binder transaction')
+trace.add_atrace_end(ts=6 * (10**7), pid=APP_PID, tid=BINDER_TID)
 
 # Intent successful.
 trace.add_atrace_begin(
