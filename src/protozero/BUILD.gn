@@ -55,6 +55,7 @@ perfetto_unittest_source_set("unittests") {
     "../../gn:gtest_and_gmock",
     "../base",
     "../base:test_support",
+    "filtering:unittests",
   ]
   sources = [
     "copyable_ptr_unittest.cc",
