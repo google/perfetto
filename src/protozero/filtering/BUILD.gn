@@ -58,6 +58,7 @@ perfetto_unittest_source_set("unittests") {
   sources = [
     "filter_bytecode_generator_unittest.cc",
     "filter_bytecode_parser_unittest.cc",
+    "message_tokenizer_unittest.cc",
   ]
 }
 
