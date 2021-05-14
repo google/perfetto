@@ -226,5 +226,18 @@ TEST(HeapprofdConfigToClientConfigurationTest, AllHeapsAndExplicit) {
   EXPECT_EQ(cli_config.default_interval, 4096u);
 }
 
+TEST(HeapprofdConfigToClientConfigurationTest, AllHeapsAndDisabled) {
+  HeapprofdConfig cfg;
+  cfg.set_all_heaps(true);
+  cfg.set_sampling_interval_bytes(4096);
+  cfg.add_exclude_heaps("foo");
+  ClientConfiguration cli_config;
+  ASSERT_TRUE(HeapprofdConfigToClientConfiguration(cfg, &cli_config));
+  EXPECT_EQ(cli_config.num_heaps, 1u);
+  EXPECT_STREQ(cli_config.heaps[0].name, "foo");
+  EXPECT_EQ(cli_config.heaps[0].interval, 0u);
+  EXPECT_EQ(cli_config.default_interval, 4096u);
+}
+
 }  // namespace profiling
 }  // namespace perfetto
