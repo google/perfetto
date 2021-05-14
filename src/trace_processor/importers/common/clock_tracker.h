@@ -154,7 +154,8 @@ class ClockTracker {
 
   // Appends a new snapshot for the given clock domains.
   // This is typically called by the code that reads the ClockSnapshot packet.
-  void AddSnapshot(const std::vector<ClockValue>&);
+  // Returns the internal snapshot id of this set of clocks.
+  uint32_t AddSnapshot(const std::vector<ClockValue>&);
 
   // Converts a timestamp between two clock domains. Tries to use the cache
   // first (only for single-path resolutions), then falls back on path finding

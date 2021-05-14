@@ -113,6 +113,28 @@ PERFETTO_TP_TABLE(PERFETTO_TP_CPU_TABLE_DEF);
 
 PERFETTO_TP_TABLE(PERFETTO_TP_CPU_FREQ_TABLE_DEF);
 
+// Contains all the mapping between clock snapshots and trace time.
+//
+// NOTE: this table is not sorted by timestamp; this is why we omit the
+// sorted flag on the ts column.
+//
+// @param ts            timestamp of the snapshot in trace time.
+// @param clock_id      id of the clock (corresponds to the id in the trace).
+// @param clock_name    the name of the clock for builtin clocks or null
+//                      otherwise.
+// @param clock_value   timestamp of the snapshot in clock time.
+// @param snapshot_id   the index of this snapshot (only useful for debugging)
+#define PERFETTO_TP_CLOCK_SNAPSHOT_TABLE_DEF(NAME, PARENT, C) \
+  NAME(ClockSnapshotTable, "clock_snapshot")                  \
+  PERFETTO_TP_ROOT_TABLE(PARENT, C)                           \
+  C(int64_t, ts)                                              \
+  C(int64_t, clock_id)                                        \
+  C(base::Optional<StringPool::Id>, clock_name)               \
+  C(int64_t, clock_value)                                     \
+  C(uint32_t, snapshot_id)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_CLOCK_SNAPSHOT_TABLE_DEF);
+
 }  // namespace tables
 }  // namespace trace_processor
 }  // namespace perfetto
