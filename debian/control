@@ -2,7 +2,7 @@ Source: perfetto
 Section: kernel
 Priority: optional
 Maintainer: Sami Kyostila <skyostil@google.com>
-Build-Depends: debhelper (>= 10),
+Build-Depends: debhelper (>= 13),
   generate-ninja,
   git,
   libprotoc-dev,
@@ -11,14 +11,15 @@ Build-Depends: debhelper (>= 10),
   python3,
   zlib1g-dev,
   zlib1g
-Standards-Version: 3.9.8
+Standards-Version: 4.5.1
 Homepage: https://perfetto.dev
 Vcs-Git: https://android.googlesource.com/platform/external/perfetto/
 Vcs-Browser: https://android.googlesource.com/platform/external/perfetto/
+Rules-Requires-Root: no
 
 Package: perfetto
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, zlib1g
+Depends: ${shlibs:Depends}, ${misc:Depends}, adduser, zlib1g
 Description: Performance instrumentation and logging framework
  Perfetto is a performance instrumentation and logging framework for POSIX
  systems.
