@@ -621,6 +621,12 @@ message HeapprofdConfig {
   // Introduced in Android 12.
   repeated string heaps = 20;
 
+  // Which heaps not to sample, e.g. "libc.malloc". This is useful when used in
+  // combination with all_heaps;
+  //
+  // Introduced in Android 12.
+  repeated string exclude_heaps = 27;
+
   optional bool stream_allocations = 23;
 
   // If given, needs to be the same length as heaps and gives the sampling
