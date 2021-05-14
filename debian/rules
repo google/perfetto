@@ -1,4 +1,9 @@
 #!/usr/bin/make -f
+
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+DPKG_EXPORT_BUILDFLAGS = 1
+include /usr/share/dpkg/buildflags.mk
+
 %:
 	dh $@
 
@@ -24,7 +29,7 @@ override_dh_auto_configure:
 	  enable_perfetto_unittests=false perfetto_use_system_protobuf=true\
 	  perfetto_use_system_zlib=true perfetto_enable_git_rev_version_header=false\
 	  extra_cflags=\"${CFLAGS}\" extra_cxxflags=\"${CXXFLAGS}\"\
-	  extra_ldflags=\"${CXXFLAGS}\" cc=\"${CC}\" cxx=\"${CXX}\"\
+	  extra_ldflags=\"${LDFLAGS}\" cc=\"${CC}\" cxx=\"${CXX}\"\
 	  ${MAYBE_HOST_CPU}"
 
 override_dh_auto_build:
