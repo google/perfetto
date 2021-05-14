@@ -202,5 +202,29 @@ TEST(HeapprofdConfigToClientConfigurationTest, AdaptiveSamplingWithMax) {
             4 * 4096u);
 }
 
+TEST(HeapprofdConfigToClientConfigurationTest, AllHeaps) {
+  HeapprofdConfig cfg;
+  cfg.set_all_heaps(true);
+  cfg.set_sampling_interval_bytes(4096);
+  ClientConfiguration cli_config;
+  ASSERT_TRUE(HeapprofdConfigToClientConfiguration(cfg, &cli_config));
+  EXPECT_EQ(cli_config.num_heaps, 0u);
+  EXPECT_EQ(cli_config.default_interval, 4096u);
+}
+
+TEST(HeapprofdConfigToClientConfigurationTest, AllHeapsAndExplicit) {
+  HeapprofdConfig cfg;
+  cfg.set_all_heaps(true);
+  cfg.set_sampling_interval_bytes(4096);
+  cfg.add_heaps("foo");
+  cfg.add_heap_sampling_intervals(1024u);
+  ClientConfiguration cli_config;
+  ASSERT_TRUE(HeapprofdConfigToClientConfiguration(cfg, &cli_config));
+  EXPECT_EQ(cli_config.num_heaps, 1u);
+  EXPECT_STREQ(cli_config.heaps[0].name, "foo");
+  EXPECT_EQ(cli_config.heaps[0].interval, 1024u);
+  EXPECT_EQ(cli_config.default_interval, 4096u);
+}
+
 }  // namespace profiling
 }  // namespace perfetto
