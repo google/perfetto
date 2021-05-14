@@ -47,6 +47,7 @@ TEST(FilterBytecodeParserTest, ParserSimpleFields) {
 
   EXPECT_TRUE(LoadBytecode(&parser, {}));
   EXPECT_FALSE(parser.Query(0, 0).allowed);
+  EXPECT_FALSE(parser.Query(0, 0xffffffff).allowed);
   EXPECT_FALSE(parser.Query(1, 0).allowed);
   EXPECT_FALSE(parser.Query(0, 1).allowed);
   EXPECT_FALSE(parser.Query(1, 1).allowed);
