@@ -57,8 +57,8 @@ class FilterBytecodeGenerator {
   // made).
   void AddNestedField(uint32_t field_id, uint32_t message_index);
 
-  // Returns the proto-encoded bytes for a perfetto.protos.ProtoFilter message
-  // (see proto_filter.proto). The returned string can be passed to
+  // Returns the filter bytecode, which is a buffer containing a sequence of
+  // varints and a checksum. The returned string can be passed to
   // FilterBytecodeParser.Load().
   std::string Serialize();
 
