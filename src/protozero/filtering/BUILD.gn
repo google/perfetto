@@ -21,6 +21,7 @@ source_set("message_filter") {
   sources = [
     "message_filter.cc",
     "message_filter.h",
+    "message_tokenizer.h",
   ]
   deps = [
     ":bytecode_parser",
