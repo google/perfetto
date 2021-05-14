@@ -7290,12 +7290,30 @@ filegroup {
   ],
 }
 
+// GN: //src/protozero/filtering:filter_util
+filegroup {
+  name: "perfetto_src_protozero_filtering_filter_util",
+  srcs: [
+    "src/protozero/filtering/filter_util.cc",
+  ],
+}
+
+// GN: //src/protozero/filtering:message_filter
+filegroup {
+  name: "perfetto_src_protozero_filtering_message_filter",
+  srcs: [
+    "src/protozero/filtering/message_filter.cc",
+  ],
+}
+
 // GN: //src/protozero/filtering:unittests
 filegroup {
   name: "perfetto_src_protozero_filtering_unittests",
   srcs: [
     "src/protozero/filtering/filter_bytecode_generator_unittest.cc",
     "src/protozero/filtering/filter_bytecode_parser_unittest.cc",
+    "src/protozero/filtering/filter_util_unittest.cc",
+    "src/protozero/filtering/message_filter_unittest.cc",
     "src/protozero/filtering/message_tokenizer_unittest.cc",
   ],
 }
@@ -9033,6 +9051,8 @@ cc_test {
     ":perfetto_src_protozero_filtering_bytecode_common",
     ":perfetto_src_protozero_filtering_bytecode_generator",
     ":perfetto_src_protozero_filtering_bytecode_parser",
+    ":perfetto_src_protozero_filtering_filter_util",
+    ":perfetto_src_protozero_filtering_message_filter",
     ":perfetto_src_protozero_filtering_unittests",
     ":perfetto_src_protozero_protozero",
     ":perfetto_src_protozero_testing_messages_cpp_gen",
@@ -9126,6 +9146,7 @@ cc_test {
     "libbase",
     "liblog",
     "libprocinfo",
+    "libprotobuf-cpp-full",
     "libprotobuf-cpp-lite",
     "libsqlite",
     "libunwindstack",
