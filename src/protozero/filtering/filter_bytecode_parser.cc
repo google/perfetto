@@ -172,8 +172,10 @@ FilterBytecodeParser::QueryResult FilterBytecodeParser::Query(
     uint32_t msg_index,
     uint32_t field_id) {
   FilterBytecodeParser::QueryResult res{false, 0u};
-  if (msg_index >= message_offset_.size() - 1)
+  if (static_cast<uint64_t>(msg_index) + 1 >=
+      static_cast<uint64_t>(message_offset_.size())) {
     return res;
+  }
   const uint32_t start_offset = message_offset_[msg_index];
   // These are DCHECKs and not just CHECKS because the |words_| is populated
   // by the LoadInternal call above. These cannot be violated with a malformed
