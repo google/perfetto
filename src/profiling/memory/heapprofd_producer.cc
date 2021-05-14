@@ -152,7 +152,7 @@ bool HeapprofdConfigToClientConfiguration(
   std::vector<std::string> heaps = heapprofd_config.heaps();
   std::vector<uint64_t> heap_intervals =
       heapprofd_config.heap_sampling_intervals();
-  if (heaps.empty()) {
+  if (heaps.empty() && !cli_config->all_heaps) {
     heaps.push_back("libc.malloc");
   }
 
