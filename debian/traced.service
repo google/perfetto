@@ -1,5 +1,6 @@
 [Unit]
 Description=Perfetto tracing service daemon
+Documentation=https://perfetto.dev/docs/
 
 [Service]
 ExecStart=/usr/sbin/traced \
