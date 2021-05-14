@@ -41,7 +41,7 @@ ClockTracker::ClockTracker(TraceProcessorContext* ctx)
 
 ClockTracker::~ClockTracker() = default;
 
-void ClockTracker::AddSnapshot(const std::vector<ClockValue>& clocks) {
+uint32_t ClockTracker::AddSnapshot(const std::vector<ClockValue>& clocks) {
   const auto snapshot_id = cur_snapshot_id_++;
 
   // Clear the cache
@@ -65,7 +65,7 @@ void ClockTracker::AddSnapshot(const std::vector<ClockValue>& clocks) {
                       "supported for sequence-scoped clocks.",
                       clock_id);
         context_->storage->IncrementStats(stats::invalid_clock_snapshots);
-        return;
+        return snapshot_id;
       }
       domain.unit_multiplier_ns = clock.unit_multiplier_ns;
       domain.is_incremental = clock.is_incremental;
@@ -79,7 +79,7 @@ void ClockTracker::AddSnapshot(const std::vector<ClockValue>& clocks) {
                     clock_id, clock.unit_multiplier_ns, clock.is_incremental,
                     domain.unit_multiplier_ns, domain.is_incremental);
       context_->storage->IncrementStats(stats::invalid_clock_snapshots);
-      return;
+      return snapshot_id;
     }
     const int64_t timestamp_ns =
         clock.absolute_timestamp * domain.unit_multiplier_ns;
@@ -92,7 +92,7 @@ void ClockTracker::AddSnapshot(const std::vector<ClockValue>& clocks) {
                     " at snapshot %" PRIu32 ".",
                     clock_id, snapshot_id);
       context_->storage->IncrementStats(stats::invalid_clock_snapshots);
-      return;
+      return snapshot_id;
     }
 
     // Clock ids in the range [64, 128) are sequence-scoped and must be
@@ -116,7 +116,7 @@ void ClockTracker::AddSnapshot(const std::vector<ClockValue>& clocks) {
                       clock_id, snapshot_id, timestamp_ns,
                       vect.timestamps_ns.back());
         context_->storage->IncrementStats(stats::invalid_clock_snapshots);
-        return;
+        return snapshot_id;
       }
 
       PERFETTO_DLOG("Detected non-monotonic clock with ID %" PRIu64, clock_id);
@@ -159,6 +159,7 @@ void ClockTracker::AddSnapshot(const std::vector<ClockValue>& clocks) {
         graph_.emplace(it2->clock_id, it1->clock_id, snapshot_hash);
     }
   }
+  return snapshot_id;
 }
 
 // Finds the shortest clock resolution path in the graph that allows to
