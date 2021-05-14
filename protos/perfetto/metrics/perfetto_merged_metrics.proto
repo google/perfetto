@@ -251,96 +251,6 @@ message AndroidGpuMetric {
 
 // End of protos/perfetto/metrics/android/gpu_metric.proto
 
-// Begin of protos/perfetto/metrics/android/process_metadata.proto
-
-message AndroidProcessMetadata {
-  // Process name. Usually, cmdline or <package_name>(:<custom_name>)?.
-  optional string name = 1;
-
-  // User id under which this process runs.
-  optional int64 uid = 2;
-
-  // Package metadata from Android package list.
-  message Package {
-    optional string package_name = 1;
-    optional int64 apk_version_code = 2;
-    optional bool debuggable = 3;
-  }
-
-  // Package that this process belongs to.
-  //
-  // If this process shares its uid (see `packages_for_uid` field), the package
-  // is determined based on the process name and package name. If there is no
-  // match this field is empty.
-  optional Package package = 7;
-
-  // All packages using this uid.
-  //
-  // Shared uid documentation:
-  // https://developer.android.com/guide/topics/manifest/manifest-element#uid
-  repeated Package packages_for_uid = 8;
-
-  reserved 3, 4, 5, 6;
-}
-
-// End of protos/perfetto/metrics/android/process_metadata.proto
-
-// Begin of protos/perfetto/metrics/android/heap_profile_callsites.proto
-
-message HeapProfileCallsites {
-  message Frame {
-    optional string name = 1;
-    optional string mapping_name = 2;
-  }
-
-  message Counters {
-    // Count of objects allocated
-    optional int64 total_count = 1;
-    // Count of bytes allocated
-    optional int64 total_bytes = 2;
-
-    // Count of allocated objects that were not freed
-    optional int64 delta_count = 3;
-    // Count of allocated bytes that were not freed
-    optional int64 delta_bytes = 4;
-  }
-
-  message Callsite {
-    // The hash unambiguously identifies a callsite in a heap profile (as a
-    // traversal from the root node). It is based on the symbol names (instead
-    // of the addresses).
-    optional int64 hash = 1;
-    optional int64 parent_hash = 2;
-
-    // Leaf frame of the callsite. Use parent_hash to traverse to parent nodes.
-    optional Frame frame = 3;
-
-    optional Counters self_allocs = 4;
-    optional Counters child_allocs = 5;
-  }
-
-  // Callsites per process instance.
-  // Next id: 8
-  message InstanceStats {
-    optional uint32 pid = 1;
-    // TODO(ilkos): Remove process_name in favour of the metadata.
-    optional string process_name = 2;
-    optional AndroidProcessMetadata process = 6;
-    repeated Callsite callsites = 3;
-
-    // Bytes allocated via malloc but not freed.
-    optional int64 profile_delta_bytes = 4;
-    // Bytes allocated via malloc irrespective of whether they were freed.
-    optional int64 profile_total_bytes = 5;
-    // Peak anon RSS + swap for this process
-    optional int64 max_anon_rss_and_swap_bytes = 7;
-  }
-
-  repeated InstanceStats instance_stats = 1;
-}
-
-// End of protos/perfetto/metrics/android/heap_profile_callsites.proto
-
 // Begin of protos/perfetto/metrics/android/hwcomposer.proto
 
 message AndroidHwcomposerMetrics {
@@ -510,6 +420,40 @@ message AndroidJankMetrics {
   }
 }
 // End of protos/perfetto/metrics/android/jank_metric.proto
+
+// Begin of protos/perfetto/metrics/android/process_metadata.proto
+
+message AndroidProcessMetadata {
+  // Process name. Usually, cmdline or <package_name>(:<custom_name>)?.
+  optional string name = 1;
+
+  // User id under which this process runs.
+  optional int64 uid = 2;
+
+  // Package metadata from Android package list.
+  message Package {
+    optional string package_name = 1;
+    optional int64 apk_version_code = 2;
+    optional bool debuggable = 3;
+  }
+
+  // Package that this process belongs to.
+  //
+  // If this process shares its uid (see `packages_for_uid` field), the package
+  // is determined based on the process name and package name. If there is no
+  // match this field is empty.
+  optional Package package = 7;
+
+  // All packages using this uid.
+  //
+  // Shared uid documentation:
+  // https://developer.android.com/guide/topics/manifest/manifest-element#uid
+  repeated Package packages_for_uid = 8;
+
+  reserved 3, 4, 5, 6;
+}
+
+// End of protos/perfetto/metrics/android/process_metadata.proto
 
 // Begin of protos/perfetto/metrics/android/java_heap_histogram.proto
 
@@ -849,6 +793,11 @@ message AndroidStartupMetric {
     reserved 3;
   }
 
+  message BinderTransaction {
+    optional Slice duration = 1;
+    optional string thread = 2;
+  }
+
   // Metrics with information about the status of odex files and the outcome
   // of the loading process.
   // Multiple files might be loaded for a single startup. Platform might also
@@ -868,7 +817,7 @@ message AndroidStartupMetric {
     optional int64 first_frame = 2;
   }
 
-  // Next id: 14
+  // Next id: 15
   message Startup {
     // Random id uniquely identifying an app startup in this trace.
     optional uint32 startup_id = 1;
@@ -881,6 +830,10 @@ message AndroidStartupMetric {
 
     // Details about the activities launched
     repeated Activity activities = 11;
+
+    // Details about slow binder transactions during the startup. The definition
+    // of a slow transaction is an implementation detail.
+    repeated BinderTransaction long_binder_transactions = 14;
 
     // Did we ask the zygote for a new process
     optional bool zygote_new_process = 4;
@@ -1096,7 +1049,7 @@ message TraceAnalysisStats {
 //
 // Next id: 34
 message TraceMetrics {
-  reserved 4, 10, 13, 14, 19;
+  reserved 4, 10, 13, 14, 16, 19;
 
   // Battery counters metric on Android.
   optional AndroidBatteryMetric android_batt = 5;
@@ -1130,9 +1083,6 @@ message TraceMetrics {
 
   // Startup metrics on Android (owned by the Android Telemetry team).
   optional AndroidStartupMetric android_startup = 2;
-
-  // Heap profiler callsite statistics.
-  optional HeapProfileCallsites heap_profile_callsites = 16;
 
   // Trace metadata (applicable to all traces).
   optional TraceMetadata trace_metadata = 3;
