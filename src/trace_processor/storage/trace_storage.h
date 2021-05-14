@@ -442,6 +442,13 @@ class TraceStorage {
   }
   tables::MetadataTable* mutable_metadata_table() { return &metadata_table_; }
 
+  const tables::ClockSnapshotTable& clock_snapshot_table() const {
+    return clock_snapshot_table_;
+  }
+  tables::ClockSnapshotTable* mutable_clock_snapshot_table() {
+    return &clock_snapshot_table_;
+  }
+
   const tables::ArgTable& arg_table() const { return arg_table_; }
   tables::ArgTable* mutable_arg_table() { return &arg_table_; }
 
@@ -718,6 +725,9 @@ class TraceStorage {
   // * metadata from chrome and benchmarking infrastructure
   // * descriptions of android packages
   tables::MetadataTable metadata_table_{&string_pool_, nullptr};
+
+  // Contains data from all the clock snapshots in the trace.
+  tables::ClockSnapshotTable clock_snapshot_table_{&string_pool_, nullptr};
 
   // Metadata for tracks.
   tables::TrackTable track_table_{&string_pool_, nullptr};
