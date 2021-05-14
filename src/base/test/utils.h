@@ -37,9 +37,9 @@
 // we just fall back on executing the code directly.
 #if defined(GTEST_EXECUTE_STATEMENT_)
 #define EXPECT_DCHECK_DEATH(statement) \
-    GTEST_EXECUTE_STATEMENT_(statement, "PERFETTO_CHECK")
+  GTEST_EXECUTE_STATEMENT_(statement, "PERFETTO_CHECK")
 #define ASSERT_DCHECK_DEATH(statement) \
-    GTEST_EXECUTE_STATEMENT_(statement, "PERFETTO_CHECK")
+  GTEST_EXECUTE_STATEMENT_(statement, "PERFETTO_CHECK")
 #else
 #define EXPECT_DCHECK_DEATH(statement) [&]() { statement }()
 #define ASSERT_DCHECK_DEATH(statement) [&]() { statement }()
@@ -52,6 +52,13 @@ namespace base {
 
 std::string GetCurExecutableDir();
 std::string GetTestDataPath(const std::string& path);
+
+// Returns a xxd-style hex dump (hex + ascii chars) of the input data.
+std::string HexDump(const void* data, size_t len, size_t bytes_per_line = 16);
+inline std::string HexDump(const std::string& data,
+                           size_t bytes_per_line = 16) {
+  return HexDump(data.data(), data.size(), bytes_per_line);
+}
 
 }  // namespace base
 }  // namespace perfetto
