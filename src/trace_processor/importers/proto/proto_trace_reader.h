@@ -75,6 +75,8 @@ class ProtoTraceReader : public ChunkedTraceReader {
                          TraceBlobView interned_data);
   void ParseTraceConfig(ConstBytes);
 
+  base::Optional<StringId> GetBuiltinClockNameOrNull(uint64_t clock_id);
+
   PacketSequenceState* GetIncrementalStateForPacketSequence(
       uint32_t sequence_id) {
     if (!incremental_state)
