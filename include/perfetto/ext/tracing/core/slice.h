@@ -44,6 +44,14 @@ struct Slice {
     return slice;
   }
 
+  static Slice TakeOwnership(std::unique_ptr<uint8_t[]> buf, size_t size) {
+    Slice slice;
+    slice.own_data_ = std::move(buf);
+    slice.start = &slice.own_data_[0];
+    slice.size = size;
+    return slice;
+  }
+
   uint8_t* own_data() {
     PERFETTO_DCHECK(own_data_);
     return own_data_.get();

@@ -178,6 +178,9 @@ perfetto_cc_library(
         ":src_android_stats_android_stats",
         ":src_android_stats_perfetto_atoms",
         ":src_kallsyms_kallsyms",
+        ":src_protozero_filtering_bytecode_common",
+        ":src_protozero_filtering_bytecode_parser",
+        ":src_protozero_filtering_message_filter",
         ":src_traced_probes_android_log_android_log",
         ":src_traced_probes_common_common",
         ":src_traced_probes_data_source",
@@ -770,6 +773,33 @@ filegroup(
     srcs = [
         "src/profiling/deobfuscator.cc",
         "src/profiling/deobfuscator.h",
+    ],
+)
+
+# GN target: //src/protozero/filtering:bytecode_common
+filegroup(
+    name = "src_protozero_filtering_bytecode_common",
+    srcs = [
+        "src/protozero/filtering/filter_bytecode_common.h",
+    ],
+)
+
+# GN target: //src/protozero/filtering:bytecode_parser
+filegroup(
+    name = "src_protozero_filtering_bytecode_parser",
+    srcs = [
+        "src/protozero/filtering/filter_bytecode_parser.cc",
+        "src/protozero/filtering/filter_bytecode_parser.h",
+    ],
+)
+
+# GN target: //src/protozero/filtering:message_filter
+filegroup(
+    name = "src_protozero_filtering_message_filter",
+    srcs = [
+        "src/protozero/filtering/message_filter.cc",
+        "src/protozero/filtering/message_filter.h",
+        "src/protozero/filtering/message_tokenizer.h",
     ],
 )
 
@@ -3275,6 +3305,9 @@ perfetto_cc_library(
     srcs = [
         ":src_android_stats_android_stats",
         ":src_android_stats_perfetto_atoms",
+        ":src_protozero_filtering_bytecode_common",
+        ":src_protozero_filtering_bytecode_parser",
+        ":src_protozero_filtering_message_filter",
         ":src_tracing_client_api_without_backends",
         ":src_tracing_common",
         ":src_tracing_core_core",
