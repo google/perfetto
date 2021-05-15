@@ -17,22 +17,20 @@
 #include "src/protozero/filtering/filter_bytecode_generator.h"
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/hash.h"
 #include "perfetto/protozero/packed_repeated_fields.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
-
-#include "protos/perfetto/config/proto_filter.pbzero.h"
+#include "src/protozero/filtering/filter_bytecode_common.h"
 
 namespace protozero {
-
-using ProtoFilter = perfetto::protos::pbzero::ProtoFilter;
 
 FilterBytecodeGenerator::FilterBytecodeGenerator() = default;
 FilterBytecodeGenerator::~FilterBytecodeGenerator() = default;
 
 void FilterBytecodeGenerator::EndMessage() {
   endmessage_called_ = true;
-  bytecode_.push_back(ProtoFilter::FILTER_OPCODE_END_OF_MESSAGE);
+  bytecode_.push_back(kFilterOpcode_EndOfMessage);
   last_field_id_ = 0;
   ++num_messages_;
 }
@@ -40,7 +38,7 @@ void FilterBytecodeGenerator::EndMessage() {
 // Allows a simple field (varint, fixed32/64, string or bytes).
 void FilterBytecodeGenerator::AddSimpleField(uint32_t field_id) {
   PERFETTO_CHECK(field_id > last_field_id_);
-  bytecode_.push_back(field_id << 3 | ProtoFilter::FILTER_OPCODE_SIMPLE_FIELD);
+  bytecode_.push_back(field_id << 3 | kFilterOpcode_SimpleField);
   last_field_id_ = field_id;
   endmessage_called_ = false;
 }
@@ -52,8 +50,7 @@ void FilterBytecodeGenerator::AddSimpleFieldRange(uint32_t range_start,
                                                   uint32_t range_len) {
   PERFETTO_CHECK(range_start > last_field_id_);
   PERFETTO_CHECK(range_len > 0);
-  bytecode_.push_back(range_start << 3 |
-                      ProtoFilter::FILTER_OPCODE_SIMPLE_FIELD_RANGE);
+  bytecode_.push_back(range_start << 3 | kFilterOpcode_SimpleFieldRange);
   bytecode_.push_back(range_len);
   last_field_id_ = range_start + range_len - 1;
   endmessage_called_ = false;
@@ -67,26 +64,28 @@ void FilterBytecodeGenerator::AddSimpleFieldRange(uint32_t range_start,
 void FilterBytecodeGenerator::AddNestedField(uint32_t field_id,
                                              uint32_t message_index) {
   PERFETTO_CHECK(field_id > last_field_id_);
-  bytecode_.push_back(field_id << 3 | ProtoFilter::FILTER_OPCODE_NESTED_FIELD);
+  bytecode_.push_back(field_id << 3 | kFilterOpcode_NestedField);
   bytecode_.push_back(message_index);
   last_field_id_ = field_id;
   max_msg_index_ = std::max(max_msg_index_, message_index);
   endmessage_called_ = false;
 }
 
-// Returns the proto-encoded bytes for a perfetto.protos.ProtoFilter message
-// (see proto_filter.proto). The returned string can be passed to
-// FilterBytecodeParser.Load().
+// Returns the bytes that can be used into TraceConfig.trace_filter.bytecode.
+// The returned bytecode is a binary buffer which consists of a sequence of
+// varints (the opcodes) and a checksum.
+// The returned string can be passed as-is to FilterBytecodeParser.Load().
 std::string FilterBytecodeGenerator::Serialize() {
   PERFETTO_CHECK(endmessage_called_);
   PERFETTO_CHECK(max_msg_index_ < num_messages_);
   protozero::PackedVarInt words;
-  for (uint32_t word : bytecode_)
+  perfetto::base::Hash hasher;
+  for (uint32_t word : bytecode_) {
     words.Append(word);
-
-  protozero::HeapBuffered<ProtoFilter> filter;
-  filter->set_bytecode(words);
-  return filter.SerializeAsString();
+    hasher.Update(word);
+  }
+  words.Append(static_cast<uint32_t>(hasher.digest()));
+  return std::string(reinterpret_cast<const char*>(words.data()), words.size());
 }
 
 }  // namespace protozero
