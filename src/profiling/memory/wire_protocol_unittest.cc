@@ -160,6 +160,17 @@ TEST(GetHeapSamplingInterval, SelectedAndDefault) {
   EXPECT_EQ(GetHeapSamplingInterval(cli_config, "else"), 1u);
 }
 
+TEST(GetHeapSamplingInterval, DisabledAndDefault) {
+  ClientConfiguration cli_config{};
+  cli_config.all_heaps = true;
+  cli_config.num_heaps = 1;
+  cli_config.default_interval = 1;
+  memcpy(cli_config.heaps[0].name, "something", sizeof("something"));
+  cli_config.heaps[0].interval = 0u;
+  EXPECT_EQ(GetHeapSamplingInterval(cli_config, "something"), 0u);
+  EXPECT_EQ(GetHeapSamplingInterval(cli_config, "else"), 1u);
+}
+
 }  // namespace
 }  // namespace profiling
 }  // namespace perfetto

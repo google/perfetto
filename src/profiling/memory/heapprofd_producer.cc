@@ -149,10 +149,13 @@ bool HeapprofdConfigToClientConfiguration(
   cli_config->adaptive_sampling_max_sampling_interval_bytes =
       heapprofd_config.adaptive_sampling_max_sampling_interval_bytes();
   size_t n = 0;
+  const std::vector<std::string>& exclude_heaps = heapprofd_config.exclude_heaps();
+  // heaps[i] and heaps_interval[i] represent that the heap named in heaps[i]
+  // should be sampled with sampling interval of heap_interval[i].
   std::vector<std::string> heaps = heapprofd_config.heaps();
   std::vector<uint64_t> heap_intervals =
       heapprofd_config.heap_sampling_intervals();
-  if (heaps.empty()) {
+  if (heaps.empty() && !cli_config->all_heaps) {
     heaps.push_back("libc.malloc");
   }
 
@@ -168,6 +171,15 @@ bool HeapprofdConfigToClientConfiguration(
       heap_intervals.end()) {
     PERFETTO_ELOG("zero sampling interval.");
     return false;
+  }
+  if (!exclude_heaps.empty()) {
+    // For disabled heaps, we add explicit entries but with sampling interval
+    // 0. The consumer of the sampling intervals in ClientConfiguration,
+    // GetSamplingInterval in wire_protocol.h, uses 0 to signal a heap is
+    // disabled, either because it isn't enabled (all_heaps is not set, and the
+    // heap isn't named), or because we explicitely set it here.
+    heaps.insert(heaps.end(), exclude_heaps.cbegin(), exclude_heaps.cend());
+    heap_intervals.insert(heap_intervals.end(), exclude_heaps.size(), 0u);
   }
   if (heaps.size() > base::ArraySize(cli_config->heaps)) {
     heaps.resize(base::ArraySize(cli_config->heaps));
