@@ -166,8 +166,8 @@ def enumerate_data_deps():
         # Skip test data files that require GCS. They are only for benchmarks.
         # We don't run benchmarks in the android tree.
         continue
-    if line.endswith('/'):
-      yield line + '**/*'
+    if line.endswith('/.'):
+      yield line[:-1] + '**/*'
     else:
       yield line
 
