@@ -23,6 +23,7 @@
 
 #include <google/protobuf/compiler/importer.h>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/getopt.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -68,13 +69,34 @@ FilterUtil::~FilterUtil() = default;
 bool FilterUtil::LoadMessageDefinition(const std::string& proto_file,
                                        const std::string& root_message,
                                        const std::string& proto_dir_path) {
+  // The protobuf compiler doesn't like backslashes and prints an error like:
+  // Error C:\it7mjanpw3\perfetto-a16500 -1:0: Backslashes, consecutive slashes,
+  // ".", or ".." are not allowed in the virtual path.
+  // Given that C:\foo\bar is a legit path on windows, fix it at this level
+  // because the problem is really the protobuf compiler being too picky.
+  static auto normalize_for_win = [](const std::string& path) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+    return perfetto::base::ReplaceAll(path, "\\", "/");
+#else
+    return path;
+#endif
+  };
+
   google::protobuf::compiler::DiskSourceTree dst;
-  dst.MapPath("/", "/");
-  dst.MapPath("", proto_dir_path);
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  // If the path is absolute, maps "C:/" -> "C:/" (without hardcoding 'C').
+  if (proto_file.size() > 3 && proto_file[1] == ':') {
+    char win_drive[4];
+    sprintf(win_drive, "%c:/", proto_file[0]);
+    dst.MapPath(win_drive, win_drive);
+  }
+#endif
+  dst.MapPath("/", "/");  // We might still need this on Win under cygwin.
+  dst.MapPath("", normalize_for_win(proto_dir_path));
   MultiFileErrorCollectorImpl mfe;
   google::protobuf::compiler::Importer importer(&dst, &mfe);
   const google::protobuf::FileDescriptor* root_file =
-      importer.Import(proto_file);
+      importer.Import(normalize_for_win(proto_file));
   const google::protobuf::Descriptor* root_msg = nullptr;
   if (!root_message.empty()) {
     root_msg = importer.pool()->FindMessageTypeByName(root_message);
