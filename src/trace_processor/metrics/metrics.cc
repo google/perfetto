@@ -130,6 +130,12 @@ util::Status ProtoBuilder::AppendLong(const std::string& field_name,
     case FieldDescriptorProto::TYPE_SFIXED64:
       message_->AppendFixed(field->number(), value);
       break;
+    case FieldDescriptorProto::TYPE_UINT64:
+      return util::ErrStatus(
+          "Field %s (in proto message %s) is using a uint64 type. uint64 in "
+          "metric messages is not supported by trace processor; use an int64 "
+          "field instead.",
+          field->name().c_str(), descriptor_->full_name().c_str());
     default: {
       return util::ErrStatus(
           "Tried to write value of type long into field %s (in proto type %s) "
