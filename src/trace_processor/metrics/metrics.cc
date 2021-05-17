@@ -264,6 +264,14 @@ util::Status ProtoBuilder::AppendSingleMessage(const FieldDescriptor& field,
     return util::OkStatus();
   }
 
+  if (size > protozero::proto_utils::kMaxMessageLength) {
+    return util::ErrStatus(
+        "Message passed to field %s in proto message %s has size %zu which is "
+        "larger than the maximum allowed message size %zu",
+        field.name().c_str(), descriptor_->full_name().c_str(), size,
+        protozero::proto_utils::kMaxMessageLength);
+  }
+
   protos::pbzero::ProtoBuilderResult::Decoder decoder(ptr, size);
   if (decoder.is_repeated()) {
     return util::ErrStatus("Cannot handle nested repeated messages in field %s",
@@ -305,6 +313,14 @@ util::Status ProtoBuilder::AppendSingleMessage(const FieldDescriptor& field,
 util::Status ProtoBuilder::AppendRepeated(const FieldDescriptor& field,
                                           const uint8_t* ptr,
                                           size_t size) {
+  if (size > protozero::proto_utils::kMaxMessageLength) {
+    return util::ErrStatus(
+        "Message passed to field %s in proto message %s has size %zu which is "
+        "larger than the maximum allowed message size %zu",
+        field.name().c_str(), descriptor_->full_name().c_str(), size,
+        protozero::proto_utils::kMaxMessageLength);
+  }
+
   protos::pbzero::ProtoBuilderResult::Decoder decoder(ptr, size);
   if (!decoder.is_repeated()) {
     return util::ErrStatus(
