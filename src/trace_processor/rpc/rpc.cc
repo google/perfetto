@@ -35,7 +35,8 @@ using ColumnDesc = protos::pbzero::RawQueryResult::ColumnDesc;
 constexpr size_t kProgressUpdateBytes = 50 * 1000 * 1000;
 
 Rpc::Rpc(std::unique_ptr<TraceProcessor> preloaded_instance)
-    : trace_processor_(std::move(preloaded_instance)) {}
+    : trace_processor_(std::move(preloaded_instance)),
+      session_id_(base::Uuidv4()) {}
 
 Rpc::Rpc() : Rpc(nullptr) {}
 
@@ -257,6 +258,7 @@ std::string Rpc::GetCurrentTraceName() {
 void Rpc::RestoreInitialTables() {
   if (trace_processor_)
     trace_processor_->RestoreInitialTables();
+  session_id_ = base::Uuidv4();
 }
 
 std::vector<uint8_t> Rpc::ComputeMetric(const uint8_t* data, size_t len) {
@@ -345,6 +347,10 @@ std::vector<uint8_t> Rpc::DisableAndReadMetatrace() {
     result->set_error(status.message());
   }
   return result.SerializeAsArray();
+}
+
+std::string Rpc::GetSessionId() {
+  return session_id_.ToPrettyString();
 }
 
 }  // namespace trace_processor
