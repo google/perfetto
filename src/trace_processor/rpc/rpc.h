@@ -24,6 +24,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "perfetto/ext/base/uuid.h"
 #include "perfetto/trace_processor/status.h"
 
 namespace perfetto {
@@ -59,12 +60,37 @@ class Rpc {
 
   util::Status Parse(const uint8_t* data, size_t len);
   void NotifyEndOfFile();
-  void RestoreInitialTables();
   std::string GetCurrentTraceName();
   std::vector<uint8_t> ComputeMetric(const uint8_t* data, size_t len);
   std::vector<uint8_t> GetMetricDescriptors(const uint8_t* data, size_t len);
   void EnableMetatrace();
   std::vector<uint8_t> DisableAndReadMetatrace();
+
+  // Creates a new RPC session by:
+  // a) deleting all tables and views that have been created (by the UI or user)
+  //    after the trace was loaded; built-in tables/view created
+  //    by the ingestion process are preserved.
+  // b) creates a new session id (see |GetSessionId| for more information).
+  //
+  // Historical note: the name of this function is |RestoreInitialTables|
+  // because it was created before the concept of an RPC session was
+  // defined when this function only reset the views. The scope was expanded
+  // rather than just creating a new function to preserve backward compatibility
+  // for clients.
+  void RestoreInitialTables();
+
+  // Returns the id of the RPC session. This id is an opaque string
+  // which can be used to globally and uniquely identify a particular session of
+  // RPC class.
+  //
+  // A new session is started (and thus a new session id is generated) when
+  // either:
+  // a) a new RPC instance is created
+  // b) |RestoreInitialTables| is called on an existing instance
+  //
+  // This can be used by RPC clients to determine whether they are talking to
+  // same instance they previously used to create tables/views.
+  std::string GetSessionId();
 
   // Runs a query and returns results in batch. Each batch is a proto-encoded
   // TraceProcessor.QueryResult message and contains a variable number of rows.
@@ -94,6 +120,8 @@ class Rpc {
   int64_t t_parse_started_ = 0;
   size_t bytes_last_progress_ = 0;
   size_t bytes_parsed_ = 0;
+
+  base::Uuid session_id_;
 };
 
 }  // namespace trace_processor
