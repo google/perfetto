@@ -244,6 +244,41 @@ WHERE slice.name = 'measure'
 GROUP BY thread_name
 ```
 
+## Helper functions
+Helper functions are functions built into C++ which reduce the amount of
+boilerplate which needs to be written in SQL.
+
+### Extract args
+`EXTRACT_ARG` is a helper function which retreives a property of an
+event (e.g. slice or counter) from the `args` table.
+
+It takes an `arg_set_id` and `key` as input and returns the value looked
+up in the `args` table.
+
+For example, to retrieve the `prev_comm` field for `sched_switch` events in
+the `raw` table.
+```sql
+SELECT EXTRACT_ARG(arg_set_id, 'prev_comm')
+FROM raw
+WHERE name = 'sched_switch'
+```
+
+Behind the scenes, the above query would desugar to the following:
+```sql
+SELECT
+  (
+    SELECT string_value
+    FROM args
+    WHERE key = 'prev_comm' AND args.arg_set_id = raw.arg_set_id
+  )
+FROM raw
+WHERE name = 'sched_switch'
+```
+
+NOTE: while convinient, `EXTRACT_ARG` can inefficient compared to a `JOIN`
+when working with very large tables; a function call is required for every
+row which will be slower than the batch filters/sorts used by `JOIN`.
+
 ## Operator tables
 SQL queries are usually sufficient to retrieve data from trace processor.
 Sometimes though, certain constructs can be difficult to express pure SQL.
