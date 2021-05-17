@@ -20,6 +20,13 @@ config("config") {
       "_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS",
       "_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS",
     ]
+    if (is_debug) {
+      # libc++ has two levels of debug mode. Setting _LIBCPP_DEBUG to zero
+      # enables most assertions. Setting it to one additionally enables iterator
+      # debugging, but that seems to require some extra link-time dependencies.
+      # See https://libcxx.llvm.org/docs/DesignDocs/DebugMode.html
+      defines += [ "_LIBCPP_DEBUG=0" ]
+    }
     cflags_cc = [
       "-nostdinc++",
       "-isystem" + rebase_path("$libcxx_prefix/include", root_build_dir),
@@ -28,9 +35,7 @@ config("config") {
 
     # Avoid linking both libc++ and libstdc++.
     ldflags = [ "-nostdlib++" ]
-    libs = [
-      "dl",  # libdl: dynamic linking.
-    ]
+    libs = [ "dl" ]  # libdl: dynamic linking.
   }
 }
 
