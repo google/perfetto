@@ -104,11 +104,11 @@ WHERE (
 DROP TABLE IF EXISTS launch_processes;
 CREATE TABLE launch_processes(launch_id INT, upid BIG INT);
 
--- We make the (not always correct) simplification that process == package
 INSERT INTO launch_processes
 SELECT launches.id, process.upid
 FROM launches
-  JOIN process ON launches.package = process.name
+  LEFT JOIN package_list ON (launches.package = package_list.package_name)
+  JOIN process ON (launches.package = process.name OR process.uid = package_list.uid)
   JOIN thread ON (process.upid = thread.upid AND process.pid = thread.tid)
 WHERE (process.start_ts IS NULL OR process.start_ts < launches.ts_end)
 AND (thread.end_ts IS NULL OR thread.end_ts > launches.ts_end)
