@@ -83,7 +83,6 @@ perfetto_unittest_source_set("unittests") {
     ":bytecode_common",
     ":bytecode_generator",
     ":bytecode_parser",
-    ":filter_util",
     ":message_filter",
     "..:protozero",
     "../../../gn:default_deps",
@@ -95,10 +94,19 @@ perfetto_unittest_source_set("unittests") {
   sources = [
     "filter_bytecode_generator_unittest.cc",
     "filter_bytecode_parser_unittest.cc",
-    "filter_util_unittest.cc",
-    "message_filter_unittest.cc",
     "message_tokenizer_unittest.cc",
   ]
+
+  # On chromium component build we cannot have a test target depening boh on
+  # protobuf-full and protobuf-lite. Just skip those targets there.
+  # See also https://crug.com/1210223 .
+  if (perfetto_build_standalone || perfetto_build_with_android) {
+    deps += [ ":filter_util" ]
+    sources += [
+      "filter_util_unittest.cc",
+      "message_filter_unittest.cc",
+    ]
+  }
 }
 
 if (enable_perfetto_benchmarks) {
