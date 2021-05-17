@@ -877,6 +877,7 @@ void TraceProcessorImpl::NotifyEndOfFile() {
 }
 
 size_t TraceProcessorImpl::RestoreInitialTables() {
+  // Step 1: figure out what tables/views/indices we need to delete.
   std::vector<std::pair<std::string, std::string>> deletion_list;
   std::string msg = "Resetting DB to initial state, deleting table/views:";
   for (auto it = ExecuteQuery(kAllTablesQuery); it.Next();) {
@@ -890,6 +891,8 @@ size_t TraceProcessorImpl::RestoreInitialTables() {
   }
 
   PERFETTO_LOG("%s", msg.c_str());
+
+  // Step 2: actually delete those tables/views/indices.
   for (const auto& tn : deletion_list) {
     std::string query = "DROP " + tn.first + " " + tn.second;
     auto it = ExecuteQuery(query);
