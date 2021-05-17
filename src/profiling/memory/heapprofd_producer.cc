@@ -699,39 +699,26 @@ void HeapprofdProducer::DumpProcessState(DataSource* data_source,
 
     bool from_startup = data_source->signaled_pids.find(pid) ==
                         data_source->signaled_pids.cend();
-    uint64_t dump_timestamp;
-    if (data_source->config.dump_at_max())
-      dump_timestamp = heap_info.heap_tracker.max_timestamp();
-    else
-      dump_timestamp = heap_info.heap_tracker.committed_timestamp();
 
-    const char* heap_name = nullptr;
-    if (!heap_info.heap_name.empty())
-      heap_name = heap_info.heap_name.c_str();
-    uint64_t sampling_interval = heap_info.sampling_interval;
-    uint64_t orig_sampling_interval = heap_info.orig_sampling_interval;
-
-    auto new_heapsamples =
-        [pid, from_startup, dump_timestamp, process_state, data_source,
-         heap_name, sampling_interval,
-         orig_sampling_interval](ProfilePacket::ProcessHeapSamples* proto) {
-          proto->set_pid(static_cast<uint64_t>(pid));
-          proto->set_timestamp(dump_timestamp);
-          proto->set_from_startup(from_startup);
-          proto->set_disconnected(process_state->disconnected);
-          proto->set_buffer_overran(process_state->error_state ==
-                                    SharedRingBuffer::kHitTimeout);
-          proto->set_client_error(
-              ErrorStateToProto(process_state->error_state));
-          proto->set_buffer_corrupted(process_state->buffer_corrupted);
-          proto->set_hit_guardrail(data_source->hit_guardrail);
-          if (heap_name)
-            proto->set_heap_name(heap_name);
-          proto->set_sampling_interval_bytes(sampling_interval);
-          proto->set_orig_sampling_interval_bytes(orig_sampling_interval);
-          auto* stats = proto->set_stats();
-          SetStats(stats, *process_state);
-        };
+    auto new_heapsamples = [pid, from_startup, process_state, data_source,
+                            &heap_info](
+                               ProfilePacket::ProcessHeapSamples* proto) {
+      proto->set_pid(static_cast<uint64_t>(pid));
+      proto->set_timestamp(heap_info.heap_tracker.dump_timestamp());
+      proto->set_from_startup(from_startup);
+      proto->set_disconnected(process_state->disconnected);
+      proto->set_buffer_overran(process_state->error_state ==
+                                SharedRingBuffer::kHitTimeout);
+      proto->set_client_error(ErrorStateToProto(process_state->error_state));
+      proto->set_buffer_corrupted(process_state->buffer_corrupted);
+      proto->set_hit_guardrail(data_source->hit_guardrail);
+      if (!heap_info.heap_name.empty())
+        proto->set_heap_name(heap_info.heap_name.c_str());
+      proto->set_sampling_interval_bytes(heap_info.sampling_interval);
+      proto->set_orig_sampling_interval_bytes(heap_info.orig_sampling_interval);
+      auto* stats = proto->set_stats();
+      SetStats(stats, *process_state);
+    };
 
     DumpState dump_state(data_source->trace_writer.get(),
                          std::move(new_heapsamples),
