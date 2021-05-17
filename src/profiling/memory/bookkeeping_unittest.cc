@@ -145,7 +145,7 @@ TEST(BookkeepingTest, Max) {
   sequence_number++;
   hd.RecordMalloc(stack2(), DummyBuildIds(stack2().size()), 0x2, 1, 2,
                   sequence_number, 100 * sequence_number);
-  ASSERT_EQ(hd.max_timestamp(), 200u);
+  ASSERT_EQ(hd.dump_timestamp(), 200u);
   ASSERT_EQ(hd.GetMaxForTesting(stack(), DummyBuildIds(stack().size())), 5u);
   ASSERT_EQ(hd.GetMaxForTesting(stack2(), DummyBuildIds(stack2().size())), 2u);
   ASSERT_EQ(hd.GetMaxCountForTesting(stack(), DummyBuildIds(stack().size())),
@@ -171,7 +171,7 @@ TEST(BookkeepingTest, Max2) {
                   sequence_number, 100 * sequence_number);
   sequence_number++;
   hd.RecordFree(0x2, sequence_number, 100 * sequence_number);
-  EXPECT_EQ(hd.max_timestamp(), 400u);
+  EXPECT_EQ(hd.dump_timestamp(), 400u);
   EXPECT_EQ(hd.GetMaxForTesting(stack(), DummyBuildIds(stack().size())), 0u);
   EXPECT_EQ(hd.GetMaxForTesting(stack2(), DummyBuildIds(stack2().size())), 15u);
   EXPECT_EQ(hd.GetMaxForTesting(stack3(), DummyBuildIds(stack3().size())), 15u);
