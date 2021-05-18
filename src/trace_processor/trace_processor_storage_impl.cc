@@ -25,7 +25,6 @@
 #include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
-#include "src/trace_processor/importers/common/trace_blob_view.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/default_modules.h"
 #include "src/trace_processor/importers/proto/async_track_set_tracker.h"
@@ -38,6 +37,7 @@
 #include "src/trace_processor/importers/track_event.descriptor.h"
 #include "src/trace_processor/trace_sorter.h"
 #include "src/trace_processor/util/descriptors.h"
+#include "src/trace_processor/util/trace_blob_view.h"
 
 namespace perfetto {
 namespace trace_processor {
