@@ -334,6 +334,14 @@ export class TraceController extends Controller<States> {
 
     await this.listThreads();
     await this.loadTimelineOverview(traceTime);
+
+    {
+      const query = 'select to_ftrace(id) from raw limit 1';
+      const result = await assertExists(this.engine).query(query);
+      const hasFtrace = !!slowlyCountRows(result);
+      globals.publish('HasFtrace', hasFtrace);
+    }
+
     globals.dispatch(Actions.sortThreadTracks({}));
     await this.selectFirstHeapProfile();
 

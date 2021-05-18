@@ -32,7 +32,7 @@ declare namespace Wasm {
 
   export interface FileSystemNode {
     contents: Uint8Array;
-    usedBytes: number;
+    usedBytes?: number;
   }
 
   export interface FileSystem {
