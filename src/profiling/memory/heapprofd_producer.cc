@@ -63,8 +63,6 @@ constexpr uint32_t kInitialConnectionBackoffMs = 100;
 constexpr uint32_t kMaxConnectionBackoffMs = 30 * 1000;
 constexpr uint32_t kGuardrailIntervalMs = 30 * 1000;
 
-constexpr uint32_t kChildModeWatchdogPeriodMs = 10 * 1000;
-
 constexpr uint64_t kDefaultShmemSize = 8 * 1048576;  // ~8 MB
 constexpr uint64_t kMaxShmemSize = 500 * 1048576;    // ~500 MB
 
@@ -333,29 +331,6 @@ void HeapprofdProducer::Restart() {
   new (this) HeapprofdProducer(mode, task_runner, exit_when_done);
 
   ConnectWithRetries(socket_name);
-}
-
-void HeapprofdProducer::ActiveDataSourceWatchdogCheck() {
-  PERFETTO_DCHECK(mode_ == HeapprofdMode::kChild);
-
-  // Fork mode heapprofd should be working on exactly one data source matching
-  // its target process.
-  if (data_sources_.empty()) {
-    PERFETTO_LOG(
-        "Child heapprofd exiting as it never received a data source for the "
-        "target process, or somehow lost/finished the task without exiting.");
-    TerminateProcess(/*exit_status=*/1);
-  } else {
-    // reschedule check.
-    auto weak_producer = weak_factory_.GetWeakPtr();
-    task_runner_->PostDelayedTask(
-        [weak_producer]() {
-          if (!weak_producer)
-            return;
-          weak_producer->ActiveDataSourceWatchdogCheck();
-        },
-        kChildModeWatchdogPeriodMs);
-  }
 }
 
 // TODO(rsavitski): would be cleaner to shut down the event loop instead
