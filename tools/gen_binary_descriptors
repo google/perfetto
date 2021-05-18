@@ -25,14 +25,11 @@ import hashlib
 from compat import iteritems
 
 SOURCE_TARGET = [
-    (
-      'protos/perfetto/trace_processor/trace_processor.proto',
-      'src/trace_processor/python/perfetto/trace_processor/trace_processor.descriptor'
+    ('protos/perfetto/trace_processor/trace_processor.proto',
+     'src/trace_processor/python/perfetto/trace_processor/trace_processor.descriptor'
     ),
-    (
-      'protos/perfetto/metrics/metrics.proto',
-      'src/trace_processor/python/perfetto/trace_processor/metrics.descriptor'
-    ),
+    ('protos/perfetto/metrics/metrics.proto',
+     'src/trace_processor/python/perfetto/trace_processor/metrics.descriptor'),
 ]
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -52,7 +49,6 @@ def find_protoc():
     if 'protoc' in files:
       return os.path.join(root, 'protoc')
   return None
-
 
 
 def check(source, target):
@@ -75,7 +71,9 @@ def check(source, target):
 
 
 def generate(source, target, protoc_path):
-  with tempfile.NamedTemporaryFile() as fdescriptor:
+  # delete=False + manual unlink is required for Windows. Otherwise the temp
+  # file is kept locked exclusively and unaccassible until it's destroyed.
+  with tempfile.NamedTemporaryFile(delete=False) as fdescriptor:
     subprocess.check_call([
         protoc_path,
         '--include_imports',
@@ -84,10 +82,11 @@ def generate(source, target, protoc_path):
             os.path.join(ROOT_DIR, "buildtools", "protobuf", "src"),
         '--descriptor_set_out={}'.format(fdescriptor.name),
         source,
-    ],
-                          cwd=ROOT_DIR)
+    ], cwd=ROOT_DIR)
 
     s = fdescriptor.read()
+    fdescriptor.close()
+    os.remove(fdescriptor.name)
     with open(target, 'wb') as out:
       out.write(s)
 
@@ -104,6 +103,7 @@ def generate(source, target, protoc_path):
           source_path=source,
           source_hash=hash_path(os.path.join(source)),
       ).encode())
+
 
 def main():
   parser = argparse.ArgumentParser()
