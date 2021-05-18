@@ -16,12 +16,16 @@ import {assertExists} from '../base/logging';
 import {DeferredAction} from '../common/actions';
 import {AggregateData} from '../common/aggregation_data';
 import {Args, ArgsTree} from '../common/arg_types';
+import {
+  ConversionJobName,
+  ConversionJobStatus
+} from '../common/conversion_jobs';
 import {MetricResult} from '../common/metric_data';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
 import {CallsiteInfo, createEmptyState, State} from '../common/state';
 import {fromNs, toNs} from '../common/time';
-import {Analytics, initAnalytics} from '../frontend/analytics';
 
+import {Analytics, initAnalytics} from './analytics';
 import {FrontendLocalState} from './frontend_local_state';
 import {RafScheduler} from './raf_scheduler';
 import {ServiceWorkerController} from './service_worker_controller';
@@ -170,6 +174,8 @@ class Globals {
   private _traceErrors?: number = undefined;
   private _metricError?: string = undefined;
   private _metricResult?: MetricResult = undefined;
+  private _hasFtrace?: boolean = undefined;
+  private _jobStatus?: Map<ConversionJobName, ConversionJobStatus> = undefined;
 
   private _currentSearchResults: CurrentSearchResults = {
     sliceIds: [],
@@ -369,6 +375,34 @@ class Globals {
 
   set currentSearchResults(results: CurrentSearchResults) {
     this._currentSearchResults = results;
+  }
+
+  get hasFtrace(): boolean {
+    return !!this._hasFtrace;
+  }
+
+  set hasFtrace(value: boolean) {
+    this._hasFtrace = value;
+  }
+
+  getConversionJobStatus(name: ConversionJobName): ConversionJobStatus {
+    return this.getJobStatusMap().get(name) || ConversionJobStatus.NotRunning;
+  }
+
+  setConversionJobStatus(name: ConversionJobName, status: ConversionJobStatus) {
+    const map = this.getJobStatusMap();
+    if (status === ConversionJobStatus.NotRunning) {
+      map.delete(name);
+    } else {
+      map.set(name, status);
+    }
+  }
+
+  private getJobStatusMap(): Map<ConversionJobName, ConversionJobStatus> {
+    if (!this._jobStatus) {
+      this._jobStatus = new Map();
+    }
+    return this._jobStatus;
   }
 
   setBufferUsage(bufferUsage: number) {

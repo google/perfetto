@@ -16,7 +16,11 @@ import {Draft} from 'immer';
 
 import {assertExists, assertTrue} from '../base/logging';
 import {randomColor} from '../common/colorizer';
-import {ConvertTrace, ConvertTraceToPprof} from '../controller/trace_converter';
+import {
+  ConvertTrace,
+  ConvertTraceAndDownload,
+  ConvertTraceToPprof
+} from '../controller/trace_converter';
 import {ACTUAL_FRAMES_SLICE_TRACK_KIND} from '../tracks/actual_frames/common';
 import {ASYNC_SLICE_TRACK_KIND} from '../tracks/async_slices/common';
 import {COUNTER_TRACK_KIND} from '../tracks/counter/common';
@@ -176,19 +180,22 @@ export const StateActions = {
 
   // TODO(b/141359485): Actions should only modify state.
   convertTraceToJson(
-      state: StateDraft, args: {file: Blob, truncate?: 'start'|'end'}): void {
-    state.traceConversionInProgress = true;
+      _: StateDraft, args: {file: Blob, truncate?: 'start'|'end'}): void {
     ConvertTrace(args.file, 'json', args.truncate);
+  },
+
+  convertTraceToSystraceAndDownload(_: StateDraft, args: {file: Blob}): void {
+    ConvertTraceAndDownload(args.file, 'systrace');
+  },
+
+  convertTraceToJsonAndDownload(_: StateDraft, args: {file: Blob}): void {
+    ConvertTraceAndDownload(args.file, 'json');
   },
 
   convertTraceToPprof(
       _: StateDraft,
       args: {pid: number, src: TraceSource, ts1: number, ts2?: number}): void {
     ConvertTraceToPprof(args.pid, args.src, args.ts1, args.ts2);
-  },
-
-  clearConversionInProgress(state: StateDraft, _args: {}): void {
-    state.traceConversionInProgress = false;
   },
 
   addTracks(state: StateDraft, args: {tracks: AddTrackArgs[]}) {
