@@ -182,7 +182,7 @@ void TraceSorter::SortAndExtractEventsBeyondWindow(int64_t window_size_ns) {
 }
 
 void TraceSorter::MaybePushEvent(size_t queue_idx, TimestampedTracePiece ttp) {
-  if (bypass_next_stage_for_testing_)
+  if (PERFETTO_UNLIKELY(bypass_next_stage_for_testing_))
     return;
 
   if (queue_idx == 0) {
