@@ -45,6 +45,23 @@ source_set("protozero_to_text") {
   ]
 }
 
+source_set("trace_blob_view") {
+  sources = [ "trace_blob_view.h" ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../base",
+  ]
+}
+
+source_set("interned_message_view") {
+  sources = [ "interned_message_view.h" ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../base",
+  ]
+  public_deps = [ ":trace_blob_view" ]
+}
+
 source_set("descriptors") {
   sources = [
     "descriptors.cc",
@@ -55,14 +72,16 @@ source_set("descriptors") {
     "../../../gn:default_deps",
     "../../../protos/perfetto/common:zero",
     "../../../protos/perfetto/trace_processor:zero",
+    "../../base",
     "../../protozero",
     "../importers:gen_cc_track_event_descriptor",
   ]
-  public_deps = [ "../../base" ]
 }
 
 source_set("proto_to_args_parser") {
   sources = [
+    "debug_annotation_parser.cc",
+    "debug_annotation_parser.h",
     "proto_to_args_parser.cc",
     "proto_to_args_parser.h",
   ]
@@ -70,6 +89,7 @@ source_set("proto_to_args_parser") {
     "../../../gn:default_deps",
     "../../../protos/perfetto/common:zero",
     "../../../protos/perfetto/trace/interned_data:zero",
+    "../../../protos/perfetto/trace/track_event:zero",
     "../../../protos/perfetto/trace_processor:zero",
     "../../protozero",
     "../importers:gen_cc_track_event_descriptor",
@@ -77,17 +97,15 @@ source_set("proto_to_args_parser") {
 
   public_deps = [
     ":descriptors",
+    ":interned_message_view",
     ":util",
     "../../base",
-
-    # TODO(altimin): Move InternedMessageView and TraceBlobView here and remove
-    # this dependency.
-    "../importers/common",
   ]
 }
 
 source_set("unittests") {
   sources = [
+    "debug_annotation_parser_unittest.cc",
     "proto_to_args_parser_unittest.cc",
     "protozero_to_text_unittests.cc",
   ]
@@ -104,9 +122,5 @@ source_set("unittests") {
     "../../protozero",
     "../../protozero:testing_messages_zero",
     "../importers:gen_cc_track_event_descriptor",
-
-    # TODO(altimin): Move InternedMessageView and TraceBlobView here and remove
-    # this dependency.
-    "..:storage_minimal",
   ]
 }

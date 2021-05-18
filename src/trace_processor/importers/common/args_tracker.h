@@ -64,16 +64,17 @@ class ArgsTracker {
 
     // IncrementArrayEntryIndex() and GetNextArrayEntryIndex() provide a way to
     // track the next array index for an array under a specific key.
-    void IncrementArrayEntryIndex(StringId key) {
-      // Zero-initializes |key| in the map if it doesn't exist yet.
-      args_tracker_
-          ->array_indexes_[std::make_tuple(arg_set_id_column_, row_, key)]++;
-    }
-
     size_t GetNextArrayEntryIndex(StringId key) {
       // Zero-initializes |key| in the map if it doesn't exist yet.
       return args_tracker_
           ->array_indexes_[std::make_tuple(arg_set_id_column_, row_, key)];
+    }
+
+    // Returns the next available array index after increment.
+    size_t IncrementArrayEntryIndex(StringId key) {
+      // Zero-initializes |key| in the map if it doesn't exist yet.
+      return ++args_tracker_->array_indexes_[std::make_tuple(arg_set_id_column_,
+                                                             row_, key)];
     }
 
    protected:
