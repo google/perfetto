@@ -220,6 +220,14 @@
         justify-self: end;
         margin-right: 10px;
       }
+      .selected {
+        justify-self: end;
+        margin-right: 10px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        width: 200px;
+      }
     }
   }
 
