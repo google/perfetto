@@ -139,6 +139,8 @@ export class ChromeSliceDetailsPanel extends Panel {
           'Duration',
           toNs(sliceInfo.dur) === -1 ? '-1 (Did not end)' :
                                        timeToCode(sliceInfo.dur));
+      builder.add(
+          'Slice ID', sliceInfo.id ? sliceInfo.id.toString() : 'Unknown');
       if (sliceInfo.description) {
         this.fillDescription(sliceInfo.description, builder);
       }

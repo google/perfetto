@@ -68,7 +68,10 @@ export class SliceDetailsPanel extends Panel {
               m('tr', m('th', `Prio`), m('td', `${sliceInfo.priority}`)),
               m('tr',
                 m('th', `End State`),
-                m('td', translateState(sliceInfo.endState)))
+                m('td', translateState(sliceInfo.endState))),
+              m('tr',
+                m('th', `Slice ID`),
+                m('td', sliceInfo.id ? sliceInfo.id.toString() : 'Unknown'))
             ]),
       );
     }
