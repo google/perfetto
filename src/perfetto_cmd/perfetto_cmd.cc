@@ -748,6 +748,18 @@ int PerfettoCmd::Main(int argc, char** argv) {
     return 1;
   }
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  if (!background && !is_detach() && !upload_flag &&
+      triggers_to_activate.empty() && !isatty(STDIN_FILENO) &&
+      !isatty(STDERR_FILENO)) {
+    fprintf(stderr,
+            "Warning: No PTY. CTRL+C won't gracefully stop the trace. If you "
+            "are running perfetto via adb shell, use the -tt arg (adb shell "
+            "-t perfetto ...) or consider using the helper script "
+            "tools/record_android_trace from the Perfetto repository.\n\n");
+  }
+#endif
+
   consumer_endpoint_ =
       ConsumerIPCClient::Connect(GetConsumerSocket(), this, &task_runner_);
   SetupCtrlCSignalHandler();
