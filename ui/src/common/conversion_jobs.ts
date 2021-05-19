@@ -17,8 +17,8 @@ export enum ConversionJobStatus {
   NotRunning = 'NotRunning',
 }
 
-export type ConversionJobName =
-    'convert_systrace'|'convert_json'|'open_in_legacy'|'convert_pprof';
+export type ConversionJobName = 'convert_systrace'|'convert_json'|
+    'open_in_legacy'|'convert_pprof'|'create_permalink';
 
 export interface ConversionJobStatusUpdate {
   jobName: ConversionJobName;
