@@ -502,7 +502,7 @@ the memory of the process get swapped out onto ZRAM.
 | fragmentation       |                   |              |  x  |
 
 If you observe high RSS or malloc\_info metrics but heapprofd does not match,
-you might be hitting some patological fragmentation problem in the allocator.
+you might be hitting some pathological fragmentation problem in the allocator.
 
 ## Convert to pprof
 
