@@ -606,7 +606,7 @@ function shareTrace(e: Event) {
   if (!isShareable() || !isTraceLoaded()) return;
 
   const result = confirm(
-      `Upload the trace and generate a permalink. ` +
+      `Upload UI state and generate a permalink. ` +
       `The trace will be accessible by anybody with the permalink.`);
   if (result) {
     globals.logging.logEvent('Trace Actions', 'Create permalink');
