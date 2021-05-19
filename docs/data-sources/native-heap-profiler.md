@@ -237,8 +237,6 @@ enumerated in the output directory.
 
 ## Symbolization
 
-NOTE: Symbolization is currently only available on Linux and MacOS.
-
 ### Set up llvm-symbolizer
 
 You only need to do this once.
