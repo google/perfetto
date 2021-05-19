@@ -232,7 +232,7 @@ class TraceSorter {
     // practice.
     bool is_before_all_events = ttp.timestamp < global_max_ts_;
     bool is_before_window = global_max_ts_ - ttp.timestamp >= window_size_ns_;
-    if (is_before_all_events && is_before_window) {
+    if (PERFETTO_UNLIKELY(is_before_all_events && is_before_window)) {
       MaybePushEvent(0, std::move(ttp));
       return;
     }
@@ -255,7 +255,8 @@ class TraceSorter {
     SortAndExtractEventsBeyondWindow(window_size_ns_);
   }
 
-  void MaybePushEvent(size_t queue_idx, TimestampedTracePiece ttp);
+  void MaybePushEvent(size_t queue_idx,
+                      TimestampedTracePiece ttp) PERFETTO_ALWAYS_INLINE;
 
   std::unique_ptr<TraceParser> parser_;
 
