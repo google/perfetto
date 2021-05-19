@@ -65,6 +65,20 @@ PERFETTO_CMD = ('CFG=\'{cfg}\'; echo ${{CFG}} | '
                 'perfetto --txt -c - -o '
                 '/data/misc/perfetto-traces/java-profile-{user} -d')
 
+SDK = {
+    'S': 31,
+}
+
+def release_or_newer(release):
+  sdk = int(subprocess.check_output(
+    ['adb', 'shell', 'getprop', 'ro.system.build.version.sdk']
+  ).decode('utf-8').strip())
+  if sdk >= SDK[release]:
+    return True
+  codename = subprocess.check_output(
+    ['adb', 'shell', 'getprop', 'ro.build.version.codename']
+  ).decode('utf-8').strip()
+  return codename == release
 
 def main(argv):
   parser = argparse.ArgumentParser()
@@ -107,10 +121,19 @@ def main(argv):
   parser.add_argument(
       "--stop-when-done",
       action="store_true",
-      help="On recent builds of S, use a new method to stop the profile when "
-           "the dump is done. Previously, we would hardcode a duration.")
+      default=None,
+      help="Use a new method to stop the profile when the dump is done. "
+      "Previously, we would hardcode a duration. Available and default on S.")
+  parser.add_argument(
+      "--no-stop-when-done",
+      action="store_false",
+      dest='stop_when_done',
+      help="Do not use a new method to stop the profile when the dump is done.")
 
   args = parser.parse_args()
+
+  if args.stop_when_done is None:
+    args.stop_when_done = release_or_newer('S')
 
   fail = False
   if args.pid is None and args.name is None:
