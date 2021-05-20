@@ -235,7 +235,7 @@ export class ChromeSliceDetailsPanel extends Panel {
       rows.push(m('tr', renderedRow));
     }
 
-    return m('table.half-width', rows);
+    return m('table.half-width.auto-layout', rows);
   }
 
   fillDescription(description: Map<string, string>, builder: TableBuilder) {
