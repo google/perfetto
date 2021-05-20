@@ -54,9 +54,13 @@ declare_args() {
   gcc_toolchain = ""
   ar = "ar"
   linker = ""
+  strip = ""
 
   if (is_linux_host) {
     linker = "gold"
+    strip = "strip"
+  } else if (is_mac_host) {
+    strip = "strip -x"
   }
 
   if (is_clang) {
@@ -129,6 +133,7 @@ declare_args() {
 }
 
 declare_args() {
+  target_strip = ""
   if (is_linux || is_android) {
     target_linker = "gold"
   } else {
@@ -141,6 +146,7 @@ declare_args() {
     target_cc = cc
     target_cxx = cxx
     target_linker = linker
+    target_strip = strip
   } else {
     target_ar = "ar"
     if (is_android) {
@@ -148,6 +154,7 @@ declare_args() {
       target_cc = "$android_llvm_dir/bin/clang"
       target_cxx = "$android_llvm_dir/bin/clang++"
       target_linker = "$android_llvm_dir/bin/ld.lld"
+      target_strip = "$android_toolchain_root/bin/$android_abi_target-strip"
     } else {
       assert(_target_triplet != "",
              "target_triplet must be non-empty when cross-compiling")
@@ -180,6 +187,7 @@ template("gcc_like_toolchain") {
     external_cflags = ""
     external_cxxflags = ""
     external_ldflags = ""
+    strip = ""
     if (defined(invoker.linker) && invoker.linker != "") {
       _invoker_linker = invoker.linker
       ld_arg = "-fuse-ld=$_invoker_linker"
@@ -202,6 +210,9 @@ template("gcc_like_toolchain") {
     }
     if (defined(invoker.external_ldflags)) {
       external_ldflags = invoker.external_ldflags
+    }
+    if (defined(invoker.strip)) {
+      strip = invoker.strip
     }
 
     tool("cc") {
@@ -249,24 +260,34 @@ template("gcc_like_toolchain") {
 
     tool("solink") {
       soname = "{{target_output_name}}{{output_extension}}"
-
+      unstripped_so = "{{root_out_dir}}/$soname"
       rpath = "-Wl,-soname,$soname"
       if (is_mac) {
         rpath = "-Wl,-install_name,@rpath/$soname"
       }
-
-      command = "$cc_wrapper $cxx $ld_arg -shared {{ldflags}} ${external_ldflags} {{inputs}} {{solibs}} {{libs}} $rpath -o {{output}}"
-      outputs = [ "{{root_out_dir}}/$soname" ]
+      command = "$cc_wrapper $cxx $ld_arg -shared {{ldflags}} ${external_ldflags} {{inputs}} {{solibs}} {{libs}} $rpath -o $unstripped_so"
+      outputs = [ unstripped_so ]
       output_prefix = "lib"
       default_output_extension = ".so"
-      description = "link {{output}}"
+      description = "link $unstripped_so"
+      if (strip != "") {
+        stripped_so = "{{root_out_dir}}/stripped/$soname"
+        outputs += [ stripped_so ]
+        command += " && $strip -o $stripped_so $unstripped_so"
+      }
     }
 
     tool("link") {
-      command = "$cc_wrapper $cxx $ld_arg {{ldflags}} ${external_ldflags} {{inputs}} {{solibs}} {{libs}} -o {{output}}"
-      outputs =
-          [ "{{root_out_dir}}/{{target_output_name}}{{output_extension}}" ]
-      description = "link {{output}}"
+      unstripped_exe =
+          "{{root_out_dir}}/{{target_output_name}}{{output_extension}}"
+      command = "$cc_wrapper $cxx $ld_arg {{ldflags}} ${external_ldflags} {{inputs}} {{solibs}} {{libs}} -o $unstripped_exe"
+      outputs = [ unstripped_exe ]
+      description = "link $unstripped_exe"
+      if (strip != "") {
+        stripped_exe = "{{root_out_dir}}/stripped/{{target_output_name}}{{output_extension}}"
+        outputs += [ stripped_exe ]
+        command += " && $strip -o $stripped_exe $unstripped_exe"
+      }
     }
 
     tool("stamp") {
@@ -293,6 +314,7 @@ gcc_like_toolchain("gcc_like") {
   cc = target_cc
   cxx = target_cxx
   linker = target_linker
+  strip = target_strip
   sysroot = target_sysroot
   gcc_toolchain = target_gcc_toolchain
   external_cflags = string_join(" ",
@@ -319,6 +341,7 @@ gcc_like_toolchain("gcc_like_host") {
   cc = cc
   cxx = cxx
   linker = linker
+  strip = strip
   sysroot = sysroot
   gcc_toolchain = gcc_toolchain
   external_cflags = string_join(" ",
@@ -345,6 +368,7 @@ gcc_like_toolchain("wasm") {
   ar = "$emsdk_dir/emscripten/emar --em-config $em_config"
   cc = "$emsdk_dir/emscripten/emcc --em-config $em_config"
   cxx = "$emsdk_dir/emscripten/em++ --em-config $em_config"
+  strip = ""
 }
 
 # This is used both for MSVC anc clang-cl. clang-cl cmdline interface pretends
