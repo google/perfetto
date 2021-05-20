@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import("../../gn/perfetto.gni")
+import("../../gn/perfetto_cc_proto_descriptor.gni")
 import("../../gn/perfetto_host_executable.gni")
 import("../../gn/wasm.gni")
 
@@ -131,6 +132,7 @@ source_set("full") {
   testonly = true
   deps = [
     ":common",
+    ":gen_cc_trace_descriptor",
     ":utils",
     "../../gn:default_deps",
     "../../gn:protobuf_full",
@@ -154,4 +156,9 @@ if (enable_perfetto_ui) {
       "../../gn:default_deps",
     ]
   }
+}
+
+perfetto_cc_proto_descriptor("gen_cc_trace_descriptor") {
+  descriptor_name = "trace.descriptor"
+  descriptor_target = "../../protos/perfetto/trace:descriptor"
 }
