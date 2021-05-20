@@ -77,6 +77,8 @@ class TracingTLS : public Platform::ThreadLocalObject {
   // This flag is true while this thread is inside a trace point for any data
   // source or in other delicate parts of the tracing machinery during which we
   // should not try to trace. Used to prevent unexpected re-entrancy.
+  // This flag is also load-bearing when handling re-entrancy during thread-exit
+  // handlers. See comment in TracingTLS::~TracingTLS().
   bool is_in_trace_point = false;
 
   // By default all data source instances have independent thread-local state

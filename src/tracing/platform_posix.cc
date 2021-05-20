@@ -39,6 +39,7 @@ class PlatformPosix : public Platform {
   ~PlatformPosix() override;
 
   ThreadLocalObject* GetOrCreateThreadLocalObject() override;
+
   std::unique_ptr<base::TaskRunner> CreateTaskRunner(
       const CreateTaskRunnerArgs&) override;
   std::string GetCurrentProcessName() override;
@@ -47,22 +48,39 @@ class PlatformPosix : public Platform {
   pthread_key_t tls_key_{};
 };
 
+PlatformPosix* g_instance = nullptr;
+
 using ThreadLocalObject = Platform::ThreadLocalObject;
 
 PlatformPosix::PlatformPosix() {
+  PERFETTO_CHECK(!g_instance);
+  g_instance = this;
   auto tls_dtor = [](void* obj) {
+    // The Posix TLS implementation resets the key before calling this dtor.
+    // Here we re-reset it to the object we are about to delete. This is to
+    // handle re-entrant usages of tracing in the PostTask done during the dtor
+    // (see comments in TracingTLS::~TracingTLS()). Chromium's platform
+    // implementation (which does NOT use this platform impl) has a similar
+    // workaround (https://crrev.com/c/2748300).
+    pthread_setspecific(g_instance->tls_key_, obj);
     delete static_cast<ThreadLocalObject*>(obj);
+    pthread_setspecific(g_instance->tls_key_, nullptr);
   };
   PERFETTO_CHECK(pthread_key_create(&tls_key_, tls_dtor) == 0);
 }
 
 PlatformPosix::~PlatformPosix() {
   pthread_key_delete(tls_key_);
+  g_instance = nullptr;
 }
 
 ThreadLocalObject* PlatformPosix::GetOrCreateThreadLocalObject() {
   // In chromium this should be implemented using base::ThreadLocalStorage.
-  auto tls = static_cast<ThreadLocalObject*>(pthread_getspecific(tls_key_));
+  void* tls_ptr = pthread_getspecific(tls_key_);
+
+  // This is needed to handle re-entrant calls during TLS dtor.
+  // See comments in platform.cc and aosp/1712371 .
+  ThreadLocalObject* tls = static_cast<ThreadLocalObject*>(tls_ptr);
   if (!tls) {
     tls = ThreadLocalObject::CreateInstance().release();
     pthread_setspecific(tls_key_, tls);
