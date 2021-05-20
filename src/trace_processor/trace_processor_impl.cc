@@ -1033,7 +1033,7 @@ util::Status TraceProcessorImpl::ComputeMetric(
     return util::Status("Root metrics proto descriptor not found");
 
   const auto& root_descriptor = pool_.descriptors()[opt_idx.value()];
-  return metrics::ComputeMetrics(this, metric_names, sql_metrics_,
+  return metrics::ComputeMetrics(this, metric_names, sql_metrics_, pool_,
                                  root_descriptor, metrics_proto);
 }
 
