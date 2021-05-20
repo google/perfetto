@@ -143,8 +143,10 @@ def Main():
   AdbCall('root')
   AdbCall('wait-for-device')
 
-  target_dir = '/data/local/tmp/' + args.test_name
-  AdbCall('shell', 'rm -rf "%s"; mkdir -p "%s"' % (2 * (target_dir,)))
+  target_dir = '/data/local/tmp/perfetto_tests'
+  if not args.no_cleanup:
+    AdbCall('shell', 'rm -rf "%s"' % target_dir)
+  AdbCall('shell', 'mkdir -p "%s"' % target_dir)
   # Some tests require the trace directory to exist, while true for android
   # devices in general some emulators might not have it set up. So we check to
   # see if it exists, and if not create it.
