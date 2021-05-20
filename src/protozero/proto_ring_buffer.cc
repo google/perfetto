@@ -14,14 +14,13 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/rpc/proto_ring_buffer.h"
+#include "src/protozero/proto_ring_buffer.h"
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/paged_memory.h"
 #include "perfetto/protozero/proto_utils.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace protozero {
 
 namespace {
 constexpr size_t kGrowBytes = 128 * 1024;
@@ -74,7 +73,7 @@ ProtoRingBuffer::Message TryReadMessage(const uint8_t* start,
 }  // namespace
 
 ProtoRingBuffer::ProtoRingBuffer()
-    : buf_(base::PagedMemory::Allocate(kGrowBytes)) {}
+    : buf_(perfetto::base::PagedMemory::Allocate(kGrowBytes)) {}
 ProtoRingBuffer::~ProtoRingBuffer() = default;
 
 void ProtoRingBuffer::Append(const void* data_void, size_t data_len) {
@@ -137,7 +136,7 @@ void ProtoRingBuffer::Append(const void* data_void, size_t data_len) {
         failed_ = true;
         return;
       }
-      auto new_buf = base::PagedMemory::Allocate(new_size);
+      auto new_buf = perfetto::base::PagedMemory::Allocate(new_size);
       memcpy(new_buf.Get(), buf_.Get(), buf_.size());
       buf_ = std::move(new_buf);
       avail = new_size - wr_;
@@ -184,5 +183,4 @@ ProtoRingBuffer::Message ProtoRingBuffer::ReadMessage() {
   return msg;
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace protozero
