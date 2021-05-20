@@ -177,6 +177,8 @@ const SECTIONS: Section[] = [
         a: shareTrace,
         i: 'share',
         internalUserOnly: true,
+        isPending: () => globals.getConversionJobStatus('create_permalink') ===
+            ConversionJobStatus.InProgress,
       },
       {
         t: 'Download',
@@ -203,7 +205,6 @@ const SECTIONS: Section[] = [
         isPending: () => globals.getConversionJobStatus('open_in_legacy') ===
             ConversionJobStatus.InProgress,
       },
-
       {
         t: 'Convert to .json',
         a: convertTraceToJson,
