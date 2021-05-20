@@ -53,6 +53,8 @@ struct option {
 
 extern char* optarg;
 extern int optind;
+extern int optopt;
+extern int opterr;
 
 int getopt_long(int argc,
                 char** argv,
