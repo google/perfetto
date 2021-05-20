@@ -185,13 +185,14 @@ void TraceSorter::MaybePushEvent(size_t queue_idx, TimestampedTracePiece ttp) {
   if (PERFETTO_UNLIKELY(bypass_next_stage_for_testing_))
     return;
 
+  int64_t timestamp = ttp.timestamp;
   if (queue_idx == 0) {
     // queues_[0] is for non-ftrace packets.
-    parser_->ParseTracePacket(ttp.timestamp, std::move(ttp));
+    parser_->ParseTracePacket(timestamp, std::move(ttp));
   } else {
     // Ftrace queues start at offset 1. So queues_[1] = cpu[0] and so on.
     uint32_t cpu = static_cast<uint32_t>(queue_idx - 1);
-    parser_->ParseFtracePacket(cpu, ttp.timestamp, std::move(ttp));
+    parser_->ParseFtracePacket(cpu, timestamp, std::move(ttp));
   }
 }
 
