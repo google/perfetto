@@ -147,3 +147,45 @@ selecting a CPU slice:
 
 ![](/docs/images/latency.png "Scheduling wake-up events in the UI")
 
+### Decoding `end_state`
+
+The [sched_slice](/docs/analysis/sql-tables.autogen#sched_slice) table contains
+information on scheduling activity of the system:
+
+```
+> select * from sched_slice limit 1
+id  type        ts          dur    cpu utid end_state priority
+0   sched_slice 70730062200 125364 0   1    S         130     
+```
+
+Each row of the table shows when a given thread (`utid`) began running
+(`ts`), on which core it ran (`cpu`), for how long it ran (`dur`), 
+and why it stopped running: `end_state`.
+
+`end_state` is encoded as one or more ascii characters. The UI uses
+the following translations to convert `end_state` into human readable
+text:
+
+| end_state  | Translation            |
+|------------|------------------------|
+| R          | Runnable               |
+| S          | Sleeping               |
+| D          | Uninterruptible Sleep |
+| T          | Stopped                |
+| t          | Traced                 |
+| X          | Exit (Dead)            |
+| Z          | Exit (Zombie)          |
+| x          | Task Dead              |
+| I          | Task Dead              |
+| K          | Wake Kill              |
+| W          | Waking                 |
+| P          | Parked                 |
+| N          | No Load                |
+| +          | (Preempted)            |
+
+Not all combinations of characters are meaningful.
+
+If we do not know when the scheduling ended (for example because the
+trace ended while the thread was still running) `end_state` will be
+`NULL` and `dur` will be -1.
+
