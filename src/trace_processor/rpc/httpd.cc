@@ -279,15 +279,21 @@ void HttpServer::HandleRequest(Client* client, const HttpRequest& req) {
   std::string allow_origin_hdr =
       "Access-Control-Allow-Origin: " + req.origin.ToStdString();
 
+  std::string tp_session_id_header =
+      "X-TP-Session-ID: " + trace_processor_rpc_.GetSessionId();
+
   // This is the default. Overridden by the /query handler for chunked replies.
   char transfer_encoding_hdr[255] = "Transfer-Encoding: identity";
   std::initializer_list<const char*> headers = {
-      "Connection: Keep-Alive",                //
-      "Cache-Control: no-cache",               //
-      "Keep-Alive: timeout=5, max=1000",       //
-      "Content-Type: application/x-protobuf",  //
-      transfer_encoding_hdr,                   //
-      allow_origin_hdr.c_str()};
+      "Connection: Keep-Alive",                          //
+      "Cache-Control: no-cache",                         //
+      "Keep-Alive: timeout=5, max=1000",                 //
+      "Content-Type: application/x-protobuf",            //
+      "Access-Control-Expose-Headers: X-TP-Session-ID",  //
+      transfer_encoding_hdr,                             //
+      allow_origin_hdr.c_str(),
+      tp_session_id_header.c_str(),
+  };
 
   if (req.method == "OPTIONS") {
     // CORS headers.

@@ -38,6 +38,7 @@ interface QueuedRequest {
 export class HttpRpcEngine extends Engine {
   readonly id: string;
   private nextReqId = 0;
+  private sessionId?: string = undefined;
   private requestQueue = new Array<QueuedRequest>();
   private pendingRequest?: QueuedRequest = undefined;
   errorHandler: (err: string) => void = () => {};
@@ -118,6 +119,33 @@ export class HttpRpcEngine extends Engine {
       req.resp.reject(`HTTP ${resp.status} - ${resp.statusText}`);
       return;
     }
+
+    if (req.methodName === 'restore_initial_tables') {
+      // restore_initial_tables resets the trace processor session id
+      // so make sure to also reset on our end for future queries.
+      this.sessionId = undefined;
+    } else {
+      const sessionId = resp.headers.get('X-TP-Session-ID') || undefined;
+      if (this.sessionId !== undefined && sessionId !== this.sessionId) {
+        req.resp.reject(
+            `The trace processor HTTP session does not match the initally seen
+             ID.
+
+             This can happen when using a HTTP trace processor instance and
+             either accidentally sharing this between multiple tabs or
+             restarting the trace processor while still in use by UI.
+
+             Please refresh this tab and ensure that trace processor is used by
+             at most one tab at a time.
+
+             Technical details:
+             Expected session id: ${this.sessionId}
+             Actual session id: ${sessionId}`);
+        return;
+      }
+      this.sessionId = sessionId;
+    }
+
     resp.arrayBuffer().then(arrBuf => {
       // Note: another request can sneak in via enqueueRequest() between the
       // arrayBuffer() call and this continuation. At this point
