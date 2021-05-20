@@ -21,6 +21,7 @@ perfetto_proto_library("@TYPE@") {
     "cpp",
     "zero",
     "lite",
+    "source_set",
   ]
   sources = ftrace_proto_names
 }
