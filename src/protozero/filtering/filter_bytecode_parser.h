@@ -24,10 +24,9 @@
 
 namespace protozero {
 
-// Loads the proto-encoded bytecode (see proto_filter.proto) in memory and
-// allows fast lookups for tuples (msg_index, field_id) to tell if a given field
-// should be allowed or not and, in the case of nested fields, what is the next
-// message index to recurse into.
+// Loads the proto-encoded bytecode in memory and allows fast lookups for tuples
+// (msg_index, field_id) to tell if a given field should be allowed or not and,
+// in the case of nested fields, what is the next message index to recurse into.
 // This class does two things:
 // 1. Expands the array of varint from the proto into a vector<uint32_t>. This
 //    is to avoid performing varint decoding on every lookup, at the cost of
@@ -58,8 +57,8 @@ class FilterBytecodeParser {
     bool simple_field() const { return nested_msg_index == kSimpleField; }
   };
 
-  // Loads a filter. The passed data must be proto-encoded bytes for a
-  // perfetto.protos.ProtoFilter message.
+  // Loads a filter. The filter data consists of a sequence of varints which
+  // contains the filter opcodes and a final checksum.
   bool Load(const void* filter_data, size_t len);
 
   // Checks wheter a given field is allowed or not.
@@ -68,6 +67,7 @@ class FilterBytecodeParser {
   QueryResult Query(uint32_t msg_index, uint32_t field_id);
 
   void Reset();
+  void set_suppress_logs_for_fuzzer(bool x) { suppress_logs_for_fuzzer_ = x; }
 
  private:
   static constexpr uint32_t kDirectlyIndexLimit = 128;
@@ -115,6 +115,8 @@ class FilterBytecodeParser {
   // Nth message start.
   // message_offset_.size() - 2 == the max message id that can be parsed.
   std::vector<uint32_t> message_offset_;
+
+  bool suppress_logs_for_fuzzer_ = false;
 };
 
 }  // namespace protozero

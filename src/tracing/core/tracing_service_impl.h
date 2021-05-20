@@ -47,6 +47,10 @@
 #include "src/android_stats/perfetto_atoms.h"
 #include "src/tracing/core/id_allocator.h"
 
+namespace protozero {
+class MessageFilter;
+}
+
 namespace perfetto {
 
 namespace base {
@@ -574,6 +578,13 @@ class TracingServiceImpl : public TracingService {
     // Periodic task for snapshotting service events (e.g. clocks, sync markers
     // etc)
     base::PeriodicTask snapshot_periodic_task;
+
+    // When non-NULL the packets should be post-processed using the filter.
+    std::unique_ptr<protozero::MessageFilter> trace_filter;
+    uint64_t filter_input_packets = 0;
+    uint64_t filter_input_bytes = 0;
+    uint64_t filter_output_bytes = 0;
+    uint64_t filter_errors = 0;
   };
 
   TracingServiceImpl(const TracingServiceImpl&) = delete;

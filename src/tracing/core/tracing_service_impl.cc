@@ -72,6 +72,7 @@
 #include "perfetto/tracing/core/tracing_service_capabilities.h"
 #include "perfetto/tracing/core/tracing_service_state.h"
 #include "src/android_stats/statsd_logging_helper.h"
+#include "src/protozero/filtering/message_filter.h"
 #include "src/tracing/core/packet_stream_validator.h"
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
 #include "src/tracing/core/trace_buffer.h"
@@ -718,12 +719,44 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
                             tracing_sessions_.size());
   }
 
+  // If the trace config provides a filter bytecode, setup the filter now.
+  // If the filter loading fails, abort the tracing session rather than running
+  // unfiltered.
+  std::unique_ptr<protozero::MessageFilter> trace_filter;
+  if (cfg.has_trace_filter()) {
+    const auto& filt = cfg.trace_filter();
+    const std::string& bytecode = filt.bytecode();
+    trace_filter.reset(new protozero::MessageFilter());
+    if (!trace_filter->LoadFilterBytecode(bytecode.data(), bytecode.size())) {
+      MaybeLogUploadEvent(
+          cfg, PerfettoStatsdAtom::kTracedEnableTracingInvalidFilter);
+      return PERFETTO_SVC_ERR("Trace filter bytecode invalid, aborting");
+    }
+    // The filter is created using perfetto.protos.Trace as root message
+    // (because that makes it possible to play around with the `proto_filter`
+    // tool on actual traces). Here in the service, however, we deal with
+    // perfetto.protos.TracePacket(s), which are one level down (Trace.packet).
+    // The IPC client (or the write_into_filte logic in here) are responsible
+    // for pre-pending the packet preamble (See GetProtoPreamble() calls), but
+    // the preamble is not there at ReadBuffer time. Hence we change the root of
+    // the filtering to start at the Trace.packet level.
+    uint32_t packet_field_id = TracePacket::kPacketFieldNumber;
+    if (!trace_filter->SetFilterRoot(&packet_field_id, 1)) {
+      MaybeLogUploadEvent(
+          cfg, PerfettoStatsdAtom::kTracedEnableTracingInvalidFilter);
+      return PERFETTO_SVC_ERR("Failed to set filter root.");
+    }
+  }
+
   const TracingSessionID tsid = ++last_tracing_session_id_;
   TracingSession* tracing_session =
       &tracing_sessions_
            .emplace(std::piecewise_construct, std::forward_as_tuple(tsid),
                     std::forward_as_tuple(tsid, consumer, cfg, task_runner_))
            .first->second;
+
+  if (trace_filter)
+    tracing_session->trace_filter = std::move(trace_filter);
 
   if (cfg.write_into_file()) {
     if (!fd ^ !cfg.output_path().empty()) {
@@ -2073,6 +2106,48 @@ bool TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
     total_slices += packets[i].slices().size();
   }
 
+  // +-------------------------------------------------------------------------+
+  // | NO MORE CHANGES TO |packets| AFTER THIS POINT.                          |
+  // +-------------------------------------------------------------------------+
+
+  // If the tracing session specified a filter, run all packets through the
+  // filter and replace them with the filter results.
+  // The process below mantains the cardinality of input packets. Even if an
+  // entire packet is filtered out, we emit a zero-sized TracePacket proto. That
+  // makes debugging and reasoning about the trace stats easier.
+  // This place swaps the contents of each |packets| entry in place.
+  if (tracing_session->trace_filter) {
+    auto& trace_filter = *tracing_session->trace_filter;
+    // The filter root shoud be reset from protos.Trace to protos.TracePacket
+    // by the earlier call to SetFilterRoot() in EnableTracing().
+    PERFETTO_DCHECK(trace_filter.root_msg_index() != 0);
+    std::vector<protozero::MessageFilter::InputSlice> filter_input;
+    for (auto it = packets.begin(); it != packets.end(); ++it) {
+      const auto& packet_slices = it->slices();
+      filter_input.clear();
+      filter_input.resize(packet_slices.size());
+      ++tracing_session->filter_input_packets;
+      tracing_session->filter_input_bytes += it->size();
+      for (size_t i = 0; i < packet_slices.size(); ++i)
+        filter_input[i] = {packet_slices[i].start, packet_slices[i].size};
+      auto filtered_packet = trace_filter.FilterMessageFragments(
+          &filter_input[0], filter_input.size());
+
+      // Replace the packet in-place with the filtered one (unless failed).
+      *it = TracePacket();
+      if (filtered_packet.error) {
+        ++tracing_session->filter_errors;
+        PERFETTO_DLOG("Trace packet filtering failed @ packet %" PRIu64,
+                      tracing_session->filter_input_packets);
+        continue;
+      }
+      tracing_session->filter_output_bytes += filtered_packet.size;
+      it->AddSlice(Slice::TakeOwnership(std::move(filtered_packet.data),
+                                        filtered_packet.size));
+
+    }  // for (packet)
+  }    // if (trace_filter)
+
   // If the caller asked us to write into a file by setting
   // |write_into_file| == true in the trace config, drain the packets read
   // (if any) into the given file descriptor.
@@ -2923,6 +2998,14 @@ TraceStats TracingServiceImpl::GetTraceStats(TracingSession* tracing_session) {
   trace_stats.set_chunks_discarded(chunks_discarded_);
   trace_stats.set_patches_discarded(patches_discarded_);
   trace_stats.set_invalid_packets(tracing_session->invalid_packets);
+
+  if (tracing_session->trace_filter) {
+    auto* filt_stats = trace_stats.mutable_filter_stats();
+    filt_stats->set_input_packets(tracing_session->filter_input_packets);
+    filt_stats->set_input_bytes(tracing_session->filter_input_bytes);
+    filt_stats->set_output_bytes(tracing_session->filter_output_bytes);
+    filt_stats->set_errors(tracing_session->filter_errors);
+  }
 
   for (BufferID buf_id : tracing_session->buffers_index) {
     TraceBuffer* buf = GetBufferByID(buf_id);
