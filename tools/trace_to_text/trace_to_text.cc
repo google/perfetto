@@ -16,7 +16,6 @@
 
 #include "tools/trace_to_text/trace_to_text.h"
 
-#include <google/protobuf/compiler/importer.h>
 #include <google/protobuf/dynamic_message.h>
 #include <google/protobuf/io/zero_copy_stream_impl.h>
 #include <google/protobuf/text_format.h>
@@ -25,6 +24,7 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "tools/trace_to_text/proto_full_utils.h"
+#include "tools/trace_to_text/trace.descriptor.h"
 #include "tools/trace_to_text/utils.h"
 
 #include "protos/perfetto/trace/trace.pbzero.h"
@@ -36,17 +36,17 @@
 
 namespace perfetto {
 namespace trace_to_text {
-
 namespace {
+
 using google::protobuf::Descriptor;
+using google::protobuf::DescriptorPool;
 using google::protobuf::DynamicMessageFactory;
 using google::protobuf::FieldDescriptor;
 using google::protobuf::FileDescriptor;
+using google::protobuf::FileDescriptorSet;
 using google::protobuf::Message;
 using google::protobuf::Reflection;
 using google::protobuf::TextFormat;
-using google::protobuf::compiler::DiskSourceTree;
-using google::protobuf::compiler::Importer;
 using google::protobuf::io::OstreamOutputStream;
 using google::protobuf::io::ZeroCopyOutputStream;
 
@@ -147,42 +147,34 @@ void PrintCompressedPackets(const std::string& packets,
 }  // namespace
 
 int TraceToText(std::istream* input, std::ostream* output) {
-  const std::string proto_path = "protos/perfetto/trace/trace_packet.proto";
-
-  if (!base::OpenFile(proto_path, O_RDONLY)) {
-    PERFETTO_ELOG("Cannot open %s.", proto_path.c_str());
-    PERFETTO_ELOG(
-        "Text mode only works from the perfetto directory. Googlers, see "
-        "b/131425913");
-    return 1;
+  DescriptorPool pool;
+  FileDescriptorSet desc_set;
+  desc_set.ParseFromArray(kTraceDescriptor.data(), kTraceDescriptor.size());
+  for (const auto& desc : desc_set.file()) {
+    pool.BuildFile(desc);
   }
 
-  DiskSourceTree dst;
-  dst.MapPath("", "");
-  MultiFileErrorCollectorImpl mfe;
-  Importer importer(&dst, &mfe);
-  const FileDescriptor* parsed_file =
-      importer.Import("protos/perfetto/trace/trace_packet.proto");
+  DynamicMessageFactory factory(&pool);
+  const Descriptor* trace_descriptor =
+      pool.FindMessageTypeByName("perfetto.protos.TracePacket");
+  const Message* prototype = factory.GetPrototype(trace_descriptor);
+  std::unique_ptr<Message> msg(prototype->New());
 
-  DynamicMessageFactory dmf;
-  const Descriptor* trace_descriptor = parsed_file->message_type(0);
-  const Message* root = dmf.GetPrototype(trace_descriptor);
   OstreamOutputStream zero_copy_output(output);
   OstreamOutputStream* zero_copy_output_ptr = &zero_copy_output;
-  Message* msg = root->New();
 
   constexpr uint32_t kCompressedPacketFieldDescriptor = 50;
   const Reflection* reflect = msg->GetReflection();
   const FieldDescriptor* compressed_desc =
       trace_descriptor->FindFieldByNumber(kCompressedPacketFieldDescriptor);
-  Message* compressed_msg_scratch = root->New();
+  std::unique_ptr<Message> compressed_msg_scratch(prototype->New());
   std::string compressed_packet_scratch;
 
   TextFormat::Printer printer;
   printer.SetInitialIndentLevel(1);
   ForEachPacketBlobInTrace(
-      input, [msg, reflect, compressed_desc, zero_copy_output_ptr,
-              &compressed_packet_scratch, compressed_msg_scratch,
+      input, [&msg, reflect, compressed_desc, zero_copy_output_ptr,
+              &compressed_packet_scratch, &compressed_msg_scratch,
               &printer](std::unique_ptr<char[]> buf, size_t size) {
         if (!msg->ParseFromArray(buf.get(), static_cast<int>(size))) {
           PERFETTO_ELOG("Skipping invalid packet");
@@ -191,7 +183,8 @@ int TraceToText(std::istream* input, std::ostream* output) {
         if (reflect->HasField(*msg, compressed_desc)) {
           const auto& compressed_packets = reflect->GetStringReference(
               *msg, compressed_desc, &compressed_packet_scratch);
-          PrintCompressedPackets(compressed_packets, compressed_msg_scratch,
+          PrintCompressedPackets(compressed_packets,
+                                 compressed_msg_scratch.get(),
                                  zero_copy_output_ptr);
         } else {
           WriteToZeroCopyOutput(zero_copy_output_ptr, kPacketPrefix,
