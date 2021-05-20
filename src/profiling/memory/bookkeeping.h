@@ -193,8 +193,9 @@ class HeapTracker {
 
   void ClearFrameCache() { frame_cache_.clear(); }
 
-  uint64_t committed_timestamp() { return committed_timestamp_; }
-  uint64_t max_timestamp() { return max_timestamp_; }
+  uint64_t dump_timestamp() {
+    return dump_at_max_mode_ ? max_timestamp_ : committed_timestamp_;
+  }
 
   uint64_t GetSizeForTesting(const std::vector<unwindstack::FrameData>& stack,
                              std::vector<std::string> build_ids);
