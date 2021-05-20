@@ -149,6 +149,9 @@ void StartHeapprofdIfStatic() {
         }
       });
   task_runner.Run();
+  // We currently do not Quit the task_runner, but if we ever do it will be
+  // very hard to debug if we don't exit here.
+  exit(0);
 }
 
 // This is called by AHeapProfile_initSession (client_api.cc) to construct a
