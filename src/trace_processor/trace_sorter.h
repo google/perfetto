@@ -91,8 +91,10 @@ class TraceSorter {
 
   inline void PushSystraceLine(std::unique_ptr<SystraceLine> systrace_line) {
     DCHECK_ftrace_batch_cpu(kNoBatch);
+
+    int64_t timestamp = systrace_line->ts;
     AppendNonFtraceAndMaybeExtractEvents(TimestampedTracePiece(
-        systrace_line->ts, packet_idx_++, std::move(systrace_line)));
+        timestamp, packet_idx_++, std::move(systrace_line)));
   }
 
   inline void PushTrackEventPacket(int64_t timestamp,
@@ -115,20 +117,20 @@ class TraceSorter {
     // global ordering and doing that in batches only after all ftrace events
     // for a bundle are pushed.
   }
-
-  // As with |PushFtraceEvent|, doesn't immediately sort the affected queues.
-  // TODO(rsavitski): if a trace has a mix of normal & "compact" events (being
-  // pushed through this function), the ftrace batches will no longer be fully
-  // sorted by timestamp. In such situations, we will have to sort at the end of
-  // the batch. We can do better as both sub-sequences are sorted however.
-  // Consider adding extra queues, or pushing them in a merge-sort fashion
-  // instead.
   inline void PushInlineFtraceEvent(uint32_t cpu,
                                     int64_t timestamp,
                                     InlineSchedSwitch inline_sched_switch) {
     set_ftrace_batch_cpu_for_DCHECK(cpu);
     GetQueue(cpu + 1)->Append(
         TimestampedTracePiece(timestamp, packet_idx_++, inline_sched_switch));
+
+    // As with |PushFtraceEvent|, doesn't immediately sort the affected queues.
+    // TODO(rsavitski): if a trace has a mix of normal & "compact" events (being
+    // pushed through this function), the ftrace batches will no longer be fully
+    // sorted by timestamp. In such situations, we will have to sort at the end
+    // of the batch. We can do better as both sub-sequences are sorted however.
+    // Consider adding extra queues, or pushing them in a merge-sort fashion
+    // instead.
   }
   inline void PushInlineFtraceEvent(uint32_t cpu,
                                     int64_t timestamp,
