@@ -152,6 +152,16 @@ message InitializeConnectionRequest {
   // SetupTracing response. See TracingService::ConnectProducer() and
   // |using_shmem_provided_by_producer| in InitializeConnectionResponse.
   optional bool producer_provided_shmem = 6;
+
+  // ---------------------------------------------------
+  // All fields below have been introduced in Android S.
+  // ---------------------------------------------------
+
+  // The version of the client library used by the producer.
+  // This is a human readable string with and its format varies depending on
+  // the build system that is used to build the code and the repo (standalone
+  // vs AOSP). This is intended for human debugging only.
+  optional string sdk_version = 8;
 }
 
 message InitializeConnectionResponse {
@@ -262,9 +272,11 @@ message GetAsyncCommandResponse {
 
   message StopDataSource { optional uint64 instance_id = 1; }
 
-  // This message also transports the file descriptor for the shared memory
-  // buffer (not a proto field).
-  message SetupTracing { optional uint32 shared_buffer_page_size_kb = 1; }
+  // On Android/Linux/Mac this message also transports the file descriptor for
+  // the shared memory buffer (not a proto field).
+  message SetupTracing {
+    optional uint32 shared_buffer_page_size_kb = 1;
+  }
 
   message Flush {
     // The instance id (i.e. StartDataSource.new_instance_id) of the data

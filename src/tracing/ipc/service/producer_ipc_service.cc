@@ -114,7 +114,8 @@ void ProducerIPCService::InitializeConnection(
       producer.get(), client_info.uid(), req.producer_name(),
       req.shared_memory_size_hint_bytes(),
       /*in_process=*/false, smb_scraping_mode,
-      req.shared_memory_page_size_hint_bytes(), std::move(shmem));
+      req.shared_memory_page_size_hint_bytes(), std::move(shmem),
+      req.sdk_version());
 
   // Could happen if the service has too many producers connected.
   if (!producer->service_endpoint) {
