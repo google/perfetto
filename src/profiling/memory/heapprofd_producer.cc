@@ -573,7 +573,7 @@ void HeapprofdProducer::StopDataSource(DataSourceInstanceID id) {
     return;
   }
 
-  PERFETTO_DLOG("Stopping data source %" PRIu64, id);
+  PERFETTO_LOG("Stopping data source %" PRIu64, id);
 
   DataSource& data_source = it->second;
   data_source.was_stopped = true;
@@ -1211,6 +1211,8 @@ void HeapprofdProducer::CheckDataSourceCpuTask() {
     DataSource& ds = p.second;
     if (gr.IsOverCpuThreshold(ds.guardrail_config)) {
       ds.hit_guardrail = true;
+      PERFETTO_LOG("Data source %" PRIu64 " hit CPU guardrail. Shutting down.",
+                   ds.id);
       ShutdownDataSource(&ds);
     }
   }
@@ -1230,6 +1232,9 @@ void HeapprofdProducer::CheckDataSourceMemoryTask() {
     DataSource& ds = p.second;
     if (gr.IsOverMemoryThreshold(ds.guardrail_config)) {
       ds.hit_guardrail = true;
+      PERFETTO_LOG("Data source %" PRIu64
+                   " hit memory guardrail. Shutting down.",
+                   ds.id);
       ShutdownDataSource(&ds);
     }
   }
