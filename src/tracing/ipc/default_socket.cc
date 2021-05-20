@@ -23,19 +23,22 @@
 #include "perfetto/ext/tracing/core/basic_types.h"
 
 #include <stdlib.h>
-#include <unistd.h>
 
-namespace perfetto {
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-// On non-Android platforms, check /run/perfetto/ before using /tmp/ as the
-// socket base directory.
-namespace {
-const char* kRunPerfettoBaseDir = "/run/perfetto/";
-
-bool UseRunPerfettoBaseDir() {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+#include <unistd.h>
+#endif
+
+namespace perfetto {
+namespace {
+
+const char* kRunPerfettoBaseDir = "/run/perfetto/";
+
+// On Linux and CrOS, check /run/perfetto/ before using /tmp/ as the socket
+// base directory.
+bool UseRunPerfettoBaseDir() {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX)
   // Note that the trailing / in |kRunPerfettoBaseDir| ensures we are checking
   // against a directory, not a file.
   int res = PERFETTO_EINTR(access(kRunPerfettoBaseDir, X_OK));
@@ -50,12 +53,12 @@ bool UseRunPerfettoBaseDir() {
   }
   return false;
 #else
+  base::ignore_result(kRunPerfettoBaseDir);
   return false;
 #endif
 }
 
 }  // anonymous namespace
-#endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 
 static_assert(kInvalidUid == ipc::kInvalidUid, "kInvalidUid mismatching");
 
@@ -74,6 +77,7 @@ const char* GetProducerSocket() {
     name = producer_socket;
 #endif
   }
+  base::ignore_result(UseRunPerfettoBaseDir);  // Silence unused func warnings.
   return name;
 }
 
