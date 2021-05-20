@@ -14,28 +14,28 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_RPC_PROTO_RING_BUFFER_H_
-#define SRC_TRACE_PROCESSOR_RPC_PROTO_RING_BUFFER_H_
+#ifndef SRC_PROTOZERO_PROTO_RING_BUFFER_H_
+#define SRC_PROTOZERO_PROTO_RING_BUFFER_H_
 
 #include <stdint.h>
 
 #include "perfetto/ext/base/paged_memory.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace protozero {
 
-// This class buffers and tokenizes proto messages used for the TraceProcessor
-// RPC interface (See comments in trace_processor.proto).
-// From a logical level, the RPC is a sequence of protos like this.
+// This class buffers and tokenizes proto messages.
+//
+// From a logical level, it works with a sequence of protos like this.
 // [ header 1 ] [ payload 1   ]
 // [ header 2 ] [ payload 2  ]
 // [ header 3 ] [ payload 3     ]
 // Where [ header ] is a variable-length sequence of:
 // [ Field ID = 1, type = length-delimited] [ length (varint) ].
-// The RPC pipe is byte-oriented, not message-oriented (like a TCP stream).
-// The pipe is not required to respect the boundaries of each message, it only
-// guarantees that data is not lost or duplicated. The following sequence of
-// inbound events is possible:
+//
+// The input to this class is byte-oriented, not message-oriented (like a TCP
+// stream or a pipe). The caller is not required to respect the boundaries of
+// each message; only guarantee that data is not lost or duplicated. The
+// following sequence of inbound events is possible:
 // 1. [ hdr 1 (incomplete) ... ]
 // 2. [ ... hdr 1 ] [ payload 1 ] [ hdr 2 ] [ payoad 2 ] [ hdr 3 ] [ pay... ]
 // 3. [ ...load 3 ]
@@ -126,14 +126,13 @@ class ProtoRingBuffer {
   size_t avail() const { return buf_.size() - (wr_ - rd_); }
 
  private:
-  base::PagedMemory buf_;
+  perfetto::base::PagedMemory buf_;
   Message fastpath_{};
   bool failed_ = false;  // Set in case of an unrecoverable framing faiulre.
   size_t rd_ = 0;        // Offset of the read cursor in |buf_|.
   size_t wr_ = 0;        // Offset of the write cursor in |buf_|.
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace protozero
 
-#endif  // SRC_TRACE_PROCESSOR_RPC_PROTO_RING_BUFFER_H_
+#endif  // SRC_PROTOZERO_PROTO_RING_BUFFER_H_
