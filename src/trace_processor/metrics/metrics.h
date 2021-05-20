@@ -61,7 +61,7 @@ struct SqlMetricFile {
 // Visible for testing.
 class ProtoBuilder {
  public:
-  ProtoBuilder(const ProtoDescriptor*);
+  ProtoBuilder(const DescriptorPool*, const ProtoDescriptor*);
 
   util::Status AppendSqlValue(const std::string& field_name,
                               const SqlValue& value);
@@ -106,6 +106,7 @@ class ProtoBuilder {
                               const uint8_t* ptr,
                               size_t size);
 
+  const DescriptorPool* pool_ = nullptr;
   const ProtoDescriptor* descriptor_ = nullptr;
   protozero::HeapBuffered<protozero::Message> message_;
 };
@@ -176,6 +177,7 @@ void RunMetric(sqlite3_context* ctx, int argc, sqlite3_value** argv);
 util::Status ComputeMetrics(TraceProcessor* impl,
                             const std::vector<std::string> metrics_to_compute,
                             const std::vector<SqlMetricFile>& metrics,
+                            const DescriptorPool& pool,
                             const ProtoDescriptor& root_descriptor,
                             std::vector<uint8_t>* metrics_proto);
 
