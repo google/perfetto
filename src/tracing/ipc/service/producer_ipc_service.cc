@@ -26,7 +26,12 @@
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#include "src/tracing/ipc/shared_memory_windows.h"
+#else
 #include "src/tracing/ipc/posix_shared_memory.h"
+#endif
 
 // The remote Producer(s) are not trusted. All the methods from the ProducerPort
 // IPC layer (e.g. RegisterDataSource()) must assume that the remote Producer is
@@ -93,7 +98,18 @@ void ProducerIPCService::InitializeConnection(
   // If the producer provided an SMB, tell the service to attempt to adopt it.
   std::unique_ptr<SharedMemory> shmem;
   if (req.producer_provided_shmem()) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+    if (!req.has_shm_key_windows() || req.shm_key_windows().empty()) {
+      PERFETTO_ELOG(
+          "shm_key_windows must be non-empty when "
+          "producer_provided_shmem = true");
+    } else {
+      shmem = SharedMemoryWindows::Attach(req.shm_key_windows());
+      // Attach() does error logging if something fails, no need to extra ELOGs.
+    }
+#else
     base::ScopedFile shmem_fd = ipc::Service::TakeReceivedFD();
+
     if (shmem_fd) {
       shmem = PosixSharedMemory::AttachToFd(
           std::move(shmem_fd), /*require_seals_if_supported=*/true);
@@ -107,6 +123,7 @@ void ProducerIPCService::InitializeConnection(
           "InitializeConnectionRequest's producer_provided_shmem flag is set "
           "but the producer didn't provide an FD");
     }
+#endif
   }
 
   // ConnectProducer will call OnConnect() on the next task.
@@ -455,10 +472,17 @@ void ProducerIPCService::RemoteProducer::SendSetupTracing() {
     // Nominal case (% Chrome): service provides SMB.
     setup_tracing->set_shared_buffer_page_size_kb(
         static_cast<uint32_t>(service_endpoint->shared_buffer_page_size_kb()));
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+    const std::string& shm_key =
+        static_cast<SharedMemoryWindows*>(service_endpoint->shared_memory())
+            ->key();
+    setup_tracing->set_shm_key_windows(shm_key);
+#else
     const int shm_fd =
         static_cast<PosixSharedMemory*>(service_endpoint->shared_memory())
             ->fd();
     cmd.set_fd(shm_fd);
+#endif
   }
   async_producer_commands.Resolve(std::move(cmd));
 }

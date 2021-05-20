@@ -59,10 +59,9 @@ uint64_t ToConversionFlags(bool annotate_frames) {
 std::string GetRandomString(size_t n) {
   std::random_device r;
   auto rng = std::default_random_engine(r());
-  std::uniform_int_distribution<char> dist('a', 'z');
   std::string result(n, ' ');
   for (size_t i = 0; i < n; ++i) {
-    result[i] = dist(rng);
+    result[i] = 'a' + (rng() % ('z' - 'a'));
   }
   return result;
 }
