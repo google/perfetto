@@ -25,7 +25,8 @@ type PublishKinds = 'OverviewData'|'TrackData'|'Threads'|'QueryResult'|
     'HeapProfileFlamegraph'|'FileDownload'|'Loading'|'Search'|'BufferUsage'|
     'RecordingLog'|'SearchResult'|'AggregateData'|'CpuProfileDetails'|
     'TraceErrors'|'UpdateChromeCategories'|'ConnectedFlows'|'SelectedFlows'|
-    'ThreadStateDetails'|'MetricError'|'MetricResult';
+    'ThreadStateDetails'|'MetricError'|'MetricResult'|'HasFtrace'|
+    'ConversionJobStatusUpdate';
 
 export interface App {
   state: State;
