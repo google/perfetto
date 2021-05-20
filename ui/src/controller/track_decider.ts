@@ -569,7 +569,9 @@ class TrackDecider {
           process.pid as pid
         from process_track
         left join process using(upid)
-        where process_track.name not like "% Timeline"
+        where
+            process_track.name is null or
+            process_track.name not like "% Timeline"
         group by
           process_track.upid,
           process_track.name
