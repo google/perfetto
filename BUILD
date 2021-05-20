@@ -803,6 +803,15 @@ filegroup(
     ],
 )
 
+# GN target: //src/protozero:proto_ring_buffer
+filegroup(
+    name = "src_protozero_proto_ring_buffer",
+    srcs = [
+        "src/protozero/proto_ring_buffer.cc",
+        "src/protozero/proto_ring_buffer.h",
+    ],
+)
+
 # GN target: //src/trace_processor/analysis:analysis
 filegroup(
     name = "src_trace_processor_analysis_analysis",
@@ -1048,8 +1057,6 @@ filegroup(
 filegroup(
     name = "src_trace_processor_rpc_rpc",
     srcs = [
-        "src/trace_processor/rpc/proto_ring_buffer.cc",
-        "src/trace_processor/rpc/proto_ring_buffer.h",
         "src/trace_processor/rpc/query_result_serializer.cc",
         "src/trace_processor/rpc/query_result_serializer.h",
         "src/trace_processor/rpc/rpc.cc",
@@ -3644,6 +3651,7 @@ perfetto_cc_binary(
         ":src_profiling_deobfuscator",
         ":src_profiling_symbolizer_symbolize_database",
         ":src_profiling_symbolizer_symbolizer",
+        ":src_protozero_proto_ring_buffer",
         ":src_trace_processor_analysis_analysis",
         ":src_trace_processor_db_db",
         ":src_trace_processor_export_json",

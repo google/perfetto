@@ -7494,6 +7494,14 @@ filegroup {
   ],
 }
 
+// GN: //src/protozero:proto_ring_buffer
+filegroup {
+  name: "perfetto_src_protozero_proto_ring_buffer",
+  srcs: [
+    "src/protozero/proto_ring_buffer.cc",
+  ],
+}
+
 // GN: //src/protozero/protoc_plugin:cppgen_plugin
 cc_binary_host {
   name: "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
@@ -7717,6 +7725,7 @@ filegroup {
     "src/protozero/message_handle_unittest.cc",
     "src/protozero/message_unittest.cc",
     "src/protozero/proto_decoder_unittest.cc",
+    "src/protozero/proto_ring_buffer_unittest.cc",
     "src/protozero/proto_utils_unittest.cc",
     "src/protozero/scattered_stream_writer_unittest.cc",
     "src/protozero/test/cppgen_conformance_unittest.cc",
@@ -8056,7 +8065,6 @@ filegroup {
 filegroup {
   name: "perfetto_src_trace_processor_rpc_rpc",
   srcs: [
-    "src/trace_processor/rpc/proto_ring_buffer.cc",
     "src/trace_processor/rpc/query_result_serializer.cc",
     "src/trace_processor/rpc/rpc.cc",
   ],
@@ -8066,7 +8074,6 @@ filegroup {
 filegroup {
   name: "perfetto_src_trace_processor_rpc_unittests",
   srcs: [
-    "src/trace_processor/rpc/proto_ring_buffer_unittest.cc",
     "src/trace_processor/rpc/query_result_serializer_unittest.cc",
   ],
 }
@@ -9257,6 +9264,7 @@ cc_test {
     ":perfetto_src_protozero_filtering_filter_util",
     ":perfetto_src_protozero_filtering_message_filter",
     ":perfetto_src_protozero_filtering_unittests",
+    ":perfetto_src_protozero_proto_ring_buffer",
     ":perfetto_src_protozero_protozero",
     ":perfetto_src_protozero_testing_messages_cpp_gen",
     ":perfetto_src_protozero_testing_messages_lite_gen",

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/rpc/proto_ring_buffer.h"
+#include "src/protozero/proto_ring_buffer.h"
 
 #include <stdint.h>
 #include <sys/types.h>
@@ -30,8 +30,7 @@
 
 using testing::ElementsAre;
 
-namespace perfetto {
-namespace trace_processor {
+namespace protozero {
 
 // For ASSERT_EQ()
 inline bool operator==(const ProtoRingBuffer::Message& a,
@@ -57,6 +56,8 @@ inline std::ostream& operator<<(std::ostream& stream,
 }
 
 namespace {
+
+using ::perfetto::base::ArraySize;
 
 constexpr uint32_t kMaxMsgSize = ProtoRingBuffer::kMaxMsgSize;
 
@@ -137,14 +138,14 @@ TEST_F(ProtoRingBufferTest, CoalescingStream) {
 
   uint32_t frag_lens[] = {120, 20, 471, 1};
   uint32_t frag_sum = 0;
-  for (uint32_t i = 0; i < base::ArraySize(frag_lens); i++)
+  for (uint32_t i = 0; i < ArraySize(frag_lens); i++)
     frag_sum += frag_lens[i];
   ASSERT_EQ(frag_sum, last_msg_.size());
 
   // Append the messages in such a way that each appen either passes a portion
   // of a message (the 20 ones) or more than a message.
   uint32_t written = 0;
-  for (uint32_t i = 0; i < base::ArraySize(frag_lens); i++) {
+  for (uint32_t i = 0; i < ArraySize(frag_lens); i++) {
     buf.Append(&last_msg_[written], frag_lens[i]);
     written += frag_lens[i];
     for (;;) {
@@ -228,5 +229,4 @@ TEST_F(ProtoRingBufferTest, HandleProtoErrorsGracefully) {
 }
 
 }  // namespace
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace protozero
