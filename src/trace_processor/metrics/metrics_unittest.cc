@@ -74,13 +74,14 @@ TEST_F(ProtoBuilderTest, AppendLong) {
   // message TestProto {
   //   optional int64 int_value = 1;
   // }
+  DescriptorPool pool;
   ProtoDescriptor descriptor("file.proto", ".perfetto.protos",
                              ".perfetto.protos.TestProto",
                              ProtoDescriptor::Type::kMessage, base::nullopt);
   descriptor.AddField(FieldDescriptor(
       "int_value", 1, FieldDescriptorProto::TYPE_INT64, "", false));
 
-  ProtoBuilder builder(&descriptor);
+  ProtoBuilder builder(&pool, &descriptor);
   ASSERT_TRUE(builder.AppendLong("int_value", 12345).ok());
 
   auto result_ser = builder.SerializeToProtoBuilderResult();
@@ -96,13 +97,14 @@ TEST_F(ProtoBuilderTest, AppendDouble) {
   // message TestProto {
   //   optional double double_value = 1;
   // }
+  DescriptorPool pool;
   ProtoDescriptor descriptor("file.proto", ".perfetto.protos",
                              ".perfetto.protos.TestProto",
                              ProtoDescriptor::Type::kMessage, base::nullopt);
   descriptor.AddField(FieldDescriptor(
       "double_value", 1, FieldDescriptorProto::TYPE_DOUBLE, "", false));
 
-  ProtoBuilder builder(&descriptor);
+  ProtoBuilder builder(&pool, &descriptor);
   ASSERT_TRUE(builder.AppendDouble("double_value", 1.2345).ok());
 
   auto result_ser = builder.SerializeToProtoBuilderResult();
@@ -118,13 +120,14 @@ TEST_F(ProtoBuilderTest, AppendString) {
   // message TestProto {
   //   optional string string_value = 1;
   // }
+  DescriptorPool pool;
   ProtoDescriptor descriptor("file.proto", ".perfetto.protos",
                              ".perfetto.protos.TestProto",
                              ProtoDescriptor::Type::kMessage, base::nullopt);
   descriptor.AddField(FieldDescriptor(
       "string_value", 1, FieldDescriptorProto::TYPE_STRING, "", false));
 
-  ProtoBuilder builder(&descriptor);
+  ProtoBuilder builder(&pool, &descriptor);
   ASSERT_TRUE(builder.AppendString("string_value", "hello world!").ok());
 
   auto result_ser = builder.SerializeToProtoBuilderResult();
@@ -143,6 +146,7 @@ TEST_F(ProtoBuilderTest, AppendNested) {
   //   }
   //   optional NestedProto nested_value = 1;
   // }
+  DescriptorPool pool;
   ProtoDescriptor nested("file.proto", ".perfetto.protos",
                          ".perfetto.protos.TestProto.NestedProto",
                          ProtoDescriptor::Type::kMessage, base::nullopt);
@@ -158,12 +162,12 @@ TEST_F(ProtoBuilderTest, AppendNested) {
   field.set_resolved_type_name(".perfetto.protos.TestProto.NestedProto");
   descriptor.AddField(field);
 
-  ProtoBuilder nest_builder(&nested);
+  ProtoBuilder nest_builder(&pool, &nested);
   ASSERT_TRUE(nest_builder.AppendLong("nested_int_value", 789).ok());
 
   auto nest_ser = nest_builder.SerializeToProtoBuilderResult();
 
-  ProtoBuilder builder(&descriptor);
+  ProtoBuilder builder(&pool, &descriptor);
   ASSERT_TRUE(
       builder.AppendBytes("nested_value", nest_ser.data(), nest_ser.size())
           .ok());
@@ -190,6 +194,7 @@ TEST_F(ProtoBuilderTest, AppendRepeatedPrimitive) {
   // message TestProto {
   //   repeated int64 int_value = 1;
   // }
+  DescriptorPool pool;
   ProtoDescriptor descriptor("file.proto", ".perfetto.protos",
                              ".perfetto.protos.TestProto",
                              ProtoDescriptor::Type::kMessage, base::nullopt);
@@ -202,7 +207,7 @@ TEST_F(ProtoBuilderTest, AppendRepeatedPrimitive) {
 
   std::vector<uint8_t> rep_ser = rep_builder.SerializeToProtoBuilderResult();
 
-  ProtoBuilder builder(&descriptor);
+  ProtoBuilder builder(&pool, &descriptor);
   ASSERT_TRUE(
       builder.AppendBytes("rep_int_value", rep_ser.data(), rep_ser.size())
           .ok());
@@ -213,6 +218,55 @@ TEST_F(ProtoBuilderTest, AppendRepeatedPrimitive) {
   ASSERT_EQ(*it, 1234);
   ASSERT_EQ(*++it, 5678);
   ASSERT_FALSE(++it);
+}
+
+TEST_F(ProtoBuilderTest, AppendEnums) {
+  using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
+
+  // Create the descriptor version of the following enum and message:
+  // enum TestEnum {
+  //   FIRST = 1,
+  //   SECOND = 2,
+  //   THIRD = 3
+  // }
+  // message TestMessage {
+  //   optional TestEnum enum_value = 1;
+  // }
+  DescriptorPool pool;
+  ProtoDescriptor enum_descriptor("file.proto", ".perfetto.protos",
+                                  ".perfetto.protos.TestEnum",
+                                  ProtoDescriptor::Type::kEnum, base::nullopt);
+  enum_descriptor.AddEnumValue(1, "FIRST");
+  enum_descriptor.AddEnumValue(2, "SECOND");
+  enum_descriptor.AddEnumValue(3, "THIRD");
+  pool.AddProtoDescriptorForTesting(enum_descriptor);
+
+  ProtoDescriptor descriptor("file.proto", ".perfetto.protos",
+                             ".perfetto.protos.TestMessage",
+                             ProtoDescriptor::Type::kMessage, base::nullopt);
+  FieldDescriptor enum_field("enum_value", 1, FieldDescriptorProto::TYPE_ENUM,
+                             ".perfetto.protos.TestEnum", false);
+  enum_field.set_resolved_type_name(".perfetto.protos.TestEnum");
+  descriptor.AddField(enum_field);
+  pool.AddProtoDescriptorForTesting(descriptor);
+
+  ProtoBuilder value_builder(&pool, &descriptor);
+  ASSERT_FALSE(value_builder.AppendLong("enum_value", 4).ok());
+  ASSERT_TRUE(value_builder.AppendLong("enum_value", 3).ok());
+  ASSERT_FALSE(value_builder.AppendLong("enum_value", 6).ok());
+
+  auto value_proto = DecodeSingleFieldProto<false>(
+      value_builder.SerializeToProtoBuilderResult());
+  ASSERT_EQ(value_proto.Get(1).as_int32(), 3);
+
+  ProtoBuilder str_builder(&pool, &descriptor);
+  ASSERT_FALSE(str_builder.AppendString("enum_value", "FOURTH").ok());
+  ASSERT_TRUE(str_builder.AppendString("enum_value", "SECOND").ok());
+  ASSERT_FALSE(str_builder.AppendString("enum_value", "OTHER").ok());
+
+  auto str_proto = DecodeSingleFieldProto<false>(
+      str_builder.SerializeToProtoBuilderResult());
+  ASSERT_EQ(str_proto.Get(1).as_int32(), 2);
 }
 
 }  // namespace
