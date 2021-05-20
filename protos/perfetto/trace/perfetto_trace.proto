@@ -197,6 +197,12 @@ message TracingServiceState {
 
     // Unix uid of the remote process.
     optional int32 uid = 3;
+
+    // The version of the client library used by the producer.
+    // This is a human readable string with and its format varies depending on
+    // the build system and the repo (standalone vs AOSP).
+    // This is intended for human debugging only.
+    optional string sdk_version = 4;
   }
 
   // Describes a data source registered by a producer. Data sources are listed
@@ -220,6 +226,12 @@ message TracingServiceState {
 
   // Number of tracing sessions in the started state. Always <= num_sessions.
   optional int32 num_sessions_started = 4;
+
+  // The version of traced (the same returned by `traced --version`).
+  // This is a human readable string with and its format varies depending on
+  // the build system and the repo (standalone vs AOSP).
+  // This is intended for human debugging only.
+  optional string tracing_service_version = 5;
 }
 
 // End of protos/perfetto/common/tracing_service_state.proto
@@ -8326,6 +8338,12 @@ message SystemInfo {
 
   // Ticks per second - sysconf(_SC_CLK_TCK).
   optional int64 hz = 3;
+
+  // The version of traced (the same returned by `traced --version`).
+  // This is a human readable string with and its format varies depending on
+  // the build system and the repo (standalone vs AOSP).
+  // This is intended for human debugging only.
+  optional string tracing_service_version = 4;
 }
 
 // End of protos/perfetto/trace/system_info.proto
