@@ -88,7 +88,7 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
         `(ts + ${bucketNs / 2}) / ${bucketNs} * ${bucketNs}`;
     const queryTable =
         isCached ? this.tableName('sched_cached') : this.tableName('sched');
-    const constainColumn = isCached ? 'cached_tsq' : 'ts';
+    const constraintColumn = isCached ? 'cached_tsq' : 'ts';
 
     const rawResult = await this.query(`
       select
@@ -99,8 +99,8 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
         id
       from ${queryTable}
       where
-        ${constainColumn} >= ${startNs - this.maxDurNs} and
-        ${constainColumn} <= ${endNs}
+        ${constraintColumn} >= ${startNs - this.maxDurNs} and
+        ${constraintColumn} <= ${endNs}
       group by tsq
       order by tsq
     `);
