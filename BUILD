@@ -873,7 +873,6 @@ filegroup(
         "src/trace_processor/importers/common/slice_tracker.h",
         "src/trace_processor/importers/common/system_info_tracker.cc",
         "src/trace_processor/importers/common/system_info_tracker.h",
-        "src/trace_processor/importers/common/trace_blob_view.h",
         "src/trace_processor/importers/common/trace_parser.h",
         "src/trace_processor/importers/common/track_tracker.cc",
         "src/trace_processor/importers/common/track_tracker.h",
@@ -1142,10 +1141,20 @@ filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/util:interned_message_view
+filegroup(
+    name = "src_trace_processor_util_interned_message_view",
+    srcs = [
+        "src/trace_processor/util/interned_message_view.h",
+    ],
+)
+
 # GN target: //src/trace_processor/util:proto_to_args_parser
 filegroup(
     name = "src_trace_processor_util_proto_to_args_parser",
     srcs = [
+        "src/trace_processor/util/debug_annotation_parser.cc",
+        "src/trace_processor/util/debug_annotation_parser.h",
         "src/trace_processor/util/proto_to_args_parser.cc",
         "src/trace_processor/util/proto_to_args_parser.h",
     ],
@@ -1157,6 +1166,14 @@ filegroup(
     srcs = [
         "src/trace_processor/util/protozero_to_text.cc",
         "src/trace_processor/util/protozero_to_text.h",
+    ],
+)
+
+# GN target: //src/trace_processor/util:trace_blob_view
+filegroup(
+    name = "src_trace_processor_util_trace_blob_view",
+    srcs = [
+        "src/trace_processor/util/trace_blob_view.h",
     ],
 )
 
@@ -3484,8 +3501,10 @@ perfetto_cc_library(
         ":src_trace_processor_tables_tables",
         ":src_trace_processor_types_types",
         ":src_trace_processor_util_descriptors",
+        ":src_trace_processor_util_interned_message_view",
         ":src_trace_processor_util_proto_to_args_parser",
         ":src_trace_processor_util_protozero_to_text",
+        ":src_trace_processor_util_trace_blob_view",
         ":src_trace_processor_util_util",
     ],
     hdrs = [
@@ -3582,8 +3601,10 @@ perfetto_cc_binary(
         ":src_trace_processor_tables_tables",
         ":src_trace_processor_types_types",
         ":src_trace_processor_util_descriptors",
+        ":src_trace_processor_util_interned_message_view",
         ":src_trace_processor_util_proto_to_args_parser",
         ":src_trace_processor_util_protozero_to_text",
+        ":src_trace_processor_util_trace_blob_view",
         ":src_trace_processor_util_util",
         "src/trace_processor/trace_processor_shell.cc",
         "src/trace_processor/util/proto_to_json.cc",
@@ -3761,8 +3782,10 @@ perfetto_cc_binary(
         ":src_trace_processor_tables_tables",
         ":src_trace_processor_types_types",
         ":src_trace_processor_util_descriptors",
+        ":src_trace_processor_util_interned_message_view",
         ":src_trace_processor_util_proto_to_args_parser",
         ":src_trace_processor_util_protozero_to_text",
+        ":src_trace_processor_util_trace_blob_view",
         ":src_trace_processor_util_util",
         ":tools_trace_to_text_common",
         ":tools_trace_to_text_full",

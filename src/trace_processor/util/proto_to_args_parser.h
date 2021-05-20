@@ -83,8 +83,12 @@ class ProtoToArgsParser {
     virtual void AddDouble(const Key& key, double value) = 0;
     virtual void AddPointer(const Key& key, const void* value) = 0;
     virtual void AddBoolean(const Key& key, bool value) = 0;
-    virtual void AddJson(const Key& key,
+    // Returns whether an entry was added or not.
+    virtual bool AddJson(const Key& key,
                          const protozero::ConstChars& value) = 0;
+
+    virtual size_t GetArrayEntryIndex(const std::string& array_key) = 0;
+    virtual size_t IncrementArrayEntryIndex(const std::string& array_key) = 0;
 
     template <typename FieldMetadata>
     typename FieldMetadata::cpp_field_type::Decoder* GetInternedMessage(
@@ -158,6 +162,37 @@ class ProtoToArgsParser {
                             const std::string& type,
                             const std::vector<uint16_t>* allowed_fields,
                             Delegate& delegate);
+
+  struct ScopedNestedKeyContext {
+   public:
+    ~ScopedNestedKeyContext();
+    ScopedNestedKeyContext(ScopedNestedKeyContext&&);
+    ScopedNestedKeyContext(const ScopedNestedKeyContext&) = delete;
+    ScopedNestedKeyContext& operator=(const ScopedNestedKeyContext&) = delete;
+
+    const Key& key() const { return key_; }
+
+    // Reset this context, which sets |key_| to the state before the nested
+    // context was created.
+    void Reset();
+
+   private:
+    friend class ProtoToArgsParser;
+
+    ScopedNestedKeyContext(Key& old_value);
+
+    struct ScopedStringAppender;
+
+    Key& key_;
+    base::Optional<size_t> old_flat_key_length_ = base::nullopt;
+    base::Optional<size_t> old_key_length_ = base::nullopt;
+  };
+
+  // These methods can be called from parsing overrides to enter nested
+  // contexts. The contexts are left when the returned scope is destroyed or
+  // reset.
+  ScopedNestedKeyContext EnterDictionary(const std::string& key);
+  ScopedNestedKeyContext EnterArray(size_t index);
 
  private:
   base::Status ParseField(const FieldDescriptor& field_descriptor,

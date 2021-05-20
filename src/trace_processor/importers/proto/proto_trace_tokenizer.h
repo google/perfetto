@@ -21,9 +21,9 @@
 
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/trace_processor/status.h"
-#include "src/trace_processor/importers/common/trace_blob_view.h"
 #include "src/trace_processor/importers/gzip/gzip_utils.h"
 #include "src/trace_processor/util/status_macros.h"
+#include "src/trace_processor/util/trace_blob_view.h"
 
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"

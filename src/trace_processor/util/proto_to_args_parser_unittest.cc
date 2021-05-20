@@ -21,9 +21,9 @@
 #include "protos/perfetto/common/descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/source_location.pbzero.h"
 #include "src/protozero/test/example_proto/test_messages.pbzero.h"
-#include "src/trace_processor/importers/common/trace_blob_view.h"
-#include "src/trace_processor/importers/proto/packet_sequence_state.h"
 #include "src/trace_processor/test_messages.descriptor.h"
+#include "src/trace_processor/util/interned_message_view.h"
+#include "src/trace_processor/util/trace_blob_view.h"
 #include "test/gtest_and_gmock.h"
 
 #include <sstream>
@@ -92,12 +92,17 @@ class ProtoToArgsParserTest : public ::testing::Test,
     args_.push_back(ss.str());
   }
 
-  void AddJson(const Key& key, const protozero::ConstChars& value) override {
+  bool AddJson(const Key& key, const protozero::ConstChars& value) override {
     std::stringstream ss;
     ss << key.flat_key << " " << key.key << " " << std::hex
        << value.ToStdString() << std::dec;
     args_.push_back(ss.str());
+    return true;
   }
+
+  size_t GetArrayEntryIndex(const std::string&) final { return 0; }
+
+  size_t IncrementArrayEntryIndex(const std::string&) final { return 0; }
 
   InternedMessageView* GetInternedMessageView(uint32_t field_id,
                                               uint64_t iid) override {
