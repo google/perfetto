@@ -1148,6 +1148,15 @@ filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/util:gzip
+filegroup(
+    name = "src_trace_processor_util_gzip",
+    srcs = [
+        "src/trace_processor/util/gzip_utils.cc",
+        "src/trace_processor/util/gzip_utils.h",
+    ],
+)
+
 # GN target: //src/trace_processor/util:interned_message_view
 filegroup(
     name = "src_trace_processor_util_interned_message_view",
@@ -1337,8 +1346,6 @@ filegroup(
         "src/trace_processor/importers/ftrace/ftrace_module.h",
         "src/trace_processor/importers/fuchsia/fuchsia_record.h",
         "src/trace_processor/importers/fuchsia/fuchsia_trace_utils.h",
-        "src/trace_processor/importers/gzip/gzip_utils.cc",
-        "src/trace_processor/importers/gzip/gzip_utils.h",
         "src/trace_processor/importers/json/json_utils.cc",
         "src/trace_processor/importers/json/json_utils.h",
         "src/trace_processor/importers/ninja/ninja_log_parser.cc",
@@ -3572,6 +3579,7 @@ perfetto_cc_library(
         ":src_trace_processor_tables_tables",
         ":src_trace_processor_types_types",
         ":src_trace_processor_util_descriptors",
+        ":src_trace_processor_util_gzip",
         ":src_trace_processor_util_interned_message_view",
         ":src_trace_processor_util_proto_to_args_parser",
         ":src_trace_processor_util_protozero_to_text",
@@ -3673,6 +3681,7 @@ perfetto_cc_binary(
         ":src_trace_processor_tables_tables",
         ":src_trace_processor_types_types",
         ":src_trace_processor_util_descriptors",
+        ":src_trace_processor_util_gzip",
         ":src_trace_processor_util_interned_message_view",
         ":src_trace_processor_util_proto_to_args_parser",
         ":src_trace_processor_util_protozero_to_text",
@@ -3854,6 +3863,7 @@ perfetto_cc_binary(
         ":src_trace_processor_tables_tables",
         ":src_trace_processor_types_types",
         ":src_trace_processor_util_descriptors",
+        ":src_trace_processor_util_gzip",
         ":src_trace_processor_util_interned_message_view",
         ":src_trace_processor_util_proto_to_args_parser",
         ":src_trace_processor_util_protozero_to_text",

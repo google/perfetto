@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/importers/gzip/gzip_utils.h"
+#include "src/trace_processor/util/gzip_utils.h"
 
 // For bazel build.
 #include "perfetto/base/build_config.h"
@@ -28,7 +28,7 @@ struct z_stream_s {};
 
 namespace perfetto {
 namespace trace_processor {
-namespace gzip {
+namespace util {
 
 bool IsGzipSupported() {
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
@@ -37,8 +37,6 @@ bool IsGzipSupported() {
   return false;
 #endif
 }
-
-}  // namespace gzip
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 GzipDecompressor::GzipDecompressor() : z_stream_(new z_stream()) {
@@ -108,5 +106,6 @@ GzipDecompressor::Result GzipDecompressor::Decompress(uint8_t* out,
 #endif
 }
 
+}  // namespace util
 }  // namespace trace_processor
 }  // namespace perfetto
