@@ -21,6 +21,14 @@ assert(enable_perfetto_heapprofd)
 # The Android heap profiling daemon.
 executable("heapprofd") {
   deps = [
+    ":heapprofd_main",
+    "../../../gn:default_deps",
+  ]
+  sources = [ "main.cc" ]
+}
+
+source_set("heapprofd_main") {
+  deps = [
     "../../../gn:default_deps",
     "../../../protos/perfetto/trace:zero",
     "../../../src/base",
@@ -29,7 +37,10 @@ executable("heapprofd") {
     "../../../src/profiling/memory:wire_protocol",
     "../../../src/tracing/ipc/producer",
   ]
-  sources = [ "main.cc" ]
+  sources = [
+    "heapprofd.cc",
+    "heapprofd.h",
+  ]
 }
 
 # This library gets loaded into (and executes in) arbitrary android processes.
