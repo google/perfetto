@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 The Android Open Source Project
+ * Copyright (C) 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,8 +14,15 @@
  * limitations under the License.
  */
 
-#include "src/profiling/memory/heapprofd.h"
+#ifndef SRC_PROFILING_MEMORY_HEAPPROFD_H_
+#define SRC_PROFILING_MEMORY_HEAPPROFD_H_
 
-int main(int argc, char** argv) {
-  return perfetto::profiling::HeapprofdMain(argc, argv);
-}
+namespace perfetto {
+namespace profiling {
+
+int HeapprofdMain(int argc, char** argv);
+
+}  // namespace profiling
+}  // namespace perfetto
+
+#endif  // SRC_PROFILING_MEMORY_HEAPPROFD_H_
