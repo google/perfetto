@@ -35,7 +35,7 @@ def main():
         continue
       if not fpath.endswith('.proto'):
         continue
-      with open(fpath) as f:
+      with open(fpath, encoding='UTF-8') as f:
         lines = f.readlines()
       for line in lines:
         comm = line.find('//')

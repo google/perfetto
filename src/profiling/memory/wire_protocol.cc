@@ -58,6 +58,10 @@ void UnsafeMemcpy(char* dest, const char* src, size_t n)
 
 template <typename F>
 int64_t WithBuffer(SharedRingBuffer* shmem, size_t total_size, F fn) {
+  if (total_size > shmem->size()) {
+    errno = EMSGSIZE;
+    return -1;
+  }
   SharedRingBuffer::Buffer buf;
   {
     ScopedSpinlock lock = shmem->AcquireLock(ScopedSpinlock::Mode::Try);

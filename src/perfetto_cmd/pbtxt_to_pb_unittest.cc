@@ -403,6 +403,7 @@ data_sources {
       ftrace_events: "newline\nnewline"
       ftrace_events: "\"quoted\""
       ftrace_events: "\a\b\f\n\r\t\v\\\'\"\?"
+      ftrace_events: "\0127_\03422.\177"
     }
   }
 }
@@ -417,6 +418,7 @@ data_sources {
   EXPECT_THAT(events, Contains("newline\nnewline"));
   EXPECT_THAT(events, Contains("\"quoted\""));
   EXPECT_THAT(events, Contains("\a\b\f\n\r\t\v\\\'\"\?"));
+  EXPECT_THAT(events, Contains("\0127_\03422.\177"));
 }
 
 TEST(PbtxtToPb, UnknownField) {

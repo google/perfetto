@@ -23,8 +23,6 @@ assert(enable_perfetto_trace_processor)
 # interface) and by the :httpd module for the HTTP interface.
 source_set("rpc") {
   sources = [
-    "proto_ring_buffer.cc",
-    "proto_ring_buffer.h",
     "query_result_serializer.cc",
     "query_result_serializer.h",
     "rpc.cc",
@@ -38,15 +36,13 @@ source_set("rpc") {
     "../../../protos/perfetto/trace_processor:zero",
     "../../base",
     "../../protozero",
+    "../../protozero:proto_ring_buffer",
   ]
 }
 
 perfetto_unittest_source_set("unittests") {
   testonly = true
-  sources = [
-    "proto_ring_buffer_unittest.cc",
-    "query_result_serializer_unittest.cc",
-  ]
+  sources = [ "query_result_serializer_unittest.cc" ]
   deps = [
     ":rpc",
     "..:lib",

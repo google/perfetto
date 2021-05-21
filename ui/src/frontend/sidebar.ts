@@ -17,6 +17,7 @@ import * as m from 'mithril';
 import {assertExists, assertTrue} from '../base/logging';
 import {Actions} from '../common/actions';
 import {TRACE_SUFFIX} from '../common/constants';
+import {ConversionJobStatus} from '../common/conversion_jobs';
 import {QueryResponse} from '../common/queries';
 import {EngineMode, TraceArrayBufferSource} from '../common/state';
 import * as version from '../gen/perfetto_version';
@@ -127,7 +128,27 @@ const EXAMPLE_ANDROID_TRACE_URL =
 const EXAMPLE_CHROME_TRACE_URL =
     'https://storage.googleapis.com/perfetto-misc/example_chrome_trace_4s_1.json';
 
-const SECTIONS = [
+interface SectionItem {
+  t: string;
+  a: string|((e: Event) => void);
+  i: string;
+  isPending?: () => boolean;
+  isVisible?: () => boolean;
+  internalUserOnly?: boolean;
+  checkDownloadDisabled?: boolean;
+}
+
+interface Section {
+  title: string;
+  summary: string;
+  items: SectionItem[];
+  expanded?: boolean;
+  hideIfNoTraceLoaded?: boolean;
+  appendOpenedTraceTitle?: boolean;
+}
+
+const SECTIONS: Section[] = [
+
   {
     title: 'Navigation',
     summary: 'Open or record a new trace',
@@ -142,6 +163,7 @@ const SECTIONS = [
       {t: 'Record new trace', a: navigateRecord, i: 'fiber_smart_record'},
     ],
   },
+
   {
     title: 'Current Trace',
     summary: 'Actions on the current trace',
@@ -155,6 +177,8 @@ const SECTIONS = [
         a: shareTrace,
         i: 'share',
         internalUserOnly: true,
+        isPending: () => globals.getConversionJobStatus('create_permalink') ===
+            ConversionJobStatus.InProgress,
       },
       {
         t: 'Download',
@@ -162,12 +186,47 @@ const SECTIONS = [
         i: 'file_download',
         checkDownloadDisabled: true,
       },
-      {t: 'Legacy UI', a: openCurrentTraceWithOldUI, i: 'filter_none'},
       {t: 'Query (SQL)', a: navigateAnalyze, i: 'control_camera'},
       {t: 'Metrics', a: navigateMetrics, i: 'speed'},
       {t: 'Info and stats', a: navigateInfo, i: 'info'},
     ],
   },
+
+  {
+    title: 'Convert trace',
+    summary: 'Convert to other formats',
+    expanded: true,
+    hideIfNoTraceLoaded: true,
+    items: [
+      {
+        t: 'Switch to legacy UI',
+        a: openCurrentTraceWithOldUI,
+        i: 'filter_none',
+        isPending: () => globals.getConversionJobStatus('open_in_legacy') ===
+            ConversionJobStatus.InProgress,
+      },
+      {
+        t: 'Convert to .json',
+        a: convertTraceToJson,
+        i: 'file_download',
+        isPending: () => globals.getConversionJobStatus('convert_json') ===
+            ConversionJobStatus.InProgress,
+        checkDownloadDisabled: true,
+      },
+
+      {
+        t: 'Convert to .systrace',
+        a: convertTraceToSystrace,
+        i: 'file_download',
+        isVisible: () => globals.hasFtrace,
+        isPending: () => globals.getConversionJobStatus('convert_systrace') ===
+            ConversionJobStatus.InProgress,
+        checkDownloadDisabled: true,
+      },
+
+    ],
+  },
+
   {
     title: 'Example Traces',
     expanded: true,
@@ -185,6 +244,7 @@ const SECTIONS = [
       },
     ],
   },
+
   {
     title: 'Sample queries',
     summary: 'Compute summary statistics',
@@ -226,6 +286,7 @@ const SECTIONS = [
       },
     ],
   },
+
   {
     title: 'Support',
     summary: 'Documentation & Bugs',
@@ -282,42 +343,83 @@ function popupFileSelectionDialogOldUI(e: Event) {
   getFileElement().click();
 }
 
-function openCurrentTraceWithOldUI(e: Event) {
-  e.preventDefault();
-  console.assert(isTraceLoaded());
-  globals.logging.logEvent('Trace Actions', 'Open current trace in legacy UI');
-  if (!isTraceLoaded) return;
-  const engine = Object.values(globals.state.engines)[0];
+function downloadTraceFromUrl(url: string): Promise<File> {
+  return m.request({
+    method: 'GET',
+    url,
+    // TODO(hjd): Once mithril is updated we can use responseType here rather
+    // than using config and remove the extract below.
+    config: xhr => {
+      xhr.responseType = 'blob';
+      xhr.onprogress = progress => {
+        const percent = (100 * progress.loaded / progress.total).toFixed(1);
+        globals.dispatch(Actions.updateStatus({
+          msg: `Downloading trace ${percent}%`,
+          timestamp: Date.now() / 1000,
+        }));
+      };
+    },
+    extract: xhr => {
+      return xhr.response;
+    }
+  });
+}
+
+async function getCurrentTrace(): Promise<Blob> {
+  // Caller must check engine exists.
+  const engine = assertExists(Object.values(globals.state.engines)[0]);
   const src = engine.source;
   if (src.type === 'ARRAY_BUFFER') {
-    openInOldUIWithSizeCheck(new Blob([src.buffer]));
+    return new Blob([src.buffer]);
   } else if (src.type === 'FILE') {
-    openInOldUIWithSizeCheck(src.file);
+    return src.file;
   } else if (src.type === 'URL') {
-    m.request({
-       method: 'GET',
-       url: src.url,
-       // TODO(hjd): Once mithril is updated we can use responseType here rather
-       // than using config and remove the extract below.
-       config: xhr => {
-         xhr.responseType = 'blob';
-         xhr.onprogress = progress => {
-           const percent = (100 * progress.loaded / progress.total).toFixed(1);
-           globals.dispatch(Actions.updateStatus({
-             msg: `Downloading trace ${percent}%`,
-             timestamp: Date.now() / 1000,
-           }));
-         };
-       },
-       extract: xhr => {
-         return xhr.response;
-       }
-     }).then(result => {
-      openInOldUIWithSizeCheck(result as Blob);
-    });
+    return downloadTraceFromUrl(src.url);
   } else {
     throw new Error(`Loading to catapult from source with type ${src.type}`);
   }
+}
+
+function openCurrentTraceWithOldUI(e: Event) {
+  e.preventDefault();
+  assertTrue(isTraceLoaded());
+  globals.logging.logEvent('Trace Actions', 'Open current trace in legacy UI');
+  if (!isTraceLoaded) return;
+  getCurrentTrace()
+      .then(file => {
+        openInOldUIWithSizeCheck(file);
+      })
+      .catch(error => {
+        throw new Error(`Failed to get current trace ${error}`);
+      });
+}
+
+function convertTraceToSystrace(e: Event) {
+  e.preventDefault();
+  assertTrue(isTraceLoaded());
+  globals.logging.logEvent('Trace Actions', 'Convert to .systrace');
+  if (!isTraceLoaded) return;
+  getCurrentTrace()
+      .then(file => {
+        globals.dispatch(Actions.convertTraceToSystraceAndDownload({file}));
+      })
+      .catch(error => {
+        throw new Error(`Failed to get current trace ${error}`);
+      });
+}
+
+function convertTraceToJson(e: Event) {
+  e.preventDefault();
+  assertTrue(isTraceLoaded());
+  globals.logging.logEvent('Trace Actions', 'Convert to .json');
+  if (!isTraceLoaded) return;
+  getCurrentTrace()
+      .then(file => {
+        globals.dispatch(Actions.convertTraceToJsonAndDownload({file}));
+      })
+      .catch(error => {
+        throw new Error(`Failed to get current trace ${error}`);
+      });
 }
 
 function isTraceLoaded(): boolean {
@@ -504,7 +606,7 @@ function shareTrace(e: Event) {
   if (!isShareable() || !isTraceLoaded()) return;
 
   const result = confirm(
-      `Upload the trace and generate a permalink. ` +
+      `Upload UI state and generate a permalink. ` +
       `The trace will be accessible by anybody with the permalink.`);
   if (result) {
     globals.logging.logEvent('Trace Actions', 'Create permalink');
@@ -711,6 +813,9 @@ export class Sidebar implements m.ClassComponent {
       if (section.hideIfNoTraceLoaded && !isTraceLoaded()) continue;
       const vdomItems = [];
       for (const item of section.items) {
+        if (item.isVisible !== undefined && !item.isVisible()) {
+          continue;
+        }
         let css = '';
         let attrs = {
           onclick: typeof item.a === 'function' ? item.a : null,
@@ -718,15 +823,14 @@ export class Sidebar implements m.ClassComponent {
           target: typeof item.a === 'string' ? '_blank' : null,
           disabled: false,
         };
-        if (item.a === openCurrentTraceWithOldUI &&
-            globals.state.traceConversionInProgress) {
+        if (item.isPending && item.isPending()) {
           attrs.onclick = e => e.preventDefault();
           css = '.pending';
         }
-        if ((item as {internalUserOnly: boolean}).internalUserOnly === true) {
-          if (!globals.isInternalUser) continue;
+        if (item.internalUserOnly && !globals.isInternalUser) {
+          continue;
         }
-        if (!isDownloadable() && item.hasOwnProperty('checkDownloadDisabled')) {
+        if (item.checkDownloadDisabled && !isDownloadable()) {
           attrs = {
             onclick: e => {
               e.preventDefault();

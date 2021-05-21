@@ -200,7 +200,8 @@ FilterBytecodeParser::QueryResult FilterBytecodeParser::Query(
   // bytecode.
   PERFETTO_DCHECK(start_offset < words_.size());
   const uint32_t* word = &words_[start_offset];
-  const uint32_t* const end = &words_[message_offset_[msg_index + 1]];
+  const uint32_t end_off = message_offset_[msg_index + 1];
+  const uint32_t* const end = words_.data() + end_off;
   PERFETTO_DCHECK(end > word && end <= words_.data() + words_.size());
   const uint32_t num_directly_indexed = *(word++);
   PERFETTO_DCHECK(num_directly_indexed <= kDirectlyIndexLimit);

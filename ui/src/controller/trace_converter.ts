@@ -15,6 +15,7 @@
 import {defer} from '../base/deferred';
 import {assertExists} from '../base/logging';
 import {Actions} from '../common/actions';
+import {ConversionJobStatus} from '../common/conversion_jobs';
 import {TraceSource} from '../common/state';
 import * as trace_to_text from '../gen/trace_to_text';
 
@@ -24,23 +25,67 @@ type Format = 'json'|'systrace';
 
 export function ConvertTrace(
     trace: Blob, format: Format, truncate?: 'start'|'end') {
+  const jobName = 'open_in_legacy';
+  globals.publish('ConversionJobStatusUpdate', {
+    jobName,
+    jobStatus: ConversionJobStatus.InProgress,
+  });
   const outPath = '/trace.json';
   const args: string[] = [format];
   if (truncate !== undefined) {
     args.push('--truncate', truncate);
   }
   args.push('/fs/trace.proto', outPath);
-  runTraceconv(trace, args).then(module => {
-    const fsNode = module.FS.lookupPath(outPath).node;
-    const data = fsNode.contents.buffer;
-    const size = fsNode.usedBytes;
-    globals.publish('LegacyTrace', {data, size}, /*transfer=*/[data]);
-    module.FS.unlink(outPath);
+  runTraceconv(trace, args)
+      .then(module => {
+        const fsNode = module.FS.lookupPath(outPath).node;
+        const data = fsNode.contents.buffer;
+        const size = fsNode.usedBytes;
+        globals.publish('LegacyTrace', {data, size}, /*transfer=*/[data]);
+        module.FS.unlink(outPath);
+      })
+      .finally(() => {
+        globals.publish('ConversionJobStatusUpdate', {
+          jobName,
+          jobStatus: ConversionJobStatus.NotRunning,
+        });
+      });
+}
+
+export function ConvertTraceAndDownload(
+    trace: Blob, format: Format, truncate?: 'start'|'end') {
+  const jobName = `convert_${format}`;
+  globals.publish('ConversionJobStatusUpdate', {
+    jobName,
+    jobStatus: ConversionJobStatus.InProgress,
   });
+  const outPath = '/trace.json';
+  const args: string[] = [format];
+  if (truncate !== undefined) {
+    args.push('--truncate', truncate);
+  }
+  args.push('/fs/trace.proto', outPath);
+  runTraceconv(trace, args)
+      .then(module => {
+        const fsNode = module.FS.lookupPath(outPath).node;
+        downloadFile(fsNodeToBlob(fsNode), `trace.${format}`);
+        module.FS.unlink(outPath);
+      })
+      .finally(() => {
+        globals.publish('ConversionJobStatusUpdate', {
+          jobName,
+          jobStatus: ConversionJobStatus.NotRunning,
+        });
+      });
 }
 
 export function ConvertTraceToPprof(
     pid: number, src: TraceSource, ts1: number, ts2?: number) {
+  const jobName = 'convert_pprof';
+  globals.publish('ConversionJobStatusUpdate', {
+    jobName,
+    jobStatus: ConversionJobStatus.InProgress,
+  });
   const timestamps = `${ts1}${ts2 === undefined ? '' : `,${ts2}`}`;
   const args = [
     'profile',
@@ -50,24 +95,30 @@ export function ConvertTraceToPprof(
     timestamps,
     '/fs/trace.proto'
   ];
-  generateBlob(src).then(traceBlob => {
-    runTraceconv(traceBlob, args).then(module => {
-      const heapDirName =
-          Object.keys(module.FS.lookupPath('/tmp/').node.contents)[0];
-      const heapDirContents =
-          module.FS.lookupPath(`/tmp/${heapDirName}`).node.contents;
-      const heapDumpFiles = Object.keys(heapDirContents);
-      let fileNum = 0;
-      heapDumpFiles.forEach(heapDump => {
-        const fileContents =
-            module.FS.lookupPath(`/tmp/${heapDirName}/${heapDump}`)
-                .node.contents;
-        fileNum++;
-        const fileName = `/heap_dump.${fileNum}.${pid}.pb`;
-        downloadFile(new Blob([fileContents]), fileName);
+  generateBlob(src)
+      .then(traceBlob => {
+        runTraceconv(traceBlob, args).then(module => {
+          const heapDirName =
+              Object.keys(module.FS.lookupPath('/tmp/').node.contents)[0];
+          const heapDirContents =
+              module.FS.lookupPath(`/tmp/${heapDirName}`).node.contents;
+          const heapDumpFiles = Object.keys(heapDirContents);
+          let fileNum = 0;
+          heapDumpFiles.forEach(heapDump => {
+            const fileNode =
+                module.FS.lookupPath(`/tmp/${heapDirName}/${heapDump}`).node;
+            fileNum++;
+            const fileName = `/heap_dump.${fileNum}.${pid}.pb`;
+            downloadFile(fsNodeToBlob(fileNode), fileName);
+          });
+        });
+      })
+      .finally(() => {
+        globals.publish('ConversionJobStatusUpdate', {
+          jobName,
+          jobStatus: ConversionJobStatus.NotRunning,
+        });
       });
-    });
-  });
 }
 
 async function runTraceconv(trace: Blob, args: string[]) {
@@ -107,6 +158,12 @@ async function generateBlob(src: TraceSource) {
     throw new Error(`Conversion not supported for ${JSON.stringify(src)}`);
   }
   return blob;
+}
+
+function fsNodeToBlob(fsNode: trace_to_text.FileSystemNode): Blob {
+  const fileSize = assertExists(fsNode.usedBytes);
+  const bufView = new Uint8Array(fsNode.contents.buffer, 0, fileSize);
+  return new Blob([bufView]);
 }
 
 function downloadFile(file: Blob, name: string) {

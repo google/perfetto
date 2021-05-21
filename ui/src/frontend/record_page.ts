@@ -718,18 +718,15 @@ function ChromeCategoriesSelection() {
 
   // Show "disabled-by-default" categories last.
   const categoriesMap = new Map<string, string>();
-  const disabledByDefaultCategories: string[] = [];
   const disabledPrefix = 'disabled-by-default-';
+  const overheadSuffix = '(high overhead)';
   categories.forEach(cat => {
     if (cat.startsWith(disabledPrefix)) {
-      disabledByDefaultCategories.push(cat);
+      categoriesMap.set(
+          cat, `${cat.replace(disabledPrefix, '')} ${overheadSuffix}`);
     } else {
       categoriesMap.set(cat, cat);
     }
-  });
-  disabledByDefaultCategories.forEach(cat => {
-    categoriesMap.set(
-        cat, `${cat.replace(disabledPrefix, '')} (high overhead)`);
   });
 
   return m(Dropdown, {
@@ -737,7 +734,16 @@ function ChromeCategoriesSelection() {
     cssClass: '.multicolumn.two-columns',
     options: categoriesMap,
     set: (cfg, val) => cfg.chromeCategoriesSelected = val,
-    get: (cfg) => cfg.chromeCategoriesSelected
+    get: (cfg) => cfg.chromeCategoriesSelected,
+    sort: (a, b) => {
+      const aIsDisabled = a.includes(overheadSuffix);
+      const bIsDisabled = b.includes(overheadSuffix);
+      if (aIsDisabled === bIsDisabled) {
+        return a.localeCompare(b);
+      } else {
+        return Number(aIsDisabled) - Number(bIsDisabled);
+      }
+    },
   } as DropdownAttrs);
 }
 

@@ -47,6 +47,8 @@ const char kProcessDumpHeader[] =
 
 const char kThreadHeader[] = "USER           PID   TID CMD \\n";
 
+const char kProcessDumpFooter[] = "\"";
+
 const char kSystemTraceEvents[] =
     "  \"systemTraceEvents\": \"";
 
@@ -160,6 +162,114 @@ class QueryWriter {
   TraceWriter* trace_writer_;
 };
 
+int ExtractRawEvents(TraceWriter* trace_writer,
+                     QueryWriter& q_writer,
+                     bool wrapped_in_json,
+                     Keep truncate_keep) {
+  using trace_processor::Iterator;
+
+  static const char kRawEventsCountSql[] =
+      "select count(1) from raw" FILTER_RAW_EVENTS;
+  uint32_t raw_events = 0;
+  auto e_callback = [&raw_events](Iterator* it, base::StringWriter*) {
+    raw_events = static_cast<uint32_t>(it->Get(0).long_value);
+  };
+  if (!q_writer.RunQuery(kRawEventsCountSql, e_callback))
+    return 1;
+
+  if (raw_events == 0) {
+    if (!wrapped_in_json) {
+      // Write out the normal header even if we won't actually have
+      // any events under it.
+      trace_writer->Write(kFtraceHeader);
+    }
+    return 0;
+  }
+
+  fprintf(stderr, "Converting ftrace events%c", kProgressChar);
+  fflush(stderr);
+
+  auto raw_callback = [wrapped_in_json](Iterator* it,
+                                        base::StringWriter* writer) {
+    const char* line = it->Get(0 /* col */).string_value;
+    if (wrapped_in_json) {
+      for (uint32_t i = 0; line[i] != '\0'; i++) {
+        char c = line[i];
+        switch (c) {
+          case '\n':
+            writer->AppendLiteral("\\n");
+            break;
+          case '\f':
+            writer->AppendLiteral("\\f");
+            break;
+          case '\b':
+            writer->AppendLiteral("\\b");
+            break;
+          case '\r':
+            writer->AppendLiteral("\\r");
+            break;
+          case '\t':
+            writer->AppendLiteral("\\t");
+            break;
+          case '\\':
+            writer->AppendLiteral("\\\\");
+            break;
+          case '"':
+            writer->AppendLiteral("\\\"");
+            break;
+          default:
+            writer->AppendChar(c);
+            break;
+        }
+      }
+      writer->AppendChar('\\');
+      writer->AppendChar('n');
+    } else {
+      writer->AppendString(line);
+      writer->AppendChar('\n');
+    }
+  };
+
+  // An estimate of 130b per ftrace event, allowing some space for the processes
+  // and threads.
+  const uint32_t max_ftrace_events = (140 * 1024 * 1024) / 130;
+
+  static const char kRawEventsQuery[] =
+      "select to_ftrace(id) from raw" FILTER_RAW_EVENTS;
+
+  // 1. Write the appropriate header for the file type.
+  if (wrapped_in_json) {
+    trace_writer->Write(",\n");
+    trace_writer->Write(kSystemTraceEvents);
+    trace_writer->Write(kFtraceJsonHeader);
+  } else {
+    trace_writer->Write(kFtraceHeader);
+  }
+
+  // 2. Write the actual events.
+  if (truncate_keep == Keep::kEnd && raw_events > max_ftrace_events) {
+    char end_truncate[150];
+    sprintf(end_truncate, "%s limit %d offset %d", kRawEventsQuery,
+            max_ftrace_events, raw_events - max_ftrace_events);
+    if (!q_writer.RunQuery(end_truncate, raw_callback))
+      return 1;
+  } else if (truncate_keep == Keep::kStart) {
+    char start_truncate[150];
+    sprintf(start_truncate, "%s limit %d", kRawEventsQuery, max_ftrace_events);
+    if (!q_writer.RunQuery(start_truncate, raw_callback))
+      return 1;
+  } else {
+    if (!q_writer.RunQuery(kRawEventsQuery, raw_callback))
+      return 1;
+  }
+
+  // 3. Write the footer for JSON.
+  if (wrapped_in_json)
+    trace_writer->Write(kSystemTraceEventsFooter);
+
+  return 0;
+}
+
 }  // namespace
 
 int TraceToSystrace(std::istream* input,
@@ -232,93 +342,10 @@ int ExtractSystrace(trace_processor::TraceProcessor* tp,
     if (!q_writer.RunQuery(kTSql, t_callback))
       return 1;
 
-    trace_writer->Write("\",\n");
-    trace_writer->Write(kSystemTraceEvents);
-    trace_writer->Write(kFtraceJsonHeader);
-  } else {
-    trace_writer->Write(kFtraceHeader);
+    trace_writer->Write(kProcessDumpFooter);
   }
-
-  fprintf(stderr, "Converting ftrace events%c", kProgressChar);
-  fflush(stderr);
-
-  static const char kEstimateSql[] =
-      "select count(1) from raw" FILTER_RAW_EVENTS;
-  uint32_t raw_events = 0;
-  auto e_callback = [&raw_events](Iterator* it, base::StringWriter*) {
-    raw_events = static_cast<uint32_t>(it->Get(0).long_value);
-  };
-  if (!q_writer.RunQuery(kEstimateSql, e_callback))
-    return 1;
-
-  auto raw_callback = [wrapped_in_json](Iterator* it,
-                                        base::StringWriter* writer) {
-    const char* line = it->Get(0 /* col */).string_value;
-    if (wrapped_in_json) {
-      for (uint32_t i = 0; line[i] != '\0'; i++) {
-        char c = line[i];
-        switch (c) {
-          case '\n':
-            writer->AppendLiteral("\\n");
-            break;
-          case '\f':
-            writer->AppendLiteral("\\f");
-            break;
-          case '\b':
-            writer->AppendLiteral("\\b");
-            break;
-          case '\r':
-            writer->AppendLiteral("\\r");
-            break;
-          case '\t':
-            writer->AppendLiteral("\\t");
-            break;
-          case '\\':
-            writer->AppendLiteral("\\\\");
-            break;
-          case '"':
-            writer->AppendLiteral("\\\"");
-            break;
-          default:
-            writer->AppendChar(c);
-            break;
-        }
-      }
-      writer->AppendChar('\\');
-      writer->AppendChar('n');
-    } else {
-      writer->AppendString(line);
-      writer->AppendChar('\n');
-    }
-  };
-
-  // An estimate of 130b per ftrace event, allowing some space for the processes
-  // and threads.
-  const uint32_t max_ftrace_events = (140 * 1024 * 1024) / 130;
-
-  static const char kRawEventsQuery[] =
-      "select to_ftrace(id) from raw" FILTER_RAW_EVENTS;
-
-  if (truncate_keep == Keep::kEnd && raw_events > max_ftrace_events) {
-    char end_truncate[150];
-    sprintf(end_truncate, "%s limit %d offset %d", kRawEventsQuery,
-            max_ftrace_events, raw_events - max_ftrace_events);
-    if (!q_writer.RunQuery(end_truncate, raw_callback))
-      return 1;
-  } else if (truncate_keep == Keep::kStart) {
-    char start_truncate[150];
-    sprintf(start_truncate, "%s limit %d", kRawEventsQuery, max_ftrace_events);
-    if (!q_writer.RunQuery(start_truncate, raw_callback))
-      return 1;
-  } else {
-    if (!q_writer.RunQuery(kRawEventsQuery, raw_callback))
-      return 1;
-  }
-
-  if (wrapped_in_json)
-    trace_writer->Write(kSystemTraceEventsFooter);
-
-  return 0;
+  return ExtractRawEvents(trace_writer, q_writer, wrapped_in_json,
+                          truncate_keep);
 }
 
 }  // namespace trace_to_text

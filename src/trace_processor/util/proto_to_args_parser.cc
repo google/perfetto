@@ -63,6 +63,33 @@ ProtoToArgsParser::Key::Key(const std::string& fk, const std::string& k)
     : flat_key(fk), key(k) {}
 ProtoToArgsParser::Key::~Key() = default;
 
+ProtoToArgsParser::ScopedNestedKeyContext::ScopedNestedKeyContext(Key& key)
+    : key_(key),
+      old_flat_key_length_(key.flat_key.length()),
+      old_key_length_(key.key.length()) {}
+
+ProtoToArgsParser::ScopedNestedKeyContext::ScopedNestedKeyContext(
+    ProtoToArgsParser::ScopedNestedKeyContext&& other)
+    : key_(other.key_),
+      old_flat_key_length_(other.old_flat_key_length_),
+      old_key_length_(other.old_key_length_) {
+  other.old_flat_key_length_ = base::nullopt;
+  other.old_key_length_ = base::nullopt;
+}
+
+ProtoToArgsParser::ScopedNestedKeyContext::~ScopedNestedKeyContext() {
+  Reset();
+}
+
+void ProtoToArgsParser::ScopedNestedKeyContext::Reset() {
+  if (old_flat_key_length_)
+    key_.flat_key.resize(old_flat_key_length_.value());
+  if (old_key_length_)
+    key_.key.resize(old_key_length_.value());
+  old_flat_key_length_ = base::nullopt;
+  old_key_length_ = base::nullopt;
+}
+
 ProtoToArgsParser::Delegate::~Delegate() = default;
 
 ProtoToArgsParser::ProtoToArgsParser(const DescriptorPool& pool) : pool_(pool) {
@@ -236,6 +263,25 @@ base::Status ProtoToArgsParser::ParseSimpleField(
           descriptor.name().c_str(), descriptor.resolved_type_name().c_str(),
           descriptor.type());
   }
+}
+
+ProtoToArgsParser::ScopedNestedKeyContext ProtoToArgsParser::EnterArray(
+    size_t index) {
+  auto context = ScopedNestedKeyContext(key_prefix_);
+  key_prefix_.key += "[" + std::to_string(index) + "]";
+  return context;
+}
+
+ProtoToArgsParser::ScopedNestedKeyContext ProtoToArgsParser::EnterDictionary(
+    const std::string& name) {
+  auto context = ScopedNestedKeyContext(key_prefix_);
+  if (!key_prefix_.key.empty())
+    key_prefix_.key += '.';
+  key_prefix_.key += name;
+  if (!key_prefix_.flat_key.empty())
+    key_prefix_.flat_key += '.';
+  key_prefix_.flat_key += name;
+  return context;
 }
 
 }  // namespace util

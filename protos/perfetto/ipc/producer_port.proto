@@ -152,6 +152,11 @@ message InitializeConnectionRequest {
   // SetupTracing response. See TracingService::ConnectProducer() and
   // |using_shmem_provided_by_producer| in InitializeConnectionResponse.
   optional bool producer_provided_shmem = 6;
+
+  // On Windows, when producer_provided_shmem = true, the client creates a named
+  // SHM region and passes the name (an unguessable token) back to the service.
+  // Introduced in v13.
+  optional string shm_key_windows = 7;
 }
 
 message InitializeConnectionResponse {
@@ -262,9 +267,16 @@ message GetAsyncCommandResponse {
 
   message StopDataSource { optional uint64 instance_id = 1; }
 
-  // This message also transports the file descriptor for the shared memory
-  // buffer (not a proto field).
-  message SetupTracing { optional uint32 shared_buffer_page_size_kb = 1; }
+  // On Android/Linux/Mac this message also transports the file descriptor for
+  // the shared memory buffer (not a proto field).
+  message SetupTracing {
+    optional uint32 shared_buffer_page_size_kb = 1;
+
+    // On Windows, instead, we pass the name (an unguessable token) of a shared
+    // memory region that can be attached by the other process by name.
+    // Introduced in v13.
+    optional string shm_key_windows = 2;
+  }
 
   message Flush {
     // The instance id (i.e. StartDataSource.new_instance_id) of the data

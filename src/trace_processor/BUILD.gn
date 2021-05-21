@@ -154,6 +154,7 @@ source_set("storage_minimal") {
     "types",
     "util",
     "util:descriptors",
+    "util:interned_message_view",
     "util:proto_to_args_parser",
   ]
   public_deps = [
@@ -172,6 +173,7 @@ source_set("storage_minimal") {
     "../../protos/perfetto/trace/sys_stats:zero",
     "../../protos/perfetto/trace/system_info:zero",
     "../../protos/perfetto/trace/track_event:zero",
+    "util:trace_blob_view",
   ]
 
   # json_utils optionally depends on jsoncpp.

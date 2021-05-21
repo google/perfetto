@@ -276,8 +276,6 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
 
   // Specific to mode_ == kChild
   void TerminateProcess(int exit_status);
-  // Specific to mode_ == kChild
-  void ActiveDataSourceWatchdogCheck();
 
   void ShutdownDataSource(DataSource* ds);
   bool MaybeFinishDataSource(DataSource* ds);

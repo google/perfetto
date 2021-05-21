@@ -139,6 +139,8 @@ export class ChromeSliceDetailsPanel extends Panel {
           'Duration',
           toNs(sliceInfo.dur) === -1 ? '-1 (Did not end)' :
                                        timeToCode(sliceInfo.dur));
+      builder.add(
+          'Slice ID', sliceInfo.id ? sliceInfo.id.toString() : 'Unknown');
       if (sliceInfo.description) {
         this.fillDescription(sliceInfo.description, builder);
       }
@@ -235,7 +237,7 @@ export class ChromeSliceDetailsPanel extends Panel {
       rows.push(m('tr', renderedRow));
     }
 
-    return m('table.half-width', rows);
+    return m('table.half-width.auto-layout', rows);
   }
 
   fillDescription(description: Map<string, string>, builder: TableBuilder) {

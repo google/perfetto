@@ -22,16 +22,16 @@ SELECT TraceAnalysisStats(
       'name', name,
       'idx', idx,
       'count', value,
-      -- TraceAnalysisStats.Source enum:
       'source', CASE source
-        WHEN 'trace' THEN 1
-        WHEN 'analysis' THEN 2
+        WHEN 'trace' THEN 'SOURCE_TRACE'
+        WHEN 'analysis' THEN 'SOURCE_ANALYSIS'
+        ELSE 'SOURCE_UNKNOWN'
       END,
-      -- TraceAnalysisStats.Severity enum:
       'severity', CASE severity
-        WHEN 'info' THEN 1
-        WHEN 'data_loss' THEN 2
-        WHEN 'error' THEN 3
+        WHEN 'info' THEN 'SEVERITY_INFO'
+        WHEN 'data_loss' THEN 'SEVERITY_DATA_LOSS'
+        WHEN 'error' THEN 'SEVERITY_ERROR'
+        ELSE 'SEVERITY_UNKNOWN'
       END
     ))
     FROM stats ORDER BY name ASC

@@ -127,22 +127,11 @@ void TraceSorter::SortAndExtractEventsBeyondWindow(int64_t window_size_ns) {
     int64_t extract_until_ts = std::min(extract_end_ts, min_queue_ts[1]);
     size_t num_extracted = 0;
     for (auto& event : events) {
-      int64_t timestamp = event.timestamp;
-      if (timestamp > extract_until_ts)
+      if (event.timestamp > extract_until_ts)
         break;
 
       ++num_extracted;
-      if (bypass_next_stage_for_testing_)
-        continue;
-
-      if (min_queue_idx == 0) {
-        // queues_[0] is for non-ftrace packets.
-        parser_->ParseTracePacket(timestamp, std::move(event));
-      } else {
-        // Ftrace queues start at offset 1. So queues_[1] = cpu[0] and so on.
-        uint32_t cpu = static_cast<uint32_t>(min_queue_idx - 1);
-        parser_->ParseFtracePacket(cpu, timestamp, std::move(event));
-      }
+      MaybePushEvent(min_queue_idx, std::move(event));
     }  // for (event: events)
 
     if (!num_extracted) {
@@ -190,6 +179,21 @@ void TraceSorter::SortAndExtractEventsBeyondWindow(int64_t window_size_ns) {
   PERFETTO_DCHECK(global_min_ts_ == dbg_min_ts);
   PERFETTO_DCHECK(global_max_ts_ == dbg_max_ts);
 #endif
+}
+
+void TraceSorter::MaybePushEvent(size_t queue_idx, TimestampedTracePiece ttp) {
+  if (PERFETTO_UNLIKELY(bypass_next_stage_for_testing_))
+    return;
+
+  int64_t timestamp = ttp.timestamp;
+  if (queue_idx == 0) {
+    // queues_[0] is for non-ftrace packets.
+    parser_->ParseTracePacket(timestamp, std::move(ttp));
+  } else {
+    // Ftrace queues start at offset 1. So queues_[1] = cpu[0] and so on.
+    uint32_t cpu = static_cast<uint32_t>(queue_idx - 1);
+    parser_->ParseFtracePacket(cpu, timestamp, std::move(ttp));
+  }
 }
 
 }  // namespace trace_processor
