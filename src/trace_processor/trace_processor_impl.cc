@@ -693,7 +693,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
 
   context_.systrace_trace_parser.reset(new SystraceTraceParser(&context_));
 
-  if (gzip::IsGzipSupported())
+  if (util::IsGzipSupported())
     context_.gzip_trace_parser.reset(new GzipTraceParser(&context_));
 
   if (json::IsJsonSupported()) {

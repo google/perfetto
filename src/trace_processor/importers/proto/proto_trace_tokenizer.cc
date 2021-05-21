@@ -25,7 +25,7 @@ ProtoTraceTokenizer::ProtoTraceTokenizer() = default;
 
 util::Status ProtoTraceTokenizer::Decompress(TraceBlobView input,
                                              TraceBlobView* output) {
-  PERFETTO_DCHECK(gzip::IsGzipSupported());
+  PERFETTO_DCHECK(util::IsGzipSupported());
 
   uint8_t out[4096];
 
@@ -36,7 +36,7 @@ util::Status ProtoTraceTokenizer::Decompress(TraceBlobView input,
   decompressor_.Reset();
   decompressor_.SetInput(input.data(), input.length());
 
-  using ResultCode = GzipDecompressor::ResultCode;
+  using ResultCode = util::GzipDecompressor::ResultCode;
   for (auto ret = ResultCode::kOk; ret != ResultCode::kEof;) {
     auto res = decompressor_.Decompress(out, base::ArraySize(out));
     ret = res.ret;
