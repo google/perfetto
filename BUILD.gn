@@ -124,6 +124,7 @@ if (enable_perfetto_fuzzers) {
 # compile-time checks for the CI.
 if (perfetto_build_standalone) {
   all_targets += [
+    "src/tracebox",
     "test/configs",
 
     # For syntax-checking the proto.
