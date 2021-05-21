@@ -37,10 +37,10 @@ HERMETIC_ADB_PATH = ROOT_DIR + '/buildtools/android_sdk/platform-tools/adb'
 # --sideload argument is passed.
 TRACEBOX_BASE_URL = 'https://storage.googleapis.com/perfetto/'
 TRACEBOX_SHA1S = {
-    'android-arm': '90d436e20ef5167e324b76b8bd5a0f6ddc08953f',  # v15.0.238
-    'android-arm64': '6e621cbee448326653b7d3ea29a73709a6f781c9',  # v15.0.238
-    'android-x86': '9017afbd13189866f9575f3dffba849b1c47718f',  # v15.0.238
-    'android-x64': '4024e5b9888739ec61e339a216e2699d546f88fd',  # v15.0.238
+    'android-arm': '6e9dfee326468fc6858c6d95e00be110efd187a3',  # v15.0.248
+    'android-arm64': 'ca2d4a02511f73dac32a2ae49964f3e5cd59d252',  # v15.0.248
+    'android-x86': '3fdbc9246412e460d0a373140c114cff858b9b7c',  # v15.0.248
+    'android-x64': 'be85f6f4a2d014d425246b85941c137c28d158cc',  # v15.0.248
 }
 
 # Translates the Android ro.product.cpu.abi into the GN's target_cpu.
@@ -87,7 +87,7 @@ def main():
   default_out_dir = os.path.expanduser(default_out_dir_str)
 
   examples = '\n'.join([
-      ANSI.BOLD + 'Examples' + ANSI.END, '  -t 10s -b 32mb sched gfx wm',
+      ANSI.BOLD + 'Examples' + ANSI.END, '  -t 10s -b 32mb sched gfx wm -a*',
       '  -t 5s sched/sched_switch raw_syscalls/sys_enter raw_syscalls/sys_exit',
       '  -c /path/to/full-textual-trace.config', '',
       ANSI.BOLD + 'Long traces' + ANSI.END,
@@ -107,6 +107,10 @@ def main():
   help = 'Force the use of the sideloaded binaries rather than system daemons'
   parser.add_argument('--sideload', action='store_true', help=help)
 
+  help = ('Sideload the the given binary rather than downloading it. ' +
+          'Implies --sideload')
+  parser.add_argument('--sideload-path', default=None, help=help)
+
   help = 'Don\'t run `adb root` run as user (only when sideloading)'
   parser.add_argument('-u', '--user', action='store_true', help=help)
 
@@ -119,11 +123,12 @@ def main():
   help = 'Ring buffer size N[mb,gb] (default: 32mb)'
   grp.add_argument('-b', '--buffer', default='32mb', help=help)
 
-  help = 'Android (atrace) app names (can be specified multiple times)'
+  help = ('Android (atrace) app names. Can be specified multiple times.\n-a*' +
+          'for all apps (without space between a and * or bash will expand it)')
   grp.add_argument(
       '-a',
       '--app',
-      metavar='Atrace apps',
+      metavar='com.myapp',
       action='append',
       default=[],
       help=help)
@@ -146,6 +151,7 @@ def main():
   help = 'Can be generated with https://ui.perfetto.dev/#!/record'
   grp.add_argument('-c', '--config', default=None, help=help)
   args = parser.parse_args()
+  args.sideload = args.sideload or args.sideload_path is not None
 
   find_adb()
 
@@ -192,7 +198,7 @@ def main():
     sys.exit(1)
   shell_user = lines[2]
   if api_level < 29 or args.sideload:  # 29: Android Q.
-    tracebox_bin = download_tracebox_if_needed(arch)
+    tracebox_bin = args.sideload_path or download_tracebox_if_needed(arch)
     perfetto_cmd = '/data/local/tmp/tracebox'
     exit_code = adb('push', '--sync', tracebox_bin, perfetto_cmd).wait()
     exit_code |= adb('shell', 'chmod 755 ' + perfetto_cmd).wait()
@@ -216,7 +222,7 @@ def main():
   else:
     cmd += ['-t', args.time, '-b', args.buffer]
     for app in args.app:
-      cmd += ['--app', app]
+      cmd += ['--app', '\'' + app + '\'']
     cmd += args.events
 
   # Perfetto will error out with a proper message if both a config file and
