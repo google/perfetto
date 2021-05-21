@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <algorithm>
 
+#include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/getopt.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/unix_task_runner.h"
@@ -204,6 +205,16 @@ int PERFETTO_EXPORT_ENTRYPOINT ServiceMain(int argc, char** argv) {
   watchdog->SetCpuLimit(base::kWatchdogDefaultCpuLimit,
                         base::kWatchdogDefaultCpuWindow);
   watchdog->Start();
+
+  // If the TRACED_NOTIFY_FD env var is set, write 1 and close the FD. This is
+  // so tools can synchronize with the point where the IPC socket has been
+  // opened, without having to poll. This is used for //src/tracebox.
+  const char* env_notif = getenv("TRACED_NOTIFY_FD");
+  if (env_notif) {
+    int notif_fd = atoi(env_notif);
+    PERFETTO_CHECK(base::WriteAll(notif_fd, "1", 1) == 1);
+    PERFETTO_CHECK(base::CloseFile(notif_fd) == 0);
+  }
 
   PERFETTO_ILOG("Started traced, listening on %s %s", GetProducerSocket(),
                 GetConsumerSocket());
