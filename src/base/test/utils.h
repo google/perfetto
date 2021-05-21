@@ -50,7 +50,6 @@
 namespace perfetto {
 namespace base {
 
-std::string GetCurExecutableDir();
 std::string GetTestDataPath(const std::string& path);
 
 // Returns a xxd-style hex dump (hex + ascii chars) of the input data.
