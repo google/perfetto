@@ -30,6 +30,7 @@
 #include "perfetto/base/platform_handle.h"
 #include "perfetto/base/proc_utils.h"
 #include "perfetto/ext/base/event_fd.h"
+#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/scoped_file.h"
 
@@ -133,6 +134,13 @@ class Subprocess {
     // just before the exec() call, but after having closed all fds % stdin/o/e.
     // This is for synchronization barriers in tests.
     std::function<void()> posix_entrypoint_for_testing;
+
+    // When set, will will move the process to the given process group. If set
+    // and zero, it will create a new process group. Effectively this calls
+    // setpgid(0 /*self_pid*/, posix_proc_group_id).
+    // This can be used to avoid that subprocesses receive CTRL-C from the
+    // terminal, while still living in the same session.
+    base::Optional<pid_t> posix_proc_group_id{};
 #endif
 
     // If non-empty, replaces the environment passed to exec().
