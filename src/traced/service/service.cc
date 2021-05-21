@@ -75,7 +75,7 @@ void SetSocketPermissions(const std::string& socket_name,
 #endif  // defined(PERFETTO_SET_SOCKET_PERMISSIONS)
 
 void PrintUsage(const char* prog_name) {
-  PERFETTO_ELOG(R"(
+  fprintf(stderr, R"(
 Usage: %s [option] ...
 Options and arguments
     --background : Exits immediately and continues running in the background
@@ -87,12 +87,14 @@ Options and arguments
         <prod_mode> is the mode bits (e.g. 0660) for chmod the produce socket,
         <cons_group> is the group name for chgrp the consumer socket, and
         <cons_mode> is the mode bits (e.g. 0660) for chmod the consumer socket.
-Example: %s --set-socket-permissions traced-producer:0660:traced-consumer:0660
+
+Example:
+    %s --set-socket-permissions traced-producer:0660:traced-consumer:0660
     starts the service and sets the group ownership of the producer and consumer
     sockets to "traced-producer" and "traced-consumer", respectively. Both
-    producer and consumer sockets are chmod with 0660  (rw-rw----) mode bits.
+    producer and consumer sockets are chmod with 0660 (rw-rw----) mode bits.
 )",
-                prog_name, prog_name);
+          prog_name, prog_name);
 }
 }  // namespace
 
