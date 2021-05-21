@@ -57,6 +57,7 @@
 #include "perfetto/ext/base/metatrace.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
+#include "perfetto/ext/base/version.h"
 #include "perfetto/ext/base/watchdog.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/consumer.h"
@@ -332,7 +333,8 @@ TracingServiceImpl::ConnectProducer(Producer* producer,
                                     bool in_process,
                                     ProducerSMBScrapingMode smb_scraping_mode,
                                     size_t shared_memory_page_size_hint_bytes,
-                                    std::unique_ptr<SharedMemory> shm) {
+                                    std::unique_ptr<SharedMemory> shm,
+                                    const std::string& sdk_version) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
 
   if (lockdown_mode_ && uid != base::GetCurrentUserId()) {
@@ -361,8 +363,8 @@ TracingServiceImpl::ConnectProducer(Producer* producer,
   }
 
   std::unique_ptr<ProducerEndpointImpl> endpoint(new ProducerEndpointImpl(
-      id, uid, this, task_runner_, producer, producer_name, in_process,
-      smb_scraping_enabled));
+      id, uid, this, task_runner_, producer, producer_name, sdk_version,
+      in_process, smb_scraping_enabled));
   auto it_and_inserted = producers_.emplace(id, endpoint.get());
   PERFETTO_DCHECK(it_and_inserted.second);
   endpoint->shmem_size_hint_bytes_ = shared_memory_size_hint_bytes;
@@ -3039,7 +3041,7 @@ void TracingServiceImpl::MaybeEmitSystemInfo(
   tracing_session->did_emit_system_info = true;
   protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
   auto* info = packet->set_system_info();
-  base::ignore_result(info);  // For PERFETTO_OS_WIN.
+  info->set_tracing_service_version(base::GetVersionString());
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) && \
     !PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
   struct utsname uname_info;
@@ -3479,6 +3481,7 @@ void TracingServiceImpl::ConsumerEndpointImpl::QueryServiceState(
   TracingServiceState svc_state;
 
   const auto& sessions = service_->tracing_sessions_;
+  svc_state.set_tracing_service_version(base::GetVersionString());
   svc_state.set_num_sessions(static_cast<int>(sessions.size()));
 
   int num_started = 0;
@@ -3490,6 +3493,7 @@ void TracingServiceImpl::ConsumerEndpointImpl::QueryServiceState(
     auto* producer = svc_state.add_producers();
     producer->set_id(static_cast<int>(kv.first));
     producer->set_name(kv.second->name_);
+    producer->set_sdk_version(kv.second->sdk_version_);
     producer->set_uid(static_cast<int32_t>(producer->uid()));
   }
 
@@ -3547,6 +3551,7 @@ TracingServiceImpl::ProducerEndpointImpl::ProducerEndpointImpl(
     base::TaskRunner* task_runner,
     Producer* producer,
     const std::string& producer_name,
+    const std::string& sdk_version,
     bool in_process,
     bool smb_scraping_enabled)
     : id_(id),
@@ -3555,6 +3560,7 @@ TracingServiceImpl::ProducerEndpointImpl::ProducerEndpointImpl(
       task_runner_(task_runner),
       producer_(producer),
       name_(producer_name),
+      sdk_version_(sdk_version),
       in_process_(in_process),
       smb_scraping_enabled_(smb_scraping_enabled),
       weak_ptr_factory_(this) {}
