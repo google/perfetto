@@ -124,6 +124,13 @@ uid_t GetCurrentUserId();
 // Child: redirects stdio onto /dev/null and chdirs into .
 void Daemonize();
 
+// Returns the path of the current executable, e.g. /foo/bar/exe.
+std::string GetCurExecutablePath();
+
+// Returns the directory where the current executable lives in, e.g. /foo/bar.
+// This is independent of cwd().
+std::string GetCurExecutableDir();
+
 }  // namespace base
 }  // namespace perfetto
 
