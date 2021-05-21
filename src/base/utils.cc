@@ -14,20 +14,30 @@
  * limitations under the License.
  */
 
-#include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/utils.h"
+
+#include <string>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/file_utils.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+    PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE) ||   \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
+#include <limits.h>
 #include <unistd.h>  // For getpagesize() and geteuid() & fork()
 #endif
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+#include <mach-o/dyld.h>
 #include <mach/vm_page_size.h>
+#endif
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#include <Windows.h>
+#include <io.h>
 #endif
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
@@ -39,7 +49,7 @@
 #else
 // Only available in in-tree builds and on newer SDKs.
 #define PERFETTO_M_PURGE -101
-#endif
+#endif  // M_PURGE
 
 namespace {
 extern "C" {
@@ -110,35 +120,71 @@ void SetEnv(const std::string& key, const std::string& value) {
 }
 
 void Daemonize() {
-   #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
-       PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
-       PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
-      pid_t pid;
-      switch (pid = fork()) {
-        case -1:
-          PERFETTO_FATAL("fork");
-        case 0: {
-          PERFETTO_CHECK(setsid() != -1);
-          base::ignore_result(chdir("/"));
-          base::ScopedFile null = base::OpenFile("/dev/null", O_RDONLY);
-          PERFETTO_CHECK(null);
-          PERFETTO_CHECK(dup2(*null, STDIN_FILENO) != -1);
-          PERFETTO_CHECK(dup2(*null, STDOUT_FILENO) != -1);
-          PERFETTO_CHECK(dup2(*null, STDERR_FILENO) != -1);
-          // Do not accidentally close stdin/stdout/stderr.
-          if (*null <= 2)
-            null.release();
-          break;
-        }
-        default:
-          printf("%d\n", pid);
-          exit(0);
-      }
-  #else
-    // Avoid -Wunreachable warnings.
-    if (reinterpret_cast<intptr_t>(&Daemonize) != 16)
-      PERFETTO_FATAL("--background is only supported on Linux/Android/Mac");
-  #endif  // OS_WIN
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+  pid_t pid;
+  switch (pid = fork()) {
+    case -1:
+      PERFETTO_FATAL("fork");
+    case 0: {
+      PERFETTO_CHECK(setsid() != -1);
+      base::ignore_result(chdir("/"));
+      base::ScopedFile null = base::OpenFile("/dev/null", O_RDONLY);
+      PERFETTO_CHECK(null);
+      PERFETTO_CHECK(dup2(*null, STDIN_FILENO) != -1);
+      PERFETTO_CHECK(dup2(*null, STDOUT_FILENO) != -1);
+      PERFETTO_CHECK(dup2(*null, STDERR_FILENO) != -1);
+      // Do not accidentally close stdin/stdout/stderr.
+      if (*null <= 2)
+        null.release();
+      break;
+    }
+    default:
+      printf("%d\n", pid);
+      exit(0);
+  }
+#else
+  // Avoid -Wunreachable warnings.
+  if (reinterpret_cast<intptr_t>(&Daemonize) != 16)
+    PERFETTO_FATAL("--background is only supported on Linux/Android/Mac");
+#endif  // OS_WIN
+}
+
+std::string GetCurExecutablePath() {
+  std::string self_path;
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
+  char buf[PATH_MAX];
+  ssize_t size = readlink("/proc/self/exe", buf, sizeof(buf));
+  PERFETTO_CHECK(size != -1);
+  // readlink does not null terminate.
+  self_path = std::string(buf, static_cast<size_t>(size));
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+  uint32_t size = 0;
+  PERFETTO_CHECK(_NSGetExecutablePath(nullptr, &size));
+  self_path.resize(size);
+  PERFETTO_CHECK(_NSGetExecutablePath(&self_path[0], &size) == 0);
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  char buf[MAX_PATH];
+  auto len = ::GetModuleFileNameA(nullptr /*current*/, buf, sizeof(buf));
+  self_path = std::string(buf, len);
+#else
+  PERFETTO_FATAL(
+      "GetCurExecutableDir() not implemented on the current platform");
+#endif
+  return self_path;
+}
+
+std::string GetCurExecutableDir() {
+  auto path = GetCurExecutablePath();
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  // Paths in Windows can have both kinds of slashes (mingw vs msvc).
+  path = path.substr(0, path.find_last_of("\\"));
+#endif
+  path = path.substr(0, path.find_last_of("/"));
+  return path;
 }
 
 }  // namespace base

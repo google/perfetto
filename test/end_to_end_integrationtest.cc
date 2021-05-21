@@ -30,6 +30,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/subprocess.h"
 #include "perfetto/ext/base/temp_file.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/ipc/basic_types.h"
 #include "perfetto/ext/traced/traced.h"
 #include "perfetto/ext/tracing/core/commit_data_request.h"
