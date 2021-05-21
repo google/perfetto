@@ -8379,6 +8379,8 @@ message TestEvent {
 
     // When 0 this is the bottom-most nested message.
     optional uint32 remaining_nesting_depth = 3;
+
+    repeated DebugAnnotation debug_annotations = 7;
   }
   optional TestPayload payload = 5;
 }

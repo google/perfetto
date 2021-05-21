@@ -16,6 +16,7 @@
 
 #include "perfetto/tracing/traced_proto.h"
 
+#include "perfetto/test/traced_value_test_support.h"
 #include "perfetto/tracing/track_event.h"
 #include "protos/perfetto/trace/test_event.gen.h"
 #include "protos/perfetto/trace/test_event.pb.h"
@@ -87,6 +88,9 @@ namespace {
 struct Foo {
   void WriteIntoTrace(TracedProto<TestPayload> message) const {
     message->set_single_int(42);
+
+    auto dict = std::move(message).AddDebugAnnotations();
+    dict.Add("arg", "value");
   }
 };
 
@@ -112,6 +116,23 @@ TEST_F(TracedProtoTest, RepeatedNestedMessage) {
   EXPECT_EQ(result.nested_size(), 2);
   EXPECT_EQ(result.nested(0).single_int(), 42);
   EXPECT_EQ(result.nested(1).single_int(), 42);
+}
+
+TEST_F(TracedProtoTest, WriteDebugAnnotations) {
+  protozero::HeapBuffered<protos::pbzero::TestEvent> event;
+  WriteIntoTracedProto(context().Wrap(event.get()),
+                       protos::pbzero::TestEvent::kPayload, Foo());
+
+  protos::TestEvent result;
+  result.ParseFromString(event.SerializeAsString());
+
+  protos::DebugAnnotation dict;
+  for (const auto& annotation : result.payload().debug_annotations()) {
+    *dict.add_dict_entries() = annotation;
+  }
+
+  EXPECT_EQ(internal::DebugAnnotationToString(dict.SerializeAsString()),
+            "{arg:value}");
 }
 
 }  // namespace perfetto

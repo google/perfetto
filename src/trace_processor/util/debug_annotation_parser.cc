@@ -105,18 +105,15 @@ DebugAnnotationParser::ParseDebugAnnotationValue(
     size_t index = delegate.GetArrayEntryIndex(context_name.key);
     bool added_entry = false;
     for (auto it = annotation.array_values(); it; ++it) {
+      std::string array_key = context_name.key;
       protos::pbzero::DebugAnnotation::Decoder value(*it);
 
       auto nested_key = proto_to_args_parser_.EnterArray(index);
       ParseResult value_parse_result =
           ParseDebugAnnotationValue(value, delegate, nested_key.key());
 
-      // Reset the key here to ensure that we have the correct array key to
-      // increment.
-      nested_key.Reset();
-
       if (value_parse_result.added_entry) {
-        index = delegate.IncrementArrayEntryIndex(context_name.key);
+        index = delegate.IncrementArrayEntryIndex(array_key);
         added_entry = true;
       }
       if (!value_parse_result.status.ok())

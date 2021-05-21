@@ -13,6 +13,8 @@
 "chrome_latency_info.trace_id","chrome_latency_info.trace_id",7,"[NULL]"
 "int_extension_for_testing","int_extension_for_testing[0]",42,"[NULL]"
 "int_extension_for_testing","int_extension_for_testing[1]",1337,"[NULL]"
+"nested_message_extension_for_testing.arg1","nested_message_extension_for_testing.arg1","[NULL]","value"
+"nested_message_extension_for_testing.arg2.key","nested_message_extension_for_testing.arg2.key","[NULL]","value"
 "nested_message_extension_for_testing.child_field_for_testing","nested_message_extension_for_testing.child_field_for_testing","[NULL]","nesting test"
 "string_extension_for_testing","string_extension_for_testing","[NULL]","an extension string!"
 "chrome_app_state","chrome_app_state","[NULL]","APP_STATE_FOREGROUND"
