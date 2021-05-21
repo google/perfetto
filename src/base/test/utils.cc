@@ -23,54 +23,10 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
-
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE) ||   \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
-#include <limits.h>
-#include <unistd.h>
-#endif
-
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-#include <Windows.h>
-#include <io.h>
-#endif
-
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
-#include <mach-o/dyld.h>
-#endif
+#include "perfetto/ext/base/utils.h"
 
 namespace perfetto {
 namespace base {
-
-std::string GetCurExecutableDir() {
-  std::string self_path;
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
-  char buf[PATH_MAX];
-  ssize_t size = readlink("/proc/self/exe", buf, sizeof(buf));
-  PERFETTO_CHECK(size != -1);
-  // readlink does not null terminate.
-  self_path = std::string(buf, static_cast<size_t>(size));
-#elif PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
-  uint32_t size = 0;
-  PERFETTO_CHECK(_NSGetExecutablePath(nullptr, &size));
-  self_path.resize(size);
-  PERFETTO_CHECK(_NSGetExecutablePath(&self_path[0], &size) == 0);
-#elif PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-  char buf[MAX_PATH];
-  auto len = ::GetModuleFileNameA(nullptr /*current*/, buf, sizeof(buf));
-  self_path = std::string(buf, len);
-  self_path = self_path.substr(0, self_path.find_last_of("\\"));
-#else
-  PERFETTO_FATAL(
-      "GetCurExecutableDir() not implemented on the current platform");
-#endif
-  // Cut binary name.
-  return self_path.substr(0, self_path.find_last_of("/"));
-}
 
 std::string GetTestDataPath(const std::string& path) {
   std::string self_path = GetCurExecutableDir();
