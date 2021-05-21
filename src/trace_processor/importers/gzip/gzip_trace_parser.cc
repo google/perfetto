@@ -22,6 +22,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/forwarding_trace_parser.h"
+#include "src/trace_processor/util/gzip_utils.h"
 #include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto {
@@ -29,7 +30,7 @@ namespace trace_processor {
 
 namespace {
 
-using ResultCode = GzipDecompressor::ResultCode;
+using ResultCode = util::GzipDecompressor::ResultCode;
 
 }  // namespace
 
