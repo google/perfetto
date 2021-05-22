@@ -1360,21 +1360,21 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
                          context_->storage->InternString("count"),
                          context_->storage->InternString("bytes")}} {
   // Switch |source_location_iid| into its interned data variant.
-  args_parser_.AddParsingOverride(
+  args_parser_.AddParsingOverrideForField(
       "begin_impl_frame_args.current_args.source_location_iid",
       [](const protozero::Field& field,
          util::ProtoToArgsParser::Delegate& delegate) {
         return MaybeParseSourceLocation("begin_impl_frame_args.current_args",
                                         field, delegate);
       });
-  args_parser_.AddParsingOverride(
+  args_parser_.AddParsingOverrideForField(
       "begin_impl_frame_args.last_args.source_location_iid",
       [](const protozero::Field& field,
          util::ProtoToArgsParser::Delegate& delegate) {
         return MaybeParseSourceLocation("begin_impl_frame_args.last_args",
                                         field, delegate);
       });
-  args_parser_.AddParsingOverride(
+  args_parser_.AddParsingOverrideForField(
       "begin_frame_observer_state.last_begin_frame_args.source_location_iid",
       [](const protozero::Field& field,
          util::ProtoToArgsParser::Delegate& delegate) {
@@ -1382,12 +1382,24 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
             "begin_frame_observer_state.last_begin_frame_args", field,
             delegate);
       });
-  args_parser_.AddParsingOverride(
+  args_parser_.AddParsingOverrideForField(
       "chrome_memory_pressure_notification.creation_location_iid",
       [](const protozero::Field& field,
          util::ProtoToArgsParser::Delegate& delegate) {
         return MaybeParseSourceLocation("chrome_memory_pressure_notification",
                                         field, delegate);
+      });
+
+  // Parse DebugAnnotations.
+  args_parser_.AddParsingOverrideForType(
+      ".perfetto.protos.DebugAnnotation",
+      [&](util::ProtoToArgsParser::ScopedNestedKeyContext& key,
+          const protozero::ConstBytes& data,
+          util::ProtoToArgsParser::Delegate& delegate) {
+        // Do not add "debug_annotations" to the final key.
+        key.RemoveFieldSuffix();
+        util::DebugAnnotationParser annotation_parser(args_parser_);
+        return annotation_parser.Parse(data, delegate);
       });
 
   for (uint16_t index : kReflectFields) {
