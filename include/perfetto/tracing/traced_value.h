@@ -20,6 +20,8 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/export.h"
 #include "perfetto/base/template_util.h"
+#include "perfetto/protozero/message.h"
+#include "perfetto/protozero/proto_utils.h"
 #include "perfetto/tracing/internal/checked_scope.h"
 #include "perfetto/tracing/string_helpers.h"
 #include "perfetto/tracing/traced_value_forward.h"
@@ -246,12 +248,39 @@ class PERFETTO_EXPORT TracedDictionary {
 
  private:
   friend class TracedValue;
+  template <typename T>
+  friend class TracedProto;
 
-  inline explicit TracedDictionary(protos::pbzero::DebugAnnotation* context,
-                                   internal::CheckedScope* parent_scope)
-      : context_(context), checked_scope_(parent_scope) {}
+  // Create a |TracedDictionary| which will populate the given field of the
+  // given |message|.
+  template <typename MessageType, typename FieldMetadata>
+  inline explicit TracedDictionary(
+      MessageType* message,
+      protozero::proto_utils::internal::FieldMetadataHelper<FieldMetadata>,
+      internal::CheckedScope* parent_scope)
+      : message_(message),
+        field_id_(FieldMetadata::kFieldId),
+        checked_scope_(parent_scope) {
+    static_assert(std::is_base_of<protozero::Message, MessageType>::value,
+                  "Message should be a subclass of protozero::Message");
+    static_assert(std::is_base_of<protozero::proto_utils::FieldMetadataBase,
+                                  FieldMetadata>::value,
+                  "FieldMetadata should be a subclass of FieldMetadataBase");
+    static_assert(
+        std::is_same<typename FieldMetadata::message_type, MessageType>::value,
+        "Field does not belong to this message");
+    static_assert(
+        std::is_same<typename FieldMetadata::cpp_field_type,
+                     ::perfetto::protos::pbzero::DebugAnnotation>::value,
+        "Field should be of DebugAnnotation type");
+    static_assert(
+        FieldMetadata::kRepetitionType ==
+            protozero::proto_utils::RepetitionType::kRepeatedNotPacked,
+        "Field should be non-packed repeated");
+  }
 
-  protos::pbzero::DebugAnnotation* context_;
+  protozero::Message* const message_;
+  const uint32_t field_id_;
 
   internal::CheckedScope checked_scope_;
 };
