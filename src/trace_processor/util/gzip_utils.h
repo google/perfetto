@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_GZIP_GZIP_UTILS_H_
-#define SRC_TRACE_PROCESSOR_IMPORTERS_GZIP_GZIP_UTILS_H_
+#ifndef SRC_TRACE_PROCESSOR_UTIL_GZIP_UTILS_H_
+#define SRC_TRACE_PROCESSOR_UTIL_GZIP_UTILS_H_
 
 #include <memory>
 
@@ -23,14 +23,11 @@ struct z_stream_s;
 
 namespace perfetto {
 namespace trace_processor {
-
-namespace gzip {
+namespace util {
 
 // Returns whether gzip related functioanlity is supported with the current
 // build flags.
 bool IsGzipSupported();
-
-}  // namespace gzip
 
 class GzipDecompressor {
  public:
@@ -66,7 +63,8 @@ class GzipDecompressor {
   std::unique_ptr<z_stream_s> z_stream_;
 };
 
+}  // namespace util
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_GZIP_GZIP_UTILS_H_
+#endif  // SRC_TRACE_PROCESSOR_UTIL_GZIP_UTILS_H_

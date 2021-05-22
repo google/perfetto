@@ -82,6 +82,12 @@ void __attribute__((noreturn)) ChildProcess(ChildProcessArgs* args) {
     _exit(128);
   };
 
+  if (args->create_args->posix_proc_group_id.has_value()) {
+    if (setpgid(0 /*self*/, args->create_args->posix_proc_group_id.value())) {
+      die("setpgid() failed");
+    }
+  }
+
   auto set_fd_close_on_exec = [&die](int fd, bool close_on_exec) {
     int flags = fcntl(fd, F_GETFD, 0);
     if (flags < 0)
@@ -150,11 +156,14 @@ void __attribute__((noreturn)) ChildProcess(ChildProcessArgs* args) {
     }
   }
 
-  // Clears O_CLOEXEC from stdin/out/err. These are the only FDs that we want
-  // to be preserved after the exec().
+  // Clears O_CLOEXEC from stdin/out/err and the |preserve_fds| list. These are
+  // the only FDs that we want to be preserved after the exec().
   set_fd_close_on_exec(STDIN_FILENO, false);
   set_fd_close_on_exec(STDOUT_FILENO, false);
   set_fd_close_on_exec(STDERR_FILENO, false);
+
+  for (auto fd : preserve_fds)
+    set_fd_close_on_exec(fd, false);
 
   // If the caller specified a std::function entrypoint, run that first.
   if (args->create_args->posix_entrypoint_for_testing)

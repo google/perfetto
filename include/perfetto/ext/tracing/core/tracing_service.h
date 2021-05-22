@@ -326,7 +326,8 @@ class PERFETTO_EXPORT TracingService {
       ProducerSMBScrapingMode smb_scraping_mode =
           ProducerSMBScrapingMode::kDefault,
       size_t shared_memory_page_size_hint_bytes = 0,
-      std::unique_ptr<SharedMemory> shm = nullptr) = 0;
+      std::unique_ptr<SharedMemory> shm = nullptr,
+      const std::string& sdk_version = {}) = 0;
 
   // Connects a Consumer instance and obtains a ConsumerEndpoint, which is
   // essentially a 1:1 channel between one Consumer and the Service.

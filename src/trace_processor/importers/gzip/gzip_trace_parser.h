@@ -18,7 +18,7 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_GZIP_GZIP_TRACE_PARSER_H_
 
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
-#include "src/trace_processor/importers/gzip/gzip_utils.h"
+#include "src/trace_processor/util/gzip_utils.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -41,7 +41,7 @@ class GzipTraceParser : public ChunkedTraceReader {
 
  private:
   TraceProcessorContext* const context_;
-  GzipDecompressor decompressor_;
+  util::GzipDecompressor decompressor_;
   std::unique_ptr<ChunkedTraceReader> inner_;
 
   std::unique_ptr<uint8_t[]> buffer_;
