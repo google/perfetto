@@ -84,7 +84,9 @@ TracedDictionary TracedValue::WriteDictionary() && {
   checked_scope_.Reset();
 
   PERFETTO_DCHECK(!context_->is_finalized());
-  return TracedDictionary(context_, checked_scope_.parent_scope());
+  return TracedDictionary(context_,
+                          protos::pbzero::DebugAnnotation::kDictEntries,
+                          checked_scope_.parent_scope());
 }
 
 TracedArray TracedValue::WriteArray() && {
@@ -114,14 +116,16 @@ TracedArray TracedArray::AppendArray() {
 
 TracedValue TracedDictionary::AddItem(StaticString key) {
   PERFETTO_DCHECK(checked_scope_.is_active());
-  protos::pbzero::DebugAnnotation* item = context_->add_dict_entries();
+  protos::pbzero::DebugAnnotation* item =
+      message_->BeginNestedMessage<protos::pbzero::DebugAnnotation>(field_id_);
   item->set_name(key.value);
   return TracedValue(item, &checked_scope_);
 }
 
 TracedValue TracedDictionary::AddItem(DynamicString key) {
   PERFETTO_DCHECK(checked_scope_.is_active());
-  protos::pbzero::DebugAnnotation* item = context_->add_dict_entries();
+  protos::pbzero::DebugAnnotation* item =
+      message_->BeginNestedMessage<protos::pbzero::DebugAnnotation>(field_id_);
   item->set_name(key.value);
   return TracedValue(item, &checked_scope_);
 }
