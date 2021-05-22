@@ -35,10 +35,9 @@ namespace {
 
 constexpr size_t kChunkSize = 42;
 
-using ::testing::_;
-using ::testing::Eq;
-using ::testing::Invoke;
-using ::testing::NiceMock;
+protozero::ConstChars ToChars(const char* str) {
+  return protozero::ConstChars{str, strlen(str)};
+}
 
 class ProtoToArgsParserTest : public ::testing::Test,
                               public ProtoToArgsParser::Delegate {
@@ -254,7 +253,7 @@ TEST_F(ProtoToArgsParserTest, NestedProtoParsingOverrideHandled) {
   ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
                            << status.message();
 
-  parser.AddParsingOverride(
+  parser.AddParsingOverrideForField(
       "super_nested.value_c",
       [](const protozero::Field& field, ProtoToArgsParser::Delegate& writer) {
         EXPECT_EQ(field.type(), protozero::proto_utils::ProtoWireType::kVarInt);
@@ -290,7 +289,7 @@ TEST_F(ProtoToArgsParserTest, NestedProtoParsingOverrideSkipped) {
   ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
                            << status.message();
 
-  parser.AddParsingOverride(
+  parser.AddParsingOverrideForField(
       "super_nested.value_c",
       [](const protozero::Field& field, ProtoToArgsParser::Delegate&) {
         static int val = 0;
@@ -341,7 +340,7 @@ TEST_F(ProtoToArgsParserTest, LookingUpInternedStateParsingOverride) {
   ProtoToArgsParser parser(pool);
   // Now we override the behaviour of |value_c| so we can expand the iid into
   // multiple args rows.
-  parser.AddParsingOverride(
+  parser.AddParsingOverrideForField(
       "super_nested.value_c",
       [](const protozero::Field& field, ProtoToArgsParser::Delegate& delegate)
           -> base::Optional<base::Status> {
@@ -365,6 +364,79 @@ TEST_F(ProtoToArgsParserTest, LookingUpInternedStateParsingOverride) {
       << status.message();
   EXPECT_THAT(args(), testing::ElementsAre("file_name file_name file",
                                            "line_number line_number 2"));
+}
+
+TEST_F(ProtoToArgsParserTest, OverrideForType) {
+  using namespace protozero::test::protos::pbzero;
+  protozero::HeapBuffered<NestedA> msg{kChunkSize, kChunkSize};
+  msg->set_super_nested()->set_value_c(3);
+
+  auto binary_proto = msg.SerializeAsArray();
+
+  DescriptorPool pool;
+  auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                              kTestMessagesDescriptor.size());
+  ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
+                           << status.message();
+
+  ProtoToArgsParser parser(pool);
+
+  parser.AddParsingOverrideForType(
+      ".protozero.test.protos.NestedA.NestedB.NestedC",
+      [](ProtoToArgsParser::ScopedNestedKeyContext&,
+         const protozero::ConstBytes&, Delegate& delegate) {
+        delegate.AddInteger(ProtoToArgsParser::Key("arg"), 42);
+        return base::OkStatus();
+      });
+
+  status = parser.ParseMessage(
+      protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
+      ".protozero.test.protos.NestedA", nullptr, *this);
+  EXPECT_TRUE(status.ok())
+      << "InternProtoFieldsIntoArgsTable failed with error: "
+      << status.message();
+  EXPECT_THAT(args(), testing::ElementsAre("arg arg 42"));
+}
+
+TEST_F(ProtoToArgsParserTest, FieldOverrideTakesPrecedence) {
+  using namespace protozero::test::protos::pbzero;
+  protozero::HeapBuffered<NestedA> msg{kChunkSize, kChunkSize};
+  msg->set_super_nested()->set_value_c(3);
+
+  auto binary_proto = msg.SerializeAsArray();
+
+  DescriptorPool pool;
+  auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                              kTestMessagesDescriptor.size());
+  ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
+                           << status.message();
+
+  ProtoToArgsParser parser(pool);
+
+  parser.AddParsingOverrideForField(
+      "super_nested",
+      [](const protozero::Field&, ProtoToArgsParser::Delegate& writer) {
+        writer.AddString(ProtoToArgsParser::Key("arg"),
+                         ToChars("override-for-field"));
+        return base::OkStatus();
+      });
+
+  parser.AddParsingOverrideForType(
+      ".protozero.test.protos.NestedA.NestedB.NestedC",
+      [](ProtoToArgsParser::ScopedNestedKeyContext&,
+         const protozero::ConstBytes&, Delegate& delegate) {
+        delegate.AddString(ProtoToArgsParser::Key("arg"),
+                           ToChars("override-for-type"));
+        return base::OkStatus();
+      });
+
+  status = parser.ParseMessage(
+      protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
+      ".protozero.test.protos.NestedA", nullptr, *this);
+  EXPECT_TRUE(status.ok())
+      << "InternProtoFieldsIntoArgsTable failed with error: "
+      << status.message();
+  EXPECT_THAT(args(), testing::ElementsAre("arg arg override-for-field"));
 }
 
 }  // namespace
