@@ -17,6 +17,7 @@
 syntax = "proto2";
 
 import public "protos/perfetto/trace/track_event/track_event.proto";
+import "protos/perfetto/trace/track_event/debug_annotation.proto";
 
 package perfetto.protos;
 
@@ -35,4 +36,6 @@ message TestExtension {
 
 message TestExtensionChild {
   optional string child_field_for_testing = 1;
+
+  repeated DebugAnnotation debug_annotations = 99;
 }

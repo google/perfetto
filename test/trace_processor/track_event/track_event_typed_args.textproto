@@ -78,6 +78,17 @@ packet {
         "should be absent from result"
     [perfetto.protos.TestExtension.nested_message_extension_for_testing] {
       child_field_for_testing: "nesting test"
+      debug_annotations {
+        name: "arg1"
+        string_value: "value"
+      }
+      debug_annotations {
+        name: "arg2"
+        dict_entries {
+          name: "key"
+          string_value: "value"
+        }
+      }
     }
   }
 }
@@ -119,6 +130,13 @@ packet {
             number: 1
             type: TYPE_STRING
             label: LABEL_OPTIONAL
+          }
+          field {
+            name: "debug_annotations"
+            number: 99
+            type: TYPE_MESSAGE
+            label: LABEL_REPEATED
+            type_name: ".perfetto.protos.DebugAnnotation"
           }
         }
       }
