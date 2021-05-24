@@ -23,6 +23,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
+#include "src/protozero/proto_ring_buffer.h"
 #include "tools/trace_to_text/proto_full_utils.h"
 #include "tools/trace_to_text/trace.descriptor.h"
 #include "tools/trace_to_text/utils.h"
@@ -167,33 +168,67 @@ int TraceToText(std::istream* input, std::ostream* output) {
   const Reflection* reflect = msg->GetReflection();
   const FieldDescriptor* compressed_desc =
       trace_descriptor->FindFieldByNumber(kCompressedPacketFieldDescriptor);
-  std::unique_ptr<Message> compressed_msg_scratch(prototype->New());
-  std::string compressed_packet_scratch;
+
+  std::unique_ptr<Message> compressed_packets_msg(prototype->New());
+  std::string compressed_packets;
 
   TextFormat::Printer printer;
   printer.SetInitialIndentLevel(1);
-  ForEachPacketBlobInTrace(
-      input, [&msg, reflect, compressed_desc, zero_copy_output_ptr,
-              &compressed_packet_scratch, &compressed_msg_scratch,
-              &printer](std::unique_ptr<char[]> buf, size_t size) {
-        if (!msg->ParseFromArray(buf.get(), static_cast<int>(size))) {
-          PERFETTO_ELOG("Skipping invalid packet");
-          return;
-        }
-        if (reflect->HasField(*msg, compressed_desc)) {
-          const auto& compressed_packets = reflect->GetStringReference(
-              *msg, compressed_desc, &compressed_packet_scratch);
-          PrintCompressedPackets(compressed_packets,
-                                 compressed_msg_scratch.get(),
-                                 zero_copy_output_ptr);
-        } else {
-          WriteToZeroCopyOutput(zero_copy_output_ptr, kPacketPrefix,
-                                sizeof(kPacketPrefix) - 1);
-          printer.Print(*msg, zero_copy_output_ptr);
-          WriteToZeroCopyOutput(zero_copy_output_ptr, kPacketSuffix,
-                                sizeof(kPacketSuffix) - 1);
-        }
-      });
+
+  static constexpr size_t kMaxMsgSize = protozero::ProtoRingBuffer::kMaxMsgSize;
+  std::unique_ptr<char> data(new char[kMaxMsgSize]);
+  protozero::ProtoRingBuffer ring_buffer;
+
+  uint32_t packet = 0;
+  size_t bytes_processed = 0;
+  while (!input->eof()) {
+    input->read(data.get(), kMaxMsgSize);
+    if (input->bad() || (input->fail() && !input->eof())) {
+      PERFETTO_ELOG("Failed while reading trace");
+      return 1;
+    }
+    ring_buffer.Append(data.get(), static_cast<size_t>(input->gcount()));
+
+    for (;;) {
+      auto token = ring_buffer.ReadMessage();
+      if (token.fatal_framing_error) {
+        PERFETTO_ELOG("Failed to tokenize trace packet");
+        return 1;
+      }
+      if (!token.valid())
+        break;
+      bytes_processed += token.len;
+
+      if (token.field_id != 1) {
+        PERFETTO_ELOG("Skipping invalid field");
+        continue;
+      }
+
+      if ((packet++ & 0x3f) == 0) {
+        fprintf(stderr, "Processing trace: %8zu KB%c", bytes_processed / 1024,
+                kProgressChar);
+        fflush(stderr);
+      }
+
+      if (!msg->ParseFromArray(token.start, static_cast<int>(token.len))) {
+        PERFETTO_ELOG("Skipping invalid packet");
+        continue;
+      }
+
+      if (reflect->HasField(*msg, compressed_desc)) {
+        compressed_packets = reflect->GetStringReference(*msg, compressed_desc,
+                                                         &compressed_packets);
+        PrintCompressedPackets(compressed_packets, compressed_packets_msg.get(),
+                               zero_copy_output_ptr);
+      } else {
+        WriteToZeroCopyOutput(zero_copy_output_ptr, kPacketPrefix,
+                              sizeof(kPacketPrefix) - 1);
+        printer.Print(*msg, zero_copy_output_ptr);
+        WriteToZeroCopyOutput(zero_copy_output_ptr, kPacketSuffix,
+                              sizeof(kPacketSuffix) - 1);
+      }
+    }
+  }
   return 0;
 }
 

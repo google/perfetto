@@ -3847,6 +3847,7 @@ perfetto_cc_binary(
         ":src_profiling_deobfuscator",
         ":src_profiling_symbolizer_symbolize_database",
         ":src_profiling_symbolizer_symbolizer",
+        ":src_protozero_proto_ring_buffer",
         ":src_trace_processor_analysis_analysis",
         ":src_trace_processor_db_db",
         ":src_trace_processor_export_json",
