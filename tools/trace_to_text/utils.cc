@@ -48,52 +48,6 @@ constexpr size_t kCompressionBufferSize = 500 * 1024;
 
 }  // namespace
 
-void ForEachPacketBlobInTrace(
-    std::istream* input,
-    const std::function<void(std::unique_ptr<char[]>, size_t)>& f) {
-  size_t bytes_processed = 0;
-  // The trace stream can be very large. We cannot just pass it in one go to
-  // libprotobuf as that will refuse to parse messages > 64MB. However we know
-  // that a trace is merely a sequence of TracePackets. Here we just manually
-  // tokenize the repeated TracePacket messages and parse them individually
-  // using libprotobuf.
-  for (uint32_t i = 0;; i++) {
-    if ((i & 0x3f) == 0) {
-      fprintf(stderr, "Processing trace: %8zu KB%c", bytes_processed / 1024,
-              kProgressChar);
-      fflush(stderr);
-    }
-    // A TracePacket consists in one byte stating its field id and type ...
-    char preamble;
-    input->get(preamble);
-    if (!input->good())
-      break;
-    bytes_processed++;
-    PERFETTO_DCHECK(preamble == 0x0a);  // Field ID:1, type:length delimited.
-
-    // ... a varint stating its size ...
-    uint32_t field_size = 0;
-    uint32_t shift = 0;
-    for (;;) {
-      char c = 0;
-      input->get(c);
-      field_size |= static_cast<uint32_t>(c & 0x7f) << shift;
-      shift += 7;
-      bytes_processed++;
-      if (!(c & 0x80))
-        break;
-    }
-
-    // ... and the actual TracePacket itself.
-    std::unique_ptr<char[]> buf(new char[field_size]);
-    input->read(buf.get(), static_cast<std::streamsize>(field_size));
-    bytes_processed += field_size;
-
-    f(std::move(buf), field_size);
-  }
-}
-
-
 bool ReadTrace(trace_processor::TraceProcessor* tp, std::istream* input) {
   // 1MB chunk size seems the best tradeoff on a MacBook Pro 2013 - i7 2.8 GHz.
   constexpr size_t kChunkSize = 1024 * 1024;
