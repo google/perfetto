@@ -111,7 +111,7 @@ class FilterBytecodeParser {
   std::vector<uint32_t> words_;
 
   // One entry for each message index stored in the filter plus a sentinel at
-  // the end. Maps each message index to the offset in |words_| where the the
+  // the end. Maps each message index to the offset in |words_| where the
   // Nth message start.
   // message_offset_.size() - 2 == the max message id that can be parsed.
   std::vector<uint32_t> message_offset_;
