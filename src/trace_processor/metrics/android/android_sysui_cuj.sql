@@ -126,8 +126,6 @@ CREATE TABLE android_sysui_cuj_frame_timeline_events AS
   FROM expected_frame_timeline_slice expected
   JOIN android_sysui_cuj_last_cuj cuj
     ON expected.upid = cuj.upid
-    AND expected.ts + expected.dur > cuj.ts_start
-    AND expected.ts < cuj.ts_end
   JOIN actual_frame_timeline_slice actual
     ON expected.surface_frame_token = actual.surface_frame_token
     AND expected.upid = actual.upid
