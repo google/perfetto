@@ -137,6 +137,7 @@ source_set("full") {
     "../../gn:default_deps",
     "../../gn:protobuf_full",
     "../../protos/perfetto/trace:zero",
+    "../../src/protozero:proto_ring_buffer",
   ]
   if (enable_perfetto_zlib) {
     deps += [ "../../gn:zlib" ]
