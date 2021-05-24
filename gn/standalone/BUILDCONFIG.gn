@@ -55,9 +55,13 @@ if (current_cpu == "") {
   current_cpu = target_cpu
 }
 
-is_cross_compiling =
-    target_cpu != host_cpu || target_os != host_os || target_triplet != ""
-
+declare_args() {
+  # the ossfuzz sanitizer overrides this to true. In that config the
+  # host/target cpu and arch are identical, but we want to build only the
+  # targets with the sanitizer/fuzzer flags
+  is_cross_compiling =
+      target_cpu != host_cpu || target_os != host_os || target_triplet != ""
+}
 default_configs = [
   "//gn/standalone:debug_symbols",
   "//gn/standalone:default",
