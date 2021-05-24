@@ -151,7 +151,7 @@ export abstract class TrackController<
         globals.state.frontendLocalState.visibleState.resolution;
   }
 
-  // Decides, based on the the length of the trace and the number of rows
+  // Decides, based on the length of the trace and the number of rows
   // provided whether a TrackController subclass should cache its quantized
   // data. Returns the bucket size (in ns) if caching should happen and
   // undefined otherwise.

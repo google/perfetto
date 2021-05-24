@@ -42,7 +42,7 @@ Any registered metrics can be computed using using the `ComputeMetric` function.
 
 Metrics can also be registered at run time using the `RegisterMetric` and `ExtendMetricsProto` functions. These can subsequently be executed with `ComputeMetric`.
 
-WARNING: embedders should ensure that the path of any registered metric is consistent with the the name used to execute the metric and output view in the SQL.
+WARNING: embedders should ensure that the path of any registered metric is consistent with the name used to execute the metric and output view in the SQL.
 
 ### Annotations
 

@@ -298,7 +298,7 @@ base::Optional<EventConfig> EventConfig::Create(
     // expected = rate * period, with a conversion of period from ms to s:
     uint64_t expected_samples_per_tick =
         1 + (sampling_frequency * read_tick_period_ms) / 1000;
-    // Double the the limit to account of actual sample rate uncertainties, as
+    // Double the limit to account of actual sample rate uncertainties, as
     // well as any other factors:
     samples_per_tick_limit = 2 * expected_samples_per_tick;
   } else {  // sampling_period
