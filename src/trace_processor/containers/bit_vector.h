@@ -491,7 +491,7 @@ class BitVector {
       // mask: 00000000001111111
       uint64_t mask = MaskAllBitsSetUntil(idx);
 
-      // Finish up by anding the the atom with the computed msk.
+      // Finish up by and'ing the atom with the computed mask.
       return word_ & mask;
     }
 

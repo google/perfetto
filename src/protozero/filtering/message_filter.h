@@ -130,7 +130,7 @@ class MessageFilter {
   // Gets into an error state which swallows all the input and emits no output.
   void SetUnrecoverableErrorState();
 
-  // We keep track of the the nest of messages in a stack. Each StackState
+  // We keep track of the nest of messages in a stack. Each StackState
   // object corresponds to a level of nesting in the proto message structure.
   // Every time a new field of type len-delimited that has a corresponding
   // sub-message in the bytecode is encountered, a new StackState is pushed in
