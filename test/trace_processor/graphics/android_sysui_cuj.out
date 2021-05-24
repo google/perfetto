@@ -1,6 +1,6 @@
 android_sysui_cuj {
  cuj_name: "SHADE_ROW_EXPAND"
-  cuj_start: 0
+  cuj_start: 10
   cuj_dur: 1000000000
   process {
     name: "com.android.systemui"
