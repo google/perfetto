@@ -45,6 +45,8 @@
 //   service. This happens in CreateClient.
 
 namespace perfetto {
+void EnableStacktraceOnCrashForDebug();
+
 namespace profiling {
 namespace {
 
@@ -106,6 +108,11 @@ void StartHeapprofdIfStatic() {
   }
 
   daemon(/* nochdir= */ 0, /* noclose= */ 1);
+
+  // On debug builds, we want to turn on crash reporting for heapprofd.
+#if PERFETTO_BUILDFLAG(PERFETTO_STDERR_CRASH_DUMP)
+  EnableStacktraceOnCrashForDebug();
+#endif
 
   cli_sock.ReleaseFd();
 
