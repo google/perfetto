@@ -107,6 +107,7 @@ _Unwind_Reason_Code TraceStackFrame(_Unwind_Context* context, void* arg) {
 }
 
 void RestoreSignalHandlers() {
+  g_sighandler_registered = false;
   for (size_t i = 0; i < sizeof(g_signals) / sizeof(g_signals[0]); i++)
     sigaction(g_signals[i].sig_num, &g_signals[i].old_handler, nullptr);
 }
@@ -233,9 +234,13 @@ void SignalHandler(int sig_num, siginfo_t* info, void* /*ucontext*/) {
   }
 }
 
+}  // namespace
+
+namespace perfetto {
 // __attribute__((constructor)) causes a static initializer that automagically
 // early runs this function before the main().
-void __attribute__((constructor)) EnableStacktraceOnCrashForDebug();
+void PERFETTO_EXPORT __attribute__((constructor))
+EnableStacktraceOnCrashForDebug();
 
 void EnableStacktraceOnCrashForDebug() {
   if (g_sighandler_registered)
@@ -259,7 +264,6 @@ void EnableStacktraceOnCrashForDebug() {
   // (ii) the output of death test is not visible.
   pthread_atfork(nullptr, nullptr, &RestoreSignalHandlers);
 }
-
-}  // namespace
+}  // namespace perfetto
 
 #pragma GCC diagnostic pop
