@@ -53,7 +53,7 @@ struct FtraceDataSourceConfig {
   std::vector<std::string> atrace_apps;
   std::vector<std::string> atrace_categories;
 
-  // When enabled will turn on the the kallsyms symbolizer in CpuReader.
+  // When enabled will turn on the kallsyms symbolizer in CpuReader.
   const bool symbolize_ksyms;
 };
 

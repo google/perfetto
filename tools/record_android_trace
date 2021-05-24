@@ -107,7 +107,7 @@ def main():
   help = 'Force the use of the sideloaded binaries rather than system daemons'
   parser.add_argument('--sideload', action='store_true', help=help)
 
-  help = ('Sideload the the given binary rather than downloading it. ' +
+  help = ('Sideload the given binary rather than downloading it. ' +
           'Implies --sideload')
   parser.add_argument('--sideload-path', default=None, help=help)
 
