@@ -580,7 +580,7 @@ def main():
   args = parser.parse_args()
   targets = args.targets or default_targets
 
-  # The CHANGELOG mtime triggers the the perfetto_version.gen.h genrule. This is
+  # The CHANGELOG mtime triggers the perfetto_version.gen.h genrule. This is
   # to avoid emitting a stale version information in the remote case of somebody
   # running gen_amalgamated incrementally after having moved to another commit.
   changelog_path = os.path.join(project_root, 'CHANGELOG')

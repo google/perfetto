@@ -272,7 +272,7 @@ The producer specifies the desired SMB size and memory layout when sending the
 [`InitializeConnectionRequest`][producer_port.proto] request to the
 service, which is the very first IPC sent after connection.
 By default, the service creates the SMB and passes back its file descriptor to
-the producer with the the [`InitializeConnectionResponse`][producer_port.proto]
+the producer with the [`InitializeConnectionResponse`][producer_port.proto]
 IPC reply. Recent versions of the service (Android R / 11) allow the FD to be
 created by the producer and passed down to the service in the request. When the
 service supports this, it acks the request setting
