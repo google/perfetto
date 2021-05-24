@@ -164,7 +164,7 @@ const PIMAGE_TLS_CALLBACK perfetto_thread_callback_base = PerfettoOnThreadExit;
 #else  // _WIN64
 
 #pragma data_seg(".CRT$XLP")
-PIMAGE_TLS_CALLBACK perfetto_thread_callback_base = OnThreadExit;
+PIMAGE_TLS_CALLBACK perfetto_thread_callback_base = PerfettoOnThreadExit;
 // Reset the default section.
 #pragma data_seg()
 
