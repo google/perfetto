@@ -11,9 +11,9 @@ CXXFLAGS="$CXXFLAGS -fno-sanitize=vptr"
 
 GN_ARGS="is_clang=true is_debug=false is_fuzzer=true use_libfuzzer=false \
 link_fuzzer=\"-lFuzzingEngine\" is_hermetic_clang=false \
-use_custom_libcxx=false \
-extra_cflags=\"$CFLAGS -Wno-implicit-int-float-conversion\" \
-extra_cxxflags=\"$CXXFLAGS\" extra_ldflags=\"$CXXFLAGS\" \
+use_custom_libcxx=false is_cross_compiling=true \
+extra_target_cflags=\"$CFLAGS -Wno-implicit-int-float-conversion\" \
+extra_target_cxxflags=\"$CXXFLAGS\" extra_target_ldflags=\"$CXXFLAGS\" \
 is_system_compiler=true cc=\"$CC\" cxx=\"$CXX\" linker=\"gold\""
 
 if [ "$SANITIZER" = "address" ]; then
