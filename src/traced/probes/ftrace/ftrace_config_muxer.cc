@@ -455,7 +455,7 @@ FtraceConfigId FtraceConfigMuxer::SetupConfig(const FtraceConfig& request) {
     PERFETTO_DCHECK(active_configs_.empty());
 
     // If someone outside of perfetto is using ftrace give up now.
-    if (is_ftrace_enabled) {
+    if (is_ftrace_enabled && !IsOldAtrace()) {
       PERFETTO_ELOG("ftrace in use by non-Perfetto.");
       return 0;
     }
@@ -466,7 +466,7 @@ FtraceConfigId FtraceConfigMuxer::SetupConfig(const FtraceConfig& request) {
     SetupBufferSize(request);
   } else {
     // Did someone turn ftrace off behind our back? If so give up.
-    if (!active_configs_.empty() && !is_ftrace_enabled) {
+    if (!active_configs_.empty() && !is_ftrace_enabled && !IsOldAtrace()) {
       PERFETTO_ELOG("ftrace disabled by non-Perfetto.");
       return 0;
     }
@@ -486,8 +486,15 @@ FtraceConfigId FtraceConfigMuxer::SetupConfig(const FtraceConfig& request) {
     }
   }
 
-  if (RequiresAtrace(request))
+  if (RequiresAtrace(request)) {
+    if (IsOldAtrace() && !ds_configs_.empty()) {
+      PERFETTO_ELOG(
+          "Concurrent atrace sessions are not supported before Android P, "
+          "bailing out.");
+      return 0;
+    }
     UpdateAtrace(request);
+  }
 
   for (const auto& group_and_name : events) {
     const Event* event = table_->GetOrCreateEvent(group_and_name);
@@ -533,7 +540,7 @@ bool FtraceConfigMuxer::ActivateConfig(FtraceConfigId id) {
   }
 
   if (active_configs_.empty()) {
-    if (ftrace_->IsTracingEnabled()) {
+    if (ftrace_->IsTracingEnabled() && !IsOldAtrace()) {
       // If someone outside of perfetto is using ftrace give up now.
       PERFETTO_ELOG("ftrace in use by non-Perfetto.");
       return false;
@@ -695,7 +702,8 @@ bool FtraceConfigMuxer::StartAtrace(
   std::vector<std::string> args;
   args.push_back("atrace");  // argv0 for exec()
   args.push_back("--async_start");
-  args.push_back("--only_userspace");
+  if (!IsOldAtrace())
+    args.push_back("--only_userspace");
 
   for (const auto& category : categories)
     args.push_back(category);
@@ -721,7 +729,10 @@ void FtraceConfigMuxer::DisableAtrace() {
 
   PERFETTO_DLOG("Stop atrace...");
 
-  if (RunAtrace({"atrace", "--async_stop", "--only_userspace"})) {
+  std::vector<std::string> args{"atrace", "--async_stop"};
+  if (!IsOldAtrace())
+    args.push_back("--only_userspace");
+  if (RunAtrace(args)) {
     current_state_.atrace_categories.clear();
     current_state_.atrace_apps.clear();
     current_state_.atrace_on = false;
