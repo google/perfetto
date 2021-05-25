@@ -110,6 +110,8 @@ class TrackEventArgsParser : public util::ProtoToArgsParser::Delegate {
   }
   bool AddJson(const Key& key, const protozero::ConstChars& value) final {
     auto json_value = json::ParseJsonString(value);
+    if (!json_value)
+      return false;
     return json::AddJsonValueToArgs(*json_value, base::StringView(key.flat_key),
                                     base::StringView(key.key), &storage_,
                                     &inserter_);
