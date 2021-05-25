@@ -106,7 +106,7 @@ void ProtoRingBuffer::Append(const void* data_void, size_t data_len) {
 
   size_t avail = buf_.size() - wr_;
   if (data_len > avail) {
-    // This whole section should be hit extremely rare.
+    // This whole section should be hit extremely rarely.
 
     // Try first just recompacting the buffer by moving everything to the left.
     // This can happen if we received "a message and a bit" on each Append call
