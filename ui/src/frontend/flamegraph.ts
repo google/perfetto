@@ -267,19 +267,21 @@ export class Flamegraph {
       const offsetPx = 4;
 
       const lines: string[] = [];
-      let lineSplitter: LineSplitter;
-      const nameText = this.getCallsiteName(this.hoveredCallsite);
-      const nameTextSize = ctx.measureText(nameText);
-      lineSplitter =
-          splitIfTooBig(nameText, width - paddingPx, nameTextSize.width);
-      let textWidth = lineSplitter.lineWidth;
-      lines.push(...lineSplitter.lines);
 
-      const mappingText = this.hoveredCallsite.mapping;
-      lineSplitter =
-          splitIfTooBig(mappingText, width, ctx.measureText(mappingText).width);
-      textWidth = Math.max(textWidth, lineSplitter.lineWidth);
-      lines.push(...lineSplitter.lines);
+      let textWidth = this.addToTooltip(
+          this.getCallsiteName(this.hoveredCallsite),
+          width - paddingPx,
+          ctx,
+          lines);
+      if (this.hoveredCallsite.location != null) {
+        textWidth = Math.max(
+            textWidth,
+            this.addToTooltip(
+                this.hoveredCallsite.location, width, ctx, lines));
+      }
+      textWidth = Math.max(
+          textWidth,
+          this.addToTooltip(this.hoveredCallsite.mapping, width, ctx, lines));
 
       if (this.nodeRendering.totalSize !== undefined) {
         const percentage =
@@ -289,10 +291,8 @@ export class Flamegraph {
                 this.hoveredCallsite.totalSize,
                 unit,
                 unit === 'B' ? 1024 : 1000)} (${percentage.toFixed(2)}%)`;
-        lineSplitter = splitIfTooBig(
-            totalSizeText, width, ctx.measureText(totalSizeText).width);
-        textWidth = Math.max(textWidth, lineSplitter.lineWidth);
-        lines.push(...lineSplitter.lines);
+        textWidth = Math.max(
+            textWidth, this.addToTooltip(totalSizeText, width, ctx, lines));
       }
 
       if (this.nodeRendering.selfSize !== undefined &&
@@ -304,10 +304,8 @@ export class Flamegraph {
                 this.hoveredCallsite.selfSize,
                 unit,
                 unit === 'B' ? 1024 : 1000)} (${selfPercentage.toFixed(2)}%)`;
-        lineSplitter = splitIfTooBig(
-            selfSizeText, width, ctx.measureText(selfSizeText).width);
-        textWidth = Math.max(textWidth, lineSplitter.lineWidth);
-        lines.push(...lineSplitter.lines);
+        textWidth = Math.max(
+            textWidth, this.addToTooltip(selfSizeText, width, ctx, lines));
       }
 
       // Compute a line height as the bounding box height + 50%:
@@ -342,6 +340,15 @@ export class Flamegraph {
             rectYStart + paddingPx + i * lineHeight);
       }
     }
+  }
+
+  private addToTooltip(
+      text: string, width: number, ctx: CanvasRenderingContext2D,
+      lines: string[]): number {
+    const lineSplitter: LineSplitter =
+        splitIfTooBig(text, width, ctx.measureText(text).width);
+    lines.push(...lineSplitter.lines);
+    return lineSplitter.lineWidth;
   }
 
   private getCallsiteName(value: CallsiteInfo): string {
