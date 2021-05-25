@@ -26,11 +26,11 @@
 
 using testing::_;
 using testing::AnyNumber;
-using testing::MatchesRegex;
 using testing::Contains;
 using testing::ElementsAreArray;
 using testing::Eq;
 using testing::IsEmpty;
+using testing::MatchesRegex;
 using testing::NiceMock;
 using testing::Not;
 using testing::Return;
@@ -93,6 +93,14 @@ class MockProtoTranslationTable : public ProtoTranslationTable {
 
 class FtraceConfigMuxerTest : public ::testing::Test {
  protected:
+  void SetUp() override {
+    // Don't probe for older SDK levels, that would relax the atrace-related
+    // checks on older versions of Android (But some tests here test those).
+    // We want the unittests to behave consistently (as if we were on a post P
+    // device) regardless of the Android versions they run on.
+    SetIsOldAtraceForTesting(false);
+  }
+  void TearDown() override { ClearIsOldAtraceForTesting(); }
   std::unique_ptr<MockProtoTranslationTable> GetMockTable() {
     std::vector<Field> common_fields;
     std::vector<Event> events;
