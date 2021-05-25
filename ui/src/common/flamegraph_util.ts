@@ -103,7 +103,8 @@ function copyCallsite(callsite: CallsiteInfo): CallsiteInfo {
     mapping: callsite.mapping,
     selfSize: callsite.selfSize,
     merged: callsite.merged,
-    highlighted: callsite.highlighted
+    highlighted: callsite.highlighted,
+    location: callsite.location
   };
 }
 
