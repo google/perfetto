@@ -30,6 +30,8 @@ namespace {
 struct MergedCallsite {
   StringId frame_name;
   StringId mapping_name;
+  base::Optional<StringId> source_file;
+  base::Optional<uint32_t> line_number;
   base::Optional<uint32_t> parent_idx;
   bool operator<(const MergedCallsite& o) const {
     return std::tie(frame_name, mapping_name, parent_idx) <
@@ -62,7 +64,7 @@ std::vector<MergedCallsite> GetMergedCallsites(TraceStorage* storage,
     base::Optional<StringId> deobfuscated_name =
         frames_tbl.deobfuscated_name()[frame_idx];
     return {{deobfuscated_name ? *deobfuscated_name : frame_name, mapping_name,
-             base::nullopt}};
+             base::nullopt, base::nullopt, base::nullopt}};
   }
 
   std::vector<MergedCallsite> result;
@@ -74,8 +76,9 @@ std::vector<MergedCallsite> GetMergedCallsites(TraceStorage* storage,
        i < symbols_tbl.row_count() &&
        symbols_tbl.symbol_set_id()[i] == *symbol_set_id;
        ++i) {
-    result.emplace_back(
-        MergedCallsite{symbols_tbl.name()[i], mapping_name, base::nullopt});
+    result.emplace_back(MergedCallsite{
+        symbols_tbl.name()[i], mapping_name, symbols_tbl.source_file()[i],
+        symbols_tbl.line_number()[i], base::nullopt});
   }
   std::reverse(result.begin(), result.end());
   return result;
@@ -118,6 +121,7 @@ std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> BuildNativeFlamegraph(
     auto callsites = GetMergedCallsites(storage, i);
     // Loop below needs to run at least once for parent_idx to get updated.
     PERFETTO_CHECK(!callsites.empty());
+    std::map<MergedCallsite, uint32_t> callsites_to_rowid;
     for (MergedCallsite& merged_callsite : callsites) {
       merged_callsite.parent_idx = parent_idx;
       auto it = merged_callsites_to_table_idx.find(merged_callsite);
@@ -137,12 +141,33 @@ std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> BuildNativeFlamegraph(
         row.map_name = merged_callsite.mapping_name;
         if (parent_idx)
           row.parent_id = tbl->id()[*parent_idx];
-
         parent_idx = tbl->Insert(std::move(row)).row;
+        callsites_to_rowid[merged_callsite] =
+            static_cast<uint32_t>(merged_callsites_to_table_idx.size());
+
         PERFETTO_CHECK(merged_callsites_to_table_idx.size() ==
                        tbl->row_count());
+      } else {
+        MergedCallsite saved_callsite = it->first;
+        callsites_to_rowid.erase(saved_callsite);
+        if (saved_callsite.source_file != merged_callsite.source_file) {
+          saved_callsite.source_file = base::nullopt;
+        }
+        if (saved_callsite.line_number != merged_callsite.line_number) {
+          saved_callsite.line_number = base::nullopt;
+        }
+        callsites_to_rowid[saved_callsite] = it->second;
       }
       parent_idx = it->second;
+    }
+
+    for (const auto& it : callsites_to_rowid) {
+      if (it.first.source_file) {
+        tbl->mutable_source_file()->Set(it.second, *it.first.source_file);
+      }
+      if (it.first.line_number) {
+        tbl->mutable_line_number()->Set(it.second, *it.first.line_number);
+      }
     }
 
     PERFETTO_CHECK(parent_idx);
