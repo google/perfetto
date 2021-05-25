@@ -544,11 +544,13 @@ export class TraceController extends Controller<States> {
         let hasSliceName = false;
         let hasDur = false;
         let hasUpid = false;
+        let hasValue = false;
         for (let i = 0; i < slowlyCountRows(result); i++) {
           const name = result.columns[1].stringValues![i];
           hasSliceName = hasSliceName || name === 'slice_name';
           hasDur = hasDur || name === 'dur';
           hasUpid = hasUpid || name === 'upid';
+          hasValue = hasValue || name === 'value';
         }
 
         const upidColumnSelect = hasUpid ? 'upid' : '0 AS upid';
@@ -579,7 +581,6 @@ export class TraceController extends Controller<States> {
           `);
         }
 
-        const hasValue = result.columnDescriptors.some(x => x.name === 'value');
         if (hasValue) {
           const minMax = await engine.query(`
           SELECT MIN(value) as min_value, MAX(value) as max_value
