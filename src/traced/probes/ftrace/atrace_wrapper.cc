@@ -25,16 +25,24 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/time.h"
+#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/pipe.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#include <sys/system_properties.h>
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 
 namespace perfetto {
 
 namespace {
 
 RunAtraceFunction g_run_atrace_for_testing = nullptr;
+base::Optional<bool> g_is_old_atrace_for_testing{};
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 // Args should include "atrace" for argv[0].
@@ -181,6 +189,31 @@ bool RunAtrace(const std::vector<std::string>& args) {
 
 void SetRunAtraceForTesting(RunAtraceFunction f) {
   g_run_atrace_for_testing = f;
+}
+
+bool IsOldAtrace() {
+  if (g_is_old_atrace_for_testing.has_value())
+    return *g_is_old_atrace_for_testing;
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) && \
+    !PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
+  // Sideloaded case. We could be sideloaded on a modern device or an older one.
+  char str_value[PROP_VALUE_MAX];
+  if (!__system_property_get("ro.build.version.sdk", str_value))
+    return false;
+  auto opt_value = base::CStringToUInt32(str_value);
+  return opt_value.has_value() && *opt_value < 28;  // 28 == Android P.
+#else
+  // In in-tree builds we know that atrace is current, no runtime checks needed.
+  return false;
+#endif
+}
+
+void SetIsOldAtraceForTesting(bool value) {
+  g_is_old_atrace_for_testing = value;
+}
+
+void ClearIsOldAtraceForTesting() {
+  g_is_old_atrace_for_testing.reset();
 }
 
 }  // namespace perfetto
