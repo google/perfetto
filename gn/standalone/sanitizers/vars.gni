@@ -47,8 +47,9 @@ declare_args() {
 }
 
 declare_args() {
-  using_sanitizer =
-      is_asan || is_lsan || is_tsan || is_msan || is_ubsan || use_libfuzzer
+  # Don't build host artifacts with sanitizers/fuzzers, only target toolchain.
+  using_sanitizer = (is_asan || is_lsan || is_tsan || is_msan || is_ubsan ||
+                     use_libfuzzer) && current_toolchain == default_toolchain
 }
 
 assert(!using_sanitizer || is_clang || is_system_compiler,

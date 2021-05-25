@@ -38,6 +38,6 @@ chmod +x traceconv
 
 If you just want to open a Perfetto trace with the legacy (Catapult) trace
 viewer, you can just navigate to [ui.perfetto.dev](https://ui.perfetto.dev),
-and use the the _"Open with legacy UI"_ link. This runs `traceconv` within
+and use the _"Open with legacy UI"_ link. This runs `traceconv` within
 the browser using WebAssembly and passes the converted trace seamlessly to
 chrome://tracing.

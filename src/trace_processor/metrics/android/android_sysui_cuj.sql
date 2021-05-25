@@ -64,44 +64,44 @@ FROM slice
 JOIN thread_track ON slice.track_id = thread_track.id
 JOIN android_sysui_cuj_thread thread USING (utid)
 JOIN android_sysui_cuj_last_cuj last_cuj
-ON ts >= last_cuj.ts_start AND ts <= last_cuj.ts_end
+ON ts + slice.dur >= last_cuj.ts_start AND ts <= last_cuj.ts_end
 WHERE slice.dur > 0;
 
 DROP TABLE IF EXISTS android_sysui_cuj_main_thread_slices_in_cuj;
 CREATE TABLE android_sysui_cuj_main_thread_slices_in_cuj AS
 SELECT slices.* FROM android_sysui_cuj_main_thread_slices slices
 JOIN android_sysui_cuj_last_cuj last_cuj
-ON ts >= last_cuj.ts_start AND ts <= last_cuj.ts_end;
+ON ts + slices.dur >= last_cuj.ts_start AND ts <= last_cuj.ts_end;
 
 DROP TABLE IF EXISTS android_sysui_cuj_do_frame_slices_in_cuj;
 CREATE TABLE android_sysui_cuj_do_frame_slices_in_cuj AS
 SELECT slices.* FROM android_sysui_cuj_do_frame_slices slices
 JOIN android_sysui_cuj_last_cuj last_cuj
-ON ts >= last_cuj.ts_start AND ts <= last_cuj.ts_end;
+ON ts + slices.dur >= last_cuj.ts_start AND ts <= last_cuj.ts_end;
 
 DROP TABLE IF EXISTS android_sysui_cuj_render_thread_slices_in_cuj;
 CREATE TABLE android_sysui_cuj_render_thread_slices_in_cuj AS
 SELECT slices.* FROM android_sysui_cuj_render_thread_slices slices
 JOIN android_sysui_cuj_last_cuj last_cuj
-ON ts >= last_cuj.ts_start AND ts <= last_cuj.ts_end;
+ON ts + slices.dur >= last_cuj.ts_start AND ts <= last_cuj.ts_end;
 
 DROP TABLE IF EXISTS android_sysui_cuj_draw_frame_slices_in_cuj;
 CREATE TABLE android_sysui_cuj_draw_frame_slices_in_cuj AS
 SELECT slices.* FROM android_sysui_cuj_draw_frame_slices slices
 JOIN android_sysui_cuj_last_cuj last_cuj
-ON ts >= last_cuj.ts_start AND ts <= last_cuj.ts_end;
+ON ts + slices.dur >= last_cuj.ts_start AND ts <= last_cuj.ts_end;
 
 DROP TABLE IF EXISTS android_sysui_cuj_hwc_release_slices_in_cuj;
 CREATE TABLE android_sysui_cuj_hwc_release_slices_in_cuj AS
 SELECT slices.* FROM android_sysui_cuj_hwc_release_slices slices
 JOIN android_sysui_cuj_last_cuj last_cuj
-ON ts >= last_cuj.ts_start AND ts <= last_cuj.ts_end;
+ON ts + slices.dur >= last_cuj.ts_start AND ts <= last_cuj.ts_end;
 
 DROP TABLE IF EXISTS android_sysui_cuj_gpu_completion_slices_in_cuj;
 CREATE TABLE android_sysui_cuj_gpu_completion_slices_in_cuj AS
 SELECT slices.* FROM android_sysui_cuj_gpu_completion_slices slices
 JOIN android_sysui_cuj_last_cuj last_cuj
-ON ts >= last_cuj.ts_start AND ts <= last_cuj.ts_end;
+ON ts + slices.dur >= last_cuj.ts_start AND ts <= last_cuj.ts_end;
 
 DROP TABLE IF EXISTS android_sysui_cuj_jit_slices;
 CREATE TABLE android_sysui_cuj_jit_slices AS
@@ -126,8 +126,6 @@ CREATE TABLE android_sysui_cuj_frame_timeline_events AS
   FROM expected_frame_timeline_slice expected
   JOIN android_sysui_cuj_last_cuj cuj
     ON expected.upid = cuj.upid
-    AND expected.ts + expected.dur > cuj.ts_start
-    AND expected.ts < cuj.ts_end
   JOIN actual_frame_timeline_slice actual
     ON expected.surface_frame_token = actual.surface_frame_token
     AND expected.upid = actual.upid

@@ -376,10 +376,7 @@ gcc_like_toolchain("wasm") {
 toolchain("msvc") {
   lib_switch = ""
   lib_dir_switch = "/LIBPATH:"
-
-  sys_lib_flags = "/LIBPATH:\"${win_sdk_lib_dir}\\ucrt\\x64\" "
-  sys_lib_flags += "/LIBPATH:\"${win_sdk_lib_dir}\\um\\x64\" "
-  sys_lib_flags += "/LIBPATH:\"${win_msvc_lib_dir}\" "
+  sys_lib_flags = string_join(" ", win_msvc_sys_lib_flags)
 
   # Note: /showIncludes below is required for ninja, to build a complete
   # dependency graph for headers. Removing it breaks incremental builds.

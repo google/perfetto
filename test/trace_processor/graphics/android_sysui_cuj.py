@@ -115,9 +115,9 @@ trace.add_thread(
 trace.add_thread(
     tid=JITID, tgid=PID, cmdline="Jit thread pool", name="Jit thread pool")
 trace.add_ftrace_packet(cpu=0)
-trace.add_atrace_async_begin(ts=0, tid=PID, pid=PID, buf="J<SHADE_ROW_EXPAND>")
+trace.add_atrace_async_begin(ts=10, tid=PID, pid=PID, buf="J<SHADE_ROW_EXPAND>")
 trace.add_atrace_async_end(
-    ts=1_000_000_000, tid=PID, pid=PID, buf="J<SHADE_ROW_EXPAND>")
+    ts=1_000_000_010, tid=PID, pid=PID, buf="J<SHADE_ROW_EXPAND>")
 
 add_frame(
     trace,

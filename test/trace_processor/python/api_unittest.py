@@ -20,7 +20,7 @@ from trace_processor.protos import ProtoFactory
 
 
 class TestQueryResultIterator(unittest.TestCase):
-  # The numbers input into cells correspond the the CellType enum values
+  # The numbers input into cells correspond the CellType enum values
   # defined under trace_processor.proto
   CELL_VARINT = ProtoFactory().CellsBatch().CELL_VARINT
   CELL_STRING = ProtoFactory().CellsBatch().CELL_STRING

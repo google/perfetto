@@ -209,10 +209,10 @@ config("default") {
     ldflags += [ "-flto=full" ]
   }
 
-  # We support only x64 builds on Windows.
-  assert(!is_win || current_cpu == "x64")
-
-  if (current_cpu == "arm") {
+  if (is_win) {
+    # We support only x86/x64 builds on Windows.
+    assert(current_cpu == "x64" || current_cpu == "x86")
+  } else if (current_cpu == "arm") {
     cflags += [
       "-march=armv7-a",
       "-mfpu=neon",
