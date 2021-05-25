@@ -60,8 +60,6 @@ class TracedProto {
 
   MessageType* message() { return message_; }
 
-  EventContext& context() const { return context_; }
-
   // Write additional untyped values into the same context, which is useful
   // when a given C++ class has a typed representation, but also either has
   // members which can only be written into an untyped context (e.g. they are
@@ -87,14 +85,47 @@ class TracedProto {
     return TracedDictionary(message_, MessageType::kDebugAnnotations, nullptr);
   }
 
+  // Write a nested message into a field according to the provided metadata.
+  template <typename FieldMetadata>
+  TracedProto<typename FieldMetadata::cpp_field_type> WriteNestedMessage() {
+    static_assert(std::is_base_of<MessageType,
+                                  typename FieldMetadata::message_type>::value,
+                  "Field should belong to the current message");
+    return TracedProto<typename FieldMetadata::cpp_field_type>(
+        message_->template BeginNestedMessage<
+            typename FieldMetadata::cpp_field_type>(FieldMetadata::kFieldId),
+        context_);
+  }
+
+  template <typename FieldMetadata>
+  TracedProto<typename FieldMetadata::cpp_field_type> WriteNestedMessage(
+      protozero::proto_utils::internal::FieldMetadataHelper<FieldMetadata>) {
+    return WriteNestedMessage<FieldMetadata>();
+  }
+
  private:
   friend class EventContext;
+  // Allow TracedProto<Foo> to create TracedProto<Bar>.
+  template <typename T>
+  friend class TracedProto;
 
-  TracedProto(MessageType* message, EventContext& context)
+  // Wraps a raw protozero message using the same context as the current object.
+  template <typename ChildMessageType>
+  TracedProto<ChildMessageType> Wrap(ChildMessageType* message) {
+    return TracedProto(message, context_);
+  }
+
+  // Context might be null here when writing typed message which is
+  // nested into untyped legacy trace event macro argument.
+  // TODO(altimin): Turn this into EventContext& when this case is eliminated
+  // and expose it in public API.
+  EventContext* context() const { return context_; }
+
+  TracedProto(MessageType* message, EventContext* context)
       : message_(message), context_(context) {}
 
   MessageType* const message_;
-  EventContext& context_;
+  EventContext* context_;
 };
 
 namespace internal {
@@ -157,11 +188,7 @@ struct TypedProtoWriter {
       std::is_same<Check, void>::value>
   Write(TracedProto<Proto> context, ValueType&& value) {
     // TODO(altimin): support TraceFormatTraits here.
-    value.WriteIntoTrace(
-        context.context().Wrap(context.message()
-                                   ->template BeginNestedMessage<
-                                       typename FieldMetadata::cpp_field_type>(
-                                       FieldMetadata::kFieldId)));
+    value.WriteIntoTrace(context.template WriteNestedMessage<FieldMetadata>());
   }
 
   // Nested repeated non-packed field.
@@ -173,11 +200,7 @@ struct TypedProtoWriter {
   Write(TracedProto<Proto> context, ValueType&& value) {
     // TODO(altimin): support TraceFormatTraits here.
     for (auto&& item : value) {
-      item.WriteIntoTrace(context.context().Wrap(
-          context.message()
-              ->template BeginNestedMessage<
-                  typename FieldMetadata::cpp_field_type>(
-                  FieldMetadata::kFieldId)));
+      item.WriteIntoTrace(context.template WriteNestedMessage<FieldMetadata>());
     }
   }
 };
