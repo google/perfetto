@@ -1,6 +1,9 @@
 Unreleased:
   Tracing service and probes:
-    *
+    * Added support for building most targets (including traced, SDK and
+      trace_processor_shell) from Windows using either clang-cl or MSVC 2019.
+    * Added tracebox, a monolithic binary to capture traces with one command
+      on Linux and older versions of Android (tested on Android Oreo).
   Trace Processor:
     *
   UI:
