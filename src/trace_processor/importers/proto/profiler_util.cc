@@ -104,7 +104,8 @@ base::Optional<std::string> PackageFromLocation(TraceStorage* storage,
     return "com.google.android.gm";
   }
 
-  if (location.find("PrebuiltGmsCore") != std::string::npos) {
+  if (location.find("PrebuiltGmsCore") != std::string::npos ||
+      location.find("com.google.android.gms") != std::string::npos) {
     return "com.google.android.gms";
   }
 

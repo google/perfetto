@@ -80,6 +80,7 @@ export interface CallsiteInfo {
   mapping: string;
   merged: boolean;
   highlighted: boolean;
+  location?: string;
 }
 
 export interface TraceFileSource {

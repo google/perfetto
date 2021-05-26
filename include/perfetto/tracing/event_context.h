@@ -72,7 +72,7 @@ class PERFETTO_EXPORT EventContext {
     static_assert(std::is_base_of<protozero::Message, MessageType>::value,
                   "TracedProto can be used only with protozero messages");
 
-    return TracedProto<MessageType>(message, *this);
+    return TracedProto<MessageType>(message, this);
   }
 
  private:
