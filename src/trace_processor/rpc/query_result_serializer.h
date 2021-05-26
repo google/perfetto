@@ -53,6 +53,7 @@ class IteratorImpl;
 // chunked-encoded HTTP response, or through a repetition of Wasm calls.
 class QueryResultSerializer {
  public:
+  static constexpr uint32_t kDefaultBatchSplitThreshold = 128 * 1024;
   explicit QueryResultSerializer(Iterator);
   ~QueryResultSerializer();
 
@@ -92,7 +93,7 @@ class QueryResultSerializer {
   // the limit (it splits on the next row *after* the limit is hit).
   // Overridable for testing only.
   uint32_t cells_per_batch_ = 50000;
-  uint32_t batch_split_threshold_ = 1024 * 128;
+  uint32_t batch_split_threshold_ = kDefaultBatchSplitThreshold;
 };
 
 }  // namespace trace_processor
