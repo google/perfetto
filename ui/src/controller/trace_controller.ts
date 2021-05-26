@@ -26,11 +26,7 @@ import {slowlyCountRows} from '../common/query_iterator';
 import {EngineMode} from '../common/state';
 import {toNs, toNsCeil, toNsFloor} from '../common/time';
 import {TimeSpan} from '../common/time';
-import {
-  createWasmEngine,
-  destroyWasmEngine,
-  WasmEngineProxy
-} from '../common/wasm_engine_proxy';
+import {WasmEngineProxy} from '../common/wasm_engine_proxy';
 import {QuantizedLoad, ThreadDesc} from '../frontend/globals';
 
 import {
@@ -96,12 +92,6 @@ export class TraceController extends Controller<States> {
   constructor(engineId: string) {
     super('init');
     this.engineId = engineId;
-  }
-
-  onDestroy() {
-    if (this.engine instanceof WasmEngineProxy) {
-      destroyWasmEngine(this.engine.id);
-    }
   }
 
   run() {
@@ -231,10 +221,9 @@ export class TraceController extends Controller<States> {
     } else {
       console.log('Opening trace using built-in WASM engine');
       engineMode = 'WASM';
+      const enginePort = globals.resetEngineWorker();
       this.engine = new WasmEngineProxy(
-          this.engineId,
-          createWasmEngine(this.engineId),
-          LoadingManager.getInstance);
+          this.engineId, enginePort, LoadingManager.getInstance);
     }
 
     globals.dispatch(Actions.setEngineReady({
