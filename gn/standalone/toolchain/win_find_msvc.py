@@ -63,7 +63,7 @@ def main():
     filt = lambda x: os.path.exists(os.path.join(x, 'ucrt', 'x64', 'ucrt.lib'))
     out[1] = find_max_subdir(lib_base, filt)
 
-  for version in ['BuildTools', 'Community']:
+  for version in ['BuildTools', 'Community', 'Professional']:
     msvc_base = ('C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\'
                  '{}\\VC\\Tools\\MSVC').format(version)
     if os.path.exists(msvc_base):
