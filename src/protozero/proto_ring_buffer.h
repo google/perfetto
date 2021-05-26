@@ -60,10 +60,10 @@ namespace protozero {
 // Internally this is similar to a ring-buffer, with the caveat that it never
 // wraps, it only expands. Expansions are rare. The deal is that in most cases
 // the read cursor follows very closely the write cursor. For instance, if the
-// uderlying behaves as a dgram socket, after each Append, the read cursor will
-// chase completely the write cursor. Even if the underyling stream is not
-// always atomic, the expectation is that the read cursor will eventually reach
-// the write one within few messages.
+// underlying transport behaves as a dgram socket, after each Append, the read
+// cursor will chase completely the write cursor. Even if the underlying stream
+// is not always atomic, the expectation is that the read cursor will eventually
+// reach the write one within few messages.
 // A visual example, imagine we have four messages: 2it 4will 2be 4fine
 // Visually:
 //
