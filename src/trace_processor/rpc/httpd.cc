@@ -71,6 +71,9 @@ class HttpServer : public base::UnixSocket::EventListener {
   ~HttpServer() override;
   void Run(const char*, const char*);
 
+  // This is non-null only while serving an HTTP request.
+  Client* active_client() { return active_client_; }
+
  private:
   size_t ParseOneHttpRequest(Client* client);
   void HandleRequest(Client*, const HttpRequest&);
@@ -85,8 +88,11 @@ class HttpServer : public base::UnixSocket::EventListener {
   base::UnixTaskRunner task_runner_;
   std::unique_ptr<base::UnixSocket> sock4_;
   std::unique_ptr<base::UnixSocket> sock6_;
-  std::vector<Client> clients_;
+  std::list<Client> clients_;
+  Client* active_client_ = nullptr;
 };
+
+HttpServer* g_httpd_instance;
 
 void Append(std::vector<char>& buf, const char* str) {
   buf.insert(buf.end(), str, str + strlen(str));
@@ -197,7 +203,9 @@ void HttpServer::OnDataAvailable(base::UnixSocket* sock) {
   // At this point |rxbuf| can contain a partial HTTP request, a full one or
   // more (in case of HTTP Keepalive pipelining).
   for (;;) {
+    active_client_ = client;
     size_t bytes_consumed = ParseOneHttpRequest(client);
+    active_client_ = nullptr;
     if (bytes_consumed == 0)
       break;
     memmove(rxbuf, &rxbuf[bytes_consumed], client->rxbuf_used - bytes_consumed);
@@ -306,6 +314,37 @@ void HttpServer::HandleRequest(Client* client, const HttpRequest& req) {
                      });
   }
 
+  if (req.uri == "/rpc") {
+    // Start the chunked reply.
+    strncpy(transfer_encoding_hdr, "Transfer-Encoding: chunked",
+            sizeof(transfer_encoding_hdr));
+    base::UnixSocket* cli_sock = client->sock.get();
+    HttpReply(cli_sock, "200 OK", headers, nullptr, kOmitContentLength);
+
+    static auto resp_fn = [](const void* data, uint32_t len) {
+      char chunk_hdr[32];
+      auto hdr_len = static_cast<size_t>(sprintf(chunk_hdr, "%x\r\n", len));
+      auto* http_client = g_httpd_instance->active_client();
+      PERFETTO_CHECK(http_client);
+      if (data == nullptr) {
+        // Unrecoverable RPC error case.
+        http_client->sock->Shutdown(/*notify=*/true);
+        return;
+      }
+      http_client->sock->Send(chunk_hdr, hdr_len);
+      http_client->sock->Send(data, len);
+      http_client->sock->Send("\r\n", 2);
+    };
+
+    trace_processor_rpc_.SetRpcResponseFunction(resp_fn);
+    trace_processor_rpc_.OnRpcRequest(req.body.data(), req.body.size());
+    trace_processor_rpc_.SetRpcResponseFunction(nullptr);
+
+    // Terminate chunked stream.
+    cli_sock->Send("0\r\n\r\n", 5);
+    return;
+  }
+
   if (req.uri == "/parse") {
     trace_processor_rpc_.Parse(
         reinterpret_cast<const uint8_t*>(req.body.data()), req.body.size());
@@ -381,13 +420,6 @@ void HttpServer::HandleRequest(Client* client, const HttpRequest& req) {
                      res.size());
   }
 
-  if (req.uri == "/get_metric_descriptors") {
-    std::vector<uint8_t> res = trace_processor_rpc_.GetMetricDescriptors(
-        reinterpret_cast<const uint8_t*>(req.body.data()), req.body.size());
-    return HttpReply(client->sock.get(), "200 OK", headers, res.data(),
-                     res.size());
-  }
-
   if (req.uri == "/enable_metatrace") {
     trace_processor_rpc_.EnableMetatrace();
     return HttpReply(client->sock.get(), "200 OK", headers);
@@ -407,6 +439,7 @@ void HttpServer::HandleRequest(Client* client, const HttpRequest& req) {
 void RunHttpRPCServer(std::unique_ptr<TraceProcessor> preloaded_instance,
                       std::string port_number) {
   HttpServer srv(std::move(preloaded_instance));
+  g_httpd_instance = &srv;
   std::string port = port_number.empty() ? kBindPort : port_number;
   std::string ipv4_addr = "127.0.0.1:" + port;
   std::string ipv6_addr = "[::1]:" + port;
