@@ -35,6 +35,94 @@ import "protos/perfetto/common/descriptor.proto";
 //    In this case these messages are used to {,un}marshall HTTP requests and
 //    response made through src/trace_processor/rpc/httpd.cc .
 
+// At lowest level, the wire-format of the RPC procol is a linear sequence of
+// TraceProcessorRpc messages on each side of the byte pipe
+// Each message is prefixed by a tag (field = 1, type = length delimited) and a
+// varint encoding its size (this is so the whole stream can also be read /
+// written as if it was a repeated field of TraceProcessorRpcStream).
+
+message TraceProcessorRpcStream {
+  repeated TraceProcessorRpc msg = 1;
+}
+
+message TraceProcessorRpc {
+  // A monotonic counter used only for debugging purposes, to detect if the
+  // underlying stream is missing or duping data. The counter starts at 0 on
+  // each side of the pipe and is incremented on each message.
+  // Do NOT expect that a response has the same |seq| of its corresponding
+  // request: some requests (e.g., a query returning many rows) can yield more
+  // than one response message, bringing the tx and rq seq our of sync.
+  optional int64 seq = 1;
+
+  enum TraceProcessorMethod {
+    TPM_UNSPECIFIED = 0;
+    TPM_APPEND_TRACE_DATA = 1;
+    TPM_FINALIZE_TRACE_DATA = 2;
+    TPM_QUERY_STREAMING = 3;
+    TPM_QUERY_RAW_DEPRECATED = 4;
+    TPM_COMPUTE_METRIC = 5;
+    TPM_GET_METRIC_DESCRIPTORS = 6;
+    TPM_RESTORE_INITIAL_TABLES = 7;
+    TPM_ENABLE_METATRACE = 8;
+    TPM_DISABLE_AND_READ_METATRACE = 9;
+  }
+
+  oneof type {
+    // Client -> TraceProcessor requests.
+    TraceProcessorMethod request = 2;
+
+    // TraceProcessor -> Client responses.
+    TraceProcessorMethod response = 3;
+
+    // This is sent back instead of filling |response| when the client sends a
+    // |request| which is not known by the TraceProcessor service. This can
+    // happen when the client is newer than the service.
+    TraceProcessorMethod invalid_request = 4;
+  }
+
+  // Request/Response arguments.
+  // Not all requests / responses require an argument.
+
+  oneof args {
+    // TraceProcessorMethod request args.
+
+    // For TPM_APPEND_TRACE_DATA.
+    bytes append_trace_data = 101;
+    // For TPM_QUERY_STREAMING.
+    QueryArgs query_args = 103;
+    // For TPM_QUERY_RAW_DEPRECATED.
+    RawQueryArgs raw_query_args = 104;
+    // For TPM_COMPUTE_METRIC.
+    ComputeMetricArgs compute_metric_args = 105;
+
+    // TraceProcessorMethod response args.
+    // For TPM_APPEND_TRACE_DATA.
+    AppendTraceDataResult append_result = 201;
+    // For TPM_QUERY_STREAMING.
+    QueryResult query_result = 203;
+    // For TPM_QUERY_RAW_DEPRECATED.
+    RawQueryResult raw_query_result = 204;
+    // For TPM_COMPUTE_METRIC.
+    ComputeMetricResult metric_result = 205;
+    // For TPM_GET_METRIC_DESCRIPTORS.
+    DescriptorSet metric_descriptors = 206;
+    // For TPM_DISABLE_AND_READ_METATRACE.
+    DisableAndReadMetatraceResult metatrace = 209;
+  }
+}
+
+message AppendTraceDataResult {
+  optional int64 total_bytes_parsed = 1;
+  optional string error = 2;
+}
+
+message QueryArgs {
+  optional string sql_query = 1;
+
+  // Wall time when the query was queued. Used only for query stats.
+  optional uint64 time_queued_ns = 2;
+}
+
 // Input for the /raw_query endpoint.
 message RawQueryArgs {
   optional string sql_query = 1;
@@ -117,7 +205,6 @@ message QueryResult {
     // NUL-terminated. This is because JS incurs into a non-negligible overhead
     // when decoding strings and one decode + split('\0') is measurably faster
     // than decoding N strings. See goto.google.com/postmessage-benchmark .
-    // \0-concatenated.
     optional string string_cells = 5;
 
     // If true this is the last batch for the query result.
@@ -188,12 +275,4 @@ message DisableAndReadMetatraceResult {
 // in descriptor.proto.
 message DescriptorSet {
   repeated DescriptorProto descriptors = 1;
-}
-
-// Input for the /get_metric_descriptors endpoint.
-message GetMetricDescriptorsArgs {}
-
-// Output for the /get_metric_descriptors endpoint.
-message GetMetricDescriptorsResult {
-  optional DescriptorSet descriptor_set = 1;
 }
