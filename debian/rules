@@ -34,6 +34,8 @@ override_dh_auto_configure:
 
 override_dh_auto_build:
 	ninja -C out/release perfetto traced traced_probes
+	pandoc docs/reference/perfetto-cli.md -s -t man --shift-heading-level-by=-1 >\
+	 debian/perfetto.1
 
 override_dh_auto_clean:
 	rm -rf out/release
