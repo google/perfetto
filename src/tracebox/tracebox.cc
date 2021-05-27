@@ -125,9 +125,9 @@ int TraceboxMain(int argc, char** argv) {
   // spawned by the damonized cmdline client, which is what we want so killing
   // the backgrounded cmdline client will also kill the other services, as they
   // will live in the same background session.
-  int res = perfetto_cmd.ParseCmdlineAndMaybeDaemonize(argc, argv);
-  if (res)
-    return res;
+  auto opt_res = perfetto_cmd.ParseCmdlineAndMaybeDaemonize(argc, argv);
+  if (opt_res.has_value())
+    return *opt_res;
 
   std::string self_path = base::GetCurExecutablePath();
   base::Subprocess traced({self_path, "traced"});
