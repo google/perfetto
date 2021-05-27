@@ -580,6 +580,7 @@ util::Status RunQueriesWithoutOutput(const std::vector<std::string>& queries) {
     if (it.Next()) {
       return util::ErrStatus("Unexpected result from a query.");
     }
+    RETURN_IF_ERROR(it.Status());
   }
   return util::OkStatus();
 }
@@ -600,6 +601,7 @@ util::Status RunQueriesAndPrintResult(const std::vector<std::string>& queries,
     RETURN_IF_ERROR(it.Status());
     if (it.ColumnCount() == 0) {
       bool it_has_more = it.Next();
+      RETURN_IF_ERROR(it.Status());
       PERFETTO_DCHECK(!it_has_more);
       continue;
     }
