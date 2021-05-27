@@ -182,6 +182,9 @@ Unwinding the stack on every `malloc` call has a high cost that is not always wo
 
 The sampling rate is configurable as part of the initial handshake. A sampling rate == 1 will degenerate into the fully-accurate high-overhead mode.
 
+See [Sampling for Memory Profiles](/docs/design-docs/heapprofd-sampling) for
+more details.
+
 Prior art: [crbug.com/812262](http://crbug.com/812262), [crbug.com/803276](http://crbug.com/803276).
 
 ## Implementation Plan
