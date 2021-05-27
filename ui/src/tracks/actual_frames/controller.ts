@@ -12,14 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertExists, assertTrue} from '../../base/logging';
-import {
-  iter,
-  NUM,
-  singleRow,
-  slowlyCountRows,
-  STR
-} from '../../common/query_iterator';
+import {assertTrue} from '../../base/logging';
+import {NUM, NUM_NULL, STR} from '../../common/query_iterator';
 import {fromNs, toNs} from '../../common/time';
 import {
   TrackController,
@@ -51,18 +45,17 @@ class ActualFramesSliceTrackController extends TrackController<Config, Data> {
     const bucketNs = Math.max(Math.round(resolution * 1e9 * pxSize / 2) * 2, 1);
 
     if (this.maxDurNs === 0) {
-      const maxDurResult = await this.query(`
+      const maxDurResult = await this.queryV2(`
         select
           max(iif(dur = -1, (SELECT end_ts FROM trace_bounds) - ts, dur))
             as maxDur
         from experimental_slice_layout
         where filter_track_ids = '${this.config.trackIds.join(',')}'
       `);
-      const row = singleRow({maxDur: NUM}, maxDurResult);
-      this.maxDurNs = assertExists(row).maxDur;
+      this.maxDurNs = maxDurResult.firstRow({maxDur: NUM_NULL}).maxDur || 0;
     }
 
-    const rawResult = await this.query(`
+    const rawResult = await this.queryV2(`
       SELECT
         (s.ts + ${bucketNs / 2}) / ${bucketNs} * ${bucketNs} as tsq,
         s.ts as ts,
@@ -92,7 +85,7 @@ class ActualFramesSliceTrackController extends TrackController<Config, Data> {
       order by tsq, s.layout_depth
     `);
 
-    const numRows = slowlyCountRows(rawResult);
+    const numRows = rawResult.numRows();
     const slices: Data = {
       start,
       end,
@@ -119,23 +112,21 @@ class ActualFramesSliceTrackController extends TrackController<Config, Data> {
       return idx;
     }
 
-    const it = iter(
-        {
-          'tsq': NUM,
-          'ts': NUM,
-          'dur': NUM,
-          'layoutDepth': NUM,
-          'id': NUM,
-          'name': STR,
-          'isInstant': NUM,
-          'isIncomplete': NUM,
-          'color': STR,
-        },
-        rawResult);
+    const it = rawResult.iter({
+      'tsq': NUM,
+      'ts': NUM,
+      'dur': NUM,
+      'layoutDepth': NUM,
+      'id': NUM,
+      'name': STR,
+      'isInstant': NUM,
+      'isIncomplete': NUM,
+      'color': STR,
+    });
     for (let i = 0; it.valid(); i++, it.next()) {
-      const startNsQ = it.row.tsq;
-      const startNs = it.row.ts;
-      const durNs = it.row.dur;
+      const startNsQ = it.tsq;
+      const startNs = it.ts;
+      const durNs = it.dur;
       const endNs = startNs + durNs;
 
       let endNsQ = Math.floor((endNs + bucketNs / 2 - 1) / bucketNs) * bucketNs;
@@ -145,12 +136,12 @@ class ActualFramesSliceTrackController extends TrackController<Config, Data> {
 
       slices.starts[i] = fromNs(startNsQ);
       slices.ends[i] = fromNs(endNsQ);
-      slices.depths[i] = it.row.layoutDepth;
-      slices.titles[i] = internString(it.row.name);
-      slices.colors![i] = internString(it.row.color);
-      slices.sliceIds[i] = it.row.id;
-      slices.isInstant[i] = it.row.isInstant;
-      slices.isIncomplete[i] = it.row.isIncomplete;
+      slices.depths[i] = it.layoutDepth;
+      slices.titles[i] = internString(it.name);
+      slices.colors![i] = internString(it.color);
+      slices.sliceIds[i] = it.id;
+      slices.isInstant[i] = it.isInstant;
+      slices.isIncomplete[i] = it.isIncomplete;
     }
     return slices;
   }

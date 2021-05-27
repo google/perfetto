@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {slowlyCountRows} from '../../common/query_iterator';
+import {assertTrue} from '../../base/logging';
+import {NUM, NUM_NULL, STR} from '../../common/query_iterator';
 import {fromNs, toNs} from '../../common/time';
 import {
   TrackController,
@@ -37,36 +38,34 @@ class AsyncSliceTrackController extends TrackController<Config, Data> {
     const bucketNs = Math.max(Math.round(resolution * 1e9 * pxSize / 2) * 2, 1);
 
     if (this.maxDurNs === 0) {
-      const maxDurResult = await this.query(`
+      const maxDurResult = await this.queryV2(`
         select max(iif(dur = -1, (SELECT end_ts FROM trace_bounds) - ts, dur))
-        from experimental_slice_layout
+        as maxDur from experimental_slice_layout
         where filter_track_ids = '${this.config.trackIds.join(',')}'
       `);
-      if (slowlyCountRows(maxDurResult) === 1) {
-        this.maxDurNs = maxDurResult.columns[0].longValues![0];
-      }
+      this.maxDurNs = maxDurResult.firstRow({maxDur: NUM_NULL}).maxDur || 0;
     }
 
-    const rawResult = await this.query(`
+    const queryRes = await this.queryV2(`
       SELECT
         (ts + ${bucketNs / 2}) / ${bucketNs} * ${bucketNs} as tsq,
         ts,
         max(iif(dur = -1, (SELECT end_ts FROM trace_bounds) - ts, dur)) as dur,
-        layout_depth,
+        layout_depth as depth,
         name,
         id,
-        dur = 0 as is_instant,
-        dur = -1 as is_incomplete
+        dur = 0 as isInstant,
+        dur = -1 as isIncomplete
       from experimental_slice_layout
       where
         filter_track_ids = '${this.config.trackIds.join(',')}' and
         ts >= ${startNs - this.maxDurNs} and
         ts <= ${endNs}
-      group by tsq, layout_depth
-      order by tsq, layout_depth
+      group by tsq, depth
+      order by tsq, depth
     `);
 
-    const numRows = slowlyCountRows(rawResult);
+    const numRows = queryRes.numRows();
     const slices: Data = {
       start,
       end,
@@ -92,31 +91,37 @@ class AsyncSliceTrackController extends TrackController<Config, Data> {
       return idx;
     }
 
-    const cols = rawResult.columns;
-    for (let row = 0; row < numRows; row++) {
-      const startNsQ = +cols[0].longValues![row];
-      const startNs = +cols[1].longValues![row];
-      const durNs = +cols[2].longValues![row];
+    const it = queryRes.iter({
+      tsq: NUM,
+      ts: NUM,
+      dur: NUM,
+      depth: NUM,
+      name: STR,
+      id: NUM,
+      isInstant: NUM,
+      isIncomplete: NUM
+    });
+    for (let row = 0; it.valid(); it.next(), row++) {
+      const startNsQ = it.tsq;
+      const startNs = it.ts;
+      const durNs = it.dur;
       const endNs = startNs + durNs;
 
       let endNsQ = Math.floor((endNs + bucketNs / 2 - 1) / bucketNs) * bucketNs;
       endNsQ = Math.max(endNsQ, startNsQ + bucketNs);
 
-      if (startNsQ === endNsQ) {
-        throw new Error('Should never happen');
-      }
+      assertTrue(startNsQ !== endNsQ);
 
       slices.starts[row] = fromNs(startNsQ);
       slices.ends[row] = fromNs(endNsQ);
-      slices.depths[row] = +cols[3].longValues![row];
-      slices.titles[row] = internString(cols[4].stringValues![row]);
-      slices.sliceIds[row] = +cols[5].longValues![row];
-      slices.isInstant[row] = +cols[6].longValues![row];
-      slices.isIncomplete[row] = +cols[7].longValues![row];
+      slices.depths[row] = it.depth;
+      slices.titles[row] = internString(it.name);
+      slices.sliceIds[row] = it.id;
+      slices.isInstant[row] = it.isInstant;
+      slices.isIncomplete[row] = it.isIncomplete;
     }
     return slices;
   }
 }
-
 
 trackControllerRegistry.register(AsyncSliceTrackController);
