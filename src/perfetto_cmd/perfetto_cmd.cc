@@ -176,7 +176,7 @@ PerfettoCmd::~PerfettoCmd() {
   g_perfetto_cmd = nullptr;
 }
 
-int PerfettoCmd::PrintUsage(const char* argv0) {
+void PerfettoCmd::PrintUsage(const char* argv0) {
   fprintf(stderr, R"(
 Usage: %s
   --background     -d      : Exits immediately and continues in the background.
@@ -225,10 +225,10 @@ Detach mode. DISCOURAGED, read https://perfetto.dev/docs/concepts/detached-mode
                           Exit code:  0:Yes, 2:No, 1:Error.
 )", /* this comment fixes syntax highlighting in some editors */
           argv0);
-  return 1;
 }
 
-int PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc, char** argv) {
+base::Optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
+                                                               char** argv) {
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   umask(0000);  // make sure that file creation is not affected by umask.
 #endif
@@ -459,7 +459,8 @@ int PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc, char** argv) {
       continue;
     }
 
-    return PrintUsage(argv[0]);
+    PrintUsage(argv[0]);
+    return 1;
   }
 
   for (ssize_t i = optind; i < argc; i++) {
@@ -693,7 +694,7 @@ int PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc, char** argv) {
     base::Daemonize();
   }
 
-  return 0;  // Continues in ConnectToServiceAndRun() below.
+  return base::nullopt;  // Continues in ConnectToServiceAndRun() below.
 }
 
 int PerfettoCmd::ConnectToServiceAndRun() {
@@ -1095,9 +1096,9 @@ void PerfettoCmd::LogTriggerEvents(
 
 int PERFETTO_EXPORT_ENTRYPOINT PerfettoCmdMain(int argc, char** argv) {
   perfetto::PerfettoCmd cmd;
-  int res = cmd.ParseCmdlineAndMaybeDaemonize(argc, argv);
-  if (res)
-    return res;
+  auto opt_res = cmd.ParseCmdlineAndMaybeDaemonize(argc, argv);
+  if (opt_res.has_value())
+    return *opt_res;
   return cmd.ConnectToServiceAndRun();
 }
 
