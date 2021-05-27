@@ -1,4 +1,8 @@
-# heap_profile(1)
+# HEAP_PROFILE(1)
+
+## NAME
+
+heap_profile - record heap profile on Android device
 
 ## DESCRIPTION
 
