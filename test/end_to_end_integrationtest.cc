@@ -1176,6 +1176,11 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(InvalidCases)) {
   EXPECT_THAT(stderr_, HasSubstr("Cannot specify a trace config"));
 }
 
+TEST_F(PerfettoCmdlineTest, NoSanitizers(Version)) {
+  auto perfetto = ExecPerfetto({"--version"});
+  EXPECT_EQ(0, perfetto.Run(&stderr_)) << stderr_;
+}
+
 TEST_F(PerfettoCmdlineTest, NoSanitizers(TxtConfig)) {
   std::string cfg("duration_ms: 100");
   auto perfetto = ExecPerfetto({"-c", "-", "--txt", "-o", "-"}, cfg);

@@ -50,7 +50,10 @@ class PerfettoCmd : public Consumer {
   // The main() is split in two stages: cmdline parsing and actual interaction
   // with traced. This is to allow tools like tracebox to avoid spawning the
   // service for no reason if the cmdline parsing fails.
-  int ParseCmdlineAndMaybeDaemonize(int argc, char** argv);
+  // Return value:
+  //   nullopt: no error, the caller should call ConnectToServiceAndRun.
+  //   0-N: the caller should exit() with the given exit code.
+  base::Optional<int> ParseCmdlineAndMaybeDaemonize(int argc, char** argv);
   int ConnectToServiceAndRun();
 
   // perfetto::Consumer implementation.
@@ -69,7 +72,7 @@ class PerfettoCmd : public Consumer {
   bool OpenOutputFile();
   void SetupCtrlCSignalHandler();
   void FinalizeTraceAndExit();
-  int PrintUsage(const char* argv0);
+  void PrintUsage(const char* argv0);
   void PrintServiceState(bool success, const TracingServiceState&);
   void OnTimeout();
   bool is_detach() const { return !detach_key_.empty(); }
