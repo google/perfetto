@@ -121,8 +121,8 @@ PERFETTO_TP_TABLE(PERFETTO_TP_GPU_COUNTER_TRACK_DEF);
 // @param perf_session_id id of a distict profiling stream.
 //        {@joinable perf_sample.perf_session_id}
 // @param cpu the core the sample was taken on.
-// @is_timebase if true, this counter was the sampling timebase for this
-//              perf_session_id.
+// @param is_timebase if true, this counter was the sampling
+//        timebase for this perf_session_id.
 // @tablegroup Tracks
 #define PERFETTO_TP_PERF_COUNTER_TRACK_DEF(NAME, PARENT, C) \
   NAME(PerfCounterTrackTable, "perf_counter_track")         \
