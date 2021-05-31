@@ -8018,6 +8018,7 @@ genrule {
     "src/trace_processor/metrics/android/process_oom_score.sql",
     "src/trace_processor/metrics/android/process_unagg_mem_view.sql",
     "src/trace_processor/metrics/android/span_view_stats.sql",
+    "src/trace_processor/metrics/android/thread_counter_span_view.sql",
     "src/trace_processor/metrics/android/unsymbolized_frames.sql",
     "src/trace_processor/metrics/chrome/actual_power_by_category.sql",
     "src/trace_processor/metrics/chrome/actual_power_by_rail_mode.sql",

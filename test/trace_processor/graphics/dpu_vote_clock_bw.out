@@ -1,0 +1,16 @@
+android_hwcomposer {
+  skipped_validation_count: 0
+  unskipped_validation_count: 0
+  separated_validation_count: 0
+  unknown_validation_count: 0
+  dpu_vote_metrics {
+    tid: 237
+    avg_dpu_vote_clock: 206250
+    avg_dpu_vote_avg_bw: 210000
+    avg_dpu_vote_peak_bw: 205000
+  }
+  dpu_vote_metrics {
+    tid: 299
+    avg_dpu_vote_clock: 250000
+  }
+}
