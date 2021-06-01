@@ -401,12 +401,9 @@ void HttpServer::HandleRequest(Client* client, const HttpRequest& req) {
   }
 
   if (req.uri == "/status") {
-    protozero::HeapBuffered<protos::pbzero::StatusResult> res;
-    res->set_loaded_trace_name(
-        trace_processor_rpc_.GetCurrentTraceName().c_str());
-    std::vector<uint8_t> buf = res.SerializeAsArray();
-    return HttpReply(client->sock.get(), "200 OK", headers, buf.data(),
-                     buf.size());
+    auto status = trace_processor_rpc_.GetStatus();
+    return HttpReply(client->sock.get(), "200 OK", headers, status.data(),
+                     status.size());
   }
 
   if (req.uri == "/compute_metric") {

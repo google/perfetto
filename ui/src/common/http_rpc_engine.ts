@@ -23,7 +23,7 @@ const RPC_CONNECT_TIMEOUT_MS = 2000;
 
 export interface HttpRpcState {
   connected: boolean;
-  loadedTraceName?: string;
+  status?: StatusResult;
   failure?: string;
 }
 
@@ -98,11 +98,8 @@ export class HttpRpcEngine extends Engine {
         httpRpcState.failure = `${resp.status} - ${resp.statusText}`;
       } else {
         const buf = new Uint8Array(await resp.arrayBuffer());
-        const status = StatusResult.decode(buf);
         httpRpcState.connected = true;
-        if (status.loadedTraceName) {
-          httpRpcState.loadedTraceName = status.loadedTraceName;
-        }
+        httpRpcState.status = StatusResult.decode(buf);
       }
     } catch (err) {
       httpRpcState.failure = `${err}`;

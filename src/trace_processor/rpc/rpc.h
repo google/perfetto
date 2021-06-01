@@ -106,6 +106,7 @@ class Rpc {
   std::vector<uint8_t> ComputeMetric(const uint8_t* data, size_t len);
   void EnableMetatrace();
   std::vector<uint8_t> DisableAndReadMetatrace();
+  std::vector<uint8_t> GetStatus();
 
   // Creates a new RPC session by deleting all tables and views that have been
   // created (by the UI or user) after the trace was loaded; built-in

@@ -23,6 +23,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/utils.h"
+#include "perfetto/ext/base/version.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/protozero/scattered_stream_writer.h"
 #include "perfetto/trace_processor/trace_processor.h"
@@ -241,6 +242,13 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
       resp.Send(rpc_response_fn_);
       break;
     }
+    case RpcProto::TPM_GET_STATUS: {
+      Response resp(tx_seq_id_++, req_type);
+      std::vector<uint8_t> status = GetStatus();
+      resp->set_status()->AppendRawProtoBytes(status.data(), status.size());
+      resp.Send(rpc_response_fn_);
+      break;
+    }
     default: {
       // This can legitimately happen if the client is newer. We reply with a
       // generic "unkown request" response, so the client can do feature
@@ -453,10 +461,6 @@ void Rpc::RawQueryInternal(const uint8_t* args,
   PERFETTO_DLOG("[RPC] RawQuery > %d rows (err: %d)", rows, !status.ok());
 }
 
-std::string Rpc::GetCurrentTraceName() {
-  return trace_processor_->GetCurrentTraceName();
-}
-
 void Rpc::RestoreInitialTables() {
   trace_processor_->RestoreInitialTables();
 }
@@ -532,6 +536,14 @@ void Rpc::DisableAndReadMetatraceInternal(
   } else {
     result->set_error(status.message());
   }
+}
+
+std::vector<uint8_t> Rpc::GetStatus() {
+  protozero::HeapBuffered<protos::pbzero::StatusResult> status;
+  status->set_loaded_trace_name(trace_processor_->GetCurrentTraceName());
+  status->set_human_readable_version(base::GetVersionString());
+  status->set_api_version(protos::pbzero::TRACE_PROCESSOR_CURRENT_API_VERSION);
+  return status.SerializeAsArray();
 }
 
 }  // namespace trace_processor
