@@ -119,7 +119,7 @@ class StringView {
   }
 
   std::string ToStdString() const {
-    return data_ == nullptr ? "" : std::string(data_, size_);
+    return size_ == 0 ? "" : std::string(data_, size_);
   }
 
   uint64_t Hash() const {
