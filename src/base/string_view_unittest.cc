@@ -34,6 +34,8 @@ TEST(StringViewTest, BasicCases) {
   EXPECT_EQ(StringView("ax", 1), StringView("ay", 1));
   EXPECT_EQ(StringView("ax", 1), StringView("a"));
   EXPECT_EQ(StringView("ax", 1), "a");
+  EXPECT_EQ(StringView(reinterpret_cast<const char*>(0x100), 0).ToStdString(),
+            std::string(""));
   EXPECT_EQ(StringView("foo|", 3).ToStdString(), std::string("foo"));
   EXPECT_TRUE(StringView("x") != StringView(""));
   EXPECT_TRUE(StringView("") != StringView("y"));
