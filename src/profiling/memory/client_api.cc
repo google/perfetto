@@ -133,32 +133,49 @@ perfetto::profiling::Spinlock g_client_lock{};
 
 std::atomic<uint32_t> g_next_heap_id{kMinHeapId};
 
+// This can get called while holding the spinlock (in normal operation), or
+// without holding the spinlock (from OnSpinlockTimeout).
 void DisableAllHeaps() {
-  for (uint32_t i = kMinHeapId; i < g_next_heap_id.load(); ++i) {
+  bool disabled[perfetto::base::ArraySize(g_heaps)] = {};
+  uint32_t max_heap = g_next_heap_id.load();
+  // This has to be done in two passes, in case the disabled_callback for one
+  // enabled heap uses another. In that case, the callbacks for the other heap
+  // would time out trying to acquire the spinlock, which we hold here.
+  for (uint32_t i = kMinHeapId; i < max_heap; ++i) {
     AHeapInfo& info = GetHeap(i);
     if (!info.ready.load(std::memory_order_acquire))
       continue;
-    if (info.enabled.load(std::memory_order_acquire)) {
-      info.enabled.store(false, std::memory_order_release);
-      if (info.disabled_callback) {
-        AHeapProfileDisableCallbackInfo disable_info;
-        info.disabled_callback(info.disabled_callback_data, &disable_info);
-      }
+    disabled[i] = info.enabled.exchange(false, std::memory_order_acq_rel);
+  }
+  for (uint32_t i = kMinHeapId; i < max_heap; ++i) {
+    if (!disabled[i]) {
+      continue;
+    }
+    AHeapInfo& info = GetHeap(i);
+    if (info.disabled_callback) {
+      AHeapProfileDisableCallbackInfo disable_info;
+      info.disabled_callback(info.disabled_callback_data, &disable_info);
     }
   }
 }
+
+#pragma GCC diagnostic push
+#if PERFETTO_DCHECK_IS_ON()
+#pragma GCC diagnostic ignored "-Wmissing-noreturn"
+#endif
 
 void OnSpinlockTimeout() {
   // Give up on profiling the process but leave it running.
   // The process enters into a poisoned state and will reject all
   // subsequent profiling requests.  The current session is kept
   // running but no samples are reported to it.
-  PERFETTO_ELOG(
+  PERFETTO_DFATAL_OR_ELOG(
       "Timed out on the spinlock - something is horribly wrong. "
       "Leaking heapprofd client.");
   DisableAllHeaps();
   perfetto::profiling::PoisonSpinlock(&g_client_lock);
 }
+#pragma GCC diagnostic pop
 
 // Note: g_client can be reset by AHeapProfile_initSession without calling this
 // function.
