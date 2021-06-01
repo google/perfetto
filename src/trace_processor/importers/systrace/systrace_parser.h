@@ -153,6 +153,8 @@ inline SystraceParseResult ParseSystraceTracePoint(base::StringView str,
   switch (ph) {
     case 'B': {
       size_t name_index = 2 + tgid_length + 1;
+      if (name_index > len || s[name_index - 1] != '|')
+        return SystraceParseResult::kFailure;
       out->name = base::StringView(
           s + name_index, len - name_index - (s[len - 1] == '\n' ? 1 : 0));
       if (out->name.empty()) {
