@@ -54,6 +54,11 @@ message TraceProcessorRpc {
   // than one response message, bringing the tx and rq seq our of sync.
   optional int64 seq = 1;
 
+  // This is returned when some unrecoverable error has been detected by the
+  // peer. The typical case is TraceProcessor detecting that the |seq| sequence
+  // is broken (e.g. when having two tabs open with the same --httpd instance).
+  optional string fatal_error = 5;
+
   enum TraceProcessorMethod {
     TPM_UNSPECIFIED = 0;
     TPM_APPEND_TRACE_DATA = 1;

@@ -287,9 +287,6 @@ void HttpServer::HandleRequest(Client* client, const HttpRequest& req) {
   std::string allow_origin_hdr =
       "Access-Control-Allow-Origin: " + req.origin.ToStdString();
 
-  std::string tp_session_id_header =
-      "X-TP-Session-ID: " + trace_processor_rpc_.GetSessionId();
-
   // This is the default. Overridden by the /query handler for chunked replies.
   char transfer_encoding_hdr[255] = "Transfer-Encoding: identity";
   std::initializer_list<const char*> headers = {
@@ -297,10 +294,8 @@ void HttpServer::HandleRequest(Client* client, const HttpRequest& req) {
       "Cache-Control: no-cache",                         //
       "Keep-Alive: timeout=5, max=1000",                 //
       "Content-Type: application/x-protobuf",            //
-      "Access-Control-Expose-Headers: X-TP-Session-ID",  //
       transfer_encoding_hdr,                             //
       allow_origin_hdr.c_str(),
-      tp_session_id_header.c_str(),
   };
 
   if (req.method == "OPTIONS") {
@@ -328,6 +323,7 @@ void HttpServer::HandleRequest(Client* client, const HttpRequest& req) {
       PERFETTO_CHECK(http_client);
       if (data == nullptr) {
         // Unrecoverable RPC error case.
+        http_client->sock->Send("0\r\n\r\n", 5);
         http_client->sock->Shutdown(/*notify=*/true);
         return;
       }
