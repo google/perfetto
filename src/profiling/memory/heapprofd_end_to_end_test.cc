@@ -19,6 +19,7 @@
 #include <vector>
 
 #include <fcntl.h>
+#include <stdint.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -454,6 +455,7 @@ void __attribute__((constructor(1024))) RunCustomLifetime() {
   static std::atomic<bool> disabled{false};
   static std::atomic<uint64_t> sampling_interval;
 
+  static uint32_t other_heap_id = 0;
   auto enabled_callback = [](void*,
                              const AHeapProfileEnableCallbackInfo* info) {
     sampling_interval =
@@ -461,6 +463,8 @@ void __attribute__((constructor(1024))) RunCustomLifetime() {
     initialized = true;
   };
   auto disabled_callback = [](void*, const AHeapProfileDisableCallbackInfo*) {
+    PERFETTO_CHECK(other_heap_id);
+    AHeapProfile_reportFree(other_heap_id, 0);
     disabled = true;
   };
   static uint32_t heap_id =
@@ -469,6 +473,7 @@ void __attribute__((constructor(1024))) RunCustomLifetime() {
                                        enabled_callback, nullptr),
           disabled_callback, nullptr));
 
+  other_heap_id = AHeapProfile_registerHeap(AHeapInfo_create("othertest"));
   ChildFinishHandshake();
 
   // heapprofd_client needs malloc to see the signal.
@@ -1136,6 +1141,7 @@ TEST_P(HeapprofdEndToEnd, CustomLifetime) {
     cfg->set_sampling_interval_bytes(1000000);
     cfg->add_pid(pid);
     cfg->add_heaps("test");
+    cfg->add_heaps("othertest");
   });
 
   auto helper = Trace(trace_config);
