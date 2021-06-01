@@ -12,25 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {assertTrue} from '../base/logging';
 import * as init_trace_processor from '../gen/trace_processor';
 
-import {WasmBridge, WasmBridgeRequest} from './wasm_bridge';
+import {WasmBridge} from './wasm_bridge';
 
-// tslint:disable no-any
-// Proxy all messages to WasmBridge#callWasm.
-const anySelf = (self as any);
+const selfWorker = self as {} as Worker;
 
-// Messages can arrive before we are initialized, queue these for later.
+// Messages can arrive before the Wasm module initialization is complete.
+// Queue these for later.
 const msgQueue: MessageEvent[] = [];
-anySelf.onmessage = (msg: MessageEvent) => {
+selfWorker.onmessage = (msg: MessageEvent) => {
   msgQueue.push(msg);
 };
 
-const bridge = new WasmBridge(init_trace_processor);
+const bridge = new WasmBridge(init_trace_processor, selfWorker);
 bridge.whenInitialized.then(() => {
   const handleMsg = (msg: MessageEvent) => {
-    const request: WasmBridgeRequest = msg.data;
-    anySelf.postMessage(bridge.callWasm(request));
+    assertTrue(msg.data instanceof Uint8Array);
+    bridge.onRpcDataReceived(msg.data as Uint8Array);
   };
 
   // Dispatch queued messages.
@@ -39,5 +39,5 @@ bridge.whenInitialized.then(() => {
     handleMsg(msg);
   }
 
-  anySelf.onmessage = handleMsg;
+  selfWorker.onmessage = handleMsg;
 });
