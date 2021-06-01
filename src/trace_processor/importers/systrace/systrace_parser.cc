@@ -59,7 +59,7 @@ void SystraceParser::ParseZeroEvent(int64_t ts,
                                     int64_t value) {
   systrace_utils::SystraceTracePoint point{};
   point.name = name;
-  point.value = static_cast<double>(value);
+  point.value = value;
 
   // Hardcode the tgid to 0 (i.e. no tgid available) because zero events can
   // come from kernel threads and as we group kernel threads into the kthreadd
@@ -108,7 +108,7 @@ void SystraceParser::ParseTracingMarkWrite(int64_t ts,
   // the UI.
   point.tgid = 0;
 
-  point.value = static_cast<double>(value);
+  point.value = value;
   // Some versions of this trace point fill trace_type with one of (B/E/C),
   // others use the trace_begin boolean and only support begin/end events:
   if (trace_type == 0) {
@@ -164,7 +164,7 @@ void SystraceParser::ParseSystracePoint(
     case 'S':
     case 'F': {
       StringId name_id = context_->storage->InternString(point.name);
-      int64_t cookie = static_cast<int64_t>(point.value);
+      int64_t cookie = point.value;
       UniquePid upid =
           context_->process_tracker->GetOrCreateProcess(point.tgid);
 
@@ -223,7 +223,8 @@ void SystraceParser::ParseSystracePoint(
         // Promote ScreenState to its own top level counter.
         TrackId track =
             context_->track_tracker->InternGlobalCounterTrack(screen_state_id_);
-        context_->event_tracker->PushCounter(ts, point.value, track);
+        context_->event_tracker->PushCounter(
+            ts, static_cast<double>(point.value), track);
         return;
       }
 
@@ -243,7 +244,8 @@ void SystraceParser::ParseSystracePoint(
         track_id =
             context_->track_tracker->InternProcessCounterTrack(name_id, upid);
       }
-      context_->event_tracker->PushCounter(ts, point.value, track_id);
+      context_->event_tracker->PushCounter(ts, static_cast<double>(point.value),
+                                           track_id);
     }
   }
 }
