@@ -45,6 +45,8 @@
 #include "src/trace_processor/util/proto_to_json.h"
 #include "src/trace_processor/util/status_macros.h"
 
+#include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
+
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_HTTPD)
 #include "src/trace_processor/rpc/httpd.h"
 #endif
@@ -756,6 +758,8 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 
     if (option == 'v') {
       printf("%s\n", base::GetVersionString());
+      printf("Trace Processor RPC API version: %d\n",
+             protos::pbzero::TRACE_PROCESSOR_CURRENT_API_VERSION);
       exit(0);
     }
 
