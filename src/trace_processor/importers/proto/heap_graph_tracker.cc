@@ -580,7 +580,7 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
                   current_type->field_name_ids[field_offset_in_cls++];
               auto it = sequence_state.interned_fields.find(field_id);
               if (it == sequence_state.interned_fields.end()) {
-                PERFETTO_ELOG("Invalid field id.");
+                PERFETTO_DLOG("Invalid field id.");
                 context_->storage->IncrementIndexedStats(
                     stats::heap_graph_malformed_packet,
                     static_cast<int>(sequence_state.current_upid));
