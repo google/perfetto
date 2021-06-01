@@ -20,6 +20,7 @@
 #include <stdint.h>
 
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
+#include "src/trace_processor/importers/json/json_utils.h"
 #include "src/trace_processor/importers/systrace/systrace_line_tokenizer.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
@@ -32,7 +33,6 @@ namespace trace_processor {
 
 class TraceProcessorContext;
 
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 // Visible for testing.
 enum class ReadDictRes {
   kFoundDict,
@@ -93,7 +93,11 @@ ReadSystemLineRes ReadOneSystemTraceLine(const char* start,
                                          const char* end,
                                          std::string* line,
                                          const char** next);
-#endif
+
+// Parses the "displayTimeUnit" key from the given trace buffer
+// and returns the associated time unit if one exists.
+base::Optional<json::TimeUnit> MaybeParseDisplayTimeUnit(
+    base::StringView buffer);
 
 // Reads a JSON trace in chunks and extracts top level json objects.
 class JsonTraceTokenizer : public ChunkedTraceReader {
@@ -139,11 +143,9 @@ class JsonTraceTokenizer : public ChunkedTraceReader {
     kEof,
   };
 
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
   util::Status ParseInternal(const char* start,
                              const char* end,
                              const char** next);
-#endif
 
   TraceProcessorContext* const context_;
 
