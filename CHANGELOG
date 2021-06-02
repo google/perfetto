@@ -1,18 +1,43 @@
 Unreleased:
   Tracing service and probes:
+    *
+  Trace Processor:
+    *
+  UI:
+    *
+  SDK:
+    *
+
+
+v16.0 - 2021-06-01:
+  Tracing service and probes:
     * Added support for building most targets (including traced, SDK and
       trace_processor_shell) from Windows using either clang-cl or MSVC 2019.
     * Added tracebox, a monolithic binary to capture traces with one command
       on Linux and older versions of Android (tested on Android Oreo).
+    * Added support for service-side field-level filtering of traces. The
+      consumer can pass a filter bytecode and ensure that non-allowed fields
+      are never emitted in output.
+    * Added reporting of service version and producer SDK version into the trace
+      and `perfetto --query`.
+    * Fixed compatibility with Android versions older than Pie (for sideloading)
+      which cause failures when trying to enable atrace categories.
   Trace Processor:
-    *
+    * Added new RPC interface based on a bidirectional binary pipe. This allows
+      to simplify integration with out-of-process users. The existing --httpd
+      interface now exposes a single /rpc endpoint. Older endpoints are still
+      available for legacy clients.
+    * Added support for counters and instant events in JSON traces.
+    * Fixed support of displayTimeUnit in JSON traces.
   UI:
     * Added warning dialog when trying to use a trace_processor_shell --httpd
       which is too old.
     * Added warning dialog when trying to use a trace_processor_shell --httpd
       RPC instance from more than one tab.
-  SDK:
-    *
+    * Added links to convert the trace to JSON or systrace directly from the UI.
+    * Changed track sorting logic. Tracks are now sorted in groups (e.g.,
+      scheduling tracks, summary tracks, frame timeline tracks).
+    * Fixed crashes happening flakily when pushing traces via window.open().
 
 
 v15.0 - 2021-05-05:
