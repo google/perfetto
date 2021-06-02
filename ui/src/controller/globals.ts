@@ -100,6 +100,19 @@ class Globals implements App {
         .send<void>(`publish${what}`, [data], transferList);
   }
 
+  // Returns the port of the MessageChannel that can be used to communicate with
+  // the Wasm Engine (issue SQL queries and retrieve results).
+  resetEngineWorker() {
+    const chan = new MessageChannel();
+    const port = chan.port1;
+    // Invokes resetEngineWorker() in frontend/index.ts. It will spawn a new
+    // worker and assign it the passed |port|.
+    assertExists(this._frontend).send<void>('resetEngineWorker', [port], [
+      port
+    ]);
+    return chan.port2;
+  }
+
   get state(): State {
     return assertExists(this._state);
   }

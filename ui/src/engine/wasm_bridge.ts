@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {defer} from '../base/deferred';
+import {assertExists, assertTrue} from '../base/logging';
 import * as init_trace_processor from '../gen/trace_processor';
 
 // The Initialize() call will allocate a buffer of REQ_BUF_SIZE bytes which
@@ -21,12 +22,6 @@ import * as init_trace_processor from '../gen/trace_processor';
 // The buffer will be allocated by the C++ side and reachable at
 // HEAPU8[reqBufferAddr, +REQ_BUFFER_SIZE].
 const REQ_BUF_SIZE = 32 * 1024 * 1024;
-
-// The common denominator between Worker and MessageChannel. Used to send
-// messages, regardless of Worker vs a dedicated MessagePort.
-export interface PostMessageChannel {
-  postMessage(message: Uint8Array, transfer: Transferable[]): void;
-}
 
 // The end-to-end interaction between JS and Wasm is as follows:
 // - [JS] Inbound data received by the worker (onmessage() in engine/index.ts).
@@ -45,13 +40,12 @@ export class WasmBridge {
   private connection: init_trace_processor.Module;
   private reqBufferAddr = 0;
   private lastStderr: string[] = [];
-  private postMessageChannel: PostMessageChannel;
+  private messagePort?: MessagePort;
 
-  constructor(init: init_trace_processor.InitWasm, chan: PostMessageChannel) {
+  constructor() {
     this.aborted = false;
-    this.postMessageChannel = chan;
     const deferredRuntimeInitialized = defer<void>();
-    this.connection = init({
+    this.connection = init_trace_processor({
       locateFile: (s: string) => s,
       print: (line: string) => console.log(line),
       printErr: (line: string) => this.appendAndLogErr(line),
@@ -67,10 +61,21 @@ export class WasmBridge {
     });
   }
 
-  onRpcDataReceived(data: Uint8Array) {
+  initialize(port: MessagePort) {
+    // Ensure that initialize() is called only once.
+    assertTrue(this.messagePort === undefined);
+    this.messagePort = port;
+    // Note: setting .onmessage implicitly calls port.start() and dispatches the
+    // queued messages. addEventListener('message') doesn't.
+    this.messagePort.onmessage = this.onMessage.bind(this);
+  }
+
+  onMessage(msg: MessageEvent) {
     if (this.aborted) {
       throw new Error('Wasm module crashed');
     }
+    assertTrue(msg.data instanceof Uint8Array);
+    const data = msg.data as Uint8Array;
     let wrSize = 0;
     // If the request data is larger than our JS<>Wasm interop buffer, split it
     // into multiple writes. The RPC channel is byte-oriented and is designed to
@@ -103,7 +108,7 @@ export class WasmBridge {
   // code while in the ccall(trace_processor_on_rpc_request).
   private onReply(heapPtr: number, size: number) {
     const data = this.connection.HEAPU8.slice(heapPtr, heapPtr + size);
-    this.postMessageChannel.postMessage(data, [data.buffer]);
+    assertExists(this.messagePort).postMessage(data, [data.buffer]);
   }
 
   private appendAndLogErr(line: string) {
