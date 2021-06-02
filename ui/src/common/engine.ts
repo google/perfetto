@@ -13,17 +13,23 @@
 // limitations under the License.
 
 import {defer, Deferred} from '../base/deferred';
-import {assertExists} from '../base/logging';
+import {assertExists, assertTrue} from '../base/logging';
 import {perfetto} from '../gen/protos';
 
 import {ProtoRingBuffer} from './proto_ring_buffer';
 import {
   ComputeMetricArgs,
   ComputeMetricResult,
+  QueryArgs,
   RawQueryArgs,
   RawQueryResult
 } from './protos';
 import {iter, NUM_NULL, slowlyCountRows, STR} from './query_iterator';
+import {
+  createQueryResult,
+  QueryResult,
+  WritableQueryResult
+} from './query_result';
 import {TimeSpan} from './time';
 
 import TraceProcessorRpc = perfetto.protos.TraceProcessorRpc;
@@ -41,6 +47,12 @@ export class NullLoadingTracker implements LoadingTracker {
 }
 
 export class QueryError extends Error {}
+
+// This is used to skip the decoding of queryResult from protobufjs and deal
+// with it ourselves. See the comment below around `QueryResult.decode = ...`.
+interface QueryResultBypass {
+  rawQueryResult: Uint8Array;
+}
 
 /**
  * Abstract interface of a trace proccessor.
@@ -65,6 +77,7 @@ export abstract class Engine {
   private rxBuf = new ProtoRingBuffer();
   private pendingParses = new Array<Deferred<void>>();
   private pendingEOFs = new Array<Deferred<void>>();
+  private pendingQueries = new Array<WritableQueryResult>();
   private pendingRawQueries = new Array<Deferred<RawQueryResult>>();
   private pendingRestoreTables = new Array<Deferred<void>>();
   private pendingComputeMetrics = new Array<Deferred<ComputeMetricResult>>();
@@ -103,6 +116,37 @@ export abstract class Engine {
    * proto-encoded message (without the proto preamble and varint size).
    */
   private onRpcResponseMessage(rpcMsgEncoded: Uint8Array) {
+    // Here we override the protobufjs-generated code to skip the parsing of the
+    // new streaming QueryResult and instead passing it through like a buffer.
+    // This is the overall problem: All trace processor responses are wrapped
+    // into a perfetto.protos.TraceProcessorRpc proto message. In all cases %
+    // TPM_QUERY_STREAMING, we want protobufjs to decode the proto bytes and
+    // give us a structured object. In the case of TPM_QUERY_STREAMING, instead,
+    // we want to deal with the proto parsing ourselves using the new
+    // QueryResult.appendResultBatch() method, because that handled streaming
+    // results more efficiently and skips several copies.
+    // By overriding the decode method below, we achieve two things:
+    // 1. We avoid protobufjs decoding the TraceProcessorRpc.query_result field.
+    // 2. We stash (a view of) the original buffer into the |rawQueryResult| so
+    //    the `case TPM_QUERY_STREAMING` below can take it.
+    perfetto.protos.QueryResult.decode =
+        (reader: protobuf.Reader, length: number) => {
+          const res =
+              perfetto.protos.QueryResult.create() as {} as QueryResultBypass;
+          res.rawQueryResult =
+              reader.buf.subarray(reader.pos, reader.pos + length);
+          // All this works only if protobufjs returns the original ArrayBuffer
+          // from |rpcMsgEncoded|. It should be always the case given the
+          // current implementation. This check mainly guards against future
+          // behavioral changes of protobufjs. We don't want to accidentally
+          // hold onto some internal protobufjs buffer. We are fine holding
+          // onto |rpcMsgEncoded| because those come from ProtoRingBuffer which
+          // is buffer-retention-friendly.
+          assertTrue(res.rawQueryResult.buffer === rpcMsgEncoded.buffer);
+          reader.pos += length;
+          return res as {} as perfetto.protos.QueryResult;
+        };
+
     const rpc = TraceProcessorRpc.decode(rpcMsgEncoded);
     this.loadingTracker.endLoading();
 
@@ -137,7 +181,12 @@ export abstract class Engine {
         assertExists(this.pendingRestoreTables.shift()).resolve();
         break;
       case TPM.TPM_QUERY_STREAMING:
-        // TODO(primiano): In the next CLs wire up the streaming query decoder.
+        const qRes = assertExists(rpc.queryResult) as {} as QueryResultBypass;
+        const pendingQuery = assertExists(this.pendingQueries[0]);
+        pendingQuery.appendResultBatch(qRes.rawQueryResult);
+        if (pendingQuery.isComplete()) {
+          this.pendingQueries.shift();
+        }
         break;
       case TPM.TPM_QUERY_RAW_DEPRECATED:
         const queryRes = assertExists(rpc.rawQueryResult) as RawQueryResult;
@@ -264,6 +313,38 @@ export abstract class Engine {
       res.push(+col.longValues![0]);
     }
     return res;
+  }
+
+  /*
+   * Issues a streaming query and retrieve results in batches.
+   * The returned QueryResult object will be populated over time with batches
+   * of rows (each batch conveys ~128KB of data and a variable number of rows).
+   * The caller can decide whether to wait that all batches have been received
+   * (by awaiting the returned object or calling result.waitAllRows()) or handle
+   * the rows incrementally.
+   *
+   * Example usage:
+   * const res = engine.queryV2('SELECT foo, bar FROM table');
+   * console.log(res.numRows());  // Will print 0 because we didn't await.
+   * await(res.waitAllRows());
+   * console.log(res.numRows());  // Will print the total number of rows.
+   *
+   * for (const it = res.iter({foo: NUM, bar:STR}); it.valid(); it.next()) {
+   *   console.log(it.foo, it.bar);
+   * }
+   * TODO(primiano): in next CLs move everything on queryV2, then rename it to
+   * just query(), and delete the old (columnar, non-streaming) query() method.
+   */
+  queryV2(sqlQuery: string): Promise<QueryResult>&QueryResult {
+    const rpc = TraceProcessorRpc.create();
+    rpc.request = TPM.TPM_QUERY_STREAMING;
+    rpc.queryArgs = new QueryArgs();
+    rpc.queryArgs.sqlQuery = sqlQuery;
+    rpc.queryArgs.timeQueuedNs = Math.floor(performance.now() * 1e6);
+    const result = createQueryResult();
+    this.pendingQueries.push(result);
+    this.rpcSendRequest(rpc);
+    return result;
   }
 
   /**
