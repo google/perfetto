@@ -539,11 +539,8 @@ __attribute__((visibility("default"))) bool AHeapProfile_initSession(
     return false;
   }
 
-  uint64_t heap_intervals[perfetto::base::ArraySize(g_heaps)] = {};
   uint32_t max_heap = g_next_heap_id.load();
-  for (uint32_t i = kMinHeapId; i < max_heap; ++i) {
-    heap_intervals[i] = MaybeToggleHeap(i, client.get());
-  }
+  bool heaps_enabled[perfetto::base::ArraySize(g_heaps)] = {};
 
   PERFETTO_LOG("%s: heapprofd_client initialized.", getprogname());
   {
@@ -557,15 +554,36 @@ __attribute__((visibility("default"))) bool AHeapProfile_initSession(
     // random engine.
     for (uint32_t i = kMinHeapId; i < max_heap; ++i) {
       AHeapInfo& heap = GetHeap(i);
-      if (heap_intervals[i]) {
-        heap.sampler.SetSamplingInterval(heap_intervals[i]);
+      if (!heap.ready.load(std::memory_order_acquire)) {
+        continue;
+      }
+      const uint64_t interval =
+          GetHeapSamplingInterval(client->client_config(), heap.heap_name);
+      if (interval) {
+        heaps_enabled[i] = true;
+        heap.sampler.SetSamplingInterval(interval);
       }
     }
 
     // This cannot have been set in the meantime. There are never two concurrent
     // calls to this function, as Bionic uses atomics to guard against that.
     PERFETTO_DCHECK(*GetClientLocked() == nullptr);
-    *GetClientLocked() = std::move(client);
+    *GetClientLocked() = client;
   }
+
+  // We want to run MaybeToggleHeap last to make sure we never enable a heap
+  // but subsequently return `false` from this function, which indicates to the
+  // caller that we did not enable anything.
+  //
+  // For startup profiles, `false` is used by Bionic to signal it can unload
+  // the library again.
+  for (uint32_t i = kMinHeapId; i < max_heap; ++i) {
+    if (!heaps_enabled[i]) {
+      continue;
+    }
+    auto interval = MaybeToggleHeap(i, client.get());
+    PERFETTO_DCHECK(interval > 0);
+  }
+
   return true;
 }
