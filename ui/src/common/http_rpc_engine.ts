@@ -12,9 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {defer, Deferred} from '../base/deferred';
 import {fetchWithTimeout} from '../base/http_utils';
-import {assertExists, assertTrue} from '../base/logging';
+import {assertTrue} from '../base/logging';
 import {StatusResult} from '../common/protos';
 
 import {Engine, LoadingTracker} from './engine';
@@ -24,23 +23,14 @@ const RPC_CONNECT_TIMEOUT_MS = 2000;
 
 export interface HttpRpcState {
   connected: boolean;
-  loadedTraceName?: string;
+  status?: StatusResult;
   failure?: string;
-}
-
-interface QueuedRequest {
-  methodName: string;
-  reqData?: Uint8Array;
-  resp: Deferred<Uint8Array>;
-  id: number;
 }
 
 export class HttpRpcEngine extends Engine {
   readonly id: string;
-  private nextReqId = 0;
-  private sessionId?: string = undefined;
-  private requestQueue = new Array<QueuedRequest>();
-  private pendingRequest?: QueuedRequest = undefined;
+  private requestQueue = new Array<Uint8Array>();
+  private requestPending = false;
   errorHandler: (err: string) => void = () => {};
 
   constructor(id: string, loadingTracker?: LoadingTracker) {
@@ -48,50 +38,17 @@ export class HttpRpcEngine extends Engine {
     this.id = id;
   }
 
-  async parse(data: Uint8Array): Promise<void> {
-    await this.enqueueRequest('parse', data);
-  }
-
-  async notifyEof(): Promise<void> {
-    await this.enqueueRequest('notify_eof');
-  }
-
-  async restoreInitialTables(): Promise<void> {
-    await this.enqueueRequest('restore_initial_tables');
-  }
-
-  rawQuery(rawQueryArgs: Uint8Array): Promise<Uint8Array> {
-    return this.enqueueRequest('raw_query', rawQueryArgs);
-  }
-
-  rawComputeMetric(rawComputeMetricArgs: Uint8Array): Promise<Uint8Array> {
-    return this.enqueueRequest('compute_metric', rawComputeMetricArgs);
-  }
-
-  async enableMetatrace(): Promise<void> {
-    await this.enqueueRequest('enable_metatrace');
-  }
-
-  disableAndReadMetatrace(): Promise<Uint8Array> {
-    return this.enqueueRequest('disable_and_read_metatrace');
-  }
-
-  enqueueRequest(methodName: string, data?: Uint8Array): Promise<Uint8Array> {
-    const resp = defer<Uint8Array>();
-    const req:
-        QueuedRequest = {methodName, reqData: data, resp, id: this.nextReqId++};
-    if (this.pendingRequest === undefined) {
-      this.beginFetch(req);
+  rpcSendRequestBytes(data: Uint8Array): void {
+    if (!this.requestPending && this.requestQueue.length === 0) {
+      this.beginFetch(data);
     } else {
-      this.requestQueue.push(req);
+      this.requestQueue.push(data);
     }
-    return resp;
   }
 
-  private beginFetch(req: QueuedRequest) {
-    assertTrue(this.pendingRequest === undefined);
-    this.pendingRequest = req;
-    const methodName = req.methodName.toLowerCase();
+  private beginFetch(data: Uint8Array) {
+    assertTrue(!this.requestPending);
+    this.requestPending = true;
     // Deliberately not using fetchWithTimeout() here. These queries can be
     // arbitrarily long.
     // Deliberately not setting cache: no-cache. Doing so invalidates also the
@@ -99,67 +56,31 @@ export class HttpRpcEngine extends Engine {
     // no-cache is also useless because trace-processor's replies are already
     // marked as no-cache and browsers generally already assume that POST
     // requests are not idempotent.
-    fetch(RPC_URL + methodName, {
+    fetch(RPC_URL + 'rpc', {
       method: 'post',
-      headers: {
-        'Content-Type': 'application/x-protobuf',
-        'X-Seq-Id': `${req.id}`,  // Used only for debugging.
-      },
-      body: req.reqData || new Uint8Array(),
+      headers: {'Content-Type': 'application/x-protobuf'},
+      body: data,
     })
-        .then(resp => this.endFetch(resp, req.id))
+        .then(resp => this.endFetch(resp))
         .catch(err => this.errorHandler(err));
   }
 
-  private endFetch(resp: Response, expectedReqId: number) {
-    const req = assertExists(this.pendingRequest);
-    this.pendingRequest = undefined;
-    assertTrue(expectedReqId === req.id);
+  private endFetch(resp: Response) {
+    assertTrue(this.requestPending);
     if (resp.status !== 200) {
-      req.resp.reject(`HTTP ${resp.status} - ${resp.statusText}`);
-      return;
+      throw new Error(`HTTP ${resp.status} - ${resp.statusText}`);
     }
-
-    if (req.methodName === 'restore_initial_tables') {
-      // restore_initial_tables resets the trace processor session id
-      // so make sure to also reset on our end for future queries.
-      this.sessionId = undefined;
-    } else {
-      const sessionId = resp.headers.get('X-TP-Session-ID') || undefined;
-      if (this.sessionId !== undefined && sessionId !== this.sessionId) {
-        req.resp.reject(
-            `The trace processor HTTP session does not match the initally seen
-             ID.
-
-             This can happen when using a HTTP trace processor instance and
-             either accidentally sharing this between multiple tabs or
-             restarting the trace processor while still in use by UI.
-
-             Please refresh this tab and ensure that trace processor is used by
-             at most one tab at a time.
-
-             Technical details:
-             Expected session id: ${this.sessionId}
-             Actual session id: ${sessionId}`);
-        return;
-      }
-      this.sessionId = sessionId;
-    }
-
     resp.arrayBuffer().then(arrBuf => {
       // Note: another request can sneak in via enqueueRequest() between the
       // arrayBuffer() call and this continuation. At this point
       // this.pendingRequest might be set again.
       // If not (the most common case) submit the next queued request, if any.
-      this.maybeSubmitNextQueuedRequest();
-      req.resp.resolve(new Uint8Array(arrBuf));
+      this.requestPending = false;
+      if (this.requestQueue.length > 0) {
+        this.beginFetch(this.requestQueue.shift()!);
+      }
+      super.onRpcResponseBytes(new Uint8Array(arrBuf));
     });
-  }
-
-  private maybeSubmitNextQueuedRequest() {
-    if (this.pendingRequest === undefined && this.requestQueue.length > 0) {
-      this.beginFetch(this.requestQueue.shift()!);
-    }
   }
 
   static async checkConnection(): Promise<HttpRpcState> {
@@ -177,11 +98,8 @@ export class HttpRpcEngine extends Engine {
         httpRpcState.failure = `${resp.status} - ${resp.statusText}`;
       } else {
         const buf = new Uint8Array(await resp.arrayBuffer());
-        const status = StatusResult.decode(buf);
         httpRpcState.connected = true;
-        if (status.loadedTraceName) {
-          httpRpcState.loadedTraceName = status.loadedTraceName;
-        }
+        httpRpcState.status = StatusResult.decode(buf);
       }
     } catch (err) {
       httpRpcState.failure = `${err}`;
