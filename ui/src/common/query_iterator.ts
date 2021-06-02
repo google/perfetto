@@ -16,40 +16,70 @@ import {assertTrue} from '../base/logging';
 
 import {RawQueryResult} from './protos';
 
-// Union of all the query result formats that we can turn into forward
-// iterators.
-// TODO(hjd): Replace someOtherEncoding place holder with the real new
-// format.
-type QueryResult = RawQueryResult|{someOtherEncoding: string};
-
-// One row extracted from an SQL result:
-interface Row {
-  [key: string]: string|number|null;
-}
-
-// API:
-// const result = await engine.query("select 42 as n;");
-// const it = iter({"answer": NUM}, result);
-// for (; it.valid(); it.next()) {
-//   console.log(it.row.answer);
-// }
-export interface RowIterator<T extends Row> {
-  valid(): boolean;
-  next(): void;
-  row: T;
-}
+// These types are used both for the new streaming query iterator and the old
+// columnar RawQueryResult.
 
 export const NUM = 0;
 export const STR = 'str';
 export const NUM_NULL: number|null = 1;
 export const STR_NULL: string|null = 'str_null';
-export type ColumnType =
-    (typeof NUM)|(typeof STR)|(typeof NUM_NULL)|(typeof STR_NULL);
+
+export type ColumnType = string|number|null;
+
+// One row extracted from an SQL result:
+export interface Row {
+  [key: string]: ColumnType;
+}
+
+// The methods that any iterator has to implement.
+export interface RowIteratorBase {
+  valid(): boolean;
+  next(): void;
+}
+
+// A RowIterator is a type that has all the fields defined in the query spec
+// plus the valid() and next() operators. This is to ultimately allow the
+// clients to do:
+// const result = await engine.queryV2("select name, surname, id from people;");
+// const iter = queryResult.iter({name: STR, surname: STR, id: NUM});
+// for (; iter.valid(); iter.next())
+//  console.log(iter.name, iter.surname);
+export type RowIterator<T extends Row> = RowIteratorBase&T;
+
+// The old iterator for non-batched queries. Going away. Usage.
+//   const result = await engine.query("select 42 as n;");
+//   const it = getRowIterator({"answer": NUM}, result);
+//   for (; it.valid(); it.next()) {
+//     console.log(it.row.answer);
+//   }
+export interface LegacyRowIterator<T extends Row> {
+  valid(): boolean;
+  next(): void;
+  row: T;
+}
+
+export function columnTypeToString(t: ColumnType): string {
+  switch (t) {
+    case NUM:
+      return 'NUM';
+    case NUM_NULL:
+      return 'NUM_NULL';
+    case STR:
+      return 'STR';
+    case STR_NULL:
+      return 'STR_NULL';
+    default:
+      return `INVALID(${t})`;
+  }
+}
+
+// TODO(primiano): the types and helpers in the rest of this file are
+// transitional and will be removed once we migrate everything to the streaming
+// query API.
 
 // Exported for testing
 export function findColumnIndex(
-    result: RawQueryResult, name: string, columnType: number|null|string):
-    number {
+    result: RawQueryResult, name: string, columnType: ColumnType): number {
   let matchingDescriptorIndex = -1;
   const disallowNulls = columnType === STR || columnType === NUM;
   const expectsStrings = columnType === STR || columnType === STR_NULL;
@@ -164,14 +194,15 @@ class ColumnarRowIterator {
 // Deliberately not exported, use iter() below to make code easy to switch
 // to other queryResult formats.
 function iterFromColumns<T extends Row>(
-    querySpec: T, queryResult: RawQueryResult): RowIterator<T> {
+    querySpec: T, queryResult: RawQueryResult): LegacyRowIterator<T> {
   const iter = new ColumnarRowIterator(querySpec, queryResult);
-  return iter as unknown as RowIterator<T>;
+  return iter as unknown as LegacyRowIterator<T>;
 }
 
 // Deliberately not exported, use iterUntyped() below to make code easy to
 // switch to other queryResult formats.
-function iterUntypedFromColumns(result: RawQueryResult): RowIterator<Row> {
+function iterUntypedFromColumns(result: RawQueryResult):
+    LegacyRowIterator<Row> {
   const spec: Row = {};
   const desc = result.columnDescriptors;
   for (let i = 0; i < desc.length; ++i) {
@@ -182,41 +213,25 @@ function iterUntypedFromColumns(result: RawQueryResult): RowIterator<Row> {
     spec[name] = desc[i].type === 3 ? STR_NULL : NUM_NULL;
   }
   const iter = new ColumnarRowIterator(spec, result);
-  return iter as unknown as RowIterator<Row>;
+  return iter as unknown as LegacyRowIterator<Row>;
 }
 
-function isColumnarQueryResult(result: QueryResult): result is RawQueryResult {
-  return (result as RawQueryResult).columnDescriptors !== undefined;
-}
-
-export function iterUntyped(result: QueryResult): RowIterator<Row> {
-  if (isColumnarQueryResult(result)) {
-    return iterUntypedFromColumns(result);
-  } else {
-    throw new Error('Unsuported format');
-  }
+export function iterUntyped(result: RawQueryResult): LegacyRowIterator<Row> {
+  return iterUntypedFromColumns(result);
 }
 
 export function iter<T extends Row>(
-    spec: T, result: QueryResult): RowIterator<T> {
-  if (isColumnarQueryResult(result)) {
-    return iterFromColumns(spec, result);
-  } else {
-    throw new Error('Unsuported format');
-  }
+    spec: T, result: RawQueryResult): LegacyRowIterator<T> {
+  return iterFromColumns(spec, result);
 }
 
-export function slowlyCountRows(result: QueryResult): number {
-  if (isColumnarQueryResult(result)) {
-    // This isn't actually slow for columnar data but it might be for other
-    // formats.
-    return +result.numRecords;
-  } else {
-    throw new Error('Unsuported format');
-  }
+export function slowlyCountRows(result: RawQueryResult): number {
+  // This isn't actually slow for columnar data but it might be for other
+  // formats.
+  return +result.numRecords;
 }
 
-export function singleRow<T extends Row>(spec: T, result: QueryResult): T|
+export function singleRow<T extends Row>(spec: T, result: RawQueryResult): T|
     undefined {
   const numRows = slowlyCountRows(result);
   if (numRows === 0) {
@@ -231,7 +246,7 @@ export function singleRow<T extends Row>(spec: T, result: QueryResult): T|
   return it.row;
 }
 
-export function singleRowUntyped(result: QueryResult): Row|undefined {
+export function singleRowUntyped(result: RawQueryResult): Row|undefined {
   const numRows = slowlyCountRows(result);
   if (numRows === 0) {
     return undefined;
