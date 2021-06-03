@@ -41,6 +41,7 @@
   * [Perfetto UI](visualization/perfetto-ui.md)
   * [Visualising large traces](visualization/large-traces.md)
   * [Deep linking to Perfetto UI](visualization/deep-linking-to-perfetto-ui.md)
+  * [Perfetto UI release process](visualization/perfetto-ui-release-process.md)
 
 * [Core concepts](#)
   * [Trace configuration](concepts/config.md)
