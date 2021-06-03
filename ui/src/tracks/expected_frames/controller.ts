@@ -12,14 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertExists} from '../../base/logging';
-import {
-  iter,
-  NUM,
-  singleRow,
-  slowlyCountRows,
-  STR
-} from '../../common/query_iterator';
+import {assertTrue} from '../../base/logging';
+import {NUM, NUM_NULL, STR} from '../../common/query_iterator';
 import {fromNs, toNs} from '../../common/time';
 import {
   TrackController,
@@ -44,17 +38,16 @@ class ExpectedFramesSliceTrackController extends TrackController<Config, Data> {
     const bucketNs = Math.max(Math.round(resolution * 1e9 * pxSize / 2) * 2, 1);
 
     if (this.maxDurNs === 0) {
-      const maxDurResult = await this.query(`
+      const maxDurResult = await this.queryV2(`
         select max(iif(dur = -1, (SELECT end_ts FROM trace_bounds) - ts, dur))
           as maxDur
         from experimental_slice_layout
         where filter_track_ids = '${this.config.trackIds.join(',')}'
       `);
-      const row = singleRow({maxDur: NUM}, maxDurResult);
-      this.maxDurNs = assertExists(row).maxDur;
+      this.maxDurNs = maxDurResult.firstRow({maxDur: NUM_NULL}).maxDur || 0;
     }
 
-    const rawResult = await this.query(`
+    const queryRes = await this.queryV2(`
       SELECT
         (ts + ${bucketNs / 2}) / ${bucketNs} * ${bucketNs} as tsq,
         ts,
@@ -73,7 +66,7 @@ class ExpectedFramesSliceTrackController extends TrackController<Config, Data> {
       order by tsq, layout_depth
     `);
 
-    const numRows = slowlyCountRows(rawResult);
+    const numRows = queryRes.numRows();
     const slices: Data = {
       start,
       end,
@@ -101,39 +94,35 @@ class ExpectedFramesSliceTrackController extends TrackController<Config, Data> {
     }
     const greenIndex = internString('#4CAF50');
 
-    const it = iter(
-        {
-          tsq: NUM,
-          ts: NUM,
-          dur: NUM,
-          layoutDepth: NUM,
-          id: NUM,
-          name: STR,
-          isInstant: NUM,
-          isIncomplete: NUM,
-        },
-        rawResult);
-    for (let i = 0; it.valid(); it.next(), ++i) {
-      const startNsQ = it.row.tsq;
-      const startNs = it.row.ts;
-      const durNs = it.row.dur;
+    const it = queryRes.iter({
+      tsq: NUM,
+      ts: NUM,
+      dur: NUM,
+      layoutDepth: NUM,
+      id: NUM,
+      name: STR,
+      isInstant: NUM,
+      isIncomplete: NUM,
+    });
+    for (let row = 0; it.valid(); it.next(), ++row) {
+      const startNsQ = it.tsq;
+      const startNs = it.ts;
+      const durNs = it.dur;
       const endNs = startNs + durNs;
 
       let endNsQ = Math.floor((endNs + bucketNs / 2 - 1) / bucketNs) * bucketNs;
       endNsQ = Math.max(endNsQ, startNsQ + bucketNs);
 
-      if (startNsQ === endNsQ) {
-        throw new Error('Should never happen');
-      }
+      assertTrue(startNsQ !== endNsQ);
 
-      slices.starts[i] = fromNs(startNsQ);
-      slices.ends[i] = fromNs(endNsQ);
-      slices.depths[i] = it.row.layoutDepth;
-      slices.titles[i] = internString(it.row.name);
-      slices.sliceIds[i] = it.row.id;
-      slices.isInstant[i] = it.row.isInstant;
-      slices.isIncomplete[i] = it.row.isIncomplete;
-      slices.colors![i] = greenIndex;
+      slices.starts[row] = fromNs(startNsQ);
+      slices.ends[row] = fromNs(endNsQ);
+      slices.depths[row] = it.layoutDepth;
+      slices.titles[row] = internString(it.name);
+      slices.sliceIds[row] = it.id;
+      slices.isInstant[row] = it.isInstant;
+      slices.isIncomplete[row] = it.isIncomplete;
+      slices.colors![row] = greenIndex;
     }
     return slices;
   }

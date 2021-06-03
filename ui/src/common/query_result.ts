@@ -100,6 +100,11 @@ export interface QueryResult {
   // iter<T extends Row>(spec: T): RowIterator<T>;
   iter<T extends Row>(spec: T): RowIterator<T>;
 
+  // Like iter() for queries that expect only one row. It embeds the valid()
+  // check (i.e. throws if no rows are available) and returns directly the
+  // first result.
+  firstRow<T extends Row>(spec: T): T;
+
   // If != undefined the query errored out and error() contains the message.
   error(): string|undefined;
 
@@ -177,6 +182,12 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
   iter<T extends Row>(spec: T): RowIterator<T> {
     const impl = new RowIteratorImplWithRowData(spec, this);
     return impl as {} as RowIterator<T>;
+  }
+
+  firstRow<T extends Row>(spec: T): T {
+    const impl = new RowIteratorImplWithRowData(spec, this);
+    assertTrue(impl.valid());
+    return impl as {} as RowIterator<T>as T;
   }
 
   // Can be called only once.
@@ -510,6 +521,7 @@ class RowIteratorImpl implements RowIteratorBase {
     if (nextBatchIdx >= this.resultObj.batches.length) {
       return false;
     }
+
     this.columnNames = this.resultObj.columnNames;
     this.numColumns = this.columnNames.length;
 
@@ -582,7 +594,8 @@ class RowIteratorImpl implements RowIteratorBase {
 // This is the object ultimately returned to the client when calling
 // QueryResult.iter(...).
 // The only reason why this is disjoint from RowIteratorImpl is to avoid
-// polluting the class members with the state variables required by
+// naming collisions between the members variables required by RowIteratorImpl
+// and the column names returned by the iterator.
 class RowIteratorImplWithRowData implements RowIteratorBase {
   private _impl: RowIteratorImpl;
 
@@ -612,6 +625,9 @@ class WaitableQueryResultImpl implements QueryResult, WritableQueryResult,
   // QueryResult implementation. Proxies all calls to the impl object.
   iter<T extends Row>(spec: T) {
      return this.impl.iter(spec);
+  }
+  firstRow<T extends Row>(spec: T) {
+     return this.impl.firstRow(spec);
   }
   waitAllRows() {
      return this.impl.waitAllRows();
