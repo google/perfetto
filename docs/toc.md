@@ -73,3 +73,4 @@
     * [Perfetto CI](design-docs/continuous-integration.md)
     * [ProtoZero](design-docs/protozero.md)
     * [Security model](design-docs/security-model.md)
+    * [Statsd Checkpoint Atoms](design-docs/checkpoint-atoms.md)
