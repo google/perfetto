@@ -4,7 +4,7 @@ Unreleased:
   Trace Processor:
     *
   UI:
-    *
+    * Fixed ADB connection issues ("unable to reset device") on Windows and Mac.
   SDK:
     *
 
