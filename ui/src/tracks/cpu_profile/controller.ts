@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {iter, NUM, slowlyCountRows} from '../../common/query_iterator';
+import {NUM} from '../../common/query_iterator';
 import {
   TrackController,
   trackControllerRegistry
@@ -36,9 +36,8 @@ class CpuProfileTrackController extends TrackController<Config, Data> {
       where utid = ${this.config.utid}
       order by ts`;
 
-    const result = await this.query(query);
-
-    const numRows = slowlyCountRows(result);
+    const result = await this.queryV2(query);
+    const numRows = result.numRows();
     const data: Data = {
       start,
       end,
@@ -49,11 +48,11 @@ class CpuProfileTrackController extends TrackController<Config, Data> {
       callsiteId: new Uint32Array(numRows),
     };
 
-    const it = iter({id: NUM, ts: NUM, callsiteId: NUM}, result);
-    for (let i = 0; it.valid(); it.next(), ++i) {
-      data.ids[i] = it.row.id;
-      data.tsStarts[i] = it.row.ts;
-      data.callsiteId[i] = it.row.callsiteId;
+    const it = result.iter({id: NUM, ts: NUM, callsiteId: NUM});
+    for (let row = 0; it.valid(); it.next(), ++row) {
+      data.ids[row] = it.id;
+      data.tsStarts[row] = it.ts;
+      data.callsiteId[row] = it.callsiteId;
     }
 
     return data;

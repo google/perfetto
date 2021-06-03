@@ -14,7 +14,7 @@
 
 import {TRACE_MARGIN_TIME_S} from '../common/constants';
 import {Engine} from '../common/engine';
-import {slowlyCountRows} from '../common/query_iterator';
+import {NUM, STR} from '../common/query_iterator';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
 import {TimeSpan} from '../common/time';
 
@@ -59,11 +59,11 @@ export class SearchController extends Controller<'main'> {
   }
 
   private async setup() {
-    await this.query(`create virtual table search_summary_window
+    await this.queryV2(`create virtual table search_summary_window
       using window;`);
-    await this.query(`create virtual table search_summary_sched_span using
+    await this.queryV2(`create virtual table search_summary_sched_span using
       span_join(sched PARTITIONED cpu, search_summary_window);`);
-    await this.query(`create virtual table search_summary_slice_span using
+    await this.queryV2(`create virtual table search_summary_slice_span using
       span_join(slice PARTITIONED track_id, search_summary_window);`);
   }
 
@@ -151,22 +151,25 @@ export class SearchController extends Controller<'main'> {
 
     startNs = Math.floor(startNs / quantumNs) * quantumNs;
 
-    await this.query(`update search_summary_window set
+    await this.queryV2(`update search_summary_window set
       window_start=${startNs},
       window_dur=${endNs - startNs},
       quantum=${quantumNs}
       where rowid = 0;`);
 
-    const rawUtidResult = await this.query(`select utid from thread join process
+    const utidRes = await this.queryV2(`select utid from thread join process
       using(upid) where thread.name like ${searchLiteral}
       or process.name like ${searchLiteral}`);
 
-    const utids = [...rawUtidResult.columns[0].longValues!];
+    const utids = [];
+    for (const it = utidRes.iter({utid: NUM}); it.valid(); it.next()) {
+      utids.push(it.utid);
+    }
 
     const cpus = await this.engine.getCpus();
     const maxCpu = Math.max(...cpus, -1);
 
-    const rawResult = await this.query(`
+    const res = await this.queryV2(`
         select
           (quantum_ts * ${quantumNs} + ${startNs})/1e9 as tsStart,
           ((quantum_ts+1) * ${quantumNs} + ${startNs})/1e9 as tsEnd,
@@ -185,18 +188,18 @@ export class SearchController extends Controller<'main'> {
           group by quantum_ts
           order by quantum_ts;`);
 
-    const numRows = slowlyCountRows(rawResult);
+    const numRows = res.numRows();
     const summary = {
       tsStarts: new Float64Array(numRows),
       tsEnds: new Float64Array(numRows),
       count: new Uint8Array(numRows)
     };
 
-    const columns = rawResult.columns;
-    for (let row = 0; row < numRows; row++) {
-      summary.tsStarts[row] = +columns[0].doubleValues![row];
-      summary.tsEnds[row] = +columns[1].doubleValues![row];
-      summary.count[row] = +columns[2].longValues![row];
+    const it = res.iter({tsStart: NUM, tsEnd: NUM, count: NUM});
+    for (let row = 0; it.valid(); it.next(), ++row) {
+      summary.tsStarts[row] = it.tsStart;
+      summary.tsEnds[row] = it.tsEnd;
+      summary.count[row] = it.count;
     }
     return summary;
   }
@@ -226,42 +229,43 @@ export class SearchController extends Controller<'main'> {
       }
     }
 
-    const rawUtidResult = await this.query(`select utid from thread join process
+    const utidRes = await this.queryV2(`select utid from thread join process
     using(upid) where
       thread.name like ${searchLiteral} or
       process.name like ${searchLiteral}`);
-    const utids = [...rawUtidResult.columns[0].longValues!];
+    const utids = [];
+    for (const it = utidRes.iter({utid: NUM}); it.valid(); it.next()) {
+      utids.push(it.utid);
+    }
 
-    const rawResult = await this.query(`
+    const queryRes = await this.queryV2(`
     select
-      id as slice_id,
+      id as sliceId,
       ts,
       'cpu' as source,
-      cpu as source_id,
+      cpu as sourceId,
       utid
     from sched where utid in (${utids.join(',')})
     union
     select
-      slice_id,
+      slice_id as sliceId,
       ts,
       'track' as source,
-      track_id as source_id,
+      track_id as sourceId,
       0 as utid
       from slice
       where slice.name like ${searchLiteral}
     union
     select
-      slice_id,
+      slice_id as sliceId,
       ts,
       'track' as source,
-      track_id as source_id,
+      track_id as sourceId,
       0 as utid
       from slice
       join args using(arg_set_id)
       where string_value like ${searchLiteral}
     order by ts`);
-
-    const numRows = slowlyCountRows(rawResult);
 
     const searchResults: CurrentSearchResults = {
       sliceIds: [],
@@ -269,37 +273,34 @@ export class SearchController extends Controller<'main'> {
       utids: [],
       trackIds: [],
       sources: [],
-      totalResults: +numRows,
+      totalResults: queryRes.numRows(),
     };
 
-    const columns = rawResult.columns;
-    for (let row = 0; row < numRows; row++) {
-      const source = columns[2].stringValues![row];
-      const sourceId = +columns[3].longValues![row];
+    const spec = {sliceId: NUM, ts: NUM, source: STR, sourceId: NUM, utid: NUM};
+    for (const it = queryRes.iter(spec); it.valid(); it.next()) {
       let trackId = undefined;
-      if (source === 'cpu') {
-        trackId = cpuToTrackId.get(sourceId);
-      } else if (source === 'track') {
-        trackId = engineTrackIdToTrackId.get(sourceId);
+      if (it.source === 'cpu') {
+        trackId = cpuToTrackId.get(it.sourceId);
+      } else if (it.source === 'track') {
+        trackId = engineTrackIdToTrackId.get(it.sourceId);
       }
 
+      // The .get() calls above could return undefined, this isn't just an else.
       if (trackId === undefined) {
         searchResults.totalResults--;
         continue;
       }
-
       searchResults.trackIds.push(trackId);
-      searchResults.sources.push(source);
-      searchResults.sliceIds.push(+columns[0].longValues![row]);
-      searchResults.tsStarts.push(+columns[1].longValues![row]);
-      searchResults.utids.push(+columns[4].longValues![row]);
+      searchResults.sources.push(it.source);
+      searchResults.sliceIds.push(it.sliceId);
+      searchResults.tsStarts.push(it.ts);
+      searchResults.utids.push(it.utid);
     }
     return searchResults;
   }
 
-
-  private async query(query: string) {
-    const result = await this.engine.query(query);
+  private async queryV2(query: string) {
+    const result = await this.engine.queryV2(query);
     return result;
   }
 }

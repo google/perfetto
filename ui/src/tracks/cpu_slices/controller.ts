@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {assertTrue} from '../../base/logging';
-import {slowlyCountRows} from '../../common/query_iterator';
+import {NUM} from '../../common/query_iterator';
 import {fromNs, toNs} from '../../common/time';
 import {
   TrackController,
@@ -29,7 +29,7 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
   private maxDurNs = 0;
 
   async onSetup() {
-    await this.query(`
+    await this.queryV2(`
       create view ${this.tableName('sched')} as
       select
         ts,
@@ -40,18 +40,18 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
       where cpu = ${this.config.cpu} and utid != 0
     `);
 
-    const rawResult = await this.query(`
-      select max(dur), count(1)
+    const queryRes = await this.queryV2(`
+      select ifnull(max(dur), 0) as maxDur, count(1) as rowCount
       from ${this.tableName('sched')}
     `);
-    this.maxDurNs = rawResult.columns[0].longValues![0];
-
-    const rowCount = rawResult.columns[1].longValues![0];
+    const row = queryRes.firstRow({maxDur: NUM, rowCount: NUM});
+    this.maxDurNs = row.maxDur;
+    const rowCount = row.rowCount;
     const bucketNs = this.cachedBucketSizeNs(rowCount);
     if (bucketNs === undefined) {
       return;
     }
-    await this.query(`
+    await this.queryV2(`
       create table ${this.tableName('sched_cached')} as
       select
         (ts + ${bucketNs / 2}) / ${bucketNs} * ${bucketNs} as cached_tsq,
@@ -90,7 +90,7 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
         isCached ? this.tableName('sched_cached') : this.tableName('sched');
     const constraintColumn = isCached ? 'cached_tsq' : 'ts';
 
-    const rawResult = await this.query(`
+    const queryRes = await this.queryV2(`
       select
         ${queryTsq} as tsq,
         ts,
@@ -105,7 +105,7 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
       order by tsq
     `);
 
-    const numRows = slowlyCountRows(rawResult);
+    const numRows = queryRes.numRows();
     const slices: Data = {
       start,
       end,
@@ -117,31 +117,30 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
       utids: new Uint32Array(numRows),
     };
 
-    const cols = rawResult.columns;
-    for (let row = 0; row < numRows; row++) {
-      const startNsQ = +cols[0].longValues![row];
-      const startNs = +cols[1].longValues![row];
-      const durNs = +cols[2].longValues![row];
+    const it = queryRes.iter({tsq: NUM, ts: NUM, dur: NUM, utid: NUM, id: NUM});
+    for (let row = 0; it.valid(); it.next(), row++) {
+      const startNsQ = it.tsq;
+      const startNs = it.ts;
+      const durNs = it.dur;
       const endNs = startNs + durNs;
 
       let endNsQ = Math.floor((endNs + bucketNs / 2 - 1) / bucketNs) * bucketNs;
       endNsQ = Math.max(endNsQ, startNsQ + bucketNs);
 
-      if (startNsQ === endNsQ) {
-        throw new Error('Should never happen');
-      }
+      assertTrue(startNsQ !== endNsQ);
 
       slices.starts[row] = fromNs(startNsQ);
       slices.ends[row] = fromNs(endNsQ);
-      slices.utids[row] = +cols[3].longValues![row];
-      slices.ids[row] = +cols[4].longValues![row];
+      slices.utids[row] = it.utid;
+      slices.ids[row] = it.id;
     }
 
     return slices;
   }
 
   async onDestroy() {
-    await this.query(`drop table if exists ${this.tableName('sched_cached')}`);
+    await this.queryV2(
+        `drop table if exists ${this.tableName('sched_cached')}`);
   }
 }
 
