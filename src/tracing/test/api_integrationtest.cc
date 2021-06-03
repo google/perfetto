@@ -1473,6 +1473,65 @@ TEST_P(PerfettoApiTest, TrackEventCustomTrack) {
   perfetto::TrackEvent::EraseTrackDescriptor(track);
 }
 
+TEST_P(PerfettoApiTest, TrackEventCustomTimestampClock) {
+  // Create a new trace session.
+  auto* tracing_session = NewTraceWithCategories({"foo"});
+  tracing_session->get()->StartBlocking();
+
+  const perfetto::protos::pbzero::BuiltinClock kMyClockId =
+      static_cast<perfetto::protos::pbzero::BuiltinClock>(700);
+  const uint64_t kTimestamp = 12345678;
+
+  // First emit a clock snapshot that maps our custom clock to regular trace
+  // time. Note that the clock snapshot should come before any events
+  // referencing that clock.
+  perfetto::TrackEvent::Trace([](perfetto::TrackEvent::TraceContext ctx) {
+    auto packet = ctx.NewTracePacket();
+    packet->set_timestamp_clock_id(perfetto::TrackEvent::GetTraceClockId());
+    packet->set_timestamp(perfetto::TrackEvent::GetTraceTimeNs());
+    auto* clock_snapshot = packet->set_clock_snapshot();
+    // First set the reference clock, i.e., the default trace clock in this
+    // case.
+    auto* clock = clock_snapshot->add_clocks();
+    clock->set_clock_id(perfetto::TrackEvent::GetTraceClockId());
+    clock->set_timestamp(perfetto::TrackEvent::GetTraceTimeNs());
+    // Then set the value of our reference clock at the same point in time. We
+    // pretend our clock is one second behind trace time.
+    clock = clock_snapshot->add_clocks();
+    clock->set_clock_id(kMyClockId);
+    clock->set_timestamp(kTimestamp + 1000000000ull);
+  });
+
+  // Next emit a trace event with a custom timestamp and a custom clock.
+  TRACE_EVENT_INSTANT("foo", "EventWithCustomTime",
+                      perfetto::TraceTimestamp{kMyClockId, kTimestamp});
+  TRACE_EVENT_INSTANT("foo", "EventWithNormalTime");
+
+  perfetto::TrackEvent::Flush();
+  tracing_session->get()->StopBlocking();
+
+  std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
+  perfetto::protos::gen::Trace trace;
+  ASSERT_TRUE(trace.ParseFromArray(raw_trace.data(), raw_trace.size()));
+
+  // Check that both the clock id and the timestamp got written together with
+  // the packet. Note that we don't check the actual clock sync behavior here
+  // since that happens in the Trace Processor instead.
+  bool found_clock_snapshot = false;
+  bool found_event = false;
+  for (const auto& packet : trace.packet()) {
+    if (packet.has_clock_snapshot())
+      found_clock_snapshot = true;
+    if (!packet.has_track_event() || packet.timestamp() != kTimestamp)
+      continue;
+    found_event = true;
+    EXPECT_EQ(static_cast<uint32_t>(kMyClockId), packet.timestamp_clock_id());
+    EXPECT_EQ(kTimestamp, packet.timestamp());
+  }
+  EXPECT_TRUE(found_clock_snapshot);
+  EXPECT_TRUE(found_event);
+}
+
 TEST_P(PerfettoApiTest, LegacyEventWithThreadOverride) {
   // Create a new trace session.
   auto* tracing_session = NewTraceWithCategories({"cat"});
