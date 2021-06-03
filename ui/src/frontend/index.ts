@@ -31,6 +31,10 @@ import {
 } from '../common/logs';
 import {MetricResult} from '../common/metric_data';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
+import {
+  ControllerWorkerInitMessage,
+  EngineWorkerInitMessage
+} from '../common/worker_messages';
 
 import {AnalyzePage} from './analyze_page';
 import {loadAndroidBugToolInfo} from './android_bug_tool';
@@ -65,6 +69,9 @@ const EXTENSION_ID = 'lfmkphfpdbjijhpomgecfikhfohaoine';
 function isLocalhostTraceUrl(url: string): boolean {
   return ['127.0.0.1', 'localhost'].includes((new URL(url)).hostname);
 }
+
+let idleWasmWorker: Worker;
+let activeWasmWorker: Worker;
 
 /**
  * The API the main thread exposes to the controller.
@@ -265,6 +272,24 @@ class FrontendApi {
     this.redraw();
   }
 
+  // This method is called by the controller via the Remote<> interface whenver
+  // a new trace is loaded. This creates a new worker and passes it the
+  // MessagePort received by the controller. This is because on Safari, all
+  // workers must be spawned from the main thread.
+  resetEngineWorker(port: MessagePort) {
+    // We keep always an idle worker around, the first one is created by the
+    // main() below, so we can hide the latency of the Wasm initialization.
+    if (activeWasmWorker !== undefined) {
+      activeWasmWorker.terminate();
+    }
+    // Swap the active worker with the idle one and create a new idle worker
+    // for the next trace.
+    activeWasmWorker = assertExists(idleWasmWorker);
+    const msg: EngineWorkerInitMessage = {enginePort: port};
+    activeWasmWorker.postMessage(msg, [port]);
+    idleWasmWorker = new Worker(globals.root + 'engine_bundle.js');
+  }
+
   private redraw(): void {
     if (globals.state.route &&
         globals.state.route !== this.router.getRouteFromHash()) {
@@ -356,6 +381,7 @@ function main() {
   window.addEventListener('unhandledrejection', e => reportError(e));
 
   const controller = new Worker(globals.root + 'controller_bundle.js');
+  idleWasmWorker = new Worker(globals.root + 'engine_bundle.js');
   const frontendChannel = new MessageChannel();
   const controllerChannel = new MessageChannel();
   const extensionLocalChannel = new MessageChannel();
@@ -364,20 +390,18 @@ function main() {
   errorReportingChannel.port2.onmessage = (e) =>
       maybeShowErrorDialog(`${e.data}`);
 
-  controller.postMessage(
-      {
-        frontendPort: frontendChannel.port1,
-        controllerPort: controllerChannel.port1,
-        extensionPort: extensionLocalChannel.port1,
-        errorReportingPort: errorReportingChannel.port1,
-      },
-      [
-        frontendChannel.port1,
-        controllerChannel.port1,
-        extensionLocalChannel.port1,
-        errorReportingChannel.port1,
-      ]);
-
+  const msg: ControllerWorkerInitMessage = {
+    frontendPort: frontendChannel.port1,
+    controllerPort: controllerChannel.port1,
+    extensionPort: extensionLocalChannel.port1,
+    errorReportingPort: errorReportingChannel.port1,
+  };
+  controller.postMessage(msg, [
+    msg.frontendPort,
+    msg.controllerPort,
+    msg.extensionPort,
+    msg.errorReportingPort,
+  ]);
   const dispatch =
       controllerChannel.port2.postMessage.bind(controllerChannel.port2);
   globals.initialize(dispatch, controller);
