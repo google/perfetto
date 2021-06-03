@@ -24,7 +24,7 @@ import {
   RawQueryArgs,
   RawQueryResult
 } from './protos';
-import {iter, NUM_NULL, slowlyCountRows, STR} from './query_iterator';
+import {NUM, NUM_NULL, slowlyCountRows, STR} from './query_iterator';
 import {
   createQueryResult,
   QueryResult,
@@ -365,10 +365,13 @@ export abstract class Engine {
   // TODO(hjd): When streaming must invalidate this somehow.
   async getCpus(): Promise<number[]> {
     if (!this._cpus) {
-      const result =
-          await this.query('select distinct(cpu) from sched order by cpu;');
-      if (slowlyCountRows(result) === 0) return [];
-      this._cpus = result.columns[0].longValues!.map(n => +n);
+      const cpus = [];
+      const queryRes = await this.queryV2(
+          'select distinct(cpu) as cpu from sched order by cpu;');
+      for (const it = queryRes.iter({cpu: NUM}); it.valid(); it.next()) {
+        cpus.push(it.cpu);
+      }
+      this._cpus = cpus;
     }
     return this._cpus;
   }
@@ -388,8 +391,8 @@ export abstract class Engine {
   // TODO: This should live in code that's more specific to chrome, instead of
   // in engine.
   async getNumberOfProcesses(): Promise<number> {
-    const result = await this.query('select count(*) from process;');
-    return +result.columns[0].longValues![0];
+    const result = await this.queryV2('select count(*) as cnt from process;');
+    return result.firstRow({cnt: NUM}).cnt;
   }
 
   async getTraceTimeBounds(): Promise<TimeSpan> {
@@ -399,15 +402,15 @@ export abstract class Engine {
   }
 
   async getTracingMetadataTimeBounds(): Promise<TimeSpan> {
-    const query = await this.query(`select name, int_value from metadata
+    const queryRes = await this.queryV2(`select name, int_value from metadata
          where name = 'tracing_started_ns' or name = 'tracing_disabled_ns'
          or name = 'all_data_source_started_ns'`);
     let startBound = -Infinity;
     let endBound = Infinity;
-    const it = iter({'name': STR, 'int_value': NUM_NULL}, query);
+    const it = queryRes.iter({'name': STR, 'int_value': NUM_NULL});
     for (; it.valid(); it.next()) {
-      const columnName = it.row.name;
-      const timestamp = it.row.int_value;
+      const columnName = it.name;
+      const timestamp = it.int_value;
       if (timestamp === null) continue;
       if (columnName === 'tracing_disabled_ns') {
         endBound = Math.min(endBound, timestamp / 1e9);
