@@ -32,6 +32,13 @@
 #include <unordered_map>
 
 namespace perfetto {
+
+// Represents a point in time for the clock specified by |clock_id|.
+struct TraceTimestamp {
+  protos::pbzero::BuiltinClock clock_id;
+  uint64_t nanoseconds;
+};
+
 class EventContext;
 class TrackEventSessionObserver;
 struct Category;
@@ -139,9 +146,9 @@ class PERFETTO_EXPORT TrackEventInternal {
       const Category* category,
       const char* name,
       perfetto::protos::pbzero::TrackEvent::Type,
-      uint64_t timestamp = GetTimeNs());
+      TraceTimestamp timestamp = {GetClockId(), GetTimeNs()});
 
-  static void ResetIncrementalState(TraceWriterBase*, uint64_t timestamp);
+  static void ResetIncrementalState(TraceWriterBase*, TraceTimestamp);
 
   template <typename T>
   static void AddDebugAnnotation(perfetto::EventContext* event_ctx,
@@ -171,7 +178,7 @@ class PERFETTO_EXPORT TrackEventInternal {
   static void WriteTrackDescriptor(const TrackType& track,
                                    TraceWriterBase* trace_writer) {
     TrackRegistry::Get()->SerializeTrack(
-        track, NewTracePacket(trace_writer, GetTimeNs()));
+        track, NewTracePacket(trace_writer, {GetClockId(), GetTimeNs()}));
   }
 
   // Get the current time in nanoseconds in the trace clock timebase.
@@ -195,7 +202,7 @@ class PERFETTO_EXPORT TrackEventInternal {
  private:
   static protozero::MessageHandle<protos::pbzero::TracePacket> NewTracePacket(
       TraceWriterBase*,
-      uint64_t timestamp,
+      TraceTimestamp,
       uint32_t seq_flags =
           protos::pbzero::TracePacket::SEQ_NEEDS_INCREMENTAL_STATE);
   static protos::pbzero::DebugAnnotation* AddDebugAnnotation(

@@ -6,7 +6,7 @@ Unreleased:
   UI:
     * Fixed ADB connection issues ("unable to reset device") on Windows and Mac.
   SDK:
-    *
+    * Added support for writing track events using custom clock timestamps.
 
 
 v16.0 - 2021-06-01:
