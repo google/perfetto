@@ -68,7 +68,7 @@ export abstract class TrackController<
   // Must be overridden by the track implementation. Is invoked when the track
   // frontend runs out of cached data. The derived track controller is expected
   // to publish new track data in response to this call.
-  abstract async onBoundsChange(start: number, end: number, resolution: number):
+  abstract onBoundsChange(start: number, end: number, resolution: number):
       Promise<Data>;
 
   get trackState(): TrackState {
