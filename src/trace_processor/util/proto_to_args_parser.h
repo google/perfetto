@@ -100,9 +100,12 @@ class ProtoToArgsParser {
       static_assert(std::is_same<typename FieldMetadata::message_type,
                                  protos::pbzero::InternedData>::value,
                     "Field should belong to InternedData proto");
-      return GetInternedMessageView(FieldMetadata::kFieldId, iid)
-          ->template GetOrCreateDecoder<
-              typename FieldMetadata::cpp_field_type>();
+      auto* interned_message_view =
+          GetInternedMessageView(FieldMetadata::kFieldId, iid);
+      if (!interned_message_view)
+        return nullptr;
+      return interned_message_view->template GetOrCreateDecoder<
+          typename FieldMetadata::cpp_field_type>();
     }
 
    protected:
