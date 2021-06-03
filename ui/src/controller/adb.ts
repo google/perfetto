@@ -114,8 +114,6 @@ export class AdbOverWebUsb implements Adb {
     this.key = await AdbOverWebUsb.initKey();
 
     await this.dev.open();
-    await this.dev.reset();  // The reset is done so that we can claim the
-                             // device before adb server can.
 
     const {configValue, usbInterfaceNumber, endpoints} =
         this.findInterfaceAndEndpoint();
