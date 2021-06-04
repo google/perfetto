@@ -160,14 +160,10 @@ perfetto_unittest_source_set("unittests") {
       ":platform_impl",
     ]
 
-    # TODO(primiano/altimin): these sources build with clang-cl but fail to
-    # build with MSVC 2019. Investigate.
-    if (!is_win || is_clang) {
-      sources += [
-        "traced_proto_unittest.cc",
-        "traced_value_unittest.cc",
-      ]
-    }
+    sources += [
+      "traced_proto_unittest.cc",
+      "traced_value_unittest.cc",
+    ]
   }
 }
 

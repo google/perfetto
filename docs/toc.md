@@ -40,6 +40,8 @@
 * [Trace visualization](#)
   * [Perfetto UI](visualization/perfetto-ui.md)
   * [Visualising large traces](visualization/large-traces.md)
+  * [Deep linking to Perfetto UI](visualization/deep-linking-to-perfetto-ui.md)
+  * [Perfetto UI release process](visualization/perfetto-ui-release-process.md)
 
 * [Core concepts](#)
   * [Trace configuration](concepts/config.md)
@@ -72,3 +74,4 @@
     * [Perfetto CI](design-docs/continuous-integration.md)
     * [ProtoZero](design-docs/protozero.md)
     * [Security model](design-docs/security-model.md)
+    * [Statsd Checkpoint Atoms](design-docs/checkpoint-atoms.md)

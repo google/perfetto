@@ -118,6 +118,11 @@ export abstract class TrackController<
     return result;
   }
 
+  protected async queryV2(query: string) {
+    const result = await this.engine.queryV2(query);
+    return result;
+  }
+
   private shouldReload(): boolean {
     const {lastTrackReloadRequest} = globals.state;
     return !!lastTrackReloadRequest &&
