@@ -258,7 +258,9 @@ std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> BuildNativeFlamegraph(
 }
 
 HeapProfileTracker::HeapProfileTracker(TraceProcessorContext* context)
-    : context_(context), empty_(context_->storage->InternString({"", 0})) {}
+    : context_(context),
+      empty_(context_->storage->InternString({"", 0})),
+      art_heap_(context_->storage->InternString("com.android.art")) {}
 
 HeapProfileTracker::~HeapProfileTracker() = default;
 
@@ -389,7 +391,12 @@ void HeapProfileTracker::AddAllocation(
     context_->storage->mutable_heap_profile_allocation_table()->Insert(
         alloc_delta);
   }
-  if (free_delta.count || free_delta.size) {
+
+  // ART only reports allocations, and not frees. This throws off our logic
+  // that assumes that if a new object was allocated with the same address,
+  // the old one has to have been freed in the meantime.
+  // See HeapTracker::RecordMalloc in bookkeeping.cc.
+  if (alloc.heap_name != art_heap_ && (free_delta.count || free_delta.size)) {
     context_->storage->mutable_heap_profile_allocation_table()->Insert(
         free_delta);
   }
