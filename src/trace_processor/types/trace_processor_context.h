@@ -118,6 +118,11 @@ class TraceProcessorContext {
   std::vector<std::vector<ProtoImporterModule*>> modules_by_field;
   std::vector<std::unique_ptr<ProtoImporterModule>> modules;
   FtraceModule* ftrace_module = nullptr;
+
+  // Marks whether the uuid was read from the trace.
+  // If the uuid was NOT read, the uuid will be made from the hash of the first
+  // 4KB of the trace.
+  bool uuid_found_in_trace = false;
 };
 
 }  // namespace trace_processor

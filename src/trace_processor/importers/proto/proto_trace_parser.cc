@@ -649,6 +649,7 @@ void ProtoTraceParser::ParseTraceConfig(ConstBytes blob) {
     StringId id = context_->storage->InternString(base::StringView(str));
     context_->metadata_tracker->SetMetadata(metadata::trace_uuid,
                                             Variadic::String(id));
+    context_->uuid_found_in_trace = true;
   }
 
   if (trace_config.has_unique_session_name()) {

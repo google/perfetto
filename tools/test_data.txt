@@ -9,3 +9,4 @@ test/data/android_log_ring_buffer_mode.pb
 test/data/example_android_trace_30s.pb
 test/data/full_trace_filter.bytecode
 test/data/kallsyms.txt
+test/data/trace_with_uuid.pftrace
