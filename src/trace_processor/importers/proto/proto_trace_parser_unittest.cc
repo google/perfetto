@@ -2970,6 +2970,7 @@ TEST_F(ProtoTraceParserTest, ConfigUuid) {
   SqlValue value =
       context_.metadata_tracker->GetMetadataForTesting(metadata::trace_uuid);
   EXPECT_STREQ(value.string_value, "00000000-0000-0002-0000-000000000001");
+  ASSERT_TRUE(context_.uuid_found_in_trace);
 }
 
 TEST_F(ProtoTraceParserTest, ConfigPbtxt) {
