@@ -158,4 +158,13 @@ message TraceStats {
   // Packets that failed validation of the TrustedPacket. If this is > 0, there
   // is a bug in the producer.
   optional uint64 invalid_packets = 10;
+
+  // This is set only when the TraceConfig specifies a TraceFilter.
+  message FilterStats {
+    optional uint64 input_packets = 1;
+    optional uint64 input_bytes = 2;
+    optional uint64 output_bytes = 3;
+    optional uint64 errors = 4;
+  }
+  optional FilterStats filter_stats = 11;
 }

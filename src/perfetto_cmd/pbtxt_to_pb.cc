@@ -47,12 +47,20 @@ using protos::gen::FileDescriptorSet;
 
 namespace {
 
+constexpr bool IsOct(char c) {
+  return (c >= '0' && c <= '7');
+}
+
+constexpr bool IsDigit(char c) {
+  return (c >= '0' && c <= '9');
+}
+
 constexpr bool IsIdentifierStart(char c) {
   return ('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z') || c == '_';
 }
 
 constexpr bool IsIdentifierBody(char c) {
-  return IsIdentifierStart(c) || isdigit(c);
+  return IsIdentifierStart(c) || IsDigit(c);
 }
 
 const char* FieldToTypeName(const FieldDescriptorProto* field) {
@@ -150,19 +158,22 @@ class ParserDelegate {
   }
 
   void NumericField(Token key, Token value) {
-    const FieldDescriptorProto* field = FindFieldByName(
-        key, value,
-        {
-            FieldDescriptorProto::TYPE_UINT64,
-            FieldDescriptorProto::TYPE_UINT32, FieldDescriptorProto::TYPE_INT64,
-            FieldDescriptorProto::TYPE_SINT64, FieldDescriptorProto::TYPE_INT32,
-            FieldDescriptorProto::TYPE_SINT32,
-            FieldDescriptorProto::TYPE_FIXED64,
-            FieldDescriptorProto::TYPE_SFIXED64,
-            FieldDescriptorProto::TYPE_FIXED32,
-            FieldDescriptorProto::TYPE_SFIXED32,
-            FieldDescriptorProto::TYPE_DOUBLE, FieldDescriptorProto::TYPE_FLOAT,
-        });
+    const FieldDescriptorProto* field =
+        FindFieldByName(key, value,
+                        {
+                            FieldDescriptorProto::TYPE_UINT64,
+                            FieldDescriptorProto::TYPE_UINT32,
+                            FieldDescriptorProto::TYPE_INT64,
+                            FieldDescriptorProto::TYPE_SINT64,
+                            FieldDescriptorProto::TYPE_INT32,
+                            FieldDescriptorProto::TYPE_SINT32,
+                            FieldDescriptorProto::TYPE_FIXED64,
+                            FieldDescriptorProto::TYPE_SFIXED64,
+                            FieldDescriptorProto::TYPE_FIXED32,
+                            FieldDescriptorProto::TYPE_SFIXED32,
+                            FieldDescriptorProto::TYPE_DOUBLE,
+                            FieldDescriptorProto::TYPE_FLOAT,
+                        });
     if (!field)
       return;
     const auto& field_type = field->type();
@@ -202,11 +213,12 @@ class ParserDelegate {
   }
 
   void StringField(Token key, Token value) {
-    const FieldDescriptorProto* field = FindFieldByName(
-        key, value,
-        {
-            FieldDescriptorProto::TYPE_STRING, FieldDescriptorProto::TYPE_BYTES,
-        });
+    const FieldDescriptorProto* field =
+        FindFieldByName(key, value,
+                        {
+                            FieldDescriptorProto::TYPE_STRING,
+                            FieldDescriptorProto::TYPE_BYTES,
+                        });
     if (!field)
       return;
     uint32_t field_id = static_cast<uint32_t>(field->number());
@@ -217,15 +229,16 @@ class ParserDelegate {
     std::unique_ptr<char, base::FreeDeleter> s(
         static_cast<char*>(malloc(value.size())));
     size_t j = 0;
+    const char* const txt = value.txt.data();
     for (size_t i = 0; i < value.size(); i++) {
-      char c = value.txt.data()[i];
+      char c = txt[i];
       if (c == '\\') {
         if (i + 1 >= value.size()) {
           // This should be caught by the lexer.
           PERFETTO_FATAL("Escape at end of string.");
           return;
         }
-        char next = value.txt.data()[++i];
+        char next = txt[++i];
         switch (next) {
           case '\\':
           case '\'':
@@ -254,6 +267,44 @@ class ParserDelegate {
           case 'v':
             s.get()[j++] = '\v';
             break;
+          case '0':
+          case '1':
+          case '2':
+          case '3':
+          case '4':
+          case '5':
+          case '6':
+          case '7':
+          case '8':
+          case '9': {
+            // Cases 8 and 9 are not really required and are only added for the
+            // sake of error reporting.
+            bool oct_err = false;
+            if (i + 2 >= value.size() || !IsOct(txt[i + 1]) ||
+                !IsOct(txt[i + 2])) {
+              oct_err = true;
+            } else {
+              char buf[4]{next, txt[++i], txt[++i], '\0'};
+              auto octval = base::CStringToUInt32(buf, 8);
+              if (!octval.has_value() || *octval > 0xff) {
+                oct_err = true;
+              } else {
+                s.get()[j++] = static_cast<char>(static_cast<uint8_t>(*octval));
+              }
+            }
+            if (oct_err) {
+              AddError(value,
+                       "Malformed string escape in $k in proto $n on '$v'. "
+                       "\\NNN escapes must be exactly three octal digits <= "
+                       "\\377 (0xff).",
+                       std::map<std::string, std::string>{
+                           {"$k", key.ToStdString()},
+                           {"$n", descriptor_name()},
+                           {"$v", value.ToStdString()},
+                       });
+            }
+            break;
+          }
           default:
             AddError(value,
                      "Unknown string escape in $k in "
@@ -273,11 +324,12 @@ class ParserDelegate {
   }
 
   void IdentifierField(Token key, Token value) {
-    const FieldDescriptorProto* field = FindFieldByName(
-        key, value,
-        {
-            FieldDescriptorProto::TYPE_BOOL, FieldDescriptorProto::TYPE_ENUM,
-        });
+    const FieldDescriptorProto* field =
+        FindFieldByName(key, value,
+                        {
+                            FieldDescriptorProto::TYPE_BOOL,
+                            FieldDescriptorProto::TYPE_ENUM,
+                        });
     if (!field)
       return;
     uint32_t field_id = static_cast<uint32_t>(field->number());
@@ -415,7 +467,8 @@ class ParserDelegate {
     if (!field_descriptor) {
       AddError(key, "No field named \"$n\" in proto $p",
                {
-                   {"$n", field_name}, {"$p", descriptor_name()},
+                   {"$n", field_name},
+                   {"$p", descriptor_name()},
                });
       return nullptr;
     }
@@ -549,7 +602,7 @@ void Parse(const std::string& input, ParserDelegate* delegate) {
           state = kReadingStringValue;
           continue;
         }
-        if (c == '-' || isdigit(c) || c == '.') {
+        if (c == '-' || IsDigit(c) || c == '.') {
           state = kReadingNumericValue;
           continue;
         }
@@ -576,7 +629,7 @@ void Parse(const std::string& input, ParserDelegate* delegate) {
           delegate->NumericField(key, value);
           continue;
         }
-        if (isdigit(c) || c == '.')
+        if (IsDigit(c) || c == '.')
           continue;
         break;
 
