@@ -461,6 +461,7 @@ function onInputElementFileSelectionChanged(e: Event) {
 
   if (e.target.dataset['video'] === '1') {
     // TODO(hjd): Update this to use a controller and publish.
+    globals.logging.logEvent('Trace Actions', 'Open video');
     globals.dispatch(Actions.executeQuery({
       engineId: '0', queryId: 'command',
       query: `select ts from slices where name = 'first_frame' union ` +
