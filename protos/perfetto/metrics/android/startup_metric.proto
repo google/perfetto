@@ -131,6 +131,17 @@ message AndroidStartupMetric {
   message BinderTransaction {
     optional Slice duration = 1;
     optional string thread = 2;
+    optional string destination_thread = 3;
+    optional string destination_process = 4;
+    // From
+    // https://cs.android.com/android/platform/superproject/+/master:external/perfetto/protos/perfetto/trace/ftrace/binder.proto;l=15;drc=7b6a788162a30802f4c9d8d7a30a54e25edd30f1
+    optional string flags = 5;
+    // From
+    // https://cs.android.com/android/platform/superproject/+/master:external/perfetto/protos/perfetto/trace/ftrace/binder.proto;l=14;drc=7b6a788162a30802f4c9d8d7a30a54e25edd30f1
+    optional string code = 6;
+    // From
+    // https://cs.android.com/android/platform/superproject/+/master:external/perfetto/protos/perfetto/trace/ftrace/binder.proto;l=37;drc=7b6a788162a30802f4c9d8d7a30a54e25edd30f1
+    optional int64 data_size = 7;
   }
 
   // Metrics with information about the status of odex files and the outcome

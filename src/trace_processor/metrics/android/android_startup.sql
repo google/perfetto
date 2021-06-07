@@ -127,6 +127,8 @@ SELECT
   launch_threads.launch_id AS launch_id,
   launch_threads.utid AS utid,
   launch_threads.thread_name AS thread_name,
+  slice.id AS slice_id,
+  slice.arg_set_id AS arg_set_id,
   slice.name AS slice_name,
   slice.ts AS slice_ts,
   slice.dur AS slice_dur
@@ -268,12 +270,36 @@ GROUP BY launch_id;
 DROP TABLE IF EXISTS long_binder_transactions;
 CREATE TABLE long_binder_transactions AS
 SELECT
-  launch_id, slice_dur, thread_name
+  slice_id, arg_set_id, launch_id, slice_dur, thread_name
 FROM
   main_process_slice_unaggregated
 WHERE
   slice_name = 'binder transaction'
-  AND slice_dur >= 1e8;
+  AND slice_dur >= 5e7;
+
+DROP TABLE IF EXISTS binder_to_destination_process;
+CREATE TABLE binder_to_destination_process AS
+SELECT
+  s.slice_id, process.name AS destination_process
+FROM long_binder_transactions s
+JOIN args USING(arg_set_id)
+JOIN process ON(args.int_value = process.pid)
+WHERE args.key = 'destination process';
+
+-- Enriched binder transactions.
+DROP TABLE IF EXISTS long_binder_transactions_enriched;
+CREATE TABLE long_binder_transactions_enriched AS
+SELECT
+  s.launch_id,
+  s.slice_dur,
+  s.thread_name,
+  EXTRACT_ARG(s.arg_set_id, 'destination name') AS destination_thread,
+  bdp.destination_process,
+  EXTRACT_ARG(s.arg_set_id, 'flags') AS flags,
+  EXTRACT_ARG(s.arg_set_id, 'code') AS code,
+  EXTRACT_ARG(s.arg_set_id, 'data_size') AS data_size
+FROM long_binder_transactions s
+LEFT JOIN binder_to_destination_process bdp USING(slice_id);
 
 DROP VIEW IF EXISTS startup_view;
 CREATE VIEW startup_view AS
@@ -310,9 +336,14 @@ SELECT
           'dur_ns', lbt.slice_dur,
           'dur_ms', lbt.slice_dur / 1e6
         ),
-        'thread', lbt.thread_name
+        'thread', lbt.thread_name,
+        'destination_thread', lbt.destination_thread,
+        'destination_process', lbt.destination_process,
+        'flags', lbt.flags,
+        'code', lbt.code,
+        'data_size', lbt.data_size
       ))
-      FROM long_binder_transactions lbt
+      FROM long_binder_transactions_enriched lbt
       WHERE lbt.launch_id = launches.id
     ),
     'zygote_new_process', EXISTS(SELECT TRUE FROM zygote_forks_by_id WHERE id = launches.id),
