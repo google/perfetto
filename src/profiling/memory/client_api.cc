@@ -113,8 +113,9 @@ std::shared_ptr<perfetto::profiling::Client>* GetClientLocked() {
 }
 
 constexpr auto kMinHeapId = 1;
+constexpr auto kMaxNumHeaps = 256;
 
-AHeapInfo g_heaps[256];
+AHeapInfo g_heaps[kMaxNumHeaps];
 
 AHeapInfo& GetHeap(uint32_t id) {
   return g_heaps[id];
@@ -136,7 +137,7 @@ std::atomic<uint32_t> g_next_heap_id{kMinHeapId};
 // This can get called while holding the spinlock (in normal operation), or
 // without holding the spinlock (from OnSpinlockTimeout).
 void DisableAllHeaps() {
-  bool disabled[perfetto::base::ArraySize(g_heaps)] = {};
+  bool disabled[kMaxNumHeaps] = {};
   uint32_t max_heap = g_next_heap_id.load();
   // This has to be done in two passes, in case the disabled_callback for one
   // enabled heap uses another. In that case, the callbacks for the other heap
@@ -297,7 +298,7 @@ __attribute__((visibility("default"))) AHeapInfo* AHeapInfo_create(
   }
 
   uint32_t next_id = g_next_heap_id.fetch_add(1);
-  if (next_id >= perfetto::base::ArraySize(g_heaps)) {
+  if (next_id >= kMaxNumHeaps) {
     return nullptr;
   }
 
@@ -540,7 +541,7 @@ __attribute__((visibility("default"))) bool AHeapProfile_initSession(
   }
 
   uint32_t max_heap = g_next_heap_id.load();
-  bool heaps_enabled[perfetto::base::ArraySize(g_heaps)] = {};
+  bool heaps_enabled[kMaxNumHeaps] = {};
 
   PERFETTO_LOG("%s: heapprofd_client initialized.", getprogname());
   {
