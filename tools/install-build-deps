@@ -428,9 +428,9 @@ def InstallNodeModules(force_clean=False):
     logging.info('Clearing %s', node_modules)
     subprocess.check_call(['git', 'clean', '-qxffd', node_modules],
                           cwd=ROOT_DIR)
-  logging.info("Running npm install in {0}".format(UI_DIR))
-  subprocess.check_call(
-      [os.path.join(TOOLS_DIR, 'npm'), 'install', '--no-save'], cwd=UI_DIR)
+  logging.info("Running `npm ci` in {0}".format(UI_DIR))
+  # `npm ci` is like `npm install` but respects package-lock.json.
+  subprocess.check_call([os.path.join(TOOLS_DIR, 'npm'), 'ci'], cwd=UI_DIR)
   # pbjs has the bad habit of installing extra packages on its first run. Run
   # it here, so we avoid fetches while building.
   node_bin = os.path.join(TOOLS_DIR, 'node')

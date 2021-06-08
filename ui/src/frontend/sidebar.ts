@@ -326,7 +326,8 @@ function openHelp(e: Event) {
 }
 
 function getFileElement(): HTMLInputElement {
-  return document.querySelector('input[type=file]')! as HTMLInputElement;
+  return assertExists(
+      document.querySelector<HTMLInputElement>('input[type=file]'));
 }
 
 function popupFileSelectionDialog(e: Event) {
