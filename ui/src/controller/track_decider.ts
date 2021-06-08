@@ -209,7 +209,7 @@ class TrackDecider {
     FROM (
       SELECT name, GROUP_CONCAT(track.id) AS track_ids
       FROM track
-      WHERE track.type = "track"
+      WHERE track.type = "track" or track.type = "gpu_track"
       GROUP BY name
     ) AS t CROSS JOIN experimental_slice_layout
     WHERE t.track_ids = experimental_slice_layout.filter_track_ids
