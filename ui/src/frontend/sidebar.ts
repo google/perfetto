@@ -945,7 +945,8 @@ export class Sidebar implements m.ClassComponent {
                 },
                 'menu')),
             ),
-        m('input[type=file]', {onchange: onInputElementFileSelectionChanged}),
+        m('input.trace_file[type=file]',
+          {onchange: onInputElementFileSelectionChanged}),
         m('.sidebar-scroll',
           m(
               '.sidebar-scroll-container',
