@@ -302,7 +302,7 @@ export class AdbSocketConsumerPort extends AdbBaseConsumerPort {
       msgBindService: new perfetto.protos.IPCFrame.BindService(
           {serviceName: 'ConsumerPort'})
     });
-    return new Promise((resolve, _) => {
+    return new Promise<void>((resolve, _) => {
       this.resolveBindingPromise = resolve;
       this.sendFrame(frame);
     });
