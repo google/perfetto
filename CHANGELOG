@@ -9,6 +9,12 @@ Unreleased:
     *
 
 
+v16.1 - 2021-06-08:
+  Tracing service and probes:
+    * Cherry-pick of r.android.com/1716718 which missed the v16 branch cut and
+      fixed MSVC 2019 builds.
+
+
 v16.0 - 2021-06-01:
   Tracing service and probes:
     * Added support for building most targets (including traced, SDK and
