@@ -100,7 +100,7 @@ export class TraceHttpStream implements TraceStream {
   private bytesRead = 0;
   private bytesTotal = 0;
   private uri: string;
-  private httpStream?: ReadableStreamReader;
+  private httpStream?: ReadableStreamReader<Uint8Array>;
 
   constructor(uri: string) {
     assertTrue(uri.startsWith('http://') || uri.startsWith('https://'));
@@ -116,8 +116,7 @@ export class TraceHttpStream implements TraceStream {
       }
       const len = response.headers.get('Content-Length');
       this.bytesTotal = len ? Number.parseInt(len, 10) : 0;
-      // tslint:disable-next-line no-any
-      this.httpStream = (response.body as any).getReader();
+      this.httpStream = response.body!.getReader();
     }
 
     let eof = false;
@@ -128,8 +127,7 @@ export class TraceHttpStream implements TraceStream {
     // TraceProcessor. Here we accumulate chunks until we get at least 32mb
     // or hit EOF.
     while (!eof && bytesRead < 32 * 1024 * 1024) {
-      const res = (await this.httpStream!.read()) as
-          {value?: Uint8Array, done: boolean};
+      const res = await this.httpStream.read();
       if (res.value) {
         chunks.push(res.value);
         bytesRead += res.value.length;
