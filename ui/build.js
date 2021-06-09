@@ -82,7 +82,7 @@ const cfg = {
   debug: false,
   startHttpServer: false,
   wasmModules: ['trace_processor', 'trace_to_text'],
-  testConfigs: ['jest.unit.config.js'],
+  testConfigs: ['jest.unit.config.js', 'jest.jsdom.config.js'],
 
   // The fields below will be changed by main() after cmdline parsing.
   // Directory structure:
