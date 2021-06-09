@@ -46,3 +46,6 @@ composer_execution.py composer_execution.sql composer_execution.out
 
 # Display metrics
 panel_fps.py display_metrics panel_fps.out
+
+# DPU vote clock and bandwidth
+dpu_vote_clock_bw.textproto android_hwcomposer dpu_vote_clock_bw.out
