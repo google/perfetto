@@ -132,7 +132,7 @@ test('ChromeConfig', () => {
   expect(traceConfig).toEqual(expectedTraceConfig);
 });
 
-test('ChromeMemoryConfig', () => {
+test.skip('ChromeMemoryConfig', () => {
   const config = createEmptyRecordConfig();
   config.chromeCategoriesSelected = ['disabled-by-default-memory-infra'];
   const result =
