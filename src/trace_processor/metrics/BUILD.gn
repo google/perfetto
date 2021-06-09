@@ -63,6 +63,7 @@ sql_files = [
   "android/android_sysui_cuj.sql",
   "android/process_counter_span_view.sql",
   "android/global_counter_span_view.sql",
+  "android/thread_counter_span_view.sql",
   "android/unsymbolized_frames.sql",
   "chrome/actual_power_by_category.sql",
   "chrome/actual_power_by_rail_mode.sql",

@@ -59,4 +59,21 @@ message AndroidHwcomposerMetrics {
 
   // the average of hwcomposer execution time for separated validation cases.
   optional double avg_separated_execution_time_ms = 13;
+
+  message DpuVoteMetrics {
+    // the thread ID that handles this track
+    optional uint32 tid = 1;
+
+    // the weighted average of DPU Vote Clock
+    optional double avg_dpu_vote_clock = 2;
+
+    // the weighted average of DPU Vote Avg Bandwidth
+    optional double avg_dpu_vote_avg_bw = 3;
+
+    // the weighted average of DPU Vote Peak Bandwidth
+    optional double avg_dpu_vote_peak_bw = 4;
+  }
+
+  // DPU Vote Metrics for each thread track
+  repeated DpuVoteMetrics dpu_vote_metrics = 14;
 }
