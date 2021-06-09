@@ -1,0 +1,117 @@
+packet {
+  ftrace_events {
+    cpu: 2
+    event {
+      timestamp: 1000000
+      pid: 237
+      dpu_tracing_mark_write {
+        pid: 237
+        name: "dpu_vote_clock"
+        type: 67
+        value: 200000
+      }
+    }
+    event {
+      timestamp: 2000000
+      pid: 237
+      dpu_tracing_mark_write {
+        pid: 237
+        name: "dpu_vote_avg_bw"
+        type: 67
+        value: 210000
+      }
+    }
+    event {
+      timestamp: 3000000
+      pid: 237
+      dpu_tracing_mark_write {
+        pid: 237
+        name: "dpu_vote_peak_bw"
+        type: 67
+        value: 210000
+      }
+    }
+    event {
+      timestamp: 4000000
+      pid: 237
+      dpu_tracing_mark_write {
+        pid: 237
+        name: "dpu_vote_clock"
+        type: 67
+        value: 210000
+      }
+    }
+    event {
+      timestamp: 5000000
+      pid: 237
+      dpu_tracing_mark_write {
+        pid: 237
+        name: "dpu_vote_avg_bw"
+        type: 67
+        value: 210000
+      }
+    }
+    event {
+      timestamp: 6000000
+      pid: 237
+      dpu_tracing_mark_write {
+        pid: 237
+        name: "dpu_vote_peak_bw"
+        type: 67
+        value: 200000
+      }
+    }
+    event {
+      timestamp: 7000000
+      pid: 237
+      dpu_tracing_mark_write {
+        pid: 237
+        name: "dpu_vote_clock"
+        type: 67
+        value: 210000
+      }
+    }
+    event {
+      timestamp: 7000000
+      pid: 299
+      dpu_tracing_mark_write {
+        pid: 299
+        name: "dpu_vote_clock"
+        type: 67
+        value: 200000
+      }
+    }
+    event {
+      timestamp: 8000000
+      pid: 237
+      dpu_tracing_mark_write {
+        pid: 237
+        name: "dpu_vote_avg_bw"
+        type: 67
+        value: 210000
+      }
+    }
+    event {
+      timestamp: 8000000
+      pid: 299
+      dpu_tracing_mark_write {
+        pid: 299
+        name: "dpu_vote_clock"
+        type: 67
+        value: 300000
+      }
+    }
+    event {
+      timestamp: 8999999
+      pid: 237
+      dpu_tracing_mark_write {
+        pid: 237
+        name: "dpu_vote_peak_bw"
+        type: 67
+        value: 200000
+      }
+    }
+  }
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 3
+}
