@@ -100,6 +100,17 @@ struct PERFETTO_EXPORT Track {
   // accidental clashes with track identifiers emitted by other producers.
   static Track Global(uint64_t id) { return Track(id, Track()); }
 
+  // Construct a track using |ptr| as identifier.
+  static Track FromPointer(const void* ptr, Track parent = MakeProcessTrack()) {
+    // Using pointers as global TrackIds isn't supported as pointers are
+    // per-proccess and the same pointer value can be used in different
+    // processes.
+    PERFETTO_DCHECK(parent.uuid != Track().uuid);
+
+    return Track(static_cast<uint64_t>(reinterpret_cast<uintptr_t>(ptr)),
+                 parent);
+  }
+
  protected:
   constexpr Track(uint64_t uuid_, uint64_t parent_uuid_)
       : uuid(uuid_), parent_uuid(parent_uuid_) {}

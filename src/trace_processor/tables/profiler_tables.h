@@ -203,7 +203,7 @@ PERFETTO_TP_TABLE(PERFETTO_TP_CPU_PROFILE_STACK_SAMPLE_DEF);
 PERFETTO_TP_TABLE(PERFETTO_TP_PERF_SAMPLE_DEF);
 
 // Symbolization data for a frame. Rows with the same symbol_set_id describe
-// one frame, with the bottom-most inlined frame having id == symbol_set_id.
+// one callframe, with the most-inlined symbol having id == symbol_set_id.
 //
 // For instance, if the function foo has an inlined call to the function bar,
 // which has an inlined call to baz, the stack_profile_symbol table would look
@@ -212,9 +212,9 @@ PERFETTO_TP_TABLE(PERFETTO_TP_PERF_SAMPLE_DEF);
 // ```
 // |id|symbol_set_id|name         |source_file|line_number|
 // |--|-------------|-------------|-----------|-----------|
-// |1 |      1      |foo          |foo.cc     | 60        |
+// |1 |      1      |baz          |foo.cc     | 36        |
 // |2 |      1      |bar          |foo.cc     | 30        |
-// |3 |      1      |baz          |foo.cc     | 36        |
+// |3 |      1      |foo          |foo.cc     | 60        |
 // ```
 // @param name name of the function.
 // @param source_file name of the source file containing the function.
@@ -282,7 +282,9 @@ PERFETTO_TP_TABLE(PERFETTO_TP_HEAP_PROFILE_ALLOCATION_DEF);
   C(int64_t, cumulative_alloc_count)                                      \
   C(int64_t, alloc_size)                                                  \
   C(int64_t, cumulative_alloc_size)                                       \
-  C(base::Optional<ExperimentalFlamegraphNodesTable::Id>, parent_id)
+  C(base::Optional<ExperimentalFlamegraphNodesTable::Id>, parent_id)      \
+  C(base::Optional<StringPool::Id>, source_file)                          \
+  C(base::Optional<uint32_t>, line_number)
 
 PERFETTO_TP_TABLE(PERFETTO_TP_EXPERIMENTAL_FLAMEGRAPH_NODES);
 
@@ -290,7 +292,7 @@ PERFETTO_TP_TABLE(PERFETTO_TP_EXPERIMENTAL_FLAMEGRAPH_NODES);
 // @param deobfuscated_name if class name was obfuscated and deobfuscation map
 // for it provided, the deobfuscated name.
 // @param location the APK / Dex / JAR file the class is contained in.
-// @tablegroup ART Heap Profiler
+// @tablegroup ART Heap Graphs
 //
 // classloader_id should really be HeapGraphObject::id, but that would
 // create a loop, which is currently not possible.
@@ -320,7 +322,7 @@ PERFETTO_TP_TABLE(PERFETTO_TP_HEAP_GRAPH_CLASS_DEF);
 // false, this object is uncollected garbage.
 // @param type_id class this object is an instance of.
 // @param root_type if not NULL, this object is a GC root.
-// @tablegroup ART Heap Profiler
+// @tablegroup ART Heap Graphs
 #define PERFETTO_TP_HEAP_GRAPH_OBJECT_DEF(NAME, PARENT, C)            \
   NAME(HeapGraphObjectTable, "heap_graph_object")                     \
   PERFETTO_TP_ROOT_TABLE(PARENT, C)                                   \
@@ -346,7 +348,7 @@ PERFETTO_TP_TABLE(PERFETTO_TP_HEAP_GRAPH_OBJECT_DEF);
 // @param field_type_name the static type of the field. E.g. java.lang.String.
 // @param deobfuscated_field_name if field_name was obfuscated and a
 // deobfuscation mapping was provided for it, the deobfuscated name.
-// @tablegroup ART Heap Profiler
+// @tablegroup ART Heap Graphs
 #define PERFETTO_TP_HEAP_GRAPH_REFERENCE_DEF(NAME, PARENT, C) \
   NAME(HeapGraphReferenceTable, "heap_graph_reference")       \
   PERFETTO_TP_ROOT_TABLE(PARENT, C)                           \

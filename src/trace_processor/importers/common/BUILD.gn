@@ -1,0 +1,75 @@
+# Copyright (C) 2021 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import("../../../../gn/perfetto.gni")
+
+source_set("common") {
+  sources = [
+    "args_tracker.cc",
+    "args_tracker.h",
+    "chunked_trace_reader.h",
+    "clock_tracker.cc",
+    "clock_tracker.h",
+    "event_tracker.cc",
+    "event_tracker.h",
+    "flow_tracker.cc",
+    "flow_tracker.h",
+    "global_args_tracker.cc",
+    "global_args_tracker.h",
+    "process_tracker.cc",
+    "process_tracker.h",
+    "slice_tracker.cc",
+    "slice_tracker.h",
+    "system_info_tracker.cc",
+    "system_info_tracker.h",
+    "trace_parser.h",
+    "track_tracker.cc",
+    "track_tracker.h",
+  ]
+  public_deps = [
+    "../:gen_cc_config_descriptor",
+    "../../util:protozero_to_text",
+  ]
+  deps = [
+    "../../../../gn:default_deps",
+    "../../../../include/perfetto/trace_processor:basic_types",
+    "../../../../protos/perfetto/common:zero",
+    "../../../../protos/perfetto/trace:zero",
+    "../../../../protos/perfetto/trace/profiling:zero",
+    "../../../base",
+    "../../storage",
+    "../../types",
+  ]
+}
+
+source_set("unittests") {
+  sources = [
+    "clock_tracker_unittest.cc",
+    "event_tracker_unittest.cc",
+    "flow_tracker_unittest.cc",
+    "process_tracker_unittest.cc",
+    "slice_tracker_unittest.cc",
+  ]
+  testonly = true
+  deps = [
+    ":common",
+    "../../../../gn:default_deps",
+    "../../../../gn:gtest_and_gmock",
+    "../../../../protos/perfetto/common:zero",
+    "../../../../protos/perfetto/trace:zero",
+    "../../../base",
+    "../../storage",
+    "../../types",
+  ]
+}

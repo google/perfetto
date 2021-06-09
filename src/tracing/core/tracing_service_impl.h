@@ -32,6 +32,7 @@
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/circular_queue.h"
 #include "perfetto/ext/base/optional.h"
+#include "perfetto/ext/base/periodic_task.h"
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/commit_data_request.h"
@@ -45,6 +46,10 @@
 #include "perfetto/tracing/core/trace_config.h"
 #include "src/android_stats/perfetto_atoms.h"
 #include "src/tracing/core/id_allocator.h"
+
+namespace protozero {
+class MessageFilter;
+}
 
 namespace perfetto {
 
@@ -82,6 +87,7 @@ class TracingServiceImpl : public TracingService {
                          base::TaskRunner*,
                          Producer*,
                          const std::string& producer_name,
+                         const std::string& sdk_version,
                          bool in_process,
                          bool smb_scraping_enabled);
     ~ProducerEndpointImpl() override;
@@ -149,6 +155,7 @@ class TracingServiceImpl : public TracingService {
     size_t shmem_page_size_hint_bytes_ = 0;
     bool is_shmem_provided_by_producer_ = false;
     const std::string name_;
+    std::string sdk_version_;
     bool in_process_;
     bool smb_scraping_enabled_;
 
@@ -286,7 +293,8 @@ class TracingServiceImpl : public TracingService {
       ProducerSMBScrapingMode smb_scraping_mode =
           ProducerSMBScrapingMode::kDefault,
       size_t shared_memory_page_size_hint_bytes = 0,
-      std::unique_ptr<SharedMemory> shm = nullptr) override;
+      std::unique_ptr<SharedMemory> shm = nullptr,
+      const std::string& sdk_version = {}) override;
 
   std::unique_ptr<TracingService::ConsumerEndpoint> ConnectConsumer(
       Consumer*,
@@ -373,7 +381,12 @@ class TracingServiceImpl : public TracingService {
       DISABLING_WAITING_STOP_ACKS
     };
 
-    TracingSession(TracingSessionID, ConsumerEndpointImpl*, const TraceConfig&);
+    TracingSession(TracingSessionID,
+                   ConsumerEndpointImpl*,
+                   const TraceConfig&,
+                   base::TaskRunner*);
+    TracingSession(TracingSession&&) = delete;
+    TracingSession& operator=(TracingSession&&) = delete;
 
     size_t num_buffers() const { return buffers_index.size(); }
 
@@ -564,6 +577,17 @@ class TracingServiceImpl : public TracingService {
     // when the tracing session ends and the data has been saved into the file.
     std::function<void()> on_disable_callback_for_bugreport;
     bool seized_for_bugreport = false;
+
+    // Periodic task for snapshotting service events (e.g. clocks, sync markers
+    // etc)
+    base::PeriodicTask snapshot_periodic_task;
+
+    // When non-NULL the packets should be post-processed using the filter.
+    std::unique_ptr<protozero::MessageFilter> trace_filter;
+    uint64_t filter_input_packets = 0;
+    uint64_t filter_input_bytes = 0;
+    uint64_t filter_output_bytes = 0;
+    uint64_t filter_errors = 0;
   };
 
   TracingServiceImpl(const TracingServiceImpl&) = delete;
@@ -596,7 +620,7 @@ class TracingServiceImpl : public TracingService {
                               TracingSession*,
                               DataSourceInstance*,
                               bool disable_immediately);
-  void PeriodicSnapshotTask(TracingSession*);
+  void PeriodicSnapshotTask(TracingSessionID);
   void MaybeSnapshotClocksIntoRingBuffer(TracingSession*);
   bool SnapshotClocks(TracingSession::ClockSnapshotData*);
   void SnapshotLifecyleEvent(TracingSession*,
@@ -661,7 +685,7 @@ class TracingServiceImpl : public TracingService {
 
   bool smb_scraping_enabled_ = false;
   bool lockdown_mode_ = false;
-  uint32_t min_write_period_ms_ = 100;  // Overridable for testing.
+  uint32_t min_write_period_ms_ = 100;       // Overridable for testing.
   int64_t trigger_window_ns_ = kOneDayInNs;  // Overridable for testing.
 
   std::minstd_rand trigger_probability_rand_;

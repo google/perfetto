@@ -23,7 +23,7 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/timestamped_trace_piece.h"
-#include "src/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/util/trace_blob_view.h"
 
 namespace Json {
 class Value;
@@ -71,36 +71,36 @@ class TraceSorter {
                               PacketSequenceState* state,
                               TraceBlobView packet) {
     DCHECK_ftrace_batch_cpu(kNoBatch);
-    auto* queue = GetQueue(0);
-    queue->Append(TimestampedTracePiece(timestamp, packet_idx_++,
-                                        std::move(packet),
-                                        state->current_generation()));
-    MaybeExtractEvents(queue);
+    AppendNonFtraceAndMaybeExtractEvents(
+        TimestampedTracePiece(timestamp, packet_idx_++, std::move(packet),
+                              state->current_generation()));
   }
 
   inline void PushJsonValue(int64_t timestamp, std::string json_value) {
-    auto* queue = GetQueue(0);
-    queue->Append(
+    DCHECK_ftrace_batch_cpu(kNoBatch);
+    AppendNonFtraceAndMaybeExtractEvents(
         TimestampedTracePiece(timestamp, packet_idx_++, std::move(json_value)));
-    MaybeExtractEvents(queue);
   }
 
   inline void PushFuchsiaRecord(int64_t timestamp,
                                 std::unique_ptr<FuchsiaRecord> record) {
     DCHECK_ftrace_batch_cpu(kNoBatch);
-    auto* queue = GetQueue(0);
-    queue->Append(
+    AppendNonFtraceAndMaybeExtractEvents(
         TimestampedTracePiece(timestamp, packet_idx_++, std::move(record)));
-    MaybeExtractEvents(queue);
   }
 
   inline void PushSystraceLine(std::unique_ptr<SystraceLine> systrace_line) {
     DCHECK_ftrace_batch_cpu(kNoBatch);
-    auto* queue = GetQueue(0);
+
     int64_t timestamp = systrace_line->ts;
-    queue->Append(TimestampedTracePiece(timestamp, packet_idx_++,
-                                        std::move(systrace_line)));
-    MaybeExtractEvents(queue);
+    AppendNonFtraceAndMaybeExtractEvents(TimestampedTracePiece(
+        timestamp, packet_idx_++, std::move(systrace_line)));
+  }
+
+  inline void PushTrackEventPacket(int64_t timestamp,
+                                   std::unique_ptr<TrackEventData> data) {
+    AppendNonFtraceAndMaybeExtractEvents(
+        TimestampedTracePiece(timestamp, packet_idx_++, std::move(data)));
   }
 
   inline void PushFtraceEvent(uint32_t cpu,
@@ -117,20 +117,20 @@ class TraceSorter {
     // global ordering and doing that in batches only after all ftrace events
     // for a bundle are pushed.
   }
-
-  // As with |PushFtraceEvent|, doesn't immediately sort the affected queues.
-  // TODO(rsavitski): if a trace has a mix of normal & "compact" events (being
-  // pushed through this function), the ftrace batches will no longer be fully
-  // sorted by timestamp. In such situations, we will have to sort at the end of
-  // the batch. We can do better as both sub-sequences are sorted however.
-  // Consider adding extra queues, or pushing them in a merge-sort fashion
-  // instead.
   inline void PushInlineFtraceEvent(uint32_t cpu,
                                     int64_t timestamp,
                                     InlineSchedSwitch inline_sched_switch) {
     set_ftrace_batch_cpu_for_DCHECK(cpu);
     GetQueue(cpu + 1)->Append(
         TimestampedTracePiece(timestamp, packet_idx_++, inline_sched_switch));
+
+    // As with |PushFtraceEvent|, doesn't immediately sort the affected queues.
+    // TODO(rsavitski): if a trace has a mix of normal & "compact" events (being
+    // pushed through this function), the ftrace batches will no longer be fully
+    // sorted by timestamp. In such situations, we will have to sort at the end
+    // of the batch. We can do better as both sub-sequences are sorted however.
+    // Consider adding extra queues, or pushing them in a merge-sort fashion
+    // instead.
   }
   inline void PushInlineFtraceEvent(uint32_t cpu,
                                     int64_t timestamp,
@@ -139,15 +139,6 @@ class TraceSorter {
     GetQueue(cpu + 1)->Append(
         TimestampedTracePiece(timestamp, packet_idx_++, inline_sched_waking));
   }
-
-  inline void PushTrackEventPacket(int64_t timestamp,
-                                   std::unique_ptr<TrackEventData> data) {
-    auto* queue = GetQueue(0);
-    queue->Append(
-        TimestampedTracePiece(timestamp, packet_idx_++, std::move(data)));
-    MaybeExtractEvents(queue);
-  }
-
   inline void FinalizeFtraceEventBatch(uint32_t cpu) {
     DCHECK_ftrace_batch_cpu(cpu);
     set_ftrace_batch_cpu_for_DCHECK(kNoBatch);
@@ -229,6 +220,32 @@ class TraceSorter {
     return &queues_[index];
   }
 
+  inline void AppendNonFtraceAndMaybeExtractEvents(TimestampedTracePiece ttp) {
+    // Fast path: if this event is before all other events in the sorter and
+    // happened more than the window size in the past, just push the event to
+    // the next stage. This saves all the sorting logic which would simply move
+    // this event to the head of the queue and then extract it out.
+    //
+    // In practice, these events will be rejected as being "out-of-order" later
+    // on in trace processor (i.e. in EventTracker or SliceTracker); we don't
+    // drop here to allow them to track packet drop stats.
+    //
+    // See b/188392852 for an example of where this condition would be hit in
+    // practice.
+    bool is_before_all_events = ttp.timestamp < global_max_ts_;
+    bool is_before_window = global_max_ts_ - ttp.timestamp >= window_size_ns_;
+    if (PERFETTO_UNLIKELY(is_before_all_events && is_before_window)) {
+      MaybePushEvent(0, std::move(ttp));
+      return;
+    }
+
+    // Slow path: append the event to the non-ftrace queue and extract any
+    // events if available.
+    Queue* queue = GetQueue(0);
+    queue->Append(std::move(ttp));
+    MaybeExtractEvents(queue);
+  }
+
   inline void MaybeExtractEvents(Queue* queue) {
     DCHECK_ftrace_batch_cpu(kNoBatch);
     global_max_ts_ = std::max(global_max_ts_, queue->max_ts_);
@@ -239,6 +256,9 @@ class TraceSorter {
       return;
     SortAndExtractEventsBeyondWindow(window_size_ns_);
   }
+
+  void MaybePushEvent(size_t queue_idx,
+                      TimestampedTracePiece ttp) PERFETTO_ALWAYS_INLINE;
 
   std::unique_ptr<TraceParser> parser_;
 

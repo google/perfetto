@@ -74,6 +74,13 @@ class TracingTLS : public Platform::ThreadLocalObject {
   // thread-local TraceWriter(s) is issued.
   uint32_t generation = 0;
 
+  // This flag is true while this thread is inside a trace point for any data
+  // source or in other delicate parts of the tracing machinery during which we
+  // should not try to trace. Used to prevent unexpected re-entrancy.
+  // This flag is also load-bearing when handling re-entrancy during thread-exit
+  // handlers. See comment in TracingTLS::~TracingTLS().
+  bool is_in_trace_point = false;
+
   // By default all data source instances have independent thread-local state
   // (see above).
   std::array<DataSourceThreadLocalState, kMaxDataSources> data_sources_tls{};
@@ -82,6 +89,17 @@ class TracingTLS : public Platform::ThreadLocalObject {
   // order to be able to share trace writers and interning state across all
   // track event categories.
   DataSourceThreadLocalState track_event_tls{};
+};
+
+struct ScopedReentrancyAnnotator {
+  ScopedReentrancyAnnotator(TracingTLS& root_tls) : root_tls_(root_tls) {
+    PERFETTO_DCHECK(!root_tls_.is_in_trace_point);
+    root_tls_.is_in_trace_point = true;
+  }
+  ~ScopedReentrancyAnnotator() { root_tls_.is_in_trace_point = false; }
+
+ private:
+  TracingTLS& root_tls_;
 };
 
 }  // namespace internal

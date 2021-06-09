@@ -21,7 +21,10 @@ import {
   OBJECTS_ALLOCATED_NOT_FREED_KEY,
   SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY,
 } from '../common/flamegraph_util';
-import {HeapProfileFlamegraphViewingOption} from '../common/state';
+import {
+  CallsiteInfo,
+  HeapProfileFlamegraphViewingOption
+} from '../common/state';
 import {timeToCode} from '../common/time';
 
 import {PerfettoMouseEvent} from './events';
@@ -48,6 +51,13 @@ function toProfileType(s: string): ProfileType {
     throw new Error('Unknown type ${s}');
   }
   return s;
+}
+
+function toSelectedCallsite(c: CallsiteInfo|undefined): string {
+  if (c !== undefined && c.name !== undefined) {
+    return c.name;
+  }
+  return '(none)';
 }
 
 const RENDER_SELF_AND_TOTAL: NodeRendering = {
@@ -116,6 +126,9 @@ export class HeapProfileDetailsPanel extends
                 ]),
               m('div.details',
                 [
+                  m('div.selected',
+                    `Selected function: ${
+                        toSelectedCallsite(heapDumpInfo.expandedCallsite)}`),
                   m('div.time',
                     `Snapshot time: ${timeToCode(heapDumpInfo.ts)}`),
                   m('input[type=text][placeholder=Focus]', {

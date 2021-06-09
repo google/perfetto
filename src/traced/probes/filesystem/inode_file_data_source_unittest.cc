@@ -133,7 +133,7 @@ TEST_F(InodeFileDataSourceTest, TestStaticMap) {
   EXPECT_CALL(*data_source, FillInodeEntry(_, buf.st_ino, Eq(value)));
 
   data_source->OnInodes({{buf.st_ino, buf.st_dev}});
-  // Expect that the found inode is not added the the LRU cache.
+  // Expect that the found inode is not added the LRU cache.
   EXPECT_THAT(cache_.Get(std::make_pair(buf.st_dev, buf.st_ino)), IsNull());
 }
 

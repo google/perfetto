@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import("../../gn/perfetto.gni")
+import("../../gn/perfetto_cc_proto_descriptor.gni")
 import("../../gn/perfetto_host_executable.gni")
 import("../../gn/wasm.gni")
 
@@ -71,6 +72,7 @@ source_set("pprofbuilder") {
     "../../protos/third_party/pprof:zero",
     "../../src/profiling/symbolizer",
     "../../src/profiling/symbolizer:symbolize_database",
+    "../../src/trace_processor/containers:containers",
   ]
   sources = [ "pprof_builder.cc" ]
 }
@@ -78,7 +80,7 @@ source_set("pprofbuilder") {
 # Exposed in bazel builds.
 static_library("libpprofbuilder") {
   complete_static_lib = true
-  deps = [ ":pprofbuilder" ]
+  public_deps = [ ":pprofbuilder" ]
 }
 
 # The core source files that are used both by the "full" version (the host
@@ -130,10 +132,12 @@ source_set("full") {
   testonly = true
   deps = [
     ":common",
+    ":gen_cc_trace_descriptor",
     ":utils",
     "../../gn:default_deps",
     "../../gn:protobuf_full",
     "../../protos/perfetto/trace:zero",
+    "../../src/protozero:proto_ring_buffer",
   ]
   if (enable_perfetto_zlib) {
     deps += [ "../../gn:zlib" ]
@@ -153,4 +157,9 @@ if (enable_perfetto_ui) {
       "../../gn:default_deps",
     ]
   }
+}
+
+perfetto_cc_proto_descriptor("gen_cc_trace_descriptor") {
+  descriptor_name = "trace.descriptor"
+  descriptor_target = "../../protos/perfetto/trace:descriptor"
 }

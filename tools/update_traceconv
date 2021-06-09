@@ -3,6 +3,7 @@
 set -e
 
 DIR=$(mktemp -d out/perfetto.XXXXXX)
+STRIPPED_DIR=$DIR/stripped
 
 function cleanup {
   rm -rf "$DIR"
@@ -23,22 +24,23 @@ if is_mac; then
   platform=mac
 else
   platform=linux
-  strip $DIR/trace_to_text
 fi
 
 if which shasum; then
-  NEW_SHA=$(shasum $DIR/trace_to_text | cut -f1 -d' ') # Mac OS
+  NEW_SHA=$(shasum $STRIPPED_DIR/trace_to_text | cut -f1 -d' ') # Mac OS
 else
-  NEW_SHA=$(sha1sum $DIR/trace_to_text | cut -f1 -d' ') # Linux
+  NEW_SHA=$(sha1sum $STRIPPED_DIR/trace_to_text | cut -f1 -d' ') # Linux
 fi
 
 name=trace_to_text-$platform-$NEW_SHA
 
-gsutil cp $DIR/trace_to_text gs://perfetto/$name
-gsutil cp $DIR/trace_to_text gs://chromium-telemetry/binary_dependencies/$name
+gsutil cp $STRIPPED_DIR/trace_to_text gs://perfetto/$name
+gsutil cp $STRIPPED_DIR/trace_to_text gs://chromium-telemetry/binary_dependencies/$name
 gsutil acl ch -u AllUsers:R gs://perfetto/$name
 gsutil acl ch -u AllUsers:R gs://chromium-telemetry/binary_dependencies/$name
 
 echo 'Now run the following command to update tools/traceconv:'
 echo "sed \"s/'$platform': '[^']*',/'$platform': '$NEW_SHA',/\" --in-place tools/traceconv"
 
+echo 'Now run the following command to update tools/heap_profile:'
+echo "sed \"s/'$platform': '[^']*',/'$platform': '$NEW_SHA',/\" --in-place tools/heap_profile"

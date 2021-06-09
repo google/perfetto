@@ -94,6 +94,8 @@ export class NotesPanel extends Panel {
 
     for (const note of Object.values(globals.state.notes)) {
       const timestamp = getStartTimestamp(note);
+      // TODO(hjd): We should still render area selection marks in viewport is
+      // *within* the area (e.g. both lhs and rhs are out of bounds).
       if ((note.noteType !== 'AREA' && !timeScale.timeInBounds(timestamp)) ||
           (note.noteType === 'AREA' &&
            !timeScale.timeInBounds(globals.state.areas[note.areaId].endSec) &&
@@ -139,7 +141,7 @@ export class NotesPanel extends Panel {
     }
 
     // A real note is hovered so we don't need to see the preview line.
-    // TODO(taylori): Change cursor to pointer here.
+    // TODO(hjd): Change cursor to pointer here.
     if (aNoteIsHovered) globals.frontendLocalState.setHoveredNoteTimestamp(-1);
 
     // View preview note flag when hovering on notes panel.
@@ -182,12 +184,12 @@ export class NotesPanel extends Panel {
     ctx.stroke();
 
     // Start line after track shell section, join triangles.
-    const startDraw =
-        Math.max(
-            x,
-            globals.frontendLocalState.timeScale.startPx + TRACK_SHELL_WIDTH) -
-        1;
-    ctx.fillRect(startDraw, topOffset - 1, xEnd - startDraw + 1, 1);
+    const startDraw = Math.max(
+        x, globals.frontendLocalState.timeScale.startPx + TRACK_SHELL_WIDTH);
+    ctx.beginPath();
+    ctx.moveTo(startDraw, topOffset);
+    ctx.lineTo(xEnd, topOffset);
+    ctx.stroke();
   }
 
   private drawFlag(

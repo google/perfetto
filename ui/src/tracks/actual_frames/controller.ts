@@ -12,8 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertTrue} from '../../base/logging';
-import {slowlyCountRows} from '../../common/query_iterator';
+import {assertExists, assertTrue} from '../../base/logging';
+import {
+  iter,
+  NUM,
+  singleRow,
+  slowlyCountRows,
+  STR
+} from '../../common/query_iterator';
 import {fromNs, toNs} from '../../common/time';
 import {
   TrackController,
@@ -46,30 +52,33 @@ class ActualFramesSliceTrackController extends TrackController<Config, Data> {
 
     if (this.maxDurNs === 0) {
       const maxDurResult = await this.query(`
-        select max(dur)
+        select
+          max(iif(dur = -1, (SELECT end_ts FROM trace_bounds) - ts, dur))
+            as maxDur
         from experimental_slice_layout
         where filter_track_ids = '${this.config.trackIds.join(',')}'
       `);
-      if (slowlyCountRows(maxDurResult) === 1) {
-        this.maxDurNs = maxDurResult.columns[0].longValues![0];
-      }
+      const row = singleRow({maxDur: NUM}, maxDurResult);
+      this.maxDurNs = assertExists(row).maxDur;
     }
 
     const rawResult = await this.query(`
       SELECT
         (s.ts + ${bucketNs / 2}) / ${bucketNs} * ${bucketNs} as tsq,
-        s.ts,
-        max(s.dur) as dur,
-        s.layout_depth,
-        s.name,
-        s.id,
-        s.dur = 0 as is_instant,
-        s.dur = -1 as is_incomplete,
+        s.ts as ts,
+        max(iif(s.dur = -1, (SELECT end_ts FROM trace_bounds) - s.ts, s.dur))
+            as dur,
+        s.layout_depth as layoutDepth,
+        s.name as name,
+        s.id as id,
+        s.dur = 0 as isInstant,
+        s.dur = -1 as isIncomplete,
         CASE afs.jank_tag
           WHEN 'Self Jank' THEN '${RED_COLOR}'
           WHEN 'Other Jank' THEN '${YELLOW_COLOR}'
           WHEN 'Dropped Frame' THEN '${BLUE_COLOR}'
           WHEN 'Buffer Stuffing' THEN '${LIGHT_GREEN_COLOR}'
+          WHEN 'SurfaceFlinger Stuffing' THEN '${LIGHT_GREEN_COLOR}'
           WHEN 'No Jank' THEN '${GREEN_COLOR}'
           ELSE '${PINK_COLOR}'
         END as color
@@ -110,11 +119,23 @@ class ActualFramesSliceTrackController extends TrackController<Config, Data> {
       return idx;
     }
 
-    const cols = rawResult.columns;
-    for (let row = 0; row < numRows; row++) {
-      const startNsQ = +cols[0].longValues![row];
-      const startNs = +cols[1].longValues![row];
-      const durNs = +cols[2].longValues![row];
+    const it = iter(
+        {
+          'tsq': NUM,
+          'ts': NUM,
+          'dur': NUM,
+          'layoutDepth': NUM,
+          'id': NUM,
+          'name': STR,
+          'isInstant': NUM,
+          'isIncomplete': NUM,
+          'color': STR,
+        },
+        rawResult);
+    for (let i = 0; it.valid(); i++, it.next()) {
+      const startNsQ = it.row.tsq;
+      const startNs = it.row.ts;
+      const durNs = it.row.dur;
       const endNs = startNs + durNs;
 
       let endNsQ = Math.floor((endNs + bucketNs / 2 - 1) / bucketNs) * bucketNs;
@@ -122,14 +143,14 @@ class ActualFramesSliceTrackController extends TrackController<Config, Data> {
 
       assertTrue(startNsQ !== endNsQ);
 
-      slices.starts[row] = fromNs(startNsQ);
-      slices.ends[row] = fromNs(endNsQ);
-      slices.depths[row] = +cols[3].longValues![row];
-      slices.titles[row] = internString(cols[4].stringValues![row]);
-      slices.colors![row] = internString(cols[8].stringValues![row]);
-      slices.sliceIds[row] = +cols[5].longValues![row];
-      slices.isInstant[row] = +cols[6].longValues![row];
-      slices.isIncomplete[row] = +cols[7].longValues![row];
+      slices.starts[i] = fromNs(startNsQ);
+      slices.ends[i] = fromNs(endNsQ);
+      slices.depths[i] = it.row.layoutDepth;
+      slices.titles[i] = internString(it.row.name);
+      slices.colors![i] = internString(it.row.color);
+      slices.sliceIds[i] = it.row.id;
+      slices.isInstant[i] = it.row.isInstant;
+      slices.isIncomplete[i] = it.row.isIncomplete;
     }
     return slices;
   }

@@ -36,8 +36,8 @@ def main():
   include_root = os.path.join(ROOT_DIR, 'include')
   for root, _, files in os.walk(include_root):
     for fname in files:
-      fpath = os.path.join(root, fname)
-      rel_path = os.path.relpath(fpath, ROOT_DIR)
+      fpath = os.path.join(root, fname).replace('\\', '/')  # For Windows.
+      rel_path = os.path.relpath(fpath, ROOT_DIR).replace('\\', '/')
       if not os.path.isfile(fpath):
         continue
       if fpath.endswith('.cc'):

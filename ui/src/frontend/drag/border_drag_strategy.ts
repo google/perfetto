@@ -16,12 +16,10 @@ import {TimeScale} from '../time_scale';
 import {DragStrategy} from './drag_strategy';
 
 export class BorderDragStrategy extends DragStrategy {
-  private pixelBounds: [number, number];
   private moveStart = false;
 
-  constructor(timeScale: TimeScale, pixelBounds: [number, number]) {
+  constructor(timeScale: TimeScale, private pixelBounds: [number, number]) {
     super(timeScale);
-    this.pixelBounds = pixelBounds;
   }
 
   onDrag(x: number) {
@@ -30,10 +28,12 @@ export class BorderDragStrategy extends DragStrategy {
     let tEnd =
         this.timeScale.pxToTime(!this.moveStart ? x : this.pixelBounds[1]);
     if (tStart > tEnd) {
-      [tStart, tEnd] = [tEnd, tStart];
       this.moveStart = !this.moveStart;
+      [tEnd, tStart] = [tStart, tEnd];
     }
     super.updateGlobals(tStart, tEnd);
+    this.pixelBounds =
+        [this.timeScale.timeToPx(tStart), this.timeScale.timeToPx(tEnd)];
   }
 
   onDragStart(x: number) {

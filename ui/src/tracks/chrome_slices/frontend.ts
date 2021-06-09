@@ -28,7 +28,6 @@ import {Config, Data, SLICE_TRACK_KIND} from './common';
 
 const SLICE_HEIGHT = 18;
 const TRACK_PADDING = 4;
-const INCOMPLETE_SLICE_TIME_S = 0.00003;
 const CHEVRON_WIDTH_PX = 10;
 const HALF_CHEVRON_WIDTH_PX = CHEVRON_WIDTH_PX / 2;
 const INNER_CHEVRON_OFFSET = -3;
@@ -87,7 +86,7 @@ export class ChromeSliceTrack extends Track<Config, Data> {
       const title = data.strings[titleId];
       const colorOverride = data.colors && data.strings[data.colors[i]];
       if (isIncomplete) {  // incomplete slice
-        tEnd = tStart + INCOMPLETE_SLICE_TIME_S;
+        tEnd = visibleWindowTime.end;
       }
 
       const rect = this.getSliceRect(tStart, tEnd, depth);
@@ -210,7 +209,7 @@ export class ChromeSliceTrack extends Track<Config, Data> {
       } else {
         let tEnd = data.ends[i];
         if (data.isIncomplete[i]) {
-          tEnd = tStart + INCOMPLETE_SLICE_TIME_S;
+          tEnd = globals.frontendLocalState.visibleWindowTime.end;
         }
         if (tStart <= t && t <= tEnd) {
           return i;

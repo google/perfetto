@@ -33,6 +33,7 @@
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/trace_config.h"
+#include "src/android_stats/statsd_logging_helper.h"
 #include "src/traced/probes/android_log/android_log_data_source.h"
 #include "src/traced/probes/common/cpu_freq_info.h"
 #include "src/traced/probes/filesystem/inode_file_data_source.h"
@@ -538,9 +539,16 @@ void ProbesProducer::ResetConnectionBackoff() {
 }
 
 void ProbesProducer::ActivateTrigger(std::string trigger) {
+  android_stats::MaybeLogTriggerEvent(
+      PerfettoTriggerAtom::kProbesProducerTrigger, trigger);
+
   task_runner_->PostTask([this, trigger]() {
-    if (endpoint_)
-      endpoint_->ActivateTriggers({trigger});
+    if (!endpoint_) {
+      android_stats::MaybeLogTriggerEvent(
+          PerfettoTriggerAtom::kProbesProducerTriggerFail, trigger);
+      return;
+    }
+    endpoint_->ActivateTriggers({trigger});
   });
 }
 

@@ -15,12 +15,17 @@
 import {assertExists} from '../base/logging';
 import {DeferredAction} from '../common/actions';
 import {AggregateData} from '../common/aggregation_data';
+import {Args, ArgsTree} from '../common/arg_types';
+import {
+  ConversionJobName,
+  ConversionJobStatus
+} from '../common/conversion_jobs';
 import {MetricResult} from '../common/metric_data';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
 import {CallsiteInfo, createEmptyState, State} from '../common/state';
 import {fromNs, toNs} from '../common/time';
-import {Analytics, initAnalytics} from '../frontend/analytics';
 
+import {Analytics, initAnalytics} from './analytics';
 import {FrontendLocalState} from './frontend_local_state';
 import {RafScheduler} from './raf_scheduler';
 import {ServiceWorkerController} from './service_worker_controller';
@@ -30,8 +35,6 @@ type TrackDataStore = Map<string, {}>;
 type QueryResultsStore = Map<string, {}>;
 type AggregateDataStore = Map<string, AggregateData>;
 type Description = Map<string, string>;
-export type Arg = string|{kind: 'SLICE', trackId: string, sliceId: number};
-export type Args = Map<string, Arg>;
 export interface SliceDetails {
   ts?: number;
   dur?: number;
@@ -47,6 +50,7 @@ export interface SliceDetails {
   category?: string;
   name?: string;
   args?: Args;
+  argsTree?: ArgsTree;
   description?: Description;
 }
 
@@ -170,6 +174,8 @@ class Globals {
   private _traceErrors?: number = undefined;
   private _metricError?: string = undefined;
   private _metricResult?: MetricResult = undefined;
+  private _hasFtrace?: boolean = undefined;
+  private _jobStatus?: Map<ConversionJobName, ConversionJobStatus> = undefined;
 
   private _currentSearchResults: CurrentSearchResults = {
     sliceIds: [],
@@ -371,6 +377,34 @@ class Globals {
     this._currentSearchResults = results;
   }
 
+  get hasFtrace(): boolean {
+    return !!this._hasFtrace;
+  }
+
+  set hasFtrace(value: boolean) {
+    this._hasFtrace = value;
+  }
+
+  getConversionJobStatus(name: ConversionJobName): ConversionJobStatus {
+    return this.getJobStatusMap().get(name) || ConversionJobStatus.NotRunning;
+  }
+
+  setConversionJobStatus(name: ConversionJobName, status: ConversionJobStatus) {
+    const map = this.getJobStatusMap();
+    if (status === ConversionJobStatus.NotRunning) {
+      map.delete(name);
+    } else {
+      map.set(name, status);
+    }
+  }
+
+  private getJobStatusMap(): Map<ConversionJobName, ConversionJobStatus> {
+    if (!this._jobStatus) {
+      this._jobStatus = new Map();
+    }
+    return this._jobStatus;
+  }
+
   setBufferUsage(bufferUsage: number) {
     this._bufferUsage = bufferUsage;
   }
@@ -399,8 +433,23 @@ class Globals {
     // window span). Therefore, zooming out by six levels is 1.1^6 ~= 2.
     // Similarily, zooming in six levels is 0.9^6 ~= 0.5.
     const pxToSec = this.frontendLocalState.timeScale.deltaPxToDuration(1);
+    // TODO(b/186265930): Remove once fixed:
+    if (!isFinite(pxToSec)) {
+      // Resolution is in pixels per second so 1000 means 1px = 1ms.
+      console.error(`b/186265930: Bad pxToSec suppressed ${pxToSec}`);
+      return fromNs(Math.pow(2, Math.floor(Math.log2(toNs(1000)))));
+    }
     const pxToNs = Math.max(toNs(pxToSec), 1);
-    return fromNs(Math.pow(2, Math.floor(Math.log2(pxToNs))));
+    const resolution = fromNs(Math.pow(2, Math.floor(Math.log2(pxToNs))));
+    const log2 = Math.log2(toNs(resolution));
+    if (log2 % 1 !== 0) {
+      throw new Error(`Resolution should be a power of two.
+        pxToSec: ${pxToSec},
+        pxToNs: ${pxToNs},
+        resolution: ${resolution},
+        log2: ${Math.log2(toNs(resolution))}`);
+    }
+    return resolution;
   }
 
   makeSelection(action: DeferredAction<{}>, tabToOpen = 'current_selection') {

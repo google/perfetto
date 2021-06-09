@@ -24,11 +24,23 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "perfetto/ext/base/uuid.h"
 #include "perfetto/trace_processor/status.h"
+#include "src/protozero/proto_ring_buffer.h"
 
 namespace perfetto {
+
+namespace protos {
+namespace pbzero {
+class RawQueryResult;
+class ComputeMetricResult;
+class DisableAndReadMetatraceResult;
+}  // namespace pbzero
+}  // namespace protos
+
 namespace trace_processor {
 
+class Iterator;
 class TraceProcessor;
 
 // This class handles the binary {,un}marshalling for the Trace Processor RPC
@@ -54,17 +66,73 @@ class Rpc {
   Rpc();
   ~Rpc();
 
+  // 1. TraceProcessor byte-pipe RPC interface.
+  // This is a bidirectional channel with a remote TraceProcessor instance. All
+  // it needs is a byte-oriented pipe (e.g., a TCP socket, a pipe(2) between two
+  // processes or a postmessage channel in the JS+Wasm case). The messages
+  // exchanged on these pipes are TraceProcessorRpc protos (defined in
+  // trace_processor.proto). This has been introduced in Perfetto v15.
+
+  // Pushes data received by the RPC channel into the parser. Inbound messages
+  // are tokenized and turned into TraceProcessor method invocations. |data|
+  // does not need to be a whole TraceProcessorRpc message. It can be a portion
+  // of it or a union of >1 messages.
+  // Responses are sent throught the RpcResponseFunction (below).
+  void OnRpcRequest(const void* data, size_t len);
+
+  // The size argument is a uint32_t and not size_t to avoid ABI mismatches
+  // with Wasm, where size_t = uint32_t.
+  // (nullptr, 0) has the semantic of "close the channel" and is issued when an
+  // unrecoverable wire-protocol framing error is detected.
+  using RpcResponseFunction = void (*)(const void* /*data*/, uint32_t /*len*/);
+  void SetRpcResponseFunction(RpcResponseFunction f) { rpc_response_fn_ = f; }
+
+  // 2. TraceProcessor legacy RPC endpoints.
+  // The methods below are exposed for the old RPC interfaces, where each RPC
+  // implementation deals with the method demuxing: (i) wasm_bridge.cc has one
+  // exported C function per method (going away soon); (ii) httpd.cc has one
+  // REST endpoint per method. Over time this turned out to have too much
+  // duplicated boilerplate and we moved to the byte-pipe model above.
+  // We still keep these endpoints around, because httpd.cc still  exposes the
+  // individual REST endpoints to legacy clients (TP's Python API). The
+  // mainteinance cost of those is very low. Both the new byte-pipe and the
+  // old endpoints run exactly the same code. The {de,}serialization format is
+  // the same, the only difference is only who does the method demuxing.
   // The methods of this class are mirrors (modulo {un,}marshalling of args) of
   // the corresponding names in trace_processor.h . See that header for docs.
 
   util::Status Parse(const uint8_t* data, size_t len);
   void NotifyEndOfFile();
-  void RestoreInitialTables();
   std::string GetCurrentTraceName();
   std::vector<uint8_t> ComputeMetric(const uint8_t* data, size_t len);
-  std::vector<uint8_t> GetMetricDescriptors(const uint8_t* data, size_t len);
   void EnableMetatrace();
   std::vector<uint8_t> DisableAndReadMetatrace();
+
+  // Creates a new RPC session by:
+  // a) deleting all tables and views that have been created (by the UI or user)
+  //    after the trace was loaded; built-in tables/view created
+  //    by the ingestion process are preserved.
+  // b) creates a new session id (see |GetSessionId| for more information).
+  //
+  // Historical note: the name of this function is |RestoreInitialTables|
+  // because it was created before the concept of an RPC session was
+  // defined when this function only reset the views. The scope was expanded
+  // rather than just creating a new function to preserve backward compatibility
+  // for clients.
+  void RestoreInitialTables();
+
+  // Returns the id of the RPC session. This id is an opaque string
+  // which can be used to globally and uniquely identify a particular session of
+  // RPC class.
+  //
+  // A new session is started (and thus a new session id is generated) when
+  // either:
+  // a) a new RPC instance is created
+  // b) |RestoreInitialTables| is called on an existing instance
+  //
+  // This can be used by RPC clients to determine whether they are talking to
+  // same instance they previously used to create tables/views.
+  std::string GetSessionId();
 
   // Runs a query and returns results in batch. Each batch is a proto-encoded
   // TraceProcessor.QueryResult message and contains a variable number of rows.
@@ -87,13 +155,30 @@ class Rpc {
   std::vector<uint8_t> RawQuery(const uint8_t* args, size_t len);
 
  private:
+  void ParseRpcRequest(const uint8_t* data, size_t len);
+  void ResetTraceProcessor();
   void MaybePrintProgress();
+  Iterator QueryInternal(const uint8_t* args, size_t len);
+  void RawQueryInternal(const uint8_t* args,
+                        size_t len,
+                        protos::pbzero::RawQueryResult*);
+  void ComputeMetricInternal(const uint8_t* args,
+                             size_t len,
+                             protos::pbzero::ComputeMetricResult*);
+  void DisableAndReadMetatraceInternal(
+      protos::pbzero::DisableAndReadMetatraceResult*);
 
   std::unique_ptr<TraceProcessor> trace_processor_;
-  bool eof_ = true;  // Reset when calling Parse().
+  RpcResponseFunction rpc_response_fn_;
+  protozero::ProtoRingBuffer rxbuf_;
+  int64_t tx_seq_id_ = 0;
+  int64_t rx_seq_id_ = 0;
+  bool eof_ = false;
   int64_t t_parse_started_ = 0;
   size_t bytes_last_progress_ = 0;
   size_t bytes_parsed_ = 0;
+
+  base::Uuid session_id_;
 };
 
 }  // namespace trace_processor

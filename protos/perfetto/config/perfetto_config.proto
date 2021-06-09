@@ -197,6 +197,12 @@ message TracingServiceState {
 
     // Unix uid of the remote process.
     optional int32 uid = 3;
+
+    // The version of the client library used by the producer.
+    // This is a human readable string with and its format varies depending on
+    // the build system and the repo (standalone vs AOSP).
+    // This is intended for human debugging only.
+    optional string sdk_version = 4;
   }
 
   // Describes a data source registered by a producer. Data sources are listed
@@ -220,6 +226,12 @@ message TracingServiceState {
 
   // Number of tracing sessions in the started state. Always <= num_sessions.
   optional int32 num_sessions_started = 4;
+
+  // The version of traced (the same returned by `traced --version`).
+  // This is a human readable string with and its format varies depending on
+  // the build system and the repo (standalone vs AOSP).
+  // This is intended for human debugging only.
+  optional string tracing_service_version = 5;
 }
 
 // End of protos/perfetto/common/tracing_service_state.proto
@@ -559,7 +571,7 @@ message ProcessStatsConfig {
 // Begin of protos/perfetto/config/profiling/heapprofd_config.proto
 
 // Configuration for go/heapprofd.
-// Next id: 26
+// Next id: 27
 message HeapprofdConfig {
   message ContinuousDumpConfig {
     // ms to wait before first dump.
@@ -607,11 +619,25 @@ message HeapprofdConfig {
   // For watermark based triggering or local debugging.
   repeated uint64 pid = 4;
 
+  // Only profile target if it was installed by one of the packages given.
+  // Special values are:
+  // * @system: installed on the system partition
+  // * @product: installed on the product partition
+  // * @null: sideloaded
+  // Supported on Android 12+.
+  repeated string target_installed_by = 26;
+
   // Which heaps to sample, e.g. "libc.malloc". If left empty, only samples
   // "malloc".
   //
   // Introduced in Android 12.
   repeated string heaps = 20;
+
+  // Which heaps not to sample, e.g. "libc.malloc". This is useful when used in
+  // combination with all_heaps;
+  //
+  // Introduced in Android 12.
+  repeated string exclude_heaps = 27;
 
   optional bool stream_allocations = 23;
 
@@ -747,6 +773,14 @@ message JavaHprofConfig {
   // For watermark based triggering or local debugging.
   repeated uint64 pid = 2;
 
+  // Only profile target if it was installed by one of the packages given.
+  // Special values are:
+  // * @system: installed on the system partition
+  // * @product: installed on the product partition
+  // * @null: sideloaded
+  // Supported on Android 12+.
+  repeated string target_installed_by = 7;
+
   // Dump at a predefined interval.
   optional ContinuousDumpConfig continuous_dump_config = 3;
 
@@ -847,7 +881,7 @@ message PerfEvents {
 //     }
 //   }
 //
-// Next id: 18
+// Next id: 19
 message PerfEventConfig {
   // What event to sample on, and how often.
   // Defined in common/perf_events.proto.
@@ -918,6 +952,14 @@ message PerfEventConfig {
   optional bool kernel_frames = 12;
   repeated int32 target_pid = 4;
   repeated string target_cmdline = 5;
+
+  // Only profile target if it was installed by one of the packages given.
+  // Special values are:
+  // * @system: installed on the system partition
+  // * @product: installed on the product partition
+  // * @null: sideloaded
+  // Supported on Android 12+.
+  repeated string target_installed_by = 18;
   repeated int32 exclude_pid = 6;
   repeated string exclude_cmdline = 7;
   optional uint32 additional_cmdline_count = 11;
@@ -1291,7 +1333,7 @@ message TrackEventConfig {
   // Default: []
   repeated string enabled_categories = 2;
 
-  // Default: [“slow”, “debug”]
+  // Default: ["slow", "debug"]
   repeated string disabled_tags = 3;
 
   // Default: []
@@ -1305,6 +1347,14 @@ message TrackEventConfig {
 // The configuration that is passed to each data source when starting tracing.
 // Next id: 116
 message DataSourceConfig {
+  enum SessionInitiator {
+    SESSION_INITIATOR_UNSPECIFIED = 0;
+    // This trace was initiated from a trusted system app has DUMP and
+    // USAGE_STATS permission. This system app is expected to not expose the
+    // trace to the user of the device.
+    // This is determined by checking the UID initiating the trace.
+    SESSION_INITIATOR_TRUSTED_SYSTEM = 1;
+  };
   // Data source unique name, e.g., "linux.ftrace". This must match
   // the name passed by the data source when it registers (see
   // RegisterDataSource()).
@@ -1330,6 +1380,10 @@ message DataSourceConfig {
   // guardrails.
   // DO NOT SET in consumer as this will be overridden by the service.
   optional bool enable_extra_guardrails = 6;
+
+  // Set by the service to indicate which user initiated this trace.
+  // DO NOT SET in consumer as this will be overridden by the service.
+  optional SessionInitiator session_initiator = 8;
 
   // Set by the service to indicate which tracing session the data source
   // belongs to. The intended use case for this is checking if two data sources,
@@ -1420,7 +1474,7 @@ message DataSourceConfig {
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 31.
+// Next id: 33.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -1497,6 +1551,21 @@ message TraceConfig {
     // only keeps track of the first and the most recent snapshot until
     // ReadBuffers() is called.
     optional uint32 snapshot_interval_ms = 6;
+
+    // Hints to the service that a suspend-aware (i.e. counting time in suspend)
+    // clock should be used for periodic snapshots of service-emitted events.
+    // This means, if a snapshot *should* have happened during suspend, it will
+    // happen immediately after the device resumes.
+    //
+    // Choosing a clock like this is done on best-effort basis; not all
+    // platforms (e.g. Windows) expose a clock which can be used for periodic
+    // tasks counting suspend. If such a clock is not available, the service
+    // falls back to the best-available alternative.
+    //
+    // Introduced in Android S.
+    // TODO(lalitm): deprecate this in T and make this the default if nothing
+    // crashes in S.
+    optional bool prefer_suspend_clock_for_snapshot = 7;
   }
   optional BuiltinDataSource builtin_data_sources = 20;
 
@@ -1800,6 +1869,15 @@ message TraceConfig {
   // Alternative encoding of trace_uuid as two int64s.
   optional int64 trace_uuid_msb = 27;
   optional int64 trace_uuid_lsb = 28;
+
+  // When set applies a post-filter to the trace contents using the filter
+  // provided. The filter is applied at ReadBuffers() time and works both in the
+  // case of IPC readback and write_into_file. This filter can be generated
+  // using `tools/proto_filter -s schema.proto -F filter_out.bytes` or
+  // `-T filter_out.escaped_string` (for .pbtx).
+  // Introduced in Android S. See go/trace-filtering for design.
+  message TraceFilter { optional bytes bytecode = 1; }
+  optional TraceFilter trace_filter = 32;
 }
 
 // End of protos/perfetto/config/trace_config.proto

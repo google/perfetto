@@ -134,7 +134,7 @@ class ProcessSchedulingTrackController extends TrackController<Config, Data> {
                            `(ts + ${bucketNs / 2}) / ${bucketNs} * ${bucketNs}`;
     const queryTable = isCached ? this.tableName('process_sched_cached') :
                                   this.tableName('process_sched');
-    const constainColumn = isCached ? 'cached_tsq' : 'ts';
+    const constraintColumn = isCached ? 'cached_tsq' : 'ts';
     return this.query(`
       select
         ${tsq} as tsq,
@@ -144,8 +144,8 @@ class ProcessSchedulingTrackController extends TrackController<Config, Data> {
         utid
       from ${queryTable}
       where
-        ${constainColumn} >= ${startNs - this.maxDurNs} and
-        ${constainColumn} <= ${endNs}
+        ${constraintColumn} >= ${startNs - this.maxDurNs} and
+        ${constraintColumn} <= ${endNs}
       group by tsq, cpu
       order by tsq, cpu
     `);

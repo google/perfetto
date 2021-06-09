@@ -15,6 +15,7 @@
  */
 
 #include "src/profiling/common/proc_utils.h"
+#include "perfetto/ext/base/optional.h"
 #include "perfetto/profiling/normalize.h"
 
 #include "perfetto/ext/base/utils.h"
@@ -135,6 +136,35 @@ TEST(ProcUtilsTest, GetRssAnonAndSwapInvalidInput) {
   EXPECT_EQ(GetRssAnonAndSwap("RssAnon: 10000 kB"), base::nullopt);
   EXPECT_EQ(GetRssAnonAndSwap("VmSwap: 10000"), base::nullopt);
 }
+
+TEST(ProcUtilsTest, GetUids) {
+  std::string status =
+      "Name: foo\nRssAnon:  10000 kB\nVmSwap:\t10000 kB\n"
+      "Uid: 1 2 3 4\n";
+  auto uids = GetUids(status);
+  ASSERT_NE(uids, base::nullopt);
+  EXPECT_EQ(uids->real, 1u);
+  EXPECT_EQ(uids->effective, 2u);
+  EXPECT_EQ(uids->saved_set, 3u);
+  EXPECT_EQ(uids->filesystem, 4u);
+}
+
+TEST(ProcUtilsTest, GetUidsInvalidInt) {
+  std::string status =
+      "Name: foo\nRssAnon:  10000 kB\nVmSwap:\t10000 kB\n"
+      "Uid: 1a 2 3 4\n";
+  auto uids = GetUids(status);
+  EXPECT_EQ(uids, base::nullopt);
+}
+
+TEST(ProcUtilsTest, GetUidsInvalidTooFew) {
+  std::string status =
+      "Name: foo\nRssAnon:  10000 kB\nVmSwap:\t10000 kB\n"
+      "Uid: 1 2 3\n";
+  auto uids = GetUids(status);
+  EXPECT_EQ(uids, base::nullopt);
+}
+
 }  // namespace
 }  // namespace profiling
 }  // namespace perfetto

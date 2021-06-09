@@ -16,6 +16,7 @@ import {produce} from 'immer';
 
 import {assertExists} from '../base/logging';
 import {Actions} from '../common/actions';
+import {ConversionJobStatus} from '../common/conversion_jobs';
 import {createEmptyState, State} from '../common/state';
 import {RecordConfig, STATE_VERSION} from '../common/state';
 import {
@@ -48,10 +49,22 @@ export class PermalinkController extends Controller<'main'> {
       const isRecordingConfig =
           assertExists(globals.state.permalink.isRecordingConfig);
 
+      const jobName = 'create_permalink';
+      globals.publish('ConversionJobStatusUpdate', {
+        jobName,
+        jobStatus: ConversionJobStatus.InProgress,
+      });
+
       PermalinkController.createPermalink(isRecordingConfig)
-          .then(((hash: string) => {
+          .then(hash => {
             globals.dispatch(Actions.setPermalink({requestId, hash}));
-          }));
+          })
+          .finally(() => {
+            globals.publish('ConversionJobStatusUpdate', {
+              jobName,
+              jobStatus: ConversionJobStatus.NotRunning,
+            });
+          });
       return;
     }
 
@@ -99,7 +112,8 @@ export class PermalinkController extends Controller<'main'> {
         stateOrConfig.mode);
   }
 
-  private static async createPermalink(isRecordingConfig: boolean) {
+  private static async createPermalink(isRecordingConfig: boolean):
+      Promise<string> {
     let uploadState: State|RecordConfig = globals.state;
 
     if (isRecordingConfig) {

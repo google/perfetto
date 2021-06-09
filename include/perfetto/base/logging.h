@@ -80,6 +80,19 @@ constexpr const char* Basename(const char* str) {
 
 enum LogLev { kLogDebug = 0, kLogInfo, kLogImportant, kLogError };
 
+struct LogMessageCallbackArgs {
+  LogLev level;
+  int line;
+  const char* filename;
+  const char* message;
+};
+
+using LogMessageCallback = void (*)(LogMessageCallbackArgs);
+
+// This is not thread safe and must be called before using tracing from other
+// threads.
+PERFETTO_EXPORT void SetLogMessageCallback(LogMessageCallback callback);
+
 PERFETTO_EXPORT void LogMessage(LogLev,
                                 const char* fname,
                                 int line,

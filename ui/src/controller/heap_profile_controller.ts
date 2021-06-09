@@ -210,7 +210,7 @@ export class HeapProfileController extends Controller<'main'> {
     if (this.flamegraphDatasets.has(key)) {
       currentData = this.flamegraphDatasets.get(key)!;
     } else {
-      // TODO(taylori): Show loading state.
+      // TODO(hjd): Show loading state.
 
       // Collecting data for drawing flamegraph for selected heap profile.
       // Data needs to be in following format:
@@ -269,8 +269,9 @@ export class HeapProfileController extends Controller<'main'> {
     const callsites = await this.args.engine.query(
         `SELECT id, IFNULL(DEMANGLE(name), name), IFNULL(parent_id, -1), depth,
         cumulative_size, cumulative_alloc_size, cumulative_count,
-        cumulative_alloc_count, map_name, size, count from ${tableName} ${
-            orderBy}`);
+        cumulative_alloc_count, map_name, size, count,
+        IFNULL(source_file, ''), IFNULL(line_number, -1)
+        from ${tableName} ${orderBy}`);
 
     const flamegraphData: CallsiteInfo[] = new Array();
     const hashToindex: Map<number, number> = new Map();
@@ -286,6 +287,17 @@ export class HeapProfileController extends Controller<'main'> {
           name.toLocaleLowerCase().includes(focusRegex.toLocaleLowerCase());
       const parentId =
           hashToindex.has(+parentHash) ? hashToindex.get(+parentHash)! : -1;
+
+      let location: string|undefined;
+      if (callsites.columns[11].stringValues != null &&
+          /[a-zA-Z]/i.test(callsites.columns[11].stringValues[i])) {
+        location = callsites.columns[11].stringValues[i];
+        if (callsites.columns[12].longValues != null &&
+            callsites.columns[12].longValues[i] !== -1) {
+          location += `:${callsites.columns[12].longValues[i].toString()}`;
+        }
+      }
+
       if (depth === maxDepth - 1) {
         name += ' [tree truncated]';
       }
@@ -302,7 +314,8 @@ export class HeapProfileController extends Controller<'main'> {
         selfSize,
         mapping,
         merged: false,
-        highlighted
+        highlighted,
+        location
       });
     }
     return flamegraphData;
@@ -321,7 +334,7 @@ export class HeapProfileController extends Controller<'main'> {
     return this.cache.getTableName(
         `select id, name, map_name, parent_id, depth, cumulative_size,
           cumulative_alloc_size, cumulative_count, cumulative_alloc_count,
-          size, alloc_size, count, alloc_count
+          size, alloc_size, count, alloc_count, source_file, line_number
           from experimental_flamegraph(${ts}, ${upid}, '${type}') ${
             whereClause}`);
   }

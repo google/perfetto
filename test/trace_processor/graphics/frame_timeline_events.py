@@ -28,6 +28,7 @@ class JankType:
   JANK_APP_DEADLINE_MISSED = 64;
   JANK_BUFFER_STUFFING = 128;
   JANK_UNKNOWN = 256;
+  JANK_SF_STUFFING = 512;
 
 class PresentType:
   PRESENT_UNSPECIFIED = 0;
@@ -110,5 +111,11 @@ trace.add_actual_display_frame_start_event(ts=200, cookie=24, token=17, pid=666,
 trace.add_frame_end_event(ts=206, cookie=24)
 trace.add_actual_surface_frame_start_event(ts=80, cookie=25, token=16, display_frame_token=17, pid=1000, layer_name="Layer1", present_type=PresentType.PRESENT_UNKNOWN, on_time_finish=0, gpu_composition=0, jank_type=JankType.JANK_UNKNOWN, prediction_type=PredictionType.PREDICTION_EXPIRED)
 trace.add_frame_end_event(ts=190, cookie=25)
+
+# DisplayFrame with SF Stuffing jank
+trace.add_expected_display_frame_start_event(ts=220, cookie=26, token=18, pid=666)
+trace.add_frame_end_event(ts=230, cookie=26)
+trace.add_actual_display_frame_start_event(ts=245, cookie=27, token=18, pid=666, present_type=PresentType.PRESENT_LATE, on_time_finish=0, gpu_composition=0, jank_type=JankType.JANK_SF_STUFFING, prediction_type=PredictionType.PREDICTION_VALID)
+trace.add_frame_end_event(ts=260, cookie=27)
 
 sys.stdout.buffer.write(trace.trace.SerializeToString())

@@ -26,7 +26,7 @@ package perfetto.protos;
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 31.
+// Next id: 33.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -103,6 +103,21 @@ message TraceConfig {
     // only keeps track of the first and the most recent snapshot until
     // ReadBuffers() is called.
     optional uint32 snapshot_interval_ms = 6;
+
+    // Hints to the service that a suspend-aware (i.e. counting time in suspend)
+    // clock should be used for periodic snapshots of service-emitted events.
+    // This means, if a snapshot *should* have happened during suspend, it will
+    // happen immediately after the device resumes.
+    //
+    // Choosing a clock like this is done on best-effort basis; not all
+    // platforms (e.g. Windows) expose a clock which can be used for periodic
+    // tasks counting suspend. If such a clock is not available, the service
+    // falls back to the best-available alternative.
+    //
+    // Introduced in Android S.
+    // TODO(lalitm): deprecate this in T and make this the default if nothing
+    // crashes in S.
+    optional bool prefer_suspend_clock_for_snapshot = 7;
   }
   optional BuiltinDataSource builtin_data_sources = 20;
 
@@ -406,4 +421,13 @@ message TraceConfig {
   // Alternative encoding of trace_uuid as two int64s.
   optional int64 trace_uuid_msb = 27;
   optional int64 trace_uuid_lsb = 28;
+
+  // When set applies a post-filter to the trace contents using the filter
+  // provided. The filter is applied at ReadBuffers() time and works both in the
+  // case of IPC readback and write_into_file. This filter can be generated
+  // using `tools/proto_filter -s schema.proto -F filter_out.bytes` or
+  // `-T filter_out.escaped_string` (for .pbtx).
+  // Introduced in Android S. See go/trace-filtering for design.
+  message TraceFilter { optional bytes bytecode = 1; }
+  optional TraceFilter trace_filter = 32;
 }

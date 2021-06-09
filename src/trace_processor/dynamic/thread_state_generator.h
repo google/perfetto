@@ -49,6 +49,7 @@ class ThreadStateGenerator : public DbSqliteTable::DynamicTableGenerator {
   struct ThreadSchedInfo {
     base::Optional<int64_t> desched_ts;
     base::Optional<StringId> desched_end_state;
+    base::Optional<uint32_t> scheduled_row;
     base::Optional<bool> io_wait;
     base::Optional<int64_t> runnable_ts;
     base::Optional<StringId> blocked_function;

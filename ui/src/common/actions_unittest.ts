@@ -14,27 +14,71 @@
 
 import {produce} from 'immer';
 
+import {SLICE_TRACK_KIND} from '../tracks/chrome_slices/common';
+import {HEAP_PROFILE_TRACK_KIND} from '../tracks/heap_profile/common';
+import {
+  PROCESS_SCHEDULING_TRACK_KIND
+} from '../tracks/process_scheduling/common';
+import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state/common';
+
 import {StateActions} from './actions';
 import {
   createEmptyState,
   SCROLLING_TRACK_GROUP,
   State,
   TraceUrlSource,
-  TrackState,
+  TrackKindPriority,
 } from './state';
 
-function fakeTrack(state: State, id: string): TrackState {
-  const track: TrackState = {
-    id,
-    engineId: '1',
-    kind: 'SOME_TRACK_KIND',
-    name: 'A track',
-    isMainThread: false,
-    trackGroup: SCROLLING_TRACK_GROUP,
-    config: {},
-  };
-  state.tracks[id] = track;
-  return track;
+function fakeTrack(state: State, args: {
+  id: string,
+  kind?: string,
+  trackGroup?: string,
+  trackKindPriority?: TrackKindPriority,
+  name?: string,
+  tid?: string
+}): State {
+  return produce(state, draft => {
+    StateActions.addTrack(draft, {
+      id: args.id,
+      engineId: '0',
+      kind: args.kind || 'SOME_TRACK_KIND',
+      name: args.name || 'A track',
+      trackKindPriority: args.trackKindPriority === undefined ?
+          TrackKindPriority.ORDINARY :
+          args.trackKindPriority,
+      trackGroup: args.trackGroup || SCROLLING_TRACK_GROUP,
+      config: {tid: args.tid || '0'}
+    });
+  });
+}
+
+function fakeTrackGroup(
+    state: State, args: {id: string, summaryTrackId: string}): State {
+  return produce(state, draft => {
+    StateActions.addTrackGroup(draft, {
+      name: 'A group',
+      id: args.id,
+      engineId: '0',
+      collapsed: false,
+      summaryTrackId: args.summaryTrackId
+    });
+  });
+}
+
+function pinnedAndScrollingTracks(
+    state: State,
+    ids: string[],
+    pinnedTracks: string[],
+    scrollingTracks: string[]): State {
+  for (const id of ids) {
+    state = fakeTrack(state, {id});
+  }
+  state = produce(state, draft => {
+    draft.pinnedTracks = pinnedTracks;
+    draft.scrollingTracks = scrollingTracks;
+  });
+  return state;
 }
 
 test('navigate', () => {
@@ -50,7 +94,7 @@ test('add scrolling tracks', () => {
       engineId: '1',
       kind: 'cpu',
       name: 'Cpu 1',
-      isMainThread: false,
+      trackKindPriority: TrackKindPriority.ORDINARY,
       trackGroup: SCROLLING_TRACK_GROUP,
       config: {},
     });
@@ -60,7 +104,7 @@ test('add scrolling tracks', () => {
       engineId: '2',
       kind: 'cpu',
       name: 'Cpu 2',
-      isMainThread: false,
+      trackKindPriority: TrackKindPriority.ORDINARY,
       trackGroup: SCROLLING_TRACK_GROUP,
       config: {},
     });
@@ -71,8 +115,8 @@ test('add scrolling tracks', () => {
 });
 
 test('add track to track group', () => {
-  const state = createEmptyState();
-  fakeTrack(state, 's');
+  let state = createEmptyState();
+  state = fakeTrack(state, {id: 's'});
 
   const afterGroup = produce(state, draft => {
     StateActions.addTrackGroup(draft, {
@@ -90,7 +134,7 @@ test('add track to track group', () => {
       engineId: '1',
       kind: 'slices',
       name: 'renderer 1',
-      isMainThread: false,
+      trackKindPriority: TrackKindPriority.ORDINARY,
       trackGroup: '123-123-123',
       config: {},
     });
@@ -106,14 +150,14 @@ test('reorder tracks', () => {
       engineId: '1',
       kind: 'cpu',
       name: 'Cpu 1',
-      isMainThread: false,
+      trackKindPriority: TrackKindPriority.ORDINARY,
       config: {},
     });
     StateActions.addTrack(draft, {
       engineId: '2',
       kind: 'cpu',
       name: 'Cpu 2',
-      isMainThread: false,
+      trackKindPriority: TrackKindPriority.ORDINARY,
       config: {},
     });
   });
@@ -134,12 +178,8 @@ test('reorder tracks', () => {
 });
 
 test('reorder pinned to scrolling', () => {
-  const state = createEmptyState();
-  fakeTrack(state, 'a');
-  fakeTrack(state, 'b');
-  fakeTrack(state, 'c');
-  state.pinnedTracks = ['a', 'b'];
-  state.scrollingTracks = ['c'];
+  let state = createEmptyState();
+  state = pinnedAndScrollingTracks(state, ['a', 'b', 'c'], ['a', 'b'], ['c']);
 
   const after = produce(state, draft => {
     StateActions.moveTrack(draft, {
@@ -154,12 +194,8 @@ test('reorder pinned to scrolling', () => {
 });
 
 test('reorder scrolling to pinned', () => {
-  const state = createEmptyState();
-  fakeTrack(state, 'a');
-  fakeTrack(state, 'b');
-  fakeTrack(state, 'c');
-  state.pinnedTracks = ['a'];
-  state.scrollingTracks = ['b', 'c'];
+  let state = createEmptyState();
+  state = pinnedAndScrollingTracks(state, ['a', 'b', 'c'], ['a'], ['b', 'c']);
 
   const after = produce(state, draft => {
     StateActions.moveTrack(draft, {
@@ -174,12 +210,8 @@ test('reorder scrolling to pinned', () => {
 });
 
 test('reorder clamp bottom', () => {
-  const state = createEmptyState();
-  fakeTrack(state, 'a');
-  fakeTrack(state, 'b');
-  fakeTrack(state, 'c');
-  state.pinnedTracks = ['a', 'b'];
-  state.scrollingTracks = ['c'];
+  let state = createEmptyState();
+  state = pinnedAndScrollingTracks(state, ['a', 'b', 'c'], ['a', 'b'], ['c']);
 
   const after = produce(state, draft => {
     StateActions.moveTrack(draft, {
@@ -192,12 +224,8 @@ test('reorder clamp bottom', () => {
 });
 
 test('reorder clamp top', () => {
-  const state = createEmptyState();
-  fakeTrack(state, 'a');
-  fakeTrack(state, 'b');
-  fakeTrack(state, 'c');
-  state.pinnedTracks = ['a'];
-  state.scrollingTracks = ['b', 'c'];
+  let state = createEmptyState();
+  state = pinnedAndScrollingTracks(state, ['a', 'b', 'c'], ['a'], ['b', 'c']);
 
   const after = produce(state, draft => {
     StateActions.moveTrack(draft, {
@@ -210,12 +238,8 @@ test('reorder clamp top', () => {
 });
 
 test('pin', () => {
-  const state = createEmptyState();
-  fakeTrack(state, 'a');
-  fakeTrack(state, 'b');
-  fakeTrack(state, 'c');
-  state.pinnedTracks = ['a'];
-  state.scrollingTracks = ['b', 'c'];
+  let state = createEmptyState();
+  state = pinnedAndScrollingTracks(state, ['a', 'b', 'c'], ['a'], ['b', 'c']);
 
   const after = produce(state, draft => {
     StateActions.toggleTrackPinned(draft, {
@@ -227,12 +251,8 @@ test('pin', () => {
 });
 
 test('unpin', () => {
-  const state = createEmptyState();
-  fakeTrack(state, 'a');
-  fakeTrack(state, 'b');
-  fakeTrack(state, 'c');
-  state.pinnedTracks = ['a', 'b'];
-  state.scrollingTracks = ['c'];
+  let state = createEmptyState();
+  state = pinnedAndScrollingTracks(state, ['a', 'b', 'c'], ['a', 'b'], ['c']);
 
   const after = produce(state, draft => {
     StateActions.toggleTrackPinned(draft, {
@@ -274,7 +294,7 @@ test('open second trace from file', () => {
       engineId: '1',
       kind: 'cpu',
       name: 'Cpu 1',
-      isMainThread: false,
+      trackKindPriority: TrackKindPriority.ORDINARY,
       config: {},
     });
   });
@@ -313,4 +333,96 @@ test('setEngineReady', () => {
         draft, {engineId: '100', ready: true, mode: 'WASM'});
   });
   expect(after.engines['100'].ready).toBe(true);
+});
+
+test('sortTracksByPriority', () => {
+  let state = createEmptyState();
+  state = fakeTrackGroup(state, {id: 'g', summaryTrackId: 'b'});
+  state = fakeTrack(
+      state, {id: 'b', kind: HEAP_PROFILE_TRACK_KIND, trackGroup: 'g'});
+  state = fakeTrack(
+      state, {id: 'a', kind: PROCESS_SCHEDULING_TRACK_KIND, trackGroup: 'g'});
+
+  const after = produce(state, draft => {
+    StateActions.sortThreadTracks(draft, {});
+  });
+
+  // High Priority tracks should be sorted before Low Priority tracks:
+  // 'b' appears twice because it's the summary track
+  expect(after.trackGroups['g'].tracks).toEqual(['a', 'b', 'b']);
+});
+
+test('sortTracksByPriorityAndKindAndName', () => {
+  let state = createEmptyState();
+  state = fakeTrackGroup(state, {id: 'g', summaryTrackId: 'b'});
+  state = fakeTrack(
+      state, {id: 'a', kind: PROCESS_SCHEDULING_TRACK_KIND, trackGroup: 'g'});
+  state = fakeTrack(state, {
+    id: 'b',
+    kind: SLICE_TRACK_KIND,
+    trackGroup: 'g',
+    trackKindPriority: TrackKindPriority.MAIN_THREAD
+  });
+  state = fakeTrack(state, {
+    id: 'c',
+    kind: SLICE_TRACK_KIND,
+    trackGroup: 'g',
+    trackKindPriority: TrackKindPriority.RENDER_THREAD
+  });
+  state = fakeTrack(state, {
+    id: 'd',
+    kind: SLICE_TRACK_KIND,
+    trackGroup: 'g',
+    trackKindPriority: TrackKindPriority.GPU_COMPLETION
+  });
+  state = fakeTrack(
+      state, {id: 'e', kind: HEAP_PROFILE_TRACK_KIND, trackGroup: 'g'});
+  state = fakeTrack(
+      state, {id: 'f', kind: SLICE_TRACK_KIND, trackGroup: 'g', name: 'T2'});
+  state = fakeTrack(
+      state, {id: 'g', kind: SLICE_TRACK_KIND, trackGroup: 'g', name: 'T10'});
+
+  const after = produce(state, draft => {
+    StateActions.sortThreadTracks(draft, {});
+  });
+
+  // The order should be determined by:
+  // 1.High priority
+  // 2.Non ordinary track kinds
+  // 3.Low priority
+  // 4.Collated name string (ie. 'T2' will be before 'T10')
+  expect(after.trackGroups['g'].tracks)
+      .toEqual(['a', 'b', 'b', 'c', 'd', 'e', 'f', 'g']);
+});
+
+test('sortTracksByTidThenName', () => {
+  let state = createEmptyState();
+  state = fakeTrackGroup(state, {id: 'g', summaryTrackId: 'a'});
+  state = fakeTrack(state, {
+    id: 'a',
+    kind: SLICE_TRACK_KIND,
+    trackGroup: 'g',
+    name: 'aaa',
+    tid: '1'
+  });
+  state = fakeTrack(state, {
+    id: 'b',
+    kind: SLICE_TRACK_KIND,
+    trackGroup: 'g',
+    name: 'bbb',
+    tid: '2'
+  });
+  state = fakeTrack(state, {
+    id: 'c',
+    kind: THREAD_STATE_TRACK_KIND,
+    trackGroup: 'g',
+    name: 'ccc',
+    tid: '1'
+  });
+
+  const after = produce(state, draft => {
+    StateActions.sortThreadTracks(draft, {});
+  });
+
+  expect(after.trackGroups['g'].tracks).toEqual(['a', 'a', 'c', 'b']);
 });

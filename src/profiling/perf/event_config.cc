@@ -20,6 +20,7 @@
 #include <time.h>
 
 #include <unwindstack/Regs.h>
+#include <vector>
 
 #include "perfetto/base/flat_set.h"
 #include "perfetto/ext/base/optional.h"
@@ -297,7 +298,7 @@ base::Optional<EventConfig> EventConfig::Create(
     // expected = rate * period, with a conversion of period from ms to s:
     uint64_t expected_samples_per_tick =
         1 + (sampling_frequency * read_tick_period_ms) / 1000;
-    // Double the the limit to account of actual sample rate uncertainties, as
+    // Double the limit to account of actual sample rate uncertainties, as
     // well as any other factors:
     samples_per_tick_limit = 2 * expected_samples_per_tick;
   } else {  // sampling_period
@@ -371,7 +372,8 @@ base::Optional<EventConfig> EventConfig::Create(
       raw_ds_config, pe, timebase_event, sample_callstacks,
       std::move(target_filter), kernel_frames, ring_buffer_pages.value(),
       read_tick_period_ms, samples_per_tick_limit, remote_descriptor_timeout_ms,
-      pb_config.unwind_state_clear_period_ms(), max_enqueued_footprint_bytes);
+      pb_config.unwind_state_clear_period_ms(), max_enqueued_footprint_bytes,
+      pb_config.target_installed_by());
 }
 
 EventConfig::EventConfig(const DataSourceConfig& raw_ds_config,
@@ -385,7 +387,8 @@ EventConfig::EventConfig(const DataSourceConfig& raw_ds_config,
                          uint64_t samples_per_tick_limit,
                          uint32_t remote_descriptor_timeout_ms,
                          uint32_t unwind_state_clear_period_ms,
-                         uint64_t max_enqueued_footprint_bytes)
+                         uint64_t max_enqueued_footprint_bytes,
+                         std::vector<std::string> target_installed_by)
     : perf_event_attr_(pe),
       timebase_event_(timebase_event),
       sample_callstacks_(sample_callstacks),
@@ -397,6 +400,7 @@ EventConfig::EventConfig(const DataSourceConfig& raw_ds_config,
       remote_descriptor_timeout_ms_(remote_descriptor_timeout_ms),
       unwind_state_clear_period_ms_(unwind_state_clear_period_ms),
       max_enqueued_footprint_bytes_(max_enqueued_footprint_bytes),
+      target_installed_by_(std::move(target_installed_by)),
       raw_ds_config_(raw_ds_config) /* full copy */ {}
 
 }  // namespace profiling

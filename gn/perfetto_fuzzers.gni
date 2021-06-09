@@ -18,6 +18,8 @@ perfetto_fuzzers_targets = [
   "gn:default_deps",
   "src/ipc:buffered_frame_deserializer_fuzzer",
   "src/protozero:protozero_decoder_fuzzer",
+  "src/protozero/filtering:protozero_bytecode_parser_fuzzer",
+  "src/protozero/filtering:protozero_message_filter_fuzzer",
   "src/tracing/core:packet_stream_validator_fuzzer",
   "src/trace_processor:trace_processor_fuzzer",
   "src/traced/probes/ftrace:cpu_reader_fuzzer",

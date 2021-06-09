@@ -31,7 +31,23 @@ VALUES ('power.VPH_PWR_S5C_S6C_uws', 'cpu_big'),
   ('power.PPVAR_VPH_PWR_WLAN_uws', 'wifi'),
   ('power.PPVAR_VPH_PWR_OLED_uws', 'display'),
   ('power.PPVAR_VPH_PWR_QTM525_uws', 'cellular'),
-  ('power.PPVAR_VPH_PWR_RF_uws', 'cellular');
+  ('power.PPVAR_VPH_PWR_RF_uws', 'cellular'),
+  ('power.rails.aoc.logic', 'aoc'),
+  ('power.rails.aoc.memory', 'aoc'),
+  ('power.rails.cpu.big', 'cpu_big'),
+  ('power.rails.cpu.little', 'cpu_little'),
+  ('power.rails.cpu.mid', 'cpu_mid'),
+  ('power.rails.ddr.a', 'mem'),
+  ('power.rails.ddr.b', 'mem'),
+  ('power.rails.ddr.c', 'mem'),
+  ('power.rails.gpu', 'gpu'),
+  ('power.rails.display', 'display'),
+  ('power.rails.gps', 'gps'),
+  ('power.rails.memory.interface', 'mem'),
+  ('power.rails.modem', 'cellular'),
+  ('power.rails.radio.frontend', 'cellular'),
+  ('power.rails.system.fabric', 'soc'),
+  ('power.rails.wifi.bt', 'wifi');
 
 -- Convert power counter data into table of events, where each event has
 -- start timestamp, duration and the average power drain during its duration
@@ -72,3 +88,4 @@ FROM counter
   JOIN counter_track ON (counter.track_id = counter_track.id)
 WHERE counter_track.type = 'counter_track'
   AND name LIKE "power.%";
+

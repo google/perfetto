@@ -41,7 +41,9 @@ TEST(SystraceParserTest, SystraceEvent) {
   ASSERT_EQ(ParseSystraceTracePoint("C", &result), Result::kFailure);
   ASSERT_EQ(ParseSystraceTracePoint("S", &result), Result::kFailure);
   ASSERT_EQ(ParseSystraceTracePoint("F", &result), Result::kFailure);
-  ASSERT_EQ(ParseSystraceTracePoint("B|42|\n", &result), Result::kFailure);
+
+  ASSERT_EQ(ParseSystraceTracePoint("B|42|\n", &result), Result::kSuccess);
+  EXPECT_EQ(result, SystraceTracePoint::B(42, "[empty slice name]"));
 
   ASSERT_EQ(ParseSystraceTracePoint("B|1|foo", &result), Result::kSuccess);
   EXPECT_EQ(result, SystraceTracePoint::B(1, "foo"));

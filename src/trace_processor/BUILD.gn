@@ -27,7 +27,7 @@ assert(enable_perfetto_trace_processor)
 if (enable_perfetto_trace_processor_sqlite) {
   static_library("trace_processor") {
     complete_static_lib = true
-    deps = [ ":lib" ]
+    public_deps = [ ":lib" ]
   }
 }
 
@@ -68,7 +68,6 @@ source_set("ftrace_descriptors") {
 
 source_set("storage_minimal") {
   sources = [
-    "chunked_trace_reader.h",
     "forwarding_trace_parser.cc",
     "forwarding_trace_parser.h",
     "importers/default_modules.cc",
@@ -77,14 +76,10 @@ source_set("storage_minimal") {
     "importers/ftrace/ftrace_module.h",
     "importers/fuchsia/fuchsia_record.h",
     "importers/fuchsia/fuchsia_trace_utils.h",
-    "importers/gzip/gzip_utils.cc",
-    "importers/gzip/gzip_utils.h",
     "importers/json/json_utils.cc",
     "importers/json/json_utils.h",
     "importers/ninja/ninja_log_parser.cc",
     "importers/ninja/ninja_log_parser.h",
-    "importers/proto/args_table_utils.cc",
-    "importers/proto/args_table_utils.h",
     "importers/proto/async_track_set_tracker.cc",
     "importers/proto/async_track_set_tracker.h",
     "importers/proto/chrome_string_lookup.cc",
@@ -135,8 +130,6 @@ source_set("storage_minimal") {
     "importers/syscalls/syscall_tracker.h",
     "importers/systrace/systrace_line.h",
     "timestamped_trace_piece.h",
-    "trace_blob_view.h",
-    "trace_parser.h",
     "trace_processor_context.cc",
     "trace_processor_storage.cc",
     "trace_processor_storage_impl.cc",
@@ -150,15 +143,18 @@ source_set("storage_minimal") {
     "../base",
     "../protozero",
     "containers",
-    "importers:common",
     "importers:gen_cc_chrome_track_event_descriptor",
     "importers:gen_cc_track_event_descriptor",
+    "importers/common",
     "importers/memory_tracker:graph_processor",
     "storage",
     "tables",
     "types",
     "util",
     "util:descriptors",
+    "util:gzip",
+    "util:interned_message_view",
+    "util:proto_to_args_parser",
   ]
   public_deps = [
     "../../include/perfetto/trace_processor:storage",
@@ -176,16 +172,12 @@ source_set("storage_minimal") {
     "../../protos/perfetto/trace/sys_stats:zero",
     "../../protos/perfetto/trace/system_info:zero",
     "../../protos/perfetto/trace/track_event:zero",
+    "util:trace_blob_view",
   ]
 
   # json_utils optionally depends on jsoncpp.
   if (enable_perfetto_trace_processor_json) {
     deps += [ "../../gn:jsoncpp" ]
-  }
-
-  # gzip_utils optionally depends on zlib.
-  if (enable_perfetto_zlib) {
-    deps += [ "../../gn:zlib" ]
   }
 }
 
@@ -269,11 +261,12 @@ source_set("storage_full") {
     "../../protos/perfetto/trace/gpu:zero",
     "../../protos/perfetto/trace/interned_data:zero",
     "../protozero",
-    "importers:common",
+    "importers/common",
     "storage",
     "tables",
     "types",
     "util",
+    "util:gzip",
   ]
   if (enable_perfetto_trace_processor_json) {
     deps += [ "../../gn:jsoncpp" ]
@@ -338,14 +331,15 @@ if (enable_perfetto_trace_processor_sqlite) {
       "../base",
       "../protozero",
       "analysis",
-      "db:lib",
-      "importers:common",
+      "db",
+      "importers/common",
       "metrics:lib",
       "sqlite",
       "storage",
       "tables",
       "types",
       "util",
+      "util:gzip",
       "util:protozero_to_text",
     ]
     public_deps = [
@@ -400,7 +394,6 @@ perfetto_unittest_source_set("unittests") {
     "importers/memory_tracker/graph_processor_unittest.cc",
     "importers/memory_tracker/graph_unittest.cc",
     "importers/memory_tracker/raw_process_memory_node_unittest.cc",
-    "importers/proto/args_table_utils_unittest.cc",
     "importers/proto/async_track_set_tracker_unittest.cc",
     "importers/proto/heap_graph_tracker_unittest.cc",
     "importers/proto/heap_profile_tracker_unittest.cc",
@@ -434,14 +427,15 @@ perfetto_unittest_source_set("unittests") {
     "../protozero:testing_messages_zero",
     "containers:unittests",
     "db:unittests",
-    "importers:common",
-    "importers:unittests",
+    "importers/common",
+    "importers/common:unittests",
     "importers/memory_tracker:graph_processor",
     "rpc:unittests",
     "storage",
     "tables:unittests",
     "types",
     "types:unittests",
+    "util:descriptors",
     "util:unittests",
   ]
 

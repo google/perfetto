@@ -21,9 +21,9 @@
 
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/trace_processor/status.h"
-#include "src/trace_processor/importers/gzip/gzip_utils.h"
-#include "src/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/util/gzip_utils.h"
 #include "src/trace_processor/util/status_macros.h"
+#include "src/trace_processor/util/trace_blob_view.h"
 
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -143,7 +143,7 @@ class ProtoTraceTokenizer {
     protos::pbzero::TracePacket::Decoder decoder(packet.data(),
                                                  packet.length());
     if (decoder.has_compressed_packets()) {
-      if (!gzip::IsGzipSupported()) {
+      if (!util::IsGzipSupported()) {
         return util::Status(
             "Cannot decode compressed packets. Zlib not enabled");
       }
@@ -185,7 +185,7 @@ class ProtoTraceTokenizer {
   std::vector<uint8_t> partial_buf_;
 
   // Allows support for compressed trace packets.
-  GzipDecompressor decompressor_;
+  util::GzipDecompressor decompressor_;
 };
 
 }  // namespace trace_processor

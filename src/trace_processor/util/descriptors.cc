@@ -74,7 +74,10 @@ util::Status DescriptorPool::AddExtensionField(
   auto field = CreateFieldFromDecoder(f_decoder, true);
 
   auto extendee_name = base::StringView(f_decoder.extendee()).ToStdString();
-  PERFETTO_CHECK(!extendee_name.empty());
+  if (extendee_name.empty()) {
+    return util::ErrStatus("Extendee name is empty");
+  }
+
   if (extendee_name[0] != '.') {
     // Only prepend if the extendee is not fully qualified
     extendee_name = package_name + "." + extendee_name;
@@ -145,8 +148,8 @@ util::Status DescriptorPool::AddNestedProtoDescriptors(
 
   auto idx = static_cast<uint32_t>(descriptors_.size()) - 1;
   for (auto it = decoder.enum_type(); it; ++it) {
-    AddEnumProtoDescriptors(file_name, package_name, idx, *it,
-                            merge_existing_messages);
+    RETURN_IF_ERROR(AddEnumProtoDescriptors(file_name, package_name, idx, *it,
+                                            merge_existing_messages));
   }
   for (auto it = decoder.nested_type(); it; ++it) {
     RETURN_IF_ERROR(AddNestedProtoDescriptors(file_name, package_name, idx, *it,
@@ -226,8 +229,9 @@ util::Status DescriptorPool::AddFromFileDescriptorSet(
           merge_existing_messages));
     }
     for (auto enum_it = file.enum_type(); enum_it; ++enum_it) {
-      AddEnumProtoDescriptors(file_name, package, base::nullopt, *enum_it,
-                              merge_existing_messages);
+      RETURN_IF_ERROR(AddEnumProtoDescriptors(file_name, package, base::nullopt,
+                                              *enum_it,
+                                              merge_existing_messages));
     }
     for (auto ext_it = file.extension(); ext_it; ++ext_it) {
       extensions.emplace_back(package, *ext_it);

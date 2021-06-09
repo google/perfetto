@@ -17,24 +17,42 @@ git clone https://android.googlesource.com/platform/external/perfetto/ && cd per
 ```bash
 tools/install-build-deps
 ```
-_If the script fails with SSL errors, try invoking it as `python3 tools/install-build-deps`, or upgrading your openssl libraries._
+_If the script fails with SSL errors, try upgrading your openssl package._
 
-3. Generate all most common GN build configurations:
+3. Generate the build configuration
 ```bash
-tools/build_all_configs.py
+tools/gn gn gen --args='is_debug=false' out/linux
+# Or use `tools/build_all_configs.py` to generate more build configs.
 ```
 
 4. Build the Linux tracing binaries (On Linux it uses a hermetic clang toolchain, downloaded as part of step 2):
 ```bash
-tools/ninja -C out/linux_clang_release traced traced_probes perfetto
+tools/ninja -C out/linux tracebox traced traced_probes perfetto 
 ```
-_This step is optional when using the convenience `tools/tmux` script below._
 
 ## Capturing a trace
 
 Due to Perfetto's [service-based architecture](/docs/concepts/service-model.md),
 in order to capture a trace, the `traced` (session daemon) and `traced_probes`
 (probes and ftrace-interop daemon) need to be running.
+As per Perfetto v16, the `tracebox` binary bundles together all the binaries you
+need in a single executable (a bit like `toybox` or `busybox`).
+
+#### Capturing a trace with ftrace and /proc pollers, no SDK
+
+If you are interested in overall system tracing and are not interested in
+testing the SDK, you can use `tracebox` in autostart mode as follows:
+
+```bash
+out/linux/tracebox -o trace_file.perfetto-trace --txt -c test/configs/scheduling.cfg
+```
+
+#### Testing the SDK integration in out-of-process tracing mode (system mode)
+
+If you are using the Perfetto [tracing SDK](/docs/instrumentation/tracing-sdk)
+and want to capture a fused trace that contains both system traces events and
+your custom app trace events, you need to start the `traced` and `traced_probes`
+services ahead of time and then use the `perfetto` cmdline client.
 
 For a quick start, the [tools/tmux](/tools/tmux) script takes care of building,
 setting up and running everything.
@@ -44,8 +62,8 @@ from the Linux kernel via the [ftrace] interface.
 [ftrace]: https://www.kernel.org/doc/Documentation/trace/ftrace.txt
 
 1. Run the convenience script with an example tracing config (10s duration):
-```
-OUT=out/linux_clang_release CONFIG=test/configs/scheduling.cfg tools/tmux -n
+```bash
+tools/tmux -c test/configs/scheduling.cfg -C out/linux -n
 ```
 This will open a tmux window with three panes, one per the binary involved in
 tracing: `traced`, `traced_probes` and the `perfetto` client cmdline.
@@ -62,9 +80,9 @@ tracing: `traced`, `traced_probes` and the `perfetto` client cmdline.
 
 We can now explore the captured trace visually by using a dedicated web-based UI.
 
-NOTE: The UI runs fully in-browser using JavaScript + Web Assembly. The trace
+NOTE: The UI runs in-browser using JavaScript + Web Assembly. The trace
       file is **not** uploaded anywhere by default, unless you explicitly click
-      on the 'Share' link.
+      on the 'Share' link. The 'Share' link is available only to Googlers.
 
 1. Navigate to [ui.perfetto.dev](https://ui.perfetto.dev) in a browser.
 
@@ -75,5 +93,5 @@ NOTE: The UI runs fully in-browser using JavaScript + Web Assembly. The trace
    process tracks (rows) into their constituent thread tracks.
    Press "?" for further navigation controls.
 
-Alternatively, you can explore the trace contents issuing SQL queries through 
+Alternatively, you can explore the trace contents issuing SQL queries through
 the [trace processor](/docs/analysis/trace-processor).

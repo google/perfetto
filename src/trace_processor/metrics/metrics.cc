@@ -71,8 +71,9 @@ SqlValue SqlValueFromSqliteValue(sqlite3_value* value) {
 
 }  // namespace
 
-ProtoBuilder::ProtoBuilder(const ProtoDescriptor* descriptor)
-    : descriptor_(descriptor) {}
+ProtoBuilder::ProtoBuilder(const DescriptorPool* pool,
+                           const ProtoDescriptor* descriptor)
+    : pool_(pool), descriptor_(descriptor) {}
 
 util::Status ProtoBuilder::AppendSqlValue(const std::string& field_name,
                                           const SqlValue& value) {
@@ -117,9 +118,32 @@ util::Status ProtoBuilder::AppendLong(const std::string& field_name,
     case FieldDescriptorProto::TYPE_INT64:
     case FieldDescriptorProto::TYPE_UINT32:
     case FieldDescriptorProto::TYPE_BOOL:
-    case FieldDescriptorProto::TYPE_ENUM:
       message_->AppendVarInt(field->number(), value);
       break;
+    case FieldDescriptorProto::TYPE_ENUM: {
+      auto opt_enum_descriptor_idx =
+          pool_->FindDescriptorIdx(field->resolved_type_name());
+      if (!opt_enum_descriptor_idx) {
+        return util::ErrStatus(
+            "Unable to find enum type %s to fill field %s (in proto message "
+            "%s)",
+            field->resolved_type_name().c_str(), field->name().c_str(),
+            descriptor_->full_name().c_str());
+      }
+      const auto& enum_desc = pool_->descriptors()[*opt_enum_descriptor_idx];
+      auto opt_enum_str = enum_desc.FindEnumString(static_cast<int32_t>(value));
+      if (!opt_enum_str) {
+        return util::ErrStatus("Invalid enum value %" PRId64
+                               " "
+                               "in enum type %s; encountered while filling "
+                               "field %s (in proto message %s)",
+                               value, field->resolved_type_name().c_str(),
+                               field->name().c_str(),
+                               descriptor_->full_name().c_str());
+      }
+      message_->AppendVarInt(field->number(), value);
+      break;
+    }
     case FieldDescriptorProto::TYPE_SINT32:
     case FieldDescriptorProto::TYPE_SINT64:
       message_->AppendSignedVarInt(field->number(), value);
@@ -130,6 +154,12 @@ util::Status ProtoBuilder::AppendLong(const std::string& field_name,
     case FieldDescriptorProto::TYPE_SFIXED64:
       message_->AppendFixed(field->number(), value);
       break;
+    case FieldDescriptorProto::TYPE_UINT64:
+      return util::ErrStatus(
+          "Field %s (in proto message %s) is using a uint64 type. uint64 in "
+          "metric messages is not supported by trace processor; use an int64 "
+          "field instead.",
+          field->name().c_str(), descriptor_->full_name().c_str());
     default: {
       return util::ErrStatus(
           "Tried to write value of type long into field %s (in proto type %s) "
@@ -201,6 +231,30 @@ util::Status ProtoBuilder::AppendString(const std::string& field_name,
       message_->AppendBytes(field->number(), data.data(), data.size());
       break;
     }
+    case FieldDescriptorProto::TYPE_ENUM: {
+      auto opt_enum_descriptor_idx =
+          pool_->FindDescriptorIdx(field->resolved_type_name());
+      if (!opt_enum_descriptor_idx) {
+        return util::ErrStatus(
+            "Unable to find enum type %s to fill field %s (in proto message "
+            "%s)",
+            field->resolved_type_name().c_str(), field->name().c_str(),
+            descriptor_->full_name().c_str());
+      }
+      const auto& enum_desc = pool_->descriptors()[*opt_enum_descriptor_idx];
+      std::string enum_str = data.ToStdString();
+      auto opt_enum_value = enum_desc.FindEnumValue(enum_str);
+      if (!opt_enum_value) {
+        return util::ErrStatus(
+            "Invalid enum string %s "
+            "in enum type %s; encountered while filling "
+            "field %s (in proto message %s)",
+            enum_str.c_str(), field->resolved_type_name().c_str(),
+            field->name().c_str(), descriptor_->full_name().c_str());
+      }
+      message_->AppendVarInt(field->number(), *opt_enum_value);
+      break;
+    }
     default: {
       return util::ErrStatus(
           "Tried to write value of type string into field %s (in proto type "
@@ -258,6 +312,14 @@ util::Status ProtoBuilder::AppendSingleMessage(const FieldDescriptor& field,
     return util::OkStatus();
   }
 
+  if (size > protozero::proto_utils::kMaxMessageLength) {
+    return util::ErrStatus(
+        "Message passed to field %s in proto message %s has size %zu which is "
+        "larger than the maximum allowed message size %zu",
+        field.name().c_str(), descriptor_->full_name().c_str(), size,
+        protozero::proto_utils::kMaxMessageLength);
+  }
+
   protos::pbzero::ProtoBuilderResult::Decoder decoder(ptr, size);
   if (decoder.is_repeated()) {
     return util::ErrStatus("Cannot handle nested repeated messages in field %s",
@@ -299,6 +361,14 @@ util::Status ProtoBuilder::AppendSingleMessage(const FieldDescriptor& field,
 util::Status ProtoBuilder::AppendRepeated(const FieldDescriptor& field,
                                           const uint8_t* ptr,
                                           size_t size) {
+  if (size > protozero::proto_utils::kMaxMessageLength) {
+    return util::ErrStatus(
+        "Message passed to field %s in proto message %s has size %zu which is "
+        "larger than the maximum allowed message size %zu",
+        field.name().c_str(), descriptor_->full_name().c_str(), size,
+        protozero::proto_utils::kMaxMessageLength);
+  }
+
   protos::pbzero::ProtoBuilderResult::Decoder decoder(ptr, size);
   if (!decoder.is_repeated()) {
     return util::ErrStatus(
@@ -524,7 +594,7 @@ void BuildProto(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
     return;
   }
 
-  ProtoBuilder builder(fn_ctx->desc);
+  ProtoBuilder builder(fn_ctx->pool, fn_ctx->desc);
   for (int i = 0; i < argc; i += 2) {
     if (sqlite3_value_type(argv[i]) != SQLITE_TEXT) {
       sqlite3_result_error(ctx, "BuildProto: Invalid args", -1);
@@ -615,9 +685,10 @@ void RunMetric(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
 util::Status ComputeMetrics(TraceProcessor* tp,
                             const std::vector<std::string> metrics_to_compute,
                             const std::vector<SqlMetricFile>& sql_metrics,
+                            const DescriptorPool& pool,
                             const ProtoDescriptor& root_descriptor,
                             std::vector<uint8_t>* metrics_proto) {
-  ProtoBuilder metric_builder(&root_descriptor);
+  ProtoBuilder metric_builder(&pool, &root_descriptor);
   for (const auto& name : metrics_to_compute) {
     auto metric_it =
         std::find_if(sql_metrics.begin(), sql_metrics.end(),

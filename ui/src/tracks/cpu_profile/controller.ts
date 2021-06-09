@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {slowlyCountRows} from '../../common/query_iterator';
+import {iter, NUM, slowlyCountRows} from '../../common/query_iterator';
 import {
   TrackController,
   trackControllerRegistry
@@ -28,9 +28,13 @@ class CpuProfileTrackController extends TrackController<Config, Data> {
   static readonly kind = CPU_PROFILE_TRACK_KIND;
   async onBoundsChange(start: number, end: number, resolution: number):
       Promise<Data> {
-    const query = `select id, ts, callsite_id from cpu_profile_stack_sample
-        where utid = ${this.config.utid}
-        order by ts`;
+    const query = `select
+        id,
+        ts,
+        callsite_id as callsiteId
+      from cpu_profile_stack_sample
+      where utid = ${this.config.utid}
+      order by ts`;
 
     const result = await this.query(query);
 
@@ -45,10 +49,11 @@ class CpuProfileTrackController extends TrackController<Config, Data> {
       callsiteId: new Uint32Array(numRows),
     };
 
-    for (let row = 0; row < numRows; row++) {
-      data.ids[row] = +result.columns[0].longValues![row];
-      data.tsStarts[row] = +result.columns[1].longValues![row];
-      data.callsiteId[row] = +result.columns[2].longValues![row];
+    const it = iter({id: NUM, ts: NUM, callsiteId: NUM}, result);
+    for (let i = 0; it.valid(); it.next(), ++i) {
+      data.ids[i] = it.row.id;
+      data.tsStarts[i] = it.row.ts;
+      data.callsiteId[i] = it.row.callsiteId;
     }
 
     return data;

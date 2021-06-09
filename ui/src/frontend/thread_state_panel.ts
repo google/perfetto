@@ -75,10 +75,11 @@ export class ThreadStatePanel extends Panel {
 
     return [
       `${state} on CPU ${cpu}`,
-      m('i.material-icons.grey',
-        {
-          onclick: () => {
-              // TODO(taylori): Use trackId from TP.
+      m(
+          'i.material-icons.grey',
+          {
+            onclick: () => {
+              // TODO(hjd): Use trackId from TP.
               let trackId;
               for (const track of Object.values(globals.state.tracks)) {
                 if (track.kind === 'CpuSliceTrack' &&
@@ -92,10 +93,10 @@ export class ThreadStatePanel extends Panel {
                 scrollToTrackAndTs(
                     trackId, toNs(ts + globals.state.traceTime.startSec));
               }
+            },
+            title: 'Go to CPU slice'
           },
-          title: 'Go to CPU slice'
-        },
-        'call_made')
+          'call_made')
     ];
   }
 

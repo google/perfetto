@@ -26,7 +26,22 @@
 namespace perfetto {
 namespace internal {
 
-TracingTLS::~TracingTLS() = default;
+TracingTLS::~TracingTLS() {
+  // Avoid entering trace points while the thread is being torn down.
+  // This is the problem: when a thread exits, the at-thread-exit destroys the
+  // TracingTLS. As part of that the various TraceWriter for the active data
+  // sources are destroyd. A TraceWriter dtor will issue a PostTask on the IPC
+  // thread to issue a final flush and unregister its ID with the service.
+  // The PostTask, in chromium, might have a trace event that will try to
+  // re-enter the tracing system.
+  // We fix this by resetting the TLS key to the TracingTLS object that is
+  // being destroyed in the platform impl (platform_posix.cc,
+  // platform_windows.cc, chromium's platform.cc). We carefully rely on the fact
+  // that all the tracing path that will be invoked during thread exit will
+  // early out if |is_in_trace_point| == true and will not depend on the other
+  // TLS state that has been destroyed.
+  is_in_trace_point = true;
+}
 
 }  // namespace internal
 

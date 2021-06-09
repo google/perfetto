@@ -202,7 +202,7 @@ TokenId KernelSymbolMap::TokenTable::Add(const std::string& token) {
     *(tok_wptr++) = token.at(i) & 0x7f;
   }
   *(tok_wptr++) = static_cast<char>(token.at(token_size - 1) | 0x80);
-  PERFETTO_DCHECK(tok_wptr == &buf_[buf_.size()]);
+  PERFETTO_DCHECK(tok_wptr == buf_.data() + buf_.size());
   return id;
 }
 
@@ -394,7 +394,7 @@ std::string KernelSymbolMap::Lookup(uint64_t sym_addr) {
   uint32_t addr = it->first;
   uint32_t off = it->second;
   const uint8_t* rdptr = &buf_[off];
-  const uint8_t* const buf_end = &buf_[buf_.size()];
+  const uint8_t* const buf_end = buf_.data() + buf_.size();
   bool parsing_addr = true;
   const uint8_t* next_rdptr = nullptr;
   uint64_t sym_start_addr = 0;

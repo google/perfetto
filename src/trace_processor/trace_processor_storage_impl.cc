@@ -18,6 +18,7 @@
 
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/forwarding_trace_parser.h"
+#include "src/trace_processor/importers/chrome_track_event.descriptor.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
@@ -26,7 +27,6 @@
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/default_modules.h"
-#include "src/trace_processor/importers/proto/args_table_utils.h"
 #include "src/trace_processor/importers/proto/async_track_set_tracker.h"
 #include "src/trace_processor/importers/proto/heap_profile_tracker.h"
 #include "src/trace_processor/importers/proto/metadata_tracker.h"
@@ -34,8 +34,10 @@
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
 #include "src/trace_processor/importers/proto/stack_profile_tracker.h"
-#include "src/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/track_event.descriptor.h"
 #include "src/trace_processor/trace_sorter.h"
+#include "src/trace_processor/util/descriptors.h"
+#include "src/trace_processor/util/trace_blob_view.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -57,7 +59,18 @@ TraceProcessorStorageImpl::TraceProcessorStorageImpl(const Config& cfg) {
   context_.global_stack_profile_tracker.reset(new GlobalStackProfileTracker());
   context_.metadata_tracker.reset(new MetadataTracker(&context_));
   context_.global_args_tracker.reset(new GlobalArgsTracker(&context_));
-  context_.proto_to_args_table_.reset(new ProtoToArgsTable(&context_));
+  {
+    context_.descriptor_pool_.reset(new DescriptorPool());
+    auto status = context_.descriptor_pool_->AddFromFileDescriptorSet(
+        kTrackEventDescriptor.data(), kTrackEventDescriptor.size());
+
+    PERFETTO_DCHECK(status.ok());
+
+    status = context_.descriptor_pool_->AddFromFileDescriptorSet(
+        kChromeTrackEventDescriptor.data(), kChromeTrackEventDescriptor.size());
+
+    PERFETTO_DCHECK(status.ok());
+  }
 
   context_.slice_tracker->SetOnSliceBeginCallback(
       [this](TrackId track_id, SliceId slice_id) {

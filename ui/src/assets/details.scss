@@ -220,6 +220,14 @@
         justify-self: end;
         margin-right: 10px;
       }
+      .selected {
+        justify-self: end;
+        margin-right: 10px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        width: 200px;
+      }
     }
   }
 
@@ -228,6 +236,8 @@
     font-size: 14px;
     line-height: 18px;
     width: 100%;
+    // Aggregation panel uses multiple table elements that need to be aligned,
+    // which is done by using fixed table layout.
     table-layout: fixed;
     word-wrap: break-word;
     padding: 0px 10px;
@@ -239,6 +249,13 @@
       width: 30%;
       font-weight: normal;
     }
+    .array-index {
+      text-align: right;
+    }
+  }
+
+  .auto-layout {
+    table-layout: auto;
   }
 
   button {

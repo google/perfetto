@@ -12,7 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {slowlyCountRows} from '../../common/query_iterator';
+import {assertExists} from '../../base/logging';
+import {
+  iter,
+  NUM,
+  singleRow,
+  slowlyCountRows,
+  STR
+} from '../../common/query_iterator';
 import {fromNs, toNs} from '../../common/time';
 import {
   TrackController,
@@ -38,25 +45,25 @@ class ExpectedFramesSliceTrackController extends TrackController<Config, Data> {
 
     if (this.maxDurNs === 0) {
       const maxDurResult = await this.query(`
-        select max(dur)
+        select max(iif(dur = -1, (SELECT end_ts FROM trace_bounds) - ts, dur))
+          as maxDur
         from experimental_slice_layout
         where filter_track_ids = '${this.config.trackIds.join(',')}'
       `);
-      if (slowlyCountRows(maxDurResult) === 1) {
-        this.maxDurNs = maxDurResult.columns[0].longValues![0];
-      }
+      const row = singleRow({maxDur: NUM}, maxDurResult);
+      this.maxDurNs = assertExists(row).maxDur;
     }
 
     const rawResult = await this.query(`
       SELECT
         (ts + ${bucketNs / 2}) / ${bucketNs} * ${bucketNs} as tsq,
         ts,
-        max(dur) as dur,
-        layout_depth,
+        max(iif(dur = -1, (SELECT end_ts FROM trace_bounds) - ts, dur)) as dur,
+        layout_depth as layoutDepth,
         name,
         id,
-        dur = 0 as is_instant,
-        dur = -1 as is_incomplete
+        dur = 0 as isInstant,
+        dur = -1 as isIncomplete
       from experimental_slice_layout
       where
         filter_track_ids = '${this.config.trackIds.join(',')}' and
@@ -94,11 +101,22 @@ class ExpectedFramesSliceTrackController extends TrackController<Config, Data> {
     }
     const greenIndex = internString('#4CAF50');
 
-    const cols = rawResult.columns;
-    for (let row = 0; row < numRows; row++) {
-      const startNsQ = +cols[0].longValues![row];
-      const startNs = +cols[1].longValues![row];
-      const durNs = +cols[2].longValues![row];
+    const it = iter(
+        {
+          tsq: NUM,
+          ts: NUM,
+          dur: NUM,
+          layoutDepth: NUM,
+          id: NUM,
+          name: STR,
+          isInstant: NUM,
+          isIncomplete: NUM,
+        },
+        rawResult);
+    for (let i = 0; it.valid(); it.next(), ++i) {
+      const startNsQ = it.row.tsq;
+      const startNs = it.row.ts;
+      const durNs = it.row.dur;
       const endNs = startNs + durNs;
 
       let endNsQ = Math.floor((endNs + bucketNs / 2 - 1) / bucketNs) * bucketNs;
@@ -108,14 +126,14 @@ class ExpectedFramesSliceTrackController extends TrackController<Config, Data> {
         throw new Error('Should never happen');
       }
 
-      slices.starts[row] = fromNs(startNsQ);
-      slices.ends[row] = fromNs(endNsQ);
-      slices.depths[row] = +cols[3].longValues![row];
-      slices.titles[row] = internString(cols[4].stringValues![row]);
-      slices.sliceIds[row] = +cols[5].longValues![row];
-      slices.isInstant[row] = +cols[6].longValues![row];
-      slices.isIncomplete[row] = +cols[7].longValues![row];
-      slices.colors![row] = greenIndex;
+      slices.starts[i] = fromNs(startNsQ);
+      slices.ends[i] = fromNs(endNsQ);
+      slices.depths[i] = it.row.layoutDepth;
+      slices.titles[i] = internString(it.row.name);
+      slices.sliceIds[i] = it.row.id;
+      slices.isInstant[i] = it.row.isInstant;
+      slices.isIncomplete[i] = it.row.isIncomplete;
+      slices.colors![i] = greenIndex;
     }
     return slices;
   }

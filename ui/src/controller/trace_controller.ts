@@ -298,11 +298,26 @@ export class TraceController extends Controller<States> {
       Actions.navigate({route: '/viewer'}),
     ];
 
+    let visibleStartSec = startSec;
+    let visibleEndSec = endSec;
+    const mdTime = await this.engine.getTracingMetadataTimeBounds();
+    // make sure the bounds hold
+    if (Math.max(visibleStartSec, mdTime.start - TRACE_MARGIN_TIME_S) <
+        Math.min(visibleEndSec, mdTime.end + TRACE_MARGIN_TIME_S)) {
+      visibleStartSec =
+          Math.max(visibleStartSec, mdTime.start - TRACE_MARGIN_TIME_S);
+      visibleEndSec = Math.min(visibleEndSec, mdTime.end + TRACE_MARGIN_TIME_S);
+    }
+
     // We don't know the resolution at this point. However this will be
     // replaced in 50ms so a guess is fine.
-    const resolution = (traceTime.end - traceTime.start) / 1000;
-    actions.push(Actions.setVisibleTraceTime(
-        {...traceTimeState, lastUpdate: Date.now() / 1000, resolution}));
+    const resolution = (visibleStartSec - visibleEndSec) / 1000;
+    actions.push(Actions.setVisibleTraceTime({
+      startSec: visibleStartSec,
+      endSec: visibleEndSec,
+      lastUpdate: Date.now() / 1000,
+      resolution
+    }));
 
     globals.dispatchMultiple(actions);
 
@@ -319,6 +334,14 @@ export class TraceController extends Controller<States> {
 
     await this.listThreads();
     await this.loadTimelineOverview(traceTime);
+
+    {
+      const query = 'select to_ftrace(id) from raw limit 1';
+      const result = await assertExists(this.engine).query(query);
+      const hasFtrace = !!slowlyCountRows(result);
+      globals.publish('HasFtrace', hasFtrace);
+    }
+
     globals.dispatch(Actions.sortThreadTracks({}));
     await this.selectFirstHeapProfile();
 
@@ -521,11 +544,13 @@ export class TraceController extends Controller<States> {
         let hasSliceName = false;
         let hasDur = false;
         let hasUpid = false;
+        let hasValue = false;
         for (let i = 0; i < slowlyCountRows(result); i++) {
           const name = result.columns[1].stringValues![i];
           hasSliceName = hasSliceName || name === 'slice_name';
           hasDur = hasDur || name === 'dur';
           hasUpid = hasUpid || name === 'upid';
+          hasValue = hasValue || name === 'value';
         }
 
         const upidColumnSelect = hasUpid ? 'upid' : '0 AS upid';
@@ -556,7 +581,6 @@ export class TraceController extends Controller<States> {
           `);
         }
 
-        const hasValue = result.columnDescriptors.some(x => x.name === 'value');
         if (hasValue) {
           const minMax = await engine.query(`
           SELECT MIN(value) as min_value, MAX(value) as max_value

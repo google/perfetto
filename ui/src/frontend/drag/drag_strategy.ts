@@ -16,11 +16,7 @@ import {globals} from '../globals';
 import {TimeScale} from '../time_scale';
 
 export abstract class DragStrategy {
-  protected timeScale: TimeScale;
-
-  constructor(timeScale: TimeScale) {
-    this.timeScale = timeScale;
-  }
+  constructor(protected timeScale: TimeScale) {}
 
   abstract onDrag(x: number): void;
 

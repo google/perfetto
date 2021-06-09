@@ -81,7 +81,7 @@ trace.add_rss_stat(108, tid=10, member=0, size=110, mm_id=0x1234, curr=1)
 # In this packet, we check what happens to kernel threads in RSS stat.
 trace.add_ftrace_packet(1)
 
-# Emit an rss stat event for the the existing kernel thread.
+# Emit an rss stat event for the existing kernel thread.
 trace.add_rss_stat(100, tid=3, member=0, size=10, mm_id=0x2345, curr=1)
 
 # Start a new kernel thread.

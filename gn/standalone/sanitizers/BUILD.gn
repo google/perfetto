@@ -33,60 +33,59 @@ if (is_android && sanitizer_lib != "" && !sanitizer_lib_dir_is_static) {
 }
 
 config("sanitizers_cflags") {
-  cflags = []
-  defines = []
   if (using_sanitizer) {
-    cflags += [ "-fno-omit-frame-pointer" ]
-  }
+    cflags = [ "-fno-omit-frame-pointer" ]
+    defines = []
 
-  if (is_asan) {
-    cflags += [ "-fsanitize=address" ]
-    defines += [ "ADDRESS_SANITIZER" ]
-  }
-  if (is_lsan) {
-    cflags += [ "-fsanitize=leak" ]
-    defines += [ "LEAK_SANITIZER" ]
-  }
-  if (is_tsan) {
-    cflags += [ "-fsanitize=thread" ]
-    defines += [
-      "THREAD_SANITIZER",
-      "DYNAMIC_ANNOTATIONS_EXTERNAL_IMPL=1",
-    ]
-  }
-  if (is_msan) {
-    cflags += [
-      "-fsanitize=memory",
-      "-fsanitize-memory-track-origins=2",
-    ]
-    defines += [ "MEMORY_SANITIZER" ]
-  }
-  if (is_ubsan) {
-    cflags += [
-      "-fsanitize=bounds",
-      "-fsanitize=float-divide-by-zero",
-      "-fsanitize=integer-divide-by-zero",
-      "-fsanitize=null",
-      "-fsanitize=object-size",
-      "-fsanitize=return",
-      "-fsanitize=returns-nonnull-attribute",
-      "-fsanitize=shift-exponent",
-      "-fsanitize=signed-integer-overflow",
-      "-fsanitize=unreachable",
-      "-fsanitize=vla-bound",
-    ]
-    defines += [ "UNDEFINED_SANITIZER" ]
-  }
-  if (is_fuzzer) {
-    # FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION is also defined by oss-fuzz,
-    # so using the same name.
-    defines += [ "FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION" ]
-    cflags += [ "-fsanitize=fuzzer-no-link" ]
     if (is_asan) {
-      cflags += [
-        "-mllvm",
-        "-asan-use-private-alias",
+      cflags += [ "-fsanitize=address" ]
+      defines += [ "ADDRESS_SANITIZER" ]
+    }
+    if (is_lsan) {
+      cflags += [ "-fsanitize=leak" ]
+      defines += [ "LEAK_SANITIZER" ]
+    }
+    if (is_tsan) {
+      cflags += [ "-fsanitize=thread" ]
+      defines += [
+        "THREAD_SANITIZER",
+        "DYNAMIC_ANNOTATIONS_EXTERNAL_IMPL=1",
       ]
+    }
+    if (is_msan) {
+      cflags += [
+        "-fsanitize=memory",
+        "-fsanitize-memory-track-origins=2",
+      ]
+      defines += [ "MEMORY_SANITIZER" ]
+    }
+    if (is_ubsan) {
+      cflags += [
+        "-fsanitize=bounds",
+        "-fsanitize=float-divide-by-zero",
+        "-fsanitize=integer-divide-by-zero",
+        "-fsanitize=null",
+        "-fsanitize=object-size",
+        "-fsanitize=return",
+        "-fsanitize=returns-nonnull-attribute",
+        "-fsanitize=shift-exponent",
+        "-fsanitize=signed-integer-overflow",
+        "-fsanitize=unreachable",
+        "-fsanitize=vla-bound",
+      ]
+      defines += [ "UNDEFINED_SANITIZER" ]
+    }
+    if (is_fuzzer) {
+      # FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION is also defined by oss-fuzz,
+      # so using the same name.
+      defines += [ "FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION" ]
+      cflags += [ "-fsanitize=fuzzer-no-link" ]
+      if (is_asan) {
+        cflags += [
+          "-mllvm",
+          "-asan-use-private-alias",
+        ]
+      }
     }
   }
 }
@@ -98,25 +97,27 @@ config("sanitizer_options_link_helper") {
 }
 
 config("sanitizers_ldflags") {
-  visibility = [ ":deps" ]
-  ldflags = []
-  if (is_asan) {
-    ldflags += [ "-fsanitize=address" ]
+  if (using_sanitizer) {
+    visibility = [ ":deps" ]
+    ldflags = []
+    if (is_asan) {
+      ldflags += [ "-fsanitize=address" ]
+    }
+    if (is_lsan) {
+      # This is not a copy/paste mistake. The LSan runtime library has
+      # moved into asan. So in order to make LSan work one has to build
+      # .cc files with -fsanitize=leak but link with -fsanitize=address.
+      ldflags += [ "-fsanitize=address" ]
+    }
+    if (is_tsan) {
+      ldflags += [ "-fsanitize=thread" ]
+    }
+    if (is_msan) {
+      ldflags += [ "-fsanitize=memory" ]
+    }
+    if (is_ubsan) {
+      ldflags += [ "-fsanitize=undefined" ]
+    }
+    configs = [ ":sanitizer_options_link_helper" ]
   }
-  if (is_lsan) {
-    # This is not a copy/paste mistake. The LSan runtime library has
-    # moved into asan. So in order to make LSan work one has to build
-    # .cc files with -fsanitize=leak but link with -fsanitize=address.
-    ldflags += [ "-fsanitize=address" ]
-  }
-  if (is_tsan) {
-    ldflags += [ "-fsanitize=thread" ]
-  }
-  if (is_msan) {
-    ldflags += [ "-fsanitize=memory" ]
-  }
-  if (is_ubsan) {
-    ldflags += [ "-fsanitize=undefined" ]
-  }
-  configs = [ ":sanitizer_options_link_helper" ]
 }

@@ -50,13 +50,12 @@ bool ReadPackagesListLine(char* line, Package* package) {
       }
       case 6: {
         char* end;
-        long long profilable_level = strtoll(ss.cur_token(), &end, 10);
+        long long profilable_from_shell = strtoll(ss.cur_token(), &end, 10);
         if ((*end != '\0' && *end != '\n') || *ss.cur_token() == '\0') {
           PERFETTO_ELOG("Failed to parse packages.list profilable_from_shell.");
           return false;
         }
-        package->profileable_from_shell = profilable_level != 0;
-        package->profileable = profilable_level == 2;
+        package->profileable_from_shell = profilable_from_shell != 0;
         break;
       }
       case 7: {
@@ -70,6 +69,20 @@ bool ReadPackagesListLine(char* line, Package* package) {
         package->version_code = version_code;
         break;
       }
+      case 8: {
+        char* end;
+        long long profileable = strtoll(ss.cur_token(), &end, 10);
+        if ((*end != '\0' && *end != '\n') || *ss.cur_token() == '\0') {
+          PERFETTO_ELOG("Failed to parse packages.list profileable.");
+          return false;
+        }
+        package->profileable = profileable != 0;
+        break;
+      }
+      case 9:
+        package->installed_by =
+            std::string(ss.cur_token(), ss.cur_token_size());
+        break;
     }
     ++idx;
   }

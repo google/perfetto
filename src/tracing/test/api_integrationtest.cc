@@ -125,9 +125,8 @@ struct std::hash<SourceLocation> {
 // Represents an opaque (from Perfetto's point of view) thread identifier (e.g.,
 // base::PlatformThreadId in Chromium).
 struct MyThreadId {
-  MyThreadId(int pid_, int tid_) : pid(pid_), tid(tid_) {}
+  explicit MyThreadId(int tid_) : tid(tid_) {}
 
-  const int pid = 0;
   const int tid = 0;
 };
 
@@ -143,23 +142,9 @@ namespace perfetto {
 namespace legacy {
 
 template <>
-bool ConvertThreadId(const MyThreadId& thread,
-                     uint64_t* track_uuid_out,
-                     int32_t* pid_override_out,
-                     int32_t* tid_override_out) {
-  if (!thread.pid && !thread.tid)
-    return false;
-  if (!thread.pid) {
-    // Thread in current process.
-    *track_uuid_out = perfetto::ThreadTrack::ForThread(
-                          static_cast<base::PlatformThreadId>(thread.tid))
-                          .uuid;
-  } else {
-    // Thread in another process.
-    *pid_override_out = thread.pid;
-    *tid_override_out = thread.tid;
-  }
-  return true;
+ThreadTrack ConvertThreadId(const MyThreadId& thread) {
+  return perfetto::ThreadTrack::ForThread(
+      static_cast<base::PlatformThreadId>(thread.tid));
 }
 
 }  // namespace legacy
@@ -1488,6 +1473,80 @@ TEST_P(PerfettoApiTest, TrackEventCustomTrack) {
   perfetto::TrackEvent::EraseTrackDescriptor(track);
 }
 
+TEST_P(PerfettoApiTest, LegacyEventWithThreadOverride) {
+  // Create a new trace session.
+  auto* tracing_session = NewTraceWithCategories({"cat"});
+  tracing_session->get()->StartBlocking();
+
+  TRACE_EVENT_BEGIN_WITH_ID_TID_AND_TIMESTAMP0("cat", "Name", 1,
+                                               MyThreadId(456), MyTimestamp{0});
+  perfetto::TrackEvent::Flush();
+  tracing_session->get()->StopBlocking();
+
+  std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
+  perfetto::protos::gen::Trace trace;
+  ASSERT_TRUE(trace.ParseFromArray(raw_trace.data(), raw_trace.size()));
+
+  // Check that we wrote a track descriptor for the custom thread track, and
+  // that the event was associated with that track.
+  const auto track = perfetto::ThreadTrack::ForThread(456);
+  bool found_descriptor = false;
+  bool found_event = false;
+  for (const auto& packet : trace.packet()) {
+    if (packet.has_track_descriptor() &&
+        packet.track_descriptor().has_thread()) {
+      auto td = packet.track_descriptor().thread();
+      if (td.tid() == 456) {
+        EXPECT_EQ(track.uuid, packet.track_descriptor().uuid());
+        found_descriptor = true;
+      }
+    }
+
+    if (!packet.has_track_event())
+      continue;
+    auto track_event = packet.track_event();
+    if (track_event.legacy_event().phase() == TRACE_EVENT_PHASE_ASYNC_BEGIN) {
+      EXPECT_EQ(track.uuid, track_event.track_uuid());
+      found_event = true;
+    }
+  }
+  EXPECT_TRUE(found_descriptor);
+  EXPECT_TRUE(found_event);
+  perfetto::TrackEvent::EraseTrackDescriptor(track);
+}
+
+TEST_P(PerfettoApiTest, LegacyEventWithProcessOverride) {
+  // Create a new trace session.
+  auto* tracing_session = NewTraceWithCategories({"cat"});
+  tracing_session->get()->StartBlocking();
+
+  // Note: there's no direct entrypoint for adding trace events for another
+  // process, so we're using the internal support macro here.
+  INTERNAL_TRACE_EVENT_ADD_WITH_ID_TID_AND_TIMESTAMP(
+      TRACE_EVENT_PHASE_INSTANT, "cat", "Name", 0, MyThreadId{789},
+      MyTimestamp{0}, TRACE_EVENT_FLAG_HAS_PROCESS_ID);
+  perfetto::TrackEvent::Flush();
+  tracing_session->get()->StopBlocking();
+
+  std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
+  perfetto::protos::gen::Trace trace;
+  ASSERT_TRUE(trace.ParseFromArray(raw_trace.data(), raw_trace.size()));
+
+  // Check that the event has a pid_override matching MyThread above.
+  bool found_event = false;
+  for (const auto& packet : trace.packet()) {
+    if (!packet.has_track_event())
+      continue;
+    auto track_event = packet.track_event();
+    if (track_event.type() == perfetto::protos::gen::TrackEvent::TYPE_INSTANT) {
+      EXPECT_EQ(789, track_event.legacy_event().pid_override());
+      EXPECT_EQ(-1, track_event.legacy_event().tid_override());
+      found_event = true;
+    }
+  }
+  EXPECT_TRUE(found_event);
+}
+
 TEST_P(PerfettoApiTest, TrackDescriptorWrittenBeforeEvent) {
   // Create a new trace session.
   auto* tracing_session = NewTraceWithCategories({"bar"});
@@ -2124,6 +2183,25 @@ TEST_P(PerfettoApiTest, TrackEventDefaultGlobalTrack) {
               ElementsAre("I:test.ThreadEvent", "[track=0]I:test.GlobalEvent"));
 }
 
+TEST_P(PerfettoApiTest, TrackEventTrackFromPointer) {
+  // Create a new trace session.
+  auto* tracing_session = NewTraceWithCategories({"test"});
+  tracing_session->get()->StartBlocking();
+
+  perfetto::Track parent_track(1);
+  int* ptr = reinterpret_cast<int*>(2);
+  TRACE_EVENT_INSTANT("test", "Event",
+                      perfetto::Track::FromPointer(ptr, parent_track));
+  perfetto::TrackEvent::Flush();
+
+  perfetto::Track track(reinterpret_cast<uintptr_t>(ptr), parent_track);
+
+  tracing_session->get()->StopBlocking();
+  auto slices = ReadSlicesFromTrace(tracing_session->get());
+  EXPECT_THAT(slices, ElementsAre("[track=" + std::to_string(track.uuid) +
+                                  "]I:test.Event"));
+}
+
 TEST_P(PerfettoApiTest, TrackEventDebugAnnotations) {
   // Create a new trace session.
   auto* tracing_session = NewTraceWithCategories({"test"});
@@ -2379,7 +2457,8 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
         slices,
         ElementsAre("B:foo.FooEvent", "B:bar.BarEvent", "B:foo,bar.MultiFooBar",
                     "B:baz,bar,quux.MultiBar", "B:red,green,blue,foo.MultiFoo",
-                    "B:test.TagEvent", "B:$dynamic,$foo.DynamicGroupFooEvent",
+                    "B:red,green,blue,yellow.MultiNone", "B:test.TagEvent",
+                    "B:$dynamic,$foo.DynamicGroupFooEvent",
                     "B:$dynamic,$bar.DynamicGroupBarEvent"));
   }
 
@@ -2392,6 +2471,16 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
     EXPECT_THAT(slices, ElementsAre("B:foo.FooEvent", "B:foo,bar.MultiFooBar",
                                     "B:red,green,blue,foo.MultiFoo",
                                     "B:$dynamic,$foo.DynamicGroupFooEvent"));
+  }
+
+  // Enable exactly one dynamic category.
+  {
+    perfetto::protos::gen::TrackEventConfig te_cfg;
+    te_cfg.add_disabled_categories("*");
+    te_cfg.add_enabled_categories("dynamic");
+    auto slices = check_config(te_cfg);
+    EXPECT_THAT(slices, ElementsAre("B:$dynamic,$foo.DynamicGroupFooEvent",
+                                    "B:$dynamic,$bar.DynamicGroupBarEvent"));
   }
 
   // Enable two categories.
@@ -2419,7 +2508,8 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
         slices,
         ElementsAre("B:foo.FooEvent", "B:bar.BarEvent", "B:foo,bar.MultiFooBar",
                     "B:baz,bar,quux.MultiBar", "B:red,green,blue,foo.MultiFoo",
-                    "B:test.TagEvent", "B:$dynamic,$foo.DynamicGroupFooEvent",
+                    "B:red,green,blue,yellow.MultiNone", "B:test.TagEvent",
+                    "B:$dynamic,$foo.DynamicGroupFooEvent",
                     "B:$dynamic,$bar.DynamicGroupBarEvent"));
   }
 
@@ -2461,14 +2551,15 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
     te_cfg.add_enabled_tags("slow");
     te_cfg.add_enabled_tags("debug");
     auto slices = check_config(te_cfg);
-    EXPECT_THAT(slices,
-                ElementsAre("B:foo.FooEvent", "B:bar.BarEvent",
-                            "B:foo,bar.MultiFooBar", "B:baz,bar,quux.MultiBar",
-                            "B:red,green,blue,foo.MultiFoo", "B:cat.SlowEvent",
-                            "B:cat.verbose.DebugEvent", "B:test.TagEvent",
-                            "B:disabled-by-default-cat.SlowDisabledEvent",
-                            "B:$dynamic,$foo.DynamicGroupFooEvent",
-                            "B:$dynamic,$bar.DynamicGroupBarEvent"));
+    EXPECT_THAT(
+        slices,
+        ElementsAre("B:foo.FooEvent", "B:bar.BarEvent", "B:foo,bar.MultiFooBar",
+                    "B:baz,bar,quux.MultiBar", "B:red,green,blue,foo.MultiFoo",
+                    "B:red,green,blue,yellow.MultiNone", "B:cat.SlowEvent",
+                    "B:cat.verbose.DebugEvent", "B:test.TagEvent",
+                    "B:disabled-by-default-cat.SlowDisabledEvent",
+                    "B:$dynamic,$foo.DynamicGroupFooEvent",
+                    "B:$dynamic,$bar.DynamicGroupBarEvent"));
   }
 }
 
@@ -3168,10 +3259,19 @@ TEST_P(PerfettoApiTest, QueryServiceState) {
 }
 
 TEST_P(PerfettoApiTest, LegacyTraceEvents) {
+  auto is_new_session = [] {
+    bool result;
+    TRACE_EVENT_IS_NEW_TRACE(&result);
+    return result;
+  };
+
   // Create a new trace session.
+  EXPECT_FALSE(is_new_session());
   auto* tracing_session =
       NewTraceWithCategories({"cat", TRACE_DISABLED_BY_DEFAULT("cat")});
   tracing_session->get()->StartBlocking();
+  EXPECT_TRUE(is_new_session());
+  EXPECT_FALSE(is_new_session());
 
   // Basic events.
   TRACE_EVENT_INSTANT0("cat", "LegacyEvent", TRACE_EVENT_SCOPE_GLOBAL);
@@ -3193,7 +3293,7 @@ TEST_P(PerfettoApiTest, LegacyTraceEvents) {
   // Event with id, thread id and timestamp (and dynamic name).
   TRACE_EVENT_COPY_BEGIN_WITH_ID_TID_AND_TIMESTAMP0(
       "cat", std::string("LegacyWithIdTidAndTimestamp").c_str(), 1,
-      MyThreadId(123, 456), MyTimestamp{3});
+      MyThreadId(123), MyTimestamp{3});
 
   // Event with id.
   TRACE_COUNTER1("cat", "LegacyCounter", 1234);
@@ -3214,9 +3314,9 @@ TEST_P(PerfettoApiTest, LegacyTraceEvents) {
           "B(bind_id=3671771902)(flow_direction=1):disabled-by-default-cat."
           "LegacyFlowEvent",
           "[track=0]I:cat.LegacyInstantEvent",
-          "[track=0]Legacy_S(unscoped_id=1)(pid_override=123)(tid_override=456)"
-          ":cat."
-          "LegacyWithIdTidAndTimestamp",
+          std::string("[track=") +
+              std::to_string(perfetto::ThreadTrack::ForThread(123).uuid) +
+              "]Legacy_S(unscoped_id=1):cat.LegacyWithIdTidAndTimestamp",
           "Legacy_C:cat.LegacyCounter(value=(int)1234)",
           "Legacy_C(unscoped_id=1234):cat.LegacyCounterWithId(value=(int)9000)",
           "Legacy_M:cat.LegacyMetadata"));

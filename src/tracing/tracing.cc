@@ -44,6 +44,9 @@ void Tracing::InitializeInternal(const TracingInitArgs& args) {
 
   // Make sure the headers and implementation files agree on the build config.
   PERFETTO_CHECK(args.dcheck_is_on_ == PERFETTO_DCHECK_IS_ON());
+  if (args.log_message_callback) {
+    SetLogMessageCallback(args.log_message_callback);
+  }
   internal::TracingMuxerImpl::InitializeInstance(args);
   internal::TrackRegistry::InitializeInstance();
   g_was_initialized = true;

@@ -30,6 +30,8 @@ namespace getopt_compat {
 
 char* optarg = nullptr;
 int optind = 0;
+int optopt = 0;
+int opterr = 1;
 
 namespace {
 
@@ -47,7 +49,7 @@ const option* LookupLongOpt(const std::vector<option>& opts,
 
 const option* LookupShortOpt(const std::vector<option>& opts, char c) {
   for (const option& opt : opts) {
-    if (opt.name == nullptr && opt.val == c)
+    if (!*opt.name && opt.val == c)
       return &opt;
   }
   return nullptr;
@@ -78,6 +80,7 @@ bool ParseOpts(const char* shortopts,
     }
     res->emplace_back();
     option& opt = res->back();
+    opt.name = "";
     opt.val = c;
     opt.has_arg = no_argument;
     if (*sopt == ':') {
@@ -108,6 +111,7 @@ int getopt_long(int argc,
     return '?';
 
   char* arg = argv[optind];
+  optopt = 0;
 
   if (!nextchar) {
     // If |nextchar| is null we are NOT in the middle of a short option and we
@@ -120,11 +124,14 @@ int getopt_long(int argc,
 
       size_t len = sep ? static_cast<size_t>(sep - arg) : strlen(arg);
       const option* opt = LookupLongOpt(opts, arg, len);
+
       if (!opt) {
-        fprintf(stderr, "unrecognized option '--%s'\n", arg);
+        if (opterr)
+          fprintf(stderr, "unrecognized option '--%s'\n", arg);
         return '?';
       }
 
+      optopt = opt->val;
       if (opt->has_arg == no_argument) {
         if (sep) {
           fprintf(stderr, "option '--%s' doesn't allow an argument\n", arg);
@@ -137,7 +144,8 @@ int getopt_long(int argc,
           optarg = sep + 1;
           return opt->val;
         } else if (optind >= argc) {
-          fprintf(stderr, "option '--%s' requires an argument\n", arg);
+          if (opterr)
+            fprintf(stderr, "option '--%s' requires an argument\n", arg);
           return '?';
         } else {
           optarg = argv[optind++];
@@ -173,8 +181,10 @@ int getopt_long(int argc,
     }
 
     const option* opt = LookupShortOpt(opts, cur_char);
+    optopt = cur_char;
     if (!opt) {
-      fprintf(stderr, "invalid option -- '%c'\n", cur_char);
+      if (opterr)
+        fprintf(stderr, "invalid option -- '%c'\n", cur_char);
       return '?';
     }
     if (opt->has_arg == no_argument) {
@@ -189,7 +199,8 @@ int getopt_long(int argc,
       if (!nextchar) {
         // Case 1.
         if (optind >= argc) {
-          fprintf(stderr, "option requires an argument -- '%c'\n", cur_char);
+          if (opterr)
+            fprintf(stderr, "option requires an argument -- '%c'\n", cur_char);
           return '?';
         } else {
           optarg = argv[optind++];

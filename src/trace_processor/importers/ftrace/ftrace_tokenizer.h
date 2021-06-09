@@ -19,8 +19,8 @@
 
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/util/trace_blob_view.h"
 
 namespace perfetto {
 namespace trace_processor {

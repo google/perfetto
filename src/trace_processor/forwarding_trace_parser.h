@@ -17,7 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_FORWARDING_TRACE_PARSER_H_
 #define SRC_TRACE_PROCESSOR_FORWARDING_TRACE_PARSER_H_
 
-#include "src/trace_processor/chunked_trace_reader.h"
+#include "src/trace_processor/importers/common/chunked_trace_reader.h"
 
 #include "src/trace_processor/types/trace_processor_context.h"
 

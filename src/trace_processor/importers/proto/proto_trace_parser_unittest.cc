@@ -29,13 +29,13 @@
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/default_modules.h"
 #include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
-#include "src/trace_processor/importers/proto/args_table_utils.h"
 #include "src/trace_processor/importers/proto/metadata_tracker.h"
 #include "src/trace_processor/importers/proto/proto_trace_parser.h"
 #include "src/trace_processor/importers/proto/stack_profile_tracker.h"
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/trace_sorter.h"
+#include "src/trace_processor/util/descriptors.h"
 #include "test/gtest_and_gmock.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
@@ -253,7 +253,7 @@ class ProtoTraceParserTest : public ::testing::Test {
     clock_ = new ClockTracker(&context_);
     context_.clock_tracker.reset(clock_);
     context_.sorter.reset(new TraceSorter(CreateParser(), 0 /*window size*/));
-    context_.proto_to_args_table_.reset(new ProtoToArgsTable(&context_));
+    context_.descriptor_pool_.reset(new DescriptorPool());
 
     RegisterDefaultModules(&context_);
     RegisterAdditionalModules(&context_);
@@ -383,7 +383,7 @@ TEST_F(ProtoTraceParserTest, LoadEventsIntoRaw) {
   ASSERT_EQ(args.int_value()[4], 20);
   ASSERT_STREQ(args.string_value().GetString(5).c_str(), buf_value);
 
-  // TODO(taylori): Add test ftrace event with all field types
+  // TODO(hjd): Add test ftrace event with all field types
   // and test here.
 }
 

@@ -23,6 +23,7 @@
 #include <unistd.h>  // For isatty()
 #endif
 
+#include <atomic>
 #include <memory>
 
 #include "perfetto/base/time.h"
@@ -38,7 +39,13 @@ const char kRed[] = "\x1b[31m";
 const char kBoldGreen[] = "\x1b[1m\x1b[32m";
 const char kLightGray[] = "\x1b[90m";
 
+std::atomic<LogMessageCallback> g_log_callback{};
+
 }  // namespace
+
+void SetLogMessageCallback(LogMessageCallback callback) {
+  g_log_callback.store(callback, std::memory_order_relaxed);
+}
 
 void LogMessage(LogLev level,
                 const char* fname,
@@ -73,6 +80,12 @@ void LogMessage(LogLev level,
     max_len *= 4;
     large_buf.reset(new char[max_len]);
     log_msg = &large_buf[0];
+  }
+
+  LogMessageCallback cb = g_log_callback.load(std::memory_order_relaxed);
+  if (cb) {
+    cb({level, line, fname, log_msg});
+    return;
   }
 
   const char* color = kDefault;

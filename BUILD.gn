@@ -144,6 +144,9 @@ if (perfetto_build_standalone) {
   if (is_linux || is_android) {
     all_targets += [ "src/tracing/consumer_api_deprecated:consumer_api_test" ]
   }
+  if (is_linux || is_android || is_mac) {
+    all_targets += [ "src/tracebox" ]
+  }
 }
 
 # The CTS code is built (but not ran) also in standalone builds. This is to

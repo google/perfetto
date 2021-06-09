@@ -17,9 +17,9 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_FUCHSIA_FUCHSIA_TRACE_PARSER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_FUCHSIA_FUCHSIA_TRACE_PARSER_H_
 
+#include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_record.h"
 #include "src/trace_processor/timestamped_trace_piece.h"
-#include "src/trace_processor/trace_parser.h"
 
 namespace perfetto {
 namespace trace_processor {

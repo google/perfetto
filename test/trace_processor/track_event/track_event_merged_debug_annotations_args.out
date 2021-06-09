@@ -22,6 +22,6 @@
 "debug.debug2.key4","debug.debug2.key4",40,"[NULL]"
 "debug.debug3","debug.debug3",32,"[NULL]"
 "debug.debug4.key1","debug.debug4.key1",10,"[NULL]"
-"debug.debug4.key2[0]","debug.debug4.key2[0]",20,"[NULL]"
-"debug.debug4.key2[1]","debug.debug4.key2[1]",21,"[NULL]"
+"debug.debug4.key2","debug.debug4.key2[0]",20,"[NULL]"
+"debug.debug4.key2","debug.debug4.key2[1]",21,"[NULL]"
 "legacy_event.passthrough_utid","legacy_event.passthrough_utid",1,"[NULL]"

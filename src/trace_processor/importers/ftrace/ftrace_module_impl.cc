@@ -19,7 +19,7 @@
 #include "src/trace_processor/importers/ftrace/ftrace_parser.h"
 #include "src/trace_processor/importers/ftrace/ftrace_tokenizer.h"
 #include "src/trace_processor/timestamped_trace_piece.h"
-#include "src/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/util/trace_blob_view.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 

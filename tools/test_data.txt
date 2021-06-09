@@ -1,5 +1,11 @@
 # List of test deps that should be pushed on the device. Paths are relative
 # to the root.
-src/traced/probes/ftrace/test/data/
-src/traced/probes/filesystem/testdata/
+# The trailing /. at the end of a directory is to avoid creating a nesting
+# directory when pushing a 2nd-time. adb push has a slightly different behavior
+# than `cp` on directoriesm, trailing slash is not enough.
+src/traced/probes/filesystem/testdata/.
+src/traced/probes/ftrace/test/data/.
+test/data/android_log_ring_buffer_mode.pb
+test/data/example_android_trace_30s.pb
+test/data/full_trace_filter.bytecode
 test/data/kallsyms.txt

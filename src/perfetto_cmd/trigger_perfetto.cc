@@ -42,7 +42,21 @@ int PERFETTO_EXPORT_ENTRYPOINT TriggerPerfettoMain(int argc, char** argv) {
   static const option long_options[] = {{"help", no_argument, nullptr, 'h'},
                                         {nullptr, 0, nullptr, 0}};
 
+  // Set opterror to zero to disable |getopt_long| from printing an error and
+  // exiting when it encounters an unknown option. Instead, |getopt_long|
+  // will return '?' which we silently ignore.
+  //
+  // We prefer ths behaviour rather than erroring on unknown options because
+  // trigger_perfetto can be called by apps so it's command line API needs to
+  // be backward and forward compatible. If we introduce an option here which
+  // apps will use in the future, we don't want to cause errors on older
+  // platforms where the command line flag did not exist.
+  //
+  // This behaviour was introduced in Android S.
+  opterr = 0;
+
   std::vector<std::string> triggers_to_activate;
+  bool seen_unknown_arg = false;
 
   for (;;) {
     int option = getopt_long(argc, argv, "h", long_options, nullptr);
@@ -50,8 +64,18 @@ int PERFETTO_EXPORT_ENTRYPOINT TriggerPerfettoMain(int argc, char** argv) {
     if (option == 'h')
       return PrintUsage(argv[0]);
 
+    if (option == '?') {
+      seen_unknown_arg = true;
+    }
+
     if (option == -1)
       break;  // EOF.
+  }
+
+  // See above for rationale on why we just ignore unknown args instead of
+  // exiting.
+  if (seen_unknown_arg) {
+    PERFETTO_ELOG("Ignoring unknown arguments. See --help for usage.");
   }
 
   for (int i = optind; i < argc; i++)

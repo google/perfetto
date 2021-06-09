@@ -29,10 +29,10 @@ namespace {
 TEST(CanProfileAndroidTest, NonUserSystemExtraGuardrails) {
   DataSourceConfig ds_config;
   ds_config.set_enable_extra_guardrails(true);
-  EXPECT_TRUE(CanProfileAndroid(ds_config, 1, "userdebug", "/dev/null"));
+  EXPECT_TRUE(CanProfileAndroid(ds_config, 1, {}, "userdebug", "/dev/null"));
 }
 
-TEST(CanProfileAndroidTest, NonUserNonProfileableByShellApp) {
+TEST(CanProfileAndroidTest, NonUserNonProfileableApp) {
   DataSourceConfig ds_config;
   ds_config.set_enable_extra_guardrails(false);
   auto tmp = base::TempFile::Create();
@@ -41,10 +41,10 @@ TEST(CanProfileAndroidTest, NonUserNonProfileableByShellApp) {
       "/data/user/0/invalid.example.profileable default:targetSdkVersion=10000 "
       "none 0 1\n";
   base::WriteAll(tmp.fd(), content, sizeof(content));
-  EXPECT_TRUE(CanProfileAndroid(ds_config, 10001, "userdebug", tmp.path()));
+  EXPECT_TRUE(CanProfileAndroid(ds_config, 10001, {}, "userdebug", tmp.path()));
 }
 
-TEST(CanProfileAndroidTest, NonUserNonProfileableByShellAppExtraGuardrails) {
+TEST(CanProfileAndroidTest, NonUserNonProfileableAppExtraGuardrails) {
   DataSourceConfig ds_config;
   ds_config.set_enable_extra_guardrails(true);
   auto tmp = base::TempFile::Create();
@@ -53,10 +53,10 @@ TEST(CanProfileAndroidTest, NonUserNonProfileableByShellAppExtraGuardrails) {
       "/data/user/0/invalid.example.profileable default:targetSdkVersion=10000 "
       "none 0 1\n";
   base::WriteAll(tmp.fd(), content, sizeof(content));
-  EXPECT_TRUE(CanProfileAndroid(ds_config, 10001, "userdebug", tmp.path()));
+  EXPECT_TRUE(CanProfileAndroid(ds_config, 10001, {}, "userdebug", tmp.path()));
 }
 
-TEST(CanProfileAndroidTest, UserProfileableByShellApp) {
+TEST(CanProfileAndroidTest, UserProfileableApp) {
   DataSourceConfig ds_config;
   ds_config.set_enable_extra_guardrails(false);
   auto tmp = base::TempFile::Create();
@@ -65,34 +65,10 @@ TEST(CanProfileAndroidTest, UserProfileableByShellApp) {
       "/data/user/0/invalid.example.profileable default:targetSdkVersion=10000 "
       "none 1 1\n";
   base::WriteAll(tmp.fd(), content, sizeof(content));
-  EXPECT_TRUE(CanProfileAndroid(ds_config, 10001, "user", tmp.path()));
+  EXPECT_TRUE(CanProfileAndroid(ds_config, 10001, {}, "user", tmp.path()));
 }
 
-TEST(CanProfileAndroidTest, UserProfileableByShellAppExtraGuardrails) {
-  DataSourceConfig ds_config;
-  ds_config.set_enable_extra_guardrails(true);
-  auto tmp = base::TempFile::Create();
-  constexpr char content[] =
-      "invalid.example.profileable 10001 0 "
-      "/data/user/0/invalid.example.profileable default:targetSdkVersion=10000 "
-      "none 1 1\n";
-  base::WriteAll(tmp.fd(), content, sizeof(content));
-  EXPECT_FALSE(CanProfileAndroid(ds_config, 10001, "user", tmp.path()));
-}
-
-TEST(CanProfileAndroidTest, UserProfileableAppExtraGuardrails) {
-  DataSourceConfig ds_config;
-  ds_config.set_enable_extra_guardrails(true);
-  auto tmp = base::TempFile::Create();
-  constexpr char content[] =
-      "invalid.example.profileable 10001 0 "
-      "/data/user/0/invalid.example.profileable default:targetSdkVersion=10000 "
-      "none 2 1\n";
-  base::WriteAll(tmp.fd(), content, sizeof(content));
-  EXPECT_TRUE(CanProfileAndroid(ds_config, 10001, "user", tmp.path()));
-}
-
-TEST(CanProfileAndroidTest, UserProfileableByShellAppMultiuser) {
+TEST(CanProfileAndroidTest, UserProfileableAppMultiuser) {
   DataSourceConfig ds_config;
   ds_config.set_enable_extra_guardrails(false);
   auto tmp = base::TempFile::Create();
@@ -101,10 +77,10 @@ TEST(CanProfileAndroidTest, UserProfileableByShellAppMultiuser) {
       "/data/user/0/invalid.example.profileable default:targetSdkVersion=10000 "
       "none 1 1\n";
   base::WriteAll(tmp.fd(), content, sizeof(content));
-  EXPECT_TRUE(CanProfileAndroid(ds_config, 210001, "user", tmp.path()));
+  EXPECT_TRUE(CanProfileAndroid(ds_config, 210001, {}, "user", tmp.path()));
 }
 
-TEST(CanProfileAndroidTest, UserNonProfileableByShellApp) {
+TEST(CanProfileAndroidTest, UserNonProfileableApp) {
   DataSourceConfig ds_config;
   ds_config.set_enable_extra_guardrails(false);
   auto tmp = base::TempFile::Create();
@@ -113,7 +89,7 @@ TEST(CanProfileAndroidTest, UserNonProfileableByShellApp) {
       "/data/user/0/invalid.example.profileable default:targetSdkVersion=10000 "
       "none 0 1\n";
   base::WriteAll(tmp.fd(), content, sizeof(content));
-  EXPECT_FALSE(CanProfileAndroid(ds_config, 10001, "user", tmp.path()));
+  EXPECT_FALSE(CanProfileAndroid(ds_config, 10001, {}, "user", tmp.path()));
 }
 
 TEST(CanProfileAndroidTest, UserDebuggableApp) {
@@ -125,7 +101,72 @@ TEST(CanProfileAndroidTest, UserDebuggableApp) {
       "/data/user/0/invalid.example.profileable default:targetSdkVersion=10000 "
       "none 0 1\n";
   base::WriteAll(tmp.fd(), content, sizeof(content));
-  EXPECT_TRUE(CanProfileAndroid(ds_config, 10001, "user", tmp.path()));
+  EXPECT_TRUE(CanProfileAndroid(ds_config, 10001, {}, "user", tmp.path()));
+}
+
+TEST(CanProfileAndroidTest, UserProfileableMatchingInstallerStatsd) {
+  DataSourceConfig ds_config;
+  ds_config.set_session_initiator(
+      DataSourceConfig::SESSION_INITIATOR_TRUSTED_SYSTEM);
+  auto tmp = base::TempFile::Create();
+  constexpr char content[] =
+      "invalid.example 10001 0 /data/user/0/invalid.example "
+      "default:targetSdkVersion=29 3002,3003 0 13030407 1 invalid.store";
+  base::WriteAll(tmp.fd(), content, sizeof(content));
+  EXPECT_TRUE(CanProfileAndroid(ds_config, 10001, {"invalid.store"}, "user",
+                                tmp.path()));
+}
+
+TEST(CanProfileAndroidTest, UserProfileableMatchingInstallerShell) {
+  DataSourceConfig ds_config;
+  ds_config.set_session_initiator(
+      DataSourceConfig::SESSION_INITIATOR_UNSPECIFIED);
+  auto tmp = base::TempFile::Create();
+  constexpr char content[] =
+      "invalid.example 10001 0 /data/user/0/invalid.example "
+      "default:targetSdkVersion=29 3002,3003 0 13030407 1 invalid.store";
+  base::WriteAll(tmp.fd(), content, sizeof(content));
+  EXPECT_FALSE(CanProfileAndroid(ds_config, 10001, {"invalid.store"}, "user",
+                                 tmp.path()));
+}
+
+TEST(CanProfileAndroidTest, UserProfileableNonMatchingInstallerStatsd) {
+  DataSourceConfig ds_config;
+  ds_config.set_session_initiator(
+      DataSourceConfig::SESSION_INITIATOR_TRUSTED_SYSTEM);
+  auto tmp = base::TempFile::Create();
+  constexpr char content[] =
+      "invalid.example 10001 0 /data/user/0/invalid.example "
+      "default:targetSdkVersion=29 3002,3003 0 13030407 1 invalid.store";
+  base::WriteAll(tmp.fd(), content, sizeof(content));
+  EXPECT_FALSE(CanProfileAndroid(ds_config, 10001, {"invalid.otherstore"},
+                                 "user", tmp.path()));
+}
+
+TEST(CanProfileAndroidTest, UserProfileableNonMatchingInstallerShell) {
+  DataSourceConfig ds_config;
+  ds_config.set_session_initiator(
+      DataSourceConfig::SESSION_INITIATOR_UNSPECIFIED);
+  auto tmp = base::TempFile::Create();
+  constexpr char content[] =
+      "invalid.example 10001 0 /data/user/0/invalid.example "
+      "default:targetSdkVersion=29 3002,3003 0 13030407 1 invalid.store";
+  base::WriteAll(tmp.fd(), content, sizeof(content));
+  EXPECT_FALSE(CanProfileAndroid(ds_config, 10001, {"invalid.otherstore"},
+                                 "user", tmp.path()));
+}
+
+TEST(CanProfileAndroidTest, UserProfileableFromShellWithInstallerOldPackages) {
+  DataSourceConfig ds_config;
+  ds_config.set_session_initiator(
+      DataSourceConfig::SESSION_INITIATOR_UNSPECIFIED);
+  auto tmp = base::TempFile::Create();
+  constexpr char content[] =
+      "invalid.example 10001 0 /data/user/0/invalid.example "
+      "default:targetSdkVersion=29 3002,3003 1 13030407";
+  base::WriteAll(tmp.fd(), content, sizeof(content));
+  EXPECT_FALSE(CanProfileAndroid(ds_config, 10001, {"invalid.otherstore"},
+                                 "user", tmp.path()));
 }
 
 }  // namespace

@@ -25,8 +25,8 @@
 
 #include "src/trace_processor/forwarding_trace_parser.h"
 #include "src/trace_processor/importers/gzip/gzip_trace_parser.h"
-#include "src/trace_processor/importers/gzip/gzip_utils.h"
 #include "src/trace_processor/importers/proto/proto_trace_tokenizer.h"
+#include "src/trace_processor/util/gzip_utils.h"
 #include "src/trace_processor/util/status_macros.h"
 
 #include "protos/perfetto/trace/trace.pbzero.h"
@@ -210,7 +210,7 @@ util::Status DecompressTrace(const uint8_t* data,
   PERFETTO_CHECK(type == TraceType::kProtoTraceType);
 
   protos::pbzero::Trace::Decoder decoder(data, size);
-  GzipDecompressor decompressor;
+  util::GzipDecompressor decompressor;
   if (size > 0 && !decoder.packet()) {
     return util::ErrStatus("Trace does not contain valid packets");
   }
@@ -226,7 +226,7 @@ util::Status DecompressTrace(const uint8_t* data,
     decompressor.Reset();
     decompressor.SetInput(bytes.data, bytes.size);
 
-    using ResultCode = GzipDecompressor::ResultCode;
+    using ResultCode = util::GzipDecompressor::ResultCode;
     uint8_t out[4096];
     for (auto ret = ResultCode::kOk; ret != ResultCode::kEof;) {
       auto res = decompressor.Decompress(out, base::ArraySize(out));

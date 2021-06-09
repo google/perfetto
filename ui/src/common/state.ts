@@ -51,13 +51,21 @@ export interface Area {
 
 export const MAX_TIME = 180;
 
-export const STATE_VERSION = 2;
+// 3: TrackKindPriority and related sorting changes.
+export const STATE_VERSION = 3;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
 export type EngineMode = 'WASM'|'HTTP_RPC';
 
 export type NewEngineMode = 'USE_HTTP_RPC_IF_AVAILABLE'|'FORCE_BUILTIN_WASM';
+
+export enum TrackKindPriority {
+  'MAIN_THREAD' = 0,
+  'RENDER_THREAD' = 1,
+  'GPU_COMPLETION' = 2,
+  'ORDINARY' = 3
+}
 
 export type HeapProfileFlamegraphViewingOption =
     'SPACE'|'ALLOC_SPACE'|'OBJECTS'|'ALLOC_OBJECTS';
@@ -72,6 +80,7 @@ export interface CallsiteInfo {
   mapping: string;
   merged: boolean;
   highlighted: boolean;
+  location?: string;
 }
 
 export interface TraceFileSource {
@@ -104,7 +113,7 @@ export interface TrackState {
   engineId: string;
   kind: string;
   name: string;
-  isMainThread: boolean;
+  trackKindPriority: TrackKindPriority;
   trackGroup?: string;
   config: {};
 }
@@ -363,6 +372,17 @@ export function isLinuxTarget(target: RecordingTarget) {
 export function isAdbTarget(target: RecordingTarget):
     target is AdbRecordingTarget {
   if ((target as AdbRecordingTarget).serial) return true;
+  return false;
+}
+
+export function hasActiveProbes(config: RecordConfig) {
+  const fieldsWithEmptyResult = new Set<string>(['hpBlockClient']);
+  for (const key in config) {
+    if (typeof (config[key]) === 'boolean' && config[key] === true &&
+        !fieldsWithEmptyResult.has(key)) {
+      return true;
+    }
+  }
   return false;
 }
 

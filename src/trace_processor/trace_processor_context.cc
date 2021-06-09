@@ -16,9 +16,9 @@
 
 #include "src/trace_processor/types/trace_processor_context.h"
 
-#include "src/trace_processor/chunked_trace_reader.h"
 #include "src/trace_processor/forwarding_trace_parser.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/chunked_trace_reader.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"

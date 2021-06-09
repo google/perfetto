@@ -186,7 +186,8 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
     ProcessState(GlobalCallstackTrie* c, bool d)
         : callsites(c), dump_at_max_mode(d) {}
     bool disconnected = false;
-    SharedRingBuffer::ErrorState error_state;
+    SharedRingBuffer::ErrorState error_state =
+        SharedRingBuffer::ErrorState::kNoError;
     bool buffer_corrupted = false;
 
     uint64_t heap_samples = 0;
@@ -276,8 +277,6 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
 
   // Specific to mode_ == kChild
   void TerminateProcess(int exit_status);
-  // Specific to mode_ == kChild
-  void ActiveDataSourceWatchdogCheck();
 
   void ShutdownDataSource(DataSource* ds);
   bool MaybeFinishDataSource(DataSource* ds);

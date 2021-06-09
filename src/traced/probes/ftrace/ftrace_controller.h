@@ -45,7 +45,7 @@ class ProtoTranslationTable;
 struct FtraceStats;
 
 // Method of last resort to reset ftrace state.
-void HardResetFtraceState();
+bool HardResetFtraceState();
 
 // Utility class for controlling ftrace.
 class FtraceController {

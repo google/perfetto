@@ -237,8 +237,6 @@ enumerated in the output directory.
 
 ## Symbolization
 
-NOTE: Symbolization is currently only available on Linux and MacOS.
-
 ### Set up llvm-symbolizer
 
 You only need to do this once.
@@ -389,10 +387,11 @@ to not strip them.
 
 ## (non-Android) Linux support
 
-NOTE: This is experimental and only for ad-hoc investigations.
+NOTE: Do not use this for production purposes.
 
 You can use a standalone library to profile memory allocations on Linux.
-First [build Perfetto](/docs/contributing/build-instructions.md)
+First [build Perfetto](/docs/contributing/build-instructions.md). You only need
+to do this once.
 
 ```
 tools/build_all_configs.py
@@ -408,34 +407,10 @@ out/linux_clang_release/traced
 Start the profile (e.g. targeting trace_processor_shell)
 
 ```
+tools/heap_profile -n trace_processor_shell --print-config  | \
 out/linux_clang_release/perfetto \
   -c - --txt \
-  -o ~/heapprofd-trace \
-<<EOF
-
-buffers {
-  size_kb: 32768
-}
-
-data_sources {
-  config {
-    name: "android.heapprofd"
-    heapprofd_config {
-      shmem_size_bytes: 8388608
-      sampling_interval_bytes: 4096
-      block_client: true
-      process_cmdline: "trace_processor_shell"
-      dump_at_max: true
-    }
-  }
-}
-
-duration_ms: 604800000
-write_into_file: true
-flush_timeout_ms: 30000
-flush_period_ms: 604800000
-
-EOF
+  -o ~/heapprofd-trace
 ```
 
 Finally, run your target (e.g. trace_processor_shell) with LD_PRELOAD
@@ -459,6 +434,8 @@ Then, Ctrl-C the Perfetto invocation and upload ~/heapprofd-trace to the
 * `Failed to send control socket byte.` is displayed in logcat at the end of
   every profile. This is benign.
 * The object count may be incorrect in `dump_at_max` profiles.
+* Choosing a low shared memory buffer size and `block_client` mode might
+  lock up the target process.
 
 ### {#known-issues-android10} Android 10
 * Function names in libraries with load bias might be incorrect. Use
@@ -485,6 +462,8 @@ _Cuttlefish_.
 * `Failed to send control socket byte.` is displayed in logcat at the end of
   every profile. This is benign.
 * The object count may be incorrect in `dump_at_max` profiles.
+* Choosing a low shared memory buffer size and `block_client` mode might
+  lock up the target process.
 
 ## Heapprofd vs malloc_info() vs RSS
 
@@ -523,7 +502,7 @@ the memory of the process get swapped out onto ZRAM.
 | fragmentation       |                   |              |  x  |
 
 If you observe high RSS or malloc\_info metrics but heapprofd does not match,
-you might be hitting some patological fragmentation problem in the allocator.
+you might be hitting some pathological fragmentation problem in the allocator.
 
 ## Convert to pprof
 

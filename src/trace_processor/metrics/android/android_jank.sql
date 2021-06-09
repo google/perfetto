@@ -265,9 +265,10 @@ SELECT
   'slice' as track_type,
   process_name || ' warnings' as track_name,
   ts,
-  dur,
-  alert_name as slice_name
-FROM android_jank_alerts;
+  0 as dur,
+  group_concat(alert_name) as slice_name
+FROM android_jank_alerts
+GROUP BY track_type, track_name, ts;
 
 DROP VIEW IF EXISTS android_jank_output;
 CREATE VIEW android_jank_output AS

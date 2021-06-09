@@ -17,7 +17,9 @@
 #ifndef SRC_PROFILING_COMMON_PROC_UTILS_H_
 #define SRC_PROFILING_COMMON_PROC_UTILS_H_
 
+#include <inttypes.h>
 #include <sys/types.h>
+
 #include <set>
 #include <vector>
 
@@ -26,6 +28,13 @@
 
 namespace perfetto {
 namespace profiling {
+
+struct Uids {
+  uint64_t real;
+  uint64_t effective;
+  uint64_t saved_set;
+  uint64_t filesystem;
+};
 
 template <typename Fn>
 void ForEachPid(Fn callback) {
@@ -57,6 +66,8 @@ base::Optional<uint32_t> GetRssAnonAndSwap(const std::string&);
 // Filters the list of pids (in-place), keeping only the
 // entries satisfying the minimum size criteria for anonymous memory.
 void RemoveUnderAnonThreshold(uint32_t min_size_kb, std::set<pid_t>* pids);
+
+base::Optional<Uids> GetUids(const std::string&);
 
 }  // namespace profiling
 }  // namespace perfetto

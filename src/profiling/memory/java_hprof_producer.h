@@ -30,6 +30,7 @@
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
 
+#include "perfetto/tracing/core/forward_decls.h"
 #include "protos/perfetto/config/profiling/java_hprof_config.gen.h"
 
 namespace perfetto {
@@ -69,10 +70,10 @@ class JavaHprofProducer : public Producer {
   };
 
   struct DataSource {
-    TracingSessionID tracing_session_id;
     DataSourceInstanceID id;
     std::set<pid_t> pids;
     JavaHprofConfig config;
+    DataSourceConfig ds_config;
   };
 
   void ConnectService();

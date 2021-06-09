@@ -22,6 +22,7 @@ import {assertExists, reportError, setErrorHandler} from '../base/logging';
 import {forwardRemoteCalls} from '../base/remote';
 import {Actions} from '../common/actions';
 import {AggregateData} from '../common/aggregation_data';
+import {ConversionJobStatusUpdate} from '../common/conversion_jobs';
 import {
   LogBoundsKey,
   LogEntriesKey,
@@ -188,6 +189,16 @@ class FrontendApi {
     this.redraw();
   }
 
+  publishHasFtrace(hasFtrace: boolean) {
+    globals.hasFtrace = hasFtrace;
+    this.redraw();
+  }
+
+  publishConversionJobStatusUpdate(job: ConversionJobStatusUpdate) {
+    globals.setConversionJobStatus(job.jobName, job.jobStatus);
+    this.redraw();
+  }
+
   publishFileDownload(args: {file: File, name?: string}) {
     const url = URL.createObjectURL(args.file);
     const a = document.createElement('a');
@@ -211,7 +222,6 @@ class FrontendApi {
     const arr = new Uint8Array(args.data, 0, args.size);
     const str = (new TextDecoder('utf-8')).decode(arr);
     openBufferWithLegacyTraceViewer('trace.json', str, 0);
-    globals.dispatch(Actions.clearConversionInProgress({}));
   }
 
   publishBufferUsage(args: {percentage: number}) {
@@ -302,7 +312,7 @@ function setupContentSecurityPolicy() {
       'https://www.google-analytics.com',
       'https://www.googletagmanager.com',
     ],
-    'navigate-to': ['https://*.perfetto.dev']
+    'navigate-to': ['https://*.perfetto.dev', 'self'],
   };
   const meta = document.createElement('meta');
   meta.httpEquiv = 'Content-Security-Policy';

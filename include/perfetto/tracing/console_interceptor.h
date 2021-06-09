@@ -57,7 +57,8 @@ class TrackEvent_Decoder;
 
 struct ConsoleColor;
 
-class ConsoleInterceptor : public Interceptor<ConsoleInterceptor> {
+class PERFETTO_EXPORT ConsoleInterceptor
+    : public Interceptor<ConsoleInterceptor> {
  public:
   ~ConsoleInterceptor() override;
 
@@ -108,10 +109,10 @@ class ConsoleInterceptor : public Interceptor<ConsoleInterceptor> {
                                     const ConsoleColor& highlight_color);
   static void PrintDebugAnnotationName(
       InterceptorContext&,
-      const perfetto::protos::pbzero::DebugAnnotation_Decoder& value);
+      const perfetto::protos::pbzero::DebugAnnotation_Decoder& annotation);
   static void PrintDebugAnnotationValue(
       InterceptorContext&,
-      const perfetto::protos::pbzero::DebugAnnotation_Decoder& value);
+      const perfetto::protos::pbzero::DebugAnnotation_Decoder& annotation);
 
   int fd_ = STDOUT_FILENO;
   bool use_colors_ = true;

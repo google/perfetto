@@ -24,9 +24,9 @@
 #include "src/trace_processor/importers/json/json_tracker.h"
 #include "src/trace_processor/importers/json/json_utils.h"
 #include "src/trace_processor/storage/stats.h"
-#include "src/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/trace_sorter.h"
 #include "src/trace_processor/util/status_macros.h"
+#include "src/trace_processor/util/trace_blob_view.h"
 
 namespace perfetto {
 namespace trace_processor {

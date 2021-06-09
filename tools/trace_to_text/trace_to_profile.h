@@ -27,13 +27,15 @@ namespace trace_to_text {
 int TraceToHeapProfile(std::istream* input,
                        std::ostream* output,
                        uint64_t pid,
-                       std::vector<uint64_t> timestamps);
+                       std::vector<uint64_t> timestamps,
+                       bool annotate_frames);
 
 // 0: success
 int TraceToPerfProfile(std::istream* input,
                        std::ostream* output,
                        uint64_t pid,
-                       std::vector<uint64_t> timestamps);
+                       std::vector<uint64_t> timestamps,
+                       bool annotate_frames);
 
 }  // namespace trace_to_text
 }  // namespace perfetto

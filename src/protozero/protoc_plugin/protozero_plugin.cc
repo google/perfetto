@@ -270,7 +270,8 @@ class GeneratorJob {
         Abort("Groups not supported.");
         return "";
     }
-    return nullptr;
+    Abort("Unrecognized FieldDescriptor::Type.");
+    return "";
   }
 
   std::string FieldToCppTypeName(const FieldDescriptor* field) {
@@ -312,7 +313,8 @@ class GeneratorJob {
         Abort("Groups not supported.");
         return "";
     }
-    return nullptr;
+    Abort("Unrecognized FieldDescriptor::Type.");
+    return "";
   }
 
   const char* FieldToRepetitionType(const FieldDescriptor* field) {

@@ -128,10 +128,60 @@ TEST(HeapprofdJavaCtsTest, ReleaseAppRuntime) {
   std::string app_name = "android.perfetto.cts.app.release";
   const auto& packets = ProfileRuntime(app_name);
 
-  if (IsDebuggableBuild())
+  if (!IsUserBuild())
     AssertGraphPresent(packets);
   else
     AssertNoProfileContents(packets);
+}
+
+TEST(HeapprofdJavaCtsTest, DebuggableAppRuntimeByPid) {
+  std::string app_name = "android.perfetto.cts.app.debuggable";
+
+  base::TestTaskRunner task_runner;
+
+  // (re)start the target app's main activity
+  if (IsAppRunning(app_name)) {
+    StopApp(app_name, "old.app.stopped", &task_runner);
+    task_runner.RunUntilCheckpoint("old.app.stopped", 1000 /*ms*/);
+  }
+  StartAppActivity(app_name, "MainActivity", "target.app.running", &task_runner,
+                   /*delay_ms=*/100);
+  task_runner.RunUntilCheckpoint("target.app.running", 1000 /*ms*/);
+  // If we try to dump too early in app initialization, we sometimes deadlock.
+  sleep(1);
+
+  int target_pid = PidForProcessName(app_name);
+  ASSERT_NE(target_pid, -1);
+
+  // set up tracing
+  TestHelper helper(&task_runner);
+  helper.ConnectConsumer();
+  helper.WaitForConsumerConnect();
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(40 * 1024);
+  trace_config.set_duration_ms(6000);
+  trace_config.set_unique_session_name(RandomSessionName().c_str());
+
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("android.java_hprof");
+  ds_config->set_target_buffer(0);
+
+  protos::gen::JavaHprofConfig java_hprof_config;
+  java_hprof_config.add_pid(static_cast<uint64_t>(target_pid));
+  ds_config->set_java_hprof_config_raw(java_hprof_config.SerializeAsString());
+
+  // start tracing
+  helper.StartTracing(trace_config);
+  helper.WaitForTracingDisabled();
+  helper.ReadData();
+  helper.WaitForReadData();
+  PERFETTO_CHECK(IsAppRunning(app_name));
+  StopApp(app_name, "new.app.stopped", &task_runner);
+  task_runner.RunUntilCheckpoint("new.app.stopped", 1000 /*ms*/);
+
+  const auto& packets = helper.trace();
+  AssertGraphPresent(packets);
 }
 
 }  // namespace

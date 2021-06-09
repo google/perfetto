@@ -47,8 +47,9 @@ FDMemory::FDMemory(base::ScopedFile mem_fd) : mem_fd_(std::move(mem_fd)) {}
 
 size_t FDMemory::Read(uint64_t addr, void* dst, size_t size) {
   ssize_t rd = pread64(*mem_fd_, dst, size, static_cast<off64_t>(addr));
-  if (rd == -1) {
-    PERFETTO_DPLOG("read of %zu at offset %" PRIu64, size, addr);
+  if (PERFETTO_UNLIKELY(rd == -1)) {
+    PERFETTO_PLOG("Failed remote pread of %zu bytes at address %" PRIx64, size,
+                  addr);
     return 0;
   }
   return static_cast<size_t>(rd);
@@ -66,6 +67,7 @@ bool FDMaps::Parse() {
   if (!base::ReadFileDescriptor(*fd_, &content))
     return false;
 
+  unwindstack::SharedString name("");
   unwindstack::MapInfo* prev_map = nullptr;
   unwindstack::MapInfo* prev_real_map = nullptr;
   return android::procinfo::ReadMapFileContent(
@@ -76,9 +78,13 @@ bool FDMaps::Parse() {
             strncmp(mapinfo.name.c_str() + 5, "ashmem/", 7) != 0) {
           flags |= unwindstack::MAPS_FLAGS_DEVICE_MAP;
         }
+        // Share the string if it matches for consecutive maps.
+        if (name != mapinfo.name) {
+          name = unwindstack::SharedString(mapinfo.name);
+        }
         maps_.emplace_back(new unwindstack::MapInfo(
             prev_map, prev_real_map, mapinfo.start, mapinfo.end, mapinfo.pgoff,
-            flags, mapinfo.name));
+            flags, name));
         prev_map = maps_.back().get();
         if (!prev_map->IsBlank()) {
           prev_real_map = prev_map;

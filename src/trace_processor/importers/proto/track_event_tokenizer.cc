@@ -25,8 +25,8 @@
 #include "src/trace_processor/importers/proto/track_event_tracker.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/trace_sorter.h"
+#include "src/trace_processor/util/trace_blob_view.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"

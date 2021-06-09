@@ -163,11 +163,11 @@ def enumerate_data_deps():
   for line in (line.strip() for line in lines if not line.startswith('#')):
     assert os.path.exists(line), 'file %s should exist' % line
     if line.startswith('test/data/'):
-        # Skip test data files that require GCS. They are only for benchmarks.
-        # We don't run benchmarks in the android tree.
-        continue
-    if line.endswith('/'):
-      yield line + '**/*'
+      # Skip test data files that require GCS. They are only for benchmarks.
+      # We don't run benchmarks in the android tree.
+      continue
+    if line.endswith('/.'):
+      yield line[:-1] + '**/*'
     else:
       yield line
 
@@ -182,16 +182,16 @@ additional_args = {
         ('cflags', {'-Wglobal-constructors', '-Werror=global-constructors'}),
         ('version_script', 'src/profiling/memory/heapprofd_client_api.map.txt'),
         ('stubs', {
-          'versions': ['S'],
-          'symbol_file': 'src/profiling/memory/heapprofd_client_api.map.txt',
+            'versions': ['S'],
+            'symbol_file': 'src/profiling/memory/heapprofd_client_api.map.txt',
         }),
         ('export_include_dirs', {'src/profiling/memory/include'}),
     ],
     'heapprofd_api_noop': [
         ('version_script', 'src/profiling/memory/heapprofd_client_api.map.txt'),
         ('stubs', {
-          'versions': ['S'],
-          'symbol_file': 'src/profiling/memory/heapprofd_client_api.map.txt',
+            'versions': ['S'],
+            'symbol_file': 'src/profiling/memory/heapprofd_client_api.map.txt',
         }),
         ('export_include_dirs', {'src/profiling/memory/include'}),
     ],
@@ -210,42 +210,42 @@ additional_args = {
         ('include_dirs', {'bionic/libc/kernel'}),
     ],
     'perfetto_integrationtests': [
-      ('test_suites', {'general-tests'}),
-      ('test_config', 'PerfettoIntegrationTests.xml'),
+        ('test_suites', {'general-tests'}),
+        ('test_config', 'PerfettoIntegrationTests.xml'),
     ],
-    'traced_probes': [
-        ('required', {'libperfetto_android_internal',
-                      'trigger_perfetto',
-                      'traced_perf',
-                      'mm_events'}),
-    ],
+    'traced_probes': [('required', {
+        'libperfetto_android_internal', 'trigger_perfetto', 'traced_perf',
+        'mm_events'
+    }),],
     'libperfetto_android_internal': [('static_libs', {'libhealthhalutils'}),],
     'trace_processor_shell': [
-      ('strip', {'all': True}),
-      ('host', {
-        'stl': 'libc++_static',
-        'dist': {'targets': ['sdk_repo']},
-      }),
+        ('strip', {
+            'all': True
+        }),
+        ('host', {
+            'stl': 'libc++_static',
+            'dist': {
+                'targets': ['sdk_repo']
+            },
+        }),
     ],
     'libperfetto_client_experimental': [
-      ('apex_available', {
-        '//apex_available:platform',
-        'com.android.art',
-        'com.android.art.debug'}),
-      ('min_sdk_version', 'S'),
-      ('shared_libs', {'liblog'}),
-      ('export_include_dirs', {'include', buildflags_dir}),
+        ('apex_available', {
+            '//apex_available:platform', 'com.android.art',
+            'com.android.art.debug'
+        }),
+        ('min_sdk_version', 'S'),
+        ('shared_libs', {'liblog'}),
+        ('export_include_dirs', {'include', buildflags_dir}),
     ],
     'perfetto_trace_protos': [
-      ('apex_available', {
-        '//apex_available:platform',
-        'com.android.art',
-        'com.android.art.debug'}),
-      ('min_sdk_version', 'S'),
+        ('apex_available', {
+            '//apex_available:platform', 'com.android.art',
+            'com.android.art.debug'
+        }),
+        ('min_sdk_version', 'S'),
     ],
-    'libperfetto': [
-      ('export_include_dirs', {'include', buildflags_dir}),
-    ],
+    'libperfetto': [('export_include_dirs', {'include', buildflags_dir}),],
 }
 
 
@@ -325,6 +325,7 @@ def enable_zlib(module):
 def enable_uapi_headers(module):
   module.include_dirs.add('bionic/libc/kernel')
 
+
 def enable_bionic_libc_platform_headers_on_android(module):
   module.header_libs.add('bionic_libc_platform_headers')
 
@@ -332,20 +333,32 @@ def enable_bionic_libc_platform_headers_on_android(module):
 # Android equivalents for third-party libraries that the upstream project
 # depends on.
 builtin_deps = {
-    '//gn:default_deps': lambda x: None,
-    '//gn:gtest_main': lambda x: None,
-    '//gn:protoc': lambda x: None,
-    '//gn:gtest_and_gmock': enable_gtest_and_gmock,
-    '//gn:libunwind': enable_libunwind,
-    '//gn:protobuf_full': enable_protobuf_full,
-    '//gn:protobuf_lite': enable_protobuf_lite,
-    '//gn:protoc_lib': enable_protoc_lib,
-    '//gn:libunwindstack': enable_libunwindstack,
-    '//gn:sqlite': enable_sqlite,
-    '//gn:zlib': enable_zlib,
-    '//gn:bionic_kernel_uapi_headers' : enable_uapi_headers,
+    '//gn:default_deps':
+        lambda x: None,
+    '//gn:gtest_main':
+        lambda x: None,
+    '//gn:protoc':
+        lambda x: None,
+    '//gn:gtest_and_gmock':
+        enable_gtest_and_gmock,
+    '//gn:libunwind':
+        enable_libunwind,
+    '//gn:protobuf_full':
+        enable_protobuf_full,
+    '//gn:protobuf_lite':
+        enable_protobuf_lite,
+    '//gn:protoc_lib':
+        enable_protoc_lib,
+    '//gn:libunwindstack':
+        enable_libunwindstack,
+    '//gn:sqlite':
+        enable_sqlite,
+    '//gn:zlib':
+        enable_zlib,
+    '//gn:bionic_kernel_uapi_headers':
+        enable_uapi_headers,
     '//src/profiling/memory:bionic_libc_platform_headers_on_android':
-      enable_bionic_libc_platform_headers_on_android,
+        enable_bionic_libc_platform_headers_on_android,
 }
 
 # ----------------------------------------------------------------------------
@@ -546,7 +559,6 @@ class Module(object):
     output.append('}')
     output.append('')
 
-
   def add_android_static_lib(self, lib):
     if self.type == 'cc_binary_host':
       raise Exception('Adding Android static lib for host tool is unsupported')
@@ -555,7 +567,6 @@ class Module(object):
     else:
       self.static_libs.add(lib)
 
-
   def add_android_shared_lib(self, lib):
     if self.type == 'cc_binary_host':
       raise Exception('Adding Android shared lib for host tool is unsupported')
@@ -563,7 +574,6 @@ class Module(object):
       self.android.shared_libs.add(lib)
     else:
       self.shared_libs.add(lib)
-
 
   def _output_field(self, output, name, sort=True):
     value = getattr(self, name)
@@ -767,10 +777,8 @@ def create_cc_proto_descriptor_module(blueprint, target):
       'tools/gen_cc_proto_descriptor.py',
   ]
   module.cmd = ' '.join([
-      '$(location tools/gen_cc_proto_descriptor.py)',
-      '--gen_dir=$(genDir)',
-      '--cpp_out=$(out)',
-      '$(in)'
+      '$(location tools/gen_cc_proto_descriptor.py)', '--gen_dir=$(genDir)',
+      '--cpp_out=$(out)', '$(in)'
   ])
   module.genrule_headers.add(module.name)
   module.srcs.update(
@@ -784,14 +792,12 @@ def create_gen_version_module(blueprint, target, bp_module_name):
   module = Module('genrule', bp_module_name, gn_utils.GEN_VERSION_TARGET)
   script_path = gn_utils.label_to_path(target.script)
   module.genrule_headers.add(bp_module_name)
-  module.tool_files = [ script_path ]
+  module.tool_files = [script_path]
   module.out.update(target.outputs)
   module.srcs.update(gn_utils.label_to_path(src) for src in target.inputs)
   module.cmd = ' '.join([
-        'python3 $(location %s)' % script_path,
-        '--no_git',
-        '--changelog=$(location CHANGELOG)',
-        '--cpp_out=$(out)'
+      'python3 $(location %s)' % script_path, '--no_git',
+      '--changelog=$(location CHANGELOG)', '--cpp_out=$(out)'
   ])
   blueprint.add_module(module)
   return module
@@ -821,6 +827,7 @@ def create_modules_from_target(blueprint, gn, gn_target_name):
     return blueprint.modules[bp_module_name]
   target = gn.get_target(gn_target_name)
 
+  name_without_toolchain = gn_utils.label_without_toolchain(target.name)
   if target.type == 'executable':
     if target.toolchain == gn_utils.HOST_TOOLCHAIN:
       module_type = 'cc_binary_host'
@@ -846,10 +853,10 @@ def create_modules_from_target(blueprint, gn, gn_target_name):
   elif target.type == 'action':
     if 'gen_merged_sql_metrics' in target.name:
       module = create_merged_sql_metrics_module(blueprint, target)
-    elif re.match('.*gen_cc_.*_descriptor$', target.name):
+    elif re.match('.*gen_cc_.*_descriptor$', name_without_toolchain):
       module = create_cc_proto_descriptor_module(blueprint, target)
-    elif target.type == 'action' and gn_utils.label_without_toolchain(
-        target.name) == gn_utils.GEN_VERSION_TARGET:
+    elif target.type == 'action' and \
+        name_without_toolchain == gn_utils.GEN_VERSION_TARGET:
       module = create_gen_version_module(blueprint, target, bp_module_name)
     else:
       raise Error('Unhandled action: {}'.format(target.name))
@@ -857,8 +864,7 @@ def create_modules_from_target(blueprint, gn, gn_target_name):
     raise Error('Unknown target %s (%s)' % (target.name, target.type))
 
   blueprint.add_module(module)
-  module.host_supported = (gn_utils.label_without_toolchain(target.name) in
-                           target_host_supported)
+  module.host_supported = (name_without_toolchain in target_host_supported)
   module.init_rc = target_initrc.get(target.name, [])
   module.srcs.update(
       gn_utils.label_to_path(src)
@@ -1033,7 +1039,7 @@ def main():
   # perfetto_component.gni is fixed.
   # Check for ODR violations
   # for target_name in default_targets:
-    # checker = gn_utils.ODRChecker(gn, target_name)
+  # checker = gn_utils.ODRChecker(gn, target_name)
 
   output = [
       """// Copyright (C) 2017 The Android Open Source Project

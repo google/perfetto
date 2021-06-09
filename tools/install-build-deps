@@ -210,7 +210,7 @@ BUILD_DEPS_HOST = [
     Dependency(
         'buildtools/android-unwinding',
         'https://android.googlesource.com/platform/system/unwinding.git',
-        'b296bb6fcaa7f59e0ed57bb7a4238ee0f9bfb5bf', 'all', 'all'),
+        '5150e1292ec6b16e4717e86b9e3cfb855eec18a3', 'all', 'all'),
     Dependency('buildtools/android-logging',
                'https://android.googlesource.com/platform/system/logging.git',
                '7b36b566c9113fc703d68f76e8f40c0c2432481c', 'all', 'all'),
@@ -234,8 +234,8 @@ BUILD_DEPS_HOST = [
     # Example traces for regression tests.
     Dependency(
         'test/data.zip',
-        'https://storage.googleapis.com/perfetto/test-data-20210416-122153.zip',
-        '0c3a7b353c1100b783873009949596e75db5ecc4a5cf114f24ccf3f1b08570d3',
+        'https://storage.googleapis.com/perfetto/test-data-20210518-223638.zip',
+        'a9119ae4828fae92c9ec8449e3fd91d753e60b60fa59611fb8e6c0dd6ed69b13',
         'all', 'all',
     ),
 

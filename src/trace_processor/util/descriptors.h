@@ -23,9 +23,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/optional.h"
-#include "perfetto/trace_processor/basic_types.h"
-#include "perfetto/trace_processor/status.h"
 #include "protos/perfetto/common/descriptor.pbzero.h"
 
 namespace protozero {
@@ -88,7 +87,9 @@ class ProtoDescriptor {
   void AddEnumValue(int32_t integer_representation,
                     std::string string_representation) {
     PERFETTO_DCHECK(type_ == Type::kEnum);
-    enum_values_[integer_representation] = std::move(string_representation);
+    enum_values_by_name_[string_representation] = integer_representation;
+    enum_names_by_value_[integer_representation] =
+        std::move(string_representation);
   }
 
   const FieldDescriptor* FindFieldByName(const std::string& name) const {
@@ -115,9 +116,16 @@ class ProtoDescriptor {
 
   base::Optional<std::string> FindEnumString(const int32_t value) const {
     PERFETTO_DCHECK(type_ == Type::kEnum);
-    auto it = enum_values_.find(value);
-    return it == enum_values_.end() ? base::nullopt
-                                    : base::Optional<std::string>(it->second);
+    auto it = enum_names_by_value_.find(value);
+    return it == enum_names_by_value_.end() ? base::nullopt
+                                            : base::make_optional(it->second);
+  }
+
+  base::Optional<int32_t> FindEnumValue(const std::string& value) const {
+    PERFETTO_DCHECK(type_ == Type::kEnum);
+    auto it = enum_values_by_name_.find(value);
+    return it == enum_values_by_name_.end() ? base::nullopt
+                                            : base::make_optional(it->second);
   }
 
   const std::string& file_name() const { return file_name_; }
@@ -142,14 +150,15 @@ class ProtoDescriptor {
   const Type type_;
   base::Optional<uint32_t> parent_id_;
   std::unordered_map<uint32_t, FieldDescriptor> fields_;
-  std::unordered_map<int32_t, std::string> enum_values_;
+  std::unordered_map<int32_t, std::string> enum_names_by_value_;
+  std::unordered_map<std::string, int32_t> enum_values_by_name_;
 };
 
 using ExtensionInfo = std::pair<std::string, protozero::ConstBytes>;
 
 class DescriptorPool {
  public:
-  util::Status AddFromFileDescriptorSet(
+  base::Status AddFromFileDescriptorSet(
       const uint8_t* file_descriptor_set_proto,
       size_t size,
       bool merge_existing_messages = false);
@@ -157,26 +166,30 @@ class DescriptorPool {
   base::Optional<uint32_t> FindDescriptorIdx(
       const std::string& full_name) const;
 
+  std::vector<uint8_t> SerializeAsDescriptorSet();
+
+  void AddProtoDescriptorForTesting(ProtoDescriptor descriptor) {
+    descriptors_.emplace_back(std::move(descriptor));
+  }
+
   const std::vector<ProtoDescriptor>& descriptors() const {
     return descriptors_;
   }
 
-  std::vector<uint8_t> SerializeAsDescriptorSet();
-
  private:
-  util::Status AddNestedProtoDescriptors(const std::string& file_name,
+  base::Status AddNestedProtoDescriptors(const std::string& file_name,
                                          const std::string& package_name,
                                          base::Optional<uint32_t> parent_idx,
                                          protozero::ConstBytes descriptor_proto,
                                          std::vector<ExtensionInfo>* extensions,
                                          bool merge_existing_messages);
-  util::Status AddEnumProtoDescriptors(const std::string& file_name,
+  base::Status AddEnumProtoDescriptors(const std::string& file_name,
                                        const std::string& package_name,
                                        base::Optional<uint32_t> parent_idx,
                                        protozero::ConstBytes descriptor_proto,
                                        bool merge_existing_messages);
 
-  util::Status AddExtensionField(const std::string& package_name,
+  base::Status AddExtensionField(const std::string& package_name,
                                  protozero::ConstBytes field_desc_proto);
 
   // Recursively searches for the given short type in all parent messages

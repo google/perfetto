@@ -1,21 +1,11 @@
 # heapprofd Custom Allocator API - Early Access
 
-WARNING: The heapprofd Custom Allocator API is currently in **pre-alpha**
-         stage. The API is subject to change, and the implementation might
-         still be unstable. Please file
-         [bugs](https://github.com/google/perfetto/issues/new) for any
-         issues you encounter.
+WARNING: The heapprofd Custom Allocator API is currently in **beta** stage.
+         Please file [bugs](https://github.com/google/perfetto/issues/new)
+         for any issues you encounter.
 
 NOTE: The heapprofd Custom Allocator API requires a device running Android
       10 or newer.
-
-## Give us a head's up
-
-Thanks for trying out the Custom Allocator API! As this is pre-alpha, we
-would ask you to [file a tracking GitHub issue](
-https://github.com/google/perfetto/issues/new) so we can communicate with you
-in case we have updated information. You do not need to wait for any reply on
-the bug before proceeding.
 
 ## Get SDK
 

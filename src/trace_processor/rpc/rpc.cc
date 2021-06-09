@@ -16,38 +16,238 @@
 
 #include "src/trace_processor/rpc/rpc.h"
 
+#include <string.h>
+
 #include <vector>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/base/time.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
+#include "perfetto/protozero/scattered_stream_writer.h"
 #include "perfetto/trace_processor/trace_processor.h"
-#include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
+#include "src/protozero/proto_ring_buffer.h"
 #include "src/trace_processor/rpc/query_result_serializer.h"
 #include "src/trace_processor/tp_metatrace.h"
+
+#include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {
 
-using ColumnValues = protos::pbzero::RawQueryResult::ColumnValues;
-using ColumnDesc = protos::pbzero::RawQueryResult::ColumnDesc;
-
+namespace {
 // Writes a "Loading trace ..." update every N bytes.
 constexpr size_t kProgressUpdateBytes = 50 * 1000 * 1000;
+using TraceProcessorRpcStream = protos::pbzero::TraceProcessorRpcStream;
+using RpcProto = protos::pbzero::TraceProcessorRpc;
+
+// Most RPC messages are either very small or a query results.
+// QueryResultSerializer splits rows into batches of approximately 128KB. Try
+// avoid extra heap allocations for the nominal case.
+constexpr auto kSliceSize =
+    QueryResultSerializer::kDefaultBatchSplitThreshold + 4096;
+
+// Holds a trace_processor::TraceProcessorRpc pbzero message. Avoids extra
+// copies by doing direct scattered calls from the fragmented heap buffer onto
+// the RpcResponseFunction (the receiver is expected to deal with arbitrary
+// fragmentation anyways). It also takes care of prefixing each message with
+// the proto preamble and varint size.
+class Response {
+ public:
+  Response(int64_t seq, int method);
+  Response(const Response&) = delete;
+  Response& operator=(const Response&) = delete;
+  RpcProto* operator->() { return msg_; }
+  void Send(Rpc::RpcResponseFunction);
+
+ private:
+  RpcProto* msg_ = nullptr;
+
+  // The reason why we use TraceProcessorRpcStream as root message is because
+  // the RPC wire protocol expects each message to be prefixed with a proto
+  // preamble and varint size. This happens to be the same serialization of a
+  // repeated field (this is really the same trick we use between
+  // Trace and TracePacket in trace.proto)
+  protozero::HeapBuffered<TraceProcessorRpcStream> buf_;
+};
+
+Response::Response(int64_t seq, int method) : buf_(kSliceSize, kSliceSize) {
+  msg_ = buf_->add_msg();
+  msg_->set_seq(seq);
+  msg_->set_response(static_cast<RpcProto::TraceProcessorMethod>(method));
+}
+
+void Response::Send(Rpc::RpcResponseFunction send_fn) {
+  buf_->Finalize();
+  for (const auto& slice : buf_.GetSlices()) {
+    auto range = slice.GetUsedRange();
+    send_fn(range.begin, static_cast<uint32_t>(range.size()));
+  }
+}
+
+}  // namespace
 
 Rpc::Rpc(std::unique_ptr<TraceProcessor> preloaded_instance)
-    : trace_processor_(std::move(preloaded_instance)) {}
+    : trace_processor_(std::move(preloaded_instance)),
+      session_id_(base::Uuidv4()) {
+  if (!trace_processor_)
+    ResetTraceProcessor();
+}
 
 Rpc::Rpc() : Rpc(nullptr) {}
-
 Rpc::~Rpc() = default;
+
+void Rpc::ResetTraceProcessor() {
+  trace_processor_ = TraceProcessor::CreateInstance(Config());
+  bytes_parsed_ = bytes_last_progress_ = 0;
+  t_parse_started_ = base::GetWallTimeNs().count();
+  // Deliberately not resetting the RPC channel state (rxbuf_, {tx,rx}_seq_id_).
+  // This is invoked from the same client to clear the current trace state
+  // before loading a new one. The IPC channel is orthogonal to that and the
+  // message numbering continues regardless of the reset.
+}
+
+void Rpc::OnRpcRequest(const void* data, size_t len) {
+  rxbuf_.Append(data, len);
+  for (;;) {
+    auto msg = rxbuf_.ReadMessage();
+    if (!msg.valid()) {
+      if (msg.fatal_framing_error)
+        rpc_response_fn_(nullptr, 0);  // Disconnect.
+      break;
+    }
+    ParseRpcRequest(msg.start, msg.len);
+  }
+}
+
+// [data, len] here is a tokenized TraceProcessorRpc proto message, without the
+// size header.
+void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
+  RpcProto::Decoder req(data, len);
+
+  // We allow restarting the sequence from 0. This happens when refreshing the
+  // browser while using the external trace_processor_shell --httpd.
+  if (req.seq() != 0 && rx_seq_id_ != 0 && req.seq() != rx_seq_id_ + 1) {
+    PERFETTO_ELOG("RPC request out of order. Expected %" PRId64
+                  ", got %" PRId64,
+                  rx_seq_id_ + 1, req.seq());
+    rpc_response_fn_(nullptr, 0);  // Disconnect.
+    return;
+  }
+  rx_seq_id_ = req.seq();
+
+  // The static cast is to prevent that the compiler breaks future proofness.
+  const int req_type = static_cast<int>(req.request());
+  static const char kErrFieldNotSet[] = "RPC error: request field not set";
+  switch (req_type) {
+    case RpcProto::TPM_APPEND_TRACE_DATA: {
+      Response resp(tx_seq_id_++, req_type);
+      auto* result = resp->set_append_result();
+      if (!req.has_append_trace_data()) {
+        result->set_error(kErrFieldNotSet);
+      } else {
+        protozero::ConstBytes byte_range = req.append_trace_data();
+        util::Status res = Parse(byte_range.data, byte_range.size);
+        if (!res.ok()) {
+          result->set_error(res.message());
+        }
+      }
+      resp.Send(rpc_response_fn_);
+      break;
+    }
+    case RpcProto::TPM_FINALIZE_TRACE_DATA: {
+      Response resp(tx_seq_id_++, req_type);
+      NotifyEndOfFile();
+      resp.Send(rpc_response_fn_);
+      break;
+    }
+    case RpcProto::TPM_QUERY_STREAMING: {
+      if (!req.has_query_args()) {
+        Response resp(tx_seq_id_++, req_type);
+        auto* result = resp->set_query_result();
+        result->set_error(kErrFieldNotSet);
+        resp.Send(rpc_response_fn_);
+      } else {
+        protozero::ConstBytes args = req.query_args();
+        auto it = QueryInternal(args.data, args.size);
+        QueryResultSerializer serializer(std::move(it));
+        for (bool has_more = true; has_more;) {
+          Response resp(tx_seq_id_++, req_type);
+          has_more = serializer.Serialize(resp->set_query_result());
+          resp.Send(rpc_response_fn_);
+        }
+      }
+      break;
+    }
+    case RpcProto::TPM_QUERY_RAW_DEPRECATED: {
+      Response resp(tx_seq_id_++, req_type);
+      auto* result = resp->set_raw_query_result();
+      if (!req.has_raw_query_args()) {
+        result->set_error(kErrFieldNotSet);
+      } else {
+        protozero::ConstBytes args = req.raw_query_args();
+        RawQueryInternal(args.data, args.size, result);
+      }
+      resp.Send(rpc_response_fn_);
+      break;
+    }
+    case RpcProto::TPM_COMPUTE_METRIC: {
+      Response resp(tx_seq_id_++, req_type);
+      auto* result = resp->set_metric_result();
+      if (!req.has_compute_metric_args()) {
+        result->set_error(kErrFieldNotSet);
+      } else {
+        protozero::ConstBytes args = req.compute_metric_args();
+        ComputeMetricInternal(args.data, args.size, result);
+      }
+      resp.Send(rpc_response_fn_);
+      break;
+    }
+    case RpcProto::TPM_GET_METRIC_DESCRIPTORS: {
+      Response resp(tx_seq_id_++, req_type);
+      auto descriptor_set = trace_processor_->GetMetricDescriptors();
+      auto* result = resp->set_metric_descriptors();
+      result->AppendRawProtoBytes(descriptor_set.data(), descriptor_set.size());
+      resp.Send(rpc_response_fn_);
+      break;
+    }
+    case RpcProto::TPM_RESTORE_INITIAL_TABLES: {
+      trace_processor_->RestoreInitialTables();
+      Response resp(tx_seq_id_++, req_type);
+      resp.Send(rpc_response_fn_);
+      break;
+    }
+    case RpcProto::TPM_ENABLE_METATRACE: {
+      trace_processor_->EnableMetatrace();
+      Response resp(tx_seq_id_++, req_type);
+      resp.Send(rpc_response_fn_);
+      break;
+    }
+    case RpcProto::TPM_DISABLE_AND_READ_METATRACE: {
+      Response resp(tx_seq_id_++, req_type);
+      DisableAndReadMetatraceInternal(resp->set_metatrace());
+      resp.Send(rpc_response_fn_);
+      break;
+    }
+    default: {
+      // This can legitimately happen if the client is newer. We reply with a
+      // generic "unkown request" response, so the client can do feature
+      // detection
+      PERFETTO_DLOG("[RPC] Uknown request type (%d), size=%zu", req_type, len);
+      Response resp(tx_seq_id_++, req_type);
+      resp->set_invalid_request(
+          static_cast<RpcProto::TraceProcessorMethod>(req_type));
+      resp.Send(rpc_response_fn_);
+      break;
+    }
+  }  // switch(req_type)
+}
 
 util::Status Rpc::Parse(const uint8_t* data, size_t len) {
   if (eof_) {
-    // Reset the trace processor state if this is either the first call ever or
-    // if another trace has been previously fully loaded.
-    trace_processor_ = TraceProcessor::CreateInstance(Config());
-    bytes_parsed_ = bytes_last_progress_ = 0;
-    t_parse_started_ = base::GetWallTimeNs().count();
+    // Reset the trace processor state if another trace has been previously
+    // loaded.
+    ResetTraceProcessor();
   }
 
   eof_ = false;
@@ -64,8 +264,6 @@ util::Status Rpc::Parse(const uint8_t* data, size_t len) {
 }
 
 void Rpc::NotifyEndOfFile() {
-  if (!trace_processor_)
-    return;
   trace_processor_->NotifyEndOfFile();
   eof_ = true;
   MaybePrintProgress();
@@ -88,23 +286,7 @@ void Rpc::MaybePrintProgress() {
 void Rpc::Query(const uint8_t* args,
                 size_t len,
                 QueryResultBatchCallback result_callback) {
-  protos::pbzero::RawQueryArgs::Decoder query(args, len);
-  std::string sql = query.sql_query().ToStdString();
-  PERFETTO_DLOG("[RPC] Query < %s", sql.c_str());
-  PERFETTO_TP_TRACE("RPC_QUERY",
-                    [&](metatrace::Record* r) { r->AddArg("SQL", sql); });
-
-  if (!trace_processor_) {
-    static const char kErr[] = "Query() called before Parse()";
-    PERFETTO_ELOG("[RPC] %s", kErr);
-    protozero::HeapBuffered<protos::pbzero::QueryResult> result;
-    result->set_error(kErr);
-    auto vec = result.SerializeAsArray();
-    result_callback(vec.data(), vec.size(), /*has_more=*/false);
-    return;
-  }
-
-  auto it = trace_processor_->ExecuteQuery(sql.c_str());
+  auto it = QueryInternal(args, len);
   QueryResultSerializer serializer(std::move(it));
 
   std::vector<uint8_t> res;
@@ -115,20 +297,33 @@ void Rpc::Query(const uint8_t* args,
   }
 }
 
+Iterator Rpc::QueryInternal(const uint8_t* args, size_t len) {
+  protos::pbzero::RawQueryArgs::Decoder query(args, len);
+  std::string sql = query.sql_query().ToStdString();
+  PERFETTO_DLOG("[RPC] Query < %s", sql.c_str());
+  PERFETTO_TP_TRACE("RPC_QUERY",
+                    [&](metatrace::Record* r) { r->AddArg("SQL", sql); });
+
+  return trace_processor_->ExecuteQuery(sql.c_str());
+}
+
 std::vector<uint8_t> Rpc::RawQuery(const uint8_t* args, size_t len) {
   protozero::HeapBuffered<protos::pbzero::RawQueryResult> result;
+  RawQueryInternal(args, len, result.get());
+  return result.SerializeAsArray();
+}
+
+void Rpc::RawQueryInternal(const uint8_t* args,
+                           size_t len,
+                           protos::pbzero::RawQueryResult* result) {
+  using ColumnValues = protos::pbzero::RawQueryResult::ColumnValues;
+  using ColumnDesc = protos::pbzero::RawQueryResult::ColumnDesc;
+
   protos::pbzero::RawQueryArgs::Decoder query(args, len);
   std::string sql = query.sql_query().ToStdString();
   PERFETTO_DLOG("[RPC] RawQuery < %s", sql.c_str());
   PERFETTO_TP_TRACE("RPC_RAW_QUERY",
                     [&](metatrace::Record* r) { r->AddArg("SQL", sql); });
-
-  if (!trace_processor_) {
-    static const char kErr[] = "RawQuery() called before Parse()";
-    PERFETTO_ELOG("[RPC] %s", kErr);
-    result->set_error(kErr);
-    return result.SerializeAsArray();
-  }
 
   auto it = trace_processor_->ExecuteQuery(sql.c_str());
 
@@ -244,28 +439,26 @@ std::vector<uint8_t> Rpc::RawQuery(const uint8_t* args, size_t len) {
   if (!status.ok())
     result->set_error(status.c_message());
   PERFETTO_DLOG("[RPC] RawQuery > %d rows (err: %d)", rows, !status.ok());
-
-  return result.SerializeAsArray();
 }
 
 std::string Rpc::GetCurrentTraceName() {
-  if (!trace_processor_)
-    return "";
   return trace_processor_->GetCurrentTraceName();
 }
 
 void Rpc::RestoreInitialTables() {
-  if (trace_processor_)
-    trace_processor_->RestoreInitialTables();
+  trace_processor_->RestoreInitialTables();
+  session_id_ = base::Uuidv4();
 }
 
-std::vector<uint8_t> Rpc::ComputeMetric(const uint8_t* data, size_t len) {
+std::vector<uint8_t> Rpc::ComputeMetric(const uint8_t* args, size_t len) {
   protozero::HeapBuffered<protos::pbzero::ComputeMetricResult> result;
-  if (!trace_processor_) {
-    result->set_error("Null trace processor instance");
-    return result.SerializeAsArray();
-  }
+  ComputeMetricInternal(args, len, result.get());
+  return result.SerializeAsArray();
+}
 
+void Rpc::ComputeMetricInternal(const uint8_t* data,
+                                size_t len,
+                                protos::pbzero::ComputeMetricResult* result) {
   protos::pbzero::ComputeMetricArgs::Decoder args(data, len);
   std::vector<std::string> metric_names;
   for (auto it = args.metric_names(); it; ++it) {
@@ -279,15 +472,16 @@ std::vector<uint8_t> Rpc::ComputeMetric(const uint8_t* data, size_t len) {
     }
   });
 
+  PERFETTO_DLOG("[RPC] ComputeMetrics(%zu, %s), format=%d", metric_names.size(),
+                metric_names.empty() ? "" : metric_names.front().c_str(),
+                args.format());
   switch (args.format()) {
     case protos::pbzero::ComputeMetricArgs::BINARY_PROTOBUF: {
       std::vector<uint8_t> metrics_proto;
       util::Status status =
           trace_processor_->ComputeMetric(metric_names, &metrics_proto);
       if (status.ok()) {
-        result->AppendBytes(
-            protos::pbzero::ComputeMetricResult::kMetricsFieldNumber,
-            metrics_proto.data(), metrics_proto.size());
+        result->set_metrics(metrics_proto.data(), metrics_proto.size());
       } else {
         result->set_error(status.message());
       }
@@ -299,44 +493,27 @@ std::vector<uint8_t> Rpc::ComputeMetric(const uint8_t* data, size_t len) {
           metric_names, TraceProcessor::MetricResultFormat::kProtoText,
           &metrics_string);
       if (status.ok()) {
-        result->AppendString(
-            protos::pbzero::ComputeMetricResult::kMetricsAsPrototextFieldNumber,
-            metrics_string);
+        result->set_metrics_as_prototext(metrics_string);
       } else {
         result->set_error(status.message());
       }
       break;
     }
   }
-  return result.SerializeAsArray();
-}
-
-std::vector<uint8_t> Rpc::GetMetricDescriptors(const uint8_t*, size_t) {
-  protozero::HeapBuffered<protos::pbzero::GetMetricDescriptorsResult> result;
-  if (!trace_processor_) {
-    return result.SerializeAsArray();
-  }
-  std::vector<uint8_t> descriptor_set =
-      trace_processor_->GetMetricDescriptors();
-  result->AppendBytes(
-      protos::pbzero::GetMetricDescriptorsResult::kDescriptorSetFieldNumber,
-      descriptor_set.data(), descriptor_set.size());
-  return result.SerializeAsArray();
 }
 
 void Rpc::EnableMetatrace() {
-  if (!trace_processor_)
-    return;
   trace_processor_->EnableMetatrace();
 }
 
 std::vector<uint8_t> Rpc::DisableAndReadMetatrace() {
   protozero::HeapBuffered<protos::pbzero::DisableAndReadMetatraceResult> result;
-  if (!trace_processor_) {
-    result->set_error("Null trace processor instance");
-    return result.SerializeAsArray();
-  }
+  DisableAndReadMetatraceInternal(result.get());
+  return result.SerializeAsArray();
+}
 
+void Rpc::DisableAndReadMetatraceInternal(
+    protos::pbzero::DisableAndReadMetatraceResult* result) {
   std::vector<uint8_t> trace_proto;
   util::Status status = trace_processor_->DisableAndReadMetatrace(&trace_proto);
   if (status.ok()) {
@@ -344,7 +521,10 @@ std::vector<uint8_t> Rpc::DisableAndReadMetatrace() {
   } else {
     result->set_error(status.message());
   }
-  return result.SerializeAsArray();
+}
+
+std::string Rpc::GetSessionId() {
+  return session_id_.ToPrettyString();
 }
 
 }  // namespace trace_processor

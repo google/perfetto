@@ -724,7 +724,8 @@ if (use_custom_libcxx) {
       "//gn/standalone/sanitizers:sanitizer_options_link_helper",
     ]
     defines = [ "_LIBCPP_BUILDING_LIBRARY" ]
-    if ((is_linux || is_android) && (is_asan || is_tsan || is_msan)) {
+    if ((is_linux || is_android) && using_sanitizer &&
+        (is_asan || is_tsan || is_msan)) {
       # In {a,t,m}san configurations, operator new and operator delete will be
       # provided by the sanitizer runtime library.  Since libc++ defines these
       # symbols with weak linkage, and the *san runtime uses strong linkage, it
@@ -788,7 +789,9 @@ source_set("benchmark") {
   defines = [ "HAVE_POSIX_REGEX" ]
   public_configs = [ ":benchmark_config" ]
   all_dependent_configs = [ ":benchmark_config" ]
-  cflags = [ "-Wno-deprecated-declarations" ]
+  if (!is_win) {
+    cflags = [ "-Wno-deprecated-declarations" ]
+  }
   configs -= [ "//gn/standalone:extra_warnings" ]
   deps = [ "//gn:default_deps" ]
 }
@@ -1056,10 +1059,11 @@ config("bionic_kernel_uapi_headers") {
 
 config("jsoncpp_config") {
   visibility = _buildtools_visibility
-  cflags = [
-    "-DJSON_USE_EXCEPTION=0",
-    "-Wno-deprecated-declarations",
-
+  cflags = [ "-DJSON_USE_EXCEPTION=0" ]
+  if (!is_win) {
+    cflags += [ "-Wno-deprecated-declarations" ]
+  }
+  cflags += [
     # Using -isystem instead of include_dirs (-I), so we don't need to suppress
     # warnings coming from third-party headers. Doing so would mask warnings in
     # our own code.

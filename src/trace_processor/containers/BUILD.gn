@@ -12,27 +12,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("../../../gn/perfetto_component.gni")
 import("../../../gn/test.gni")
 
-source_set("containers") {
-  sources = [
-    "bit_vector.cc",
+# Used by two static libs - trace_processor and libpprofbuilder, hence using
+# perfetto_component to turn this into a cc_library in bazel builds.
+# The 'public' section gets converted to 'hdrs', and is necessary for the bazel
+# build to pass strict header checks.
+perfetto_component("containers") {
+  public = [
     "bit_vector.h",
-    "bit_vector_iterators.cc",
     "bit_vector_iterators.h",
     "null_term_string_view.h",
-    "nullable_vector.cc",
     "nullable_vector.h",
-    "row_map.cc",
     "row_map.h",
-    "string_pool.cc",
     "string_pool.h",
+  ]
+  sources = [
+    "bit_vector.cc",
+    "bit_vector_iterators.cc",
+    "nullable_vector.cc",
+    "row_map.cc",
+    "string_pool.cc",
   ]
   deps = [
     "../../../gn:default_deps",
-    "../../../include/perfetto/base",
-    "../../../include/perfetto/ext/base",
     "../../../include/perfetto/protozero",
+    "../../base",
   ]
 }
 

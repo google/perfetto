@@ -79,6 +79,9 @@ action("gen_buildflags") {
     "PERFETTO_TP_JSON=$enable_perfetto_trace_processor_json",
     "PERFETTO_LOCAL_SYMBOLIZER=$perfetto_local_symbolizer",
     "PERFETTO_ZLIB=$enable_perfetto_zlib",
+    "PERFETTO_TRACED_PERF=$enable_perfetto_traced_perf",
+    "PERFETTO_HEAPPROFD=$enable_perfetto_heapprofd",
+    "PERFETTO_STDERR_CRASH_DUMP=$enable_perfetto_stderr_crash_dump",
   ]
 
   rel_out_path = rebase_path(gen_header_path, "$root_build_dir")
@@ -195,7 +198,9 @@ group("gtest_main") {
 protobuf_full_deps_allowlist = [
   "../src/ipc/protoc_plugin:*",
   "../src/protozero/protoc_plugin:*",
+  "../src/protozero/filtering:filter_util",
   "../src/trace_processor:trace_processor_shell",
+  "../src/protozero/filtering:filter_util",
   "../tools/*",
 ]
 
