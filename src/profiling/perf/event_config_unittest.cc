@@ -318,9 +318,10 @@ TEST(EventConfigTest, CallstackSamplingModeDetection) {
         EventConfig::Create(AsDataSourceConfig(cfg));
 
     ASSERT_TRUE(event_config.has_value());
-    EXPECT_EQ(event_config->perf_attr()->sample_type &
-                  (PERF_SAMPLE_STACK_USER | PERF_SAMPLE_REGS_USER),
-              PERF_SAMPLE_STACK_USER | PERF_SAMPLE_REGS_USER);
+    EXPECT_EQ(
+        event_config->perf_attr()->sample_type &
+            (PERF_SAMPLE_STACK_USER | PERF_SAMPLE_REGS_USER),
+        static_cast<uint64_t>(PERF_SAMPLE_STACK_USER | PERF_SAMPLE_REGS_USER));
 
     EXPECT_NE(event_config->perf_attr()->sample_regs_user, 0u);
     EXPECT_NE(event_config->perf_attr()->sample_stack_user, 0u);
