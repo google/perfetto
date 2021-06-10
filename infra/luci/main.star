@@ -66,11 +66,11 @@ luci.bucket(
     acls = [
         acl.entry(
             roles = [acl.BUILDBUCKET_TRIGGERER],
-            users = ["mdb/perfetto-cloud-infra"],
+            groups = ["mdb/perfetto-cloud-infra"],
         ),
         acl.entry(
             roles = [acl.SCHEDULER_TRIGGERER, acl.BUILDBUCKET_TRIGGERER],
-            users = ["mdb/chrome-troopers"],
+            groups = ["mdb/chrome-troopers"],
         ),
     ],
 )
