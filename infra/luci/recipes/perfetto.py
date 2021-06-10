@@ -23,6 +23,7 @@ DEPS = [
     'recipe_engine/platform',
     'recipe_engine/properties',
     'recipe_engine/step',
+    'macos_sdk',
 ]
 
 PROPERTIES = {
@@ -60,13 +61,13 @@ def RunSteps(api, repository):
     api.step('build-deps', ['tools/install-build-deps', '--ui', '--android'])
 
   # Buld Perfetto.
-  with api.context(cwd=src_dir):
+  with api.context(cwd=src_dir), api.macos_sdk():
     api.step('gn gen', ['tools/gn', 'gen', 'out/dist', '--args=is_debug=false'])
     api.step('ninja', ['tools/ninja', '-C', 'out/dist'])
 
 
 def GenTests(api):
-  for platform in ('linux',):
+  for platform in ('linux', 'mac'):
     yield (api.test('ci_' + platform) + api.platform.name(platform) +
            api.buildbucket.ci_build(
                project='perfetto',
