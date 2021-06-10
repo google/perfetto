@@ -44,6 +44,7 @@ luci.project(
             ],
             groups = ["all"],
         ),
+        acl.entry(roles = acl.SCHEDULER_OWNER, groups = "mdb/chrome-troopers"),
         acl.entry([acl.LOGDOG_WRITER], groups = ["luci-logdog-chromium-writers"]),
     ],
 )
