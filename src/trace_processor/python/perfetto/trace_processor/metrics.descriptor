@@ -363,8 +363,8 @@ PowerRails
 name (	RnameN
 energy_data (2-.perfetto.protos.AndroidPowerRails.EnergyDataR
 energyData
-Õ"
-4protos/perfetto/metrics/android/startup_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"À!
+ı#
+4protos/perfetto/metrics/android/startup_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"Û"
 AndroidStartupMetricG
 startup (2-.perfetto.protos.AndroidStartupMetric.StartupRstartup‡
 TaskStateBreakdown$
@@ -415,10 +415,15 @@ HscMetricsN
 Activity
 name (	Rname
 method (	Rmethod&
-ts_method_start (RtsMethodStartJt
+ts_method_start (RtsMethodStartJõ
 BinderTransactionG
 duration (2+.perfetto.protos.AndroidStartupMetric.SliceRduration
-thread (	RthreadØ
+thread (	Rthread-
+destination_thread (	RdestinationThread/
+destination_process (	RdestinationProcess
+flags (	Rflags
+code (	Rcode
+	data_size (RdataSizeØ
 OptimizationStatus
 odex_status (	R
 odexStatus-
@@ -447,15 +452,18 @@ activitiesq
 report_fully_drawn	 (2+.perfetto.protos.AndroidStartupMetric.SliceRreportFullyDrawni
 optimization_status (28.perfetto.protos.AndroidStartupMetric.OptimizationStatusRoptimizationStatusJ
 
-ˆ
-4protos/perfetto/metrics/android/surfaceflinger.protoperfetto.protos"¨
+ù
+4protos/perfetto/metrics/android/surfaceflinger.protoperfetto.protos"”
 AndroidSurfaceflingerMetric#
 missed_frames (RmissedFrames*
 missed_hwc_frames (RmissedHwcFrames*
 missed_gpu_frames (RmissedGpuFrames*
 missed_frame_rate (RmissedFrameRate1
 missed_hwc_frame_rate (RmissedHwcFrameRate1
-missed_gpu_frame_rate (RmissedGpuFrameRate
+missed_gpu_frame_rate (RmissedGpuFrameRate'
+gpu_invocations (RgpuInvocations2
+avg_gpu_waiting_dur_ms (RavgGpuWaitingDurMsH
+"total_non_empty_gpu_waiting_dur_ms	 (RtotalNonEmptyGpuWaitingDurMs
 
 7protos/perfetto/metrics/android/sysui_cuj_metrics.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"Î
 AndroidSysUiCujMetricsE
