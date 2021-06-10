@@ -29,8 +29,6 @@ namespace profiling {
 
 constexpr uint64_t kSamplerSeed = 1;
 
-uint64_t GetPassthroughThreshold(uint64_t interval);
-
 std::default_random_engine& GetGlobalRandomEngineLocked();
 
 // Poisson sampler for memory allocations. We apply sampling individually to
@@ -44,7 +42,11 @@ std::default_random_engine& GetGlobalRandomEngineLocked();
 // NB: not thread-safe, requires external synchronization.
 class Sampler {
  public:
-  void SetSamplingInterval(uint64_t sampling_interval);
+  void SetSamplingInterval(uint64_t sampling_interval) {
+    sampling_interval_ = sampling_interval;
+    sampling_rate_ = 1.0 / static_cast<double>(sampling_interval_);
+    interval_to_next_sample_ = NextSampleInterval();
+  }
 
   // Returns number of bytes that should be be attributed to the sample.
   // If returned size is 0, the allocation should not be sampled.
@@ -52,7 +54,7 @@ class Sampler {
   // Due to how the poission sampling works, some samples should be accounted
   // multiple times.
   size_t SampleSize(size_t alloc_sz) {
-    if (PERFETTO_UNLIKELY(alloc_sz >= passthrough_threshold_))
+    if (PERFETTO_UNLIKELY(alloc_sz >= sampling_interval_))
       return alloc_sz;
     return static_cast<size_t>(sampling_interval_ * NumberOfSamples(alloc_sz));
   }
@@ -83,7 +85,6 @@ class Sampler {
   }
 
   uint64_t sampling_interval_;
-  uint64_t passthrough_threshold_;
   double sampling_rate_;
   int64_t interval_to_next_sample_;
 };
