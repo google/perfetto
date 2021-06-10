@@ -228,14 +228,14 @@ void UnwindingWorker::OnDisconnect(base::UnixSocket* self) {
   DataSourceInstanceID ds_id = client_data.data_source_instance_id;
 
   client_data_.erase(it);
+  // The erase invalidates the self pointer.
+  self = nullptr;
   if (client_data_.empty()) {
     // We got rid of the last client. Flush and destruct AllocRecords in
     // arena. Disable the arena (will not accept returning borrowed records)
     // in case there are pending AllocRecords on the main thread.
     alloc_record_arena_.Disable();
   }
-  // The erase invalidates the self pointer.
-  self = nullptr;
   delegate_->PostSocketDisconnected(this, ds_id, peer_pid, stats);
 }
 
