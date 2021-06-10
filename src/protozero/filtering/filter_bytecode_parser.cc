@@ -17,15 +17,18 @@
 #include "src/protozero/filtering/filter_bytecode_parser.h"
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/hash.h"
 #include "perfetto/protozero/packed_repeated_fields.h"
+#include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/protozero/proto_utils.h"
-
-#include "protos/perfetto/config/proto_filter.pbzero.h"
+#include "src/protozero/filtering/filter_bytecode_common.h"
 
 namespace protozero {
 
 void FilterBytecodeParser::Reset() {
+  bool suppress = suppress_logs_for_fuzzer_;
   *this = FilterBytecodeParser();
+  suppress_logs_for_fuzzer_ = suppress;
 }
 
 bool FilterBytecodeParser::Load(const void* filter_data, size_t len) {
@@ -37,21 +40,36 @@ bool FilterBytecodeParser::Load(const void* filter_data, size_t len) {
   return res;
 }
 
-bool FilterBytecodeParser::LoadInternal(const uint8_t* filter_data,
+bool FilterBytecodeParser::LoadInternal(const uint8_t* bytecode_data,
                                         size_t len) {
-  using ProtoFilter = perfetto::protos::pbzero::ProtoFilter;
   // First unpack the varints into a plain uint32 vector, so it's easy to
   // iterate through them and look ahead.
-  std::vector<uint32_t> bytecode;
-  {
-    ProtoFilter::Decoder dec(filter_data, len);
-    bool packed_parse_err = false;
-    bytecode.reserve(len);  // An overestimation, but avoids reallocations.
-    for (auto it = dec.bytecode(&packed_parse_err); it; ++it)
-      bytecode.emplace_back(*it);
-    if (packed_parse_err)
-      return false;
+  std::vector<uint32_t> words;
+  bool packed_parse_err = false;
+  words.reserve(len);  // An overestimation, but avoids reallocations.
+  using BytecodeDecoder =
+      PackedRepeatedFieldIterator<proto_utils::ProtoWireType::kVarInt,
+                                  uint32_t>;
+  for (BytecodeDecoder it(bytecode_data, len, &packed_parse_err); it; ++it)
+    words.emplace_back(*it);
+
+  if (packed_parse_err || words.empty())
+    return false;
+
+  perfetto::base::Hash hasher;
+  for (size_t i = 0; i < words.size() - 1; ++i)
+    hasher.Update(words[i]);
+
+  uint32_t expected_csum = static_cast<uint32_t>(hasher.digest());
+  if (expected_csum != words.back()) {
+    if (!suppress_logs_for_fuzzer_) {
+      PERFETTO_ELOG("Filter bytecode checksum failed. Expected: %x, actual: %x",
+                    expected_csum, words.back());
+    }
+    return false;
   }
+
+  words.pop_back();  // Pop the checksum.
 
   // Temporay storage for each message. Cleared on every END_OF_MESSAGE.
   std::vector<uint32_t> direct_indexed_fields;
@@ -73,26 +91,26 @@ bool FilterBytecodeParser::LoadInternal(const uint8_t* filter_data,
     ranges.emplace_back(kAllowed | msg_id);
   };
 
-  for (size_t i = 0; i < bytecode.size(); ++i) {
-    const uint32_t word = bytecode[i];
-    const bool has_next_word = i < bytecode.size() - 1;
+  for (size_t i = 0; i < words.size(); ++i) {
+    const uint32_t word = words[i];
+    const bool has_next_word = i < words.size() - 1;
     const uint32_t opcode = word & 0x7u;
     const uint32_t field_id = word >> 3;
 
-    if (opcode == ProtoFilter::FILTER_OPCODE_SIMPLE_FIELD ||
-        opcode == ProtoFilter::FILTER_OPCODE_NESTED_FIELD) {
-      if (field_id == 0) {
-        PERFETTO_DLOG("bytecode error @ word %zu, invalid field id (0)", i);
-        return false;
-      }
+    if (field_id == 0 && opcode != kFilterOpcode_EndOfMessage) {
+      PERFETTO_DLOG("bytecode error @ word %zu, invalid field id (0)", i);
+      return false;
+    }
 
+    if (opcode == kFilterOpcode_SimpleField ||
+        opcode == kFilterOpcode_NestedField) {
       // Field words are organized as follow:
       // MSB: 1 if allowed, 0 if not allowed.
       // Remaining bits:
       //   Message index in the case of nested (non-simple) messages.
       //   0x7f..f in the case of simple messages.
       uint32_t msg_id;
-      if (opcode == ProtoFilter::FILTER_OPCODE_SIMPLE_FIELD) {
+      if (opcode == kFilterOpcode_SimpleField) {
         msg_id = kSimpleField;
       } else {  // FILTER_OPCODE_NESTED_FIELD
         // The next word in the bytecode contains the message index.
@@ -101,7 +119,7 @@ bool FilterBytecodeParser::LoadInternal(const uint8_t* filter_data,
                         i);
           return false;
         }
-        msg_id = bytecode[++i];
+        msg_id = words[++i];
         max_msg_index = std::max(max_msg_index, msg_id);
       }
 
@@ -113,12 +131,12 @@ bool FilterBytecodeParser::LoadInternal(const uint8_t* filter_data,
         // complexity to deal with rare cases like this.
         add_range(field_id, field_id + 1, msg_id);
       }
-    } else if (opcode == ProtoFilter::FILTER_OPCODE_SIMPLE_FIELD_RANGE) {
+    } else if (opcode == kFilterOpcode_SimpleFieldRange) {
       if (!has_next_word) {
         PERFETTO_DLOG("bytecode error @ word %zu: unterminated range", i);
         return false;
       }
-      const uint32_t range_len = bytecode[++i];
+      const uint32_t range_len = words[++i];
       const uint32_t range_end = field_id + range_len;  // STL-style, excl.
       uint32_t id = field_id;
 
@@ -132,7 +150,7 @@ bool FilterBytecodeParser::LoadInternal(const uint8_t* filter_data,
       PERFETTO_DCHECK(id >= kDirectlyIndexLimit || id == range_end);
       if (id < range_end)
         add_range(id, range_end, kSimpleField);
-    } else if (opcode == ProtoFilter::FILTER_OPCODE_END_OF_MESSAGE) {
+    } else if (opcode == kFilterOpcode_EndOfMessage) {
       // For each message append:
       // 1. The "header" word telling how many directly indexed fields there
       //    are.
@@ -182,7 +200,8 @@ FilterBytecodeParser::QueryResult FilterBytecodeParser::Query(
   // bytecode.
   PERFETTO_DCHECK(start_offset < words_.size());
   const uint32_t* word = &words_[start_offset];
-  const uint32_t* const end = &words_[message_offset_[msg_index + 1]];
+  const uint32_t end_off = message_offset_[msg_index + 1];
+  const uint32_t* const end = words_.data() + end_off;
   PERFETTO_DCHECK(end > word && end <= words_.data() + words_.size());
   const uint32_t num_directly_indexed = *(word++);
   PERFETTO_DCHECK(num_directly_indexed <= kDirectlyIndexLimit);
