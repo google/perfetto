@@ -1462,7 +1462,7 @@ message DataSourceConfig {
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 31.
+// Next id: 33.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -1857,6 +1857,15 @@ message TraceConfig {
   // Alternative encoding of trace_uuid as two int64s.
   optional int64 trace_uuid_msb = 27;
   optional int64 trace_uuid_lsb = 28;
+
+  // When set applies a post-filter to the trace contents using the filter
+  // provided. The filter is applied at ReadBuffers() time and works both in the
+  // case of IPC readback and write_into_file. This filter can be generated
+  // using `tools/proto_filter -s schema.proto -F filter_out.bytes` or
+  // `-T filter_out.escaped_string` (for .pbtx).
+  // Introduced in Android S. See go/trace-filtering for design.
+  message TraceFilter { optional bytes bytecode = 1; }
+  optional TraceFilter trace_filter = 32;
 }
 
 // End of protos/perfetto/config/trace_config.proto
@@ -2003,6 +2012,15 @@ message TraceStats {
   // Packets that failed validation of the TrustedPacket. If this is > 0, there
   // is a bug in the producer.
   optional uint64 invalid_packets = 10;
+
+  // This is set only when the TraceConfig specifies a TraceFilter.
+  message FilterStats {
+    optional uint64 input_packets = 1;
+    optional uint64 input_bytes = 2;
+    optional uint64 output_bytes = 3;
+    optional uint64 errors = 4;
+  }
+  optional FilterStats filter_stats = 11;
 }
 
 // End of protos/perfetto/common/trace_stats.proto

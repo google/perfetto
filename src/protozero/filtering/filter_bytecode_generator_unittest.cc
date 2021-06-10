@@ -21,8 +21,6 @@
 #include "src/protozero/filtering/filter_bytecode_generator.h"
 #include "src/protozero/filtering/filter_bytecode_parser.h"
 
-#include "protos/perfetto/config/proto_filter.pbzero.h"
-
 // This file tests the generator, assuming the parser is good.
 // The parser is tested separately (without the generator) in
 // filter_bytecode_parser_unittest.cc

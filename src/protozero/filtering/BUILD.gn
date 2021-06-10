@@ -17,15 +17,34 @@ import("../../../gn/perfetto_host_executable.gni")
 import("../../../gn/proto_library.gni")
 import("../../../gn/test.gni")
 
+source_set("message_filter") {
+  sources = [
+    "message_filter.cc",
+    "message_filter.h",
+    "message_tokenizer.h",
+  ]
+  deps = [
+    ":bytecode_parser",
+    "..:protozero",
+    "../../../gn:default_deps",
+    "../../base",
+  ]
+}
+
+source_set("bytecode_common") {
+  sources = [ "filter_bytecode_common.h" ]
+  deps = [ "../../../gn:default_deps" ]
+}
+
 source_set("bytecode_parser") {
   sources = [
     "filter_bytecode_parser.cc",
     "filter_bytecode_parser.h",
   ]
   deps = [
+    ":bytecode_common",
     "..:protozero",
     "../../../gn:default_deps",
-    "../../../protos/perfetto/config:proto_filter_zero",
     "../../base",
   ]
 }
@@ -36,9 +55,24 @@ source_set("bytecode_generator") {
     "filter_bytecode_generator.h",
   ]
   deps = [
+    ":bytecode_common",
     "..:protozero",
     "../../../gn:default_deps",
-    "../../../protos/perfetto/config:proto_filter_zero",
+    "../../base",
+  ]
+}
+
+source_set("filter_util") {
+  testonly = true
+  sources = [
+    "filter_util.cc",
+    "filter_util.h",
+  ]
+  deps = [
+    ":bytecode_generator",
+    "..:protozero",
+    "../../../gn:default_deps",
+    "../../../gn:protobuf_full",
     "../../base",
   ]
 }
@@ -46,26 +80,57 @@ source_set("bytecode_generator") {
 perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
+    ":bytecode_common",
     ":bytecode_generator",
     ":bytecode_parser",
+    ":filter_util",
+    ":message_filter",
     "..:protozero",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
-    "../../../protos/perfetto/config:proto_filter_zero",
+    "../../../protos/perfetto/trace:lite",
     "../../base",
     "../../base:test_support",
   ]
   sources = [
     "filter_bytecode_generator_unittest.cc",
     "filter_bytecode_parser_unittest.cc",
+    "filter_util_unittest.cc",
+    "message_filter_unittest.cc",
     "message_tokenizer_unittest.cc",
   ]
+}
+
+if (enable_perfetto_benchmarks) {
+  source_set("benchmarks") {
+    testonly = true
+    deps = [
+      ":message_filter",
+      "../../../gn:benchmark",
+      "../../../gn:default_deps",
+      "../../base",
+      "../../base:test_support",
+    ]
+    sources = [ "message_filter_benchmark.cc" ]
+  }
 }
 
 perfetto_fuzzer_test("protozero_bytecode_parser_fuzzer") {
   sources = [ "filter_bytecode_parser_fuzzer.cc" ]
   deps = [
     ":bytecode_parser",
+    "..:protozero",
     "../../../gn:default_deps",
+    "../../base",
+  ]
+}
+
+perfetto_fuzzer_test("protozero_message_filter_fuzzer") {
+  sources = [ "message_filter_fuzzer.cc" ]
+  deps = [
+    ":message_filter",
+    "..:protozero",
+    "../../../gn:default_deps",
+    "../../base",
   ]
 }
