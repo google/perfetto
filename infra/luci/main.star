@@ -100,5 +100,6 @@ def official_builder(name, os):
         ],
     )
 
-# TODO(lalitm): add Windows and Mac builders when ready.
 official_builder("perfetto-official-builder-linux", "Linux")
+official_builder("perfetto-official-builder-mac", "Mac")
+official_builder("perfetto-official-builder-windows", "Windows")
