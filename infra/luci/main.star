@@ -44,7 +44,7 @@ luci.project(
             ],
             groups = ["all"],
         ),
-        acl.entry(roles = acl.SCHEDULER_OWNER, groups = "mdb/chrome-troopers"),
+        acl.entry(roles = acl.SCHEDULER_OWNER, groups = "mdb/perfetto-cloud-infra"),
         acl.entry([acl.LOGDOG_WRITER], groups = ["luci-logdog-chromium-writers"]),
     ],
 )
@@ -66,7 +66,11 @@ luci.bucket(
     acls = [
         acl.entry(
             roles = [acl.BUILDBUCKET_TRIGGERER],
-            users = ["luci-scheduler@appspot.gserviceaccount.com"],
+            users = ["mdb/perfetto-cloud-infra"],
+        ),
+        acl.entry(
+            roles = [acl.SCHEDULER_TRIGGERER, acl.BUILDBUCKET_TRIGGERER],
+            users = ["mdb/chrome-troopers"],
         ),
     ],
 )
