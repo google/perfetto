@@ -1238,6 +1238,8 @@ filegroup(
         "src/trace_processor/dynamic/experimental_counter_dur_generator.h",
         "src/trace_processor/dynamic/experimental_flamegraph_generator.cc",
         "src/trace_processor/dynamic/experimental_flamegraph_generator.h",
+        "src/trace_processor/dynamic/experimental_flat_slice_generator.cc",
+        "src/trace_processor/dynamic/experimental_flat_slice_generator.h",
         "src/trace_processor/dynamic/experimental_sched_upid_generator.cc",
         "src/trace_processor/dynamic/experimental_sched_upid_generator.h",
         "src/trace_processor/dynamic/experimental_slice_layout_generator.cc",
