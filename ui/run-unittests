@@ -15,4 +15,4 @@
 
 UI_DIR="$(cd -P ${BASH_SOURCE[0]%/*}; pwd)"
 
-$UI_DIR/node $UI_DIR/build.js --run-tests "$@"
+$UI_DIR/node $UI_DIR/build.js --run-unittests "$@"
