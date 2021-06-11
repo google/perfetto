@@ -63,6 +63,7 @@
   },
   {
     "cmd": [
+      "python3",
       "tools/install-build-deps",
       "--ui",
       "--android"
@@ -129,6 +130,7 @@
   },
   {
     "cmd": [
+      "python3",
       "tools/gn",
       "gen",
       "out/dist",
@@ -139,6 +141,7 @@
   },
   {
     "cmd": [
+      "python3",
       "tools/ninja",
       "-C",
       "out/dist"
