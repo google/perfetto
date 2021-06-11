@@ -458,6 +458,10 @@ function main() {
   }, {passive: false});
 
   cssLoadPromise.then(() => onCssLoaded(router));
+
+  if (globals.testing) {
+    document.body.classList.add('testing');
+  }
 }
 
 function onCssLoaded(router: Router) {
