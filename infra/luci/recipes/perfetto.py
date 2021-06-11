@@ -59,8 +59,7 @@ def RunSteps(api, repository):
   # There should be no need for internet access for building Perfetto beyond
   # this point.
   with api.context(cwd=src_dir, infra_steps=True):
-    api.step('build-deps',
-             ['python3', 'tools/install-build-deps', '--ui', '--android'])
+    api.step('build-deps', ['python3', 'tools/install-build-deps', '--android'])
 
   # Buld Perfetto.
   with api.context(cwd=src_dir), api.macos_sdk(), api.windows_sdk():
