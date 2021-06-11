@@ -21,17 +21,30 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-tables::SliceTable::Row SliceRow(int64_t ts,
-                                 int64_t dur,
-                                 uint32_t depth,
-                                 TrackId track_id) {
-  tables::SliceTable::Row row;
-  row.ts = ts;
-  row.dur = dur;
-  row.depth = depth;
-  row.track_id = track_id;
-  return row;
-}
+class TableInseter {
+ public:
+  void Insert(int64_t ts, int64_t dur, uint32_t depth, TrackId track_id) {
+    tables::SliceTable::Row row;
+    row.ts = ts;
+    row.dur = dur;
+    row.depth = depth;
+    row.track_id = track_id;
+    rows_.emplace_back(std::move(row));
+  }
+
+  void Populate(tables::SliceTable& table) {
+    using R = tables::SliceTable::Row;
+    std::sort(rows_.begin(), rows_.end(),
+              [](const R& a, const R& b) { return a.ts < b.ts; });
+    for (const auto& row : rows_) {
+      table.Insert(row);
+    }
+    rows_.clear();
+  }
+
+ private:
+  std::vector<tables::SliceTable::Row> rows_;
+};
 
 class TableAsserter {
  public:
@@ -39,11 +52,14 @@ class TableAsserter {
 
   void NextSlice(int64_t ts, int64_t dur) {
     ++idx_;
+    ASSERT_LT(idx_, table_.row_count());
     ASSERT_EQ(table_.GetTypedColumnByName<int64_t>("ts")[idx_], ts)
         << "where idx_ = " << idx_;
     ASSERT_EQ(table_.GetTypedColumnByName<int64_t>("dur")[idx_], dur)
         << "where idx_ = " << idx_;
   }
+
+  bool HasMoreSlices() { return idx_ + 1 < table_.row_count(); }
 
  private:
   Table table_;
@@ -52,65 +68,133 @@ class TableAsserter {
 
 TEST(ExperimentalFlatSliceGenerator, Smoke) {
   StringPool pool;
+  TableInseter inserter;
   tables::SliceTable table(&pool, nullptr);
 
   // A simple stack on track 1.
-  table.Insert(SliceRow(100, 10, 0, TrackId{1}));
-  table.Insert(SliceRow(104, 6, 1, TrackId{1}));
-  table.Insert(SliceRow(107, 1, 2, TrackId{1}));
+  inserter.Insert(100, 10, 0, TrackId{1});
+  inserter.Insert(104, 6, 1, TrackId{1});
+  inserter.Insert(107, 1, 2, TrackId{1});
 
   // Back to back slices with a gap on track 2.
-  table.Insert(SliceRow(200, 10, 0, TrackId{2}));
-  table.Insert(SliceRow(210, 10, 0, TrackId{2}));
-  table.Insert(SliceRow(230, 10, 0, TrackId{2}));
+  inserter.Insert(200, 10, 0, TrackId{2});
+  inserter.Insert(210, 10, 0, TrackId{2});
+  inserter.Insert(230, 10, 0, TrackId{2});
 
   // Deep nesting on track 3.
-  table.Insert(SliceRow(300, 100, 0, TrackId{3}));
-  table.Insert(SliceRow(301, 98, 1, TrackId{3}));
-  table.Insert(SliceRow(302, 96, 2, TrackId{3}));
-  table.Insert(SliceRow(303, 94, 3, TrackId{3}));
-  table.Insert(SliceRow(304, 92, 4, TrackId{3}));
-  table.Insert(SliceRow(305, 90, 5, TrackId{3}));
+  inserter.Insert(300, 100, 0, TrackId{3});
+  inserter.Insert(301, 98, 1, TrackId{3});
+  inserter.Insert(302, 96, 2, TrackId{3});
+  inserter.Insert(303, 94, 3, TrackId{3});
+  inserter.Insert(304, 92, 4, TrackId{3});
+  inserter.Insert(305, 90, 5, TrackId{3});
+
+  // Populate the table.
+  inserter.Populate(table);
 
   auto out = ExperimentalFlatSliceGenerator::ComputeFlatSliceTable(table, &pool,
                                                                    0, 400);
   auto sorted = out->Sort({out->track_id().ascending(), out->ts().ascending()});
 
-  ASSERT_EQ(sorted.row_count(), 27u);
   TableAsserter asserter(std::move(sorted));
 
   // Track 1's slices.
-  asserter.NextSlice(0, 100);
-  asserter.NextSlice(100, 4);
-  asserter.NextSlice(104, 3);
-  asserter.NextSlice(107, 1);
-  asserter.NextSlice(108, 2);
-  asserter.NextSlice(110, 0);
-  asserter.NextSlice(110, 290);
+  ASSERT_NO_FATAL_FAILURE(asserter.NextSlice(0, 100));
+  ASSERT_NO_FATAL_FAILURE(asserter.NextSlice(100, 4));
+  ASSERT_NO_FATAL_FAILURE(asserter.NextSlice(104, 3));
+  ASSERT_NO_FATAL_FAILURE(asserter.NextSlice(107, 1));
+  ASSERT_NO_FATAL_FAILURE(asserter.NextSlice(108, 2));
+  ASSERT_NO_FATAL_FAILURE(asserter.NextSlice(110, 0));
+  ASSERT_NO_FATAL_FAILURE(asserter.NextSlice(110, 290));
 
   // Track 2's slices.
-  asserter.NextSlice(0, 200);
-  asserter.NextSlice(200, 10);
-  asserter.NextSlice(210, 0);
-  asserter.NextSlice(210, 10);
-  asserter.NextSlice(220, 10);
-  asserter.NextSlice(230, 10);
-  asserter.NextSlice(240, 160);
+  ASSERT_NO_FATAL_FAILURE(asserter.NextSlice(0, 200));
+  ASSERT_NO_FATAL_FAILURE(asserter.NextSlice(200, 10));
+  ASSERT_NO_FATAL_FAILURE(asserter.NextSlice(210, 0));
+  ASSERT_NO_FATAL_FAILURE(asserter.NextSlice(210, 10));
+  ASSERT_NO_FATAL_FAILURE(asserter.NextSlice(220, 10));
+  ASSERT_NO_FATAL_FAILURE(asserter.NextSlice(230, 10));
+  ASSERT_NO_FATAL_FAILURE(asserter.NextSlice(240, 160));
 
   // Track 3's slices.
-  asserter.NextSlice(0, 300);
-  asserter.NextSlice(300, 1);
-  asserter.NextSlice(301, 1);
-  asserter.NextSlice(302, 1);
-  asserter.NextSlice(303, 1);
-  asserter.NextSlice(304, 1);
-  asserter.NextSlice(305, 90);
-  asserter.NextSlice(395, 1);
-  asserter.NextSlice(396, 1);
-  asserter.NextSlice(397, 1);
-  asserter.NextSlice(398, 1);
-  asserter.NextSlice(399, 1);
-  asserter.NextSlice(400, 0);
+  ASSERT_NO_FATAL_FAILURE(asserter.NextSlice(0, 300));
+  ASSERT_NO_FATAL_FAILURE(asserter.NextSlice(300, 1));
+  ASSERT_NO_FATAL_FAILURE(asserter.NextSlice(301, 1));
+  ASSERT_NO_FATAL_FAILURE(asserter.NextSlice(302, 1));
+  ASSERT_NO_FATAL_FAILURE(asserter.NextSlice(303, 1));
+  ASSERT_NO_FATAL_FAILURE(asserter.NextSlice(304, 1));
+  ASSERT_NO_FATAL_FAILURE(asserter.NextSlice(305, 90));
+  ASSERT_NO_FATAL_FAILURE(asserter.NextSlice(395, 1));
+  ASSERT_NO_FATAL_FAILURE(asserter.NextSlice(396, 1));
+  ASSERT_NO_FATAL_FAILURE(asserter.NextSlice(397, 1));
+  ASSERT_NO_FATAL_FAILURE(asserter.NextSlice(398, 1));
+  ASSERT_NO_FATAL_FAILURE(asserter.NextSlice(399, 1));
+  ASSERT_NO_FATAL_FAILURE(asserter.NextSlice(400, 0));
+
+  ASSERT_FALSE(asserter.HasMoreSlices());
+}
+
+TEST(ExperimentalFlatSliceGenerator, Bounds) {
+  StringPool pool;
+  TableInseter inserter;
+  tables::SliceTable table(&pool, nullptr);
+
+  /// Our timebounds is between 200 and 300.
+  int64_t start = 200;
+  int64_t end = 300;
+
+  // Track 1 has all events inside bounds.
+  inserter.Insert(200, 10, 0, TrackId{1});
+  inserter.Insert(210, 10, 0, TrackId{1});
+  inserter.Insert(230, 10, 0, TrackId{1});
+
+  // Track 2 has a two stacks, first partially inside at start, second partially
+  // inside at end.
+  // First stack.
+  inserter.Insert(190, 20, 0, TrackId{2});
+  inserter.Insert(200, 9, 1, TrackId{2});
+  inserter.Insert(201, 1, 2, TrackId{2});
+
+  // Second stack.
+  inserter.Insert(290, 20, 0, TrackId{2});
+  inserter.Insert(299, 2, 1, TrackId{2});
+  inserter.Insert(300, 1, 2, TrackId{2});
+
+  // Track 3 has two stacks but *only* outside bounds.
+  inserter.Insert(190, 9, 0, TrackId{3});
+  inserter.Insert(195, 2, 1, TrackId{3});
+
+  inserter.Insert(300, 9, 0, TrackId{3});
+  inserter.Insert(301, 2, 1, TrackId{3});
+
+  // Track 4 has one stack which is partially inside at start.
+  inserter.Insert(190, 20, 0, TrackId{4});
+  inserter.Insert(201, 2, 1, TrackId{4});
+
+  // Populate the table.
+  inserter.Populate(table);
+
+  auto out = ExperimentalFlatSliceGenerator::ComputeFlatSliceTable(table, &pool,
+                                                                   start, end);
+  auto sorted = out->Sort({out->track_id().ascending(), out->ts().ascending()});
+
+  TableAsserter asserter(std::move(sorted));
+
+  // Track 1's slices.
+  ASSERT_NO_FATAL_FAILURE(asserter.NextSlice(200, 0));
+  ASSERT_NO_FATAL_FAILURE(asserter.NextSlice(200, 10));
+  ASSERT_NO_FATAL_FAILURE(asserter.NextSlice(210, 0));
+  ASSERT_NO_FATAL_FAILURE(asserter.NextSlice(210, 10));
+  ASSERT_NO_FATAL_FAILURE(asserter.NextSlice(220, 10));
+  ASSERT_NO_FATAL_FAILURE(asserter.NextSlice(230, 10));
+  ASSERT_NO_FATAL_FAILURE(asserter.NextSlice(240, 60));
+
+  // Track 2's slices.
+  ASSERT_NO_FATAL_FAILURE(asserter.NextSlice(200, 90));
+  ASSERT_NO_FATAL_FAILURE(asserter.NextSlice(290, 9));
+  ASSERT_NO_FATAL_FAILURE(asserter.NextSlice(299, 1));
+
+  ASSERT_FALSE(asserter.HasMoreSlices());
 }
 
 }  // namespace

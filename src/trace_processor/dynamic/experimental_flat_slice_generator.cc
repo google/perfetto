@@ -235,6 +235,10 @@ ExperimentalFlatSliceGenerator::ComputeFlatSliceTable(
   }
 
   for (const auto& track : tracks) {
+    // If the track is not initialized, don't add anything.
+    if (!track.second.initialized)
+      continue;
+
     // First, terminate any hanging slices.
     output_slices_before(track.first, end_bound);
 
