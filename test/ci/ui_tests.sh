@@ -16,8 +16,8 @@
 INSTALL_BUILD_DEPS_ARGS="--ui"
 source $(dirname ${BASH_SOURCE[0]})/common.sh
 
-tools/node ui/build.js --out ${OUT_PATH}
+ui/build --out ${OUT_PATH}
 
 cp -a ${OUT_PATH}/ui/dist/ /ci/artifacts/ui
 
-tools/node ui/build.js --out ${OUT_PATH} --no-build --run-tests
+ui/run-unittests --out ${OUT_PATH} --no-build
