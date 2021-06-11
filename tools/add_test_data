@@ -13,7 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Adds a file or directory to /test/data/, uploads a new test_data.zip to GCS
+# and updates the sha1 in tools/install-build-deps.
+
 set -e
+
+ROOT_DIR="$(dirname $(cd -P ${BASH_SOURCE[0]%/*}; pwd))"
 
 echo ""
 echo "Downloading latest copy of test data"
@@ -28,9 +33,19 @@ rm -rf /tmp/latest-test-data 2>/dev/null
 unzip /tmp/latest-test-data.zip -d /tmp/latest-test-data
 
 echo ""
-echo "Copying trace to temp folder"
+echo "Copying $1 to temp folder"
 echo ""
-cp $1 /tmp/latest-test-data
+
+set -x
+if [ -d "$1" ]; then
+  DIR_NAME="$(basename $1)"
+  rm -rf "/tmp/latest-test-data/$DIR_NAME"
+  mkdir -p "/tmp/latest-test-data/$DIR_NAME"
+  cp -r "$1/" "/tmp/latest-test-data/$DIR_NAME/"
+else
+  cp "$1" /tmp/latest-test-data
+fi
+set +x
 
 echo ""
 echo "Zipping file back up"
