@@ -3,5 +3,7 @@ set -e
 adduser --home /nonexistent --quiet --system --no-create-home --group traced
 addgroup --quiet --system traced-consumer
 usermod -a -G traced-consumer traced
+mkdir -m 755 /run/perfetto
+chown traced:traced /run/perfetto
 
 #DEBHELPER#
