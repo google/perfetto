@@ -65,7 +65,6 @@
     "cmd": [
       "python3",
       "tools/install-build-deps",
-      "--ui",
       "--android"
     ],
     "cwd": "[CACHE]/builder/perfetto",
