@@ -23,10 +23,10 @@ import {genConfigProto, RecordController, toPbtxt} from './record_controller';
 
 test('encodeConfig', () => {
   const config = createEmptyRecordConfig();
-  config.durationSeconds = 10;
+  config.durationMs = 20000;
   const result =
       TraceConfig.decode(genConfigProto(config, {os: 'Q', name: 'Android Q'}));
-  expect(result.durationMs).toBe(10000);
+  expect(result.durationMs).toBe(20000);
 });
 
 test('SysConfig', () => {

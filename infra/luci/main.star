@@ -44,6 +44,7 @@ luci.project(
             ],
             groups = ["all"],
         ),
+        acl.entry(roles = acl.SCHEDULER_OWNER, groups = "mdb/perfetto-cloud-infra"),
         acl.entry([acl.LOGDOG_WRITER], groups = ["luci-logdog-chromium-writers"]),
     ],
 )
@@ -65,7 +66,11 @@ luci.bucket(
     acls = [
         acl.entry(
             roles = [acl.BUILDBUCKET_TRIGGERER],
-            users = ["luci-scheduler@appspot.gserviceaccount.com"],
+            groups = ["mdb/perfetto-cloud-infra"],
+        ),
+        acl.entry(
+            roles = [acl.SCHEDULER_TRIGGERER, acl.BUILDBUCKET_TRIGGERER],
+            groups = ["mdb/chrome-troopers"],
         ),
     ],
 )
@@ -95,5 +100,6 @@ def official_builder(name, os):
         ],
     )
 
-# TODO(lalitm): add Windows and Mac builders when ready.
 official_builder("perfetto-official-builder-linux", "Linux")
+official_builder("perfetto-official-builder-mac", "Mac")
+official_builder("perfetto-official-builder-windows", "Windows")

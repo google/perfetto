@@ -23,6 +23,8 @@ DEPS = [
     'recipe_engine/platform',
     'recipe_engine/properties',
     'recipe_engine/step',
+    'macos_sdk',
+    'windows_sdk',
 ]
 
 PROPERTIES = {
@@ -57,16 +59,18 @@ def RunSteps(api, repository):
   # There should be no need for internet access for building Perfetto beyond
   # this point.
   with api.context(cwd=src_dir, infra_steps=True):
-    api.step('build-deps', ['tools/install-build-deps', '--ui', '--android'])
+    api.step('build-deps', ['python3', 'tools/install-build-deps', '--android'])
 
   # Buld Perfetto.
-  with api.context(cwd=src_dir):
-    api.step('gn gen', ['tools/gn', 'gen', 'out/dist', '--args=is_debug=false'])
-    api.step('ninja', ['tools/ninja', '-C', 'out/dist'])
+  with api.context(cwd=src_dir), api.macos_sdk(), api.windows_sdk():
+    api.step(
+        'gn gen',
+        ['python3', 'tools/gn', 'gen', 'out/dist', '--args=is_debug=false'])
+    api.step('ninja', ['python3', 'tools/ninja', '-C', 'out/dist'])
 
 
 def GenTests(api):
-  for platform in ('linux',):
+  for platform in ('linux', 'mac', 'win'):
     yield (api.test('ci_' + platform) + api.platform.name(platform) +
            api.buildbucket.ci_build(
                project='perfetto',
