@@ -697,8 +697,9 @@ TracingMuxerImpl::TracingMuxerImpl(const TracingInitArgs& args)
   instance_ = this;
 
   // Create the thread where muxer, producers and service will live.
-  task_runner_.reset(
-      new NonReentrantTaskRunner(this, platform_->CreateTaskRunner({})));
+  Platform::CreateTaskRunnerArgs tr_args{/*name_for_debugging=*/"TracingMuxer"};
+  task_runner_.reset(new NonReentrantTaskRunner(
+      this, platform_->CreateTaskRunner(std::move(tr_args))));
 
   // Run the initializer on that thread.
   task_runner_->PostTask([this, args] { Initialize(args); });

@@ -70,7 +70,12 @@ class PERFETTO_EXPORT Platform {
   // Creates a sequenced task runner. The easiest implementation is to create
   // a new thread (e.g. use base::ThreadTaskRunner) but this can also be
   // implemented in some more clever way (e.g. using chromiums's scheduler).
-  struct CreateTaskRunnerArgs {};
+  struct CreateTaskRunnerArgs {
+    // Optional. Sets the name to the newly created task runner. In the default
+    // PosixPlatform implementation this causes a pthread_setname_np(). This is
+    // only for ease of debugging, it does not affect the tracing behavior.
+    std::string name_for_debugging;
+  };
   virtual std::unique_ptr<base::TaskRunner> CreateTaskRunner(
       const CreateTaskRunnerArgs&) = 0;
 

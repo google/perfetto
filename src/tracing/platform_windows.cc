@@ -96,9 +96,9 @@ ThreadLocalObject* PlatformWindows::GetOrCreateThreadLocalObject() {
 }
 
 std::unique_ptr<base::TaskRunner> PlatformWindows::CreateTaskRunner(
-    const CreateTaskRunnerArgs&) {
-  return std::unique_ptr<base::TaskRunner>(
-      new base::ThreadTaskRunner(base::ThreadTaskRunner::CreateAndStart()));
+    const CreateTaskRunnerArgs& args) {
+  return std::unique_ptr<base::TaskRunner>(new base::ThreadTaskRunner(
+      base::ThreadTaskRunner::CreateAndStart(args.name_for_debugging)));
 }
 
 std::string PlatformWindows::GetCurrentProcessName() {
