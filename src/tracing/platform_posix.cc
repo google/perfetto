@@ -89,9 +89,9 @@ ThreadLocalObject* PlatformPosix::GetOrCreateThreadLocalObject() {
 }
 
 std::unique_ptr<base::TaskRunner> PlatformPosix::CreateTaskRunner(
-    const CreateTaskRunnerArgs&) {
-  return std::unique_ptr<base::TaskRunner>(
-      new base::ThreadTaskRunner(base::ThreadTaskRunner::CreateAndStart()));
+    const CreateTaskRunnerArgs& args) {
+  return std::unique_ptr<base::TaskRunner>(new base::ThreadTaskRunner(
+      base::ThreadTaskRunner::CreateAndStart(args.name_for_debugging)));
 }
 
 std::string PlatformPosix::GetCurrentProcessName() {
