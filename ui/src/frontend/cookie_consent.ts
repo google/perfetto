@@ -21,10 +21,15 @@ const COOKIE_ACK_KEY = 'cookieAck';
 export class CookieConsent implements m.ClassComponent {
   private showCookieConsent = true;
 
-  view() {
-    if (this.showCookieConsent) {
-      this.showCookieConsent = localStorage.getItem(COOKIE_ACK_KEY) === null;
+  oninit() {
+    this.showCookieConsent = true;
+    if (!globals.logging.isEnabled() ||
+        localStorage.getItem(COOKIE_ACK_KEY) === 'true') {
+      this.showCookieConsent = false;
     }
+  }
+
+  view() {
     if (!this.showCookieConsent) return;
     return m(
         '.cookie-consent',

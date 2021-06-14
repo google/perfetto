@@ -309,7 +309,7 @@ int TrackEventInternal::GetSessionCount() {
 
 // static
 void TrackEventInternal::ResetIncrementalState(TraceWriterBase* trace_writer,
-                                               uint64_t timestamp) {
+                                               TraceTimestamp timestamp) {
   auto default_track = ThreadTrack::Current();
   {
     // Mark any incremental state before this point invalid. Also set up
@@ -337,14 +337,18 @@ void TrackEventInternal::ResetIncrementalState(TraceWriterBase* trace_writer,
 // static
 protozero::MessageHandle<protos::pbzero::TracePacket>
 TrackEventInternal::NewTracePacket(TraceWriterBase* trace_writer,
-                                   uint64_t timestamp,
+                                   TraceTimestamp timestamp,
                                    uint32_t seq_flags) {
   auto packet = trace_writer->NewTracePacket();
-  packet->set_timestamp(timestamp);
-  // TODO(skyostil): Stop emitting this for every event once the trace
-  // processor understands trace packet defaults.
-  if (GetClockId() != protos::pbzero::BUILTIN_CLOCK_BOOTTIME)
+  packet->set_timestamp(timestamp.nanoseconds);
+  if (timestamp.clock_id != GetClockId()) {
+    packet->set_timestamp_clock_id(static_cast<uint32_t>(timestamp.clock_id));
+  } else if (GetClockId() != protos::pbzero::BUILTIN_CLOCK_BOOTTIME) {
+    // TODO(skyostil): Stop emitting the clock id for the default trace clock
+    // for every event once the trace processor understands trace packet
+    // defaults.
     packet->set_timestamp_clock_id(GetClockId());
+  }
   packet->set_sequence_flags(seq_flags);
   return packet;
 }
@@ -356,7 +360,7 @@ EventContext TrackEventInternal::WriteEvent(
     const Category* category,
     const char* name,
     perfetto::protos::pbzero::TrackEvent::Type type,
-    uint64_t timestamp) {
+    TraceTimestamp timestamp) {
   PERFETTO_DCHECK(g_main_thread);
   PERFETTO_DCHECK(!incr_state->was_cleared);
 

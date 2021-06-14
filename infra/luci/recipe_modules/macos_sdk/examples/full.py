@@ -1,4 +1,3 @@
-#!/bin/bash
 # Copyright (C) 2021 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,6 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-UI_DIR="$(cd -P ${BASH_SOURCE[0]%/*}; pwd)"
+DEPS = [
+    'macos_sdk',
+    'recipe_engine/platform',
+    'recipe_engine/properties',
+    'recipe_engine/step',
+]
 
-$UI_DIR/node $UI_DIR/build.js --run-tests "$@"
+
+def RunSteps(api):
+  with api.macos_sdk():
+    sdk_dir = api.macos_sdk.sdk_dir if api.platform.is_mac else None
+    api.step('gn', ['gn', 'gen', 'out/Release'])
+    api.step('ninja', ['ninja', '-C', 'out/Release'])
+
+
+def GenTests(api):
+  for platform in ('linux', 'mac', 'win'):
+    yield (api.test(platform) + api.platform.name(platform) +
+           api.properties.generic(buildername='test_builder'))

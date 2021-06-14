@@ -210,7 +210,7 @@ util::Status SpanJoinOperatorTable::Init(int argc,
   // Check if any column has : in its name. This often happens when SELECT *
   // is used to create a view with the same column name in two joined tables.
   for (const auto& col : cols) {
-    if (col.name().find(':') != std::string::npos) {
+    if (base::Contains(col.name(), ':')) {
       return util::ErrStatus("SPAN_JOIN: column %s has illegal character :",
                              col.name().c_str());
     }

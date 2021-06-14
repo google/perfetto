@@ -164,6 +164,25 @@ def release_or_newer(release):
   ).decode('utf-8').strip()
   return codename == release
 
+ORDER = ['-n', '-p', '-i', '-o']
+
+def arg_order(action):
+  result = len(ORDER)
+  for opt in action.option_strings:
+    if opt in ORDER:
+      result = min(ORDER.index(opt), result)
+  return result, action.option_strings[0].strip('-')
+
+def print_options(parser):
+  for action in sorted(parser._actions, key=arg_order):
+    if action.help is argparse.SUPPRESS:
+      continue
+    opts = ', '.join('`' + x + '`' for x in action.option_strings)
+    metavar = '' if action.metavar is None else ' _'     + action.metavar + '_'
+    print('{}{}'.format(opts, metavar))
+    print(':    {}'.format(action.help))
+    print()
+
 def main(argv):
   parser = argparse.ArgumentParser()
   parser.add_argument(
@@ -294,8 +313,16 @@ def main(argv):
       help="Output directory.",
       metavar="DIRECTORY",
       default=None)
+  parser.add_argument(
+      "--print-options",
+      action="store_true",
+      help=argparse.SUPPRESS
+  )
 
   args = parser.parse_args()
+  if args.print_options:
+    print_options(parser)
+    return 0
   fail = False
   if args.block_client and args.no_block_client:
     print(

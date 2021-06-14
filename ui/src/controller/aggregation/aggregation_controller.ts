@@ -36,11 +36,9 @@ export abstract class AggregationController extends Controller<'main'> {
   private requestingData = false;
   private queuedRequest = false;
 
-  abstract async createAggregateView(engine: Engine, area: Area):
-      Promise<boolean>;
+  abstract createAggregateView(engine: Engine, area: Area): Promise<boolean>;
 
-  abstract async getExtra(engine: Engine, area: Area):
-      Promise<ThreadStateExtra|void>;
+  abstract getExtra(engine: Engine, area: Area): Promise<ThreadStateExtra|void>;
 
   abstract getTabName(): string;
   abstract getDefaultSorting(): Sorting;

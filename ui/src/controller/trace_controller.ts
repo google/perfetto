@@ -26,11 +26,7 @@ import {slowlyCountRows} from '../common/query_iterator';
 import {EngineMode} from '../common/state';
 import {toNs, toNsCeil, toNsFloor} from '../common/time';
 import {TimeSpan} from '../common/time';
-import {
-  createWasmEngine,
-  destroyWasmEngine,
-  WasmEngineProxy
-} from '../common/wasm_engine_proxy';
+import {WasmEngineProxy} from '../common/wasm_engine_proxy';
 import {QuantizedLoad, ThreadDesc} from '../frontend/globals';
 
 import {
@@ -96,12 +92,6 @@ export class TraceController extends Controller<States> {
   constructor(engineId: string) {
     super('init');
     this.engineId = engineId;
-  }
-
-  onDestroy() {
-    if (this.engine instanceof WasmEngineProxy) {
-      destroyWasmEngine(this.engine.id);
-    }
   }
 
   run() {
@@ -231,10 +221,9 @@ export class TraceController extends Controller<States> {
     } else {
       console.log('Opening trace using built-in WASM engine');
       engineMode = 'WASM';
+      const enginePort = globals.resetEngineWorker();
       this.engine = new WasmEngineProxy(
-          this.engineId,
-          createWasmEngine(this.engineId),
-          LoadingManager.getInstance);
+          this.engineId, enginePort, LoadingManager.getInstance);
     }
 
     globals.dispatch(Actions.setEngineReady({
@@ -336,7 +325,17 @@ export class TraceController extends Controller<States> {
     await this.loadTimelineOverview(traceTime);
 
     {
-      const query = 'select to_ftrace(id) from raw limit 1';
+      // A quick heuristic to check if the trace has ftrace events. This is
+      // based on the assumption that most traces that have ftrace either:
+      // - Are proto traces captured via perfetto, in which case traced_probes
+      //   emits ftrace per-cpu stats that end up in the stats table.
+      // - Have a raw event with non-zero cpu or utid.
+      // Notes:
+      // - The "+1 > 1" is to avoid pushing down the constraints to the "raw"
+      //   table, which would compute a full column filter without being aware
+      //   of the limit 1, and instead delegate the filtering to the iterator.
+      const query = `select '_' as _ from raw
+          where cpu + 1 > 1 or utid + 1 > 1 limit 1`;
       const result = await assertExists(this.engine).query(query);
       const hasFtrace = !!slowlyCountRows(result);
       globals.publish('HasFtrace', hasFtrace);

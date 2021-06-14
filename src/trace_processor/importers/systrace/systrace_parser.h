@@ -48,30 +48,24 @@ struct SystraceTracePoint {
 
   static SystraceTracePoint C(uint32_t tgid,
                               base::StringView name,
-                              double value,
-                              base::StringView category_group = "") {
-    return SystraceTracePoint('C', tgid, std::move(name), value,
-                              category_group);
+                              int64_t value) {
+    return SystraceTracePoint('C', tgid, std::move(name), value);
   }
 
   static SystraceTracePoint S(uint32_t tgid,
                               base::StringView name,
-                              double value) {
-    return SystraceTracePoint('S', tgid, std::move(name), value);
+                              int64_t cookie) {
+    return SystraceTracePoint('S', tgid, std::move(name), cookie);
   }
 
   static SystraceTracePoint F(uint32_t tgid,
                               base::StringView name,
-                              double value) {
-    return SystraceTracePoint('F', tgid, std::move(name), value);
+                              int64_t cookie) {
+    return SystraceTracePoint('F', tgid, std::move(name), cookie);
   }
 
-  SystraceTracePoint(char p,
-                     uint32_t tg,
-                     base::StringView n,
-                     double v,
-                     base::StringView c = "")
-      : phase(p), tgid(tg), name(std::move(n)), value(v), category_group(c) {}
+  SystraceTracePoint(char p, uint32_t tg, base::StringView n, int64_t v)
+      : phase(p), tgid(tg), name(std::move(n)), value(v) {}
 
   // Phase can be one of B, E, C, S, F.
   char phase = '\0';
@@ -81,11 +75,8 @@ struct SystraceTracePoint {
   // For phase = 'B' and phase = 'C' only.
   base::StringView name;
 
-  // For phase = 'C' only.
-  double value = 0;
-
-  // For phase = 'C' only (from Chrome).
-  base::StringView category_group;
+  // For phase = 'C' (counter value) and 'B', 'F' (async cookie).
+  int64_t value = 0;
 
   // Visible for unittesting.
   friend std::ostream& operator<<(std::ostream& os,
@@ -103,110 +94,94 @@ struct SystraceTracePoint {
 // 4. C|1636|wq:monitor|0
 // 5. S|1636|frame_capture|123
 // 6. F|1636|frame_capture|456
+// Counters emitted by chromium can have a further "category group" appended
+// ("Blob" in the example below). We ignore the category group.
 // 7. C|3209|TransfersBytesPendingOnDisk-value|0|Blob
-// Visible for unittesting.
-inline SystraceParseResult ParseSystraceTracePoint(base::StringView str,
-                                                   SystraceTracePoint* out) {
-  const char* s = str.data();
-  size_t len = str.size();
+inline SystraceParseResult ParseSystraceTracePoint(
+    base::StringView str_untrimmed,
+    SystraceTracePoint* out) {
   *out = {};
 
-  // We don't support empty events.
-  if (len == 0)
-    return SystraceParseResult::kFailure;
-
-  constexpr const char* kClockSyncPrefix = "trace_event_clock_sync:";
-  if (len >= strlen(kClockSyncPrefix) &&
-      strncmp(kClockSyncPrefix, s, strlen(kClockSyncPrefix)) == 0)
-    return SystraceParseResult::kUnsupported;
-
-  char ph = s[0];
-  if (ph != 'B' && ph != 'E' && ph != 'C' && ph != 'S' && ph != 'F')
-    return SystraceParseResult::kFailure;
-
-  out->phase = ph;
-
-  // We only support E events with no arguments.
-  if (len == 1 && ph != 'E')
-    return SystraceParseResult::kFailure;
-
-  // If str matches '[BEC]\|[0-9]+[\|\n]?' set tgid_length to the length of
-  // the number. Otherwise return kFailure.
-  if (len >= 2 && s[1] != '|' && s[1] != '\n')
-    return SystraceParseResult::kFailure;
-
-  size_t tgid_length = 0;
-  for (size_t i = 2; i < len; i++) {
-    if (s[i] == '|' || s[i] == '\n') {
+  // Strip trailing \n and \0. StringViews are not null-terminated, but the
+  // writer could have appended a stray \0 depending on where the trace comes
+  // from.
+  size_t len = str_untrimmed.size();
+  for (; len > 0; --len) {
+    char last_char = str_untrimmed.at(len - 1);
+    if (last_char != '\n' && last_char != '\0')
       break;
-    }
-    if (s[i] < '0' || s[i] > '9')
-      return SystraceParseResult::kFailure;
-    tgid_length++;
   }
+  base::StringView str = str_untrimmed.substr(0, len);
 
-  // If len == 1, tgid_length will be 0 which will ensure we don't do
-  // an out of bounds read.
-  std::string tgid_str(s + 2, tgid_length);
-  out->tgid = base::StringToUInt32(tgid_str).value_or(0);
+  size_t off = 0;
 
-  switch (ph) {
-    case 'B': {
-      size_t name_index = 2 + tgid_length + 1;
-      out->name = base::StringView(
-          s + name_index, len - name_index - (s[len - 1] == '\n' ? 1 : 0));
-      if (out->name.empty()) {
-        static const char kEmptySliceName[] = "[empty slice name]";
-        out->name = base::StringView(kEmptySliceName);
+  // This function reads the next field up to the next '|', '\0' or end(). It
+  // advances |off| as it goes through fields.
+  auto read_next_field = [&off, &str, len]() {
+    for (size_t field_start = off;; ++off) {
+      char c = off >= len ? '\0' : str.at(off);
+      if (c == '|' || c == '\0') {
+        auto res = str.substr(field_start, off - field_start);
+        ++off;  // Eat the separator.
+        return res;
+      }
+    }
+  };
+
+  auto f0_phase = read_next_field();
+  if (PERFETTO_UNLIKELY(f0_phase.empty()))
+    return SystraceParseResult::kFailure;
+  out->phase = f0_phase.at(0);
+
+  auto f1_tgid = read_next_field();
+  auto opt_tgid = base::StringToUInt32(f1_tgid.ToStdString());
+  out->tgid = opt_tgid.value_or(0);
+  const bool has_tgid = opt_tgid.has_value();
+
+  switch (out->phase) {
+    case 'B': {  // Begin thread-scoped synchronous slice.
+      if (!has_tgid)
+        return SystraceParseResult::kFailure;
+      auto f2_name = str.substr(off);  // It's fine even if |off| >= end().
+      if (f2_name.empty()) {
+        out->name = base::StringView("[empty slice name]");
+      } else {
+        out->name = f2_name;
       }
       return SystraceParseResult::kSuccess;
     }
-    case 'E': {
+    case 'E':  // End thread-scoped synchronous slice.
+      // Some non-Android traces (Flutter) use just "E" (aosp/1244409). Allow
+      // empty TGID on end slices. By design they are thread-scoped anyways.
+      return SystraceParseResult::kSuccess;
+    case 'S':    // Begin of async slice.
+    case 'F': {  // End of async slice.
+      auto f2_name = read_next_field();
+      auto f3_cookie = read_next_field();
+      auto maybe_cookie = base::StringToInt64(f3_cookie.ToStdString());
+      if (PERFETTO_UNLIKELY(!has_tgid || f2_name.empty() || f3_cookie.empty() ||
+                            !maybe_cookie)) {
+        return SystraceParseResult::kFailure;
+      }
+      out->name = f2_name;
+      out->value = *maybe_cookie;
       return SystraceParseResult::kSuccess;
     }
-    case 'S':
-    case 'F':
-    case 'C': {
-      size_t name_index = 2 + tgid_length + 1;
-      base::Optional<size_t> name_length;
-      for (size_t i = name_index; i < len; i++) {
-        if (s[i] == '|') {
-          name_length = i - name_index;
-          break;
-        }
-      }
-      if (!name_length.has_value())
-        return SystraceParseResult::kFailure;
-      out->name = base::StringView(s + name_index, name_length.value());
-
-      size_t value_index = name_index + name_length.value() + 1;
-      size_t value_pipe = str.find('|', value_index);
-      size_t value_len = value_pipe == base::StringView::npos
-                             ? len - value_index
-                             : value_pipe - value_index;
-      if (value_len == 0)
-        return SystraceParseResult::kFailure;
-      if (s[value_index + value_len - 1] == '\n')
-        value_len--;
-      std::string value_str(s + value_index, value_len);
-      base::Optional<double> maybe_value = base::StringToDouble(value_str);
-      if (!maybe_value.has_value()) {
+    case 'C': {  // Counter.
+      auto f2_name = read_next_field();
+      auto f3_value = read_next_field();
+      auto maybe_value = base::StringToInt64(f3_value.ToStdString());
+      if (PERFETTO_UNLIKELY(!has_tgid || f2_name.empty() || f3_value.empty() ||
+                            !maybe_value)) {
         return SystraceParseResult::kFailure;
       }
-      out->value = maybe_value.value();
-
-      if (value_pipe != base::StringView::npos) {
-        size_t group_len = len - value_pipe - 1;
-        if (group_len == 0)
-          return SystraceParseResult::kFailure;
-        if (s[len - 1] == '\n')
-          group_len--;
-        out->category_group = base::StringView(s + value_pipe + 1, group_len);
-      }
-
+      out->name = f2_name;
+      out->value = *maybe_value;
       return SystraceParseResult::kSuccess;
     }
     default:
+      if (str.find("trace_event_clock_sync:") == 0)
+        return SystraceParseResult::kUnsupported;
       return SystraceParseResult::kFailure;
   }
 }

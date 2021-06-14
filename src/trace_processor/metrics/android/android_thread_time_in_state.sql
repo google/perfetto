@@ -146,6 +146,18 @@ FROM (
   SELECT DISTINCT ts from android_thread_time_in_state_base
 );
 
+-- Group by utid and core_type only (i.e. excluding time_in_state_cpu) so
+-- that the _event output has only one track per core_type label.
+DROP VIEW IF EXISTS android_thread_time_in_state_allowed;
+CREATE VIEW android_thread_time_in_state_allowed AS
+SELECT
+  utid,
+  core_type,
+  SUM(runtime_ms) as runtime_ms
+FROM android_thread_time_in_state_counters
+GROUP BY utid, core_type
+HAVING runtime_ms > 0;
+
 DROP VIEW IF EXISTS android_thread_time_in_state_event_raw;
 CREATE VIEW android_thread_time_in_state_event_raw AS
 SELECT
@@ -160,13 +172,12 @@ SELECT
   IFNULL(thread.name, 'Thread ' || thread.tid) || ' (' || thread.utid || ')'
       AS thread_track_name,
   freq,
-  runtime_ms_counter - LAG(runtime_ms_counter)
-      OVER (PARTITION BY core_type, utid, freq ORDER BY ts) AS runtime_ms
+  runtime_ms_counter - LAG(runtime_ms_counter) OVER win as runtime_ms
 FROM android_thread_time_in_state_base
-    -- Join to keep only utids which have non-zero runtime in the trace.
-    JOIN android_thread_time_in_state_counters USING (utid, core_type)
-    JOIN android_thread_time_in_state_event_clock USING(ts)
-    JOIN thread using (utid);
+JOIN android_thread_time_in_state_event_clock USING (ts)
+JOIN android_thread_time_in_state_allowed USING (utid, core_type)
+JOIN thread using (utid)
+WINDOW win AS (PARTITION BY core_type, utid, freq ORDER BY ts);
 
 DROP VIEW IF EXISTS android_thread_time_in_state_event_thread;
 CREATE VIEW android_thread_time_in_state_event_thread AS

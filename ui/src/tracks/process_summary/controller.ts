@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {slowlyCountRows} from '../../common/query_iterator';
+import {NUM} from '../../common/query_iterator';
 import {fromNs, toNs} from '../../common/time';
 import {LIMIT} from '../../common/track_data';
 import {
@@ -39,29 +39,35 @@ class ProcessSummaryTrackController extends TrackController<Config, Data> {
     const endNs = toNs(end);
 
     if (this.setup === false) {
-      await this.query(
+      await this.queryV2(
           `create virtual table ${this.tableName('window')} using window;`);
 
       let utids = [this.config.utid];
       if (this.config.upid) {
-        const threadQuery = await this.query(
+        const threadQuery = await this.queryV2(
             `select utid from thread where upid=${this.config.upid}`);
-        utids = threadQuery.columns[0].longValues!;
+        utids = [];
+        for (const it = threadQuery.iter({utid: NUM}); it.valid(); it.next()) {
+          utids.push(it.utid);
+        }
       }
 
-      const trackQuery = await this.query(
+      const trackQuery = await this.queryV2(
           `select id from thread_track where utid in (${utids.join(',')})`);
-      const tracks = trackQuery.columns[0].longValues!;
+      const tracks = [];
+      for (const it = trackQuery.iter({id: NUM}); it.valid(); it.next()) {
+        tracks.push(it.id);
+      }
 
       const processSliceView = this.tableName('process_slice_view');
-      await this.query(
+      await this.queryV2(
           `create view ${processSliceView} as ` +
           // 0 as cpu is a dummy column to perform span join on.
           `select ts, dur/${utids.length} as dur ` +
           `from slice s ` +
           `where depth = 0 and track_id in ` +
           `(${tracks.join(',')})`);
-      await this.query(`create virtual table ${this.tableName('span')}
+      await this.queryV2(`create virtual table ${this.tableName('span')}
           using span_join(${processSliceView},
                           ${this.tableName('window')});`);
       this.setup = true;
@@ -73,7 +79,7 @@ class ProcessSummaryTrackController extends TrackController<Config, Data> {
     const windowStartNs = Math.floor(startNs / bucketSizeNs) * bucketSizeNs;
     const windowDurNs = Math.max(1, endNs - windowStartNs);
 
-    this.query(`update ${this.tableName('window')} set
+    await this.queryV2(`update ${this.tableName('window')} set
       window_start=${windowStartNs},
       window_dur=${windowDurNs},
       quantum=${bucketSizeNs}
@@ -98,9 +104,6 @@ class ProcessSummaryTrackController extends TrackController<Config, Data> {
       group by quantum_ts
       limit ${LIMIT}`;
 
-    const rawResult = await this.query(query);
-    const numRows = slowlyCountRows(rawResult);
-
     const summary: Data = {
       start,
       end,
@@ -109,21 +112,24 @@ class ProcessSummaryTrackController extends TrackController<Config, Data> {
       bucketSizeSeconds: fromNs(bucketSizeNs),
       utilizations: new Float64Array(numBuckets),
     };
-    const cols = rawResult.columns;
-    for (let row = 0; row < numRows; row++) {
-      const bucket = +cols[0].longValues![row];
+
+    const queryRes = await this.queryV2(query);
+    const it = queryRes.iter({bucket: NUM, utilization: NUM});
+    for (; it.valid(); it.next()) {
+      const bucket = it.bucket;
       if (bucket > numBuckets) {
         continue;
       }
-      summary.utilizations[bucket] = +cols[1].doubleValues![row];
+      summary.utilizations[bucket] = it.utilization;
     }
+
     return summary;
   }
 
   onDestroy(): void {
     if (this.setup) {
-      this.query(`drop table ${this.tableName('window')}`);
-      this.query(`drop table ${this.tableName('span')}`);
+      this.queryV2(`drop table ${this.tableName('window')}`);
+      this.queryV2(`drop table ${this.tableName('span')}`);
       this.setup = false;
     }
   }

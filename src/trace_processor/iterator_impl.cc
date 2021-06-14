@@ -34,7 +34,7 @@ IteratorImpl::IteratorImpl(TraceProcessorImpl* trace_processor,
       db_(db),
       stmt_(std::move(stmt)),
       column_count_(column_count),
-      status_(status),
+      status_(std::move(status)),
       sql_stats_row_(sql_stats_row) {}
 
 IteratorImpl::~IteratorImpl() {
