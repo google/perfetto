@@ -451,6 +451,15 @@ export interface RecordConfig {
   procStatsPeriodMs: number;
 
   chromeCategoriesSelected: string[];
+
+  chromeLogs: boolean;
+  taskScheduling: boolean;
+  ipcFlows: boolean;
+  jsExecution: boolean;
+  webContentRendering: boolean;
+  uiRendering: boolean;
+  inputEvents: boolean;
+  navigationAndLoading: boolean;
 }
 
 export function createEmptyRecordConfig(): RecordConfig {
@@ -518,6 +527,15 @@ export function createEmptyRecordConfig(): RecordConfig {
     procStatsPeriodMs: 1000,
 
     chromeCategoriesSelected: [],
+
+    chromeLogs: false,
+    taskScheduling: false,
+    ipcFlows: false,
+    jsExecution: false,
+    webContentRendering: false,
+    uiRendering: false,
+    inputEvents: false,
+    navigationAndLoading: false,
   };
 }
 
