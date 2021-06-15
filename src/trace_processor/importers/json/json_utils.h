@@ -42,6 +42,7 @@ bool IsJsonSupported();
 
 enum class TimeUnit { kNs = 1, kUs = 1000, kMs = 1000000 };
 base::Optional<int64_t> CoerceToTs(TimeUnit unit, const Json::Value& value);
+base::Optional<int64_t> CoerceToTs(TimeUnit unit, const std::string& value);
 base::Optional<int64_t> CoerceToInt64(const Json::Value& value);
 base::Optional<uint32_t> CoerceToUint32(const Json::Value& value);
 

@@ -209,11 +209,12 @@ class TrackDecider {
     FROM (
       SELECT name, GROUP_CONCAT(track.id) AS track_ids
       FROM track
-      WHERE track.type = "track"
+      WHERE track.type = "track" or track.type = "gpu_track"
       GROUP BY name
     ) AS t CROSS JOIN experimental_slice_layout
     WHERE t.track_ids = experimental_slice_layout.filter_track_ids
-    GROUP BY t.track_ids;
+    GROUP BY t.track_ids
+    ORDER BY t.name;
   `);
     for (let i = 0; i < slowlyCountRows(rawGlobalAsyncTracks); i++) {
       const name = rawGlobalAsyncTracks.columns[0].isNulls![i] ?
@@ -276,12 +277,16 @@ class TrackDecider {
     // Add global or GPU counter tracks that are not bound to any pid/tid.
     const globalCounters = await this.engine.query(`
     select name, id
-    from counter_track
-    where type = 'counter_track'
-    union
-    select name, id
-    from gpu_counter_track
-    where name != 'gpufreq'
+    from (
+      select name, id
+      from counter_track
+      where type = 'counter_track'
+      union
+      select name, id
+      from gpu_counter_track
+      where name != 'gpufreq'
+    )
+    order by name
   `);
     for (let i = 0; i < slowlyCountRows(globalCounters); i++) {
       const name = globalCounters.columns[0].stringValues![i];

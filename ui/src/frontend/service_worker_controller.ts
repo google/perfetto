@@ -43,6 +43,9 @@ export class ServiceWorkerController {
       }
     } else {
       await caches.delete(BYPASS_ID);
+      if (window.localStorage) {
+        window.localStorage.setItem('bypassDisabled', '1');
+      }
       this.install();
     }
     globals.rafScheduler.scheduleFullRedraw();
@@ -79,6 +82,16 @@ export class ServiceWorkerController {
       // (e.g. from the CI artifacts GCS bucket). Supporting the case of a
       // nested index.html is too cumbersome and has no benefits.
       return;
+    }
+
+    // If this is localhost disable the service worker by default, unless the
+    // user manually re-enabled it (in which case bypassDisabled = '1').
+    const hostname = location.hostname;
+    const isLocalhost = ['127.0.0.1', '::1', 'localhost'].includes(hostname);
+    const bypassDisabled = window.localStorage &&
+        window.localStorage.getItem('bypassDisabled') === '1';
+    if (isLocalhost && !bypassDisabled) {
+      await this.setBypass(true);  // Will cause the check below to bail out.
     }
 
     if (await caches.has(BYPASS_ID)) {

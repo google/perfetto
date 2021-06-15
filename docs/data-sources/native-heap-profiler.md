@@ -116,6 +116,8 @@ probability of being selected as a sample, and the corresponding callstack
 gets attributed the complete n bytes. For more accuracy, allocations larger than
 the sampling interval bypass the sampling logic and are recorded with their true
 size.
+See the [heapprofd Sampling](/docs/design-docs/heapprofd-sampling) document for
+details.
 
 ## Startup profiling
 

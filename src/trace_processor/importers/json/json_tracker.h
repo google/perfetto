@@ -47,6 +47,9 @@ class JsonTracker : public Destructible {
   base::Optional<int64_t> CoerceToTs(const Json::Value& value) {
     return json::CoerceToTs(time_unit_, value);
   }
+  base::Optional<int64_t> CoerceToTs(const std::string& value) {
+    return json::CoerceToTs(time_unit_, value);
+  }
 
  private:
   json::TimeUnit time_unit_ = json::TimeUnit::kUs;

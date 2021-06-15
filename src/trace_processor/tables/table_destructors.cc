@@ -77,6 +77,7 @@ DescribeSliceTable::~DescribeSliceTable() = default;
 ThreadStateTable::~ThreadStateTable() = default;
 ExpectedFrameTimelineSliceTable::~ExpectedFrameTimelineSliceTable() = default;
 ActualFrameTimelineSliceTable::~ActualFrameTimelineSliceTable() = default;
+ExperimentalFlatSliceTable::~ExperimentalFlatSliceTable() = default;
 
 // track_tables.h
 TrackTable::~TrackTable() = default;

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {slowlyCountRows} from '../../common/query_iterator';
+import {NUM} from '../../common/query_iterator';
 import {fromNs, toNsCeil, toNsFloor} from '../../common/time';
 import {LIMIT} from '../../common/track_data';
 import {
@@ -33,17 +33,17 @@ class AndroidLogTrackController extends TrackController<Config, Data> {
     // |resolution| is in s/px the frontend wants.
     const quantNs = toNsCeil(resolution);
 
-    const rawResult = await this.query(`
+    const queryRes = await this.queryV2(`
       select
-        cast(ts / ${quantNs} as integer) * ${quantNs} as ts_quant,
+        cast(ts / ${quantNs} as integer) * ${quantNs} as tsQuant,
         prio,
-        count(prio)
+        count(prio) as numEvents
       from android_logs
       where ts >= ${startNs} and ts <= ${endNs}
-      group by ts_quant, prio
-      order by ts_quant, prio limit ${LIMIT};`);
+      group by tsQuant, prio
+      order by tsQuant, prio limit ${LIMIT};`);
 
-    const rowCount = slowlyCountRows(rawResult);
+    const rowCount = queryRes.numRows();
     const result = {
       start,
       end,
@@ -53,12 +53,14 @@ class AndroidLogTrackController extends TrackController<Config, Data> {
       timestamps: new Float64Array(rowCount),
       priorities: new Uint8Array(rowCount),
     };
-    const cols = rawResult.columns;
-    for (let i = 0; i < rowCount; i++) {
-      result.timestamps[i] = fromNs(+cols[0].longValues![i]);
-      const prio = Math.min(+cols[1].longValues![i], 7);
-      result.priorities[i] |= (1 << prio);
-      result.numEvents += +cols[2].longValues![i];
+
+
+    const it = queryRes.iter({tsQuant: NUM, prio: NUM, numEvents: NUM});
+    for (let row = 0; it.valid(); it.next(), row++) {
+      result.timestamps[row] = fromNs(it.tsQuant);
+      const prio = Math.min(it.prio, 7);
+      result.priorities[row] |= (1 << prio);
+      result.numEvents += it.numEvents;
     }
     return result;
   }

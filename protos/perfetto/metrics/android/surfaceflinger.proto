@@ -39,4 +39,19 @@ message AndroidSurfaceflingerMetric {
   // Calculate the number of missed GPU frames divided by
   // total GPU frames
   optional double missed_gpu_frame_rate = 6;
+
+  // Count the number of times SurfaceFlinger needs to invoke GPU
+  // for rendering some layers
+  optional uint32 gpu_invocations = 7;
+
+  // Calculate the average duration of GPU request by SurfaceFlinger
+  // since it enters the FenceMonitor's queue until it gets completed
+  optional double avg_gpu_waiting_dur_ms = 8;
+
+  // Calculate the total duration when there is at least one GPU request
+  // by SurfaceFlinger that is still waiting for GPU to complete the
+  // request.
+  // This also equals to the total duration of
+  // "waiting for GPU completion <fence_num>" in SurfaceFlinger.
+  optional double total_non_empty_gpu_waiting_dur_ms = 9;
 }

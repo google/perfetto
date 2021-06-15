@@ -52,6 +52,11 @@ export function maybeShowErrorDialog(errLog: string) {
     return;
   }
 
+  if (errLog.includes('(ERR:rpc_seq)')) {
+    showRpcSequencingError();
+    return;
+  }
+
   if (timeLastReport > 0 && now - timeLastReport <= MIN_REPORT_PERIOD_MS) {
     queuedErrors.unshift(errLog);
     if (queuedErrors.length > ERR_QUEUE_MAX_LEN) queuedErrors.pop();
@@ -246,6 +251,22 @@ function showWebUSBError() {
         m('br'),
         m('span', 'For details see '),
         m('a', {href: 'http://b/159048331', target: '_blank'}, 'b/159048331'),
+        ),
+    buttons: []
+  });
+}
+
+function showRpcSequencingError() {
+  showModal({
+    title: 'A TraceProcessor RPC error occurred',
+    content: m(
+        'div',
+        m('p', 'The trace processor RPC sequence ID was broken'),
+        m('p', `This can happen when using a HTTP trace processor instance and
+either accidentally sharing this between multiple tabs or
+restarting the trace processor while still in use by UI.`),
+        m('p', `Please refresh this tab and ensure that trace processor is used
+at most one tab at a time.`),
         ),
     buttons: []
   });

@@ -12,9 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertTrue} from '../../base/logging';
 import {Actions} from '../../common/actions';
-import {slowlyCountRows} from '../../common/query_iterator';
+import {NUM, NUM_NULL, STR} from '../../common/query_iterator';
 import {fromNs, toNs} from '../../common/time';
 import {globals} from '../../controller/globals';
 import {
@@ -28,28 +27,26 @@ class DebugSliceTrackController extends TrackController<Config, Data> {
   static readonly kind = DEBUG_SLICE_TRACK_KIND;
 
   async onReload() {
-    const rawResult = await this.query(`select max(depth) from debug_slices`);
-    const maxDepth = (slowlyCountRows(rawResult) === 0) ?
-        1 :
-        rawResult.columns[0].longValues![0];
+    const rawResult = await this.queryV2(
+        `select ifnull(max(depth), 1) as maxDepth from debug_slices`);
+    const maxDepth = rawResult.firstRow({maxDepth: NUM}).maxDepth;
     globals.dispatch(
         Actions.updateTrackConfig({id: this.trackId, config: {maxDepth}}));
   }
 
   async onBoundsChange(start: number, end: number, resolution: number):
       Promise<Data> {
-    const rawResult = await this.query(`select id, name, ts,
-        iif(dur = -1, (SELECT end_ts FROM trace_bounds) - ts, dur),
-        depth from debug_slices where
-        (ts + dur) >= ${toNs(start)} and ts <= ${toNs(end)}`);
+    const queryRes = await this.queryV2(`select
+      ifnull(id, -1) as id,
+      ifnull(name, '[null]') as name,
+      ts,
+      iif(dur = -1, (SELECT end_ts FROM trace_bounds) - ts, dur) as dur,
+      ifnull(depth, 0) as depth
+      from debug_slices
+      where (ts + dur) >= ${toNs(start)} and ts <= ${toNs(end)}`);
 
-    assertTrue(rawResult.columns.length === 5);
-    const [idCol, nameCol, tsCol, durCol, depthCol] = rawResult.columns;
-    const idValues = idCol.longValues! || idCol.doubleValues!;
-    const tsValues = tsCol.longValues! || tsCol.doubleValues!;
-    const durValues = durCol.longValues! || durCol.doubleValues!;
+    const numRows = queryRes.numRows();
 
-    const numRows = slowlyCountRows(rawResult);
     const slices: Data = {
       start,
       end,
@@ -75,24 +72,24 @@ class DebugSliceTrackController extends TrackController<Config, Data> {
       return idx;
     }
 
-    for (let i = 0; i < slowlyCountRows(rawResult); i++) {
+    const it = queryRes.iter(
+        {id: NUM, name: STR, ts: NUM_NULL, dur: NUM_NULL, depth: NUM});
+    for (let row = 0; it.valid(); it.next(), row++) {
       let sliceStart: number, sliceEnd: number;
-      if (tsCol.isNulls![i] || durCol.isNulls![i]) {
+      if (it.ts === null || it.dur === null) {
         sliceStart = sliceEnd = -1;
       } else {
-        sliceStart = tsValues[i];
-        const sliceDur = durValues[i];
-        sliceEnd = sliceStart + sliceDur;
+        sliceStart = it.ts;
+        sliceEnd = sliceStart + it.dur;
       }
-      slices.sliceIds[i] = idCol.isNulls![i] ? -1 : idValues[i];
-      slices.starts[i] = fromNs(sliceStart);
-      slices.ends[i] = fromNs(sliceEnd);
-      slices.depths[i] = depthCol.isNulls![i] ? 0 : depthCol.longValues![i];
-      const sliceName =
-          nameCol.isNulls![i] ? '[null]' : nameCol.stringValues![i];
-      slices.titles[i] = internString(sliceName);
-      slices.isInstant[i] = 0;
-      slices.isIncomplete[i] = 0;
+      slices.sliceIds[row] = it.id;
+      slices.starts[row] = fromNs(sliceStart);
+      slices.ends[row] = fromNs(sliceEnd);
+      slices.depths[row] = it.depth;
+      const sliceName = it.name;
+      slices.titles[row] = internString(sliceName);
+      slices.isInstant[row] = 0;
+      slices.isIncomplete[row] = 0;
     }
 
     return slices;

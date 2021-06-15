@@ -45,6 +45,8 @@
 #include "src/trace_processor/util/proto_to_json.h"
 #include "src/trace_processor/util/status_macros.h"
 
+#include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
+
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_HTTPD)
 #include "src/trace_processor/rpc/httpd.h"
 #endif
@@ -580,6 +582,7 @@ util::Status RunQueriesWithoutOutput(const std::vector<std::string>& queries) {
     if (it.Next()) {
       return util::ErrStatus("Unexpected result from a query.");
     }
+    RETURN_IF_ERROR(it.Status());
   }
   return util::OkStatus();
 }
@@ -600,6 +603,7 @@ util::Status RunQueriesAndPrintResult(const std::vector<std::string>& queries,
     RETURN_IF_ERROR(it.Status());
     if (it.ColumnCount() == 0) {
       bool it_has_more = it.Next();
+      RETURN_IF_ERROR(it.Status());
       PERFETTO_DCHECK(!it_has_more);
       continue;
     }
@@ -754,6 +758,8 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 
     if (option == 'v') {
       printf("%s\n", base::GetVersionString());
+      printf("Trace Processor RPC API version: %d\n",
+             protos::pbzero::TRACE_PROCESSOR_CURRENT_API_VERSION);
       exit(0);
     }
 

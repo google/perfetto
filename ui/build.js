@@ -82,7 +82,6 @@ const cfg = {
   debug: false,
   startHttpServer: false,
   wasmModules: ['trace_processor', 'trace_to_text'],
-  testConfigs: ['jest.unit.config.js'],
 
   // The fields below will be changed by main() after cmdline parsing.
   // Directory structure:
@@ -117,12 +116,11 @@ const RULES = [
 
 let tasks = [];
 let tasksTot = 0, tasksRan = 0;
-let serverStarted = false;
 let httpWatches = [];
 let tStart = Date.now();
 let subprocesses = [];
 
-function main() {
+async function main() {
   const parser = new argparse.ArgumentParser();
   parser.addArgument('--out', {help: 'Output directory'});
   parser.addArgument(['--watch', '-w'], {action: 'storeTrue'});
@@ -130,8 +128,9 @@ function main() {
   parser.addArgument(['--verbose', '-v'], {action: 'storeTrue'});
   parser.addArgument(['--no-build', '-n'], {action: 'storeTrue'});
   parser.addArgument(['--no-wasm', '-W'], {action: 'storeTrue'});
-  parser.addArgument(['--run-tests', '-t'], {action: 'storeTrue'});
+  parser.addArgument(['--run-unittests', '-t'], {action: 'storeTrue'});
   parser.addArgument(['--debug', '-d'], {action: 'storeTrue'});
+  parser.addArgument(['--interactive', '-i'], {action: 'storeTrue'});
 
   const args = parser.parseArgs();
   const clean = !args.no_build;
@@ -148,6 +147,9 @@ function main() {
   cfg.verbose = !!args.verbose;
   cfg.debug = !!args.debug;
   cfg.startHttpServer = args.serve;
+  if (args.interactive) {
+    process.env.PERFETTO_UI_TESTS_INTERACTIVE = '1';
+  }
 
   process.on('SIGINT', () => {
     console.log('\nSIGINT received. Killing all child processes and exiting');
@@ -192,8 +194,22 @@ function main() {
     scanDir(cfg.outDistRootDir);
   }
 
-  if (args.run_tests) {
-    runTests();
+
+  // We should enter the loop only in watch mode, where tsc and rollup are
+  // asynchronous because they run in watch mode.
+  const tStart = Date.now();
+  while (!isDistComplete()) {
+    const secs = Math.ceil((Date.now() - tStart) / 1000);
+    process.stdout.write(`Waiting for first build to complete... ${secs} s\r`);
+    await new Promise(r => setTimeout(r, 500));
+  }
+  if (cfg.watch) console.log('\nFirst build completed!');
+
+  if (cfg.startHttpServer) {
+    startServer();
+  }
+  if (args.run_unittests) {
+    runTests('jest.unittest.config.js');
   }
 }
 
@@ -201,12 +217,17 @@ function main() {
 // Build rules
 // -----------
 
-function runTests() {
-  const args =
-      ['--rootDir', cfg.outTscDir, '--verbose', '--runInBand', '--forceExit'];
-  for (const cfgFile of cfg.testConfigs) {
-    args.push('--projects', pjoin(ROOT_DIR, 'ui/config', cfgFile));
-  }
+function runTests(cfgFile) {
+  const args = [
+    '--rootDir',
+    cfg.outTscDir,
+    '--verbose',
+    '--runInBand',
+    '--detectOpenHandles',
+    '--forceExit',
+    '--projects',
+    pjoin(ROOT_DIR, 'ui/config', cfgFile)
+  ];
   if (cfg.watch) {
     args.push('--watchAll');
     addTask(execNode, ['jest', args, {async: true}]);
@@ -284,7 +305,13 @@ function genVersion() {
 }
 
 function updateSymlinks() {
+  // /ui/out -> /out/ui.
   mklink(cfg.outUiDir, pjoin(ROOT_DIR, 'ui/out'));
+
+  // /out/ui/test/data -> /test/data (For UI tests).
+  mklink(
+      pjoin(ROOT_DIR, 'test/data'),
+      pjoin(ensureDir(pjoin(cfg.outDir, 'test')), 'data'));
 
   // Creates a out/dist_version -> out/dist/v1.2.3 symlink, so rollup config
   // can point to that without having to know the current version number.
@@ -427,6 +454,24 @@ function startServer() {
       .listen(port, '127.0.0.1');
 }
 
+function isDistComplete() {
+  const requiredArtifacts = [
+    'controller_bundle.js',
+    'frontend_bundle.js',
+    'engine_bundle.js',
+    'trace_processor.wasm',
+    'perfetto.css',
+  ];
+  const relPaths = new Set();
+  walk(cfg.outDistDir, absPath => {
+    relPaths.add(path.relative(cfg.outDistDir, absPath));
+  });
+  for (const fName of requiredArtifacts) {
+    if (!relPaths.has(fName)) return false;
+  }
+  return true;
+}
+
 // Called whenever a change in the out/dist directory is detected. It sends a
 // Server-Side-Event to the live_reload.ts script.
 function notifyLiveServer(changedFile) {
@@ -475,11 +520,6 @@ function runTasks() {
     const descr = task.description.substr(0, 80);
     console.log(`${ts} ${BRT}${++tasksRan}/${tasksTot}${RST}\t${descr}`);
     task.func.apply(/*this=*/ undefined, task.args);
-  }
-  // Start the web server once reaching quiescence.
-  if (tasks.length === 0 && !serverStarted && cfg.startHttpServer) {
-    serverStarted = true;
-    startServer();
   }
 }
 

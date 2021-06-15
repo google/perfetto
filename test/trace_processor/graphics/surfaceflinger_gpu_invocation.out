@@ -1,0 +1,8 @@
+android_surfaceflinger {
+  missed_frames: 0
+  missed_hwc_frames: 0
+  missed_gpu_frames: 0
+  gpu_invocations: 4
+  avg_gpu_waiting_dur_ms: 4
+  total_non_empty_gpu_waiting_dur_ms: 11
+}

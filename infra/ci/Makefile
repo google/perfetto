@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-include $(shell python config.py makefile)
+include $(shell python3 config.py makefile)
 
 override COMMON_DEPS := Makefile *.py
 override GCE_LOCAL_STARTUP_SCRIPT := worker/gce-startup-script.sh
@@ -142,7 +142,7 @@ start-worker-for-testing: .deps/gce-template
 .PHONY: cli
 cli:
 	GOOGLE_APPLICATION_CREDENTIALS=test-credentials.json \
-	python -i -c 'from common_utils import *; from config import *; \
+	python3 -i -c 'from common_utils import *; from config import *; \
 		SCOPES += ["https://www.googleapis.com/auth/firebase.database", \
 								"https://www.googleapis.com/auth/userinfo.email", \
 								"https://www.googleapis.com/auth/datastore"]'
