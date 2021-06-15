@@ -484,6 +484,12 @@ def Main():
   if args.verify:
     CheckHashes()
     return 0
+
+  target_os = system().lower()
+  if args.ui and target_os == 'windows':
+    print('Building the UI on Windows is unsupported')
+    return 1
+
   deps = BUILD_DEPS_HOST
   if not args.no_toolchain:
     deps += BUILD_DEPS_TOOLCHAIN_HOST
@@ -498,7 +504,6 @@ def Main():
     RmtreeIfExists(os.path.join(ROOT_DIR, old_dir))
 
   for dep in deps:
-    target_os = system().lower()
     target_arch = GetArch()
     matches_os = dep.target_os == 'all' or target_os == dep.target_os
     matches_arch = dep.target_arch == 'all' or target_arch == dep.target_arch
