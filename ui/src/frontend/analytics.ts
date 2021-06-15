@@ -25,7 +25,7 @@ export function initAnalytics() {
   // Skip analytics is the fragment has "testing=1", this is used by UI tests.
   if ((window.location.origin.startsWith('http://localhost:') ||
        window.location.origin.endsWith('.perfetto.dev')) &&
-      window.location.search.indexOf('testing=1') < 0) {
+      !globals.testing) {
     return new AnalyticsImpl();
   }
   return new NullAnalytics();
