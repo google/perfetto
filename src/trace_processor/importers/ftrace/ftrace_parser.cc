@@ -812,6 +812,13 @@ void FtraceParser::ParseDpuTracingMarkWrite(int64_t timestamp,
   }
 
   uint32_t tgid = static_cast<uint32_t>(evt.pid());
+  // For kernel counter events, they will become thread counter tracks.
+  // But, we want to use the pid field specified in the event as the thread ID
+  // of the thread_counter_track instead of using the thread ID that emitted
+  // the events. So here, we need to override pid = tgid.
+  if (static_cast<char>(evt.type()) == 'C') {
+    pid = tgid;
+  }
   SystraceParser::GetOrCreate(context_)->ParseTracingMarkWrite(
       timestamp, pid, static_cast<char>(evt.type()), false /*trace_begin*/,
       evt.name(), tgid, evt.value());
@@ -828,6 +835,13 @@ void FtraceParser::ParseG2dTracingMarkWrite(int64_t timestamp,
   }
 
   uint32_t tgid = static_cast<uint32_t>(evt.pid());
+  // For kernel counter events, they will become thread counter tracks.
+  // But, we want to use the pid field specified in the event as the thread ID
+  // of the thread_counter_track instead of using the thread ID that emitted
+  // the events. So here, we need to override pid = tgid.
+  if (static_cast<char>(evt.type()) == 'C') {
+    pid = tgid;
+  }
   SystraceParser::GetOrCreate(context_)->ParseTracingMarkWrite(
       timestamp, pid, static_cast<char>(evt.type()), false /*trace_begin*/,
       evt.name(), tgid, evt.value());
