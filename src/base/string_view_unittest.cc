@@ -155,6 +155,20 @@ TEST(StringViewTest, BasicCases) {
   EXPECT_FALSE(StringView("foo") >= StringView("fooo"));
   EXPECT_TRUE(StringView("fooo") >= StringView("foo"));
   EXPECT_FALSE(StringView("bar") >= StringView("foo"));
+
+  // Test StartsWith.
+  EXPECT_TRUE(StringView().StartsWith(StringView()));
+  EXPECT_TRUE(StringView().StartsWith(StringView("")));
+  EXPECT_TRUE(StringView("").StartsWith(StringView("")));
+  EXPECT_TRUE(StringView("").StartsWith(StringView()));
+  EXPECT_TRUE(StringView("foo").StartsWith(StringView()));
+  EXPECT_TRUE(StringView("foo").StartsWith(StringView("")));
+  EXPECT_FALSE(StringView().StartsWith("foo"));
+  EXPECT_FALSE(StringView("").StartsWith("foo"));
+  EXPECT_TRUE(StringView("foo").StartsWith("foo"));
+  EXPECT_TRUE(StringView("foorbar").StartsWith("foo"));
+  EXPECT_FALSE(StringView("foorbar").StartsWith("bar"));
+  EXPECT_FALSE(StringView("foo").StartsWith("fooo"));
 }
 
 TEST(StringViewTest, HashCollisions) {
