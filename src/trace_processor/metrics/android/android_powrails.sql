@@ -22,6 +22,28 @@ FROM counter c
 JOIN counter_track t on c.track_id = t.id
 WHERE name LIKE 'power.%';
 
+DROP VIEW IF EXISTS avg_used_powers;
+CREATE VIEW avg_used_powers AS
+SELECT
+  name,
+  avg_used_power
+FROM (
+  SELECT
+    name,
+    (LEAD(value) OVER (PARTITION BY name ORDER BY ts) - value) /
+      (LEAD(ts) OVER (PARTITION BY name ORDER BY ts) - ts) AS avg_used_power
+  FROM (
+    SELECT name, MIN(ts) AS ts, value
+    FROM power_rails_counters
+    GROUP BY name
+    UNION
+    SELECT name, MAX(ts) AS ts, value
+    FROM power_rails_counters
+    GROUP BY name
+  )
+  ORDER BY name, ts
+) WHERE avg_used_power IS NOT NULL;
+
 DROP VIEW IF EXISTS power_rails_view;
 CREATE VIEW power_rails_view AS
 WITH RECURSIVE name AS (SELECT DISTINCT name FROM power_rails_counters)
@@ -35,7 +57,9 @@ SELECT
         'timestamp_ms', ts,
         'energy_uws', value
       )
-    )
+    ),
+    'avg_used_power_mw', (SELECT avg_used_power FROM avg_used_powers
+        WHERE avg_used_powers.name = power_rails_counters.name)
   ) AS power_rails_proto
 FROM power_rails_counters
 GROUP BY name
