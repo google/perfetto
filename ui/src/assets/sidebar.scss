@@ -280,6 +280,12 @@
     }
 }
 
+// Hide the footer when running integration tests, as the version code and the
+// tiny text with pending queries can fail the screenshot diff test.
+body.testing .sidebar-footer {
+  visibility: hidden;
+}
+
 .keycap {
   background-color: #fafbfc;
   border: 1px solid #d1d5da;

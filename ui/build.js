@@ -129,8 +129,10 @@ async function main() {
   parser.addArgument(['--no-build', '-n'], {action: 'storeTrue'});
   parser.addArgument(['--no-wasm', '-W'], {action: 'storeTrue'});
   parser.addArgument(['--run-unittests', '-t'], {action: 'storeTrue'});
+  parser.addArgument(['--run-integrationtests', '-T'], {action: 'storeTrue'});
   parser.addArgument(['--debug', '-d'], {action: 'storeTrue'});
   parser.addArgument(['--interactive', '-i'], {action: 'storeTrue'});
+  parser.addArgument(['--rebaseline', '-r'], {action: 'storeTrue'});
 
   const args = parser.parseArgs();
   const clean = !args.no_build;
@@ -149,6 +151,9 @@ async function main() {
   cfg.startHttpServer = args.serve;
   if (args.interactive) {
     process.env.PERFETTO_UI_TESTS_INTERACTIVE = '1';
+  }
+  if (args.rebaseline) {
+    process.env.PERFETTO_UI_TESTS_REBASELINE = '1';
   }
 
   process.on('SIGINT', () => {
@@ -210,6 +215,9 @@ async function main() {
   }
   if (args.run_unittests) {
     runTests('jest.unittest.config.js');
+  }
+  if (args.run_integrationtests) {
+    runTests('jest.integrationtest.config.js');
   }
 }
 
