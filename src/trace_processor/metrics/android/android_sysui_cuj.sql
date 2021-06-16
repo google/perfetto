@@ -114,22 +114,15 @@ AND parent_id IS NULL;
 DROP TABLE IF EXISTS android_sysui_cuj_frame_timeline_events;
 CREATE TABLE android_sysui_cuj_frame_timeline_events AS
   SELECT
-    expected.ts as ts_expected,
-    expected.dur as dur_expected,
-    expected.layer_name as layer_name,
-    actual.name as vsync,
+    actual.layer_name as layer_name,
+    CAST(actual.name as INTEGER) as vsync,
     actual.ts as ts_actual,
     actual.dur as dur_actual,
     actual.jank_type LIKE '%App Deadline Missed%' as app_missed,
     actual.jank_type,
     actual.on_time_finish
-  FROM expected_frame_timeline_slice expected
-  JOIN android_sysui_cuj_last_cuj cuj
-    ON expected.upid = cuj.upid
-  JOIN actual_frame_timeline_slice actual
-    ON expected.surface_frame_token = actual.surface_frame_token
-    AND expected.upid = actual.upid
-    AND expected.layer_name = actual.layer_name;
+  FROM android_sysui_cuj_last_cuj cuj
+  JOIN actual_frame_timeline_slice actual USING (upid);
 
 DROP TABLE IF EXISTS android_sysui_cuj_frames;
 CREATE TABLE android_sysui_cuj_frames AS
