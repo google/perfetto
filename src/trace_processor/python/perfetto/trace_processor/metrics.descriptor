@@ -348,8 +348,8 @@ mem_values (2D.perfetto.protos.AndroidMemoryUnaggregatedMetric.ProcessMemory
 package_name (	RpackageName
 uid (Ruid!
 version_code (RversionCode
-ð
-5protos/perfetto/metrics/android/powrails_metric.protoperfetto.protos"¥
+œ
+5protos/perfetto/metrics/android/powrails_metric.protoperfetto.protos"Ñ
 AndroidPowerRailsN
 power_rails (2-.perfetto.protos.AndroidPowerRails.PowerRailsR
 powerRailsN
@@ -357,12 +357,13 @@ powerRailsN
 EnergyData!
 timestamp_ms (RtimestampMs
 
-energy_uws (R	energyUwsp
+energy_uws (R	energyUws›
 
 PowerRails
 name (	RnameN
 energy_data (2-.perfetto.protos.AndroidPowerRails.EnergyDataR
-energyData
+energyData)
+avg_used_power_mw (RavgUsedPowerMw
 õ#
 4protos/perfetto/metrics/android/startup_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"ó"
 AndroidStartupMetricG
