@@ -1,0 +1,47 @@
+packet {
+  ftrace_events {
+    cpu: 2
+    event {
+      timestamp: 795572805481
+      pid: 237
+      dpu_tracing_mark_write {
+        pid: 237
+        name: "dpu_vote_clock"
+        type: 67
+        value: 123
+      }
+    }
+    event {
+      timestamp: 795572870504
+      pid: 515
+      dpu_tracing_mark_write {
+        pid: 237
+        name: "dpu_vote_clock"
+        type: 67
+        value: 100
+      }
+    }
+    event {
+      timestamp: 795620516581
+      pid: 237
+      dpu_tracing_mark_write {
+        pid: 237
+        name: "dpu_vote_clock"
+        type: 67
+        value: 125
+      }
+    }
+    event {
+      timestamp: 795620943421
+      pid: 515
+      dpu_tracing_mark_write {
+        pid: 237
+        name: "dpu_vote_clock"
+        type: 67
+        value: 100
+      }
+    }
+  }
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 3
+}
