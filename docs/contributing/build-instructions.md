@@ -154,7 +154,7 @@ Android.bp file. If you are adding a new target, add a new entry to the
 
 ## Supported platforms
 
-**Linux desktop** (Debian Rodete)
+**Linux desktop** (Debian Testing/Rodete)
 
 - Hermetic clang + libcxx toolchain (both following chromium's revisions)
 - GCC-7 and libstdc++ 6
