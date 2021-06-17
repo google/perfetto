@@ -23,7 +23,7 @@ import {EngineMode, TraceArrayBufferSource} from '../common/state';
 import * as version from '../gen/perfetto_version';
 
 import {Animation} from './animation';
-import {copyToClipboard} from './clipboard';
+import {onClickCopy} from './clipboard';
 import {globals} from './globals';
 import {toggleHelp} from './help_modal';
 import {
@@ -966,14 +966,7 @@ function createTraceLink(title: string, url: string) {
     href: url,
     title: 'Click to copy the URL',
     target: '_blank',
-    onclick: (e: Event) => {
-      e.preventDefault();
-      copyToClipboard(url);
-      globals.dispatch(Actions.updateStatus({
-        msg: 'Link copied into the clipboard',
-        timestamp: Date.now() / 1000,
-      }));
-    },
+    onclick: onClickCopy(url)
   };
   return m('a.trace-file-name', linkProps, title);
 }
