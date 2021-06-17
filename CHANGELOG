@@ -2,7 +2,8 @@ Unreleased:
   Tracing service and probes:
     *
   Trace Processor:
-    *
+    * Changed CORS headers of --httpd mode to allow only https://ui.perfetto.dev
+      and http://localhost:10000. This affects only CORS-aware browser clients.
   UI:
     * Fixed ADB connection issues ("unable to reset device") on Windows and Mac.
   SDK:
