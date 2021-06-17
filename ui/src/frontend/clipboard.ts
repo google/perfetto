@@ -12,6 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Actions} from '../common/actions';
+import {globals} from './globals';
+
+export function onClickCopy(url: string) {
+  return (e: Event) => {
+    e.preventDefault();
+    copyToClipboard(url);
+    globals.dispatch(Actions.updateStatus(
+        {msg: 'Link copied into the clipboard', timestamp: Date.now() / 1000}));
+  };
+}
+
 export async function copyToClipboard(text: string): Promise<void> {
   try {
     // TODO(hjd): Fix typescript type for navigator.
