@@ -39,16 +39,10 @@ class WindowsSDKApi(recipe_api.RecipeApi):
       yield
       return
 
-    try:
-      with self.m.context(infra_steps=True):
-        sdk_dir = self._ensure_sdk()
-      with self.m.context(**self._sdk_env(sdk_dir)):
-        yield
-    finally:
-      # cl.exe automatically starts background mspdbsrv.exe daemon which
-      # needs to be manually stopped so Swarming can tidy up after itself.
-      self.m.step('taskkill mspdbsrv',
-                  ['taskkill.exe', '/f', '/t', '/im', 'mspdbsrv.exe'])
+    with self.m.context(infra_steps=True):
+      sdk_dir = self._ensure_sdk()
+    with self.m.context(**self._sdk_env(sdk_dir)):
+      yield
 
   def _ensure_sdk(self):
     """Ensures the Windows SDK CIPD package is installed.
