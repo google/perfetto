@@ -24,6 +24,7 @@ surfaceflinger_gpu_invocation.py android_surfaceflinger surfaceflinger_gpu_invoc
 
 # GPU metrics
 gpu_metric.py android_gpu gpu_metric.out
+gpu_frequency_metric.textproto android_gpu gpu_frequency_metric.out
 
 # Android SysUI CUJs metrics
 android_sysui_cuj.py android_sysui_cuj android_sysui_cuj.out

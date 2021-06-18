@@ -1,0 +1,55 @@
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 200001000000
+      pid: 527
+      gpu_frequency {
+        gpu_id: 0
+        state: 585000
+      }
+    }
+    event {
+      timestamp: 200002000000
+      pid: 527
+      gpu_frequency {
+        gpu_id: 1
+        state: 400000
+      }
+    }
+    event {
+      timestamp: 200003000000
+      pid: 527
+      gpu_frequency {
+        gpu_id: 0
+        state: 0
+      }
+    }
+    event {
+      timestamp: 200004000000
+      pid: 527
+      gpu_frequency {
+        gpu_id: 0
+        state: 603000
+      }
+    }
+    event {
+      timestamp: 200005000000
+      pid: 527
+      gpu_frequency {
+        gpu_id: 1
+        state: 758000
+      }
+    }
+    event {
+      timestamp: 200005999999
+      pid: 527
+      gpu_frequency {
+        gpu_id: 0
+        state: 603000
+      }
+    }
+  }
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 2
+}
