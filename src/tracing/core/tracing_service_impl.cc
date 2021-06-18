@@ -1825,8 +1825,9 @@ void TracingServiceImpl::FlushAndDisableTracing(TracingSessionID tsid) {
   PERFETTO_DLOG("Triggering final flush for %" PRIu64, tsid);
   auto weak_this = weak_ptr_factory_.GetWeakPtr();
   Flush(tsid, 0, [weak_this, tsid](bool success) {
-    PERFETTO_DLOG("Flush done (success: %d), disabling trace session %" PRIu64,
-                  success, tsid);
+    // This was a DLOG up to Jun 2021 (v16, Android S).
+    PERFETTO_LOG("FlushAndDisableTracing(%" PRIu64 ") done, success=%d", tsid,
+                 success);
     if (!weak_this)
       return;
     TracingSession* session = weak_this->GetTracingSession(tsid);
@@ -3189,6 +3190,12 @@ bool TracingServiceImpl::MaybeSaveTraceForBugreport(
   // No eligible trace found.
   if (!max_session)
     return false;
+
+  PERFETTO_LOG("Seizing trace for bugreport. tsid:%" PRIu64
+               " state:%d wf:%d score:%d name:\"%s\"",
+               max_tsid, max_session->state, !!max_session->write_into_file,
+               max_session->config.bugreport_score(),
+               max_session->config.unique_session_name().c_str());
 
   auto br_fd = CreateTraceFile(GetBugreportTmpPath(), /*overwrite=*/true);
   if (!br_fd)
