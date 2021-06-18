@@ -172,17 +172,6 @@
     "name": "ninja"
   },
   {
-    "cmd": [
-      "taskkill.exe",
-      "/f",
-      "/t",
-      "/im",
-      "mspdbsrv.exe"
-    ],
-    "cwd": "[CACHE]\\builder\\perfetto",
-    "name": "taskkill mspdbsrv"
-  },
-  {
     "name": "$result"
   }
 ]
