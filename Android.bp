@@ -8007,6 +8007,7 @@ genrule {
     "src/trace_processor/metrics/android/g2d.sql",
     "src/trace_processor/metrics/android/g2d_duration.sql",
     "src/trace_processor/metrics/android/global_counter_span_view.sql",
+    "src/trace_processor/metrics/android/gpu_counter_span_view.sql",
     "src/trace_processor/metrics/android/hsc_startups.sql",
     "src/trace_processor/metrics/android/java_heap_histogram.sql",
     "src/trace_processor/metrics/android/java_heap_stats.sql",

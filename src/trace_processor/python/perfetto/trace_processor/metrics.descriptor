@@ -118,18 +118,24 @@ avg_dur_ns (RavgDurNs
 frameCount
 error_count (R
 errorCount
-÷
-0protos/perfetto/metrics/android/gpu_metric.protoperfetto.protos"ê
+ß
+0protos/perfetto/metrics/android/gpu_metric.protoperfetto.protos"·
 AndroidGpuMetricG
 	processes (2).perfetto.protos.AndroidGpuMetric.ProcessR	processes
 mem_max (RmemMax
 mem_min (RmemMin
-mem_avg (RmemAvgh
+mem_avg (RmemAvgT
+freq_metrics (21.perfetto.protos.AndroidGpuMetric.FrequencyMetricRfreqMetricsh
 Process
 name (	Rname
 mem_max (RmemMax
 mem_min (RmemMin
-mem_avg (RmemAvg
+mem_avg (RmemAvgy
+FrequencyMetric
+gpu_id (RgpuId
+freq_max (RfreqMax
+freq_min (RfreqMin
+freq_avg (RfreqAvg
 ñ	
 0protos/perfetto/metrics/android/hwcomposer.protoperfetto.protos"–
 AndroidHwcomposerMetrics8

@@ -36,4 +36,18 @@ message AndroidGpuMetric {
   optional int64 mem_max = 2;
   optional int64 mem_min = 3;
   optional int64 mem_avg = 4;
+
+  message FrequencyMetric {
+    // Identifier for GPU in a multi-gpu device.
+    optional uint32 gpu_id = 1;
+
+    // max/min/avg GPU frequency for this gpu_id
+    // the calculation of avg is weighted by the duration of each frequency
+    optional int64 freq_max = 2;
+    optional int64 freq_min = 3;
+    optional double freq_avg = 4;
+  }
+
+  // GPU frequency metric for each gpu_id
+  repeated FrequencyMetric freq_metrics = 5;
 }
