@@ -147,3 +147,6 @@ sched_blocked_reason_symbolized.textproto ../common/to_systrace.sql sched_blocke
 # JSON instants and counters
 ../../data/counters.json json_counters.sql counters_json_counters.out
 ../../data/instants.json json_instants.sql instants_json_instants.out
+
+# Trace quality metric
+very_long_sched.py android_trace_quality very_long_sched_android_trace_quality.out
