@@ -509,7 +509,7 @@ size_t CpuReader::ParsePagePayload(const uint8_t* start_of_payload,
           PERFETTO_DFATAL("Empty padding event.");
           return 0;
         }
-        uint32_t length;
+        uint32_t length = 0;
         if (!ReadAndAdvance<uint32_t>(&ptr, end, &length))
           return 0;
         // length includes itself (4 bytes)
@@ -520,20 +520,23 @@ size_t CpuReader::ParsePagePayload(const uint8_t* start_of_payload,
       }
       case kTypeTimeExtend: {
         // Extend the time delta.
-        uint32_t time_delta_ext;
+        uint32_t time_delta_ext = 0;
         if (!ReadAndAdvance<uint32_t>(&ptr, end, &time_delta_ext))
           return 0;
-        // See https://goo.gl/CFBu5x
         timestamp += (static_cast<uint64_t>(time_delta_ext)) << 27;
         break;
       }
       case kTypeTimeStamp: {
-        // Sync time stamp with external clock.
-        TimeStamp time_stamp;
-        if (!ReadAndAdvance<TimeStamp>(&ptr, end, &time_stamp))
+        // Absolute timestamp. This was historically partially implemented, but
+        // not written. Kernels 4.17+ reimplemented this record, changing its
+        // size in the process. We assume the newer layout. Parsed the same as
+        // kTypeTimeExtend, except that the timestamp is interpreted as an
+        // absolute, instead of a delta on top of the previous state.
+        timestamp = event_header.time_delta;
+        uint32_t time_delta_ext = 0;
+        if (!ReadAndAdvance<uint32_t>(&ptr, end, &time_delta_ext))
           return 0;
-        // Not implemented in the kernel, nothing should generate this.
-        PERFETTO_DFATAL("Unimplemented in kernel. Should be unreachable.");
+        timestamp += (static_cast<uint64_t>(time_delta_ext)) << 27;
         break;
       }
       // Data record:
@@ -543,7 +546,7 @@ size_t CpuReader::ParsePagePayload(const uint8_t* start_of_payload,
         // record. if == 0, this is an extended record and the size of the
         // record is stored in the first uint32_t word in the payload. See
         // Kernel's include/linux/ring_buffer.h
-        uint32_t event_size;
+        uint32_t event_size = 0;
         if (event_header.type_or_length == 0) {
           if (!ReadAndAdvance<uint32_t>(&ptr, end, &event_size))
             return 0;
