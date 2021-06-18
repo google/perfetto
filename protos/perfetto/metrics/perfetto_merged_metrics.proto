@@ -1047,6 +1047,22 @@ message AndroidThreadTimeInStateMetric {
 
 // End of protos/perfetto/metrics/android/thread_time_in_state_metric.proto
 
+// Begin of protos/perfetto/metrics/android/trace_quality.proto
+
+// Metric which checks the data in the trace processor tables is "reasonble"
+// (i.e. we would expect to see it from a real device).
+//
+// This is useful to reject traces which may be valid (so no stat would be
+// recorded) but a human would find the trace nonsensical.
+message AndroidTraceQualityMetric {
+  message Failure {
+    // The name of the failed check.
+    optional string name = 1;
+  }
+  repeated Failure failures = 1;
+}
+// End of protos/perfetto/metrics/android/trace_quality.proto
+
 // Begin of protos/perfetto/metrics/android/unsymbolized_frames.proto
 
 message UnsymbolizedFrames {
@@ -1107,7 +1123,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 34
+// Next id: 35
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -1190,6 +1206,9 @@ message TraceMetrics {
 
   // Dmabuf heap metrics.
   optional AndroidDmaHeapMetric android_dma_heap = 32;
+
+  // Metric to verify the quality of the trace.
+  optional AndroidTraceQualityMetric android_trace_quality = 34;
 
   // Demo extensions.
   extensions 450 to 499;
