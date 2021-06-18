@@ -323,6 +323,7 @@ bool CpuReader::ProcessPagesForDataSource(
       PERFETTO_DCHECK(max_index_at_start <= metadata->kernel_addrs.size());
       protos::pbzero::InternedData* interned_data = nullptr;
       auto* ksyms_map = symbolizer->GetOrCreateKernelSymbolMap();
+      bool wrote_at_least_one_symbol = false;
       for (const FtraceMetadata::KernelAddr& kaddr : metadata->kernel_addrs) {
         if (kaddr.index <= max_index_at_start)
           continue;
@@ -351,9 +352,18 @@ bool CpuReader::ProcessPagesForDataSource(
         auto* interned_sym = interned_data->add_kernel_symbols();
         interned_sym->set_iid(kaddr.index);
         interned_sym->set_str(sym_name);
+        wrote_at_least_one_symbol = true;
       }
+
       auto max_it_at_end = static_cast<uint32_t>(metadata->kernel_addrs.size());
-      metadata->last_kernel_addr_index_written = max_it_at_end;
+
+      // Rationale for the if (wrote_at_least_one_symbol) check: in rare cases,
+      // all symbols seen in a ProcessPagesForDataSource() call can fail the
+      // ksyms_map->Lookup(). If that happens we don't want to bump the
+      // last_kernel_addr_index_written watermark, as that would cause the next
+      // call to NOT emit the SEQ_INCREMENTAL_STATE_CLEARED.
+      if (wrote_at_least_one_symbol)
+        metadata->last_kernel_addr_index_written = max_it_at_end;
     }
 
     packet->Finalize();
