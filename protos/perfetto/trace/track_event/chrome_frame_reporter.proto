@@ -74,11 +74,11 @@ message ChromeFrameReporter {
     SCROLL_MAIN_THREAD = 1;
     SCROLL_COMPOSITOR_THREAD = 2;
 
-    // Used when it can't be determined wheter a scroll is in progress or not.
+    // Used when it can't be determined whether a scroll is in progress or not.
     SCROLL_UNKNOWN = 3;
   }
 
-  // The type of active scroll
+  // The type of active scroll.
   optional ScrollState scroll_state = 6;
 
   // If any main thread animation is active during this frame.
