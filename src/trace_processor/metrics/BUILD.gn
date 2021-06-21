@@ -62,6 +62,7 @@ sql_files = [
   "android/mem_stats_priority_breakdown.sql",
   "android/span_view_stats.sql",
   "android/android_sysui_cuj.sql",
+  "android/android_sysui_cuj_jank_query.sql",
   "android/process_counter_span_view.sql",
   "android/global_counter_span_view.sql",
   "android/gpu_counter_span_view.sql",
