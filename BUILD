@@ -3355,6 +3355,26 @@ perfetto_proto_library(
     ],
 )
 
+# GN target: //protos/third_party/chromium:lite
+perfetto_cc_proto_library(
+    name = "protos_third_party_chromium_lite",
+    deps = [
+        ":protos_third_party_chromium_protos",
+    ],
+)
+
+# GN target: //protos/third_party/chromium:lite
+perfetto_proto_library(
+    name = "protos_third_party_chromium_protos",
+    srcs = [
+        "protos/third_party/chromium/chrome_track_event.proto",
+    ],
+    visibility = PERFETTO_CONFIG.public_visibility,
+    deps = [
+        ":protos_perfetto_trace_track_event_protos",
+    ],
+)
+
 # GN target: //protos/third_party/pprof:zero
 perfetto_proto_library(
     name = "protos_third_party_pprof_protos",
