@@ -45,14 +45,15 @@ class Alerts implements m.ClassComponent {
 /**
  * Wrap component with common UI elements (nav bar etc).
  */
-export function createPage(component: m.Component): m.Component {
+export function createPage(component: m.Component<PageAttrs>):
+    m.Component<PageAttrs> {
   const pageComponent = {
-    view() {
+    view({attrs}: m.Vnode<PageAttrs>) {
       const children = [
         m(Sidebar),
         m(Topbar),
         m(Alerts),
-        m(component),
+        m(component, attrs),
         m(CookieConsent),
       ];
       if (globals.frontendLocalState.perfDebug) {
@@ -63,4 +64,8 @@ export function createPage(component: m.Component): m.Component {
   };
 
   return pageComponent;
+}
+
+export interface PageAttrs {
+  subpage?: string;
 }
