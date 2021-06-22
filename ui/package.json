@@ -51,6 +51,6 @@
   },
   "scripts": {
     "build": "node build.js",
-    "test": "node build.js --run-tests"
+    "test": "node build.js --run-unittests"
   }
 }

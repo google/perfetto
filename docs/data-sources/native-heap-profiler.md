@@ -70,7 +70,7 @@ For the full arguments list see the
 
 #### Using the Recording page of Perfetto UI
 
-You can also use the [Perfetto UI](https://ui.perfetto.dev/#!/record?p=memory)
+You can also use the [Perfetto UI](https://ui.perfetto.dev/#!/record/memory)
 to record heapprofd profiles. Tick "Heap profiling" in the trace configuration,
 enter the processes you want to target, click "Add Device" to pair your phone,
 and record profiles straight from your browser. This is also possible on
