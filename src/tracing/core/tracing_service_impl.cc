@@ -56,6 +56,7 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/metatrace.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/temp_file.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/watchdog.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
@@ -100,16 +101,11 @@ namespace perfetto {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) && \
     PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
-// This is the only SELinux approved dir for trace files that are created
+// These are the only SELinux approved dir for trace files that are created
 // directly by traced.
 const char* kTraceDirBasePath = "/data/misc/perfetto-traces/";
-#endif
-
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-const char* kBugreportTracePath =
+const char* kAndroidProductionBugreportTracePath =
     "/data/misc/perfetto-traces/bugreport/systrace.pftrace";
-#else
-const char* kBugreportTracePath = "/tmp/bugreport.pftrace";
 #endif
 
 namespace {
@@ -273,7 +269,7 @@ base::ScopedFile CreateTraceFile(const std::string& path, bool overwrite) {
 }
 
 std::string GetBugreportTmpPath() {
-  return std::string(kBugreportTracePath) + ".tmp";
+  return GetBugreportPath() + ".tmp";
 }
 
 bool ShouldLogEvent(const TraceConfig& cfg) {
@@ -298,6 +294,16 @@ constexpr size_t TracingServiceImpl::kDefaultShmPageSize;
 constexpr size_t TracingServiceImpl::kMaxShmSize;
 constexpr uint32_t TracingServiceImpl::kDataSourceStopTimeoutMs;
 constexpr uint8_t TracingServiceImpl::kSyncMarker[];
+
+std::string GetBugreportPath() {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) && \
+    PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
+  return kAndroidProductionBugreportTracePath;
+#else
+  // Only for tests, SaveTraceForBugreport is not used on other OSes.
+  return base::GetSysTempDir() + "/bugreport.pftrace";
+#endif
+}
 
 // static
 std::unique_ptr<TracingService> TracingService::CreateInstance(
@@ -1926,7 +1932,8 @@ bool TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
   // packets like TraceConfig and Clock snapshots. So we bail out early and let
   // the consumer know there is no data.
   if (!tracing_session->config.trigger_config().triggers().empty() &&
-      tracing_session->received_triggers.empty()) {
+      tracing_session->received_triggers.empty() &&
+      !tracing_session->seized_for_bugreport) {
     PERFETTO_DLOG(
         "ReadBuffers(): tracing session has not received a trigger yet.");
     return false;
@@ -3528,12 +3535,12 @@ void TracingServiceImpl::ConsumerEndpointImpl::SaveTraceForBugreport(
     SaveTraceForBugreportCallback consumer_callback) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   auto on_complete_callback = [consumer_callback] {
-    if (rename(GetBugreportTmpPath().c_str(), kBugreportTracePath)) {
+    if (rename(GetBugreportTmpPath().c_str(), GetBugreportPath().c_str())) {
       consumer_callback(false, "rename(" + GetBugreportTmpPath() + ", " +
-                                   kBugreportTracePath + ") failed (" +
+                                   GetBugreportPath() + ") failed (" +
                                    strerror(errno) + ")");
     } else {
-      consumer_callback(true, kBugreportTracePath);
+      consumer_callback(true, GetBugreportPath());
     }
   };
   if (!service_->MaybeSaveTraceForBugreport(std::move(on_complete_callback))) {
