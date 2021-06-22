@@ -56,6 +56,7 @@ import {HomePage} from './home_page';
 import {openBufferWithLegacyTraceViewer} from './legacy_trace_viewer';
 import {initLiveReloadIfLocalhost} from './live_reload';
 import {MetricsPage} from './metrics_page';
+import {PageAttrs} from './pages';
 import {postMessageHandler} from './post_message_handler';
 import {RecordPage, updateAvailableAdbDevices} from './record_page';
 import {Router} from './router';
@@ -407,18 +408,14 @@ function main() {
   globals.initialize(dispatch, controller);
   globals.serviceWorkerController.install();
 
-  const router = new Router(
-      '/',
-      {
-        '/': HomePage,
-        '/viewer': ViewerPage,
-        '/record': RecordPage,
-        '/query': AnalyzePage,
-        '/metrics': MetricsPage,
-        '/info': TraceInfoPage,
-      },
-      dispatch,
-      globals.logging);
+  const routes = new Map<string, m.Component<PageAttrs>>();
+  routes.set('/', HomePage);
+  routes.set('/viewer', ViewerPage);
+  routes.set('/record', RecordPage);
+  routes.set('/query', AnalyzePage);
+  routes.set('/metrics', MetricsPage);
+  routes.set('/info', TraceInfoPage);
+  const router = new Router('/', routes, dispatch, globals.logging);
   forwardRemoteCalls(frontendChannel.port2, new FrontendApi(router));
 
   // We proxy messages between the extension and the controller because the
@@ -470,8 +467,9 @@ function onCssLoaded(router: Router) {
   // And replace it with the root <main> element which will be used by mithril.
   document.body.innerHTML = '<main></main>';
   const main = assertExists(document.body.querySelector('main'));
-  globals.rafScheduler.domRedraw = () =>
-      m.render(main, m(router.resolve(globals.state.route)));
+  globals.rafScheduler.domRedraw = () => {
+    m.render(main, router.resolve(globals.state.route));
+  };
 
   router.navigateToCurrentHash();
 
