@@ -34,7 +34,7 @@ import {MAX_TIME, RecordMode} from '../common/state';
 import {AdbOverWebUsb} from '../controller/adb';
 
 import {globals} from './globals';
-import {createPage} from './pages';
+import {createPage, PageAttrs} from './pages';
 import {recordConfigStore} from './record_config';
 import {
   CodeSnippet,
@@ -49,7 +49,6 @@ import {
   Toggle,
   ToggleAttrs
 } from './record_widgets';
-import {Router} from './router';
 
 const LOCAL_STORAGE_SHOW_CONFIG = 'showConfigs';
 
@@ -1186,7 +1185,7 @@ function StopCancelButtons() {
 }
 
 function onStartRecordingPressed() {
-  location.href = '#!/record?p=instructions';
+  location.href = '#!/record/instructions';
   globals.rafScheduler.scheduleFullRedraw();
 
   const target = globals.state.recordingTarget;
@@ -1303,7 +1302,7 @@ function selectAndroidDeviceIfAvailable(
 function recordMenu(routePage: string) {
   const target = globals.state.recordingTarget;
   const chromeProbe =
-      m('a[href="#!/record?p=chrome"]',
+      m('a[href="#!/record/chrome"]',
         m(`li${routePage === 'chrome' ? '.active' : ''}`,
           m('i.material-icons', 'laptop_chromebook'),
           m('.title', 'Chrome'),
@@ -1318,18 +1317,18 @@ function recordMenu(routePage: string) {
       },
       m('header', 'Trace config'),
       m('ul',
-        m('a[href="#!/record?p=buffers"]',
+        m('a[href="#!/record/buffers"]',
           m(`li${routePage === 'buffers' ? '.active' : ''}`,
             m('i.material-icons', 'tune'),
             m('.title', 'Recording settings'),
             m('.sub', 'Buffer mode, size and duration'))),
-        m('a[href="#!/record?p=instructions"]',
+        m('a[href="#!/record/instructions"]',
           m(`li${routePage === 'instructions' ? '.active' : ''}`,
             m('i.material-icons.rec', 'fiber_manual_record'),
             m('.title', 'Recording command'),
             m('.sub', 'Manually record trace'))),
         localStorage.hasOwnProperty(LOCAL_STORAGE_SHOW_CONFIG) ?
-            m('a[href="#!/record?p=config"]',
+            m('a[href="#!/record/config"]',
               {
                 onclick: () => {
                   recordConfigStore.reloadFromLocalStorage();
@@ -1343,33 +1342,33 @@ function recordMenu(routePage: string) {
       m('header', 'Probes'),
       m('ul',
         isChromeTarget(target) && !isCrOSTarget(target) ? [chromeProbe] : [
-          m('a[href="#!/record?p=cpu"]',
+          m('a[href="#!/record/cpu"]',
             m(`li${routePage === 'cpu' ? '.active' : ''}`,
               m('i.material-icons', 'subtitles'),
               m('.title', 'CPU'),
               m('.sub', 'CPU usage, scheduling, wakeups'))),
-          m('a[href="#!/record?p=gpu"]',
+          m('a[href="#!/record/gpu"]',
             m(`li${routePage === 'gpu' ? '.active' : ''}`,
               m('i.material-icons', 'aspect_ratio'),
               m('.title', 'GPU'),
               m('.sub', 'GPU frequency, memory'))),
-          m('a[href="#!/record?p=power"]',
+          m('a[href="#!/record/power"]',
             m(`li${routePage === 'power' ? '.active' : ''}`,
               m('i.material-icons', 'battery_charging_full'),
               m('.title', 'Power'),
               m('.sub', 'Battery and other energy counters'))),
-          m('a[href="#!/record?p=memory"]',
+          m('a[href="#!/record/memory"]',
             m(`li${routePage === 'memory' ? '.active' : ''}`,
               m('i.material-icons', 'memory'),
               m('.title', 'Memory'),
               m('.sub', 'Physical mem, VM, LMK'))),
-          m('a[href="#!/record?p=android"]',
+          m('a[href="#!/record/android"]',
             m(`li${routePage === 'android' ? '.active' : ''}`,
               m('i.material-icons', 'android'),
               m('.title', 'Android apps & svcs'),
               m('.sub', 'atrace and logcat'))),
           chromeProbe,
-          m('a[href="#!/record?p=advanced"]',
+          m('a[href="#!/record/advanced"]',
             m(`li${routePage === 'advanced' ? '.active' : ''}`,
               m('i.material-icons', 'settings'),
               m('.title', 'Advanced settings'),
@@ -1379,7 +1378,7 @@ function recordMenu(routePage: string) {
 
 
 export const RecordPage = createPage({
-  view() {
+  view({attrs}: m.Vnode<PageAttrs>) {
     const SECTIONS: {[property: string]: (cssClass: string) => m.Child} = {
       buffers: RecSettings,
       instructions: Instructions,
@@ -1394,8 +1393,8 @@ export const RecordPage = createPage({
     };
 
     const pages: m.Children = [];
-    const routePageParam = Router.param('p');
-    let routePage = typeof routePageParam === 'string' ? routePageParam : '';
+    // we need to remove the `/` character from the route
+    let routePage = attrs.subpage ? attrs.subpage.substr(1) : '';
     if (!Object.keys(SECTIONS).includes(routePage)) {
       routePage = 'buffers';
     }
