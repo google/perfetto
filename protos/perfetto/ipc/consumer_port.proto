@@ -261,7 +261,7 @@ message SaveTraceForBugreportRequest {}
 // or something failed.
 message SaveTraceForBugreportResponse {
   // If true, an eligible the trace was saved into a known location (on Android
-  // /data/misc/perfetto-traces, see kBugreportTracePath).
+  // /data/misc/perfetto-traces, see GetBugreportPath()).
   // If false no trace with bugreport_score > 0 was found or an error occurred.
   // see |msg| in that case for details about the failure.
   optional bool success = 1;
