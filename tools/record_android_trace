@@ -293,6 +293,7 @@ def main():
   prt('\n')
   prt('Pulling into %s' % host_file, ANSI.BOLD)
   adb('pull', device_file, host_file).wait()
+  adb('shell', 'rm -f ' + device_file).wait()
 
   if not args.no_open:
     prt('\n')
