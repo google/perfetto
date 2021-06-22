@@ -82,6 +82,7 @@ proto_targets = [
     '//protos/perfetto/metrics/android:lite',
     '//protos/perfetto/trace:lite',
     '//protos/perfetto/config:lite',
+    '//protos/third_party/chromium:lite',
 ]
 
 # Path for the protobuf sources in the standalone build.

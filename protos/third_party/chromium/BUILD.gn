@@ -2,6 +2,11 @@ import("../../../gn/perfetto.gni")
 import("../../../gn/proto_library.gni")
 import("sources.gni")
 
+perfetto_proto_library("@TYPE@") {
+  sources = chrome_track_event_sources
+  deps = [ "../../perfetto/trace/track_event:@TYPE@" ]
+}
+
 perfetto_proto_library("chrome_track_event_@TYPE@") {
   proto_generators = [ "descriptor" ]
   sources = chrome_track_event_sources
