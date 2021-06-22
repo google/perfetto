@@ -270,7 +270,7 @@ static void VerifyBugreportTraceContents() {
   // Read the trace written in the fixed location (/data/misc/perfetto-traces/
   // on Android, /tmp/ on Linux/Mac) and make sure it has the right contents.
   std::string trace_str;
-  base::ReadFile(kBugreportTracePath, &trace_str);
+  base::ReadFile(GetBugreportPath(), &trace_str);
   ASSERT_FALSE(trace_str.empty());
   protos::gen::Trace trace;
   ASSERT_TRUE(trace.ParseFromString(trace_str));
@@ -1071,6 +1071,47 @@ TEST_F(PerfettoTest, SaveForBugreport_WriteIntoFile) {
   ASSERT_TRUE(trace.ParseFromString(trace_bytes));
   ASSERT_EQ(trace.packet().size(), 1u);
   for (const auto& p : trace.packet()) {
+    ASSERT_TRUE(p.has_service_event());
+    ASSERT_TRUE(p.service_event().seized_for_bugreport());
+  }
+}
+
+// Tests that SaveTraceForBugreport() works also if the trace has triggers
+// defined and those triggers have not been hit. This is a regression test for
+// b/188008375 .
+TEST_F(PerfettoTest, SaveForBugreport_Triggers) {
+  base::TestTaskRunner task_runner;
+
+  TestHelper helper(&task_runner);
+  helper.StartServiceIfRequired();
+  helper.ConnectFakeProducer();
+  helper.ConnectConsumer();
+  helper.WaitForConsumerConnect();
+
+  TraceConfig trace_config;
+  SetTraceConfigForBugreportTest(&trace_config);
+  trace_config.set_duration_ms(0);  // set_trigger_timeout_ms is used instead.
+  auto* trigger_config = trace_config.mutable_trigger_config();
+  trigger_config->set_trigger_timeout_ms(8.64e+7);
+  trigger_config->set_trigger_mode(TraceConfig::TriggerConfig::STOP_TRACING);
+  auto* trigger = trigger_config->add_triggers();
+  trigger->set_name("trigger_name");
+  trigger->set_stop_delay_ms(1);
+
+  helper.StartTracing(trace_config);
+  helper.WaitForProducerEnabled();
+
+  EXPECT_TRUE(helper.SaveTraceForBugreportAndWait());
+  helper.WaitForTracingDisabled();
+
+  VerifyBugreportTraceContents();
+
+  // Now read the original trace.
+  helper.ReadData();
+  helper.WaitForReadData();
+  const auto& packets = helper.full_trace();
+  ASSERT_EQ(packets.size(), 1u);
+  for (const auto& p : packets) {
     ASSERT_TRUE(p.has_service_event());
     ASSERT_TRUE(p.service_event().seized_for_bugreport());
   }
