@@ -48,6 +48,12 @@ void PerfettoCmd::SaveTraceIntoDropboxAndIncidentOrCrash() {
   // Save the trace as an incident.
   SaveOutputToIncidentTraceOrCrash();
 
+  if (!uuid_.empty()) {
+    base::Uuid uuid(uuid_);
+    PERFETTO_LOG("go/trace-uuid/%s  (%" PRIu64 " bytes)",
+                 uuid.ToPrettyString().c_str(), bytes_written_);
+  }
+
   // Ask incidentd to create a report, which will read the file we just
   // wrote.
   const auto& cfg = trace_config_->incident_report_config();
