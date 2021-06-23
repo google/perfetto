@@ -16,11 +16,6 @@ import {Draft} from 'immer';
 
 import {assertExists, assertTrue} from '../base/logging';
 import {randomColor} from '../common/colorizer';
-import {
-  ConvertTrace,
-  ConvertTraceAndDownload,
-  ConvertTraceToPprof
-} from '../controller/trace_converter';
 import {ACTUAL_FRAMES_SLICE_TRACK_KIND} from '../tracks/actual_frames/common';
 import {ASYNC_SLICE_TRACK_KIND} from '../tracks/async_slices/common';
 import {COUNTER_TRACK_KIND} from '../tracks/counter/common';
@@ -50,7 +45,6 @@ import {
   SCROLLING_TRACK_GROUP,
   State,
   Status,
-  TraceSource,
   TraceTime,
   TrackKindPriority,
   TrackState,
@@ -176,26 +170,6 @@ export const StateActions = {
   openVideoFromFile(state: StateDraft, args: {file: File}): void {
     state.video = URL.createObjectURL(args.file);
     state.videoEnabled = true;
-  },
-
-  // TODO(b/141359485): Actions should only modify state.
-  convertTraceToJson(
-      _: StateDraft, args: {file: Blob, truncate?: 'start'|'end'}): void {
-    ConvertTrace(args.file, 'json', args.truncate);
-  },
-
-  convertTraceToSystraceAndDownload(_: StateDraft, args: {file: Blob}): void {
-    ConvertTraceAndDownload(args.file, 'systrace');
-  },
-
-  convertTraceToJsonAndDownload(_: StateDraft, args: {file: Blob}): void {
-    ConvertTraceAndDownload(args.file, 'json');
-  },
-
-  convertTraceToPprof(
-      _: StateDraft,
-      args: {pid: number, src: TraceSource, ts1: number, ts2?: number}): void {
-    ConvertTraceToPprof(args.pid, args.src, args.ts1, args.ts2);
   },
 
   addTracks(state: StateDraft, args: {tracks: AddTrackArgs[]}) {
