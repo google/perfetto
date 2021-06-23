@@ -98,7 +98,7 @@ information such as CPU frequencies and kernel scheduler information.
 > Tip: You can generate a new trace config with additional data sources using
 > the [Perfetto UI](https://ui.perfetto.dev/#!/record) and replace
 > `system_wide_trace_cfg.pbtxt` with the [generated config](
-> https://ui.perfetto.dev/#!/record?p=instructions).
+> https://ui.perfetto.dev/#!/record/instructions).
 
 ## Custom data source example
 
