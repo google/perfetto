@@ -22,7 +22,6 @@ import {assertExists, reportError, setErrorHandler} from '../base/logging';
 import {forwardRemoteCalls} from '../base/remote';
 import {Actions} from '../common/actions';
 import {AggregateData} from '../common/aggregation_data';
-import {ConversionJobStatusUpdate} from '../common/conversion_jobs';
 import {
   LogBoundsKey,
   LogEntriesKey,
@@ -53,7 +52,6 @@ import {
   ThreadStateDetails
 } from './globals';
 import {HomePage} from './home_page';
-import {openBufferWithLegacyTraceViewer} from './legacy_trace_viewer';
 import {initLiveReloadIfLocalhost} from './live_reload';
 import {MetricsPage} from './metrics_page';
 import {PageAttrs} from './pages';
@@ -202,34 +200,11 @@ class FrontendApi {
     this.redraw();
   }
 
-  publishConversionJobStatusUpdate(job: ConversionJobStatusUpdate) {
-    globals.setConversionJobStatus(job.jobName, job.jobStatus);
-    this.redraw();
-  }
-
-  publishFileDownload(args: {file: File, name?: string}) {
-    const url = URL.createObjectURL(args.file);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = args.name !== undefined ? args.name : args.file.name;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }
-
   publishLoading(numQueuedQueries: number) {
     globals.numQueuedQueries = numQueuedQueries;
     // TODO(hjd): Clean up loadingAnimation given that this now causes a full
     // redraw anyways. Also this should probably just go via the global state.
     globals.rafScheduler.scheduleFullRedraw();
-  }
-
-  // For opening JSON/HTML traces with the legacy catapult viewer.
-  publishLegacyTrace(args: {data: ArrayBuffer, size: number}) {
-    const arr = new Uint8Array(args.data, 0, args.size);
-    const str = (new TextDecoder('utf-8')).decode(arr);
-    openBufferWithLegacyTraceViewer('trace.json', str, 0);
   }
 
   publishBufferUsage(args: {percentage: number}) {

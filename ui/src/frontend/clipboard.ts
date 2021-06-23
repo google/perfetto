@@ -33,3 +33,16 @@ export async function copyToClipboard(text: string): Promise<void> {
     console.error(`Failed to copy "${text}" to clipboard: ${err}`);
   }
 }
+
+export function download(file: File, name?: string): void {
+  const url = URL.createObjectURL(file);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name === undefined ? file.name : name;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+
