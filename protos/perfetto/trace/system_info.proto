@@ -31,4 +31,10 @@ message SystemInfo {
 
   // Ticks per second - sysconf(_SC_CLK_TCK).
   optional int64 hz = 3;
+
+  // The version of traced (the same returned by `traced --version`).
+  // This is a human readable string with and its format varies depending on
+  // the build system and the repo (standalone vs AOSP).
+  // This is intended for human debugging only.
+  optional string tracing_service_version = 4;
 }

@@ -21,6 +21,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
+#include "perfetto/ext/base/version.h"
 #include "perfetto/ext/ipc/client.h"
 #include "perfetto/ext/tracing/core/commit_data_request.h"
 #include "perfetto/ext/tracing/core/producer.h"
@@ -169,6 +170,7 @@ void ProducerIPCClientImpl::OnConnect() {
   req.set_build_flags(
       protos::gen::InitializeConnectionRequest::BUILD_FLAGS_DCHECKS_OFF);
 #endif
+  req.set_sdk_version(base::GetVersionString());
   producer_port_.InitializeConnection(req, std::move(on_init), shm_fd);
 
   // Create the back channel to receive commands from the Service.
