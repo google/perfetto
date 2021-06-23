@@ -86,6 +86,7 @@ export default [
   defBundle('frontend', 'dist_version'),
   defBundle('controller', 'dist_version'),
   defBundle('engine', 'dist_version'),
+  defBundle('traceconv', 'dist_version'),
   defBundle('chrome_extension', 'chrome_extension'),
   defServiceWorkerBundle(),
 ]
