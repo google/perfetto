@@ -1021,6 +1021,7 @@ void PerfettoCmd::PrintServiceState(bool success,
     printf("  id: %d\n", producer.id());
     printf("  name: \"%s\" \n", producer.name().c_str());
     printf("  uid: %d \n", producer.uid());
+    printf("  sdk_version: \"%s\" \n", producer.sdk_version().c_str());
     printf("}\n");
   }
 
@@ -1032,6 +1033,8 @@ void PerfettoCmd::PrintServiceState(bool success,
     printf("  }\n");
     printf("}\n");
   }
+  printf("tracing_service_version: \"%s\"\n",
+         svc_state.tracing_service_version().c_str());
   printf("num_sessions: %d\n", svc_state.num_sessions());
   printf("num_sessions_started: %d\n", svc_state.num_sessions_started());
 }
