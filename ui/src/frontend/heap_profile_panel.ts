@@ -32,6 +32,8 @@ import {Flamegraph, NodeRendering} from './flamegraph';
 import {globals} from './globals';
 import {Panel, PanelSize} from './panel';
 import {debounce} from './rate_limiters';
+import {getCurrentTrace} from './sidebar';
+import {convertTraceToPprofAndDownload} from './trace_converter';
 
 interface HeapProfileDetailsPanelAttrs {}
 
@@ -250,9 +252,13 @@ export class HeapProfileDetailsPanel extends
   downloadPprof() {
     const engine = Object.values(globals.state.engines)[0];
     if (!engine) return;
-    const src = engine.source;
-    globals.dispatch(
-        Actions.convertTraceToPprof({pid: this.pid, ts1: this.ts, src}));
+    getCurrentTrace()
+        .then(file => {
+          convertTraceToPprofAndDownload(file, this.pid, this.ts);
+        })
+        .catch(error => {
+          throw new Error(`Failed to get current trace ${error}`);
+        });
   }
 
   private changeFlamegraphData() {
