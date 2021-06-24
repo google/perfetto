@@ -533,7 +533,8 @@ export class TraceController extends Controller<States> {
                  'android_surfaceflinger',
                  'android_batt',
                  'android_sysui_cuj',
-                 'android_jank']) {
+                 'android_jank',
+                 'trace_metadata']) {
       this.updateStatus(`Computing ${metric} metric`);
       try {
         // We don't care about the actual result of metric here as we are just
