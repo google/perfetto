@@ -273,11 +273,13 @@ class FrontendApi {
   }
 
   private redraw(): void {
+    const traceIdString =
+        globals.state.traceUuid ? `?trace_id=${globals.state.traceUuid}` : '';
     if (globals.state.route &&
-        globals.state.route !== this.router.getRouteFromHash()) {
-      this.router.setRouteOnHash(globals.state.route);
+        globals.state.route + traceIdString !==
+            this.router.getFullRouteFromHash()) {
+      this.router.setRouteOnHash(globals.state.route, traceIdString);
     }
-
     globals.rafScheduler.scheduleFullRedraw();
   }
 }
