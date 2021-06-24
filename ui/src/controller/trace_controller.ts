@@ -22,10 +22,9 @@ import {
 import {TRACE_MARGIN_TIME_S} from '../common/constants';
 import {Engine, QueryError} from '../common/engine';
 import {HttpRpcEngine} from '../common/http_rpc_engine';
-import {slowlyCountRows} from '../common/query_iterator';
+import {iter, slowlyCountRows, STR} from '../common/query_iterator';
 import {EngineMode} from '../common/state';
-import {toNs, toNsCeil, toNsFloor} from '../common/time';
-import {TimeSpan} from '../common/time';
+import {TimeSpan, toNs, toNsCeil, toNsFloor} from '../common/time';
 import {WasmEngineProxy} from '../common/wasm_engine_proxy';
 import {QuantizedLoad, ThreadDesc} from '../frontend/globals';
 
@@ -341,6 +340,7 @@ export class TraceController extends Controller<States> {
       globals.publish('HasFtrace', hasFtrace);
     }
 
+    await this.loadTraceUuid();
     globals.dispatch(Actions.sortThreadTracks({}));
     await this.selectFirstHeapProfile();
 
@@ -462,6 +462,17 @@ export class TraceController extends Controller<States> {
       loadArray.push({startSec, endSec, load});
     }
     globals.publish('OverviewData', slicesData);
+  }
+
+  private async loadTraceUuid() {
+    const engine = assertExists(this.engine);
+    const query = await engine.query(`select str_value from metadata
+                  where name = 'trace_uuid'`);
+    const it = iter({'str_value': STR}, query);
+    if (!it.valid()) {
+      throw new Error('metadata.trace_uuid could not be found.');
+    }
+    globals.dispatch(Actions.setTraceUuid({traceUuid: it.row.str_value}));
   }
 
   async initialiseHelperViews() {

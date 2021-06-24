@@ -288,6 +288,7 @@ export interface State {
   newEngineMode: NewEngineMode;
   engines: ObjectById<EngineConfig>;
   traceTime: TraceTime;
+  traceUuid?: string;
   trackGroups: ObjectById<TrackGroupState>;
   tracks: ObjectById<TrackState>;
   areas: ObjectById<AreaById>;
