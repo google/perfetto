@@ -62,10 +62,10 @@ test('Parse route from hash', () => {
   routes.set('/', mockComponent);
   const router = new Router('/', routes, fakeDispatch, mockLogging);
   window.location.hash = '#!/foobar?s=42';
-  expect(router.getRouteFromHash()).toBe('/foobar');
+  expect(router.getFullRouteFromHash()).toBe('/foobar?s=42');
 
   window.location.hash = '/foobar';  // Invalid prefix.
-  expect(router.getRouteFromHash()).toBe('');
+  expect(router.getFullRouteFromHash()).toBe('');
 });
 
 test('Set valid route on hash', () => {
@@ -78,6 +78,21 @@ test('Set valid route on hash', () => {
 
   router.setRouteOnHash('/a');
   expect(window.location.hash).toBe('#!/a');
+  expect(window.history.length).toBe(prevHistoryLength + 1);
+  // No navigation action should be dispatched.
+  expect(dispatch.calls.length).toBe(0);
+});
+
+test('Set valid route with arguments on hash', () => {
+  const dispatch = dingus<(a: DeferredAction) => void>();
+  const routes = new Map<string, m.Component<PageAttrs>>();
+  routes.set('/', mockComponent);
+  routes.set('/a', mockComponent);
+  const router = new Router('/', routes, dispatch, mockLogging);
+  const prevHistoryLength = window.history.length;
+
+  router.setRouteOnHash('/a', '?trace_id=aaa');
+  expect(window.location.hash).toBe('#!/a?trace_id=aaa');
   expect(window.history.length).toBe(prevHistoryLength + 1);
   // No navigation action should be dispatched.
   expect(dispatch.calls.length).toBe(0);
