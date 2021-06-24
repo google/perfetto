@@ -22,6 +22,7 @@ import {assertExists, reportError, setErrorHandler} from '../base/logging';
 import {forwardRemoteCalls} from '../base/remote';
 import {Actions} from '../common/actions';
 import {AggregateData} from '../common/aggregation_data';
+import {ConversionJobStatusUpdate} from '../common/conversion_jobs';
 import {
   LogBoundsKey,
   LogEntriesKey,
@@ -197,6 +198,11 @@ class FrontendApi {
 
   publishHasFtrace(hasFtrace: boolean) {
     globals.hasFtrace = hasFtrace;
+    this.redraw();
+  }
+
+  publishConversionJobStatusUpdate(job: ConversionJobStatusUpdate) {
+    globals.setConversionJobStatus(job.jobName, job.jobStatus);
     this.redraw();
   }
 
