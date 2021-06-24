@@ -57,7 +57,7 @@ void IdAllocatorGeneric::FreeGeneric(uint32_t id) {
 }
 
 bool IdAllocatorGeneric::IsEmpty() const {
-  for (const auto id : ids_) {
+  for (auto id : ids_) {
     if (id)
       return false;
   }
