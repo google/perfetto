@@ -16,9 +16,10 @@
 
 #include "src/profiling/common/proc_utils.h"
 
-#include <inttypes.h>
 #include <sys/stat.h>
 #include <unistd.h>
+
+#include <cinttypes>
 
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/optional.h"

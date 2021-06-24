@@ -17,9 +17,10 @@
 #ifndef SRC_IPC_TEST_TEST_SOCKET_H_
 #define SRC_IPC_TEST_TEST_SOCKET_H_
 
-#include <inttypes.h>
 #include <stdint.h>
 #include <stdio.h>
+
+#include <cinttypes>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/unix_socket.h"

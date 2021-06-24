@@ -17,9 +17,9 @@
 #ifndef INCLUDE_PERFETTO_EXT_BASE_STRING_WRITER_H_
 #define INCLUDE_PERFETTO_EXT_BASE_STRING_WRITER_H_
 
-#include <inttypes.h>
-#include <math.h>
 #include <string.h>
+
+#include <cinttypes>
 #include <cmath>
 #include <cstdlib>
 #include <limits>

@@ -16,7 +16,7 @@
 
 #include "src/trace_processor/sqlite/sqlite_raw_table.h"
 
-#include <inttypes.h>
+#include <cinttypes>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/ext/base/string_utils.h"

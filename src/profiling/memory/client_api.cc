@@ -17,7 +17,6 @@
 #include "perfetto/heap_profile.h"
 #include "src/profiling/memory/heap_profile_internal.h"
 
-#include <inttypes.h>
 #include <malloc.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -27,6 +26,7 @@
 #include <unistd.h>
 
 #include <atomic>
+#include <cinttypes>
 #include <memory>
 #include <tuple>
 #include <type_traits>

@@ -139,6 +139,8 @@ def CheckBannedCpp(input_api, output_api):
       (r'\bPERFETTO_EINTR\(close\(',
        'close(2) must not be retried on EINTR on Linux and other OSes '
        'that we run on, as the fd will be closed.'),
+      (r'^#include <inttypes.h>', 'Use <cinttypes> rather than <inttypes.h>. ' +
+       'See https://github.com/google/perfetto/issues/146'),
   ]
 
   def file_filter(x):

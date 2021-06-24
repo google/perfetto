@@ -16,12 +16,16 @@
 
 #include "src/profiling/memory/client.h"
 
-#include <inttypes.h>
 #include <signal.h>
 #include <sys/prctl.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
 #include <unistd.h>
+
+#include <algorithm>
+#include <atomic>
+#include <cinttypes>
+#include <new>
 
 #include <unwindstack/MachineArm.h>
 #include <unwindstack/MachineArm64.h>
@@ -31,10 +35,6 @@
 #include <unwindstack/MachineX86_64.h>
 #include <unwindstack/Regs.h>
 #include <unwindstack/RegsGetLocal.h>
-
-#include <algorithm>
-#include <atomic>
-#include <new>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
