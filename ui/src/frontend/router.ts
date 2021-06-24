@@ -35,25 +35,28 @@ export class Router {
   }
 
   /**
-   * Parses and returns the current route string from |window.location.hash|.
-   * May return routes that are not defined in |this.routes|.
+   * Returns the full fragment from |window.location.hash|,
+   * including the route and parameters.
    */
-  getRouteFromHash(): string {
+  getFullRouteFromHash(): string {
     const prefixLength = ROUTE_PREFIX.length;
     const hash = window.location.hash;
 
     // Do not try to parse route if prefix doesn't match.
     if (hash.substring(0, prefixLength) !== ROUTE_PREFIX) return '';
 
-    return hash.split('?')[0].substring(prefixLength);
+    return hash.substring(prefixLength);
   }
 
   /**
    * Sets |route| on |window.location.hash|. If |route| if not defined in
    * |this.routes|, dispatches a navigation to |this.defaultRoute|.
+   *
+   * The route will look like:
+   * "#!/viewer?trace_id=65b6deba-6cf5-7fb4-c24b-96f3e001996e"
    */
-  setRouteOnHash(route: string) {
-    history.pushState(undefined, '', ROUTE_PREFIX + route);
+  setRouteOnHash(route: string, argsString = '') {
+    history.pushState(undefined, '', ROUTE_PREFIX + route + argsString);
     this.logging.updatePath(route);
 
     if (!this.resolveOrDefault(route).routeFound) {
@@ -69,7 +72,7 @@ export class Router {
    */
   navigateToCurrentHash() {
     const {pageName, subpageName} =
-        this.resolveOrDefault(this.getRouteFromHash());
+        this.resolveOrDefault(this.getFullRouteFromHash());
     this.dispatch(Actions.navigate({route: pageName + subpageName}));
     // TODO(dproy): Handle case when new route has a permalink.
   }
@@ -88,17 +91,18 @@ export class Router {
    * it, the component attached to the main page and a boolean indicating
    * if a route was found.
    */
-  private resolveOrDefault(fullRoute: string) {
+  private resolveOrDefault(routeWithArgs: string) {
+    const route = routeWithArgs.split('?')[0];
     let pageName = this.defaultRoute;
     let subpageName = '';
     let routeFound = false;
 
-    const splittingPoint = fullRoute.substring(1).indexOf('/') + 1;
+    const splittingPoint = route.substring(1).indexOf('/') + 1;
     if (splittingPoint === 0) {
-      pageName = fullRoute;
+      pageName = route;
     } else {
-      pageName = fullRoute.substring(0, splittingPoint);
-      subpageName = fullRoute.substring(splittingPoint);
+      pageName = route.substring(0, splittingPoint);
+      subpageName = route.substring(splittingPoint);
     }
 
     if (this.routes.has(pageName)) {
