@@ -17,9 +17,9 @@
 #ifndef INCLUDE_PERFETTO_PROTOZERO_PROTO_UTILS_H_
 #define INCLUDE_PERFETTO_PROTOZERO_PROTO_UTILS_H_
 
-#include <inttypes.h>
 #include <stddef.h>
 
+#include <cinttypes>
 #include <type_traits>
 
 #include "perfetto/base/logging.h"

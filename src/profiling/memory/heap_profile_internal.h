@@ -17,8 +17,9 @@
 #ifndef SRC_PROFILING_MEMORY_HEAP_PROFILE_INTERNAL_H_
 #define SRC_PROFILING_MEMORY_HEAP_PROFILE_INTERNAL_H_
 
-#include <inttypes.h>
 #include <stdlib.h>
+
+#include <cinttypes>
 
 #pragma GCC diagnostic push
 

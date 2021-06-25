@@ -16,9 +16,8 @@
 
 #include "src/ipc/host_impl.h"
 
-#include <inttypes.h>
-
 #include <algorithm>
+#include <cinttypes>
 #include <utility>
 
 #include "perfetto/base/task_runner.h"

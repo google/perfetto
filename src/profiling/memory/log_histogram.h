@@ -17,10 +17,10 @@
 #ifndef SRC_PROFILING_MEMORY_LOG_HISTOGRAM_H_
 #define SRC_PROFILING_MEMORY_LOG_HISTOGRAM_H_
 
-#include <inttypes.h>
 #include <stddef.h>
 
 #include <array>
+#include <cinttypes>
 #include <utility>
 #include <vector>
 

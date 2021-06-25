@@ -18,6 +18,7 @@
 
 #include <fcntl.h>
 
+#include <cinttypes>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -69,7 +70,6 @@ std::unique_ptr<Symbolizer> LocalSymbolizerOrDie(
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
 
-#include <inttypes.h>
 #include <signal.h>
 #include <sys/stat.h>
 #include <sys/types.h>
