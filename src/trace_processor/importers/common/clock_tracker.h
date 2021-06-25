@@ -17,10 +17,10 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_CLOCK_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_CLOCK_TRACKER_H_
 
-#include <inttypes.h>
 #include <stdint.h>
 
 #include <array>
+#include <cinttypes>
 #include <map>
 #include <random>
 #include <set>

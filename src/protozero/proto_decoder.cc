@@ -16,9 +16,9 @@
 
 #include "perfetto/protozero/proto_decoder.h"
 
-#include <inttypes.h>
 #include <string.h>
 
+#include <cinttypes>
 #include <limits>
 #include <memory>
 

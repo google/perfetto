@@ -17,8 +17,9 @@
 #ifndef SRC_PROFILING_MEMORY_WRAP_ALLOCATORS_H_
 #define SRC_PROFILING_MEMORY_WRAP_ALLOCATORS_H_
 
-#include <inttypes.h>
 #include <stdlib.h>
+
+#include <cinttypes>
 
 namespace perfetto {
 namespace profiling {

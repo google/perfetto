@@ -17,11 +17,11 @@
 #include "src/perfetto_cmd/rate_limiter.h"
 
 #include <fcntl.h>
-#include <inttypes.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 
 #include <algorithm>
+#include <cinttypes>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"

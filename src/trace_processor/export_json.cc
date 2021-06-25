@@ -17,11 +17,11 @@
 #include "perfetto/ext/trace_processor/export_json.h"
 #include "src/trace_processor/export_json.h"
 
-#include <inttypes.h>
 #include <stdio.h>
 #include <sstream>
 
 #include <algorithm>
+#include <cinttypes>
 #include <cmath>
 #include <cstring>
 #include <deque>

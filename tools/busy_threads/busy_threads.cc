@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-#include <inttypes.h>
 #include <stdint.h>
 #include <unistd.h>
 
+#include <cinttypes>
 #include <thread>
 
 #include "perfetto/base/logging.h"

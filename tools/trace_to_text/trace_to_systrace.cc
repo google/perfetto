@@ -16,10 +16,10 @@
 
 #include "tools/trace_to_text/trace_to_systrace.h"
 
-#include <inttypes.h>
 #include <stdio.h>
 
 #include <algorithm>
+#include <cinttypes>
 #include <functional>
 #include <map>
 #include <memory>
@@ -49,8 +49,7 @@ const char kThreadHeader[] = "USER           PID   TID CMD \\n";
 
 const char kProcessDumpFooter[] = "\"";
 
-const char kSystemTraceEvents[] =
-    "  \"systemTraceEvents\": \"";
+const char kSystemTraceEvents[] = "  \"systemTraceEvents\": \"";
 
 const char kFtraceHeader[] =
     "# tracer: nop\n"
