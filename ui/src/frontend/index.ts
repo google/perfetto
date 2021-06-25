@@ -14,13 +14,13 @@
 
 import '../tracks/all_frontend';
 
-import {applyPatches, Patch} from 'immer';
+import {applyPatches, Patch, produce} from 'immer';
 import * as m from 'mithril';
 
 import {defer} from '../base/deferred';
 import {assertExists, reportError, setErrorHandler} from '../base/logging';
 import {forwardRemoteCalls} from '../base/remote';
-import {Actions} from '../common/actions';
+import {Actions, DeferredAction, StateActions} from '../common/actions';
 import {AggregateData} from '../common/aggregation_data';
 import {ConversionJobStatusUpdate} from '../common/conversion_jobs';
 import {
@@ -31,6 +31,7 @@ import {
 } from '../common/logs';
 import {MetricResult} from '../common/metric_data';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
+import {createEmptyState, State} from '../common/state';
 import {
   ControllerWorkerInitMessage,
   EngineWorkerInitMessage
@@ -77,7 +78,75 @@ let activeWasmWorker: Worker;
  * The API the main thread exposes to the controller.
  */
 class FrontendApi {
-  constructor(private router: Router) {}
+  private router: Router;
+  private port: MessagePort;
+  private state: State;
+
+  constructor(router: Router, port: MessagePort) {
+    this.router = router;
+    this.state = createEmptyState();
+    this.port = port;
+  }
+
+  dispatchMultiple(actions: DeferredAction[]) {
+    const oldState = this.state;
+    const patches: Patch[] = [];
+    for (const action of actions) {
+      const originalLength = patches.length;
+      const morePatches = this.applyAction(action);
+      patches.length += morePatches.length;
+      for (let i = 0; i < morePatches.length; ++i) {
+        patches[i + originalLength] = morePatches[i];
+      }
+    }
+
+    if (this.state === oldState) {
+      return;
+    }
+
+    // Update overall state.
+    globals.state = this.state;
+
+    // If the visible time in the global state has been updated more recently
+    // than the visible time handled by the frontend @ 60fps, update it. This
+    // typically happens when restoring the state from a permalink.
+    globals.frontendLocalState.mergeState(this.state.frontendLocalState);
+
+    // Only redraw if something other than the frontendLocalState changed.
+    for (const key in this.state) {
+      if (key !== 'frontendLocalState' && key !== 'visibleTracks' &&
+          oldState[key] !== this.state[key]) {
+        this.redraw();
+        break;
+      }
+    }
+
+    if (patches.length > 0) {
+      this.port.postMessage(patches);
+    }
+  }
+
+  private applyAction(action: DeferredAction): Patch[] {
+    const patches: Patch[] = [];
+
+    // 'produce' creates a immer proxy which wraps the current state turning
+    // all imperative mutations of the state done in the callback into
+    // immutable changes to the returned state.
+    this.state = produce(
+        this.state,
+        draft => {
+          // tslint:disable-next-line no-any
+          (StateActions as any)[action.type](draft, action.args);
+        },
+        (morePatches, _) => {
+          const originalLength = patches.length;
+          patches.length += morePatches.length;
+          for (let i = 0; i < morePatches.length; ++i) {
+            patches[i + originalLength] = morePatches[i];
+          }
+        });
+    return patches;
+  }
 
   patchState(patches: Patch[]) {
     const oldState = globals.state;
@@ -386,8 +455,11 @@ function main() {
     msg.extensionPort,
     msg.errorReportingPort,
   ]);
-  const dispatch =
-      controllerChannel.port2.postMessage.bind(controllerChannel.port2);
+
+  const dispatch = (action: DeferredAction) => {
+    frontendApi.dispatchMultiple([action]);
+  };
+
   globals.initialize(dispatch, controller);
   globals.serviceWorkerController.install();
 
@@ -399,7 +471,8 @@ function main() {
   routes.set('/metrics', MetricsPage);
   routes.set('/info', TraceInfoPage);
   const router = new Router('/', routes, dispatch, globals.logging);
-  forwardRemoteCalls(frontendChannel.port2, new FrontendApi(router));
+  const frontendApi = new FrontendApi(router, controllerChannel.port2);
+  forwardRemoteCalls(frontendChannel.port2, frontendApi);
 
   // We proxy messages between the extension and the controller because the
   // controller's worker can't access chrome.runtime.
