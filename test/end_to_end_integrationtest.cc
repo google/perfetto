@@ -1079,7 +1079,13 @@ TEST_F(PerfettoTest, SaveForBugreport_WriteIntoFile) {
 // Tests that SaveTraceForBugreport() works also if the trace has triggers
 // defined and those triggers have not been hit. This is a regression test for
 // b/188008375 .
-TEST_F(PerfettoTest, SaveForBugreport_Triggers) {
+#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
+// Disabled due to b/191940560
+#define MAYBE_SaveForBugreport_Triggers DISABLED_SaveForBugreport_Triggers
+#else
+#define MAYBE_SaveForBugreport_Triggers SaveForBugreport_Triggers
+#endif
+TEST_F(PerfettoTest, MAYBE_SaveForBugreport_Triggers) {
   base::TestTaskRunner task_runner;
 
   TestHelper helper(&task_runner);
