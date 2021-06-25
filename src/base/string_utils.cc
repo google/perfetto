@@ -16,7 +16,6 @@
 
 #include "perfetto/ext/base/string_utils.h"
 
-#include <inttypes.h>
 #include <locale.h>
 #include <string.h>
 
@@ -25,6 +24,7 @@
 #endif
 
 #include <algorithm>
+#include <cinttypes>
 
 #include "perfetto/base/logging.h"
 

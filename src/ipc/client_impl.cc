@@ -17,8 +17,8 @@
 #include "src/ipc/client_impl.h"
 
 #include <fcntl.h>
-#include <inttypes.h>
 
+#include <cinttypes>
 #include <utility>
 
 #include "perfetto/base/task_runner.h"

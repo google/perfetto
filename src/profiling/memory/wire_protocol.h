@@ -20,7 +20,8 @@
 #ifndef SRC_PROFILING_MEMORY_WIRE_PROTOCOL_H_
 #define SRC_PROFILING_MEMORY_WIRE_PROTOCOL_H_
 
-#include <inttypes.h>
+#include <cinttypes>
+
 #include <unwindstack/Elf.h>
 #include <unwindstack/MachineArm.h>
 #include <unwindstack/MachineArm64.h>

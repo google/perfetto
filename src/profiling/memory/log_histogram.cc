@@ -16,9 +16,9 @@
 
 #include "src/profiling/memory/log_histogram.h"
 
-#include <inttypes.h>
 #include <stddef.h>
 
+#include <cinttypes>
 #include <utility>
 #include <vector>
 

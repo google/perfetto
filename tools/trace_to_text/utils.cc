@@ -16,9 +16,9 @@
 
 #include "tools/trace_to_text/utils.h"
 
-#include <inttypes.h>
 #include <stdio.h>
 
+#include <cinttypes>
 #include <memory>
 #include <ostream>
 #include <set>

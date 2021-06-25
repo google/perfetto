@@ -16,8 +16,7 @@
 
 #include "src/trace_processor/importers/json/json_trace_parser.h"
 
-#include <inttypes.h>
-
+#include <cinttypes>
 #include <limits>
 #include <string>
 

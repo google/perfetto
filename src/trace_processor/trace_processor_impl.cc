@@ -16,8 +16,8 @@
 
 #include "src/trace_processor/trace_processor_impl.h"
 
-#include <inttypes.h>
 #include <algorithm>
+#include <cinttypes>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/time.h"
