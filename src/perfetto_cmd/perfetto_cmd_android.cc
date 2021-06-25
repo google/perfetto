@@ -16,8 +16,9 @@
 
 #include "src/perfetto_cmd/perfetto_cmd.h"
 
-#include <inttypes.h>
 #include <sys/sendfile.h>
+
+#include <cinttypes>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"

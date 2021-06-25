@@ -15,13 +15,13 @@
  */
 
 #include <fcntl.h>
-#include <inttypes.h>
 #include <stdint.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
 
+#include <cinttypes>
 #include <string>
 
 #include "perfetto/base/logging.h"

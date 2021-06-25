@@ -59,8 +59,9 @@
 #ifndef SRC_PROFILING_MEMORY_INCLUDE_PERFETTO_HEAP_PROFILE_H_
 #define SRC_PROFILING_MEMORY_INCLUDE_PERFETTO_HEAP_PROFILE_H_
 
-#include <inttypes.h>
 #include <stdlib.h>
+
+#include <cinttypes>
 
 #pragma GCC diagnostic push
 

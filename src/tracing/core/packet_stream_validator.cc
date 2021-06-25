@@ -16,8 +16,9 @@
 
 #include "src/tracing/core/packet_stream_validator.h"
 
-#include <inttypes.h>
 #include <stddef.h>
+
+#include <cinttypes>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/utils.h"

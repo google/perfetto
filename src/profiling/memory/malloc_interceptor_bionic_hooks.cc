@@ -15,11 +15,11 @@
  */
 
 #include <bionic/malloc.h>
-#include <inttypes.h>
 #include <malloc.h>
 #include <private/bionic_malloc_dispatch.h>
 
 #include <atomic>
+#include <cinttypes>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/utils.h"

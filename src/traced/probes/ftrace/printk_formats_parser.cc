@@ -16,8 +16,9 @@
 
 #include "src/traced/probes/ftrace/printk_formats_parser.h"
 
-#include <inttypes.h>
 #include <stdio.h>
+
+#include <cinttypes>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"

@@ -15,8 +15,9 @@
  */
 #include "src/trace_processor/importers/proto/perf_sample_tracker.h"
 
-#include <inttypes.h>
 #include <stdio.h>
+
+#include <cinttypes>
 
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"

@@ -14,24 +14,21 @@
  * limitations under the License.
  */
 
-#include "perfetto/base/build_config.h"
-
 #include "perfetto/profiling/pprof_builder.h"
+
+#include "perfetto/base/build_config.h"
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <cxxabi.h>
 #endif
 
-#include <inttypes.h>
-
 #include <algorithm>
+#include <cinttypes>
 #include <map>
 #include <set>
 #include <unordered_map>
 #include <utility>
 #include <vector>
-
-#include "tools/trace_to_text/utils.h"
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/hash.h"
@@ -43,6 +40,7 @@
 #include "src/profiling/symbolizer/symbolize_database.h"
 #include "src/profiling/symbolizer/symbolizer.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "tools/trace_to_text/utils.h"
 
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"

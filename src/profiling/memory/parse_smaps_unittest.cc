@@ -16,11 +16,11 @@
 
 #include "perfetto/profiling/parse_smaps.h"
 
+#include <cinttypes>
+
 #include "perfetto/ext/base/scoped_file.h"
 #include "src/base/test/utils.h"
 #include "test/gtest_and_gmock.h"
-
-#include <inttypes.h>
 
 namespace perfetto {
 namespace profiling {
