@@ -791,7 +791,7 @@ export const StateActions = {
   },
 
   setVisibleTraceTime(state: StateDraft, args: VisibleState): void {
-    state.frontendLocalState.visibleState = args;
+    state.frontendLocalState.visibleState = {...args};
   },
 
   setChromeCategories(state: StateDraft, args: {categories: string[]}): void {
