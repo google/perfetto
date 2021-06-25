@@ -131,7 +131,7 @@ export const StateActions = {
       ready: false,
       source: {type: 'FILE', file: args.file},
     };
-    state.route = `/viewer`;
+    state.route = '/viewer';
   },
 
   openTraceFromBuffer(state: StateDraft, args: PostedTrace): void {
@@ -142,7 +142,7 @@ export const StateActions = {
       ready: false,
       source: {type: 'ARRAY_BUFFER', ...args},
     };
-    state.route = `/viewer`;
+    state.route = '/viewer';
   },
 
   openTraceFromUrl(state: StateDraft, args: {url: string}): void {
@@ -153,7 +153,7 @@ export const StateActions = {
       ready: false,
       source: {type: 'URL', url: args.url},
     };
-    state.route = `/viewer`;
+    state.route = '/viewer';
   },
 
   openTraceFromHttpRpc(state: StateDraft, _args: {}): void {
@@ -164,12 +164,16 @@ export const StateActions = {
       ready: false,
       source: {type: 'HTTP_RPC'},
     };
-    state.route = `/viewer`;
+    state.route = '/viewer';
   },
 
   openVideoFromFile(state: StateDraft, args: {file: File}): void {
     state.video = URL.createObjectURL(args.file);
     state.videoEnabled = true;
+  },
+
+  setTraceUuid(state: StateDraft, args: {traceUuid: string}) {
+    state.traceUuid = args.traceUuid;
   },
 
   addTracks(state: StateDraft, args: {tracks: AddTrackArgs[]}) {

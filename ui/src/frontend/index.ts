@@ -22,6 +22,7 @@ import {assertExists, reportError, setErrorHandler} from '../base/logging';
 import {forwardRemoteCalls} from '../base/remote';
 import {Actions} from '../common/actions';
 import {AggregateData} from '../common/aggregation_data';
+import {ConversionJobStatusUpdate} from '../common/conversion_jobs';
 import {
   LogBoundsKey,
   LogEntriesKey,
@@ -200,6 +201,11 @@ class FrontendApi {
     this.redraw();
   }
 
+  publishConversionJobStatusUpdate(job: ConversionJobStatusUpdate) {
+    globals.setConversionJobStatus(job.jobName, job.jobStatus);
+    this.redraw();
+  }
+
   publishLoading(numQueuedQueries: number) {
     globals.numQueuedQueries = numQueuedQueries;
     // TODO(hjd): Clean up loadingAnimation given that this now causes a full
@@ -267,11 +273,13 @@ class FrontendApi {
   }
 
   private redraw(): void {
+    const traceIdString =
+        globals.state.traceUuid ? `?trace_id=${globals.state.traceUuid}` : '';
     if (globals.state.route &&
-        globals.state.route !== this.router.getRouteFromHash()) {
-      this.router.setRouteOnHash(globals.state.route);
+        globals.state.route + traceIdString !==
+            this.router.getFullRouteFromHash()) {
+      this.router.setRouteOnHash(globals.state.route, traceIdString);
     }
-
     globals.rafScheduler.scheduleFullRedraw();
   }
 }
