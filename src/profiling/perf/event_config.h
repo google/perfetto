@@ -17,11 +17,11 @@
 #ifndef SRC_PROFILING_PERF_EVENT_CONFIG_H_
 #define SRC_PROFILING_PERF_EVENT_CONFIG_H_
 
+#include <cinttypes>
 #include <functional>
 #include <string>
 #include <vector>
 
-#include <inttypes.h>
 #include <linux/perf_event.h>
 #include <stdint.h>
 #include <sys/types.h>

@@ -16,7 +16,7 @@
 
 #include "src/profiling/common/unwind_support.h"
 
-#include <inttypes.h>
+#include <cinttypes>
 
 #include <procinfo/process_map.h>
 #include <unwindstack/Maps.h>

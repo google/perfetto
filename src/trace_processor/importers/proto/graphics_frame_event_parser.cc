@@ -16,7 +16,7 @@
 
 #include "src/trace_processor/importers/proto/graphics_frame_event_parser.h"
 
-#include <inttypes.h>
+#include <cinttypes>
 
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/field.h"

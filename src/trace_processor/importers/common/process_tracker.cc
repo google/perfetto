@@ -17,9 +17,8 @@
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/storage/stats.h"
 
+#include <cinttypes>
 #include <utility>
-
-#include <inttypes.h>
 
 namespace perfetto {
 namespace trace_processor {

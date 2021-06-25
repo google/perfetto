@@ -15,10 +15,10 @@
  */
 #include <errno.h>
 #include <fcntl.h>
-#include <inttypes.h>
 #include <stdio.h>
 #include <sys/stat.h>
 
+#include <cinttypes>
 #include <functional>
 #include <iostream>
 #include <vector>

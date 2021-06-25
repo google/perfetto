@@ -20,9 +20,10 @@
 #include "perfetto/tracing/core/forward_decls.h"
 
 #include <errno.h>
-#include <inttypes.h>
 #include <limits.h>
 #include <string.h>
+
+#include <cinttypes>
 #include <regex>
 #include <unordered_set>
 

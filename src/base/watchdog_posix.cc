@@ -19,10 +19,10 @@
 #if PERFETTO_BUILDFLAG(PERFETTO_WATCHDOG)
 
 #include <fcntl.h>
-#include <inttypes.h>
 #include <signal.h>
 #include <stdint.h>
 
+#include <cinttypes>
 #include <fstream>
 #include <thread>
 

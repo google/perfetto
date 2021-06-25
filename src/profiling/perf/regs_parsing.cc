@@ -16,10 +16,11 @@
 
 #include "src/profiling/perf/regs_parsing.h"
 
-#include <inttypes.h>
 #include <linux/perf_event.h>
 #include <stdint.h>
 #include <unistd.h>
+
+#include <cinttypes>
 #include <memory>
 
 #include <unwindstack/Elf.h>
