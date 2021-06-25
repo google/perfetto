@@ -38,3 +38,6 @@ track_event_chrome_histogram_sample.textproto track_event_args.sql track_event_c
 flow_events_track_event.textproto flow_events.sql flow_events_track_event.out
 flow_events_proto_v2.textproto flow_events.sql flow_events_proto_v2.out
 flow_events_proto_v1.textproto flow_events.sql flow_events_proto_v1.out
+
+# Async slices starting and ending at the same time
+experimental_slice_layout_depth.py experimental_slice_layout_depth.sql experimental_slice_layout_depth.out
