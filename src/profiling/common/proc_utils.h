@@ -17,9 +17,9 @@
 #ifndef SRC_PROFILING_COMMON_PROC_UTILS_H_
 #define SRC_PROFILING_COMMON_PROC_UTILS_H_
 
-#include <inttypes.h>
 #include <sys/types.h>
 
+#include <cinttypes>
 #include <set>
 #include <vector>
 

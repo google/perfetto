@@ -235,7 +235,7 @@ Table ExperimentalSliceLayoutGenerator::ComputeLayoutTable(
     {
       auto it = still_open.begin();
       while (it != still_open.end()) {
-        if ((*it)->end < start) {
+        if ((*it)->end <= start) {
           it = still_open.erase(it);
         } else {
           ++it;

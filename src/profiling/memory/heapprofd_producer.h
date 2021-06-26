@@ -18,23 +18,20 @@
 #define SRC_PROFILING_MEMORY_HEAPPROFD_PRODUCER_H_
 
 #include <array>
+#include <cinttypes>
 #include <functional>
 #include <map>
 #include <vector>
-
-#include <inttypes.h>
 
 #include "perfetto/base/task_runner.h"
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/unix_task_runner.h"
-
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/producer.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/tracing/core/data_source_config.h"
-
 #include "perfetto/tracing/core/forward_decls.h"
 #include "src/profiling/common/interning_output.h"
 #include "src/profiling/common/proc_utils.h"

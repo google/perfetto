@@ -17,9 +17,10 @@
 #include "src/trace_processor/sqlite/sqlite_table.h"
 
 #include <ctype.h>
-#include <inttypes.h>
 #include <string.h>
+
 #include <algorithm>
+#include <cinttypes>
 #include <map>
 
 #include "perfetto/base/logging.h"

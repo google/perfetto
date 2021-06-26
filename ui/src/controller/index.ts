@@ -37,7 +37,7 @@ function main() {
     const errorReportingPort = data.errorReportingPort;
     setErrorHandler((err: string) => errorReportingPort.postMessage(err));
     const frontend = new Remote(frontendPort);
-    controllerPort.onmessage = ({data}) => globals.dispatch(data);
+    controllerPort.onmessage = ({data}) => globals.patchState(data);
 
     globals.initialize(new AppController(extensionPort), frontend);
   };
@@ -46,4 +46,4 @@ function main() {
 main();
 
 // For devtools-based debugging.
-(self as {} as {globals: {}}).globals = globals;
+(self as {} as {controllerGlobals: {}}).controllerGlobals = globals;
