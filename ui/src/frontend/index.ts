@@ -527,6 +527,16 @@ function onCssLoaded(router: Router) {
     m.render(main, router.resolve(globals.state.route));
   };
 
+  /**
+   * Start of hack for backwards compatibility:
+   * There are some old URLs in the form of 'record?p=power'. We want these
+   * to keep opening the desired page(see b/191255021#comment2).
+   */
+  if (window.location.hash.startsWith('#!/record?p=')) {
+    window.location.hash = window.location.hash.replace('?p=', '/');
+  }
+  // end of hack for backwards compatibility
+
   router.navigateToCurrentHash();
 
   // /?s=xxxx for permalinks.
