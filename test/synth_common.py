@@ -433,8 +433,8 @@ class Trace(object):
       thread.cpu_freq_indices.append(index)
       thread.cpu_freq_ticks.append(freqs[index])
 
-  def add_gpu_mem_total_ftrace_event(self, pid, ts, size):
-    ftrace = self.__add_ftrace_event(ts, pid)
+  def add_gpu_mem_total_ftrace_event(self, ftrace_pid, pid, ts, size):
+    ftrace = self.__add_ftrace_event(ts, ftrace_pid)
     gpu_mem_total_ftrace_event = ftrace.gpu_mem_total
     gpu_mem_total_ftrace_event.pid = pid
     gpu_mem_total_ftrace_event.size = size
@@ -696,7 +696,8 @@ class Trace(object):
 
   def add_actual_display_frame_start_event(self, ts, cookie, token, pid,
                                            present_type, on_time_finish,
-                                           gpu_composition, jank_type, prediction_type):
+                                           gpu_composition, jank_type,
+                                           prediction_type):
     packet = self.add_packet()
     packet.timestamp = ts
     event = packet.frame_timeline_event.actual_display_frame_start
@@ -726,7 +727,8 @@ class Trace(object):
   def add_actual_surface_frame_start_event(self, ts, cookie, token,
                                            display_frame_token, pid, layer_name,
                                            present_type, on_time_finish,
-                                           gpu_composition, jank_type, prediction_type):
+                                           gpu_composition, jank_type,
+                                           prediction_type):
     packet = self.add_packet()
     packet.timestamp = ts
     event = packet.frame_timeline_event.actual_surface_frame_start

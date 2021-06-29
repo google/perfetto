@@ -245,8 +245,8 @@ void FtraceParser::ParseFtraceStats(ConstBytes blob) {
     // incorrect with >. std::numeric_limits<int64_t>::max() converted to
     // a double is the next value representable as a double that is *larger*
     // than std::numeric_limits<int64_t>::max(). All values that are
-    // representable as doubles and < than that value are thus representable as
-    // int64_t.
+    // representable as doubles and < than that value are thus representable
+    // as int64_t.
     if (oldest_event_ts >=
         static_cast<double>(std::numeric_limits<int64_t>::max())) {
       storage->SetIndexedStats(stats::ftrace_cpu_oldest_event_ts_begin + phase,
@@ -646,9 +646,9 @@ void FtraceParser::ParseTypedFtraceToRaw(
           protos::pbzero::InternedData::kKernelSymbolsFieldNumber,
           protos::pbzero::InternedString>(fld.as_uint64());
 
-      // If we don't have the string for this field (can happen if symbolization
-      // wasn't enabled, if reading the symbols errored out or on legacy traces)
-      // then just add the field as a normal arg.
+      // If we don't have the string for this field (can happen if
+      // symbolization wasn't enabled, if reading the symbols errored out or
+      // on legacy traces) then just add the field as a normal arg.
       if (interned_string) {
         protozero::ConstBytes str = interned_string->str();
         StringId str_id = context_->storage->InternString(base::StringView(
@@ -1027,8 +1027,9 @@ void FtraceParser::ParseLowmemoryKill(int64_t timestamp, ConstBytes blob) {
   auto pid = static_cast<uint32_t>(lmk.pid());
   auto opt_utid = context_->process_tracker->GetThreadOrNull(pid);
 
-  // Don't add LMK events for threads we've never seen before. This works around
-  // the case where we get an LMK event after a thread has already been killed.
+  // Don't add LMK events for threads we've never seen before. This works
+  // around the case where we get an LMK event after a thread has already been
+  // killed.
   if (!opt_utid)
     return;
 
@@ -1121,7 +1122,8 @@ void FtraceParser::ParseTaskNewTask(int64_t timestamp,
   static const uint32_t kCloneThread = 0x00010000;  // From kernel's sched.h.
 
   // If the process is a fork, start a new process except if the source tid is
-  // kthreadd in which case just make it a new thread associated with kthreadd.
+  // kthreadd in which case just make it a new thread associated with
+  // kthreadd.
   if ((clone_flags & kCloneThread) == 0 && source_tid != kKthreaddPid) {
     // This is a plain-old fork() or equivalent.
     proc_tracker->StartNewProcess(timestamp, source_tid, new_tid, new_comm);
@@ -1385,9 +1387,26 @@ void FtraceParser::ParseGpuMemTotal(int64_t timestamp,
         gpu_mem_total_name_id_, gpu_mem_total_unit_id_,
         gpu_mem_total_global_desc_id_);
   } else {
-    // Process emitting the packet can be different from the pid in the event.
-    UniqueTid utid = context_->process_tracker->UpdateThread(pid, pid);
-    UniquePid upid = context_->storage->thread_table().upid()[utid].value_or(0);
+    // It's possible for GpuMemTotal ftrace events to be emitted by kworker
+    // threads *after* process death. In this case, we simply want to discard
+    // the event as otherwise we would create fake processes which we
+    // definitely want to avoid.
+    // See b/192274404 for more info.
+    base::Optional<UniqueTid> opt_utid =
+        context_->process_tracker->GetThreadOrNull(pid);
+    if (!opt_utid)
+      return;
+
+    // If the thread does exist, the |pid| in gpu_mem_total events is always a
+    // true process id (and not a thread id) so ensure there is an association
+    // between the tid and pid.
+    UniqueTid updated_utid = context_->process_tracker->UpdateThread(pid, pid);
+    PERFETTO_DCHECK(updated_utid == *opt_utid);
+
+    // UpdateThread above should ensure this is always set.
+    UniquePid upid = *context_->storage->thread_table().upid()[*opt_utid];
+    PERFETTO_DCHECK(context_->storage->process_table().pid()[upid] == pid);
+
     track = context_->track_tracker->InternProcessCounterTrack(
         gpu_mem_total_name_id_, upid, gpu_mem_total_unit_id_,
         gpu_mem_total_proc_desc_id_);
