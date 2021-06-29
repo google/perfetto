@@ -21,7 +21,7 @@ _If the script fails with SSL errors, try upgrading your openssl package._
 
 3. Generate the build configuration
 ```bash
-tools/gn gn gen --args='is_debug=false' out/linux
+tools/gn gen --args='is_debug=false' out/linux
 # Or use `tools/build_all_configs.py` to generate more build configs.
 ```
 
