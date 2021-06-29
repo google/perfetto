@@ -1,0 +1,4 @@
+"name","unit","description","ts","pid","value"
+"GPU Memory","7","Total GPU memory used by this process",0,1,100
+"GPU Memory","7","Total GPU memory used by this process",5,1,233
+"GPU Memory","7","Total GPU memory used by this process",10,1,50
