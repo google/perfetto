@@ -70,13 +70,14 @@ void ProcessTracker::EndThread(int64_t timestamp, uint32_t tid) {
   vector.erase(std::remove(vector.begin(), vector.end(), utid));
 
   auto opt_upid = thread_table->upid()[utid];
-  if (opt_upid.has_value()) {
-    // If the process pid and thread tid are equal, then this is the main thread
-    // of the process.
-    if (process_table->pid()[*opt_upid] == thread_table->tid()[utid]) {
-      process_table->mutable_end_ts()->Set(*opt_upid, timestamp);
-    }
-  }
+  if (!opt_upid.has_value() || process_table->pid()[*opt_upid] != tid)
+    return;
+
+  // If the process pid and thread tid are equal then, as is the main thread
+  // of the process, we should also finish the process itself.
+  PERFETTO_DCHECK(thread_table->is_main_thread()[utid].value());
+  process_table->mutable_end_ts()->Set(*opt_upid, timestamp);
+  pids_.erase(tid);
 }
 
 base::Optional<UniqueTid> ProcessTracker::GetThreadOrNull(uint32_t tid) {
@@ -310,23 +311,25 @@ void ProcessTracker::UpdateProcessNameFromThreadName(uint32_t tid,
 }
 
 UniquePid ProcessTracker::GetOrCreateProcess(uint32_t pid) {
-  UniquePid upid;
+  auto* process_table = context_->storage->mutable_process_table();
   auto it = pids_.find(pid);
   if (it != pids_.end()) {
-    upid = it->second;
-  } else {
-    tables::ProcessTable::Row row;
-    row.pid = pid;
-    upid = context_->storage->mutable_process_table()->Insert(row).row;
-
-    pids_.emplace(pid, upid);
-
-    // Create an entry for the main thread.
-    // We cannot call StartNewThread() here, because threads for this process
-    // (including the main thread) might have been seen already prior to this
-    // call. This call usually comes from the ProcessTree dump which is delayed.
-    UpdateThread(/*tid=*/pid, pid);
+    // Ensure that the process has not ended.
+    PERFETTO_DCHECK(!process_table->end_ts()[it->second].has_value());
+    return it->second;
   }
+
+  tables::ProcessTable::Row row;
+  row.pid = pid;
+
+  UniquePid upid = process_table->Insert(row).row;
+  pids_.emplace(pid, upid);
+
+  // Create an entry for the main thread.
+  // We cannot call StartNewThread() here, because threads for this process
+  // (including the main thread) might have been seen already prior to this
+  // call. This call usually comes from the ProcessTree dump which is delayed.
+  UpdateThread(/*tid=*/pid, pid);
   return upid;
 }
 
