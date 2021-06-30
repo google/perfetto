@@ -73,7 +73,7 @@ tracing: `traced`, `traced_probes` and the `perfetto` client cmdline.
 
 3. Detach from the tmux session with `Ctrl-B D`,or shut it down with
    `tmux kill-session -t demo`. The script will then copy the trace to
-   `/tmp/trace.protobuf`, as a binary-encoded protobuf (see
+   `/tmp/trace.perfetto-trace`, as a binary-encoded protobuf (see
    [TracePacket reference](/docs/reference/trace-packet-proto.autogen)).
 
 ## Visualizing the trace
@@ -87,7 +87,7 @@ NOTE: The UI runs in-browser using JavaScript + Web Assembly. The trace
 1. Navigate to [ui.perfetto.dev](https://ui.perfetto.dev) in a browser.
 
 2. Click the **Open trace file** on the left-hand menu, and load the captured
-   trace (by default at `/tmp/trace.protobuf`).
+   trace (by default at `/tmp/trace.perfetto-trace`).
 
 3. Explore the trace by zooming/panning using WASD, and mouse for expanding
    process tracks (rows) into their constituent thread tracks.
