@@ -26,21 +26,21 @@ trace.add_process(3, 0, "app_2")
 trace.add_ftrace_packet(cpu=0)
 
 # max=4, min=1, avg=(2*1+5*2+(10-9)*4)/(10-2)=2
-trace.add_gpu_mem_total_ftrace_event(pid=0, ts=2, size=1)
-trace.add_gpu_mem_total_ftrace_event(pid=0, ts=4, size=2)
-trace.add_gpu_mem_total_ftrace_event(pid=0, ts=9, size=4)
+trace.add_gpu_mem_total_ftrace_event(ftrace_pid=0, pid=0, ts=2, size=1)
+trace.add_gpu_mem_total_ftrace_event(ftrace_pid=0, pid=0, ts=4, size=2)
+trace.add_gpu_mem_total_ftrace_event(ftrace_pid=0, pid=0, ts=9, size=4)
 
 # max=8, min=2, avg=(5*2+(10-9)*8)/(10-4)=3
-trace.add_gpu_mem_total_ftrace_event(pid=1, ts=4, size=2)
-trace.add_gpu_mem_total_ftrace_event(pid=1, ts=9, size=8)
+trace.add_gpu_mem_total_ftrace_event(ftrace_pid=1, pid=1, ts=4, size=2)
+trace.add_gpu_mem_total_ftrace_event(ftrace_pid=1, pid=1, ts=9, size=8)
 
 # max=8, min=6, avgxdur=2*6+(10-4)*8=60, dur=2+(10-4)=8
-trace.add_gpu_mem_total_ftrace_event(pid=2, ts=2, size=6)
-trace.add_gpu_mem_total_ftrace_event(pid=2, ts=4, size=8)
+trace.add_gpu_mem_total_ftrace_event(ftrace_pid=2, pid=2, ts=2, size=6)
+trace.add_gpu_mem_total_ftrace_event(ftrace_pid=2, pid=2, ts=4, size=8)
 
 # max=10, min=7, avgxdur=1*7+(10-7)*10=37, dur=1+(10-7)=4
-trace.add_gpu_mem_total_ftrace_event(pid=3, ts=6, size=7)
-trace.add_gpu_mem_total_ftrace_event(pid=3, ts=7, size=10)
+trace.add_gpu_mem_total_ftrace_event(ftrace_pid=3, pid=3, ts=6, size=7)
+trace.add_gpu_mem_total_ftrace_event(ftrace_pid=3, pid=3, ts=7, size=10)
 
 # app_2 will be aggregated
 # max=10, min=6, avg=(60+37)/(8+4)=8
