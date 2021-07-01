@@ -70,6 +70,7 @@ default_targets = [
     '//src/protozero:protozero',
     '//src/protozero/protoc_plugin:protozero_plugin',
     '//src/protozero/protoc_plugin:cppgen_plugin',
+    '//tools/proto_filter:proto_filter',
 ] + public_targets
 
 # Root proto targets (to force discovery of intermediate proto targets).
