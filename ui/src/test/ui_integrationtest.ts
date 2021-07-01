@@ -39,7 +39,7 @@ beforeAll(async () => {
   jest.setTimeout(60000);
   const page = await getPage();
   await page.setViewport({width: 1920, height: 1080});
-  await page.goto('http://localhost:10000/?testing=1');
+  await page.goto('http://localhost:10000/#!/?testing=1');
 });
 
 // After each test (regardless of nesting) capture a screenshot named after the
@@ -95,6 +95,21 @@ describe('android_trace_30s', () => {
     for (let i = 0; i < 10; i++) {
       await page.keyboard.type('\n');
     }
+    await waitForPerfettoIdle(page);
+  });
+});
+
+describe('navigation', () => {
+  beforeAll(async () => {
+    const page = await getPage();
+    // go to blank page, to allow page reloading when only the fragment changes
+    await page.goto('about:blank');
+  });
+
+  test('trace_from_url', async () => {
+    const page = await getPage();
+    await page.goto(
+        'http://localhost:10000/#!/?testing=1&url=http://localhost:10000/test/data/chrome_scroll_without_vsync.pftrace');
     await waitForPerfettoIdle(page);
   });
 });
