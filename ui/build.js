@@ -434,7 +434,14 @@ function startServer() {
           return;
         }
 
-        const absPath = path.normalize(path.join(cfg.outDistRootDir, uri));
+        let absPath = path.normalize(path.join(cfg.outDistRootDir, uri));
+        // We want to be able to use the data in '/test/' for e2e tests.
+        // However, we don't want do create a symlink into the 'dist/' dir,
+        // because 'dist/' gets shipped on the production server.
+        if (uri.startsWith('/test/')) {
+          absPath = pjoin(ROOT_DIR, uri);
+        }
+
         fs.readFile(absPath, function(err, data) {
           if (err) {
             res.writeHead(404);

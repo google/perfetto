@@ -71,3 +71,13 @@ test('route broken at first slash', () => {
   expect(subpageName).toBe('/memory/otherstuff');
   expect(component).toBe(recordMockComponent);
 });
+
+test('parameters separated from route', () => {
+  const {pageName, subpageName, component, urlParams} =
+      router['resolveOrDefault'](
+          '/record/memory?url=http://localhost:1234/aaaa');
+  expect(pageName).toBe('/record');
+  expect(subpageName).toBe('/memory');
+  expect(urlParams).toBe('?url=http://localhost:1234/aaaa');
+  expect(component).toBe(recordMockComponent);
+});

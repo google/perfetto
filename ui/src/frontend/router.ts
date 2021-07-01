@@ -71,9 +71,10 @@ export class Router {
    * defined in |this.routes|, otherwise to |this.defaultRoute|.
    */
   navigateToCurrentHash() {
-    const {pageName, subpageName} =
+    const {pageName, subpageName, urlParams} =
         this.resolveOrDefault(this.getFullRouteFromHash());
-    this.dispatch(Actions.navigate({route: pageName + subpageName}));
+    this.dispatch(
+        Actions.navigate({route: pageName + subpageName + urlParams}));
     // TODO(dproy): Handle case when new route has a permalink.
   }
 
@@ -92,10 +93,17 @@ export class Router {
    * if a route was found.
    */
   private resolveOrDefault(routeWithArgs: string) {
-    const route = routeWithArgs.split('?')[0];
     let pageName = this.defaultRoute;
     let subpageName = '';
     let routeFound = false;
+    let route = routeWithArgs;
+    let urlParams = '';
+
+    const paramDelimit = routeWithArgs.indexOf('?');
+    if (paramDelimit > -1) {
+      route = routeWithArgs.substring(0, paramDelimit);
+      urlParams = routeWithArgs.substring(paramDelimit);
+    }
 
     const splittingPoint = route.substring(1).indexOf('/') + 1;
     if (splittingPoint === 0) {
@@ -115,6 +123,7 @@ export class Router {
       routeFound,
       pageName,
       subpageName,
+      urlParams,
       component: assertExists(this.routes.get(pageName))
     };
   }
