@@ -11,6 +11,8 @@ Unreleased:
 
 v17.0 - 2021-07-02:
   Tracing service and probes:
+    * Fixed a bug in ftrace parsing of absolute timestamps
+      (RINGBUF_TYPE_TIME_STAMP), encountered on Linux kernels 5.9+.
     * Fixed a bug in --save-for-bugreport causing 0-length traces if the
       selected trace declared one or more triggers in the config.
     * Fixed a bug in tracebox causing the PERFETTO_PRODUCER_SOCK_NAME env
