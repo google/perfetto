@@ -42,7 +42,7 @@ class SharedMemoryArbiter;
 class TraceWriter;
 
 // Exposed for testing.
-extern const char* kBugreportTracePath;
+std::string GetBugreportPath();
 
 // TODO: for the moment this assumes that all the calls happen on the same
 // thread/sequence. Not sure this will be the case long term in Chrome.

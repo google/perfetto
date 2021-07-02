@@ -17,7 +17,6 @@
 #include "perfetto/public/consumer_api.h"
 
 #include <fcntl.h>
-#include <inttypes.h>
 #include <stdlib.h>
 #include <sys/mman.h>
 #include <sys/select.h>
@@ -27,6 +26,7 @@
 #include <unistd.h>
 
 #include <atomic>
+#include <cinttypes>
 #include <condition_variable>
 #include <memory>
 #include <mutex>

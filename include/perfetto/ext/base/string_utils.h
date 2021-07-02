@@ -17,11 +17,11 @@
 #ifndef INCLUDE_PERFETTO_EXT_BASE_STRING_UTILS_H_
 #define INCLUDE_PERFETTO_EXT_BASE_STRING_UTILS_H_
 
+#include <stdlib.h>
+
+#include <cinttypes>
 #include <string>
 #include <vector>
-
-#include <inttypes.h>
-#include <stdlib.h>
 
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_view.h"

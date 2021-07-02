@@ -16,10 +16,9 @@
 
 #include "src/trace_processor/importers/common/clock_tracker.h"
 
-#include <inttypes.h>
-
 #include <algorithm>
 #include <atomic>
+#include <cinttypes>
 #include <queue>
 
 #include "perfetto/base/logging.h"

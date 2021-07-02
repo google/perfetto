@@ -69,13 +69,61 @@ SqlValue SqlValueFromSqliteValue(sqlite3_value* value) {
   return sql_value;
 }
 
+base::Status ValidateSingleNonEmptyMessage(const uint8_t* ptr,
+                                           size_t size,
+                                           uint32_t schema_type,
+                                           const std::string& message_type,
+                                           protozero::ConstBytes* out) {
+  PERFETTO_DCHECK(size > 0);
+
+  if (size > protozero::proto_utils::kMaxMessageLength) {
+    return base::ErrStatus(
+        "Message has size %zu which is larger than the maximum allowed message "
+        "size %zu",
+        size, protozero::proto_utils::kMaxMessageLength);
+  }
+
+  protos::pbzero::ProtoBuilderResult::Decoder decoder(ptr, size);
+  if (decoder.is_repeated()) {
+    return base::ErrStatus("Cannot handle nested repeated messages");
+  }
+
+  const auto& single_field = decoder.single();
+  protos::pbzero::SingleBuilderResult::Decoder single(single_field.data,
+                                                      single_field.size);
+
+  if (single.type() != schema_type) {
+    return base::ErrStatus("Message field has wrong wire type %d",
+                           single.type());
+  }
+
+  base::StringView actual_type(single.type_name());
+  if (actual_type != base::StringView(message_type)) {
+    return base::ErrStatus("Field has wrong type (expected %s, was %s)",
+                           message_type.c_str(),
+                           actual_type.ToStdString().c_str());
+  }
+
+  if (!single.has_protobuf()) {
+    return base::ErrStatus("Message has no proto bytes");
+  }
+
+  // We disallow 0 size fields here as they should have been reported as null
+  // one layer down.
+  *out = single.protobuf();
+  if (out->size == 0) {
+    return base::ErrStatus("Field has zero size");
+  }
+  return base::OkStatus();
+}
+
 }  // namespace
 
 ProtoBuilder::ProtoBuilder(const DescriptorPool* pool,
                            const ProtoDescriptor* descriptor)
     : pool_(pool), descriptor_(descriptor) {}
 
-util::Status ProtoBuilder::AppendSqlValue(const std::string& field_name,
+base::Status ProtoBuilder::AppendSqlValue(const std::string& field_name,
                                           const SqlValue& value) {
   switch (value.type) {
     case SqlValue::kLong:
@@ -91,24 +139,24 @@ util::Status ProtoBuilder::AppendSqlValue(const std::string& field_name,
     case SqlValue::kNull:
       // If the value is null, it's treated as the field being absent so we
       // don't append anything.
-      return util::OkStatus();
+      return base::OkStatus();
   }
   PERFETTO_FATAL("For GCC");
 }
 
-util::Status ProtoBuilder::AppendLong(const std::string& field_name,
+base::Status ProtoBuilder::AppendLong(const std::string& field_name,
                                       int64_t value,
                                       bool is_inside_repeated) {
   auto field = descriptor_->FindFieldByName(field_name);
   if (!field) {
-    return util::ErrStatus("Field with name %s not found in proto type %s",
+    return base::ErrStatus("Field with name %s not found in proto type %s",
                            field_name.c_str(),
                            descriptor_->full_name().c_str());
   }
 
   using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
   if (field->is_repeated() && !is_inside_repeated) {
-    return util::ErrStatus(
+    return base::ErrStatus(
         "Unexpected long value for repeated field %s in proto type %s",
         field_name.c_str(), descriptor_->full_name().c_str());
   }
@@ -124,7 +172,7 @@ util::Status ProtoBuilder::AppendLong(const std::string& field_name,
       auto opt_enum_descriptor_idx =
           pool_->FindDescriptorIdx(field->resolved_type_name());
       if (!opt_enum_descriptor_idx) {
-        return util::ErrStatus(
+        return base::ErrStatus(
             "Unable to find enum type %s to fill field %s (in proto message "
             "%s)",
             field->resolved_type_name().c_str(), field->name().c_str(),
@@ -133,7 +181,7 @@ util::Status ProtoBuilder::AppendLong(const std::string& field_name,
       const auto& enum_desc = pool_->descriptors()[*opt_enum_descriptor_idx];
       auto opt_enum_str = enum_desc.FindEnumString(static_cast<int32_t>(value));
       if (!opt_enum_str) {
-        return util::ErrStatus("Invalid enum value %" PRId64
+        return base::ErrStatus("Invalid enum value %" PRId64
                                " "
                                "in enum type %s; encountered while filling "
                                "field %s (in proto message %s)",
@@ -155,35 +203,35 @@ util::Status ProtoBuilder::AppendLong(const std::string& field_name,
       message_->AppendFixed(field->number(), value);
       break;
     case FieldDescriptorProto::TYPE_UINT64:
-      return util::ErrStatus(
+      return base::ErrStatus(
           "Field %s (in proto message %s) is using a uint64 type. uint64 in "
           "metric messages is not supported by trace processor; use an int64 "
           "field instead.",
           field->name().c_str(), descriptor_->full_name().c_str());
     default: {
-      return util::ErrStatus(
+      return base::ErrStatus(
           "Tried to write value of type long into field %s (in proto type %s) "
           "which has type %d",
           field->name().c_str(), descriptor_->full_name().c_str(),
           field->type());
     }
   }
-  return util::OkStatus();
+  return base::OkStatus();
 }
 
-util::Status ProtoBuilder::AppendDouble(const std::string& field_name,
+base::Status ProtoBuilder::AppendDouble(const std::string& field_name,
                                         double value,
                                         bool is_inside_repeated) {
   auto field = descriptor_->FindFieldByName(field_name);
   if (!field) {
-    return util::ErrStatus("Field with name %s not found in proto type %s",
+    return base::ErrStatus("Field with name %s not found in proto type %s",
                            field_name.c_str(),
                            descriptor_->full_name().c_str());
   }
 
   using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
   if (field->is_repeated() && !is_inside_repeated) {
-    return util::ErrStatus(
+    return base::ErrStatus(
         "Unexpected double value for repeated field %s in proto type %s",
         field_name.c_str(), descriptor_->full_name().c_str());
   }
@@ -199,29 +247,29 @@ util::Status ProtoBuilder::AppendDouble(const std::string& field_name,
       break;
     }
     default: {
-      return util::ErrStatus(
+      return base::ErrStatus(
           "Tried to write value of type double into field %s (in proto type "
           "%s) which has type %d",
           field->name().c_str(), descriptor_->full_name().c_str(),
           field->type());
     }
   }
-  return util::OkStatus();
+  return base::OkStatus();
 }
 
-util::Status ProtoBuilder::AppendString(const std::string& field_name,
+base::Status ProtoBuilder::AppendString(const std::string& field_name,
                                         base::StringView data,
                                         bool is_inside_repeated) {
   const FieldDescriptor* field = descriptor_->FindFieldByName(field_name);
   if (!field) {
-    return util::ErrStatus("Field with name %s not found in proto type %s",
+    return base::ErrStatus("Field with name %s not found in proto type %s",
                            field_name.c_str(),
                            descriptor_->full_name().c_str());
   }
 
   using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
   if (field->is_repeated() && !is_inside_repeated) {
-    return util::ErrStatus(
+    return base::ErrStatus(
         "Unexpected string value for repeated field %s in proto type %s",
         field_name.c_str(), descriptor_->full_name().c_str());
   }
@@ -235,7 +283,7 @@ util::Status ProtoBuilder::AppendString(const std::string& field_name,
       auto opt_enum_descriptor_idx =
           pool_->FindDescriptorIdx(field->resolved_type_name());
       if (!opt_enum_descriptor_idx) {
-        return util::ErrStatus(
+        return base::ErrStatus(
             "Unable to find enum type %s to fill field %s (in proto message "
             "%s)",
             field->resolved_type_name().c_str(), field->name().c_str(),
@@ -245,7 +293,7 @@ util::Status ProtoBuilder::AppendString(const std::string& field_name,
       std::string enum_str = data.ToStdString();
       auto opt_enum_value = enum_desc.FindEnumValue(enum_str);
       if (!opt_enum_value) {
-        return util::ErrStatus(
+        return base::ErrStatus(
             "Invalid enum string %s "
             "in enum type %s; encountered while filling "
             "field %s (in proto message %s)",
@@ -256,23 +304,23 @@ util::Status ProtoBuilder::AppendString(const std::string& field_name,
       break;
     }
     default: {
-      return util::ErrStatus(
+      return base::ErrStatus(
           "Tried to write value of type string into field %s (in proto type "
           "%s) which has type %d",
           field->name().c_str(), descriptor_->full_name().c_str(),
           field->type());
     }
   }
-  return util::OkStatus();
+  return base::OkStatus();
 }
 
-util::Status ProtoBuilder::AppendBytes(const std::string& field_name,
+base::Status ProtoBuilder::AppendBytes(const std::string& field_name,
                                        const uint8_t* ptr,
                                        size_t size,
                                        bool is_inside_repeated) {
   const FieldDescriptor* field = descriptor_->FindFieldByName(field_name);
   if (!field) {
-    return util::ErrStatus("Field with name %s not found in proto type %s",
+    return base::ErrStatus("Field with name %s not found in proto type %s",
                            field_name.c_str(),
                            descriptor_->full_name().c_str());
   }
@@ -285,7 +333,7 @@ util::Status ProtoBuilder::AppendBytes(const std::string& field_name,
     return AppendSingleMessage(*field, ptr, size);
 
   if (size == 0) {
-    return util::ErrStatus(
+    return base::ErrStatus(
         "Tried to write zero-sized value into field %s (in proto type "
         "%s). Nulls are only supported for message protos; all other types "
         "should ensure that nulls are not passed to proto builder functions by "
@@ -293,13 +341,13 @@ util::Status ProtoBuilder::AppendBytes(const std::string& field_name,
         field->name().c_str(), descriptor_->full_name().c_str());
   }
 
-  return util::ErrStatus(
+  return base::ErrStatus(
       "Tried to write value of type bytes into field %s (in proto type %s) "
       "which has type %d",
       field->name().c_str(), descriptor_->full_name().c_str(), field->type());
 }
 
-util::Status ProtoBuilder::AppendSingleMessage(const FieldDescriptor& field,
+base::Status ProtoBuilder::AppendSingleMessage(const FieldDescriptor& field,
                                                const uint8_t* ptr,
                                                size_t size) {
   // If we have an zero sized bytes, we still want to propogate that the field
@@ -309,60 +357,26 @@ util::Status ProtoBuilder::AppendSingleMessage(const FieldDescriptor& field,
     // just pass an empty string (which will have a valid pointer always) and
     // zero as the size.
     message_->AppendBytes(field.number(), "", 0);
-    return util::OkStatus();
+    return base::OkStatus();
   }
 
-  if (size > protozero::proto_utils::kMaxMessageLength) {
-    return util::ErrStatus(
-        "Message passed to field %s in proto message %s has size %zu which is "
-        "larger than the maximum allowed message size %zu",
-        field.name().c_str(), descriptor_->full_name().c_str(), size,
-        protozero::proto_utils::kMaxMessageLength);
+  protozero::ConstBytes bytes;
+  base::Status validation = ValidateSingleNonEmptyMessage(
+      ptr, size, field.type(), field.resolved_type_name(), &bytes);
+  if (!validation.ok()) {
+    return util::ErrStatus("[Field %s in message %s]: %s", field.name().c_str(),
+                           descriptor_->full_name().c_str(),
+                           validation.c_message());
   }
-
-  protos::pbzero::ProtoBuilderResult::Decoder decoder(ptr, size);
-  if (decoder.is_repeated()) {
-    return util::ErrStatus("Cannot handle nested repeated messages in field %s",
-                           field.name().c_str());
-  }
-
-  const auto& single_field = decoder.single();
-  protos::pbzero::SingleBuilderResult::Decoder single(single_field.data,
-                                                      single_field.size);
-
-  if (single.type() != field.type()) {
-    return util::ErrStatus("Field %s has wrong type (expected %u, was %u)",
-                           field.name().c_str(), field.type(), single.type());
-  }
-
-  auto actual_type_name = single.type_name().ToStdString();
-  if (actual_type_name != field.resolved_type_name()) {
-    return util::ErrStatus("Field %s has wrong type (expected %s, was %s)",
-                           field.name().c_str(), actual_type_name.c_str(),
-                           field.resolved_type_name().c_str());
-  }
-
-  if (!single.has_protobuf()) {
-    return util::ErrStatus("Field %s has no proto bytes", field.name().c_str());
-  }
-
-  // We disallow 0 size fields here as they should have been reported as null
-  // one layer down.
-  auto bytes = single.protobuf();
-  if (bytes.size == 0) {
-    return util::ErrStatus("Unexpected to see field %s with zero size",
-                           field.name().c_str());
-  }
-
   message_->AppendBytes(field.number(), bytes.data, bytes.size);
-  return util::OkStatus();
+  return base::OkStatus();
 }
 
-util::Status ProtoBuilder::AppendRepeated(const FieldDescriptor& field,
+base::Status ProtoBuilder::AppendRepeated(const FieldDescriptor& field,
                                           const uint8_t* ptr,
                                           size_t size) {
   if (size > protozero::proto_utils::kMaxMessageLength) {
-    return util::ErrStatus(
+    return base::ErrStatus(
         "Message passed to field %s in proto message %s has size %zu which is "
         "larger than the maximum allowed message size %zu",
         field.name().c_str(), descriptor_->full_name().c_str(), size,
@@ -371,7 +385,7 @@ util::Status ProtoBuilder::AppendRepeated(const FieldDescriptor& field,
 
   protos::pbzero::ProtoBuilderResult::Decoder decoder(ptr, size);
   if (!decoder.is_repeated()) {
-    return util::ErrStatus(
+    return base::ErrStatus(
         "Unexpected message value for repeated field %s in proto type %s",
         field.name().c_str(), descriptor_->full_name().c_str());
   }
@@ -381,7 +395,7 @@ util::Status ProtoBuilder::AppendRepeated(const FieldDescriptor& field,
 
   for (auto it = repeated.value(); it; ++it) {
     protos::pbzero::RepeatedBuilderResult::Value::Decoder value(*it);
-    util::Status status;
+    base::Status status;
     if (value.has_int_value()) {
       status = AppendLong(field.name(), value.int_value(), true);
     } else if (value.has_double_value()) {
@@ -393,13 +407,13 @@ util::Status ProtoBuilder::AppendRepeated(const FieldDescriptor& field,
       const auto& bytes = value.bytes_value();
       status = AppendBytes(field.name(), bytes.data, bytes.size, true);
     } else {
-      status = util::ErrStatus("Unknown type in repeated field");
+      status = base::ErrStatus("Unknown type in repeated field");
     }
 
     if (!status.ok())
       return status;
   }
-  return util::OkStatus();
+  return base::OkStatus();
 }
 
 std::vector<uint8_t> ProtoBuilder::SerializeToProtoBuilderResult() {
@@ -427,7 +441,7 @@ RepeatedFieldBuilder::RepeatedFieldBuilder() {
   repeated_ = message_->set_repeated();
 }
 
-util::Status RepeatedFieldBuilder::AddSqlValue(SqlValue value) {
+base::Status RepeatedFieldBuilder::AddSqlValue(SqlValue value) {
   switch (value.type) {
     case SqlValue::kLong:
       AddLong(value.long_value);
@@ -446,7 +460,7 @@ util::Status RepeatedFieldBuilder::AddSqlValue(SqlValue value) {
       AddBytes(nullptr, 0);
       break;
   }
-  return util::OkStatus();
+  return base::OkStatus();
 }
 
 void RepeatedFieldBuilder::AddLong(int64_t value) {
@@ -587,8 +601,8 @@ void BuildProto(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
   const auto* fn_ctx =
       static_cast<const BuildProtoContext*>(sqlite3_user_data(ctx));
   if (argc % 2 != 0) {
-    util::Status error =
-        util::ErrStatus("Invalid number of args to %s BuildProto (got %d)",
+    base::Status error =
+        base::ErrStatus("Invalid number of args to %s BuildProto (got %d)",
                         fn_ctx->desc->full_name().c_str(), argc);
     sqlite3_result_error(ctx, error.c_message(), -1);
     return;
@@ -669,7 +683,7 @@ void RunMetric(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
     auto it = fn_ctx->tp->ExecuteQuery(buffer);
     it.Next();
 
-    util::Status status = it.Status();
+    base::Status status = it.Status();
     if (!status.ok()) {
       char* error =
           sqlite3_mprintf("RUN_METRIC: Error when running file %s: %s", path,
@@ -682,7 +696,55 @@ void RunMetric(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
   sqlite3_result_null(ctx);
 }
 
-util::Status ComputeMetrics(TraceProcessor* tp,
+void UnwrapMetricProto(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
+  if (argc != 2) {
+    sqlite3_result_error(ctx,
+                         "UNWRAP_METRIC_PROTO: Expected exactly proto and "
+                         "message type as arguments",
+                         -1);
+    return;
+  }
+
+  SqlValue proto = SqlValueFromSqliteValue(argv[0]);
+  SqlValue message_type = SqlValueFromSqliteValue(argv[1]);
+
+  if (proto.type != SqlValue::Type::kBytes) {
+    sqlite3_result_error(ctx, "UNWRAP_METRIC_PROTO: proto is not a blob", -1);
+    return;
+  }
+
+  if (message_type.type != SqlValue::Type::kString) {
+    sqlite3_result_error(ctx, "UNWRAP_METRIC_PROTO: message type is not string",
+                         -1);
+    return;
+  }
+
+  const uint8_t* ptr = static_cast<const uint8_t*>(proto.AsBytes());
+  size_t size = proto.bytes_count;
+  if (size == 0) {
+    sqlite3_result_blob(ctx, "", 0, nullptr);
+    return;
+  }
+
+  static constexpr uint32_t kMessageType =
+      static_cast<uint32_t>(protozero::proto_utils::ProtoSchemaType::kMessage);
+  protozero::ConstBytes bytes;
+  base::Status validation = ValidateSingleNonEmptyMessage(
+      ptr, size, kMessageType, message_type.AsString(), &bytes);
+  if (!validation.ok()) {
+    base::Status res =
+        util::ErrStatus("UNWRAP_METRICS_PROTO: %s", validation.c_message());
+    sqlite3_result_error(ctx, res.c_message(), -1);
+    return;
+  }
+
+  std::unique_ptr<uint8_t[], base::FreeDeleter> data(
+      static_cast<uint8_t*>(malloc(bytes.size)));
+  memcpy(data.get(), bytes.data, bytes.size);
+  sqlite3_result_blob(ctx, data.release(), static_cast<int>(bytes.size), free);
+}
+
+base::Status ComputeMetrics(TraceProcessor* tp,
                             const std::vector<std::string> metrics_to_compute,
                             const std::vector<SqlMetricFile>& sql_metrics,
                             const DescriptorPool& pool,
@@ -697,7 +759,7 @@ util::Status ComputeMetrics(TraceProcessor* tp,
                               name == metric.proto_field_name.value();
                      });
     if (metric_it == sql_metrics.end())
-      return util::ErrStatus("Unknown metric %s", name.c_str());
+      return base::ErrStatus("Unknown metric %s", name.c_str());
 
     const auto& sql_metric = *metric_it;
     auto queries = base::SplitString(sql_metric.sql, ";\n");
@@ -728,27 +790,27 @@ util::Status ComputeMetrics(TraceProcessor* tp,
     }
 
     if (it.ColumnCount() != 1) {
-      return util::ErrStatus("Output table %s should have exactly one column",
+      return base::ErrStatus("Output table %s should have exactly one column",
                              sql_metric.output_table_name.value().c_str());
     }
 
     SqlValue col = it.Get(0);
     if (col.type != SqlValue::kBytes) {
-      return util::ErrStatus("Output table %s column has invalid type",
+      return base::ErrStatus("Output table %s column has invalid type",
                              sql_metric.output_table_name.value().c_str());
     }
     RETURN_IF_ERROR(metric_builder.AppendSqlValue(field_name, col));
 
     has_next = it.Next();
     if (has_next) {
-      return util::ErrStatus("Output table %s should have at most one row",
+      return base::ErrStatus("Output table %s should have at most one row",
                              sql_metric.output_table_name.value().c_str());
     }
 
     RETURN_IF_ERROR(it.Status());
   }
   *metrics_proto = metric_builder.SerializeRaw();
-  return util::OkStatus();
+  return base::OkStatus();
 }
 
 }  // namespace metrics

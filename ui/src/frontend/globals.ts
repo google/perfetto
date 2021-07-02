@@ -151,6 +151,7 @@ function getRoot() {
 class Globals {
   readonly root = getRoot();
 
+  private _testing = false;
   private _dispatch?: Dispatch = undefined;
   private _controllerWorker?: Worker = undefined;
   private _state?: State = undefined;
@@ -205,6 +206,8 @@ class Globals {
     this._frontendLocalState = new FrontendLocalState();
     this._rafScheduler = new RafScheduler();
     this._serviceWorkerController = new ServiceWorkerController();
+    this._testing =
+        self.location && self.location.hash.indexOf('testing=1') >= 0;
     this._logging = initAnalytics();
 
     // TODO(hjd): Unify trackDataStore, queryResults, overviewStore, threads.
@@ -517,6 +520,10 @@ class Globals {
       this._channel = localStorage.getItem('perfettoUiChannel') || 'stable';
     }
     return this._channel;
+  }
+
+  get testing() {
+    return this._testing;
   }
 
   // Used when switching to the legacy TraceViewer UI.

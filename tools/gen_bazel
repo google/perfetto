@@ -70,6 +70,8 @@ default_targets = [
     '//src/protozero:protozero',
     '//src/protozero/protoc_plugin:protozero_plugin',
     '//src/protozero/protoc_plugin:cppgen_plugin',
+    '//tools/proto_filter:proto_filter',
+    '//tools/proto_merger:proto_merger',
 ] + public_targets
 
 # Root proto targets (to force discovery of intermediate proto targets).
@@ -82,6 +84,7 @@ proto_targets = [
     '//protos/perfetto/metrics/android:lite',
     '//protos/perfetto/trace:lite',
     '//protos/perfetto/config:lite',
+    '//protos/third_party/chromium:lite',
 ]
 
 # Path for the protobuf sources in the standalone build.

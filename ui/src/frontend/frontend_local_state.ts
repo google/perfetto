@@ -35,7 +35,10 @@ interface Range {
 
 function chooseLatest<T extends Timestamped<{}>>(current: T, next: T): T {
   if (next !== current && next.lastUpdate > current.lastUpdate) {
-    return next;
+    // |next| is from state. Callers may mutate the return value of
+    // this function so we need to clone |next| to prevent bad mutations
+    // of state:
+    return Object.assign({}, next);
   }
   return current;
 }
@@ -198,9 +201,18 @@ export class FrontendLocalState {
   }
 
   mergeState(state: FrontendState): void {
+    // This is unfortunately subtle. This class mutates this._visibleState.
+    // Since we may not mutate |state| (in order to make immer's immutable
+    // updates work) this means that we have to make a copy of the visibleState.
+    // when updating it. We don't want to have to do that unnecessarily so
+    // chooseLatest returns a shallow clone of state.visibleState *only* when
+    // that is the newer state. All of these complications should vanish when
+    // we remove this class.
+    const previousVisibleState = this._visibleState;
     this._omniboxState = chooseLatest(this._omniboxState, state.omniboxState);
     this._visibleState = chooseLatest(this._visibleState, state.visibleState);
-    if (this._visibleState === state.visibleState) {
+    const visibleStateWasUpdated = previousVisibleState !== this._visibleState;
+    if (visibleStateWasUpdated) {
       this.updateLocalTime(
           new TimeSpan(this._visibleState.startSec, this._visibleState.endSec));
     }
@@ -225,7 +237,7 @@ export class FrontendLocalState {
   }
 
   private setOmniboxDebounced = debounce(() => {
-    globals.dispatch(Actions.setOmnibox(this._omniboxState));
+    globals.dispatch(Actions.setOmnibox({...this._omniboxState}));
   }, 20);
 
   setOmnibox(value: string, mode: 'SEARCH'|'COMMAND') {

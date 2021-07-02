@@ -16,8 +16,9 @@
 
 #include "perfetto/ext/trace_processor/importers/memory_tracker/memory_allocator_node_id.h"
 
-#include <inttypes.h>
 #include <stdio.h>
+
+#include <cinttypes>
 
 #include "perfetto/base/logging.h"
 

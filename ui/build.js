@@ -62,6 +62,8 @@
 // +----------------------+   | |  *.woff2 |             +--------------------+|
 // | buildtools/legacy_tv |   | |  tv.html |             |  engine_bundle.js  ||
 // +----------------------+   | +----------+             +--------------------+|
+//                            |                          +traceconv_bundle.js ||
+//                            |                          +--------------------+|
 //                            +------------------------------------------------+
 
 const argparse = require('argparse');
@@ -129,8 +131,10 @@ async function main() {
   parser.addArgument(['--no-build', '-n'], {action: 'storeTrue'});
   parser.addArgument(['--no-wasm', '-W'], {action: 'storeTrue'});
   parser.addArgument(['--run-unittests', '-t'], {action: 'storeTrue'});
+  parser.addArgument(['--run-integrationtests', '-T'], {action: 'storeTrue'});
   parser.addArgument(['--debug', '-d'], {action: 'storeTrue'});
   parser.addArgument(['--interactive', '-i'], {action: 'storeTrue'});
+  parser.addArgument(['--rebaseline', '-r'], {action: 'storeTrue'});
 
   const args = parser.parseArgs();
   const clean = !args.no_build;
@@ -149,6 +153,9 @@ async function main() {
   cfg.startHttpServer = args.serve;
   if (args.interactive) {
     process.env.PERFETTO_UI_TESTS_INTERACTIVE = '1';
+  }
+  if (args.rebaseline) {
+    process.env.PERFETTO_UI_TESTS_REBASELINE = '1';
   }
 
   process.on('SIGINT', () => {
@@ -210,6 +217,9 @@ async function main() {
   }
   if (args.run_unittests) {
     runTests('jest.unittest.config.js');
+  }
+  if (args.run_integrationtests) {
+    runTests('jest.integrationtest.config.js');
   }
 }
 
@@ -424,7 +434,14 @@ function startServer() {
           return;
         }
 
-        const absPath = path.normalize(path.join(cfg.outDistRootDir, uri));
+        let absPath = path.normalize(path.join(cfg.outDistRootDir, uri));
+        // We want to be able to use the data in '/test/' for e2e tests.
+        // However, we don't want do create a symlink into the 'dist/' dir,
+        // because 'dist/' gets shipped on the production server.
+        if (uri.startsWith('/test/')) {
+          absPath = pjoin(ROOT_DIR, uri);
+        }
+
         fs.readFile(absPath, function(err, data) {
           if (err) {
             res.writeHead(404);

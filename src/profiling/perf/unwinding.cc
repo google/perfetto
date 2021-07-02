@@ -16,9 +16,8 @@
 
 #include "src/profiling/perf/unwinding.h"
 
+#include <cinttypes>
 #include <mutex>
-
-#include <inttypes.h>
 
 #include <unwindstack/Unwinder.h>
 

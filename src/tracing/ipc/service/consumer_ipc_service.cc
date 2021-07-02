@@ -16,7 +16,7 @@
 
 #include "src/tracing/ipc/service/consumer_ipc_service.h"
 
-#include <inttypes.h>
+#include <cinttypes>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"

@@ -26,10 +26,10 @@
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/proto_utils.h"
 
-#include <inttypes.h>
 #include <stdio.h>
 
 #include <algorithm>
+#include <cinttypes>
 #include <functional>
 #include <map>
 #include <utility>

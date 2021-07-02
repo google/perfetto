@@ -14,6 +14,18 @@
 -- limitations under the License.
 --
 
+-- Expose all clock snapshots as instant events.
+DROP VIEW IF EXISTS trace_metadata_event;
+CREATE VIEW trace_metadata_event AS
+SELECT
+  'slice' as track_type,
+  'Clock Snapshots' as track_name,
+  ts,
+  0 as dur,
+  'Snapshot' as slice_name
+FROM clock_snapshot
+GROUP BY ts;
+
 DROP VIEW IF EXISTS trace_metadata_output;
 CREATE VIEW trace_metadata_output AS
 SELECT TraceMetadata(

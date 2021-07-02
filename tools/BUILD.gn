@@ -25,6 +25,7 @@ group("tools") {
     "compact_reencode",
     "ftrace_proto_gen",
     "proto_filter",
+    "proto_merger",
     "protoprofile",
   ]
   if (is_linux || is_android) {

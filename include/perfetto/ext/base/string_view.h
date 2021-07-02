@@ -118,6 +118,20 @@ class StringView {
 #endif
   }
 
+  bool StartsWith(const StringView& other) {
+    if (other.size() == 0)
+      return true;
+    if (size() == 0)
+      return false;
+    if (other.size() > size())
+      return false;
+    for (uint32_t i = 0; i < other.size(); ++i) {
+      if (at(i) != other.at(i))
+        return false;
+    }
+    return true;
+  }
+
   std::string ToStdString() const {
     return size_ == 0 ? "" : std::string(data_, size_);
   }

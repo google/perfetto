@@ -25,15 +25,15 @@ trace.add_gpu_mem_total_event(pid=0, ts=0, size=123)
 
 # Global gpu_mem_total ftrace event
 trace.add_ftrace_packet(cpu=0)
-trace.add_gpu_mem_total_ftrace_event(pid=0, ts=5, size=256)
-trace.add_gpu_mem_total_ftrace_event(pid=0, ts=10, size=123)
+trace.add_gpu_mem_total_ftrace_event(ftrace_pid=0, pid=0, ts=5, size=256)
+trace.add_gpu_mem_total_ftrace_event(ftrace_pid=0, pid=0, ts=10, size=123)
 
 # gpu_mem_total initial counter event for pid = 1
 trace.add_gpu_mem_total_event(pid=1, ts=0, size=100)
 
 # gpu_mem_total ftrace event for pid = 1
 trace.add_ftrace_packet(cpu=1)
-trace.add_gpu_mem_total_ftrace_event(pid=1, ts=5, size=233)
-trace.add_gpu_mem_total_ftrace_event(pid=1, ts=10, size=0)
+trace.add_gpu_mem_total_ftrace_event(ftrace_pid=1, pid=1, ts=5, size=233)
+trace.add_gpu_mem_total_ftrace_event(ftrace_pid=1, pid=1, ts=10, size=0)
 
 sys.stdout.buffer.write(trace.trace.SerializeToString())

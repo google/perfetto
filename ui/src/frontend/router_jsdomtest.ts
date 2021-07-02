@@ -13,10 +13,12 @@
 // limitations under the License.
 
 import {dingus} from 'dingusjs';
+import * as m from 'mithril';
 
 import {Actions, DeferredAction} from '../common/actions';
 
 import {NullAnalytics} from './analytics';
+import {PageAttrs} from './pages';
 import {Router} from './router';
 
 const mockComponent = {
@@ -33,38 +35,45 @@ beforeEach(() => {
 });
 
 test('Default route must be defined', () => {
-  expect(
-      () => new Router('/a', {'/b': mockComponent}, fakeDispatch, mockLogging))
-      .toThrow();
+  const routes = new Map<string, m.Component<PageAttrs>>();
+  routes.set('/b', mockComponent);
+  expect(() => new Router('/a', routes, fakeDispatch, mockLogging)).toThrow();
 });
 
 test('Resolves empty route to default component', () => {
-  const router =
-      new Router('/a', {'/a': mockComponent}, fakeDispatch, mockLogging);
-  expect(router.resolve('')).toBe(mockComponent);
-  expect(router.resolve(null)).toBe(mockComponent);
+  const routes = new Map<string, m.Component<PageAttrs>>();
+  routes.set('/a', mockComponent);
+  const router = new Router('/a', routes, fakeDispatch, mockLogging);
+  expect(router.resolve('').tag).toBe(mockComponent);
+  expect(router.resolve(undefined).tag).toBe(mockComponent);
+});
+
+test('Resolves subpage route to component of main page', () => {
+  const nonDefaultComponent = {view() {}};
+  const routes = new Map<string, m.Component<PageAttrs>>();
+  routes.set('/', mockComponent);
+  routes.set('/a', nonDefaultComponent);
+  const router = new Router('/', routes, fakeDispatch, mockLogging);
+  expect(router.resolve('/a/subpage').tag).toBe(nonDefaultComponent);
 });
 
 test('Parse route from hash', () => {
-  const router =
-      new Router('/', {'/': mockComponent}, fakeDispatch, mockLogging);
+  const routes = new Map<string, m.Component<PageAttrs>>();
+  routes.set('/', mockComponent);
+  const router = new Router('/', routes, fakeDispatch, mockLogging);
   window.location.hash = '#!/foobar?s=42';
-  expect(router.getRouteFromHash()).toBe('/foobar');
+  expect(router.getFullRouteFromHash()).toBe('/foobar?s=42');
 
   window.location.hash = '/foobar';  // Invalid prefix.
-  expect(router.getRouteFromHash()).toBe('');
+  expect(router.getFullRouteFromHash()).toBe('');
 });
 
 test('Set valid route on hash', () => {
+  const routes = new Map<string, m.Component<PageAttrs>>();
+  routes.set('/', mockComponent);
+  routes.set('/a', mockComponent);
   const dispatch = dingus<(a: DeferredAction) => void>();
-  const router = new Router(
-      '/',
-      {
-        '/': mockComponent,
-        '/a': mockComponent,
-      },
-      dispatch,
-      mockLogging);
+  const router = new Router('/', routes, dispatch, mockLogging);
   const prevHistoryLength = window.history.length;
 
   router.setRouteOnHash('/a');
@@ -74,11 +83,27 @@ test('Set valid route on hash', () => {
   expect(dispatch.calls.length).toBe(0);
 });
 
+test('Set valid route with arguments on hash', () => {
+  const dispatch = dingus<(a: DeferredAction) => void>();
+  const routes = new Map<string, m.Component<PageAttrs>>();
+  routes.set('/', mockComponent);
+  routes.set('/a', mockComponent);
+  const router = new Router('/', routes, dispatch, mockLogging);
+  const prevHistoryLength = window.history.length;
+
+  router.setRouteOnHash('/a', '?trace_id=aaa');
+  expect(window.location.hash).toBe('#!/a?trace_id=aaa');
+  expect(window.history.length).toBe(prevHistoryLength + 1);
+  // No navigation action should be dispatched.
+  expect(dispatch.calls.length).toBe(0);
+});
+
 test('Redirects to default for invalid route in setRouteOnHash ', () => {
   const dispatch = dingus<(a: DeferredAction) => void>();
-  // const dispatch = () => {console.log("action received")};
+  const routes = new Map<string, m.Component<PageAttrs>>();
+  routes.set('/', mockComponent);
 
-  const router = new Router('/', {'/': mockComponent}, dispatch, mockLogging);
+  const router = new Router('/', routes, dispatch, mockLogging);
   router.setRouteOnHash('foo');
   expect(dispatch.calls.length).toBe(1);
   expect(dispatch.calls[0][1].length).toBeGreaterThanOrEqual(1);
@@ -90,14 +115,11 @@ test('Navigate on hash change', done => {
     expect(a).toEqual(Actions.navigate({route: '/viewer'}));
     done();
   };
-  new Router(
-      '/',
-      {
-        '/': mockComponent,
-        '/viewer': mockComponent,
-      },
-      mockDispatch,
-      mockLogging);
+  const routes = new Map<string, m.Component<PageAttrs>>();
+  routes.set('/', mockComponent);
+  routes.set('/viewer', mockComponent);
+
+  new Router('/', routes, mockDispatch, mockLogging);
   window.location.hash = '#!/viewer';
 });
 
@@ -106,15 +128,11 @@ test('Redirects to default when invalid route set in window location', done => {
     expect(a).toEqual(Actions.navigate({route: '/'}));
     done();
   };
+  const routes = new Map<string, m.Component<PageAttrs>>();
+  routes.set('/', mockComponent);
+  routes.set('/viewer', mockComponent);
 
-  new Router(
-      '/',
-      {
-        '/': mockComponent,
-        '/viewer': mockComponent,
-      },
-      mockDispatch,
-      mockLogging);
+  new Router('/', routes, mockDispatch, mockLogging);
 
   window.location.hash = '#invalid';
 });
@@ -122,16 +140,33 @@ test('Redirects to default when invalid route set in window location', done => {
 test('navigateToCurrentHash with valid current route', () => {
   const dispatch = dingus<(a: DeferredAction) => void>();
   window.location.hash = '#!/b';
-  const router = new Router(
-      '/', {'/': mockComponent, '/b': mockComponent}, dispatch, mockLogging);
+  const routes = new Map<string, m.Component<PageAttrs>>();
+  routes.set('/', mockComponent);
+  routes.set('/b', mockComponent);
+  const router = new Router('/', routes, dispatch, mockLogging);
   router.navigateToCurrentHash();
   expect(dispatch.calls[0][1][0]).toEqual(Actions.navigate({route: '/b'}));
+});
+
+test('navigateToCurrentHash with valid subpage', () => {
+  const dispatch = dingus<(a: DeferredAction) => void>();
+  window.location.hash = '#!/b/subpage';
+  const routes = new Map<string, m.Component<PageAttrs>>();
+  routes.set('/', mockComponent);
+  routes.set('/b', mockComponent);
+  const router = new Router('/', routes, dispatch, mockLogging);
+  router.navigateToCurrentHash();
+  expect(dispatch.calls[0][1][0]).toEqual(Actions.navigate({
+    route: '/b/subpage'
+  }));
 });
 
 test('navigateToCurrentHash with invalid current route', () => {
   const dispatch = dingus<(a: DeferredAction) => void>();
   window.location.hash = '#!/invalid';
-  const router = new Router('/', {'/': mockComponent}, dispatch, mockLogging);
+  const routes = new Map<string, m.Component<PageAttrs>>();
+  routes.set('/', mockComponent);
+  const router = new Router('/', routes, dispatch, mockLogging);
   router.navigateToCurrentHash();
   expect(dispatch.calls[0][1][0]).toEqual(Actions.navigate({route: '/'}));
 });

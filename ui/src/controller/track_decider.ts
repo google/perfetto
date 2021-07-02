@@ -954,7 +954,7 @@ class TrackDecider {
       from sched join thread using(utid)
       group by upid
     ) using(upid)
-    left join (select upid, sum(value) as total_cycles
+    left join (select upid, max(value) as total_cycles
       from android_thread_time_in_state_event
       group by upid
     ) using(upid)

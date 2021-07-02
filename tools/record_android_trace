@@ -152,8 +152,15 @@ def main():
 
   help = 'Can be generated with https://ui.perfetto.dev/#!/record'
   grp.add_argument('-c', '--config', default=None, help=help)
+
+  help = 'Specify the ADB device serial'
+  grp.add_argument('--serial', '-s', default=None, help=help)
+
   args = parser.parse_args()
   args.sideload = args.sideload or args.sideload_path is not None
+
+  if args.serial:
+    os.environ["ANDROID_SERIAL"] = args.serial
 
   find_adb()
 
@@ -293,6 +300,7 @@ def main():
   prt('\n')
   prt('Pulling into %s' % host_file, ANSI.BOLD)
   adb('pull', device_file, host_file).wait()
+  adb('shell', 'rm -f ' + device_file).wait()
 
   if not args.no_open:
     prt('\n')

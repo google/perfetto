@@ -16,11 +16,6 @@ import {Draft} from 'immer';
 
 import {assertExists, assertTrue} from '../base/logging';
 import {randomColor} from '../common/colorizer';
-import {
-  ConvertTrace,
-  ConvertTraceAndDownload,
-  ConvertTraceToPprof
-} from '../controller/trace_converter';
 import {ACTUAL_FRAMES_SLICE_TRACK_KIND} from '../tracks/actual_frames/common';
 import {ASYNC_SLICE_TRACK_KIND} from '../tracks/async_slices/common';
 import {COUNTER_TRACK_KIND} from '../tracks/counter/common';
@@ -50,7 +45,6 @@ import {
   SCROLLING_TRACK_GROUP,
   State,
   Status,
-  TraceSource,
   TraceTime,
   TrackKindPriority,
   TrackState,
@@ -137,7 +131,7 @@ export const StateActions = {
       ready: false,
       source: {type: 'FILE', file: args.file},
     };
-    state.route = `/viewer`;
+    state.route = '/viewer';
   },
 
   openTraceFromBuffer(state: StateDraft, args: PostedTrace): void {
@@ -148,7 +142,7 @@ export const StateActions = {
       ready: false,
       source: {type: 'ARRAY_BUFFER', ...args},
     };
-    state.route = `/viewer`;
+    state.route = '/viewer';
   },
 
   openTraceFromUrl(state: StateDraft, args: {url: string}): void {
@@ -159,7 +153,7 @@ export const StateActions = {
       ready: false,
       source: {type: 'URL', url: args.url},
     };
-    state.route = `/viewer`;
+    state.route = '/viewer';
   },
 
   openTraceFromHttpRpc(state: StateDraft, _args: {}): void {
@@ -170,7 +164,7 @@ export const StateActions = {
       ready: false,
       source: {type: 'HTTP_RPC'},
     };
-    state.route = `/viewer`;
+    state.route = '/viewer';
   },
 
   openVideoFromFile(state: StateDraft, args: {file: File}): void {
@@ -178,24 +172,8 @@ export const StateActions = {
     state.videoEnabled = true;
   },
 
-  // TODO(b/141359485): Actions should only modify state.
-  convertTraceToJson(
-      _: StateDraft, args: {file: Blob, truncate?: 'start'|'end'}): void {
-    ConvertTrace(args.file, 'json', args.truncate);
-  },
-
-  convertTraceToSystraceAndDownload(_: StateDraft, args: {file: Blob}): void {
-    ConvertTraceAndDownload(args.file, 'systrace');
-  },
-
-  convertTraceToJsonAndDownload(_: StateDraft, args: {file: Blob}): void {
-    ConvertTraceAndDownload(args.file, 'json');
-  },
-
-  convertTraceToPprof(
-      _: StateDraft,
-      args: {pid: number, src: TraceSource, ts1: number, ts2?: number}): void {
-    ConvertTraceToPprof(args.pid, args.src, args.ts1, args.ts2);
+  setTraceUuid(state: StateDraft, args: {traceUuid: string}) {
+    state.traceUuid = args.traceUuid;
   },
 
   addTracks(state: StateDraft, args: {tracks: AddTrackArgs[]}) {
@@ -813,7 +791,7 @@ export const StateActions = {
   },
 
   setVisibleTraceTime(state: StateDraft, args: VisibleState): void {
-    state.frontendLocalState.visibleState = args;
+    state.frontendLocalState.visibleState = {...args};
   },
 
   setChromeCategories(state: StateDraft, args: {categories: string[]}): void {

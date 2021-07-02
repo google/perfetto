@@ -63,6 +63,7 @@ android_async_slice.textproto process_track_slices.sql process_track_slices_andr
 # Print events
 ../../data/lmk_userspace.pb print_systrace.sql print_systrace_lmk_userspace.out
 kernel_tmw_counter.textproto thread_counter_and_track.sql kernel_tmw_counter_thread_counter_and_track.out
+kernel_dpu_tmw_counter.textproto thread_counter_and_track.sql kernel_dpu_tmw_counter_thread_counter_and_track.out
 # Unsigned integers
 print_systrace_unsigned.py print_systrace.sql print_systrace_unsigned.out
 
@@ -146,3 +147,6 @@ sched_blocked_reason_symbolized.textproto ../common/to_systrace.sql sched_blocke
 # JSON instants and counters
 ../../data/counters.json json_counters.sql counters_json_counters.out
 ../../data/instants.json json_instants.sql instants_json_instants.out
+
+# Trace quality metric
+very_long_sched.py android_trace_quality very_long_sched_android_trace_quality.out

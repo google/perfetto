@@ -93,16 +93,6 @@
     "name": "ninja"
   },
   {
-    "cmd": [
-      "taskkill.exe",
-      "/f",
-      "/t",
-      "/im",
-      "mspdbsrv.exe"
-    ],
-    "name": "taskkill mspdbsrv"
-  },
-  {
     "name": "$result"
   }
 ]

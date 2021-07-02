@@ -1,0 +1,14 @@
+android_gpu {
+  freq_metrics {
+    gpu_id: 0
+    freq_max: 603000
+    freq_min: 0
+    freq_avg: 475200.0  # = (585000 * 2 + 0 * 1 + 603000 * 2) / 5
+  }
+  freq_metrics {
+    gpu_id: 1
+    freq_max: 758000
+    freq_min: 400000
+    freq_avg: 489500.0  # = (400000 * 3 + 758000 * 1) / 4
+  }
+}
