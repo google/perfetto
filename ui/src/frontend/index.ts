@@ -22,6 +22,7 @@ import {assertExists, reportError, setErrorHandler} from '../base/logging';
 import {forwardRemoteCalls} from '../base/remote';
 import {Actions, DeferredAction, StateActions} from '../common/actions';
 import {AggregateData} from '../common/aggregation_data';
+import {tryGetTrace} from '../common/cache_manager';
 import {ConversionJobStatusUpdate} from '../common/conversion_jobs';
 import {
   LogBoundsKey,
@@ -541,6 +542,7 @@ function onCssLoaded(router: Router) {
 
   // /?s=xxxx for permalinks.
   const stateHash = Router.param('s');
+  const traceUuid = Router.param('trace_id');
   const urlHash = Router.param('url');
   const androidBugTool = Router.param('openFromAndroidBugTool');
   if (typeof stateHash === 'string' && stateHash) {
@@ -581,6 +583,8 @@ function onCssLoaded(router: Router) {
         .catch(e => {
           console.error(e);
         });
+  } else if (traceUuid) {
+    maybeLoadCachedTrace(traceUuid);
   }
 
   // Add support for opening traces from postMessage().
@@ -602,6 +606,12 @@ function onCssLoaded(router: Router) {
     console.error('WebUSB API not supported');
   }
   installFileDropHandler();
+}
+
+async function maybeLoadCachedTrace(traceUuid: string) {
+  const trace = await tryGetTrace(traceUuid);
+  if (trace === undefined) return;
+  globals.dispatch(Actions.openTraceFromBuffer(trace));
 }
 
 main();
