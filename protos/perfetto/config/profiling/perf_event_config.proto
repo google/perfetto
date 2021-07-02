@@ -94,6 +94,14 @@ message PerfEventConfig {
   // If unset, the cached state will not be cleared.
   optional uint32 unwind_state_clear_period_ms = 10;
 
+  // If set, only profile target if it was installed by a package with one of
+  // these names. Special values:
+  // * "@system": installed on the system partition
+  // * "@product": installed on the product partition
+  // * "@null": sideloaded
+  // Supported on Android 12+.
+  repeated string target_installed_by = 18;
+
   //
   // Deprecated (superseded by options above):
   //
@@ -107,14 +115,6 @@ message PerfEventConfig {
   optional bool kernel_frames = 12;
   repeated int32 target_pid = 4;
   repeated string target_cmdline = 5;
-
-  // Only profile target if it was installed by one of the packages given.
-  // Special values are:
-  // * @system: installed on the system partition
-  // * @product: installed on the product partition
-  // * @null: sideloaded
-  // Supported on Android 12+.
-  repeated string target_installed_by = 18;
   repeated int32 exclude_pid = 6;
   repeated string exclude_cmdline = 7;
   optional uint32 additional_cmdline_count = 11;
