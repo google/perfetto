@@ -113,7 +113,7 @@ int TraceboxMain(int argc, char** argv) {
   if ((env = getenv("PERFETTO_CONSUMER_SOCK_NAME")))
     consumer_socket = env;
   if ((env = getenv("PERFETTO_PRODUCER_SOCK_NAME")))
-    consumer_socket = env;
+    producer_socket = env;
 
   base::SetEnv("PERFETTO_CONSUMER_SOCK_NAME", consumer_socket);
   base::SetEnv("PERFETTO_PRODUCER_SOCK_NAME", producer_socket);
