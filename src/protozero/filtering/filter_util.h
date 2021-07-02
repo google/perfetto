@@ -23,11 +23,9 @@
 #include <map>
 #include <string>
 
-namespace google {
-namespace protobuf {
-class Descriptor;
-}
-}  // namespace google
+// We include this intentionally instead of forward declaring to allow
+// for an easy find/replace transformation when moving to Google3.
+#include <google/protobuf/descriptor.h>
 
 namespace protozero {
 
