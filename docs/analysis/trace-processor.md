@@ -49,7 +49,7 @@ The trace processor is embedded in a wide variety of trace analysis tools, inclu
 * [trace_processor](/docs/analysis/trace-processor.md), a standalone binary
    providing a shell interface (and the reference embedder).
 * [Perfetto UI](https://ui.perfetto.dev), in the form of a WebAssembly module.
-* [Android Graphics Inspector](https://gpuinspector.dev/).
+* [Android GPU Inspector](https://gpuinspector.dev/).
 * [Android Studio](https://developer.android.com/studio/).
 
 ## Concepts
