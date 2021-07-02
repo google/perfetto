@@ -150,6 +150,40 @@ TEST_F(PerfSampleTrackerTest, UnknownCounterTreatedAsCpuClock) {
   ASSERT_EQ(track_name, "cpu-clock");
 }
 
+// Like TimebaseTrackName_Counter, but with a config supplying an explicit name
+// for the counter.
+TEST_F(PerfSampleTrackerTest, TimebaseTrackName_ConfigSuppliedName) {
+  uint32_t seq_id = 42;
+  uint32_t cpu0 = 0;
+
+  protos::gen::TracePacketDefaults defaults;
+  auto* perf_defaults = defaults.mutable_perf_sample_defaults();
+  perf_defaults->mutable_timebase()->set_name("test-name");
+  perf_defaults->mutable_timebase()->set_frequency(100);
+  perf_defaults->mutable_timebase()->set_counter(
+      protos::gen::PerfEvents::SW_PAGE_FAULTS);
+  auto defaults_pb = defaults.SerializeAsString();
+  protos::pbzero::TracePacketDefaults::Decoder defaults_decoder(defaults_pb);
+
+  auto stream = context.perf_sample_tracker->GetSamplingStreamInfo(
+      seq_id, cpu0, &defaults_decoder);
+
+  TrackId track_id = stream.timebase_track_id;
+  const auto& track_table = context.storage->perf_counter_track_table();
+  auto row_id = track_table.id().IndexOf(track_id);
+
+  // track exists and looks sensible
+  ASSERT_TRUE(row_id.has_value());
+  EXPECT_EQ(track_table.perf_session_id()[*row_id], stream.perf_session_id);
+  EXPECT_EQ(track_table.cpu()[*row_id], cpu0);
+  EXPECT_TRUE(track_table.is_timebase()[*row_id]);
+
+  // Using the config-supplied name for the track.
+  std::string track_name =
+      context.storage->GetString(track_table.name()[*row_id]).ToStdString();
+  ASSERT_EQ(track_name, "test-name");
+}
+
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto
