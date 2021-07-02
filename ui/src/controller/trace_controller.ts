@@ -19,6 +19,7 @@ import {
   Actions,
   DeferredAction,
 } from '../common/actions';
+import {cacheTrace} from '../common/cache_manager';
 import {TRACE_MARGIN_TIME_S} from '../common/constants';
 import {Engine, QueryError} from '../common/engine';
 import {HttpRpcEngine} from '../common/http_rpc_engine';
@@ -340,7 +341,7 @@ export class TraceController extends Controller<States> {
       globals.publish('HasFtrace', hasFtrace);
     }
 
-    await this.loadTraceUuid();
+    await this.cacheCurrentTrace();
     globals.dispatch(Actions.sortThreadTracks({}));
     await this.selectFirstHeapProfile();
 
@@ -464,7 +465,7 @@ export class TraceController extends Controller<States> {
     globals.publish('OverviewData', slicesData);
   }
 
-  private async loadTraceUuid() {
+  private async cacheCurrentTrace() {
     const engine = assertExists(this.engine);
     const query = await engine.query(`select str_value from metadata
                   where name = 'trace_uuid'`);
@@ -472,7 +473,10 @@ export class TraceController extends Controller<States> {
     if (!it.valid()) {
       throw new Error('metadata.trace_uuid could not be found.');
     }
-    globals.dispatch(Actions.setTraceUuid({traceUuid: it.row.str_value}));
+    const traceUuid = it.row.str_value;
+    const engineConfig = assertExists(Object.values(globals.state.engines)[0]);
+    cacheTrace(engineConfig.source, traceUuid);
+    globals.dispatch(Actions.setTraceUuid({traceUuid}));
   }
 
   async initialiseHelperViews() {
