@@ -305,6 +305,35 @@ class TrackDecider {
     }
   }
 
+  async addCpuPerfCounterTracks(): Promise<void> {
+    // Perf counter tracks are bound to CPUs, follow the scheduling and
+    // frequency track naming convention ("Cpu N ...").
+    // Note: we might not have a track for a given cpu if no data was seen from
+    // it. This might look surprising in the UI, but placeholder tracks are
+    // wasteful as there's no way of collapsing global counter tracks at the
+    // moment.
+    const globalCounters = await this.engine.query(`
+      select printf("Cpu %u %s", cpu, name) as name, id
+      from perf_counter_track as pct
+      order by perf_session_id asc, pct.name asc, cpu asc
+  `);
+    for (let i = 0; i < slowlyCountRows(globalCounters); i++) {
+      const name = globalCounters.columns[0].stringValues![i];
+      const trackId = +globalCounters.columns[1].longValues![i];
+      this.tracksToAdd.push({
+        engineId: this.engineId,
+        kind: COUNTER_TRACK_KIND,
+        name,
+        trackKindPriority: TrackDecider.inferTrackKindPriority(name),
+        trackGroup: SCROLLING_TRACK_GROUP,
+        config: {
+          name,
+          trackId,
+        }
+      });
+    }
+  }
+
   async groupGlobalIonTracks(): Promise<void> {
     const ionTracks: AddTrackArgs[] = [];
     let hasSummary = false;
@@ -1045,6 +1074,7 @@ class TrackDecider {
     await this.addGlobalAsyncTracks();
     await this.addGpuFreqTracks();
     await this.addGlobalCounterTracks();
+    await this.addCpuPerfCounterTracks();
     await this.groupGlobalIonTracks();
 
     // Create the per-process track groups. Note that this won't necessarily

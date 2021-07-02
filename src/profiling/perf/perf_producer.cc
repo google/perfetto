@@ -115,16 +115,31 @@ void WritePerfEventDefaultsPacket(const EventConfig& event_config,
 
   // event:
   const PerfCounter& timebase = event_config.timebase_event();
-  if (timebase.is_counter()) {
-    timebase_pb->set_counter(
-        static_cast<protos::pbzero::PerfEvents::Counter>(timebase.counter));
-  } else {
-    PERFETTO_DCHECK(timebase.is_tracepoint());
-    // TODO(rsavitski): reconsider using a struct with two strings instead
-    // of the ::gen::Tracepoint class in the C++ code.
-    auto* tracepoint_pb = timebase_pb->set_tracepoint();
-    tracepoint_pb->set_name(timebase.tracepoint.name());
-    tracepoint_pb->set_filter(timebase.tracepoint.filter());
+  switch (timebase.event_type()) {
+    case PerfCounter::Type::kBuiltinCounter: {
+      timebase_pb->set_counter(
+          static_cast<protos::pbzero::PerfEvents::Counter>(timebase.counter));
+      break;
+    }
+    case PerfCounter::Type::kTracepoint: {
+      auto* tracepoint_pb = timebase_pb->set_tracepoint();
+      tracepoint_pb->set_name(timebase.tracepoint_name);
+      tracepoint_pb->set_filter(timebase.tracepoint_filter);
+      break;
+    }
+    case PerfCounter::Type::kRawEvent: {
+      auto* raw_pb = timebase_pb->set_raw_event();
+      raw_pb->set_type(timebase.attr_type);
+      raw_pb->set_config(timebase.attr_config);
+      raw_pb->set_config1(timebase.attr_config1);
+      raw_pb->set_config2(timebase.attr_config2);
+      break;
+    }
+  }
+
+  // optional name to identify the counter during parsing:
+  if (!timebase.name.empty()) {
+    timebase_pb->set_name(timebase.name);
   }
 }
 
