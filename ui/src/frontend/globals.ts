@@ -207,7 +207,7 @@ class Globals {
     this._rafScheduler = new RafScheduler();
     this._serviceWorkerController = new ServiceWorkerController();
     this._testing =
-        self.location && self.location.search.indexOf('testing=1') >= 0;
+        self.location && self.location.hash.indexOf('testing=1') >= 0;
     this._logging = initAnalytics();
 
     // TODO(hjd): Unify trackDataStore, queryResults, overviewStore, threads.
