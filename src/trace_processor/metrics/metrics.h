@@ -63,22 +63,22 @@ class ProtoBuilder {
  public:
   ProtoBuilder(const DescriptorPool*, const ProtoDescriptor*);
 
-  util::Status AppendSqlValue(const std::string& field_name,
+  base::Status AppendSqlValue(const std::string& field_name,
                               const SqlValue& value);
 
   // Note: all external callers to these functions should not
   // |is_inside_repeated| to this function and instead rely on the default
   // value.
-  util::Status AppendLong(const std::string& field_name,
+  base::Status AppendLong(const std::string& field_name,
                           int64_t value,
                           bool is_inside_repeated = false);
-  util::Status AppendDouble(const std::string& field_name,
+  base::Status AppendDouble(const std::string& field_name,
                             double value,
                             bool is_inside_repeated = false);
-  util::Status AppendString(const std::string& field_name,
+  base::Status AppendString(const std::string& field_name,
                             base::StringView value,
                             bool is_inside_repeated = false);
-  util::Status AppendBytes(const std::string& field_name,
+  base::Status AppendBytes(const std::string& field_name,
                            const uint8_t* data,
                            size_t size,
                            bool is_inside_repeated = false);
@@ -98,11 +98,11 @@ class ProtoBuilder {
   std::vector<uint8_t> SerializeRaw();
 
  private:
-  util::Status AppendSingleMessage(const FieldDescriptor& field,
+  base::Status AppendSingleMessage(const FieldDescriptor& field,
                                    const uint8_t* ptr,
                                    size_t size);
 
-  util::Status AppendRepeated(const FieldDescriptor& field,
+  base::Status AppendRepeated(const FieldDescriptor& field,
                               const uint8_t* ptr,
                               size_t size);
 
@@ -118,7 +118,7 @@ class RepeatedFieldBuilder {
  public:
   RepeatedFieldBuilder();
 
-  util::Status AddSqlValue(SqlValue value);
+  base::Status AddSqlValue(SqlValue value);
 
   void AddLong(int64_t value);
   void AddDouble(double value);
@@ -171,10 +171,13 @@ struct RunMetricContext {
   std::vector<SqlMetricFile>* metrics;
 };
 
-// This function implements the RUN_METRIC SQL function.
+// Implements the RUN_METRIC SQL function.
 void RunMetric(sqlite3_context* ctx, int argc, sqlite3_value** argv);
 
-util::Status ComputeMetrics(TraceProcessor* impl,
+// Implements the UNWRAP_METRIC_PROTO SQL function.
+void UnwrapMetricProto(sqlite3_context* ctx, int argc, sqlite3_value** argv);
+
+base::Status ComputeMetrics(TraceProcessor* impl,
                             const std::vector<std::string> metrics_to_compute,
                             const std::vector<SqlMetricFile>& metrics,
                             const DescriptorPool& pool,
