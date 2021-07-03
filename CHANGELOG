@@ -2,10 +2,29 @@ Unreleased:
   Tracing service and probes:
     *
   Trace Processor:
+    *
+  UI:
+    *
+  SDK:
+    *
+
+
+v17.0 - 2021-07-02:
+  Tracing service and probes:
+    * Fixed a bug in ftrace parsing of absolute timestamps
+      (RINGBUF_TYPE_TIME_STAMP), encountered on Linux kernels 5.9+.
+    * Fixed a bug in --save-for-bugreport causing 0-length traces if the
+      selected trace declared one or more triggers in the config.
+    * Fixed a bug in tracebox causing the PERFETTO_PRODUCER_SOCK_NAME env
+      var to be ignored.
+  Trace Processor:
     * Changed CORS headers of --httpd mode to allow only https://ui.perfetto.dev
       and http://localhost:10000. This affects only CORS-aware browser clients.
+    * Added GPU frequency metrics.
   UI:
     * Fixed ADB connection issues ("unable to reset device") on Windows and Mac.
+    * Added caching of tracing in the cache storage so that the trace is
+      re-opened if a tab is killed (Chrome tab discarding or accidental CTRL+W).
   SDK:
     * Added support for writing track events using custom clock timestamps.
 

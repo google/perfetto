@@ -51,27 +51,54 @@ struct TargetFilter {
   uint32_t additional_cmdline_count = 0;
 };
 
+// Describes a perf event for two purposes:
+// * encoding the event in the perf_event_open syscall
+// * echoing the counter's config in the trace packet defaults, so that the
+//   parser can tell which datastream belongs to which counter.
+// Note: It's slightly odd to decode & pass around values we don't use outside
+// of reencoding back into a defaults proto. One option would be to carry the
+// Timebase proto, but this won't fit with the eventual support of multiple
+// counters, as at the proto level it'll be a distinct message from Timebase.
 struct PerfCounter {
-  // Either a predefined counter, or a tracepoint:
+  enum class Type { kBuiltinCounter, kTracepoint, kRawEvent };
+
+  Type type = Type::kBuiltinCounter;
+
+  // Optional config-supplied name for the counter, to identify it during
+  // trace parsing, does not affect the syscall.
+  std::string name;
+
+  // valid if kBuiltinCounter
   protos::gen::PerfEvents::Counter counter =
       protos::gen::PerfEvents::PerfEvents::UNKNOWN_COUNTER;
-  protos::gen::PerfEvents::Tracepoint tracepoint;
+  // valid if kTracepoint. Example: "sched:sched_switch".
+  std::string tracepoint_name;
+  // valid if kTracepoint
+  std::string tracepoint_filter;
 
-  // sycall-level description of the event:
-  uint32_t type = 0;    // perf_event_attr.type
-  uint32_t config = 0;  // perf_event_attr.config
+  // sycall-level description of the event (perf_event_attr):
+  uint32_t attr_type = 0;
+  uint64_t attr_config = 0;
+  uint64_t attr_config1 = 0;  // optional extension
+  uint64_t attr_config2 = 0;  // optional extension
 
-  bool is_counter() const {
-    return counter != protos::gen::PerfEvents::PerfEvents::UNKNOWN_COUNTER;
-  }
-  bool is_tracepoint() const { return type == PERF_TYPE_TRACEPOINT; }
+  Type event_type() const { return type; }
 
-  static PerfCounter Counter(protos::gen::PerfEvents::Counter counter,
-                             uint32_t type,
-                             uint32_t config);
+  static PerfCounter BuiltinCounter(std::string name,
+                                    protos::gen::PerfEvents::Counter counter,
+                                    uint32_t type,
+                                    uint64_t config);
 
-  static PerfCounter Tracepoint(protos::gen::PerfEvents::Tracepoint tracepoint,
-                                uint32_t id);
+  static PerfCounter Tracepoint(std::string name,
+                                std::string tracepoint_name,
+                                std::string tracepoint_filter,
+                                uint64_t id);
+
+  static PerfCounter RawEvent(std::string name,
+                              uint32_t type,
+                              uint64_t config,
+                              uint64_t config1,
+                              uint64_t config2);
 };
 
 // Describes a single profiling configuration. Bridges the gap between the data
@@ -171,9 +198,9 @@ class EventConfig {
 
   // Only profile target if it was installed by one of the packages given.
   // Special values are:
-  // * @system: installed on the system partition
-  // * @product: installed on the product partition
-  // * @null: sideloaded
+  // * "@system": installed on the system partition
+  // * "@product": installed on the product partition
+  // * "@null": sideloaded
   const std::vector<std::string> target_installed_by_;
 
   // The raw data source config, as a pbzero-generated C++ class.

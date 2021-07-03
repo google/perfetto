@@ -66,11 +66,6 @@ struct EventHeader {
   uint32_t time_delta : 27;
 };
 
-struct TimeStamp {
-  uint64_t tv_nsec;
-  uint64_t tv_sec;
-};
-
 bool ReadIntoString(const uint8_t* start,
                     const uint8_t* end,
                     uint32_t field_id,
@@ -313,7 +308,6 @@ bool CpuReader::ProcessPagesForDataSource(
     // Write the kernel symbol index (mangled address) -> name table.
     // |metadata| is shared across all cpus, is distinct per |data_source| (i.e.
     // tracing session) and is cleared after each FtraceController::ReadTick().
-    // const size_t kaddrs_size = metadata->kernel_addrs.size();
     if (ds_config->symbolize_ksyms) {
       // Symbol indexes are assigned mononically as |kernel_addrs.size()|,
       // starting from index 1 (no symbol has index 0). Here we remember the
@@ -532,11 +526,11 @@ size_t CpuReader::ParsePagePayload(const uint8_t* start_of_payload,
         // size in the process. We assume the newer layout. Parsed the same as
         // kTypeTimeExtend, except that the timestamp is interpreted as an
         // absolute, instead of a delta on top of the previous state.
-        timestamp = event_header.time_delta;
         uint32_t time_delta_ext = 0;
         if (!ReadAndAdvance<uint32_t>(&ptr, end, &time_delta_ext))
           return 0;
-        timestamp += (static_cast<uint64_t>(time_delta_ext)) << 27;
+        timestamp = event_header.time_delta +
+                    (static_cast<uint64_t>(time_delta_ext) << 27);
         break;
       }
       // Data record:

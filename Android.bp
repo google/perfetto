@@ -7430,6 +7430,7 @@ filegroup {
 filegroup {
   name: "perfetto_src_profiling_symbolizer_symbolizer",
   srcs: [
+    "src/profiling/symbolizer/breakpad_parser.cc",
     "src/profiling/symbolizer/filesystem_posix.cc",
     "src/profiling/symbolizer/filesystem_windows.cc",
     "src/profiling/symbolizer/local_symbolizer.cc",
@@ -7445,6 +7446,7 @@ filegroup {
 filegroup {
   name: "perfetto_src_profiling_symbolizer_unittests",
   srcs: [
+    "src/profiling/symbolizer/breakpad_parser_unittest.cc",
     "src/profiling/symbolizer/local_symbolizer_unittest.cc",
   ],
 }
