@@ -102,7 +102,8 @@ void PrintCompressedPackets(const std::string& packets,
     stream.avail_out = sizeof(out);
     ret = inflate(&stream, Z_NO_FLUSH);
     if (ret != Z_STREAM_END && ret != Z_OK) {
-      PERFETTO_ELOG("Error when decompressing packets");
+      PERFETTO_ELOG("Error when decompressing packets: %s",
+                    (stream.msg ? stream.msg : ""));
       return;
     }
     data.insert(data.end(), out, out + (sizeof(out) - stream.avail_out));
