@@ -32,8 +32,8 @@ import subprocess
 import platform
 
 TRACE_PROCESSOR_SHELL_SHAS = {
-    'linux': 'a3ce2cbf4cbe4f86cc10b02957db727cecfafae8',
-    'mac': 'c39a5be9a3831911ef2e50d66d11c12d877688f3',
+    'linux': '6dcb207dabcf5dc0d88aee8b3ae6abe2380e3e8d',
+    'mac': '8196240f76ee9472e39e538afa1bc76bdfce292a',
 }
 TRACE_PROCESSOR_SHELL_PATH = tempfile.gettempdir()
 TRACE_PROCESSOR_SHELL_BASE_URL = ('https://storage.googleapis.com/perfetto/')
