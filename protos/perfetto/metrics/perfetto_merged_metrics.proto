@@ -717,6 +717,26 @@ message AndroidPowerRails {
 }
 // End of protos/perfetto/metrics/android/powrails_metric.proto
 
+// Begin of protos/perfetto/metrics/android/profiler_smaps.proto
+
+message ProfilerSmaps {
+  message Mapping {
+    optional string path = 1;
+    optional int32 size_kb = 2;
+    optional int32 private_dirty_kb = 3;
+    optional int32 swap_kb = 4;
+  }
+
+  message Instance {
+    optional AndroidProcessMetadata process = 1;
+    repeated Mapping mappings = 2;
+  }
+
+  repeated Instance instance = 1;
+}
+
+// End of protos/perfetto/metrics/android/profiler_smaps.proto
+
 // Begin of protos/perfetto/metrics/android/startup_metric.proto
 
 // Android app startup metrics.
@@ -1123,7 +1143,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 35
+// Next id: 36
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -1209,6 +1229,9 @@ message TraceMetrics {
 
   // Metric to verify the quality of the trace.
   optional AndroidTraceQualityMetric android_trace_quality = 34;
+
+  // Profiler smaps
+  optional ProfilerSmaps profiler_smaps = 35;
 
   // Demo extensions.
   extensions 450 to 499;
