@@ -84,8 +84,11 @@ class FtraceDataSource : public ProbesDataSource {
   TraceWriter* trace_writer() { return writer_.get(); }
 
  private:
+  // Hands out internal pointers to callbacks.
   FtraceDataSource(const FtraceDataSource&) = delete;
   FtraceDataSource& operator=(const FtraceDataSource&) = delete;
+  FtraceDataSource(FtraceDataSource&&) = delete;
+  FtraceDataSource& operator=(FtraceDataSource&&) = delete;
 
   void WriteStats();
   void DumpFtraceStats(FtraceStats*);
