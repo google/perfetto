@@ -21,6 +21,7 @@
 #include <string>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
@@ -31,6 +32,7 @@
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/json/json_tracker.h"
 #include "src/trace_processor/importers/json/json_utils.h"
+#include "src/trace_processor/tables/slice_tables.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto {
@@ -125,16 +127,52 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
                                inserter);
     }
   };
+
+  // Only used for 'B', 'E', and 'X' events so wrap in lambda so it gets
+  // ignored in other cases. This lambda is only safe to call within the
+  // scope of this function due to the capture by reference.
+  auto make_thread_slice_row = [&](TrackId track_id) {
+    tables::ThreadSliceTable::Row row;
+    row.ts = timestamp;
+    row.track_id = track_id;
+    row.category = cat_id;
+    row.name = name_id;
+    row.thread_ts =
+        JsonTracker::GetOrCreate(context_)->CoerceToTs(value["tts"]);
+    // tdur will only exist on 'X' events.
+    row.thread_dur =
+        JsonTracker::GetOrCreate(context_)->CoerceToTs(value["tdur"]);
+    // JSON traces don't report these counters as part of slices.
+    row.thread_instruction_count = base::nullopt;
+    row.thread_instruction_delta = base::nullopt;
+    return row;
+  };
+
   switch (phase) {
     case 'B': {  // TRACE_EVENT_BEGIN.
       TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-      slice_tracker->Begin(timestamp, track_id, cat_id, name_id, args_inserter);
+      slice_tracker->BeginTyped(storage->mutable_thread_slice_table(),
+                                make_thread_slice_row(track_id), args_inserter);
       MaybeAddFlow(track_id, value);
       break;
     }
     case 'E': {  // TRACE_EVENT_END.
       TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-      slice_tracker->End(timestamp, track_id, cat_id, name_id, args_inserter);
+      auto opt_slice_id = slice_tracker->End(timestamp, track_id, cat_id,
+                                             name_id, args_inserter);
+      // Now try to update thread_dur if we have a tts field.
+      auto opt_tts =
+          JsonTracker::GetOrCreate(context_)->CoerceToTs(value["tts"]);
+      if (opt_slice_id.has_value() && opt_tts) {
+        auto* thread_slice = storage->mutable_thread_slice_table();
+        auto maybe_row = thread_slice->id().IndexOf(*opt_slice_id);
+        PERFETTO_DCHECK(maybe_row.has_value());
+        auto start_tts = thread_slice->thread_ts()[*maybe_row];
+        if (start_tts) {
+          thread_slice->mutable_thread_dur()->Set(*maybe_row,
+                                                  *opt_tts - *start_tts);
+        }
+      }
       break;
     }
     case 'X': {  // TRACE_EVENT (scoped event).
@@ -143,8 +181,10 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
       if (!opt_dur.has_value())
         return;
       TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-      slice_tracker->Scoped(timestamp, track_id, cat_id, name_id,
-                            opt_dur.value(), args_inserter);
+      auto row = make_thread_slice_row(track_id);
+      row.dur = opt_dur.value();
+      slice_tracker->ScopedTyped(storage->mutable_thread_slice_table(),
+                                 std::move(row), args_inserter);
       MaybeAddFlow(track_id, value);
       break;
     }
@@ -194,6 +234,15 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
           break;
         }
         track_id = context_->track_tracker->InternThreadTrack(utid);
+        auto row = make_thread_slice_row(track_id);
+        row.dur = 0;
+        if (row.thread_ts) {
+          // Only set thread_dur to zero if we have a thread_ts.
+          row.thread_dur = 0;
+        }
+        slice_tracker->ScopedTyped(storage->mutable_thread_slice_table(),
+                                   std::move(row), args_inserter);
+        break;
       } else {
         context_->storage->IncrementStats(stats::json_parser_failure);
         break;
