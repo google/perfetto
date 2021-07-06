@@ -10,7 +10,9 @@
         "args":{},
         "dur": 10,
         "bind_id": "0x402",
-        "flow_out": true
+        "flow_out": true,
+        "tts":3005,
+        "tdur":7
       },
       {
         "cat": "ipc",
@@ -23,7 +25,9 @@
         "dur": 10,
         "bind_id": "0x403",
         "flow_out": true,
-        "flow_in": false
+        "flow_in": false,
+        "tts":1,
+        "tdur":5
       },
       {
         "cat": "ipc",
@@ -48,7 +52,9 @@
         "dur": 500,
         "bind_id": "0x402",
         "flow_in": true,
-        "flow_out": true
+        "flow_out": true,
+        "tts":3204,
+        "tdur":100
       },
       {
         "cat": "ipc",
@@ -60,7 +66,9 @@
         "args": {},
         "dur": 400,
         "bind_id": "0x402",
-        "flow_in": true
+        "flow_in": true,
+        "tts":3335,
+        "tdur":340
       },
       {
         "cat": "ipc",
@@ -71,7 +79,18 @@
         "name": "SomeOtherSlice",
         "args": {},
         "bind_id": "0x402",
-        "flow_in": true
+        "flow_in": true,
+        "tts":3335
+      },
+      {
+        "cat": "ipc",
+        "pid": 15875,
+        "tid": 15895,
+        "ts": 3366,
+        "dur": 0,
+        "ph": "i",
+        "name": "SomeOtherSliceInstant",
+        "args": {}
       },
       {
         "cat": "ipc",
@@ -80,6 +99,7 @@
         "ts": 4330,
         "ph": "E",
         "name": "SomeOtherSlice",
+        "tts":4331,
         "args": {}
       }
     ]
