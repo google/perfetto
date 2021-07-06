@@ -50,5 +50,4 @@ CREATE VIEW profiler_smaps_output AS
         'mappings', mappings
       ))
   )
-  FROM mapping_protos JOIN process_metadata USING (upid)
-  GROUP BY ts, upid;
+  FROM mapping_protos JOIN process_metadata USING (upid);
