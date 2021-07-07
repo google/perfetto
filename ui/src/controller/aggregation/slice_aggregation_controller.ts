@@ -30,7 +30,7 @@ import {AggregationController} from './aggregation_controller';
 
 export class SliceAggregationController extends AggregationController {
   async createAggregateView(engine: Engine, area: Area) {
-    await engine.query(`drop view if exists ${this.kind};`);
+    await engine.queryV2(`drop view if exists ${this.kind};`);
 
     const selectedTrackIds = [];
     for (const trackId of area.tracks) {
@@ -61,7 +61,7 @@ export class SliceAggregationController extends AggregationController {
         ts + dur > ${toNs(area.startSec)} AND
         ts < ${toNs(area.endSec)} group by name`;
 
-    await engine.query(query);
+    await engine.queryV2(query);
     return true;
   }
 

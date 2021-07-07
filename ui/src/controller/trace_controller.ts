@@ -485,7 +485,7 @@ export class TraceController extends Controller<States> {
     this.updateStatus('Creating annotation counter track table');
     // Create the helper tables for all the annotations related data.
     // NULL in min/max means "figure it out per track in the usual way".
-    await engine.query(`
+    await engine.queryV2(`
       CREATE TABLE annotation_counter_track(
         id INTEGER PRIMARY KEY,
         name STRING,
@@ -496,7 +496,7 @@ export class TraceController extends Controller<States> {
       );
     `);
     this.updateStatus('Creating annotation slice track table');
-    await engine.query(`
+    await engine.queryV2(`
       CREATE TABLE annotation_slice_track(
         id INTEGER PRIMARY KEY,
         name STRING,
@@ -506,7 +506,7 @@ export class TraceController extends Controller<States> {
     `);
 
     this.updateStatus('Creating annotation counter table');
-    await engine.query(`
+    await engine.queryV2(`
       CREATE TABLE annotation_counter(
         id BIG INT,
         track_id INT,
@@ -516,7 +516,7 @@ export class TraceController extends Controller<States> {
       ) WITHOUT ROWID;
     `);
     this.updateStatus('Creating annotation slice table');
-    await engine.query(`
+    await engine.queryV2(`
       CREATE TABLE annotation_slice(
         id INTEGER PRIMARY KEY,
         track_id INT,
@@ -571,7 +571,7 @@ export class TraceController extends Controller<States> {
         const upidColumnSelect = hasUpid ? 'upid' : '0 AS upid';
         const upidColumnWhere = hasUpid ? 'upid' : '0';
         if (hasSliceName && hasDur) {
-          await engine.query(`
+          await engine.queryV2(`
             INSERT INTO annotation_slice_track(name, __metric_name, upid)
             SELECT DISTINCT
               track_name,
@@ -580,7 +580,7 @@ export class TraceController extends Controller<States> {
             FROM ${metric}_event
             WHERE track_type = 'slice'
           `);
-          await engine.query(`
+          await engine.queryV2(`
             INSERT INTO annotation_slice(track_id, ts, dur, depth, cat, name)
             SELECT
               t.id AS track_id,
@@ -603,7 +603,7 @@ export class TraceController extends Controller<States> {
           WHERE ${upidColumnWhere} != 0`);
           const min = minMax.columns[0].longValues![0];
           const max = minMax.columns[1].longValues![0];
-          await engine.query(`
+          await engine.queryV2(`
           INSERT INTO annotation_counter_track(
             name, __metric_name, min_value, max_value, upid)
           SELECT DISTINCT
@@ -615,7 +615,7 @@ export class TraceController extends Controller<States> {
           FROM ${metric}_event
           WHERE track_type = 'counter'
         `);
-          await engine.query(`
+          await engine.queryV2(`
           INSERT INTO annotation_counter(id, track_id, ts, value)
           SELECT
             -1 as id,
