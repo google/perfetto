@@ -60,9 +60,28 @@ export async function cacheTrace(
     ]
   ]);
   const traceCache = await caches.open(TRACE_CACHE_NAME);
+  await deleteStaleEntries(traceCache);
   await traceCache.put(
       `/_${TRACE_CACHE_NAME}/${traceUuid}`, new Response(trace, {headers}));
+}
 
+export async function tryGetTrace(traceUuid: string):
+    Promise<TraceArrayBufferSource|undefined> {
+  await deleteStaleEntries(await caches.open(TRACE_CACHE_NAME));
+  const response = await caches.match(
+      `/_${TRACE_CACHE_NAME}/${traceUuid}`, {cacheName: TRACE_CACHE_NAME});
+
+  if (!response) return undefined;
+  return {
+    type: 'ARRAY_BUFFER',
+    buffer: await response.arrayBuffer(),
+    title: response.headers.get('x-trace-title') || '',
+    fileName: response.headers.get('x-trace-filename') || undefined,
+    url: response.headers.get('x-trace-url') || undefined,
+  };
+}
+
+async function deleteStaleEntries(traceCache: Cache) {
   /*
    * Loop through stored caches and invalidate all but the most recent 10.
    */
@@ -70,9 +89,13 @@ export async function cacheTrace(
   const storedTraces: Array<{key: Request, date: Date}> = [];
   for (const key of keys) {
     const existingTrace = assertExists(await traceCache.match(key));
-    const serialisedExpiration =
-        assertExists(existingTrace.headers.get('expires'));
-    storedTraces.push({key, date: new Date(serialisedExpiration)});
+    const expiryDate =
+        new Date(assertExists(existingTrace.headers.get('expires')));
+    if (expiryDate < new Date()) {
+      await traceCache.delete(key);
+    } else {
+      storedTraces.push({key, date: expiryDate});
+    }
   }
 
   if (storedTraces.length <= TRACE_CACHE_SIZE) return;
@@ -88,18 +111,4 @@ export async function cacheTrace(
   for (const oldTrace of oldTraces) {
     await traceCache.delete(oldTrace.key);
   }
-}
-
-export async function tryGetTrace(traceUuid: string):
-    Promise<TraceArrayBufferSource|undefined> {
-  const response = await caches.match(
-      `/_${TRACE_CACHE_NAME}/${traceUuid}`, {cacheName: TRACE_CACHE_NAME});
-  if (!response) return undefined;
-  return {
-    type: 'ARRAY_BUFFER',
-    buffer: await response.arrayBuffer(),
-    title: response.headers.get('x-trace-title') || '',
-    fileName: response.headers.get('x-trace-filename') || undefined,
-    url: response.headers.get('x-trace-url') || undefined,
-  };
 }
