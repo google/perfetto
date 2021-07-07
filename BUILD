@@ -186,22 +186,6 @@ perfetto_cc_binary(
     ] + PERFETTO_CONFIG.deps.protobuf_full,
 )
 
-# GN target: //tools/proto_merger:proto_merger
-perfetto_cc_binary(
-    name = "proto_merger",
-    srcs = [
-        "tools/proto_merger/allowlist.h",
-        "tools/proto_merger/main.cc",
-        "tools/proto_merger/proto_file.cc",
-        "tools/proto_merger/proto_file.h",
-        "tools/proto_merger/proto_merger.cc",
-        "tools/proto_merger/proto_merger.h",
-    ],
-    deps = [
-        ":src_base_base",
-    ] + PERFETTO_CONFIG.deps.protobuf_full,
-)
-
 # GN target: //:libperfetto
 perfetto_cc_library(
     name = "libperfetto",
@@ -1053,6 +1037,7 @@ genrule(
         "src/trace_processor/metrics/android/process_metadata.sql",
         "src/trace_processor/metrics/android/process_oom_score.sql",
         "src/trace_processor/metrics/android/process_unagg_mem_view.sql",
+        "src/trace_processor/metrics/android/profiler_smaps.sql",
         "src/trace_processor/metrics/android/span_view_stats.sql",
         "src/trace_processor/metrics/android/thread_counter_span_view.sql",
         "src/trace_processor/metrics/android/unsymbolized_frames.sql",
@@ -2549,6 +2534,7 @@ perfetto_proto_library(
         "protos/perfetto/metrics/android/package_list.proto",
         "protos/perfetto/metrics/android/powrails_metric.proto",
         "protos/perfetto/metrics/android/process_metadata.proto",
+        "protos/perfetto/metrics/android/profiler_smaps.proto",
         "protos/perfetto/metrics/android/startup_metric.proto",
         "protos/perfetto/metrics/android/surfaceflinger.proto",
         "protos/perfetto/metrics/android/sysui_cuj_metrics.proto",
