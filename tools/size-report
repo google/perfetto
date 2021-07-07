@@ -1,0 +1,106 @@
+#!/usr/bin/env python3
+# Copyright (C) 2021 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""
+Generate a size report for target binaries.
+
+For example:
+$ tools/ninja -C out/r traced_probes traced
+$ tools/size-report.py -C out/r traced_probes traced
+"""
+
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+
+import argparse
+import os
+import subprocess
+import sys
+import json
+
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BLOATY_PATH = os.path.join(ROOT_DIR, 'buildtools', 'bloaty', 'bloaty')
+GN_PATH = os.path.join(ROOT_DIR, 'tools', 'gn')
+
+def GetGnArgValueOrNone(arg):
+  if 'current' in arg:
+    return eval(arg['current']['value'])
+  if 'default' in arg:
+    return eval(arg['default']['value'])
+  return None
+
+
+def GetTargetOsForBuildDir(build_dir):
+  cmd = [GN_PATH, 'args', '--list', '--json', build_dir]
+  args = json.loads(subprocess.check_output(cmd))
+  target_os = None
+  host_os = None
+  for arg in args:
+    if arg['name'] == 'target_os':
+      print(arg)
+      target_os = GetGnArgValueOrNone(arg)
+    if arg['name'] == 'host_os':
+      print(arg)
+      host_os = GetGnArgValueOrNone(arg)
+  return target_os or host_os or None
+
+
+def main():
+  parser = argparse.ArgumentParser(
+      formatter_class=argparse.RawDescriptionHelpFormatter, description=__doc__)
+  parser.add_argument(
+      '-C', '--build-dir', metavar='DIR', help='build directory', required=True)
+  parser.add_argument('-o', '--output', help='output path', default=None)
+  parser.add_argument(
+      'binaries', metavar='BINARY', nargs='+', help='subjects of size report')
+  args = parser.parse_args()
+
+  if not os.path.exists(BLOATY_PATH):
+    print(
+        'Could not find bloaty at expected path "{}". Try re-running ./tools/install-build-deps'
+        .format(BLOATY_PATH))
+    return 1
+
+  results = []
+
+  out_directory = args.build_dir
+  target_os = GetTargetOsForBuildDir(out_directory)
+  print('target_os', target_os)
+  for binary in args.binaries:
+    binary_path = os.path.join(out_directory, binary)
+    output = '{} - {}\n'.format(binary, binary_path)
+    if target_os == 'mac':
+      subprocess.check_output(['dsymutil', binary_path])
+      symbols = '--debug-file={}.dSYM/Contents/Resources/DWARF/{}'.format(
+          binary_path, binary)
+      cmd = [symbols, '-d', 'compileunits', '-n', '100', binary_path]
+    else:
+      cmd = ['-d', 'compileunits', '-n', '100', binary_path]
+    output += subprocess.check_output([BLOATY_PATH] + cmd).decode('utf-8')
+    results.append(output)
+
+  if args.output is None or args.output == '-':
+    out = sys.stdout
+  else:
+    out = open(args.output, 'w')
+
+  for result in results:
+    out.write(result)
+    out.write('\n')
+  return 0
+
+
+if __name__ == '__main__':
+  sys.exit(main())
