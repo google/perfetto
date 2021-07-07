@@ -243,6 +243,11 @@ BUILD_DEPS_HOST = [
     Dependency('buildtools/linenoise',
                'https://fuchsia.googlesource.com/third_party/linenoise.git',
                'c894b9e59f02203dbe4e2be657572cf88c4230c3', 'all', 'all'),
+
+    # Bloaty, used to investigate binary size
+    Dependency('buildtools/bloaty.zip',
+               'https://storage.googleapis.com/perfetto/bloaty-1.1-b3b829de35babc2fe831b9488ad2e50bca939412-mac.zip',
+               '2d301bd72a20e3f42888c9274ceb4dca76c103608053572322412c2c65ab8cb8', 'darwin', 'x64'),
 ]
 
 # Dependencies required to build Android code.
