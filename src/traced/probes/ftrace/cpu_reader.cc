@@ -268,11 +268,15 @@ size_t CpuReader::ReadAndProcessBatch(
     return pages_read;
 
   for (FtraceDataSource* data_source : started_data_sources) {
-    bool success = ProcessPagesForDataSource(
+    bool pages_parsed_ok = ProcessPagesForDataSource(
         data_source->trace_writer(), data_source->mutable_metadata(), cpu_,
         data_source->parsing_config(), parsing_buf, pages_read, table_,
         symbolizer_);
-    PERFETTO_CHECK(success);
+    // If this CHECK fires, it means that we did not know how to parse the
+    // kernel binary format. This is a bug in either perfetto or the kernel, and
+    // must be investigated. Hence we CHECK instead of recording a bit
+    // in the ftrace stats proto, which is easier to overlook.
+    PERFETTO_CHECK(pages_parsed_ok);
   }
 
   return pages_read;
@@ -376,6 +380,7 @@ bool CpuReader::ProcessPagesForDataSource(
       bundle->set_lost_events(true);
   };
 
+  bool pages_parsed_ok = true;
   start_new_packet(/*lost_events=*/false);
   for (size_t i = 0; i < pages_read; i++) {
     const uint8_t* curr_page = parsing_buf + (i * base::kPageSize);
@@ -410,13 +415,14 @@ bool CpuReader::ProcessPagesForDataSource(
         ParsePagePayload(parse_pos, &page_header.value(), table, ds_config,
                          &compact_sched, bundle, metadata);
 
-    // TODO(rsavitski): propagate error to trace processor in release builds.
-    // (FtraceMetadata -> FtraceStats in trace).
-    PERFETTO_DCHECK(evt_size == page_header->size);
+    if (evt_size != page_header->size) {
+      pages_parsed_ok = false;
+      PERFETTO_DFATAL("could not parse ftrace page");
+    }
   }
   finalize_cur_packet();
 
-  return true;
+  return pages_parsed_ok;
 }
 
 // A page header consists of:
