@@ -62,7 +62,7 @@ class TablesCache {
         this.cache.clear();
       }
       tableName = `${this.prefix}_${this.tableId++}`;
-      await this.engine.query(
+      await this.engine.queryV2(
           `create temp table if not exists ${tableName} as ${query}`);
       this.cache.set(query, tableName);
     }
