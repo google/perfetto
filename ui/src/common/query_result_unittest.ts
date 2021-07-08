@@ -14,8 +14,7 @@
 
 import * as protoNamespace from '../gen/protos';
 
-import {NUM, NUM_NULL, STR, STR_NULL} from './query_iterator';
-import {createQueryResult} from './query_result';
+import {createQueryResult, NUM, NUM_NULL, STR, STR_NULL} from './query_result';
 
 const T = protoNamespace.perfetto.protos.QueryResult.CellsBatch.CellType;
 const QueryResultProto = protoNamespace.perfetto.protos.QueryResult;

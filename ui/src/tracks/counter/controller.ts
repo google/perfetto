@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {NUM, NUM_NULL} from '../../common/query_iterator';
+import {NUM, NUM_NULL} from '../../common/query_result';
 import {fromNs, toNs} from '../../common/time';
 import {
   TrackController,
