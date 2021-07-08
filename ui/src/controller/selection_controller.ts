@@ -359,32 +359,37 @@ export class SelectionController extends Controller<'main'> {
     // Find the ts of the first sched_wakeup before the current slice.
     const queryWakeupTs = `select ts from instants where name = '${event}'
     and ref = ${utid} and ts < ${ts} order by ts desc limit 1`;
-    const wakeupRow = await this.args.engine.queryOneRow(queryWakeupTs);
+    const wakeResult = await this.args.engine.queryV2(queryWakeupTs);
+    if (wakeResult.numRows() === 0) {
+      return undefined;
+    }
+    const wakeupTs = wakeResult.firstRow({ts: NUM}).ts;
+
     // Find the previous sched slice for the current utid.
     const queryPrevSched = `select ts from sched where utid = ${utid}
     and ts < ${ts} order by ts desc limit 1`;
-    const prevSchedRow = await this.args.engine.queryOneRow(queryPrevSched);
+    const prevSchedResult = await this.args.engine.queryV2(queryPrevSched);
+
     // If this is the first sched slice for this utid or if the wakeup found
     // was after the previous slice then we know the wakeup was for this slice.
-    if (wakeupRow[0] === undefined ||
-        (prevSchedRow[0] !== undefined && wakeupRow[0] < prevSchedRow[0])) {
+    if (prevSchedResult.numRows() === 0 ||
+        wakeupTs < prevSchedResult.firstRow({ts: NUM}).ts) {
       return undefined;
     }
-    const wakeupTs = wakeupRow[0];
     // Find the sched slice with the utid of the waker running when the
     // sched wakeup occurred. This is the waker.
     const queryWaker = `select utid, cpu from sched where utid =
     (select utid from raw where name = '${event}' and ts = ${wakeupTs})
     and ts < ${wakeupTs} and ts + dur >= ${wakeupTs};`;
-    const wakerRow = await this.args.engine.queryOneRow(queryWaker);
-    if (wakerRow) {
-      return {
-        wakeupTs: fromNs(wakeupTs),
-        wakerUtid: wakerRow[0],
-        wakerCpu: wakerRow[1]
-      };
-    } else {
+    const wakerResult = await this.args.engine.queryV2(queryWaker);
+    if (wakerResult.numRows() === 0) {
       return undefined;
     }
+    const wakerRow = wakerResult.firstRow({utid: NUM, cpu: NUM});
+    return {
+      wakeupTs: fromNs(wakeupTs),
+      wakerUtid: wakerRow.utid,
+      wakerCpu: wakerRow.cpu
+    };
   }
 }
