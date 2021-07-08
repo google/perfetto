@@ -39,7 +39,7 @@
       "fetch",
       "--tags",
       "https://android.googlesource.com/platform/external/perfetto",
-      "2d72510e447ab60a9728aeea2362d8be2cbd7789"
+      "refs/tags/v13.0"
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "infra_step": true,
@@ -63,19 +63,6 @@
   },
   {
     "cmd": [
-      "git",
-      "rev-parse",
-      "HEAD"
-    ],
-    "cwd": "[CACHE]/builder/perfetto",
-    "infra_step": true,
-    "name": "git.rev-parse",
-    "~followup_annotations": [
-      "@@@STEP_NEST_LEVEL@1@@@"
-    ]
-  },
-  {
-    "cmd": [
       "python3",
       "tools/install-build-deps",
       "--android"
@@ -83,62 +70,6 @@
     "cwd": "[CACHE]/builder/perfetto",
     "infra_step": true,
     "name": "build-deps"
-  },
-  {
-    "cmd": [
-      "cipd",
-      "ensure",
-      "-root",
-      "[CACHE]/macos_sdk",
-      "-ensure-file",
-      "infra/tools/mac_toolchain/${platform} git_revision:e9b1fe29fe21a1cd36428c43ea2aba244bd31280",
-      "-max-threads",
-      "0",
-      "-json-output",
-      "/path/to/tmp/json"
-    ],
-    "cwd": "[CACHE]/builder/perfetto",
-    "infra_step": true,
-    "name": "ensure_installed",
-    "~followup_annotations": [
-      "@@@STEP_LOG_LINE@json.output@{@@@",
-      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
-      "@@@STEP_LOG_LINE@json.output@    \"\": [@@@",
-      "@@@STEP_LOG_LINE@json.output@      {@@@",
-      "@@@STEP_LOG_LINE@json.output@        \"instance_id\": \"resolved-instance_id-of-git_revision:e9b\", @@@",
-      "@@@STEP_LOG_LINE@json.output@        \"package\": \"infra/tools/mac_toolchain/resolved-platform\"@@@",
-      "@@@STEP_LOG_LINE@json.output@      }@@@",
-      "@@@STEP_LOG_LINE@json.output@    ]@@@",
-      "@@@STEP_LOG_LINE@json.output@  }@@@",
-      "@@@STEP_LOG_LINE@json.output@}@@@",
-      "@@@STEP_LOG_END@json.output@@@"
-    ]
-  },
-  {
-    "cmd": [
-      "[CACHE]/macos_sdk/mac_toolchain",
-      "install",
-      "-kind",
-      "mac",
-      "-xcode-version",
-      "12b5025f",
-      "-output-dir",
-      "[CACHE]/macos_sdk/XCode.app"
-    ],
-    "cwd": "[CACHE]/builder/perfetto",
-    "infra_step": true,
-    "name": "install xcode"
-  },
-  {
-    "cmd": [
-      "sudo",
-      "xcode-select",
-      "--switch",
-      "[CACHE]/macos_sdk/XCode.app"
-    ],
-    "cwd": "[CACHE]/builder/perfetto",
-    "infra_step": true,
-    "name": "select XCode"
   },
   {
     "cmd": [
@@ -162,16 +93,6 @@
     "name": "ninja"
   },
   {
-    "cmd": [
-      "sudo",
-      "xcode-select",
-      "--reset"
-    ],
-    "cwd": "[CACHE]/builder/perfetto",
-    "infra_step": true,
-    "name": "reset XCode"
-  },
-  {
     "cmd": [],
     "name": "Artifact upload"
   },
@@ -185,14 +106,14 @@
       "----",
       "cp",
       "out/dist/stripped/trace_processor_shell",
-      "gs://perfetto-artifacts//trace_processor_shell"
+      "gs://perfetto-artifacts/v13.0/trace_processor_shell"
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "infra_step": true,
     "name": "Artifact upload.gsutil upload",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@1@@@",
-      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-artifacts//trace_processor_shell@@@"
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-artifacts/v13.0/trace_processor_shell@@@"
     ]
   },
   {
