@@ -33,7 +33,9 @@ using BlockDeviceID = decltype(stat::st_dev);
 using Inode = decltype(stat::st_ino);
 
 // Container for tracking miscellaneous information while parsing ftrace events,
-// scoped to an individual data source.
+// scoped to an individual data source. Cleared periodically, after the metadata
+// is processed by the data sources interested in it, see
+// |OnFtraceDataWrittenIntoDataSourceBuffers|.
 struct FtraceMetadata {
   struct KernelAddr {
     KernelAddr(uint64_t _addr, uint32_t _index) : addr(_addr), index(_index) {}
