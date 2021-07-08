@@ -19,7 +19,7 @@ import {
   ThreadStateExtra,
 } from '../../common/aggregation_data';
 import {Engine} from '../../common/engine';
-import {slowlyCountRows} from '../../common/query_iterator';
+import {NUM, slowlyCountRows} from '../../common/query_iterator';
 import {Area, Sorting} from '../../common/state';
 import {Controller} from '../controller';
 import {globals} from '../globals';
@@ -154,9 +154,9 @@ export abstract class AggregationController extends Controller<'main'> {
 
   async getSum(def: ColumnDef): Promise<string> {
     if (!def.sum) return '';
-    const result = await this.args.engine.queryOneRow(
-        `select sum(${def.columnId}) from ${this.kind}`);
-    let sum = result[0];
+    const result = await this.args.engine.queryV2(
+        `select ifnull(sum(${def.columnId}), 0) as s from ${this.kind}`);
+    let sum = result.firstRow({s: NUM}).s;
     if (def.kind === 'TIMESTAMP_NS') {
       sum = sum / 1e6;
     }
