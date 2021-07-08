@@ -157,6 +157,58 @@ TEST(BreakpadParserTest, NoModuleRecord) {
   EXPECT_TRUE(parser.symbols_for_testing().empty());
 }
 
+// To make it easy to read, each FUNC record is followed by two LINE records:
+// one showing the start address of the ending instruction and one showing the
+// address where the function ends.
+constexpr char kGetSymbolTestContents[] =
+    "MODULE mac x86_64 E3A0F28FBCB43C15986D8608AF1DD2380 exif.so\n"
+    "FUNC 1010 23 0 foo\n"
+    "1031 2 39 4\n"
+    "1033 0 0 0\n"
+    "FUNC 1040 84 0 bar\n"
+    "10b6 e 44 5\n"
+    "10c4 0 0 0\n"
+    "FUNC 10d0 6b 0 baz\n"
+    "1136 5 44 5\n"
+    "113b 0 0 0\n";
+
+TEST(BreakpadParserTest, GivenStartAddr) {
+  BreakpadParser parser(kFakeFilePath);
+  ASSERT_TRUE(parser.ParseFromString(kGetSymbolTestContents));
+  ASSERT_EQ(parser.symbols_for_testing().size(), 3u);
+  EXPECT_EQ(*parser.GetSymbol(0x1010U), "foo");
+  EXPECT_EQ(*parser.GetSymbol(0x10d0U), "baz");
+}
+
+TEST(BreakpadParserTest, GivenAddrInRange) {
+  BreakpadParser parser(kFakeFilePath);
+  ASSERT_TRUE(parser.ParseFromString(kGetSymbolTestContents));
+  ASSERT_EQ(parser.symbols_for_testing().size(), 3u);
+  EXPECT_EQ(*parser.GetSymbol(0x1030U), "foo");
+  EXPECT_EQ(*parser.GetSymbol(0x10c0U), "bar");
+}
+
+TEST(BreakpadParserTest, AddrTooLow) {
+  BreakpadParser parser(kFakeFilePath);
+  ASSERT_TRUE(parser.ParseFromString(kGetSymbolTestContents));
+  ASSERT_EQ(parser.symbols_for_testing().size(), 3u);
+  EXPECT_FALSE(parser.GetSymbol(0x1000U));
+}
+
+TEST(BreakpadParserTest, AddrTooHigh) {
+  BreakpadParser parser(kFakeFilePath);
+  ASSERT_TRUE(parser.ParseFromString(kGetSymbolTestContents));
+  ASSERT_EQ(parser.symbols_for_testing().size(), 3u);
+  EXPECT_FALSE(parser.GetSymbol(0x3000U));
+}
+
+TEST(BreakpadParserTest, AddrBetweenFunctions) {
+  BreakpadParser parser(kFakeFilePath);
+  ASSERT_TRUE(parser.ParseFromString(kGetSymbolTestContents));
+  ASSERT_EQ(parser.symbols_for_testing().size(), 3u);
+  EXPECT_FALSE(parser.GetSymbol(0x1036U));
+}
+
 }  // namespace
 }  // namespace profiling
 }  // namespace perfetto
