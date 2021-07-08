@@ -14,7 +14,7 @@
 
 import {TRACE_MARGIN_TIME_S} from '../common/constants';
 import {Engine} from '../common/engine';
-import {NUM, STR} from '../common/query_iterator';
+import {NUM, STR} from '../common/query_result';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
 import {TimeSpan} from '../common/time';
 
