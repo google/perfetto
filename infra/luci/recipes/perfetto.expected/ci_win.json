@@ -63,6 +63,19 @@
   },
   {
     "cmd": [
+      "git",
+      "rev-parse",
+      "HEAD"
+    ],
+    "cwd": "[CACHE]\\builder\\perfetto",
+    "infra_step": true,
+    "name": "git.rev-parse",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@"
+    ]
+  },
+  {
+    "cmd": [
       "python3",
       "tools/install-build-deps",
       "--android"
@@ -170,6 +183,30 @@
       ]
     },
     "name": "ninja"
+  },
+  {
+    "cmd": [],
+    "name": "Artifact upload"
+  },
+  {
+    "cmd": [
+      "python",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]\\resources\\gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]\\gsutil.py",
+      "----",
+      "cp",
+      "out/dist/stripped/trace_processor_shell.exe",
+      "gs://perfetto-artifacts//trace_processor_shell.exe"
+    ],
+    "cwd": "[CACHE]\\builder\\perfetto",
+    "infra_step": true,
+    "name": "Artifact upload.gsutil upload",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@",
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-artifacts//trace_processor_shell.exe@@@"
+    ]
   },
   {
     "name": "$result"
