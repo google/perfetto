@@ -23,7 +23,7 @@ import {cacheTrace} from '../common/cache_manager';
 import {TRACE_MARGIN_TIME_S} from '../common/constants';
 import {Engine, QueryError} from '../common/engine';
 import {HttpRpcEngine} from '../common/http_rpc_engine';
-import {iter, slowlyCountRows, STR} from '../common/query_iterator';
+import {iter, NUM, slowlyCountRows, STR} from '../common/query_iterator';
 import {EngineMode} from '../common/state';
 import {TimeSpan, toNs, toNsCeil, toNsFloor} from '../common/time';
 import {WasmEngineProxy} from '../common/wasm_engine_proxy';
@@ -597,36 +597,37 @@ export class TraceController extends Controller<States> {
         }
 
         if (hasValue) {
-          const minMax = await engine.query(`
-          SELECT MIN(value) as min_value, MAX(value) as max_value
-          FROM ${metric}_event
-          WHERE ${upidColumnWhere} != 0`);
-          const min = minMax.columns[0].longValues![0];
-          const max = minMax.columns[1].longValues![0];
+          const minMax = await engine.queryV2(`
+            SELECT
+              IFNULL(MIN(value), 0) as minValue,
+              IFNULL(MAX(value), 0) as maxValue
+            FROM ${metric}_event
+            WHERE ${upidColumnWhere} != 0`);
+          const row = minMax.firstRow({minValue: NUM, maxValue: NUM});
           await engine.queryV2(`
-          INSERT INTO annotation_counter_track(
-            name, __metric_name, min_value, max_value, upid)
-          SELECT DISTINCT
-            track_name,
-            '${metric}' as metric_name,
-            CASE ${upidColumnWhere} WHEN 0 THEN NULL ELSE ${min} END,
-            CASE ${upidColumnWhere} WHEN 0 THEN NULL ELSE ${max} END,
-            ${upidColumnSelect}
-          FROM ${metric}_event
-          WHERE track_type = 'counter'
-        `);
+            INSERT INTO annotation_counter_track(
+              name, __metric_name, min_value, max_value, upid)
+            SELECT DISTINCT
+              track_name,
+              '${metric}' as metric_name,
+              CASE ${upidColumnWhere} WHEN 0 THEN NULL ELSE ${row.minValue} END,
+              CASE ${upidColumnWhere} WHEN 0 THEN NULL ELSE ${row.maxValue} END,
+              ${upidColumnSelect}
+            FROM ${metric}_event
+            WHERE track_type = 'counter'
+          `);
           await engine.queryV2(`
-          INSERT INTO annotation_counter(id, track_id, ts, value)
-          SELECT
-            -1 as id,
-            t.id AS track_id,
-            ts,
-            value
-          FROM ${metric}_event a
-          JOIN annotation_counter_track t
-          ON a.track_name = t.name AND t.__metric_name = '${metric}'
-          ORDER BY t.id, ts
-        `);
+            INSERT INTO annotation_counter(id, track_id, ts, value)
+            SELECT
+              -1 as id,
+              t.id AS track_id,
+              ts,
+              value
+            FROM ${metric}_event a
+            JOIN annotation_counter_track t
+            ON a.track_name = t.name AND t.__metric_name = '${metric}'
+            ORDER BY t.id, ts
+          `);
         }
       } catch (e) {
         if (e instanceof QueryError) {
