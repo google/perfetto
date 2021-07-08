@@ -64,6 +64,8 @@ import {
   STR_NULL
 } from './query_iterator';
 
+export {NUM, NUM_NULL, STR, STR_NULL} from './query_iterator';
+
 // Disable Long.js support in protobuf. This seems to be enabled only in tests
 // but not in production code. In any case, for now we want casting to number
 // accepting the 2**53 limitation. This is consistent with passing

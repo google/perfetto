@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {assertTrue} from '../../base/logging';
-import {NUM} from '../../common/query_iterator';
+import {NUM} from '../../common/query_result';
 import {fromNs, toNs} from '../../common/time';
 import {
   TrackController,
