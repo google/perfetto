@@ -41,7 +41,7 @@ export class ThreadAggregationController extends AggregationController {
   }
 
   async createAggregateView(engine: Engine, area: Area) {
-    await engine.query(`drop view if exists ${this.kind};`);
+    await engine.queryV2(`drop view if exists ${this.kind};`);
     this.setThreadStateUtids(area.tracks);
     if (this.utids === undefined || this.utids.length === 0) return false;
 
@@ -65,7 +65,7 @@ export class ThreadAggregationController extends AggregationController {
       GROUP BY utid, concat_state
     `;
 
-    await engine.query(query);
+    await engine.queryV2(query);
     return true;
   }
 
