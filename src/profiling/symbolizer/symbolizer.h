@@ -27,7 +27,7 @@ namespace profiling {
 struct SymbolizedFrame {
   std::string function_name;
   std::string file_name;
-  uint32_t line;
+  uint32_t line = 0;
 };
 
 class Symbolizer {
