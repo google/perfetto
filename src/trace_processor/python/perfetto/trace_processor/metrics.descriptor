@@ -136,8 +136,8 @@ errorCount
 freq_max (RfreqMax
 freq_min (RfreqMin
 freq_avg (RfreqAvg
-–	
-0protos/perfetto/metrics/android/hwcomposer.protoperfetto.protos"Ð
+Â	
+0protos/perfetto/metrics/android/hwcomposer.protoperfetto.protos"ü
 AndroidHwcomposerMetrics8
 composition_total_layers (RcompositionTotalLayers4
 composition_dpu_layers (RcompositionDpuLayers4
@@ -153,12 +153,13 @@ errorCount
 avg_skipped_execution_time_ms (RavgSkippedExecutionTimeMsD
 avg_unskipped_execution_time_ms (RavgUnskippedExecutionTimeMsD
 avg_separated_execution_time_ms (RavgSeparatedExecutionTimeMsb
-dpu_vote_metrics (28.perfetto.protos.AndroidHwcomposerMetrics.DpuVoteMetricsRdpuVoteMetrics­
+dpu_vote_metrics (28.perfetto.protos.AndroidHwcomposerMetrics.DpuVoteMetricsRdpuVoteMetricsÙ
 DpuVoteMetrics
 tid (Rtid+
 avg_dpu_vote_clock (RavgDpuVoteClock,
 avg_dpu_vote_avg_bw (RavgDpuVoteAvgBw.
-avg_dpu_vote_peak_bw (RavgDpuVotePeakBw
+avg_dpu_vote_peak_bw (RavgDpuVotePeakBw*
+avg_dpu_vote_rt_bw (RavgDpuVoteRtBw
 †
 1protos/perfetto/metrics/android/hwui_metric.protoperfetto.protos"ã
 ProcessRenderInfo!
