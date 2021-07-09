@@ -72,6 +72,9 @@ message AndroidHwcomposerMetrics {
 
     // the weighted average of DPU Vote Peak Bandwidth
     optional double avg_dpu_vote_peak_bw = 4;
+
+    // the weighted average of DPU Vote RT (Real Time) Bandwidth
+    optional double avg_dpu_vote_rt_bw = 5;
   }
 
   // DPU Vote Metrics for each thread track
