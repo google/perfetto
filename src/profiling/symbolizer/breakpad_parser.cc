@@ -66,12 +66,14 @@ BreakpadParser::BreakpadParser(const std::string& file_path)
 bool BreakpadParser::ParseFile() {
   base::Optional<std::string> file_contents = GetFileContents(file_path_);
   if (!file_contents) {
+    PERFETTO_ELOG("Could not get file contents of %s.", file_path_.c_str());
     return false;
   }
 
   // TODO(uwemwilson): Extract a build id and store it in the Symbol object.
 
   if (!ParseFromString(*file_contents)) {
+    PERFETTO_ELOG("Could not parse file contents.");
     return false;
   }
 
@@ -91,7 +93,7 @@ bool BreakpadParser::ParseFromString(const std::string& file_contents) {
   base::StringView first_line(lines.cur_token(), lines.cur_token_size());
   base::Status parse_record_status = ParseIfModuleRecord(first_line);
   if (!parse_record_status.ok()) {
-    PERFETTO_PLOG("%s Breakpad files should begin with a MODULE record",
+    PERFETTO_ELOG("%s Breakpad files should begin with a MODULE record",
                   parse_record_status.message().c_str());
     return false;
   }
@@ -100,7 +102,7 @@ bool BreakpadParser::ParseFromString(const std::string& file_contents) {
   while (lines.Next()) {
     parse_record_status = ParseIfFuncRecord(lines.cur_token());
     if (!parse_record_status.ok()) {
-      PERFETTO_PLOG("%s", parse_record_status.message().c_str());
+      PERFETTO_ELOG("%s", parse_record_status.message().c_str());
       return false;
     }
   }
@@ -127,7 +129,6 @@ base::Optional<std::string> BreakpadParser::GetSymbol(uint64_t address) const {
       address < it->start_address + it->function_size) {
     return it->symbol_name;
   }
-
   return base::nullopt;
 }
 
