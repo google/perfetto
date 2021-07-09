@@ -33,6 +33,7 @@ base::Optional<Value> FindInMap(const std::map<Key, Value>& map,
 
 // Finds the given 'name' in the vector by comparing against
 // the field named 'name' for each item in the vector.
+// T is ProtoFile::Enum, ProtoFile::Oneof or ProtoFile::Message.
 template <typename T>
 const T* FindByName(const std::vector<T>& items, const std::string& name) {
   for (const auto& item : items) {
@@ -44,6 +45,7 @@ const T* FindByName(const std::vector<T>& items, const std::string& name) {
 
 // Compute the items present in the |input| vector but deleted in
 // the |upstream| vector by looking at the field |name|.
+// T is ProtoFile::Enum, ProtoFile::Oneof or ProtoFile::Message.
 template <typename T>
 std::vector<T> ComputeDeletedByName(const std::vector<T>& input,
                                     const std::vector<T>& upstream) {
@@ -66,6 +68,7 @@ std::vector<T> ComputeDeletedByName(const std::vector<T>& input,
 
 // Finds the given 'number' in the vector by comparing against
 // the field named 'number for each item in the vector.
+// T is ProtoFile::EnumValue or ProtoFile::Field.
 template <typename T>
 const T* FindByNumber(const std::vector<T>& items, int number) {
   for (const auto& item : items) {
@@ -77,6 +80,7 @@ const T* FindByNumber(const std::vector<T>& items, int number) {
 
 // Compute the items present in the |input| vector but deleted in
 // the |upstream| vector by looking at the field |number|.
+// T is ProtoFile::EnumValue or ProtoFile::Field.
 template <typename T>
 std::vector<T> ComputeDeletedByNumber(const std::vector<T>& input,
                                       const std::vector<T>& upstream) {
