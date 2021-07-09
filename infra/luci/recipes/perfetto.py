@@ -18,7 +18,6 @@ from recipe_engine.recipe_api import Property
 DEPS = [
     'depot_tools/gsutil',
     'recipe_engine/buildbucket',
-    'recipe_engine/cipd',
     'recipe_engine/context',
     'recipe_engine/file',
     'recipe_engine/path',
@@ -44,11 +43,18 @@ ARTIFACTS = ['trace_processor_shell']
 def RunSteps(api, repository):
   builder_cache_dir = api.path['cache'].join('builder')
   src_dir = builder_cache_dir.join('perfetto')
-  cipd_dir = builder_cache_dir.join('cipd')
 
   # The directory for any uploaded artifacts. This will be the tag name
   # (if building a tag) or the SHA of the commit otherwise.
   upload_directory = None
+
+  # Figure out the platform we are running on
+  if api.platform.is_win:
+    platform = 'windows-amd64'
+  elif api.platform.is_mac:
+    platform = 'mac-amd64'
+  else:
+    platform = 'linux-amd64'
 
   # Fetch the Perfetto repo.
   with api.step.nest('git'), api.context(infra_steps=True):
@@ -89,7 +95,7 @@ def RunSteps(api, repository):
       for artifact in ARTIFACTS:
         artifact_ext = artifact + ('.exe' if api.platform.is_win else '')
         source = 'out/dist/stripped/{}'.format(artifact_ext)
-        target = '{}/{}'.format(upload_directory, artifact_ext)
+        target = '{}/{}/{}'.format(upload_directory, platform, artifact_ext)
         api.gsutil.upload(source, 'perfetto-artifacts', target)
 
 
