@@ -106,14 +106,14 @@
       "----",
       "cp",
       "out/dist/stripped/trace_processor_shell",
-      "gs://perfetto-artifacts/v13.0/trace_processor_shell"
+      "gs://perfetto-artifacts/v13.0/linux-amd64/trace_processor_shell"
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "infra_step": true,
     "name": "Artifact upload.gsutil upload",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@1@@@",
-      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-artifacts/v13.0/trace_processor_shell@@@"
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-artifacts/v13.0/linux-amd64/trace_processor_shell@@@"
     ]
   },
   {
