@@ -198,14 +198,14 @@
       "----",
       "cp",
       "out/dist/stripped/trace_processor_shell.exe",
-      "gs://perfetto-artifacts//trace_processor_shell.exe"
+      "gs://perfetto-artifacts//windows-amd64/trace_processor_shell.exe"
     ],
     "cwd": "[CACHE]\\builder\\perfetto",
     "infra_step": true,
     "name": "Artifact upload.gsutil upload",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@1@@@",
-      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-artifacts//trace_processor_shell.exe@@@"
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-artifacts//windows-amd64/trace_processor_shell.exe@@@"
     ]
   },
   {
