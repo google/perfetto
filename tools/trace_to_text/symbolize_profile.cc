@@ -21,9 +21,10 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/trace_processor/trace_processor.h"
 
+#include "src/profiling/symbolizer/breakpad_symbolizer.h"
+#include "src/profiling/symbolizer/local_symbolizer.h"
 #include "src/profiling/symbolizer/symbolize_database.h"
 #include "src/profiling/symbolizer/symbolizer.h"
-#include "src/profiling/symbolizer/local_symbolizer.h"
 
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -35,9 +36,14 @@ namespace trace_to_text {
 // Ingest profile, and emit a symbolization table for each sequence. This can
 // be prepended to the profile to attach the symbol information.
 int SymbolizeProfile(std::istream* input, std::ostream* output) {
-  std::unique_ptr<profiling::Symbolizer> symbolizer =
-      profiling::LocalSymbolizerOrDie(profiling::GetPerfettoBinaryPath(),
-                                      getenv("PERFETTO_SYMBOLIZER_MODE"));
+  std::unique_ptr<profiling::Symbolizer> symbolizer;
+  const char* breakpad_dir = getenv("BREAKPAD_SYMBOL_DIR");
+  if (breakpad_dir == nullptr) {
+    symbolizer = profiling::LocalSymbolizerOrDie(
+        profiling::GetPerfettoBinaryPath(), getenv("PERFETTO_SYMBOLIZER_MODE"));
+  } else {
+    symbolizer.reset(new profiling::BreakpadSymbolizer(breakpad_dir));
+  }
 
   if (!symbolizer)
     PERFETTO_FATAL("No symbolizer selected");
