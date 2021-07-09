@@ -21,6 +21,8 @@ source_set("symbolizer") {
   sources = [
     "breakpad_parser.cc",
     "breakpad_parser.h",
+    "breakpad_symbolizer.cc",
+    "breakpad_symbolizer.h",
     "filesystem.h",
     "filesystem_posix.cc",
     "filesystem_windows.cc",
@@ -65,6 +67,7 @@ perfetto_unittest_source_set("unittests") {
   ]
   sources = [
     "breakpad_parser_unittest.cc",
+    "breakpad_symbolizer_unittest.cc",
     "local_symbolizer_unittest.cc",
   ]
 }
