@@ -430,6 +430,22 @@ export function genConfig(
     metadataDs.config.chromeConfig = new ChromeConfig();
     metadataDs.config.chromeConfig.traceConfig = traceConfigJson;
     protoCfg.dataSources.push(metadataDs);
+
+    if (chromeCategories.has('disabled-by-default-memory-infra')) {
+      const memoryDs = new TraceConfig.DataSource();
+      memoryDs.config = new DataSourceConfig();
+      memoryDs.config.name = 'org.chromium.memory_instrumentation';
+      memoryDs.config.chromeConfig = new ChromeConfig();
+      memoryDs.config.chromeConfig.traceConfig = traceConfigJson;
+      protoCfg.dataSources.push(memoryDs);
+
+      const HeapProfDs = new TraceConfig.DataSource();
+      HeapProfDs.config = new DataSourceConfig();
+      HeapProfDs.config.name = 'org.chromium.native_heap_profiler';
+      HeapProfDs.config.chromeConfig = new ChromeConfig();
+      HeapProfDs.config.chromeConfig.traceConfig = traceConfigJson;
+      protoCfg.dataSources.push(HeapProfDs);
+    }
   }
 
   if (uiCfg.screenRecord) {
