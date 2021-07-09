@@ -61,6 +61,11 @@ class BreakpadParser {
   // Parses from  a string instead of a file.
   bool ParseFromString(const std::string& file_contents);
 
+  // Returns the function name corresponding to |address| as a string. The
+  // search is log(N) on the number of functions in the binary. |address| is the
+  // relative offset from the start of the binary.
+  base::Optional<std::string> GetSymbol(uint64_t address) const;
+
   const std::vector<Symbol>& symbols_for_testing() const { return symbols_; }
 
  private:
