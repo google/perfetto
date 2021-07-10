@@ -39,7 +39,7 @@
       "fetch",
       "--tags",
       "https://android.googlesource.com/platform/external/perfetto",
-      "2d72510e447ab60a9728aeea2362d8be2cbd7789"
+      "refs/tags/v13.0"
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "infra_step": true,
@@ -57,19 +57,6 @@
     "cwd": "[CACHE]/builder/perfetto",
     "infra_step": true,
     "name": "git.checkout",
-    "~followup_annotations": [
-      "@@@STEP_NEST_LEVEL@1@@@"
-    ]
-  },
-  {
-    "cmd": [
-      "git",
-      "rev-parse",
-      "HEAD"
-    ],
-    "cwd": "[CACHE]/builder/perfetto",
-    "infra_step": true,
-    "name": "git.rev-parse",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@1@@@"
     ]
@@ -119,14 +106,14 @@
       "----",
       "cp",
       "out/dist/stripped/trace_processor_shell",
-      "gs://perfetto-artifacts//linux-amd64/trace_processor_shell"
+      "gs://perfetto-artifacts/v13.0/linux-amd64/trace_processor_shell"
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "infra_step": true,
     "name": "Artifact upload.gsutil upload",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@1@@@",
-      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-artifacts//linux-amd64/trace_processor_shell@@@"
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-artifacts/v13.0/linux-amd64/trace_processor_shell@@@"
     ]
   },
   {

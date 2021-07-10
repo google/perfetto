@@ -24,7 +24,7 @@ import {
   RawQueryArgs,
   RawQueryResult
 } from './protos';
-import {NUM, NUM_NULL, slowlyCountRows, STR} from './query_iterator';
+import {NUM, NUM_NULL, STR} from './query_iterator';
 import {
   createQueryResult,
   QueryResult,
@@ -297,24 +297,6 @@ export abstract class Engine {
     return asyncRes;
   }
 
-  async queryOneRow(query: string): Promise<number[]> {
-    const result = await this.query(query);
-    const res: number[] = [];
-    if (slowlyCountRows(result) === 0) return res;
-    for (const col of result.columns) {
-      if (col.longValues!.length === 0) {
-        console.error(
-            `queryOneRow should only be used for queries that return long values
-             : ${query}`);
-        throw new Error(
-            `queryOneRow should only be used for queries that return long values
-             : ${query}`);
-      }
-      res.push(+col.longValues![0]);
-    }
-    return res;
-  }
-
   /*
    * Issues a streaming query and retrieve results in batches.
    * The returned QueryResult object will be populated over time with batches
@@ -396,9 +378,13 @@ export abstract class Engine {
   }
 
   async getTraceTimeBounds(): Promise<TimeSpan> {
-    const query = `select start_ts, end_ts from trace_bounds`;
-    const res = (await this.queryOneRow(query));
-    return new TimeSpan(res[0] / 1e9, res[1] / 1e9);
+    const result = await this.queryV2(
+        `select start_ts as startTs, end_ts as endTs from trace_bounds`);
+    const bounds = result.firstRow({
+      startTs: NUM,
+      endTs: NUM,
+    });
+    return new TimeSpan(bounds.startTs / 1e9, bounds.endTs / 1e9);
   }
 
   async getTracingMetadataTimeBounds(): Promise<TimeSpan> {

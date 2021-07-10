@@ -186,6 +186,22 @@ perfetto_cc_binary(
     ] + PERFETTO_CONFIG.deps.protobuf_full,
 )
 
+# GN target: //tools/proto_merger:proto_merger
+perfetto_cc_binary(
+    name = "proto_merger",
+    srcs = [
+        "tools/proto_merger/allowlist.h",
+        "tools/proto_merger/main.cc",
+        "tools/proto_merger/proto_file.cc",
+        "tools/proto_merger/proto_file.h",
+        "tools/proto_merger/proto_merger.cc",
+        "tools/proto_merger/proto_merger.h",
+    ],
+    deps = [
+        ":src_base_base",
+    ] + PERFETTO_CONFIG.deps.protobuf_full,
+)
+
 # GN target: //:libperfetto
 perfetto_cc_library(
     name = "libperfetto",
@@ -770,6 +786,8 @@ filegroup(
     srcs = [
         "src/profiling/symbolizer/breakpad_parser.cc",
         "src/profiling/symbolizer/breakpad_parser.h",
+        "src/profiling/symbolizer/breakpad_symbolizer.cc",
+        "src/profiling/symbolizer/breakpad_symbolizer.h",
         "src/profiling/symbolizer/filesystem.h",
         "src/profiling/symbolizer/filesystem_posix.cc",
         "src/profiling/symbolizer/filesystem_windows.cc",

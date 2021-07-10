@@ -16,12 +16,14 @@
 from recipe_engine.recipe_api import Property
 
 DEPS = [
+    'depot_tools/gsutil',
     'recipe_engine/buildbucket',
     'recipe_engine/context',
     'recipe_engine/file',
     'recipe_engine/path',
     'recipe_engine/platform',
     'recipe_engine/properties',
+    'recipe_engine/raw_io',
     'recipe_engine/step',
     'macos_sdk',
     'windows_sdk',
@@ -42,6 +44,18 @@ def RunSteps(api, repository):
   builder_cache_dir = api.path['cache'].join('builder')
   src_dir = builder_cache_dir.join('perfetto')
 
+  # The directory for any uploaded artifacts. This will be the tag name
+  # (if building a tag) or the SHA of the commit otherwise.
+  upload_directory = None
+
+  # Figure out the platform we are running on
+  if api.platform.is_win:
+    platform = 'windows-amd64'
+  elif api.platform.is_mac:
+    platform = 'mac-amd64'
+  else:
+    platform = 'linux-amd64'
+
   # Fetch the Perfetto repo.
   with api.step.nest('git'), api.context(infra_steps=True):
     api.file.ensure_directory('ensure source dir', src_dir)
@@ -54,6 +68,13 @@ def RunSteps(api, repository):
       # Fetch tags so `git describe` works.
       api.step('fetch', ['git', 'fetch', '--tags', repository, ref])
       api.step('checkout', ['git', 'checkout', 'FETCH_HEAD'])
+
+      if ref.startswith('refs/tags/'):
+        upload_directory = ref.replace('refs/tags/', '')
+      else:
+        upload_directory = api.step(
+            'rev-parse', ['git', 'rev-parse', 'HEAD'],
+            stdout=api.raw_io.output()).stdout.strip()
 
   # Pull all deps here.
   # There should be no need for internet access for building Perfetto beyond
@@ -68,6 +89,15 @@ def RunSteps(api, repository):
         ['python3', 'tools/gn', 'gen', 'out/dist', '--args=is_debug=false'])
     api.step('ninja', ['python3', 'tools/ninja', '-C', 'out/dist'])
 
+  # Upload stripped artifacts using gsutil if we're on the official builder.
+  if api.buildbucket.builder_id.project == 'perfetto':
+    with api.step.nest('Artifact upload'), api.context(cwd=src_dir):
+      for artifact in ARTIFACTS:
+        artifact_ext = artifact + ('.exe' if api.platform.is_win else '')
+        source = 'out/dist/stripped/{}'.format(artifact_ext)
+        target = '{}/{}/{}'.format(upload_directory, platform, artifact_ext)
+        api.gsutil.upload(source, 'perfetto-artifacts', target)
+
 
 def GenTests(api):
   for platform in ('linux', 'mac', 'win'):
@@ -76,3 +106,9 @@ def GenTests(api):
                project='perfetto',
                git_repo='android.googlesource.com/platform/external/perfetto',
            ))
+
+  yield (api.test('ci_tag') + api.platform.name('linux') +
+         api.buildbucket.ci_build(
+             project='perfetto',
+             git_repo='android.googlesource.com/platform/external/perfetto',
+             revision='refs/tags/v13.0'))

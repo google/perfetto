@@ -20,7 +20,7 @@ import {
   LogEntriesKey,
   LogExistsKey
 } from '../common/logs';
-import {slowlyCountRows} from '../common/query_iterator';
+import {NUM, slowlyCountRows} from '../common/query_iterator';
 import {fromNs, TimeSpan, toNsCeil, toNsFloor} from '../common/time';
 
 import {Controller} from './controller';
@@ -31,21 +31,28 @@ async function updateLogBounds(
   const vizStartNs = toNsFloor(span.start);
   const vizEndNs = toNsCeil(span.end);
 
-  const countResult = await engine.queryOneRow(`
-     select min(ts), max(ts), count(ts)
+  const countResult = await engine.queryV2(`
+     select
+      ifnull(min(ts), 0) as minTs,
+      ifnull(max(ts), 0) as maxTs,
+      count(ts) as countTs
      from android_logs where ts >= ${vizStartNs} and ts <= ${vizEndNs}`);
 
-  const firstRowNs = countResult[0];
-  const lastRowNs = countResult[1];
-  const total = countResult[2];
+  const countRow = countResult.firstRow({minTs: NUM, maxTs: NUM, countTs: NUM});
 
-  const minResult = await engine.queryOneRow(`
-     select max(ts) from android_logs where ts < ${vizStartNs}`);
-  const startNs = minResult[0];
+  const firstRowNs = countRow.minTs;
+  const lastRowNs = countRow.maxTs;
+  const total = countRow.countTs;
 
-  const maxResult = await engine.queryOneRow(`
-     select min(ts) from android_logs where ts > ${vizEndNs}`);
-  const endNs = maxResult[0];
+  const minResult = await engine.queryV2(`
+     select ifnull(max(ts), 0) as maxTs from android_logs where ts < ${
+      vizStartNs}`);
+  const startNs = minResult.firstRow({maxTs: NUM}).maxTs;
+
+  const maxResult = await engine.queryV2(`
+     select ifnull(min(ts), 0) as minTs from android_logs where ts > ${
+      vizEndNs}`);
+  const endNs = maxResult.firstRow({minTs: NUM}).minTs;
 
   const trace = await engine.getTraceTimeBounds();
   const startTs = startNs ? fromNs(startNs) : trace.start;
@@ -168,10 +175,10 @@ export class LogsController extends Controller<'main'> {
   }
 
   async hasAnyLogs() {
-    const result = await this.engine.queryOneRow(`
-      select count(*) from android_logs
+    const result = await this.engine.queryV2(`
+      select count(*) as cnt from android_logs
     `);
-    return result[0] > 0;
+    return result.firstRow({cnt: NUM}).cnt > 0;
   }
 
   run() {

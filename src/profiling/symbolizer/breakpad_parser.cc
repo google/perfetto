@@ -27,6 +27,10 @@ namespace profiling {
 
 namespace {
 
+bool SymbolComparator(const uint64_t i, const BreakpadParser::Symbol& sym) {
+  return i < sym.start_address;
+}
+
 base::Optional<std::string> GetFileContents(const std::string& file_path) {
   std::string file_contents;
   base::ScopedFile fd = base::OpenFile(file_path, O_RDONLY);
@@ -62,12 +66,14 @@ BreakpadParser::BreakpadParser(const std::string& file_path)
 bool BreakpadParser::ParseFile() {
   base::Optional<std::string> file_contents = GetFileContents(file_path_);
   if (!file_contents) {
+    PERFETTO_ELOG("Could not get file contents of %s.", file_path_.c_str());
     return false;
   }
 
   // TODO(uwemwilson): Extract a build id and store it in the Symbol object.
 
   if (!ParseFromString(*file_contents)) {
+    PERFETTO_ELOG("Could not parse file contents.");
     return false;
   }
 
@@ -82,20 +88,21 @@ bool BreakpadParser::ParseFromString(const std::string& file_contents) {
     // File must be empty, so just return true and continue.
     return true;
   }
+
+  // TODO(uwemwilson): Extract a build id and store it in the Symbol object.
   base::StringView first_line(lines.cur_token(), lines.cur_token_size());
   base::Status parse_record_status = ParseIfModuleRecord(first_line);
   if (!parse_record_status.ok()) {
-    PERFETTO_PLOG("%s Breakpad files should begin with a MODULE record",
+    PERFETTO_ELOG("%s Breakpad files should begin with a MODULE record",
                   parse_record_status.message().c_str());
     return false;
   }
 
   // Parse each line.
   while (lines.Next()) {
-    base::StringView cur_line(lines.cur_token(), lines.cur_token_size());
-    parse_record_status = ParseIfFuncRecord(cur_line);
+    parse_record_status = ParseIfFuncRecord(lines.cur_token());
     if (!parse_record_status.ok()) {
-      PERFETTO_PLOG("%s", parse_record_status.message().c_str());
+      PERFETTO_ELOG("%s", parse_record_status.message().c_str());
       return false;
     }
   }
@@ -103,7 +110,27 @@ bool BreakpadParser::ParseFromString(const std::string& file_contents) {
   return true;
 }
 
-// TODO(uwemwilson@): Implement symbol lookup based on a given address.
+base::Optional<std::string> BreakpadParser::GetSymbol(uint64_t address) const {
+  // Returns an iterator pointing to the first element where the symbol's start
+  // address is greater than |address|.
+  auto it = std::upper_bound(symbols_.begin(), symbols_.end(), address,
+                             &SymbolComparator);
+  // If the first symbol's address is greater than |address| then |address| is
+  // too low to appear in |symbols_|.
+  if (it == symbols_.begin()) {
+    return base::nullopt;
+  }
+  // upper_bound() returns the first symbol who's start address is greater than
+  // |address|. Therefore to find the symbol with a range of addresses that
+  // |address| falls into, we check the previous symbol.
+  it--;
+  // Check to see if the address is in the function's range.
+  if (address >= it->start_address &&
+      address < it->start_address + it->function_size) {
+    return it->symbol_name;
+  }
+  return base::nullopt;
+}
 
 base::Status BreakpadParser::ParseIfFuncRecord(base::StringView current_line) {
   // Parses a FUNC record from a file. Structure of a FUNC record:

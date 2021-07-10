@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {Engine} from '../common/engine';
+import {NUM} from '../common/query_iterator';
 
 import {Controller} from './controller';
 import {globals} from './globals';
@@ -32,10 +33,13 @@ export class TraceErrorController extends Controller<'main'> {
       return;
     }
     this.hasRun = true;
-    this.args.engine
-        .queryOneRow(`SELECT sum(value) FROM stats WHERE severity != 'info'`)
+    const engine = this.args.engine;
+    engine
+        .queryV2(
+            `SELECT sum(value) as sumValue FROM stats WHERE severity != 'info'`)
         .then(result => {
-          globals.publish('TraceErrors', result[0]);
+          const errors = result.firstRow({sumValue: NUM}).sumValue;
+          globals.publish('TraceErrors', errors);
         });
   }
 }
