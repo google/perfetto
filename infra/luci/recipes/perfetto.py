@@ -93,8 +93,9 @@ def RunSteps(api, repository):
   if api.buildbucket.builder_id.project == 'perfetto':
     with api.step.nest('Artifact upload'), api.context(cwd=src_dir):
       for artifact in ARTIFACTS:
+        exe_path = 'out/dist' if api.platform.is_win else 'out/dist/stripped'
         artifact_ext = artifact + ('.exe' if api.platform.is_win else '')
-        source = 'out/dist/stripped/{}'.format(artifact_ext)
+        source = '{}/{}'.format(exe_path, artifact_ext)
         target = '{}/{}/{}'.format(upload_directory, platform, artifact_ext)
         api.gsutil.upload(source, 'perfetto-artifacts', target)
 
