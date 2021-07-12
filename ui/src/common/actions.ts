@@ -167,11 +167,6 @@ export const StateActions = {
     state.route = '/viewer';
   },
 
-  openVideoFromFile(state: StateDraft, args: {file: File}): void {
-    state.video = URL.createObjectURL(args.file);
-    state.videoEnabled = true;
-  },
-
   setTraceUuid(state: StateDraft, args: {traceUuid: string}) {
     state.traceUuid = args.traceUuid;
   },
@@ -463,9 +458,7 @@ export const StateActions = {
     }
   },
 
-  addNote(
-      state: StateDraft,
-      args: {timestamp: number, color: string, isMovie: boolean}): void {
+  addNote(state: StateDraft, args: {timestamp: number, color: string}): void {
     const id = `${state.nextNoteId++}`;
     state.notes[id] = {
       noteType: 'DEFAULT',
@@ -474,9 +467,6 @@ export const StateActions = {
       color: args.color,
       text: '',
     };
-    if (args.isMovie) {
-      state.videoNoteIds.push(id);
-    }
     this.selectNote(state, {id});
   },
 
@@ -530,34 +520,6 @@ export const StateActions = {
     };
   },
 
-  toggleVideo(state: StateDraft, _: {}): void {
-    state.videoEnabled = !state.videoEnabled;
-    if (!state.videoEnabled) {
-      state.video = null;
-      state.flagPauseEnabled = false;
-      state.scrubbingEnabled = false;
-      state.videoNoteIds.forEach(id => {
-        this.removeNote(state, {id});
-      });
-    }
-  },
-
-  toggleFlagPause(state: StateDraft, _: {}): void {
-    if (state.video != null) {
-      state.flagPauseEnabled = !state.flagPauseEnabled;
-    }
-  },
-
-  toggleScrubbing(state: StateDraft, _: {}): void {
-    if (state.video != null) {
-      state.scrubbingEnabled = !state.scrubbingEnabled;
-    }
-  },
-
-  setVideoOffset(state: StateDraft, args: {offset: number}): void {
-    state.videoOffset = args.offset;
-  },
-
   changeNoteColor(state: StateDraft, args: {id: string, newColor: string}):
       void {
         const note = state.notes[args.id];
@@ -573,11 +535,6 @@ export const StateActions = {
 
   removeNote(state: StateDraft, args: {id: string}): void {
     if (state.notes[args.id] === undefined) return;
-    if (state.notes[args.id].noteType === 'MOVIE') {
-      state.videoNoteIds = state.videoNoteIds.filter(id => {
-        return id !== args.id;
-      });
-    }
     delete state.notes[args.id];
     // For regular notes, we clear the current selection but for an area note
     // we only want to clear the note/marking and leave the area selected.

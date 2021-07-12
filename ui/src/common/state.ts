@@ -163,7 +163,7 @@ export interface Status {
 }
 
 export interface Note {
-  noteType: 'DEFAULT'|'MOVIE';
+  noteType: 'DEFAULT';
   id: string;
   timestamp: number;
   color: string;
@@ -316,13 +316,6 @@ export interface State {
    */
   frontendLocalState: FrontendLocalState;
 
-  video: string | null;
-  videoEnabled: boolean;
-  videoOffset: number;
-  videoNoteIds: string[];
-  scrubbingEnabled: boolean;
-  flagPauseEnabled: boolean;
-
   /**
    * Trace recording
    */
@@ -403,8 +396,6 @@ export interface RecordConfig {
   cpuCoarsePollMs: number;
   cpuSyscall: boolean;
 
-  screenRecord: boolean;
-
   gpuFreq: boolean;
   gpuMemTotal: boolean;
 
@@ -475,7 +466,6 @@ export function createEmptyRecordConfig(): RecordConfig {
     cpuFreq: false,
     cpuSyscall: false,
 
-    screenRecord: false,
 
     gpuFreq: false,
     gpuMemTotal: false,
@@ -844,12 +834,6 @@ export function createEmptyState(): State {
     currentHeapProfileFlamegraph: null,
     traceConversionInProgress: false,
 
-    video: null,
-    videoEnabled: false,
-    videoOffset: 0,
-    videoNoteIds: [],
-    scrubbingEnabled: false,
-    flagPauseEnabled: false,
     recordingInProgress: false,
     recordingCancelled: false,
     extensionInstalled: false,
