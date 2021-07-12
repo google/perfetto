@@ -32,7 +32,6 @@ import {TimeSelectionPanel} from './time_selection_panel';
 import {DISMISSED_PANNING_HINT_KEY} from './topbar';
 import {TrackGroupPanel} from './track_group_panel';
 import {TrackPanel} from './track_panel';
-import {VideoPanel} from './video_panel';
 
 const SIDEBAR_WIDTH = 256;
 
@@ -262,11 +261,7 @@ class TraceViewer implements m.ClassComponent {
                 doesScroll: true,
                 panels: scrollingPanels,
                 kind: 'TRACKS',
-              }))),
-          m('.video-panel',
-            (globals.state.videoEnabled && globals.state.video != null) ?
-                m(VideoPanel) :
-                null)),
+              })))),
         m(DetailsPanel));
   }
 }
