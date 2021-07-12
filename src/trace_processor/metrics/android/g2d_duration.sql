@@ -45,9 +45,9 @@ CREATE VIEW g2d_{{g2d_type}}_instances AS
 SELECT
   G2dMetrics_G2dInstance(
     'name', g.track_name,
-    'max_dur_ns', CAST(MAX(g.dur) AS INT64),
-    'min_dur_ns', CAST(MIN(g.dur) AS INT64),
-    'avg_dur_ns', CAST(AVG(g.dur) AS INT64),
+    'max_dur_ms', MAX(dur) / 1e6,
+    'min_dur_ms', MIN(dur) / 1e6,
+    'avg_dur_ms', AVG(dur) / 1e6,
     'frame_count', COUNT(*),
     'error_count', (SELECT COUNT(*) FROM g2d_{{g2d_type}}_errors e WHERE e.track_name = g.track_name)
   ) AS instance
@@ -59,9 +59,9 @@ CREATE VIEW {{output_table}} AS
 SELECT
   G2dMetrics_G2dMetric(
     'instances', (SELECT RepeatedField(instance) FROM g2d_{{g2d_type}}_instances),
-    'max_dur_ns', CAST(MAX(dur) AS INT64),
-    'min_dur_ns', CAST(MIN(dur) AS INT64),
-    'avg_dur_ns', CAST(AVG(dur) AS INT64),
+    'max_dur_ms', MAX(dur) / 1e6,
+    'min_dur_ms', MIN(dur) / 1e6,
+    'avg_dur_ms', AVG(dur) / 1e6,
     'frame_count', COUNT(*),
     'error_count', (SELECT COUNT(*) FROM g2d_{{g2d_type}}_errors)
   ) AS metric

@@ -2,7 +2,7 @@ packet {
   ftrace_events {
     cpu: 2
     event {
-      timestamp: 1000
+      timestamp: 1000000000
       pid: 237
       g2d_tracing_mark_write {
         pid: 237
@@ -12,7 +12,7 @@ packet {
       }
     }
     event {
-      timestamp: 1003
+      timestamp: 1003000000
       pid: 237
       g2d_tracing_mark_write {
         pid: 237
@@ -22,7 +22,7 @@ packet {
       }
     }
     event {
-      timestamp: 1005
+      timestamp: 1005000000
       pid: 237
       g2d_tracing_mark_write {
         pid: 237
@@ -32,7 +32,7 @@ packet {
       }
     }
     event {
-      timestamp: 1010
+      timestamp: 1010000000
       pid: 237
       g2d_tracing_mark_write {
         pid: 237
@@ -42,7 +42,7 @@ packet {
       }
     }
     event {
-      timestamp: 1020
+      timestamp: 1020000000
       pid: 237
       g2d_tracing_mark_write {
         pid: 237
@@ -52,7 +52,7 @@ packet {
       }
     }
     event {
-      timestamp: 1030
+      timestamp: 1030000000
       pid: 237
       g2d_tracing_mark_write {
         pid: 237
@@ -62,7 +62,7 @@ packet {
       }
     }
     event {
-      timestamp: 1040
+      timestamp: 1040000000
       pid: 237
       g2d_tracing_mark_write {
         pid: 237
@@ -72,7 +72,7 @@ packet {
       }
     }
     event {
-      timestamp: 1050
+      timestamp: 1050000000
       pid: 237
       g2d_tracing_mark_write {
         pid: 237
@@ -82,7 +82,7 @@ packet {
       }
     }
     event {
-      timestamp: 1060
+      timestamp: 1060000000
       pid: 237
       g2d_tracing_mark_write {
         pid: 237
@@ -92,7 +92,7 @@ packet {
       }
     }
     event {
-      timestamp: 1070
+      timestamp: 1070000000
       pid: 237
       g2d_tracing_mark_write {
         pid: 237
@@ -102,7 +102,7 @@ packet {
       }
     }
     event {
-      timestamp: 1080
+      timestamp: 1080000000
       pid: 237
       g2d_tracing_mark_write {
         pid: 237
@@ -112,7 +112,7 @@ packet {
       }
     }
     event {
-      timestamp: 1085
+      timestamp: 1085000000
       pid: 237
       g2d_tracing_mark_write {
         pid: 237
