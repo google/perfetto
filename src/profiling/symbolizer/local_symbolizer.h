@@ -107,6 +107,8 @@ class LocalSymbolizer : public Symbolizer {
       uint64_t load_bias,
       const std::vector<uint64_t>& address) override;
 
+  bool BuildIdNeedsHexConversion() override { return true; }
+
   ~LocalSymbolizer() override;
 
  private:
