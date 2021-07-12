@@ -88,36 +88,36 @@ avg_dur_ms (RavgDurMs
 min_size_bytes (RminSizeBytes$
 max_size_bytes (RmaxSizeBytes3
 total_alloc_size_bytes (RtotalAllocSizeBytes
-ÿ
-0protos/perfetto/metrics/android/g2d_metric.protoperfetto.protos"¹
+‹
+0protos/perfetto/metrics/android/g2d_metric.protoperfetto.protos"Å
 
 G2dMetrics<
 g2d_hw (2%.perfetto.protos.G2dMetrics.G2dMetricRg2dHw<
-g2d_sw (2%.perfetto.protos.G2dMetrics.G2dMetricRg2dSw½
+g2d_sw (2%.perfetto.protos.G2dMetrics.G2dMetricRg2dSwÃ
 G2dInstance
-name (	Rname
-
-max_dur_ns (RmaxDurNs
-
-min_dur_ns (RminDurNs
-
-avg_dur_ns (RavgDurNs
+name (	Rname
 frame_count (R
 frameCount
 error_count (R
-errorCountî
+errorCount
+
+max_dur_ms (RmaxDurMs
+
+min_dur_ms (RminDurMs
+
+avg_dur_ms	 (RavgDurMsJô
 	G2dMetricE
-	instances (2'.perfetto.protos.G2dMetrics.G2dInstanceR	instances
-
-max_dur_ns (RmaxDurNs
-
-min_dur_ns (RminDurNs
-
-avg_dur_ns (RavgDurNs
+	instances (2'.perfetto.protos.G2dMetrics.G2dInstanceR	instances
 frame_count (R
 frameCount
 error_count (R
-errorCount
+errorCount
+
+max_dur_ms (RmaxDurMs
+
+min_dur_ms (RminDurMs
+
+avg_dur_ms	 (RavgDurMsJ
 §
 0protos/perfetto/metrics/android/gpu_metric.protoperfetto.protos"á
 AndroidGpuMetricG
