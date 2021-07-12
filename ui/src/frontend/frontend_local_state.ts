@@ -76,7 +76,6 @@ export class FrontendLocalState {
   highlightedSliceId = -1;
   focusedFlowIdLeft = -1;
   focusedFlowIdRight = -1;
-  vidTimestamp = -1;
   localOnlyMode = false;
   sidebarVisible = true;
   showPanningHint = false;
@@ -156,12 +155,6 @@ export class FrontendLocalState {
   setHoveredNoteTimestamp(ts: number) {
     if (this.hoveredNoteTimestamp === ts) return;
     this.hoveredNoteTimestamp = ts;
-    globals.rafScheduler.scheduleRedraw();
-  }
-
-  setVidTimestamp(ts: number) {
-    if (this.vidTimestamp === ts) return;
-    this.vidTimestamp = ts;
     globals.rafScheduler.scheduleRedraw();
   }
 
