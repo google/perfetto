@@ -42,20 +42,6 @@ export function handleKey(e: KeyboardEvent, down: boolean) {
   if (down && 'f' === key) {
     findCurrentSelection();
   }
-  if (down && 'v' === key) {
-    globals.dispatch(Actions.toggleVideo({}));
-  }
-  if (down && 'p' === key) {
-    globals.dispatch(Actions.toggleFlagPause({}));
-  }
-  if (down && 't' === key) {
-    globals.dispatch(Actions.toggleScrubbing({}));
-    if (globals.frontendLocalState.vidTimestamp < 0) {
-      globals.frontendLocalState.setVidTimestamp(Number.MAX_SAFE_INTEGER);
-    } else {
-      globals.frontendLocalState.setVidTimestamp(Number.MIN_SAFE_INTEGER);
-    }
-  }
   if (down && 'b' === key && (e.ctrlKey || e.metaKey)) {
     globals.frontendLocalState.toggleSidebar();
   }
