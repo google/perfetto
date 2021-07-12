@@ -432,10 +432,6 @@ export function genConfig(
     protoCfg.dataSources.push(metadataDs);
   }
 
-  if (uiCfg.screenRecord) {
-    atraceCats.add('gfx');
-  }
-
   // Keep these last. The stages above can enrich them.
 
   if (sysStatsCfg !== undefined &&
