@@ -159,3 +159,16 @@ export function hslForSlice(
   const lightness = isSelected ? 30 : hash(sliceName + 'x', 40) + 40;
   return [hue, saturation, lightness];
 }
+
+// Lightens the color for thread slices to represent wall time.
+export function hslForThreadIdleSlice(
+    hue: number,
+    saturation: number,
+    lightness: number,
+    isSelected: boolean|null): [number, number, number] {
+  // Increase lightness by 80% when selected and 40% otherwise,
+  // without exceeding 88.
+  let newLightness = isSelected ? lightness * 1.8 : lightness * 1.4;
+  newLightness = Math.min(newLightness, 88);
+  return [hue, saturation, newLightness];
+}

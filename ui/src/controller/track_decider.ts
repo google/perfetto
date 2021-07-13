@@ -816,13 +816,15 @@ class TrackDecider {
           thread_track.name as trackName,
           tid,
           thread.name as threadName,
-          max(depth) as maxDepth,
+          max(slice.depth) as maxDepth,
+          count(thread_slice.id) > 0 as hasThreadSlice,
           process.upid as upid,
           process.pid as pid
         from slice
         join thread_track on slice.track_id = thread_track.id
         join thread using(utid)
         left join process using(upid)
+        left join thread_slice on slice.id = thread_slice.id
         group by thread_track.id
   `);
 
@@ -835,6 +837,7 @@ class TrackDecider {
       maxDepth: NUM,
       upid: NUM_NULL,
       pid: NUM_NULL,
+      hasThreadSlice: NUM,
     });
     for (; it.valid(); it.next()) {
       const utid = it.utid;
@@ -845,6 +848,7 @@ class TrackDecider {
       const upid = it.upid;
       const pid = it.pid;
       const maxDepth = it.maxDepth;
+      const hasThreadSlice = it.hasThreadSlice;
       const trackKindPriority =
           TrackDecider.inferTrackKindPriority(threadName, tid, pid);
 
@@ -859,7 +863,7 @@ class TrackDecider {
         name,
         trackGroup: uuid,
         trackKindPriority,
-        config: {trackId, maxDepth, tid}
+        config: {trackId, maxDepth, tid, isThreadSlice: hasThreadSlice === 1}
       });
     }
   }
