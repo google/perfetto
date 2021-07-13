@@ -14,36 +14,24 @@
 
 import '../tracks/all_controller';
 
-import {reportError, setErrorHandler} from '../base/logging';
+import {assertTrue} from '../base/logging';
 import {Remote} from '../base/remote';
 import {ControllerWorkerInitMessage} from '../common/worker_messages';
 import {AppController} from './app_controller';
 import {globals} from './globals';
 
-function main() {
-  self.addEventListener('error', e => reportError(e));
-  self.addEventListener('unhandledrejection', e => reportError(e));
-  let initialized = false;
-  self.onmessage = (e: MessageEvent) => {
-    if (initialized) {
-      console.error('Already initialized');
-      return;
-    }
-    initialized = true;
-    const data = e.data as ControllerWorkerInitMessage;
-    const frontendPort = data.frontendPort;
-    const controllerPort = data.controllerPort;
-    const extensionPort = data.extensionPort;
-    const errorReportingPort = data.errorReportingPort;
-    setErrorHandler((err: string) => errorReportingPort.postMessage(err));
-    const frontend = new Remote(frontendPort);
-    controllerPort.onmessage = ({data}) => globals.patchState(data);
-
-    globals.initialize(new AppController(extensionPort), frontend);
-  };
+let initialized = false;
+export function initController(init: ControllerWorkerInitMessage) {
+  assertTrue(!initialized);
+  initialized = true;
+  const frontendPort = init.frontendPort;
+  const controllerPort = init.controllerPort;
+  const extensionPort = init.extensionPort;
+  const frontend = new Remote(frontendPort);
+  controllerPort.onmessage = ({data}) => globals.patchState(data);
+  globals.initialize(new AppController(extensionPort), frontend);
 }
 
-main();
 
 // For devtools-based debugging.
 (self as {} as {controllerGlobals: {}}).controllerGlobals = globals;
