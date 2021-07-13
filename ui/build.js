@@ -58,12 +58,10 @@
 // +----------------------+   | +----------+ +---------+ +--------------------+|
 // | src/assets/*.png     |   | | assets/  | |*.wasm.js| | frontend_bundle.js ||
 // +----------------------+   | |  *.css   | |*.wasm   | +--------------------+|
-// | buildtools/typefaces |-->| |  *.png   | +---------+ |controller_bundle.js||
+// | buildtools/typefaces |-->| |  *.png   | +---------+ |  engine_bundle.js  ||
 // +----------------------+   | |  *.woff2 |             +--------------------+|
-// | buildtools/legacy_tv |   | |  tv.html |             |  engine_bundle.js  ||
+// | buildtools/legacy_tv |   | |  tv.html |             |traceconv_bundle.js ||
 // +----------------------+   | +----------+             +--------------------+|
-//                            |                          +traceconv_bundle.js ||
-//                            |                          +--------------------+|
 //                            +------------------------------------------------+
 
 const argparse = require('argparse');
@@ -473,9 +471,9 @@ function startServer() {
 
 function isDistComplete() {
   const requiredArtifacts = [
-    'controller_bundle.js',
     'frontend_bundle.js',
     'engine_bundle.js',
+    'traceconv_bundle.js',
     'trace_processor.wasm',
     'perfetto.css',
   ];
