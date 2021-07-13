@@ -54,6 +54,7 @@ import {assertExists, assertFalse, assertTrue} from '../base/logging';
 import {utf8Decode} from '../base/string_utils';
 
 import {
+  ColumnType,
   columnTypeToString,
   NUM,
   NUM_NULL,
@@ -125,6 +126,10 @@ export interface QueryResult {
   // have been fetched. The promise return value is always the object iself.
   waitAllRows(): Promise<QueryResult>;
 
+  // Can return an empty array if called before the first batch is resolved.
+  // This should be called only after having awaited for at least one batch.
+  columns(): string[];
+
   // TODO(primiano): next CLs will introduce a waitMoreRows() to allow tracks
   // to await until some more data (but not necessarily all) is available. For
   // now everything uses waitAllRows().
@@ -179,6 +184,9 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
   }
   error(): string|undefined {
     return this._error;
+  }
+  columns(): string[] {
+    return this.columnNames;
   }
 
   iter<T extends Row>(spec: T): RowIterator<T> {
@@ -451,6 +459,17 @@ class RowIteratorImpl implements RowIteratorBase {
     return this.isValid;
   }
 
+
+  get(columnName: string): ColumnType {
+    const res = this.rowData[columnName];
+    if (res === undefined) {
+      throw new Error(
+          `Column '${columnName}' doesn't exist. ` +
+          `Actual columns: [${this.columnNames.join(',')}]`);
+    }
+    return res;
+  }
+
   // Moves the cursor next by one row and updates |isValid|.
   // When this fails to move, two cases are possible:
   // 1. We reached the end of the result set (this is the case if
@@ -553,40 +572,48 @@ class RowIteratorImpl implements RowIteratorBase {
 
     // Check that the cells types are consistent.
     const numColumns = this.numColumns;
-    if (numColumns === 0) {
-      assertTrue(batch.numCells === 0);
-    } else {
-      for (let i = this.nextCellTypeOff; i < this.cellTypesEnd; i++) {
-        const col = (i - this.nextCellTypeOff) % numColumns;
-        const colName = this.columnNames[col];
-        const actualType = this.batchBytes[i] as CellType;
-        const expType = this.rowSpec[colName];
+    if (batch.numCells === 0) {
+      // This can happen if the query result contains just an error. In this
+      // an empty batch with isLastBatch=true is appended as an EOF marker.
+      // In theory TraceProcessor could return an empty batch in the middle and
+      // that would be fine from a protocol viewpoint. In practice, no code path
+      // does that today so it doesn't make sense trying supporting it with a
+      // recursive call to tryMoveToNextBatch().
+      assertTrue(batch.isLastBatch);
+      return false;
+    }
 
-        // If undefined, the caller doesn't want to read this column at all, so
-        // it can be whatever.
-        if (expType === undefined) continue;
+    assertTrue(numColumns > 0);
+    for (let i = this.nextCellTypeOff; i < this.cellTypesEnd; i++) {
+      const col = (i - this.nextCellTypeOff) % numColumns;
+      const colName = this.columnNames[col];
+      const actualType = this.batchBytes[i] as CellType;
+      const expType = this.rowSpec[colName];
 
-        let err = '';
-        if (actualType === CellType.CELL_NULL &&
-            (expType !== STR_NULL && expType !== NUM_NULL)) {
-          err = 'SQL value is NULL but that was not expected' +
-              ` (expected type: ${columnTypeToString(expType)}).` +
-              'Did you intend to use NUM_NULL or STRING_NULL?';
-        } else if (
-            ((actualType === CellType.CELL_VARINT ||
-              actualType === CellType.CELL_FLOAT64) &&
-             (expType !== NUM && expType !== NUM_NULL)) ||
-            ((actualType === CellType.CELL_STRING) &&
-             (expType !== STR && expType !== STR_NULL))) {
-          err = `Incompatible cell type. Expected: ${
-              columnTypeToString(
-                  expType)} actual: ${CELL_TYPE_NAMES[actualType]}`;
-        }
-        if (err.length > 0) {
-          throw new Error(
-              `Error @ row: ${Math.floor(i / numColumns)} col: '` +
-              `${colName}': ${err}`);
-        }
+      // If undefined, the caller doesn't want to read this column at all, so
+      // it can be whatever.
+      if (expType === undefined) continue;
+
+      let err = '';
+      if (actualType === CellType.CELL_NULL &&
+          (expType !== STR_NULL && expType !== NUM_NULL)) {
+        err = 'SQL value is NULL but that was not expected' +
+            ` (expected type: ${columnTypeToString(expType)}).` +
+            'Did you intend to use NUM_NULL or STRING_NULL?';
+      } else if (
+          ((actualType === CellType.CELL_VARINT ||
+            actualType === CellType.CELL_FLOAT64) &&
+           (expType !== NUM && expType !== NUM_NULL)) ||
+          ((actualType === CellType.CELL_STRING) &&
+           (expType !== STR && expType !== STR_NULL))) {
+        err = `Incompatible cell type. Expected: ${
+            columnTypeToString(
+                expType)} actual: ${CELL_TYPE_NAMES[actualType]}`;
+      }
+      if (err.length > 0) {
+        throw new Error(
+            `Error @ row: ${Math.floor(i / numColumns)} col: '` +
+            `${colName}': ${err}`);
       }
     }
     return true;
@@ -603,6 +630,7 @@ class RowIteratorImplWithRowData implements RowIteratorBase {
 
   next: () => void;
   valid: () => boolean;
+  get: (columnName: string) => ColumnType;
 
   constructor(querySpec: Row, res: QueryResultImpl) {
     const thisAsRow = this as {} as Row;
@@ -610,6 +638,7 @@ class RowIteratorImplWithRowData implements RowIteratorBase {
     this._impl = new RowIteratorImpl(querySpec, thisAsRow, res);
     this.next = this._impl.next.bind(this._impl);
     this.valid = this._impl.valid.bind(this._impl);
+    this.get = this._impl.get.bind(this._impl);
   }
 }
 
@@ -639,6 +668,9 @@ class WaitableQueryResultImpl implements QueryResult, WritableQueryResult,
   }
   numRows() {
      return this.impl.numRows();
+  }
+  columns() {
+    return this.impl.columns();
   }
   error() {
      return this.impl.error();
