@@ -254,17 +254,3 @@ export function singleRow<T extends Row>(spec: T, result: RawQueryResult): T|
   assertTrue(it.valid());
   return it.row;
 }
-
-export function singleRowUntyped(result: RawQueryResult): Row|undefined {
-  const numRows = slowlyCountRows(result);
-  if (numRows === 0) {
-    return undefined;
-  }
-  if (numRows > 1) {
-    throw new Error(
-        `Attempted to extract single row but more than ${numRows} rows found.`);
-  }
-  const it = iterUntyped(result);
-  assertTrue(it.valid());
-  return it.row;
-}
