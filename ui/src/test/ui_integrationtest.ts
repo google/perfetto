@@ -113,3 +113,35 @@ describe('navigation', () => {
     await waitForPerfettoIdle(page);
   });
 });
+
+
+describe('chrome_rendering_desktop', () => {
+  test('load', async () => {
+    const page = await getPage();
+    const file = await page.waitForSelector('input.trace_file');
+    const tracePath = getTestTracePath('chrome_rendering_desktop.pftrace');
+    assertExists(file).uploadFile(tracePath);
+    await waitForPerfettoIdle(page);
+  });
+
+  test('expand_browser_proc', async () => {
+    const page = await getPage();
+    await page.click('.main-canvas');
+    await page.click('h1[title="Browser 12685"]');
+    await waitForPerfettoIdle(page);
+  });
+
+  test('select_slice_with_flows', async () => {
+    const page = await getPage();
+    const searchInput = '.omnibox input';
+    await page.focus(searchInput);
+    await page.keyboard.type('GenerateRenderPass');
+    await waitForPerfettoIdle(page);
+    for (let i = 0; i < 3; i++) {
+      await page.keyboard.type('\n');
+    }
+    await page.focus('canvas');
+    await page.keyboard.type('f');  // Zoom to selection
+    await waitForPerfettoIdle(page);
+  });
+});
