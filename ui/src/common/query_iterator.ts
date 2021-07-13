@@ -35,6 +35,15 @@ export interface Row {
 export interface RowIteratorBase {
   valid(): boolean;
   next(): void;
+
+  // Reflection support for cases where the column names are not known upfront
+  // (e.g. the query result table for user-provided SQL queries).
+  // It throws if the passed column name doesn't exist.
+  // Example usage:
+  // for (const it = queryResult.iter({}); it.valid(); it.next()) {
+  //   for (const columnName : queryResult.columns()) {
+  //      console.log(it.get(columnName));
+  get(columnName: string): ColumnType;
 }
 
 // A RowIterator is a type that has all the fields defined in the query spec
