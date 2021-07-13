@@ -89,7 +89,7 @@ Raises:
 
 Recipe for building Perfetto.
 
-&mdash; **def [RunSteps](/infra/luci/recipes/perfetto.py#43)(api, repository):**
+&mdash; **def [RunSteps](/infra/luci/recipes/perfetto.py#63)(api, repository):**
 ### *recipes* / [windows\_sdk:examples/full](/infra/luci/recipe_modules/windows_sdk/examples/full.py)
 
 [DEPS](/infra/luci/recipe_modules/windows_sdk/examples/full.py#15): [windows\_sdk](#recipe_modules-windows_sdk), [recipe\_engine/platform][recipe_engine/recipe_modules/platform], [recipe\_engine/properties][recipe_engine/recipe_modules/properties], [recipe\_engine/step][recipe_engine/recipe_modules/step]

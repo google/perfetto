@@ -37,7 +37,27 @@ PROPERTIES = {
         ),
 }
 
-ARTIFACTS = ['trace_processor_shell']
+ARTIFACTS = [
+    {
+        'name': 'trace_processor_shell'
+    },
+    {
+        'name': 'trace_to_text'
+    },
+    {
+        'name': 'tracebox'
+    },
+    {
+        'name': 'perfetto'
+    },
+    {
+        'name': 'traced'
+    },
+    {
+        'name': 'traced_probes',
+        'platforms': ['mac-amd64', 'linux-amd64']
+    },
+]
 
 
 def RunSteps(api, repository):
@@ -93,11 +113,16 @@ def RunSteps(api, repository):
   if api.buildbucket.builder_id.project == 'perfetto':
     with api.step.nest('Artifact upload'), api.context(cwd=src_dir):
       for artifact in ARTIFACTS:
+        supported_platforms = artifact.get('platforms')
+        if supported_platforms and platform not in supported_platforms:
+          continue
+
         exe_path = 'out/dist' if api.platform.is_win else 'out/dist/stripped'
-        artifact_ext = artifact + ('.exe' if api.platform.is_win else '')
+        artifact_ext = artifact['name'] + ('.exe'
+                                           if api.platform.is_win else '')
         source = '{}/{}'.format(exe_path, artifact_ext)
         target = '{}/{}/{}'.format(upload_directory, platform, artifact_ext)
-        api.gsutil.upload(source, 'perfetto-artifacts', target)
+        api.gsutil.upload(source, 'perfetto-luci-artifacts', target)
 
 
 def GenTests(api):
