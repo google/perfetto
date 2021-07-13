@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {assertTrue} from '../base/logging';
 import {Arg, Args} from '../common/arg_types';
 import {Engine} from '../common/engine';
 import {
   NUM,
   singleRow,
-  singleRowUntyped,
   slowlyCountRows,
   STR
 } from '../common/query_iterator';
@@ -122,17 +122,16 @@ export class SelectionController extends Controller<'main'> {
       promisedArgs = this.getArgs(argSetId);
     }
 
-    const promisedDetails = this.args.engine.query(`
+    const promisedDetails = this.args.engine.queryV2(`
       SELECT * FROM ${leafTable} WHERE id = ${selectedId};
     `);
 
     const [details, args, description] =
         await Promise.all([promisedDetails, promisedArgs, promisedDescription]);
 
-    const row = singleRowUntyped(details);
-    if (row === undefined) {
-      return;
-    }
+    if (details.numRows() <= 0) return;
+    const rowIter = details.iter({});
+    assertTrue(rowIter.valid());
 
     // A few columns are hard coded as part of the SliceDetails interface.
     // Long term these should be handled generically as args but for now
@@ -142,7 +141,8 @@ export class SelectionController extends Controller<'main'> {
     let name = undefined;
     let category = undefined;
 
-    for (const [k, v] of Object.entries(row)) {
+    for (const k of details.columns()) {
+      const v = rowIter.get(k);
       switch (k) {
         case 'id':
           break;
