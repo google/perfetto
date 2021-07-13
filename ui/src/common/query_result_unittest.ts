@@ -188,7 +188,7 @@ test('QueryResult.NullChecks', () => {
 
 test('QueryResult.EarlyError', () => {
   const resProto = QueryResultProto.create({
-    columnNames: ['n', 's'],
+    columnNames: [],
     batch: [{isLastBatch: true}],
     error: 'Oh dear, this SQL query is too complicated, I give up',
   });
@@ -196,6 +196,8 @@ test('QueryResult.EarlyError', () => {
   qr.appendResultBatch(QueryResultProto.encode(resProto).finish());
   expect(qr.error()).toContain('Oh dear');
   expect(qr.isComplete()).toBe(true);
+  const iter = qr.iter({});
+  expect(iter.valid()).toBe(false);
 });
 
 test('QueryResult.LateError', () => {

@@ -15,12 +15,13 @@
 import {assertExists} from '../base/logging';
 import {Actions} from '../common/actions';
 import {Engine} from '../common/engine';
-import {rawQueryResultColumns, rawQueryResultIter, Row} from '../common/protos';
+import {Row} from '../common/protos';
 import {QueryResponse} from '../common/queries';
-import {slowlyCountRows} from '../common/query_iterator';
 
 import {Controller} from './controller';
 import {globals} from './globals';
+
+const MAX_ROWS = 10000;
 
 export interface QueryControllerArgs {
   queryId: string;
@@ -56,30 +57,45 @@ export class QueryController extends Controller<'init'|'querying'> {
 
   private async runQuery(sqlQuery: string) {
     const startMs = performance.now();
-    const rawResult = await this.args.engine.uncheckedQuery(sqlQuery);
+    const queryRes = this.args.engine.queryV2(sqlQuery);
+
+    // TODO(primiano): once the controller thread is gone we should pass down
+    // the result objects directly to the frontend, iterate over the result
+    // and deal with pagination there. For now we keep the old behavior and
+    // truncate to 10k rows.
+
+    try {
+      await queryRes.waitAllRows();
+    } catch {
+      // In the case of a query error we don't want the exception to bubble up
+      // as a crash. The |queryRes| object will be populated anyways.
+      // queryRes.error() is used to tell if the query errored or not. If it
+      // errored, the frontend will show a graceful message instead.
+    }
+
     const durationMs = performance.now() - startMs;
-    const columns = rawQueryResultColumns(rawResult);
-    const rows =
-        QueryController.firstN<Row>(10000, rawQueryResultIter(rawResult));
+    const rows: Row[] = [];
+    const columns = queryRes.columns();
+    let numRows = 0;
+    for (const iter = queryRes.iter({}); iter.valid(); iter.next()) {
+      const row: Row = {};
+      for (const colName of columns) {
+        const value = iter.get(colName);
+        row[colName] = value === null ? 'NULL' : value;
+      }
+      rows.push(row);
+      if (++numRows >= MAX_ROWS) break;
+    }
+
     const result: QueryResponse = {
       id: this.args.queryId,
       query: sqlQuery,
       durationMs,
-      error: rawResult.error,
-      totalRowCount: slowlyCountRows(rawResult),
+      error: queryRes.error(),
+      totalRowCount: queryRes.numRows(),
       columns,
       rows,
     };
     return result;
-  }
-
-  private static firstN<T>(n: number, iter: IterableIterator<T>): T[] {
-    const list = [];
-    for (let i = 0; i < n; i++) {
-      const {done, value} = iter.next();
-      if (done) break;
-      list.push(value);
-    }
-    return list;
   }
 }
