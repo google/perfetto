@@ -37,6 +37,7 @@ import {
   ControllerWorkerInitMessage,
   EngineWorkerInitMessage
 } from '../common/worker_messages';
+import {initController} from '../controller/index';
 
 import {AnalyzePage} from './analyze_page';
 import {loadAndroidBugToolInfo} from './android_bug_tool';
@@ -434,7 +435,6 @@ function main() {
   window.addEventListener('error', e => reportError(e));
   window.addEventListener('unhandledrejection', e => reportError(e));
 
-  const controller = new Worker(globals.root + 'controller_bundle.js');
   idleWasmWorker = new Worker(globals.root + 'engine_bundle.js');
   const frontendChannel = new MessageChannel();
   const controllerChannel = new MessageChannel();
@@ -450,18 +450,14 @@ function main() {
     extensionPort: extensionLocalChannel.port1,
     errorReportingPort: errorReportingChannel.port1,
   };
-  controller.postMessage(msg, [
-    msg.frontendPort,
-    msg.controllerPort,
-    msg.extensionPort,
-    msg.errorReportingPort,
-  ]);
+
+  initController(msg);
 
   const dispatch = (action: DeferredAction) => {
     frontendApi.dispatchMultiple([action]);
   };
 
-  globals.initialize(dispatch, controller);
+  globals.initialize(dispatch);
   globals.serviceWorkerController.install();
 
   const routes = new Map<string, m.Component<PageAttrs>>();
