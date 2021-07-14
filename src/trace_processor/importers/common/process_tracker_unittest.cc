@@ -183,6 +183,21 @@ TEST_F(ProcessTrackerTest, TidReuseAfterExplicitEnd) {
   ASSERT_EQ(reuse, reuse_again);
 }
 
+TEST_F(ProcessTrackerTest, EndThreadAfterProcessEnd) {
+  context.process_tracker->StartNewProcess(100, base::nullopt, 123,
+                                           kNullStringId);
+  context.process_tracker->UpdateThread(124, 123);
+
+  context.process_tracker->EndThread(200, 123);
+  context.process_tracker->EndThread(201, 124);
+
+  // We expect two processes: the idle process and 123.
+  ASSERT_EQ(context.storage->process_table().row_count(), 2u);
+
+  // We expect three theads: the idle thread, 123 and 124.
+  ASSERT_EQ(context.storage->thread_table().row_count(), 3u);
+}
+
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto
