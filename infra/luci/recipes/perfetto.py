@@ -45,7 +45,8 @@ ARTIFACTS = [
         'name': 'trace_to_text'
     },
     {
-        'name': 'tracebox'
+        'name': 'tracebox',
+        'platforms': ['mac-amd64', 'linux-amd64']
     },
     {
         'name': 'perfetto'
