@@ -61,7 +61,19 @@ void ProcessTracker::EndThread(int64_t timestamp, uint32_t tid) {
   auto* thread_table = context_->storage->mutable_thread_table();
   auto* process_table = context_->storage->mutable_process_table();
 
-  UniqueTid utid = GetOrCreateThread(tid);
+  // Don't bother creating a new thread if we're just going to
+  // end it straight away.
+  //
+  // This is useful in situations where we get a sched_process_free event for a
+  // worker thread in a process *after* the main thread finishes - in that case
+  // we would have already ended the process and we don't want to
+  // create a new thread here (see b/193520421 for an example of a trace
+  // where this happens in practice).
+  base::Optional<UniqueTid> opt_utid = GetThreadOrNull(tid);
+  if (!opt_utid)
+    return;
+
+  UniqueTid utid = *opt_utid;
   thread_table->mutable_end_ts()->Set(utid, timestamp);
 
   // Remove the thread from the list of threads being tracked as any event after
