@@ -35,6 +35,15 @@ export interface Row {
 export interface RowIteratorBase {
   valid(): boolean;
   next(): void;
+
+  // Reflection support for cases where the column names are not known upfront
+  // (e.g. the query result table for user-provided SQL queries).
+  // It throws if the passed column name doesn't exist.
+  // Example usage:
+  // for (const it = queryResult.iter({}); it.valid(); it.next()) {
+  //   for (const columnName : queryResult.columns()) {
+  //      console.log(it.get(columnName));
+  get(columnName: string): ColumnType;
 }
 
 // A RowIterator is a type that has all the fields defined in the query spec
@@ -242,20 +251,6 @@ export function singleRow<T extends Row>(spec: T, result: RawQueryResult): T|
         `Attempted to extract single row but more than ${numRows} rows found.`);
   }
   const it = iter(spec, result);
-  assertTrue(it.valid());
-  return it.row;
-}
-
-export function singleRowUntyped(result: RawQueryResult): Row|undefined {
-  const numRows = slowlyCountRows(result);
-  if (numRows === 0) {
-    return undefined;
-  }
-  if (numRows > 1) {
-    throw new Error(
-        `Attempted to extract single row but more than ${numRows} rows found.`);
-  }
-  const it = iterUntyped(result);
   assertTrue(it.valid());
   return it.row;
 }

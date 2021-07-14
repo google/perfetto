@@ -81,14 +81,20 @@ std::string FromHex(const std::string& str) {
 }
 
 std::map<UnsymbolizedMapping, std::vector<uint64_t>> GetUnsymbolizedFrames(
-    trace_processor::TraceProcessor* tp) {
+    trace_processor::TraceProcessor* tp,
+    bool convert_build_id_to_bytes) {
   std::map<UnsymbolizedMapping, std::vector<uint64_t>> res;
   Iterator it = tp->ExecuteQuery(kQueryUnsymbolized);
   while (it.Next()) {
     int64_t load_bias = it.Get(3).AsLong();
     PERFETTO_CHECK(load_bias >= 0);
-    UnsymbolizedMapping unsymbolized_mapping{it.Get(0).AsString(),
-                                             FromHex(it.Get(1).AsString()),
+    std::string build_id;
+    if (convert_build_id_to_bytes) {
+      build_id = FromHex(it.Get(1).AsString());
+    } else {
+      build_id = it.Get(1).AsString();
+    }
+    UnsymbolizedMapping unsymbolized_mapping{it.Get(0).AsString(), build_id,
                                              static_cast<uint64_t>(load_bias)};
     int64_t rel_pc = it.Get(2).AsLong();
     res[unsymbolized_mapping].emplace_back(rel_pc);
@@ -106,7 +112,8 @@ void SymbolizeDatabase(trace_processor::TraceProcessor* tp,
                        Symbolizer* symbolizer,
                        std::function<void(const std::string&)> callback) {
   PERFETTO_CHECK(symbolizer);
-  auto unsymbolized = GetUnsymbolizedFrames(tp);
+  auto unsymbolized =
+      GetUnsymbolizedFrames(tp, symbolizer->BuildIdNeedsHexConversion());
   for (auto it = unsymbolized.cbegin(); it != unsymbolized.cend(); ++it) {
     const auto& unsymbolized_mapping = it->first;
     const std::vector<uint64_t>& rel_pcs = it->second;
