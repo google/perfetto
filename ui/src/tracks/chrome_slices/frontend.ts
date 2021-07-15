@@ -101,7 +101,7 @@ export class ChromeSliceTrack extends Track<Config, Data> {
 
       const name = title.replace(/( )?\d+/g, '');
       const highlighted = titleId === this.hoveredTitleId ||
-          globals.state.highlightedSliceId === sliceId;
+          globals.frontendLocalState.highlightedSliceId === sliceId;
 
       const [hue, saturation, lightness] =
           hslForSlice(name, highlighted || isSelected);
@@ -220,19 +220,18 @@ export class ChromeSliceTrack extends Track<Config, Data> {
 
   onMouseMove({x, y}: {x: number, y: number}) {
     this.hoveredTitleId = -1;
-    globals.dispatch(Actions.setHighlightedSliceId({sliceId: -1}));
+    globals.frontendLocalState.setHighlightedSliceId(-1);
     const sliceIndex = this.getSliceIndex({x, y});
     if (sliceIndex === undefined) return;
     const data = this.data();
     if (data === undefined) return;
     this.hoveredTitleId = data.titles[sliceIndex];
-    const sliceId = data.sliceIds[sliceIndex];
-    globals.dispatch(Actions.setHighlightedSliceId({sliceId}));
+    globals.frontendLocalState.setHighlightedSliceId(data.sliceIds[sliceIndex]);
   }
 
   onMouseOut() {
     this.hoveredTitleId = -1;
-    globals.dispatch(Actions.setHighlightedSliceId({sliceId: -1}));
+    globals.frontendLocalState.setHighlightedSliceId(-1);
   }
 
   onMouseClick({x, y}: {x: number, y: number}): boolean {
