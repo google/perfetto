@@ -147,7 +147,7 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
   if (size == 0)
     return kUnknownTraceType;
   std::string start(reinterpret_cast<const char*>(data),
-                    std::min<size_t>(size, 20));
+                    std::min<size_t>(size, 32));
   if (size >= 8) {
     uint64_t first_word;
     memcpy(&first_word, data, sizeof(first_word));
