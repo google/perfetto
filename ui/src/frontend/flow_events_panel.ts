@@ -82,9 +82,10 @@ export class FlowEventsPanel extends Panel {
 
       const args = {
         onclick: () => flowClickHandler(otherEnd.sliceId, otherEnd.trackId),
-        onmousemove: () =>
-            globals.frontendLocalState.setHighlightedSliceId(otherEnd.sliceId),
-        onmouseleave: () => globals.frontendLocalState.setHighlightedSliceId(-1)
+        onmousemove: () => globals.dispatch(
+            Actions.setHighlightedSliceId({sliceId: otherEnd.sliceId})),
+        onmouseleave: () =>
+            globals.dispatch(Actions.setHighlightedSliceId({sliceId: -1})),
       };
 
       const data = [
