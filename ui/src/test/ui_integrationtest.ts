@@ -140,6 +140,7 @@ describe('chrome_rendering_desktop', () => {
     for (let i = 0; i < 3; i++) {
       await page.keyboard.type('\n');
     }
+    await waitForPerfettoIdle(page);
     await page.focus('canvas');
     await page.keyboard.type('f');  // Zoom to selection
     await waitForPerfettoIdle(page);
