@@ -61,9 +61,10 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
     // The shell should be highlighted if the current search result is inside
     // this track.
     let highlightClass = '';
-    const searchIndex = globals.state.searchIndex;
+    const searchIndex = globals.frontendLocalState.searchIndex;
     if (searchIndex !== -1) {
-      const trackId = globals.currentSearchResults.trackIds[searchIndex];
+      const trackId = globals.currentSearchResults
+                          .trackIds[globals.frontendLocalState.searchIndex];
       if (trackId === attrs.trackState.id) {
         highlightClass = 'flash';
       }
@@ -322,19 +323,19 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
 
     const localState = globals.frontendLocalState;
     // Draw vertical line when hovering on the notes panel.
-    if (globals.state.hoveredNoteTimestamp !== -1) {
+    if (localState.hoveredNoteTimestamp !== -1) {
       drawVerticalLineAtTime(
           ctx,
           localState.timeScale,
-          globals.state.hoveredNoteTimestamp,
+          localState.hoveredNoteTimestamp,
           size.height,
           `#aaa`);
     }
-    if (globals.state.hoveredLogsTimestamp !== -1) {
+    if (localState.hoveredLogsTimestamp !== -1) {
       drawVerticalLineAtTime(
           ctx,
           localState.timeScale,
-          globals.state.hoveredLogsTimestamp,
+          localState.hoveredLogsTimestamp,
           size.height,
           `#344596`);
     }

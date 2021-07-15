@@ -52,8 +52,7 @@ export interface Area {
 export const MAX_TIME = 180;
 
 // 3: TrackKindPriority and related sorting changes.
-// 5: Move a large number of items off frontendLocalState and onto state
-export const STATE_VERSION = 5;
+export const STATE_VERSION = 4;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -316,24 +315,6 @@ export interface State {
    * key is most up to date.
    */
   frontendLocalState: FrontendLocalState;
-
-  // Show track perf debugging overlay
-  perfDebug: boolean;
-
-  // Show the sidebar extended
-  sidebarVisible: boolean;
-
-  // Hovered and focused events
-  hoveredUtid: number;
-  hoveredPid: number;
-  hoveredLogsTimestamp: number;
-  hoveredNoteTimestamp: number;
-  highlightedSliceId: number;
-  focusedFlowIdLeft: number;
-  focusedFlowIdRight: number;
-
-  searchIndex: number;
-  currentTab?: string;
 
   /**
    * Trace recording
@@ -852,17 +833,6 @@ export function createEmptyState(): State {
     currentSelection: null,
     currentHeapProfileFlamegraph: null,
     traceConversionInProgress: false,
-
-    perfDebug: false,
-    sidebarVisible: true,
-    hoveredUtid: -1,
-    hoveredPid: -1,
-    hoveredLogsTimestamp: -1,
-    hoveredNoteTimestamp: -1,
-    highlightedSliceId: -1,
-    focusedFlowIdLeft: -1,
-    focusedFlowIdRight: -1,
-    searchIndex: -1,
 
     recordingInProgress: false,
     recordingCancelled: false,
