@@ -50,7 +50,7 @@ WHERE p.cmdline='/system/bin/surfaceflinger';
 DROP VIEW IF EXISTS gpu_waiting_start;
 CREATE VIEW gpu_waiting_start AS
 SELECT
-  CAST(SUBSTRING(s.name, 28, LENGTH(s.name)) AS UINT32) AS fence_id,
+  CAST(SUBSTR(s.name, 28) AS UINT32) AS fence_id,
   ts AS start_ts
 FROM slices s JOIN surfaceflinger_track t ON s.track_id = t.track_id
 WHERE s.name LIKE 'Trace GPU completion fence %';
@@ -58,7 +58,7 @@ WHERE s.name LIKE 'Trace GPU completion fence %';
 DROP VIEW IF EXISTS gpu_waiting_end;
 CREATE VIEW gpu_waiting_end AS
 SELECT
-  CAST(SUBSTRING(s.name, 28, LENGTH(s.name)) AS UINT32) AS fence_id,
+  CAST(SUBSTR(s.name, 28) AS UINT32) AS fence_id,
   dur,
   ts+dur AS end_ts
 FROM slices s JOIN surfaceflinger_track t ON s.track_id = t.track_id
