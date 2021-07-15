@@ -142,8 +142,9 @@ export class TimeSelectionPanel extends Panel {
       this.renderSpan(ctx, size, new TimeSpan(start, end));
     }
 
-    if (globals.state.hoveredLogsTimestamp !== -1) {
-      this.renderHover(ctx, size, globals.state.hoveredLogsTimestamp);
+    if (globals.frontendLocalState.hoveredLogsTimestamp !== -1) {
+      this.renderHover(
+          ctx, size, globals.frontendLocalState.hoveredLogsTimestamp);
     }
 
     for (const note of Object.values(globals.state.notes)) {
