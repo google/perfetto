@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {assertExists} from '../base/logging';
-import {DeferredAction} from '../common/actions';
+import {Actions, DeferredAction} from '../common/actions';
 import {AggregateData} from '../common/aggregation_data';
 import {Args, ArgsTree} from '../common/arg_types';
 import {
@@ -462,9 +462,9 @@ class Globals {
 
   makeSelection(action: DeferredAction<{}>, tabToOpen = 'current_selection') {
     // A new selection should cancel the current search selection.
-    globals.frontendLocalState.searchIndex = -1;
-    globals.frontendLocalState.currentTab =
-        action.type === 'deselect' ? undefined : tabToOpen;
+    globals.dispatch(Actions.setSearchIndex({index: -1}));
+    const tab = action.type === 'deselect' ? undefined : tabToOpen;
+    globals.dispatch(Actions.setCurrentTab({tab}));
     globals.dispatch(action);
   }
 

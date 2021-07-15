@@ -70,7 +70,7 @@ class QueryTableRow implements m.ClassComponent<QueryTableRowAttrs> {
       globals.makeSelection(
           Actions.selectChromeSlice(
               {id: sliceId, trackId: uiTrackId, table: 'slice'}),
-          nextTab === 'QueryResults' ? globals.frontendLocalState.currentTab :
+          nextTab === 'QueryResults' ? globals.state.currentTab :
                                        'current_selection');
     }
   }

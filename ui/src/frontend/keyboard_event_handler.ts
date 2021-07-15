@@ -43,7 +43,7 @@ export function handleKey(e: KeyboardEvent, down: boolean) {
     findCurrentSelection();
   }
   if (down && 'b' === key && (e.ctrlKey || e.metaKey)) {
-    globals.frontendLocalState.toggleSidebar();
+    globals.dispatch(Actions.toggleSidebar({}));
   }
   if (down && '?' === key) {
     toggleHelp();
@@ -111,13 +111,13 @@ function focusOtherFlow(direction: Direction) {
           flow.end.sliceId === sliceId && direction === 'Backward');
 
   if (direction === 'Backward') {
-    const nextFlowId = findAnotherFlowExcept(
-        boundFlows, globals.frontendLocalState.focusedFlowIdLeft);
-    globals.frontendLocalState.setHighlightedFlowLeftId(nextFlowId);
+    const nextFlowId =
+        findAnotherFlowExcept(boundFlows, globals.state.focusedFlowIdLeft);
+    globals.dispatch(Actions.setHighlightedFlowLeftId({flowId: nextFlowId}));
   } else {
-    const nextFlowId = findAnotherFlowExcept(
-        boundFlows, globals.frontendLocalState.focusedFlowIdRight);
-    globals.frontendLocalState.setHighlightedFlowRightId(nextFlowId);
+    const nextFlowId =
+        findAnotherFlowExcept(boundFlows, globals.state.focusedFlowIdRight);
+    globals.dispatch(Actions.setHighlightedFlowRightId({flowId: nextFlowId}));
   }
 }
 
@@ -130,9 +130,8 @@ function moveByFocusedFlow(direction: Direction) {
 
   const sliceId = globals.state.currentSelection.id;
   const flowId =
-      (direction === 'Backward' ?
-           globals.frontendLocalState.focusedFlowIdLeft :
-           globals.frontendLocalState.focusedFlowIdRight);
+      (direction === 'Backward' ? globals.state.focusedFlowIdLeft :
+                                  globals.state.focusedFlowIdRight);
 
   if (sliceId === -1 || flowId === -1) {
     return;
