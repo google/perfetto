@@ -232,16 +232,16 @@ class FrontendApi {
   // we will find the flows on the right and left of that slice to set a default
   // focus. In all other cases the focusedFlowId(Left|Right) will be set to -1.
   resetFlowFocus() {
-    globals.state.focusedFlowIdLeft = -1;
-    globals.state.focusedFlowIdRight = -1;
+    globals.frontendLocalState.focusedFlowIdLeft = -1;
+    globals.frontendLocalState.focusedFlowIdRight = -1;
     if (globals.state.currentSelection?.kind === 'CHROME_SLICE') {
       const sliceId = globals.state.currentSelection.id;
       for (const flow of globals.connectedFlows) {
         if (flow.begin.sliceId === sliceId) {
-          globals.state.focusedFlowIdRight = flow.id;
+          globals.frontendLocalState.focusedFlowIdRight = flow.id;
         }
         if (flow.end.sliceId === sliceId) {
-          globals.state.focusedFlowIdLeft = flow.id;
+          globals.frontendLocalState.focusedFlowIdLeft = flow.id;
         }
       }
     }

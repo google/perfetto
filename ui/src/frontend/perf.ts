@@ -15,14 +15,13 @@
 
 import * as m from 'mithril';
 
-import {Actions} from '../common/actions';
 import {globals} from './globals';
 import {PanelContainer} from './panel_container';
 
 /**
  * Shorthand for if globals perf debug mode is on.
  */
-export const perfDebug = () => globals.state.perfDebug;
+export const perfDebug = () => globals.frontendLocalState.perfDebug;
 
 /**
  * Returns performance.now() if perfDebug is enabled, otherwise 0.
@@ -114,7 +113,7 @@ class PerfDisplay {
       m('section', globals.rafScheduler.renderPerfStats()),
       m('button.close-button',
         {
-          onclick: () => globals.dispatch(Actions.togglePerfDebug({})),
+          onclick: () => globals.frontendLocalState.togglePerfDebug(),
         },
         m('i.material-icons', 'close')),
       this.containers.map((c, i) => m('section', c.renderPerfStats(i)))

@@ -76,9 +76,10 @@ export class TrackGroupPanel extends Panel<Attrs> {
     // The shell should be highlighted if the current search result is inside
     // this track group.
     let highlightClass = '';
-    const searchIndex = globals.state.searchIndex;
+    const searchIndex = globals.frontendLocalState.searchIndex;
     if (searchIndex !== -1) {
-      const trackId = globals.currentSearchResults.trackIds[searchIndex];
+      const trackId = globals.currentSearchResults
+                          .trackIds[globals.frontendLocalState.searchIndex];
       const parentTrackId = getContainingTrackId(globals.state, trackId);
       if (parentTrackId === attrs.trackGroupId) {
         highlightClass = 'flash';
@@ -198,21 +199,21 @@ export class TrackGroupPanel extends Panel<Attrs> {
 
     this.highlightIfTrackSelected(ctx, size);
 
-    const localState = globals.state;
+    const localState = globals.frontendLocalState;
     // Draw vertical line when hovering on the notes panel.
-    if (globals.state.hoveredNoteTimestamp !== -1) {
+    if (localState.hoveredNoteTimestamp !== -1) {
       drawVerticalLineAtTime(
           ctx,
           localState.timeScale,
-          globals.state.hoveredNoteTimestamp,
+          localState.hoveredNoteTimestamp,
           size.height,
           `#aaa`);
     }
-    if (globals.state.hoveredLogsTimestamp !== -1) {
+    if (localState.hoveredLogsTimestamp !== -1) {
       drawVerticalLineAtTime(
           ctx,
           localState.timeScale,
-          globals.state.hoveredLogsTimestamp,
+          localState.hoveredLogsTimestamp,
           size.height,
           `#344596`);
     }
