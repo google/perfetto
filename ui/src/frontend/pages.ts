@@ -58,7 +58,7 @@ export function createPage(component: m.Component<PageAttrs>):
         m(component, attrs),
         m(CookieConsent),
       ];
-      if (globals.state.perfDebug) {
+      if (globals.frontendLocalState.perfDebug) {
         children.push(m('.perf-stats'));
       }
       return children;

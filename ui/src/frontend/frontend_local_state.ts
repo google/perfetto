@@ -108,6 +108,91 @@ export class FrontendLocalState {
     return this.scrollBarWidth;
   }
 
+  get perfDebug(): boolean {
+    return globals.state.perfDebug;
+  }
+  togglePerfDebug(): void {
+    globals.dispatch(Actions.togglePerfDebug({}));
+  }
+
+  setHoveredUtidAndPid(utid: number, pid: number): void {
+    globals.dispatch(Actions.setHoveredUtidAndPid({utid, pid}));
+  }
+  get hoveredUtid(): number {
+    return globals.state.hoveredUtid;
+  }
+  get hoveredPid(): number {
+    return globals.state.hoveredPid;
+  }
+
+  setHighlightedSliceId(sliceId: number) {
+    globals.dispatch(Actions.setHighlightedSliceId({sliceId}));
+  }
+  get highlightedSliceId(): number {
+    return globals.state.sliceId;
+  }
+
+  setHighlightedFlowLeftId(flowId: number) {
+    this.focusedFlowIdLeft = flowId;
+  }
+  get focusedFlowIdLeft(): number {
+    return globals.state.focusedFlowIdLeft;
+  }
+  set focusedFlowIdLeft(flowId: number) {
+    globals.dispatch(Actions.setHighlightedFlowLeftId({flowId}));
+  }
+
+  setHighlightedFlowRightId(flowId: number): void {
+    this.focusedFlowIdRight = flowId;
+  }
+  get focusedFlowIdRight(): number {
+    return globals.state.focusedFlowIdRight;
+  }
+  set focusedFlowIdRight(flowId: number) {
+    globals.dispatch(Actions.setHighlightedFlowRightId({flowId}));
+  }
+
+  // Sets the timestamp at which a vertical line will be drawn.
+  setHoveredLogsTimestamp(ts: number) {
+    if (this.hoveredLogsTimestamp === ts) return;
+    globals.dispatch(Actions.setHoveredLogsTimestamp({ts}));
+  }
+  get hoveredLogsTimestamp() {
+    return globals.state.hoveredLogsTimestamp;
+  }
+
+  setHoveredNoteTimestamp(ts: number) {
+    if (this.hoveredNoteTimestamp === ts) return;
+    globals.dispatch(Actions.setHoveredNoteTimestamp({ts}));
+  }
+  get hoveredNoteTimestamp() {
+    return globals.state.hoveredNoteTimestamp;
+  }
+
+  setSearchIndex(index: number) {
+    this.searchIndex = index;
+  }
+  get searchIndex(): number {
+    return globals.state.searchIndex;
+  }
+  set searchIndex(index: number) {
+    globals.dispatch(Actions.setSearchIndex({index}));
+  }
+
+  toggleSidebar(): void {
+    globals.dispatch(Actions.toggleSidebar({}));
+  }
+  get sidebarVisible(): boolean {
+    return globals.state.sidebarVisible;
+  }
+
+  get currentTab(): string|undefined {
+    return globals.state.currentTab;
+  }
+  set currentTab(tab: string|undefined) {
+    globals.dispatch(Actions.setCurrentTab({tab}));
+  }
+
   setHttpRpcState(httpRpcState: HttpRpcState) {
     this.httpRpcState = httpRpcState;
     globals.rafScheduler.scheduleFullRedraw();
