@@ -153,3 +153,6 @@ sched_blocked_reason_symbolized.textproto ../common/to_systrace.sql sched_blocke
 
 # Trace quality metric
 very_long_sched.py android_trace_quality very_long_sched_android_trace_quality.out
+
+# Regression test for b/193721088 (infra prepending " done\n" to atrace)
+../../data/atrace_b_193721088.atr sched_smoke.sql sched_smoke_trailing_empty.out
