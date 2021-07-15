@@ -86,6 +86,7 @@ class HttpServer : public base::UnixSocket::EventListener {
  private:
   size_t ParseOneHttpRequest(Client* client);
   void HandleRequest(Client*, const HttpRequest&);
+  void ServeHelpPage(Client*);
 
   void OnNewIncomingConnection(base::UnixSocket*,
                                std::unique_ptr<base::UnixSocket>) override;
@@ -152,6 +153,11 @@ HttpServer::~HttpServer() = default;
 void HttpServer::Run(const char* kBindAddr4, const char* kBindAddr6) {
   PERFETTO_ILOG("[HTTP] Starting RPC server on %s and %s", kBindAddr4,
                 kBindAddr6);
+  PERFETTO_LOG(
+      "[HTTP] This server can be used by reloading https://ui.perfetto.dev and "
+      "clicking on YES on the \"Trace Processor native acceleration\" dialog "
+      "or through the Python API (see "
+      "https://perfetto.dev/docs/analysis/trace-processor#python-api).");
 
   sock4_ = base::UnixSocket::Listen(kBindAddr4, this, &task_runner_,
                                     base::SockFamily::kInet,
@@ -286,6 +292,11 @@ size_t HttpServer::ParseOneHttpRequest(Client* client) {
 }
 
 void HttpServer::HandleRequest(Client* client, const HttpRequest& req) {
+  if (req.uri == "/") {
+    // If a user tries to open http://127.0.0.1:9001/ show a minimal help page.
+    return ServeHelpPage(client);
+  }
+
   static int last_req_id = 0;
   if (req.id) {
     if (last_req_id && req.id != last_req_id + 1 && req.id != 1)
@@ -308,7 +319,7 @@ void HttpServer::HandleRequest(Client* client, const HttpRequest& req) {
   if (allow_origin_hdr.empty() && !origin_error_logged_) {
     origin_error_logged_ = true;
     PERFETTO_ELOG(
-        "The HTTP origin %s is not trusted, no Access-Control-Allow-Origin "
+        "The HTTP origin \"%s\" is not trusted, no Access-Control-Allow-Origin "
         "will be emitted. If this request comes from a browser it will fail. "
         "For the list of allowed origins see kAllowedCORSOrigins.",
         req.origin.ToStdString().c_str());
@@ -466,6 +477,38 @@ void RunHttpRPCServer(std::unique_ptr<TraceProcessor> preloaded_instance,
   std::string ipv4_addr = "127.0.0.1:" + port;
   std::string ipv6_addr = "[::1]:" + port;
   srv.Run(ipv4_addr.c_str(), ipv6_addr.c_str());
+}
+
+void HttpServer::ServeHelpPage(Client* client) {
+  static const char kPage[] = R"(Perfetto Trace Processor RPC Server
+
+
+This service can be used in two ways:
+
+1. Open or reload https://ui.perfetto.dev/
+
+It will automatically try to connect and use the server on localhost:9001 when
+available. Click YES when prompted to use Trace Processor Native Acceleration
+in the UI dialog.
+See https://perfetto.dev/docs/visualization/large-traces for more.
+
+
+2. Python API.
+
+Example: perfetto.TraceProcessor(addr='localhost:9001')
+See https://perfetto.dev/docs/analysis/trace-processor#python-api for more.
+
+
+For questions:
+https://perfetto.dev/docs/contributing/getting-started#community
+)";
+
+  char content_length[255];
+  sprintf(content_length, "Content-Length: %zu", sizeof(kPage) - 1);
+  std::initializer_list<const char*> headers{"Content-Type: text/plain",
+                                             content_length};
+  HttpReply(client->sock.get(), "200 OK", headers,
+            reinterpret_cast<const uint8_t*>(kPage), sizeof(kPage) - 1);
 }
 
 }  // namespace trace_processor
