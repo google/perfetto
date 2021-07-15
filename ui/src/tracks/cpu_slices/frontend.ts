@@ -99,9 +99,9 @@ class CpuSliceTrack extends Track<Config, Data> {
       const threadInfo = globals.threads.get(utid);
       const pid = threadInfo && threadInfo.pid ? threadInfo.pid : -1;
 
-      const isHovering = globals.frontendLocalState.hoveredUtid !== -1;
-      const isThreadHovered = globals.frontendLocalState.hoveredUtid === utid;
-      const isProcessHovered = globals.frontendLocalState.hoveredPid === pid;
+      const isHovering = globals.state.hoveredUtid !== -1;
+      const isThreadHovered = globals.state.hoveredUtid === utid;
+      const isProcessHovered = globals.state.hoveredPid === pid;
       const color = colorForThread(threadInfo);
       if (isHovering && !isThreadHovered) {
         if (!isProcessHovered) {
@@ -230,7 +230,7 @@ class CpuSliceTrack extends Track<Config, Data> {
     const {timeScale} = globals.frontendLocalState;
     if (y < MARGIN_TOP || y > MARGIN_TOP + RECT_HEIGHT) {
       this.utidHoveredInThisTrack = -1;
-      globals.frontendLocalState.setHoveredUtidAndPid(-1, -1);
+      globals.dispatch(Actions.setHoveredUtidAndPid({utid: -1, pid: -1}));
       return;
     }
     const t = timeScale.pxToTime(x);
@@ -248,12 +248,13 @@ class CpuSliceTrack extends Track<Config, Data> {
     this.utidHoveredInThisTrack = hoveredUtid;
     const threadInfo = globals.threads.get(hoveredUtid);
     const hoveredPid = threadInfo ? (threadInfo.pid ? threadInfo.pid : -1) : -1;
-    globals.frontendLocalState.setHoveredUtidAndPid(hoveredUtid, hoveredPid);
+    globals.dispatch(
+        Actions.setHoveredUtidAndPid({utid: hoveredUtid, pid: hoveredPid}));
   }
 
   onMouseOut() {
     this.utidHoveredInThisTrack = -1;
-    globals.frontendLocalState.setHoveredUtidAndPid(-1, -1);
+    globals.dispatch(Actions.setHoveredUtidAndPid({utid: -1, pid: -1}));
     this.mouseXpos = 0;
   }
 

@@ -53,7 +53,7 @@ export class TickmarkPanel extends Panel {
           Math.ceil(rectEnd - rectStart),
           size.height);
     }
-    const index = globals.frontendLocalState.searchIndex;
+    const index = globals.state.searchIndex;
     const startSec = fromNs(globals.currentSearchResults.tsStarts[index]);
     const triangleStart =
         Math.max(timeScale.timeToPx(startSec), 0) + TRACK_SHELL_WIDTH;
