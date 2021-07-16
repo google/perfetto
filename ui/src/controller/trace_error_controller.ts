@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {Engine} from '../common/engine';
-import {NUM} from '../common/query_iterator';
+import {NUM} from '../common/query_result';
 
 import {Controller} from './controller';
 import {globals} from './globals';

@@ -16,8 +16,8 @@
 import * as m from 'mithril';
 
 import {Actions} from '../common/actions';
-import {Row} from '../common/protos';
 import {QueryResponse} from '../common/queries';
+import {Row} from '../common/query_result';
 import {fromNs} from '../common/time';
 
 import {copyToClipboard} from './clipboard';
@@ -151,7 +151,8 @@ export class QueryTable extends Panel<QueryTableAttrs> {
                       for (const row of resp.rows) {
                         const line = [];
                         for (const col of resp.columns) {
-                          line.push(row[col].toString());
+                          const value = row[col];
+                          line.push(value === null ? 'NULL' : value.toString());
                         }
                         lines.push(line);
                       }

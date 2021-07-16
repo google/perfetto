@@ -15,8 +15,8 @@
 import {assertExists} from '../base/logging';
 import {Actions} from '../common/actions';
 import {Engine} from '../common/engine';
-import {Row} from '../common/protos';
 import {QueryResponse} from '../common/queries';
+import {Row} from '../common/query_result';
 
 import {Controller} from './controller';
 import {globals} from './globals';
