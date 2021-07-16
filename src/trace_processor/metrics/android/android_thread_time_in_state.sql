@@ -135,72 +135,63 @@ SELECT AndroidThreadTimeInStateMetric(
   )
 );
 
--- Ensure we always get the previous clock tick for duration in
--- android_thread_time_in_state_event_raw.
-DROP VIEW IF EXISTS android_thread_time_in_state_event_clock;
-CREATE VIEW android_thread_time_in_state_event_clock AS
-SELECT
-  ts,
-  LAG(ts) OVER (ORDER BY ts) AS lag_ts
-FROM (
-  SELECT DISTINCT ts from android_thread_time_in_state_base
-);
-
 DROP VIEW IF EXISTS android_thread_time_in_state_event_raw;
 CREATE VIEW android_thread_time_in_state_event_raw AS
 SELECT
   ts,
-  ts - lag_ts AS dur,
-  upid,
-  core_type,
   utid,
-  -- We need globally unique track names so add the utid even when we
-  -- know the name. But when we don't, also use the tid because that's what
-  -- the rest of the UI does.
-  IFNULL(thread.name, 'Thread ' || thread.tid) || ' (' || thread.utid || ')'
-      AS thread_track_name,
+  core_type,
   freq,
-  runtime_ms_counter - LAG(runtime_ms_counter)
-      OVER (PARTITION BY core_type, utid, freq ORDER BY ts) AS runtime_ms
+  time_in_state_cpu,
+  runtime_ms_counter - LAG(runtime_ms_counter) OVER win AS runtime_ms_diff
 FROM android_thread_time_in_state_base
-    -- Join to keep only utids which have non-zero runtime in the trace.
-    JOIN android_thread_time_in_state_counters USING (utid, core_type)
-    JOIN android_thread_time_in_state_event_clock USING(ts)
-    JOIN thread using (utid);
+WINDOW win AS (PARTITION BY utid, core_type, time_in_state_cpu, freq ORDER BY ts);
+
+DROP VIEW IF EXISTS android_thread_time_in_state_by_core_type;
+CREATE VIEW android_thread_time_in_state_by_core_type AS
+SELECT
+  ts,
+  utid,
+  core_type,
+  freq,
+  SUM(runtime_ms_diff) runtime_ms_diff
+FROM android_thread_time_in_state_event_raw
+GROUP BY ts, utid, core_type, freq
+HAVING runtime_ms_diff > 0;
 
 DROP VIEW IF EXISTS android_thread_time_in_state_event_thread;
 CREATE VIEW android_thread_time_in_state_event_thread AS
 SELECT
-  'counter' AS track_type,
-  thread_track_name || ' (' || core_type || ' core)' as track_name,
+   -- We need globally unique track names so add the utid even when we
+  -- know the name. But when we don't, also use the tid because that's what
+  -- the rest of the UI does.
+  IFNULL(thread.name, 'Thread ' || thread.tid) || ' (' || thread.utid || ')' 
+    || ' (' || core_type || ' core) mcycles' AS track_name,
   ts,
-  dur,
   upid,
-  sum(runtime_ms * freq) as ms_freq
-FROM android_thread_time_in_state_event_raw
-WHERE runtime_ms IS NOT NULL
-  AND dur != 0
-GROUP BY track_type, track_name, ts, dur, upid;
+  SUM(runtime_ms_diff * freq) OVER win AS cycles
+FROM android_thread_time_in_state_by_core_type
+JOIN thread USING (utid)
+GROUP BY ts, upid, track_name
+WINDOW win AS (PARTITION BY utid ORDER BY ts);
 
 DROP VIEW IF EXISTS android_thread_time_in_state_event_global;
 CREATE VIEW android_thread_time_in_state_event_global AS
 SELECT
-  'counter' AS track_type,
-  'Total ' || core_type || ' core cycles / sec' as track_name,
+  'Total ' || core_type || ' core mcycles' as track_name,
   ts,
-  dur,
   0 AS upid,
-  SUM(runtime_ms * freq) AS ms_freq
-FROM android_thread_time_in_state_event_raw
-WHERE runtime_ms IS NOT NULL
-GROUP BY ts, track_name;
+  SUM(runtime_ms_diff * freq) OVER win as cycles
+FROM android_thread_time_in_state_by_core_type
+GROUP BY ts, track_name
+WINDOW win AS (ORDER BY ts);
 
 DROP TABLE IF EXISTS android_thread_time_in_state_event;
 CREATE TABLE android_thread_time_in_state_event AS
-SELECT track_type, track_name, ts, dur, upid, ms_freq * 1000000 / dur AS value
+SELECT 'counter' as track_type, track_name, upid, ts, cycles / 1000000.0 AS value
 FROM android_thread_time_in_state_event_thread
 UNION ALL
-SELECT track_type, track_name, ts, dur, upid, ms_freq * 1000000 / dur AS value
+SELECT 'counter' as track_type, track_name, upid, ts, cycles / 1000000.0 AS value
 FROM android_thread_time_in_state_event_global
 -- Biggest values at top of list in UI.
 ORDER BY value DESC;

@@ -1,13 +1,13 @@
 
-"track_type","track_name","ts","dur","upid","value"
-"counter","Total big core cycles / sec",2000000000,1000000000,0,1000
-"counter","Total little core cycles / sec",2000000000,1000000000,0,100
-"counter","Thread 10 (1) (big core)",2000000000,1000000000,1,1000
-"counter","Thread 10 (1) (little core)",2000000000,1000000000,1,100
-"counter","Total big core cycles / sec",3000000000,1000000000,0,30000
-"counter","Total little core cycles / sec",3000000000,1000000000,0,3100
-"counter","Thread 10 (1) (big core)",3000000000,1000000000,1,20000
-"counter","Thread 10 (1) (little core)",3000000000,1000000000,1,2000
-"counter","Thread 20 (3) (big core)",3000000000,1000000000,2,10000
-"counter","Thread 20 (3) (little core)",3000000000,1000000000,2,1000
-"counter","Thread 40 (7) (little core)",3000000000,1000000000,4,100
+"track_type","track_name","upid","ts","value"
+"counter","Total big core mcycles",0,2000000000,1.100000
+"counter","Total little core mcycles",0,2000000000,1.100000
+"counter","Thread 10 (1) (big core) mcycles",1,2000000000,1.100000
+"counter","Thread 10 (1) (little core) mcycles",1,2000000000,1.100000
+"counter","Total big core mcycles",0,3000000000,23.100000
+"counter","Total little core mcycles",0,3000000000,23.100000
+"counter","Thread 10 (1) (big core) mcycles",1,3000000000,23.100000
+"counter","Thread 10 (1) (little core) mcycles",1,3000000000,23.100000
+"counter","Thread 20 (3) (big core) mcycles",2,3000000000,11.000000
+"counter","Thread 20 (3) (little core) mcycles",2,3000000000,11.000000
+"counter","Thread 40 (7) (little core) mcycles",4,3000000000,0.100000
