@@ -14,7 +14,7 @@
 
 import {ColumnDef, ThreadStateExtra} from '../../common/aggregation_data';
 import {Engine} from '../../common/engine';
-import {NUM, NUM_NULL, STR} from '../../common/query_result';
+import {NUM, NUM_NULL, STR_NULL} from '../../common/query_result';
 import {Area, Sorting} from '../../common/state';
 import {translateState} from '../../common/thread_state';
 import {toNs} from '../../common/time';
@@ -84,7 +84,7 @@ export class ThreadAggregationController extends AggregationController {
     const result = await engine.queryV2(query);
 
     const it = result.iter({
-      state: STR,
+      state: STR_NULL,
       ioWait: NUM_NULL,
       totalDur: NUM,
     });
@@ -97,7 +97,7 @@ export class ThreadAggregationController extends AggregationController {
     };
     summary.totalMs = 0;
     for (let i = 0; it.valid(); ++i, it.next()) {
-      const state = it.state;
+      const state = it.state == null ? undefined : it.state;
       const ioWait = it.ioWait === null ? undefined : it.ioWait > 0;
       summary.states.push(translateState(state, ioWait));
       const ms = it.totalDur / 1000000;
