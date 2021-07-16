@@ -13,11 +13,7 @@
 // limitations under the License.
 
 import {assertFalse} from '../../base/logging';
-import {
-  NUM,
-  NUM_NULL,
-  STR_NULL
-} from '../../common/query_iterator';
+import {NUM, NUM_NULL, STR_NULL} from '../../common/query_result';
 import {translateState} from '../../common/thread_state';
 import {fromNs, toNs} from '../../common/time';
 import {

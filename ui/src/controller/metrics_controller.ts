@@ -14,7 +14,7 @@
 
 import {Actions} from '../common/actions';
 import {Engine, QueryError} from '../common/engine';
-import {iter, STR} from '../common/query_iterator';
+import {STR} from '../common/query_result';
 
 import {Controller} from './controller';
 import {globals} from './globals';
@@ -33,13 +33,10 @@ export class MetricsController extends Controller<'main'> {
 
   private async getMetricNames() {
     const metrics = [];
-    const it = iter(
-        {
-          name: STR,
-        },
-        await this.engine.query('select name from trace_metrics'));
+    const result = await this.engine.queryV2('select name from trace_metrics');
+    const it = result.iter({name: STR});
     for (; it.valid(); it.next()) {
-      metrics.push(it.row.name);
+      metrics.push(it.name);
     }
     return metrics;
   }
