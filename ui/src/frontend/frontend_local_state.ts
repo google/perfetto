@@ -68,22 +68,11 @@ function calculateScrollbarWidth() {
 export class FrontendLocalState {
   visibleWindowTime = new TimeSpan(0, 10);
   timeScale = new TimeScale(this.visibleWindowTime, [0, 0]);
-  perfDebug = false;
-  hoveredUtid = -1;
-  hoveredPid = -1;
-  hoveredLogsTimestamp = -1;
-  hoveredNoteTimestamp = -1;
-  highlightedSliceId = -1;
-  focusedFlowIdLeft = -1;
-  focusedFlowIdRight = -1;
   localOnlyMode = false;
-  sidebarVisible = true;
   showPanningHint = false;
   showCookieConsent = false;
   visibleTracks = new Set<string>();
   prevVisibleTracks = new Set<string>();
-  searchIndex = -1;
-  currentTab?: string;
   scrollToTrackId?: string|number;
   httpRpcState: HttpRpcState = {connected: false};
   newVersionAvailable = false;
@@ -119,62 +108,98 @@ export class FrontendLocalState {
     return this.scrollBarWidth;
   }
 
-  togglePerfDebug() {
-    this.perfDebug = !this.perfDebug;
-    globals.rafScheduler.scheduleFullRedraw();
+  get perfDebug(): boolean {
+    return globals.state.perfDebug;
+  }
+  togglePerfDebug(): void {
+    globals.dispatch(Actions.togglePerfDebug({}));
   }
 
-  setHoveredUtidAndPid(utid: number, pid: number) {
-    this.hoveredUtid = utid;
-    this.hoveredPid = pid;
-    globals.rafScheduler.scheduleRedraw();
+  setHoveredUtidAndPid(utid: number, pid: number): void {
+    globals.dispatch(Actions.setHoveredUtidAndPid({utid, pid}));
+  }
+  get hoveredUtid(): number {
+    return globals.state.hoveredUtid;
+  }
+  get hoveredPid(): number {
+    return globals.state.hoveredPid;
   }
 
   setHighlightedSliceId(sliceId: number) {
-    this.highlightedSliceId = sliceId;
-    globals.rafScheduler.scheduleRedraw();
+    globals.dispatch(Actions.setHighlightedSliceId({sliceId}));
+  }
+  get highlightedSliceId(): number {
+    return globals.state.sliceId;
   }
 
   setHighlightedFlowLeftId(flowId: number) {
     this.focusedFlowIdLeft = flowId;
-    globals.rafScheduler.scheduleFullRedraw();
+  }
+  get focusedFlowIdLeft(): number {
+    return globals.state.focusedFlowIdLeft;
+  }
+  set focusedFlowIdLeft(flowId: number) {
+    globals.dispatch(Actions.setHighlightedFlowLeftId({flowId}));
   }
 
-  setHighlightedFlowRightId(flowId: number) {
+  setHighlightedFlowRightId(flowId: number): void {
     this.focusedFlowIdRight = flowId;
-    globals.rafScheduler.scheduleFullRedraw();
+  }
+  get focusedFlowIdRight(): number {
+    return globals.state.focusedFlowIdRight;
+  }
+  set focusedFlowIdRight(flowId: number) {
+    globals.dispatch(Actions.setHighlightedFlowRightId({flowId}));
   }
 
   // Sets the timestamp at which a vertical line will be drawn.
   setHoveredLogsTimestamp(ts: number) {
     if (this.hoveredLogsTimestamp === ts) return;
-    this.hoveredLogsTimestamp = ts;
-    globals.rafScheduler.scheduleRedraw();
+    globals.dispatch(Actions.setHoveredLogsTimestamp({ts}));
+  }
+  get hoveredLogsTimestamp() {
+    return globals.state.hoveredLogsTimestamp;
   }
 
   setHoveredNoteTimestamp(ts: number) {
     if (this.hoveredNoteTimestamp === ts) return;
-    this.hoveredNoteTimestamp = ts;
-    globals.rafScheduler.scheduleRedraw();
+    globals.dispatch(Actions.setHoveredNoteTimestamp({ts}));
   }
-
-  addVisibleTrack(trackId: string) {
-    this.visibleTracks.add(trackId);
+  get hoveredNoteTimestamp() {
+    return globals.state.hoveredNoteTimestamp;
   }
 
   setSearchIndex(index: number) {
     this.searchIndex = index;
-    globals.rafScheduler.scheduleRedraw();
+  }
+  get searchIndex(): number {
+    return globals.state.searchIndex;
+  }
+  set searchIndex(index: number) {
+    globals.dispatch(Actions.setSearchIndex({index}));
   }
 
-  toggleSidebar() {
-    this.sidebarVisible = !this.sidebarVisible;
-    globals.rafScheduler.scheduleFullRedraw();
+  toggleSidebar(): void {
+    globals.dispatch(Actions.toggleSidebar({}));
+  }
+  get sidebarVisible(): boolean {
+    return globals.state.sidebarVisible;
+  }
+
+  get currentTab(): string|undefined {
+    return globals.state.currentTab;
+  }
+  set currentTab(tab: string|undefined) {
+    globals.dispatch(Actions.setCurrentTab({tab}));
   }
 
   setHttpRpcState(httpRpcState: HttpRpcState) {
     this.httpRpcState = httpRpcState;
     globals.rafScheduler.scheduleFullRedraw();
+  }
+
+  addVisibleTrack(trackId: string) {
+    this.visibleTracks.add(trackId);
   }
 
   // Called when beginning a canvas redraw.
