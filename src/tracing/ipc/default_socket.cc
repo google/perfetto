@@ -47,7 +47,13 @@ bool UseRunPerfettoBaseDir() {
 
   // If the path doesn't exist (ENOENT), fail silently to the caller. Otherwise,
   // fail with an explicit error message.
-  if (errno != ENOENT) {
+  if (errno != ENOENT
+#if PERFETTO_BUILDFLAG(PERFETTO_CHROMIUM_BUILD)
+      // access(2) won't return EPERM, but Chromium sandbox returns EPERM if the
+      // sandbox doesn't allow the call (e.g. in the child processes).
+      && errno != EPERM
+#endif
+  ) {
     PERFETTO_PLOG("%s exists but cannot be accessed. Falling back on /tmp/ ",
                   kRunPerfettoBaseDir);
   }
