@@ -15,6 +15,7 @@
 import * as m from 'mithril';
 import {QueryResponse} from 'src/common/queries';
 
+import {Actions} from '../common/actions';
 import {LogExists, LogExistsKey} from '../common/logs';
 
 import {AggregationPanel} from './aggregation_panel';
@@ -113,26 +114,24 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
   view({attrs}: m.CVnode<DragHandleAttrs>) {
     const icon = this.isClosed ? UP_ICON : DOWN_ICON;
     const title = this.isClosed ? 'Show panel' : 'Hide panel';
-    const activeTabExists = globals.frontendLocalState.currentTab &&
-        attrs.tabs.map(tab => tab.key)
-            .includes(globals.frontendLocalState.currentTab);
+    const activeTabExists = globals.state.currentTab &&
+        attrs.tabs.map(tab => tab.key).includes(globals.state.currentTab);
     if (!activeTabExists) {
-      globals.frontendLocalState.currentTab = undefined;
+      globals.dispatch(Actions.setCurrentTab({tab: undefined}));
     }
     const renderTab = (tab: Tab) => {
-      if (globals.frontendLocalState.currentTab === tab.key ||
-          globals.frontendLocalState.currentTab === undefined &&
+      if (globals.state.currentTab === tab.key ||
+          globals.state.currentTab === undefined &&
               attrs.tabs.keys().next().value === tab.key) {
         // Update currentTab in case we didn't have one before.
-        globals.frontendLocalState.currentTab = tab.key;
+        globals.dispatch(Actions.setCurrentTab({tab: tab.key}));
         return m('.tab[active]', tab.name);
       }
       return m(
           '.tab',
           {
             onclick: () => {
-              globals.frontendLocalState.currentTab = tab.key;
-              globals.rafScheduler.scheduleFullRedraw();
+              globals.dispatch(Actions.setCurrentTab({tab: tab.key}));
             }
           },
           tab.name);
@@ -313,8 +312,8 @@ export class DetailsPanel implements m.ClassComponent {
 
     this.showDetailsPanel = detailsPanels.length > 0;
 
-    const currentTabDetails = detailsPanels.filter(
-        tab => tab.key === globals.frontendLocalState.currentTab)[0];
+    const currentTabDetails =
+        detailsPanels.filter(tab => tab.key === globals.state.currentTab)[0];
 
     const panel = currentTabDetails ?
         currentTabDetails.vnode :

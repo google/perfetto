@@ -745,7 +745,7 @@ const SidebarFooter: m.Component = {
         '.sidebar-footer',
         m('button',
           {
-            onclick: () => globals.frontendLocalState.togglePerfDebug(),
+            onclick: () => globals.dispatch(Actions.togglePerfDebug({})),
           },
           m('i.material-icons',
             {title: 'Toggle Perf Debug Mode'},
@@ -859,8 +859,7 @@ export class Sidebar implements m.ClassComponent {
     return m(
         'nav.sidebar',
         {
-          class: globals.frontendLocalState.sidebarVisible ? 'show-sidebar' :
-                                                             'hide-sidebar',
+          class: globals.state.sidebarVisible ? 'show-sidebar' : 'hide-sidebar',
           // 150 here matches --sidebar-timing in the css.
           ontransitionstart: () => this._redrawWhileAnimating.start(150),
           ontransitionend: () => this._redrawWhileAnimating.stop(),
@@ -871,14 +870,13 @@ export class Sidebar implements m.ClassComponent {
             m('button.sidebar-button',
               {
                 onclick: () => {
-                  globals.frontendLocalState.toggleSidebar();
+                  globals.dispatch(Actions.toggleSidebar({}));
                 },
               },
               m('i.material-icons',
                 {
-                  title: globals.frontendLocalState.sidebarVisible ?
-                      'Hide menu' :
-                      'Show menu',
+                  title: globals.state.sidebarVisible ? 'Hide menu' :
+                                                        'Show menu',
                 },
                 'menu')),
             ),
