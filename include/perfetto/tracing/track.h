@@ -104,7 +104,8 @@ struct PERFETTO_EXPORT Track {
   static Track FromPointer(const void* ptr, Track parent = MakeProcessTrack()) {
     // Using pointers as global TrackIds isn't supported as pointers are
     // per-proccess and the same pointer value can be used in different
-    // processes.
+    // processes. If you hit this check but are providing no |parent| track,
+    // verify that Tracing::Initialize() was called for the current process.
     PERFETTO_DCHECK(parent.uuid != Track().uuid);
 
     return Track(static_cast<uint64_t>(reinterpret_cast<uintptr_t>(ptr)),
