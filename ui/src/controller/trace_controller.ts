@@ -23,7 +23,7 @@ import {cacheTrace} from '../common/cache_manager';
 import {TRACE_MARGIN_TIME_S} from '../common/constants';
 import {Engine, QueryError} from '../common/engine';
 import {HttpRpcEngine} from '../common/http_rpc_engine';
-import {iter, NUM, slowlyCountRows, STR} from '../common/query_iterator';
+import {NUM, NUM_NULL, STR, STR_NULL} from '../common/query_result';
 import {EngineMode} from '../common/state';
 import {TimeSpan, toNs, toNsCeil, toNsFloor} from '../common/time';
 import {WasmEngineProxy} from '../common/wasm_engine_proxy';
@@ -336,8 +336,8 @@ export class TraceController extends Controller<States> {
       //   of the limit 1, and instead delegate the filtering to the iterator.
       const query = `select '_' as _ from raw
           where cpu + 1 > 1 or utid + 1 > 1 limit 1`;
-      const result = await assertExists(this.engine).query(query);
-      const hasFtrace = !!slowlyCountRows(result);
+      const result = await assertExists(this.engine).queryV2(query);
+      const hasFtrace = result.numRows() > 0;
       globals.publish('HasFtrace', hasFtrace);
     }
 
@@ -355,11 +355,12 @@ export class TraceController extends Controller<States> {
         union
         select distinct(graph_sample_ts) as ts, 'graph' as type, upid from
         heap_graph_object) order by ts limit 1`;
-    const profile = await assertExists(this.engine).query(query);
-    if (profile.numRecords !== 1) return;
-    const ts = profile.columns[0].longValues![0];
-    const type = profile.columns[1].stringValues![0];
-    const upid = profile.columns[2].longValues![0];
+    const profile = await assertExists(this.engine).queryV2(query);
+    if (profile.numRows() !== 1) return;
+    const row = profile.firstRow({ts: NUM, type: STR, upid: NUM});
+    const ts = row.ts;
+    const type = row.type;
+    const upid = row.upid;
     globals.dispatch(Actions.selectHeapProfile({id: 0, upid, ts, type}));
   }
 
@@ -372,25 +373,37 @@ export class TraceController extends Controller<States> {
 
   private async listThreads() {
     this.updateStatus('Reading thread list');
-    const sqlQuery = `select utid, tid, pid, thread.name,
+    const query = `select
+        utid,
+        tid,
+        pid,
+        ifnull(thread.name, '') as threadName,
         ifnull(
           case when length(process.name) > 0 then process.name else null end,
-          thread.name),
-        process.cmdline
+          thread.name) as procName,
+        process.cmdline as cmdline
         from (select * from thread order by upid) as thread
         left join (select * from process order by upid) as process
         using(upid)`;
-    const threadRows = await assertExists(this.engine).query(sqlQuery);
+    const result = await assertExists(this.engine).queryV2(query);
     const threads: ThreadDesc[] = [];
-    for (let i = 0; i < slowlyCountRows(threadRows); i++) {
-      const utid = threadRows.columns[0].longValues![i];
-      const tid = threadRows.columns[1].longValues![i];
-      const pid = threadRows.columns[2].longValues![i];
-      const threadName = threadRows.columns[3].stringValues![i];
-      const procName = threadRows.columns[4].stringValues![i];
-      const cmdline = threadRows.columns[5].stringValues![i];
+    const it = result.iter({
+      utid: NUM,
+      tid: NUM,
+      pid: NUM_NULL,
+      threadName: STR,
+      procName: STR_NULL,
+      cmdline: STR_NULL,
+    });
+    for (; it.valid(); it.next()) {
+      const utid = it.utid;
+      const tid = it.tid;
+      const pid = it.pid === null ? undefined : it.pid;
+      const threadName = it.threadName;
+      const procName = it.procName === null ? undefined : it.procName;
+      const cmdline = it.cmdline === null ? undefined : it.cmdline;
       threads.push({utid, tid, threadName, pid, procName, cmdline});
-    }  // for (record ...)
+    }
     globals.publish('Threads', threads);
   }
 
@@ -409,19 +422,20 @@ export class TraceController extends Controller<States> {
       const endNs = toNsCeil(endSec);
 
       // Sched overview.
-      const schedRows = await engine.query(
-          `select sum(dur)/${stepSec}/1e9, cpu from sched ` +
+      const schedResult = await engine.queryV2(
+          `select sum(dur)/${stepSec}/1e9 as load, cpu from sched ` +
           `where ts >= ${startNs} and ts < ${endNs} and utid != 0 ` +
           'group by cpu order by cpu');
       const schedData: {[key: string]: QuantizedLoad} = {};
-      for (let i = 0; i < slowlyCountRows(schedRows); i++) {
-        const load = schedRows.columns[0].doubleValues![i];
-        const cpu = schedRows.columns[1].longValues![i];
+      const it = schedResult.iter({load: NUM, cpu: NUM});
+      for (; it.valid(); it.next()) {
+        const load = it.load;
+        const cpu = it.cpu;
         schedData[cpu] = {startSec, endSec, load};
         hasSchedOverview = true;
-      }  // for (record ...)
+      }
       globals.publish('OverviewData', schedData);
-    }  // for (step ...)
+    }
 
     if (hasSchedOverview) {
       return;
@@ -430,10 +444,10 @@ export class TraceController extends Controller<States> {
     // Slices overview.
     const traceStartNs = toNs(traceTime.start);
     const stepSecNs = toNs(stepSec);
-    const sliceSummaryQuery = await engine.query(`select
+    const sliceResult = await engine.queryV2(`select
            bucket,
            upid,
-           sum(utid_sum) / cast(${stepSecNs} as float) as upid_sum
+           sum(utid_sum) / cast(${stepSecNs} as float) as load
          from thread
          inner join (
            select
@@ -447,10 +461,11 @@ export class TraceController extends Controller<States> {
          group by bucket, upid`);
 
     const slicesData: {[key: string]: QuantizedLoad[]} = {};
-    for (let i = 0; i < slowlyCountRows(sliceSummaryQuery); i++) {
-      const bucket = sliceSummaryQuery.columns[0].longValues![i];
-      const upid = sliceSummaryQuery.columns[1].longValues![i];
-      const load = sliceSummaryQuery.columns[2].doubleValues![i];
+    const it = sliceResult.iter({bucket: NUM, upid: NUM, load: NUM});
+    for (; it.valid(); it.next()) {
+      const bucket = it.bucket;
+      const upid = it.upid;
+      const load = it.load;
 
       const startSec = traceTime.start + stepSec * bucket;
       const endSec = startSec + stepSec;
@@ -467,13 +482,12 @@ export class TraceController extends Controller<States> {
 
   private async cacheCurrentTrace() {
     const engine = assertExists(this.engine);
-    const query = await engine.query(`select str_value from metadata
+    const result = await engine.queryV2(`select str_value as uuid from metadata
                   where name = 'trace_uuid'`);
-    const it = iter({'str_value': STR}, query);
-    if (!it.valid()) {
+    if (result.numRows() === 0) {
       throw new Error('metadata.trace_uuid could not be found.');
     }
-    const traceUuid = it.row.str_value;
+    const traceUuid = result.firstRow({uuid: STR}).uuid;
     const engineConfig = assertExists(Object.values(globals.state.engines)[0]);
     cacheTrace(engineConfig.source, traceUuid);
     globals.dispatch(Actions.setTraceUuid({traceUuid}));
@@ -555,13 +569,15 @@ export class TraceController extends Controller<States> {
 
       this.updateStatus(`Inserting data for ${metric} metric`);
       try {
-        const result = await engine.query(`pragma table_info(${metric}_event)`);
+        const result =
+            await engine.queryV2(`pragma table_info(${metric}_event)`);
         let hasSliceName = false;
         let hasDur = false;
         let hasUpid = false;
         let hasValue = false;
-        for (let i = 0; i < slowlyCountRows(result); i++) {
-          const name = result.columns[1].stringValues![i];
+        const it = result.iter({name: STR});
+        for (; it.valid(); it.next()) {
+          const name = it.name;
           hasSliceName = hasSliceName || name === 'slice_name';
           hasDur = hasDur || name === 'dur';
           hasUpid = hasUpid || name === 'upid';

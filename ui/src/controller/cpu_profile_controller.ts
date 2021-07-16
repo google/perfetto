@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {Engine} from '../common/engine';
-import {slowlyCountRows} from '../common/query_iterator';
+import {NUM, STR} from '../common/query_result';
 import {CallsiteInfo, CpuProfileSampleSelection} from '../common/state';
 import {CpuProfileDetails} from '../frontend/globals';
 
@@ -106,7 +106,7 @@ export class CpuProfileController extends Controller<'main'> {
     // 5. Sort the query by the depth of the callstack frames.
     const sampleQuery = `
       SELECT
-        samples.id,
+        samples.id as id,
         IFNULL(
           (
             SELECT name
@@ -115,8 +115,8 @@ export class CpuProfileController extends Controller<'main'> {
             LIMIT 1
           ),
           spf.name
-        ) AS frame_name,
-        spm.name AS mapping_name
+        ) AS name,
+        spm.name AS mapping
       FROM cpu_profile_stack_sample AS samples
       LEFT JOIN (
         SELECT
@@ -141,26 +141,28 @@ export class CpuProfileController extends Controller<'main'> {
       ORDER BY callsites.depth;
     `;
 
-    const callsites = await this.args.engine.query(sampleQuery);
+    const callsites = await this.args.engine.queryV2(sampleQuery);
 
-    if (slowlyCountRows(callsites) < 1) {
+    if (callsites.numRows() === 0) {
       return undefined;
     }
 
-    const sampleData: CallsiteInfo[] = new Array();
-    for (let i = 0; i < slowlyCountRows(callsites); i++) {
-      const id = +callsites.columns[0].longValues![i];
-      const name = callsites.columns[1].stringValues![i];
-      const mapping = callsites.columns[2].stringValues![i];
+    const it = callsites.iter({
+      id: NUM,
+      name: STR,
+      mapping: STR,
+    });
 
+    const sampleData: CallsiteInfo[] = new Array();
+    for (; it.valid(); it.next()) {
       sampleData.push({
-        id,
+        id: it.id,
         totalSize: 0,
         depth: 0,
         parentId: 0,
-        name,
+        name: it.name,
         selfSize: 0,
-        mapping,
+        mapping: it.mapping,
         merged: false,
         highlighted: false
       });
