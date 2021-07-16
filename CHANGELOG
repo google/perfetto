@@ -2,7 +2,7 @@ Unreleased:
   Tracing service and probes:
     *
   Trace Processor:
-    *
+    * Removed the RawQuery RPC interface. 
   UI:
     *
   SDK:
