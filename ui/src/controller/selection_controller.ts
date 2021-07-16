@@ -359,7 +359,7 @@ export class SelectionController extends Controller<'main'> {
     // ts and value.
     const previous = await this.args.engine.queryV2(`SELECT
           MAX(ts),
-          IFNULL(value, 0)
+          IFNULL(value, 0) as value
         FROM counter WHERE ts < ${ts} and track_id = ${trackId}`);
     const previousValue = previous.firstRow({value: NUM}).value;
     const endTs =

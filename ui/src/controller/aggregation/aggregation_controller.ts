@@ -19,7 +19,7 @@ import {
   ThreadStateExtra,
 } from '../../common/aggregation_data';
 import {Engine} from '../../common/engine';
-import {NUM, NUM_NULL, STR_NULL} from '../../common/query_result';
+import {NUM} from '../../common/query_result';
 import {Area, Sorting} from '../../common/state';
 import {Controller} from '../controller';
 import {globals} from '../globals';
@@ -27,6 +27,10 @@ import {globals} from '../globals';
 export interface AggregationControllerArgs {
   engine: Engine;
   kind: string;
+}
+
+function isStringColumn(column: Column): boolean {
+  return column.kind === 'STRING' || column.kind === 'STATE';
 }
 
 export abstract class AggregationController extends Controller<'main'> {
@@ -135,21 +139,12 @@ export abstract class AggregationController extends Controller<'main'> {
       return idx;
     }
 
-    const spec: {[k: string]: string|number|null} = {};
-    for (const column of columns) {
-      if (column.kind === 'STRING') {
-        spec[column.columnId] = STR_NULL;
-      } else {
-        spec[column.columnId] = NUM_NULL;
-      }
-    }
-
-    const it = result.iter(spec);
+    const it = result.iter({});
     for (let i = 0; it.valid(); it.next(), ++i) {
       for (const column of data.columns) {
         const item = it.get(column.columnId);
         if (item === null) {
-          column.data[i] = column.kind === 'STRING' ? internString('NULL') : 0;
+          column.data[i] = isStringColumn(column) ? internString('NULL') : 0;
         } else if (typeof item === 'string') {
           column.data[i] = internString(item);
         } else {
