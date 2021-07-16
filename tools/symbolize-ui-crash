@@ -23,8 +23,8 @@ copied from a bug reports, of the form:
 it fetches the corresponding source maps and emits in output a translated
 crash report, of the form:
 
-(https://github.com/google/perfetto/blob/de4db33f/ui/src/foo.ts#L61) at foo()
-(https://github.com/google/perfetto/blob/de4db33f/ui/src/baz.ts#L300) at bar()
+https://android.googlesource.com/platform/external/perfetto/+/de4db33f/ui/src/foo.ts#61 at foo()
+https://android.googlesource.com/platform/external/perfetto/+/de4db33f/ui/src/baz.ts#300 at bar()
 """
 
 import logging
@@ -41,6 +41,8 @@ except:
   print('Run `pip3 install sourcemap` and try again')
   sys.exit(1)
 
+
+GERRIT_BASE_URL = 'https://android.googlesource.com/platform/external/perfetto/'
 
 def fetch_url_cached(url):
   normalized = re.sub('[^a-zA-Z0-9-._]', '_', url)
@@ -89,8 +91,7 @@ def Main():
     sym_url = '%s#%s' % (src, sym.src_line)
     if src.startswith('../out/ui/'):
       src = src.replace('../out/ui/', 'ui/')
-      sym_url = 'https://github.com/google/perfetto/blob/%s/%s#L%d' % (
-          git_rev, src, sym.src_line)
+      sym_url = GERRIT_BASE_URL + '/+/%s/%s#%d' % (git_rev, src, sym.src_line)
     sym_lines += sym_url + '\n'
     txt = txt.replace(whole_token, sym_url)
 
