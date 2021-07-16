@@ -23,7 +23,7 @@ import {
   OBJECTS_ALLOCATED_NOT_FREED_KEY,
   SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY
 } from '../common/flamegraph_util';
-import {slowlyCountRows} from '../common/query_iterator';
+import {NUM, STR} from '../common/query_result';
 import {CallsiteInfo, HeapProfileFlamegraph} from '../common/state';
 import {fromNs} from '../common/time';
 import {HeapProfileDetails} from '../frontend/globals';
@@ -57,7 +57,7 @@ class TablesCache {
       // TODO(hjd): This should be LRU.
       if (this.cache.size > this.cacheSizeLimit) {
         for (const name of this.cache.values()) {
-          await this.engine.query(`drop table ${name}`);
+          await this.engine.queryV2(`drop table ${name}`);
         }
         this.cache.clear();
       }
@@ -228,8 +228,9 @@ export class HeapProfileController extends Controller<'main'> {
       tableName: string, viewingOption = DEFAULT_VIEWING_OPTION,
       focusRegex: string) {
     let orderBy = '';
-    let sizeIndex = 4;
-    let selfIndex = 9;
+    let totalColumnName: 'cumulativeSize'|'cumulativeAllocSize'|
+        'cumulativeCount'|'cumulativeAllocCount' = 'cumulativeSize';
+    let selfColumnName: 'size'|'count' = 'size';
     // TODO(fmayer): Improve performance so this is no longer necessary.
     // Alternatively consider collapsing frames of the same label.
     const maxDepth = 100;
@@ -238,73 +239,97 @@ export class HeapProfileController extends Controller<'main'> {
         orderBy = `where cumulative_size > 0 and depth < ${
             maxDepth} order by depth, parent_id,
             cumulative_size desc, name`;
-        sizeIndex = 4;
-        selfIndex = 9;
+        totalColumnName = 'cumulativeSize';
+        selfColumnName = 'size';
         break;
       case ALLOC_SPACE_MEMORY_ALLOCATED_KEY:
         orderBy = `where cumulative_alloc_size > 0 and depth < ${
             maxDepth} order by depth, parent_id,
             cumulative_alloc_size desc, name`;
-        sizeIndex = 5;
-        selfIndex = 9;
+        totalColumnName = 'cumulativeAllocSize';
+        selfColumnName = 'size';
         break;
       case OBJECTS_ALLOCATED_NOT_FREED_KEY:
         orderBy = `where cumulative_count > 0 and depth < ${
             maxDepth} order by depth, parent_id,
             cumulative_count desc, name`;
-        sizeIndex = 6;
-        selfIndex = 10;
+        totalColumnName = 'cumulativeCount';
+        selfColumnName = 'count';
         break;
       case OBJECTS_ALLOCATED_KEY:
         orderBy = `where cumulative_alloc_count > 0 and depth < ${
             maxDepth} order by depth, parent_id,
             cumulative_alloc_count desc, name`;
-        sizeIndex = 7;
-        selfIndex = 10;
+        totalColumnName = 'cumulativeAllocCount';
+        selfColumnName = 'count';
         break;
       default:
         break;
     }
 
-    const callsites = await this.args.engine.query(
-        `SELECT id, IFNULL(DEMANGLE(name), name), IFNULL(parent_id, -1), depth,
-        cumulative_size, cumulative_alloc_size, cumulative_count,
-        cumulative_alloc_count, map_name, size, count,
-        IFNULL(source_file, ''), IFNULL(line_number, -1)
+    const callsites = await this.args.engine.queryV2(`
+        SELECT
+        id as hash,
+        IFNULL(DEMANGLE(name), name) as name,
+        IFNULL(parent_id, -1) as parentHash,
+        depth,
+        cumulative_size as cumulativeSize,
+        cumulative_alloc_size as cumulativeAllocSize,
+        cumulative_count as cumulativeCount,
+        cumulative_alloc_count as cumulativeAllocCount,
+        map_name as mapping,
+        size,
+        count,
+        IFNULL(source_file, '') as sourceFile,
+        IFNULL(line_number, -1) as lineNumber
         from ${tableName} ${orderBy}`);
 
     const flamegraphData: CallsiteInfo[] = new Array();
     const hashToindex: Map<number, number> = new Map();
-    for (let i = 0; i < slowlyCountRows(callsites); i++) {
-      const hash = callsites.columns[0].longValues![i];
-      let name = callsites.columns[1].stringValues![i];
-      const parentHash = callsites.columns[2].longValues![i];
-      const depth = +callsites.columns[3].longValues![i];
-      const totalSize = +callsites.columns[sizeIndex].longValues![i];
-      const mapping = callsites.columns[8].stringValues![i];
-      const selfSize = +callsites.columns[selfIndex].longValues![i];
+    const it = callsites.iter({
+      hash: NUM,
+      name: STR,
+      parentHash: NUM,
+      depth: NUM,
+      cumulativeSize: NUM,
+      cumulativeAllocSize: NUM,
+      cumulativeCount: NUM,
+      cumulativeAllocCount: NUM,
+      mapping: STR,
+      sourceFile: STR,
+      lineNumber: NUM,
+      size: NUM,
+      count: NUM,
+    });
+    for (let i = 0; it.valid(); ++i, it.next()) {
+      const hash = it.hash;
+      let name = it.name;
+      const parentHash = it.parentHash;
+      const depth = it.depth;
+      const totalSize = it[totalColumnName];
+      const selfSize = it[selfColumnName];
+      const mapping = it.mapping;
       const highlighted = focusRegex !== '' &&
           name.toLocaleLowerCase().includes(focusRegex.toLocaleLowerCase());
       const parentId =
           hashToindex.has(+parentHash) ? hashToindex.get(+parentHash)! : -1;
 
       let location: string|undefined;
-      if (callsites.columns[11].stringValues != null &&
-          /[a-zA-Z]/i.test(callsites.columns[11].stringValues[i])) {
-        location = callsites.columns[11].stringValues[i];
-        if (callsites.columns[12].longValues != null &&
-            callsites.columns[12].longValues[i] !== -1) {
-          location += `:${callsites.columns[12].longValues[i].toString()}`;
+      if (/[a-zA-Z]/i.test(it.sourceFile)) {
+        location = it.sourceFile;
+        if (it.lineNumber !== -1) {
+          location += `:${it.lineNumber}`;
         }
       }
 
       if (depth === maxDepth - 1) {
         name += ' [tree truncated]';
       }
-      hashToindex.set(+hash, i);
       // Instead of hash, we will store index of callsite in this original array
       // as an id of callsite. That way, we have quicker access to parent and it
-      // will stay unique.
+      // will stay unique:
+      hashToindex.set(hash, i);
+
       flamegraphData.push({
         id: i,
         totalSize,
@@ -361,9 +386,9 @@ export class HeapProfileController extends Controller<'main'> {
 
     // Collecting data for more information about heap profile, such as:
     // total memory allocated, memory that is allocated and not freed.
-    const pidValue = await this.args.engine.query(
+    const result = await this.args.engine.queryV2(
         `select pid from process where upid = ${upid}`);
-    const pid = pidValue.columns[0].longValues![0];
+    const pid = result.firstRow({pid: NUM}).pid;
     const startTime = fromNs(ts) - globals.state.traceTime.startSec;
     return {ts: startTime, tsNs: ts, pid, upid, type};
   }

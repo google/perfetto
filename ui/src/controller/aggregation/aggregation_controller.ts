@@ -19,7 +19,7 @@ import {
   ThreadStateExtra,
 } from '../../common/aggregation_data';
 import {Engine} from '../../common/engine';
-import {NUM, slowlyCountRows} from '../../common/query_iterator';
+import {NUM, NUM_NULL, STR_NULL} from '../../common/query_result';
 import {Area, Sorting} from '../../common/state';
 import {Controller} from '../controller';
 import {globals} from '../globals';
@@ -115,9 +115,9 @@ export abstract class AggregationController extends Controller<'main'> {
       sorting = `${pref.sorting.column} ${pref.sorting.direction}`;
     }
     const query = `select ${colIds} from ${this.kind} order by ${sorting}`;
-    const result = await this.args.engine.query(query);
+    const result = await this.args.engine.queryV2(query);
 
-    const numRows = slowlyCountRows(result);
+    const numRows = result.numRows();
     const columns = defs.map(def => this.columnFromColumnDef(def, numRows));
     const columnSums = await Promise.all(defs.map(def => this.getSum(def)));
     const extraData = await this.getExtra(this.args.engine, area);
@@ -135,20 +135,29 @@ export abstract class AggregationController extends Controller<'main'> {
       return idx;
     }
 
-    for (let row = 0; row < numRows; row++) {
-      const cols = result.columns;
-      for (let col = 0; col < result.columns.length; col++) {
-        if (cols[col].stringValues && cols[col].stringValues!.length > 0) {
-          data.columns[col].data[row] =
-              internString(cols[col].stringValues![row]);
-        } else if (cols[col].longValues && cols[col].longValues!.length > 0) {
-          data.columns[col].data[row] = cols[col].longValues![row];
-        } else if (
-            cols[col].doubleValues && cols[col].doubleValues!.length > 0) {
-          data.columns[col].data[row] = cols[col].doubleValues![row];
+    const spec: {[k: string]: string|number|null} = {};
+    for (const column of columns) {
+      if (column.kind === 'STRING') {
+        spec[column.columnId] = STR_NULL;
+      } else {
+        spec[column.columnId] = NUM_NULL;
+      }
+    }
+
+    const it = result.iter(spec);
+    for (let i = 0; it.valid(); it.next(), ++i) {
+      for (const column of data.columns) {
+        const item = it.get(column.columnId);
+        if (item === null) {
+          column.data[i] = column.kind === 'STRING' ? internString('NULL') : 0;
+        } else if (typeof item === 'string') {
+          column.data[i] = internString(item);
+        } else {
+          column.data[i] = item;
         }
       }
     }
+
     return data;
   }
 
