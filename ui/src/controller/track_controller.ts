@@ -113,11 +113,6 @@ export abstract class TrackController<
     return resolution >= 0.0008;
   }
 
-  protected async query(query: string) {
-    const result = await this.engine.query(query);
-    return result;
-  }
-
   protected async queryV2(query: string) {
     const result = await this.engine.queryV2(query);
     return result;
