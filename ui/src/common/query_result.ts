@@ -635,8 +635,8 @@ class RowIteratorImpl implements RowIteratorBase {
       if (actualType === CellType.CELL_NULL &&
           (expType !== STR_NULL && expType !== NUM_NULL)) {
         err = 'SQL value is NULL but that was not expected' +
-            ` (expected type: ${columnTypeToString(expType)}).` +
-            'Did you intend to use NUM_NULL or STRING_NULL?';
+            ` (expected type: ${columnTypeToString(expType)}). ` +
+            'Did you intend to use NUM_NULL or STR_NULL?';
       } else if (
           ((actualType === CellType.CELL_VARINT ||
             actualType === CellType.CELL_FLOAT64) &&
