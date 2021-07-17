@@ -192,18 +192,6 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
       }
       break;
     }
-    case RpcProto::TPM_QUERY_RAW_DEPRECATED: {
-      Response resp(tx_seq_id_++, req_type);
-      auto* result = resp->set_raw_query_result();
-      if (!req.has_raw_query_args()) {
-        result->set_error(kErrFieldNotSet);
-      } else {
-        protozero::ConstBytes args = req.raw_query_args();
-        RawQueryInternal(args.data, args.size, result);
-      }
-      resp.Send(rpc_response_fn_);
-      break;
-    }
     case RpcProto::TPM_COMPUTE_METRIC: {
       Response resp(tx_seq_id_++, req_type);
       auto* result = resp->set_metric_result();
@@ -318,147 +306,13 @@ void Rpc::Query(const uint8_t* args,
 }
 
 Iterator Rpc::QueryInternal(const uint8_t* args, size_t len) {
-  protos::pbzero::RawQueryArgs::Decoder query(args, len);
+  protos::pbzero::QueryArgs::Decoder query(args, len);
   std::string sql = query.sql_query().ToStdString();
   PERFETTO_DLOG("[RPC] Query < %s", sql.c_str());
   PERFETTO_TP_TRACE("RPC_QUERY",
                     [&](metatrace::Record* r) { r->AddArg("SQL", sql); });
 
   return trace_processor_->ExecuteQuery(sql.c_str());
-}
-
-std::vector<uint8_t> Rpc::RawQuery(const uint8_t* args, size_t len) {
-  protozero::HeapBuffered<protos::pbzero::RawQueryResult> result;
-  RawQueryInternal(args, len, result.get());
-  return result.SerializeAsArray();
-}
-
-void Rpc::RawQueryInternal(const uint8_t* args,
-                           size_t len,
-                           protos::pbzero::RawQueryResult* result) {
-  using ColumnValues = protos::pbzero::RawQueryResult::ColumnValues;
-  using ColumnDesc = protos::pbzero::RawQueryResult::ColumnDesc;
-
-  protos::pbzero::RawQueryArgs::Decoder query(args, len);
-  std::string sql = query.sql_query().ToStdString();
-  PERFETTO_DLOG("[RPC] RawQuery < %s", sql.c_str());
-  PERFETTO_TP_TRACE("RPC_RAW_QUERY",
-                    [&](metatrace::Record* r) { r->AddArg("SQL", sql); });
-
-  auto it = trace_processor_->ExecuteQuery(sql.c_str());
-
-  // This vector contains a standalone protozero message per column. The problem
-  // it's solving is the following: (i) sqlite iterators are row-based; (ii) the
-  // RawQueryResult proto is column-based (that was a poor design choice we
-  // should revisit at some point); (iii) the protozero API doesn't allow to
-  // begin a new nested message before the previous one is completed.
-  // In order to avoid the interleaved-writing, we write each column in a
-  // dedicated heap buffer and then we merge all the column data at the end,
-  // after having iterated all rows.
-  std::vector<protozero::HeapBuffered<ColumnValues>> cols(it.ColumnCount());
-
-  // This constexpr is to avoid ODR-use of protozero constants which are only
-  // declared but not defined. Putting directly UNKONWN in the vector ctor
-  // causes a linker error in the WASM toolchain.
-  static constexpr auto kUnknown = ColumnDesc::UNKNOWN;
-  std::vector<ColumnDesc::Type> col_types(it.ColumnCount(), kUnknown);
-  uint32_t rows = 0;
-
-  for (; it.Next(); ++rows) {
-    for (uint32_t col_idx = 0; col_idx < it.ColumnCount(); ++col_idx) {
-      auto& col = cols[col_idx];
-      auto& col_type = col_types[col_idx];
-
-      using SqlValue = trace_processor::SqlValue;
-      auto cell = it.Get(col_idx);
-      if (col_type == ColumnDesc::UNKNOWN) {
-        switch (cell.type) {
-          case SqlValue::Type::kLong:
-            col_type = ColumnDesc::LONG;
-            break;
-          case SqlValue::Type::kString:
-            col_type = ColumnDesc::STRING;
-            break;
-          case SqlValue::Type::kDouble:
-            col_type = ColumnDesc::DOUBLE;
-            break;
-          case SqlValue::Type::kBytes:
-            col_type = ColumnDesc::STRING;
-            break;
-          case SqlValue::Type::kNull:
-            break;
-        }
-      }
-
-      // If either the column type is null or we still don't know the type,
-      // just add null values to all the columns.
-      if (cell.type == SqlValue::Type::kNull ||
-          col_type == ColumnDesc::UNKNOWN) {
-        col->add_long_values(0);
-        col->add_string_values("[NULL]");
-        col->add_double_values(0);
-        col->add_is_nulls(true);
-        continue;
-      }
-
-      // Cast the sqlite value to the type of the column.
-      switch (col_type) {
-        case ColumnDesc::LONG:
-          PERFETTO_CHECK(cell.type == SqlValue::Type::kLong ||
-                         cell.type == SqlValue::Type::kDouble);
-          if (cell.type == SqlValue::Type::kLong) {
-            col->add_long_values(cell.long_value);
-          } else /* if (cell.type == SqlValue::Type::kDouble) */ {
-            col->add_long_values(static_cast<int64_t>(cell.double_value));
-          }
-          col->add_is_nulls(false);
-          break;
-        case ColumnDesc::STRING: {
-          if (cell.type == SqlValue::Type::kBytes) {
-            col->add_string_values("<bytes>");
-          } else {
-            PERFETTO_CHECK(cell.type == SqlValue::Type::kString);
-            col->add_string_values(cell.string_value);
-          }
-          col->add_is_nulls(false);
-          break;
-        }
-        case ColumnDesc::DOUBLE:
-          PERFETTO_CHECK(cell.type == SqlValue::Type::kLong ||
-                         cell.type == SqlValue::Type::kDouble);
-          if (cell.type == SqlValue::Type::kLong) {
-            col->add_double_values(static_cast<double>(cell.long_value));
-          } else /* if (cell.type == SqlValue::Type::kDouble) */ {
-            col->add_double_values(cell.double_value);
-          }
-          col->add_is_nulls(false);
-          break;
-        case ColumnDesc::UNKNOWN:
-          PERFETTO_FATAL("Handled in if statement above.");
-      }
-    }  // for(col)
-  }    // for(row)
-
-  // Write the column descriptors.
-  for (uint32_t col_idx = 0; col_idx < it.ColumnCount(); ++col_idx) {
-    auto* descriptor = result->add_column_descriptors();
-    std::string col_name = it.GetColumnName(col_idx);
-    descriptor->set_name(col_name.data(), col_name.size());
-    descriptor->set_type(col_types[col_idx]);
-  }
-
-  // Merge the column values.
-  for (uint32_t col_idx = 0; col_idx < it.ColumnCount(); ++col_idx) {
-    std::vector<uint8_t> col_data = cols[col_idx].SerializeAsArray();
-    result->AppendBytes(protos::pbzero::RawQueryResult::kColumnsFieldNumber,
-                        col_data.data(), col_data.size());
-  }
-
-  util::Status status = it.Status();
-  result->set_num_records(rows);
-  if (!status.ok())
-    result->set_error(status.c_message());
-  PERFETTO_DLOG("[RPC] RawQuery > %d rows (err: %d)", rows, !status.ok());
 }
 
 void Rpc::RestoreInitialTables() {

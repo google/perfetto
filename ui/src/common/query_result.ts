@@ -53,19 +53,56 @@ import {defer, Deferred} from '../base/deferred';
 import {assertExists, assertFalse, assertTrue} from '../base/logging';
 import {utf8Decode} from '../base/string_utils';
 
-import {
-  ColumnType,
-  columnTypeToString,
-  NUM,
-  NUM_NULL,
-  Row,
-  RowIterator,
-  RowIteratorBase,
-  STR,
-  STR_NULL
-} from './query_iterator';
+export const NUM = 0;
+export const STR = 'str';
+export const NUM_NULL: number|null = 1;
+export const STR_NULL: string|null = 'str_null';
 
-export {NUM, NUM_NULL, STR, STR_NULL} from './query_iterator';
+export type ColumnType = string|number|null;
+
+// One row extracted from an SQL result:
+export interface Row {
+  [key: string]: ColumnType;
+}
+
+// The methods that any iterator has to implement.
+export interface RowIteratorBase {
+  valid(): boolean;
+  next(): void;
+
+  // Reflection support for cases where the column names are not known upfront
+  // (e.g. the query result table for user-provided SQL queries).
+  // It throws if the passed column name doesn't exist.
+  // Example usage:
+  // for (const it = queryResult.iter({}); it.valid(); it.next()) {
+  //   for (const columnName : queryResult.columns()) {
+  //      console.log(it.get(columnName));
+  get(columnName: string): ColumnType;
+}
+
+// A RowIterator is a type that has all the fields defined in the query spec
+// plus the valid() and next() operators. This is to ultimately allow the
+// clients to do:
+// const result = await engine.queryV2("select name, surname, id from people;");
+// const iter = queryResult.iter({name: STR, surname: STR, id: NUM});
+// for (; iter.valid(); iter.next())
+//  console.log(iter.name, iter.surname);
+export type RowIterator<T extends Row> = RowIteratorBase&T;
+
+function columnTypeToString(t: ColumnType): string {
+  switch (t) {
+    case NUM:
+      return 'NUM';
+    case NUM_NULL:
+      return 'NUM_NULL';
+    case STR:
+      return 'STR';
+    case STR_NULL:
+      return 'STR_NULL';
+    default:
+      return `INVALID(${t})`;
+  }
+}
 
 // Disable Long.js support in protobuf. This seems to be enabled only in tests
 // but not in production code. In any case, for now we want casting to number
@@ -598,8 +635,8 @@ class RowIteratorImpl implements RowIteratorBase {
       if (actualType === CellType.CELL_NULL &&
           (expType !== STR_NULL && expType !== NUM_NULL)) {
         err = 'SQL value is NULL but that was not expected' +
-            ` (expected type: ${columnTypeToString(expType)}).` +
-            'Did you intend to use NUM_NULL or STRING_NULL?';
+            ` (expected type: ${columnTypeToString(expType)}). ` +
+            'Did you intend to use NUM_NULL or STR_NULL?';
       } else if (
           ((actualType === CellType.CELL_VARINT ||
             actualType === CellType.CELL_FLOAT64) &&

@@ -21,10 +21,8 @@ import {
   ComputeMetricArgs,
   ComputeMetricResult,
   QueryArgs,
-  RawQueryArgs,
-  RawQueryResult
 } from './protos';
-import {NUM, NUM_NULL, STR} from './query_iterator';
+import {NUM, NUM_NULL, STR} from './query_result';
 import {
   createQueryResult,
   QueryResult,
@@ -78,7 +76,6 @@ export abstract class Engine {
   private pendingParses = new Array<Deferred<void>>();
   private pendingEOFs = new Array<Deferred<void>>();
   private pendingQueries = new Array<WritableQueryResult>();
-  private pendingRawQueries = new Array<Deferred<RawQueryResult>>();
   private pendingRestoreTables = new Array<Deferred<void>>();
   private pendingComputeMetrics = new Array<Deferred<ComputeMetricResult>>();
 
@@ -188,10 +185,6 @@ export abstract class Engine {
           this.pendingQueries.shift();
         }
         break;
-      case TPM.TPM_QUERY_RAW_DEPRECATED:
-        const queryRes = assertExists(rpc.rawQueryResult) as RawQueryResult;
-        assertExists(this.pendingRawQueries.shift()).resolve(queryRes);
-        break;
       case TPM.TPM_COMPUTE_METRIC:
         const metricRes = assertExists(rpc.metricResult) as ComputeMetricResult;
         if (metricRes.error && metricRes.error.length > 0) {
@@ -268,35 +261,6 @@ export abstract class Engine {
     return asyncRes;
   }
 
-  /**
-   * Runs a SQL query and throws if the query failed.
-   * Queries performed by the controller logic should use this.
-   */
-  async query(sqlQuery: string): Promise<RawQueryResult> {
-    const result = await this.uncheckedQuery(sqlQuery);
-    if (result.error) {
-      throw new QueryError(`Query error "${sqlQuery}": ${result.error}`);
-    }
-    return result;
-  }
-
-  /**
-   * Runs a SQL query. Does not throw if the query fails.
-   * The caller must handle this failure. This is so this function can be safely
-   * used for user-typed SQL.
-   */
-  uncheckedQuery(sqlQuery: string): Promise<RawQueryResult> {
-    const asyncRes = defer<RawQueryResult>();
-    this.pendingRawQueries.push(asyncRes);
-    const rpc = TraceProcessorRpc.create();
-    rpc.request = TPM.TPM_QUERY_RAW_DEPRECATED;
-    rpc.rawQueryArgs = new RawQueryArgs();
-    rpc.rawQueryArgs.sqlQuery = sqlQuery;
-    rpc.rawQueryArgs.timeQueuedNs = Math.floor(performance.now() * 1e6);
-    this.rpcSendRequest(rpc);
-    return asyncRes;
-  }
-
   /*
    * Issues a streaming query and retrieve results in batches.
    * The returned QueryResult object will be populated over time with batches
@@ -360,12 +324,12 @@ export abstract class Engine {
 
   async getNumberOfGpus(): Promise<number> {
     if (!this._numGpus) {
-      const result = await this.query(`
+      const result = await this.queryV2(`
         select count(distinct(gpu_id)) as gpuCount
         from gpu_counter_track
         where name = 'gpufreq';
       `);
-      this._numGpus = +result.columns[0].longValues![0];
+      this._numGpus = result.firstRow({gpuCount: NUM}).gpuCount;
     }
     return this._numGpus;
   }

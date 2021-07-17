@@ -26,7 +26,7 @@ import {
   NUM_NULL,
   STR,
   STR_NULL,
-} from '../common/query_iterator';
+} from '../common/query_result';
 import {SCROLLING_TRACK_GROUP, TrackKindPriority} from '../common/state';
 import {ACTUAL_FRAMES_SLICE_TRACK_KIND} from '../tracks/actual_frames/common';
 import {ANDROID_LOGS_TRACK_KIND} from '../tracks/android_log/common';
