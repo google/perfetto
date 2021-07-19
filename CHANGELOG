@@ -4,7 +4,8 @@ Unreleased:
   Trace Processor:
     * Removed the RawQuery RPC interface. 
   UI:
-    *
+    * Added a highlighted section to thread slices to visualize CPU time 
+      (darker) verses wall time (lighter).
   SDK:
     *
 
