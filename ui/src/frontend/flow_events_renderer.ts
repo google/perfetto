@@ -212,11 +212,10 @@ export class FlowEventsRenderer {
       y: endYConnection.y,
       dir: endDir
     };
-    const highlighted =
-        flow.end.sliceId === globals.frontendLocalState.highlightedSliceId ||
-        flow.begin.sliceId === globals.frontendLocalState.highlightedSliceId;
-    const focused = flow.id === globals.frontendLocalState.focusedFlowIdLeft ||
-        flow.id === globals.frontendLocalState.focusedFlowIdRight;
+    const highlighted = flow.end.sliceId === globals.state.highlightedSliceId ||
+        flow.begin.sliceId === globals.state.highlightedSliceId;
+    const focused = flow.id === globals.state.focusedFlowIdLeft ||
+        flow.id === globals.state.focusedFlowIdRight;
 
     let intensity = DEFAULT_FLOW_INTENSITY;
     let width = DEFAULT_FLOW_WIDTH;
