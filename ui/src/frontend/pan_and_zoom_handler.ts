@@ -211,8 +211,7 @@ export class PanAndZoomHandler {
   }
 
   private onMouseMove(e: MouseEvent) {
-    const pageOffset =
-        globals.frontendLocalState.sidebarVisible ? this.contentOffsetX : 0;
+    const pageOffset = globals.state.sidebarVisible ? this.contentOffsetX : 0;
     // We can't use layerX here because there are many layers in this element.
     this.mousePositionX = e.clientX - pageOffset;
     // Only change the cursor when hovering, the DragGestureHandler handles
