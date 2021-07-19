@@ -795,6 +795,49 @@ export const StateActions = {
     }
     state.metrics.selectedIndex = args.index;
   },
+
+  togglePerfDebug(state: StateDraft, _: {}): void {
+    state.perfDebug = !state.perfDebug;
+  },
+
+  toggleSidebar(state: StateDraft, _: {}): void {
+    state.sidebarVisible = !state.sidebarVisible;
+  },
+
+  setHoveredUtidAndPid(state: StateDraft, args: {utid: number, pid: number}) {
+    state.hoveredPid = args.pid;
+    state.hoveredUtid = args.utid;
+  },
+
+  setHighlightedSliceId(state: StateDraft, args: {sliceId: number}) {
+    state.highlightedSliceId = args.sliceId;
+  },
+
+  setHighlightedFlowLeftId(state: StateDraft, args: {flowId: number}) {
+    state.focusedFlowIdLeft = args.flowId;
+  },
+
+  setHighlightedFlowRightId(state: StateDraft, args: {flowId: number}) {
+    state.focusedFlowIdRight = args.flowId;
+  },
+
+  setSearchIndex(state: StateDraft, args: {index: number}) {
+    state.searchIndex = args.index;
+  },
+
+  setHoveredLogsTimestamp(state: StateDraft, args: {ts: number}) {
+    state.hoveredLogsTimestamp = args.ts;
+  },
+
+  setHoveredNoteTimestamp(state: StateDraft, args: {ts: number}) {
+    state.hoveredNoteTimestamp = args.ts;
+  },
+
+  setCurrentTab(state: StateDraft, args: {tab: string|undefined}) {
+    state.currentTab = args.tab;
+  },
+
+
 };
 
 // When we are on the frontend side, we don't really want to execute the
