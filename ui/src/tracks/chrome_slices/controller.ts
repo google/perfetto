@@ -36,7 +36,14 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
     // ns per quantization bucket (i.e. ns per pixel). /2 * 2 is to force it to
     // be an even number, so we can snap in the middle.
     const bucketNs = Math.max(Math.round(resolution * 1e9 * pxSize / 2) * 2, 1);
-    const tableName = this.namespaceTable('slice');
+
+    const isThreadSlice = this.config.isThreadSlice;
+    let tableName = this.namespaceTable('slice');
+    let threadDurQuery = ', dur';
+    if (isThreadSlice) {
+      tableName = this.namespaceTable('thread_slice');
+      threadDurQuery = ', iif(thread_dur IS NULL, dur, thread_dur)';
+    }
 
     if (this.maxDurNs === 0) {
       const query = `
@@ -56,6 +63,7 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
         name,
         dur = 0 as isInstant,
         dur = -1 as isIncomplete
+        ${threadDurQuery} as threadDur
       FROM ${tableName}
       WHERE track_id = ${this.config.trackId} AND
         ts >= (${startNs - this.maxDurNs}) AND
@@ -77,6 +85,7 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
       titles: new Uint16Array(numRows),
       isInstant: new Uint16Array(numRows),
       isIncomplete: new Uint16Array(numRows),
+      cpuTimeRatio: new Float64Array(numRows)
     };
 
     const stringIndexes = new Map<string, number>();
@@ -97,7 +106,8 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
       sliceId: NUM,
       name: STR,
       isInstant: NUM,
-      isIncomplete: NUM
+      isIncomplete: NUM,
+      threadDur: NUM
     });
     for (let row = 0; it.valid(); it.next(), row++) {
       const startNsQ = it.tsq;
@@ -123,6 +133,16 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
       slices.titles[row] = internString(it.name);
       slices.isInstant[row] = it.isInstant;
       slices.isIncomplete[row] = it.isIncomplete;
+
+      let cpuTimeRatio = 1;
+      if (!it.isInstant && !it.isIncomplete) {
+        // Rounding the CPU time ratio to two decimal places and ensuring
+        // it is less than or equal to one, incase the thread duration exceeds
+        // the total duration.
+        cpuTimeRatio =
+            Math.min(Math.round((it.threadDur / it.dur) * 100) / 100, 1);
+      }
+      slices.cpuTimeRatio![row] = cpuTimeRatio;
     }
     return slices;
   }
