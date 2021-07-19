@@ -64,8 +64,7 @@
   {
     "cmd": [
       "python3",
-      "tools/install-build-deps",
-      "--android"
+      "tools/install-build-deps"
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "infra_step": true,
@@ -77,7 +76,7 @@
       "tools/gn",
       "gen",
       "out/dist",
-      "--args=is_debug=false"
+      "--args=is_debug=false monolithic_binaries=true"
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "name": "gn gen"
