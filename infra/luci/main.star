@@ -103,3 +103,4 @@ def official_builder(name, os):
 official_builder("perfetto-official-builder-linux", "Linux")
 official_builder("perfetto-official-builder-mac", "Mac")
 official_builder("perfetto-official-builder-windows", "Windows")
+official_builder("perfetto-official-builder-android", "Linux")
