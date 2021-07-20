@@ -15,6 +15,7 @@
 import {Actions} from '../common/actions';
 import {Engine, QueryError} from '../common/engine';
 import {STR} from '../common/query_result';
+import {publishMetricResult} from '../frontend/publish';
 
 import {Controller} from './controller';
 import {globals} from './globals';
@@ -51,14 +52,15 @@ export class MetricsController extends Controller<'main'> {
     this.currentlyRunningMetric = name;
     try {
       const metricResult = await this.engine.computeMetric([name]);
-      globals.publish(
-          'MetricResult',
-          {name, resultString: metricResult.metricsAsPrototext});
+      publishMetricResult({
+        name,
+        resultString: metricResult.metricsAsPrototext,
+      });
     } catch (e) {
       if (e instanceof QueryError) {
         // Reroute error to be displated differently when metric is run through
         // metric page.
-        globals.publish('MetricResult', {name, error: e.message});
+        publishMetricResult({name, error: e.message});
       } else {
         throw e;
       }

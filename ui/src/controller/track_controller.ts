@@ -18,6 +18,7 @@ import {Registry} from '../common/registry';
 import {TraceTime, TrackState} from '../common/state';
 import {fromNs, toNs} from '../common/time';
 import {LIMIT, TrackData} from '../common/track_data';
+import {publishTrackData} from '../frontend/publish';
 
 import {Controller} from './controller';
 import {ControllerFactory} from './controller';
@@ -93,7 +94,7 @@ export abstract class TrackController<
 
   publish(data: Data): void {
     this.data = data;
-    globals.publish('TrackData', {id: this.trackId, data});
+    publishTrackData({id: this.trackId, data});
   }
 
   /**

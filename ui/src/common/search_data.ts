@@ -19,9 +19,9 @@ export interface SearchSummary {
 }
 
 export interface CurrentSearchResults {
-  sliceIds: number[];
-  tsStarts: number[];
-  utids: number[];
+  sliceIds: Float64Array;
+  tsStarts: Float64Array;
+  utids: Float64Array;
   trackIds: string[];
   sources: string[];
   totalResults: number;
