@@ -42,7 +42,11 @@ ARTIFACTS = [
         'name': 'trace_processor_shell'
     },
     {
-        'name': 'trace_to_text'
+        'name':
+            'trace_to_text',
+        'exclude_platforms': [
+            'android-arm', 'android-arm64', 'android-x86', 'android-x64'
+        ]
     },
     {
         'name': 'tracebox',
@@ -83,19 +87,16 @@ def UploadArtifact(api, platform, upload_dir, artifact):
 
 
 def BuildForPlatform(api, platform, src_dir, upload_dir):
-  # Pull all deps here.
-  with api.context(cwd=src_dir, infra_steps=True):
-    extra_args = ['--android'] if 'android' in platform else []
-    api.step('build-deps', ['python3', 'tools/install-build-deps'] + extra_args)
-
   # Buld Perfetto.
   # There should be no need for internet access here.
   with api.context(cwd=src_dir), api.macos_sdk(), api.windows_sdk():
     args = GnArgs(platform)
-    api.step(
-        'gn gen',
-        ['python3', 'tools/gn', 'gen', 'out/dist', '--args={}'.format(args)])
-    api.step('ninja', ['python3', 'tools/ninja', '-C', 'out/dist'])
+    api.step('gn gen', [
+        'python3', 'tools/gn', 'gen', 'out/{}'.format(platform),
+        '--args={}'.format(args)
+    ])
+    api.step('ninja',
+             ['python3', 'tools/ninja', '-C', 'out/{}'.format(platform)])
 
   # Upload stripped artifacts using gsutil if we're on the official builder.
   if 'official' not in api.buildbucket.builder_id.builder:
@@ -134,15 +135,25 @@ def RunSteps(api, repository):
             'rev-parse', ['git', 'rev-parse', 'HEAD'],
             stdout=api.raw_io.output()).stdout.strip()
 
+  # Pull all deps here.
+  with api.context(cwd=src_dir, infra_steps=True):
+    extra_args = ['--android'
+                 ] if 'android' in api.buildbucket.builder_id.builder else []
+    api.step('build-deps', ['python3', 'tools/install-build-deps'] + extra_args)
+
   if api.platform.is_win:
     BuildForPlatform(api, 'windows-amd64', src_dir, upload_dir)
   elif api.platform.is_mac:
     BuildForPlatform(api, 'mac-amd64', src_dir, upload_dir)
   elif 'android' in api.buildbucket.builder_id.builder:
-    BuildForPlatform(api, 'android-arm', src_dir, upload_dir)
-    BuildForPlatform(api, 'android-arm64', src_dir, upload_dir)
-    BuildForPlatform(api, 'android-x86', src_dir, upload_dir)
-    BuildForPlatform(api, 'android-x64', src_dir, upload_dir)
+    with api.step.nest('android-arm'):
+      BuildForPlatform(api, 'android-arm', src_dir, upload_dir)
+    with api.step.nest('android-arm64'):
+      BuildForPlatform(api, 'android-arm64', src_dir, upload_dir)
+    with api.step.nest('android-x86'):
+      BuildForPlatform(api, 'android-x86', src_dir, upload_dir)
+    with api.step.nest('android-x64'):
+      BuildForPlatform(api, 'android-x64', src_dir, upload_dir)
   else:
     BuildForPlatform(api, 'linux-amd64', src_dir, upload_dir)
 
