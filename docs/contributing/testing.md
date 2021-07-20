@@ -124,6 +124,35 @@ column is named `supress_query_output`, even if it has output, this will
 be ignored (for example,
 `SELECT RUN_METRIC('metric file') as surpress_query_output`)
 
+UI pixel diff tests
+-----------------
+The pixel tests are used to ensure core user journeys work by verifying they
+are the same pixel to pixel against a golden screenshot. They use a headless
+chrome to load the webpage and take a screenshot and compare pixel by pixel a
+golden screenshot. You can run these tests by using `ui/run-integrationtests`.
+
+
+These test fail when a certain number of pixels are different. If these tests
+fail, you'll need to investigate the diff and determine if its intentional. If
+its a desired change you will need to update the screenshots on a linux machine
+to get the CI to pass. You can update them by generating and uploading a new
+baseline (this requires access to a google bucket through gcloud which only
+googlers have access to, googlers can install gcloud
+[here](https://g3doc.corp.google.com/cloud/sdk/g3doc/index.md#installing-and-using-the-cloud-sdk)).
+
+```
+ui/run-integrationtests --rebaseline
+tools/add_test_data test/data/ui-screenshots
+```
+
+Once finished you can commit and upload as part of your CL to cause the CI to
+use your new screenshots.
+
+NOTE: If you see a failing diff test you can see the pixel differences on the CI
+by using the link to the UI and replace `/ui/index.html` with
+`/ui-test-artifacts/<name_of_failing_png_test_from_logs>.png`. This allows you
+to tell where in the picture the change was introduced.
+
 Android CTS tests
 -----------------
 CTS tests ensure that any vendors who modify Android remain compliant with the
