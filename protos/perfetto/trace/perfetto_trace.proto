@@ -7812,6 +7812,52 @@ message HeapGraph {
 
 // Begin of protos/perfetto/trace/profiling/profile_packet.proto
 
+
+// This proto source contains a mixture of messages emitted by various profilers.
+// Here's a summary of who writes what:
+
+// Memory profiling
+// ----------------
+// ProfilePacket:
+//   The packet emitted by heapprofd (Android native heap profiler).
+//   It contains heap snapshots keyed by callstack (i.e. how many bytes
+//   allocated/freed, their count and similar stats for each callstack).
+// StreamingAllocation/StreamingFree:
+//   Emitted by heapprofd when configured in streaming mode (i.e. when
+//   stream_allocations = true). This is only for local testing, it doesn't
+//   report callstacks (only address time and size of each alloc/free). It can
+//   lead to enormous traces, as it contains the stream of each alloc/free call.
+//
+// Callstack sampling
+// ------------------
+// StreamingProfilePacket:
+//   The packet emitted by the chromium in-process sampling profiler, which is
+//   based on periodically sending a signal to self and unwinding the stack. It
+//   contains callstacks-over-time for some Chromium threads.
+// PerfSample:
+//   The packet emitted by traced_perf, the callstack sampler introduced in
+//   Android S which wraps `man 2 perf_event_open` at the system level and emits
+//   {callstacks, counters} over {time, counter overflow events}.
+
+
+// The packet emitted by heapprofd for each heap snapshot. A snapshot can
+// involve more than one ProfilePacket if the snapshot is big (when |continued|
+// = true). The cardinality and grouping is the following:
+// A ProfilePacket contains:
+//  - 1+ per-process heap snapshots (ProcessHeapSamples). Normally there is only
+//    one heap per process (the main malloc/free heap), but there can be more if
+//    the process is using the heapprofd API to profile custom allocators.
+//  - Globally interned strings, mappings and frames (to allow de-duplicating
+//    frames/mapping in common between different processes).
+// A ProcessHeapSamples contains:
+//  - The process and heap identifier.
+//  - A number of HeapSample, one for each callsite that had some alloc/frees.
+//  - Statistics about heapprofd internals (e.g., sampling/unwinding timings).
+// A HeapSample contains statistics about callsites:
+//  - Total number of bytes allocated and freed from that callsite.
+//  - Total number of alloc/free calls sampled.
+//  - Stats at the local maximum when dump_at_max = true.
+// See https://perfetto.dev/docs/data-sources/native-heap-profiler for more.
 message ProfilePacket {
   // The following interning tables are only used in Android version Q.
   // In newer versions, these tables are in InternedData
@@ -7950,6 +7996,8 @@ message ProfilePacket {
   optional uint64 index = 7;
 }
 
+// Packet emitted by heapprofd when stream_allocations = true. Only for local
+// testing. Doesn't report the callsite.
 message StreamingAllocation {
   // TODO(fmayer): Add callstack.
   repeated uint64 address = 1;
@@ -7960,6 +8008,8 @@ message StreamingAllocation {
   repeated uint64 sequence_number = 6;
 };
 
+// Packet emitted by heapprofd when stream_allocations = true. Only for local
+// testing. Doesn't report the callsite.
 message StreamingFree {
   // TODO(fmayer): Add callstack.
   repeated uint64 address = 1;
@@ -7967,8 +8017,9 @@ message StreamingFree {
   repeated uint64 sequence_number = 3;
 };
 
-// Message used to represent individual stack samples sampled at discrete
-// points in time, rather than aggregated over an interval.
+// Packet emitted by the chromium in-process signal-baswed callstack sampler.
+// Represent individual stack samples sampled at discrete points in time, rather
+// than aggregated over an interval.
 message StreamingProfilePacket {
   // Index into InternedData.callstacks
   repeated uint64 callstack_iid = 1;
@@ -8008,7 +8059,9 @@ message Profiling {
   }
 }
 
-// Individual performance sampling packet payload. Typically corresponds to a
+// Packed emitted by the traced_perf service (see //src/profiling/perf) for
+// system-wide callstack sampling via `man 2 perf_event_open`.
+// Each packet contains individual samples payload. Typically corresponds to a
 // stack sample on a configration-dependent counter overflow.
 //
 // Timestamps are within the root packet. This used to use the CLOCK_BOOTTIME
