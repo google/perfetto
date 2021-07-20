@@ -151,7 +151,7 @@
       "python3",
       "tools/gn",
       "gen",
-      "out/dist",
+      "out/windows-amd64",
       "--args=is_debug=false monolithic_binaries=true"
     ],
     "cwd": "[CACHE]\\builder\\perfetto",
@@ -170,7 +170,7 @@
       "python3",
       "tools/ninja",
       "-C",
-      "out/dist"
+      "out/windows-amd64"
     ],
     "cwd": "[CACHE]\\builder\\perfetto",
     "env": {
