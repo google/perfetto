@@ -195,6 +195,8 @@ perfetto_cc_binary(
         "tools/proto_merger/main.cc",
         "tools/proto_merger/proto_file.cc",
         "tools/proto_merger/proto_file.h",
+        "tools/proto_merger/proto_file_serializer.cc",
+        "tools/proto_merger/proto_file_serializer.h",
         "tools/proto_merger/proto_merger.cc",
         "tools/proto_merger/proto_merger.h",
     ],
