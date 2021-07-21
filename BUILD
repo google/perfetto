@@ -190,6 +190,7 @@ perfetto_cc_binary(
 perfetto_cc_binary(
     name = "proto_merger",
     srcs = [
+        "tools/proto_merger/allowlist.cc",
         "tools/proto_merger/allowlist.h",
         "tools/proto_merger/main.cc",
         "tools/proto_merger/proto_file.cc",
