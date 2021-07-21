@@ -21,6 +21,7 @@ import {
 import {Engine} from '../../common/engine';
 import {NUM} from '../../common/query_result';
 import {Area, Sorting} from '../../common/state';
+import {publishAggregateData} from '../../frontend/publish';
 import {Controller} from '../controller';
 import {globals} from '../globals';
 
@@ -56,7 +57,7 @@ export abstract class AggregationController extends Controller<'main'> {
   run() {
     const selection = globals.state.currentSelection;
     if (selection === null || selection.kind !== 'AREA') {
-      globals.publish('AggregateData', {
+      publishAggregateData({
         data: {
           tabName: this.getTabName(),
           columns: [],
@@ -83,9 +84,7 @@ export abstract class AggregationController extends Controller<'main'> {
       if (sortingChanged) this.previousSorting = aggregatePreferences.sorting;
       if (areaChanged) this.previousArea = Object.assign({}, selectedArea);
       this.getAggregateData(selectedArea, areaChanged)
-          .then(
-              data => globals.publish(
-                  'AggregateData', {data, kind: this.args.kind}))
+          .then(data => publishAggregateData({data, kind: this.args.kind}))
           .finally(() => {
             this.requestingData = false;
             if (this.queuedRequest) {

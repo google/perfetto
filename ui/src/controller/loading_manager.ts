@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {LoadingTracker} from '../common/engine';
-import {globals} from './globals';
+import {publishLoading} from '../frontend/publish';
 
 // Used to keep track of whether the engine is currently querying.
 export class LoadingManager implements LoadingTracker {
@@ -38,7 +38,7 @@ export class LoadingManager implements LoadingTracker {
     if (this.numQueuedQueries === 0 ||
         Math.abs(this.numLastUpdate - this.numQueuedQueries) > 2) {
       this.numLastUpdate = this.numQueuedQueries;
-      globals.publish('Loading', this.numQueuedQueries);
+      publishLoading(this.numQueuedQueries);
     }
   }
 }

@@ -46,6 +46,7 @@ import {
   RecordConfig,
   RecordingTarget
 } from '../common/state';
+import {publishBufferUsage, publishTrackData} from '../frontend/publish';
 
 import {AdbOverWebUsb} from './adb';
 import {AdbConsumerPort} from './adb_shell_controller';
@@ -644,7 +645,7 @@ export class RecordController extends Controller<'main'> implements Consumer {
     `;
     const traceConfig = genConfig(this.config, this.app.state.recordingTarget);
     // TODO(hjd): This should not be TrackData after we unify the stores.
-    this.app.publish('TrackData', {
+    publishTrackData({
       id: 'config',
       data: {
         commandline,
@@ -701,7 +702,7 @@ export class RecordController extends Controller<'main'> implements Consumer {
     } else if (isGetTraceStatsResponse(data)) {
       const percentage = this.getBufferUsagePercentage(data);
       if (percentage) {
-        globals.publish('BufferUsage', {percentage});
+        publishBufferUsage({percentage});
       }
     } else if (isFreeBuffersResponse(data)) {
       // No action required.
