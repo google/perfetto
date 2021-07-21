@@ -42,11 +42,15 @@ ARTIFACTS = [
         'name': 'trace_processor_shell'
     },
     {
-        'name': 'trace_to_text'
+        'name':
+            'trace_to_text',
+        'exclude_platforms': [
+            'android-arm', 'android-arm64', 'android-x86', 'android-x64'
+        ]
     },
     {
         'name': 'tracebox',
-        'platforms': ['mac-amd64', 'linux-amd64']
+        'exclude_platforms': ['windows-amd64']
     },
     {
         'name': 'perfetto'
@@ -56,26 +60,60 @@ ARTIFACTS = [
     },
     {
         'name': 'traced_probes',
-        'platforms': ['mac-amd64', 'linux-amd64']
+        'exclude_platforms': ['windows-amd64']
     },
 ]
 
 
-def RunSteps(api, repository):
-  builder_cache_dir = api.path['cache'].join('builder')
-  src_dir = builder_cache_dir.join('perfetto')
+def GnArgs(platform):
+  (os, cpu) = platform.split('-')
 
+  base_args = 'is_debug=false monolithic_binaries=true'
+  if 'android' != os:
+    return base_args
+  return base_args + ' target_os="{}" target_cpu="{}"'.format(os, cpu)
+
+
+def UploadArtifact(api, platform, upload_dir, artifact):
+  exclude_platforms = artifact.get('exclude_platforms', [])
+  if platform in exclude_platforms:
+    return
+
+  exe_path = 'out/dist' if api.platform.is_win else 'out/dist/stripped'
+  artifact_ext = artifact['name'] + ('.exe' if api.platform.is_win else '')
+  source = '{}/{}'.format(exe_path, artifact_ext)
+  target = '{}/{}/{}'.format(upload_dir, platform, artifact_ext)
+  api.gsutil.upload(source, 'perfetto-luci-artifacts', target)
+
+
+def BuildForPlatform(api, platform, src_dir, upload_dir):
+  # Buld Perfetto.
+  # There should be no need for internet access here.
+  with api.context(cwd=src_dir), api.macos_sdk(), api.windows_sdk():
+    args = GnArgs(platform)
+    api.step('gn gen', [
+        'python3', 'tools/gn', 'gen', 'out/{}'.format(platform),
+        '--args={}'.format(args)
+    ])
+    api.step('ninja',
+             ['python3', 'tools/ninja', '-C', 'out/{}'.format(platform)])
+
+  # Upload stripped artifacts using gsutil if we're on the official builder.
+  if 'official' not in api.buildbucket.builder_id.builder:
+    return
+
+  with api.step.nest('Artifact upload'), api.context(cwd=src_dir):
+    for artifact in ARTIFACTS:
+      UploadArtifact(api, platform, upload_dir, artifact)
+
+
+def RunSteps(api, repository):
   # The directory for any uploaded artifacts. This will be the tag name
   # (if building a tag) or the SHA of the commit otherwise.
-  upload_directory = None
+  upload_dir = None
 
-  # Figure out the platform we are running on
-  if api.platform.is_win:
-    platform = 'windows-amd64'
-  elif api.platform.is_mac:
-    platform = 'mac-amd64'
-  else:
-    platform = 'linux-amd64'
+  builder_cache_dir = api.path['cache'].join('builder')
+  src_dir = builder_cache_dir.join('perfetto')
 
   # Fetch the Perfetto repo.
   with api.step.nest('git'), api.context(infra_steps=True):
@@ -91,39 +129,33 @@ def RunSteps(api, repository):
       api.step('checkout', ['git', 'checkout', 'FETCH_HEAD'])
 
       if ref.startswith('refs/tags/'):
-        upload_directory = ref.replace('refs/tags/', '')
+        upload_dir = ref.replace('refs/tags/', '')
       else:
-        upload_directory = api.step(
+        upload_dir = api.step(
             'rev-parse', ['git', 'rev-parse', 'HEAD'],
             stdout=api.raw_io.output()).stdout.strip()
 
   # Pull all deps here.
-  # There should be no need for internet access for building Perfetto beyond
-  # this point.
   with api.context(cwd=src_dir, infra_steps=True):
-    api.step('build-deps', ['python3', 'tools/install-build-deps', '--android'])
+    extra_args = ['--android'
+                 ] if 'android' in api.buildbucket.builder_id.builder else []
+    api.step('build-deps', ['python3', 'tools/install-build-deps'] + extra_args)
 
-  # Buld Perfetto.
-  with api.context(cwd=src_dir), api.macos_sdk(), api.windows_sdk():
-    api.step(
-        'gn gen',
-        ['python3', 'tools/gn', 'gen', 'out/dist', '--args=is_debug=false'])
-    api.step('ninja', ['python3', 'tools/ninja', '-C', 'out/dist'])
-
-  # Upload stripped artifacts using gsutil if we're on the official builder.
-  if api.buildbucket.builder_id.project == 'perfetto':
-    with api.step.nest('Artifact upload'), api.context(cwd=src_dir):
-      for artifact in ARTIFACTS:
-        supported_platforms = artifact.get('platforms')
-        if supported_platforms and platform not in supported_platforms:
-          continue
-
-        exe_path = 'out/dist' if api.platform.is_win else 'out/dist/stripped'
-        artifact_ext = artifact['name'] + ('.exe'
-                                           if api.platform.is_win else '')
-        source = '{}/{}'.format(exe_path, artifact_ext)
-        target = '{}/{}/{}'.format(upload_directory, platform, artifact_ext)
-        api.gsutil.upload(source, 'perfetto-luci-artifacts', target)
+  if api.platform.is_win:
+    BuildForPlatform(api, 'windows-amd64', src_dir, upload_dir)
+  elif api.platform.is_mac:
+    BuildForPlatform(api, 'mac-amd64', src_dir, upload_dir)
+  elif 'android' in api.buildbucket.builder_id.builder:
+    with api.step.nest('android-arm'):
+      BuildForPlatform(api, 'android-arm', src_dir, upload_dir)
+    with api.step.nest('android-arm64'):
+      BuildForPlatform(api, 'android-arm64', src_dir, upload_dir)
+    with api.step.nest('android-x86'):
+      BuildForPlatform(api, 'android-x86', src_dir, upload_dir)
+    with api.step.nest('android-x64'):
+      BuildForPlatform(api, 'android-x64', src_dir, upload_dir)
+  else:
+    BuildForPlatform(api, 'linux-amd64', src_dir, upload_dir)
 
 
 def GenTests(api):
@@ -131,11 +163,24 @@ def GenTests(api):
     yield (api.test('ci_' + platform) + api.platform.name(platform) +
            api.buildbucket.ci_build(
                project='perfetto',
+               builder='official',
                git_repo='android.googlesource.com/platform/external/perfetto',
            ))
 
   yield (api.test('ci_tag') + api.platform.name('linux') +
          api.buildbucket.ci_build(
              project='perfetto',
+             builder='official',
              git_repo='android.googlesource.com/platform/external/perfetto',
              revision='refs/tags/v13.0'))
+
+  yield (api.test('ci_android') + api.platform.name('linux') +
+         api.buildbucket.ci_build(
+             project='perfetto',
+             builder='official-android',
+             git_repo='android.googlesource.com/platform/external/perfetto'))
+
+  yield (api.test('unofficial') + api.platform.name('linux') +
+         api.buildbucket.ci_build(
+             project='perfetto',
+             git_repo='android.googlesource.com/platform/external/perfetto'))

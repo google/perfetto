@@ -77,8 +77,7 @@
   {
     "cmd": [
       "python3",
-      "tools/install-build-deps",
-      "--android"
+      "tools/install-build-deps"
     ],
     "cwd": "[CACHE]\\builder\\perfetto",
     "infra_step": true,
@@ -152,8 +151,8 @@
       "python3",
       "tools/gn",
       "gen",
-      "out/dist",
-      "--args=is_debug=false"
+      "out/windows-amd64",
+      "--args=is_debug=false monolithic_binaries=true"
     ],
     "cwd": "[CACHE]\\builder\\perfetto",
     "env": {
@@ -171,7 +170,7 @@
       "python3",
       "tools/ninja",
       "-C",
-      "out/dist"
+      "out/windows-amd64"
     ],
     "cwd": "[CACHE]\\builder\\perfetto",
     "env": {
@@ -237,32 +236,12 @@
       "RECIPE_REPO[depot_tools]\\gsutil.py",
       "----",
       "cp",
-      "out/dist/tracebox.exe",
-      "gs://perfetto-luci-artifacts//windows-amd64/tracebox.exe"
-    ],
-    "cwd": "[CACHE]\\builder\\perfetto",
-    "infra_step": true,
-    "name": "Artifact upload.gsutil upload (3)",
-    "~followup_annotations": [
-      "@@@STEP_NEST_LEVEL@1@@@",
-      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//windows-amd64/tracebox.exe@@@"
-    ]
-  },
-  {
-    "cmd": [
-      "python",
-      "-u",
-      "RECIPE_MODULE[depot_tools::gsutil]\\resources\\gsutil_smart_retry.py",
-      "--",
-      "RECIPE_REPO[depot_tools]\\gsutil.py",
-      "----",
-      "cp",
       "out/dist/perfetto.exe",
       "gs://perfetto-luci-artifacts//windows-amd64/perfetto.exe"
     ],
     "cwd": "[CACHE]\\builder\\perfetto",
     "infra_step": true,
-    "name": "Artifact upload.gsutil upload (4)",
+    "name": "Artifact upload.gsutil upload (3)",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@1@@@",
       "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//windows-amd64/perfetto.exe@@@"
@@ -282,7 +261,7 @@
     ],
     "cwd": "[CACHE]\\builder\\perfetto",
     "infra_step": true,
-    "name": "Artifact upload.gsutil upload (5)",
+    "name": "Artifact upload.gsutil upload (4)",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@1@@@",
       "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//windows-amd64/traced.exe@@@"
