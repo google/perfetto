@@ -29,6 +29,11 @@ import {
   SliceDetails,
   ThreadStateDetails
 } from '../frontend/globals';
+import {
+  publishCounterDetails,
+  publishSliceDetails,
+  publishThreadStateDetails
+} from '../frontend/publish';
 import {SLICE_TRACK_KIND} from '../tracks/chrome_slices/common';
 
 import {parseArgs} from './args_parser';
@@ -75,7 +80,7 @@ export class SelectionController extends Controller<'main'> {
                 selection.kind === selectedKind &&
                 selection.id === selectedId) {
               Object.assign(selected, results);
-              globals.publish('CounterDetails', selected);
+              publishCounterDetails(selected);
             }
           });
     } else if (selection.kind === 'SLICE') {
@@ -178,7 +183,7 @@ export class SelectionController extends Controller<'main'> {
 
     // Check selection is still the same on completion of query.
     if (selection === globals.state.currentSelection) {
-      globals.publish('SliceDetails', selected);
+      publishSliceDetails(selected);
     }
   }
 
@@ -290,7 +295,7 @@ export class SelectionController extends Controller<'main'> {
           row.blockedFunction === null ? undefined : row.blockedFunction;
       const selected: ThreadStateDetails =
           {ts: timeFromStart, dur, state, utid, cpu, sliceId, blockedFunction};
-      globals.publish('ThreadStateDetails', selected);
+      publishThreadStateDetails(selected);
     }
   }
 
@@ -341,7 +346,7 @@ export class SelectionController extends Controller<'main'> {
             Object.assign(selected, wakeResult);
           })
           .finally(() => {
-            globals.publish('SliceDetails', selected);
+            publishSliceDetails(selected);
           });
     }
   }

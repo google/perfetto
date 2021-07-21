@@ -12,14 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {dingus} from 'dingusjs';
-
 import {assertExists} from '../base/logging';
 import {TraceConfig} from '../common/protos';
-import {createEmptyRecordConfig, RecordConfig} from '../common/state';
+import {createEmptyRecordConfig} from '../common/state';
 
-import {App} from './globals';
-import {genConfigProto, RecordController, toPbtxt} from './record_controller';
+import {genConfigProto, toPbtxt} from './record_controller';
 
 test('encodeConfig', () => {
   const config = createEmptyRecordConfig();
@@ -88,21 +85,6 @@ producers: {
 }
 max_file_size_bytes: 43
 `);
-});
-
-test('RecordController', () => {
-  const app = dingus<App>('globals');
-  (app.state.recordConfig as RecordConfig) = createEmptyRecordConfig();
-  const m: MessageChannel = dingus<MessageChannel>('extensionPort');
-  const controller = new RecordController({app, extensionPort: m.port1});
-  controller.run();
-  controller.run();
-  controller.run();
-  // tslint:disable-next-line no-any
-  const calls = app.calls.filter((call: any) => call[0] === 'publish()');
-  expect(calls.length).toBe(1);
-  // TODO(hjd): Fix up dingus to have a more sensible API.
-  expect(calls[0][1][0]).toEqual('TrackData');
 });
 
 test('ChromeConfig', () => {

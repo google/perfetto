@@ -16,6 +16,7 @@ import {Engine} from '../common/engine';
 import {NUM, STR} from '../common/query_result';
 import {CallsiteInfo, CpuProfileSampleSelection} from '../common/state';
 import {CpuProfileDetails} from '../frontend/globals';
+import {publishCpuProfileDetails} from '../frontend/publish';
 
 import {Controller} from './controller';
 import {globals} from './globals';
@@ -50,7 +51,7 @@ export class CpuProfileController extends Controller<'main'> {
     }
 
     this.requestingData = true;
-    globals.publish('CpuProfileDetails', {});
+    publishCpuProfileDetails({});
     this.lastSelectedSample = this.copyCpuProfileSample(selection);
 
     this.getSampleData(selectedSample.id)
@@ -65,7 +66,7 @@ export class CpuProfileController extends Controller<'main'> {
               stack: sampleData,
             };
 
-            globals.publish('CpuProfileDetails', cpuProfileDetails);
+            publishCpuProfileDetails(cpuProfileDetails);
           }
         })
         .finally(() => {

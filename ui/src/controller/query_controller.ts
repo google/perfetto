@@ -17,6 +17,7 @@ import {Actions} from '../common/actions';
 import {Engine} from '../common/engine';
 import {QueryResponse} from '../common/queries';
 import {Row} from '../common/query_result';
+import {publishQueryResult} from '../frontend/publish';
 
 import {Controller} from './controller';
 import {globals} from './globals';
@@ -39,7 +40,7 @@ export class QueryController extends Controller<'init'|'querying'> {
         const config = assertExists(globals.state.queries[this.args.queryId]);
         this.runQuery(config.query).then(result => {
           console.log(`Query ${config.query} took ${result.durationMs} ms`);
-          globals.publish('QueryResult', {id: this.args.queryId, data: result});
+          publishQueryResult({id: this.args.queryId, data: result});
           globals.dispatch(Actions.deleteQuery({queryId: this.args.queryId}));
         });
         this.setState('querying');
