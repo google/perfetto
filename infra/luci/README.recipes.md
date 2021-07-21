@@ -85,17 +85,17 @@ Raises:
 &mdash; **def [RunSteps](/infra/luci/recipe_modules/macos_sdk/examples/full.py#23)(api):**
 ### *recipes* / [perfetto](/infra/luci/recipes/perfetto.py)
 
-[DEPS](/infra/luci/recipes/perfetto.py#18): [depot\_tools/gsutil][depot_tools/recipe_modules/gsutil], [macos\_sdk](#recipe_modules-macos_sdk), [windows\_sdk](#recipe_modules-windows_sdk), [recipe\_engine/buildbucket][recipe_engine/recipe_modules/buildbucket], [recipe\_engine/context][recipe_engine/recipe_modules/context], [recipe\_engine/file][recipe_engine/recipe_modules/file], [recipe\_engine/path][recipe_engine/recipe_modules/path], [recipe\_engine/platform][recipe_engine/recipe_modules/platform], [recipe\_engine/properties][recipe_engine/recipe_modules/properties], [recipe\_engine/raw\_io][recipe_engine/recipe_modules/raw_io], [recipe\_engine/step][recipe_engine/recipe_modules/step]
+[DEPS](/infra/luci/recipes/perfetto.py#18): [depot\_tools/gsutil][depot_tools/recipe_modules/gsutil], [macos\_sdk](#recipe_modules-macos_sdk), [windows\_sdk](#recipe_modules-windows_sdk), [recipe\_engine/buildbucket][recipe_engine/recipe_modules/buildbucket], [recipe\_engine/cipd][recipe_engine/recipe_modules/cipd], [recipe\_engine/context][recipe_engine/recipe_modules/context], [recipe\_engine/file][recipe_engine/recipe_modules/file], [recipe\_engine/path][recipe_engine/recipe_modules/path], [recipe\_engine/platform][recipe_engine/recipe_modules/platform], [recipe\_engine/properties][recipe_engine/recipe_modules/properties], [recipe\_engine/raw\_io][recipe_engine/recipe_modules/raw_io], [recipe\_engine/step][recipe_engine/recipe_modules/step]
 
 Recipe for building Perfetto.
 
-&mdash; **def [BuildForPlatform](/infra/luci/recipes/perfetto.py#89)(api, platform, src_dir, upload_dir):**
+&mdash; **def [BuildForPlatform](/infra/luci/recipes/perfetto.py#135)(api, ctx, platform):**
 
-&mdash; **def [GnArgs](/infra/luci/recipes/perfetto.py#68)(platform):**
+&mdash; **def [GnArgs](/infra/luci/recipes/perfetto.py#77)(platform):**
 
-&mdash; **def [RunSteps](/infra/luci/recipes/perfetto.py#110)(api, repository):**
+&mdash; **def [RunSteps](/infra/luci/recipes/perfetto.py#155)(api, repository):**
 
-&mdash; **def [UploadArtifact](/infra/luci/recipes/perfetto.py#77)(api, platform, upload_dir, artifact):**
+&mdash; **def [UploadArtifact](/infra/luci/recipes/perfetto.py#86)(api, ctx, platform, out_dir, artifact):**
 ### *recipes* / [windows\_sdk:examples/full](/infra/luci/recipe_modules/windows_sdk/examples/full.py)
 
 [DEPS](/infra/luci/recipe_modules/windows_sdk/examples/full.py#15): [windows\_sdk](#recipe_modules-windows_sdk), [recipe\_engine/platform][recipe_engine/recipe_modules/platform], [recipe\_engine/properties][recipe_engine/recipe_modules/properties], [recipe\_engine/step][recipe_engine/recipe_modules/step]

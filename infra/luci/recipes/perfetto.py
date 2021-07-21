@@ -18,6 +18,7 @@ from recipe_engine.recipe_api import Property
 DEPS = [
     'depot_tools/gsutil',
     'recipe_engine/buildbucket',
+    'recipe_engine/cipd',
     'recipe_engine/context',
     'recipe_engine/file',
     'recipe_engine/path',
@@ -65,6 +66,14 @@ ARTIFACTS = [
 ]
 
 
+class BuildContext:
+
+  def __init__(self, src_dir):
+    self.src_dir = src_dir
+    self.git_revision = None
+    self.maybe_git_tag = None
+
+
 def GnArgs(platform):
   (os, cpu) = platform.split('-')
 
@@ -74,46 +83,80 @@ def GnArgs(platform):
   return base_args + ' target_os="{}" target_cpu="{}"'.format(os, cpu)
 
 
-def UploadArtifact(api, platform, upload_dir, artifact):
+def UploadArtifact(api, ctx, platform, out_dir, artifact):
   exclude_platforms = artifact.get('exclude_platforms', [])
   if platform in exclude_platforms:
     return
 
-  exe_path = 'out/dist' if api.platform.is_win else 'out/dist/stripped'
+  # We want to use the stripped binaries except on Windows where we don't generate
+  # them.
+  exe_dir = out_dir if api.platform.is_win else out_dir.join('stripped')
+
+  # Compute the exact artifact path
+  gcs_upload_dir = ctx.maybe_git_tag if ctx.maybe_git_tag else ctx.git_revision
   artifact_ext = artifact['name'] + ('.exe' if api.platform.is_win else '')
-  source = '{}/{}'.format(exe_path, artifact_ext)
-  target = '{}/{}/{}'.format(upload_dir, platform, artifact_ext)
-  api.gsutil.upload(source, 'perfetto-luci-artifacts', target)
+  source_path = exe_dir.join(artifact_ext)
+
+  # Upload to GCS bucket.
+  gcs_target_path = '{}/{}/{}'.format(gcs_upload_dir, platform, artifact_ext)
+  api.gsutil.upload(source_path, 'perfetto-luci-artifacts', gcs_target_path)
+
+  # Create the CIPD package definition from the artifact path.
+  cipd_pkg_name = 'perfetto/{}/{}'.format(artifact['name'], platform)
+  pkg_def = api.cipd.PackageDefinition(
+      package_name=cipd_pkg_name, package_root=exe_dir)
+  pkg_def.add_file(source_path)
+
+  # Actually build the CIPD pakcage
+  cipd_pkg_file_name = '{}-{}.cipd'.format(artifact['name'], platform)
+  cipd_pkg_file = api.path['cleanup'].join(cipd_pkg_file_name)
+  api.cipd.build_from_pkg(
+      pkg_def=pkg_def,
+      output_package=cipd_pkg_file,
+  )
+
+  # If we have a git tag, add that to the CIPD tags.
+  tags = {
+      'git_revision': ctx.git_revision,
+  }
+  if ctx.maybe_git_tag:
+    tags['git_tag'] = ctx.maybe_git_tag
+
+  # Upload the package and regisiter with the 'latest' tag.
+  api.cipd.register(
+      package_name=cipd_pkg_name,
+      package_path=cipd_pkg_file,
+      refs=['latest'],
+      tags=tags,
+  )
 
 
-def BuildForPlatform(api, platform, src_dir, upload_dir):
+def BuildForPlatform(api, ctx, platform):
+  out_dir = ctx.src_dir.join('out', platform)
+
   # Buld Perfetto.
   # There should be no need for internet access here.
-  with api.context(cwd=src_dir), api.macos_sdk(), api.windows_sdk():
+  with api.context(cwd=ctx.src_dir), api.macos_sdk(), api.windows_sdk():
     args = GnArgs(platform)
-    api.step('gn gen', [
-        'python3', 'tools/gn', 'gen', 'out/{}'.format(platform),
-        '--args={}'.format(args)
-    ])
-    api.step('ninja',
-             ['python3', 'tools/ninja', '-C', 'out/{}'.format(platform)])
+    api.step('gn gen',
+             ['python3', 'tools/gn', 'gen', out_dir, '--args={}'.format(args)])
+    api.step('ninja', ['python3', 'tools/ninja', '-C', out_dir])
 
   # Upload stripped artifacts using gsutil if we're on the official builder.
   if 'official' not in api.buildbucket.builder_id.builder:
     return
 
-  with api.step.nest('Artifact upload'), api.context(cwd=src_dir):
+  with api.step.nest('Artifact upload'), api.context(cwd=ctx.src_dir):
     for artifact in ARTIFACTS:
-      UploadArtifact(api, platform, upload_dir, artifact)
+      UploadArtifact(api, ctx, platform, out_dir, artifact)
 
 
 def RunSteps(api, repository):
-  # The directory for any uploaded artifacts. This will be the tag name
-  # (if building a tag) or the SHA of the commit otherwise.
-  upload_dir = None
-
   builder_cache_dir = api.path['cache'].join('builder')
   src_dir = builder_cache_dir.join('perfetto')
+
+  # Crate the context we use in all the building stages.
+  ctx = BuildContext(src_dir)
 
   # Fetch the Perfetto repo.
   with api.step.nest('git'), api.context(infra_steps=True):
@@ -128,12 +171,12 @@ def RunSteps(api, repository):
       api.step('fetch', ['git', 'fetch', '--tags', repository, ref])
       api.step('checkout', ['git', 'checkout', 'FETCH_HEAD'])
 
-      if ref.startswith('refs/tags/'):
-        upload_dir = ref.replace('refs/tags/', '')
-      else:
-        upload_dir = api.step(
-            'rev-parse', ['git', 'rev-parse', 'HEAD'],
-            stdout=api.raw_io.output()).stdout.strip()
+      # Store information about the git revision and the tag if available.
+      ctx.git_revision = api.step(
+          'rev-parse', ['git', 'rev-parse', 'HEAD'],
+          stdout=api.raw_io.output()).stdout.strip()
+      ctx.maybe_git_tag = ref.replace(
+          'refs/tags/', '') if ref.startswith('refs/tags/') else None
 
   # Pull all deps here.
   with api.context(cwd=src_dir, infra_steps=True):
@@ -142,20 +185,20 @@ def RunSteps(api, repository):
     api.step('build-deps', ['python3', 'tools/install-build-deps'] + extra_args)
 
   if api.platform.is_win:
-    BuildForPlatform(api, 'windows-amd64', src_dir, upload_dir)
+    BuildForPlatform(api, ctx, 'windows-amd64')
   elif api.platform.is_mac:
-    BuildForPlatform(api, 'mac-amd64', src_dir, upload_dir)
+    BuildForPlatform(api, ctx, 'mac-amd64')
   elif 'android' in api.buildbucket.builder_id.builder:
     with api.step.nest('android-arm'):
-      BuildForPlatform(api, 'android-arm', src_dir, upload_dir)
+      BuildForPlatform(api, ctx, 'android-arm')
     with api.step.nest('android-arm64'):
-      BuildForPlatform(api, 'android-arm64', src_dir, upload_dir)
+      BuildForPlatform(api, ctx, 'android-arm64')
     with api.step.nest('android-x86'):
-      BuildForPlatform(api, 'android-x86', src_dir, upload_dir)
+      BuildForPlatform(api, ctx, 'android-x86')
     with api.step.nest('android-x64'):
-      BuildForPlatform(api, 'android-x64', src_dir, upload_dir)
+      BuildForPlatform(api, ctx, 'android-x64')
   else:
-    BuildForPlatform(api, 'linux-amd64', src_dir, upload_dir)
+    BuildForPlatform(api, ctx, 'linux-amd64')
 
 
 def GenTests(api):
