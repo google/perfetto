@@ -93,7 +93,7 @@
       "python3",
       "tools/gn",
       "gen",
-      "out/android-arm",
+      "[CACHE]/builder/perfetto/out/android-arm",
       "--args=is_debug=false monolithic_binaries=true target_os=\"android\" target_cpu=\"arm\""
     ],
     "cwd": "[CACHE]/builder/perfetto",
@@ -107,7 +107,7 @@
       "python3",
       "tools/ninja",
       "-C",
-      "out/android-arm"
+      "[CACHE]/builder/perfetto/out/android-arm"
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "name": "android-arm.ninja",
@@ -131,7 +131,7 @@
       "RECIPE_REPO[depot_tools]/gsutil.py",
       "----",
       "cp",
-      "out/dist/stripped/trace_processor_shell",
+      "[CACHE]/builder/perfetto/out/android-arm/stripped/trace_processor_shell",
       "gs://perfetto-luci-artifacts//android-arm/trace_processor_shell"
     ],
     "cwd": "[CACHE]/builder/perfetto",
@@ -144,6 +144,58 @@
   },
   {
     "cmd": [
+      "cipd",
+      "pkg-build",
+      "-pkg-def",
+      "{\"data\": [{\"file\": \"trace_processor_shell\"}], \"install_mode\": \"\", \"package\": \"perfetto/trace_processor_shell/android-arm\", \"root\": \"[CACHE]/builder/perfetto/out/android-arm/stripped\"}",
+      "-out",
+      "[CLEANUP]/trace_processor_shell-android-arm.cipd",
+      "-hash-algo",
+      "sha256",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "android-arm.Artifact upload.build perfetto/trace_processor_shell/android-arm",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/trace_processor_shell/android-arm\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "cipd",
+      "pkg-register",
+      "[CLEANUP]/trace_processor_shell-android-arm.cipd",
+      "-ref",
+      "latest",
+      "-tag",
+      "git_revision:",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "android-arm.Artifact upload.register perfetto/trace_processor_shell/android-arm",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/trace_processor_shell/android-arm\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@",
+      "@@@STEP_LINK@perfetto/trace_processor_shell/android-arm@https://chrome-infra-packages.appspot.com/p/perfetto/trace_processor_shell/android-arm/+/40-chars-fake-of-the-package-instance_id@@@"
+    ]
+  },
+  {
+    "cmd": [
       "python",
       "-u",
       "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
@@ -151,7 +203,7 @@
       "RECIPE_REPO[depot_tools]/gsutil.py",
       "----",
       "cp",
-      "out/dist/stripped/tracebox",
+      "[CACHE]/builder/perfetto/out/android-arm/stripped/tracebox",
       "gs://perfetto-luci-artifacts//android-arm/tracebox"
     ],
     "cwd": "[CACHE]/builder/perfetto",
@@ -164,6 +216,58 @@
   },
   {
     "cmd": [
+      "cipd",
+      "pkg-build",
+      "-pkg-def",
+      "{\"data\": [{\"file\": \"tracebox\"}], \"install_mode\": \"\", \"package\": \"perfetto/tracebox/android-arm\", \"root\": \"[CACHE]/builder/perfetto/out/android-arm/stripped\"}",
+      "-out",
+      "[CLEANUP]/tracebox-android-arm.cipd",
+      "-hash-algo",
+      "sha256",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "android-arm.Artifact upload.build perfetto/tracebox/android-arm",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/tracebox/android-arm\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "cipd",
+      "pkg-register",
+      "[CLEANUP]/tracebox-android-arm.cipd",
+      "-ref",
+      "latest",
+      "-tag",
+      "git_revision:",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "android-arm.Artifact upload.register perfetto/tracebox/android-arm",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/tracebox/android-arm\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@",
+      "@@@STEP_LINK@perfetto/tracebox/android-arm@https://chrome-infra-packages.appspot.com/p/perfetto/tracebox/android-arm/+/40-chars-fake-of-the-package-instance_id@@@"
+    ]
+  },
+  {
+    "cmd": [
       "python",
       "-u",
       "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
@@ -171,7 +275,7 @@
       "RECIPE_REPO[depot_tools]/gsutil.py",
       "----",
       "cp",
-      "out/dist/stripped/perfetto",
+      "[CACHE]/builder/perfetto/out/android-arm/stripped/perfetto",
       "gs://perfetto-luci-artifacts//android-arm/perfetto"
     ],
     "cwd": "[CACHE]/builder/perfetto",
@@ -184,6 +288,58 @@
   },
   {
     "cmd": [
+      "cipd",
+      "pkg-build",
+      "-pkg-def",
+      "{\"data\": [{\"file\": \"perfetto\"}], \"install_mode\": \"\", \"package\": \"perfetto/perfetto/android-arm\", \"root\": \"[CACHE]/builder/perfetto/out/android-arm/stripped\"}",
+      "-out",
+      "[CLEANUP]/perfetto-android-arm.cipd",
+      "-hash-algo",
+      "sha256",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "android-arm.Artifact upload.build perfetto/perfetto/android-arm",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/perfetto/android-arm\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "cipd",
+      "pkg-register",
+      "[CLEANUP]/perfetto-android-arm.cipd",
+      "-ref",
+      "latest",
+      "-tag",
+      "git_revision:",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "android-arm.Artifact upload.register perfetto/perfetto/android-arm",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/perfetto/android-arm\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@",
+      "@@@STEP_LINK@perfetto/perfetto/android-arm@https://chrome-infra-packages.appspot.com/p/perfetto/perfetto/android-arm/+/40-chars-fake-of-the-package-instance_id@@@"
+    ]
+  },
+  {
+    "cmd": [
       "python",
       "-u",
       "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
@@ -191,7 +347,7 @@
       "RECIPE_REPO[depot_tools]/gsutil.py",
       "----",
       "cp",
-      "out/dist/stripped/traced",
+      "[CACHE]/builder/perfetto/out/android-arm/stripped/traced",
       "gs://perfetto-luci-artifacts//android-arm/traced"
     ],
     "cwd": "[CACHE]/builder/perfetto",
@@ -204,6 +360,58 @@
   },
   {
     "cmd": [
+      "cipd",
+      "pkg-build",
+      "-pkg-def",
+      "{\"data\": [{\"file\": \"traced\"}], \"install_mode\": \"\", \"package\": \"perfetto/traced/android-arm\", \"root\": \"[CACHE]/builder/perfetto/out/android-arm/stripped\"}",
+      "-out",
+      "[CLEANUP]/traced-android-arm.cipd",
+      "-hash-algo",
+      "sha256",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "android-arm.Artifact upload.build perfetto/traced/android-arm",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/traced/android-arm\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "cipd",
+      "pkg-register",
+      "[CLEANUP]/traced-android-arm.cipd",
+      "-ref",
+      "latest",
+      "-tag",
+      "git_revision:",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "android-arm.Artifact upload.register perfetto/traced/android-arm",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/traced/android-arm\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@",
+      "@@@STEP_LINK@perfetto/traced/android-arm@https://chrome-infra-packages.appspot.com/p/perfetto/traced/android-arm/+/40-chars-fake-of-the-package-instance_id@@@"
+    ]
+  },
+  {
+    "cmd": [
       "python",
       "-u",
       "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
@@ -211,7 +419,7 @@
       "RECIPE_REPO[depot_tools]/gsutil.py",
       "----",
       "cp",
-      "out/dist/stripped/traced_probes",
+      "[CACHE]/builder/perfetto/out/android-arm/stripped/traced_probes",
       "gs://perfetto-luci-artifacts//android-arm/traced_probes"
     ],
     "cwd": "[CACHE]/builder/perfetto",
@@ -223,6 +431,58 @@
     ]
   },
   {
+    "cmd": [
+      "cipd",
+      "pkg-build",
+      "-pkg-def",
+      "{\"data\": [{\"file\": \"traced_probes\"}], \"install_mode\": \"\", \"package\": \"perfetto/traced_probes/android-arm\", \"root\": \"[CACHE]/builder/perfetto/out/android-arm/stripped\"}",
+      "-out",
+      "[CLEANUP]/traced_probes-android-arm.cipd",
+      "-hash-algo",
+      "sha256",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "android-arm.Artifact upload.build perfetto/traced_probes/android-arm",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/traced_probes/android-arm\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "cipd",
+      "pkg-register",
+      "[CLEANUP]/traced_probes-android-arm.cipd",
+      "-ref",
+      "latest",
+      "-tag",
+      "git_revision:",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "android-arm.Artifact upload.register perfetto/traced_probes/android-arm",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/traced_probes/android-arm\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@",
+      "@@@STEP_LINK@perfetto/traced_probes/android-arm@https://chrome-infra-packages.appspot.com/p/perfetto/traced_probes/android-arm/+/40-chars-fake-of-the-package-instance_id@@@"
+    ]
+  },
+  {
     "cmd": [],
     "name": "android-arm64"
   },
@@ -231,7 +491,7 @@
       "python3",
       "tools/gn",
       "gen",
-      "out/android-arm64",
+      "[CACHE]/builder/perfetto/out/android-arm64",
       "--args=is_debug=false monolithic_binaries=true target_os=\"android\" target_cpu=\"arm64\""
     ],
     "cwd": "[CACHE]/builder/perfetto",
@@ -245,7 +505,7 @@
       "python3",
       "tools/ninja",
       "-C",
-      "out/android-arm64"
+      "[CACHE]/builder/perfetto/out/android-arm64"
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "name": "android-arm64.ninja",
@@ -269,7 +529,7 @@
       "RECIPE_REPO[depot_tools]/gsutil.py",
       "----",
       "cp",
-      "out/dist/stripped/trace_processor_shell",
+      "[CACHE]/builder/perfetto/out/android-arm64/stripped/trace_processor_shell",
       "gs://perfetto-luci-artifacts//android-arm64/trace_processor_shell"
     ],
     "cwd": "[CACHE]/builder/perfetto",
@@ -282,6 +542,58 @@
   },
   {
     "cmd": [
+      "cipd",
+      "pkg-build",
+      "-pkg-def",
+      "{\"data\": [{\"file\": \"trace_processor_shell\"}], \"install_mode\": \"\", \"package\": \"perfetto/trace_processor_shell/android-arm64\", \"root\": \"[CACHE]/builder/perfetto/out/android-arm64/stripped\"}",
+      "-out",
+      "[CLEANUP]/trace_processor_shell-android-arm64.cipd",
+      "-hash-algo",
+      "sha256",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "android-arm64.Artifact upload.build perfetto/trace_processor_shell/android-arm64",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/trace_processor_shell/android-arm64\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "cipd",
+      "pkg-register",
+      "[CLEANUP]/trace_processor_shell-android-arm64.cipd",
+      "-ref",
+      "latest",
+      "-tag",
+      "git_revision:",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "android-arm64.Artifact upload.register perfetto/trace_processor_shell/android-arm64",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/trace_processor_shell/android-arm64\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@",
+      "@@@STEP_LINK@perfetto/trace_processor_shell/android-arm64@https://chrome-infra-packages.appspot.com/p/perfetto/trace_processor_shell/android-arm64/+/40-chars-fake-of-the-package-instance_id@@@"
+    ]
+  },
+  {
+    "cmd": [
       "python",
       "-u",
       "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
@@ -289,7 +601,7 @@
       "RECIPE_REPO[depot_tools]/gsutil.py",
       "----",
       "cp",
-      "out/dist/stripped/tracebox",
+      "[CACHE]/builder/perfetto/out/android-arm64/stripped/tracebox",
       "gs://perfetto-luci-artifacts//android-arm64/tracebox"
     ],
     "cwd": "[CACHE]/builder/perfetto",
@@ -302,6 +614,58 @@
   },
   {
     "cmd": [
+      "cipd",
+      "pkg-build",
+      "-pkg-def",
+      "{\"data\": [{\"file\": \"tracebox\"}], \"install_mode\": \"\", \"package\": \"perfetto/tracebox/android-arm64\", \"root\": \"[CACHE]/builder/perfetto/out/android-arm64/stripped\"}",
+      "-out",
+      "[CLEANUP]/tracebox-android-arm64.cipd",
+      "-hash-algo",
+      "sha256",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "android-arm64.Artifact upload.build perfetto/tracebox/android-arm64",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/tracebox/android-arm64\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "cipd",
+      "pkg-register",
+      "[CLEANUP]/tracebox-android-arm64.cipd",
+      "-ref",
+      "latest",
+      "-tag",
+      "git_revision:",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "android-arm64.Artifact upload.register perfetto/tracebox/android-arm64",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/tracebox/android-arm64\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@",
+      "@@@STEP_LINK@perfetto/tracebox/android-arm64@https://chrome-infra-packages.appspot.com/p/perfetto/tracebox/android-arm64/+/40-chars-fake-of-the-package-instance_id@@@"
+    ]
+  },
+  {
+    "cmd": [
       "python",
       "-u",
       "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
@@ -309,7 +673,7 @@
       "RECIPE_REPO[depot_tools]/gsutil.py",
       "----",
       "cp",
-      "out/dist/stripped/perfetto",
+      "[CACHE]/builder/perfetto/out/android-arm64/stripped/perfetto",
       "gs://perfetto-luci-artifacts//android-arm64/perfetto"
     ],
     "cwd": "[CACHE]/builder/perfetto",
@@ -322,6 +686,58 @@
   },
   {
     "cmd": [
+      "cipd",
+      "pkg-build",
+      "-pkg-def",
+      "{\"data\": [{\"file\": \"perfetto\"}], \"install_mode\": \"\", \"package\": \"perfetto/perfetto/android-arm64\", \"root\": \"[CACHE]/builder/perfetto/out/android-arm64/stripped\"}",
+      "-out",
+      "[CLEANUP]/perfetto-android-arm64.cipd",
+      "-hash-algo",
+      "sha256",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "android-arm64.Artifact upload.build perfetto/perfetto/android-arm64",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/perfetto/android-arm64\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "cipd",
+      "pkg-register",
+      "[CLEANUP]/perfetto-android-arm64.cipd",
+      "-ref",
+      "latest",
+      "-tag",
+      "git_revision:",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "android-arm64.Artifact upload.register perfetto/perfetto/android-arm64",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/perfetto/android-arm64\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@",
+      "@@@STEP_LINK@perfetto/perfetto/android-arm64@https://chrome-infra-packages.appspot.com/p/perfetto/perfetto/android-arm64/+/40-chars-fake-of-the-package-instance_id@@@"
+    ]
+  },
+  {
+    "cmd": [
       "python",
       "-u",
       "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
@@ -329,7 +745,7 @@
       "RECIPE_REPO[depot_tools]/gsutil.py",
       "----",
       "cp",
-      "out/dist/stripped/traced",
+      "[CACHE]/builder/perfetto/out/android-arm64/stripped/traced",
       "gs://perfetto-luci-artifacts//android-arm64/traced"
     ],
     "cwd": "[CACHE]/builder/perfetto",
@@ -342,6 +758,58 @@
   },
   {
     "cmd": [
+      "cipd",
+      "pkg-build",
+      "-pkg-def",
+      "{\"data\": [{\"file\": \"traced\"}], \"install_mode\": \"\", \"package\": \"perfetto/traced/android-arm64\", \"root\": \"[CACHE]/builder/perfetto/out/android-arm64/stripped\"}",
+      "-out",
+      "[CLEANUP]/traced-android-arm64.cipd",
+      "-hash-algo",
+      "sha256",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "android-arm64.Artifact upload.build perfetto/traced/android-arm64",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/traced/android-arm64\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "cipd",
+      "pkg-register",
+      "[CLEANUP]/traced-android-arm64.cipd",
+      "-ref",
+      "latest",
+      "-tag",
+      "git_revision:",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "android-arm64.Artifact upload.register perfetto/traced/android-arm64",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/traced/android-arm64\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@",
+      "@@@STEP_LINK@perfetto/traced/android-arm64@https://chrome-infra-packages.appspot.com/p/perfetto/traced/android-arm64/+/40-chars-fake-of-the-package-instance_id@@@"
+    ]
+  },
+  {
+    "cmd": [
       "python",
       "-u",
       "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
@@ -349,7 +817,7 @@
       "RECIPE_REPO[depot_tools]/gsutil.py",
       "----",
       "cp",
-      "out/dist/stripped/traced_probes",
+      "[CACHE]/builder/perfetto/out/android-arm64/stripped/traced_probes",
       "gs://perfetto-luci-artifacts//android-arm64/traced_probes"
     ],
     "cwd": "[CACHE]/builder/perfetto",
@@ -361,6 +829,58 @@
     ]
   },
   {
+    "cmd": [
+      "cipd",
+      "pkg-build",
+      "-pkg-def",
+      "{\"data\": [{\"file\": \"traced_probes\"}], \"install_mode\": \"\", \"package\": \"perfetto/traced_probes/android-arm64\", \"root\": \"[CACHE]/builder/perfetto/out/android-arm64/stripped\"}",
+      "-out",
+      "[CLEANUP]/traced_probes-android-arm64.cipd",
+      "-hash-algo",
+      "sha256",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "android-arm64.Artifact upload.build perfetto/traced_probes/android-arm64",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/traced_probes/android-arm64\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "cipd",
+      "pkg-register",
+      "[CLEANUP]/traced_probes-android-arm64.cipd",
+      "-ref",
+      "latest",
+      "-tag",
+      "git_revision:",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "android-arm64.Artifact upload.register perfetto/traced_probes/android-arm64",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/traced_probes/android-arm64\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@",
+      "@@@STEP_LINK@perfetto/traced_probes/android-arm64@https://chrome-infra-packages.appspot.com/p/perfetto/traced_probes/android-arm64/+/40-chars-fake-of-the-package-instance_id@@@"
+    ]
+  },
+  {
     "cmd": [],
     "name": "android-x86"
   },
@@ -369,7 +889,7 @@
       "python3",
       "tools/gn",
       "gen",
-      "out/android-x86",
+      "[CACHE]/builder/perfetto/out/android-x86",
       "--args=is_debug=false monolithic_binaries=true target_os=\"android\" target_cpu=\"x86\""
     ],
     "cwd": "[CACHE]/builder/perfetto",
@@ -383,7 +903,7 @@
       "python3",
       "tools/ninja",
       "-C",
-      "out/android-x86"
+      "[CACHE]/builder/perfetto/out/android-x86"
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "name": "android-x86.ninja",
@@ -407,7 +927,7 @@
       "RECIPE_REPO[depot_tools]/gsutil.py",
       "----",
       "cp",
-      "out/dist/stripped/trace_processor_shell",
+      "[CACHE]/builder/perfetto/out/android-x86/stripped/trace_processor_shell",
       "gs://perfetto-luci-artifacts//android-x86/trace_processor_shell"
     ],
     "cwd": "[CACHE]/builder/perfetto",
@@ -420,6 +940,58 @@
   },
   {
     "cmd": [
+      "cipd",
+      "pkg-build",
+      "-pkg-def",
+      "{\"data\": [{\"file\": \"trace_processor_shell\"}], \"install_mode\": \"\", \"package\": \"perfetto/trace_processor_shell/android-x86\", \"root\": \"[CACHE]/builder/perfetto/out/android-x86/stripped\"}",
+      "-out",
+      "[CLEANUP]/trace_processor_shell-android-x86.cipd",
+      "-hash-algo",
+      "sha256",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "android-x86.Artifact upload.build perfetto/trace_processor_shell/android-x86",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/trace_processor_shell/android-x86\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "cipd",
+      "pkg-register",
+      "[CLEANUP]/trace_processor_shell-android-x86.cipd",
+      "-ref",
+      "latest",
+      "-tag",
+      "git_revision:",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "android-x86.Artifact upload.register perfetto/trace_processor_shell/android-x86",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/trace_processor_shell/android-x86\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@",
+      "@@@STEP_LINK@perfetto/trace_processor_shell/android-x86@https://chrome-infra-packages.appspot.com/p/perfetto/trace_processor_shell/android-x86/+/40-chars-fake-of-the-package-instance_id@@@"
+    ]
+  },
+  {
+    "cmd": [
       "python",
       "-u",
       "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
@@ -427,7 +999,7 @@
       "RECIPE_REPO[depot_tools]/gsutil.py",
       "----",
       "cp",
-      "out/dist/stripped/tracebox",
+      "[CACHE]/builder/perfetto/out/android-x86/stripped/tracebox",
       "gs://perfetto-luci-artifacts//android-x86/tracebox"
     ],
     "cwd": "[CACHE]/builder/perfetto",
@@ -440,6 +1012,58 @@
   },
   {
     "cmd": [
+      "cipd",
+      "pkg-build",
+      "-pkg-def",
+      "{\"data\": [{\"file\": \"tracebox\"}], \"install_mode\": \"\", \"package\": \"perfetto/tracebox/android-x86\", \"root\": \"[CACHE]/builder/perfetto/out/android-x86/stripped\"}",
+      "-out",
+      "[CLEANUP]/tracebox-android-x86.cipd",
+      "-hash-algo",
+      "sha256",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "android-x86.Artifact upload.build perfetto/tracebox/android-x86",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/tracebox/android-x86\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "cipd",
+      "pkg-register",
+      "[CLEANUP]/tracebox-android-x86.cipd",
+      "-ref",
+      "latest",
+      "-tag",
+      "git_revision:",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "android-x86.Artifact upload.register perfetto/tracebox/android-x86",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/tracebox/android-x86\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@",
+      "@@@STEP_LINK@perfetto/tracebox/android-x86@https://chrome-infra-packages.appspot.com/p/perfetto/tracebox/android-x86/+/40-chars-fake-of-the-package-instance_id@@@"
+    ]
+  },
+  {
+    "cmd": [
       "python",
       "-u",
       "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
@@ -447,7 +1071,7 @@
       "RECIPE_REPO[depot_tools]/gsutil.py",
       "----",
       "cp",
-      "out/dist/stripped/perfetto",
+      "[CACHE]/builder/perfetto/out/android-x86/stripped/perfetto",
       "gs://perfetto-luci-artifacts//android-x86/perfetto"
     ],
     "cwd": "[CACHE]/builder/perfetto",
@@ -460,6 +1084,58 @@
   },
   {
     "cmd": [
+      "cipd",
+      "pkg-build",
+      "-pkg-def",
+      "{\"data\": [{\"file\": \"perfetto\"}], \"install_mode\": \"\", \"package\": \"perfetto/perfetto/android-x86\", \"root\": \"[CACHE]/builder/perfetto/out/android-x86/stripped\"}",
+      "-out",
+      "[CLEANUP]/perfetto-android-x86.cipd",
+      "-hash-algo",
+      "sha256",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "android-x86.Artifact upload.build perfetto/perfetto/android-x86",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/perfetto/android-x86\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "cipd",
+      "pkg-register",
+      "[CLEANUP]/perfetto-android-x86.cipd",
+      "-ref",
+      "latest",
+      "-tag",
+      "git_revision:",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "android-x86.Artifact upload.register perfetto/perfetto/android-x86",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/perfetto/android-x86\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@",
+      "@@@STEP_LINK@perfetto/perfetto/android-x86@https://chrome-infra-packages.appspot.com/p/perfetto/perfetto/android-x86/+/40-chars-fake-of-the-package-instance_id@@@"
+    ]
+  },
+  {
+    "cmd": [
       "python",
       "-u",
       "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
@@ -467,7 +1143,7 @@
       "RECIPE_REPO[depot_tools]/gsutil.py",
       "----",
       "cp",
-      "out/dist/stripped/traced",
+      "[CACHE]/builder/perfetto/out/android-x86/stripped/traced",
       "gs://perfetto-luci-artifacts//android-x86/traced"
     ],
     "cwd": "[CACHE]/builder/perfetto",
@@ -480,6 +1156,58 @@
   },
   {
     "cmd": [
+      "cipd",
+      "pkg-build",
+      "-pkg-def",
+      "{\"data\": [{\"file\": \"traced\"}], \"install_mode\": \"\", \"package\": \"perfetto/traced/android-x86\", \"root\": \"[CACHE]/builder/perfetto/out/android-x86/stripped\"}",
+      "-out",
+      "[CLEANUP]/traced-android-x86.cipd",
+      "-hash-algo",
+      "sha256",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "android-x86.Artifact upload.build perfetto/traced/android-x86",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/traced/android-x86\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "cipd",
+      "pkg-register",
+      "[CLEANUP]/traced-android-x86.cipd",
+      "-ref",
+      "latest",
+      "-tag",
+      "git_revision:",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "android-x86.Artifact upload.register perfetto/traced/android-x86",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/traced/android-x86\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@",
+      "@@@STEP_LINK@perfetto/traced/android-x86@https://chrome-infra-packages.appspot.com/p/perfetto/traced/android-x86/+/40-chars-fake-of-the-package-instance_id@@@"
+    ]
+  },
+  {
+    "cmd": [
       "python",
       "-u",
       "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
@@ -487,7 +1215,7 @@
       "RECIPE_REPO[depot_tools]/gsutil.py",
       "----",
       "cp",
-      "out/dist/stripped/traced_probes",
+      "[CACHE]/builder/perfetto/out/android-x86/stripped/traced_probes",
       "gs://perfetto-luci-artifacts//android-x86/traced_probes"
     ],
     "cwd": "[CACHE]/builder/perfetto",
@@ -499,6 +1227,58 @@
     ]
   },
   {
+    "cmd": [
+      "cipd",
+      "pkg-build",
+      "-pkg-def",
+      "{\"data\": [{\"file\": \"traced_probes\"}], \"install_mode\": \"\", \"package\": \"perfetto/traced_probes/android-x86\", \"root\": \"[CACHE]/builder/perfetto/out/android-x86/stripped\"}",
+      "-out",
+      "[CLEANUP]/traced_probes-android-x86.cipd",
+      "-hash-algo",
+      "sha256",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "android-x86.Artifact upload.build perfetto/traced_probes/android-x86",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/traced_probes/android-x86\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "cipd",
+      "pkg-register",
+      "[CLEANUP]/traced_probes-android-x86.cipd",
+      "-ref",
+      "latest",
+      "-tag",
+      "git_revision:",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "android-x86.Artifact upload.register perfetto/traced_probes/android-x86",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/traced_probes/android-x86\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@",
+      "@@@STEP_LINK@perfetto/traced_probes/android-x86@https://chrome-infra-packages.appspot.com/p/perfetto/traced_probes/android-x86/+/40-chars-fake-of-the-package-instance_id@@@"
+    ]
+  },
+  {
     "cmd": [],
     "name": "android-x64"
   },
@@ -507,7 +1287,7 @@
       "python3",
       "tools/gn",
       "gen",
-      "out/android-x64",
+      "[CACHE]/builder/perfetto/out/android-x64",
       "--args=is_debug=false monolithic_binaries=true target_os=\"android\" target_cpu=\"x64\""
     ],
     "cwd": "[CACHE]/builder/perfetto",
@@ -521,7 +1301,7 @@
       "python3",
       "tools/ninja",
       "-C",
-      "out/android-x64"
+      "[CACHE]/builder/perfetto/out/android-x64"
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "name": "android-x64.ninja",
@@ -545,7 +1325,7 @@
       "RECIPE_REPO[depot_tools]/gsutil.py",
       "----",
       "cp",
-      "out/dist/stripped/trace_processor_shell",
+      "[CACHE]/builder/perfetto/out/android-x64/stripped/trace_processor_shell",
       "gs://perfetto-luci-artifacts//android-x64/trace_processor_shell"
     ],
     "cwd": "[CACHE]/builder/perfetto",
@@ -558,6 +1338,58 @@
   },
   {
     "cmd": [
+      "cipd",
+      "pkg-build",
+      "-pkg-def",
+      "{\"data\": [{\"file\": \"trace_processor_shell\"}], \"install_mode\": \"\", \"package\": \"perfetto/trace_processor_shell/android-x64\", \"root\": \"[CACHE]/builder/perfetto/out/android-x64/stripped\"}",
+      "-out",
+      "[CLEANUP]/trace_processor_shell-android-x64.cipd",
+      "-hash-algo",
+      "sha256",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "android-x64.Artifact upload.build perfetto/trace_processor_shell/android-x64",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/trace_processor_shell/android-x64\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "cipd",
+      "pkg-register",
+      "[CLEANUP]/trace_processor_shell-android-x64.cipd",
+      "-ref",
+      "latest",
+      "-tag",
+      "git_revision:",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "android-x64.Artifact upload.register perfetto/trace_processor_shell/android-x64",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/trace_processor_shell/android-x64\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@",
+      "@@@STEP_LINK@perfetto/trace_processor_shell/android-x64@https://chrome-infra-packages.appspot.com/p/perfetto/trace_processor_shell/android-x64/+/40-chars-fake-of-the-package-instance_id@@@"
+    ]
+  },
+  {
+    "cmd": [
       "python",
       "-u",
       "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
@@ -565,7 +1397,7 @@
       "RECIPE_REPO[depot_tools]/gsutil.py",
       "----",
       "cp",
-      "out/dist/stripped/tracebox",
+      "[CACHE]/builder/perfetto/out/android-x64/stripped/tracebox",
       "gs://perfetto-luci-artifacts//android-x64/tracebox"
     ],
     "cwd": "[CACHE]/builder/perfetto",
@@ -578,6 +1410,58 @@
   },
   {
     "cmd": [
+      "cipd",
+      "pkg-build",
+      "-pkg-def",
+      "{\"data\": [{\"file\": \"tracebox\"}], \"install_mode\": \"\", \"package\": \"perfetto/tracebox/android-x64\", \"root\": \"[CACHE]/builder/perfetto/out/android-x64/stripped\"}",
+      "-out",
+      "[CLEANUP]/tracebox-android-x64.cipd",
+      "-hash-algo",
+      "sha256",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "android-x64.Artifact upload.build perfetto/tracebox/android-x64",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/tracebox/android-x64\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "cipd",
+      "pkg-register",
+      "[CLEANUP]/tracebox-android-x64.cipd",
+      "-ref",
+      "latest",
+      "-tag",
+      "git_revision:",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "android-x64.Artifact upload.register perfetto/tracebox/android-x64",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/tracebox/android-x64\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@",
+      "@@@STEP_LINK@perfetto/tracebox/android-x64@https://chrome-infra-packages.appspot.com/p/perfetto/tracebox/android-x64/+/40-chars-fake-of-the-package-instance_id@@@"
+    ]
+  },
+  {
+    "cmd": [
       "python",
       "-u",
       "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
@@ -585,7 +1469,7 @@
       "RECIPE_REPO[depot_tools]/gsutil.py",
       "----",
       "cp",
-      "out/dist/stripped/perfetto",
+      "[CACHE]/builder/perfetto/out/android-x64/stripped/perfetto",
       "gs://perfetto-luci-artifacts//android-x64/perfetto"
     ],
     "cwd": "[CACHE]/builder/perfetto",
@@ -598,6 +1482,58 @@
   },
   {
     "cmd": [
+      "cipd",
+      "pkg-build",
+      "-pkg-def",
+      "{\"data\": [{\"file\": \"perfetto\"}], \"install_mode\": \"\", \"package\": \"perfetto/perfetto/android-x64\", \"root\": \"[CACHE]/builder/perfetto/out/android-x64/stripped\"}",
+      "-out",
+      "[CLEANUP]/perfetto-android-x64.cipd",
+      "-hash-algo",
+      "sha256",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "android-x64.Artifact upload.build perfetto/perfetto/android-x64",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/perfetto/android-x64\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "cipd",
+      "pkg-register",
+      "[CLEANUP]/perfetto-android-x64.cipd",
+      "-ref",
+      "latest",
+      "-tag",
+      "git_revision:",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "android-x64.Artifact upload.register perfetto/perfetto/android-x64",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/perfetto/android-x64\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@",
+      "@@@STEP_LINK@perfetto/perfetto/android-x64@https://chrome-infra-packages.appspot.com/p/perfetto/perfetto/android-x64/+/40-chars-fake-of-the-package-instance_id@@@"
+    ]
+  },
+  {
+    "cmd": [
       "python",
       "-u",
       "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
@@ -605,7 +1541,7 @@
       "RECIPE_REPO[depot_tools]/gsutil.py",
       "----",
       "cp",
-      "out/dist/stripped/traced",
+      "[CACHE]/builder/perfetto/out/android-x64/stripped/traced",
       "gs://perfetto-luci-artifacts//android-x64/traced"
     ],
     "cwd": "[CACHE]/builder/perfetto",
@@ -618,6 +1554,58 @@
   },
   {
     "cmd": [
+      "cipd",
+      "pkg-build",
+      "-pkg-def",
+      "{\"data\": [{\"file\": \"traced\"}], \"install_mode\": \"\", \"package\": \"perfetto/traced/android-x64\", \"root\": \"[CACHE]/builder/perfetto/out/android-x64/stripped\"}",
+      "-out",
+      "[CLEANUP]/traced-android-x64.cipd",
+      "-hash-algo",
+      "sha256",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "android-x64.Artifact upload.build perfetto/traced/android-x64",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/traced/android-x64\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "cipd",
+      "pkg-register",
+      "[CLEANUP]/traced-android-x64.cipd",
+      "-ref",
+      "latest",
+      "-tag",
+      "git_revision:",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "android-x64.Artifact upload.register perfetto/traced/android-x64",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/traced/android-x64\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@",
+      "@@@STEP_LINK@perfetto/traced/android-x64@https://chrome-infra-packages.appspot.com/p/perfetto/traced/android-x64/+/40-chars-fake-of-the-package-instance_id@@@"
+    ]
+  },
+  {
+    "cmd": [
       "python",
       "-u",
       "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
@@ -625,7 +1613,7 @@
       "RECIPE_REPO[depot_tools]/gsutil.py",
       "----",
       "cp",
-      "out/dist/stripped/traced_probes",
+      "[CACHE]/builder/perfetto/out/android-x64/stripped/traced_probes",
       "gs://perfetto-luci-artifacts//android-x64/traced_probes"
     ],
     "cwd": "[CACHE]/builder/perfetto",
@@ -634,6 +1622,58 @@
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@2@@@",
       "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//android-x64/traced_probes@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "cipd",
+      "pkg-build",
+      "-pkg-def",
+      "{\"data\": [{\"file\": \"traced_probes\"}], \"install_mode\": \"\", \"package\": \"perfetto/traced_probes/android-x64\", \"root\": \"[CACHE]/builder/perfetto/out/android-x64/stripped\"}",
+      "-out",
+      "[CLEANUP]/traced_probes-android-x64.cipd",
+      "-hash-algo",
+      "sha256",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "android-x64.Artifact upload.build perfetto/traced_probes/android-x64",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/traced_probes/android-x64\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "cipd",
+      "pkg-register",
+      "[CLEANUP]/traced_probes-android-x64.cipd",
+      "-ref",
+      "latest",
+      "-tag",
+      "git_revision:",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "android-x64.Artifact upload.register perfetto/traced_probes/android-x64",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/traced_probes/android-x64\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@",
+      "@@@STEP_LINK@perfetto/traced_probes/android-x64@https://chrome-infra-packages.appspot.com/p/perfetto/traced_probes/android-x64/+/40-chars-fake-of-the-package-instance_id@@@"
     ]
   },
   {
