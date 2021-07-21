@@ -22,6 +22,7 @@ import {assertExists, reportError, setErrorHandler} from '../base/logging';
 import {forwardRemoteCalls} from '../base/remote';
 import {Actions, DeferredAction, StateActions} from '../common/actions';
 import {tryGetTrace} from '../common/cache_manager';
+import {initializeImmerJs} from '../common/immer_init';
 import {createEmptyState, State} from '../common/state';
 import {
   ControllerWorkerInitMessage,
@@ -276,6 +277,8 @@ function main() {
     extensionPort: extensionLocalChannel.port1,
     errorReportingPort: errorReportingChannel.port1,
   };
+
+  initializeImmerJs();
 
   initController(msg);
 
