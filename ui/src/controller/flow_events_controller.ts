@@ -17,6 +17,7 @@ import {NUM, STR_NULL} from '../common/query_result';
 import {Area} from '../common/state';
 import {fromNs, toNs} from '../common/time';
 import {Flow} from '../frontend/globals';
+import {publishConnectedFlows, publishSelectedFlows} from '../frontend/publish';
 import {
   ACTUAL_FRAMES_SLICE_TRACK_KIND,
   Config as ActualConfig
@@ -151,7 +152,7 @@ export class FlowEventsController extends Controller<'main'> {
     join slice t2 on f.slice_in = t2.slice_id
     `;
     this.queryFlowEvents(
-        query, (flows: Flow[]) => globals.publish('ConnectedFlows', flows));
+        query, (flows: Flow[]) => publishConnectedFlows(flows));
   }
 
   areaSelected(areaId: string) {
@@ -217,29 +218,28 @@ export class FlowEventsController extends Controller<'main'> {
       (t2.track_id in ${tracks}
         and (t2.ts <= ${endNs} and t2.ts >= ${startNs}))
     `;
-    this.queryFlowEvents(
-        query, (flows: Flow[]) => globals.publish('SelectedFlows', flows));
+    this.queryFlowEvents(query, (flows: Flow[]) => publishSelectedFlows(flows));
   }
 
   refreshVisibleFlows() {
     const selection = globals.state.currentSelection;
     if (!selection) {
       this.lastSelectedKind = 'NONE';
-      globals.publish('ConnectedFlows', []);
-      globals.publish('SelectedFlows', []);
+      publishConnectedFlows([]);
+      publishSelectedFlows([]);
       return;
     }
 
     if (selection && selection.kind === 'CHROME_SLICE') {
       this.sliceSelected(selection.id);
     } else {
-      globals.publish('ConnectedFlows', []);
+      publishConnectedFlows([]);
     }
 
     if (selection && selection.kind === 'AREA') {
       this.areaSelected(selection.areaId);
     } else {
-      globals.publish('SelectedFlows', []);
+      publishSelectedFlows([]);
     }
   }
 
