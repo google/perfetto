@@ -2,12 +2,12 @@ Unreleased:
   Tracing service and probes:
     *
   Trace Processor:
-    * Removed the RawQuery RPC interface. 
+    * Removed the RawQuery RPC interface.
   UI:
-    * Added a highlighted section to thread slices to visualize CPU time 
+    * Added a highlighted section to thread slices to visualize CPU time
       (darker) verses wall time (lighter).
   SDK:
-    *
+    * Fix undefined reference on ~TracingMuxerFake when building the SDK.
 
 
 v17.0 - 2021-07-02:
