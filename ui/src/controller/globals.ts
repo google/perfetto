@@ -54,7 +54,7 @@ class Globals implements App {
   // This is called by the frontend logic which now owns and handle the
   // source-of-truth state, to give us an update on the newer state updates.
   patchState(patches: Patch[]): void {
-    this._state = applyPatches(this._state, patches);
+    this._state = applyPatches(assertExists(this._state), patches);
     this.runControllers();
   }
 
