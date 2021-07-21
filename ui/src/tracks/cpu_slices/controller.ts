@@ -127,8 +127,6 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
       let endNsQ = Math.floor((endNs + bucketNs / 2 - 1) / bucketNs) * bucketNs;
       endNsQ = Math.max(endNsQ, startNsQ + bucketNs);
 
-      assertTrue(startNsQ !== endNsQ);
-
       slices.starts[row] = fromNs(startNsQ);
       slices.ends[row] = fromNs(endNsQ);
       slices.utids[row] = it.utid;
