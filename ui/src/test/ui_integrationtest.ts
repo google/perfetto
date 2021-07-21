@@ -15,10 +15,12 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as puppeteer from 'puppeteer';
+
 import {assertExists} from '../base/logging';
 
 import {
   compareScreenshots,
+  failIfTraceProcessorHttpdIsActive,
   getTestTracePath,
   waitForPerfettoIdle
 } from './perfetto_ui_test_helper';
@@ -36,6 +38,7 @@ async function getPage(): Promise<puppeteer.Page> {
 
 // Executed once at the beginning of the test. Navigates to the UI.
 beforeAll(async () => {
+  await failIfTraceProcessorHttpdIsActive();
   jest.setTimeout(60000);
   const page = await getPage();
   await page.setViewport({width: 1920, height: 1080});
