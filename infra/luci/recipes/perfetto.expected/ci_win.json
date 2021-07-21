@@ -151,7 +151,7 @@
       "python3",
       "tools/gn",
       "gen",
-      "out/windows-amd64",
+      "[CACHE]\\builder\\perfetto\\out\\windows-amd64",
       "--args=is_debug=false monolithic_binaries=true"
     ],
     "cwd": "[CACHE]\\builder\\perfetto",
@@ -170,7 +170,7 @@
       "python3",
       "tools/ninja",
       "-C",
-      "out/windows-amd64"
+      "[CACHE]\\builder\\perfetto\\out\\windows-amd64"
     ],
     "cwd": "[CACHE]\\builder\\perfetto",
     "env": {
@@ -196,7 +196,7 @@
       "RECIPE_REPO[depot_tools]\\gsutil.py",
       "----",
       "cp",
-      "out/dist/trace_processor_shell.exe",
+      "[CACHE]\\builder\\perfetto\\out\\windows-amd64\\trace_processor_shell.exe",
       "gs://perfetto-luci-artifacts//windows-amd64/trace_processor_shell.exe"
     ],
     "cwd": "[CACHE]\\builder\\perfetto",
@@ -209,6 +209,58 @@
   },
   {
     "cmd": [
+      "cipd.bat",
+      "pkg-build",
+      "-pkg-def",
+      "{\"data\": [{\"file\": \"trace_processor_shell.exe\"}], \"install_mode\": \"\", \"package\": \"perfetto/trace_processor_shell/windows-amd64\", \"root\": \"[CACHE]\\\\builder\\\\perfetto\\\\out\\\\windows-amd64\"}",
+      "-out",
+      "[CLEANUP]\\trace_processor_shell-windows-amd64.cipd",
+      "-hash-algo",
+      "sha256",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]\\builder\\perfetto",
+    "name": "Artifact upload.build perfetto/trace_processor_shell/windows-amd64",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/trace_processor_shell/windows-amd64\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "cipd.bat",
+      "pkg-register",
+      "[CLEANUP]\\trace_processor_shell-windows-amd64.cipd",
+      "-ref",
+      "latest",
+      "-tag",
+      "git_revision:",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]\\builder\\perfetto",
+    "name": "Artifact upload.register perfetto/trace_processor_shell/windows-amd64",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/trace_processor_shell/windows-amd64\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@",
+      "@@@STEP_LINK@perfetto/trace_processor_shell/windows-amd64@https://chrome-infra-packages.appspot.com/p/perfetto/trace_processor_shell/windows-amd64/+/40-chars-fake-of-the-package-instance_id@@@"
+    ]
+  },
+  {
+    "cmd": [
       "python",
       "-u",
       "RECIPE_MODULE[depot_tools::gsutil]\\resources\\gsutil_smart_retry.py",
@@ -216,7 +268,7 @@
       "RECIPE_REPO[depot_tools]\\gsutil.py",
       "----",
       "cp",
-      "out/dist/trace_to_text.exe",
+      "[CACHE]\\builder\\perfetto\\out\\windows-amd64\\trace_to_text.exe",
       "gs://perfetto-luci-artifacts//windows-amd64/trace_to_text.exe"
     ],
     "cwd": "[CACHE]\\builder\\perfetto",
@@ -229,6 +281,58 @@
   },
   {
     "cmd": [
+      "cipd.bat",
+      "pkg-build",
+      "-pkg-def",
+      "{\"data\": [{\"file\": \"trace_to_text.exe\"}], \"install_mode\": \"\", \"package\": \"perfetto/trace_to_text/windows-amd64\", \"root\": \"[CACHE]\\\\builder\\\\perfetto\\\\out\\\\windows-amd64\"}",
+      "-out",
+      "[CLEANUP]\\trace_to_text-windows-amd64.cipd",
+      "-hash-algo",
+      "sha256",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]\\builder\\perfetto",
+    "name": "Artifact upload.build perfetto/trace_to_text/windows-amd64",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/trace_to_text/windows-amd64\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "cipd.bat",
+      "pkg-register",
+      "[CLEANUP]\\trace_to_text-windows-amd64.cipd",
+      "-ref",
+      "latest",
+      "-tag",
+      "git_revision:",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]\\builder\\perfetto",
+    "name": "Artifact upload.register perfetto/trace_to_text/windows-amd64",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/trace_to_text/windows-amd64\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@",
+      "@@@STEP_LINK@perfetto/trace_to_text/windows-amd64@https://chrome-infra-packages.appspot.com/p/perfetto/trace_to_text/windows-amd64/+/40-chars-fake-of-the-package-instance_id@@@"
+    ]
+  },
+  {
+    "cmd": [
       "python",
       "-u",
       "RECIPE_MODULE[depot_tools::gsutil]\\resources\\gsutil_smart_retry.py",
@@ -236,7 +340,7 @@
       "RECIPE_REPO[depot_tools]\\gsutil.py",
       "----",
       "cp",
-      "out/dist/perfetto.exe",
+      "[CACHE]\\builder\\perfetto\\out\\windows-amd64\\perfetto.exe",
       "gs://perfetto-luci-artifacts//windows-amd64/perfetto.exe"
     ],
     "cwd": "[CACHE]\\builder\\perfetto",
@@ -249,6 +353,58 @@
   },
   {
     "cmd": [
+      "cipd.bat",
+      "pkg-build",
+      "-pkg-def",
+      "{\"data\": [{\"file\": \"perfetto.exe\"}], \"install_mode\": \"\", \"package\": \"perfetto/perfetto/windows-amd64\", \"root\": \"[CACHE]\\\\builder\\\\perfetto\\\\out\\\\windows-amd64\"}",
+      "-out",
+      "[CLEANUP]\\perfetto-windows-amd64.cipd",
+      "-hash-algo",
+      "sha256",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]\\builder\\perfetto",
+    "name": "Artifact upload.build perfetto/perfetto/windows-amd64",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/perfetto/windows-amd64\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "cipd.bat",
+      "pkg-register",
+      "[CLEANUP]\\perfetto-windows-amd64.cipd",
+      "-ref",
+      "latest",
+      "-tag",
+      "git_revision:",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]\\builder\\perfetto",
+    "name": "Artifact upload.register perfetto/perfetto/windows-amd64",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/perfetto/windows-amd64\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@",
+      "@@@STEP_LINK@perfetto/perfetto/windows-amd64@https://chrome-infra-packages.appspot.com/p/perfetto/perfetto/windows-amd64/+/40-chars-fake-of-the-package-instance_id@@@"
+    ]
+  },
+  {
+    "cmd": [
       "python",
       "-u",
       "RECIPE_MODULE[depot_tools::gsutil]\\resources\\gsutil_smart_retry.py",
@@ -256,7 +412,7 @@
       "RECIPE_REPO[depot_tools]\\gsutil.py",
       "----",
       "cp",
-      "out/dist/traced.exe",
+      "[CACHE]\\builder\\perfetto\\out\\windows-amd64\\traced.exe",
       "gs://perfetto-luci-artifacts//windows-amd64/traced.exe"
     ],
     "cwd": "[CACHE]\\builder\\perfetto",
@@ -265,6 +421,58 @@
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@1@@@",
       "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//windows-amd64/traced.exe@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "cipd.bat",
+      "pkg-build",
+      "-pkg-def",
+      "{\"data\": [{\"file\": \"traced.exe\"}], \"install_mode\": \"\", \"package\": \"perfetto/traced/windows-amd64\", \"root\": \"[CACHE]\\\\builder\\\\perfetto\\\\out\\\\windows-amd64\"}",
+      "-out",
+      "[CLEANUP]\\traced-windows-amd64.cipd",
+      "-hash-algo",
+      "sha256",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]\\builder\\perfetto",
+    "name": "Artifact upload.build perfetto/traced/windows-amd64",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/traced/windows-amd64\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "cipd.bat",
+      "pkg-register",
+      "[CLEANUP]\\traced-windows-amd64.cipd",
+      "-ref",
+      "latest",
+      "-tag",
+      "git_revision:",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]\\builder\\perfetto",
+    "name": "Artifact upload.register perfetto/traced/windows-amd64",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/traced/windows-amd64\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@",
+      "@@@STEP_LINK@perfetto/traced/windows-amd64@https://chrome-infra-packages.appspot.com/p/perfetto/traced/windows-amd64/+/40-chars-fake-of-the-package-instance_id@@@"
     ]
   },
   {
