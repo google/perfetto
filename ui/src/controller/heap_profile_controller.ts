@@ -27,6 +27,7 @@ import {NUM, STR} from '../common/query_result';
 import {CallsiteInfo, HeapProfileFlamegraph} from '../common/state';
 import {fromNs} from '../common/time';
 import {HeapProfileDetails} from '../frontend/globals';
+import {publishHeapProfileDetails} from '../frontend/publish';
 
 import {Controller} from './controller';
 import {globals} from './globals';
@@ -198,7 +199,7 @@ export class HeapProfileController extends Controller<'main'> {
     this.heapProfileDetails.flamegraph = mergedFlamegraphData;
     this.heapProfileDetails.expandedCallsite = expandedCallsite;
     this.heapProfileDetails.viewingOption = viewingOption;
-    globals.publish('HeapProfileDetails', this.heapProfileDetails);
+    publishHeapProfileDetails(this.heapProfileDetails);
   }
 
 

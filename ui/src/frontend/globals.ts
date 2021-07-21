@@ -184,10 +184,13 @@ class Globals {
   private _hasFtrace?: boolean = undefined;
   private _jobStatus?: Map<ConversionJobName, ConversionJobStatus> = undefined;
 
+  // TODO(hjd): Remove once we no longer need to update UUID on redraw.
+  private _publishRedraw?: () => void = undefined;
+
   private _currentSearchResults: CurrentSearchResults = {
-    sliceIds: [],
-    tsStarts: [],
-    utids: [],
+    sliceIds: new Float64Array(0),
+    tsStarts: new Float64Array(0),
+    utids: new Float64Array(0),
     trackIds: [],
     sources: [],
     totalResults: 0,
@@ -222,6 +225,14 @@ class Globals {
     this._threadStateDetails = {};
     this._heapProfileDetails = {};
     this._cpuProfileDetails = {};
+  }
+
+  get publishRedraw(): () => void {
+    return this._publishRedraw || (() => {});
+  }
+
+  set publishRedraw(f: () => void) {
+    this._publishRedraw = f;
   }
 
   get state(): State {
@@ -486,9 +497,9 @@ class Globals {
     this._numQueriesQueued = 0;
     this._metricResult = undefined;
     this._currentSearchResults = {
-      sliceIds: [],
-      tsStarts: [],
-      utids: [],
+      sliceIds: new Float64Array(0),
+      tsStarts: new Float64Array(0),
+      utids: new Float64Array(0),
       trackIds: [],
       sources: [],
       totalResults: 0,

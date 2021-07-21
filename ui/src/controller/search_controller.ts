@@ -17,6 +17,7 @@ import {Engine} from '../common/engine';
 import {NUM, STR} from '../common/query_result';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
 import {TimeSpan} from '../common/time';
+import {publishSearch, publishSearchResult} from '../frontend/publish';
 
 import {Controller} from './controller';
 import {App} from './globals';
@@ -92,12 +93,12 @@ export class SearchController extends Controller<'main'> {
     this.previousResolution = newResolution;
     this.previousSearch = newSearch;
     if (newSearch === '' || newSearch.length < 4) {
-      this.app.publish('Search', {
+      publishSearch({
         tsStarts: new Float64Array(0),
         tsEnds: new Float64Array(0),
         count: new Uint8Array(0),
       });
-      this.app.publish('SearchResult', {
+      publishSearchResult({
         sliceIds: new Float64Array(0),
         tsStarts: new Float64Array(0),
         utids: new Float64Array(0),
@@ -125,12 +126,12 @@ export class SearchController extends Controller<'main'> {
     this.updateInProgress = true;
     const computeSummary =
         this.update(newSearch, startNs, endNs, newResolution).then(summary => {
-          this.app.publish('Search', summary);
+          publishSearch(summary);
         });
 
     const computeResults =
         this.specificSearch(newSearch).then(searchResults => {
-          this.app.publish('SearchResult', searchResults);
+          publishSearchResult(searchResults);
         });
 
     Promise.all([computeSummary, computeResults])
@@ -267,17 +268,19 @@ export class SearchController extends Controller<'main'> {
       where string_value like ${searchLiteral}
     order by ts`);
 
+    const rows = queryRes.numRows();
     const searchResults: CurrentSearchResults = {
-      sliceIds: [],
-      tsStarts: [],
-      utids: [],
+      sliceIds: new Float64Array(rows),
+      tsStarts: new Float64Array(rows),
+      utids: new Float64Array(rows),
       trackIds: [],
       sources: [],
       totalResults: queryRes.numRows(),
     };
 
-    const spec = {sliceId: NUM, ts: NUM, source: STR, sourceId: NUM, utid: NUM};
-    for (const it = queryRes.iter(spec); it.valid(); it.next()) {
+    const it = queryRes.iter(
+        {sliceId: NUM, ts: NUM, source: STR, sourceId: NUM, utid: NUM});
+    for (let i = 0; it.valid(); it.next(), ++i) {
       let trackId = undefined;
       if (it.source === 'cpu') {
         trackId = cpuToTrackId.get(it.sourceId);
@@ -292,9 +295,9 @@ export class SearchController extends Controller<'main'> {
       }
       searchResults.trackIds.push(trackId);
       searchResults.sources.push(it.source);
-      searchResults.sliceIds.push(it.sliceId);
-      searchResults.tsStarts.push(it.ts);
-      searchResults.utids.push(it.utid);
+      searchResults.sliceIds[i] = it.sliceId;
+      searchResults.tsStarts[i] = it.ts;
+      searchResults.utids[i] = it.utid;
     }
     return searchResults;
   }
