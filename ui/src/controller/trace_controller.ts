@@ -451,7 +451,8 @@ export class TraceController extends Controller<States> {
          from thread
          inner join (
            select
-             cast((ts - ${traceStartNs})/${stepSecNs} as int) as bucket,
+             ifnull(cast((ts - ${traceStartNs})/${
+        stepSecNs} as int), 0) as bucket,
              sum(dur) as utid_sum,
              utid
            from slice
