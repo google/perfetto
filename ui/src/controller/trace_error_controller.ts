@@ -14,9 +14,9 @@
 
 import {Engine} from '../common/engine';
 import {NUM} from '../common/query_result';
+import {publishTraceErrors} from '../frontend/publish';
 
 import {Controller} from './controller';
-import {globals} from './globals';
 
 export interface TraceErrorControllerArgs {
   engine: Engine;
@@ -39,7 +39,7 @@ export class TraceErrorController extends Controller<'main'> {
             `SELECT sum(value) as sumValue FROM stats WHERE severity != 'info'`)
         .then(result => {
           const errors = result.firstRow({sumValue: NUM}).sumValue;
-          globals.publish('TraceErrors', errors);
+          publishTraceErrors(errors);
         });
   }
 }
