@@ -24,10 +24,8 @@ import {Actions, DeferredAction, StateActions} from '../common/actions';
 import {tryGetTrace} from '../common/cache_manager';
 import {initializeImmerJs} from '../common/immer_init';
 import {createEmptyState, State} from '../common/state';
-import {
-  ControllerWorkerInitMessage,
-  EngineWorkerInitMessage
-} from '../common/worker_messages';
+import {initWasm} from '../common/wasm_engine_proxy';
+import {ControllerWorkerInitMessage} from '../common/worker_messages';
 import {initController} from '../controller/index';
 
 import {AnalyzePage} from './analyze_page';
@@ -35,9 +33,7 @@ import {loadAndroidBugToolInfo} from './android_bug_tool';
 import {initCssConstants} from './css_constants';
 import {maybeShowErrorDialog} from './error_dialog';
 import {installFileDropHandler} from './file_drop_handler';
-import {
-  globals,
-} from './globals';
+import {globals} from './globals';
 import {HomePage} from './home_page';
 import {initLiveReloadIfLocalhost} from './live_reload';
 import {MetricsPage} from './metrics_page';
@@ -55,9 +51,6 @@ const EXTENSION_ID = 'lfmkphfpdbjijhpomgecfikhfohaoine';
 function isLocalhostTraceUrl(url: string): boolean {
   return ['127.0.0.1', 'localhost'].includes((new URL(url)).hostname);
 }
-
-let idleWasmWorker: Worker;
-let activeWasmWorker: Worker;
 
 /**
  * The API the main thread exposes to the controller.
@@ -152,24 +145,6 @@ class FrontendApi {
     }
   }
 
-  // This method is called by the controller via the Remote<> interface whenver
-  // a new trace is loaded. This creates a new worker and passes it the
-  // MessagePort received by the controller. This is because on Safari, all
-  // workers must be spawned from the main thread.
-  resetEngineWorker(port: MessagePort) {
-    // We keep always an idle worker around, the first one is created by the
-    // main() below, so we can hide the latency of the Wasm initialization.
-    if (activeWasmWorker !== undefined) {
-      activeWasmWorker.terminate();
-    }
-    // Swap the active worker with the idle one and create a new idle worker
-    // for the next trace.
-    activeWasmWorker = assertExists(idleWasmWorker);
-    const msg: EngineWorkerInitMessage = {enginePort: port};
-    activeWasmWorker.postMessage(msg, [port]);
-    idleWasmWorker = new Worker(globals.root + 'engine_bundle.js');
-  }
-
   redraw(): void {
     const traceIdString =
         globals.state.traceUuid ? `?trace_id=${globals.state.traceUuid}` : '';
@@ -262,7 +237,6 @@ function main() {
   window.addEventListener('error', e => reportError(e));
   window.addEventListener('unhandledrejection', e => reportError(e));
 
-  idleWasmWorker = new Worker(globals.root + 'engine_bundle.js');
   const frontendChannel = new MessageChannel();
   const controllerChannel = new MessageChannel();
   const extensionLocalChannel = new MessageChannel();
@@ -278,6 +252,7 @@ function main() {
     errorReportingPort: errorReportingChannel.port1,
   };
 
+  initWasm(globals.root);
   initializeImmerJs();
 
   initController(msg);

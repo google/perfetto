@@ -12,8 +12,39 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertTrue} from '../base/logging';
+import {assertExists, assertTrue} from '../base/logging';
+
 import {Engine, LoadingTracker} from './engine';
+import {EngineWorkerInitMessage} from './worker_messages';
+
+let bundlePath: string;
+let idleWasmWorker: Worker;
+let activeWasmWorker: Worker;
+
+export function initWasm(root: string) {
+  bundlePath = root + 'engine_bundle.js';
+  idleWasmWorker = new Worker(bundlePath);
+}
+
+// This method is called trace_controller whenever a new trace is loaded.
+export function resetEngineWorker(): MessagePort {
+  const channel = new MessageChannel();
+  const port = channel.port1;
+
+  // We keep always an idle worker around, the first one is created by the
+  // main() below, so we can hide the latency of the Wasm initialization.
+  if (activeWasmWorker !== undefined) {
+    activeWasmWorker.terminate();
+  }
+
+  // Swap the active worker with the idle one and create a new idle worker
+  // for the next trace.
+  activeWasmWorker = assertExists(idleWasmWorker);
+  const msg: EngineWorkerInitMessage = {enginePort: port};
+  activeWasmWorker.postMessage(msg, [port]);
+  idleWasmWorker = new Worker(bundlePath);
+  return channel.port2;
+}
 
 /**
  * This implementation of Engine uses a WASM backend hosted in a separate
