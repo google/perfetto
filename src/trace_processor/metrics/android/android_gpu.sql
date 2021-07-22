@@ -60,6 +60,33 @@ SELECT RUN_METRIC('android/gpu_counter_span_view.sql',
   'table_name', 'gpu_freq',
   'counter_name', 'gpufreq');
 
+DROP VIEW IF EXISTS metrics_per_freq_view;
+CREATE VIEW metrics_per_freq_view AS
+WITH
+total_dur_per_freq AS (
+  SELECT
+    gpu_id,
+    gpu_freq_val AS freq,
+    SUM(dur) AS dur_ns
+  FROM gpu_freq_span
+  GROUP BY gpu_id, gpu_freq_val
+),
+total_dur_per_gpu AS (
+  SELECT
+    gpu_id,
+    SUM(dur) AS dur_ns
+  FROM gpu_freq_span
+  GROUP BY gpu_id
+)
+SELECT
+  gpu_id,
+  AndroidGpuMetric_FrequencyMetric_MetricsPerFrequency(
+    'freq', CAST(freq as INT64),
+    'dur_ms', f.dur_ns / 1e6,
+    'percentage', f.dur_ns * 100.0 / g.dur_ns
+  ) AS proto
+FROM total_dur_per_freq f LEFT JOIN total_dur_per_gpu g USING (gpu_id);
+
 DROP VIEW IF EXISTS gpu_freq_metrics_view;
 CREATE VIEW gpu_freq_metrics_view AS
 SELECT
@@ -67,7 +94,9 @@ SELECT
     'gpu_id', gpu_id,
     'freq_max', CAST(MAX(gpu_freq_val) as INT64),
     'freq_min', CAST(MIN(gpu_freq_val) as INT64),
-    'freq_avg', SUM(gpu_freq_val * dur) / SUM(dur)
+    'freq_avg', SUM(gpu_freq_val * dur) / SUM(dur),
+    'used_freqs', (SELECT RepeatedField(proto) FROM metrics_per_freq_view
+        WHERE metrics_per_freq_view.gpu_id = gpu_freq_span.gpu_id)
   ) AS proto
 FROM gpu_freq_span
 GROUP BY gpu_id;

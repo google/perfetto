@@ -264,6 +264,21 @@ message AndroidGpuMetric {
     optional int64 freq_max = 2;
     optional int64 freq_min = 3;
     optional double freq_avg = 4;
+
+    message MetricsPerFrequency {
+      // Used frequency
+      optional int64 freq = 1;
+
+      // Total duration in ms when the state of GPU was in this frequency
+      optional double dur_ms = 2;
+
+      // Percentage of duration in this frequency compared to all frequencies
+      // in this gpu_id
+      optional double percentage = 3;
+    }
+
+    // Metrics for each used GPU frequency
+    repeated MetricsPerFrequency used_freqs = 5;
   }
 
   // GPU frequency metric for each gpu_id
