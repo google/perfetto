@@ -28,6 +28,12 @@ import {EngineMode} from '../common/state';
 import {TimeSpan, toNs, toNsCeil, toNsFloor} from '../common/time';
 import {WasmEngineProxy} from '../common/wasm_engine_proxy';
 import {QuantizedLoad, ThreadDesc} from '../frontend/globals';
+import {
+  publishHasFtrace,
+  publishMetricError,
+  publishOverviewData,
+  publishThreads
+} from '../frontend/publish';
 
 import {
   CounterAggregationController
@@ -338,7 +344,7 @@ export class TraceController extends Controller<States> {
           where cpu + 1 > 1 or utid + 1 > 1 limit 1`;
       const result = await assertExists(this.engine).queryV2(query);
       const hasFtrace = result.numRows() > 0;
-      globals.publish('HasFtrace', hasFtrace);
+      publishHasFtrace(hasFtrace);
     }
 
     await this.cacheCurrentTrace();
@@ -404,7 +410,7 @@ export class TraceController extends Controller<States> {
       const cmdline = it.cmdline === null ? undefined : it.cmdline;
       threads.push({utid, tid, threadName, pid, procName, cmdline});
     }
-    globals.publish('Threads', threads);
+    publishThreads(threads);
   }
 
   private async loadTimelineOverview(traceTime: TimeSpan) {
@@ -434,7 +440,7 @@ export class TraceController extends Controller<States> {
         schedData[cpu] = {startSec, endSec, load};
         hasSchedOverview = true;
       }
-      globals.publish('OverviewData', schedData);
+      publishOverviewData(schedData);
     }
 
     if (hasSchedOverview) {
@@ -451,7 +457,8 @@ export class TraceController extends Controller<States> {
          from thread
          inner join (
            select
-             cast((ts - ${traceStartNs})/${stepSecNs} as int) as bucket,
+             ifnull(cast((ts - ${traceStartNs})/${
+        stepSecNs} as int), 0) as bucket,
              sum(dur) as utid_sum,
              utid
            from slice
@@ -477,7 +484,7 @@ export class TraceController extends Controller<States> {
       }
       loadArray.push({startSec, endSec, load});
     }
-    globals.publish('OverviewData', slicesData);
+    publishOverviewData(slicesData);
   }
 
   private async cacheCurrentTrace() {
@@ -560,7 +567,7 @@ export class TraceController extends Controller<States> {
         await engine.computeMetric([metric]);
       } catch (e) {
         if (e instanceof QueryError) {
-          globals.publish('MetricError', 'MetricError: ' + e.message);
+          publishMetricError('MetricError: ' + e.message);
           continue;
         } else {
           throw e;
@@ -647,7 +654,7 @@ export class TraceController extends Controller<States> {
         }
       } catch (e) {
         if (e instanceof QueryError) {
-          globals.publish('MetricError', 'MetricError: ' + e.message);
+          publishMetricError('MetricError: ' + e.message);
         } else {
           throw e;
         }

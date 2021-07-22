@@ -22,6 +22,7 @@ import {
 } from '../common/logs';
 import {NUM, STR} from '../common/query_result';
 import {fromNs, TimeSpan, toNsCeil, toNsFloor} from '../common/time';
+import {publishTrackData} from '../frontend/publish';
 
 import {Controller} from './controller';
 import {App} from './globals';
@@ -163,7 +164,7 @@ export class LogsController extends Controller<'main'> {
     this.pagination = new Pagination(0, 0);
     this.hasAnyLogs().then(exists => {
       this.hasLogs = exists;
-      this.app.publish('TrackData', {
+      publishTrackData({
         id: LogExistsKey,
         data: {
           exists,
@@ -207,7 +208,7 @@ export class LogsController extends Controller<'main'> {
       this.span = newSpan;
       updateLogBounds(this.engine, newSpan).then(data => {
         if (!newSpan.equals(this.span)) return;
-        this.app.publish('TrackData', {
+        publishTrackData({
           id: LogBoundsKey,
           data,
         });
@@ -221,7 +222,7 @@ export class LogsController extends Controller<'main'> {
 
       updateLogEntries(this.engine, newSpan, this.pagination).then(data => {
         if (!this.pagination.contains(requestedPagination)) return;
-        this.app.publish('TrackData', {
+        publishTrackData({
           id: LogEntriesKey,
           data,
         });

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import * as fs from 'fs';
+import * as net from 'net';
 import * as libpng from 'node-libpng';
 import * as path from 'path';
 import * as pixelmatch from 'pixelmatch';
@@ -89,4 +90,26 @@ export async function compareScreenshots(
     fail(`Diff test failed on ${diffFilename}, delta: ${diff} pixels`);
   }
   return diff;
+}
+
+
+// If the user has a trace_processor_shell --httpd instance open, bail out,
+// as that will invalidate the test loading different data.
+export async function failIfTraceProcessorHttpdIsActive() {
+  return new Promise<void>((resolve, reject) => {
+    const client = new net.Socket();
+    client.connect(9001, '127.0.0.1', () => {
+      const err = 'trace_processor_shell --httpd detected on port 9001. ' +
+          'Bailing out as it interferes with the tests. ' +
+          'Please kill that and run the test again.';
+      console.error(err);
+      client.destroy();
+      reject(err);
+    });
+    client.on('error', (e: {code: string}) => {
+      expect(e.code).toBe('ECONNREFUSED');
+      resolve();
+    });
+    client.end();
+  });
 }

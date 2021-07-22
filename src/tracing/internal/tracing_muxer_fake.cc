@@ -35,6 +35,8 @@ PERFETTO_NO_DESTROY TracingMuxerFake::FakePlatform
 PERFETTO_NO_DESTROY TracingMuxerFake TracingMuxerFake::instance{};
 #endif  // PERFETTO_HAS_NO_DESTROY()
 
+TracingMuxerFake::~TracingMuxerFake() = default;
+
 TracingMuxerFake::FakePlatform::~FakePlatform() = default;
 
 Platform::ThreadLocalObject*

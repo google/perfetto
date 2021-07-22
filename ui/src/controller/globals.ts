@@ -20,18 +20,9 @@ import {DeferredAction} from '../common/actions';
 import {createEmptyState, State} from '../common/state';
 import {ControllerAny} from './controller';
 
-type PublishKinds = 'OverviewData'|'TrackData'|'Threads'|'QueryResult'|
-    'LegacyTrace'|'SliceDetails'|'CounterDetails'|'HeapProfileDetails'|
-    'HeapProfileFlamegraph'|'FileDownload'|'Loading'|'Search'|'BufferUsage'|
-    'RecordingLog'|'SearchResult'|'AggregateData'|'CpuProfileDetails'|
-    'TraceErrors'|'UpdateChromeCategories'|'ConnectedFlows'|'SelectedFlows'|
-    'ThreadStateDetails'|'MetricError'|'MetricResult'|'HasFtrace'|
-    'ConversionJobStatusUpdate';
-
 export interface App {
   state: State;
   dispatch(action: DeferredAction): void;
-  publish(what: PublishKinds, data: {}, transferList?: Array<{}>): void;
 }
 
 /**
@@ -63,7 +54,7 @@ class Globals implements App {
   // This is called by the frontend logic which now owns and handle the
   // source-of-truth state, to give us an update on the newer state updates.
   patchState(patches: Patch[]): void {
-    this._state = applyPatches(this._state, patches);
+    this._state = applyPatches(assertExists(this._state), patches);
     this.runControllers();
   }
 
@@ -81,12 +72,6 @@ class Globals implements App {
         this._runningControllers = false;
       }
     }
-  }
-
-  // TODO: this needs to be cleaned up.
-  publish(what: PublishKinds, data: {}, transferList?: Transferable[]) {
-    assertExists(this._frontend)
-        .send<void>(`publish${what}`, [data], transferList);
   }
 
   // Returns the port of the MessageChannel that can be used to communicate with
