@@ -40,7 +40,6 @@ class TracePacket_Decoder;
 
 namespace trace_processor {
 
-class ArgsTracker;
 class PacketSequenceState;
 class TraceProcessorContext;
 
@@ -62,19 +61,9 @@ class ProtoTraceParser : public TraceParser {
                             const protos::pbzero::TracePacket_Decoder&);
 
   void ParseTraceStats(ConstBytes);
-  void ParseProfilePacket(int64_t ts,
-                          PacketSequenceStateGeneration*,
-                          uint32_t seq_id,
-                          ConstBytes);
-  void ParseDeobfuscationMapping(int64_t ts,
-                                 PacketSequenceStateGeneration*,
-                                 uint32_t seq_id,
-                                 ConstBytes);
   void ParseChromeEvents(int64_t ts, ConstBytes);
   void ParseMetatraceEvent(int64_t ts, ConstBytes);
   void ParseTraceConfig(ConstBytes);
-  void ParseModuleSymbols(ConstBytes);
-  void ParseSmapsPacket(int64_t ts, ConstBytes);
 
  private:
   TraceProcessorContext* context_;
