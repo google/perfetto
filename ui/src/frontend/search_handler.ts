@@ -43,15 +43,20 @@ export function executeSearch(reverse = false) {
       const [smaller,] =
         searchSegment(globals.currentSearchResults.tsStarts, endNs);
       // If there is no item in the viewport just go to the previous.
-      smaller === -1 ?
-          setToPrevious(index) :
-          globals.dispatch(Actions.setSearchIndex({index: smaller}));
+      if (smaller === -1) {
+        setToPrevious(index);
+      } else {
+        globals.dispatch(Actions.setSearchIndex({index: smaller}));
+      }
     } else {
       const [, larger] =
           searchSegment(globals.currentSearchResults.tsStarts, startNs);
       // If there is no item in the viewport just go to the next.
-      larger === -1 ? setToNext(index) :
-                      globals.dispatch(Actions.setSearchIndex({index: larger}));
+      if (larger === -1) {
+        setToNext(index);
+      } else {
+        globals.dispatch(Actions.setSearchIndex({index: larger}));
+      }
     }
   } else {
     // If the currentTs is in the viewport, increment the index.
