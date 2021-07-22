@@ -17,12 +17,15 @@
 #include "src/trace_processor/importers/proto/profile_module.h"
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/proto/heap_profile_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
 #include "src/trace_processor/importers/proto/perf_sample_tracker.h"
 #include "src/trace_processor/importers/proto/profile_packet_utils.h"
+#include "src/trace_processor/importers/proto/profiler_util.h"
 #include "src/trace_processor/importers/proto/stack_profile_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables.h"
@@ -32,7 +35,10 @@
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/common/perf_events.pbzero.h"
+#include "protos/perfetto/trace/profiling/deobfuscation.pbzero.h"
+#include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
+#include "protos/perfetto/trace/profiling/smaps.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -44,6 +50,11 @@ ProfileModule::ProfileModule(TraceProcessorContext* context)
     : context_(context) {
   RegisterForField(TracePacket::kStreamingProfilePacketFieldNumber, context);
   RegisterForField(TracePacket::kPerfSampleFieldNumber, context);
+  RegisterForField(TracePacket::kProfilePacketFieldNumber, context);
+  RegisterForField(TracePacket::kModuleSymbolsFieldNumber, context);
+  // note: deobfuscation mappings also handled by HeapGraphModule.
+  RegisterForField(TracePacket::kDeobfuscationMappingFieldNumber, context);
+  RegisterForField(TracePacket::kSmapsPacketFieldNumber, context);
 }
 
 ProfileModule::~ProfileModule() = default;
@@ -75,6 +86,27 @@ void ProfileModule::ParsePacket(const TracePacket::Decoder& decoder,
       PERFETTO_DCHECK(ttp.type == TimestampedTracePiece::Type::kTracePacket);
       ParsePerfSample(ttp.timestamp, ttp.packet_data.sequence_state.get(),
                       decoder);
+      return;
+    case TracePacket::kProfilePacketFieldNumber:
+      PERFETTO_DCHECK(ttp.type == TimestampedTracePiece::Type::kTracePacket);
+      ParseProfilePacket(ttp.timestamp, ttp.packet_data.sequence_state.get(),
+                         decoder.trusted_packet_sequence_id(),
+                         decoder.profile_packet());
+      return;
+    case TracePacket::kModuleSymbolsFieldNumber:
+      PERFETTO_DCHECK(ttp.type == TimestampedTracePiece::Type::kTracePacket);
+      ParseModuleSymbols(decoder.module_symbols());
+      return;
+    case TracePacket::kDeobfuscationMappingFieldNumber:
+      PERFETTO_DCHECK(ttp.type == TimestampedTracePiece::Type::kTracePacket);
+      ParseDeobfuscationMapping(ttp.timestamp,
+                                ttp.packet_data.sequence_state.get(),
+                                decoder.trusted_packet_sequence_id(),
+                                decoder.deobfuscation_mapping());
+      return;
+    case TracePacket::kSmapsPacketFieldNumber:
+      PERFETTO_DCHECK(ttp.type == TimestampedTracePiece::Type::kTracePacket);
+      ParseSmapsPacket(ttp.timestamp, decoder.smaps_packet());
       return;
   }
 }
@@ -248,6 +280,288 @@ void ProfileModule::ParsePerfSample(
                                           cs_id, unwind_error_id,
                                           sampling_stream.perf_session_id);
   context_->storage->mutable_perf_sample_table()->Insert(sample_row);
+}
+
+void ProfileModule::ParseProfilePacket(
+    int64_t ts,
+    PacketSequenceStateGeneration* sequence_state,
+    uint32_t seq_id,
+    ConstBytes blob) {
+  protos::pbzero::ProfilePacket::Decoder packet(blob.data, blob.size);
+  context_->heap_profile_tracker->SetProfilePacketIndex(seq_id, packet.index());
+
+  for (auto it = packet.strings(); it; ++it) {
+    protos::pbzero::InternedString::Decoder entry(*it);
+
+    const char* str = reinterpret_cast<const char*>(entry.str().data);
+    auto str_view = base::StringView(str, entry.str().size);
+    sequence_state->state()->sequence_stack_profile_tracker().AddString(
+        entry.iid(), str_view);
+  }
+
+  for (auto it = packet.mappings(); it; ++it) {
+    protos::pbzero::Mapping::Decoder entry(*it);
+    SequenceStackProfileTracker::SourceMapping src_mapping =
+        ProfilePacketUtils::MakeSourceMapping(entry);
+    sequence_state->state()->sequence_stack_profile_tracker().AddMapping(
+        entry.iid(), src_mapping);
+  }
+
+  for (auto it = packet.frames(); it; ++it) {
+    protos::pbzero::Frame::Decoder entry(*it);
+    SequenceStackProfileTracker::SourceFrame src_frame =
+        ProfilePacketUtils::MakeSourceFrame(entry);
+    sequence_state->state()->sequence_stack_profile_tracker().AddFrame(
+        entry.iid(), src_frame);
+  }
+
+  for (auto it = packet.callstacks(); it; ++it) {
+    protos::pbzero::Callstack::Decoder entry(*it);
+    SequenceStackProfileTracker::SourceCallstack src_callstack =
+        ProfilePacketUtils::MakeSourceCallstack(entry);
+    sequence_state->state()->sequence_stack_profile_tracker().AddCallstack(
+        entry.iid(), src_callstack);
+  }
+
+  for (auto it = packet.process_dumps(); it; ++it) {
+    protos::pbzero::ProfilePacket::ProcessHeapSamples::Decoder entry(*it);
+
+    auto maybe_timestamp = context_->clock_tracker->ToTraceTime(
+        protos::pbzero::BUILTIN_CLOCK_MONOTONIC_COARSE,
+        static_cast<int64_t>(entry.timestamp()));
+
+    // ToTraceTime() increments the clock_sync_failure error stat in this case.
+    if (!maybe_timestamp)
+      continue;
+
+    int64_t timestamp = *maybe_timestamp;
+
+    int pid = static_cast<int>(entry.pid());
+    context_->storage->SetIndexedStats(stats::heapprofd_last_profile_timestamp,
+                                       pid, ts);
+
+    if (entry.disconnected())
+      context_->storage->IncrementIndexedStats(
+          stats::heapprofd_client_disconnected, pid);
+    if (entry.buffer_corrupted())
+      context_->storage->IncrementIndexedStats(
+          stats::heapprofd_buffer_corrupted, pid);
+    if (entry.buffer_overran() ||
+        entry.client_error() ==
+            protos::pbzero::ProfilePacket::ProcessHeapSamples::
+                CLIENT_ERROR_HIT_TIMEOUT) {
+      context_->storage->IncrementIndexedStats(stats::heapprofd_buffer_overran,
+                                               pid);
+    }
+    if (entry.client_error()) {
+      context_->storage->SetIndexedStats(stats::heapprofd_client_error, pid,
+                                         entry.client_error());
+    }
+    if (entry.rejected_concurrent())
+      context_->storage->IncrementIndexedStats(
+          stats::heapprofd_rejected_concurrent, pid);
+    if (entry.hit_guardrail())
+      context_->storage->IncrementIndexedStats(stats::heapprofd_hit_guardrail,
+                                               pid);
+    if (entry.orig_sampling_interval_bytes()) {
+      context_->storage->SetIndexedStats(
+          stats::heapprofd_sampling_interval_adjusted, pid,
+          static_cast<int64_t>(entry.sampling_interval_bytes()) -
+              static_cast<int64_t>(entry.orig_sampling_interval_bytes()));
+    }
+
+    protos::pbzero::ProfilePacket::ProcessStats::Decoder stats(entry.stats());
+    context_->storage->IncrementIndexedStats(
+        stats::heapprofd_unwind_time_us, static_cast<int>(entry.pid()),
+        static_cast<int64_t>(stats.total_unwinding_time_us()));
+    context_->storage->IncrementIndexedStats(
+        stats::heapprofd_unwind_samples, static_cast<int>(entry.pid()),
+        static_cast<int64_t>(stats.heap_samples()));
+    context_->storage->IncrementIndexedStats(
+        stats::heapprofd_client_spinlock_blocked, static_cast<int>(entry.pid()),
+        static_cast<int64_t>(stats.client_spinlock_blocked_us()));
+
+    // orig_sampling_interval_bytes was introduced slightly after a bug with
+    // self_max_count was fixed in the producer. We use this as a proxy
+    // whether or not we are getting this data from a fixed producer or not.
+    bool trustworthy_max_count = entry.orig_sampling_interval_bytes() > 0;
+
+    for (auto sample_it = entry.samples(); sample_it; ++sample_it) {
+      protos::pbzero::ProfilePacket::HeapSample::Decoder sample(*sample_it);
+
+      HeapProfileTracker::SourceAllocation src_allocation;
+      src_allocation.pid = entry.pid();
+      if (entry.heap_name().size != 0) {
+        src_allocation.heap_name =
+            context_->storage->InternString(entry.heap_name());
+      } else {
+        src_allocation.heap_name = context_->storage->InternString("malloc");
+      }
+      src_allocation.timestamp = timestamp;
+      src_allocation.callstack_id = sample.callstack_id();
+      if (sample.has_self_max()) {
+        src_allocation.self_allocated = sample.self_max();
+        if (trustworthy_max_count)
+          src_allocation.alloc_count = sample.self_max_count();
+      } else {
+        src_allocation.self_allocated = sample.self_allocated();
+        src_allocation.self_freed = sample.self_freed();
+        src_allocation.alloc_count = sample.alloc_count();
+        src_allocation.free_count = sample.free_count();
+      }
+
+      context_->heap_profile_tracker->StoreAllocation(seq_id, src_allocation);
+    }
+  }
+  if (!packet.continued()) {
+    PERFETTO_CHECK(sequence_state);
+    ProfilePacketInternLookup intern_lookup(sequence_state);
+    context_->heap_profile_tracker->FinalizeProfile(
+        seq_id, &sequence_state->state()->sequence_stack_profile_tracker(),
+        &intern_lookup);
+  }
+}
+
+void ProfileModule::ParseModuleSymbols(ConstBytes blob) {
+  protos::pbzero::ModuleSymbols::Decoder module_symbols(blob.data, blob.size);
+  StringId build_id;
+  // TODO(b/148109467): Remove workaround once all active Chrome versions
+  // write raw bytes instead of a string as build_id.
+  if (module_symbols.build_id().size == 33) {
+    build_id = context_->storage->InternString(module_symbols.build_id());
+  } else {
+    build_id = context_->storage->InternString(base::StringView(base::ToHex(
+        module_symbols.build_id().data, module_symbols.build_id().size)));
+  }
+
+  auto mapping_ids = context_->global_stack_profile_tracker->FindMappingRow(
+      context_->storage->InternString(module_symbols.path()), build_id);
+  if (mapping_ids.empty()) {
+    context_->storage->IncrementStats(stats::stackprofile_invalid_mapping_id);
+    return;
+  }
+  for (auto addr_it = module_symbols.address_symbols(); addr_it; ++addr_it) {
+    protos::pbzero::AddressSymbols::Decoder address_symbols(*addr_it);
+
+    uint32_t symbol_set_id = context_->storage->symbol_table().row_count();
+
+    bool has_lines = false;
+    for (auto line_it = address_symbols.lines(); line_it; ++line_it) {
+      protos::pbzero::Line::Decoder line(*line_it);
+      context_->storage->mutable_symbol_table()->Insert(
+          {symbol_set_id, context_->storage->InternString(line.function_name()),
+           context_->storage->InternString(line.source_file_name()),
+           line.line_number()});
+      has_lines = true;
+    }
+    if (!has_lines) {
+      continue;
+    }
+    bool frame_found = false;
+    for (MappingId mapping_id : mapping_ids) {
+      std::vector<FrameId> frame_ids =
+          context_->global_stack_profile_tracker->FindFrameIds(
+              mapping_id, address_symbols.address());
+
+      for (const FrameId frame_id : frame_ids) {
+        auto* frames = context_->storage->mutable_stack_profile_frame_table();
+        uint32_t frame_row = *frames->id().IndexOf(frame_id);
+        frames->mutable_symbol_set_id()->Set(frame_row, symbol_set_id);
+        frame_found = true;
+      }
+    }
+
+    if (!frame_found) {
+      context_->storage->IncrementStats(stats::stackprofile_invalid_frame_id);
+      continue;
+    }
+  }
+}
+
+void ProfileModule::ParseDeobfuscationMapping(int64_t,
+                                              PacketSequenceStateGeneration*,
+                                              uint32_t /* seq_id */,
+                                              ConstBytes blob) {
+  protos::pbzero::DeobfuscationMapping::Decoder deobfuscation_mapping(
+      blob.data, blob.size);
+  if (deobfuscation_mapping.package_name().size == 0)
+    return;
+
+  auto opt_package_name_id = context_->storage->string_pool().GetId(
+      deobfuscation_mapping.package_name());
+  auto opt_memfd_id = context_->storage->string_pool().GetId("memfd");
+  if (!opt_package_name_id && !opt_memfd_id)
+    return;
+
+  for (auto class_it = deobfuscation_mapping.obfuscated_classes(); class_it;
+       ++class_it) {
+    protos::pbzero::ObfuscatedClass::Decoder cls(*class_it);
+    for (auto member_it = cls.obfuscated_methods(); member_it; ++member_it) {
+      protos::pbzero::ObfuscatedMember::Decoder member(*member_it);
+      std::string merged_obfuscated = cls.obfuscated_name().ToStdString() +
+                                      "." +
+                                      member.obfuscated_name().ToStdString();
+      auto merged_obfuscated_id = context_->storage->string_pool().GetId(
+          base::StringView(merged_obfuscated));
+      if (!merged_obfuscated_id)
+        continue;
+      std::string merged_deobfuscated =
+          FullyQualifiedDeobfuscatedName(cls, member);
+
+      std::vector<tables::StackProfileFrameTable::Id> frames;
+      if (opt_package_name_id) {
+        const std::vector<tables::StackProfileFrameTable::Id>* pkg_frames =
+            context_->global_stack_profile_tracker->JavaFramesForName(
+                {*merged_obfuscated_id, *opt_package_name_id});
+        if (pkg_frames) {
+          frames.insert(frames.end(), pkg_frames->begin(), pkg_frames->end());
+        }
+      }
+      if (opt_memfd_id) {
+        const std::vector<tables::StackProfileFrameTable::Id>* memfd_frames =
+            context_->global_stack_profile_tracker->JavaFramesForName(
+                {*merged_obfuscated_id, *opt_memfd_id});
+        if (memfd_frames) {
+          frames.insert(frames.end(), memfd_frames->begin(),
+                        memfd_frames->end());
+        }
+      }
+
+      for (tables::StackProfileFrameTable::Id frame_id : frames) {
+        auto* frames_tbl =
+            context_->storage->mutable_stack_profile_frame_table();
+        frames_tbl->mutable_deobfuscated_name()->Set(
+            *frames_tbl->id().IndexOf(frame_id),
+            context_->storage->InternString(
+                base::StringView(merged_deobfuscated)));
+      }
+    }
+  }
+}
+
+void ProfileModule::ParseSmapsPacket(int64_t ts, ConstBytes blob) {
+  protos::pbzero::SmapsPacket::Decoder sp(blob.data, blob.size);
+  auto upid = context_->process_tracker->GetOrCreateProcess(sp.pid());
+
+  for (auto it = sp.entries(); it; ++it) {
+    protos::pbzero::SmapsEntry::Decoder e(*it);
+    context_->storage->mutable_profiler_smaps_table()->Insert(
+        {upid, ts, context_->storage->InternString(e.path()),
+         static_cast<int64_t>(e.size_kb()),
+         static_cast<int64_t>(e.private_dirty_kb()),
+         static_cast<int64_t>(e.swap_kb()),
+         context_->storage->InternString(e.file_name()),
+         static_cast<int64_t>(e.start_address()),
+         static_cast<int64_t>(e.module_timestamp()),
+         context_->storage->InternString(e.module_debugid()),
+         context_->storage->InternString(e.module_debug_path()),
+         static_cast<int32_t>(e.protection_flags()),
+         static_cast<int64_t>(e.private_clean_resident_kb()),
+         static_cast<int64_t>(e.shared_dirty_resident_kb()),
+         static_cast<int64_t>(e.shared_clean_resident_kb()),
+         static_cast<int64_t>(e.locked_kb()),
+         static_cast<int64_t>(e.proportional_resident_kb())});
+  }
 }
 
 }  // namespace trace_processor
