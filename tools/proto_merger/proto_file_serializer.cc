@@ -203,7 +203,7 @@ std::string ProtoFileToDotProto(const ProtoFile& proto_file) {
     output += SerializeMessage(0, message);
   }
 
-  if (proto_file.deleted_enums.size() || proto_file.deleted_enums.size()) {
+  if (proto_file.deleted_enums.size() || proto_file.deleted_messages.size()) {
     output += DeletedComment("");
 
     for (const auto& en : proto_file.deleted_enums) {
