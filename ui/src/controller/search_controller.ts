@@ -152,9 +152,10 @@ export class SearchController extends Controller<'main'> {
 
     startNs = Math.floor(startNs / quantumNs) * quantumNs;
 
+    const windowDur = Math.max(endNs - startNs, 1);
     await this.queryV2(`update search_summary_window set
       window_start=${startNs},
-      window_dur=${endNs - startNs},
+      window_dur=${windowDur},
       quantum=${quantumNs}
       where rowid = 0;`);
 
