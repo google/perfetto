@@ -27,11 +27,11 @@ import {assertTrue} from './logging';
 
 // TextDecoder/Decoder requires the full DOM and isn't available in all types
 // of tests. Use fallback implementation from protbufjs.
-let UTF8Decoder: {decode: (buf: Uint8Array) => string;};
-let UTF8Encoder: {encode: (str: string) => Uint8Array;};
+let Utf8Decoder: {decode: (buf: Uint8Array) => string;};
+let Utf8Encoder: {encode: (str: string) => Uint8Array;};
 try {
-  UTF8Decoder = new TextDecoder('utf-8');
-  UTF8Encoder = new TextEncoder();
+  Utf8Decoder = new TextDecoder('utf-8');
+  Utf8Encoder = new TextEncoder();
 } catch (_) {
   if (typeof process === 'undefined') {
     // Silence the warning when we know we are running under NodeJS.
@@ -39,8 +39,8 @@ try {
         'Using fallback UTF8 Encoder/Decoder, This should happen only in ' +
         'tests and NodeJS-based environments, not in browsers.');
   }
-  UTF8Decoder = {decode: (buf: Uint8Array) => utf8Read(buf, 0, buf.length)};
-  UTF8Encoder = {
+  Utf8Decoder = {decode: (buf: Uint8Array) => utf8Read(buf, 0, buf.length)};
+  Utf8Encoder = {
     encode: (str: string) => {
       const arr = new Uint8Array(utf8Len(str));
       const written = utf8Write(str, arr, 0);
@@ -62,13 +62,13 @@ export function base64Decode(str: string): Uint8Array {
 }
 
 export function utf8Encode(str: string): Uint8Array {
-  return UTF8Encoder.encode(str);
+  return Utf8Encoder.encode(str);
 }
 
 // Note: not all byte sequences can be converted to<>from UTF8. This can be
 // used only with valid unicode strings, not arbitrary byte buffers.
 export function utf8Decode(buffer: Uint8Array): string {
-  return UTF8Decoder.decode(buffer);
+  return Utf8Decoder.decode(buffer);
 }
 
 // The binaryEncode/Decode functions below allow to encode an arbitrary binary

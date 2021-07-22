@@ -352,15 +352,18 @@ export abstract class Engine {
   }
 
   async getTracingMetadataTimeBounds(): Promise<TimeSpan> {
-    const queryRes = await this.queryV2(`select name, int_value from metadata
+    const queryRes = await this.queryV2(`select
+         name,
+         int_value as intValue
+         from metadata
          where name = 'tracing_started_ns' or name = 'tracing_disabled_ns'
          or name = 'all_data_source_started_ns'`);
     let startBound = -Infinity;
     let endBound = Infinity;
-    const it = queryRes.iter({'name': STR, 'int_value': NUM_NULL});
+    const it = queryRes.iter({'name': STR, 'intValue': NUM_NULL});
     for (; it.valid(); it.next()) {
       const columnName = it.name;
-      const timestamp = it.int_value;
+      const timestamp = it.intValue;
       if (timestamp === null) continue;
       if (columnName === 'tracing_disabled_ns') {
         endBound = Math.min(endBound, timestamp / 1e9);
