@@ -201,11 +201,25 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
       }
 
       for (auto it = args.begin(); it != args.end(); ++it) {
+        double counter;
+        if (it->isString()) {
+          auto opt = base::CStringToDouble(it->asCString());
+          if (!opt.has_value()) {
+            context_->storage->IncrementStats(stats::json_parser_failure);
+            continue;
+          }
+          counter = opt.value();
+        } else if (it->isNumeric()) {
+          counter = it->asDouble();
+        } else {
+          context_->storage->IncrementStats(stats::json_parser_failure);
+          continue;
+        }
         std::string counter_name = counter_name_prefix + " " + it.name();
         StringId counter_name_id =
             context_->storage->InternString(base::StringView(counter_name));
         context_->event_tracker->PushProcessCounterForThread(
-            timestamp, it->asDouble(), counter_name_id, utid);
+            timestamp, counter, counter_name_id, utid);
       }
       break;
     }
