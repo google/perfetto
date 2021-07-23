@@ -26,7 +26,10 @@
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/version.h"
+#include "tools/proto_merger/allowlist.h"
 #include "tools/proto_merger/proto_file.h"
+#include "tools/proto_merger/proto_file_serializer.h"
+#include "tools/proto_merger/proto_merger.h"
 
 namespace perfetto {
 namespace proto_merger {
@@ -76,20 +79,36 @@ ImportResult ImportProto(const std::string& proto_file,
   return result;
 }
 
-// TODO(lalitm): add example here once all the arguments are included.
 const char kUsage[] =
     R"(Usage: proto_merger [-i input proto] [-I import dir]
-  -i --input:            Path to the input .proto file (relative to
-                         --input-include directory). The contents of this
-                         file will be updated using the source of truth
-                         proto.
-  -I --input-include:    Root directory from which includes for --input
-                         proto should be searched.
-  -u --upstream:         Path to the upstream .proto file;
-                         the contents of this file will be used to update
-                         the input proto.
-  -U --upstream-include: Root directory from which includes for --upstream
-                         proto should be searched.
+
+-i, --input:                 Path to the input .proto file (relative to
+                              --input-include directory). The contents of this
+                              file will be updated using the upstream proto.
+-I, --input-include:         Root directory from which includes for --input
+                              proto should be searched.
+-u, --upstream:              Path to the upstream .proto file; the contents of
+                              this file will be used to update
+                              the input proto.
+-U, --upstream-include:      Root directory from which includes for --upstream
+                              proto should be searched.
+-a, --allowlist:             Allowlist file which is used to add new fields in
+                              the upstream proto to the input proto.
+-r, --upstream-root-message: Root message in the upstream proto for which new
+                              fields from the allowlist will be allowed.
+-o, --output:                Output path for writing the merged proto file.
+
+Example usage:
+
+# Updating logs proto from Perfetto repo (must be run in G3):
+  proto_merger \
+    -u third_party/perfetto/protos/perfetto/trace/perfetto_trace.proto \
+    -U . \
+    -i <path to logs proto>/perfetto_log.proto \
+    -I . \
+    --allowlist /tmp/allowlist.txt \
+    -r perfetto.protos.Trace \
+    --output /tmp/output.proto
 )";
 
 int Main(int argc, char** argv) {
@@ -100,15 +119,22 @@ int Main(int argc, char** argv) {
       {"input-include", required_argument, nullptr, 'I'},
       {"upstream", required_argument, nullptr, 'u'},
       {"upstream-include", required_argument, nullptr, 'U'},
+      {"allowlist", required_argument, nullptr, 'a'},
+      {"upstream-root-message", required_argument, nullptr, 'r'},
+      {"output", required_argument, nullptr, 'o'},
       {nullptr, 0, nullptr, 0}};
 
   std::string input;
   std::string input_include;
   std::string upstream;
   std::string upstream_include;
+  std::string allowlist;
+  std::string upstream_root_message;
+  std::string output;
 
   for (;;) {
-    int option = getopt_long(argc, argv, "hvi:I:u:U:", long_options, nullptr);
+    int option =
+        getopt_long(argc, argv, "hvi:I:u:U:a:r:o:", long_options, nullptr);
 
     if (option == -1)
       break;  // EOF.
@@ -135,6 +161,21 @@ int Main(int argc, char** argv) {
 
     if (option == 'U') {
       upstream_include = optarg;
+      continue;
+    }
+
+    if (option == 'a') {
+      allowlist = optarg;
+      continue;
+    }
+
+    if (option == 'r') {
+      upstream_root_message = optarg;
+      continue;
+    }
+
+    if (option == 'o') {
+      output = optarg;
       continue;
     }
 
@@ -169,6 +210,18 @@ int Main(int argc, char** argv) {
     return 1;
   }
 
+  if (output.empty()) {
+    PERFETTO_ELOG("Output file (--output) should be specified");
+    return 1;
+  }
+
+  if (!allowlist.empty() && upstream_root_message.empty()) {
+    PERFETTO_ELOG(
+        "Need to specifiy upstream root message (--upstream-root-message) when "
+        "specifying allowlist");
+    return 1;
+  }
+
   ImportResult input_proto = ImportProto(input, input_include);
   ProtoFile input_file = ProtoFileFromDescriptor(*input_proto.file_descriptor);
 
@@ -176,9 +229,46 @@ int Main(int argc, char** argv) {
   ProtoFile upstream_file =
       ProtoFileFromDescriptor(*upstream_proto.file_descriptor);
 
-  // TODO(lalitm): actually make use of the ProtoFiles in a followup CL.
-  base::ignore_result(input_file);
-  base::ignore_result(upstream_file);
+  Allowlist allowed;
+  if (!allowlist.empty()) {
+    std::string allowlist_contents;
+    if (!base::ReadFile(allowlist, &allowlist_contents)) {
+      PERFETTO_ELOG("Failed to read allowlist");
+      return 1;
+    }
+
+    auto* desc = upstream_proto.importer->pool()->FindMessageTypeByName(
+        upstream_root_message);
+    if (!desc) {
+      PERFETTO_ELOG(
+          "Failed to find root message descriptor in upstream proto file");
+      return 1;
+    }
+
+    auto field_list = base::SplitString(allowlist_contents, "\n");
+    base::Status status = AllowlistFromFieldList(*desc, field_list, allowed);
+    if (!status.ok()) {
+      PERFETTO_ELOG("Failed creating allowlist: %s", status.c_message());
+      return 1;
+    }
+  }
+
+  ProtoFile merged;
+  base::Status status =
+      MergeProtoFiles(input_file, upstream_file, allowed, merged);
+  if (!status.ok()) {
+    PERFETTO_ELOG("Failed merging protos: %s", status.c_message());
+    return 1;
+  }
+
+  base::ScopedFile output_file(
+      base::OpenFile(output, O_CREAT | O_WRONLY | O_TRUNC, 0664));
+  if (!output_file) {
+    PERFETTO_ELOG("Failed opening output file: %s", output.c_str());
+    return 1;
+  }
+  std::string out = ProtoFileToDotProto(merged);
+  base::WriteAll(*output_file, out.c_str(), out.size());
 
   return 0;
 }

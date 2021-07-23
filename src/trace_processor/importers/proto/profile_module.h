@@ -45,6 +45,7 @@ class ProfileModule : public ProtoImporterModule {
                    uint32_t field_id) override;
 
  private:
+  // chrome stack sampling:
   ModuleResult TokenizeStreamingProfilePacket(
       PacketSequenceState*,
       TraceBlobView* packet,
@@ -54,9 +55,22 @@ class ProfileModule : public ProtoImporterModule {
       PacketSequenceStateGeneration*,
       protozero::ConstBytes streaming_profile_packet);
 
+  // perf event profiling:
   void ParsePerfSample(int64_t ts,
                        PacketSequenceStateGeneration* sequence_state,
                        const protos::pbzero::TracePacket::Decoder& decoder);
+
+  // heap profiling:
+  void ParseProfilePacket(int64_t ts,
+                          PacketSequenceStateGeneration*,
+                          uint32_t seq_id,
+                          protozero::ConstBytes);
+  void ParseDeobfuscationMapping(int64_t ts,
+                                 PacketSequenceStateGeneration*,
+                                 uint32_t seq_id,
+                                 protozero::ConstBytes);
+  void ParseModuleSymbols(protozero::ConstBytes);
+  void ParseSmapsPacket(int64_t ts, protozero::ConstBytes);
 
   TraceProcessorContext* context_;
 };
