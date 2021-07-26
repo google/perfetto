@@ -16,6 +16,7 @@
 
 #include "src/profiling/symbolizer/breakpad_symbolizer.h"
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_view.h"
@@ -30,18 +31,22 @@ namespace {
 // Returns the file path for a breakpad symbol file with the given |build_id|.
 std::string MakeFilePath(const std::string& build_id,
                          const std::string& symbol_dir_path) {
-  char file_path[1000];
   // The directory of the symbol file is stored in an environment variable.
   constexpr char kBreakpadSuffix[] = ".breakpad";
+  std::string file_path;
   // Append file name to symbol directory path using |build_id| and
   // |kBreakpadSuffix|.
-  base::StringWriter file_path_writer(file_path, base::ArraySize(file_path));
-  file_path_writer.AppendString(symbol_dir_path.c_str(),
-                                symbol_dir_path.size());
-  // TODO(uwemwilson): append a path separator here for file path.
-  file_path_writer.AppendString(build_id.c_str(), build_id.size());
-  file_path_writer.AppendString(kBreakpadSuffix, strlen(kBreakpadSuffix));
-  return file_path_writer.GetStringView().ToStdString();
+  file_path.append(symbol_dir_path);
+// TODO: Add a path utility for perfetto to use here.
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  file_path.append("\\");
+#else
+  file_path.append("/");
+#endif
+  file_path.append(build_id);
+  file_path.append(kBreakpadSuffix);
+
+  return file_path;
 }
 
 }  // namespace
