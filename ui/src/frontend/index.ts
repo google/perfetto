@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import '../tracks/all_frontend';
+import '../tracks/all_imports';
 
 import {applyPatches, Patch, produce} from 'immer';
 import * as m from 'mithril';
