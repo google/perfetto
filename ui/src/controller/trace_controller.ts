@@ -22,6 +22,7 @@ import {
 import {cacheTrace} from '../common/cache_manager';
 import {TRACE_MARGIN_TIME_S} from '../common/constants';
 import {Engine, QueryError} from '../common/engine';
+import {featureFlags, Flag} from '../common/feature_flags';
 import {HttpRpcEngine} from '../common/http_rpc_engine';
 import {NUM, NUM_NULL, STR, STR_NULL} from '../common/query_result';
 import {EngineMode} from '../common/state';
@@ -86,6 +87,31 @@ import {TrackControllerArgs, trackControllerRegistry} from './track_controller';
 import {decideTracks} from './track_decider';
 
 type States = 'init'|'loading_trace'|'ready';
+
+const METRICS = [
+  'android_startup',
+  'android_ion',
+  'android_dma_heap',
+  'android_thread_time_in_state',
+  'android_surfaceflinger',
+  'android_batt',
+  'android_sysui_cuj',
+  'android_jank',
+  'trace_metadata',
+];
+const FLAGGED_METRICS: Array<[Flag, string]> = METRICS.map(m => {
+  const id = `forceMetric${m}`;
+  let name = m.split('_').join(' ') + ' metric';
+  name = name[0].toUpperCase() + name.slice(1);
+  const flag = featureFlags.register({
+    id,
+    name,
+    description: `Overrides running the '${m}' metric at import time.`,
+    defaultValue: true,
+  });
+  return [flag, m];
+});
+
 
 // TraceController handles handshakes with the frontend for everything that
 // concerns a single trace. It owns the WASM trace processor engine, handles
@@ -549,16 +575,13 @@ export class TraceController extends Controller<States> {
       );
     `);
 
-    for (const metric
-             of ['android_startup',
-                 'android_ion',
-                 'android_dma_heap',
-                 'android_thread_time_in_state',
-                 'android_surfaceflinger',
-                 'android_batt',
-                 'android_sysui_cuj',
-                 'android_jank',
-                 'trace_metadata']) {
+
+    for (const [flag, metric] of FLAGGED_METRICS) {
+      if (!flag.get()) {
+        continue;
+      }
+
+
       this.updateStatus(`Computing ${metric} metric`);
       try {
         // We don't care about the actual result of metric here as we are just
