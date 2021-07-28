@@ -1,0 +1,17 @@
+packet {
+    ftrace_events {
+      cpu: 3
+      event {
+        timestamp: 74289018336
+        pid: 1
+        cgroup_attach_task {
+          dst_root: 1
+          dst_id: 2
+          pid: 3
+          comm: "foo"
+          dst_level: 4
+          dst_path: "bar"
+        }
+      }
+    }
+  }
