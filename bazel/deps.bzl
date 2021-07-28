@@ -25,7 +25,7 @@ def perfetto_deps():
         http_archive,
         name = "com_google_protobuf",
         strip_prefix = "protobuf-3.9.0",
-        url = "https://github.com/google/protobuf/archive/v3.9.0.tar.gz",
+        url = "https://github.com/protocolbuffers/protobuf/archive/v3.9.0.tar.gz",
         sha256 = "2ee9dcec820352671eb83e081295ba43f7a4157181dad549024d7070d079cf65",
     )
 
