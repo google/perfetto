@@ -33,6 +33,7 @@ import {loadAndroidBugToolInfo} from './android_bug_tool';
 import {initCssConstants} from './css_constants';
 import {maybeShowErrorDialog} from './error_dialog';
 import {installFileDropHandler} from './file_drop_handler';
+import {FlagsPage} from './flags_page';
 import {globals} from './globals';
 import {HomePage} from './home_page';
 import {initLiveReloadIfLocalhost} from './live_reload';
@@ -269,6 +270,7 @@ function main() {
   routes.set('/viewer', ViewerPage);
   routes.set('/record', RecordPage);
   routes.set('/query', AnalyzePage);
+  routes.set('/flags', FlagsPage);
   routes.set('/metrics', MetricsPage);
   routes.set('/info', TraceInfoPage);
   const router = new Router('/', routes, dispatch, globals.logging);
