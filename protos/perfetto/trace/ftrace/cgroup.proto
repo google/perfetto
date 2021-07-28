@@ -11,6 +11,8 @@ message CgroupAttachTaskFtraceEvent {
   optional int32 pid = 3;
   optional string comm = 4;
   optional string cname = 5;
+  optional int32 dst_level = 6;
+  optional string dst_path = 7;
 }
 message CgroupMkdirFtraceEvent {
   optional int32 root = 1;
