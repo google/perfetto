@@ -617,7 +617,7 @@ std::array<MessageDescriptor, 359> descriptors{{
     },
     {
         "cgroup_attach_task",
-        5,
+        7,
         {
             {},
             {"dst_root", ProtoSchemaType::kInt32},
@@ -625,6 +625,8 @@ std::array<MessageDescriptor, 359> descriptors{{
             {"pid", ProtoSchemaType::kInt32},
             {"comm", ProtoSchemaType::kString},
             {"cname", ProtoSchemaType::kString},
+            {"dst_level", ProtoSchemaType::kInt32},
+            {"dst_path", ProtoSchemaType::kString},
         },
     },
     {
