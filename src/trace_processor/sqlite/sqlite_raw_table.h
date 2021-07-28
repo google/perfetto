@@ -36,7 +36,8 @@ class SystraceSerializer {
   ScopedCString SerializeToString(uint32_t raw_row);
 
  private:
-  using StringIdMap = std::unordered_map<StringId, std::vector<uint32_t>>;
+  using StringIdMap =
+      std::unordered_map<StringId, std::vector<base::Optional<uint32_t>>>;
 
   void SerializePrefix(uint32_t raw_row, base::StringWriter* writer);
 
