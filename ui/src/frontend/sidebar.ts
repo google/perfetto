@@ -305,6 +305,7 @@ const SECTIONS: Section[] = [
         a: 'https://perfetto.dev',
         i: 'find_in_page',
       },
+      {t: 'Flags', a: navigateFlags, i: 'emoji_flags'},
       {
         t: 'Report a bug',
         a: 'https://goto.google.com/perfetto-ui-bug',
@@ -524,6 +525,11 @@ function navigateRecord(e: Event) {
 function navigateAnalyze(e: Event) {
   e.preventDefault();
   globals.dispatch(Actions.navigate({route: '/query'}));
+}
+
+function navigateFlags(e: Event) {
+  e.preventDefault();
+  globals.dispatch(Actions.navigate({route: '/flags'}));
 }
 
 function navigateMetrics(e: Event) {

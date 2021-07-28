@@ -17,6 +17,7 @@ import {produce} from 'immer';
 import * as m from 'mithril';
 
 import {Actions} from '../common/actions';
+import {featureFlags} from '../common/feature_flags';
 import {MeminfoCounters, VmstatCounters} from '../common/protos';
 import {
   AdbRecordingTarget,
@@ -50,7 +51,12 @@ import {
   ToggleAttrs
 } from './record_widgets';
 
-const LOCAL_STORAGE_SHOW_CONFIG = 'showConfigs';
+const PERSIST_CONFIG_FLAG = featureFlags.register({
+  id: 'persistConfigsUI',
+  name: 'Config persistence UI',
+  description: 'Show experimental config persistance UI on the record page.',
+  defaultValue: false,
+});
 
 const POLL_INTERVAL_MS = [250, 500, 1000, 2500, 5000, 30000, 60000];
 
@@ -871,7 +877,7 @@ function Instructions(cssClass: string) {
   return m(
       `.record-section.instructions${cssClass}`,
       m('header', 'Recording command'),
-      localStorage.hasOwnProperty(LOCAL_STORAGE_SHOW_CONFIG) ?
+      PERSIST_CONFIG_FLAG.get() ?
           m('button.permalinkconfig',
             {
               onclick: () => {
@@ -1299,7 +1305,7 @@ function recordMenu(routePage: string) {
             m('i.material-icons.rec', 'fiber_manual_record'),
             m('.title', 'Recording command'),
             m('.sub', 'Manually record trace'))),
-        localStorage.hasOwnProperty(LOCAL_STORAGE_SHOW_CONFIG) ?
+        PERSIST_CONFIG_FLAG.get() ?
             m('a[href="#!/record/config"]',
               {
                 onclick: () => {
