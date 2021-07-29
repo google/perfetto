@@ -259,3 +259,44 @@ test('QueryResult.MultipleBatches', async () => {
   expect(awaitRes.numRows()).toBe(2);
   expect(qr.numRows()).toBe(2);
 });
+
+
+// Regression test for b/194891824 .
+test('QueryResult.DuplicateColumnNames', () => {
+  const batch = QueryResultProto.CellsBatch.create({
+    cells: [
+      T.CELL_VARINT,
+      T.CELL_STRING,
+      T.CELL_FLOAT64,
+      T.CELL_STRING,
+      T.CELL_STRING
+    ],
+    varintCells: [42],
+    stringCells: ['a', 'b', 'c'].join('\0'),
+    float64Cells: [4.2],
+    isLastBatch: true,
+  });
+  const resProto = QueryResultProto.create({
+    columnNames: ['x', 'y', 'x', 'x', 'y'],
+    batch: [batch],
+  });
+
+  const qr = createQueryResult();
+  qr.appendResultBatch(QueryResultProto.encode(resProto).finish());
+  expect(qr.isComplete()).toBe(true);
+  expect(qr.numRows()).toBe(1);
+  expect(qr.columns()).toEqual(['x', 'y', 'x_1', 'x_2', 'y_1']);
+  // First try iterating without selecting any column.
+  {
+    const iter = qr.iter({x: NUM, y: STR, x_1: NUM, x_2: STR, y_1: STR});
+    expect(iter.valid()).toBe(true);
+    expect(iter.x).toBe(42);
+    expect(iter.y).toBe('a');
+    expect(iter.x_1).toBe(4.2);
+    expect(iter.x_2).toBe('b');
+    expect(iter.y_1).toBe('c');
+    iter.next();
+    expect(iter.valid()).toBe(false);
+  }
+  expect(() => qr.iter({x_3: NUM})).toThrowError(/\bx_3\b.*not found/);
+});
