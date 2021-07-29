@@ -76,6 +76,7 @@ export class FrontendLocalState {
   scrollToTrackId?: string|number;
   httpRpcState: HttpRpcState = {connected: false};
   newVersionAvailable = false;
+  showPivotTable = false;
 
   // This is used to calculate the tracks within a Y range for area selection.
   areaY: Range = {};
@@ -131,6 +132,11 @@ export class FrontendLocalState {
           Actions.setVisibleTracks({tracks: Array.from(this.visibleTracks)}));
       this.prevVisibleTracks = new Set(this.visibleTracks);
     }
+  }
+
+  togglePivotTable() {
+    this.showPivotTable = !this.showPivotTable;
+    globals.rafScheduler.scheduleFullRedraw();
   }
 
   mergeState(state: FrontendState): void {

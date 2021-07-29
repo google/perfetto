@@ -32,6 +32,7 @@ import {HeapProfileDetailsPanel} from './heap_profile_panel';
 import {LogPanel} from './logs_panel';
 import {NotesEditorPanel} from './notes_panel';
 import {AnyAttrsVnode, PanelContainer} from './panel_container';
+import {PivotTable} from './pivot_table';
 import {QueryTable} from './query_table';
 import {SliceDetailsPanel} from './slice_panel';
 import {ThreadStatePanel} from './thread_state_panel';
@@ -280,6 +281,14 @@ export class DetailsPanel implements m.ClassComponent {
         key: 'query_result',
         name: `Query Result (${count})`,
         vnode: m(QueryTable, {key: 'query', queryId: 'command'})
+      });
+    }
+
+    if (globals.frontendLocalState.showPivotTable) {
+      detailsPanels.push({
+        key: 'pivot_table',
+        name: 'Pivot Table',
+        vnode: m(PivotTable, {key: 'query', queryId: 'pivot-table-query'})
       });
     }
 
