@@ -16,10 +16,9 @@ import {searchEq, searchRange, searchSegment} from '../../base/binary_search';
 import {assertTrue} from '../../base/logging';
 import {Actions} from '../../common/actions';
 import {colorForThread} from '../../common/colorizer';
-import {TrackState} from '../../common/state';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
-import {Track} from '../../frontend/track';
+import {NewTrackArgs, Track} from '../../frontend/track';
 import {trackRegistry} from '../../frontend/track_registry';
 
 import {
@@ -34,15 +33,15 @@ const TRACK_HEIGHT = MARGIN_TOP * 2 + RECT_HEIGHT;
 
 class ProcessSchedulingTrack extends Track<Config, Data> {
   static readonly kind = PROCESS_SCHEDULING_TRACK_KIND;
-  static create(trackState: TrackState): ProcessSchedulingTrack {
-    return new ProcessSchedulingTrack(trackState);
+  static create(args: NewTrackArgs): ProcessSchedulingTrack {
+    return new ProcessSchedulingTrack(args);
   }
 
   private mouseXpos?: number;
   private utidHoveredInThisTrack = -1;
 
-  constructor(trackState: TrackState) {
-    super(trackState);
+  constructor(args: NewTrackArgs) {
+    super(args.trackId);
   }
 
   getHeight(): number {

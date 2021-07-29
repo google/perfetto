@@ -11,8 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {TrackState} from '../../common/state';
-import {Track} from '../../frontend/track';
+import {NewTrackArgs, Track} from '../../frontend/track';
 import {trackRegistry} from '../../frontend/track_registry';
 import {ChromeSliceTrack} from '../chrome_slices/frontend';
 
@@ -20,8 +19,8 @@ import {EXPECTED_FRAMES_SLICE_TRACK_KIND} from './common';
 
 export class ExpectedFramesSliceTrack extends ChromeSliceTrack {
   static readonly kind = EXPECTED_FRAMES_SLICE_TRACK_KIND;
-  static create(trackState: TrackState): Track {
-    return new ExpectedFramesSliceTrack(trackState);
+  static create(args: NewTrackArgs): Track {
+    return new ExpectedFramesSliceTrack(args);
   }
 }
 
