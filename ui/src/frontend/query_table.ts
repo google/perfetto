@@ -20,7 +20,7 @@ import {QueryResponse} from '../common/queries';
 import {Row} from '../common/query_result';
 import {fromNs} from '../common/time';
 
-import {copyToClipboard} from './clipboard';
+import {queryResponseToClipboard} from './clipboard';
 import {globals} from './globals';
 import {Panel} from './panel';
 import {
@@ -141,26 +141,14 @@ export class QueryTable extends Panel<QueryTableAttrs> {
             'header.overview',
             `Query result - ${Math.round(resp.durationMs)} ms`,
             m('span.code', resp.query),
-            resp.error ?
-                null :
-                m('button.query-ctrl',
-                  {
-                    onclick: () => {
-                      const lines: string[][] = [];
-                      lines.push(resp.columns);
-                      for (const row of resp.rows) {
-                        const line = [];
-                        for (const col of resp.columns) {
-                          const value = row[col];
-                          line.push(value === null ? 'NULL' : value.toString());
-                        }
-                        lines.push(line);
-                      }
-                      copyToClipboard(
-                          lines.map(line => line.join('\t')).join('\n'));
-                    },
-                  },
-                  'Copy as .tsv'),
+            resp.error ? null :
+                         m('button.query-ctrl',
+                           {
+                             onclick: () => {
+                               queryResponseToClipboard(resp);
+                             },
+                           },
+                           'Copy as .tsv'),
             m('button.query-ctrl',
               {
                 onclick: () => {
