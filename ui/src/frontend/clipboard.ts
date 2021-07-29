@@ -13,6 +13,8 @@
 // limitations under the License.
 
 import {Actions} from '../common/actions';
+import {QueryResponse} from '../common/queries';
+
 import {globals} from './globals';
 
 export function onClickCopy(url: string) {
@@ -32,6 +34,21 @@ export async function copyToClipboard(text: string): Promise<void> {
   } catch (err) {
     console.error(`Failed to copy "${text}" to clipboard: ${err}`);
   }
+}
+
+export async function queryResponseToClipboard(resp: QueryResponse):
+    Promise<void> {
+  const lines: string[][] = [];
+  lines.push(resp.columns);
+  for (const row of resp.rows) {
+    const line = [];
+    for (const col of resp.columns) {
+      const value = row[col];
+      line.push(value === null ? 'NULL' : value.toString());
+    }
+    lines.push(line);
+  }
+  copyToClipboard(lines.map(line => line.join('\t')).join('\n'));
 }
 
 export function download(file: File, name?: string): void {
