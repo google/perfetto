@@ -17,11 +17,10 @@ import {hsluvToHex} from 'hsluv';
 import {searchSegment} from '../../base/binary_search';
 import {Actions} from '../../common/actions';
 import {hslForSlice} from '../../common/colorizer';
-import {TrackState} from '../../common/state';
 import {fromNs, toNs} from '../../common/time';
 import {globals} from '../../frontend/globals';
 import {TimeScale} from '../../frontend/time_scale';
-import {Track} from '../../frontend/track';
+import {NewTrackArgs, Track} from '../../frontend/track';
 import {trackRegistry} from '../../frontend/track_registry';
 
 import {Config, CPU_PROFILE_TRACK_KIND, Data} from './common';
@@ -35,16 +34,16 @@ function colorForSample(callsiteId: number, isHovered: boolean): string {
 
 class CpuProfileTrack extends Track<Config, Data> {
   static readonly kind = CPU_PROFILE_TRACK_KIND;
-  static create(trackState: TrackState): CpuProfileTrack {
-    return new CpuProfileTrack(trackState);
+  static create(args: NewTrackArgs): CpuProfileTrack {
+    return new CpuProfileTrack(args);
   }
 
   private centerY = this.getHeight() / 2;
   private markerWidth = (this.getHeight() - MARGIN_TOP) / 2;
   private hoveredTs: number|undefined = undefined;
 
-  constructor(trackState: TrackState) {
-    super(trackState);
+  constructor(args: NewTrackArgs) {
+    super(args.trackId);
   }
 
   getHeight() {

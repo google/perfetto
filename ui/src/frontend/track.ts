@@ -21,6 +21,13 @@ import {globals} from './globals';
 import {TrackButtonAttrs} from './track_panel';
 
 /**
+ * Args passed to the track constructors when creating a new track.
+ */
+export interface NewTrackArgs {
+  trackId: string;
+}
+
+/**
  * This interface forces track implementations to have some static properties.
  * Typescript does not have abstract static members, which is why this needs to
  * be in a separate interface.
@@ -30,9 +37,9 @@ export interface TrackCreator {
   // case we ever minify our code.
   readonly kind: string;
 
-  // We need the |create| method because the stored value in the registry is an
-  // abstract class, and we cannot call 'new' on an abstract class.
-  create(TrackState: TrackState): Track;
+  // We need the |create| method because the stored value in the registry can be
+  // an abstract class, and we cannot call 'new' on an abstract class.
+  create(args: NewTrackArgs): Track;
 }
 
 export interface SliceRect {
@@ -48,9 +55,10 @@ export interface SliceRect {
  */
 export abstract class Track<Config = {}, Data extends TrackData = TrackData> {
   private trackId: string;
-  constructor(trackState: TrackState) {
-    this.trackId = trackState.id;
+  constructor(trackId: string) {
+    this.trackId = trackId;
   }
+
   protected abstract renderCanvas(ctx: CanvasRenderingContext2D): void;
 
   protected get trackState(): TrackState {
