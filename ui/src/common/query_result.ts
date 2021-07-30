@@ -260,6 +260,7 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
     const reader = protobuf.Reader.create(resBytes);
     assertTrue(reader.pos === 0);
     const columnNamesEmptyAtStartOfBatch = this.columnNames.length === 0;
+    const columnNamesSet = new Set<string>();
     while (reader.pos < reader.len) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -267,7 +268,20 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
           // Only the first batch should contain the column names. If this fires
           // something is going wrong in the handling of the batch stream.
           assertTrue(columnNamesEmptyAtStartOfBatch);
-          this.columnNames.push(reader.string());
+          const origColName = reader.string();
+          let colName = origColName;
+          // In some rare cases two columns can have the same name (b/194891824)
+          // e.g. `select 1 as x, 2 as x`. These queries don't happen in the
+          // UI code, but they can happen when the user types a query (e.g.
+          // with a join). The most practical thing we can do here is renaming
+          // the columns with a suffix. Keeping the same name will break when
+          // iterating, because column names become iterator object keys.
+          for (let i = 1; columnNamesSet.has(colName); ++i) {
+            colName = `${origColName}_${i}`;
+            assertTrue(i < 100);  // Give up at some point;
+          }
+          columnNamesSet.add(colName);
+          this.columnNames.push(colName);
           break;
         case 2:  // error
           // The query has errored only if the |error| field is non-empty.

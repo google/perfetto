@@ -71,6 +71,10 @@ export function handleKey(e: KeyboardEvent, down: boolean) {
       moveByFocusedFlow('Backward');
     }
   }
+  if (down && 'p' === key && e.ctrlKey && globals.isInternalUser) {
+    e.preventDefault();
+    globals.frontendLocalState.togglePivotTable();
+  }
 }
 
 // Search |boundFlows| for |flowId| and return the id following it.
