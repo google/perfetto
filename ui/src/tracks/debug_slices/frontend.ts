@@ -15,9 +15,8 @@
 import * as m from 'mithril';
 
 import {Actions} from '../../common/actions';
-import {TrackState} from '../../common/state';
 import {globals} from '../../frontend/globals';
-import {Track} from '../../frontend/track';
+import {NewTrackArgs, Track} from '../../frontend/track';
 import {TrackButton, TrackButtonAttrs} from '../../frontend/track_panel';
 import {trackRegistry} from '../../frontend/track_registry';
 import {ChromeSliceTrack} from '../chrome_slices/frontend';
@@ -26,8 +25,8 @@ import {DEBUG_SLICE_TRACK_KIND} from './common';
 
 export class DebugSliceTrack extends ChromeSliceTrack {
   static readonly kind = DEBUG_SLICE_TRACK_KIND;
-  static create(trackState: TrackState): Track {
-    return new DebugSliceTrack(trackState);
+  static create(args: NewTrackArgs): Track {
+    return new DebugSliceTrack(args);
   }
 
   getTrackShellButtons(): Array<m.Vnode<TrackButtonAttrs>> {
