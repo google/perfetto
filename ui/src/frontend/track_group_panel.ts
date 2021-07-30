@@ -55,7 +55,8 @@ export class TrackGroupPanel extends Panel<Attrs> {
     super();
     this.trackGroupId = attrs.trackGroupId;
     const trackCreator = trackRegistry.get(this.summaryTrackState.kind);
-    this.summaryTrack = trackCreator.create(this.summaryTrackState);
+    this.summaryTrack =
+        trackCreator.create({trackId: this.summaryTrackState.id});
   }
 
   get trackGroupState(): TrackGroupState {
