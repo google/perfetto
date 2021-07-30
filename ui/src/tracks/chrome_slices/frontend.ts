@@ -18,10 +18,9 @@ import {Actions} from '../../common/actions';
 import {cropText, drawIncompleteSlice} from '../../common/canvas_utils';
 import {hslForSlice, hslForThreadIdleSlice} from '../../common/colorizer';
 import {TRACE_MARGIN_TIME_S} from '../../common/constants';
-import {TrackState} from '../../common/state';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
-import {SliceRect, Track} from '../../frontend/track';
+import {NewTrackArgs, SliceRect, Track} from '../../frontend/track';
 import {trackRegistry} from '../../frontend/track_registry';
 
 import {Config, Data, SLICE_TRACK_KIND} from './common';
@@ -36,14 +35,14 @@ const INNER_CHEVRON_SCALE =
 
 export class ChromeSliceTrack extends Track<Config, Data> {
   static readonly kind: string = SLICE_TRACK_KIND;
-  static create(trackState: TrackState): Track {
-    return new ChromeSliceTrack(trackState);
+  static create(args: NewTrackArgs): Track {
+    return new ChromeSliceTrack(args);
   }
 
   private hoveredTitleId = -1;
 
-  constructor(trackState: TrackState) {
-    super(trackState);
+  constructor(args: NewTrackArgs) {
+    super(args.trackId);
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D): void {

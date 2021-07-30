@@ -13,10 +13,9 @@
 // limitations under the License.
 
 import {colorForTid} from '../../common/colorizer';
-import {TrackState} from '../../common/state';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
-import {Track} from '../../frontend/track';
+import {NewTrackArgs, Track} from '../../frontend/track';
 import {trackRegistry} from '../../frontend/track_registry';
 
 import {
@@ -32,12 +31,12 @@ const SUMMARY_HEIGHT = TRACK_HEIGHT - MARGIN_TOP;
 
 class ProcessSummaryTrack extends Track<Config, Data> {
   static readonly kind = PROCESS_SUMMARY_TRACK;
-  static create(trackState: TrackState): ProcessSummaryTrack {
-    return new ProcessSummaryTrack(trackState);
+  static create(args: NewTrackArgs): ProcessSummaryTrack {
+    return new ProcessSummaryTrack(args);
   }
 
-  constructor(trackState: TrackState) {
-    super(trackState);
+  constructor(args: NewTrackArgs) {
+    super(args.trackId);
   }
 
   getHeight(): number {
