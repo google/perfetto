@@ -17,11 +17,10 @@ import * as m from 'mithril';
 import {searchSegment} from '../../base/binary_search';
 import {assertTrue} from '../../base/logging';
 import {Actions} from '../../common/actions';
-import {TrackState} from '../../common/state';
 import {toNs} from '../../common/time';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
-import {Track} from '../../frontend/track';
+import {NewTrackArgs, Track} from '../../frontend/track';
 import {TrackButton, TrackButtonAttrs} from '../../frontend/track_panel';
 import {trackRegistry} from '../../frontend/track_registry';
 
@@ -81,8 +80,8 @@ function getCounterScaleAttribute(scale?: CounterScaleOptions):
 
 class CounterTrack extends Track<Config, Data> {
   static readonly kind = COUNTER_TRACK_KIND;
-  static create(trackState: TrackState): CounterTrack {
-    return new CounterTrack(trackState);
+  static create(args: NewTrackArgs): CounterTrack {
+    return new CounterTrack(args);
   }
 
   private mouseXpos = 0;
@@ -90,8 +89,8 @@ class CounterTrack extends Track<Config, Data> {
   private hoveredTs: number|undefined = undefined;
   private hoveredTsEnd: number|undefined = undefined;
 
-  constructor(trackState: TrackState) {
-    super(trackState);
+  constructor(args: NewTrackArgs) {
+    super(args.trackId);
   }
 
   getHeight() {

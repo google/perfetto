@@ -279,9 +279,10 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
   private trackState: TrackState;
   constructor(vnode: m.CVnode<TrackPanelAttrs>) {
     super();
-    this.trackState = globals.state.tracks[vnode.attrs.id];
+    const trackId = vnode.attrs.id;
+    this.trackState = globals.state.tracks[trackId];
     const trackCreator = trackRegistry.get(this.trackState.kind);
-    this.track = trackCreator.create(this.trackState);
+    this.track = trackCreator.create({trackId});
   }
 
   view() {

@@ -12,10 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {TrackState} from '../../common/state';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
-import {Track} from '../../frontend/track';
+import {NewTrackArgs, Track} from '../../frontend/track';
 import {trackRegistry} from '../../frontend/track_registry';
 
 import {ANDROID_LOGS_TRACK_KIND, Config, Data} from './common';
@@ -40,12 +39,12 @@ const EVT_PX = 2;  // Width of an event tick in pixels.
 
 class AndroidLogTrack extends Track<Config, Data> {
   static readonly kind = ANDROID_LOGS_TRACK_KIND;
-  static create(trackState: TrackState): AndroidLogTrack {
-    return new AndroidLogTrack(trackState);
+  static create(args: NewTrackArgs): AndroidLogTrack {
+    return new AndroidLogTrack(args);
   }
 
-  constructor(trackState: TrackState) {
-    super(trackState);
+  constructor(args: NewTrackArgs) {
+    super(args.trackId);
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D): void {
