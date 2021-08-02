@@ -107,7 +107,12 @@
       "python3",
       "tools/ninja",
       "-C",
-      "[CACHE]/builder/perfetto/out/android-arm"
+      "[CACHE]/builder/perfetto/out/android-arm",
+      "trace_processor_shell",
+      "tracebox",
+      "perfetto",
+      "traced",
+      "traced_probes"
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "name": "android-arm.ninja",
@@ -505,7 +510,12 @@
       "python3",
       "tools/ninja",
       "-C",
-      "[CACHE]/builder/perfetto/out/android-arm64"
+      "[CACHE]/builder/perfetto/out/android-arm64",
+      "trace_processor_shell",
+      "tracebox",
+      "perfetto",
+      "traced",
+      "traced_probes"
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "name": "android-arm64.ninja",
@@ -903,7 +913,12 @@
       "python3",
       "tools/ninja",
       "-C",
-      "[CACHE]/builder/perfetto/out/android-x86"
+      "[CACHE]/builder/perfetto/out/android-x86",
+      "trace_processor_shell",
+      "tracebox",
+      "perfetto",
+      "traced",
+      "traced_probes"
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "name": "android-x86.ninja",
@@ -1301,7 +1316,12 @@
       "python3",
       "tools/ninja",
       "-C",
-      "[CACHE]/builder/perfetto/out/android-x64"
+      "[CACHE]/builder/perfetto/out/android-x64",
+      "trace_processor_shell",
+      "tracebox",
+      "perfetto",
+      "traced",
+      "traced_probes"
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "name": "android-x64.ninja",
