@@ -49,6 +49,8 @@ declare_args() {
 # 2. setting is_system_compiler=true in args.gn and the env vars AR/CC/CXX.
 #    This is used by OSSFuzz and CrOS ebuilds.
 
+_llvm_strip_wrapper = rebase_path("llvm-strip.py", root_build_dir)
+
 declare_args() {
   sysroot = ""
   gcc_toolchain = ""
@@ -58,7 +60,15 @@ declare_args() {
 
   if (is_linux_host) {
     linker = "gold"
-    strip = "strip"
+    if (linux_llvm_objcopy != "") {
+      # If we are using the hermetic clang toolchain llvm-objcopy from there as
+      # it works with Linux-arm cross toolchains. The |_llvm_strip_wrapper| is
+      # to set argv0 as llvm-strip. llvm-objcopy's frontend works differently
+      # when invoked as llvm-strip, pretending to be just 'strip'.
+      strip = "${_llvm_strip_wrapper} ${linux_llvm_objcopy}"
+    } else {
+      strip = "strip"
+    }
   } else if (is_mac_host) {
     strip = "strip -x"
   }
@@ -177,6 +187,7 @@ declare_args() {
     } else {
       assert(_target_triplet != "",
              "target_triplet must be non-empty when cross-compiling")
+      target_strip = strip
       if (is_clang) {
         if (is_linux_host) {
           target_cc = "${linux_clang_bin} --target=${_target_triplet}"
