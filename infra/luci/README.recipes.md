@@ -89,11 +89,11 @@ Raises:
 
 Recipe for building Perfetto.
 
-&mdash; **def [BuildForPlatform](/infra/luci/recipes/perfetto.py#135)(api, ctx, platform):**
+&mdash; **def [BuildForPlatform](/infra/luci/recipes/perfetto.py#134)(api, ctx, platform):**
 
 &mdash; **def [GnArgs](/infra/luci/recipes/perfetto.py#77)(platform):**
 
-&mdash; **def [RunSteps](/infra/luci/recipes/perfetto.py#155)(api, repository):**
+&mdash; **def [RunSteps](/infra/luci/recipes/perfetto.py#160)(api, repository):**
 
 &mdash; **def [UploadArtifact](/infra/luci/recipes/perfetto.py#86)(api, ctx, platform, out_dir, artifact):**
 ### *recipes* / [windows\_sdk:examples/full](/infra/luci/recipe_modules/windows_sdk/examples/full.py)
