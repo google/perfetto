@@ -155,7 +155,13 @@
       "python3",
       "tools/ninja",
       "-C",
-      "[CACHE]/builder/perfetto/out/mac-amd64"
+      "[CACHE]/builder/perfetto/out/mac-amd64",
+      "trace_processor_shell",
+      "trace_to_text",
+      "tracebox",
+      "perfetto",
+      "traced",
+      "traced_probes"
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "name": "ninja"
