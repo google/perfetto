@@ -20,12 +20,14 @@ declare_args() {
 
 assert(!is_hermetic_clang || is_clang, "is_hermetic_clang requires is_clang")
 
+linux_llvm_objcopy = ""
 if (is_linux_host) {
   if (is_hermetic_clang) {
     _hermetic_llvm_dir =
         rebase_path("//buildtools/linux64/clang", root_build_dir)
     linux_clang_bin = "$_hermetic_llvm_dir/bin/clang"
     linux_clangxx_bin = "$_hermetic_llvm_dir/bin/clang++"
+    linux_llvm_objcopy = "$_hermetic_llvm_dir/bin/llvm-objcopy"
     linux_clang_linker = "lld"
   } else if (is_clang && !is_system_compiler) {
     # Guess the path for the system clang.
