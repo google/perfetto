@@ -30,7 +30,7 @@ git clone https://android.googlesource.com/platform/external/perfetto/
 #### Pull dependent libraries and toolchains
 
 ```bash
-tools/install-build-deps [--android] [--ui]
+tools/install-build-deps [--android] [--ui] [--linux-arm]
 ```
 
 `--android` will pull the Android NDK, emulator and other deps required
@@ -38,6 +38,8 @@ to build for `target_os = "android"`.
 
 `--ui` will pull NodeJS and all the NPM modules required to build the
 Web UI. See the [UI Development](#ui-development) section below for more.
+
+`--linux-arm` will pull the sysroots for cross-compiling for Linux ARM/64.
 
 #### Generate the build files via GN
 
@@ -158,6 +160,7 @@ Android.bp file. If you are adding a new target, add a new entry to the
 
 - Hermetic clang + libcxx toolchain (both following chromium's revisions)
 - GCC-7 and libstdc++ 6
+- Cross-compiling for arm and arm64 (more below).
 
 **Android**
 
@@ -239,6 +242,39 @@ is_clang = false  # Will use MSVC 2019.
 ```bash
 python3 tools/ninja -C out/win perfetto traced trace_processor_shell
 ```
+
+### Cross-compiling for Linux ARM/64
+
+When cross-compiling for Linux you will need a sysroot. You have two options:
+
+#### 1. Use the built-in sysroots based on Debian Sid
+
+```bash
+tools/install-build-deps --linux-arm
+```
+
+Then set the following GN args:
+
+```python
+target_os = "linux"
+target_cpu = "arm"
+# or
+target_cpu = "arm64"
+```
+
+#### 2. Use your own sysroot
+
+In this case you need to manually specify the sysroot location and the
+toolchain prefix triplet to use.
+
+```python
+target_os = "linux"
+target_sysroot = "/path/to/sysroot"
+target_triplet = "aarch64-linux-gnu"  # Or any other supported triplet.
+```
+
+For more details see the [Using cutom toolchains](#custom-toolchain) section
+below.
 
 ## Build configurations
 
