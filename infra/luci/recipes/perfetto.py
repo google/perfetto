@@ -76,10 +76,10 @@ class BuildContext:
 
 def GnArgs(platform):
   (os, cpu) = platform.split('-')
-
   base_args = 'is_debug=false monolithic_binaries=true'
-  if 'android' != os:
-    return base_args
+  if os not in ('android', 'linux'):
+    return base_args  # No cross-compiling on Mac and Windows.
+  cpu = 'x64' if cpu == 'amd64' else cpu  # GN calls it "x64".
   return base_args + ' target_os="{}" target_cpu="{}"'.format(os, cpu)
 
 
@@ -134,13 +134,19 @@ def UploadArtifact(api, ctx, platform, out_dir, artifact):
 def BuildForPlatform(api, ctx, platform):
   out_dir = ctx.src_dir.join('out', platform)
 
-  # Buld Perfetto.
+  # Build Perfetto.
   # There should be no need for internet access here.
+
   with api.context(cwd=ctx.src_dir), api.macos_sdk(), api.windows_sdk():
+    targets = [
+        x['name']
+        for x in ARTIFACTS
+        if platform not in x.get('exclude_platforms', [])
+    ]
     args = GnArgs(platform)
     api.step('gn gen',
              ['python3', 'tools/gn', 'gen', out_dir, '--args={}'.format(args)])
-    api.step('ninja', ['python3', 'tools/ninja', '-C', out_dir])
+    api.step('ninja', ['python3', 'tools/ninja', '-C', out_dir] + targets)
 
   # Upload stripped artifacts using gsutil if we're on the official builder.
   if 'official' not in api.buildbucket.builder_id.builder:
@@ -180,8 +186,12 @@ def RunSteps(api, repository):
 
   # Pull all deps here.
   with api.context(cwd=src_dir, infra_steps=True):
-    extra_args = ['--android'
-                 ] if 'android' in api.buildbucket.builder_id.builder else []
+    extra_args = []
+    if 'android' in api.buildbucket.builder_id.builder:
+      extra_args += ['--android']
+    elif api.platform.is_linux:
+      # Pull the cross-toolchains for building for linux-arm{,64}.
+      extra_args += ['--linux-arm']
     api.step('build-deps', ['python3', 'tools/install-build-deps'] + extra_args)
 
   if api.platform.is_win:
@@ -197,16 +207,22 @@ def RunSteps(api, repository):
       BuildForPlatform(api, ctx, 'android-x86')
     with api.step.nest('android-x64'):
       BuildForPlatform(api, ctx, 'android-x64')
-  else:
-    BuildForPlatform(api, ctx, 'linux-amd64')
+  elif api.platform.is_linux:
+    with api.step.nest('linux-amd64'):
+      BuildForPlatform(api, ctx, 'linux-amd64')
+    with api.step.nest('linux-arm'):
+      BuildForPlatform(api, ctx, 'linux-arm')
+    with api.step.nest('linux-arm64'):
+      BuildForPlatform(api, ctx, 'linux-arm64')
 
 
 def GenTests(api):
-  for platform in ('linux', 'mac', 'win'):
-    yield (api.test('ci_' + platform) + api.platform.name(platform) +
+  for target in ('android', 'linux', 'mac', 'win'):
+    host = 'linux' if target == 'android' else target
+    yield (api.test('ci_' + target) + api.platform.name(host) +
            api.buildbucket.ci_build(
                project='perfetto',
-               builder='official',
+               builder='perfetto-official-builder-%s' % target,
                git_repo='android.googlesource.com/platform/external/perfetto',
            ))
 
@@ -216,12 +232,6 @@ def GenTests(api):
              builder='official',
              git_repo='android.googlesource.com/platform/external/perfetto',
              revision='refs/tags/v13.0'))
-
-  yield (api.test('ci_android') + api.platform.name('linux') +
-         api.buildbucket.ci_build(
-             project='perfetto',
-             builder='official-android',
-             git_repo='android.googlesource.com/platform/external/perfetto'))
 
   yield (api.test('unofficial') + api.platform.name('linux') +
          api.buildbucket.ci_build(
