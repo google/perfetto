@@ -24,7 +24,7 @@ interface FlagSettings {
   name?: string;
 }
 
-enum OverrideState {
+export enum OverrideState {
   DEFAULT = 'DEFAULT',
   TRUE = 'OVERRIDE_TRUE',
   FALSE = 'OVERRIDE_FALSE',
@@ -138,6 +138,9 @@ export interface Flag {
 
   // Reset the flag to its default setting.
   reset(): void;
+
+  // Get the current state of the flag.
+  overriddenState(): OverrideState;
 }
 
 class FlagImpl implements Flag {
@@ -177,6 +180,10 @@ class FlagImpl implements Flag {
     }
     this.state = next;
     this.registry.save();
+  }
+
+  overriddenState(): OverrideState {
+    return this.state;
   }
 
   reset() {
