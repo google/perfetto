@@ -551,16 +551,16 @@ def main(argv):
   for profile_file in profile_files:
     shutil.copy(os.path.join(profile_path, profile_file), profile_target)
 
-  subprocess.check_call(
-      ['gzip'] + [os.path.join(profile_target, x) for x in profile_files])
-
   symlink_path = None
-  if args.output is None:
-    symlink_path = os.path.join(
-        os.path.dirname(profile_target), "heap_profile-latest")
-    if os.path.lexists(symlink_path):
-      os.unlink(symlink_path)
-    os.symlink(profile_target, symlink_path)
+  if not sys.platform.startswith('win'):
+    subprocess.check_call(
+      ['gzip'] + [os.path.join(profile_target, x) for x in profile_files])
+    if args.output is None:
+      symlink_path = os.path.join(
+          os.path.dirname(profile_target), "heap_profile-latest")
+      if os.path.lexists(symlink_path):
+        os.unlink(symlink_path)
+      os.symlink(profile_target, symlink_path)
 
   if symlink_path is not None:
     print("Wrote profiles to {} (symlink {})".format(profile_target,
@@ -568,8 +568,11 @@ def main(argv):
   else:
     print("Wrote profiles to {}".format(profile_target))
 
-  print("These can be viewed using pprof. Googlers: head to pprof/ and "
-        "upload them.")
+  print("The raw-trace file can be viewed using https://ui.perfetto.dev.")
+  print("The heap_dump.* files can be viewed using pprof/ (Googlers only) " +
+        "or https://www.speedscope.app/.")
+  print("The two above are equivalent. The raw-trace contains the union of " +
+        "all the heap dumps.")
 
 
 # BEGIN_SECTION_GENERATED_BY(roll-prebuilts)
