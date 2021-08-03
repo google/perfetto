@@ -335,13 +335,6 @@ UI_DEPS = [
 # Sysroots required to cross-compile Linux targets (linux-arm{,64}).
 # These are taken from Chromium's build/linux/sysroot_scripts/sysroots.json.
 BUILD_DEPS_LINUX_CROSS_SYSROOTS = [
-    # TODO(primiano): I doubt anybody cares about the non-hw-FPU armel ABI.
-    # Consider dropping it, check first with CrOS and ARM folks.
-    Dependency(
-        'buildtools/debian_sid_armel-sysroot.tgz',
-        'https://commondatastorage.googleapis.com/chrome-linux-sysroot/toolchain/a0e2a51aaa7d779fc45415ac30c835b67caa6663/debian_sid_armel_sysroot.tar.xz',
-        '63d720325f6b3839020ad0a0d3baa4fcbedabb3e057ea029a8802c7391b25269',
-        'linux', 'all'),
     Dependency(
         'buildtools/debian_sid_arm-sysroot.tgz',
         'https://commondatastorage.googleapis.com/chrome-linux-sysroot/toolchain/11d6f690ca49e8ba01a1d8c5346cedad2cf308fd/debian_sid_arm_sysroot.tar.xz',
