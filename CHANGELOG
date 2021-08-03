@@ -2,10 +2,29 @@ Unreleased:
   Tracing service and probes:
     *
   Trace Processor:
+    *
+  UI:
+    *
+  SDK:
+    *
+
+
+v18.0 - 2021-08-02:
+  Tracing service and probes:
+    * Added cross-compiler toolchains for Linux-{arm,64} based on Debian Sid.
+      These will be used for generating monthly releases' prebuilts via LUCI.
+  Trace Processor:
+    * Added 'android_gpu' metric to report residency information for each GPU
+      frequency (via `trace_processor_shell --run-metrics android_gpu`).
     * Removed the RawQuery RPC interface.
   UI:
     * Added a highlighted section to thread slices to visualize CPU time
       (darker) verses wall time (lighter).
+    * Added global counter tracks for perf counters (e.g. "CPU 0 cycles", "CPU 0
+      instructions") when the 'linux.perf' data source (traced_perf) is used.
+    * Added a (feature) 'Flags' page to enable/disable individual metrics.
+    * Fixed races that could cause occasional crashes when loading a trace
+      from a permalink.
   SDK:
     * Fix undefined reference on ~TracingMuxerFake when building the SDK.
 
