@@ -159,7 +159,6 @@ class Globals {
   private _serviceWorkerController?: ServiceWorkerController = undefined;
   private _logging?: Analytics = undefined;
   private _isInternalUser: boolean|undefined = undefined;
-  private _channel: string|undefined = undefined;
 
   // TODO(hjd): Unify trackDataStore, queryResults, overviewStore, threads.
   private _trackDataStore?: TrackDataStore = undefined;
@@ -522,13 +521,6 @@ class Globals {
   set isInternalUser(value: boolean) {
     localStorage.setItem('isInternalUser', value ? '1' : '0');
     this._isInternalUser = value;
-  }
-
-  get channel() {
-    if (this._channel === undefined) {
-      this._channel = localStorage.getItem('perfettoUiChannel') || 'stable';
-    }
-    return this._channel;
   }
 
   get testing() {
