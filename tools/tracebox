@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (C) 2019 The Android Open Source Project
+# Copyright (C) 2021 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,97 +14,97 @@
 # limitations under the License.
 
 # This file should do the same thing when being invoked in any of these ways:
-# ./trace_processor
-# python trace_processor
-# bash trace_processor
-# cat ./trace_processor | bash
-# cat ./trace_processor | python -
+# ./tracebox
+# python tracebox
+# bash tracebox
+# cat ./tracebox | bash
+# cat ./tracebox | python -
 
 BASH_FALLBACK = """ "
 exec python3 - "$@" <<'#'EOF
 #"""
 
-TOOL_NAME = 'trace_processor_shell'
+TOOL_NAME = 'tracebox'
 
 # BEGIN_SECTION_GENERATED_BY(roll-prebuilts)
 # Revision: 45571639857aa59be41f77a2d774f6577d03c86c
 PERFETTO_PREBUILT_MANIFEST = [{
     'tool':
-        'trace_processor_shell',
+        'tracebox',
     'arch':
         'mac-amd64',
     'file_name':
-        'trace_processor_shell',
+        'tracebox',
     'file_size':
-        7022312,
+        1315792,
     'url':
-        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/45571639857aa59be41f77a2d774f6577d03c86c/mac-amd64/trace_processor_shell',
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/45571639857aa59be41f77a2d774f6577d03c86c/mac-amd64/tracebox',
     'sha256':
-        '1981f80067ea95d1da9431b816de592b6b64eac5bd73519e0f5f6e263935078b',
+        '5ccbdf4548ab6d80f728b028ad88e7e9c95c02a06691212a396356449036487a',
     'platform':
         'darwin',
     'machine': ['x86_64']
 }, {
     'tool':
-        'trace_processor_shell',
-    'arch':
-        'windows-amd64',
-    'file_name':
-        'trace_processor_shell.exe',
-    'file_size':
-        6663680,
-    'url':
-        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/45571639857aa59be41f77a2d774f6577d03c86c/windows-amd64/trace_processor_shell.exe',
-    'sha256':
-        '5e03b5c3cbdc5fc58690bfd0cce310ee9f6fe786eca9edced23ee7b37d2dffff',
-    'platform':
-        'win32',
-    'machine': ['amd64']
-}, {
-    'tool':
-        'trace_processor_shell',
+        'tracebox',
     'arch':
         'linux-amd64',
     'file_name':
-        'trace_processor_shell',
+        'tracebox',
     'file_size':
-        7378592,
+        1750688,
     'url':
-        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/45571639857aa59be41f77a2d774f6577d03c86c/linux-amd64/trace_processor_shell',
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/45571639857aa59be41f77a2d774f6577d03c86c/linux-amd64/tracebox',
     'sha256':
-        'bfb8f8258be397edf0a9757847fe3c0ccfc0985fa379f694cdc26b885960f34b',
+        '9e304cebb0bb09b47ff1e1c42b0d8ad6c9e499a12565de6b66961f9431109a02',
     'platform':
         'linux',
     'machine': ['x86_64']
 }, {
     'tool':
-        'trace_processor_shell',
+        'tracebox',
+    'arch':
+        'linux-amd64',
+    'file_name':
+        'tracebox',
+    'file_size':
+        1750688,
+    'url':
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/45571639857aa59be41f77a2d774f6577d03c86c/linux-amd64/tracebox',
+    'sha256':
+        '9e304cebb0bb09b47ff1e1c42b0d8ad6c9e499a12565de6b66961f9431109a02',
+    'platform':
+        'linux',
+    'machine': ['x86_64']
+}, {
+    'tool':
+        'tracebox',
     'arch':
         'linux-arm',
     'file_name':
-        'trace_processor_shell',
+        'tracebox',
     'file_size':
-        4635352,
+        990096,
     'url':
-        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/45571639857aa59be41f77a2d774f6577d03c86c/linux-arm/trace_processor_shell',
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/45571639857aa59be41f77a2d774f6577d03c86c/linux-arm/tracebox',
     'sha256':
-        '55b5cf7d9363ee3996fc991830b4d253a20c015b9bddbd9c929557721e16b16b',
+        '259d676d90d3a3cd37af61ded9a7956f1dfe8370bff1c9f62bfced202731c231',
     'platform':
         'linux',
     'machine': ['armv6l', 'armv7l', 'armv8l']
 }, {
     'tool':
-        'trace_processor_shell',
+        'tracebox',
     'arch':
         'linux-arm64',
     'file_name':
-        'trace_processor_shell',
+        'tracebox',
     'file_size':
-        6165664,
+        1493456,
     'url':
-        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/45571639857aa59be41f77a2d774f6577d03c86c/linux-arm64/trace_processor_shell',
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/45571639857aa59be41f77a2d774f6577d03c86c/linux-arm64/tracebox',
     'sha256':
-        '6e1fc84dc5d238d48563d2f5f58509ce2a0e61ad0ac4f75af26e541eff1cd648',
+        '23c9d3f732c678f4002577f4f415703e221b092a90fc83e2bea3d69dd4061257',
     'platform':
         'linux',
     'machine': ['aarch64']
