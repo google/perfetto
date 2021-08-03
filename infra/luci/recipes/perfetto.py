@@ -175,7 +175,7 @@ def RunSteps(api, repository):
     with api.context(cwd=src_dir):
       build_input = api.buildbucket.build_input
       ref = (
-          build_input.gitiles_commit.id
+          build_input.gitiles_commit.ref
           if build_input.gitiles_commit else 'refs/heads/master')
       # Fetch tags so `git describe` works.
       api.step('fetch', ['git', 'fetch', '--tags', repository, ref])
@@ -235,7 +235,7 @@ def GenTests(api):
              project='perfetto',
              builder='official',
              git_repo='android.googlesource.com/platform/external/perfetto',
-             revision='refs/tags/v13.0'))
+             git_ref='refs/tags/v13.0'))
 
   yield (api.test('unofficial') + api.platform.name('linux') +
          api.buildbucket.ci_build(
