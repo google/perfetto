@@ -36,14 +36,6 @@ namespace metrics {
 
 namespace {
 
-// TODO(lalitm): delete this and use sqlite_utils when that is cleaned up of
-// trace processor dependencies.
-const char* ExtractSqliteValue(sqlite3_value* value) {
-  auto type = sqlite3_value_type(value);
-  PERFETTO_DCHECK(type == SQLITE_TEXT);
-  return reinterpret_cast<const char*>(sqlite3_value_text(value));
-}
-
 SqlValue SqlValueFromSqliteValue(sqlite3_value* value) {
   SqlValue sql_value;
   switch (sqlite3_value_type(value)) {
@@ -67,6 +59,21 @@ SqlValue SqlValueFromSqliteValue(sqlite3_value* value) {
       break;
   }
   return sql_value;
+}
+
+base::Optional<std::string> SqlValueToString(SqlValue value) {
+  switch (value.type) {
+    case SqlValue::Type::kString:
+      return value.AsString();
+    case SqlValue::Type::kDouble:
+      return std::to_string(value.AsDouble());
+    case SqlValue::Type::kLong:
+      return std::to_string(value.AsLong());
+    case SqlValue::Type::kBytes:
+    case SqlValue::Type::kNull:
+      return base::nullopt;
+  }
+  PERFETTO_FATAL("For GCC");
 }
 
 base::Status ValidateSingleNonEmptyMessage(const uint8_t* ptr,
@@ -660,13 +667,21 @@ void RunMetric(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
   std::unordered_map<std::string, std::string> substitutions;
   for (int i = 1; i < argc; i += 2) {
     if (sqlite3_value_type(argv[i]) != SQLITE_TEXT) {
-      sqlite3_result_error(ctx, "RUN_METRIC: Invalid args", -1);
+      sqlite3_result_error(ctx, "RUN_METRIC: all keys must be strings", -1);
       return;
     }
 
-    auto* key_str = ExtractSqliteValue(argv[i]);
-    auto* value_str = ExtractSqliteValue(argv[i + 1]);
-    substitutions[key_str] = value_str;
+    base::Optional<std::string> key_str =
+        SqlValueToString(SqlValueFromSqliteValue(argv[i]));
+    base::Optional<std::string> value_str =
+        SqlValueToString(SqlValueFromSqliteValue(argv[i + 1]));
+
+    if (!value_str) {
+      sqlite3_result_error(
+          ctx, "RUN_METRIC: all values must be convertible to strings", -1);
+      return;
+    }
+    substitutions[*key_str] = *value_str;
   }
 
   for (const auto& query : base::SplitString(sql, ";\n")) {
