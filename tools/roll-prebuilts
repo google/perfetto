@@ -41,9 +41,14 @@ GIT_REV = subprocess.check_output(['git', 'rev-parse', 'head']).decode().strip()
 
 SCRIPTS_TO_UPDATE = [
     {
-        'script': 'trace_processor',
-        'tool': 'trace_processor_shell',
-        'archs': ['mac-amd64', 'linux-amd64', 'windows-amd64']
+        'script':
+            'trace_processor',
+        'tool':
+            'trace_processor_shell',
+        'archs': [
+            'mac-amd64', 'windows-amd64', 'linux-amd64', 'linux-arm',
+            'linux-arm64'
+        ]
     },
     {
         'script': 'traceconv',
@@ -51,14 +56,19 @@ SCRIPTS_TO_UPDATE = [
         'archs': ['mac-amd64', 'linux-amd64', 'windows-amd64']
     },
     {
-        'script': 'tracebox',
-        'tool': 'tracebox',
-        'archs': ['mac-amd64', 'linux-amd64']
+        'script':
+            'tracebox',
+        'tool':
+            'tracebox',
+        'archs': [
+            'mac-amd64', 'linux-amd64', 'linux-amd64', 'linux-arm',
+            'linux-arm64'
+        ]
     },
     {
         'script': 'heap_profile',
         'tool': 'trace_to_text',
-        'archs': ['mac-amd64', 'linux-amd64', 'windows-amd64']
+        'archs': ['mac-amd64', 'windows-amd64', 'linux-amd64']
     },
     {
         'script': 'record_android_trace',
@@ -67,20 +77,29 @@ SCRIPTS_TO_UPDATE = [
     },
 ]
 
-# Maps a 'os-arch' string into corresponding tuples that match against
-# python's platform / machine API (see get_perfetto_prebuilt.py).
+# Maps a 'os-arch' string (were arch follows LUCI conventions) into
+# corresponding tuples that match against python's platform / machine API
+# (see get_perfetto_prebuilt.py for usage).
 ARCH_TO_PYTHON = {
     'mac-amd64': {
         'platform': 'darwin',
-        'machine': 'x86_64'
-    },
-    'linux-amd64': {
-        'platform': 'linux',
-        'machine': 'x86_64'
+        'machine': ['x86_64'],
     },
     'windows-amd64': {
         'platform': 'win32',
-        'machine': 'amd64'
+        'machine': ['amd64'],
+    },
+    'linux-amd64': {
+        'platform': 'linux',
+        'machine': ['x86_64'],
+    },
+    'linux-arm': {
+        'platform': 'linux',
+        'machine': ['armv6l', 'armv7l', 'armv8l'],
+    },
+    'linux-arm64': {
+        'platform': 'linux',
+        'machine': ['aarch64'],
     },
 }
 
