@@ -827,7 +827,8 @@ TEST_F(ExportJsonTest, InstantEventOnThread) {
 
 TEST_F(ExportJsonTest, DuplicatePidAndTid) {
   UniqueTid upid1 = context_.process_tracker->StartNewProcess(
-      base::nullopt, base::nullopt, 1, kNullStringId);
+      base::nullopt, base::nullopt, 1, kNullStringId,
+      ThreadNamePriority::kTrackDescriptor);
   UniqueTid utid1a = context_.process_tracker->UpdateThread(1, 1);
   UniqueTid utid1b = context_.process_tracker->UpdateThread(2, 1);
   UniqueTid utid1c = context_.process_tracker->StartNewThread(base::nullopt, 2);
@@ -835,7 +836,8 @@ TEST_F(ExportJsonTest, DuplicatePidAndTid) {
   ASSERT_EQ(utid1c, context_.process_tracker->UpdateThread(2, 1));
 
   UniqueTid upid2 = context_.process_tracker->StartNewProcess(
-      base::nullopt, base::nullopt, 1, kNullStringId);
+      base::nullopt, base::nullopt, 1, kNullStringId,
+      ThreadNamePriority::kTrackDescriptor);
   UniqueTid utid2a = context_.process_tracker->UpdateThread(1, 1);
   UniqueTid utid2b = context_.process_tracker->UpdateThread(2, 1);
 
