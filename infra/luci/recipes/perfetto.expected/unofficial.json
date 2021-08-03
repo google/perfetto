@@ -39,7 +39,7 @@
       "fetch",
       "--tags",
       "https://android.googlesource.com/platform/external/perfetto",
-      "2d72510e447ab60a9728aeea2362d8be2cbd7789"
+      "refs/heads/master"
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "infra_step": true,
