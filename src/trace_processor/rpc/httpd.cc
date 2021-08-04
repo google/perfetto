@@ -430,6 +430,16 @@ void HttpServer::HandleRequest(Client* client, const HttpRequest& req) {
     return;
   }
 
+  // Legacy endpoint.
+  // Returns a columnar-oriented one-shot result. Very inefficient for large
+  // result sets. Very inefficient in general too.
+  if (req.uri == "/raw_query") {
+    std::vector<uint8_t> response = trace_processor_rpc_.RawQuery(
+        reinterpret_cast<const uint8_t*>(req.body.data()), req.body.size());
+    return HttpReply(client->sock.get(), "200 OK", headers, response.data(),
+                     response.size());
+  }
+
   if (req.uri == "/status") {
     auto status = trace_processor_rpc_.GetStatus();
     return HttpReply(client->sock.get(), "200 OK", headers, status.data(),
