@@ -16,6 +16,7 @@ import * as m from 'mithril';
 
 import {assertExists, assertTrue} from '../base/logging';
 import {Actions} from '../common/actions';
+import {getCurrentChannel} from '../common/channels';
 import {TRACE_SUFFIX} from '../common/constants';
 import {ConversionJobStatus} from '../common/conversion_jobs';
 import {EngineMode, TraceArrayBufferSource} from '../common/state';
@@ -764,7 +765,7 @@ const SidebarFooter: m.Component = {
               {
                 href: `https://github.com/google/perfetto/tree/${
                     version.SCM_REVISION}/ui`,
-                title: `Channel: ${globals.channel}`,
+                title: `Channel: ${getCurrentChannel()}`,
                 target: '_blank',
               },
               `${version.VERSION}`),
@@ -871,7 +872,7 @@ export class Sidebar implements m.ClassComponent {
           ontransitionend: () => this._redrawWhileAnimating.stop(),
         },
         m(
-            `header.${globals.channel}`,
+            `header.${getCurrentChannel()}`,
             m(`img[src=${globals.root}assets/brand.png].brand`),
             m('button.sidebar-button',
               {

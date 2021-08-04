@@ -29,15 +29,6 @@ import sys
 import tempfile
 import time
 import uuid
-import platform
-
-
-TRACE_TO_TEXT_SHAS = {
-    'linux': '150d8e65b8173c317642abfc44f3861832fbcd4e',
-    'mac': '818143f3283559a89c311e7e506d0099d1f6408c',
-}
-TRACE_TO_TEXT_PATH = tempfile.gettempdir()
-TRACE_TO_TEXT_BASE_URL = ('https://storage.googleapis.com/perfetto/')
 
 NULL = open(os.devnull)
 NOOUT = {
@@ -46,37 +37,6 @@ NOOUT = {
 }
 
 UUID = str(uuid.uuid4())[-6:]
-
-def check_hash(file_name, sha_value):
-  file_hash = hashlib.sha1()
-  with open(file_name, 'rb') as fd:
-    while True:
-      chunk = fd.read(4096)
-      if not chunk:
-        break
-      file_hash.update(chunk)
-    return file_hash.hexdigest() == sha_value
-
-
-def load_trace_to_text(os_name):
-  sha_value = TRACE_TO_TEXT_SHAS[os_name]
-  file_name = 'trace_to_text-' + os_name + '-' + sha_value
-  local_file = os.path.join(TRACE_TO_TEXT_PATH, file_name)
-
-  if os.path.exists(local_file):
-    if not check_hash(local_file, sha_value):
-      os.remove(local_file)
-    else:
-      return local_file
-
-  url = TRACE_TO_TEXT_BASE_URL + file_name
-  subprocess.check_call(['curl', '-L', '-#', '-o', local_file, url])
-  if not check_hash(local_file, sha_value):
-    os.remove(local_file)
-    raise ValueError("Invalid signature.")
-  os.chmod(local_file, 0o755)
-  return local_file
-
 
 PACKAGES_LIST_CFG = '''data_sources {
   config {
@@ -120,6 +80,7 @@ PROFILE_LOCAL_PATH = os.path.join(tempfile.gettempdir(), UUID)
 
 IS_INTERRUPTED = False
 
+
 def sigint_handler(sig, frame):
   global IS_INTERRUPTED
   IS_INTERRUPTED = True
@@ -128,43 +89,51 @@ def sigint_handler(sig, frame):
 def print_no_profile_error():
   print("No profiles generated", file=sys.stderr)
   print(
-    "If this is unexpected, check "
-    "https://perfetto.dev/docs/data-sources/native-heap-profiler#troubleshooting.",
-    file=sys.stderr)
+      "If this is unexpected, check "
+      "https://perfetto.dev/docs/data-sources/native-heap-profiler#troubleshooting.",
+      file=sys.stderr)
+
 
 def known_issues_url(number):
   return ('https://perfetto.dev/docs/data-sources/native-heap-profiler'
           '#known-issues-android{}'.format(number))
 
+
 KNOWN_ISSUES = {
-  '10': known_issues_url(10),
-  'Q': known_issues_url(10),
-  '11': known_issues_url(11),
-  'R': known_issues_url(11),
+    '10': known_issues_url(10),
+    'Q': known_issues_url(10),
+    '11': known_issues_url(11),
+    'R': known_issues_url(11),
 }
+
 
 def maybe_known_issues():
   release_or_codename = subprocess.check_output(
-    ['adb', 'shell', 'getprop', 'ro.build.version.release_or_codename']
-  ).decode('utf-8').strip()
+      ['adb', 'shell', 'getprop',
+       'ro.build.version.release_or_codename']).decode('utf-8').strip()
   return KNOWN_ISSUES.get(release_or_codename, None)
+
 
 SDK = {
     'R': 30,
 }
 
+
 def release_or_newer(release):
-  sdk = int(subprocess.check_output(
-    ['adb', 'shell', 'getprop', 'ro.system.build.version.sdk']
-  ).decode('utf-8').strip())
+  sdk = int(
+      subprocess.check_output(
+          ['adb', 'shell', 'getprop',
+           'ro.system.build.version.sdk']).decode('utf-8').strip())
   if sdk >= SDK[release]:
     return True
   codename = subprocess.check_output(
-    ['adb', 'shell', 'getprop', 'ro.build.version.codename']
-  ).decode('utf-8').strip()
+      ['adb', 'shell', 'getprop',
+       'ro.build.version.codename']).decode('utf-8').strip()
   return codename == release
 
+
 ORDER = ['-n', '-p', '-i', '-o']
+
 
 def arg_order(action):
   result = len(ORDER)
@@ -173,15 +142,17 @@ def arg_order(action):
       result = min(ORDER.index(opt), result)
   return result, action.option_strings[0].strip('-')
 
+
 def print_options(parser):
   for action in sorted(parser._actions, key=arg_order):
     if action.help is argparse.SUPPRESS:
       continue
     opts = ', '.join('`' + x + '`' for x in action.option_strings)
-    metavar = '' if action.metavar is None else ' _'     + action.metavar + '_'
+    metavar = '' if action.metavar is None else ' _' + action.metavar + '_'
     print('{}{}'.format(opts, metavar))
     print(':    {}'.format(action.help))
     print()
+
 
 def main(argv):
   parser = argparse.ArgumentParser()
@@ -229,14 +200,12 @@ def main(argv):
   parser.add_argument(
       "--all-heaps",
       action="store_true",
-      help="Collect allocations from all heaps registered by target."
-  )
+      help="Collect allocations from all heaps registered by target.")
   parser.add_argument(
       "--no-android-tree-symbolization",
       action="store_true",
       help="Do not symbolize using currently lunched target in the "
-      "Android tree."
-  )
+      "Android tree.")
   parser.add_argument(
       "--disable-selinux",
       action="store_true",
@@ -314,10 +283,7 @@ def main(argv):
       metavar="DIRECTORY",
       default=None)
   parser.add_argument(
-      "--print-options",
-      action="store_true",
-      help=argparse.SUPPRESS
-  )
+      "--print-options", action="store_true", help=argparse.SUPPRESS)
 
   args = parser.parse_args()
   if args.print_options:
@@ -352,8 +318,8 @@ def main(argv):
     target_cfg += CFG_INDENT + "block_client: true\n"
   if args.block_client_timeout:
     target_cfg += (
-      CFG_INDENT + "block_client_timeout_us: %s\n" % args.block_client_timeout
-    )
+        CFG_INDENT +
+        "block_client_timeout_us: %s\n" % args.block_client_timeout)
   if args.no_startup:
     target_cfg += CFG_INDENT + "no_startup: true\n"
   if args.no_running:
@@ -401,25 +367,9 @@ def main(argv):
 
   # Do this AFTER print_config so we do not download trace_to_text only to
   # print out the config.
-  has_trace_to_text = True
   if trace_to_text_binary is None:
-    os_name = None
-    if sys.platform.startswith('linux'):
-      os_name = 'linux'
-    elif sys.platform.startswith('darwin'):
-      os_name = 'mac'
-    elif sys.platform.startswith('win32'):
-      has_trace_to_text = False
-    else:
-      print("Invalid platform: {}".format(sys.platform), file=sys.stderr)
-      return 1
-
-    arch = platform.machine()
-    if arch not in ['x86_64', 'amd64']:
-      has_trace_to_text = False
-
-    if has_trace_to_text:
-      trace_to_text_binary = load_trace_to_text(os_name)
+    trace_to_text_binary = get_perfetto_prebuilt(
+        'trace_to_text', soft_fail=True)
 
   known_issues = maybe_known_issues()
   if known_issues:
@@ -432,8 +382,8 @@ def main(argv):
   if uuid_trace:
     profile_device_path = '/data/misc/perfetto-traces/profile-' + UUID
   else:
-    user = subprocess.check_output(
-      ['adb', 'shell', 'whoami']).decode('utf-8').strip()
+    user = subprocess.check_output(['adb', 'shell',
+                                    'whoami']).decode('utf-8').strip()
     profile_device_path = '/data/misc/perfetto-traces/profile-' + user
 
   perfetto_cmd = ('CFG=\'{cfg}\'; echo ${{CFG}} | '
@@ -461,18 +411,17 @@ def main(argv):
     os.mkdir(profile_target)
 
   if not os.path.isdir(profile_target):
-    print("Output directory {} not found".format(profile_target),
-            file=sys.stderr)
+    print(
+        "Output directory {} not found".format(profile_target), file=sys.stderr)
     return 1
 
   if os.listdir(profile_target):
-    print("Output directory {} not empty".format(profile_target),
-            file=sys.stderr)
+    print(
+        "Output directory {} not empty".format(profile_target), file=sys.stderr)
     return 1
 
   perfetto_pid = subprocess.check_output(
-      ['adb', 'exec-out',
-       perfetto_cmd.format(cfg=cfg)]).strip()
+      ['adb', 'exec-out', perfetto_cmd.format(cfg=cfg)]).strip()
   try:
     perfetto_pid = int(perfetto_pid.strip())
   except ValueError:
@@ -503,8 +452,8 @@ def main(argv):
       time.sleep(1)
     subprocess.check_call(
         ['adb', 'pull', '/data/local/tmp/heapprofd_profile', profile_target])
-    print(
-      "Pulled simpleperf profile to " + profile_target + "/heapprofd_profile")
+    print("Pulled simpleperf profile to " + profile_target +
+          "/heapprofd_profile")
 
   # Wait for perfetto cmd to return.
   while exists:
@@ -513,15 +462,17 @@ def main(argv):
     time.sleep(1)
 
   profile_host_path = os.path.join(profile_target, 'raw-trace')
-  subprocess.check_call(
-    ['adb', 'pull', profile_device_path, profile_host_path], stdout=NULL)
+  subprocess.check_call(['adb', 'pull', profile_device_path, profile_host_path],
+                        stdout=NULL)
   if uuid_trace:
-    subprocess.check_call(
-          ['adb', 'shell', 'rm', profile_device_path], stdout=NULL)
+    subprocess.check_call(['adb', 'shell', 'rm', profile_device_path],
+                          stdout=NULL)
 
-  if not has_trace_to_text:
+  if trace_to_text_binary is None:
     print('Wrote profile to {}'.format(profile_host_path))
-    print('This file can be opened using the Perfetto UI, https://ui.perfetto.dev')
+    print(
+        'This file can be opened using the Perfetto UI, https://ui.perfetto.dev'
+    )
     return 0
 
   binary_path = os.getenv('PERFETTO_BINARY_PATH')
@@ -544,29 +495,32 @@ def main(argv):
     with open(os.path.join(profile_target, 'symbols'), 'w') as fd:
       ret = subprocess.call([
           trace_to_text_binary, 'symbolize',
-          os.path.join(profile_target, 'raw-trace')],
-          env=dict(os.environ, PERFETTO_BINARY_PATH=binary_path),
-          stdout=fd)
+          os.path.join(profile_target, 'raw-trace')
+      ],
+                            env=dict(
+                                os.environ, PERFETTO_BINARY_PATH=binary_path),
+                            stdout=fd)
     if ret == 0:
       concat_files.append(os.path.join(profile_target, 'symbols'))
     else:
-      print("Failed to symbolize. Continuing without symbols.",
-      file=sys.stderr)
+      print("Failed to symbolize. Continuing without symbols.", file=sys.stderr)
 
   proguard_map = os.getenv('PERFETTO_PROGUARD_MAP')
   if proguard_map is not None:
     with open(os.path.join(profile_target, 'deobfuscation-packets'), 'w') as fd:
       ret = subprocess.call([
           trace_to_text_binary, 'deobfuscate',
-          os.path.join(profile_target, 'raw-trace')],
-          env=dict(os.environ, PERFETTO_PROGUARD_MAP=proguard_map),
-          stdout=fd)
+          os.path.join(profile_target, 'raw-trace')
+      ],
+                            env=dict(
+                                os.environ, PERFETTO_PROGUARD_MAP=proguard_map),
+                            stdout=fd)
     if ret == 0:
-      concat_files.append(
-        os.path.join(profile_target, 'deobfuscation-packets'))
+      concat_files.append(os.path.join(profile_target, 'deobfuscation-packets'))
     else:
-      print("Failed to deobfuscate. Continuing without deobfuscated.",
-      file=sys.stderr)
+      print(
+          "Failed to deobfuscate. Continuing without deobfuscated.",
+          file=sys.stderr)
 
   if len(concat_files) > 1:
     with open(os.path.join(profile_target, 'symbolized-trace'), 'wb') as out:
@@ -597,27 +551,155 @@ def main(argv):
   for profile_file in profile_files:
     shutil.copy(os.path.join(profile_path, profile_file), profile_target)
 
-  subprocess.check_call(
-      ['gzip'] +
-      [os.path.join(profile_target, x) for x in profile_files])
-
   symlink_path = None
-  if args.output is None:
-    symlink_path = os.path.join(
-      os.path.dirname(profile_target), "heap_profile-latest")
-    if os.path.lexists(symlink_path):
-      os.unlink(symlink_path)
-    os.symlink(profile_target, symlink_path)
+  if not sys.platform.startswith('win'):
+    subprocess.check_call(
+      ['gzip'] + [os.path.join(profile_target, x) for x in profile_files])
+    if args.output is None:
+      symlink_path = os.path.join(
+          os.path.dirname(profile_target), "heap_profile-latest")
+      if os.path.lexists(symlink_path):
+        os.unlink(symlink_path)
+      os.symlink(profile_target, symlink_path)
 
   if symlink_path is not None:
-    print("Wrote profiles to {} (symlink {})".format(
-        profile_target, symlink_path))
+    print("Wrote profiles to {} (symlink {})".format(profile_target,
+                                                     symlink_path))
   else:
     print("Wrote profiles to {}".format(profile_target))
 
-  print("These can be viewed using pprof. Googlers: head to pprof/ and "
-        "upload them.")
+  print("The raw-trace file can be viewed using https://ui.perfetto.dev.")
+  print("The heap_dump.* files can be viewed using pprof/ (Googlers only) " +
+        "or https://www.speedscope.app/.")
+  print("The two above are equivalent. The raw-trace contains the union of " +
+        "all the heap dumps.")
 
+
+# BEGIN_SECTION_GENERATED_BY(roll-prebuilts)
+# Revision: 45571639857aa59be41f77a2d774f6577d03c86c
+PERFETTO_PREBUILT_MANIFEST = [{
+    'tool':
+        'trace_to_text',
+    'arch':
+        'mac-amd64',
+    'file_name':
+        'trace_to_text',
+    'file_size':
+        7087056,
+    'url':
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/45571639857aa59be41f77a2d774f6577d03c86c/mac-amd64/trace_to_text',
+    'sha256':
+        'beaf8151ed0994f970e4e6d4da10b6681ac48a74f29133f4bea6f3d3294c1009',
+    'platform':
+        'darwin',
+    'machine': ['x86_64']
+}, {
+    'tool':
+        'trace_to_text',
+    'arch':
+        'windows-amd64',
+    'file_name':
+        'trace_to_text.exe',
+    'file_size':
+        6702080,
+    'url':
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/45571639857aa59be41f77a2d774f6577d03c86c/windows-amd64/trace_to_text.exe',
+    'sha256':
+        '58a1b1e1bb69465002ccf9611d13a029943257d41311a6603d45ba1ebfcfa077',
+    'platform':
+        'win32',
+    'machine': ['amd64']
+}, {
+    'tool':
+        'trace_to_text',
+    'arch':
+        'linux-amd64',
+    'file_name':
+        'trace_to_text',
+    'file_size':
+        7435576,
+    'url':
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/45571639857aa59be41f77a2d774f6577d03c86c/linux-amd64/trace_to_text',
+    'sha256':
+        '6c19500bfa983cfbf49fe0ef55284285ba674b43d1d2273f19249fa5b3dd9f84',
+    'platform':
+        'linux',
+    'machine': ['x86_64']
+}]
+
+
+# DO NOT EDIT. If you wish to make edits to this code, you need to change only
+# //tools/get_perfetto_prebuilt.py and run /tools/roll-prebuilts to regenerate
+# all the others scripts this is embedded into.
+def get_perfetto_prebuilt(tool_name, soft_fail=False, arch=None):
+  """ Downloads the prebuilt, if necessary, and returns its path on disk. """
+
+  # The first time this is invoked, it downloads the |url| and caches it into
+  # ~/.perfetto/prebuilts/$tool_name. On subsequent invocations it just runs the
+  # cached version.
+  def download_or_get_cached(file_name, url, sha256):
+    import os, hashlib, subprocess
+    dir = os.path.join(
+        os.path.expanduser('~'), '.local', 'share', 'perfetto', 'prebuilts')
+    os.makedirs(dir, exist_ok=True)
+    bin_path = os.path.join(dir, file_name)
+    sha256_path = os.path.join(dir, file_name + '.sha256')
+    needs_download = True
+
+    # Avoid recomputing the SHA-256 on each invocation. The SHA-256 of the last
+    # download is cached into file_name.sha256, just check if that matches.
+    if os.path.exists(bin_path) and os.path.exists(sha256_path):
+      with open(sha256_path, 'rb') as f:
+        digest = f.read().decode()
+        if digest == sha256:
+          needs_download = False
+
+    if needs_download:
+      # Either the filed doesn't exist or the SHA256 doesn't match.
+      tmp_path = bin_path + '.tmp'
+      print('Downloading ' + url)
+      subprocess.check_call(['curl', '-f', '-L', '-#', '-o', tmp_path, url])
+      with open(tmp_path, 'rb') as fd:
+        actual_sha256 = hashlib.sha256(fd.read()).hexdigest()
+      if actual_sha256 != sha256:
+        raise Exception('Checksum mismatch for %s (actual: %s, expected: %s)' %
+                        (url, actual_sha256, sha256))
+      os.chmod(tmp_path, 0o755)
+      os.rename(tmp_path, bin_path)
+      with open(sha256_path, 'w') as f:
+        f.write(sha256)
+    return bin_path
+    # --- end of download_or_get_cached() ---
+
+  # --- get_perfetto_prebuilt() function starts here. ---
+  import os, platform, sys
+  plat = sys.platform.lower()
+  machine = platform.machine().lower()
+  manifest_entry = None
+  for entry in PERFETTO_PREBUILT_MANIFEST:
+    # If the caller overrides the arch, just match that (for Android prebuilts).
+    if arch and entry.get('arch') == arch:
+      manifest_entry = entry
+      break
+    # Otherwise guess the local machine arch.
+    if entry.get('tool') == tool_name and entry.get(
+        'platform') == plat and machine in entry.get('machine', []):
+      manifest_entry = entry
+      break
+  if manifest_entry is None:
+    if soft_fail:
+      return None
+    raise Exception(
+        ('No prebuilts available for %s-%s\n' % (plat, machine)) +
+        'See https://perfetto.dev/docs/contributing/build-instructions')
+
+  return download_or_get_cached(
+      file_name=manifest_entry['file_name'],
+      url=manifest_entry['url'],
+      sha256=manifest_entry['sha256'])
+
+
+# END_SECTION_GENERATED_BY(roll-prebuilts)
 
 if __name__ == '__main__':
   sys.exit(main(sys.argv))

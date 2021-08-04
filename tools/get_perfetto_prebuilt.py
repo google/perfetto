@@ -106,7 +106,7 @@ def get_perfetto_prebuilt(tool_name, soft_fail=False, arch=None):
       break
     # Otherwise guess the local machine arch.
     if entry.get('tool') == tool_name and entry.get(
-        'platform') == plat and entry.get('machine') == machine:
+        'platform') == plat and machine in entry.get('machine', []):
       manifest_entry = entry
       break
   if manifest_entry is None:
