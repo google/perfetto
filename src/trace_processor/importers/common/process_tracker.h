@@ -102,7 +102,8 @@ class ProcessTracker {
   UniquePid StartNewProcess(base::Optional<int64_t> timestamp,
                             base::Optional<uint32_t> parent_tid,
                             uint32_t pid,
-                            StringId main_thread_name);
+                            StringId main_thread_name,
+                            ThreadNamePriority priority);
 
   // Called when a process is seen in a process tree. Retrieves the UniquePid
   // for that pid or assigns a new one.
@@ -123,9 +124,11 @@ class ProcessTracker {
   // have a timestamp yet.
   void SetStartTsIfUnset(UniquePid upid, int64_t start_ts_nanoseconds);
 
-  // Called on a task rename event to set the process name if the tid provided
-  // is the main thread of the process.
-  void UpdateProcessNameFromThreadName(uint32_t tid, StringId thread_name);
+  // Called on a task rename event to set the thread name and possibly process
+  // name (if the tid provided is the main thread of the process).
+  void UpdateThreadNameAndMaybeProcessName(uint32_t tid,
+                                           StringId thread_name,
+                                           ThreadNamePriority priority);
 
   // Called when a process is seen in a process tree. Retrieves the UniquePid
   // for that pid or assigns a new one.

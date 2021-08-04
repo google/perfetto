@@ -1126,7 +1126,8 @@ void FtraceParser::ParseTaskNewTask(int64_t timestamp,
   // kthreadd.
   if ((clone_flags & kCloneThread) == 0 && source_tid != kKthreaddPid) {
     // This is a plain-old fork() or equivalent.
-    proc_tracker->StartNewProcess(timestamp, source_tid, new_tid, new_comm);
+    proc_tracker->StartNewProcess(timestamp, source_tid, new_tid, new_comm,
+                                  ThreadNamePriority::kFtrace);
     return;
   }
 
@@ -1148,9 +1149,8 @@ void FtraceParser::ParseTaskRename(ConstBytes blob) {
   protos::pbzero::TaskRenameFtraceEvent::Decoder evt(blob.data, blob.size);
   uint32_t tid = static_cast<uint32_t>(evt.pid());
   StringId comm = context_->storage->InternString(evt.newcomm());
-  context_->process_tracker->UpdateThreadName(tid, comm,
-                                              ThreadNamePriority::kFtrace);
-  context_->process_tracker->UpdateProcessNameFromThreadName(tid, comm);
+  context_->process_tracker->UpdateThreadNameAndMaybeProcessName(
+      tid, comm, ThreadNamePriority::kFtrace);
 }
 
 void FtraceParser::ParseBinderTransaction(int64_t timestamp,
