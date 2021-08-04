@@ -74,6 +74,15 @@ export function handleKey(e: KeyboardEvent, down: boolean) {
   if (down && 'p' === key && e.ctrlKey && globals.isInternalUser) {
     e.preventDefault();
     globals.frontendLocalState.togglePivotTable();
+    const pivotTableId = 'pivot-table';
+    if (globals.state.pivotTable[pivotTableId] === undefined) {
+      globals.dispatch(Actions.addNewPivotTable({
+        name: 'Pivot Table',
+        pivotTableId,
+        selectedPivots: [],
+        selectedAggregations: []
+      }));
+    }
   }
 }
 
