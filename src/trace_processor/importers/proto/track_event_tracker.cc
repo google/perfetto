@@ -392,7 +392,8 @@ TrackEventTracker::ResolveDescriptorTrackImpl(
                     reservation.min_timestamp);
 
       upid = context_->process_tracker->StartNewProcess(
-          base::nullopt, base::nullopt, *reservation.pid, kNullStringId);
+          base::nullopt, base::nullopt, *reservation.pid, kNullStringId,
+          ThreadNamePriority::kTrackDescriptor);
 
       descriptor_uuids_by_upid_[upid] = uuid;
     }
