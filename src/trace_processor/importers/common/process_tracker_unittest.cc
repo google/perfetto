@@ -57,8 +57,8 @@ TEST_F(ProcessTrackerTest, GetOrCreateNewProcess) {
 }
 
 TEST_F(ProcessTrackerTest, StartNewProcess) {
-  auto upid =
-      context.process_tracker->StartNewProcess(1000, 0u, 123, kNullStringId);
+  auto upid = context.process_tracker->StartNewProcess(
+      1000, 0u, 123, kNullStringId, ThreadNamePriority::kFtrace);
   ASSERT_EQ(context.process_tracker->GetOrCreateProcess(123), upid);
   ASSERT_EQ(context.storage->process_table().start_ts()[upid], 1000);
 }
@@ -108,11 +108,13 @@ TEST_F(ProcessTrackerTest, UpdateThreadCreate) {
 
 TEST_F(ProcessTrackerTest, PidReuseWithoutStartAndEndThread) {
   UniquePid p1 = context.process_tracker->StartNewProcess(
-      base::nullopt, base::nullopt, /*pid=*/1, kNullStringId);
+      base::nullopt, base::nullopt, /*pid=*/1, kNullStringId,
+      ThreadNamePriority::kFtrace);
   UniqueTid t1 = context.process_tracker->UpdateThread(/*tid=*/2, /*pid=*/1);
 
   UniquePid p2 = context.process_tracker->StartNewProcess(
-      base::nullopt, base::nullopt, /*pid=*/1, kNullStringId);
+      base::nullopt, base::nullopt, /*pid=*/1, kNullStringId,
+      ThreadNamePriority::kFtrace);
   UniqueTid t2 = context.process_tracker->UpdateThread(/*tid=*/2, /*pid=*/1);
 
   ASSERT_NE(p1, p2);
@@ -156,7 +158,8 @@ TEST_F(ProcessTrackerTest, UpdateThreadName) {
 
 TEST_F(ProcessTrackerTest, SetStartTsIfUnset) {
   auto upid = context.process_tracker->StartNewProcess(
-      /*timestamp=*/base::nullopt, 0u, 123, kNullStringId);
+      /*timestamp=*/base::nullopt, 0u, 123, kNullStringId,
+      ThreadNamePriority::kFtrace);
   context.process_tracker->SetStartTsIfUnset(upid, 1000);
   ASSERT_EQ(context.storage->process_table().start_ts()[upid], 1000);
 
@@ -184,8 +187,8 @@ TEST_F(ProcessTrackerTest, TidReuseAfterExplicitEnd) {
 }
 
 TEST_F(ProcessTrackerTest, EndThreadAfterProcessEnd) {
-  context.process_tracker->StartNewProcess(100, base::nullopt, 123,
-                                           kNullStringId);
+  context.process_tracker->StartNewProcess(
+      100, base::nullopt, 123, kNullStringId, ThreadNamePriority::kFtrace);
   context.process_tracker->UpdateThread(124, 123);
 
   context.process_tracker->EndThread(200, 123);
