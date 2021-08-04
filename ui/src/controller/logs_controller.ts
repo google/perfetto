@@ -76,11 +76,17 @@ async function updateLogEntries(
   const vizEndNs = toNsCeil(span.end);
   const vizSqlBounds = `ts >= ${vizStartNs} and ts <= ${vizEndNs}`;
 
-  const rowsResult =
-      await engine.queryV2(`select ts, prio, tag, msg from android_logs
+  const rowsResult = await engine.queryV2(`
+        select
+          ts,
+          prio,
+          ifnull(tag, '[NULL]') as tag,
+          msg
+        from android_logs
         where ${vizSqlBounds}
         order by ts
-        limit ${pagination.start}, ${pagination.count}`);
+        limit ${pagination.start}, ${pagination.count}
+    `);
 
   const timestamps = [];
   const priorities = [];
