@@ -40,7 +40,7 @@ namespace tables {
   C(int64_t, ts)                                           \
   C(uint32_t, utid)                                        \
   C(uint32_t, prio)                                        \
-  C(StringPool::Id, tag)                                   \
+  C(base::Optional<StringPool::Id>, tag)                   \
   C(StringPool::Id, msg)
 
 PERFETTO_TP_TABLE(PERFETTO_TP_ANDROID_LOG_TABLE_DEF);
