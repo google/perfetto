@@ -285,10 +285,11 @@ export class DetailsPanel implements m.ClassComponent {
     }
 
     if (globals.frontendLocalState.showPivotTable) {
+      const pivotTableId = 'pivot-table';
       detailsPanels.push({
-        key: 'pivot_table',
-        name: 'Pivot Table',
-        vnode: m(PivotTable, {key: 'query', queryId: 'pivot-table-query'})
+        key: pivotTableId,
+        name: globals.state.pivotTable[pivotTableId].name,
+        vnode: m(PivotTable, {key: pivotTableId, pivotTableId})
       });
     }
 
