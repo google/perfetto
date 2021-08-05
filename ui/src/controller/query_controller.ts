@@ -15,14 +15,11 @@
 import {assertExists} from '../base/logging';
 import {Actions} from '../common/actions';
 import {Engine} from '../common/engine';
-import {QueryResponse} from '../common/queries';
-import {Row} from '../common/query_result';
+import {runQuery} from '../common/queries';
 import {publishQueryResult} from '../frontend/publish';
 
 import {Controller} from './controller';
 import {globals} from './globals';
-
-const MAX_ROWS = 10000;
 
 export interface QueryControllerArgs {
   queryId: string;
@@ -38,11 +35,13 @@ export class QueryController extends Controller<'init'|'querying'> {
     switch (this.state) {
       case 'init':
         const config = assertExists(globals.state.queries[this.args.queryId]);
-        this.runQuery(config.query).then(result => {
-          console.log(`Query ${config.query} took ${result.durationMs} ms`);
-          publishQueryResult({id: this.args.queryId, data: result});
-          globals.dispatch(Actions.deleteQuery({queryId: this.args.queryId}));
-        });
+        runQuery(this.args.queryId, config.query, this.args.engine)
+            .then(result => {
+              console.log(`Query ${config.query} took ${result.durationMs} ms`);
+              publishQueryResult({id: this.args.queryId, data: result});
+              globals.dispatch(
+                  Actions.deleteQuery({queryId: this.args.queryId}));
+            });
         this.setState('querying');
         break;
 
@@ -54,49 +53,5 @@ export class QueryController extends Controller<'init'|'querying'> {
       default:
         throw new Error(`Unexpected state ${this.state}`);
     }
-  }
-
-  private async runQuery(sqlQuery: string) {
-    const startMs = performance.now();
-    const queryRes = this.args.engine.queryV2(sqlQuery);
-
-    // TODO(primiano): once the controller thread is gone we should pass down
-    // the result objects directly to the frontend, iterate over the result
-    // and deal with pagination there. For now we keep the old behavior and
-    // truncate to 10k rows.
-
-    try {
-      await queryRes.waitAllRows();
-    } catch {
-      // In the case of a query error we don't want the exception to bubble up
-      // as a crash. The |queryRes| object will be populated anyways.
-      // queryRes.error() is used to tell if the query errored or not. If it
-      // errored, the frontend will show a graceful message instead.
-    }
-
-    const durationMs = performance.now() - startMs;
-    const rows: Row[] = [];
-    const columns = queryRes.columns();
-    let numRows = 0;
-    for (const iter = queryRes.iter({}); iter.valid(); iter.next()) {
-      const row: Row = {};
-      for (const colName of columns) {
-        const value = iter.get(colName);
-        row[colName] = value === null ? 'NULL' : value;
-      }
-      rows.push(row);
-      if (++numRows >= MAX_ROWS) break;
-    }
-
-    const result: QueryResponse = {
-      id: this.args.queryId,
-      query: sqlQuery,
-      durationMs,
-      error: queryRes.error(),
-      totalRowCount: queryRes.numRows(),
-      columns,
-      rows,
-    };
-    return result;
   }
 }

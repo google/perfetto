@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {AggregationAttrs, PivotAttrs} from './pivot_table_query_generator';
+
 /**
  * A plain js object, holding objects of type |Class| keyed by string id.
  * We use this instead of using |Map| object since it is simpler and faster to
@@ -53,7 +55,8 @@ export const MAX_TIME = 180;
 
 // 3: TrackKindPriority and related sorting changes.
 // 5: Move a large number of items off frontendLocalState and onto state
-export const STATE_VERSION = 5;
+// 6: Common PivotTableConfig and pivot table specific PivotTableState.
+export const STATE_VERSION = 6;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -268,6 +271,27 @@ export interface MetricsState {
   requestedMetric?: string;  // Unset after metric request is handled.
 }
 
+export interface PivotTableConfig {
+  availableColumns?: Array<{
+    tableName: string,
+    columns: string[]
+  }>;                                // Undefined until list is loaded.
+  totalColumnsCount?: number;        // Total columns in all tables.
+  availableAggregations?: string[];  // Undefined until list is loaded.
+}
+
+export interface PivotTableState {
+  id: string;
+  name: string;
+  selectedPivots: PivotAttrs[];
+  selectedAggregations: AggregationAttrs[];
+  selectedColumnIndex?: number;
+  selectedAggregationIndex?: number;
+  isPivot: boolean;
+  requestedAction?:
+      string;  // Unset after pivot table column request is handled.
+}
+
 export interface State {
   // tslint:disable-next-line:no-any
   [key: string]: any;
@@ -308,6 +332,8 @@ export interface State {
   currentHeapProfileFlamegraph: HeapProfileFlamegraph|null;
   logsPagination: LogsPagination;
   traceConversionInProgress: boolean;
+  pivotTableConfig: PivotTableConfig;
+  pivotTable: ObjectById<PivotTableState>;
 
   /**
    * This state is updated on the frontend at 60Hz and eventually syncronised to
@@ -825,6 +851,8 @@ export function createEmptyState(): State {
     metrics: {},
     permalink: {},
     notes: {},
+    pivotTableConfig: {},
+    pivotTable: {},
 
     recordConfig: createEmptyRecordConfig(),
     displayConfigAsPbtxt: false,
