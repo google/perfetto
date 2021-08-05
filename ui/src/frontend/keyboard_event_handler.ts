@@ -14,6 +14,7 @@
 
 import {Actions} from '../common/actions';
 import {Area} from '../common/state';
+import {featureFlags} from '../common/feature_flags';
 
 import {Flow, globals} from './globals';
 import {toggleHelp} from './help_modal';
@@ -23,6 +24,13 @@ import {
   verticalScrollToTrack
 } from './scroll_helper';
 import {executeSearch} from './search_handler';
+
+const PIVOT_TABLE_FLAG = featureFlags.register({
+  id: 'pivotTables',
+  name: 'Pivot tables',
+  description: 'Show experimental pivot table details tab.',
+  defaultValue: false,
+});
 
 const INSTANT_FOCUS_DURATION_S = 1 / 1e9;  // 1 ns.
 type Direction = 'Forward'|'Backward';
@@ -71,7 +79,7 @@ export function handleKey(e: KeyboardEvent, down: boolean) {
       moveByFocusedFlow('Backward');
     }
   }
-  if (down && 'p' === key && e.ctrlKey && globals.isInternalUser) {
+  if (down && 'p' === key && e.ctrlKey && PIVOT_TABLE_FLAG.get()) {
     e.preventDefault();
     globals.frontendLocalState.togglePivotTable();
   }
