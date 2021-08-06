@@ -227,9 +227,11 @@ class SystraceParser : public Destructible {
   void ParseSystracePoint(int64_t ts,
                           uint32_t pid,
                           systrace_utils::SystraceTracePoint event);
+  void PostProcessSpecialSliceBegin(int64_t ts, base::StringView name);
 
   TraceProcessorContext* const context_;
   const StringId lmk_id_;
+  const StringId oom_score_adj_id_;
   const StringId screen_state_id_;
   const StringId cookie_id_;
 };
