@@ -91,6 +91,7 @@ type States = 'init'|'loading_trace'|'ready';
 const METRICS = [
   'android_startup',
   'android_ion',
+  'android_lmk',
   'android_dma_heap',
   'android_thread_time_in_state',
   'android_surfaceflinger',
@@ -691,5 +692,3 @@ export class TraceController extends Controller<States> {
     }));
   }
 }
-
-
