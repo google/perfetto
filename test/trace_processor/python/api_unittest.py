@@ -25,6 +25,7 @@ class TestQueryResultIterator(unittest.TestCase):
   CELL_VARINT = ProtoFactory().CellsBatch().CELL_VARINT
   CELL_STRING = ProtoFactory().CellsBatch().CELL_STRING
   CELL_INVALID = ProtoFactory().CellsBatch().CELL_INVALID
+  CELL_NULL = ProtoFactory().CellsBatch().CELL_NULL
 
   def test_one_batch(self):
     int_values = [100, 200]
@@ -34,18 +35,22 @@ class TestQueryResultIterator(unittest.TestCase):
     batch.cells.extend([
         TestQueryResultIterator.CELL_STRING,
         TestQueryResultIterator.CELL_VARINT,
-        TestQueryResultIterator.CELL_STRING, TestQueryResultIterator.CELL_VARINT
+        TestQueryResultIterator.CELL_NULL,
+        TestQueryResultIterator.CELL_STRING,
+        TestQueryResultIterator.CELL_VARINT,
+        TestQueryResultIterator.CELL_NULL,
     ])
     batch.varint_cells.extend(int_values)
     batch.string_cells = "\0".join(str_values) + "\0"
     batch.is_last_batch = True
 
-    qr_iterator = TraceProcessor.QueryResultIterator(['foo_id', 'foo_num'],
-                                                     [batch])
+    qr_iterator = TraceProcessor.QueryResultIterator(
+        ['foo_id', 'foo_num', 'foo_null'], [batch])
 
     for num, row in enumerate(qr_iterator):
       self.assertEqual(row.foo_id, str_values[num])
       self.assertEqual(row.foo_num, int_values[num])
+      self.assertEqual(row.foo_null, None)
 
   def test_many_batches(self):
     int_values = [100, 200, 300, 400]
@@ -55,7 +60,10 @@ class TestQueryResultIterator(unittest.TestCase):
     batch_1.cells.extend([
         TestQueryResultIterator.CELL_STRING,
         TestQueryResultIterator.CELL_VARINT,
-        TestQueryResultIterator.CELL_STRING, TestQueryResultIterator.CELL_VARINT
+        TestQueryResultIterator.CELL_NULL,
+        TestQueryResultIterator.CELL_STRING,
+        TestQueryResultIterator.CELL_VARINT,
+        TestQueryResultIterator.CELL_NULL,
     ])
     batch_1.varint_cells.extend(int_values[:2])
     batch_1.string_cells = "\0".join(str_values[:2]) + "\0"
@@ -65,18 +73,22 @@ class TestQueryResultIterator(unittest.TestCase):
     batch_2.cells.extend([
         TestQueryResultIterator.CELL_STRING,
         TestQueryResultIterator.CELL_VARINT,
-        TestQueryResultIterator.CELL_STRING, TestQueryResultIterator.CELL_VARINT
+        TestQueryResultIterator.CELL_NULL,
+        TestQueryResultIterator.CELL_STRING,
+        TestQueryResultIterator.CELL_VARINT,
+        TestQueryResultIterator.CELL_NULL,
     ])
     batch_2.varint_cells.extend(int_values[2:])
     batch_2.string_cells = "\0".join(str_values[2:]) + "\0"
     batch_2.is_last_batch = True
 
-    qr_iterator = TraceProcessor.QueryResultIterator(['foo_id', 'foo_num'],
-                                                     [batch_1, batch_2])
+    qr_iterator = TraceProcessor.QueryResultIterator(
+        ['foo_id', 'foo_num', 'foo_null'], [batch_1, batch_2])
 
     for num, row in enumerate(qr_iterator):
       self.assertEqual(row.foo_id, str_values[num])
       self.assertEqual(row.foo_num, int_values[num])
+      self.assertEqual(row.foo_null, None)
 
   def test_empty_batch(self):
     batch = ProtoFactory().CellsBatch()
@@ -91,13 +103,42 @@ class TestQueryResultIterator(unittest.TestCase):
   def test_invalid_batch(self):
     batch = ProtoFactory().CellsBatch()
 
-    qr_iterator = TraceProcessor.QueryResultIterator([], [batch])
-
     # Since the batch isn't defined as the last batch, the QueryResultsIterator
     # expects another batch and thus raises IndexError as no next batch exists.
     with self.assertRaises(IndexError):
-      for row in qr_iterator:
-        pass
+      qr_iterator = TraceProcessor.QueryResultIterator([], [batch])
+
+  def test_null_cells(self):
+    int_values = [100, 200, 300, 500, 600]
+    str_values = ['bar1', 'bar2', 'bar3']
+
+    batch = ProtoFactory().CellsBatch()
+    batch.cells.extend([
+        TestQueryResultIterator.CELL_STRING,
+        TestQueryResultIterator.CELL_VARINT,
+        TestQueryResultIterator.CELL_VARINT,
+        TestQueryResultIterator.CELL_STRING,
+        TestQueryResultIterator.CELL_VARINT,
+        TestQueryResultIterator.CELL_NULL,
+        TestQueryResultIterator.CELL_STRING,
+        TestQueryResultIterator.CELL_VARINT,
+        TestQueryResultIterator.CELL_VARINT,
+    ])
+    batch.varint_cells.extend(int_values)
+    batch.string_cells = "\0".join(str_values) + "\0"
+    batch.is_last_batch = True
+
+    qr_iterator = TraceProcessor.QueryResultIterator(
+        ['foo_id', 'foo_num', 'foo_num_2'], [batch])
+
+    # Any cell (and thus column in a row) can be set to null
+    # In this query result, foo_num_2 of row 2 was set to null
+    # Test to see that all the rows are still returned correctly
+    int_values_check = [100, 200, 300, None, 500, 600]
+    for num, row in enumerate(qr_iterator):
+      self.assertEqual(row.foo_id, str_values[num])
+      self.assertEqual(row.foo_num, int_values_check[num * 2])
+      self.assertEqual(row.foo_num_2, int_values_check[num * 2 + 1])
 
   def test_incorrect_cells_batch(self):
     str_values = ['bar1', 'bar2']
@@ -129,16 +170,12 @@ class TestQueryResultIterator(unittest.TestCase):
     batch.varint_cells.extend([100, 200])
     batch.is_last_batch = True
 
-    qr_iterator = TraceProcessor.QueryResultIterator(
-        ['foo_id', 'foo_num', 'foo_dur', 'foo_ms'], [batch])
-
     # It's always the case that the number of cells is a multiple of the number
-    # of columns. However, here this is clearly not the case, so when the
-    # iterator tries to access the cell for the third column, it raises an
-    # IndexError due to having exhausted the cells list.
-    with self.assertRaises(IndexError):
-      for row in qr_iterator:
-        pass
+    # of columns. However, here this is clearly not the case, so raise a
+    # TraceProcessorException during the data integrity check in the constructor
+    with self.assertRaises(TraceProcessorException):
+      qr_iterator = TraceProcessor.QueryResultIterator(
+          ['foo_id', 'foo_num', 'foo_dur', 'foo_ms'], [batch])
 
   def test_invalid_cell_type(self):
     batch = ProtoFactory().CellsBatch()
@@ -167,19 +204,23 @@ class TestQueryResultIterator(unittest.TestCase):
     batch.cells.extend([
         TestQueryResultIterator.CELL_STRING,
         TestQueryResultIterator.CELL_VARINT,
-        TestQueryResultIterator.CELL_STRING, TestQueryResultIterator.CELL_VARINT
+        TestQueryResultIterator.CELL_NULL,
+        TestQueryResultIterator.CELL_STRING,
+        TestQueryResultIterator.CELL_VARINT,
+        TestQueryResultIterator.CELL_NULL,
     ])
     batch.varint_cells.extend(int_values)
     batch.string_cells = "\0".join(str_values) + "\0"
     batch.is_last_batch = True
 
-    qr_iterator = TraceProcessor.QueryResultIterator(['foo_id', 'foo_num'],
-                                                     [batch])
+    qr_iterator = TraceProcessor.QueryResultIterator(
+        ['foo_id', 'foo_num', 'foo_null'], [batch])
 
     qr_df = qr_iterator.as_pandas_dataframe()
     for num, row in qr_df.iterrows():
       self.assertEqual(row['foo_id'], str_values[num])
       self.assertEqual(row['foo_num'], int_values[num])
+      self.assertEqual(row['foo_null'], None)
 
   def test_many_batches_as_pandas(self):
     int_values = [100, 200, 300, 400]
@@ -189,7 +230,10 @@ class TestQueryResultIterator(unittest.TestCase):
     batch_1.cells.extend([
         TestQueryResultIterator.CELL_STRING,
         TestQueryResultIterator.CELL_VARINT,
-        TestQueryResultIterator.CELL_STRING, TestQueryResultIterator.CELL_VARINT
+        TestQueryResultIterator.CELL_NULL,
+        TestQueryResultIterator.CELL_STRING,
+        TestQueryResultIterator.CELL_VARINT,
+        TestQueryResultIterator.CELL_NULL,
     ])
     batch_1.varint_cells.extend(int_values[:2])
     batch_1.string_cells = "\0".join(str_values[:2]) + "\0"
@@ -199,19 +243,23 @@ class TestQueryResultIterator(unittest.TestCase):
     batch_2.cells.extend([
         TestQueryResultIterator.CELL_STRING,
         TestQueryResultIterator.CELL_VARINT,
-        TestQueryResultIterator.CELL_STRING, TestQueryResultIterator.CELL_VARINT
+        TestQueryResultIterator.CELL_NULL,
+        TestQueryResultIterator.CELL_STRING,
+        TestQueryResultIterator.CELL_VARINT,
+        TestQueryResultIterator.CELL_NULL,
     ])
     batch_2.varint_cells.extend(int_values[2:])
     batch_2.string_cells = "\0".join(str_values[2:]) + "\0"
     batch_2.is_last_batch = True
 
-    qr_iterator = TraceProcessor.QueryResultIterator(['foo_id', 'foo_num'],
-                                                     [batch_1, batch_2])
+    qr_iterator = TraceProcessor.QueryResultIterator(
+        ['foo_id', 'foo_num', 'foo_null'], [batch_1, batch_2])
 
     qr_df = qr_iterator.as_pandas_dataframe()
     for num, row in qr_df.iterrows():
       self.assertEqual(row['foo_id'], str_values[num])
       self.assertEqual(row['foo_num'], int_values[num])
+      self.assertEqual(row['foo_null'], None)
 
   def test_empty_batch_as_pandas(self):
     batch = ProtoFactory().CellsBatch()
@@ -224,15 +272,38 @@ class TestQueryResultIterator(unittest.TestCase):
       self.assertEqual(row['foo_id'], str_values[num])
       self.assertEqual(row['foo_num'], int_values[num])
 
-  def test_invalid_batch_as_pandas(self):
+  def test_null_cells_as_pandas(self):
+    int_values = [100, 200, 300, 500, 600]
+    str_values = ['bar1', 'bar2', 'bar3']
+
     batch = ProtoFactory().CellsBatch()
+    batch.cells.extend([
+        TestQueryResultIterator.CELL_STRING,
+        TestQueryResultIterator.CELL_VARINT,
+        TestQueryResultIterator.CELL_VARINT,
+        TestQueryResultIterator.CELL_STRING,
+        TestQueryResultIterator.CELL_VARINT,
+        TestQueryResultIterator.CELL_NULL,
+        TestQueryResultIterator.CELL_STRING,
+        TestQueryResultIterator.CELL_VARINT,
+        TestQueryResultIterator.CELL_VARINT,
+    ])
+    batch.varint_cells.extend(int_values)
+    batch.string_cells = "\0".join(str_values) + "\0"
+    batch.is_last_batch = True
 
-    qr_iterator = TraceProcessor.QueryResultIterator([], [batch])
+    qr_iterator = TraceProcessor.QueryResultIterator(
+        ['foo_id', 'foo_num', 'foo_num_2'], [batch])
+    qr_df = qr_iterator.as_pandas_dataframe()
 
-    # Since the batch isn't defined as the last batch, the QueryResultsIterator
-    # expects another batch and thus raises IndexError as no next batch exists.
-    with self.assertRaises(IndexError):
-      qr_df = qr_iterator.as_pandas_dataframe()
+    # Any cell (and thus column in a row) can be set to null
+    # In this query result, foo_num_2 of row 2 was set to null
+    # Test to see that all the rows are still returned correctly
+    int_values_check = [100, 200, 300, None, 500, 600]
+    for num, row in qr_df.iterrows():
+      self.assertEqual(row['foo_id'], str_values[num])
+      self.assertEqual(row['foo_num'], int_values_check[num * 2])
+      self.assertEqual(row['foo_num_2'], int_values_check[num * 2 + 1])
 
   def test_incorrect_cells_batch_as_pandas(self):
     str_values = ['bar1', 'bar2']
@@ -252,24 +323,6 @@ class TestQueryResultIterator(unittest.TestCase):
     # The batch specifies there ought to be 2 cells of type VARINT and 2 cells
     # of type STRING, but there are no string cells defined in the batch. Thus
     # an IndexError occurs as it tries to access the empty string cells list.
-    with self.assertRaises(IndexError):
-      qr_df = qr_iterator.as_pandas_dataframe()
-
-  def test_incorrect_columns_batch_as_pandas(self):
-    batch = ProtoFactory().CellsBatch()
-    batch.cells.extend([
-        TestQueryResultIterator.CELL_VARINT, TestQueryResultIterator.CELL_VARINT
-    ])
-    batch.varint_cells.extend([100, 200])
-    batch.is_last_batch = True
-
-    qr_iterator = TraceProcessor.QueryResultIterator(
-        ['foo_id', 'foo_num', 'foo_dur', 'foo_ms'], [batch])
-
-    # It's always the case that the number of cells is a multiple of the number
-    # of columns. However, here this is clearly not the case, so when the
-    # iterator tries to access the cell for the third column, it raises an
-    # IndexError due to having exhausted the cells list.
     with self.assertRaises(IndexError):
       qr_df = qr_iterator.as_pandas_dataframe()
 
