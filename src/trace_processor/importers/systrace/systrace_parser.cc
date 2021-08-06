@@ -17,6 +17,7 @@
 #include "src/trace_processor/importers/systrace/systrace_parser.h"
 
 #include "perfetto/ext/base/optional.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
@@ -29,6 +30,7 @@ namespace trace_processor {
 SystraceParser::SystraceParser(TraceProcessorContext* ctx)
     : context_(ctx),
       lmk_id_(ctx->storage->InternString("mem.lmk")),
+      oom_score_adj_id_(ctx->storage->InternString("oom_score_adj")),
       screen_state_id_(ctx->storage->InternString("ScreenState")),
       cookie_id_(ctx->storage->InternString("cookie")) {}
 
@@ -139,6 +141,7 @@ void SystraceParser::ParseSystracePoint(
       TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
       context_->slice_tracker->Begin(ts, track_id, kNullStringId /* cat */,
                                      name_id);
+      PostProcessSpecialSliceBegin(ts, point.name);
       break;
     }
 
@@ -247,6 +250,35 @@ void SystraceParser::ParseSystracePoint(
       context_->event_tracker->PushCounter(ts, static_cast<double>(point.value),
                                            track_id);
     }
+  }
+}
+
+void SystraceParser::PostProcessSpecialSliceBegin(int64_t ts,
+                                                  base::StringView name) {
+  if (name.StartsWith("lmk,")) {
+    // LMK events introduced with http://aosp/1782391 are treated specially
+    // to parse the killed process oom_score_adj out of them.
+    // Format is 'lmk,pid,reason,oom adj,...'
+    std::vector<std::string> toks = base::SplitString(name.ToStdString(), ",");
+    if (toks.size() < 4) {
+      return;
+    }
+    auto killed_pid = base::StringToUInt32(toks[1]);
+    auto oom_score_adj = base::StringToInt32(toks[3]);
+    if (!killed_pid || !oom_score_adj) {
+      return;
+    }
+
+    UniquePid killed_upid =
+        context_->process_tracker->GetOrCreateProcess(*killed_pid);
+    // Add the oom score entry
+    TrackId track = context_->track_tracker->InternProcessCounterTrack(
+        oom_score_adj_id_, killed_upid);
+    context_->event_tracker->PushCounter(ts, *oom_score_adj, track);
+
+    // Add mem.lmk instant event for consistency with other methods.
+    context_->event_tracker->PushInstant(ts, lmk_id_, killed_upid,
+                                         RefType::kRefUpid);
   }
 }
 
