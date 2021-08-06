@@ -23,7 +23,6 @@ import {queryResponseToClipboard} from './clipboard';
 import {globals} from './globals';
 import {Panel} from './panel';
 
-const PLACEHOLDER = 'Enter SQL query';
 interface PivotTableRowAttrs {
   row: Row;
   columns: string[];
@@ -41,42 +40,158 @@ class PivotTableRow implements m.ClassComponent<PivotTableRowAttrs> {
   }
 }
 
-class PivotTableQuery {
-  private query = '';
-
-  setQuery(value: string) {
-    this.query = value;
-  }
-
-  getQuery(): string {
-    return this.query;
-  }
+interface PivotTableAttrs {
+  pivotTableId: string;
 }
 
-interface PivotTableAttrs {
-  queryId: string;
+class ColumnPicker implements m.ClassComponent<PivotTableAttrs> {
+  view(vnode: m.Vnode<PivotTableAttrs>) {
+    const {pivotTableId} = vnode.attrs;
+    const availableColumns = globals.state.pivotTableConfig.availableColumns;
+    const availableColumnsCount =
+        globals.state.pivotTableConfig.totalColumnsCount;
+    const availableAggregations =
+        globals.state.pivotTableConfig.availableAggregations;
+    if (availableColumns === undefined || availableColumnsCount === undefined) {
+      return 'Loading columns...';
+    }
+    if (availableAggregations === undefined) {
+      return 'Loading aggregations...';
+    }
+    if (availableColumnsCount === 0) {
+      return 'No columns available';
+    }
+    if (availableAggregations.length === 0) {
+      return 'No aggregations available';
+    }
+
+    if (globals.state.pivotTable[pivotTableId].selectedColumnIndex ===
+        undefined) {
+      globals.state.pivotTable[pivotTableId].selectedColumnIndex = 0;
+    }
+    if (globals.state.pivotTable[pivotTableId].selectedAggregationIndex ===
+        undefined) {
+      globals.state.pivotTable[pivotTableId].selectedAggregationIndex = 0;
+    }
+
+    // Fills available aggregations options in aggregation select.
+    const aggregationOptions = [];
+    for (let i = 0; i < availableAggregations.length; ++i) {
+      aggregationOptions.push(
+          m('option',
+            {value: availableAggregations[i], key: availableAggregations[i]},
+            availableAggregations[i]));
+    }
+
+    // Fills available columns options divided according to their table in
+    // column select.
+    const columnOptionGroup = [];
+    for (let i = 0; i < availableColumns.length; ++i) {
+      const options = [];
+      for (let j = 0; j < availableColumns[i].columns.length; ++j) {
+        options.push(
+            m('option',
+              {
+                value: availableColumns[i].columns[j],
+                key: availableColumns[i].columns[j]
+              },
+              availableColumns[i].columns[j]));
+      }
+      columnOptionGroup.push(
+          m('optgroup', {label: availableColumns[i].tableName}, options));
+    }
+
+    return m('div', [
+      'Select a column: ',
+      // Pivot radio button.
+      m(`input[type=radio][name=type][id=pivot]`, {
+        checked: globals.state.pivotTable[pivotTableId].isPivot,
+        onchange: () =>
+            globals.dispatch(Actions.togglePivotSelection({pivotTableId}))
+      }),
+      m(`label[for=pivot]`, 'Pivot'),
+      // Aggregation radio button.
+      m(`input[type=radio][name=type][id=aggregation]`, {
+        checked: !globals.state.pivotTable[pivotTableId].isPivot,
+        onchange: () =>
+            globals.dispatch(Actions.togglePivotSelection({pivotTableId}))
+      }),
+      m(`label[for=aggregation]`, 'Aggregation'),
+      ' ',
+      // Aggregation select.
+      m('select',
+        {
+          disabled: (globals.state.pivotTable[pivotTableId].isPivot === true),
+          selectedIndex:
+              globals.state.pivotTable[pivotTableId].selectedAggregationIndex,
+          onchange: (e: InputEvent) => {
+            globals.dispatch(Actions.setSelectedPivotTableAggregationIndex({
+              pivotTableId,
+              index: (e.target as HTMLSelectElement).selectedIndex
+            }));
+          }
+        },
+        aggregationOptions),
+      ' ',
+      // Column select.
+      m('select',
+        {
+          selectedIndex:
+              globals.state.pivotTable[pivotTableId].selectedColumnIndex,
+          onchange: (e: InputEvent) => {
+            globals.dispatch(Actions.setSelectedPivotTableColumnIndex({
+              pivotTableId,
+              index: (e.target as HTMLSelectElement).selectedIndex
+            }));
+          }
+        },
+        columnOptionGroup),
+      ' ',
+      // Button to toggle selected column.
+      m('button.query-ctrl',
+        {
+          onclick: () => {
+            globals.dispatch(
+                Actions.setPivotTableRequest({pivotTableId, action: 'UPDATE'}));
+          }
+        },
+        'Add/Remove'),
+      // Button to execute query based on added/removed columns.
+      m('button.query-ctrl',
+        {
+          onclick: () => {
+            globals.dispatch(
+                Actions.setPivotTableRequest({pivotTableId, action: 'QUERY'}));
+          }
+        },
+        'Query'),
+      // Button to clear table and all selected columns.
+      m('button.query-ctrl',
+        {
+          onclick: () => {
+            globals.dispatch(Actions.clearPivotTableColumns({pivotTableId}));
+            globals.dispatch(
+                Actions.setPivotTableRequest({pivotTableId, action: 'QUERY'}));
+          }
+        },
+        'Clear'),
+    ]);
+  }
 }
 
 export class PivotTable extends Panel<PivotTableAttrs> {
-  private previousResponse?: QueryResponse;
-  private pivotTableQuery: PivotTableQuery = new PivotTableQuery();
-
-  onbeforeupdate(vnode: m.CVnode<PivotTableAttrs>) {
-    const {queryId} = vnode.attrs;
-    const resp = globals.queryResults.get(queryId) as QueryResponse;
-    const res = resp !== this.previousResponse;
-    return res;
-  }
-
   view(vnode: m.CVnode<PivotTableAttrs>) {
-    const {queryId} = vnode.attrs;
-    const resp = globals.queryResults.get(queryId) as QueryResponse;
+    const {pivotTableId} = vnode.attrs;
+    const resp = globals.queryResults.get(pivotTableId) as QueryResponse;
+    // Query resulting from query generator should always be valid.
+    if (resp !== undefined && resp.error) {
+      throw Error(`Pivot table query resulted in SQL error: ${resp.error}`);
+    }
     const cols = [];
     const rows = [];
     let header;
 
     if (resp !== undefined) {
-      this.previousResponse = resp;
       for (const col of resp.columns) {
         cols.push(m('td', col));
       }
@@ -93,25 +208,7 @@ export class PivotTable extends Panel<PivotTableAttrs> {
             'header.overview',
             m(
                 'span.code',
-                m('input', {
-                  placeholder: PLACEHOLDER,
-                  oninput: (e: InputEvent) => {
-                    this.pivotTableQuery.setQuery(
-                        (e.target as HTMLInputElement).value);
-                  }
-                }),
-                m('button.query-ctrl',
-                  {
-                    onclick: () => {
-                      if (this.pivotTableQuery.getQuery().length === 0) return;
-                      globals.dispatch(Actions.executeQuery({
-                        engineId: '0',
-                        queryId: 'pivot-table-query',
-                        query: this.pivotTableQuery.getQuery()
-                      }));
-                    }
-                  },
-                  'Query'),
+                m(ColumnPicker, {pivotTableId}),
                 ),
             (resp === undefined || resp.error) ?
                 null :
@@ -126,14 +223,13 @@ export class PivotTable extends Panel<PivotTableAttrs> {
               {
                 onclick: () => {
                   globals.frontendLocalState.togglePivotTable();
+                  globals.dispatch(Actions.deletePivotTable({pivotTableId}));
                 }
               },
               'Close'),
             ),
-        (resp !== undefined && resp.error) ?
-            m('.query-error', `SQL error: ${resp.error}`) :
-            m('query-table-container',
-              m('table.query-table', m('thead', header), m('tbody', rows))));
+        m('query-table-container',
+          m('table.query-table', m('thead', header), m('tbody', rows))));
   }
 
   renderCanvas() {}

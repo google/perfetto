@@ -32,7 +32,7 @@ import {ServiceWorkerController} from './service_worker_controller';
 
 type Dispatch = (action: DeferredAction) => void;
 type TrackDataStore = Map<string, {}>;
-type QueryResultsStore = Map<string, {}>;
+type QueryResultsStore = Map<string, {}|undefined>;
 type AggregateDataStore = Map<string, AggregateData>;
 type Description = Map<string, string>;
 export interface SliceDetails {

@@ -14,6 +14,7 @@
 
 import {Actions} from '../common/actions';
 import {Area} from '../common/state';
+import {featureFlags} from '../common/feature_flags';
 
 import {Flow, globals} from './globals';
 import {toggleHelp} from './help_modal';
@@ -23,6 +24,13 @@ import {
   verticalScrollToTrack
 } from './scroll_helper';
 import {executeSearch} from './search_handler';
+
+const PIVOT_TABLE_FLAG = featureFlags.register({
+  id: 'pivotTables',
+  name: 'Pivot tables',
+  description: 'Show experimental pivot table details tab.',
+  defaultValue: false,
+});
 
 const INSTANT_FOCUS_DURATION_S = 1 / 1e9;  // 1 ns.
 type Direction = 'Forward'|'Backward';
@@ -71,9 +79,18 @@ export function handleKey(e: KeyboardEvent, down: boolean) {
       moveByFocusedFlow('Backward');
     }
   }
-  if (down && 'p' === key && e.ctrlKey && globals.isInternalUser) {
+  if (down && 'p' === key && e.ctrlKey && PIVOT_TABLE_FLAG.get()) {
     e.preventDefault();
     globals.frontendLocalState.togglePivotTable();
+    const pivotTableId = 'pivot-table';
+    if (globals.state.pivotTable[pivotTableId] === undefined) {
+      globals.dispatch(Actions.addNewPivotTable({
+        name: 'Pivot Table',
+        pivotTableId,
+        selectedPivots: [],
+        selectedAggregations: []
+      }));
+    }
   }
 }
 
@@ -154,31 +171,46 @@ function moveByFocusedFlow(direction: Direction) {
   }
 }
 
-function findTimeRangeOfSelection() {
+function findTimeRangeOfSelection(): {startTs: number, endTs: number} {
   const selection = globals.state.currentSelection;
   let startTs = -1;
   let endTs = -1;
-  if (selection !== null) {
-    if (selection.kind === 'SLICE' || selection.kind === 'CHROME_SLICE') {
-      const slice = globals.sliceDetails;
-      if (slice.ts && slice.dur !== undefined && slice.dur > 0) {
-        startTs = slice.ts + globals.state.traceTime.startSec;
-        endTs = startTs + slice.dur;
-      } else if (slice.ts) {
-        startTs = slice.ts + globals.state.traceTime.startSec;
-        endTs = startTs + INSTANT_FOCUS_DURATION_S;
-      }
-    } else if (selection.kind === 'THREAD_STATE') {
-      const threadState = globals.threadStateDetails;
-      if (threadState.ts && threadState.dur) {
-        startTs = threadState.ts + globals.state.traceTime.startSec;
-        endTs = startTs + threadState.dur;
-      }
-    } else if (selection.kind === 'COUNTER') {
-      startTs = selection.leftTs;
-      endTs = selection.rightTs;
+  if (selection === null) {
+    return {startTs, endTs};
+  } else if (selection.kind === 'SLICE' || selection.kind === 'CHROME_SLICE') {
+    const slice = globals.sliceDetails;
+    if (slice.ts && slice.dur !== undefined && slice.dur > 0) {
+      startTs = slice.ts + globals.state.traceTime.startSec;
+      endTs = startTs + slice.dur;
+    } else if (slice.ts) {
+      startTs = slice.ts + globals.state.traceTime.startSec;
+      endTs = startTs + INSTANT_FOCUS_DURATION_S;
+    }
+  } else if (selection.kind === 'THREAD_STATE') {
+    const threadState = globals.threadStateDetails;
+    if (threadState.ts && threadState.dur) {
+      startTs = threadState.ts + globals.state.traceTime.startSec;
+      endTs = startTs + threadState.dur;
+    }
+  } else if (selection.kind === 'COUNTER') {
+    startTs = selection.leftTs;
+    endTs = selection.rightTs;
+  } else if (selection.kind === 'AREA') {
+    const selectedArea = globals.state.areas[selection.areaId];
+    if (selectedArea) {
+      startTs = selectedArea.startSec;
+      endTs = selectedArea.endSec;
+    }
+  } else if (selection.kind === 'NOTE') {
+    const selectedNote = globals.state.notes[selection.id];
+    // Notes can either be default or area notes. Area notes are handled
+    // above in the AREA case.
+    if (selectedNote && selectedNote.noteType === 'DEFAULT') {
+      startTs = selectedNote.timestamp;
+      endTs = selectedNote.timestamp + INSTANT_FOCUS_DURATION_S;
     }
   }
+
   return {startTs, endTs};
 }
 

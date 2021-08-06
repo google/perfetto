@@ -141,7 +141,7 @@ export function publishAggregateData(
   globals.publishRedraw();
 }
 
-export function publishQueryResult(args: {id: string, data: {}}) {
+export function publishQueryResult(args: {id: string, data?: {}}) {
   globals.queryResults.set(args.id, args.data);
   globals.publishRedraw();
 }
