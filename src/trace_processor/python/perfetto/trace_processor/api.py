@@ -163,15 +163,19 @@ class TraceProcessor:
       self.__current_index += 1
       return result
 
-  def __init__(self, addr=None, file_path=None, bin_path=None,
-               unique_port=True):
+  def __init__(self,
+               addr=None,
+               file_path=None,
+               bin_path=None,
+               unique_port=True,
+               verbose=False):
     # Load trace_processor_shell or access via given address
     if addr:
       p = urlparse(addr)
       tp = TraceProcessorHttp(p.netloc if p.netloc else p.path)
     else:
       url, self.subprocess = load_shell(
-          bin_path=bin_path, unique_port=unique_port)
+          bin_path=bin_path, unique_port=unique_port, verbose=verbose)
       tp = TraceProcessorHttp(url)
     self.http = tp
     self.protos = ProtoFactory()
