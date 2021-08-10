@@ -299,26 +299,27 @@ partitions before computing the intersection.
 -- Get all the scheduling slices
 CREATE VIEW sp_sched AS
 SELECT ts, dur, cpu, utid
-FROM sched
+FROM sched;
 
 -- Get all the cpu frequency slices
 CREATE VIEW sp_frequency AS
 SELECT
   ts,
-  lead(ts) OVER (PARTITION BY cpu ORDER BY ts) - ts as dur,
+  lead(ts) OVER (PARTITION BY track_id ORDER BY ts) - ts as dur,
   cpu,
   value as freq
 FROM counter
+JOIN cpu_counter_track ON counter.track_id = cpu_counter_track.id;
 
 -- Create the span joined table which combines cpu frequency with
 -- scheduling slices.
 CREATE VIRTUAL TABLE sched_with_frequency
-USING SPAN_JOIN(sp_sched PARTITIONED cpu, sp_frequency PARTITIONED cpu)
+USING SPAN_JOIN(sp_sched PARTITIONED cpu, sp_frequency PARTITIONED cpu);
 
 -- This span joined table can be queried as normal and has the columns from both
 -- tables.
 SELECT ts, dur, cpu, utid, freq
-FROM sched_with_frequency
+FROM sched_with_frequency;
 ```
 
 NOTE: A partition can be specified on neither, either or both tables. If
