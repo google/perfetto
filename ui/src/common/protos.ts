@@ -45,10 +45,7 @@ import TraceConfig = protos.perfetto.protos.TraceConfig;
 import VmstatCounters = protos.perfetto.protos.VmstatCounters;
 
 // Trace Processor protos.
-import IRawQueryArgs = protos.perfetto.protos.IRawQueryArgs;
 import QueryArgs = protos.perfetto.protos.QueryArgs;
-import RawQueryArgs = protos.perfetto.protos.RawQueryArgs;
-import RawQueryResult = protos.perfetto.protos.RawQueryResult;
 import StatusResult = protos.perfetto.protos.StatusResult;
 import ComputeMetricArgs = protos.perfetto.protos.ComputeMetricArgs;
 import ComputeMetricResult = protos.perfetto.protos.ComputeMetricResult;
@@ -69,7 +66,6 @@ export {
   IAndroidPowerConfig,
   IBufferConfig,
   IProcessStatsConfig,
-  IRawQueryArgs,
   ISysStatsConfig,
   ITraceConfig,
   JavaContinuousDumpConfig,
@@ -78,8 +74,6 @@ export {
   NativeContinuousDumpConfig,
   ProcessStatsConfig,
   QueryArgs,
-  RawQueryArgs,
-  RawQueryResult,
   StatCounters,
   StatusResult,
   SysStatsConfig,
