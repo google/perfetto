@@ -16,15 +16,15 @@
 
 #include "src/profiling/memory/shared_ring_buffer.h"
 
-#include <atomic>
-#include <type_traits>
-
 #include <errno.h>
 #include <fcntl.h>
-#include <inttypes.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
+
+#include <atomic>
+#include <cinttypes>
+#include <type_traits>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/scoped_file.h"

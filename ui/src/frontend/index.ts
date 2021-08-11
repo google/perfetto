@@ -14,14 +14,15 @@
 
 import '../tracks/all_frontend';
 
-import {applyPatches, Patch} from 'immer';
+import {applyPatches, Patch, produce} from 'immer';
 import * as m from 'mithril';
 
 import {defer} from '../base/deferred';
 import {assertExists, reportError, setErrorHandler} from '../base/logging';
 import {forwardRemoteCalls} from '../base/remote';
-import {Actions} from '../common/actions';
+import {Actions, DeferredAction, StateActions} from '../common/actions';
 import {AggregateData} from '../common/aggregation_data';
+import {tryGetTrace} from '../common/cache_manager';
 import {ConversionJobStatusUpdate} from '../common/conversion_jobs';
 import {
   LogBoundsKey,
@@ -31,6 +32,11 @@ import {
 } from '../common/logs';
 import {MetricResult} from '../common/metric_data';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
+import {createEmptyState, State} from '../common/state';
+import {
+  ControllerWorkerInitMessage,
+  EngineWorkerInitMessage
+} from '../common/worker_messages';
 
 import {AnalyzePage} from './analyze_page';
 import {loadAndroidBugToolInfo} from './android_bug_tool';
@@ -49,9 +55,9 @@ import {
   ThreadStateDetails
 } from './globals';
 import {HomePage} from './home_page';
-import {openBufferWithLegacyTraceViewer} from './legacy_trace_viewer';
 import {initLiveReloadIfLocalhost} from './live_reload';
 import {MetricsPage} from './metrics_page';
+import {PageAttrs} from './pages';
 import {postMessageHandler} from './post_message_handler';
 import {RecordPage, updateAvailableAdbDevices} from './record_page';
 import {Router} from './router';
@@ -66,11 +72,82 @@ function isLocalhostTraceUrl(url: string): boolean {
   return ['127.0.0.1', 'localhost'].includes((new URL(url)).hostname);
 }
 
+let idleWasmWorker: Worker;
+let activeWasmWorker: Worker;
+
 /**
  * The API the main thread exposes to the controller.
  */
 class FrontendApi {
-  constructor(private router: Router) {}
+  private router: Router;
+  private port: MessagePort;
+  private state: State;
+
+  constructor(router: Router, port: MessagePort) {
+    this.router = router;
+    this.state = createEmptyState();
+    this.port = port;
+  }
+
+  dispatchMultiple(actions: DeferredAction[]) {
+    const oldState = this.state;
+    const patches: Patch[] = [];
+    for (const action of actions) {
+      const originalLength = patches.length;
+      const morePatches = this.applyAction(action);
+      patches.length += morePatches.length;
+      for (let i = 0; i < morePatches.length; ++i) {
+        patches[i + originalLength] = morePatches[i];
+      }
+    }
+
+    if (this.state === oldState) {
+      return;
+    }
+
+    // Update overall state.
+    globals.state = this.state;
+
+    // If the visible time in the global state has been updated more recently
+    // than the visible time handled by the frontend @ 60fps, update it. This
+    // typically happens when restoring the state from a permalink.
+    globals.frontendLocalState.mergeState(this.state.frontendLocalState);
+
+    // Only redraw if something other than the frontendLocalState changed.
+    for (const key in this.state) {
+      if (key !== 'frontendLocalState' && key !== 'visibleTracks' &&
+          oldState[key] !== this.state[key]) {
+        this.redraw();
+        break;
+      }
+    }
+
+    if (patches.length > 0) {
+      this.port.postMessage(patches);
+    }
+  }
+
+  private applyAction(action: DeferredAction): Patch[] {
+    const patches: Patch[] = [];
+
+    // 'produce' creates a immer proxy which wraps the current state turning
+    // all imperative mutations of the state done in the callback into
+    // immutable changes to the returned state.
+    this.state = produce(
+        this.state,
+        draft => {
+          // tslint:disable-next-line no-any
+          (StateActions as any)[action.type](draft, action.args);
+        },
+        (morePatches, _) => {
+          const originalLength = patches.length;
+          patches.length += morePatches.length;
+          for (let i = 0; i < morePatches.length; ++i) {
+            patches[i + originalLength] = morePatches[i];
+          }
+        });
+    return patches;
+  }
 
   patchState(patches: Patch[]) {
     const oldState = globals.state;
@@ -199,29 +276,11 @@ class FrontendApi {
     this.redraw();
   }
 
-  publishFileDownload(args: {file: File, name?: string}) {
-    const url = URL.createObjectURL(args.file);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = args.name !== undefined ? args.name : args.file.name;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }
-
   publishLoading(numQueuedQueries: number) {
     globals.numQueuedQueries = numQueuedQueries;
     // TODO(hjd): Clean up loadingAnimation given that this now causes a full
     // redraw anyways. Also this should probably just go via the global state.
     globals.rafScheduler.scheduleFullRedraw();
-  }
-
-  // For opening JSON/HTML traces with the legacy catapult viewer.
-  publishLegacyTrace(args: {data: ArrayBuffer, size: number}) {
-    const arr = new Uint8Array(args.data, 0, args.size);
-    const str = (new TextDecoder('utf-8')).decode(arr);
-    openBufferWithLegacyTraceViewer('trace.json', str, 0);
   }
 
   publishBufferUsage(args: {percentage: number}) {
@@ -265,12 +324,32 @@ class FrontendApi {
     this.redraw();
   }
 
-  private redraw(): void {
-    if (globals.state.route &&
-        globals.state.route !== this.router.getRouteFromHash()) {
-      this.router.setRouteOnHash(globals.state.route);
+  // This method is called by the controller via the Remote<> interface whenver
+  // a new trace is loaded. This creates a new worker and passes it the
+  // MessagePort received by the controller. This is because on Safari, all
+  // workers must be spawned from the main thread.
+  resetEngineWorker(port: MessagePort) {
+    // We keep always an idle worker around, the first one is created by the
+    // main() below, so we can hide the latency of the Wasm initialization.
+    if (activeWasmWorker !== undefined) {
+      activeWasmWorker.terminate();
     }
+    // Swap the active worker with the idle one and create a new idle worker
+    // for the next trace.
+    activeWasmWorker = assertExists(idleWasmWorker);
+    const msg: EngineWorkerInitMessage = {enginePort: port};
+    activeWasmWorker.postMessage(msg, [port]);
+    idleWasmWorker = new Worker(globals.root + 'engine_bundle.js');
+  }
 
+  private redraw(): void {
+    const traceIdString =
+        globals.state.traceUuid ? `?trace_id=${globals.state.traceUuid}` : '';
+    if (globals.state.route &&
+        globals.state.route + traceIdString !==
+            this.router.getFullRouteFromHash()) {
+      this.router.setRouteOnHash(globals.state.route, traceIdString);
+    }
     globals.rafScheduler.scheduleFullRedraw();
   }
 }
@@ -356,6 +435,7 @@ function main() {
   window.addEventListener('unhandledrejection', e => reportError(e));
 
   const controller = new Worker(globals.root + 'controller_bundle.js');
+  idleWasmWorker = new Worker(globals.root + 'engine_bundle.js');
   const frontendChannel = new MessageChannel();
   const controllerChannel = new MessageChannel();
   const extensionLocalChannel = new MessageChannel();
@@ -364,38 +444,36 @@ function main() {
   errorReportingChannel.port2.onmessage = (e) =>
       maybeShowErrorDialog(`${e.data}`);
 
-  controller.postMessage(
-      {
-        frontendPort: frontendChannel.port1,
-        controllerPort: controllerChannel.port1,
-        extensionPort: extensionLocalChannel.port1,
-        errorReportingPort: errorReportingChannel.port1,
-      },
-      [
-        frontendChannel.port1,
-        controllerChannel.port1,
-        extensionLocalChannel.port1,
-        errorReportingChannel.port1,
-      ]);
+  const msg: ControllerWorkerInitMessage = {
+    frontendPort: frontendChannel.port1,
+    controllerPort: controllerChannel.port1,
+    extensionPort: extensionLocalChannel.port1,
+    errorReportingPort: errorReportingChannel.port1,
+  };
+  controller.postMessage(msg, [
+    msg.frontendPort,
+    msg.controllerPort,
+    msg.extensionPort,
+    msg.errorReportingPort,
+  ]);
 
-  const dispatch =
-      controllerChannel.port2.postMessage.bind(controllerChannel.port2);
+  const dispatch = (action: DeferredAction) => {
+    frontendApi.dispatchMultiple([action]);
+  };
+
   globals.initialize(dispatch, controller);
   globals.serviceWorkerController.install();
 
-  const router = new Router(
-      '/',
-      {
-        '/': HomePage,
-        '/viewer': ViewerPage,
-        '/record': RecordPage,
-        '/query': AnalyzePage,
-        '/metrics': MetricsPage,
-        '/info': TraceInfoPage,
-      },
-      dispatch,
-      globals.logging);
-  forwardRemoteCalls(frontendChannel.port2, new FrontendApi(router));
+  const routes = new Map<string, m.Component<PageAttrs>>();
+  routes.set('/', HomePage);
+  routes.set('/viewer', ViewerPage);
+  routes.set('/record', RecordPage);
+  routes.set('/query', AnalyzePage);
+  routes.set('/metrics', MetricsPage);
+  routes.set('/info', TraceInfoPage);
+  const router = new Router('/', routes, dispatch, globals.logging);
+  const frontendApi = new FrontendApi(router, controllerChannel.port2);
+  forwardRemoteCalls(frontendChannel.port2, frontendApi);
 
   // We proxy messages between the extension and the controller because the
   // controller's worker can't access chrome.runtime.
@@ -434,6 +512,10 @@ function main() {
   }, {passive: false});
 
   cssLoadPromise.then(() => onCssLoaded(router));
+
+  if (globals.testing) {
+    document.body.classList.add('testing');
+  }
 }
 
 function onCssLoaded(router: Router) {
@@ -442,13 +524,25 @@ function onCssLoaded(router: Router) {
   // And replace it with the root <main> element which will be used by mithril.
   document.body.innerHTML = '<main></main>';
   const main = assertExists(document.body.querySelector('main'));
-  globals.rafScheduler.domRedraw = () =>
-      m.render(main, m(router.resolve(globals.state.route)));
+  globals.rafScheduler.domRedraw = () => {
+    m.render(main, router.resolve(globals.state.route));
+  };
+
+  /**
+   * Start of hack for backwards compatibility:
+   * There are some old URLs in the form of 'record?p=power'. We want these
+   * to keep opening the desired page(see b/191255021#comment2).
+   */
+  if (window.location.hash.startsWith('#!/record?p=')) {
+    window.location.hash = window.location.hash.replace('?p=', '/');
+  }
+  // end of hack for backwards compatibility
 
   router.navigateToCurrentHash();
 
   // /?s=xxxx for permalinks.
   const stateHash = Router.param('s');
+  const traceUuid = Router.param('trace_id');
   const urlHash = Router.param('url');
   const androidBugTool = Router.param('openFromAndroidBugTool');
   if (typeof stateHash === 'string' && stateHash) {
@@ -489,6 +583,8 @@ function onCssLoaded(router: Router) {
         .catch(e => {
           console.error(e);
         });
+  } else if (traceUuid) {
+    maybeLoadCachedTrace(traceUuid);
   }
 
   // Add support for opening traces from postMessage().
@@ -510,6 +606,12 @@ function onCssLoaded(router: Router) {
     console.error('WebUSB API not supported');
   }
   installFileDropHandler();
+}
+
+async function maybeLoadCachedTrace(traceUuid: string) {
+  const trace = await tryGetTrace(traceUuid);
+  if (trace === undefined) return;
+  globals.dispatch(Actions.openTraceFromBuffer(trace));
 }
 
 main();

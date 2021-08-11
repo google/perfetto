@@ -56,6 +56,9 @@ android_startup {
         dur_ms: 100
       }
       thread: "Binder"
+      destination_process: "system_server"
+      flags: "0x00 No Flags Set"
+      code: "0x00 Java Layer Dependent"
     }
     long_binder_transactions {
       duration {
@@ -63,6 +66,10 @@ android_startup {
         dur_ms: 200
       }
       thread: "fonts"
+      destination_thread: "Binder"
+      destination_process: "com.some.app"
+      flags: "0x00 No Flags Set"
+      code: "0x00 Java Layer Dependent"
     }
   }
 }

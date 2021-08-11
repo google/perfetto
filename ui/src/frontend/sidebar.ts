@@ -23,7 +23,7 @@ import {EngineMode, TraceArrayBufferSource} from '../common/state';
 import * as version from '../gen/perfetto_version';
 
 import {Animation} from './animation';
-import {copyToClipboard} from './clipboard';
+import {onClickCopy} from './clipboard';
 import {globals} from './globals';
 import {toggleHelp} from './help_modal';
 import {
@@ -32,6 +32,11 @@ import {
 } from './legacy_trace_viewer';
 import {showModal} from './modal';
 import {isDownloadable, isShareable} from './trace_attrs';
+import {
+  convertToJson,
+  convertTraceToJsonAndDownload,
+  convertTraceToSystraceAndDownload
+} from './trace_converter';
 
 const ALL_PROCESSES_QUERY = 'select name, pid from process order by name;';
 
@@ -326,7 +331,8 @@ function openHelp(e: Event) {
 }
 
 function getFileElement(): HTMLInputElement {
-  return document.querySelector('input[type=file]')! as HTMLInputElement;
+  return assertExists(
+      document.querySelector<HTMLInputElement>('input[type=file]'));
 }
 
 function popupFileSelectionDialog(e: Event) {
@@ -365,7 +371,7 @@ function downloadTraceFromUrl(url: string): Promise<File> {
   });
 }
 
-async function getCurrentTrace(): Promise<Blob> {
+export async function getCurrentTrace(): Promise<Blob> {
   // Caller must check engine exists.
   const engine = assertExists(Object.values(globals.state.engines)[0]);
   const src = engine.source;
@@ -401,7 +407,7 @@ function convertTraceToSystrace(e: Event) {
   if (!isTraceLoaded) return;
   getCurrentTrace()
       .then(file => {
-        globals.dispatch(Actions.convertTraceToSystraceAndDownload({file}));
+        convertTraceToSystraceAndDownload(file);
       })
       .catch(error => {
         throw new Error(`Failed to get current trace ${error}`);
@@ -415,7 +421,7 @@ function convertTraceToJson(e: Event) {
   if (!isTraceLoaded) return;
   getCurrentTrace()
       .then(file => {
-        globals.dispatch(Actions.convertTraceToJsonAndDownload({file}));
+        convertTraceToJsonAndDownload(file);
       })
       .catch(error => {
         throw new Error(`Failed to get current trace ${error}`);
@@ -461,6 +467,7 @@ function onInputElementFileSelectionChanged(e: Event) {
 
   if (e.target.dataset['video'] === '1') {
     // TODO(hjd): Update this to use a controller and publish.
+    globals.logging.logEvent('Trace Actions', 'Open video');
     globals.dispatch(Actions.executeQuery({
       engineId: '0', queryId: 'command',
       query: `select ts from slices where name = 'first_frame' union ` +
@@ -497,7 +504,7 @@ async function openWithLegacyUi(file: File) {
 function openInOldUIWithSizeCheck(trace: Blob) {
   // Perfetto traces smaller than 50mb can be safely opened in the legacy UI.
   if (trace.size < 1024 * 1024 * 50) {
-    globals.dispatch(Actions.convertTraceToJson({file: trace}));
+    convertToJson(trace);
     return;
   }
 
@@ -525,7 +532,7 @@ function openInOldUIWithSizeCheck(trace: Blob) {
         primary: false,
         id: 'open',
         action: () => {
-          globals.dispatch(Actions.convertTraceToJson({file: trace}));
+          convertToJson(trace);
         }
       },
       {
@@ -533,8 +540,7 @@ function openInOldUIWithSizeCheck(trace: Blob) {
         primary: true,
         id: 'truncate-start',
         action: () => {
-          globals.dispatch(
-              Actions.convertTraceToJson({file: trace, truncate: 'start'}));
+          convertToJson(trace, /*truncate*/ 'start');
         }
       },
       {
@@ -542,8 +548,7 @@ function openInOldUIWithSizeCheck(trace: Blob) {
         primary: true,
         id: 'truncate-end',
         action: () => {
-          globals.dispatch(
-              Actions.convertTraceToJson({file: trace, truncate: 'end'}));
+          convertToJson(trace, /*truncate*/ 'end');
         }
       }
 
@@ -944,7 +949,8 @@ export class Sidebar implements m.ClassComponent {
                 },
                 'menu')),
             ),
-        m('input[type=file]', {onchange: onInputElementFileSelectionChanged}),
+        m('input.trace_file[type=file]',
+          {onchange: onInputElementFileSelectionChanged}),
         m('.sidebar-scroll',
           m(
               '.sidebar-scroll-container',
@@ -963,14 +969,7 @@ function createTraceLink(title: string, url: string) {
     href: url,
     title: 'Click to copy the URL',
     target: '_blank',
-    onclick: (e: Event) => {
-      e.preventDefault();
-      copyToClipboard(url);
-      globals.dispatch(Actions.updateStatus({
-        msg: 'Link copied into the clipboard',
-        timestamp: Date.now() / 1000,
-      }));
-    },
+    onclick: onClickCopy(url)
   };
   return m('a.trace-file-name', linkProps, title);
 }

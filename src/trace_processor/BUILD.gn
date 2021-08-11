@@ -308,6 +308,8 @@ if (enable_perfetto_trace_processor_sqlite) {
       "dynamic/experimental_counter_dur_generator.h",
       "dynamic/experimental_flamegraph_generator.cc",
       "dynamic/experimental_flamegraph_generator.h",
+      "dynamic/experimental_flat_slice_generator.cc",
+      "dynamic/experimental_flat_slice_generator.h",
       "dynamic/experimental_sched_upid_generator.cc",
       "dynamic/experimental_sched_upid_generator.h",
       "dynamic/experimental_slice_layout_generator.cc",
@@ -356,6 +358,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       ":lib",
       "../../gn:default_deps",
       "../../gn:protobuf_full",
+      "../../protos/perfetto/trace_processor:zero",
       "../../src/profiling:deobfuscator",
       "../../src/profiling/symbolizer",
       "../../src/profiling/symbolizer:symbolize_database",
@@ -442,6 +445,7 @@ perfetto_unittest_source_set("unittests") {
   if (enable_perfetto_trace_processor_sqlite) {
     sources += [
       "dynamic/experimental_counter_dur_generator_unittest.cc",
+      "dynamic/experimental_flat_slice_generator_unittest.cc",
       "dynamic/experimental_slice_layout_generator_unittest.cc",
       "dynamic/thread_state_generator_unittest.cc",
     ]

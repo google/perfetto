@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {slowlyCountRows} from '../../common/query_iterator';
+import {NUM, STR} from '../../common/query_iterator';
 import {
   TrackController,
   trackControllerRegistry
@@ -38,7 +38,7 @@ class HeapProfileTrackController extends TrackController<Config, Data> {
         types: new Array<string>()
       };
     }
-    const result = await this.query(`
+    const queryRes = await this.queryV2(`
     select * from
     (select distinct(ts) as ts, 'native' as type from heap_profile_allocation
      where upid = ${this.config.upid}
@@ -46,7 +46,7 @@ class HeapProfileTrackController extends TrackController<Config, Data> {
         select distinct(graph_sample_ts) as ts, 'graph' as type from
         heap_graph_object
         where upid = ${this.config.upid}) order by ts`);
-    const numRows = slowlyCountRows(result);
+    const numRows = queryRes.numRows();
     const data: Data = {
       start,
       end,
@@ -56,11 +56,11 @@ class HeapProfileTrackController extends TrackController<Config, Data> {
       types: new Array<string>(numRows),
     };
 
-    for (let row = 0; row < numRows; row++) {
-      data.tsStarts[row] = +result.columns[0].longValues![row];
-      data.types[row] = result.columns[1].stringValues![row];
+    const it = queryRes.iter({ts: NUM, type: STR});
+    for (let row = 0; it.valid(); it.next(), row++) {
+      data.tsStarts[row] = it.ts;
+      data.types[row] = it.type;
     }
-
     return data;
   }
 }

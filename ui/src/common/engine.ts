@@ -12,14 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {defer, Deferred} from '../base/deferred';
+import {assertExists, assertTrue} from '../base/logging';
+import {perfetto} from '../gen/protos';
+
+import {ProtoRingBuffer} from './proto_ring_buffer';
 import {
   ComputeMetricArgs,
   ComputeMetricResult,
+  QueryArgs,
   RawQueryArgs,
   RawQueryResult
 } from './protos';
-import {iter, NUM_NULL, slowlyCountRows, STR} from './query_iterator';
+import {NUM, NUM_NULL, slowlyCountRows, STR} from './query_iterator';
+import {
+  createQueryResult,
+  QueryResult,
+  WritableQueryResult
+} from './query_result';
 import {TimeSpan} from './time';
+
+import TraceProcessorRpc = perfetto.protos.TraceProcessorRpc;
+import TraceProcessorRpcStream = perfetto.protos.TraceProcessorRpcStream;
+import TPM = perfetto.protos.TraceProcessorRpc.TraceProcessorMethod;
 
 export interface LoadingTracker {
   beginLoading(): void;
@@ -33,54 +48,229 @@ export class NullLoadingTracker implements LoadingTracker {
 
 export class QueryError extends Error {}
 
+// This is used to skip the decoding of queryResult from protobufjs and deal
+// with it ourselves. See the comment below around `QueryResult.decode = ...`.
+interface QueryResultBypass {
+  rawQueryResult: Uint8Array;
+}
+
 /**
  * Abstract interface of a trace proccessor.
  * This is the TypeScript equivalent of src/trace_processor/rpc.h.
- *
- * Engine also defines helpers for the most common service methods
- * (e.g. query).
+ * There are two concrete implementations:
+ *   1. WasmEngineProxy: creates a Wasm module and interacts over postMessage().
+ *   2. HttpRpcEngine: connects to an external `trace_processor_shell --httpd`.
+ *      and interacts via fetch().
+ * In both cases, we have a byte-oriented pipe to interact with TraceProcessor.
+ * The derived class is only expected to deal with these two functions:
+ * 1. Implement the abstract rpcSendRequestBytes() function, sending the
+ *    proto-encoded TraceProcessorRpc requests to the TraceProcessor instance.
+ * 2. Call onRpcResponseBytes() when response data is received.
  */
 export abstract class Engine {
   abstract readonly id: string;
   private _cpus?: number[];
   private _numGpus?: number;
   private loadingTracker: LoadingTracker;
+  private txSeqId = 0;
+  private rxSeqId = 0;
+  private rxBuf = new ProtoRingBuffer();
+  private pendingParses = new Array<Deferred<void>>();
+  private pendingEOFs = new Array<Deferred<void>>();
+  private pendingQueries = new Array<WritableQueryResult>();
+  private pendingRawQueries = new Array<Deferred<RawQueryResult>>();
+  private pendingRestoreTables = new Array<Deferred<void>>();
+  private pendingComputeMetrics = new Array<Deferred<ComputeMetricResult>>();
 
   constructor(tracker?: LoadingTracker) {
     this.loadingTracker = tracker ? tracker : new NullLoadingTracker();
   }
 
   /**
+   * Called to send data to the TraceProcessor instance. This turns into a
+   * postMessage() or a HTTP request, depending on the Engine implementation.
+   */
+  abstract rpcSendRequestBytes(data: Uint8Array): void;
+
+  /**
+   * Called when an inbound message is received by the Engine implementation
+   * (e.g. onmessage for the Wasm case, on when HTTP replies are received for
+   * the HTTP+RPC case).
+   */
+  onRpcResponseBytes(dataWillBeRetained: Uint8Array) {
+    // Note: when hitting the fastpath inside ProtoRingBuffer, the |data| buffer
+    // is returned back by readMessage() (% subarray()-ing it) and held onto by
+    // other classes (e.g., QueryResult). For both fetch() and Wasm we are fine
+    // because every response creates a new buffer.
+    this.rxBuf.append(dataWillBeRetained);
+    for (;;) {
+      const msg = this.rxBuf.readMessage();
+      if (msg === undefined) break;
+      this.onRpcResponseMessage(msg);
+    }
+  }
+
+  /*
+   * Parses a response message.
+   * |rpcMsgEncoded| is a sub-array to to the start of a TraceProcessorRpc
+   * proto-encoded message (without the proto preamble and varint size).
+   */
+  private onRpcResponseMessage(rpcMsgEncoded: Uint8Array) {
+    // Here we override the protobufjs-generated code to skip the parsing of the
+    // new streaming QueryResult and instead passing it through like a buffer.
+    // This is the overall problem: All trace processor responses are wrapped
+    // into a perfetto.protos.TraceProcessorRpc proto message. In all cases %
+    // TPM_QUERY_STREAMING, we want protobufjs to decode the proto bytes and
+    // give us a structured object. In the case of TPM_QUERY_STREAMING, instead,
+    // we want to deal with the proto parsing ourselves using the new
+    // QueryResult.appendResultBatch() method, because that handled streaming
+    // results more efficiently and skips several copies.
+    // By overriding the decode method below, we achieve two things:
+    // 1. We avoid protobufjs decoding the TraceProcessorRpc.query_result field.
+    // 2. We stash (a view of) the original buffer into the |rawQueryResult| so
+    //    the `case TPM_QUERY_STREAMING` below can take it.
+    perfetto.protos.QueryResult.decode =
+        (reader: protobuf.Reader, length: number) => {
+          const res =
+              perfetto.protos.QueryResult.create() as {} as QueryResultBypass;
+          res.rawQueryResult =
+              reader.buf.subarray(reader.pos, reader.pos + length);
+          // All this works only if protobufjs returns the original ArrayBuffer
+          // from |rpcMsgEncoded|. It should be always the case given the
+          // current implementation. This check mainly guards against future
+          // behavioral changes of protobufjs. We don't want to accidentally
+          // hold onto some internal protobufjs buffer. We are fine holding
+          // onto |rpcMsgEncoded| because those come from ProtoRingBuffer which
+          // is buffer-retention-friendly.
+          assertTrue(res.rawQueryResult.buffer === rpcMsgEncoded.buffer);
+          reader.pos += length;
+          return res as {} as perfetto.protos.QueryResult;
+        };
+
+    const rpc = TraceProcessorRpc.decode(rpcMsgEncoded);
+    this.loadingTracker.endLoading();
+
+    if (rpc.fatalError !== undefined && rpc.fatalError.length > 0) {
+      throw new Error(`${rpc.fatalError}`);
+    }
+
+    // Allow restarting sequences from zero (when reloading the browser).
+    if (rpc.seq !== this.rxSeqId + 1 && this.rxSeqId !== 0 && rpc.seq !== 0) {
+      // "(ERR:rpc_seq)" is intercepted by error_dialog.ts to show a more
+      // graceful and actionable error.
+      throw new Error(`RPC sequence id mismatch cur=${rpc.seq} last=${
+          this.rxSeqId} (ERR:rpc_seq)`);
+    }
+
+    this.rxSeqId = rpc.seq;
+
+    switch (rpc.response) {
+      case TPM.TPM_APPEND_TRACE_DATA:
+        const appendResult = assertExists(rpc.appendResult);
+        const pendingPromise = assertExists(this.pendingParses.shift());
+        if (appendResult.error && appendResult.error.length > 0) {
+          pendingPromise.reject(appendResult.error);
+        } else {
+          pendingPromise.resolve();
+        }
+        break;
+      case TPM.TPM_FINALIZE_TRACE_DATA:
+        assertExists(this.pendingEOFs.shift()).resolve();
+        break;
+      case TPM.TPM_RESTORE_INITIAL_TABLES:
+        assertExists(this.pendingRestoreTables.shift()).resolve();
+        break;
+      case TPM.TPM_QUERY_STREAMING:
+        const qRes = assertExists(rpc.queryResult) as {} as QueryResultBypass;
+        const pendingQuery = assertExists(this.pendingQueries[0]);
+        pendingQuery.appendResultBatch(qRes.rawQueryResult);
+        if (pendingQuery.isComplete()) {
+          this.pendingQueries.shift();
+        }
+        break;
+      case TPM.TPM_QUERY_RAW_DEPRECATED:
+        const queryRes = assertExists(rpc.rawQueryResult) as RawQueryResult;
+        assertExists(this.pendingRawQueries.shift()).resolve(queryRes);
+        break;
+      case TPM.TPM_COMPUTE_METRIC:
+        const metricRes = assertExists(rpc.metricResult) as ComputeMetricResult;
+        if (metricRes.error && metricRes.error.length > 0) {
+          throw new QueryError(`ComputeMetric() error: ${metricRes.error}`);
+        }
+        assertExists(this.pendingComputeMetrics.shift()).resolve(metricRes);
+        break;
+      default:
+        console.log(
+            'Unexpected TraceProcessor response received: ', rpc.response);
+        break;
+    }  // switch(rpc.response);
+  }
+
+  /**
+   * TraceProcessor methods below this point.
+   * The methods below are called by the various controllers in the UI and
+   * deal with marshalling / unmarshaling requests to/from TraceProcessor.
+   */
+
+
+  /**
    * Push trace data into the engine. The engine is supposed to automatically
    * figure out the type of the trace (JSON vs Protobuf).
    */
-  abstract parse(data: Uint8Array): Promise<void>;
+  parse(data: Uint8Array): Promise<void> {
+    const asyncRes = defer<void>();
+    this.pendingParses.push(asyncRes);
+    const rpc = TraceProcessorRpc.create();
+    rpc.request = TPM.TPM_APPEND_TRACE_DATA;
+    rpc.appendTraceData = data;
+    this.rpcSendRequest(rpc);
+    return asyncRes;  // Linearize with the worker.
+  }
 
   /**
-   * Notify the engine no more data is coming.
+   * Notify the engine that we reached the end of the trace.
+   * Called after the last parse() call.
    */
-  abstract notifyEof(): void;
+  notifyEof(): Promise<void> {
+    const asyncRes = defer<void>();
+    this.pendingEOFs.push(asyncRes);
+    const rpc = TraceProcessorRpc.create();
+    rpc.request = TPM.TPM_FINALIZE_TRACE_DATA;
+    this.rpcSendRequest(rpc);
+    return asyncRes;  // Linearize with the worker.
+  }
 
   /**
    * Resets the trace processor state by destroying any table/views created by
    * the UI after loading.
    */
-  abstract restoreInitialTables(): void;
-
-  /*
-   * Performs a SQL query and retruns a proto-encoded RawQueryResult object.
-   */
-  abstract rawQuery(rawQueryArgs: Uint8Array): Promise<Uint8Array>;
-
-  /*
-   * Performs computation of metrics and returns metric result and any errors.
-   * Metric result is a proto binary or text encoded TraceMetrics object.
-   */
-  abstract rawComputeMetric(computeMetricArgs: Uint8Array): Promise<Uint8Array>;
+  restoreInitialTables(): Promise<void> {
+    const asyncRes = defer<void>();
+    this.pendingRestoreTables.push(asyncRes);
+    const rpc = TraceProcessorRpc.create();
+    rpc.request = TPM.TPM_RESTORE_INITIAL_TABLES;
+    this.rpcSendRequest(rpc);
+    return asyncRes;  // Linearize with the worker.
+  }
 
   /**
-   * Shorthand for sending a SQL query to the engine.
-   * Deals with {,un}marshalling of request/response args.
+   * Shorthand for sending a compute metrics request to the engine.
+   */
+  async computeMetric(metrics: string[]): Promise<ComputeMetricResult> {
+    const asyncRes = defer<ComputeMetricResult>();
+    this.pendingComputeMetrics.push(asyncRes);
+    const rpc = TraceProcessorRpc.create();
+    rpc.request = TPM.TPM_COMPUTE_METRIC;
+    const args = rpc.computeMetricArgs = new ComputeMetricArgs();
+    args.metricNames = metrics;
+    args.format = ComputeMetricArgs.ResultFormat.TEXTPROTO;
+    this.rpcSendRequest(rpc);
+    return asyncRes;
+  }
+
+  /**
+   * Runs a SQL query and throws if the query failed.
+   * Queries performed by the controller logic should use this.
    */
   async query(sqlQuery: string): Promise<RawQueryResult> {
     const result = await this.uncheckedQuery(sqlQuery);
@@ -90,38 +280,21 @@ export abstract class Engine {
     return result;
   }
 
-  // This method is for noncritical queries that shouldn't throw an error
-  // on failure. The caller must handle the failure.
-  async uncheckedQuery(sqlQuery: string): Promise<RawQueryResult> {
-    this.loadingTracker.beginLoading();
-    try {
-      const args = new RawQueryArgs();
-      args.sqlQuery = sqlQuery;
-      args.timeQueuedNs = Math.floor(performance.now() * 1e6);
-      const argsEncoded = RawQueryArgs.encode(args).finish();
-      const respEncoded = await this.rawQuery(argsEncoded);
-      const result = RawQueryResult.decode(respEncoded);
-      return result;
-    } finally {
-      this.loadingTracker.endLoading();
-    }
-  }
-
   /**
-   * Shorthand for sending a compute metrics request to the engine.
-   * Deals with {,un}marshalling of request/response args.
+   * Runs a SQL query. Does not throw if the query fails.
+   * The caller must handle this failure. This is so this function can be safely
+   * used for user-typed SQL.
    */
-  async computeMetric(metrics: string[]): Promise<ComputeMetricResult> {
-    const args = new ComputeMetricArgs();
-    args.metricNames = metrics;
-    args.format = ComputeMetricArgs.ResultFormat.TEXTPROTO;
-    const argsEncoded = ComputeMetricArgs.encode(args).finish();
-    const respEncoded = await this.rawComputeMetric(argsEncoded);
-    const result = ComputeMetricResult.decode(respEncoded);
-    if (result.error.length > 0) {
-      throw new QueryError(result.error);
-    }
-    return result;
+  uncheckedQuery(sqlQuery: string): Promise<RawQueryResult> {
+    const asyncRes = defer<RawQueryResult>();
+    this.pendingRawQueries.push(asyncRes);
+    const rpc = TraceProcessorRpc.create();
+    rpc.request = TPM.TPM_QUERY_RAW_DEPRECATED;
+    rpc.rawQueryArgs = new RawQueryArgs();
+    rpc.rawQueryArgs.sqlQuery = sqlQuery;
+    rpc.rawQueryArgs.timeQueuedNs = Math.floor(performance.now() * 1e6);
+    this.rpcSendRequest(rpc);
+    return asyncRes;
   }
 
   async queryOneRow(query: string): Promise<number[]> {
@@ -142,13 +315,63 @@ export abstract class Engine {
     return res;
   }
 
+  /*
+   * Issues a streaming query and retrieve results in batches.
+   * The returned QueryResult object will be populated over time with batches
+   * of rows (each batch conveys ~128KB of data and a variable number of rows).
+   * The caller can decide whether to wait that all batches have been received
+   * (by awaiting the returned object or calling result.waitAllRows()) or handle
+   * the rows incrementally.
+   *
+   * Example usage:
+   * const res = engine.queryV2('SELECT foo, bar FROM table');
+   * console.log(res.numRows());  // Will print 0 because we didn't await.
+   * await(res.waitAllRows());
+   * console.log(res.numRows());  // Will print the total number of rows.
+   *
+   * for (const it = res.iter({foo: NUM, bar:STR}); it.valid(); it.next()) {
+   *   console.log(it.foo, it.bar);
+   * }
+   * TODO(primiano): in next CLs move everything on queryV2, then rename it to
+   * just query(), and delete the old (columnar, non-streaming) query() method.
+   */
+  queryV2(sqlQuery: string): Promise<QueryResult>&QueryResult {
+    const rpc = TraceProcessorRpc.create();
+    rpc.request = TPM.TPM_QUERY_STREAMING;
+    rpc.queryArgs = new QueryArgs();
+    rpc.queryArgs.sqlQuery = sqlQuery;
+    rpc.queryArgs.timeQueuedNs = Math.floor(performance.now() * 1e6);
+    const result = createQueryResult();
+    this.pendingQueries.push(result);
+    this.rpcSendRequest(rpc);
+    return result;
+  }
+
+  /**
+   * Marshals the TraceProcessorRpc request arguments and sends the request
+   * to the concrete Engine (Wasm or HTTP).
+   */
+  private rpcSendRequest(rpc: TraceProcessorRpc) {
+    rpc.seq = this.txSeqId++;
+    // Each message is wrapped in a TraceProcessorRpcStream to add the varint
+    // preamble with the size, which allows tokenization on the other end.
+    const outerProto = TraceProcessorRpcStream.create();
+    outerProto.msg.push(rpc);
+    const buf = TraceProcessorRpcStream.encode(outerProto).finish();
+    this.loadingTracker.beginLoading();
+    this.rpcSendRequestBytes(buf);
+  }
+
   // TODO(hjd): When streaming must invalidate this somehow.
   async getCpus(): Promise<number[]> {
     if (!this._cpus) {
-      const result =
-          await this.query('select distinct(cpu) from sched order by cpu;');
-      if (slowlyCountRows(result) === 0) return [];
-      this._cpus = result.columns[0].longValues!.map(n => +n);
+      const cpus = [];
+      const queryRes = await this.queryV2(
+          'select distinct(cpu) as cpu from sched order by cpu;');
+      for (const it = queryRes.iter({cpu: NUM}); it.valid(); it.next()) {
+        cpus.push(it.cpu);
+      }
+      this._cpus = cpus;
     }
     return this._cpus;
   }
@@ -168,8 +391,8 @@ export abstract class Engine {
   // TODO: This should live in code that's more specific to chrome, instead of
   // in engine.
   async getNumberOfProcesses(): Promise<number> {
-    const result = await this.query('select count(*) from process;');
-    return +result.columns[0].longValues![0];
+    const result = await this.queryV2('select count(*) as cnt from process;');
+    return result.firstRow({cnt: NUM}).cnt;
   }
 
   async getTraceTimeBounds(): Promise<TimeSpan> {
@@ -179,15 +402,15 @@ export abstract class Engine {
   }
 
   async getTracingMetadataTimeBounds(): Promise<TimeSpan> {
-    const query = await this.query(`select name, int_value from metadata
+    const queryRes = await this.queryV2(`select name, int_value from metadata
          where name = 'tracing_started_ns' or name = 'tracing_disabled_ns'
          or name = 'all_data_source_started_ns'`);
     let startBound = -Infinity;
     let endBound = Infinity;
-    const it = iter({'name': STR, 'int_value': NUM_NULL}, query);
+    const it = queryRes.iter({'name': STR, 'int_value': NUM_NULL});
     for (; it.valid(); it.next()) {
-      const columnName = it.row.name;
-      const timestamp = it.row.int_value;
+      const columnName = it.name;
+      const timestamp = it.int_value;
       if (timestamp === null) continue;
       if (columnName === 'tracing_disabled_ns') {
         endBound = Math.min(endBound, timestamp / 1e9);

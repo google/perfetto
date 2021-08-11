@@ -17,7 +17,7 @@
 #ifndef SRC_PROFILING_COMMON_PRODUCER_SUPPORT_H_
 #define SRC_PROFILING_COMMON_PRODUCER_SUPPORT_H_
 
-#include <inttypes.h>
+#include <cinttypes>
 #include <string>
 
 #include "perfetto/tracing/core/forward_decls.h"

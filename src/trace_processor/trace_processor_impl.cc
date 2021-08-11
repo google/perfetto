@@ -16,8 +16,8 @@
 
 #include "src/trace_processor/trace_processor_impl.h"
 
-#include <inttypes.h>
 #include <algorithm>
+#include <cinttypes>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/time.h"
@@ -30,6 +30,7 @@
 #include "src/trace_processor/dynamic/experimental_annotated_stack_generator.h"
 #include "src/trace_processor/dynamic/experimental_counter_dur_generator.h"
 #include "src/trace_processor/dynamic/experimental_flamegraph_generator.h"
+#include "src/trace_processor/dynamic/experimental_flat_slice_generator.h"
 #include "src/trace_processor/dynamic/experimental_sched_upid_generator.h"
 #include "src/trace_processor/dynamic/experimental_slice_layout_generator.h"
 #include "src/trace_processor/dynamic/thread_state_generator.h"
@@ -623,6 +624,16 @@ void CreateSourceGeqFunction(sqlite3* db) {
   }
 }
 
+void CreateUnwrapMetricProtoFunction(sqlite3* db) {
+  auto ret = sqlite3_create_function_v2(
+      db, "UNWRAP_METRIC_PROTO", 2, SQLITE_UTF8 | SQLITE_DETERMINISTIC, nullptr,
+      &metrics::UnwrapMetricProto, nullptr, nullptr, nullptr);
+  if (ret != SQLITE_OK) {
+    PERFETTO_FATAL("Error initializing UNWRAP_METRIC_PROTO: %s",
+                   sqlite3_errmsg(db));
+  }
+}
+
 void SetupMetrics(TraceProcessor* tp,
                   sqlite3* db,
                   std::vector<metrics::SqlMetricFile>* sql_metrics) {
@@ -718,6 +729,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   CreateExtractArgFunction(context_.storage.get(), db);
   CreateSourceGeqFunction(db);
   CreateValueAtMaxTsFunction(db);
+  CreateUnwrapMetricProtoFunction(db);
 
   SetupMetrics(this, *db_, &sql_metrics_);
 
@@ -769,6 +781,8 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
       new ThreadStateGenerator(&context_)));
   RegisterDynamicTable(std::unique_ptr<ExperimentalAnnotatedStackGenerator>(
       new ExperimentalAnnotatedStackGenerator(&context_)));
+  RegisterDynamicTable(std::unique_ptr<ExperimentalFlatSliceGenerator>(
+      new ExperimentalFlatSliceGenerator(&context_)));
 
   // New style db-backed tables.
   RegisterDbTable(storage->arg_table());

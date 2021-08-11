@@ -66,11 +66,6 @@ struct EventHeader {
   uint32_t time_delta : 27;
 };
 
-struct TimeStamp {
-  uint64_t tv_nsec;
-  uint64_t tv_sec;
-};
-
 bool ReadIntoString(const uint8_t* start,
                     const uint8_t* end,
                     uint32_t field_id,
@@ -313,7 +308,6 @@ bool CpuReader::ProcessPagesForDataSource(
     // Write the kernel symbol index (mangled address) -> name table.
     // |metadata| is shared across all cpus, is distinct per |data_source| (i.e.
     // tracing session) and is cleared after each FtraceController::ReadTick().
-    // const size_t kaddrs_size = metadata->kernel_addrs.size();
     if (ds_config->symbolize_ksyms) {
       // Symbol indexes are assigned mononically as |kernel_addrs.size()|,
       // starting from index 1 (no symbol has index 0). Here we remember the
@@ -323,6 +317,7 @@ bool CpuReader::ProcessPagesForDataSource(
       PERFETTO_DCHECK(max_index_at_start <= metadata->kernel_addrs.size());
       protos::pbzero::InternedData* interned_data = nullptr;
       auto* ksyms_map = symbolizer->GetOrCreateKernelSymbolMap();
+      bool wrote_at_least_one_symbol = false;
       for (const FtraceMetadata::KernelAddr& kaddr : metadata->kernel_addrs) {
         if (kaddr.index <= max_index_at_start)
           continue;
@@ -351,9 +346,18 @@ bool CpuReader::ProcessPagesForDataSource(
         auto* interned_sym = interned_data->add_kernel_symbols();
         interned_sym->set_iid(kaddr.index);
         interned_sym->set_str(sym_name);
+        wrote_at_least_one_symbol = true;
       }
+
       auto max_it_at_end = static_cast<uint32_t>(metadata->kernel_addrs.size());
-      metadata->last_kernel_addr_index_written = max_it_at_end;
+
+      // Rationale for the if (wrote_at_least_one_symbol) check: in rare cases,
+      // all symbols seen in a ProcessPagesForDataSource() call can fail the
+      // ksyms_map->Lookup(). If that happens we don't want to bump the
+      // last_kernel_addr_index_written watermark, as that would cause the next
+      // call to NOT emit the SEQ_INCREMENTAL_STATE_CLEARED.
+      if (wrote_at_least_one_symbol)
+        metadata->last_kernel_addr_index_written = max_it_at_end;
     }
 
     packet->Finalize();
@@ -499,7 +503,7 @@ size_t CpuReader::ParsePagePayload(const uint8_t* start_of_payload,
           PERFETTO_DFATAL("Empty padding event.");
           return 0;
         }
-        uint32_t length;
+        uint32_t length = 0;
         if (!ReadAndAdvance<uint32_t>(&ptr, end, &length))
           return 0;
         // length includes itself (4 bytes)
@@ -510,20 +514,23 @@ size_t CpuReader::ParsePagePayload(const uint8_t* start_of_payload,
       }
       case kTypeTimeExtend: {
         // Extend the time delta.
-        uint32_t time_delta_ext;
+        uint32_t time_delta_ext = 0;
         if (!ReadAndAdvance<uint32_t>(&ptr, end, &time_delta_ext))
           return 0;
-        // See https://goo.gl/CFBu5x
         timestamp += (static_cast<uint64_t>(time_delta_ext)) << 27;
         break;
       }
       case kTypeTimeStamp: {
-        // Sync time stamp with external clock.
-        TimeStamp time_stamp;
-        if (!ReadAndAdvance<TimeStamp>(&ptr, end, &time_stamp))
+        // Absolute timestamp. This was historically partially implemented, but
+        // not written. Kernels 4.17+ reimplemented this record, changing its
+        // size in the process. We assume the newer layout. Parsed the same as
+        // kTypeTimeExtend, except that the timestamp is interpreted as an
+        // absolute, instead of a delta on top of the previous state.
+        uint32_t time_delta_ext = 0;
+        if (!ReadAndAdvance<uint32_t>(&ptr, end, &time_delta_ext))
           return 0;
-        // Not implemented in the kernel, nothing should generate this.
-        PERFETTO_DFATAL("Unimplemented in kernel. Should be unreachable.");
+        timestamp = event_header.time_delta +
+                    (static_cast<uint64_t>(time_delta_ext) << 27);
         break;
       }
       // Data record:
@@ -533,7 +540,7 @@ size_t CpuReader::ParsePagePayload(const uint8_t* start_of_payload,
         // record. if == 0, this is an extended record and the size of the
         // record is stored in the first uint32_t word in the payload. See
         // Kernel's include/linux/ring_buffer.h
-        uint32_t event_size;
+        uint32_t event_size = 0;
         if (event_header.type_or_length == 0) {
           if (!ReadAndAdvance<uint32_t>(&ptr, end, &event_size))
             return 0;

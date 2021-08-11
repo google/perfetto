@@ -14,11 +14,10 @@
  * limitations under the License.
  */
 
-#include <inttypes.h>
-
 #include <array>
 #include <atomic>
 #include <chrono>
+#include <cinttypes>
 #include <thread>
 
 #include "perfetto/base/logging.h"

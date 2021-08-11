@@ -35,6 +35,15 @@ import "protos/perfetto/common/descriptor.proto";
 //    In this case these messages are used to {,un}marshall HTTP requests and
 //    response made through src/trace_processor/rpc/httpd.cc .
 
+enum TraceProcessorApiVersion {
+  // This variable has been introduced in v15 and is used to deal with API
+  // mismatches between UI and trace_processor_shell --httpd. Increment this
+  // every time a new feature that the UI depends on is being introduced (e.g.
+  // new tables, new SQL operators, metrics that are required by the UI).
+  // See also TraceProcessorVersion (below).
+  TRACE_PROCESSOR_CURRENT_API_VERSION = 2;
+}
+
 // At lowest level, the wire-format of the RPC procol is a linear sequence of
 // TraceProcessorRpc messages on each side of the byte pipe
 // Each message is prefixed by a tag (field = 1, type = length delimited) and a
@@ -54,6 +63,11 @@ message TraceProcessorRpc {
   // than one response message, bringing the tx and rq seq our of sync.
   optional int64 seq = 1;
 
+  // This is returned when some unrecoverable error has been detected by the
+  // peer. The typical case is TraceProcessor detecting that the |seq| sequence
+  // is broken (e.g. when having two tabs open with the same --httpd instance).
+  optional string fatal_error = 5;
+
   enum TraceProcessorMethod {
     TPM_UNSPECIFIED = 0;
     TPM_APPEND_TRACE_DATA = 1;
@@ -65,6 +79,7 @@ message TraceProcessorRpc {
     TPM_RESTORE_INITIAL_TABLES = 7;
     TPM_ENABLE_METATRACE = 8;
     TPM_DISABLE_AND_READ_METATRACE = 9;
+    TPM_GET_STATUS = 10;
   }
 
   oneof type {
@@ -108,6 +123,8 @@ message TraceProcessorRpc {
     DescriptorSet metric_descriptors = 206;
     // For TPM_DISABLE_AND_READ_METATRACE.
     DisableAndReadMetatraceResult metatrace = 209;
+    // For TPM_GET_STATUS.
+    StatusResult status = 210;
   }
 }
 
@@ -225,6 +242,15 @@ message StatusResult {
   // when using the HTTP+RPC mode nad passing a trace file to the shell, via
   // trace_processor_shell -D trace_file.pftrace .
   optional string loaded_trace_name = 1;
+
+  // Typically something like "v11.0.123", but could be just "v11" or "unknown",
+  // for binaries built from Bazel or other build configurations. This is for
+  // human presentation only, don't attempt to parse and reason on it.
+  optional string human_readable_version = 2;
+
+  // The API version is incremented every time a change that the UI depends
+  // on is introduced (e.g. adding a new table that the UI queries).
+  optional int32 api_version = 3;
 }
 
 // Input for the /compute_metric endpoint.

@@ -370,13 +370,13 @@ fi
 reset_tracing
 
 TRACE=$TMPDIR/trace
-echo -e "\n\x1b[32mPulling trace into $TRACE.protobuf\x1b[0m"
-pull trace "$TRACE.protobuf"
+echo -e "\n\x1b[32mPulling trace into $TRACE.perfetto-trace\x1b[0m"
+pull trace "$TRACE.perfetto-trace"
 
 if [[ SKIP_CONVERTERS -eq 0 ]]; then
   echo -e "\n\x1b[32mPulling trace into $TRACE.pbtext\x1b[0m"
-  "$OUT/trace_to_text" text <"$TRACE.protobuf" >"$TRACE.pbtext"
+  "$OUT/trace_to_text" text <"$TRACE.perfetto-trace" >"$TRACE.pbtext"
   echo -e "\n\x1b[32mPulling trace into $TRACE.json\x1b[0m"
-  "$OUT/trace_to_text" systrace <"$TRACE.protobuf" >"$TRACE.json"
+  "$OUT/trace_to_text" systrace <"$TRACE.perfetto-trace" >"$TRACE.json"
   # Keep this last so it can fail.
 fi

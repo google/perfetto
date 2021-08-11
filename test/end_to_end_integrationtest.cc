@@ -271,7 +271,7 @@ static void VerifyBugreportTraceContents() {
   // Read the trace written in the fixed location (/data/misc/perfetto-traces/
   // on Android, /tmp/ on Linux/Mac) and make sure it has the right contents.
   std::string trace_str;
-  base::ReadFile(kBugreportTracePath, &trace_str);
+  base::ReadFile(GetBugreportPath(), &trace_str);
   ASSERT_FALSE(trace_str.empty());
   protos::gen::Trace trace;
   ASSERT_TRUE(trace.ParseFromString(trace_str));
@@ -1077,6 +1077,53 @@ TEST_F(PerfettoTest, SaveForBugreport_WriteIntoFile) {
   }
 }
 
+// Tests that SaveTraceForBugreport() works also if the trace has triggers
+// defined and those triggers have not been hit. This is a regression test for
+// b/188008375 .
+#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
+// Disabled due to b/191940560
+#define MAYBE_SaveForBugreport_Triggers DISABLED_SaveForBugreport_Triggers
+#else
+#define MAYBE_SaveForBugreport_Triggers SaveForBugreport_Triggers
+#endif
+TEST_F(PerfettoTest, MAYBE_SaveForBugreport_Triggers) {
+  base::TestTaskRunner task_runner;
+
+  TestHelper helper(&task_runner);
+  helper.StartServiceIfRequired();
+  helper.ConnectFakeProducer();
+  helper.ConnectConsumer();
+  helper.WaitForConsumerConnect();
+
+  TraceConfig trace_config;
+  SetTraceConfigForBugreportTest(&trace_config);
+  trace_config.set_duration_ms(0);  // set_trigger_timeout_ms is used instead.
+  auto* trigger_config = trace_config.mutable_trigger_config();
+  trigger_config->set_trigger_timeout_ms(8.64e+7);
+  trigger_config->set_trigger_mode(TraceConfig::TriggerConfig::STOP_TRACING);
+  auto* trigger = trigger_config->add_triggers();
+  trigger->set_name("trigger_name");
+  trigger->set_stop_delay_ms(1);
+
+  helper.StartTracing(trace_config);
+  helper.WaitForProducerEnabled();
+
+  EXPECT_TRUE(helper.SaveTraceForBugreportAndWait());
+  helper.WaitForTracingDisabled();
+
+  VerifyBugreportTraceContents();
+
+  // Now read the original trace.
+  helper.ReadData();
+  helper.WaitForReadData();
+  const auto& packets = helper.full_trace();
+  ASSERT_EQ(packets.size(), 1u);
+  for (const auto& p : packets) {
+    ASSERT_TRUE(p.has_service_event());
+    ASSERT_TRUE(p.service_event().seized_for_bugreport());
+  }
+}
+
 // Disable cmdline tests on sanitizets because they use fork() and that messes
 // up leak / races detections, which has been fixed only recently (see
 // https://github.com/google/sanitizers/issues/836 ).
@@ -1174,6 +1221,11 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(InvalidCases)) {
 
   EXPECT_EQ(1, trace_and_query_2.Run(&stderr_));
   EXPECT_THAT(stderr_, HasSubstr("Cannot specify a trace config"));
+}
+
+TEST_F(PerfettoCmdlineTest, NoSanitizers(Version)) {
+  auto perfetto = ExecPerfetto({"--version"});
+  EXPECT_EQ(0, perfetto.Run(&stderr_)) << stderr_;
 }
 
 TEST_F(PerfettoCmdlineTest, NoSanitizers(TxtConfig)) {

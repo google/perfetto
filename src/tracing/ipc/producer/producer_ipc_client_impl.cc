@@ -16,7 +16,8 @@
 
 #include "src/tracing/ipc/producer/producer_ipc_client_impl.h"
 
-#include <inttypes.h>
+#include <cinttypes>
+
 #include <string.h>
 
 #include "perfetto/base/logging.h"

@@ -21,14 +21,13 @@
 #ifndef INCLUDE_PERFETTO_PROFILING_PARSE_SMAPS_H_
 #define INCLUDE_PERFETTO_PROFILING_PARSE_SMAPS_H_
 
-#include <string>
-
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 
-#include <inttypes.h>
+#include <cinttypes>
+#include <string>
 
 namespace perfetto {
 namespace profiling {

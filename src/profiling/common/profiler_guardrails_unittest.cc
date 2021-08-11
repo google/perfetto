@@ -16,9 +16,9 @@
 
 #include "src/profiling/common/profiler_guardrails.h"
 
-#include <inttypes.h>
 #include <unistd.h>
 
+#include <cinttypes>
 #include <map>
 
 #include "perfetto/ext/base/file_utils.h"

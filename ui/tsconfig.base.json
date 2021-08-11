@@ -8,6 +8,7 @@
     "allowJs": true,
     "declaration": false,                  // Generates corresponding '.d.ts' file.
     "sourceMap": true,                     // Generates corresponding '.map' file.
+    "inlineSources": true,                 // Adds source code to the '.map' file.
     "removeComments": false,               // Do not emit comments to output.
     "importHelpers": true,                 // Import emit helpers from 'tslib'.
     "downlevelIteration": true,            // Provide full support for iterables in 'for-of', spread, and destructuring when targeting 'ES5' or 'ES3'.

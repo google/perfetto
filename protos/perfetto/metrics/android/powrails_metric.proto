@@ -32,6 +32,9 @@ message AndroidPowerRails {
     optional string name = 1;
     // Energy data for given rail and for all samples in the trace.
     repeated EnergyData energy_data = 2;
+    // The average used power between the first and the last sampled
+    // energy data in miliwatt (mw)
+    optional double avg_used_power_mw = 3;
   }
 
   // Energy data per Power Rail.

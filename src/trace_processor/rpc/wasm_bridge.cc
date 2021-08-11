@@ -15,8 +15,6 @@
  */
 
 #include <emscripten/emscripten.h>
-#include <map>
-#include <string>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/trace_processor/trace_processor.h"
@@ -25,24 +23,12 @@
 namespace perfetto {
 namespace trace_processor {
 
-using RequestID = uint32_t;
-
-// Reply(): replies to a RPC method invocation.
-// Called asynchronously (i.e. in a separate task) by the C++ code inside the
-// trace processor to return data for a RPC method call.
-// The function is generic and thankfully we need just one for all methods
-// because the output is always a protobuf buffer.
-using ReplyFunction = void (*)(const char* /*proto_reply_data*/,
-                               uint32_t /*len*/);
-
 namespace {
 Rpc* g_trace_processor_rpc;
-ReplyFunction g_reply;
 
 // The buffer used to pass the request arguments. The caller (JS) decides how
 // big this buffer should be in the Initialize() call.
 uint8_t* g_req_buf;
-
 }  // namespace
 
 // +---------------------------------------------------------------------------+
@@ -51,63 +37,26 @@ uint8_t* g_req_buf;
 extern "C" {
 
 // Returns the address of the allocated request buffer.
-uint8_t* EMSCRIPTEN_KEEPALIVE Initialize(ReplyFunction, uint32_t);
-uint8_t* Initialize(ReplyFunction reply_function, uint32_t req_buffer_size) {
+uint8_t* EMSCRIPTEN_KEEPALIVE trace_processor_rpc_init(Rpc::RpcResponseFunction,
+                                                       uint32_t);
+uint8_t* trace_processor_rpc_init(Rpc::RpcResponseFunction resp_function,
+                                  uint32_t req_buffer_size) {
   g_trace_processor_rpc = new Rpc();
-  g_reply = reply_function;
+
+  // |resp_function| is a JS-bound function passed by wasm_bridge.ts. It will
+  // call back into JavaScript. There the JS code will copy the passed
+  // buffer with the response (a proto-encoded TraceProcessorRpc message) and
+  // postMessage() it to the controller. See the comment in wasm_bridge.ts for
+  // an overview of the JS<>Wasm callstack.
+  g_trace_processor_rpc->SetRpcResponseFunction(resp_function);
+
   g_req_buf = new uint8_t[req_buffer_size];
   return g_req_buf;
 }
 
-// Ingests trace data.
-void EMSCRIPTEN_KEEPALIVE trace_processor_parse(uint32_t);
-void trace_processor_parse(uint32_t size) {
-  // TODO(primiano): Parse() makes a copy of the data, which is unfortunate.
-  // Ideally there should be a way to take the Blob coming from JS and move it.
-  // See https://github.com/WebAssembly/design/issues/1162.
-  auto status = g_trace_processor_rpc->Parse(g_req_buf, size);
-  if (status.ok()) {
-    g_reply("", 0);
-  } else {
-    PERFETTO_FATAL("Fatal failure while parsing the trace: %s",
-                   status.c_message());
-  }
-}
-
-// We keep the same signature as other methods even though we don't take input
-// arguments for simplicity.
-void EMSCRIPTEN_KEEPALIVE trace_processor_notify_eof(uint32_t);
-void trace_processor_notify_eof(uint32_t /* size, not used. */) {
-  g_trace_processor_rpc->NotifyEndOfFile();
-  g_reply("", 0);
-}
-
-void EMSCRIPTEN_KEEPALIVE trace_processor_raw_query(uint32_t);
-void trace_processor_raw_query(uint32_t size) {
-  std::vector<uint8_t> res = g_trace_processor_rpc->RawQuery(g_req_buf, size);
-  g_reply(reinterpret_cast<const char*>(res.data()),
-          static_cast<uint32_t>(res.size()));
-}
-
-void EMSCRIPTEN_KEEPALIVE trace_processor_compute_metric(uint32_t);
-void trace_processor_compute_metric(uint32_t size) {
-  std::vector<uint8_t> res =
-      g_trace_processor_rpc->ComputeMetric(g_req_buf, size);
-  g_reply(reinterpret_cast<const char*>(res.data()),
-          static_cast<uint32_t>(res.size()));
-}
-
-void EMSCRIPTEN_KEEPALIVE trace_processor_enable_metatrace(uint32_t);
-void trace_processor_enable_metatrace(uint32_t) {
-  g_trace_processor_rpc->EnableMetatrace();
-  g_reply("", 0);
-}
-
-void EMSCRIPTEN_KEEPALIVE trace_processor_disable_and_read_metatrace(uint32_t);
-void trace_processor_disable_and_read_metatrace(uint32_t) {
-  std::vector<uint8_t> res = g_trace_processor_rpc->DisableAndReadMetatrace();
-  g_reply(reinterpret_cast<const char*>(res.data()),
-          static_cast<uint32_t>(res.size()));
+void EMSCRIPTEN_KEEPALIVE trace_processor_on_rpc_request(uint32_t);
+void trace_processor_on_rpc_request(uint32_t size) {
+  g_trace_processor_rpc->OnRpcRequest(g_req_buf, size);
 }
 
 }  // extern "C"
@@ -115,13 +64,13 @@ void trace_processor_disable_and_read_metatrace(uint32_t) {
 }  // namespace perfetto
 
 int main(int, char**) {
-  // This is unused but is needed for the following series of reason:
+  // This is unused but is needed for the following reasons:
   // - We need the callMain() Emscripten JS helper function for traceconv (but
   //   not for trace_processor).
   // - Newer versions of emscripten require that callMain is explicitly exported
   //   via EXTRA_EXPORTED_RUNTIME_METHODS = ['callMain'].
   // - We have one set of EXTRA_EXPORTED_RUNTIME_METHODS for both
-  //   trace_processor.wasm (which does not need a main) and traceconv (which
+  //   trace_processor.wasm (which does not need a main()) and traceconv (which
   //   does).
   // - Without this main(), the Wasm bootstrap code will cause a JS error at
   //   runtime when trying to load trace_processor.js.

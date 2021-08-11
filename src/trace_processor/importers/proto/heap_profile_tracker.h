@@ -120,6 +120,7 @@ class HeapProfileTracker {
   std::map<uint32_t, SequenceState> sequence_state_;
   TraceProcessorContext* const context_;
   const StringId empty_;
+  const StringId art_heap_;
 };
 
 }  // namespace trace_processor

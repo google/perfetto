@@ -1,0 +1,5 @@
+android_trace_quality {
+  failures {
+    name: "sched_slice_too_long"
+  }
+}

@@ -16,10 +16,10 @@
 
 #include "perfetto/ext/trace_processor/importers/memory_tracker/raw_process_memory_node.h"
 
-#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <cinttypes>
 #include <functional>
 #include <memory>
 

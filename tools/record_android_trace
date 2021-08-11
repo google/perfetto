@@ -51,6 +51,8 @@ ABI_TO_ARCH = {
     'x86_64': 'x64',
 }
 
+MAX_ADB_FAILURES = 15  # 2 seconds between retries, 30 seconds total.
+
 devnull = open(os.devnull, 'rb')
 adb_path = None
 procs = []
@@ -150,8 +152,15 @@ def main():
 
   help = 'Can be generated with https://ui.perfetto.dev/#!/record'
   grp.add_argument('-c', '--config', default=None, help=help)
+
+  help = 'Specify the ADB device serial'
+  grp.add_argument('--serial', '-s', default=None, help=help)
+
   args = parser.parse_args()
   args.sideload = args.sideload or args.sideload_path is not None
+
+  if args.serial:
+    os.environ["ANDROID_SERIAL"] = args.serial
 
   find_adb()
 
@@ -256,17 +265,34 @@ def main():
                '1')
 
   ctrl_c_count = 0
+  adb_failure_count = 0
   while ctrl_c_count < 2:
     try:
-      poll = adb('shell', 'test -d /proc/' + bg_pid)
-      if poll.wait() != 0:
-        break
-      time.sleep(0.5)
+      poll = adb('shell', 'test -d /proc/%s || exit 42' % bg_pid)
+      poll_res = poll.wait()
+      if poll_res == 42:
+        break  # Process terminated
+      if poll_res == 0:
+        # The 'perfetto' cmdline client is still running. If previously we had
+        # an ADB error, tell the user now it's all right again.
+        if adb_failure_count > 0:
+          adb_failure_count = 0
+          prt('ADB connection re-established, the trace is still ongoing',
+              ANSI.BLUE)
+        time.sleep(0.5)
+        continue
+      # Some ADB error happened. This can happen when tracing soon after boot,
+      # before logging in, when adb gets restarted.
+      adb_failure_count += 1
+      if adb_failure_count >= MAX_ADB_FAILURES:
+        prt('Too many unrecoverable ADB failures, bailing out', ANSI.RED)
+        sys.exit(1)
+      time.sleep(2)
     except KeyboardInterrupt:
       sig = 'TERM' if ctrl_c_count == 0 else 'KILL'
       ctrl_c_count += 1
       prt('Stopping the trace (SIG%s)' % sig, ANSI.BLACK + ANSI.BG_YELLOW)
-      res = adb('shell', 'kill -%s %s' % (sig, bg_pid)).wait()
+      adb('shell', 'kill -%s %s' % (sig, bg_pid)).wait()
 
   logcat.kill()
   logcat.wait()
@@ -274,6 +300,7 @@ def main():
   prt('\n')
   prt('Pulling into %s' % host_file, ANSI.BOLD)
   adb('pull', device_file, host_file).wait()
+  adb('shell', 'rm -f ' + device_file).wait()
 
   if not args.no_open:
     prt('\n')

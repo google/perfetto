@@ -16,8 +16,7 @@
 
 #include "src/trace_processor/importers/json/json_trace_parser.h"
 
-#include <inttypes.h>
-
+#include <cinttypes>
 #include <limits>
 #include <string>
 
@@ -165,10 +164,8 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
         std::string counter_name = counter_name_prefix + " " + it.name();
         StringId counter_name_id =
             context_->storage->InternString(base::StringView(counter_name));
-        TrackId track_id = context_->track_tracker->InternProcessCounterTrack(
-            counter_name_id, utid);
-        context_->event_tracker->PushCounter(timestamp, it->asDouble(),
-                                             track_id);
+        context_->event_tracker->PushProcessCounterForThread(
+            timestamp, it->asDouble(), counter_name_id, utid);
       }
       break;
     }
@@ -297,4 +294,3 @@ void JsonTraceParser::MaybeAddFlow(TrackId track_id, const Json::Value& event) {
 
 }  // namespace trace_processor
 }  // namespace perfetto
-

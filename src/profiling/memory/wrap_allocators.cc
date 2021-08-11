@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-#include <inttypes.h>
 #include <stdlib.h>
+
+#include <cinttypes>
 
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/heap_profile.h"

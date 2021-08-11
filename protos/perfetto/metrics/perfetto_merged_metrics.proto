@@ -247,6 +247,20 @@ message AndroidGpuMetric {
   optional int64 mem_max = 2;
   optional int64 mem_min = 3;
   optional int64 mem_avg = 4;
+
+  message FrequencyMetric {
+    // Identifier for GPU in a multi-gpu device.
+    optional uint32 gpu_id = 1;
+
+    // max/min/avg GPU frequency for this gpu_id
+    // the calculation of avg is weighted by the duration of each frequency
+    optional int64 freq_max = 2;
+    optional int64 freq_min = 3;
+    optional double freq_avg = 4;
+  }
+
+  // GPU frequency metric for each gpu_id
+  repeated FrequencyMetric freq_metrics = 5;
 }
 
 // End of protos/perfetto/metrics/android/gpu_metric.proto
@@ -294,6 +308,23 @@ message AndroidHwcomposerMetrics {
 
   // the average of hwcomposer execution time for separated validation cases.
   optional double avg_separated_execution_time_ms = 13;
+
+  message DpuVoteMetrics {
+    // the thread ID that handles this track
+    optional uint32 tid = 1;
+
+    // the weighted average of DPU Vote Clock
+    optional double avg_dpu_vote_clock = 2;
+
+    // the weighted average of DPU Vote Avg Bandwidth
+    optional double avg_dpu_vote_avg_bw = 3;
+
+    // the weighted average of DPU Vote Peak Bandwidth
+    optional double avg_dpu_vote_peak_bw = 4;
+  }
+
+  // DPU Vote Metrics for each thread track
+  repeated DpuVoteMetrics dpu_vote_metrics = 14;
 }
 
 // End of protos/perfetto/metrics/android/hwcomposer.proto
@@ -676,6 +707,9 @@ message AndroidPowerRails {
     optional string name = 1;
     // Energy data for given rail and for all samples in the trace.
     repeated EnergyData energy_data = 2;
+    // The average used power between the first and the last sampled
+    // energy data in miliwatt (mw)
+    optional double avg_used_power_mw = 3;
   }
 
   // Energy data per Power Rail.
@@ -796,6 +830,17 @@ message AndroidStartupMetric {
   message BinderTransaction {
     optional Slice duration = 1;
     optional string thread = 2;
+    optional string destination_thread = 3;
+    optional string destination_process = 4;
+    // From
+    // https://cs.android.com/android/platform/superproject/+/master:external/perfetto/protos/perfetto/trace/ftrace/binder.proto;l=15;drc=7b6a788162a30802f4c9d8d7a30a54e25edd30f1
+    optional string flags = 5;
+    // From
+    // https://cs.android.com/android/platform/superproject/+/master:external/perfetto/protos/perfetto/trace/ftrace/binder.proto;l=14;drc=7b6a788162a30802f4c9d8d7a30a54e25edd30f1
+    optional string code = 6;
+    // From
+    // https://cs.android.com/android/platform/superproject/+/master:external/perfetto/protos/perfetto/trace/ftrace/binder.proto;l=37;drc=7b6a788162a30802f4c9d8d7a30a54e25edd30f1
+    optional int64 data_size = 7;
   }
 
   // Metrics with information about the status of odex files and the outcome
@@ -898,6 +943,21 @@ message AndroidSurfaceflingerMetric {
   // Calculate the number of missed GPU frames divided by
   // total GPU frames
   optional double missed_gpu_frame_rate = 6;
+
+  // Count the number of times SurfaceFlinger needs to invoke GPU
+  // for rendering some layers
+  optional uint32 gpu_invocations = 7;
+
+  // Calculate the average duration of GPU request by SurfaceFlinger
+  // since it enters the FenceMonitor's queue until it gets completed
+  optional double avg_gpu_waiting_dur_ms = 8;
+
+  // Calculate the total duration when there is at least one GPU request
+  // by SurfaceFlinger that is still waiting for GPU to complete the
+  // request.
+  // This also equals to the total duration of
+  // "waiting for GPU completion <fence_num>" in SurfaceFlinger.
+  optional double total_non_empty_gpu_waiting_dur_ms = 9;
 }
 
 // End of protos/perfetto/metrics/android/surfaceflinger.proto
@@ -987,6 +1047,22 @@ message AndroidThreadTimeInStateMetric {
 
 // End of protos/perfetto/metrics/android/thread_time_in_state_metric.proto
 
+// Begin of protos/perfetto/metrics/android/trace_quality.proto
+
+// Metric which checks the data in the trace processor tables is "reasonble"
+// (i.e. we would expect to see it from a real device).
+//
+// This is useful to reject traces which may be valid (so no stat would be
+// recorded) but a human would find the trace nonsensical.
+message AndroidTraceQualityMetric {
+  message Failure {
+    // The name of the failed check.
+    optional string name = 1;
+  }
+  repeated Failure failures = 1;
+}
+// End of protos/perfetto/metrics/android/trace_quality.proto
+
 // Begin of protos/perfetto/metrics/android/unsymbolized_frames.proto
 
 message UnsymbolizedFrames {
@@ -1047,7 +1123,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 34
+// Next id: 35
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -1130,6 +1206,9 @@ message TraceMetrics {
 
   // Dmabuf heap metrics.
   optional AndroidDmaHeapMetric android_dma_heap = 32;
+
+  // Metric to verify the quality of the trace.
+  optional AndroidTraceQualityMetric android_trace_quality = 34;
 
   // Demo extensions.
   extensions 450 to 499;

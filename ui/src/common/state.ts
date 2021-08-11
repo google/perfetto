@@ -52,7 +52,7 @@ export interface Area {
 export const MAX_TIME = 180;
 
 // 3: TrackKindPriority and related sorting changes.
-export const STATE_VERSION = 3;
+export const STATE_VERSION = 4;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -271,7 +271,7 @@ export interface State {
   // tslint:disable-next-line:no-any
   [key: string]: any;
   version: number;
-  route: string|null;
+  route?: string;
   nextId: number;
   nextNoteId: number;
   nextAreaId: number;
@@ -288,6 +288,7 @@ export interface State {
   newEngineMode: NewEngineMode;
   engines: ObjectById<EngineConfig>;
   traceTime: TraceTime;
+  traceUuid?: string;
   trackGroups: ObjectById<TrackGroupState>;
   tracks: ObjectById<TrackState>;
   areas: ObjectById<AreaById>;
@@ -451,6 +452,15 @@ export interface RecordConfig {
   procStatsPeriodMs: number;
 
   chromeCategoriesSelected: string[];
+
+  chromeLogs: boolean;
+  taskScheduling: boolean;
+  ipcFlows: boolean;
+  jsExecution: boolean;
+  webContentRendering: boolean;
+  uiRendering: boolean;
+  inputEvents: boolean;
+  navigationAndLoading: boolean;
 }
 
 export function createEmptyRecordConfig(): RecordConfig {
@@ -518,6 +528,15 @@ export function createEmptyRecordConfig(): RecordConfig {
     procStatsPeriodMs: 1000,
 
     chromeCategoriesSelected: [],
+
+    chromeLogs: false,
+    taskScheduling: false,
+    ipcFlows: false,
+    jsExecution: false,
+    webContentRendering: false,
+    uiRendering: false,
+    inputEvents: false,
+    navigationAndLoading: false,
   };
 }
 
@@ -780,7 +799,6 @@ export function getBuiltinChromeCategoryList(): string[] {
 export function createEmptyState(): State {
   return {
     version: STATE_VERSION,
-    route: null,
     nextId: 0,
     nextNoteId: 1,  // 0 is reserved for ephemeral area marking.
     nextAreaId: 0,

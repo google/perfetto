@@ -130,6 +130,67 @@ class TracedProto {
 
 namespace internal {
 
+template <typename FieldMetadata,
+          bool is_message,
+          protozero::proto_utils::RepetitionType repetition_type>
+struct TypedProtoWriterImpl;
+
+// Simple non-repeated field.
+template <typename FieldMetadata>
+struct TypedProtoWriterImpl<
+    FieldMetadata,
+    /*is_message=*/false,
+    protozero::proto_utils::RepetitionType::kNotRepeated> {
+  template <typename Proto, typename ValueType>
+  static void Write(TracedProto<Proto> context, ValueType&& value) {
+    protozero::internal::FieldWriter<FieldMetadata::kProtoFieldType>::Append(
+        *context.message(), FieldMetadata::kFieldId, value);
+  }
+};
+
+// Simple repeated non-packed field.
+template <typename FieldMetadata>
+struct TypedProtoWriterImpl<
+    FieldMetadata,
+    /*is_message=*/false,
+    protozero::proto_utils::RepetitionType::kRepeatedNotPacked> {
+  template <typename Proto, typename ValueType>
+  static void Write(TracedProto<Proto> context, ValueType&& value) {
+    for (auto&& item : value) {
+      protozero::internal::FieldWriter<FieldMetadata::kProtoFieldType>::Append(
+          *context.message(), FieldMetadata::kFieldId, item);
+    }
+  }
+};
+
+// Nested repeated non-packed field.
+template <typename FieldMetadata>
+struct TypedProtoWriterImpl<
+    FieldMetadata,
+    /*is_message=*/true,
+    protozero::proto_utils::RepetitionType::kNotRepeated> {
+  template <typename Proto, typename ValueType>
+  static void Write(TracedProto<Proto> context, ValueType&& value) {
+    // TODO(altimin): support TraceFormatTraits here.
+    value.WriteIntoTrace(context.template WriteNestedMessage<FieldMetadata>());
+  }
+};
+
+// Nested repeated non-packed field.
+template <typename FieldMetadata>
+struct TypedProtoWriterImpl<
+    FieldMetadata,
+    /*is_message=*/true,
+    protozero::proto_utils::RepetitionType::kRepeatedNotPacked> {
+  template <typename Proto, typename ValueType>
+  static void Write(TracedProto<Proto> context, ValueType&& value) {
+    // TODO(altimin): support TraceFormatTraits here.
+    for (auto&& item : value) {
+      item.WriteIntoTrace(context.template WriteNestedMessage<FieldMetadata>());
+    }
+  }
+};
+
 // TypedProtoWriter takes the protozero message (TracedProto<MessageType>),
 // field description (FieldMetadata) and value and writes the given value
 // into the given field of the given protozero message.
@@ -150,58 +211,17 @@ struct TypedProtoWriter {
                     RepetitionType::kRepeatedPacked,
                 "writing packed fields isn't supported yet");
 
+  template <bool is_message, RepetitionType repetition_type>
+  struct Writer;
+
  public:
-  // Implementation note: typename Check=void is used to ensure that SFINAE
-  // kicks in and the methods which do not match FieldMetadata do not fail
-  // to compile. std::is_same<Check,void> prevents early evaluation of the
-  // first enable_if_t argument.
-
-  // Simple non-repeated field.
-  template <typename Proto, typename ValueType, typename Check = void>
-  static typename base::enable_if_t<
-      FieldMetadata::kProtoFieldType != ProtoSchemaType::kMessage &&
-      FieldMetadata::kRepetitionType == RepetitionType::kNotRepeated &&
-      std::is_same<Check, void>::value>
-  Write(TracedProto<Proto> context, ValueType&& value) {
-    protozero::internal::FieldWriter<FieldMetadata::kProtoFieldType>::Append(
-        *context.message(), FieldMetadata::kFieldId, value);
-  }
-
-  // Simple repeated non-packed field.
-  template <typename Proto, typename ValueType, typename Check = void>
-  static typename base::enable_if_t<
-      FieldMetadata::kProtoFieldType != ProtoSchemaType::kMessage &&
-      FieldMetadata::kRepetitionType == RepetitionType::kRepeatedNotPacked &&
-      std::is_same<Check, void>::value>
-  Write(TracedProto<Proto> context, ValueType&& value) {
-    for (auto&& item : value) {
-      protozero::internal::FieldWriter<FieldMetadata::kProtoFieldType>::Append(
-          *context.message(), FieldMetadata::kFieldId, item);
-    }
-  }
-
-  // Nested non-repeated field.
-  template <typename Proto, typename ValueType, typename Check = void>
-  static typename base::enable_if_t<
-      FieldMetadata::kProtoFieldType == ProtoSchemaType::kMessage &&
-      FieldMetadata::kRepetitionType == RepetitionType::kNotRepeated &&
-      std::is_same<Check, void>::value>
-  Write(TracedProto<Proto> context, ValueType&& value) {
-    // TODO(altimin): support TraceFormatTraits here.
-    value.WriteIntoTrace(context.template WriteNestedMessage<FieldMetadata>());
-  }
-
-  // Nested repeated non-packed field.
-  template <typename Proto, typename ValueType, typename Check = void>
-  static typename base::enable_if_t<
-      FieldMetadata::kProtoFieldType == ProtoSchemaType::kMessage &&
-      FieldMetadata::kRepetitionType == RepetitionType::kRepeatedNotPacked &&
-      std::is_same<Check, void>::value>
-  Write(TracedProto<Proto> context, ValueType&& value) {
-    // TODO(altimin): support TraceFormatTraits here.
-    for (auto&& item : value) {
-      item.WriteIntoTrace(context.template WriteNestedMessage<FieldMetadata>());
-    }
+  template <typename Proto, typename ValueType>
+  static void Write(TracedProto<Proto> context, ValueType&& value) {
+    TypedProtoWriterImpl<
+        FieldMetadata,
+        FieldMetadata::kProtoFieldType == ProtoSchemaType::kMessage,
+        FieldMetadata::kRepetitionType>::Write(std::move(context),
+                                               std::forward<ValueType>(value));
   }
 };
 

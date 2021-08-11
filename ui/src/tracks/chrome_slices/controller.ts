@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {slowlyCountRows} from '../../common/query_iterator';
+import {NUM, NUM_NULL, STR} from '../../common/query_iterator';
 import {fromNs, toNs} from '../../common/time';
 import {
   TrackController,
@@ -41,31 +41,29 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
     if (this.maxDurNs === 0) {
       const query = `
           SELECT max(iif(dur = -1, (SELECT end_ts FROM trace_bounds) - ts, dur))
-          FROM ${tableName} WHERE track_id = ${this.config.trackId}`;
-      const rawResult = await this.query(query);
-      if (slowlyCountRows(rawResult) === 1) {
-        this.maxDurNs = rawResult.columns[0].longValues![0];
-      }
+          AS maxDur FROM ${tableName} WHERE track_id = ${this.config.trackId}`;
+      const queryRes = await this.queryV2(query);
+      this.maxDurNs = queryRes.firstRow({maxDur: NUM_NULL}).maxDur || 0;
     }
 
     const query = `
       SELECT
         (ts + ${bucketNs / 2}) / ${bucketNs} * ${bucketNs} as tsq,
         ts,
-        max(iif(dur = -1, (SELECT end_ts FROM trace_bounds) - ts, dur)),
+        max(iif(dur = -1, (SELECT end_ts FROM trace_bounds) - ts, dur)) as dur,
         depth,
-        id as slice_id,
+        id as sliceId,
         name,
-        dur = 0 as is_instant,
-        dur = -1 as is_incomplete
+        dur = 0 as isInstant,
+        dur = -1 as isIncomplete
       FROM ${tableName}
       WHERE track_id = ${this.config.trackId} AND
         ts >= (${startNs - this.maxDurNs}) AND
         ts <= ${endNs}
       GROUP BY depth, tsq`;
-    const rawResult = await this.query(query);
+    const queryRes = await this.queryV2(query);
 
-    const numRows = slowlyCountRows(rawResult);
+    const numRows = queryRes.numRows();
     const slices: Data = {
       start,
       end,
@@ -91,19 +89,26 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
       return idx;
     }
 
-    const cols = rawResult.columns;
-    for (let row = 0; row < numRows; row++) {
-      const startNsQ = +cols[0].longValues![row];
-      const startNs = +cols[1].longValues![row];
-      const durNs = +cols[2].longValues![row];
+    const it = queryRes.iter({
+      tsq: NUM,
+      ts: NUM,
+      dur: NUM,
+      depth: NUM,
+      sliceId: NUM,
+      name: STR,
+      isInstant: NUM,
+      isIncomplete: NUM
+    });
+    for (let row = 0; it.valid(); it.next(), row++) {
+      const startNsQ = it.tsq;
+      const startNs = it.ts;
+      const durNs = it.dur;
       const endNs = startNs + durNs;
-      const isInstant = +cols[6].longValues![row];
-      const isIncomplete = +cols[7].longValues![row];
 
       let endNsQ = Math.floor((endNs + bucketNs / 2 - 1) / bucketNs) * bucketNs;
       endNsQ = Math.max(endNsQ, startNsQ + bucketNs);
 
-      if (!isInstant && startNsQ === endNsQ) {
+      if (!it.isInstant && startNsQ === endNsQ) {
         throw new Error(
             'Expected startNsQ and endNsQ to differ (' +
             `startNsQ: ${startNsQ}, startNs: ${startNs},` +
@@ -113,11 +118,11 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
 
       slices.starts[row] = fromNs(startNsQ);
       slices.ends[row] = fromNs(endNsQ);
-      slices.depths[row] = +cols[3].longValues![row];
-      slices.sliceIds[row] = +cols[4].longValues![row];
-      slices.titles[row] = internString(cols[5].stringValues![row]);
-      slices.isInstant[row] = isInstant;
-      slices.isIncomplete[row] = isIncomplete;
+      slices.depths[row] = it.depth;
+      slices.sliceIds[row] = it.sliceId;
+      slices.titles[row] = internString(it.name);
+      slices.isInstant[row] = it.isInstant;
+      slices.isIncomplete[row] = it.isIncomplete;
     }
     return slices;
   }

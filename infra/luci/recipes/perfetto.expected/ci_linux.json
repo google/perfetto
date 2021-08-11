@@ -63,8 +63,8 @@
   },
   {
     "cmd": [
+      "python3",
       "tools/install-build-deps",
-      "--ui",
       "--android"
     ],
     "cwd": "[CACHE]/builder/perfetto",
@@ -73,6 +73,7 @@
   },
   {
     "cmd": [
+      "python3",
       "tools/gn",
       "gen",
       "out/dist",
@@ -83,6 +84,7 @@
   },
   {
     "cmd": [
+      "python3",
       "tools/ninja",
       "-C",
       "out/dist"

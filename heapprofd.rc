@@ -19,7 +19,7 @@ service heapprofd /system/bin/heapprofd
     group nobody readproc
     # By default, this  daemon is idle. When profiling an app, we should unwind
     # as fast as possible in the interest of the app being profiled.
-    writepid /dev/cpuset/foreground/tasks
+    task_profiles ProcessCapacityHigh
     onrestart exec_background - nobody shell -- /system/bin/heapprofd --cleanup-after-crash
     # DAC_READ_SEARCH is denied by SELinux on user builds because the SELinux
     # permission is userdebug_or_eng only.
@@ -35,7 +35,7 @@ service heapprofd_secondary /system/bin/heapprofd
     group nobody readproc
     # By default, this  daemon is idle. When profiling an app, we should unwind
     # as fast as possible in the interest of the app being profiled.
-    writepid /dev/cpuset/foreground/tasks
+    task_profiles ProcessCapacityHigh
     # DAC_READ_SEARCH is denied by SELinux on user builds because the SELinux
     # permission is userdebug_or_eng only.
     capabilities KILL DAC_READ_SEARCH

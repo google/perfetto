@@ -20,10 +20,12 @@ const ANALYTICS_ID = 'UA-137828855-1';
 const PAGE_TITLE = 'no-page-title';
 
 export function initAnalytics() {
-  // Only initialize logging on prod or staging
-  if (window.location.origin.startsWith('http://localhost:') ||
-      window.location.origin.endsWith('.perfetto.dev') ||
-      window.location.origin.endsWith('staging-dot-perfetto-ui.appspot.com')) {
+  // Only initialize logging on the official site and on localhost (to catch
+  // analytics bugs when testing locally).
+  // Skip analytics is the fragment has "testing=1", this is used by UI tests.
+  if ((window.location.origin.startsWith('http://localhost:') ||
+       window.location.origin.endsWith('.perfetto.dev')) &&
+      !globals.testing) {
     return new AnalyticsImpl();
   }
   return new NullAnalytics();
@@ -40,6 +42,7 @@ export interface Analytics {
   updatePath(_: string): void;
   logEvent(_x: TraceCategories|null, _y: string): void;
   logError(_x: string, _y?: boolean): void;
+  isEnabled(): boolean;
 }
 
 export class NullAnalytics implements Analytics {
@@ -47,6 +50,9 @@ export class NullAnalytics implements Analytics {
   updatePath(_: string) {}
   logEvent(_x: TraceCategories|null, _y: string) {}
   logError(_x: string) {}
+  isEnabled(): boolean {
+    return false;
+  }
 }
 
 class AnalyticsImpl implements Analytics {
@@ -113,5 +119,9 @@ class AnalyticsImpl implements Analytics {
 
   logError(description: string, fatal = true) {
     gtagGlobals.gtag('event', 'exception', {description, fatal});
+  }
+
+  isEnabled(): boolean {
+    return true;
   }
 }

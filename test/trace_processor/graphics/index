@@ -13,16 +13,19 @@ graphics_frame_events.py graphics_frame_events.sql graphics_frame_events.out
 
 # GPU Memory ftrace packets
 gpu_mem_total.py gpu_mem_total.sql gpu_mem_total.out
+gpu_mem_total_after_free.py gpu_mem_total.sql gpu_mem_total_after_free_gpu_mem_total.out
 
 # Clock sync
 clock_sync.py clock_sync.sql clock_sync.out
 
-# Missed frames
+# Android SurfaceFlinger metrics
 frame_missed.py frame_missed_event.sql frame_missed_event_frame_missed.out
 frame_missed.py android_surfaceflinger frame_missed_metrics.out
+surfaceflinger_gpu_invocation.py android_surfaceflinger surfaceflinger_gpu_invocation.out
 
 # GPU metrics
 gpu_metric.py android_gpu gpu_metric.out
+gpu_frequency_metric.textproto android_gpu gpu_frequency_metric.out
 
 # Android SysUI CUJs metrics
 android_sysui_cuj.py android_sysui_cuj android_sysui_cuj.out
@@ -46,3 +49,6 @@ composer_execution.py composer_execution.sql composer_execution.out
 
 # Display metrics
 panel_fps.py display_metrics panel_fps.out
+
+# DPU vote clock and bandwidth
+dpu_vote_clock_bw.textproto android_hwcomposer dpu_vote_clock_bw.out

@@ -16,7 +16,7 @@
 
 #include "src/trace_processor/sqlite/sqlite_raw_table.h"
 
-#include <inttypes.h>
+#include <cinttypes>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -543,7 +543,15 @@ void SqliteRawTable::ToSystrace(sqlite3_context* ctx,
   uint32_t row = static_cast<uint32_t>(sqlite3_value_int64(argv[0]));
 
   auto str = serializer_.SerializeToString(row);
-  sqlite3_result_text(ctx, str.release(), -1, free);
+  if (str.get() == nullptr) {
+    char buffer[1024];
+    snprintf(buffer, base::ArraySize(buffer),
+             "to_ftrace: Cannot serialize row with id %u", row);
+    sqlite3_result_error(ctx, buffer, -1);
+    return;
+  }
+
+  sqlite3_result_text(ctx, str.release(), -1, str.get_deleter());
 }
 
 SystraceSerializer::SystraceSerializer(TraceProcessorContext* context)
@@ -558,10 +566,15 @@ SystraceSerializer::ScopedCString SystraceSerializer::SerializeToString(
   char line[4096];
   base::StringWriter writer(line, sizeof(line));
 
-  SerializePrefix(raw_row, &writer);
-
   StringId event_name_id = raw.name()[raw_row];
   NullTermStringView event_name = storage_->GetString(event_name_id);
+  if (event_name.StartsWith("chrome_event.") ||
+      event_name.StartsWith("track_event.")) {
+    return ScopedCString(nullptr, nullptr);
+  }
+
+  SerializePrefix(raw_row, &writer);
+
   writer.AppendChar(' ');
   if (event_name == "print" || event_name == "g2d_tracing_mark_write" ||
       event_name == "dpu_tracing_mark_write") {

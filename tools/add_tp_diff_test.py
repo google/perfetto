@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import argparse
 import os
 import pathlib
 import sys
@@ -84,7 +83,7 @@ def main():
   trace_file = ''
   if trace_type == 'proto':
     print('Proto traces should be added to the test-data zip '
-          'using the tools/add_test_trace.sh')
+          'using the tools/add_test_data')
     stdout_write('Provide the name of the trace (including any '
                  'extension) relative to test/data: ')
 

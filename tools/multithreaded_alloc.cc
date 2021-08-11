@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 
 #include <atomic>
+#include <cinttypes>
 #include <condition_variable>
 #include <iterator>
 #include <mutex>

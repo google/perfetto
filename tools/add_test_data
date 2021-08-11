@@ -1,0 +1,95 @@
+#!/bin/bash
+# Copyright (C) 2019 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Adds a file or directory to /test/data/, uploads a new test_data.zip to GCS
+# and updates the sha1 in tools/install-build-deps.
+
+set -e
+
+ROOT_DIR="$(dirname $(cd -P ${BASH_SOURCE[0]%/*}; pwd))"
+
+echo ""
+echo "Downloading latest copy of test data"
+echo ""
+LATEST_ZIP="$(cat tools/install-build-deps  | grep -o 'https://.*/perfetto/test-data-.*.zip')"
+curl -o /tmp/latest-test-data.zip $LATEST_ZIP
+
+echo ""
+echo "Extracting test data to temp folder"
+echo ""
+rm -rf /tmp/latest-test-data 2>/dev/null
+unzip /tmp/latest-test-data.zip -d /tmp/latest-test-data
+
+echo ""
+echo "Copying $1 to temp folder"
+echo ""
+
+set -x
+if [ -d "$1" ]; then
+  DIR_NAME="$(basename $1)"
+  rm -rf "/tmp/latest-test-data/$DIR_NAME"
+  cp -r "$1/" "/tmp/latest-test-data"
+else
+  cp "$1" /tmp/latest-test-data
+fi
+set +x
+
+echo ""
+echo "Zipping file back up"
+echo ""
+NEW_TEST_DATA="test-data-$(date +%Y%m%d-%H%M%S).zip"
+CWD="$(pwd)"
+cd /tmp/latest-test-data
+zip -r /tmp/$NEW_TEST_DATA *
+cd $CWD
+
+echo ""
+echo "Uploading file to Google Cloud"
+echo ""
+gsutil cp /tmp/$NEW_TEST_DATA gs://perfetto/$NEW_TEST_DATA
+
+echo ""
+echo "Setting file to world readable"
+echo ""
+gsutil acl ch -u AllUsers:R gs://perfetto/$NEW_TEST_DATA
+
+echo ""
+echo "SHA-256 of file $NEW_TEST_DATA is"
+NEW_SHA=$(shasum -a 256 /tmp/$NEW_TEST_DATA | cut -c1-64)
+echo $NEW_SHA
+
+echo ""
+echo "Cleaning up leftover files"
+echo ""
+rm -r /tmp/latest-test-data
+rm /tmp/latest-test-data.zip
+rm /tmp/$NEW_TEST_DATA
+
+echo ""
+echo "Updating tools/install-build-deps"
+echo ""
+
+OLD_SHA=$(cat tools/install-build-deps | grep '/test-data-.*.zip' -A1 | tail -n1 | egrep -o '[a-f0-9]+')
+
+# Cannot easily use sed -i, it has different syntax on Linux vs Mac.
+cat tools/install-build-deps \
+  | sed -e "s|/test-data-.*.zip|/$NEW_TEST_DATA|g" \
+  | sed -e "s|$OLD_SHA|$NEW_SHA|g" \
+  > tools/install-build-deps.tmp
+
+mv -f tools/install-build-deps.tmp tools/install-build-deps
+chmod 755 tools/install-build-deps
+
+echo "All done!"

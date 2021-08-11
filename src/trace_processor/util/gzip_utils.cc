@@ -40,9 +40,9 @@ bool IsGzipSupported() {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 GzipDecompressor::GzipDecompressor() : z_stream_(new z_stream()) {
-  z_stream_->zalloc = Z_NULL;
-  z_stream_->zfree = Z_NULL;
-  z_stream_->opaque = Z_NULL;
+  z_stream_->zalloc = nullptr;
+  z_stream_->zfree = nullptr;
+  z_stream_->opaque = nullptr;
   inflateInit2(z_stream_.get(), 32 + 15);
 }
 #else

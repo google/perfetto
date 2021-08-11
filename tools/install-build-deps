@@ -234,8 +234,8 @@ BUILD_DEPS_HOST = [
     # Example traces for regression tests.
     Dependency(
         'test/data.zip',
-        'https://storage.googleapis.com/perfetto/test-data-20210518-223638.zip',
-        'a9119ae4828fae92c9ec8449e3fd91d753e60b60fa59611fb8e6c0dd6ed69b13',
+        'https://storage.googleapis.com/perfetto/test-data-20210630-164307.zip',
+        'ce67ef2089edbae4909563fc8696d68c243658e431af5c7f6723548a824f0c3f',
         'all', 'all',
     ),
 
@@ -428,9 +428,9 @@ def InstallNodeModules(force_clean=False):
     logging.info('Clearing %s', node_modules)
     subprocess.check_call(['git', 'clean', '-qxffd', node_modules],
                           cwd=ROOT_DIR)
-  logging.info("Running npm install in {0}".format(UI_DIR))
-  subprocess.check_call(
-      [os.path.join(TOOLS_DIR, 'npm'), 'install', '--no-save'], cwd=UI_DIR)
+  logging.info("Running `npm ci` in {0}".format(UI_DIR))
+  # `npm ci` is like `npm install` but respects package-lock.json.
+  subprocess.check_call([os.path.join(TOOLS_DIR, 'npm'), 'ci'], cwd=UI_DIR)
   # pbjs has the bad habit of installing extra packages on its first run. Run
   # it here, so we avoid fetches while building.
   node_bin = os.path.join(TOOLS_DIR, 'node')
@@ -484,6 +484,12 @@ def Main():
   if args.verify:
     CheckHashes()
     return 0
+
+  target_os = system().lower()
+  if args.ui and target_os == 'windows':
+    print('Building the UI on Windows is unsupported')
+    return 1
+
   deps = BUILD_DEPS_HOST
   if not args.no_toolchain:
     deps += BUILD_DEPS_TOOLCHAIN_HOST
@@ -498,7 +504,6 @@ def Main():
     RmtreeIfExists(os.path.join(ROOT_DIR, old_dir))
 
   for dep in deps:
-    target_os = system().lower()
     target_arch = GetArch()
     matches_os = dep.target_os == 'all' or target_os == dep.target_os
     matches_arch = dep.target_arch == 'all' or target_arch == dep.target_arch

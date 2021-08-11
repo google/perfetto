@@ -17,9 +17,10 @@
 #include "src/profiling/memory/bookkeeping.h"
 
 #include <fcntl.h>
-#include <inttypes.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+
+#include <cinttypes>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
