@@ -21,7 +21,6 @@ import {
   ComputeMetricArgs,
   ComputeMetricResult,
   QueryArgs,
-  RawQueryResult
 } from './protos';
 import {NUM, NUM_NULL, STR} from './query_result';
 import {
@@ -77,7 +76,6 @@ export abstract class Engine {
   private pendingParses = new Array<Deferred<void>>();
   private pendingEOFs = new Array<Deferred<void>>();
   private pendingQueries = new Array<WritableQueryResult>();
-  private pendingRawQueries = new Array<Deferred<RawQueryResult>>();
   private pendingRestoreTables = new Array<Deferred<void>>();
   private pendingComputeMetrics = new Array<Deferred<ComputeMetricResult>>();
 
@@ -186,10 +184,6 @@ export abstract class Engine {
         if (pendingQuery.isComplete()) {
           this.pendingQueries.shift();
         }
-        break;
-      case TPM.TPM_QUERY_RAW_DEPRECATED:
-        const queryRes = assertExists(rpc.rawQueryResult) as RawQueryResult;
-        assertExists(this.pendingRawQueries.shift()).resolve(queryRes);
         break;
       case TPM.TPM_COMPUTE_METRIC:
         const metricRes = assertExists(rpc.metricResult) as ComputeMetricResult;
