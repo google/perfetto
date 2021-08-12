@@ -84,14 +84,16 @@ curl -O https://raw.githubusercontent.com/google/perfetto/master/tools/record_an
 chmod u+x record_android_trace
 
 # See ./record_android_trace --help for more
-./record_android_trace -o trace_file.perfetto-trace -t 10s -b 32mb sched gfx wm
+./record_android_trace -o trace_file.perfetto-trace -t 10s -b 32mb \
+sched freq idle am wm gfx view binder_driver hal dalvik camera input res memory
 ```
 
 On Windows:
 
 ```bash
 curl -O https://raw.githubusercontent.com/google/perfetto/master/tools/record_android_trace
-python3 record_android_trace -o trace_file.perfetto-trace -t 10s -b 32mb sched gfx wm
+python3 record_android_trace -o trace_file.perfetto-trace -t 10s -b 32mb \
+sched freq idle am wm gfx view binder_driver hal dalvik camera input res memory
 ```
 
 **Using the on-device /system/bin/perfetto command**
@@ -99,7 +101,8 @@ python3 record_android_trace -o trace_file.perfetto-trace -t 10s -b 32mb sched g
 Or, if you want to use directly the on-device binary do instead:
 
 ```bash
-adb shell perfetto -o /data/misc/perfetto-traces/trace_file.perfetto-trace -t 20s sched freq idle am wm gfx view
+adb shell perfetto -o /data/misc/perfetto-traces/trace_file.perfetto-trace -t 20s \
+sched freq idle am wm gfx view binder_driver hal dalvik camera input res memory
 ```
 
 Caveats when using directly the `adb shell perfetto` workflow:

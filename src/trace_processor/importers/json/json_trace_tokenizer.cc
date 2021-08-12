@@ -525,6 +525,18 @@ util::Status JsonTraceTokenizer::ParseInternal(const char* start,
               stats::json_display_time_unit_too_late);
         }
         return ParseInternal(next, end, out);
+      } else if (key == "otherData") {
+        base::StringView unparsed;
+        const auto other = ReadOneJsonDict(next, end, &unparsed, &next);
+        if (other == ReadDictRes::kEndOfArray)
+          return util::ErrStatus(
+              "Failure parsing JSON: Missing ] in otherData");
+        if (other == ReadDictRes::kEndOfTrace)
+          return util::ErrStatus(
+              "Failure parsing JSON: Failed parsing otherData");
+        if (other == ReadDictRes::kNeedsMoreData)
+          return util::ErrStatus("Failure parsing JSON: otherData too large");
+        return ParseInternal(next, end, out);
       } else {
         // If we don't recognize the key, just ignore the rest of the trace and
         // go to EOF.

@@ -104,8 +104,9 @@ void LogMessage(LogLev level,
       break;
   }
 
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) && \
-    !PERFETTO_BUILDFLAG(PERFETTO_OS_WASM)
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) &&  \
+    !PERFETTO_BUILDFLAG(PERFETTO_OS_WASM) && \
+    !PERFETTO_BUILDFLAG(PERFETTO_CHROMIUM_BUILD)
   static const bool use_colors = isatty(STDERR_FILENO);
 #else
   static const bool use_colors = false;

@@ -21,39 +21,20 @@ import {defer} from '../base/deferred';
 import {assertExists, reportError, setErrorHandler} from '../base/logging';
 import {forwardRemoteCalls} from '../base/remote';
 import {Actions, DeferredAction, StateActions} from '../common/actions';
-import {AggregateData} from '../common/aggregation_data';
 import {tryGetTrace} from '../common/cache_manager';
-import {ConversionJobStatusUpdate} from '../common/conversion_jobs';
-import {
-  LogBoundsKey,
-  LogEntriesKey,
-  LogExists,
-  LogExistsKey
-} from '../common/logs';
-import {MetricResult} from '../common/metric_data';
-import {CurrentSearchResults, SearchSummary} from '../common/search_data';
+import {initializeImmerJs} from '../common/immer_init';
 import {createEmptyState, State} from '../common/state';
-import {
-  ControllerWorkerInitMessage,
-  EngineWorkerInitMessage
-} from '../common/worker_messages';
+import {initWasm} from '../common/wasm_engine_proxy';
+import {ControllerWorkerInitMessage} from '../common/worker_messages';
+import {initController} from '../controller/index';
 
 import {AnalyzePage} from './analyze_page';
 import {loadAndroidBugToolInfo} from './android_bug_tool';
 import {initCssConstants} from './css_constants';
 import {maybeShowErrorDialog} from './error_dialog';
 import {installFileDropHandler} from './file_drop_handler';
-import {
-  CounterDetails,
-  CpuProfileDetails,
-  Flow,
-  globals,
-  HeapProfileDetails,
-  QuantizedLoad,
-  SliceDetails,
-  ThreadDesc,
-  ThreadStateDetails
-} from './globals';
+import {FlagsPage} from './flags_page';
+import {globals} from './globals';
 import {HomePage} from './home_page';
 import {initLiveReloadIfLocalhost} from './live_reload';
 import {MetricsPage} from './metrics_page';
@@ -71,9 +52,6 @@ const EXTENSION_ID = 'lfmkphfpdbjijhpomgecfikhfohaoine';
 function isLocalhostTraceUrl(url: string): boolean {
   return ['127.0.0.1', 'localhost'].includes((new URL(url)).hostname);
 }
-
-let idleWasmWorker: Worker;
-let activeWasmWorker: Worker;
 
 /**
  * The API the main thread exposes to the controller.
@@ -168,181 +146,7 @@ class FrontendApi {
     }
   }
 
-  // TODO: we can't have a publish method for each batch of data that we don't
-  // want to keep in the global state. Figure out a more generic and type-safe
-  // mechanism to achieve this.
-
-  publishOverviewData(data: {[key: string]: QuantizedLoad|QuantizedLoad[]}) {
-    for (const [key, value] of Object.entries(data)) {
-      if (!globals.overviewStore.has(key)) {
-        globals.overviewStore.set(key, []);
-      }
-      if (value instanceof Array) {
-        globals.overviewStore.get(key)!.push(...value);
-      } else {
-        globals.overviewStore.get(key)!.push(value);
-      }
-    }
-    globals.rafScheduler.scheduleRedraw();
-  }
-
-  publishTrackData(args: {id: string, data: {}}) {
-    globals.setTrackData(args.id, args.data);
-    if ([LogExistsKey, LogBoundsKey, LogEntriesKey].includes(args.id)) {
-      const data = globals.trackDataStore.get(LogExistsKey) as LogExists;
-      if (data && data.exists) globals.rafScheduler.scheduleFullRedraw();
-    } else {
-      globals.rafScheduler.scheduleRedraw();
-    }
-  }
-
-  publishQueryResult(args: {id: string, data: {}}) {
-    globals.queryResults.set(args.id, args.data);
-    this.redraw();
-  }
-
-  publishThreads(data: ThreadDesc[]) {
-    globals.threads.clear();
-    data.forEach(thread => {
-      globals.threads.set(thread.utid, thread);
-    });
-    this.redraw();
-  }
-
-  publishSliceDetails(click: SliceDetails) {
-    globals.sliceDetails = click;
-    this.redraw();
-  }
-
-  publishThreadStateDetails(click: ThreadStateDetails) {
-    globals.threadStateDetails = click;
-    this.redraw();
-  }
-
-  publishConnectedFlows(connectedFlows: Flow[]) {
-    globals.connectedFlows = connectedFlows;
-    // Call resetFlowFocus() each time connectedFlows is updated to correctly
-    // navigate using hotkeys.
-    this.resetFlowFocus();
-    this.redraw();
-  }
-
-  // If a chrome slice is selected and we have any flows in connectedFlows
-  // we will find the flows on the right and left of that slice to set a default
-  // focus. In all other cases the focusedFlowId(Left|Right) will be set to -1.
-  resetFlowFocus() {
-    globals.frontendLocalState.focusedFlowIdLeft = -1;
-    globals.frontendLocalState.focusedFlowIdRight = -1;
-    if (globals.state.currentSelection?.kind === 'CHROME_SLICE') {
-      const sliceId = globals.state.currentSelection.id;
-      for (const flow of globals.connectedFlows) {
-        if (flow.begin.sliceId === sliceId) {
-          globals.frontendLocalState.focusedFlowIdRight = flow.id;
-        }
-        if (flow.end.sliceId === sliceId) {
-          globals.frontendLocalState.focusedFlowIdLeft = flow.id;
-        }
-      }
-    }
-  }
-
-  publishSelectedFlows(selectedFlows: Flow[]) {
-    globals.selectedFlows = selectedFlows;
-    this.redraw();
-  }
-
-  publishCounterDetails(click: CounterDetails) {
-    globals.counterDetails = click;
-    this.redraw();
-  }
-
-  publishHeapProfileDetails(click: HeapProfileDetails) {
-    globals.heapProfileDetails = click;
-    this.redraw();
-  }
-
-  publishCpuProfileDetails(details: CpuProfileDetails) {
-    globals.cpuProfileDetails = details;
-    this.redraw();
-  }
-
-  publishHasFtrace(hasFtrace: boolean) {
-    globals.hasFtrace = hasFtrace;
-    this.redraw();
-  }
-
-  publishConversionJobStatusUpdate(job: ConversionJobStatusUpdate) {
-    globals.setConversionJobStatus(job.jobName, job.jobStatus);
-    this.redraw();
-  }
-
-  publishLoading(numQueuedQueries: number) {
-    globals.numQueuedQueries = numQueuedQueries;
-    // TODO(hjd): Clean up loadingAnimation given that this now causes a full
-    // redraw anyways. Also this should probably just go via the global state.
-    globals.rafScheduler.scheduleFullRedraw();
-  }
-
-  publishBufferUsage(args: {percentage: number}) {
-    globals.setBufferUsage(args.percentage);
-    this.redraw();
-  }
-
-  publishSearch(args: SearchSummary) {
-    globals.searchSummary = args;
-    this.redraw();
-  }
-
-  publishSearchResult(args: CurrentSearchResults) {
-    globals.currentSearchResults = args;
-    this.redraw();
-  }
-
-  publishRecordingLog(args: {logs: string}) {
-    globals.setRecordingLog(args.logs);
-    this.redraw();
-  }
-
-  publishTraceErrors(numErrors: number) {
-    globals.setTraceErrors(numErrors);
-    this.redraw();
-  }
-
-  publishMetricError(error: string) {
-    globals.setMetricError(error);
-    globals.logging.logError(error, false);
-    this.redraw();
-  }
-
-  publishMetricResult(metricResult: MetricResult) {
-    globals.setMetricResult(metricResult);
-    this.redraw();
-  }
-
-  publishAggregateData(args: {data: AggregateData, kind: string}) {
-    globals.setAggregateData(args.kind, args.data);
-    this.redraw();
-  }
-
-  // This method is called by the controller via the Remote<> interface whenver
-  // a new trace is loaded. This creates a new worker and passes it the
-  // MessagePort received by the controller. This is because on Safari, all
-  // workers must be spawned from the main thread.
-  resetEngineWorker(port: MessagePort) {
-    // We keep always an idle worker around, the first one is created by the
-    // main() below, so we can hide the latency of the Wasm initialization.
-    if (activeWasmWorker !== undefined) {
-      activeWasmWorker.terminate();
-    }
-    // Swap the active worker with the idle one and create a new idle worker
-    // for the next trace.
-    activeWasmWorker = assertExists(idleWasmWorker);
-    const msg: EngineWorkerInitMessage = {enginePort: port};
-    activeWasmWorker.postMessage(msg, [port]);
-    idleWasmWorker = new Worker(globals.root + 'engine_bundle.js');
-  }
-
-  private redraw(): void {
+  redraw(): void {
     const traceIdString =
         globals.state.traceUuid ? `?trace_id=${globals.state.traceUuid}` : '';
     if (globals.state.route &&
@@ -434,8 +238,6 @@ function main() {
   window.addEventListener('error', e => reportError(e));
   window.addEventListener('unhandledrejection', e => reportError(e));
 
-  const controller = new Worker(globals.root + 'controller_bundle.js');
-  idleWasmWorker = new Worker(globals.root + 'engine_bundle.js');
   const frontendChannel = new MessageChannel();
   const controllerChannel = new MessageChannel();
   const extensionLocalChannel = new MessageChannel();
@@ -450,18 +252,17 @@ function main() {
     extensionPort: extensionLocalChannel.port1,
     errorReportingPort: errorReportingChannel.port1,
   };
-  controller.postMessage(msg, [
-    msg.frontendPort,
-    msg.controllerPort,
-    msg.extensionPort,
-    msg.errorReportingPort,
-  ]);
+
+  initWasm(globals.root);
+  initializeImmerJs();
+
+  initController(msg);
 
   const dispatch = (action: DeferredAction) => {
     frontendApi.dispatchMultiple([action]);
   };
 
-  globals.initialize(dispatch, controller);
+  globals.initialize(dispatch);
   globals.serviceWorkerController.install();
 
   const routes = new Map<string, m.Component<PageAttrs>>();
@@ -469,10 +270,12 @@ function main() {
   routes.set('/viewer', ViewerPage);
   routes.set('/record', RecordPage);
   routes.set('/query', AnalyzePage);
+  routes.set('/flags', FlagsPage);
   routes.set('/metrics', MetricsPage);
   routes.set('/info', TraceInfoPage);
   const router = new Router('/', routes, dispatch, globals.logging);
   const frontendApi = new FrontendApi(router, controllerChannel.port2);
+  globals.publishRedraw = () => frontendApi.redraw();
   forwardRemoteCalls(frontendChannel.port2, frontendApi);
 
   // We proxy messages between the extension and the controller because the

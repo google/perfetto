@@ -24,11 +24,9 @@
 
 #include "perfetto/base/status.h"
 
-namespace google {
-namespace protobuf {
-class Descriptor;
-}  // namespace protobuf
-}  // namespace google
+// We include this intentionally instead of forward declaring to allow
+// for an easy find/replace transformation when moving to Google3.
+#include <google/protobuf/descriptor.h>
 
 namespace perfetto {
 namespace proto_merger {
@@ -48,6 +46,13 @@ struct Allowlist {
   std::map<std::string, Message> messages;
   std::set<std::string> enums;
 };
+
+// Creates a Allowlist struct from a list of allowed fields rooted at the given
+// descriptor.
+base::Status AllowlistFromFieldList(
+    const google::protobuf::Descriptor&,
+    const std::vector<std::string>& allowed_fields,
+    Allowlist& allowlist);
 
 }  // namespace proto_merger
 }  // namespace perfetto

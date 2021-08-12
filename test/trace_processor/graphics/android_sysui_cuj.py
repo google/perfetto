@@ -137,14 +137,14 @@ add_render_thread_atrace(
 add_frame(
     trace,
     vsync=20,
-    ts_do_frame=8_000_000,
+    ts_do_frame=20_000_000,
     ts_end_do_frame=23_000_000,
     ts_draw_frame=22_000_000,
     ts_end_draw_frame=26_000_000,
     ts_gpu=27_500_000,
     ts_end_gpu=35_000_000)
 add_main_thread_atrace(
-    trace, ts=9_000_000, ts_end=20_000_000, buf="binder transaction")
+    trace, ts=9_000_000, ts_end=19_000_000, buf="binder transaction")
 add_render_thread_atrace(
     trace, ts=24_000_000, ts_end=25_000_000, buf="flush layers")
 

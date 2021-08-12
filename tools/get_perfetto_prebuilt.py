@@ -1,0 +1,122 @@
+# Copyright (C) 2021 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""
+This source defines a self-contained function to fetch a perfetto prebuilt.
+
+This function is copy/pasted by //tools/roll-prebuilts in different places:
+- Into the //tools/{trace_processor, traceconv} scripts, which are just plain
+  wrappers around executables.
+- Into the //tools/{heap_profiler, record_android_trace} scripts, which contain
+  some other hand-written python code.
+In both cases toll-prebuilts copies this source (together with a manifest) into
+a section annotated with "BEGIN_SECTION_GENERATED_BY(roll-prebuilts)" / END... .
+The automated-copy-paste is to keep those script hermetic, so people can just
+download and run them without checking out the repo.
+
+The manifest argument looks as follows in the generated files:
+PERFETTO_PREBUILT_MANIFEST = [{
+    'tool': 'trace_to_text',
+    'arch': 'mac-amd64',
+    'file_name': 'trace_to_text',
+    'file_size': 7087080,
+    'url': https://commondatastorage.googleapis.com/.../trace_to_text',
+    'sha256': 7d957c005b0dc130f5bd855d6cec27e060d38841b320d04840afc569f9087490',
+    'platform': 'darwin',
+    'machine': 'x86_64'
+  },
+  ...
+]
+
+The intended usage is:
+
+bin_path = get_perfetto_prebuilt('trace_processor_shell')
+subprocess.call(bin_path, ...)
+"""
+
+from logging import exception
+
+PERFETTO_PREBUILT_MANIFEST = []
+
+# COPIED_SECTION_START_MARKER
+
+
+# DO NOT EDIT. If you wish to make edits to this code, you need to change only
+# //tools/get_perfetto_prebuilt.py and run /tools/roll-prebuilts to regenerate
+# all the others scripts this is embedded into.
+def get_perfetto_prebuilt(tool_name, soft_fail=False, arch=None):
+  """ Downloads the prebuilt, if necessary, and returns its path on disk. """
+
+  # The first time this is invoked, it downloads the |url| and caches it into
+  # ~/.perfetto/prebuilts/$tool_name. On subsequent invocations it just runs the
+  # cached version.
+  def download_or_get_cached(file_name, url, sha256):
+    import os, hashlib, subprocess
+    dir = os.path.join(
+        os.path.expanduser('~'), '.local', 'share', 'perfetto', 'prebuilts')
+    os.makedirs(dir, exist_ok=True)
+    bin_path = os.path.join(dir, file_name)
+    sha256_path = os.path.join(dir, file_name + '.sha256')
+    needs_download = True
+
+    # Avoid recomputing the SHA-256 on each invocation. The SHA-256 of the last
+    # download is cached into file_name.sha256, just check if that matches.
+    if os.path.exists(bin_path) and os.path.exists(sha256_path):
+      with open(sha256_path, 'rb') as f:
+        digest = f.read().decode()
+        if digest == sha256:
+          needs_download = False
+
+    if needs_download:
+      # Either the filed doesn't exist or the SHA256 doesn't match.
+      tmp_path = bin_path + '.tmp'
+      print('Downloading ' + url)
+      subprocess.check_call(['curl', '-f', '-L', '-#', '-o', tmp_path, url])
+      with open(tmp_path, 'rb') as fd:
+        actual_sha256 = hashlib.sha256(fd.read()).hexdigest()
+      if actual_sha256 != sha256:
+        raise Exception('Checksum mismatch for %s (actual: %s, expected: %s)' %
+                        (url, actual_sha256, sha256))
+      os.chmod(tmp_path, 0o755)
+      os.rename(tmp_path, bin_path)
+      with open(sha256_path, 'w') as f:
+        f.write(sha256)
+    return bin_path
+    # --- end of download_or_get_cached() ---
+
+  # --- get_perfetto_prebuilt() function starts here. ---
+  import os, platform, sys
+  plat = sys.platform.lower()
+  machine = platform.machine().lower()
+  manifest_entry = None
+  for entry in PERFETTO_PREBUILT_MANIFEST:
+    # If the caller overrides the arch, just match that (for Android prebuilts).
+    if arch and entry.get('arch') == arch:
+      manifest_entry = entry
+      break
+    # Otherwise guess the local machine arch.
+    if entry.get('tool') == tool_name and entry.get(
+        'platform') == plat and machine in entry.get('machine', []):
+      manifest_entry = entry
+      break
+  if manifest_entry is None:
+    if soft_fail:
+      return None
+    raise Exception(
+        ('No prebuilts available for %s-%s\n' % (plat, machine)) +
+        'See https://perfetto.dev/docs/contributing/build-instructions')
+
+  return download_or_get_cached(
+      file_name=manifest_entry['file_name'],
+      url=manifest_entry['url'],
+      sha256=manifest_entry['sha256'])

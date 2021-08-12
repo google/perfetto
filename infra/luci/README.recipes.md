@@ -85,17 +85,24 @@ Raises:
 &mdash; **def [RunSteps](/infra/luci/recipe_modules/macos_sdk/examples/full.py#23)(api):**
 ### *recipes* / [perfetto](/infra/luci/recipes/perfetto.py)
 
-[DEPS](/infra/luci/recipes/perfetto.py#18): [macos\_sdk](#recipe_modules-macos_sdk), [windows\_sdk](#recipe_modules-windows_sdk), [recipe\_engine/buildbucket][recipe_engine/recipe_modules/buildbucket], [recipe\_engine/context][recipe_engine/recipe_modules/context], [recipe\_engine/file][recipe_engine/recipe_modules/file], [recipe\_engine/path][recipe_engine/recipe_modules/path], [recipe\_engine/platform][recipe_engine/recipe_modules/platform], [recipe\_engine/properties][recipe_engine/recipe_modules/properties], [recipe\_engine/step][recipe_engine/recipe_modules/step]
+[DEPS](/infra/luci/recipes/perfetto.py#18): [depot\_tools/gsutil][depot_tools/recipe_modules/gsutil], [macos\_sdk](#recipe_modules-macos_sdk), [windows\_sdk](#recipe_modules-windows_sdk), [recipe\_engine/buildbucket][recipe_engine/recipe_modules/buildbucket], [recipe\_engine/cipd][recipe_engine/recipe_modules/cipd], [recipe\_engine/context][recipe_engine/recipe_modules/context], [recipe\_engine/file][recipe_engine/recipe_modules/file], [recipe\_engine/path][recipe_engine/recipe_modules/path], [recipe\_engine/platform][recipe_engine/recipe_modules/platform], [recipe\_engine/properties][recipe_engine/recipe_modules/properties], [recipe\_engine/raw\_io][recipe_engine/recipe_modules/raw_io], [recipe\_engine/step][recipe_engine/recipe_modules/step]
 
 Recipe for building Perfetto.
 
-&mdash; **def [RunSteps](/infra/luci/recipes/perfetto.py#41)(api, repository):**
+&mdash; **def [BuildForPlatform](/infra/luci/recipes/perfetto.py#138)(api, ctx, platform):**
+
+&mdash; **def [GnArgs](/infra/luci/recipes/perfetto.py#81)(platform):**
+
+&mdash; **def [RunSteps](/infra/luci/recipes/perfetto.py#164)(api, repository):**
+
+&mdash; **def [UploadArtifact](/infra/luci/recipes/perfetto.py#90)(api, ctx, platform, out_dir, artifact):**
 ### *recipes* / [windows\_sdk:examples/full](/infra/luci/recipe_modules/windows_sdk/examples/full.py)
 
 [DEPS](/infra/luci/recipe_modules/windows_sdk/examples/full.py#15): [windows\_sdk](#recipe_modules-windows_sdk), [recipe\_engine/platform][recipe_engine/recipe_modules/platform], [recipe\_engine/properties][recipe_engine/recipe_modules/properties], [recipe\_engine/step][recipe_engine/recipe_modules/step]
 
 &mdash; **def [RunSteps](/infra/luci/recipe_modules/windows_sdk/examples/full.py#23)(api):**
 
+[depot_tools/recipe_modules/gsutil]: https://chromium.googlesource.com/chromium/tools/depot_tools.git/+/5345b34aaf50107d0a07146b9319ef19203f65a0/recipes/README.recipes.md#recipe_modules-gsutil
 [recipe_engine/recipe_modules/buildbucket]: https://chromium.googlesource.com/infra/luci/recipes-py.git/+/2030661a4ff2a6b64b0651f2c44aabed8c71223f/README.recipes.md#recipe_modules-buildbucket
 [recipe_engine/recipe_modules/cipd]: https://chromium.googlesource.com/infra/luci/recipes-py.git/+/2030661a4ff2a6b64b0651f2c44aabed8c71223f/README.recipes.md#recipe_modules-cipd
 [recipe_engine/recipe_modules/context]: https://chromium.googlesource.com/infra/luci/recipes-py.git/+/2030661a4ff2a6b64b0651f2c44aabed8c71223f/README.recipes.md#recipe_modules-context
@@ -104,5 +111,6 @@ Recipe for building Perfetto.
 [recipe_engine/recipe_modules/path]: https://chromium.googlesource.com/infra/luci/recipes-py.git/+/2030661a4ff2a6b64b0651f2c44aabed8c71223f/README.recipes.md#recipe_modules-path
 [recipe_engine/recipe_modules/platform]: https://chromium.googlesource.com/infra/luci/recipes-py.git/+/2030661a4ff2a6b64b0651f2c44aabed8c71223f/README.recipes.md#recipe_modules-platform
 [recipe_engine/recipe_modules/properties]: https://chromium.googlesource.com/infra/luci/recipes-py.git/+/2030661a4ff2a6b64b0651f2c44aabed8c71223f/README.recipes.md#recipe_modules-properties
+[recipe_engine/recipe_modules/raw_io]: https://chromium.googlesource.com/infra/luci/recipes-py.git/+/2030661a4ff2a6b64b0651f2c44aabed8c71223f/README.recipes.md#recipe_modules-raw_io
 [recipe_engine/recipe_modules/step]: https://chromium.googlesource.com/infra/luci/recipes-py.git/+/2030661a4ff2a6b64b0651f2c44aabed8c71223f/README.recipes.md#recipe_modules-step
 [recipe_engine/wkt/RecipeApi]: https://chromium.googlesource.com/infra/luci/recipes-py.git/+/2030661a4ff2a6b64b0651f2c44aabed8c71223f/recipe_engine/recipe_api.py#856

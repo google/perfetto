@@ -55,7 +55,8 @@ export class TrackGroupPanel extends Panel<Attrs> {
     super();
     this.trackGroupId = attrs.trackGroupId;
     const trackCreator = trackRegistry.get(this.summaryTrackState.kind);
-    this.summaryTrack = trackCreator.create(this.summaryTrackState);
+    this.summaryTrack =
+        trackCreator.create({trackId: this.summaryTrackState.id});
   }
 
   get trackGroupState(): TrackGroupState {
@@ -76,10 +77,9 @@ export class TrackGroupPanel extends Panel<Attrs> {
     // The shell should be highlighted if the current search result is inside
     // this track group.
     let highlightClass = '';
-    const searchIndex = globals.frontendLocalState.searchIndex;
+    const searchIndex = globals.state.searchIndex;
     if (searchIndex !== -1) {
-      const trackId = globals.currentSearchResults
-                          .trackIds[globals.frontendLocalState.searchIndex];
+      const trackId = globals.currentSearchResults.trackIds[searchIndex];
       const parentTrackId = getContainingTrackId(globals.state, trackId);
       if (parentTrackId === attrs.trackGroupId) {
         highlightClass = 'flash';
@@ -201,19 +201,19 @@ export class TrackGroupPanel extends Panel<Attrs> {
 
     const localState = globals.frontendLocalState;
     // Draw vertical line when hovering on the notes panel.
-    if (localState.hoveredNoteTimestamp !== -1) {
+    if (globals.state.hoveredNoteTimestamp !== -1) {
       drawVerticalLineAtTime(
           ctx,
           localState.timeScale,
-          localState.hoveredNoteTimestamp,
+          globals.state.hoveredNoteTimestamp,
           size.height,
           `#aaa`);
     }
-    if (localState.hoveredLogsTimestamp !== -1) {
+    if (globals.state.hoveredLogsTimestamp !== -1) {
       drawVerticalLineAtTime(
           ctx,
           localState.timeScale,
-          localState.hoveredLogsTimestamp,
+          globals.state.hoveredLogsTimestamp,
           size.height,
           `#344596`);
     }

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {assertExists} from '../base/logging';
-import {DeferredAction} from '../common/actions';
+import {Actions, DeferredAction} from '../common/actions';
 import {AggregateData} from '../common/aggregation_data';
 import {Args, ArgsTree} from '../common/arg_types';
 import {
@@ -32,7 +32,7 @@ import {ServiceWorkerController} from './service_worker_controller';
 
 type Dispatch = (action: DeferredAction) => void;
 type TrackDataStore = Map<string, {}>;
-type QueryResultsStore = Map<string, {}>;
+type QueryResultsStore = Map<string, {}|undefined>;
 type AggregateDataStore = Map<string, AggregateData>;
 type Description = Map<string, string>;
 export interface SliceDetails {
@@ -153,14 +153,12 @@ class Globals {
 
   private _testing = false;
   private _dispatch?: Dispatch = undefined;
-  private _controllerWorker?: Worker = undefined;
   private _state?: State = undefined;
   private _frontendLocalState?: FrontendLocalState = undefined;
   private _rafScheduler?: RafScheduler = undefined;
   private _serviceWorkerController?: ServiceWorkerController = undefined;
   private _logging?: Analytics = undefined;
   private _isInternalUser: boolean|undefined = undefined;
-  private _channel: string|undefined = undefined;
 
   // TODO(hjd): Unify trackDataStore, queryResults, overviewStore, threads.
   private _trackDataStore?: TrackDataStore = undefined;
@@ -185,10 +183,13 @@ class Globals {
   private _hasFtrace?: boolean = undefined;
   private _jobStatus?: Map<ConversionJobName, ConversionJobStatus> = undefined;
 
+  // TODO(hjd): Remove once we no longer need to update UUID on redraw.
+  private _publishRedraw?: () => void = undefined;
+
   private _currentSearchResults: CurrentSearchResults = {
-    sliceIds: [],
-    tsStarts: [],
-    utids: [],
+    sliceIds: new Float64Array(0),
+    tsStarts: new Float64Array(0),
+    utids: new Float64Array(0),
     trackIds: [],
     sources: [],
     totalResults: 0,
@@ -199,9 +200,8 @@ class Globals {
     count: new Uint8Array(0),
   };
 
-  initialize(dispatch: Dispatch, controllerWorker: Worker) {
+  initialize(dispatch: Dispatch) {
     this._dispatch = dispatch;
-    this._controllerWorker = controllerWorker;
     this._state = createEmptyState();
     this._frontendLocalState = new FrontendLocalState();
     this._rafScheduler = new RafScheduler();
@@ -224,6 +224,14 @@ class Globals {
     this._threadStateDetails = {};
     this._heapProfileDetails = {};
     this._cpuProfileDetails = {};
+  }
+
+  get publishRedraw(): () => void {
+    return this._publishRedraw || (() => {});
+  }
+
+  set publishRedraw(f: () => void) {
+    this._publishRedraw = f;
   }
 
   get state(): State {
@@ -464,9 +472,9 @@ class Globals {
 
   makeSelection(action: DeferredAction<{}>, tabToOpen = 'current_selection') {
     // A new selection should cancel the current search selection.
-    globals.frontendLocalState.searchIndex = -1;
-    globals.frontendLocalState.currentTab =
-        action.type === 'deselect' ? undefined : tabToOpen;
+    globals.dispatch(Actions.setSearchIndex({index: -1}));
+    const tab = action.type === 'deselect' ? undefined : tabToOpen;
+    globals.dispatch(Actions.setCurrentTab({tab}));
     globals.dispatch(action);
   }
 
@@ -488,9 +496,9 @@ class Globals {
     this._numQueriesQueued = 0;
     this._metricResult = undefined;
     this._currentSearchResults = {
-      sliceIds: [],
-      tsStarts: [],
-      utids: [],
+      sliceIds: new Float64Array(0),
+      tsStarts: new Float64Array(0),
+      utids: new Float64Array(0),
       trackIds: [],
       sources: [],
       totalResults: 0,
@@ -515,13 +523,6 @@ class Globals {
     this._isInternalUser = value;
   }
 
-  get channel() {
-    if (this._channel === undefined) {
-      this._channel = localStorage.getItem('perfettoUiChannel') || 'stable';
-    }
-    return this._channel;
-  }
-
   get testing() {
     return this._testing;
   }
@@ -531,7 +532,6 @@ class Globals {
   // however pending RAFs and workers seem to outlive the |window| and need to
   // be cleaned up explicitly.
   shutdown() {
-    this._controllerWorker!.terminate();
     this._rafScheduler!.shutdown();
   }
 }

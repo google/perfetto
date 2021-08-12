@@ -22,10 +22,13 @@ perfetto_host_executable("proto_merger") {
     "../../src/base",
   ]
   sources = [
+    "allowlist.cc",
     "allowlist.h",
     "main.cc",
     "proto_file.cc",
     "proto_file.h",
+    "proto_file_serializer.cc",
+    "proto_file_serializer.h",
     "proto_merger.cc",
     "proto_merger.h",
   ]

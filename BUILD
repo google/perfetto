@@ -190,10 +190,13 @@ perfetto_cc_binary(
 perfetto_cc_binary(
     name = "proto_merger",
     srcs = [
+        "tools/proto_merger/allowlist.cc",
         "tools/proto_merger/allowlist.h",
         "tools/proto_merger/main.cc",
         "tools/proto_merger/proto_file.cc",
         "tools/proto_merger/proto_file.h",
+        "tools/proto_merger/proto_file_serializer.cc",
+        "tools/proto_merger/proto_file_serializer.h",
         "tools/proto_merger/proto_merger.cc",
         "tools/proto_merger/proto_merger.h",
     ],
@@ -784,6 +787,10 @@ filegroup(
 filegroup(
     name = "src_profiling_symbolizer_symbolizer",
     srcs = [
+        "src/profiling/symbolizer/breakpad_parser.cc",
+        "src/profiling/symbolizer/breakpad_parser.h",
+        "src/profiling/symbolizer/breakpad_symbolizer.cc",
+        "src/profiling/symbolizer/breakpad_symbolizer.h",
         "src/profiling/symbolizer/filesystem.h",
         "src/profiling/symbolizer/filesystem_posix.cc",
         "src/profiling/symbolizer/filesystem_windows.cc",
@@ -1051,6 +1058,7 @@ genrule(
         "src/trace_processor/metrics/android/process_metadata.sql",
         "src/trace_processor/metrics/android/process_oom_score.sql",
         "src/trace_processor/metrics/android/process_unagg_mem_view.sql",
+        "src/trace_processor/metrics/android/profiler_smaps.sql",
         "src/trace_processor/metrics/android/span_view_stats.sql",
         "src/trace_processor/metrics/android/thread_counter_span_view.sql",
         "src/trace_processor/metrics/android/unsymbolized_frames.sql",
@@ -2547,6 +2555,7 @@ perfetto_proto_library(
         "protos/perfetto/metrics/android/package_list.proto",
         "protos/perfetto/metrics/android/powrails_metric.proto",
         "protos/perfetto/metrics/android/process_metadata.proto",
+        "protos/perfetto/metrics/android/profiler_smaps.proto",
         "protos/perfetto/metrics/android/startup_metric.proto",
         "protos/perfetto/metrics/android/surfaceflinger.proto",
         "protos/perfetto/metrics/android/sysui_cuj_metrics.proto",
@@ -4153,5 +4162,31 @@ perfetto_py_library(
         ":protobuf_descriptor_pb2_noop",
         ":pyglib_noop",
     ],
+    imports = [
+        "src/trace_processor/python",
+    ],
     visibility = PERFETTO_CONFIG.public_visibility,
+)
+
+perfetto_py_library(
+    name = "experimental_slice_breakdown_lib",
+    srcs = glob(["tools/slice_breakdown/perfetto/slice_breakdown/*.py"]),
+    deps = [
+        ":trace_processor_py",
+    ],
+    imports = [
+        "tools/slice_breakdown",
+    ],
+)
+
+perfetto_py_binary(
+    name = "experimental_slice_breakdown_bin",
+    srcs = glob(["tools/slice_breakdown/main.py"]),
+    main = "tools/slice_breakdown/main.py",
+    deps = [
+        ":experimental_slice_breakdown_lib",
+        ":trace_processor_py",
+    ],
+    python_version = "PY3",
+    legacy_create_init = 0,
 )

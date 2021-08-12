@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {getCurrentChannel} from '../common/channels';
 import {globals} from '../frontend/globals';
 import * as version from '../gen/perfetto_version';
 
@@ -103,7 +104,7 @@ class AnalyticsImpl implements Analytics {
       page_title: PAGE_TITLE,
       dimension1: globals.isInternalUser ? '1' : '0',
       dimension2: version.VERSION,
-      dimension3: globals.channel,
+      dimension3: getCurrentChannel(),
     });
     this.updatePath(route);
   }

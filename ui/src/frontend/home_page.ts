@@ -13,11 +13,12 @@
 // limitations under the License.
 
 import * as m from 'mithril';
-import {globals} from './globals';
 
+import {channelChanged, getNextChannel, setChannel} from '../common/channels';
+
+import {globals} from './globals';
 import {createPage} from './pages';
 
-let channelChanged = false;
 
 export const HomePage = createPage({
   view() {
@@ -37,7 +38,7 @@ export const HomePage = createPage({
                     mkChan('canary'),
                     m('.highlight'),
                     ),
-                m(`.home-page-reload${channelChanged ? '.show' : ''}`,
+                m(`.home-page-reload${channelChanged() ? '.show' : ''}`,
                   'You need to reload the page for the changes to have effect'),
                 ),
             ),
@@ -48,17 +49,13 @@ export const HomePage = createPage({
 });
 
 function mkChan(chan: string) {
-  const checked =
-      !channelChanged && globals.channel === chan ? '[checked=true]' : '';
+  const checked = getNextChannel() === chan ? '[checked=true]' : '';
   return [
-    m(`input[type=radio][name=chan][id=chan_${chan}]${checked}`,
-      {onchange: () => changeChannel(chan)}),
+    m(`input[type=radio][name=chan][id=chan_${chan}]${checked}`, {
+      onchange: () => {
+        setChannel(chan);
+      }
+    }),
     m(`label[for=chan_${chan}]`, chan),
   ];
-}
-
-function changeChannel(chan: string) {
-  localStorage.setItem('perfettoUiChannel', chan);
-  channelChanged = true;
-  globals.rafScheduler.scheduleFullRedraw();
 }

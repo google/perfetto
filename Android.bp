@@ -3670,6 +3670,7 @@ genrule {
     "protos/perfetto/metrics/android/package_list.proto",
     "protos/perfetto/metrics/android/powrails_metric.proto",
     "protos/perfetto/metrics/android/process_metadata.proto",
+    "protos/perfetto/metrics/android/profiler_smaps.proto",
     "protos/perfetto/metrics/android/startup_metric.proto",
     "protos/perfetto/metrics/android/surfaceflinger.proto",
     "protos/perfetto/metrics/android/sysui_cuj_metrics.proto",
@@ -3720,6 +3721,7 @@ genrule {
     "protos/perfetto/metrics/android/package_list.proto",
     "protos/perfetto/metrics/android/powrails_metric.proto",
     "protos/perfetto/metrics/android/process_metadata.proto",
+    "protos/perfetto/metrics/android/profiler_smaps.proto",
     "protos/perfetto/metrics/android/startup_metric.proto",
     "protos/perfetto/metrics/android/surfaceflinger.proto",
     "protos/perfetto/metrics/android/sysui_cuj_metrics.proto",
@@ -7430,6 +7432,8 @@ filegroup {
 filegroup {
   name: "perfetto_src_profiling_symbolizer_symbolizer",
   srcs: [
+    "src/profiling/symbolizer/breakpad_parser.cc",
+    "src/profiling/symbolizer/breakpad_symbolizer.cc",
     "src/profiling/symbolizer/filesystem_posix.cc",
     "src/profiling/symbolizer/filesystem_windows.cc",
     "src/profiling/symbolizer/local_symbolizer.cc",
@@ -7445,6 +7449,8 @@ filegroup {
 filegroup {
   name: "perfetto_src_profiling_symbolizer_unittests",
   srcs: [
+    "src/profiling/symbolizer/breakpad_parser_unittest.cc",
+    "src/profiling/symbolizer/breakpad_symbolizer_unittest.cc",
     "src/profiling/symbolizer/local_symbolizer_unittest.cc",
   ],
 }
@@ -8023,6 +8029,7 @@ genrule {
     "src/trace_processor/metrics/android/process_metadata.sql",
     "src/trace_processor/metrics/android/process_oom_score.sql",
     "src/trace_processor/metrics/android/process_unagg_mem_view.sql",
+    "src/trace_processor/metrics/android/profiler_smaps.sql",
     "src/trace_processor/metrics/android/span_view_stats.sql",
     "src/trace_processor/metrics/android/thread_counter_span_view.sql",
     "src/trace_processor/metrics/android/unsymbolized_frames.sql",

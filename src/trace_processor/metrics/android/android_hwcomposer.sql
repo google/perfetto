@@ -64,6 +64,11 @@ SELECT RUN_METRIC('android/thread_counter_span_view.sql',
   'counter_name', 'dpu_vote_peak_bw'
 );
 
+SELECT RUN_METRIC('android/thread_counter_span_view.sql',
+  'table_name', 'dpu_vote_rt_bw',
+  'counter_name', 'dpu_vote_rt_bw'
+);
+
 DROP VIEW IF EXISTS dpu_vote_thread;
 CREATE VIEW dpu_vote_thread AS
 SELECT DISTINCT s.utid, t.tid
@@ -87,7 +92,10 @@ SELECT AndroidHwcomposerMetrics_DpuVoteMetrics(
       FROM dpu_vote_avg_bw_span s WHERE s.utid = t.utid),
   'avg_dpu_vote_peak_bw',
       (SELECT SUM(dpu_vote_peak_bw_val * dur) / SUM(dur)
-      FROM dpu_vote_peak_bw_span s WHERE s.utid = t.utid)
+      FROM dpu_vote_peak_bw_span s WHERE s.utid = t.utid),
+  'avg_dpu_vote_rt_bw',
+      (SELECT SUM(dpu_vote_rt_bw_val * dur) / SUM(dur)
+      FROM dpu_vote_rt_bw_span s WHERE s.utid = t.utid)
 ) AS proto
 FROM dpu_vote_thread t
 ORDER BY tid;

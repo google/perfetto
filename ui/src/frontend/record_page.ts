@@ -17,6 +17,7 @@ import {produce} from 'immer';
 import * as m from 'mithril';
 
 import {Actions} from '../common/actions';
+import {featureFlags} from '../common/feature_flags';
 import {MeminfoCounters, VmstatCounters} from '../common/protos';
 import {
   AdbRecordingTarget,
@@ -50,7 +51,12 @@ import {
   ToggleAttrs
 } from './record_widgets';
 
-const LOCAL_STORAGE_SHOW_CONFIG = 'showConfigs';
+const PERSIST_CONFIG_FLAG = featureFlags.register({
+  id: 'persistConfigsUI',
+  name: 'Config persistence UI',
+  description: 'Show experimental config persistance UI on the record page.',
+  defaultValue: false,
+});
 
 const POLL_INTERVAL_MS = [250, 500, 1000, 2500, 5000, 30000, 60000];
 
@@ -747,8 +753,6 @@ function ChromeCategoriesSelection() {
 }
 
 function AdvancedSettings(cssClass: string) {
-  const S = (x: number) => x * 1000;
-  const M = (x: number) => x * 1000 * 60;
   return m(
       `.record-section${cssClass}`,
       m(Probe,
@@ -790,27 +794,7 @@ function AdvancedSettings(cssClass: string) {
               'kmem/*',
           set: (cfg, val) => cfg.ftraceExtraEvents = val,
           get: (cfg) => cfg.ftraceExtraEvents
-        } as TextareaAttrs)),
-      globals.state.videoEnabled ?
-          m(Probe,
-            {
-              title: 'Screen recording',
-              img: null,
-              descr: `Records the screen along with running a trace. Max
-                  time of recording is 3 minutes (180 seconds).`,
-              setEnabled: (cfg, val) => cfg.screenRecord = val,
-              isEnabled: (cfg) => cfg.screenRecord,
-            } as ProbeAttrs,
-            m(Slider, {
-              title: 'Max duration',
-              icon: 'timer',
-              values: [S(10), S(15), S(30), S(60), M(2), M(3)],
-              isTime: true,
-              unit: 'm:s',
-              set: (cfg, val) => cfg.durationMs = val,
-              get: (cfg) => cfg.durationMs,
-            } as SliderAttrs)) :
-          null);
+        } as TextareaAttrs)));
 }
 
 function RecordHeader() {
@@ -893,7 +877,7 @@ function Instructions(cssClass: string) {
   return m(
       `.record-section.instructions${cssClass}`,
       m('header', 'Recording command'),
-      localStorage.hasOwnProperty(LOCAL_STORAGE_SHOW_CONFIG) ?
+      PERSIST_CONFIG_FLAG.get() ?
           m('button.permalinkconfig',
             {
               onclick: () => {
@@ -1120,12 +1104,6 @@ function getRecordCommand(target: RecordingTarget) {
   const pbBase64 = data ? data.pbBase64 : '';
   const pbtx = data ? data.pbtxt : '';
   let cmd = '';
-  if (cfg.screenRecord) {
-    // Half-second delay to ensure Perfetto starts tracing before screenrecord
-    // starts recording
-    cmd += `(sleep 0.5 && adb shell screenrecord --time-limit ${time}`;
-    cmd += ' "/sdcard/tracescr.mp4") &\\\n';
-  }
   if (isAndroidP(target)) {
     cmd += `echo '${pbBase64}' | \n`;
     cmd += 'base64 --decode | \n';
@@ -1327,7 +1305,7 @@ function recordMenu(routePage: string) {
             m('i.material-icons.rec', 'fiber_manual_record'),
             m('.title', 'Recording command'),
             m('.sub', 'Manually record trace'))),
-        localStorage.hasOwnProperty(LOCAL_STORAGE_SHOW_CONFIG) ?
+        PERSIST_CONFIG_FLAG.get() ?
             m('a[href="#!/record/config"]',
               {
                 onclick: () => {

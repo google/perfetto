@@ -53,16 +53,56 @@ import {defer, Deferred} from '../base/deferred';
 import {assertExists, assertFalse, assertTrue} from '../base/logging';
 import {utf8Decode} from '../base/string_utils';
 
-import {
-  columnTypeToString,
-  NUM,
-  NUM_NULL,
-  Row,
-  RowIterator,
-  RowIteratorBase,
-  STR,
-  STR_NULL
-} from './query_iterator';
+export const NUM = 0;
+export const STR = 'str';
+export const NUM_NULL: number|null = 1;
+export const STR_NULL: string|null = 'str_null';
+
+export type ColumnType = string|number|null;
+
+// One row extracted from an SQL result:
+export interface Row {
+  [key: string]: ColumnType;
+}
+
+// The methods that any iterator has to implement.
+export interface RowIteratorBase {
+  valid(): boolean;
+  next(): void;
+
+  // Reflection support for cases where the column names are not known upfront
+  // (e.g. the query result table for user-provided SQL queries).
+  // It throws if the passed column name doesn't exist.
+  // Example usage:
+  // for (const it = queryResult.iter({}); it.valid(); it.next()) {
+  //   for (const columnName : queryResult.columns()) {
+  //      console.log(it.get(columnName));
+  get(columnName: string): ColumnType;
+}
+
+// A RowIterator is a type that has all the fields defined in the query spec
+// plus the valid() and next() operators. This is to ultimately allow the
+// clients to do:
+// const result = await engine.queryV2("select name, surname, id from people;");
+// const iter = queryResult.iter({name: STR, surname: STR, id: NUM});
+// for (; iter.valid(); iter.next())
+//  console.log(iter.name, iter.surname);
+export type RowIterator<T extends Row> = RowIteratorBase&T;
+
+function columnTypeToString(t: ColumnType): string {
+  switch (t) {
+    case NUM:
+      return 'NUM';
+    case NUM_NULL:
+      return 'NUM_NULL';
+    case STR:
+      return 'STR';
+    case STR_NULL:
+      return 'STR_NULL';
+    default:
+      return `INVALID(${t})`;
+  }
+}
 
 // Disable Long.js support in protobuf. This seems to be enabled only in tests
 // but not in production code. In any case, for now we want casting to number
@@ -123,6 +163,10 @@ export interface QueryResult {
   // have been fetched. The promise return value is always the object iself.
   waitAllRows(): Promise<QueryResult>;
 
+  // Can return an empty array if called before the first batch is resolved.
+  // This should be called only after having awaited for at least one batch.
+  columns(): string[];
+
   // TODO(primiano): next CLs will introduce a waitMoreRows() to allow tracks
   // to await until some more data (but not necessarily all) is available. For
   // now everything uses waitAllRows().
@@ -178,6 +222,9 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
   error(): string|undefined {
     return this._error;
   }
+  columns(): string[] {
+    return this.columnNames;
+  }
 
   iter<T extends Row>(spec: T): RowIterator<T> {
     const impl = new RowIteratorImplWithRowData(spec, this);
@@ -213,6 +260,7 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
     const reader = protobuf.Reader.create(resBytes);
     assertTrue(reader.pos === 0);
     const columnNamesEmptyAtStartOfBatch = this.columnNames.length === 0;
+    const columnNamesSet = new Set<string>();
     while (reader.pos < reader.len) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -220,7 +268,20 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
           // Only the first batch should contain the column names. If this fires
           // something is going wrong in the handling of the batch stream.
           assertTrue(columnNamesEmptyAtStartOfBatch);
-          this.columnNames.push(reader.string());
+          const origColName = reader.string();
+          let colName = origColName;
+          // In some rare cases two columns can have the same name (b/194891824)
+          // e.g. `select 1 as x, 2 as x`. These queries don't happen in the
+          // UI code, but they can happen when the user types a query (e.g.
+          // with a join). The most practical thing we can do here is renaming
+          // the columns with a suffix. Keeping the same name will break when
+          // iterating, because column names become iterator object keys.
+          for (let i = 1; columnNamesSet.has(colName); ++i) {
+            colName = `${origColName}_${i}`;
+            assertTrue(i < 100);  // Give up at some point;
+          }
+          columnNamesSet.add(colName);
+          this.columnNames.push(colName);
           break;
         case 2:  // error
           // The query has errored only if the |error| field is non-empty.
@@ -449,6 +510,17 @@ class RowIteratorImpl implements RowIteratorBase {
     return this.isValid;
   }
 
+
+  get(columnName: string): ColumnType {
+    const res = this.rowData[columnName];
+    if (res === undefined) {
+      throw new Error(
+          `Column '${columnName}' doesn't exist. ` +
+          `Actual columns: [${this.columnNames.join(',')}]`);
+    }
+    return res;
+  }
+
   // Moves the cursor next by one row and updates |isValid|.
   // When this fails to move, two cases are possible:
   // 1. We reached the end of the result set (this is the case if
@@ -551,40 +623,48 @@ class RowIteratorImpl implements RowIteratorBase {
 
     // Check that the cells types are consistent.
     const numColumns = this.numColumns;
-    if (numColumns === 0) {
-      assertTrue(batch.numCells === 0);
-    } else {
-      for (let i = this.nextCellTypeOff; i < this.cellTypesEnd; i++) {
-        const col = (i - this.nextCellTypeOff) % numColumns;
-        const colName = this.columnNames[col];
-        const actualType = this.batchBytes[i] as CellType;
-        const expType = this.rowSpec[colName];
+    if (batch.numCells === 0) {
+      // This can happen if the query result contains just an error. In this
+      // an empty batch with isLastBatch=true is appended as an EOF marker.
+      // In theory TraceProcessor could return an empty batch in the middle and
+      // that would be fine from a protocol viewpoint. In practice, no code path
+      // does that today so it doesn't make sense trying supporting it with a
+      // recursive call to tryMoveToNextBatch().
+      assertTrue(batch.isLastBatch);
+      return false;
+    }
 
-        // If undefined, the caller doesn't want to read this column at all, so
-        // it can be whatever.
-        if (expType === undefined) continue;
+    assertTrue(numColumns > 0);
+    for (let i = this.nextCellTypeOff; i < this.cellTypesEnd; i++) {
+      const col = (i - this.nextCellTypeOff) % numColumns;
+      const colName = this.columnNames[col];
+      const actualType = this.batchBytes[i] as CellType;
+      const expType = this.rowSpec[colName];
 
-        let err = '';
-        if (actualType === CellType.CELL_NULL &&
-            (expType !== STR_NULL && expType !== NUM_NULL)) {
-          err = 'SQL value is NULL but that was not expected' +
-              ` (expected type: ${columnTypeToString(expType)}).` +
-              'Did you intend to use NUM_NULL or STRING_NULL?';
-        } else if (
-            ((actualType === CellType.CELL_VARINT ||
-              actualType === CellType.CELL_FLOAT64) &&
-             (expType !== NUM && expType !== NUM_NULL)) ||
-            ((actualType === CellType.CELL_STRING) &&
-             (expType !== STR && expType !== STR_NULL))) {
-          err = `Incompatible cell type. Expected: ${
-              columnTypeToString(
-                  expType)} actual: ${CELL_TYPE_NAMES[actualType]}`;
-        }
-        if (err.length > 0) {
-          throw new Error(
-              `Error @ row: ${Math.floor(i / numColumns)} col: '` +
-              `${colName}': ${err}`);
-        }
+      // If undefined, the caller doesn't want to read this column at all, so
+      // it can be whatever.
+      if (expType === undefined) continue;
+
+      let err = '';
+      if (actualType === CellType.CELL_NULL &&
+          (expType !== STR_NULL && expType !== NUM_NULL)) {
+        err = 'SQL value is NULL but that was not expected' +
+            ` (expected type: ${columnTypeToString(expType)}). ` +
+            'Did you intend to use NUM_NULL or STR_NULL?';
+      } else if (
+          ((actualType === CellType.CELL_VARINT ||
+            actualType === CellType.CELL_FLOAT64) &&
+           (expType !== NUM && expType !== NUM_NULL)) ||
+          ((actualType === CellType.CELL_STRING) &&
+           (expType !== STR && expType !== STR_NULL))) {
+        err = `Incompatible cell type. Expected: ${
+            columnTypeToString(
+                expType)} actual: ${CELL_TYPE_NAMES[actualType]}`;
+      }
+      if (err.length > 0) {
+        throw new Error(
+            `Error @ row: ${Math.floor(i / numColumns)} col: '` +
+            `${colName}': ${err}`);
       }
     }
     return true;
@@ -601,6 +681,7 @@ class RowIteratorImplWithRowData implements RowIteratorBase {
 
   next: () => void;
   valid: () => boolean;
+  get: (columnName: string) => ColumnType;
 
   constructor(querySpec: Row, res: QueryResultImpl) {
     const thisAsRow = this as {} as Row;
@@ -608,6 +689,7 @@ class RowIteratorImplWithRowData implements RowIteratorBase {
     this._impl = new RowIteratorImpl(querySpec, thisAsRow, res);
     this.next = this._impl.next.bind(this._impl);
     this.valid = this._impl.valid.bind(this._impl);
+    this.get = this._impl.get.bind(this._impl);
   }
 }
 
@@ -637,6 +719,9 @@ class WaitableQueryResultImpl implements QueryResult, WritableQueryResult,
   }
   numRows() {
      return this.impl.numRows();
+  }
+  columns() {
+    return this.impl.columns();
   }
   error() {
      return this.impl.error();

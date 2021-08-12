@@ -200,25 +200,32 @@ message G2dMetrics {
     // G2d name.
     optional string name = 1;
 
-    optional int64 max_dur_ns = 2;
-    optional int64 min_dur_ns = 3;
-    optional int64 avg_dur_ns = 4;
     optional uint32 frame_count = 5;
     optional uint32 error_count = 6;
+
+    optional double max_dur_ms = 7;
+    optional double min_dur_ms = 8;
+    optional double avg_dur_ms = 9;
+
+    // Removed: was int64 versions of max_dur_ns, min_dur_ns and avg_dur_ns.
+    reserved 2 to 4;
   }
   message G2dMetric {
     // G2D Metric for each G2D Instance.
     repeated G2dInstance instances = 1;
 
-    // max/min/avg G2d frame durations for all instances.
-    optional int64 max_dur_ns = 2;
-    optional int64 min_dur_ns = 3;
-    optional int64 avg_dur_ns = 4;
-
     // the number of frames processed by G2D
     optional uint32 frame_count = 5;
     // the number of error events
     optional uint32 error_count = 6;
+
+    // max/min/avg G2d frame durations for all instances.
+    optional double max_dur_ms = 7;
+    optional double min_dur_ms = 8;
+    optional double avg_dur_ms = 9;
+
+    // Removed: was int64 versions of max_dur_ns, min_dur_ns and avg_dur_ns.
+    reserved 2 to 4;
   }
 
   optional G2dMetric g2d_hw = 1;
@@ -257,6 +264,21 @@ message AndroidGpuMetric {
     optional int64 freq_max = 2;
     optional int64 freq_min = 3;
     optional double freq_avg = 4;
+
+    message MetricsPerFrequency {
+      // Used frequency
+      optional int64 freq = 1;
+
+      // Total duration in ms when the state of GPU was in this frequency
+      optional double dur_ms = 2;
+
+      // Percentage of duration in this frequency compared to all frequencies
+      // in this gpu_id
+      optional double percentage = 3;
+    }
+
+    // Metrics for each used GPU frequency
+    repeated MetricsPerFrequency used_freqs = 5;
   }
 
   // GPU frequency metric for each gpu_id
@@ -321,6 +343,9 @@ message AndroidHwcomposerMetrics {
 
     // the weighted average of DPU Vote Peak Bandwidth
     optional double avg_dpu_vote_peak_bw = 4;
+
+    // the weighted average of DPU Vote RT (Real Time) Bandwidth
+    optional double avg_dpu_vote_rt_bw = 5;
   }
 
   // DPU Vote Metrics for each thread track
@@ -716,6 +741,26 @@ message AndroidPowerRails {
   repeated PowerRails power_rails = 1;
 }
 // End of protos/perfetto/metrics/android/powrails_metric.proto
+
+// Begin of protos/perfetto/metrics/android/profiler_smaps.proto
+
+message ProfilerSmaps {
+  message Mapping {
+    optional string path = 1;
+    optional int32 size_kb = 2;
+    optional int32 private_dirty_kb = 3;
+    optional int32 swap_kb = 4;
+  }
+
+  message Instance {
+    optional AndroidProcessMetadata process = 1;
+    repeated Mapping mappings = 2;
+  }
+
+  repeated Instance instance = 1;
+}
+
+// End of protos/perfetto/metrics/android/profiler_smaps.proto
 
 // Begin of protos/perfetto/metrics/android/startup_metric.proto
 
@@ -1123,7 +1168,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 35
+// Next id: 36
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -1209,6 +1254,9 @@ message TraceMetrics {
 
   // Metric to verify the quality of the trace.
   optional AndroidTraceQualityMetric android_trace_quality = 34;
+
+  // Profiler smaps
+  optional ProfilerSmaps profiler_smaps = 35;
 
   // Demo extensions.
   extensions 450 to 499;

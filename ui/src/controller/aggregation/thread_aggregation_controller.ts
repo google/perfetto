@@ -14,7 +14,7 @@
 
 import {ColumnDef, ThreadStateExtra} from '../../common/aggregation_data';
 import {Engine} from '../../common/engine';
-import {slowlyCountRows} from '../../common/query_iterator';
+import {NUM, NUM_NULL, STR_NULL} from '../../common/query_result';
 import {Area, Sorting} from '../../common/state';
 import {translateState} from '../../common/thread_state';
 import {toNs} from '../../common/time';
@@ -41,7 +41,7 @@ export class ThreadAggregationController extends AggregationController {
   }
 
   async createAggregateView(engine: Engine, area: Area) {
-    await engine.query(`drop view if exists ${this.kind};`);
+    await engine.queryV2(`drop view if exists ${this.kind};`);
     this.setThreadStateUtids(area.tracks);
     if (this.utids === undefined || this.utids.length === 0) return false;
 
@@ -65,7 +65,7 @@ export class ThreadAggregationController extends AggregationController {
       GROUP BY utid, concat_state
     `;
 
-    await engine.query(query);
+    await engine.queryV2(query);
     return true;
   }
 
@@ -73,31 +73,37 @@ export class ThreadAggregationController extends AggregationController {
     this.setThreadStateUtids(area.tracks);
     if (this.utids === undefined || this.utids.length === 0) return;
 
-    const query = `select state, io_wait, sum(dur) as total_dur from process
+    const query =
+        `select state, io_wait as ioWait, sum(dur) as totalDur from process
       JOIN thread USING(upid)
       JOIN thread_state USING(utid)
       WHERE utid IN (${this.utids}) AND thread_state.ts + thread_state.dur > ${
-        toNs(area.startSec)} AND
+            toNs(area.startSec)} AND
       thread_state.ts < ${toNs(area.endSec)}
       GROUP BY state, io_wait`;
-    const result = await engine.query(query);
-    const numRows = slowlyCountRows(result);
+    const result = await engine.queryV2(query);
+
+    const it = result.iter({
+      state: STR_NULL,
+      ioWait: NUM_NULL,
+      totalDur: NUM,
+    });
 
     const summary: ThreadStateExtra = {
       kind: 'THREAD_STATE',
       states: [],
-      values: new Float64Array(numRows),
+      values: new Float64Array(result.numRows()),
       totalMs: 0
     };
-    for (let row = 0; row < numRows; row++) {
-      const state = result.columns[0].stringValues![row];
-      const ioWait = result.columns[1].isNulls![row] ?
-          undefined :
-          !!result.columns[1].longValues![row];
+    summary.totalMs = 0;
+    for (let i = 0; it.valid(); ++i, it.next()) {
+      const state = it.state == null ? undefined : it.state;
+      const ioWait = it.ioWait === null ? undefined : it.ioWait > 0;
       summary.states.push(translateState(state, ioWait));
-      summary.values[row] = result.columns[2].longValues![row] / 1000000;  // ms
+      const ms = it.totalDur / 1000000;
+      summary.values[i] = ms;
+      summary.totalMs += ms;
     }
-    summary.totalMs = summary.values.reduce((a, b) => a + b, 0);
     return summary;
   }
 

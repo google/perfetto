@@ -12,7 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Row} from './protos';
+import {Engine} from './engine';
+
+import {Row} from './query_result';
+
+const MAX_DISPLAY_ROWS = 10000;
 
 export interface QueryResponse {
   id: string;
@@ -22,4 +26,49 @@ export interface QueryResponse {
   durationMs: number;
   columns: string[];
   rows: Row[];
+}
+
+export async function runQuery(
+    queryId: string, sqlQuery: string, engine: Engine): Promise<QueryResponse> {
+  const startMs = performance.now();
+  const queryRes = engine.queryV2(sqlQuery);
+
+  // TODO(primiano): once the controller thread is gone we should pass down
+  // the result objects directly to the frontend, iterate over the result
+  // and deal with pagination there. For now we keep the old behavior and
+  // truncate to 10k rows.
+
+  try {
+    await queryRes.waitAllRows();
+  } catch {
+    // In the case of a query error we don't want the exception to bubble up
+    // as a crash. The |queryRes| object will be populated anyways.
+    // queryRes.error() is used to tell if the query errored or not. If it
+    // errored, the frontend will show a graceful message instead.
+  }
+
+  const durationMs = performance.now() - startMs;
+  const rows: Row[] = [];
+  const columns = queryRes.columns();
+  let numRows = 0;
+  for (const iter = queryRes.iter({}); iter.valid(); iter.next()) {
+    const row: Row = {};
+    for (const colName of columns) {
+      const value = iter.get(colName);
+      row[colName] = value === null ? 'NULL' : value;
+    }
+    rows.push(row);
+    if (++numRows >= MAX_DISPLAY_ROWS) break;
+  }
+
+  const result: QueryResponse = {
+    id: queryId,
+    query: sqlQuery,
+    durationMs,
+    error: queryRes.error(),
+    totalRowCount: queryRes.numRows(),
+    columns,
+    rows,
+  };
+  return result;
 }

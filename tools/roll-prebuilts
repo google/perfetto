@@ -1,0 +1,184 @@
+#!/usr/bin/env python3
+# Copyright (C) 2021 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""Updates the python scripts in tools/{trace_processor, traceconv, tracebox}
+
+This script does the following, for each entry in SCRIPTS_TO_UPDATE:
+  - Downloads the artifact by the LUCI infrastructure, one for each arch.
+  - Computes the SHA-256 of each artifact.
+  - Generates a manifest with URL, SHA-256 and other details.
+  - Merges get_perfetto_prebuilt.py with the manifest and writes tools/xxx.
+
+This script is supposed to be run by Perfetto OWNERS after every monthly release
+after the LUCI jobs have completed.
+"""
+
+import argparse
+import hashlib
+import logging
+import os
+import subprocess
+import sys
+
+from concurrent.futures import ThreadPoolExecutor
+
+GCS_URL = 'https://commondatastorage.googleapis.com/perfetto-luci-artifacts'
+
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+TOOLS_DIR = os.path.join(ROOT_DIR, 'tools')
+
+SCRIPTS_TO_UPDATE = [
+    {
+        'script':
+            'trace_processor',
+        'tool':
+            'trace_processor_shell',
+        'archs': [
+            'mac-amd64', 'windows-amd64', 'linux-amd64', 'linux-arm',
+            'linux-arm64'
+        ]
+    },
+    {
+        'script': 'traceconv',
+        'tool': 'trace_to_text',
+        'archs': ['mac-amd64', 'linux-amd64', 'windows-amd64']
+    },
+    {
+        'script':
+            'tracebox',
+        'tool':
+            'tracebox',
+        'archs': [
+            'mac-amd64', 'linux-amd64', 'linux-amd64', 'linux-arm',
+            'linux-arm64'
+        ]
+    },
+    {
+        'script': 'heap_profile',
+        'tool': 'trace_to_text',
+        'archs': ['mac-amd64', 'windows-amd64', 'linux-amd64']
+    },
+    {
+        'script': 'record_android_trace',
+        'tool': 'tracebox',
+        'archs': ['android-arm', 'android-arm64', 'android-x86', 'android-x64']
+    },
+]
+
+# Maps a 'os-arch' string (were arch follows LUCI conventions) into
+# corresponding tuples that match against python's platform / machine API
+# (see get_perfetto_prebuilt.py for usage).
+ARCH_TO_PYTHON = {
+    'mac-amd64': {
+        'platform': 'darwin',
+        'machine': ['x86_64'],
+    },
+    'windows-amd64': {
+        'platform': 'win32',
+        'machine': ['amd64'],
+    },
+    'linux-amd64': {
+        'platform': 'linux',
+        'machine': ['x86_64'],
+    },
+    'linux-arm': {
+        'platform': 'linux',
+        'machine': ['armv6l', 'armv7l', 'armv8l'],
+    },
+    'linux-arm64': {
+        'platform': 'linux',
+        'machine': ['aarch64'],
+    },
+}
+
+
+def make_manifest(git_revision, tool, arch):
+  ext = '.exe' if arch.startswith('windows') else ''
+  file_name = tool + ext
+  url = '%s/%s/%s/%s' % (GCS_URL, git_revision, arch, file_name)
+  logging.info('Downloading %s', url)
+  data = subprocess.check_output(['curl', '-fsL', '-o', '-', url])
+  manifest = {
+      'tool': tool,
+      'arch': arch,
+      'file_name': file_name,
+      'file_size': len(data),
+      'url': url,
+      'sha256': hashlib.sha256(data).hexdigest()
+  }
+  manifest.update(ARCH_TO_PYTHON.get(arch, {}))
+  return manifest
+
+
+# Returns the section of get_perfetto_prebuilt.py which should be copy/pasted
+# in the various scripts.
+def read_get_perfetto_prebuilt_script():
+  in_file = os.path.join(TOOLS_DIR, 'get_perfetto_prebuilt.py')
+  with open(in_file, 'r') as f:
+    contents = f.read()
+  return contents.split('COPIED_SECTION_START_MARKER')[1]
+
+
+def update_script(git_revision, tool_name, script_name, archs):
+  with ThreadPoolExecutor(max_workers=8) as executor:
+    manifests = list(
+        executor.map(lambda arch: make_manifest(git_revision, tool_name, arch),
+                     archs))
+  out_file = os.path.join(TOOLS_DIR, script_name)
+  with open(out_file) as f:
+    script = f.read()
+
+  begin_marker = '\n# BEGIN_SECTION_GENERATED_BY(roll-prebuilts)\n'
+  end_marker = '\n# END_SECTION_GENERATED_BY(roll-prebuilts)\n'
+  before = script.partition(begin_marker)[0]
+  after = script.partition(end_marker)[2]
+
+  content = '# Revision: {git_revision}\n'
+  content += 'PERFETTO_PREBUILT_MANIFEST = {manifests}\n'
+  content += '{fn_body}\n'
+  content = content.format(
+      git_revision=git_revision,
+      manifests=str(manifests),
+      fn_body=read_get_perfetto_prebuilt_script())
+
+  script = before + begin_marker + content + end_marker + after
+
+  with open(out_file + '.tmp', 'w') as f:
+    f.write(script)
+  subprocess.check_call(['yapf', '-i', out_file + '.tmp'])
+  os.rename(out_file + '.tmp', out_file)
+  os.chmod(out_file, 0o755)
+
+
+def main():
+  parser = argparse.ArgumentParser()
+  parser.add_argument('-r', '--revision')
+  args = parser.parse_args()
+
+  if args.revision is None:
+    print('Error: must pass --revision=v1.2 or --revision=0a1b2c3d\n')
+    print('To list available revisions run')
+    print('gsutil ls gs://perfetto-luci-artifacts/')
+    print('or visit https://chrome-infra-packages.appspot.com/p/perfetto')
+    return 1
+
+  git_revision = args.revision
+  for spec in SCRIPTS_TO_UPDATE:
+    logging.info('Updating %s', spec['script'])
+    update_script(git_revision, spec['tool'], spec['script'], spec['archs'])
+
+
+if __name__ == '__main__':
+  logging.basicConfig(level=logging.INFO)
+  sys.exit(main())

@@ -13,10 +13,11 @@
 // limitations under the License.
 
 import {Engine} from '../common/engine';
-import {slowlyCountRows} from '../common/query_iterator';
+import {NUM, STR_NULL} from '../common/query_result';
 import {Area} from '../common/state';
 import {fromNs, toNs} from '../common/time';
 import {Flow} from '../frontend/globals';
+import {publishConnectedFlows, publishSelectedFlows} from '../frontend/publish';
 import {
   ACTUAL_FRAMES_SLICE_TRACK_KIND,
   Config as ActualConfig
@@ -43,34 +44,53 @@ export class FlowEventsController extends Controller<'main'> {
   }
 
   queryFlowEvents(query: string, callback: (flows: Flow[]) => void) {
-    this.args.engine.query(query).then(res => {
+    this.args.engine.queryV2(query).then(result => {
       const flows: Flow[] = [];
-      for (let i = 0; i < slowlyCountRows(res); i++) {
-        const beginSliceId = res.columns[0].longValues![i];
-        const beginTrackId = res.columns[1].longValues![i];
-        const beginSliceName = res.columns[2].stringValues![i];
-        const beginSliceCategory = res.columns[3].stringValues![i];
-        const beginSliceStartTs = fromNs(res.columns[4].longValues![i]);
-        const beginSliceEndTs = fromNs(res.columns[5].longValues![i]);
-        const beginDepth = res.columns[6].longValues![i];
+      const it = result.iter({
+        beginSliceId: NUM,
+        beginTrackId: NUM,
+        beginSliceName: STR_NULL,
+        beginSliceCategory: STR_NULL,
+        beginSliceStartTs: NUM,
+        beginSliceEndTs: NUM,
+        beginDepth: NUM,
+        endSliceId: NUM,
+        endTrackId: NUM,
+        endSliceName: STR_NULL,
+        endSliceCategory: STR_NULL,
+        endSliceStartTs: NUM,
+        endSliceEndTs: NUM,
+        endDepth: NUM,
+        name: STR_NULL,
+        category: STR_NULL,
+        id: NUM,
+      });
+      for (; it.valid(); it.next()) {
+        const beginSliceId = it.beginSliceId;
+        const beginTrackId = it.beginTrackId;
+        const beginSliceName =
+            it.beginSliceName === null ? 'NULL' : it.beginSliceName;
+        const beginSliceCategory =
+            it.beginSliceCategory === null ? 'NULL' : it.beginSliceCategory;
+        const beginSliceStartTs = fromNs(it.beginSliceStartTs);
+        const beginSliceEndTs = fromNs(it.beginSliceEndTs);
+        const beginDepth = it.beginDepth;
 
-        const endSliceId = res.columns[7].longValues![i];
-        const endTrackId = res.columns[8].longValues![i];
-        const endSliceName = res.columns[9].stringValues![i];
-        const endSliceCategory = res.columns[10].stringValues![i];
-        const endSliceStartTs = fromNs(res.columns[11].longValues![i]);
-        const endSliceEndTs = fromNs(res.columns[12].longValues![i]);
-        const endDepth = res.columns[13].longValues![i];
+        const endSliceId = it.endSliceId;
+        const endTrackId = it.endTrackId;
+        const endSliceName =
+            it.endSliceName === null ? 'NULL' : it.endSliceName;
+        const endSliceCategory =
+            it.endSliceCategory === null ? 'NULL' : it.endSliceCategory;
+        const endSliceStartTs = fromNs(it.endSliceStartTs);
+        const endSliceEndTs = fromNs(it.endSliceEndTs);
+        const endDepth = it.endDepth;
 
         // Category and name present only in version 1 flow events
         // It is most likelly NULL for all other versions
-        const category = res.columns[14].isNulls![i] ?
-            undefined :
-            res.columns[14].stringValues![i];
-        const name = res.columns[15].isNulls![i] ?
-            undefined :
-            res.columns[15].stringValues![i];
-        const id = res.columns[16].longValues![i];
+        const category = it.category === null ? undefined : it.category;
+        const name = it.name === null ? undefined : it.name;
+        const id = it.id;
 
         flows.push({
           id,
@@ -110,19 +130,29 @@ export class FlowEventsController extends Controller<'main'> {
 
     const query = `
     select
-      f.slice_out, t1.track_id, t1.name,
-      t1.category, t1.ts, (t1.ts+t1.dur), t1.depth,
-      f.slice_in, t2.track_id, t2.name,
-      t2.category, t2.ts, (t2.ts+t2.dur), t2.depth,
-      extract_arg(f.arg_set_id, 'cat'),
-      extract_arg(f.arg_set_id, 'name'),
-      f.id
+      f.slice_out as beginSliceId,
+      t1.track_id as beginTrackId,
+      t1.name as beginSliceName,
+      t1.category as beginSliceCategory,
+      t1.ts as beginSliceStartTs,
+      (t1.ts+t1.dur) as beginSliceEndTs,
+      t1.depth as beginDepth,
+      f.slice_in as endSliceId,
+      t2.track_id as endTrackId,
+      t2.name as endSliceName,
+      t2.category as endSliceCategory,
+      t2.ts as endSliceStartTs,
+      (t2.ts+t2.dur) as endSliceEndTs,
+      t2.depth as endDepth,
+      extract_arg(f.arg_set_id, 'cat') as category,
+      extract_arg(f.arg_set_id, 'name') as name,
+      f.id as id
     from directly_connected_flow(${sliceId}) f
     join slice t1 on f.slice_out = t1.slice_id
     join slice t2 on f.slice_in = t2.slice_id
     `;
     this.queryFlowEvents(
-        query, (flows: Flow[]) => globals.publish('ConnectedFlows', flows));
+        query, (flows: Flow[]) => publishConnectedFlows(flows));
   }
 
   areaSelected(areaId: string) {
@@ -161,13 +191,23 @@ export class FlowEventsController extends Controller<'main'> {
 
     const query = `
     select
-      f.slice_out, t1.track_id, t1.name,
-      t1.category, t1.ts, (t1.ts+t1.dur), t1.depth,
-      f.slice_in, t2.track_id, t2.name,
-      t2.category, t2.ts, (t2.ts+t2.dur), t2.depth,
-      extract_arg(f.arg_set_id, 'cat'),
-      extract_arg(f.arg_set_id, 'name'),
-      f.id
+      f.slice_out as beginSliceId,
+      t1.track_id as beginTrackId,
+      t1.name as beginSliceName,
+      t1.category as beginSliceCategory,
+      t1.ts as beginSliceStartTs,
+      (t1.ts+t1.dur) as beginSliceEndTs,
+      t1.depth as beginDepth,
+      f.slice_in as endSliceId,
+      t2.track_id as endTrackId,
+      t2.name as endSliceName,
+      t2.category as endSliceCategory,
+      t2.ts as endSliceStartTs,
+      (t2.ts+t2.dur) as endSliceEndTs,
+      t2.depth as endDepth,
+      extract_arg(f.arg_set_id, 'cat') as category,
+      extract_arg(f.arg_set_id, 'name') as name,
+      f.id as id
     from flow f
     join slice t1 on f.slice_out = t1.slice_id
     join slice t2 on f.slice_in = t2.slice_id
@@ -178,29 +218,31 @@ export class FlowEventsController extends Controller<'main'> {
       (t2.track_id in ${tracks}
         and (t2.ts <= ${endNs} and t2.ts >= ${startNs}))
     `;
-    this.queryFlowEvents(
-        query, (flows: Flow[]) => globals.publish('SelectedFlows', flows));
+    this.queryFlowEvents(query, (flows: Flow[]) => publishSelectedFlows(flows));
   }
 
   refreshVisibleFlows() {
     const selection = globals.state.currentSelection;
     if (!selection) {
       this.lastSelectedKind = 'NONE';
-      globals.publish('ConnectedFlows', []);
-      globals.publish('SelectedFlows', []);
+      publishConnectedFlows([]);
+      publishSelectedFlows([]);
       return;
     }
 
-    if (selection && selection.kind === 'CHROME_SLICE') {
+    // TODO(b/155483804): This is a hack as annotation slices don't contain
+    // flows. We should tidy this up when fixing this bug.
+    if (selection && selection.kind === 'CHROME_SLICE' &&
+        selection.table !== 'annotation') {
       this.sliceSelected(selection.id);
     } else {
-      globals.publish('ConnectedFlows', []);
+      publishConnectedFlows([]);
     }
 
     if (selection && selection.kind === 'AREA') {
       this.areaSelected(selection.areaId);
     } else {
-      globals.publish('SelectedFlows', []);
+      publishSelectedFlows([]);
     }
   }
 

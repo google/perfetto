@@ -12,13 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import print_function
+import time
 import subprocess
 from os.path import relpath
 
 
+def RunAndReportIfLong(func, *args, **kargs):
+  start = time.time()
+  results = func(*args, **kargs)
+  end = time.time()
+  limit = 0.5  # seconds
+  name = func.__name__
+  runtime = end - start
+  if runtime > limit:
+    print("{} took >{:.2}s ({:.2}s)".format(name, limit, runtime))
+  return results
+
+
 def CheckChange(input, output):
   results = []
-  results += CheckTslint(input, output)
+  results += RunAndReportIfLong(CheckTslint, input, output)
   return results
 
 

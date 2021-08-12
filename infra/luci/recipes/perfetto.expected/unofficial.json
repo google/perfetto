@@ -1,0 +1,199 @@
+[
+  {
+    "cmd": [],
+    "name": "git"
+  },
+  {
+    "cmd": [
+      "vpython",
+      "-u",
+      "RECIPE_MODULE[recipe_engine::file]/resources/fileutil.py",
+      "--json-output",
+      "/path/to/tmp/json",
+      "ensure-directory",
+      "--mode",
+      "0777",
+      "[CACHE]/builder/perfetto"
+    ],
+    "infra_step": true,
+    "name": "git.ensure source dir",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "git",
+      "init",
+      "[CACHE]/builder/perfetto"
+    ],
+    "infra_step": true,
+    "name": "git.init",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "git",
+      "fetch",
+      "--tags",
+      "https://android.googlesource.com/platform/external/perfetto",
+      "refs/heads/master"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "infra_step": true,
+    "name": "git.fetch",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "git",
+      "checkout",
+      "FETCH_HEAD"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "infra_step": true,
+    "name": "git.checkout",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "git",
+      "rev-parse",
+      "HEAD"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "infra_step": true,
+    "name": "git.rev-parse",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python3",
+      "tools/install-build-deps",
+      "--linux-arm"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "infra_step": true,
+    "name": "build-deps"
+  },
+  {
+    "cmd": [],
+    "name": "linux-amd64"
+  },
+  {
+    "cmd": [
+      "python3",
+      "tools/gn",
+      "gen",
+      "[CACHE]/builder/perfetto/out/linux-amd64",
+      "--args=is_debug=false monolithic_binaries=true target_os=\"linux\" target_cpu=\"x64\""
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "linux-amd64.gn gen",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python3",
+      "tools/ninja",
+      "-C",
+      "[CACHE]/builder/perfetto/out/linux-amd64",
+      "trace_processor_shell",
+      "trace_to_text",
+      "tracebox",
+      "perfetto",
+      "traced",
+      "traced_probes"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "linux-amd64.ninja",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@"
+    ]
+  },
+  {
+    "cmd": [],
+    "name": "linux-arm"
+  },
+  {
+    "cmd": [
+      "python3",
+      "tools/gn",
+      "gen",
+      "[CACHE]/builder/perfetto/out/linux-arm",
+      "--args=is_debug=false monolithic_binaries=true target_os=\"linux\" target_cpu=\"arm\""
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "linux-arm.gn gen",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python3",
+      "tools/ninja",
+      "-C",
+      "[CACHE]/builder/perfetto/out/linux-arm",
+      "trace_processor_shell",
+      "tracebox",
+      "perfetto",
+      "traced",
+      "traced_probes"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "linux-arm.ninja",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@"
+    ]
+  },
+  {
+    "cmd": [],
+    "name": "linux-arm64"
+  },
+  {
+    "cmd": [
+      "python3",
+      "tools/gn",
+      "gen",
+      "[CACHE]/builder/perfetto/out/linux-arm64",
+      "--args=is_debug=false monolithic_binaries=true target_os=\"linux\" target_cpu=\"arm64\""
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "linux-arm64.gn gen",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python3",
+      "tools/ninja",
+      "-C",
+      "[CACHE]/builder/perfetto/out/linux-arm64",
+      "trace_processor_shell",
+      "tracebox",
+      "perfetto",
+      "traced",
+      "traced_probes"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "linux-arm64.ninja",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@"
+    ]
+  },
+  {
+    "name": "$result"
+  }
+]
