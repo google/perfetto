@@ -58,9 +58,12 @@ util::Status AppendUnescapedCharacter(char c,
       case 't':
         key->push_back('\t');
         break;
+      case 'u':
+        // Just pass through \uxxxx escape sequences which JSON supports but is
+        // not worth the effort to parse as we never use them here.
+        key->append("\\u");
+        break;
       default:
-        // We don't support any other escape sequences (concretely \uxxxx
-        // which JSON supports but is too much effort for us to parse).
         return util::ErrStatus("Illegal character in JSON");
     }
   } else if (c != '\\') {
