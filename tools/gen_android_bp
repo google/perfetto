@@ -210,6 +210,7 @@ additional_args = {
         ('include_dirs', {'bionic/libc/kernel'}),
     ],
     'perfetto_integrationtests': [
+        ('cflags', {'-fno-finite-loops'}),
         ('test_suites', {'general-tests'}),
         ('test_config', 'PerfettoIntegrationTests.xml'),
     ],

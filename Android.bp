@@ -1895,6 +1895,7 @@ cc_test {
     "-DGOOGLE_PROTOBUF_NO_RTTI",
     "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
     "-DHAVE_HIDDEN",
+    "-fno-finite-loops",
   ],
   header_libs: [
     "bionic_libc_platform_headers",
