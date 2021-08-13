@@ -33,8 +33,8 @@ namespace tables {
   C(int64_t, ts, Column::Flag::kSorted)              \
   C(int64_t, dur)                                    \
   C(TrackTable::Id, track_id)                        \
-  C(StringPool::Id, category)                        \
-  C(StringPool::Id, name)                            \
+  C(base::Optional<StringPool::Id>, category)        \
+  C(base::Optional<StringPool::Id>, name)            \
   C(uint32_t, depth)                                 \
   C(int64_t, stack_id)                               \
   C(int64_t, parent_stack_id)                        \
@@ -170,8 +170,8 @@ PERFETTO_TP_TABLE(PERFETTO_TP_THREAD_SLICE_DEF);
   C(int64_t, ts)                                                       \
   C(int64_t, dur)                                                      \
   C(TrackTable::Id, track_id)                                          \
-  C(StringPool::Id, category)                                          \
-  C(StringPool::Id, name)                                              \
+  C(base::Optional<StringPool::Id>, category)                          \
+  C(base::Optional<StringPool::Id>, name)                              \
   C(uint32_t, arg_set_id)                                              \
   C(base::Optional<SliceTable::Id>, source_id)                         \
   C(int64_t, start_bound, Column::Flag::kHidden)                       \
