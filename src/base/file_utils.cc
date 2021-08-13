@@ -213,9 +213,9 @@ int ClosePlatformHandle(PlatformHandle handle) {
 
 base::Status ListFilesRecursive(const std::string& dir_path,
                                 std::vector<std::string>& output) {
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) || PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
   // TODO(b/182165266): Write the windows equivalent of this function.
-  return base::ErrStatus("ListFilesRecursive not supported in windows yet");
+  return base::ErrStatus("ListFilesRecursive not supported yet");
 #else
   DIR* dir = opendir(dir_path.c_str());
   if (dir == nullptr) {
