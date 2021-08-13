@@ -20,10 +20,13 @@
 #include <sys/types.h>
 
 #include <algorithm>
+#include <string>
+#include <vector>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/platform_handle.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/utils.h"
 
@@ -206,6 +209,40 @@ int ClosePlatformHandle(PlatformHandle handle) {
 #else
   return close(handle);
 #endif
+}
+
+base::Status ListFilesRecursive(const std::string& dir_path,
+                                std::vector<std::string>& output) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  // TODO(b/182165266): Write the windows equivalent of this function.
+  return base::ErrStatus("ListFilesRecursive not supported in windows yet");
+#else
+  DIR* dir = opendir(dir_path.c_str());
+  if (dir == nullptr) {
+    return base::ErrStatus("Failed to open directory %s", dir_path.c_str());
+  }
+  for (auto* dirent = readdir(dir); dirent != nullptr; dirent = readdir(dir)) {
+    if (strcmp(dirent->d_name, ".") == 0 || strcmp(dirent->d_name, "..") == 0) {
+      continue;
+    }
+    if (dirent->d_type == DT_DIR) {
+      std::string full_path = dir_path + '/' + dirent->d_name;
+      auto status = ListFilesRecursive(full_path, output);
+      if (!status.ok())
+        return status;
+    } else if (dirent->d_type == DT_REG) {
+      output.push_back(dirent->d_name);
+    }
+  }
+  return base::OkStatus();
+#endif
+}
+
+std::string GetFileExtension(const std::string& filename) {
+  auto ext_idx = filename.rfind('.');
+  if (ext_idx == std::string::npos)
+    return std::string();
+  return filename.substr(ext_idx);
 }
 
 }  // namespace base
