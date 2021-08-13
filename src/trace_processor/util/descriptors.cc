@@ -15,6 +15,8 @@
  */
 
 #include "src/trace_processor/util/descriptors.h"
+
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
@@ -208,15 +210,16 @@ util::Status DescriptorPool::AddEnumProtoDescriptors(
 util::Status DescriptorPool::AddFromFileDescriptorSet(
     const uint8_t* file_descriptor_set_proto,
     size_t size,
+    const std::vector<std::string>& skip_prefixes,
     bool merge_existing_messages) {
-  // First pass: extract all the message descriptors from the file and add them
-  // to the pool.
   protos::pbzero::FileDescriptorSet::Decoder proto(file_descriptor_set_proto,
                                                    size);
   std::vector<ExtensionInfo> extensions;
   for (auto it = proto.file(); it; ++it) {
     protos::pbzero::FileDescriptorProto::Decoder file(*it);
-    std::string file_name = file.name().ToStdString();
+    const std::string file_name = file.name().ToStdString();
+    if (base::StartsWithAny(file_name, skip_prefixes))
+      continue;
     if (processed_files_.find(file_name) != processed_files_.end()) {
       // This file has been loaded once already. Skip.
       continue;
