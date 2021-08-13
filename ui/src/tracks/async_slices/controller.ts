@@ -51,7 +51,7 @@ class AsyncSliceTrackController extends TrackController<Config, Data> {
         ts,
         max(iif(dur = -1, (SELECT end_ts FROM trace_bounds) - ts, dur)) as dur,
         layout_depth as depth,
-        name,
+        ifnull(name, '[null]') as name,
         id,
         dur = 0 as isInstant,
         dur = -1 as isIncomplete
