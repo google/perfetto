@@ -66,8 +66,8 @@ TEST(SliceTrackerTest, OneSliceDetailed) {
   EXPECT_EQ(slices.ts()[0], 2);
   EXPECT_EQ(slices.dur()[0], 8);
   EXPECT_EQ(slices.track_id()[0], track);
-  EXPECT_EQ(slices.category()[0].raw_id(), 0u);
-  EXPECT_EQ(slices.name()[0].raw_id(), 1u);
+  EXPECT_EQ(slices.category()[0].value_or(kNullStringId).raw_id(), 0u);
+  EXPECT_EQ(slices.name()[0].value_or(kNullStringId).raw_id(), 1u);
   EXPECT_EQ(slices.depth()[0], 0u);
   EXPECT_EQ(slices.arg_set_id()[0], kInvalidArgSetId);
 }
@@ -88,8 +88,8 @@ TEST(SliceTrackerTest, NegativeTimestamps) {
   EXPECT_EQ(slices.ts()[0], -1000);
   EXPECT_EQ(slices.dur()[0], 499);
   EXPECT_EQ(slices.track_id()[0], track);
-  EXPECT_EQ(slices.category()[0].raw_id(), 0u);
-  EXPECT_EQ(slices.name()[0].raw_id(), 1u);
+  EXPECT_EQ(slices.category()[0].value_or(kNullStringId).raw_id(), 0u);
+  EXPECT_EQ(slices.name()[0].value_or(kNullStringId).raw_id(), 1u);
   EXPECT_EQ(slices.depth()[0], 0u);
   EXPECT_EQ(slices.arg_set_id()[0], kInvalidArgSetId);
 }
@@ -121,8 +121,8 @@ TEST(SliceTrackerTest, OneSliceWithArgs) {
   EXPECT_EQ(slices.ts()[0], 2);
   EXPECT_EQ(slices.dur()[0], 8);
   EXPECT_EQ(slices.track_id()[0], track);
-  EXPECT_EQ(slices.category()[0].raw_id(), 0u);
-  EXPECT_EQ(slices.name()[0].raw_id(), 1u);
+  EXPECT_EQ(slices.category()[0].value_or(kNullStringId).raw_id(), 0u);
+  EXPECT_EQ(slices.name()[0].value_or(kNullStringId).raw_id(), 1u);
   EXPECT_EQ(slices.depth()[0], 0u);
   auto set_id = slices.arg_set_id()[0];
 
@@ -158,15 +158,15 @@ TEST(SliceTrackerTest, TwoSliceDetailed) {
   EXPECT_EQ(slices.ts()[idx], 2);
   EXPECT_EQ(slices.dur()[idx], 8);
   EXPECT_EQ(slices.track_id()[idx], track);
-  EXPECT_EQ(slices.category()[idx].raw_id(), 0u);
-  EXPECT_EQ(slices.name()[idx].raw_id(), 1u);
+  EXPECT_EQ(slices.category()[idx].value_or(kNullStringId).raw_id(), 0u);
+  EXPECT_EQ(slices.name()[idx].value_or(kNullStringId).raw_id(), 1u);
   EXPECT_EQ(slices.depth()[idx++], 0u);
 
   EXPECT_EQ(slices.ts()[idx], 3);
   EXPECT_EQ(slices.dur()[idx], 2);
   EXPECT_EQ(slices.track_id()[idx], track);
-  EXPECT_EQ(slices.category()[idx].raw_id(), 0u);
-  EXPECT_EQ(slices.name()[idx].raw_id(), 2u);
+  EXPECT_EQ(slices.category()[idx].value_or(kNullStringId).raw_id(), 0u);
+  EXPECT_EQ(slices.name()[idx].value_or(kNullStringId).raw_id(), 2u);
   EXPECT_EQ(slices.depth()[idx], 1u);
 
   EXPECT_EQ(slices.parent_stack_id()[0], 0);
