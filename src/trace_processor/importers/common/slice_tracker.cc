@@ -252,13 +252,16 @@ base::Optional<uint32_t> SliceTracker::MatchingIncompleteSliceIndex(
     uint32_t slice_idx = stack[static_cast<size_t>(i)].row;
     if (slices->dur()[slice_idx] != kPendingDuration)
       continue;
-    const StringId& other_category = slices->category()[slice_idx];
-    if (!category.is_null() &&
-        (other_category.is_null() || category != other_category))
+    base::Optional<StringId> other_category = slices->category()[slice_idx];
+    if (!category.is_null() && (!other_category || other_category->is_null() ||
+                                category != other_category)) {
       continue;
-    const StringId& other_name = slices->name()[slice_idx];
-    if (!name.is_null() && !other_name.is_null() && name != other_name)
+    }
+    base::Optional<StringId> other_name = slices->name()[slice_idx];
+    if (!name.is_null() && other_name && !other_name->is_null() &&
+        name != other_name) {
       continue;
+    }
     return static_cast<uint32_t>(i);
   }
   return base::nullopt;
@@ -357,8 +360,8 @@ int64_t SliceTracker::GetStackHash(const SlicesStack& stack) {
   base::Hash hash;
   for (size_t i = 0; i < stack.size(); i++) {
     uint32_t slice_idx = stack[i].row;
-    hash.Update(slices.category()[slice_idx].raw_id());
-    hash.Update(slices.name()[slice_idx].raw_id());
+    hash.Update(slices.category()[slice_idx].value_or(kNullStringId).raw_id());
+    hash.Update(slices.name()[slice_idx].value_or(kNullStringId).raw_id());
   }
 
   // For clients which don't have an integer type (i.e. Javascript), returning

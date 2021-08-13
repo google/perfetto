@@ -60,7 +60,7 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
         max(iif(dur = -1, (SELECT end_ts FROM trace_bounds) - ts, dur)) as dur,
         depth,
         id as sliceId,
-        name,
+        ifnull(name, '[null]') as name,
         dur = 0 as isInstant,
         dur = -1 as isIncomplete
         ${threadDurQuery} as threadDur
