@@ -61,6 +61,11 @@ class TraceProcessorImpl : public TraceProcessor,
 
   util::Status ExtendMetricsProto(const uint8_t* data, size_t size) override;
 
+  util::Status ExtendMetricsProto(
+      const uint8_t* data,
+      size_t size,
+      const std::vector<std::string>& skip_prefixes) override;
+
   util::Status ComputeMetric(const std::vector<std::string>& metric_names,
                              std::vector<uint8_t>* metrics) override;
 
@@ -117,7 +122,6 @@ class TraceProcessorImpl : public TraceProcessor,
   std::string current_trace_name_;
   uint64_t bytes_parsed_ = 0;
 };
-
 
 }  // namespace trace_processor
 }  // namespace perfetto

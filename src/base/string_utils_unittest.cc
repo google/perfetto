@@ -156,6 +156,14 @@ TEST(StringUtilsTest, StartsWith) {
   EXPECT_FALSE(StartsWith("", "ab"));
 }
 
+TEST(StringUtilsTest, StartsWithAny) {
+  EXPECT_FALSE(StartsWithAny("", {"a", "b"}));
+  EXPECT_FALSE(StartsWithAny("abcd", {}));
+  EXPECT_FALSE(StartsWithAny("", {}));
+  EXPECT_TRUE(StartsWithAny("abcd", {"ac", "ab"}));
+  EXPECT_FALSE(StartsWithAny("abcd", {"bc", "ac"}));
+}
+
 TEST(StringUtilsTest, EndsWith) {
   EXPECT_TRUE(EndsWith("", ""));
   EXPECT_TRUE(EndsWith("abc", ""));

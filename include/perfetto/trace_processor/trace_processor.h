@@ -57,6 +57,13 @@ class PERFETTO_EXPORT TraceProcessor : public TraceProcessorStorage {
   // proto builder functions when computing metrics.
   virtual util::Status ExtendMetricsProto(const uint8_t* data, size_t size) = 0;
 
+  // Behaves exactly as ExtendMetricsProto, except any FileDescriptor with
+  // filename matching a prefix in |skip_prefixes| is skipped.
+  virtual util::Status ExtendMetricsProto(
+      const uint8_t* data,
+      size_t size,
+      const std::vector<std::string>& skip_prefixes) = 0;
+
   // Computes the given metrics on the loded portion of the trace. If
   // successful, the output argument |metrics_proto| will be filled with the
   // proto-encoded bytes for the message TraceMetrics in
