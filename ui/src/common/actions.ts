@@ -384,6 +384,8 @@ export const StateActions = {
     }
   },
 
+  // TODO(hjd): engine.ready should be a published thing. If it's part
+  // of the state it interacts badly with permalinks.
   setEngineReady(
       state: StateDraft,
       args: {engineId: string; ready: boolean, mode: EngineMode}): void {
@@ -447,6 +449,12 @@ export const StateActions = {
     for (const key of Object.keys(args.newState)) {
       // tslint:disable-next-line no-any
       (state as any)[key] = (args.newState as any)[key];
+    }
+
+    // If we're loading from a permalink then none of the engines can
+    // possibly be ready:
+    for (const engine of Object.values(state.engines)) {
+      engine.ready = false;
     }
   },
 

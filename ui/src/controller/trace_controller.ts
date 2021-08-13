@@ -124,7 +124,6 @@ export class TraceController extends Controller<States> {
       case 'ready':
         // At this point we are ready to serve queries and handle tracks.
         const engine = assertExists(this.engine);
-        assertTrue(engineCfg.ready);
         const childControllers: Children = [];
 
         // Create a TrackController for each track.
