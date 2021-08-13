@@ -84,4 +84,5 @@ message ChromeLatencyInfo {
   repeated ComponentInfo component_info = 4;
   optional bool is_coalesced = 5;
   optional int64 gesture_scroll_id = 6;
+  optional int64 touch_id = 7;
 }
