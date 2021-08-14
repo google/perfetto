@@ -18,12 +18,12 @@
 
 #include <locale.h>
 #include <string.h>
+#include <algorithm>
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
 #include <xlocale.h>
 #endif
 
-#include <algorithm>
 #include <cinttypes>
 
 #include "perfetto/base/logging.h"
@@ -86,6 +86,13 @@ std::string QuoteAndEscapeControlCodes(const std::string& raw) {
 
 bool StartsWith(const std::string& str, const std::string& prefix) {
   return str.compare(0, prefix.length(), prefix) == 0;
+}
+
+bool StartsWithAny(const std::string& str,
+                   const std::vector<std::string>& prefixes) {
+  return std::any_of(
+      prefixes.begin(), prefixes.end(),
+      [&str](const std::string& prefix) { return StartsWith(str, prefix); });
 }
 
 bool EndsWith(const std::string& str, const std::string& suffix) {

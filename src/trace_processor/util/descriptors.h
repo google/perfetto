@@ -158,9 +158,12 @@ using ExtensionInfo = std::pair<std::string, protozero::ConstBytes>;
 
 class DescriptorPool {
  public:
+  // Adds Descriptors from file_descriptor_set_proto. Ignores any FileDescriptor
+  // with name matching a prefix in |skip_prefixes|.
   base::Status AddFromFileDescriptorSet(
       const uint8_t* file_descriptor_set_proto,
       size_t size,
+      const std::vector<std::string>& skip_prefixes = {},
       bool merge_existing_messages = false);
 
   base::Optional<uint32_t> FindDescriptorIdx(

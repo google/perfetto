@@ -634,14 +634,37 @@ void CreateUnwrapMetricProtoFunction(sqlite3* db) {
   }
 }
 
+std::vector<std::string> SanitizeMetricMountPaths(
+    const std::vector<std::string>& mount_paths) {
+  std::vector<std::string> sanitized;
+  for (const auto& path : mount_paths) {
+    if (path.length() == 0)
+      continue;
+    sanitized.push_back(path);
+    if (path.back() != '/')
+      sanitized.back().append("/");
+  }
+  return sanitized;
+}
+
 void SetupMetrics(TraceProcessor* tp,
                   sqlite3* db,
-                  std::vector<metrics::SqlMetricFile>* sql_metrics) {
-  tp->ExtendMetricsProto(kMetricsDescriptor.data(), kMetricsDescriptor.size());
+                  std::vector<metrics::SqlMetricFile>* sql_metrics,
+                  const std::vector<std::string>& extension_paths) {
+  const std::vector<std::string> sanitized_extension_paths =
+      SanitizeMetricMountPaths(extension_paths);
+  std::vector<std::string> skip_prefixes;
+  for (const auto& path : sanitized_extension_paths) {
+    skip_prefixes.push_back(kMetricProtoRoot + path);
+  }
+  tp->ExtendMetricsProto(kMetricsDescriptor.data(), kMetricsDescriptor.size(),
+                         skip_prefixes);
   tp->ExtendMetricsProto(kAllChromeMetricsDescriptor.data(),
-                         kAllChromeMetricsDescriptor.size());
+                         kAllChromeMetricsDescriptor.size(), skip_prefixes);
 
   for (const auto& file_to_sql : metrics::sql_metrics::kFileToSql) {
+    if (base::StartsWithAny(file_to_sql.path, sanitized_extension_paths))
+      continue;
     tp->RegisterMetric(file_to_sql.path, file_to_sql.sql);
   }
 
@@ -731,7 +754,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   CreateValueAtMaxTsFunction(db);
   CreateUnwrapMetricProtoFunction(db);
 
-  SetupMetrics(this, *db_, &sql_metrics_);
+  SetupMetrics(this, *db_, &sql_metrics_, cfg.skip_builtin_metric_paths);
 
   // Setup the query cache.
   query_cache_.reset(new QueryCache());
@@ -1012,7 +1035,15 @@ util::Status TraceProcessorImpl::RegisterMetric(const std::string& path,
 
 util::Status TraceProcessorImpl::ExtendMetricsProto(const uint8_t* data,
                                                     size_t size) {
-  util::Status status = pool_.AddFromFileDescriptorSet(data, size);
+  return ExtendMetricsProto(data, size, /*skip_prefixes*/ {});
+}
+
+util::Status TraceProcessorImpl::ExtendMetricsProto(
+    const uint8_t* data,
+    size_t size,
+    const std::vector<std::string>& skip_prefixes) {
+  util::Status status =
+      pool_.AddFromFileDescriptorSet(data, size, skip_prefixes);
   if (!status.ok())
     return status;
 
