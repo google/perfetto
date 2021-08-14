@@ -234,5 +234,25 @@ TEST(HeapprofdCtsTest, ReleaseAppStartup) {
   StopApp(app_name);
 }
 
+TEST(HeapprofdCtsTest, NonProfileableAppRuntime) {
+  std::string app_name = "android.perfetto.cts.app.nonprofileable";
+  const auto& packets = ProfileRuntime(app_name);
+  if (IsUserBuild())
+    AssertNoProfileContents(packets);
+  else
+    AssertExpectedAllocationsPresent(packets);
+  StopApp(app_name);
+}
+
+TEST(HeapprofdCtsTest, NonProfileableAppStartup) {
+  std::string app_name = "android.perfetto.cts.app.nonprofileable";
+  const auto& packets = ProfileStartup(app_name);
+  if (IsUserBuild())
+    AssertNoProfileContents(packets);
+  else
+    AssertExpectedAllocationsPresent(packets);
+  StopApp(app_name);
+}
+
 }  // namespace
 }  // namespace perfetto
