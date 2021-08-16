@@ -19,15 +19,19 @@ down by process, thread and thread state.
 import argparse
 import sys
 
-from perfetto.slice_breakdown import compute_breakdown
+from perfetto.slice_breakdown import compute_breakdown, compute_breakdown_for_startup
 from perfetto.trace_processor import TraceProcessor
 
 
 def compute_breakdown_wrapper(args):
   tp = TraceProcessor(
       file_path=args.file, bin_path=args.shell_path, verbose=args.verbose)
-  breakdown = compute_breakdown(tp, args.start_ts, args.end_ts,
-                                args.process_name)
+  if args.startup_bounds:
+    breakdown = compute_breakdown_for_startup(tp, args.startup_package,
+                                              args.process_name)
+  else:
+    breakdown = compute_breakdown(tp, args.start_ts, args.end_ts,
+                                  args.process_name)
   tp.close()
 
   return breakdown
@@ -39,10 +43,20 @@ def main():
   parser.add_argument('--shell-path', default=None)
   parser.add_argument('--start-ts', default=None)
   parser.add_argument('--end-ts', default=None)
+  parser.add_argument('--startup-bounds', action='store_true', default=False)
+  parser.add_argument('--startup-package', default=None)
   parser.add_argument('--process-name', default=None)
   parser.add_argument('--verbose', action='store_true', default=False)
   parser.add_argument('--out-csv', required=True)
   args = parser.parse_args()
+
+  if (args.start_ts or args.end_ts) and args.startup_bounds:
+    print("Cannot specify --start-ts or --end-ts and --startup-bounds")
+    return 1
+
+  if args.startup_package and not args.startup_bounds:
+    print("Must specify --startup-bounds if --startup-package is specified")
+    return 1
 
   breakdown = compute_breakdown_wrapper(args)
 
