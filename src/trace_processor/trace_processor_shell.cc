@@ -753,7 +753,7 @@ Options:
  --full-sort                          Forces the trace processor into performing
                                       a full sort ignoring any windowing
                                       logic.
- --metric-extension DISK_PATH:VIRTUAL_PATH
+ --metric-extension DISK_PATH@VIRTUAL_PATH
                                       Loads metric proto and sql files from
                                       DISK_PATH/protos and DISK_PATH/sql
                                       respectively, and mounts them onto
@@ -995,10 +995,12 @@ util::Status RunQueries(const std::string& query_file_path,
 
 base::Status ParseSingleMetricExtensionPath(const std::string& raw_extension,
                                             MetricExtension& parsed_extension) {
-  std::vector<std::string> parts = base::SplitString(raw_extension, ":");
+  // We cannot easily use ':' as a path separator because windows paths can have
+  // ':' in them (e.g. C:\foo\bar).
+  std::vector<std::string> parts = base::SplitString(raw_extension, "@");
   if (parts.size() != 2 || parts[0].length() == 0 || parts[1].length() == 0) {
     return base::ErrStatus(
-        "--metric-extension-dir must be of format disk_path:virtual_path");
+        "--metric-extension-dir must be of format disk_path@virtual_path");
   }
 
   parsed_extension.SetDiskPath(std::move(parts[0]));
