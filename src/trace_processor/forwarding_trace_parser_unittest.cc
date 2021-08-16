@@ -44,7 +44,7 @@ TEST(TraceProcessorImplTest, GuessTraceType_JsonWithSpaces) {
 
 // Some Android build traces do not contain the wrapper. See b/118826940
 TEST(TraceProcessorImplTest, GuessTraceType_JsonMissingTraceEvents) {
-  const uint8_t prefix[] = "[{";
+  const uint8_t prefix[] = "[{\"";
   EXPECT_EQ(kJsonTraceType, GuessTraceType(prefix, sizeof(prefix)));
 }
 
