@@ -87,7 +87,8 @@ std::string GetFileExtension(const std::string& filename);
 
 // Puts the path to all files under |dir_path| in |output|, recursively walking
 // subdirectories. File paths are relative to |dir_path|. Only files are
-// included, not directories.
+// included, not directories. Path separator is always '/', even on windows (not
+// '\').
 base::Status ListFilesRecursive(const std::string& dir_path,
                                 std::vector<std::string>& output);
 
