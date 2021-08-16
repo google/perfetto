@@ -109,7 +109,20 @@ def compute_breakdown(tp, start_ts=None, end_ts=None, process_name=None):
     SELECT
       process.name AS process_name,
       thread.name AS thread_name,
-      slice.state,
+      CASE
+        WHEN slice.state = 'D' and slice.io_wait
+          THEN 'Uninterruptible sleep (IO)'
+        WHEN slice.state = 'DK' and slice.io_wait
+          THEN 'Uninterruptible sleep + Wake-kill (IO)'
+        WHEN slice.state = 'D' and not slice.io_wait
+          THEN 'Uninterruptible sleep (non-IO)'
+        WHEN slice.state = 'DK' and not slice.io_wait
+          THEN 'Uninterruptible sleep + Wake-kill (non-IO)'
+        WHEN slice.state = 'S' THEN 'Interruptible sleep'
+        WHEN slice.state = 'R' THEN 'Runnable'
+        WHEN slice.state = 'R+' THEN 'Runnable (Preempted)'
+        ELSE slice.state
+      END AS state,
       slice.stack_name,
       SUM(slice.dur)/1e6 AS dur_sum
     FROM process
