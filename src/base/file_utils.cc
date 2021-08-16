@@ -20,6 +20,7 @@
 #include <sys/types.h>
 
 #include <algorithm>
+#include <deque>
 #include <string>
 #include <vector>
 
@@ -217,21 +218,34 @@ base::Status ListFilesRecursive(const std::string& dir_path,
   // TODO(b/182165266): Write the windows equivalent of this function.
   return base::ErrStatus("ListFilesRecursive not supported yet");
 #else
-  DIR* dir = opendir(dir_path.c_str());
-  if (dir == nullptr) {
-    return base::ErrStatus("Failed to open directory %s", dir_path.c_str());
-  }
-  for (auto* dirent = readdir(dir); dirent != nullptr; dirent = readdir(dir)) {
-    if (strcmp(dirent->d_name, ".") == 0 || strcmp(dirent->d_name, "..") == 0) {
-      continue;
+  const std::string root_dir_path =
+      dir_path.back() == '/' ? dir_path : dir_path + '/';
+
+  // dir_queue contains full paths to the directories. The paths include the
+  // root_dir_path at the beginning and the trailing slash at the end.
+  std::deque<std::string> dir_queue;
+  dir_queue.push_back(root_dir_path);
+
+  while (!dir_queue.empty()) {
+    const std::string cur_dir = std::move(dir_queue.front());
+    dir_queue.pop_front();
+    DIR* dir = opendir(cur_dir.c_str());
+    if (dir == nullptr) {
+      return base::ErrStatus("Failed to open directory %s", cur_dir.c_str());
     }
-    if (dirent->d_type == DT_DIR) {
-      std::string full_path = dir_path + '/' + dirent->d_name;
-      auto status = ListFilesRecursive(full_path, output);
-      if (!status.ok())
-        return status;
-    } else if (dirent->d_type == DT_REG) {
-      output.push_back(dirent->d_name);
+    for (auto* dirent = readdir(dir); dirent != nullptr;
+         dirent = readdir(dir)) {
+      if (strcmp(dirent->d_name, ".") == 0 ||
+          strcmp(dirent->d_name, "..") == 0) {
+        continue;
+      }
+      if (dirent->d_type == DT_DIR) {
+        dir_queue.push_back(cur_dir + dirent->d_name + '/');
+      } else if (dirent->d_type == DT_REG) {
+        const std::string full_path = cur_dir + dirent->d_name;
+        PERFETTO_CHECK(full_path.length() > root_dir_path.length());
+        output.push_back(full_path.substr(root_dir_path.length()));
+      }
     }
   }
   return base::OkStatus();
