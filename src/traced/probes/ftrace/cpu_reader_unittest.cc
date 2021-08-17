@@ -1069,7 +1069,7 @@ TEST_F(CpuReaderTableTest, ParseAllFields) {
   writer.Write<int64_t>(99u);                        // Inode 64
   writer.WriteFixedString(16, "Hello");
   writer.Write<uint64_t>(0xffffff8504f51b23ULL);  // char* (printk formats)
-  writer.Write<uint8_t>(0);  // Deliberately mis-aligning.
+  writer.Write<uint8_t>(0);                       // Deliberately mis-aligning.
   writer.Write<uint32_t>(40 | 6 << 16);
   writer.WriteFixedString(300, "Goodbye");
 
@@ -1181,9 +1181,9 @@ TEST(CpuReaderTest, NewPacketOnLostEvents) {
       table->EventToFtraceId(GroupAndName("sched", "sched_switch")));
 
   TraceWriterForTesting trace_writer;
-  CpuReader::ProcessPagesForDataSource(&trace_writer, &metadata, /*cpu=*/1,
-                                       &ds_config, buf, kTestPages, table,
-                                       /*symbolizer=*/nullptr);
+  CpuReader::ProcessPagesForDataSource(
+      &trace_writer, &metadata, /*cpu=*/1, &ds_config, buf, kTestPages, table,
+      /*symbolizer=*/nullptr, protos::pbzero::FTRACE_CLOCK_UNSPECIFIED);
 
   // Each packet should contain the parsed contents of a contiguous run of pages
   // without data loss.
