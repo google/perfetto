@@ -118,6 +118,10 @@ def compute_breakdown(tp, start_ts=None, end_ts=None, process_name=None):
           THEN 'Uninterruptible sleep (non-IO)'
         WHEN slice.state = 'DK' and not slice.io_wait
           THEN 'Uninterruptible sleep + Wake-kill (non-IO)'
+        WHEN slice.state = 'D'
+          THEN 'Uninterruptible sleep'
+        WHEN slice.state = 'DK'
+          THEN 'Uninterruptible sleep + Wake-kill'
         WHEN slice.state = 'S' THEN 'Interruptible sleep'
         WHEN slice.state = 'R' THEN 'Runnable'
         WHEN slice.state = 'R+' THEN 'Runnable (Preempted)'
