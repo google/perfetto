@@ -90,7 +90,7 @@ bool BreakpadParser::ParseFromString(const std::string& file_contents) {
     return true;
   }
 
-  // TODO(uwemwilson): Extract a build id and store it in the Symbol object.
+  // TODO(crbug/1239750): Extract a build id and store it in the Symbol object.
   base::StringView first_line(lines.cur_token(), lines.cur_token_size());
   base::Status parse_record_status = ParseIfModuleRecord(first_line);
   if (!parse_record_status.ok()) {
