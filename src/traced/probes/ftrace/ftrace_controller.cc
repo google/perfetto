@@ -249,13 +249,16 @@ void FtraceController::ReadTick(int generation) {
   // Read all cpu buffers with remaining per-period quota.
   bool all_cpus_done = true;
   uint8_t* parsing_buf = reinterpret_cast<uint8_t*>(parsing_mem_.Get());
+  const auto ftrace_clock = ftrace_config_muxer_->ftrace_clock();
   for (size_t i = 0; i < per_cpu_.size(); i++) {
     size_t orig_quota = per_cpu_[i].period_page_quota;
     if (orig_quota == 0)
       continue;
 
     size_t max_pages = std::min(orig_quota, kMaxPagesPerCpuPerReadTick);
-    size_t pages_read = per_cpu_[i].reader->ReadCycle(
+    CpuReader& cpu_reader = *per_cpu_[i].reader;
+    cpu_reader.set_ftrace_clock(ftrace_clock);
+    size_t pages_read = cpu_reader.ReadCycle(
         parsing_buf, kParsingBufferSizePages, max_pages, started_data_sources_);
 
     size_t new_quota = (pages_read >= orig_quota) ? 0 : orig_quota - pages_read;
