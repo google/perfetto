@@ -23,11 +23,12 @@
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/scattered_stream_null_delegate.h"
 #include "perfetto/protozero/scattered_stream_writer.h"
-#include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
 #include "src/traced/probes/ftrace/cpu_reader.h"
 #include "src/traced/probes/ftrace/ftrace_config_muxer.h"
 #include "src/traced/probes/ftrace/test/cpu_reader_support.h"
 #include "src/tracing/core/null_trace_writer.h"
+
+#include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
 
 namespace perfetto {
 namespace {
@@ -64,9 +65,9 @@ void FuzzCpuReaderProcessPagesForDataSource(const uint8_t* data, size_t size) {
       table->EventToFtraceId(GroupAndName("ftrace", "print")));
 
   NullTraceWriter null_writer;
-  CpuReader::ProcessPagesForDataSource(&null_writer, &metadata, /*cpu=*/0,
-                                       &ds_config, g_page, /*pages_read=*/1,
-                                       table, /*symbolizer*/ nullptr);
+  CpuReader::ProcessPagesForDataSource(
+      &null_writer, &metadata, /*cpu=*/0, &ds_config, g_page, /*pages_read=*/1,
+      table, /*symbolizer*/ nullptr, protos::pbzero::FTRACE_CLOCK_UNSPECIFIED);
 }
 
 }  // namespace perfetto
