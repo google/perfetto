@@ -145,7 +145,6 @@ export abstract class Engine {
         };
 
     const rpc = TraceProcessorRpc.decode(rpcMsgEncoded);
-    this.loadingTracker.endLoading();
 
     if (rpc.fatalError !== undefined && rpc.fatalError.length > 0) {
       throw new Error(`${rpc.fatalError}`);
@@ -160,6 +159,8 @@ export abstract class Engine {
     }
 
     this.rxSeqId = rpc.seq;
+
+    let isFinalResponse = true;
 
     switch (rpc.response) {
       case TPM.TPM_APPEND_TRACE_DATA:
@@ -183,6 +184,8 @@ export abstract class Engine {
         pendingQuery.appendResultBatch(qRes.rawQueryResult);
         if (pendingQuery.isComplete()) {
           this.pendingQueries.shift();
+        } else {
+          isFinalResponse = false;
         }
         break;
       case TPM.TPM_COMPUTE_METRIC:
@@ -197,6 +200,10 @@ export abstract class Engine {
             'Unexpected TraceProcessor response received: ', rpc.response);
         break;
     }  // switch(rpc.response);
+
+    if (isFinalResponse) {
+      this.loadingTracker.endLoading();
+    }
   }
 
   /**
