@@ -93,38 +93,10 @@ perfetto_py_binary(
     python_version = "PY3",
 )
 
-# Noop targets used to represent targets of the protobuf library.
-# These will be rewritten in Google3 to be dependencies on the real targets.
-
-perfetto_py_library(
-    name = "pyglib_noop",
-    srcs = [],
-)
-
-perfetto_py_library(
-    name = "protobuf_noop",
-    srcs = [],
-)
-
-perfetto_py_library(
-    name = "protobuf_descriptor_pb2_noop",
-    srcs = [],
-)
-
-perfetto_py_library(
-    name = "gfile_noop",
-    srcs = [],
-)
-
-perfetto_py_library(
-    name = "trace_processor_init_noop",
-    srcs = [],
-)
-
 perfetto_py_binary(
     name = "trace_processor_py_example",
     srcs = ["src/trace_processor/python/example.py"],
-    deps = [":trace_processor_py"],
+    deps = [":trace_processor_py"] + PERFETTO_CONFIG.deps.pandas_py,
     main = "src/trace_processor/python/example.py",
     python_version = "PY3",
 )
@@ -133,17 +105,14 @@ perfetto_py_library(
     name = "trace_processor_py",
     srcs = glob(["src/trace_processor/python/perfetto/trace_processor/*.py"]),
     data = [
-        ":trace_processor_init_noop",
         "src/trace_processor/python/perfetto/trace_processor/trace_processor.descriptor",
         "src/trace_processor/python/perfetto/trace_processor/metrics.descriptor",
         ":trace_processor_shell",
-    ],
-    deps = [
-        ":gfile_noop",
-        ":protobuf_noop",
-        ":protobuf_descriptor_pb2_noop",
-        ":pyglib_noop",
-    ],
+    ] + PERFETTO_CONFIG.deps.tp_init_py,
+    deps = PERFETTO_CONFIG.deps.gfile_py + 
+        PERFETTO_CONFIG.deps.protobuf_py + 
+        PERFETTO_CONFIG.deps.protobuf_descriptor_pb2_py + 
+        PERFETTO_CONFIG.deps.pyglib_py,
     imports = [
         "src/trace_processor/python",
     ],
@@ -163,12 +132,12 @@ perfetto_py_library(
 
 perfetto_py_binary(
     name = "experimental_slice_breakdown_bin",
-    srcs = glob(["tools/slice_breakdown/main.py"]),
+    srcs = ["tools/slice_breakdown/main.py"],
     main = "tools/slice_breakdown/main.py",
     deps = [
         ":experimental_slice_breakdown_lib",
         ":trace_processor_py",
-    ],
+    ] + PERFETTO_CONFIG.deps.pandas_py,
     python_version = "PY3",
     legacy_create_init = 0,
 )

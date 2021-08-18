@@ -21,6 +21,7 @@
 #include <cinttypes>
 #include <functional>
 #include <iostream>
+#include <unordered_set>
 #include <vector>
 
 #include <google/protobuf/compiler/parser.h>
@@ -30,6 +31,7 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/getopt.h"
@@ -42,6 +44,7 @@
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/metrics/chrome/all_chrome_metrics.descriptor.h"
 #include "src/trace_processor/metrics/metrics.descriptor.h"
+#include "src/trace_processor/metrics/metrics.h"
 #include "src/trace_processor/util/proto_to_json.h"
 #include "src/trace_processor/util/status_macros.h"
 
@@ -343,23 +346,28 @@ util::Status RegisterMetric(const std::string& register_metric) {
   return g_tp->RegisterMetric(path, sql);
 }
 
-util::Status ExtendMetricsProto(const std::string& extend_metrics_proto,
-                                google::protobuf::DescriptorPool* pool) {
-  google::protobuf::FileDescriptorSet desc_set;
-
-  base::ScopedFile file(base::OpenFile(extend_metrics_proto, O_RDONLY));
+base::Status ParseToFileDescriptorProto(
+    const std::string& filename,
+    google::protobuf::FileDescriptorProto* file_desc) {
+  base::ScopedFile file(base::OpenFile(filename, O_RDONLY));
   if (file.get() == -1) {
-    return util::ErrStatus("Failed to open proto file %s",
-                           extend_metrics_proto.c_str());
+    return base::ErrStatus("Failed to open proto file %s", filename.c_str());
   }
 
   google::protobuf::io::FileInputStream stream(file.get());
   ErrorPrinter printer;
   google::protobuf::io::Tokenizer tokenizer(&stream, &printer);
 
-  auto* file_desc = desc_set.add_file();
   google::protobuf::compiler::Parser parser;
   parser.Parse(&tokenizer, file_desc);
+  return base::OkStatus();
+}
+
+util::Status ExtendMetricsProto(const std::string& extend_metrics_proto,
+                                google::protobuf::DescriptorPool* pool) {
+  google::protobuf::FileDescriptorSet desc_set;
+  auto* file_desc = desc_set.add_file();
+  RETURN_IF_ERROR(ParseToFileDescriptorProto(extend_metrics_proto, file_desc));
 
   file_desc->set_name(BaseName(extend_metrics_proto));
   pool->BuildFile(*file_desc);
@@ -656,6 +664,33 @@ util::Status PrintPerfFile(const std::string& perf_file_path,
   return util::OkStatus();
 }
 
+class MetricExtension {
+ public:
+  void SetDiskPath(std::string path) {
+    AddTrailingSlashIfNeeded(path);
+    disk_path_ = std::move(path);
+  }
+  void SetVirtualPath(std::string path) {
+    AddTrailingSlashIfNeeded(path);
+    virtual_path_ = std::move(path);
+  }
+
+  // Disk location. Ends with a trailing slash.
+  const std::string& disk_path() const { return disk_path_; }
+  // Virtual location. Ends with a trailing slash.
+  const std::string& virtual_path() const { return virtual_path_; }
+
+ private:
+  std::string disk_path_;
+  std::string virtual_path_;
+
+  static void AddTrailingSlashIfNeeded(std::string& path) {
+    if (path.length() > 0 && path[path.length() - 1] != '/') {
+      path.push_back('/');
+    }
+  }
+};
+
 struct CommandLineOptions {
   std::string perf_file_path;
   std::string query_file_path;
@@ -665,6 +700,7 @@ struct CommandLineOptions {
   std::string metric_output;
   std::string trace_file_path;
   std::string port_number;
+  std::vector<std::string> raw_metric_extensions;
   bool launch_shell = false;
   bool enable_httpd = false;
   bool wide = false;
@@ -716,7 +752,12 @@ Options:
                                       writing the resulting trace into FILE.
  --full-sort                          Forces the trace processor into performing
                                       a full sort ignoring any windowing
-                                      logic.)",
+                                      logic.
+ --metric-extension DISK_PATH@VIRTUAL_PATH
+                                      Loads metric proto and sql files from
+                                      DISK_PATH/protos and DISK_PATH/sql
+                                      respectively, and mounts them onto
+                                      VIRTUAL_PATH.)",
                 argv[0]);
 }
 
@@ -728,6 +769,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
     OPT_METRICS_OUTPUT,
     OPT_FORCE_FULL_SORT,
     OPT_HTTP_PORT,
+    OPT_METRIC_EXTENSION,
   };
 
   static const option long_options[] = {
@@ -746,6 +788,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
       {"metrics-output", required_argument, nullptr, OPT_METRICS_OUTPUT},
       {"full-sort", no_argument, nullptr, OPT_FORCE_FULL_SORT},
       {"http-port", required_argument, nullptr, OPT_HTTP_PORT},
+      {"metric-extension", required_argument, nullptr, OPT_METRIC_EXTENSION},
       {nullptr, 0, nullptr, 0}};
 
   bool explicit_interactive = false;
@@ -832,6 +875,11 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
       continue;
     }
 
+    if (option == OPT_METRIC_EXTENSION) {
+      command_line_options.raw_metric_extensions.push_back(optarg);
+      continue;
+    }
+
     PrintUsage(argv);
     exit(option == 'h' ? 0 : 1);
   }
@@ -858,16 +906,20 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
     PrintUsage(argv);
     exit(1);
   }
+
   return command_line_options;
 }
 
 void ExtendPoolWithBinaryDescriptor(google::protobuf::DescriptorPool& pool,
                                     const void* data,
-                                    int size) {
+                                    int size,
+                                    std::vector<std::string>& skip_prefixes) {
   google::protobuf::FileDescriptorSet desc_set;
   desc_set.ParseFromArray(data, size);
-  for (const auto& desc : desc_set.file()) {
-    pool.BuildFile(desc);
+  for (const auto& file_desc : desc_set.file()) {
+    if (base::StartsWithAny(file_desc.name(), skip_prefixes))
+      continue;
+    pool.BuildFile(file_desc);
   }
 }
 
@@ -941,16 +993,153 @@ util::Status RunQueries(const std::string& query_file_path,
   return util::OkStatus();
 }
 
-util::Status RunMetrics(const CommandLineOptions& options) {
-  // Descriptor pool used for printing output as textproto.
-  // Building on top of generated pool so default protos in
-  // google.protobuf.descriptor.proto are available.
+base::Status ParseSingleMetricExtensionPath(const std::string& raw_extension,
+                                            MetricExtension& parsed_extension) {
+  // We cannot easily use ':' as a path separator because windows paths can have
+  // ':' in them (e.g. C:\foo\bar).
+  std::vector<std::string> parts = base::SplitString(raw_extension, "@");
+  if (parts.size() != 2 || parts[0].length() == 0 || parts[1].length() == 0) {
+    return base::ErrStatus(
+        "--metric-extension-dir must be of format disk_path@virtual_path");
+  }
+
+  parsed_extension.SetDiskPath(std::move(parts[0]));
+  parsed_extension.SetVirtualPath(std::move(parts[1]));
+
+  if (parsed_extension.virtual_path() == "shell/") {
+    return base::Status(
+        "Cannot have 'shell/' as metric extension virtual path.");
+  }
+  return util::OkStatus();
+}
+
+base::Status CheckForDuplicateMetricExtension(
+    const std::vector<MetricExtension>& metric_extensions) {
+  std::unordered_set<std::string> disk_paths;
+  std::unordered_set<std::string> virtual_paths;
+  for (const auto& extension : metric_extensions) {
+    auto ret = disk_paths.insert(extension.disk_path());
+    if (!ret.second) {
+      return base::ErrStatus(
+          "Another metric extension is already using disk path %s",
+          extension.disk_path().c_str());
+    }
+    ret = virtual_paths.insert(extension.virtual_path());
+    if (!ret.second) {
+      return base::ErrStatus(
+          "Another metric extension is already using virtual path %s",
+          extension.virtual_path().c_str());
+    }
+  }
+  return base::OkStatus();
+}
+
+base::Status ParseMetricExtensionPaths(
+    const std::vector<std::string>& raw_metric_extensions,
+    std::vector<MetricExtension>& metric_extensions) {
+  for (const auto& raw_extension : raw_metric_extensions) {
+    metric_extensions.push_back({});
+    RETURN_IF_ERROR(ParseSingleMetricExtensionPath(raw_extension,
+                                                   metric_extensions.back()));
+  }
+  return CheckForDuplicateMetricExtension(metric_extensions);
+}
+
+base::Status LoadMetricExtensionProtos(const std::string& proto_root,
+                                       const std::string& mount_path) {
+  if (!base::FileExists(proto_root)) {
+    return base::ErrStatus(
+        "Directory %s does not exist. Metric extension directory must contain "
+        "a 'sql/' and 'protos/' subdirectory.",
+        proto_root.c_str());
+  }
+  std::vector<std::string> proto_files;
+  RETURN_IF_ERROR(base::ListFilesRecursive(proto_root, proto_files));
+
+  google::protobuf::FileDescriptorSet parsed_protos;
+  for (const auto& file_path : proto_files) {
+    if (base::GetFileExtension(file_path) != ".proto")
+      continue;
+    auto* file_desc = parsed_protos.add_file();
+    ParseToFileDescriptorProto(proto_root + file_path, file_desc);
+    file_desc->set_name(mount_path + file_path);
+  }
+
+  std::vector<uint8_t> serialized_filedescset;
+  serialized_filedescset.resize(parsed_protos.ByteSizeLong());
+  parsed_protos.SerializeToArray(
+      serialized_filedescset.data(),
+      static_cast<int>(serialized_filedescset.size()));
+
+  RETURN_IF_ERROR(g_tp->ExtendMetricsProto(serialized_filedescset.data(),
+                                           serialized_filedescset.size()));
+
+  return base::OkStatus();
+}
+
+base::Status LoadMetricExtensionSql(const std::string& sql_root,
+                                    const std::string& mount_path) {
+  if (!base::FileExists(sql_root)) {
+    return base::ErrStatus(
+        "Directory %s does not exist. Metric extension directory must contain "
+        "a 'sql/' and 'protos/' subdirectory.",
+        sql_root.c_str());
+  }
+
+  std::vector<std::string> sql_files;
+  RETURN_IF_ERROR(base::ListFilesRecursive(sql_root, sql_files));
+  for (const auto& file_path : sql_files) {
+    if (base::GetFileExtension(file_path) != ".sql")
+      continue;
+    std::string file_contents;
+    if (!base::ReadFile(sql_root + file_path, &file_contents)) {
+      return base::ErrStatus("Cannot read file %s", file_path.c_str());
+    }
+    RETURN_IF_ERROR(
+        g_tp->RegisterMetric(mount_path + file_path, file_contents));
+  }
+
+  return base::OkStatus();
+}
+
+base::Status LoadMetricExtension(const MetricExtension& extension) {
+  const std::string& disk_path = extension.disk_path();
+  const std::string& virtual_path = extension.virtual_path();
+
+  if (!base::FileExists(disk_path)) {
+    return base::ErrStatus("Metric extension directory %s does not exist",
+                           disk_path.c_str());
+  }
+
+  // Note: Proto files must be loaded first, because we determine whether an SQL
+  // file is a metric or not by checking if the name matches a field of the root
+  // TraceMetrics proto.
+  RETURN_IF_ERROR(LoadMetricExtensionProtos(disk_path + "protos/",
+                                            kMetricProtoRoot + virtual_path));
+  RETURN_IF_ERROR(LoadMetricExtensionSql(disk_path + "sql/", virtual_path));
+
+  return base::OkStatus();
+}
+
+util::Status RunMetrics(const CommandLineOptions& options,
+                        std::vector<MetricExtension>& metric_extensions) {
+  // Descriptor pool used for printing output as textproto. Building on top of
+  // generated pool so default protos in google.protobuf.descriptor.proto are
+  // available.
   google::protobuf::DescriptorPool pool(
       google::protobuf::DescriptorPool::generated_pool());
+  // TODO(b/182165266): There is code duplication here with trace_processor_impl
+  // SetupMetrics. This will be removed when we switch the output formatter to
+  // use internal DescriptorPool.
+  std::vector<std::string> skip_prefixes;
+  for (const auto& ext : metric_extensions) {
+    skip_prefixes.push_back(kMetricProtoRoot + ext.virtual_path());
+  }
   ExtendPoolWithBinaryDescriptor(pool, kMetricsDescriptor.data(),
-                                 kMetricsDescriptor.size());
+                                 kMetricsDescriptor.size(), skip_prefixes);
   ExtendPoolWithBinaryDescriptor(pool, kAllChromeMetricsDescriptor.data(),
-                                 kAllChromeMetricsDescriptor.size());
+                                 kAllChromeMetricsDescriptor.size(),
+                                 skip_prefixes);
 
   std::vector<std::string> metrics;
   for (base::StringSplitter ss(options.metric_names, ','); ss.Next();) {
@@ -995,6 +1184,7 @@ util::Status RunMetrics(const CommandLineOptions& options) {
   } else {
     format = OutputFormat::kTextProto;
   }
+
   return RunMetrics(std::move(metrics), format, pool);
 }
 
@@ -1058,12 +1248,27 @@ util::Status TraceProcessorMain(int argc, char** argv) {
                             ? SortingMode::kForceFullSort
                             : SortingMode::kDefaultHeuristics;
 
+  std::vector<MetricExtension> metric_extensions;
+  RETURN_IF_ERROR(ParseMetricExtensionPaths(options.raw_metric_extensions,
+                                            metric_extensions));
+
+  for (const auto& extension : metric_extensions) {
+    config.skip_builtin_metric_paths.push_back(extension.virtual_path());
+  }
+
   std::unique_ptr<TraceProcessor> tp = TraceProcessor::CreateInstance(config);
   g_tp = tp.get();
 
   // Enable metatracing as soon as possible.
   if (!options.metatrace_path.empty()) {
     tp->EnableMetatrace();
+  }
+
+  // We load all the metric extensions even when --run-metrics arg is not there,
+  // because we want the metrics to be available in interactive mode or when
+  // used in UI using httpd.
+  for (const auto& extension : metric_extensions) {
+    RETURN_IF_ERROR(LoadMetricExtension(extension));
   }
 
   base::TimeNanos t_load{};
@@ -1097,7 +1302,7 @@ util::Status TraceProcessorMain(int argc, char** argv) {
   }
 
   if (!options.metric_names.empty()) {
-    RETURN_IF_ERROR(RunMetrics(options));
+    RETURN_IF_ERROR(RunMetrics(options, metric_extensions));
   }
 
   if (!options.query_file_path.empty()) {

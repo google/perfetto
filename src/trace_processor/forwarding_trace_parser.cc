@@ -155,9 +155,9 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
       return kFuchsiaTraceType;
   }
   std::string start_minus_white_space = RemoveWhitespace(start);
-  if (base::StartsWith(start_minus_white_space, "{"))
+  if (base::StartsWith(start_minus_white_space, "{\""))
     return kJsonTraceType;
-  if (base::StartsWith(start_minus_white_space, "[{"))
+  if (base::StartsWith(start_minus_white_space, "[{\""))
     return kJsonTraceType;
 
   // Systrace with header but no leading HTML.

@@ -20,10 +20,14 @@
 #include <sys/types.h>
 
 #include <algorithm>
+#include <deque>
+#include <string>
+#include <vector>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/platform_handle.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/utils.h"
 
@@ -40,7 +44,22 @@ namespace perfetto {
 namespace base {
 namespace {
 constexpr size_t kBufSize = 2048;
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+using ScopedFindHandle = ScopedResource<HANDLE,
+                                        &CloseFindHandle,
+                                        /*InvalidValue=*/INVALID_HANDLE_VALUE,
+                                        /*CheckClose=*/true>;
+#endif
+}  // namespace
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+int CloseFindHandle(HANDLE handle) {
+  // FindClose returns non-zero on success, but CloseFunction of ScopedResource
+  // expects 0 on success.
+  return FindClose(handle) != 0 ? 0 : 1;
 }
+#endif
 
 ssize_t Read(int fd, void* dst, size_t dst_size) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
@@ -206,6 +225,80 @@ int ClosePlatformHandle(PlatformHandle handle) {
 #else
   return close(handle);
 #endif
+}
+
+base::Status ListFilesRecursive(const std::string& dir_path,
+                                std::vector<std::string>& output) {
+  std::string root_dir_path = dir_path;
+  if (root_dir_path.back() == '\\') {
+    root_dir_path.back() = '/';
+  } else if (root_dir_path.back() != '/') {
+    root_dir_path.push_back('/');
+  }
+
+  // dir_queue contains full paths to the directories. The paths include the
+  // root_dir_path at the beginning and the trailing slash at the end.
+  std::deque<std::string> dir_queue;
+  dir_queue.push_back(root_dir_path);
+
+  while (!dir_queue.empty()) {
+    const std::string cur_dir = std::move(dir_queue.front());
+    dir_queue.pop_front();
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
+    return base::ErrStatus("ListFilesRecursive not supported yet");
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+    std::string glob_path = cur_dir + "*";
+    // + 1 because we also have to count the NULL terminator.
+    if (glob_path.length() + 1 > MAX_PATH)
+      return base::ErrStatus("Directory path %s is too long", dir_path.c_str());
+    WIN32_FIND_DATAA ffd;
+    ScopedFindHandle hFind(FindFirstFileA(glob_path.c_str(), &ffd));
+    if (!hFind)
+      // For empty directories, there should be at least one entry '.'.
+      // If FindFirstFileA returns INVALID_HANDLE_VALUE, this means directory
+      // couldn't be accessed.
+      return base::ErrStatus("Failed to open directory %s", cur_dir.c_str());
+    do {
+      if (strcmp(ffd.cFileName, ".") == 0 || strcmp(ffd.cFileName, "..") == 0)
+        continue;
+      if (ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+        std::string subdir_path = cur_dir + ffd.cFileName + '/';
+        dir_queue.push_back(subdir_path);
+      } else if (ffd.dwFileAttributes & FILE_ATTRIBUTE_NORMAL) {
+        const std::string full_path = cur_dir + ffd.cFileName;
+        PERFETTO_CHECK(full_path.length() > root_dir_path.length());
+        output.push_back(full_path.substr(root_dir_path.length()));
+      }
+    } while (FindNextFileA(hFind.get(), &ffd));
+#else
+    ScopedDir dir = ScopedDir(opendir(cur_dir.c_str()));
+    if (!dir) {
+      return base::ErrStatus("Failed to open directory %s", cur_dir.c_str());
+    }
+    for (auto* dirent = readdir(dir.get()); dirent != nullptr;
+         dirent = readdir(dir.get())) {
+      if (strcmp(dirent->d_name, ".") == 0 ||
+          strcmp(dirent->d_name, "..") == 0) {
+        continue;
+      }
+      if (dirent->d_type == DT_DIR) {
+        dir_queue.push_back(cur_dir + dirent->d_name + '/');
+      } else if (dirent->d_type == DT_REG) {
+        const std::string full_path = cur_dir + dirent->d_name;
+        PERFETTO_CHECK(full_path.length() > root_dir_path.length());
+        output.push_back(full_path.substr(root_dir_path.length()));
+      }
+    }
+#endif
+  }
+  return base::OkStatus();
+}
+
+std::string GetFileExtension(const std::string& filename) {
+  auto ext_idx = filename.rfind('.');
+  if (ext_idx == std::string::npos)
+    return std::string();
+  return filename.substr(ext_idx);
 }
 
 }  // namespace base

@@ -69,6 +69,7 @@ util::Status ProtoTraceReader::ParseExtensionDescriptor(ConstBytes descriptor) {
   auto extension = decoder.extension_set();
   return context_->descriptor_pool_->AddFromFileDescriptorSet(
       extension.data, extension.size,
+      /*skip_prefixes*/ {},
       /*merge_existing_messages=*/true);
 }
 

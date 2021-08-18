@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import '../tracks/all_controller';
+import '../tracks/all_imports';
 
 import {assertTrue} from '../base/logging';
 import {Remote} from '../base/remote';
