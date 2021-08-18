@@ -3361,6 +3361,20 @@ TEST_P(PerfettoApiTest, LegacyTraceEvents) {
   // Metadata event.
   TRACE_EVENT_METADATA1("cat", "LegacyMetadata", "obsolete", true);
 
+  // Async events.
+  TRACE_EVENT_NESTABLE_ASYNC_BEGIN_WITH_TIMESTAMP_AND_FLAGS0(
+      "cat", "LegacyAsync", 5678, MyTimestamp{4}, TRACE_EVENT_FLAG_NONE);
+  TRACE_EVENT_NESTABLE_ASYNC_END_WITH_TIMESTAMP0("cat", "LegacyAsync", 5678,
+                                                 MyTimestamp{5});
+  TRACE_EVENT_NESTABLE_ASYNC_BEGIN_WITH_FLAGS0("cat", "LegacyAsync2", 9000,
+                                               TRACE_EVENT_FLAG_NONE);
+  TRACE_EVENT_NESTABLE_ASYNC_END_WITH_FLAGS0("cat", "LegacyAsync2", 9000,
+                                             TRACE_EVENT_FLAG_NONE);
+  TRACE_EVENT_NESTABLE_ASYNC_BEGIN_WITH_FLAGS0("cat", "LegacyAsync3", 9001,
+                                               TRACE_EVENT_FLAG_NONE);
+  TRACE_EVENT_NESTABLE_ASYNC_END_WITH_TIMESTAMP_AND_FLAGS0(
+      "cat", "LegacyAsync3", 9001, MyTimestamp{6}, TRACE_EVENT_FLAG_NONE);
+
   perfetto::TrackEvent::Flush();
   tracing_session->get()->StopBlocking();
   auto slices = ReadSlicesFromTrace(tracing_session->get());
@@ -3378,7 +3392,13 @@ TEST_P(PerfettoApiTest, LegacyTraceEvents) {
               "]Legacy_S(unscoped_id=1):cat.LegacyWithIdTidAndTimestamp",
           "Legacy_C:cat.LegacyCounter(value=(int)1234)",
           "Legacy_C(unscoped_id=1234):cat.LegacyCounterWithId(value=(int)9000)",
-          "Legacy_M:cat.LegacyMetadata"));
+          "Legacy_M:cat.LegacyMetadata",
+          "Legacy_b(unscoped_id=5678):cat.LegacyAsync",
+          "Legacy_e(unscoped_id=5678):cat.LegacyAsync",
+          "Legacy_b(unscoped_id=9000):cat.LegacyAsync2",
+          "Legacy_e(unscoped_id=9000):cat.LegacyAsync2",
+          "Legacy_b(unscoped_id=9001):cat.LegacyAsync3",
+          "Legacy_e(unscoped_id=9001):cat.LegacyAsync3"));
 }
 
 TEST_P(PerfettoApiTest, LegacyTraceEventsWithCustomAnnotation) {
