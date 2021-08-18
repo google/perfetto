@@ -197,6 +197,12 @@ CREATE TABLE gesture_scroll_update AS
       NOT COALESCE(
               EXTRACT_ARG(arg_set_id, "chrome_latency_info.is_coalesced"),
               TRUE)
+      AND slice.arg_set_id IN (
+        SELECT arg_set_id FROM args
+        WHERE args.arg_set_id = slice.arg_set_id
+        AND flat_key = 'chrome_latency_info.component_info.component_type'
+        AND string_value = 'COMPONENT_INPUT_EVENT_GPU_SWAP_BUFFER'
+      )
   ) scroll_update ON
   scroll_update.ts <= begin_and_end.end_ts AND
   scroll_update.ts >= begin_and_end.begin_ts AND
