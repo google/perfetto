@@ -47,13 +47,19 @@ constexpr size_t kBufSize = 2048;
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 using ScopedFindHandle = ScopedResource<HANDLE,
-                                        FindClose,
+                                        &CloseFindHandle,
                                         /*InvalidValue=*/INVALID_HANDLE_VALUE,
-                                        // Cannot check close because on
-                                        // windows, nonzero ret value = success.
-                                        /*CheckClose=*/false>;
+                                        /*CheckClose=*/true>;
 #endif
 }  // namespace
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+int CloseFindHandle(HANDLE handle) {
+  // FindClose returns non-zero on success, but CloseFunction of ScopedResource
+  // expects 0 on success.
+  return FindClose(handle) != 0 ? 0 : 1;
+}
+#endif
 
 ssize_t Read(int fd, void* dst, size_t dst_size) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
