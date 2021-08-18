@@ -36,6 +36,8 @@ constexpr int kDefaultPerCpuBufferSizeKb = 2 * 1024;  // 2mb
 constexpr int kMaxPerCpuBufferSizeKb = 64 * 1024;     // 64mb
 
 // trace_clocks in preference order.
+// If this list is changed, the FtraceClocks enum in ftrace_event_bundle.proto
+// and FtraceConfigMuxer::SetupClock() should be also changed accordingly.
 constexpr const char* kClocks[] = {"boot", "global", "local"};
 
 void AddEventGroup(const ProtoTranslationTable* table,
@@ -654,7 +656,22 @@ void FtraceConfigMuxer::SetupClock(const FtraceConfig&) {
     if (current_clock == clock)
       break;
     ftrace_->SetClock(clock);
+    current_clock = clock;
     break;
+  }
+
+  namespace pb0 = protos::pbzero;
+  if (current_clock == "boot") {
+    // "boot" is the default expectation on modern kernels, which is why we
+    // don't have an explicit FTRACE_CLOCK_BOOT enum and leave it unset.
+    // See comments in ftrace_event_bundle.proto.
+    current_state_.ftrace_clock = pb0::FTRACE_CLOCK_UNSPECIFIED;
+  } else if (current_clock == "global") {
+    current_state_.ftrace_clock = pb0::FTRACE_CLOCK_GLOBAL;
+  } else if (current_clock == "local") {
+    current_state_.ftrace_clock = pb0::FTRACE_CLOCK_LOCAL;
+  } else {
+    current_state_.ftrace_clock = pb0::FTRACE_CLOCK_UNKNOWN;
   }
 }
 

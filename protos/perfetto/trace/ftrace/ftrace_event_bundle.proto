@@ -26,6 +26,7 @@ package perfetto.protos;
 message FtraceEventBundle {
   optional uint32 cpu = 1;
   repeated FtraceEvent event = 2;
+
   // Set to true if there was data loss between the last time we've read from
   // the corresponding per-cpu kernel buffer, and the earliest event recorded
   // in this bundle.
@@ -62,4 +63,27 @@ message FtraceEventBundle {
     repeated uint32 waking_comm_index = 11 [packed = true];
   }
   optional CompactSched compact_sched = 4;
+
+  // traced_probes always sets the ftrace_clock to "boot". That is not available
+  // in older kernels (v3.x). In that case we fallback on "global" or "local".
+  // When we do that, we report the fallback clock in each bundle so we can do
+  // proper clock syncing at parsing time in TraceProcessor. We cannot use the
+  // TracePacket timestamp_clock_id because: (1) there is no per-packet
+  // timestamp for ftrace bundles; (2) technically we cannot be guaranteed that
+  // "global" matches CLOCK_MONOTONIC (although it seems to do so in practice).
+  // Having a dedicated and explicit flag allows us to correct further misakes
+  // in future by looking at the kernel version.
+  // This field has been introduced in perfetto v19 / Android T (13).
+  // This field is omitted when the ftrace clock is just "boot", as that is the
+  // default assumption (and for consistency with the past).
+  optional FtraceClock ftrace_clock = 5;
+}
+
+enum FtraceClock {
+  // There is no FTRACE_CLOCK_BOOT entry as that's the default assumption. When
+  // the ftrace clock is "boot", it's just omitted (so UNSPECIFIED == BOOT).
+  FTRACE_CLOCK_UNSPECIFIED = 0;
+  FTRACE_CLOCK_UNKNOWN = 1;
+  FTRACE_CLOCK_GLOBAL = 2;
+  FTRACE_CLOCK_LOCAL = 3;
 }

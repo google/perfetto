@@ -128,7 +128,7 @@ CREATE VIEW joined_scroll_begin_and_end AS
         time_to_next_vsync IS NOT NULL AND
         in_query.ts > begin.ts AND
         in_query.ts < end.ts
-    ), 1.6e+7) AS avg_vsync_interval
+    ), 1e+9 / 60) AS avg_vsync_interval
   FROM scroll_begin_and_end begin JOIN scroll_begin_and_end end ON
     begin.trace_id < end.trace_id AND
     begin.name = 'InputLatency::GestureScrollBegin' AND

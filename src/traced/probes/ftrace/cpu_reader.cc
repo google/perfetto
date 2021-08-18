@@ -271,7 +271,7 @@ size_t CpuReader::ReadAndProcessBatch(
     bool pages_parsed_ok = ProcessPagesForDataSource(
         data_source->trace_writer(), data_source->mutable_metadata(), cpu_,
         data_source->parsing_config(), parsing_buf, pages_read, table_,
-        symbolizer_);
+        symbolizer_, ftrace_clock_);
     // If this CHECK fires, it means that we did not know how to parse the
     // kernel binary format. This is a bug in either perfetto or the kernel, and
     // must be investigated. Hence we CHECK instead of recording a bit
@@ -291,7 +291,8 @@ bool CpuReader::ProcessPagesForDataSource(
     const uint8_t* parsing_buf,
     const size_t pages_read,
     const ProtoTranslationTable* table,
-    LazyKernelSymbolizer* symbolizer) {
+    LazyKernelSymbolizer* symbolizer,
+    protos::pbzero::FtraceClock ftrace_clock) {
   // Allocate the buffer for compact scheduler events (which will be unused if
   // the compact option isn't enabled).
   CompactSchedBuffer compact_sched;
@@ -372,6 +373,8 @@ bool CpuReader::ProcessPagesForDataSource(
       finalize_cur_packet();
     packet = trace_writer->NewTracePacket();
     bundle = packet->set_ftrace_events();
+    if (ftrace_clock)
+      bundle->set_ftrace_clock(ftrace_clock);
     // Note: The fastpath in proto_trace_parser.cc speculates on the fact
     // that the cpu field is the first field of the proto message. If this
     // changes, change proto_trace_parser.cc accordingly.
