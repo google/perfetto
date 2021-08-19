@@ -38,7 +38,7 @@ class HeapProfileTrackController extends TrackController<Config, Data> {
         types: new Array<string>()
       };
     }
-    const queryRes = await this.queryV2(`
+    const queryRes = await this.query(`
     select * from
     (select distinct(ts) as ts, 'native' as type from heap_profile_allocation
      where upid = ${this.config.upid}

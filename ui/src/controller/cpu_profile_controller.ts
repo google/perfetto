@@ -142,7 +142,7 @@ export class CpuProfileController extends Controller<'main'> {
       ORDER BY callsites.depth;
     `;
 
-    const callsites = await this.args.engine.queryV2(sampleQuery);
+    const callsites = await this.args.engine.query(sampleQuery);
 
     if (callsites.numRows() === 0) {
       return undefined;

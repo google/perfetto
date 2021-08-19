@@ -27,7 +27,7 @@ class DebugSliceTrackController extends TrackController<Config, Data> {
   static readonly kind = DEBUG_SLICE_TRACK_KIND;
 
   async onReload() {
-    const rawResult = await this.queryV2(
+    const rawResult = await this.query(
         `select ifnull(max(depth), 1) as maxDepth from debug_slices`);
     const maxDepth = rawResult.firstRow({maxDepth: NUM}).maxDepth;
     globals.dispatch(
@@ -36,7 +36,7 @@ class DebugSliceTrackController extends TrackController<Config, Data> {
 
   async onBoundsChange(start: number, end: number, resolution: number):
       Promise<Data> {
-    const queryRes = await this.queryV2(`select
+    const queryRes = await this.query(`select
       ifnull(id, -1) as id,
       ifnull(name, '[null]') as name,
       ts,

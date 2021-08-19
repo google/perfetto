@@ -34,7 +34,7 @@ export class MetricsController extends Controller<'main'> {
 
   private async getMetricNames() {
     const metrics = [];
-    const result = await this.engine.queryV2('select name from trace_metrics');
+    const result = await this.engine.query('select name from trace_metrics');
     const it = result.iter({name: STR});
     for (; it.valid(); it.next()) {
       metrics.push(it.name);
