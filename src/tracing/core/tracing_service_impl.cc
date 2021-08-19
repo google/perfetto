@@ -355,8 +355,8 @@ TracingServiceImpl::ConnectProducer(Producer* producer,
     return nullptr;
   }
   const ProducerID id = GetNextProducerID();
-  PERFETTO_DLOG("Producer %" PRIu16 " connected", id);
-
+  PERFETTO_DLOG("Producer %" PRIu16 " connected, uid=%d", id,
+                static_cast<int>(uid));
   bool smb_scraping_enabled = smb_scraping_enabled_;
   switch (smb_scraping_mode) {
     case ProducerSMBScrapingMode::kDefault:
@@ -3524,7 +3524,7 @@ void TracingServiceImpl::ConsumerEndpointImpl::QueryServiceState(
     producer->set_id(static_cast<int>(kv.first));
     producer->set_name(kv.second->name_);
     producer->set_sdk_version(kv.second->sdk_version_);
-    producer->set_uid(static_cast<int32_t>(producer->uid()));
+    producer->set_uid(static_cast<int32_t>(kv.second->uid()));
   }
 
   for (const auto& kv : service_->data_sources_) {
