@@ -24,7 +24,7 @@ import {AggregationController} from './aggregation_controller';
 
 export class CpuAggregationController extends AggregationController {
   async createAggregateView(engine: Engine, area: Area) {
-    await engine.queryV2(`drop view if exists ${this.kind};`);
+    await engine.query(`drop view if exists ${this.kind};`);
 
     const selectedCpus = [];
     for (const trackId of area.tracks) {
@@ -49,7 +49,7 @@ export class CpuAggregationController extends AggregationController {
         thread_state.ts + thread_state.dur > ${toNs(area.startSec)} AND
         thread_state.ts < ${toNs(area.endSec)} group by utid`;
 
-    await engine.queryV2(query);
+    await engine.query(query);
     return true;
   }
 

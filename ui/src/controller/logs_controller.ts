@@ -32,7 +32,7 @@ async function updateLogBounds(
   const vizStartNs = toNsFloor(span.start);
   const vizEndNs = toNsCeil(span.end);
 
-  const countResult = await engine.queryV2(`
+  const countResult = await engine.query(`
      select
       ifnull(min(ts), 0) as minTs,
       ifnull(max(ts), 0) as maxTs,
@@ -45,12 +45,12 @@ async function updateLogBounds(
   const lastRowNs = countRow.maxTs;
   const total = countRow.countTs;
 
-  const minResult = await engine.queryV2(`
+  const minResult = await engine.query(`
      select ifnull(max(ts), 0) as maxTs from android_logs where ts < ${
       vizStartNs}`);
   const startNs = minResult.firstRow({maxTs: NUM}).maxTs;
 
-  const maxResult = await engine.queryV2(`
+  const maxResult = await engine.query(`
      select ifnull(min(ts), 0) as minTs from android_logs where ts > ${
       vizEndNs}`);
   const endNs = maxResult.firstRow({minTs: NUM}).minTs;
@@ -76,7 +76,7 @@ async function updateLogEntries(
   const vizEndNs = toNsCeil(span.end);
   const vizSqlBounds = `ts >= ${vizStartNs} and ts <= ${vizEndNs}`;
 
-  const rowsResult = await engine.queryV2(`
+  const rowsResult = await engine.query(`
         select
           ts,
           prio,
@@ -180,7 +180,7 @@ export class LogsController extends Controller<'main'> {
   }
 
   async hasAnyLogs() {
-    const result = await this.engine.queryV2(`
+    const result = await this.engine.query(`
       select count(*) as cnt from android_logs
     `);
     return result.firstRow({cnt: NUM}).cnt > 0;
