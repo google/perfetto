@@ -43,9 +43,8 @@ ModuleResult FtraceModuleImpl::TokenizePacket(
   if (field_id == TracePacket::kFtraceEventsFieldNumber) {
     auto ftrace_field = decoder.ftrace_events();
     const size_t fld_off = packet->offset_of(ftrace_field.data);
-    tokenizer_.TokenizeFtraceBundle(packet->slice(fld_off, ftrace_field.size),
-                                    seq_state);
-    return ModuleResult::Handled();
+    return tokenizer_.TokenizeFtraceBundle(
+        packet->slice(fld_off, ftrace_field.size), seq_state);
   }
   return ModuleResult::Ignored();
 }
