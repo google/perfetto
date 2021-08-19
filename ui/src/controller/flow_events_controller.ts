@@ -44,7 +44,7 @@ export class FlowEventsController extends Controller<'main'> {
   }
 
   queryFlowEvents(query: string, callback: (flows: Flow[]) => void) {
-    this.args.engine.queryV2(query).then(result => {
+    this.args.engine.query(query).then(result => {
       const flows: Flow[] = [];
       const it = result.iter({
         beginSliceId: NUM,

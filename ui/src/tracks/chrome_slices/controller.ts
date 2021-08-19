@@ -49,7 +49,7 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
       const query = `
           SELECT max(iif(dur = -1, (SELECT end_ts FROM trace_bounds) - ts, dur))
           AS maxDur FROM ${tableName} WHERE track_id = ${this.config.trackId}`;
-      const queryRes = await this.queryV2(query);
+      const queryRes = await this.query(query);
       this.maxDurNs = queryRes.firstRow({maxDur: NUM_NULL}).maxDur || 0;
     }
 
@@ -69,7 +69,7 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
         ts >= (${startNs - this.maxDurNs}) AND
         ts <= ${endNs}
       GROUP BY depth, tsq`;
-    const queryRes = await this.queryV2(query);
+    const queryRes = await this.query(query);
 
     const numRows = queryRes.numRows();
     const slices: Data = {

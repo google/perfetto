@@ -147,7 +147,7 @@ class TrackDecider {
   async addCpuFreqTracks(): Promise<void> {
     const cpus = await this.engine.getCpus();
 
-    const maxCpuFreqResult = await this.engine.queryV2(`
+    const maxCpuFreqResult = await this.engine.query(`
     select ifnull(max(value), 0) as freq
     from counter c
     inner join cpu_counter_track t on c.track_id = t.id
@@ -160,7 +160,7 @@ class TrackDecider {
       // cpu freq data.
       // TODO(hjd): Find a way to display cpu idle
       // events even if there are no cpu freq events.
-      const cpuFreqIdleResult = await this.engine.queryV2(`
+      const cpuFreqIdleResult = await this.engine.query(`
       select
         id as cpuFreqId,
         (
@@ -201,7 +201,7 @@ class TrackDecider {
   }
 
   async addGlobalAsyncTracks(): Promise<void> {
-    const rawGlobalAsyncTracks = await this.engine.queryV2(`
+    const rawGlobalAsyncTracks = await this.engine.query(`
     SELECT
       t.name as name,
       t.track_ids as trackIds,
@@ -245,7 +245,7 @@ class TrackDecider {
 
   async addGpuFreqTracks(): Promise<void> {
     const numGpus = await this.engine.getNumberOfGpus();
-    const maxGpuFreqResult = await this.engine.queryV2(`
+    const maxGpuFreqResult = await this.engine.query(`
     select ifnull(max(value), 0) as maximumValue
     from counter c
     inner join gpu_counter_track t on c.track_id = t.id
@@ -257,7 +257,7 @@ class TrackDecider {
     for (let gpu = 0; gpu < numGpus; gpu++) {
       // Only add a gpu freq track if we have
       // gpu freq data.
-      const freqExistsResult = await this.engine.queryV2(`
+      const freqExistsResult = await this.engine.query(`
       select id
       from gpu_counter_track
       where name = 'gpufreq' and gpu_id = ${gpu}
@@ -282,7 +282,7 @@ class TrackDecider {
 
   async addGlobalCounterTracks(): Promise<void> {
     // Add global or GPU counter tracks that are not bound to any pid/tid.
-    const globalCounters = await this.engine.queryV2(`
+    const globalCounters = await this.engine.query(`
     select name, id
     from (
       select name, id
@@ -325,7 +325,7 @@ class TrackDecider {
     // it. This might look surprising in the UI, but placeholder tracks are
     // wasteful as there's no way of collapsing global counter tracks at the
     // moment.
-    const result = await this.engine.queryV2(`
+    const result = await this.engine.query(`
       select printf("Cpu %u %s", cpu, name) as name, id
       from perf_counter_track as pct
       order by perf_session_id asc, pct.name asc, cpu asc
@@ -399,7 +399,7 @@ class TrackDecider {
 
   async addLogsTrack(): Promise<void> {
     const result =
-        await this.engine.queryV2(`select count(1) as cnt from android_logs`);
+        await this.engine.query(`select count(1) as cnt from android_logs`);
     const count = result.firstRow({cnt: NUM}).cnt;
 
     if (count > 0) {
@@ -415,7 +415,7 @@ class TrackDecider {
   }
 
   async addAnnotationTracks(): Promise<void> {
-    const sliceResult = await this.engine.queryV2(`
+    const sliceResult = await this.engine.query(`
     SELECT id, name, upid FROM annotation_slice_track`);
 
     const sliceIt = sliceResult.iter({
@@ -443,7 +443,7 @@ class TrackDecider {
       });
     }
 
-    const counterResult = await this.engine.queryV2(`
+    const counterResult = await this.engine.query(`
     SELECT
       id,
       name,
@@ -487,7 +487,7 @@ class TrackDecider {
   }
 
   async addThreadStateTracks(): Promise<void> {
-    const result = await this.engine.queryV2(`
+    const result = await this.engine.query(`
       select
         utid,
         tid,
@@ -535,7 +535,7 @@ class TrackDecider {
   }
 
   async addThreadCpuSampleTracks(): Promise<void> {
-    const result = await this.engine.queryV2(`
+    const result = await this.engine.query(`
       select
         utid,
         tid,
@@ -574,7 +574,7 @@ class TrackDecider {
   }
 
   async addThreadCounterTracks(): Promise<void> {
-    const result = await this.engine.queryV2(`
+    const result = await this.engine.query(`
     select
       thread_counter_track.name as trackName,
       utid,
@@ -625,7 +625,7 @@ class TrackDecider {
   }
 
   async addProcessAsyncSliceTracks(): Promise<void> {
-    const result = await this.engine.queryV2(`
+    const result = await this.engine.query(`
         select
           process_track.upid as upid,
           process_track.name as trackName,
@@ -660,7 +660,7 @@ class TrackDecider {
       const uuid = this.getUuid(0, upid);
 
       // TODO(hjd): 1+N queries are bad in the track_decider
-      const depthResult = await this.engine.queryV2(`
+      const depthResult = await this.engine.query(`
       SELECT IFNULL(MAX(layout_depth), 0) as depth
       FROM experimental_slice_layout('${rawTrackIds}');
     `);
@@ -684,7 +684,7 @@ class TrackDecider {
   }
 
   async addActualFramesTracks(): Promise<void> {
-    const result = await this.engine.queryV2(`
+    const result = await this.engine.query(`
         select
           upid,
           trackName,
@@ -722,7 +722,7 @@ class TrackDecider {
       const uuid = this.getUuid(0, upid);
 
       // TODO(hjd): 1+N queries are bad in the track_decider
-      const depthResult = await this.engine.queryV2(`
+      const depthResult = await this.engine.query(`
       SELECT IFNULL(MAX(layout_depth), 0) as depth
       FROM experimental_slice_layout('${rawTrackIds}');
     `);
@@ -746,7 +746,7 @@ class TrackDecider {
   }
 
   async addExpectedFramesTracks(): Promise<void> {
-    const result = await this.engine.queryV2(`
+    const result = await this.engine.query(`
         select
           upid,
           trackName,
@@ -785,7 +785,7 @@ class TrackDecider {
       const uuid = this.getUuid(0, upid);
 
       // TODO(hjd): 1+N queries are bad in the track_decider
-      const depthResult = await this.engine.queryV2(`
+      const depthResult = await this.engine.query(`
       SELECT IFNULL(MAX(layout_depth), 0) as depth
       FROM experimental_slice_layout('${rawTrackIds}');
     `);
@@ -809,7 +809,7 @@ class TrackDecider {
   }
 
   async addThreadSliceTracks(): Promise<void> {
-    const result = await this.engine.queryV2(`
+    const result = await this.engine.query(`
         select
           thread_track.utid as utid,
           thread_track.id as trackId,
@@ -869,7 +869,7 @@ class TrackDecider {
   }
 
   async addProcessCounterTracks(): Promise<void> {
-    const result = await this.engine.queryV2(`
+    const result = await this.engine.query(`
     select
       process_counter_track.id as trackId,
       process_counter_track.name as trackName,
@@ -919,7 +919,7 @@ class TrackDecider {
   }
 
   async addProcessHeapProfileTracks(): Promise<void> {
-    const result = await this.engine.queryV2(`
+    const result = await this.engine.query(`
     select distinct(upid) from heap_profile_allocation
     union
     select distinct(upid) from heap_graph_object
@@ -970,7 +970,7 @@ class TrackDecider {
     //  total cpu time *for the whole parent process*
     //  upid
     //  utid
-    const result = await this.engine.queryV2(`
+    const result = await this.engine.query(`
     select
       the_tracks.upid,
       the_tracks.utid,

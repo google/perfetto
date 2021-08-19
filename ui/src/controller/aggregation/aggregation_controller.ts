@@ -118,7 +118,7 @@ export abstract class AggregationController extends Controller<'main'> {
       sorting = `${pref.sorting.column} ${pref.sorting.direction}`;
     }
     const query = `select ${colIds} from ${this.kind} order by ${sorting}`;
-    const result = await this.args.engine.queryV2(query);
+    const result = await this.args.engine.query(query);
 
     const numRows = result.numRows();
     const columns = defs.map(def => this.columnFromColumnDef(def, numRows));
@@ -157,7 +157,7 @@ export abstract class AggregationController extends Controller<'main'> {
 
   async getSum(def: ColumnDef): Promise<string> {
     if (!def.sum) return '';
-    const result = await this.args.engine.queryV2(
+    const result = await this.args.engine.query(
         `select ifnull(sum(${def.columnId}), 0) as s from ${this.kind}`);
     let sum = result.firstRow({s: NUM}).s;
     if (def.kind === 'TIMESTAMP_NS') {
