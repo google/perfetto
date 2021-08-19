@@ -19,12 +19,10 @@ Also streams stdout/err onto the firebase realtime DB.
 
 import fcntl
 import logging
-import json
 import os
 import queue
 import signal
 import socket
-import shutil
 import subprocess
 import sys
 import threading
@@ -45,10 +43,18 @@ def read_nonblock(fd):
   res = ''
   while True:
     try:
-      buf = os.read(fd.fileno(), 1024)
+      buf = os.read(fd.fileno(), 8192)
       if not buf:
         break
-      res += buf.decode()
+      # There are two reasons for the errors='ignore' here:
+      # 1: By reading the pipe in chunks of N bytes, we can end up truncating
+      #    a valid multi-byte character and cause an "unexpected end of data".
+      #    This means that we will skip valid unicode chars if they happen to
+      #    span across two read() chunks.
+      # 2: The job output might just emit some invalid unicode in stdout. We
+      #    don't want to crash when that happens.
+      # See b/194053229 for more context.
+      res += buf.decode('utf-8', errors='ignore')
     except OSError:
       break
   return res
