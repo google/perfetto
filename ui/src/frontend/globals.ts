@@ -28,6 +28,7 @@ import {fromNs, toNs} from '../common/time';
 import {Analytics, initAnalytics} from './analytics';
 import {FrontendLocalState} from './frontend_local_state';
 import {RafScheduler} from './raf_scheduler';
+import {Router} from './router';
 import {ServiceWorkerController} from './service_worker_controller';
 
 type Dispatch = (action: DeferredAction) => void;
@@ -182,6 +183,7 @@ class Globals {
   private _metricResult?: MetricResult = undefined;
   private _hasFtrace?: boolean = undefined;
   private _jobStatus?: Map<ConversionJobName, ConversionJobStatus> = undefined;
+  private _router?: Router = undefined;
 
   // TODO(hjd): Remove once we no longer need to update UUID on redraw.
   private _publishRedraw?: () => void = undefined;
@@ -200,8 +202,9 @@ class Globals {
     count: new Uint8Array(0),
   };
 
-  initialize(dispatch: Dispatch) {
+  initialize(dispatch: Dispatch, router: Router) {
     this._dispatch = dispatch;
+    this._router = router;
     this._state = createEmptyState();
     this._frontendLocalState = new FrontendLocalState();
     this._rafScheduler = new RafScheduler();
@@ -224,6 +227,10 @@ class Globals {
     this._threadStateDetails = {};
     this._heapProfileDetails = {};
     this._cpuProfileDetails = {};
+  }
+
+  get router(): Router {
+    return assertExists(this._router);
   }
 
   get publishRedraw(): () => void {

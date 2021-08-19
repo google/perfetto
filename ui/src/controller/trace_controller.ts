@@ -35,6 +35,7 @@ import {
   publishOverviewData,
   publishThreads
 } from '../frontend/publish';
+import {Router} from '../frontend/router';
 
 import {
   CounterAggregationController
@@ -318,6 +319,9 @@ export class TraceController extends Controller<States> {
       await this.engine.restoreInitialTables();
     }
 
+    // traceUuid will be '' if the trace is not cacheable (URL or RPC).
+    const traceUuid = await this.cacheCurrentTrace();
+
     const traceTime = await this.engine.getTraceTimeBounds();
     let startSec = traceTime.start;
     let endSec = traceTime.end;
@@ -328,8 +332,8 @@ export class TraceController extends Controller<States> {
       endSec,
     };
     const actions: DeferredAction[] = [
-      Actions.setTraceTime(traceTimeState),
-      Actions.navigate({route: '/viewer'}),
+      Actions.setTraceUuid({traceUuid}),
+      Actions.setTraceTime(traceTimeState)
     ];
 
     let visibleStartSec = startSec;
@@ -354,6 +358,7 @@ export class TraceController extends Controller<States> {
     }));
 
     globals.dispatchMultiple(actions);
+    Router.navigate(`#!/viewer?trace_id=${traceUuid}`);
 
     // Make sure the helper views are available before we start adding tracks.
     await this.initialiseHelperViews();
@@ -386,7 +391,6 @@ export class TraceController extends Controller<States> {
       publishHasFtrace(hasFtrace);
     }
 
-    await this.cacheCurrentTrace();
     globals.dispatch(Actions.sortThreadTracks({}));
     await this.selectFirstHeapProfile();
 
@@ -526,7 +530,7 @@ export class TraceController extends Controller<States> {
     publishOverviewData(slicesData);
   }
 
-  private async cacheCurrentTrace() {
+  private async cacheCurrentTrace(): Promise<string> {
     const engine = assertExists(this.engine);
     const result = await engine.queryV2(`select str_value as uuid from metadata
                   where name = 'trace_uuid'`);
@@ -534,9 +538,15 @@ export class TraceController extends Controller<States> {
       throw new Error('metadata.trace_uuid could not be found.');
     }
     const traceUuid = result.firstRow({uuid: STR}).uuid;
-    const engineConfig = assertExists(Object.values(globals.state.engines)[0]);
-    cacheTrace(engineConfig.source, traceUuid);
-    globals.dispatch(Actions.setTraceUuid({traceUuid}));
+    const engineConfig = assertExists(globals.state.engines[engine.id]);
+    if (!cacheTrace(engineConfig.source, traceUuid)) {
+      // If the trace is not cacheable (has been opened from URL or RPC) don't
+      // append a ?trace_id to the URL. Doing so would cause an error if the
+      // tab is discarded or the user hits the reload button because the trace
+      // is not in the cache.
+      return '';
+    }
+    return traceUuid;
   }
 
   async initialiseHelperViews() {

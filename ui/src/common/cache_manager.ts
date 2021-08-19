@@ -19,14 +19,13 @@
  * long time) or when the user accidentally hits reload.
  */
 import {assertExists} from '../base/logging';
-
 import {TraceArrayBufferSource, TraceSource} from './state';
 
 const TRACE_CACHE_NAME = 'cached_traces';
 const TRACE_CACHE_SIZE = 10;
 
 export async function cacheTrace(
-    traceSource: TraceSource, traceUuid: string): Promise<void> {
+    traceSource: TraceSource, traceUuid: string): Promise<boolean> {
   let trace, title = '', fileName = '', url = '', contentLength = 0;
   switch (traceSource.type) {
     case 'ARRAY_BUFFER':
@@ -42,7 +41,7 @@ export async function cacheTrace(
       contentLength = traceSource.file.size;
       break;
     default:
-      return;
+      return false;
   }
   assertExists(trace);
 
@@ -63,6 +62,7 @@ export async function cacheTrace(
   await deleteStaleEntries(traceCache);
   await traceCache.put(
       `/_${TRACE_CACHE_NAME}/${traceUuid}`, new Response(trace, {headers}));
+  return true;
 }
 
 export async function tryGetTrace(traceUuid: string):
@@ -78,6 +78,7 @@ export async function tryGetTrace(traceUuid: string):
     title: response.headers.get('x-trace-title') || '',
     fileName: response.headers.get('x-trace-filename') || undefined,
     url: response.headers.get('x-trace-url') || undefined,
+    uuid: traceUuid,
   };
 }
 
