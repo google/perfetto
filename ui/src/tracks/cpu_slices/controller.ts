@@ -29,7 +29,7 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
   private maxDurNs = 0;
 
   async onSetup() {
-    await this.queryV2(`
+    await this.query(`
       create view ${this.tableName('sched')} as
       select
         ts,
@@ -40,7 +40,7 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
       where cpu = ${this.config.cpu} and utid != 0
     `);
 
-    const queryRes = await this.queryV2(`
+    const queryRes = await this.query(`
       select ifnull(max(dur), 0) as maxDur, count(1) as rowCount
       from ${this.tableName('sched')}
     `);
@@ -51,7 +51,7 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
     if (bucketNs === undefined) {
       return;
     }
-    await this.queryV2(`
+    await this.query(`
       create table ${this.tableName('sched_cached')} as
       select
         (ts + ${bucketNs / 2}) / ${bucketNs} * ${bucketNs} as cached_tsq,
@@ -90,7 +90,7 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
         isCached ? this.tableName('sched_cached') : this.tableName('sched');
     const constraintColumn = isCached ? 'cached_tsq' : 'ts';
 
-    const queryRes = await this.queryV2(`
+    const queryRes = await this.query(`
       select
         ${queryTsq} as tsq,
         ts,
@@ -137,8 +137,7 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
   }
 
   async onDestroy() {
-    await this.queryV2(
-        `drop table if exists ${this.tableName('sched_cached')}`);
+    await this.query(`drop table if exists ${this.tableName('sched_cached')}`);
   }
 }
 
