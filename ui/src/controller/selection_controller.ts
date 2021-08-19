@@ -106,7 +106,7 @@ export class SelectionController extends Controller<'main'> {
       promisedDescription = Promise.resolve(new Map());
       promisedArgs = Promise.resolve(new Map());
     } else {
-      const result = await this.args.engine.queryV2(`
+      const result = await this.args.engine.query(`
         SELECT
           type as leafTable,
           arg_set_id as argSetId
@@ -127,7 +127,7 @@ export class SelectionController extends Controller<'main'> {
       promisedArgs = this.getArgs(argSetId);
     }
 
-    const promisedDetails = this.args.engine.queryV2(`
+    const promisedDetails = this.args.engine.query(`
       SELECT * FROM ${leafTable} WHERE id = ${selectedId};
     `);
 
@@ -197,7 +197,7 @@ export class SelectionController extends Controller<'main'> {
       from describe_slice
       where slice_id = ${id}
     `;
-    const result = await this.args.engine.queryV2(query);
+    const result = await this.args.engine.query(query);
     const it = result.iter({description: STR, docLink: STR});
     for (; it.valid(); it.next()) {
       const description = it.description;
@@ -217,7 +217,7 @@ export class SelectionController extends Controller<'main'> {
       FROM args
       WHERE arg_set_id = ${argId}
     `;
-    const result = await this.args.engine.queryV2(query);
+    const result = await this.args.engine.query(query);
     const it = result.iter({
       name: STR,
       value: STR,
@@ -240,7 +240,7 @@ export class SelectionController extends Controller<'main'> {
   async getDestTrackId(sliceId: string): Promise<string> {
     const trackIdQuery = `select track_id as trackId from slice
     where slice_id = ${sliceId}`;
-    const result = await this.args.engine.queryV2(trackIdQuery);
+    const result = await this.args.engine.query(trackIdQuery);
     const trackIdTp = result.firstRow({trackId: NUM}).trackId;
     // TODO(hjd): If we had a consistent mapping from TP track_id
     // UI track id for slice tracks this would be unnecessary.
@@ -269,7 +269,7 @@ export class SelectionController extends Controller<'main'> {
       from thread_state
       left join sched using(ts) where thread_state.id = ${id}
     `;
-    const result = await this.args.engine.queryV2(query);
+    const result = await this.args.engine.query(query);
 
     const selection = globals.state.currentSelection;
     if (result.numRows() > 0 && selection) {
@@ -310,7 +310,7 @@ export class SelectionController extends Controller<'main'> {
       thread_state.id as threadStateId
     FROM sched join thread_state using(ts, utid, dur, cpu)
     WHERE sched.id = ${id}`;
-    const result = await this.args.engine.queryV2(sqlQuery);
+    const result = await this.args.engine.query(sqlQuery);
     // Check selection is still the same on completion of query.
     const selection = globals.state.currentSelection;
     if (result.numRows() > 0 && selection) {
@@ -352,7 +352,7 @@ export class SelectionController extends Controller<'main'> {
   }
 
   async counterDetails(ts: number, rightTs: number, id: number) {
-    const counter = await this.args.engine.queryV2(
+    const counter = await this.args.engine.query(
         `SELECT value, track_id as trackId FROM counter WHERE id = ${id}`);
     const row = counter.iter({
       value: NUM,
@@ -362,7 +362,7 @@ export class SelectionController extends Controller<'main'> {
     const trackId = row.trackId;
     // Finding previous value. If there isn't previous one, it will return 0 for
     // ts and value.
-    const previous = await this.args.engine.queryV2(`SELECT
+    const previous = await this.args.engine.query(`SELECT
           MAX(ts),
           IFNULL(value, 0) as value
         FROM counter WHERE ts < ${ts} and track_id = ${trackId}`);
@@ -377,9 +377,9 @@ export class SelectionController extends Controller<'main'> {
 
   async schedulingDetails(ts: number, utid: number|Long) {
     let event = 'sched_waking';
-    const waking = await this.args.engine.queryV2(
+    const waking = await this.args.engine.query(
         `select * from instants where name = 'sched_waking' limit 1`);
-    const wakeup = await this.args.engine.queryV2(
+    const wakeup = await this.args.engine.query(
         `select * from instants where name = 'sched_wakeup' limit 1`);
     if (waking.numRows() === 0) {
       if (wakeup.numRows() === 0) return undefined;
@@ -390,7 +390,7 @@ export class SelectionController extends Controller<'main'> {
     // Find the ts of the first sched_wakeup before the current slice.
     const queryWakeupTs = `select ts from instants where name = '${event}'
     and ref = ${utid} and ts < ${ts} order by ts desc limit 1`;
-    const wakeResult = await this.args.engine.queryV2(queryWakeupTs);
+    const wakeResult = await this.args.engine.query(queryWakeupTs);
     if (wakeResult.numRows() === 0) {
       return undefined;
     }
@@ -399,7 +399,7 @@ export class SelectionController extends Controller<'main'> {
     // Find the previous sched slice for the current utid.
     const queryPrevSched = `select ts from sched where utid = ${utid}
     and ts < ${ts} order by ts desc limit 1`;
-    const prevSchedResult = await this.args.engine.queryV2(queryPrevSched);
+    const prevSchedResult = await this.args.engine.query(queryPrevSched);
 
     // If this is the first sched slice for this utid or if the wakeup found
     // was after the previous slice then we know the wakeup was for this slice.
@@ -412,7 +412,7 @@ export class SelectionController extends Controller<'main'> {
     const queryWaker = `select utid, cpu from sched where utid =
     (select utid from raw where name = '${event}' and ts = ${wakeupTs})
     and ts < ${wakeupTs} and ts + dur >= ${wakeupTs};`;
-    const wakerResult = await this.args.engine.queryV2(queryWaker);
+    const wakerResult = await this.args.engine.query(queryWaker);
     if (wakerResult.numRows() === 0) {
       return undefined;
     }
