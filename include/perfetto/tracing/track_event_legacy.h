@@ -1257,7 +1257,7 @@ class PERFETTO_EXPORT TrackEventLegacy {
             "Enabled flag pointers are not supported for dynamic trace "    \
             "categories.");                                                 \
       },                                                                    \
-      PERFETTO_TRACK_EVENT_NAMESPACE::internal::kConstExprCategoryRegistry  \
+      PERFETTO_TRACK_EVENT_NAMESPACE::internal::kCategoryRegistry           \
           .GetCategoryState(                                                \
               ::PERFETTO_TRACK_EVENT_NAMESPACE::internal::kCategoryRegistry \
                   .Find(category, /*is_dynamic=*/false)))
@@ -1265,7 +1265,7 @@ class PERFETTO_EXPORT TrackEventLegacy {
 // Given a pointer returned by TRACE_EVENT_API_GET_CATEGORY_GROUP_ENABLED,
 // yields a pointer to the name of the corresponding category group.
 #define TRACE_EVENT_API_GET_CATEGORY_GROUP_NAME(category_enabled_ptr)       \
-  ::PERFETTO_TRACK_EVENT_NAMESPACE::internal::kConstExprCategoryRegistry    \
+  ::PERFETTO_TRACK_EVENT_NAMESPACE::internal::kCategoryRegistry             \
       .GetCategory(                                                         \
           category_enabled_ptr -                                            \
           reinterpret_cast<const uint8_t*>(                                 \
