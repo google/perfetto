@@ -34,7 +34,8 @@ message ChromeTaskAnnotator {
 }
 
 message ChromeBrowserContext {
-  optional fixed64 ptr = 1;
+  reserved 1;
+  optional string id = 2;
 }
 
 message ChromeProfileDestroyer {
@@ -95,8 +96,10 @@ message RenderFrameImplDeletion {
   optional uint64 frame_tree_node_id = 4;
 }
 
+// Matches content::ShouldSwapBrowsingInstance.
 enum ShouldSwapBrowsingInstance {
-  // No BrowsingInstance swap.
+  // Was used for all "no BrowsingInstance swap" scenarios, now broken down in
+  // separate reasons.
   SHOULD_SWAP_BROWSING_INSTANCE_NO = 0;
 
   // Forced BrowsingInstance swap.
@@ -107,6 +110,26 @@ enum ShouldSwapBrowsingInstance {
 
   // Proactive BrowsingInstance swap for same-site navigation.
   SHOULD_SWAP_BROWSING_INSTANCE_YES_SAME_SITE_PROACTIVE_SWAP = 3;
+
+  SHOULD_SWAP_BROWSING_INSTANCE_NO_PROACTIVE_SWAP_DISABLED = 4;
+  SHOULD_SWAP_BROWSING_INSTANCE_NO_NOT_MAIN_FRAME = 5;
+  SHOULD_SWAP_BROWSING_INSTANCE_NO_HAS_RELATED_ACTIVE_CONTENTS = 6;
+  SHOULD_SWAP_BROWSING_INSTANCE_NO_DOES_NOT_HAVE_SITE = 7;
+  SHOULD_SWAP_BROWSING_INSTANCE_NO_SOURCE_URL_SCHEME_NOT_HTTP_OR_HTTPS = 8;
+  SHOULD_SWAP_BROWSING_INSTANCE_NO_DESTINATION_URL_SCHEME_NOT_HTTP_OR_HTTPS = 9;
+  SHOULD_SWAP_BROWSING_INSTANCE_NO_SAME_SITE_NAVIGATION = 10;
+  SHOULD_SWAP_BROWSING_INSTANCE_NO_RELOADING_ERROR_PAGE = 11;
+  SHOULD_SWAP_BROWSING_INSTANCE_NO_ALREADY_HAS_MATCHING_BROWSING_INSTANCE = 12;
+  SHOULD_SWAP_BROWSING_INSTANCE_NO_RENDERER_DEBUG_URL = 13;
+  SHOULD_SWAP_BROWSING_INSTANCE_NO_NOT_NEEDED_FOR_BACK_FORWARD_CACHE = 14;
+  SHOULD_SWAP_BROWSING_INSTANCE_NO_SAME_DOCUMENT_NAVIGATION = 15;
+  SHOULD_SWAP_BROWSING_INSTANCE_NO_SAME_URL_NAVIGATION = 16;
+  SHOULD_SWAP_BROWSING_INSTANCE_NO_WILL_REPLACE_ENTRY = 17;
+  SHOULD_SWAP_BROWSING_INSTANCE_NO_RELOAD = 18;
+  SHOULD_SWAP_BROWSING_INSTANCE_NO_GUEST = 19;
+  SHOULD_SWAP_BROWSING_INSTANCE_NO_HAS_NOT_COMMITTED_ANY_NAVIGATION = 20;
+  SHOULD_SWAP_BROWSING_INSTANCE_NO_UNLOAD_HANDLER_EXISTS_ON_SAME_SITE_NAVIGATION =
+      21;
 }
 
 message ShouldSwapBrowsingInstancesResult {
@@ -135,6 +158,15 @@ message ChromeHashedPerformanceMark {
   optional string mark = 4;
 }
 
+message ChromeWebAppBadNavigate {
+  optional bool is_kiosk = 1;
+  optional bool has_hosted_app_controller = 2;
+  optional string app_name = 3;
+  optional uint32 system_app_type = 4;
+  optional bool web_app_provider_registry_ready = 5;
+  optional bool system_web_app_manager_synchronized = 6;
+}
+
 // These IDs are generated at compile time and differ for each chrome version.
 // IDs are stable on for a given chrome version but are changing when resources
 // are added or removed to chrome.
@@ -142,9 +174,53 @@ message ResourceBundle {
   optional uint32 resource_id = 1;
 }
 
+// Information about RenderProcessHost.
+message RenderProcessHost {
+  // Unique Id to identify the RenderProcessHost. This is the browser-side,
+  // persistent id for this RenderProcessHost that stays constant even across OS
+  // layer processes managed by this RenderProcessHost.
+  optional uint32 id = 1;
+  // See ProcessLock::ToString().
+  optional string process_lock = 2;
+  // The PID of the child process.
+  optional int32 child_process_id = 3;
+
+  // Details about the associated browser context.
+  optional ChromeBrowserContext browser_context = 4;
+}
+
+message RenderProcessHostListener {
+  // Routing ID of the listener to the RenderProcessHost, recorded when a new ID
+  // is added or when an ID is removed.
+  optional uint32 routing_id = 1;
+}
+
+message RenderProcessHostCleanup {
+  // Number of IPC listeners registered to the host when Cleanup() was called.
+  optional uint32 listener_count = 1;
+  // Number of "keep alive" references active in the RenderProcessHost, recorded
+  // when Cleanup() was called.
+  optional uint32 keep_alive_ref_count = 2;
+}
+
+message ChildProcessLauncherPriority {
+  // True if the new priority set to background.
+  optional bool is_backgrounded = 1;
+  // True if the renderer proecss has pending views.
+  optional bool has_pending_views = 2;
+
+  // Importance of the child process in Android.
+  enum Importance {
+    IMPORTANCE_NORMAL = 1;
+    IMPORTANCE_MODERATE = 2;
+    IMPORTANCE_IMPORTANT = 3;
+  }
+  optional Importance importance = 3;
+}
+
 message ChromeTrackEvent {
   // Extension range for Chrome: 1000-1999
-  // Next ID: 1017
+  // Next ID: 1018
   extend TrackEvent {
     optional ChromeAppState chrome_app_state = 1000;
 
@@ -173,8 +249,15 @@ message ChromeTrackEvent {
 
     optional ChromeHashedPerformanceMark chrome_hashed_performance_mark = 1011;
 
-    // reserved 1012 to 1015.
+    optional RenderProcessHost render_process_host = 1012;
+    optional RenderProcessHostCleanup render_process_host_cleanup = 1013;
+    optional RenderProcessHostListener render_process_host_listener_changed =
+        1014;
+    optional ChildProcessLauncherPriority child_process_launcher_priority =
+        1015;
 
     optional ResourceBundle resource_bundle = 1016;
+
+    optional ChromeWebAppBadNavigate chrome_web_app_bad_navigate = 1017;
   }
 }
