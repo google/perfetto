@@ -169,8 +169,9 @@ std::string SerializeMessage(size_t indent, const ProtoFile::Message& message) {
     output += SerializeField(indent, field, true);
   }
 
-  if (message.deleted_enums.size() || message.deleted_fields.size() ||
-      message.deleted_nested_messages.size() || message.deleted_oneofs.size()) {
+  if (!message.deleted_enums.empty() || !message.deleted_fields.empty() ||
+      !message.deleted_nested_messages.empty() ||
+      !message.deleted_oneofs.empty()) {
     output += DeletedComment(prefix);
     for (const auto& en : message.deleted_enums) {
       output += SerializeEnum(indent, en);
@@ -203,7 +204,8 @@ std::string ProtoFileToDotProto(const ProtoFile& proto_file) {
     output += SerializeMessage(0, message);
   }
 
-  if (proto_file.deleted_enums.size() || proto_file.deleted_messages.size()) {
+  if (!proto_file.deleted_enums.empty() ||
+      !proto_file.deleted_messages.empty()) {
     output += DeletedComment("");
 
     for (const auto& en : proto_file.deleted_enums) {
