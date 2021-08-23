@@ -82,11 +82,15 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
           ondragleave: this.ondragleave.bind(this),
           ondrop: this.ondrop.bind(this),
         },
-        m('h1',
-          {
-            title: attrs.trackState.name,
-          },
-          attrs.trackState.name),
+        m(
+            'h1',
+            {
+              title: attrs.trackState.name,
+            },
+            attrs.trackState.name,
+            ('namespace' in attrs.trackState.config) &&
+                m('span.chip', 'metric'),
+            ),
         m('.track-buttons',
           attrs.track.getTrackShellButtons(),
           m(TrackButton, {
