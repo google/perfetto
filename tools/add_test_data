@@ -40,7 +40,7 @@ set -x
 if [ -d "$1" ]; then
   DIR_NAME="$(basename $1)"
   rm -rf "/tmp/latest-test-data/$DIR_NAME"
-  cp -r "$1/" "/tmp/latest-test-data"
+  cp -r "$1" "/tmp/latest-test-data/$DIR_NAME"
 else
   cp "$1" /tmp/latest-test-data
 fi
