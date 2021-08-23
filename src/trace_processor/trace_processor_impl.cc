@@ -654,6 +654,7 @@ void SetupMetrics(TraceProcessor* tp,
   const std::vector<std::string> sanitized_extension_paths =
       SanitizeMetricMountPaths(extension_paths);
   std::vector<std::string> skip_prefixes;
+  skip_prefixes.reserve(sanitized_extension_paths.size());
   for (const auto& path : sanitized_extension_paths) {
     skip_prefixes.push_back(kMetricProtoRoot + path);
   }
