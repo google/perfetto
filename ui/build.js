@@ -75,6 +75,7 @@ const pjoin = path.join;
 
 const ROOT_DIR = path.dirname(__dirname);  // The repo root.
 const VERSION_SCRIPT = pjoin(ROOT_DIR, 'tools/write_version_header.py');
+const GEN_IMPORTS_SCRIPT = pjoin(ROOT_DIR, 'tools/gen_ui_imports');
 
 const cfg = {
   watch: false,
@@ -186,6 +187,7 @@ async function main() {
     scanDir('ui/src/chrome_extension');
     scanDir('buildtools/typefaces');
     scanDir('buildtools/catapult_trace_viewer');
+    generateImports('ui/src/tracks', 'all_tracks.ts');
     compileProtos();
     genVersion();
     transpileTsProject('ui');
@@ -302,6 +304,19 @@ function compileProtos() {
   addTask(execNode, ['pbjs', pbjsArgs]);
   const pbtsArgs = ['-p', ROOT_DIR, '-o', dstTs, dstJs];
   addTask(execNode, ['pbts', pbtsArgs]);
+}
+
+function generateImports(dir, name) {
+  // We have to use the symlink (ui/src/gen) rather than cfg.outGenDir
+  // below since we want to generate the correct relative imports. For example:
+  // ui/src/frontend/foo.ts
+  //    import '../gen/all_plugins.ts';
+  // ui/src/gen/all_plugins.ts (aka ui/out/tsc/gen/all_plugins.ts)
+  //    import '../frontend/some_plugin.ts';
+  const dstTs = pjoin(ROOT_DIR, 'ui/src/gen', name);
+  const inputDir = pjoin(ROOT_DIR, dir);
+  const args = [GEN_IMPORTS_SCRIPT, inputDir, '--out', dstTs];
+  addTask(exec, ['python3', args]);
 }
 
 // Generates a .ts source that defines the VERSION and SCM_REVISION constants.
