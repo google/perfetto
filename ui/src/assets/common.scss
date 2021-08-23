@@ -295,6 +295,14 @@ button.close {
           background-color: #ebeef9;
         }
 
+        .chip {
+          background-color: #bed6ff;
+          border-radius: 3px;
+          font-size: smaller;
+          padding: 0 0.1rem;
+          margin-left: 1ch;
+        }
+
         h1 {
             grid-area: title;
             color: hsl(213, 22%, 30%);
