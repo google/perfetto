@@ -138,12 +138,13 @@ util::Status DescriptorPool::AddNestedProtoDescriptors(
         return util::ErrStatus("Field %s is re-introduced with different type",
                                field.name().c_str());
       }
-      if (field.type() == FieldDescriptorProto::TYPE_MESSAGE &&
-          field.resolved_type_name() != existing_field->resolved_type_name()) {
+      if ((field.type() == FieldDescriptorProto::TYPE_MESSAGE ||
+           field.type() == FieldDescriptorProto::TYPE_ENUM) &&
+          field.raw_type_name() != existing_field->raw_type_name()) {
         return util::ErrStatus(
             "Field %s is re-introduced with different type %s (was %s)",
-            field.name().c_str(), field.resolved_type_name().c_str(),
-            existing_field->resolved_type_name().c_str());
+            field.name().c_str(), field.raw_type_name().c_str(),
+            existing_field->raw_type_name().c_str());
       }
     }
   }
