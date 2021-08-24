@@ -1,4 +1,4 @@
-// Copyright (C) 2021 The Android Open Source Project
+// Copyright (C) 2018 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,72 +12,95 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import * as m from 'mithril';
-
-import {NullAnalytics} from './analytics';
-import {PageAttrs} from './pages';
 import {Router} from './router';
 
-const defaultMockComponent = {
+const mockComponent = {
   view() {}
 };
 
-const recordMockComponent = {
-  view() {}
-};
+beforeEach(() => {
+  window.location.hash = '';
+});
 
-const fakeDispatch = () => {};
-const mockLogging = new NullAnalytics();
-const defaultRoute = '/';
-const routes = new Map<string, m.Component<PageAttrs>>();
-routes.set(defaultRoute, defaultMockComponent);
-routes.set('/record', recordMockComponent);
-const router = new Router(defaultRoute, routes, fakeDispatch, mockLogging);
+test('Default route must be defined', () => {
+  expect(() => new Router({'/a': mockComponent})).toThrow();
+});
+
+test('Resolves empty route to default component', () => {
+  const router = new Router({'/': mockComponent});
+  window.location.hash = '';
+  expect(router.resolve().tag).toBe(mockComponent);
+});
+
+test('Resolves subpage route to component of main page', () => {
+  const nonDefaultComponent = {view() {}};
+  const router = new Router({
+    '/': mockComponent,
+    '/a': nonDefaultComponent,
+  });
+  window.location.hash = '#!/a/subpage';
+  expect(router.resolve().tag).toBe(nonDefaultComponent);
+  expect(router.resolve().attrs.subpage).toBe('/subpage');
+});
+
+test('Pass empty subpage if not found in URL', () => {
+  const nonDefaultComponent = {view() {}};
+  const router = new Router({
+    '/': mockComponent,
+    '/a': nonDefaultComponent,
+  });
+  window.location.hash = '#!/a';
+  expect(router.resolve().tag).toBe(nonDefaultComponent);
+  expect(router.resolve().attrs.subpage).toBe('');
+});
+
+test('Args parsing', () => {
+  const url = 'http://localhost/#!/foo?p=123&s=42&url=a?b?c';
+  const args = Router.parseUrl(url).args;
+  expect(args.p).toBe('123');
+  expect(args.s).toBe('42');
+  expect(args.url).toBe('a?b?c');
+});
 
 test('empty route broken into empty components', () => {
-  const {pageName, subpageName, component} = router['resolveOrDefault']('');
-  expect(pageName).toBe(defaultRoute);
-  expect(subpageName).toBe('');
-  expect(component).toBe(defaultMockComponent);
+  const {page, subpage, args} = Router.parseFragment('');
+  expect(page).toBe('');
+  expect(subpage).toBe('');
+  expect(args).toEqual({});
 });
 
 test('invalid route broken into empty components', () => {
-  const {pageName, subpageName, component} = router['resolveOrDefault']('bla');
-  expect(pageName).toBe(defaultRoute);
-  expect(subpageName).toBe('');
-  expect(component).toBe(defaultMockComponent);
+  const {page, subpage, args} = Router.parseFragment('/bla');
+  expect(page).toBe('');
+  expect(subpage).toBe('');
+  expect(args).toEqual({});
 });
 
 test('simple route has page defined', () => {
-  const {pageName, subpageName, component} =
-      router['resolveOrDefault']('/record');
-  expect(pageName).toBe('/record');
-  expect(subpageName).toBe('');
-  expect(component).toBe(recordMockComponent);
+  const {page, subpage, args} = Router.parseFragment('#!/record');
+  expect(page).toBe('/record');
+  expect(subpage).toBe('');
+  expect(args).toEqual({});
 });
 
 test('simple route has both components defined', () => {
-  const {pageName, subpageName, component} =
-      router['resolveOrDefault']('/record/memory');
-  expect(pageName).toBe('/record');
-  expect(subpageName).toBe('/memory');
-  expect(component).toBe(recordMockComponent);
+  const {page, subpage, args} = Router.parseFragment('#!/record/memory');
+  expect(page).toBe('/record');
+  expect(subpage).toBe('/memory');
+  expect(args).toEqual({});
 });
 
 test('route broken at first slash', () => {
-  const {pageName, subpageName, component} =
-      router['resolveOrDefault']('/record/memory/otherstuff');
-  expect(pageName).toBe('/record');
-  expect(subpageName).toBe('/memory/otherstuff');
-  expect(component).toBe(recordMockComponent);
+  const {page, subpage, args} = Router.parseFragment('#!/record/memory/stuff');
+  expect(page).toBe('/record');
+  expect(subpage).toBe('/memory/stuff');
+  expect(args).toEqual({});
 });
 
 test('parameters separated from route', () => {
-  const {pageName, subpageName, component, urlParams} =
-      router['resolveOrDefault'](
-          '/record/memory?url=http://localhost:1234/aaaa');
-  expect(pageName).toBe('/record');
-  expect(subpageName).toBe('/memory');
-  expect(urlParams).toBe('?url=http://localhost:1234/aaaa');
-  expect(component).toBe(recordMockComponent);
+  const {page, subpage, args} =
+      Router.parseFragment('#!/record/memory?url=http://localhost:1234/aaaa');
+  expect(page).toBe('/record');
+  expect(subpage).toBe('/memory');
+  expect(args).toEqual({url: 'http://localhost:1234/aaaa'});
 });

@@ -31,6 +31,7 @@ import {
   openFileWithLegacyTraceViewer,
 } from './legacy_trace_viewer';
 import {showModal} from './modal';
+import {Router} from './router';
 import {isDownloadable, isShareable} from './trace_attrs';
 import {
   convertToJson,
@@ -520,32 +521,32 @@ function openInOldUIWithSizeCheck(trace: Blob) {
 
 function navigateRecord(e: Event) {
   e.preventDefault();
-  globals.dispatch(Actions.navigate({route: '/record'}));
+  Router.navigate('#!/record');
 }
 
 function navigateAnalyze(e: Event) {
   e.preventDefault();
-  globals.dispatch(Actions.navigate({route: '/query'}));
+  Router.navigate('#!/query');
 }
 
 function navigateFlags(e: Event) {
   e.preventDefault();
-  globals.dispatch(Actions.navigate({route: '/flags'}));
+  Router.navigate('#!/flags');
 }
 
 function navigateMetrics(e: Event) {
   e.preventDefault();
-  globals.dispatch(Actions.navigate({route: '/metrics'}));
+  Router.navigate('#!/metrics');
 }
 
 function navigateInfo(e: Event) {
   e.preventDefault();
-  globals.dispatch(Actions.navigate({route: '/info'}));
+  Router.navigate('#!/info');
 }
 
 function navigateViewer(e: Event) {
   e.preventDefault();
-  globals.dispatch(Actions.navigate({route: '/viewer'}));
+  Router.navigate('#!/viewer');
 }
 
 function shareTrace(e: Event) {
