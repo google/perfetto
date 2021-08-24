@@ -94,10 +94,18 @@ export interface TraceFileSource {
 
 export interface TraceArrayBufferSource {
   type: 'ARRAY_BUFFER';
+  buffer: ArrayBuffer;
   title: string;
   url?: string;
   fileName?: string;
-  buffer: ArrayBuffer;
+
+  // |uuid| is set only when loading from the cache via ?trace_id=123. When set,
+  // this matches global.state.traceUuid, with the exception of the following
+  // time window: When a trace T1 is loaded and the user loads another trace T2,
+  // this |uuid| will be == T2, but the globals.state.traceUuid will be
+  // temporarily == T1 until T2 has been loaded (consistently to what happens
+  // with all other state fields).
+  uuid?: string;
 }
 
 export interface TraceUrlSource {
@@ -296,7 +304,6 @@ export interface State {
   // tslint:disable-next-line:no-any
   [key: string]: any;
   version: number;
-  route?: string;
   nextId: number;
   nextNoteId: number;
   nextAreaId: number;
