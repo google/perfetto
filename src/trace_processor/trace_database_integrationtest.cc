@@ -236,16 +236,28 @@ TEST_F(TraceProcessorIntegrationTest, SerializeMetricDescriptors) {
   ASSERT_EQ(trace_metrics_count, 1);
 }
 
-TEST_F(TraceProcessorIntegrationTest, ComputeMetricsFormatted) {
+TEST_F(TraceProcessorIntegrationTest, ComputeMetricsFormattedExtension) {
   std::string metric_output;
   util::Status status = Processor()->ComputeMetricText(
       std::vector<std::string>{"test_chrome_metric"},
       TraceProcessor::MetricResultFormat::kProtoText, &metric_output);
   ASSERT_TRUE(status.ok());
+  // Extension fields are output as [fully.qualified.name].
   ASSERT_EQ(metric_output,
-            "test_chrome_metric: {\n"
+            "[perfetto.protos.test_chrome_metric]: {\n"
             "  test_value: 1\n"
             "}");
+}
+
+TEST_F(TraceProcessorIntegrationTest, ComputeMetricsFormattedNoExtension) {
+  std::string metric_output;
+  util::Status status = Processor()->ComputeMetricText(
+      std::vector<std::string>{"trace_metadata"},
+      TraceProcessor::MetricResultFormat::kProtoText, &metric_output);
+  ASSERT_TRUE(status.ok());
+  // Check that metric result starts with trace_metadata field. Since this is
+  // not an extension field, the field name is not fully qualified.
+  ASSERT_TRUE(metric_output.rfind("trace_metadata: {") == 0);
 }
 
 // TODO(hjd): Add trace to test_data.
