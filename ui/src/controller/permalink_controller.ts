@@ -26,6 +26,7 @@ import {
   toSha256
 } from '../common/upload_utils';
 import {publishConversionJobStatusUpdate} from '../frontend/publish';
+import {Router} from '../frontend/router';
 
 import {Controller} from './controller';
 import {globals} from './globals';
@@ -82,7 +83,7 @@ export class PermalinkController extends Controller<'main'> {
             }
             globals.dispatch(
                 Actions.setRecordConfig({config: validConfig.config}));
-            globals.dispatch(Actions.navigate({route: '/record'}));
+            Router.navigate('#!/record');
             return;
           }
           globals.dispatch(Actions.setState({newState: stateOrConfig}));

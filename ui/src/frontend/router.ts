@@ -13,125 +13,195 @@
 // limitations under the License.
 
 import * as m from 'mithril';
-
-import {assertExists} from '../base/logging';
-import {Actions, DeferredAction} from '../common/actions';
-
-import {Analytics} from './analytics';
+import {assertExists, assertTrue} from '../base/logging';
 import {PageAttrs} from './pages';
 
 export const ROUTE_PREFIX = '#!';
+const DEFAULT_ROUTE = '/';
 
+/*
+ * A broken down representation of a route.
+ * For instance: #!/record/gpu?trace_id=a0b1c2
+ * becomes: {page: '/record', subpage: '/gpu', args: {trace_id: 'a0b1c2'}}
+ */
+export interface Route {
+  page: string;
+  subpage: string;
+  args: RouteArgs;
+}
+
+/*
+ * The set of args that can be set on the route via #!/page?a=1&b2.
+ * Route args are orthogonal to pages (i.e. should NOT make sense only in a
+ * only within a specific page, use /page/subpages for that).
+ * Args are !== the querystring (location.search) which is sent to the
+ * server. The route args are NOT sent to the HTTP server.
+ * Given this URL:
+ * http://host/?foo=1&bar=2#!/page/subpage?trace_id=a0b1c2&baz=3.
+ *
+ * location.search = 'foo=1&bar=2'.
+ *   This is seen by the HTTP server. We really don't use querystrings as the
+ *   perfetto UI is client only.
+ *
+ * location.hash = '#!/page/subpage?trace_id=a0b1c2'.
+ *   This is client-only. All the routing logic in the Perfetto UI uses only
+ *   this.
+ */
+export interface RouteArgs {
+  // The trace_id is special and is persisted across navigations.
+  trace_id?: string;
+
+  // These are transient and are really set only on startup.
+  openFromAndroidBugTool?: string;
+  s?: string;    // For permalinks.
+  p?: string;    // DEPRECATED: for #!/record?p=cpu subpages (b/191255021).
+  url?: string;  // For fetching traces from Cloud Storage.
+}
+
+export interface RoutesMap {
+  [key: string]: m.Component<PageAttrs>;
+}
+
+/*
+ * This router does two things:
+ * 1) Maps fragment paths (#!/page/subpage) to Mithril components.
+ * The route map is passed to the ctor and is later used when calling the
+ * resolve() method.
+ *
+ * 2) Handles the (optional) args, e.g. #!/page?arg=1&arg2=2.
+ * Route args are carry information that is orthogonal to the page (e.g. the
+ * trace id).
+ * trace_id has some special treatment: once a URL has a trace_id argument,
+ * it gets automatically appended to further navigations that don't have one.
+ * For instance if the current url is #!/viewer?trace_id=1234 and a later
+ * action (either user-initiated or code-initited) navigates to #!/info, the
+ * rotuer will automatically replace the history entry with
+ * #!/info?trace_id=1234.
+ * This is to keep propagating the trace id across page changes, for handling
+ * tab discards (b/175041881).
+ *
+ * This class does NOT deal with the "load a trace when the url contains ?url=
+ * or ?trace_id=". That logic lives in trace_url_handler.ts, which is triggered
+ * by Router.onRouteChanged().
+ */
 export class Router {
-  constructor(
-      private defaultRoute: string,
-      private routes: Map<string, m.Component<PageAttrs>>,
-      private dispatch: (a: DeferredAction) => void,
-      private logging: Analytics) {
-    if (!routes.has(defaultRoute)) {
-      throw Error('routes must define a component for defaultRoute.');
+  private readonly recentChanges: number[] = [];
+  private routes: RoutesMap;
+
+  // frontend/index.ts calls maybeOpenTraceFromRoute() + redraw here.
+  // This event is decoupled for testing and to avoid circular deps.
+  onRouteChanged: (route: Route) => (void) = () => {};
+
+  constructor(routes: RoutesMap) {
+    assertExists(routes[DEFAULT_ROUTE]);
+    this.routes = routes;
+    window.onhashchange = (e: HashChangeEvent) => this.onHashChange(e);
+  }
+
+  private onHashChange(e: HashChangeEvent) {
+    this.crashIfLivelock();
+
+    const oldRoute = Router.parseUrl(e.oldURL);
+    const newRoute = Router.parseUrl(e.newURL);
+
+    if (newRoute.args.trace_id === undefined && oldRoute.args.trace_id) {
+      // Propagate the trace_id across navigations. When a trace is loaded, the
+      // URL becomes #!/viewer?trace_id=a0b1c2. The ?trace_id arg allows
+      // reopening the trace from cache in the case of a reload or discard.
+      // When using the UI we can hit "bare" links (e.g. just '#!/info') which
+      // don't have the trace_uuid:
+      // - When clicking on an <a> element from the sidebar.
+      // - When the code calls Router.navigate().
+      // - When the user pastes a URL from docs page.
+      // In all these cases we want to keep propagating the trace_id argument.
+      // We do so by re-setting the trace_id argument and doing a
+      // location.replace which overwrites the history entry (note
+      // location.replace is NOT just a String.replace operation).
+      newRoute.args.trace_id = oldRoute.args.trace_id;
     }
-    window.onhashchange = () => this.navigateToCurrentHash();
+
+    const args = m.buildQueryString(newRoute.args);
+    let normalizedFragment = `#!${newRoute.page}${newRoute.subpage}`;
+    normalizedFragment += args.length > 0 ? '?' + args : '';
+    if (!e.newURL.endsWith(normalizedFragment)) {
+      location.replace(normalizedFragment);
+      return;
+    }
+
+    this.onRouteChanged(newRoute);
   }
 
   /**
-   * Returns the full fragment from |window.location.hash|,
-   * including the route and parameters.
+   * Returns the component for the current route in the URL.
+   * If no route matches the URL, returns a component corresponding to
+   * |this.defaultRoute|.
    */
-  getFullRouteFromHash(): string {
+  resolve(): m.Vnode<PageAttrs> {
+    const route = Router.parseFragment(location.hash);
+    let component = this.routes[route.page];
+    if (component === undefined) {
+      component = assertExists(this.routes[DEFAULT_ROUTE]);
+    }
+    return m(component, {subpage: route.subpage} as PageAttrs);
+  }
+
+  static navigate(newHash: string) {
+    assertTrue(newHash.startsWith(ROUTE_PREFIX));
+    window.location.hash = newHash;
+  }
+
+  /*
+   * Breaks down a fragment into a Route object.
+   * Sample input:
+   * '#!/record/gpu?trace_id=629329-18bba4'
+   * Sample output:
+   * {page: '/record', subpage: '/gpu', args: {trace_id: '629329-18bba4'}}
+   */
+  static parseFragment(hash: string): Route {
     const prefixLength = ROUTE_PREFIX.length;
-    const hash = window.location.hash;
-
-    // Do not try to parse route if prefix doesn't match.
-    if (hash.substring(0, prefixLength) !== ROUTE_PREFIX) return '';
-
-    return hash.substring(prefixLength);
-  }
-
-  /**
-   * Sets |route| on |window.location.hash|. If |route| if not defined in
-   * |this.routes|, dispatches a navigation to |this.defaultRoute|.
-   *
-   * The route will look like:
-   * "#!/viewer?trace_id=65b6deba-6cf5-7fb4-c24b-96f3e001996e"
-   */
-  setRouteOnHash(route: string, argsString = '') {
-    history.pushState(undefined, '', ROUTE_PREFIX + route + argsString);
-    this.logging.updatePath(route);
-
-    if (!this.resolveOrDefault(route).routeFound) {
-      console.info(
-          `Route ${route} not known redirecting to ${this.defaultRoute}.`);
-      this.dispatch(Actions.navigate({route: this.defaultRoute}));
-    }
-  }
-
-  /**
-   * Dispatches navigation action to |this.getRouteFromHash()| if that is
-   * defined in |this.routes|, otherwise to |this.defaultRoute|.
-   */
-  navigateToCurrentHash() {
-    const {pageName, subpageName, urlParams} =
-        this.resolveOrDefault(this.getFullRouteFromHash());
-    this.dispatch(
-        Actions.navigate({route: pageName + subpageName + urlParams}));
-    // TODO(dproy): Handle case when new route has a permalink.
-  }
-
-  /**
-   * Returns the component for given |route|. If |route| is not defined, returns
-   * component of |this.defaultRoute|.
-   */
-  resolve(route?: string): m.Vnode<PageAttrs> {
-    const {subpageName, component} = this.resolveOrDefault(route || '');
-    return m(component, {subpage: subpageName} as PageAttrs);
-  }
-
-  /**
-   * Parses a given URL and returns the main page name, the subpage section of
-   * it, the component attached to the main page and a boolean indicating
-   * if a route was found.
-   */
-  private resolveOrDefault(routeWithArgs: string) {
-    let pageName = this.defaultRoute;
-    let subpageName = '';
-    let routeFound = false;
-    let route = routeWithArgs;
-    let urlParams = '';
-
-    const paramDelimit = routeWithArgs.indexOf('?');
-    if (paramDelimit > -1) {
-      route = routeWithArgs.substring(0, paramDelimit);
-      urlParams = routeWithArgs.substring(paramDelimit);
+    let route = '';
+    if (hash.startsWith(ROUTE_PREFIX)) {
+      route = hash.substr(prefixLength).split('?')[0];
     }
 
-    const splittingPoint = route.substring(1).indexOf('/') + 1;
-    if (splittingPoint === 0) {
-      pageName = route;
-    } else {
-      pageName = route.substring(0, splittingPoint);
-      subpageName = route.substring(splittingPoint);
+    let page = route;
+    let subpage = '';
+    const splittingPoint = route.indexOf('/', 1);
+    if (splittingPoint > 0) {
+      page = route.substr(0, splittingPoint);
+      subpage = route.substr(splittingPoint);
     }
 
-    if (this.routes.has(pageName)) {
-      routeFound = true;
-    } else {
-      pageName = this.defaultRoute;
-    }
+    const argsStart = hash.indexOf('?');
+    const argsStr = argsStart < 0 ? '' : hash.substr(argsStart + 1);
+    const args = argsStr ? m.parseQueryString(hash.substr(argsStart)) : {};
 
-    return {
-      routeFound,
-      pageName,
-      subpageName,
-      urlParams,
-      component: assertExists(this.routes.get(pageName))
-    };
+    return {page, subpage, args};
   }
 
-  static param(key: string) {
-    const hash = window.location.hash;
-    const paramStart = hash.indexOf('?');
-    if (paramStart === -1) return undefined;
-    return m.parseQueryString(hash.substring(paramStart))[key];
+  /*
+   * Like parseFragment() but takes a full URL.
+   */
+  static parseUrl(url: string): Route {
+    const hashPos = url.indexOf('#');
+    const fragment = hashPos < 0 ? '' : url.substr(hashPos);
+    return Router.parseFragment(fragment);
+  }
+
+  /*
+   * Throws if EVENT_LIMIT onhashchange events occur within WINDOW_MS.
+   */
+  private crashIfLivelock() {
+    const WINDOW_MS = 1000;
+    const EVENT_LIMIT = 20;
+    const now = Date.now();
+    while (this.recentChanges.length > 0 &&
+           now - this.recentChanges[0] > WINDOW_MS) {
+      this.recentChanges.shift();
+    }
+    this.recentChanges.push(now);
+    if (this.recentChanges.length > EVENT_LIMIT) {
+      throw new Error('History rewriting livelock');
+    }
   }
 }
