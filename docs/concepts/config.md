@@ -424,10 +424,6 @@ the trigger is hit or the `trigger_timeout_ms` timeout is hit.
 
 Example config:
 ```protobuf
-# If no trigger is hit, the trace will end without having recorded any data
-# after 30s.
-trigger_timeout_ms: 30000
-
 # If the "myapp_is_slow" is hit, the trace starts recording data and will be
 # stopped after 5s.
 trigger_config {
@@ -436,6 +432,9 @@ trigger_config {
     name: "myapp_is_slow"
     stop_delay_ms: 5000
   }
+  # If no trigger is hit, the trace will end without having recorded any data
+  # after 30s.
+  trigger_timeout_ms: 30000
 }
 
 # The rest of the config is as usual.
