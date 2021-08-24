@@ -1140,6 +1140,7 @@ util::Status RunMetrics(const CommandLineOptions& options,
   // SetupMetrics. This will be removed when we switch the output formatter to
   // use internal DescriptorPool.
   std::vector<std::string> skip_prefixes;
+  skip_prefixes.reserve(metric_extensions.size());
   for (const auto& ext : metric_extensions) {
     skip_prefixes.push_back(kMetricProtoRoot + ext.virtual_path());
   }
