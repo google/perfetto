@@ -88,6 +88,8 @@ source_set("storage_minimal") {
     "importers/proto/chrome_system_probes_module.h",
     "importers/proto/chrome_system_probes_parser.cc",
     "importers/proto/chrome_system_probes_parser.h",
+    "importers/proto/flamegraph_construction_algorithms.cc",
+    "importers/proto/flamegraph_construction_algorithms.h",
     "importers/proto/heap_profile_tracker.cc",
     "importers/proto/heap_profile_tracker.h",
     "importers/proto/memory_tracker_snapshot_module.cc",

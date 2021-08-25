@@ -18,6 +18,7 @@
 
 #include "perfetto/ext/base/string_utils.h"
 
+#include "src/trace_processor/importers/proto/flamegraph_construction_algorithms.h"
 #include "src/trace_processor/importers/proto/heap_graph_tracker.h"
 #include "src/trace_processor/importers/proto/heap_profile_tracker.h"
 #include "src/trace_processor/types/trace_processor_context.h"
