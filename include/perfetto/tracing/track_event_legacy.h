@@ -450,46 +450,46 @@ class PERFETTO_EXPORT TrackEventLegacy {
 // The main entrypoint for writing unscoped legacy events.  This macro
 // determines the right track to write the event on based on |flags| and
 // |thread_id|.
-#define PERFETTO_INTERNAL_LEGACY_EVENT(phase, category, name, flags,         \
-                                       thread_id, ...)                       \
-  [&]() {                                                                    \
-    constexpr auto& kDefaultTrack =                                          \
-        ::perfetto::internal::TrackEventInternal::kDefaultTrack;             \
-    /* First check the scope for instant events. */                          \
-    if ((phase) == TRACE_EVENT_PHASE_INSTANT) {                              \
-      /* Note: Avoids the need to set LegacyEvent::instant_event_scope. */   \
-      auto scope = (flags)&TRACE_EVENT_FLAG_SCOPE_MASK;                      \
-      switch (scope) {                                                       \
-        case TRACE_EVENT_SCOPE_GLOBAL:                                       \
-          PERFETTO_INTERNAL_LEGACY_EVENT_ON_TRACK(                           \
-              phase, category, name, ::perfetto::Track::Global(0),           \
-              ##__VA_ARGS__);                                                \
-          return;                                                            \
-        case TRACE_EVENT_SCOPE_PROCESS:                                      \
-          PERFETTO_INTERNAL_LEGACY_EVENT_ON_TRACK(                           \
-              phase, category, name, ::perfetto::ProcessTrack::Current(),    \
-              ##__VA_ARGS__);                                                \
-          return;                                                            \
-        default:                                                             \
-        case TRACE_EVENT_SCOPE_THREAD:                                       \
-          /* Fallthrough. */                                                 \
-          break;                                                             \
-      }                                                                      \
-    }                                                                        \
-    /* If an event targets the current thread or another process, write      \
-     * it on the current thread's track. The process override case is        \
-     * handled through |pid_override| in WriteLegacyEvent. */                \
-    if (std::is_same<                                                        \
-            decltype(thread_id),                                             \
-            ::perfetto::legacy::PerfettoLegacyCurrentThreadId>::value ||     \
-        ((flags)&TRACE_EVENT_FLAG_HAS_PROCESS_ID)) {                         \
-      PERFETTO_INTERNAL_LEGACY_EVENT_ON_TRACK(phase, category, name,         \
-                                              kDefaultTrack, ##__VA_ARGS__); \
-    } else {                                                                 \
-      PERFETTO_INTERNAL_LEGACY_EVENT_ON_TRACK(                               \
-          phase, category, name,                                             \
-          ::perfetto::legacy::ConvertThreadId(thread_id), ##__VA_ARGS__);    \
-    }                                                                        \
+#define PERFETTO_INTERNAL_LEGACY_EVENT(phase, category, name, flags,       \
+                                       thread_id, ...)                     \
+  [&]() {                                                                  \
+    using ::perfetto::internal::TrackEventInternal;                        \
+    /* First check the scope for instant events. */                        \
+    if ((phase) == TRACE_EVENT_PHASE_INSTANT) {                            \
+      /* Note: Avoids the need to set LegacyEvent::instant_event_scope. */ \
+      auto scope = (flags)&TRACE_EVENT_FLAG_SCOPE_MASK;                    \
+      switch (scope) {                                                     \
+        case TRACE_EVENT_SCOPE_GLOBAL:                                     \
+          PERFETTO_INTERNAL_LEGACY_EVENT_ON_TRACK(                         \
+              phase, category, name, ::perfetto::Track::Global(0),         \
+              ##__VA_ARGS__);                                              \
+          return;                                                          \
+        case TRACE_EVENT_SCOPE_PROCESS:                                    \
+          PERFETTO_INTERNAL_LEGACY_EVENT_ON_TRACK(                         \
+              phase, category, name, ::perfetto::ProcessTrack::Current(),  \
+              ##__VA_ARGS__);                                              \
+          return;                                                          \
+        default:                                                           \
+        case TRACE_EVENT_SCOPE_THREAD:                                     \
+          /* Fallthrough. */                                               \
+          break;                                                           \
+      }                                                                    \
+    }                                                                      \
+    /* If an event targets the current thread or another process, write    \
+     * it on the current thread's track. The process override case is      \
+     * handled through |pid_override| in WriteLegacyEvent. */              \
+    if (std::is_same<                                                      \
+            decltype(thread_id),                                           \
+            ::perfetto::legacy::PerfettoLegacyCurrentThreadId>::value ||   \
+        ((flags)&TRACE_EVENT_FLAG_HAS_PROCESS_ID)) {                       \
+      PERFETTO_INTERNAL_LEGACY_EVENT_ON_TRACK(                             \
+          phase, category, name, TrackEventInternal::kDefaultTrack,        \
+          ##__VA_ARGS__);                                                  \
+    } else {                                                               \
+      PERFETTO_INTERNAL_LEGACY_EVENT_ON_TRACK(                             \
+          phase, category, name,                                           \
+          ::perfetto::legacy::ConvertThreadId(thread_id), ##__VA_ARGS__);  \
+    }                                                                      \
   }()
 
 #define INTERNAL_TRACE_EVENT_ADD(phase, category, name, flags, ...)        \
