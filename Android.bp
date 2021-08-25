@@ -8191,6 +8191,7 @@ filegroup {
     "src/trace_processor/importers/proto/chrome_string_lookup.cc",
     "src/trace_processor/importers/proto/chrome_system_probes_module.cc",
     "src/trace_processor/importers/proto/chrome_system_probes_parser.cc",
+    "src/trace_processor/importers/proto/flamegraph_construction_algorithms.cc",
     "src/trace_processor/importers/proto/heap_profile_tracker.cc",
     "src/trace_processor/importers/proto/memory_tracker_snapshot_module.cc",
     "src/trace_processor/importers/proto/memory_tracker_snapshot_parser.cc",
