@@ -83,29 +83,6 @@ FROM (
 )
 GROUP BY group_id;
 
--- Different device kernels log different actions when suspending. This table
--- tells us the action that straddles the actual suspend period.
-DROP TABLE IF EXISTS device_action_mapping;
-CREATE TABLE device_action_mapping (device TEXT, action TEXT);
-INSERT INTO device_action_mapping VALUES
-('blueline', 'timekeeping_freeze'),
-('crosshatch', 'timekeeping_freeze'),
-('bonito', 'timekeeping_freeze'),
-('sargo', 'timekeeping_freeze'),
-('coral', 'timekeeping_freeze'),
-('flame', 'timekeeping_freeze'),
-('sunfish', 'timekeeping_freeze'),
-('redfin', 'syscore_resume'),
-('bramble', 'syscore_resume');
-
-DROP TABLE IF EXISTS device_action;
-CREATE TABLE device_action AS
-SELECT action
-FROM device_action_mapping dam
-WHERE EXISTS (
-  SELECT 1 FROM metadata
-  WHERE name = 'android_build_fingerprint' AND str_value LIKE '%' || dam.device || '%');
-
 DROP TABLE IF EXISTS suspend_slice_;
 CREATE TABLE suspend_slice_ AS
 -- Traces from after b/70292203 was fixed have the action string so just look
@@ -126,13 +103,18 @@ FROM (
                EXTRACT_ARG(arg_set_id, 'start') AS start
         FROM raw
         WHERE name = 'suspend_resume'
-    ) JOIN device_action USING(action)
+    )
+    -- Different device kernels log different actions when suspending.
+    -- Fortunately each action only appears in the kernel in which it's
+    -- relevant so we can simply look for any of them.
+    WHERE action IN ('timekeeping_freeze', 'syscore_resume')
 )
 WHERE start = 1
 UNION ALL
 -- Traces from before b/70292203 was fixed (approx Nov 2020) do not have the
 -- action string so we do some convoluted pattern matching that mostly works.
--- TODO(simonmacm) remove this when enough time has passed (mid 2021?)
+-- TODO(simonmacm) remove this when we no longer need suspend-resume from R
+-- phones.
 SELECT
     ts,
     dur,
@@ -201,9 +183,6 @@ WHERE action IS NULL AND (
         AND lag_2_start = 1 AND lag_2_event = 3
     )
 );
-
-DROP TABLE device_action_mapping;
-DROP TABLE device_action;
 
 SELECT RUN_METRIC('android/global_counter_span_view.sql',
   'table_name', 'screen_state',
