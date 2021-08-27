@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {applyPatches, Patch, produce} from 'immer';
+import {Patch, produce} from 'immer';
 import * as m from 'mithril';
 
 import {defer} from '../base/deferred';

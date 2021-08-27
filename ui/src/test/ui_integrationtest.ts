@@ -29,7 +29,6 @@ declare var global: {__BROWSER__: puppeteer.Browser;};
 const browser = assertExists(global.__BROWSER__);
 const expectedScreenshotPath = path.join('test', 'data', 'ui-screenshots');
 
-
 async function getPage(): Promise<puppeteer.Page> {
   const pages = (await browser.pages());
   expect(pages.length).toBe(1);
@@ -42,7 +41,7 @@ beforeAll(async () => {
   jest.setTimeout(60000);
   const page = await getPage();
   await page.setViewport({width: 1920, height: 1080});
-  await page.goto('http://localhost:10000/#!/?testing=1');
+  await page.goto('http://localhost:10000/?testing=1');
 });
 
 // After each test (regardless of nesting) capture a screenshot named after the
@@ -102,22 +101,6 @@ describe('android_trace_30s', () => {
   });
 });
 
-describe('navigation', () => {
-  beforeAll(async () => {
-    const page = await getPage();
-    // go to blank page, to allow page reloading when only the fragment changes
-    await page.goto('about:blank');
-  });
-
-  test('trace_from_url', async () => {
-    const page = await getPage();
-    await page.goto(
-        'http://localhost:10000/#!/?testing=1&url=http://localhost:10000/test/data/chrome_scroll_without_vsync.pftrace');
-    await waitForPerfettoIdle(page);
-  });
-});
-
-
 describe('chrome_rendering_desktop', () => {
   test('load', async () => {
     const page = await getPage();
@@ -146,6 +129,133 @@ describe('chrome_rendering_desktop', () => {
     await waitForPerfettoIdle(page);
     await page.focus('canvas');
     await page.keyboard.type('f');  // Zoom to selection
+    await waitForPerfettoIdle(page);
+  });
+});
+
+describe('routing', () => {
+  describe('open_two_traces_then_go_back', () => {
+    let page: puppeteer.Page;
+
+    beforeAll(async () => {
+      page = await getPage();
+    });
+
+    test('open_first_trace_from_url', async () => {
+      await page.goto(
+          'http://localhost:10000/?testing=1/#!/?url=http://localhost:10000/test/data/chrome_memory_snapshot.pftrace');
+      await waitForPerfettoIdle(page);
+    });
+
+    test('open_second_trace_from_url', async () => {
+      await page.goto(
+          'http://localhost:10000/?testing=1#!/?url=http://localhost:10000/test/data/chrome_scroll_without_vsync.pftrace');
+      await waitForPerfettoIdle(page);
+    });
+
+    test('access_subpage_then_go_back', async () => {
+      await waitForPerfettoIdle(page);
+      await page.goto(
+          'http://localhost:10000/?testing=1/#!/metrics?trace_id=76c25a80-25dd-1eb7-2246-d7b3c7a10f91');
+      await page.goBack();
+      await waitForPerfettoIdle(page);
+    });
+  });
+
+  describe('start_from_no_trace', () => {
+    let page: puppeteer.Page;
+
+    beforeAll(async () => {
+      page = await getPage();
+    });
+
+    test('go_to_page_with_no_trace', async () => {
+      await page.goto('http://localhost:10000/?testing=1#!/info');
+      await waitForPerfettoIdle(page);
+    });
+
+    test('open_trace ', async () => {
+      await page.goto(
+          'http://localhost:10000/?testing=1#!/viewer?trace_id=76c25a80-25dd-1eb7-2246-d7b3c7a10f91');
+      await waitForPerfettoIdle(page);
+    });
+
+    test('refresh', async () => {
+      await page.reload();
+      await waitForPerfettoIdle(page);
+    });
+
+    test('open_second_trace', async () => {
+      await page.goto(
+          'http://localhost:10000/?testing=1#!/viewer?trace_id=00000000-0000-0000-e13c-bd7db4ff646f');
+      await waitForPerfettoIdle(page);
+
+      // click on the 'Continue' button in the interstitial
+      await page.click('[id="trace_id_open"]');
+      await waitForPerfettoIdle(page);
+    });
+
+    test('go_back_to_first_trace', async () => {
+      await page.goBack();
+      await waitForPerfettoIdle(page);
+      // click on the 'Continue' button in the interstitial
+      await page.click('[id="trace_id_open"]');
+      await waitForPerfettoIdle(page);
+    });
+
+    test('open_invalid_trace', async () => {
+      await page.goto(
+          'http://localhost:10000/?testing=1#!/viewer?trace_id=invalid');
+      await waitForPerfettoIdle(page);
+    });
+  });
+
+  describe('navigate', () => {
+    let page: puppeteer.Page;
+
+    beforeAll(async () => {
+      page = await getPage();
+    });
+
+    test('open_trace_from_url', async () => {
+      await page.goto('http://localhost:10000/?testing=1');
+      await page.goto(
+          'http://localhost:10000/?testing=1/#!/?url=http://localhost:10000/test/data/chrome_memory_snapshot.pftrace');
+      await waitForPerfettoIdle(page);
+    });
+
+    test('navigate_back_and_forward', async () => {
+      await page.goto(
+          'http://localhost:10000/?testing=1#!/info?trace_id=00000000-0000-0000-e13c-bd7db4ff646f');
+      await page.goto(
+          'http://localhost:10000/?testing=1#!/metrics?trace_id=00000000-0000-0000-e13c-bd7db4ff646f');
+      await page.goBack();
+      await page.goBack();
+      await waitForPerfettoIdle(page);  // wait for trace to load
+      await page.goBack();
+      await page.goForward();
+      await waitForPerfettoIdle(page);  // wait for trace to load
+      await page.goForward();
+      await page.goForward();
+      await waitForPerfettoIdle(page);
+    });
+  });
+
+  test('open_trace_and_go_back_to_landing_page', async () => {
+    const page = await getPage();
+    await page.goto('http://localhost:10000/?testing=1');
+    await page.goto(
+        'http://localhost:10000/?testing=1#!/viewer?trace_id=76c25a80-25dd-1eb7-2246-d7b3c7a10f91');
+    await waitForPerfettoIdle(page);
+    await page.goBack();
+    await waitForPerfettoIdle(page);
+  });
+
+  test('open_invalid_trace_from_blank_page', async () => {
+    const page = await getPage();
+    await page.goto('about:blank');
+    await page.goto(
+        'http://localhost:10000/?testing=1#!/viewer?trace_id=invalid');
     await waitForPerfettoIdle(page);
   });
 });
