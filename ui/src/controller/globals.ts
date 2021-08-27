@@ -15,9 +15,9 @@
 import {applyPatches, Patch} from 'immer';
 
 import {assertExists} from '../base/logging';
-import {Remote} from '../base/remote';
 import {DeferredAction} from '../common/actions';
 import {createEmptyState, State} from '../common/state';
+import {globals as frontendGlobals} from '../frontend/globals';
 import {ControllerAny} from './controller';
 
 export interface App {
@@ -31,24 +31,24 @@ export interface App {
 class Globals implements App {
   private _state?: State;
   private _rootController?: ControllerAny;
-  private _frontend?: Remote;
   private _runningControllers = false;
 
-  initialize(rootController: ControllerAny, frontendProxy: Remote) {
+  initialize(rootController: ControllerAny) {
     this._rootController = rootController;
-    this._frontend = frontendProxy;
     this._state = createEmptyState();
   }
 
   dispatch(action: DeferredAction): void {
-    this.dispatchMultiple([action]);
+    frontendGlobals.dispatch(action);
   }
 
   // Send the passed dispatch actions to the frontend. The frontend logic
   // will run the actions, compute the new state and invoke patchState() so
   // our copy is updated.
   dispatchMultiple(actions: DeferredAction[]): void {
-    assertExists(this._frontend).send<void>('dispatchMultiple', [actions]);
+    for (const action of actions) {
+      this.dispatch(action);
+    }
   }
 
   // This is called by the frontend logic which now owns and handle the

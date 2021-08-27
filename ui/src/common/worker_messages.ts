@@ -35,10 +35,6 @@ export interface ControllerWorkerInitMessage {
   // the frontend <> controller interaction happens.
   controllerPort: MessagePort;
 
-  // For publishing results back to the frontend. This is used for one-way
-  // non-retained publish() operations (e.g. track data after a query).
-  frontendPort: MessagePort;
-
   // For controller <> Chrome extension communication.
   extensionPort: MessagePort;
 
