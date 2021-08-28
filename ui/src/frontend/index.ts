@@ -12,12 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {applyPatches, Patch, produce} from 'immer';
+import {Patch, produce} from 'immer';
 import * as m from 'mithril';
 
 import {defer} from '../base/deferred';
 import {assertExists, reportError, setErrorHandler} from '../base/logging';
-import {forwardRemoteCalls} from '../base/remote';
 import {Actions, DeferredAction, StateActions} from '../common/actions';
 import {initializeImmerJs} from '../common/immer_init';
 import {createEmptyState, State} from '../common/state';
@@ -44,9 +43,6 @@ import {ViewerPage} from './viewer_page';
 
 const EXTENSION_ID = 'lfmkphfpdbjijhpomgecfikhfohaoine';
 
-/**
- * The API the main thread exposes to the controller.
- */
 class FrontendApi {
   private port: MessagePort;
   private state: State;
@@ -114,25 +110,6 @@ class FrontendApi {
           }
         });
     return patches;
-  }
-
-  patchState(patches: Patch[]) {
-    const oldState = globals.state;
-    globals.state = applyPatches(globals.state, patches);
-
-    // If the visible time in the global state has been updated more recently
-    // than the visible time handled by the frontend @ 60fps, update it. This
-    // typically happens when restoring the state from a permalink.
-    globals.frontendLocalState.mergeState(globals.state.frontendLocalState);
-
-    // Only redraw if something other than the frontendLocalState changed.
-    for (const key in globals.state) {
-      if (key !== 'frontendLocalState' && key !== 'visibleTracks' &&
-          oldState[key] !== globals.state[key]) {
-        globals.rafScheduler.scheduleFullRedraw();
-        return;
-      }
-    }
   }
 
 }
@@ -217,7 +194,6 @@ function main() {
   window.addEventListener('error', e => reportError(e));
   window.addEventListener('unhandledrejection', e => reportError(e));
 
-  const frontendChannel = new MessageChannel();
   const controllerChannel = new MessageChannel();
   const extensionLocalChannel = new MessageChannel();
   const errorReportingChannel = new MessageChannel();
@@ -226,7 +202,6 @@ function main() {
       maybeShowErrorDialog(`${e.data}`);
 
   const msg: ControllerWorkerInitMessage = {
-    frontendPort: frontendChannel.port1,
     controllerPort: controllerChannel.port1,
     extensionPort: extensionLocalChannel.port1,
     errorReportingPort: errorReportingChannel.port1,
@@ -259,8 +234,6 @@ function main() {
 
   const frontendApi = new FrontendApi(controllerChannel.port2);
   globals.publishRedraw = () => globals.rafScheduler.scheduleFullRedraw();
-
-  forwardRemoteCalls(frontendChannel.port2, frontendApi);
 
   // We proxy messages between the extension and the controller because the
   // controller's worker can't access chrome.runtime.
