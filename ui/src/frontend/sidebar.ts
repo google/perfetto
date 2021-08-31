@@ -428,7 +428,6 @@ function openTraceUrl(url: string): (e: Event) => void {
   return e => {
     globals.logging.logEvent('Trace Actions', 'Open example trace');
     e.preventDefault();
-    globals.frontendLocalState.localOnlyMode = false;
     globals.dispatch(Actions.openTraceFromUrl({url}));
   };
 }
@@ -441,8 +440,6 @@ function onInputElementFileSelectionChanged(e: Event) {
   const file = e.target.files[0];
   // Reset the value so onchange will be fired with the same file.
   e.target.value = '';
-
-  globals.frontendLocalState.localOnlyMode = false;
 
   if (e.target.dataset['useCatapultLegacyUi'] === '1') {
     openWithLegacyUi(file);
