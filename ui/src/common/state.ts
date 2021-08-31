@@ -106,6 +106,9 @@ export interface TraceArrayBufferSource {
   // temporarily == T1 until T2 has been loaded (consistently to what happens
   // with all other state fields).
   uuid?: string;
+  // if |localOnly| is true then the trace should not be shared or stored in the
+  // browser cache.
+  localOnly?: boolean;
 }
 
 export interface TraceUrlSource {

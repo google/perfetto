@@ -68,7 +68,6 @@ function calculateScrollbarWidth() {
 export class FrontendLocalState {
   visibleWindowTime = new TimeSpan(0, 10);
   timeScale = new TimeScale(this.visibleWindowTime, [0, 0]);
-  localOnlyMode = false;
   showPanningHint = false;
   showCookieConsent = false;
   visibleTracks = new Set<string>();
