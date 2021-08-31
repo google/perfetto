@@ -26,7 +26,8 @@ const TRACE_CACHE_SIZE = 10;
 
 export async function cacheTrace(
     traceSource: TraceSource, traceUuid: string): Promise<boolean> {
-  let trace, title = '', fileName = '', url = '', contentLength = 0;
+  let trace, title = '', fileName = '', url = '', contentLength = 0,
+             localOnly = false;
   switch (traceSource.type) {
     case 'ARRAY_BUFFER':
       trace = traceSource.buffer;
@@ -34,6 +35,7 @@ export async function cacheTrace(
       fileName = traceSource.fileName || '';
       url = traceSource.url || '';
       contentLength = traceSource.buffer.byteLength;
+      localOnly = traceSource.localOnly || false;
       break;
     case 'FILE':
       trace = await traceSource.file.arrayBuffer();
@@ -49,6 +51,7 @@ export async function cacheTrace(
     ['x-trace-title', title],
     ['x-trace-url', url],
     ['x-trace-filename', fileName],
+    ['x-trace-local-only', `${localOnly}`],
     ['content-type', 'application/octet-stream'],
     ['content-length', `${contentLength}`],
     [
@@ -79,6 +82,7 @@ export async function tryGetTrace(traceUuid: string):
     fileName: response.headers.get('x-trace-filename') || undefined,
     url: response.headers.get('x-trace-url') || undefined,
     uuid: traceUuid,
+    localOnly: response.headers.get('x-trace-local-only') === 'true'
   };
 }
 

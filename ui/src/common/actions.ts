@@ -80,6 +80,7 @@ export interface PostedTrace {
   fileName?: string;
   url?: string;
   uuid?: string;
+  localOnly?: boolean;
 }
 
 function clearTraceState(state: StateDraft) {
