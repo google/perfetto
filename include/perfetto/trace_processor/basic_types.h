@@ -23,6 +23,7 @@
 #include <stdint.h>
 #include <functional>
 #include <string>
+#include <vector>
 
 #include "perfetto/base/export.h"
 #include "perfetto/base/logging.h"
@@ -33,6 +34,10 @@ namespace trace_processor {
 // Various places in trace processor assume a max number of CPUs to keep code
 // simpler (e.g. use arrays instead of vectors).
 constexpr size_t kMaxCpus = 128;
+
+// All metrics protos are in this directory. When loading metric extensions, the
+// protos are mounted onto a virtual path inside this directory.
+constexpr char kMetricProtoRoot[] = "protos/perfetto/metrics/";
 
 // Enum which encodes how trace processor should try to sort the ingested data.
 enum class SortingMode {
@@ -106,6 +111,10 @@ struct PERFETTO_EXPORT Config {
   // the trace before that event. See the ennu documenetation for more details.
   DropFtraceDataBefore drop_ftrace_data_before =
       DropFtraceDataBefore::kTracingStarted;
+
+  // Any built-in metric proto or sql files matching these paths are skipped
+  // during trace processor metric initialization.
+  std::vector<std::string> skip_builtin_metric_paths;
 };
 
 // Represents a dynamically typed value returned by SQL.

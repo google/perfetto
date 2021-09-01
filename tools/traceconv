@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (C) 2019 The Android Open Source Project
+# Copyright (C) 2021 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,73 +24,137 @@ BASH_FALLBACK = """ "
 exec python3 - "$@" <<'#'EOF
 #"""
 
-import hashlib
-import os
-import sys
-import subprocess
-import tempfile
-import platform
+TOOL_NAME = 'trace_to_text'
+
+# BEGIN_SECTION_GENERATED_BY(roll-prebuilts)
+# Revision: 387c10f55b96e95f96ec9248c3af28772bccfff0
+PERFETTO_PREBUILT_MANIFEST = [{
+    'tool':
+        'trace_to_text',
+    'arch':
+        'mac-amd64',
+    'file_name':
+        'trace_to_text',
+    'file_size':
+        7087080,
+    'url':
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/387c10f55b96e95f96ec9248c3af28772bccfff0/mac-amd64/trace_to_text',
+    'sha256':
+        '19126f67c1edd3e525c63d3cc5085ea965d77868b91d163052f8f608cf496cd8',
+    'platform':
+        'darwin',
+    'machine': ['x86_64']
+}, {
+    'tool':
+        'trace_to_text',
+    'arch':
+        'linux-amd64',
+    'file_name':
+        'trace_to_text',
+    'file_size':
+        7437720,
+    'url':
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/387c10f55b96e95f96ec9248c3af28772bccfff0/linux-amd64/trace_to_text',
+    'sha256':
+        '8112656e058a8ebbd6f7251452527c51c0a3e88bc160a33d95e3da61228d1285',
+    'platform':
+        'linux',
+    'machine': ['x86_64']
+}, {
+    'tool':
+        'trace_to_text',
+    'arch':
+        'windows-amd64',
+    'file_name':
+        'trace_to_text.exe',
+    'file_size':
+        6703616,
+    'url':
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/387c10f55b96e95f96ec9248c3af28772bccfff0/windows-amd64/trace_to_text.exe',
+    'sha256':
+        'fc776c807682c1de0785468190fe9795fda97f2a9c32dad15affe24b81dad817',
+    'platform':
+        'win32',
+    'machine': ['amd64']
+}]
 
 
-TRACE_TO_TEXT_SHAS = {
-    'linux': '7e3e10dfb324e31723efd63ac25037856e06eba0',
-    'mac': '21f0f42dd019b4f09addd404a114fbf2322ca8a4',
-}
-TRACE_TO_TEXT_PATH = tempfile.gettempdir()
-TRACE_TO_TEXT_BASE_URL = ('https://storage.googleapis.com/perfetto/')
+# DO NOT EDIT. If you wish to make edits to this code, you need to change only
+# //tools/get_perfetto_prebuilt.py and run /tools/roll-prebuilts to regenerate
+# all the others scripts this is embedded into.
+def get_perfetto_prebuilt(tool_name, soft_fail=False, arch=None):
+  """ Downloads the prebuilt, if necessary, and returns its path on disk. """
+
+  # The first time this is invoked, it downloads the |url| and caches it into
+  # ~/.perfetto/prebuilts/$tool_name. On subsequent invocations it just runs the
+  # cached version.
+  def download_or_get_cached(file_name, url, sha256):
+    import os, hashlib, subprocess
+    dir = os.path.join(
+        os.path.expanduser('~'), '.local', 'share', 'perfetto', 'prebuilts')
+    os.makedirs(dir, exist_ok=True)
+    bin_path = os.path.join(dir, file_name)
+    sha256_path = os.path.join(dir, file_name + '.sha256')
+    needs_download = True
+
+    # Avoid recomputing the SHA-256 on each invocation. The SHA-256 of the last
+    # download is cached into file_name.sha256, just check if that matches.
+    if os.path.exists(bin_path) and os.path.exists(sha256_path):
+      with open(sha256_path, 'rb') as f:
+        digest = f.read().decode()
+        if digest == sha256:
+          needs_download = False
+
+    if needs_download:
+      # Either the filed doesn't exist or the SHA256 doesn't match.
+      tmp_path = bin_path + '.tmp'
+      print('Downloading ' + url)
+      subprocess.check_call(['curl', '-f', '-L', '-#', '-o', tmp_path, url])
+      with open(tmp_path, 'rb') as fd:
+        actual_sha256 = hashlib.sha256(fd.read()).hexdigest()
+      if actual_sha256 != sha256:
+        raise Exception('Checksum mismatch for %s (actual: %s, expected: %s)' %
+                        (url, actual_sha256, sha256))
+      os.chmod(tmp_path, 0o755)
+      os.rename(tmp_path, bin_path)
+      with open(sha256_path, 'w') as f:
+        f.write(sha256)
+    return bin_path
+    # --- end of download_or_get_cached() ---
+
+  # --- get_perfetto_prebuilt() function starts here. ---
+  import os, platform, sys
+  plat = sys.platform.lower()
+  machine = platform.machine().lower()
+  manifest_entry = None
+  for entry in PERFETTO_PREBUILT_MANIFEST:
+    # If the caller overrides the arch, just match that (for Android prebuilts).
+    if arch and entry.get('arch') == arch:
+      manifest_entry = entry
+      break
+    # Otherwise guess the local machine arch.
+    if entry.get('tool') == tool_name and entry.get(
+        'platform') == plat and machine in entry.get('machine', []):
+      manifest_entry = entry
+      break
+  if manifest_entry is None:
+    if soft_fail:
+      return None
+    raise Exception(
+        ('No prebuilts available for %s-%s\n' % (plat, machine)) +
+        'See https://perfetto.dev/docs/contributing/build-instructions')
+
+  return download_or_get_cached(
+      file_name=manifest_entry['file_name'],
+      url=manifest_entry['url'],
+      sha256=manifest_entry['sha256'])
 
 
-def DownloadURL(url, out_file):
-  subprocess.check_call(['curl', '-L', '-#', '-o', out_file, url])
-
-
-def check_hash(file_name, sha_value):
-  with open(file_name, 'rb') as fd:
-    file_hash = hashlib.sha1(fd.read()).hexdigest()
-    return file_hash == sha_value
-
-
-def load_trace_to_text(platform):
-  sha_value = TRACE_TO_TEXT_SHAS[platform]
-  file_name = 'trace_to_text-' + platform + '-' + sha_value
-  local_file = os.path.join(TRACE_TO_TEXT_PATH, file_name)
-
-  if os.path.exists(local_file):
-    if not check_hash(local_file, sha_value):
-      os.remove(local_file)
-    else:
-      return local_file
-
-  url = TRACE_TO_TEXT_BASE_URL + file_name
-  DownloadURL(url, local_file)
-  if not check_hash(local_file, sha_value):
-    os.remove(local_file)
-    raise ValueError("Invalid signature.")
-  os.chmod(local_file, 0o755)
-  return local_file
-
-
-def main(argv):
-  os_name = None
-  if sys.platform.startswith('linux'):
-    os_name = 'linux'
-  elif sys.platform.startswith('darwin'):
-    os_name = 'mac'
-  else:
-    print("Invalid platform: {}".format(sys.platform))
-    return 1
-
-  arch = platform.machine()
-  if arch not in ['x86_64', 'amd64']:
-    print("Prebuilts are only available for x86_64 (found '{}' instead).".format(arch))
-    print("Follow https://perfetto.dev/docs/contributing/build-instructions to build locally.")
-    return 1
-
-  trace_to_text_binary = load_trace_to_text(os_name)
-  os.execv(trace_to_text_binary, [trace_to_text_binary] + argv[1:])
-
+# END_SECTION_GENERATED_BY(roll-prebuilts)
 
 if __name__ == '__main__':
-  sys.exit(main(sys.argv))
+  import sys, os
+  bin_path = get_perfetto_prebuilt(TOOL_NAME)
+  os.execv(bin_path, [bin_path] + sys.argv[1:])
 
 #EOF

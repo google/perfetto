@@ -977,7 +977,8 @@ TEST_F(PerfettoTest, QueryServiceStateLargeResponse) {
     DataSourceDescriptor dsd;
     std::string name = "big_ds_" + std::to_string(i);
     dsd.set_name(name);
-    std::string descriptor(ipc::kIPCBufferSize - 64, (' ' + i) % 64);
+    std::string descriptor(ipc::kIPCBufferSize - 64,
+                           static_cast<char>((' ' + i) % 64));
     dsd.set_track_event_descriptor_raw(descriptor);
     ds_expected[name] = std::move(descriptor);
     producer->RegisterDataSource(dsd);

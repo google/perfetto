@@ -32,8 +32,7 @@ class TraceProcessor:
 
   # Values of these constants correspond to the QueryResponse message at
   # protos/perfetto/trace_processor/trace_processor.proto
-  # Value 0 corresponds to CELL_INVALID, which is represented as None in
-  # this class
+  QUERY_CELL_INVALID_FIELD_ID = 0
   QUERY_CELL_NULL_FIELD_ID = 1
   QUERY_CELL_VARINT_FIELD_ID = 2
   QUERY_CELL_FLOAT64_FIELD_ID = 3
@@ -55,28 +54,55 @@ class TraceProcessor:
   class QueryResultIterator:
 
     def __init__(self, column_names, batches):
-      self.__batches = batches
       self.__column_names = column_names
-      self.__batch_index = 0
-      self.__next_index = 0
-      # TODO(lalitm): Look into changing string_cells to bytes in the protobuf
-      self.__string_cells = memoryview(bytes(batches[0].string_cells, 'utf-8'))
-      self.__string_index = 0
+      self.__column_count = 0
+      self.__count = 0
+      self.__cells = []
+      self.__data_lists = [[], [], [], [], [], []]
+      self.__data_lists_index = [0, 0, 0, 0, 0, 0]
+      self.__current_index = 0
 
-    def get_cell_list(self, proto_index):
-      if proto_index == TraceProcessor.QUERY_CELL_NULL_FIELD_ID:
-        return None
-      elif proto_index == TraceProcessor.QUERY_CELL_VARINT_FIELD_ID:
-        return self.__batches[self.__batch_index].varint_cells
-      elif proto_index == TraceProcessor.QUERY_CELL_FLOAT64_FIELD_ID:
-        return self.__batches[self.__batch_index].float64_cells
-      elif proto_index == TraceProcessor.QUERY_CELL_BLOB_FIELD_ID:
-        return self.__batches[self.__batch_index].blob_cells
-      else:
-        raise TraceProcessorException('Invalid cell type')
+      # Iterate over all the batches and collect their
+      # contents into lists based on the type of the batch
+      batch_index = 0
+      while True:
+        # Null-terminated strings in a batch are concatenated
+        # into a single large byte array, so we split on the
+        # null-terminator to get the individual strings
+        strings_batch = batches[batch_index].string_cells.split('\0')[:-1]
+        self.__data_lists[TraceProcessor.QUERY_CELL_STRING_FIELD_ID].extend(
+            strings_batch)
+        self.__data_lists[TraceProcessor.QUERY_CELL_VARINT_FIELD_ID].extend(
+            batches[batch_index].varint_cells)
+        self.__data_lists[TraceProcessor.QUERY_CELL_FLOAT64_FIELD_ID].extend(
+            batches[batch_index].float64_cells)
+        self.__data_lists[TraceProcessor.QUERY_CELL_BLOB_FIELD_ID].extend(
+            batches[batch_index].blob_cells)
+        self.__cells.extend(batches[batch_index].cells)
 
-    def cells(self):
-      return self.__batches[self.__batch_index].cells
+        if batches[batch_index].is_last_batch:
+          break
+        batch_index += 1
+
+      # If there are no rows in the query result, exit since
+      # we won't be returning anything and don't need to go
+      # through the process of generating the mapping between
+      # columns and data_list indices
+      if len(self.__cells) == 0:
+        return
+
+      # The count we collected so far was a count of all individual columns
+      # in the query result, so we divide by the number of columns in a row
+      # to get the number of rows
+      self.__column_count = len(self.__column_names)
+      self.__count = int(len(self.__cells) / self.__column_count)
+
+      # Data integrity check - see that we have the expected amount of cells
+      # for the number of rows that we need to return
+      if len(self.__cells) % self.__column_count != 0:
+        raise TraceProcessorException("Cell count " + str(len(self.__cells)) +
+                                      " is not a multiple of column count " +
+                                      str(len(self.__column_names)))
 
     # To use the query result as a populated Pandas dataframe, this
     # function must be called directly after calling query inside
@@ -89,91 +115,67 @@ class TraceProcessor:
         df = pd.DataFrame(columns=self.__column_names)
 
         # Populate the dataframe with the query results
-        while True:
-          # If all cells are read, then check if last batch before
-          # returning the populated dataframe
-          if self.__next_index >= len(self.__batches[self.__batch_index].cells):
-            if self.__batches[self.__batch_index].is_last_batch:
-              ordered_df = df.reset_index(drop=True)
-              return ordered_df
-            self.__batch_index += 1
-            self.__next_index = 0
-            self.__string_cells = memoryview(
-                bytes(self.__batches[self.__batch_index].string_cells, 'utf-8'))
-            self.__string_index = 0
-
+        for i in range(0, self.__count):
           row = []
+          base_cell_index = i * self.__column_count
           for num, column_name in enumerate(self.__column_names):
-            cell_type = self.__batches[self.__batch_index].cells[
-                self.__next_index + num]
-            if cell_type == TraceProcessor.QUERY_CELL_STRING_FIELD_ID:
-              start_index = self.__string_index
-              while self.__string_cells[self.__string_index] != 0:
-                self.__string_index += 1
-              row.append(
-                  str(self.__string_cells[start_index:self.__string_index],
-                      'utf-8'))
-              self.__string_index += 1
+            col_type = self.__cells[base_cell_index + num]
+            if col_type == TraceProcessor.QUERY_CELL_INVALID_FIELD_ID:
+              raise TraceProcessorException('Invalid cell type')
+            elif col_type != TraceProcessor.QUERY_CELL_NULL_FIELD_ID:
+              col_index = self.__data_lists_index[col_type]
+              self.__data_lists_index[col_type] += 1
+              row.append(self.__data_lists[col_type][col_index])
             else:
-              cell_list = self.get_cell_list(cell_type)
-              if cell_list is None:
-                row.append(np.NAN)
-              else:
-                row.append(cell_list.pop(0))
+              row.append(None)
+
           df.loc[-1] = row
           df.index = df.index + 1
-          self.__next_index = self.__next_index + len(self.__column_names)
+        ordered_df = df.reset_index(drop=True)
+        return ordered_df
 
       except ModuleNotFoundError:
         raise TraceProcessorException(
             'The sufficient libraries are not installed')
 
+    def __len__(self):
+      return self.__count
+
     def __iter__(self):
       return self
 
     def __next__(self):
-      # If all cells are read, then check if last batch before raising
-      # StopIteration
-      if self.__next_index >= len(self.cells()):
-        if self.__batches[self.__batch_index].is_last_batch:
-          raise StopIteration
-        self.__batch_index += 1
-        self.__next_index = 0
-        self.__string_cells = memoryview(
-            bytes(self.__batches[self.__batch_index].string_cells, 'utf-8'))
-        self.__string_index = 0
-
-      row = TraceProcessor.Row()
+      if self.__current_index == self.__count:
+        raise StopIteration
+      result = TraceProcessor.Row()
+      base_cell_index = self.__current_index * self.__column_count
       for num, column_name in enumerate(self.__column_names):
-        cell_type = self.__batches[self.__batch_index].cells[self.__next_index +
-                                                             num]
-        if cell_type == TraceProcessor.QUERY_CELL_STRING_FIELD_ID:
-          start_index = self.__string_index
-          while self.__string_cells[self.__string_index] != 0:
-            self.__string_index += 1
-          setattr(
-              row, column_name,
-              str(self.__string_cells[start_index:self.__string_index],
-                  'utf-8'))
-          self.__string_index += 1
+        col_type = self.__cells[base_cell_index + num]
+        if col_type == TraceProcessor.QUERY_CELL_INVALID_FIELD_ID:
+          raise TraceProcessorException('Invalid cell type')
+        if col_type != TraceProcessor.QUERY_CELL_NULL_FIELD_ID:
+          col_index = self.__data_lists_index[col_type]
+          self.__data_lists_index[col_type] += 1
+          setattr(result, column_name, self.__data_lists[col_type][col_index])
         else:
-          cell_list = self.get_cell_list(cell_type)
-          if cell_list is None:
-            setattr(row, column_name, None)
-          else:
-            setattr(row, column_name, cell_list.pop(0))
-      self.__next_index = self.__next_index + len(self.__column_names)
-      return row
+          setattr(result, column_name, None)
 
-  def __init__(self, addr=None, file_path=None, bin_path=None,
-               unique_port=True):
+      self.__current_index += 1
+      return result
+
+  def __init__(self,
+               addr=None,
+               file_path=None,
+               bin_path=None,
+               unique_port=True,
+               verbose=False):
     # Load trace_processor_shell or access via given address
     if addr:
       p = urlparse(addr)
       tp = TraceProcessorHttp(p.netloc if p.netloc else p.path)
     else:
       url, self.subprocess = load_shell(
-          bin_path=bin_path, unique_port=unique_port)
+          bin_path=bin_path, unique_port=unique_port, verbose=verbose)
       tp = TraceProcessorHttp(url)
     self.http = tp
     self.protos = ProtoFactory()

@@ -1,0 +1,74 @@
+// Copyright (C) 2021 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+.flags-page {
+  overflow-y: scroll;
+  user-select: text;
+}
+
+.flags-content {
+  max-width: 90ch;
+  width: 60%;
+  margin: 0 auto;
+  padding: 3rem;
+  display: grid;
+  grid-row-gap: 1rem;
+
+  h1 {
+    font-size: larger;
+  }
+
+  button {
+    background: none;
+    border: 1px solid rgb(218, 220, 224);
+    border-radius: 3px;
+    color: rgb(25, 103, 210);
+    font-size: .8125rem;
+    padding: 8px 12px;
+    cursor: pointer;
+    font-weight: 500;
+  }
+}
+
+.flag-widget {
+  display: grid;
+  grid-template:
+    "title control" auto
+    "description control" auto / 1fr auto;
+
+  row-gap: 0.5rem;
+  align-content: center;
+
+  select {
+    grid-area: control;
+    background: white;
+    border: 1px solid rgb(25, 103, 210);
+    color: rgb(25, 103, 210);
+    font-size: .8125rem;
+    height: 1.625rem;
+    letter-spacing: .01em;
+    max-width: 150px;
+    text-align-last: center;
+    width: 100%;
+  }
+
+  label {
+    font-weight: bold;
+  }
+
+  .description {
+    font-size: smaller;
+  }
+}
+

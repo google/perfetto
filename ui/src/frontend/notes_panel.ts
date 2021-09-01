@@ -27,9 +27,7 @@ import {Panel, PanelSize} from './panel';
 
 const FLAG_WIDTH = 16;
 const AREA_TRIANGLE_WIDTH = 10;
-const MOVIE_WIDTH = 16;
 const FLAG = `\uE153`;
-const MOVIE = '\uE8DA';
 
 function toSummary(s: string) {
   const newlineIndex = s.indexOf('\n') > 0 ? s.indexOf('\n') : s.length;
@@ -50,11 +48,6 @@ export class NotesPanel extends Panel {
   oncreate({dom}: m.CVnodeDOM) {
     dom.addEventListener('mousemove', (e: Event) => {
       this.hoveredX = (e as PerfettoMouseEvent).layerX - TRACK_SHELL_WIDTH;
-      if (globals.state.scrubbingEnabled) {
-        const timescale = globals.frontendLocalState.timeScale;
-        const timestamp = timescale.pxToTime(this.hoveredX);
-        globals.frontendLocalState.setVidTimestamp(timestamp);
-      }
       globals.rafScheduler.scheduleRedraw();
     }, {passive: true});
     dom.addEventListener('mouseenter', (e: Event) => {
@@ -63,16 +56,14 @@ export class NotesPanel extends Panel {
     });
     dom.addEventListener('mouseout', () => {
       this.hoveredX = null;
-      globals.frontendLocalState.setHoveredNoteTimestamp(-1);
-      globals.rafScheduler.scheduleRedraw();
+      globals.dispatch(Actions.setHoveredNoteTimestamp({ts: -1}));
     }, {passive: true});
   }
 
   view() {
     return m('.notes-panel', {
       onclick: (e: PerfettoMouseEvent) => {
-        const isMovie = globals.state.flagPauseEnabled;
-        this.onClick(e.layerX - TRACK_SHELL_WIDTH, e.layerY, isMovie);
+        this.onClick(e.layerX - TRACK_SHELL_WIDTH, e.layerY);
         e.stopPropagation();
       },
     });
@@ -124,8 +115,7 @@ export class NotesPanel extends Panel {
             note.color,
             isSelected);
       } else {
-        this.drawFlag(
-            ctx, left, size.height, note.color, note.noteType, isSelected);
+        this.drawFlag(ctx, left, size.height, note.color, isSelected);
       }
 
       if (note.text) {
@@ -142,17 +132,18 @@ export class NotesPanel extends Panel {
 
     // A real note is hovered so we don't need to see the preview line.
     // TODO(hjd): Change cursor to pointer here.
-    if (aNoteIsHovered) globals.frontendLocalState.setHoveredNoteTimestamp(-1);
+    if (aNoteIsHovered) {
+      globals.dispatch(Actions.setHoveredNoteTimestamp({ts: -1}));
+    }
 
     // View preview note flag when hovering on notes panel.
     if (!aNoteIsHovered && this.hoveredX !== null) {
       const timestamp = timeScale.pxToTime(this.hoveredX);
       if (timeScale.timeInBounds(timestamp)) {
-        globals.frontendLocalState.setHoveredNoteTimestamp(timestamp);
+        globals.dispatch(Actions.setHoveredNoteTimestamp({ts: timestamp}));
         const x = timeScale.timeToPx(timestamp);
         const left = Math.floor(x + TRACK_SHELL_WIDTH);
-        this.drawFlag(
-            ctx, left, size.height, '#aaa', 'DEFAULT', /* fill */ true);
+        this.drawFlag(ctx, left, size.height, '#aaa', /* fill */ true);
       }
     }
   }
@@ -194,7 +185,7 @@ export class NotesPanel extends Panel {
 
   private drawFlag(
       ctx: CanvasRenderingContext2D, x: number, height: number, color: string,
-      noteType: 'DEFAULT'|'AREA'|'MOVIE', fill?: boolean) {
+      fill?: boolean) {
     const prevFont = ctx.font;
     const prevBaseline = ctx.textBaseline;
     ctx.textBaseline = 'alphabetic';
@@ -206,26 +197,21 @@ export class NotesPanel extends Panel {
     // exactly at the x value. This adjusts for that.
     const iconPadding = 6;
     if (fill) {
-      ctx.fillText(
-          noteType === 'MOVIE' ? MOVIE : FLAG, x - iconPadding, height + 2);
+      ctx.fillText(FLAG, x - iconPadding, height + 2);
     } else {
-      ctx.strokeText(
-          noteType === 'MOVIE' ? MOVIE : FLAG, x - iconPadding, height + 2.5);
+      ctx.strokeText(FLAG, x - iconPadding, height + 2.5);
     }
     ctx.font = prevFont;
     ctx.textBaseline = prevBaseline;
   }
 
 
-  private onClick(x: number, _: number, isMovie: boolean) {
+  private onClick(x: number, _: number) {
     if (x < 0) return;
     const timeScale = globals.frontendLocalState.timeScale;
     const timestamp = timeScale.pxToTime(x);
     for (const note of Object.values(globals.state.notes)) {
       if (this.hoveredX && this.mouseOverNote(this.hoveredX, note)) {
-        if (note.noteType === 'MOVIE') {
-          globals.frontendLocalState.setVidTimestamp(note.timestamp);
-        }
         if (note.noteType === 'AREA') {
           globals.makeSelection(
               Actions.reSelectArea({areaId: note.areaId, noteId: note.id}));
@@ -235,11 +221,8 @@ export class NotesPanel extends Panel {
         return;
       }
     }
-    if (isMovie) {
-      globals.frontendLocalState.setVidTimestamp(timestamp);
-    }
     const color = randomColor();
-    globals.makeSelection(Actions.addNote({timestamp, color, isMovie}));
+    globals.makeSelection(Actions.addNote({timestamp, color}));
   }
 
   private mouseOverNote(x: number, note: AreaNote|Note): boolean {
@@ -251,7 +234,7 @@ export class NotesPanel extends Panel {
           (timeScale.timeToPx(noteArea.endSec) > x &&
            x > timeScale.timeToPx(noteArea.endSec) - AREA_TRIANGLE_WIDTH);
     } else {
-      const width = (note.noteType === 'MOVIE') ? MOVIE_WIDTH : FLAG_WIDTH;
+      const width = FLAG_WIDTH;
       return noteX <= x && x < noteX + width;
     }
   }
@@ -298,7 +281,7 @@ export class NotesEditorPanel extends Panel<NotesEditorPanelAttrs> {
             {
               onclick: () => {
                 globals.dispatch(Actions.removeNote({id: attrs.id}));
-                globals.frontendLocalState.currentTab = undefined;
+                globals.dispatch(Actions.setCurrentTab({tab: undefined}));
                 globals.rafScheduler.scheduleFullRedraw();
               }
             },

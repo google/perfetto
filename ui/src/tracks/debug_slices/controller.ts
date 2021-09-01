@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {Actions} from '../../common/actions';
-import {NUM, NUM_NULL, STR} from '../../common/query_iterator';
+import {NUM, NUM_NULL, STR} from '../../common/query_result';
 import {fromNs, toNs} from '../../common/time';
 import {globals} from '../../controller/globals';
 import {

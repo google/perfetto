@@ -102,6 +102,16 @@ packet {
       }
     }
     event {
+      timestamp: 8000000
+      pid: 237
+      dpu_tracing_mark_write {
+        pid: 237
+        name: "dpu_vote_rt_bw"
+        type: 67
+        value: 271000
+      }
+    }
+    event {
       timestamp: 8999999
       pid: 237
       dpu_tracing_mark_write {

@@ -25,6 +25,8 @@ import {
   saveTrace,
   toSha256
 } from '../common/upload_utils';
+import {publishConversionJobStatusUpdate} from '../frontend/publish';
+import {Router} from '../frontend/router';
 
 import {Controller} from './controller';
 import {globals} from './globals';
@@ -50,7 +52,7 @@ export class PermalinkController extends Controller<'main'> {
           assertExists(globals.state.permalink.isRecordingConfig);
 
       const jobName = 'create_permalink';
-      globals.publish('ConversionJobStatusUpdate', {
+      publishConversionJobStatusUpdate({
         jobName,
         jobStatus: ConversionJobStatus.InProgress,
       });
@@ -60,7 +62,7 @@ export class PermalinkController extends Controller<'main'> {
             globals.dispatch(Actions.setPermalink({requestId, hash}));
           })
           .finally(() => {
-            globals.publish('ConversionJobStatusUpdate', {
+            publishConversionJobStatusUpdate({
               jobName,
               jobStatus: ConversionJobStatus.NotRunning,
             });
@@ -81,7 +83,7 @@ export class PermalinkController extends Controller<'main'> {
             }
             globals.dispatch(
                 Actions.setRecordConfig({config: validConfig.config}));
-            globals.dispatch(Actions.navigate({route: '/record'}));
+            Router.navigate('#!/record');
             return;
           }
           globals.dispatch(Actions.setState({newState: stateOrConfig}));

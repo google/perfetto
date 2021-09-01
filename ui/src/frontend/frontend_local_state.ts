@@ -68,26 +68,14 @@ function calculateScrollbarWidth() {
 export class FrontendLocalState {
   visibleWindowTime = new TimeSpan(0, 10);
   timeScale = new TimeScale(this.visibleWindowTime, [0, 0]);
-  perfDebug = false;
-  hoveredUtid = -1;
-  hoveredPid = -1;
-  hoveredLogsTimestamp = -1;
-  hoveredNoteTimestamp = -1;
-  highlightedSliceId = -1;
-  focusedFlowIdLeft = -1;
-  focusedFlowIdRight = -1;
-  vidTimestamp = -1;
-  localOnlyMode = false;
-  sidebarVisible = true;
   showPanningHint = false;
   showCookieConsent = false;
   visibleTracks = new Set<string>();
   prevVisibleTracks = new Set<string>();
-  searchIndex = -1;
-  currentTab?: string;
   scrollToTrackId?: string|number;
   httpRpcState: HttpRpcState = {connected: false};
   newVersionAvailable = false;
+  showPivotTable = false;
 
   // This is used to calculate the tracks within a Y range for area selection.
   areaY: Range = {};
@@ -120,68 +108,13 @@ export class FrontendLocalState {
     return this.scrollBarWidth;
   }
 
-  togglePerfDebug() {
-    this.perfDebug = !this.perfDebug;
+  setHttpRpcState(httpRpcState: HttpRpcState) {
+    this.httpRpcState = httpRpcState;
     globals.rafScheduler.scheduleFullRedraw();
-  }
-
-  setHoveredUtidAndPid(utid: number, pid: number) {
-    this.hoveredUtid = utid;
-    this.hoveredPid = pid;
-    globals.rafScheduler.scheduleRedraw();
-  }
-
-  setHighlightedSliceId(sliceId: number) {
-    this.highlightedSliceId = sliceId;
-    globals.rafScheduler.scheduleRedraw();
-  }
-
-  setHighlightedFlowLeftId(flowId: number) {
-    this.focusedFlowIdLeft = flowId;
-    globals.rafScheduler.scheduleFullRedraw();
-  }
-
-  setHighlightedFlowRightId(flowId: number) {
-    this.focusedFlowIdRight = flowId;
-    globals.rafScheduler.scheduleFullRedraw();
-  }
-
-  // Sets the timestamp at which a vertical line will be drawn.
-  setHoveredLogsTimestamp(ts: number) {
-    if (this.hoveredLogsTimestamp === ts) return;
-    this.hoveredLogsTimestamp = ts;
-    globals.rafScheduler.scheduleRedraw();
-  }
-
-  setHoveredNoteTimestamp(ts: number) {
-    if (this.hoveredNoteTimestamp === ts) return;
-    this.hoveredNoteTimestamp = ts;
-    globals.rafScheduler.scheduleRedraw();
-  }
-
-  setVidTimestamp(ts: number) {
-    if (this.vidTimestamp === ts) return;
-    this.vidTimestamp = ts;
-    globals.rafScheduler.scheduleRedraw();
   }
 
   addVisibleTrack(trackId: string) {
     this.visibleTracks.add(trackId);
-  }
-
-  setSearchIndex(index: number) {
-    this.searchIndex = index;
-    globals.rafScheduler.scheduleRedraw();
-  }
-
-  toggleSidebar() {
-    this.sidebarVisible = !this.sidebarVisible;
-    globals.rafScheduler.scheduleFullRedraw();
-  }
-
-  setHttpRpcState(httpRpcState: HttpRpcState) {
-    this.httpRpcState = httpRpcState;
-    globals.rafScheduler.scheduleFullRedraw();
   }
 
   // Called when beginning a canvas redraw.
@@ -198,6 +131,11 @@ export class FrontendLocalState {
           Actions.setVisibleTracks({tracks: Array.from(this.visibleTracks)}));
       this.prevVisibleTracks = new Set(this.visibleTracks);
     }
+  }
+
+  togglePivotTable() {
+    this.showPivotTable = !this.showPivotTable;
+    globals.rafScheduler.scheduleFullRedraw();
   }
 
   mergeState(state: FrontendState): void {

@@ -107,7 +107,6 @@ class Omnibox implements m.ClassComponent {
     }
 
     const commandMode = mode === COMMAND;
-    const state = globals.frontendLocalState;
     return m(
         `.omnibox${commandMode ? '.command-mode' : ''}`,
         m('input', {
@@ -117,9 +116,8 @@ class Omnibox implements m.ClassComponent {
             globals.frontendLocalState.setOmnibox(
                 value, commandMode ? 'COMMAND' : 'SEARCH');
             if (mode === SEARCH) {
-              globals.frontendLocalState.setSearchIndex(-1);
               displayStepThrough = value.length >= 4;
-              globals.rafScheduler.scheduleFullRedraw();
+              globals.dispatch(Actions.setSearchIndex({index: -1}));
             }
           },
           value: globals.frontendLocalState.omnibox,
@@ -131,11 +129,11 @@ class Omnibox implements m.ClassComponent {
                   `${
                       globals.currentSearchResults.totalResults === 0 ?
                           '0 / 0' :
-                          `${state.searchIndex + 1} / ${
+                          `${globals.state.searchIndex + 1} / ${
                               globals.currentSearchResults.totalResults}`}`),
                 m('button',
                   {
-                    disabled: state.searchIndex <= 0,
+                    disabled: globals.state.searchIndex <= 0,
                     onclick: () => {
                       executeSearch(true /* reverse direction */);
                     }
@@ -143,7 +141,7 @@ class Omnibox implements m.ClassComponent {
                   m('i.material-icons.left', 'keyboard_arrow_left')),
                 m('button',
                   {
-                    disabled: state.searchIndex ===
+                    disabled: globals.state.searchIndex ===
                         globals.currentSearchResults.totalResults - 1,
                     onclick: () => {
                       executeSearch();
@@ -252,9 +250,7 @@ export class Topbar implements m.ClassComponent {
   view() {
     return m(
         '.topbar',
-        {
-          class: globals.frontendLocalState.sidebarVisible ? '' : 'hide-sidebar'
-        },
+        {class: globals.state.sidebarVisible ? '' : 'hide-sidebar'},
         globals.frontendLocalState.newVersionAvailable ?
             m(NewVersionNotification) :
             m(Omnibox),

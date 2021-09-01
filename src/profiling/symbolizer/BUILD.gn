@@ -19,6 +19,10 @@ source_set("symbolizer") {
   public_deps = [ "../../../include/perfetto/ext/base" ]
   deps = [ "../../../gn:default_deps" ]
   sources = [
+    "breakpad_parser.cc",
+    "breakpad_parser.h",
+    "breakpad_symbolizer.cc",
+    "breakpad_symbolizer.h",
     "filesystem.h",
     "filesystem_posix.cc",
     "filesystem_windows.cc",
@@ -61,5 +65,9 @@ perfetto_unittest_source_set("unittests") {
     "../../../gn:gtest_and_gmock",
     "../../base:test_support",
   ]
-  sources = [ "local_symbolizer_unittest.cc" ]
+  sources = [
+    "breakpad_parser_unittest.cc",
+    "breakpad_symbolizer_unittest.cc",
+    "local_symbolizer_unittest.cc",
+  ]
 }

@@ -49,6 +49,8 @@ declare_args() {
 # 2. setting is_system_compiler=true in args.gn and the env vars AR/CC/CXX.
 #    This is used by OSSFuzz and CrOS ebuilds.
 
+_llvm_strip_wrapper = rebase_path("llvm-strip.py", root_build_dir)
+
 declare_args() {
   sysroot = ""
   gcc_toolchain = ""
@@ -58,7 +60,15 @@ declare_args() {
 
   if (is_linux_host) {
     linker = "gold"
-    strip = "strip"
+    if (linux_llvm_objcopy != "") {
+      # If we are using the hermetic clang toolchain llvm-objcopy from there as
+      # it works with Linux-arm cross toolchains. The |_llvm_strip_wrapper| is
+      # to set argv0 as llvm-strip. llvm-objcopy's frontend works differently
+      # when invoked as llvm-strip, pretending to be just 'strip'.
+      strip = "${_llvm_strip_wrapper} ${linux_llvm_objcopy}"
+    } else {
+      strip = "strip"
+    }
   } else if (is_mac_host) {
     strip = "strip -x"
   }
@@ -90,7 +100,7 @@ declare_args() {
 # Then determine the target toolchain.
 
 declare_args() {
-  target_sysroot = sysroot
+  _default_target_sysroot = ""
   target_gcc_toolchain = ""
 
   # |target_triplet| is the variable that the user can set via GN args. The user
@@ -111,8 +121,12 @@ declare_args() {
     _target_triplet = "i686-apple-darwin"
   } else if (target_os == "linux" && target_cpu == "arm64") {
     _target_triplet = "aarch64-linux-gnu"
+    _default_target_sysroot =
+        rebase_path("//buildtools/debian_sid_arm64-sysroot", root_build_dir)
   } else if (target_os == "linux" && target_cpu == "arm") {
-    _target_triplet = "arm-linux-gnueabi"
+    _target_triplet = "arm-linux-gnueabihf"
+    _default_target_sysroot =
+        rebase_path("//buildtools/debian_sid_arm-sysroot", root_build_dir)
   } else if (target_os == "linux" && target_cpu == "x64") {
     _target_triplet = "x86_64-linux-gnu"
   } else if (target_os == "linux" && target_cpu == "x86") {
@@ -129,6 +143,17 @@ declare_args() {
     assert(
         false,
         "Cannot guess the target triplet from the target_os and target_cpu combination. Please set the target_triplet GN arg explicitly. See https://clang.llvm.org/docs/CrossCompilation.html#target-triple")
+  }
+}
+
+declare_args() {
+  if (sysroot != "") {
+    # If the user specifies a sysroot, use that for both host and target.
+    target_sysroot = sysroot
+  } else {
+    # If no explicit sysroot has been set, use the guessed sysroot from the ones
+    # pulled by //tools/install-build-deps (only for Linux).
+    target_sysroot = _default_target_sysroot
   }
 }
 
@@ -158,6 +183,7 @@ declare_args() {
     } else {
       assert(_target_triplet != "",
              "target_triplet must be non-empty when cross-compiling")
+      target_strip = strip
       if (is_clang) {
         if (is_linux_host) {
           target_cc = "${linux_clang_bin} --target=${_target_triplet}"

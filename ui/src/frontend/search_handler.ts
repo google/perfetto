@@ -20,17 +20,18 @@ import {globals} from './globals';
 import {scrollToTrackAndTs} from './scroll_helper';
 
 function setToPrevious(current: number) {
-  globals.frontendLocalState.setSearchIndex(Math.max(current - 1, 0));
+  const index = Math.max(current - 1, 0);
+  globals.dispatch(Actions.setSearchIndex({index}));
 }
 
 function setToNext(current: number) {
-  globals.frontendLocalState.setSearchIndex(
-      Math.min(current + 1, globals.currentSearchResults.totalResults - 1));
+  const index =
+      Math.min(current + 1, globals.currentSearchResults.totalResults - 1);
+  globals.dispatch(Actions.setSearchIndex({index}));
 }
 
 export function executeSearch(reverse = false) {
-  const state = globals.frontendLocalState;
-  const index = state.searchIndex;
+  const index = globals.state.searchIndex;
   const startNs = toNs(globals.frontendLocalState.visibleWindowTime.start);
   const endNs = toNs(globals.frontendLocalState.visibleWindowTime.end);
   const currentTs = globals.currentSearchResults.tsStarts[index];
@@ -42,14 +43,20 @@ export function executeSearch(reverse = false) {
       const [smaller,] =
         searchSegment(globals.currentSearchResults.tsStarts, endNs);
       // If there is no item in the viewport just go to the previous.
-      smaller === -1 ? setToPrevious(index) :
-                       globals.frontendLocalState.setSearchIndex(smaller);
+      if (smaller === -1) {
+        setToPrevious(index);
+      } else {
+        globals.dispatch(Actions.setSearchIndex({index: smaller}));
+      }
     } else {
       const [, larger] =
           searchSegment(globals.currentSearchResults.tsStarts, startNs);
       // If there is no item in the viewport just go to the next.
-      larger === -1 ? setToNext(index) :
-                      globals.frontendLocalState.setSearchIndex(larger);
+      if (larger === -1) {
+        setToNext(index);
+      } else {
+        globals.dispatch(Actions.setSearchIndex({index: larger}));
+      }
     }
   } else {
     // If the currentTs is in the viewport, increment the index.
@@ -72,7 +79,7 @@ export function executeSearch(reverse = false) {
 }
 
 function moveViewportToCurrentSearch() {
-  const searchIndex = globals.frontendLocalState.searchIndex;
+  const searchIndex = globals.state.searchIndex;
   if (searchIndex === -1) return;
   const currentTs = globals.currentSearchResults.tsStarts[searchIndex];
   const trackId = globals.currentSearchResults.trackIds[searchIndex];
@@ -80,8 +87,7 @@ function moveViewportToCurrentSearch() {
 }
 
 function selectCurrentSearchResult() {
-  const state = globals.frontendLocalState;
-  const searchIndex = state.searchIndex;
+  const searchIndex = globals.state.searchIndex;
   const source = globals.currentSearchResults.sources[searchIndex];
   const currentId = globals.currentSearchResults.sliceIds[searchIndex];
   const trackId = globals.currentSearchResults.trackIds[searchIndex];

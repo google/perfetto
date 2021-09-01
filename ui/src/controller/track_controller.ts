@@ -18,6 +18,7 @@ import {Registry} from '../common/registry';
 import {TraceTime, TrackState} from '../common/state';
 import {fromNs, toNs} from '../common/time';
 import {LIMIT, TrackData} from '../common/track_data';
+import {publishTrackData} from '../frontend/publish';
 
 import {Controller} from './controller';
 import {ControllerFactory} from './controller';
@@ -93,7 +94,7 @@ export abstract class TrackController<
 
   publish(data: Data): void {
     this.data = data;
-    globals.publish('TrackData', {id: this.trackId, data});
+    publishTrackData({id: this.trackId, data});
   }
 
   /**
@@ -111,11 +112,6 @@ export abstract class TrackController<
     // |resolution| is in s/px (to nearest power of 10) assuming a display
     // of ~1000px 0.0008 is 0.8s.
     return resolution >= 0.0008;
-  }
-
-  protected async query(query: string) {
-    const result = await this.engine.query(query);
-    return result;
   }
 
   protected async queryV2(query: string) {

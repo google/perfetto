@@ -19,14 +19,19 @@ import {
   ThreadStateExtra,
 } from '../../common/aggregation_data';
 import {Engine} from '../../common/engine';
-import {slowlyCountRows} from '../../common/query_iterator';
+import {NUM} from '../../common/query_result';
 import {Area, Sorting} from '../../common/state';
+import {publishAggregateData} from '../../frontend/publish';
 import {Controller} from '../controller';
 import {globals} from '../globals';
 
 export interface AggregationControllerArgs {
   engine: Engine;
   kind: string;
+}
+
+function isStringColumn(column: Column): boolean {
+  return column.kind === 'STRING' || column.kind === 'STATE';
 }
 
 export abstract class AggregationController extends Controller<'main'> {
@@ -52,7 +57,7 @@ export abstract class AggregationController extends Controller<'main'> {
   run() {
     const selection = globals.state.currentSelection;
     if (selection === null || selection.kind !== 'AREA') {
-      globals.publish('AggregateData', {
+      publishAggregateData({
         data: {
           tabName: this.getTabName(),
           columns: [],
@@ -79,9 +84,7 @@ export abstract class AggregationController extends Controller<'main'> {
       if (sortingChanged) this.previousSorting = aggregatePreferences.sorting;
       if (areaChanged) this.previousArea = Object.assign({}, selectedArea);
       this.getAggregateData(selectedArea, areaChanged)
-          .then(
-              data => globals.publish(
-                  'AggregateData', {data, kind: this.args.kind}))
+          .then(data => publishAggregateData({data, kind: this.args.kind}))
           .finally(() => {
             this.requestingData = false;
             if (this.queuedRequest) {
@@ -115,9 +118,9 @@ export abstract class AggregationController extends Controller<'main'> {
       sorting = `${pref.sorting.column} ${pref.sorting.direction}`;
     }
     const query = `select ${colIds} from ${this.kind} order by ${sorting}`;
-    const result = await this.args.engine.query(query);
+    const result = await this.args.engine.queryV2(query);
 
-    const numRows = slowlyCountRows(result);
+    const numRows = result.numRows();
     const columns = defs.map(def => this.columnFromColumnDef(def, numRows));
     const columnSums = await Promise.all(defs.map(def => this.getSum(def)));
     const extraData = await this.getExtra(this.args.engine, area);
@@ -135,28 +138,28 @@ export abstract class AggregationController extends Controller<'main'> {
       return idx;
     }
 
-    for (let row = 0; row < numRows; row++) {
-      const cols = result.columns;
-      for (let col = 0; col < result.columns.length; col++) {
-        if (cols[col].stringValues && cols[col].stringValues!.length > 0) {
-          data.columns[col].data[row] =
-              internString(cols[col].stringValues![row]);
-        } else if (cols[col].longValues && cols[col].longValues!.length > 0) {
-          data.columns[col].data[row] = cols[col].longValues![row];
-        } else if (
-            cols[col].doubleValues && cols[col].doubleValues!.length > 0) {
-          data.columns[col].data[row] = cols[col].doubleValues![row];
+    const it = result.iter({});
+    for (let i = 0; it.valid(); it.next(), ++i) {
+      for (const column of data.columns) {
+        const item = it.get(column.columnId);
+        if (item === null) {
+          column.data[i] = isStringColumn(column) ? internString('NULL') : 0;
+        } else if (typeof item === 'string') {
+          column.data[i] = internString(item);
+        } else {
+          column.data[i] = item;
         }
       }
     }
+
     return data;
   }
 
   async getSum(def: ColumnDef): Promise<string> {
     if (!def.sum) return '';
-    const result = await this.args.engine.queryOneRow(
-        `select sum(${def.columnId}) from ${this.kind}`);
-    let sum = result[0];
+    const result = await this.args.engine.queryV2(
+        `select ifnull(sum(${def.columnId}), 0) as s from ${this.kind}`);
+    let sum = result.firstRow({s: NUM}).s;
     if (def.kind === 'TIMESTAMP_NS') {
       sum = sum / 1e6;
     }

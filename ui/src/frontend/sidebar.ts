@@ -16,9 +16,9 @@ import * as m from 'mithril';
 
 import {assertExists, assertTrue} from '../base/logging';
 import {Actions} from '../common/actions';
+import {getCurrentChannel} from '../common/channels';
 import {TRACE_SUFFIX} from '../common/constants';
 import {ConversionJobStatus} from '../common/conversion_jobs';
-import {QueryResponse} from '../common/queries';
 import {EngineMode, TraceArrayBufferSource} from '../common/state';
 import * as version from '../gen/perfetto_version';
 
@@ -31,6 +31,7 @@ import {
   openFileWithLegacyTraceViewer,
 } from './legacy_trace_viewer';
 import {showModal} from './modal';
+import {Router} from './router';
 import {isDownloadable, isShareable} from './trace_attrs';
 import {
   convertToJson,
@@ -306,6 +307,7 @@ const SECTIONS: Section[] = [
         a: 'https://perfetto.dev',
         i: 'find_in_page',
       },
+      {t: 'Flags', a: navigateFlags, i: 'emoji_flags'},
       {
         t: 'Report a bug',
         a: 'https://goto.google.com/perfetto-ui-bug',
@@ -315,15 +317,6 @@ const SECTIONS: Section[] = [
   },
 
 ];
-
-const vidSection = {
-  title: 'Video',
-  summary: 'Open a screen recording',
-  expanded: true,
-  items: [
-    {t: 'Open video file', a: popupVideoSelectionDialog, i: 'folder_open'},
-  ],
-};
 
 function openHelp(e: Event) {
   e.preventDefault();
@@ -338,13 +331,11 @@ function getFileElement(): HTMLInputElement {
 function popupFileSelectionDialog(e: Event) {
   e.preventDefault();
   delete getFileElement().dataset['useCatapultLegacyUi'];
-  delete getFileElement().dataset['video'];
   getFileElement().click();
 }
 
 function popupFileSelectionDialogOldUI(e: Event) {
   e.preventDefault();
-  delete getFileElement().dataset['video'];
   getFileElement().dataset['useCatapultLegacyUi'] = '1';
   getFileElement().click();
 }
@@ -433,18 +424,10 @@ function isTraceLoaded(): boolean {
   return engine !== undefined;
 }
 
-function popupVideoSelectionDialog(e: Event) {
-  e.preventDefault();
-  delete getFileElement().dataset['useCatapultLegacyUi'];
-  getFileElement().dataset['video'] = '1';
-  getFileElement().click();
-}
-
 function openTraceUrl(url: string): (e: Event) => void {
   return e => {
     globals.logging.logEvent('Trace Actions', 'Open example trace');
     e.preventDefault();
-    globals.frontendLocalState.localOnlyMode = false;
     globals.dispatch(Actions.openTraceFromUrl({url}));
   };
 }
@@ -458,35 +441,11 @@ function onInputElementFileSelectionChanged(e: Event) {
   // Reset the value so onchange will be fired with the same file.
   e.target.value = '';
 
-  globals.frontendLocalState.localOnlyMode = false;
-
   if (e.target.dataset['useCatapultLegacyUi'] === '1') {
     openWithLegacyUi(file);
     return;
   }
 
-  if (e.target.dataset['video'] === '1') {
-    // TODO(hjd): Update this to use a controller and publish.
-    globals.logging.logEvent('Trace Actions', 'Open video');
-    globals.dispatch(Actions.executeQuery({
-      engineId: '0', queryId: 'command',
-      query: `select ts from slices where name = 'first_frame' union ` +
-             `select start_ts from trace_bounds`}));
-    setTimeout(() => {
-      const resp = globals.queryResults.get('command') as QueryResponse;
-      // First value is screenrecord trace event timestamp
-      // and second value is trace boundary's start timestamp
-      const offset = (Number(resp.rows[1]['ts'].toString()) -
-                      Number(resp.rows[0]['ts'].toString())) /
-          1e9;
-      globals.queryResults.delete('command');
-      globals.rafScheduler.scheduleFullRedraw();
-      globals.dispatch(Actions.deleteQuery({queryId: 'command'}));
-      globals.dispatch(Actions.setVideoOffset({offset}));
-    }, 1000);
-    globals.dispatch(Actions.openVideoFromFile({file}));
-    return;
-  }
   globals.logging.logEvent('Trace Actions', 'Open trace from file');
   globals.dispatch(Actions.openTraceFromFile({file}));
 }
@@ -559,27 +518,32 @@ function openInOldUIWithSizeCheck(trace: Blob) {
 
 function navigateRecord(e: Event) {
   e.preventDefault();
-  globals.dispatch(Actions.navigate({route: '/record'}));
+  Router.navigate('#!/record');
 }
 
 function navigateAnalyze(e: Event) {
   e.preventDefault();
-  globals.dispatch(Actions.navigate({route: '/query'}));
+  Router.navigate('#!/query');
+}
+
+function navigateFlags(e: Event) {
+  e.preventDefault();
+  Router.navigate('#!/flags');
 }
 
 function navigateMetrics(e: Event) {
   e.preventDefault();
-  globals.dispatch(Actions.navigate({route: '/metrics'}));
+  Router.navigate('#!/metrics');
 }
 
 function navigateInfo(e: Event) {
   e.preventDefault();
-  globals.dispatch(Actions.navigate({route: '/info'}));
+  Router.navigate('#!/info');
 }
 
 function navigateViewer(e: Event) {
   e.preventDefault();
-  globals.dispatch(Actions.navigate({route: '/viewer'}));
+  Router.navigate('#!/viewer');
 }
 
 function shareTrace(e: Event) {
@@ -786,7 +750,7 @@ const SidebarFooter: m.Component = {
         '.sidebar-footer',
         m('button',
           {
-            onclick: () => globals.frontendLocalState.togglePerfDebug(),
+            onclick: () => globals.dispatch(Actions.togglePerfDebug({})),
           },
           m('i.material-icons',
             {title: 'Toggle Perf Debug Mode'},
@@ -799,7 +763,7 @@ const SidebarFooter: m.Component = {
               {
                 href: `https://github.com/google/perfetto/tree/${
                     version.SCM_REVISION}/ui`,
-                title: `Channel: ${globals.channel}`,
+                title: `Channel: ${getCurrentChannel()}`,
                 target: '_blank',
               },
               `${version.VERSION}`),
@@ -897,55 +861,27 @@ export class Sidebar implements m.ClassComponent {
               m('h2', section.summary)),
             m('.section-content', m('ul', vdomItems))));
     }
-    if (globals.state.videoEnabled) {
-      const videoVdomItems = [];
-      for (const item of vidSection.items) {
-        videoVdomItems.push(
-          m('li',
-            m(`a`,
-              {
-                onclick: typeof item.a === 'function' ? item.a : null,
-                href: typeof item.a === 'string' ? item.a : '#',
-              },
-              m('i.material-icons', item.i),
-              item.t)));
-      }
-      vdomSections.push(
-        m(`section${vidSection.expanded ? '.expanded' : ''}`,
-          m('.section-header',
-            {
-              onclick: () => {
-                vidSection.expanded = !vidSection.expanded;
-                globals.rafScheduler.scheduleFullRedraw();
-              }
-            },
-            m('h1', vidSection.title),
-            m('h2', vidSection.summary), ),
-          m('.section-content', m('ul', videoVdomItems))));
-    }
     return m(
         'nav.sidebar',
         {
-          class: globals.frontendLocalState.sidebarVisible ? 'show-sidebar' :
-                                                             'hide-sidebar',
+          class: globals.state.sidebarVisible ? 'show-sidebar' : 'hide-sidebar',
           // 150 here matches --sidebar-timing in the css.
           ontransitionstart: () => this._redrawWhileAnimating.start(150),
           ontransitionend: () => this._redrawWhileAnimating.stop(),
         },
         m(
-            `header.${globals.channel}`,
+            `header.${getCurrentChannel()}`,
             m(`img[src=${globals.root}assets/brand.png].brand`),
             m('button.sidebar-button',
               {
                 onclick: () => {
-                  globals.frontendLocalState.toggleSidebar();
+                  globals.dispatch(Actions.toggleSidebar({}));
                 },
               },
               m('i.material-icons',
                 {
-                  title: globals.frontendLocalState.sidebarVisible ?
-                      'Hide menu' :
-                      'Show menu',
+                  title: globals.state.sidebarVisible ? 'Hide menu' :
+                                                        'Show menu',
                 },
                 'menu')),
             ),

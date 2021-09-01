@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {AggregationAttrs, PivotAttrs} from './pivot_table_query_generator';
+
 /**
  * A plain js object, holding objects of type |Class| keyed by string id.
  * We use this instead of using |Map| object since it is simpler and faster to
@@ -52,7 +54,9 @@ export interface Area {
 export const MAX_TIME = 180;
 
 // 3: TrackKindPriority and related sorting changes.
-export const STATE_VERSION = 4;
+// 5: Move a large number of items off frontendLocalState and onto state
+// 6: Common PivotTableConfig and pivot table specific PivotTableState.
+export const STATE_VERSION = 6;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -90,10 +94,21 @@ export interface TraceFileSource {
 
 export interface TraceArrayBufferSource {
   type: 'ARRAY_BUFFER';
+  buffer: ArrayBuffer;
   title: string;
   url?: string;
   fileName?: string;
-  buffer: ArrayBuffer;
+
+  // |uuid| is set only when loading from the cache via ?trace_id=123. When set,
+  // this matches global.state.traceUuid, with the exception of the following
+  // time window: When a trace T1 is loaded and the user loads another trace T2,
+  // this |uuid| will be == T2, but the globals.state.traceUuid will be
+  // temporarily == T1 until T2 has been loaded (consistently to what happens
+  // with all other state fields).
+  uuid?: string;
+  // if |localOnly| is true then the trace should not be shared or stored in the
+  // browser cache.
+  localOnly?: boolean;
 }
 
 export interface TraceUrlSource {
@@ -163,7 +178,7 @@ export interface Status {
 }
 
 export interface Note {
-  noteType: 'DEFAULT'|'MOVIE';
+  noteType: 'DEFAULT';
   id: string;
   timestamp: number;
   color: string;
@@ -267,11 +282,31 @@ export interface MetricsState {
   requestedMetric?: string;  // Unset after metric request is handled.
 }
 
+export interface PivotTableConfig {
+  availableColumns?: Array<{
+    tableName: string,
+    columns: string[]
+  }>;                                // Undefined until list is loaded.
+  totalColumnsCount?: number;        // Total columns in all tables.
+  availableAggregations?: string[];  // Undefined until list is loaded.
+}
+
+export interface PivotTableState {
+  id: string;
+  name: string;
+  selectedPivots: PivotAttrs[];
+  selectedAggregations: AggregationAttrs[];
+  selectedColumnIndex?: number;
+  selectedAggregationIndex?: number;
+  isPivot: boolean;
+  requestedAction?:
+      string;  // Unset after pivot table column request is handled.
+}
+
 export interface State {
   // tslint:disable-next-line:no-any
   [key: string]: any;
   version: number;
-  route?: string;
   nextId: number;
   nextNoteId: number;
   nextAreaId: number;
@@ -307,6 +342,8 @@ export interface State {
   currentHeapProfileFlamegraph: HeapProfileFlamegraph|null;
   logsPagination: LogsPagination;
   traceConversionInProgress: boolean;
+  pivotTableConfig: PivotTableConfig;
+  pivotTable: ObjectById<PivotTableState>;
 
   /**
    * This state is updated on the frontend at 60Hz and eventually syncronised to
@@ -316,12 +353,23 @@ export interface State {
    */
   frontendLocalState: FrontendLocalState;
 
-  video: string | null;
-  videoEnabled: boolean;
-  videoOffset: number;
-  videoNoteIds: string[];
-  scrubbingEnabled: boolean;
-  flagPauseEnabled: boolean;
+  // Show track perf debugging overlay
+  perfDebug: boolean;
+
+  // Show the sidebar extended
+  sidebarVisible: boolean;
+
+  // Hovered and focused events
+  hoveredUtid: number;
+  hoveredPid: number;
+  hoveredLogsTimestamp: number;
+  hoveredNoteTimestamp: number;
+  highlightedSliceId: number;
+  focusedFlowIdLeft: number;
+  focusedFlowIdRight: number;
+
+  searchIndex: number;
+  currentTab?: string;
 
   /**
    * Trace recording
@@ -403,8 +451,6 @@ export interface RecordConfig {
   cpuCoarsePollMs: number;
   cpuSyscall: boolean;
 
-  screenRecord: boolean;
-
   gpuFreq: boolean;
   gpuMemTotal: boolean;
 
@@ -475,7 +521,6 @@ export function createEmptyRecordConfig(): RecordConfig {
     cpuFreq: false,
     cpuSyscall: false,
 
-    screenRecord: false,
 
     gpuFreq: false,
     gpuMemTotal: false,
@@ -816,6 +861,8 @@ export function createEmptyState(): State {
     metrics: {},
     permalink: {},
     notes: {},
+    pivotTableConfig: {},
+    pivotTable: {},
 
     recordConfig: createEmptyRecordConfig(),
     displayConfigAsPbtxt: false,
@@ -844,12 +891,17 @@ export function createEmptyState(): State {
     currentHeapProfileFlamegraph: null,
     traceConversionInProgress: false,
 
-    video: null,
-    videoEnabled: false,
-    videoOffset: 0,
-    videoNoteIds: [],
-    scrubbingEnabled: false,
-    flagPauseEnabled: false,
+    perfDebug: false,
+    sidebarVisible: true,
+    hoveredUtid: -1,
+    hoveredPid: -1,
+    hoveredLogsTimestamp: -1,
+    hoveredNoteTimestamp: -1,
+    highlightedSliceId: -1,
+    focusedFlowIdLeft: -1,
+    focusedFlowIdRight: -1,
+    searchIndex: -1,
+
     recordingInProgress: false,
     recordingCancelled: false,
     extensionInstalled: false,

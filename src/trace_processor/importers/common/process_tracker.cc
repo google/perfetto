@@ -61,7 +61,19 @@ void ProcessTracker::EndThread(int64_t timestamp, uint32_t tid) {
   auto* thread_table = context_->storage->mutable_thread_table();
   auto* process_table = context_->storage->mutable_process_table();
 
-  UniqueTid utid = GetOrCreateThread(tid);
+  // Don't bother creating a new thread if we're just going to
+  // end it straight away.
+  //
+  // This is useful in situations where we get a sched_process_free event for a
+  // worker thread in a process *after* the main thread finishes - in that case
+  // we would have already ended the process and we don't want to
+  // create a new thread here (see b/193520421 for an example of a trace
+  // where this happens in practice).
+  base::Optional<UniqueTid> opt_utid = GetThreadOrNull(tid);
+  if (!opt_utid)
+    return;
+
+  UniqueTid utid = *opt_utid;
   thread_table->mutable_end_ts()->Set(utid, timestamp);
 
   // Remove the thread from the list of threads being tracked as any event after
@@ -211,7 +223,8 @@ UniqueTid ProcessTracker::UpdateThread(uint32_t tid, uint32_t pid) {
 UniquePid ProcessTracker::StartNewProcess(base::Optional<int64_t> timestamp,
                                           base::Optional<uint32_t> parent_tid,
                                           uint32_t pid,
-                                          StringId main_thread_name) {
+                                          StringId main_thread_name,
+                                          ThreadNamePriority priority) {
   pids_.erase(pid);
   // TODO(eseckler): Consider erasing all old entries in |tids_| that match the
   // |pid| (those would be for an older process with the same pid). Right now,
@@ -220,7 +233,8 @@ UniquePid ProcessTracker::StartNewProcess(base::Optional<int64_t> timestamp,
 
   // Create a new UTID for the main thread, so we don't end up reusing an old
   // entry in case of TID recycling.
-  StartNewThread(timestamp, /*tid=*/pid);
+  UniqueTid utid = StartNewThread(timestamp, /*tid=*/pid);
+  UpdateThreadNameByUtid(utid, main_thread_name, priority);
 
   // Note that we erased the pid above so this should always return a new
   // process.
@@ -253,20 +267,18 @@ UniquePid ProcessTracker::SetProcessMetadata(uint32_t pid,
                                              base::Optional<uint32_t> ppid,
                                              base::StringView name,
                                              base::StringView cmdline) {
-  auto proc_name_id = context_->storage->InternString(name);
-
   base::Optional<UniquePid> pupid;
   if (ppid.has_value()) {
     pupid = GetOrCreateProcess(ppid.value());
   }
 
   UniquePid upid = GetOrCreateProcess(pid);
-
   auto* process_table = context_->storage->mutable_process_table();
+
+  StringId proc_name_id = context_->storage->InternString(name);
   process_table->mutable_name()->Set(upid, proc_name_id);
   process_table->mutable_cmdline()->Set(
       upid, context_->storage->InternString(cmdline));
-
   if (pupid)
     process_table->mutable_parent_upid()->Set(upid, *pupid);
 
@@ -296,17 +308,18 @@ void ProcessTracker::SetStartTsIfUnset(UniquePid upid,
     process_table->mutable_start_ts()->Set(upid, start_ts_nanoseconds);
 }
 
-void ProcessTracker::UpdateProcessNameFromThreadName(uint32_t tid,
-                                                     StringId thread_name) {
+void ProcessTracker::UpdateThreadNameAndMaybeProcessName(
+    uint32_t tid,
+    StringId thread_name,
+    ThreadNamePriority priority) {
   auto* thread_table = context_->storage->mutable_thread_table();
   auto* process_table = context_->storage->mutable_process_table();
 
-  auto utid = GetOrCreateThread(tid);
-  auto opt_upid = thread_table->upid()[utid];
-  if (opt_upid.has_value()) {
-    if (process_table->pid()[*opt_upid] == tid) {
-      process_table->mutable_name()->Set(*opt_upid, thread_name);
-    }
+  UniqueTid utid = UpdateThreadName(tid, thread_name, priority);
+  base::Optional<UniquePid> opt_upid = thread_table->upid()[utid];
+  if (opt_upid.has_value() && process_table->pid()[*opt_upid] == tid) {
+    PERFETTO_DCHECK(thread_table->is_main_thread()[utid]);
+    process_table->mutable_name()->Set(*opt_upid, thread_name);
   }
 }
 

@@ -46,6 +46,7 @@ import {
   RecordConfig,
   RecordingTarget
 } from '../common/state';
+import {publishBufferUsage, publishTrackData} from '../frontend/publish';
 
 import {AdbOverWebUsb} from './adb';
 import {AdbConsumerPort} from './adb_shell_controller';
@@ -430,10 +431,22 @@ export function genConfig(
     metadataDs.config.chromeConfig = new ChromeConfig();
     metadataDs.config.chromeConfig.traceConfig = traceConfigJson;
     protoCfg.dataSources.push(metadataDs);
-  }
 
-  if (uiCfg.screenRecord) {
-    atraceCats.add('gfx');
+    if (chromeCategories.has('disabled-by-default-memory-infra')) {
+      const memoryDs = new TraceConfig.DataSource();
+      memoryDs.config = new DataSourceConfig();
+      memoryDs.config.name = 'org.chromium.memory_instrumentation';
+      memoryDs.config.chromeConfig = new ChromeConfig();
+      memoryDs.config.chromeConfig.traceConfig = traceConfigJson;
+      protoCfg.dataSources.push(memoryDs);
+
+      const HeapProfDs = new TraceConfig.DataSource();
+      HeapProfDs.config = new DataSourceConfig();
+      HeapProfDs.config.name = 'org.chromium.native_heap_profiler';
+      HeapProfDs.config.chromeConfig = new ChromeConfig();
+      HeapProfDs.config.chromeConfig.traceConfig = traceConfigJson;
+      protoCfg.dataSources.push(HeapProfDs);
+    }
   }
 
   // Keep these last. The stages above can enrich them.
@@ -632,7 +645,7 @@ export class RecordController extends Controller<'main'> implements Consumer {
     `;
     const traceConfig = genConfig(this.config, this.app.state.recordingTarget);
     // TODO(hjd): This should not be TrackData after we unify the stores.
-    this.app.publish('TrackData', {
+    publishTrackData({
       id: 'config',
       data: {
         commandline,
@@ -689,7 +702,7 @@ export class RecordController extends Controller<'main'> implements Consumer {
     } else if (isGetTraceStatsResponse(data)) {
       const percentage = this.getBufferUsagePercentage(data);
       if (percentage) {
-        globals.publish('BufferUsage', {percentage});
+        publishBufferUsage({percentage});
       }
     } else if (isFreeBuffersResponse(data)) {
       // No action required.

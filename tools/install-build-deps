@@ -28,7 +28,7 @@ from collections import namedtuple
 from platform import system, machine
 
 # The format for the deps below is the following:
-# (target_folder, source_url, sha1, target_platform)
+# (target_folder, source_url, sha1, target_os, target_arch)
 # |source_url| can be either a git repo or a http url.
 # If a git repo, |checksum| is the SHA1 committish that will be checked out.
 # If a http url, |checksum| is the SHA256 of the downloaded file.
@@ -234,8 +234,8 @@ BUILD_DEPS_HOST = [
     # Example traces for regression tests.
     Dependency(
         'test/data.zip',
-        'https://storage.googleapis.com/perfetto/test-data-20210630-164307.zip',
-        'ce67ef2089edbae4909563fc8696d68c243658e431af5c7f6723548a824f0c3f',
+        'https://storage.googleapis.com/perfetto/test-data-20210728-191746.zip',
+        '334ba7315b73b5a4277d0d0d530e555f1d1257fb0f498d39bb020a5b6b7db97a',
         'all', 'all',
     ),
 
@@ -243,6 +243,11 @@ BUILD_DEPS_HOST = [
     Dependency('buildtools/linenoise',
                'https://fuchsia.googlesource.com/third_party/linenoise.git',
                'c894b9e59f02203dbe4e2be657572cf88c4230c3', 'all', 'all'),
+
+    # Bloaty, used to investigate binary size
+    Dependency('buildtools/bloaty.zip',
+               'https://storage.googleapis.com/perfetto/bloaty-1.1-b3b829de35babc2fe831b9488ad2e50bca939412-mac.zip',
+               '2d301bd72a20e3f42888c9274ceb4dca76c103608053572322412c2c65ab8cb8', 'darwin', 'x64'),
 ]
 
 # Dependencies required to build Android code.
@@ -326,6 +331,24 @@ UI_DEPS = [
         'https://storage.googleapis.com/perfetto/typefaces-%s.tar.gz' %
         TYPEFACES_SHA256, TYPEFACES_SHA256, 'all', 'all')
 ]
+
+# Sysroots required to cross-compile Linux targets (linux-arm{,64}).
+# These are taken from Chromium's build/linux/sysroot_scripts/sysroots.json.
+BUILD_DEPS_LINUX_CROSS_SYSROOTS = [
+    Dependency(
+        'buildtools/debian_sid_arm-sysroot.tgz',
+        'https://commondatastorage.googleapis.com/chrome-linux-sysroot/toolchain/11d6f690ca49e8ba01a1d8c5346cedad2cf308fd/debian_sid_arm_sysroot.tar.xz',
+        'ff192fe073d140d836c9ca1e68f7200d558bb9aa6c5c8f4f76f794f82890f99a',
+        'linux', 'all'),
+    Dependency(
+        'buildtools/debian_sid_arm64-sysroot.tgz',
+        'https://commondatastorage.googleapis.com/chrome-linux-sysroot/toolchain/2befe8ce3e88be6080e4fb7e6d412278ea6a7625/debian_sid_arm64_sysroot.tar.xz',
+        'e4389eab2fe363f3fbdfa4d3ce9d94457d78fd2c0e62171a7534867623eadc90',
+        'linux', 'all'),
+]
+
+ALL_DEPS = (BUILD_DEPS_HOST + BUILD_DEPS_ANDROID +
+    BUILD_DEPS_LINUX_CROSS_SYSROOTS + TEST_DEPS_ANDROID + UI_DEPS)
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 UI_DIR = os.path.join(ROOT_DIR, 'ui')
@@ -455,26 +478,29 @@ def CheckNodeModules():
 
 
 def CheckHashes():
-  for deps in [BUILD_DEPS_HOST, BUILD_DEPS_ANDROID, TEST_DEPS_ANDROID, UI_DEPS]:
-    for dep in deps:
-      if dep.source_url.endswith('.git'):
-        continue
-      logging.info('Downloading %s from %s', dep.target_platform,
-                   dep.source_url)
-      with tempfile.NamedTemporaryFile(delete=False) as f:
-        f.close()
-        DownloadURL(dep.source_url, f.name)
-        actual_checksum = HashLocalFile(f.name)
-        os.unlink(f.name)
-        if (actual_checksum != dep.checksum):
-          logging.fatal('SHA-256 mismatch for {} expected {} was {}'.format(
-              dep.source_url, dep.checksum, actual_checksum))
+  for dep in ALL_DEPS:
+    if dep.source_url.endswith('.git'):
+      continue
+    logging.info('Downloading %s for %s-%s', dep.source_url,
+        dep.target_os, dep.target_arch)
+    with tempfile.NamedTemporaryFile(delete=False) as f:
+      f.close()
+      DownloadURL(dep.source_url, f.name)
+      actual_checksum = HashLocalFile(f.name)
+      os.unlink(f.name)
+      if (actual_checksum != dep.checksum):
+        logging.fatal('SHA-256 mismatch for {} expected {} was {}'.format(
+            dep.source_url, dep.checksum, actual_checksum))
 
 
 def Main():
   parser = argparse.ArgumentParser()
-  parser.add_argument('--android', action='store_true')
-  parser.add_argument('--ui', action='store_true')
+  parser.add_argument('--android', action='store_true',
+      help='NDK and emulator images target_os="android"')
+  parser.add_argument('--linux-arm', action='store_true',
+      help='Debian sysroots for target_os="linux" target_cpu="arm|arm64"')
+  parser.add_argument('--ui', action='store_true',
+      help='Node and NPM packages to Build the Web-based UI via ./ui/build')
   parser.add_argument('--check-only')
   parser.add_argument('--filter', default='')
   parser.add_argument('--verify', help='Check all URLs', action='store_true')
@@ -495,6 +521,8 @@ def Main():
     deps += BUILD_DEPS_TOOLCHAIN_HOST
   if args.android:
     deps += BUILD_DEPS_ANDROID + TEST_DEPS_ANDROID
+  if args.linux_arm:
+    deps += BUILD_DEPS_LINUX_CROSS_SYSROOTS
   if args.ui:
     deps += UI_DEPS
   deps_updated = False

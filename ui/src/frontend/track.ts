@@ -13,12 +13,20 @@
 // limitations under the License.
 
 import * as m from 'mithril';
+import {assertExists} from '../base/logging';
 import {TrackState} from '../common/state';
 import {TrackData} from '../common/track_data';
 import {checkerboard} from './checkerboard';
 
 import {globals} from './globals';
 import {TrackButtonAttrs} from './track_panel';
+
+/**
+ * Args passed to the track constructors when creating a new track.
+ */
+export interface NewTrackArgs {
+  trackId: string;
+}
 
 /**
  * This interface forces track implementations to have some static properties.
@@ -30,9 +38,9 @@ export interface TrackCreator {
   // case we ever minify our code.
   readonly kind: string;
 
-  // We need the |create| method because the stored value in the registry is an
-  // abstract class, and we cannot call 'new' on an abstract class.
-  create(TrackState: TrackState): Track;
+  // We need the |create| method because the stored value in the registry can be
+  // an abstract class, and we cannot call 'new' on an abstract class.
+  create(args: NewTrackArgs): Track;
 }
 
 export interface SliceRect {
@@ -47,18 +55,37 @@ export interface SliceRect {
  * The abstract class that needs to be implemented by all tracks.
  */
 export abstract class Track<Config = {}, Data extends TrackData = TrackData> {
+  // The UI-generated track ID (not to be confused with the SQL track.id).
   private trackId: string;
-  constructor(trackState: TrackState) {
-    this.trackId = trackState.id;
+
+  // Caches the last state.track[this.trackId]. This is to deal with track
+  // deletion, see comments in trackState() below.
+  private lastTrackState: TrackState;
+
+  constructor(trackId: string) {
+    this.trackId = trackId;
+    this.lastTrackState = assertExists(globals.state.tracks[this.trackId]);
   }
+
   protected abstract renderCanvas(ctx: CanvasRenderingContext2D): void;
 
   protected get trackState(): TrackState {
-    return globals.state.tracks[this.trackId];
+    // We can end up in a state where a Track is still in the mithril renderer
+    // tree but its corresponding state has been deleted. This can happen in the
+    // interval of time between a track being removed from the state and the
+    // next animation frame that would remove the Track object. If a mouse event
+    // is dispatched in the meanwhile (or a promise is resolved), we need to be
+    // able to access the state. Hence the caching logic here.
+    const trackState = globals.state.tracks[this.trackId];
+    if (trackState === undefined) {
+      return this.lastTrackState;
+    }
+    this.lastTrackState = trackState;
+    return trackState;
   }
 
   get config(): Config {
-    return globals.state.tracks[this.trackId].config as Config;
+    return this.trackState.config as Config;
   }
 
   data(): Data|undefined {

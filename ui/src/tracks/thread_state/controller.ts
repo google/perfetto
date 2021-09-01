@@ -13,11 +13,7 @@
 // limitations under the License.
 
 import {assertFalse} from '../../base/logging';
-import {
-  NUM,
-  NUM_NULL,
-  STR_NULL
-} from '../../common/query_iterator';
+import {NUM, NUM_NULL, STR_NULL} from '../../common/query_result';
 import {translateState} from '../../common/thread_state';
 import {fromNs, toNs} from '../../common/time';
 import {
@@ -45,7 +41,7 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
         dur,
         cpu,
         state,
-        io_wait
+        io_wait as ioWait
       from thread_state
       where utid = ${this.config.utid} and utid != 0
     `);
@@ -75,14 +71,14 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
         max(dur) as dur,
         ifnull(cast(cpu as integer), -1) as cpu,
         state,
-        io_wait,
+        ioWait,
         ifnull(id, -1) as id
       from ${this.tableName('thread_state')}
       where
         ts >= ${startNs - this.maxDurNs} and
         ts <= ${endNs}
-      group by tsq, state, io_wait
-      order by tsq, state, io_wait
+      group by tsq, state, ioWait
+      order by tsq, state, ioWait
     `;
 
     const queryRes = await this.queryV2(query);
@@ -102,7 +98,7 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
     };
 
     const stringIndexes =
-        new Map<{shortState: string, ioWait: boolean | undefined}, number>();
+        new Map<{shortState: string; ioWait: boolean | undefined}, number>();
     function internState(shortState: string, ioWait: boolean|undefined) {
       let idx = stringIndexes.get({shortState, ioWait});
       if (idx !== undefined) return idx;
@@ -117,7 +113,7 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
       'dur': NUM,
       'cpu': NUM,
       'state': STR_NULL,
-      'io_wait': NUM_NULL,
+      'ioWait': NUM_NULL,
       'id': NUM,
     });
     for (let row = 0; it.valid(); it.next(), row++) {
@@ -131,7 +127,7 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
 
       const cpu = it.cpu;
       const state = it.state || '[null]';
-      const ioWait = it.io_wait === null ? undefined : !!it.io_wait;
+      const ioWait = it.ioWait === null ? undefined : !!it.ioWait;
       const id = it.id;
 
       // We should never have the end timestamp being the same as the bucket

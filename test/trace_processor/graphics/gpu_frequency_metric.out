@@ -4,11 +4,36 @@ android_gpu {
     freq_max: 603000
     freq_min: 0
     freq_avg: 475200.0  # = (585000 * 2 + 0 * 1 + 603000 * 2) / 5
+    used_freqs {
+      freq: 0
+      dur_ms: 1.0
+      percentage: 20.0
+    }
+    used_freqs {
+      freq: 585000
+      dur_ms: 2.0
+      percentage: 40.0
+    }
+    used_freqs {
+      freq: 603000
+      dur_ms: 2.0
+      percentage: 40.0
+    }
   }
   freq_metrics {
     gpu_id: 1
     freq_max: 758000
     freq_min: 400000
     freq_avg: 489500.0  # = (400000 * 3 + 758000 * 1) / 4
+    used_freqs {
+      freq: 400000
+      dur_ms: 3.0
+      percentage: 75.0
+    }
+    used_freqs {
+      freq: 758000
+      dur_ms: 1.0
+      percentage: 25.0
+    }
   }
 }

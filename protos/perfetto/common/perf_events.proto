@@ -47,7 +47,13 @@ message PerfEvents {
     oneof event {
       Counter counter = 4;
       Tracepoint tracepoint = 3;
+      RawEvent raw_event = 5;
     }
+
+    // Optional arbitrary name for the event, to identify it in the parsed
+    // trace. Does *not* affect the profiling itself. If unset, the trace
+    // parser will choose a suitable name.
+    optional string name = 10;
   }
 
   enum Counter {
@@ -72,5 +78,15 @@ message PerfEvents {
     // For full syntax, see kernel documentation on "Event filtering":
     // https://www.kernel.org/doc/Documentation/trace/events.txt
     optional string filter = 2;
+  }
+
+  // Syscall-level description of the event, propagated to the perf_event_attr
+  // struct. Primarily for local use-cases, since the event availability and
+  // encoding is hardware-specific.
+  message RawEvent {
+    optional uint32 type = 1;
+    optional uint64 config = 2;
+    optional uint64 config1 = 3;
+    optional uint64 config2 = 4;
   }
 }

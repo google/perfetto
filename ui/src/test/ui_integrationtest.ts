@@ -15,10 +15,12 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as puppeteer from 'puppeteer';
+
 import {assertExists} from '../base/logging';
 
 import {
   compareScreenshots,
+  failIfTraceProcessorHttpdIsActive,
   getTestTracePath,
   waitForPerfettoIdle
 } from './perfetto_ui_test_helper';
@@ -36,6 +38,7 @@ async function getPage(): Promise<puppeteer.Page> {
 
 // Executed once at the beginning of the test. Navigates to the UI.
 beforeAll(async () => {
+  await failIfTraceProcessorHttpdIsActive();
   jest.setTimeout(60000);
   const page = await getPage();
   await page.setViewport({width: 1920, height: 1080});
@@ -110,6 +113,39 @@ describe('navigation', () => {
     const page = await getPage();
     await page.goto(
         'http://localhost:10000/#!/?testing=1&url=http://localhost:10000/test/data/chrome_scroll_without_vsync.pftrace');
+    await waitForPerfettoIdle(page);
+  });
+});
+
+
+describe('chrome_rendering_desktop', () => {
+  test('load', async () => {
+    const page = await getPage();
+    const file = await page.waitForSelector('input.trace_file');
+    const tracePath = getTestTracePath('chrome_rendering_desktop.pftrace');
+    assertExists(file).uploadFile(tracePath);
+    await waitForPerfettoIdle(page);
+  });
+
+  test('expand_browser_proc', async () => {
+    const page = await getPage();
+    await page.click('.main-canvas');
+    await page.click('h1[title="Browser 12685"]');
+    await waitForPerfettoIdle(page);
+  });
+
+  test('select_slice_with_flows', async () => {
+    const page = await getPage();
+    const searchInput = '.omnibox input';
+    await page.focus(searchInput);
+    await page.keyboard.type('GenerateRenderPass');
+    await waitForPerfettoIdle(page);
+    for (let i = 0; i < 3; i++) {
+      await page.keyboard.type('\n');
+    }
+    await waitForPerfettoIdle(page);
+    await page.focus('canvas');
+    await page.keyboard.type('f');  // Zoom to selection
     await waitForPerfettoIdle(page);
   });
 });

@@ -21,11 +21,12 @@ from urllib import request, error
 from .loader import get_loader
 
 
-def load_shell(bin_path=None, unique_port=False):
+def load_shell(bin_path, unique_port, verbose):
   shell_path = get_loader().get_shell_path(bin_path=bin_path)
   port, url = get_loader().get_free_port(unique_port=unique_port)
   p = subprocess.Popen([shell_path, '-D', '--http-port', port],
-                       stdout=subprocess.DEVNULL)
+                       stdout=subprocess.DEVNULL,
+                       stderr=None if verbose else subprocess.DEVNULL)
 
   while True:
     try:

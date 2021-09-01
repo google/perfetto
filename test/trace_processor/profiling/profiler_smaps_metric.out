@@ -1,0 +1,20 @@
+profiler_smaps {
+  instance {
+    process {
+      name: "system_server"
+      uid: 1000
+    }
+    mappings {
+      path: "[anon: libc_malloc]"
+      size_kb: 30
+      private_dirty_kb: 10
+      swap_kb: 10
+    }
+    mappings {
+      path: "/system/lib64/libc.so"
+      size_kb: 20
+      private_dirty_kb: 4
+      swap_kb: 4
+    }
+  }
+}

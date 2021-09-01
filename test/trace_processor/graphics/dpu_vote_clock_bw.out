@@ -8,6 +8,7 @@ android_hwcomposer {
     avg_dpu_vote_clock: 206250
     avg_dpu_vote_avg_bw: 210000
     avg_dpu_vote_peak_bw: 205000
+    avg_dpu_vote_rt_bw: 271000
   }
   dpu_vote_metrics {
     tid: 299

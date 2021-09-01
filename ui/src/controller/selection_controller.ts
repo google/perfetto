@@ -12,15 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {assertTrue} from '../base/logging';
 import {Arg, Args} from '../common/arg_types';
 import {Engine} from '../common/engine';
 import {
   NUM,
-  singleRow,
-  singleRowUntyped,
-  slowlyCountRows,
-  STR
-} from '../common/query_iterator';
+  NUM_NULL,
+  STR,
+  STR_NULL,
+} from '../common/query_result';
 import {ChromeSliceSelection} from '../common/state';
 import {translateState} from '../common/thread_state';
 import {fromNs, toNs} from '../common/time';
@@ -29,6 +29,11 @@ import {
   SliceDetails,
   ThreadStateDetails
 } from '../frontend/globals';
+import {
+  publishCounterDetails,
+  publishSliceDetails,
+  publishThreadStateDetails
+} from '../frontend/publish';
 import {SLICE_TRACK_KIND} from '../tracks/chrome_slices/common';
 
 import {parseArgs} from './args_parser';
@@ -75,7 +80,7 @@ export class SelectionController extends Controller<'main'> {
                 selection.kind === selectedKind &&
                 selection.id === selectedId) {
               Object.assign(selected, results);
-              globals.publish('CounterDetails', selected);
+              publishCounterDetails(selected);
             }
           });
     } else if (selection.kind === 'SLICE') {
@@ -101,38 +106,37 @@ export class SelectionController extends Controller<'main'> {
       promisedDescription = Promise.resolve(new Map());
       promisedArgs = Promise.resolve(new Map());
     } else {
-      const typeResult = singleRow(
-          {
-            leafTable: STR,
-            argSetId: NUM,
-          },
-          await this.args.engine.query(`
+      const result = await this.args.engine.queryV2(`
         SELECT
           type as leafTable,
           arg_set_id as argSetId
-        FROM slice WHERE id = ${selectedId}`));
+        FROM slice WHERE id = ${selectedId}`);
 
-      if (typeResult === undefined) {
+      if (result.numRows() === 0) {
         return;
       }
 
-      leafTable = typeResult.leafTable;
-      const argSetId = typeResult.argSetId;
+      const row = result.firstRow({
+        leafTable: STR,
+        argSetId: NUM,
+      });
+
+      leafTable = row.leafTable;
+      const argSetId = row.argSetId;
       promisedDescription = this.describeSlice(selectedId);
       promisedArgs = this.getArgs(argSetId);
     }
 
-    const promisedDetails = this.args.engine.query(`
+    const promisedDetails = this.args.engine.queryV2(`
       SELECT * FROM ${leafTable} WHERE id = ${selectedId};
     `);
 
     const [details, args, description] =
         await Promise.all([promisedDetails, promisedArgs, promisedDescription]);
 
-    const row = singleRowUntyped(details);
-    if (row === undefined) {
-      return;
-    }
+    if (details.numRows() <= 0) return;
+    const rowIter = details.iter({});
+    assertTrue(rowIter.valid());
 
     // A few columns are hard coded as part of the SliceDetails interface.
     // Long term these should be handled generically as args but for now
@@ -142,7 +146,8 @@ export class SelectionController extends Controller<'main'> {
     let name = undefined;
     let category = undefined;
 
-    for (const [k, v] of Object.entries(row)) {
+    for (const k of details.columns()) {
+      const v = rowIter.get(k);
       switch (k) {
         case 'id':
           break;
@@ -178,7 +183,7 @@ export class SelectionController extends Controller<'main'> {
 
     // Check selection is still the same on completion of query.
     if (selection === globals.state.currentSelection) {
-      globals.publish('SliceDetails', selected);
+      publishSliceDetails(selected);
     }
   }
 
@@ -186,14 +191,17 @@ export class SelectionController extends Controller<'main'> {
     const map = new Map<string, string>();
     if (id === -1) return map;
     const query = `
-      select description, doc_link
+      select
+        ifnull(description, '') as description,
+        ifnull(doc_link, '') as docLink
       from describe_slice
       where slice_id = ${id}
     `;
-    const result = await this.args.engine.query(query);
-    for (let i = 0; i < slowlyCountRows(result); i++) {
-      const description = result.columns[0].stringValues![i];
-      const docLink = result.columns[1].stringValues![i];
+    const result = await this.args.engine.queryV2(query);
+    const it = result.iter({description: STR, docLink: STR});
+    for (; it.valid(); it.next()) {
+      const description = it.description;
+      const docLink = it.docLink;
       map.set('Description', description);
       map.set('Documentation', docLink);
     }
@@ -209,10 +217,14 @@ export class SelectionController extends Controller<'main'> {
       FROM args
       WHERE arg_set_id = ${argId}
     `;
-    const result = await this.args.engine.query(query);
-    for (let i = 0; i < slowlyCountRows(result); i++) {
-      const name = result.columns[0].stringValues![i];
-      const value = result.columns[1].stringValues![i];
+    const result = await this.args.engine.queryV2(query);
+    const it = result.iter({
+      name: STR,
+      value: STR,
+    });
+    for (; it.valid(); it.next()) {
+      const name = it.name;
+      const value = it.value;
       if (name === 'destination slice id' && !isNaN(Number(value))) {
         const destTrackId = await this.getDestTrackId(value);
         args.set(
@@ -226,10 +238,10 @@ export class SelectionController extends Controller<'main'> {
   }
 
   async getDestTrackId(sliceId: string): Promise<string> {
-    const trackIdQuery = `select track_id from slice
+    const trackIdQuery = `select track_id as trackId from slice
     where slice_id = ${sliceId}`;
-    const destResult = await this.args.engine.query(trackIdQuery);
-    const trackIdTp = destResult.columns[0].longValues![0];
+    const result = await this.args.engine.queryV2(trackIdQuery);
+    const trackIdTp = result.firstRow({trackId: NUM}).trackId;
     // TODO(hjd): If we had a consistent mapping from TP track_id
     // UI track id for slice tracks this would be unnecessary.
     let trackId = '';
@@ -247,95 +259,114 @@ export class SelectionController extends Controller<'main'> {
     const query = `
       SELECT
         ts,
-        thread_state.dur,
+        thread_state.dur as dur,
         state,
-        io_wait,
-        thread_state.utid,
-        thread_state.cpu,
-        sched.id,
-        thread_state.blocked_function
+        io_wait as ioWait,
+        thread_state.utid as utid,
+        thread_state.cpu as cpu,
+        sched.id as id,
+        thread_state.blocked_function as blockedFunction
       from thread_state
       left join sched using(ts) where thread_state.id = ${id}
     `;
-    this.args.engine.query(query).then(result => {
-      const selection = globals.state.currentSelection;
-      const cols = result.columns;
-      if (slowlyCountRows(result) === 1 && selection) {
-        const ts = cols[0].longValues![0];
-        const timeFromStart = fromNs(ts) - globals.state.traceTime.startSec;
-        const dur = fromNs(cols[1].longValues![0]);
-        const stateStr = cols[2].stringValues![0];
-        const ioWait =
-            cols[3].isNulls![0] ? undefined : !!cols[3].longValues![0];
-        const state = translateState(stateStr, ioWait);
-        const utid = cols[4].longValues![0];
-        const cpu = cols[5].isNulls![0] ? undefined : cols[5].longValues![0];
-        const sliceId =
-            cols[6].isNulls![0] ? undefined : cols[6].longValues![0];
-        const blockedFunction =
-            cols[7].isNulls![0] ? undefined : cols[7].stringValues![0];
-        const selected: ThreadStateDetails = {
-          ts: timeFromStart,
-          dur,
-          state,
-          utid,
-          cpu,
-          sliceId,
-          blockedFunction
-        };
-        globals.publish('ThreadStateDetails', selected);
-      }
-    });
+    const result = await this.args.engine.queryV2(query);
+
+    const selection = globals.state.currentSelection;
+    if (result.numRows() > 0 && selection) {
+      const row = result.firstRow({
+        ts: NUM,
+        dur: NUM,
+        state: STR,
+        ioWait: NUM_NULL,
+        utid: NUM,
+        cpu: NUM_NULL,
+        id: NUM_NULL,
+        blockedFunction: STR_NULL,
+      });
+      const ts = row.ts;
+      const timeFromStart = fromNs(ts) - globals.state.traceTime.startSec;
+      const dur = fromNs(row.dur);
+      const ioWait = row.ioWait === null ? undefined : row.ioWait > 0;
+      const state = translateState(row.state, ioWait);
+      const utid = row.utid;
+      const cpu = row.cpu === null ? undefined : row.cpu;
+      const sliceId = row.id === null ? undefined : row.id;
+      const blockedFunction =
+          row.blockedFunction === null ? undefined : row.blockedFunction;
+      const selected: ThreadStateDetails =
+          {ts: timeFromStart, dur, state, utid, cpu, sliceId, blockedFunction};
+      publishThreadStateDetails(selected);
+    }
   }
 
   async sliceDetails(id: number) {
-    const sqlQuery = `SELECT ts, dur, priority, end_state, utid, cpu,
-    thread_state.id FROM sched join thread_state using(ts, utid, dur, cpu)
+    const sqlQuery = `SELECT
+      ts,
+      dur,
+      priority,
+      end_state as endState,
+      utid,
+      cpu,
+      thread_state.id as threadStateId
+    FROM sched join thread_state using(ts, utid, dur, cpu)
     WHERE sched.id = ${id}`;
-    this.args.engine.query(sqlQuery).then(result => {
-      // Check selection is still the same on completion of query.
-      const selection = globals.state.currentSelection;
-      if (slowlyCountRows(result) === 1 && selection) {
-        const ts = result.columns[0].longValues![0];
-        const timeFromStart = fromNs(ts) - globals.state.traceTime.startSec;
-        const dur = fromNs(result.columns[1].longValues![0]);
-        const priority = result.columns[2].longValues![0];
-        const endState = result.columns[3].stringValues![0];
-        const utid = result.columns[4].longValues![0];
-        const cpu = result.columns[5].longValues![0];
-        const threadStateId = result.columns[6].longValues![0];
-        const selected: SliceDetails = {
-          ts: timeFromStart,
-          dur,
-          priority,
-          endState,
-          cpu,
-          id,
-          utid,
-          threadStateId
-        };
-        this.schedulingDetails(ts, utid)
-            .then(wakeResult => {
-              Object.assign(selected, wakeResult);
-            })
-            .finally(() => {
-              globals.publish('SliceDetails', selected);
-            });
-      }
-    });
+    const result = await this.args.engine.queryV2(sqlQuery);
+    // Check selection is still the same on completion of query.
+    const selection = globals.state.currentSelection;
+    if (result.numRows() > 0 && selection) {
+      const row = result.firstRow({
+        ts: NUM,
+        dur: NUM,
+        priority: NUM,
+        endState: STR,
+        utid: NUM,
+        cpu: NUM,
+        threadStateId: NUM,
+      });
+      const ts = row.ts;
+      const timeFromStart = fromNs(ts) - globals.state.traceTime.startSec;
+      const dur = fromNs(row.dur);
+      const priority = row.priority;
+      const endState = row.endState;
+      const utid = row.utid;
+      const cpu = row.cpu;
+      const threadStateId = row.threadStateId;
+      const selected: SliceDetails = {
+        ts: timeFromStart,
+        dur,
+        priority,
+        endState,
+        cpu,
+        id,
+        utid,
+        threadStateId
+      };
+      this.schedulingDetails(ts, utid)
+          .then(wakeResult => {
+            Object.assign(selected, wakeResult);
+          })
+          .finally(() => {
+            publishSliceDetails(selected);
+          });
+    }
   }
 
   async counterDetails(ts: number, rightTs: number, id: number) {
-    const counter = await this.args.engine.query(
-        `SELECT value, track_id FROM counter WHERE id = ${id}`);
-    const value = counter.columns[0].doubleValues![0];
-    const trackId = counter.columns[1].longValues![0];
+    const counter = await this.args.engine.queryV2(
+        `SELECT value, track_id as trackId FROM counter WHERE id = ${id}`);
+    const row = counter.iter({
+      value: NUM,
+      trackId: NUM,
+    });
+    const value = row.value;
+    const trackId = row.trackId;
     // Finding previous value. If there isn't previous one, it will return 0 for
     // ts and value.
-    const previous = await this.args.engine.query(
-        `SELECT MAX(ts), value FROM counter WHERE ts < ${ts} and track_id = ${
-            trackId}`);
-    const previousValue = previous.columns[1].doubleValues![0];
+    const previous = await this.args.engine.queryV2(`SELECT
+          MAX(ts),
+          IFNULL(value, 0) as value
+        FROM counter WHERE ts < ${ts} and track_id = ${trackId}`);
+    const previousValue = previous.firstRow({value: NUM}).value;
     const endTs =
         rightTs !== -1 ? rightTs : toNs(globals.state.traceTime.endSec);
     const delta = value - previousValue;
@@ -346,12 +377,12 @@ export class SelectionController extends Controller<'main'> {
 
   async schedulingDetails(ts: number, utid: number|Long) {
     let event = 'sched_waking';
-    const waking = await this.args.engine.query(
+    const waking = await this.args.engine.queryV2(
         `select * from instants where name = 'sched_waking' limit 1`);
-    const wakeup = await this.args.engine.query(
+    const wakeup = await this.args.engine.queryV2(
         `select * from instants where name = 'sched_wakeup' limit 1`);
-    if (slowlyCountRows(waking) === 0) {
-      if (slowlyCountRows(wakeup) === 0) return undefined;
+    if (waking.numRows() === 0) {
+      if (wakeup.numRows() === 0) return undefined;
       // Only use sched_wakeup if waking is not in the trace.
       event = 'sched_wakeup';
     }
@@ -359,32 +390,37 @@ export class SelectionController extends Controller<'main'> {
     // Find the ts of the first sched_wakeup before the current slice.
     const queryWakeupTs = `select ts from instants where name = '${event}'
     and ref = ${utid} and ts < ${ts} order by ts desc limit 1`;
-    const wakeupRow = await this.args.engine.queryOneRow(queryWakeupTs);
+    const wakeResult = await this.args.engine.queryV2(queryWakeupTs);
+    if (wakeResult.numRows() === 0) {
+      return undefined;
+    }
+    const wakeupTs = wakeResult.firstRow({ts: NUM}).ts;
+
     // Find the previous sched slice for the current utid.
     const queryPrevSched = `select ts from sched where utid = ${utid}
     and ts < ${ts} order by ts desc limit 1`;
-    const prevSchedRow = await this.args.engine.queryOneRow(queryPrevSched);
+    const prevSchedResult = await this.args.engine.queryV2(queryPrevSched);
+
     // If this is the first sched slice for this utid or if the wakeup found
     // was after the previous slice then we know the wakeup was for this slice.
-    if (wakeupRow[0] === undefined ||
-        (prevSchedRow[0] !== undefined && wakeupRow[0] < prevSchedRow[0])) {
+    if (prevSchedResult.numRows() === 0 ||
+        wakeupTs < prevSchedResult.firstRow({ts: NUM}).ts) {
       return undefined;
     }
-    const wakeupTs = wakeupRow[0];
     // Find the sched slice with the utid of the waker running when the
     // sched wakeup occurred. This is the waker.
     const queryWaker = `select utid, cpu from sched where utid =
     (select utid from raw where name = '${event}' and ts = ${wakeupTs})
     and ts < ${wakeupTs} and ts + dur >= ${wakeupTs};`;
-    const wakerRow = await this.args.engine.queryOneRow(queryWaker);
-    if (wakerRow) {
-      return {
-        wakeupTs: fromNs(wakeupTs),
-        wakerUtid: wakerRow[0],
-        wakerCpu: wakerRow[1]
-      };
-    } else {
+    const wakerResult = await this.args.engine.queryV2(queryWaker);
+    if (wakerResult.numRows() === 0) {
       return undefined;
     }
+    const wakerRow = wakerResult.firstRow({utid: NUM, cpu: NUM});
+    return {
+      wakeupTs: fromNs(wakeupTs),
+      wakerUtid: wakerRow.utid,
+      wakerCpu: wakerRow.cpu
+    };
   }
 }

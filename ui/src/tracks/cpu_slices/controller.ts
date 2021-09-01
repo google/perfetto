@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {assertTrue} from '../../base/logging';
-import {NUM} from '../../common/query_iterator';
+import {NUM} from '../../common/query_result';
 import {fromNs, toNs} from '../../common/time';
 import {
   TrackController,
@@ -126,8 +126,6 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
 
       let endNsQ = Math.floor((endNs + bucketNs / 2 - 1) / bucketNs) * bucketNs;
       endNsQ = Math.max(endNsQ, startNsQ + bucketNs);
-
-      assertTrue(startNsQ !== endNsQ);
 
       slices.starts[row] = fromNs(startNsQ);
       slices.ends[row] = fromNs(endNsQ);
