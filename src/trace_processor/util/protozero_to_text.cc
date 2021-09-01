@@ -153,6 +153,20 @@ void DecreaseIndents(std::string* out) {
   out->erase(out->size() - 2);
 }
 
+std::string FormattedFieldDescriptorName(
+    const FieldDescriptor& field_descriptor) {
+  if (field_descriptor.is_extension()) {
+    // Libprotobuf formatter always formats extension field names as fully
+    // qualified names.
+    // TODO(b/197625974): Assuming for now all our extensions will belong to the
+    // perfetto.protos package. Update this if we ever want to support extendees
+    // in different package.
+    return "[perfetto.protos." + field_descriptor.name() + "]";
+  } else {
+    return field_descriptor.name();
+  }
+}
+
 // Recursive case function, Will parse |protobytes| assuming it is a proto of
 // |type| and will use |pool| to look up the |type|. All output will be placed
 // in |output| and between fields |separator| will be placed. When called for
@@ -184,11 +198,11 @@ void ProtozeroToTextInternal(const std::string& type,
         protos::pbzero::FieldDescriptorProto::TYPE_MESSAGE) {
       if (include_new_lines) {
         StrAppend(output, output->empty() ? "" : "\n", *indents,
-                  field_descriptor.name(), ": {");
+                  FormattedFieldDescriptorName(field_descriptor), ": {");
         IncreaseIndents(indents);
       } else {
-        StrAppend(output, output->empty() ? "" : " ", field_descriptor.name(),
-                  ": {");
+        StrAppend(output, output->empty() ? "" : " ",
+                  FormattedFieldDescriptorName(field_descriptor), ": {");
       }
       ProtozeroToTextInternal(field_descriptor.resolved_type_name(),
                               field.as_bytes(), new_lines_mode, pool, indents,

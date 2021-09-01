@@ -75,10 +75,12 @@ export interface AddTrackArgs {
 }
 
 export interface PostedTrace {
+  buffer: ArrayBuffer;
   title: string;
   fileName?: string;
   url?: string;
-  buffer: ArrayBuffer;
+  uuid?: string;
+  localOnly?: boolean;
 }
 
 function clearTraceState(state: StateDraft) {
@@ -186,10 +188,6 @@ function equalTableAttrs(
 
 export const StateActions = {
 
-  navigate(state: StateDraft, args: {route: string}): void {
-    state.route = args.route;
-  },
-
   openTraceFromFile(state: StateDraft, args: {file: File}): void {
     clearTraceState(state);
     const id = `${state.nextId++}`;
@@ -198,7 +196,6 @@ export const StateActions = {
       ready: false,
       source: {type: 'FILE', file: args.file},
     };
-    state.route = '/viewer';
   },
 
   openTraceFromBuffer(state: StateDraft, args: PostedTrace): void {
@@ -209,7 +206,6 @@ export const StateActions = {
       ready: false,
       source: {type: 'ARRAY_BUFFER', ...args},
     };
-    state.route = '/viewer';
   },
 
   openTraceFromUrl(state: StateDraft, args: {url: string}): void {
@@ -220,7 +216,6 @@ export const StateActions = {
       ready: false,
       source: {type: 'URL', url: args.url},
     };
-    state.route = '/viewer';
   },
 
   openTraceFromHttpRpc(state: StateDraft, _args: {}): void {
@@ -231,7 +226,6 @@ export const StateActions = {
       ready: false,
       source: {type: 'HTTP_RPC'},
     };
-    state.route = '/viewer';
   },
 
   setTraceUuid(state: StateDraft, args: {traceUuid: string}) {

@@ -128,7 +128,16 @@ def compute_breakdown(tp, start_ts=None, end_ts=None, process_name=None):
         ELSE slice.state
       END AS state,
       slice.stack_name,
-      SUM(slice.dur)/1e6 AS dur_sum
+      SUM(slice.dur)/1e6 AS dur_sum,
+      MIN(slice.dur/1e6) AS dur_min,
+      MAX(slice.dur/1e6) AS dur_max,
+      AVG(slice.dur/1e6) AS dur_mean,
+      PERCENTILE(slice.dur/1e6, 50) AS dur_median,
+      PERCENTILE(slice.dur/1e6, 25) AS dur_25_percentile,
+      PERCENTILE(slice.dur/1e6, 75) AS dur_75_percentile,
+      PERCENTILE(slice.dur/1e6, 95) AS dur_95_percentile,
+      PERCENTILE(slice.dur/1e6, 99) AS dur_99_percentile,
+      COUNT(1) as count
     FROM process
     JOIN thread USING (upid)
     JOIN thread_slice_stack_with_state slice USING (utid)

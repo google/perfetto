@@ -40,7 +40,7 @@ class CpuFreqTrackController extends TrackController<Config, Data> {
     this.maximumValueSeen = await this.queryMaxFrequency();
     this.maxDurNs = await this.queryMaxSourceDur();
 
-    const iter = (await this.queryV2(`
+    const iter = (await this.query(`
       select max(ts) as maxTs, dur, count(1) as rowCount
       from ${this.tableName('freq_idle')}
     `)).firstRow({maxTs: NUM_NULL, dur: NUM_NULL, rowCount: NUM});
@@ -58,7 +58,7 @@ class CpuFreqTrackController extends TrackController<Config, Data> {
       return;
     }
 
-    await this.queryV2(`
+    await this.query(`
       create table ${this.tableName('freq_idle_cached')} as
       select
         (ts + ${bucketNs / 2}) / ${bucketNs} * ${bucketNs} as cachedTsq,
@@ -129,7 +129,7 @@ class CpuFreqTrackController extends TrackController<Config, Data> {
     const isCached = this.cachedBucketNs <= bucketNs;
 
     if (isCached) {
-      return this.queryV2(`
+      return this.query(`
         select
           cachedTsq / ${bucketNs} * ${bucketNs} as tsq,
           min(minFreq) as minFreq,
@@ -144,14 +144,14 @@ class CpuFreqTrackController extends TrackController<Config, Data> {
         order by tsq
       `);
     }
-    const minTsFreq = await this.queryV2(`
+    const minTsFreq = await this.query(`
       select ifnull(max(ts), 0) as minTs from ${this.tableName('freq')}
       where ts < ${startNs}
     `);
 
     let minTs = minTsFreq.iter({minTs: NUM}).minTs;
     if (this.config.idleTrackId !== undefined) {
-      const minTsIdle = await this.queryV2(`
+      const minTsIdle = await this.query(`
         select ifnull(max(ts), 0) as minTs from ${this.tableName('idle')}
         where ts < ${startNs}
       `);
@@ -161,7 +161,7 @@ class CpuFreqTrackController extends TrackController<Config, Data> {
     const geqConstraint = this.config.idleTrackId === undefined ?
         `ts >= ${minTs}` :
         `source_geq(ts, ${minTs})`;
-    return this.queryV2(`
+    return this.query(`
       select
         (ts + ${bucketNs / 2}) / ${bucketNs} * ${bucketNs} as tsq,
         min(freqValue) as minFreq,
@@ -178,7 +178,7 @@ class CpuFreqTrackController extends TrackController<Config, Data> {
   }
 
   private async queryMaxFrequency(): Promise<number> {
-    const result = await this.queryV2(`
+    const result = await this.query(`
       select max(freqValue) as maxFreq
       from ${this.tableName('freq')}
     `);
@@ -186,20 +186,20 @@ class CpuFreqTrackController extends TrackController<Config, Data> {
   }
 
   private async queryMaxSourceDur(): Promise<number> {
-    const maxDurFreqResult = await this.queryV2(
+    const maxDurFreqResult = await this.query(
         `select ifnull(max(dur), 0) as maxDur from ${this.tableName('freq')}`);
     const maxDurNs = maxDurFreqResult.firstRow({'maxDur': NUM}).maxDur;
     if (this.config.idleTrackId === undefined) {
       return maxDurNs;
     }
 
-    const maxDurIdleResult = await this.queryV2(
+    const maxDurIdleResult = await this.query(
         `select ifnull(max(dur), 0) as maxDur from ${this.tableName('idle')}`);
     return Math.max(maxDurNs, maxDurIdleResult.firstRow({maxDur: NUM}).maxDur);
   }
 
   private async createFreqIdleViews() {
-    await this.queryV2(`create view ${this.tableName('freq')} as
+    await this.query(`create view ${this.tableName('freq')} as
       select
         ts,
         dur,
@@ -209,7 +209,7 @@ class CpuFreqTrackController extends TrackController<Config, Data> {
     `);
 
     if (this.config.idleTrackId === undefined) {
-      await this.queryV2(`create view ${this.tableName('freq_idle')} as
+      await this.query(`create view ${this.tableName('freq_idle')} as
         select
           ts,
           dur,
@@ -220,7 +220,7 @@ class CpuFreqTrackController extends TrackController<Config, Data> {
       return;
     }
 
-    await this.queryV2(`
+    await this.query(`
       create view ${this.tableName('idle')} as
       select
         ts,
@@ -230,7 +230,7 @@ class CpuFreqTrackController extends TrackController<Config, Data> {
       where track_id = ${this.config.idleTrackId};
     `);
 
-    await this.queryV2(`
+    await this.query(`
       create virtual table ${this.tableName('freq_idle')}
       using span_join(${this.tableName('freq')}, ${this.tableName('idle')});
     `);

@@ -39,12 +39,12 @@ class ProcessSummaryTrackController extends TrackController<Config, Data> {
     const endNs = toNs(end);
 
     if (this.setup === false) {
-      await this.queryV2(
+      await this.query(
           `create virtual table ${this.tableName('window')} using window;`);
 
       let utids = [this.config.utid];
       if (this.config.upid) {
-        const threadQuery = await this.queryV2(
+        const threadQuery = await this.query(
             `select utid from thread where upid=${this.config.upid}`);
         utids = [];
         for (const it = threadQuery.iter({utid: NUM}); it.valid(); it.next()) {
@@ -52,7 +52,7 @@ class ProcessSummaryTrackController extends TrackController<Config, Data> {
         }
       }
 
-      const trackQuery = await this.queryV2(
+      const trackQuery = await this.query(
           `select id from thread_track where utid in (${utids.join(',')})`);
       const tracks = [];
       for (const it = trackQuery.iter({id: NUM}); it.valid(); it.next()) {
@@ -60,14 +60,14 @@ class ProcessSummaryTrackController extends TrackController<Config, Data> {
       }
 
       const processSliceView = this.tableName('process_slice_view');
-      await this.queryV2(
+      await this.query(
           `create view ${processSliceView} as ` +
           // 0 as cpu is a dummy column to perform span join on.
           `select ts, dur/${utids.length} as dur ` +
           `from slice s ` +
           `where depth = 0 and track_id in ` +
           `(${tracks.join(',')})`);
-      await this.queryV2(`create virtual table ${this.tableName('span')}
+      await this.query(`create virtual table ${this.tableName('span')}
           using span_join(${processSliceView},
                           ${this.tableName('window')});`);
       this.setup = true;
@@ -79,7 +79,7 @@ class ProcessSummaryTrackController extends TrackController<Config, Data> {
     const windowStartNs = Math.floor(startNs / bucketSizeNs) * bucketSizeNs;
     const windowDurNs = Math.max(1, endNs - windowStartNs);
 
-    await this.queryV2(`update ${this.tableName('window')} set
+    await this.query(`update ${this.tableName('window')} set
       window_start=${windowStartNs},
       window_dur=${windowDurNs},
       quantum=${bucketSizeNs}
@@ -113,7 +113,7 @@ class ProcessSummaryTrackController extends TrackController<Config, Data> {
       utilizations: new Float64Array(numBuckets),
     };
 
-    const queryRes = await this.queryV2(query);
+    const queryRes = await this.query(query);
     const it = queryRes.iter({bucket: NUM, utilization: NUM});
     for (; it.valid(); it.next()) {
       const bucket = it.bucket;
@@ -128,8 +128,8 @@ class ProcessSummaryTrackController extends TrackController<Config, Data> {
 
   onDestroy(): void {
     if (this.setup) {
-      this.queryV2(`drop table ${this.tableName('window')}`);
-      this.queryV2(`drop table ${this.tableName('span')}`);
+      this.query(`drop table ${this.tableName('window')}`);
+      this.query(`drop table ${this.tableName('span')}`);
       this.setup = false;
     }
   }

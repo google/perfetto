@@ -181,9 +181,9 @@ std::string GetCurExecutableDir() {
   auto path = GetCurExecutablePath();
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   // Paths in Windows can have both kinds of slashes (mingw vs msvc).
-  path = path.substr(0, path.find_last_of("\\"));
+  path = path.substr(0, path.find_last_of('\\'));
 #endif
-  path = path.substr(0, path.find_last_of("/"));
+  path = path.substr(0, path.find_last_of('/'));
   return path;
 }
 

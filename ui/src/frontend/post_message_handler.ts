@@ -94,7 +94,7 @@ export function postMessageHandler(messageEvent: MessageEvent) {
   const openTrace = () => {
     // For external traces, we need to disable other features such as
     // downloading and sharing a trace.
-    globals.frontendLocalState.localOnlyMode = true;
+    postedTrace.localOnly = true;
     globals.dispatch(Actions.openTraceFromBuffer(postedTrace));
   };
 

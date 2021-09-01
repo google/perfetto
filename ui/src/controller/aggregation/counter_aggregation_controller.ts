@@ -23,7 +23,7 @@ import {AggregationController} from './aggregation_controller';
 
 export class CounterAggregationController extends AggregationController {
   async createAggregateView(engine: Engine, area: Area) {
-    await engine.queryV2(`drop view if exists ${this.kind};`);
+    await engine.query(`drop view if exists ${this.kind};`);
 
     const ids = [];
     for (const trackId of area.tracks) {
@@ -67,7 +67,7 @@ export class CounterAggregationController extends AggregationController {
     on track_id = counter_track.id
     group by track_id`;
 
-    await engine.queryV2(query);
+    await engine.query(query);
     return true;
   }
 

@@ -1423,6 +1423,8 @@ filegroup(
         "src/trace_processor/importers/proto/chrome_system_probes_module.h",
         "src/trace_processor/importers/proto/chrome_system_probes_parser.cc",
         "src/trace_processor/importers/proto/chrome_system_probes_parser.h",
+        "src/trace_processor/importers/proto/flamegraph_construction_algorithms.cc",
+        "src/trace_processor/importers/proto/flamegraph_construction_algorithms.h",
         "src/trace_processor/importers/proto/heap_profile_tracker.cc",
         "src/trace_processor/importers/proto/heap_profile_tracker.h",
         "src/trace_processor/importers/proto/memory_tracker_snapshot_module.cc",

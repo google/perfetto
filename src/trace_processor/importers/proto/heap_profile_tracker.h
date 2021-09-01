@@ -27,9 +27,6 @@
 namespace perfetto {
 namespace trace_processor {
 
-std::unique_ptr<tables::ExperimentalFlamegraphNodesTable>
-BuildNativeFlamegraph(TraceStorage* storage, UniquePid upid, int64_t timestamp);
-
 class TraceProcessorContext;
 
 class HeapProfileTracker {

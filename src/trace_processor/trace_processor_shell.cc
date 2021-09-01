@@ -390,35 +390,37 @@ enum OutputFormat {
 util::Status RunMetrics(const std::vector<std::string>& metric_names,
                         OutputFormat format,
                         const google::protobuf::DescriptorPool& pool) {
+  if (format == OutputFormat::kTextProto) {
+    std::string out;
+    util::Status status =
+        g_tp->ComputeMetricText(metric_names, TraceProcessor::kProtoText, &out);
+    if (!status.ok()) {
+      return util::ErrStatus("Error when computing metrics: %s",
+                             status.c_message());
+    }
+    out += '\n';
+    fwrite(out.c_str(), sizeof(char), out.size(), stdout);
+    return util::OkStatus();
+  }
+
   std::vector<uint8_t> metric_result;
   util::Status status = g_tp->ComputeMetric(metric_names, &metric_result);
   if (!status.ok()) {
     return util::ErrStatus("Error when computing metrics: %s",
                            status.c_message());
   }
-  if (format == OutputFormat::kNone) {
-    return util::OkStatus();
-  }
-  if (format == OutputFormat::kBinaryProto) {
-    fwrite(metric_result.data(), sizeof(uint8_t), metric_result.size(), stdout);
-    return util::OkStatus();
-  }
-
-  google::protobuf::DynamicMessageFactory factory(&pool);
-  auto* descriptor = pool.FindMessageTypeByName("perfetto.protos.TraceMetrics");
-  std::unique_ptr<google::protobuf::Message> metrics(
-      factory.GetPrototype(descriptor)->New());
-  metrics->ParseFromArray(metric_result.data(),
-                          static_cast<int>(metric_result.size()));
 
   switch (format) {
-    case OutputFormat::kTextProto: {
-      std::string out;
-      google::protobuf::TextFormat::PrintToString(*metrics, &out);
-      fwrite(out.c_str(), sizeof(char), out.size(), stdout);
-      break;
-    }
     case OutputFormat::kJson: {
+      // TODO(b/182165266): Handle this using ComputeMetricText.
+      google::protobuf::DynamicMessageFactory factory(&pool);
+      auto* descriptor =
+          pool.FindMessageTypeByName("perfetto.protos.TraceMetrics");
+      std::unique_ptr<google::protobuf::Message> metrics(
+          factory.GetPrototype(descriptor)->New());
+      metrics->ParseFromArray(metric_result.data(),
+                              static_cast<int>(metric_result.size()));
+
       // We need to instantiate field options from dynamic message factory
       // because otherwise it cannot parse our custom extensions.
       const google::protobuf::Message* field_options_prototype =
@@ -430,9 +432,15 @@ util::Status RunMetrics(const std::vector<std::string>& metric_names,
       break;
     }
     case OutputFormat::kBinaryProto:
+      fwrite(metric_result.data(), sizeof(uint8_t), metric_result.size(),
+             stdout);
+      break;
     case OutputFormat::kNone:
-      PERFETTO_FATAL("Unsupported output format.");
+      break;
+    case OutputFormat::kTextProto:
+      PERFETTO_FATAL("This case was already handled.");
   }
+
   return util::OkStatus();
 }
 
@@ -1132,6 +1140,7 @@ util::Status RunMetrics(const CommandLineOptions& options,
   // SetupMetrics. This will be removed when we switch the output formatter to
   // use internal DescriptorPool.
   std::vector<std::string> skip_prefixes;
+  skip_prefixes.reserve(metric_extensions.size());
   for (const auto& ext : metric_extensions) {
     skip_prefixes.push_back(kMetricProtoRoot + ext.virtual_path());
   }

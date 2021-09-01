@@ -58,12 +58,12 @@ class TablesCache {
       // TODO(hjd): This should be LRU.
       if (this.cache.size > this.cacheSizeLimit) {
         for (const name of this.cache.values()) {
-          await this.engine.queryV2(`drop table ${name}`);
+          await this.engine.query(`drop table ${name}`);
         }
         this.cache.clear();
       }
       tableName = `${this.prefix}_${this.tableId++}`;
-      await this.engine.queryV2(
+      await this.engine.query(
           `create temp table if not exists ${tableName} as ${query}`);
       this.cache.set(query, tableName);
     }
@@ -268,7 +268,7 @@ export class HeapProfileController extends Controller<'main'> {
         break;
     }
 
-    const callsites = await this.args.engine.queryV2(`
+    const callsites = await this.args.engine.query(`
         SELECT
         id as hash,
         IFNULL(DEMANGLE(name), name) as name,
@@ -387,7 +387,7 @@ export class HeapProfileController extends Controller<'main'> {
 
     // Collecting data for more information about heap profile, such as:
     // total memory allocated, memory that is allocated and not freed.
-    const result = await this.args.engine.queryV2(
+    const result = await this.args.engine.query(
         `select pid from process where upid = ${upid}`);
     const pid = result.firstRow({pid: NUM}).pid;
     const startTime = fromNs(ts) - globals.state.traceTime.startSec;

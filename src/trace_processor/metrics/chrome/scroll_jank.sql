@@ -197,6 +197,12 @@ CREATE TABLE gesture_scroll_update AS
       NOT COALESCE(
               EXTRACT_ARG(arg_set_id, "chrome_latency_info.is_coalesced"),
               TRUE)
+      AND slice.arg_set_id IN (
+        SELECT arg_set_id FROM args
+        WHERE args.arg_set_id = slice.arg_set_id
+        AND flat_key = 'chrome_latency_info.component_info.component_type'
+        AND string_value = 'COMPONENT_INPUT_EVENT_GPU_SWAP_BUFFER'
+      )
   ) scroll_update ON
   scroll_update.ts <= begin_and_end.end_ts AND
   scroll_update.ts >= begin_and_end.begin_ts AND
@@ -210,7 +216,16 @@ CREATE TABLE gesture_scroll_update AS
 -- GestureScrollUpdate event (previous row and NULL if there isn't one) and the
 -- next GestureScrollUpdate event (next row and again NULL if there isn't one).
 -- Then we compute the duration of the event (relative to fps) and see if it
--- increased by more then 0.5 (which is 1/2 of 16 ms at 60 fps, and so on).
+-- increased by more than 0.5 (which is 1/2 of 16 ms at 60 fps, and so on).
+--
+-- A small number is added to 0.5 in order to make sure that the comparison
+-- does not filter out ratios that are precisely 0.5, which can fall a little
+-- above or below exact value due to inherent inaccuracy of operations with
+-- floating-point numbers. Value 1e-9 have been chosen as follows: the ratio
+-- has nanoseconds in numerator and VSync interval in denominator. Assuming
+-- refresh rate more than 1 FPS (and therefore VSync interval less than a
+-- second), this ratio should increase with increments more than minimal value
+-- in numerator (1ns) divided by maximum value in denominator, giving 1e-9.
 --
 -- We only compare a GestureScrollUpdate event to another event within the same
 -- scroll (gesture_scroll_id == prev/next gesture_scroll_id). This controls
@@ -230,7 +245,7 @@ CREATE TABLE scroll_jank_maybe_null_prev_and_next AS
     THEN
       FALSE
     ELSE
-      currprev.scroll_frames_exact > prev_scroll_frames_exact + 0.5
+      currprev.scroll_frames_exact > prev_scroll_frames_exact + 0.5 + 1e-9
     END AS prev_jank,
     CASE WHEN
       currprev.gesture_scroll_id != next.gesture_scroll_id OR
@@ -240,7 +255,7 @@ CREATE TABLE scroll_jank_maybe_null_prev_and_next AS
     THEN
       FALSE
     ELSE
-      currprev.scroll_frames_exact > next.scroll_frames_exact + 0.5
+      currprev.scroll_frames_exact > next.scroll_frames_exact + 0.5 + 1e-9
     END AS next_jank,
     next.scroll_frames_exact AS next_scroll_frames_exact
   FROM (

@@ -49,6 +49,8 @@ class MetadataModule : public ProtoImporterModule {
   void ParseTrigger(int64_t ts, ConstBytes);
 
   TraceProcessorContext* context_;
+  StringId producer_name_key_id_ = kNullStringId;
+  StringId trusted_producer_uid_key_id_ = kNullStringId;
 };
 
 }  // namespace trace_processor

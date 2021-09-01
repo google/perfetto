@@ -37,7 +37,7 @@ class ExpectedFramesSliceTrackController extends TrackController<Config, Data> {
     const bucketNs = Math.max(Math.round(resolution * 1e9 * pxSize / 2) * 2, 1);
 
     if (this.maxDurNs === 0) {
-      const maxDurResult = await this.queryV2(`
+      const maxDurResult = await this.query(`
         select max(iif(dur = -1, (SELECT end_ts FROM trace_bounds) - ts, dur))
           as maxDur
         from experimental_slice_layout
@@ -46,7 +46,7 @@ class ExpectedFramesSliceTrackController extends TrackController<Config, Data> {
       this.maxDurNs = maxDurResult.firstRow({maxDur: NUM_NULL}).maxDur || 0;
     }
 
-    const queryRes = await this.queryV2(`
+    const queryRes = await this.query(`
       SELECT
         (ts + ${bucketNs / 2}) / ${bucketNs} * ${bucketNs} as tsq,
         ts,

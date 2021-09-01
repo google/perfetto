@@ -60,11 +60,11 @@ export class SearchController extends Controller<'main'> {
   }
 
   private async setup() {
-    await this.queryV2(`create virtual table search_summary_window
+    await this.query(`create virtual table search_summary_window
       using window;`);
-    await this.queryV2(`create virtual table search_summary_sched_span using
+    await this.query(`create virtual table search_summary_sched_span using
       span_join(sched PARTITIONED cpu, search_summary_window);`);
-    await this.queryV2(`create virtual table search_summary_slice_span using
+    await this.query(`create virtual table search_summary_slice_span using
       span_join(slice PARTITIONED track_id, search_summary_window);`);
   }
 
@@ -153,13 +153,13 @@ export class SearchController extends Controller<'main'> {
     startNs = Math.floor(startNs / quantumNs) * quantumNs;
 
     const windowDur = Math.max(endNs - startNs, 1);
-    await this.queryV2(`update search_summary_window set
+    await this.query(`update search_summary_window set
       window_start=${startNs},
       window_dur=${windowDur},
       quantum=${quantumNs}
       where rowid = 0;`);
 
-    const utidRes = await this.queryV2(`select utid from thread join process
+    const utidRes = await this.query(`select utid from thread join process
       using(upid) where thread.name like ${searchLiteral}
       or process.name like ${searchLiteral}`);
 
@@ -171,7 +171,7 @@ export class SearchController extends Controller<'main'> {
     const cpus = await this.engine.getCpus();
     const maxCpu = Math.max(...cpus, -1);
 
-    const res = await this.queryV2(`
+    const res = await this.query(`
         select
           (quantum_ts * ${quantumNs} + ${startNs})/1e9 as tsStart,
           ((quantum_ts+1) * ${quantumNs} + ${startNs})/1e9 as tsEnd,
@@ -231,7 +231,7 @@ export class SearchController extends Controller<'main'> {
       }
     }
 
-    const utidRes = await this.queryV2(`select utid from thread join process
+    const utidRes = await this.query(`select utid from thread join process
     using(upid) where
       thread.name like ${searchLiteral} or
       process.name like ${searchLiteral}`);
@@ -240,7 +240,7 @@ export class SearchController extends Controller<'main'> {
       utids.push(it.utid);
     }
 
-    const queryRes = await this.queryV2(`
+    const queryRes = await this.query(`
     select
       id as sliceId,
       ts,
@@ -303,8 +303,8 @@ export class SearchController extends Controller<'main'> {
     return searchResults;
   }
 
-  private async queryV2(query: string) {
-    const result = await this.engine.queryV2(query);
+  private async query(query: string) {
+    const result = await this.engine.query(query);
     return result;
   }
 }

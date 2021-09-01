@@ -3535,10 +3535,10 @@ TEST_F(TracingServiceImplTest, QueryServiceState) {
   consumer->Connect(svc.get());
 
   std::unique_ptr<MockProducer> producer1 = CreateMockProducer();
-  producer1->Connect(svc.get(), "producer1");
+  producer1->Connect(svc.get(), "producer1", /*uid=*/0);
 
   std::unique_ptr<MockProducer> producer2 = CreateMockProducer();
-  producer2->Connect(svc.get(), "producer2");
+  producer2->Connect(svc.get(), "producer2", /*uid=*/1002);
 
   producer1->RegisterDataSource("common_ds");
   producer2->RegisterDataSource("common_ds");
@@ -3551,8 +3551,10 @@ TEST_F(TracingServiceImplTest, QueryServiceState) {
   EXPECT_EQ(svc_state.producers_size(), 2);
   EXPECT_EQ(svc_state.producers().at(0).id(), 1);
   EXPECT_EQ(svc_state.producers().at(0).name(), "producer1");
+  EXPECT_EQ(svc_state.producers().at(0).uid(), 0);
   EXPECT_EQ(svc_state.producers().at(1).id(), 2);
   EXPECT_EQ(svc_state.producers().at(1).name(), "producer2");
+  EXPECT_EQ(svc_state.producers().at(1).uid(), 1002);
 
   EXPECT_EQ(svc_state.data_sources_size(), 4);
 

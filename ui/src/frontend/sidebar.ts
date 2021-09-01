@@ -31,6 +31,7 @@ import {
   openFileWithLegacyTraceViewer,
 } from './legacy_trace_viewer';
 import {showModal} from './modal';
+import {Router} from './router';
 import {isDownloadable, isShareable} from './trace_attrs';
 import {
   convertToJson,
@@ -427,7 +428,6 @@ function openTraceUrl(url: string): (e: Event) => void {
   return e => {
     globals.logging.logEvent('Trace Actions', 'Open example trace');
     e.preventDefault();
-    globals.frontendLocalState.localOnlyMode = false;
     globals.dispatch(Actions.openTraceFromUrl({url}));
   };
 }
@@ -440,8 +440,6 @@ function onInputElementFileSelectionChanged(e: Event) {
   const file = e.target.files[0];
   // Reset the value so onchange will be fired with the same file.
   e.target.value = '';
-
-  globals.frontendLocalState.localOnlyMode = false;
 
   if (e.target.dataset['useCatapultLegacyUi'] === '1') {
     openWithLegacyUi(file);
@@ -520,32 +518,32 @@ function openInOldUIWithSizeCheck(trace: Blob) {
 
 function navigateRecord(e: Event) {
   e.preventDefault();
-  globals.dispatch(Actions.navigate({route: '/record'}));
+  Router.navigate('#!/record');
 }
 
 function navigateAnalyze(e: Event) {
   e.preventDefault();
-  globals.dispatch(Actions.navigate({route: '/query'}));
+  Router.navigate('#!/query');
 }
 
 function navigateFlags(e: Event) {
   e.preventDefault();
-  globals.dispatch(Actions.navigate({route: '/flags'}));
+  Router.navigate('#!/flags');
 }
 
 function navigateMetrics(e: Event) {
   e.preventDefault();
-  globals.dispatch(Actions.navigate({route: '/metrics'}));
+  Router.navigate('#!/metrics');
 }
 
 function navigateInfo(e: Event) {
   e.preventDefault();
-  globals.dispatch(Actions.navigate({route: '/info'}));
+  Router.navigate('#!/info');
 }
 
 function navigateViewer(e: Event) {
   e.preventDefault();
-  globals.dispatch(Actions.navigate({route: '/viewer'}));
+  Router.navigate('#!/viewer');
 }
 
 function shareTrace(e: Event) {

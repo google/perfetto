@@ -47,7 +47,7 @@ class CounterTrackController extends TrackController<Config, Data> {
 
     if (!this.setup) {
       if (this.config.namespace === undefined) {
-        await this.queryV2(`
+        await this.query(`
           create view ${this.tableName('counter_view')} as
           select
             id,
@@ -59,7 +59,7 @@ class CounterTrackController extends TrackController<Config, Data> {
           where track_id = ${this.config.trackId};
         `);
       } else {
-        await this.queryV2(`
+        await this.query(`
           create view ${this.tableName('counter_view')} as
           select
             id,
@@ -72,7 +72,7 @@ class CounterTrackController extends TrackController<Config, Data> {
         `);
       }
 
-      const maxDurResult = await this.queryV2(`
+      const maxDurResult = await this.query(`
           select
             max(
               iif(dur != -1, dur, (select end_ts from trace_bounds) - ts)
@@ -81,7 +81,7 @@ class CounterTrackController extends TrackController<Config, Data> {
       `);
       this.maxDurNs = maxDurResult.firstRow({maxDur: NUM_NULL}).maxDur || 0;
 
-      const queryRes = await this.queryV2(`
+      const queryRes = await this.query(`
         select
           ifnull(max(value), 0) as maxValue,
           ifnull(min(value), 0) as minValue,
@@ -98,7 +98,7 @@ class CounterTrackController extends TrackController<Config, Data> {
       this.setup = true;
     }
 
-    const queryRes = await this.queryV2(`
+    const queryRes = await this.query(`
       select
         (ts + ${bucketNs / 2}) / ${bucketNs} * ${bucketNs} as tsq,
         min(value) as minValue,

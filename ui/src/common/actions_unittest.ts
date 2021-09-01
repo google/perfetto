@@ -81,13 +81,6 @@ function pinnedAndScrollingTracks(
   return state;
 }
 
-test('navigate', () => {
-  const after = produce(createEmptyState(), draft => {
-    StateActions.navigate(draft, {route: '/foo'});
-  });
-  expect(after.route).toBe('/foo');
-});
-
 test('add scrolling tracks', () => {
   const once = produce(createEmptyState(), draft => {
     StateActions.addTrack(draft, {
@@ -278,7 +271,6 @@ test('open trace', () => {
   expect(engineKeys.length).toBe(1);
   expect((after.engines[engineKeys[0]].source as TraceUrlSource).url)
       .toBe('https://example.com/bar');
-  expect(after.route).toBe('/viewer');
   expect(after.recordConfig).toBe(recordConfig);
 });
 
@@ -311,7 +303,6 @@ test('open second trace from file', () => {
       .toBe('https://example.com/foo');
   expect(thrice.pinnedTracks.length).toBe(0);
   expect(thrice.scrollingTracks.length).toBe(0);
-  expect(thrice.route).toBe('/viewer');
 });
 
 test('setEngineReady with missing engine is ignored', () => {

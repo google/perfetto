@@ -33,7 +33,7 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
   private maxDurNs = 0;
 
   async onSetup() {
-    await this.queryV2(`
+    await this.query(`
       create view ${this.tableName('thread_state')} as
       select
         id,
@@ -46,7 +46,7 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
       where utid = ${this.config.utid} and utid != 0
     `);
 
-    const queryRes = await this.queryV2(`
+    const queryRes = await this.query(`
       select ifnull(max(dur), 0) as maxDur
       from ${this.tableName('thread_state')}
     `);
@@ -81,7 +81,7 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
       order by tsq, state, ioWait
     `;
 
-    const queryRes = await this.queryV2(query);
+    const queryRes = await this.query(query);
     const numRows = queryRes.numRows();
 
     const data: Data = {
@@ -144,8 +144,7 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
   }
 
   async onDestroy() {
-    await this.queryV2(
-        `drop table if exists ${this.tableName('thread_state')}`);
+    await this.query(`drop table if exists ${this.tableName('thread_state')}`);
   }
 }
 
