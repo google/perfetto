@@ -147,7 +147,8 @@ async function maybeOpenCachedTrace(traceUuid: string) {
 
   // If the UI is in a blank state (no trace has been ever opened), just load
   // the trace without showing any further dialog. This is the case of tab
-  // discarding, reloading or pasting a url with a trace_id in an empty instance.
+  // discarding, reloading or pasting a url with a trace_id in an empty
+  // instance.
   if (globals.state.traceUuid === undefined) {
     globals.dispatch(Actions.openTraceFromBuffer(maybeTrace));
     return;
