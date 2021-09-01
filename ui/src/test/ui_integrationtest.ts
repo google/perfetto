@@ -88,17 +88,18 @@ describe('android_trace_30s', () => {
     await waitForPerfettoIdle(page);
   });
 
-  test('search', async () => {
-    const page = await getPage();
-    const searchInput = '.omnibox input';
-    await page.focus(searchInput);
-    await page.keyboard.type('TrimMaps');
-    await waitForPerfettoIdle(page);
-    for (let i = 0; i < 10; i++) {
-      await page.keyboard.type('\n');
-    }
-    await waitForPerfettoIdle(page);
-  });
+  // TODO(198431341): Test is flaky. We should de-flake and re-enable.
+  // test('search', async () => {
+  //  const page = await getPage();
+  //  const searchInput = '.omnibox input';
+  //  await page.focus(searchInput);
+  //  await page.keyboard.type('TrimMaps');
+  //  await waitForPerfettoIdle(page);
+  //  for (let i = 0; i < 10; i++) {
+  //    await page.keyboard.type('\n');
+  //  }
+  //  await waitForPerfettoIdle(page);
+  //});
 });
 
 describe('chrome_rendering_desktop', () => {
