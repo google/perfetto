@@ -54,7 +54,7 @@ import {
 const PERSIST_CONFIG_FLAG = featureFlags.register({
   id: 'persistConfigsUI',
   name: 'Config persistence UI',
-  description: 'Show experimental config persistance UI on the record page.',
+  description: 'Show experimental config persistence UI on the record page.',
   defaultValue: false,
 });
 
