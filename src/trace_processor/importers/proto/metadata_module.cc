@@ -31,7 +31,10 @@ namespace trace_processor {
 using perfetto::protos::pbzero::TracePacket;
 
 MetadataModule::MetadataModule(TraceProcessorContext* context)
-    : context_(context) {
+    : context_(context),
+      producer_name_key_id_(context_->storage->InternString("producer_name")),
+      trusted_producer_uid_key_id_(
+          context_->storage->InternString("trusted_producer_uid")) {
   RegisterForField(TracePacket::kUiStateFieldNumber, context);
   RegisterForField(TracePacket::kChromeMetadataFieldNumber, context);
   RegisterForField(TracePacket::kChromeBenchmarkMetadataFieldNumber, context);
@@ -160,15 +163,16 @@ void MetadataModule::ParseTrigger(int64_t ts, ConstBytes blob) {
       ts, track_id, cat_id, name_id,
       /* duration = */ 0,
       [&trigger, this](ArgsTracker::BoundInserter* args_table) {
-        StringId producer_name_key =
-            context_->storage->InternString("producer_name");
-        args_table->AddArg(producer_name_key,
-                           Variadic::String(context_->storage->InternString(
-                               trigger.producer_name())));
-        StringId trusted_producer_uid_key =
-            context_->storage->InternString("trusted_producer_uid");
-        args_table->AddArg(trusted_producer_uid_key,
-                           Variadic::Integer(trigger.trusted_producer_uid()));
+        StringId producer_name =
+            context_->storage->InternString(trigger.producer_name());
+        if (!producer_name.is_null()) {
+          args_table->AddArg(producer_name_key_id_,
+                             Variadic::String(producer_name));
+        }
+        if (trigger.has_trusted_producer_uid()) {
+          args_table->AddArg(trusted_producer_uid_key_id_,
+                             Variadic::Integer(trigger.trusted_producer_uid()));
+        }
       });
 }
 
