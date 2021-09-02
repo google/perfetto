@@ -360,6 +360,9 @@ cc_library_shared {
     "libprocinfo",
     "libunwindstack",
   ],
+  runtime_libs: [
+    "libdexfile",
+  ],
   export_include_dirs: [
     "src/profiling/memory/include",
   ],

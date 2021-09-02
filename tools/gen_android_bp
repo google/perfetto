@@ -289,6 +289,7 @@ def enable_libunwindstack(module):
     module.static_libs.add('libbase')
     module.static_libs.add('liblzma')
     module.static_libs.add('libdexfile_support')
+    module.runtime_libs.add('libdexfile') # libdexfile_support dependency
 
 
 def enable_libunwind(module):
@@ -459,6 +460,7 @@ class Module(object):
     self.shared_libs = set()
     self.static_libs = set()
     self.whole_static_libs = set()
+    self.runtime_libs = set()
     self.tools = set()
     self.cmd = None
     self.host_supported = False
@@ -502,6 +504,7 @@ class Module(object):
     self._output_field(output, 'shared_libs')
     self._output_field(output, 'static_libs')
     self._output_field(output, 'whole_static_libs')
+    self._output_field(output, 'runtime_libs')
     self._output_field(output, 'tools')
     self._output_field(output, 'cmd', sort=False)
     self._output_field(output, 'host_supported')
