@@ -3,6 +3,7 @@
 # The trailing /. at the end of a directory is to avoid creating a nesting
 # directory when pushing a 2nd-time. adb push has a slightly different behavior
 # than `cp` on directoriesm, trailing slash is not enough.
+src/profiling/memory/test/data/.
 src/traced/probes/filesystem/testdata/.
 src/traced/probes/ftrace/test/data/.
 test/data/android_log_ring_buffer_mode.pb

@@ -9539,9 +9539,9 @@ cc_test {
     "bionic_libc_platform_headers",
   ],
   data: [
+    "src/profiling/memory/test/data/**/*",
     "src/traced/probes/filesystem/testdata/**/*",
     "src/traced/probes/ftrace/test/data/**/*",
-    "src/profiling/memory/test/data/*",
   ],
 }
 
