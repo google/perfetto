@@ -1,6 +1,8 @@
 # Tests related to Chrome's use of Perfetto.
 
 # Chrome metrics (found in the trace_processor/chrome directory).
+
+# Scroll jank metrics
 ../../data/chrome_scroll_without_vsync.pftrace scroll_jank_general_validation.sql scroll_jank_general_validation.out
 ../../data/chrome_scroll_without_vsync.pftrace scroll_jank.sql scroll_jank.out
 ../../data/chrome_scroll_without_vsync.pftrace scroll_flow_event.sql scroll_flow_event.out
@@ -15,6 +17,10 @@
 ../../data/chrome_rendering_desktop.pftrace frame_times frame_times_metric.out
 scroll_jank_mojo_simple_watcher.py scroll_jank_mojo_simple_watcher.sql scroll_jank_mojo_simple_watcher.out
 scroll_jank_gpu_check.py scroll_jank_gpu_check.sql scroll_jank_gpu_check.out
+
+# Touch gesture metrics
+../../data/chrome_touch_gesture_scroll.pftrace touch_jank.sql touch_jank.out
+touch_jank.py touch_jank.sql touch_jank_synth.out
 
 # Chrome memory snapshots.
 ../../data/chrome_memory_snapshot.pftrace memory_snapshot_general_validation.sql memory_snapshot_general_validation.out
