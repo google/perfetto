@@ -32,6 +32,11 @@ struct MergedCallsite {
   }
 };
 
+struct FlamegraphTableAndMergedCallsites {
+  std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> tbl;
+  std::vector<uint32_t> callsite_to_merged_callsite;
+};
+
 std::vector<MergedCallsite> GetMergedCallsites(TraceStorage* storage,
                                                uint32_t callstack_row) {
   const tables::StackProfileCallsiteTable& callsites_tbl =
@@ -78,16 +83,14 @@ std::vector<MergedCallsite> GetMergedCallsites(TraceStorage* storage,
 }
 }  // namespace
 
-std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> BuildNativeFlamegraph(
+static FlamegraphTableAndMergedCallsites BuildFlamegraphTableTreeStructure(
     TraceStorage* storage,
     UniquePid upid,
-    int64_t timestamp) {
-  const tables::HeapProfileAllocationTable& allocation_tbl =
-      storage->heap_profile_allocation_table();
+    int64_t timestamp,
+    StringId profile_type,
+    const Table& filtered) {
   const tables::StackProfileCallsiteTable& callsites_tbl =
       storage->stack_profile_callsite_table();
-
-  StringId profile_type = storage->InternString("native");
 
   std::vector<uint32_t> callsite_to_merged_callsite(callsites_tbl.row_count(),
                                                     0);
@@ -134,7 +137,7 @@ std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> BuildNativeFlamegraph(
         row.map_name = merged_callsite.mapping_name;
         if (parent_idx)
           row.parent_id = tbl->id()[*parent_idx];
-        parent_idx = tbl->Insert(std::move(row)).row;
+        tbl->Insert(row);
         callsites_to_rowid[merged_callsite] =
             static_cast<uint32_t>(merged_callsites_to_table_idx.size());
 
@@ -167,14 +170,18 @@ std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> BuildNativeFlamegraph(
     callsite_to_merged_callsite[i] = *parent_idx;
   }
 
-  // PASS OVER ALLOCATIONS:
-  // Aggregate allocations into the newly built tree.
-  auto filtered = allocation_tbl.Filter(
-      {allocation_tbl.ts().le(timestamp), allocation_tbl.upid().eq(upid)});
+  return {filtered.row_count() == 0 ? nullptr : std::move(tbl),
+          callsite_to_merged_callsite};
+}
 
-  if (filtered.row_count() == 0) {
-    return nullptr;
-  }
+static std::unique_ptr<tables::ExperimentalFlamegraphNodesTable>
+BuildFlamegraphTableSizeAndCount(
+    std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> tbl,
+    const std::vector<uint32_t>& callsite_to_merged_callsite,
+    TraceStorage* storage,
+    const Table& filtered) {
+  const tables::StackProfileCallsiteTable& callsites_tbl =
+      storage->stack_profile_callsite_table();
 
   for (auto it = filtered.IterateRows(); it; it.Next()) {
     int64_t size =
@@ -249,5 +256,61 @@ std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> BuildNativeFlamegraph(
 
   return tbl;
 }
+
+std::unique_ptr<tables::ExperimentalFlamegraphNodesTable>
+BuildNativeHeapProfileFlamegraph(TraceStorage* storage,
+                                 UniquePid upid,
+                                 int64_t timestamp) {
+  const tables::HeapProfileAllocationTable& allocation_tbl =
+      storage->heap_profile_allocation_table();
+  // PASS OVER ALLOCATIONS:
+  // Aggregate allocations into the newly built tree.
+  auto filtered = allocation_tbl.Filter(
+      {allocation_tbl.ts().le(timestamp), allocation_tbl.upid().eq(upid)});
+  StringId profile_type = storage->InternString("native");
+  FlamegraphTableAndMergedCallsites table_and_callsites =
+      BuildFlamegraphTableTreeStructure(storage, upid, timestamp, profile_type,
+                                        filtered);
+  return BuildFlamegraphTableSizeAndCount(
+      std::move(table_and_callsites.tbl),
+      table_and_callsites.callsite_to_merged_callsite, storage, filtered);
+}
+
+std::unique_ptr<tables::ExperimentalFlamegraphNodesTable>
+BuildNativeCallStackSamplingFlamegraph(TraceStorage* storage,
+                                       UniquePid upid,
+                                       int64_t timestamp) {
+  // 1.Create set of all utids mapped to the given upid
+  std::set<tables::ThreadTable::Id> utids;
+  RowMap threads_in_pid_rm = storage->thread_table().FilterToRowMap(
+      {storage->thread_table().upid().eq(upid)});
+  for (auto it = threads_in_pid_rm.IterateRows(); it; it.Next()) {
+    utids.insert(storage->thread_table().id()[it.row()]);
+  }
+
+  // 2.Get all row indices in perf_sample that correspond to the requested utids
+  std::vector<uint32_t> cs_rows;
+  for (uint32_t i = 0; i < storage->perf_sample_table().row_count(); ++i) {
+    if (utids.find(static_cast<tables::ThreadTable::Id>(
+            storage->perf_sample_table().utid()[i])) != utids.end()) {
+      cs_rows.push_back(i);
+    }
+  }
+
+  // 3.Filter rows that correspond to the selected utids
+  RowMap filtered_rm = RowMap(std::move(cs_rows));
+  Table filtered_by_pid =
+      storage->perf_sample_table().Apply(std::move(filtered_rm));
+
+  // 4.Filter rows by timestamp
+  Table filtered_fully =
+      filtered_by_pid.Filter({storage->perf_sample_table().ts().le(timestamp)});
+
+  StringId profile_type = storage->InternString("callstack");
+  return BuildFlamegraphTableTreeStructure(storage, upid, timestamp,
+                                           profile_type, filtered_fully)
+      .tbl;
+}
+
 }  // namespace trace_processor
 }  // namespace perfetto
