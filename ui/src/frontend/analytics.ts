@@ -16,6 +16,8 @@ import {getCurrentChannel} from '../common/channels';
 import {globals} from '../frontend/globals';
 import * as version from '../gen/perfetto_version';
 
+import {Router} from './router';
+
 type TraceCategories = 'Trace Actions'|'Record Trace'|'User Actions';
 const ANALYTICS_ID = 'UA-137828855-1';
 const PAGE_TITLE = 'no-page-title';
@@ -88,7 +90,7 @@ class AnalyticsImpl implements Analytics {
     script.src = 'https://www.googletagmanager.com/gtag/js?id=' + ANALYTICS_ID;
     script.defer = true;
     document.head.appendChild(script);
-    const route = globals.state.route || '/';
+    const route = Router.parseUrl(window.location.href).page || '/';
     console.log(
         `GA initialized. route=${route}`,
         `isInternalUser=${globals.isInternalUser}`);

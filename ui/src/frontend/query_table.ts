@@ -23,6 +23,7 @@ import {fromNs} from '../common/time';
 import {queryResponseToClipboard} from './clipboard';
 import {globals} from './globals';
 import {Panel} from './panel';
+import {Router} from './router';
 import {
   findUiTrackId,
   horizontalScrollAndZoomToRange,
@@ -46,7 +47,7 @@ class QueryTableRow implements m.ClassComponent<QueryTableRowAttrs> {
   static rowOnClickHandler(
       event: Event, row: Row, nextTab: 'CurrentSelection'|'QueryResults') {
     // TODO(dproy): Make click handler work from analyze page.
-    if (globals.state.route !== '/viewer') return;
+    if (Router.parseUrl(window.location.href).page !== '/viewer') return;
     // If the click bubbles up to the pan and zoom handler that will deselect
     // the slice.
     event.stopPropagation();
