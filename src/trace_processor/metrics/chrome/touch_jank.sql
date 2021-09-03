@@ -1,5 +1,5 @@
 --
--- Copyright 2020 The Android Open Source Project
+-- Copyright 2021 The Android Open Source Project
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
 -- you may not use this file except in compliance with the License.
@@ -13,12 +13,11 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
--- A collection of metrics related to GestureScrollUpdate events.
+-- A collection of metrics related to TouchMove events.
 --
--- We define a GestureScrollUpdate to be janky if comparing forwards or
--- backwards (ignoring coalesced updates) a given GestureScrollUpdate exceeds
--- the duration of its predecessor or successor by 50% of a vsync interval
--- (defaulted to 60 FPS).
+-- We define a TouchMove to be janky if comparing forwards or backwards
+-- (ignoring coalesced updates) a given TouchMove exceeds the duration of its
+-- predecessor or successor by 50% of a vsync interval (defaulted to 60 FPS).
 --
 -- WARNING: This metric should not be used as a source of truth. It is under
 --          active development and the values & meaning might change without
@@ -26,9 +25,9 @@
 
 SELECT RUN_METRIC(
     'chrome/gesture_jank.sql',
-    'prefix', 'scroll',
-    'gesture_start', 'GestureScrollBegin',
-    'gesture_update', 'GestureScrollUpdate',
-    'gesture_end', 'GestureScrollEnd',
-    'id_field', 'gesture_scroll_id',
-    'proto_name', 'ScrollJank');
+    'prefix', 'touch',
+    'gesture_start', 'TouchStart',
+    'gesture_update', 'TouchMove',
+    'gesture_end', 'TouchEnd',
+    'id_field', 'touch_id',
+    'proto_name', 'TouchJank');

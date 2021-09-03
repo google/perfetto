@@ -668,18 +668,23 @@ class Trace(object):
                                     track=None,
                                     trace_id=None,
                                     gesture_scroll_id=None,
+                                    touch_id=None,
                                     is_coalesced=None,
                                     gets_to_gpu=True):
     packet = self.add_track_event_slice(
         "InputLatency::" + name, ts=ts, dur=dur, track=track)
-    packet.track_event.chrome_latency_info.trace_id = trace_id
-    packet.track_event.chrome_latency_info.gesture_scroll_id = gesture_scroll_id
+    latency_info = packet.track_event.chrome_latency_info
+    latency_info.trace_id = trace_id
+    if gesture_scroll_id is not None:
+      latency_info.gesture_scroll_id = gesture_scroll_id
+    if touch_id is not None:
+      latency_info.touch_id = touch_id
     if gets_to_gpu:
-      component = packet.track_event.chrome_latency_info.component_info.add()
+      component = latency_info.component_info.add()
       # 13 is id of COMPONENT_INPUT_EVENT_GPU_SWAP_BUFFER
       component.component_type = 13
     if is_coalesced is not None:
-      packet.track_event.chrome_latency_info.is_coalesced = is_coalesced
+      latency_info.is_coalesced = is_coalesced
     return packet
 
   def add_chrome_metadata(self, os_name=None):
