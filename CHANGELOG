@@ -9,6 +9,25 @@ Unreleased:
     *
 
 
+v19.0 - 2021-09-02:
+  Tracing service and probes:
+    * Added ftrace clock reporting to the trace
+  Trace Processor:
+    * Added support for longs/doubles to RUN_METRIC
+    * Fixed parsing of JSON escape sequences
+    * Fixed JSON trace detection in some situations
+    * Added power profile data for sunfish, redfin, and bramble
+    * Added experimental Python library for computing slice breakdowns
+  UI:
+    * Added local cacheing of traces
+    * Added icon to distinguish metric derived tracks
+    * Added release channel selector to feature flags page
+    * Fixed crash with null slice names
+  SDK:
+    * Added some missing NESTABLE_ASYNC legacy trace macros
+    * Fixed reporting of producer uid in --query
+
+
 v18.0 - 2021-08-02:
   Tracing service and probes:
     * Added cross-compiler toolchains for Linux-{arm,64} based on Debian Sid.
