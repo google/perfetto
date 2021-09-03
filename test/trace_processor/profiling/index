@@ -52,3 +52,4 @@ heap_graph.textproto java_heap_histogram java_heap_histogram.out
 # this uses llvm-symbolizer to test the offline symbolization built into
 # trace_processor_shell.
 ../../data/heapprofd_standalone_client_example-trace stack_profile_symbols.sql stack_profile_symbols.out
+../../data/callstack_sampling.pftrace callstack_sampling_flamegraph.sql callstack_sampling_flamegraph.out

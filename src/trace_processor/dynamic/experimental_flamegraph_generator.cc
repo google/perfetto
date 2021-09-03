@@ -259,10 +259,12 @@ std::unique_ptr<Table> ExperimentalFlamegraphGenerator::ComputeTable(
   if (values.profile_type == "graph") {
     auto* tracker = HeapGraphTracker::GetOrCreate(context_);
     table = tracker->BuildFlamegraph(values.ts, values.upid);
-  }
-  if (values.profile_type == "native") {
-    table =
-        BuildNativeFlamegraph(context_->storage.get(), values.upid, values.ts);
+  } else if (values.profile_type == "native") {
+    table = BuildNativeHeapProfileFlamegraph(context_->storage.get(),
+                                             values.upid, values.ts);
+  } else if (values.profile_type == "callstack") {
+    table = BuildNativeCallStackSamplingFlamegraph(context_->storage.get(),
+                                                   values.upid, values.ts);
   }
   if (!values.focus_str.empty()) {
     table =
