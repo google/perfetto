@@ -360,6 +360,9 @@ cc_library_shared {
     "libprocinfo",
     "libunwindstack",
   ],
+  runtime_libs: [
+    "libdexfile",
+  ],
   export_include_dirs: [
     "src/profiling/memory/include",
   ],
@@ -9539,9 +9542,9 @@ cc_test {
     "bionic_libc_platform_headers",
   ],
   data: [
+    "src/profiling/memory/test/data/**/*",
     "src/traced/probes/filesystem/testdata/**/*",
     "src/traced/probes/ftrace/test/data/**/*",
-    "src/profiling/memory/test/data/*",
   ],
 }
 

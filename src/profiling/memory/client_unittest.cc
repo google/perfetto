@@ -19,7 +19,6 @@
 #include <signal.h>
 
 #include <thread>
-#include <vector>
 
 #include "perfetto/base/thread_utils.h"
 #include "perfetto/ext/base/unix_socket.h"
@@ -51,12 +50,12 @@ TEST(ClientTest, GetThreadStackRangeBase) {
 #endif
 
 TEST(ClientTest, MAYBE_GetSigaltStackRange) {
-  std::vector<char> stack(MINSIGSTKSZ);
+  char stack[4096];
   stack_t altstack{};
   stack_t old_altstack{};
-  altstack.ss_sp = stack.data();
-  altstack.ss_size = stack.size();
-  ASSERT_NE(sigaltstack(&altstack, &old_altstack), -1) << strerror(errno);
+  altstack.ss_sp = stack;
+  altstack.ss_size = sizeof(stack);
+  ASSERT_NE(sigaltstack(&altstack, &old_altstack), -1);
 
   struct sigaction oldact;
   struct sigaction newact {};
@@ -76,8 +75,8 @@ TEST(ClientTest, MAYBE_GetSigaltStackRange) {
   PERFETTO_CHECK(sigaction(SIGUSR1, &oldact, nullptr) != -1);
   PERFETTO_CHECK(sigaltstack(&old_altstack, nullptr) != -1);
 
-  ASSERT_EQ(stackrange.begin, stack.data());
-  ASSERT_EQ(stackrange.end, &stack[MINSIGSTKSZ]);
+  ASSERT_EQ(stackrange.begin, stack);
+  ASSERT_EQ(stackrange.end, &stack[4096]);
   ASSERT_LT(stackrange.begin, stackptr);
   ASSERT_GT(stackrange.end, stackptr);
 }
