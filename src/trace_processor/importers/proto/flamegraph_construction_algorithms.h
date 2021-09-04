@@ -25,8 +25,14 @@ namespace perfetto {
 namespace trace_processor {
 
 std::unique_ptr<tables::ExperimentalFlamegraphNodesTable>
-BuildNativeFlamegraph(TraceStorage* storage, UniquePid upid, int64_t timestamp);
+BuildNativeHeapProfileFlamegraph(TraceStorage* storage,
+                                 UniquePid upid,
+                                 int64_t timestamp);
 
+std::unique_ptr<tables::ExperimentalFlamegraphNodesTable>
+BuildNativeCallStackSamplingFlamegraph(TraceStorage* storage,
+                                       UniquePid upid,
+                                       int64_t timestamp);
 }  // namespace trace_processor
 }  // namespace perfetto
 

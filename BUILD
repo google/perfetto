@@ -1071,6 +1071,7 @@ genrule(
         "src/trace_processor/metrics/chrome/cpu_time_by_rail_mode.sql",
         "src/trace_processor/metrics/chrome/estimated_power_by_category.sql",
         "src/trace_processor/metrics/chrome/estimated_power_by_rail_mode.sql",
+        "src/trace_processor/metrics/chrome/gesture_jank.sql",
         "src/trace_processor/metrics/chrome/rail_modes.sql",
         "src/trace_processor/metrics/chrome/scroll_flow_event.sql",
         "src/trace_processor/metrics/chrome/scroll_flow_event_queuing_delay.sql",
@@ -1081,6 +1082,7 @@ genrule(
         "src/trace_processor/metrics/chrome/scroll_jank_cause_get_bitmap.sql",
         "src/trace_processor/metrics/chrome/scroll_jank_cause_queuing_delay.sql",
         "src/trace_processor/metrics/chrome/test_chrome_metric.sql",
+        "src/trace_processor/metrics/chrome/touch_jank.sql",
         "src/trace_processor/metrics/experimental/blink_gc_metric.sql",
         "src/trace_processor/metrics/experimental/frame_times.sql",
         "src/trace_processor/metrics/experimental/media_metric.sql",
@@ -2591,6 +2593,7 @@ perfetto_proto_library(
         "protos/perfetto/metrics/chrome/reported_by_page.proto",
         "protos/perfetto/metrics/chrome/scroll_jank.proto",
         "protos/perfetto/metrics/chrome/test_chrome_metric.proto",
+        "protos/perfetto/metrics/chrome/touch_jank.proto",
     ],
     visibility = [
         PERFETTO_CONFIG.proto_library_visibility,
