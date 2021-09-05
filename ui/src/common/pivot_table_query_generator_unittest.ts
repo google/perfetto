@@ -15,8 +15,8 @@
 import {
   AggregationAttrs,
   PivotAttrs,
-  PivotTableQueryGenerator
-} from './pivot_table_query_generator';
+} from './pivot_table_data';
+import {PivotTableQueryGenerator} from './pivot_table_query_generator';
 
 test('Generate query with pivots and aggregations', () => {
   const pivotTableQueryGenerator = new PivotTableQueryGenerator();
@@ -28,23 +28,23 @@ test('Generate query with pivots and aggregations', () => {
     {aggregation: 'SUM', tableName: 'slice', columnName: 'dur', order: 'DESC'}
   ];
   const expectedQuery = '\nSELECT\n' +
-      'slice_type,\n' +
-      '  slice_id,\n' +
-      '  SUM_slice_dur_1,\n' +
-      '  SUM_slice_dur_2\n' +
+      '"slice type",\n' +
+      '  "slice id",\n' +
+      '  "slice dur (SUM) 1",\n' +
+      '  "slice dur (SUM) 2"\n' +
       'FROM (\n' +
       'SELECT\n' +
-      'slice_type,\n' +
-      '  slice_id,\n' +
-      '  SUM(SUM_slice_dur) OVER (PARTITION BY slice_type) AS SUM_slice_dur_1' +
-      ',\n' +
-      '  SUM(SUM_slice_dur) OVER (PARTITION BY slice_type,  slice_id)' +
-      ' AS SUM_slice_dur_2\n' +
+      '"slice type",\n' +
+      '  "slice id",\n' +
+      '  SUM("slice dur (SUM)") OVER (PARTITION BY "slice type")' +
+      ' AS "slice dur (SUM) 1",\n' +
+      '  SUM("slice dur (SUM)") OVER (PARTITION BY "slice type",  "slice id")' +
+      ' AS "slice dur (SUM) 2"\n' +
       'FROM (\n' +
       'SELECT\n' +
-      'slice.type AS slice_type,\n' +
-      '  slice.id AS slice_id,\n' +
-      '  slice.dur AS SUM_slice_dur\n' +
+      'slice.type AS "slice type",\n' +
+      '  slice.id AS "slice id",\n' +
+      '  slice.dur AS "slice dur (SUM)"\n' +
       'FROM slice WHERE slice.dur != -1\n' +
       ')\n' +
       ')\n' +
@@ -63,12 +63,12 @@ test('Generate query with pivots', () => {
   ];
   const selectedAggregations: AggregationAttrs[] = [];
   const expectedQuery = '\nSELECT\n' +
-      'slice_type,\n' +
-      '  slice_id\n' +
+      '"slice type",\n' +
+      '  "slice id"\n' +
       'FROM (\n' +
       'SELECT\n' +
-      'slice.type AS slice_type,\n' +
-      '  slice.id AS slice_id\n' +
+      'slice.type AS "slice type",\n' +
+      '  slice.id AS "slice id"\n' +
       'FROM slice WHERE slice.dur != -1\n' +
       ')\n' +
       'GROUP BY 1,  2\n';
@@ -85,16 +85,16 @@ test('Generate query with aggregations', () => {
     {aggregation: 'MAX', tableName: 'slice', columnName: 'dur', order: 'ASC'}
   ];
   const expectedQuery = '\nSELECT\n' +
-      'SUM_slice_dur,\n' +
-      '  MAX_slice_dur\n' +
+      '"slice dur (SUM)",\n' +
+      '  "slice dur (MAX)"\n' +
       'FROM (\n' +
       'SELECT\n' +
-      'SUM(SUM_slice_dur) AS SUM_slice_dur,\n' +
-      '  MAX(MAX_slice_dur) AS MAX_slice_dur\n' +
+      'SUM("slice dur (SUM)") AS "slice dur (SUM)",\n' +
+      '  MAX("slice dur (MAX)") AS "slice dur (MAX)"\n' +
       'FROM (\n' +
       'SELECT\n' +
-      'slice.dur AS SUM_slice_dur,\n' +
-      '  slice.dur AS MAX_slice_dur\n' +
+      'slice.dur AS "slice dur (SUM)",\n' +
+      '  slice.dur AS "slice dur (MAX)"\n' +
       'FROM slice WHERE slice.dur != -1\n' +
       ')\n' +
       ')\n' +
