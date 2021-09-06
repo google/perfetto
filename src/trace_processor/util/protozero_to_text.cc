@@ -30,6 +30,63 @@ std::string BytesToHexEncodedString(const std::string& bytes) {
   return value;
 }
 
+// This function matches the implementation of TextFormatEscaper.escapeBytes
+// from the Java protobuf library.
+std::string QuoteAndEscapeTextProtoString(const std::string& raw) {
+  std::string ret;
+  for (auto it = raw.cbegin(); it != raw.cend(); it++) {
+    switch (*it) {
+      case '\a':
+        ret += "\\a";
+        break;
+      case '\b':
+        ret += "\\b";
+        break;
+      case '\f':
+        ret += "\\f";
+        break;
+      case '\n':
+        ret += "\\n";
+        break;
+      case '\r':
+        ret += "\\r";
+        break;
+      case '\t':
+        ret += "\\t";
+        break;
+      case '\v':
+        ret += "\\v";
+        break;
+      case '\\':
+        ret += "\\\\";
+        break;
+      case '\'':
+        ret += "\\\'";
+        break;
+      case '"':
+        ret += "\\\"";
+        break;
+      default:
+        // Only ASCII characters between 0x20 (space) and 0x7e (tilde) are
+        // printable; other byte values are escaped with 3-character octal
+        // codes.
+        if (*it >= 0x20 && *it <= 0x7e) {
+          ret += *it;
+        } else {
+          ret += '\\';
+
+          // Cast to unsigned char to make the right shift unsigned as well.
+          unsigned char c = static_cast<unsigned char>(*it);
+          ret += ('0' + ((c >> 6) & 3));
+          ret += ('0' + ((c >> 3) & 7));
+          ret += ('0' + (c & 7));
+        }
+        break;
+    }
+  }
+  return '"' + ret + '"';
+}
+
 // Recursively determine the size of all the string like things passed in the
 // parameter pack |rest|.
 size_t SizeOfStr() {
@@ -115,7 +172,7 @@ void ConvertProtoTypeToFieldAndValueString(const FieldDescriptor& fd,
                 std::to_string(field.as_float()));
       return;
     case FieldDescriptorProto::TYPE_STRING: {
-      auto s = base::QuoteAndEscapeControlCodes(field.as_std_string());
+      auto s = QuoteAndEscapeTextProtoString(field.as_std_string());
       StrAppend(out, separator, indent, fd.name(), ": ", s);
       return;
     }
