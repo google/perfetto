@@ -12,37 +12,36 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export interface AggregationAttrs {
-  tableName: string;
-  columnName: string;
-  aggregation: string;
-  order: string;
+import {AggregationAttrs, PivotAttrs} from './pivot_table_data';
+
+export function getPivotAlias(pivot: PivotAttrs): string {
+  return `${pivot.tableName} ${pivot.columnName}`;
 }
 
-export interface PivotAttrs {
-  tableName: string;
-  columnName: string;
-}
-
-function getPivotAlias(pivot: PivotAttrs): string {
-  return `${pivot.tableName}_${pivot.columnName}`;
-}
-
-function getAggregationAlias(
+export function getAggregationAlias(
     aggregation: AggregationAttrs, index?: number): string {
-  let alias = `${aggregation.aggregation}_${aggregation.tableName}_${
-      aggregation.columnName}`;
+  let alias = `${aggregation.tableName} ${aggregation.columnName} (${
+      aggregation.aggregation})`;
   if (index !== undefined) {
-    alias += `_${index}`;
+    alias += ` ${index}`;
   }
   return alias;
+}
+
+export function getSqlPivotAlias(pivot: PivotAttrs): string {
+  return `"${getPivotAlias(pivot)}"`;
+}
+
+export function getSqlAggregationAlias(
+    aggregation: AggregationAttrs, index?: number): string {
+  return `"${getAggregationAlias(aggregation, index)}"`;
 }
 
 function getAliasedPivotColumns(
     pivots: PivotAttrs[], lastIndex: number): string[] {
   const pivotCols = [];
   for (let i = 0; i < lastIndex; ++i) {
-    pivotCols.push(getPivotAlias(pivots[i]));
+    pivotCols.push(getSqlPivotAlias(pivots[i]));
   }
   return pivotCols;
 }
@@ -50,13 +49,13 @@ function getAliasedPivotColumns(
 function getAliasedAggregationColumns(
     pivots: PivotAttrs[], aggregations: AggregationAttrs[]): string[] {
   const aggCols = [];
-  for (let i = 0; i < aggregations.length; ++i) {
+  for (const aggregation of aggregations) {
     if (pivots.length === 0) {
-      aggCols.push(getAggregationAlias(aggregations[i]));
+      aggCols.push(getSqlAggregationAlias(aggregation));
       continue;
     }
     for (let j = 0; j < pivots.length; ++j) {
-      aggCols.push(getAggregationAlias(aggregations[i], j + 1));
+      aggCols.push(getSqlAggregationAlias(aggregation, j + 1));
     }
   }
   return aggCols;
@@ -65,25 +64,25 @@ function getAliasedAggregationColumns(
 export class PivotTableQueryGenerator {
   // Generates a query that selects all pivots and aggregations and joins any
   // tables needed by them together. All pivots are renamed into the format
-  // tableName_columnName and all aggregations are renamed into
-  // aggregation_tableName_columnName (see getPivotAlias or
+  // tableName columnName and all aggregations are renamed into
+  // tableName columnName (aggregation) (see getPivotAlias or
   // getAggregationAlias).
   private generateJoinQuery(
       pivots: PivotAttrs[], aggregations: AggregationAttrs[]): string {
     let joinQuery = 'SELECT\n';
 
     const pivotCols = [];
-    for (let i = 0; i < pivots.length; ++i) {
+    for (const pivot of pivots) {
       pivotCols.push(
-          `${pivots[i].tableName}.${pivots[i].columnName} AS ` +
-          `${getPivotAlias(pivots[i])}`);
+          `${pivot.tableName}.${pivot.columnName} AS ` +
+          `${getSqlPivotAlias(pivot)}`);
     }
 
     const aggCols = [];
-    for (let i = 0; i < aggregations.length; ++i) {
+    for (const aggregation of aggregations) {
       aggCols.push(
-          `${aggregations[i].tableName}.${aggregations[i].columnName} AS ` +
-          `${getAggregationAlias(aggregations[i])}`);
+          `${aggregation.tableName}.${aggregation.columnName} AS ` +
+          `${getSqlAggregationAlias(aggregation)}`);
     }
 
     joinQuery += pivotCols.concat(aggCols).join(',\n  ');
@@ -105,14 +104,14 @@ export class PivotTableQueryGenerator {
     const pivotCols = getAliasedPivotColumns(pivots, pivots.length);
 
     const aggCols = [];
-    for (let i = 0; i < aggregations.length; ++i) {
-      const aggColPrefix = `${aggregations[i].aggregation}(${
-          getAggregationAlias(aggregations[i])})`;
+    for (const aggregation of aggregations) {
+      const aggColPrefix =
+          `${aggregation.aggregation}(${getSqlAggregationAlias(aggregation)})`;
 
       if (pivots.length === 0) {
         // Don't partition over pivots if there are no pivots.
         aggCols.push(
-            `${aggColPrefix} AS ${getAggregationAlias(aggregations[i])}`);
+            `${aggColPrefix} AS ${getSqlAggregationAlias(aggregation)}`);
         continue;
       }
 
@@ -120,7 +119,7 @@ export class PivotTableQueryGenerator {
         aggCols.push(
             `${aggColPrefix} OVER (PARTITION BY ` +
             `${getAliasedPivotColumns(pivots, j + 1).join(',  ')}) AS ` +
-            `${getAggregationAlias(aggregations[i], j + 1)}`);
+            `${getSqlAggregationAlias(aggregation, j + 1)}`);
       }
     }
 
