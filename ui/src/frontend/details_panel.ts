@@ -30,9 +30,11 @@ import {
 import {globals} from './globals';
 import {HeapProfileDetailsPanel} from './heap_profile_panel';
 import {LogPanel} from './logs_panel';
+import {showModal} from './modal';
 import {NotesEditorPanel} from './notes_panel';
 import {AnyAttrsVnode, PanelContainer} from './panel_container';
 import {PivotTable} from './pivot_table';
+import {ColumnDisplay, ColumnPicker} from './pivot_table_editor';
 import {QueryTable} from './query_table';
 import {SliceDetailsPanel} from './slice_panel';
 import {ThreadStatePanel} from './thread_state_panel';
@@ -284,12 +286,49 @@ export class DetailsPanel implements m.ClassComponent {
       });
     }
 
-    if (globals.frontendLocalState.showPivotTable) {
-      const pivotTableId = 'pivot-table';
+    const pivotTableId = 'pivot-table';
+    const pivotTable = globals.state.pivotTable[pivotTableId];
+    const helper = globals.pivotTableHelper.get(pivotTableId);
+
+    if (globals.frontendLocalState.showPivotTable && pivotTable !== undefined) {
+      if (helper !== undefined) {
+        helper.setSelectedPivotsAndAggregations(
+            pivotTable.selectedPivots, pivotTable.selectedAggregations);
+      }
       detailsPanels.push({
         key: pivotTableId,
-        name: globals.state.pivotTable[pivotTableId].name,
-        vnode: m(PivotTable, {key: pivotTableId, pivotTableId})
+        name: pivotTable.name,
+        vnode: m(PivotTable, {key: pivotTableId, pivotTableId, helper})
+      });
+    }
+
+    if (helper !== undefined && helper.editPivotTableModalOpen) {
+      let content;
+      if (helper.availableColumns.length === 0 ||
+          helper.availableAggregations.length === 0) {
+        content =
+            m('.pivot-table-editor-container',
+              helper.availableColumns.length === 0 ?
+                  m('div', 'No columns available.') :
+                  null,
+              helper.availableAggregations.length === 0 ?
+                  m('div', 'No aggregations available.') :
+                  null);
+      } else {
+        const attrs = {helper};
+        content =
+            m('.pivot-table-editor-container',
+              m(ColumnPicker, attrs),
+              m(ColumnDisplay, attrs));
+      }
+
+      showModal({
+        title: 'Edit Pivot Table',
+        content,
+        buttons: [],
+      }).finally(() => {
+        helper.toggleEditPivotTableModal();
+        globals.rafScheduler.scheduleFullRedraw();
       });
     }
 
