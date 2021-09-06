@@ -161,6 +161,14 @@ packet = trace.add_track_event_slice(
 # This ends the blocking slices of "janky" touch move 3.
 
 trace.add_latency_info_flow(
+    ts=ms_to_ns(87),
+    dur=ms_to_ns(1),
+    trusted_sequence_id=seq1,
+    trace_id=trace_id3,
+    step=trace.prototypes.ChromeLatencyInfo.Step.STEP_SEND_INPUT_EVENT_UI,
+    terminating_flow_ids=[flow_id3])
+
+trace.add_latency_info_flow(
     ts=ms_to_ns(89),
     dur=ms_to_ns(1),
     trusted_sequence_id=seq1,
