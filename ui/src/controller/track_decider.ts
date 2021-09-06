@@ -817,7 +817,7 @@ class TrackDecider {
           tid,
           thread.name as threadName,
           max(slice.depth) as maxDepth,
-          count(thread_slice.id) > 0 as hasThreadSlice,
+          (count(thread_slice.id) = count(slice.id)) as onlyThreadSlice,
           process.upid as upid,
           process.pid as pid
         from slice
@@ -837,7 +837,7 @@ class TrackDecider {
       maxDepth: NUM,
       upid: NUM_NULL,
       pid: NUM_NULL,
-      hasThreadSlice: NUM,
+      onlyThreadSlice: NUM,
     });
     for (; it.valid(); it.next()) {
       const utid = it.utid;
@@ -848,7 +848,7 @@ class TrackDecider {
       const upid = it.upid;
       const pid = it.pid;
       const maxDepth = it.maxDepth;
-      const hasThreadSlice = it.hasThreadSlice;
+      const onlyThreadSlice = it.onlyThreadSlice;
       const trackKindPriority =
           TrackDecider.inferTrackKindPriority(threadName, tid, pid);
 
@@ -863,7 +863,7 @@ class TrackDecider {
         name,
         trackGroup: uuid,
         trackKindPriority,
-        config: {trackId, maxDepth, tid, isThreadSlice: hasThreadSlice === 1}
+        config: {trackId, maxDepth, tid, isThreadSlice: onlyThreadSlice === 1}
       });
     }
   }
