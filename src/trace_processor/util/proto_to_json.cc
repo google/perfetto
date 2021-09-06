@@ -34,23 +34,33 @@ std::string QuoteAndEscapeJsonString(const std::string& raw) {
   std::string ret;
   for (auto it = raw.cbegin(); it != raw.cend(); it++) {
     char c = *it;
-    if (c < 0x20) {
-      // All 32 ASCII control codes need to be escaped. Instead of using the
-      // short forms, we just always use \u escape sequences instead to make
-      // things simpler.
-      ret += "\\u00";
+    switch (c) {
+      case '"':
+        // Double quote needs to be escaped.
+        ret += "\\\"";
+        break;
+      case '\n':
+        // Escape new line specially because it appears often and so is worth
+        // treating specially.
+        ret += "\\n";
+        break;
+      default:
+        if (c < 0x20) {
+          // All 32 ASCII control codes need to be escaped. Instead of using the
+          // short forms, we just always use \u escape sequences instead to make
+          // things simpler.
+          ret += "\\u00";
 
-      // Print |c| as a hex character. We reserve 3 bytes of space: 2 for the
-      // hex code and one for the null terminator.
-      char buf[3];
-      snprintf(buf, sizeof(buf), "%02X", c);
-      ret += buf;
-    } else if (c == '"') {
-      // Double quote also needs to be escaped.
-      ret += "\\\"";
-    } else {
-      // Everything else can be passed through directly.
-      ret += c;
+          // Print |c| as a hex character. We reserve 3 bytes of space: 2 for
+          // the hex code and one for the null terminator.
+          char buf[3];
+          snprintf(buf, sizeof(buf), "%02X", c);
+          ret += buf;
+        } else {
+          // Everything else can be passed through directly.
+          ret += c;
+        }
+        break;
     }
   }
   return '"' + ret + '"';
