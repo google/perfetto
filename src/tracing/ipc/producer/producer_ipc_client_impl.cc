@@ -174,13 +174,6 @@ void ProducerIPCClientImpl::OnConnect() {
 #endif
   }
 
-#if PERFETTO_DCHECK_IS_ON()
-  req.set_build_flags(
-      protos::gen::InitializeConnectionRequest::BUILD_FLAGS_DCHECKS_ON);
-#else
-  req.set_build_flags(
-      protos::gen::InitializeConnectionRequest::BUILD_FLAGS_DCHECKS_OFF);
-#endif
   req.set_sdk_version(base::GetVersionString());
   producer_port_.InitializeConnection(req, std::move(on_init), shm_fd);
 
