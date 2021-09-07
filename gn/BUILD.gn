@@ -43,6 +43,9 @@ action("gen_buildflags") {
   perfetto_force_dlog_on = perfetto_force_dlog == "on"
   perfetto_force_dlog_off = perfetto_force_dlog == "off"
 
+  perfetto_force_dcheck_on = perfetto_force_dcheck == "on"
+  perfetto_force_dcheck_off = perfetto_force_dcheck == "off"
+
   # We can't just use (is_linux || is_android) in perfetto.gni because that
   # doesn't work in Android Mac host builds. We lose the GN notion of OS once
   # we run the tools/gen_xxx generators.
@@ -71,6 +74,8 @@ action("gen_buildflags") {
     "PERFETTO_COMPONENT_BUILD=$perfetto_component_build",
     "PERFETTO_FORCE_DLOG_ON=$perfetto_force_dlog_on",
     "PERFETTO_FORCE_DLOG_OFF=$perfetto_force_dlog_off",
+    "PERFETTO_FORCE_DCHECK_ON=$perfetto_force_dcheck_on",
+    "PERFETTO_FORCE_DCHECK_OFF=$perfetto_force_dcheck_off",
     "PERFETTO_VERBOSE_LOGS=$perfetto_verbose_logs_enabled",
     "PERFETTO_VERSION_GEN=$enable_perfetto_version_gen",
     "PERFETTO_TP_PERCENTILE=$enable_perfetto_trace_processor_percentile",
