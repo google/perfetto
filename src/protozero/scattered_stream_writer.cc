@@ -72,7 +72,7 @@ uint8_t* ScatteredStreamWriter::ReserveBytes(size_t size) {
   // producers are built with matching DCHECK levels. This turned out to be a
   // source of problems and was removed in b/197340286. This memset is useless
   // these days and is here only to maintain ABI compatibility between producers
-  // that use a v19+ SDK and older versions of the service that were built in
+  // that use a v20+ SDK and older versions of the service that were built in
   // debug mode. At some point around 2023 it should be safe to remove it.
   // (running a debug version of traced in production seems a bad idea
   // regardless).
