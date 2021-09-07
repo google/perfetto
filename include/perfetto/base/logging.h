@@ -29,12 +29,17 @@
 #pragma GCC system_header
 #endif
 
-// TODO(primiano): move this to base/build_config.h, turn into
-// PERFETTO_BUILDFLAG(DCHECK_IS_ON) and update call sites to use that instead.
-#if defined(NDEBUG) && !defined(DCHECK_ALWAYS_ON)
-#define PERFETTO_DCHECK_IS_ON() 0
-#else
+#if PERFETTO_BUILDFLAG(PERFETTO_FORCE_DCHECK_ON)
 #define PERFETTO_DCHECK_IS_ON() 1
+#elif PERFETTO_BUILDFLAG(PERFETTO_FORCE_DCHECK_OFF)
+#define PERFETTO_DCHECK_IS_ON() 0
+#elif defined(DCHECK_ALWAYS_ON) ||                                         \
+    (!defined(NDEBUG) && (PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD) || \
+                          PERFETTO_BUILDFLAG(PERFETTO_CHROMIUM_BUILD) ||   \
+                          PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)))
+#define PERFETTO_DCHECK_IS_ON() 1
+#else
+#define PERFETTO_DCHECK_IS_ON() 0
 #endif
 
 #if PERFETTO_BUILDFLAG(PERFETTO_FORCE_DLOG_ON)
