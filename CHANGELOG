@@ -1,6 +1,7 @@
 Unreleased:
   Tracing service and probes:
-    *
+    * Removed DCHECK that would cause crashes when a debug build of the service
+      is used with a producer built with -DNDEBUG.
   Trace Processor:
     *
   UI:

@@ -84,17 +84,6 @@ void ProducerIPCService::InitializeConnection(
       break;
   }
 
-#if PERFETTO_DCHECK_IS_ON()
-  if (req.build_flags() ==
-      protos::gen::InitializeConnectionRequest::BUILD_FLAGS_DCHECKS_OFF) {
-    PERFETTO_LOG(
-        "The producer is built with NDEBUG but the service binary was built "
-        "with the DEBUG flag. This will likely cause crashes.");
-    // The other way round (DEBUG producer with NDEBUG service) is expected to
-    // work.
-  }
-#endif
-
   // If the producer provided an SMB, tell the service to attempt to adopt it.
   std::unique_ptr<SharedMemory> shmem;
   if (req.producer_provided_shmem()) {
