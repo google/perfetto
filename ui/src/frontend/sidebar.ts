@@ -105,6 +105,9 @@ select query,
 from sqlstats, first
 order by started desc`;
 
+const GITILES_URL =
+    'https://android.googlesource.com/platform/external/perfetto';
+
 let lastTabTitle = '';
 
 function createCannedQuery(query: string): (_: Event) => void {
@@ -761,12 +764,11 @@ const SidebarFooter: m.Component = {
             '.version',
             m('a',
               {
-                href: `https://github.com/google/perfetto/tree/${
-                    version.SCM_REVISION}/ui`,
+                href: `${GITILES_URL}/+/${version.SCM_REVISION}/ui`,
                 title: `Channel: ${getCurrentChannel()}`,
                 target: '_blank',
               },
-              `${version.VERSION}`),
+              `${version.VERSION.substr(0, 11)}`),
             ),
     );
   }
