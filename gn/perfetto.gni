@@ -217,6 +217,16 @@ declare_args() {
   # console.
   perfetto_force_dlog = perfetto_force_dlog_default
 
+  # Whether DCHECKs should be enabled or not. Values: "on" | "off" | "".
+  # By default ("") DCHECKs are enabled only:
+  # - If DCHECK_ALWAYS_ON is defined (which is mainly a Chromium-ism).
+  # - On debug builds (i.e. if NDEBUG is NOT defined) but only in Chromium,
+  #   Android and standalone builds.
+  # - On all other builds (e.g., SDK) it's off regardless of NDEBUG (unless
+  #   DCHECK_ALWAYS_ON is defined).
+  # See base/logging.h for the implementation of all this.
+  perfetto_force_dcheck = ""
+
   # Installs a signal handler for the most common crash signals which unwinds
   # the stack and prints the stack trace on stderr. Requires a dependency on
   # libbacktrace when enabled.
