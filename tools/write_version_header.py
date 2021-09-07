@@ -21,9 +21,9 @@ contains:
 - The version number (e.g. v9.0) obtained parsing the CHANGELOG file.
 - The git HEAD's commit-ish (e.g. 6b330b772b0e973f79c70ba2e9bb2b0110c6715d)
 
-The latter is concatenated to the version number to distinguish builds made
-fully from release tags (e.g., v9.0) vs builds made from the main branch which
-are ahead of the latest monthly release or on a branch (e.g., v9.0-6b330b7).
+The latter is concatenated to the version number to disambiguate builds made
+from release tags vs builds made from the main branch vs UI builds made from the
+ui-canary/ui-stable branch.
 """
 
 import argparse
@@ -92,18 +92,17 @@ def main():
   args = parser.parse_args()
 
   release = get_latest_release(args.changelog)
+
   if args.no_git:
     head_sha1 = SCM_REV_NOT_AVAILABLE
-    release_sha1 = SCM_REV_NOT_AVAILABLE
   else:
-    head_sha1 = get_git_sha1('HEAD')
-    release_sha1 = get_git_sha1(release)
+    head_sha1 = get_git_sha1('HEAD')  # SCM_REV_NOT_AVAILABLE on failure.
 
-  if head_sha1 == release_sha1 or head_sha1 == SCM_REV_NOT_AVAILABLE:
+  if head_sha1 == SCM_REV_NOT_AVAILABLE:
     version = release  # e.g., 'v9.0'.
   else:
-    prefix = head_sha1[:9]
-    version = f'{release}-{prefix}'  # e.g., 'v9.0-adeadbeef'.
+    sha1_abbrev = head_sha1[:9]
+    version = f'{release}-{sha1_abbrev}'  # e.g., 'v9.0-adeadbeef'.
 
   if args.cpp_out:
     guard = '%s_' % args.cpp_out.upper()
