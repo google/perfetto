@@ -131,7 +131,7 @@ message InitializeConnectionRequest {
   // Was build_flags = BUILD_FLAGS_DCHECKS_ON|OFF. It was used to emit an error
   // when DCHECKs level didn't match between service and producer (in turn that
   // would crash the service when applying patches).
-  // Removed in v19 as part of b/197340286.
+  // Removed in v20 as part of b/197340286.
   reserved 5;
 
   // ---------------------------------------------------
