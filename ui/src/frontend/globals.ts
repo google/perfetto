@@ -27,6 +27,7 @@ import {fromNs, toNs} from '../common/time';
 
 import {Analytics, initAnalytics} from './analytics';
 import {FrontendLocalState} from './frontend_local_state';
+import {PivotTableHelper} from './pivot_table_helper';
 import {RafScheduler} from './raf_scheduler';
 import {Router} from './router';
 import {ServiceWorkerController} from './service_worker_controller';
@@ -34,6 +35,7 @@ import {ServiceWorkerController} from './service_worker_controller';
 type Dispatch = (action: DeferredAction) => void;
 type TrackDataStore = Map<string, {}>;
 type QueryResultsStore = Map<string, {}|undefined>;
+type PivotTableHelperStore = Map<string, PivotTableHelper>;
 type AggregateDataStore = Map<string, AggregateData>;
 type Description = Map<string, string>;
 export interface SliceDetails {
@@ -164,6 +166,7 @@ class Globals {
   // TODO(hjd): Unify trackDataStore, queryResults, overviewStore, threads.
   private _trackDataStore?: TrackDataStore = undefined;
   private _queryResults?: QueryResultsStore = undefined;
+  private _pivotTableHelper?: PivotTableHelperStore = undefined;
   private _overviewStore?: OverviewStore = undefined;
   private _aggregateDataStore?: AggregateDataStore = undefined;
   private _threadMap?: ThreadMap = undefined;
@@ -216,6 +219,7 @@ class Globals {
     // TODO(hjd): Unify trackDataStore, queryResults, overviewStore, threads.
     this._trackDataStore = new Map<string, {}>();
     this._queryResults = new Map<string, {}>();
+    this._pivotTableHelper = new Map<string, PivotTableHelper>();
     this._overviewStore = new Map<string, QuantizedLoad[]>();
     this._aggregateDataStore = new Map<string, AggregateData>();
     this._threadMap = new Map<number, ThreadDesc>();
@@ -280,6 +284,10 @@ class Globals {
 
   get queryResults(): QueryResultsStore {
     return assertExists(this._queryResults);
+  }
+
+  get pivotTableHelper(): PivotTableHelperStore {
+    return assertExists(this._pivotTableHelper);
   }
 
   get threads() {
@@ -495,6 +503,7 @@ class Globals {
     // TODO(hjd): Unify trackDataStore, queryResults, overviewStore, threads.
     this._trackDataStore = undefined;
     this._queryResults = undefined;
+    this._pivotTableHelper = undefined;
     this._overviewStore = undefined;
     this._threadMap = undefined;
     this._sliceDetails = undefined;
