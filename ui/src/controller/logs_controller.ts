@@ -81,7 +81,7 @@ async function updateLogEntries(
           ts,
           prio,
           ifnull(tag, '[NULL]') as tag,
-          msg
+          ifnull(msg, '[NULL]') as msg
         from android_logs
         where ${vizSqlBounds}
         order by ts
