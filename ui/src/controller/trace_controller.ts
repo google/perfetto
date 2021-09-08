@@ -389,6 +389,7 @@ export class TraceController extends Controller<States> {
       publishHasFtrace(hasFtrace);
     }
 
+    globals.dispatch(Actions.removeDebugTrack({}));
     globals.dispatch(Actions.sortThreadTracks({}));
     await this.selectFirstHeapProfile();
 
