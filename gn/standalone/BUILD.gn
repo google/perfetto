@@ -81,6 +81,7 @@ config("extra_warnings") {
       "-Wno-padded",
       "-Wno-poison-system-directories",
       "-Wno-reserved-id-macro",
+      "-Wno-reserved-identifier",
       "-Wno-unknown-sanitizers",
       "-Wno-unknown-warning-option",
     ]
