@@ -147,7 +147,7 @@ export class PivotTable extends Panel<PivotTableAttrs> {
                 },
                 'Edit'),
               ' ',
-              (pivotTable.isLoadingQuery ? m('div.spinner') : null),
+              (pivotTable.isLoadingQuery ? m('div.pivot-table-spinner') : null),
               (resp !== undefined && !pivotTable.isLoadingQuery ?
                    m('span.code',
                      `Query took ${Math.round(resp.durationMs)} ms`) :
