@@ -115,9 +115,9 @@ message TraceConfig {
     // falls back to the best-available alternative.
     //
     // Introduced in Android S.
-    // Deprecated and has no effect in Android T+ as using a suspend aware
-    // clock is the default behaviour.
-    optional bool prefer_suspend_clock_for_snapshot = 7 [deprecated = true];
+    // TODO(lalitm): deprecate this in T and make this the default if nothing
+    // crashes in S.
+    optional bool prefer_suspend_clock_for_snapshot = 7;
   }
   optional BuiltinDataSource builtin_data_sources = 20;
 
