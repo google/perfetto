@@ -87,10 +87,9 @@
   }  // namespace internal
 
 // Defines the TrackEvent data source for the current track event namespace.
-#define PERFETTO_INTERNAL_DECLARE_TRACK_EVENT_DATA_SOURCE() \
-  struct PERFETTO_COMPONENT_EXPORT TrackEvent               \
-      : public ::perfetto::internal::TrackEventDataSource<  \
-            TrackEvent, &internal::kCategoryRegistry> {}
+#define PERFETTO_INTERNAL_DECLARE_TRACK_EVENT_DATA_SOURCE()              \
+  struct TrackEvent : public ::perfetto::internal::TrackEventDataSource< \
+                          TrackEvent, &internal::kCategoryRegistry> {}
 
 // At compile time, turns a category name represented by a static string into an
 // index into the current category registry. A build error will be generated if

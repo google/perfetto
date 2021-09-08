@@ -1,12 +1,39 @@
 Unreleased:
   Tracing service and probes:
-    *
+    * Removed DCHECK that would cause crashes when a debug build of the service
+      is used with a producer built with -DNDEBUG.
   Trace Processor:
     *
   UI:
     *
   SDK:
-    *
+    * Changed DCHECK and DLOGs to be always disabled in SDK builds, regardless
+      of NDEBUG.
+
+
+v19.0 - 2021-09-02:
+  Tracing service and probes:
+    * Added ftrace clock reporting to the trace.
+  Trace Processor:
+    * Added support for longs/doubles to RUN_METRIC.
+    * Added power profile data for sunfish, redfin, and bramble.
+    * Added experimental Python library for computing slice breakdowns.
+    * Fixed parsing of JSON escape sequences.
+    * Fixed JSON trace detection.
+  UI:
+    * Added local cacheing of traces. Traces are reloaded in case of refresh or
+      tab being discarded by the browser.
+    * Added icon to distinguish metric-derived tracks.
+    * Added release channel selector to feature flags page.
+    * Fixed crash with null slice names.
+  SDK:
+    * Added some missing NESTABLE_ASYNC legacy trace macros.
+    * Fixed reporting of producer uid in --query.
+    * Fixed version numbering scheme for minor versions. Previously versions
+      were numbered as like v19.0.42 where 42 represented the number of commits
+      since the last major version release. This was ambiguous in the presence
+      of branches. Now versions are numbered like v19.0-ab12cd34 where ab12cd34
+      is the shortened Git commit-ish.
 
 
 v18.0 - 2021-08-02:

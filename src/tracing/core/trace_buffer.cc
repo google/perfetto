@@ -452,12 +452,6 @@ bool TraceBuffer::TryPatchChunkContents(ProducerID producer_id,
       return false;
     }
 
-    // DCHECK that we are writing into a zero-filled size field and not into
-    // valid data. It relies on ScatteredStreamWriter::ReserveBytes() to
-    // zero-fill reservations in debug builds.
-    char zero[Patch::kSize]{};
-    PERFETTO_DCHECK(memcmp(ptr, &zero, Patch::kSize) == 0);
-
     memcpy(ptr, &patches[i].data[0], Patch::kSize);
   }
   TRACE_BUFFER_DLOG(
