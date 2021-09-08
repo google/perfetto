@@ -1,5 +1,5 @@
 --
--- Copyright 2020 The Android Open Source Project
+-- Copyright 2021 The Android Open Source Project
 --
 -- Licensed under the Apache License, Version 2.0 (the 'License');
 -- you may not use this file except in compliance with the License.
@@ -19,9 +19,8 @@
 -- time we waited for the next step in the critical flow to start.
 
 -- Provides the scroll_flow_event table which gives us all the flow events with
--- associated GestureScrollUpdate events we care about and labels them janky or
--- not.
+-- associated TouchMove events we care about and labels them janky or not.
 SELECT RUN_METRIC('chrome/gesture_flow_event_queuing_delay.sql',
-    'prefix', 'scroll',
-    'id_field', 'gesture_scroll_id');
+    'prefix', 'touch',
+    'id_field', 'touch_id');
 
