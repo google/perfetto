@@ -787,6 +787,8 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
       new AncestorGenerator(AncestorGenerator::Ancestor::kSlice, &context_)));
   RegisterDynamicTable(std::unique_ptr<AncestorGenerator>(new AncestorGenerator(
       AncestorGenerator::Ancestor::kStackProfileCallsite, &context_)));
+  RegisterDynamicTable(std::unique_ptr<AncestorGenerator>(new AncestorGenerator(
+      AncestorGenerator::Ancestor::kSliceByStack, &context_)));
   RegisterDynamicTable(std::unique_ptr<DescendantSliceGenerator>(
       new DescendantSliceGenerator(&context_)));
   RegisterDynamicTable(
