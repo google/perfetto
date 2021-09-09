@@ -12,7 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {AggregationAttrs, PivotAttrs, TableAttrs} from './pivot_table_data';
+import {
+  AggregationAttrs,
+  PivotAttrs,
+  SubQueryAttrs,
+  TableAttrs
+} from './pivot_table_data';
 
 /**
  * A plain js object, holding objects of type |Class| keyed by string id.
@@ -291,8 +296,8 @@ export interface PivotTableState {
   name: string;
   selectedPivots: PivotAttrs[];
   selectedAggregations: AggregationAttrs[];
-  requestedAction?:
-      string;  // Unset after pivot table column request is handled.
+  requestedAction?:  // Unset after pivot table column request is handled.
+      {action: string, attrs?: SubQueryAttrs};
   isLoadingQuery: boolean;
 }
 

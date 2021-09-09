@@ -16,6 +16,7 @@ import {Row} from './query_result';
 
 export const AVAILABLE_TABLES = ['slice'];
 export const AVAILABLE_AGGREGATIONS = ['COUNT', 'SUM', 'AVG', 'MIN', 'MAX'];
+export const WHERE_FILTERS = ['slice.dur != -1'];
 
 export interface AggregationAttrs {
   tableName: string;
@@ -43,9 +44,25 @@ export interface ColumnAttrs {
   order?: string;
 }
 
+export interface RowAttrs {
+  row: Row;
+  isExpanded: boolean;
+  expandableColumn?: string;  // Column at which the row can be expanded.
+  rows?:
+      RowAttrs[];  // Contains the expanded rows, set after the row is expanded.
+  whereFilter?: string;  // Where filter that joins the row with its parent.
+  isLoadingQuery: boolean;
+}
+
+export interface SubQueryAttrs {
+  rowIndices: number[];
+  columnIdx: number;
+  value: string;
+}
+
 export interface PivotTableQueryResponse {
   columns: ColumnAttrs[];
-  rows: Row[];
   error?: string;
   durationMs: number;
+  rows: RowAttrs[];
 }
