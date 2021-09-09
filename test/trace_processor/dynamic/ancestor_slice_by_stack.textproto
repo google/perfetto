@@ -1,0 +1,154 @@
+# Sequence 1 defaults to track for "t1".
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  incremental_state_cleared: true
+  track_descriptor {
+    uuid: 1
+    parent_uuid: 10
+    thread {
+      pid: 5
+      tid: 1
+      thread_name: "t1"
+    }
+  }
+  trace_packet_defaults {
+    track_event_defaults {
+      track_uuid: 1
+    }
+  }
+}
+
+# Thread track is nested underneath this process track.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  track_descriptor {
+    uuid: 10
+    process {
+      pid: 5
+      process_name: "p1"
+    }
+  }
+}
+
+# ----------------------
+# Slices
+# ----------------------
+
+# We create stacks of various depths on track "t1".
+# t1 |-------------|   |-------------|
+#       |-------|         |-------|
+#          |-|               |-|
+
+# Should appear on default track "t1", range from 1000 to 6000.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 1000
+  track_event {
+    categories: "cat"
+    name: "event_depth_0"
+    type: 1
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 2000
+  track_event {
+    categories: "cat"
+    name: "event_depth_1"
+    type: 1
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 3000
+  track_event {
+    categories: "cat"
+    name: "event_depth_2"
+    type: 1
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 4000
+  track_event {
+    categories: "cat"
+    name: "event_depth_2"
+    type: 2
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 5000
+  track_event {
+    categories: "cat"
+    name: "event_depth_1"
+    type: 2
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 6000
+  track_event {
+    categories: "cat"
+    name: "event_depth_0"
+    type: 2
+  }
+}
+
+# Should appear on default track "t1", range from 8000 to 13000.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 8000
+  track_event {
+    categories: "cat"
+    name: "event_depth_0"
+    type: 1
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 9000
+  track_event {
+    categories: "cat"
+    name: "event_depth_1"
+    type: 1
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 10000
+  track_event {
+    categories: "cat"
+    name: "event_depth_2"
+    type: 1
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 11000
+  track_event {
+    categories: "cat"
+    name: "event_depth_2"
+    type: 2
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 12000
+  track_event {
+    categories: "cat"
+    name: "event_depth_1"
+    type: 2
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 13000
+  track_event {
+    categories: "cat"
+    name: "event_depth_0"
+    type: 2
+  }
+}
