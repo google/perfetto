@@ -21,7 +21,7 @@
 #include <set>
 
 #include "src/trace_processor/dynamic/ancestor_generator.h"
-#include "src/trace_processor/dynamic/descendant_slice_generator.h"
+#include "src/trace_processor/dynamic/descendant_generator.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -127,7 +127,7 @@ class BFS {
     }
     if (visit_relatives & VISIT_DESCENDANTS) {
       base::Optional<RowMap> descendants =
-          DescendantSliceGenerator::GetDescendantSlices(
+          DescendantGenerator::GetDescendantSlices(
               context_->storage->slice_table(), slice_id);
       GoToRelativesImpl(descendants->IterateRows());
     }
