@@ -3,7 +3,8 @@ Unreleased:
     * Removed DCHECK that would cause crashes when a debug build of the service
       is used with a producer built with -DNDEBUG.
   Trace Processor:
-    *
+    * Added "ancestor_slice_by_stack" table function to lookup slice ancestors
+      based on their stack_id.
   UI:
     *
   SDK:
