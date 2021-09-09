@@ -213,10 +213,12 @@ button.close {
     width: 100%;
     font-size: 14px;
     border: 0;
-    thead.pivot-table-header {
-      cursor: pointer;
-      td.drop-location {
-        background-color: hsla(210, 38%, 95%, 1);
+    &.pivot-table{
+      thead, i {
+        cursor: pointer;
+        td.drop-location {
+          background-color: hsla(210, 38%, 95%, 1);
+        }
       }
       .disabled {
         cursor: default;
@@ -742,4 +744,8 @@ button.query-ctrl {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
   }
+}
+
+.allow-white-space {
+  white-space: pre
 }
