@@ -1,5 +1,5 @@
 --
--- Copyright 2020 The Android Open Source Project
+-- Copyright 2021 The Android Open Source Project
 --
 -- Licensed under the Apache License, Version 2.0 (the 'License');
 -- you may not use this file except in compliance with the License.
@@ -13,11 +13,10 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-SELECT RUN_METRIC('chrome/scroll_flow_event_queuing_delay.sql')
+SELECT RUN_METRIC('chrome/touch_flow_event_queuing_delay.sql')
   AS suppress_query_output;
 
--- trace 2956 is janky and 2954 and 2960 surround it (both are not janky). We
--- just manually computed these values to ensure the queuing time is correct.
+-- trace 6911 is janky and 6915 and 6940 succeed it (both are not janky).
 SELECT
   trace_id,
   jank,
@@ -26,6 +25,5 @@ SELECT
   ancestor_end,
   maybe_next_ancestor_ts,
   queuing_time_ns
-FROM scroll_flow_event_queuing_delay
-WHERE trace_id = 2954 OR trace_id = 2956 OR trace_id = 2960
+FROM touch_flow_event_queuing_delay
 ORDER BY trace_id, ts;
