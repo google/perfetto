@@ -77,8 +77,8 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
       where
         ts >= ${startNs - this.maxDurNs} and
         ts <= ${endNs}
-      group by tsq, state, ioWait
-      order by tsq, state, ioWait
+      group by tsq
+      order by tsq
     `;
 
     const queryRes = await this.query(query);
