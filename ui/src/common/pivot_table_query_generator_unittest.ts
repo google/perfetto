@@ -15,6 +15,7 @@
 import {
   AggregationAttrs,
   PivotAttrs,
+  WHERE_FILTERS,
 } from './pivot_table_data';
 import {PivotTableQueryGenerator} from './pivot_table_query_generator';
 
@@ -30,28 +31,27 @@ test('Generate query with pivots and aggregations', () => {
   const expectedQuery = '\nSELECT\n' +
       '"slice type",\n' +
       '  "slice id",\n' +
-      '  "slice dur (SUM) 1",\n' +
-      '  "slice dur (SUM) 2"\n' +
+      '  "slice dur (SUM)"\n' +
       'FROM (\n' +
       'SELECT\n' +
       '"slice type",\n' +
       '  "slice id",\n' +
-      '  SUM("slice dur (SUM)") OVER (PARTITION BY "slice type")' +
-      ' AS "slice dur (SUM) 1",\n' +
       '  SUM("slice dur (SUM)") OVER (PARTITION BY "slice type",  "slice id")' +
-      ' AS "slice dur (SUM) 2"\n' +
+      ' AS "slice dur (SUM)"\n' +
       'FROM (\n' +
       'SELECT\n' +
       'slice.type AS "slice type",\n' +
       '  slice.id AS "slice id",\n' +
       '  slice.dur AS "slice dur (SUM)"\n' +
-      'FROM slice WHERE slice.dur != -1\n' +
+      'FROM slice\n' +
+      'WHERE\n' +
+      'slice.dur != -1\n' +
       ')\n' +
       ')\n' +
-      'GROUP BY 1,  2,  3,  4\n' +
-      'ORDER BY 3 DESC,  4 DESC\n';
+      'GROUP BY 1,  2,  3\n' +
+      'ORDER BY 3 DESC\n';
   expect(pivotTableQueryGenerator.generateQuery(
-             selectedPivots, selectedAggregations))
+             selectedPivots, selectedAggregations, WHERE_FILTERS))
       .toEqual(expectedQuery);
 });
 
@@ -69,11 +69,13 @@ test('Generate query with pivots', () => {
       'SELECT\n' +
       'slice.type AS "slice type",\n' +
       '  slice.id AS "slice id"\n' +
-      'FROM slice WHERE slice.dur != -1\n' +
+      'FROM slice\n' +
+      'WHERE\n' +
+      'slice.dur != -1\n' +
       ')\n' +
       'GROUP BY 1,  2\n';
   expect(pivotTableQueryGenerator.generateQuery(
-             selectedPivots, selectedAggregations))
+             selectedPivots, selectedAggregations, WHERE_FILTERS))
       .toEqual(expectedQuery);
 });
 
@@ -95,12 +97,14 @@ test('Generate query with aggregations', () => {
       'SELECT\n' +
       'slice.dur AS "slice dur (SUM)",\n' +
       '  slice.dur AS "slice dur (MAX)"\n' +
-      'FROM slice WHERE slice.dur != -1\n' +
+      'FROM slice\n' +
+      'WHERE\n' +
+      'slice.dur != -1\n' +
       ')\n' +
       ')\n' +
       'GROUP BY 1,  2\n' +
       'ORDER BY 1 DESC,  2 ASC\n';
   expect(pivotTableQueryGenerator.generateQuery(
-             selectedPivots, selectedAggregations))
+             selectedPivots, selectedAggregations, WHERE_FILTERS))
       .toEqual(expectedQuery);
 });

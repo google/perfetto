@@ -18,8 +18,8 @@ import {Actions} from '../common/actions';
 import {
   ColumnAttrs,
   PivotTableQueryResponse,
+  RowAttrs,
 } from '../common/pivot_table_data';
-import {Row} from '../common/query_result';
 
 import {globals} from './globals';
 import {Panel} from './panel';
@@ -27,9 +27,25 @@ import {
   PivotTableHelper,
 } from './pivot_table_helper';
 
+interface ExpandableCellAttrs {
+  pivotTableId: string;
+  row: RowAttrs;
+  column: ColumnAttrs;
+  rowIndices: number[];
+}
+
 interface PivotTableRowAttrs {
-  row: Row;
+  pivotTableId: string;
+  row: RowAttrs;
   columns: ColumnAttrs[];
+  rowIndices: number[];
+}
+
+interface PivotTableBodyAttrs {
+  pivotTableId: string;
+  rows: RowAttrs[];
+  columns: ColumnAttrs[];
+  rowIndices: number[];
 }
 
 interface PivotTableHeaderAttrs {
@@ -95,15 +111,115 @@ class PivotTableHeader implements m.ClassComponent<PivotTableHeaderAttrs> {
   }
 }
 
+class ExpandableCell implements m.ClassComponent<ExpandableCellAttrs> {
+  view(vnode: m.Vnode<ExpandableCellAttrs>) {
+    const {pivotTableId, row, column, rowIndices} = vnode.attrs;
+    const pivotTable = globals.state.pivotTable[pivotTableId];
+    const expandIcon = row.isExpanded ? 'expand_less' : 'expand_more';
+    const spinnerVsibility = row.isLoadingQuery ? 'visible' : 'hidden';
+    const animationState = row.isLoadingQuery ? 'running' : 'paused';
+
+    return m(
+        'td',
+        m('i.material-icons',
+          {
+            class: pivotTable.isLoadingQuery ? 'disabled' : '',
+            onclick: () => {
+              if (pivotTable.isLoadingQuery) {
+                return;
+              }
+              const value = row.row[column.name]?.toString();
+              if (value === undefined) {
+                throw Error('Expanded row has undefined value.');
+              }
+              if (row.isExpanded) {
+                globals.dispatch(Actions.setPivotTableRequest({
+                  pivotTableId,
+                  action: 'UNEXPAND',
+                  attrs: {
+                    rowIndices,
+                    columnIdx: column.index,
+                    value,
+                  }
+                }));
+              } else {
+                globals.dispatch(Actions.setPivotTableRequest({
+                  pivotTableId,
+                  action: 'EXPAND',
+                  attrs: {
+                    rowIndices,
+                    columnIdx: column.index,
+                    value,
+                  }
+                }));
+              }
+            },
+          },
+          expandIcon),
+        ' ',
+        row.row[column.name],
+        ' ',
+        // Adds a loading spinner while querying the expanded column.
+        m('.pivot-table-spinner', {
+          style:
+              {visibility: spinnerVsibility, animationPlayState: animationState}
+        }));
+  }
+}
+
 class PivotTableRow implements m.ClassComponent<PivotTableRowAttrs> {
   view(vnode: m.Vnode<PivotTableRowAttrs>) {
     const cells = [];
-    const {row, columns} = vnode.attrs;
-    for (const col of columns) {
-      cells.push(m('td', row[col.name]));
-    }
+    const {pivotTableId, row, columns, rowIndices} = vnode.attrs;
 
+    for (const column of columns) {
+      if (row.row[column.name] === undefined &&
+          row.expandableColumn === column.name) {
+        throw Error(`Row data at expandable column "${
+            row.expandableColumn}" is undefined.`);
+      } else if (row.row[column.name] === undefined) {
+        cells.push(m('td', ''));
+      } else if (row.expandableColumn === column.name) {
+        cells.push(m(ExpandableCell, {pivotTableId, row, column, rowIndices}));
+      } else {
+        let value = row.row[column.name]!.toString();
+        if (column.aggregation !== undefined) {
+          // Indenting the aggregations of expanded rows by 2 spaces.
+          value =
+              value.padStart(((rowIndices.length - 1) * 2) + value.length, ' ');
+        }
+        cells.push(m('td.allow-white-space', value));
+      }
+    }
     return m('tr', cells);
+  }
+}
+
+class PivotTableBody implements m.ClassComponent<PivotTableBodyAttrs> {
+  view(vnode: m.Vnode<PivotTableBodyAttrs>): m.Children {
+    const pivotTableRows = [];
+    const {pivotTableId, rows, columns, rowIndices} = vnode.attrs;
+    for (let i = 0; i < rows.length; ++i) {
+      pivotTableRows.push(m(PivotTableRow, {
+        pivotTableId,
+        row: rows[i],
+        columns,
+        rowIndices: rowIndices.concat(i)
+      }));
+      if (rows[i].isExpanded) {
+        const expandedRows = rows[i].rows;
+        if (expandedRows === undefined) {
+          throw Error('Expanded row cannot have undefined rows');
+        }
+        pivotTableRows.push(m(PivotTableBody, {
+          pivotTableId,
+          rows: expandedRows,
+          columns,
+          rowIndices: rowIndices.concat(i)
+        }));
+      }
+    }
+    return pivotTableRows;
   }
 }
 
@@ -114,20 +230,16 @@ export class PivotTable extends Panel<PivotTableAttrs> {
     const resp =
         globals.queryResults.get(pivotTableId) as PivotTableQueryResponse;
 
-    // Query resulting from query generator should always be valid.
-    if (resp !== undefined && resp.error) {
-      throw Error(`Pivot table query resulted in SQL error: ${resp.error}`);
-    }
-
-    const rows = [];
+    let body;
     let header;
-
     if (helper !== undefined && resp !== undefined) {
       header = m(PivotTableHeader, {helper});
-
-      for (const row of resp.rows) {
-        rows.push(m(PivotTableRow, {row, columns: resp.columns}));
-      }
+      body = m(PivotTableBody, {
+        pivotTableId,
+        rows: resp.rows,
+        columns: resp.columns,
+        rowIndices: []
+      });
     }
 
     return m(
@@ -147,7 +259,7 @@ export class PivotTable extends Panel<PivotTableAttrs> {
                 },
                 'Edit'),
               ' ',
-              (pivotTable.isLoadingQuery ? m('div.pivot-table-spinner') : null),
+              (pivotTable.isLoadingQuery ? m('.pivot-table-spinner') : null),
               (resp !== undefined && !pivotTable.isLoadingQuery ?
                    m('span.code',
                      `Query took ${Math.round(resp.durationMs)} ms`) :
@@ -165,9 +277,9 @@ export class PivotTable extends Panel<PivotTableAttrs> {
               'Close'),
             ),
         m('.query-table-container',
-          m('table.query-table',
-            m('thead.pivot-table-header', header),
-            m('tbody', rows))));
+          m('table.query-table.pivot-table',
+            m('thead', header),
+            m('tbody', body))));
   }
 
   renderCanvas() {}
