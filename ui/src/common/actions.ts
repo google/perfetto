@@ -30,7 +30,12 @@ import {
 import {PROCESS_SUMMARY_TRACK} from '../tracks/process_summary/common';
 
 import {DEFAULT_VIEWING_OPTION} from './flamegraph_util';
-import {AggregationAttrs, PivotAttrs, TableAttrs} from './pivot_table_data';
+import {
+  AggregationAttrs,
+  PivotAttrs,
+  SubQueryAttrs,
+  TableAttrs
+} from './pivot_table_data';
 import {
   AdbRecordingTarget,
   Area,
@@ -863,9 +868,14 @@ export const StateActions = {
       },
 
   setPivotTableRequest(
-      state: StateDraft, args: {pivotTableId: string, action: string}): void {
-    state.pivotTable[args.pivotTableId].requestedAction = args.action;
-  },
+      state: StateDraft,
+      args: {pivotTableId: string, action: string, attrs?: SubQueryAttrs}):
+      void {
+        state.pivotTable[args.pivotTableId].requestedAction = {
+          action: args.action,
+          attrs: args.attrs
+        };
+      },
 
   setAvailablePivotTableColumns(
       state: StateDraft,
