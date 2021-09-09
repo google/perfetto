@@ -409,6 +409,32 @@ SELECT
 FROM interesting_slices
 ```
 
+### Descendant slice by stack
+descendant_slice_by_stack is a custom operator table that takes a
+[slice table's stack_id column](/docs/analysis/sql-tables.autogen#slice) and
+finds all slice ids with that stack_id, then, for each id it computes
+all the descendant slices similarly to
+[descendant_slice](/docs/analysis/trace-processor#descendant-slice).
+
+The returned format is the same as the
+[slice table](/docs/analysis/sql-tables.autogen#slice)
+
+For example, the following finds the next level descendant of all slices with
+the given name.
+
+```sql
+CREATE VIEW interesting_stacks AS
+SELECT stack_id, depth
+FROM slice WHERE name LIKE "%interesting slice name%";
+
+SELECT
+  *
+FROM
+  interesting_stacks LEFT JOIN
+  descendant_slice_by_stack(interesting_stacks.stack_id) AS descendant
+  ON descendant.depth = interesting_stacks.depth + 1
+```
+
 ### Connected/Following/Preceding flows
 
 DIRECTLY_CONNECTED_FLOW, FOLLOWING_FLOW and PRECEDING_FLOW are custom operator
