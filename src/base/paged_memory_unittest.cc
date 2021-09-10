@@ -36,12 +36,16 @@ namespace {
 TEST(PagedMemoryTest, Basic) {
   const size_t kNumPages = 10;
   const size_t kSize = 4096 * kNumPages;
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
   void* ptr_raw = nullptr;
+#endif
   {
     PagedMemory mem = PagedMemory::Allocate(kSize);
     ASSERT_TRUE(mem.IsValid());
     ASSERT_EQ(0u, reinterpret_cast<uintptr_t>(mem.Get()) % 4096);
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
     ptr_raw = mem.Get();
+#endif
     for (size_t i = 0; i < kSize / sizeof(uint64_t); i++)
       ASSERT_EQ(0u, *(reinterpret_cast<uint64_t*>(mem.Get()) + i));
 
@@ -93,11 +97,15 @@ TEST(PagedMemoryTest, SubPageGranularity) {
 TEST(PagedMemoryTest, Uncommitted) {
   constexpr size_t kNumPages = 4096;
   constexpr size_t kSize = 4096 * kNumPages;
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
   char* ptr_raw = nullptr;
+#endif
   {
     PagedMemory mem = PagedMemory::Allocate(kSize, PagedMemory::kDontCommit);
     ASSERT_TRUE(mem.IsValid());
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
     ptr_raw = reinterpret_cast<char*>(mem.Get());
+#endif
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
     // Windows only commits the first 1024 pages.
