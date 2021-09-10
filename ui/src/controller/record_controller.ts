@@ -123,6 +123,8 @@ export function genConfig(
   if (uiCfg.cpuSched) {
     procThreadAssociationPolling = true;
     procThreadAssociationFtrace = true;
+    uiCfg.ftrace = true;
+    uiCfg.symbolizeKsyms = true;
     ftraceEvents.add('sched/sched_switch');
     ftraceEvents.add('power/suspend_resume');
     ftraceEvents.add('sched/sched_wakeup');
@@ -491,6 +493,10 @@ export function genConfig(
     if (uiCfg.ftrace) {
       ds.config.ftraceConfig.bufferSizeKb = uiCfg.ftraceBufferSizeKb;
       ds.config.ftraceConfig.drainPeriodMs = uiCfg.ftraceDrainPeriodMs;
+      if (uiCfg.symbolizeKsyms) {
+        ds.config.ftraceConfig.symbolizeKsyms = true;
+        ftraceEvents.add('sched/sched_blocked_reason');
+      }
       for (const line of uiCfg.ftraceExtraEvents.split('\n')) {
         if (line.trim().length > 0) ftraceEvents.add(line.trim());
       }
