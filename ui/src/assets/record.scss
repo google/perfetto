@@ -201,7 +201,6 @@
 
   li {
     @include transition();
-    display: block;
     height: 55px;
     padding: 0 1em;
     font-size: 15px;
@@ -612,7 +611,6 @@
       }
 
       &.selected {
-        background-color: hsl(207, 90%, 74%);
         background-color: hsl(88, 50%, 67%);
         box-shadow: 0 0 4px 0px #999;
       }
@@ -697,7 +695,6 @@
 
       &::-webkit-slider-runnable-track {
         margin: 10px;
-        border-radius: 1px;
         width: 100%;
         height: 10px;
         background-color : #ddd;
