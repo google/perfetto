@@ -18,6 +18,17 @@ export interface Typed {
   type: string;
 }
 
+// A type guard that can be used in order to be able to access the property of
+// an object in a checked manner.
+export function hasProperty<T extends object, P extends string>(
+    obj: T, prop: P): obj is T&{[prop in P]: unknown} {
+  return obj.hasOwnProperty(prop);
+}
+
+export function isTyped(obj: object): obj is Typed {
+  return obj.hasOwnProperty('type');
+}
+
 export interface ReadBuffersResponse extends
     Typed, perfetto.protos.IReadBuffersResponse {}
 export interface EnableTracingResponse extends
