@@ -500,6 +500,8 @@ export interface RecordConfig {
   uiRendering: boolean;
   inputEvents: boolean;
   navigationAndLoading: boolean;
+
+  symbolizeKsyms: boolean;
 }
 
 export function createEmptyRecordConfig(): RecordConfig {
@@ -575,6 +577,8 @@ export function createEmptyRecordConfig(): RecordConfig {
     uiRendering: false,
     inputEvents: false,
     navigationAndLoading: false,
+
+    symbolizeKsyms: false,
   };
 }
 
