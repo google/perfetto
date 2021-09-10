@@ -161,4 +161,22 @@
        : ::PERFETTO_TRACK_EVENT_NAMESPACE::TrackEvent::IsCategoryEnabled(    \
              PERFETTO_GET_CATEGORY_INDEX(category)))
 
+// Emits an empty trace packet into the trace to ensure that the service can
+// safely read the last event from the trace buffer. This can be used to
+// periodically "flush" the last event on threads that don't support explicit
+// flushing of the shared memory buffer chunk when the tracing session stops
+// (e.g. thread pool workers in Chromium).
+//
+// This workaround is only required because the tracing service cannot safely
+// read the last trace packet from an incomplete SMB chunk (crbug.com/1021571
+// and b/162206162) when scraping the SMB. Adding an empty trace packet ensures
+// that all prior events can be scraped by the service.
+#define PERFETTO_INTERNAL_ADD_EMPTY_EVENT()                                  \
+  do {                                                                       \
+    ::PERFETTO_TRACK_EVENT_NAMESPACE::TrackEvent::Trace(                     \
+        [](::PERFETTO_TRACK_EVENT_NAMESPACE::TrackEvent::TraceContext ctx) { \
+          ctx.NewTracePacket();                                              \
+        });                                                                  \
+  } while (false)
+
 #endif  // INCLUDE_PERFETTO_TRACING_INTERNAL_TRACK_EVENT_MACROS_H_
