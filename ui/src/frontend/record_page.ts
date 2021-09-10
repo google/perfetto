@@ -765,6 +765,14 @@ function AdvancedSettings(cssClass: string) {
           setEnabled: (cfg, val) => cfg.ftrace = val,
           isEnabled: (cfg) => cfg.ftrace
         } as ProbeAttrs,
+        m(Toggle, {
+          title: 'Resolve kernel symbols',
+          cssClass: '.thin',
+          descr: `Enables lookup via /proc/kallsyms for workqueue, 
+              sched_blocked_reason and other events (userdebug/eng builds only).`,
+          setEnabled: (cfg, val) => cfg.symbolizeKsyms = val,
+          isEnabled: (cfg) => cfg.symbolizeKsyms
+        } as ToggleAttrs),
         m(Slider, {
           title: 'Buf size',
           cssClass: '.thin',
