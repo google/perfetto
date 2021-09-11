@@ -15,7 +15,6 @@
 import {TRACE_SUFFIX} from '../common/constants';
 import {ConsumerPortResponse} from './consumer_port_types';
 
-export type ConsumerPortCallback = (_: ConsumerPortResponse) => void;
 export type ErrorCallback = (_: string) => void;
 export type StatusCallback = (_: string) => void;
 
