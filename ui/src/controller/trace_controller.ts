@@ -19,10 +19,10 @@ import {
 } from '../common/actions';
 import {cacheTrace} from '../common/cache_manager';
 import {TRACE_MARGIN_TIME_S} from '../common/constants';
-import {Engine, QueryError} from '../common/engine';
+import {Engine} from '../common/engine';
 import {featureFlags, Flag} from '../common/feature_flags';
 import {HttpRpcEngine} from '../common/http_rpc_engine';
-import {NUM, NUM_NULL, STR, STR_NULL} from '../common/query_result';
+import {NUM, NUM_NULL, QueryError, STR, STR_NULL} from '../common/query_result';
 import {EngineMode} from '../common/state';
 import {TimeSpan, toNs, toNsCeil, toNsFloor} from '../common/time';
 import {resetEngineWorker, WasmEngineProxy} from '../common/wasm_engine_proxy';
