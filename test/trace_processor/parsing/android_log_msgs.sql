@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-create view v1 as select tag, count(*) from android_logs group by tag order by 2 desc limit 5
+create view v1 as select tag, count(*) from android_logs group by tag order by 2 desc limit 5;
 
 create view v2 as select tag, count(*) from android_logs group by tag order by 2 asc limit 5;
 
