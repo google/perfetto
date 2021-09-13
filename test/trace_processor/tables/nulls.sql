@@ -37,6 +37,6 @@ VALUES
 (2,     NULL,     NULL, NULL, "test", NULL),
 (1,     "other",  NULL, NULL, NULL,   NULL),
 (4,     NULL,     NULL, NULL, NULL,   1.0),
-(NULL,  "test",   1.0,  1,    NULL,   NULL)
+(NULL,  "test",   1.0,  1,    NULL,   NULL);
 
 SELECT * from null_test;
