@@ -115,6 +115,8 @@ export function genConfig(
   const atraceApps = new Set<string>();
   const chromeCategories = new Set<string>();
   uiCfg.chromeCategoriesSelected.forEach(it => chromeCategories.add(it));
+  uiCfg.chromeHighOverheadCategoriesSelected.forEach(
+      it => chromeCategories.add(it));
 
   let procThreadAssociationPolling = false;
   let procThreadAssociationFtrace = false;
