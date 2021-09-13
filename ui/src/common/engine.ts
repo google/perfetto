@@ -25,8 +25,9 @@ import {
 import {NUM, NUM_NULL, STR} from './query_result';
 import {
   createQueryResult,
+  QueryError,
   QueryResult,
-  WritableQueryResult
+  WritableQueryResult,
 } from './query_result';
 import {TimeSpan} from './time';
 
@@ -44,7 +45,6 @@ export class NullLoadingTracker implements LoadingTracker {
   endLoading(): void {}
 }
 
-export class QueryError extends Error {}
 
 // This is used to skip the decoding of queryResult from protobufjs and deal
 // with it ourselves. See the comment below around `QueryResult.decode = ...`.
