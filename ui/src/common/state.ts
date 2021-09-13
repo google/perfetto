@@ -496,6 +496,7 @@ export interface RecordConfig {
   procStatsPeriodMs: number;
 
   chromeCategoriesSelected: string[];
+  chromeHighOverheadCategoriesSelected: string[];
 
   chromeLogs: boolean;
   taskScheduling: boolean;
@@ -573,6 +574,7 @@ export function createEmptyRecordConfig(): RecordConfig {
     procStatsPeriodMs: 1000,
 
     chromeCategoriesSelected: [],
+    chromeHighOverheadCategoriesSelected: [],
 
     chromeLogs: false,
     taskScheduling: false,

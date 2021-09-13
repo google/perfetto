@@ -157,7 +157,8 @@ test('ChromeConfig', () => {
 
 test('ChromeMemoryConfig', () => {
   const config = createEmptyRecordConfig();
-  config.chromeCategoriesSelected = ['disabled-by-default-memory-infra'];
+  config.chromeHighOverheadCategoriesSelected =
+      ['disabled-by-default-memory-infra'];
   const result =
       TraceConfig.decode(genConfigProto(config, {os: 'C', name: 'Chrome'}));
   const sources = assertExists(result.dataSources);
