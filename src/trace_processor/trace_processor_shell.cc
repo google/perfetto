@@ -542,10 +542,6 @@ util::Status PrintQueryResultAsCsv(Iterator* it, FILE* output) {
   return it->Status();
 }
 
-bool IsBlankLine(const std::string& buffer) {
-  return buffer == "\n" || buffer == "\r\n";
-}
-
 bool IsCommentLine(const std::string& buffer) {
   return base::StartsWith(buffer, "--");
 }
@@ -561,8 +557,6 @@ util::Status LoadQueries(FILE* input, std::vector<std::string>* output) {
     std::string sql_query;
     while (fgets(buffer, sizeof(buffer), input)) {
       std::string line = base::TrimLeading(buffer);
-      if (IsBlankLine(line))
-        break;
 
       if (IsCommentLine(line))
         continue;
