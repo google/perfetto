@@ -508,6 +508,7 @@ export class TraceController extends Controller<States> {
            inner join thread_track on slice.track_id = thread_track.id
            group by bucket, utid
          ) using(utid)
+         where upid is not null
          group by bucket, upid`);
 
     const slicesData: {[key: string]: QuantizedLoad[]} = {};
