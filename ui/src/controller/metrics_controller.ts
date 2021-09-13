@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import {Actions} from '../common/actions';
-import {Engine, QueryError} from '../common/engine';
-import {STR} from '../common/query_result';
+import {Engine} from '../common/engine';
+import {QueryError, STR} from '../common/query_result';
 import {publishMetricResult} from '../frontend/publish';
 
 import {Controller} from './controller';

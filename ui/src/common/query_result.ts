@@ -60,6 +60,8 @@ export const STR_NULL: string|null = 'str_null';
 
 export type ColumnType = string|number|null;
 
+export class QueryError extends Error {}
+
 // One row extracted from an SQL result:
 export interface Row {
   [key: string]: ColumnType;
@@ -335,7 +337,7 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
     if (this._error === undefined) {
       promise.resolve(arg);
     } else {
-      promise.reject(new Error(this._error));
+      promise.reject(new QueryError(this._error));
     }
   }
 }
