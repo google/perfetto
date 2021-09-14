@@ -702,6 +702,35 @@ message AndroidMemoryUnaggregatedMetric {
 
 // End of protos/perfetto/metrics/android/mem_unagg_metric.proto
 
+// Begin of protos/perfetto/metrics/android/multiuser_metric.proto
+
+// Metrics for Multiuser events, such as switching users.
+message AndroidMultiuserMetric {
+
+  // Holds the data for a Multiuser event.
+  message EventData {
+    // Duration of the event (in milliseconds).
+    optional int32 duration_ms = 1;
+
+    // CPU usage of each process during the event.
+    message CpuUsage {
+      // The userId of the process (e.g. 0 or 10).
+      optional int32 user_id = 1;
+      // The name of the process.
+      optional string process_name = 2;
+      // The number of CPU cycles (in megacycles) spent by that process during the event.
+      optional int32 cpu_mcycles = 3;
+      // The ratio of this process's cycles to the total for all processes, expressed as a percentage.
+      optional float cpu_percentage = 4;
+    }
+    repeated CpuUsage cpu_usage = 2;
+  }
+
+  // Metrics for a user switch.
+  optional EventData user_switch = 1;
+}
+// End of protos/perfetto/metrics/android/multiuser_metric.proto
+
 // Begin of protos/perfetto/metrics/android/package_list.proto
 
 message AndroidPackageList {
@@ -1168,7 +1197,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 36
+// Next id: 37
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -1257,6 +1286,9 @@ message TraceMetrics {
 
   // Profiler smaps
   optional ProfilerSmaps profiler_smaps = 35;
+
+  // Multiuser - metrics for switching users.
+  optional AndroidMultiuserMetric android_multiuser = 36;
 
   // Demo extensions.
   extensions 450 to 499;
