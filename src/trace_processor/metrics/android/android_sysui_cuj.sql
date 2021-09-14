@@ -34,7 +34,7 @@ CREATE TABLE android_sysui_cuj_last_cuj AS
     AND slice.dur > 0
     AND (
       process.name LIKE 'com.google.android%'
-      OR process.name = 'com.android.systemui')
+      OR process.name LIKE 'com.android.%')
   ORDER BY ts desc
   LIMIT 1;
 
