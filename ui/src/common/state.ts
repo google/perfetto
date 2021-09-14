@@ -77,7 +77,7 @@ export enum TrackKindPriority {
 }
 
 export type HeapProfileFlamegraphViewingOption =
-    'SPACE'|'ALLOC_SPACE'|'OBJECTS'|'ALLOC_OBJECTS';
+    'SPACE'|'ALLOC_SPACE'|'OBJECTS'|'ALLOC_OBJECTS'|'PERF_SAMPLES';
 
 export interface CallsiteInfo {
   id: number;
