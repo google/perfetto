@@ -287,6 +287,29 @@ bool ShouldLogEvent(const TraceConfig& cfg) {
   PERFETTO_FATAL("For GCC");
 }
 
+// Appends `data` (which has `size` bytes), to `*packet`. Splits the data in
+// slices no larger than `max_slice_size`.
+void AppendOwnedSlicesToPacket(std::unique_ptr<uint8_t[]> data,
+                               size_t size,
+                               size_t max_slice_size,
+                               perfetto::TracePacket* packet) {
+  if (size <= max_slice_size) {
+    packet->AddSlice(Slice::TakeOwnership(std::move(data), size));
+    return;
+  }
+  uint8_t* src_ptr = data.get();
+  for (size_t size_left = size; size_left > 0;) {
+    const size_t slice_size = std::min(size_left, max_slice_size);
+
+    Slice slice = Slice::Allocate(slice_size);
+    memcpy(slice.own_data(), src_ptr, slice_size);
+    packet->AddSlice(std::move(slice));
+
+    src_ptr += slice_size;
+    size_left -= slice_size;
+  }
+}
+
 }  // namespace
 
 // These constants instead are defined in the header because are used by tests.
@@ -2168,8 +2191,9 @@ bool TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
         continue;
       }
       tracing_session->filter_output_bytes += filtered_packet.size;
-      it->AddSlice(Slice::TakeOwnership(std::move(filtered_packet.data),
-                                        filtered_packet.size));
+      AppendOwnedSlicesToPacket(std::move(filtered_packet.data),
+                                filtered_packet.size, kMaxTracePacketSliceSize,
+                                &*it);
 
     }  // for (packet)
   }    // if (trace_filter)

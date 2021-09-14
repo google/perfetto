@@ -41,6 +41,7 @@
 #include "perfetto/tracing/core/tracing_service_state.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/base/test/utils.h"
+#include "src/protozero/filtering/filter_bytecode_generator.h"
 #include "src/traced/probes/ftrace/ftrace_controller.h"
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
 #include "test/gtest_and_gmock.h"
@@ -74,8 +75,11 @@ namespace perfetto {
 namespace {
 
 using ::testing::ContainsRegex;
+using ::testing::Each;
 using ::testing::ElementsAreArray;
 using ::testing::HasSubstr;
+using ::testing::Property;
+using ::testing::SizeIs;
 
 std::string RandomTraceFileName() {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
@@ -1123,6 +1127,67 @@ TEST_F(PerfettoTest, MAYBE_SaveForBugreport_Triggers) {
     ASSERT_TRUE(p.has_service_event());
     ASSERT_TRUE(p.service_event().seized_for_bugreport());
   }
+}
+
+// Regression test for b/195065199. Check that trace filtering works when a
+// packet size exceeds the IPC limit. This tests that the tracing service, when
+// reassembling packets after filtering, doesn't "overglue" them. They still
+// need to be slice-able to fit into the ReadBuffers ipc.
+TEST_F(PerfettoTest, TraceFilterLargePackets) {
+  base::TestTaskRunner task_runner;
+  TestHelper helper(&task_runner);
+
+  helper.StartServiceIfRequired();
+  helper.ConnectFakeProducer();
+  helper.ConnectConsumer();
+  helper.WaitForConsumerConnect();
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(1024 * 16);
+  trace_config.set_duration_ms(500);
+  auto* prod_config = trace_config.add_producers();
+  prod_config->set_producer_name("android.perfetto.FakeProducer");
+  prod_config->set_shm_size_kb(1024 * 16);
+  prod_config->set_page_size_kb(32);
+
+  static constexpr size_t kNumPackets = 3;
+  static constexpr uint32_t kRandomSeed = 42;
+  static constexpr uint32_t kMsgSize = 8 * ipc::kIPCBufferSize;
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("android.perfetto.FakeProducer");
+  auto* test_config = ds_config->mutable_for_testing();
+  test_config->set_seed(kRandomSeed);
+  test_config->set_message_count(kNumPackets);
+  test_config->set_message_size(kMsgSize);
+  test_config->set_send_batch_on_register(true);
+
+  protozero::FilterBytecodeGenerator filt;
+  // Message 0: root Trace proto.
+  filt.AddNestedField(1 /* root trace.packet*/, 1);
+  filt.EndMessage();
+
+  // Message 1: TracePacket proto. Allow all fields.
+  filt.AddSimpleFieldRange(1, 1000);
+  filt.EndMessage();
+
+  trace_config.mutable_trace_filter()->set_bytecode(filt.Serialize());
+
+  // The data source is configured to emit another batch when it is started via
+  // send_batch_on_register in the TestConfig.
+  helper.StartTracing(trace_config);
+  helper.WaitForTracingDisabled();
+
+  helper.ReadData();
+  helper.WaitForReadData(/* read_count */ 0, /* timeout_ms */ 10000);
+
+  const std::vector<protos::gen::TracePacket>& packets = helper.trace();
+  EXPECT_EQ(packets.size(), kNumPackets);
+  EXPECT_THAT(packets,
+              Each(Property(&protos::gen::TracePacket::has_for_testing, true)));
+  EXPECT_THAT(
+      packets,
+      Each(Property(&protos::gen::TracePacket::for_testing,
+                    Property(&protos::gen::TestEvent::str, SizeIs(kMsgSize)))));
 }
 
 // Disable cmdline tests on sanitizets because they use fork() and that messes
