@@ -59,9 +59,10 @@ export interface Area {
 export const MAX_TIME = 180;
 
 // 3: TrackKindPriority and related sorting changes.
-// 5: Move a large number of items off frontendLocalState and onto state
+// 5: Move a large number of items off frontendLocalState and onto state.
 // 6: Common PivotTableConfig and pivot table specific PivotTableState.
-export const STATE_VERSION = 6;
+// 7: Split Chrome categories in two and add 'symbolize ksyms' flag.
+export const STATE_VERSION = 7;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -418,8 +419,7 @@ export function isLinuxTarget(target: RecordingTarget) {
 
 export function isAdbTarget(target: RecordingTarget):
     target is AdbRecordingTarget {
-  if ((target as AdbRecordingTarget).serial) return true;
-  return false;
+  return !!(target as AdbRecordingTarget).serial;
 }
 
 export function hasActiveProbes(config: RecordConfig) {
