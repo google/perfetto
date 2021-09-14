@@ -256,7 +256,11 @@ Watchdog::Timer::Timer(uint32_t ms) {
   struct sigevent sev = {};
   timer_t timerid;
   sev.sigev_notify = SIGEV_THREAD_ID;
+#if defined(__GLIBC__)
   sev._sigev_un._tid = base::GetThreadId();
+#else
+  sev.sigev_notify_thread_id = base::GetThreadId();
+#endif
   sev.sigev_signo = SIGABRT;
   PERFETTO_CHECK(timer_create(CLOCK_MONOTONIC, &sev, &timerid) != -1);
   timerid_ = base::make_optional(timerid);
