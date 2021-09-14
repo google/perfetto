@@ -721,35 +721,40 @@ function ChromeCategoriesSelection() {
     categories = getBuiltinChromeCategoryList();
   }
 
-  // Show "disabled-by-default" categories last.
-  const categoriesMap = new Map<string, string>();
+  const defaultCategories = new Map<string, string>();
+  const disabledByDefaultCategories = new Map<string, string>();
   const disabledPrefix = 'disabled-by-default-';
-  const overheadSuffix = '(high overhead)';
   categories.forEach(cat => {
     if (cat.startsWith(disabledPrefix)) {
-      categoriesMap.set(
-          cat, `${cat.replace(disabledPrefix, '')} ${overheadSuffix}`);
+      disabledByDefaultCategories.set(cat, cat.replace(disabledPrefix, ''));
     } else {
-      categoriesMap.set(cat, cat);
+      defaultCategories.set(cat, cat);
     }
   });
 
-  return m(Dropdown, {
-    title: 'Additional Chrome categories',
-    cssClass: '.multicolumn.two-columns',
-    options: categoriesMap,
-    set: (cfg, val) => cfg.chromeCategoriesSelected = val,
-    get: (cfg) => cfg.chromeCategoriesSelected,
-    sort: (a, b) => {
-      const aIsDisabled = a.includes(overheadSuffix);
-      const bIsDisabled = b.includes(overheadSuffix);
-      if (aIsDisabled === bIsDisabled) {
-        return a.localeCompare(b);
-      } else {
-        return Number(aIsDisabled) - Number(bIsDisabled);
-      }
-    },
-  } as DropdownAttrs);
+  return m(
+      'div',
+      m(Dropdown, {
+        cssClass: '.singlecolumn',
+        title: 'Additional Chrome categories',
+        options: defaultCategories,
+        set: (cfg, val) => cfg.chromeCategoriesSelected = val,
+        get: (cfg) => cfg.chromeCategoriesSelected,
+        sort: (a, b) => {
+          return a.localeCompare(b);
+        },
+      } as DropdownAttrs),
+      m(Dropdown, {
+        cssClass: '.singlecolumn',
+        title: 'Additional high overhead Chrome categories',
+        options: disabledByDefaultCategories,
+        set: (cfg, val) => cfg.chromeHighOverheadCategoriesSelected = val,
+        get: (cfg) => cfg.chromeHighOverheadCategoriesSelected,
+        sort: (a, b) => {
+          return a.localeCompare(b);
+        },
+      } as DropdownAttrs),
+  );
 }
 
 function AdvancedSettings(cssClass: string) {

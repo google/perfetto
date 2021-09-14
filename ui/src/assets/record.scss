@@ -787,18 +787,6 @@
     outline: none;
     -webkit-appearance: none;
 
-    &:not(.multicolumn) {
-      overflow: hidden;
-      height: 25px;
-      padding: 0 5px;
-      &:focus, &:hover {
-        height: 30vh;
-        position: absolute;
-        overflow: auto;
-        box-shadow: 0 0 15px 0 #eee;
-      }
-    }
-
     option, optgroup {
       @include transition();
       min-height: 25px;
@@ -817,6 +805,23 @@
       &::before {
         display: none;
         content: '';
+      }
+    }
+
+    &.singlecolumn {
+      margin: var(--record-section-padding) 0;
+      padding: 0;
+      max-width: 50%;
+      width: 50%;
+      overflow-y: auto;
+      height: 400px;
+      optgroup {
+        display: grid;
+        padding: 0;
+        grid-template-columns: 1fr;
+      }
+      option {
+        margin: 0;
       }
     }
 
