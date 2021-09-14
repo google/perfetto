@@ -35,6 +35,7 @@ import "protos/perfetto/metrics/android/lmk_metric.proto";
 import "protos/perfetto/metrics/android/lmk_reason_metric.proto";
 import "protos/perfetto/metrics/android/mem_metric.proto";
 import "protos/perfetto/metrics/android/mem_unagg_metric.proto";
+import "protos/perfetto/metrics/android/multiuser_metric.proto";
 import "protos/perfetto/metrics/android/package_list.proto";
 import "protos/perfetto/metrics/android/powrails_metric.proto";
 import "protos/perfetto/metrics/android/profiler_smaps.proto";
@@ -90,7 +91,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 36
+// Next id: 37
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -179,6 +180,9 @@ message TraceMetrics {
 
   // Profiler smaps
   optional ProfilerSmaps profiler_smaps = 35;
+
+  // Multiuser - metrics for switching users.
+  optional AndroidMultiuserMetric android_multiuser = 36;
 
   // Demo extensions.
   extensions 450 to 499;
