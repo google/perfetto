@@ -1,0 +1,48 @@
+packet {
+  ftrace_events {
+    cpu: 3
+    event {
+      timestamp: 3000000000 # 3e9
+      pid: 4064
+      print {
+        buf: "S|1204|onBeforeStartUser-10|0\n"
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 3
+    event {
+      timestamp: 3100000000
+      pid: 4064
+      print {
+        buf: "F|1204|onBeforeStartUser-10|0\n"
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 2
+    event {
+      timestamp: 5200000000
+      pid: 4065
+      print {
+        buf: "S|1204|launching: com.google.android.apps.nexuslauncher|0\n"
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 2
+    event {
+      timestamp: 7900000000 # 7.9e9
+      pid: 4065
+      print {
+        buf: "F|1204|launching: com.google.android.apps.nexuslauncher|0\n"
+      }
+    }
+  }
+}
