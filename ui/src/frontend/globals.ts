@@ -84,6 +84,7 @@ export interface CounterDetails {
   value?: number;
   delta?: number;
   duration?: number;
+  name?: string;
 }
 
 export interface ThreadStateDetails {

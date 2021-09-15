@@ -24,11 +24,7 @@ import {
 import {ChromeSliceSelection} from '../common/state';
 import {translateState} from '../common/thread_state';
 import {fromNs, toNs} from '../common/time';
-import {
-  CounterDetails,
-  SliceDetails,
-  ThreadStateDetails
-} from '../frontend/globals';
+import {SliceDetails, ThreadStateDetails} from '../frontend/globals';
 import {
   publishCounterDetails,
   publishSliceDetails,
@@ -73,14 +69,12 @@ export class SelectionController extends Controller<'main'> {
     if (selectedId === undefined) return;
 
     if (selection.kind === 'COUNTER') {
-      const selected: CounterDetails = {};
       this.counterDetails(selection.leftTs, selection.rightTs, selection.id)
           .then(results => {
             if (results !== undefined && selection &&
                 selection.kind === selectedKind &&
                 selection.id === selectedId) {
-              Object.assign(selected, results);
-              publishCounterDetails(selected);
+              publishCounterDetails(results);
             }
           });
     } else if (selection.kind === 'SLICE') {
@@ -372,7 +366,8 @@ export class SelectionController extends Controller<'main'> {
     const delta = value - previousValue;
     const duration = endTs - ts;
     const startTime = fromNs(ts) - globals.state.traceTime.startSec;
-    return {startTime, value, delta, duration};
+    const name = globals.state.tracks[trackId].name;
+    return {startTime, value, delta, duration, name};
   }
 
   async schedulingDetails(ts: number, utid: number|Long) {
