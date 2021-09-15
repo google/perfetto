@@ -29,9 +29,10 @@ import {
   isAndroidTarget,
   isChromeTarget,
   isCrOSTarget,
-  RecordingTarget
+  MAX_TIME,
+  RecordingTarget,
+  RecordMode
 } from '../common/state';
-import {MAX_TIME, RecordMode} from '../common/state';
 import {AdbOverWebUsb} from '../controller/adb';
 
 import {globals} from './globals';
@@ -43,6 +44,7 @@ import {
   DropdownAttrs,
   Probe,
   ProbeAttrs,
+  SelectAllNoneDropdown,
   Slider,
   SliderAttrs,
   Textarea,
@@ -733,28 +735,19 @@ function ChromeCategoriesSelection() {
   });
 
   return m(
-      'div',
-      m(Dropdown, {
-        cssClass: '.singlecolumn',
+      '.chrome-categories',
+      SelectAllNoneDropdown({
+        categories: defaultCategories,
         title: 'Additional Chrome categories',
-        options: defaultCategories,
-        set: (cfg, val) => cfg.chromeCategoriesSelected = val,
         get: (cfg) => cfg.chromeCategoriesSelected,
-        sort: (a, b) => {
-          return a.localeCompare(b);
-        },
-      } as DropdownAttrs),
-      m(Dropdown, {
-        cssClass: '.singlecolumn',
+        set: (cfg, val) => cfg.chromeCategoriesSelected = val,
+      }),
+      SelectAllNoneDropdown({
+        categories: disabledByDefaultCategories,
         title: 'Additional high overhead Chrome categories',
-        options: disabledByDefaultCategories,
-        set: (cfg, val) => cfg.chromeHighOverheadCategoriesSelected = val,
         get: (cfg) => cfg.chromeHighOverheadCategoriesSelected,
-        sort: (a, b) => {
-          return a.localeCompare(b);
-        },
-      } as DropdownAttrs),
-  );
+        set: (cfg, val) => cfg.chromeHighOverheadCategoriesSelected = val,
+      }));
 }
 
 function AdvancedSettings(cssClass: string) {
