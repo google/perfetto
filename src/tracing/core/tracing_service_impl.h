@@ -77,6 +77,9 @@ class TracingServiceImpl : public TracingService {
   static constexpr uint8_t kSyncMarker[] = {0x82, 0x47, 0x7a, 0x76, 0xb2, 0x8d,
                                             0x42, 0xba, 0x81, 0xdc, 0x33, 0x32,
                                             0x6d, 0x57, 0xa0, 0x79};
+  static constexpr size_t kMaxTracePacketSliceSize =
+      128 * 1024 - 512;  // This is ipc::kIPCBufferSize - 512, see assertion in
+                         // tracing_integration_test.cc and b/195065199
 
   // The implementation behind the service endpoint exposed to each producer.
   class ProducerEndpointImpl : public TracingService::ProducerEndpoint {
