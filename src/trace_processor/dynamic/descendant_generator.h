@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 The Android Open Source Project
+ * Copyright (C) 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_DYNAMIC_DESCENDANT_SLICE_GENERATOR_H_
-#define SRC_TRACE_PROCESSOR_DYNAMIC_DESCENDANT_SLICE_GENERATOR_H_
+#ifndef SRC_TRACE_PROCESSOR_DYNAMIC_DESCENDANT_GENERATOR_H_
+#define SRC_TRACE_PROCESSOR_DYNAMIC_DESCENDANT_GENERATOR_H_
 
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
 
@@ -27,13 +27,16 @@ namespace trace_processor {
 
 class TraceProcessorContext;
 
-// Dynamic table for implementing the  table.
-// See /docs/analysis.md for details about the functionality and usage of this
-// table.
-class DescendantSliceGenerator : public DbSqliteTable::DynamicTableGenerator {
+// Implements the following dynamic tables:
+// * descendant_slice
+// * descendant_slice_by_stack
+//
+// See docs/analysis/trace-processor for usage.
+class DescendantGenerator : public DbSqliteTable::DynamicTableGenerator {
  public:
-  explicit DescendantSliceGenerator(TraceProcessorContext* context);
-  ~DescendantSliceGenerator() override;
+  enum class Descendant { kSlice = 1, kSliceByStack = 2 };
+
+  DescendantGenerator(Descendant type, TraceProcessorContext* context);
 
   Table::Schema CreateSchema() override;
   std::string TableName() override;
@@ -47,13 +50,14 @@ class DescendantSliceGenerator : public DbSqliteTable::DynamicTableGenerator {
   // ConnectedFlowGenerator to traverse flow indirectly connected flow events.
   static base::Optional<RowMap> GetDescendantSlices(
       const tables::SliceTable& slices,
-      SliceId start_id);
+      SliceId slice_id);
 
  private:
+  Descendant type_;
   TraceProcessorContext* context_ = nullptr;
 };
 
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_DYNAMIC_DESCENDANT_SLICE_GENERATOR_H_
+#endif  // SRC_TRACE_PROCESSOR_DYNAMIC_DESCENDANT_GENERATOR_H_

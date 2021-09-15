@@ -22,6 +22,9 @@ import {initializeImmerJs} from '../common/immer_init';
 import {createEmptyState, State} from '../common/state';
 import {initWasm} from '../common/wasm_engine_proxy';
 import {ControllerWorkerInitMessage} from '../common/worker_messages';
+import {
+  isGetCategoriesResponse
+} from '../controller/chrome_proxy_record_controller';
 import {initController} from '../controller/index';
 
 import {AnalyzePage} from './analyze_page';
@@ -252,6 +255,10 @@ function main() {
     // This forwards the messages from the extension to the controller.
     extensionPort.onMessage.addListener(
         (message: object, _port: chrome.runtime.Port) => {
+          if (isGetCategoriesResponse(message)) {
+            globals.dispatch(Actions.setChromeCategories(message));
+            return;
+          }
           extensionLocalChannel.port2.postMessage(message);
         });
   }

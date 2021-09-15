@@ -4073,6 +4073,35 @@ TEST_P(PerfettoApiTest, Counters) {
                           "Voltage = 220", "Power = 1.21"));
 }
 
+TEST_P(PerfettoApiTest, EmptyEvent) {
+  auto* tracing_session = NewTraceWithCategories({"cat"});
+  tracing_session->get()->StartBlocking();
+
+  // Emit an empty event.
+  PERFETTO_INTERNAL_ADD_EMPTY_EVENT();
+  perfetto::TrackEvent::Flush();
+
+  tracing_session->get()->StopBlocking();
+  std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
+
+  perfetto::protos::gen::Trace trace;
+  ASSERT_TRUE(trace.ParseFromArray(raw_trace.data(), raw_trace.size()));
+  auto it = std::find_if(trace.packet().begin(), trace.packet().end(),
+                         [](const perfetto::protos::gen::TracePacket& packet) {
+                           return packet.has_trace_stats();
+                         });
+  EXPECT_NE(it, trace.packet().end());
+  // The empty event required a trace chunk.
+  EXPECT_EQ(it->trace_stats().buffer_stats()[0].chunks_read(), 1u);
+  // But it isn't in the trace, because empty packets are skipped when reading
+  // from TraceBuffer.
+  it = std::find_if(trace.packet().begin(), trace.packet().end(),
+                    [](const perfetto::protos::gen::TracePacket& packet) {
+                      return packet.has_track_event();
+                    });
+  EXPECT_EQ(it, trace.packet().end());
+}
+
 struct BackendTypeAsString {
   std::string operator()(
       const ::testing::TestParamInfo<perfetto::BackendType>& info) const {

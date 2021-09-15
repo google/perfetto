@@ -30,6 +30,42 @@ namespace proto_to_json {
 
 namespace {
 
+std::string QuoteAndEscapeJsonString(const std::string& raw) {
+  std::string ret;
+  for (auto it = raw.cbegin(); it != raw.cend(); it++) {
+    char c = *it;
+    switch (c) {
+      case '"':
+        // Double quote needs to be escaped.
+        ret += "\\\"";
+        break;
+      case '\n':
+        // Escape new line specially because it appears often and so is worth
+        // treating specially.
+        ret += "\\n";
+        break;
+      default:
+        if (c < 0x20) {
+          // All 32 ASCII control codes need to be escaped. Instead of using the
+          // short forms, we just always use \u escape sequences instead to make
+          // things simpler.
+          ret += "\\u00";
+
+          // Print |c| as a hex character. We reserve 3 bytes of space: 2 for
+          // the hex code and one for the null terminator.
+          char buf[3];
+          snprintf(buf, sizeof(buf), "%02X", c);
+          ret += buf;
+        } else {
+          // Everything else can be passed through directly.
+          ret += c;
+        }
+        break;
+    }
+  }
+  return '"' + ret + '"';
+}
+
 std::string FieldToJson(const google::protobuf::Message& message,
                         const google::protobuf::FieldDescriptor* field_desc,
                         int idx,
@@ -44,7 +80,7 @@ std::string FieldToJson(const google::protobuf::Message& message,
                                 ? ref->GetRepeatedBool(message, field_desc, idx)
                                 : ref->GetBool(message, field_desc));
     case FieldDescriptor::CppType::CPPTYPE_ENUM:
-      return base::QuoteAndEscapeControlCodes(
+      return QuoteAndEscapeJsonString(
           is_repeated ? ref->GetRepeatedEnum(message, field_desc, idx)->name()
                       : ref->GetEnum(message, field_desc)->name());
     case FieldDescriptor::CppType::CPPTYPE_FLOAT:
@@ -66,7 +102,7 @@ std::string FieldToJson(const google::protobuf::Message& message,
           is_repeated ? ref->GetRepeatedDouble(message, field_desc, idx)
                       : ref->GetDouble(message, field_desc));
     case FieldDescriptor::CppType::CPPTYPE_STRING:
-      return base::QuoteAndEscapeControlCodes(
+      return QuoteAndEscapeJsonString(
           is_repeated ? ref->GetRepeatedString(message, field_desc, idx)
                       : ref->GetString(message, field_desc));
     case FieldDescriptor::CppType::CPPTYPE_UINT32:

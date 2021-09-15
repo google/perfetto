@@ -31,8 +31,22 @@ uint32_t GetConstraintColumnIndex(AncestorGenerator::Ancestor type,
       return context->storage->slice_table().GetColumnCount();
     case AncestorGenerator::Ancestor::kStackProfileCallsite:
       return context->storage->stack_profile_callsite_table().GetColumnCount();
+    case AncestorGenerator::Ancestor::kSliceByStack:
+      return context->storage->slice_table().GetColumnCount();
   }
   return 0;
+}
+
+template <typename T>
+Table ExtendTableWithStartId(const T& table, int64_t constraint_value) {
+  // Add a new column that includes the constraint.
+  std::unique_ptr<NullableVector<int64_t>> child_ids(
+      new NullableVector<int64_t>());
+  for (uint32_t i = 0; i < table.row_count(); ++i)
+    child_ids->Append(constraint_value);
+  return table.ExtendWithColumn(
+      "start_id", std::move(child_ids),
+      TypedColumn<uint32_t>::default_flags() | TypedColumn<uint32_t>::kHidden);
 }
 
 template <typename T>
@@ -61,24 +75,20 @@ base::Optional<RowMap> BuildAncestorsRowMap(const T& table,
   return RowMap(std::move(parent_rows));
 }
 
+// Constraint_value is used to construct the hidden column "start_id"
+// needed by SQL.
+// Starting_id refers to the id that is used to generate the ancestors.
 template <typename T>
-std::unique_ptr<Table> BuildAncestorsTable(const T& table,
+std::unique_ptr<Table> BuildAncestorsTable(int64_t constraint_value,
+                                           const T& table,
                                            typename T::Id starting_id) {
   // Build up all the parents row ids.
   auto ancestors = BuildAncestorsRowMap(table, starting_id);
   if (!ancestors) {
     return nullptr;
   }
-  // Add a new column that includes the constraint.
-  std::unique_ptr<NullableVector<uint32_t>> child_ids(
-      new NullableVector<uint32_t>());
-  for (uint32_t i = 0; i < ancestors->size(); ++i)
-    child_ids->Append(starting_id.value);
-  return std::unique_ptr<Table>(
-      new Table(table.Apply(std::move(*ancestors))
-                    .ExtendWithColumn("start_id", std::move(child_ids),
-                                      TypedColumn<uint32_t>::default_flags() |
-                                          TypedColumn<uint32_t>::kHidden)));
+  return std::unique_ptr<Table>(new Table(ExtendTableWithStartId(
+      table.Apply(std::move(*ancestors)), constraint_value)));
 }
 }  // namespace
 
@@ -107,16 +117,38 @@ std::unique_ptr<Table> AncestorGenerator::ComputeTable(
     return c.col_idx == column && c.op == FilterOp::kEq;
   });
   PERFETTO_DCHECK(it != cs.end());
+  auto start_id = it->value.AsLong();
 
-  auto start_id = static_cast<uint32_t>(it->value.AsLong());
   switch (type_) {
     case Ancestor::kSlice:
-      return BuildAncestorsTable(context_->storage->slice_table(),
-                                 SliceId(start_id));
+      return BuildAncestorsTable(
+          /* constraint_id = */ start_id, context_->storage->slice_table(),
+          /* starting_id = */ SliceId(static_cast<uint32_t>(start_id)));
     case Ancestor::kStackProfileCallsite:
       return BuildAncestorsTable(
+          /* constraint_id = */ start_id,
           context_->storage->stack_profile_callsite_table(),
-          CallsiteId(start_id));
+          /* starting_id = */ CallsiteId(static_cast<uint32_t>(start_id)));
+    case Ancestor::kSliceByStack:
+      // Find the all slice ids that have the stack id and find all the
+      // ancestors of the slice ids.
+      const auto& slice_table = context_->storage->slice_table();
+
+      auto result = RowMap();
+      auto slice_ids =
+          slice_table.FilterToRowMap({slice_table.stack_id().eq(start_id)});
+
+      for (auto id_it = slice_ids.IterateRows(); id_it; id_it.Next()) {
+        auto slice_id = slice_table.id()[id_it.row()];
+
+        auto ancestors = GetAncestorSlices(slice_table, slice_id);
+        for (auto row_it = ancestors->IterateRows(); row_it; row_it.Next()) {
+          result.Insert(row_it.row());
+        }
+      }
+
+      return std::unique_ptr<Table>(new Table(ExtendTableWithStartId(
+          slice_table.Apply(std::move(result)), start_id)));
   }
   return nullptr;
 }
@@ -129,6 +161,9 @@ Table::Schema AncestorGenerator::CreateSchema() {
       break;
     case Ancestor::kStackProfileCallsite:
       final_schema = tables::StackProfileCallsiteTable::Schema();
+      break;
+    case Ancestor::kSliceByStack:
+      final_schema = tables::SliceTable::Schema();
       break;
   }
   final_schema.columns.push_back(Table::Schema::Column{
@@ -143,6 +178,8 @@ std::string AncestorGenerator::TableName() {
       return "ancestor_slice";
     case Ancestor::kStackProfileCallsite:
       return "experimental_ancestor_stack_profile_callsite";
+    case Ancestor::kSliceByStack:
+      return "ancestor_slice_by_stack";
   }
   return "ancestor_unknown";
 }

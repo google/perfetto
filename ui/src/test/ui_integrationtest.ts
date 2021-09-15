@@ -41,7 +41,6 @@ beforeAll(async () => {
   jest.setTimeout(60000);
   const page = await getPage();
   await page.setViewport({width: 1920, height: 1080});
-  await page.goto('http://localhost:10000/?testing=1');
 });
 
 // After each test (regardless of nesting) capture a screenshot named after the
@@ -70,8 +69,15 @@ afterEach(async () => {
 });
 
 describe('android_trace_30s', () => {
+  let page: puppeteer.Page;
+
+  beforeAll(async () => {
+    page = await getPage();
+    await page.goto('http://localhost:10000/?testing=1');
+    await waitForPerfettoIdle(page);
+  });
+
   test('load', async () => {
-    const page = await getPage();
     const file = await page.waitForSelector('input.trace_file');
     const tracePath = getTestTracePath('example_android_trace_30s.pb');
     assertExists(file).uploadFile(tracePath);
@@ -79,7 +85,6 @@ describe('android_trace_30s', () => {
   });
 
   test('expand_camera', async () => {
-    const page = await getPage();
     await page.click('.main-canvas');
     await page.click('h1[title="com.google.android.GoogleCamera 5506"]');
     await page.evaluate(() => {
@@ -88,20 +93,29 @@ describe('android_trace_30s', () => {
     await waitForPerfettoIdle(page);
   });
 
-  test('search', async () => {
-    const page = await getPage();
-    const searchInput = '.omnibox input';
-    await page.focus(searchInput);
-    await page.keyboard.type('TrimMaps');
-    await waitForPerfettoIdle(page);
-    for (let i = 0; i < 10; i++) {
-      await page.keyboard.type('\n');
-    }
-    await waitForPerfettoIdle(page);
-  });
+  // TODO(198431341): Test is flaky. We should de-flake and re-enable.
+  // test('search', async () => {
+  //  const page = await getPage();
+  //  const searchInput = '.omnibox input';
+  //  await page.focus(searchInput);
+  //  await page.keyboard.type('TrimMaps');
+  //  await waitForPerfettoIdle(page);
+  //  for (let i = 0; i < 10; i++) {
+  //    await page.keyboard.type('\n');
+  //  }
+  //  await waitForPerfettoIdle(page);
+  //});
 });
 
 describe('chrome_rendering_desktop', () => {
+  let page: puppeteer.Page;
+
+  beforeAll(async () => {
+    page = await getPage();
+    await page.goto('http://localhost:10000/?testing=1');
+    await waitForPerfettoIdle(page);
+  });
+
   test('load', async () => {
     const page = await getPage();
     const file = await page.waitForSelector('input.trace_file');
@@ -139,6 +153,8 @@ describe('routing', () => {
 
     beforeAll(async () => {
       page = await getPage();
+      await page.goto('http://localhost:10000/?testing=1');
+      await waitForPerfettoIdle(page);
     });
 
     test('open_first_trace_from_url', async () => {
@@ -167,6 +183,7 @@ describe('routing', () => {
 
     beforeAll(async () => {
       page = await getPage();
+      await page.goto('about:blank');
     });
 
     test('go_to_page_with_no_trace', async () => {
@@ -215,10 +232,11 @@ describe('routing', () => {
 
     beforeAll(async () => {
       page = await getPage();
+      await page.goto('http://localhost:10000/?testing=1');
+      await waitForPerfettoIdle(page);
     });
 
     test('open_trace_from_url', async () => {
-      await page.goto('http://localhost:10000/?testing=1');
       await page.goto(
           'http://localhost:10000/?testing=1/#!/?url=http://localhost:10000/test/data/chrome_memory_snapshot.pftrace');
       await waitForPerfettoIdle(page);
@@ -230,12 +248,15 @@ describe('routing', () => {
       await page.goto(
           'http://localhost:10000/?testing=1#!/metrics?trace_id=00000000-0000-0000-e13c-bd7db4ff646f');
       await page.goBack();
+      await waitForPerfettoIdle(page);
       await page.goBack();
-      await waitForPerfettoIdle(page);  // wait for trace to load
+      await waitForPerfettoIdle(page);
       await page.goBack();
+      await waitForPerfettoIdle(page);
       await page.goForward();
-      await waitForPerfettoIdle(page);  // wait for trace to load
+      await waitForPerfettoIdle(page);
       await page.goForward();
+      await waitForPerfettoIdle(page);
       await page.goForward();
       await waitForPerfettoIdle(page);
     });

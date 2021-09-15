@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {Engine} from './engine';
-
 import {Row} from './query_result';
 
 const MAX_DISPLAY_ROWS = 10000;

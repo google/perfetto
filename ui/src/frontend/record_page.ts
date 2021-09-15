@@ -54,7 +54,7 @@ import {
 const PERSIST_CONFIG_FLAG = featureFlags.register({
   id: 'persistConfigsUI',
   name: 'Config persistence UI',
-  description: 'Show experimental config persistance UI on the record page.',
+  description: 'Show experimental config persistence UI on the record page.',
   defaultValue: false,
 });
 
@@ -721,35 +721,40 @@ function ChromeCategoriesSelection() {
     categories = getBuiltinChromeCategoryList();
   }
 
-  // Show "disabled-by-default" categories last.
-  const categoriesMap = new Map<string, string>();
+  const defaultCategories = new Map<string, string>();
+  const disabledByDefaultCategories = new Map<string, string>();
   const disabledPrefix = 'disabled-by-default-';
-  const overheadSuffix = '(high overhead)';
   categories.forEach(cat => {
     if (cat.startsWith(disabledPrefix)) {
-      categoriesMap.set(
-          cat, `${cat.replace(disabledPrefix, '')} ${overheadSuffix}`);
+      disabledByDefaultCategories.set(cat, cat.replace(disabledPrefix, ''));
     } else {
-      categoriesMap.set(cat, cat);
+      defaultCategories.set(cat, cat);
     }
   });
 
-  return m(Dropdown, {
-    title: 'Additional Chrome categories',
-    cssClass: '.multicolumn.two-columns',
-    options: categoriesMap,
-    set: (cfg, val) => cfg.chromeCategoriesSelected = val,
-    get: (cfg) => cfg.chromeCategoriesSelected,
-    sort: (a, b) => {
-      const aIsDisabled = a.includes(overheadSuffix);
-      const bIsDisabled = b.includes(overheadSuffix);
-      if (aIsDisabled === bIsDisabled) {
-        return a.localeCompare(b);
-      } else {
-        return Number(aIsDisabled) - Number(bIsDisabled);
-      }
-    },
-  } as DropdownAttrs);
+  return m(
+      'div',
+      m(Dropdown, {
+        cssClass: '.singlecolumn',
+        title: 'Additional Chrome categories',
+        options: defaultCategories,
+        set: (cfg, val) => cfg.chromeCategoriesSelected = val,
+        get: (cfg) => cfg.chromeCategoriesSelected,
+        sort: (a, b) => {
+          return a.localeCompare(b);
+        },
+      } as DropdownAttrs),
+      m(Dropdown, {
+        cssClass: '.singlecolumn',
+        title: 'Additional high overhead Chrome categories',
+        options: disabledByDefaultCategories,
+        set: (cfg, val) => cfg.chromeHighOverheadCategoriesSelected = val,
+        get: (cfg) => cfg.chromeHighOverheadCategoriesSelected,
+        sort: (a, b) => {
+          return a.localeCompare(b);
+        },
+      } as DropdownAttrs),
+  );
 }
 
 function AdvancedSettings(cssClass: string) {
@@ -765,6 +770,14 @@ function AdvancedSettings(cssClass: string) {
           setEnabled: (cfg, val) => cfg.ftrace = val,
           isEnabled: (cfg) => cfg.ftrace
         } as ProbeAttrs,
+        m(Toggle, {
+          title: 'Resolve kernel symbols',
+          cssClass: '.thin',
+          descr: `Enables lookup via /proc/kallsyms for workqueue, 
+              sched_blocked_reason and other events (userdebug/eng builds only).`,
+          setEnabled: (cfg, val) => cfg.symbolizeKsyms = val,
+          isEnabled: (cfg) => cfg.symbolizeKsyms
+        } as ToggleAttrs),
         m(Slider, {
           title: 'Buf size',
           cssClass: '.thin',

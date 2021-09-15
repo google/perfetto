@@ -113,6 +113,11 @@ void CheckTraceStats(const protos::gen::TracePacket& packet) {
   EXPECT_EQ(0u, buf_stats.abi_violations());
 }
 
+static_assert(TracingServiceImpl::kMaxTracePacketSliceSize <=
+                  ipc::kIPCBufferSize - 512,
+              "Tracing service max packet slice should be smaller than IPC "
+              "buffer size (with some headroom)");
+
 }  // namespace
 
 class TracingIntegrationTest : public ::testing::Test {
