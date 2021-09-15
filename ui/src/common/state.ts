@@ -17,7 +17,7 @@ import {
   PivotAttrs,
   SubQueryAttrs,
   TableAttrs
-} from './pivot_table_data';
+} from './pivot_table_common';
 
 /**
  * A plain js object, holding objects of type |Class| keyed by string id.
