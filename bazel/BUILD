@@ -14,19 +14,25 @@
 
 config_setting(
     name = "os_osx",
-    values = {"cpu": "darwin"},
+    constraint_values = [
+        "@platforms//os:macos",
+    ],
     visibility = ["//visibility:public"],
 )
 
 config_setting(
     name = "os_linux",
-    values = {"cpu": "k8"},
+    constraint_values = [
+        "@platforms//os:linux",
+    ],
     visibility = ["//visibility:public"],
 )
 
 # Note this config does not imply MSVC.
 config_setting(
     name = "os_windows",
-    values = {"cpu": "x64_windows"},
+    constraint_values = [
+        "@platforms//os:windows",
+    ],
     visibility = ["//visibility:public"],
 )
