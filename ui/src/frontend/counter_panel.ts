@@ -25,8 +25,8 @@ export class CounterDetailsPanel extends Panel<CounterDetailsPanelAttrs> {
   view() {
     const counterInfo = globals.counterDetails;
     if (counterInfo && counterInfo.startTime &&
-        counterInfo.value !== undefined && counterInfo.delta !== undefined &&
-        counterInfo.duration !== undefined) {
+        counterInfo.name !== undefined && counterInfo.value !== undefined &&
+        counterInfo.delta !== undefined && counterInfo.duration !== undefined) {
       return m(
           '.details-panel',
           m('.details-panel-heading', m('h2', `Counter Details`)),
@@ -34,6 +34,7 @@ export class CounterDetailsPanel extends Panel<CounterDetailsPanelAttrs> {
               '.details-table',
               [m('table.half-width',
                  [
+                   m('tr', m('th', `Name`), m('td', `${counterInfo.name}`)),
                    m('tr',
                      m('th', `Start time`),
                      m('td', `${timeToCode(counterInfo.startTime)}`)),
