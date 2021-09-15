@@ -340,3 +340,46 @@ export class CodeSnippet implements m.ClassComponent<CodeSnippetAttrs> {
     );
   }
 }
+
+// Dropdown augmented with select all/none buttons
+export function SelectAllNoneDropdown(args: {
+  categories: Map<string, string>,
+  title: string,
+  get: Getter<string[]>,
+  set: Setter<string[]>,
+}) {
+  return m(
+      '.categories-list',
+      m('button.config-button',
+        {
+          onclick: () => {
+            const config = produce(globals.state.recordConfig, draft => {
+              args.set(draft, Array.from(args.categories.keys()));
+            });
+            globals.dispatch(Actions.setRecordConfig({config}));
+          }
+        },
+        'All'),
+      m('button.config-button',
+        {
+          onclick: () => {
+            const config = produce(globals.state.recordConfig, draft => {
+              args.set(draft, Array.from([]));
+            });
+            globals.dispatch(Actions.setRecordConfig({config}));
+          },
+        },
+        'None'),
+      m('br'),
+      m(Dropdown, {
+        cssClass: '.singlecolumn',
+        title: args.title,
+        options: args.categories,
+        set: args.set,
+        get: args.get,
+        sort: (a, b) => {
+          return a.localeCompare(b);
+        },
+      } as DropdownAttrs),
+  );
+}
