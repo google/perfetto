@@ -847,7 +847,9 @@ export const StateActions = {
     name: string,
     pivotTableId: string,
     selectedPivots: PivotAttrs[],
-    selectedAggregations: AggregationAttrs[]
+    selectedAggregations: AggregationAttrs[],
+    traceTime?: TraceTime,
+    selectedTrackIds?: number[]
   }): void {
     state.pivotTable[args.pivotTableId] = {
       id: args.pivotTableId,
@@ -855,6 +857,8 @@ export const StateActions = {
       selectedPivots: args.selectedPivots,
       selectedAggregations: args.selectedAggregations,
       isLoadingQuery: false,
+      traceTime: args.traceTime,
+      selectedTrackIds: args.selectedTrackIds
     };
   },
 
@@ -902,6 +906,16 @@ export const StateActions = {
         args.selectedAggregations.map(
             aggregation => Object.assign({}, aggregation));
   },
+
+  setPivotTableRange(state: StateDraft, args: {
+    pivotTableId: string,
+    traceTime?: TraceTime,
+    selectedTrackIds?: number[]
+  }) {
+    const pivotTable = state.pivotTable[args.pivotTableId];
+    pivotTable.traceTime = args.traceTime;
+    pivotTable.selectedTrackIds = args.selectedTrackIds;
+  }
 };
 
 // When we are on the frontend side, we don't really want to execute the

@@ -300,6 +300,8 @@ export interface PivotTableState {
   requestedAction?:  // Unset after pivot table column request is handled.
       {action: string, attrs?: SubQueryAttrs};
   isLoadingQuery: boolean;
+  traceTime?: TraceTime;
+  selectedTrackIds?: number[];
 }
 
 export interface State {
