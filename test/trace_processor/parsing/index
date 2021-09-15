@@ -160,3 +160,6 @@ very_long_sched.py android_trace_quality very_long_sched_android_trace_quality.o
 
 # Regression test for b/193721088 (infra prepending " done\n" to atrace)
 ../../data/atrace_b_193721088.atr sched_smoke.sql sched_smoke_trailing_empty.out
+
+# Multiuser
+android_multiuser_switch.textproto android_multiuser android_multiuser_switch.out

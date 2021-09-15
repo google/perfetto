@@ -37,6 +37,7 @@ perfetto_proto_library("@TYPE@") {
     "lmk_reason_metric.proto",
     "mem_metric.proto",
     "mem_unagg_metric.proto",
+    "multiuser_metric.proto",
     "package_list.proto",
     "powrails_metric.proto",
     "process_metadata.proto",
