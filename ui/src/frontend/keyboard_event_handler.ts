@@ -25,7 +25,7 @@ import {
 } from './scroll_helper';
 import {executeSearch} from './search_handler';
 
-const PIVOT_TABLE_FLAG = featureFlags.register({
+export const PIVOT_TABLE_FLAG = featureFlags.register({
   id: 'pivotTables',
   name: 'Pivot tables',
   description: 'Show experimental pivot table details tab.',
@@ -79,7 +79,7 @@ export function handleKey(e: KeyboardEvent, down: boolean) {
       moveByFocusedFlow('Backward');
     }
   }
-  if (down && 'p' === key && e.ctrlKey && PIVOT_TABLE_FLAG.get()) {
+  if (down && 'p' === key && !e.ctrlKey && PIVOT_TABLE_FLAG.get()) {
     e.preventDefault();
     globals.frontendLocalState.togglePivotTable();
     const pivotTableId = 'pivot-table';
