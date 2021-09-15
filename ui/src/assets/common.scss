@@ -220,6 +220,9 @@ button.close {
           background-color: hsla(210, 38%, 95%, 1);
         }
       }
+      td {
+        height: 25px;
+      }
       .disabled {
         cursor: default;
       }

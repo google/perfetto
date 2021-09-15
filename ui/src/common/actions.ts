@@ -35,7 +35,7 @@ import {
   PivotAttrs,
   SubQueryAttrs,
   TableAttrs
-} from './pivot_table_data';
+} from './pivot_table_common';
 import {
   AdbRecordingTarget,
   Area,
