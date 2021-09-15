@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import * as m from 'mithril';
+import {isStackPivot} from '../common/pivot_table_common';
 
 import {globals} from './globals';
 import {hideModel} from './modal';
@@ -41,7 +42,9 @@ export class ColumnPicker implements m.ClassComponent<PivotTableEditorAttrs> {
     for (const {tableName, columns} of helper.availableColumns) {
       const options = [];
       for (const column of columns) {
-        options.push(m('option', {value: column, key: column}, column));
+        // We can't aggregate a stack column.
+        const hidden = !helper.isPivot && isStackPivot(tableName, column);
+        options.push(m('option', {value: column, key: column, hidden}, column));
       }
       columnOptionGroup.push(m('optgroup', {label: tableName}, options));
     }
