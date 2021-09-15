@@ -147,12 +147,6 @@ cflag_allowlist = r'^-DPERFETTO.*$'
 # Compiler defines which are passed through to the blueprint.
 define_allowlist = r'^(GOOGLE_PROTO.*)|(ZLIB_.*)|(USE_MMAP)|(HAVE_HIDDEN)$'
 
-# Shared libraries which are not in PDK.
-library_not_in_pdk = {
-    'libandroid',
-    'libservices',
-}
-
 # The directory where the generated perfetto_build_flags.h will be copied into.
 buildflags_dir = 'include/perfetto/base/build_configs/android_tree'
 
@@ -539,18 +533,12 @@ class Module(object):
         output.append('    %s' % line)
       output.append('    },')
 
-    disable_pdk = any(name in library_not_in_pdk for name in self.shared_libs)
-    if self.user_debug_flag or disable_pdk:
+    if self.user_debug_flag:
       output.append('    product_variables: {')
-      if disable_pdk:
-        output.append('        pdk: {')
-        output.append('            enabled: false,')
-        output.append('        },')
-      if self.user_debug_flag:
-        output.append('        debuggable: {')
-        output.append(
-            '            cflags: ["-DPERFETTO_BUILD_WITH_ANDROID_USERDEBUG"],')
-        output.append('        },')
+      output.append('        debuggable: {')
+      output.append(
+          '            cflags: ["-DPERFETTO_BUILD_WITH_ANDROID_USERDEBUG"],')
+      output.append('        },')
       output.append('    },')
     if self.lto is not None:
       output.append('    target: {')

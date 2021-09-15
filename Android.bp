@@ -654,11 +654,6 @@ cc_library_shared {
     defaults: [
         "perfetto_defaults",
     ],
-    product_variables: {
-        pdk: {
-            enabled: false,
-        },
-    },
 }
 
 // GN: //:libperfetto_client_experimental
