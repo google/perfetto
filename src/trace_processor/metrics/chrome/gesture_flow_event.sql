@@ -65,7 +65,7 @@ CREATE VIEW {{prefix}}_latency_info_flow_step_and_ancestors AS
       SELECT
         id AS gesture_slice_id,
         ts AS gesture_ts,
-        dur AS gesture_dur,
+        dur AS {{prefix}}_dur,
         track_id AS gesture_track_id,
         trace_id AS {{id_field}},
         jank,
@@ -92,7 +92,7 @@ CREATE VIEW {{prefix}}_latency_info_flow_step_and_ancestors AS
     0 AS ancestor_dur_one,
     id AS gesture_slice_id,
     ts AS gesture_ts,
-    dur AS gesture_dur,
+    dur AS {{prefix}}_dur,
     track_id AS gesture_track_id,
     trace_id AS {{id_field}},
     jank,
@@ -139,7 +139,7 @@ CREATE VIEW {{prefix}}_max_latency_info_ts_per_trace_id AS
   FROM {{prefix}}_latency_info_flow_step
   WHERE
     trace_id = {{id_field}} AND
-    ts > gesture_ts + gesture_dur
+    ts > gesture_ts + {{prefix}}_dur
   GROUP BY gesture_slice_id;
 
 -- As described by the comments about this uses the heuristic to remove any flow
@@ -185,7 +185,7 @@ CREATE TABLE {{prefix}}_latency_info_flow_null_step_removed AS
     curr.{{id_field}},
     curr.gesture_slice_id,
     curr.gesture_ts,
-    curr.gesture_dur,
+    curr.{{prefix}}_dur,
     curr.gesture_track_id,
     curr.jank,
     curr.ancestor_id,
@@ -232,7 +232,7 @@ CREATE VIEW {{prefix}}_flow_event AS
     curr.{{id_field}},
     curr.gesture_slice_id AS {{prefix}}_slice_id,
     curr.gesture_ts AS {{prefix}}_ts,
-    curr.gesture_dur AS {{prefix}}_dur,
+    curr.{{prefix}}_dur AS {{prefix}}_dur,
     curr.gesture_track_id AS {{prefix}}_track_id,
     curr.jank,
     curr.step,
