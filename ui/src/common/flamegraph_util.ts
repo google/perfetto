@@ -12,12 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {CallsiteInfo} from '../common/state';
+import {CallsiteInfo} from './state';
 
 export const SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY = 'SPACE';
 export const ALLOC_SPACE_MEMORY_ALLOCATED_KEY = 'ALLOC_SPACE';
 export const OBJECTS_ALLOCATED_NOT_FREED_KEY = 'OBJECTS';
 export const OBJECTS_ALLOCATED_KEY = 'ALLOC_OBJECTS';
+export const PERF_SAMPLES_KEY = 'PERF_SAMPLES';
 
 export const DEFAULT_VIEWING_OPTION = SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY;
 

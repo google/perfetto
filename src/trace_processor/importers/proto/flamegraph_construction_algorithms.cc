@@ -178,11 +178,7 @@ static std::unique_ptr<tables::ExperimentalFlamegraphNodesTable>
 BuildFlamegraphTableHeapSizeAndCount(
     std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> tbl,
     const std::vector<uint32_t>& callsite_to_merged_callsite,
-    TraceStorage* storage,
     const Table& filtered) {
-  const tables::StackProfileCallsiteTable& callsites_tbl =
-      storage->stack_profile_callsite_table();
-
   for (auto it = filtered.IterateRows(); it; it.Next()) {
     int64_t size =
         it.Get(static_cast<uint32_t>(
@@ -200,8 +196,7 @@ BuildFlamegraphTableHeapSizeAndCount(
 
     PERFETTO_CHECK((size <= 0 && count <= 0) || (size >= 0 && count >= 0));
     uint32_t merged_idx =
-        callsite_to_merged_callsite[*callsites_tbl.id().IndexOf(
-            CallsiteId(static_cast<uint32_t>(callsite_id)))];
+        callsite_to_merged_callsite[static_cast<unsigned long>(callsite_id)];
     // On old heapprofd producers, the count field is incorrectly set and we
     // zero it in proto_trace_parser.cc.
     // As such, we cannot depend on count == 0 to imply size == 0, so we check
@@ -261,11 +256,7 @@ static std::unique_ptr<tables::ExperimentalFlamegraphNodesTable>
 BuildFlamegraphTableCallstackSizeAndCount(
     std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> tbl,
     const std::vector<uint32_t>& callsite_to_merged_callsite,
-    TraceStorage* storage,
     const Table& filtered) {
-  const tables::StackProfileCallsiteTable& callsites_tbl =
-      storage->stack_profile_callsite_table();
-
   for (auto it = filtered.IterateRows(); it; it.Next()) {
     int64_t callsite_id =
         it.Get(static_cast<uint32_t>(
@@ -273,8 +264,7 @@ BuildFlamegraphTableCallstackSizeAndCount(
             .long_value;
 
     uint32_t merged_idx =
-        callsite_to_merged_callsite[*callsites_tbl.id().IndexOf(
-            CallsiteId(static_cast<uint32_t>(callsite_id)))];
+        callsite_to_merged_callsite[static_cast<unsigned long>(callsite_id)];
     tbl->mutable_size()->Set(merged_idx, tbl->size()[merged_idx] + 1);
     tbl->mutable_count()->Set(merged_idx, tbl->count()[merged_idx] + 1);
   }
@@ -320,7 +310,7 @@ BuildNativeHeapProfileFlamegraph(TraceStorage* storage,
                                         filtered);
   return BuildFlamegraphTableHeapSizeAndCount(
       std::move(table_and_callsites.tbl),
-      table_and_callsites.callsite_to_merged_callsite, storage, filtered);
+      table_and_callsites.callsite_to_merged_callsite, filtered);
 }
 
 std::unique_ptr<tables::ExperimentalFlamegraphNodesTable>
@@ -353,13 +343,13 @@ BuildNativeCallStackSamplingFlamegraph(TraceStorage* storage,
   Table filtered_fully =
       filtered_by_pid.Filter({storage->perf_sample_table().ts().le(timestamp)});
 
-  StringId profile_type = storage->InternString("callstack");
+  StringId profile_type = storage->InternString("perf");
   FlamegraphTableAndMergedCallsites table_and_callsites =
       BuildFlamegraphTableTreeStructure(storage, upid, timestamp, profile_type,
                                         filtered_fully);
   return BuildFlamegraphTableCallstackSizeAndCount(
       std::move(table_and_callsites.tbl),
-      table_and_callsites.callsite_to_merged_callsite, storage, filtered_fully);
+      table_and_callsites.callsite_to_merged_callsite, filtered_fully);
 }
 
 }  // namespace trace_processor
