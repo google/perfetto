@@ -273,7 +273,7 @@ export class HeapProfileController extends Controller<'main'> {
     const callsites = await this.args.engine.query(`
         SELECT
         id as hash,
-        IFNULL(DEMANGLE(name), name) as name,
+        IFNULL(IFNULL(DEMANGLE(name), name), '[NULL]') as name,
         IFNULL(parent_id, -1) as parentHash,
         depth,
         cumulative_size as cumulativeSize,
