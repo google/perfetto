@@ -19,6 +19,7 @@ SELECT RUN_METRIC('android/android_multiuser_populator.sql',
     'start_event', 'user_start',
     'end_event', 'launcher_end');
 
+DROP VIEW IF EXISTS android_multiuser_output;
 CREATE VIEW android_multiuser_output AS
 SELECT AndroidMultiuserMetric(
   'user_switch', (SELECT * FROM event_user_switch)
