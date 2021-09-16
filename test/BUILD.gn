@@ -41,6 +41,7 @@ if (!build_with_chromium && enable_perfetto_integration_tests) {
     ]
     if (enable_perfetto_traced_probes) {
       deps += [
+        "../src/protozero/filtering:bytecode_generator",
         "../src/traced/probes/ftrace",
         "../src/traced/probes/ftrace:ftrace_procfs",
       ]
