@@ -576,9 +576,13 @@ export const StateActions = {
         };
       },
 
-  selectHeapProfile(
-      state: StateDraft,
-      args: {id: number, upid: number, ts: number, type: string}): void {
+  selectHeapProfile(state: StateDraft, args: {
+    id: number,
+    upid: number,
+    ts: number,
+    type: string,
+    viewingOption?: HeapProfileFlamegraphViewingOption
+  }): void {
     state.currentSelection = {
       kind: 'HEAP_PROFILE',
       id: args.id,
@@ -592,7 +596,7 @@ export const StateActions = {
       upid: args.upid,
       ts: args.ts,
       type: args.type,
-      viewingOption: DEFAULT_VIEWING_OPTION,
+      viewingOption: args.viewingOption || DEFAULT_VIEWING_OPTION,
       focusRegex: '',
     };
   },

@@ -46,8 +46,8 @@ interface FlagOverrides {
 function isFlagOverrides(o: object): o is FlagOverrides {
   const states =
       [OverrideState.TRUE.toString(), OverrideState.FALSE.toString()];
-  for (const [k, v] of Object.entries(o)) {
-    if (typeof k !== 'string' || typeof v !== 'string' || !states.includes(v)) {
+  for (const v of Object.values(o)) {
+    if (typeof v !== 'string' || !states.includes(v)) {
       return false;
     }
   }
