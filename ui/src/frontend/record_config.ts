@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {RecordConfig} from '../common/state';
-import {validateRecordConfig} from '../controller/validate_config';
+import {JsonObject, validateRecordConfig} from '../controller/validate_config';
 
 const LOCAL_STORAGE_RECORD_CONFIGS_KEY = 'recordConfigs';
 
@@ -24,17 +24,8 @@ class NamedRecordConfig {
 
   constructor(title: string, config: RecordConfig, key: string) {
     this.title = title;
-    this.config = this.validateData(config);
+    this.config = validateRecordConfig(config as unknown as JsonObject);
     this.key = key;
-  }
-
-  private validateData(config: {}): RecordConfig {
-    const validConfig = validateRecordConfig(config);
-    if (validConfig.errorMessage) {
-      // TODO(bsebastien): Show a warning message to the user in the UI.
-      console.warn(validConfig.errorMessage);
-    }
-    return validConfig.config;
   }
 
   static isValid(jsonObject: object): jsonObject is NamedRecordConfig {
