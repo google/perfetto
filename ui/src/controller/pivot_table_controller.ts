@@ -30,6 +30,7 @@ import {
 } from '../common/pivot_table_common';
 import {
   getAggregationAlias,
+  getAggregationOverStackAlias,
   getAliasedPivotColumns,
   getHiddenPivotAlias,
   getPivotAlias,
@@ -41,6 +42,7 @@ import {
   runQuery,
 } from '../common/queries';
 import {Row} from '../common/query_result';
+import {toNs} from '../common/time';
 import {PivotTableHelper} from '../frontend/pivot_table_helper';
 import {publishPivotTableHelper, publishQueryResult} from '../frontend/publish';
 
@@ -272,11 +274,11 @@ function getDescendantRows(
           expandableColumns
         };
         parent.row[nextColumnName] = null;
-        // Modify the parent row to show the total aggregation instead of the
-        // partitioned aggregations.
+        // Modify the parent row to show the aggregation over stack rows instead
+        // of the partitioned aggregations.
         for (const aggregation of queriedAggregations) {
           parent.row[getAggregationAlias(aggregation)] =
-              parent.row[getTotalAggregationAlias(aggregation)];
+              parent.row[getAggregationOverStackAlias(aggregation)];
         }
         nextColumnRow.row[stackColumn] = null;
         if (nextColumnRow.row[nextColumnName] !== undefined) {
@@ -354,6 +356,7 @@ function getPivotColumns(
 }
 
 function getWhereFilters(
+    pivotTableId: string,
     parentRowWhereFilters: Map<string, string>,
     pivots: PivotAttrs[],
     isStackQuery: boolean) {
@@ -374,6 +377,17 @@ function getWhereFilters(
 
   // Add global where filters
   whereFilters.push(...WHERE_FILTERS);
+
+  // Add area restrictions where filters if set.
+  const pivotTable = globals.state.pivotTable[pivotTableId];
+  if (pivotTable.selectedTrackIds) {
+    whereFilters.push(`slice.track_id IN (${pivotTable.selectedTrackIds})`);
+  }
+  if (pivotTable.traceTime) {
+    whereFilters.push(
+        `slice.ts + slice.dur > ${toNs(pivotTable.traceTime.startSec)}`);
+    whereFilters.push(`slice.ts < ${toNs(pivotTable.traceTime.endSec)}`);
+  }
 
   return whereFilters;
 }
@@ -450,6 +464,7 @@ export class PivotTableController extends Controller<'main'> {
         }
 
         const descendantsWhereFilters = getWhereFilters(
+            this.pivotTableId,
             ancestorRow.whereFilters,
             descendantsPivots,
             /* is_stack_query = */ true);
@@ -485,7 +500,10 @@ export class PivotTableController extends Controller<'main'> {
                 throw Error(`Pivot table descendants query ${
                     descendantsQuery} resulted in SQL error: ${resp.error}`);
               }
-              console.log(`Descendants query ${descendantsQuery} took ${
+
+              const printDescendantsQuery =
+                  descendantsQuery.length <= 1024 ? descendantsQuery : '';
+              console.log(`Descendants query${printDescendantsQuery} took ${
                   resp.durationMs} ms`);
 
               const {descendantRows, nextColumnRows} = getDescendantRows(
@@ -555,6 +573,7 @@ export class PivotTableController extends Controller<'main'> {
         }
 
         const expandWhereFilters = getWhereFilters(
+            this.pivotTableId,
             expandRow.whereFilters,
             expandPivots,
             /* is_stack_query = */ false);
@@ -574,7 +593,10 @@ export class PivotTableController extends Controller<'main'> {
             throw Error(`Pivot table expand query ${
                 expandQuery} resulted in SQL error: ${resp.error}`);
           }
-          console.log(`Expand query ${expandQuery} took ${resp.durationMs} ms`);
+          const printExpandQuery =
+              expandQuery.length <= 1024 ? expandQuery : '';
+          console.log(
+              `Expand query${printExpandQuery} took ${resp.durationMs} ms`);
 
           expandRow.expandedRows.set(expandColumnName, {
             isExpanded: true,
@@ -637,6 +659,7 @@ export class PivotTableController extends Controller<'main'> {
             /* is_stack_query = */ false);
 
         const whereFilers = getWhereFilters(
+            this.pivotTableId,
             /*parent_row_where_Filters = */ new Map(),
             pivots,
             /* is_stack_query = */ false);
@@ -657,12 +680,31 @@ export class PivotTableController extends Controller<'main'> {
                   resp.error}`);
             }
 
-            console.log(`Query ${query} took ${resp.durationMs} ms`);
+            const printQuery = query.length <= 1024 ? query : '';
+            console.log(`Query${printQuery} took ${resp.durationMs} ms`);
             const data =
                 getPivotTableQueryResponse(this.pivotTableId, resp, pivots);
+
+            if (pivotTable.selectedAggregations.length > 0 &&
+                resp.rows.length > 0) {
+              const totalAggregationsRow = Object.assign({}, resp.rows[0]);
+
+              // Modify the total aggregations row to show the total
+              // aggregations.
+              if (pivotTable.selectedPivots.length > 0) {
+                for (const aggregation of pivotTable.selectedAggregations) {
+                  totalAggregationsRow[getAggregationAlias(aggregation)] =
+                      totalAggregationsRow[getTotalAggregationAlias(
+                          aggregation)];
+                }
+              }
+              data.totalAggregations = totalAggregationsRow;
+            }
+
             publishQueryResult({id: this.pivotTableId, data});
 
             this.queryResp = data;
+
             globals.dispatch(
                 Actions.toggleQueryLoading({pivotTableId: this.pivotTableId}));
           });

@@ -108,6 +108,10 @@ class PivotTableHeader implements m.ClassComponent<PivotTableHeaderAttrs> {
                    }
                  },
                  sortIcon) :
+               null),
+          (!isPivot && resp.totalAggregations !== undefined ?
+               m('.total-aggregation',
+                 `(${resp.totalAggregations[column.name]})`) :
                null)));
     }
     return m('tr', cols);
@@ -278,6 +282,11 @@ export class PivotTable extends Panel<PivotTableAttrs> {
       });
     }
 
+    const startSec = pivotTable.traceTime ? pivotTable.traceTime.startSec :
+                                            globals.state.traceTime.startSec;
+    const endSec = pivotTable.traceTime ? pivotTable.traceTime.endSec :
+                                          globals.state.traceTime.endSec;
+
     return m(
         'div.pivot-table-tab',
         m(
@@ -298,8 +307,9 @@ export class PivotTable extends Panel<PivotTableAttrs> {
               (pivotTable.isLoadingQuery ? m('.pivot-table-spinner') : null),
               (resp !== undefined && !pivotTable.isLoadingQuery ?
                    m('span.code',
-                     `Query took ${Math.round(resp.durationMs)} ms`) :
-                   null)),
+                     `Query took ${Math.round(resp.durationMs)} ms -`) :
+                   null),
+              m('span.code', `Selected range: ${endSec - startSec} s`)),
             m('button',
               {
                 disabled: helper === undefined || pivotTable.isLoadingQuery,
