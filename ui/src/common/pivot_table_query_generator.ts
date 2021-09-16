@@ -47,6 +47,16 @@ export function getSqlAggregationAlias(aggregation: AggregationAttrs): string {
   return `"${getAggregationAlias(aggregation)}"`;
 }
 
+export function getAggregationOverStackAlias(aggregation: AggregationAttrs):
+    string {
+  return `${getAggregationAlias(aggregation)} (stack)`;
+}
+
+export function getSqlAggregationOverStackAlias(aggregation: AggregationAttrs):
+    string {
+  return `"${getAggregationOverStackAlias(aggregation)}"`;
+}
+
 export function getTotalAggregationAlias(aggregation: AggregationAttrs):
     string {
   return `${getAggregationAlias(aggregation)} (total)`;
@@ -84,13 +94,20 @@ export function getAliasedPivotColumns(pivots: PivotAttrs[]) {
 // Returns an array of aggregation aliases along with total aggregations if
 // necessary.
 function getSqlAliasedAggregationsColumns(
-    aggregations: AggregationAttrs[], isStackQuery: boolean): string[] {
+    aggregations: AggregationAttrs[],
+    hasPivotsSelected: boolean,
+    isStackQuery: boolean): string[] {
   const aggCols =
       aggregations.map(aggregation => getSqlAggregationAlias(aggregation));
 
-  if (isStackQuery) {
+  if (hasPivotsSelected) {
     aggCols.push(...aggregations.map(
         aggregation => getSqlTotalAggregationAlias(aggregation)));
+  }
+
+  if (isStackQuery) {
+    aggCols.push(...aggregations.map(
+        aggregation => getSqlAggregationOverStackAlias(aggregation)));
   }
   return aggCols;
 }
@@ -175,11 +192,17 @@ export class PivotTableQueryGenerator {
         continue;
       }
 
+      // Add total aggregations column.
+      aggCols.push(
+          `${aggColPrefix} OVER () AS ` +
+          `${getSqlTotalAggregationAlias(aggregation)}`);
+
+      // Add aggregation over stack column.
       if (isStackQuery) {
         aggCols.push(
             `${aggColPrefix} OVER (PARTITION BY ` +
             `${partitionByPivotCols[0]}) AS ` +
-            `${getSqlTotalAggregationAlias(aggregation)}`);
+            `${getSqlAggregationOverStackAlias(aggregation)}`);
       }
 
       aggCols.push(
@@ -213,8 +236,10 @@ export class PivotTableQueryGenerator {
     let query = '\nSELECT\n';
 
     const pivotCols = getSqlAliasedPivotColumns(pivots);
-    const aggCols =
-        getSqlAliasedAggregationsColumns(aggregations, isStackQuery);
+    const aggCols = getSqlAliasedAggregationsColumns(
+        aggregations,
+        /* has_pivots_selected = */ pivots.length > 0,
+        isStackQuery);
 
     query += pivotCols.concat(aggCols).join(',\n  ');
     query += '\n';

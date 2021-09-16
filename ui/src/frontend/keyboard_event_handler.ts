@@ -13,8 +13,9 @@
 // limitations under the License.
 
 import {Actions} from '../common/actions';
-import {Area} from '../common/state';
 import {featureFlags} from '../common/feature_flags';
+import {DEFAULT_PIVOT_TABLE_ID} from '../common/pivot_table_common';
+import {Area} from '../common/state';
 
 import {Flow, globals} from './globals';
 import {toggleHelp} from './help_modal';
@@ -82,7 +83,7 @@ export function handleKey(e: KeyboardEvent, down: boolean) {
   if (down && 'p' === key && !e.ctrlKey && PIVOT_TABLE_FLAG.get()) {
     e.preventDefault();
     globals.frontendLocalState.togglePivotTable();
-    const pivotTableId = 'pivot-table';
+    const pivotTableId = DEFAULT_PIVOT_TABLE_ID;
     if (globals.state.pivotTable[pivotTableId] === undefined) {
       globals.dispatch(Actions.addNewPivotTable({
         name: 'Pivot Table',
