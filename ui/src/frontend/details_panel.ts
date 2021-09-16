@@ -268,6 +268,7 @@ export class DetailsPanel implements m.ClassComponent {
             })
           });
           break;
+        case 'PERF_SAMPLES':
         case 'HEAP_PROFILE':
           detailsPanels.push({
             key: 'current_selection',
