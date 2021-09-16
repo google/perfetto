@@ -21,6 +21,8 @@ export const WHERE_FILTERS = ['slice.dur != -1'];
 export const SLICE_STACK_HELPER_COLUMNS =
     ['depth', 'stack_id', 'parent_stack_id'];
 export const SLICE_STACK_COLUMN = 'name (stack)';
+export const DEFAULT_PIVOT_TABLE_ID = 'pivot-table';
+export const SLICE_AGGREGATION_PIVOT_TABLE_ID = 'pivot-table-slices';
 
 export interface AggregationAttrs {
   tableName: string;
@@ -81,6 +83,7 @@ export interface PivotTableQueryResponse {
   error?: string;
   durationMs: number;
   rows: RowAttrs[];
+  totalAggregations?: Row;
 }
 
 // Determine if the column provided is a stack column that can be expanded
