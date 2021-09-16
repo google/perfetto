@@ -34,11 +34,13 @@ test('Generate query with pivots and aggregations', () => {
   const expectedQuery = '\nSELECT\n' +
       '"slice type",\n' +
       '  "slice id",\n' +
-      '  "slice dur (SUM)"\n' +
+      '  "slice dur (SUM)",\n' +
+      '  "slice dur (SUM) (total)"\n' +
       'FROM (\n' +
       'SELECT\n' +
       '"slice type",\n' +
       '  "slice id",\n' +
+      '  SUM("slice dur (SUM)") OVER () AS "slice dur (SUM) (total)",\n' +
       '  SUM("slice dur (SUM)") OVER (PARTITION BY "slice type",  "slice id")' +
       ' AS "slice dur (SUM)"\n' +
       'FROM (\n' +
@@ -130,7 +132,8 @@ test('Generate a query with stack pivot', () => {
       '  "slice stack_id (hidden)",\n' +
       '  "slice parent_stack_id (hidden)",\n' +
       '  "slice category",\n' +
-      '  "slice id (COUNT)"\n' +
+      '  "slice id (COUNT)",\n' +
+      '  "slice id (COUNT) (total)"\n' +
       'FROM (\n' +
       'SELECT\n' +
       '"slice name (stack)",\n' +
@@ -138,6 +141,7 @@ test('Generate a query with stack pivot', () => {
       '  "slice stack_id (hidden)",\n' +
       '  "slice parent_stack_id (hidden)",\n' +
       '  "slice category",\n' +
+      '  COUNT("slice id (COUNT)") OVER () AS "slice id (COUNT) (total)",\n' +
       '  COUNT("slice id (COUNT)") OVER (PARTITION BY' +
       ' "slice stack_id (hidden)",  "slice category") AS "slice id (COUNT)"\n' +
       'FROM (\n' +
