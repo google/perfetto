@@ -264,7 +264,7 @@ CREATE TABLE {{prefix}}_jank_maybe_null_prev_and_next AS
   FROM (
     SELECT
       curr.*,
-      curr.maybe_gesture_end - curr.begin_ts AS gesture_dur,
+      curr.maybe_gesture_end - curr.begin_ts AS {{prefix}}_dur,
       prev.ts AS prev_ts,
       prev.{{id_field}} AS prev_{{id_field}},
       prev.gesture_frames_exact AS prev_gesture_frames_exact
@@ -301,10 +301,10 @@ CREATE VIEW {{prefix}}_jank_output AS
       ),
       '{{prefix}}_ms', (
         SELECT
-          CAST(SUM(gesture_dur)/1e6 AS REAL)
+          CAST(SUM({{prefix}}_dur)/1e6 AS REAL)
         FROM (
           SELECT
-            MAX(gesture_dur) AS gesture_dur
+            MAX({{prefix}}_dur) AS {{prefix}}_dur
           FROM {{prefix}}_jank
           GROUP BY {{id_field}}
         )
