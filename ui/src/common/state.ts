@@ -223,6 +223,14 @@ export interface HeapProfileSelection {
   type: string;
 }
 
+export interface PerfSamplesSelection {
+  kind: 'PERF_SAMPLES';
+  id: number;
+  upid: number;
+  ts: number;
+  type: string;
+}
+
 export interface HeapProfileFlamegraph {
   kind: 'HEAP_PROFILE_FLAMEGRAPH';
   id: number;
@@ -255,7 +263,7 @@ export interface ThreadStateSelection {
 type Selection =
     (NoteSelection|SliceSelection|CounterSelection|HeapProfileSelection|
      CpuProfileSampleSelection|ChromeSliceSelection|ThreadStateSelection|
-     AreaSelection)&{trackId?: string};
+     AreaSelection|PerfSamplesSelection)&{trackId?: string};
 
 export interface LogsPagination {
   offset: number;
