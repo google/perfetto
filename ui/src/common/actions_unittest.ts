@@ -14,6 +14,7 @@
 
 import {produce} from 'immer';
 
+import {assertExists} from '../base/logging';
 import {SLICE_TRACK_KIND} from '../tracks/chrome_slices/common';
 import {HEAP_PROFILE_TRACK_KIND} from '../tracks/heap_profile/common';
 import {
@@ -416,4 +417,30 @@ test('sortTracksByTidThenName', () => {
   });
 
   expect(after.trackGroups['g'].tracks).toEqual(['a', 'a', 'c', 'b']);
+});
+
+test('perf samples open flamegraph', () => {
+  const state = createEmptyState();
+  const perfType = 'perf';
+
+  const afterSelectingPerf = produce(state, draft => {
+    StateActions.selectPerfSamples(
+        draft, {id: 0, upid: 0, ts: 0, type: perfType});
+  });
+
+  expect(assertExists(afterSelectingPerf.currentHeapProfileFlamegraph).type)
+      .toBe(perfType);
+});
+
+test('heap profile opens flamegraph', () => {
+  const state = createEmptyState();
+  const heapType = 'graph';
+
+  const afterSelectingPerf = produce(state, draft => {
+    StateActions.selectHeapProfile(
+        draft, {id: 0, upid: 0, ts: 0, type: heapType});
+  });
+
+  expect(assertExists(afterSelectingPerf.currentHeapProfileFlamegraph).type)
+      .toBe(heapType);
 });
