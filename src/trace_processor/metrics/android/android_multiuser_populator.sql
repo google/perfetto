@@ -96,6 +96,7 @@ ORDER BY cpu_mcycles DESC LIMIT 6;
 
 
 -- Record the output for populating the proto.
+DROP VIEW IF EXISTS {{output_table_name}};
 CREATE VIEW {{output_table_name}} AS
 SELECT AndroidMultiuserMetric_EventData(
   'duration_ms', (
