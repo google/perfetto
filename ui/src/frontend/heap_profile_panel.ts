@@ -14,11 +14,13 @@
 
 import * as m from 'mithril';
 
+import {assertExists} from '../base/logging';
 import {Actions} from '../common/actions';
 import {
   ALLOC_SPACE_MEMORY_ALLOCATED_KEY,
   OBJECTS_ALLOCATED_KEY,
   OBJECTS_ALLOCATED_NOT_FREED_KEY,
+  PERF_SAMPLES_KEY,
   SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY,
 } from '../common/flamegraph_util';
 import {
@@ -42,6 +44,7 @@ const HEADER_HEIGHT = 30;
 enum ProfileType {
   NATIVE_HEAP_PROFILE = 'native',
   JAVA_HEAP_GRAPH = 'graph',
+  PERF_SAMPLE = 'perf'
 }
 
 function isProfileType(s: string): s is ProfileType {
@@ -169,6 +172,8 @@ export class HeapProfileDetailsPanel extends
         return 'Heap Profile:';
       case ProfileType.JAVA_HEAP_GRAPH:
         return 'Java Heap:';
+      case ProfileType.PERF_SAMPLE:
+        return 'Perf sample:';
       default:
         throw new Error('unknown type');
     }
@@ -181,14 +186,15 @@ export class HeapProfileDetailsPanel extends
     const viewingOption =
         globals.state.currentHeapProfileFlamegraph!.viewingOption;
     switch (this.profileType) {
-      case ProfileType.NATIVE_HEAP_PROFILE:
-        return RENDER_SELF_AND_TOTAL;
       case ProfileType.JAVA_HEAP_GRAPH:
         if (viewingOption === OBJECTS_ALLOCATED_NOT_FREED_KEY) {
           return RENDER_OBJ_COUNT;
         } else {
           return RENDER_SELF_AND_TOTAL;
         }
+      case ProfileType.NATIVE_HEAP_PROFILE:
+      case ProfileType.PERF_SAMPLE:
+        return RENDER_SELF_AND_TOTAL;
       default:
         throw new Error('unknown type');
     }
@@ -200,53 +206,11 @@ export class HeapProfileDetailsPanel extends
     }));
   }
 
-  getButtonsClass(button: HeapProfileFlamegraphViewingOption): string {
-    if (globals.state.currentHeapProfileFlamegraph === null) return '';
-    return globals.state.currentHeapProfileFlamegraph.viewingOption === button ?
-        '.chosen' :
-        '';
-  }
-
   getViewingOptionButtons(): m.Children {
-    const viewingOptions = [
-      m(`button${this.getButtonsClass(SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY)}`,
-        {
-          onclick: () => {
-            this.changeViewingOption(SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY);
-          }
-        },
-        'space'),
-      m(`button${this.getButtonsClass(OBJECTS_ALLOCATED_NOT_FREED_KEY)}`,
-        {
-          onclick: () => {
-            this.changeViewingOption(OBJECTS_ALLOCATED_NOT_FREED_KEY);
-          }
-        },
-        'objects'),
-    ];
-
-    if (this.profileType === ProfileType.NATIVE_HEAP_PROFILE) {
-      viewingOptions.push(
-          m(`button${this.getButtonsClass(ALLOC_SPACE_MEMORY_ALLOCATED_KEY)}`,
-            {
-              onclick: () => {
-                this.changeViewingOption(ALLOC_SPACE_MEMORY_ALLOCATED_KEY);
-              }
-            },
-            'alloc space'),
-          m(`button${this.getButtonsClass(OBJECTS_ALLOCATED_KEY)}`,
-            {
-              onclick: () => {
-                this.changeViewingOption(OBJECTS_ALLOCATED_KEY);
-              }
-            },
-            'alloc objects'));
-    }
-    return m('div', ...viewingOptions);
-  }
-
-  changeViewingOption(viewingOption: HeapProfileFlamegraphViewingOption) {
-    globals.dispatch(Actions.changeViewHeapProfileFlamegraph({viewingOption}));
+    return m(
+        'div',
+        ...HeapProfileDetailsPanel.selectViewingOptions(
+            assertExists(this.profileType)));
   }
 
   downloadPprof() {
@@ -293,5 +257,48 @@ export class HeapProfileDetailsPanel extends
 
   onMouseOut() {
     this.flamegraph.onMouseOut();
+  }
+
+  private static selectViewingOptions(profileType: ProfileType) {
+    switch (profileType) {
+      case ProfileType.PERF_SAMPLE:
+        return [this.buildButtonComponent(PERF_SAMPLES_KEY, 'samples')];
+      case ProfileType.NATIVE_HEAP_PROFILE:
+        return [
+          this.buildButtonComponent(
+              SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY, 'space'),
+          this.buildButtonComponent(OBJECTS_ALLOCATED_NOT_FREED_KEY, 'objects')
+        ];
+      case ProfileType.JAVA_HEAP_GRAPH:
+        return [
+          this.buildButtonComponent(
+              SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY, 'space'),
+          this.buildButtonComponent(OBJECTS_ALLOCATED_NOT_FREED_KEY, 'objects'),
+          this.buildButtonComponent(
+              ALLOC_SPACE_MEMORY_ALLOCATED_KEY, 'alloc space'),
+          this.buildButtonComponent(OBJECTS_ALLOCATED_KEY, 'alloc objects')
+        ];
+      default:
+        throw new Error(`Unexpected profile type ${profileType}`);
+    }
+  }
+
+  private static buildButtonComponent(
+      viewingOption: HeapProfileFlamegraphViewingOption, text: string) {
+    const buttonsClass =
+        (globals.state.currentHeapProfileFlamegraph &&
+         globals.state.currentHeapProfileFlamegraph.viewingOption ===
+             viewingOption) ?
+        '.chosen' :
+        '';
+    return m(
+        `button${buttonsClass}`,
+        {
+          onclick: () => {
+            globals.dispatch(
+                Actions.changeViewHeapProfileFlamegraph({viewingOption}));
+          }
+        },
+        text);
   }
 }
