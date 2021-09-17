@@ -21,6 +21,7 @@ import {
   mergeCallsites,
   OBJECTS_ALLOCATED_KEY,
   OBJECTS_ALLOCATED_NOT_FREED_KEY,
+  PERF_SAMPLES_KEY,
   SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY
 } from '../common/flamegraph_util';
 import {NUM, STR} from '../common/query_result';
@@ -236,13 +237,6 @@ export class HeapProfileController extends Controller<'main'> {
     // Alternatively consider collapsing frames of the same label.
     const maxDepth = 100;
     switch (viewingOption) {
-      case SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY:
-        orderBy = `where cumulative_size > 0 and depth < ${
-            maxDepth} order by depth, parent_id,
-            cumulative_size desc, name`;
-        totalColumnName = 'cumulativeSize';
-        selfColumnName = 'size';
-        break;
       case ALLOC_SPACE_MEMORY_ALLOCATED_KEY:
         orderBy = `where cumulative_alloc_size > 0 and depth < ${
             maxDepth} order by depth, parent_id,
@@ -264,6 +258,14 @@ export class HeapProfileController extends Controller<'main'> {
         totalColumnName = 'cumulativeAllocCount';
         selfColumnName = 'count';
         break;
+      case PERF_SAMPLES_KEY:
+      case SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY:
+        orderBy = `where cumulative_size > 0 and depth < ${
+            maxDepth} order by depth, parent_id,
+            cumulative_size desc, name`;
+        totalColumnName = 'cumulativeSize';
+        selfColumnName = 'size';
+        break;
       default:
         break;
     }
@@ -271,7 +273,7 @@ export class HeapProfileController extends Controller<'main'> {
     const callsites = await this.args.engine.query(`
         SELECT
         id as hash,
-        IFNULL(DEMANGLE(name), name) as name,
+        IFNULL(IFNULL(DEMANGLE(name), name), '[NULL]') as name,
         IFNULL(parent_id, -1) as parentHash,
         depth,
         cumulative_size as cumulativeSize,
@@ -285,7 +287,7 @@ export class HeapProfileController extends Controller<'main'> {
         IFNULL(line_number, -1) as lineNumber
         from ${tableName} ${orderBy}`);
 
-    const flamegraphData: CallsiteInfo[] = new Array();
+    const flamegraphData: CallsiteInfo[] = [];
     const hashToindex: Map<number, number> = new Map();
     const it = callsites.iter({
       hash: NUM,

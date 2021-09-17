@@ -78,7 +78,7 @@ export enum TrackKindPriority {
 }
 
 export type HeapProfileFlamegraphViewingOption =
-    'SPACE'|'ALLOC_SPACE'|'OBJECTS'|'ALLOC_OBJECTS';
+    'SPACE'|'ALLOC_SPACE'|'OBJECTS'|'ALLOC_OBJECTS'|'PERF_SAMPLES';
 
 export interface CallsiteInfo {
   id: number;
@@ -223,6 +223,14 @@ export interface HeapProfileSelection {
   type: string;
 }
 
+export interface PerfSamplesSelection {
+  kind: 'PERF_SAMPLES';
+  id: number;
+  upid: number;
+  ts: number;
+  type: string;
+}
+
 export interface HeapProfileFlamegraph {
   kind: 'HEAP_PROFILE_FLAMEGRAPH';
   id: number;
@@ -255,7 +263,7 @@ export interface ThreadStateSelection {
 type Selection =
     (NoteSelection|SliceSelection|CounterSelection|HeapProfileSelection|
      CpuProfileSampleSelection|ChromeSliceSelection|ThreadStateSelection|
-     AreaSelection)&{trackId?: string};
+     AreaSelection|PerfSamplesSelection)&{trackId?: string};
 
 export interface LogsPagination {
   offset: number;
@@ -300,6 +308,8 @@ export interface PivotTableState {
   requestedAction?:  // Unset after pivot table column request is handled.
       {action: string, attrs?: SubQueryAttrs};
   isLoadingQuery: boolean;
+  traceTime?: TraceTime;
+  selectedTrackIds?: number[];
 }
 
 export interface State {

@@ -262,7 +262,7 @@ std::unique_ptr<Table> ExperimentalFlamegraphGenerator::ComputeTable(
   } else if (values.profile_type == "native") {
     table = BuildNativeHeapProfileFlamegraph(context_->storage.get(),
                                              values.upid, values.ts);
-  } else if (values.profile_type == "callstack") {
+  } else if (values.profile_type == "perf") {
     table = BuildNativeCallStackSamplingFlamegraph(context_->storage.get(),
                                                    values.upid, values.ts);
   }

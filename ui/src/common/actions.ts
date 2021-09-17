@@ -24,12 +24,13 @@ import {
   EXPECTED_FRAMES_SLICE_TRACK_KIND
 } from '../tracks/expected_frames/common';
 import {HEAP_PROFILE_TRACK_KIND} from '../tracks/heap_profile/common';
+import {PERF_SAMPLES_TRACK_KIND} from '../tracks/perf_samples/common';
 import {
   PROCESS_SCHEDULING_TRACK_KIND
 } from '../tracks/process_scheduling/common';
 import {PROCESS_SUMMARY_TRACK} from '../tracks/process_summary/common';
 
-import {DEFAULT_VIEWING_OPTION} from './flamegraph_util';
+import {DEFAULT_VIEWING_OPTION, PERF_SAMPLES_KEY} from './flamegraph_util';
 import {
   AggregationAttrs,
   PivotAttrs,
@@ -66,8 +67,12 @@ const highPriorityTrackOrder = [
   ACTUAL_FRAMES_SLICE_TRACK_KIND
 ];
 
-const lowPriorityTrackOrder =
-    [HEAP_PROFILE_TRACK_KIND, COUNTER_TRACK_KIND, ASYNC_SLICE_TRACK_KIND];
+const lowPriorityTrackOrder = [
+  PERF_SAMPLES_TRACK_KIND,
+  HEAP_PROFILE_TRACK_KIND,
+  COUNTER_TRACK_KIND,
+  ASYNC_SLICE_TRACK_KIND
+];
 
 export interface AddTrackArgs {
   id?: string;
@@ -586,13 +591,37 @@ export const StateActions = {
       ts: args.ts,
       type: args.type,
     };
+    this.openFlamegraph(
+        state, {...args, viewingOption: DEFAULT_VIEWING_OPTION});
+  },
+
+  selectPerfSamples(
+      state: StateDraft,
+      args: {id: number, upid: number, ts: number, type: string}): void {
+    state.currentSelection = {
+      kind: 'PERF_SAMPLES',
+      id: args.id,
+      upid: args.upid,
+      ts: args.ts,
+      type: args.type,
+    };
+    this.openFlamegraph(state, {...args, viewingOption: PERF_SAMPLES_KEY});
+  },
+
+  openFlamegraph(state: StateDraft, args: {
+    id: number,
+    upid: number,
+    ts: number,
+    type: string,
+    viewingOption: HeapProfileFlamegraphViewingOption
+  }): void {
     state.currentHeapProfileFlamegraph = {
       kind: 'HEAP_PROFILE_FLAMEGRAPH',
       id: args.id,
       upid: args.upid,
       ts: args.ts,
       type: args.type,
-      viewingOption: DEFAULT_VIEWING_OPTION,
+      viewingOption: args.viewingOption,
       focusRegex: '',
     };
   },
@@ -847,7 +876,9 @@ export const StateActions = {
     name: string,
     pivotTableId: string,
     selectedPivots: PivotAttrs[],
-    selectedAggregations: AggregationAttrs[]
+    selectedAggregations: AggregationAttrs[],
+    traceTime?: TraceTime,
+    selectedTrackIds?: number[]
   }): void {
     state.pivotTable[args.pivotTableId] = {
       id: args.pivotTableId,
@@ -855,6 +886,8 @@ export const StateActions = {
       selectedPivots: args.selectedPivots,
       selectedAggregations: args.selectedAggregations,
       isLoadingQuery: false,
+      traceTime: args.traceTime,
+      selectedTrackIds: args.selectedTrackIds
     };
   },
 
@@ -902,6 +935,16 @@ export const StateActions = {
         args.selectedAggregations.map(
             aggregation => Object.assign({}, aggregation));
   },
+
+  setPivotTableRange(state: StateDraft, args: {
+    pivotTableId: string,
+    traceTime?: TraceTime,
+    selectedTrackIds?: number[]
+  }) {
+    const pivotTable = state.pivotTable[args.pivotTableId];
+    pivotTable.traceTime = args.traceTime;
+    pivotTable.selectedTrackIds = args.selectedTrackIds;
+  }
 };
 
 // When we are on the frontend side, we don't really want to execute the
