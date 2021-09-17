@@ -2,6 +2,10 @@ Unreleased:
   Tracing service and probes:
     * Removed DCHECK that would cause crashes when a debug build of the service
       is used with a producer built with -DNDEBUG.
+    * Changed the service-side field-level filtering configuration protobuf
+      field number, because the feature had a bug. This is effectively
+      equivalent to deprecating the feature and reintroducing it under a
+      different name.
   Trace Processor:
     * Added reqiurement of separating queries by semi-colon (;) followed by
       new-line when specifying a query file with -q to trace processor shell.
