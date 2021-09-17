@@ -140,13 +140,7 @@ std::string CreateElfWithBuildId(const std::string& build_id) {
   return std::string(reinterpret_cast<const char*>(&e), sizeof e);
 }
 
-#if defined(MEMORY_SANITIZER)
-// fts_read() causes some error under msan.
-#define NOMSAN_SimpleTree DISABLED_SimpleTree
-#else
-#define NOMSAN_SimpleTree SimpleTree
-#endif
-TEST(LocalBinaryIndexerTest, NOMSAN_SimpleTree) {
+TEST(LocalBinaryIndexerTest, SimpleTree) {
   base::TmpDirTree tmp;
   tmp.AddDir("dir1");
   tmp.AddFile("dir1/elf1", CreateElfWithBuildId("AAAAAAAAAAAAAAAAAAAA"));
