@@ -80,16 +80,16 @@ You can pop up a pivot table over the entire trace when clicking "p" on your
 keyboard. The "Edit" button opens a pop up window to add/remove and reorder
 columns and change the default sorting of aggregations.
 
-![Pivot table editor](/docs/images/pivot-table/pivot-table-editor.png)
+![Pivot table editor](/docs/images/pivot-tables/pivot-table-editor.png)
 
 Clicking on "Query" generates a table with the selected columns.
 Table cells with the expand icon can be expanded to show the next column values.
 The "name (stack)" column displays top level slices that can be expanded to show
 their descendants down to the last child.
 
-![Pivot table](/docs/images/pivot-table/pivot-table.png)
+![Pivot table](/docs/images/pivot-tables/pivot-table.png)
 
 Area selection pops up a pre-filled pivot table restricted over the selected
 timestamps and track ids.
 
-![Pivot table area selection](/docs/images/pivot-table/pivot-table-area-selection.png)
+![Pivot table area selection](/docs/images/pivot-tables/pivot-table-area-selection.png)
