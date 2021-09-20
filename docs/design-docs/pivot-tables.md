@@ -1,8 +1,8 @@
 # Pivot Tables
 
-_**Project Plan**: [Perfetto: Pivot tables for slices](https://docs.google.com/document/d/1RuEGQKLgOA8YWjZJHD6CTA3ghRRg6o5Phg3_rFCJEDE/)
-_**How to Use**: [Pivot Table Usage](/docs/visualization/perfetto-ui#pivot-tables)
-_**For Googlers**: [Perfetto: Pivot Table Use Cases](https://docs.google.com/document/d/1_iR-JjD7m19Q9GQtMk1_5NLSYXFicB_gg4S9D-6Q8lU/)
+_**Project Plan**: [Perfetto: Pivot tables for slices](https://docs.google.com/document/d/1RuEGQKLgOA8YWjZJHD6CTA3ghRRg6o5Phg3_rFCJEDE/)_  
+_**How to Use**: [Pivot Table Usage](/docs/visualization/perfetto-ui#pivot-tables)_  
+_**For Googlers**: [Perfetto: Pivot Table Use Cases](https://docs.google.com/document/d/1_iR-JjD7m19Q9GQtMk1_5NLSYXFicB_gg4S9D-6Q8lU/)_  
 
 ## Objective
 Pivot tables give a simplified aggregated view of more complex data. They are
@@ -18,7 +18,7 @@ information about traces in a summarized and less complex way.
 
 ## Main Components
 
-![Pivot table design](/docs/images/pivot-table/pivot-table-design.png)
+![Pivot table design](/docs/images/pivot-tables/pivot-table-design.png)
 
 ### Details Panel (Frontend)
 The [DetailsPanel](https://cs.android.com/android/_/android/platform/external/perfetto/+/0ae7c36fd528824ee9fdea6cfd4494e9f05183b5:ui/src/frontend/details_panel.ts)
@@ -30,7 +30,7 @@ PivotTableEditor modal is not open).
 ### Pivot Table (Frontend)
 The [PivotTable](https://cs.android.com/android/_/android/platform/external/perfetto/+/0ae7c36fd528824ee9fdea6cfd4494e9f05183b5:ui/src/frontend/pivot_table.ts) builds
 the pivot table tab and the table. It also handles user requests (like opening
-the pivot table editor, drag and drop columns, expand, etc…) by calling the
+the pivot table editor, drag and drop columns, expand, etc) by calling the
 PivotTableHelper and updating the table.
 
 
@@ -56,7 +56,7 @@ the logic for manipulating the data locally, which are used by the PivotTable
 and PivotTableEditor.
 It also replaces the data in the State with the changes upon request.
 The PivotTableHelper also checks for special “stack” columns, called stackPivots
-("name (stack)" for [slice table](/docs/analysis/sql-tables.autogen#slice) is
+(`name (stack)` for [slice table](/docs/analysis/sql-tables.autogen#slice) is
 currently the only special column), as it sets the column attributes which are
 then used to identify them by other components.
 
