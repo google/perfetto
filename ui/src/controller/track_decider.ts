@@ -41,7 +41,9 @@ import {
   EXPECTED_FRAMES_SLICE_TRACK_KIND
 } from '../tracks/expected_frames/common';
 import {HEAP_PROFILE_TRACK_KIND} from '../tracks/heap_profile/common';
-import {PERF_SAMPLES_TRACK_KIND} from '../tracks/perf_samples/common';
+import {
+  PERF_SAMPLES_PROFILE_TRACK_KIND
+} from '../tracks/perf_samples_profile/common';
 import {
   PROCESS_SCHEDULING_TRACK_KIND
 } from '../tracks/process_scheduling/common';
@@ -951,7 +953,7 @@ class TrackDecider {
       const uuid = this.getUuid(0, upid);
       this.tracksToAdd.push({
         engineId: this.engineId,
-        kind: PERF_SAMPLES_TRACK_KIND,
+        kind: PERF_SAMPLES_PROFILE_TRACK_KIND,
         trackKindPriority: TrackKindPriority.ORDINARY,
         name: `Perf Samples`,
         trackGroup: uuid,
