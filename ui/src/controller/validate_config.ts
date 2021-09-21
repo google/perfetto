@@ -12,46 +12,176 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {createEmptyRecordConfig, RecordConfig} from '../common/state';
+import {RecordConfig, RecordMode} from '../common/state';
 
-interface RecordConfigValidationResult {
-  config: RecordConfig;
-  errorMessage?: string;
+type Json = JsonObject|Json[]|null|number|boolean|string;
+
+export interface JsonObject {
+  [key: string]: Json;
 }
 
-export function validateRecordConfig(
-    config: {[key: string]: string|number|boolean|string[]|null}):
-    RecordConfigValidationResult {
-  // Remove the keys that are not in both createEmptyRecordConfig and
-  // config.
-  const newConfig: RecordConfig = createEmptyRecordConfig();
-  const ignoredKeys: string[] = [];
-  // TODO(bsebastien): Also check that types of properties match.
-  Object.entries(newConfig).forEach(([key, value]) => {
-    if (key in config && typeof value === typeof config[key]) {
-      newConfig[key] = config[key];
+class ObjectValidator {
+  raw: JsonObject;
+
+  constructor(raw: JsonObject) {
+    this.raw = raw;
+  }
+
+  number(key: string, def = 0): number {
+    if (!(key in this.raw)) {
+      return def;
+    }
+
+    const val = this.raw[key];
+    if (typeof val === 'number') {
+      return val;
     } else {
-      ignoredKeys.push(key);
-    }
-  });
-
-  // Check if config has additional keys that are not in
-  // createEmptyRecordConfig().
-  for (const key of Object.keys(config)) {
-    if (!(key in newConfig)) {
-      ignoredKeys.push(key);
+      return def;
     }
   }
 
-  if (ignoredKeys.length > 0) {
-    // At least return an empty RecordConfig if nothing match.
-    return {
-      errorMessage: 'Warning: Loaded config contains incompatible keys.\n\
-        It may have been created with an older version of the UI.\n\
-        Ignored keys: ' +
-          ignoredKeys.join(' '),
-      config: newConfig,
-    };
+  string(key: string, def = ''): string {
+    if (!(key in this.raw)) {
+      return def;
+    }
+
+    const val = this.raw[key];
+    if (typeof val === 'string') {
+      return val;
+    } else {
+      return def;
+    }
   }
-  return {config: newConfig};
+
+  stringArray(key: string, def: string[] = []): string[] {
+    if (!(key in this.raw)) {
+      return def;
+    }
+
+    const val = this.raw[key];
+    if (Array.isArray(val)) {
+      for (let i = 0; i < val.length; i++) {
+        if (typeof val[i] !== 'string') {
+          return def;
+        }
+      }
+      return val as string[];
+    } else {
+      return def;
+    }
+  }
+
+  boolean(key: string, def = false): boolean {
+    if (!(key in this.raw)) {
+      return def;
+    }
+
+    const val = this.raw[key];
+    if (typeof val === 'boolean') {
+      return val;
+    } else {
+      return def;
+    }
+  }
+
+  recordMode(key: string, def: RecordMode): RecordMode {
+    if (!(key in this.raw)) {
+      return def;
+    }
+
+    const mode = this.raw[key];
+    if (typeof mode !== 'string') {
+      return def;
+    }
+
+    if (mode === 'STOP_WHEN_FULL') {
+      return mode;
+    } else if (mode === 'RING_BUFFER') {
+      return mode;
+    } else if (mode === 'LONG_TRACE') {
+      return mode;
+    } else {
+      return def;
+    }
+  }
+}
+
+export function validateRecordConfig(config: JsonObject): RecordConfig {
+  const v = new ObjectValidator(config);
+
+  return {
+    mode: v.recordMode('mode', 'STOP_WHEN_FULL'),
+    durationMs: v.number('durationMs', 10000.0),
+    maxFileSizeMb: v.number('maxFileSizeMb', 100),
+    fileWritePeriodMs: v.number('fileWritePeriodMs', 2500),
+    bufferSizeMb: v.number('bufferSizeMb', 64.0),
+
+    cpuSched: v.boolean('cpuSched'),
+    cpuFreq: v.boolean('cpuFreq'),
+    cpuSyscall: v.boolean('cpuSyscall'),
+
+    gpuFreq: v.boolean('gpuFreq'),
+    gpuMemTotal: v.boolean('gpuMemTotal'),
+
+    ftrace: v.boolean('ftrace'),
+    atrace: v.boolean('atrace'),
+    ftraceEvents: v.stringArray('ftraceEvents'),
+    ftraceExtraEvents: v.string('ftraceExtraEvents'),
+    atraceCats: v.stringArray('atraceCats'),
+    atraceApps: v.string('atraceApps'),
+    ftraceBufferSizeKb: v.number('ftraceBufferSizeKb', 2 * 1024),
+    ftraceDrainPeriodMs: v.number('ftraceDrainPerionMs', 250),
+    androidLogs: v.boolean('androidLogs'),
+    androidLogBuffers: v.stringArray('androidLogBuffers'),
+    androidFrameTimeline: v.boolean('androidFrameTimeline'),
+
+    cpuCoarse: v.boolean('cpuCoarse'),
+    cpuCoarsePollMs: v.number('cpuCoarsePollMs', 1000),
+
+    batteryDrain: v.boolean('batteryDrain'),
+    batteryDrainPollMs: v.number('batteryDrainPollMs', 1000),
+
+    boardSensors: v.boolean('boardSensors'),
+
+    memHiFreq: v.boolean('memHiFreq'),
+    meminfo: v.boolean('meminfo'),
+    meminfoPeriodMs: v.number('meminfoPeriodMs', 1000),
+    meminfoCounters: v.stringArray('meminfoCounters'),
+
+    vmstat: v.boolean('vmstat'),
+    vmstatPeriodMs: v.number('vmstatPeriodMs', 1000),
+    vmstatCounters: v.stringArray('vmstatCounters'),
+
+    heapProfiling: v.boolean('heapProfiling'),
+    hpSamplingIntervalBytes: v.number('hpSamplingIntervalBytes', 4096),
+    hpProcesses: v.string('hpProcesses'),
+    hpContinuousDumpsPhase: v.number('hpContinuousDumpsPhase'),
+    hpContinuousDumpsInterval: v.number('hpContinuousDumpsInterval'),
+    hpSharedMemoryBuffer: v.number('hpSharedMemoryBuffer', 8 * 1048576),
+    hpBlockClient: v.boolean('hpBlockClient', true),
+    hpAllHeaps: v.boolean('hpAllHeaps'),
+
+    javaHeapDump: v.boolean('javaHeapDump'),
+    jpProcesses: v.string('jpProcesses'),
+    jpContinuousDumpsPhase: v.number('jpContinuousDumpsPhase'),
+    jpContinuousDumpsInterval: v.number('jpContinuousDumpsInterval'),
+
+    memLmk: v.boolean('memLmk'),
+    procStats: v.boolean('procStats'),
+    procStatsPeriodMs: v.number('procStatsPeriodMs', 1000),
+
+    chromeCategoriesSelected: v.stringArray('chromeCategoriesSelected'),
+
+    chromeLogs: v.boolean('chromeLogs'),
+    taskScheduling: v.boolean('taskScheduling'),
+    ipcFlows: v.boolean('ipcFlows'),
+    jsExecution: v.boolean('jsExecution'),
+    webContentRendering: v.boolean('webContentRendering'),
+    uiRendering: v.boolean('uiRendering'),
+    inputEvents: v.boolean('inputEvents'),
+    navigationAndLoading: v.boolean('navigationAndLoading'),
+    chromeHighOverheadCategoriesSelected:
+        v.stringArray('chromeHighOverheadCategoriesSelected'),
+    symbolizeKsyms: v.boolean('symbolizeKsyms'),
+  };
 }
