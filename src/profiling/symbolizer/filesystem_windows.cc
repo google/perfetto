@@ -23,35 +23,6 @@
 namespace perfetto {
 namespace profiling {
 
-bool WalkDirectories(std::vector<std::string> dirs, FileCallback fn) {
-  std::vector<std::string> sub_dirs;
-  for (const std::string& dir : dirs) {
-    WIN32_FIND_DATAA file;
-    HANDLE fh = FindFirstFileA((dir + "\\*").c_str(), &file);
-    if (fh != INVALID_HANDLE_VALUE) {
-      do {
-        std::string file_path = dir + "\\" + file.cFileName;
-        if (file.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
-          if (strcmp(file.cFileName, ".") != 0 &&
-              strcmp(file.cFileName, "..") != 0) {
-            sub_dirs.push_back(file_path);
-          }
-        } else {
-          ULARGE_INTEGER size;
-          size.HighPart = file.nFileSizeHigh;
-          size.LowPart = file.nFileSizeLow;
-          fn(file_path.c_str(), size.QuadPart);
-        }
-      } while (FindNextFileA(fh, &file));
-    }
-    CloseHandle(fh);
-  }
-  if (!sub_dirs.empty()) {
-    WalkDirectories(sub_dirs, fn);
-  }
-  return true;
-}
-
 size_t GetFileSize(const std::string& file_path) {
   HANDLE file =
       CreateFileA(file_path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr,

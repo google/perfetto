@@ -22,9 +22,7 @@
 namespace perfetto {
 namespace profiling {
 
-using FileCallback = std::function<void(const char*, size_t)>;
 size_t GetFileSize(const std::string& file_path);
-bool WalkDirectories(std::vector<std::string> dirs, FileCallback fn);
 
 }  // namespace profiling
 }  // namespace perfetto

@@ -20,7 +20,6 @@
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #if PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
-#include <fts.h>
 #include <sys/stat.h>
 #endif
 
@@ -31,26 +30,6 @@
 namespace perfetto {
 namespace profiling {
 #if PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
-bool WalkDirectories(std::vector<std::string> dirs, FileCallback fn) {
-  std::vector<char*> dir_cstrs;
-  dir_cstrs.reserve(dirs.size());
-  for (std::string& dir : dirs)
-    dir_cstrs.emplace_back(&dir[0]);
-  dir_cstrs.push_back(nullptr);
-  base::ScopedResource<FTS*, fts_close, nullptr> fts(
-      fts_open(&dir_cstrs[0], FTS_LOGICAL | FTS_NOCHDIR, nullptr));
-  if (!fts) {
-    PERFETTO_PLOG("fts_open");
-    return false;
-  }
-  FTSENT* ent;
-  while ((ent = fts_read(*fts))) {
-    if (ent->fts_info & FTS_F)
-      fn(ent->fts_path, static_cast<size_t>(ent->fts_statp->st_size));
-  }
-  return true;
-}
-
 size_t GetFileSize(const std::string& file_path) {
   base::ScopedFile fd(base::OpenFile(file_path, O_RDONLY | O_CLOEXEC));
   if (!fd) {
@@ -64,9 +43,6 @@ size_t GetFileSize(const std::string& file_path) {
   return static_cast<size_t>(buf.st_size);
 }
 #else
-bool WalkDirectories(std::vector<std::string>, FileCallback) {
-  return false;
-}
 size_t GetFileSize(const std::string&) {
   return 0;
 }
