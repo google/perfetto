@@ -21,11 +21,11 @@ import {
 import {
   Config,
   Data,
-  PERF_SAMPLES_TRACK_KIND,
+  PERF_SAMPLES_PROFILE_TRACK_KIND,
 } from './common';
 
-class PerfSamplesTrackController extends TrackController<Config, Data> {
-  static readonly kind = PERF_SAMPLES_TRACK_KIND;
+class PerfSamplesProfileTrackController extends TrackController<Config, Data> {
+  static readonly kind = PERF_SAMPLES_PROFILE_TRACK_KIND;
   async onBoundsChange(start: number, end: number, resolution: number):
       Promise<Data> {
     if (this.config.upid === undefined) {
@@ -59,4 +59,4 @@ class PerfSamplesTrackController extends TrackController<Config, Data> {
   }
 }
 
-trackControllerRegistry.register(PerfSamplesTrackController);
+trackControllerRegistry.register(PerfSamplesProfileTrackController);

@@ -13,7 +13,7 @@
 // limitations under the License.
 import {TrackData} from '../../common/track_data';
 
-export const PERF_SAMPLES_TRACK_KIND = 'PerfSamplesTrack';
+export const PERF_SAMPLES_PROFILE_TRACK_KIND = 'PerfSamplesProfileTrack';
 
 export interface Data extends TrackData {
   tsStartsNs: Float64Array;
