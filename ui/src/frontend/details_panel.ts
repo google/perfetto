@@ -159,7 +159,7 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
     const renderTab = (tab: Tab) => {
       if (globals.state.currentTab === tab.key ||
           globals.state.currentTab === undefined &&
-              attrs.tabs.keys().next().value === tab.key) {
+              attrs.tabs[0].key === tab.key) {
         // Update currentTab in case we didn't have one before.
         globals.dispatch(Actions.setCurrentTab({tab: tab.key}));
         return m('.tab[active]', tab.name);
