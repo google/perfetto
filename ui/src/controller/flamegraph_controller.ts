@@ -25,15 +25,15 @@ import {
   SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY
 } from '../common/flamegraph_util';
 import {NUM, STR} from '../common/query_result';
-import {CallsiteInfo, HeapProfileFlamegraph} from '../common/state';
+import {CallsiteInfo, FlamegraphState} from '../common/state';
 import {fromNs} from '../common/time';
-import {HeapProfileDetails} from '../frontend/globals';
-import {publishHeapProfileDetails} from '../frontend/publish';
+import {FlamegraphDetails} from '../frontend/globals';
+import {publishFlamegraphDetails} from '../frontend/publish';
 
 import {Controller} from './controller';
 import {globals} from './globals';
 
-export interface HeapProfileControllerArgs {
+export interface FlamegraphControllerArgs {
   engine: Engine;
 }
 const MIN_PIXEL_DISPLAYED = 1;
@@ -72,21 +72,21 @@ class TablesCache {
   }
 }
 
-export class HeapProfileController extends Controller<'main'> {
+export class FlamegraphController extends Controller<'main'> {
   private flamegraphDatasets: Map<string, CallsiteInfo[]> = new Map();
-  private lastSelectedHeapProfile?: HeapProfileFlamegraph;
+  private lastSelectedFlamegraphState?: FlamegraphState;
   private requestingData = false;
   private queuedRequest = false;
-  private heapProfileDetails: HeapProfileDetails = {};
+  private flamegraphDetails: FlamegraphDetails = {};
   private cache: TablesCache;
 
-  constructor(private args: HeapProfileControllerArgs) {
+  constructor(private args: FlamegraphControllerArgs) {
     super('main');
     this.cache = new TablesCache(args.engine, 'grouped_callsites');
   }
 
   run() {
-    const selection = globals.state.currentHeapProfileFlamegraph;
+    const selection = globals.state.currentFlamegraphState;
 
     if (!selection) return;
 
@@ -95,59 +95,60 @@ export class HeapProfileController extends Controller<'main'> {
         this.queuedRequest = true;
       } else {
         this.requestingData = true;
-        const selectedHeapProfile: HeapProfileFlamegraph =
-            this.copyHeapProfile(selection);
+        const selectedFlamegraphState: FlamegraphState =
+            this.copyFlamegraphState(selection);
 
-        this.getHeapProfileMetadata(
+        this.getFlamegraphMetadata(
                 selection.type,
-                selectedHeapProfile.ts,
-                selectedHeapProfile.upid)
+                selectedFlamegraphState.ts,
+                selectedFlamegraphState.upid)
             .then(result => {
               if (result !== undefined) {
-                Object.assign(this.heapProfileDetails, result);
+                Object.assign(this.flamegraphDetails, result);
               }
 
               // TODO(hjd): Clean this up.
-              if (this.lastSelectedHeapProfile &&
-                  this.lastSelectedHeapProfile.focusRegex !==
+              if (this.lastSelectedFlamegraphState &&
+                  this.lastSelectedFlamegraphState.focusRegex !==
                       selection.focusRegex) {
                 this.flamegraphDatasets.clear();
               }
 
-              this.lastSelectedHeapProfile = this.copyHeapProfile(selection);
+              this.lastSelectedFlamegraphState =
+                  this.copyFlamegraphState(selection);
 
-              const expandedId = selectedHeapProfile.expandedCallsite ?
-                  selectedHeapProfile.expandedCallsite.id :
+              const expandedId = selectedFlamegraphState.expandedCallsite ?
+                  selectedFlamegraphState.expandedCallsite.id :
                   -1;
               const rootSize =
-                  selectedHeapProfile.expandedCallsite === undefined ?
+                  selectedFlamegraphState.expandedCallsite === undefined ?
                   undefined :
-                  selectedHeapProfile.expandedCallsite.totalSize;
+                  selectedFlamegraphState.expandedCallsite.totalSize;
 
-              const key =
-                  `${selectedHeapProfile.upid};${selectedHeapProfile.ts}`;
+              const key = `${selectedFlamegraphState.upid};${
+                  selectedFlamegraphState.ts}`;
 
               this.getFlamegraphData(
                       key,
-                      selectedHeapProfile.viewingOption ?
-                          selectedHeapProfile.viewingOption :
+                      selectedFlamegraphState.viewingOption ?
+                          selectedFlamegraphState.viewingOption :
                           DEFAULT_VIEWING_OPTION,
                       selection.ts,
-                      selectedHeapProfile.upid,
-                      selectedHeapProfile.type,
-                      selectedHeapProfile.focusRegex)
+                      selectedFlamegraphState.upid,
+                      selectedFlamegraphState.type,
+                      selectedFlamegraphState.focusRegex)
                   .then(flamegraphData => {
                     if (flamegraphData !== undefined && selection &&
-                        selection.kind === selectedHeapProfile.kind &&
-                        selection.id === selectedHeapProfile.id &&
-                        selection.ts === selectedHeapProfile.ts) {
+                        selection.kind === selectedFlamegraphState.kind &&
+                        selection.id === selectedFlamegraphState.id &&
+                        selection.ts === selectedFlamegraphState.ts) {
                       const expandedFlamegraphData =
                           expandCallsites(flamegraphData, expandedId);
                       this.prepareAndMergeCallsites(
                           expandedFlamegraphData,
-                          this.lastSelectedHeapProfile!.viewingOption,
+                          this.lastSelectedFlamegraphState!.viewingOption,
                           rootSize,
-                          this.lastSelectedHeapProfile!.expandedCallsite);
+                          this.lastSelectedFlamegraphState!.expandedCallsite);
                     }
                   })
                   .finally(() => {
@@ -162,32 +163,33 @@ export class HeapProfileController extends Controller<'main'> {
     }
   }
 
-  private copyHeapProfile(heapProfile: HeapProfileFlamegraph):
-      HeapProfileFlamegraph {
+  private copyFlamegraphState(flamegraphState: FlamegraphState):
+      FlamegraphState {
     return {
-      kind: heapProfile.kind,
-      id: heapProfile.id,
-      upid: heapProfile.upid,
-      ts: heapProfile.ts,
-      type: heapProfile.type,
-      expandedCallsite: heapProfile.expandedCallsite,
-      viewingOption: heapProfile.viewingOption,
-      focusRegex: heapProfile.focusRegex,
+      kind: flamegraphState.kind,
+      id: flamegraphState.id,
+      upid: flamegraphState.upid,
+      ts: flamegraphState.ts,
+      type: flamegraphState.type,
+      expandedCallsite: flamegraphState.expandedCallsite,
+      viewingOption: flamegraphState.viewingOption,
+      focusRegex: flamegraphState.focusRegex,
     };
   }
 
-  private shouldRequestData(selection: HeapProfileFlamegraph) {
-    return selection.kind === 'HEAP_PROFILE_FLAMEGRAPH' &&
-        (this.lastSelectedHeapProfile === undefined ||
-         (this.lastSelectedHeapProfile !== undefined &&
-          (this.lastSelectedHeapProfile.id !== selection.id ||
-           this.lastSelectedHeapProfile.ts !== selection.ts ||
-           this.lastSelectedHeapProfile.type !== selection.type ||
-           this.lastSelectedHeapProfile.upid !== selection.upid ||
-           this.lastSelectedHeapProfile.viewingOption !==
+  private shouldRequestData(selection: FlamegraphState) {
+    return selection.kind === 'FLAMEGRAPH_STATE' &&
+        (this.lastSelectedFlamegraphState === undefined ||
+         (this.lastSelectedFlamegraphState !== undefined &&
+          (this.lastSelectedFlamegraphState.id !== selection.id ||
+           this.lastSelectedFlamegraphState.ts !== selection.ts ||
+           this.lastSelectedFlamegraphState.type !== selection.type ||
+           this.lastSelectedFlamegraphState.upid !== selection.upid ||
+           this.lastSelectedFlamegraphState.viewingOption !==
                selection.viewingOption ||
-           this.lastSelectedHeapProfile.focusRegex !== selection.focusRegex ||
-           this.lastSelectedHeapProfile.expandedCallsite !==
+           this.lastSelectedFlamegraphState.focusRegex !==
+               selection.focusRegex ||
+           this.lastSelectedFlamegraphState.expandedCallsite !==
                selection.expandedCallsite)));
   }
 
@@ -197,10 +199,10 @@ export class HeapProfileController extends Controller<'main'> {
       rootSize?: number, expandedCallsite?: CallsiteInfo) {
     const mergedFlamegraphData = mergeCallsites(
         flamegraphData, this.getMinSizeDisplayed(flamegraphData, rootSize));
-    this.heapProfileDetails.flamegraph = mergedFlamegraphData;
-    this.heapProfileDetails.expandedCallsite = expandedCallsite;
-    this.heapProfileDetails.viewingOption = viewingOption;
-    publishHeapProfileDetails(this.heapProfileDetails);
+    this.flamegraphDetails.flamegraph = mergedFlamegraphData;
+    this.flamegraphDetails.expandedCallsite = expandedCallsite;
+    this.flamegraphDetails.viewingOption = viewingOption;
+    publishFlamegraphDetails(this.flamegraphDetails);
   }
 
 
@@ -214,7 +216,7 @@ export class HeapProfileController extends Controller<'main'> {
     } else {
       // TODO(hjd): Show loading state.
 
-      // Collecting data for drawing flamegraph for selected heap profile.
+      // Collecting data for drawing flamegraph for selected profile.
       // Data needs to be in following format:
       // id, name, parent_id, depth, total_size
       const tableName =
@@ -379,15 +381,15 @@ export class HeapProfileController extends Controller<'main'> {
     return MIN_PIXEL_DISPLAYED * rootSize / width;
   }
 
-  async getHeapProfileMetadata(type: string, ts: number, upid: number) {
+  async getFlamegraphMetadata(type: string, ts: number, upid: number) {
     // Don't do anything if selection of the marker stayed the same.
-    if ((this.lastSelectedHeapProfile !== undefined &&
-         ((this.lastSelectedHeapProfile.ts === ts &&
-           this.lastSelectedHeapProfile.upid === upid)))) {
+    if ((this.lastSelectedFlamegraphState !== undefined &&
+         ((this.lastSelectedFlamegraphState.ts === ts &&
+           this.lastSelectedFlamegraphState.upid === upid)))) {
       return undefined;
     }
 
-    // Collecting data for more information about heap profile, such as:
+    // Collecting data for more information about profile, such as:
     // total memory allocated, memory that is allocated and not freed.
     const result = await this.args.engine.query(
         `select pid from process where upid = ${upid}`);

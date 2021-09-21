@@ -428,7 +428,7 @@ test('perf samples open flamegraph', () => {
         draft, {id: 0, upid: 0, ts: 0, type: perfType});
   });
 
-  expect(assertExists(afterSelectingPerf.currentHeapProfileFlamegraph).type)
+  expect(assertExists(afterSelectingPerf.currentFlamegraphState).type)
       .toBe(perfType);
 });
 
@@ -441,6 +441,6 @@ test('heap profile opens flamegraph', () => {
         draft, {id: 0, upid: 0, ts: 0, type: heapType});
   });
 
-  expect(assertExists(afterSelectingPerf.currentHeapProfileFlamegraph).type)
+  expect(assertExists(afterSelectingPerf.currentFlamegraphState).type)
       .toBe(heapType);
 });

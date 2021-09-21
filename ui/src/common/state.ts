@@ -62,7 +62,9 @@ export const MAX_TIME = 180;
 // 5: Move a large number of items off frontendLocalState and onto state.
 // 6: Common PivotTableConfig and pivot table specific PivotTableState.
 // 7: Split Chrome categories in two and add 'symbolize ksyms' flag.
-export const STATE_VERSION = 7;
+// 8: Rename several variables
+// "[...]HeapProfileFlamegraph[...]" -> "[...]Flamegraph[...]".
+export const STATE_VERSION = 8;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -77,7 +79,7 @@ export enum TrackKindPriority {
   'ORDINARY' = 3
 }
 
-export type HeapProfileFlamegraphViewingOption =
+export type FlamegraphStateViewingOption =
     'SPACE'|'ALLOC_SPACE'|'OBJECTS'|'ALLOC_OBJECTS'|'PERF_SAMPLES';
 
 export interface CallsiteInfo {
@@ -231,13 +233,13 @@ export interface PerfSamplesSelection {
   type: string;
 }
 
-export interface HeapProfileFlamegraph {
-  kind: 'HEAP_PROFILE_FLAMEGRAPH';
+export interface FlamegraphState {
+  kind: 'FLAMEGRAPH_STATE';
   id: number;
   upid: number;
   ts: number;
   type: string;
-  viewingOption: HeapProfileFlamegraphViewingOption;
+  viewingOption: FlamegraphStateViewingOption;
   focusRegex: string;
   expandedCallsite?: CallsiteInfo;
 }
@@ -348,7 +350,7 @@ export interface State {
   notes: ObjectById<Note|AreaNote>;
   status: Status;
   currentSelection: Selection|null;
-  currentHeapProfileFlamegraph: HeapProfileFlamegraph|null;
+  currentFlamegraphState: FlamegraphState|null;
   logsPagination: LogsPagination;
   traceConversionInProgress: boolean;
   pivotTableConfig: PivotTableConfig;
@@ -901,7 +903,7 @@ export function createEmptyState(): State {
 
     status: {msg: '', timestamp: 0},
     currentSelection: null,
-    currentHeapProfileFlamegraph: null,
+    currentFlamegraphState: null,
     traceConversionInProgress: false,
 
     perfDebug: false,
