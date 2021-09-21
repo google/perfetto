@@ -139,7 +139,7 @@ static FlamegraphTableAndMergedCallsites BuildFlamegraphTableTreeStructure(
           row.parent_id = tbl->id()[*parent_idx];
         tbl->Insert(row);
         callsites_to_rowid[merged_callsite] =
-            static_cast<uint32_t>(merged_callsites_to_table_idx.size());
+            static_cast<uint32_t>(merged_callsites_to_table_idx.size() - 1);
 
         PERFETTO_CHECK(merged_callsites_to_table_idx.size() ==
                        tbl->row_count());
