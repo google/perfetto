@@ -26,7 +26,11 @@ import {NUM, NUM_NULL, QueryError, STR, STR_NULL} from '../common/query_result';
 import {EngineMode} from '../common/state';
 import {TimeSpan, toNs, toNsCeil, toNsFloor} from '../common/time';
 import {resetEngineWorker, WasmEngineProxy} from '../common/wasm_engine_proxy';
-import {QuantizedLoad, ThreadDesc} from '../frontend/globals';
+import {
+  globals as frontendGlobals,
+  QuantizedLoad,
+  ThreadDesc
+} from '../frontend/globals';
 import {
   publishHasFtrace,
   publishMetricError,
@@ -328,7 +332,16 @@ export class TraceController extends Controller<States> {
       startSec,
       endSec,
     };
+
+    const emptyOmniboxState = {
+      omnibox: '',
+      mode: frontendGlobals.state.frontendLocalState.omniboxState.mode ||
+          'SEARCH',
+      lastUpdate: Date.now() / 1000
+    };
+
     const actions: DeferredAction[] = [
+      Actions.setOmnibox(emptyOmniboxState),
       Actions.setTraceUuid({traceUuid}),
       Actions.setTraceTime(traceTimeState)
     ];
