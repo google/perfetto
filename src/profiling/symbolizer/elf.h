@@ -38,11 +38,15 @@ constexpr auto ELFMAG0 = 0x7f;
 constexpr auto ELFMAG1 = 'E';
 constexpr auto ELFMAG2 = 'L';
 constexpr auto ELFMAG3 = 'F';
+constexpr auto ELFDATA2LSB = 1;
+constexpr auto EV_CURRENT = 1;
 constexpr auto EI_MAG0 = 0;
 constexpr auto EI_MAG1 = 1;
 constexpr auto EI_MAG2 = 2;
 constexpr auto EI_MAG3 = 3;
 constexpr auto EI_CLASS = 4;
+constexpr auto EI_DATA = 5;
+constexpr auto EI_VERSION = 6;
 
 struct Elf32 {
   using Addr = uint32_t;
