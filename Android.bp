@@ -9555,13 +9555,6 @@ cc_test {
         "src/traced/probes/filesystem/testdata/**/*",
         "src/traced/probes/ftrace/test/data/**/*",
     ],
-    target: {
-        musl: {
-            static_libs: [
-                "libfts",
-            ],
-        },
-    },
 }
 
 // GN: //src/protozero/protoc_plugin:protozero_plugin
@@ -9739,11 +9732,6 @@ cc_binary {
                 ],
             },
         },
-        musl: {
-            static_libs: [
-                "libfts",
-            ],
-        },
     },
 }
 
@@ -9878,13 +9866,6 @@ cc_binary_host {
         "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
         "-DHAVE_HIDDEN",
     ],
-    target: {
-        musl: {
-            static_libs: [
-                "libfts",
-            ],
-        },
-    },
 }
 
 // GN: //src/traced/service:traced
