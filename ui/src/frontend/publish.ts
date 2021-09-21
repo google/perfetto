@@ -27,9 +27,9 @@ import {CurrentSearchResults, SearchSummary} from '../common/search_data';
 import {
   CounterDetails,
   CpuProfileDetails,
+  FlamegraphDetails,
   Flow,
   globals,
-  HeapProfileDetails,
   QuantizedLoad,
   SliceDetails,
   ThreadDesc,
@@ -77,8 +77,8 @@ export function publishCounterDetails(click: CounterDetails) {
   globals.publishRedraw();
 }
 
-export function publishHeapProfileDetails(click: HeapProfileDetails) {
-  globals.heapProfileDetails = click;
+export function publishFlamegraphDetails(click: FlamegraphDetails) {
+  globals.flamegraphDetails = click;
   globals.publishRedraw();
 }
 
