@@ -17,6 +17,7 @@
 #ifndef SRC_PROFILING_SYMBOLIZER_ELF_H_
 #define SRC_PROFILING_SYMBOLIZER_ELF_H_
 
+#include <stddef.h>
 #include <cinttypes>
 
 #include "perfetto/base/build_config.h"
