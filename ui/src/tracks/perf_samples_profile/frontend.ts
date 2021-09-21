@@ -15,24 +15,24 @@
 import {searchSegment} from '../../base/binary_search';
 import {Actions} from '../../common/actions';
 import {fromNs, toNs} from '../../common/time';
-import {HEAP_PROFILE_HOVERED_COLOR} from '../../frontend/flamegraph';
+import {FLAMEGRAPH_HOVERED_COLOR} from '../../frontend/flamegraph';
 import {globals} from '../../frontend/globals';
 import {TimeScale} from '../../frontend/time_scale';
 import {NewTrackArgs, Track} from '../../frontend/track';
 import {trackRegistry} from '../../frontend/track_registry';
 
-import {Config, Data, PERF_SAMPLES_TRACK_KIND} from './common';
+import {Config, Data, PERF_SAMPLES_PROFILE_TRACK_KIND} from './common';
 
-const HEAP_PROFILE_COLOR = 'hsl(224, 45%, 70%)';
+const PERP_SAMPLE_COLOR = 'hsl(224, 45%, 70%)';
 
 // 0.5 Makes the horizontal lines sharp.
 const MARGIN_TOP = 4.5;
 const RECT_HEIGHT = 30.5;
 
-class PerfSamplesTrack extends Track<Config, Data> {
-  static readonly kind = PERF_SAMPLES_TRACK_KIND;
-  static create(args: NewTrackArgs): PerfSamplesTrack {
-    return new PerfSamplesTrack(args);
+class PerfSamplesProfileTrack extends Track<Config, Data> {
+  static readonly kind = PERF_SAMPLES_PROFILE_TRACK_KIND;
+  static create(args: NewTrackArgs): PerfSamplesProfileTrack {
+    return new PerfSamplesProfileTrack(args);
   }
 
   private centerY = this.getHeight() / 2;
@@ -81,10 +81,10 @@ class PerfSamplesTrack extends Track<Config, Data> {
     ctx.lineTo(x + this.markerWidth, y);
     ctx.lineTo(x, y - this.markerWidth);
     ctx.closePath();
-    ctx.fillStyle = isHovered ? HEAP_PROFILE_HOVERED_COLOR : HEAP_PROFILE_COLOR;
+    ctx.fillStyle = isHovered ? FLAMEGRAPH_HOVERED_COLOR : PERP_SAMPLE_COLOR;
     ctx.fill();
     if (strokeWidth > 0) {
-      ctx.strokeStyle = HEAP_PROFILE_HOVERED_COLOR;
+      ctx.strokeStyle = FLAMEGRAPH_HOVERED_COLOR;
       ctx.lineWidth = strokeWidth;
       ctx.stroke();
     }
@@ -149,4 +149,4 @@ class PerfSamplesTrack extends Track<Config, Data> {
   }
 }
 
-trackRegistry.register(PerfSamplesTrack);
+trackRegistry.register(PerfSamplesProfileTrack);
