@@ -32,7 +32,6 @@
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/profiling/symbolizer/elf.h"
-#include "src/profiling/symbolizer/filesystem.h"
 #include "src/profiling/symbolizer/scoped_read_mmap.h"
 
 namespace perfetto {
@@ -217,31 +216,36 @@ struct BuildIdAndLoadBias {
   uint64_t load_bias;
 };
 
-base::Optional<BuildIdAndLoadBias> GetBuildIdAndLoadBias(const std::string& fname) {
-  size_t size = GetFileSize(fname);
-  static_assert(EI_CLASS > EI_MAG3, "mem[EI_MAG?] accesses are in range.");
-  if (size <= EI_CLASS)
+base::Optional<BuildIdAndLoadBias> GetBuildIdAndLoadBias(
+    const std::string& fname) {
+  base::Optional<size_t> size = base::GetFileSize(fname);
+  if (!size.has_value()) {
+    PERFETTO_PLOG("Failed to get file size %s", fname.c_str());
     return base::nullopt;
-  ScopedReadMmap map(fname.c_str(), size);
+  }
+  static_assert(EI_CLASS > EI_MAG3, "mem[EI_MAG?] accesses are in range.");
+  if (*size <= EI_CLASS)
+    return base::nullopt;
+  ScopedReadMmap map(fname.c_str(), *size);
   if (!map.IsValid()) {
     PERFETTO_PLOG("mmap");
     return base::nullopt;
   }
   char* mem = static_cast<char*>(*map);
 
-  if (!IsElf(mem, size))
+  if (!IsElf(mem, *size))
     return base::nullopt;
 
   base::Optional<std::string> build_id;
   base::Optional<uint64_t> load_bias;
   switch (mem[EI_CLASS]) {
     case ELFCLASS32:
-      build_id = GetBuildId<Elf32>(mem, size);
-      load_bias = GetLoadBias<Elf32>(mem, size);
+      build_id = GetBuildId<Elf32>(mem, *size);
+      load_bias = GetLoadBias<Elf32>(mem, *size);
       break;
     case ELFCLASS64:
-      build_id = GetBuildId<Elf64>(mem, size);
-      load_bias = GetLoadBias<Elf64>(mem, size);
+      build_id = GetBuildId<Elf64>(mem, *size);
+      load_bias = GetLoadBias<Elf64>(mem, *size);
       break;
     default:
       return base::nullopt;
