@@ -252,7 +252,8 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.flow_tracker.reset(flow_);
     clock_ = new ClockTracker(&context_);
     context_.clock_tracker.reset(clock_);
-    context_.sorter.reset(new TraceSorter(CreateParser(), 0 /*window size*/));
+    context_.sorter.reset(new TraceSorter(&context_, CreateParser(),
+                                          TraceSorter::SortingMode::kFullSort));
     context_.descriptor_pool_.reset(new DescriptorPool());
 
     RegisterDefaultModules(&context_);
@@ -333,6 +334,7 @@ TEST_F(ProtoTraceParserTest, LoadSingleEvent) {
               PushSchedSwitch(10, 1000, 10, base::StringView(kProc2Name), 256,
                               32, 100, base::StringView(kProc1Name), 1024));
   Tokenize();
+  context_.sorter->ExtractEventsForced();
 }
 
 TEST_F(ProtoTraceParserTest, LoadEventsIntoRaw) {
@@ -364,6 +366,7 @@ TEST_F(ProtoTraceParserTest, LoadEventsIntoRaw) {
   EXPECT_CALL(*process_, GetOrCreateProcess(123));
 
   Tokenize();
+  context_.sorter->ExtractEventsForced();
 
   const auto& raw = context_.storage->raw_table();
   ASSERT_EQ(raw.row_count(), 2u);
@@ -414,6 +417,7 @@ TEST_F(ProtoTraceParserTest, LoadGenericFtrace) {
   field->set_uint_value(3);
 
   Tokenize();
+  context_.sorter->ExtractEventsForced();
 
   const auto& raw = storage_->raw_table();
 
@@ -481,6 +485,7 @@ TEST_F(ProtoTraceParserTest, LoadMultipleEvents) {
                               32, 10, base::StringView(kProcName2), 512));
 
   Tokenize();
+  context_.sorter->ExtractEventsForced();
 }
 
 TEST_F(ProtoTraceParserTest, LoadMultiplePackets) {
@@ -526,6 +531,7 @@ TEST_F(ProtoTraceParserTest, LoadMultiplePackets) {
               PushSchedSwitch(10, 1001, 100, base::StringView(kProcName1), 256,
                               32, 10, base::StringView(kProcName2), 512));
   Tokenize();
+  context_.sorter->ExtractEventsForced();
 }
 
 TEST_F(ProtoTraceParserTest, RepeatedLoadSinglePacket) {
@@ -548,6 +554,7 @@ TEST_F(ProtoTraceParserTest, RepeatedLoadSinglePacket) {
               PushSchedSwitch(10, 1000, 10, base::StringView(kProcName2), 256,
                               32, 100, base::StringView(kProcName1), 1024));
   Tokenize();
+  context_.sorter->ExtractEventsForced();
 
   bundle = trace_->add_packet()->set_ftrace_events();
   bundle->set_cpu(10);
@@ -567,6 +574,7 @@ TEST_F(ProtoTraceParserTest, RepeatedLoadSinglePacket) {
               PushSchedSwitch(10, 1001, 100, base::StringView(kProcName1), 256,
                               32, 10, base::StringView(kProcName2), 512));
   Tokenize();
+  context_.sorter->ExtractEventsForced();
 }
 
 TEST_F(ProtoTraceParserTest, LoadCpuFreq) {
@@ -581,6 +589,7 @@ TEST_F(ProtoTraceParserTest, LoadCpuFreq) {
 
   EXPECT_CALL(*event_, PushCounter(1000, DoubleEq(2000), TrackId{0}));
   Tokenize();
+  context_.sorter->ExtractEventsForced();
 
   EXPECT_EQ(context_.storage->cpu_counter_track_table().cpu()[0], 10u);
 }
@@ -598,6 +607,7 @@ TEST_F(ProtoTraceParserTest, LoadMemInfo) {
   EXPECT_CALL(*event_, PushCounter(static_cast<int64_t>(ts),
                                    DoubleEq(value * 1024.0), TrackId{0u}));
   Tokenize();
+  context_.sorter->ExtractEventsForced();
 
   EXPECT_EQ(context_.storage->track_table().row_count(), 1u);
 }
@@ -615,6 +625,7 @@ TEST_F(ProtoTraceParserTest, LoadVmStats) {
   EXPECT_CALL(*event_, PushCounter(static_cast<int64_t>(ts), DoubleEq(value),
                                    TrackId{0u}));
   Tokenize();
+  context_.sorter->ExtractEventsForced();
 
   EXPECT_EQ(context_.storage->track_table().row_count(), 1u);
 }
@@ -632,6 +643,7 @@ TEST_F(ProtoTraceParserTest, LoadProcessPacket) {
               SetProcessMetadata(1, Eq(3u), base::StringView(kProcName1),
                                  base::StringView(kProcName1)));
   Tokenize();
+  context_.sorter->ExtractEventsForced();
 }
 
 TEST_F(ProtoTraceParserTest, LoadProcessPacket_FirstCmdline) {
@@ -649,6 +661,7 @@ TEST_F(ProtoTraceParserTest, LoadProcessPacket_FirstCmdline) {
               SetProcessMetadata(1, Eq(3u), base::StringView(kProcName1),
                                  base::StringView("proc1 proc2")));
   Tokenize();
+  context_.sorter->ExtractEventsForced();
 }
 
 TEST_F(ProtoTraceParserTest, LoadThreadPacket) {
@@ -659,11 +672,10 @@ TEST_F(ProtoTraceParserTest, LoadThreadPacket) {
 
   EXPECT_CALL(*process_, UpdateThread(1, 2));
   Tokenize();
+  context_.sorter->ExtractEventsForced();
 }
 
 TEST_F(ProtoTraceParserTest, ProcessNameFromProcessDescriptor) {
-  context_.sorter.reset(new TraceSorter(
-      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
   {
     auto* packet = trace_->add_packet();
     packet->set_trusted_packet_sequence_id(1);
@@ -707,8 +719,6 @@ TEST_F(ProtoTraceParserTest, ProcessNameFromProcessDescriptor) {
 }
 
 TEST_F(ProtoTraceParserTest, ThreadNameFromThreadDescriptor) {
-  context_.sorter.reset(new TraceSorter(
-      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
   {
     auto* packet = trace_->add_packet();
     packet->set_trusted_packet_sequence_id(1);
@@ -763,9 +773,6 @@ TEST_F(ProtoTraceParserTest, ThreadNameFromThreadDescriptor) {
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedData) {
-  context_.sorter.reset(new TraceSorter(
-      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
-
   {
     auto* packet = trace_->add_packet();
     packet->set_trusted_packet_sequence_id(1);
@@ -815,8 +822,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedData) {
 
   Tokenize();
 
-  EXPECT_CALL(*process_, UpdateThread(16, 15))
-      .WillRepeatedly(Return(1));
+  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1));
 
   tables::ThreadTable::Row row(16);
   row.upid = 1u;
@@ -860,9 +866,6 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedData) {
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedDataWithTypes) {
-  context_.sorter.reset(new TraceSorter(
-      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
-
   {
     auto* packet = trace_->add_packet();
     packet->set_trusted_packet_sequence_id(1);
@@ -909,8 +912,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedDataWithTypes) {
 
   Tokenize();
 
-  EXPECT_CALL(*process_, UpdateThread(16, 15))
-      .WillRepeatedly(Return(1));
+  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1));
 
   tables::ThreadTable::Row row(16);
   row.upid = 1u;
@@ -953,9 +955,6 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedDataWithTypes) {
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
-  context_.sorter.reset(new TraceSorter(
-      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
-
   {
     auto* packet = trace_->add_packet();
     packet->set_trusted_packet_sequence_id(1);
@@ -1087,8 +1086,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
 
   Tokenize();
 
-  EXPECT_CALL(*process_, UpdateThread(16, 15))
-      .WillRepeatedly(Return(1));
+  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1));
 
   tables::ThreadTable::Row row(16);
   row.upid = 2u;
@@ -1178,9 +1176,6 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
-  context_.sorter.reset(new TraceSorter(
-      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
-
   {
     auto* packet = trace_->add_packet();
     packet->set_trusted_packet_sequence_id(1);
@@ -1334,9 +1329,6 @@ TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
 
 // TODO(eseckler): Also test instant events on separate tracks.
 TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
-  context_.sorter.reset(new TraceSorter(
-      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
-
   // Sequence 1.
   {
     auto* packet = trace_->add_packet();
@@ -1540,9 +1532,6 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithResortedCounterDescriptor) {
-  context_.sorter.reset(new TraceSorter(
-      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
-
   // Descriptors with timestamps after the event below. They will be tokenized
   // in the order they appear here, but then resorted before parsing to appear
   // after the events below.
@@ -1643,9 +1632,6 @@ TEST_F(ProtoTraceParserTest, TrackEventWithResortedCounterDescriptor) {
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithoutIncrementalStateReset) {
-  context_.sorter.reset(new TraceSorter(
-      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
-
   {
     auto* packet = trace_->add_packet();
     packet->set_trusted_packet_sequence_id(1);
@@ -1704,9 +1690,6 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutIncrementalStateReset) {
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithoutThreadDescriptor) {
-  context_.sorter.reset(new TraceSorter(
-      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
-
   {
     // Event should be discarded because it specifies delta timestamps and no
     // thread descriptor was seen yet.
@@ -1746,9 +1729,6 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutThreadDescriptor) {
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithDataLoss) {
-  context_.sorter.reset(new TraceSorter(
-      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
-
   {
     auto* packet = trace_->add_packet();
     packet->set_trusted_packet_sequence_id(1);
@@ -1762,7 +1742,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDataLoss) {
     auto* packet = trace_->add_packet();
     packet->set_trusted_packet_sequence_id(1);
     auto* event = packet->set_track_event();
-    event->set_timestamp_delta_us(10);   // absolute: 1010.
+    event->set_timestamp_delta_us(10);  // absolute: 1010.
     event->add_category_iids(1);
     auto* legacy_event = event->set_legacy_event();
     legacy_event->set_name_iid(1);
@@ -1815,7 +1795,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDataLoss) {
     auto* packet = trace_->add_packet();
     packet->set_trusted_packet_sequence_id(1);
     auto* event = packet->set_track_event();
-    event->set_timestamp_delta_us(10);   // absolute: 2010.
+    event->set_timestamp_delta_us(10);  // absolute: 2010.
     event->add_category_iids(1);
     auto* legacy_event = event->set_legacy_event();
     legacy_event->set_name_iid(1);
@@ -1840,9 +1820,6 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDataLoss) {
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventMultipleSequences) {
-  context_.sorter.reset(new TraceSorter(
-      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
-
   {
     auto* packet = trace_->add_packet();
     packet->set_trusted_packet_sequence_id(1);
@@ -1856,7 +1833,7 @@ TEST_F(ProtoTraceParserTest, TrackEventMultipleSequences) {
     auto* packet = trace_->add_packet();
     packet->set_trusted_packet_sequence_id(1);
     auto* event = packet->set_track_event();
-    event->set_timestamp_delta_us(10);   // absolute: 1010.
+    event->set_timestamp_delta_us(10);  // absolute: 1010.
     event->add_category_iids(1);
     auto* legacy_event = event->set_legacy_event();
     legacy_event->set_name_iid(1);
@@ -1883,7 +1860,7 @@ TEST_F(ProtoTraceParserTest, TrackEventMultipleSequences) {
     auto* packet = trace_->add_packet();
     packet->set_trusted_packet_sequence_id(2);
     auto* event = packet->set_track_event();
-    event->set_timestamp_delta_us(10);   // absolute: 1005.
+    event->set_timestamp_delta_us(10);  // absolute: 1005.
     event->add_category_iids(1);
     auto* legacy_event = event->set_legacy_event();
     legacy_event->set_name_iid(1);
@@ -1901,7 +1878,7 @@ TEST_F(ProtoTraceParserTest, TrackEventMultipleSequences) {
     auto* packet = trace_->add_packet();
     packet->set_trusted_packet_sequence_id(1);
     auto* event = packet->set_track_event();
-    event->set_timestamp_delta_us(10);   // absolute: 1020.
+    event->set_timestamp_delta_us(10);  // absolute: 1020.
     event->add_category_iids(1);
     auto* legacy_event = event->set_legacy_event();
     legacy_event->set_name_iid(1);
@@ -1911,7 +1888,7 @@ TEST_F(ProtoTraceParserTest, TrackEventMultipleSequences) {
     auto* packet = trace_->add_packet();
     packet->set_trusted_packet_sequence_id(2);
     auto* event = packet->set_track_event();
-    event->set_timestamp_delta_us(10);   // absolute: 1015.
+    event->set_timestamp_delta_us(10);  // absolute: 1015.
     event->add_category_iids(1);
     auto* legacy_event = event->set_legacy_event();
     legacy_event->set_name_iid(1);
@@ -1920,10 +1897,8 @@ TEST_F(ProtoTraceParserTest, TrackEventMultipleSequences) {
 
   Tokenize();
 
-  EXPECT_CALL(*process_, UpdateThread(16, 15))
-      .WillRepeatedly(Return(1));
-  EXPECT_CALL(*process_, UpdateThread(17, 15))
-      .WillRepeatedly(Return(2));
+  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1));
+  EXPECT_CALL(*process_, UpdateThread(17, 15)).WillRepeatedly(Return(2));
 
   tables::ThreadTable::Row t1(16);
   t1.upid = 1u;
@@ -1950,8 +1925,6 @@ TEST_F(ProtoTraceParserTest, TrackEventMultipleSequences) {
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithDebugAnnotations) {
-  context_.sorter.reset(new TraceSorter(
-      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
   MockBoundInserter inserter;
 
   {
@@ -1967,7 +1940,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDebugAnnotations) {
     auto* packet = trace_->add_packet();
     packet->set_trusted_packet_sequence_id(1);
     auto* event = packet->set_track_event();
-    event->set_timestamp_delta_us(10);   // absolute: 1010.
+    event->set_timestamp_delta_us(10);  // absolute: 1010.
     event->add_category_iids(1);
     auto* annotation1 = event->add_debug_annotations();
     annotation1->set_name_iid(1);
@@ -2019,7 +1992,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDebugAnnotations) {
     auto* packet = trace_->add_packet();
     packet->set_trusted_packet_sequence_id(1);
     auto* event = packet->set_track_event();
-    event->set_timestamp_delta_us(10);   // absolute: 1020.
+    event->set_timestamp_delta_us(10);  // absolute: 1020.
     event->add_category_iids(1);
     auto* annotation3 = event->add_debug_annotations();
     annotation3->set_name_iid(3);
@@ -2153,9 +2126,6 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDebugAnnotations) {
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithTaskExecution) {
-  context_.sorter.reset(new TraceSorter(
-      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
-
   {
     auto* packet = trace_->add_packet();
     packet->set_trusted_packet_sequence_id(1);
@@ -2169,7 +2139,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTaskExecution) {
     auto* packet = trace_->add_packet();
     packet->set_trusted_packet_sequence_id(1);
     auto* event = packet->set_track_event();
-    event->set_timestamp_delta_us(10);   // absolute: 1010.
+    event->set_timestamp_delta_us(10);  // absolute: 1010.
     event->add_category_iids(1);
     auto* task_execution = event->set_task_execution();
     task_execution->set_posted_from_iid(1);
@@ -2218,9 +2188,6 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTaskExecution) {
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithLogMessage) {
-  context_.sorter.reset(new TraceSorter(
-      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
-
   {
     auto* packet = trace_->add_packet();
     packet->set_trusted_packet_sequence_id(1);
@@ -2234,7 +2201,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithLogMessage) {
     auto* packet = trace_->add_packet();
     packet->set_trusted_packet_sequence_id(1);
     auto* event = packet->set_track_event();
-    event->set_timestamp_delta_us(10);   // absolute: 1010.
+    event->set_timestamp_delta_us(10);  // absolute: 1010.
     event->add_category_iids(1);
 
     auto* log_message = event->set_log_message();
@@ -2294,9 +2261,6 @@ TEST_F(ProtoTraceParserTest, TrackEventWithLogMessage) {
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {
-  context_.sorter.reset(new TraceSorter(
-      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
-
   {
     auto* packet = trace_->add_packet();
     packet->set_trusted_packet_sequence_id(1);
@@ -2398,9 +2362,6 @@ TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventLegacyTimestampsWithClockSnapshot) {
-  context_.sorter.reset(new TraceSorter(
-      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
-
   clock_->AddSnapshot({{protos::pbzero::BUILTIN_CLOCK_BOOTTIME, 0},
                        {protos::pbzero::BUILTIN_CLOCK_MONOTONIC, 1000000}});
 
@@ -2442,9 +2403,6 @@ TEST_F(ProtoTraceParserTest, TrackEventLegacyTimestampsWithClockSnapshot) {
 }
 
 TEST_F(ProtoTraceParserTest, ParseEventWithClockIdButWithoutClockSnapshot) {
-  context_.sorter.reset(new TraceSorter(
-      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
-
   {
     auto* packet = trace_->add_packet();
     packet->set_timestamp(1000);
@@ -2470,9 +2428,6 @@ TEST_F(ProtoTraceParserTest, ParseChromeMetadataEventIntoRawTable) {
   static const char kStringValue[] = "string_value";
   static const char kIntName[] = "int_name";
   static const int kIntValue = 123;
-
-  context_.sorter.reset(new TraceSorter(
-      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
 
   {
     auto* packet = trace_->add_packet();
@@ -2510,9 +2465,6 @@ TEST_F(ProtoTraceParserTest, ParseChromeMetadataEventIntoRawTable) {
 TEST_F(ProtoTraceParserTest, ParseChromeCombinedMetadataPacket) {
   static const char kStringName[] = "string_name";
   static const char kStringValue[] = "string_value";
-
-  context_.sorter.reset(new TraceSorter(
-      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
 
   {
     auto* packet = trace_->add_packet();
@@ -2558,9 +2510,6 @@ TEST_F(ProtoTraceParserTest, ParseChromeLegacyFtraceIntoRawTable) {
   static const char kDataPart1[] = "bbb";
   static const char kFullData[] = "aaabbb";
 
-  context_.sorter.reset(new TraceSorter(
-      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
-
   {
     auto* packet = trace_->add_packet();
     packet->set_trusted_packet_sequence_id(1);
@@ -2587,9 +2536,6 @@ TEST_F(ProtoTraceParserTest, ParseChromeLegacyFtraceIntoRawTable) {
 
 TEST_F(ProtoTraceParserTest, ParseChromeLegacyJsonIntoRawTable) {
   static const char kUserTraceEvent[] = "{\"user\":1}";
-
-  context_.sorter.reset(new TraceSorter(
-      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
 
   {
     auto* packet = trace_->add_packet();
@@ -2622,9 +2568,6 @@ TEST_F(ProtoTraceParserTest, LoadChromeBenchmarkMetadata) {
   static const char kTag1[] = "tag1";
   static const char kTag2[] = "tag2";
 
-  context_.sorter.reset(new TraceSorter(
-      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
-
   auto* metadata = trace_->add_packet()->set_chrome_benchmark_metadata();
   metadata->set_benchmark_name(kName);
   metadata->add_story_tags(kTag1);
@@ -2653,9 +2596,6 @@ TEST_F(ProtoTraceParserTest, LoadChromeBenchmarkMetadata) {
 }
 
 TEST_F(ProtoTraceParserTest, LoadChromeMetadata) {
-  context_.sorter.reset(new TraceSorter(
-      CreateParser(), std::numeric_limits<int64_t>::max() /*window size*/));
-
   auto* track_event = trace_->add_packet()->set_chrome_events();
   {
     auto* metadata = track_event->add_metadata();
@@ -2723,6 +2663,7 @@ TEST_F(ProtoTraceParserTest, AndroidPackagesList) {
   }
 
   Tokenize();
+  context_.sorter->ExtractEventsForced();
 
   // Packet-level errors reflected in stats storage.
   const auto& stats = context_.storage->stats();
@@ -2775,6 +2716,7 @@ TEST_F(ProtoTraceParserTest, AndroidPackagesListDuplicate) {
   }
 
   Tokenize();
+  context_.sorter->ExtractEventsForced();
 
   // Packet-level errors reflected in stats storage.
   const auto& stats = context_.storage->stats();
@@ -2860,10 +2802,10 @@ TEST_F(ProtoTraceParserTest, ParseCPUProfileSamplesIntoTable) {
     samples->set_process_priority(30);
   }
 
-  EXPECT_CALL(*process_, UpdateThread(16, 15))
-      .WillRepeatedly(Return(1));
+  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1));
 
   Tokenize();
+  context_.sorter->ExtractEventsForced();
 
   // Verify cpu_profile_samples.
   const auto& samples = storage_->cpu_profile_stack_sample_table();
@@ -2950,6 +2892,7 @@ TEST_F(ProtoTraceParserTest, CPUProfileSamplesTimestampsAreClockMonotonic) {
   EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1));
 
   Tokenize();
+  context_.sorter->ExtractEventsForced();
 
   const auto& samples = storage_->cpu_profile_stack_sample_table();
   EXPECT_EQ(samples.row_count(), 1u);
@@ -2966,6 +2909,7 @@ TEST_F(ProtoTraceParserTest, ConfigUuid) {
   config->set_trace_uuid_msb(2);
 
   ASSERT_TRUE(Tokenize().ok());
+  context_.sorter->ExtractEventsForced();
 
   SqlValue value =
       context_.metadata_tracker->GetMetadataForTesting(metadata::trace_uuid);
@@ -2978,6 +2922,7 @@ TEST_F(ProtoTraceParserTest, ConfigPbtxt) {
   config->add_buffers()->set_size_kb(42);
 
   ASSERT_TRUE(Tokenize().ok());
+  context_.sorter->ExtractEventsForced();
 
   SqlValue value = context_.metadata_tracker->GetMetadataForTesting(
       metadata::trace_config_pbtxt);

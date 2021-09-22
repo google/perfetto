@@ -93,7 +93,6 @@ base::Status FtraceTokenizer::TokenizeFtraceBundle(TraceBlobView bundle,
     size_t off = bundle.offset_of(it->data());
     TokenizeFtraceEvent(cpu, clock_id, bundle.slice(off, it->size()), state);
   }
-  context_->sorter->FinalizeFtraceEventBatch(cpu);
   return base::OkStatus();
 }
 

@@ -24,9 +24,12 @@
 namespace perfetto {
 namespace trace_processor {
 
-TraceSorter::TraceSorter(std::unique_ptr<TraceParser> parser,
-                         int64_t window_size_ns)
-    : parser_(std::move(parser)), window_size_ns_(window_size_ns) {
+TraceSorter::TraceSorter(TraceProcessorContext* context,
+                         std::unique_ptr<TraceParser> parser,
+                         SortingMode sorting_mode)
+    : context_(context),
+      parser_(std::move(parser)),
+      sorting_mode_(sorting_mode) {
   const char* env = getenv("TRACE_PROCESSOR_SORT_ONLY");
   bypass_next_stage_for_testing_ = env && !strcmp(env, "1");
   if (bypass_next_stage_for_testing_)
@@ -56,10 +59,10 @@ void TraceSorter::Queue::Sort() {
   PERFETTO_DCHECK(std::is_sorted(events_.begin(), events_.end()));
 }
 
-// Removes all the events in |queues_| that are earlier than the given window
-// size and moves them to the next parser stages, respecting global timestamp
-// order. This function is a "extract min from N sorted queues", with some
-// little cleverness: we know that events tend to be bursty, so events are
+// Removes all the events in |queues_| that are earlier than the given
+// packet index and moves them to the next parser stages, respecting global
+// timestamp order. This function is a "extract min from N sorted queues", with
+// some little cleverness: we know that events tend to be bursty, so events are
 // not going to be randomly distributed on the N |queues_|.
 // Upon each iteration this function finds the first two queues (if any) that
 // have the oldest events, and extracts events from the 1st until hitting the
@@ -76,12 +79,8 @@ void TraceSorter::Queue::Sort() {
 // to avoid re-scanning all the queues all the times) but doesn't seem worth it.
 // With Android traces (that have 8 CPUs) this function accounts for ~1-3% cpu
 // time in a profiler.
-void TraceSorter::SortAndExtractEventsBeyondWindow(int64_t window_size_ns) {
-  DCHECK_ftrace_batch_cpu(kNoBatch);
-
+void TraceSorter::SortAndExtractEventsUntilPacket(uint64_t limit_packet_idx) {
   constexpr int64_t kTsMax = std::numeric_limits<int64_t>::max();
-  const bool was_empty = global_min_ts_ == kTsMax && global_max_ts_ == 0;
-  int64_t extract_end_ts = global_max_ts_ - window_size_ns;
   size_t iterations = 0;
   for (;; iterations++) {
     size_t min_queue_idx = 0;  // The index of the queue with the min(ts).
@@ -122,13 +121,14 @@ void TraceSorter::SortAndExtractEventsBeyondWindow(int64_t window_size_ns) {
     PERFETTO_DCHECK(queue.min_ts_ == global_min_ts_);
 
     // Now that we identified the min-queue, extract all events from it until
-    // we hit either: (1) the min-ts of the 2nd queue or (2) the window limit,
-    // whichever comes first.
-    int64_t extract_until_ts = std::min(extract_end_ts, min_queue_ts[1]);
+    // we hit either: (1) the min-ts of the 2nd queue or (2) the packet index
+    // limit, whichever comes first.
     size_t num_extracted = 0;
     for (auto& event : events) {
-      if (event.timestamp > extract_until_ts)
+      if (event.packet_idx >= limit_packet_idx ||
+          event.timestamp > min_queue_ts[1]) {
         break;
+      }
 
       ++num_extracted;
       MaybePushEvent(min_queue_idx, std::move(event));
@@ -162,12 +162,6 @@ void TraceSorter::SortAndExtractEventsBeyondWindow(int64_t window_size_ns) {
     }
   }  // for(;;)
 
-  // We decide to extract events only when we know (using the global_{min,max}
-  // bounds) that there are eligible events. We should never end up in a
-  // situation where we call this function but then realize that there was
-  // nothing to extract.
-  PERFETTO_DCHECK(iterations > 0 || was_empty);
-
 #if PERFETTO_DCHECK_IS_ON()
   // Check that the global min/max are consistent.
   int64_t dbg_min_ts = kTsMax;
@@ -182,10 +176,15 @@ void TraceSorter::SortAndExtractEventsBeyondWindow(int64_t window_size_ns) {
 }
 
 void TraceSorter::MaybePushEvent(size_t queue_idx, TimestampedTracePiece ttp) {
+  int64_t timestamp = ttp.timestamp;
+  if (timestamp < latest_pushed_event_ts_)
+    context_->storage->IncrementStats(stats::sorter_push_event_out_of_order);
+
+  latest_pushed_event_ts_ = std::max(latest_pushed_event_ts_, timestamp);
+
   if (PERFETTO_UNLIKELY(bypass_next_stage_for_testing_))
     return;
 
-  int64_t timestamp = ttp.timestamp;
   if (queue_idx == 0) {
     // queues_[0] is for non-ftrace packets.
     parser_->ParseTracePacket(timestamp, std::move(ttp));
