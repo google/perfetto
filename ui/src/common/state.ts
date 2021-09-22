@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {validateRecordConfig} from '../controller/validate_config';
 import {
   AggregationAttrs,
   PivotAttrs,
@@ -62,7 +63,9 @@ export const MAX_TIME = 180;
 // 5: Move a large number of items off frontendLocalState and onto state.
 // 6: Common PivotTableConfig and pivot table specific PivotTableState.
 // 7: Split Chrome categories in two and add 'symbolize ksyms' flag.
-export const STATE_VERSION = 7;
+// 8: Rename several variables
+// "[...]HeapProfileFlamegraph[...]" -> "[...]Flamegraph[...]".
+export const STATE_VERSION = 8;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -77,7 +80,7 @@ export enum TrackKindPriority {
   'ORDINARY' = 3
 }
 
-export type HeapProfileFlamegraphViewingOption =
+export type FlamegraphStateViewingOption =
     'SPACE'|'ALLOC_SPACE'|'OBJECTS'|'ALLOC_OBJECTS'|'PERF_SAMPLES';
 
 export interface CallsiteInfo {
@@ -231,13 +234,13 @@ export interface PerfSamplesSelection {
   type: string;
 }
 
-export interface HeapProfileFlamegraph {
-  kind: 'HEAP_PROFILE_FLAMEGRAPH';
+export interface FlamegraphState {
+  kind: 'FLAMEGRAPH_STATE';
   id: number;
   upid: number;
   ts: number;
   type: string;
-  viewingOption: HeapProfileFlamegraphViewingOption;
+  viewingOption: FlamegraphStateViewingOption;
   focusRegex: string;
   expandedCallsite?: CallsiteInfo;
 }
@@ -348,7 +351,7 @@ export interface State {
   notes: ObjectById<Note|AreaNote>;
   status: Status;
   currentSelection: Selection|null;
-  currentHeapProfileFlamegraph: HeapProfileFlamegraph|null;
+  currentFlamegraphState: FlamegraphState|null;
   logsPagination: LogsPagination;
   traceConversionInProgress: boolean;
   pivotTableConfig: PivotTableConfig;
@@ -434,7 +437,8 @@ export function isAdbTarget(target: RecordingTarget):
 
 export function hasActiveProbes(config: RecordConfig) {
   const fieldsWithEmptyResult = new Set<string>(['hpBlockClient']);
-  for (const key in config) {
+  let key: keyof RecordConfig;
+  for (key in config) {
     if (typeof (config[key]) === 'boolean' && config[key] === true &&
         !fieldsWithEmptyResult.has(key)) {
       return true;
@@ -444,8 +448,6 @@ export function hasActiveProbes(config: RecordConfig) {
 }
 
 export interface RecordConfig {
-  [key: string]: null|number|boolean|string|string[];
-
   // Global settings
   mode: RecordMode;
   durationMs: number;
@@ -521,82 +523,7 @@ export interface RecordConfig {
 }
 
 export function createEmptyRecordConfig(): RecordConfig {
-  return {
-    mode: 'STOP_WHEN_FULL',
-    durationMs: 10000.0,
-    maxFileSizeMb: 100,
-    fileWritePeriodMs: 2500,
-    bufferSizeMb: 64.0,
-
-    cpuSched: false,
-    cpuFreq: false,
-    cpuSyscall: false,
-
-
-    gpuFreq: false,
-    gpuMemTotal: false,
-
-    ftrace: false,
-    atrace: false,
-    ftraceEvents: [],
-    ftraceExtraEvents: '',
-    atraceCats: [],
-    atraceApps: '',
-    ftraceBufferSizeKb: 2 * 1024,
-    ftraceDrainPeriodMs: 250,
-    androidLogs: false,
-    androidLogBuffers: [],
-    androidFrameTimeline: false,
-
-    cpuCoarse: false,
-    cpuCoarsePollMs: 1000,
-
-    batteryDrain: false,
-    batteryDrainPollMs: 1000,
-
-    boardSensors: false,
-
-    memHiFreq: false,
-    meminfo: false,
-    meminfoPeriodMs: 1000,
-    meminfoCounters: [],
-
-    vmstat: false,
-    vmstatPeriodMs: 1000,
-    vmstatCounters: [],
-
-    heapProfiling: false,
-    hpSamplingIntervalBytes: 4096,
-    hpProcesses: '',
-    hpContinuousDumpsPhase: 0,
-    hpContinuousDumpsInterval: 0,
-    hpSharedMemoryBuffer: 8 * 1048576,
-    hpBlockClient: true,
-    hpAllHeaps: false,
-
-    javaHeapDump: false,
-    jpProcesses: '',
-    jpContinuousDumpsPhase: 0,
-    jpContinuousDumpsInterval: 0,
-
-    memLmk: false,
-    procStats: false,
-    procStatsPeriodMs: 1000,
-
-    chromeCategoriesSelected: [],
-    chromeHighOverheadCategoriesSelected: [],
-
-    chromeLogs: false,
-    taskScheduling: false,
-    ipcFlows: false,
-    jsExecution: false,
-    webContentRendering: false,
-    uiRendering: false,
-    inputEvents: false,
-    navigationAndLoading: false,
-
-    symbolizeKsyms: false,
-  };
+  return validateRecordConfig({});
 }
 
 export function getDefaultRecordingTargets(): RecordingTarget[] {
@@ -901,7 +828,7 @@ export function createEmptyState(): State {
 
     status: {msg: '', timestamp: 0},
     currentSelection: null,
-    currentHeapProfileFlamegraph: null,
+    currentFlamegraphState: null,
     traceConversionInProgress: false,
 
     perfDebug: false,

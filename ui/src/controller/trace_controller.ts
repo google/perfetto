@@ -56,14 +56,14 @@ import {
   CpuProfileControllerArgs
 } from './cpu_profile_controller';
 import {
+  FlamegraphController,
+  FlamegraphControllerArgs
+} from './flamegraph_controller';
+import {
   FlowEventsController,
   FlowEventsControllerArgs
 } from './flow_events_controller';
 import {globals} from './globals';
-import {
-  HeapProfileController,
-  HeapProfileControllerArgs
-} from './heap_profile_controller';
 import {LoadingManager} from './loading_manager';
 import {LogsController} from './logs_controller';
 import {MetricsController} from './metrics_controller';
@@ -189,9 +189,9 @@ export class TraceController extends Controller<States> {
         childControllers.push(
             Child('cpuProfile', CpuProfileController, cpuProfileArgs));
 
-        const heapProfileArgs: HeapProfileControllerArgs = {engine};
+        const flamegraphArgs: FlamegraphControllerArgs = {engine};
         childControllers.push(
-            Child('heapProfile', HeapProfileController, heapProfileArgs));
+            Child('flamegraph', FlamegraphController, flamegraphArgs));
         childControllers.push(Child(
             'cpu_aggregation',
             CpuAggregationController,

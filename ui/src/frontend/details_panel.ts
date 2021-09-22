@@ -24,12 +24,12 @@ import {ChromeSliceDetailsPanel} from './chrome_slice_panel';
 import {CounterDetailsPanel} from './counter_panel';
 import {CpuProfileDetailsPanel} from './cpu_profile_panel';
 import {DragGestureHandler} from './drag_gesture_handler';
+import {FlamegraphDetailsPanel} from './flamegraph_panel';
 import {
   FlowEventsAreaSelectedPanel,
   FlowEventsPanel
 } from './flow_events_panel';
 import {globals} from './globals';
-import {HeapProfileDetailsPanel} from './heap_profile_panel';
 import {LogPanel} from './logs_panel';
 import {showModal} from './modal';
 import {NotesEditorPanel} from './notes_panel';
@@ -159,7 +159,7 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
     const renderTab = (tab: Tab) => {
       if (globals.state.currentTab === tab.key ||
           globals.state.currentTab === undefined &&
-              attrs.tabs.keys().next().value === tab.key) {
+              attrs.tabs[0].key === tab.key) {
         // Update currentTab in case we didn't have one before.
         globals.dispatch(Actions.setCurrentTab({tab: tab.key}));
         return m('.tab[active]', tab.name);
@@ -273,7 +273,7 @@ export class DetailsPanel implements m.ClassComponent {
           detailsPanels.push({
             key: 'current_selection',
             name: 'Current Selection',
-            vnode: m(HeapProfileDetailsPanel, {key: 'heap_profile'})
+            vnode: m(FlamegraphDetailsPanel, {key: 'flamegraph'})
           });
           break;
         case 'CPU_PROFILE_SAMPLE':
