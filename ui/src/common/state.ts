@@ -31,8 +31,9 @@ export type Timestamped<T> = {
   [P in keyof T]: T[P];
 }&{lastUpdate: number};
 
-export type OmniboxState =
-    Timestamped<{omnibox: string; mode: 'SEARCH' | 'COMMAND'}>;
+export type OmniboxMode = 'SEARCH'|'COMMAND';
+
+export type OmniboxState = Timestamped<{omnibox: string; mode: OmniboxMode}>;
 
 export type VisibleState =
     Timestamped<{startSec: number; endSec: number; resolution: number;}>;
