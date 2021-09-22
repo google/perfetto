@@ -185,7 +185,11 @@ namespace stats {
       "the tracing service. This happens if the ftrace buffers were not "      \
       "cleared properly. These packets are silently dropped by trace "         \
       "processor."),                                                           \
-  F(perf_guardrail_stop_ts,             kIndexed, kDataLoss, kTrace,    "")
+  F(perf_guardrail_stop_ts,             kIndexed, kDataLoss, kTrace,    ""),   \
+  F(sorter_push_event_out_of_order,     kSingle, kError,     kTrace,           \
+       "Trace events are out of order event after sorting. This can happen "   \
+       "due to many factors including clock sync drift, producers emitting "   \
+       "events out of order or a bug in trace processor's logic of sorting.")
 // clang-format on
 
 enum Type {
