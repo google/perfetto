@@ -11,6 +11,12 @@ Unreleased:
       new-line when specifying a query file with -q to trace processor shell.
     * Added "ancestor_slice_by_stack" and "descendant_slice_by_stack" table
       functions to walk up and down the slice stacks.
+    * Overhauled windowed sorting to be based on packet ordering and
+      lifecycle events inside the trace instead of time-based ordering. 
+    * Deprecated |SortingMode::kForceFlushPeriodWindowedSort| due to
+      windowed sorting chagnes. Embedders should switch to
+      |SortingMode::kDefaultHeuristics|; this option will be removed
+      in v21.
   UI:
     *
   SDK:
