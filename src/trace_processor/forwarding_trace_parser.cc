@@ -40,6 +40,17 @@ std::string RemoveWhitespace(std::string str) {
   return str;
 }
 
+TraceSorter::SortingMode ConvertSortingMode(SortingMode sorting_mode) {
+  switch (sorting_mode) {
+    case SortingMode::kDefaultHeuristics:
+    case SortingMode::kForceFlushPeriodWindowedSort:
+      return TraceSorter::SortingMode::kDefault;
+    case SortingMode::kForceFullSort:
+      return TraceSorter::SortingMode::kFullSort;
+  }
+  PERFETTO_FATAL("For GCC");
+}
+
 // Fuchsia traces have a magic number as documented here:
 // https://fuchsia.googlesource.com/fuchsia/+/HEAD/docs/development/tracing/trace-format/README.md#magic-number-record-trace-info-type-0
 constexpr uint64_t kFuchsiaMagicNumber = 0x0016547846040010;
@@ -55,7 +66,6 @@ util::Status ForwardingTraceParser::Parse(std::unique_ptr<uint8_t[]> data,
                                           size_t size) {
   // If this is the first Parse() call, guess the trace type and create the
   // appropriate parser.
-  static const int64_t kMaxWindowSize = std::numeric_limits<int64_t>::max();
   if (!reader_) {
     TraceType trace_type;
     {
@@ -70,8 +80,9 @@ util::Status ForwardingTraceParser::Parse(std::unique_ptr<uint8_t[]> data,
           reader_ = std::move(context_->json_trace_tokenizer);
 
           // JSON traces have no guarantees about the order of events in them.
-          context_->sorter.reset(new TraceSorter(
-              std::move(context_->json_trace_parser), kMaxWindowSize));
+          context_->sorter.reset(
+              new TraceSorter(context_, std::move(context_->json_trace_parser),
+                              TraceSorter::SortingMode::kFullSort));
         } else {
           return util::ErrStatus("JSON support is disabled");
         }
@@ -79,12 +90,12 @@ util::Status ForwardingTraceParser::Parse(std::unique_ptr<uint8_t[]> data,
       }
       case kProtoTraceType: {
         PERFETTO_DLOG("Proto trace detected");
-        // This will be reduced once we read the trace config and we see flush
-        // period being set.
+        auto sorting_mode = ConvertSortingMode(context_->config.sorting_mode);
         reader_.reset(new ProtoTraceReader(context_));
         context_->sorter.reset(new TraceSorter(
+            context_,
             std::unique_ptr<TraceParser>(new ProtoTraceParser(context_)),
-            kMaxWindowSize));
+            sorting_mode));
         context_->process_tracker->SetPidZeroIgnoredForIdleProcess();
         break;
       }
@@ -101,7 +112,8 @@ util::Status ForwardingTraceParser::Parse(std::unique_ptr<uint8_t[]> data,
 
           // Fuschia traces can have massively out of order events.
           context_->sorter.reset(new TraceSorter(
-              std::move(context_->fuchsia_trace_parser), kMaxWindowSize));
+              context_, std::move(context_->fuchsia_trace_parser),
+              TraceSorter::SortingMode::kFullSort));
         } else {
           return util::ErrStatus("Fuchsia support is disabled");
         }
