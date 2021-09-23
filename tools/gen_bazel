@@ -45,6 +45,7 @@ gn_args = ' '.join([
     'target_os="linux"',
     'enable_perfetto_heapprofd=false',
     'enable_perfetto_traced_perf=false',
+    'perfetto_force_dcheck="off"',
 ])
 
 # Default targets to translate to the blueprint file.
