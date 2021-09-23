@@ -44,7 +44,7 @@ class CpuProfileTrack extends Track<Config, Data> {
   private hoveredTs: number|undefined = undefined;
 
   constructor(args: NewTrackArgs) {
-    super(args.trackId);
+    super(args);
   }
 
   getHeight() {
