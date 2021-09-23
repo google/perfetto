@@ -43,7 +43,7 @@ class CpuFreqTrack extends Track<Config, Data> {
   private hoveredIdle: number|undefined = undefined;
 
   constructor(args: NewTrackArgs) {
-    super(args.trackId);
+    super(args);
   }
 
   getHeight() {
