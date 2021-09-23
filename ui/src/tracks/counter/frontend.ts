@@ -90,7 +90,7 @@ class CounterTrack extends Track<Config, Data> {
   private hoveredTsEnd: number|undefined = undefined;
 
   constructor(args: NewTrackArgs) {
-    super(args.trackId);
+    super(args);
   }
 
   getHeight() {

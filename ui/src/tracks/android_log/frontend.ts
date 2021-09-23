@@ -44,7 +44,7 @@ class AndroidLogTrack extends Track<Config, Data> {
   }
 
   constructor(args: NewTrackArgs) {
-    super(args.trackId);
+    super(args);
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D): void {
