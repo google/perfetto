@@ -71,22 +71,22 @@ export function drawIncompleteSlice(
     ctx: CanvasRenderingContext2D,
     x: number,
     y: number,
-    length: number,
     width: number,
+    height: number,
     color: string) {
   ctx.beginPath();
   ctx.fillStyle = color;
-  const triangleSize = width / 4;
+  const triangleSize = height / 4;
   ctx.moveTo(x, y);
-  ctx.lineTo(x + length, y);
-  ctx.lineTo(x + length - 3, y + triangleSize * 0.5);
-  ctx.lineTo(x + length, y + triangleSize);
-  ctx.lineTo(x + length - 3, y + (triangleSize * 1.5));
-  ctx.lineTo(x + length, y + 2 * triangleSize);
-  ctx.lineTo(x + length - 3, y + (triangleSize * 2.5));
-  ctx.lineTo(x + length, y + 3 * triangleSize);
-  ctx.lineTo(x + length - 3, y + (triangleSize * 3.5));
-  ctx.lineTo(x + length, y + 4 * triangleSize);
-  ctx.lineTo(x, y + width);
+  ctx.lineTo(x + width, y);
+  ctx.lineTo(x + width - 3, y + triangleSize * 0.5);
+  ctx.lineTo(x + width, y + triangleSize);
+  ctx.lineTo(x + width - 3, y + (triangleSize * 1.5));
+  ctx.lineTo(x + width, y + 2 * triangleSize);
+  ctx.lineTo(x + width - 3, y + (triangleSize * 2.5));
+  ctx.lineTo(x + width, y + 3 * triangleSize);
+  ctx.lineTo(x + width - 3, y + (triangleSize * 3.5));
+  ctx.lineTo(x + width, y + 4 * triangleSize);
+  ctx.lineTo(x, y + height);
   ctx.fill();
 }
