@@ -42,7 +42,7 @@ export class ChromeSliceTrack extends Track<Config, Data> {
   private hoveredTitleId = -1;
 
   constructor(args: NewTrackArgs) {
-    super(args.trackId);
+    super(args);
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D): void {
@@ -115,16 +115,6 @@ export class ChromeSliceTrack extends Track<Config, Data> {
       }
       ctx.fillStyle = color;
 
-      if (isThreadSlice) {
-        const cpuTimeRatio = data.cpuTimeRatio![i];
-        const [GradientHue, GradientSaturation, GradientLightness] =
-            hslForThreadIdleSlice(hue, saturation, lightness, hasFocus);
-        const gradientColor =
-            hsluvToHex([GradientHue, GradientSaturation, GradientLightness]);
-        ctx.fillStyle = this.createGradientForThreadSlice(
-            tStart, tEnd, cpuTimeRatio, color, gradientColor, ctx);
-      }
-
       // We draw instant events as upward facing chevrons starting at A:
       //     A
       //    ###
@@ -161,12 +151,28 @@ export class ChromeSliceTrack extends Track<Config, Data> {
         }
         continue;
       }
+
       if (isIncomplete && rect.width > SLICE_HEIGHT / 4) {
         drawIncompleteSlice(
             ctx, rect.left, rect.top, rect.width, SLICE_HEIGHT, color);
+      } else if (isThreadSlice) {
+        // We draw two rectangles, representing the ratio between wall time and
+        // time spent on cpu.
+        const cpuTimeRatio = data.cpuTimeRatio![i];
+        const firstPartWidth = rect.width * cpuTimeRatio;
+        const secondPartWidth = rect.width * (1 - cpuTimeRatio);
+        ctx.fillRect(rect.left, rect.top, firstPartWidth, SLICE_HEIGHT);
+        ctx.fillStyle = hsluvToHex(
+            hslForThreadIdleSlice(hue, saturation, lightness, hasFocus));
+        ctx.fillRect(
+            rect.left + firstPartWidth,
+            rect.top,
+            secondPartWidth,
+            SLICE_HEIGHT);
       } else {
         ctx.fillRect(rect.left, rect.top, rect.width, SLICE_HEIGHT);
       }
+
       // Selected case
       if (isSelected) {
         drawRectOnSelected = () => {
@@ -281,23 +287,6 @@ export class ChromeSliceTrack extends Track<Config, Data> {
       visible:
           !(tEnd <= visibleWindowTime.start || tStart >= visibleWindowTime.end)
     };
-  }
-
-  createGradientForThreadSlice(
-      tStart: number, tEnd: number, cpuTimeRatio: number, color: string,
-      gradientColor: string, ctx: CanvasRenderingContext2D): CanvasGradient {
-    const timeScale = globals.frontendLocalState.timeScale;
-    const {start: windowStart, end: windowEnd} =
-        globals.frontendLocalState.visibleWindowTime;
-    const start = isFinite(timeScale.timeToPx(tStart)) ?
-        timeScale.timeToPx(tStart) :
-        windowStart;
-    const end = isFinite(timeScale.timeToPx(tEnd)) ? timeScale.timeToPx(tEnd) :
-                                                     windowEnd;
-    const gradient = ctx.createLinearGradient(start, 0, end, 0);
-    gradient.addColorStop(cpuTimeRatio, color);
-    gradient.addColorStop(cpuTimeRatio, gradientColor);
-    return gradient;
   }
 }
 
