@@ -24,15 +24,22 @@
 namespace perfetto {
 namespace trace_processor {
 
+// Represents a time boundary for a column.
+struct TimeConstraints {
+  FilterOp op;
+  int64_t value;
+};
+
 std::unique_ptr<tables::ExperimentalFlamegraphNodesTable>
 BuildNativeHeapProfileFlamegraph(TraceStorage* storage,
                                  UniquePid upid,
                                  int64_t timestamp);
 
 std::unique_ptr<tables::ExperimentalFlamegraphNodesTable>
-BuildNativeCallStackSamplingFlamegraph(TraceStorage* storage,
-                                       UniquePid upid,
-                                       int64_t timestamp);
+BuildNativeCallStackSamplingFlamegraph(
+    TraceStorage* storage,
+    UniquePid upid,
+    const std::vector<TimeConstraints>& time_constraints);
 }  // namespace trace_processor
 }  // namespace perfetto
 

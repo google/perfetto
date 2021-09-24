@@ -356,17 +356,30 @@ export class FlamegraphController extends Controller<'main'> {
       focusRegex: string): Promise<string> {
     // Creating unique names for views so we can reuse and not delete them
     // for each marker.
-    let whereClause = '';
+    let focusRegexConditional = '';
     if (focusRegex !== '') {
-      whereClause = `where focus_str = '${focusRegex}'`;
+      const linkingWord = type === 'perf' ? 'and' : 'where';
+      focusRegexConditional = `${linkingWord} focus_str = '${focusRegex}'`;
     }
 
+    /*
+     * TODO(octaviant) this branching should be eliminated for simplicity.
+     */
+    if (type === 'perf') {
+      return this.cache.getTableName(
+          `select id, name, map_name, parent_id, depth, cumulative_size,
+          cumulative_alloc_size, cumulative_count, cumulative_alloc_count,
+          size, alloc_size, count, alloc_count, source_file, line_number
+          from experimental_flamegraph
+          where profile_type = "${type}" and ts <= ${ts} and upid = ${upid} 
+          ${focusRegexConditional}`);
+    }
     return this.cache.getTableName(
         `select id, name, map_name, parent_id, depth, cumulative_size,
           cumulative_alloc_size, cumulative_count, cumulative_alloc_count,
           size, alloc_size, count, alloc_count, source_file, line_number
           from experimental_flamegraph(${ts}, ${upid}, '${type}') ${
-            whereClause}`);
+            focusRegexConditional}`);
   }
 
   getMinSizeDisplayed(flamegraphData: CallsiteInfo[], rootSize?: number):

@@ -1,1 +1,5 @@
-select * from experimental_flamegraph(7689491063351, 30, 'perf') limit 10;
+select * from experimental_flamegraph
+where upid = 30
+  and profile_type = 'perf'
+  and ts <= 7689491063351
+limit 10;
