@@ -445,6 +445,12 @@ export function hasActiveProbes(config: RecordConfig) {
       return true;
     }
   }
+  if (config.chromeCategoriesSelected.length > 0) {
+    return true;
+  }
+  if (config.chromeHighOverheadCategoriesSelected.length > 0) {
+    return true;
+  }
   return false;
 }
 
