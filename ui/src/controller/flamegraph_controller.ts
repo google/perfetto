@@ -87,124 +87,101 @@ export class FlamegraphController extends Controller<'main'> {
 
   run() {
     const selection = globals.state.currentFlamegraphState;
-
-    if (!selection) return;
-
-    if (this.shouldRequestData(selection)) {
-      if (this.requestingData) {
-        this.queuedRequest = true;
-      } else {
-        this.requestingData = true;
-        const selectedFlamegraphState: FlamegraphState =
-            this.copyFlamegraphState(selection);
-
-        this.getFlamegraphMetadata(
-                selection.type,
-                selectedFlamegraphState.ts,
-                selectedFlamegraphState.upid)
-            .then(result => {
-              if (result !== undefined) {
-                Object.assign(this.flamegraphDetails, result);
-              }
-
-              // TODO(hjd): Clean this up.
-              if (this.lastSelectedFlamegraphState &&
-                  this.lastSelectedFlamegraphState.focusRegex !==
-                      selection.focusRegex) {
-                this.flamegraphDatasets.clear();
-              }
-
-              this.lastSelectedFlamegraphState =
-                  this.copyFlamegraphState(selection);
-
-              const expandedId = selectedFlamegraphState.expandedCallsite ?
-                  selectedFlamegraphState.expandedCallsite.id :
-                  -1;
-              const rootSize =
-                  selectedFlamegraphState.expandedCallsite === undefined ?
-                  undefined :
-                  selectedFlamegraphState.expandedCallsite.totalSize;
-
-              const key = `${selectedFlamegraphState.upid};${
-                  selectedFlamegraphState.ts}`;
-
-              this.getFlamegraphData(
-                      key,
-                      selectedFlamegraphState.viewingOption ?
-                          selectedFlamegraphState.viewingOption :
-                          DEFAULT_VIEWING_OPTION,
-                      selection.ts,
-                      selectedFlamegraphState.upid,
-                      selectedFlamegraphState.type,
-                      selectedFlamegraphState.focusRegex)
-                  .then(flamegraphData => {
-                    if (flamegraphData !== undefined && selection &&
-                        selection.kind === selectedFlamegraphState.kind &&
-                        selection.id === selectedFlamegraphState.id &&
-                        selection.ts === selectedFlamegraphState.ts) {
-                      const expandedFlamegraphData =
-                          expandCallsites(flamegraphData, expandedId);
-                      this.prepareAndMergeCallsites(
-                          expandedFlamegraphData,
-                          this.lastSelectedFlamegraphState!.viewingOption,
-                          rootSize,
-                          this.lastSelectedFlamegraphState!.expandedCallsite);
-                    }
-                  })
-                  .finally(() => {
-                    this.requestingData = false;
-                    if (this.queuedRequest) {
-                      this.queuedRequest = false;
-                      this.run();
-                    }
-                  });
-            });
-      }
+    if (!selection || !this.shouldRequestData(selection)) {
+      return;
     }
+    if (this.requestingData) {
+      this.queuedRequest = true;
+      return;
+    }
+    this.requestingData = true;
+
+    this.assembleFlamegraphDetails(selection);
   }
 
-  private copyFlamegraphState(flamegraphState: FlamegraphState):
-      FlamegraphState {
-    return {
-      kind: flamegraphState.kind,
-      id: flamegraphState.id,
-      upid: flamegraphState.upid,
-      ts: flamegraphState.ts,
-      type: flamegraphState.type,
-      expandedCallsite: flamegraphState.expandedCallsite,
-      viewingOption: flamegraphState.viewingOption,
-      focusRegex: flamegraphState.focusRegex,
-    };
+  private async assembleFlamegraphDetails(selection: FlamegraphState) {
+    const selectedFlamegraphState = {...selection};
+    const flamegraphMetadata = await this.getFlamegraphMetadata(
+        selection.type,
+        selectedFlamegraphState.ts,
+        selectedFlamegraphState.upid);
+    if (flamegraphMetadata !== undefined) {
+      Object.assign(this.flamegraphDetails, flamegraphMetadata);
+    }
+
+    // TODO(hjd): Clean this up.
+    if (this.lastSelectedFlamegraphState &&
+        this.lastSelectedFlamegraphState.focusRegex !== selection.focusRegex) {
+      this.flamegraphDatasets.clear();
+    }
+
+    this.lastSelectedFlamegraphState = {...selection};
+
+    const expandedId = selectedFlamegraphState.expandedCallsite ?
+        selectedFlamegraphState.expandedCallsite.id :
+        -1;
+    const rootSize = selectedFlamegraphState.expandedCallsite === undefined ?
+        undefined :
+        selectedFlamegraphState.expandedCallsite.totalSize;
+
+    const key = `${selectedFlamegraphState.upid};${selectedFlamegraphState.ts}`;
+
+    try {
+      const flamegraphData = await this.getFlamegraphData(
+          key,
+          selectedFlamegraphState.viewingOption ?
+              selectedFlamegraphState.viewingOption :
+              DEFAULT_VIEWING_OPTION,
+          selection.ts,
+          selectedFlamegraphState.upid,
+          selectedFlamegraphState.type,
+          selectedFlamegraphState.focusRegex);
+      if (flamegraphData !== undefined && selection &&
+          selection.kind === selectedFlamegraphState.kind &&
+          selection.id === selectedFlamegraphState.id &&
+          selection.ts === selectedFlamegraphState.ts) {
+        const expandedFlamegraphData =
+            expandCallsites(flamegraphData, expandedId);
+        this.prepareAndMergeCallsites(
+            expandedFlamegraphData,
+            this.lastSelectedFlamegraphState.viewingOption,
+            rootSize,
+            this.lastSelectedFlamegraphState.expandedCallsite);
+      }
+    } finally {
+      this.requestingData = false;
+      if (this.queuedRequest) {
+        this.queuedRequest = false;
+        this.run();
+      }
+    }
   }
 
   private shouldRequestData(selection: FlamegraphState) {
     return selection.kind === 'FLAMEGRAPH_STATE' &&
         (this.lastSelectedFlamegraphState === undefined ||
-         (this.lastSelectedFlamegraphState !== undefined &&
-          (this.lastSelectedFlamegraphState.id !== selection.id ||
-           this.lastSelectedFlamegraphState.ts !== selection.ts ||
-           this.lastSelectedFlamegraphState.type !== selection.type ||
-           this.lastSelectedFlamegraphState.upid !== selection.upid ||
-           this.lastSelectedFlamegraphState.viewingOption !==
-               selection.viewingOption ||
-           this.lastSelectedFlamegraphState.focusRegex !==
-               selection.focusRegex ||
-           this.lastSelectedFlamegraphState.expandedCallsite !==
-               selection.expandedCallsite)));
+         (this.lastSelectedFlamegraphState.id !== selection.id ||
+          this.lastSelectedFlamegraphState.ts !== selection.ts ||
+          this.lastSelectedFlamegraphState.type !== selection.type ||
+          this.lastSelectedFlamegraphState.upid !== selection.upid ||
+          this.lastSelectedFlamegraphState.viewingOption !==
+              selection.viewingOption ||
+          this.lastSelectedFlamegraphState.focusRegex !==
+              selection.focusRegex ||
+          this.lastSelectedFlamegraphState.expandedCallsite !==
+              selection.expandedCallsite));
   }
 
   private prepareAndMergeCallsites(
       flamegraphData: CallsiteInfo[],
       viewingOption: string|undefined = DEFAULT_VIEWING_OPTION,
       rootSize?: number, expandedCallsite?: CallsiteInfo) {
-    const mergedFlamegraphData = mergeCallsites(
+    this.flamegraphDetails.flamegraph = mergeCallsites(
         flamegraphData, this.getMinSizeDisplayed(flamegraphData, rootSize));
-    this.flamegraphDetails.flamegraph = mergedFlamegraphData;
     this.flamegraphDetails.expandedCallsite = expandedCallsite;
     this.flamegraphDetails.viewingOption = viewingOption;
     publishFlamegraphDetails(this.flamegraphDetails);
   }
-
 
   async getFlamegraphData(
       baseKey: string, viewingOption: string, ts: number, upid: number,
