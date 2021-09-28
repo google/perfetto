@@ -39,16 +39,8 @@ function isStringColumn(column: Column): boolean {
 }
 
 function isAreaEqual(area: Area, previousArea?: Area) {
-  if (previousArea === undefined) {
-    return false;
-  }
-  if (previousArea === undefined) {
-    return true;
-  }
-  if (area.startSec !== previousArea.startSec) {
-    return false;
-  }
-  if (area.endSec !== previousArea.endSec) {
+  if (previousArea === undefined || area.startSec !== previousArea.startSec ||
+      area.endSec !== previousArea.endSec) {
     return false;
   }
   return area.tracks.every((element, i) => element === previousArea.tracks[i]);
