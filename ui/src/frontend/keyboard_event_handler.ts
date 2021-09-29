@@ -185,7 +185,11 @@ function findTimeRangeOfSelection(): {startTs: number, endTs: number} {
       endTs = startTs + slice.dur;
     } else if (slice.ts) {
       startTs = slice.ts + globals.state.traceTime.startSec;
-      endTs = startTs + INSTANT_FOCUS_DURATION_S;
+      // This will handle either:
+      // a)slice.dur === -1 -> unfinished slice
+      // b)slice.dur === 0  -> instant event
+      endTs = slice.dur === -1 ? globals.state.traceTime.endSec :
+                                 startTs + INSTANT_FOCUS_DURATION_S;
     }
   } else if (selection.kind === 'THREAD_STATE') {
     const threadState = globals.threadStateDetails;
