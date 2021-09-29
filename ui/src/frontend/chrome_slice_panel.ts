@@ -16,11 +16,12 @@ import * as m from 'mithril';
 
 import {Actions} from '../common/actions';
 import {Arg, ArgsTree, isArgTreeArray, isArgTreeMap} from '../common/arg_types';
-import {timeToCode, toNs} from '../common/time';
+import {timeToCode} from '../common/time';
 
 import {globals, SliceDetails} from './globals';
-import {Panel, PanelSize} from './panel';
+import {PanelSize} from './panel';
 import {verticalScrollToTrack} from './scroll_helper';
+import {SlicePanel} from './slice_panel';
 
 // Table row contents is one of two things:
 // 1. Key-value pair
@@ -122,7 +123,7 @@ class TableBuilder {
   }
 }
 
-export class ChromeSliceDetailsPanel extends Panel {
+export class ChromeSliceDetailsPanel extends SlicePanel {
   view() {
     const sliceInfo = globals.sliceDetails;
     if (sliceInfo.ts !== undefined && sliceInfo.dur !== undefined &&
@@ -136,9 +137,7 @@ export class ChromeSliceDetailsPanel extends Panel {
               sliceInfo.category);
       builder.add('Start time', timeToCode(sliceInfo.ts));
       builder.add(
-          'Duration',
-          toNs(sliceInfo.dur) === -1 ? '-1 (Did not end)' :
-                                       timeToCode(sliceInfo.dur));
+          'Duration', this.computeDuration(sliceInfo.ts, sliceInfo.dur));
       builder.add(
           'Slice ID', sliceInfo.id ? sliceInfo.id.toString() : 'Unknown');
       if (sliceInfo.description) {
