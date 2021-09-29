@@ -128,6 +128,8 @@ source_set("test_support") {
     "../../gn:default_deps",
   ]
   sources = [
+    "test/tmp_dir_tree.cc",
+    "test/tmp_dir_tree.h",
     "test/utils.cc",
     "test/utils.h",
     "test/vm_test_utils.cc",

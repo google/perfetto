@@ -13,14 +13,15 @@
 // limitations under the License.
 
 import * as uuidv4 from 'uuid/v4';
-import {assertExists} from '../base/logging';
 
+import {assertExists} from '../base/logging';
 import {
   Actions,
   AddTrackArgs,
   DeferredAction,
 } from '../common/actions';
 import {Engine} from '../common/engine';
+import {PERF_SAMPLE_FLAG} from '../common/feature_flags';
 import {
   NUM,
   NUM_NULL,
@@ -40,6 +41,9 @@ import {
   EXPECTED_FRAMES_SLICE_TRACK_KIND
 } from '../tracks/expected_frames/common';
 import {HEAP_PROFILE_TRACK_KIND} from '../tracks/heap_profile/common';
+import {
+  PERF_SAMPLES_PROFILE_TRACK_KIND
+} from '../tracks/perf_samples_profile/common';
 import {
   PROCESS_SCHEDULING_TRACK_KIND
 } from '../tracks/process_scheduling/common';
@@ -938,6 +942,26 @@ class TrackDecider {
     }
   }
 
+  async addProcessPerfSamplesTracks(): Promise<void> {
+    const result = await this.engine.query(`
+      select distinct(process.upid) from process
+      join thread on process.upid = thread.upid
+      join perf_sample on thread.utid = perf_sample.utid
+  `);
+    for (const it = result.iter({upid: NUM}); it.valid(); it.next()) {
+      const upid = it.upid;
+      const uuid = this.getUuid(0, upid);
+      this.tracksToAdd.push({
+        engineId: this.engineId,
+        kind: PERF_SAMPLES_PROFILE_TRACK_KIND,
+        trackKindPriority: TrackKindPriority.ORDINARY,
+        name: `Perf Samples`,
+        trackGroup: uuid,
+        config: {upid}
+      });
+    }
+  }
+
   getUuidUnchecked(utid: number, upid: number|null) {
     return upid === null ? this.utidToUuid.get(utid) :
                            this.upidToUuid.get(upid);
@@ -1101,6 +1125,9 @@ class TrackDecider {
     await this.addProcessTrackGroups();
 
     await this.addProcessHeapProfileTracks();
+    if (PERF_SAMPLE_FLAG.get()) {
+      await this.addProcessPerfSamplesTracks();
+    }
     await this.addProcessCounterTracks();
     await this.addProcessAsyncSliceTracks();
     await this.addActualFramesTracks();

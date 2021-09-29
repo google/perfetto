@@ -17,26 +17,28 @@ import {QueryResponse} from 'src/common/queries';
 
 import {Actions} from '../common/actions';
 import {LogExists, LogExistsKey} from '../common/logs';
+import {DEFAULT_PIVOT_TABLE_ID} from '../common/pivot_table_common';
 
 import {AggregationPanel} from './aggregation_panel';
 import {ChromeSliceDetailsPanel} from './chrome_slice_panel';
 import {CounterDetailsPanel} from './counter_panel';
 import {CpuProfileDetailsPanel} from './cpu_profile_panel';
 import {DragGestureHandler} from './drag_gesture_handler';
+import {FlamegraphDetailsPanel} from './flamegraph_panel';
 import {
   FlowEventsAreaSelectedPanel,
   FlowEventsPanel
 } from './flow_events_panel';
 import {globals} from './globals';
-import {HeapProfileDetailsPanel} from './heap_profile_panel';
 import {LogPanel} from './logs_panel';
 import {showModal} from './modal';
 import {NotesEditorPanel} from './notes_panel';
 import {AnyAttrsVnode, PanelContainer} from './panel_container';
 import {PivotTable} from './pivot_table';
 import {ColumnDisplay, ColumnPicker} from './pivot_table_editor';
+import {PivotTableHelper} from './pivot_table_helper';
 import {QueryTable} from './query_table';
-import {SliceDetailsPanel} from './slice_panel';
+import {SliceDetailsPanel} from './slice_details_panel';
 import {ThreadStatePanel} from './thread_state_panel';
 
 const UP_ICON = 'keyboard_arrow_up';
@@ -57,6 +59,38 @@ function getFullScreenHeight() {
 function hasLogs(): boolean {
   const data = globals.trackDataStore.get(LogExistsKey) as LogExists;
   return data && data.exists;
+}
+
+function showPivotTableEditorModal(helper?: PivotTableHelper) {
+  if (helper !== undefined && helper.editPivotTableModalOpen) {
+    let content;
+    if (helper.availableColumns.length === 0 ||
+        helper.availableAggregations.length === 0) {
+      content =
+          m('.pivot-table-editor-container',
+            helper.availableColumns.length === 0 ?
+                m('div', 'No columns available.') :
+                null,
+            helper.availableAggregations.length === 0 ?
+                m('div', 'No aggregations available.') :
+                null);
+    } else {
+      const attrs = {helper};
+      content =
+          m('.pivot-table-editor-container',
+            m(ColumnPicker, attrs),
+            m(ColumnDisplay, attrs));
+    }
+
+    showModal({
+      title: 'Edit Pivot Table',
+      content,
+      buttons: [],
+    }).finally(() => {
+      helper.toggleEditPivotTableModal();
+      globals.rafScheduler.scheduleFullRedraw();
+    });
+  }
 }
 
 interface Tab {
@@ -125,7 +159,7 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
     const renderTab = (tab: Tab) => {
       if (globals.state.currentTab === tab.key ||
           globals.state.currentTab === undefined &&
-              attrs.tabs.keys().next().value === tab.key) {
+              attrs.tabs[0].key === tab.key) {
         // Update currentTab in case we didn't have one before.
         globals.dispatch(Actions.setCurrentTab({tab: tab.key}));
         return m('.tab[active]', tab.name);
@@ -180,8 +214,6 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
 
 export class DetailsPanel implements m.ClassComponent {
   private detailsHeight = DEFAULT_DETAILS_HEIGHT_PX;
-  // Used to set details panel to default height on selection.
-  private showDetailsPanel = true;
 
   view() {
     interface DetailsPanel {
@@ -234,11 +266,12 @@ export class DetailsPanel implements m.ClassComponent {
             })
           });
           break;
+        case 'PERF_SAMPLES':
         case 'HEAP_PROFILE':
           detailsPanels.push({
             key: 'current_selection',
             name: 'Current Selection',
-            vnode: m(HeapProfileDetailsPanel, {key: 'heap_profile'})
+            vnode: m(FlamegraphDetailsPanel, {key: 'flamegraph'})
           });
           break;
         case 'CPU_PROFILE_SAMPLE':
@@ -286,50 +319,22 @@ export class DetailsPanel implements m.ClassComponent {
       });
     }
 
-    const pivotTableId = 'pivot-table';
-    const pivotTable = globals.state.pivotTable[pivotTableId];
-    const helper = globals.pivotTableHelper.get(pivotTableId);
-
-    if (globals.frontendLocalState.showPivotTable && pivotTable !== undefined) {
-      if (helper !== undefined) {
-        helper.setSelectedPivotsAndAggregations(
-            pivotTable.selectedPivots, pivotTable.selectedAggregations);
+    for (const pivotTableId of Object.keys(globals.state.pivotTable)) {
+      const pivotTable = globals.state.pivotTable[pivotTableId];
+      const helper = globals.pivotTableHelper.get(pivotTableId);
+      if (pivotTableId !== DEFAULT_PIVOT_TABLE_ID ||
+          globals.frontendLocalState.showPivotTable) {
+        if (helper !== undefined) {
+          helper.setSelectedPivotsAndAggregations(
+              pivotTable.selectedPivots, pivotTable.selectedAggregations);
+        }
+        detailsPanels.push({
+          key: pivotTableId,
+          name: pivotTable.name,
+          vnode: m(PivotTable, {key: pivotTableId, pivotTableId, helper})
+        });
       }
-      detailsPanels.push({
-        key: pivotTableId,
-        name: pivotTable.name,
-        vnode: m(PivotTable, {key: pivotTableId, pivotTableId, helper})
-      });
-    }
-
-    if (helper !== undefined && helper.editPivotTableModalOpen) {
-      let content;
-      if (helper.availableColumns.length === 0 ||
-          helper.availableAggregations.length === 0) {
-        content =
-            m('.pivot-table-editor-container',
-              helper.availableColumns.length === 0 ?
-                  m('div', 'No columns available.') :
-                  null,
-              helper.availableAggregations.length === 0 ?
-                  m('div', 'No aggregations available.') :
-                  null);
-      } else {
-        const attrs = {helper};
-        content =
-            m('.pivot-table-editor-container',
-              m(ColumnPicker, attrs),
-              m(ColumnDisplay, attrs));
-      }
-
-      showModal({
-        title: 'Edit Pivot Table',
-        content,
-        buttons: [],
-      }).finally(() => {
-        helper.toggleEditPivotTableModal();
-        globals.rafScheduler.scheduleFullRedraw();
-      });
+      showPivotTableEditorModal(helper);
     }
 
     if (globals.connectedFlows.length > 0) {
@@ -359,8 +364,6 @@ export class DetailsPanel implements m.ClassComponent {
       });
     }
 
-    this.showDetailsPanel = detailsPanels.length > 0;
-
     const currentTabDetails =
         detailsPanels.filter(tab => tab.key === globals.state.currentTab)[0];
 
@@ -374,7 +377,7 @@ export class DetailsPanel implements m.ClassComponent {
         {
           style: {
             height: `${this.detailsHeight}px`,
-            display: this.showDetailsPanel ? null : 'none'
+            display: detailsPanels.length > 0 ? null : 'none'
           }
         },
         m(DragHandle, {

@@ -6871,6 +6871,7 @@ filegroup {
     name: "perfetto_src_base_test_support",
     srcs: [
         "src/base/test/test_task_runner.cc",
+        "src/base/test/tmp_dir_tree.cc",
         "src/base/test/utils.cc",
         "src/base/test/vm_test_utils.cc",
     ],
@@ -7438,8 +7439,6 @@ filegroup {
     srcs: [
         "src/profiling/symbolizer/breakpad_parser.cc",
         "src/profiling/symbolizer/breakpad_symbolizer.cc",
-        "src/profiling/symbolizer/filesystem_posix.cc",
-        "src/profiling/symbolizer/filesystem_windows.cc",
         "src/profiling/symbolizer/local_symbolizer.cc",
         "src/profiling/symbolizer/scoped_read_mmap_posix.cc",
         "src/profiling/symbolizer/scoped_read_mmap_windows.cc",
@@ -9554,13 +9553,6 @@ cc_test {
         "src/traced/probes/filesystem/testdata/**/*",
         "src/traced/probes/ftrace/test/data/**/*",
     ],
-    target: {
-        musl: {
-            static_libs: [
-                "libfts",
-            ],
-        },
-    },
 }
 
 // GN: //src/protozero/protoc_plugin:protozero_plugin
@@ -9738,11 +9730,6 @@ cc_binary {
                 ],
             },
         },
-        musl: {
-            static_libs: [
-                "libfts",
-            ],
-        },
     },
 }
 
@@ -9877,13 +9864,6 @@ cc_binary_host {
         "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
         "-DHAVE_HIDDEN",
     ],
-    target: {
-        musl: {
-            static_libs: [
-                "libfts",
-            ],
-        },
-    },
 }
 
 // GN: //src/traced/service:traced

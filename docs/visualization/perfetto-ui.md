@@ -71,3 +71,25 @@ This produces a visualization like this:
 
 Note: There is no equivalent debug counters feature yet, but the feature request
 is tracked on [b/168886909](http://b/168886909)).
+
+### Pivot Tables
+
+To use pivot tables in the Perfetto UI, you will need to enable the
+"Pivot tables" feature flag in the "Flags" tab under "Support" in the Sidebar.
+You can pop up a pivot table over the entire trace when clicking "p" on your
+keyboard. The "Edit" button opens a pop up window to add/remove and reorder
+columns and change the default sorting of aggregations.
+
+![Pivot table editor](/docs/images/pivot-tables/pivot-table-editor.png)
+
+Clicking on "Query" generates a table with the selected columns.
+Table cells with the expand icon can be expanded to show the next column values.
+The "name (stack)" column displays top level slices that can be expanded to show
+their descendants down to the last child.
+
+![Pivot table](/docs/images/pivot-tables/pivot-table.png)
+
+Area selection pops up a pre-filled pivot table restricted over the selected
+timestamps and track ids.
+
+![Pivot table area selection](/docs/images/pivot-tables/pivot-table-area-selection.png)

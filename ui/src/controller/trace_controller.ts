@@ -20,13 +20,17 @@ import {
 import {cacheTrace} from '../common/cache_manager';
 import {TRACE_MARGIN_TIME_S} from '../common/constants';
 import {Engine} from '../common/engine';
-import {featureFlags, Flag} from '../common/feature_flags';
+import {featureFlags, Flag, PERF_SAMPLE_FLAG} from '../common/feature_flags';
 import {HttpRpcEngine} from '../common/http_rpc_engine';
 import {NUM, NUM_NULL, QueryError, STR, STR_NULL} from '../common/query_result';
 import {EngineMode} from '../common/state';
 import {TimeSpan, toNs, toNsCeil, toNsFloor} from '../common/time';
 import {resetEngineWorker, WasmEngineProxy} from '../common/wasm_engine_proxy';
-import {QuantizedLoad, ThreadDesc} from '../frontend/globals';
+import {
+  globals as frontendGlobals,
+  QuantizedLoad,
+  ThreadDesc
+} from '../frontend/globals';
 import {
   publishHasFtrace,
   publishMetricError,
@@ -56,14 +60,14 @@ import {
   CpuProfileControllerArgs
 } from './cpu_profile_controller';
 import {
+  FlamegraphController,
+  FlamegraphControllerArgs
+} from './flamegraph_controller';
+import {
   FlowEventsController,
   FlowEventsControllerArgs
 } from './flow_events_controller';
 import {globals} from './globals';
-import {
-  HeapProfileController,
-  HeapProfileControllerArgs
-} from './heap_profile_controller';
 import {LoadingManager} from './loading_manager';
 import {LogsController} from './logs_controller';
 import {MetricsController} from './metrics_controller';
@@ -115,7 +119,6 @@ const FLAGGED_METRICS: Array<[Flag, string]> = METRICS.map(m => {
   });
   return [flag, m];
 });
-
 
 // TraceController handles handshakes with the frontend for everything that
 // concerns a single trace. It owns the WASM trace processor engine, handles
@@ -190,9 +193,9 @@ export class TraceController extends Controller<States> {
         childControllers.push(
             Child('cpuProfile', CpuProfileController, cpuProfileArgs));
 
-        const heapProfileArgs: HeapProfileControllerArgs = {engine};
+        const flamegraphArgs: FlamegraphControllerArgs = {engine};
         childControllers.push(
-            Child('heapProfile', HeapProfileController, heapProfileArgs));
+            Child('flamegraph', FlamegraphController, flamegraphArgs));
         childControllers.push(Child(
             'cpu_aggregation',
             CpuAggregationController,
@@ -329,7 +332,16 @@ export class TraceController extends Controller<States> {
       startSec,
       endSec,
     };
+
+    const emptyOmniboxState = {
+      omnibox: '',
+      mode: frontendGlobals.state.frontendLocalState.omniboxState.mode ||
+          'SEARCH',
+      lastUpdate: Date.now() / 1000
+    };
+
     const actions: DeferredAction[] = [
+      Actions.setOmnibox(emptyOmniboxState),
       Actions.setTraceUuid({traceUuid}),
       Actions.setTraceTime(traceTimeState)
     ];
@@ -391,9 +403,27 @@ export class TraceController extends Controller<States> {
 
     globals.dispatch(Actions.removeDebugTrack({}));
     globals.dispatch(Actions.sortThreadTracks({}));
+
     await this.selectFirstHeapProfile();
+    if (PERF_SAMPLE_FLAG.get()) {
+      await this.selectPerfSample();
+    }
 
     return engineMode;
+  }
+
+  private async selectPerfSample() {
+    const query = `select ts, upid
+        from perf_sample
+        join thread using (utid)
+        order by ts desc limit 1`;
+    const profile = await assertExists(this.engine).query(query);
+    if (profile.numRows() !== 1) return;
+    const row = profile.firstRow({ts: NUM, upid: NUM});
+    const ts = row.ts;
+    const upid = row.upid;
+    globals.dispatch(
+        Actions.selectPerfSamples({id: 0, upid, ts, type: 'perf'}));
   }
 
   private async selectFirstHeapProfile() {

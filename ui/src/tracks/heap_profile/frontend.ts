@@ -15,7 +15,7 @@
 import {searchSegment} from '../../base/binary_search';
 import {Actions} from '../../common/actions';
 import {fromNs, toNs} from '../../common/time';
-import {HEAP_PROFILE_HOVERED_COLOR} from '../../frontend/flamegraph';
+import {FLAMEGRAPH_HOVERED_COLOR} from '../../frontend/flamegraph';
 import {globals} from '../../frontend/globals';
 import {TimeScale} from '../../frontend/time_scale';
 import {NewTrackArgs, Track} from '../../frontend/track';
@@ -40,7 +40,7 @@ class HeapProfileTrack extends Track<Config, Data> {
   private hoveredTs: number|undefined = undefined;
 
   constructor(args: NewTrackArgs) {
-    super(args.trackId);
+    super(args);
   }
 
   getHeight() {
@@ -81,10 +81,10 @@ class HeapProfileTrack extends Track<Config, Data> {
     ctx.lineTo(x + this.markerWidth, y);
     ctx.lineTo(x, y - this.markerWidth);
     ctx.closePath();
-    ctx.fillStyle = isHovered ? HEAP_PROFILE_HOVERED_COLOR : HEAP_PROFILE_COLOR;
+    ctx.fillStyle = isHovered ? FLAMEGRAPH_HOVERED_COLOR : HEAP_PROFILE_COLOR;
     ctx.fill();
     if (strokeWidth > 0) {
-      ctx.strokeStyle = HEAP_PROFILE_HOVERED_COLOR;
+      ctx.strokeStyle = FLAMEGRAPH_HOVERED_COLOR;
       ctx.lineWidth = strokeWidth;
       ctx.stroke();
     }

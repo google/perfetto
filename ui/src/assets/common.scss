@@ -219,6 +219,14 @@ button.close {
         td.drop-location {
           background-color: hsla(210, 38%, 95%, 1);
         }
+        .total-aggregation {
+          white-space: pre;
+          font-weight: 600;
+          font-size: 12px
+        }
+      }
+      td {
+        height: 25px;
       }
       .disabled {
         cursor: default;

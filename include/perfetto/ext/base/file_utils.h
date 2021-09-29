@@ -27,6 +27,7 @@
 #include "perfetto/base/export.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/utils.h"
 
 namespace perfetto {
@@ -91,6 +92,9 @@ std::string GetFileExtension(const std::string& filename);
 // '\').
 base::Status ListFilesRecursive(const std::string& dir_path,
                                 std::vector<std::string>& output);
+
+// Returns the size of the file at `path` or nullopt in case of error.
+Optional<size_t> GetFileSize(const std::string& path);
 
 }  // namespace base
 }  // namespace perfetto
