@@ -38,7 +38,7 @@ import {PivotTable} from './pivot_table';
 import {ColumnDisplay, ColumnPicker} from './pivot_table_editor';
 import {PivotTableHelper} from './pivot_table_helper';
 import {QueryTable} from './query_table';
-import {SliceDetailsPanel} from './slice_panel';
+import {SliceDetailsPanel} from './slice_details_panel';
 import {ThreadStatePanel} from './thread_state_panel';
 
 const UP_ICON = 'keyboard_arrow_up';
@@ -214,8 +214,6 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
 
 export class DetailsPanel implements m.ClassComponent {
   private detailsHeight = DEFAULT_DETAILS_HEIGHT_PX;
-  // Used to set details panel to default height on selection.
-  private showDetailsPanel = true;
 
   view() {
     interface DetailsPanel {
@@ -366,8 +364,6 @@ export class DetailsPanel implements m.ClassComponent {
       });
     }
 
-    this.showDetailsPanel = detailsPanels.length > 0;
-
     const currentTabDetails =
         detailsPanels.filter(tab => tab.key === globals.state.currentTab)[0];
 
@@ -381,7 +377,7 @@ export class DetailsPanel implements m.ClassComponent {
         {
           style: {
             height: `${this.detailsHeight}px`,
-            display: this.showDetailsPanel ? null : 'none'
+            display: detailsPanels.length > 0 ? null : 'none'
           }
         },
         m(DragHandle, {
