@@ -65,8 +65,9 @@ export const MAX_TIME = 180;
 // 6: Common PivotTableConfig and pivot table specific PivotTableState.
 // 7: Split Chrome categories in two and add 'symbolize ksyms' flag.
 // 8: Rename several variables
+// 9: Add a field to track last loaded recording profile name
 // "[...]HeapProfileFlamegraph[...]" -> "[...]Flamegraph[...]".
-export const STATE_VERSION = 8;
+export const STATE_VERSION = 9;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -329,6 +330,7 @@ export interface State {
    */
   recordConfig: RecordConfig;
   displayConfigAsPbtxt: boolean;
+  lastLoadedConfigTitle: string|null;
 
   /**
    * Open traces.
@@ -813,6 +815,7 @@ export function createEmptyState(): State {
 
     recordConfig: createEmptyRecordConfig(),
     displayConfigAsPbtxt: false,
+    lastLoadedConfigTitle: null,
 
     frontendLocalState: {
       omniboxState: {
