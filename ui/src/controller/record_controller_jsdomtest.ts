@@ -39,6 +39,47 @@ test('SysConfig', () => {
   expect(ftraceEvents.includes('raw_syscalls/sys_exit')).toBe(true);
 });
 
+test('cpu scheduling includes kSyms', () => {
+  const config = createEmptyRecordConfig();
+  config.cpuSched = true;
+  const result =
+      TraceConfig.decode(genConfigProto(config, {os: 'Q', name: 'Android Q'}));
+  const sources = assertExists(result.dataSources);
+  const srcConfig = assertExists(sources[1].config);
+  const ftraceConfig = assertExists(srcConfig.ftraceConfig);
+  const ftraceEvents = assertExists(ftraceConfig.ftraceEvents);
+  expect(ftraceConfig.symbolizeKsyms).toBe(true);
+  expect(ftraceEvents.includes('sched/sched_blocked_reason')).toBe(true);
+});
+
+test('kSyms can be enabled individually', () => {
+  const config = createEmptyRecordConfig();
+  config.ftrace = true;
+  config.symbolizeKsyms = true;
+  const result =
+      TraceConfig.decode(genConfigProto(config, {os: 'Q', name: 'Android Q'}));
+  const sources = assertExists(result.dataSources);
+  const srcConfig = assertExists(sources[0].config);
+  const ftraceConfig = assertExists(srcConfig.ftraceConfig);
+  const ftraceEvents = assertExists(ftraceConfig.ftraceEvents);
+  expect(ftraceConfig.symbolizeKsyms).toBe(true);
+  expect(ftraceEvents.includes('sched/sched_blocked_reason')).toBe(true);
+});
+
+test('kSyms can be disabled individually', () => {
+  const config = createEmptyRecordConfig();
+  config.ftrace = true;
+  config.symbolizeKsyms = false;
+  const result =
+      TraceConfig.decode(genConfigProto(config, {os: 'Q', name: 'Android Q'}));
+  const sources = assertExists(result.dataSources);
+  const srcConfig = assertExists(sources[0].config);
+  const ftraceConfig = assertExists(srcConfig.ftraceConfig);
+  const ftraceEvents = assertExists(ftraceConfig.ftraceEvents);
+  expect(ftraceConfig.symbolizeKsyms).toBe(false);
+  expect(ftraceEvents.includes('sched/sched_blocked_reason')).toBe(false);
+});
+
 test('toPbtxt', () => {
   const config = {
     durationMs: 1000,
@@ -116,7 +157,8 @@ test('ChromeConfig', () => {
 
 test('ChromeMemoryConfig', () => {
   const config = createEmptyRecordConfig();
-  config.chromeCategoriesSelected = ['disabled-by-default-memory-infra'];
+  config.chromeHighOverheadCategoriesSelected =
+      ['disabled-by-default-memory-infra'];
   const result =
       TraceConfig.decode(genConfigProto(config, {os: 'C', name: 'Chrome'}));
   const sources = assertExists(result.dataSources);
@@ -178,7 +220,6 @@ test('ChromeConfigRingBuffer', () => {
   expect(traceConfigM).toEqual(expectedTraceConfig);
   expect(traceConfig).toEqual(expectedTraceConfig);
 });
-
 
 test('ChromeConfigLongTrace', () => {
   const config = createEmptyRecordConfig();

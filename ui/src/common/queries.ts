@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {Engine} from './engine';
-
 import {Row} from './query_result';
 
 const MAX_DISPLAY_ROWS = 10000;
@@ -31,7 +30,7 @@ export interface QueryResponse {
 export async function runQuery(
     queryId: string, sqlQuery: string, engine: Engine): Promise<QueryResponse> {
   const startMs = performance.now();
-  const queryRes = engine.queryV2(sqlQuery);
+  const queryRes = engine.query(sqlQuery);
 
   // TODO(primiano): once the controller thread is gone we should pass down
   // the result objects directly to the frontend, iterate over the result

@@ -3361,6 +3361,20 @@ TEST_P(PerfettoApiTest, LegacyTraceEvents) {
   // Metadata event.
   TRACE_EVENT_METADATA1("cat", "LegacyMetadata", "obsolete", true);
 
+  // Async events.
+  TRACE_EVENT_NESTABLE_ASYNC_BEGIN_WITH_TIMESTAMP_AND_FLAGS0(
+      "cat", "LegacyAsync", 5678, MyTimestamp{4}, TRACE_EVENT_FLAG_NONE);
+  TRACE_EVENT_NESTABLE_ASYNC_END_WITH_TIMESTAMP0("cat", "LegacyAsync", 5678,
+                                                 MyTimestamp{5});
+  TRACE_EVENT_NESTABLE_ASYNC_BEGIN_WITH_FLAGS0("cat", "LegacyAsync2", 9000,
+                                               TRACE_EVENT_FLAG_NONE);
+  TRACE_EVENT_NESTABLE_ASYNC_END_WITH_FLAGS0("cat", "LegacyAsync2", 9000,
+                                             TRACE_EVENT_FLAG_NONE);
+  TRACE_EVENT_NESTABLE_ASYNC_BEGIN_WITH_FLAGS0("cat", "LegacyAsync3", 9001,
+                                               TRACE_EVENT_FLAG_NONE);
+  TRACE_EVENT_NESTABLE_ASYNC_END_WITH_TIMESTAMP_AND_FLAGS0(
+      "cat", "LegacyAsync3", 9001, MyTimestamp{6}, TRACE_EVENT_FLAG_NONE);
+
   perfetto::TrackEvent::Flush();
   tracing_session->get()->StopBlocking();
   auto slices = ReadSlicesFromTrace(tracing_session->get());
@@ -3378,7 +3392,13 @@ TEST_P(PerfettoApiTest, LegacyTraceEvents) {
               "]Legacy_S(unscoped_id=1):cat.LegacyWithIdTidAndTimestamp",
           "Legacy_C:cat.LegacyCounter(value=(int)1234)",
           "Legacy_C(unscoped_id=1234):cat.LegacyCounterWithId(value=(int)9000)",
-          "Legacy_M:cat.LegacyMetadata"));
+          "Legacy_M:cat.LegacyMetadata",
+          "Legacy_b(unscoped_id=5678):cat.LegacyAsync",
+          "Legacy_e(unscoped_id=5678):cat.LegacyAsync",
+          "Legacy_b(unscoped_id=9000):cat.LegacyAsync2",
+          "Legacy_e(unscoped_id=9000):cat.LegacyAsync2",
+          "Legacy_b(unscoped_id=9001):cat.LegacyAsync3",
+          "Legacy_e(unscoped_id=9001):cat.LegacyAsync3"));
 }
 
 TEST_P(PerfettoApiTest, LegacyTraceEventsWithCustomAnnotation) {
@@ -4051,6 +4071,35 @@ TEST_P(PerfettoApiTest, Counters) {
               ElementsAre("Framerate = 120", "Goats teleported = 0.25",
                           "Goats teleported = 0.5", "Goats teleported = 0.75",
                           "Voltage = 220", "Power = 1.21"));
+}
+
+TEST_P(PerfettoApiTest, EmptyEvent) {
+  auto* tracing_session = NewTraceWithCategories({"cat"});
+  tracing_session->get()->StartBlocking();
+
+  // Emit an empty event.
+  PERFETTO_INTERNAL_ADD_EMPTY_EVENT();
+  perfetto::TrackEvent::Flush();
+
+  tracing_session->get()->StopBlocking();
+  std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
+
+  perfetto::protos::gen::Trace trace;
+  ASSERT_TRUE(trace.ParseFromArray(raw_trace.data(), raw_trace.size()));
+  auto it = std::find_if(trace.packet().begin(), trace.packet().end(),
+                         [](const perfetto::protos::gen::TracePacket& packet) {
+                           return packet.has_trace_stats();
+                         });
+  EXPECT_NE(it, trace.packet().end());
+  // The empty event required a trace chunk.
+  EXPECT_EQ(it->trace_stats().buffer_stats()[0].chunks_read(), 1u);
+  // But it isn't in the trace, because empty packets are skipped when reading
+  // from TraceBuffer.
+  it = std::find_if(trace.packet().begin(), trace.packet().end(),
+                    [](const perfetto::protos::gen::TracePacket& packet) {
+                      return packet.has_track_event();
+                    });
+  EXPECT_EQ(it, trace.packet().end());
 }
 
 struct BackendTypeAsString {

@@ -44,7 +44,7 @@ class ProcessSchedulingTrackController extends TrackController<Config, Data> {
     assertTrue(cpus.length > 0);
     this.maxCpu = Math.max(...cpus) + 1;
 
-    const result = (await this.queryV2(`
+    const result = (await this.query(`
       select ifnull(max(dur), 0) as maxDur, count(1) as count
       from ${this.tableName('process_sched')}
     `)).iter({maxDur: NUM, count: NUM});
@@ -56,7 +56,7 @@ class ProcessSchedulingTrackController extends TrackController<Config, Data> {
     if (bucketNs === undefined) {
       return;
     }
-    await this.queryV2(`
+    await this.query(`
       create table ${this.tableName('process_sched_cached')} as
       select
         (ts + ${bucketNs / 2}) / ${bucketNs} * ${bucketNs} as cached_tsq,
@@ -137,7 +137,7 @@ class ProcessSchedulingTrackController extends TrackController<Config, Data> {
     const queryTable = isCached ? this.tableName('process_sched_cached') :
                                   this.tableName('process_sched');
     const constraintColumn = isCached ? 'cached_tsq' : 'ts';
-    return this.queryV2(`
+    return this.query(`
       select
         ${tsq} as tsq,
         ts,
@@ -154,7 +154,7 @@ class ProcessSchedulingTrackController extends TrackController<Config, Data> {
   }
 
   private async createSchedView() {
-    await this.queryV2(`
+    await this.query(`
       create view ${this.tableName('process_sched')} as
       select ts, dur, cpu, utid
       from experimental_sched_upid

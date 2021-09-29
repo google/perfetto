@@ -22,7 +22,7 @@
 // The classes in this file are organized as follows:
 //
 // QueryResultImpl:
-// The object returned by the Engine.queryV2(sql) method.
+// The object returned by the Engine.query(sql) method.
 // This object is a holder of row data. Batches of raw get appended
 // incrementally as they are received by the remote TraceProcessor instance.
 // QueryResultImpl also deals with asynchronicity of queries and allows callers
@@ -60,6 +60,8 @@ export const STR_NULL: string|null = 'str_null';
 
 export type ColumnType = string|number|null;
 
+export class QueryError extends Error {}
+
 // One row extracted from an SQL result:
 export interface Row {
   [key: string]: ColumnType;
@@ -83,7 +85,7 @@ export interface RowIteratorBase {
 // A RowIterator is a type that has all the fields defined in the query spec
 // plus the valid() and next() operators. This is to ultimately allow the
 // clients to do:
-// const result = await engine.queryV2("select name, surname, id from people;");
+// const result = await engine.query("select name, surname, id from people;");
 // const iter = queryResult.iter({name: STR, surname: STR, id: NUM});
 // for (; iter.valid(); iter.next())
 //  console.log(iter.name, iter.surname);
@@ -176,7 +178,7 @@ export interface QueryResult {
 export interface WritableQueryResult extends QueryResult {
   // |resBytes| is a proto-encoded trace_processor.QueryResult message.
   //  The overall flow looks as follows:
-  // - The user calls engine.queryV2('select ...') and gets a QueryResult back.
+  // - The user calls engine.query('select ...') and gets a QueryResult back.
   // - The query call posts a message to the worker that runs the SQL engine (
   //   or sends a HTTP request in case of the RPC+HTTP interface).
   // - The returned QueryResult object is initially empty.
@@ -335,7 +337,7 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
     if (this._error === undefined) {
       promise.resolve(arg);
     } else {
-      promise.reject(new Error(this._error));
+      promise.reject(new QueryError(this._error));
     }
   }
 }

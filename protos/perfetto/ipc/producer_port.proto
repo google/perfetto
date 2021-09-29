@@ -128,16 +128,11 @@ message InitializeConnectionRequest {
   // If provided, overrides the service's SMB scraping setting for the producer.
   optional ProducerSMBScrapingMode smb_scraping_mode = 4;
 
-  enum ProducerBuildFlags {
-    BUILD_FLAGS_UNSPECIFIED = 0;
-    BUILD_FLAGS_DCHECKS_ON = 1;
-    BUILD_FLAGS_DCHECKS_OFF = 2;
-  }
-
-  // If provided, reports the build flags of the producer. It's used merely for
-  // error reporting, to print a log message when a producer connects to a
-  // service that has mismatching build flags.
-  optional ProducerBuildFlags build_flags = 5;
+  // Was build_flags = BUILD_FLAGS_DCHECKS_ON|OFF. It was used to emit an error
+  // when DCHECKs level didn't match between service and producer (in turn that
+  // would crash the service when applying patches).
+  // Removed in v20 as part of b/197340286.
+  reserved 5;
 
   // ---------------------------------------------------
   // All fields below have been introduced in Android R.

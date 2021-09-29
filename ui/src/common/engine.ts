@@ -25,8 +25,9 @@ import {
 import {NUM, NUM_NULL, STR} from './query_result';
 import {
   createQueryResult,
+  QueryError,
   QueryResult,
-  WritableQueryResult
+  WritableQueryResult,
 } from './query_result';
 import {TimeSpan} from './time';
 
@@ -44,7 +45,6 @@ export class NullLoadingTracker implements LoadingTracker {
   endLoading(): void {}
 }
 
-export class QueryError extends Error {}
 
 // This is used to skip the decoding of queryResult from protobufjs and deal
 // with it ourselves. See the comment below around `QueryResult.decode = ...`.
@@ -145,7 +145,6 @@ export abstract class Engine {
         };
 
     const rpc = TraceProcessorRpc.decode(rpcMsgEncoded);
-    this.loadingTracker.endLoading();
 
     if (rpc.fatalError !== undefined && rpc.fatalError.length > 0) {
       throw new Error(`${rpc.fatalError}`);
@@ -160,6 +159,8 @@ export abstract class Engine {
     }
 
     this.rxSeqId = rpc.seq;
+
+    let isFinalResponse = true;
 
     switch (rpc.response) {
       case TPM.TPM_APPEND_TRACE_DATA:
@@ -183,6 +184,8 @@ export abstract class Engine {
         pendingQuery.appendResultBatch(qRes.rawQueryResult);
         if (pendingQuery.isComplete()) {
           this.pendingQueries.shift();
+        } else {
+          isFinalResponse = false;
         }
         break;
       case TPM.TPM_COMPUTE_METRIC:
@@ -197,6 +200,10 @@ export abstract class Engine {
             'Unexpected TraceProcessor response received: ', rpc.response);
         break;
     }  // switch(rpc.response);
+
+    if (isFinalResponse) {
+      this.loadingTracker.endLoading();
+    }
   }
 
   /**
@@ -270,7 +277,7 @@ export abstract class Engine {
    * the rows incrementally.
    *
    * Example usage:
-   * const res = engine.queryV2('SELECT foo, bar FROM table');
+   * const res = engine.query('SELECT foo, bar FROM table');
    * console.log(res.numRows());  // Will print 0 because we didn't await.
    * await(res.waitAllRows());
    * console.log(res.numRows());  // Will print the total number of rows.
@@ -278,10 +285,8 @@ export abstract class Engine {
    * for (const it = res.iter({foo: NUM, bar:STR}); it.valid(); it.next()) {
    *   console.log(it.foo, it.bar);
    * }
-   * TODO(primiano): in next CLs move everything on queryV2, then rename it to
-   * just query(), and delete the old (columnar, non-streaming) query() method.
    */
-  queryV2(sqlQuery: string): Promise<QueryResult>&QueryResult {
+  query(sqlQuery: string): Promise<QueryResult>&QueryResult {
     const rpc = TraceProcessorRpc.create();
     rpc.request = TPM.TPM_QUERY_STREAMING;
     rpc.queryArgs = new QueryArgs();
@@ -312,7 +317,7 @@ export abstract class Engine {
   async getCpus(): Promise<number[]> {
     if (!this._cpus) {
       const cpus = [];
-      const queryRes = await this.queryV2(
+      const queryRes = await this.query(
           'select distinct(cpu) as cpu from sched order by cpu;');
       for (const it = queryRes.iter({cpu: NUM}); it.valid(); it.next()) {
         cpus.push(it.cpu);
@@ -324,7 +329,7 @@ export abstract class Engine {
 
   async getNumberOfGpus(): Promise<number> {
     if (!this._numGpus) {
-      const result = await this.queryV2(`
+      const result = await this.query(`
         select count(distinct(gpu_id)) as gpuCount
         from gpu_counter_track
         where name = 'gpufreq';
@@ -337,12 +342,12 @@ export abstract class Engine {
   // TODO: This should live in code that's more specific to chrome, instead of
   // in engine.
   async getNumberOfProcesses(): Promise<number> {
-    const result = await this.queryV2('select count(*) as cnt from process;');
+    const result = await this.query('select count(*) as cnt from process;');
     return result.firstRow({cnt: NUM}).cnt;
   }
 
   async getTraceTimeBounds(): Promise<TimeSpan> {
-    const result = await this.queryV2(
+    const result = await this.query(
         `select start_ts as startTs, end_ts as endTs from trace_bounds`);
     const bounds = result.firstRow({
       startTs: NUM,
@@ -352,7 +357,7 @@ export abstract class Engine {
   }
 
   async getTracingMetadataTimeBounds(): Promise<TimeSpan> {
-    const queryRes = await this.queryV2(`select
+    const queryRes = await this.query(`select
          name,
          int_value as intValue
          from metadata

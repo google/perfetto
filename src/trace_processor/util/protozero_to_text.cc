@@ -30,6 +30,63 @@ std::string BytesToHexEncodedString(const std::string& bytes) {
   return value;
 }
 
+// This function matches the implementation of TextFormatEscaper.escapeBytes
+// from the Java protobuf library.
+std::string QuoteAndEscapeTextProtoString(const std::string& raw) {
+  std::string ret;
+  for (auto it = raw.cbegin(); it != raw.cend(); it++) {
+    switch (*it) {
+      case '\a':
+        ret += "\\a";
+        break;
+      case '\b':
+        ret += "\\b";
+        break;
+      case '\f':
+        ret += "\\f";
+        break;
+      case '\n':
+        ret += "\\n";
+        break;
+      case '\r':
+        ret += "\\r";
+        break;
+      case '\t':
+        ret += "\\t";
+        break;
+      case '\v':
+        ret += "\\v";
+        break;
+      case '\\':
+        ret += "\\\\";
+        break;
+      case '\'':
+        ret += "\\\'";
+        break;
+      case '"':
+        ret += "\\\"";
+        break;
+      default:
+        // Only ASCII characters between 0x20 (space) and 0x7e (tilde) are
+        // printable; other byte values are escaped with 3-character octal
+        // codes.
+        if (*it >= 0x20 && *it <= 0x7e) {
+          ret += *it;
+        } else {
+          ret += '\\';
+
+          // Cast to unsigned char to make the right shift unsigned as well.
+          unsigned char c = static_cast<unsigned char>(*it);
+          ret += ('0' + ((c >> 6) & 3));
+          ret += ('0' + ((c >> 3) & 7));
+          ret += ('0' + (c & 7));
+        }
+        break;
+    }
+  }
+  return '"' + ret + '"';
+}
+
 // Recursively determine the size of all the string like things passed in the
 // parameter pack |rest|.
 size_t SizeOfStr() {
@@ -115,7 +172,7 @@ void ConvertProtoTypeToFieldAndValueString(const FieldDescriptor& fd,
                 std::to_string(field.as_float()));
       return;
     case FieldDescriptorProto::TYPE_STRING: {
-      auto s = base::QuoteAndEscapeControlCodes(field.as_std_string());
+      auto s = QuoteAndEscapeTextProtoString(field.as_std_string());
       StrAppend(out, separator, indent, fd.name(), ": ", s);
       return;
     }
@@ -153,6 +210,20 @@ void DecreaseIndents(std::string* out) {
   out->erase(out->size() - 2);
 }
 
+std::string FormattedFieldDescriptorName(
+    const FieldDescriptor& field_descriptor) {
+  if (field_descriptor.is_extension()) {
+    // Libprotobuf formatter always formats extension field names as fully
+    // qualified names.
+    // TODO(b/197625974): Assuming for now all our extensions will belong to the
+    // perfetto.protos package. Update this if we ever want to support extendees
+    // in different package.
+    return "[perfetto.protos." + field_descriptor.name() + "]";
+  } else {
+    return field_descriptor.name();
+  }
+}
+
 // Recursive case function, Will parse |protobytes| assuming it is a proto of
 // |type| and will use |pool| to look up the |type|. All output will be placed
 // in |output| and between fields |separator| will be placed. When called for
@@ -184,11 +255,11 @@ void ProtozeroToTextInternal(const std::string& type,
         protos::pbzero::FieldDescriptorProto::TYPE_MESSAGE) {
       if (include_new_lines) {
         StrAppend(output, output->empty() ? "" : "\n", *indents,
-                  field_descriptor.name(), ": {");
+                  FormattedFieldDescriptorName(field_descriptor), ": {");
         IncreaseIndents(indents);
       } else {
-        StrAppend(output, output->empty() ? "" : " ", field_descriptor.name(),
-                  ": {");
+        StrAppend(output, output->empty() ? "" : " ",
+                  FormattedFieldDescriptorName(field_descriptor), ": {");
       }
       ProtozeroToTextInternal(field_descriptor.resolved_type_name(),
                               field.as_bytes(), new_lines_mode, pool, indents,

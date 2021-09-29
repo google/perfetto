@@ -33,7 +33,7 @@ class AndroidLogTrackController extends TrackController<Config, Data> {
     // |resolution| is in s/px the frontend wants.
     const quantNs = toNsCeil(resolution);
 
-    const queryRes = await this.queryV2(`
+    const queryRes = await this.query(`
       select
         cast(ts / ${quantNs} as integer) * ${quantNs} as tsQuant,
         prio,

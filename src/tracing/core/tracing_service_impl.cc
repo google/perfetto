@@ -287,6 +287,29 @@ bool ShouldLogEvent(const TraceConfig& cfg) {
   PERFETTO_FATAL("For GCC");
 }
 
+// Appends `data` (which has `size` bytes), to `*packet`. Splits the data in
+// slices no larger than `max_slice_size`.
+void AppendOwnedSlicesToPacket(std::unique_ptr<uint8_t[]> data,
+                               size_t size,
+                               size_t max_slice_size,
+                               perfetto::TracePacket* packet) {
+  if (size <= max_slice_size) {
+    packet->AddSlice(Slice::TakeOwnership(std::move(data), size));
+    return;
+  }
+  uint8_t* src_ptr = data.get();
+  for (size_t size_left = size; size_left > 0;) {
+    const size_t slice_size = std::min(size_left, max_slice_size);
+
+    Slice slice = Slice::Allocate(slice_size);
+    memcpy(slice.own_data(), src_ptr, slice_size);
+    packet->AddSlice(std::move(slice));
+
+    src_ptr += slice_size;
+    size_left -= slice_size;
+  }
+}
+
 }  // namespace
 
 // These constants instead are defined in the header because are used by tests.
@@ -355,8 +378,8 @@ TracingServiceImpl::ConnectProducer(Producer* producer,
     return nullptr;
   }
   const ProducerID id = GetNextProducerID();
-  PERFETTO_DLOG("Producer %" PRIu16 " connected", id);
-
+  PERFETTO_DLOG("Producer %" PRIu16 " connected, uid=%d", id,
+                static_cast<int>(uid));
   bool smb_scraping_enabled = smb_scraping_enabled_;
   switch (smb_scraping_mode) {
     case ProducerSMBScrapingMode::kDefault:
@@ -2168,8 +2191,9 @@ bool TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
         continue;
       }
       tracing_session->filter_output_bytes += filtered_packet.size;
-      it->AddSlice(Slice::TakeOwnership(std::move(filtered_packet.data),
-                                        filtered_packet.size));
+      AppendOwnedSlicesToPacket(std::move(filtered_packet.data),
+                                filtered_packet.size, kMaxTracePacketSliceSize,
+                                &*it);
 
     }  // for (packet)
   }    // if (trace_filter)
@@ -3524,7 +3548,7 @@ void TracingServiceImpl::ConsumerEndpointImpl::QueryServiceState(
     producer->set_id(static_cast<int>(kv.first));
     producer->set_name(kv.second->name_);
     producer->set_sdk_version(kv.second->sdk_version_);
-    producer->set_uid(static_cast<int32_t>(producer->uid()));
+    producer->set_uid(static_cast<int32_t>(kv.second->uid()));
   }
 
   for (const auto& kv : service_->data_sources_) {

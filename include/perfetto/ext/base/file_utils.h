@@ -34,8 +34,6 @@ namespace base {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 using FileOpenMode = int;
-
-int CloseFindHandle(PlatformHandle handle);
 #else
 using FileOpenMode = mode_t;
 #endif

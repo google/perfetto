@@ -34,7 +34,7 @@ SELECT (
   -- This means we should have scroll_dur == 1628470852
   SELECT SUM(scroll_dur) FROM (
     SELECT
-      gesture_scroll_id, max(maybe_scroll_end) - begin_ts AS scroll_dur
+      gesture_scroll_id, max(maybe_gesture_end) - begin_ts AS scroll_dur
     FROM scroll_jank
     GROUP BY gesture_scroll_id
   )

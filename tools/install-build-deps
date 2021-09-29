@@ -121,13 +121,13 @@ BUILD_DEPS_TOOLCHAIN_HOST = [
     # tools/clang/scripts/update.py.
     Dependency(
         'buildtools/linux64/clang.tgz',
-        'https://commondatastorage.googleapis.com/chromium-browser-clang/Linux_x64/clang-llvmorg-12-init-5035-gd0abc757-3.tgz',
-        'b0c3015209b6d624844ad230064eb5c9b4429a2eafd4854981e73217c563d93d',
+        'https://commondatastorage.googleapis.com/chromium-browser-clang/Linux_x64/clang-llvmorg-14-init-3191-g0e03450a-1.tgz',
+        'dd7479d43ce61401e057a5dee8b7e32bc2bd0d0e15d4f46c6858daf9170c9978',
         'linux', 'x64'),
     Dependency(
         'buildtools/win/clang.tgz',
-        'https://commondatastorage.googleapis.com/chromium-browser-clang/Win/clang-llvmorg-12-init-5035-gd0abc757-3.tgz',
-        'b2854d871a466e3a060469b5edb24ca355ef64576d38778f64acbd3c6d7cf530',
+        'https://commondatastorage.googleapis.com/chromium-browser-clang/Linux_x64/clang-llvmorg-14-init-3191-g0e03450a-1.tgz',
+        'dd7479d43ce61401e057a5dee8b7e32bc2bd0d0e15d4f46c6858daf9170c9978',
         'windows', 'x64'),
 ]
 
@@ -234,8 +234,8 @@ BUILD_DEPS_HOST = [
     # Example traces for regression tests.
     Dependency(
         'test/data.zip',
-        'https://storage.googleapis.com/perfetto/test-data-20210728-191746.zip',
-        '334ba7315b73b5a4277d0d0d530e555f1d1257fb0f498d39bb020a5b6b7db97a',
+        'https://storage.googleapis.com/perfetto/test-data-20210909-141933.zip',
+        '95597358b8d434338815731948cf2bb96e2015b8595f05c37c053c2e11f11408',
         'all', 'all',
     ),
 

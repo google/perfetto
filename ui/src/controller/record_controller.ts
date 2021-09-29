@@ -115,6 +115,8 @@ export function genConfig(
   const atraceApps = new Set<string>();
   const chromeCategories = new Set<string>();
   uiCfg.chromeCategoriesSelected.forEach(it => chromeCategories.add(it));
+  uiCfg.chromeHighOverheadCategoriesSelected.forEach(
+      it => chromeCategories.add(it));
 
   let procThreadAssociationPolling = false;
   let procThreadAssociationFtrace = false;
@@ -123,6 +125,8 @@ export function genConfig(
   if (uiCfg.cpuSched) {
     procThreadAssociationPolling = true;
     procThreadAssociationFtrace = true;
+    uiCfg.ftrace = true;
+    uiCfg.symbolizeKsyms = true;
     ftraceEvents.add('sched/sched_switch');
     ftraceEvents.add('power/suspend_resume');
     ftraceEvents.add('sched/sched_wakeup');
@@ -491,6 +495,10 @@ export function genConfig(
     if (uiCfg.ftrace) {
       ds.config.ftraceConfig.bufferSizeKb = uiCfg.ftraceBufferSizeKb;
       ds.config.ftraceConfig.drainPeriodMs = uiCfg.ftraceDrainPeriodMs;
+      if (uiCfg.symbolizeKsyms) {
+        ds.config.ftraceConfig.symbolizeKsyms = true;
+        ftraceEvents.add('sched/sched_blocked_reason');
+      }
       for (const line of uiCfg.ftraceExtraEvents.split('\n')) {
         if (line.trim().length > 0) ftraceEvents.add(line.trim());
       }
@@ -621,7 +629,7 @@ export class RecordController extends Controller<'main'> implements Consumer {
   run() {
     // TODO(eseckler): Use ConsumerPort's QueryServiceState instead
     // of posting a custom extension message to retrieve the category list.
-    if (this.app.state.updateChromeCategories === true) {
+    if (this.app.state.updateChromeCategories) {
       if (this.app.state.extensionInstalled) {
         this.extensionPort.postMessage({method: 'GetCategories'});
       }

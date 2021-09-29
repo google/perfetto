@@ -12,10 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import '../tracks/all_imports';
+import '../gen/all_tracks';
 
 import {assertTrue} from '../base/logging';
-import {Remote} from '../base/remote';
 import {ControllerWorkerInitMessage} from '../common/worker_messages';
 import {AppController} from './app_controller';
 import {globals} from './globals';
@@ -24,12 +23,10 @@ let initialized = false;
 export function initController(init: ControllerWorkerInitMessage) {
   assertTrue(!initialized);
   initialized = true;
-  const frontendPort = init.frontendPort;
   const controllerPort = init.controllerPort;
   const extensionPort = init.extensionPort;
-  const frontend = new Remote(frontendPort);
   controllerPort.onmessage = ({data}) => globals.patchState(data);
-  globals.initialize(new AppController(extensionPort), frontend);
+  globals.initialize(new AppController(extensionPort));
 }
 
 

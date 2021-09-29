@@ -25,7 +25,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/dynamic/ancestor_generator.h"
 #include "src/trace_processor/dynamic/connected_flow_generator.h"
-#include "src/trace_processor/dynamic/descendant_slice_generator.h"
+#include "src/trace_processor/dynamic/descendant_generator.h"
 #include "src/trace_processor/dynamic/describe_slice_generator.h"
 #include "src/trace_processor/dynamic/experimental_annotated_stack_generator.h"
 #include "src/trace_processor/dynamic/experimental_counter_dur_generator.h"
@@ -654,6 +654,7 @@ void SetupMetrics(TraceProcessor* tp,
   const std::vector<std::string> sanitized_extension_paths =
       SanitizeMetricMountPaths(extension_paths);
   std::vector<std::string> skip_prefixes;
+  skip_prefixes.reserve(sanitized_extension_paths.size());
   for (const auto& path : sanitized_extension_paths) {
     skip_prefixes.push_back(kMetricProtoRoot + path);
   }
@@ -786,8 +787,14 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
       new AncestorGenerator(AncestorGenerator::Ancestor::kSlice, &context_)));
   RegisterDynamicTable(std::unique_ptr<AncestorGenerator>(new AncestorGenerator(
       AncestorGenerator::Ancestor::kStackProfileCallsite, &context_)));
-  RegisterDynamicTable(std::unique_ptr<DescendantSliceGenerator>(
-      new DescendantSliceGenerator(&context_)));
+  RegisterDynamicTable(std::unique_ptr<AncestorGenerator>(new AncestorGenerator(
+      AncestorGenerator::Ancestor::kSliceByStack, &context_)));
+  RegisterDynamicTable(
+      std::unique_ptr<DescendantGenerator>(new DescendantGenerator(
+          DescendantGenerator::Descendant::kSlice, &context_)));
+  RegisterDynamicTable(
+      std::unique_ptr<DescendantGenerator>(new DescendantGenerator(
+          DescendantGenerator::Descendant::kSliceByStack, &context_)));
   RegisterDynamicTable(
       std::unique_ptr<ConnectedFlowGenerator>(new ConnectedFlowGenerator(
           ConnectedFlowGenerator::Mode::kDirectlyConnectedFlow, &context_)));

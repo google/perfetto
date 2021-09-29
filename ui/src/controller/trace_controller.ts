@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import '../tracks/all_imports';
-
 import {assertExists, assertTrue} from '../base/logging';
 import {
   Actions,
@@ -21,10 +19,10 @@ import {
 } from '../common/actions';
 import {cacheTrace} from '../common/cache_manager';
 import {TRACE_MARGIN_TIME_S} from '../common/constants';
-import {Engine, QueryError} from '../common/engine';
+import {Engine} from '../common/engine';
 import {featureFlags, Flag} from '../common/feature_flags';
 import {HttpRpcEngine} from '../common/http_rpc_engine';
-import {NUM, NUM_NULL, STR, STR_NULL} from '../common/query_result';
+import {NUM, NUM_NULL, QueryError, STR, STR_NULL} from '../common/query_result';
 import {EngineMode} from '../common/state';
 import {TimeSpan, toNs, toNsCeil, toNsFloor} from '../common/time';
 import {resetEngineWorker, WasmEngineProxy} from '../common/wasm_engine_proxy';
@@ -386,11 +384,12 @@ export class TraceController extends Controller<States> {
       //   of the limit 1, and instead delegate the filtering to the iterator.
       const query = `select '_' as _ from raw
           where cpu + 1 > 1 or utid + 1 > 1 limit 1`;
-      const result = await assertExists(this.engine).queryV2(query);
+      const result = await assertExists(this.engine).query(query);
       const hasFtrace = result.numRows() > 0;
       publishHasFtrace(hasFtrace);
     }
 
+    globals.dispatch(Actions.removeDebugTrack({}));
     globals.dispatch(Actions.sortThreadTracks({}));
     await this.selectFirstHeapProfile();
 
@@ -404,7 +403,7 @@ export class TraceController extends Controller<States> {
         union
         select distinct(graph_sample_ts) as ts, 'graph' as type, upid from
         heap_graph_object) order by ts limit 1`;
-    const profile = await assertExists(this.engine).queryV2(query);
+    const profile = await assertExists(this.engine).query(query);
     if (profile.numRows() !== 1) return;
     const row = profile.firstRow({ts: NUM, type: STR, upid: NUM});
     const ts = row.ts;
@@ -434,7 +433,7 @@ export class TraceController extends Controller<States> {
         from (select * from thread order by upid) as thread
         left join (select * from process order by upid) as process
         using(upid)`;
-    const result = await assertExists(this.engine).queryV2(query);
+    const result = await assertExists(this.engine).query(query);
     const threads: ThreadDesc[] = [];
     const it = result.iter({
       utid: NUM,
@@ -471,7 +470,7 @@ export class TraceController extends Controller<States> {
       const endNs = toNsCeil(endSec);
 
       // Sched overview.
-      const schedResult = await engine.queryV2(
+      const schedResult = await engine.query(
           `select sum(dur)/${stepSec}/1e9 as load, cpu from sched ` +
           `where ts >= ${startNs} and ts < ${endNs} and utid != 0 ` +
           'group by cpu order by cpu');
@@ -493,7 +492,7 @@ export class TraceController extends Controller<States> {
     // Slices overview.
     const traceStartNs = toNs(traceTime.start);
     const stepSecNs = toNs(stepSec);
-    const sliceResult = await engine.queryV2(`select
+    const sliceResult = await engine.query(`select
            bucket,
            upid,
            sum(utid_sum) / cast(${stepSecNs} as float) as load
@@ -533,7 +532,7 @@ export class TraceController extends Controller<States> {
 
   private async cacheCurrentTrace(): Promise<string> {
     const engine = assertExists(this.engine);
-    const result = await engine.queryV2(`select str_value as uuid from metadata
+    const result = await engine.query(`select str_value as uuid from metadata
                   where name = 'trace_uuid'`);
     if (result.numRows() === 0) {
       throw new Error('metadata.trace_uuid could not be found.');
@@ -556,7 +555,7 @@ export class TraceController extends Controller<States> {
     this.updateStatus('Creating annotation counter track table');
     // Create the helper tables for all the annotations related data.
     // NULL in min/max means "figure it out per track in the usual way".
-    await engine.queryV2(`
+    await engine.query(`
       CREATE TABLE annotation_counter_track(
         id INTEGER PRIMARY KEY,
         name STRING,
@@ -567,7 +566,7 @@ export class TraceController extends Controller<States> {
       );
     `);
     this.updateStatus('Creating annotation slice track table');
-    await engine.queryV2(`
+    await engine.query(`
       CREATE TABLE annotation_slice_track(
         id INTEGER PRIMARY KEY,
         name STRING,
@@ -577,7 +576,7 @@ export class TraceController extends Controller<States> {
     `);
 
     this.updateStatus('Creating annotation counter table');
-    await engine.queryV2(`
+    await engine.query(`
       CREATE TABLE annotation_counter(
         id BIG INT,
         track_id INT,
@@ -587,7 +586,7 @@ export class TraceController extends Controller<States> {
       ) WITHOUT ROWID;
     `);
     this.updateStatus('Creating annotation slice table');
-    await engine.queryV2(`
+    await engine.query(`
       CREATE TABLE annotation_slice(
         id INTEGER PRIMARY KEY,
         track_id INT,
@@ -623,8 +622,7 @@ export class TraceController extends Controller<States> {
 
       this.updateStatus(`Inserting data for ${metric} metric`);
       try {
-        const result =
-            await engine.queryV2(`pragma table_info(${metric}_event)`);
+        const result = await engine.query(`pragma table_info(${metric}_event)`);
         let hasSliceName = false;
         let hasDur = false;
         let hasUpid = false;
@@ -641,7 +639,7 @@ export class TraceController extends Controller<States> {
         const upidColumnSelect = hasUpid ? 'upid' : '0 AS upid';
         const upidColumnWhere = hasUpid ? 'upid' : '0';
         if (hasSliceName && hasDur) {
-          await engine.queryV2(`
+          await engine.query(`
             INSERT INTO annotation_slice_track(name, __metric_name, upid)
             SELECT DISTINCT
               track_name,
@@ -650,7 +648,7 @@ export class TraceController extends Controller<States> {
             FROM ${metric}_event
             WHERE track_type = 'slice'
           `);
-          await engine.queryV2(`
+          await engine.query(`
             INSERT INTO annotation_slice(track_id, ts, dur, depth, cat, name)
             SELECT
               t.id AS track_id,
@@ -667,14 +665,14 @@ export class TraceController extends Controller<States> {
         }
 
         if (hasValue) {
-          const minMax = await engine.queryV2(`
+          const minMax = await engine.query(`
             SELECT
               IFNULL(MIN(value), 0) as minValue,
               IFNULL(MAX(value), 0) as maxValue
             FROM ${metric}_event
             WHERE ${upidColumnWhere} != 0`);
           const row = minMax.firstRow({minValue: NUM, maxValue: NUM});
-          await engine.queryV2(`
+          await engine.query(`
             INSERT INTO annotation_counter_track(
               name, __metric_name, min_value, max_value, upid)
             SELECT DISTINCT
@@ -686,7 +684,7 @@ export class TraceController extends Controller<States> {
             FROM ${metric}_event
             WHERE track_type = 'counter'
           `);
-          await engine.queryV2(`
+          await engine.query(`
             INSERT INTO annotation_counter(id, track_id, ts, value)
             SELECT
               -1 as id,

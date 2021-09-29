@@ -36,7 +36,7 @@ class CpuProfileTrackController extends TrackController<Config, Data> {
       where utid = ${this.config.utid}
       order by ts`;
 
-    const result = await this.queryV2(query);
+    const result = await this.query(query);
     const numRows = result.numRows();
     const data: Data = {
       start,
