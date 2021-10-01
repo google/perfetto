@@ -184,7 +184,7 @@ greater than 1000
 ```sql
 SELECT upid
 FROM counter
-JOIN process_counter_track ON process_counter_track.id = slice.track_id
+JOIN process_counter_track ON process_counter_track.id = counter.track_id
 WHERE process_counter_track.name = 'mem.swap' AND value > 1000
 ```
 
