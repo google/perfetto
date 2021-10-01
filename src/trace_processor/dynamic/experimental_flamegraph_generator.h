@@ -36,7 +36,8 @@ class ExperimentalFlamegraphGenerator
     ProfileType profile_type;
     int64_t ts;
     std::vector<TimeConstraints> time_constraints;
-    UniquePid upid;
+    base::Optional<UniquePid> upid;
+    base::Optional<std::string> upid_group;
     std::string focus_str;
   };
 
