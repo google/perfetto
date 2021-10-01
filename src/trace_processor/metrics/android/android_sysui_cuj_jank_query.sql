@@ -33,7 +33,7 @@ USING span_join(
 
 DROP VIEW IF EXISTS {{table_name_prefix}}_per_cuj_output_data;
 CREATE VIEW {{table_name_prefix}}_per_cuj_output_data AS
-SELECT SUM(dur) as dur_sum
+SELECT SUM(dur) as dur_sum, MAX(dur) as dur_max
 FROM {{table_name_prefix}}_cuj_join_table;
 
 DROP VIEW IF EXISTS {{table_name_prefix}}_per_frame_output_data;
@@ -43,7 +43,8 @@ f.frame_number,
 f.vsync,
 f.dur_frame,
 f.app_missed,
-SUM(jt.dur) as dur_sum
+SUM(jt.dur) as dur_sum,
+MAX(jt.dur) as dur_max
 FROM android_sysui_cuj_missed_frames f
 JOIN {{table_name_prefix}}_frame_join_table jt USING (frame_number)
 GROUP BY f.frame_number, f.vsync, f.dur_frame, f.app_missed;
