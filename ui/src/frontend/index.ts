@@ -133,6 +133,9 @@ function setupContentSecurityPolicy() {
     ],
     'script-src': [
       `'self'`,
+      // TODO(b/201596551): this is required for Wasm after crrev.com/c/3179051
+      // and should be replaced with 'wasm-unsafe-eval'.
+      `'unsafe-eval'`,
       'https://*.google.com',
       'https://*.googleusercontent.com',
       'https://www.googletagmanager.com',
