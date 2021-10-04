@@ -214,11 +214,11 @@ export class SelectionController extends Controller<'main'> {
     const result = await this.args.engine.query(query);
     const it = result.iter({
       name: STR,
-      value: STR,
+      value: STR_NULL,
     });
     for (; it.valid(); it.next()) {
       const name = it.name;
-      const value = it.value;
+      const value = it.value || 'NULL';
       if (name === 'destination slice id' && !isNaN(Number(value))) {
         const destTrackId = await this.getDestTrackId(value);
         args.set(
