@@ -599,6 +599,9 @@ void ExtractArg(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
     case Variadic::kReal:
       sqlite3_result_double(ctx, opt_value->real_value);
       break;
+    case Variadic::kNull:
+      sqlite3_result_null(ctx);
+      break;
   }
 }
 

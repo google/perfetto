@@ -104,9 +104,12 @@ base::Status ProtoToArgsParser::ParseMessageInternal(
 
   std::unordered_map<size_t, int> repeated_field_index;
 
+  bool empty_message = true;
+
   protozero::ProtoDecoder decoder(cb);
   for (protozero::Field f = decoder.ReadField(); f.valid();
        f = decoder.ReadField()) {
+    empty_message = false;
     auto field = descriptor.FindFieldByTag(f.id());
     if (!field) {
       // Unknown field, possibly an unknown extension.
@@ -129,6 +132,10 @@ base::Status ProtoToArgsParser::ParseMessageInternal(
     if (field->is_repeated()) {
       repeated_field_index[f.id()]++;
     }
+  }
+
+  if (empty_message) {
+    delegate.AddNull(key_prefix_);
   }
 
   return base::OkStatus();
