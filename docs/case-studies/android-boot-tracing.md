@@ -54,7 +54,7 @@ recording traces on boot. This can be useful to profile the boot process.
   ```
   adb push <yourfile> /data/misc/perfetto-configs/boottrace.pbtxt
   ```
-* Enable the perfetto\_boottrace service:
+* Enable the `perfetto_trace_on_boot` service:
   ```
   adb shell setprop persist.debug.perfetto.boottrace 1
   ```
