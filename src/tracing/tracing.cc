@@ -45,7 +45,7 @@ void Tracing::InitializeInternal(const TracingInitArgs& args) {
   // Make sure the headers and implementation files agree on the build config.
   PERFETTO_CHECK(args.dcheck_is_on_ == PERFETTO_DCHECK_IS_ON());
   if (args.log_message_callback) {
-    SetLogMessageCallback(args.log_message_callback);
+    base::SetLogMessageCallback(args.log_message_callback);
   }
   internal::TracingMuxerImpl::InitializeInstance(args);
   internal::TrackRegistry::InitializeInstance();
@@ -56,6 +56,16 @@ void Tracing::InitializeInternal(const TracingInitArgs& args) {
 // static
 bool Tracing::IsInitialized() {
   return g_was_initialized;
+}
+
+// static
+void Tracing::ResetForTesting() {
+  if (!g_was_initialized)
+    return;
+  base::SetLogMessageCallback(nullptr);
+  internal::TracingMuxerImpl::ResetForTesting();
+  internal::TrackRegistry::ResetForTesting();
+  g_was_initialized = false;
 }
 
 //  static
