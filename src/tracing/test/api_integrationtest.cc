@@ -356,30 +356,16 @@ class PerfettoApiTest : public ::testing::TestWithParam<perfetto::BackendType> {
     g_test_tracing_policy->should_allow_consumer_connection = true;
 
     // Start a fresh system service for this test, tearing down any previous
-    // service that was running.
-    uint32_t supported_backends =
-        perfetto::kInProcessBackend | perfetto::kSystemBackend;
-    if (!perfetto::test::StartSystemService())
-      supported_backends &= ~perfetto::kSystemBackend;
-
-    // If the system backend wasn't supported, skip all system backend tests.
-    auto backend = GetParam();
-    if (!(supported_backends & backend))
+    // service that was running. If the system backend isn't supported, skip all
+    // system backend tests.
+    if (GetParam() == perfetto::kSystemBackend &&
+        !perfetto::test::StartSystemService()) {
       GTEST_SKIP();
-
-    static bool was_initialized;
-    if (!was_initialized) {
-      EXPECT_FALSE(perfetto::Tracing::IsInitialized());
-      was_initialized = true;
-    } else {
-      EXPECT_TRUE(perfetto::Tracing::IsInitialized());
     }
 
-    // Since the client API can only be initialized once per process, initialize
-    // both the in-process and system backends for every test here. The actual
-    // service to be used is chosen by the test parameter.
+    EXPECT_FALSE(perfetto::Tracing::IsInitialized());
     TracingInitArgs args;
-    args.backends = supported_backends;
+    args.backends = GetParam();
     args.tracing_policy = g_test_tracing_policy;
     perfetto::Tracing::Initialize(args);
     RegisterDataSource<MockDataSource>("my_data_source");
@@ -397,7 +383,11 @@ class PerfettoApiTest : public ::testing::TestWithParam<perfetto::BackendType> {
     perfetto::test::DisableReconnectLimit();
   }
 
-  void TearDown() override { instance = nullptr; }
+  void TearDown() override {
+    instance = nullptr;
+    sessions_.clear();
+    perfetto::Tracing::ResetForTesting();
+  }
 
   template <typename DataSourceType>
   TestDataSourceHandle* RegisterDataSource(std::string name) {
