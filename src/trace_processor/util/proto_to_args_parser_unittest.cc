@@ -99,6 +99,12 @@ class ProtoToArgsParserTest : public ::testing::Test,
     return true;
   }
 
+  void AddNull(const Key& key) override {
+    std::stringstream ss;
+    ss << key.flat_key << " " << key.key << " [NULL]";
+    args_.push_back(ss.str());
+  }
+
   size_t GetArrayEntryIndex(const std::string&) final { return 0; }
 
   size_t IncrementArrayEntryIndex(const std::string&) final { return 0; }
@@ -437,6 +443,29 @@ TEST_F(ProtoToArgsParserTest, FieldOverrideTakesPrecedence) {
       << "InternProtoFieldsIntoArgsTable failed with error: "
       << status.message();
   EXPECT_THAT(args(), testing::ElementsAre("arg arg override-for-field"));
+}
+
+TEST_F(ProtoToArgsParserTest, EmptyMessage) {
+  using namespace protozero::test::protos::pbzero;
+  protozero::HeapBuffered<NestedA> msg{kChunkSize, kChunkSize};
+  msg->set_super_nested();
+
+  auto binary_proto = msg.SerializeAsArray();
+
+  DescriptorPool pool;
+  auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                              kTestMessagesDescriptor.size());
+  ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
+                           << status.message();
+
+  ProtoToArgsParser parser(pool);
+  status = parser.ParseMessage(
+      protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
+      ".protozero.test.protos.NestedA", nullptr, *this);
+  EXPECT_TRUE(status.ok())
+      << "InternProtoFieldsIntoArgsTable failed with error: "
+      << status.message();
+  EXPECT_THAT(args(), testing::ElementsAre("super_nested super_nested [NULL]"));
 }
 
 }  // namespace
