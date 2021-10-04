@@ -222,7 +222,7 @@ int PERFETTO_EXPORT_ENTRYPOINT ServiceMain(int argc, char** argv) {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   // Notify init (perfetto.rc) that traced has been started. Used only by
-  // the perfetto_boottrace init service.
+  // the perfetto_trace_on_boot init service.
   if (__system_property_set("sys.trace.traced_started", "1") != 0) {
     PERFETTO_PLOG("Failed to set property sys.trace.traced_started");
   }
