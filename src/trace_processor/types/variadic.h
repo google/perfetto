@@ -32,11 +32,12 @@ struct Variadic {
     kPointer,
     kBool,
     kJson,
-    kMaxType = kJson,
+    kNull,
+    kMaxType = kNull,
   };
 
   static constexpr const char* const kTypeNames[] = {
-      "int", "uint", "string", "real", "pointer", "bool", "json"};
+      "int", "uint", "string", "real", "pointer", "bool", "json", "null"};
 
   static Variadic Integer(int64_t int_value) {
     Variadic variadic;
@@ -95,6 +96,12 @@ struct Variadic {
     return variadic;
   }
 
+  static Variadic Null() {
+    Variadic variadic;
+    variadic.type = Type::kNull;
+    return variadic;
+  }
+
   // Used in tests.
   bool operator==(const Variadic& other) const {
     if (type == other.type) {
@@ -113,6 +120,8 @@ struct Variadic {
           return bool_value == other.bool_value;
         case kJson:
           return json_value == other.json_value;
+        case kNull:
+          return true;
       }
     }
     return false;

@@ -73,6 +73,9 @@ class GlobalArgsTracker {
         case Variadic::Type::kJson:
           hash.Update(arg.value.json_value.raw_id());
           break;
+        case Variadic::Type::kNull:
+          hash.Update(0);
+          break;
       }
       return hash.digest();
     }
@@ -149,6 +152,8 @@ class GlobalArgsTracker {
           break;
         case Variadic::Type::kJson:
           row.string_value = arg.value.json_value;
+          break;
+        case Variadic::Type::kNull:
           break;
       }
       row.value_type = context_->storage->GetIdForVariadicType(arg.value.type);

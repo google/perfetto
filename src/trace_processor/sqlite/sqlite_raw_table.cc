@@ -515,6 +515,9 @@ void ArgsSerializer::WriteValue(const Variadic& value) {
       writer_->AppendString(str.c_str(), str.size());
       break;
     }
+    case Variadic::kNull:
+      writer_->AppendLiteral("[NULL]");
+      break;
   }
 }
 
