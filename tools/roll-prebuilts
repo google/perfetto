@@ -162,18 +162,15 @@ def update_script(git_revision, tool_name, script_name, archs):
 
 
 def main():
-  parser = argparse.ArgumentParser()
-  parser.add_argument('-r', '--revision')
+  usage = '%s v20.0 | 0a1b2c3d\n\n' % __file__
+  usage += 'To list available revisions run\n'
+  usage += 'gsutil ls gs://perfetto-luci-artifacts/\n'
+  usage += 'or visit https://chrome-infra-packages.appspot.com/p/perfetto\n'
+  parser = argparse.ArgumentParser(usage=usage)
+  parser.add_argument('version')
   args = parser.parse_args()
 
-  if args.revision is None:
-    print('Error: must pass --revision=v1.2 or --revision=0a1b2c3d\n')
-    print('To list available revisions run')
-    print('gsutil ls gs://perfetto-luci-artifacts/')
-    print('or visit https://chrome-infra-packages.appspot.com/p/perfetto')
-    return 1
-
-  git_revision = args.revision
+  git_revision = args.version
   for spec in SCRIPTS_TO_UPDATE:
     logging.info('Updating %s', spec['script'])
     update_script(git_revision, spec['tool'], spec['script'], spec['archs'])
