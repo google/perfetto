@@ -576,7 +576,7 @@ def main(argv):
 
 
 # BEGIN_SECTION_GENERATED_BY(roll-prebuilts)
-# Revision: 387c10f55b96e95f96ec9248c3af28772bccfff0
+# Revision: v20.1
 PERFETTO_PREBUILT_MANIFEST = [{
     'tool':
         'trace_to_text',
@@ -585,11 +585,11 @@ PERFETTO_PREBUILT_MANIFEST = [{
     'file_name':
         'trace_to_text',
     'file_size':
-        7087080,
+        7136208,
     'url':
-        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/387c10f55b96e95f96ec9248c3af28772bccfff0/mac-amd64/trace_to_text',
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v20.1/mac-amd64/trace_to_text',
     'sha256':
-        '19126f67c1edd3e525c63d3cc5085ea965d77868b91d163052f8f608cf496cd8',
+        '2a4cdaf2884639a5c80ba99f8da82e2684151d319524eb9f40498418c1df2b4e',
     'platform':
         'darwin',
     'machine': ['x86_64']
@@ -601,11 +601,11 @@ PERFETTO_PREBUILT_MANIFEST = [{
     'file_name':
         'trace_to_text.exe',
     'file_size':
-        6703616,
+        6580224,
     'url':
-        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/387c10f55b96e95f96ec9248c3af28772bccfff0/windows-amd64/trace_to_text.exe',
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v20.1/windows-amd64/trace_to_text.exe',
     'sha256':
-        'fc776c807682c1de0785468190fe9795fda97f2a9c32dad15affe24b81dad817',
+        '6bda73d8e887a45716fd9a6fd80033d9ea02253f59d9c7693765134a43076aa4',
     'platform':
         'win32',
     'machine': ['amd64']
@@ -617,11 +617,11 @@ PERFETTO_PREBUILT_MANIFEST = [{
     'file_name':
         'trace_to_text',
     'file_size':
-        7437720,
+        7652480,
     'url':
-        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/387c10f55b96e95f96ec9248c3af28772bccfff0/linux-amd64/trace_to_text',
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v20.1/linux-amd64/trace_to_text',
     'sha256':
-        '8112656e058a8ebbd6f7251452527c51c0a3e88bc160a33d95e3da61228d1285',
+        '9b59a562e9289fa683dfff296183e35bc95fe3eba7b382e07e32d0b9c6c19eca',
     'platform':
         'linux',
     'machine': ['x86_64']
