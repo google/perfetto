@@ -999,7 +999,7 @@ class TrackDecider {
       the_tracks.upid,
       the_tracks.utid,
       total_dur as hasSched,
-      hasHeapProfiles,
+      hasProfileInfo,
       process.pid as pid,
       thread.tid as tid,
       process.name as processName,
@@ -1014,6 +1014,10 @@ class TrackDecider {
       select upid, utid from thread_track join thread using(utid)
       union
       select upid, utid from sched join thread using(utid) group by utid
+      union
+      select distinct(process.upid), 0 as utid from process
+        join thread on process.upid = thread.upid
+        join perf_sample on thread.utid = perf_sample.utid
       union
       select upid, utid from (
         select distinct(utid) from cpu_profile_stack_sample
@@ -1034,18 +1038,25 @@ class TrackDecider {
     left join (
       select
         distinct(upid) as upid,
-        true as hasHeapProfiles
+        true as hasProfileInfo
       from heap_profile_allocation
       union
       select
         distinct(upid) as upid,
-        true as hasHeapProfiles
+        true as hasProfileInfo
       from heap_graph_object
+      union
+      select
+        distinct(process.upid) as upid,
+        true as hasProfileInfo
+      from process
+        join thread on process.upid = thread.upid
+        join perf_sample on thread.utid = perf_sample.utid
     ) using (upid)
     left join thread using(utid)
     left join process using(upid)
     order by
-      hasHeapProfiles desc,
+      hasProfileInfo desc,
       total_dur desc,
       total_cycles desc,
       the_tracks.upid,
@@ -1060,7 +1071,7 @@ class TrackDecider {
       threadName: STR_NULL,
       processName: STR_NULL,
       hasSched: NUM_NULL,
-      hasHeapProfiles: NUM_NULL,
+      hasProfileInfo: NUM_NULL,
     });
     for (; it.valid(); it.next()) {
       const utid = it.utid;
@@ -1070,7 +1081,7 @@ class TrackDecider {
       const threadName = it.threadName;
       const processName = it.processName;
       const hasSched = !!it.hasSched;
-      const hasHeapProfiles = !!it.hasHeapProfiles;
+      const hasProfileInfo = !!it.hasProfileInfo;
 
       // Group by upid if present else by utid.
       let pUuid =
@@ -1100,7 +1111,7 @@ class TrackDecider {
           summaryTrackId,
           name,
           id: pUuid,
-          collapsed: !hasHeapProfiles,
+          collapsed: !hasProfileInfo,
         });
 
         this.addTrackGroupActions.push(addTrackGroup);
