@@ -363,7 +363,7 @@ def check_hash(file_name, sha_value):
 
 
 # BEGIN_SECTION_GENERATED_BY(roll-prebuilts)
-# Revision: 387c10f55b96e95f96ec9248c3af28772bccfff0
+# Revision: v20.1
 PERFETTO_PREBUILT_MANIFEST = [{
     'tool':
         'tracebox',
@@ -374,9 +374,9 @@ PERFETTO_PREBUILT_MANIFEST = [{
     'file_size':
         1021824,
     'url':
-        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/387c10f55b96e95f96ec9248c3af28772bccfff0/android-arm/tracebox',
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v20.1/android-arm/tracebox',
     'sha256':
-        'de6362a183adf3d70ece245c083fd50b170061ffbcd878765052eea774198c4e'
+        'e6fdfcb3660073a04cc12c91cc69c924784aaf7db34fdb642bd69ad34cea2073'
 }, {
     'tool':
         'tracebox',
@@ -387,9 +387,9 @@ PERFETTO_PREBUILT_MANIFEST = [{
     'file_size':
         1559112,
     'url':
-        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/387c10f55b96e95f96ec9248c3af28772bccfff0/android-arm64/tracebox',
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v20.1/android-arm64/tracebox',
     'sha256':
-        '90ee3858410ad3e57cd946d3734cba69c22f423c0d4d8d35c61c14c317b5293a'
+        'c825b09de85e24e0ac24b574fce6e4252867133b44ee78358c986da27b1f3258'
 }, {
     'tool':
         'tracebox',
@@ -400,9 +400,9 @@ PERFETTO_PREBUILT_MANIFEST = [{
     'file_size':
         1587028,
     'url':
-        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/387c10f55b96e95f96ec9248c3af28772bccfff0/android-x86/tracebox',
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v20.1/android-x86/tracebox',
     'sha256':
-        'c95b3d794e05462bc89d133ba7aca8a33032bab95d70ac43b24dbefe2db8c996'
+        '46356225173099dbd702b2553d59a6567c1843b4e0e7aabc34f05464113c2280'
 }, {
     'tool':
         'tracebox',
@@ -413,9 +413,9 @@ PERFETTO_PREBUILT_MANIFEST = [{
     'file_size':
         1829448,
     'url':
-        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/387c10f55b96e95f96ec9248c3af28772bccfff0/android-x64/tracebox',
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v20.1/android-x64/tracebox',
     'sha256':
-        'd1da3f3c95bd8685b5bd75af19137c8d952fc88bb691dfc2a7e00706f3837074'
+        '38ef019e53aaf5a10ca421e1ad91937ccb756cba859d9697e024eefe12d3dbc5'
 }]
 
 
