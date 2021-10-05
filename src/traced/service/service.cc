@@ -39,6 +39,10 @@
 #include <unistd.h>
 #endif
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#include <sys/system_properties.h>
+#endif
+
 namespace perfetto {
 namespace {
 #if defined(PERFETTO_SET_SOCKET_PERMISSIONS)
@@ -215,6 +219,14 @@ int PERFETTO_EXPORT_ENTRYPOINT ServiceMain(int argc, char** argv) {
     PERFETTO_CHECK(base::WriteAll(notif_fd, "1", 1) == 1);
     PERFETTO_CHECK(base::CloseFile(notif_fd) == 0);
   }
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  // Notify init (perfetto.rc) that traced has been started. Used only by
+  // the perfetto_trace_on_boot init service.
+  if (__system_property_set("sys.trace.traced_started", "1") != 0) {
+    PERFETTO_PLOG("Failed to set property sys.trace.traced_started");
+  }
+#endif
 
   PERFETTO_ILOG("Started traced, listening on %s %s", GetProducerSocket(),
                 GetConsumerSocket());

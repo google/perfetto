@@ -99,6 +99,12 @@ class DebugAnnotationParserTest : public ::testing::Test,
     return true;
   }
 
+  void AddNull(const Key& key) override {
+    std::stringstream ss;
+    ss << key.flat_key << " " << key.key << " [NULL]";
+    args_.push_back(ss.str());
+  }
+
   size_t GetArrayEntryIndex(const std::string& array_key) final {
     return array_indices_[array_key];
   }
