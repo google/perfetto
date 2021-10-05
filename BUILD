@@ -583,6 +583,7 @@ filegroup(
         "include/perfetto/tracing/tracing_policy.h",
         "include/perfetto/tracing/track.h",
         "include/perfetto/tracing/track_event.h",
+        "include/perfetto/tracing/track_event_args.h",
         "include/perfetto/tracing/track_event_category_registry.h",
         "include/perfetto/tracing/track_event_interned_data_index.h",
         "include/perfetto/tracing/track_event_legacy.h",

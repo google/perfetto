@@ -61,6 +61,7 @@ source_set("tracing") {
     "tracing_policy.h",
     "track.h",
     "track_event.h",
+    "track_event_args.h",
     "track_event_category_registry.h",
     "track_event_interned_data_index.h",
     "track_event_legacy.h",

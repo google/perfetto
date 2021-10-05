@@ -20,6 +20,7 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/tracing/event_context.h"
 #include "perfetto/tracing/traced_proto.h"
+#include "perfetto/tracing/track_event_args.h"
 
 namespace perfetto {
 namespace internal {

@@ -661,6 +661,34 @@ class PerfettoApiTest : public ::testing::TestWithParam<perfetto::BackendType> {
         slice += ")";
       }
 
+      if (track_event.flow_ids_size()) {
+        slice += "(flow_ids=";
+        std::stringstream value;
+        bool first_annotation = true;
+        for (uint64_t id : track_event.flow_ids()) {
+          if (!first_annotation) {
+            value << ",";
+          }
+          first_annotation = false;
+          value << id;
+        }
+        slice += value.str() + ")";
+      }
+
+      if (track_event.terminating_flow_ids_size()) {
+        slice += "(terminating_flow_ids=";
+        std::stringstream value;
+        bool first_annotation = true;
+        for (uint64_t id : track_event.terminating_flow_ids()) {
+          if (!first_annotation) {
+            value << ",";
+          }
+          value << id;
+          first_annotation = false;
+        }
+        slice += value.str() + ")";
+      }
+
       slices.push_back(slice);
     }
     EXPECT_TRUE(incremental_state_was_cleared);
@@ -1860,11 +1888,13 @@ auto GetWriteLogMessageRefLambda = []() {
   };
 };
 
-void CheckLogMessagePresent(const std::vector<char>& raw_trace) {
+void CheckTypedArguments(
+    const std::vector<char>& raw_trace,
+    std::function<void(const perfetto::protos::gen::TrackEvent&)> checker) {
   perfetto::protos::gen::Trace parsed_trace;
   ASSERT_TRUE(parsed_trace.ParseFromArray(raw_trace.data(), raw_trace.size()));
 
-  bool found_args = false;
+  bool found_begin_slice = false;
   for (const auto& packet : parsed_trace.packet()) {
     if (!packet.has_track_event())
       continue;
@@ -1874,13 +1904,20 @@ void CheckLogMessagePresent(const std::vector<char>& raw_trace) {
       continue;
     }
 
-    EXPECT_TRUE(track_event.has_log_message());
-    const auto& log = track_event.log_message();
-    EXPECT_EQ(1u, log.source_location_iid());
-    EXPECT_EQ(2u, log.body_iid());
-    found_args = true;
+    checker(track_event);
+    found_begin_slice = true;
   }
-  EXPECT_TRUE(found_args);
+  EXPECT_TRUE(found_begin_slice);
+}
+
+void CheckLogMessagePresent(const std::vector<char>& raw_trace) {
+  CheckTypedArguments(raw_trace,
+                      [](const perfetto::protos::gen::TrackEvent& track_event) {
+                        EXPECT_TRUE(track_event.has_log_message());
+                        const auto& log = track_event.log_message();
+                        EXPECT_EQ(1u, log.source_location_iid());
+                        EXPECT_EQ(2u, log.body_iid());
+                      });
 }
 
 }  // namespace
@@ -2098,6 +2135,66 @@ TEST_P(PerfettoApiTest, TrackEventArgs_RefLambda) {
   // Find untyped argument.
   EXPECT_THAT(ReadSlicesFromTrace(raw_trace),
               ElementsAre("B:foo.E(arg=(string)value)"));
+}
+
+TEST_P(PerfettoApiTest, TrackEventArgs_Flow) {
+  // Create a new trace session.
+  auto* tracing_session = NewTraceWithCategories({"foo"});
+  tracing_session->get()->StartBlocking();
+
+  TRACE_EVENT_BEGIN("foo", "E", perfetto::Flow(42));
+  TRACE_EVENT_END("foo");
+
+  tracing_session->get()->StopBlocking();
+
+  std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
+
+  // Find typed argument.
+  CheckTypedArguments(
+      raw_trace, [](const perfetto::protos::gen::TrackEvent& track_event) {
+        EXPECT_THAT(track_event.flow_ids(), testing::ElementsAre(42));
+      });
+}
+
+TEST_P(PerfettoApiTest, TrackEventArgs_TerminatingFlow) {
+  // Create a new trace session.
+  auto* tracing_session = NewTraceWithCategories({"foo"});
+  tracing_session->get()->StartBlocking();
+
+  TRACE_EVENT_BEGIN("foo", "E", perfetto::TerminatingFlow(42));
+  TRACE_EVENT_END("foo");
+
+  tracing_session->get()->StopBlocking();
+
+  std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
+
+  // Find typed argument.
+  CheckTypedArguments(raw_trace,
+                      [](const perfetto::protos::gen::TrackEvent& track_event) {
+                        EXPECT_THAT(track_event.terminating_flow_ids(),
+                                    testing::ElementsAre(42));
+                      });
+}
+
+TEST_P(PerfettoApiTest, TrackEventArgs_MultipleFlows) {
+  // Create a new trace session.
+  auto* tracing_session = NewTraceWithCategories({"foo"});
+  tracing_session->get()->StartBlocking();
+
+  {
+    TRACE_EVENT("foo", "E1", perfetto::Flow(1), perfetto::Flow(2),
+                perfetto::Flow(3));
+  }
+  { TRACE_EVENT("foo", "E2", perfetto::Flow(1), perfetto::TerminatingFlow(2)); }
+  { TRACE_EVENT("foo", "E3", perfetto::TerminatingFlow(3)); }
+
+  tracing_session->get()->StopBlocking();
+
+  std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
+  EXPECT_THAT(ReadSlicesFromTrace(raw_trace),
+              ElementsAre("B:foo.E1(flow_ids=1,2,3)", "E",
+                          "B:foo.E2(flow_ids=1)(terminating_flow_ids=2)", "E",
+                          "B:foo.E3(terminating_flow_ids=3)"));
 }
 
 struct InternedLogMessageBody
