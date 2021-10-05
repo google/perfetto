@@ -150,6 +150,8 @@ class PERFETTO_EXPORT TrackEventInternal {
 
   static void ResetIncrementalState(TraceWriterBase*, TraceTimestamp);
 
+  // TODO(altimin): Remove this method once Chrome uses
+  // EventContext::AddDebugAnnotation directly.
   template <typename T>
   static void AddDebugAnnotation(perfetto::EventContext* event_ctx,
                                  const char* name,

@@ -105,8 +105,7 @@ PERFETTO_ALWAYS_INLINE void WriteTrackEventArgs(EventContext event_ctx,
                                                 const char* arg_name,
                                                 ArgValue&& arg_value,
                                                 Args&&... args) {
-  TrackEventInternal::AddDebugAnnotation(&event_ctx, arg_name,
-                                         std::forward<ArgValue>(arg_value));
+  event_ctx.AddDebugAnnotation(arg_name, std::forward<ArgValue>(arg_value));
   WriteTrackEventArgs(std::move(event_ctx), std::forward<Args>(args)...);
 }
 

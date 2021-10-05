@@ -2380,6 +2380,9 @@ TEST_P(PerfettoApiTest, TrackEventDebugAnnotations) {
                     [&](perfetto::TracedValue context) {
                       std::move(context).WriteInt64(42);
                     });
+  TRACE_EVENT_BEGIN("test", "E", [&](perfetto::EventContext ctx) {
+    ctx.AddDebugAnnotation("debug_annotation", "value");
+  });
   perfetto::TrackEvent::Flush();
 
   tracing_session->get()->StopBlocking();
@@ -2394,7 +2397,8 @@ TEST_P(PerfettoApiTest, TrackEventDebugAnnotations) {
           "B:test.E(ptr_arg=(pointer)baadf00d)",
           "B:test.E(size_t_arg=(uint)42)", "B:test.E(ptrdiff_t_arg=(int)-7)",
           "B:test.E(enum_arg=(uint)1)", "B:test.E(signed_enum_arg=(int)-1)",
-          "B:test.E(class_enum_arg=(int)0)", "B:test.E(traced_value=(int)42)"));
+          "B:test.E(class_enum_arg=(int)0)", "B:test.E(traced_value=(int)42)",
+          "B:test.E(debug_annotation=(string)value)"));
 }
 
 TEST_P(PerfettoApiTest, TrackEventCustomDebugAnnotations) {
