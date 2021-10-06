@@ -9,6 +9,11 @@ Unreleased:
     *
 
 
+v20.1 - 2021-10-05:
+  Tracing service and probes:
+    * Fixed standalone Windows build. Updated the llvm-win toolchain.
+
+
 v20.0 - 2021-10-03:
   Tracing service and probes:
     * Removed DCHECK that would cause crashes when a debug build of the service
