@@ -120,6 +120,12 @@ class FtraceParser {
                          uint32_t pid,
                          protozero::ConstBytes);
   void ParseScmCallEnd(int64_t timestamp, uint32_t pid, protozero::ConstBytes);
+  void ParseDirectReclaimBegin(int64_t timestamp,
+                               uint32_t pid,
+                               protozero::ConstBytes);
+  void ParseDirectReclaimEnd(int64_t timestamp,
+                             uint32_t pid,
+                             protozero::ConstBytes);
   void ParseWorkqueueExecuteStart(int64_t timestamp,
                                   uint32_t pid,
                                   protozero::ConstBytes,
@@ -174,6 +180,9 @@ class FtraceParser {
   const StringId workqueue_id_;
   const StringId irq_id_;
   const StringId ret_arg_id_;
+  const StringId direct_reclaim_order_id_;
+  const StringId direct_reclaim_may_writepage_id_;
+  const StringId direct_reclaim_gfp_flags_id_;
   const StringId vec_arg_id_;
   const StringId gpu_mem_total_name_id_;
   const StringId gpu_mem_total_unit_id_;
