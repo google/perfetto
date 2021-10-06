@@ -177,6 +177,11 @@ class PERFETTO_EXPORT Tracing {
   static std::unique_ptr<TracingSession> NewTrace(
       BackendType = kUnspecifiedBackend);
 
+  // Uninitialize Perfetto. Only exposed for testing scenarios where it can be
+  // guaranteed that no tracing sessions or other operations are happening when
+  // this call is made.
+  static void ResetForTesting();
+
  private:
   static void InitializeInternal(const TracingInitArgs&);
 

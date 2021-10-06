@@ -116,6 +116,11 @@ class TrackEventArgsParser : public util::ProtoToArgsParser::Delegate {
                                     base::StringView(key.key), &storage_,
                                     &inserter_);
   }
+  void AddNull(const Key& key) final {
+    inserter_.AddArg(storage_.InternString(base::StringView(key.flat_key)),
+                     storage_.InternString(base::StringView(key.key)),
+                     Variadic::Null());
+  }
 
   size_t GetArrayEntryIndex(const std::string& array_key) final {
     return inserter_.GetNextArrayEntryIndex(

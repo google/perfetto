@@ -688,6 +688,8 @@ class TraceStorage {
         v.json_value = opt_value ? *opt_value : kNullStringId;
         break;
       }
+      case Variadic::Type::kNull:
+        break;
     }
     return v;
   }

@@ -356,30 +356,16 @@ class PerfettoApiTest : public ::testing::TestWithParam<perfetto::BackendType> {
     g_test_tracing_policy->should_allow_consumer_connection = true;
 
     // Start a fresh system service for this test, tearing down any previous
-    // service that was running.
-    uint32_t supported_backends =
-        perfetto::kInProcessBackend | perfetto::kSystemBackend;
-    if (!perfetto::test::StartSystemService())
-      supported_backends &= ~perfetto::kSystemBackend;
-
-    // If the system backend wasn't supported, skip all system backend tests.
-    auto backend = GetParam();
-    if (!(supported_backends & backend))
+    // service that was running. If the system backend isn't supported, skip all
+    // system backend tests.
+    if (GetParam() == perfetto::kSystemBackend &&
+        !perfetto::test::StartSystemService()) {
       GTEST_SKIP();
-
-    static bool was_initialized;
-    if (!was_initialized) {
-      EXPECT_FALSE(perfetto::Tracing::IsInitialized());
-      was_initialized = true;
-    } else {
-      EXPECT_TRUE(perfetto::Tracing::IsInitialized());
     }
 
-    // Since the client API can only be initialized once per process, initialize
-    // both the in-process and system backends for every test here. The actual
-    // service to be used is chosen by the test parameter.
+    EXPECT_FALSE(perfetto::Tracing::IsInitialized());
     TracingInitArgs args;
-    args.backends = supported_backends;
+    args.backends = GetParam();
     args.tracing_policy = g_test_tracing_policy;
     perfetto::Tracing::Initialize(args);
     RegisterDataSource<MockDataSource>("my_data_source");
@@ -397,7 +383,11 @@ class PerfettoApiTest : public ::testing::TestWithParam<perfetto::BackendType> {
     perfetto::test::DisableReconnectLimit();
   }
 
-  void TearDown() override { instance = nullptr; }
+  void TearDown() override {
+    instance = nullptr;
+    sessions_.clear();
+    perfetto::Tracing::ResetForTesting();
+  }
 
   template <typename DataSourceType>
   TestDataSourceHandle* RegisterDataSource(std::string name) {
@@ -659,6 +649,34 @@ class PerfettoApiTest : public ::testing::TestWithParam<perfetto::BackendType> {
           first_annotation = false;
         }
         slice += ")";
+      }
+
+      if (track_event.flow_ids_size()) {
+        slice += "(flow_ids=";
+        std::stringstream value;
+        bool first_annotation = true;
+        for (uint64_t id : track_event.flow_ids()) {
+          if (!first_annotation) {
+            value << ",";
+          }
+          first_annotation = false;
+          value << id;
+        }
+        slice += value.str() + ")";
+      }
+
+      if (track_event.terminating_flow_ids_size()) {
+        slice += "(terminating_flow_ids=";
+        std::stringstream value;
+        bool first_annotation = true;
+        for (uint64_t id : track_event.terminating_flow_ids()) {
+          if (!first_annotation) {
+            value << ",";
+          }
+          value << id;
+          first_annotation = false;
+        }
+        slice += value.str() + ")";
       }
 
       slices.push_back(slice);
@@ -1852,6 +1870,46 @@ struct LogMessage {
   }
 };
 
+auto GetWriteLogMessageRefLambda = []() {
+  return [](perfetto::EventContext& ctx) {
+    auto* log = ctx.event()->set_log_message();
+    log->set_source_location_iid(1);
+    log->set_body_iid(2);
+  };
+};
+
+void CheckTypedArguments(
+    const std::vector<char>& raw_trace,
+    std::function<void(const perfetto::protos::gen::TrackEvent&)> checker) {
+  perfetto::protos::gen::Trace parsed_trace;
+  ASSERT_TRUE(parsed_trace.ParseFromArray(raw_trace.data(), raw_trace.size()));
+
+  bool found_begin_slice = false;
+  for (const auto& packet : parsed_trace.packet()) {
+    if (!packet.has_track_event())
+      continue;
+    const auto& track_event = packet.track_event();
+    if (track_event.type() !=
+        perfetto::protos::gen::TrackEvent::TYPE_SLICE_BEGIN) {
+      continue;
+    }
+
+    checker(track_event);
+    found_begin_slice = true;
+  }
+  EXPECT_TRUE(found_begin_slice);
+}
+
+void CheckLogMessagePresent(const std::vector<char>& raw_trace) {
+  CheckTypedArguments(raw_trace,
+                      [](const perfetto::protos::gen::TrackEvent& track_event) {
+                        EXPECT_TRUE(track_event.has_log_message());
+                        const auto& log = track_event.log_message();
+                        EXPECT_EQ(1u, log.source_location_iid());
+                        EXPECT_EQ(2u, log.body_iid());
+                      });
+}
+
 }  // namespace
 
 TEST_P(PerfettoApiTest, InlineTrackEventTypedArgs_NestedSingle) {
@@ -1866,31 +1924,9 @@ TEST_P(PerfettoApiTest, InlineTrackEventTypedArgs_NestedSingle) {
 
   tracing_session->get()->StopBlocking();
   std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
-  std::string trace(raw_trace.data(), raw_trace.size());
-
-  perfetto::protos::gen::Trace parsed_trace;
-  ASSERT_TRUE(parsed_trace.ParseFromArray(raw_trace.data(), raw_trace.size()));
-
-  bool found_args = false;
-  for (const auto& packet : parsed_trace.packet()) {
-    if (!packet.has_track_event())
-      continue;
-    const auto& track_event = packet.track_event();
-    if (track_event.type() !=
-        perfetto::protos::gen::TrackEvent::TYPE_SLICE_BEGIN) {
-      continue;
-    }
-
-    EXPECT_TRUE(track_event.has_log_message());
-    const auto& log = track_event.log_message();
-    EXPECT_EQ(1u, log.source_location_iid());
-    EXPECT_EQ(2u, log.body_iid());
-    found_args = true;
-  }
-  EXPECT_TRUE(found_args);
 }
 
-TEST_P(PerfettoApiTest, InlineTrackEventTypedAndUntypedArgs) {
+TEST_P(PerfettoApiTest, TrackEventArgs_TypedAndUntyped) {
   // Create a new trace session.
   auto* tracing_session = NewTraceWithCategories({"foo"});
   tracing_session->get()->StartBlocking();
@@ -1905,34 +1941,15 @@ TEST_P(PerfettoApiTest, InlineTrackEventTypedAndUntypedArgs) {
   std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
   std::string trace(raw_trace.data(), raw_trace.size());
 
-  perfetto::protos::gen::Trace parsed_trace;
-  ASSERT_TRUE(parsed_trace.ParseFromArray(raw_trace.data(), raw_trace.size()));
-
   // Find typed argument.
-  bool found_args = false;
-  for (const auto& packet : parsed_trace.packet()) {
-    if (!packet.has_track_event())
-      continue;
-    const auto& track_event = packet.track_event();
-    if (track_event.type() !=
-        perfetto::protos::gen::TrackEvent::TYPE_SLICE_BEGIN) {
-      continue;
-    }
-
-    EXPECT_TRUE(track_event.has_log_message());
-    const auto& log = track_event.log_message();
-    EXPECT_EQ(1u, log.source_location_iid());
-    EXPECT_EQ(2u, log.body_iid());
-    found_args = true;
-  }
-  EXPECT_TRUE(found_args);
+  CheckLogMessagePresent(raw_trace);
 
   // Find untyped argument.
   EXPECT_THAT(ReadSlicesFromTrace(raw_trace),
               ElementsAre("B:foo.E(arg=(string)value)"));
 }
 
-TEST_P(PerfettoApiTest, InlineTrackEventUntypedAndTypedArgs) {
+TEST_P(PerfettoApiTest, TrackEventArgs_UntypedAndTyped) {
   // Create a new trace session.
   auto* tracing_session = NewTraceWithCategories({"foo"});
   tracing_session->get()->StartBlocking();
@@ -1945,33 +1962,229 @@ TEST_P(PerfettoApiTest, InlineTrackEventUntypedAndTypedArgs) {
   tracing_session->get()->StopBlocking();
 
   std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
-  std::string trace(raw_trace.data(), raw_trace.size());
-
-  perfetto::protos::gen::Trace parsed_trace;
-  ASSERT_TRUE(parsed_trace.ParseFromArray(raw_trace.data(), raw_trace.size()));
 
   // Find typed argument.
-  bool found_args = false;
-  for (const auto& packet : parsed_trace.packet()) {
-    if (!packet.has_track_event())
-      continue;
-    const auto& track_event = packet.track_event();
-    if (track_event.type() !=
-        perfetto::protos::gen::TrackEvent::TYPE_SLICE_BEGIN) {
-      continue;
-    }
-
-    EXPECT_TRUE(track_event.has_log_message());
-    const auto& log = track_event.log_message();
-    EXPECT_EQ(1u, log.source_location_iid());
-    EXPECT_EQ(2u, log.body_iid());
-    found_args = true;
-  }
-  EXPECT_TRUE(found_args);
+  CheckLogMessagePresent(raw_trace);
 
   // Find untyped argument.
   EXPECT_THAT(ReadSlicesFromTrace(raw_trace),
               ElementsAre("B:foo.E(arg=(string)value)"));
+}
+
+TEST_P(PerfettoApiTest, TrackEventArgs_UntypedAndRefLambda) {
+  // Create a new trace session.
+  auto* tracing_session = NewTraceWithCategories({"foo"});
+  tracing_session->get()->StartBlocking();
+
+  TRACE_EVENT_BEGIN("foo", "E", "arg", "value", GetWriteLogMessageRefLambda());
+  TRACE_EVENT_END("foo");
+
+  tracing_session->get()->StopBlocking();
+
+  std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
+
+  // Find typed argument.
+  CheckLogMessagePresent(raw_trace);
+
+  // Find untyped argument.
+  EXPECT_THAT(ReadSlicesFromTrace(raw_trace),
+              ElementsAre("B:foo.E(arg=(string)value)"));
+}
+
+TEST_P(PerfettoApiTest, TrackEventArgs_RefLambdaAndUntyped) {
+  // Create a new trace session.
+  auto* tracing_session = NewTraceWithCategories({"foo"});
+  tracing_session->get()->StartBlocking();
+
+  TRACE_EVENT_BEGIN("foo", "E", GetWriteLogMessageRefLambda(), "arg", "value");
+  TRACE_EVENT_END("foo");
+
+  tracing_session->get()->StopBlocking();
+
+  std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
+
+  // Find typed argument.
+  CheckLogMessagePresent(raw_trace);
+
+  // Find untyped argument.
+  EXPECT_THAT(ReadSlicesFromTrace(raw_trace),
+              ElementsAre("B:foo.E(arg=(string)value)"));
+}
+
+TEST_P(PerfettoApiTest, TrackEventArgs_RefLambdaAndTyped) {
+  // Create a new trace session.
+  auto* tracing_session = NewTraceWithCategories({"foo"});
+  tracing_session->get()->StartBlocking();
+
+  TRACE_EVENT_BEGIN(
+      "foo", "E",
+      [](perfetto::EventContext& ctx) {
+        ctx.AddDebugAnnotation("arg", "value");
+      },
+      perfetto::protos::pbzero::TrackEvent::kLogMessage, LogMessage());
+  TRACE_EVENT_END("foo");
+
+  tracing_session->get()->StopBlocking();
+
+  std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
+
+  // Find typed argument.
+  CheckLogMessagePresent(raw_trace);
+
+  // Find untyped argument.
+  EXPECT_THAT(ReadSlicesFromTrace(raw_trace),
+              ElementsAre("B:foo.E(arg=(string)value)"));
+}
+
+TEST_P(PerfettoApiTest, TrackEventArgs_TypedAndRefLambda) {
+  // Create a new trace session.
+  auto* tracing_session = NewTraceWithCategories({"foo"});
+  tracing_session->get()->StartBlocking();
+
+  TRACE_EVENT_BEGIN("foo", "E",
+                    perfetto::protos::pbzero::TrackEvent::kLogMessage,
+                    LogMessage(), [](perfetto::EventContext& ctx) {
+                      ctx.AddDebugAnnotation("arg", "value");
+                    });
+  TRACE_EVENT_END("foo");
+
+  tracing_session->get()->StopBlocking();
+
+  std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
+
+  // Find typed argument.
+  CheckLogMessagePresent(raw_trace);
+
+  // Find untyped argument.
+  EXPECT_THAT(ReadSlicesFromTrace(raw_trace),
+              ElementsAre("B:foo.E(arg=(string)value)"));
+}
+
+TEST_P(PerfettoApiTest, TrackEventArgs_RefLambdaAndRefLambda) {
+  // Create a new trace session.
+  auto* tracing_session = NewTraceWithCategories({"foo"});
+  tracing_session->get()->StartBlocking();
+
+  TRACE_EVENT_BEGIN(
+      "foo", "E",
+      [](perfetto::EventContext& ctx) {
+        ctx.AddDebugAnnotation("arg1", "value1");
+      },
+      [](perfetto::EventContext& ctx) {
+        ctx.AddDebugAnnotation("arg2", "value2");
+      });
+  TRACE_EVENT_END("foo");
+
+  tracing_session->get()->StopBlocking();
+
+  std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
+
+  // Find untyped arguments.
+  EXPECT_THAT(ReadSlicesFromTrace(raw_trace),
+              ElementsAre("B:foo.E(arg1=(string)value1,arg2=(string)value2)"));
+}
+
+TEST_P(PerfettoApiTest, TrackEventArgs_RefLambdaAndLambda) {
+  // Create a new trace session.
+  auto* tracing_session = NewTraceWithCategories({"foo"});
+  tracing_session->get()->StartBlocking();
+
+  TRACE_EVENT_BEGIN(
+      "foo", "E",
+      [](perfetto::EventContext& ctx) {
+        ctx.AddDebugAnnotation("arg1", "value1");
+      },
+      [](perfetto::EventContext ctx) {
+        ctx.AddDebugAnnotation("arg2", "value2");
+      });
+  TRACE_EVENT_END("foo");
+
+  tracing_session->get()->StopBlocking();
+
+  std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
+
+  // Find untyped arguments.
+  EXPECT_THAT(ReadSlicesFromTrace(raw_trace),
+              ElementsAre("B:foo.E(arg1=(string)value1,arg2=(string)value2)"));
+}
+
+TEST_P(PerfettoApiTest, TrackEventArgs_RefLambda) {
+  // Create a new trace session.
+  auto* tracing_session = NewTraceWithCategories({"foo"});
+  tracing_session->get()->StartBlocking();
+
+  TRACE_EVENT_BEGIN("foo", "E", [](perfetto::EventContext& ctx) {
+    ctx.AddDebugAnnotation("arg", "value");
+  });
+  TRACE_EVENT_END("foo");
+
+  tracing_session->get()->StopBlocking();
+
+  std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
+
+  // Find untyped argument.
+  EXPECT_THAT(ReadSlicesFromTrace(raw_trace),
+              ElementsAre("B:foo.E(arg=(string)value)"));
+}
+
+TEST_P(PerfettoApiTest, TrackEventArgs_Flow) {
+  // Create a new trace session.
+  auto* tracing_session = NewTraceWithCategories({"foo"});
+  tracing_session->get()->StartBlocking();
+
+  TRACE_EVENT_BEGIN("foo", "E", perfetto::Flow(42));
+  TRACE_EVENT_END("foo");
+
+  tracing_session->get()->StopBlocking();
+
+  std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
+
+  // Find typed argument.
+  CheckTypedArguments(
+      raw_trace, [](const perfetto::protos::gen::TrackEvent& track_event) {
+        EXPECT_THAT(track_event.flow_ids(), testing::ElementsAre(42));
+      });
+}
+
+TEST_P(PerfettoApiTest, TrackEventArgs_TerminatingFlow) {
+  // Create a new trace session.
+  auto* tracing_session = NewTraceWithCategories({"foo"});
+  tracing_session->get()->StartBlocking();
+
+  TRACE_EVENT_BEGIN("foo", "E", perfetto::TerminatingFlow(42));
+  TRACE_EVENT_END("foo");
+
+  tracing_session->get()->StopBlocking();
+
+  std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
+
+  // Find typed argument.
+  CheckTypedArguments(raw_trace,
+                      [](const perfetto::protos::gen::TrackEvent& track_event) {
+                        EXPECT_THAT(track_event.terminating_flow_ids(),
+                                    testing::ElementsAre(42));
+                      });
+}
+
+TEST_P(PerfettoApiTest, TrackEventArgs_MultipleFlows) {
+  // Create a new trace session.
+  auto* tracing_session = NewTraceWithCategories({"foo"});
+  tracing_session->get()->StartBlocking();
+
+  {
+    TRACE_EVENT("foo", "E1", perfetto::Flow(1), perfetto::Flow(2),
+                perfetto::Flow(3));
+  }
+  { TRACE_EVENT("foo", "E2", perfetto::Flow(1), perfetto::TerminatingFlow(2)); }
+  { TRACE_EVENT("foo", "E3", perfetto::TerminatingFlow(3)); }
+
+  tracing_session->get()->StopBlocking();
+
+  std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
+  EXPECT_THAT(ReadSlicesFromTrace(raw_trace),
+              ElementsAre("B:foo.E1(flow_ids=1,2,3)", "E",
+                          "B:foo.E2(flow_ids=1)(terminating_flow_ids=2)", "E",
+                          "B:foo.E3(terminating_flow_ids=3)"));
 }
 
 struct InternedLogMessageBody
@@ -2380,6 +2593,9 @@ TEST_P(PerfettoApiTest, TrackEventDebugAnnotations) {
                     [&](perfetto::TracedValue context) {
                       std::move(context).WriteInt64(42);
                     });
+  TRACE_EVENT_BEGIN("test", "E", [&](perfetto::EventContext ctx) {
+    ctx.AddDebugAnnotation("debug_annotation", "value");
+  });
   perfetto::TrackEvent::Flush();
 
   tracing_session->get()->StopBlocking();
@@ -2394,7 +2610,8 @@ TEST_P(PerfettoApiTest, TrackEventDebugAnnotations) {
           "B:test.E(ptr_arg=(pointer)baadf00d)",
           "B:test.E(size_t_arg=(uint)42)", "B:test.E(ptrdiff_t_arg=(int)-7)",
           "B:test.E(enum_arg=(uint)1)", "B:test.E(signed_enum_arg=(int)-1)",
-          "B:test.E(class_enum_arg=(int)0)", "B:test.E(traced_value=(int)42)"));
+          "B:test.E(class_enum_arg=(int)0)", "B:test.E(traced_value=(int)42)",
+          "B:test.E(debug_annotation=(string)value)"));
 }
 
 TEST_P(PerfettoApiTest, TrackEventCustomDebugAnnotations) {

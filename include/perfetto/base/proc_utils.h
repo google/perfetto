@@ -22,8 +22,10 @@
 #include "perfetto/base/build_config.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-#include <Windows.h>
-#include <processthreadsapi.h>
+extern "C" {
+// Prototype extracted from the Windows SDK to avoid including windows.h.
+__declspec(dllimport) unsigned long __stdcall GetCurrentProcessId();
+}
 #elif PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
 #include <zircon/process.h>
 #include <zircon/types.h>

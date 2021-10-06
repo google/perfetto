@@ -97,6 +97,7 @@ class TracingMuxerImpl : public TracingMuxer {
   using TracingSessionGlobalID = uint64_t;
 
   static void InitializeInstance(const TracingInitArgs&);
+  static void ResetForTesting();
 
   // TracingMuxer implementation.
   bool RegisterDataSource(const DataSourceDescriptor&,
@@ -178,6 +179,7 @@ class TracingMuxerImpl : public TracingMuxer {
     void RegisterDataSource(const DataSourceDescriptor&,
                             DataSourceFactory,
                             DataSourceStaticState*);
+    void DisposeConnection();
 
     // perfetto::Producer implementation.
     void OnConnect() override;
@@ -191,12 +193,13 @@ class TracingMuxerImpl : public TracingMuxer {
     void Flush(FlushRequestID, const DataSourceInstanceID*, size_t) override;
     void ClearIncrementalState(const DataSourceInstanceID*, size_t) override;
 
-    void SweepDeadServices();
+    bool SweepDeadServices();
 
     PERFETTO_THREAD_CHECKER(thread_checker_)
-    TracingMuxerImpl* const muxer_;
+    TracingMuxerImpl* muxer_;
     TracingBackendId const backend_id_;
     bool connected_ = false;
+    bool did_setup_tracing_ = false;
     uint32_t connection_id_ = 0;
 
     const uint32_t shmem_batch_commits_duration_ms_ = 0;
@@ -258,7 +261,7 @@ class TracingMuxerImpl : public TracingMuxer {
     // Will eventually inform the |muxer_| when it is safe to remove |this|.
     void Disconnect();
 
-    TracingMuxerImpl* const muxer_;
+    TracingMuxerImpl* muxer_;
     BackendType const backend_type_;
     TracingBackendId const backend_id_;
     TracingSessionGlobalID const session_id_;
@@ -383,6 +386,7 @@ class TracingMuxerImpl : public TracingMuxer {
   void InitializeConsumer(TracingSessionGlobalID session_id);
   void OnConsumerDisconnected(ConsumerImpl* consumer);
   void OnProducerDisconnected(ProducerImpl* producer);
+  void SweepDeadBackends();
 
   struct FindDataSourceRes {
     FindDataSourceRes() = default;
@@ -396,6 +400,7 @@ class TracingMuxerImpl : public TracingMuxer {
   };
   FindDataSourceRes FindDataSource(TracingBackendId, DataSourceInstanceID);
 
+  // WARNING: If you add new state here, be sure to update ResetForTesting.
   std::unique_ptr<base::TaskRunner> task_runner_;
   std::vector<RegisteredDataSource> data_sources_;
   std::vector<RegisteredBackend> backends_;
@@ -403,10 +408,16 @@ class TracingMuxerImpl : public TracingMuxer {
   TracingPolicy* policy_ = nullptr;
 
   std::atomic<TracingSessionGlobalID> next_tracing_session_id_{};
+  std::atomic<uint32_t> next_data_source_index_{};
 
   // Maximum number of times we will try to reconnect producer backend.
   // Should only be modified for testing purposes.
   std::atomic<uint32_t> max_producer_reconnections_{100u};
+
+  // After ResetForTesting() is called, holds tracing backends which needs to be
+  // kept alive until all inbound references have gone away. See
+  // SweepDeadBackends().
+  std::list<RegisteredBackend> dead_backends_;
 
   PERFETTO_THREAD_CHECKER(thread_checker_)
 };

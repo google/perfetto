@@ -16,6 +16,9 @@
 
 #include "src/trace_processor/dynamic/experimental_flamegraph_generator.h"
 
+#include <unordered_set>
+
+#include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 
 #include "src/trace_processor/importers/proto/heap_graph_tracker.h"
@@ -68,6 +71,10 @@ ExperimentalFlamegraphGenerator::InputValues GetFlamegraphInputValues(
     return c.col_idx == static_cast<uint32_t>(T::ColumnIndex::upid) &&
            c.op == FilterOp::kEq;
   };
+  auto upid_group_fn = [](const Constraint& c) {
+    return c.col_idx == static_cast<uint32_t>(T::ColumnIndex::upid_group) &&
+           c.op == FilterOp::kEq;
+  };
   auto profile_type_fn = [](const Constraint& c) {
     return c.col_idx == static_cast<uint32_t>(T::ColumnIndex::profile_type) &&
            c.op == FilterOp::kEq;
@@ -79,6 +86,7 @@ ExperimentalFlamegraphGenerator::InputValues GetFlamegraphInputValues(
 
   auto ts_it = std::find_if(cs.begin(), cs.end(), ts_fn);
   auto upid_it = std::find_if(cs.begin(), cs.end(), upid_fn);
+  auto upid_group_it = std::find_if(cs.begin(), cs.end(), upid_group_fn);
   auto profile_type_it = std::find_if(cs.begin(), cs.end(), profile_type_fn);
   auto focus_str_it = std::find_if(cs.begin(), cs.end(), focus_str_fn);
 
@@ -86,7 +94,7 @@ ExperimentalFlamegraphGenerator::InputValues GetFlamegraphInputValues(
   // allow the constraint set to be chosen when we have an equality constraint
   // on upid and a constraint on ts.
   PERFETTO_CHECK(ts_it != cs.end());
-  PERFETTO_CHECK(upid_it != cs.end());
+  PERFETTO_CHECK(upid_it != cs.end() || upid_group_it != cs.end());
   PERFETTO_CHECK(profile_type_it != cs.end());
 
   std::string profile_name(profile_type_it->value.AsString());
@@ -110,11 +118,19 @@ ExperimentalFlamegraphGenerator::InputValues GetFlamegraphInputValues(
     }
   }
 
-  auto upid = static_cast<UniquePid>(upid_it->value.AsLong());
+  base::Optional<UniquePid> upid;
+  base::Optional<std::string> upid_group;
+  if (upid_it != cs.end()) {
+    upid = static_cast<UniquePid>(upid_it->value.AsLong());
+  } else {
+    upid_group = upid_group_it->value.AsString();
+  }
+
   std::string focus_str =
       focus_str_it != cs.end() ? focus_str_it->value.AsString() : "";
   return ExperimentalFlamegraphGenerator::InputValues{
-      profile_type, ts, std::move(time_constraints), upid, focus_str};
+      profile_type, ts,         std::move(time_constraints),
+      upid,         upid_group, focus_str};
 }
 
 class Matcher {
@@ -287,6 +303,13 @@ util::Status ExperimentalFlamegraphGenerator::ValidateConstraints(
   };
   bool has_upid_cs = std::find_if(cs.begin(), cs.end(), upid_fn) != cs.end();
 
+  auto upid_group_fn = [](const QueryConstraints::Constraint& c) {
+    return c.column == static_cast<int>(T::ColumnIndex::upid_group) &&
+           c.op == SQLITE_INDEX_CONSTRAINT_EQ;
+  };
+  bool has_upid_group_cs =
+      std::find_if(cs.begin(), cs.end(), upid_group_fn) != cs.end();
+
   auto profile_type_fn = [](const QueryConstraints::Constraint& c) {
     return c.column == static_cast<int>(T::ColumnIndex::profile_type) &&
            c.op == SQLITE_INDEX_CONSTRAINT_EQ;
@@ -294,7 +317,7 @@ util::Status ExperimentalFlamegraphGenerator::ValidateConstraints(
   bool has_profile_type_cs =
       std::find_if(cs.begin(), cs.end(), profile_type_fn) != cs.end();
 
-  return has_ts_cs && has_upid_cs && has_profile_type_cs
+  return has_ts_cs && (has_upid_cs || has_upid_group_cs) && has_profile_type_cs
              ? util::OkStatus()
              : util::ErrStatus("Failed to find required constraints");
 }
@@ -308,13 +331,14 @@ std::unique_ptr<Table> ExperimentalFlamegraphGenerator::ComputeTable(
   std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> table;
   if (values.profile_type == ProfileType::kGraph) {
     auto* tracker = HeapGraphTracker::GetOrCreate(context_);
-    table = tracker->BuildFlamegraph(values.ts, values.upid);
+    table = tracker->BuildFlamegraph(values.ts, *values.upid);
   } else if (values.profile_type == ProfileType::kNative) {
     table = BuildNativeHeapProfileFlamegraph(context_->storage.get(),
-                                             values.upid, values.ts);
+                                             *values.upid, values.ts);
   } else if (values.profile_type == ProfileType::kPerf) {
     table = BuildNativeCallStackSamplingFlamegraph(
-        context_->storage.get(), values.upid, values.time_constraints);
+        context_->storage.get(), values.upid, values.upid_group,
+        values.time_constraints);
   }
   if (!values.focus_str.empty()) {
     table =

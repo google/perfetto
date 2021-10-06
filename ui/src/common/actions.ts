@@ -458,8 +458,15 @@ export const StateActions = {
     }
   },
 
+  setNamedRecordConfig(
+      state: StateDraft, args: {title: string, config: RecordConfig}) {
+    state.recordConfig = args.config;
+    state.lastLoadedConfigTitle = args.title;
+  },
+
   setRecordConfig(state: StateDraft, args: {config: RecordConfig;}): void {
     state.recordConfig = args.config;
+    state.lastLoadedConfigTitle = null;
   },
 
   selectNote(state: StateDraft, args: {id: string}): void {

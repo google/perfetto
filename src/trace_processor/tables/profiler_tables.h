@@ -290,7 +290,8 @@ PERFETTO_TP_TABLE(PERFETTO_TP_HEAP_PROFILE_ALLOCATION_DEF);
   C(int64_t, cumulative_alloc_size)                                       \
   C(base::Optional<ExperimentalFlamegraphNodesTable::Id>, parent_id)      \
   C(base::Optional<StringPool::Id>, source_file)                          \
-  C(base::Optional<uint32_t>, line_number)
+  C(base::Optional<uint32_t>, line_number)                                \
+  C(base::Optional<StringPool::Id>, upid_group)
 
 PERFETTO_TP_TABLE(PERFETTO_TP_EXPERIMENTAL_FLAMEGRAPH_NODES);
 

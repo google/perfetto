@@ -311,11 +311,16 @@
     padding: 7px;
     width: 75px;
 
-    &:hover {
+    &:hover:enabled {
       box-shadow: 0 0 4px 0px #999;
     }
 
-    &.load {
+    &:not(:enabled) {
+      background-color: hsl(0, 0%, 83%);
+      color: hsl(0, 0%, 50%);
+    }
+
+    &.load:enabled {
       background-color: hsl(88, 50%, 67%);
     }
 
@@ -325,7 +330,10 @@
 
     &.save {
       width: 160px;
-      background-color: hsl(197, 50%, 67%);
+
+      &:enabled {
+        background-color: hsl(197, 50%, 67%);
+      }
     }
   }
 

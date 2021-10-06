@@ -56,6 +56,7 @@
 #include "protos/perfetto/trace/ftrace/systrace.pbzero.h"
 #include "protos/perfetto/trace/ftrace/task.pbzero.h"
 #include "protos/perfetto/trace/ftrace/thermal.pbzero.h"
+#include "protos/perfetto/trace/ftrace/vmscan.pbzero.h"
 #include "protos/perfetto/trace/ftrace/workqueue.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 
@@ -125,6 +126,12 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       workqueue_id_(context_->storage->InternString("workqueue")),
       irq_id_(context_->storage->InternString("irq")),
       ret_arg_id_(context_->storage->InternString("ret")),
+      direct_reclaim_order_id_(
+          context->storage->InternString("direct_reclaim_order")),
+      direct_reclaim_may_writepage_id_(
+          context->storage->InternString("direct_reclaim_may_writepage")),
+      direct_reclaim_gfp_flags_id_(
+          context->storage->InternString("direct_reclaim_gfp_flags")),
       vec_arg_id_(context->storage->InternString("vec")),
       gpu_mem_total_name_id_(context->storage->InternString("GPU Memory")),
       gpu_mem_total_unit_id_(context->storage->InternString(
@@ -496,6 +503,14 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kScmCallEndFieldNumber: {
         ParseScmCallEnd(ts, pid, data);
+        break;
+      }
+      case FtraceEvent::kMmVmscanDirectReclaimBeginFieldNumber: {
+        ParseDirectReclaimBegin(ts, pid, data);
+        break;
+      }
+      case FtraceEvent::kMmVmscanDirectReclaimEndFieldNumber: {
+        ParseDirectReclaimEnd(ts, pid, data);
         break;
       }
       case FtraceEvent::kWorkqueueExecuteStartFieldNumber: {
@@ -1266,6 +1281,54 @@ void FtraceParser::ParseScmCallEnd(int64_t timestamp,
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
   context_->slice_tracker->End(timestamp, track_id);
+}
+
+void FtraceParser::ParseDirectReclaimBegin(int64_t timestamp,
+                                           uint32_t pid,
+                                           ConstBytes blob) {
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+  protos::pbzero::MmVmscanDirectReclaimBeginFtraceEvent::Decoder
+      direct_reclaim_begin(blob.data, blob.size);
+
+  StringId name_id = context_->storage->InternString(
+      "mm_vmscan_direct_reclaim nr_reclaimed=?");
+
+  auto args_inserter = [this, &direct_reclaim_begin](
+                           ArgsTracker::BoundInserter* inserter) {
+    inserter->AddArg(direct_reclaim_order_id_,
+                     Variadic::Integer(direct_reclaim_begin.order()));
+    inserter->AddArg(direct_reclaim_may_writepage_id_,
+                     Variadic::Integer(direct_reclaim_begin.may_writepage()));
+    inserter->AddArg(
+        direct_reclaim_gfp_flags_id_,
+        Variadic::UnsignedInteger(direct_reclaim_begin.gfp_flags()));
+  };
+  context_->slice_tracker->Begin(timestamp, track_id, kNullStringId, name_id,
+                                 args_inserter);
+}
+
+void FtraceParser::ParseDirectReclaimEnd(int64_t timestamp,
+                                         uint32_t pid,
+                                         ConstBytes blob) {
+  protos::pbzero::ScmCallEndFtraceEvent::Decoder evt(blob.data, blob.size);
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+  protos::pbzero::MmVmscanDirectReclaimEndFtraceEvent::Decoder
+      direct_reclame_end(blob.data, blob.size);
+
+  const auto opt_slice_id = context_->slice_tracker->End(timestamp, track_id);
+  if (opt_slice_id) {
+    auto* slice_table = context_->storage->mutable_slice_table();
+    uint32_t row_idx = *slice_table->id().IndexOf(*opt_slice_id);
+
+    char str[128];
+    sprintf(str, "mm_vmscan_direct_reclaim nr_reclaimed=%" PRIu64,
+            direct_reclame_end.nr_reclaimed());
+    StringId name_id = context_->storage->InternString(str);
+
+    slice_table->mutable_name()->Set(row_idx, name_id);
+  }
 }
 
 void FtraceParser::ParseWorkqueueExecuteStart(

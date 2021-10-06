@@ -906,8 +906,10 @@ function displayRecordConfigs() {
       m('button',
         {
           class: 'config-button load',
+          disabled: globals.state.lastLoadedConfigTitle === item.title,
           onclick: () => {
-            globals.dispatch(Actions.setRecordConfig({config: item.config}));
+            globals.dispatch(Actions.setNamedRecordConfig(
+                {title: item.title, config: item.config}));
             globals.rafScheduler.scheduleFullRedraw();
           }
         },
@@ -946,6 +948,7 @@ export const ConfigTitleState = {
 };
 
 function Configurations(cssClass: string) {
+  const canSave = recordConfigStore.canSave(ConfigTitleState.getTitle());
   return m(
       `.record-section${cssClass}`,
       m('header', 'Save and load configurations'),
@@ -956,11 +959,14 @@ function Configurations(cssClass: string) {
             placeholder: 'Title for config',
             oninput() {
               ConfigTitleState.setTitle(this.value);
+              globals.rafScheduler.scheduleFullRedraw();
             }
           }),
           m('button',
             {
               class: 'config-button save',
+              disabled: !canSave,
+              title: canSave ? '' : 'Duplicate name, saving disabled',
               onclick: () => {
                 recordConfigStore.save(
                     globals.state.recordConfig, ConfigTitleState.getTitle());

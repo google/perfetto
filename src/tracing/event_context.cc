@@ -16,6 +16,7 @@
 
 #include "perfetto/tracing/event_context.h"
 
+#include "perfetto/tracing/internal/track_event_interned_fields.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
 
@@ -48,6 +49,14 @@ EventContext::~EventContext() {
 
   // Reset the message but keep one buffer allocated for future use.
   serialized_interned_data.Reset();
+}
+
+protos::pbzero::DebugAnnotation* EventContext::AddDebugAnnotation(
+    const char* name) {
+  auto annotation = event()->add_debug_annotations();
+  annotation->set_name_iid(
+      internal::InternedDebugAnnotationName::Get(this, name));
+  return annotation;
 }
 
 }  // namespace perfetto

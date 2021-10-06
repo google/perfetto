@@ -86,6 +86,7 @@ class ProtoToArgsParser {
     // Returns whether an entry was added or not.
     virtual bool AddJson(const Key& key,
                          const protozero::ConstChars& value) = 0;
+    virtual void AddNull(const Key& key) = 0;
 
     virtual size_t GetArrayEntryIndex(const std::string& array_key) = 0;
     virtual size_t IncrementArrayEntryIndex(const std::string& array_key) = 0;

@@ -32,6 +32,7 @@
 #include <cinttypes>
 #include <functional>
 #include <map>
+#include <unordered_map>
 #include <utility>
 
 namespace perfetto {
@@ -243,8 +244,9 @@ size_t KernelSymbolMap::Parse(const std::string& kallsyms_path) {
     TokenId id = 0;
   };
 
-  // Note if changing the container: the code below relies on stable iterators.
-  using TokenMap = std::map<std::string, TokenInfo>;
+  // Note if changing the container: the code below doesn't rely on stable
+  // iterators, but relies on stable pointers.
+  using TokenMap = std::unordered_map<std::string, TokenInfo>;
   using TokenMapPtr = TokenMap::value_type*;
   TokenMap tokens;
 

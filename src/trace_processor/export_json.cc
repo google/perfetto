@@ -564,6 +564,8 @@ class JsonExporter {
           return base::Uint64ToHexString(variadic.pointer_value);
         case Variadic::kBool:
           return variadic.bool_value;
+        case Variadic::kNull:
+          return base::Uint64ToHexString(0);
         case Variadic::kJson:
           Json::CharReaderBuilder b;
           auto reader = std::unique_ptr<Json::CharReader>(b.newCharReader());

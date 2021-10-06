@@ -17,8 +17,6 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_FLAMEGRAPH_CONSTRUCTION_ALGORITHMS_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_FLAMEGRAPH_CONSTRUCTION_ALGORITHMS_H_
 
-#include <set>
-
 #include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto {
@@ -38,7 +36,8 @@ BuildNativeHeapProfileFlamegraph(TraceStorage* storage,
 std::unique_ptr<tables::ExperimentalFlamegraphNodesTable>
 BuildNativeCallStackSamplingFlamegraph(
     TraceStorage* storage,
-    UniquePid upid,
+    base::Optional<UniquePid> upid,
+    base::Optional<std::string> upid_group,
     const std::vector<TimeConstraints>& time_constraints);
 }  // namespace trace_processor
 }  // namespace perfetto

@@ -16,6 +16,12 @@
 
 #include "flamegraph_construction_algorithms.h"
 
+#include <set>
+#include <unordered_set>
+
+#include "perfetto/ext/base/string_splitter.h"
+#include "perfetto/ext/base/string_utils.h"
+
 namespace perfetto {
 namespace trace_processor {
 
@@ -85,7 +91,8 @@ std::vector<MergedCallsite> GetMergedCallsites(TraceStorage* storage,
 
 static FlamegraphTableAndMergedCallsites BuildFlamegraphTableTreeStructure(
     TraceStorage* storage,
-    UniquePid upid,
+    base::Optional<UniquePid> upid,
+    base::Optional<std::string> upid_group,
     base::Optional<int64_t> timestamp,
     StringId profile_type) {
   const tables::StackProfileCallsiteTable& callsites_tbl =
@@ -141,7 +148,12 @@ static FlamegraphTableAndMergedCallsites BuildFlamegraphTableTreeStructure(
         if (timestamp) {
           row.ts = *timestamp;
         }
-        row.upid = upid;
+        if (upid) {
+          row.upid = *upid;
+        }
+        if (upid_group) {
+          row.upid_group = storage->InternString(base::StringView(*upid_group));
+        }
         row.profile_type = profile_type;
         row.name = merged_callsite.frame_name;
         row.map_name = merged_callsite.mapping_name;
@@ -322,8 +334,8 @@ BuildNativeHeapProfileFlamegraph(TraceStorage* storage,
   }
   StringId profile_type = storage->InternString("native");
   FlamegraphTableAndMergedCallsites table_and_callsites =
-      BuildFlamegraphTableTreeStructure(
-          storage, upid, base::make_optional(timestamp), profile_type);
+      BuildFlamegraphTableTreeStructure(storage, upid, base::nullopt, timestamp,
+                                        profile_type);
   return BuildFlamegraphTableHeapSizeAndCount(
       std::move(table_and_callsites.tbl),
       table_and_callsites.callsite_to_merged_callsite, filtered);
@@ -332,17 +344,37 @@ BuildNativeHeapProfileFlamegraph(TraceStorage* storage,
 std::unique_ptr<tables::ExperimentalFlamegraphNodesTable>
 BuildNativeCallStackSamplingFlamegraph(
     TraceStorage* storage,
-    UniquePid upid,
+    base::Optional<UniquePid> upid,
+    base::Optional<std::string> upid_group,
     const std::vector<TimeConstraints>& time_constraints) {
-  // 1.Create set of all utids mapped to the given upid
+  // 1.Extract required upids from input.
+  std::unordered_set<UniquePid> upids;
+  if (upid) {
+    upids.insert(*upid);
+  } else {
+    for (base::StringSplitter sp(*upid_group, ','); sp.Next();) {
+      base::Optional<uint32_t> maybe = base::CStringToUInt32(sp.cur_token());
+      if (maybe) {
+        upids.insert(*maybe);
+      }
+    }
+  }
+
+  // 2.Create set of all utids mapped to the given vector of upids
   std::set<tables::ThreadTable::Id> utids;
-  RowMap threads_in_pid_rm = storage->thread_table().FilterToRowMap(
-      {storage->thread_table().upid().eq(upid)});
+  RowMap threads_in_pid_rm;
+  for (uint32_t i = 0; i < storage->thread_table().row_count(); ++i) {
+    base::Optional<uint32_t> row_upid = storage->thread_table().upid()[i];
+    if (row_upid && upids.count(*row_upid) > 0) {
+      threads_in_pid_rm.Insert(i);
+    }
+  }
+
   for (auto it = threads_in_pid_rm.IterateRows(); it; it.Next()) {
     utids.insert(storage->thread_table().id()[it.row()]);
   }
 
-  // 2.Get all row indices in perf_sample that correspond to the requested utids
+  // 3.Get all row indices in perf_sample that correspond to the requested utids
   std::vector<uint32_t> cs_rows;
   for (uint32_t i = 0; i < storage->perf_sample_table().row_count(); ++i) {
     if (utids.find(static_cast<tables::ThreadTable::Id>(
@@ -351,11 +383,11 @@ BuildNativeCallStackSamplingFlamegraph(
     }
   }
 
-  // 3.Filter rows that correspond to the selected utids
+  // 4.Filter rows that correspond to the selected utids
   RowMap filtered_rm = RowMap(std::move(cs_rows));
   Table filtered = storage->perf_sample_table().Apply(std::move(filtered_rm));
 
-  // 4.Filter rows by time constraints
+  // 5.Filter rows by time constraints
   for (const auto& tc : time_constraints) {
     if (!(tc.op == FilterOp::kGt || tc.op == FilterOp::kLt ||
           tc.op == FilterOp::kGe || tc.op == FilterOp::kLe)) {
@@ -372,8 +404,8 @@ BuildNativeCallStackSamplingFlamegraph(
   }
   StringId profile_type = storage->InternString("perf");
   FlamegraphTableAndMergedCallsites table_and_callsites =
-      BuildFlamegraphTableTreeStructure(storage, upid, base::nullopt,
-                                        profile_type);
+      BuildFlamegraphTableTreeStructure(storage, upid, upid_group,
+                                        base::nullopt, profile_type);
   return BuildFlamegraphTableCallstackSizeAndCount(
       std::move(table_and_callsites.tbl),
       table_and_callsites.callsite_to_merged_callsite, filtered);
