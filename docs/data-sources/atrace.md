@@ -42,7 +42,7 @@ a managed execution environment, and a user-space <-> kernel-space roundtrip to
 write the marker into `/sys/kernel/debug/tracing/trace_marker` (which is the
 most expensive part).
 
-Our team is are looking into a migration path for Android, in light of the newly
+Our team is looking into a migration path for Android, in light of the newly
 introduced [Tracing SDK](/docs/instrumentation/tracing-sdk.md). At the moment
 the advice is to keep using the existing ATrace API on Android.
 
