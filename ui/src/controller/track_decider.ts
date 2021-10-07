@@ -999,7 +999,7 @@ class TrackDecider {
       the_tracks.upid,
       the_tracks.utid,
       total_dur as hasSched,
-      hasProfileInfo,
+      hasHeapProfiles,
       process.pid as pid,
       thread.tid as tid,
       process.name as processName,
@@ -1038,25 +1038,18 @@ class TrackDecider {
     left join (
       select
         distinct(upid) as upid,
-        true as hasProfileInfo
+        true as hasHeapProfiles
       from heap_profile_allocation
       union
       select
         distinct(upid) as upid,
-        true as hasProfileInfo
+        true as hasHeapProfiles
       from heap_graph_object
-      union
-      select
-        distinct(process.upid) as upid,
-        true as hasProfileInfo
-      from process
-        join thread on process.upid = thread.upid
-        join perf_sample on thread.utid = perf_sample.utid
     ) using (upid)
     left join thread using(utid)
     left join process using(upid)
     order by
-      hasProfileInfo desc,
+      hasHeapProfiles desc,
       total_dur desc,
       total_cycles desc,
       the_tracks.upid,
@@ -1071,7 +1064,7 @@ class TrackDecider {
       threadName: STR_NULL,
       processName: STR_NULL,
       hasSched: NUM_NULL,
-      hasProfileInfo: NUM_NULL,
+      hasHeapProfiles: NUM_NULL,
     });
     for (; it.valid(); it.next()) {
       const utid = it.utid;
@@ -1081,7 +1074,7 @@ class TrackDecider {
       const threadName = it.threadName;
       const processName = it.processName;
       const hasSched = !!it.hasSched;
-      const hasProfileInfo = !!it.hasProfileInfo;
+      const hasHeapProfiles = !!it.hasHeapProfiles;
 
       // Group by upid if present else by utid.
       let pUuid =
@@ -1111,7 +1104,10 @@ class TrackDecider {
           summaryTrackId,
           name,
           id: pUuid,
-          collapsed: !hasProfileInfo,
+          // Perf profiling tracks remain collapsed, otherwise we would have too
+          // many expanded process tracks for some perf traces, leading to
+          // jankyness.
+          collapsed: !hasHeapProfiles,
         });
 
         this.addTrackGroupActions.push(addTrackGroup);
