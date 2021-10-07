@@ -80,3 +80,23 @@ android_test_helper_app {
     ],
     jni_uses_platform_apis: true,
 }
+
+android_test_helper_app {
+    name: "CtsPerfettoNonProfileableApp",
+    // tag this module as a cts test artifact
+    test_suites: [
+        "cts",
+        "vts10",
+        "general-tests",
+    ],
+
+    manifest: "AndroidManifest_nonprofileable.xml",
+
+    compile_multilib: "both",
+    srcs: ["src/**/*.java"],
+    sdk_version: "current",
+    jni_libs: [
+        "libperfettocts_native",
+    ],
+    jni_uses_platform_apis: true,
+}
