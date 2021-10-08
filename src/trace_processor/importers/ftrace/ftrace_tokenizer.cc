@@ -65,11 +65,6 @@ base::Status FtraceTokenizer::TokenizeFtraceBundle(TraceBlobView bundle,
   }
 
   uint32_t cpu = decoder.cpu();
-  if (PERFETTO_UNLIKELY(cpu > kMaxCpus)) {
-    PERFETTO_ELOG("CPU larger than kMaxCpus (%u > %zu)", cpu, kMaxCpus);
-    return base::OkStatus();
-  }
-
   ClockTracker::ClockId clock_id;
   switch (decoder.ftrace_clock()) {
     case FtraceClock::FTRACE_CLOCK_UNSPECIFIED:
