@@ -406,6 +406,10 @@ energyData)
 InstanceA
 process (2'.perfetto.protos.AndroidProcessMetadataRprocessB
 mappings (2&.perfetto.protos.ProfilerSmaps.MappingRmappings
+Å
+0protos/perfetto/metrics/android/simpleperf.protoperfetto.protos"<
+AndroidSimpleperfMetric!
+urgent_ratio (RurgentRatio
 ı#
 4protos/perfetto/metrics/android/startup_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"Û"
 AndroidStartupMetricG
@@ -567,8 +571,8 @@ mainThreadr
 module (	Rmodule
 build_id (	RbuildId
 address (Raddress
-“&
-%protos/perfetto/metrics/metrics.protoperfetto.protos1protos/perfetto/metrics/android/batt_metric.proto0protos/perfetto/metrics/android/cpu_metric.proto5protos/perfetto/metrics/android/display_metrics.proto5protos/perfetto/metrics/android/dma_heap_metric.proto4protos/perfetto/metrics/android/fastrpc_metric.proto0protos/perfetto/metrics/android/g2d_metric.proto0protos/perfetto/metrics/android/gpu_metric.proto0protos/perfetto/metrics/android/hwcomposer.proto1protos/perfetto/metrics/android/hwui_metric.proto0protos/perfetto/metrics/android/ion_metric.proto1protos/perfetto/metrics/android/jank_metric.proto9protos/perfetto/metrics/android/java_heap_histogram.proto5protos/perfetto/metrics/android/java_heap_stats.proto0protos/perfetto/metrics/android/lmk_metric.proto7protos/perfetto/metrics/android/lmk_reason_metric.proto0protos/perfetto/metrics/android/mem_metric.proto6protos/perfetto/metrics/android/mem_unagg_metric.proto6protos/perfetto/metrics/android/multiuser_metric.proto2protos/perfetto/metrics/android/package_list.proto5protos/perfetto/metrics/android/powrails_metric.proto4protos/perfetto/metrics/android/profiler_smaps.proto4protos/perfetto/metrics/android/startup_metric.proto4protos/perfetto/metrics/android/surfaceflinger.proto7protos/perfetto/metrics/android/sysui_cuj_metrics.proto0protos/perfetto/metrics/android/task_names.protoAprotos/perfetto/metrics/android/thread_time_in_state_metric.proto3protos/perfetto/metrics/android/trace_quality.proto9protos/perfetto/metrics/android/unsymbolized_frames.proto"¿
+›'
+%protos/perfetto/metrics/metrics.protoperfetto.protos1protos/perfetto/metrics/android/batt_metric.proto0protos/perfetto/metrics/android/cpu_metric.proto5protos/perfetto/metrics/android/display_metrics.proto5protos/perfetto/metrics/android/dma_heap_metric.proto4protos/perfetto/metrics/android/fastrpc_metric.proto0protos/perfetto/metrics/android/g2d_metric.proto0protos/perfetto/metrics/android/gpu_metric.proto0protos/perfetto/metrics/android/hwcomposer.proto1protos/perfetto/metrics/android/hwui_metric.proto0protos/perfetto/metrics/android/ion_metric.proto1protos/perfetto/metrics/android/jank_metric.proto9protos/perfetto/metrics/android/java_heap_histogram.proto5protos/perfetto/metrics/android/java_heap_stats.proto0protos/perfetto/metrics/android/lmk_metric.proto7protos/perfetto/metrics/android/lmk_reason_metric.proto0protos/perfetto/metrics/android/mem_metric.proto6protos/perfetto/metrics/android/mem_unagg_metric.proto6protos/perfetto/metrics/android/multiuser_metric.proto2protos/perfetto/metrics/android/package_list.proto5protos/perfetto/metrics/android/powrails_metric.proto4protos/perfetto/metrics/android/profiler_smaps.proto0protos/perfetto/metrics/android/simpleperf.proto4protos/perfetto/metrics/android/startup_metric.proto4protos/perfetto/metrics/android/surfaceflinger.proto7protos/perfetto/metrics/android/sysui_cuj_metrics.proto0protos/perfetto/metrics/android/task_names.protoAprotos/perfetto/metrics/android/thread_time_in_state_metric.proto3protos/perfetto/metrics/android/trace_quality.proto9protos/perfetto/metrics/android/unsymbolized_frames.proto"¿
 TraceMetadata*
 trace_duration_ns (RtraceDurationNs
 
@@ -597,7 +601,7 @@ trace_uuid (	R	traceUuid:
 Source
 SOURCE_UNKNOWN 
 SOURCE_TRACE
-SOURCE_ANALYSIS"•
+SOURCE_ANALYSIS"˛
 TraceMetricsH
 android_batt (2%.perfetto.protos.AndroidBatteryMetricRandroidBattB
 android_cpu (2!.perfetto.protos.AndroidCpuMetricR
@@ -634,5 +638,6 @@ androidGpuS
 android_dma_heap  (2%.perfetto.protos.AndroidDmaHeapMetricRandroidDmaHeap^
 android_trace_quality" (2*.perfetto.protos.AndroidTraceQualityMetricRandroidTraceQualityE
 profiler_smaps# (2.perfetto.protos.ProfilerSmapsRprofilerSmapsT
-android_multiuser$ (2'.perfetto.protos.AndroidMultiuserMetricRandroidMultiuser*¬Ù*ÙÈ*È—JJ
+android_multiuser$ (2'.perfetto.protos.AndroidMultiuserMetricRandroidMultiuserW
+android_simpleperf% (2(.perfetto.protos.AndroidSimpleperfMetricRandroidSimpleperf*¬Ù*ÙÈ*È—JJ
 JJJJ
