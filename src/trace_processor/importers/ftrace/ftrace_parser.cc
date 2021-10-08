@@ -126,6 +126,8 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       workqueue_id_(context_->storage->InternString("workqueue")),
       irq_id_(context_->storage->InternString("irq")),
       ret_arg_id_(context_->storage->InternString("ret")),
+      direct_reclaim_nr_reclaimed_id_(
+          context->storage->InternString("direct_reclaim_nr_reclaimed")),
       direct_reclaim_order_id_(
           context->storage->InternString("direct_reclaim_order")),
       direct_reclaim_may_writepage_id_(
@@ -1291,8 +1293,8 @@ void FtraceParser::ParseDirectReclaimBegin(int64_t timestamp,
   protos::pbzero::MmVmscanDirectReclaimBeginFtraceEvent::Decoder
       direct_reclaim_begin(blob.data, blob.size);
 
-  StringId name_id = context_->storage->InternString(
-      "mm_vmscan_direct_reclaim nr_reclaimed=?");
+  StringId name_id =
+      context_->storage->InternString("mm_vmscan_direct_reclaim");
 
   auto args_inserter = [this, &direct_reclaim_begin](
                            ArgsTracker::BoundInserter* inserter) {
@@ -1315,20 +1317,16 @@ void FtraceParser::ParseDirectReclaimEnd(int64_t timestamp,
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
   protos::pbzero::MmVmscanDirectReclaimEndFtraceEvent::Decoder
-      direct_reclame_end(blob.data, blob.size);
+      direct_reclaim_end(blob.data, blob.size);
 
-  const auto opt_slice_id = context_->slice_tracker->End(timestamp, track_id);
-  if (opt_slice_id) {
-    auto* slice_table = context_->storage->mutable_slice_table();
-    uint32_t row_idx = *slice_table->id().IndexOf(*opt_slice_id);
-
-    char str[128];
-    sprintf(str, "mm_vmscan_direct_reclaim nr_reclaimed=%" PRIu64,
-            direct_reclame_end.nr_reclaimed());
-    StringId name_id = context_->storage->InternString(str);
-
-    slice_table->mutable_name()->Set(row_idx, name_id);
-  }
+  auto args_inserter =
+      [this, &direct_reclaim_end](ArgsTracker::BoundInserter* inserter) {
+        inserter->AddArg(
+            direct_reclaim_nr_reclaimed_id_,
+            Variadic::UnsignedInteger(direct_reclaim_end.nr_reclaimed()));
+      };
+  context_->slice_tracker->End(timestamp, track_id, kNullStringId,
+                               kNullStringId, args_inserter);
 }
 
 void FtraceParser::ParseWorkqueueExecuteStart(
