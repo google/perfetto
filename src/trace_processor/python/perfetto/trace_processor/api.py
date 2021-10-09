@@ -112,27 +112,26 @@ class TraceProcessor:
         import numpy as np
         import pandas as pd
 
-        df = pd.DataFrame(columns=self.__column_names)
-
         # Populate the dataframe with the query results
+        rows = []
         for i in range(0, self.__count):
           row = []
           base_cell_index = i * self.__column_count
-          for num, column_name in enumerate(self.__column_names):
+          for num in range(len(self.__column_names)):
             col_type = self.__cells[base_cell_index + num]
             if col_type == TraceProcessor.QUERY_CELL_INVALID_FIELD_ID:
               raise TraceProcessorException('Invalid cell type')
-            elif col_type != TraceProcessor.QUERY_CELL_NULL_FIELD_ID:
+
+            if col_type == TraceProcessor.QUERY_CELL_NULL_FIELD_ID:
+              row.append(None)
+            else:
               col_index = self.__data_lists_index[col_type]
               self.__data_lists_index[col_type] += 1
               row.append(self.__data_lists[col_type][col_index])
-            else:
-              row.append(None)
+          rows.append(row)
 
-          df.loc[-1] = row
-          df.index = df.index + 1
-        ordered_df = df.reset_index(drop=True)
-        return ordered_df
+        df = pd.DataFrame(rows, columns=self.__column_names)
+        return df.where(df.notnull(), None).reset_index(drop=True)
 
       except ModuleNotFoundError:
         raise TraceProcessorException(
