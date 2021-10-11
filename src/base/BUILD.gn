@@ -35,6 +35,7 @@ perfetto_component("base") {
     "event_fd.cc",
     "file_utils.cc",
     "getopt_compat.cc",
+    "log_ring_buffer.h",
     "logging.cc",
     "metatrace.cc",
     "paged_memory.cc",
