@@ -161,7 +161,7 @@ export class QueryTable extends Panel<QueryTableAttrs> {
             ),
         resp.error ?
             m('.query-error', `SQL error: ${resp.error}`) :
-            m('.query-table-container',
+            m('.query-table-container .x-scrollable',
               m('table.query-table', m('thead', header), m('tbody', rows))));
   }
 
