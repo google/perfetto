@@ -49,6 +49,9 @@ import {
   CpuByProcessAggregationController
 } from './aggregation/cpu_by_process_aggregation_controller';
 import {
+  FrameAggregationController
+} from './aggregation/frame_aggregation_controller';
+import {
   SliceAggregationController
 } from './aggregation/slice_aggregation_controller';
 import {
@@ -216,6 +219,10 @@ export class TraceController extends Controller<States> {
             'counter_aggregation',
             CounterAggregationController,
             {engine, kind: 'counter_aggregation'}));
+        childControllers.push(Child(
+            'frame_aggregation',
+            FrameAggregationController,
+            {engine, kind: 'frame_aggregation'}));
         childControllers.push(Child('search', SearchController, {
           engine,
           app: globals,
