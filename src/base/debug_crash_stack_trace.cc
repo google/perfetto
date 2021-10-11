@@ -237,11 +237,9 @@ void SignalHandler(int sig_num, siginfo_t* info, void* /*ucontext*/) {
 }  // namespace
 
 namespace perfetto {
-// __attribute__((constructor)) causes a static initializer that automagically
-// early runs this function before the main().
-void PERFETTO_EXPORT __attribute__((constructor))
-EnableStacktraceOnCrashForDebug();
+namespace base {
 
+// The prototype for this function is in logging.h.
 void EnableStacktraceOnCrashForDebug() {
   if (g_sighandler_registered)
     return;
@@ -264,6 +262,7 @@ void EnableStacktraceOnCrashForDebug() {
   // (ii) the output of death test is not visible.
   pthread_atfork(nullptr, nullptr, &RestoreSignalHandlers);
 }
+}  // namespace base
 }  // namespace perfetto
 
 #pragma GCC diagnostic pop
