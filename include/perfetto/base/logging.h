@@ -104,6 +104,11 @@ PERFETTO_EXPORT void LogMessage(LogLev,
                                 const char* fmt,
                                 ...) PERFETTO_PRINTF_FORMAT(4, 5);
 
+// This is defined in debug_crash_stack_trace.cc, but that is only linked in
+// standalone && debug builds, see enable_perfetto_stderr_crash_dump in
+// perfetto.gni.
+PERFETTO_EXPORT void EnableStacktraceOnCrashForDebug();
+
 #if defined(PERFETTO_ANDROID_ASYNC_SAFE_LOG)
 #define PERFETTO_XLOG(level, fmt, ...)                                        \
   do {                                                                        \

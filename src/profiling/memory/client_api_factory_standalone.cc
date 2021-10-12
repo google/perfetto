@@ -16,6 +16,7 @@
 
 #include "src/profiling/memory/client_api_factory.h"
 
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/unix_task_runner.h"
@@ -45,8 +46,6 @@
 //   service. This happens in CreateClient.
 
 namespace perfetto {
-void EnableStacktraceOnCrashForDebug();
-
 namespace profiling {
 namespace {
 
@@ -111,7 +110,7 @@ void StartHeapprofdIfStatic() {
 
   // On debug builds, we want to turn on crash reporting for heapprofd.
 #if PERFETTO_BUILDFLAG(PERFETTO_STDERR_CRASH_DUMP)
-  EnableStacktraceOnCrashForDebug();
+  base::EnableStacktraceOnCrashForDebug();
 #endif
 
   cli_sock.ReleaseFd();
