@@ -21,6 +21,7 @@
 #include <string>
 
 #include "perfetto/ext/base/string_splitter.h"
+#include "perfetto/ext/base/string_utils.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -100,9 +101,7 @@ QueryConstraints::SqliteString QueryConstraints::ToNewSqlite3String() const {
   // The last char is a "," so overwriting with the null terminator on purpose.
   SqliteString result(
       static_cast<char*>(sqlite3_malloc(static_cast<int>(str_result.size()))));
-  strncpy(result.get(), str_result.c_str(), str_result.size());
-  (*result)[str_result.size() - 1] = '\0';
-
+  base::StringCopy(result.get(), str_result.c_str(), str_result.size());
   return result;
 }
 
