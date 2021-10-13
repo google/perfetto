@@ -25,6 +25,7 @@
 #include <limits>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 
 namespace perfetto {
@@ -97,8 +98,8 @@ class StringWriter {
   void AppendHexInt(IntType value) {
     // TODO(lalitm): trying to optimize this is premature given we almost never
     // print hex ints. Reevaluate this in the future if we do print them more.
-    size_t res = static_cast<size_t>(
-        snprintf(buffer_ + pos_, size_ - pos_, "%" PRIx64, value));
+    size_t res =
+        base::SprintfTrunc(buffer_ + pos_, size_ - pos_, "%" PRIx64, value);
     PERFETTO_DCHECK(pos_ + res <= size_);
     pos_ += res;
   }
@@ -107,8 +108,7 @@ class StringWriter {
   void AppendDouble(double value) {
     // TODO(lalitm): trying to optimize this is premature given we almost never
     // print doubles. Reevaluate this in the future if we do print them more.
-    size_t res = static_cast<size_t>(
-        snprintf(buffer_ + pos_, size_ - pos_, "%lf", value));
+    size_t res = base::SprintfTrunc(buffer_ + pos_, size_ - pos_, "%lf", value);
     PERFETTO_DCHECK(pos_ + res <= size_);
     pos_ += res;
   }
@@ -129,7 +129,7 @@ class StringWriter {
   char* CreateStringCopy() {
     char* dup = reinterpret_cast<char*>(malloc(pos_ + 1));
     if (dup) {
-      strncpy(dup, buffer_, pos_);
+      memcpy(dup, buffer_, pos_);
       dup[pos_] = '\0';
     }
     return dup;
