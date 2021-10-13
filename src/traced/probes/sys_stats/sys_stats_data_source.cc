@@ -31,6 +31,7 @@
 #include "perfetto/ext/base/metatrace.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_splitter.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/traced/sys_stats_counters.h"
 
@@ -248,16 +249,15 @@ const char* SysStatsDataSource::ReadDevfreqCurFreq(
     const std::string& deviceName) {
   const char* devfreq_base_path = "/sys/class/devfreq";
   const char* freq_file_name = "cur_freq";
-  char cur_freq_path[256];
-  snprintf(cur_freq_path, sizeof(cur_freq_path), "%s/%s/%s", devfreq_base_path,
-           deviceName.c_str(), freq_file_name);
-  base::ScopedFile fd = OpenReadOnly(cur_freq_path);
+  base::StackString<256> cur_freq_path("%s/%s/%s", devfreq_base_path,
+                                       deviceName.c_str(), freq_file_name);
+  base::ScopedFile fd = OpenReadOnly(cur_freq_path.c_str());
   if (!fd && !devfreq_error_logged_) {
     devfreq_error_logged_ = true;
-    PERFETTO_PLOG("Failed to open %s", cur_freq_path);
+    PERFETTO_PLOG("Failed to open %s", cur_freq_path.c_str());
     return "";
   }
-  size_t rsize = ReadFile(&fd, cur_freq_path);
+  size_t rsize = ReadFile(&fd, cur_freq_path.c_str());
   if (!rsize)
     return "";
   return static_cast<char*>(read_buf_.Get());

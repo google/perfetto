@@ -167,9 +167,8 @@ void NinjaLogParser::NotifyEndOfFile() {
     } else {
       // All workers are busy, allocate a new one.
       uint32_t worker_id = ++last_worker_id;
-      char name[32];
-      snprintf(name, sizeof(name), "Worker %zu", workers.size() + 1);
-      StringId name_id = ctx_->storage->InternString(name);
+      base::StackString<32> name("Worker %zu", workers.size() + 1);
+      StringId name_id = ctx_->storage->InternString(name.string_view());
       auto utid = ctx_->process_tracker->UpdateThread(worker_id, job.build_id);
       ctx_->process_tracker->UpdateThreadNameByUtid(utid, name_id,
                                                     ThreadNamePriority::kOther);
