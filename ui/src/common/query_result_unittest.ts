@@ -32,7 +32,7 @@ test('QueryResult.SimpleOneRow', () => {
     batch: [batch],
   });
 
-  const qr = createQueryResult();
+  const qr = createQueryResult({query: 'Some query'});
   qr.appendResultBatch(QueryResultProto.encode(resProto).finish());
   expect(qr.isComplete()).toBe(true);
   expect(qr.numRows()).toBe(1);
@@ -81,7 +81,7 @@ test('QueryResult.BigNumbers', () => {
     batch: [batch],
   });
 
-  const qr = createQueryResult();
+  const qr = createQueryResult({query: 'Some query'});
   qr.appendResultBatch(QueryResultProto.encode(resProto).finish());
   const actual: string[] = [];
   for (const iter = qr.iter({n: NUM}); iter.valid(); iter.next()) {
@@ -112,7 +112,7 @@ test('QueryResult.Floats', () => {
     batch: [batch],
   });
 
-  const qr = createQueryResult();
+  const qr = createQueryResult({query: 'Some query'});
   qr.appendResultBatch(QueryResultProto.encode(resProto).finish());
   const actual: number[] = [];
   for (const iter = qr.iter({n: NUM}); iter.valid(); iter.next()) {
@@ -140,7 +140,7 @@ test('QueryResult.Strings', () => {
     batch: [batch],
   });
 
-  const qr = createQueryResult();
+  const qr = createQueryResult({query: 'Some query'});
   qr.appendResultBatch(QueryResultProto.encode(resProto).finish());
   const actual: string[] = [];
   for (const iter = qr.iter({s: STR}); iter.valid(); iter.next()) {
@@ -165,7 +165,7 @@ test('QueryResult.NullChecks', () => {
     batch: [batch],
   });
 
-  const qr = createQueryResult();
+  const qr = createQueryResult({query: 'Some query'});
   qr.appendResultBatch(QueryResultProto.encode(resProto).finish());
   const actualNums = new Array<number|null>();
   const actualStrings = new Array<string|null>();
@@ -192,7 +192,7 @@ test('QueryResult.EarlyError', () => {
     batch: [{isLastBatch: true}],
     error: 'Oh dear, this SQL query is too complicated, I give up',
   });
-  const qr = createQueryResult();
+  const qr = createQueryResult({query: 'Some query'});
   qr.appendResultBatch(QueryResultProto.encode(resProto).finish());
   expect(qr.error()).toContain('Oh dear');
   expect(qr.isComplete()).toBe(true);
@@ -216,7 +216,7 @@ test('QueryResult.LateError', () => {
     ],
     error: 'I tried, I was getting there, but then I failed',
   });
-  const qr = createQueryResult();
+  const qr = createQueryResult({query: 'Some query'});
   qr.appendResultBatch(QueryResultProto.encode(resProto).finish());
   expect(qr.error()).toContain('I failed');
   const rows: number[] = [];
@@ -245,7 +245,7 @@ test('QueryResult.MultipleBatches', async () => {
     }],
   });
 
-  const qr = createQueryResult();
+  const qr = createQueryResult({query: 'Some query'});
   expect(qr.isComplete()).toBe(false);
 
   qr.appendResultBatch(QueryResultProto.encode(batch1).finish());
@@ -281,7 +281,7 @@ test('QueryResult.DuplicateColumnNames', () => {
     batch: [batch],
   });
 
-  const qr = createQueryResult();
+  const qr = createQueryResult({query: 'Some query'});
   qr.appendResultBatch(QueryResultProto.encode(resProto).finish());
   expect(qr.isComplete()).toBe(true);
   expect(qr.numRows()).toBe(1);

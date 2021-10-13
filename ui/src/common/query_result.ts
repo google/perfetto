@@ -60,7 +60,25 @@ export const STR_NULL: string|null = 'str_null';
 
 export type ColumnType = string|number|null;
 
-export class QueryError extends Error {}
+// Info that could help debug a query error. For example the query
+// in question, the stack where the query was issued, the active
+// plugin etc.
+export interface QueryErrorInfo {
+  query: string;
+}
+
+export class QueryError extends Error {
+  readonly query: string;
+
+  constructor(message: string, info: QueryErrorInfo) {
+    super(message);
+    this.query = info.query;
+  }
+
+  toString() {
+    return `Query: ${this.query}\n` + super.toString();
+  }
+}
 
 // One row extracted from an SQL result:
 export interface Row {
@@ -199,6 +217,11 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
   private _error?: string;
   private _numRows = 0;
   private _isComplete = false;
+  private _errorInfo: QueryErrorInfo;
+
+  constructor(errorInfo: QueryErrorInfo) {
+    this._errorInfo = errorInfo;
+  }
 
   // --- QueryResult implementation.
 
@@ -337,7 +360,7 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
     if (this._error === undefined) {
       promise.resolve(arg);
     } else {
-      promise.reject(new QueryError(this._error));
+      promise.reject(new QueryError(this._error, this._errorInfo));
     }
   }
 }
@@ -703,8 +726,12 @@ class RowIteratorImplWithRowData implements RowIteratorBase {
 // 2. Clients that know how to handle the streaming can use it straight away.
 class WaitableQueryResultImpl implements QueryResult, WritableQueryResult,
                                          PromiseLike<QueryResult> {
-  private impl = new QueryResultImpl();
+  private impl: QueryResultImpl;
   private thenCalled = false;
+
+  constructor(errorInfo: QueryErrorInfo) {
+    this.impl = new QueryResultImpl(errorInfo);
+  }
 
   // QueryResult implementation. Proxies all calls to the impl object.
   iter<T extends Row>(spec: T) {
@@ -758,7 +785,7 @@ class WaitableQueryResultImpl implements QueryResult, WritableQueryResult,
   }
 }
 
-export function createQueryResult(): QueryResult&Promise<QueryResult>&
-    WritableQueryResult {
-  return new WaitableQueryResultImpl();
+export function createQueryResult(errorInfo: QueryErrorInfo): QueryResult&
+    Promise<QueryResult>&WritableQueryResult {
+  return new WaitableQueryResultImpl(errorInfo);
 }
