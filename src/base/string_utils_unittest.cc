@@ -408,6 +408,38 @@ TEST(StringUtilsTest, SprintfTrunc) {
   }
 }
 
+TEST(StringUtilsTest, StackString) {
+  {
+    StackString<1> s("123");
+    EXPECT_EQ(0u, s.len());
+    EXPECT_STREQ("", s.c_str());
+  }
+
+  {
+    StackString<4> s("123");
+    EXPECT_EQ(3u, s.len());
+    EXPECT_STREQ("123", s.c_str());
+    EXPECT_EQ(s.ToStdString(), std::string(s.c_str()));
+    EXPECT_EQ(s.string_view().ToStdString(), s.ToStdString());
+  }
+
+  {
+    StackString<3> s("123");
+    EXPECT_EQ(2u, s.len());
+    EXPECT_STREQ("12", s.c_str());
+    EXPECT_EQ(s.ToStdString(), std::string(s.c_str()));
+    EXPECT_EQ(s.string_view().ToStdString(), s.ToStdString());
+  }
+
+  {
+    StackString<11> s("foo %d %s", 42, "bar!!!OVERFLOW");
+    EXPECT_EQ(10u, s.len());
+    EXPECT_STREQ("foo 42 bar", s.c_str());
+    EXPECT_EQ(s.ToStdString(), std::string(s.c_str()));
+    EXPECT_EQ(s.string_view().ToStdString(), s.ToStdString());
+  }
+}
+
 }  // namespace
 }  // namespace base
 }  // namespace perfetto
