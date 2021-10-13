@@ -1416,17 +1416,17 @@ class JsonExporter {
               storage_->symbol_table().name()[*opt_symbol_set_id]);
         }
 
-        char frame_entry[1024];
-        snprintf(frame_entry, sizeof(frame_entry), "%s - %s [%s]\n",
-                 (symbol_name.empty()
-                      ? base::Uint64ToHexString(
-                            static_cast<uint64_t>(frames.rel_pc()[frame_row]))
-                            .c_str()
-                      : symbol_name.c_str()),
-                 GetNonNullString(storage_, mappings.name()[mapping_row]),
-                 GetNonNullString(storage_, mappings.build_id()[mapping_row]));
+        base::StackString<1024> frame_entry(
+            "%s - %s [%s]\n",
+            (symbol_name.empty()
+                 ? base::Uint64ToHexString(
+                       static_cast<uint64_t>(frames.rel_pc()[frame_row]))
+                       .c_str()
+                 : symbol_name.c_str()),
+            GetNonNullString(storage_, mappings.name()[mapping_row]),
+            GetNonNullString(storage_, mappings.build_id()[mapping_row]));
 
-        callstack.emplace_back(frame_entry);
+        callstack.emplace_back(frame_entry.ToStdString());
 
         opt_callsite_id = callsites.parent_id()[callsite_row];
       }

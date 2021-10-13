@@ -19,6 +19,7 @@
 
 #include <cinttypes>
 
+#include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -72,11 +73,10 @@ StringId InternTimebaseCounterName(
     PerfEvents::RawEvent::Decoder raw(timebase.raw_event());
     // This doesn't follow any pre-existing naming scheme, but aims to be a
     // short-enough default that is distinguishable.
-    char buf[128] = {};
-    snprintf(buf, sizeof(buf),
-             "raw.0x%" PRIx32 ".0x%" PRIx64 ".0x%" PRIx64 ".0x%" PRIx64,
-             raw.type(), raw.config(), raw.config1(), raw.config2());
-    return context->storage->InternString(buf);
+    base::StackString<128> name(
+        "raw.0x%" PRIx32 ".0x%" PRIx64 ".0x%" PRIx64 ".0x%" PRIx64, raw.type(),
+        raw.config(), raw.config1(), raw.config2());
+    return context->storage->InternString(name.string_view());
   }
 
   PERFETTO_DLOG("Could not name the perf timebase counter");
