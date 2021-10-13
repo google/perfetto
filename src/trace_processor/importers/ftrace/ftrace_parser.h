@@ -180,6 +180,7 @@ class FtraceParser {
   const StringId workqueue_id_;
   const StringId irq_id_;
   const StringId ret_arg_id_;
+  const StringId direct_reclaim_nr_reclaimed_id_;
   const StringId direct_reclaim_order_id_;
   const StringId direct_reclaim_may_writepage_id_;
   const StringId direct_reclaim_gfp_flags_id_;

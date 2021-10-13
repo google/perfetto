@@ -168,7 +168,7 @@ void SignalHandler(int sig_num, siginfo_t* info, void* /*ucontext*/) {
                                  const char* function) -> int {
       SymbolInfo* psym = reinterpret_cast<SymbolInfo*>(data);
       if (function)
-        strncpy(psym->sym_name, function, sizeof(psym->sym_name));
+        snprintf(psym->sym_name, sizeof(psym->sym_name), "%s", function);
       if (filename) {
         snprintf(psym->file_name, sizeof(psym->file_name), "%s:%d", filename,
                  lineno);
@@ -180,7 +180,7 @@ void SignalHandler(int sig_num, siginfo_t* info, void* /*ucontext*/) {
     Dl_info dl_info = {};
     int res = dladdr(reinterpret_cast<void*>(frames[i]), &dl_info);
     if (res && dl_info.dli_sname)
-      strncpy(sym.sym_name, dl_info.dli_sname, sizeof(sym.sym_name));
+      snprintf(sym.sym_name, sizeof(sym.sym_name), "%s", dl_info.dli_sname);
 #endif
 
     Print("\n#");
@@ -193,7 +193,7 @@ void SignalHandler(int sig_num, siginfo_t* info, void* /*ucontext*/) {
       char* demangled =
           abi::__cxa_demangle(sym.sym_name, g_demangled_name, &len, &ignored);
       if (demangled) {
-        strncpy(sym.sym_name, demangled, sizeof(sym.sym_name));
+        snprintf(sym.sym_name, sizeof(sym.sym_name), "%s", demangled);
         // In the exceptional case of demangling something > kDemangledNameLen,
         // __cxa_demangle will realloc(). In that case the malloc()-ed pointer
         // might be moved.
@@ -237,11 +237,9 @@ void SignalHandler(int sig_num, siginfo_t* info, void* /*ucontext*/) {
 }  // namespace
 
 namespace perfetto {
-// __attribute__((constructor)) causes a static initializer that automagically
-// early runs this function before the main().
-void PERFETTO_EXPORT __attribute__((constructor))
-EnableStacktraceOnCrashForDebug();
+namespace base {
 
+// The prototype for this function is in logging.h.
 void EnableStacktraceOnCrashForDebug() {
   if (g_sighandler_registered)
     return;
@@ -264,6 +262,7 @@ void EnableStacktraceOnCrashForDebug() {
   // (ii) the output of death test is not visible.
   pthread_atfork(nullptr, nullptr, &RestoreSignalHandlers);
 }
+}  // namespace base
 }  // namespace perfetto
 
 #pragma GCC diagnostic pop

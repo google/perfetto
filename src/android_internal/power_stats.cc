@@ -164,12 +164,10 @@ bool PowerStatsHalDataProvider::GetAvailableRails(
         descriptor.index = rail_info.index;
         descriptor.sampling_rate = rail_info.samplingRate;
 
-        strncpy(descriptor.rail_name, rail_info.railName.c_str(),
+        strlcpy(descriptor.rail_name, rail_info.railName.c_str(),
                 sizeof(descriptor.rail_name));
-        strncpy(descriptor.subsys_name, rail_info.subsysName.c_str(),
+        strlcpy(descriptor.subsys_name, rail_info.subsysName.c_str(),
                 sizeof(descriptor.subsys_name));
-        descriptor.rail_name[sizeof(descriptor.rail_name) - 1] = '\0';
-        descriptor.subsys_name[sizeof(descriptor.subsys_name) - 1] = '\0';
       }
     }
   };
@@ -263,10 +261,8 @@ bool PowerStatsAidlDataProvider::GetAvailableRails(RailDescriptor* descriptor,
     auto& cur = descriptor[(*size_of_arr)++];
     cur.index = result.id;
     cur.sampling_rate = 0;
-    strncpy(cur.rail_name, result.name.c_str(), sizeof(cur.rail_name));
-    strncpy(cur.subsys_name, result.subsystem.c_str(), sizeof(cur.subsys_name));
-    cur.rail_name[sizeof(cur.rail_name) - 1] = '\0';
-    cur.subsys_name[sizeof(cur.subsys_name) - 1] = '\0';
+    strlcpy(cur.rail_name, result.name.c_str(), sizeof(cur.rail_name));
+    strlcpy(cur.subsys_name, result.subsystem.c_str(), sizeof(cur.subsys_name));
   }
   return true;
 }
@@ -333,10 +329,8 @@ bool PowerStatsAidlDataProvider::GetEnergyConsumerInfo(
     auto& cur = consumers[(*size_of_arr)++];
     cur.energy_consumer_id = result.id;
     cur.ordinal = result.ordinal;
-    strncpy(cur.type, aidl::toString(result.type).c_str(), sizeof(cur.type));
-    cur.type[sizeof(cur.type) - 1] = '\0';
-    strncpy(cur.name, result.name.c_str(), sizeof(cur.name));
-    cur.name[sizeof(cur.name) - 1] = '\0';
+    strlcpy(cur.type, aidl::toString(result.type).c_str(), sizeof(cur.type));
+    strlcpy(cur.name, result.name.c_str(), sizeof(cur.name));
   }
   return true;
 }
