@@ -26,6 +26,7 @@
 #include <atomic>
 #include <memory>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/time.h"
 
 namespace perfetto {
@@ -40,6 +41,19 @@ const char kBoldGreen[] = "\x1b[1m\x1b[32m";
 const char kLightGray[] = "\x1b[90m";
 
 std::atomic<LogMessageCallback> g_log_callback{};
+
+#if PERFETTO_BUILDFLAG(PERFETTO_STDERR_CRASH_DUMP)
+// __attribute__((constructor)) causes a static initializer that automagically
+// early runs this function before the main().
+void PERFETTO_EXPORT __attribute__((constructor)) InitDebugCrashReporter() {
+  // This function is defined in debug_crash_stack_trace.cc.
+  // The dynamic initializer is in logging.cc because logging.cc is included
+  // in virtually any target that depends on base. Having it in
+  // debug_crash_stack_trace.cc would require figuring out -Wl,whole-archive
+  // which is not worth it.
+  EnableStacktraceOnCrashForDebug();
+}
+#endif
 
 }  // namespace
 
