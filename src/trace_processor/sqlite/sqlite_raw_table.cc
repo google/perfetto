@@ -558,10 +558,8 @@ void SqliteRawTable::ToSystrace(sqlite3_context* ctx,
 
   auto str = serializer_.SerializeToString(row);
   if (str.get() == nullptr) {
-    char buffer[1024];
-    snprintf(buffer, base::ArraySize(buffer),
-             "to_ftrace: Cannot serialize row with id %u", row);
-    sqlite3_result_error(ctx, buffer, -1);
+    base::StackString<128> err("to_ftrace: Cannot serialize row id %u", row);
+    sqlite3_result_error(ctx, err.c_str(), -1);
     return;
   }
 

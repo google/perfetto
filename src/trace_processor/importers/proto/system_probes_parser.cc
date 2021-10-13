@@ -124,10 +124,10 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
     auto key = static_cast<base::StringView>(vm.key());
     // Append " Frequency" to align names with FtraceParser::ParseClockSetRate
     base::StringView devfreq_subtitle("Frequency");
-    char counter_name[255];
-    snprintf(counter_name, sizeof(counter_name), "%.*s %.*s", int(key.size()),
-             key.data(), int(devfreq_subtitle.size()), devfreq_subtitle.data());
-    StringId name = context_->storage->InternString(counter_name);
+    base::StackString<255> counter_name(
+        "%.*s %.*s", int(key.size()), key.data(), int(devfreq_subtitle.size()),
+        devfreq_subtitle.data());
+    StringId name = context_->storage->InternString(counter_name.string_view());
     TrackId track = context_->track_tracker->InternGlobalCounterTrack(name);
     context_->event_tracker->PushCounter(ts, static_cast<double>(vm.value()),
                                          track);
