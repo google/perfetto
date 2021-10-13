@@ -391,7 +391,8 @@ BuildNativeCallStackSamplingFlamegraph(
   for (const auto& tc : time_constraints) {
     if (!(tc.op == FilterOp::kGt || tc.op == FilterOp::kLt ||
           tc.op == FilterOp::kGe || tc.op == FilterOp::kLe)) {
-      PERFETTO_FATAL("Filter operation %d not permitted for perf.", tc.op);
+      PERFETTO_FATAL("Filter operation %d not permitted for perf.",
+                     static_cast<int>(tc.op));
     }
     Constraint cs = Constraint{
         static_cast<uint32_t>(tables::PerfSampleTable::ColumnIndex::ts), tc.op,
