@@ -238,9 +238,8 @@ const StringId GpuEventParser::GetFullStageName(
     if (stage_id < gpu_render_stage_ids_.size()) {
       stage_name = gpu_render_stage_ids_[static_cast<size_t>(stage_id)].first;
     } else {
-      char buffer[64];
-      snprintf(buffer, sizeof(buffer), "render stage(%" PRIu64 ")", stage_id);
-      stage_name = context_->storage->InternString(buffer);
+      base::StackString<64> name("render stage(%" PRIu64 ")", stage_id);
+      stage_name = context_->storage->InternString(name.string_view());
     }
   }
   return stage_name;
