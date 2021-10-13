@@ -17,6 +17,7 @@
 #include "src/trace_processor/importers/proto/android_probes_parser.h"
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/traced/sys_stats_counters.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
@@ -140,24 +141,27 @@ void AndroidProbesParser::ParseAndroidLogEvent(ConstBytes blob) {
   char* arg_str = &arg_msg[0];
   *arg_str = '\0';
   auto arg_avail = [&arg_msg, &arg_str]() {
-    return sizeof(arg_msg) - static_cast<size_t>(arg_str - arg_msg);
+    size_t used = static_cast<size_t>(arg_str - arg_msg);
+    PERFETTO_CHECK(used <= sizeof(arg_msg));
+    return sizeof(arg_msg) - used;
   };
   for (auto it = evt.args(); it; ++it) {
     protos::pbzero::AndroidLogPacket::LogEvent::Arg::Decoder arg(*it);
     if (!arg.has_name())
       continue;
-    arg_str +=
-        snprintf(arg_str, arg_avail(),
-                 " %.*s=", static_cast<int>(arg.name().size), arg.name().data);
+    arg_str += base::SprintfTrunc(arg_str, arg_avail(),
+                                  " %.*s=", static_cast<int>(arg.name().size),
+                                  arg.name().data);
     if (arg.has_string_value()) {
-      arg_str += snprintf(arg_str, arg_avail(), "\"%.*s\"",
-                          static_cast<int>(arg.string_value().size),
-                          arg.string_value().data);
+      arg_str += base::SprintfTrunc(arg_str, arg_avail(), "\"%.*s\"",
+                                    static_cast<int>(arg.string_value().size),
+                                    arg.string_value().data);
     } else if (arg.has_int_value()) {
-      arg_str += snprintf(arg_str, arg_avail(), "%" PRId64, arg.int_value());
+      arg_str +=
+          base::SprintfTrunc(arg_str, arg_avail(), "%" PRId64, arg.int_value());
     } else if (arg.has_float_value()) {
-      arg_str += snprintf(arg_str, arg_avail(), "%f",
-                          static_cast<double>(arg.float_value()));
+      arg_str += base::SprintfTrunc(arg_str, arg_avail(), "%f",
+                                    static_cast<double>(arg.float_value()));
     }
   }
 

@@ -21,6 +21,7 @@
 #include <cinttypes>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/string_utils.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -33,9 +34,8 @@ std::string MemoryAllocatorNodeId::ToString() const {
   size_t max_size = 19;  // Max uint64 is 0xFFFFFFFFFFFFFFFF + 1 for null byte.
   std::string buf;
   buf.resize(max_size);
-  auto final_size = snprintf(&buf[0], max_size, "%" PRIu64, id_);
-  PERFETTO_DCHECK(final_size >= 0);
-  buf.resize(static_cast<size_t>(final_size));  // Cuts off the final null byte.
+  size_t final_size = base::SprintfTrunc(&buf[0], max_size, "%" PRIu64, id_);
+  buf.resize(final_size);  // Cuts off the final null byte.
   return buf;
 }
 

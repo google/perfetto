@@ -42,6 +42,7 @@
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/utils.h"
 #include "src/profiling/memory/sampler.h"
@@ -463,8 +464,7 @@ bool Client::RecordHeapInfo(uint32_t heap_id,
 
   HeapName hnr;
   hnr.heap_id = heap_id;
-  strncpy(&hnr.heap_name[0], heap_name, sizeof(hnr.heap_name));
-  hnr.heap_name[sizeof(hnr.heap_name) - 1] = '\0';
+  base::StringCopy(&hnr.heap_name[0], heap_name, sizeof(hnr.heap_name));
   hnr.sample_interval = interval;
 
   WireMessage msg = {};
