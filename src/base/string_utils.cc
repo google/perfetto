@@ -17,7 +17,9 @@
 #include "perfetto/ext/base/string_utils.h"
 
 #include <locale.h>
+#include <stdarg.h>
 #include <string.h>
+
 #include <algorithm>
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
@@ -26,6 +28,7 @@
 
 #include <cinttypes>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 
 namespace perfetto {
@@ -166,9 +169,8 @@ std::string IntToHexString(uint32_t number) {
   size_t max_size = 11;  // Max uint32 is 0xFFFFFFFF + 1 for null byte.
   std::string buf;
   buf.resize(max_size);
-  auto final_size = snprintf(&buf[0], max_size, "0x%02x", number);
-  PERFETTO_DCHECK(final_size >= 0);
-  buf.resize(static_cast<size_t>(final_size));  // Cuts off the final null byte.
+  size_t final_len = SprintfTrunc(&buf[0], max_size, "0x%02x", number);
+  buf.resize(static_cast<size_t>(final_len));  // Cuts off the final null byte.
   return buf;
 }
 
@@ -180,9 +182,8 @@ std::string Uint64ToHexStringNoPrefix(uint64_t number) {
   size_t max_size = 17;  // Max uint64 is FFFFFFFFFFFFFFFF + 1 for null byte.
   std::string buf;
   buf.resize(max_size);
-  auto final_size = snprintf(&buf[0], max_size, "%" PRIx64 "", number);
-  PERFETTO_DCHECK(final_size >= 0);
-  buf.resize(static_cast<size_t>(final_size));  // Cuts off the final null byte.
+  size_t final_len = SprintfTrunc(&buf[0], max_size, "%" PRIx64 "", number);
+  buf.resize(static_cast<size_t>(final_len));  // Cuts off the final null byte.
   return buf;
 }
 
@@ -250,6 +251,34 @@ std::string Base64Encode(const void* raw, size_t size) {
     out.push_back('=');  // Emit padding.
   }
   return out;
+}
+
+size_t SprintfTrunc(char* dst, size_t dst_size, const char* fmt, ...) {
+  if (PERFETTO_UNLIKELY(dst_size) == 0)
+    return 0;
+
+  va_list args;
+  va_start(args, fmt);
+  int src_size = vsnprintf(dst, dst_size, fmt, args);
+  va_end(args);
+
+  if (PERFETTO_UNLIKELY(src_size) <= 0) {
+    dst[0] = '\0';
+    return 0;
+  }
+
+  size_t res;
+  if (PERFETTO_LIKELY(src_size < static_cast<int>(dst_size))) {
+    // Most common case.
+    res = static_cast<size_t>(src_size);
+  } else {
+    // Truncation case.
+    res = dst_size - 1;
+  }
+
+  PERFETTO_DCHECK(res > 0 && res < dst_size);
+  PERFETTO_DCHECK(dst[res] == '\0');
+  return res;
 }
 
 }  // namespace base

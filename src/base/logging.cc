@@ -83,7 +83,7 @@ void LogMessage(LogLev level,
     // it. The code below will attach the filename and line, which is still
     // useful.
     if (res < 0) {
-      strncpy(log_msg, "[printf format error]", max_len);
+      snprintf(log_msg, max_len, "%s", "[printf format error]");
       break;
     }
 
