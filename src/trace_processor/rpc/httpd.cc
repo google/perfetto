@@ -351,8 +351,8 @@ void HttpServer::HandleRequest(Client* client, const HttpRequest& req) {
 
   if (req.uri == "/rpc") {
     // Start the chunked reply.
-    strncpy(transfer_encoding_hdr, "Transfer-Encoding: chunked",
-            sizeof(transfer_encoding_hdr));
+    base::StringCopy(transfer_encoding_hdr, "Transfer-Encoding: chunked",
+                     sizeof(transfer_encoding_hdr));
     base::UnixSocket* cli_sock = client->sock.get();
     HttpReply(cli_sock, "200 OK", headers, nullptr, kOmitContentLength);
 
@@ -405,8 +405,8 @@ void HttpServer::HandleRequest(Client* client, const HttpRequest& req) {
     std::vector<uint8_t> response;
 
     // Start the chunked reply.
-    strncpy(transfer_encoding_hdr, "Transfer-Encoding: chunked",
-            sizeof(transfer_encoding_hdr));
+    base::StringCopy(transfer_encoding_hdr, "Transfer-Encoding: chunked",
+                     sizeof(transfer_encoding_hdr));
     base::UnixSocket* cli_sock = client->sock.get();
     HttpReply(cli_sock, "200 OK", headers, nullptr, kOmitContentLength);
 

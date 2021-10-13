@@ -16,10 +16,17 @@
 
 #include "perfetto/tracing/console_interceptor.h"
 
+#include <stdarg.h>
+
+#include <algorithm>
+#include <cmath>
+#include <tuple>
+
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/tracing/internal/track_event_internal.h"
 
@@ -34,10 +41,6 @@
 #include "protos/perfetto/trace/track_event/thread_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
-
-#include <algorithm>
-#include <cmath>
-#include <tuple>
 
 namespace perfetto {
 
@@ -177,18 +180,17 @@ void ConsoleInterceptor::Delegate::OnTrackUpdated(
 
   auto& tls = context_.GetThreadLocalState();
   std::array<char, 128> message_prefix{};
-  ssize_t written = 0;
+  size_t written = 0;
   if (tls.use_colors) {
-    written = snprintf(message_prefix.data(), message_prefix.size(),
-                       FMT_RGB_SET_BG " %s%s %-*.*s", track_color.r,
-                       track_color.g, track_color.b, kReset, kDim, title_width,
-                       title_width, title.data());
+    written = base::SprintfTrunc(message_prefix.data(), message_prefix.size(),
+                                 FMT_RGB_SET_BG " %s%s %-*.*s", track_color.r,
+                                 track_color.g, track_color.b, kReset, kDim,
+                                 title_width, title_width, title.data());
   } else {
-    written = snprintf(message_prefix.data(), message_prefix.size(), "%-*.*s",
-                       title_width + 2, title_width, title.data());
+    written = base::SprintfTrunc(message_prefix.data(), message_prefix.size(),
+                                 "%-*.*s", title_width + 2, title_width,
+                                 title.data());
   }
-  if (written < 0)
-    written = message_prefix.size();
   track.user_data.assign(message_prefix.begin(),
                          message_prefix.begin() + written);
 }
