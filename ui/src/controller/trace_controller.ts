@@ -576,11 +576,11 @@ export class TraceController extends Controller<States> {
     }
     const traceUuid = result.firstRow({uuid: STR}).uuid;
     const engineConfig = assertExists(globals.state.engines[engine.id]);
-    if (!cacheTrace(engineConfig.source, traceUuid)) {
-      // If the trace is not cacheable (has been opened from URL or RPC) don't
-      // append a ?trace_id to the URL. Doing so would cause an error if the
-      // tab is discarded or the user hits the reload button because the trace
-      // is not in the cache.
+    if (!(await cacheTrace(engineConfig.source, traceUuid))) {
+      // If the trace is not cacheable (cacheable means it has been opened from
+      // URL or RPC) only append '?trace_id' to the URL, without the trace_id
+      // value. Doing otherwise would cause an error if the tab is discarded or
+      // the user hits the reload button because the trace is not in the cache.
       return '';
     }
     return traceUuid;
