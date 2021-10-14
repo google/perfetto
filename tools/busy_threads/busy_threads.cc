@@ -25,6 +25,7 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/getopt.h"
 #include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/string_utils.h"
 
 #define PERFETTO_HAVE_PTHREADS                \
   (PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
@@ -43,10 +44,9 @@ namespace {
 
 void SetRandomThreadName(uint32_t thread_name_count) {
 #if PERFETTO_HAVE_PTHREADS
-  char name[16] = {};
-  snprintf(name, sizeof(name), "busy-%" PRIu32,
-           static_cast<uint32_t>(rand()) % thread_name_count);
-  pthread_setname_np(pthread_self(), name);
+  base::StackString<16> name("busy-%" PRIu32,
+                             static_cast<uint32_t>(rand()) % thread_name_count);
+  pthread_setname_np(pthread_self(), name.c_str());
 #endif
 }
 

@@ -17,7 +17,9 @@
 #ifndef INCLUDE_PERFETTO_EXT_BASE_STRING_UTILS_H_
 #define INCLUDE_PERFETTO_EXT_BASE_STRING_UTILS_H_
 
+#include <stdarg.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <cinttypes>
 #include <string>
@@ -124,6 +126,83 @@ std::string ReplaceAll(std::string str,
                        const std::string& replacement);
 std::string TrimLeading(const std::string& str);
 std::string Base64Encode(const void* raw, size_t size);
+
+// A BSD-style strlcpy without the return value.
+// Copies at most |dst_size|-1 characters. Unlike strncpy, it always \0
+// terminates |dst|, as long as |dst_size| is not 0.
+// Unlike strncpy and like strlcpy it does not zero-pad the rest of |dst|.
+// Returns nothing. The BSD strlcpy returns the size of |src|, which might
+// be > |dst_size|. Anecdotal experience suggests people assume the return value
+// is the number of bytes written in |dst|. That assumption can lead to
+// dangerous bugs.
+// In order to avoid being subtly uncompliant with strlcpy AND avoid misuse,
+// the choice here is to return nothing.
+inline void StringCopy(char* dst, const char* src, size_t dst_size) {
+  for (size_t i = 0; i < dst_size; ++i) {
+    if ((dst[i] = src[i]) == '\0') {
+      return;  // We hit and copied the null terminator.
+    }
+  }
+
+  // We were left off at dst_size. We over copied 1 byte. Null terminate.
+  if (PERFETTO_LIKELY(dst_size > 0))
+    dst[dst_size - 1] = 0;
+}
+
+// Like snprintf() but returns the number of chars *actually* written (without
+// counting the null terminator) NOT "the number of chars which would have been
+// written to the final string if enough  space had been available".
+// This should be used in almost all cases when the caller uses the return value
+// of snprintf(). If the return value is not used, there is no benefit in using
+// this wrapper, as this just calls snprintf() and mangles the return value.
+// It always null-terminates |dst| (even in case of errors), unless
+// |dst_size| == 0.
+// Examples:
+//   SprintfTrunc(x, 4, "123whatever"): returns 3 and writes "123\0".
+//   SprintfTrunc(x, 4, "123"): returns 3 and writes "123\0".
+//   SprintfTrunc(x, 3, "123"): returns 2 and writes "12\0".
+//   SprintfTrunc(x, 2, "123"): returns 1 and writes "1\0".
+//   SprintfTrunc(x, 1, "123"): returns 0 and writes "\0".
+//   SprintfTrunc(x, 0, "123"): returns 0 and writes nothing.
+// NOTE: This means that the caller has no way to tell when truncation happens
+//   vs the edge case of *just* fitting in the buffer.
+size_t SprintfTrunc(char* dst, size_t dst_size, const char* fmt, ...)
+    PERFETTO_PRINTF_FORMAT(3, 4);
+
+// A helper class to facilitate construction and usage of write-once stack
+// strings.
+// Example usage:
+//   StackString<32> x("format %d %s", 42, string_arg);
+//   TakeString(x.c_str() | x.string_view() | x.ToStdString());
+// Rather than char x[32] + sprintf.
+// Advantages:
+// - Avoids useless zero-fills caused by people doing `char buf[32] {}` (mainly
+//   by fearing unknown snprintf failure modes).
+// - Makes the code more robust in case of snprintf truncations (len() and
+//  string_view() will return the truncated length, unlike snprintf).
+template <size_t N>
+class StackString {
+ public:
+  explicit PERFETTO_PRINTF_FORMAT(/* 1=this */ 2, 3)
+      StackString(const char* fmt, ...) {
+    buf_[0] = '\0';
+    va_list args;
+    va_start(args, fmt);
+    int res = vsnprintf(buf_, sizeof(buf_), fmt, args);
+    va_end(args);
+    buf_[sizeof(buf_) - 1] = '\0';
+    len_ = res < 0 ? 0 : std::min(static_cast<size_t>(res), sizeof(buf_) - 1);
+  }
+
+  StringView string_view() const { return StringView(buf_, len_); }
+  std::string ToStdString() const { return std::string(buf_, len_); }
+  const char* c_str() const { return buf_; }
+  size_t len() const { return len_; }
+
+ private:
+  char buf_[N];
+  size_t len_ = 0;  // Does not include the \0.
+};
 
 }  // namespace base
 }  // namespace perfetto

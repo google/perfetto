@@ -24,6 +24,13 @@ namespace perfetto {
 namespace base {
 namespace {
 
+template <size_t N>
+struct UninitializedBuf {
+  UninitializedBuf() { memset(data, '?', sizeof(data)); }
+  operator char*() { return data; }
+  char data[N];
+};
+
 using testing::ElementsAre;
 
 TEST(StringUtilsTest, Lowercase) {
@@ -317,6 +324,120 @@ TEST(StringUtilsTest, Base64Encode) {
 
   buffer = {0xfb, 0xf0, 0x3e, 0x07, 0xfc};
   EXPECT_EQ(Base64Encode(buffer.data(), buffer.size()), "+/A+B/w=");
+}
+
+TEST(StringUtilsTest, StringCopy) {
+  // Nothing should be written when |dst_size| = 0.
+  {
+    char dst[2] = {42, 43};
+    StringCopy(dst, "12345", 0);
+    EXPECT_EQ(42, dst[0]);
+    EXPECT_EQ(43, dst[1]);
+  }
+
+  // Nominal case, len(src) < sizeof(dst).
+  {
+    UninitializedBuf<10> dst;
+    StringCopy(dst, "1234567", sizeof(dst));
+    EXPECT_STREQ(dst, "1234567");
+  }
+
+  // Edge case where we perfectly fit including the \0.
+  {
+    UninitializedBuf<8> dst;
+    StringCopy(dst, "1234567", sizeof(dst));
+    EXPECT_STREQ(dst, "1234567");
+  }
+
+  // Edge case where |dst| is smaller by one char.
+  {
+    UninitializedBuf<8> dst;
+    StringCopy(dst, "12345678", sizeof(dst));
+    EXPECT_STREQ(dst, "1234567");
+  }
+
+  // Case when |dst| is smaller than |src|.
+  {
+    UninitializedBuf<3> dst;
+    StringCopy(dst, "12345678", sizeof(dst));
+    EXPECT_STREQ(dst, "12");
+  }
+}
+
+TEST(StringUtilsTest, SprintfTrunc) {
+  {
+    UninitializedBuf<3> dst;
+    ASSERT_EQ(0u, SprintfTrunc(dst, sizeof(dst), "%s", ""));
+    EXPECT_STREQ(dst, "");
+  }
+
+  {
+    char dst[3]{'O', 'K', '\0'};
+    ASSERT_EQ(0u, SprintfTrunc(dst, 0, "whatever"));
+    EXPECT_STREQ(dst, "OK");  // dst_size == 0 shouldn't touch the buffer.
+  }
+
+  {
+    UninitializedBuf<3> dst;
+    ASSERT_EQ(1u, SprintfTrunc(dst, sizeof(dst), "1"));
+    EXPECT_STREQ(dst, "1");
+  }
+
+  {
+    UninitializedBuf<3> dst;
+    ASSERT_EQ(2u, SprintfTrunc(dst, sizeof(dst), "12"));
+    EXPECT_STREQ(dst, "12");
+  }
+
+  {
+    UninitializedBuf<3> dst;
+    ASSERT_EQ(2u, SprintfTrunc(dst, sizeof(dst), "123"));
+    EXPECT_STREQ(dst, "12");
+  }
+
+  {
+    UninitializedBuf<3> dst;
+    ASSERT_EQ(2u, SprintfTrunc(dst, sizeof(dst), "1234"));
+    EXPECT_STREQ(dst, "12");
+  }
+
+  {
+    UninitializedBuf<11> dst;
+    ASSERT_EQ(10u, SprintfTrunc(dst, sizeof(dst), "a %d b %s", 42, "foo"));
+    EXPECT_STREQ(dst, "a 42 b foo");
+  }
+}
+
+TEST(StringUtilsTest, StackString) {
+  {
+    StackString<1> s("123");
+    EXPECT_EQ(0u, s.len());
+    EXPECT_STREQ("", s.c_str());
+  }
+
+  {
+    StackString<4> s("123");
+    EXPECT_EQ(3u, s.len());
+    EXPECT_STREQ("123", s.c_str());
+    EXPECT_EQ(s.ToStdString(), std::string(s.c_str()));
+    EXPECT_EQ(s.string_view().ToStdString(), s.ToStdString());
+  }
+
+  {
+    StackString<3> s("123");
+    EXPECT_EQ(2u, s.len());
+    EXPECT_STREQ("12", s.c_str());
+    EXPECT_EQ(s.ToStdString(), std::string(s.c_str()));
+    EXPECT_EQ(s.string_view().ToStdString(), s.ToStdString());
+  }
+
+  {
+    StackString<11> s("foo %d %s", 42, "bar!!!OVERFLOW");
+    EXPECT_EQ(10u, s.len());
+    EXPECT_STREQ("foo 42 bar", s.c_str());
+    EXPECT_EQ(s.ToStdString(), std::string(s.c_str()));
+    EXPECT_EQ(s.string_view().ToStdString(), s.ToStdString());
+  }
 }
 
 }  // namespace

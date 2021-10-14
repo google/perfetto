@@ -157,6 +157,10 @@ def CheckBannedCpp(input_api, output_api):
        'std::stod throws exceptions prefer base::StringToDouble()'),
       (r'\bstd::stold\b',
        'std::stold throws exceptions prefer base::StringToDouble()'),
+      (r'\bstrncpy\b',
+       'strncpy does not null-terminate if src > dst. Use base::StringCopy'),
+      (r'[(=]\s*snprintf\(',
+       'snprintf can return > dst_size. Use base::SprintfTrunc'),
       (r'\bPERFETTO_EINTR\(close\(',
        'close(2) must not be retried on EINTR on Linux and other OSes '
        'that we run on, as the fd will be closed.'),
@@ -170,6 +174,8 @@ def CheckBannedCpp(input_api, output_api):
   errors = []
   for f in input_api.AffectedSourceFiles(file_filter):
     for line_number, line in f.ChangedContents():
+      if input_api.re.search(r'^\s*//', line):
+        continue  # Skip comments
       for regex, message in bad_cpp:
         if input_api.re.search(regex, line):
           errors.append(
