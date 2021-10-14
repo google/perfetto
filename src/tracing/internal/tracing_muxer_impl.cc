@@ -1697,13 +1697,24 @@ void TracingMuxerImpl::ResetForTesting() {
   // so that it can be reinitialized later and ensure all necessary objects from
   // the old state remain alive until all references have gone away.
   auto* muxer = reinterpret_cast<TracingMuxerImpl*>(instance_);
-  PERFETTO_CHECK(!muxer->task_runner_->RunsTasksOnCurrentThread());
 
   base::WaitableEvent reset_done;
-  muxer->task_runner_->PostTask([muxer, &reset_done] {
+  auto do_reset = [muxer, &reset_done] {
+    // Unregister all data sources so they don't interfere with any future
+    // tracing sessions.
+    for (RegisteredDataSource& rds : muxer->data_sources_) {
+      for (RegisteredBackend& backend : muxer->backends_) {
+        if (!backend.producer->service_)
+          continue;
+        backend.producer->service_->UnregisterDataSource(rds.descriptor.name());
+      }
+    }
     for (auto& backend : muxer->backends_) {
-      backend.producer->DisposeConnection();
+      // Check that no consumer session is currently active on any backend.
+      for (auto& consumer : backend.consumers)
+        PERFETTO_CHECK(!consumer->service_);
       backend.producer->muxer_ = nullptr;
+      backend.producer->DisposeConnection();
       muxer->dead_backends_.push_back(std::move(backend));
     }
     muxer->backends_.clear();
@@ -1724,8 +1735,16 @@ void TracingMuxerImpl::ResetForTesting() {
     g_prev_instance = muxer;
     instance_ = TracingMuxerFake::Get();
     reset_done.Notify();
-  });
-  reset_done.Wait();
+  };
+
+  // Some tests run the muxer and the test on the same thread. In these cases,
+  // we can reset synchronously.
+  if (muxer->task_runner_->RunsTasksOnCurrentThread()) {
+    do_reset();
+  } else {
+    muxer->task_runner_->PostTask(std::move(do_reset));
+    reset_done.Wait();
+  }
 }
 
 TracingMuxer::~TracingMuxer() = default;
