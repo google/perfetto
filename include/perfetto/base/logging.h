@@ -63,6 +63,18 @@
 #include <android/log.h>
 #endif
 
+// Enable the "Print the most recent PERFETTO_LOG(s) before crashing" feature
+// on Android in-tree builds and on standalone builds (mainly for testing).
+// This is deliberately no PERFETTO_OS_ANDROID because we don't want this
+// feature when perfetto is embedded in other Android projects (e.g. SDK).
+#if !defined(PERFETTO_ANDROID_ASYNC_SAFE_LOG) &&   \
+    (PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD) || \
+     PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD))
+#define PERFETTO_ENABLE_LOG_RING_BUFFER() 1
+#else
+#define PERFETTO_ENABLE_LOG_RING_BUFFER() 0
+#endif
+
 namespace perfetto {
 namespace base {
 
@@ -109,6 +121,18 @@ PERFETTO_EXPORT void LogMessage(LogLev,
 // perfetto.gni.
 PERFETTO_EXPORT void EnableStacktraceOnCrashForDebug();
 
+#if PERFETTO_ENABLE_LOG_RING_BUFFER()
+// Gets a snapshot of the logs from the internal log ring buffer and:
+// - On Android in-tree builds: Passes that to android_set_abort_message().
+//   That will attach the logs to the crash report.
+// - On standalone builds (all otther OSes) prints that on stderr.
+// This function must called only once, right before inducing a crash (This is
+// because android_set_abort_message() can only be called once).
+PERFETTO_EXPORT void MaybeSerializeLastLogsForCrashReporting();
+#else
+inline void MaybeSerializeLastLogsForCrashReporting() {}
+#endif
+
 #if defined(PERFETTO_ANDROID_ASYNC_SAFE_LOG)
 #define PERFETTO_XLOG(level, fmt, ...)                                        \
   do {                                                                        \
@@ -125,16 +149,18 @@ PERFETTO_EXPORT void EnableStacktraceOnCrashForDebug();
 #endif
 
 #if defined(_MSC_VER)
-#define PERFETTO_IMMEDIATE_CRASH() \
-  do {                             \
-    __debugbreak();                \
-    __assume(0);                   \
+#define PERFETTO_IMMEDIATE_CRASH()                               \
+  do {                                                           \
+    ::perfetto::base::MaybeSerializeLastLogsForCrashReporting(); \
+    __debugbreak();                                              \
+    __assume(0);                                                 \
   } while (0)
 #else
-#define PERFETTO_IMMEDIATE_CRASH() \
-  do {                             \
-    __builtin_trap();              \
-    __builtin_unreachable();       \
+#define PERFETTO_IMMEDIATE_CRASH()                               \
+  do {                                                           \
+    ::perfetto::base::MaybeSerializeLastLogsForCrashReporting(); \
+    __builtin_trap();                                            \
+    __builtin_unreachable();                                     \
   } while (0)
 #endif
 
