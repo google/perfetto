@@ -429,10 +429,6 @@ export function isCrOSTarget(target: RecordingTarget) {
   return target.os === 'CrOS';
 }
 
-export function isLinuxTarget(target: RecordingTarget) {
-  return target.os === 'L';
-}
-
 export function isAdbTarget(target: RecordingTarget):
     target is AdbRecordingTarget {
   return !!(target as AdbRecordingTarget).serial;
@@ -450,10 +446,7 @@ export function hasActiveProbes(config: RecordConfig) {
   if (config.chromeCategoriesSelected.length > 0) {
     return true;
   }
-  if (config.chromeHighOverheadCategoriesSelected.length > 0) {
-    return true;
-  }
-  return false;
+  return config.chromeHighOverheadCategoriesSelected.length > 0;
 }
 
 export interface RecordConfig {
