@@ -20,6 +20,7 @@ package perfetto.protos;
 
 import "protos/perfetto/metrics/android/batt_metric.proto";
 import "protos/perfetto/metrics/android/cpu_metric.proto";
+import "protos/perfetto/metrics/android/camera_metric.proto";
 import "protos/perfetto/metrics/android/display_metrics.proto";
 import "protos/perfetto/metrics/android/dma_heap_metric.proto";
 import "protos/perfetto/metrics/android/fastrpc_metric.proto";
@@ -92,7 +93,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 38
+// Next id: 39
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -187,6 +188,9 @@ message TraceMetrics {
 
   // Metrics related to simpleperf tool
   optional AndroidSimpleperfMetric android_simpleperf = 37;
+
+  // Metrics for the Camera team.
+  optional AndroidCameraMetric android_camera = 38;
 
   // Demo extensions.
   extensions 450 to 499;
