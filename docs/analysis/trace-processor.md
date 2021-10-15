@@ -330,6 +330,24 @@ the same table in the same partition *cannot* overlap. For performance
 reasons, span join does not attempt to detect and error out in this situation;
 instead, incorrect rows will silently be produced.
 
+Left and outer span joins are also supported; both function analogously to
+the left and outer joins from SQL.
+```sql
+-- Left table partitioned + right table unpartitioned.
+CREATE VIRTUAL TABLE left_join
+USING SPAN_LEFT_JOIN(table_a PARTITIONED a, table_b);
+
+-- Both tables unpartitioned.
+CREATE VIRTUAL TABLE outer_join
+USING SPAN_OUTER_JOIN(table_x, table_y);
+```
+
+NOTE: there is a subtlety if the partitioned table is empty and is
+either a) part of an outer join b) on the right side of a left join.
+In this case, *no* slices will be emitted even if the other table is
+non-empty. This approach was decided as being the most natural
+after considering how span joins are used in practice.
+
 ### Ancestor slice
 ancestor_slice is a custom operator table that takes a
 [slice table's id column](/docs/analysis/sql-tables.autogen#slice) and computes
