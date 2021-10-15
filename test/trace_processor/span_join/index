@@ -11,11 +11,19 @@
 
 # Outer join
 ../common/synth_1.py span_outer_join.sql span_outer_join.out
+
 ../common/synth_1.py span_outer_join_empty.sql span_outer_join_empty.out
 ../common/synth_1.py span_outer_join_unpartitioned_empty.sql span_outer_join_unpartitioned_empty.out
 ../common/synth_1.py span_outer_join_unpartitioned_left_empty.sql span_outer_join_unpartitioned_left_empty.out
 ../common/synth_1.py span_outer_join_unpartitioned_right_empty.sql span_outer_join_unpartitioned_right_empty.out
-../common/synth_1.py span_outer_join_unpartitioned.sql span_outer_join_unpartitioned.out
+
+../common/synth_1.py span_outer_join_mixed.sql span_outer_join_mixed.out
+../common/synth_1.py span_outer_join_mixed_empty.sql span_outer_join_mixed_empty.out
+../common/synth_1.py span_outer_join_mixed_left_empty.sql span_outer_join_mixed_left_empty.out
+../common/synth_1.py span_outer_join_mixed_left_empty_rev.sql span_outer_join_mixed_left_empty_rev.out
+../common/synth_1.py span_outer_join_mixed_right_empty.sql span_outer_join_mixed_right_empty.out
+../common/synth_1.py span_outer_join_mixed_right_empty_rev.sql span_outer_join_mixed_right_empty_rev.out
+../common/synth_1.py span_outer_join_mixed.sql span_outer_join_mixed.out
 
 # Left join
 ../common/synth_1.py span_left_join.sql span_left_join.out
@@ -24,4 +32,3 @@
 ../common/synth_1.py span_left_join_left_partitioned.sql span_left_join_left_partitioned.out
 ../common/synth_1.py span_left_join_empty_right.sql span_left_join_empty_right.out
 ../common/synth_1.py span_left_join_unordered.sql span_left_join_unordered_android_sched_and_ps.out
-
