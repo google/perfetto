@@ -59,11 +59,6 @@ export function isGetTraceStatsResponse(obj: Typed):
   return obj.type === 'GetTraceStatsResponse';
 }
 
-export function isGetCategoriesResponse(obj: Typed):
-    obj is GetCategoriesResponse {
-  return obj.type === 'GetCategoriesResponse';
-}
-
 export function isFreeBuffersResponse(obj: Typed): obj is FreeBuffersResponse {
   return obj.type === 'FreeBuffersResponse';
 }
