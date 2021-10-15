@@ -21,6 +21,7 @@
 #include <utility>
 
 #include "perfetto/base/task_runner.h"
+#include "perfetto/ext/base/crash_keys.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/ipc/service.h"
 #include "perfetto/ext/ipc/service_descriptor.h"
@@ -36,6 +37,8 @@ namespace {
 
 constexpr base::SockFamily kHostSockFamily =
     kUseTCPSocket ? base::SockFamily::kInet : base::SockFamily::kUnix;
+
+base::CrashKey g_crash_key_uid("ipc_uid");
 
 uid_t GetPosixPeerUid(base::UnixSocket* sock) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
@@ -122,6 +125,9 @@ void HostImpl::OnDataAvailable(base::UnixSocket* sock) {
     return;
   ClientConnection* client = it->second;
   BufferedFrameDeserializer& frame_deserializer = client->frame_deserializer;
+
+  auto peer_uid = GetPosixPeerUid(client->sock.get());
+  auto scoped_key = g_crash_key_uid.SetScoped(static_cast<int64_t>(peer_uid));
 
   size_t rsize;
   do {
@@ -217,8 +223,9 @@ void HostImpl::OnInvokeMethod(ClientConnection* client,
     });
   }
 
-  service->client_info_ =
-      ClientInfo(client->id, GetPosixPeerUid(client->sock.get()));
+  auto peer_uid = GetPosixPeerUid(client->sock.get());
+  auto scoped_key = g_crash_key_uid.SetScoped(static_cast<int64_t>(peer_uid));
+  service->client_info_ = ClientInfo(client->id, peer_uid);
   service->received_fd_ = &client->received_fd;
   method.invoker(service, *decoded_req_args, std::move(deferred_reply));
   service->received_fd_ = nullptr;
@@ -251,6 +258,9 @@ void HostImpl::ReplyToMethodInvocation(ClientID client_id,
 
 // static
 void HostImpl::SendFrame(ClientConnection* client, const Frame& frame, int fd) {
+  auto peer_uid = GetPosixPeerUid(client->sock.get());
+  auto scoped_key = g_crash_key_uid.SetScoped(static_cast<int64_t>(peer_uid));
+
   std::string buf = BufferedFrameDeserializer::Serialize(frame);
 
   // When a new Client connects in OnNewClientConnection we set a timeout on
