@@ -24,6 +24,7 @@
 #include <atomic>
 
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/ext/base/thread_annotations.h"
 
 namespace perfetto {
 namespace base {
@@ -81,6 +82,8 @@ class LogRingBuffer {
     slot = slot % kLogRingBufEntries;
 
     char* const msg = events_[slot];
+    PERFETTO_ANNOTATE_BENIGN_RACE_SIZED(msg, kLogRingBufMsgLen,
+                                        "see comments in log_ring_buffer.h")
     snprintf(msg, kLogRingBufMsgLen, "%.*s%.*s %.*s",
              static_cast<int>(tstamp.size()), tstamp.data(),
              static_cast<int>(source.size()), source.data(),
