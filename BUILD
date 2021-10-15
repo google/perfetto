@@ -1014,6 +1014,7 @@ genrule(
     name = "src_trace_processor_metrics_gen_merged_sql_metrics",
     srcs = [
         "src/trace_processor/metrics/android/android_batt.sql",
+        "src/trace_processor/metrics/android/android_camera.sql",
         "src/trace_processor/metrics/android/android_cpu.sql",
         "src/trace_processor/metrics/android/android_cpu_agg.sql",
         "src/trace_processor/metrics/android/android_cpu_raw_metrics_per_core.sql",
@@ -2549,6 +2550,7 @@ perfetto_proto_library(
     name = "protos_perfetto_metrics_android_protos",
     srcs = [
         "protos/perfetto/metrics/android/batt_metric.proto",
+        "protos/perfetto/metrics/android/camera_metric.proto",
         "protos/perfetto/metrics/android/cpu_metric.proto",
         "protos/perfetto/metrics/android/display_metrics.proto",
         "protos/perfetto/metrics/android/dma_heap_metric.proto",
