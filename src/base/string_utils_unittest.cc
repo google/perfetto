@@ -378,6 +378,12 @@ TEST(StringUtilsTest, SprintfTrunc) {
   }
 
   {
+    UninitializedBuf<1> dst;
+    ASSERT_EQ(0u, SprintfTrunc(dst, sizeof(dst), "whatever"));
+    EXPECT_STREQ(dst, "");
+  }
+
+  {
     UninitializedBuf<3> dst;
     ASSERT_EQ(1u, SprintfTrunc(dst, sizeof(dst), "1"));
     EXPECT_STREQ(dst, "1");
