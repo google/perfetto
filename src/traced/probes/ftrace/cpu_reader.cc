@@ -25,6 +25,7 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/crash_keys.h"
 #include "perfetto/ext/base/metatrace.h"
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/utils.h"
@@ -60,6 +61,8 @@ constexpr uint32_t kTypeDataTypeLengthMax = 28;
 constexpr uint32_t kTypePadding = 29;
 constexpr uint32_t kTypeTimeExtend = 30;
 constexpr uint32_t kTypeTimeStamp = 31;
+
+base::CrashKey g_crash_key_cpu("ftrace_cpu");
 
 struct EventHeader {
   uint32_t type_or_length : 5;
@@ -160,6 +163,7 @@ size_t CpuReader::ReadCycle(
     size_t max_pages,
     const std::set<FtraceDataSource*>& started_data_sources) {
   PERFETTO_DCHECK(max_pages > 0 && parsing_buf_size_pages > 0);
+  auto scoped_key = g_crash_key_cpu.SetScoped(static_cast<int>(cpu_));
   metatrace::ScopedEvent evt(metatrace::TAG_FTRACE,
                              metatrace::FTRACE_CPU_READ_CYCLE);
 
