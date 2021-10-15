@@ -144,10 +144,6 @@ util::Status SpanJoinOperatorTable::Init(int argc,
     partitioning_ = t1_desc.IsPartitioned()
                         ? PartitioningType::kSamePartitioning
                         : PartitioningType::kNoPartitioning;
-    if (partitioning_ == PartitioningType::kNoPartitioning && IsOuterJoin()) {
-      return util::ErrStatus(
-          "SPAN_JOIN: Outer join not supported for no partition tables");
-    }
   } else if (t1_desc.IsPartitioned() && t2_desc.IsPartitioned()) {
     return util::ErrStatus(
         "SPAN_JOIN: mismatching partitions between the two tables; "
@@ -421,14 +417,17 @@ int SpanJoinOperatorTable::Cursor::Filter(const QueryConstraints& qc,
                                           FilterHistory) {
   PERFETTO_TP_TRACE("SPAN_JOIN_XFILTER");
 
-  util::Status status =
-      t1_.Initialize(qc, argv, Query::InitialEofBehavior::kTreatAsEof);
+  util::Status status = t1_.Initialize(
+      qc, argv,
+      table_->IsOuterJoin()
+          ? Query::InitialEofBehavior::kTreatAsMissingPartitionShadow
+          : Query::InitialEofBehavior::kTreatAsEof);
   if (!status.ok())
     return SQLITE_ERROR;
 
   status = t2_.Initialize(
       qc, argv,
-      table_->IsLeftJoin()
+      table_->IsLeftJoin() || table_->IsOuterJoin()
           ? Query::InitialEofBehavior::kTreatAsMissingPartitionShadow
           : Query::InitialEofBehavior::kTreatAsEof);
   if (!status.ok())
