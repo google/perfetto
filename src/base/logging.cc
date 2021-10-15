@@ -28,6 +28,7 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/time.h"
+#include "perfetto/ext/base/crash_keys.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/base/log_ring_buffer.h"
@@ -201,7 +202,9 @@ void MaybeSerializeLastLogsForCrashReporting() {
   // But if that happens we have bigger problems, not worth designing around it.
   // The behaviour is still defined in the race case (the string attached to
   // the crash report will contain a mixture of log strings).
-  g_log_ring_buffer.Read(g_crash_buf, sizeof(g_crash_buf));
+  size_t wr = 0;
+  wr += SerializeCrashKeys(&g_crash_buf[wr], sizeof(g_crash_buf) - wr);
+  wr += g_log_ring_buffer.Read(&g_crash_buf[wr], sizeof(g_crash_buf) - wr);
 
   // Read() null-terminates the string properly. This is just to avoid UB when
   // two threads race on each other (T1 writes a shorter string, T2
