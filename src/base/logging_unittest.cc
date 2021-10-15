@@ -23,6 +23,7 @@
 #include <thread>
 #include <vector>
 
+#include "perfetto/ext/base/crash_keys.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/base/log_ring_buffer.h"
 #include "test/gtest_and_gmock.h"
@@ -172,6 +173,83 @@ TEST(LogRingBufferTest, MultiThreadedWrites) {
   std::vector<std::string> actual_events = SplitString(buf, "\n");
   EXPECT_THAT(actual_events,
               testing::UnorderedElementsAreArray(expected_events));
+}
+
+TEST(CrashKeysTest, SetClearAndLongKeys) {
+  UnregisterAllCrashKeysForTesting();
+
+  char buf[1024];
+  memset(buf, 'x', sizeof(buf));
+  EXPECT_EQ(0u, SerializeCrashKeys(buf, sizeof(buf)));
+  EXPECT_STREQ(buf, "");
+
+  CrashKey k1("key1");
+  CrashKey k2("key2");
+  CrashKey k3("key3");
+  CrashKey k4("key4");
+
+  k1.Set(0);
+  k1.Clear();
+
+  k2.Set(42);
+
+  k3.Set("xx");
+  k3.Clear();
+
+  k4.Set("value");
+
+  EXPECT_EQ(21u, SerializeCrashKeys(buf, sizeof(buf)));
+  EXPECT_STREQ(buf, "key2: 42\nkey4: value\n");
+
+  EXPECT_EQ(0u, SerializeCrashKeys(buf, 0));
+
+  EXPECT_EQ(0u, SerializeCrashKeys(buf, 1));
+  EXPECT_STREQ(buf, "");
+
+  // Test truncated output.
+  EXPECT_EQ(5u, SerializeCrashKeys(buf, 5 + 1));
+  EXPECT_STREQ(buf, "key2:");
+
+  k2.Clear();
+
+  std::string long_str(1024, 'x');
+  k4.Set(StringView(long_str));
+
+  EXPECT_EQ(6 + kCrashKeyMaxStrSize, SerializeCrashKeys(buf, sizeof(buf)));
+  std::string expected =
+      "key4: " + long_str.substr(0, kCrashKeyMaxStrSize - 1) + "\n";
+  EXPECT_EQ(buf, expected);
+
+  UnregisterAllCrashKeysForTesting();
+}
+
+TEST(CrashKeysTest, ScopedSet) {
+  UnregisterAllCrashKeysForTesting();
+
+  char buf[1024];
+  memset(buf, 'x', sizeof(buf));
+
+  CrashKey k1("key1");
+  CrashKey k2("key2");
+
+  auto scoped_key = k1.SetScoped(42);
+  EXPECT_GT(SerializeCrashKeys(buf, sizeof(buf)), 0u);
+  EXPECT_STREQ(buf, "key1: 42\n");
+
+  {
+    auto scoped_key2 = k2.SetScoped("foo");
+    EXPECT_GT(SerializeCrashKeys(buf, sizeof(buf)), 0u);
+    EXPECT_STREQ(buf, "key1: 42\nkey2: foo\n");
+  }
+
+  EXPECT_GT(SerializeCrashKeys(buf, sizeof(buf)), 0u);
+  EXPECT_STREQ(buf, "key1: 42\n");
+
+  k1.Clear();
+  EXPECT_EQ(0u, SerializeCrashKeys(buf, sizeof(buf)));
+  EXPECT_STREQ(buf, "");
+
+  UnregisterAllCrashKeysForTesting();
 }
 
 }  // namespace
