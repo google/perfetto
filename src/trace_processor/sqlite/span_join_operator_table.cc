@@ -144,10 +144,6 @@ util::Status SpanJoinOperatorTable::Init(int argc,
     partitioning_ = t1_desc.IsPartitioned()
                         ? PartitioningType::kSamePartitioning
                         : PartitioningType::kNoPartitioning;
-    if (partitioning_ == PartitioningType::kNoPartitioning && IsOuterJoin()) {
-      return util::ErrStatus(
-          "SPAN_JOIN: Outer join not supported for no partition tables");
-    }
   } else if (t1_desc.IsPartitioned() && t2_desc.IsPartitioned()) {
     return util::ErrStatus(
         "SPAN_JOIN: mismatching partitions between the two tables; "
@@ -155,10 +151,6 @@ util::Status SpanJoinOperatorTable::Init(int argc,
         t1_desc.partition_col.c_str(), t1_desc.name.c_str(),
         t2_desc.partition_col.c_str(), t2_desc.name.c_str());
   } else {
-    if (IsOuterJoin()) {
-      return util::ErrStatus(
-          "SPAN_JOIN: Outer join not supported for mixed partitioned tables");
-    }
     partitioning_ = PartitioningType::kMixedPartitioning;
   }
 
@@ -421,16 +413,24 @@ int SpanJoinOperatorTable::Cursor::Filter(const QueryConstraints& qc,
                                           FilterHistory) {
   PERFETTO_TP_TRACE("SPAN_JOIN_XFILTER");
 
-  util::Status status =
-      t1_.Initialize(qc, argv, Query::InitialEofBehavior::kTreatAsEof);
+  bool t1_partitioned_mixed =
+      t1_.definition()->IsPartitioned() &&
+      table_->partitioning_ == PartitioningType::kMixedPartitioning;
+  auto t1_eof = table_->IsOuterJoin() && !t1_partitioned_mixed
+                    ? Query::InitialEofBehavior::kTreatAsMissingPartitionShadow
+                    : Query::InitialEofBehavior::kTreatAsEof;
+  util::Status status = t1_.Initialize(qc, argv, t1_eof);
   if (!status.ok())
     return SQLITE_ERROR;
 
-  status = t2_.Initialize(
-      qc, argv,
-      table_->IsLeftJoin()
+  bool t2_partitioned_mixed =
+      t2_.definition()->IsPartitioned() &&
+      table_->partitioning_ == PartitioningType::kMixedPartitioning;
+  auto t2_eof =
+      (table_->IsLeftJoin() || table_->IsOuterJoin()) && !t2_partitioned_mixed
           ? Query::InitialEofBehavior::kTreatAsMissingPartitionShadow
-          : Query::InitialEofBehavior::kTreatAsEof);
+          : Query::InitialEofBehavior::kTreatAsEof;
+  status = t2_.Initialize(qc, argv, t2_eof);
   if (!status.ok())
     return SQLITE_ERROR;
 

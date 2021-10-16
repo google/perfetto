@@ -781,12 +781,13 @@ base::Status ComputeMetrics(TraceProcessor* tp,
       return base::ErrStatus("Unknown metric %s", name.c_str());
 
     const auto& sql_metric = *metric_it;
-    auto queries = base::SplitString(sql_metric.sql, ";\n");
-    for (const auto& query : queries) {
-      PERFETTO_DLOG("Executing query: %s", query.c_str());
-      auto prep_it = tp->ExecuteQuery(query);
-      prep_it.Next();
-      RETURN_IF_ERROR(prep_it.Status());
+    for (const auto& outer : base::SplitString(sql_metric.sql, ";\n")) {
+      for (const auto& query : base::SplitString(outer, ";\r\n")) {
+        PERFETTO_DLOG("Executing query: %s", query.c_str());
+        auto prep_it = tp->ExecuteQuery(query);
+        prep_it.Next();
+        RETURN_IF_ERROR(prep_it.Status());
+      }
     }
 
     auto output_query =

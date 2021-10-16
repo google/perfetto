@@ -3652,6 +3652,7 @@ genrule {
     name: "perfetto_protos_perfetto_metrics_chrome_descriptor",
     srcs: [
         "protos/perfetto/metrics/android/batt_metric.proto",
+        "protos/perfetto/metrics/android/camera_metric.proto",
         "protos/perfetto/metrics/android/cpu_metric.proto",
         "protos/perfetto/metrics/android/display_metrics.proto",
         "protos/perfetto/metrics/android/dma_heap_metric.proto",
@@ -3706,6 +3707,7 @@ genrule {
     name: "perfetto_protos_perfetto_metrics_descriptor",
     srcs: [
         "protos/perfetto/metrics/android/batt_metric.proto",
+        "protos/perfetto/metrics/android/camera_metric.proto",
         "protos/perfetto/metrics/android/cpu_metric.proto",
         "protos/perfetto/metrics/android/display_metrics.proto",
         "protos/perfetto/metrics/android/dma_heap_metric.proto",
@@ -6838,6 +6840,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_base_base",
     srcs: [
+        "src/base/crash_keys.cc",
         "src/base/ctrl_c_handler.cc",
         "src/base/event_fd.cc",
         "src/base/file_utils.cc",
@@ -7988,6 +7991,7 @@ genrule {
     name: "perfetto_src_trace_processor_metrics_gen_merged_sql_metrics",
     srcs: [
         "src/trace_processor/metrics/android/android_batt.sql",
+        "src/trace_processor/metrics/android/android_camera.sql",
         "src/trace_processor/metrics/android/android_cpu.sql",
         "src/trace_processor/metrics/android/android_cpu_agg.sql",
         "src/trace_processor/metrics/android/android_cpu_raw_metrics_per_core.sql",

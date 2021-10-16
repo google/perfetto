@@ -81,6 +81,7 @@ def write_if_unchanged(path, content):
 
 def main():
   parser = argparse.ArgumentParser()
+  parser.add_argument('--check_git', action='store_true')
   parser.add_argument(
       '--no_git',
       action='store_true',
@@ -90,6 +91,11 @@ def main():
   parser.add_argument('--stdout', help='Write to stdout', action='store_true')
   parser.add_argument('--changelog', help='Path to CHANGELOG.')
   args = parser.parse_args()
+
+  if args.check_git:
+    has_git = os.path.exists(os.path.join(PROJECT_ROOT, '.git', 'HEAD'))
+    print('1' if has_git else '0')
+    return 0
 
   release = get_latest_release(args.changelog)
 

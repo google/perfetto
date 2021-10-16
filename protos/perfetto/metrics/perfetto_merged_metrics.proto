@@ -56,6 +56,33 @@ message AndroidBatteryMetric {
 
 // End of protos/perfetto/metrics/android/batt_metric.proto
 
+// Begin of protos/perfetto/metrics/android/camera_metric.proto
+
+message AndroidCameraMetric {
+  message Counter {
+    optional double min = 1;
+    optional double max = 2;
+    optional double avg = 3;
+  }
+
+  // Counter for the sum of DMA and RSS across GCA, cameraserver
+  // and HAL. This provides a single number for the memory
+  // pressure using the camera is putting on the rest of the
+  // system.
+  //
+  // Note: this number assumes that all DMA pressure is coming
+  // from the camera as this is usually a pretty good
+  // approximation. Being more accurate here would increase the
+  // complexity of the metric significantly.
+  //
+  // Note: if there are multiple GCA/cameraserver/HAL processes
+  // in the trace, this metric will simply take the latest
+  // one in the trace and ignore the others.
+  optional Counter gc_rss_and_dma = 1;
+}
+
+// End of protos/perfetto/metrics/android/camera_metric.proto
+
 // Begin of protos/perfetto/metrics/android/cpu_metric.proto
 
 message AndroidCpuMetric {
@@ -1207,7 +1234,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 38
+// Next id: 39
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -1302,6 +1329,9 @@ message TraceMetrics {
 
   // Metrics related to simpleperf tool
   optional AndroidSimpleperfMetric android_simpleperf = 37;
+
+  // Metrics for the Camera team.
+  optional AndroidCameraMetric android_camera = 38;
 
   // Demo extensions.
   extensions 450 to 499;
