@@ -29,6 +29,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/tp_metatrace.h"
+#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -636,9 +637,7 @@ util::Status SpanJoinOperatorTable::Query::Initialize(
 }
 
 util::Status SpanJoinOperatorTable::Query::Next() {
-  util::Status status = NextSliceState();
-  if (!status.ok())
-    return status;
+  RETURN_IF_ERROR(NextSliceState());
   return FindNextValidSlice();
 }
 
@@ -671,9 +670,7 @@ util::Status SpanJoinOperatorTable::Query::FindNextValidSlice() {
   // This has proved to be a lot cleaner to implement than trying to choose
   // when to emit and not emit shadows directly.
   while (!IsEof() && !IsValidSlice()) {
-    util::Status status = NextSliceState();
-    if (!status.ok())
-      return status;
+    RETURN_IF_ERROR(NextSliceState());
   }
   return util::OkStatus();
 }
@@ -682,9 +679,7 @@ util::Status SpanJoinOperatorTable::Query::NextSliceState() {
   switch (state_) {
     case State::kReal: {
       // Forward the cursor to figure out where the next slice should be.
-      util::Status status = CursorNext();
-      if (!status.ok())
-        return status;
+      RETURN_IF_ERROR(CursorNext());
 
       // Depending on the next slice, we can do two things here:
       // 1. If the next slice is on the same partition, we can just emit a
@@ -763,9 +758,7 @@ util::Status SpanJoinOperatorTable::Query::Rewind() {
   if (res != SQLITE_OK)
     return util::ErrStatus("%s", sqlite3_errmsg(db_));
 
-  util::Status status = CursorNext();
-  if (!status.ok())
-    return status;
+  RETURN_IF_ERROR(CursorNext());
 
   // Setup the first slice as a missing partition shadow from the lowest
   // partition until the first slice partition. We will handle finding the real
@@ -798,13 +791,17 @@ util::Status SpanJoinOperatorTable::Query::CursorNext() {
       res = sqlite3_step(stmt);
       row_type = sqlite3_column_type(stmt, partition_idx);
     } while (res == SQLITE_ROW && row_type == SQLITE_NULL);
+
+    if (res == SQLITE_ROW && row_type != SQLITE_INTEGER) {
+      return util::ErrStatus("SPAN_JOIN: partition is not an int");
+    }
   } else {
     res = sqlite3_step(stmt);
   }
   cursor_eof_ = res != SQLITE_ROW;
   return res == SQLITE_ROW || res == SQLITE_DONE
              ? util::OkStatus()
-             : util::ErrStatus("%s", sqlite3_errmsg(db_));
+             : util::ErrStatus("SPAN_JOIN: %s", sqlite3_errmsg(db_));
 }
 
 std::string SpanJoinOperatorTable::Query::CreateSqlQuery(
