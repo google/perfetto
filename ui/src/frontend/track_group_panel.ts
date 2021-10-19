@@ -49,14 +49,18 @@ export class TrackGroupPanel extends Panel<Attrs> {
   private readonly trackGroupId: string;
   private shellWidth = 0;
   private backgroundColor = '#ffffff';  // Updated from CSS later.
-  private summaryTrack: Track;
+  private summaryTrack: Track|undefined;
 
   constructor({attrs}: m.CVnode<Attrs>) {
     super();
     this.trackGroupId = attrs.trackGroupId;
     const trackCreator = trackRegistry.get(this.summaryTrackState.kind);
-    this.summaryTrack =
-        trackCreator.create({trackId: this.summaryTrackState.id});
+    const engineId = this.summaryTrackState.engineId;
+    const engine = globals.engines.get(engineId);
+    if (engine !== undefined) {
+      this.summaryTrack =
+          trackCreator.create({trackId: this.summaryTrackState.id, engine});
+    }
   }
 
   get trackGroupState(): TrackGroupState {
