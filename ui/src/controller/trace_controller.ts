@@ -253,6 +253,10 @@ export class TraceController extends Controller<States> {
     return;
   }
 
+  onDestroy() {
+    frontendGlobals.engines.delete(this.engineId);
+  }
+
   private async loadTrace(): Promise<EngineMode> {
     this.updateStatus('Creating trace processor');
     // Check if there is any instance of the trace_processor_shell running in
@@ -262,25 +266,26 @@ export class TraceController extends Controller<States> {
     if (globals.state.newEngineMode === 'USE_HTTP_RPC_IF_AVAILABLE') {
       useRpc = (await HttpRpcEngine.checkConnection()).connected;
     }
+    let engine;
     if (useRpc) {
       console.log('Opening trace using native accelerator over HTTP+RPC');
       engineMode = 'HTTP_RPC';
-      const engine =
-          new HttpRpcEngine(this.engineId, LoadingManager.getInstance);
+      engine = new HttpRpcEngine(this.engineId, LoadingManager.getInstance);
       engine.errorHandler = (err) => {
         globals.dispatch(
             Actions.setEngineFailed({mode: 'HTTP_RPC', failure: `${err}`}));
         throw err;
       };
-      this.engine = engine;
     } else {
       console.log('Opening trace using built-in WASM engine');
       engineMode = 'WASM';
       const enginePort = resetEngineWorker();
-      this.engine = new WasmEngineProxy(
+      engine = new WasmEngineProxy(
           this.engineId, enginePort, LoadingManager.getInstance);
     }
+    this.engine = engine;
 
+    frontendGlobals.engines.set(this.engineId, engine);
     globals.dispatch(Actions.setEngineReady({
       engineId: this.engineId,
       ready: false,
