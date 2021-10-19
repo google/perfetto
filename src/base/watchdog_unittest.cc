@@ -39,7 +39,9 @@ namespace {
 class TestWatchdog : public Watchdog {
  public:
   explicit TestWatchdog(uint32_t polling_interval_ms)
-      : Watchdog(polling_interval_ms) {}
+      : Watchdog(polling_interval_ms) {
+    disable_kill_failsafe_for_testing_ = true;
+  }
   ~TestWatchdog() override {}
 };
 
@@ -157,6 +159,7 @@ TEST(WatchdogTest, TimerCrashDeliveredToCallerThread) {
   };
 
   std::vector<std::thread> threads;
+
   for (size_t i = 0; i < 8; i++)
     threads.emplace_back(thread_fn, i);
 

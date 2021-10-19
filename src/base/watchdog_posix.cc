@@ -19,9 +19,15 @@
 #if PERFETTO_BUILDFLAG(PERFETTO_WATCHDOG)
 
 #include <fcntl.h>
+#include <poll.h>
 #include <signal.h>
 #include <stdint.h>
+#include <stdlib.h>
+#include <sys/syscall.h>
+#include <sys/timerfd.h>
+#include <unistd.h>
 
+#include <algorithm>
 #include <cinttypes>
 #include <fstream>
 #include <thread>
@@ -29,6 +35,7 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/thread_utils.h"
+#include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/utils.h"
@@ -50,7 +57,6 @@ double MeanForArray(const uint64_t array[], size_t size) {
     total += array[i];
   }
   return static_cast<double>(total / size);
-
 }
 
 }  //  namespace
@@ -91,7 +97,16 @@ Watchdog::~Watchdog() {
   }
   PERFETTO_DCHECK(enabled_);
   enabled_ = false;
-  exit_signal_.notify_one();
+
+  // Rearm the timer to 1ns from now. This will cause the watchdog thread to
+  // wakeup from the poll() and see |enabled_| == false.
+  // This code path is used only in tests. In production code the watchdog is
+  // a singleton and is never destroyed.
+  struct itimerspec ts {};
+  ts.it_value.tv_sec = 0;
+  ts.it_value.tv_nsec = 1;
+  timerfd_settime(*timer_fd_, /*flags=*/0, &ts, nullptr);
+
   thread_.join();
 }
 
@@ -100,11 +115,48 @@ Watchdog* Watchdog::GetInstance() {
   return watchdog;
 }
 
+// Can be called from any thread.
 Watchdog::Timer Watchdog::CreateFatalTimer(uint32_t ms) {
   if (!enabled_.load(std::memory_order_relaxed))
-    return Watchdog::Timer(0);
+    return Watchdog::Timer(this, 0);
 
-  return Watchdog::Timer(ms);
+  return Watchdog::Timer(this, ms);
+}
+
+// Can be called from any thread.
+void Watchdog::AddFatalTimer(TimerData timer) {
+  std::lock_guard<std::mutex> guard(mutex_);
+  timers_.emplace_back(std::move(timer));
+  RearmTimerFd_Locked();
+}
+
+// Can be called from any thread.
+void Watchdog::RemoveFatalTimer(TimerData timer) {
+  std::lock_guard<std::mutex> guard(mutex_);
+  for (auto it = timers_.begin(); it != timers_.end(); it++) {
+    if (*it == timer) {
+      timers_.erase(it);
+      break;  // Remove only one. Doesn't matter which one.
+    }
+  }
+  RearmTimerFd_Locked();
+}
+
+void Watchdog::RearmTimerFd_Locked() {
+  if (!enabled_)
+    return;
+  auto it = std::min_element(timers_.begin(), timers_.end());
+
+  // We use one timerfd to handle all the oustanding |timers_|. Keep it armed
+  // to the task expiring soonest.
+  struct itimerspec ts {};
+  if (it != timers_.end()) {
+    ts.it_value = ToPosixTimespec(it->deadline);
+  }
+  // If |timers_| is empty (it == end()) |ts.it_value| will remain
+  // zero-initialized and that will disarm the timer in the call below.
+  int res = timerfd_settime(*timer_fd_, TFD_TIMER_ABSTIME, &ts, nullptr);
+  PERFETTO_DCHECK(res == 0);
 }
 
 void Watchdog::Start() {
@@ -117,7 +169,15 @@ void Watchdog::Start() {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
     // Kick the thread to start running but only on Android or Linux.
+    timer_fd_.reset(
+        timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC | TFD_NONBLOCK));
+    if (!timer_fd_) {
+      PERFETTO_PLOG(
+          "timerfd_create failed, the Perfetto watchdog is not available");
+      return;
+    }
     enabled_ = true;
+    RearmTimerFd_Locked();  // Deal with timers created before Start().
     thread_ = std::thread(&Watchdog::ThreadMain, this);
 #endif
   }
@@ -153,49 +213,124 @@ void Watchdog::ThreadMain() {
     return;
   }
 
-  std::unique_lock<std::mutex> guard(mutex_);
+  PERFETTO_DCHECK(timer_fd_);
+
+  constexpr uint8_t kFdCount = 1;
+  struct pollfd fds[kFdCount]{};
+  fds[0].fd = *timer_fd_;
+  fds[0].events = POLLIN;
+
   for (;;) {
-    exit_signal_.wait_for(guard,
-                          std::chrono::milliseconds(polling_interval_ms_));
+    // We use the poll() timeout to drive the periodic ticks for the cpu/memory
+    // checks. The only other case when the poll() unblocks is when we crash
+    // (or have to quit via enabled_ == false, but that happens only in tests).
+    auto ret = poll(fds, kFdCount, static_cast<int>(polling_interval_ms_));
     if (!enabled_)
       return;
-
-    lseek(stat_fd.get(), 0, SEEK_SET);
-
-    ProcStat stat;
-    if (!ReadProcStat(stat_fd.get(), &stat)) {
-      return;
+    if (ret < 0) {
+      if (errno == ENOMEM || errno == EINTR) {
+        // Should happen extremely rarely.
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        continue;
+      }
+      PERFETTO_FATAL("watchdog poll() failed");
     }
 
+    // If we get here either:
+    // 1. poll() timed out, in which case we should process cpu/mem guardrails.
+    // 2. A timer expired, in which case we shall crash.
+
+    uint64_t expired = 0;  // Must be exactly 8 bytes.
+    auto res = PERFETTO_EINTR(read(*timer_fd_, &expired, sizeof(expired)));
+    PERFETTO_DCHECK((res < 0 && (errno == EAGAIN)) ||
+                    (res == sizeof(expired) && expired > 0));
+    const auto now = GetWallTimeMs();
+
+    // Check if any of the timers expired.
+    int tid_to_kill = 0;
+    std::unique_lock<std::mutex> guard(mutex_);
+    for (const auto& timer : timers_) {
+      if (now >= timer.deadline) {
+        tid_to_kill = timer.thread_id;
+        break;
+      }
+    }
+    guard.unlock();
+
+    if (tid_to_kill)
+      SerializeLogsAndKillThread(tid_to_kill);
+
+    // Check CPU and memory guardrails (if enabled).
+    lseek(stat_fd.get(), 0, SEEK_SET);
+    ProcStat stat;
+    if (!ReadProcStat(stat_fd.get(), &stat))
+      continue;
     uint64_t cpu_time = stat.utime + stat.stime;
     uint64_t rss_bytes =
         static_cast<uint64_t>(stat.rss_pages) * base::GetSysPageSize();
 
-    CheckMemory(rss_bytes);
-    CheckCpu(cpu_time);
+    guard.lock();
+    bool threshold_exceeded = false;
+    threshold_exceeded |= CheckMemory_Locked(rss_bytes);
+    threshold_exceeded |= CheckCpu_Locked(cpu_time);
+    guard.unlock();
+
+    if (threshold_exceeded)
+      SerializeLogsAndKillThread(getpid());
   }
 }
 
-void Watchdog::CheckMemory(uint64_t rss_bytes) {
-  if (memory_limit_bytes_ == 0)
+void Watchdog::SerializeLogsAndKillThread(int tid) {
+  // We are about to die. Serialize the logs into the crash buffer so the
+  // debuggerd crash handler picks them up and attaches to the bugreport.
+  // In the case of a PERFETTO_CHECK/PERFETTO_FATAL this is done in logging.h.
+  // But in the watchdog case, we don't hit that codepath and must do ourselves.
+  MaybeSerializeLastLogsForCrashReporting();
+
+  // Send a SIGABRT to the thread that armed the timer. This is to see the
+  // callstack of the thread that is stuck in a long task rather than the
+  // watchdog thread.
+  if (syscall(__NR_tgkill, getpid(), tid, SIGABRT) < 0) {
+    // At this point the process must die. If for any reason the tgkill doesn't
+    // work (e.g. the thread has disappeared), force a crash from here.
+    abort();
+  }
+
+  if (disable_kill_failsafe_for_testing_)
     return;
+
+  // The tgkill() above will take some milliseconds to cause a crash, as it
+  // involves the kernel to queue the SIGABRT on the target thread (often the
+  // main thread, which is != watchdog thread) and do a scheduling round.
+  // If something goes wrong though (the target thread has signals masked or
+  // is stuck in an uninterruptible+wakekill syscall) force quit from this
+  // thread.
+  std::this_thread::sleep_for(std::chrono::seconds(10));
+  abort();
+}
+
+bool Watchdog::CheckMemory_Locked(uint64_t rss_bytes) {
+  if (memory_limit_bytes_ == 0)
+    return false;
 
   // Add the current stat value to the ring buffer and check that the mean
   // remains under our threshold.
   if (memory_window_bytes_.Push(rss_bytes)) {
-    if (memory_window_bytes_.Mean() > static_cast<double>(memory_limit_bytes_)) {
+    if (memory_window_bytes_.Mean() >
+        static_cast<double>(memory_limit_bytes_)) {
       PERFETTO_ELOG(
           "Memory watchdog trigger. Memory window of %f bytes is above the "
           "%" PRIu64 " bytes limit.",
           memory_window_bytes_.Mean(), memory_limit_bytes_);
-      kill(getpid(), SIGABRT);
+      return true;
     }
   }
+  return false;
 }
 
-void Watchdog::CheckCpu(uint64_t cpu_time) {
+bool Watchdog::CheckCpu_Locked(uint64_t cpu_time) {
   if (cpu_limit_percentage_ == 0)
-    return;
+    return false;
 
   // Add the cpu time to the ring buffer.
   if (cpu_window_time_ticks_.Push(cpu_time)) {
@@ -213,9 +348,10 @@ void Watchdog::CheckCpu(uint64_t cpu_time) {
       PERFETTO_ELOG("CPU watchdog trigger. %f%% CPU use is above the %" PRIu32
                     "%% CPU limit.",
                     percentage, cpu_limit_percentage_);
-      kill(getpid(), SIGABRT);
+      return true;
     }
   }
+  return false;
 }
 
 uint32_t Watchdog::WindowTimeForRingBuffer(const WindowedInterval& window) {
@@ -249,36 +385,25 @@ void Watchdog::WindowedInterval::Reset(size_t new_size) {
   buffer_.reset(new_size == 0 ? nullptr : new uint64_t[new_size]());
 }
 
-Watchdog::Timer::Timer(uint32_t ms) {
+Watchdog::Timer::Timer(Watchdog* watchdog, uint32_t ms) : watchdog_(watchdog) {
   if (!ms)
     return;  // No-op timer created when the watchdog is disabled.
-
-  struct sigevent sev = {};
-  timer_t timerid;
-  sev.sigev_notify = SIGEV_THREAD_ID;
-#if defined(__GLIBC__)
-  sev._sigev_un._tid = base::GetThreadId();
-#else
-  sev.sigev_notify_thread_id = base::GetThreadId();
-#endif
-  sev.sigev_signo = SIGABRT;
-  PERFETTO_CHECK(timer_create(CLOCK_MONOTONIC, &sev, &timerid) != -1);
-  timerid_ = base::make_optional(timerid);
-  struct itimerspec its = {};
-  its.it_value.tv_sec = ms / 1000;
-  its.it_value.tv_nsec = 1000000L * (ms % 1000);
-  PERFETTO_CHECK(timer_settime(timerid_.value(), 0, &its, nullptr) != -1);
+  timer_data_.deadline = GetWallTimeMs() + std::chrono::milliseconds(ms);
+  timer_data_.thread_id = GetThreadId();
+  PERFETTO_DCHECK(watchdog_);
+  watchdog_->AddFatalTimer(timer_data_);
 }
 
 Watchdog::Timer::~Timer() {
-  if (timerid_) {
-    timer_delete(timerid_.value());
-  }
+  if (timer_data_.deadline.count())
+    watchdog_->RemoveFatalTimer(timer_data_);
 }
 
 Watchdog::Timer::Timer(Timer&& other) noexcept {
-  timerid_ = std::move(other.timerid_);
-  other.timerid_ = base::nullopt;
+  watchdog_ = std::move(other.watchdog_);
+  other.watchdog_ = nullptr;
+  timer_data_ = std::move(other.timer_data_);
+  other.timer_data_ = TimerData();
 }
 
 }  // namespace base
