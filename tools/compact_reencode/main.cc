@@ -79,11 +79,12 @@ void ReEncodeBundle(protos::pbzero::TracePacket* packet_out,
   if (bundle.has_cpu())
     bundle_out->set_cpu(bundle.cpu());
 
-  protozero::PackedVarInt switch_timestamp;
-  protozero::PackedVarInt switch_prev_state;
-  protozero::PackedVarInt switch_next_pid;
-  protozero::PackedVarInt switch_next_prio;
-  protozero::PackedVarInt switch_next_comm_index;
+  using protozero::PackedVarInt;
+  std::unique_ptr<PackedVarInt> switch_timestamp(new PackedVarInt());
+  std::unique_ptr<PackedVarInt> switch_prev_state(new PackedVarInt());
+  std::unique_ptr<PackedVarInt> switch_next_pid(new PackedVarInt());
+  std::unique_ptr<PackedVarInt> switch_next_prio(new PackedVarInt());
+  std::unique_ptr<PackedVarInt> switch_next_comm_index(new PackedVarInt());
 
   uint64_t last_switch_timestamp = 0;
 
@@ -99,11 +100,11 @@ void ReEncodeBundle(protos::pbzero::TracePacket* packet_out,
   };
 
   // sched_waking pieces
-  protozero::PackedVarInt waking_timestamp;
-  protozero::PackedVarInt waking_pid;
-  protozero::PackedVarInt waking_target_cpu;
-  protozero::PackedVarInt waking_prio;
-  protozero::PackedVarInt waking_comm_index;
+  std::unique_ptr<PackedVarInt> waking_timestamp(new PackedVarInt());
+  std::unique_ptr<PackedVarInt> waking_pid(new PackedVarInt());
+  std::unique_ptr<PackedVarInt> waking_target_cpu(new PackedVarInt());
+  std::unique_ptr<PackedVarInt> waking_prio(new PackedVarInt());
+  std::unique_ptr<PackedVarInt> waking_comm_index(new PackedVarInt());
 
   uint64_t last_waking_timestamp = 0;
 
@@ -112,31 +113,31 @@ void ReEncodeBundle(protos::pbzero::TracePacket* packet_out,
     if (!event.has_sched_switch() && !event.has_sched_waking()) {
       CopyField(bundle_out, event_it.field());
     } else if (event.has_sched_switch()) {
-      switch_timestamp.Append(event.timestamp() - last_switch_timestamp);
+      switch_timestamp->Append(event.timestamp() - last_switch_timestamp);
       last_switch_timestamp = event.timestamp();
 
       protos::pbzero::SchedSwitchFtraceEvent::Decoder sswitch(
           event.sched_switch());
 
       auto iid = intern(sswitch.next_comm().ToStdString());
-      switch_next_comm_index.Append(iid);
+      switch_next_comm_index->Append(iid);
 
-      switch_next_pid.Append(sswitch.next_pid());
-      switch_next_prio.Append(sswitch.next_prio());
-      switch_prev_state.Append(sswitch.prev_state());
+      switch_next_pid->Append(sswitch.next_pid());
+      switch_next_prio->Append(sswitch.next_prio());
+      switch_prev_state->Append(sswitch.prev_state());
     } else {
-      waking_timestamp.Append(event.timestamp() - last_waking_timestamp);
+      waking_timestamp->Append(event.timestamp() - last_waking_timestamp);
       last_waking_timestamp = event.timestamp();
 
       protos::pbzero::SchedWakingFtraceEvent::Decoder swaking(
           event.sched_waking());
 
       auto iid = intern(swaking.comm().ToStdString());
-      waking_comm_index.Append(iid);
+      waking_comm_index->Append(iid);
 
-      waking_pid.Append(swaking.pid());
-      waking_target_cpu.Append(swaking.target_cpu());
-      waking_prio.Append(swaking.prio());
+      waking_pid->Append(swaking.pid());
+      waking_target_cpu->Append(swaking.target_cpu());
+      waking_prio->Append(swaking.prio());
     }
   }
 
@@ -145,17 +146,17 @@ void ReEncodeBundle(protos::pbzero::TracePacket* packet_out,
   for (const auto& s : string_table)
     compact_sched->add_intern_table(s.data(), s.size());
 
-  compact_sched->set_switch_timestamp(switch_timestamp);
-  compact_sched->set_switch_next_comm_index(switch_next_comm_index);
-  compact_sched->set_switch_next_pid(switch_next_pid);
-  compact_sched->set_switch_next_prio(switch_next_prio);
-  compact_sched->set_switch_prev_state(switch_prev_state);
+  compact_sched->set_switch_timestamp(*switch_timestamp);
+  compact_sched->set_switch_next_comm_index(*switch_next_comm_index);
+  compact_sched->set_switch_next_pid(*switch_next_pid);
+  compact_sched->set_switch_next_prio(*switch_next_prio);
+  compact_sched->set_switch_prev_state(*switch_prev_state);
 
-  compact_sched->set_waking_timestamp(waking_timestamp);
-  compact_sched->set_waking_pid(waking_pid);
-  compact_sched->set_waking_target_cpu(waking_target_cpu);
-  compact_sched->set_waking_prio(waking_prio);
-  compact_sched->set_waking_comm_index(waking_comm_index);
+  compact_sched->set_waking_timestamp(*waking_timestamp);
+  compact_sched->set_waking_pid(*waking_pid);
+  compact_sched->set_waking_target_cpu(*waking_target_cpu);
+  compact_sched->set_waking_prio(*waking_prio);
+  compact_sched->set_waking_comm_index(*waking_comm_index);
 }
 
 std::string ReEncode(const std::string& raw) {
