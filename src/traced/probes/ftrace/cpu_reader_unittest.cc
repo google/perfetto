@@ -386,7 +386,7 @@ TEST(CpuReaderTest, ParseSinglePrint) {
       table->EventToFtraceId(GroupAndName("ftrace", "print")));
 
   FtraceMetadata metadata{};
-  CompactSchedBuffer compact_buffer;
+  std::unique_ptr<CompactSchedBuffer> compact_buffer(new CompactSchedBuffer());
   const uint8_t* parse_pos = page.get();
   base::Optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
@@ -399,7 +399,7 @@ TEST(CpuReaderTest, ParseSinglePrint) {
   EXPECT_TRUE(parse_pos + page_header->size < page_end);
 
   size_t evt_bytes = CpuReader::ParsePagePayload(
-      parse_pos, &page_header.value(), table, &ds_config, &compact_buffer,
+      parse_pos, &page_header.value(), table, &ds_config, compact_buffer.get(),
       bundle_provider.writer(), &metadata);
 
   EXPECT_EQ(evt_bytes, 44ul);
@@ -514,7 +514,8 @@ TEST(CpuReaderTest, ReallyLongEvent) {
       table->EventToFtraceId(GroupAndName("ftrace", "print")));
 
   FtraceMetadata metadata{};
-  CompactSchedBuffer compact_buffer;
+  std::unique_ptr<CompactSchedBuffer> compact_buffer(new CompactSchedBuffer());
+
   const uint8_t* parse_pos = page.get();
   base::Optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
@@ -526,7 +527,7 @@ TEST(CpuReaderTest, ReallyLongEvent) {
   EXPECT_TRUE(parse_pos + page_header->size < page_end);
 
   CpuReader::ParsePagePayload(parse_pos, &page_header.value(), table,
-                              &ds_config, &compact_buffer,
+                              &ds_config, compact_buffer.get(),
                               bundle_provider.writer(), &metadata);
 
   auto bundle = bundle_provider.ParseProto();
@@ -563,7 +564,7 @@ TEST(CpuReaderTest, ParseSinglePrintMalformed) {
       table->EventToFtraceId(GroupAndName("ftrace", "print")));
 
   FtraceMetadata metadata{};
-  CompactSchedBuffer compact_buffer;
+  std::unique_ptr<CompactSchedBuffer> compact_buffer(new CompactSchedBuffer());
   const uint8_t* parse_pos = page.get();
   base::Optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
@@ -575,7 +576,7 @@ TEST(CpuReaderTest, ParseSinglePrintMalformed) {
   EXPECT_TRUE(parse_pos + page_header->size < page_end);
 
   size_t evt_bytes = CpuReader::ParsePagePayload(
-      parse_pos, &page_header.value(), table, &ds_config, &compact_buffer,
+      parse_pos, &page_header.value(), table, &ds_config, compact_buffer.get(),
       bundle_provider.writer(), &metadata);
 
   ASSERT_EQ(0u, evt_bytes);
@@ -601,7 +602,7 @@ TEST(CpuReaderTest, FilterByEvent) {
   FtraceDataSourceConfig ds_config = EmptyConfig();
 
   FtraceMetadata metadata{};
-  CompactSchedBuffer compact_buffer;
+  std::unique_ptr<CompactSchedBuffer> compact_buffer(new CompactSchedBuffer());
   const uint8_t* parse_pos = page.get();
   base::Optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
@@ -610,7 +611,7 @@ TEST(CpuReaderTest, FilterByEvent) {
   EXPECT_FALSE(page_header->lost_events);
 
   size_t evt_bytes = CpuReader::ParsePagePayload(
-      parse_pos, &page_header.value(), table, &ds_config, &compact_buffer,
+      parse_pos, &page_header.value(), table, &ds_config, compact_buffer.get(),
       bundle_provider.writer(), &metadata);
 
   EXPECT_LT(0u, evt_bytes);
@@ -666,7 +667,7 @@ TEST(CpuReaderTest, ParseThreePrint) {
       table->EventToFtraceId(GroupAndName("ftrace", "print")));
 
   FtraceMetadata metadata{};
-  CompactSchedBuffer compact_buffer;
+  std::unique_ptr<CompactSchedBuffer> compact_buffer(new CompactSchedBuffer());
   const uint8_t* parse_pos = page.get();
   base::Optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
@@ -678,7 +679,7 @@ TEST(CpuReaderTest, ParseThreePrint) {
   EXPECT_TRUE(parse_pos + page_header->size < page_end);
 
   size_t evt_bytes = CpuReader::ParsePagePayload(
-      parse_pos, &page_header.value(), table, &ds_config, &compact_buffer,
+      parse_pos, &page_header.value(), table, &ds_config, compact_buffer.get(),
       bundle_provider.writer(), &metadata);
 
   EXPECT_LT(0u, evt_bytes);
@@ -775,7 +776,7 @@ TEST(CpuReaderTest, ParseSixSchedSwitch) {
       table->EventToFtraceId(GroupAndName("sched", "sched_switch")));
 
   FtraceMetadata metadata{};
-  CompactSchedBuffer compact_buffer;
+  std::unique_ptr<CompactSchedBuffer> compact_buffer(new CompactSchedBuffer());
   const uint8_t* parse_pos = page.get();
   base::Optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
@@ -787,7 +788,7 @@ TEST(CpuReaderTest, ParseSixSchedSwitch) {
   EXPECT_TRUE(parse_pos + page_header->size < page_end);
 
   size_t evt_bytes = CpuReader::ParsePagePayload(
-      parse_pos, &page_header.value(), table, &ds_config, &compact_buffer,
+      parse_pos, &page_header.value(), table, &ds_config, compact_buffer.get(),
       bundle_provider.writer(), &metadata);
 
   EXPECT_LT(0u, evt_bytes);
@@ -825,7 +826,7 @@ TEST(CpuReaderTest, ParseSixSchedSwitchCompactFormat) {
       table->EventToFtraceId(GroupAndName("sched", "sched_switch")));
 
   FtraceMetadata metadata{};
-  CompactSchedBuffer compact_buffer;
+  std::unique_ptr<CompactSchedBuffer> compact_buffer(new CompactSchedBuffer());
   const uint8_t* parse_pos = page.get();
   base::Optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
@@ -837,7 +838,7 @@ TEST(CpuReaderTest, ParseSixSchedSwitchCompactFormat) {
   EXPECT_TRUE(parse_pos + page_header->size < page_end);
 
   size_t evt_bytes = CpuReader::ParsePagePayload(
-      parse_pos, &page_header.value(), table, &ds_config, &compact_buffer,
+      parse_pos, &page_header.value(), table, &ds_config, compact_buffer.get(),
       bundle_provider.writer(), &metadata);
 
   EXPECT_LT(0u, evt_bytes);
@@ -850,11 +851,11 @@ TEST(CpuReaderTest, ParseSixSchedSwitchCompactFormat) {
   bundle_provider.ResetWriter();
 
   // Instead, sched switch fields were buffered:
-  EXPECT_LT(0u, compact_buffer.sched_switch().size());
-  EXPECT_LT(0u, compact_buffer.interner().interned_comms_size());
+  EXPECT_LT(0u, compact_buffer->sched_switch().size());
+  EXPECT_LT(0u, compact_buffer->interner().interned_comms_size());
 
   // Write the buffer out & check the serialized format:
-  compact_buffer.WriteAndReset(bundle_provider.writer());
+  compact_buffer->WriteAndReset(bundle_provider.writer());
   bundle_provider.writer()->Finalize();
   bundle = bundle_provider.ParseProto();
   ASSERT_TRUE(bundle);
@@ -1167,9 +1168,10 @@ TEST(CpuReaderTest, NewPacketOnLostEvents) {
 
   // Prepare a buffer with 8 contiguous pages, with the above contents.
   static constexpr size_t kTestPages = 8;
-  uint8_t buf[base::kPageSize * kTestPages] = {};
+
+  std::unique_ptr<uint8_t[]> buf(new uint8_t[base::kPageSize * kTestPages]());
   for (size_t i = 0; i < kTestPages; i++) {
-    void* dest = buf + (i * base::kPageSize);
+    void* dest = buf.get() + (i * base::kPageSize);
     memcpy(dest, static_cast<const void*>(test_page_order[i]), base::kPageSize);
   }
 
@@ -1182,8 +1184,8 @@ TEST(CpuReaderTest, NewPacketOnLostEvents) {
 
   TraceWriterForTesting trace_writer;
   CpuReader::ProcessPagesForDataSource(
-      &trace_writer, &metadata, /*cpu=*/1, &ds_config, buf, kTestPages, table,
-      /*symbolizer=*/nullptr, protos::pbzero::FTRACE_CLOCK_UNSPECIFIED);
+      &trace_writer, &metadata, /*cpu=*/1, &ds_config, buf.get(), kTestPages,
+      table, /*symbolizer=*/nullptr, protos::pbzero::FTRACE_CLOCK_UNSPECIFIED);
 
   // Each packet should contain the parsed contents of a contiguous run of pages
   // without data loss.
@@ -1395,7 +1397,7 @@ TEST(CpuReaderTest, ParseAbsoluteTimestamp) {
       table->EventToFtraceId(GroupAndName("sched", "sched_switch")));
 
   FtraceMetadata metadata{};
-  CompactSchedBuffer compact_buffer;
+  std::unique_ptr<CompactSchedBuffer> compact_buffer(new CompactSchedBuffer());
   const uint8_t* parse_pos = page.get();
   base::Optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
@@ -1407,7 +1409,7 @@ TEST(CpuReaderTest, ParseAbsoluteTimestamp) {
   EXPECT_TRUE(parse_pos + page_header->size < page_end);
 
   size_t evt_bytes = CpuReader::ParsePagePayload(
-      parse_pos, &page_header.value(), table, &ds_config, &compact_buffer,
+      parse_pos, &page_header.value(), table, &ds_config, compact_buffer.get(),
       bundle_provider.writer(), &metadata);
 
   ASSERT_LT(0u, evt_bytes);
@@ -1884,7 +1886,7 @@ TEST(CpuReaderTest, ParseFullPageSchedSwitch) {
       table->EventToFtraceId(GroupAndName("sched", "sched_switch")));
 
   FtraceMetadata metadata{};
-  CompactSchedBuffer compact_buffer;
+  std::unique_ptr<CompactSchedBuffer> compact_buffer(new CompactSchedBuffer());
   const uint8_t* parse_pos = page.get();
   base::Optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
@@ -1896,7 +1898,7 @@ TEST(CpuReaderTest, ParseFullPageSchedSwitch) {
   EXPECT_TRUE(parse_pos + page_header->size < page_end);
 
   size_t evt_bytes = CpuReader::ParsePagePayload(
-      parse_pos, &page_header.value(), table, &ds_config, &compact_buffer,
+      parse_pos, &page_header.value(), table, &ds_config, compact_buffer.get(),
       bundle_provider.writer(), &metadata);
 
   EXPECT_LT(0u, evt_bytes);
@@ -1973,14 +1975,14 @@ TEST(CpuReaderTest, ParseSuspendResume) {
       table->EventToFtraceId(GroupAndName("power", "suspend_resume")));
 
   FtraceMetadata metadata{};
-  CompactSchedBuffer compact_buffer;
+  std::unique_ptr<CompactSchedBuffer> compact_buffer(new CompactSchedBuffer());
   const uint8_t* parse_pos = page.get();
   base::Optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
   ASSERT_TRUE(page_header.has_value());
 
   CpuReader::ParsePagePayload(
-      parse_pos, &page_header.value(), table, &ds_config, &compact_buffer,
+      parse_pos, &page_header.value(), table, &ds_config, compact_buffer.get(),
       bundle_provider.writer(), &metadata);
   auto bundle = bundle_provider.ParseProto();
   ASSERT_TRUE(bundle);
@@ -2417,7 +2419,7 @@ TEST(CpuReaderTest, ParseExt4WithOverwrite) {
       table->EventToFtraceId(GroupAndName("sched", "sched_switch")));
 
   FtraceMetadata metadata{};
-  CompactSchedBuffer compact_buffer;
+  std::unique_ptr<CompactSchedBuffer> compact_buffer(new CompactSchedBuffer());
   const uint8_t* parse_pos = page.get();
   base::Optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
@@ -2429,7 +2431,7 @@ TEST(CpuReaderTest, ParseExt4WithOverwrite) {
   EXPECT_TRUE(parse_pos + page_header->size < page_end);
 
   size_t evt_bytes = CpuReader::ParsePagePayload(
-      parse_pos, &page_header.value(), table, &ds_config, &compact_buffer,
+      parse_pos, &page_header.value(), table, &ds_config, compact_buffer.get(),
       bundle_provider.writer(), &metadata);
 
   EXPECT_LT(0u, evt_bytes);

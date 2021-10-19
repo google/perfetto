@@ -28,18 +28,18 @@ namespace {
 using ::testing::UnorderedElementsAre;
 
 TEST(HeapGraphTrackerTest, PackageFromLocationApp) {
-  TraceStorage storage;
+  std::unique_ptr<TraceStorage> storage(new TraceStorage());
   EXPECT_EQ(
-      PackageFromLocation(&storage,
+      PackageFromLocation(storage.get(),
                           "/data/app/~~ASDFGH1234QWerT==/"
                           "com.twitter.android-MNBVCX7890SDTst6==/test.apk"),
       "com.twitter.android");
   EXPECT_EQ(PackageFromLocation(
-                &storage,
+                storage.get(),
                 "/data/app/com.google.android.webview-6XfQhnaSkFwGK0sYL9is0G==/"
                 "base.apk"),
             "com.google.android.webview");
-  EXPECT_EQ(PackageFromLocation(&storage,
+  EXPECT_EQ(PackageFromLocation(storage.get(),
                                 "/data/app/"
                                 "com.google.android.apps.wellbeing-"
                                 "qfQCaB4uJ7P0OPpZQqOu0Q==/oat/arm64/base.odex"),

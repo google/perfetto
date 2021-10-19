@@ -318,10 +318,10 @@ TEST_F(UnixSocketTest, BlockingSend) {
     tx_task_runner.RunUntilCheckpoint("cli_connected");
 
     auto all_sent = tx_task_runner.CreateCheckpoint("all_sent");
-    char buf[1024 * 32] = {};
+    std::string buf(1024 * 32, '\0');
     tx_task_runner.PostTask([&cli, &buf, all_sent] {
-      for (size_t i = 0; i < kTotalBytes / sizeof(buf); i++)
-        cli->Send(buf, sizeof(buf));
+      for (size_t i = 0; i < kTotalBytes / buf.size(); i++)
+        cli->Send(buf.data(), buf.size());
       all_sent();
     });
     tx_task_runner.RunUntilCheckpoint("all_sent", kTimeoutMs);
@@ -834,11 +834,11 @@ TEST_F(UnixSocketTest, PartialSendMsgAll) {
 
   // Send something larger than send + recv kernel buffers combined to make
   // sendmsg block.
-  char send_buf[8192];
+  std::string send_buf(8192, '\0');
   // Make MSAN happy.
-  for (size_t i = 0; i < sizeof(send_buf); ++i)
+  for (size_t i = 0; i < send_buf.size(); ++i)
     send_buf[i] = static_cast<char>(i % 256);
-  char recv_buf[sizeof(send_buf)];
+  std::string recv_buf(send_buf.size(), '\0');
 
   // Need to install signal handler to cause the interrupt to happen.
   // man 3 pthread_kill:
@@ -855,15 +855,15 @@ TEST_F(UnixSocketTest, PartialSendMsgAll) {
 
   auto blocked_thread = pthread_self();
   std::thread th([blocked_thread, &recv_sock, &recv_buf] {
-    ssize_t rd = PERFETTO_EINTR(read(recv_sock.fd(), recv_buf, 1));
+    ssize_t rd = PERFETTO_EINTR(read(recv_sock.fd(), &recv_buf[0], 1));
     ASSERT_EQ(rd, 1);
     // We are now sure the other thread is in sendmsg, interrupt send.
     ASSERT_EQ(pthread_kill(blocked_thread, SIGWINCH), 0);
     // Drain the socket to allow SendMsgAllPosix to succeed.
     size_t offset = 1;
-    while (offset < sizeof(recv_buf)) {
+    while (offset < recv_buf.size()) {
       rd = PERFETTO_EINTR(
-          read(recv_sock.fd(), recv_buf + offset, sizeof(recv_buf) - offset));
+          read(recv_sock.fd(), &recv_buf[offset], recv_buf.size() - offset));
       ASSERT_GE(rd, 0);
       offset += static_cast<size_t>(rd);
     }
@@ -873,23 +873,23 @@ TEST_F(UnixSocketTest, PartialSendMsgAll) {
   // more complicated code-paths of SendMsgAllPosix.
   struct msghdr hdr = {};
   struct iovec iov[4];
-  static_assert(sizeof(send_buf) % base::ArraySize(iov) == 0,
-                "Cannot split buffer into even pieces.");
-  constexpr size_t kChunkSize = sizeof(send_buf) / base::ArraySize(iov);
+  ASSERT_EQ(send_buf.size() % base::ArraySize(iov), 0u)
+      << "Cannot split buffer into even pieces.";
+  const size_t kChunkSize = send_buf.size() / base::ArraySize(iov);
   for (size_t i = 0; i < base::ArraySize(iov); ++i) {
-    iov[i].iov_base = send_buf + i * kChunkSize;
+    iov[i].iov_base = &send_buf[i * kChunkSize];
     iov[i].iov_len = kChunkSize;
   }
   hdr.msg_iov = iov;
   hdr.msg_iovlen = base::ArraySize(iov);
 
   ASSERT_EQ(send_sock.SendMsgAllPosix(&hdr),
-            static_cast<ssize_t>(sizeof(send_buf)));
+            static_cast<ssize_t>(send_buf.size()));
   send_sock.Shutdown();
   th.join();
   // Make sure the re-entry logic was actually triggered.
   ASSERT_EQ(hdr.msg_iov, nullptr);
-  ASSERT_EQ(memcmp(send_buf, recv_buf, sizeof(send_buf)), 0);
+  ASSERT_EQ(memcmp(&send_buf[0], &recv_buf[0], send_buf.size()), 0);
 }
 #endif  // !OS_WIN
 
