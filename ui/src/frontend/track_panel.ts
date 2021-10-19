@@ -279,26 +279,44 @@ interface TrackPanelAttrs {
 }
 
 export class TrackPanel extends Panel<TrackPanelAttrs> {
-  private track: Track;
-  private trackState: TrackState;
+  // TODO(hjd): It would be nicer if these could not be undefined here.
+  // We should implement a NullTrack which can be used if the trackState
+  // has disappeared.
+  private track: Track|undefined;
+  private trackState: TrackState|undefined;
+
   constructor(vnode: m.CVnode<TrackPanelAttrs>) {
     super();
     const trackId = vnode.attrs.id;
-    this.trackState = globals.state.tracks[trackId];
-    const trackCreator = trackRegistry.get(this.trackState.kind);
-    this.track = trackCreator.create({trackId});
+    const trackState = globals.state.tracks[trackId];
+    if (trackState === undefined) {
+      return;
+    }
+    const engine = globals.engines.get(trackState.engineId);
+    if (engine === undefined) {
+      return;
+    }
+    const trackCreator = trackRegistry.get(trackState.kind);
+    this.track = trackCreator.create({trackId, engine});
+    this.trackState = trackState;
   }
 
   view() {
+    if (this.track === undefined || this.trackState === undefined) {
+      return m('div', 'No such track');
+    }
     return m(TrackComponent, {trackState: this.trackState, track: this.track});
   }
 
   highlightIfTrackSelected(ctx: CanvasRenderingContext2D, size: PanelSize) {
     const localState = globals.frontendLocalState;
     const selection = globals.state.currentSelection;
-    if (!selection || selection.kind !== 'AREA') return;
+    const trackState = this.trackState;
+    if (!selection || selection.kind !== 'AREA' || trackState === undefined) {
+      return;
+    }
     const selectedArea = globals.state.areas[selection.areaId];
-    if (selectedArea.tracks.includes(this.trackState.id)) {
+    if (selectedArea.tracks.includes(trackState.id)) {
       const timeScale = localState.timeScale;
       ctx.fillStyle = 'rgba(131, 152, 230, 0.3)';
       ctx.fillRect(
@@ -320,7 +338,9 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
         size.height);
 
     ctx.translate(TRACK_SHELL_WIDTH, 0);
-    this.track.render(ctx);
+    if (this.track !== undefined) {
+      this.track.render(ctx);
+    }
     ctx.restore();
 
     this.highlightIfTrackSelected(ctx, size);
@@ -392,6 +412,9 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
 
   getSliceRect(tStart: number, tDur: number, depth: number): SliceRect
       |undefined {
+    if (this.track === undefined) {
+      return undefined;
+    }
     return this.track.getSliceRect(tStart, tDur, depth);
   }
 }
