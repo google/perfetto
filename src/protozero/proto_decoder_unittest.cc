@@ -72,9 +72,10 @@ TEST(ProtoDecoderTest, SkipVeryLargeFields) {
   wptr = WriteVarInt(MakeTagLengthDelimited(2), wptr);
   wptr = WriteVarInt(kPayloadSize, wptr);
   message->AppendRawProtoBytes(raw, static_cast<size_t>(wptr - raw));
-  const uint8_t padding[1024 * 128]{};
-  for (size_t i = 0; i < kPayloadSize / sizeof(padding); i++)
-    message->AppendRawProtoBytes(padding, sizeof(padding));
+  const size_t kPaddingSize = 1024 * 128;
+  std::unique_ptr<uint8_t[]> padding(new uint8_t[kPaddingSize]());
+  for (size_t i = 0; i < kPayloadSize / kPaddingSize; i++)
+    message->AppendRawProtoBytes(padding.get(), kPaddingSize);
 
   // Append another valid field.
   message->AppendVarInt(/*field_id=*/3, 13);
