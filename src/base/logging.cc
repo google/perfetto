@@ -198,6 +198,9 @@ void LogMessage(LogLev level,
 
 #if PERFETTO_ENABLE_LOG_RING_BUFFER()
 void MaybeSerializeLastLogsForCrashReporting() {
+  // Keep this function minimal. This is called from the watchdog thread, often
+  // when the system is thrashing.
+
   // This is racy because two threads could hit a CHECK/FATAL at the same time.
   // But if that happens we have bigger problems, not worth designing around it.
   // The behaviour is still defined in the race case (the string attached to
