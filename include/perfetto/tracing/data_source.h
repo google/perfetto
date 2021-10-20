@@ -387,6 +387,7 @@ class DataSource : public DataSourceBase {
         instance_state = static_state_.TryGetCached(instances, i);
         if (!instance_state || !instance_state->trace_lambda_enabled)
           continue;
+        tls_inst.muxer_id_for_testing = instance_state->muxer_id_for_testing;
         tls_inst.backend_id = instance_state->backend_id;
         tls_inst.backend_connection_id = instance_state->backend_connection_id;
         tls_inst.buffer_id = instance_state->buffer_id;
