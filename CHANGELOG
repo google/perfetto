@@ -1,8 +1,12 @@
 Unreleased:
   Tracing service and probes:
-    *
+    * Removed advertisement of the built-in data sources "android.heapprofd",
+      "android.java_hprof", "linux.perf" on Linux and other platforms. Built-in
+      data sources are only used to lazy-start daemons on Android OS.
   Trace Processor:
-    *
+    * Changed protobuf decoders to use less stack and fall back on heap sooner
+      (before: 16KB of stack per decoder, after: 1.6KB). It caused problems with
+      some embedders which use smaller per-thread stacks.
   UI:
     *
   SDK:
