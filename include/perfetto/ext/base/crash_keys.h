@@ -99,7 +99,10 @@ class CrashKey {
 
   enum class Type : uint8_t { kUnset = 0, kInt, kStr };
 
-  void Clear() { type_ = Type::kUnset; }
+  void Clear() {
+    int_value_ = 0;
+    type_ = Type::kUnset;
+  }
 
   void Set(int64_t value) {
     int_value_ = value;
