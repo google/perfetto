@@ -409,6 +409,7 @@ class TracingMuxerImpl : public TracingMuxer {
 
   std::atomic<TracingSessionGlobalID> next_tracing_session_id_{};
   std::atomic<uint32_t> next_data_source_index_{};
+  uint32_t muxer_id_for_testing_{};
 
   // Maximum number of times we will try to reconnect producer backend.
   // Should only be modified for testing purposes.
