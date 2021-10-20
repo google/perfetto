@@ -921,6 +921,7 @@ void TracingMuxerImpl::SetupDataSource(TracingBackendId backend_id,
           std::is_same<decltype(internal_state->data_source_instance_id),
                        DataSourceInstanceID>::value,
           "data_source_instance_id type mismatch");
+      internal_state->muxer_id_for_testing = muxer_id_for_testing_;
       internal_state->backend_id = backend_id;
       internal_state->backend_connection_id = backend_connection_id;
       internal_state->data_source_instance_id = instance_id;
@@ -1168,7 +1169,9 @@ void TracingMuxerImpl::DestroyStoppedTraceWritersForCurrentThread() {
         continue;
 
       DataSourceState* ds_state = static_state->TryGet(inst);
-      if (ds_state && ds_state->backend_id == ds_tls.backend_id &&
+      if (ds_state &&
+          ds_state->muxer_id_for_testing == ds_tls.muxer_id_for_testing &&
+          ds_state->backend_id == ds_tls.backend_id &&
           ds_state->backend_connection_id == ds_tls.backend_connection_id &&
           ds_state->buffer_id == ds_tls.buffer_id &&
           ds_state->data_source_instance_id == ds_tls.data_source_instance_id) {
@@ -1731,6 +1734,10 @@ void TracingMuxerImpl::ResetForTesting() {
     // references. Note that even if all the backends get swept, the muxer still
     // needs to stay around since |task_runner_| is assumed to be long-lived.
     muxer->SweepDeadBackends();
+
+    // Make sure we eventually discard any per-thread trace writers from the
+    // previous instance.
+    muxer->muxer_id_for_testing_++;
 
     g_prev_instance = muxer;
     instance_ = TracingMuxerFake::Get();
