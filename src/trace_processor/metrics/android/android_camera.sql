@@ -85,12 +85,14 @@ SELECT
     IFNULL(dma_val, 0) AS int) AS rss_and_dma_val
 FROM rss_and_dma_all_camera_join;
 
+-- we are dividing and casting to real when calculating avg_value
+-- to avoid issues such as the one in b/203613535
 DROP VIEW IF EXISTS rss_and_dma_all_camera_stats;
 CREATE VIEW rss_and_dma_all_camera_stats AS
 SELECT
   MIN(rss_and_dma_val) AS min_value,
   MAX(rss_and_dma_val) AS max_value,
-  SUM(rss_and_dma_val * dur) / SUM(dur) AS avg_value
+  SUM(rss_and_dma_val * dur / 1e3) / SUM(dur / 1e3) AS avg_value
 FROM rss_and_dma_all_camera_span;
 
 DROP VIEW IF EXISTS android_camera_event;
