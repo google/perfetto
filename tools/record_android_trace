@@ -19,6 +19,7 @@ import datetime
 import hashlib
 import http.server
 import os
+import re
 import shutil
 import socketserver
 import subprocess
@@ -245,7 +246,18 @@ def main():
   with open(args.config or os.devnull, 'rb') as f:
     print('Running ' + ' '.join(cmd))
     proc = adb('shell', *cmd, stdin=f, stdout=subprocess.PIPE)
-    bg_pid = proc.communicate()[0].decode().strip()
+    proc_out = proc.communicate()[0].decode().strip()
+    # On older versions of Android (x86_64 emulator running API 22) the output
+    # looks like:
+    #   WARNING: linker: /data/local/tmp/tracebox: unused DT entry: ...
+    #   WARNING: ... (other 2 WARNING: linker: lines)
+    #   1234  <-- The actual pid we want.
+    match = re.search(r'^(\d+)$', proc_out, re.M)
+    if match is None:
+      prt('Failed to read the pid from perfetto --background', ANSI.RED)
+      prt(proc_out)
+      sys.exit(1)
+    bg_pid = match.group(1)
     exit_code = proc.wait()
 
   if exit_code != 0:
@@ -260,11 +272,16 @@ def main():
   adb_failure_count = 0
   while ctrl_c_count < 2:
     try:
-      poll = adb('shell', 'test -d /proc/%s || exit 42' % bg_pid)
-      poll_res = poll.wait()
-      if poll_res == 42:
+      # On older Android devices adbd doesn't propagate the exit code. Hence
+      # the RUN/TERM parts.
+      poll = adb(
+          'shell',
+          'test -d /proc/%s && echo RUN || echo TERM' % bg_pid,
+          stdout=subprocess.PIPE)
+      poll_res = poll.communicate()[0].decode().strip()
+      if poll_res == 'TERM':
         break  # Process terminated
-      if poll_res == 0:
+      if poll_res == 'RUN':
         # The 'perfetto' cmdline client is still running. If previously we had
         # an ADB error, tell the user now it's all right again.
         if adb_failure_count > 0:
