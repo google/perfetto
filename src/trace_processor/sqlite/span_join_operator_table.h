@@ -39,7 +39,7 @@ namespace trace_processor {
 // Implements the SPAN JOIN operation between two tables on a particular column.
 //
 // Span:
-// A span is a row with a timestamp and a duration. It can is used to model
+// A span is a row with a timestamp and a duration. It is used to model
 // operations which run for a particular *span* of time.
 //
 // We draw spans like so (time on the x-axis):
