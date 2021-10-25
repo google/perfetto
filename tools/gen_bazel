@@ -40,7 +40,6 @@ gn_args = ' '.join([
     'host_os="linux"',
     'is_debug=false',
     'is_perfetto_build_generator=true',
-    'enable_perfetto_watchdog=true',
     'monolithic_binaries=true',
     'target_os="linux"',
     'enable_perfetto_heapprofd=false',
