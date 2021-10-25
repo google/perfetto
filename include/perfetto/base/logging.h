@@ -67,9 +67,15 @@
 // on Android in-tree builds and on standalone builds (mainly for testing).
 // This is deliberately no PERFETTO_OS_ANDROID because we don't want this
 // feature when perfetto is embedded in other Android projects (e.g. SDK).
-#if !defined(PERFETTO_ANDROID_ASYNC_SAFE_LOG) &&   \
-    (PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD) || \
-     PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD))
+// TODO(b/203795298): TFLite is using the client library in blaze builds and is
+// targeting API 19. For now disable the feature based on API level.
+#if defined(PERFETTO_ANDROID_ASYNC_SAFE_LOG)
+#define PERFETTO_ENABLE_LOG_RING_BUFFER() 0
+#elif PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
+#define PERFETTO_ENABLE_LOG_RING_BUFFER() 1
+#elif PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD) && \
+    (!PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) ||       \
+     (defined(__ANDROID_API__) && __ANDROID_API__ >= 21))
 #define PERFETTO_ENABLE_LOG_RING_BUFFER() 1
 #else
 #define PERFETTO_ENABLE_LOG_RING_BUFFER() 0
