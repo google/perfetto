@@ -88,7 +88,7 @@ int PERFETTO_EXPORT_ENTRYPOINT ProbesMain(int argc, char** argv) {
   }
 
   if (background) {
-    base::Daemonize();
+    base::Daemonize([] { return 0; });
   }
 
   base::Watchdog* watchdog = base::Watchdog::GetInstance();
