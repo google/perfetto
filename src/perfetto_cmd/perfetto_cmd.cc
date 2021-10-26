@@ -489,7 +489,7 @@ base::Optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
   }
 
   if (bugreport_ &&
-      (is_attach() | is_detach() || query_service_ || has_config_options)) {
+      (is_attach() || is_detach() || query_service_ || has_config_options)) {
     PERFETTO_ELOG("--save-for-bugreport cannot take any other argument");
     return 1;
   }
