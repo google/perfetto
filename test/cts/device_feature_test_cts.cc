@@ -21,9 +21,9 @@
 namespace perfetto {
 
 TEST(PerfettoDeviceFeatureTest, TestMaxCpusForAtraceChmod) {
-  // Check that there are no more than 16 CPUs so that the assumption in the
+  // Check that there are no more than 24 CPUs so that the assumption in the
   // atrace.rc for clearing CPU buffers is valid.
-  ASSERT_LE(sysconf(_SC_NPROCESSORS_CONF), 16);
+  ASSERT_LE(sysconf(_SC_NPROCESSORS_CONF), 24);
 }
 
 }  // namespace perfetto
