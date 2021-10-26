@@ -34,6 +34,18 @@ def default_cc_args():
         }),
     }
 
+def perfetto_build_config_cc_library(**kwargs):
+    if not _rule_override("cc_library", **kwargs):
+        native.cc_library(**kwargs)
+
+def perfetto_filegroup(**kwargs):
+    if not _rule_override("filegroup", **kwargs):
+        native.filegroup(**kwargs)
+
+def perfetto_genrule(**kwargs):
+    if not _rule_override("genrule", **kwargs):
+        native.genrule(**kwargs)
+
 def perfetto_cc_library(**kwargs):
     args = _merge_dicts(default_cc_args(), kwargs)
     if not _rule_override("cc_library", **args):
@@ -104,17 +116,19 @@ def perfetto_cc_protozero_library(name, deps, **kwargs):
     if len(_proto_deps) != 1:
         fail("Too many proto deps for target %s" % name)
 
-    proto_gen(
-        name = name + "_src",
-        deps = _proto_deps,
-        suffix = "pbzero",
-        plugin = PERFETTO_CONFIG.root + ":protozero_plugin",
-        wrapper_namespace = "pbzero",
-        protoc = PERFETTO_CONFIG.deps.protoc[0],
-        root = PERFETTO_CONFIG.root,
-    )
+    args = {
+        'name': name + "_src",
+        'deps': _proto_deps,
+        'suffix': "pbzero",
+        'plugin': PERFETTO_CONFIG.root + ":protozero_plugin",
+        'wrapper_namespace': "pbzero",
+        'protoc': PERFETTO_CONFIG.deps.protoc[0],
+        'root': PERFETTO_CONFIG.root,
+    }
+    if not _rule_override("proto_gen", **args):
+        proto_gen(**args)
 
-    native.filegroup(
+    perfetto_filegroup(
         name = name + "_h",
         srcs = [":" + name + "_src"],
         output_group = "h",
@@ -225,11 +239,13 @@ def perfetto_cc_protocpp_library(name, deps, **kwargs):
     )
 
 def perfetto_proto_descriptor(name, deps, outs, **kwargs):
-    proto_descriptor_gen(
-        name = name,
-        deps = deps,
-        outs = outs,
-    )
+    args = {
+        'name': name,
+        'deps': deps,
+        'outs': outs,
+    }
+    if not _rule_override("proto_descriptor_gen", **args):
+        proto_descriptor_gen(**args)
 
 # Generator .descriptor.h from protos
 def perfetto_cc_proto_descriptor(name, deps, outs, **kwargs):
@@ -239,7 +255,7 @@ def perfetto_cc_proto_descriptor(name, deps, outs, **kwargs):
         "--gen_dir=$(GENDIR)",
         "$<"
     ]
-    native.genrule(
+    perfetto_genrule(
         name = name + "_gen",
         cmd = " ".join(cmd),
         exec_tools = [
