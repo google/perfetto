@@ -29,15 +29,18 @@ import {
   isAndroidTarget,
   isChromeTarget,
   isCrOSTarget,
+  LoadedConfig,
   MAX_TIME,
+  RecordConfig,
   RecordingTarget,
   RecordMode
 } from '../common/state';
 import {AdbOverWebUsb} from '../controller/adb';
+import {createEmptyRecordConfig} from '../controller/validate_config';
 
 import {globals} from './globals';
 import {createPage, PageAttrs} from './pages';
-import {recordConfigStore} from './record_config';
+import {autosaveConfigStore, recordConfigStore} from './record_config';
 import {
   CodeSnippet,
   Dropdown,
@@ -899,21 +902,39 @@ function Instructions(cssClass: string) {
       recordingLog());
 }
 
+function loadedConfigEqual(cfg1: LoadedConfig, cfg2: LoadedConfig): boolean {
+  return cfg1.type === 'NAMED' && cfg2.type === 'NAMED' ?
+      cfg1.name === cfg2.name :
+      cfg1.type === cfg2.type;
+}
+
+function loadConfigButton(
+    config: RecordConfig, configType: LoadedConfig): m.Vnode {
+  return m(
+      'button',
+      {
+        class: 'config-button load',
+        disabled: loadedConfigEqual(configType, globals.state.lastLoadedConfig),
+        onclick: () => {
+          globals.dispatch(Actions.setRecordConfig({config, configType}));
+          globals.rafScheduler.scheduleFullRedraw();
+        }
+      },
+      'load');
+}
+
 function displayRecordConfigs() {
-  return recordConfigStore.recordConfigs.map((item) => {
-    return m('.config', [
+  const configs = [];
+  if (autosaveConfigStore.hasSavedConfig) {
+    configs.push(m('.config', [
+      m('span.title-config', m('strong', 'Latest started recording')),
+      loadConfigButton(autosaveConfigStore.get(), {type: 'AUTOMATIC'}),
+    ]));
+  }
+  for (const item of recordConfigStore.recordConfigs) {
+    configs.push(m('.config', [
       m('span.title-config', item.title),
-      m('button',
-        {
-          class: 'config-button load',
-          disabled: globals.state.lastLoadedConfigTitle === item.title,
-          onclick: () => {
-            globals.dispatch(Actions.setNamedRecordConfig(
-                {title: item.title, config: item.config}));
-            globals.rafScheduler.scheduleFullRedraw();
-          }
-        },
-        'load'),
+      loadConfigButton(item.config, {type: 'NAMED', name: item.title}),
       m('button',
         {
           class: 'config-button delete',
@@ -923,15 +944,9 @@ function displayRecordConfigs() {
           }
         },
         'delete'),
-    ]);
-  });
-}
-
-function getSavedConfigList() {
-  if (recordConfigStore.recordConfigs.length === 0) {
-    return [];
+    ]));
   }
-  return displayRecordConfigs();
+  return configs;
 }
 
 export const ConfigTitleState = {
@@ -976,7 +991,23 @@ function Configurations(cssClass: string) {
             },
             'Save current config')
         ]),
-      getSavedConfigList());
+      m('.reset-wrapper',
+        m('button',
+          {
+            class: 'config-button reset',
+            onclick: () => {
+              if (confirm(
+                      'Current configuration will be cleared. Are you sure?')) {
+                globals.dispatch(Actions.setRecordConfig({
+                  config: createEmptyRecordConfig(),
+                  configType: {type: 'NONE'}
+                }));
+                globals.rafScheduler.scheduleFullRedraw();
+              }
+            }
+          },
+          'Clear current config')),
+      displayRecordConfigs());
 }
 
 function BufferUsageProgressBar() {
@@ -1177,6 +1208,7 @@ function StopCancelButtons() {
 function onStartRecordingPressed() {
   location.href = '#!/record/instructions';
   globals.rafScheduler.scheduleFullRedraw();
+  autosaveConfigStore.save(globals.state.recordConfig);
 
   const target = globals.state.recordingTarget;
   if (isAndroidTarget(target) || isChromeTarget(target)) {
