@@ -335,6 +335,15 @@
         background-color: hsl(197, 50%, 67%);
       }
     }
+
+    &.reset {
+      width: 300px;
+      background-color: hsl(0, 50%, 67%);
+    }
+  }
+
+  .reset-wrapper {
+    padding: 1em;
   }
 
   .input-config {
