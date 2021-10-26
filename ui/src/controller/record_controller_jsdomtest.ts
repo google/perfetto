@@ -14,9 +14,9 @@
 
 import {assertExists} from '../base/logging';
 import {TraceConfig} from '../common/protos';
-import {createEmptyRecordConfig} from '../common/state';
 
 import {genConfigProto, toPbtxt} from './record_controller';
+import {createEmptyRecordConfig} from './validate_config';
 
 test('encodeConfig', () => {
   const config = createEmptyRecordConfig();
