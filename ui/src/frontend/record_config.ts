@@ -13,9 +13,14 @@
 // limitations under the License.
 
 import {RecordConfig} from '../common/state';
-import {JsonObject, validateRecordConfig} from '../controller/validate_config';
+import {
+  createEmptyRecordConfig,
+  JsonObject,
+  validateRecordConfig
+} from '../controller/validate_config';
 
 const LOCAL_STORAGE_RECORD_CONFIGS_KEY = 'recordConfigs';
+const LOCAL_STORAGE_AUTOSAVE_CONFIG_KEY = 'autosaveConfig';
 
 class NamedRecordConfig {
   title: string;
@@ -140,3 +145,40 @@ export class RecordConfigStore {
 // This class is a singleton to avoid many instances
 // conflicting as they attempt to edit localStorage.
 export const recordConfigStore = new RecordConfigStore();
+
+export class AutosaveConfigStore {
+  config: RecordConfig;
+
+  // Whether the current config is a default one or has been saved before.
+  // Used to determine whether the button to load "last started config" should
+  // be present in the recording profiles list.
+  hasSavedConfig: boolean;
+
+  constructor() {
+    this.hasSavedConfig = false;
+    this.config = createEmptyRecordConfig();
+    const savedItem =
+        window.localStorage.getItem(LOCAL_STORAGE_AUTOSAVE_CONFIG_KEY);
+    if (savedItem === null) {
+      return;
+    }
+    const parsed = JSON.parse(savedItem);
+    if (parsed !== null && typeof parsed === 'object') {
+      this.config = validateRecordConfig(parsed as JsonObject);
+      this.hasSavedConfig = true;
+    }
+  }
+
+  get(): RecordConfig {
+    return this.config;
+  }
+
+  save(newConfig: RecordConfig) {
+    window.localStorage.setItem(
+        LOCAL_STORAGE_AUTOSAVE_CONFIG_KEY, JSON.stringify(newConfig));
+    this.config = newConfig;
+    this.hasSavedConfig = true;
+  }
+}
+
+export const autosaveConfigStore = new AutosaveConfigStore();

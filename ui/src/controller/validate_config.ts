@@ -185,3 +185,7 @@ export function validateRecordConfig(config: JsonObject): RecordConfig {
     symbolizeKsyms: v.boolean('symbolizeKsyms'),
   };
 }
+
+export function createEmptyRecordConfig(): RecordConfig {
+  return validateRecordConfig({});
+}

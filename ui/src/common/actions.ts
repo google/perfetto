@@ -46,6 +46,7 @@ import {
   createEmptyState,
   EngineMode,
   FlamegraphStateViewingOption,
+  LoadedConfig,
   LogsPagination,
   NewEngineMode,
   OmniboxState,
@@ -458,15 +459,11 @@ export const StateActions = {
     }
   },
 
-  setNamedRecordConfig(
-      state: StateDraft, args: {title: string, config: RecordConfig}) {
+  setRecordConfig(
+      state: StateDraft,
+      args: {config: RecordConfig, configType?: LoadedConfig}): void {
     state.recordConfig = args.config;
-    state.lastLoadedConfigTitle = args.title;
-  },
-
-  setRecordConfig(state: StateDraft, args: {config: RecordConfig;}): void {
-    state.recordConfig = args.config;
-    state.lastLoadedConfigTitle = null;
+    state.lastLoadedConfig = args.configType || {type: 'NONE'};
   },
 
   selectNote(state: StateDraft, args: {id: string}): void {
