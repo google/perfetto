@@ -2,7 +2,7 @@ build_config_dir_ = "include/perfetto/base/build_configs/bazel"
 
 # Deliberately NOT a perfetto_cc_library, to avoid cyclic deps.
 # This is pulled as a default dep by all targets.
-cc_library(
+perfetto_build_config_cc_library(
     name = "build_config_hdr",
     hdrs = [build_config_dir_ + "/perfetto_build_flags.h"],
     includes = [build_config_dir_],
