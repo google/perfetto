@@ -43,6 +43,7 @@ import {createPage, PageAttrs} from './pages';
 import {autosaveConfigStore, recordConfigStore} from './record_config';
 import {
   CodeSnippet,
+  CompactProbe,
   Dropdown,
   DropdownAttrs,
   Probe,
@@ -653,67 +654,46 @@ function AndroidSettings(cssClass: string) {
 function ChromeSettings(cssClass: string) {
   return m(
       `.record-section${cssClass}`,
-      m(Probe, {
+      CompactProbe({
         title: 'Task scheduling',
-        img: null,
-        descr: `Records events about task scheduling and execution on all
-                  threads`,
         setEnabled: (cfg, val) => cfg.taskScheduling = val,
-        isEnabled: (cfg) => cfg.taskScheduling
-      } as ProbeAttrs),
-      m(Probe, {
+        isEnabled: (cfg) => cfg.taskScheduling,
+      }),
+      CompactProbe({
         title: 'IPC flows',
-        img: null,
-        descr: `Records flow events for passing of IPC messages between
-                processes.`,
         setEnabled: (cfg, val) => cfg.ipcFlows = val,
         isEnabled: (cfg) => cfg.ipcFlows
-      } as ProbeAttrs),
-      m(Probe, {
+      }),
+      CompactProbe({
         title: 'Javascript execution',
-        img: null,
-        descr: `Records events about Javascript execution in the renderer
-                    processes.`,
         setEnabled: (cfg, val) => cfg.jsExecution = val,
         isEnabled: (cfg) => cfg.jsExecution
-      } as ProbeAttrs),
-      m(Probe, {
-        title: 'Web content rendering',
-        img: null,
-        descr: `Records events about rendering, layout, and compositing of
-        web content in Blink.`,
+      }),
+      CompactProbe({
+        title: 'Web content rendering, layout and compositing',
         setEnabled: (cfg, val) => cfg.webContentRendering = val,
         isEnabled: (cfg) => cfg.webContentRendering
-      } as ProbeAttrs),
-      m(Probe, {
-        title: 'UI rendering & compositing',
-        img: null,
-        descr: `Records events about rendering of browser UI surfaces and
-        compositing of surfaces.`,
+      }),
+      CompactProbe({
+        title: 'UI rendering & surface compositing',
         setEnabled: (cfg, val) => cfg.uiRendering = val,
         isEnabled: (cfg) => cfg.uiRendering
-      } as ProbeAttrs),
-      m(Probe, {
+      }),
+      CompactProbe({
         title: 'Input events',
-        img: null,
-        descr: `Records input events and their flow between processes.`,
         setEnabled: (cfg, val) => cfg.inputEvents = val,
         isEnabled: (cfg) => cfg.inputEvents
-      } as ProbeAttrs),
-      m(Probe, {
+      }),
+      CompactProbe({
         title: 'Navigation & Loading',
-        img: null,
-        descr: `Records network events for navigations and resources.`,
         setEnabled: (cfg, val) => cfg.navigationAndLoading = val,
         isEnabled: (cfg) => cfg.navigationAndLoading
-      } as ProbeAttrs),
-      m(Probe, {
+      }),
+      CompactProbe({
         title: 'Chrome Logs',
-        img: null,
-        descr: `Records Chrome log messages`,
         setEnabled: (cfg, val) => cfg.chromeLogs = val,
         isEnabled: (cfg) => cfg.chromeLogs
-      } as ProbeAttrs),
+      }),
       ChromeCategoriesSelection());
 }
 
