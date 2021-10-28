@@ -34,6 +34,7 @@ lib_perfetto = static_library(
     'perfetto',
     sources: 'sdk/perfetto.cc',
     dependencies: dep_threads,
+    install: true,
 )
 
 inc_perfetto = include_directories('sdk')
