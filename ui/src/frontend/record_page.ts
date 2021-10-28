@@ -29,6 +29,7 @@ import {
   isAndroidTarget,
   isChromeTarget,
   isCrOSTarget,
+  isLinuxTarget,
   LoadedConfig,
   MAX_TIME,
   RecordConfig,
@@ -1329,7 +1330,59 @@ function recordMenu(routePage: string) {
           m('i.material-icons', 'laptop_chromebook'),
           m('.title', 'Chrome'),
           m('.sub', 'Chrome traces')));
+  const cpuProbe =
+      m('a[href="#!/record/cpu"]',
+        m(`li${routePage === 'cpu' ? '.active' : ''}`,
+          m('i.material-icons', 'subtitles'),
+          m('.title', 'CPU'),
+          m('.sub', 'CPU usage, scheduling, wakeups')));
+  const gpuProbe =
+      m('a[href="#!/record/gpu"]',
+        m(`li${routePage === 'gpu' ? '.active' : ''}`,
+          m('i.material-icons', 'aspect_ratio'),
+          m('.title', 'GPU'),
+          m('.sub', 'GPU frequency, memory')));
+  const powerProbe =
+      m('a[href="#!/record/power"]',
+        m(`li${routePage === 'power' ? '.active' : ''}`,
+          m('i.material-icons', 'battery_charging_full'),
+          m('.title', 'Power'),
+          m('.sub', 'Battery and other energy counters')));
+  const memoryProbe =
+      m('a[href="#!/record/memory"]',
+        m(`li${routePage === 'memory' ? '.active' : ''}`,
+          m('i.material-icons', 'memory'),
+          m('.title', 'Memory'),
+          m('.sub', 'Physical mem, VM, LMK')));
+  const androidProbe =
+      m('a[href="#!/record/android"]',
+        m(`li${routePage === 'android' ? '.active' : ''}`,
+          m('i.material-icons', 'android'),
+          m('.title', 'Android apps & svcs'),
+          m('.sub', 'atrace and logcat')));
+  const advancedProbe =
+      m('a[href="#!/record/advanced"]',
+        m(`li${routePage === 'advanced' ? '.active' : ''}`,
+          m('i.material-icons', 'settings'),
+          m('.title', 'Advanced settings'),
+          m('.sub', 'Complicated stuff for wizards')));
   const recInProgress = globals.state.recordingInProgress;
+
+  const probes = [];
+  if (isCrOSTarget(target) || isLinuxTarget(target)) {
+    probes.push(cpuProbe, powerProbe, memoryProbe, chromeProbe, advancedProbe);
+  } else if (isChromeTarget(target)) {
+    probes.push(chromeProbe);
+  } else {
+    probes.push(
+        cpuProbe,
+        gpuProbe,
+        powerProbe,
+        memoryProbe,
+        androidProbe,
+        chromeProbe,
+        advancedProbe);
+  }
 
   return m(
       '.record-menu',
@@ -1362,40 +1415,7 @@ function recordMenu(routePage: string) {
                 m('.sub', 'Manage local configs'))) :
             null),
       m('header', 'Probes'),
-      m('ul',
-        isChromeTarget(target) && !isCrOSTarget(target) ? [chromeProbe] : [
-          m('a[href="#!/record/cpu"]',
-            m(`li${routePage === 'cpu' ? '.active' : ''}`,
-              m('i.material-icons', 'subtitles'),
-              m('.title', 'CPU'),
-              m('.sub', 'CPU usage, scheduling, wakeups'))),
-          m('a[href="#!/record/gpu"]',
-            m(`li${routePage === 'gpu' ? '.active' : ''}`,
-              m('i.material-icons', 'aspect_ratio'),
-              m('.title', 'GPU'),
-              m('.sub', 'GPU frequency, memory'))),
-          m('a[href="#!/record/power"]',
-            m(`li${routePage === 'power' ? '.active' : ''}`,
-              m('i.material-icons', 'battery_charging_full'),
-              m('.title', 'Power'),
-              m('.sub', 'Battery and other energy counters'))),
-          m('a[href="#!/record/memory"]',
-            m(`li${routePage === 'memory' ? '.active' : ''}`,
-              m('i.material-icons', 'memory'),
-              m('.title', 'Memory'),
-              m('.sub', 'Physical mem, VM, LMK'))),
-          m('a[href="#!/record/android"]',
-            m(`li${routePage === 'android' ? '.active' : ''}`,
-              m('i.material-icons', 'android'),
-              m('.title', 'Android apps & svcs'),
-              m('.sub', 'atrace and logcat'))),
-          chromeProbe,
-          m('a[href="#!/record/advanced"]',
-            m(`li${routePage === 'advanced' ? '.active' : ''}`,
-              m('i.material-icons', 'settings'),
-              m('.title', 'Advanced settings'),
-              m('.sub', 'Complicated stuff for wizards')))
-        ]));
+      m('ul', probes));
 }
 
 
