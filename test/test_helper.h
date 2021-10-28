@@ -48,7 +48,7 @@ namespace perfetto {
 // This value has been bumped to 10s in Oct 2020 because the x86 cuttlefish
 // emulator is sensibly slower (up to 10x) than real hw and caused flakes.
 // See bugs duped against b/171771440.
-constexpr uint32_t kDefaultTestTimeoutMs = 10000;
+constexpr uint32_t kDefaultTestTimeoutMs = 30000;
 
 // This is used only in daemon starting integrations tests.
 class ServiceThread {
