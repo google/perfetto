@@ -160,17 +160,19 @@ def perfetto_cc_ipc_library(name, deps, **kwargs):
         fail("Too many proto deps for target %s" % name)
 
     # Generates .ipc.{cc,h}.
-    proto_gen(
-        name = name + "_src",
-        deps = _proto_deps,
-        suffix = "ipc",
-        plugin = PERFETTO_CONFIG.root + ":ipc_plugin",
-        wrapper_namespace = "gen",
-        protoc = PERFETTO_CONFIG.deps.protoc[0],
-        root = PERFETTO_CONFIG.root,
-    )
+    args = {
+        'name': name + "_src",
+        'deps': _proto_deps,
+        'suffix': "ipc",
+        'plugin': PERFETTO_CONFIG.root + ":ipc_plugin",
+        'wrapper_namespace': "gen",
+        'protoc': PERFETTO_CONFIG.deps.protoc[0],
+        'root': PERFETTO_CONFIG.root,
+    }
+    if not _rule_override("proto_gen", **args):
+        proto_gen(**args)
 
-    native.filegroup(
+    perfetto_filegroup(
         name = name + "_h",
         srcs = [":" + name + "_src"],
         output_group = "h",
@@ -209,17 +211,19 @@ def perfetto_cc_protocpp_library(name, deps, **kwargs):
     if len(_proto_deps) != 1:
         fail("Too many proto deps for target %s" % name)
 
-    proto_gen(
-        name = name + "_gen",
-        deps = _proto_deps,
-        suffix = "gen",
-        plugin = PERFETTO_CONFIG.root + ":cppgen_plugin",
-        wrapper_namespace = "gen",
-        protoc = PERFETTO_CONFIG.deps.protoc[0],
-        root = PERFETTO_CONFIG.root,
-    )
+    args = {
+        'name': name + "_gen",
+        'deps': _proto_deps,
+        'suffix': "gen",
+        'plugin': PERFETTO_CONFIG.root + ":cppgen_plugin",
+        'wrapper_namespace': "gen",
+        'protoc': PERFETTO_CONFIG.deps.protoc[0],
+        'root': PERFETTO_CONFIG.root,
+    }
+    if not _rule_override("proto_gen", **args):
+        proto_gen(**args)
 
-    native.filegroup(
+    perfetto_filegroup(
         name = name + "_gen_h",
         srcs = [":" + name + "_gen"],
         output_group = "h",
