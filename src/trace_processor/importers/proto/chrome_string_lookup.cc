@@ -106,6 +106,7 @@ constexpr ProcessName kProcessNames[] = {
      "Service: recording.mojom.RecordingService"},
     {ChromeProcessDescriptor::PROCESS_SERVICE_SHAPEDETECTION,
      "Service: shape_detection.mojom.ShapeDetectionService"},
+    {ChromeProcessDescriptor::PROCESS_RENDERER_EXTENSION, "Extension Renderer"},
 };
 
 struct ThreadName {
