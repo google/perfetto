@@ -449,6 +449,10 @@ export function isCrOSTarget(target: RecordingTarget) {
   return target.os === 'CrOS';
 }
 
+export function isLinuxTarget(target: RecordingTarget) {
+  return target.os === 'L';
+}
+
 export function isAdbTarget(target: RecordingTarget):
     target is AdbRecordingTarget {
   return !!(target as AdbRecordingTarget).serial;
