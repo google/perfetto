@@ -65,7 +65,7 @@ TEST(UnwindingTest, FDMapsParse) {
   FDMaps maps(std::move(proc_maps));
   ASSERT_TRUE(maps.Parse());
   unwindstack::MapInfo* map_info =
-      maps.Find(reinterpret_cast<uint64_t>(&proc_maps));
+      maps.Find(reinterpret_cast<uint64_t>(&proc_maps)).get();
   ASSERT_NE(map_info, nullptr);
   ASSERT_EQ(map_info->name(), "[stack]");
 }
