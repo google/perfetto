@@ -548,6 +548,12 @@ export interface RecordConfig {
   symbolizeKsyms: boolean;
 }
 
+export interface NamedRecordConfig {
+  title: string;
+  config: RecordConfig;
+  key: string;
+}
+
 export function getDefaultRecordingTargets(): RecordingTarget[] {
   return [
     {os: 'Q', name: 'Android Q+'},
