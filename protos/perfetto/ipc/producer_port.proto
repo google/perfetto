@@ -29,7 +29,10 @@ service ProducerPort {
   rpc InitializeConnection(InitializeConnectionRequest)
       returns (InitializeConnectionResponse) {}
 
-  // Advertises a data source.
+  // Advertises or updates a data source. In Android T or later, updates when
+  // there is already a registered data source with matching
+  // |RegisterDataSourceRequest.data_source_descriptor.name| and
+  // |RegisterDataSourceRequest.data_source_descriptor.id| from this producer.
   rpc RegisterDataSource(RegisterDataSourceRequest)
       returns (RegisterDataSourceResponse) {}
 

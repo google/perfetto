@@ -64,6 +64,10 @@ class PERFETTO_EXPORT TracingMuxer {
                                   DataSourceFactory,
                                   DataSourceStaticState*) = 0;
 
+  // Updates the DataSourceDescriptor for the DataSource.
+  virtual void UpdateDataSourceDescriptor(const DataSourceDescriptor&,
+                                          const DataSourceStaticState*) = 0;
+
   // It identifies the right backend and forwards the call to it.
   // The returned TraceWriter must be used within the same sequence (for most
   // projects this means "same thread"). Alternatively the client needs to take

@@ -103,6 +103,8 @@ class TracingMuxerImpl : public TracingMuxer {
   bool RegisterDataSource(const DataSourceDescriptor&,
                           DataSourceFactory,
                           DataSourceStaticState*) override;
+  void UpdateDataSourceDescriptor(const DataSourceDescriptor&,
+                                  const DataSourceStaticState*) override;
   std::unique_ptr<TraceWriterBase> CreateTraceWriter(
       DataSourceStaticState*,
       uint32_t data_source_instance_index,
@@ -380,6 +382,8 @@ class TracingMuxerImpl : public TracingMuxer {
     std::vector<std::unique_ptr<ConsumerImpl>> consumers;
   };
 
+  void UpdateDataSourceOnAllBackends(RegisteredDataSource& rds,
+                                     bool is_changed);
   explicit TracingMuxerImpl(const TracingInitArgs&);
   void Initialize(const TracingInitArgs& args);
   ConsumerImpl* FindConsumer(TracingSessionGlobalID session_id);
