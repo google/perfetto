@@ -13,19 +13,63 @@
 // limitations under the License.
 
 import {RecordConfig} from '../common/state';
-import {validateRecordConfig} from './validate_config';
+
+import {
+  createEmptyRecordConfig,
+  runParser,
+  validateNamedRecordConfig,
+  validateRecordConfig,
+  ValidationResult
+} from './validate_config';
 
 test('validateRecordConfig does not keep invalid keys', () => {
   const key = 'Invalid key';
-  const config: RecordConfig =
-      validateRecordConfig({[key]: 'Some random value'});
+  const config: ValidationResult<RecordConfig> =
+      runParser(validateRecordConfig, {[key]: 'Some random value'});
 
-  expect((config as object).hasOwnProperty(key)).toEqual(false);
+  expect((config.result as object).hasOwnProperty(key)).toEqual(false);
+
+  // Information about an extra key is available in validation result.
+  expect(config.extraKeys.includes(key)).toEqual(true);
 });
 
 test('validateRecordConfig keeps provided values', () => {
   const value = 31337;
-  const config: RecordConfig = validateRecordConfig({'durationMs': value});
+  const config: ValidationResult<RecordConfig> =
+      runParser(validateRecordConfig, {'durationMs': value});
 
-  expect(config.durationMs).toEqual(value);
+  expect(config.result.durationMs).toEqual(value);
+
+  // Check that the valid keys do not show as extra keys in validation result.
+  expect(config.extraKeys.includes('durationMs')).toEqual(false);
 });
+
+test(
+    'validateRecordConfig tracks invalid keys while using default values',
+    () => {
+      const config: ValidationResult<RecordConfig> = runParser(
+          validateRecordConfig,
+          {'durationMs': 'a string, this should not be a string'});
+      const defaultConfig = createEmptyRecordConfig();
+
+      expect(config.result.durationMs).toEqual(defaultConfig.durationMs);
+      expect(config.invalidKeys.includes('durationMs')).toEqual(true);
+    });
+
+test(
+    'validateNamedRecordConfig throws exception on required field missing',
+    () => {
+      const unparsedConfig = {
+        title: 'Invalid config'
+        // Key is missing
+      };
+
+      let thrown = false;
+      try {
+        runParser(validateNamedRecordConfig, unparsedConfig);
+      } catch {
+        thrown = true;
+      }
+
+      expect(thrown).toBeTruthy();
+    });
