@@ -918,6 +918,22 @@ function displayRecordConfigs() {
       loadConfigButton(item.config, {type: 'NAMED', name: item.title}),
       m('button',
         {
+          class: 'config-button save',
+          onclick: () => {
+            if (confirm(`Overwrite config "${
+                    item.title}" with current settings?`)) {
+              recordConfigStore.overwrite(globals.state.recordConfig, item.key);
+              globals.dispatch(Actions.setRecordConfig({
+                config: item.config,
+                configType: {type: 'NAMED', name: item.title}
+              }));
+              globals.rafScheduler.scheduleFullRedraw();
+            }
+          }
+        },
+        'save'),
+      m('button',
+        {
           class: 'config-button delete',
           onclick: () => {
             recordConfigStore.delete(item.key);
@@ -960,7 +976,7 @@ function Configurations(cssClass: string) {
           }),
           m('button',
             {
-              class: 'config-button save',
+              class: 'config-button save long',
               disabled: !canSave,
               title: canSave ? '' : 'Duplicate name, saving disabled',
               onclick: () => {
