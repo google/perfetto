@@ -66,6 +66,22 @@ export class RecordConfigStore {
         LOCAL_STORAGE_RECORD_CONFIGS_KEY, JSON.stringify(this.recordConfigs));
   }
 
+  overwrite(recordConfig: RecordConfig, key: string) {
+    // We reload from local storage in case of concurrent
+    // modifications of local storage from a different tab.
+    this.reloadFromLocalStorage();
+
+    const found = this.recordConfigs.find((e) => e.key === key);
+    if (found === undefined) {
+      throw new Error('trying to overwrite non-existing config');
+    }
+
+    found.config = recordConfig;
+
+    window.localStorage.setItem(
+        LOCAL_STORAGE_RECORD_CONFIGS_KEY, JSON.stringify(this.recordConfigs));
+  }
+
   delete(key: string): void {
     // We reload from local storage in case of concurrent
     // modifications of local storage from a different tab.
