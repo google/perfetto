@@ -30,7 +30,7 @@ import {Router} from '../frontend/router';
 
 import {Controller} from './controller';
 import {globals} from './globals';
-import {JsonObject, validateRecordConfig} from './validate_config';
+import {JsonObject, runParser, validateRecordConfig} from './validate_config';
 
 export class PermalinkController extends Controller<'main'> {
   private lastRequestId?: string;
@@ -76,8 +76,10 @@ export class PermalinkController extends Controller<'main'> {
           if (PermalinkController.isRecordConfig(stateOrConfig)) {
             // This permalink state only contains a RecordConfig. Show the
             // recording page with the config, but keep other state as-is.
-            const validConfig =
-                validateRecordConfig(stateOrConfig as unknown as JsonObject);
+            const validConfig = runParser(
+                                    validateRecordConfig,
+                                    stateOrConfig as unknown as JsonObject)
+                                    .result;
             globals.dispatch(Actions.setRecordConfig({config: validConfig}));
             Router.navigate('#!/record');
             return;
