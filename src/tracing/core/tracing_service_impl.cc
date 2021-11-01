@@ -34,13 +34,11 @@
 #include <unistd.h>
 #endif
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-#include <sys/system_properties.h>
-#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) && \
+    PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
 #include "src/android_internal/lazy_library_loader.h"    // nogncheck
 #include "src/android_internal/tracing_service_proxy.h"  // nogncheck
-#endif  // PERFETTO_ANDROID_BUILD
-#endif  // PERFETTO_OS_ANDROID
+#endif
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
@@ -54,6 +52,7 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/status.h"
 #include "perfetto/base/task_runner.h"
+#include "perfetto/ext/base/android_utils.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/metatrace.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -3118,9 +3117,9 @@ void TracingServiceImpl::MaybeEmitSystemInfo(
   }
 #endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-  char value[PROP_VALUE_MAX];
-  if (__system_property_get("ro.build.fingerprint", value)) {
-    info->set_android_build_fingerprint(value);
+  std::string fingerprint_value = base::GetAndroidProp("ro.build.fingerprint");
+  if (!fingerprint_value.empty()) {
+    info->set_android_build_fingerprint(fingerprint_value);
   } else {
     PERFETTO_ELOG("Unable to read ro.build.fingerprint");
   }
