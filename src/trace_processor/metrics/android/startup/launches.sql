@@ -14,35 +14,12 @@
 -- limitations under the License.
 --
 
--- The start of the launching event corresponds to the end of the AM handling
--- the startActivity intent, whereas the end corresponds to the first frame drawn.
--- Only successful app launches have a launching event.
-DROP TABLE IF EXISTS launching_events;
-CREATE TABLE launching_events AS
-SELECT
-  ts,
-  dur,
-  ts + dur AS ts_end,
-  STR_SPLIT(s.name, ": ", 1) AS package_name
-FROM slice s
-JOIN process_track t ON s.track_id = t.id
-JOIN process USING(upid)
-WHERE s.name LIKE 'launching: %'
-AND (process.name IS NULL OR process.name = 'system_server');
-
 -- Marks the beginning of the trace and is equivalent to when the statsd launch
 -- logging begins.
 DROP VIEW IF EXISTS activity_intent_received;
 CREATE VIEW activity_intent_received AS
 SELECT ts FROM slice
 WHERE name = 'MetricsLogger:launchObserverNotifyIntentStarted';
-
--- Successful activity launch. The end of the 'launching' event is not related
--- to whether it actually succeeded or not.
-DROP VIEW IF EXISTS activity_intent_launch_successful;
-CREATE VIEW activity_intent_launch_successful AS
-SELECT ts FROM slice
-WHERE name = 'MetricsLogger:launchObserverNotifyActivityLaunchFinished';
 
 -- We partition the trace into spans based on posted activity intents.
 -- We will refine these progressively in the next steps to only encompass
@@ -59,6 +36,22 @@ SELECT
 FROM activity_intent_received
 ORDER BY ts;
 
+-- The start of the launching event corresponds to the end of the AM handling
+-- the startActivity intent, whereas the end corresponds to the first frame drawn.
+-- Only successful app launches have a launching event.
+DROP TABLE IF EXISTS launching_events;
+CREATE TABLE launching_events AS
+SELECT
+  ts,
+  dur,
+  ts + dur AS ts_end,
+  STR_SPLIT(s.name, ": ", 1) AS package_name
+FROM slice s
+JOIN process_track t ON s.track_id = t.id
+JOIN process USING(upid)
+WHERE s.name LIKE 'launching: %'
+AND (process.name IS NULL OR process.name = 'system_server');
+
 -- Filter activity_intent_recv_spans, keeping only the ones that triggered
 -- a launch.
 DROP VIEW IF EXISTS launch_partitions;
@@ -68,6 +61,13 @@ WHERE 1 = (
   SELECT COUNT(1)
   FROM launching_events
   WHERE launching_events.ts BETWEEN spans.ts AND spans.ts + spans.dur);
+
+-- Successful activity launch. The end of the 'launching' event is not related
+-- to whether it actually succeeded or not.
+DROP VIEW IF EXISTS activity_intent_launch_successful;
+CREATE VIEW activity_intent_launch_successful AS
+SELECT ts FROM slice
+WHERE name = 'MetricsLogger:launchObserverNotifyActivityLaunchFinished';
 
 -- All activity launches in the trace, keyed by ID.
 DROP TABLE IF EXISTS launches;
