@@ -43,6 +43,7 @@
 #include "src/tracing/test/api_test_support.h"
 #include "src/tracing/test/tracing_module.h"
 
+#include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/trace_config.h"
 
@@ -55,6 +56,7 @@
 #include "protos/perfetto/common/trace_stats.gen.h"
 #include "protos/perfetto/common/tracing_service_state.gen.h"
 #include "protos/perfetto/common/track_event_descriptor.gen.h"
+#include "protos/perfetto/common/track_event_descriptor.pbzero.h"
 #include "protos/perfetto/config/interceptor_config.gen.h"
 #include "protos/perfetto/config/track_event/track_event_config.gen.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
@@ -247,7 +249,7 @@ class MockDataSource2 : public perfetto::DataSource<MockDataSource2> {
 class MockTracingMuxer : public perfetto::internal::TracingMuxer {
  public:
   struct DataSource {
-    const perfetto::DataSourceDescriptor dsd;
+    perfetto::DataSourceDescriptor dsd;
     perfetto::internal::DataSourceStaticState* static_state;
   };
 
@@ -262,6 +264,17 @@ class MockTracingMuxer : public perfetto::internal::TracingMuxer {
       perfetto::internal::DataSourceStaticState* static_state) override {
     data_sources.emplace_back(DataSource{dsd, static_state});
     return true;
+  }
+
+  void UpdateDataSourceDescriptor(
+      const perfetto::DataSourceDescriptor& dsd,
+      const perfetto::internal::DataSourceStaticState* static_state) override {
+    for (auto& rds : data_sources) {
+      if (rds.static_state == static_state) {
+        rds.dsd = dsd;
+        return;
+      }
+    }
   }
 
   std::unique_ptr<perfetto::TraceWriterBase> CreateTraceWriter(
@@ -452,11 +465,26 @@ class PerfettoApiTest : public ::testing::TestWithParam<perfetto::BackendType> {
 
   template <typename DataSourceType>
   TestDataSourceHandle* RegisterDataSource(std::string name) {
-    EXPECT_EQ(data_sources_.count(name), 0u);
-    TestDataSourceHandle* handle = &data_sources_[name];
     perfetto::DataSourceDescriptor dsd;
     dsd.set_name(name);
+    return RegisterDataSource<DataSourceType>(dsd);
+  }
+
+  template <typename DataSourceType>
+  TestDataSourceHandle* RegisterDataSource(
+      const perfetto::DataSourceDescriptor& dsd) {
+    EXPECT_EQ(data_sources_.count(dsd.name()), 0u);
+    TestDataSourceHandle* handle = &data_sources_[dsd.name()];
     DataSourceType::Register(dsd);
+    return handle;
+  }
+
+  template <typename DataSourceType>
+  TestDataSourceHandle* UpdateDataSource(
+      const perfetto::DataSourceDescriptor& dsd) {
+    EXPECT_EQ(data_sources_.count(dsd.name()), 1u);
+    TestDataSourceHandle* handle = &data_sources_[dsd.name()];
+    DataSourceType::UpdateDescriptor(dsd);
     return handle;
   }
 
@@ -3710,6 +3738,51 @@ TEST_P(PerfettoApiTest, QueryServiceState) {
   bool found_ds = false;
   for (const auto& ds : state.data_sources())
     found_ds |= ds.ds_descriptor().name() == "query_test_data_source";
+  EXPECT_TRUE(found_ds);
+}
+
+TEST_P(PerfettoApiTest, UpdateDataSource) {
+  class UpdateTestDataSource
+      : public perfetto::DataSource<UpdateTestDataSource> {};
+
+  perfetto::DataSourceDescriptor dsd;
+  dsd.set_name("update_test_data_source");
+
+  RegisterDataSource<UpdateTestDataSource>(dsd);
+
+  {
+    protozero::HeapBuffered<perfetto::protos::pbzero::TrackEventDescriptor> ted;
+    auto cat = ted->add_available_categories();
+    cat->set_name("new_cat");
+    dsd.set_track_event_descriptor_raw(ted.SerializeAsString());
+  }
+
+  UpdateDataSource<UpdateTestDataSource>(dsd);
+
+  perfetto::test::SyncProducers();
+
+  auto tracing_session =
+      perfetto::Tracing::NewTrace(/*BackendType=*/GetParam());
+  // Blocking read.
+  auto result = tracing_session->QueryServiceStateBlocking();
+  perfetto::protos::gen::TracingServiceState state;
+  EXPECT_TRUE(result.success);
+  EXPECT_TRUE(state.ParseFromArray(result.service_state_data.data(),
+                                   result.service_state_data.size()));
+  EXPECT_EQ(1, state.producers_size());
+  EXPECT_NE(std::string::npos,
+            state.producers()[0].name().find("integrationtest"));
+  bool found_ds = false;
+  for (const auto& ds : state.data_sources()) {
+    if (ds.ds_descriptor().name() == "update_test_data_source") {
+      found_ds = true;
+      perfetto::protos::gen::TrackEventDescriptor ted;
+      auto desc_raw = ds.ds_descriptor().track_event_descriptor_raw();
+      EXPECT_TRUE(ted.ParseFromArray(desc_raw.data(), desc_raw.size()));
+      EXPECT_EQ(ted.available_categories_size(), 1);
+      EXPECT_EQ(ted.available_categories()[0].name(), "new_cat");
+    }
+  }
   EXPECT_TRUE(found_ds);
 }
 
