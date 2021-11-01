@@ -36,6 +36,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/thread_utils.h"
 #include "perfetto/base/time.h"
+#include "perfetto/ext/base/crash_keys.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/utils.h"
@@ -46,6 +47,8 @@ namespace base {
 namespace {
 
 constexpr uint32_t kDefaultPollingInterval = 30 * 1000;
+
+base::CrashKey g_crash_key_reason("wdog_reason");
 
 bool IsMultipleOf(uint32_t number, uint32_t divisor) {
   return number >= divisor && number % divisor == 0;
@@ -116,11 +119,12 @@ Watchdog* Watchdog::GetInstance() {
 }
 
 // Can be called from any thread.
-Watchdog::Timer Watchdog::CreateFatalTimer(uint32_t ms) {
+Watchdog::Timer Watchdog::CreateFatalTimer(uint32_t ms,
+                                           WatchdogCrashReason crash_reason) {
   if (!enabled_.load(std::memory_order_relaxed))
-    return Watchdog::Timer(this, 0);
+    return Watchdog::Timer(this, 0, crash_reason);
 
-  return Watchdog::Timer(this, ms);
+  return Watchdog::Timer(this, ms, crash_reason);
 }
 
 // Can be called from any thread.
@@ -248,17 +252,19 @@ void Watchdog::ThreadMain() {
 
     // Check if any of the timers expired.
     int tid_to_kill = 0;
+    WatchdogCrashReason crash_reason{};
     std::unique_lock<std::mutex> guard(mutex_);
     for (const auto& timer : timers_) {
       if (now >= timer.deadline) {
         tid_to_kill = timer.thread_id;
+        crash_reason = timer.crash_reason;
         break;
       }
     }
     guard.unlock();
 
     if (tid_to_kill)
-      SerializeLogsAndKillThread(tid_to_kill);
+      SerializeLogsAndKillThread(tid_to_kill, crash_reason);
 
     // Check CPU and memory guardrails (if enabled).
     lseek(stat_fd.get(), 0, SEEK_SET);
@@ -269,18 +275,26 @@ void Watchdog::ThreadMain() {
     uint64_t rss_bytes =
         static_cast<uint64_t>(stat.rss_pages) * base::GetSysPageSize();
 
-    guard.lock();
     bool threshold_exceeded = false;
-    threshold_exceeded |= CheckMemory_Locked(rss_bytes);
-    threshold_exceeded |= CheckCpu_Locked(cpu_time);
+    guard.lock();
+    if (CheckMemory_Locked(rss_bytes)) {
+      threshold_exceeded = true;
+      crash_reason = WatchdogCrashReason::kMemGuardrail;
+    } else if (CheckCpu_Locked(cpu_time)) {
+      threshold_exceeded = true;
+      crash_reason = WatchdogCrashReason::kCpuGuardrail;
+    }
     guard.unlock();
 
     if (threshold_exceeded)
-      SerializeLogsAndKillThread(getpid());
+      SerializeLogsAndKillThread(getpid(), crash_reason);
   }
 }
 
-void Watchdog::SerializeLogsAndKillThread(int tid) {
+void Watchdog::SerializeLogsAndKillThread(int tid,
+                                          WatchdogCrashReason crash_reason) {
+  g_crash_key_reason.Set(static_cast<int>(crash_reason));
+
   // We are about to die. Serialize the logs into the crash buffer so the
   // debuggerd crash handler picks them up and attaches to the bugreport.
   // In the case of a PERFETTO_CHECK/PERFETTO_FATAL this is done in logging.h.
@@ -385,11 +399,15 @@ void Watchdog::WindowedInterval::Reset(size_t new_size) {
   buffer_.reset(new_size == 0 ? nullptr : new uint64_t[new_size]());
 }
 
-Watchdog::Timer::Timer(Watchdog* watchdog, uint32_t ms) : watchdog_(watchdog) {
+Watchdog::Timer::Timer(Watchdog* watchdog,
+                       uint32_t ms,
+                       WatchdogCrashReason crash_reason)
+    : watchdog_(watchdog) {
   if (!ms)
     return;  // No-op timer created when the watchdog is disabled.
   timer_data_.deadline = GetWallTimeMs() + std::chrono::milliseconds(ms);
   timer_data_.thread_id = GetThreadId();
+  timer_data_.crash_reason = crash_reason;
   PERFETTO_DCHECK(watchdog_);
   watchdog_->AddFatalTimer(timer_data_);
 }
