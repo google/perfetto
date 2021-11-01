@@ -295,6 +295,12 @@
     align-items: center;
   }
 
+  .parsing-errors {
+    padding: 1em;
+    border: 1px solid #dc143c;
+    color: #dc143c;
+  }
+
   .title-config {
     display: inline-block;
     margin: var(--record-section-padding);
