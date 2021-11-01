@@ -2353,6 +2353,22 @@ void TracingServiceImpl::RegisterDataSource(ProducerID producer_id,
                 producer_id, desc.name().c_str());
 
   PERFETTO_DCHECK(!desc.name().empty());
+
+  // If this producer has already registered a matching descriptor name and id,
+  // just update the descriptor.
+  if (desc.id() != 0) {
+    auto range = data_sources_.equal_range(desc.name());
+    for (auto it = range.first; it != range.second; ++it) {
+      if (it->second.producer_id == producer_id &&
+          it->second.descriptor.name() == desc.name() &&
+          it->second.descriptor.id() == desc.id()) {
+        it->second.descriptor = desc;
+        // TODO(jbates): maybe notify consumers of the updated descriptor.
+        return;
+      }
+    }
+  }
+
   auto reg_ds = data_sources_.emplace(desc.name(),
                                       RegisteredDataSource{producer_id, desc});
 
