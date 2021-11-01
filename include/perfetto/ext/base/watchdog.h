@@ -32,6 +32,15 @@
 namespace perfetto {
 namespace base {
 
+// Used only to add more details to crash reporting.
+enum class WatchdogCrashReason {
+  kUnspecified = 0,
+  kCpuGuardrail = 1,
+  kMemGuardrail = 2,
+  kTaskRunnerHung = 3,
+  kTraceDidntStop = 4,
+};
+
 // Make the limits more relaxed on desktop, where multi-GB traces are likely.
 // Multi-GB traces can take bursts of cpu time to write into disk at the end of
 // the trace.
@@ -53,8 +62,8 @@ inline void RunTaskWithWatchdogGuard(const std::function<void()>& task) {
   // program suicides.
   constexpr int64_t kWatchdogMillis = 30000;  // 30s
 
-  Watchdog::Timer handle =
-      base::Watchdog::GetInstance()->CreateFatalTimer(kWatchdogMillis);
+  Watchdog::Timer handle = base::Watchdog::GetInstance()->CreateFatalTimer(
+      kWatchdogMillis, WatchdogCrashReason::kTaskRunnerHung);
   task();
 
   // Suppress unused variable warnings in the client library amalgamated build.
