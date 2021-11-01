@@ -24,6 +24,7 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
+#include "perfetto/base/time.h"
 #include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/thread_checker.h"
 #include "perfetto/ext/base/waitable_event.h"
@@ -822,15 +823,37 @@ bool TracingMuxerImpl::RegisterDataSource(
 
   static_state->index = new_index;
 
+  // Generate a semi-unique id for this data source.
+  base::Hash hash;
+  hash.Update(reinterpret_cast<intptr_t>(static_state));
+  hash.Update(base::GetWallTimeNs().count());
+  static_state->id = hash.digest();
+
   task_runner_->PostTask([this, descriptor, factory, static_state] {
     data_sources_.emplace_back();
     RegisteredDataSource& rds = data_sources_.back();
     rds.descriptor = descriptor;
     rds.factory = factory;
     rds.static_state = static_state;
-    UpdateDataSourcesOnAllBackends();
+
+    UpdateDataSourceOnAllBackends(rds, /*is_changed=*/false);
   });
   return true;
+}
+
+// Can be called from any thread (but not concurrently).
+void TracingMuxerImpl::UpdateDataSourceDescriptor(
+    const DataSourceDescriptor& descriptor,
+    const DataSourceStaticState* static_state) {
+  task_runner_->PostTask([this, descriptor, static_state] {
+    for (auto& rds : data_sources_) {
+      if (rds.static_state == static_state) {
+        rds.descriptor = descriptor;
+        UpdateDataSourceOnAllBackends(rds, /*is_changed=*/true);
+        return;
+      }
+    }
+  });
 }
 
 // Can be called from any thread (but not concurrently).
@@ -1198,22 +1221,30 @@ void TracingMuxerImpl::DestroyStoppedTraceWritersForCurrentThread() {
 void TracingMuxerImpl::UpdateDataSourcesOnAllBackends() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   for (RegisteredDataSource& rds : data_sources_) {
-    for (RegisteredBackend& backend : backends_) {
-      // We cannot call RegisterDataSource on the backend before it connects.
-      if (!backend.producer->connected_)
-        continue;
+    UpdateDataSourceOnAllBackends(rds, /*is_changed=*/false);
+  }
+}
 
-      PERFETTO_DCHECK(rds.static_state->index < kMaxDataSources);
-      if (backend.producer->registered_data_sources_.test(
-              rds.static_state->index))
-        continue;
+void TracingMuxerImpl::UpdateDataSourceOnAllBackends(RegisteredDataSource& rds,
+                                                     bool is_changed) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  for (RegisteredBackend& backend : backends_) {
+    // We cannot call RegisterDataSource on the backend before it connects.
+    if (!backend.producer->connected_)
+      continue;
 
-      rds.descriptor.set_will_notify_on_start(true);
-      rds.descriptor.set_will_notify_on_stop(true);
-      rds.descriptor.set_handles_incremental_state_clear(true);
-      backend.producer->service_->RegisterDataSource(rds.descriptor);
-      backend.producer->registered_data_sources_.set(rds.static_state->index);
-    }
+    PERFETTO_DCHECK(rds.static_state->index < kMaxDataSources);
+    bool is_registered = backend.producer->registered_data_sources_.test(
+        rds.static_state->index);
+    if (is_registered && !is_changed)
+      continue;
+
+    rds.descriptor.set_will_notify_on_start(true);
+    rds.descriptor.set_will_notify_on_stop(true);
+    rds.descriptor.set_handles_incremental_state_clear(true);
+    rds.descriptor.set_id(rds.static_state->id);
+    backend.producer->service_->RegisterDataSource(rds.descriptor);
+    backend.producer->registered_data_sources_.set(rds.static_state->index);
   }
 }
 

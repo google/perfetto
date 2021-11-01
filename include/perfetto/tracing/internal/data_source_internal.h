@@ -118,6 +118,9 @@ struct DataSourceStateStorage {
 
 // Per-DataSource-type global state.
 struct DataSourceStaticState {
+  // System-wide unique id of the data source.
+  uint64_t id = 0;
+
   // Unique index of the data source, assigned at registration time.
   uint32_t index = kMaxDataSources;
 
