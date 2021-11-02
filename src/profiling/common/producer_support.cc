@@ -16,16 +16,13 @@
 
 #include "src/profiling/common/producer_support.h"
 
+#include "perfetto/ext/base/android_utils.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/tracing/core/data_source_config.h"
 
 #include "perfetto/tracing/core/forward_decls.h"
 #include "src/traced/probes/packages_list/packages_list_parser.h"
-
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-#include <sys/system_properties.h>
-#endif
 
 namespace perfetto {
 namespace profiling {
@@ -44,10 +41,8 @@ bool CanProfile(const DataSourceConfig& ds_config,
   base::ignore_result(installed_by);
   return true;
 #else
-  char buf[PROP_VALUE_MAX + 1] = {};
-  int ret = __system_property_get("ro.build.type", buf);
-  PERFETTO_CHECK(ret >= 0);
-  return CanProfileAndroid(ds_config, uid, installed_by, std::string(buf),
+  std::string build_type = base::GetAndroidProp("ro.build.type");
+  return CanProfileAndroid(ds_config, uid, installed_by, build_type,
                            "/data/system/packages.list");
 #endif
 }
@@ -62,7 +57,7 @@ bool CanProfileAndroid(const DataSourceConfig& ds_config,
   constexpr auto kAidAppEnd = 19999;       // AID_APP_END
   constexpr auto kAidUserOffset = 100000;  // AID_USER_OFFSET
 
-  if (build_type != "user") {
+  if (!build_type.empty() && build_type != "user") {
     return true;
   }
 

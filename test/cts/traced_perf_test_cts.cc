@@ -15,12 +15,12 @@
  */
 
 #include <stdlib.h>
-#include <sys/system_properties.h>
 #include <sys/types.h>
 
 #include <string>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/android_utils.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "src/base/test/test_task_runner.h"
 #include "test/android_test_utils.h"
@@ -39,10 +39,7 @@ namespace {
 // LSM hooks in perf_event_open. This comes up when a device with an older
 // kernel upgrades to R.
 bool HasPerfLsmHooks() {
-  char buf[PROP_VALUE_MAX + 1] = {};
-  int ret = __system_property_get("sys.init.perf_lsm_hooks", buf);
-  PERFETTO_CHECK(ret >= 0);
-  return std::string(buf) == "1";
+  return base::GetAndroidProp("sys.init.perf_lsm_hooks") == "1";
 }
 
 std::string RandomSessionName() {
