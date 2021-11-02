@@ -13,7 +13,10 @@
 // limitations under the License.
 
 import {createEmptyRecordConfig} from '../controller/validate_config';
-import {autosaveConfigStore} from '../frontend/record_config';
+import {
+  autosaveConfigStore,
+  recordTargetStore
+} from '../frontend/record_config';
 
 import {featureFlags} from './feature_flags';
 import {
@@ -885,7 +888,7 @@ export function createEmptyState(): State {
     recordingInProgress: false,
     recordingCancelled: false,
     extensionInstalled: false,
-    recordingTarget: getDefaultRecordingTargets()[0],
+    recordingTarget: recordTargetStore.getValidTarget(),
     availableAdbDevices: [],
 
     fetchChromeCategories: false,

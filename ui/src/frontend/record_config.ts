@@ -12,7 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {NamedRecordConfig, RecordConfig} from '../common/state';
+import {
+  getDefaultRecordingTargets,
+  NamedRecordConfig,
+  RecordConfig,
+  RecordingTarget
+} from '../common/state';
 import {
   createEmptyRecordConfig,
   JsonObject,
@@ -24,6 +29,7 @@ import {
 
 const LOCAL_STORAGE_RECORD_CONFIGS_KEY = 'recordConfigs';
 const LOCAL_STORAGE_AUTOSAVE_CONFIG_KEY = 'autosaveConfig';
+const LOCAL_STORAGE_RECORD_TARGET_OS_KEY = 'recordTargetOS';
 
 export class RecordConfigStore {
   recordConfigs: Array<ValidationResult<NamedRecordConfig>>;
@@ -190,3 +196,36 @@ export class AutosaveConfigStore {
 }
 
 export const autosaveConfigStore = new AutosaveConfigStore();
+
+export class RecordTargetStore {
+  recordTargetOS: string|null;
+
+  constructor() {
+    this.recordTargetOS = null;
+    const savedTarget =
+        window.localStorage.getItem(LOCAL_STORAGE_RECORD_TARGET_OS_KEY);
+    if (typeof savedTarget === 'string') {
+      this.recordTargetOS = savedTarget;
+    }
+  }
+
+  get(): string|null {
+    return this.recordTargetOS;
+  }
+
+  getValidTarget(): RecordingTarget {
+    const validTargets = getDefaultRecordingTargets();
+    const savedOS = this.get();
+
+    const validSavedTarget = validTargets.find((el) => el.os === savedOS);
+    return validSavedTarget || validTargets[0];
+  }
+
+  save(newTargetOS: string) {
+    window.localStorage.setItem(
+        LOCAL_STORAGE_RECORD_TARGET_OS_KEY, newTargetOS);
+    this.recordTargetOS = newTargetOS;
+  }
+}
+
+export const recordTargetStore = new RecordTargetStore();
