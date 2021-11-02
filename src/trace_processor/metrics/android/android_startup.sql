@@ -15,9 +15,9 @@
 --
 
 -- Create the base tables and views containing the launch spans.
-SELECT RUN_METRIC('android/android_startup_launches.sql');
+SELECT RUN_METRIC('android/startup/launches.sql');
+SELECT RUN_METRIC('android/startup/hsc.sql');
 SELECT RUN_METRIC('android/process_metadata.sql');
-SELECT RUN_METRIC('android/hsc_startups.sql');
 
 -- Create the base CPU span join table.
 SELECT RUN_METRIC('android/android_cpu_agg.sql');

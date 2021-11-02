@@ -912,10 +912,27 @@ function displayRecordConfigs() {
       loadConfigButton(autosaveConfigStore.get(), {type: 'AUTOMATIC'}),
     ]));
   }
-  for (const item of recordConfigStore.recordConfigs) {
+  for (const validated of recordConfigStore.recordConfigs) {
+    const item = validated.result;
     configs.push(m('.config', [
       m('span.title-config', item.title),
       loadConfigButton(item.config, {type: 'NAMED', name: item.title}),
+      m('button',
+        {
+          class: 'config-button save',
+          onclick: () => {
+            if (confirm(`Overwrite config "${
+                    item.title}" with current settings?`)) {
+              recordConfigStore.overwrite(globals.state.recordConfig, item.key);
+              globals.dispatch(Actions.setRecordConfig({
+                config: item.config,
+                configType: {type: 'NAMED', name: item.title}
+              }));
+              globals.rafScheduler.scheduleFullRedraw();
+            }
+          }
+        },
+        'save'),
       m('button',
         {
           class: 'config-button delete',
@@ -926,6 +943,23 @@ function displayRecordConfigs() {
         },
         'delete'),
     ]));
+
+    const errorItems = [];
+    for (const extraKey of validated.extraKeys) {
+      errorItems.push(m('li', `${extraKey} is unrecognised`));
+    }
+    for (const invalidKey of validated.invalidKeys) {
+      errorItems.push(m('li', `${invalidKey} contained an invalid value`));
+    }
+
+    if (errorItems.length > 0) {
+      configs.push(
+          m('.parsing-errors',
+            'One or more errors have been found while loading configuration "' +
+                item.title + '". Loading is possible, but make sure to check ' +
+                'the settings afterwards.',
+            m('ul', errorItems)));
+    }
   }
   return configs;
 }
@@ -960,7 +994,7 @@ function Configurations(cssClass: string) {
           }),
           m('button',
             {
-              class: 'config-button save',
+              class: 'config-button save long',
               disabled: !canSave,
               title: canSave ? '' : 'Duplicate name, saving disabled',
               onclick: () => {
