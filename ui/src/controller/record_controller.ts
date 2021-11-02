@@ -612,6 +612,7 @@ export class RecordController extends Controller<'main'> implements Consumer {
   private bufferUpdateInterval: ReturnType<typeof setTimeout>|undefined;
   private adb = new AdbOverWebUsb();
   private recordedTraceSuffix = TRACE_SUFFIX;
+  private fetchedCategories = false;
 
   // We have a different controller for each targetOS. The correct one will be
   // created when needed, and stored here. When the key is a string, it is the
@@ -629,11 +630,12 @@ export class RecordController extends Controller<'main'> implements Consumer {
   run() {
     // TODO(eseckler): Use ConsumerPort's QueryServiceState instead
     // of posting a custom extension message to retrieve the category list.
-    if (this.app.state.updateChromeCategories) {
+    if (this.app.state.fetchChromeCategories && !this.fetchedCategories) {
+      this.fetchedCategories = true;
       if (this.app.state.extensionInstalled) {
         this.extensionPort.postMessage({method: 'GetCategories'});
       }
-      globals.dispatch(Actions.setUpdateChromeCategories({update: false}));
+      globals.dispatch(Actions.setFetchChromeCategories({fetch: false}));
     }
     if (this.app.state.recordConfig === this.config &&
         this.app.state.recordingInProgress === this.recordingInProgress) {
