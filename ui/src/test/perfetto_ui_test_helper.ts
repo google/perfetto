@@ -39,6 +39,7 @@ export async function waitForPerfettoIdle(
   const minIdleTicks = Math.ceil(minIdleMs / tickMs);
   const timeoutTicks = Math.ceil(timeoutMs / tickMs);
   let consecutiveIdleTicks = 0;
+  let reasons: string[] = [];
   for (let ticks = 0; ticks < timeoutTicks; ticks++) {
     await new Promise(r => setTimeout(r, tickMs));
     const isShowingMsg = !!(await page.$('.omnibox.message-mode'));
@@ -50,6 +51,16 @@ export async function waitForPerfettoIdle(
 
     if (isShowingAnim || isShowingMsg || hasPendingRedraws) {
       consecutiveIdleTicks = 0;
+      reasons = [];
+      if (isShowingAnim) {
+        reasons.push('showing progress animation');
+      }
+      if (isShowingMsg) {
+        reasons.push('showing omnibox message');
+      }
+      if (hasPendingRedraws) {
+        reasons.push('has pending redraws');
+      }
       continue;
     }
     if (++consecutiveIdleTicks >= minIdleTicks) {
@@ -57,7 +68,9 @@ export async function waitForPerfettoIdle(
     }
   }
   throw new Error(
-      `waitForPerfettoIdle() failed. Did not reach idle after ${timeoutMs} ms`);
+      `waitForPerfettoIdle() failed. Did not reach idle after ${
+          timeoutMs} ms. ` +
+      `Reasons not considered idle: ${reasons.join(', ')}`);
 }
 
 export function getTestTracePath(fname: string): string {
