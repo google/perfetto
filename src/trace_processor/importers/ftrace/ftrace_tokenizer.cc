@@ -40,6 +40,8 @@ using protos::pbzero::FtraceEventBundle;
 
 namespace {
 
+static constexpr uint32_t kFtraceGlobalClockIdForOldKernels = 64;
+
 PERFETTO_ALWAYS_INLINE base::Optional<int64_t> ResolveTraceTime(
     TraceProcessorContext* context,
     ClockTracker::ClockId clock_id,
@@ -53,8 +55,10 @@ PERFETTO_ALWAYS_INLINE base::Optional<int64_t> ResolveTraceTime(
 }  // namespace
 
 PERFETTO_ALWAYS_INLINE
-base::Status FtraceTokenizer::TokenizeFtraceBundle(TraceBlobView bundle,
-                                                   PacketSequenceState* state) {
+base::Status FtraceTokenizer::TokenizeFtraceBundle(
+    TraceBlobView bundle,
+    PacketSequenceState* state,
+    uint32_t packet_sequence_id) {
   protos::pbzero::FtraceEventBundle::Decoder decoder(bundle.data(),
                                                      bundle.length());
 
@@ -71,13 +75,20 @@ base::Status FtraceTokenizer::TokenizeFtraceBundle(TraceBlobView bundle,
       clock_id = BuiltinClock::BUILTIN_CLOCK_BOOTTIME;
       break;
     case FtraceClock::FTRACE_CLOCK_GLOBAL:
-      clock_id = BuiltinClock::BUILTIN_CLOCK_MONOTONIC;
+      clock_id = ClockTracker::SeqScopedClockIdToGlobal(
+          packet_sequence_id, kFtraceGlobalClockIdForOldKernels);
       break;
     case FtraceClock::FTRACE_CLOCK_LOCAL:
-      return util::ErrStatus("Unable to parse ftrace packets with local clock");
+      return base::ErrStatus("Unable to parse ftrace packets with local clock");
     default:
-      return util::ErrStatus(
+      return base::ErrStatus(
           "Unable to parse ftrace packets with unknown clock");
+  }
+
+  if (decoder.has_ftrace_timestamp()) {
+    PERFETTO_DCHECK(clock_id != BuiltinClock::BUILTIN_CLOCK_BOOTTIME);
+    HandleFtraceClockSnapshot(decoder.has_ftrace_timestamp(),
+                              decoder.boot_timestamp(), packet_sequence_id);
   }
 
   if (decoder.has_compact_sched()) {
@@ -248,6 +259,23 @@ void FtraceTokenizer::TokenizeFtraceCompactSchedWaking(
       !timestamp_it && !pid_it && !tcpu_it && !prio_it && !comm_it;
   if (parse_error || !sizes_match)
     context_->storage->IncrementStats(stats::compact_sched_has_parse_errors);
+}
+
+void FtraceTokenizer::HandleFtraceClockSnapshot(int64_t ftrace_ts,
+                                                int64_t boot_ts,
+                                                uint32_t packet_sequence_id) {
+  // If we've already seen a snapshot at this timestamp, don't unnecessarily
+  // add another entry to the clock tracker.
+  if (latest_ftrace_clock_snapshot_ts_ == ftrace_ts)
+    return;
+  latest_ftrace_clock_snapshot_ts_ = ftrace_ts;
+
+  ClockTracker::ClockId global_id = ClockTracker::SeqScopedClockIdToGlobal(
+      packet_sequence_id, kFtraceGlobalClockIdForOldKernels);
+  context_->clock_tracker->AddSnapshot(
+      {ClockTracker::ClockValue(global_id, ftrace_ts),
+       ClockTracker::ClockValue(BuiltinClock::BUILTIN_CLOCK_BOOTTIME,
+                                boot_ts)});
 }
 
 }  // namespace trace_processor
