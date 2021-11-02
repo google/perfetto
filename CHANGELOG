@@ -1,16 +1,35 @@
 Unreleased:
   Tracing service and probes:
-    * Removed advertisement of the built-in data sources "android.heapprofd",
-      "android.java_hprof", "linux.perf" on Linux and other platforms. Built-in
-      data sources are only used to lazy-start daemons on Android OS.
+    *
   Trace Processor:
-    * Changed protobuf decoders to use less stack and fall back on heap sooner
-      (before: 16KB of stack per decoder, after: 1.6KB). It caused problems with
-      some embedders which use smaller per-thread stacks.
+    *
   UI:
     *
   SDK:
     *
+
+
+v21.0 - 2021-11-01:
+  Tracing service and probes:
+    * Added reporting of last 8 PERFETTO_LOG() entries and crash keys to
+      crash tombstones on Android.
+    * Changed kallsym parser to save 100ms for starting a tracing session with
+      enable_ksyms=true.
+    * Removed advertisement of the built-in data sources "android.heapprofd",
+      "android.java_hprof", "linux.perf" on Linux and other platforms. Built-in
+      data sources are only used to lazy-start daemons on Android OS.
+    * Changed ACL files on Android atrace.rc to support to up to 24 ftrace cpus.
+      No change on Linux which remains unlimited.
+  Trace Processor:
+    * Changed protobuf decoders to use less stack and fall back on heap sooner
+      (before: 16KB of stack per decoder, after: 1.6KB). It caused problems with
+      some embedders which use smaller per-thread stacks.
+    * Added support for SPAN OUTER JOIN on unpartitioned tables.
+    * Improved performance of as_pandas_dataframe() in the Python API by 16x.
+  UI:
+    * Added visualization of direct_reclaim ftrace events.
+  SDK:
+    * Added perfetto::{Flow,TerminatingFlow} to the track-event library.
 
 
 v20.1 - 2021-10-05:
