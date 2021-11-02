@@ -18,6 +18,7 @@
 #include <random>
 #include "test/gtest_and_gmock.h"
 
+#include "perfetto/ext/base/android_utils.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "src/base/test/test_task_runner.h"
 #include "test/android_test_utils.h"
@@ -34,10 +35,8 @@ class PerfettoCtsTest : public ::testing::Test {
   void TestMockProducer(const std::string& producer_name) {
     // Filter out watches; they do not have the required infrastructure to run
     // these tests.
-    char chars[PROP_VALUE_MAX + 1];
-    int ret = __system_property_get("ro.build.characteristics", chars);
-    ASSERT_GE(ret, 0);
-    std::string characteristics(chars);
+    std::string characteristics =
+        base::GetAndroidProp("ro.build.characteristics");
     if (characteristics.find("watch") != std::string::npos) {
       return;
     }

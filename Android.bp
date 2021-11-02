@@ -6840,6 +6840,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_base_base",
     srcs: [
+        "src/base/android_utils.cc",
         "src/base/crash_keys.cc",
         "src/base/ctrl_c_handler.cc",
         "src/base/event_fd.cc",
