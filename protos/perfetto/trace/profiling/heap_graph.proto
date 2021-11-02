@@ -95,8 +95,11 @@ message HeapGraphObject {
   // Bytes occupied by this objects.
   optional uint64 self_size = 3;
 
-  // Add this to all non-zero values in reference_field_id. This is used to
+  // Add this to all non-zero values in reference_object_id. This is used to
   // get more compact varint encoding.
+  //
+  // The name is confusing, but this has always been used as a base for
+  // reference_object_id. The field should be named reference_object_id_base.
   optional uint64 reference_field_id_base = 6;
 
   // Indices for InternedData.field_names for the name of the field referring
@@ -107,6 +110,12 @@ message HeapGraphObject {
 
   // Ids of the Object that is referred to.
   repeated uint64 reference_object_id = 5 [packed = true];
+
+  // If this object is an instance of `libcore.util.NativeAllocationRegistry`,
+  // the value of the `size` field.
+  //
+  // N.B. This is not the native size of this object.
+  optional int64 native_allocation_registry_size_field = 8;
 }
 
 message HeapGraph {
