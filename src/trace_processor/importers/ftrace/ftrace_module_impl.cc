@@ -44,7 +44,8 @@ ModuleResult FtraceModuleImpl::TokenizePacket(
     auto ftrace_field = decoder.ftrace_events();
     const size_t fld_off = packet->offset_of(ftrace_field.data);
     return tokenizer_.TokenizeFtraceBundle(
-        packet->slice(fld_off, ftrace_field.size), seq_state);
+        packet->slice(fld_off, ftrace_field.size), seq_state,
+        decoder.trusted_packet_sequence_id());
   }
   return ModuleResult::Ignored();
 }
