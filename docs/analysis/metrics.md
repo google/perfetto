@@ -86,6 +86,84 @@ Since the same code is running locally and remotely, developers can be confident
 in reproducing the issue and use the trace processor and/or the Perfetto UI to
 identify the problem.
 
+## Metric Helper Functions
+
+There are several useful helpers functions which are available when writing a metric.
+
+### RUN_METRIC
+`RUN_METRIC` allows you to run another metric file. This allows you to use views
+or tables defined in that file without repeatition.
+
+Conceptually, `RUN_METRIC` adds *composability* for SQL queries to break a big SQL
+metric into smaller, reusable files. This is similar to how functions allow decomposing
+large chunks in traditional programming languages.
+
+A simple usage of `RUN_METRIC` would be as follows:
+
+In file android/foo.sql:
+```sql
+CREATE VIEW view_defined_in_foo AS
+SELECT *
+FROM slice
+LIMIT 1;
+```
+
+In file android/bar.sql
+```sql
+SELECT RUN_METRIC('android/foo.sql');
+
+CREATE VIEW view_depending_on_view_from_foo AS
+SELECT *
+FROM view_defined_in_foo
+LIMIT 1;
+```
+
+`RUN_METRIC` also supports running *templated* metric files. Here's an example of
+what that looks like:
+
+In file android/slice_template.sql:
+```sql
+CREATE VIEW {{view_name}} AS
+SELECT *
+FROM slice
+WHERE slice.name = '{{slice_name}}';
+```
+
+In file android/metric.sql:
+```sql
+SELECT RUN_METRIC(
+  'android/slice_template.sql',
+  'view_name', 'choreographer_slices',
+  'slice_name', 'Chroeographer#doFrame'
+);
+
+CREATE VIEW long_choreographer_slices AS
+SELECT *
+FROM choreographer_slices
+WHERE dur > 1e6;
+```
+
+When running `slice_template.sql`, trace processor will substitute the arguments
+passed to `RUN_METRIC` into the templated file *before* executing the file using
+SQLite.
+
+In other words, this is what SQLite sees and executes in practice for the above
+example:
+```sql
+CREATE VIEW choreographer_slices AS
+SELECT *
+FROM slice
+WHERE slice.name = 'Chroeographer#doFrame';
+
+CREATE VIEW long_choreographer_slices AS
+SELECT *
+FROM choreographer_slices
+WHERE dur > 1e6;
+```
+
+The syntax for templated metric files is essentially a highly simplified version of
+[Jinja's](https://jinja.palletsprojects.com/en/3.0.x/) syntax.
+
 ## Walkthrough: prototyping a metric
 
 TIP: To see how to add a new metric to trace processor, see the checklist
