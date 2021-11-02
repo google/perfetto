@@ -856,7 +856,7 @@ function onTargetChange(target: string) {
       getDefaultRecordingTargets()[0];
 
   if (isChromeTarget(recordingTarget)) {
-    globals.dispatch(Actions.setUpdateChromeCategories({update: true}));
+    globals.dispatch(Actions.setFetchChromeCategories({fetch: true}));
   }
 
   globals.dispatch(Actions.setRecordingTarget({target: recordingTarget}));
