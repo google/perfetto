@@ -17,9 +17,9 @@
 #include "test/android_test_utils.h"
 
 #include <stdlib.h>
-#include <sys/system_properties.h>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/android_utils.h"
 #include "perfetto/ext/base/file_utils.h"
 
 namespace perfetto {
@@ -45,17 +45,13 @@ void PollRunState(bool desired_run_state,
 }  // namespace
 
 bool IsDebuggableBuild() {
-  char buf[PROP_VALUE_MAX + 1] = {};
-  int ret = __system_property_get("ro.debuggable", buf);
-  PERFETTO_CHECK(ret >= 0);
-  return std::string(buf) == "1";
+  std::string debuggable = base::GetAndroidProp("ro.debuggable");
+  return debuggable == "1";
 }
 
 bool IsUserBuild() {
-  char buf[PROP_VALUE_MAX + 1] = {};
-  int ret = __system_property_get("ro.build.type", buf);
-  PERFETTO_CHECK(ret >= 0);
-  return std::string(buf) == "user";
+  std::string build_type = base::GetAndroidProp("ro.build.type");
+  return build_type == "user";
 }
 
 // note: cannot use gtest macros due to return type
