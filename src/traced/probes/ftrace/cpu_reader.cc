@@ -28,10 +28,12 @@
 #include "perfetto/ext/base/crash_keys.h"
 #include "perfetto/ext/base/metatrace.h"
 #include "perfetto/ext/base/optional.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "src/kallsyms/kernel_symbol_map.h"
 #include "src/kallsyms/lazy_kernel_symbolizer.h"
+#include "src/traced/probes/ftrace/cpu_stats_parser.h"
 #include "src/traced/probes/ftrace/ftrace_config_muxer.h"
 #include "src/traced/probes/ftrace/ftrace_controller.h"
 #include "src/traced/probes/ftrace/ftrace_data_source.h"
@@ -146,10 +148,12 @@ using protos::pbzero::GenericFtraceEvent;
 CpuReader::CpuReader(size_t cpu,
                      const ProtoTranslationTable* table,
                      LazyKernelSymbolizer* symbolizer,
+                     const FtraceClockSnapshot* ftrace_clock_snapshot,
                      base::ScopedFile trace_fd)
     : cpu_(cpu),
       table_(table),
       symbolizer_(symbolizer),
+      ftrace_clock_snapshot_(ftrace_clock_snapshot),
       trace_fd_(std::move(trace_fd)) {
   PERFETTO_CHECK(trace_fd_);
   PERFETTO_CHECK(SetBlocking(*trace_fd_, false));
@@ -275,7 +279,7 @@ size_t CpuReader::ReadAndProcessBatch(
     bool pages_parsed_ok = ProcessPagesForDataSource(
         data_source->trace_writer(), data_source->mutable_metadata(), cpu_,
         data_source->parsing_config(), parsing_buf, pages_read, table_,
-        symbolizer_, ftrace_clock_);
+        symbolizer_, ftrace_clock_snapshot_, ftrace_clock_);
     // If this CHECK fires, it means that we did not know how to parse the
     // kernel binary format. This is a bug in either perfetto or the kernel, and
     // must be investigated. Hence we CHECK instead of recording a bit
@@ -296,6 +300,7 @@ bool CpuReader::ProcessPagesForDataSource(
     const size_t pages_read,
     const ProtoTranslationTable* table,
     LazyKernelSymbolizer* symbolizer,
+    const FtraceClockSnapshot* ftrace_clock_snapshot,
     protos::pbzero::FtraceClock ftrace_clock) {
   // Allocate the buffer for compact scheduler events (which will be unused if
   // the compact option isn't enabled).
@@ -377,8 +382,15 @@ bool CpuReader::ProcessPagesForDataSource(
       finalize_cur_packet();
     packet = trace_writer->NewTracePacket();
     bundle = packet->set_ftrace_events();
-    if (ftrace_clock)
+    if (ftrace_clock) {
       bundle->set_ftrace_clock(ftrace_clock);
+
+      if (ftrace_clock_snapshot && ftrace_clock_snapshot->ftrace_clock_ts) {
+        bundle->set_ftrace_timestamp(ftrace_clock_snapshot->ftrace_clock_ts);
+        bundle->set_boot_timestamp(ftrace_clock_snapshot->boot_clock_ts);
+      }
+    }
+
     // Note: The fastpath in proto_trace_parser.cc speculates on the fact
     // that the cpu field is the first field of the proto message. If this
     // changes, change proto_trace_parser.cc accordingly.
