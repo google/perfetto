@@ -1185,7 +1185,8 @@ TEST(CpuReaderTest, NewPacketOnLostEvents) {
   TraceWriterForTesting trace_writer;
   CpuReader::ProcessPagesForDataSource(
       &trace_writer, &metadata, /*cpu=*/1, &ds_config, buf.get(), kTestPages,
-      table, /*symbolizer=*/nullptr, protos::pbzero::FTRACE_CLOCK_UNSPECIFIED);
+      table, /*symbolizer=*/nullptr, /*ftrace_clock_snapshot=*/nullptr,
+      protos::pbzero::FTRACE_CLOCK_UNSPECIFIED);
 
   // Each packet should contain the parsed contents of a contiguous run of pages
   // without data loss.
