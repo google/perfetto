@@ -76,13 +76,16 @@ class TraceSorterTest : public ::testing::Test {
       : test_buffer_(std::unique_ptr<uint8_t[]>(new uint8_t[8]), 0, 8) {
     storage_ = new NiceMock<MockTraceStorage>();
     context_.storage.reset(storage_);
+    CreateSorter();
+  }
 
+  void CreateSorter(bool full_sort = true) {
     std::unique_ptr<MockTraceParser> parser(new MockTraceParser(&context_));
     parser_ = parser.get();
-
+    auto sorting_mode = full_sort ? TraceSorter::SortingMode::kFullSort
+                                  : TraceSorter::SortingMode::kDefault;
     context_.sorter.reset(
-        new TraceSorter(std::move(parser),
-                        std::numeric_limits<int64_t>::max() /*window_size*/));
+        new TraceSorter(&context_, std::move(parser), sorting_mode));
   }
 
  protected:
@@ -98,7 +101,6 @@ TEST_F(TraceSorterTest, TestFtrace) {
   EXPECT_CALL(*parser_, MOCK_ParseFtracePacket(0, 1000, view.data(), 1));
   context_.sorter->PushFtraceEvent(0 /*cpu*/, 1000 /*timestamp*/,
                                    std::move(view), &state);
-  context_.sorter->FinalizeFtraceEventBatch(0);
   context_.sorter->ExtractEventsForced();
 }
 
@@ -107,7 +109,6 @@ TEST_F(TraceSorterTest, TestTracePacket) {
   TraceBlobView view = test_buffer_.slice(0, 1);
   EXPECT_CALL(*parser_, MOCK_ParseTracePacket(1000, view.data(), 1));
   context_.sorter->PushTracePacket(1000, &state, std::move(view));
-  context_.sorter->FinalizeFtraceEventBatch(1000);
   context_.sorter->ExtractEventsForced();
 }
 
@@ -125,64 +126,134 @@ TEST_F(TraceSorterTest, Ordering) {
   EXPECT_CALL(*parser_, MOCK_ParseTracePacket(1100, view_3.data(), 3));
   EXPECT_CALL(*parser_, MOCK_ParseFtracePacket(2, 1200, view_4.data(), 4));
 
-  context_.sorter->SetWindowSizeNs(200);
   context_.sorter->PushFtraceEvent(2 /*cpu*/, 1200 /*timestamp*/,
                                    std::move(view_4), &state);
-  context_.sorter->FinalizeFtraceEventBatch(2);
   context_.sorter->PushTracePacket(1001, &state, std::move(view_2));
   context_.sorter->PushTracePacket(1100, &state, std::move(view_3));
   context_.sorter->PushFtraceEvent(0 /*cpu*/, 1000 /*timestamp*/,
                                    std::move(view_1), &state);
-
-  context_.sorter->FinalizeFtraceEventBatch(0);
   context_.sorter->ExtractEventsForced();
 }
 
-TEST_F(TraceSorterTest, SetWindowSize) {
+TEST_F(TraceSorterTest, IncrementalExtraction) {
+  CreateSorter(false);
+
   PacketSequenceState state(&context_);
+
+  TraceBlobView view_1 = test_buffer_.slice(0, 1);
+  TraceBlobView view_2 = test_buffer_.slice(0, 2);
+  TraceBlobView view_3 = test_buffer_.slice(0, 3);
+  TraceBlobView view_4 = test_buffer_.slice(0, 4);
+  TraceBlobView view_5 = test_buffer_.slice(0, 5);
+
+  // Flush at the start of packet sequence to match behavior of the
+  // service.
+  context_.sorter->NotifyFlushEvent();
+  context_.sorter->PushTracePacket(1200, &state, std::move(view_2));
+  context_.sorter->PushTracePacket(1100, &state, std::move(view_1));
+
+  // No data should be exttracted at this point because we haven't
+  // seen two flushes yet.
+  context_.sorter->NotifyReadBufferEvent();
+
+  // Now that we've seen two flushes, we should be ready to start extracting
+  // data on the next OnReadBufer call (after two flushes as usual).
+  context_.sorter->NotifyFlushEvent();
+  context_.sorter->NotifyReadBufferEvent();
+
+  context_.sorter->NotifyFlushEvent();
+  context_.sorter->NotifyFlushEvent();
+  context_.sorter->PushTracePacket(1400, &state, std::move(view_4));
+  context_.sorter->PushTracePacket(1300, &state, std::move(view_3));
+
+  // This ReadBuffer call should finally extract until the first OnReadBuffer
+  // call.
+  {
+    InSequence s;
+    EXPECT_CALL(*parser_, MOCK_ParseTracePacket(1100, test_buffer_.data(), 1));
+    EXPECT_CALL(*parser_, MOCK_ParseTracePacket(1200, test_buffer_.data(), 2));
+  }
+  context_.sorter->NotifyReadBufferEvent();
+
+  context_.sorter->NotifyFlushEvent();
+  context_.sorter->PushTracePacket(1500, &state, std::move(view_5));
+
+  // Nothing should be extracted as we haven't seen the second flush.
+  context_.sorter->NotifyReadBufferEvent();
+
+  // Now we've seen the second flush we should extract the next two packets.
+  context_.sorter->NotifyFlushEvent();
+  {
+    InSequence s;
+    EXPECT_CALL(*parser_, MOCK_ParseTracePacket(1300, test_buffer_.data(), 3));
+    EXPECT_CALL(*parser_, MOCK_ParseTracePacket(1400, test_buffer_.data(), 4));
+  }
+  context_.sorter->NotifyReadBufferEvent();
+
+  // The forced extraction should get the last packet.
+  EXPECT_CALL(*parser_, MOCK_ParseTracePacket(1500, test_buffer_.data(), 5));
+  context_.sorter->ExtractEventsForced();
+}
+
+// Simulate a producer bug where the third packet is emitted
+// out of order. Verify that we track the stats correctly.
+TEST_F(TraceSorterTest, OutOfOrder) {
+  CreateSorter(false);
+
+  PacketSequenceState state(&context_);
+
   TraceBlobView view_1 = test_buffer_.slice(0, 1);
   TraceBlobView view_2 = test_buffer_.slice(0, 2);
   TraceBlobView view_3 = test_buffer_.slice(0, 3);
   TraceBlobView view_4 = test_buffer_.slice(0, 4);
 
-  MockFunction<void(std::string check_point_name)> check;
+  context_.sorter->NotifyFlushEvent();
+  context_.sorter->NotifyFlushEvent();
+  context_.sorter->PushTracePacket(1200, &state, std::move(view_2));
+  context_.sorter->PushTracePacket(1100, &state, std::move(view_1));
+  context_.sorter->NotifyReadBufferEvent();
 
+  // Both of the packets should have been pushed through.
+  context_.sorter->NotifyFlushEvent();
+  context_.sorter->NotifyFlushEvent();
   {
     InSequence s;
-
-    EXPECT_CALL(*parser_, MOCK_ParseFtracePacket(0, 1000, view_1.data(), 1));
-    EXPECT_CALL(*parser_, MOCK_ParseTracePacket(1001, view_2.data(), 2));
-    EXPECT_CALL(check, Call("1"));
-    EXPECT_CALL(*parser_, MOCK_ParseTracePacket(1100, view_3.data(), 3));
-    EXPECT_CALL(check, Call("2"));
-    EXPECT_CALL(*parser_, MOCK_ParseFtracePacket(2, 1200, view_4.data(), 4));
+    EXPECT_CALL(*parser_, MOCK_ParseTracePacket(1100, test_buffer_.data(), 1));
+    EXPECT_CALL(*parser_, MOCK_ParseTracePacket(1200, test_buffer_.data(), 2));
   }
+  context_.sorter->NotifyReadBufferEvent();
 
-  context_.sorter->SetWindowSizeNs(200);
-  context_.sorter->PushFtraceEvent(2 /*cpu*/, 1200 /*timestamp*/,
-                                   std::move(view_4), &state);
-  context_.sorter->FinalizeFtraceEventBatch(2);
-  context_.sorter->PushTracePacket(1001, &state, std::move(view_2));
-  context_.sorter->PushTracePacket(1100, &state, std::move(view_3));
+  // Now, pass the third packet out of order.
+  context_.sorter->NotifyFlushEvent();
+  context_.sorter->NotifyFlushEvent();
+  context_.sorter->PushTracePacket(1150, &state, std::move(view_3));
+  context_.sorter->NotifyReadBufferEvent();
 
-  context_.sorter->PushFtraceEvent(0 /*cpu*/, 1000 /*timestamp*/,
-                                   std::move(view_1), &state);
-  context_.sorter->FinalizeFtraceEventBatch(0);
+  // The third packet should still be pushed through.
+  context_.sorter->NotifyFlushEvent();
+  context_.sorter->NotifyFlushEvent();
+  EXPECT_CALL(*parser_, MOCK_ParseTracePacket(1150, test_buffer_.data(), 3));
+  context_.sorter->NotifyReadBufferEvent();
 
-  // At this point, we should just flush the 1000 and 1001 packets.
-  context_.sorter->SetWindowSizeNs(101);
+  // But we should also increment the stat that this was out of order.
+  ASSERT_EQ(
+      context_.storage->stats()[stats::sorter_push_event_out_of_order].value,
+      1);
 
-  // Inform the mock about where we are.
-  check.Call("1");
+  // Push the fourth packet also out of order but after third.
+  context_.sorter->NotifyFlushEvent();
+  context_.sorter->NotifyFlushEvent();
+  context_.sorter->PushTracePacket(1170, &state, std::move(view_4));
+  context_.sorter->NotifyReadBufferEvent();
 
-  // Now we should flush the 1100 packet.
-  context_.sorter->SetWindowSizeNs(99);
-
-  // Inform the mock about where we are.
-  check.Call("2");
-
-  // Now we should flush the 1200 packet.
+  // The fourt packet should still be pushed through.
+  EXPECT_CALL(*parser_, MOCK_ParseTracePacket(1170, test_buffer_.data(), 4));
   context_.sorter->ExtractEventsForced();
+
+  // But we should also increment the stat that this was out of order.
+  ASSERT_EQ(
+      context_.storage->stats()[stats::sorter_push_event_out_of_order].value,
+      2);
 }
 
 // Simulates a random stream of ftrace events happening on random CPUs.
@@ -219,7 +290,6 @@ TEST_F(TraceSorterTest, MultiQueueSorting) {
       expectations[ts].push_back(cpu);
       context_.sorter->PushFtraceEvent(cpu, ts, TraceBlobView(nullptr, 0, 0),
                                        &state);
-      context_.sorter->FinalizeFtraceEventBatch(cpu);
     }
   }
 

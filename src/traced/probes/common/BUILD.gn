@@ -42,7 +42,7 @@ perfetto_unittest_source_set("test_support") {
   deps = [
     ":common",
     "../../../../gn:default_deps",
-    "../../../base",
+    "../../../base:test_support",
   ]
   sources = [
     "cpu_freq_info_for_testing.cc",

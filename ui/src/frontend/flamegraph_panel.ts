@@ -14,17 +14,16 @@
 
 import * as m from 'mithril';
 
+import {assertExists} from '../base/logging';
 import {Actions} from '../common/actions';
 import {
   ALLOC_SPACE_MEMORY_ALLOCATED_KEY,
   OBJECTS_ALLOCATED_KEY,
   OBJECTS_ALLOCATED_NOT_FREED_KEY,
+  PERF_SAMPLES_KEY,
   SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY,
 } from '../common/flamegraph_util';
-import {
-  CallsiteInfo,
-  HeapProfileFlamegraphViewingOption
-} from '../common/state';
+import {CallsiteInfo, FlamegraphStateViewingOption} from '../common/state';
 import {timeToCode} from '../common/time';
 
 import {PerfettoMouseEvent} from './events';
@@ -35,13 +34,14 @@ import {debounce} from './rate_limiters';
 import {getCurrentTrace} from './sidebar';
 import {convertTraceToPprofAndDownload} from './trace_converter';
 
-interface HeapProfileDetailsPanelAttrs {}
+interface FlamegraphDetailsPanelAttrs {}
 
 const HEADER_HEIGHT = 30;
 
 enum ProfileType {
   NATIVE_HEAP_PROFILE = 'native',
   JAVA_HEAP_GRAPH = 'graph',
+  PERF_SAMPLE = 'perf'
 }
 
 function isProfileType(s: string): s is ProfileType {
@@ -71,8 +71,7 @@ const RENDER_OBJ_COUNT: NodeRendering = {
   totalSize: 'Subtree objects',
 };
 
-export class HeapProfileDetailsPanel extends
-    Panel<HeapProfileDetailsPanelAttrs> {
+export class FlamegraphDetailsPanel extends Panel<FlamegraphDetailsPanelAttrs> {
   private profileType?: ProfileType = undefined;
   private ts = 0;
   private pid = 0;
@@ -83,18 +82,20 @@ export class HeapProfileDetailsPanel extends
   }, 20);
 
   view() {
-    const heapDumpInfo = globals.heapProfileDetails;
-    if (heapDumpInfo && heapDumpInfo.type !== undefined &&
-        heapDumpInfo.ts !== undefined && heapDumpInfo.tsNs !== undefined &&
-        heapDumpInfo.pid !== undefined && heapDumpInfo.upid !== undefined) {
-      this.profileType = toProfileType(heapDumpInfo.type);
-      this.ts = heapDumpInfo.tsNs;
-      this.pid = heapDumpInfo.pid;
-      if (heapDumpInfo.flamegraph) {
+    const flamegraphDetails = globals.flamegraphDetails;
+    if (flamegraphDetails && flamegraphDetails.type !== undefined &&
+        flamegraphDetails.ts !== undefined &&
+        flamegraphDetails.tsNs !== undefined &&
+        flamegraphDetails.pid !== undefined &&
+        flamegraphDetails.upid !== undefined) {
+      this.profileType = toProfileType(flamegraphDetails.type);
+      this.ts = flamegraphDetails.tsNs;
+      this.pid = flamegraphDetails.pid;
+      if (flamegraphDetails.flamegraph) {
         this.flamegraph.updateDataIfChanged(
-            this.nodeRendering(), heapDumpInfo.flamegraph);
+            this.nodeRendering(), flamegraphDetails.flamegraph);
       }
-      const height = heapDumpInfo.flamegraph ?
+      const height = flamegraphDetails.flamegraph ?
           this.flamegraph.getHeight() + HEADER_HEIGHT :
           0;
       return m(
@@ -118,7 +119,7 @@ export class HeapProfileDetailsPanel extends
               }
             }
           },
-          m('.details-panel-heading.heap-profile',
+          m('.details-panel-heading.flamegraph-profile',
             {onclick: (e: MouseEvent) => e.stopPropagation()},
             [
               m('div.options',
@@ -130,9 +131,10 @@ export class HeapProfileDetailsPanel extends
                 [
                   m('div.selected',
                     `Selected function: ${
-                        toSelectedCallsite(heapDumpInfo.expandedCallsite)}`),
+                        toSelectedCallsite(
+                            flamegraphDetails.expandedCallsite)}`),
                   m('div.time',
-                    `Snapshot time: ${timeToCode(heapDumpInfo.ts)}`),
+                    `Snapshot time: ${timeToCode(flamegraphDetails.ts)}`),
                   m('input[type=text][placeholder=Focus]', {
                     oninput: (e: Event) => {
                       const target = (e.target as HTMLInputElement);
@@ -159,7 +161,7 @@ export class HeapProfileDetailsPanel extends
     } else {
       return m(
           '.details-panel',
-          m('.details-panel-heading', m('h2', `Heap Profile`)));
+          m('.details-panel-heading', m('h2', `Flamegraph Profile`)));
     }
   }
 
@@ -169,6 +171,8 @@ export class HeapProfileDetailsPanel extends
         return 'Heap Profile:';
       case ProfileType.JAVA_HEAP_GRAPH:
         return 'Java Heap:';
+      case ProfileType.PERF_SAMPLE:
+        return 'Perf sample:';
       default:
         throw new Error('unknown type');
     }
@@ -178,75 +182,33 @@ export class HeapProfileDetailsPanel extends
     if (this.profileType === undefined) {
       return {};
     }
-    const viewingOption =
-        globals.state.currentHeapProfileFlamegraph!.viewingOption;
+    const viewingOption = globals.state.currentFlamegraphState!.viewingOption;
     switch (this.profileType) {
-      case ProfileType.NATIVE_HEAP_PROFILE:
-        return RENDER_SELF_AND_TOTAL;
       case ProfileType.JAVA_HEAP_GRAPH:
         if (viewingOption === OBJECTS_ALLOCATED_NOT_FREED_KEY) {
           return RENDER_OBJ_COUNT;
         } else {
           return RENDER_SELF_AND_TOTAL;
         }
+      case ProfileType.NATIVE_HEAP_PROFILE:
+      case ProfileType.PERF_SAMPLE:
+        return RENDER_SELF_AND_TOTAL;
       default:
         throw new Error('unknown type');
     }
   }
 
   private updateFocusRegex() {
-    globals.dispatch(Actions.changeFocusHeapProfileFlamegraph({
+    globals.dispatch(Actions.changeFocusFlamegraphState({
       focusRegex: this.focusRegex,
     }));
   }
 
-  getButtonsClass(button: HeapProfileFlamegraphViewingOption): string {
-    if (globals.state.currentHeapProfileFlamegraph === null) return '';
-    return globals.state.currentHeapProfileFlamegraph.viewingOption === button ?
-        '.chosen' :
-        '';
-  }
-
   getViewingOptionButtons(): m.Children {
-    const viewingOptions = [
-      m(`button${this.getButtonsClass(SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY)}`,
-        {
-          onclick: () => {
-            this.changeViewingOption(SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY);
-          }
-        },
-        'space'),
-      m(`button${this.getButtonsClass(OBJECTS_ALLOCATED_NOT_FREED_KEY)}`,
-        {
-          onclick: () => {
-            this.changeViewingOption(OBJECTS_ALLOCATED_NOT_FREED_KEY);
-          }
-        },
-        'objects'),
-    ];
-
-    if (this.profileType === ProfileType.NATIVE_HEAP_PROFILE) {
-      viewingOptions.push(
-          m(`button${this.getButtonsClass(ALLOC_SPACE_MEMORY_ALLOCATED_KEY)}`,
-            {
-              onclick: () => {
-                this.changeViewingOption(ALLOC_SPACE_MEMORY_ALLOCATED_KEY);
-              }
-            },
-            'alloc space'),
-          m(`button${this.getButtonsClass(OBJECTS_ALLOCATED_KEY)}`,
-            {
-              onclick: () => {
-                this.changeViewingOption(OBJECTS_ALLOCATED_KEY);
-              }
-            },
-            'alloc objects'));
-    }
-    return m('div', ...viewingOptions);
-  }
-
-  changeViewingOption(viewingOption: HeapProfileFlamegraphViewingOption) {
-    globals.dispatch(Actions.changeViewHeapProfileFlamegraph({viewingOption}));
+    return m(
+        'div',
+        ...FlamegraphDetailsPanel.selectViewingOptions(
+            assertExists(this.profileType)));
   }
 
   downloadPprof() {
@@ -262,7 +224,7 @@ export class HeapProfileDetailsPanel extends
   }
 
   private changeFlamegraphData() {
-    const data = globals.heapProfileDetails;
+    const data = globals.flamegraphDetails;
     const flamegraphData = data.flamegraph === undefined ? [] : data.flamegraph;
     this.flamegraph.updateDataIfChanged(
         this.nodeRendering(), flamegraphData, data.expandedCallsite);
@@ -270,7 +232,7 @@ export class HeapProfileDetailsPanel extends
 
   renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
     this.changeFlamegraphData();
-    const current = globals.state.currentHeapProfileFlamegraph;
+    const current = globals.state.currentFlamegraphState;
     if (current === null) return;
     const unit =
         current.viewingOption === SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY ||
@@ -282,7 +244,7 @@ export class HeapProfileDetailsPanel extends
 
   onMouseClick({x, y}: {x: number, y: number}): boolean {
     const expandedCallsite = this.flamegraph.onMouseClick({x, y});
-    globals.dispatch(Actions.expandHeapProfileFlamegraph({expandedCallsite}));
+    globals.dispatch(Actions.expandFlamegraphState({expandedCallsite}));
     return true;
   }
 
@@ -293,5 +255,47 @@ export class HeapProfileDetailsPanel extends
 
   onMouseOut() {
     this.flamegraph.onMouseOut();
+  }
+
+  private static selectViewingOptions(profileType: ProfileType) {
+    switch (profileType) {
+      case ProfileType.PERF_SAMPLE:
+        return [this.buildButtonComponent(PERF_SAMPLES_KEY, 'samples')];
+      case ProfileType.NATIVE_HEAP_PROFILE:
+        return [
+          this.buildButtonComponent(
+              SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY, 'space'),
+          this.buildButtonComponent(OBJECTS_ALLOCATED_NOT_FREED_KEY, 'objects')
+        ];
+      case ProfileType.JAVA_HEAP_GRAPH:
+        return [
+          this.buildButtonComponent(
+              SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY, 'space'),
+          this.buildButtonComponent(OBJECTS_ALLOCATED_NOT_FREED_KEY, 'objects'),
+          this.buildButtonComponent(
+              ALLOC_SPACE_MEMORY_ALLOCATED_KEY, 'alloc space'),
+          this.buildButtonComponent(OBJECTS_ALLOCATED_KEY, 'alloc objects')
+        ];
+      default:
+        throw new Error(`Unexpected profile type ${profileType}`);
+    }
+  }
+
+  private static buildButtonComponent(
+      viewingOption: FlamegraphStateViewingOption, text: string) {
+    const buttonsClass =
+        (globals.state.currentFlamegraphState &&
+         globals.state.currentFlamegraphState.viewingOption === viewingOption) ?
+        '.chosen' :
+        '';
+    return m(
+        `button${buttonsClass}`,
+        {
+          onclick: () => {
+            globals.dispatch(
+                Actions.changeViewFlamegraphState({viewingOption}));
+          }
+        },
+        text);
   }
 }

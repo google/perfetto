@@ -12,14 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {TableAttrs} from '../common/pivot_table_data';
+import {SLICE_STACK_COLUMN, TableAttrs} from '../common/pivot_table_common';
 import {PivotTableHelper} from './pivot_table_helper';
 
 const AVAILABLE_COLUMNS: TableAttrs[] =
-    [{tableName: 'slice', columns: ['id', 'type', 'dur']}];
+    [{tableName: 'slice', columns: ['id', 'type', 'dur', SLICE_STACK_COLUMN]}];
 const ID_COL_IDX = 0;
 const TYPE_COL_IDX = 1;
 const DUR_COL_IDX = 2;
+const STACK_COL_IDX = 3;
 
 const AVAILABLE_AGGREGATIONS = ['SUM', 'AVG'];
 const SUM_AGG_IDX = 0;
@@ -35,10 +36,9 @@ test('Update selected pivots based on selected indices', () => {
   helper.setSelectedPivotTableColumnIndex(ID_COL_IDX);
 
   helper.updatePivotTableColumnOnSelectedIndex();
-  expect(helper.selectedPivots).toEqual([{
-    tableName: 'slice',
-    columnName: 'id',
-  }]);
+  expect(helper.selectedPivots).toEqual([
+    {tableName: 'slice', columnName: 'id', isStackPivot: false}
+  ]);
 
   helper.updatePivotTableColumnOnSelectedIndex();
   expect(helper.selectedPivots).toEqual([]);
@@ -91,13 +91,13 @@ test('Reorder columns based on target and destination indices', () => {
   helper.updatePivotTableColumnOnSelectedIndex();
 
   expect(helper.selectedPivots).toEqual([
-    {tableName: 'slice', columnName: 'id'},
-    {tableName: 'slice', columnName: 'type'}
+    {tableName: 'slice', columnName: 'id', isStackPivot: false},
+    {tableName: 'slice', columnName: 'type', isStackPivot: false}
   ]);
   helper.reorderPivotTableDraggedColumn(true, 0, 1);
   expect(helper.selectedPivots).toEqual([
-    {tableName: 'slice', columnName: 'type'},
-    {tableName: 'slice', columnName: 'id'}
+    {tableName: 'slice', columnName: 'type', isStackPivot: false},
+    {tableName: 'slice', columnName: 'id', isStackPivot: false}
   ]);
 });
 
@@ -109,8 +109,12 @@ test('Reordering columns with invalid indices results in an error', () => {
 
 test('Select column based on attributes', () => {
   const helper = createNewHelper();
-  helper.selectPivotTableColumn(
-      {tableName: 'slice', columnName: 'dur', aggregation: 'AVG'});
+  helper.selectPivotTableColumn({
+    tableName: 'slice',
+    columnName: 'dur',
+    aggregation: 'AVG',
+    order: 'DESC'
+  });
   expect(helper.isPivot).toEqual(false);
   expect(helper.selectedColumnIndex).toEqual(DUR_COL_IDX);
   expect(helper.selectedAggregationIndex).toEqual(AVG_AGG_IDX);
@@ -118,8 +122,18 @@ test('Select column based on attributes', () => {
 
 test('Selecting a column with invalid attributes results in an error', () => {
   const helper = createNewHelper();
-  expect(() => helper.selectPivotTableColumn({
-    tableName: 'foo',
-    columnName: 'bar',
-  })).toThrow('Selected column "foo bar" not found in availableColumns.');
+  expect(
+      () => helper.selectPivotTableColumn(
+          {tableName: 'foo', columnName: 'bar', isStackPivot: false}))
+      .toThrow('Selected column "foo bar" not found in availableColumns.');
+});
+
+test('Selecting stack column sets isStackPivot', () => {
+  const helper = createNewHelper();
+  helper.setSelectedPivotTableColumnIndex(STACK_COL_IDX);
+
+  helper.updatePivotTableColumnOnSelectedIndex();
+  expect(helper.selectedPivots).toEqual([
+    {tableName: 'slice', columnName: SLICE_STACK_COLUMN, isStackPivot: true}
+  ]);
 });

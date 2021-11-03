@@ -298,6 +298,7 @@ class PERFETTO_EXPORT TrackRegistry {
   ~TrackRegistry();
 
   static void InitializeInstance();
+  static void ResetForTesting();
   static TrackRegistry* Get() { return instance_; }
 
   void EraseTrack(Track);

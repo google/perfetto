@@ -15,9 +15,10 @@
 import {Actions} from '../common/actions';
 import {
   AggregationAttrs,
+  isStackPivot,
   PivotAttrs,
   TableAttrs
-} from '../common/pivot_table_data';
+} from '../common/pivot_table_common';
 import {globals} from './globals';
 
 export function isAggregationAttrs(attrs: PivotAttrs|AggregationAttrs):
@@ -92,6 +93,12 @@ export class PivotTableHelper {
   // Dictates if the selected indexes refer to a pivot or aggregation.
   togglePivotSelection() {
     this._isPivot = !this._isPivot;
+    if (this._isPivot === false) {
+      const selectedColumn = this.getSelectedPivotTableColumnAttrs();
+      if (isStackPivot(selectedColumn.tableName, selectedColumn.columnName)) {
+        this._selectedColumnIndex = Math.max(0, this._selectedColumnIndex - 1);
+      }
+    }
   }
 
   setSelectedPivotTableColumnIndex(index: number) {
@@ -131,10 +138,14 @@ export class PivotTableHelper {
     if (!this._isPivot) {
       const aggregation =
           this.availableAggregations[this._selectedAggregationIndex];
-      return {tableName, columnName, aggregation};
+      return {tableName, columnName, aggregation, order: 'DESC'};
     }
 
-    return {tableName, columnName};
+    return {
+      tableName,
+      columnName,
+      isStackPivot: isStackPivot(tableName, columnName)
+    };
   }
 
   // Adds column based on selected index to selectedPivots or
@@ -148,21 +159,28 @@ export class PivotTableHelper {
   // selectedAggregations if it doesn't already exist, remove otherwise.
   updatePivotTableColumnOnColumnAttributes(columnAttrs: PivotAttrs|
                                            AggregationAttrs) {
-    let storage: Array<PivotAttrs|AggregationAttrs>|undefined;
+    let storage: Array<PivotAttrs|AggregationAttrs>;
     let attrs: PivotAttrs|AggregationAttrs;
     if (isAggregationAttrs(columnAttrs)) {
+      if (isStackPivot(columnAttrs.tableName, columnAttrs.columnName)) {
+        throw Error(
+            `Stack column "${columnAttrs.tableName} ${
+                columnAttrs.columnName}" should not ` +
+            `be added as an aggregation.`);
+      }
       storage = this._selectedAggregations;
       attrs = {
         tableName: columnAttrs.tableName,
         columnName: columnAttrs.columnName,
         aggregation: columnAttrs.aggregation,
-        order: 'DESC'
+        order: columnAttrs.order
       };
     } else {
       storage = this._selectedPivots;
       attrs = {
         tableName: columnAttrs.tableName,
-        columnName: columnAttrs.columnName
+        columnName: columnAttrs.columnName,
+        isStackPivot: columnAttrs.isStackPivot
       };
     }
     const index =
@@ -192,7 +210,7 @@ export class PivotTableHelper {
   // Moves target column to the requested destination.
   reorderPivotTableDraggedColumn(
       isPivot: boolean, targetColumnIdx: number, destinationColumnIdx: number) {
-    let storage;
+    let storage: Array<PivotAttrs|AggregationAttrs>;
     if (isPivot) {
       storage = this._selectedPivots;
     } else {
@@ -207,7 +225,7 @@ export class PivotTableHelper {
           `Destination column index "${destinationColumnIdx}" out of bounds.`);
     }
 
-    const targetColumn = storage[targetColumnIdx];
+    const targetColumn: PivotAttrs|AggregationAttrs = storage[targetColumnIdx];
     storage.splice(targetColumnIdx, 1);
     storage.splice(destinationColumnIdx, 0, targetColumn);
   }

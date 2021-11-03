@@ -685,8 +685,12 @@ void RunMetric(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
   }
 
   for (const auto& query : base::SplitString(sql, ";\n")) {
+    const auto& trimmed = base::TrimLeading(query);
+    if (trimmed.empty())
+      continue;
+
     std::string buffer;
-    int ret = TemplateReplace(query, substitutions, &buffer);
+    int ret = TemplateReplace(trimmed, substitutions, &buffer);
     if (ret) {
       char* error = sqlite3_mprintf(
           "RUN_METRIC: Error when performing substitutions: %s", query.c_str());

@@ -192,9 +192,8 @@ bool HeapprofdConfigToClientConfiguration(
                     HEAPPROFD_HEAP_NAME_SZ - 1);
       continue;
     }
-    strncpy(&cli_config->heaps[n].name[0], heap.c_str(),
-            sizeof(cli_config->heaps[0].name));
-    cli_config->heaps[n].name[sizeof(cli_config->heaps[0].name) - 1] = '\0';
+    base::StringCopy(&cli_config->heaps[n].name[0], heap.c_str(),
+                     sizeof(cli_config->heaps[n].name));
     cli_config->heaps[n].interval = interval;
     n++;
   }

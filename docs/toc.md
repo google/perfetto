@@ -8,6 +8,7 @@
   * [Heap profiling](quickstart/heap-profiling.md)
 
 * [Case studies](#)
+  * [Android boot tracing](case-studies/android-boot-tracing.md)
   * [Debugging memory usage](case-studies/memory.md)
 
 * [Data sources](#)
@@ -72,6 +73,8 @@
     * [Heapprofd sampling](design-docs/heapprofd-sampling.md)
     * [Life of a tracing session](design-docs/life-of-a-tracing-session.md)
     * [Perfetto CI](design-docs/continuous-integration.md)
+    * [Pivot tables](design-docs/pivot-tables.md)
     * [ProtoZero](design-docs/protozero.md)
     * [Security model](design-docs/security-model.md)
     * [Statsd Checkpoint Atoms](design-docs/checkpoint-atoms.md)
+

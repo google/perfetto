@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {RecordConfig} from '../common/state';
-import {validateRecordConfig} from '../controller/validate_config';
+import {JsonObject, validateRecordConfig} from '../controller/validate_config';
 
 const LOCAL_STORAGE_RECORD_CONFIGS_KEY = 'recordConfigs';
 
@@ -24,17 +24,8 @@ class NamedRecordConfig {
 
   constructor(title: string, config: RecordConfig, key: string) {
     this.title = title;
-    this.config = this.validateData(config);
+    this.config = validateRecordConfig(config as unknown as JsonObject);
     this.key = key;
-  }
-
-  private validateData(config: {}): RecordConfig {
-    const validConfig = validateRecordConfig(config);
-    if (validConfig.errorMessage) {
-      // TODO(bsebastien): Show a warning message to the user in the UI.
-      console.warn(validConfig.errorMessage);
-    }
-    return validConfig.config;
   }
 
   static isValid(jsonObject: object): jsonObject is NamedRecordConfig {
@@ -46,9 +37,11 @@ class NamedRecordConfig {
 
 export class RecordConfigStore {
   recordConfigs: NamedRecordConfig[];
+  recordConfigNames: Set<string>;
 
   constructor() {
     this.recordConfigs = [];
+    this.recordConfigNames = new Set();
     this.reloadFromLocalStorage();
   }
 
@@ -57,10 +50,13 @@ export class RecordConfigStore {
     // modifications of local storage from a different tab.
     this.reloadFromLocalStorage();
 
-    const config = new NamedRecordConfig(
-        title ? title : new Date().toJSON(), recordConfig, new Date().toJSON());
+    const savedTitle = title ? title : new Date().toJSON();
+    const config =
+        new NamedRecordConfig(savedTitle, recordConfig, new Date().toJSON());
 
     this.recordConfigs.push(config);
+    this.recordConfigNames.add(savedTitle);
+
     window.localStorage.setItem(
         LOCAL_STORAGE_RECORD_CONFIGS_KEY, JSON.stringify(this.recordConfigs));
   }
@@ -79,6 +75,7 @@ export class RecordConfigStore {
     }
 
     if (idx !== -1) {
+      this.recordConfigNames.delete(this.recordConfigs[idx].title);
       this.recordConfigs.splice(idx, 1);
       window.localStorage.setItem(
           LOCAL_STORAGE_RECORD_CONFIGS_KEY, JSON.stringify(this.recordConfigs));
@@ -90,6 +87,7 @@ export class RecordConfigStore {
 
   private clearRecordConfigs(): void {
     this.recordConfigs = [];
+    this.recordConfigNames.clear();
     window.localStorage.setItem(
         LOCAL_STORAGE_RECORD_CONFIGS_KEY, JSON.stringify([]));
   }
@@ -99,6 +97,8 @@ export class RecordConfigStore {
         window.localStorage.getItem(LOCAL_STORAGE_RECORD_CONFIGS_KEY);
 
     if (configsLocalStorage) {
+      this.recordConfigNames.clear();
+
       try {
         const validConfigLocalStorage: NamedRecordConfig[] = [];
         const parsedConfigsLocalStorage = JSON.parse(configsLocalStorage);
@@ -113,6 +113,7 @@ export class RecordConfigStore {
           if (!NamedRecordConfig.isValid(parsedConfigsLocalStorage[i])) {
             continue;
           }
+          this.recordConfigNames.add(parsedConfigsLocalStorage[i].title);
           validConfigLocalStorage.push(new NamedRecordConfig(
               parsedConfigsLocalStorage[i].title,
               parsedConfigsLocalStorage[i].config,
@@ -129,6 +130,10 @@ export class RecordConfigStore {
     } else {
       this.clearRecordConfigs();
     }
+  }
+
+  canSave(title: string) {
+    return !this.recordConfigNames.has(title);
   }
 }
 

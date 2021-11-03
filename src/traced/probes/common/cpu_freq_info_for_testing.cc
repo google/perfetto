@@ -16,12 +16,7 @@
 
 #include "src/traced/probes/common/cpu_freq_info_for_testing.h"
 
-#include <algorithm>
 #include <memory>
-
-#include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/scoped_file.h"
-#include "perfetto/ext/base/temp_file.h"
 
 namespace perfetto {
 
@@ -40,53 +35,27 @@ const char kCpuBoostFrequenciesAndroidBigCore[] = "2803200 \n";
 
 }  // namespace
 
-CpuFreqInfoForTesting::CpuFreqInfoForTesting()
-    : fake_cpu_dir_(base::TempDir::Create()) {
+CpuFreqInfoForTesting::CpuFreqInfoForTesting() {
   // Create a subset of /sys/devices/system/cpu.
-  AddDir("cpuidle");
-  AddDir("cpu0");
-  AddDir("cpu0/cpufreq");
-  AddFile("cpu0/cpufreq/scaling_available_frequencies",
+  tmpdir_.AddDir("cpuidle");
+  tmpdir_.AddDir("cpu0");
+  tmpdir_.AddDir("cpu0/cpufreq");
+  tmpdir_.AddFile("cpu0/cpufreq/scaling_available_frequencies",
           kCpuFrequenciesAndroidLittleCore);
-  AddFile("cpu0/cpufreq/scaling_boost_frequencies",
+  tmpdir_.AddFile("cpu0/cpufreq/scaling_boost_frequencies",
           kCpuBoostFrequenciesAndroidLittleCore);
-  AddDir("cpufreq");
-  AddDir("cpu1");
-  AddDir("cpu1/cpufreq");
-  AddFile("cpu1/cpufreq/scaling_available_frequencies",
+  tmpdir_.AddDir("cpufreq");
+  tmpdir_.AddDir("cpu1");
+  tmpdir_.AddDir("cpu1/cpufreq");
+  tmpdir_.AddFile("cpu1/cpufreq/scaling_available_frequencies",
           kCpuFrequenciesAndroidBigCore);
-  AddFile("cpu1/cpufreq/scaling_boost_frequencies",
+  tmpdir_.AddFile("cpu1/cpufreq/scaling_boost_frequencies",
           kCpuBoostFrequenciesAndroidBigCore);
-  AddDir("power");
-}
-
-CpuFreqInfoForTesting::~CpuFreqInfoForTesting() {
-  for (auto path : files_to_remove_)
-    PERFETTO_CHECK(remove(AbsolutePath(path).c_str()) == 0);
-  std::reverse(dirs_to_remove_.begin(), dirs_to_remove_.end());
-  for (auto path : dirs_to_remove_)
-    base::Rmdir(AbsolutePath(path));
+  tmpdir_.AddDir("power");
 }
 
 std::unique_ptr<CpuFreqInfo> CpuFreqInfoForTesting::GetInstance() {
-  return std::unique_ptr<CpuFreqInfo>(new CpuFreqInfo(fake_cpu_dir_.path()));
-}
-
-void CpuFreqInfoForTesting::AddDir(std::string path) {
-  dirs_to_remove_.push_back(path);
-  base::Mkdir(AbsolutePath(path).c_str());
-}
-
-void CpuFreqInfoForTesting::AddFile(std::string path, std::string content) {
-  files_to_remove_.push_back(path);
-  base::ScopedFile fd(
-      base::OpenFile(AbsolutePath(path), O_WRONLY | O_CREAT | O_TRUNC, 0600));
-  PERFETTO_CHECK(base::WriteAll(fd.get(), content.c_str(), content.size()) ==
-                 static_cast<ssize_t>(content.size()));
-}
-
-std::string CpuFreqInfoForTesting::AbsolutePath(std::string path) {
-  return fake_cpu_dir_.path() + "/" + path;
+  return std::unique_ptr<CpuFreqInfo>(new CpuFreqInfo(tmpdir_.path()));
 }
 
 }  // namespace perfetto

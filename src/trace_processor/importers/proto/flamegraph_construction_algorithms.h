@@ -17,12 +17,16 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_FLAMEGRAPH_CONSTRUCTION_ALGORITHMS_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_FLAMEGRAPH_CONSTRUCTION_ALGORITHMS_H_
 
-#include <set>
-
 #include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto {
 namespace trace_processor {
+
+// Represents a time boundary for a column.
+struct TimeConstraints {
+  FilterOp op;
+  int64_t value;
+};
 
 std::unique_ptr<tables::ExperimentalFlamegraphNodesTable>
 BuildNativeHeapProfileFlamegraph(TraceStorage* storage,
@@ -30,9 +34,11 @@ BuildNativeHeapProfileFlamegraph(TraceStorage* storage,
                                  int64_t timestamp);
 
 std::unique_ptr<tables::ExperimentalFlamegraphNodesTable>
-BuildNativeCallStackSamplingFlamegraph(TraceStorage* storage,
-                                       UniquePid upid,
-                                       int64_t timestamp);
+BuildNativeCallStackSamplingFlamegraph(
+    TraceStorage* storage,
+    base::Optional<UniquePid> upid,
+    base::Optional<std::string> upid_group,
+    const std::vector<TimeConstraints>& time_constraints);
 }  // namespace trace_processor
 }  // namespace perfetto
 

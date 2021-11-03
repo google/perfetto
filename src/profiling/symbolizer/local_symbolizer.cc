@@ -31,7 +31,7 @@
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "src/profiling/symbolizer/filesystem.h"
+#include "src/profiling/symbolizer/elf.h"
 #include "src/profiling/symbolizer/scoped_read_mmap.h"
 
 namespace perfetto {
@@ -116,142 +116,6 @@ std::vector<std::string> GetLines(
 }
 
 namespace {
-// We cannot just include elf.h, as that only exists on Linux, and we want to
-// allow symbolization on other platforms as well. As we only need a small
-// subset, it is easiest to define the constants and structs ourselves.
-constexpr auto PT_LOAD = 1;
-constexpr auto PF_X = 1;
-constexpr auto SHT_NOTE = 7;
-constexpr auto NT_GNU_BUILD_ID = 3;
-constexpr auto ELFCLASS32 = 1;
-constexpr auto ELFCLASS64 = 2;
-constexpr auto ELFMAG0 = 0x7f;
-constexpr auto ELFMAG1 = 'E';
-constexpr auto ELFMAG2 = 'L';
-constexpr auto ELFMAG3 = 'F';
-constexpr auto EI_MAG0 = 0;
-constexpr auto EI_MAG1 = 1;
-constexpr auto EI_MAG2 = 2;
-constexpr auto EI_MAG3 = 3;
-constexpr auto EI_CLASS = 4;
-
-struct Elf32 {
-  using Addr = uint32_t;
-  using Half = uint16_t;
-  using Off = uint32_t;
-  using Sword = int32_t;
-  using Word = uint32_t;
-  struct Ehdr {
-    unsigned char e_ident[16];
-    Half e_type;
-    Half e_machine;
-    Word e_version;
-    Addr e_entry;
-    Off e_phoff;
-    Off e_shoff;
-    Word e_flags;
-    Half e_ehsize;
-    Half e_phentsize;
-    Half e_phnum;
-    Half e_shentsize;
-    Half e_shnum;
-    Half e_shstrndx;
-  };
-  struct Shdr {
-    Word sh_name;
-    Word sh_type;
-    Word sh_flags;
-    Addr sh_addr;
-    Off sh_offset;
-    Word sh_size;
-    Word sh_link;
-    Word sh_info;
-    Word sh_addralign;
-    Word sh_entsize;
-  };
-  struct Nhdr {
-    Word n_namesz;
-    Word n_descsz;
-    Word n_type;
-  };
-  struct Phdr {
-    uint32_t p_type;
-    Off p_offset;
-    Addr p_vaddr;
-    Addr p_paddr;
-    uint32_t p_filesz;
-    uint32_t p_memsz;
-    uint32_t p_flags;
-    uint32_t p_align;
-  };
-};
-
-struct Elf64 {
-  using Addr = uint64_t;
-  using Half = uint16_t;
-  using SHalf = int16_t;
-  using Off = uint64_t;
-  using Sword = int32_t;
-  using Word = uint32_t;
-  using Xword = uint64_t;
-  using Sxword = int64_t;
-  struct Ehdr {
-    unsigned char e_ident[16];
-    Half e_type;
-    Half e_machine;
-    Word e_version;
-    Addr e_entry;
-    Off e_phoff;
-    Off e_shoff;
-    Word e_flags;
-    Half e_ehsize;
-    Half e_phentsize;
-    Half e_phnum;
-    Half e_shentsize;
-    Half e_shnum;
-    Half e_shstrndx;
-  };
-  struct Shdr {
-    Word sh_name;
-    Word sh_type;
-    Xword sh_flags;
-    Addr sh_addr;
-    Off sh_offset;
-    Xword sh_size;
-    Word sh_link;
-    Word sh_info;
-    Xword sh_addralign;
-    Xword sh_entsize;
-  };
-  struct Nhdr {
-    Word n_namesz;
-    Word n_descsz;
-    Word n_type;
-  };
-  struct Phdr {
-    uint32_t p_type;
-    uint32_t p_flags;
-    Off p_offset;
-    Addr p_vaddr;
-    Addr p_paddr;
-    uint64_t p_filesz;
-    uint64_t p_memsz;
-    uint64_t p_align;
-  };
-};
-
-template <typename E>
-typename E::Shdr* GetShdr(void* mem, const typename E::Ehdr* ehdr, size_t i) {
-  return reinterpret_cast<typename E::Shdr*>(
-      static_cast<char*>(mem) + ehdr->e_shoff + i * sizeof(typename E::Shdr));
-}
-
-template <typename E>
-typename E::Phdr* GetPhdr(void* mem, const typename E::Ehdr* ehdr, size_t i) {
-  return reinterpret_cast<typename E::Phdr*>(
-      static_cast<char*>(mem) + ehdr->e_phoff + i * sizeof(typename E::Phdr));
-}
-
 bool InRange(const void* base,
              size_t total_size,
              const void* ptr,
@@ -352,31 +216,36 @@ struct BuildIdAndLoadBias {
   uint64_t load_bias;
 };
 
-base::Optional<BuildIdAndLoadBias> GetBuildIdAndLoadBias(const char* fname,
-                                                         size_t size) {
-  static_assert(EI_CLASS > EI_MAG3, "mem[EI_MAG?] accesses are in range.");
-  if (size <= EI_CLASS)
+base::Optional<BuildIdAndLoadBias> GetBuildIdAndLoadBias(
+    const std::string& fname) {
+  base::Optional<size_t> size = base::GetFileSize(fname);
+  if (!size.has_value()) {
+    PERFETTO_PLOG("Failed to get file size %s", fname.c_str());
     return base::nullopt;
-  ScopedReadMmap map(fname, size);
+  }
+  static_assert(EI_CLASS > EI_MAG3, "mem[EI_MAG?] accesses are in range.");
+  if (*size <= EI_CLASS)
+    return base::nullopt;
+  ScopedReadMmap map(fname.c_str(), *size);
   if (!map.IsValid()) {
     PERFETTO_PLOG("mmap");
     return base::nullopt;
   }
   char* mem = static_cast<char*>(*map);
 
-  if (!IsElf(mem, size))
+  if (!IsElf(mem, *size))
     return base::nullopt;
 
   base::Optional<std::string> build_id;
   base::Optional<uint64_t> load_bias;
   switch (mem[EI_CLASS]) {
     case ELFCLASS32:
-      build_id = GetBuildId<Elf32>(mem, size);
-      load_bias = GetLoadBias<Elf32>(mem, size);
+      build_id = GetBuildId<Elf32>(mem, *size);
+      load_bias = GetLoadBias<Elf32>(mem, *size);
       break;
     case ELFCLASS64:
-      build_id = GetBuildId<Elf64>(mem, size);
-      load_bias = GetLoadBias<Elf64>(mem, size);
+      build_id = GetBuildId<Elf64>(mem, *size);
+      load_bias = GetLoadBias<Elf64>(mem, *size);
       break;
     default:
       return base::nullopt;
@@ -387,35 +256,48 @@ base::Optional<BuildIdAndLoadBias> GetBuildIdAndLoadBias(const char* fname,
   return base::nullopt;
 }
 
+bool StartsWithElfMagic(const std::string& fname) {
+  base::ScopedFile fd(base::OpenFile(fname, O_RDONLY));
+  char magic[EI_MAG3 + 1];
+  if (!fd) {
+    PERFETTO_PLOG("Failed to open %s", fname.c_str());
+    return false;
+  }
+  ssize_t rd = base::Read(*fd, &magic, sizeof(magic));
+  if (rd != sizeof(magic)) {
+    PERFETTO_PLOG("Failed to read %s", fname.c_str());
+    return false;
+  }
+  if (!IsElf(magic, static_cast<size_t>(rd))) {
+    PERFETTO_DLOG("%s not an ELF.", fname.c_str());
+    return false;
+  }
+  return true;
+}
+
 std::map<std::string, FoundBinary> BuildIdIndex(std::vector<std::string> dirs) {
   std::map<std::string, FoundBinary> result;
-  WalkDirectories(std::move(dirs), [&result](const char* fname, size_t size) {
-    char magic[EI_MAG3 + 1];
-    // Scope file access. On windows OpenFile opens an exclusive lock.
-    // This lock needs to be released before mapping the file.
-    {
-      base::ScopedFile fd(base::OpenFile(fname, O_RDONLY));
-      if (!fd) {
-        PERFETTO_PLOG("Failed to open %s", fname);
-        return;
+  for (const std::string& dir : dirs) {
+    std::vector<std::string> files;
+    base::Status status = base::ListFilesRecursive(dir, files);
+    if (!status.ok()) {
+      PERFETTO_PLOG("Failed to list directory %s", dir.c_str());
+      continue;
+    }
+    for (const std::string& basename : files) {
+      std::string fname = dir + "/" + basename;
+      if (!StartsWithElfMagic(fname)) {
+        continue;
       }
-      ssize_t rd = base::Read(*fd, &magic, sizeof(magic));
-      if (rd != sizeof(magic)) {
-        PERFETTO_PLOG("Failed to read %s", fname);
-        return;
-      }
-      if (!IsElf(magic, static_cast<size_t>(rd))) {
-        PERFETTO_DLOG("%s not an ELF.", fname);
-        return;
+      base::Optional<BuildIdAndLoadBias> build_id_and_load_bias =
+          GetBuildIdAndLoadBias(fname);
+      if (build_id_and_load_bias) {
+        result.emplace(build_id_and_load_bias->build_id,
+                       FoundBinary{fname, build_id_and_load_bias->load_bias});
       }
     }
-    base::Optional<BuildIdAndLoadBias> build_id_and_load_bias =
-        GetBuildIdAndLoadBias(fname, size);
-    if (build_id_and_load_bias) {
-      result.emplace(build_id_and_load_bias->build_id,
-                     FoundBinary{fname, build_id_and_load_bias->load_bias});
-    }
-  });
+  }
+
   return result;
 }
 
@@ -486,15 +368,8 @@ base::Optional<FoundBinary> LocalBinaryFinder::IsCorrectFile(
   if (!base::FileExists(symbol_file)) {
     return base::nullopt;
   }
-  // Openfile opens the file with an exclusive lock on windows.
-  size_t size = GetFileSize(symbol_file);
-
-  if (size == 0) {
-    return base::nullopt;
-  }
-
   base::Optional<BuildIdAndLoadBias> build_id_and_load_bias =
-      GetBuildIdAndLoadBias(symbol_file.c_str(), size);
+      GetBuildIdAndLoadBias(symbol_file);
   if (!build_id_and_load_bias)
     return base::nullopt;
   if (build_id_and_load_bias->build_id != build_id) {

@@ -48,7 +48,7 @@ as primary build system. See the [Build files](#build-files) section below for
 more.
 
 ```bash
-tools/gn args out/android` 
+tools/gn args out/android
 ```
 
 This will open an editor to customize the GN args. Enter:

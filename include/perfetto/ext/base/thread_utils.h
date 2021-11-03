@@ -20,6 +20,7 @@
 #include <string>
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/ext/base/string_utils.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
@@ -46,8 +47,7 @@ namespace base {
 // string.
 inline bool MaybeSetThreadName(const std::string& name) {
   char buf[16] = {};
-  size_t sz = std::min(name.size(), static_cast<size_t>(15));
-  strncpy(buf, name.c_str(), sz);
+  StringCopy(buf, name.c_str(), sizeof(buf));
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
   return pthread_setname_np(buf) == 0;

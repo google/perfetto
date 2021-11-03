@@ -41,7 +41,7 @@ class ProcessSchedulingTrack extends Track<Config, Data> {
   private utidHoveredInThisTrack = -1;
 
   constructor(args: NewTrackArgs) {
-    super(args.trackId);
+    super(args);
   }
 
   getHeight(): number {

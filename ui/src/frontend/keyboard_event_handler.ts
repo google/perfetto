@@ -13,8 +13,9 @@
 // limitations under the License.
 
 import {Actions} from '../common/actions';
-import {Area} from '../common/state';
 import {featureFlags} from '../common/feature_flags';
+import {DEFAULT_PIVOT_TABLE_ID} from '../common/pivot_table_common';
+import {Area} from '../common/state';
 
 import {Flow, globals} from './globals';
 import {toggleHelp} from './help_modal';
@@ -25,7 +26,7 @@ import {
 } from './scroll_helper';
 import {executeSearch} from './search_handler';
 
-const PIVOT_TABLE_FLAG = featureFlags.register({
+export const PIVOT_TABLE_FLAG = featureFlags.register({
   id: 'pivotTables',
   name: 'Pivot tables',
   description: 'Show experimental pivot table details tab.',
@@ -79,10 +80,10 @@ export function handleKey(e: KeyboardEvent, down: boolean) {
       moveByFocusedFlow('Backward');
     }
   }
-  if (down && 'p' === key && e.ctrlKey && PIVOT_TABLE_FLAG.get()) {
+  if (down && 'p' === key && !e.ctrlKey && PIVOT_TABLE_FLAG.get()) {
     e.preventDefault();
     globals.frontendLocalState.togglePivotTable();
-    const pivotTableId = 'pivot-table';
+    const pivotTableId = DEFAULT_PIVOT_TABLE_ID;
     if (globals.state.pivotTable[pivotTableId] === undefined) {
       globals.dispatch(Actions.addNewPivotTable({
         name: 'Pivot Table',
@@ -184,7 +185,11 @@ function findTimeRangeOfSelection(): {startTs: number, endTs: number} {
       endTs = startTs + slice.dur;
     } else if (slice.ts) {
       startTs = slice.ts + globals.state.traceTime.startSec;
-      endTs = startTs + INSTANT_FOCUS_DURATION_S;
+      // This will handle either:
+      // a)slice.dur === -1 -> unfinished slice
+      // b)slice.dur === 0  -> instant event
+      endTs = slice.dur === -1 ? globals.state.traceTime.endSec :
+                                 startTs + INSTANT_FOCUS_DURATION_S;
     }
   } else if (selection.kind === 'THREAD_STATE') {
     const threadState = globals.threadStateDetails;

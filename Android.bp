@@ -3673,6 +3673,7 @@ genrule {
         "protos/perfetto/metrics/android/powrails_metric.proto",
         "protos/perfetto/metrics/android/process_metadata.proto",
         "protos/perfetto/metrics/android/profiler_smaps.proto",
+        "protos/perfetto/metrics/android/simpleperf.proto",
         "protos/perfetto/metrics/android/startup_metric.proto",
         "protos/perfetto/metrics/android/surfaceflinger.proto",
         "protos/perfetto/metrics/android/sysui_cuj_metrics.proto",
@@ -3726,6 +3727,7 @@ genrule {
         "protos/perfetto/metrics/android/powrails_metric.proto",
         "protos/perfetto/metrics/android/process_metadata.proto",
         "protos/perfetto/metrics/android/profiler_smaps.proto",
+        "protos/perfetto/metrics/android/simpleperf.proto",
         "protos/perfetto/metrics/android/startup_metric.proto",
         "protos/perfetto/metrics/android/surfaceflinger.proto",
         "protos/perfetto/metrics/android/sysui_cuj_metrics.proto",
@@ -6871,6 +6873,7 @@ filegroup {
     name: "perfetto_src_base_test_support",
     srcs: [
         "src/base/test/test_task_runner.cc",
+        "src/base/test/tmp_dir_tree.cc",
         "src/base/test/utils.cc",
         "src/base/test/vm_test_utils.cc",
     ],
@@ -7438,8 +7441,6 @@ filegroup {
     srcs: [
         "src/profiling/symbolizer/breakpad_parser.cc",
         "src/profiling/symbolizer/breakpad_symbolizer.cc",
-        "src/profiling/symbolizer/filesystem_posix.cc",
-        "src/profiling/symbolizer/filesystem_windows.cc",
         "src/profiling/symbolizer/local_symbolizer.cc",
         "src/profiling/symbolizer/scoped_read_mmap_posix.cc",
         "src/profiling/symbolizer/scoped_read_mmap_windows.cc",
@@ -8007,6 +8008,7 @@ genrule {
         "src/trace_processor/metrics/android/android_package_list.sql",
         "src/trace_processor/metrics/android/android_powrails.sql",
         "src/trace_processor/metrics/android/android_proxy_power.sql",
+        "src/trace_processor/metrics/android/android_simpleperf.sql",
         "src/trace_processor/metrics/android/android_startup.sql",
         "src/trace_processor/metrics/android/android_startup_launches.sql",
         "src/trace_processor/metrics/android/android_surfaceflinger.sql",
@@ -9554,13 +9556,6 @@ cc_test {
         "src/traced/probes/filesystem/testdata/**/*",
         "src/traced/probes/ftrace/test/data/**/*",
     ],
-    target: {
-        musl: {
-            static_libs: [
-                "libfts",
-            ],
-        },
-    },
 }
 
 // GN: //src/protozero/protoc_plugin:protozero_plugin
@@ -9738,11 +9733,6 @@ cc_binary {
                 ],
             },
         },
-        musl: {
-            static_libs: [
-                "libfts",
-            ],
-        },
     },
 }
 
@@ -9877,13 +9867,6 @@ cc_binary_host {
         "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
         "-DHAVE_HIDDEN",
     ],
-    target: {
-        musl: {
-            static_libs: [
-                "libfts",
-            ],
-        },
-    },
 }
 
 // GN: //src/traced/service:traced

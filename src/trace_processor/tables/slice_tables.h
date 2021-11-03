@@ -26,6 +26,8 @@ namespace tables {
 
 // @name slice
 // @tablegroup Events
+// @param ts timestamp of the start of the slice (in nanoseconds)
+// @param dur duration of the slice (in nanoseconds)
 // @param arg_set_id {@joinable args.arg_set_id}
 #define PERFETTO_TP_SLICE_TABLE_DEF(NAME, PARENT, C) \
   NAME(SliceTable, "internal_slice")                 \
@@ -44,6 +46,7 @@ namespace tables {
 PERFETTO_TP_TABLE(PERFETTO_TP_SLICE_TABLE_DEF);
 
 // @tablegroup Events
+// @param ts timestamp of the start of the slice (in nanoseconds)
 // @param arg_set_id {@joinable args.arg_set_id}
 #define PERFETTO_TP_INSTANT_TABLE_DEF(NAME, PARENT, C) \
   NAME(InstantTable, "instant")                        \
@@ -57,6 +60,8 @@ PERFETTO_TP_TABLE(PERFETTO_TP_SLICE_TABLE_DEF);
 PERFETTO_TP_TABLE(PERFETTO_TP_INSTANT_TABLE_DEF);
 
 // @tablegroup Events
+// @param ts timestamp of the start of the slice (in nanoseconds)
+// @param dur duration of the slice (in nanoseconds)
 // @param utid {@joinable thread.utid}
 #define PERFETTO_TP_SCHED_SLICE_TABLE_DEF(NAME, PARENT, C) \
   NAME(SchedSliceTable, "sched_slice")                     \

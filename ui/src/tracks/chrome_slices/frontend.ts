@@ -42,7 +42,7 @@ export class ChromeSliceTrack extends Track<Config, Data> {
   private hoveredTitleId = -1;
 
   constructor(args: NewTrackArgs) {
-    super(args.trackId);
+    super(args);
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D): void {

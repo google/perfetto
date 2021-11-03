@@ -651,10 +651,10 @@ util::Status PrintPerfFile(const std::string& perf_file_path,
                            base::TimeNanos t_load,
                            base::TimeNanos t_run) {
   char buf[128];
-  int count = snprintf(buf, sizeof(buf), "%" PRId64 ",%" PRId64,
-                       static_cast<int64_t>(t_load.count()),
-                       static_cast<int64_t>(t_run.count()));
-  if (count < 0) {
+  size_t count = base::SprintfTrunc(buf, sizeof(buf), "%" PRId64 ",%" PRId64,
+                                    static_cast<int64_t>(t_load.count()),
+                                    static_cast<int64_t>(t_run.count()));
+  if (count == 0) {
     return util::ErrStatus("Failed to write perf data");
   }
 
@@ -662,7 +662,7 @@ util::Status PrintPerfFile(const std::string& perf_file_path,
   if (!fd) {
     return util::ErrStatus("Failed to open perf file");
   }
-  base::WriteAll(fd.get(), buf, static_cast<size_t>(count));
+  base::WriteAll(fd.get(), buf, count);
   return util::OkStatus();
 }
 

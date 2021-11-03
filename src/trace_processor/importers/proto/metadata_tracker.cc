@@ -110,6 +110,7 @@ void MetadataTracker::WriteValue(uint32_t row, Variadic value) {
     case Variadic::Type::kPointer:
     case Variadic::Type::kUint:
     case Variadic::Type::kReal:
+    case Variadic::Type::kNull:
       PERFETTO_FATAL("Unsupported value type");
   }
 }

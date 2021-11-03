@@ -62,8 +62,8 @@ export abstract class Track<Config = {}, Data extends TrackData = TrackData> {
   // deletion, see comments in trackState() below.
   private lastTrackState: TrackState;
 
-  constructor(trackId: string) {
-    this.trackId = trackId;
+  constructor(args: NewTrackArgs) {
+    this.trackId = args.trackId;
     this.lastTrackState = assertExists(globals.state.tracks[this.trackId]);
   }
 

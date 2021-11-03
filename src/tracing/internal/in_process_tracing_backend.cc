@@ -85,11 +85,6 @@ InProcessTracingBackend::InProcessTracingBackend() {}
 std::unique_ptr<ProducerEndpoint> InProcessTracingBackend::ConnectProducer(
     const ConnectProducerArgs& args) {
   PERFETTO_DCHECK(args.task_runner->RunsTasksOnCurrentThread());
-
-  // This should never happen as we can have at most one in-process backend.
-  if (service_)
-    PERFETTO_FATAL("InProcessTracingBackend initialized twice");
-
   return GetOrCreateService(args.task_runner)
       ->ConnectProducer(args.producer, /*uid=*/0, args.producer_name,
                         args.shmem_size_hint_bytes,

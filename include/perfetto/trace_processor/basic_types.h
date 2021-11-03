@@ -40,11 +40,12 @@ constexpr size_t kMaxCpus = 128;
 constexpr char kMetricProtoRoot[] = "protos/perfetto/metrics/";
 
 // Enum which encodes how trace processor should try to sort the ingested data.
+// Note that these options are only applicable to proto traces; other trace
+// types (e.g. JSON, Fuchsia) use full sorts.
 enum class SortingMode {
   // This option allows trace processor to use built-in heuristics about how to
   // sort the data. Generally, this option is correct for most embedders as
-  // trace processor reads information from the trace (e.g. TraceConfig) to make
-  // the best decision.
+  // trace processor reads information from the trace to make the best decision.
   //
   // The exact heuristics are implementation details but will ensure that all
   // relevant tables are sorted by timestamp.
@@ -58,14 +59,19 @@ enum class SortingMode {
   // data to be skipped.
   kForceFullSort = 1,
 
-  // This option forces trace processor to use the |flush_period_ms| specified
-  // in the TraceConfig to perform a windowed sort of the data. The window size
-  // is not guaranteed to be exactly |flush_period_ms| but will be of the same
-  // order of magnitude; the exact value is an implementation detail and should
-  // not be relied upon.
+  // This option is deprecated in v18; trace processor will ignore it and
+  // use |kDefaultHeuristics|.
   //
-  // If a |flush_period_ms| is not specified in the TraceConfig, this mode will
-  // act the same as |SortingMode::kDefaultHeuristics|.
+  // Rationale for deprecation:
+  // The new windowed sorting logic in trace processor uses a combination of
+  // flush and buffer-read lifecycle events inside the trace instead of
+  // using time-periods from the config.
+  //
+  // Recommended migration:
+  // Users of this option should switch to using |kDefaultHeuristics| which
+  // will act very similarly to the pre-v20 behaviour of this option.
+  //
+  // This option is scheduled to be removed in v21.
   kForceFlushPeriodWindowedSort = 2
 };
 

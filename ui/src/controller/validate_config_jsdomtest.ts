@@ -12,89 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {createEmptyRecordConfig, RecordConfig} from '../common/state';
+import {RecordConfig} from '../common/state';
 import {validateRecordConfig} from './validate_config';
 
-test('validateRecordConfig test valid keys config', () => {
-  const config: RecordConfig = createEmptyRecordConfig();
-  const validationResult = validateRecordConfig(config);
+test('validateRecordConfig does not keep invalid keys', () => {
+  const key = 'Invalid key';
+  const config: RecordConfig =
+      validateRecordConfig({[key]: 'Some random value'});
 
-  expect('errorMessage' in validationResult).toEqual(false);
-
-  for (const key of Object.keys(validationResult.config)) {
-    expect(key in config).toEqual(true);
-  }
+  expect((config as object).hasOwnProperty(key)).toEqual(false);
 });
 
-test('validateRecordConfig test no key config', () => {
-  const emptyRecord: RecordConfig = createEmptyRecordConfig();
-  const validationResult = validateRecordConfig({});
+test('validateRecordConfig keeps provided values', () => {
+  const value = 31337;
+  const config: RecordConfig = validateRecordConfig({'durationMs': value});
 
-  expect('errorMessage' in validationResult).toEqual(true);
-
-  for (const key of Object.keys(emptyRecord)) {
-    expect(key in validationResult.config).toEqual(true);
-  }
-});
-
-test('validateRecordConfig test some valid key config', () => {
-  const emptyRecord: RecordConfig = createEmptyRecordConfig();
-  const validationResult = validateRecordConfig({
-    'durationMs': 5.0,
-    'cpuSched': true,
-  });
-
-  expect('errorMessage' in validationResult).toEqual(true);
-
-  expect(validationResult.config.durationMs).toEqual(5.0);
-  expect(validationResult.config.cpuSched).toEqual(true);
-
-  for (const key of Object.keys(emptyRecord)) {
-    if (['durationMs', 'cpuSched'].includes(key) === false) {
-      expect(validationResult.config[key]).toEqual(emptyRecord[key]);
-    }
-    expect(key in validationResult.config).toEqual(true);
-  }
-});
-
-test('validateRecordConfig test some invalid key config', () => {
-  const emptyRecord: RecordConfig = createEmptyRecordConfig();
-  const validationResult = validateRecordConfig({
-    'durationMs': 5.0,
-    'invalidKey': 0,
-    'cpuSched': true,
-    'anotherInvalidKey': 'foobar',
-  });
-
-  expect('errorMessage' in validationResult).toEqual(true);
-
-  expect(validationResult.config.durationMs).toEqual(5.0);
-  expect(validationResult.config.cpuSched).toEqual(true);
-  expect('invalidKey' in validationResult.config).toEqual(false);
-  expect('anotherInvalidKey' in validationResult.config).toEqual(false);
-
-  for (const key of Object.keys(emptyRecord)) {
-    if (['durationMs', 'cpuSched'].includes(key) === false) {
-      expect(validationResult.config[key]).toEqual(emptyRecord[key]);
-    }
-    expect(key in validationResult.config).toEqual(true);
-  }
-});
-
-test('validateRecordConfig test only invalid key config', () => {
-  const emptyRecord: RecordConfig = createEmptyRecordConfig();
-  const validationResult = validateRecordConfig({
-    'invalidKey': 0,
-    'anotherInvalidKey': 'foobar',
-  });
-
-  expect('errorMessage' in validationResult).toEqual(true);
-
-  expect('invalidKey' in validationResult.config).toEqual(false);
-  expect('anotherInvalidKey' in validationResult.config).toEqual(false);
-
-  for (const key of Object.keys(emptyRecord)) {
-    expect(validationResult.config[key]).toEqual(emptyRecord[key]);
-    expect(key in validationResult.config).toEqual(true);
-  }
+  expect(config.durationMs).toEqual(value);
 });

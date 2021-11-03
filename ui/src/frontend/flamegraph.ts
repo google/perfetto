@@ -33,7 +33,7 @@ interface CallsiteInfoWidth {
 // below the box.
 const NODE_HEIGHT = 18;
 
-export const HEAP_PROFILE_HOVERED_COLOR = 'hsl(224, 45%, 55%)';
+export const FLAMEGRAPH_HOVERED_COLOR = 'hsl(224, 45%, 55%)';
 
 export function findRootSize(data: CallsiteInfo[]) {
   let totalSize = 0;

@@ -38,7 +38,7 @@ class ThreadStateTrack extends Track<Config, Data> {
   }
 
   constructor(args: NewTrackArgs) {
-    super(args.trackId);
+    super(args);
   }
 
   getHeight(): number {

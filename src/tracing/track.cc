@@ -175,6 +175,11 @@ void TrackRegistry::InitializeInstance() {
   }
 }
 
+void TrackRegistry::ResetForTesting() {
+  delete instance_;
+  instance_ = nullptr;
+}
+
 void TrackRegistry::UpdateTrack(Track track,
                                 const std::string& serialized_desc) {
   std::lock_guard<std::mutex> lock(mutex_);

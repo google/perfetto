@@ -191,7 +191,9 @@ export abstract class Engine {
       case TPM.TPM_COMPUTE_METRIC:
         const metricRes = assertExists(rpc.metricResult) as ComputeMetricResult;
         if (metricRes.error && metricRes.error.length > 0) {
-          throw new QueryError(`ComputeMetric() error: ${metricRes.error}`);
+          throw new QueryError(`ComputeMetric() error: ${metricRes.error}`, {
+            query: 'COMPUTE_METRIC',
+          });
         }
         assertExists(this.pendingComputeMetrics.shift()).resolve(metricRes);
         break;
@@ -292,7 +294,9 @@ export abstract class Engine {
     rpc.queryArgs = new QueryArgs();
     rpc.queryArgs.sqlQuery = sqlQuery;
     rpc.queryArgs.timeQueuedNs = Math.floor(performance.now() * 1e6);
-    const result = createQueryResult();
+    const result = createQueryResult({
+      query: sqlQuery,
+    });
     this.pendingQueries.push(result);
     this.rpcSendRequest(rpc);
     return result;

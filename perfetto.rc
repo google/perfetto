@@ -90,3 +90,34 @@ on property:persist.mm_events.enabled=true && property:persist.traced.enable=1
 
 on property:persist.mm_events.enabled=false
     stop mm_events
+
+#############################################################################
+#  perfetto_trace_on_boot - Starts a perfetto trace on boot
+#############################################################################
+#
+# There are two separate actions (a trigger action and a start action) to make
+# sure that perfetto_trace_on_boot is started only once on boot (otherwise,
+# whenever persist.debug.perfetto.boottrace=1 is set, perfetto_trace_on_boot
+# would start immediately).
+#
+# persist.debug.perfetto.boottrace=1 can be manually set after boot (to record
+# a trace on the next reboot) and we don't want to immediately start a trace
+# when setting the debug property. So we turn "ro.persistent_properties.ready"
+# into a trigger, and then check whether we should start tracing when the
+# trigger fires.
+on perfetto_maybe_trace_on_boot && property:persist.debug.perfetto.boottrace=1 && property:persist.traced.enable=1
+    setprop persist.debug.perfetto.boottrace ""
+    rm /data/misc/perfetto-traces/boottrace.perfetto-trace
+    # Set by traced after listen()ing on the consumer socket. Without this,
+    # perfetto could try to connect to traced before traced is ready to listen.
+    wait_for_prop sys.trace.traced_started 1
+    start perfetto_trace_on_boot
+
+on property:ro.persistent_properties.ready=true
+    trigger perfetto_maybe_trace_on_boot
+
+service perfetto_trace_on_boot /system/bin/perfetto -c /data/misc/perfetto-configs/boottrace.pbtxt --txt -o /data/misc/perfetto-traces/boottrace.perfetto-trace
+    disabled
+    oneshot
+    user shell
+    group nobody
