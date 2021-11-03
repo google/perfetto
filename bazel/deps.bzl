@@ -24,9 +24,9 @@ def perfetto_deps():
     _add_repo_if_not_existing(
         http_archive,
         name = "com_google_protobuf",
-        strip_prefix = "protobuf-3.9.0",
-        url = "https://github.com/protocolbuffers/protobuf/archive/v3.9.0.tar.gz",
-        sha256 = "2ee9dcec820352671eb83e081295ba43f7a4157181dad549024d7070d079cf65",
+        strip_prefix = "protobuf-3.10.1",
+        url = "https://github.com/protocolbuffers/protobuf/archive/v3.10.1.tar.gz",
+        sha256 = "6adf73fd7f90409e479d6ac86529ade2d45f50494c5c10f539226693cb8fe4f7",
     )
 
     _add_repo_if_not_existing(
