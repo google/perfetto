@@ -35,11 +35,12 @@ and if no tag is displayed the current channel is `stable`.
 
 ![perfetto-ui-channel.png](/docs/images/perfetto-ui-channel.png)
 
-To change the channel the UI is using between `stable` and `canery` you can use the toggle on the [entrance page](https://ui.perfetto.dev).
+To change the channel the UI is using between `stable` and `canary` you can use the toggle on the [entrance page](https://ui.perfetto.dev).
 
 ![perfetto-ui-channel-toggle.png](/docs/images/perfetto-ui-channel-toggle.png)
 
-To change to the `autopush` channel open devtools and enter `localStorage.setItem('perfettoUiChannel', 'autopush');` then reload.
+To change to the `autopush` channel, open the `Flags` screen in the `Support`
+section of the sidebar, and choose `Autopush` in `Release channel`.
 
 ## Which version am I using?
 
