@@ -13,7 +13,10 @@
 // limitations under the License.
 
 import {createEmptyRecordConfig} from '../controller/validate_config';
-import {autosaveConfigStore} from '../frontend/record_config';
+import {
+  autosaveConfigStore,
+  recordTargetStore
+} from '../frontend/record_config';
 
 import {featureFlags} from './feature_flags';
 import {
@@ -70,8 +73,9 @@ export const MAX_TIME = 180;
 // 8: Rename several variables
 // 9: Add a field to track last loaded recording profile name
 // 10: Change last loaded profile tracking type to accommodate auto-save.
+// 11: Rename updateChromeCategories to fetchChromeCategories.
 // "[...]HeapProfileFlamegraph[...]" -> "[...]Flamegraph[...]".
-export const STATE_VERSION = 10;
+export const STATE_VERSION = 11;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -417,7 +421,7 @@ export interface State {
   lastRecordingError?: string;
   recordingStatus?: string;
 
-  updateChromeCategories: boolean;
+  fetchChromeCategories: boolean;
   chromeCategories: string[]|undefined;
   analyzePageQuery?: string;
 }
@@ -884,10 +888,10 @@ export function createEmptyState(): State {
     recordingInProgress: false,
     recordingCancelled: false,
     extensionInstalled: false,
-    recordingTarget: getDefaultRecordingTargets()[0],
+    recordingTarget: recordTargetStore.getValidTarget(),
     availableAdbDevices: [],
 
-    updateChromeCategories: false,
+    fetchChromeCategories: false,
     chromeCategories: undefined,
   };
 }

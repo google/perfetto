@@ -154,6 +154,11 @@ std::string FtraceProcfs::ReadPageHeaderFormat() const {
   return ReadFileIntoString(path);
 }
 
+base::ScopedFile FtraceProcfs::OpenCpuStats(size_t cpu) const {
+  std::string path = root_ + "per_cpu/cpu" + std::to_string(cpu) + "/stats";
+  return base::OpenFile(path, O_RDONLY);
+}
+
 std::string FtraceProcfs::ReadCpuStats(size_t cpu) const {
   std::string path = root_ + "per_cpu/cpu" + std::to_string(cpu) + "/stats";
   return ReadFileIntoString(path);

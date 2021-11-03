@@ -47,6 +47,21 @@ struct FtraceStats;
 // Method of last resort to reset ftrace state.
 bool HardResetFtraceState();
 
+// Stores the a snapshot of the timestamps from ftrace's trace clock
+// and CLOCK_BOOTITME.
+//
+// This is used when the "boot" (i.e. CLOCK_BOOTITME) is not available
+// for timestamping trace events (on Android O- and 3.x Linux kernels).
+// Trace processor can use this data to sync clocks just as it would
+// with ClockSnapshot packets.
+struct FtraceClockSnapshot {
+  // The timestamp according to the ftrace clock.
+  int64_t ftrace_clock_ts = 0;
+
+  // The timestamp according to CLOCK_BOOTTIME.
+  int64_t boot_clock_ts = 0;
+};
+
 // Utility class for controlling ftrace.
 class FtraceController {
  public:
@@ -111,13 +126,17 @@ class FtraceController {
   void StartIfNeeded();
   void StopIfNeeded();
 
+  void MaybeSnapshotFtraceClock();
+
   base::TaskRunner* const task_runner_;
   Observer* const observer_;
   base::PagedMemory parsing_mem_;
+  base::ScopedFile cpu_zero_stats_fd_;
   std::unique_ptr<LazyKernelSymbolizer> symbolizer_;
   std::unique_ptr<FtraceProcfs> ftrace_procfs_;
   std::unique_ptr<ProtoTranslationTable> table_;
   std::unique_ptr<FtraceConfigMuxer> ftrace_config_muxer_;
+  std::unique_ptr<FtraceClockSnapshot> ftrace_clock_snapshot_;
   int generation_ = 0;
   bool atrace_running_ = false;
   std::vector<PerCpuState> per_cpu_;  // empty if tracing isn't active

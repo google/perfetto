@@ -43,11 +43,12 @@ default_targets = [
 # Arguments for the GN output directory (unless overridden from the command
 # line).
 gn_args = ' '.join([
+    'enable_perfetto_ipc=true',
     'is_debug=false',
     'is_perfetto_build_generator=true',
     'is_perfetto_embedder=true',
+    'perfetto_enable_git_rev_version_header=true',
     'use_custom_libcxx=false',
-    'enable_perfetto_ipc=true',
 ])
 
 # By default, the amalgamated .h only recurses in #includes but not in the

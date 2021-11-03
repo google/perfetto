@@ -41,7 +41,11 @@ import {createEmptyRecordConfig} from '../controller/validate_config';
 
 import {globals} from './globals';
 import {createPage, PageAttrs} from './pages';
-import {autosaveConfigStore, recordConfigStore} from './record_config';
+import {
+  autosaveConfigStore,
+  recordConfigStore,
+  recordTargetStore
+} from './record_config';
 import {
   CodeSnippet,
   CompactProbe,
@@ -856,10 +860,11 @@ function onTargetChange(target: string) {
       getDefaultRecordingTargets()[0];
 
   if (isChromeTarget(recordingTarget)) {
-    globals.dispatch(Actions.setUpdateChromeCategories({update: true}));
+    globals.dispatch(Actions.setFetchChromeCategories({fetch: true}));
   }
 
   globals.dispatch(Actions.setRecordingTarget({target: recordingTarget}));
+  recordTargetStore.save(target);
   globals.rafScheduler.scheduleFullRedraw();
 }
 

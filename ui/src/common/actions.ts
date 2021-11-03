@@ -100,7 +100,7 @@ function clearTraceState(state: StateDraft) {
   const nextId = state.nextId;
   const recordConfig = state.recordConfig;
   const recordingTarget = state.recordingTarget;
-  const updateChromeCategories = state.updateChromeCategories;
+  const fetchChromeCategories = state.fetchChromeCategories;
   const extensionInstalled = state.extensionInstalled;
   const availableAdbDevices = state.availableAdbDevices;
   const chromeCategories = state.chromeCategories;
@@ -110,7 +110,7 @@ function clearTraceState(state: StateDraft) {
   state.nextId = nextId;
   state.recordConfig = recordConfig;
   state.recordingTarget = recordingTarget;
-  state.updateChromeCategories = updateChromeCategories;
+  state.fetchChromeCategories = fetchChromeCategories;
   state.extensionInstalled = extensionInstalled;
   state.availableAdbDevices = availableAdbDevices;
   state.chromeCategories = chromeCategories;
@@ -716,8 +716,8 @@ export const StateActions = {
     state.recordingTarget = args.target;
   },
 
-  setUpdateChromeCategories(state: StateDraft, args: {update: boolean}): void {
-    state.updateChromeCategories = args.update;
+  setFetchChromeCategories(state: StateDraft, args: {fetch: boolean}): void {
+    state.fetchChromeCategories = args.fetch;
   },
 
   setAvailableAdbDevices(
