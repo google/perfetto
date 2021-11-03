@@ -87,7 +87,7 @@ base::Status FtraceTokenizer::TokenizeFtraceBundle(
 
   if (decoder.has_ftrace_timestamp()) {
     PERFETTO_DCHECK(clock_id != BuiltinClock::BUILTIN_CLOCK_BOOTTIME);
-    HandleFtraceClockSnapshot(decoder.has_ftrace_timestamp(),
+    HandleFtraceClockSnapshot(decoder.ftrace_timestamp(),
                               decoder.boot_timestamp(), packet_sequence_id);
   }
 
