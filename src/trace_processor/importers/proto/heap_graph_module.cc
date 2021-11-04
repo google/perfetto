@@ -188,6 +188,11 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
           });
     }
 
+    if (object.has_native_allocation_registry_size_field()) {
+      obj.native_allocation_registry_size =
+          object.native_allocation_registry_size_field();
+    }
+
     if (parse_error) {
       context_->storage->IncrementIndexedStats(
           stats::heap_graph_malformed_packet, static_cast<int>(upid));

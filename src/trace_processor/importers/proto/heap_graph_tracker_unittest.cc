@@ -46,6 +46,139 @@ TEST(HeapGraphTrackerTest, PackageFromLocationApp) {
             "com.google.android.apps.wellbeing");
 }
 
+TEST(HeapGraphTrackerTest, PopulateNativeSize) {
+  constexpr uint64_t kSeqId = 1;
+  constexpr UniquePid kPid = 1;
+  constexpr int64_t kTimestamp = 1;
+
+  TraceProcessorContext context;
+  context.storage.reset(new TraceStorage());
+
+  HeapGraphTracker tracker(&context);
+
+  StringPool::Id normal_kind = context.storage->InternString("KIND_NORMAL");
+
+  constexpr uint64_t kLocation = 0;
+  tracker.AddInternedLocationName(kSeqId, kLocation,
+                                  context.storage->InternString("location"));
+
+  enum Fields : uint64_t { kReferent = 1, kThunk, kThis0 };
+
+  tracker.AddInternedFieldName(kSeqId, kReferent,
+                               "java.lang.ref.Reference.referent");
+  tracker.AddInternedFieldName(kSeqId, kThunk, "sun.misc.Cleaner.thunk");
+  tracker.AddInternedFieldName(
+      kSeqId, kThis0,
+      "libcore.util.NativeAllocationRegistry$CleanerThunk.this$0");
+
+  enum Types : uint64_t {
+    kTypeBitmap = 1,
+    kTypeCleaner,
+    kTypeCleanerThunk,
+    kTypeNativeAllocationRegistry,
+  };
+
+  tracker.AddInternedType(
+      kSeqId, kTypeBitmap,
+      context.storage->InternString("android.graphics.Bitmap"), kLocation,
+      /*object_size=*/0,
+      /*reference_field_name_ids=*/{}, /*superclass_id=*/0,
+      /*classloader_id=*/0, /*no_reference_fields=*/false,
+      /*kind=*/normal_kind);
+
+  tracker.AddInternedType(
+      kSeqId, kTypeCleaner, context.storage->InternString("sun.misc.Cleaner"),
+      kLocation, /*object_size=*/0,
+      /*reference_field_name_ids=*/{kReferent, kThunk}, /*superclass_id=*/0,
+      /*classloader_id=*/0, /*no_reference_fields=*/false,
+      /*kind=*/normal_kind);
+
+  tracker.AddInternedType(
+      kSeqId, kTypeCleanerThunk,
+      context.storage->InternString(
+          "libcore.util.NativeAllocationRegistry$CleanerThunk"),
+      kLocation, /*object_size=*/0,
+      /*reference_field_name_ids=*/{kThis0}, /*superclass_id=*/0,
+      /*classloader_id=*/0, /*no_reference_fields=*/false,
+      /*kind=*/normal_kind);
+
+  tracker.AddInternedType(
+      kSeqId, kTypeNativeAllocationRegistry,
+      context.storage->InternString("libcore.util.NativeAllocationRegistry"),
+      kLocation, /*object_size=*/0,
+      /*reference_field_name_ids=*/{}, /*superclass_id=*/0,
+      /*classloader_id=*/0, /*no_reference_fields=*/false,
+      /*kind=*/normal_kind);
+
+  enum Objects : uint64_t {
+    kObjBitmap = 1,
+    kObjCleaner,
+    kObjThunk,
+    kObjNativeAllocationRegistry,
+  };
+
+  {
+    HeapGraphTracker::SourceObject obj;
+    obj.object_id = kObjBitmap;
+    obj.type_id = kTypeBitmap;
+
+    tracker.AddObject(kSeqId, kPid, kTimestamp, std::move(obj));
+  }
+
+  {
+    HeapGraphTracker::SourceObject obj;
+    obj.object_id = kObjCleaner;
+    obj.type_id = kTypeCleaner;
+    obj.referred_objects = {kObjBitmap, kObjThunk};
+
+    tracker.AddObject(kSeqId, kPid, kTimestamp, std::move(obj));
+  }
+
+  {
+    HeapGraphTracker::SourceObject obj;
+    obj.object_id = kObjThunk;
+    obj.type_id = kTypeCleanerThunk;
+    obj.referred_objects = {kObjNativeAllocationRegistry};
+
+    tracker.AddObject(kSeqId, kPid, kTimestamp, std::move(obj));
+  }
+
+  {
+    HeapGraphTracker::SourceObject obj;
+    obj.object_id = kObjNativeAllocationRegistry;
+    obj.type_id = kTypeNativeAllocationRegistry;
+
+    // NativeAllocationRegistry.size least significant bit is used to encode the
+    // source of the allocation (1: malloc, 0: other).
+    obj.native_allocation_registry_size = 24242 | 1;
+
+    tracker.AddObject(kSeqId, kPid, kTimestamp, std::move(obj));
+  }
+
+  tracker.FinalizeProfile(kSeqId);
+
+  const auto& objs_table = context.storage->heap_graph_object_table();
+  const auto& class_table = context.storage->heap_graph_class_table();
+  size_t count_bitmaps = 0;
+  for (uint32_t obj_row = 0; obj_row < objs_table.row_count(); ++obj_row) {
+    base::Optional<uint32_t> class_row =
+        class_table.id().IndexOf(objs_table.type_id()[obj_row]);
+    ASSERT_TRUE(class_row.has_value());
+    if (context.storage->string_pool().Get(class_table.name()[*class_row]) ==
+        "android.graphics.Bitmap") {
+      EXPECT_EQ(objs_table.native_size()[obj_row], 24242);
+      count_bitmaps++;
+    } else {
+      EXPECT_EQ(objs_table.native_size()[obj_row], 0)
+          << context.storage->string_pool()
+                 .Get(class_table.name()[*class_row])
+                 .c_str()
+          << " has non zero native_size";
+    }
+  }
+  EXPECT_EQ(count_bitmaps, 1u);
+}
+
 TEST(HeapGraphTrackerTest, BuildFlamegraph) {
   //           4@A 5@B
   //             \ /
