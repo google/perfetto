@@ -24,6 +24,7 @@
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "src/trace_processor/metrics/sql_metrics.h"
+#include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/tp_metatrace.h"
 #include "src/trace_processor/util/status_macros.h"
 
@@ -35,46 +36,6 @@ namespace trace_processor {
 namespace metrics {
 
 namespace {
-
-SqlValue SqlValueFromSqliteValue(sqlite3_value* value) {
-  SqlValue sql_value;
-  switch (sqlite3_value_type(value)) {
-    case SQLITE_INTEGER:
-      sql_value.type = SqlValue::Type::kLong;
-      sql_value.long_value = sqlite3_value_int64(value);
-      break;
-    case SQLITE_FLOAT:
-      sql_value.type = SqlValue::Type::kDouble;
-      sql_value.double_value = sqlite3_value_double(value);
-      break;
-    case SQLITE_TEXT:
-      sql_value.type = SqlValue::Type::kString;
-      sql_value.string_value =
-          reinterpret_cast<const char*>(sqlite3_value_text(value));
-      break;
-    case SQLITE_BLOB:
-      sql_value.type = SqlValue::Type::kBytes;
-      sql_value.bytes_value = sqlite3_value_blob(value);
-      sql_value.bytes_count = static_cast<size_t>(sqlite3_value_bytes(value));
-      break;
-  }
-  return sql_value;
-}
-
-base::Optional<std::string> SqlValueToString(SqlValue value) {
-  switch (value.type) {
-    case SqlValue::Type::kString:
-      return value.AsString();
-    case SqlValue::Type::kDouble:
-      return std::to_string(value.AsDouble());
-    case SqlValue::Type::kLong:
-      return std::to_string(value.AsLong());
-    case SqlValue::Type::kBytes:
-    case SqlValue::Type::kNull:
-      return base::nullopt;
-  }
-  PERFETTO_FATAL("For GCC");
-}
 
 base::Status ValidateSingleNonEmptyMessage(const uint8_t* ptr,
                                            size_t size,
@@ -561,7 +522,7 @@ void RepeatedFieldStep(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
     *builder_ptr_ptr = new RepeatedFieldBuilder();
   }
 
-  auto value = SqlValueFromSqliteValue(argv[0]);
+  auto value = sqlite_utils::SqliteValueToSqlValue(argv[0]);
   RepeatedFieldBuilder* builder = *builder_ptr_ptr;
   auto status = builder->AddSqlValue(value);
   if (!status.ok()) {
@@ -623,7 +584,7 @@ void BuildProto(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
     }
 
     auto* key = reinterpret_cast<const char*>(sqlite3_value_text(argv[i]));
-    auto value = SqlValueFromSqliteValue(argv[i + 1]);
+    auto value = sqlite_utils::SqliteValueToSqlValue(argv[i + 1]);
     auto status = builder.AppendSqlValue(key, value);
     if (!status.ok()) {
       sqlite3_result_error(ctx, status.c_message(), -1);
@@ -671,10 +632,10 @@ void RunMetric(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
       return;
     }
 
-    base::Optional<std::string> key_str =
-        SqlValueToString(SqlValueFromSqliteValue(argv[i]));
-    base::Optional<std::string> value_str =
-        SqlValueToString(SqlValueFromSqliteValue(argv[i + 1]));
+    base::Optional<std::string> key_str = sqlite_utils::SqlValueToString(
+        sqlite_utils::SqliteValueToSqlValue(argv[i]));
+    base::Optional<std::string> value_str = sqlite_utils::SqlValueToString(
+        sqlite_utils::SqliteValueToSqlValue(argv[i + 1]));
 
     if (!value_str) {
       sqlite3_result_error(
@@ -724,8 +685,8 @@ void UnwrapMetricProto(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
     return;
   }
 
-  SqlValue proto = SqlValueFromSqliteValue(argv[0]);
-  SqlValue message_type = SqlValueFromSqliteValue(argv[1]);
+  SqlValue proto = sqlite_utils::SqliteValueToSqlValue(argv[0]);
+  SqlValue message_type = sqlite_utils::SqliteValueToSqlValue(argv[1]);
 
   if (proto.type != SqlValue::Type::kBytes) {
     sqlite3_result_error(ctx, "UNWRAP_METRIC_PROTO: proto is not a blob", -1);
