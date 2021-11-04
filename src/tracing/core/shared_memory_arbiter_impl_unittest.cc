@@ -42,6 +42,7 @@ using testing::Mock;
 class MockProducerEndpoint : public TracingService::ProducerEndpoint {
  public:
   void RegisterDataSource(const DataSourceDescriptor&) override {}
+  void UpdateDataSource(const DataSourceDescriptor&) override {}
   void UnregisterDataSource(const std::string&) override {}
   void NotifyFlushComplete(FlushRequestID) override {}
   void NotifyDataSourceStarted(DataSourceInstanceID) override {}

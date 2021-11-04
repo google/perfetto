@@ -3603,6 +3603,9 @@ TEST_F(TracingServiceImplTest, UpdateDataSource) {
   producer2->RegisterTrackEventDataSource({}, 1);
   producer2->RegisterTrackEventDataSource({}, 2);
 
+  // This request should fail because ID=2 is already registered.
+  producer2->RegisterTrackEventDataSource({"this_should_fail"}, 2);
+
   TracingServiceState svc_state = consumer->QueryServiceState();
 
   auto parse_desc = [](const perfetto::protos::gen::DataSourceDescriptor& dsd) {
@@ -3632,7 +3635,7 @@ TEST_F(TracingServiceImplTest, UpdateDataSource) {
   EXPECT_EQ(svc_state.data_sources().at(2).ds_descriptor().id(), 2u);
 
   // Test that TrackEvent DataSource is updated.
-  producer2->RegisterTrackEventDataSource({"cat1", "cat2"}, 2);
+  producer2->UpdateTrackEventDataSource({"cat1", "cat2"}, 2);
 
   svc_state = consumer->QueryServiceState();
 
@@ -3655,7 +3658,7 @@ TEST_F(TracingServiceImplTest, UpdateDataSource) {
   EXPECT_EQ(ted.available_categories()[1].name(), "cat2");
 
   // Test removal of a category.
-  producer2->RegisterTrackEventDataSource({"cat2"}, 2);
+  producer2->UpdateTrackEventDataSource({"cat2"}, 2);
 
   svc_state = consumer->QueryServiceState();
 
@@ -3666,7 +3669,7 @@ TEST_F(TracingServiceImplTest, UpdateDataSource) {
   EXPECT_EQ(ted.available_categories()[0].name(), "cat2");
 
   // Test adding a category to the first data source.
-  producer2->RegisterTrackEventDataSource({"cat3"}, 1);
+  producer2->UpdateTrackEventDataSource({"cat3"}, 1);
 
   svc_state = consumer->QueryServiceState();
 
