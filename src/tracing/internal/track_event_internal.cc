@@ -326,12 +326,11 @@ void TrackEventInternal::ResetIncrementalState(TraceWriterBase* trace_writer,
   }
 
   // Every thread should write a descriptor for its default track, because most
-  // trace points won't explicitly reference it.
+  // trace points won't explicitly reference it. We also write the process
+  // descriptor from every thread that writes trace events to ensure it gets
+  // emitted at least once.
   WriteTrackDescriptor(default_track, trace_writer);
-
-  // Additionally the main thread should dump the process descriptor.
-  if (perfetto::base::GetThreadId() == g_main_thread)
-    WriteTrackDescriptor(ProcessTrack::Current(), trace_writer);
+  WriteTrackDescriptor(ProcessTrack::Current(), trace_writer);
 }
 
 // static
