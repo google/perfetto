@@ -578,7 +578,8 @@ export class TraceController extends Controller<States> {
     const result = await engine.query(`select str_value as uuid from metadata
                   where name = 'trace_uuid'`);
     if (result.numRows() === 0) {
-      throw new Error('metadata.trace_uuid could not be found.');
+      // One of the cases covered is an empty trace.
+      return '';
     }
     const traceUuid = result.firstRow({uuid: STR}).uuid;
     const engineConfig = assertExists(globals.state.engines[engine.id]);
