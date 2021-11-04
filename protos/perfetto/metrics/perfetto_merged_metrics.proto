@@ -11,6 +11,8 @@ syntax = "proto2";
 
 package perfetto.protos;
 
+option go_package = "github.com/google/perfetto/perfetto_proto";
+
 // Begin of protos/perfetto/metrics/android/batt_metric.proto
 
 message AndroidBatteryMetric {
