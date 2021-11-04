@@ -139,6 +139,10 @@ export class SelectionController extends Controller<'main'> {
     let dur = undefined;
     let name = undefined;
     let category = undefined;
+    // tslint:disable-next-line:variable-name
+    let thread_dur = undefined;
+    // tslint:disable-next-line:variable-name
+    let thread_ts = undefined;
 
     for (const k of details.columns()) {
       const v = rowIter.get(k);
@@ -148,11 +152,17 @@ export class SelectionController extends Controller<'main'> {
         case 'ts':
           ts = fromNs(Number(v)) - globals.state.traceTime.startSec;
           break;
+        case 'thread_ts':
+          thread_ts = fromNs(Number(v));
+          break;
         case 'name':
           name = `${v}`;
           break;
         case 'dur':
           dur = fromNs(Number(v));
+          break;
+        case 'thread_dur':
+          thread_dur = fromNs(Number(v));
           break;
         case 'category':
         case 'cat':
@@ -167,7 +177,9 @@ export class SelectionController extends Controller<'main'> {
     const selected: SliceDetails = {
       id: selectedId,
       ts,
+      thread_ts,
       dur,
+      thread_dur,
       name,
       category,
       args,
