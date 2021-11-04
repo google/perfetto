@@ -59,6 +59,9 @@ class MockProducer : public Producer {
   void RegisterTrackEventDataSource(
       const std::initializer_list<std::string>& categories,
       uint32_t id);
+  void UpdateTrackEventDataSource(
+      const std::initializer_list<std::string>& categories,
+      uint32_t id);
   void RegisterTraceWriter(uint32_t writer_id, uint32_t target_buffer);
   void UnregisterTraceWriter(uint32_t writer_id);
   void WaitForTracingSetup();

@@ -165,6 +165,29 @@ void ProducerIPCService::RegisterDataSource(
   }
 }
 
+// Called by the remote Producer through the IPC channel.
+void ProducerIPCService::UpdateDataSource(
+    const protos::gen::UpdateDataSourceRequest& req,
+    DeferredUpdateDataSourceResponse response) {
+  RemoteProducer* producer = GetProducerForCurrentRequest();
+  if (!producer) {
+    PERFETTO_DLOG(
+        "Producer invoked UpdateDataSource() before InitializeConnection()");
+    if (response.IsBound())
+      response.Reject();
+    return;
+  }
+
+  const DataSourceDescriptor& dsd = req.data_source_descriptor();
+  GetProducerForCurrentRequest()->service_endpoint->UpdateDataSource(dsd);
+
+  // UpdateDataSource doesn't expect any meaningful response.
+  if (response.IsBound()) {
+    response.Resolve(
+        ipc::AsyncResult<protos::gen::UpdateDataSourceResponse>::Create());
+  }
+}
+
 // Called by the IPC layer.
 void ProducerIPCService::OnClientDisconnected() {
   ipc::ClientID client_id = ipc::Service::client_info().client_id();
