@@ -18,8 +18,10 @@
 
 #include <algorithm>
 #include <cinttypes>
+#include <memory>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -45,6 +47,7 @@
 #include "src/trace_processor/importers/proto/metadata_tracker.h"
 #include "src/trace_processor/importers/systrace/systrace_trace_parser.h"
 #include "src/trace_processor/iterator_impl.h"
+#include "src/trace_processor/sqlite/register_function.h"
 #include "src/trace_processor/sqlite/span_join_operator_table.h"
 #include "src/trace_processor/sqlite/sql_stats_table.h"
 #include "src/trace_processor/sqlite/sqlite3_str_split.h"
@@ -56,6 +59,7 @@
 #include "src/trace_processor/tp_metatrace.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/protozero_to_text.h"
+#include "src/trace_processor/util/status_macros.h"
 
 #include "protos/perfetto/trace/perfetto/perfetto_metatrace.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
@@ -86,6 +90,18 @@ namespace {
 const char kAllTablesQuery[] =
     "SELECT tbl_name, type FROM (SELECT * FROM sqlite_master UNION ALL SELECT "
     "* FROM sqlite_temp_master)";
+
+template <typename SqlFunction, typename Ptr = typename SqlFunction::Context*>
+void RegisterFunction(sqlite3* db,
+                      const char* name,
+                      int argc,
+                      Ptr context = nullptr,
+                      bool deterministic = true) {
+  auto status = RegisterSqlFunction<SqlFunction>(
+      db, name, argc, std::move(context), deterministic);
+  if (!status.ok())
+    PERFETTO_ELOG("%s", status.c_message());
+}
 
 void InitializeSqlite(sqlite3* db) {
   char* error = nullptr;
@@ -287,47 +303,57 @@ void CreateBuiltinViews(sqlite3* db) {
   }
 }
 
-void ExportJson(sqlite3_context* ctx, int /*argc*/, sqlite3_value** argv) {
-  TraceStorage* storage = static_cast<TraceStorage*>(sqlite3_user_data(ctx));
+struct ExportJson : public SqlFunction {
+  using Context = TraceStorage;
+  static base::Status Run(TraceStorage* storage,
+                          size_t /*argc*/,
+                          sqlite3_value** argv,
+                          SqlValue& /*out*/,
+                          Destructors&);
+};
+
+base::Status ExportJson::Run(TraceStorage* storage,
+                             size_t /*argc*/,
+                             sqlite3_value** argv,
+                             SqlValue& /*out*/,
+                             Destructors&) {
   FILE* output;
   if (sqlite3_value_type(argv[0]) == SQLITE_INTEGER) {
     // Assume input is an FD.
     output = fdopen(sqlite3_value_int(argv[0]), "w");
     if (!output) {
-      sqlite3_result_error(ctx, "Couldn't open output file from given FD", -1);
-      return;
+      return base::ErrStatus(
+          "EXPORT_JSON: Couldn't open output file from given FD");
     }
   } else {
     const char* filename =
         reinterpret_cast<const char*>(sqlite3_value_text(argv[0]));
     output = fopen(filename, "w");
     if (!output) {
-      sqlite3_result_error(ctx, "Couldn't open output file", -1);
-      return;
+      return base::ErrStatus("EXPORT_JSON: Couldn't open output file");
     }
   }
-
-  util::Status result = json::ExportJson(storage, output);
-  if (!result.ok()) {
-    sqlite3_result_error(ctx, result.message().c_str(), -1);
-    return;
-  }
+  return json::ExportJson(storage, output);
 }
 
-void CreateJsonExportFunction(TraceStorage* ts, sqlite3* db) {
-  auto ret = sqlite3_create_function_v2(db, "EXPORT_JSON", 1, SQLITE_UTF8, ts,
-                                        ExportJson, nullptr, nullptr,
-                                        sqlite_utils::kSqliteStatic);
-  if (ret) {
-    PERFETTO_ELOG("Error initializing EXPORT_JSON");
-  }
-}
+struct Hash : public SqlFunction {
+  static base::Status Run(void*,
+                          size_t argc,
+                          sqlite3_value** argv,
+                          SqlValue& out,
+                          Destructors&);
+};
 
-void Hash(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
+base::Status Hash::Run(void*,
+                       size_t argc,
+                       sqlite3_value** argv,
+                       SqlValue& out,
+                       Destructors&) {
   base::Hash hash;
-  for (int i = 0; i < argc; ++i) {
+  for (size_t i = 0; i < argc; ++i) {
     sqlite3_value* value = argv[i];
-    switch (sqlite3_value_type(value)) {
+    int type = sqlite3_value_type(value);
+    switch (type) {
       case SQLITE_INTEGER:
         hash.Update(sqlite3_value_int64(value));
         break;
@@ -338,41 +364,50 @@ void Hash(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
         break;
       }
       default:
-        sqlite3_result_error(ctx, "Unsupported type of arg passed to HASH", -1);
-        return;
+        return base::ErrStatus("HASH: arg %zu has unknown type %d", i, type);
     }
   }
-  sqlite3_result_int64(ctx, static_cast<int64_t>(hash.digest()));
+  out = SqlValue::Long(static_cast<int64_t>(hash.digest()));
+  return base::OkStatus();
 }
 
-void Demangle(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
-  if (argc != 1) {
-    sqlite3_result_error(ctx, "Unsupported number of arg passed to DEMANGLE",
-                         -1);
-    return;
-  }
+struct Demangle : public SqlFunction {
+  static base::Status Run(void*,
+                          size_t argc,
+                          sqlite3_value** argv,
+                          SqlValue& out,
+                          Destructors& destructors);
+};
+
+base::Status Demangle::Run(void*,
+                           size_t argc,
+                           sqlite3_value** argv,
+                           SqlValue& out,
+                           Destructors& destructors) {
+  if (argc != 1)
+    return base::ErrStatus("Unsupported number of arg passed to DEMANGLE");
   sqlite3_value* value = argv[0];
-  if (sqlite3_value_type(value) == SQLITE_NULL) {
-    sqlite3_result_null(ctx);
-    return;
-  }
-  if (sqlite3_value_type(value) != SQLITE_TEXT) {
-    sqlite3_result_error(ctx, "Unsupported type of arg passed to DEMANGLE", -1);
-    return;
-  }
+  if (sqlite3_value_type(value) == SQLITE_NULL)
+    return base::OkStatus();
+
+  if (sqlite3_value_type(value) != SQLITE_TEXT)
+    return base::ErrStatus("Unsupported type of arg passed to DEMANGLE");
+
   const char* ptr = reinterpret_cast<const char*>(sqlite3_value_text(value));
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   int ignored = 0;
   // This memory was allocated by malloc and will be passed to SQLite to free.
   char* demangled_name = abi::__cxa_demangle(ptr, nullptr, nullptr, &ignored);
-  if (!demangled_name) {
-    sqlite3_result_null(ctx);
-    return;
-  }
-  sqlite3_result_text(ctx, demangled_name, -1, free);
+  if (!demangled_name)
+    return base::OkStatus();
+
+  destructors.string_destructor = free;
+  out = SqlValue::String(demangled_name);
 #else
-  sqlite3_result_text(ctx, ptr, -1, sqlite_utils::kSqliteTransient);
+  destructors.string_destructor = sqlite_utils::kSqliteTransient;
+  out = SqlValue::String(ptr);
 #endif
+  return base::OkStatus();
 }
 
 void LastNonNullStep(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
@@ -423,25 +458,7 @@ void LastNonNullFinal(sqlite3_context* ctx) {
   }
 }
 
-void CreateHashFunction(sqlite3* db) {
-  auto ret = sqlite3_create_function_v2(
-      db, "HASH", -1, SQLITE_UTF8 | SQLITE_DETERMINISTIC, nullptr, &Hash,
-      nullptr, nullptr, nullptr);
-  if (ret) {
-    PERFETTO_ELOG("Error initializing HASH");
-  }
-}
-
-void CreateDemangledNameFunction(sqlite3* db) {
-  auto ret = sqlite3_create_function_v2(
-      db, "DEMANGLE", 1, SQLITE_UTF8 | SQLITE_DETERMINISTIC, nullptr, &Demangle,
-      nullptr, nullptr, nullptr);
-  if (ret != SQLITE_OK) {
-    PERFETTO_ELOG("Error initializing DEMANGLE: %s", sqlite3_errmsg(db));
-  }
-}
-
-void CreateLastNonNullFunction(sqlite3* db) {
+void RegisterLastNonNullFunction(sqlite3* db) {
   auto ret = sqlite3_create_window_function(
       db, "LAST_NON_NULL", 1, SQLITE_UTF8 | SQLITE_DETERMINISTIC, nullptr,
       &LastNonNullStep, &LastNonNullFinal, &LastNonNullValue,
@@ -529,7 +546,7 @@ void ValueAtMaxTsFinal(sqlite3_context* ctx) {
   }
 }
 
-void CreateValueAtMaxTsFunction(sqlite3* db) {
+void RegisterValueAtMaxTsFunction(sqlite3* db) {
   auto ret = sqlite3_create_function_v2(
       db, "VALUE_AT_MAX_TS", 2, SQLITE_UTF8 | SQLITE_DETERMINISTIC, nullptr,
       nullptr, &ValueAtMaxTsStep, &ValueAtMaxTsFinal, nullptr);
@@ -538,103 +555,73 @@ void CreateValueAtMaxTsFunction(sqlite3* db) {
   }
 }
 
-void ExtractArg(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
-  if (argc != 2) {
-    sqlite3_result_error(ctx, "EXTRACT_ARG: 2 args required", -1);
-    return;
-  }
+struct ExtractArg : public SqlFunction {
+  using Context = TraceStorage;
+  static base::Status Run(TraceStorage* storage,
+                          size_t argc,
+                          sqlite3_value** argv,
+                          SqlValue& out,
+                          Destructors& destructors);
+};
+
+base::Status ExtractArg::Run(TraceStorage* storage,
+                             size_t argc,
+                             sqlite3_value** argv,
+                             SqlValue& out,
+                             Destructors& destructors) {
+  if (argc != 2)
+    return base::ErrStatus("EXTRACT_ARG: 2 args required");
 
   // If the arg set id is null, just return null as the result.
-  if (sqlite3_value_type(argv[0]) == SQLITE_NULL) {
-    sqlite3_result_null(ctx);
-    return;
-  }
-  if (sqlite3_value_type(argv[0]) != SQLITE_INTEGER) {
-    sqlite3_result_error(ctx, "EXTRACT_ARG: 1st argument should be arg set id",
-                         -1);
-    return;
-  }
-  if (sqlite3_value_type(argv[1]) != SQLITE_TEXT) {
-    sqlite3_result_error(ctx, "EXTRACT_ARG: 2nd argument should be key", -1);
-    return;
-  }
+  if (sqlite3_value_type(argv[0]) == SQLITE_NULL)
+    return base::OkStatus();
 
-  TraceStorage* storage = static_cast<TraceStorage*>(sqlite3_user_data(ctx));
+  if (sqlite3_value_type(argv[0]) != SQLITE_INTEGER)
+    return base::ErrStatus("EXTRACT_ARG: 1st argument should be arg set id");
+
+  if (sqlite3_value_type(argv[1]) != SQLITE_TEXT)
+    return base::ErrStatus("EXTRACT_ARG: 2nd argument should be key");
+
   uint32_t arg_set_id = static_cast<uint32_t>(sqlite3_value_int(argv[0]));
   const char* key = reinterpret_cast<const char*>(sqlite3_value_text(argv[1]));
 
   base::Optional<Variadic> opt_value;
-  util::Status status = storage->ExtractArg(arg_set_id, key, &opt_value);
-  if (!status.ok()) {
-    sqlite3_result_error(ctx, status.c_message(), -1);
-    return;
-  }
+  RETURN_IF_ERROR(storage->ExtractArg(arg_set_id, key, &opt_value));
 
-  if (!opt_value) {
-    sqlite3_result_null(ctx);
-    return;
-  }
+  if (!opt_value)
+    return base::OkStatus();
+
+  // This function always returns static strings (i.e. scoped to lifetime
+  // of the TraceStorage thread pool) so prevent SQLite from making copies.
+  destructors.string_destructor = sqlite_utils::kSqliteStatic;
 
   switch (opt_value->type) {
-    case Variadic::kInt:
-      sqlite3_result_int64(ctx, opt_value->int_value);
-      break;
-    case Variadic::kBool:
-      sqlite3_result_int64(ctx, opt_value->bool_value);
-      break;
-    case Variadic::kUint:
-      sqlite3_result_int64(ctx, static_cast<int64_t>(opt_value->uint_value));
-      break;
-    case Variadic::kPointer:
-      sqlite3_result_int64(ctx, static_cast<int64_t>(opt_value->pointer_value));
-      break;
-    case Variadic::kJson:
-      sqlite3_result_text(ctx, storage->GetString(opt_value->json_value).data(),
-                          -1, nullptr);
-      break;
-    case Variadic::kString:
-      sqlite3_result_text(
-          ctx, storage->GetString(opt_value->string_value).data(), -1, nullptr);
-      break;
-    case Variadic::kReal:
-      sqlite3_result_double(ctx, opt_value->real_value);
-      break;
     case Variadic::kNull:
-      sqlite3_result_null(ctx);
-      break;
+      return base::OkStatus();
+    case Variadic::kInt:
+      out = SqlValue::Long(opt_value->int_value);
+      return base::OkStatus();
+    case Variadic::kUint:
+      out = SqlValue::Long(static_cast<int64_t>(opt_value->uint_value));
+      return base::OkStatus();
+    case Variadic::kString:
+      out =
+          SqlValue::String(storage->GetString(opt_value->string_value).data());
+      return base::OkStatus();
+    case Variadic::kReal:
+      out = SqlValue::Double(opt_value->real_value);
+      return base::OkStatus();
+    case Variadic::kBool:
+      out = SqlValue::Long(opt_value->bool_value);
+      return base::OkStatus();
+    case Variadic::kPointer:
+      out = SqlValue::Long(static_cast<int64_t>(opt_value->pointer_value));
+      return base::OkStatus();
+    case Variadic::kJson:
+      out = SqlValue::String(storage->GetString(opt_value->json_value).data());
+      return base::OkStatus();
   }
-}
-
-void CreateExtractArgFunction(TraceStorage* ts, sqlite3* db) {
-  auto ret = sqlite3_create_function_v2(db, "EXTRACT_ARG", 2,
-                                        SQLITE_UTF8 | SQLITE_DETERMINISTIC, ts,
-                                        &ExtractArg, nullptr, nullptr, nullptr);
-  if (ret != SQLITE_OK) {
-    PERFETTO_FATAL("Error initializing EXTRACT_ARG: %s", sqlite3_errmsg(db));
-  }
-}
-
-void CreateSourceGeqFunction(sqlite3* db) {
-  auto fn = [](sqlite3_context* ctx, int, sqlite3_value**) {
-    sqlite3_result_error(
-        ctx, "SOURCE_GEQ should not be called from the global scope", -1);
-  };
-  auto ret = sqlite3_create_function_v2(db, "SOURCE_GEQ", -1,
-                                        SQLITE_UTF8 | SQLITE_DETERMINISTIC,
-                                        nullptr, fn, nullptr, nullptr, nullptr);
-  if (ret != SQLITE_OK) {
-    PERFETTO_FATAL("Error initializing SOURCE_GEQ: %s", sqlite3_errmsg(db));
-  }
-}
-
-void CreateUnwrapMetricProtoFunction(sqlite3* db) {
-  auto ret = sqlite3_create_function_v2(
-      db, "UNWRAP_METRIC_PROTO", 2, SQLITE_UTF8 | SQLITE_DETERMINISTIC, nullptr,
-      &metrics::UnwrapMetricProto, nullptr, nullptr, nullptr);
-  if (ret != SQLITE_OK) {
-    PERFETTO_FATAL("Error initializing UNWRAP_METRIC_PROTO: %s",
-                   sqlite3_errmsg(db));
-  }
+  PERFETTO_FATAL("For GCC");
 }
 
 std::vector<std::string> SanitizeMetricMountPaths(
@@ -649,6 +636,17 @@ std::vector<std::string> SanitizeMetricMountPaths(
   }
   return sanitized;
 }
+
+struct SourceGeq : public SqlFunction {
+  static base::Status Run(void*,
+                          size_t,
+                          sqlite3_value**,
+                          SqlValue&,
+                          Destructors&) {
+    return base::ErrStatus(
+        "SOURCE_GEQ should not be called from the global scope");
+  }
+};
 
 void SetupMetrics(TraceProcessor* tp,
                   sqlite3* db,
@@ -672,33 +670,21 @@ void SetupMetrics(TraceProcessor* tp,
     tp->RegisterMetric(file_to_sql.path, file_to_sql.sql);
   }
 
-  {
-    std::unique_ptr<metrics::RunMetricContext> ctx(
-        new metrics::RunMetricContext());
-    ctx->tp = tp;
-    ctx->metrics = sql_metrics;
-    auto ret = sqlite3_create_function_v2(
-        db, "RUN_METRIC", -1, SQLITE_UTF8, ctx.release(), metrics::RunMetric,
-        nullptr, nullptr,
-        [](void* ptr) { delete static_cast<metrics::RunMetricContext*>(ptr); });
-    if (ret)
-      PERFETTO_FATAL("Error initializing RUN_METRIC");
-  }
+  RegisterFunction<metrics::NullIfEmpty>(db, "NULL_IF_EMPTY", 1);
+  RegisterFunction<metrics::UnwrapMetricProto>(db, "UNWRAP_METRIC_PROTO", 2);
+  RegisterFunction<metrics::RunMetric>(
+      db, "RUN_METRIC", -1,
+      std::unique_ptr<metrics::RunMetric::Context>(
+          new metrics::RunMetric::Context{tp, sql_metrics}));
 
+  // TODO(lalitm): migrate this over to using RegisterFunction once aggregate
+  // functions are supported.
   {
     auto ret = sqlite3_create_function_v2(
         db, "RepeatedField", 1, SQLITE_UTF8, nullptr, nullptr,
         metrics::RepeatedFieldStep, metrics::RepeatedFieldFinal, nullptr);
     if (ret)
       PERFETTO_FATAL("Error initializing RepeatedField");
-  }
-
-  {
-    auto ret = sqlite3_create_function_v2(db, "NULL_IF_EMPTY", 1, SQLITE_UTF8,
-                                          nullptr, metrics::NullIfEmpty,
-                                          nullptr, nullptr, nullptr);
-    if (ret)
-      PERFETTO_FATAL("Error initializing NULL_IF_EMPTY");
   }
 }
 
@@ -749,14 +735,19 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   CreateBuiltinViews(db);
   db_.reset(std::move(db));
 
-  CreateJsonExportFunction(context_.storage.get(), db);
-  CreateHashFunction(db);
-  CreateDemangledNameFunction(db);
-  CreateLastNonNullFunction(db);
-  CreateExtractArgFunction(context_.storage.get(), db);
-  CreateSourceGeqFunction(db);
-  CreateValueAtMaxTsFunction(db);
-  CreateUnwrapMetricProtoFunction(db);
+  // New style function registration.
+  RegisterFunction<Hash>(db, "HASH", -1);
+  RegisterFunction<Demangle>(db, "DEMANGLE", 1);
+  RegisterFunction<SourceGeq>(db, "SOURCE_GEQ", -1);
+  RegisterFunction<ExportJson>(db, "EXPORT_JSON", 1, context_.storage.get(),
+                               false);
+  RegisterFunction<ExtractArg>(db, "EXTRACT_ARG", 2, context_.storage.get());
+
+  // Old style function registration.
+  // TODO(lalitm): migrate this over to using RegisterFunction once aggregate
+  // functions are supported.
+  RegisterLastNonNullFunction(db);
+  RegisterValueAtMaxTsFunction(db);
 
   SetupMetrics(this, *db_, &sql_metrics_, cfg.skip_builtin_metric_paths);
 
@@ -1062,20 +1053,10 @@ util::Status TraceProcessorImpl::ExtendMetricsProto(
     // into a function name of the form (TraceMetrics_SubMetric).
     auto fn_name = desc.full_name().substr(desc.package_name().size() + 1);
     std::replace(fn_name.begin(), fn_name.end(), '.', '_');
-
-    std::unique_ptr<metrics::BuildProtoContext> ctx(
-        new metrics::BuildProtoContext());
-    ctx->tp = this;
-    ctx->pool = &pool_;
-    ctx->desc = &desc;
-
-    auto ret = sqlite3_create_function_v2(
-        *db_, fn_name.c_str(), -1, SQLITE_UTF8, ctx.release(),
-        metrics::BuildProto, nullptr, nullptr, [](void* ptr) {
-          delete static_cast<metrics::BuildProtoContext*>(ptr);
-        });
-    if (ret != SQLITE_OK)
-      return util::ErrStatus("%s", sqlite3_errmsg(*db_));
+    RegisterFunction<metrics::BuildProto>(
+        db_.get(), fn_name.c_str(), -1,
+        std::unique_ptr<metrics::BuildProto::Context>(
+            new metrics::BuildProto::Context{this, &pool_, &desc}));
   }
   return util::OkStatus();
 }
