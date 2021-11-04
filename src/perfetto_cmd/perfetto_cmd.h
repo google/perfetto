@@ -26,6 +26,7 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/event_fd.h"
 #include "perfetto/ext/base/optional.h"
+#include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/unix_task_runner.h"
 #include "perfetto/ext/tracing/core/consumer.h"
@@ -51,10 +52,11 @@ class PerfettoCmd : public Consumer {
   // with traced. This is to allow tools like tracebox to avoid spawning the
   // service for no reason if the cmdline parsing fails.
   // Return value:
-  //   nullopt: no error, the caller should call ConnectToServiceAndRun.
+  //   nullopt: no error, the caller should call
+  //   ConnectToServiceRunAndMaybeNotify.
   //   0-N: the caller should exit() with the given exit code.
   base::Optional<int> ParseCmdlineAndMaybeDaemonize(int argc, char** argv);
-  int ConnectToServiceAndRun();
+  int ConnectToServiceRunAndMaybeNotify();
 
   // perfetto::Consumer implementation.
   void OnConnect() override;
@@ -86,6 +88,31 @@ class PerfettoCmd : public Consumer {
   // within OnTraceDataTimeoutMs of when we expected to.
   void CheckTraceDataTimeout();
 
+  int ConnectToServiceAndRun();
+
+  enum BgProcessStatus : char {
+    kBackgroundOk = 0,
+    kBackgroundOtherError = 1,
+    kBackgroundTimeout = 2,
+  };
+
+  // Used to implement the --background-wait flag.
+  //
+  // Waits (up to 30s) for the child process to signal (success or an error).
+  //
+  // Returns the status received from the child process or kTimeout, in case of
+  // timeout.
+  BgProcessStatus WaitOnBgProcessPipe();
+
+  // Used to implement the --background-wait flag.
+  //
+  // Signals the parent process (if there is one) that it can exit (successfully
+  // or with an error).
+  //
+  // Only the first time this function is called is significant. Further calls
+  // will have no effect.
+  void NotifyBgProcessPipe(BgProcessStatus status);
+
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   static base::ScopedFile CreateUnlinkedTmpFile();
   void SaveTraceIntoDropboxAndIncidentOrCrash();
@@ -106,6 +133,7 @@ class PerfettoCmd : public Consumer {
   std::vector<std::string> triggers_to_activate_;
   std::string trace_out_path_;
   base::EventFd ctrl_c_evt_;
+  base::Pipe background_wait_pipe_;
   bool save_to_incidentd_ = false;
   bool statsd_logging_ = false;
   bool update_guardrail_state_ = false;
@@ -118,6 +146,7 @@ class PerfettoCmd : public Consumer {
   bool query_service_output_raw_ = false;
   bool bugreport_ = false;
   bool background_ = false;
+  bool background_wait_ = false;
   bool ignore_guardrails_ = false;
   bool upload_flag_ = false;
   std::string uuid_;

@@ -163,7 +163,7 @@ int TraceboxMain(int argc, char** argv) {
   traced_probes.args.posix_proc_group_id = traced.pid();
   traced_probes.Start();
 
-  perfetto_cmd.ConnectToServiceAndRun();
+  perfetto_cmd.ConnectToServiceRunAndMaybeNotify();
   return 0;
 }
 
