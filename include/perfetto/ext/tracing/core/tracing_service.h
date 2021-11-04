@@ -60,6 +60,7 @@ class PERFETTO_EXPORT ProducerEndpoint {
   // Called by the Producer to (un)register data sources. Data sources are
   // identified by their name (i.e. DataSourceDescriptor.name)
   virtual void RegisterDataSource(const DataSourceDescriptor&) = 0;
+  virtual void UpdateDataSource(const DataSourceDescriptor&) = 0;
   virtual void UnregisterDataSource(const std::string& name) = 0;
 
   // Associate the trace writer with the given |writer_id| with

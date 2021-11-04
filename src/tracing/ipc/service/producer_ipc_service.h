@@ -48,6 +48,8 @@ class ProducerIPCService : public protos::gen::ProducerPort {
                             DeferredInitializeConnectionResponse) override;
   void RegisterDataSource(const protos::gen::RegisterDataSourceRequest&,
                           DeferredRegisterDataSourceResponse) override;
+  void UpdateDataSource(const protos::gen::UpdateDataSourceRequest&,
+                        DeferredUpdateDataSourceResponse) override;
   void UnregisterDataSource(const protos::gen::UnregisterDataSourceRequest&,
                             DeferredUnregisterDataSourceResponse) override;
   void RegisterTraceWriter(const protos::gen::RegisterTraceWriterRequest&,
