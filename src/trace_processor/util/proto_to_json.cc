@@ -53,9 +53,8 @@ std::string QuoteAndEscapeJsonString(const std::string& raw) {
 
           // Print |c| as a hex character. We reserve 3 bytes of space: 2 for
           // the hex code and one for the null terminator.
-          char buf[3];
-          snprintf(buf, sizeof(buf), "%02X", c);
-          ret += buf;
+          base::StackString<3> buf("%02X", c);
+          ret += buf.c_str();
         } else {
           // Everything else can be passed through directly.
           ret += c;

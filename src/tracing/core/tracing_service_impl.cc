@@ -34,13 +34,11 @@
 #include <unistd.h>
 #endif
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-#include <sys/system_properties.h>
-#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) && \
+    PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
 #include "src/android_internal/lazy_library_loader.h"    // nogncheck
 #include "src/android_internal/tracing_service_proxy.h"  // nogncheck
-#endif  // PERFETTO_ANDROID_BUILD
-#endif  // PERFETTO_OS_ANDROID
+#endif
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
@@ -54,6 +52,7 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/status.h"
 #include "perfetto/base/task_runner.h"
+#include "perfetto/ext/base/android_utils.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/metatrace.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -2353,6 +2352,22 @@ void TracingServiceImpl::RegisterDataSource(ProducerID producer_id,
                 producer_id, desc.name().c_str());
 
   PERFETTO_DCHECK(!desc.name().empty());
+
+  // If this producer has already registered a matching descriptor name and id,
+  // just update the descriptor.
+  if (desc.id() != 0) {
+    auto range = data_sources_.equal_range(desc.name());
+    for (auto it = range.first; it != range.second; ++it) {
+      if (it->second.producer_id == producer_id &&
+          it->second.descriptor.name() == desc.name() &&
+          it->second.descriptor.id() == desc.id()) {
+        it->second.descriptor = desc;
+        // TODO(jbates): maybe notify consumers of the updated descriptor.
+        return;
+      }
+    }
+  }
+
   auto reg_ds = data_sources_.emplace(desc.name(),
                                       RegisteredDataSource{producer_id, desc});
 
@@ -3102,9 +3117,9 @@ void TracingServiceImpl::MaybeEmitSystemInfo(
   }
 #endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-  char value[PROP_VALUE_MAX];
-  if (__system_property_get("ro.build.fingerprint", value)) {
-    info->set_android_build_fingerprint(value);
+  std::string fingerprint_value = base::GetAndroidProp("ro.build.fingerprint");
+  if (!fingerprint_value.empty()) {
+    info->set_android_build_fingerprint(fingerprint_value);
   } else {
     PERFETTO_ELOG("Unable to read ro.build.fingerprint");
   }

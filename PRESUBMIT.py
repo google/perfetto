@@ -161,6 +161,8 @@ def CheckBannedCpp(input_api, output_api):
        'strncpy does not null-terminate if src > dst. Use base::StringCopy'),
       (r'[(=]\s*snprintf\(',
        'snprintf can return > dst_size. Use base::SprintfTrunc'),
+      (r'//.*\bDNS\b',
+       '// DNS (Do Not Ship) found. Did you mean to remove some testing code?'),
       (r'\bPERFETTO_EINTR\(close\(',
        'close(2) must not be retried on EINTR on Linux and other OSes '
        'that we run on, as the fd will be closed.'),

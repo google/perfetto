@@ -276,7 +276,7 @@ size_t SprintfTrunc(char* dst, size_t dst_size, const char* fmt, ...) {
     res = dst_size - 1;
   }
 
-  PERFETTO_DCHECK(res > 0 && res < dst_size);
+  PERFETTO_DCHECK(res < dst_size);
   PERFETTO_DCHECK(dst[res] == '\0');
   return res;
 }

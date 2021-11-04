@@ -161,13 +161,6 @@ export function genConfig(
     ftraceEvents.add('raw_syscalls/sys_exit');
   }
 
-  if (procThreadAssociationFtrace) {
-    ftraceEvents.add('sched/sched_process_exit');
-    ftraceEvents.add('sched/sched_process_free');
-    ftraceEvents.add('task/task_newtask');
-    ftraceEvents.add('task/task_rename');
-  }
-
   if (uiCfg.batteryDrain) {
     const ds = new TraceConfig.DataSource();
     ds.config = new DataSourceConfig();
@@ -197,7 +190,7 @@ export function genConfig(
   let sysStatsCfg: SysStatsConfig|undefined = undefined;
 
   if (uiCfg.cpuCoarse) {
-    if (sysStatsCfg === undefined) sysStatsCfg = new SysStatsConfig();
+    sysStatsCfg = new SysStatsConfig();
     sysStatsCfg.statPeriodMs = uiCfg.cpuCoarsePollMs;
     sysStatsCfg.statCounters = [
       SysStatsConfig.StatCounters.STAT_CPU_TIMES,
@@ -214,6 +207,13 @@ export function genConfig(
     ftraceEvents.add('dmabuf_heap/dma_heap_stat');
     ftraceEvents.add('kmem/ion_heap_grow');
     ftraceEvents.add('kmem/ion_heap_shrink');
+  }
+
+  if (procThreadAssociationFtrace) {
+    ftraceEvents.add('sched/sched_process_exit');
+    ftraceEvents.add('sched/sched_process_free');
+    ftraceEvents.add('task/task_newtask');
+    ftraceEvents.add('task/task_rename');
   }
 
   if (uiCfg.meminfo) {
@@ -398,7 +398,7 @@ export function genConfig(
   }
 
   if (chromeCategories.size !== 0) {
-    let chromeRecordMode = '';
+    let chromeRecordMode;
     if (uiCfg.mode === 'STOP_WHEN_FULL') {
       chromeRecordMode = 'record-until-full';
     } else {
@@ -612,6 +612,7 @@ export class RecordController extends Controller<'main'> implements Consumer {
   private bufferUpdateInterval: ReturnType<typeof setTimeout>|undefined;
   private adb = new AdbOverWebUsb();
   private recordedTraceSuffix = TRACE_SUFFIX;
+  private fetchedCategories = false;
 
   // We have a different controller for each targetOS. The correct one will be
   // created when needed, and stored here. When the key is a string, it is the
@@ -629,11 +630,12 @@ export class RecordController extends Controller<'main'> implements Consumer {
   run() {
     // TODO(eseckler): Use ConsumerPort's QueryServiceState instead
     // of posting a custom extension message to retrieve the category list.
-    if (this.app.state.updateChromeCategories) {
+    if (this.app.state.fetchChromeCategories && !this.fetchedCategories) {
+      this.fetchedCategories = true;
       if (this.app.state.extensionInstalled) {
         this.extensionPort.postMessage({method: 'GetCategories'});
       }
-      globals.dispatch(Actions.setUpdateChromeCategories({update: false}));
+      globals.dispatch(Actions.setFetchChromeCategories({fetch: false}));
     }
     if (this.app.state.recordConfig === this.config &&
         this.app.state.recordingInProgress === this.recordingInProgress) {
@@ -785,7 +787,7 @@ export class RecordController extends Controller<'main'> implements Consumer {
   // protocol. Actually, there is no full consumer_port implementation, but
   // only the support to start tracing and fetch the file.
   async getTargetController(target: RecordingTarget): Promise<RpcConsumerPort> {
-    const identifier = this.getTargetIdentifier(target);
+    const identifier = RecordController.getTargetIdentifier(target);
 
     // The reason why caching the target 'record controller' Promise is that
     // multiple rcp calls can happen while we are trying to understand if an
@@ -819,7 +821,7 @@ export class RecordController extends Controller<'main'> implements Consumer {
     return controllerPromise;
   }
 
-  private getTargetIdentifier(target: RecordingTarget): string {
+  private static getTargetIdentifier(target: RecordingTarget): string {
     return isAdbTarget(target) ? target.serial : target.os;
   }
 

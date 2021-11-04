@@ -255,6 +255,30 @@ const SECTIONS: Section[] = [
   },
 
   {
+    title: 'Support',
+    expanded: true,
+    summary: 'Documentation & Bugs',
+    items: [
+      {
+        t: 'Keyboard shortcuts',
+        a: openHelp,
+        i: 'help',
+      },
+      {
+        t: 'Documentation',
+        a: 'https://perfetto.dev',
+        i: 'find_in_page',
+      },
+      {t: 'Flags', a: navigateFlags, i: 'emoji_flags'},
+      {
+        t: 'Report a bug',
+        a: 'https://goto.google.com/perfetto-ui-bug',
+        i: 'bug_report',
+      },
+    ],
+  },
+
+  {
     title: 'Sample queries',
     summary: 'Compute summary statistics',
     items: [
@@ -291,29 +315,6 @@ const SECTIONS: Section[] = [
       {
         t: 'Debug SQL performance',
         a: createCannedQuery(SQL_STATS),
-        i: 'bug_report',
-      },
-    ],
-  },
-
-  {
-    title: 'Support',
-    summary: 'Documentation & Bugs',
-    items: [
-      {
-        t: 'Controls',
-        a: openHelp,
-        i: 'help',
-      },
-      {
-        t: 'Documentation',
-        a: 'https://perfetto.dev',
-        i: 'find_in_page',
-      },
-      {t: 'Flags', a: navigateFlags, i: 'emoji_flags'},
-      {
-        t: 'Report a bug',
-        a: 'https://goto.google.com/perfetto-ui-bug',
         i: 'bug_report',
       },
     ],

@@ -295,6 +295,12 @@
     align-items: center;
   }
 
+  .parsing-errors {
+    padding: 1em;
+    border: 1px solid #dc143c;
+    color: #dc143c;
+  }
+
   .title-config {
     display: inline-block;
     margin: var(--record-section-padding);
@@ -329,12 +335,23 @@
     }
 
     &.save {
-      width: 160px;
+      &.long {
+        width: 160px;
+      }
 
       &:enabled {
         background-color: hsl(197, 50%, 67%);
       }
     }
+
+    &.reset {
+      width: 300px;
+      background-color: hsl(0, 50%, 67%);
+    }
+  }
+
+  .reset-wrapper {
+    padding: 1em;
   }
 
   .input-config {
@@ -401,6 +418,11 @@
     transition: color 0.2s ease;
     padding-top: var(--record-section-padding);
     padding-bottom: var(--record-section-padding);
+
+    &.compact {
+      padding-top: 10px;
+      padding-bottom: 10px;
+    }
 
     &:nth-of-type(2n) {
       background-color: #f9f9f9;

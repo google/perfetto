@@ -158,6 +158,12 @@ message DataSourceDescriptor {
   // e.g., "linux.ftrace", "chromium.tracing"
   optional string name = 1;
 
+  // When non-zero, this is a unique ID within the corresponding Producer for
+  // this data source. This is useful to differentiate between data sources
+  // with matching names. This field has been introduced in Android T in
+  // November 2021 and is not supported on older versions.
+  optional uint64 id = 7;
+
   // When true the data source is expected to ack the stop request through the
   // NotifyDataSourceStopped() IPC. This field has been introduced after
   // Android P in Jul 2018 and is not supported on older versions.
@@ -5631,14 +5637,32 @@ message FtraceEventBundle {
   // When we do that, we report the fallback clock in each bundle so we can do
   // proper clock syncing at parsing time in TraceProcessor. We cannot use the
   // TracePacket timestamp_clock_id because: (1) there is no per-packet
-  // timestamp for ftrace bundles; (2) technically we cannot be guaranteed that
-  // "global" matches CLOCK_MONOTONIC (although it seems to do so in practice).
+  // timestamp for ftrace bundles; (2) "global" does not match CLOCK_MONOTONIC.
   // Having a dedicated and explicit flag allows us to correct further misakes
   // in future by looking at the kernel version.
   // This field has been introduced in perfetto v19 / Android T (13).
   // This field is omitted when the ftrace clock is just "boot", as that is the
   // default assumption (and for consistency with the past).
   optional FtraceClock ftrace_clock = 5;
+
+  // The timestamp according to the ftrace clock, taken at the same instant
+  // as |boot_timestamp|. This is used to sync ftrace events when a non-boot
+  // clock is used as the ftrace clock. We don't use the ClockSnapshot packet
+  // because the ftrace global/local clocks don't match any of the clock_gettime
+  // domains and can be only read by traced_probes.
+  //
+  // Only set when |ftrace_clock| != FTRACE_CLOCK_UNSPECIFIED.
+  //
+  // Implementation note: Populated by reading the 'now ts:' field in
+  // tracefs/per_cpu/cpuX/stat.
+  optional int64 ftrace_timestamp = 6;
+
+  // The timestamp according to CLOCK_BOOTTIME, taken at the same instant as
+  // |ftrace_timestamp|. See documentation of |ftrace_timestamp| for
+  // more info.
+  //
+  // Only set when |ftrace_clock| != FTRACE_CLOCK_UNSPECIFIED.
+  optional int64 boot_timestamp = 7;
 }
 
 enum FtraceClock {
@@ -5649,6 +5673,7 @@ enum FtraceClock {
   FTRACE_CLOCK_GLOBAL = 2;
   FTRACE_CLOCK_LOCAL = 3;
 }
+
 // End of protos/perfetto/trace/ftrace/ftrace_event_bundle.proto
 
 // Begin of protos/perfetto/trace/ftrace/ftrace_stats.proto
@@ -7800,8 +7825,11 @@ message HeapGraphObject {
   // Bytes occupied by this objects.
   optional uint64 self_size = 3;
 
-  // Add this to all non-zero values in reference_field_id. This is used to
+  // Add this to all non-zero values in reference_object_id. This is used to
   // get more compact varint encoding.
+  //
+  // The name is confusing, but this has always been used as a base for
+  // reference_object_id. The field should be named reference_object_id_base.
   optional uint64 reference_field_id_base = 6;
 
   // Indices for InternedData.field_names for the name of the field referring
@@ -7812,6 +7840,12 @@ message HeapGraphObject {
 
   // Ids of the Object that is referred to.
   repeated uint64 reference_object_id = 5 [packed = true];
+
+  // If this object is an instance of `libcore.util.NativeAllocationRegistry`,
+  // the value of the `size` field.
+  //
+  // N.B. This is not the native size of this object.
+  optional int64 native_allocation_registry_size_field = 8;
 }
 
 message HeapGraph {
@@ -8543,7 +8577,7 @@ message TracePacketDefaults {
 // Describes a process's attributes. Emitted as part of a TrackDescriptor,
 // usually by the process's main thread.
 //
-// Next id: 8.
+// Next id: 9.
 message ProcessDescriptor {
   optional int32 pid = 1;
   repeated string cmdline = 2;
@@ -8575,6 +8609,11 @@ message ProcessDescriptor {
 
   // To support old UI. New UI should determine default sorting by process_type.
   optional int32 legacy_sort_index = 3;
+
+  // Labels can be used to further describe properties of the work performed by
+  // the process. For example, these can be used by Chrome renderer process to
+  // provide titles of frames being rendered.
+  repeated string process_labels = 8;
 }
 
 // End of protos/perfetto/trace/track_event/process_descriptor.proto
@@ -8688,6 +8727,7 @@ message ChromeProcessDescriptor {
     PROCESS_SERVICE_IME = 37;
     PROCESS_SERVICE_RECORDING = 38;
     PROCESS_SERVICE_SHAPEDETECTION = 39;
+    PROCESS_RENDERER_EXTENSION = 40;
   }
   optional ProcessType process_type = 1;
   optional int32 process_priority = 2;

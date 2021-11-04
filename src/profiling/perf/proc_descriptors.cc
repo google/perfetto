@@ -21,6 +21,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include "perfetto/ext/base/string_utils.h"
+
 namespace perfetto {
 
 ProcDescriptorDelegate::~ProcDescriptorDelegate() {}
@@ -36,20 +38,19 @@ void DirectDescriptorGetter::SetDelegate(ProcDescriptorDelegate* delegate) {
 }
 
 void DirectDescriptorGetter::GetDescriptorsForPid(pid_t pid) {
-  char dir_buf[128] = {};
-  snprintf(dir_buf, sizeof(dir_buf), "/proc/%d", pid);
-  auto dir_fd =
-      base::ScopedFile(open(dir_buf, O_DIRECTORY | O_RDONLY | O_CLOEXEC));
+  base::StackString<128> dir_buf("/proc/%d", pid);
+  auto dir_fd = base::ScopedFile(
+      open(dir_buf.c_str(), O_DIRECTORY | O_RDONLY | O_CLOEXEC));
   if (!dir_fd) {
     if (errno != ENOENT)  // not surprising if the process has quit
-      PERFETTO_PLOG("Failed to open [%s]", dir_buf);
+      PERFETTO_PLOG("Failed to open [%s]", dir_buf.c_str());
 
     return;
   }
 
   struct stat stat_buf;
   if (fstat(dir_fd.get(), &stat_buf) == -1) {
-    PERFETTO_PLOG("Failed to stat [%s]", dir_buf);
+    PERFETTO_PLOG("Failed to stat [%s]", dir_buf.c_str());
     return;
   }
 
@@ -57,7 +58,7 @@ void DirectDescriptorGetter::GetDescriptorsForPid(pid_t pid) {
       base::ScopedFile{openat(dir_fd.get(), "maps", O_RDONLY | O_CLOEXEC)};
   if (!maps_fd) {
     if (errno != ENOENT)  // not surprising if the process has quit
-      PERFETTO_PLOG("Failed to open %s/maps", dir_buf);
+      PERFETTO_PLOG("Failed to open %s/maps", dir_buf.c_str());
 
     return;
   }
@@ -66,7 +67,7 @@ void DirectDescriptorGetter::GetDescriptorsForPid(pid_t pid) {
       base::ScopedFile{openat(dir_fd.get(), "mem", O_RDONLY | O_CLOEXEC)};
   if (!mem_fd) {
     if (errno != ENOENT)  // not surprising if the process has quit
-      PERFETTO_PLOG("Failed to open %s/mem", dir_buf);
+      PERFETTO_PLOG("Failed to open %s/mem", dir_buf.c_str());
 
     return;
   }

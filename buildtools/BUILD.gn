@@ -1008,10 +1008,10 @@ source_set("libunwindstack") {
     "android-unwinding/libunwindstack/Global.cpp",
     "android-unwinding/libunwindstack/JitDebug.cpp",
     "android-unwinding/libunwindstack/LocalUnwinder.cpp",
-    "android-unwinding/libunwindstack/Log.cpp",
     "android-unwinding/libunwindstack/MapInfo.cpp",
     "android-unwinding/libunwindstack/Maps.cpp",
     "android-unwinding/libunwindstack/Memory.cpp",
+    "android-unwinding/libunwindstack/MemoryXz.cpp",
     "android-unwinding/libunwindstack/Regs.cpp",
     "android-unwinding/libunwindstack/RegsArm.cpp",
     "android-unwinding/libunwindstack/RegsArm64.cpp",
@@ -1029,7 +1029,12 @@ source_set("libunwindstack") {
       "android-libbase/threads.cpp",
       "android-logging/liblog/logger_write.cpp",
       "android-logging/liblog/properties.cpp",
+      "android-unwinding/libunwindstack/LogStdout.cpp",
       "android-unwinding/libunwindstack/MemoryMte.cpp",
+    ]
+  } else {
+    sources += [
+      "android-unwinding/libunwindstack/LogAndroid.cpp",
     ]
   }
   if (current_cpu == "x86") {

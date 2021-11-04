@@ -208,7 +208,8 @@ void ProbesProducer::StartDataSource(DataSourceInstanceID instance_id,
   if (config.trace_duration_ms() != 0) {
     uint32_t timeout = 5000 + 2 * config.trace_duration_ms();
     watchdogs_.emplace(
-        instance_id, base::Watchdog::GetInstance()->CreateFatalTimer(timeout));
+        instance_id, base::Watchdog::GetInstance()->CreateFatalTimer(
+                         timeout, base::WatchdogCrashReason::kTraceDidntStop));
   }
   data_source->started = true;
   data_source->Start();

@@ -378,6 +378,12 @@ TEST(StringUtilsTest, SprintfTrunc) {
   }
 
   {
+    UninitializedBuf<1> dst;
+    ASSERT_EQ(0u, SprintfTrunc(dst, sizeof(dst), "whatever"));
+    EXPECT_STREQ(dst, "");
+  }
+
+  {
     UninitializedBuf<3> dst;
     ASSERT_EQ(1u, SprintfTrunc(dst, sizeof(dst), "1"));
     EXPECT_STREQ(dst, "1");
@@ -405,6 +411,38 @@ TEST(StringUtilsTest, SprintfTrunc) {
     UninitializedBuf<11> dst;
     ASSERT_EQ(10u, SprintfTrunc(dst, sizeof(dst), "a %d b %s", 42, "foo"));
     EXPECT_STREQ(dst, "a 42 b foo");
+  }
+}
+
+TEST(StringUtilsTest, StackString) {
+  {
+    StackString<1> s("123");
+    EXPECT_EQ(0u, s.len());
+    EXPECT_STREQ("", s.c_str());
+  }
+
+  {
+    StackString<4> s("123");
+    EXPECT_EQ(3u, s.len());
+    EXPECT_STREQ("123", s.c_str());
+    EXPECT_EQ(s.ToStdString(), std::string(s.c_str()));
+    EXPECT_EQ(s.string_view().ToStdString(), s.ToStdString());
+  }
+
+  {
+    StackString<3> s("123");
+    EXPECT_EQ(2u, s.len());
+    EXPECT_STREQ("12", s.c_str());
+    EXPECT_EQ(s.ToStdString(), std::string(s.c_str()));
+    EXPECT_EQ(s.string_view().ToStdString(), s.ToStdString());
+  }
+
+  {
+    StackString<11> s("foo %d %s", 42, "bar!!!OVERFLOW");
+    EXPECT_EQ(10u, s.len());
+    EXPECT_STREQ("foo 42 bar", s.c_str());
+    EXPECT_EQ(s.ToStdString(), std::string(s.c_str()));
+    EXPECT_EQ(s.string_view().ToStdString(), s.ToStdString());
   }
 }
 

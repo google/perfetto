@@ -68,6 +68,7 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
       select
         (ts + ${bucketNs / 2}) / ${bucketNs} * ${bucketNs} as tsq,
         ts,
+        state = 'S' as is_sleep,
         max(dur) as dur,
         ifnull(cast(cpu as integer), -1) as cpu,
         state,
@@ -77,7 +78,7 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
       where
         ts >= ${startNs - this.maxDurNs} and
         ts <= ${endNs}
-      group by tsq
+      group by tsq, is_sleep
       order by tsq
     `;
 

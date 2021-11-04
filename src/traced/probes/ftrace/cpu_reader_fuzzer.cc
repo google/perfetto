@@ -67,7 +67,8 @@ void FuzzCpuReaderProcessPagesForDataSource(const uint8_t* data, size_t size) {
   NullTraceWriter null_writer;
   CpuReader::ProcessPagesForDataSource(
       &null_writer, &metadata, /*cpu=*/0, &ds_config, g_page, /*pages_read=*/1,
-      table, /*symbolizer*/ nullptr, protos::pbzero::FTRACE_CLOCK_UNSPECIFIED);
+      table, /*symbolizer*/ nullptr, /*ftrace_clock_snapshot=*/nullptr,
+      protos::pbzero::FTRACE_CLOCK_UNSPECIFIED);
 }
 
 }  // namespace perfetto

@@ -98,6 +98,20 @@ bool ClearFile(const char* path) {
   return !!fd;
 }
 
+base::Optional<int64_t> ReadFtraceNowTs(const base::ScopedFile& cpu_stats_fd) {
+  PERFETTO_CHECK(cpu_stats_fd);
+
+  char buf[512];
+  ssize_t res = PERFETTO_EINTR(pread(*cpu_stats_fd, buf, sizeof(buf) - 1, 0));
+  if (res <= 0)
+    return base::nullopt;
+  buf[res] = '\0';
+
+  FtraceCpuStats stats{};
+  DumpCpuStats(buf, &stats);
+  return static_cast<int64_t>(stats.now_ts * 1000 * 1000 * 1000);
+}
+
 }  // namespace
 
 // Method of last resort to reset ftrace state.
@@ -158,6 +172,7 @@ FtraceController::FtraceController(std::unique_ptr<FtraceProcfs> ftrace_procfs,
       ftrace_procfs_(std::move(ftrace_procfs)),
       table_(std::move(table)),
       ftrace_config_muxer_(std::move(model)),
+      ftrace_clock_snapshot_(new FtraceClockSnapshot()),
       weak_factory_(this) {}
 
 FtraceController::~FtraceController() {
@@ -173,6 +188,7 @@ uint64_t FtraceController::NowMs() const {
 }
 
 void FtraceController::StartIfNeeded() {
+  using FtraceClock = protos::pbzero::FtraceClock;
   if (started_data_sources_.size() > 1)
     return;
   PERFETTO_DCHECK(!started_data_sources_.empty());
@@ -184,13 +200,20 @@ void FtraceController::StartIfNeeded() {
         base::PagedMemory::Allocate(base::kPageSize * kParsingBufferSizePages);
   }
 
+  // If we're not using the boot clock, snapshot the ftrace clock.
+  FtraceClock clock = ftrace_config_muxer_->ftrace_clock();
+  if (clock != FtraceClock::FTRACE_CLOCK_UNSPECIFIED) {
+    cpu_zero_stats_fd_ = ftrace_procfs_->OpenCpuStats(0 /* cpu */);
+    MaybeSnapshotFtraceClock();
+  }
+
   per_cpu_.clear();
   per_cpu_.reserve(ftrace_procfs_->NumberOfCpus());
   size_t period_page_quota = ftrace_config_muxer_->GetPerCpuBufferSizePages();
   for (size_t cpu = 0; cpu < ftrace_procfs_->NumberOfCpus(); cpu++) {
-    auto reader = std::unique_ptr<CpuReader>(
-        new CpuReader(cpu, table_.get(), symbolizer_.get(),
-                      ftrace_procfs_->OpenPipeForCpu(cpu)));
+    auto reader = std::unique_ptr<CpuReader>(new CpuReader(
+        cpu, table_.get(), symbolizer_.get(), ftrace_clock_snapshot_.get(),
+        ftrace_procfs_->OpenPipeForCpu(cpu)));
     per_cpu_.emplace_back(std::move(reader), period_page_quota);
   }
 
@@ -291,6 +314,10 @@ void FtraceController::ReadTick(int generation) {
     for (auto& per_cpu : per_cpu_)
       per_cpu.period_page_quota = period_page_quota;
 
+    // Snapshot the clock so the data in the next period will be clock synced as
+    // well.
+    MaybeSnapshotFtraceClock();
+
     auto drain_period_ms = GetDrainPeriodMs();
     task_runner_->PostDelayedTask(
         [weak_this, generation] {
@@ -355,6 +382,7 @@ void FtraceController::StopIfNeeded() {
 
   per_cpu_.clear();
   symbolizer_->Destroy();
+  cpu_zero_stats_fd_.reset();
 
   if (parsing_mem_.IsValid()) {
     parsing_mem_.AdviseDontNeed(parsing_mem_.Get(), parsing_mem_.size());
@@ -426,6 +454,23 @@ void FtraceController::DumpFtraceStats(FtraceStats* stats) {
     stats->kernel_symbols_mem_kb =
         static_cast<uint32_t>(symbol_map->size_bytes() / 1024);
   }
+}
+
+void FtraceController::MaybeSnapshotFtraceClock() {
+  if (!cpu_zero_stats_fd_)
+    return;
+
+  auto ftrace_clock = ftrace_config_muxer_->ftrace_clock();
+  PERFETTO_DCHECK(ftrace_clock != protos::pbzero::FTRACE_CLOCK_UNSPECIFIED);
+
+  // Snapshot the boot clock *before* reading CPU stats so that
+  // two clocks are as close togher as possible (i.e. if it was the
+  // other way round, we'd skew by the const of string parsing).
+  ftrace_clock_snapshot_->boot_clock_ts = base::GetBootTimeNs().count();
+
+  // A value of zero will cause this snapshot to be skipped.
+  ftrace_clock_snapshot_->ftrace_clock_ts =
+      ReadFtraceNowTs(cpu_zero_stats_fd_).value_or(0);
 }
 
 FtraceController::Observer::~Observer() = default;

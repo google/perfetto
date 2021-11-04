@@ -24,10 +24,6 @@
 #include <sys/types.h>
 #include <time.h>
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-#include <sys/system_properties.h>
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-
 // For dup().
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <io.h>
@@ -43,6 +39,7 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/time.h"
+#include "perfetto/ext/base/android_utils.h"
 #include "perfetto/ext/base/ctrl_c_handler.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/getopt.h"
@@ -134,12 +131,12 @@ bool ParseTraceConfigPbtxt(const std::string& file_name,
 
 bool IsUserBuild() {
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
-  char value[PROP_VALUE_MAX];
-  if (!__system_property_get("ro.build.type", value)) {
+  std::string build_type = base::GetAndroidProp("ro.build.type");
+  if (build_type.empty()) {
     PERFETTO_ELOG("Unable to read ro.build.type: assuming user build");
     return true;
   }
-  return strcmp(value, "user") == 0;
+  return build_type == "user";
 #else
   return false;
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
@@ -489,7 +486,7 @@ base::Optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
   }
 
   if (bugreport_ &&
-      (is_attach() | is_detach() || query_service_ || has_config_options)) {
+      (is_attach() || is_detach() || query_service_ || has_config_options)) {
     PERFETTO_ELOG("--save-for-bugreport cannot take any other argument");
     return 1;
   }

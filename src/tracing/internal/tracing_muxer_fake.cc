@@ -59,6 +59,12 @@ bool TracingMuxerFake::RegisterDataSource(const DataSourceDescriptor&,
   FailUninitialized();
 }
 
+void TracingMuxerFake::UpdateDataSourceDescriptor(
+    const DataSourceDescriptor&,
+    const DataSourceStaticState*) {
+  FailUninitialized();
+}
+
 std::unique_ptr<TraceWriterBase> TracingMuxerFake::CreateTraceWriter(
     DataSourceStaticState*,
     uint32_t,

@@ -20,6 +20,7 @@ import {
   ConversionJobName,
   ConversionJobStatus
 } from '../common/conversion_jobs';
+import {Engine} from '../common/engine';
 import {MetricResult} from '../common/metric_data';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
 import {CallsiteInfo, createEmptyState, State} from '../common/state';
@@ -206,6 +207,8 @@ class Globals {
     count: new Uint8Array(0),
   };
 
+  engines = new Map<string, Engine>();
+
   initialize(dispatch: Dispatch, router: Router) {
     this._dispatch = dispatch;
     this._router = router;
@@ -232,6 +235,7 @@ class Globals {
     this._threadStateDetails = {};
     this._flamegraphDetails = {};
     this._cpuProfileDetails = {};
+    this.engines.clear();
   }
 
   get router(): Router {

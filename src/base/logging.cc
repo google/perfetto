@@ -28,6 +28,14 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/time.h"
+#include "perfetto/ext/base/crash_keys.h"
+#include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
+#include "src/base/log_ring_buffer.h"
+
+#if PERFETTO_ENABLE_LOG_RING_BUFFER() && PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#include <android/set_abort_message.h>
+#endif
 
 namespace perfetto {
 namespace base {
@@ -55,6 +63,15 @@ void PERFETTO_EXPORT __attribute__((constructor)) InitDebugCrashReporter() {
 }
 #endif
 
+#if PERFETTO_ENABLE_LOG_RING_BUFFER()
+LogRingBuffer g_log_ring_buffer{};
+
+// This is global to avoid allocating memory or growing too much the stack
+// in MaybeSerializeLastLogsForCrashReporting(), which is called from
+// arbitrary code paths hitting PERFETTO_CHECK()/FATAL().
+char g_crash_buf[kLogRingBufEntries * kLogRingBufMsgLen];
+#endif
+
 }  // namespace
 
 void SetLogMessageCallback(LogMessageCallback callback) {
@@ -69,6 +86,7 @@ void LogMessage(LogLev level,
   char stack_buf[512];
   std::unique_ptr<char[]> large_buf;
   char* log_msg = &stack_buf[0];
+  size_t log_msg_len = 0;
 
   // By default use a stack allocated buffer because most log messages are quite
   // short. In rare cases they can be larger (e.g. --help). In those cases we
@@ -89,8 +107,12 @@ void LogMessage(LogLev level,
 
     // if res == max_len, vsnprintf saturated the input buffer. Retry with a
     // larger buffer in that case (within reasonable limits).
-    if (res < static_cast<int>(max_len) || max_len >= 128 * 1024)
+    if (res < static_cast<int>(max_len) || max_len >= 128 * 1024) {
+      // In case of truncation vsnprintf returns the len that "would have been
+      // written if the string was longer", not the actual chars written.
+      log_msg_len = std::min(static_cast<size_t>(res), max_len - 1);
       break;
+    }
     max_len *= 4;
     large_buf.reset(new char[max_len]);
     log_msg = &large_buf[0];
@@ -128,44 +150,85 @@ void LogMessage(LogLev level,
 
   // Formats file.cc:line as a space-padded fixed width string. If the file name
   // |fname| is too long, truncate it on the left-hand side.
-  char line_str[10];
-  size_t line_len =
-      static_cast<size_t>(snprintf(line_str, sizeof(line_str), "%d", line));
+  StackString<10> line_str("%d", line);
 
   // 24 will be the width of the file.cc:line column in the log event.
-  char file_and_line[24];
+  static constexpr size_t kMaxNameAndLine = 24;
   size_t fname_len = strlen(fname);
-  size_t fname_max = sizeof(file_and_line) - line_len - 2;  // 2 = ':' + '\0'.
+  size_t fname_max = kMaxNameAndLine - line_str.len() - 2;  // 2 = ':' + '\0'.
   size_t fname_offset = fname_len <= fname_max ? 0 : fname_len - fname_max;
-  int len = snprintf(file_and_line, sizeof(file_and_line), "%s:%s",
-                     fname + fname_offset, line_str);
-  memset(&file_and_line[len], ' ', sizeof(file_and_line) - size_t(len));
-  file_and_line[sizeof(file_and_line) - 1] = '\0';
+  StackString<kMaxNameAndLine> file_and_line(
+      "%*s:%s", static_cast<int>(fname_max), &fname[fname_offset],
+      line_str.c_str());
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   // Logcat has already timestamping, don't re-emit it.
   __android_log_print(ANDROID_LOG_DEBUG + level, "perfetto", "%s %s",
-                      file_and_line, log_msg);
+                      file_and_line.c_str(), log_msg);
 #endif
 
   // When printing on stderr, print also the timestamp. We don't really care
   // about the actual time. We just need some reference clock that can be used
   // to correlated events across differrent processses (e.g. traced and
   // traced_probes). The wall time % 1000 is good enough.
-  char timestamp[32];
   uint32_t t_ms = static_cast<uint32_t>(GetWallTimeMs().count());
   uint32_t t_sec = t_ms / 1000;
   t_ms -= t_sec * 1000;
   t_sec = t_sec % 1000;
-  snprintf(timestamp, sizeof(timestamp), "[%03u.%03u] ", t_sec, t_ms);
+  StackString<32> timestamp("[%03u.%03u] ", t_sec, t_ms);
 
   if (use_colors) {
-    fprintf(stderr, "%s%s%s%s %s%s%s\n", kLightGray, timestamp, file_and_line,
-            kReset, color, log_msg, kReset);
+    fprintf(stderr, "%s%s%s%s %s%s%s\n", kLightGray, timestamp.c_str(),
+            file_and_line.c_str(), kReset, color, log_msg, kReset);
   } else {
-    fprintf(stderr, "%s%s %s\n", timestamp, file_and_line, log_msg);
+    fprintf(stderr, "%s%s %s\n", timestamp.c_str(), file_and_line.c_str(),
+            log_msg);
   }
+
+#if PERFETTO_ENABLE_LOG_RING_BUFFER()
+  // Append the message to the ring buffer for crash reporting postmortems.
+  StringView timestamp_sv = timestamp.string_view();
+  StringView file_and_line_sv = file_and_line.string_view();
+  StringView log_msg_sv(log_msg, static_cast<size_t>(log_msg_len));
+  g_log_ring_buffer.Append(timestamp_sv, file_and_line_sv, log_msg_sv);
+#else
+  ignore_result(log_msg_len);
+#endif
 }
+
+#if PERFETTO_ENABLE_LOG_RING_BUFFER()
+void MaybeSerializeLastLogsForCrashReporting() {
+  // Keep this function minimal. This is called from the watchdog thread, often
+  // when the system is thrashing.
+
+  // This is racy because two threads could hit a CHECK/FATAL at the same time.
+  // But if that happens we have bigger problems, not worth designing around it.
+  // The behaviour is still defined in the race case (the string attached to
+  // the crash report will contain a mixture of log strings).
+  size_t wr = 0;
+  wr += SerializeCrashKeys(&g_crash_buf[wr], sizeof(g_crash_buf) - wr);
+  wr += g_log_ring_buffer.Read(&g_crash_buf[wr], sizeof(g_crash_buf) - wr);
+
+  // Read() null-terminates the string properly. This is just to avoid UB when
+  // two threads race on each other (T1 writes a shorter string, T2
+  // overwrites the \0 writing a longer string. T1 continues here before T2
+  // finishes writing the longer string with the \0 -> boom.
+  g_crash_buf[sizeof(g_crash_buf) - 1] = '\0';
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  // android_set_abort_message() will cause debuggerd to report the message
+  // in the tombstone and in the crash log in logcat.
+  // NOTE: android_set_abort_message() can be called only once. This should
+  // be called only when we are sure we are about to crash.
+  android_set_abort_message(g_crash_buf);
+#else
+  // Print out the message on stderr on Linux/Mac/Win.
+  fputs("\n-----BEGIN PERFETTO PRE-CRASH LOG-----\n", stderr);
+  fputs(g_crash_buf, stderr);
+  fputs("\n-----END PERFETTO PRE-CRASH LOG-----\n", stderr);
+#endif
+}
+#endif  // PERFETTO_ENABLE_LOG_RING_BUFFER
 
 }  // namespace base
 }  // namespace perfetto

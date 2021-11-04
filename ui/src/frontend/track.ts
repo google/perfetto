@@ -13,11 +13,13 @@
 // limitations under the License.
 
 import * as m from 'mithril';
+
 import {assertExists} from '../base/logging';
+import {Engine} from '../common/engine';
 import {TrackState} from '../common/state';
 import {TrackData} from '../common/track_data';
-import {checkerboard} from './checkerboard';
 
+import {checkerboard} from './checkerboard';
 import {globals} from './globals';
 import {TrackButtonAttrs} from './track_panel';
 
@@ -26,6 +28,7 @@ import {TrackButtonAttrs} from './track_panel';
  */
 export interface NewTrackArgs {
   trackId: string;
+  engine: Engine;
 }
 
 /**
@@ -57,6 +60,7 @@ export interface SliceRect {
 export abstract class Track<Config = {}, Data extends TrackData = TrackData> {
   // The UI-generated track ID (not to be confused with the SQL track.id).
   private trackId: string;
+  protected readonly engine: Engine;
 
   // Caches the last state.track[this.trackId]. This is to deal with track
   // deletion, see comments in trackState() below.
@@ -64,6 +68,7 @@ export abstract class Track<Config = {}, Data extends TrackData = TrackData> {
 
   constructor(args: NewTrackArgs) {
     this.trackId = args.trackId;
+    this.engine = args.engine;
     this.lastTrackState = assertExists(globals.state.tracks[this.trackId]);
   }
 

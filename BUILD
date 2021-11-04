@@ -17,7 +17,10 @@
 load("@perfetto_cfg//:perfetto_cfg.bzl", "PERFETTO_CONFIG")
 load(
     "@perfetto//bazel:rules.bzl",
+    "perfetto_build_config_cc_library",
     "perfetto_cc_binary",
+    "perfetto_filegroup",
+    "perfetto_genrule",
     "perfetto_cc_ipc_library",
     "perfetto_cc_library",
     "perfetto_cc_proto_descriptor",
@@ -309,7 +312,7 @@ perfetto_cc_library(
 )
 
 # GN target: //include/perfetto/base:base
-filegroup(
+perfetto_filegroup(
     name = "include_perfetto_base_base",
     srcs = [
         "include/perfetto/base/build_config.h",
@@ -328,11 +331,13 @@ filegroup(
 )
 
 # GN target: //include/perfetto/ext/base:base
-filegroup(
+perfetto_filegroup(
     name = "include_perfetto_ext_base_base",
     srcs = [
+        "include/perfetto/ext/base/android_utils.h",
         "include/perfetto/ext/base/circular_queue.h",
         "include/perfetto/ext/base/container_annotations.h",
+        "include/perfetto/ext/base/crash_keys.h",
         "include/perfetto/ext/base/ctrl_c_handler.h",
         "include/perfetto/ext/base/endian.h",
         "include/perfetto/ext/base/event_fd.h",
@@ -373,7 +378,7 @@ filegroup(
 )
 
 # GN target: //include/perfetto/ext/ipc:ipc
-filegroup(
+perfetto_filegroup(
     name = "include_perfetto_ext_ipc_ipc",
     srcs = [
         "include/perfetto/ext/ipc/async_result.h",
@@ -390,7 +395,7 @@ filegroup(
 )
 
 # GN target: //include/perfetto/ext/trace_processor/importers/memory_tracker:memory_tracker
-filegroup(
+perfetto_filegroup(
     name = "include_perfetto_ext_trace_processor_importers_memory_tracker_memory_tracker",
     srcs = [
         "include/perfetto/ext/trace_processor/importers/memory_tracker/graph.h",
@@ -403,7 +408,7 @@ filegroup(
 )
 
 # GN target: //include/perfetto/ext/trace_processor:export_json
-filegroup(
+perfetto_filegroup(
     name = "include_perfetto_ext_trace_processor_export_json",
     srcs = [
         "include/perfetto/ext/trace_processor/export_json.h",
@@ -411,7 +416,7 @@ filegroup(
 )
 
 # GN target: //include/perfetto/ext/traced:sys_stats_counters
-filegroup(
+perfetto_filegroup(
     name = "include_perfetto_ext_traced_sys_stats_counters",
     srcs = [
         "include/perfetto/ext/traced/sys_stats_counters.h",
@@ -419,7 +424,7 @@ filegroup(
 )
 
 # GN target: //include/perfetto/ext/traced:traced
-filegroup(
+perfetto_filegroup(
     name = "include_perfetto_ext_traced_traced",
     srcs = [
         "include/perfetto/ext/traced/data_source_types.h",
@@ -428,7 +433,7 @@ filegroup(
 )
 
 # GN target: //include/perfetto/ext/tracing/core:core
-filegroup(
+perfetto_filegroup(
     name = "include_perfetto_ext_tracing_core_core",
     srcs = [
         "include/perfetto/ext/tracing/core/basic_types.h",
@@ -448,7 +453,7 @@ filegroup(
 )
 
 # GN target: //include/perfetto/ext/tracing/ipc:ipc
-filegroup(
+perfetto_filegroup(
     name = "include_perfetto_ext_tracing_ipc_ipc",
     srcs = [
         "include/perfetto/ext/tracing/ipc/consumer_ipc_client.h",
@@ -459,7 +464,7 @@ filegroup(
 )
 
 # GN target: //include/perfetto/profiling:pprof_builder
-filegroup(
+perfetto_filegroup(
     name = "include_perfetto_profiling_pprof_builder",
     srcs = [
         "include/perfetto/profiling/pprof_builder.h",
@@ -467,7 +472,7 @@ filegroup(
 )
 
 # GN target: //include/perfetto/protozero:protozero
-filegroup(
+perfetto_filegroup(
     name = "include_perfetto_protozero_protozero",
     srcs = [
         "include/perfetto/protozero/contiguous_memory_range.h",
@@ -490,7 +495,7 @@ filegroup(
 )
 
 # GN target: //include/perfetto/public:public
-filegroup(
+perfetto_filegroup(
     name = "include_perfetto_public_public",
     srcs = [
         "include/perfetto/public/consumer_api.h",
@@ -498,7 +503,7 @@ filegroup(
 )
 
 # GN target: //include/perfetto/trace_processor:basic_types
-filegroup(
+perfetto_filegroup(
     name = "include_perfetto_trace_processor_basic_types",
     srcs = [
         "include/perfetto/trace_processor/basic_types.h",
@@ -507,7 +512,7 @@ filegroup(
 )
 
 # GN target: //include/perfetto/trace_processor:storage
-filegroup(
+perfetto_filegroup(
     name = "include_perfetto_trace_processor_storage",
     srcs = [
         "include/perfetto/trace_processor/trace_processor_storage.h",
@@ -515,7 +520,7 @@ filegroup(
 )
 
 # GN target: //include/perfetto/trace_processor:trace_processor
-filegroup(
+perfetto_filegroup(
     name = "include_perfetto_trace_processor_trace_processor",
     srcs = [
         "include/perfetto/trace_processor/iterator.h",
@@ -525,7 +530,7 @@ filegroup(
 )
 
 # GN target: //include/perfetto/tracing/core:core
-filegroup(
+perfetto_filegroup(
     name = "include_perfetto_tracing_core_core",
     srcs = [
         "include/perfetto/tracing/core/chrome_config.h",
@@ -538,7 +543,7 @@ filegroup(
 )
 
 # GN target: //include/perfetto/tracing/core:forward_decls
-filegroup(
+perfetto_filegroup(
     name = "include_perfetto_tracing_core_forward_decls",
     srcs = [
         "include/perfetto/tracing/core/forward_decls.h",
@@ -546,7 +551,7 @@ filegroup(
 )
 
 # GN target: //include/perfetto/tracing:tracing
-filegroup(
+perfetto_filegroup(
     name = "include_perfetto_tracing_tracing",
     srcs = [
         "include/perfetto/tracing/backend_type.h",
@@ -592,7 +597,7 @@ filegroup(
 )
 
 # GN target: //src/android_internal:headers
-filegroup(
+perfetto_filegroup(
     name = "src_android_internal_headers",
     srcs = [
         "src/android_internal/atrace_hal.h",
@@ -605,7 +610,7 @@ filegroup(
 )
 
 # GN target: //src/android_internal:lazy_library_loader
-filegroup(
+perfetto_filegroup(
     name = "src_android_internal_lazy_library_loader",
     srcs = [
         "src/android_internal/lazy_library_loader.cc",
@@ -614,7 +619,7 @@ filegroup(
 )
 
 # GN target: //src/android_stats:android_stats
-filegroup(
+perfetto_filegroup(
     name = "src_android_stats_android_stats",
     srcs = [
         "src/android_stats/statsd_logging_helper.cc",
@@ -623,7 +628,7 @@ filegroup(
 )
 
 # GN target: //src/android_stats:perfetto_atoms
-filegroup(
+perfetto_filegroup(
     name = "src_android_stats_perfetto_atoms",
     srcs = [
         "src/android_stats/perfetto_atoms.h",
@@ -634,6 +639,8 @@ filegroup(
 perfetto_cc_library(
     name = "src_base_base",
     srcs = [
+        "src/base/android_utils.cc",
+        "src/base/crash_keys.cc",
         "src/base/ctrl_c_handler.cc",
         "src/base/event_fd.cc",
         "src/base/file_utils.cc",
@@ -685,7 +692,7 @@ perfetto_cc_library(
     linkstatic = True,
 )
 
-genrule(
+perfetto_genrule(
     name = "src_base_version_gen_h",
     srcs = [
         "CHANGELOG",
@@ -700,7 +707,7 @@ genrule(
 )
 
 # GN target: //src/ipc:client
-filegroup(
+perfetto_filegroup(
     name = "src_ipc_client",
     srcs = [
         "src/ipc/client_impl.cc",
@@ -710,7 +717,7 @@ filegroup(
 )
 
 # GN target: //src/ipc:common
-filegroup(
+perfetto_filegroup(
     name = "src_ipc_common",
     srcs = [
         "src/ipc/buffered_frame_deserializer.cc",
@@ -721,7 +728,7 @@ filegroup(
 )
 
 # GN target: //src/ipc:host
-filegroup(
+perfetto_filegroup(
     name = "src_ipc_host",
     srcs = [
         "src/ipc/host_impl.cc",
@@ -730,7 +737,7 @@ filegroup(
 )
 
 # GN target: //src/kallsyms:kallsyms
-filegroup(
+perfetto_filegroup(
     name = "src_kallsyms_kallsyms",
     srcs = [
         "src/kallsyms/kernel_symbol_map.cc",
@@ -751,7 +758,7 @@ perfetto_cc_proto_descriptor(
 )
 
 # GN target: //src/perfetto_cmd:perfetto_cmd
-filegroup(
+perfetto_filegroup(
     name = "src_perfetto_cmd_perfetto_cmd",
     srcs = [
         "src/perfetto_cmd/config.cc",
@@ -768,7 +775,7 @@ filegroup(
 )
 
 # GN target: //src/perfetto_cmd:trigger_producer
-filegroup(
+perfetto_filegroup(
     name = "src_perfetto_cmd_trigger_producer",
     srcs = [
         "src/perfetto_cmd/trigger_producer.cc",
@@ -777,7 +784,7 @@ filegroup(
 )
 
 # GN target: //src/profiling/symbolizer:symbolize_database
-filegroup(
+perfetto_filegroup(
     name = "src_profiling_symbolizer_symbolize_database",
     srcs = [
         "src/profiling/symbolizer/symbolize_database.cc",
@@ -786,7 +793,7 @@ filegroup(
 )
 
 # GN target: //src/profiling/symbolizer:symbolizer
-filegroup(
+perfetto_filegroup(
     name = "src_profiling_symbolizer_symbolizer",
     srcs = [
         "src/profiling/symbolizer/breakpad_parser.cc",
@@ -808,7 +815,7 @@ filegroup(
 )
 
 # GN target: //src/profiling:deobfuscator
-filegroup(
+perfetto_filegroup(
     name = "src_profiling_deobfuscator",
     srcs = [
         "src/profiling/deobfuscator.cc",
@@ -817,7 +824,7 @@ filegroup(
 )
 
 # GN target: //src/protozero/filtering:bytecode_common
-filegroup(
+perfetto_filegroup(
     name = "src_protozero_filtering_bytecode_common",
     srcs = [
         "src/protozero/filtering/filter_bytecode_common.h",
@@ -825,7 +832,7 @@ filegroup(
 )
 
 # GN target: //src/protozero/filtering:bytecode_generator
-filegroup(
+perfetto_filegroup(
     name = "src_protozero_filtering_bytecode_generator",
     srcs = [
         "src/protozero/filtering/filter_bytecode_generator.cc",
@@ -834,7 +841,7 @@ filegroup(
 )
 
 # GN target: //src/protozero/filtering:bytecode_parser
-filegroup(
+perfetto_filegroup(
     name = "src_protozero_filtering_bytecode_parser",
     srcs = [
         "src/protozero/filtering/filter_bytecode_parser.cc",
@@ -843,7 +850,7 @@ filegroup(
 )
 
 # GN target: //src/protozero/filtering:filter_util
-filegroup(
+perfetto_filegroup(
     name = "src_protozero_filtering_filter_util",
     srcs = [
         "src/protozero/filtering/filter_util.cc",
@@ -852,7 +859,7 @@ filegroup(
 )
 
 # GN target: //src/protozero/filtering:message_filter
-filegroup(
+perfetto_filegroup(
     name = "src_protozero_filtering_message_filter",
     srcs = [
         "src/protozero/filtering/message_filter.cc",
@@ -862,7 +869,7 @@ filegroup(
 )
 
 # GN target: //src/protozero:proto_ring_buffer
-filegroup(
+perfetto_filegroup(
     name = "src_protozero_proto_ring_buffer",
     srcs = [
         "src/protozero/proto_ring_buffer.cc",
@@ -871,7 +878,7 @@ filegroup(
 )
 
 # GN target: //src/trace_processor/analysis:analysis
-filegroup(
+perfetto_filegroup(
     name = "src_trace_processor_analysis_analysis",
     srcs = [
         "src/trace_processor/analysis/describe_slice.cc",
@@ -906,7 +913,7 @@ perfetto_cc_library(
 )
 
 # GN target: //src/trace_processor/db:db
-filegroup(
+perfetto_filegroup(
     name = "src_trace_processor_db_db",
     srcs = [
         "src/trace_processor/db/column.cc",
@@ -920,7 +927,7 @@ filegroup(
 )
 
 # GN target: //src/trace_processor/importers/common:common
-filegroup(
+perfetto_filegroup(
     name = "src_trace_processor_importers_common_common",
     srcs = [
         "src/trace_processor/importers/common/args_tracker.cc",
@@ -947,7 +954,7 @@ filegroup(
 )
 
 # GN target: //src/trace_processor/importers/memory_tracker:graph_processor
-filegroup(
+perfetto_filegroup(
     name = "src_trace_processor_importers_memory_tracker_graph_processor",
     srcs = [
         "src/trace_processor/importers/memory_tracker/graph.cc",
@@ -1008,10 +1015,11 @@ perfetto_cc_proto_descriptor(
     ],
 )
 
-genrule(
+perfetto_genrule(
     name = "src_trace_processor_metrics_gen_merged_sql_metrics",
     srcs = [
         "src/trace_processor/metrics/android/android_batt.sql",
+        "src/trace_processor/metrics/android/android_camera.sql",
         "src/trace_processor/metrics/android/android_cpu.sql",
         "src/trace_processor/metrics/android/android_cpu_agg.sql",
         "src/trace_processor/metrics/android/android_cpu_raw_metrics_per_core.sql",
@@ -1034,7 +1042,6 @@ genrule(
         "src/trace_processor/metrics/android/android_proxy_power.sql",
         "src/trace_processor/metrics/android/android_simpleperf.sql",
         "src/trace_processor/metrics/android/android_startup.sql",
-        "src/trace_processor/metrics/android/android_startup_launches.sql",
         "src/trace_processor/metrics/android/android_surfaceflinger.sql",
         "src/trace_processor/metrics/android/android_sysui_cuj.sql",
         "src/trace_processor/metrics/android/android_sysui_cuj_jank_query.sql",
@@ -1050,7 +1057,6 @@ genrule(
         "src/trace_processor/metrics/android/g2d_duration.sql",
         "src/trace_processor/metrics/android/global_counter_span_view.sql",
         "src/trace_processor/metrics/android/gpu_counter_span_view.sql",
-        "src/trace_processor/metrics/android/hsc_startups.sql",
         "src/trace_processor/metrics/android/java_heap_histogram.sql",
         "src/trace_processor/metrics/android/java_heap_stats.sql",
         "src/trace_processor/metrics/android/mem_stats_priority_breakdown.sql",
@@ -1063,6 +1069,8 @@ genrule(
         "src/trace_processor/metrics/android/process_unagg_mem_view.sql",
         "src/trace_processor/metrics/android/profiler_smaps.sql",
         "src/trace_processor/metrics/android/span_view_stats.sql",
+        "src/trace_processor/metrics/android/startup/hsc.sql",
+        "src/trace_processor/metrics/android/startup/launches.sql",
         "src/trace_processor/metrics/android/thread_counter_span_view.sql",
         "src/trace_processor/metrics/android/unsymbolized_frames.sql",
         "src/trace_processor/metrics/chrome/actual_power_by_category.sql",
@@ -1108,7 +1116,7 @@ genrule(
 )
 
 # GN target: //src/trace_processor/metrics:lib
-filegroup(
+perfetto_filegroup(
     name = "src_trace_processor_metrics_lib",
     srcs = [
         "src/trace_processor/metrics/metrics.cc",
@@ -1117,7 +1125,7 @@ filegroup(
 )
 
 # GN target: //src/trace_processor/rpc:httpd
-filegroup(
+perfetto_filegroup(
     name = "src_trace_processor_rpc_httpd",
     srcs = [
         "src/trace_processor/rpc/httpd.cc",
@@ -1126,7 +1134,7 @@ filegroup(
 )
 
 # GN target: //src/trace_processor/rpc:rpc
-filegroup(
+perfetto_filegroup(
     name = "src_trace_processor_rpc_rpc",
     srcs = [
         "src/trace_processor/rpc/query_result_serializer.cc",
@@ -1137,7 +1145,7 @@ filegroup(
 )
 
 # GN target: //src/trace_processor/sqlite:sqlite
-filegroup(
+perfetto_filegroup(
     name = "src_trace_processor_sqlite_sqlite",
     srcs = [
         "src/trace_processor/sqlite/db_sqlite_table.cc",
@@ -1165,7 +1173,7 @@ filegroup(
 )
 
 # GN target: //src/trace_processor/storage:storage
-filegroup(
+perfetto_filegroup(
     name = "src_trace_processor_storage_storage",
     srcs = [
         "src/trace_processor/storage/metadata.h",
@@ -1176,7 +1184,7 @@ filegroup(
 )
 
 # GN target: //src/trace_processor/tables:tables
-filegroup(
+perfetto_filegroup(
     name = "src_trace_processor_tables_tables",
     srcs = [
         "src/trace_processor/tables/android_tables.h",
@@ -1194,7 +1202,7 @@ filegroup(
 )
 
 # GN target: //src/trace_processor/types:types
-filegroup(
+perfetto_filegroup(
     name = "src_trace_processor_types_types",
     srcs = [
         "src/trace_processor/types/destructible.cc",
@@ -1212,7 +1220,7 @@ filegroup(
 )
 
 # GN target: //src/trace_processor/util:descriptors
-filegroup(
+perfetto_filegroup(
     name = "src_trace_processor_util_descriptors",
     srcs = [
         "src/trace_processor/util/descriptors.cc",
@@ -1221,7 +1229,7 @@ filegroup(
 )
 
 # GN target: //src/trace_processor/util:gzip
-filegroup(
+perfetto_filegroup(
     name = "src_trace_processor_util_gzip",
     srcs = [
         "src/trace_processor/util/gzip_utils.cc",
@@ -1230,7 +1238,7 @@ filegroup(
 )
 
 # GN target: //src/trace_processor/util:interned_message_view
-filegroup(
+perfetto_filegroup(
     name = "src_trace_processor_util_interned_message_view",
     srcs = [
         "src/trace_processor/util/interned_message_view.h",
@@ -1238,7 +1246,7 @@ filegroup(
 )
 
 # GN target: //src/trace_processor/util:proto_to_args_parser
-filegroup(
+perfetto_filegroup(
     name = "src_trace_processor_util_proto_to_args_parser",
     srcs = [
         "src/trace_processor/util/debug_annotation_parser.cc",
@@ -1249,7 +1257,7 @@ filegroup(
 )
 
 # GN target: //src/trace_processor/util:protozero_to_text
-filegroup(
+perfetto_filegroup(
     name = "src_trace_processor_util_protozero_to_text",
     srcs = [
         "src/trace_processor/util/protozero_to_text.cc",
@@ -1258,7 +1266,7 @@ filegroup(
 )
 
 # GN target: //src/trace_processor/util:trace_blob_view
-filegroup(
+perfetto_filegroup(
     name = "src_trace_processor_util_trace_blob_view",
     srcs = [
         "src/trace_processor/util/trace_blob_view.h",
@@ -1266,7 +1274,7 @@ filegroup(
 )
 
 # GN target: //src/trace_processor/util:util
-filegroup(
+perfetto_filegroup(
     name = "src_trace_processor_util_util",
     srcs = [
         "src/trace_processor/util/status_macros.h",
@@ -1274,7 +1282,7 @@ filegroup(
 )
 
 # GN target: //src/trace_processor:export_json
-filegroup(
+perfetto_filegroup(
     name = "src_trace_processor_export_json",
     srcs = [
         "src/trace_processor/export_json.cc",
@@ -1283,7 +1291,7 @@ filegroup(
 )
 
 # GN target: //src/trace_processor:ftrace_descriptors
-filegroup(
+perfetto_filegroup(
     name = "src_trace_processor_ftrace_descriptors",
     srcs = [
         "src/trace_processor/importers/ftrace/ftrace_descriptors.cc",
@@ -1292,7 +1300,7 @@ filegroup(
 )
 
 # GN target: //src/trace_processor:lib
-filegroup(
+perfetto_filegroup(
     name = "src_trace_processor_lib",
     srcs = [
         "src/trace_processor/dynamic/ancestor_generator.cc",
@@ -1327,7 +1335,7 @@ filegroup(
 )
 
 # GN target: //src/trace_processor:metatrace
-filegroup(
+perfetto_filegroup(
     name = "src_trace_processor_metatrace",
     srcs = [
         "src/trace_processor/tp_metatrace.cc",
@@ -1336,7 +1344,7 @@ filegroup(
 )
 
 # GN target: //src/trace_processor:storage_full
-filegroup(
+perfetto_filegroup(
     name = "src_trace_processor_storage_full",
     srcs = [
         "src/trace_processor/importers/additional_modules.cc",
@@ -1409,7 +1417,7 @@ filegroup(
 )
 
 # GN target: //src/trace_processor:storage_minimal
-filegroup(
+perfetto_filegroup(
     name = "src_trace_processor_storage_minimal",
     srcs = [
         "src/trace_processor/forwarding_trace_parser.cc",
@@ -1487,7 +1495,7 @@ filegroup(
 )
 
 # GN target: //src/traced/probes/android_log:android_log
-filegroup(
+perfetto_filegroup(
     name = "src_traced_probes_android_log_android_log",
     srcs = [
         "src/traced/probes/android_log/android_log_data_source.cc",
@@ -1496,7 +1504,7 @@ filegroup(
 )
 
 # GN target: //src/traced/probes/common:common
-filegroup(
+perfetto_filegroup(
     name = "src_traced_probes_common_common",
     srcs = [
         "src/traced/probes/common/cpu_freq_info.cc",
@@ -1505,7 +1513,7 @@ filegroup(
 )
 
 # GN target: //src/traced/probes/filesystem:filesystem
-filegroup(
+perfetto_filegroup(
     name = "src_traced_probes_filesystem_filesystem",
     srcs = [
         "src/traced/probes/filesystem/file_scanner.cc",
@@ -1524,7 +1532,7 @@ filegroup(
 )
 
 # GN target: //src/traced/probes/ftrace/format_parser:format_parser
-filegroup(
+perfetto_filegroup(
     name = "src_traced_probes_ftrace_format_parser_format_parser",
     srcs = [
         "src/traced/probes/ftrace/format_parser/format_parser.cc",
@@ -1533,7 +1541,7 @@ filegroup(
 )
 
 # GN target: //src/traced/probes/ftrace:ftrace
-filegroup(
+perfetto_filegroup(
     name = "src_traced_probes_ftrace_ftrace",
     srcs = [
         "src/traced/probes/ftrace/atrace_hal_wrapper.cc",
@@ -1571,7 +1579,7 @@ filegroup(
 )
 
 # GN target: //src/traced/probes/ftrace:ftrace_procfs
-filegroup(
+perfetto_filegroup(
     name = "src_traced_probes_ftrace_ftrace_procfs",
     srcs = [
         "src/traced/probes/ftrace/ftrace_procfs.cc",
@@ -1580,7 +1588,7 @@ filegroup(
 )
 
 # GN target: //src/traced/probes/initial_display_state:initial_display_state
-filegroup(
+perfetto_filegroup(
     name = "src_traced_probes_initial_display_state_initial_display_state",
     srcs = [
         "src/traced/probes/initial_display_state/initial_display_state_data_source.cc",
@@ -1589,7 +1597,7 @@ filegroup(
 )
 
 # GN target: //src/traced/probes/metatrace:metatrace
-filegroup(
+perfetto_filegroup(
     name = "src_traced_probes_metatrace_metatrace",
     srcs = [
         "src/traced/probes/metatrace/metatrace_data_source.cc",
@@ -1598,7 +1606,7 @@ filegroup(
 )
 
 # GN target: //src/traced/probes/packages_list:packages_list
-filegroup(
+perfetto_filegroup(
     name = "src_traced_probes_packages_list_packages_list",
     srcs = [
         "src/traced/probes/packages_list/packages_list_data_source.cc",
@@ -1607,7 +1615,7 @@ filegroup(
 )
 
 # GN target: //src/traced/probes/packages_list:packages_list_parser
-filegroup(
+perfetto_filegroup(
     name = "src_traced_probes_packages_list_packages_list_parser",
     srcs = [
         "src/traced/probes/packages_list/packages_list_parser.cc",
@@ -1616,7 +1624,7 @@ filegroup(
 )
 
 # GN target: //src/traced/probes/power:power
-filegroup(
+perfetto_filegroup(
     name = "src_traced_probes_power_power",
     srcs = [
         "src/traced/probes/power/android_power_data_source.cc",
@@ -1625,7 +1633,7 @@ filegroup(
 )
 
 # GN target: //src/traced/probes/ps:ps
-filegroup(
+perfetto_filegroup(
     name = "src_traced_probes_ps_ps",
     srcs = [
         "src/traced/probes/ps/process_stats_data_source.cc",
@@ -1634,7 +1642,7 @@ filegroup(
 )
 
 # GN target: //src/traced/probes/sys_stats:sys_stats
-filegroup(
+perfetto_filegroup(
     name = "src_traced_probes_sys_stats_sys_stats",
     srcs = [
         "src/traced/probes/sys_stats/sys_stats_data_source.cc",
@@ -1643,7 +1651,7 @@ filegroup(
 )
 
 # GN target: //src/traced/probes/system_info:system_info
-filegroup(
+perfetto_filegroup(
     name = "src_traced_probes_system_info_system_info",
     srcs = [
         "src/traced/probes/system_info/system_info_data_source.cc",
@@ -1652,7 +1660,7 @@ filegroup(
 )
 
 # GN target: //src/traced/probes:data_source
-filegroup(
+perfetto_filegroup(
     name = "src_traced_probes_data_source",
     srcs = [
         "src/traced/probes/probes_data_source.cc",
@@ -1661,7 +1669,7 @@ filegroup(
 )
 
 # GN target: //src/traced/probes:probes
-filegroup(
+perfetto_filegroup(
     name = "src_traced_probes_probes",
     srcs = [
         "src/traced/probes/probes.cc",
@@ -1669,7 +1677,7 @@ filegroup(
 )
 
 # GN target: //src/traced/probes:probes_src
-filegroup(
+perfetto_filegroup(
     name = "src_traced_probes_probes_src",
     srcs = [
         "src/traced/probes/kmem_activity_trigger.cc",
@@ -1680,7 +1688,7 @@ filegroup(
 )
 
 # GN target: //src/traced/service:service
-filegroup(
+perfetto_filegroup(
     name = "src_traced_service_service",
     srcs = [
         "src/traced/service/builtin_producer.cc",
@@ -1690,7 +1698,7 @@ filegroup(
 )
 
 # GN target: //src/tracing/consumer_api_deprecated:consumer_api_deprecated
-filegroup(
+perfetto_filegroup(
     name = "src_tracing_consumer_api_deprecated_consumer_api_deprecated",
     srcs = [
         "src/tracing/consumer_api_deprecated/consumer_api_deprecated.cc",
@@ -1698,7 +1706,7 @@ filegroup(
 )
 
 # GN target: //src/tracing/core:core
-filegroup(
+perfetto_filegroup(
     name = "src_tracing_core_core",
     srcs = [
         "src/tracing/core/id_allocator.cc",
@@ -1717,7 +1725,7 @@ filegroup(
 )
 
 # GN target: //src/tracing/core:service
-filegroup(
+perfetto_filegroup(
     name = "src_tracing_core_service",
     srcs = [
         "src/tracing/core/metatrace_writer.cc",
@@ -1732,7 +1740,7 @@ filegroup(
 )
 
 # GN target: //src/tracing/ipc/consumer:consumer
-filegroup(
+perfetto_filegroup(
     name = "src_tracing_ipc_consumer_consumer",
     srcs = [
         "src/tracing/ipc/consumer/consumer_ipc_client_impl.cc",
@@ -1741,7 +1749,7 @@ filegroup(
 )
 
 # GN target: //src/tracing/ipc/producer:producer
-filegroup(
+perfetto_filegroup(
     name = "src_tracing_ipc_producer_producer",
     srcs = [
         "src/tracing/ipc/producer/producer_ipc_client_impl.cc",
@@ -1750,7 +1758,7 @@ filegroup(
 )
 
 # GN target: //src/tracing/ipc/service:service
-filegroup(
+perfetto_filegroup(
     name = "src_tracing_ipc_service_service",
     srcs = [
         "src/tracing/ipc/service/consumer_ipc_service.cc",
@@ -1763,7 +1771,7 @@ filegroup(
 )
 
 # GN target: //src/tracing/ipc:common
-filegroup(
+perfetto_filegroup(
     name = "src_tracing_ipc_common",
     srcs = [
         "src/tracing/ipc/default_socket.cc",
@@ -1777,7 +1785,7 @@ filegroup(
 )
 
 # GN target: //src/tracing:client_api_without_backends
-filegroup(
+perfetto_filegroup(
     name = "src_tracing_client_api_without_backends",
     srcs = [
         "src/tracing/console_interceptor.cc",
@@ -1807,7 +1815,7 @@ filegroup(
 )
 
 # GN target: //src/tracing:common
-filegroup(
+perfetto_filegroup(
     name = "src_tracing_common",
     srcs = [
         "src/tracing/trace_writer_base.cc",
@@ -1815,7 +1823,7 @@ filegroup(
 )
 
 # GN target: //src/tracing:in_process_backend
-filegroup(
+perfetto_filegroup(
     name = "src_tracing_in_process_backend",
     srcs = [
         "src/tracing/internal/in_process_tracing_backend.cc",
@@ -1823,7 +1831,7 @@ filegroup(
 )
 
 # GN target: //src/tracing:platform_impl
-filegroup(
+perfetto_filegroup(
     name = "src_tracing_platform_impl",
     srcs = [
         "src/tracing/platform_posix.cc",
@@ -1832,7 +1840,7 @@ filegroup(
 )
 
 # GN target: //src/tracing:system_backend
-filegroup(
+perfetto_filegroup(
     name = "src_tracing_system_backend",
     srcs = [
         "src/tracing/internal/system_tracing_backend.cc",
@@ -1840,7 +1848,7 @@ filegroup(
 )
 
 # GN target: //tools/trace_to_text:common
-filegroup(
+perfetto_filegroup(
     name = "tools_trace_to_text_common",
     srcs = [
         "tools/trace_to_text/deobfuscate_profile.cc",
@@ -1861,7 +1869,7 @@ filegroup(
 )
 
 # GN target: //tools/trace_to_text:full
-filegroup(
+perfetto_filegroup(
     name = "tools_trace_to_text_full",
     srcs = [
         "tools/trace_to_text/proto_full_utils.cc",
@@ -1881,7 +1889,7 @@ perfetto_cc_proto_descriptor(
 )
 
 # GN target: //tools/trace_to_text:pprofbuilder
-filegroup(
+perfetto_filegroup(
     name = "tools_trace_to_text_pprofbuilder",
     srcs = [
         "tools/trace_to_text/pprof_builder.cc",
@@ -1889,7 +1897,7 @@ filegroup(
 )
 
 # GN target: //tools/trace_to_text:utils
-filegroup(
+perfetto_filegroup(
     name = "tools_trace_to_text_utils",
     srcs = [
         "tools/trace_to_text/utils.cc",
@@ -2547,6 +2555,7 @@ perfetto_proto_library(
     name = "protos_perfetto_metrics_android_protos",
     srcs = [
         "protos/perfetto/metrics/android/batt_metric.proto",
+        "protos/perfetto/metrics/android/camera_metric.proto",
         "protos/perfetto/metrics/android/cpu_metric.proto",
         "protos/perfetto/metrics/android/display_metrics.proto",
         "protos/perfetto/metrics/android/dma_heap_metric.proto",
@@ -4034,7 +4043,7 @@ build_config_dir_ = "include/perfetto/base/build_configs/bazel"
 
 # Deliberately NOT a perfetto_cc_library, to avoid cyclic deps.
 # This is pulled as a default dep by all targets.
-cc_library(
+perfetto_build_config_cc_library(
     name = "build_config_hdr",
     hdrs = [build_config_dir_ + "/perfetto_build_flags.h"],
     includes = [build_config_dir_],
