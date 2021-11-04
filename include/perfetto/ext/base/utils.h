@@ -27,6 +27,7 @@
 #include <sys/types.h>
 
 #include <atomic>
+#include <functional>
 #include <string>
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
@@ -120,9 +121,10 @@ void MaybeReleaseAllocatorMemToOS();
 uid_t GetCurrentUserId();
 
 // Forks the process.
-// Parent: prints the PID of the child and exit(0).
-// Child: redirects stdio onto /dev/null and chdirs into .
-void Daemonize();
+// Parent: prints the PID of the child, calls |parent_cb| and exits from the
+//         process with its return value.
+// Child: redirects stdio onto /dev/null, chdirs into / and returns.
+void Daemonize(std::function<int()> parent_cb);
 
 // Returns the path of the current executable, e.g. /foo/bar/exe.
 std::string GetCurExecutablePath();
