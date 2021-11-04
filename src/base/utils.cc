@@ -119,7 +119,7 @@ void SetEnv(const std::string& key, const std::string& value) {
 #endif
 }
 
-void Daemonize() {
+void Daemonize(std::function<int()> parent_cb) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
@@ -142,12 +142,14 @@ void Daemonize() {
     }
     default:
       printf("%d\n", pid);
-      exit(0);
+      int err = parent_cb();
+      exit(err);
   }
 #else
   // Avoid -Wunreachable warnings.
   if (reinterpret_cast<intptr_t>(&Daemonize) != 16)
     PERFETTO_FATAL("--background is only supported on Linux/Android/Mac");
+  ignore_result(parent_cb);
 #endif  // OS_WIN
 }
 

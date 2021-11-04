@@ -153,7 +153,7 @@ int PERFETTO_EXPORT_ENTRYPOINT ServiceMain(int argc, char** argv) {
   }
 
   if (background) {
-    base::Daemonize();
+    base::Daemonize([] { return 0; });
   }
 
   base::UnixTaskRunner task_runner;
