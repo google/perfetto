@@ -18,7 +18,7 @@ import {globals} from './globals';
 import {Panel} from './panel';
 
 export abstract class SlicePanel extends Panel {
-  protected computeDuration(ts: number, dur: number) {
+  protected computeDuration(ts: number, dur: number): string {
     return toNs(dur) === -1 ?
         `${globals.state.traceTime.endSec - ts} (Did not end)` :
         timeToCode(dur);
