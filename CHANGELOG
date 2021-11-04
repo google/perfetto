@@ -6,7 +6,8 @@ Unreleased:
   UI:
     *
   SDK:
-    *
+    * Added UpdateDataSource() descriptor IPC endpoint to allow updates of the
+      data source capabilities (e.g., category list for track event).
 
 
 v21.0 - 2021-11-01:

@@ -341,6 +341,24 @@ void ProducerIPCClientImpl::RegisterDataSource(
   producer_port_.RegisterDataSource(req, std::move(async_response));
 }
 
+void ProducerIPCClientImpl::UpdateDataSource(
+    const DataSourceDescriptor& descriptor) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  if (!connected_) {
+    PERFETTO_DLOG(
+        "Cannot UpdateDataSource(), not connected to tracing service");
+  }
+  protos::gen::UpdateDataSourceRequest req;
+  *req.mutable_data_source_descriptor() = descriptor;
+  ipc::Deferred<protos::gen::UpdateDataSourceResponse> async_response;
+  async_response.Bind(
+      [](ipc::AsyncResult<protos::gen::UpdateDataSourceResponse> response) {
+        if (!response)
+          PERFETTO_DLOG("UpdateDataSource() failed: connection reset");
+      });
+  producer_port_.UpdateDataSource(req, std::move(async_response));
+}
+
 void ProducerIPCClientImpl::UnregisterDataSource(const std::string& name) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   if (!connected_) {
