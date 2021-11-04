@@ -43,6 +43,7 @@ class UnsupportedProducerEndpoint : public ProducerEndpoint {
   ~UnsupportedProducerEndpoint() override { producer_->OnDisconnect(); }
 
   void RegisterDataSource(const DataSourceDescriptor&) override {}
+  void UpdateDataSource(const DataSourceDescriptor&) override {}
   void UnregisterDataSource(const std::string& /*name*/) override {}
 
   void RegisterTraceWriter(uint32_t /*writer_id*/,

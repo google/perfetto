@@ -106,6 +106,13 @@ void MockProducer::RegisterTrackEventDataSource(
       CreateDataSourceDescriptor(categories, id));
 }
 
+void MockProducer::UpdateTrackEventDataSource(
+    const std::initializer_list<std::string>& categories,
+    uint32_t id) {
+  service_endpoint_->UpdateDataSource(
+      CreateDataSourceDescriptor(categories, id));
+}
+
 void MockProducer::RegisterTraceWriter(uint32_t writer_id,
                                        uint32_t target_buffer) {
   service_endpoint_->RegisterTraceWriter(writer_id, target_buffer);
