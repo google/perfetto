@@ -42,6 +42,8 @@ type Description = Map<string, string>;
 export interface SliceDetails {
   ts?: number;
   dur?: number;
+  thread_ts?: number;
+  thread_dur?: number;
   priority?: number;
   endState?: string;
   cpu?: number;
