@@ -605,7 +605,7 @@ export function toPbtxt(configBuffer: Uint8Array): string {
 export class RecordController extends Controller<'main'> implements Consumer {
   private app: App;
   private config: RecordConfig|null = null;
-  private extensionPort: MessagePort;
+  private readonly extensionPort: MessagePort;
   private recordingInProgress = false;
   private consumerPort: ConsumerPort;
   private traceBuffer: Uint8Array[] = [];
@@ -706,6 +706,9 @@ export class RecordController extends Controller<'main'> implements Consumer {
       // TODO(nicomazz): handle this as intended by consumer_port.proto.
       console.assert(data.slices.length === 1);
       if (data.slices[0].data) this.traceBuffer.push(data.slices[0].data);
+      // The line underneath is 'misusing' the format ReadBuffersResponse.
+      // The boolean field 'lastSliceForPacket' is used as 'lastPacketInTrace'.
+      // See http://shortn/_53WB8A1aIr.
       if (data.slices[0].lastSliceForPacket) this.onTraceComplete();
     } else if (isEnableTracingResponse(data)) {
       this.readBuffers();
@@ -767,6 +770,7 @@ export class RecordController extends Controller<'main'> implements Consumer {
   }
 
   onError(message: string) {
+    // TODO(octaviant): b/204998302
     console.error('Error in record controller: ', message);
     globals.dispatch(
         Actions.setLastRecordingError({error: message.substr(0, 150)}));

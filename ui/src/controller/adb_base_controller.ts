@@ -21,10 +21,11 @@ import {ReadBuffersResponse} from './consumer_port_types';
 import {globals} from './globals';
 import {Consumer, RpcConsumerPort} from './record_controller_interfaces';
 
-export enum AdbAuthState {
-  DISCONNECTED,
+export enum AdbConnectionState {
+  READY_TO_CONNECT,
   AUTH_IN_PROGRESS,
   CONNECTED,
+  CLOSED
 }
 
 interface Command {
@@ -39,23 +40,39 @@ export abstract class AdbBaseConsumerPort extends RpcConsumerPort {
   private commandQueue: Command[] = [];
 
   protected adb: Adb;
-  protected state = AdbAuthState.DISCONNECTED;
+  protected state = AdbConnectionState.READY_TO_CONNECT;
   protected device?: USBDevice;
 
-  constructor(adb: Adb, consumer: Consumer) {
+  protected constructor(adb: Adb, consumer: Consumer) {
     super(consumer);
     this.adb = adb;
   }
 
   async handleCommand(method: string, params: Uint8Array) {
     try {
+      if (method === 'FreeBuffers') {
+        // When we finish tracing, we disconnect the adb device interface.
+        // Otherwise, we will keep holding the device interface and won't allow
+        // adb to access it. https://wicg.github.io/webusb/#abusing-a-device
+        // "Lastly, since USB devices are unable to distinguish requests from
+        // multiple sources, operating systems only allow a USB interface to
+        // have a single owning user-space or kernel-space driver."
+        this.state = AdbConnectionState.CLOSED;
+        await this.adb.disconnect();
+      } else if (method === 'EnableTracing') {
+        this.state = AdbConnectionState.READY_TO_CONNECT;
+      }
+
+      if (this.state === AdbConnectionState.CLOSED) return;
+
       this.commandQueue.push({method, params});
-      if (this.state === AdbAuthState.DISCONNECTED ||
+
+      if (this.state === AdbConnectionState.READY_TO_CONNECT ||
           this.deviceDisconnected()) {
-        this.state = AdbAuthState.AUTH_IN_PROGRESS;
+        this.state = AdbConnectionState.AUTH_IN_PROGRESS;
         this.device = await this.findDevice();
         if (!this.device) {
-          this.state = AdbAuthState.DISCONNECTED;
+          this.state = AdbConnectionState.READY_TO_CONNECT;
           const target = globals.state.recordingTarget;
           throw Error(`Device with serial ${
               isAdbTarget(target) ? target.serial : 'n/a'} not found.`);
@@ -71,20 +88,20 @@ export abstract class AdbBaseConsumerPort extends RpcConsumerPort {
           throw Error('Recording not in progress after adb authorization.');
         }
 
-        this.state = AdbAuthState.CONNECTED;
+        this.state = AdbConnectionState.CONNECTED;
         this.sendStatus('Device connected.');
       }
 
-      if (this.state === AdbAuthState.AUTH_IN_PROGRESS) return;
+      if (this.state === AdbConnectionState.AUTH_IN_PROGRESS) return;
 
-      console.assert(this.state === AdbAuthState.CONNECTED);
+      console.assert(this.state === AdbConnectionState.CONNECTED);
 
       for (const cmd of this.commandQueue) this.invoke(cmd.method, cmd.params);
 
       this.commandQueue = [];
     } catch (e) {
       this.commandQueue = [];
-      this.state = AdbAuthState.DISCONNECTED;
+      this.state = AdbConnectionState.READY_TO_CONNECT;
       this.sendErrorMessage(e.message);
     }
   }
