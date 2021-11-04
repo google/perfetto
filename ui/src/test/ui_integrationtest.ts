@@ -243,17 +243,13 @@ describe('routing', () => {
     });
 
     test('navigate_back_and_forward', async () => {
-      await page.goto(
-          'http://localhost:10000/?testing=1#!/info?trace_id=00000000-0000-0000-e13c-bd7db4ff646f');
-      await page.goto(
-          'http://localhost:10000/?testing=1#!/metrics?trace_id=00000000-0000-0000-e13c-bd7db4ff646f');
-      await page.goBack();
+      await page.click('[id="info_and_stats"]');
+      await waitForPerfettoIdle(page);
+      await page.click('[id="metrics"]');
       await waitForPerfettoIdle(page);
       await page.goBack();
       await waitForPerfettoIdle(page);
       await page.goBack();
-      await waitForPerfettoIdle(page);
-      await page.goForward();
       await waitForPerfettoIdle(page);
       await page.goForward();
       await waitForPerfettoIdle(page);
