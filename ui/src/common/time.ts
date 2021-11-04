@@ -54,7 +54,7 @@ export function formatTimestamp(sec: number) {
 
 // TODO(hjd): Rename to formatTimestampWithUnits
 // 1000000023ns -> "1s 23ns"
-export function timeToCode(sec: number) {
+export function timeToCode(sec: number): string {
   let result = '';
   let ns = Math.round(sec * 1e9);
   if (ns < 1) return '0s';
