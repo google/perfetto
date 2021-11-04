@@ -322,6 +322,8 @@ PERFETTO_TP_TABLE(PERFETTO_TP_HEAP_GRAPH_CLASS_DEF);
 // @param upid UniquePid of the target {@joinable process.upid}.
 // @param graph_sample_ts timestamp this dump was taken at.
 // @param self_size size this object uses on the Java Heap.
+// @param native_size approximate amount of native memory used by this object,
+//        as reported by libcore.util.NativeAllocationRegistry.size.
 // @param reference_set_id join key with heap_graph_reference containing all
 //        objects referred in this object's fields.
 //        {@joinable heap_graph_reference.reference_set_id}
@@ -336,6 +338,7 @@ PERFETTO_TP_TABLE(PERFETTO_TP_HEAP_GRAPH_CLASS_DEF);
   C(uint32_t, upid)                                                   \
   C(int64_t, graph_sample_ts)                                         \
   C(int64_t, self_size)                                               \
+  C(int64_t, native_size)                                             \
   C(base::Optional<uint32_t>, reference_set_id, Column::Flag::kDense) \
   C(int32_t, reachable)                                               \
   C(HeapGraphClassTable::Id, type_id)                                 \
