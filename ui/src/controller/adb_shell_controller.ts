@@ -17,7 +17,7 @@ import {_TextDecoder} from 'custom_utils';
 import {base64Encode} from '../base/string_utils';
 import {extractTraceConfig} from '../base/trace_config_utils';
 
-import {AdbAuthState, AdbBaseConsumerPort} from './adb_base_controller';
+import {AdbBaseConsumerPort, AdbConnectionState} from './adb_base_controller';
 import {Adb, AdbStream} from './adb_interfaces';
 import {ReadBuffersResponse} from './consumer_port_types';
 import {Consumer} from './record_controller_interfaces';
@@ -42,7 +42,7 @@ export class AdbConsumerPort extends AdbBaseConsumerPort {
 
   async invoke(method: string, params: Uint8Array) {
     // ADB connection & authentication is handled by the superclass.
-    console.assert(this.state === AdbAuthState.CONNECTED);
+    console.assert(this.state === AdbConnectionState.CONNECTED);
 
     switch (method) {
       case 'EnableTracing':
