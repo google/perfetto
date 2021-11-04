@@ -23,7 +23,7 @@ export abstract class RpcConsumerPort {
   // This is done by the 3 "send" methods in this abstract class.
   private consumerPortListener: Consumer;
 
-  constructor(consumerPortListener: Consumer) {
+  protected constructor(consumerPortListener: Consumer) {
     this.consumerPortListener = consumerPortListener;
   }
 
