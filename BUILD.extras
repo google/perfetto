@@ -141,3 +141,14 @@ perfetto_py_binary(
     python_version = "PY3",
     legacy_create_init = 0,
 )
+
+perfetto_py_binary(
+    name = "batch_trace_processor_shell",
+    srcs = ["tools/batch_trace_processor/main.py"],
+    main = "tools/batch_trace_processor/main.py",
+    deps = [
+        ":trace_processor_py",
+    ] + PERFETTO_CONFIG.deps.pandas_py,
+    python_version = "PY3",
+    legacy_create_init = 0,
+)
