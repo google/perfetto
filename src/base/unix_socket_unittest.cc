@@ -131,8 +131,8 @@ TEST_F(UnixSocketTest, ConnectionImmediatelyDroppedByServer) {
 
   // On Windows the first send immediately after the disconnection succeeds, the
   // kernel will detect the disconnection only later.
-  cli->Send(".");
-  EXPECT_FALSE(cli->Send("should_fail_both_on_win_and_unix"));
+  cli->SendStr(".");
+  EXPECT_FALSE(cli->SendStr("should_fail_both_on_win_and_unix"));
   task_runner_.RunUntilCheckpoint("cli_disconnected");
 }
 
@@ -177,8 +177,8 @@ TEST_F(UnixSocketTest, ClientAndServerExchangeData) {
         ASSERT_EQ("cli>srv", s->ReceiveString());
         srv_did_recv();
       }));
-  ASSERT_TRUE(cli->Send("cli>srv"));
-  ASSERT_TRUE(srv_conn->Send("srv>cli"));
+  ASSERT_TRUE(cli->SendStr("cli>srv"));
+  ASSERT_TRUE(srv_conn->SendStr("srv>cli"));
   task_runner_.RunUntilCheckpoint("cli_did_recv");
   task_runner_.RunUntilCheckpoint("srv_did_recv");
 
@@ -192,8 +192,8 @@ TEST_F(UnixSocketTest, ClientAndServerExchangeData) {
   ASSERT_EQ("", cli->ReceiveString());
   ASSERT_EQ(0u, srv_conn->Receive(&msg, sizeof(msg)));
   ASSERT_EQ("", srv_conn->ReceiveString());
-  ASSERT_FALSE(cli->Send("foo"));
-  ASSERT_FALSE(srv_conn->Send("bar"));
+  ASSERT_FALSE(cli->SendStr("foo"));
+  ASSERT_FALSE(srv_conn->SendStr("bar"));
   srv->Shutdown(true);
   task_runner_.RunUntilCheckpoint("cli_disconnected");
   task_runner_.RunUntilCheckpoint("srv_disconnected");
@@ -250,7 +250,7 @@ TEST_F(UnixSocketTest, SeveralClients) {
         EXPECT_CALL(event_listener_, OnDataAvailable(s))
             .WillOnce(Invoke([](UnixSocket* t) {
               ASSERT_EQ("PING", t->ReceiveString());
-              ASSERT_TRUE(t->Send("PONG"));
+              ASSERT_TRUE(t->SendStr("PONG"));
             }));
       }));
 
@@ -261,7 +261,7 @@ TEST_F(UnixSocketTest, SeveralClients) {
     EXPECT_CALL(event_listener_, OnConnect(cli[i].get(), true))
         .WillOnce(Invoke([](UnixSocket* s, bool success) {
           ASSERT_TRUE(success);
-          ASSERT_TRUE(s->Send("PING"));
+          ASSERT_TRUE(s->SendStr("PING"));
         }));
 
     auto checkpoint = task_runner_.CreateCheckpoint(std::to_string(i));
@@ -405,7 +405,7 @@ TEST_F(UnixSocketTest, ReleaseSocket) {
   task_runner_.RunUntilCheckpoint("cli_connected");
   srv->Shutdown(true);
 
-  cli->Send("test");
+  cli->SendStr("test");
 
   ASSERT_NE(peer, nullptr);
   auto raw_sock = peer->ReleaseSocket();
@@ -413,10 +413,10 @@ TEST_F(UnixSocketTest, ReleaseSocket) {
   EXPECT_CALL(event_listener_, OnDataAvailable(_)).Times(0);
   task_runner_.RunUntilIdle();
 
-  char buf[sizeof("test")];
+  char buf[5];
   ASSERT_TRUE(raw_sock);
-  ASSERT_EQ(raw_sock.Receive(buf, sizeof(buf)),
-            static_cast<ssize_t>(sizeof(buf)));
+  ASSERT_EQ(raw_sock.Receive(buf, sizeof(buf)), 4);
+  buf[sizeof(buf) - 1] = '\0';
   ASSERT_STREQ(buf, "test");
 }
 
@@ -445,7 +445,7 @@ TEST_F(UnixSocketTest, TcpStream) {
             .WillRepeatedly(Invoke([](UnixSocket* cli_sock) {
               cli_sock->ReceiveString();  // Read connection EOF;
             }));
-        ASSERT_TRUE(s->Send("welcome"));
+        ASSERT_TRUE(s->SendStr("welcome"));
       }));
 
   for (size_t i = 0; i < kNumClients; i++) {
@@ -717,7 +717,7 @@ TEST_F(UnixSocketTest, SharedMemory) {
 
           // Now change the shared memory and ping the other process.
           memcpy(mem, "rock more", 10);
-          ASSERT_TRUE(s->Send("change notify"));
+          ASSERT_TRUE(s->SendStr("change notify"));
           checkpoint();
         }));
     task_runner_.RunUntilCheckpoint("change_seen_by_client");
