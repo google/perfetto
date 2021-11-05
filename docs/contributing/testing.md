@@ -142,7 +142,7 @@ googlers have access to, googlers can install gcloud
 
 ```
 ui/run-integrationtests --rebaseline
-tools/add_test_data test/data/ui-screenshots
+tools/test_data upload
 ```
 
 Once finished you can commit and upload as part of your CL to cause the CI to
