@@ -411,7 +411,7 @@ function convertTraceToJson(e: Event) {
       });
 }
 
-function isTraceLoaded(): boolean {
+export function isTraceLoaded(): boolean {
   const engine = Object.values(globals.state.engines)[0];
   return engine !== undefined;
 }
