@@ -58,12 +58,31 @@ PERFETTO_TP_TABLE(PERFETTO_TP_ARG_TABLE_DEF);
 
 PERFETTO_TP_TABLE(PERFETTO_TP_METADATA_TABLE_DEF);
 
+// Contains information of threads seen during the trace
+//
 // @name thread
-// @param utid {uint32_t} Unique thread id. This is != the OS tid. This is a
-//        monotonic number associated to each thread. The OS thread id (tid)
-//        cannot be used as primary key because tids and pids are recycled
-//        by most kernels.
-// @param upid {@joinable process.upid}
+// @param utid             {uint32_t} Unique thread id. This is != the OS tid.
+//                         This is a monotonic number associated to each thread.
+//                         The OS thread id (tid) cannot be used as primary key
+//                         because tids and pids are recycled by most kernels.
+// @param tid              The OS id for this thread. Note: this is *not*
+//                         unique over the lifetime of the trace so cannot be
+//                         used as a primary key. Use |utid| instead.
+// @param name             The name of the thread. Can be populated from many
+//                         sources (e.g. ftrace, /proc scraping, track event
+//                         etc).
+// @param start_ts         The start timestamp of this thread (if known). Is
+//                         null in most cases unless a thread creation event is
+//                         enabled (e.g. task_newtask ftrace event on
+//                         Linux/Android).
+// @param end_ts           The end timestamp of this thread (if known). Is
+//                         null in most cases unless a thread destruction event
+//                         is enabled (e.g. sched_process_free ftrace event on
+//                         Linux/Android).
+// @param upid             {@joinable process.upid} The process hosting this
+//                         thread.
+// @param is_main_thread   Boolean indicating if this thread is the main thread
+//                         in the process.
 #define PERFETTO_TP_THREAD_TABLE_DEF(NAME, PARENT, C) \
   NAME(ThreadTable, "internal_thread")                \
   PERFETTO_TP_ROOT_TABLE(PARENT, C)                   \
@@ -76,12 +95,35 @@ PERFETTO_TP_TABLE(PERFETTO_TP_METADATA_TABLE_DEF);
 
 PERFETTO_TP_TABLE(PERFETTO_TP_THREAD_TABLE_DEF);
 
+// Contains information of processes seen during the trace
+//
 // @name process
-// @param upid {uint32_t} Unique process id. This is != the OS pid. This is a
-//        monotonic number associated to each process. The OS process id (pid)
-//        cannot be used as primary key because tids and pids are recycled by
-//        most kernels.
-// @param uid The Unix user id of the process {@joinable package_list.uid}.
+// @param upid            {uint32_t} Unique process id. This is != the OS pid.
+//                        This is a monotonic number associated to each process.
+//                        The OS process id (pid) cannot be used as primary key
+//                        because tids and pids are recycled by most kernels.
+// @param pid             The OS id for this process. Note: this is *not*
+//                        unique over the lifetime of the trace so cannot be
+//                        used as a primary key. Use |upid| instead.
+// @param name            The name of the process. Can be populated from many
+//                        sources (e.g. ftrace, /proc scraping, track event
+//                        etc).
+// @param start_ts        The start timestamp of this process (if known). Is
+//                        null in most cases unless a process creation event is
+//                        enabled (e.g. task_newtask ftrace event on
+//                        Linux/Android).
+// @param end_ts          The end timestamp of this process (if known). Is
+//                        null in most cases unless a process destruction event
+//                        is enabled (e.g. sched_process_free ftrace event on
+//                        Linux/Android).
+// @param parent_upid     {@joinable process.upid} The upid of the process which
+//                        caused this process to be spawned.
+// @param uid             {@joinable package_list.uid} The Unix user id of the
+//                        process.
+// @param android_appid   Android appid of this process.
+// @param cmdline         /proc/cmdline for this process.
+// @param arg_set_id      {@joinable args.arg_set_id} Extra args for this
+//                        process.
 #define PERFETTO_TP_PROCESS_TABLE_DEF(NAME, PARENT, C) \
   NAME(ProcessTable, "internal_process")               \
   PERFETTO_TP_ROOT_TABLE(PARENT, C)                    \
