@@ -52,8 +52,6 @@ REPLACEMENT_HEADER = '''
 syntax = "proto2";
 
 package perfetto.protos;
-
-option go_package = "github.com/google/perfetto/perfetto_proto";
 '''
 
 
