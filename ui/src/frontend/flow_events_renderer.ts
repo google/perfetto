@@ -16,7 +16,6 @@ import {TRACK_SHELL_WIDTH} from './css_constants';
 import {ALL_CATEGORIES, getFlowCategories} from './flow_events_panel';
 import {Flow, FlowPoint, globals} from './globals';
 import {PanelVNode} from './panel';
-import {findUiTrackId} from './scroll_helper';
 import {SliceRect} from './track';
 import {TrackGroupPanel} from './track_group_panel';
 import {TrackPanel} from './track_panel';
@@ -98,7 +97,7 @@ export class FlowEventsRendererArgs {
 
 export class FlowEventsRenderer {
   private getTrackGroupIdByTrackId(trackId: number): string|undefined {
-    const uiTrackId = findUiTrackId(trackId);
+    const uiTrackId = globals.state.uiTrackIdByTraceTrackId.get(trackId);
     return uiTrackId ? globals.state.tracks[uiTrackId].trackGroup : undefined;
   }
 
