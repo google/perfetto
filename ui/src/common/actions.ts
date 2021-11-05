@@ -896,6 +896,12 @@ export const StateActions = {
     state.currentTab = args.tab;
   },
 
+  toggleAllTrackGroups(state: StateDraft, args: {collapsed: boolean}) {
+    for (const [_, group] of Object.entries(state.trackGroups)) {
+      group.collapsed = args.collapsed;
+    }
+  },
+
   addNewPivotTable(state: StateDraft, args: {
     name: string,
     pivotTableId: string,
