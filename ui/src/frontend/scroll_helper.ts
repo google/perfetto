@@ -107,21 +107,3 @@ export function scrollToTrackAndTs(
   }
   horizontalScrollToTs(ts);
 }
-
-/**
- * Returns the UI track Id that is associated with the given |traceTrackId| in
- * the trace_processor. Due to concepts like Async tracks and TrackGroups this
- * is not always a one to one mapping.
- */
-export function findUiTrackId(traceTrackId: number) {
-  for (const [uiTrackId, trackState] of Object.entries(globals.state.tracks)) {
-    const config = trackState.config as {trackId: number};
-    if (config.trackId === traceTrackId) return uiTrackId;
-    const multiple = trackState.config as {trackIds: number[]};
-    if (multiple.trackIds !== undefined &&
-        multiple.trackIds.includes(traceTrackId)) {
-      return uiTrackId;
-    }
-  }
-  return null;
-}
