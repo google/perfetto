@@ -574,35 +574,15 @@ int DbSqliteTable::Cursor::Column(sqlite3_context* ctx, int raw_col) {
   SqlValue value = mode_ == Mode::kSingleRow
                        ? SourceTable()->GetColumn(column).Get(*single_row_)
                        : iterator_->Get(column);
-  switch (value.type) {
-    case SqlValue::Type::kLong:
-      sqlite3_result_int64(ctx, value.long_value);
-      break;
-    case SqlValue::Type::kDouble:
-      sqlite3_result_double(ctx, value.double_value);
-      break;
-    case SqlValue::Type::kString: {
-      // We can say kSqliteStatic here because all strings are expected to
-      // come from the string pool and thus will be valid for the lifetime
-      // of trace processor.
-      sqlite3_result_text(ctx, value.string_value, -1,
-                          sqlite_utils::kSqliteStatic);
-      break;
-    }
-    case SqlValue::Type::kBytes: {
-      // We can say kSqliteStatic here because for our iterator will hold
-      // onto the pointer as long as we don't call Next() but that only
-      // happens with Next() is called on the Cursor itself at which point
-      // SQLite no longer cares about the bytes pointer.
-      sqlite3_result_blob(ctx, value.bytes_value,
-                          static_cast<int>(value.bytes_count),
-                          sqlite_utils::kSqliteStatic);
-      break;
-    }
-    case SqlValue::Type::kNull:
-      sqlite3_result_null(ctx);
-      break;
-  }
+  // We can say kSqliteStatic for strings  because all strings are expected to
+  // come from the string pool and thus will be valid for the lifetime
+  // of trace processor.
+  // Similarily for bytes we can also use kSqliteStatic because for our iterator
+  // will hold onto the pointer as long as we don't call Next() but that only
+  // happens with Next() is called on the Cursor itself at which point
+  // SQLite no longer cares about the bytes pointer.
+  sqlite_utils::ReportSqlValue(ctx, value, sqlite_utils::kSqliteStatic,
+                               sqlite_utils::kSqliteStatic);
   return SQLITE_OK;
 }
 
