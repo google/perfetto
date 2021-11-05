@@ -321,8 +321,8 @@ class PERFETTO_EXPORT UnixSocket {
     return Send(msg, len, nullptr, 0);
   }
 
-  inline bool Send(const std::string& msg) {
-    return Send(msg.c_str(), msg.size() + 1, -1);
+  inline bool SendStr(const std::string& msg) {
+    return Send(msg.data(), msg.size(), -1);
   }
 
   // Returns the number of bytes (<= |len|) written in |msg| or 0 if there
