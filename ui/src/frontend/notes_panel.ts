@@ -24,6 +24,7 @@ import {PerfettoMouseEvent} from './events';
 import {globals} from './globals';
 import {gridlines} from './gridline_helper';
 import {Panel, PanelSize} from './panel';
+import {isTraceLoaded} from './sidebar';
 
 const FLAG_WIDTH = 16;
 const AREA_TRIANGLE_WIDTH = 10;
@@ -61,12 +62,30 @@ export class NotesPanel extends Panel {
   }
 
   view() {
-    return m('.notes-panel', {
-      onclick: (e: PerfettoMouseEvent) => {
-        this.onClick(e.layerX - TRACK_SHELL_WIDTH, e.layerY);
-        e.stopPropagation();
-      },
-    });
+    const allCollapsed = Object.values(globals.state.trackGroups)
+                             .every((group) => group.collapsed);
+
+    return m(
+        '.notes-panel',
+        {
+          onclick: (e: PerfettoMouseEvent) => {
+            this.onClick(e.layerX - TRACK_SHELL_WIDTH, e.layerY);
+            e.stopPropagation();
+          },
+        },
+        isTraceLoaded() ?
+            m('button',
+              {
+                onclick: (e: Event) => {
+                  e.preventDefault();
+                  globals.dispatch(
+                      Actions.toggleAllTrackGroups({collapsed: !allCollapsed}));
+                }
+              },
+              m('i.material-icons',
+                {title: allCollapsed ? 'Expand all' : 'Collapse all'},
+                allCollapsed ? 'unfold_more' : 'unfold_less')) :
+            '');
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
