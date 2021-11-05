@@ -22,6 +22,8 @@ if (enable_perfetto_trace_processor_sqlite) {
       "query_cache.h",
       "query_constraints.cc",
       "query_constraints.h",
+      "register_function.cc",
+      "register_function.h",
       "scoped_db.h",
       "span_join_operator_table.cc",
       "span_join_operator_table.h",
