@@ -14,6 +14,8 @@
 
 import {_TextDecoder, _TextEncoder} from 'custom_utils';
 
+import {assertExists} from '../base/logging';
+
 import {Adb, AdbMsg, AdbStream, CmdType} from './adb_interfaces';
 
 const textEncoder = new _TextEncoder();
@@ -72,7 +74,8 @@ export class AdbOverWebUsb implements Adb {
   useChecksum = true;
 
   private lastStreamId = 0;
-  private dev: USBDevice|undefined;
+  private dev?: USBDevice;
+  private usbInterfaceNumber?: number;
   private usbReadEndpoint = -1;
   private usbWriteEpEndpoint = -1;
   private filter = {
@@ -117,6 +120,7 @@ export class AdbOverWebUsb implements Adb {
 
     const {configValue, usbInterfaceNumber, endpoints} =
         this.findInterfaceAndEndpoint();
+    this.usbInterfaceNumber = usbInterfaceNumber;
 
     this.usbReadEndpoint = this.findEndpointNumber(endpoints, 'in');
     this.usbWriteEpEndpoint = this.findEndpointNumber(endpoints, 'out');
@@ -135,13 +139,19 @@ export class AdbOverWebUsb implements Adb {
   }
 
   async disconnect(): Promise<void> {
+    if (this.state === AdbState.DISCONNECTED) {
+      return;
+    }
     this.state = AdbState.DISCONNECTED;
 
     if (!this.dev) return;
 
     new Map(this.streams).forEach((stream, _id) => stream.setClosed());
     console.assert(this.streams.size === 0);
+
+    await this.dev.releaseInterface(assertExists(this.usbInterfaceNumber));
     this.dev = undefined;
+    this.usbInterfaceNumber = undefined;
   }
 
   async startAuthentication() {
