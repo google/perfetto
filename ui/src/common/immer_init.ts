@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {enablePatches, setAutoFreeze} from 'immer';
+import {enableMapSet, enablePatches, setAutoFreeze} from 'immer';
 
 export function initializeImmerJs() {
   enablePatches();
@@ -24,4 +24,6 @@ export function initializeImmerJs() {
   // By doing so, we  accidentally the local copy of global state, which is
   // supposed to be immutable.
   setAutoFreeze(false);
+
+  enableMapSet();
 }

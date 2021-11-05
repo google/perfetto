@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {Engine} from '../common/engine';
+import {featureFlags} from '../common/feature_flags';
 import {NUM, STR_NULL} from '../common/query_result';
 import {Area} from '../common/state';
 import {fromNs, toNs} from '../common/time';
@@ -33,6 +34,15 @@ import {globals} from './globals';
 export interface FlowEventsControllerArgs {
   engine: Engine;
 }
+
+const SHOW_INDIRECT_PRECEDING_FLOWS_FLAG = featureFlags.register({
+  id: 'showIndirectPrecedingFlows',
+  name: 'Show indirect preceding flows',
+  description: 'Show indirect preceding flows (connected through ancestor ' +
+      'slices) when a slice is selected.',
+  defaultValue: false,
+});
+
 
 export class FlowEventsController extends Controller<'main'> {
   private lastSelectedSliceId?: number;
@@ -128,6 +138,14 @@ export class FlowEventsController extends Controller<'main'> {
     this.lastSelectedSliceId = sliceId;
     this.lastSelectedKind = 'CHROME_SLICE';
 
+    const connectedFlows = SHOW_INDIRECT_PRECEDING_FLOWS_FLAG.get() ?
+        `(
+           select * from directly_connected_flow(${sliceId})
+           union
+           select * from preceding_flow(${sliceId})
+         )` :
+        `directly_connected_flow(${sliceId})`;
+
     const query = `
     select
       f.slice_out as beginSliceId,
@@ -147,7 +165,7 @@ export class FlowEventsController extends Controller<'main'> {
       extract_arg(f.arg_set_id, 'cat') as category,
       extract_arg(f.arg_set_id, 'name') as name,
       f.id as id
-    from directly_connected_flow(${sliceId}) f
+    from ${connectedFlows} f
     join slice t1 on f.slice_out = t1.slice_id
     join slice t2 on f.slice_in = t2.slice_id
     `;
