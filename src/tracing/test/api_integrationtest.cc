@@ -1431,14 +1431,17 @@ TEST_P(PerfettoApiTest, TrackEventProcessAndThreadDescriptors) {
   EXPECT_EQ("goodbye.exe", descs[2].name());
 
   // The child thread records only its own thread descriptor (twice, since it
-  // was mutated).
-  EXPECT_EQ(2u, thread_descs.size());
+  // was mutated). The child thread also emits another copy of the process
+  // descriptor.
+  EXPECT_EQ(3u, thread_descs.size());
   EXPECT_EQ("TestThread", thread_descs[0].name());
   EXPECT_NE(0, thread_descs[0].thread().pid());
   EXPECT_NE(0, thread_descs[0].thread().tid());
   EXPECT_EQ("TestThread", thread_descs[1].name());
   EXPECT_NE(0, thread_descs[1].thread().pid());
   EXPECT_NE(0, thread_descs[1].thread().tid());
+  EXPECT_NE(0, descs[2].process().pid());
+  EXPECT_EQ("goodbye.exe", descs[2].name());
 }
 
 TEST_P(PerfettoApiTest, CustomTrackDescriptor) {
