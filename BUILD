@@ -1153,6 +1153,8 @@ perfetto_filegroup(
         "src/trace_processor/sqlite/query_cache.h",
         "src/trace_processor/sqlite/query_constraints.cc",
         "src/trace_processor/sqlite/query_constraints.h",
+        "src/trace_processor/sqlite/register_function.cc",
+        "src/trace_processor/sqlite/register_function.h",
         "src/trace_processor/sqlite/scoped_db.h",
         "src/trace_processor/sqlite/span_join_operator_table.cc",
         "src/trace_processor/sqlite/span_join_operator_table.h",
