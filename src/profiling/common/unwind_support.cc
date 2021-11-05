@@ -69,7 +69,6 @@ bool FDMaps::Parse() {
 
   unwindstack::SharedString name("");
   std::shared_ptr<unwindstack::MapInfo> prev_map;
-  std::shared_ptr<unwindstack::MapInfo> prev_real_map;
   return android::procinfo::ReadMapFileContent(
       &content[0], [&](const android::procinfo::MapInfo& mapinfo) {
         // Mark a device map in /dev/ and not in /dev/ashmem/ specially.
@@ -83,12 +82,9 @@ bool FDMaps::Parse() {
           name = unwindstack::SharedString(mapinfo.name);
         }
         maps_.emplace_back(unwindstack::MapInfo::Create(
-            prev_map, prev_real_map, mapinfo.start, mapinfo.end, mapinfo.pgoff,
+            prev_map, mapinfo.start, mapinfo.end, mapinfo.pgoff,
             flags, name));
         prev_map = maps_.back();
-        if (!prev_map->IsBlank()) {
-          prev_real_map = prev_map;
-        }
       });
 }
 
