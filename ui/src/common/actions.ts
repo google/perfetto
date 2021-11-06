@@ -177,11 +177,28 @@ export const StateActions = {
     state.traceUuid = args.traceUuid;
   },
 
+  fillUiTrackIdByTraceTrackId(
+      state: StateDraft, trackState: TrackState, uiTrackId: string) {
+    const config = trackState.config as {trackId: number};
+    if (config.trackId !== undefined) {
+      state.uiTrackIdByTraceTrackId.set(config.trackId, uiTrackId);
+      return;
+    }
+
+    const multiple = trackState.config as {trackIds: number[]};
+    if (multiple.trackIds !== undefined) {
+      for (const trackId of multiple.trackIds) {
+        state.uiTrackIdByTraceTrackId.set(trackId, uiTrackId);
+      }
+    }
+  },
+
   addTracks(state: StateDraft, args: {tracks: AddTrackArgs[]}) {
     args.tracks.forEach(track => {
       const id = track.id === undefined ? `${state.nextId++}` : track.id;
       track.id = id;
       state.tracks[id] = track as TrackState;
+      this.fillUiTrackIdByTraceTrackId(state, track as TrackState, id);
       if (track.trackGroup === SCROLLING_TRACK_GROUP) {
         state.scrollingTracks.push(id);
       } else if (track.trackGroup !== undefined) {
@@ -204,6 +221,7 @@ export const StateActions = {
       trackGroup: args.trackGroup,
       config: args.config,
     };
+    this.fillUiTrackIdByTraceTrackId(state, state.tracks[id], id);
     if (args.trackGroup === SCROLLING_TRACK_GROUP) {
       state.scrollingTracks.push(id);
     } else if (args.trackGroup !== undefined) {
@@ -876,6 +894,12 @@ export const StateActions = {
 
   setCurrentTab(state: StateDraft, args: {tab: string|undefined}) {
     state.currentTab = args.tab;
+  },
+
+  toggleAllTrackGroups(state: StateDraft, args: {collapsed: boolean}) {
+    for (const [_, group] of Object.entries(state.trackGroups)) {
+      group.collapsed = args.collapsed;
+    }
   },
 
   addNewPivotTable(state: StateDraft, args: {

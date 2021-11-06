@@ -1099,6 +1099,7 @@ perfetto_genrule(
         "src/trace_processor/metrics/chrome/touch_flow_event_queuing_delay.sql",
         "src/trace_processor/metrics/chrome/touch_jank.sql",
         "src/trace_processor/metrics/experimental/blink_gc_metric.sql",
+        "src/trace_processor/metrics/experimental/chrome_dropped_frames.sql",
         "src/trace_processor/metrics/experimental/frame_times.sql",
         "src/trace_processor/metrics/experimental/media_metric.sql",
         "src/trace_processor/metrics/experimental/reported_by_page.sql",
@@ -1153,6 +1154,8 @@ perfetto_filegroup(
         "src/trace_processor/sqlite/query_cache.h",
         "src/trace_processor/sqlite/query_constraints.cc",
         "src/trace_processor/sqlite/query_constraints.h",
+        "src/trace_processor/sqlite/register_function.cc",
+        "src/trace_processor/sqlite/register_function.h",
         "src/trace_processor/sqlite/scoped_db.h",
         "src/trace_processor/sqlite/span_join_operator_table.cc",
         "src/trace_processor/sqlite/span_join_operator_table.h",
@@ -2606,6 +2609,7 @@ perfetto_proto_library(
     srcs = [
         "protos/perfetto/metrics/chrome/all_chrome_metrics.proto",
         "protos/perfetto/metrics/chrome/blink_gc_metric.proto",
+        "protos/perfetto/metrics/chrome/dropped_frames.proto",
         "protos/perfetto/metrics/chrome/frame_times.proto",
         "protos/perfetto/metrics/chrome/media_metric.proto",
         "protos/perfetto/metrics/chrome/reported_by_page.proto",
@@ -4177,6 +4181,17 @@ perfetto_py_binary(
     main = "tools/slice_breakdown/main.py",
     deps = [
         ":experimental_slice_breakdown_lib",
+        ":trace_processor_py",
+    ] + PERFETTO_CONFIG.deps.pandas_py,
+    python_version = "PY3",
+    legacy_create_init = 0,
+)
+
+perfetto_py_binary(
+    name = "batch_trace_processor_shell",
+    srcs = ["tools/batch_trace_processor/main.py"],
+    main = "tools/batch_trace_processor/main.py",
+    deps = [
         ":trace_processor_py",
     ] + PERFETTO_CONFIG.deps.pandas_py,
     python_version = "PY3",

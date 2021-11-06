@@ -19,7 +19,6 @@ import {Actions} from '../common/actions';
 import {Flow, globals} from './globals';
 import {BLANK_CHECKBOX, CHECKBOX} from './icons';
 import {Panel, PanelSize} from './panel';
-import {findUiTrackId} from './scroll_helper';
 
 export const ALL_CATEGORIES = '_all_';
 
@@ -44,7 +43,7 @@ export class FlowEventsPanel extends Panel {
     }
 
     const flowClickHandler = (sliceId: number, trackId: number) => {
-      const uiTrackId = findUiTrackId(trackId);
+      const uiTrackId = globals.state.uiTrackIdByTraceTrackId.get(trackId);
       if (uiTrackId) {
         globals.makeSelection(
             Actions.selectChromeSlice(
