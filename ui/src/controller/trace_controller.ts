@@ -109,6 +109,7 @@ const METRICS = [
   'android_sysui_cuj',
   'android_jank',
   'android_camera',
+  'chrome_dropped_frames',
   'trace_metadata',
 ];
 const FLAGGED_METRICS: Array<[Flag, string]> = METRICS.map(m => {

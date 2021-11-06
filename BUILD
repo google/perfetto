@@ -1099,6 +1099,7 @@ perfetto_genrule(
         "src/trace_processor/metrics/chrome/touch_flow_event_queuing_delay.sql",
         "src/trace_processor/metrics/chrome/touch_jank.sql",
         "src/trace_processor/metrics/experimental/blink_gc_metric.sql",
+        "src/trace_processor/metrics/experimental/chrome_dropped_frames.sql",
         "src/trace_processor/metrics/experimental/frame_times.sql",
         "src/trace_processor/metrics/experimental/media_metric.sql",
         "src/trace_processor/metrics/experimental/reported_by_page.sql",
@@ -2608,6 +2609,7 @@ perfetto_proto_library(
     srcs = [
         "protos/perfetto/metrics/chrome/all_chrome_metrics.proto",
         "protos/perfetto/metrics/chrome/blink_gc_metric.proto",
+        "protos/perfetto/metrics/chrome/dropped_frames.proto",
         "protos/perfetto/metrics/chrome/frame_times.proto",
         "protos/perfetto/metrics/chrome/media_metric.proto",
         "protos/perfetto/metrics/chrome/reported_by_page.proto",
