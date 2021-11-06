@@ -335,6 +335,7 @@ perfetto_filegroup(
     name = "include_perfetto_ext_base_base",
     srcs = [
         "include/perfetto/ext/base/android_utils.h",
+        "include/perfetto/ext/base/base64.h",
         "include/perfetto/ext/base/circular_queue.h",
         "include/perfetto/ext/base/container_annotations.h",
         "include/perfetto/ext/base/crash_keys.h",
@@ -640,6 +641,7 @@ perfetto_cc_library(
     name = "src_base_base",
     srcs = [
         "src/base/android_utils.cc",
+        "src/base/base64.cc",
         "src/base/crash_keys.cc",
         "src/base/ctrl_c_handler.cc",
         "src/base/event_fd.cc",
