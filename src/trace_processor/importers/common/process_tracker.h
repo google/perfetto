@@ -50,15 +50,6 @@ class ProcessTracker {
   ProcessTracker& operator=(const ProcessTracker&) = delete;
   virtual ~ProcessTracker();
 
-  using UniqueProcessIterator =
-      std::multimap<uint32_t, UniquePid>::const_iterator;
-  using UniqueProcessBounds =
-      std::pair<UniqueProcessIterator, UniqueProcessIterator>;
-
-  using UniqueThreadIterator = std::vector<UniqueTid>::const_iterator;
-  using UniqueThreadBounds =
-      std::pair<UniqueThreadIterator, UniqueThreadIterator>;
-
   // TODO(b/110409911): Invalidation of process and threads is yet to be
   // implemented. This will include passing timestamps into the below methods
   // to ensure the correct upid/utid is found.
@@ -137,15 +128,16 @@ class ProcessTracker {
 
   // Returns the bounds of a range that includes all UniquePids that have the
   // requested pid.
-  UniqueProcessBounds UpidsForPidForTesting(uint32_t pid) {
-    return pids_.equal_range(pid);
+  base::Optional<UniquePid> UpidForPidForTesting(uint32_t pid) {
+    auto it = pids_.find(pid);
+    return it == pids_.end() ? base::nullopt : base::make_optional(it->second);
   }
 
   // Returns the bounds of a range that includes all UniqueTids that have the
   // requested tid.
-  UniqueThreadBounds UtidsForTidForTesting(uint32_t tid) {
-    const auto& deque = tids_[tid];
-    return std::make_pair(deque.begin(), deque.end());
+  base::Optional<UniqueTid> UtidForTidForTesting(uint32_t tid) {
+    auto it = tids_.find(tid);
+    return it == tids_.end() ? base::nullopt : base::make_optional(it->second);
   }
 
   // Marks the two threads as belonging to the same process, even if we don't
@@ -187,13 +179,11 @@ class ProcessTracker {
 
   ArgsTracker args_tracker_;
 
-  // Each tid can have multiple UniqueTid entries, a new UniqueTid is assigned
-  // each time a thread is seen in the trace.
-  std::map<uint32_t /* tid */, std::vector<UniqueTid>> tids_;
+  // Keep the mapping of the most recently seen tid to the associated utid.
+  std::unordered_map<uint32_t /* tid */, UniqueTid> tids_;
 
-  // Each pid can have multiple UniquePid entries, a new UniquePid is assigned
-  // each time a process is seen in the trace.
-  std::map<uint32_t /* pid (aka tgid) */, UniquePid> pids_;
+  // Keep the mapping of the most recently seen pid to the associated upid.
+  std::unordered_map<uint32_t /* pid (aka tgid) */, UniquePid> pids_;
 
   // Pending thread associations. The meaning of a pair<ThreadA, ThreadB> in
   // this vector is: we know that A and B belong to the same process, but we
