@@ -157,6 +157,7 @@ perfetto_unittest_source_set("unittests") {
     ":test_support",
     "../../gn:default_deps",
     "../../gn:gtest_and_gmock",
+    "http:unittests",
   ]
 
   sources = [

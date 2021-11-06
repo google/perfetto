@@ -1544,6 +1544,11 @@ filegroup {
     name: "perfetto_include_perfetto_ext_base_base",
 }
 
+// GN: //include/perfetto/ext/base/http:http
+filegroup {
+    name: "perfetto_include_perfetto_ext_base_http_http",
+}
+
 // GN: //include/perfetto/ext/ipc:ipc
 filegroup {
     name: "perfetto_include_perfetto_ext_ipc_ipc",
@@ -6888,6 +6893,22 @@ filegroup {
     ],
 }
 
+// GN: //src/base/http:http
+filegroup {
+    name: "perfetto_src_base_http_http",
+    srcs: [
+        "src/base/http/http_server.cc",
+    ],
+}
+
+// GN: //src/base/http:unittests
+filegroup {
+    name: "perfetto_src_base_http_unittests",
+    srcs: [
+        "src/base/http/http_server_unittest.cc",
+    ],
+}
+
 // GN: //src/base:test_support
 filegroup {
     name: "perfetto_src_base_test_support",
@@ -9202,6 +9223,7 @@ cc_test {
     srcs: [
         ":perfetto_include_perfetto_base_base",
         ":perfetto_include_perfetto_ext_base_base",
+        ":perfetto_include_perfetto_ext_base_http_http",
         ":perfetto_include_perfetto_ext_ipc_ipc",
         ":perfetto_include_perfetto_ext_trace_processor_export_json",
         ":perfetto_include_perfetto_ext_trace_processor_importers_memory_tracker_memory_tracker",
@@ -9309,6 +9331,8 @@ cc_test {
         ":perfetto_src_android_stats_android_stats",
         ":perfetto_src_android_stats_perfetto_atoms",
         ":perfetto_src_base_base",
+        ":perfetto_src_base_http_http",
+        ":perfetto_src_base_http_unittests",
         ":perfetto_src_base_test_support",
         ":perfetto_src_base_unittests",
         ":perfetto_src_base_unix_socket",
@@ -9622,6 +9646,7 @@ cc_binary {
     srcs: [
         ":perfetto_include_perfetto_base_base",
         ":perfetto_include_perfetto_ext_base_base",
+        ":perfetto_include_perfetto_ext_base_http_http",
         ":perfetto_include_perfetto_ext_trace_processor_export_json",
         ":perfetto_include_perfetto_ext_trace_processor_importers_memory_tracker_memory_tracker",
         ":perfetto_include_perfetto_ext_traced_sys_stats_counters",
@@ -9659,6 +9684,7 @@ cc_binary {
         ":perfetto_protos_perfetto_trace_system_info_zero_gen",
         ":perfetto_protos_perfetto_trace_track_event_zero_gen",
         ":perfetto_src_base_base",
+        ":perfetto_src_base_http_http",
         ":perfetto_src_base_unix_socket",
         ":perfetto_src_profiling_deobfuscator",
         ":perfetto_src_profiling_symbolizer_symbolize_database",

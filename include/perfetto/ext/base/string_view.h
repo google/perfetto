@@ -106,7 +106,7 @@ class StringView {
     return StringView(data_ + pos, rcount);
   }
 
-  bool CaseInsensitiveEq(const StringView& other) {
+  bool CaseInsensitiveEq(const StringView& other) const {
     if (size() != other.size())
       return false;
     if (size() == 0)
