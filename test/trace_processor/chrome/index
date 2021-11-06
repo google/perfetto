@@ -15,6 +15,7 @@
 ../../data/chrome_scroll_without_vsync.pftrace chrome_thread_slice_with_cpu_time.sql chrome_thread_slice_with_cpu_time.out
 ../track_event/track_event_counters.textproto chrome_thread_slice_with_cpu_time_repeated.sql chrome_thread_slice_with_cpu_time_repeated.out
 ../../data/chrome_rendering_desktop.pftrace frame_times frame_times_metric.out
+../../data/chrome_rendering_desktop.pftrace chrome_dropped_frames chrome_dropped_frames_metric.out
 scroll_jank_mojo_simple_watcher.py scroll_jank_mojo_simple_watcher.sql scroll_jank_mojo_simple_watcher.out
 scroll_jank_gpu_check.py scroll_jank_gpu_check.sql scroll_jank_gpu_check.out
 
