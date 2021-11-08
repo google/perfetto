@@ -1362,6 +1362,8 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
           context->storage->InternString("chrome.host_app_package_name")),
       chrome_crash_trace_id_name_id_(
           context->storage->InternString("chrome.crash_trace_id")),
+      chrome_process_label_flat_key_id_(
+          context->storage->InternString("chrome.process_label")),
       chrome_string_lookup_(context->storage.get()),
       counter_unit_ids_{{kNullStringId, context_->storage->InternString("ns"),
                          context_->storage->InternString("count"),
@@ -1462,6 +1464,17 @@ UniquePid TrackEventParser::ParseProcessDescriptor(
         chrome_string_lookup_.GetProcessName(decoder.chrome_process_type());
     // Don't override system-provided names.
     context_->process_tracker->SetProcessNameIfUnset(upid, name_id);
+  }
+  int label_index = 0;
+  for (auto it = decoder.process_labels(); it; it++) {
+    StringId label_id = context_->storage->InternString(*it);
+    std::string key = "chrome.process_label[";
+    key.append(std::to_string(label_index++));
+    key.append("]");
+    context_->process_tracker->AddArgsTo(upid).AddArg(
+        chrome_process_label_flat_key_id_,
+        context_->storage->InternString(base::StringView(key)),
+        Variadic::String(label_id));
   }
   return upid;
 }
