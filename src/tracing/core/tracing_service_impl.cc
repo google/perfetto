@@ -3154,6 +3154,14 @@ void TracingServiceImpl::MaybeEmitSystemInfo(
   } else {
     PERFETTO_ELOG("Unable to read ro.build.fingerprint");
   }
+
+  std::string sdk_str_value = base::GetAndroidProp("ro.build.version.sdk");
+  base::Optional<uint64_t> sdk_value = base::StringToUInt64(sdk_str_value);
+  if (sdk_value.has_value()) {
+    info->set_android_sdk_version(*sdk_value);
+  } else {
+    PERFETTO_ELOG("Unable to read ro.build.version.sdk");
+  }
   info->set_hz(sysconf(_SC_CLK_TCK));
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   packet->set_trusted_uid(static_cast<int32_t>(uid_));
