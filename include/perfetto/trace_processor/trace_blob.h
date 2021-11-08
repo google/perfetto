@@ -23,8 +23,18 @@
 #include <memory>
 #include <utility>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/export.h"
 #include "perfetto/base/logging.h"
+
+// TODO(primiano): implement file mmap on Windows.
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#define TRACE_PROCESSOR_HAS_MMAP() 1
+#else
+#define TRACE_PROCESSOR_HAS_MMAP() 0
+#endif
 
 namespace perfetto {
 namespace trace_processor {
@@ -42,12 +52,15 @@ namespace trace_processor {
 // sub-offsets of) the same TraceBlob.
 // The neat thing about TraceBlob is that it deals transparently with owned
 // memory (in the case of Allocate and TakeOwnership) and memory-mapped memory.
-// TODO(primiano): introduce full mmap support in next CL.
 class PERFETTO_EXPORT TraceBlob {
  public:
   static TraceBlob Allocate(size_t size);
   static TraceBlob CopyFrom(const void*, size_t size);
   static TraceBlob TakeOwnership(std::unique_ptr<uint8_t[]>, size_t size);
+
+  // Takes ownership of the mmap region. Will call munmap() on destruction.
+  static TraceBlob FromMmap(void* data, size_t size);
+
   ~TraceBlob();
 
   // Allow move.
@@ -79,7 +92,7 @@ class PERFETTO_EXPORT TraceBlob {
   }
 
  private:
-  enum class Ownership { kNull = 0, kHeapBuf };
+  enum class Ownership { kNull = 0, kHeapBuf, kMmaped };
 
   TraceBlob(Ownership ownership, uint8_t* data, size_t size)
       : ownership_(ownership), data_(data), size_(size) {}
