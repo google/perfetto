@@ -515,6 +515,8 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "include_perfetto_trace_processor_storage",
     srcs = [
+        "include/perfetto/trace_processor/trace_blob.h",
+        "include/perfetto/trace_processor/trace_blob_view.h",
         "include/perfetto/trace_processor/trace_processor_storage.h",
     ],
 )
@@ -1268,14 +1270,6 @@ perfetto_filegroup(
     ],
 )
 
-# GN target: //src/trace_processor/util:trace_blob_view
-perfetto_filegroup(
-    name = "src_trace_processor_util_trace_blob_view",
-    srcs = [
-        "src/trace_processor/util/trace_blob_view.h",
-    ],
-)
-
 # GN target: //src/trace_processor/util:util
 perfetto_filegroup(
     name = "src_trace_processor_util_util",
@@ -1487,6 +1481,7 @@ perfetto_filegroup(
         "src/trace_processor/importers/syscalls/syscall_tracker.h",
         "src/trace_processor/importers/systrace/systrace_line.h",
         "src/trace_processor/timestamped_trace_piece.h",
+        "src/trace_processor/trace_blob.cc",
         "src/trace_processor/trace_processor_context.cc",
         "src/trace_processor/trace_processor_storage.cc",
         "src/trace_processor/trace_processor_storage_impl.cc",
@@ -3697,7 +3692,6 @@ perfetto_cc_library(
         ":src_trace_processor_util_interned_message_view",
         ":src_trace_processor_util_proto_to_args_parser",
         ":src_trace_processor_util_protozero_to_text",
-        ":src_trace_processor_util_trace_blob_view",
         ":src_trace_processor_util_util",
     ],
     hdrs = [
@@ -3799,7 +3793,6 @@ perfetto_cc_binary(
         ":src_trace_processor_util_interned_message_view",
         ":src_trace_processor_util_proto_to_args_parser",
         ":src_trace_processor_util_protozero_to_text",
-        ":src_trace_processor_util_trace_blob_view",
         ":src_trace_processor_util_util",
         "src/trace_processor/trace_processor_shell.cc",
         "src/trace_processor/util/proto_to_json.cc",
@@ -3982,7 +3975,6 @@ perfetto_cc_binary(
         ":src_trace_processor_util_interned_message_view",
         ":src_trace_processor_util_proto_to_args_parser",
         ":src_trace_processor_util_protozero_to_text",
-        ":src_trace_processor_util_trace_blob_view",
         ":src_trace_processor_util_util",
         ":tools_trace_to_text_common",
         ":tools_trace_to_text_full",

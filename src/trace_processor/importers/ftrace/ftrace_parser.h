@@ -24,7 +24,6 @@
 #include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
 #include "src/trace_processor/timestamped_trace_piece.h"
 #include "src/trace_processor/types/trace_processor_context.h"
-#include "src/trace_processor/util/trace_blob_view.h"
 
 namespace perfetto {
 namespace trace_processor {
