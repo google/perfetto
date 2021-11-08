@@ -43,6 +43,7 @@ source_set("common") {
   ]
   deps = [
     "../../../../gn:default_deps",
+    "../../../../include/perfetto/trace_processor",
     "../../../../include/perfetto/trace_processor:basic_types",
     "../../../../protos/perfetto/common:zero",
     "../../../../protos/perfetto/trace:zero",

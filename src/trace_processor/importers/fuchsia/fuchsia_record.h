@@ -17,9 +17,9 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_FUCHSIA_FUCHSIA_RECORD_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_FUCHSIA_FUCHSIA_RECORD_H_
 
+#include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_utils.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/util/trace_blob_view.h"
 
 #include <vector>
 
@@ -32,7 +32,7 @@ namespace trace_processor {
 // the binary record after arbitrary reordering.
 class FuchsiaRecord {
  public:
-  FuchsiaRecord(TraceBlobView record_view)
+  explicit FuchsiaRecord(TraceBlobView record_view)
       : record_view_(std::move(record_view)) {}
 
   struct StringTableEntry {
