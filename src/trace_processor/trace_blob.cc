@@ -19,9 +19,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/trace_processor/basic_types.h"
+
+#if TRACE_PROCESSOR_HAS_MMAP()
+#include <sys/mman.h>
+#endif
 
 namespace perfetto {
 namespace trace_processor {
@@ -47,11 +52,31 @@ TraceBlob TraceBlob::TakeOwnership(std::unique_ptr<uint8_t[]> buf,
   return TraceBlob(Ownership::kHeapBuf, buf.release(), size);
 }
 
+// static
+TraceBlob TraceBlob::FromMmap(void* data, size_t size) {
+#if TRACE_PROCESSOR_HAS_MMAP()
+  PERFETTO_CHECK(data && data != MAP_FAILED);
+  return TraceBlob(Ownership::kMmaped, static_cast<uint8_t*>(data), size);
+#else
+  base::ignore_result(data);
+  base::ignore_result(size);
+  PERFETTO_FATAL("mmap not supported");
+#endif
+}
+
 TraceBlob::~TraceBlob() {
   PERFETTO_CHECK(refcount_ == 0);
   switch (ownership_) {
     case Ownership::kHeapBuf:
       delete[] data_;
+      break;
+
+    case Ownership::kMmaped:
+#if TRACE_PROCESSOR_HAS_MMAP()
+      PERFETTO_CHECK(munmap(data_, size_) == 0);
+#else
+      PERFETTO_FATAL("mmap not supported");
+#endif
       break;
 
     case Ownership::kNull:
