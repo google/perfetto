@@ -19,6 +19,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
+#include "perfetto/trace_processor/trace_blob.h"
 #include "src/trace_processor/importers/additional_modules.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
@@ -270,8 +271,8 @@ class ProtoTraceParserTest : public ::testing::Test {
     std::unique_ptr<uint8_t[]> raw_trace(new uint8_t[trace_bytes.size()]);
     memcpy(raw_trace.get(), trace_bytes.data(), trace_bytes.size());
     context_.chunk_reader.reset(new ProtoTraceReader(&context_));
-    auto status =
-        context_.chunk_reader->Parse(std::move(raw_trace), trace_bytes.size());
+    auto status = context_.chunk_reader->Parse(TraceBlobView(
+        TraceBlob::TakeOwnership(std::move(raw_trace), trace_bytes.size())));
 
     ResetTraceBuffers();
     return status;

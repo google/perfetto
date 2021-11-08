@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "perfetto/trace_processor/basic_types.h"
+#include "perfetto/trace_processor/trace_blob.h"
 #include "src/trace_processor/timestamped_trace_piece.h"
 #include "src/trace_processor/trace_sorter.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -72,8 +73,7 @@ class MockTraceStorage : public TraceStorage {
 
 class TraceSorterTest : public ::testing::Test {
  public:
-  TraceSorterTest()
-      : test_buffer_(std::unique_ptr<uint8_t[]>(new uint8_t[8]), 0, 8) {
+  TraceSorterTest() : test_buffer_(TraceBlob::Allocate(8)) {
     storage_ = new NiceMock<MockTraceStorage>();
     context_.storage.reset(storage_);
     CreateSorter();
@@ -97,7 +97,7 @@ class TraceSorterTest : public ::testing::Test {
 
 TEST_F(TraceSorterTest, TestFtrace) {
   PacketSequenceState state(&context_);
-  TraceBlobView view = test_buffer_.slice(0, 1);
+  TraceBlobView view = test_buffer_.slice_off(0, 1);
   EXPECT_CALL(*parser_, MOCK_ParseFtracePacket(0, 1000, view.data(), 1));
   context_.sorter->PushFtraceEvent(0 /*cpu*/, 1000 /*timestamp*/,
                                    std::move(view), &state);
@@ -106,7 +106,7 @@ TEST_F(TraceSorterTest, TestFtrace) {
 
 TEST_F(TraceSorterTest, TestTracePacket) {
   PacketSequenceState state(&context_);
-  TraceBlobView view = test_buffer_.slice(0, 1);
+  TraceBlobView view = test_buffer_.slice_off(0, 1);
   EXPECT_CALL(*parser_, MOCK_ParseTracePacket(1000, view.data(), 1));
   context_.sorter->PushTracePacket(1000, &state, std::move(view));
   context_.sorter->ExtractEventsForced();
@@ -114,10 +114,10 @@ TEST_F(TraceSorterTest, TestTracePacket) {
 
 TEST_F(TraceSorterTest, Ordering) {
   PacketSequenceState state(&context_);
-  TraceBlobView view_1 = test_buffer_.slice(0, 1);
-  TraceBlobView view_2 = test_buffer_.slice(0, 2);
-  TraceBlobView view_3 = test_buffer_.slice(0, 3);
-  TraceBlobView view_4 = test_buffer_.slice(0, 4);
+  TraceBlobView view_1 = test_buffer_.slice_off(0, 1);
+  TraceBlobView view_2 = test_buffer_.slice_off(0, 2);
+  TraceBlobView view_3 = test_buffer_.slice_off(0, 3);
+  TraceBlobView view_4 = test_buffer_.slice_off(0, 4);
 
   InSequence s;
 
@@ -140,11 +140,11 @@ TEST_F(TraceSorterTest, IncrementalExtraction) {
 
   PacketSequenceState state(&context_);
 
-  TraceBlobView view_1 = test_buffer_.slice(0, 1);
-  TraceBlobView view_2 = test_buffer_.slice(0, 2);
-  TraceBlobView view_3 = test_buffer_.slice(0, 3);
-  TraceBlobView view_4 = test_buffer_.slice(0, 4);
-  TraceBlobView view_5 = test_buffer_.slice(0, 5);
+  TraceBlobView view_1 = test_buffer_.slice_off(0, 1);
+  TraceBlobView view_2 = test_buffer_.slice_off(0, 2);
+  TraceBlobView view_3 = test_buffer_.slice_off(0, 3);
+  TraceBlobView view_4 = test_buffer_.slice_off(0, 4);
+  TraceBlobView view_5 = test_buffer_.slice_off(0, 5);
 
   // Flush at the start of packet sequence to match behavior of the
   // service.
@@ -202,10 +202,10 @@ TEST_F(TraceSorterTest, OutOfOrder) {
 
   PacketSequenceState state(&context_);
 
-  TraceBlobView view_1 = test_buffer_.slice(0, 1);
-  TraceBlobView view_2 = test_buffer_.slice(0, 2);
-  TraceBlobView view_3 = test_buffer_.slice(0, 3);
-  TraceBlobView view_4 = test_buffer_.slice(0, 4);
+  TraceBlobView view_1 = test_buffer_.slice_off(0, 1);
+  TraceBlobView view_2 = test_buffer_.slice_off(0, 2);
+  TraceBlobView view_3 = test_buffer_.slice_off(0, 3);
+  TraceBlobView view_4 = test_buffer_.slice_off(0, 4);
 
   context_.sorter->NotifyFlushEvent();
   context_.sorter->NotifyFlushEvent();
@@ -288,8 +288,7 @@ TEST_F(TraceSorterTest, MultiQueueSorting) {
     for (int j = 0; j < num_cpus; j++) {
       uint32_t cpu = static_cast<uint32_t>(rnd_engine() % 32);
       expectations[ts].push_back(cpu);
-      context_.sorter->PushFtraceEvent(cpu, ts, TraceBlobView(nullptr, 0, 0),
-                                       &state);
+      context_.sorter->PushFtraceEvent(cpu, ts, TraceBlobView(), &state);
     }
   }
 
