@@ -363,21 +363,24 @@ mem_values (2D.perfetto.protos.AndroidMemoryUnaggregatedMetric.ProcessMemory
 ts (Rts
 	oom_score (RoomScore
 value (Rvalue
-Ñ
-6protos/perfetto/metrics/android/multiuser_metric.protoperfetto.protos"…
+ñ
+6protos/perfetto/metrics/android/multiuser_metric.protoperfetto.protos"¥
 AndroidMultiuserMetricR
 user_switch (21.perfetto.protos.AndroidMultiuserMetric.EventDataR
-userSwitch–
+userSwitch¶
 	EventData
 duration_ms (R
 durationMsW
-	cpu_usage (2:.perfetto.protos.AndroidMultiuserMetric.EventData.CpuUsageRcpuUsageŽ
+	cpu_usage (2:.perfetto.protos.AndroidMultiuserMetric.EventData.CpuUsageRcpuUsage®
 CpuUsage
 user_id (RuserId!
 process_name (	RprocessName
 cpu_mcycles (R
 cpuMcycles%
-cpu_percentage (RcpuPercentage
+cpu_percentage (RcpuPercentage
+
+identifier (	R
+identifier
 ˆ
 2protos/perfetto/metrics/android/package_list.protoperfetto.protos"À
 AndroidPackageListG
