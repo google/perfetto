@@ -1,6 +1,6 @@
 Unreleased:
   Tracing service and probes:
-    *
+    * Added Android SDK version to the SystemInfo trace packet.
   Trace Processor:
     *
   UI:
