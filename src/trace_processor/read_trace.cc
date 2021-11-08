@@ -23,6 +23,8 @@
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/trace_processor/trace_processor.h"
 
+#include "perfetto/trace_processor/trace_blob.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/forwarding_trace_parser.h"
 #include "src/trace_processor/importers/gzip/gzip_trace_parser.h"
 #include "src/trace_processor/importers/proto/proto_trace_tokenizer.h"
@@ -60,8 +62,8 @@ util::Status ReadTraceUsingRead(
     if (progress_callback && i % 128 == 0)
       progress_callback(*file_size);
 
-    std::unique_ptr<uint8_t[]> buf(new uint8_t[kChunkSize]);
-    auto rsize = base::Read(fd, buf.get(), kChunkSize);
+    TraceBlob blob = TraceBlob::Allocate(kChunkSize);
+    auto rsize = base::Read(fd, blob.data(), blob.size());
     if (rsize == 0)
       break;
 
@@ -71,30 +73,30 @@ util::Status ReadTraceUsingRead(
     }
 
     *file_size += static_cast<uint64_t>(rsize);
-
-    RETURN_IF_ERROR(tp->Parse(std::move(buf), static_cast<size_t>(rsize)));
+    TraceBlobView blob_view(std::move(blob), 0, static_cast<size_t>(rsize));
+    RETURN_IF_ERROR(tp->Parse(std::move(blob_view)));
   }
   return util::OkStatus();
 }
 
 class SerializingProtoTraceReader : public ChunkedTraceReader {
  public:
-  SerializingProtoTraceReader(std::vector<uint8_t>* output) : output_(output) {}
+  explicit SerializingProtoTraceReader(std::vector<uint8_t>* output)
+      : output_(output) {}
 
-  util::Status Parse(std::unique_ptr<uint8_t[]> data, size_t size) override {
-    return tokenizer_.Tokenize(
-        std::move(data), size, [this](TraceBlobView packet) {
-          uint8_t buffer[protozero::proto_utils::kMaxSimpleFieldEncodedSize];
+  util::Status Parse(TraceBlobView blob) override {
+    return tokenizer_.Tokenize(std::move(blob), [this](TraceBlobView packet) {
+      uint8_t buffer[protozero::proto_utils::kMaxSimpleFieldEncodedSize];
 
-          uint8_t* pos = buffer;
-          pos = protozero::proto_utils::WriteVarInt(kTracePacketTag, pos);
-          pos = protozero::proto_utils::WriteVarInt(packet.length(), pos);
-          output_->insert(output_->end(), buffer, pos);
+      uint8_t* pos = buffer;
+      pos = protozero::proto_utils::WriteVarInt(kTracePacketTag, pos);
+      pos = protozero::proto_utils::WriteVarInt(packet.length(), pos);
+      output_->insert(output_->end(), buffer, pos);
 
-          output_->insert(output_->end(), packet.data(),
-                          packet.data() + packet.length());
-          return util::OkStatus();
-        });
+      output_->insert(output_->end(), packet.data(),
+                      packet.data() + packet.length());
+      return util::OkStatus();
+    });
   }
 
   void NotifyEndOfFile() override {}
@@ -164,7 +166,9 @@ util::Status ReadTrace(
     PERFETTO_CHECK(aio_read(&cb) == 0);
 
     // Parse the completed buffer while the async read is in-flight.
-    RETURN_IF_ERROR(tp->Parse(std::move(buf), static_cast<size_t>(rsize)));
+    TraceBlob blob =
+        TraceBlob::TakeOwnership(std::move(buf), static_cast<size_t>(rsize));
+    RETURN_IF_ERROR(tp->Parse(TraceBlobView(std::move(blob))));
   }
 
   if (file_size == 0) {

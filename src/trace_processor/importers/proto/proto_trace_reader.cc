@@ -55,11 +55,10 @@ ProtoTraceReader::ProtoTraceReader(TraceProcessorContext* ctx)
     : context_(ctx) {}
 ProtoTraceReader::~ProtoTraceReader() = default;
 
-util::Status ProtoTraceReader::Parse(std::unique_ptr<uint8_t[]> owned_buf,
-                                     size_t size) {
-  return tokenizer_.Tokenize(
-      std::move(owned_buf), size,
-      [this](TraceBlobView packet) { return ParsePacket(std::move(packet)); });
+util::Status ProtoTraceReader::Parse(TraceBlobView blob) {
+  return tokenizer_.Tokenize(std::move(blob), [this](TraceBlobView packet) {
+    return ParsePacket(std::move(packet));
+  });
 }
 
 util::Status ProtoTraceReader::ParseExtensionDescriptor(ConstBytes descriptor) {
@@ -100,14 +99,12 @@ util::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
   // the timestamp, since the defaults could affect them.
   if (decoder.has_trace_packet_defaults()) {
     auto field = decoder.trace_packet_defaults();
-    const size_t offset = packet.offset_of(field.data);
-    ParseTracePacketDefaults(decoder, packet.slice(offset, field.size));
+    ParseTracePacketDefaults(decoder, packet.slice(field.data, field.size));
   }
 
   if (decoder.has_interned_data()) {
     auto field = decoder.interned_data();
-    const size_t offset = packet.offset_of(field.data);
-    ParseInternedData(decoder, packet.slice(offset, field.size));
+    ParseInternedData(decoder, packet.slice(field.data, field.size));
   }
 
   if (decoder.has_clock_snapshot()) {
@@ -310,8 +307,7 @@ void ProtoTraceReader::ParseInternedData(
   for (protozero::Field f = decoder.ReadField(); f.valid();
        f = decoder.ReadField()) {
     auto bytes = f.as_bytes();
-    auto offset = interned_data.offset_of(bytes.data);
-    state->InternMessage(f.id(), interned_data.slice(offset, bytes.size));
+    state->InternMessage(f.id(), interned_data.slice(bytes.data, bytes.size));
   }
 }
 

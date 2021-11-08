@@ -21,9 +21,10 @@
 
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/trace_processor/status.h"
+#include "perfetto/trace_processor/trace_blob.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/util/gzip_utils.h"
 #include "src/trace_processor/util/status_macros.h"
-#include "src/trace_processor/util/trace_blob_view.h"
 
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -38,10 +39,9 @@ class ProtoTraceTokenizer {
   ProtoTraceTokenizer();
 
   template <typename Callback = util::Status(TraceBlobView)>
-  util::Status Tokenize(std::unique_ptr<uint8_t[]> owned_buf,
-                        size_t size,
-                        Callback callback) {
-    uint8_t* data = &owned_buf[0];
+  util::Status Tokenize(TraceBlobView blob, Callback callback) {
+    const uint8_t* data = blob.data();
+    size_t size = blob.size();
     if (!partial_buf_.empty()) {
       // It takes ~5 bytes for a proto preamble + the varint size.
       const size_t kHeaderBytes = 5;
@@ -86,24 +86,23 @@ class ProtoTraceTokenizer {
         //    that we might have consumed already a few bytes form |data|
         //    earlier in this function, hence we need to keep |off| into
         //    account).
-        std::unique_ptr<uint8_t[]> buf(new uint8_t[size_incl_header]);
-        memcpy(&buf[0], partial_buf_.data(), partial_buf_.size());
+        TraceBlob glued = TraceBlob::Allocate(size_incl_header);
+        memcpy(glued.data(), partial_buf_.data(), partial_buf_.size());
         // |size_missing| is the number of bytes for the rest of the TracePacket
         // in |data|.
         size_t size_missing = size_incl_header - partial_buf_.size();
-        memcpy(&buf[partial_buf_.size()], &data[0], size_missing);
+        memcpy(glued.data() + partial_buf_.size(), &data[0], size_missing);
         data += size_missing;
         size -= size_missing;
         partial_buf_.clear();
-        uint8_t* buf_start = &buf[0];  // Note that buf is std::moved below.
-        RETURN_IF_ERROR(ParseInternal(std::move(buf), buf_start,
-                                      size_incl_header, callback));
+        RETURN_IF_ERROR(
+            ParseInternal(TraceBlobView(std::move(glued)), callback));
       } else {
         partial_buf_.insert(partial_buf_.end(), data, &data[size]);
         return util::OkStatus();
       }
     }
-    return ParseInternal(std::move(owned_buf), data, size, callback);
+    return ParseInternal(blob.slice(data, size), callback);
   }
 
  private:
@@ -112,28 +111,20 @@ class ProtoTraceTokenizer {
           protos::pbzero::Trace::kPacketFieldNumber);
 
   template <typename Callback = util::Status(TraceBlobView)>
-  util::Status ParseInternal(std::unique_ptr<uint8_t[]> owned_buf,
-                             uint8_t* data,
-                             size_t size,
-                             Callback callback) {
-    PERFETTO_DCHECK(data >= &owned_buf[0]);
-    const uint8_t* start = &owned_buf[0];
-    const size_t data_off = static_cast<size_t>(data - start);
-    TraceBlobView whole_buf(std::move(owned_buf), data_off, size);
-
-    protos::pbzero::Trace::Decoder decoder(data, size);
+  util::Status ParseInternal(TraceBlobView whole_buf, Callback callback) {
+    const uint8_t* const start = whole_buf.data();
+    protos::pbzero::Trace::Decoder decoder(whole_buf.data(), whole_buf.size());
     for (auto it = decoder.packet(); it; ++it) {
       protozero::ConstBytes packet = *it;
-      size_t field_offset = whole_buf.offset_of(packet.data);
-      TraceBlobView sliced = whole_buf.slice(field_offset, packet.size);
+      TraceBlobView sliced = whole_buf.slice(packet.data, packet.size);
       RETURN_IF_ERROR(ParsePacket(std::move(sliced), callback));
     }
 
     const size_t bytes_left = decoder.bytes_left();
     if (bytes_left > 0) {
       PERFETTO_DCHECK(partial_buf_.empty());
-      partial_buf_.insert(partial_buf_.end(), &data[decoder.read_offset()],
-                          &data[decoder.read_offset() + bytes_left]);
+      partial_buf_.insert(partial_buf_.end(), &start[decoder.read_offset()],
+                          &start[decoder.read_offset() + bytes_left]);
     }
     return util::OkStatus();
   }
@@ -149,9 +140,8 @@ class ProtoTraceTokenizer {
       }
 
       protozero::ConstBytes field = decoder.compressed_packets();
-      const size_t field_off = packet.offset_of(field.data);
-      TraceBlobView compressed_packets = packet.slice(field_off, field.size);
-      TraceBlobView packets(nullptr, 0, 0);
+      TraceBlobView compressed_packets = packet.slice(field.data, field.size);
+      TraceBlobView packets;
 
       RETURN_IF_ERROR(Decompress(std::move(compressed_packets), &packets));
 
@@ -159,18 +149,18 @@ class ProtoTraceTokenizer {
       const uint8_t* end = packets.data() + packets.length();
       const uint8_t* ptr = start;
       while ((end - ptr) > 2) {
-        const uint8_t* packet_start = ptr;
+        const uint8_t* packet_outer = ptr;
         if (PERFETTO_UNLIKELY(*ptr != kTracePacketTag))
           return util::ErrStatus("Expected TracePacket tag");
         uint64_t packet_size = 0;
         ptr = protozero::proto_utils::ParseVarInt(++ptr, end, &packet_size);
-        size_t packet_offset = static_cast<size_t>(ptr - start);
+        const uint8_t* packet_start = ptr;
         ptr += packet_size;
-        if (PERFETTO_UNLIKELY((ptr - packet_start) < 2 || ptr > end))
+        if (PERFETTO_UNLIKELY((ptr - packet_outer) < 2 || ptr > end))
           return util::ErrStatus("Invalid packet size");
 
         TraceBlobView sliced =
-            packets.slice(packet_offset, static_cast<size_t>(packet_size));
+            packets.slice(packet_start, static_cast<size_t>(packet_size));
         RETURN_IF_ERROR(ParsePacket(std::move(sliced), callback));
       }
       return util::OkStatus();
