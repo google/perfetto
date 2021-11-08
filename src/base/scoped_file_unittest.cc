@@ -38,12 +38,6 @@ namespace perfetto {
 namespace base {
 namespace {
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-const char kZeroFilename[] = "NUL";
-#else
-const char kZeroFilename[] = "/dev/zero";
-#endif
-
 int OpenDevNull() {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
   return fdio_fd_create_null();
@@ -61,6 +55,24 @@ FILE* OpenDevNullStream() {
   return fopen("NUL", "r");
 #else
   return fopen("/dev/null", "r");
+#endif
+}
+
+// Returns a file descriptor to some file. On Fuchsia: returns a descriptor of a
+// file in /tmp. On other platforms: returns a descriptor of /dev/zero.
+int MakeSecondFileDescriptor() {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
+  // Create a random file in /tmp and unlink it straight away since its name
+  // never need be known or uttered.
+  char path[] = "/tmp/sfuXXXXXX";
+  const int fd = mkstemp(&path[0]);
+  if (fd >= 0)
+    unlink(path);
+  return fd;
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  return open("NUL", O_RDONLY);
+#else
+  return open("/dev/zero", O_RDONLY);
 #endif
 }
 
@@ -107,7 +119,7 @@ TEST(ScopedFstreamTest, CloseOutOfScope) {
 
 TEST(ScopedFileTest, Reset) {
   int raw_fd1 = OpenDevNull();
-  int raw_fd2 = open(kZeroFilename, O_RDONLY);
+  int raw_fd2 = MakeSecondFileDescriptor();
   ASSERT_GE(raw_fd1, 0);
   ASSERT_GE(raw_fd2, 0);
   {
@@ -140,7 +152,7 @@ TEST(ScopedFileTest, Release) {
 
 TEST(ScopedFileTest, MoveCtor) {
   int raw_fd1 = OpenDevNull();
-  int raw_fd2 = open(kZeroFilename, O_RDONLY);
+  int raw_fd2 = MakeSecondFileDescriptor();
   ASSERT_GE(raw_fd1, 0);
   ASSERT_GE(raw_fd2, 0);
   {
@@ -162,7 +174,7 @@ TEST(ScopedFileTest, MoveCtor) {
 
 TEST(ScopedFileTest, MoveAssignment) {
   int raw_fd1 = OpenDevNull();
-  int raw_fd2 = open(kZeroFilename, O_RDONLY);
+  int raw_fd2 = MakeSecondFileDescriptor();
   ASSERT_GE(raw_fd1, 0);
   ASSERT_GE(raw_fd2, 0);
   {
