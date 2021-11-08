@@ -46,8 +46,8 @@ class MetadataTracker {
   MetadataId SetDynamicMetadata(StringId key, Variadic value);
 
   // Reads back a set metadata value.
-  // For use in tests only.
-  SqlValue GetMetadataForTesting(metadata::KeyId key);
+  // Only kSingle types are supported right now.
+  SqlValue GetMetadata(metadata::KeyId key);
 
   // Tracks how many ChromeMetadata bundles have been parsed.
   uint32_t IncrementChromeMetadataBundleCount() {
