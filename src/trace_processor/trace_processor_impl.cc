@@ -873,10 +873,9 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
 
 TraceProcessorImpl::~TraceProcessorImpl() = default;
 
-util::Status TraceProcessorImpl::Parse(std::unique_ptr<uint8_t[]> data,
-                                       size_t size) {
-  bytes_parsed_ += size;
-  return TraceProcessorStorageImpl::Parse(std::move(data), size);
+util::Status TraceProcessorImpl::Parse(TraceBlobView blob) {
+  bytes_parsed_ += blob.size();
+  return TraceProcessorStorageImpl::Parse(std::move(blob));
 }
 
 std::string TraceProcessorImpl::GetCurrentTraceName() {

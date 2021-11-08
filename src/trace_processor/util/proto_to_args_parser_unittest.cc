@@ -18,12 +18,13 @@
 
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
+#include "perfetto/trace_processor/trace_blob.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
 #include "protos/perfetto/common/descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/source_location.pbzero.h"
 #include "src/protozero/test/example_proto/test_messages.pbzero.h"
 #include "src/trace_processor/test_messages.descriptor.h"
 #include "src/trace_processor/util/interned_message_view.h"
-#include "src/trace_processor/util/trace_blob_view.h"
 #include "test/gtest_and_gmock.h"
 
 #include <sstream>
@@ -334,8 +335,9 @@ TEST_F(ProtoToArgsParserTest, LookingUpInternedStateParsingOverride) {
   for (size_t i = 0; i < binary_data.size(); ++i) {
     buffer.get()[i] = binary_data[i];
   }
-  TraceBlobView blob(std::move(buffer), 0, binary_data.size());
-  AddInternedSourceLocation(kIid, std::move(blob));
+  TraceBlob blob =
+      TraceBlob::TakeOwnership(std::move(buffer), binary_data.size());
+  AddInternedSourceLocation(kIid, TraceBlobView(std::move(blob)));
 
   DescriptorPool pool;
   auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),

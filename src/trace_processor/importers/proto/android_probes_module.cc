@@ -148,10 +148,9 @@ ModuleResult AndroidProbesModule::TokenizePacket(
     energy->set_timestamp_ms(static_cast<uint64_t>(actual_ts / 1000000));
 
     std::vector<uint8_t> vec = data_packet.SerializeAsArray();
-    std::unique_ptr<uint8_t[]> buffer(new uint8_t[vec.size()]);
-    memcpy(buffer.get(), vec.data(), vec.size());
-    context_->sorter->PushTracePacket(
-        actual_ts, state, TraceBlobView(std::move(buffer), 0, vec.size()));
+    TraceBlob blob = TraceBlob::CopyFrom(vec.data(), vec.size());
+    context_->sorter->PushTracePacket(actual_ts, state,
+                                      TraceBlobView(std::move(blob)));
   }
 
   return ModuleResult::Handled();

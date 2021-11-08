@@ -96,8 +96,8 @@ base::Status FtraceTokenizer::TokenizeFtraceBundle(
   }
 
   for (auto it = decoder.event(); it; ++it) {
-    size_t off = bundle.offset_of(it->data());
-    TokenizeFtraceEvent(cpu, clock_id, bundle.slice(off, it->size()), state);
+    TokenizeFtraceEvent(cpu, clock_id, bundle.slice(it->data(), it->size()),
+                        state);
   }
   return base::OkStatus();
 }
