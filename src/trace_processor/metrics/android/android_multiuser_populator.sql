@@ -88,6 +88,7 @@ CREATE VIEW cpu_usage AS
 SELECT
     user_id,
     process_name,
+    process_name || ":" || (CASE WHEN user_id = 0 THEN "system" ELSE "secondary" END) AS identifier,
     CAST(cpu_kcycles / 1e3 AS INT) AS cpu_mcycles,
     cpu_kcycles / (SELECT SUM(cpu_kcycles) FROM cpu_usage_all) * 100 AS cpu_percentage
 FROM
@@ -106,6 +107,7 @@ SELECT AndroidMultiuserMetric_EventData(
   'cpu_usage', (
     SELECT RepeatedField(
       AndroidMultiuserMetric_EventData_CpuUsage(
+        'identifier', identifier,
         'user_id', user_id,
         'process_name', process_name,
         'cpu_mcycles', cpu_mcycles,
