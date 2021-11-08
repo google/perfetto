@@ -32,6 +32,7 @@ class TraceProcessorContext;
 class SystemProbesParser {
  public:
   using ConstBytes = protozero::ConstBytes;
+  using ConstChars = protozero::ConstChars;
 
   explicit SystemProbesParser(TraceProcessorContext*);
 
