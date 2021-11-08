@@ -21,6 +21,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/forwarding_trace_parser.h"
 #include "src/trace_processor/util/gzip_utils.h"
 #include "src/trace_processor/util/status_macros.h"
@@ -42,9 +43,8 @@ GzipTraceParser::GzipTraceParser(std::unique_ptr<ChunkedTraceReader> reader)
 
 GzipTraceParser::~GzipTraceParser() = default;
 
-util::Status GzipTraceParser::Parse(std::unique_ptr<uint8_t[]> data,
-                                    size_t size) {
-  return ParseUnowned(data.get(), size);
+util::Status GzipTraceParser::Parse(TraceBlobView blob) {
+  return ParseUnowned(blob.data(), blob.size());
 }
 
 util::Status GzipTraceParser::ParseUnowned(const uint8_t* data, size_t size) {
@@ -97,8 +97,11 @@ util::Status GzipTraceParser::ParseUnowned(const uint8_t* data, size_t size) {
     }
     bytes_written_ += result.bytes_written;
 
-    if (bytes_written_ == kUncompressedBufferSize || ret == ResultCode::kEof)
-      RETURN_IF_ERROR(inner_->Parse(std::move(buffer_), bytes_written_));
+    if (bytes_written_ == kUncompressedBufferSize || ret == ResultCode::kEof) {
+      TraceBlob blob =
+          TraceBlob::TakeOwnership(std::move(buffer_), bytes_written_);
+      RETURN_IF_ERROR(inner_->Parse(TraceBlobView(std::move(blob))));
+    }
   }
   return util::OkStatus();
 }

@@ -62,8 +62,7 @@ ForwardingTraceParser::ForwardingTraceParser(TraceProcessorContext* context)
 
 ForwardingTraceParser::~ForwardingTraceParser() {}
 
-util::Status ForwardingTraceParser::Parse(std::unique_ptr<uint8_t[]> data,
-                                          size_t size) {
+util::Status ForwardingTraceParser::Parse(TraceBlobView blob) {
   // If this is the first Parse() call, guess the trace type and create the
   // appropriate parser.
   if (!reader_) {
@@ -71,7 +70,7 @@ util::Status ForwardingTraceParser::Parse(std::unique_ptr<uint8_t[]> data,
     {
       auto scoped_trace = context_->storage->TraceExecutionTimeIntoStats(
           stats::guess_trace_type_duration_ns);
-      trace_type = GuessTraceType(data.get(), size);
+      trace_type = GuessTraceType(blob.data(), blob.size());
     }
     switch (trace_type) {
       case kJsonTraceType: {
@@ -148,7 +147,7 @@ util::Status ForwardingTraceParser::Parse(std::unique_ptr<uint8_t[]> data,
     }
   }
 
-  return reader_->Parse(std::move(data), size);
+  return reader_->Parse(std::move(blob));
 }
 
 void ForwardingTraceParser::NotifyEndOfFile() {

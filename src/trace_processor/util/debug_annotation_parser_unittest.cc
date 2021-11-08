@@ -18,6 +18,7 @@
 
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
 #include "protos/perfetto/common/descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/debug_annotation.pbzero.h"
 #include "protos/perfetto/trace/track_event/source_location.pbzero.h"
@@ -25,7 +26,6 @@
 #include "src/trace_processor/test_messages.descriptor.h"
 #include "src/trace_processor/util/interned_message_view.h"
 #include "src/trace_processor/util/proto_to_args_parser.h"
-#include "src/trace_processor/util/trace_blob_view.h"
 #include "test/gtest_and_gmock.h"
 
 #include <sstream>

@@ -64,11 +64,11 @@ SystraceTraceParser::SystraceTraceParser(TraceProcessorContext* ctx)
     : line_parser_(ctx), ctx_(ctx) {}
 SystraceTraceParser::~SystraceTraceParser() = default;
 
-util::Status SystraceTraceParser::Parse(std::unique_ptr<uint8_t[]> owned_buf,
-                                        size_t size) {
+util::Status SystraceTraceParser::Parse(TraceBlobView blob) {
   if (state_ == ParseState::kEndOfSystrace)
     return util::OkStatus();
-  partial_buf_.insert(partial_buf_.end(), &owned_buf[0], &owned_buf[size]);
+  partial_buf_.insert(partial_buf_.end(), blob.data(),
+                      blob.data() + blob.size());
 
   if (state_ == ParseState::kBeforeParse) {
     state_ = partial_buf_[0] == '<' ? ParseState::kHtmlBeforeSystrace
