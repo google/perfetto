@@ -122,6 +122,11 @@ void ProbesProducer::OnConnect() {
       proto_desc.set_handles_incremental_state_clear(true);
     endpoint_->RegisterDataSource(proto_desc);
   }
+
+  // Used by tracebox to synchronize with traced_probes being registered.
+  if (all_data_sources_registered_cb_) {
+    endpoint_->Sync(all_data_sources_registered_cb_);
+  }
 }
 
 void ProbesProducer::OnDisconnect() {
