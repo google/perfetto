@@ -234,6 +234,13 @@ declare_args() {
   # libbacktrace when enabled.
   enable_perfetto_stderr_crash_dump =
       is_debug && perfetto_build_standalone && !is_wasm && !is_win
+
+  # Enables more aggressive compiler flags that assume recent Intel CPUs.
+  # Runtime checks during initialization will print an error message and exit
+  # if the CPU doesn't support those flags.
+  enable_perfetto_x64_cpu_opt =
+      current_cpu == "x64" && (is_linux || is_mac) && !is_wasm &&
+      perfetto_build_standalone && !is_perfetto_build_generator
 }
 
 declare_args() {
