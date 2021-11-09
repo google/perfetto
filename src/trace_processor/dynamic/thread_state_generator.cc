@@ -19,7 +19,6 @@
 #include <memory>
 #include <set>
 
-#include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto {
