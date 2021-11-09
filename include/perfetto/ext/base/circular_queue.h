@@ -18,6 +18,8 @@
 #define INCLUDE_PERFETTO_EXT_BASE_CIRCULAR_QUEUE_H_
 
 #include <stdint.h>
+#include <stdlib.h>
+
 #include <iterator>
 
 #include "perfetto/base/logging.h"
@@ -258,7 +260,12 @@ class CircularQueue {
     PERFETTO_CHECK(new_capacity > capacity_);
     size_t malloc_size = new_capacity * sizeof(T);
     PERFETTO_CHECK(malloc_size > new_capacity);
-    auto* new_vec = static_cast<T*>(malloc(malloc_size));
+
+    void* new_mem = nullptr;
+    // posix_memalign() wants at least void* alignment.
+    static constexpr size_t alignment = AlignUp<sizeof(void*)>(alignof(T));
+    PERFETTO_CHECK(posix_memalign(&new_mem, alignment, malloc_size) == 0);
+    T* new_vec = static_cast<T*>(new_mem);
 
     // Move all elements in the expanded array.
     size_t new_size = 0;
