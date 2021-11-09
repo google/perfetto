@@ -55,7 +55,7 @@ MetadataId MetadataTracker::SetMetadata(metadata::KeyId key, Variadic value) {
   return id_and_row.id;
 }
 
-SqlValue MetadataTracker::GetMetadataForTesting(metadata::KeyId key) {
+SqlValue MetadataTracker::GetMetadata(metadata::KeyId key) {
   // KeyType::kMulti not yet supported by this method:
   PERFETTO_CHECK(metadata::kKeyTypes[key] == metadata::KeyType::kSingle);
 
@@ -63,7 +63,23 @@ SqlValue MetadataTracker::GetMetadataForTesting(metadata::KeyId key) {
   uint32_t key_idx = static_cast<uint32_t>(key);
   uint32_t row =
       metadata_table->name().IndexOf(metadata::kNames[key_idx]).value();
-  return metadata_table->mutable_str_value()->Get(row);
+
+  auto value_type = metadata::kValueTypes[key];
+  switch (value_type) {
+    case Variadic::kInt:
+      return metadata_table->mutable_int_value()->Get(row);
+    case Variadic::kString:
+      return metadata_table->mutable_str_value()->Get(row);
+    case Variadic::kNull:
+      return SqlValue();
+    case Variadic::kJson:
+    case Variadic::kUint:
+    case Variadic::kPointer:
+    case Variadic::kReal:
+    case Variadic::kBool:
+      PERFETTO_FATAL("Invalid metadata value type %zu", value_type);
+  }
+  PERFETTO_FATAL("For GCC");
 }
 
 MetadataId MetadataTracker::AppendMetadata(metadata::KeyId key,
