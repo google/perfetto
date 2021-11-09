@@ -87,6 +87,7 @@ action("gen_buildflags") {
     "PERFETTO_TRACED_PERF=$enable_perfetto_traced_perf",
     "PERFETTO_HEAPPROFD=$enable_perfetto_heapprofd",
     "PERFETTO_STDERR_CRASH_DUMP=$enable_perfetto_stderr_crash_dump",
+    "PERFETTO_X64_CPU_OPT=$enable_perfetto_x64_cpu_opt",
   ]
 
   rel_out_path = rebase_path(gen_header_path, "$root_build_dir")
