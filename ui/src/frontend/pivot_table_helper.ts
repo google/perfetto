@@ -93,7 +93,7 @@ export class PivotTableHelper {
   // Dictates if the selected indexes refer to a pivot or aggregation.
   togglePivotSelection() {
     this._isPivot = !this._isPivot;
-    if (this._isPivot === false) {
+    if (!this._isPivot) {
       const selectedColumn = this.getSelectedPivotTableColumnAttrs();
       if (isStackPivot(selectedColumn.tableName, selectedColumn.columnName)) {
         this._selectedColumnIndex = Math.max(0, this._selectedColumnIndex - 1);
