@@ -125,7 +125,6 @@ std::string ReplaceAll(std::string str,
                        const std::string& to_replace,
                        const std::string& replacement);
 std::string TrimLeading(const std::string& str);
-std::string Base64Encode(const void* raw, size_t size);
 
 // A BSD-style strlcpy without the return value.
 // Copies at most |dst_size|-1 characters. Unlike strncpy, it always \0
