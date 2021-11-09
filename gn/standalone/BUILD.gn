@@ -232,6 +232,17 @@ config("default") {
     ]
   } else if (current_cpu == "arm64") {
     cflags += [ "-fno-omit-frame-pointer" ]
+  } else if (current_cpu == "x64") {
+    cflags += [ "-fno-omit-frame-pointer" ]  # For perf profiling.
+    if (enable_perfetto_x64_cpu_opt) {
+      # When updating these flags, the CheckCpuOptimizations() in utils.cc must
+      # be updated accordingly.
+      cflags += [
+        "-mavx",
+        "-mpopcnt",
+        "-msse4.2",
+      ]
+    }
   }
 
   if (is_linux) {
