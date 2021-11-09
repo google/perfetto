@@ -627,7 +627,7 @@ def Main():
     return 1
 
   if not test_data_synced:
-    cmd = [cur_python_interpreter, TEST_DATA_SCRIPT, 'download']
+    cmd = [cur_python_interpreter, TEST_DATA_SCRIPT, 'download', '--overwrite']
     if not sys.stdout.isatty():
       cmd += ['--verbose']  # For CI bots
     subprocess.check_call(cmd)
