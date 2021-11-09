@@ -58,6 +58,14 @@ class Hash {
   uint64_t result_ = kFnv1a64OffsetBasis;
 };
 
+// This is for using already-hashed key into std::unordered_map and avoid the
+// cost of re-hashing. Example:
+// unordered_map<uint64_t, Value, AlreadyHashed> my_map.
+template <typename T>
+struct AlreadyHashed {
+  size_t operator()(const T& x) const { return static_cast<size_t>(x); }
+};
+
 }  // namespace base
 }  // namespace perfetto
 
