@@ -130,6 +130,12 @@ std::string FtraceProcfs::ReadEventFormat(const std::string& group,
   return ReadFileIntoString(path);
 }
 
+std::string FtraceProcfs::ReadEventTrigger(const std::string& group,
+                                           const std::string& name) const {
+  std::string path = root_ + "events/" + group + "/" + name + "/trigger";
+  return ReadFileIntoString(path);
+}
+
 std::string FtraceProcfs::ReadPrintkFormats() const {
   std::string path = root_ + "printk_formats";
   return ReadFileIntoString(path);
