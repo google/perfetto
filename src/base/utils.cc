@@ -39,6 +39,7 @@
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <Windows.h>
 #include <io.h>
+#include <malloc.h>  // For _aligned_malloc().
 #endif
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
@@ -239,6 +240,24 @@ std::string GetCurExecutableDir() {
 #endif
   path = path.substr(0, path.find_last_of('/'));
   return path;
+}
+
+void* AlignedAlloc(size_t alignment, size_t size) {
+  void* res = nullptr;
+  alignment = AlignUp<sizeof(void*)>(alignment);  // At least pointer size.
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  // aligned_alloc has been introduced in Android only in API 28.
+  ignore_result(posix_memalign(&res, alignment, size));
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  // Window's _aligned_malloc() has a nearly identically signature to Unix's
+  // aligned_alloc() but its arguments are obviously swapped.
+  res = _aligned_malloc(size, alignment);
+#else
+  res = aligned_alloc(alignment, size);
+#endif
+  PERFETTO_CHECK(res);
+  return res;
 }
 
 }  // namespace base
