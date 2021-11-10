@@ -26,6 +26,7 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/export.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/trace_processor/ref_counted.h"
 
 // TODO(primiano): implement file mmap on Windows.
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
@@ -52,7 +53,7 @@ namespace trace_processor {
 // sub-offsets of) the same TraceBlob.
 // The neat thing about TraceBlob is that it deals transparently with owned
 // memory (in the case of Allocate and TakeOwnership) and memory-mapped memory.
-class PERFETTO_EXPORT TraceBlob {
+class PERFETTO_EXPORT TraceBlob : public RefCounted {
  public:
   static TraceBlob Allocate(size_t size);
   static TraceBlob CopyFrom(const void*, size_t size);
@@ -74,30 +75,12 @@ class PERFETTO_EXPORT TraceBlob {
   uint8_t* data() const { return data_; }
   size_t size() const { return size_; }
 
- protected:
-  // "protected" here is not for inheritance. It's just to document the scope of
-  // the methods exposed to TraceBlobView.
-  friend class TraceBlobView;
-
-  // Refcount inc/dec is used only by TraceBlobView.
-  void IncRefcount() {
-    PERFETTO_DCHECK(refcount_ >= 0);
-    ++refcount_;
-  }
-
-  void DecRefcountAndDeleteIfZero() {
-    PERFETTO_DCHECK(refcount_ > 0);
-    if (--refcount_ == 0)
-      delete this;
-  }
-
  private:
   enum class Ownership { kNull = 0, kHeapBuf, kMmaped };
 
   TraceBlob(Ownership ownership, uint8_t* data, size_t size)
       : ownership_(ownership), data_(data), size_(size) {}
 
-  int refcount_ = 0;
   Ownership ownership_ = Ownership::kNull;
   uint8_t* data_ = nullptr;
   size_t size_ = 0;
