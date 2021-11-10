@@ -47,6 +47,7 @@
 #include "src/trace_processor/importers/proto/metadata_tracker.h"
 #include "src/trace_processor/importers/systrace/systrace_trace_parser.h"
 #include "src/trace_processor/iterator_impl.h"
+#include "src/trace_processor/sqlite/create_function.h"
 #include "src/trace_processor/sqlite/register_function.h"
 #include "src/trace_processor/sqlite/span_join_operator_table.h"
 #include "src/trace_processor/sqlite/sql_stats_table.h"
@@ -742,6 +743,10 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   RegisterFunction<ExportJson>(db, "EXPORT_JSON", 1, context_.storage.get(),
                                false);
   RegisterFunction<ExtractArg>(db, "EXTRACT_ARG", 2, context_.storage.get());
+  RegisterFunction<CreateFunction>(
+      db, "CREATE_FUNCTION", 3,
+      std::unique_ptr<CreateFunction::Context>(
+          new CreateFunction::Context{db_.get(), &create_function_state_}));
 
   // Old style function registration.
   // TODO(lalitm): migrate this over to using RegisterFunction once aggregate

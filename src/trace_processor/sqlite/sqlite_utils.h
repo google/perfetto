@@ -20,12 +20,6 @@
 #include <math.h>
 #include <sqlite3.h>
 
-#include <functional>
-#include <limits>
-#include <string>
-
-#include "perfetto/base/logging.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/sqlite/scoped_db.h"

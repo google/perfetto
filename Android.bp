@@ -8136,6 +8136,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_sqlite_sqlite",
     srcs: [
+        "src/trace_processor/sqlite/create_function.cc",
         "src/trace_processor/sqlite/db_sqlite_table.cc",
         "src/trace_processor/sqlite/query_constraints.cc",
         "src/trace_processor/sqlite/register_function.cc",
