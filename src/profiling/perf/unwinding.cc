@@ -22,6 +22,7 @@
 #include <unwindstack/Unwinder.h>
 
 #include "perfetto/ext/base/metatrace.h"
+#include "perfetto/ext/base/no_destructor.h"
 #include "perfetto/ext/base/thread_utils.h"
 #include "perfetto/ext/base/utils.h"
 
@@ -405,7 +406,6 @@ CompletedSample Unwinder::UnwindSample(const ParsedSample& sample,
     unwindstack::FrameData frame_data{};
     frame_data.function_name =
         "ERROR " + StringifyLibUnwindstackError(unwind.error_code);
-    frame_data.map_name = "ERROR";
     ret.frames.emplace_back(std::move(frame_data));
     ret.build_ids.emplace_back("");
     ret.unwind_error = unwind.error_code;
@@ -416,6 +416,8 @@ CompletedSample Unwinder::UnwindSample(const ParsedSample& sample,
 
 std::vector<unwindstack::FrameData> Unwinder::SymbolizeKernelCallchain(
     const ParsedSample& sample) {
+  static base::NoDestructor<std::shared_ptr<unwindstack::MapInfo>> kernel_map_info(
+      unwindstack::MapInfo::Create(0, 0, 0, 0, "kernel"));
   std::vector<unwindstack::FrameData> ret;
   if (sample.kernel_ips.empty())
     return ret;
@@ -438,10 +440,10 @@ std::vector<unwindstack::FrameData> Unwinder::SymbolizeKernelCallchain(
 
     // Synthesise a partially-valid libunwindstack frame struct for the kernel
     // frame. We reuse the type for convenience. The kernel frames are marked by
-    // a magical "kernel" string as their containing mapping.
+    // a magical "kernel" MapInfo object as their containing mapping.
     unwindstack::FrameData frame{};
     frame.function_name = std::move(function_name);
-    frame.map_name = "kernel";
+    frame.map_info = kernel_map_info.ref();
     ret.emplace_back(std::move(frame));
   }
   return ret;
