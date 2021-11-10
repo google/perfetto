@@ -42,7 +42,7 @@
 
 #include "perfetto/trace_processor/read_trace.h"
 #include "perfetto/trace_processor/trace_processor.h"
-#include "src/trace_processor/metrics/chrome/all_chrome_metrics.descriptor.h"
+#include "src/trace_processor/metrics/all_chrome_metrics.descriptor.h"
 #include "src/trace_processor/metrics/metrics.descriptor.h"
 #include "src/trace_processor/metrics/metrics.h"
 #include "src/trace_processor/util/proto_to_json.h"
