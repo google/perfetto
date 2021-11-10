@@ -109,6 +109,8 @@ inline bool IsAgain(int err) {
   return err == EAGAIN || err == EWOULDBLOCK;
 }
 
+void* AlignedAlloc(size_t alignment, size_t size);
+
 // setenv(2)-equivalent. Deals with Windows vs Posix discrepancies.
 void SetEnv(const std::string& key, const std::string& value);
 
