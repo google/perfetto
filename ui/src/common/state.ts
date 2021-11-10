@@ -71,12 +71,12 @@ export const MAX_TIME = 180;
 // 6: Common PivotTableConfig and pivot table specific PivotTableState.
 // 7: Split Chrome categories in two and add 'symbolize ksyms' flag.
 // 8: Rename several variables
+// "[...]HeapProfileFlamegraph[...]" -> "[...]Flamegraph[...]".
 // 9: Add a field to track last loaded recording profile name
 // 10: Change last loaded profile tracking type to accommodate auto-save.
 // 11: Rename updateChromeCategories to fetchChromeCategories.
 // 12: Add a field to cache mapping from UI track ID to trace track ID in order
 //     to speed up flow arrows rendering.
-// "[...]HeapProfileFlamegraph[...]" -> "[...]Flamegraph[...]".
 export const STATE_VERSION = 12;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
