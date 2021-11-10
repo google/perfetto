@@ -48,7 +48,7 @@ struct Record {
   uint64_t timestamp_ns;
 
   // Duration of the event.
-  uint32_t duration_ns;
+  uint64_t duration_ns;
 
   // The name of the event.
   // This is assumed to be a static/long lived string.
@@ -145,7 +145,7 @@ class ScopedEvent {
     if (RingBuffer::GetInstance()->HasOverwritten(record_idx_))
       return;
     auto now = TraceTimeNowNs();
-    record_->duration_ns = static_cast<uint32_t>(now - record_->timestamp_ns);
+    record_->duration_ns = now - record_->timestamp_ns;
   }
 
   ScopedEvent(ScopedEvent&& value) {
