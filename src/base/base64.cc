@@ -15,7 +15,6 @@
  */
 
 #include "perfetto/ext/base/base64.h"
-#include "perfetto/ext/base/utils.h"  // For ssize_t.
 
 namespace perfetto {
 namespace base {
