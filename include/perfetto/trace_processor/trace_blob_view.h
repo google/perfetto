@@ -24,6 +24,7 @@
 #include <memory>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob.h"
 
 namespace perfetto {
@@ -60,28 +61,21 @@ class TraceBlobView {
       PERFETTO_DCHECK(offset + length_ <= blob.size());
       length_ = static_cast<uint32_t>(length);
     }
-    blob_refcounted_ = new TraceBlob(std::move(blob));
-    blob_refcounted_->IncRefcount();
+    blob_.reset(new TraceBlob(std::move(blob)));
   }
 
   // Trivial empty ctor.
-  TraceBlobView() : data_(nullptr), length_(0), blob_refcounted_(nullptr) {}
+  TraceBlobView() : data_(nullptr), length_(0) {}
 
-  ~TraceBlobView() {
-    if (blob_refcounted_)
-      blob_refcounted_->DecRefcountAndDeleteIfZero();
-  }
+  ~TraceBlobView() = default;
 
   // Allow std::move().
   TraceBlobView(TraceBlobView&& other) noexcept { *this = std::move(other); }
 
   TraceBlobView& operator=(TraceBlobView&& other) noexcept {
-    // TraceBlobView moving is a hotpath. Assume we never x = std::move(x).
-    PERFETTO_DCHECK(this != &other);
     data_ = other.data_;
     length_ = other.length_;
-    blob_refcounted_ = other.blob_refcounted_;
-    other.blob_refcounted_ = nullptr;
+    blob_ = std::move(other.blob_);
     return *this;
   }
 
@@ -93,21 +87,20 @@ class TraceBlobView {
   TraceBlobView slice(const uint8_t* data, size_t length) const {
     PERFETTO_DCHECK(data >= data_);
     PERFETTO_DCHECK(data + length <= data_ + length_);
-    return TraceBlobView(data, static_cast<uint32_t>(length), blob_refcounted_);
+    return TraceBlobView(data, static_cast<uint32_t>(length), blob_);
   }
 
   // Like slice() but takes an offset rather than a pointer as 1st argument.
   TraceBlobView slice_off(size_t off, size_t length) const {
     PERFETTO_DCHECK(off + length <= length_);
-    return TraceBlobView(data_ + off, static_cast<uint32_t>(length),
-                         blob_refcounted_);
+    return TraceBlobView(data_ + off, static_cast<uint32_t>(length), blob_);
   }
 
   TraceBlobView copy() const { return slice(data_, length_); }
 
   bool operator==(const TraceBlobView& rhs) const {
     return (data_ == rhs.data_) && (length_ == rhs.length_) &&
-           (blob_refcounted_ == rhs.blob_refcounted_);
+           (blob_ == rhs.blob_);
   }
   bool operator!=(const TraceBlobView& rhs) const { return !(*this == rhs); }
 
@@ -117,14 +110,12 @@ class TraceBlobView {
   size_t size() const { return length_; }
 
  private:
-  TraceBlobView(const uint8_t* data, uint32_t length, TraceBlob* blob)
-      : data_(data), length_(length), blob_refcounted_(blob) {
-    blob_refcounted_->IncRefcount();
-  }
+  TraceBlobView(const uint8_t* data, uint32_t length, RefPtr<TraceBlob> blob)
+      : data_(data), length_(length), blob_(std::move(blob)) {}
 
   const uint8_t* data_ = nullptr;
   uint32_t length_ = 0;
-  TraceBlob* blob_refcounted_ = nullptr;
+  RefPtr<TraceBlob> blob_;
 };
 
 }  // namespace trace_processor
