@@ -16,7 +16,7 @@
 
 #include "src/trace_processor/importers/proto/metadata_module.h"
 
-#include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/base64.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/proto/metadata_tracker.h"

@@ -41,7 +41,9 @@ const char* MapToFriendlyPowerRailName(base::StringView raw) {
     return "cpu.big";
   } else if (raw == "S5M_VDD_INT") {
     return "system.fabric";
-  } else if (raw == "PPVAR_VSYS_PWR_DISP") {
+  } else if (raw == "S10M_VDD_TPU") {
+    return "tpu";
+  } else if (raw == "PPVAR_VSYS_PWR_DISP" || raw == "VSYS_PWR_DISPLAY") {
     return "display";
   } else if (raw == "VSYS_PWR_MODEM") {
     return "modem";

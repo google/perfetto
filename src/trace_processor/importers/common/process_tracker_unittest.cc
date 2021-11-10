@@ -97,10 +97,10 @@ TEST_F(ProcessTrackerTest, UpdateThreadCreate) {
   // We expect 3 threads: Invalid thread, main thread for pid, tid 12.
   ASSERT_EQ(context.storage->thread_table().row_count(), 3u);
 
-  auto opt_upid = context.process_tracker->UtidForTidForTesting(12);
-  ASSERT_TRUE(opt_upid.has_value());
+  auto tid_it = context.process_tracker->UtidsForTidForTesting(12);
+  ASSERT_NE(tid_it.first, tid_it.second);
   ASSERT_EQ(context.storage->thread_table().upid()[1].value(), 1u);
-  opt_upid = context.process_tracker->UtidForTidForTesting(2);
+  auto opt_upid = context.process_tracker->UpidForPidForTesting(2);
   ASSERT_TRUE(opt_upid.has_value());
   ASSERT_EQ(context.storage->process_table().row_count(), 2u);
 }

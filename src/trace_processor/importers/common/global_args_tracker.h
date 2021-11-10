@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_GLOBAL_ARGS_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_GLOBAL_ARGS_TRACKER_H_
 
+#include "perfetto/ext/base/hash.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
@@ -165,7 +166,8 @@ class GlobalArgsTracker {
  private:
   using ArgSetHash = uint64_t;
 
-  std::unordered_map<ArgSetHash, uint32_t> arg_row_for_hash_;
+  std::unordered_map<ArgSetHash, uint32_t, base::AlreadyHashed<ArgSetHash>>
+      arg_row_for_hash_;
 
   TraceProcessorContext* context_;
 };
