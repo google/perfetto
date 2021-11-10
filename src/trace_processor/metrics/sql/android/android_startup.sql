@@ -301,6 +301,15 @@ SELECT
 FROM long_binder_transactions s
 LEFT JOIN binder_to_destination_process bdp USING(slice_id);
 
+SELECT CREATE_FUNCTION(
+  'MAIN_PROCESS_SLICE_PROTO(launch_id LONG, name STRING)',
+  'PROTO', '
+    SELECT slice_proto
+    FROM main_process_slice s
+    WHERE s.launch_id = $launch_id AND name LIKE $name
+    LIMIT 1
+  ');
+
 DROP VIEW IF EXISTS startup_view;
 CREATE VIEW startup_view AS
 SELECT
@@ -430,41 +439,18 @@ SELECT
         FROM launching_events l
         WHERE l.ts BETWEEN launches.ts AND launches.ts + launches.dur
       ),
-      'time_post_fork', (
-        SELECT slice_proto
-        FROM main_process_slice s
-        WHERE s.launch_id = launches.id AND name = 'PostFork'
-      ),
-      'time_activity_thread_main', (
-        SELECT slice_proto
-        FROM main_process_slice s
-        WHERE s.launch_id = launches.id AND name = 'ActivityThreadMain'
-      ),
-      'time_bind_application', (
-        SELECT slice_proto
-        FROM main_process_slice s
-        WHERE s.launch_id = launches.id AND name = 'bindApplication'
-      ),
-      'time_activity_start', (
-        SELECT slice_proto
-        FROM main_process_slice s
-        WHERE s.launch_id = launches.id AND name = 'activityStart'
-      ),
-      'time_activity_resume', (
-        SELECT slice_proto
-        FROM main_process_slice s
-        WHERE s.launch_id = launches.id AND name = 'activityResume'
-      ),
-      'time_activity_restart', (
-        SELECT slice_proto
-        FROM main_process_slice s
-        WHERE s.launch_id = launches.id AND name = 'activityRestart'
-      ),
-      'time_choreographer', (
-        SELECT slice_proto
-        FROM main_process_slice s
-        WHERE s.launch_id = launches.id AND name LIKE 'Choreographer#doFrame%'
-      ),
+      'time_post_fork', MAIN_PROCESS_SLICE_PROTO(launches.id, 'PostFork'),
+      'time_activity_thread_main', MAIN_PROCESS_SLICE_PROTO(launches.id, 'ActivityThreadMain'),
+      'time_bind_application', MAIN_PROCESS_SLICE_PROTO(launches.id, 'bindApplication'),
+      'time_activity_start', MAIN_PROCESS_SLICE_PROTO(launches.id, 'activityStart'),
+      'time_activity_resume', MAIN_PROCESS_SLICE_PROTO(launches.id, 'activityResume'),
+      'time_activity_restart', MAIN_PROCESS_SLICE_PROTO(launches.id, 'activityRestart'),
+      'time_choreographer', MAIN_PROCESS_SLICE_PROTO(launches.id, 'Choreographer#doFrame%'),
+      'time_inflate', MAIN_PROCESS_SLICE_PROTO(launches.id, 'inflate'),
+      'time_get_resources', MAIN_PROCESS_SLICE_PROTO(launches.id, 'ResourcesManager#getResources'),
+      'time_dex_open', MAIN_PROCESS_SLICE_PROTO(launches.id, 'OpenDexFilesFromOat'),
+      'time_verify_class', MAIN_PROCESS_SLICE_PROTO(launches.id, 'VerifyClass'),
+      'time_gc_total', MAIN_PROCESS_SLICE_PROTO(launches.id, 'GC'),
       'time_before_start_process', (
         SELECT AndroidStartupMetric_Slice(
           'dur_ns', ts - launches.ts,
@@ -481,27 +467,6 @@ SELECT
         FROM zygote_forks_by_id z
         WHERE z.id = launches.id
       ),
-      'time_inflate', (
-        SELECT slice_proto
-        FROM main_process_slice s
-        WHERE s.launch_id = launches.id AND name = 'inflate'
-      ),
-      'time_get_resources', (
-        SELECT slice_proto
-        FROM main_process_slice s
-        WHERE s.launch_id = launches.id
-        AND name = 'ResourcesManager#getResources'
-      ),
-      'time_dex_open', (
-        SELECT slice_proto
-        FROM main_process_slice s
-        WHERE s.launch_id = launches.id AND name = 'OpenDexFilesFromOat'
-      ),
-      'time_verify_class', (
-        SELECT slice_proto
-        FROM main_process_slice s
-        WHERE s.launch_id = launches.id AND name = 'VerifyClass'
-      ),
       'jit_compiled_methods', (
         SELECT count
         FROM jit_compiled_methods_materialized s
@@ -515,11 +480,6 @@ SELECT
           ))
         FROM launch_threads_cpu_materialized
         WHERE launch_id = launches.id
-      ),
-      'time_gc_total', (
-        SELECT slice_proto
-        FROM main_process_slice s
-        WHERE s.launch_id = launches.id AND name = 'GC'
       ),
       'time_gc_on_cpu', (
         SELECT
