@@ -19,6 +19,7 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_record.h"
 #include "src/trace_processor/importers/json/json_utils.h"
@@ -55,17 +56,17 @@ struct InlineSchedWaking {
 
 struct TracePacketData {
   TraceBlobView packet;
-  std::shared_ptr<PacketSequenceStateGeneration> sequence_state;
+  RefPtr<PacketSequenceStateGeneration> sequence_state;
 };
 
 struct FtraceEventData {
   TraceBlobView event;
-  std::shared_ptr<PacketSequenceStateGeneration> sequence_state;
+  RefPtr<PacketSequenceStateGeneration> sequence_state;
 };
 
 struct TrackEventData : public TracePacketData {
   TrackEventData(TraceBlobView pv,
-                 std::shared_ptr<PacketSequenceStateGeneration> generation)
+                 RefPtr<PacketSequenceStateGeneration> generation)
       : TracePacketData{std::move(pv), std::move(generation)} {}
 
   static constexpr size_t kMaxNumExtraCounters = 8;
@@ -91,11 +92,10 @@ struct alignas(64) TimestampedTracePiece {
     kSystraceLine,
   };
 
-  TimestampedTracePiece(
-      int64_t ts,
-      uint64_t idx,
-      TraceBlobView tbv,
-      std::shared_ptr<PacketSequenceStateGeneration> sequence_state)
+  TimestampedTracePiece(int64_t ts,
+                        uint64_t idx,
+                        TraceBlobView tbv,
+                        RefPtr<PacketSequenceStateGeneration> sequence_state)
       : packet_data{std::move(tbv), std::move(sequence_state)},
         timestamp(ts),
         packet_idx(idx),
