@@ -19,7 +19,6 @@
 
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/trace_processor/status.h"
-#include "src/trace_processor/util/trace_blob_view.h"
 
 namespace perfetto {
 
@@ -34,6 +33,7 @@ namespace trace_processor {
 
 class PacketSequenceState;
 struct TimestampedTracePiece;
+class TraceBlobView;
 class TraceProcessorContext;
 
 // This file contains a base class for ProtoTraceReader/Parser modules.

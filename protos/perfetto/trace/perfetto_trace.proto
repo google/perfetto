@@ -11,6 +11,8 @@ syntax = "proto2";
 
 package perfetto.protos;
 
+option go_package = "github.com/google/perfetto/perfetto_proto";
+
 // Begin of protos/perfetto/common/gpu_counter_descriptor.proto
 
 // Description of GPU counters.
@@ -158,10 +160,11 @@ message DataSourceDescriptor {
   // e.g., "linux.ftrace", "chromium.tracing"
   optional string name = 1;
 
-  // When non-zero, this is a unique ID within the corresponding Producer for
-  // this data source. This is useful to differentiate between data sources
-  // with matching names. This field has been introduced in Android T in
-  // November 2021 and is not supported on older versions.
+  // When non-zero, this is a unique ID within the scope of the Producer for
+  // this data source (it is NOT globally unique). This is useful to
+  // differentiate between data sources with matching names when calling
+  // UpdateDataSource(). This field has been introduced in November 2021
+  // (v22, Android T) and is not supported on older versions.
   optional uint64 id = 7;
 
   // When true the data source is expected to ack the stop request through the
@@ -7539,7 +7542,7 @@ message PerfettoMetatrace {
   }
 
   // Only when using |event_id|.
-  optional uint32 event_duration_ns = 3;
+  optional uint64 event_duration_ns = 3;
 
   // Only when using |counter_id|.
   optional int32 counter_value = 4;
@@ -8491,6 +8494,10 @@ message SystemInfo {
   // the build system and the repo (standalone vs AOSP).
   // This is intended for human debugging only.
   optional string tracing_service_version = 4;
+
+  // The Android SDK vesion (e.g. 21 for L, 31 for S etc).
+  // Introduced in Android T.
+  optional uint64 android_sdk_version = 5;
 }
 
 // End of protos/perfetto/trace/system_info.proto

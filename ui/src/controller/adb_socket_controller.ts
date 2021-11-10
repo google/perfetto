@@ -16,7 +16,7 @@ import * as protobuf from 'protobufjs/minimal';
 
 import {perfetto} from '../gen/protos';
 
-import {AdbAuthState, AdbBaseConsumerPort} from './adb_base_controller';
+import {AdbBaseConsumerPort, AdbConnectionState} from './adb_base_controller';
 import {Adb, AdbStream} from './adb_interfaces';
 import {
   isReadBuffersResponse,
@@ -84,7 +84,7 @@ export class AdbSocketConsumerPort extends AdbBaseConsumerPort {
 
   async invoke(method: string, params: Uint8Array) {
     // ADB connection & authentication is handled by the superclass.
-    console.assert(this.state === AdbAuthState.CONNECTED);
+    console.assert(this.state === AdbConnectionState.CONNECTED);
     this.socketCommandQueue.push({method, params});
 
     if (this.socketState === SocketState.BINDING_IN_PROGRESS) return;

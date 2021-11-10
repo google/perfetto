@@ -11,6 +11,8 @@ syntax = "proto2";
 
 package perfetto.protos;
 
+option go_package = "github.com/google/perfetto/perfetto_proto";
+
 // Begin of protos/perfetto/metrics/android/batt_metric.proto
 
 message AndroidBatteryMetric {
@@ -749,6 +751,9 @@ message AndroidMultiuserMetric {
       optional int32 cpu_mcycles = 3;
       // The ratio of this process's cycles to the total for all processes, expressed as a percentage.
       optional float cpu_percentage = 4;
+      // General identifier for this usage source: determined from the process name, user, etc.
+      // Should be stable across multiple runs (i.e. does not print the user_id directly).
+      optional string identifier = 5;
     }
     repeated CpuUsage cpu_usage = 2;
   }

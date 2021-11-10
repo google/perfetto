@@ -50,11 +50,6 @@ class ProcessTracker {
   ProcessTracker& operator=(const ProcessTracker&) = delete;
   virtual ~ProcessTracker();
 
-  using UniqueProcessIterator =
-      std::multimap<uint32_t, UniquePid>::const_iterator;
-  using UniqueProcessBounds =
-      std::pair<UniqueProcessIterator, UniqueProcessIterator>;
-
   using UniqueThreadIterator = std::vector<UniqueTid>::const_iterator;
   using UniqueThreadBounds =
       std::pair<UniqueThreadIterator, UniqueThreadIterator>;
@@ -135,10 +130,10 @@ class ProcessTracker {
   // Virtual for testing.
   virtual UniquePid GetOrCreateProcess(uint32_t pid);
 
-  // Returns the bounds of a range that includes all UniquePids that have the
-  // requested pid.
-  UniqueProcessBounds UpidsForPidForTesting(uint32_t pid) {
-    return pids_.equal_range(pid);
+  // Returns the upid for a given pid.
+  base::Optional<UniquePid> UpidForPidForTesting(uint32_t pid) {
+    auto it = pids_.find(pid);
+    return it == pids_.end() ? base::nullopt : base::make_optional(it->second);
   }
 
   // Returns the bounds of a range that includes all UniqueTids that have the
@@ -187,13 +182,16 @@ class ProcessTracker {
 
   ArgsTracker args_tracker_;
 
-  // Each tid can have multiple UniqueTid entries, a new UniqueTid is assigned
-  // each time a thread is seen in the trace.
-  std::map<uint32_t /* tid */, std::vector<UniqueTid>> tids_;
+  // Mapping for tid to the vector of possible UniqueTids.
+  // TODO(lalitm): this is a one-many mapping because this code was written
+  // before global sorting was a thing so multiple threads could be "active"
+  // simultaneously. This is no longer the case so this should be removed
+  // (though it seems like there are subtle things which break in Chrome if this
+  // changes).
+  std::unordered_map<uint32_t /* tid */, std::vector<UniqueTid>> tids_;
 
-  // Each pid can have multiple UniquePid entries, a new UniquePid is assigned
-  // each time a process is seen in the trace.
-  std::map<uint32_t /* pid (aka tgid) */, UniquePid> pids_;
+  // Mapping of the most recently seen pid to the associated upid.
+  std::unordered_map<uint32_t /* pid (aka tgid) */, UniquePid> pids_;
 
   // Pending thread associations. The meaning of a pair<ThreadA, ThreadB> in
   // this vector is: we know that A and B belong to the same process, but we

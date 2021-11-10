@@ -97,6 +97,7 @@ class TracingServiceImpl : public TracingService {
 
     // TracingService::ProducerEndpoint implementation.
     void RegisterDataSource(const DataSourceDescriptor&) override;
+    void UpdateDataSource(const DataSourceDescriptor&) override;
     void UnregisterDataSource(const std::string& name) override;
     void RegisterTraceWriter(uint32_t writer_id,
                              uint32_t target_buffer) override;
@@ -250,6 +251,7 @@ class TracingServiceImpl : public TracingService {
   // Called by ProducerEndpointImpl.
   void DisconnectProducer(ProducerID);
   void RegisterDataSource(ProducerID, const DataSourceDescriptor&);
+  void UpdateDataSource(ProducerID, const DataSourceDescriptor&);
   void UnregisterDataSource(ProducerID, const std::string& name);
   void CopyProducerPageIntoLogBuffer(ProducerID,
                                      uid_t,

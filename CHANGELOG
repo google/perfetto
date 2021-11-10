@@ -1,12 +1,16 @@
 Unreleased:
   Tracing service and probes:
-    *
+    * Added Android SDK version to the SystemInfo trace packet.
+    * Changed compiler flags. Assume recent x64 CPUs (-msse4.2 -mavx -mpopcnt).
+      This behavior affects only standalone builds and can be changed by setting
+      enable_perfetto_x64_cpu_opt=false in the GN args.
   Trace Processor:
-    *
+    * Changed compiler flags, assume recent x64 CPUs (see above).
   UI:
     *
   SDK:
-    *
+    * Added UpdateDataSource() descriptor IPC endpoint to allow updates of the
+      data source capabilities (e.g., category list for track event).
 
 
 v21.0 - 2021-11-01:

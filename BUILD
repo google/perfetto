@@ -335,6 +335,7 @@ perfetto_filegroup(
     name = "include_perfetto_ext_base_base",
     srcs = [
         "include/perfetto/ext/base/android_utils.h",
+        "include/perfetto/ext/base/base64.h",
         "include/perfetto/ext/base/circular_queue.h",
         "include/perfetto/ext/base/container_annotations.h",
         "include/perfetto/ext/base/crash_keys.h",
@@ -515,6 +516,8 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "include_perfetto_trace_processor_storage",
     srcs = [
+        "include/perfetto/trace_processor/trace_blob.h",
+        "include/perfetto/trace_processor/trace_blob_view.h",
         "include/perfetto/trace_processor/trace_processor_storage.h",
     ],
 )
@@ -640,6 +643,7 @@ perfetto_cc_library(
     name = "src_base_base",
     srcs = [
         "src/base/android_utils.cc",
+        "src/base/base64.cc",
         "src/base/crash_keys.cc",
         "src/base/ctrl_c_handler.cc",
         "src/base/event_fd.cc",
@@ -995,13 +999,114 @@ perfetto_cc_proto_descriptor(
     ],
 )
 
+perfetto_genrule(
+    name = "src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
+    srcs = [
+        "src/trace_processor/metrics/sql/android/android_batt.sql",
+        "src/trace_processor/metrics/sql/android/android_camera.sql",
+        "src/trace_processor/metrics/sql/android/android_cpu.sql",
+        "src/trace_processor/metrics/sql/android/android_cpu_agg.sql",
+        "src/trace_processor/metrics/sql/android/android_cpu_raw_metrics_per_core.sql",
+        "src/trace_processor/metrics/sql/android/android_dma_heap.sql",
+        "src/trace_processor/metrics/sql/android/android_fastrpc.sql",
+        "src/trace_processor/metrics/sql/android/android_gpu.sql",
+        "src/trace_processor/metrics/sql/android/android_hwcomposer.sql",
+        "src/trace_processor/metrics/sql/android/android_hwui_metric.sql",
+        "src/trace_processor/metrics/sql/android/android_hwui_threads.sql",
+        "src/trace_processor/metrics/sql/android/android_ion.sql",
+        "src/trace_processor/metrics/sql/android/android_jank.sql",
+        "src/trace_processor/metrics/sql/android/android_lmk.sql",
+        "src/trace_processor/metrics/sql/android/android_lmk_reason.sql",
+        "src/trace_processor/metrics/sql/android/android_mem.sql",
+        "src/trace_processor/metrics/sql/android/android_mem_unagg.sql",
+        "src/trace_processor/metrics/sql/android/android_multiuser.sql",
+        "src/trace_processor/metrics/sql/android/android_multiuser_populator.sql",
+        "src/trace_processor/metrics/sql/android/android_package_list.sql",
+        "src/trace_processor/metrics/sql/android/android_powrails.sql",
+        "src/trace_processor/metrics/sql/android/android_proxy_power.sql",
+        "src/trace_processor/metrics/sql/android/android_simpleperf.sql",
+        "src/trace_processor/metrics/sql/android/android_startup.sql",
+        "src/trace_processor/metrics/sql/android/android_surfaceflinger.sql",
+        "src/trace_processor/metrics/sql/android/android_sysui_cuj.sql",
+        "src/trace_processor/metrics/sql/android/android_sysui_cuj_jank_query.sql",
+        "src/trace_processor/metrics/sql/android/android_task_names.sql",
+        "src/trace_processor/metrics/sql/android/android_thread_time_in_state.sql",
+        "src/trace_processor/metrics/sql/android/android_trace_quality.sql",
+        "src/trace_processor/metrics/sql/android/composer_execution.sql",
+        "src/trace_processor/metrics/sql/android/composition_layers.sql",
+        "src/trace_processor/metrics/sql/android/cpu_info.sql",
+        "src/trace_processor/metrics/sql/android/display_metrics.sql",
+        "src/trace_processor/metrics/sql/android/frame_missed.sql",
+        "src/trace_processor/metrics/sql/android/g2d.sql",
+        "src/trace_processor/metrics/sql/android/g2d_duration.sql",
+        "src/trace_processor/metrics/sql/android/global_counter_span_view.sql",
+        "src/trace_processor/metrics/sql/android/gpu_counter_span_view.sql",
+        "src/trace_processor/metrics/sql/android/java_heap_histogram.sql",
+        "src/trace_processor/metrics/sql/android/java_heap_stats.sql",
+        "src/trace_processor/metrics/sql/android/mem_stats_priority_breakdown.sql",
+        "src/trace_processor/metrics/sql/android/power_drain_in_watts.sql",
+        "src/trace_processor/metrics/sql/android/power_profile_data.sql",
+        "src/trace_processor/metrics/sql/android/process_counter_span_view.sql",
+        "src/trace_processor/metrics/sql/android/process_mem.sql",
+        "src/trace_processor/metrics/sql/android/process_metadata.sql",
+        "src/trace_processor/metrics/sql/android/process_oom_score.sql",
+        "src/trace_processor/metrics/sql/android/process_unagg_mem_view.sql",
+        "src/trace_processor/metrics/sql/android/profiler_smaps.sql",
+        "src/trace_processor/metrics/sql/android/span_view_stats.sql",
+        "src/trace_processor/metrics/sql/android/startup/hsc.sql",
+        "src/trace_processor/metrics/sql/android/startup/launches.sql",
+        "src/trace_processor/metrics/sql/android/thread_counter_span_view.sql",
+        "src/trace_processor/metrics/sql/android/unsymbolized_frames.sql",
+        "src/trace_processor/metrics/sql/chrome/actual_power_by_category.sql",
+        "src/trace_processor/metrics/sql/chrome/actual_power_by_rail_mode.sql",
+        "src/trace_processor/metrics/sql/chrome/chrome_event_metadata.sql",
+        "src/trace_processor/metrics/sql/chrome/chrome_processes.sql",
+        "src/trace_processor/metrics/sql/chrome/chrome_thread_slice_with_cpu_time.sql",
+        "src/trace_processor/metrics/sql/chrome/cpu_time_by_category.sql",
+        "src/trace_processor/metrics/sql/chrome/cpu_time_by_rail_mode.sql",
+        "src/trace_processor/metrics/sql/chrome/estimated_power_by_category.sql",
+        "src/trace_processor/metrics/sql/chrome/estimated_power_by_rail_mode.sql",
+        "src/trace_processor/metrics/sql/chrome/gesture_flow_event.sql",
+        "src/trace_processor/metrics/sql/chrome/gesture_flow_event_queuing_delay.sql",
+        "src/trace_processor/metrics/sql/chrome/gesture_jank.sql",
+        "src/trace_processor/metrics/sql/chrome/rail_modes.sql",
+        "src/trace_processor/metrics/sql/chrome/scroll_flow_event.sql",
+        "src/trace_processor/metrics/sql/chrome/scroll_flow_event_queuing_delay.sql",
+        "src/trace_processor/metrics/sql/chrome/scroll_jank.sql",
+        "src/trace_processor/metrics/sql/chrome/scroll_jank_cause.sql",
+        "src/trace_processor/metrics/sql/chrome/scroll_jank_cause_blocking_task.sql",
+        "src/trace_processor/metrics/sql/chrome/scroll_jank_cause_blocking_touch_move.sql",
+        "src/trace_processor/metrics/sql/chrome/scroll_jank_cause_get_bitmap.sql",
+        "src/trace_processor/metrics/sql/chrome/scroll_jank_cause_queuing_delay.sql",
+        "src/trace_processor/metrics/sql/chrome/test_chrome_metric.sql",
+        "src/trace_processor/metrics/sql/chrome/touch_flow_event.sql",
+        "src/trace_processor/metrics/sql/chrome/touch_flow_event_queuing_delay.sql",
+        "src/trace_processor/metrics/sql/chrome/touch_jank.sql",
+        "src/trace_processor/metrics/sql/experimental/blink_gc_metric.sql",
+        "src/trace_processor/metrics/sql/experimental/chrome_dropped_frames.sql",
+        "src/trace_processor/metrics/sql/experimental/frame_times.sql",
+        "src/trace_processor/metrics/sql/experimental/media_metric.sql",
+        "src/trace_processor/metrics/sql/experimental/reported_by_page.sql",
+        "src/trace_processor/metrics/sql/trace_metadata.sql",
+        "src/trace_processor/metrics/sql/trace_stats.sql",
+        "src/trace_processor/metrics/sql/webview/webview_power_usage.sql",
+    ],
+    outs = [
+        "src/trace_processor/metrics/sql/amalgamated_sql_metrics.h",
+    ],
+    cmd = "$(location gen_amalgamated_sql_metrics_py) --cpp_out=$@ $(SRCS)",
+    exec_tools = [
+        ":gen_amalgamated_sql_metrics_py",
+    ],
+)
+
 perfetto_cc_proto_descriptor(
     name = "src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
     deps = [
         ":protos_perfetto_metrics_chrome_descriptor",
     ],
     outs = [
-        "src/trace_processor/metrics/chrome/all_chrome_metrics.descriptor.h",
+        "src/trace_processor/metrics/all_chrome_metrics.descriptor.h",
     ],
 )
 
@@ -1015,109 +1120,9 @@ perfetto_cc_proto_descriptor(
     ],
 )
 
-perfetto_genrule(
-    name = "src_trace_processor_metrics_gen_merged_sql_metrics",
-    srcs = [
-        "src/trace_processor/metrics/android/android_batt.sql",
-        "src/trace_processor/metrics/android/android_camera.sql",
-        "src/trace_processor/metrics/android/android_cpu.sql",
-        "src/trace_processor/metrics/android/android_cpu_agg.sql",
-        "src/trace_processor/metrics/android/android_cpu_raw_metrics_per_core.sql",
-        "src/trace_processor/metrics/android/android_dma_heap.sql",
-        "src/trace_processor/metrics/android/android_fastrpc.sql",
-        "src/trace_processor/metrics/android/android_gpu.sql",
-        "src/trace_processor/metrics/android/android_hwcomposer.sql",
-        "src/trace_processor/metrics/android/android_hwui_metric.sql",
-        "src/trace_processor/metrics/android/android_hwui_threads.sql",
-        "src/trace_processor/metrics/android/android_ion.sql",
-        "src/trace_processor/metrics/android/android_jank.sql",
-        "src/trace_processor/metrics/android/android_lmk.sql",
-        "src/trace_processor/metrics/android/android_lmk_reason.sql",
-        "src/trace_processor/metrics/android/android_mem.sql",
-        "src/trace_processor/metrics/android/android_mem_unagg.sql",
-        "src/trace_processor/metrics/android/android_multiuser.sql",
-        "src/trace_processor/metrics/android/android_multiuser_populator.sql",
-        "src/trace_processor/metrics/android/android_package_list.sql",
-        "src/trace_processor/metrics/android/android_powrails.sql",
-        "src/trace_processor/metrics/android/android_proxy_power.sql",
-        "src/trace_processor/metrics/android/android_simpleperf.sql",
-        "src/trace_processor/metrics/android/android_startup.sql",
-        "src/trace_processor/metrics/android/android_surfaceflinger.sql",
-        "src/trace_processor/metrics/android/android_sysui_cuj.sql",
-        "src/trace_processor/metrics/android/android_sysui_cuj_jank_query.sql",
-        "src/trace_processor/metrics/android/android_task_names.sql",
-        "src/trace_processor/metrics/android/android_thread_time_in_state.sql",
-        "src/trace_processor/metrics/android/android_trace_quality.sql",
-        "src/trace_processor/metrics/android/composer_execution.sql",
-        "src/trace_processor/metrics/android/composition_layers.sql",
-        "src/trace_processor/metrics/android/cpu_info.sql",
-        "src/trace_processor/metrics/android/display_metrics.sql",
-        "src/trace_processor/metrics/android/frame_missed.sql",
-        "src/trace_processor/metrics/android/g2d.sql",
-        "src/trace_processor/metrics/android/g2d_duration.sql",
-        "src/trace_processor/metrics/android/global_counter_span_view.sql",
-        "src/trace_processor/metrics/android/gpu_counter_span_view.sql",
-        "src/trace_processor/metrics/android/java_heap_histogram.sql",
-        "src/trace_processor/metrics/android/java_heap_stats.sql",
-        "src/trace_processor/metrics/android/mem_stats_priority_breakdown.sql",
-        "src/trace_processor/metrics/android/power_drain_in_watts.sql",
-        "src/trace_processor/metrics/android/power_profile_data.sql",
-        "src/trace_processor/metrics/android/process_counter_span_view.sql",
-        "src/trace_processor/metrics/android/process_mem.sql",
-        "src/trace_processor/metrics/android/process_metadata.sql",
-        "src/trace_processor/metrics/android/process_oom_score.sql",
-        "src/trace_processor/metrics/android/process_unagg_mem_view.sql",
-        "src/trace_processor/metrics/android/profiler_smaps.sql",
-        "src/trace_processor/metrics/android/span_view_stats.sql",
-        "src/trace_processor/metrics/android/startup/hsc.sql",
-        "src/trace_processor/metrics/android/startup/launches.sql",
-        "src/trace_processor/metrics/android/thread_counter_span_view.sql",
-        "src/trace_processor/metrics/android/unsymbolized_frames.sql",
-        "src/trace_processor/metrics/chrome/actual_power_by_category.sql",
-        "src/trace_processor/metrics/chrome/actual_power_by_rail_mode.sql",
-        "src/trace_processor/metrics/chrome/chrome_event_metadata.sql",
-        "src/trace_processor/metrics/chrome/chrome_processes.sql",
-        "src/trace_processor/metrics/chrome/chrome_thread_slice_with_cpu_time.sql",
-        "src/trace_processor/metrics/chrome/cpu_time_by_category.sql",
-        "src/trace_processor/metrics/chrome/cpu_time_by_rail_mode.sql",
-        "src/trace_processor/metrics/chrome/estimated_power_by_category.sql",
-        "src/trace_processor/metrics/chrome/estimated_power_by_rail_mode.sql",
-        "src/trace_processor/metrics/chrome/gesture_flow_event.sql",
-        "src/trace_processor/metrics/chrome/gesture_flow_event_queuing_delay.sql",
-        "src/trace_processor/metrics/chrome/gesture_jank.sql",
-        "src/trace_processor/metrics/chrome/rail_modes.sql",
-        "src/trace_processor/metrics/chrome/scroll_flow_event.sql",
-        "src/trace_processor/metrics/chrome/scroll_flow_event_queuing_delay.sql",
-        "src/trace_processor/metrics/chrome/scroll_jank.sql",
-        "src/trace_processor/metrics/chrome/scroll_jank_cause.sql",
-        "src/trace_processor/metrics/chrome/scroll_jank_cause_blocking_task.sql",
-        "src/trace_processor/metrics/chrome/scroll_jank_cause_blocking_touch_move.sql",
-        "src/trace_processor/metrics/chrome/scroll_jank_cause_get_bitmap.sql",
-        "src/trace_processor/metrics/chrome/scroll_jank_cause_queuing_delay.sql",
-        "src/trace_processor/metrics/chrome/test_chrome_metric.sql",
-        "src/trace_processor/metrics/chrome/touch_flow_event.sql",
-        "src/trace_processor/metrics/chrome/touch_flow_event_queuing_delay.sql",
-        "src/trace_processor/metrics/chrome/touch_jank.sql",
-        "src/trace_processor/metrics/experimental/blink_gc_metric.sql",
-        "src/trace_processor/metrics/experimental/frame_times.sql",
-        "src/trace_processor/metrics/experimental/media_metric.sql",
-        "src/trace_processor/metrics/experimental/reported_by_page.sql",
-        "src/trace_processor/metrics/trace_metadata.sql",
-        "src/trace_processor/metrics/trace_stats.sql",
-        "src/trace_processor/metrics/webview/webview_power_usage.sql",
-    ],
-    outs = [
-        "src/trace_processor/metrics/sql_metrics.h",
-    ],
-    cmd = "$(location gen_merged_sql_metrics_py) --cpp_out=$@ $(SRCS)",
-    exec_tools = [
-        ":gen_merged_sql_metrics_py",
-    ],
-)
-
-# GN target: //src/trace_processor/metrics:lib
+# GN target: //src/trace_processor/metrics:metrics
 perfetto_filegroup(
-    name = "src_trace_processor_metrics_lib",
+    name = "src_trace_processor_metrics_metrics",
     srcs = [
         "src/trace_processor/metrics/metrics.cc",
         "src/trace_processor/metrics/metrics.h",
@@ -1153,6 +1158,8 @@ perfetto_filegroup(
         "src/trace_processor/sqlite/query_cache.h",
         "src/trace_processor/sqlite/query_constraints.cc",
         "src/trace_processor/sqlite/query_constraints.h",
+        "src/trace_processor/sqlite/register_function.cc",
+        "src/trace_processor/sqlite/register_function.h",
         "src/trace_processor/sqlite/scoped_db.h",
         "src/trace_processor/sqlite/span_join_operator_table.cc",
         "src/trace_processor/sqlite/span_join_operator_table.h",
@@ -1262,14 +1269,6 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/util/protozero_to_text.cc",
         "src/trace_processor/util/protozero_to_text.h",
-    ],
-)
-
-# GN target: //src/trace_processor/util:trace_blob_view
-perfetto_filegroup(
-    name = "src_trace_processor_util_trace_blob_view",
-    srcs = [
-        "src/trace_processor/util/trace_blob_view.h",
     ],
 )
 
@@ -1484,6 +1483,7 @@ perfetto_filegroup(
         "src/trace_processor/importers/syscalls/syscall_tracker.h",
         "src/trace_processor/importers/systrace/systrace_line.h",
         "src/trace_processor/timestamped_trace_piece.h",
+        "src/trace_processor/trace_blob.cc",
         "src/trace_processor/trace_processor_context.cc",
         "src/trace_processor/trace_processor_storage.cc",
         "src/trace_processor/trace_processor_storage_impl.cc",
@@ -2606,6 +2606,7 @@ perfetto_proto_library(
     srcs = [
         "protos/perfetto/metrics/chrome/all_chrome_metrics.proto",
         "protos/perfetto/metrics/chrome/blink_gc_metric.proto",
+        "protos/perfetto/metrics/chrome/dropped_frames.proto",
         "protos/perfetto/metrics/chrome/frame_times.proto",
         "protos/perfetto/metrics/chrome/media_metric.proto",
         "protos/perfetto/metrics/chrome/reported_by_page.proto",
@@ -3681,7 +3682,7 @@ perfetto_cc_library(
         ":src_trace_processor_importers_memory_tracker_graph_processor",
         ":src_trace_processor_lib",
         ":src_trace_processor_metatrace",
-        ":src_trace_processor_metrics_lib",
+        ":src_trace_processor_metrics_metrics",
         ":src_trace_processor_sqlite_sqlite",
         ":src_trace_processor_storage_full",
         ":src_trace_processor_storage_minimal",
@@ -3693,7 +3694,6 @@ perfetto_cc_library(
         ":src_trace_processor_util_interned_message_view",
         ":src_trace_processor_util_proto_to_args_parser",
         ":src_trace_processor_util_protozero_to_text",
-        ":src_trace_processor_util_trace_blob_view",
         ":src_trace_processor_util_util",
     ],
     hdrs = [
@@ -3751,7 +3751,7 @@ perfetto_cc_library(
            PERFETTO_CONFIG.deps.sqlite +
            PERFETTO_CONFIG.deps.sqlite_ext_percentile +
            PERFETTO_CONFIG.deps.zlib + [
-        ":cc_merged_sql_metrics",
+        ":cc_amalgamated_sql_metrics",
     ],
     linkstatic = True,
 )
@@ -3781,7 +3781,7 @@ perfetto_cc_binary(
         ":src_trace_processor_importers_memory_tracker_graph_processor",
         ":src_trace_processor_lib",
         ":src_trace_processor_metatrace",
-        ":src_trace_processor_metrics_lib",
+        ":src_trace_processor_metrics_metrics",
         ":src_trace_processor_rpc_httpd",
         ":src_trace_processor_rpc_rpc",
         ":src_trace_processor_sqlite_sqlite",
@@ -3795,7 +3795,6 @@ perfetto_cc_binary(
         ":src_trace_processor_util_interned_message_view",
         ":src_trace_processor_util_proto_to_args_parser",
         ":src_trace_processor_util_protozero_to_text",
-        ":src_trace_processor_util_trace_blob_view",
         ":src_trace_processor_util_util",
         "src/trace_processor/trace_processor_shell.cc",
         "src/trace_processor/util/proto_to_json.cc",
@@ -3849,7 +3848,7 @@ perfetto_cc_binary(
            PERFETTO_CONFIG.deps.sqlite +
            PERFETTO_CONFIG.deps.sqlite_ext_percentile +
            PERFETTO_CONFIG.deps.zlib + [
-        ":cc_merged_sql_metrics",
+        ":cc_amalgamated_sql_metrics",
     ],
 )
 
@@ -3966,7 +3965,7 @@ perfetto_cc_binary(
         ":src_trace_processor_importers_memory_tracker_graph_processor",
         ":src_trace_processor_lib",
         ":src_trace_processor_metatrace",
-        ":src_trace_processor_metrics_lib",
+        ":src_trace_processor_metrics_metrics",
         ":src_trace_processor_sqlite_sqlite",
         ":src_trace_processor_storage_full",
         ":src_trace_processor_storage_minimal",
@@ -3978,7 +3977,6 @@ perfetto_cc_binary(
         ":src_trace_processor_util_interned_message_view",
         ":src_trace_processor_util_proto_to_args_parser",
         ":src_trace_processor_util_protozero_to_text",
-        ":src_trace_processor_util_trace_blob_view",
         ":src_trace_processor_util_util",
         ":tools_trace_to_text_common",
         ":tools_trace_to_text_full",
@@ -4033,7 +4031,7 @@ perfetto_cc_binary(
            PERFETTO_CONFIG.deps.sqlite +
            PERFETTO_CONFIG.deps.sqlite_ext_percentile +
            PERFETTO_CONFIG.deps.zlib + [
-        ":cc_merged_sql_metrics",
+        ":cc_amalgamated_sql_metrics",
     ],
 )
 
@@ -4050,16 +4048,16 @@ perfetto_build_config_cc_library(
 )
 
 perfetto_cc_library(
-    name = "cc_merged_sql_metrics",
-    hdrs = ["src/trace_processor/metrics/sql_metrics.h"],
+    name = "cc_amalgamated_sql_metrics",
+    hdrs = ["src/trace_processor/metrics/sql/amalgamated_sql_metrics.h"],
 )
 
 perfetto_py_binary(
-    name = "gen_merged_sql_metrics_py",
+    name = "gen_amalgamated_sql_metrics_py",
     srcs = [
-        "tools/gen_merged_sql_metrics.py",
+        "tools/gen_amalgamated_sql_metrics.py",
     ],
-    main = "tools/gen_merged_sql_metrics.py",
+    main = "tools/gen_amalgamated_sql_metrics.py",
     python_version = "PY3",
 )
 
@@ -4177,6 +4175,17 @@ perfetto_py_binary(
     main = "tools/slice_breakdown/main.py",
     deps = [
         ":experimental_slice_breakdown_lib",
+        ":trace_processor_py",
+    ] + PERFETTO_CONFIG.deps.pandas_py,
+    python_version = "PY3",
+    legacy_create_init = 0,
+)
+
+perfetto_py_binary(
+    name = "batch_trace_processor_shell",
+    srcs = ["tools/batch_trace_processor/main.py"],
+    main = "tools/batch_trace_processor/main.py",
+    deps = [
         ":trace_processor_py",
     ] + PERFETTO_CONFIG.deps.pandas_py,
     python_version = "PY3",

@@ -27,6 +27,7 @@
     PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE) ||   \
     PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
 #include <limits.h>
+#include <stdlib.h>  // For _exit()
 #include <unistd.h>  // For getpagesize() and geteuid() & fork()
 #endif
 
@@ -38,6 +39,7 @@
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <Windows.h>
 #include <io.h>
+#include <malloc.h>  // For _aligned_malloc().
 #endif
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
@@ -57,6 +59,57 @@ using MalloptType = void (*)(int, int);
 }
 }  // namespace
 #endif  // OS_ANDROID
+
+namespace {
+
+#if PERFETTO_BUILDFLAG(PERFETTO_X64_CPU_OPT)
+
+// Preserve the %rbx register via %rdi to work around a clang bug
+// https://bugs.llvm.org/show_bug.cgi?id=17907 (%rbx in an output constraint
+// is not considered a clobbered register).
+#define PERFETTO_GETCPUID(a, b, c, d, a_inp, c_inp) \
+  asm("mov %%rbx, %%rdi\n"                          \
+      "cpuid\n"                                     \
+      "xchg %%rdi, %%rbx\n"                         \
+      : "=a"(a), "=D"(b), "=c"(c), "=d"(d)          \
+      : "a"(a_inp), "2"(c_inp))
+
+uint32_t GetXCR0EAX() {
+  uint32_t eax = 0, edx = 0;
+  asm("xgetbv" : "=a"(eax), "=d"(edx) : "c"(0));
+  return eax;
+}
+
+// If we are building with -msse4 check that the CPU actually supports it.
+// This file must be kept in sync with gn/standalone/BUILD.gn.
+void PERFETTO_EXPORT __attribute__((constructor)) CheckCpuOptimizations() {
+  uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0;
+  PERFETTO_GETCPUID(eax, ebx, ecx, edx, 1, 0);
+
+  static constexpr uint64_t xcr0_xmm_mask = 0x2;
+  static constexpr uint64_t xcr0_ymm_mask = 0x4;
+  static constexpr uint64_t xcr0_avx_mask = xcr0_xmm_mask | xcr0_ymm_mask;
+
+  const bool have_popcnt = ecx & (1u << 23);
+  const bool have_sse4_2 = ecx & (1u << 20);
+  const bool have_avx =
+      // Does the OS save/restore XMM and YMM state?
+      ((GetXCR0EAX() & xcr0_avx_mask) == xcr0_avx_mask) &&
+      (ecx & (1u << 27)) &&  // OS support XGETBV.
+      (ecx & (1u << 28));    // AVX supported in hardware
+
+  if (!have_sse4_2 || !have_popcnt || !have_avx) {
+    fprintf(
+        stderr,
+        "This executable requires a cpu that supports SSE4.2 and AVX2.\n"
+        "Rebuild with enable_perfetto_x64_cpu_opt=false (ebx=%x, ecx=%x).\n",
+        ebx, ecx);
+    _exit(126);
+  }
+}
+#endif
+
+}  // namespace
 
 namespace perfetto {
 namespace base {
@@ -119,7 +172,7 @@ void SetEnv(const std::string& key, const std::string& value) {
 #endif
 }
 
-void Daemonize() {
+void Daemonize(std::function<int()> parent_cb) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
@@ -142,12 +195,14 @@ void Daemonize() {
     }
     default:
       printf("%d\n", pid);
-      exit(0);
+      int err = parent_cb();
+      exit(err);
   }
 #else
   // Avoid -Wunreachable warnings.
   if (reinterpret_cast<intptr_t>(&Daemonize) != 16)
     PERFETTO_FATAL("--background is only supported on Linux/Android/Mac");
+  ignore_result(parent_cb);
 #endif  // OS_WIN
 }
 
@@ -185,6 +240,22 @@ std::string GetCurExecutableDir() {
 #endif
   path = path.substr(0, path.find_last_of('/'));
   return path;
+}
+
+void* AlignedAlloc(size_t alignment, size_t size) {
+  void* res = nullptr;
+  alignment = AlignUp<sizeof(void*)>(alignment);  // At least pointer size.
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  // Window's _aligned_malloc() has a nearly identically signature to Unix's
+  // aligned_alloc() but its arguments are obviously swapped.
+  res = _aligned_malloc(size, alignment);
+#else
+  // aligned_alloc() has been introduced in Android only in API 28.
+  // Also NaCl and Fuchsia seems to have only posix_memalign().
+  ignore_result(posix_memalign(&res, alignment, size));
+#endif
+  PERFETTO_CHECK(res);
+  return res;
 }
 
 }  // namespace base

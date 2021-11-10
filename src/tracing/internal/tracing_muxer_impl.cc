@@ -827,7 +827,7 @@ bool TracingMuxerImpl::RegisterDataSource(
   base::Hash hash;
   hash.Update(reinterpret_cast<intptr_t>(static_state));
   hash.Update(base::GetWallTimeNs().count());
-  static_state->id = hash.digest();
+  static_state->id = hash.digest() ? hash.digest() : 1;
 
   task_runner_->PostTask([this, descriptor, factory, static_state] {
     data_sources_.emplace_back();
@@ -848,7 +848,9 @@ void TracingMuxerImpl::UpdateDataSourceDescriptor(
   task_runner_->PostTask([this, descriptor, static_state] {
     for (auto& rds : data_sources_) {
       if (rds.static_state == static_state) {
+        PERFETTO_CHECK(rds.descriptor.name() == descriptor.name());
         rds.descriptor = descriptor;
+        rds.descriptor.set_id(static_state->id);
         UpdateDataSourceOnAllBackends(rds, /*is_changed=*/true);
         return;
       }
@@ -1243,7 +1245,11 @@ void TracingMuxerImpl::UpdateDataSourceOnAllBackends(RegisteredDataSource& rds,
     rds.descriptor.set_will_notify_on_stop(true);
     rds.descriptor.set_handles_incremental_state_clear(true);
     rds.descriptor.set_id(rds.static_state->id);
-    backend.producer->service_->RegisterDataSource(rds.descriptor);
+    if (is_registered) {
+      backend.producer->service_->UpdateDataSource(rds.descriptor);
+    } else {
+      backend.producer->service_->RegisterDataSource(rds.descriptor);
+    }
     backend.producer->registered_data_sources_.set(rds.static_state->index);
   }
 }

@@ -80,7 +80,7 @@ class PivotTableHeader implements m.ClassComponent<PivotTableHeaderAttrs> {
           'td',
           {
             class: pivotTable.isLoadingQuery ? 'disabled' : '',
-            draggable: pivotTable.isLoadingQuery ? false : true,
+            draggable: !pivotTable.isLoadingQuery,
             ondragstart: (e: DragEvent) => {
               helper.selectedColumnOnDrag(e, isPivot, column.index);
             },
@@ -129,10 +129,10 @@ class ExpandableCell implements m.ClassComponent<ExpandableCellAttrs> {
           'expand_less' :
           'expand_more';
     }
-    let spinnerVsibility = 'hidden';
+    let spinnerVisibility = 'hidden';
     let animationState = 'paused';
     if (row.loadingColumn === column.name) {
-      spinnerVsibility = 'visible';
+      spinnerVisibility = 'visible';
       animationState = 'running';
     }
     const padValue = new Array(row.depth * 2).join(' ');
@@ -183,8 +183,10 @@ class ExpandableCell implements m.ClassComponent<ExpandableCellAttrs> {
         ' ',
         // Adds a loading spinner while querying the expanded column.
         m('.pivot-table-spinner', {
-          style:
-              {visibility: spinnerVsibility, animationPlayState: animationState}
+          style: {
+            visibility: spinnerVisibility,
+            animationPlayState: animationState
+          }
         }));
   }
 }

@@ -9,16 +9,16 @@ perfetto_build_config_cc_library(
 )
 
 perfetto_cc_library(
-    name = "cc_merged_sql_metrics",
-    hdrs = ["src/trace_processor/metrics/sql_metrics.h"],
+    name = "cc_amalgamated_sql_metrics",
+    hdrs = ["src/trace_processor/metrics/sql/amalgamated_sql_metrics.h"],
 )
 
 perfetto_py_binary(
-    name = "gen_merged_sql_metrics_py",
+    name = "gen_amalgamated_sql_metrics_py",
     srcs = [
-        "tools/gen_merged_sql_metrics.py",
+        "tools/gen_amalgamated_sql_metrics.py",
     ],
-    main = "tools/gen_merged_sql_metrics.py",
+    main = "tools/gen_amalgamated_sql_metrics.py",
     python_version = "PY3",
 )
 
@@ -136,6 +136,17 @@ perfetto_py_binary(
     main = "tools/slice_breakdown/main.py",
     deps = [
         ":experimental_slice_breakdown_lib",
+        ":trace_processor_py",
+    ] + PERFETTO_CONFIG.deps.pandas_py,
+    python_version = "PY3",
+    legacy_create_init = 0,
+)
+
+perfetto_py_binary(
+    name = "batch_trace_processor_shell",
+    srcs = ["tools/batch_trace_processor/main.py"],
+    main = "tools/batch_trace_processor/main.py",
+    deps = [
         ":trace_processor_py",
     ] + PERFETTO_CONFIG.deps.pandas_py,
     python_version = "PY3",

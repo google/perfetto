@@ -65,19 +65,23 @@ ThreadStateGenerator::ComputeThreadStateTable(int64_t trace_end_ts) {
   const auto& instants = context_->storage->instant_table();
 
   // In both tables, exclude utid == 0 which represents the idle thread.
-  Table sched = raw_sched.Filter({raw_sched.utid().ne(0)});
+  Table sched = raw_sched.Filter({raw_sched.utid().ne(0)},
+                                 RowMap::OptimizeFor::kLookupSpeed);
   Table waking = instants.Filter(
-      {instants.name().eq("sched_waking"), instants.ref().ne(0)});
+      {instants.name().eq("sched_waking"), instants.ref().ne(0)},
+      RowMap::OptimizeFor::kLookupSpeed);
 
   // We prefer to use waking if at all possible and fall back to wakeup if not
   // available.
   if (waking.row_count() == 0) {
     waking = instants.Filter(
-        {instants.name().eq("sched_wakeup"), instants.ref().ne(0)});
+        {instants.name().eq("sched_wakeup"), instants.ref().ne(0)},
+        RowMap::OptimizeFor::kLookupSpeed);
   }
 
   Table sched_blocked_reason = instants.Filter(
-      {instants.name().eq("sched_blocked_reason"), instants.ref().ne(0)});
+      {instants.name().eq("sched_blocked_reason"), instants.ref().ne(0)},
+      RowMap::OptimizeFor::kLookupSpeed);
 
   const auto& sched_ts_col = sched.GetTypedColumnByName<int64_t>("ts");
   const auto& waking_ts_col = waking.GetTypedColumnByName<int64_t>("ts");

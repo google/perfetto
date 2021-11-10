@@ -259,21 +259,13 @@ const SECTIONS: Section[] = [
     expanded: true,
     summary: 'Documentation & Bugs',
     items: [
-      {
-        t: 'Keyboard shortcuts',
-        a: openHelp,
-        i: 'help',
-      },
-      {
-        t: 'Documentation',
-        a: 'https://perfetto.dev',
-        i: 'find_in_page',
-      },
+      {t: 'Keyboard shortcuts', a: openHelp, i: 'help'},
+      {t: 'Documentation', a: 'https://perfetto.dev', i: 'find_in_page'},
       {t: 'Flags', a: navigateFlags, i: 'emoji_flags'},
       {
         t: 'Report a bug',
         a: 'https://goto.google.com/perfetto-ui-bug',
-        i: 'bug_report',
+        i: 'bug_report'
       },
     ],
   },
@@ -282,40 +274,36 @@ const SECTIONS: Section[] = [
     title: 'Sample queries',
     summary: 'Compute summary statistics',
     items: [
-      {
-        t: 'Show Debug Track',
-        a: showDebugTrack(),
-        i: 'view_day',
-      },
+      {t: 'Show Debug Track', a: showDebugTrack(), i: 'view_day'},
       {
         t: 'All Processes',
         a: createCannedQuery(ALL_PROCESSES_QUERY),
-        i: 'search',
+        i: 'search'
       },
       {
         t: 'CPU Time by process',
         a: createCannedQuery(CPU_TIME_FOR_PROCESSES),
-        i: 'search',
+        i: 'search'
       },
       {
         t: 'Cycles by p-state by CPU',
         a: createCannedQuery(CYCLES_PER_P_STATE_PER_CPU),
-        i: 'search',
+        i: 'search'
       },
       {
         t: 'CPU Time by CPU by process',
         a: createCannedQuery(CPU_TIME_BY_CPU_BY_PROCESS),
-        i: 'search',
+        i: 'search'
       },
       {
         t: 'Heap Graph: Bytes per type',
         a: createCannedQuery(HEAP_GRAPH_BYTES_PER_TYPE),
-        i: 'search',
+        i: 'search'
       },
       {
         t: 'Debug SQL performance',
         a: createCannedQuery(SQL_STATS),
-        i: 'bug_report',
+        i: 'bug_report'
       },
     ],
   },
@@ -423,7 +411,7 @@ function convertTraceToJson(e: Event) {
       });
 }
 
-function isTraceLoaded(): boolean {
+export function isTraceLoaded(): boolean {
   const engine = Object.values(globals.state.engines)[0];
   return engine !== undefined;
 }
@@ -794,6 +782,7 @@ export class Sidebar implements m.ClassComponent {
           href: typeof item.a === 'string' ? item.a : '#',
           target: typeof item.a === 'string' ? '_blank' : null,
           disabled: false,
+          id: item.t.toLowerCase().replace(/[^\w]/g, '_')
         };
         if (item.isPending && item.isPending()) {
           attrs.onclick = e => e.preventDefault();
@@ -811,6 +800,7 @@ export class Sidebar implements m.ClassComponent {
             href: '#',
             target: null,
             disabled: true,
+            id: ''
           };
         }
         vdomItems.push(m(

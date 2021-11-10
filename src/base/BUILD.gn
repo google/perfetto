@@ -32,6 +32,7 @@ perfetto_component("base") {
   ]
   sources = [
     "android_utils.cc",
+    "base64.cc",
     "crash_keys.cc",
     "ctrl_c_handler.cc",
     "event_fd.cc",
@@ -159,6 +160,7 @@ perfetto_unittest_source_set("unittests") {
   ]
 
   sources = [
+    "base64_unittest.cc",
     "circular_queue_unittest.cc",
     "flat_set_unittest.cc",
     "getopt_compat_unittest.cc",
@@ -193,6 +195,9 @@ perfetto_unittest_source_set("unittests") {
       "thread_task_runner_unittest.cc",
       "watchdog_posix_unittest.cc",
     ]
+  }
+  if (is_fuchsia) {
+    deps += [ "//third_party/fuchsia-sdk/sdk/pkg/fdio" ]
   }
   if (perfetto_build_standalone || perfetto_build_with_android) {
     # This causes some problems on the chromium waterfall.

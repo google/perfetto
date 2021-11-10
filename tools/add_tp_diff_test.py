@@ -82,8 +82,8 @@ def main():
   print()
   trace_file = ''
   if trace_type == 'proto':
-    print('Proto traces should be added to the test-data zip '
-          'using the tools/add_test_data')
+    print('Proto traces should be added to the test_data GCS bucket '
+          'using tools/test_data upload')
     stdout_write('Provide the name of the trace (including any '
                  'extension) relative to test/data: ')
 

@@ -21,6 +21,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/trace_processor/trace_blob.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_record.h"
@@ -70,8 +71,9 @@ FuchsiaTraceTokenizer::FuchsiaTraceTokenizer(TraceProcessorContext* context)
 
 FuchsiaTraceTokenizer::~FuchsiaTraceTokenizer() = default;
 
-util::Status FuchsiaTraceTokenizer::Parse(std::unique_ptr<uint8_t[]> data,
-                                          size_t size) {
+util::Status FuchsiaTraceTokenizer::Parse(TraceBlobView blob) {
+  size_t size = blob.size();
+
   // The relevant internal state is |leftover_bytes_|. Each call to Parse should
   // maintain the following properties, unless a fatal error occurs in which
   // case it should return false and no assumptions should be made about the
@@ -95,8 +97,8 @@ util::Status FuchsiaTraceTokenizer::Parse(std::unique_ptr<uint8_t[]> data,
   if (leftover_bytes_.size() + size < 8) {
     // Even with the new bytes, we can't even read the header of the next
     // record, so just add the new bytes to |leftover_bytes_| and return.
-    leftover_bytes_.insert(leftover_bytes_.end(), data.get() + byte_offset,
-                           data.get() + size);
+    leftover_bytes_.insert(leftover_bytes_.end(), blob.data() + byte_offset,
+                           blob.data() + size);
     return util::OkStatus();
   }
   if (!leftover_bytes_.empty()) {
@@ -106,8 +108,8 @@ util::Status FuchsiaTraceTokenizer::Parse(std::unique_ptr<uint8_t[]> data,
       // Copy bytes into |leftover_bytes_| so that the whole header is present,
       // and update |byte_offset| and |size| accordingly.
       size_t needed_bytes = 8 - leftover_bytes_.size();
-      leftover_bytes_.insert(leftover_bytes_.end(), data.get() + byte_offset,
-                             data.get() + needed_bytes);
+      leftover_bytes_.insert(leftover_bytes_.end(), blob.data() + byte_offset,
+                             blob.data() + needed_bytes);
       byte_offset += needed_bytes;
       size -= needed_bytes;
     }
@@ -128,25 +130,24 @@ util::Status FuchsiaTraceTokenizer::Parse(std::unique_ptr<uint8_t[]> data,
     if (missing_bytes <= size) {
       // We have enough bytes to complete the partial record. Create a new
       // buffer for that record.
-      std::unique_ptr<uint8_t[]> buf(new uint8_t[record_len_bytes]);
-      memcpy(&buf[0], leftover_bytes_.data(), leftover_bytes_.size());
-      memcpy(&buf[leftover_bytes_.size()], &data[byte_offset], missing_bytes);
+      TraceBlob buf = TraceBlob::Allocate(record_len_bytes);
+      memcpy(buf.data(), leftover_bytes_.data(), leftover_bytes_.size());
+      memcpy(buf.data() + leftover_bytes_.size(), blob.data() + byte_offset,
+             missing_bytes);
       byte_offset += missing_bytes;
       size -= missing_bytes;
       leftover_bytes_.clear();
-
-      TraceBlobView leftover_record(std::move(buf), 0, record_len_bytes);
-      ParseRecord(std::move(leftover_record));
+      ParseRecord(TraceBlobView(std::move(buf)));
     } else {
       // There are not enough bytes for the full record. Add all the bytes we
       // have to leftover_bytes_ and wait for more.
-      leftover_bytes_.insert(leftover_bytes_.end(), data.get() + byte_offset,
-                             data.get() + byte_offset + size);
+      leftover_bytes_.insert(leftover_bytes_.end(), blob.data() + byte_offset,
+                             blob.data() + byte_offset + size);
       return util::OkStatus();
     }
   }
 
-  TraceBlobView full_view(std::move(data), byte_offset, size);
+  TraceBlobView full_view = blob.slice_off(byte_offset, size);
 
   // |record_offset| is a number of bytes past |byte_offset| where the record
   // under consideration starts. As a result, it must always be in the range [0,
@@ -164,8 +165,7 @@ util::Status FuchsiaTraceTokenizer::Parse(std::unique_ptr<uint8_t[]> data,
     if (record_offset + record_len_bytes > size)
       break;
 
-    TraceBlobView record =
-        full_view.slice(byte_offset + record_offset, record_len_bytes);
+    TraceBlobView record = full_view.slice_off(record_offset, record_len_bytes);
     ParseRecord(std::move(record));
 
     record_offset += record_len_bytes;
