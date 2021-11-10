@@ -21,6 +21,7 @@
 
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/ext/base/utils.h"  // For ssize_t.
 
 namespace perfetto {
 namespace base {
