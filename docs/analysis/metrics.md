@@ -90,6 +90,55 @@ identify the problem.
 
 There are several useful helpers functions which are available when writing a metric.
 
+### CREATE_FUNCTION.
+`CREATE_FUNCTION` allows you to define a parameterized SQL statement which
+is executable as a function. The inspiration from this function is the
+`CREATE FUNCTION` syntax which is available in other SQL engines (e.g.
+[Postgres](https://www.postgresql.org/docs/current/sql-createfunction.html)).
+
+NOTE: CREATE_FUNCTION only supports returning *exactly* a single value (i.e.
+single row and single column). For returning multiple a single row with
+multiple columns or multiples rows, see `CREATE_VIEW_FUNCTION` instead.
+
+Usage of `CREATE_FUNCTION` is as follows:
+```sql
+-- First, we define the function we'll use in the following statement.
+SELECT CREATE_FUNCTION(
+  -- First argument: prototype of the function; this is very similar to
+  -- function definitions in other languages - you set the function name
+  -- (IS_TS_IN_RANGE in this example) and the arguments
+  -- (ts, begin_ts and end_ts) along with their types (LONG for all
+  -- arguments here).
+  'IS_TS_IN_RANGE(ts LONG, begin_ts LONG, end_ts LONG)',
+  -- Second argument: the return type of the function. Only single values
+  -- can be returned in CREATE_FUNCTION. See CREATE_VIEW_FUNCTION for defining
+  -- a function returning multiple rows/columns.
+  'BOOL',
+  -- Third argument: the SQL body of the function. This should always be a
+  -- SELECT statement (even if you're not selecting from a table as in this
+  -- example). Arguments can be accessed by prefixing argument names
+  -- with $ (e.g. $ts, $begin_ts, $end_ts).
+  'SELECT $ts >= $begin_ts AND $ts <= $end_ts'
+);
+
+-- Now we can actually use the function in queries as if it was any other
+-- function.
+
+-- For example, it can appear in the SELECT to produce a column:
+SELECT ts, IS_TS_IN_RANGE(slice.ts, 100000, 200000) AS in_range
+FROM slice
+
+-- It can also appear in a where clause:
+SELECT ts
+FROM counter
+WHERE IS_TS_IN_RANGE(counter.ts, 100000, 200000) AS in_range
+
+-- It can even appear in a join on clause:
+SELECT slice.ts
+FROM launches
+JOIN slice ON IS_TS_IN_RANGE(slice.ts, launches.ts, launches.end_ts)
+```
+
 ### RUN_METRIC
 `RUN_METRIC` allows you to run another metric file. This allows you to use views
 or tables defined in that file without repeatition.
