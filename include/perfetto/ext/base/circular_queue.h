@@ -261,11 +261,7 @@ class CircularQueue {
     size_t malloc_size = new_capacity * sizeof(T);
     PERFETTO_CHECK(malloc_size > new_capacity);
 
-    void* new_mem = nullptr;
-    // posix_memalign() wants at least void* alignment.
-    static constexpr size_t alignment = AlignUp<sizeof(void*)>(alignof(T));
-    PERFETTO_CHECK(posix_memalign(&new_mem, alignment, malloc_size) == 0);
-    T* new_vec = static_cast<T*>(new_mem);
+    T* new_vec = static_cast<T*>(AlignedAlloc(alignof(T), malloc_size));
 
     // Move all elements in the expanded array.
     size_t new_size = 0;
