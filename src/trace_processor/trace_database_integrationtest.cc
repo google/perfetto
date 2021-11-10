@@ -384,13 +384,13 @@ TEST_F(TraceProcessorIntegrationTest, RestoreInitialTables) {
 // with opening the same trace with ninjatracing + chrome://tracing.
 TEST_F(TraceProcessorIntegrationTest, NinjaLog) {
   ASSERT_TRUE(LoadTrace("ninja_log", 1024).ok());
-  auto it = Query("select count(*) from process where name like 'build';");
+  auto it = Query("select count(*) from process where name like 'Build';");
   ASSERT_TRUE(it.Next());
   ASSERT_EQ(it.Get(0).long_value, 2);
 
   it = Query(
       "select count(*) from thread left join process using(upid) where "
-      "thread.name like 'worker%' and process.pid=1");
+      "thread.name like 'Worker%' and process.pid=1");
   ASSERT_TRUE(it.Next());
   ASSERT_EQ(it.Get(0).long_value, 14);
 
