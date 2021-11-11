@@ -372,8 +372,9 @@ void ProtoTraceParser::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
       name_id = context_->storage->InternString(event.event_name());
     }
     TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-    context_->slice_tracker->Scoped(ts, track_id, cat_id, name_id,
-                                    event.event_duration_ns(), args_fn);
+    context_->slice_tracker->Scoped(
+        ts, track_id, cat_id, name_id,
+        static_cast<int64_t>(event.event_duration_ns()), args_fn);
   } else if (event.has_counter_id() || event.has_counter_name()) {
     if (event.has_counter_id()) {
       auto cid = event.counter_id();

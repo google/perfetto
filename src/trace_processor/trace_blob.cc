@@ -65,7 +65,6 @@ TraceBlob TraceBlob::FromMmap(void* data, size_t size) {
 }
 
 TraceBlob::~TraceBlob() {
-  PERFETTO_CHECK(refcount_ == 0);
   switch (ownership_) {
     case Ownership::kHeapBuf:
       delete[] data_;
@@ -92,16 +91,15 @@ TraceBlob& TraceBlob::operator=(TraceBlob&& other) noexcept {
     return *this;
   static_assert(sizeof(*this) == base::AlignUp<sizeof(void*)>(
                                      sizeof(data_) + sizeof(size_) +
-                                     sizeof(ownership_) + sizeof(refcount_)),
+                                     sizeof(ownership_) + sizeof(RefCounted)),
                 "TraceBlob move operator needs updating");
   data_ = other.data_;
   size_ = other.size_;
   ownership_ = other.ownership_;
-  refcount_ = other.refcount_;
-  other.refcount_ = 0;
   other.data_ = nullptr;
   other.size_ = 0;
   other.ownership_ = Ownership::kNull;
+  RefCounted::operator=(std::move(other));
   return *this;
 }
 

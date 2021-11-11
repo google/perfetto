@@ -47,6 +47,7 @@
 #include "src/trace_processor/importers/proto/metadata_tracker.h"
 #include "src/trace_processor/importers/systrace/systrace_trace_parser.h"
 #include "src/trace_processor/iterator_impl.h"
+#include "src/trace_processor/sqlite/create_function.h"
 #include "src/trace_processor/sqlite/register_function.h"
 #include "src/trace_processor/sqlite/span_join_operator_table.h"
 #include "src/trace_processor/sqlite/sql_stats_table.h"
@@ -65,10 +66,10 @@
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
-#include "src/trace_processor/metrics/chrome/all_chrome_metrics.descriptor.h"
+#include "src/trace_processor/metrics/all_chrome_metrics.descriptor.h"
 #include "src/trace_processor/metrics/metrics.descriptor.h"
 #include "src/trace_processor/metrics/metrics.h"
-#include "src/trace_processor/metrics/sql_metrics.h"
+#include "src/trace_processor/metrics/sql/amalgamated_sql_metrics.h"
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <cxxabi.h>
@@ -109,6 +110,11 @@ void InitializeSqlite(sqlite3* db) {
   if (error) {
     PERFETTO_FATAL("Error setting pragma temp_store: %s", error);
   }
+  sqlite3_exec(db, "PRAGMA case_sensitive_like = 1", 0, 0, &error);
+  if (error) {
+    PERFETTO_FATAL("Error setting pragma case_sensitive_like: %s", error);
+  }
+
   sqlite3_str_split_init(db);
 // In Android tree builds, we don't have the percentile module.
 // Just don't include it.
@@ -742,6 +748,10 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   RegisterFunction<ExportJson>(db, "EXPORT_JSON", 1, context_.storage.get(),
                                false);
   RegisterFunction<ExtractArg>(db, "EXTRACT_ARG", 2, context_.storage.get());
+  RegisterFunction<CreateFunction>(
+      db, "CREATE_FUNCTION", 3,
+      std::unique_ptr<CreateFunction::Context>(
+          new CreateFunction::Context{db_.get(), &create_function_state_}));
 
   // Old style function registration.
   // TODO(lalitm): migrate this over to using RegisterFunction once aggregate
