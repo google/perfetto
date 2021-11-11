@@ -79,7 +79,7 @@ void ArgsTracker::Flush() {
     }
 
     ArgSetId set_id =
-        context_->global_args_tracker->AddArgSet(args_, i, next_rid_idx);
+        context_->global_args_tracker->AddArgSet(&args_[0], i, next_rid_idx);
     column->Set(row, SqlValue::Long(set_id));
 
     i = next_rid_idx;
@@ -96,9 +96,9 @@ ArgsTracker::BoundInserter::BoundInserter(ArgsTracker* args_tracker,
 
 ArgsTracker::BoundInserter::~BoundInserter() {}
 
-ArgsTracker::BoundInserter::BoundInserter(BoundInserter&&) = default;
+ArgsTracker::BoundInserter::BoundInserter(BoundInserter&&) noexcept = default;
 ArgsTracker::BoundInserter& ArgsTracker::BoundInserter::operator=(
-    BoundInserter&&) = default;
+    BoundInserter&&) noexcept = default;
 
 }  // namespace trace_processor
 }  // namespace perfetto
