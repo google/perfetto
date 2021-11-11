@@ -544,7 +544,7 @@ Creating derived events is tied very closely to
 create higher-level abstractions from raw events as intermediate artifacts.
 
 From previous example, the
-[startup metric](/src/trace_processor/metrics/android/android_startup.sql)
+[startup metric](/src/trace_processor/metrics/sql/android/android_startup.sql)
 creates the exact `launching` slice we want to display in the UI.
 
 The other benefit of aligning the two is that changes in metrics are
