@@ -26,9 +26,11 @@ base_stat_counts AS (
     upid,
     graph_sample_ts,
     SUM(self_size) AS total_size,
+    SUM(native_size) AS total_native_size,
     COUNT(1) AS total_obj_count,
-    SUM(CASE reachable WHEN TRUE THEN self_size ELSE 0 END) AS reachable_size,
-    SUM(CASE reachable WHEN TRUE THEN 1 ELSE 0 END) AS reachable_obj_count
+    SUM(IIF(reachable, self_size, 0)) AS reachable_size,
+    SUM(IIF(reachable, native_size, 0)) AS reachable_native_size,
+    SUM(IIF(reachable, 1, 0)) AS reachable_obj_count
   FROM heap_graph_object
   GROUP BY 1, 2
 ),
@@ -92,8 +94,10 @@ heap_graph_sample_protos AS (
     RepeatedField(JavaHeapStats_Sample(
       'ts', graph_sample_ts,
       'heap_size', total_size,
+      'heap_native_size', total_native_size,
       'obj_count', total_obj_count,
       'reachable_heap_size', reachable_size,
+      'reachable_heap_native_size', reachable_native_size,
       'reachable_obj_count', reachable_obj_count,
       'roots', roots,
       'anon_rss_and_swap_size', closest_anon_swap.val
