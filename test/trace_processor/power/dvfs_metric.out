@@ -1,0 +1,33 @@
+android_dvfs {
+  freq_residencies {
+    freq_name: "bus_throughput Frequency"
+    band_stat: {
+      freq_value: 1014000
+      percentage: 75.0
+      duration_ns: 3000000
+    }
+    band_stat: {
+      freq_value: 2028000
+      percentage: 25.0
+      duration_ns: 1000000
+    }
+  }
+  freq_residencies {
+    freq_name: "domain@1 Frequency"
+    band_stat: {
+      freq_value: 400000
+      percentage: 40.0
+      duration_ns: 2000000
+    }
+    band_stat: {
+      freq_value: 553000
+      percentage: 40.0
+      duration_ns: 2000000
+    }
+    band_stat: {
+      freq_value: 1024000
+      percentage: 20.0
+      duration_ns: 1000000
+    }
+  }
+}
