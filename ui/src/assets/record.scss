@@ -309,16 +309,15 @@
   }
 
   .config-button {
-    border-radius: 10px;
+    border-radius: 100%;
     margin-right: 10px;
     text-align: center;
     justify-items: center;
     font-family: 'Raleway', sans-serif;
     padding: 7px;
-    width: 75px;
 
     &:hover:enabled {
-      box-shadow: 0 0 4px 0px #999;
+      box-shadow: 0 0 3px 0px #aaa;
     }
 
     &:not(:enabled) {
@@ -363,7 +362,7 @@
 
     input {
       border-radius: 20px;
-      border-color: #0000003d;
+      border: 1px solid #eee;
       line-height: 36px;
       padding: 0 10px;
       font-size: 18px;
