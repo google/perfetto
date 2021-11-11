@@ -22,15 +22,28 @@ SELECT
       {{end_event}}_time_ns AS event_end_time_ns
 FROM
   (
-    SELECT slice.ts AS user_start_time_ns
+    SELECT MIN(slice.ts) AS user_start_time_ns
     FROM slice
-    WHERE (slice.name LIKE "onBeforeStartUser%")
-    -- TODO: Use a signal based on SysUi so that it covers all switching, not just starting.
+    WHERE (
+        slice.name = "UserDetailView.Adapter#onClick" OR -- QuickSettings
+        slice.name = "UserDetailSettings.switchUser" OR -- Settings
+        slice.name = "shell_runSwitchUser" -- adb shell
+    )
   ),
   (
     SELECT slice.ts + slice.dur AS launcher_end_time_ns
     FROM slice
     WHERE (slice.name = "launching: com.google.android.apps.nexuslauncher")
+  ),
+  (
+    SELECT MIN(slice.ts) AS user_create_time_ns
+    FROM slice
+    WHERE (
+        slice.name = "UserDetailView.Adapter#onClick" OR -- QuickSettings
+        slice.name = "UserSettings.addUserNow" OR -- Settings
+        slice.name = "UserSettings.addGuest" OR -- Settings
+        slice.name = "shell_runCreateUser" -- adb shell
+    )
   );
 
 -- Calculation of the duration of the Multiuser event of interest.
@@ -93,7 +106,7 @@ SELECT
     cpu_kcycles / (SELECT SUM(cpu_kcycles) FROM cpu_usage_all) * 100 AS cpu_percentage
 FROM
     cpu_usage_all
-ORDER BY cpu_mcycles DESC LIMIT 6;
+ORDER BY cpu_mcycles DESC LIMIT 25;
 
 
 -- Record the output for populating the proto.
