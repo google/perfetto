@@ -363,6 +363,7 @@ TracingServiceImpl::~TracingServiceImpl() {
 std::unique_ptr<TracingService::ProducerEndpoint>
 TracingServiceImpl::ConnectProducer(Producer* producer,
                                     uid_t uid,
+                                    pid_t pid,
                                     const std::string& producer_name,
                                     size_t shared_memory_size_hint_bytes,
                                     bool in_process,
@@ -398,7 +399,7 @@ TracingServiceImpl::ConnectProducer(Producer* producer,
   }
 
   std::unique_ptr<ProducerEndpointImpl> endpoint(new ProducerEndpointImpl(
-      id, uid, this, task_runner_, producer, producer_name, sdk_version,
+      id, uid, pid, this, task_runner_, producer, producer_name, sdk_version,
       in_process, smb_scraping_enabled));
   auto it_and_inserted = producers_.emplace(id, endpoint.get());
   PERFETTO_DCHECK(it_and_inserted.second);
@@ -1848,9 +1849,9 @@ void TracingServiceImpl::ScrapeSharedMemoryBuffers(
           chunk.header()->chunk_id.load(std::memory_order_relaxed);
 
       CopyProducerPageIntoLogBuffer(
-          producer->id_, producer->uid_, writer_id, chunk_id, *target_buffer_id,
-          packet_count, flags, chunk_complete, chunk.payload_begin(),
-          chunk.payload_size());
+          producer->id_, producer->uid_, producer->pid_, writer_id, chunk_id,
+          *target_buffer_id, packet_count, flags, chunk_complete,
+          chunk.payload_begin(), chunk.payload_size());
     }
   }
 }
@@ -2133,6 +2134,9 @@ bool TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
       PERFETTO_DCHECK(sequence_properties.producer_id_trusted != 0);
       PERFETTO_DCHECK(sequence_properties.writer_id != 0);
       PERFETTO_DCHECK(sequence_properties.producer_uid_trusted != kInvalidUid);
+      // Not checking sequence_properties.producer_pid_trusted: it is
+      // base::kInvalidPid if the platform doesn't support it.
+
       PERFETTO_DCHECK(packet.size() > 0);
       if (!PacketStreamValidator::Validate(packet.slices())) {
         tracing_session->invalid_packets++;
@@ -2157,6 +2161,11 @@ bool TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
           tracing_session->GetPacketSequenceID(
               sequence_properties.producer_id_trusted,
               sequence_properties.writer_id));
+      if (sequence_properties.producer_pid_trusted != base::kInvalidPid) {
+        // Not supported on all platforms.
+        trusted_packet->set_trusted_pid(
+            static_cast<int32_t>(sequence_properties.producer_pid_trusted));
+      }
       if (previous_packet_dropped)
         trusted_packet->set_previous_packet_dropped(previous_packet_dropped);
       slice.size = trusted_packet.Finalize();
@@ -2695,6 +2704,7 @@ TracingServiceImpl::DataSourceInstance* TracingServiceImpl::SetupDataSource(
 void TracingServiceImpl::CopyProducerPageIntoLogBuffer(
     ProducerID producer_id_trusted,
     uid_t producer_uid_trusted,
+    pid_t producer_pid_trusted,
     WriterID writer_id,
     ChunkID chunk_id,
     BufferID buffer_id,
@@ -2749,9 +2759,10 @@ void TracingServiceImpl::CopyProducerPageIntoLogBuffer(
     return;
   }
 
-  buf->CopyChunkUntrusted(producer_id_trusted, producer_uid_trusted, writer_id,
-                          chunk_id, num_fragments, chunk_flags, chunk_complete,
-                          src, size);
+  buf->CopyChunkUntrusted(producer_id_trusted, producer_uid_trusted,
+                          producer_pid_trusted, writer_id, chunk_id,
+                          num_fragments, chunk_flags, chunk_complete, src,
+                          size);
 }
 
 void TracingServiceImpl::ApplyChunkPatches(
@@ -3701,6 +3712,7 @@ void TracingServiceImpl::ConsumerEndpointImpl::SaveTraceForBugreport(
 TracingServiceImpl::ProducerEndpointImpl::ProducerEndpointImpl(
     ProducerID id,
     uid_t uid,
+    pid_t pid,
     TracingServiceImpl* service,
     base::TaskRunner* task_runner,
     Producer* producer,
@@ -3710,6 +3722,7 @@ TracingServiceImpl::ProducerEndpointImpl::ProducerEndpointImpl(
     bool smb_scraping_enabled)
     : id_(id),
       uid_(uid),
+      pid_(pid),
       service_(service),
       task_runner_(task_runner),
       producer_(producer),
@@ -3799,7 +3812,8 @@ void TracingServiceImpl::ProducerEndpointImpl::CommitData(
     uint8_t chunk_flags = packets.flags;
 
     service_->CopyProducerPageIntoLogBuffer(
-        id_, uid_, writer_id, chunk_id, buffer_id, num_fragments, chunk_flags,
+        id_, uid_, pid_, writer_id, chunk_id, buffer_id, num_fragments,
+        chunk_flags,
         /*chunk_complete=*/true, chunk.payload_begin(), chunk.payload_size());
 
     // This one has release-store semantics.
