@@ -20,7 +20,7 @@ CREATE VIEW power_rails_counters AS
 SELECT value, ts/1000000 AS ts, name
 FROM counter c
 JOIN counter_track t on c.track_id = t.id
-WHERE name LIKE 'power.%';
+WHERE name GLOB 'power.*';
 
 DROP VIEW IF EXISTS avg_used_powers;
 CREATE VIEW avg_used_powers AS

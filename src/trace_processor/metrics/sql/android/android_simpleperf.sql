@@ -23,7 +23,7 @@ SELECT
   name,
   value
 FROM counters
-WHERE name LIKE 'slc/qurg2\___:lvl=0x_%' ESCAPE '\';
+WHERE name GLOB 'slc/qurg2_??:lvl=0x_*';
 
 -- Find all counters from track that satisfies regex 'slc/qurg2_(wr|rd):lvl=0x(1|3|7)%'
 DROP VIEW IF EXISTS non_zero_qurg2;
@@ -31,7 +31,7 @@ CREATE VIEW non_zero_qurg2 AS
 SELECT
   *
 FROM all_qurg2
-WHERE name NOT LIKE 'slc/qurg2\___:lvl=0x0%' ESCAPE '\';
+WHERE name NOT GLOB 'slc/qurg2_??:lvl=0x0*';
 
 DROP VIEW IF EXISTS android_simpleperf_output;
 CREATE VIEW android_simpleperf_output AS

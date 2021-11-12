@@ -76,10 +76,10 @@ CREATE TABLE blocking_tasks_queuing_delay AS
         slice.ts + slice.dur > queuing.ancestor_end AND
         queuing.maybe_next_ancestor_ts > slice.ts AND
         slice.track_id = queuing.next_track_id AND
-        queuing.description NOT LIKE
-            "InputLatency.LatencyInfo.%ank.STEP_DRAW_AND_SWAP-to-End" AND
-        queuing.description NOT LIKE
-            "InputLatency.LatencyInfo.%ank.STEP_FINISHED_SWAP_BUFFERS-to-End"
+        queuing.description NOT GLOB
+            "InputLatency.LatencyInfo.*ank.STEP_DRAW_AND_SWAP-to-End" AND
+        queuing.description NOT GLOB
+            "InputLatency.LatencyInfo.*ank.STEP_FINISHED_SWAP_BUFFERS-to-End"
   WHERE
     queuing_time_ns IS NOT NULL AND
     queuing_time_ns > 0;
