@@ -352,7 +352,7 @@ SELECT id,
   ts,
   dur
 FROM slice s
-WHERE name LIKE "InputLatency::%"
+WHERE name GLOB "InputLatency::*"
   AND NOT EXISTS (
     SELECT 1
     FROM slice

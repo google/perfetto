@@ -32,7 +32,7 @@ SELECT
       -- have seen a racy capture.
     WHEN length(process.name) = 15 AND (
       process.cmdline in ('zygote', 'zygote64', '<pre-initialized>')
-      OR process.cmdline like '%' || process.name)
+      OR process.cmdline GLOB '*' || process.name)
     THEN process.cmdline
     ELSE process.name
   END AS process_name,
@@ -51,7 +51,7 @@ ON (
     -- unique match
     uid_package_count.cnt = 1
     -- or process name starts with the package name
-    OR process.name LIKE plist.package_name || '%')
+    OR process.name GLOB plist.package_name || '*')
   );
 
 DROP VIEW IF EXISTS process_metadata;

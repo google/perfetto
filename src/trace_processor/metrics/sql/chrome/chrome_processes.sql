@@ -64,8 +64,6 @@ SELECT prefix.value || suffix.value AS name,
 FROM prefix,
   suffix;
 
--- Use GLOB here instead of LIKE as it's case-sensitive which means we don't
--- match the Android system zygote.
 DROP VIEW IF EXISTS all_chrome_processes;
 CREATE VIEW all_chrome_processes AS
 SELECT upid, m.type AS process_type

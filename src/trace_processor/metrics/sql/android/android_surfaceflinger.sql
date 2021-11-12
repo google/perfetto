@@ -53,7 +53,7 @@ SELECT
   CAST(SUBSTR(s.name, 28) AS UINT32) AS fence_id,
   ts AS start_ts
 FROM slices s JOIN surfaceflinger_track t ON s.track_id = t.track_id
-WHERE s.name LIKE 'Trace GPU completion fence %';
+WHERE s.name GLOB 'Trace GPU completion fence *';
 
 DROP VIEW IF EXISTS gpu_waiting_end;
 CREATE VIEW gpu_waiting_end AS
@@ -62,7 +62,7 @@ SELECT
   dur,
   ts+dur AS end_ts
 FROM slices s JOIN surfaceflinger_track t ON s.track_id = t.track_id
-WHERE s.name LIKE 'waiting for GPU completion %';
+WHERE s.name GLOB 'waiting for GPU completion *';
 
 DROP VIEW IF EXISTS gpu_waiting_span;
 CREATE VIEW gpu_waiting_span AS
