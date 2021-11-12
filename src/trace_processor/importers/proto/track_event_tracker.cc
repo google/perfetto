@@ -291,8 +291,28 @@ TrackEventTracker::ResolveDescriptorTrack(
   if (reservation_it == reserved_descriptor_tracks_.end())
     return base::nullopt;
 
-  auto resolved_track = ResolveDescriptorTrackImpl(uuid, reservation_it->second,
-                                                   descendent_uuids);
+  // Resolve process and thread id for tracks produced from within a pid
+  // namespace.
+  // Get the root-level trusted_pid for the process that produces the track
+  // event.
+  auto opt_trusted_pid = context_->process_tracker->GetTrustedPid(uuid);
+  auto& reservation = reservation_it->second;
+  // Try to resolve to root-level pid and tid if the process is pid-namespaced.
+  if (opt_trusted_pid && reservation.tid) {
+    auto opt_resolved_tid = context_->process_tracker->ResolveNamespacedTid(
+        *opt_trusted_pid, *reservation.tid);
+    if (opt_resolved_tid)
+      reservation.tid = *opt_resolved_tid;
+  }
+  if (opt_trusted_pid && reservation.pid) {
+    auto opt_resolved_pid = context_->process_tracker->ResolveNamespacedTid(
+        *opt_trusted_pid, *reservation.pid);
+    if (opt_resolved_pid)
+      reservation.pid = *opt_resolved_pid;
+  }
+
+  auto resolved_track =
+      ResolveDescriptorTrackImpl(uuid, reservation, descendent_uuids);
   resolved_descriptor_tracks_[uuid] = resolved_track;
   return resolved_track;
 }
