@@ -49,7 +49,7 @@ SELECT
 FROM slice s
 JOIN process_track t ON s.track_id = t.id
 JOIN process USING(upid)
-WHERE s.name LIKE 'launching: %'
+WHERE s.name GLOB 'launching: *'
 AND (process.name IS NULL OR process.name = 'system_server');
 
 -- Filter activity_intent_recv_spans, keeping only the ones that triggered

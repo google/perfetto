@@ -14,4 +14,4 @@
 -- limitations under the License.
 --
 select name, idx, severity, source, value
-from stats where name like 'ftrace_cpu_%' or name like 'traced_buf_%';
+from stats where name GLOB 'ftrace_cpu_*' or name GLOB 'traced_buf_*';

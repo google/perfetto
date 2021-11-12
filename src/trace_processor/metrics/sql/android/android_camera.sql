@@ -30,7 +30,7 @@ FROM rss_and_swap_span
 JOIN (
   SELECT max(start_ts), upid
   FROM process
-  WHERE name LIKE '%GoogleCamera%'
+  WHERE name GLOB '*GoogleCamera*'
   LIMIT 1
 ) AS gca USING (upid);
 
@@ -42,7 +42,7 @@ FROM rss_and_swap_span
 JOIN (
   SELECT max(start_ts), upid
   FROM process
-  WHERE name LIKE '%camera.provider%'
+  WHERE name GLOB '*camera.provider*'
   LIMIT 1
 ) AS hal USING (upid);
 

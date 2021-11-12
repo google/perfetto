@@ -52,7 +52,7 @@ WITH raw_events AS (
       slice.dur,
       CAST(STR_SPLIT(slice.name, ",", 1) AS INTEGER) AS pid
     FROM slice
-    WHERE slice.name LIKE 'lmk,%'
+    WHERE slice.name GLOB 'lmk,*'
 ),
 lmks_with_proc_name AS (
   SELECT

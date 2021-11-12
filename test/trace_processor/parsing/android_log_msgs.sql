@@ -20,7 +20,7 @@ create view v2 as select tag, count(*) from android_logs group by tag order by 2
 create view v3 as
 select tag, count(*)
 from android_logs
-where msg like '%wakelock%' or msg like '%Wakelock%' or msg like '%WakeLock%' or msg like '%wakeLock%'
+where msg GLOB '*wakelock*' or msg GLOB '*Wakelock*' or msg GLOB '*WakeLock*' or msg GLOB '*wakeLock*'
 group by tag;
 
 create view v4 as select msg, 1 from android_logs limit 10;

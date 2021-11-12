@@ -31,6 +31,7 @@ def check(path):
   with open(path) as f:
     lines = [l.strip() for l in f.readlines()]
 
+  # Check that CREATE VIEW/TABLE has a matching DROP VIEW/TABLE before it.
   errors = 0
   d_type, d_name = None, None
   for line in lines:
@@ -43,15 +44,29 @@ def check(path):
       continue
     type, name = m.group(1), m.group(2)
     if type != d_type or name != d_name:
-      sys.stderr.write(('%s:\n  "%s" vs %s %s\n') % (path, line, d_type, d_name))
+      sys.stderr.write(
+          ('Missing DROP %s before CREATE %s\n') % (d_type, d_type))
+      sys.stderr.write(('%s:\n"%s" vs %s %s\n') % (path, line, d_type, d_name))
       errors += 1
     d_type, d_name = None, None
+
+  # Ban the use of LIKE in non-comment lines.
+  for line in lines:
+    if line.startswith('--'):
+      continue
+
+    if 'like' in line.casefold():
+      sys.stderr.write(
+          'LIKE is banned in trace processor metrics. Prefer GLOB instead.')
+      errors += 1
+
   return errors
 
 
 def main():
   errors = 0
-  metrics_sources = os.path.join(ROOT_DIR, 'src', 'trace_processor', 'metrics')
+  metrics_sources = os.path.join(ROOT_DIR, 'src', 'trace_processor', 'metrics',
+                                 'sql')
   for root, _, files in os.walk(metrics_sources, topdown=True):
     for f in files:
       path = os.path.join(root, f)
