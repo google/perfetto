@@ -45,7 +45,8 @@ SystraceLineParser::SystraceLineParser(TraceProcessorContext* ctx)
       workqueue_name_id_(ctx->storage->InternString("workqueue")),
       sched_blocked_reason_id_(
           ctx->storage->InternString("sched_blocked_reason")),
-      io_wait_id_(ctx->storage->InternString("io_wait")) {}
+      io_wait_id_(ctx->storage->InternString("io_wait")),
+      waker_utid_id_(ctx->storage->InternString("waker_utid")) {}
 
 util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
   auto utid = context_->process_tracker->UpdateThreadName(
@@ -117,8 +118,11 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
     StringId event_name_id = line.event_name == "sched_wakeup"
                                  ? sched_wakeup_name_id_
                                  : sched_waking_name_id_;
-    context_->event_tracker->PushInstant(line.ts, event_name_id, wakee_utid,
-                                         RefType::kRefUtid);
+    InstantId instant_id = context_->event_tracker->PushInstant(
+        line.ts, event_name_id, wakee_utid, RefType::kRefUtid);
+    context_->args_tracker->AddArgsTo(instant_id)
+        .AddArg(waker_utid_id_, Variadic::UnsignedInteger(utid));
+
   } else if (line.event_name == "cpu_idle") {
     base::Optional<uint32_t> event_cpu = base::StringToUInt32(args["cpu_id"]);
     base::Optional<double> new_state = base::StringToDouble(args["state"]);
