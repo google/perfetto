@@ -39,7 +39,7 @@ SELECT
   thread_track.utid as render_thread_id
 FROM slice
 INNER JOIN thread_track ON (thread_track.id = slice.track_id)
-WHERE slice.name LIKE 'DrawFrame%' AND slice.dur >= 0
+WHERE slice.name GLOB 'DrawFrame*' AND slice.dur >= 0
 GROUP BY thread_track.utid;
 
 DROP VIEW IF EXISTS hwui_flush_commands;
@@ -79,7 +79,7 @@ SELECT
 FROM slice
 INNER JOIN thread_track ON (thread_track.id = slice.track_id)
 INNER JOIN thread ON (thread.name='GPU completion' AND thread.utid = thread_track.utid)
-WHERE slice.name LIKE 'waiting for GPU completion%' AND slice.dur >= 0
+WHERE slice.name GLOB 'waiting for GPU completion*' AND slice.dur >= 0
 GROUP BY thread_track.utid;
 
 DROP VIEW IF EXISTS hwui_ui_record;

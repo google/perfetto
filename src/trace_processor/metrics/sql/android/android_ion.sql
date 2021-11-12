@@ -28,7 +28,7 @@ SELECT
   value
 FROM counter JOIN counter_track
   ON counter.track_id = counter_track.id
-WHERE (name LIKE 'mem.ion.%' OR name = 'mem.ion');
+WHERE (name GLOB 'mem.ion.*' OR name = 'mem.ion');
 
 DROP VIEW IF EXISTS ion_heap_stats;
 CREATE VIEW ion_heap_stats AS
@@ -51,7 +51,7 @@ SELECT
   value AS instant_value,
   SUM(value) OVER win AS value
 FROM counter c JOIN thread_counter_track t ON c.track_id = t.id
-WHERE (name LIKE 'mem.ion_change.%' OR name = 'mem.ion_change') AND value > 0
+WHERE (name GLOB 'mem.ion_change.*' OR name = 'mem.ion_change') AND value > 0
 WINDOW win AS (
   PARTITION BY name ORDER BY ts
   ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW

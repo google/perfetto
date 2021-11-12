@@ -25,7 +25,7 @@ CREATE VIEW freq_slice AS
       OVER (PARTITION by track.id ORDER BY ts)  - ts AS duration
   FROM counter
   LEFT JOIN track ON counter.track_id = track.id
-  WHERE track.name LIKE "% Frequency"
+  WHERE track.name GLOB "* Frequency"
   ORDER BY ts;
 
 DROP VIEW IF EXISTS freq_total_duration;
@@ -82,6 +82,7 @@ CREATE VIEW dvfs_per_freq_view AS
   GROUP BY track_id, freq_name
   ORDER BY freq_name;
 
+DROP VIEW IF EXISTS android_dvfs_output;
 CREATE VIEW android_dvfs_output AS
   SELECT AndroidDVFSMetric(
     'freq_residencies', (

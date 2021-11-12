@@ -83,7 +83,7 @@ FROM (
   INNER JOIN thread ON thread_track.utid = thread.id
   WHERE
     slice.dur >= 0 AND (
-    slice.name LIKE "V8.GC%" OR (slice.name LIKE "BlinkGC%" AND NOT forced)
+    slice.name GLOB "V8.GC*" OR (slice.name GLOB "BlinkGC*" AND NOT forced)
   )
 );
 
@@ -100,7 +100,7 @@ FROM
   blink_non_aggregated_gc_event_name AS event_name ON
       event_name.name = blink_gc_cpu_slice.name
 WHERE
-  blink_gc_cpu_slice.name LIKE "BlinkGC%" AND NOT forced;
+  blink_gc_cpu_slice.name GLOB "BlinkGC*" AND NOT forced;
 
 -- This groups all the events by name and epoch for from "blink_slice" for easy
 -- access.
@@ -245,7 +245,7 @@ WHERE (
     -- This subquery replaces metrics.v8.utils.isGarbageCollectionEvent().
     SELECT name FROM ANCESTOR_SLICE(blink_gc_cpu_slice.id) AS ancestor
     WHERE
-      ancestor.name LIKE "V8.GC%" AND
+      ancestor.name GLOB "V8.GC*" AND
       ancestor.name != 'V8.GCLowMemoryNotification'
     LIMIT 1
   ) IS NULL

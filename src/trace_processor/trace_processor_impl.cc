@@ -654,6 +654,23 @@ struct SourceGeq : public SqlFunction {
   }
 };
 
+struct Glob : public SqlFunction {
+  static base::Status Run(void*,
+                          size_t,
+                          sqlite3_value** argv,
+                          SqlValue& out,
+                          Destructors&) {
+    const char* pattern =
+        reinterpret_cast<const char*>(sqlite3_value_text(argv[0]));
+    const char* text =
+        reinterpret_cast<const char*>(sqlite3_value_text(argv[1]));
+    if (pattern && text) {
+      out = SqlValue::Long(sqlite3_strglob(pattern, text) == 0);
+    }
+    return base::OkStatus();
+  }
+};
+
 void SetupMetrics(TraceProcessor* tp,
                   sqlite3* db,
                   std::vector<metrics::SqlMetricFile>* sql_metrics,
@@ -742,6 +759,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   db_.reset(std::move(db));
 
   // New style function registration.
+  RegisterFunction<Glob>(db, "glob", 2);
   RegisterFunction<Hash>(db, "HASH", -1);
   RegisterFunction<Demangle>(db, "DEMANGLE", 1);
   RegisterFunction<SourceGeq>(db, "SOURCE_GEQ", -1);

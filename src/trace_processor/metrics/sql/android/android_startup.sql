@@ -58,7 +58,7 @@ GROUP BY 1, 2;
 DROP VIEW IF EXISTS zygote_fork_slice;
 CREATE VIEW zygote_fork_slice AS
 SELECT slice.ts, slice.dur, STR_SPLIT(slice.name, ": ", 1) AS process_name
-FROM slice WHERE name LIKE 'Start proc: %';
+FROM slice WHERE name GLOB 'Start proc: *';
 
 DROP TABLE IF EXISTS zygote_forks_by_id;
 CREATE TABLE zygote_forks_by_id AS
@@ -147,28 +147,28 @@ WHERE slice.name IN (
   'inflate',
   'ResourcesManager#getResources',
   'binder transaction')
-  OR slice.name LIKE 'performResume:%'
-  OR slice.name LIKE 'performCreate:%'
-  OR slice.name LIKE 'location=% status=% filter=% reason=%'
-  OR slice.name LIKE 'OpenDexFilesFromOat%'
-  OR slice.name LIKE 'VerifyClass%'
-  OR slice.name LIKE 'Choreographer#doFrame%'
-  OR slice.name LIKE 'JIT compiling%'
-  OR slice.name LIKE '%mark sweep GC'
-  OR slice.name LIKE '%concurrent copying GC'
-  OR slice.name LIKE '%semispace GC';
+  OR slice.name GLOB 'performResume:*'
+  OR slice.name GLOB 'performCreate:*'
+  OR slice.name GLOB 'location=* status=* filter=* reason=*'
+  OR slice.name GLOB 'OpenDexFilesFromOat*'
+  OR slice.name GLOB 'VerifyClass*'
+  OR slice.name GLOB 'Choreographer#doFrame*'
+  OR slice.name GLOB 'JIT compiling*'
+  OR slice.name GLOB '*mark sweep GC'
+  OR slice.name GLOB '*concurrent copying GC'
+  OR slice.name GLOB '*semispace GC';
 
 DROP TABLE IF EXISTS main_process_slice;
 CREATE TABLE main_process_slice AS
 SELECT
   launch_id,
   CASE
-    WHEN slice_name LIKE 'OpenDexFilesFromOat%' THEN 'OpenDexFilesFromOat'
-    WHEN slice_name LIKE 'VerifyClass%' THEN 'VerifyClass'
-    WHEN slice_name LIKE 'JIT compiling%' THEN 'JIT compiling'
-    WHEN slice_name LIKE '%mark sweep GC' THEN 'GC'
-    WHEN slice_name LIKE '%concurrent copying GC' THEN 'GC'
-    WHEN slice_name LIKE '%semispace GC' THEN 'GC'
+    WHEN slice_name GLOB 'OpenDexFilesFromOat*' THEN 'OpenDexFilesFromOat'
+    WHEN slice_name GLOB 'VerifyClass*' THEN 'VerifyClass'
+    WHEN slice_name GLOB 'JIT compiling*' THEN 'JIT compiling'
+    WHEN slice_name GLOB '*mark sweep GC' THEN 'GC'
+    WHEN slice_name GLOB '*concurrent copying GC' THEN 'GC'
+    WHEN slice_name GLOB '*semispace GC' THEN 'GC'
     ELSE slice_name
   END AS name,
   AndroidStartupMetric_Slice(
@@ -192,7 +192,7 @@ WITH report_fully_drawn_launch_slices AS (
   JOIN slice ON (
     slice.track_id = thread_track.id
     AND slice.ts >= launches.ts)
-  WHERE slice.name LIKE 'reportFullyDrawn%'
+  WHERE slice.name GLOB 'reportFullyDrawn*'
   GROUP BY launches.id
 )
 SELECT
@@ -224,9 +224,9 @@ CREATE VIEW gc_slices AS
     launch_id
   FROM main_process_slice_unaggregated
   WHERE (
-    slice_name LIKE '%mark sweep GC'
-    OR slice_name LIKE '%concurrent copying GC'
-    OR slice_name LIKE '%semispace GC');
+    slice_name GLOB '*mark sweep GC'
+    OR slice_name GLOB '*concurrent copying GC'
+    OR slice_name GLOB '*semispace GC');
 
 DROP TABLE IF EXISTS gc_slices_by_state;
 CREATE VIRTUAL TABLE gc_slices_by_state
@@ -254,7 +254,7 @@ DROP TABLE IF EXISTS activity_names_materialized;
 CREATE TABLE activity_names_materialized AS
 SELECT launch_id, slice_name, slice_ts
 FROM main_process_slice_unaggregated
-WHERE (slice_name LIKE 'performResume:%' OR slice_name LIKE 'performCreate:%');
+WHERE (slice_name GLOB 'performResume:*' OR slice_name GLOB 'performCreate:*');
 
 DROP TABLE IF EXISTS jit_compiled_methods_materialized;
 CREATE TABLE jit_compiled_methods_materialized AS
@@ -263,7 +263,7 @@ SELECT
   COUNT(1) as count
 FROM main_process_slice_unaggregated
 WHERE
-  slice_name LIKE 'JIT compiling%'
+  slice_name GLOB 'JIT compiling*'
   AND thread_name = 'Jit thread pool'
 GROUP BY launch_id;
 
@@ -306,7 +306,7 @@ SELECT CREATE_FUNCTION(
   'PROTO', '
     SELECT slice_proto
     FROM main_process_slice s
-    WHERE s.launch_id = $launch_id AND name LIKE $name
+    WHERE s.launch_id = $launch_id AND name GLOB $name
     LIMIT 1
   ');
 
@@ -445,7 +445,7 @@ SELECT
       'time_activity_start', MAIN_PROCESS_SLICE_PROTO(launches.id, 'activityStart'),
       'time_activity_resume', MAIN_PROCESS_SLICE_PROTO(launches.id, 'activityResume'),
       'time_activity_restart', MAIN_PROCESS_SLICE_PROTO(launches.id, 'activityRestart'),
-      'time_choreographer', MAIN_PROCESS_SLICE_PROTO(launches.id, 'Choreographer#doFrame%'),
+      'time_choreographer', MAIN_PROCESS_SLICE_PROTO(launches.id, 'Choreographer#doFrame*'),
       'time_inflate', MAIN_PROCESS_SLICE_PROTO(launches.id, 'inflate'),
       'time_get_resources', MAIN_PROCESS_SLICE_PROTO(launches.id, 'ResourcesManager#getResources'),
       'time_dex_open', MAIN_PROCESS_SLICE_PROTO(launches.id, 'OpenDexFilesFromOat'),
@@ -519,7 +519,7 @@ SELECT
         'compilation_reason', STR_SPLIT(name, ' reason=', 1)
       ))
       FROM main_process_slice s
-      WHERE name LIKE 'location=% status=% filter=% reason=%'
+      WHERE name GLOB 'location=* status=* filter=* reason=*'
     )
   ) as startup
 FROM launches;

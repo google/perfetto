@@ -23,7 +23,7 @@ SELECT
   value AS g2d_value,
   LEAD(value, 1, -1) OVER (PARTITION BY name ORDER BY ts) AS next_g2d_value
 FROM counter c JOIN thread_counter_track t ON t.id = c.track_id
-WHERE t.name LIKE 'g2d_frame_{{g2d_type}}%';
+WHERE t.name GLOB 'g2d_frame_{{g2d_type}}*';
 
 
 DROP VIEW IF EXISTS g2d_{{g2d_type}}_spans;

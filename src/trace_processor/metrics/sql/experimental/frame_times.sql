@@ -17,7 +17,7 @@ DROP VIEW IF EXISTS InteractionEvents;
 CREATE VIEW InteractionEvents AS
 SELECT
   ts, dur, ts AS ts_ir, dur AS dur_ir
-FROM slice WHERE name LIKE 'Interaction.%';
+FROM slice WHERE name GLOB 'Interaction.*';
 
 DROP VIEW IF EXISTS GestureLegacyEvents;
 CREATE VIEW GestureLegacyEvents AS
