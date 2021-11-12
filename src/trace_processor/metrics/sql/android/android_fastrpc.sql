@@ -9,7 +9,7 @@ SELECT
   value
 FROM counter JOIN counter_track
   ON counter.track_id = counter_track.id
-WHERE (name LIKE 'mem.fastrpc[%');
+WHERE (name GLOB 'mem.fastrpc[[]*');
 
 DROP VIEW IF EXISTS fastrpc_subsystem_stats;
 CREATE VIEW fastrpc_subsystem_stats AS
@@ -29,7 +29,7 @@ SELECT
   value AS instant_value,
   SUM(value) OVER win AS value
 FROM counter c JOIN thread_counter_track t ON c.track_id = t.id
-WHERE name LIKE 'mem.fastrpc_change%' AND value > 0
+WHERE name GLOB 'mem.fastrpc_change*' AND value > 0
 WINDOW win AS (
   PARTITION BY name ORDER BY ts
   ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW

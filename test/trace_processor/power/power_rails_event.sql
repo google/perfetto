@@ -15,5 +15,5 @@
 --
 select ts, value
 from counters
-where name like "power.%"
+where name GLOB "power.*"
 limit 20

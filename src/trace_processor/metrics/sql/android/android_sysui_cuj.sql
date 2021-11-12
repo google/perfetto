@@ -30,11 +30,11 @@ CREATE TABLE android_sysui_cuj_last_cuj AS
   JOIN process USING (upid)
   JOIN process_metadata USING (upid)
   WHERE
-    slice.name LIKE 'J<%>'
+    slice.name GLOB 'J<*>'
     AND slice.dur > 0
     AND (
-      process.name LIKE 'com.google.android%'
-      OR process.name LIKE 'com.android.%')
+      process.name GLOB 'com.google.android*'
+      OR process.name GLOB 'com.android.*')
   ORDER BY ts desc
   LIMIT 1;
 
@@ -64,7 +64,7 @@ CREATE TABLE android_sysui_cuj_frame_timeline_events AS
     CAST(actual.name as INTEGER) as vsync,
     actual.ts as ts_actual,
     actual.dur as dur_actual,
-    actual.jank_type LIKE '%App Deadline Missed%' as app_missed,
+    actual.jank_type GLOB '*App Deadline Missed*' as app_missed,
     actual.jank_type,
     actual.on_time_finish
   FROM android_sysui_cuj_last_cuj cuj
@@ -162,8 +162,8 @@ DROP TABLE IF EXISTS android_sysui_cuj_jit_slices;
 CREATE TABLE android_sysui_cuj_jit_slices AS
 SELECT *
 FROM android_sysui_cuj_slices_in_cuj
-WHERE thread_name LIKE 'Jit thread pool%'
-AND name LIKE 'JIT compiling%'
+WHERE thread_name GLOB 'Jit thread pool*'
+AND name GLOB 'JIT compiling*'
 AND parent_id IS NULL;
 
 DROP TABLE IF EXISTS android_sysui_cuj_frames;
@@ -180,7 +180,7 @@ CREATE TABLE android_sysui_cuj_frames AS
     JOIN android_sysui_cuj_render_thread_slices_in_cuj rts ON rts.ts < gcs.ts
     -- dispatchFrameCallbacks might be seen in case of
     -- drawing that happens on RT only (e.g. ripple effect)
-    WHERE (rts.name LIKE 'DrawFrame%' OR rts.name = 'dispatchFrameCallbacks')
+    WHERE (rts.name GLOB 'DrawFrame*' OR rts.name = 'dispatchFrameCallbacks')
     GROUP BY gcs.ts, gcs.ts_end, gcs.dur, gcs.idx
   ),
   frame_boundaries AS (

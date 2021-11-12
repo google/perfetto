@@ -57,8 +57,8 @@ SELECT
   track_id AS id
 FROM slice
 WHERE
-  EXTRACT_ARG(arg_set_id, "task.posted_from.file_name") LIKE
-      "%gpu/command_buffer/service/scheduler.cc"
+  EXTRACT_ARG(arg_set_id, "task.posted_from.file_name") GLOB
+      "*gpu/command_buffer/service/scheduler.cc"
 LIMIT 1;
 
 -- TODO(nuskos): Determine a good way to get all the renderer track_ids (each
@@ -178,8 +178,8 @@ WHERE
     ) AND
     track_id = (SELECT id FROM browser_main_track_id)
   ) OR (
-    EXTRACT_ARG(arg_set_id, "task.posted_from.file_name") LIKE
-        "%components/viz/common/frame_sinks/copy_output_request.cc" AND
+    EXTRACT_ARG(arg_set_id, "task.posted_from.file_name") GLOB
+        "*components/viz/common/frame_sinks/copy_output_request.cc" AND
     track_id = (SELECT id FROM viz_compositor_track_id)
   ) OR (
     name = "SkiaOutputSurfaceImplOnGpu::CopyOutput" AND

@@ -87,5 +87,4 @@ SELECT name,
 FROM counter
   JOIN counter_track ON (counter.track_id = counter_track.id)
 WHERE counter_track.type = 'counter_track'
-  AND name LIKE "power.%";
-
+  AND name GLOB "power.*";

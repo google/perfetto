@@ -32,8 +32,8 @@ CREATE TABLE top_level_slice AS
   SELECT *
   FROM slice WHERE
   depth = 0 AND
-  ((category like '%toplevel%' OR category = 'Java') AND
-  name NOT LIKE '%looper%');
+  ((category GLOB '*toplevel*' OR category = 'Java') AND
+  name NOT GLOB '*looper*');
 
 DROP TABLE IF EXISTS webview_browser_slices;
 
@@ -55,8 +55,8 @@ CREATE TABLE webview_browser_slices AS
   ON thread.upid = process.upid
   INNER JOIN thread
   ON thread_track.utid = thread.utid
-  WHERE process.name NOT LIKE '%SandboxedProcessService%'
-  AND process.name NOT LIKE '%chrome%'
+  WHERE process.name NOT GLOB '*SandboxedProcessService*'
+  AND process.name NOT GLOB '*chrome*'
   AND app_name IS NOT NULL;
 
 DROP TABLE IF EXISTS webview_browser_slices_power;
@@ -87,7 +87,7 @@ SELECT
   FROM process
   INNER JOIN thread
   ON thread.upid = process.upid
-  WHERE process.name LIKE '%webview%SandboxedProcessService%'
+  WHERE process.name GLOB '*webview*SandboxedProcessService*'
   AND app_name IS NOT NULL;
 
 DROP TABLE IF EXISTS webview_renderer_power_summary;
@@ -136,8 +136,8 @@ SELECT
   JOIN process ON thread.upid = process.upid
   WHERE thread.upid IN
     (SELECT DISTINCT(webview_browser_slices.upid) FROM webview_browser_slices)
-  AND process.name NOT LIKE '%SandboxedProcessService%'
-  AND process.name NOT LIKE '%chrome%'
+  AND process.name NOT GLOB '*SandboxedProcessService*'
+  AND process.name NOT GLOB '*chrome*'
   AND app_name IS NOT NULL;
 
 DROP TABLE IF EXISTS host_app_power_summary;
@@ -175,9 +175,9 @@ DROP TABLE IF EXISTS webview_only_threads;
 CREATE TABLE webview_only_threads AS
 SELECT *
 FROM host_app_threads
-  WHERE name LIKE 'Chrome%' OR name LIKE 'CookieMonster%'
-  OR name LIKE 'CompositorTileWorker%' OR name LIKE 'ThreadPool%ground%'
-  OR NAME LIKE 'ThreadPoolService%' OR  name like 'VizCompositorThread%'
+  WHERE name GLOB 'Chrome*' OR name GLOB 'CookieMonster*'
+  OR name GLOB 'CompositorTileWorker*' OR name GLOB 'ThreadPool*ground*'
+  OR NAME GLOB 'ThreadPoolService*' OR  name GLOB 'VizCompositorThread*'
   OR name IN ('AudioThread', 'DedicatedWorker thread', 'GpuMemoryThread',
   'JavaBridge', 'LevelDBEnv.IDB', 'MemoryInfra', 'NetworkService', 'VizWebView');
 
