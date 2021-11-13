@@ -30,7 +30,7 @@ SELECT cpu, cluster, freq, power
 FROM power_profile pp
 WHERE EXISTS (
   SELECT 1 FROM metadata
-  WHERE name = 'android_build_fingerprint' AND str_value LIKE '%' || pp.device || '%');
+  WHERE name = 'android_build_fingerprint' AND str_value GLOB '*' || pp.device || '*');
 
 DROP VIEW IF EXISTS core_cluster_per_cpu;
 CREATE VIEW core_cluster_per_cpu AS

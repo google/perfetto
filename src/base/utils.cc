@@ -258,5 +258,13 @@ void* AlignedAlloc(size_t alignment, size_t size) {
   return res;
 }
 
+void AlignedFree(void* ptr) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  _aligned_free(ptr);  // MSDN says it is fine to pass nullptr.
+#else
+  free(ptr);
+#endif
+}
+
 }  // namespace base
 }  // namespace perfetto

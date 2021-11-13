@@ -23,7 +23,7 @@ CREATE VIEW page_reported_events AS
 SELECT ts, name, EXTRACT_ARG(arg_set_id, "debug.data.navigationId") as nav_id
 FROM slice
 WHERE category = 'blink.user_timing' AND
-    (name = 'navigationStart' OR name LIKE 'telemetry:reported_by_page:%')
+    (name = 'navigationStart' OR name GLOB 'telemetry:reported_by_page:*')
 ORDER BY nav_id, ts ASC;
 
 --------------------------------------------------------------------------------
@@ -38,8 +38,8 @@ SELECT p.name, (p.ts - (
       nav_id = p.nav_id AND
       ts < p.ts AND (
         -- Viewable/interactive markers measure time from nav start.
-        (p.name LIKE 'telemetry:reported_by_page:%' AND
-         p.name NOT LIKE 'telemetry:reported_by_page:benchmark%' AND
+        (p.name GLOB 'telemetry:reported_by_page:*' AND
+         p.name NOT GLOB 'telemetry:reported_by_page:benchmark*' AND
          name = 'navigationStart') OR
         -- Benchmark end markers measure time from the most recent begin marker.
         (p.name = 'telemetry:reported_by_page:benchmark_end' AND
