@@ -233,14 +233,17 @@ void TypedProtoDecoderBase::ParseAllFields() {
 
 void TypedProtoDecoderBase::ExpandHeapStorage() {
   // When we expand the heap we must ensure that we have at very last capacity
-  // to deal with all known fields plus at least one repeated field. We go +32
-  // to avoid trivial re-allocations when dealing with repeated fields of a
-  // message that has > INITIAL_STACK_CAPACITY fields.
-  const uint32_t min_capacity = num_fields_ + 32;  // Any number >= +1 will do.
+  // to deal with all known fields plus at least one repeated field. We go +2048
+  // here based on observations on a large 4GB android trace. This is to avoid
+  // trivial re-allocations when dealing with repeated fields of a message that
+  // has > INITIAL_STACK_CAPACITY fields.
+  const uint32_t min_capacity = num_fields_ + 2048;  // Any num >= +1 will do.
   const uint32_t new_capacity = std::max(capacity_ * 2, min_capacity);
   PERFETTO_CHECK(new_capacity > size_ && new_capacity > num_fields_);
   std::unique_ptr<Field[]> new_storage(new Field[new_capacity]);
 
+  static_assert(std::is_trivially_constructible<Field>::value,
+                "Field must be trivially constructible");
   static_assert(std::is_trivially_copyable<Field>::value,
                 "Field must be trivially copyable");
 
