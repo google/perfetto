@@ -8675,6 +8675,15 @@ filegroup {
     name: "perfetto_src_traced_probes_power_power",
     srcs: [
         "src/traced/probes/power/android_power_data_source.cc",
+        "src/traced/probes/power/linux_power_sysfs_data_source.cc",
+    ],
+}
+
+// GN: //src/traced/probes/power:unittests
+filegroup {
+    name: "perfetto_src_traced_probes_power_unittests",
+    srcs: [
+        "src/traced/probes/power/linux_power_sysfs_data_source_unittest.cc",
     ],
 }
 
@@ -9389,6 +9398,7 @@ cc_test {
         ":perfetto_src_traced_probes_packages_list_packages_list_parser",
         ":perfetto_src_traced_probes_packages_list_unittests",
         ":perfetto_src_traced_probes_power_power",
+        ":perfetto_src_traced_probes_power_unittests",
         ":perfetto_src_traced_probes_probes_src",
         ":perfetto_src_traced_probes_ps_ps",
         ":perfetto_src_traced_probes_ps_unittests",

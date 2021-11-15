@@ -85,7 +85,7 @@ Trace proto:
 Config proto:
 [AndroidPowerConfig](/docs/reference/trace-config-proto.autogen#AndroidPowerConfig)
 
-Sample config:
+Sample config (Android):
 
 ```protobuf
 data_sources: {
@@ -97,6 +97,16 @@ data_sources: {
             battery_counters: BATTERY_COUNTER_CHARGE
             battery_counters: BATTERY_COUNTER_CURRENT
         }
+    }
+}
+```
+
+Sample Config (Chrome OS or Linux):
+
+```protobuf
+data_sources: {
+    config {
+        name: "linux.sysfs_power"
     }
 }
 ```

@@ -1629,6 +1629,8 @@ perfetto_filegroup(
     srcs = [
         "src/traced/probes/power/android_power_data_source.cc",
         "src/traced/probes/power/android_power_data_source.h",
+        "src/traced/probes/power/linux_power_sysfs_data_source.cc",
+        "src/traced/probes/power/linux_power_sysfs_data_source.h",
     ],
 )
 
