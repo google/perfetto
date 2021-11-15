@@ -182,47 +182,53 @@ export class TrackContent implements m.ClassComponent<TrackContentAttrs> {
   private mouseDownY?: number;
   private selectionOccurred = false;
 
-  view({attrs}: m.CVnode<TrackContentAttrs>) {
-    return m('.track-content', {
-      onmousemove: (e: PerfettoMouseEvent) => {
-        attrs.track.onMouseMove({x: e.layerX - TRACK_SHELL_WIDTH, y: e.layerY});
-        globals.rafScheduler.scheduleRedraw();
-      },
-      onmouseout: () => {
-        attrs.track.onMouseOut();
-        globals.rafScheduler.scheduleRedraw();
-      },
-      onmousedown: (e: PerfettoMouseEvent) => {
-        this.mouseDownX = e.layerX;
-        this.mouseDownY = e.layerY;
-      },
-      onmouseup: (e: PerfettoMouseEvent) => {
-        if (this.mouseDownX === undefined || this.mouseDownY === undefined) {
-          return;
-        }
-        if (Math.abs(e.layerX - this.mouseDownX) > 1 ||
-            Math.abs(e.layerY - this.mouseDownY) > 1) {
-          this.selectionOccurred = true;
-        }
-        this.mouseDownX = undefined;
-        this.mouseDownY = undefined;
-      },
-      onclick: (e: PerfettoMouseEvent) => {
-        // This click event occurs after any selection mouse up/drag events
-        // so we have to look if the mouse moved during this click to know
-        // if a selection occurred.
-        if (this.selectionOccurred) {
-          this.selectionOccurred = false;
-          return;
-        }
-        // Returns true if something was selected, so stop propagation.
-        if (attrs.track.onMouseClick(
-                {x: e.layerX - TRACK_SHELL_WIDTH, y: e.layerY})) {
-          e.stopPropagation();
-        }
-        globals.rafScheduler.scheduleRedraw();
-      }
-    });
+  view(node: m.CVnode<TrackContentAttrs>) {
+    const attrs = node.attrs;
+    return m(
+        '.track-content',
+        {
+          onmousemove: (e: PerfettoMouseEvent) => {
+            attrs.track.onMouseMove(
+                {x: e.layerX - TRACK_SHELL_WIDTH, y: e.layerY});
+            globals.rafScheduler.scheduleRedraw();
+          },
+          onmouseout: () => {
+            attrs.track.onMouseOut();
+            globals.rafScheduler.scheduleRedraw();
+          },
+          onmousedown: (e: PerfettoMouseEvent) => {
+            this.mouseDownX = e.layerX;
+            this.mouseDownY = e.layerY;
+          },
+          onmouseup: (e: PerfettoMouseEvent) => {
+            if (this.mouseDownX === undefined ||
+                this.mouseDownY === undefined) {
+              return;
+            }
+            if (Math.abs(e.layerX - this.mouseDownX) > 1 ||
+                Math.abs(e.layerY - this.mouseDownY) > 1) {
+              this.selectionOccurred = true;
+            }
+            this.mouseDownX = undefined;
+            this.mouseDownY = undefined;
+          },
+          onclick: (e: PerfettoMouseEvent) => {
+            // This click event occurs after any selection mouse up/drag events
+            // so we have to look if the mouse moved during this click to know
+            // if a selection occurred.
+            if (this.selectionOccurred) {
+              this.selectionOccurred = false;
+              return;
+            }
+            // Returns true if something was selected, so stop propagation.
+            if (attrs.track.onMouseClick(
+                    {x: e.layerX - TRACK_SHELL_WIDTH, y: e.layerY})) {
+              e.stopPropagation();
+            }
+            globals.rafScheduler.scheduleRedraw();
+          }
+        },
+        node.children);
   }
 }
 
