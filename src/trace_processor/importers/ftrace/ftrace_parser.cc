@@ -399,8 +399,9 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         ParseZero(ts, pid, data);
         break;
       }
+      case FtraceEvent::kRssStatThrottledFieldNumber:
       case FtraceEvent::kRssStatFieldNumber: {
-        rss_stat_tracker_.ParseRssStat(ts, pid, data);
+        rss_stat_tracker_.ParseRssStat(ts, fld.id(), pid, data);
         break;
       }
       case FtraceEvent::kIonHeapGrowFieldNumber: {

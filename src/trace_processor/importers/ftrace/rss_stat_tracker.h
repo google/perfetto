@@ -33,7 +33,10 @@ class RssStatTracker {
 
   explicit RssStatTracker(TraceProcessorContext*);
 
-  void ParseRssStat(int64_t ts, uint32_t pid, ConstBytes blob);
+  void ParseRssStat(int64_t ts,
+                    int32_t field_id,
+                    uint32_t pid,
+                    ConstBytes blob);
   void ParseRssStat(int64_t ts,
                     uint32_t pid,
                     int64_t size,
