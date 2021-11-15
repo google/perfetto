@@ -136,7 +136,7 @@ def cmd_upload(dir):
     assert (fs.actual_digest is not None)
     dst_name = '%s/%s-%s' % (args.bucket, os.path.basename(
         fs.path), fs.actual_digest)
-    cmd = ['gsutil', '-q', 'cp', '-a', 'public-read', fs.path, dst_name]
+    cmd = ['gsutil', '-q', 'cp', '-n', '-a', 'public-read', fs.path, dst_name]
     logging.debug(' '.join(cmd))
     subprocess.check_call(cmd)
     with open(fs.path + SUFFIX + '.swp', 'w') as f:
