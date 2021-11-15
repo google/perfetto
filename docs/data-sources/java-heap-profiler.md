@@ -21,6 +21,10 @@ a heap dump.
 
 ![Flamegraph of a Java heap profiler](/docs/images/java-flamegraph.png)
 
+The native size of certain objects is represented as an extra child node in the
+flamegraph, prefixed with "[native]". The extra node counts as an extra object.
+This is available only on Android T+.
+
 ## SQL
 
 Information about the Java Heap is written to the following tables:
@@ -28,6 +32,9 @@ Information about the Java Heap is written to the following tables:
 * [`heap_graph_class`](/docs/analysis/sql-tables.autogen#heap_graph_class)
 * [`heap_graph_object`](/docs/analysis/sql-tables.autogen#heap_graph_object)
 * [`heap_graph_reference`](/docs/analysis/sql-tables.autogen#heap_graph_reference)
+
+`native_size` (available only on Android T+) is extracted from the related
+`libcore.util.NativeAllocationRegistry` and is not included in `self_size`.
 
 For instance, to get the bytes used by class name, run the following query.
 As-is this query will often return un-actionable information, as most of the

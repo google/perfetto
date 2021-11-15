@@ -855,7 +855,7 @@ void FindPathFromRoot(TraceStorage* storage,
     size_t parent_id;  // id of parent node in the result tree.
     size_t i;          // Index of the next child of this node to handle.
     uint32_t depth;    // Depth in the resulting tree
-                       // (including artifical root).
+                       // (including artificial root).
     std::vector<tables::HeapGraphObjectTable::Id> children;
   };
 
@@ -912,9 +912,31 @@ void FindPathFromRoot(TraceStorage* storage,
           GetChildren(*storage, n);
       children.assign(children_set.cbegin(), children_set.cend());
       PERFETTO_CHECK(children.size() == children_set.size());
+
+      if (storage->heap_graph_object_table().native_size()[row]) {
+        StringPool::Id native_class_name_id = storage->InternString(
+            base::StringView(std::string("[native] ") +
+                             storage->GetString(class_name_id).ToStdString()));
+        std::map<StringId, size_t>::iterator native_it;
+        bool inserted_new_node;
+        std::tie(native_it, inserted_new_node) =
+            path->nodes[path_id].children.insert({native_class_name_id, 0});
+        if (inserted_new_node) {
+          native_it->second = path->nodes.size();
+          path->nodes.emplace_back(PathFromRoot::Node{});
+
+          path->nodes.back().class_name_id = native_class_name_id;
+          path->nodes.back().depth = depth + 1;
+          path->nodes.back().parent_id = path_id;
+        }
+        PathFromRoot::Node* new_output_tree_node = &path->nodes[native_it->second];
+
+        new_output_tree_node->size += storage->heap_graph_object_table().native_size()[row];
+        new_output_tree_node->count++;
+      }
     }
-    // Otherwise we have already handled this node and just need to get its
-    // i-th child.
+
+    // We have already handled this node and just need to get its i-th child.
     if (!children.empty()) {
       PERFETTO_CHECK(i < children.size());
       tables::HeapGraphObjectTable::Id child = children[i];
