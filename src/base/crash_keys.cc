@@ -54,15 +54,19 @@ void CrashKey::Register() {
 size_t CrashKey::ToString(char* dst, size_t len) {
   if (len > 0)
     *dst = '\0';
-  switch (type_) {
+  switch (type_.load(std::memory_order_relaxed)) {
     case Type::kUnset:
       break;
     case Type::kInt:
-      return SprintfTrunc(dst, len, "%s: %" PRId64 "\n", name_, int_value_);
+      return SprintfTrunc(dst, len, "%s: %" PRId64 "\n", name_,
+                          int_value_.load(std::memory_order_relaxed));
     case Type::kStr:
+      char buf[sizeof(str_value_)];
+      for (size_t i = 0; i < sizeof(str_value_); i++)
+        buf[i] = str_value_[i].load(std::memory_order_relaxed);
+
       // Don't assume |str_value_| is properly null-terminated.
-      return SprintfTrunc(dst, len, "%s: %.*s\n", name_,
-                          int(sizeof(str_value_)), str_value_);
+      return SprintfTrunc(dst, len, "%s: %.*s\n", name_, int(sizeof(buf)), buf);
   }
   return 0;
 }
