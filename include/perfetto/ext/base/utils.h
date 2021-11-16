@@ -161,6 +161,22 @@ AlignedUniquePtr<T> AlignedAllocTyped(size_t n_membs) {
       static_cast<TU*>(AlignedAlloc(alignof(TU), sizeof(TU) * n_membs)));
 }
 
+// A RAII wrapper to invoke a function when leaving a function/scope.
+template <typename Func>
+class OnScopeExitWrapper {
+ public:
+  explicit OnScopeExitWrapper(Func f) : f_(std::move(f)) {}
+  ~OnScopeExitWrapper() { f_(); }
+
+ private:
+  Func const f_;
+};
+
+template <typename Func>
+PERFETTO_WARN_UNUSED_RESULT OnScopeExitWrapper<Func> OnScopeExit(Func f) {
+  return OnScopeExitWrapper<Func>(std::move(f));
+}
+
 }  // namespace base
 }  // namespace perfetto
 
