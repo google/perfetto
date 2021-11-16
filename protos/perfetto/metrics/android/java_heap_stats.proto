@@ -26,14 +26,19 @@ message JavaHeapStats {
     optional int64 obj_count = 3;
   }
 
-  // Next id: 7
+  // Next id: 10
   message Sample {
     optional int64 ts = 1;
     // Size of the Java heap in bytes
     optional int64 heap_size = 2;
+    // Native size of all the objects (not included in heap_size)
+    optional int64 heap_native_size = 8;
     optional int64 obj_count = 4;
     // Size of the reachable objects in bytes.
     optional int64 reachable_heap_size = 3;
+    // Native size of all the reachable objects (not included in
+    // reachable_heap_size)
+    optional int64 reachable_heap_native_size = 9;
     optional int64 reachable_obj_count = 5;
     // Sum of anonymous RSS + swap pages in bytes.
     optional int64 anon_rss_and_swap_size = 6;
