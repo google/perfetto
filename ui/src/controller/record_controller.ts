@@ -43,6 +43,7 @@ import {
   isAndroidP,
   isChromeTarget,
   isCrOSTarget,
+  isLinuxTarget,
   RecordConfig,
   RecordingTarget
 } from '../common/state';
@@ -164,15 +165,19 @@ export function genConfig(
   if (uiCfg.batteryDrain) {
     const ds = new TraceConfig.DataSource();
     ds.config = new DataSourceConfig();
-    ds.config.name = 'android.power';
-    ds.config.androidPowerConfig = new AndroidPowerConfig();
-    ds.config.androidPowerConfig.batteryPollMs = uiCfg.batteryDrainPollMs;
-    ds.config.androidPowerConfig.batteryCounters = [
-      AndroidPowerConfig.BatteryCounters.BATTERY_COUNTER_CAPACITY_PERCENT,
-      AndroidPowerConfig.BatteryCounters.BATTERY_COUNTER_CHARGE,
-      AndroidPowerConfig.BatteryCounters.BATTERY_COUNTER_CURRENT,
-    ];
-    ds.config.androidPowerConfig.collectPowerRails = true;
+    if (isCrOSTarget(target) || isLinuxTarget(target)) {
+      ds.config.name = 'linux.sysfs_power';
+    } else {
+      ds.config.name = 'android.power';
+      ds.config.androidPowerConfig = new AndroidPowerConfig();
+      ds.config.androidPowerConfig.batteryPollMs = uiCfg.batteryDrainPollMs;
+      ds.config.androidPowerConfig.batteryCounters = [
+        AndroidPowerConfig.BatteryCounters.BATTERY_COUNTER_CAPACITY_PERCENT,
+        AndroidPowerConfig.BatteryCounters.BATTERY_COUNTER_CHARGE,
+        AndroidPowerConfig.BatteryCounters.BATTERY_COUNTER_CURRENT,
+      ];
+      ds.config.androidPowerConfig.collectPowerRails = true;
+    }
     if (!isChromeTarget(target) || isCrOSTarget(target)) {
       protoCfg.dataSources.push(ds);
     }

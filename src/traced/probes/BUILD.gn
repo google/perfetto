@@ -101,6 +101,7 @@ perfetto_unittest_source_set("unittests") {
     "filesystem:unittests",
     "initial_display_state:unittests",
     "packages_list:unittests",
+    "power:unittests",
     "ps:unittests",
     "sys_stats:unittests",
     "system_info:unittests",
