@@ -148,6 +148,7 @@ export interface TrackState {
   engineId: string;
   kind: string;
   name: string;
+  labels?: string[];
   trackKindPriority: TrackKindPriority;
   trackGroup?: string;
   config: {};
