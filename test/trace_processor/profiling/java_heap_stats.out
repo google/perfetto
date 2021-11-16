@@ -8,7 +8,9 @@ java_heap_stats {
     samples {
       ts: 10
       heap_size: 992
+      heap_native_size: 0
       reachable_heap_size: 352
+      reachable_heap_native_size: 0
       obj_count: 6
       reachable_obj_count: 3
       anon_rss_and_swap_size: 4096000
