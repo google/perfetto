@@ -1992,6 +1992,12 @@ bool TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
     return false;
   }
 
+  // Speculative fix for the memory watchdog crash in b/195145848. This function
+  // uses the heap extensively and might need a M_PURGE. window.gc() is back.
+  // TODO(primiano): if this fixes the crash we might want to coalesce the purge
+  // and throttle it.
+  auto on_ret = base::OnScopeExit([] { base::MaybeReleaseAllocatorMemToOS(); });
+
   std::vector<TracePacket> packets;
   packets.reserve(1024);  // Just an educated guess to avoid trivial expansions.
 
