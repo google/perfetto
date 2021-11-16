@@ -34,4 +34,7 @@ enum ChromeRAILMode {
 // Next id: 2
 message ChromeRendererSchedulerState {
   optional ChromeRAILMode rail_mode = 1;
+
+  optional bool is_backgrounded = 2;
+  optional bool is_hidden = 3;
 }
