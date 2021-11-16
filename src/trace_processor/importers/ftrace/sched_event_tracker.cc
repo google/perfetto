@@ -36,7 +36,8 @@ namespace perfetto {
 namespace trace_processor {
 
 SchedEventTracker::SchedEventTracker(TraceProcessorContext* context)
-    : context_(context) {
+    : waker_utid_id_(context->storage->InternString("waker_utid")),
+      context_(context) {
   // pre-parse sched_switch
   auto* switch_descriptor = GetMessageDescriptorForId(
       protos::pbzero::FtraceEvent::kSchedSwitchFieldNumber);
@@ -318,7 +319,11 @@ void SchedEventTracker::PushSchedWakingCompact(uint32_t cpu,
   auto* instants = context_->storage->mutable_instant_table();
   auto ref_type_id = context_->storage->InternString(
       GetRefTypeStringMap()[static_cast<size_t>(RefType::kRefUtid)]);
-  instants->Insert({ts, sched_waking_id_, wakee_utid, ref_type_id});
+  tables::InstantTable::Id id =
+      instants->Insert({ts, sched_waking_id_, wakee_utid, ref_type_id}).id;
+
+  context_->args_tracker->AddArgsTo(id).AddArg(
+      waker_utid_id_, Variadic::UnsignedInteger(curr_utid));
 }
 
 void SchedEventTracker::FlushPendingEvents() {
