@@ -82,6 +82,8 @@ const cfg = {
   verbose: false,
   debug: false,
   startHttpServer: false,
+  httpServerListenHost: '127.0.0.1',
+  httpServerListenPort: 10000,
   wasmModules: ['trace_processor', 'trace_to_text'],
 
   // The fields below will be changed by main() after cmdline parsing.
@@ -126,6 +128,8 @@ async function main() {
   parser.addArgument('--out', {help: 'Output directory'});
   parser.addArgument(['--watch', '-w'], {action: 'storeTrue'});
   parser.addArgument(['--serve', '-s'], {action: 'storeTrue'});
+  parser.addArgument('--serve-host', {help: '--serve bind host'});
+  parser.addArgument('--serve-port', {help: '--serve bind port', type: 'int'});
   parser.addArgument(['--verbose', '-v'], {action: 'storeTrue'});
   parser.addArgument(['--no-build', '-n'], {action: 'storeTrue'});
   parser.addArgument(['--no-wasm', '-W'], {action: 'storeTrue'});
@@ -150,6 +154,12 @@ async function main() {
   cfg.verbose = !!args.verbose;
   cfg.debug = !!args.debug;
   cfg.startHttpServer = args.serve;
+  if (args.serve_host) {
+    cfg.httpServerListenHost = args.serve_host
+  }
+  if (args.serve_port) {
+    cfg.httpServerListenPort = args.serve_port
+  }
   if (args.interactive) {
     process.env.PERFETTO_UI_TESTS_INTERACTIVE = '1';
   }
@@ -421,8 +431,9 @@ function genServiceWorkerManifestJson() {
 }
 
 function startServer() {
-  const port = 10000;
-  console.log(`Starting HTTP server on http://localhost:${port}`);
+  console.log(
+      'Starting HTTP server on',
+      `http://${cfg.httpServerListenHost}:${cfg.httpServerListenPort}`);
   http.createServer(function(req, res) {
         console.debug(req.method, req.url);
         let uri = req.url.split('?', 1)[0];
@@ -481,7 +492,7 @@ function startServer() {
           res.end();
         });
       })
-      .listen(port, '127.0.0.1');
+      .listen(cfg.httpServerListenPort, cfg.httpServerListenHost);
 }
 
 function isDistComplete() {

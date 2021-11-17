@@ -47,6 +47,7 @@
 #include "src/trace_processor/importers/proto/metadata_tracker.h"
 #include "src/trace_processor/importers/systrace/systrace_trace_parser.h"
 #include "src/trace_processor/iterator_impl.h"
+#include "src/trace_processor/sqlite/create_function.h"
 #include "src/trace_processor/sqlite/register_function.h"
 #include "src/trace_processor/sqlite/span_join_operator_table.h"
 #include "src/trace_processor/sqlite/sql_stats_table.h"
@@ -109,6 +110,11 @@ void InitializeSqlite(sqlite3* db) {
   if (error) {
     PERFETTO_FATAL("Error setting pragma temp_store: %s", error);
   }
+  sqlite3_exec(db, "PRAGMA case_sensitive_like = 1", 0, 0, &error);
+  if (error) {
+    PERFETTO_FATAL("Error setting pragma case_sensitive_like: %s", error);
+  }
+
   sqlite3_str_split_init(db);
 // In Android tree builds, we don't have the percentile module.
 // Just don't include it.
@@ -648,6 +654,23 @@ struct SourceGeq : public SqlFunction {
   }
 };
 
+struct Glob : public SqlFunction {
+  static base::Status Run(void*,
+                          size_t,
+                          sqlite3_value** argv,
+                          SqlValue& out,
+                          Destructors&) {
+    const char* pattern =
+        reinterpret_cast<const char*>(sqlite3_value_text(argv[0]));
+    const char* text =
+        reinterpret_cast<const char*>(sqlite3_value_text(argv[1]));
+    if (pattern && text) {
+      out = SqlValue::Long(sqlite3_strglob(pattern, text) == 0);
+    }
+    return base::OkStatus();
+  }
+};
+
 void SetupMetrics(TraceProcessor* tp,
                   sqlite3* db,
                   std::vector<metrics::SqlMetricFile>* sql_metrics,
@@ -736,12 +759,17 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   db_.reset(std::move(db));
 
   // New style function registration.
+  RegisterFunction<Glob>(db, "glob", 2);
   RegisterFunction<Hash>(db, "HASH", -1);
   RegisterFunction<Demangle>(db, "DEMANGLE", 1);
   RegisterFunction<SourceGeq>(db, "SOURCE_GEQ", -1);
   RegisterFunction<ExportJson>(db, "EXPORT_JSON", 1, context_.storage.get(),
                                false);
   RegisterFunction<ExtractArg>(db, "EXTRACT_ARG", 2, context_.storage.get());
+  RegisterFunction<CreateFunction>(
+      db, "CREATE_FUNCTION", 3,
+      std::unique_ptr<CreateFunction::Context>(
+          new CreateFunction::Context{db_.get(), &create_function_state_}));
 
   // Old style function registration.
   // TODO(lalitm): migrate this over to using RegisterFunction once aggregate

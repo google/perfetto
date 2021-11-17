@@ -28,6 +28,7 @@
 
 #include <atomic>
 #include <functional>
+#include <memory>
 #include <string>
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
@@ -109,8 +110,6 @@ inline bool IsAgain(int err) {
   return err == EAGAIN || err == EWOULDBLOCK;
 }
 
-void* AlignedAlloc(size_t alignment, size_t size);
-
 // setenv(2)-equivalent. Deals with Windows vs Posix discrepancies.
 void SetEnv(const std::string& key, const std::string& value);
 
@@ -134,6 +133,49 @@ std::string GetCurExecutablePath();
 // Returns the directory where the current executable lives in, e.g. /foo/bar.
 // This is independent of cwd().
 std::string GetCurExecutableDir();
+
+// Memory returned by AlignedAlloc() must be freed via AlignedFree() not just
+// free. It makes a difference on Windows where _aligned_malloc() and
+// _aligned_free() must be paired.
+// Prefer using the AlignedAllocTyped() below which takes care of the pairing.
+void* AlignedAlloc(size_t alignment, size_t size);
+void AlignedFree(void*);
+
+// A RAII version of the above, which takes care of pairing Aligned{Alloc,Free}.
+template <typename T>
+struct AlignedDeleter {
+  inline void operator()(T* ptr) const { AlignedFree(ptr); }
+};
+
+// The remove_extent<T> here and below is to allow defining unique_ptr<T[]>.
+// As per https://en.cppreference.com/w/cpp/memory/unique_ptr the Deleter takes
+// always a T*, not a T[]*.
+template <typename T>
+using AlignedUniquePtr =
+    std::unique_ptr<T, AlignedDeleter<typename std::remove_extent<T>::type>>;
+
+template <typename T>
+AlignedUniquePtr<T> AlignedAllocTyped(size_t n_membs) {
+  using TU = typename std::remove_extent<T>::type;
+  return AlignedUniquePtr<T>(
+      static_cast<TU*>(AlignedAlloc(alignof(TU), sizeof(TU) * n_membs)));
+}
+
+// A RAII wrapper to invoke a function when leaving a function/scope.
+template <typename Func>
+class OnScopeExitWrapper {
+ public:
+  explicit OnScopeExitWrapper(Func f) : f_(std::move(f)) {}
+  ~OnScopeExitWrapper() { f_(); }
+
+ private:
+  Func const f_;
+};
+
+template <typename Func>
+PERFETTO_WARN_UNUSED_RESULT OnScopeExitWrapper<Func> OnScopeExit(Func f) {
+  return OnScopeExitWrapper<Func>(std::move(f));
+}
 
 }  // namespace base
 }  // namespace perfetto

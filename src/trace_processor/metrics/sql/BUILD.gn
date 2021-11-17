@@ -24,6 +24,7 @@ sql_files = [
   "android/android_cpu_agg.sql",
   "android/android_cpu_raw_metrics_per_core.sql",
   "android/android_dma_heap.sql",
+  "android/android_dvfs.sql",
   "android/android_fastrpc.sql",
   "android/android_gpu.sql",
   "android/android_hwui_threads.sql",

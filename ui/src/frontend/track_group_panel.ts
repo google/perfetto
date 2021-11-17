@@ -106,6 +106,12 @@ export class TrackGroupPanel extends Panel<Attrs> {
       }
     }
 
+    let child = '';
+    if (this.summaryTrackState.labels &&
+        this.summaryTrackState.labels.length > 0) {
+      child = this.summaryTrackState.labels.join(', ');
+    }
+
     return m(
         `.track-group-panel[collapsed=${collapsed}]`,
         {id: 'track_' + this.trackGroupId},
@@ -140,7 +146,10 @@ export class TrackGroupPanel extends Panel<Attrs> {
                 checkBox) :
               ''),
 
-        this.summaryTrack ? m(TrackContent, {track: this.summaryTrack}) : null);
+        this.summaryTrack ? m(TrackContent,
+                              {track: this.summaryTrack},
+                              this.trackGroupState.collapsed ? '' : child) :
+                            null);
   }
 
   oncreate(vnode: m.CVnodeDOM<Attrs>) {

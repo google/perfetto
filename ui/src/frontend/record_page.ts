@@ -899,14 +899,15 @@ function loadConfigButton(
   return m(
       'button',
       {
-        class: 'config-button load',
+        class: 'config-button',
+        title: 'Apply configuration settings',
         disabled: loadedConfigEqual(configType, globals.state.lastLoadedConfig),
         onclick: () => {
           globals.dispatch(Actions.setRecordConfig({config, configType}));
           globals.rafScheduler.scheduleFullRedraw();
         }
       },
-      'load');
+      m('i.material-icons', 'file_upload'));
 }
 
 function displayRecordConfigs() {
@@ -924,7 +925,8 @@ function displayRecordConfigs() {
       loadConfigButton(item.config, {type: 'NAMED', name: item.title}),
       m('button',
         {
-          class: 'config-button save',
+          class: 'config-button',
+          title: 'Overwrite configuration with current settings',
           onclick: () => {
             if (confirm(`Overwrite config "${
                     item.title}" with current settings?`)) {
@@ -937,16 +939,17 @@ function displayRecordConfigs() {
             }
           }
         },
-        'save'),
+        m('i.material-icons', 'save')),
       m('button',
         {
-          class: 'config-button delete',
+          class: 'config-button',
+          title: 'Remove configuration',
           onclick: () => {
             recordConfigStore.delete(item.key);
             globals.rafScheduler.scheduleFullRedraw();
           }
         },
-        'delete'),
+        m('i.material-icons', 'delete')),
     ]));
 
     const errorItems = [];
@@ -999,9 +1002,10 @@ function Configurations(cssClass: string) {
           }),
           m('button',
             {
-              class: 'config-button save long',
+              class: 'config-button',
               disabled: !canSave,
-              title: canSave ? '' : 'Duplicate name, saving disabled',
+              title: canSave ? 'Save current config' :
+                               'Duplicate name, saving disabled',
               onclick: () => {
                 recordConfigStore.save(
                     globals.state.recordConfig, ConfigTitleState.getTitle());
@@ -1009,24 +1013,25 @@ function Configurations(cssClass: string) {
                 ConfigTitleState.clearTitle();
               }
             },
-            'Save current config')
-        ]),
-      m('.reset-wrapper',
-        m('button',
-          {
-            class: 'config-button reset',
-            onclick: () => {
-              if (confirm(
-                      'Current configuration will be cleared. Are you sure?')) {
-                globals.dispatch(Actions.setRecordConfig({
-                  config: createEmptyRecordConfig(),
-                  configType: {type: 'NONE'}
-                }));
-                globals.rafScheduler.scheduleFullRedraw();
+            m('i.material-icons', 'save')),
+          m('button',
+            {
+              class: 'config-button',
+              title: 'Clear current configuration',
+              onclick: () => {
+                if (confirm(
+                        'Current configuration will be cleared. ' +
+                        'Are you sure?')) {
+                  globals.dispatch(Actions.setRecordConfig({
+                    config: createEmptyRecordConfig(),
+                    configType: {type: 'NONE'}
+                  }));
+                  globals.rafScheduler.scheduleFullRedraw();
+                }
               }
-            }
-          },
-          'Clear current config')),
+            },
+            m('i.material-icons', 'delete_forever'))
+        ]),
       displayRecordConfigs());
 }
 

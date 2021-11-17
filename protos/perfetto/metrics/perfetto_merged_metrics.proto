@@ -202,6 +202,34 @@ message AndroidDmaHeapMetric {
 
 // End of protos/perfetto/metrics/android/dma_heap_metric.proto
 
+// Begin of protos/perfetto/metrics/android/dvfs_metric.proto
+
+message AndroidDvfsMetric {
+
+  message BandStat {
+    // Operating frequency
+    optional int32 freq_value = 1;
+
+    // Percentage of duration in this operating frequency compared to all frequencies
+    optional double percentage = 2;
+
+    // Total duration in ns when the state was in this operating frequency
+    optional int64 duration_ns = 3;
+  }
+
+  message FrequencyResidency {
+    // Frequency representative name
+    optional string freq_name = 1;
+    // Each band statistics meta
+    repeated BandStat band_stat = 2;
+  }
+
+  // Frequency residency metrics from clock_set_rate ftrace event.
+  repeated FrequencyResidency freq_residencies = 1;
+}
+
+// End of protos/perfetto/metrics/android/dvfs_metric.proto
+
 // Begin of protos/perfetto/metrics/android/fastrpc_metric.proto
 
 // fastrpc memory stats on Android.
@@ -579,14 +607,19 @@ message JavaHeapStats {
     optional int64 obj_count = 3;
   }
 
-  // Next id: 7
+  // Next id: 10
   message Sample {
     optional int64 ts = 1;
     // Size of the Java heap in bytes
     optional int64 heap_size = 2;
+    // Native size of all the objects (not included in heap_size)
+    optional int64 heap_native_size = 8;
     optional int64 obj_count = 4;
     // Size of the reachable objects in bytes.
     optional int64 reachable_heap_size = 3;
+    // Native size of all the reachable objects (not included in
+    // reachable_heap_size)
+    optional int64 reachable_heap_native_size = 9;
     optional int64 reachable_obj_count = 5;
     // Sum of anonymous RSS + swap pages in bytes.
     optional int64 anon_rss_and_swap_size = 6;
@@ -1239,7 +1272,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 39
+// Next id: 40
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -1337,6 +1370,9 @@ message TraceMetrics {
 
   // Metrics for the Camera team.
   optional AndroidCameraMetric android_camera = 38;
+
+  // Metrics for dynamic voltage and frequency scaling.
+  optional AndroidDvfsMetric android_dvfs = 39;
 
   // Demo extensions.
   extensions 450 to 499;

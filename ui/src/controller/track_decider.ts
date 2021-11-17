@@ -1003,7 +1003,8 @@ class TrackDecider {
       process.pid as pid,
       thread.tid as tid,
       process.name as processName,
-      thread.name as threadName
+      thread.name as threadName,
+      process.arg_set_id as argSetId
     from (
       select upid, 0 as utid from process_track
       union
@@ -1065,6 +1066,7 @@ class TrackDecider {
       processName: STR_NULL,
       hasSched: NUM_NULL,
       hasHeapProfiles: NUM_NULL,
+      argSetId: NUM_NULL
     });
     for (; it.valid(); it.next()) {
       const utid = it.utid;
@@ -1075,6 +1077,21 @@ class TrackDecider {
       const processName = it.processName;
       const hasSched = !!it.hasSched;
       const hasHeapProfiles = !!it.hasHeapProfiles;
+
+      const labels = [];
+      if (it.argSetId !== null) {
+        const result = await this.engine.query(`
+          select string_value as label
+          from args
+          where arg_set_id = ${it.argSetId}
+        `);
+        const argIt = result.iter({label: STR_NULL});
+        for (; argIt.valid(); argIt.next()) {
+          if (argIt.label !== null) {
+            labels.push(argIt.label);
+          }
+        }
+      }
 
       // Group by upid if present else by utid.
       let pUuid =
@@ -1095,6 +1112,7 @@ class TrackDecider {
           trackKindPriority: TrackDecider.inferTrackKindPriority(threadName),
           name: `${upid === null ? tid : pid} summary`,
           config: {pidForColor, upid, utid, tid},
+          labels,
         });
 
         const name = TrackDecider.getTrackName(

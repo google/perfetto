@@ -69,7 +69,7 @@ CREATE VIEW {{table_name_prefix}}_do_frame_slices AS
     *,
     CAST(STR_SPLIT(name, ' ', 1) AS INTEGER) as vsync
   FROM {{table_name_prefix}}_main_thread_slices
-  WHERE name LIKE 'Choreographer#doFrame%';
+  WHERE name GLOB 'Choreographer#doFrame*';
 
 DROP TABLE IF EXISTS {{table_name_prefix}}_render_thread_slices;
 CREATE TABLE {{table_name_prefix}}_render_thread_slices AS
@@ -89,7 +89,7 @@ CREATE VIEW {{table_name_prefix}}_draw_frame_slices AS
     *,
     CAST(STR_SPLIT(name, ' ', 1) AS INTEGER) as vsync
   FROM {{table_name_prefix}}_render_thread_slices
-  WHERE name LIKE 'DrawFrame%';
+  WHERE name GLOB 'DrawFrame*';
 
 DROP VIEW IF EXISTS {{table_name_prefix}}_gpu_completion_slices;
 CREATE VIEW {{table_name_prefix}}_gpu_completion_slices AS
@@ -103,7 +103,7 @@ CREATE VIEW {{table_name_prefix}}_gpu_completion_slices AS
   FROM slice
   JOIN thread_track ON slice.track_id = thread_track.id
   JOIN {{table_name_prefix}}_gpu_completion_thread thread USING (utid)
-  WHERE slice.name LIKE 'waiting for GPU completion %'
+  WHERE slice.name GLOB 'waiting for GPU completion *'
   AND dur > 0;
 
 DROP VIEW IF EXISTS {{table_name_prefix}}_hwc_release_slices;
@@ -118,5 +118,5 @@ CREATE VIEW {{table_name_prefix}}_hwc_release_slices AS
   FROM slice
   JOIN thread_track ON slice.track_id = thread_track.id
   JOIN {{table_name_prefix}}_hwc_release_thread thread USING (utid)
-  WHERE slice.name LIKE 'waiting for HWC release %'
+  WHERE slice.name GLOB 'waiting for HWC release *'
   AND dur > 0;

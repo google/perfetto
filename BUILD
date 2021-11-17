@@ -355,6 +355,7 @@ perfetto_filegroup(
         "include/perfetto/ext/base/pipe.h",
         "include/perfetto/ext/base/scoped_file.h",
         "include/perfetto/ext/base/small_set.h",
+        "include/perfetto/ext/base/small_vector.h",
         "include/perfetto/ext/base/string_splitter.h",
         "include/perfetto/ext/base/string_utils.h",
         "include/perfetto/ext/base/string_view.h",
@@ -528,6 +529,7 @@ perfetto_filegroup(
     srcs = [
         "include/perfetto/trace_processor/iterator.h",
         "include/perfetto/trace_processor/read_trace.h",
+        "include/perfetto/trace_processor/ref_counted.h",
         "include/perfetto/trace_processor/trace_processor.h",
     ],
 )
@@ -1008,6 +1010,7 @@ perfetto_genrule(
         "src/trace_processor/metrics/sql/android/android_cpu_agg.sql",
         "src/trace_processor/metrics/sql/android/android_cpu_raw_metrics_per_core.sql",
         "src/trace_processor/metrics/sql/android/android_dma_heap.sql",
+        "src/trace_processor/metrics/sql/android/android_dvfs.sql",
         "src/trace_processor/metrics/sql/android/android_fastrpc.sql",
         "src/trace_processor/metrics/sql/android/android_gpu.sql",
         "src/trace_processor/metrics/sql/android/android_hwcomposer.sql",
@@ -1153,6 +1156,8 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_sqlite_sqlite",
     srcs = [
+        "src/trace_processor/sqlite/create_function.cc",
+        "src/trace_processor/sqlite/create_function.h",
         "src/trace_processor/sqlite/db_sqlite_table.cc",
         "src/trace_processor/sqlite/db_sqlite_table.h",
         "src/trace_processor/sqlite/query_cache.h",
@@ -1629,6 +1634,8 @@ perfetto_filegroup(
     srcs = [
         "src/traced/probes/power/android_power_data_source.cc",
         "src/traced/probes/power/android_power_data_source.h",
+        "src/traced/probes/power/linux_power_sysfs_data_source.cc",
+        "src/traced/probes/power/linux_power_sysfs_data_source.h",
     ],
 )
 
@@ -2559,6 +2566,7 @@ perfetto_proto_library(
         "protos/perfetto/metrics/android/cpu_metric.proto",
         "protos/perfetto/metrics/android/display_metrics.proto",
         "protos/perfetto/metrics/android/dma_heap_metric.proto",
+        "protos/perfetto/metrics/android/dvfs_metric.proto",
         "protos/perfetto/metrics/android/fastrpc_metric.proto",
         "protos/perfetto/metrics/android/g2d_metric.proto",
         "protos/perfetto/metrics/android/gpu_metric.proto",

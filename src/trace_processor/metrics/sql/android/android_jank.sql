@@ -157,7 +157,7 @@ SELECT
   ts,
   dur
 FROM android_jank_main_thread_slices
-WHERE name LIKE 'Choreographer#doFrame%'
+WHERE name GLOB 'Choreographer#doFrame*'
 AND dur >= 5000000;
 
 CREATE VIRTUAL TABLE IF NOT EXISTS android_jank_do_frame_slices_state_scheduled
@@ -213,7 +213,7 @@ SELECT
   dur,
   'Expensive rendering with Canvas#saveLayer()' as alert_name
 FROM android_jank_render_thread_slices
-WHERE name LIKE '%alpha caused %saveLayer %'
+WHERE name GLOB '*alpha caused *saveLayer *'
 AND dur >= 1000000;
 
 -- Path texture churn
@@ -239,7 +239,7 @@ SELECT
   dur,
   'Expensive Bitmap uploads' as alert_name
 FROM android_jank_render_thread_slices
-WHERE name LIKE 'Upload %x% Texture'
+WHERE name GLOB 'Upload *x* Texture'
 AND dur >= 3000000;
 
 -- Merge all alerts tables into one table

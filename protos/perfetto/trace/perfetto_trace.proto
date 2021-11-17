@@ -401,6 +401,22 @@ message FtraceConfig {
   // initialized synchronously on the data source start and hence avoiding
   // timing races in tests.
   optional bool initialize_ksyms_synchronously_for_testing = 14;
+
+  // When this boolean is true AND the ftrace_events contains "kmem/rss_stat",
+  // this option causes traced_probes to enable the "kmem/rss_stat_throttled"
+  // event instad if present, and fall back to "kmem/rss_stat" if not present.
+  // The historical context for this is the following:
+  // - Up to Android S (12), the rss_stat was internally throttled in its
+  //   kernel implementation.
+  // - A change introduced in the kernels after S has introduced a new
+  //   "rss_stat_throttled" making the original "rss_stat" event unthrottled
+  //   (hence very spammy).
+  // - Not all Android T/13 devices will receive a new kernel though, hence we
+  //   need to deal with both cases.
+  // For more context: go/rss-stat-throttled.
+  // TODO(kaleshsingh): implement the logic behind this. Right now this flag
+  // does nothing.
+  optional bool throttle_rss_stat = 15;
 }
 
 // End of protos/perfetto/config/ftrace/ftrace_config.proto
@@ -6903,6 +6919,9 @@ enum ChromeRAILMode {
 // Next id: 2
 message ChromeRendererSchedulerState {
   optional ChromeRAILMode rail_mode = 1;
+
+  optional bool is_backgrounded = 2;
+  optional bool is_hidden = 3;
 }
 
 // End of protos/perfetto/trace/track_event/chrome_renderer_scheduler_state.proto
@@ -8819,6 +8838,7 @@ message ChromeThreadDescriptor {
     THREAD_DEVTOOLSADB = 38;
     THREAD_NETWORKCONFIGWATCHER = 39;
     THREAD_WASAPI_RENDER = 40;
+    THREAD_LOADER_LOCK_SAMPLER = 41;
 
     THREAD_MEMORY_INFRA = 50;
     THREAD_SAMPLING_PROFILER = 51;

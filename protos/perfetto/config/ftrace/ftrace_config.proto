@@ -48,4 +48,20 @@ message FtraceConfig {
   // initialized synchronously on the data source start and hence avoiding
   // timing races in tests.
   optional bool initialize_ksyms_synchronously_for_testing = 14;
+
+  // When this boolean is true AND the ftrace_events contains "kmem/rss_stat",
+  // this option causes traced_probes to enable the "kmem/rss_stat_throttled"
+  // event instad if present, and fall back to "kmem/rss_stat" if not present.
+  // The historical context for this is the following:
+  // - Up to Android S (12), the rss_stat was internally throttled in its
+  //   kernel implementation.
+  // - A change introduced in the kernels after S has introduced a new
+  //   "rss_stat_throttled" making the original "rss_stat" event unthrottled
+  //   (hence very spammy).
+  // - Not all Android T/13 devices will receive a new kernel though, hence we
+  //   need to deal with both cases.
+  // For more context: go/rss-stat-throttled.
+  // TODO(kaleshsingh): implement the logic behind this. Right now this flag
+  // does nothing.
+  optional bool throttle_rss_stat = 15;
 }

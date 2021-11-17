@@ -53,6 +53,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/ext/base/android_utils.h"
+#include "perfetto/ext/base/crash_keys.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/metatrace.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -125,6 +126,11 @@ constexpr uint32_t kMaxTracingDurationMillis = 7 * 24 * kMillisPerHour;
 // These apply only if enable_extra_guardrails is true.
 constexpr uint32_t kGuardrailsMaxTracingBufferSizeKb = 128 * 1024;
 constexpr uint32_t kGuardrailsMaxTracingDurationMillis = 24 * kMillisPerHour;
+
+// TODO(primiano): this is to investigate b/191600928. Remove in Jan 2022.
+base::CrashKey g_crash_key_prod_name("producer_name");
+base::CrashKey g_crash_key_ds_count("ds_count");
+base::CrashKey g_crash_key_ds_clear_count("ds_clear_count");
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) || PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
 struct iovec {
@@ -1930,12 +1936,17 @@ void TracingServiceImpl::PeriodicClearIncrementalStateTask(
 
   // Queue the IPCs to producers with active data sources that opted in.
   std::map<ProducerID, std::vector<DataSourceInstanceID>> clear_map;
+  int ds_clear_count = 0;
   for (const auto& kv : tracing_session->data_source_instances) {
     ProducerID producer_id = kv.first;
     const DataSourceInstance& data_source = kv.second;
-    if (data_source.handles_incremental_state_clear)
+    if (data_source.handles_incremental_state_clear) {
       clear_map[producer_id].push_back(data_source.instance_id);
+      ++ds_clear_count;
+    }
   }
+
+  g_crash_key_ds_clear_count.Set(ds_clear_count);
 
   for (const auto& kv : clear_map) {
     ProducerID producer_id = kv.first;
@@ -1947,6 +1958,10 @@ void TracingServiceImpl::PeriodicClearIncrementalStateTask(
     }
     producer->ClearIncrementalState(data_sources);
   }
+
+  // ClearIncrementalState internally posts a task for each data source. Clear
+  // the crash key in a task queued at the end of the tasks atove.
+  task_runner_->PostTask([] { g_crash_key_ds_clear_count.Clear(); });
 }
 
 // Note: when this is called to write into a file passed when starting tracing
@@ -1991,6 +2006,12 @@ bool TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
     PERFETTO_ELOG("Consumer trying to read from write_into_file session.");
     return false;
   }
+
+  // Speculative fix for the memory watchdog crash in b/195145848. This function
+  // uses the heap extensively and might need a M_PURGE. window.gc() is back.
+  // TODO(primiano): if this fixes the crash we might want to coalesce the purge
+  // and throttle it.
+  auto on_ret = base::OnScopeExit([] { base::MaybeReleaseAllocatorMemToOS(); });
 
   std::vector<TracePacket> packets;
   packets.reserve(1024);  // Just an educated guess to avoid trivial expansions.
@@ -2379,6 +2400,7 @@ void TracingServiceImpl::RegisterDataSource(ProducerID producer_id,
 
   auto reg_ds = data_sources_.emplace(desc.name(),
                                       RegisteredDataSource{producer_id, desc});
+  g_crash_key_ds_count.Set(static_cast<int64_t>(data_sources_.size()));
 
   // If there are existing tracing sessions, we need to check if the new
   // data source is enabled by any of them.
@@ -2498,6 +2520,7 @@ void TracingServiceImpl::UnregisterDataSource(ProducerID producer_id,
     if (it->second.producer_id == producer_id &&
         it->second.descriptor.name() == name) {
       data_sources_.erase(it);
+      g_crash_key_ds_count.Set(static_cast<int64_t>(data_sources_.size()));
       return;
     }
   }
@@ -3931,6 +3954,8 @@ void TracingServiceImpl::ProducerEndpointImpl::ClearIncrementalState(
   auto weak_this = weak_ptr_factory_.GetWeakPtr();
   task_runner_->PostTask([weak_this, data_sources] {
     if (weak_this) {
+      base::StringView producer_name(weak_this->name_);
+      auto scoped_crash_key = g_crash_key_prod_name.SetScoped(producer_name);
       weak_this->producer_->ClearIncrementalState(data_sources.data(),
                                                   data_sources.size());
     }

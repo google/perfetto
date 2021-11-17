@@ -25,7 +25,7 @@ FROM (
   SELECT distinct(ts) AS ts
   FROM counter c
   JOIN counter_track t on c.track_id = t.id
-  WHERE name LIKE 'batt.%'
+  WHERE name GLOB 'batt.*'
 ) AS all_ts
 LEFT JOIN (
   SELECT ts, value AS current_avg_ua
@@ -78,7 +78,7 @@ FROM (
                 true
             ) AS new_group
         FROM slice
-        WHERE slice.name LIKE 'WakeLock %' AND dur != -1
+        WHERE slice.name GLOB 'WakeLock *' AND dur != -1
     )
 )
 GROUP BY group_id;

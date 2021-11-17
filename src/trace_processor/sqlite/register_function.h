@@ -18,13 +18,8 @@
 #define SRC_TRACE_PROCESSOR_SQLITE_REGISTER_FUNCTION_H_
 
 #include <sqlite3.h>
-#include <cstddef>
 #include <memory>
-#include <set>
 
-#include "perfetto/base/status.h"
-#include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 
 namespace perfetto {
