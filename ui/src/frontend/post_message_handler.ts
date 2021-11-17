@@ -91,6 +91,15 @@ export function postMessageHandler(messageEvent: MessageEvent) {
     throw new Error('Incoming message trace buffer is empty');
   }
 
+  /* Removing this event listener because it is fired multiple times
+   * with the same payload, causing issues such as b/182502595. This can be
+   * reproduced by taking https://jsfiddle.net/primiano/1hd0a4wj/68/ and
+   * replacing 'ui.perfetto.dev' -> 'localhost:10000'. If you open multiple
+   * traces or the same trace multiple times, every tab will receive a message
+   * for every window.open() call.
+   */
+  window.removeEventListener('message', postMessageHandler);
+
   const openTrace = () => {
     // For external traces, we need to disable other features such as
     // downloading and sharing a trace.
