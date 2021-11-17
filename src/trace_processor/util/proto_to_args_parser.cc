@@ -79,9 +79,11 @@ base::Status ProtoToArgsParser::ParseMessage(
     const protozero::ConstBytes& cb,
     const std::string& type,
     const std::vector<uint16_t>* allowed_fields,
-    Delegate& delegate) {
+    Delegate& delegate,
+    int* unknown_extensions) {
   ScopedNestedKeyContext key_context(key_prefix_);
-  return ParseMessageInternal(key_context, cb, type, allowed_fields, delegate);
+  return ParseMessageInternal(key_context, cb, type, allowed_fields, delegate,
+                              unknown_extensions);
 }
 
 base::Status ProtoToArgsParser::ParseMessageInternal(
@@ -89,7 +91,8 @@ base::Status ProtoToArgsParser::ParseMessageInternal(
     const protozero::ConstBytes& cb,
     const std::string& type,
     const std::vector<uint16_t>* allowed_fields,
-    Delegate& delegate) {
+    Delegate& delegate,
+    int* unknown_extensions) {
   if (auto override_result =
           MaybeApplyOverrideForType(type, key_context, cb, delegate)) {
     return override_result.value();
@@ -112,6 +115,9 @@ base::Status ProtoToArgsParser::ParseMessageInternal(
     empty_message = false;
     auto field = descriptor.FindFieldByTag(f.id());
     if (!field) {
+      if (unknown_extensions != nullptr) {
+        (*unknown_extensions)++;
+      }
       // Unknown field, possibly an unknown extension.
       continue;
     }
@@ -127,8 +133,8 @@ base::Status ProtoToArgsParser::ParseMessageInternal(
       // reflected.
       continue;
     }
-    RETURN_IF_ERROR(
-        ParseField(*field, repeated_field_index[f.id()], f, delegate));
+    RETURN_IF_ERROR(ParseField(*field, repeated_field_index[f.id()], f,
+                               delegate, unknown_extensions));
     if (field->is_repeated()) {
       repeated_field_index[f.id()]++;
     }
@@ -145,7 +151,8 @@ base::Status ProtoToArgsParser::ParseField(
     const FieldDescriptor& field_descriptor,
     int repeated_field_number,
     protozero::Field field,
-    Delegate& delegate) {
+    Delegate& delegate,
+    int* unknown_extensions) {
   std::string prefix_part = field_descriptor.name();
   if (field_descriptor.is_repeated()) {
     std::string number = std::to_string(repeated_field_number);
@@ -176,7 +183,7 @@ base::Status ProtoToArgsParser::ParseField(
       protos::pbzero::FieldDescriptorProto::TYPE_MESSAGE) {
     return ParseMessageInternal(key_context, field.as_bytes(),
                                 field_descriptor.resolved_type_name(), nullptr,
-                                delegate);
+                                delegate, unknown_extensions);
   }
 
   return ParseSimpleField(field_descriptor, field, delegate);
