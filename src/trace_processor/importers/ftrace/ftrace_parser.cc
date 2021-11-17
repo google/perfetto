@@ -145,7 +145,8 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       sched_blocked_reason_id_(
           context->storage->InternString("sched_blocked_reason")),
       io_wait_id_(context->storage->InternString("io_wait")),
-      function_id_(context->storage->InternString("function")) {
+      function_id_(context->storage->InternString("function")),
+      waker_utid_id_(context->storage->InternString("waker_utid")) {
   // Build the lookup table for the strings inside ftrace events (e.g. the
   // name of ftrace event fields and the names of their args).
   for (size_t i = 0; i < GetDescriptorsSize(); i++) {
@@ -368,11 +369,11 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         break;
       }
       case FtraceEvent::kSchedWakeupFieldNumber: {
-        ParseSchedWakeup(ts, data);
+        ParseSchedWakeup(ts, pid, data);
         break;
       }
       case FtraceEvent::kSchedWakingFieldNumber: {
-        ParseSchedWaking(ts, data);
+        ParseSchedWaking(ts, pid, data);
         break;
       }
       case FtraceEvent::kSchedProcessFreeFieldNumber: {
@@ -734,24 +735,36 @@ void FtraceParser::ParseSchedSwitch(uint32_t cpu,
       next_pid, ss.next_comm(), ss.next_prio());
 }
 
-void FtraceParser::ParseSchedWakeup(int64_t timestamp, ConstBytes blob) {
+void FtraceParser::ParseSchedWakeup(int64_t timestamp,
+                                    uint32_t pid,
+                                    ConstBytes blob) {
   protos::pbzero::SchedWakeupFtraceEvent::Decoder sw(blob.data, blob.size);
   uint32_t wakee_pid = static_cast<uint32_t>(sw.pid());
   StringId name_id = context_->storage->InternString(sw.comm());
-  auto utid = context_->process_tracker->UpdateThreadName(
+  auto wakee_utid = context_->process_tracker->UpdateThreadName(
       wakee_pid, name_id, ThreadNamePriority::kFtrace);
-  context_->event_tracker->PushInstant(timestamp, sched_wakeup_name_id_, utid,
-                                       RefType::kRefUtid);
+  InstantId id = context_->event_tracker->PushInstant(
+      timestamp, sched_wakeup_name_id_, wakee_utid, RefType::kRefUtid);
+
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  context_->args_tracker->AddArgsTo(id).AddArg(waker_utid_id_,
+                                               Variadic::UnsignedInteger(utid));
 }
 
-void FtraceParser::ParseSchedWaking(int64_t timestamp, ConstBytes blob) {
+void FtraceParser::ParseSchedWaking(int64_t timestamp,
+                                    uint32_t pid,
+                                    ConstBytes blob) {
   protos::pbzero::SchedWakingFtraceEvent::Decoder sw(blob.data, blob.size);
   uint32_t wakee_pid = static_cast<uint32_t>(sw.pid());
   StringId name_id = context_->storage->InternString(sw.comm());
-  auto utid = context_->process_tracker->UpdateThreadName(
+  auto wakee_utid = context_->process_tracker->UpdateThreadName(
       wakee_pid, name_id, ThreadNamePriority::kFtrace);
-  context_->event_tracker->PushInstant(timestamp, sched_waking_name_id_, utid,
-                                       RefType::kRefUtid);
+  InstantId id = context_->event_tracker->PushInstant(
+      timestamp, sched_waking_name_id_, wakee_utid, RefType::kRefUtid);
+
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  context_->args_tracker->AddArgsTo(id).AddArg(waker_utid_id_,
+                                               Variadic::UnsignedInteger(utid));
 }
 
 void FtraceParser::ParseSchedProcessFree(int64_t timestamp, ConstBytes blob) {

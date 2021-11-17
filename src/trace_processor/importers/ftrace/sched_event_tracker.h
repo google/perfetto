@@ -129,6 +129,8 @@ class SchedEventTracker : public Destructible {
   std::array<StringId, kSchedWakingMaxFieldId + 1> sched_waking_field_ids_;
   StringId sched_waking_id_;
 
+  StringId waker_utid_id_;
+
   TraceProcessorContext* const context_;
 };
 

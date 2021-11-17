@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("../../../../gn/test.gni")
+
 source_set("power") {
   public_deps = [ "../../../tracing/core" ]
   deps = [
@@ -28,5 +30,19 @@ source_set("power") {
   sources = [
     "android_power_data_source.cc",
     "android_power_data_source.h",
+    "linux_power_sysfs_data_source.cc",
+    "linux_power_sysfs_data_source.h",
   ]
+}
+
+perfetto_unittest_source_set("unittests") {
+  testonly = true
+  deps = [
+    ":power",
+    "../../../../gn:default_deps",
+    "../../../../gn:gtest_and_gmock",
+    "../../../../src/tracing/test:test_support",
+    "../../../base:test_support",
+  ]
+  sources = [ "linux_power_sysfs_data_source_unittest.cc" ]
 }
