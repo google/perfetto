@@ -2829,6 +2829,7 @@ perfetto_proto_library(
         "protos/perfetto/trace/ftrace/sde.proto",
         "protos/perfetto/trace/ftrace/signal.proto",
         "protos/perfetto/trace/ftrace/sync.proto",
+        "protos/perfetto/trace/ftrace/synthetic.proto",
         "protos/perfetto/trace/ftrace/systrace.proto",
         "protos/perfetto/trace/ftrace/task.proto",
         "protos/perfetto/trace/ftrace/test_bundle_wrapper.proto",

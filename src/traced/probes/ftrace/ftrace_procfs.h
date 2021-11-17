@@ -58,6 +58,10 @@ class FtraceProcfs {
 
   virtual std::string ReadPageHeaderFormat() const;
 
+  // Read the triggers for event with the given |group| and |name|.
+  std::string ReadEventTrigger(const std::string& group,
+                               const std::string& name) const;
+
   // Read the printk formats file.
   std::string ReadPrintkFormats() const;
 
