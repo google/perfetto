@@ -1120,9 +1120,14 @@ class TrackEventParser::EventImporter {
     }
 
     TrackEventArgsParser args_writer(*inserter, *storage_, *sequence_state_);
+    int unknown_extensions = 0;
     log_errors(parser_->args_parser_.ParseMessage(
         blob_, ".perfetto.protos.TrackEvent", &parser_->reflect_fields_,
-        args_writer));
+        args_writer, &unknown_extensions));
+    if (unknown_extensions > 0) {
+      context_->storage->IncrementStats(stats::unknown_extension_fields,
+                                        unknown_extensions);
+    }
 
     {
       auto key = parser_->args_parser_.EnterDictionary("debug");
