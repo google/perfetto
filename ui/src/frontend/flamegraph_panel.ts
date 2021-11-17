@@ -261,13 +261,13 @@ export class FlamegraphDetailsPanel extends Panel<FlamegraphDetailsPanelAttrs> {
     switch (profileType) {
       case ProfileType.PERF_SAMPLE:
         return [this.buildButtonComponent(PERF_SAMPLES_KEY, 'samples')];
-      case ProfileType.NATIVE_HEAP_PROFILE:
+      case ProfileType.JAVA_HEAP_GRAPH:
         return [
           this.buildButtonComponent(
               SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY, 'space'),
           this.buildButtonComponent(OBJECTS_ALLOCATED_NOT_FREED_KEY, 'objects')
         ];
-      case ProfileType.JAVA_HEAP_GRAPH:
+      case ProfileType.NATIVE_HEAP_PROFILE:
         return [
           this.buildButtonComponent(
               SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY, 'space'),
