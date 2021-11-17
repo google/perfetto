@@ -187,9 +187,13 @@ namespace stats {
       "processor."),                                                           \
   F(perf_guardrail_stop_ts,             kIndexed, kDataLoss, kTrace,    ""),   \
   F(sorter_push_event_out_of_order,     kSingle, kError,     kTrace,           \
-       "Trace events are out of order event after sorting. This can happen "   \
-       "due to many factors including clock sync drift, producers emitting "   \
-       "events out of order or a bug in trace processor's logic of sorting.")
+      "Trace events are out of order event after sorting. This can happen "    \
+      "due to many factors including clock sync drift, producers emitting "    \
+      "events out of order or a bug in trace processor's logic of sorting."),  \
+  F(unknown_extension_fields,           kSingle,  kError,    kTrace,           \
+      "TraceEvent had unknown extension fields, which might result in "        \
+      "missing some arguments. You may need a newer version of trace "         \
+      "processor to parse them.")
 // clang-format on
 
 enum Type {
