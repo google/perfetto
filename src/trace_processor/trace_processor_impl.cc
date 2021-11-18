@@ -687,10 +687,17 @@ void SetupMetrics(TraceProcessor* tp,
   tp->ExtendMetricsProto(kAllChromeMetricsDescriptor.data(),
                          kAllChromeMetricsDescriptor.size(), skip_prefixes);
 
-  for (const auto& file_to_sql : metrics::sql_metrics::kFileToSql) {
-    if (base::StartsWithAny(file_to_sql.path, sanitized_extension_paths))
-      continue;
-    tp->RegisterMetric(file_to_sql.path, file_to_sql.sql);
+  // TODO(lalitm): remove this special casing and change
+  // SanitizeMetricMountPaths if/when we move all protos for builtin metrics to
+  // match extension protos.
+  bool skip_all_sql = std::find(extension_paths.begin(), extension_paths.end(),
+                                "") != extension_paths.end();
+  if (!skip_all_sql) {
+    for (const auto& file_to_sql : metrics::sql_metrics::kFileToSql) {
+      if (base::StartsWithAny(file_to_sql.path, sanitized_extension_paths))
+        continue;
+      tp->RegisterMetric(file_to_sql.path, file_to_sql.sql);
+    }
   }
 
   RegisterFunction<metrics::NullIfEmpty>(db, "NULL_IF_EMPTY", 1);
@@ -1054,6 +1061,23 @@ util::Status TraceProcessorImpl::RegisterMetric(const std::string& path,
   if (IsRootMetricField(no_ext_name)) {
     metric.proto_field_name = no_ext_name;
     metric.output_table_name = no_ext_name + "_output";
+
+    auto field_it_and_inserted =
+        proto_field_to_sql_metric_path_.emplace(*metric.proto_field_name, path);
+    if (!field_it_and_inserted.second) {
+      // We already had a metric with this field name in the map. However, if
+      // this was the case, we should have found the metric in
+      // |path_to_sql_metric_file_| above if we are simply overriding the
+      // metric. Return an error since this means we have two different SQL
+      // files which are trying to output the same metric.
+      const auto& prev_path = field_it_and_inserted.first->second;
+      PERFETTO_DCHECK(prev_path != path);
+      return base::ErrStatus(
+          "RegisterMetric Error: Metric paths %s (which is already registered) "
+          "and %s are both trying to output the proto field %s",
+          prev_path.c_str(), path.c_str(), metric.proto_field_name->c_str());
+    }
+
     InsertIntoTraceMetricsTable(*db_, no_ext_name);
   }
 
