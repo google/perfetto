@@ -1,11 +1,29 @@
 packet {
+  process_tree {
+    processes {
+      pid: 2609
+      ppid: 129
+      cmdline: "system_server"
+      uid: 1000
+    }
+  }
+  process_tree {
+    processes {
+      pid: 5993
+      ppid: 129
+      cmdline: "com.android.systemui"
+      uid: 10216
+    }
+  }
+}
+packet {
   ftrace_events {
     cpu: 3
     event {
       timestamp: 3000000000 # 3e9
       pid: 4064
       print {
-        buf: "S|1204|UserDetailView.Adapter#onClick|0\n"
+        buf: "S|5993|UserDetailView.Adapter#onClick|0\n"
       }
     }
   }
@@ -17,7 +35,31 @@ packet {
       timestamp: 3100000000
       pid: 4064
       print {
-        buf: "F|1204|UserDetailView.Adapter#onClick|0\n"
+        buf: "F|5993|UserDetailView.Adapter#onClick|0\n"
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 2
+    event {
+      timestamp: 5186970000
+      pid: 4032
+      print {
+        buf: "S|2609|MetricsLogger:launchObserverNotifyIntentStarted|0\n"
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 2
+    event {
+      timestamp: 5187000000
+      pid: 4032
+      print {
+        buf: "F|2609|MetricsLogger:launchObserverNotifyIntentStarted|0\n"
       }
     }
   }
@@ -29,7 +71,7 @@ packet {
       timestamp: 5200000000
       pid: 4065
       print {
-        buf: "S|1204|launching: com.google.android.apps.nexuslauncher|0\n"
+        buf: "S|2609|launching: com.google.android.apps.nexuslauncher|0\n"
       }
     }
   }
@@ -41,7 +83,31 @@ packet {
       timestamp: 7900000000 # 7.9e9
       pid: 4065
       print {
-        buf: "F|1204|launching: com.google.android.apps.nexuslauncher|0\n"
+        buf: "F|2609|launching: com.google.android.apps.nexuslauncher|0\n"
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 2
+    event {
+      timestamp: 7900016000
+      pid: 4075
+      print {
+        buf: "S|2609|MetricsLogger:launchObserverNotifyActivityLaunchFinished|0\n"
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 2
+    event {
+      timestamp: 7900516000
+      pid: 4075
+      print {
+        buf: "F|2609|MetricsLogger:launchObserverNotifyActivityLaunchFinished|0\n"
       }
     }
   }
