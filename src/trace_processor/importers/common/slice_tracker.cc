@@ -57,8 +57,8 @@ void SliceTracker::BeginLegacyUnnestable(tables::SliceTable::Row row,
   // Double check that if we've seen this track in the past, it was also
   // marked as unnestable then.
 #if PERFETTO_DCHECK_IS_ON()
-  auto it = stacks_.find(row.track_id);
-  PERFETTO_DCHECK(it == stacks_.end() || it->second.is_legacy_unnestable);
+  auto* it = stacks_.Find(row.track_id);
+  PERFETTO_DCHECK(!it || it->is_legacy_unnestable);
 #endif
 
   // Ensure that StartSlice knows that this track is unnestable.
@@ -98,11 +98,11 @@ base::Optional<uint32_t> SliceTracker::AddArgs(TrackId track_id,
                                                StringId category,
                                                StringId name,
                                                SetArgsCallback args_callback) {
-  auto it = stacks_.find(track_id);
-  if (it == stacks_.end())
+  auto* it = stacks_.Find(track_id);
+  if (!it)
     return base::nullopt;
 
-  auto& stack = it->second.slice_stack;
+  auto& stack = it->slice_stack;
   if (stack.empty())
     return base::nullopt;
 
@@ -194,11 +194,11 @@ base::Optional<SliceId> SliceTracker::CompleteSlice(
   }
   prev_timestamp_ = timestamp;
 
-  auto it = stacks_.find(track_id);
-  if (it == stacks_.end())
+  auto it = stacks_.Find(track_id);
+  if (!it)
     return base::nullopt;
 
-  TrackInfo& track_info = it->second;
+  TrackInfo& track_info = *it;
   SlicesStack& stack = track_info.slice_stack;
   MaybeCloseStack(timestamp, &stack, track_id);
   if (stack.empty())
@@ -275,7 +275,7 @@ void SliceTracker::FlushPendingSlices() {
   // TODO(eseckler): Reconsider whether we want to close pending slices by
   // setting their duration to |trace_end - event_start|. Might still want some
   // additional way of flagging these events as "incomplete" to the UI.
-  stacks_.clear();
+  stacks_.Clear();
 }
 
 void SliceTracker::SetOnSliceBeginCallback(OnSliceBeginCallback callback) {
@@ -284,10 +284,10 @@ void SliceTracker::SetOnSliceBeginCallback(OnSliceBeginCallback callback) {
 
 base::Optional<SliceId> SliceTracker::GetTopmostSliceOnTrack(
     TrackId track_id) const {
-  const auto iter = stacks_.find(track_id);
-  if (iter == stacks_.end())
+  const auto* iter = stacks_.Find(track_id);
+  if (!iter)
     return base::nullopt;
-  const auto& stack = iter->second.slice_stack;
+  const auto& stack = iter->slice_stack;
   if (stack.empty())
     return base::nullopt;
   uint32_t slice_idx = stack.back().row;

@@ -17,8 +17,6 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_ASYNC_TRACK_SET_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_ASYNC_TRACK_SET_TRACKER_H_
 
-#include <unordered_map>
-
 #include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto {
