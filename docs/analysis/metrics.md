@@ -63,30 +63,36 @@ android_cpu {
 }
 ```
 
-### Case for upstreaming
+## Metric development guide
 
-NOTE: Googlers: for internal usage of metrics in Google3 (i.e. metrics which are
-confidential), please see [this internal page](https://goto.google.com/viecd).
+As metric writing requires a lot of iterations to get right, there are several
+tips which make the experience a lot smoother.
 
-Authors are strongly encouraged to add all metrics derived on Perfetto traces to
-the Perfetto repo unless there is a clear usecase (e.g. confidentiality) why
-these metrics should not be publicly available.
+### Modifying built-in metric SQL without recompiling
+It is possible to override the SQL of built-in metrics at runtime without
+needing to recompile trace processor. To do this, the flag `--metric-extension`
+needs to be specified with the disk path where the built-metrics live and the
+special string `/` for the virtual path.
 
-In return for upstreaming metrics, authors will have first class support for
-running metrics locally and the confidence that their metrics will remain stable
-as trace processor is developed.
+For example, from inside a Perfetto checkout:
+```python
+> ./tools/trace_processor \
+  --run_metrics android_cpu \
+  --metric-extension src/trace_processor/metrics@/
+  --dev
+```
+This will run the CPU metric using the live SQL in the repo *not* the SQL
+defintion built into the binary.
 
-As well as scaling upwards while developing from running on a single trace
-locally to running on a large set of traces, the reverse is also very useful.
-When an anomaly is observed in the metrics of a lab benchmark, a representative
-trace can be downloaded and the same metric can be run locally in trace
-processor.
+NOTE: protos are *not* overriden in the same way - if any proto messages are
+changed a recompile of trace processor is required for the changes to be
+available.
 
-Since the same code is running locally and remotely, developers can be confident
-in reproducing the issue and use the trace processor and/or the Perfetto UI to
-identify the problem.
+NOTE: the `--dev` flag is required for the use of this feature. This
+flag ensures that this feature is not accidentally in production as it is only
+intended for local development.
 
-## Metric Helper Functions
+## Metric helper functions
 
 There are several useful helpers functions which are available when writing a metric.
 
@@ -493,7 +499,30 @@ If everything went successfully, the following output should be visible (specifi
 }
 ```
 
-### Next steps
+## Next steps
 
 * The [common tasks](/docs/contributing/common-tasks.md) page gives a list of
   steps on how new metrics can be added to the trace processor.
+
+## Appendix: Case for upstreaming
+
+NOTE: Googlers: for internal usage of metrics in Google3 (i.e. metrics which are
+confidential), please see [this internal page](https://goto.google.com/viecd).
+
+Authors are strongly encouraged to add all metrics derived on Perfetto traces to
+the Perfetto repo unless there is a clear usecase (e.g. confidentiality) why
+these metrics should not be publicly available.
+
+In return for upstreaming metrics, authors will have first class support for
+running metrics locally and the confidence that their metrics will remain stable
+as trace processor is developed.
+
+As well as scaling upwards while developing from running on a single trace
+locally to running on a large set of traces, the reverse is also very useful.
+When an anomaly is observed in the metrics of a lab benchmark, a representative
+trace can be downloaded and the same metric can be run locally in trace
+processor.
+
+Since the same code is running locally and remotely, developers can be confident
+in reproducing the issue and use the trace processor and/or the Perfetto UI to
+identify the problem.
