@@ -66,7 +66,7 @@ const PERSIST_CONFIG_FLAG = featureFlags.register({
   id: 'persistConfigsUI',
   name: 'Config persistence UI',
   description: 'Show experimental config persistence UI on the record page.',
-  defaultValue: false,
+  defaultValue: true,
 });
 
 const POLL_INTERVAL_MS = [250, 500, 1000, 2500, 5000, 30000, 60000];
