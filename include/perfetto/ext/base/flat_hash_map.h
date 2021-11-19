@@ -84,6 +84,44 @@ template <typename Key,
           bool AppendOnly = false>
 class FlatHashMap {
  public:
+  class Iterator {
+   public:
+    explicit Iterator(const FlatHashMap* map) : map_(map) { FindNextNonFree(); }
+    ~Iterator() = default;
+    Iterator(const Iterator&) = default;
+    Iterator& operator=(const Iterator&) = default;
+    Iterator(Iterator&&) noexcept = default;
+    Iterator& operator=(Iterator&&) noexcept = default;
+
+    Key& key() { return map_->keys_[idx_]; }
+    Value& value() { return map_->values_[idx_]; }
+    const Key& key() const { return map_->keys_[idx_]; }
+    const Value& value() const { return map_->values_[idx_]; }
+
+    explicit operator bool() const { return idx_ != kEnd; }
+    Iterator& operator++() {
+      PERFETTO_DCHECK(idx_ < map_->capacity_);
+      ++idx_;
+      FindNextNonFree();
+      return *this;
+    }
+
+   private:
+    static constexpr size_t kEnd = std::numeric_limits<size_t>::max();
+
+    void FindNextNonFree() {
+      const auto& tags = map_->tags_;
+      for (; idx_ < map_->capacity_; idx_++) {
+        if (tags[idx_] != kFreeSlot && (AppendOnly || tags[idx_] != kTombstone))
+          return;
+      }
+      idx_ = kEnd;
+    }
+
+    const FlatHashMap* map_ = nullptr;
+    size_t idx_ = 0;
+  };  // Iterator
+
   static constexpr int kDefaultLoadLimitPct = 75;
   explicit FlatHashMap(size_t initial_capacity = 0,
                        int load_limit_pct = kDefaultLoadLimitPct)
@@ -207,6 +245,9 @@ class FlatHashMap {
     auto it_and_inserted = Insert(std::move(key), Value{});
     return *it_and_inserted.first;
   }
+
+  Iterator GetIterator() { return Iterator(this); }
+  const Iterator GetIterator() const { return Iterator(this); }
 
   size_t size() const { return size_; }
   size_t capacity() const { return capacity_; }
