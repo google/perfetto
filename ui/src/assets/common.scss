@@ -91,6 +91,10 @@ body>main {
     overscroll-behavior: none;
 }
 
+pre, code {
+  font-family: var(--monospace-font);
+}
+
 // This is to minimize Mac vs Linux Chrome Headless rendering differences
 // when running UI intergrationtests via puppeteer.
 body.testing {
@@ -498,7 +502,7 @@ button.query-ctrl {
   left: 0;
   width: 600px;
   color: var(--stroke-color);
-  font-family: monospace;
+  font-family: var(--monospace-font);
   padding: 10px 24px;
   z-index: 100;
   background-color: rgba(27, 28, 29, 0.90);
