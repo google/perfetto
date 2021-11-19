@@ -15,13 +15,12 @@
  */
 
 #include "src/trace_processor/importers/ftrace/binder_tracker.h"
+#include "perfetto/base/compiler.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/types/trace_processor_context.h"
-
-#include "perfetto/base/compiler.h"
-#include "perfetto/ext/base/string_utils.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -157,7 +156,8 @@ void BinderTracker::TransactionReceived(int64_t ts,
     return;
   }
 
-  if (transaction_await_rcv.count(transaction_id) > 0) {
+  TrackId* rcv_track_id = transaction_await_rcv.Find(transaction_id);
+  if (rcv_track_id) {
     // First begin the reply slice to get its slice id.
     auto reply_slice_id = context_->slice_tracker->Begin(
         ts, track_id, binder_category_id_, reply_id_);
@@ -171,9 +171,9 @@ void BinderTracker::TransactionReceived(int64_t ts,
                          Variadic::UnsignedInteger(reply_slice_id->value));
     };
     // Add the dest args to the current transaction slice and get the slice id.
-    auto transaction_slice_id = context_->slice_tracker->AddArgs(
-        transaction_await_rcv[transaction_id], binder_category_id_,
-        transaction_slice_id_, args_inserter);
+    auto transaction_slice_id =
+        context_->slice_tracker->AddArgs(*rcv_track_id, binder_category_id_,
+                                         transaction_slice_id_, args_inserter);
 
     // Add the dest slice id to the reply slice that has just begun.
     auto reply_dest_inserter =
@@ -184,15 +184,15 @@ void BinderTracker::TransactionReceived(int64_t ts,
         };
     context_->slice_tracker->AddArgs(track_id, binder_category_id_, reply_id_,
                                      reply_dest_inserter);
-    transaction_await_rcv.erase(transaction_id);
+    transaction_await_rcv.Erase(transaction_id);
     return;
   }
 
-  if (awaiting_async_rcv_.count(transaction_id) > 0) {
-    auto args = awaiting_async_rcv_[transaction_id];
+  SetArgsCallback* args = awaiting_async_rcv_.Find(transaction_id);
+  if (args) {
     context_->slice_tracker->Scoped(ts, track_id, binder_category_id_,
-                                    async_rcv_id_, 0, args);
-    awaiting_async_rcv_.erase(transaction_id);
+                                    async_rcv_id_, 0, *args);
+    awaiting_async_rcv_.Erase(transaction_id);
     return;
   }
 }
@@ -209,7 +209,7 @@ void BinderTracker::Lock(int64_t ts, uint32_t pid) {
 void BinderTracker::Locked(int64_t ts, uint32_t pid) {
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
 
-  if (attempt_lock_.count(pid) == 0)
+  if (!attempt_lock_.Find(pid))
     return;
 
   TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
@@ -218,19 +218,19 @@ void BinderTracker::Locked(int64_t ts, uint32_t pid) {
                                  lock_held_id_);
 
   lock_acquired_[pid] = ts;
-  attempt_lock_.erase(pid);
+  attempt_lock_.Erase(pid);
 }
 
 void BinderTracker::Unlock(int64_t ts, uint32_t pid) {
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
 
-  if (lock_acquired_.count(pid) == 0)
+  if (!lock_acquired_.Find(pid))
     return;
 
   TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
   context_->slice_tracker->End(ts, track_id, binder_category_id_,
                                lock_held_id_);
-  lock_acquired_.erase(pid);
+  lock_acquired_.Erase(pid);
 }
 
 void BinderTracker::TransactionAllocBuf(int64_t ts,
