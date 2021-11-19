@@ -17,7 +17,6 @@
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_tokenizer.h"
 
 #include <cinttypes>
-#include <unordered_map>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_view.h"

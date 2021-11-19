@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_SQLITE_SQLITE_RAW_TABLE_H_
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_writer.h"
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -31,13 +32,13 @@ class SystraceSerializer {
  public:
   using ScopedCString = std::unique_ptr<char, void (*)(void*)>;
 
-  SystraceSerializer(TraceProcessorContext* context);
+  explicit SystraceSerializer(TraceProcessorContext* context);
 
   ScopedCString SerializeToString(uint32_t raw_row);
 
  private:
   using StringIdMap =
-      std::unordered_map<StringId, std::vector<base::Optional<uint32_t>>>;
+      base::FlatHashMap<StringId, std::vector<base::Optional<uint32_t>>>;
 
   void SerializePrefix(uint32_t raw_row, base::StringWriter* writer);
 

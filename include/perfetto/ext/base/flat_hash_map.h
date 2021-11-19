@@ -176,7 +176,7 @@ class FlatHashMap {
     return std::make_pair(value_idx, true);
   }
 
-  Value* Find(const Key& key) {
+  Value* Find(const Key& key) const {
     const size_t idx = FindInternal(key);
     if (idx == kNotFound)
       return nullptr;
@@ -221,7 +221,7 @@ class FlatHashMap {
   enum ReservedTags : uint8_t { kFreeSlot = 0, kTombstone = 1 };
   static constexpr size_t kNotFound = std::numeric_limits<size_t>::max();
 
-  size_t FindInternal(const Key& key) {
+  size_t FindInternal(const Key& key) const {
     const size_t key_hash = Hasher{}(key);
     const uint8_t tag = HashToTag(key_hash);
     PERFETTO_DCHECK((capacity_ & (capacity_ - 1)) == 0);  // Must be a pow2.
