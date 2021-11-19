@@ -25,6 +25,7 @@ source_set("base") {
     "endian.h",
     "event_fd.h",
     "file_utils.h",
+    "flat_hash_map.h",
     "getopt.h",
     "getopt_compat.h",
     "hash.h",

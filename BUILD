@@ -343,6 +343,7 @@ perfetto_filegroup(
         "include/perfetto/ext/base/endian.h",
         "include/perfetto/ext/base/event_fd.h",
         "include/perfetto/ext/base/file_utils.h",
+        "include/perfetto/ext/base/flat_hash_map.h",
         "include/perfetto/ext/base/getopt.h",
         "include/perfetto/ext/base/getopt_compat.h",
         "include/perfetto/ext/base/hash.h",
