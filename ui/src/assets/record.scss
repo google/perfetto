@@ -116,7 +116,7 @@
       }
 
       label, select, button {
-        font-weight: 100;
+        font-weight: 300;
         margin: 3px;
         color: #333;
         font-size: 17px;
@@ -1097,7 +1097,7 @@
   }
 }  // record-section
 
-.inline-chip { 
+.inline-chip {
   @include transition();
   &:hover, &:active {
     box-shadow: 0 0 2px 0px #ccc;
