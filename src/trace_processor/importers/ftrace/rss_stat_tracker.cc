@@ -123,32 +123,33 @@ base::Optional<UniqueTid> RssStatTracker::FindUtidForMmId(int64_t mm_id,
 
   // If curr is false, try and lookup the utid we previously saw for this
   // mm id.
-  auto it = mm_id_to_utid_.find(mm_id);
-  if (it == mm_id_to_utid_.end())
+  auto* it = mm_id_to_utid_.Find(mm_id);
+  if (!it)
     return base::nullopt;
 
   // If the utid in the map is the same as our current utid but curr is false,
   // that means we are in the middle of a process changing mm structs (i.e. in
   // the middle of a vfork + exec). Therefore, we should discard the association
   // of this vm struct with this thread.
-  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
-  if (it->second == utid) {
-    mm_id_to_utid_.erase(it);
+  const UniqueTid mm_utid = *it;
+  const UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  if (mm_utid == utid) {
+    mm_id_to_utid_.Erase(mm_id);
     return base::nullopt;
   }
 
   // Verify that the utid in the map is still alive. This can happen if an mm
   // struct we saw in the past is about to be reused after thread but we don't
   // know the new process that struct will be associated with.
-  if (!context_->process_tracker->IsThreadAlive(it->second)) {
-    mm_id_to_utid_.erase(it);
+  if (!context_->process_tracker->IsThreadAlive(mm_utid)) {
+    mm_id_to_utid_.Erase(mm_id);
     return base::nullopt;
   }
 
   // This case happens when a process is changing the VM of another process and
   // we know that the utid corresponding to the target process. Just return that
   // utid.
-  return it->second;
+  return mm_utid;
 }
 
 }  // namespace trace_processor

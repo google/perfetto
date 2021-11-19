@@ -21,7 +21,6 @@
 
 #include <memory>
 #include <tuple>
-#include <unordered_map>
 
 #include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/json/json_tracker.h"
