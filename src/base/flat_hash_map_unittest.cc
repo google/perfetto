@@ -234,6 +234,43 @@ TYPED_TEST(FlatHashMapTest, ProbeVisitsAllSlots) {
   EXPECT_EQ(fmap.capacity(), static_cast<size_t>(kIterations));
 }
 
+TYPED_TEST(FlatHashMapTest, Iterator) {
+  FlatHashMap<int, int, base::AlreadyHashed<int>, typename TestFixture::Probe>
+      fmap;
+
+  auto it = fmap.GetIterator();
+  ASSERT_FALSE(it);
+
+  // Insert 3 values and iterate.
+  ASSERT_TRUE(fmap.Insert(1, 1001).second);
+  ASSERT_TRUE(fmap.Insert(2, 2001).second);
+  ASSERT_TRUE(fmap.Insert(3, 3001).second);
+  it = fmap.GetIterator();
+  for (int i = 1; i <= 3; i++) {
+    ASSERT_TRUE(it);
+    ASSERT_EQ(it.key(), i);
+    ASSERT_EQ(it.value(), i * 1000 + 1);
+    ++it;
+  }
+  ASSERT_FALSE(it);
+
+  // Erase the middle one and iterate.
+  fmap.Erase(2);
+  it = fmap.GetIterator();
+  ASSERT_TRUE(it);
+  ASSERT_EQ(it.key(), 1);
+  ++it;
+  ASSERT_TRUE(it);
+  ASSERT_EQ(it.key(), 3);
+  ++it;
+  ASSERT_FALSE(it);
+
+  // Erase everything and iterate.
+  fmap.Clear();
+  it = fmap.GetIterator();
+  ASSERT_FALSE(it);
+}
+
 TYPED_TEST(FlatHashMapTest, VsUnorderedMap) {
   std::unordered_map<int, int, CollidingHasher> umap;
   FlatHashMap<int, int, CollidingHasher, typename TestFixture::Probe> fmap;
