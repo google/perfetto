@@ -14,6 +14,9 @@
 -- limitations under the License.
 --
 
+-- Create the base tables and views containing the launch spans.
+SELECT RUN_METRIC('android/startup/launches.sql');
+
 -- Collect the important timestamps for Multiuser events.
 DROP VIEW IF EXISTS multiuser_events;
 CREATE VIEW multiuser_events AS
@@ -31,9 +34,9 @@ FROM
     )
   ),
   (
-    SELECT slice.ts + slice.dur AS launcher_end_time_ns
-    FROM slice
-    WHERE (slice.name = "launching: com.google.android.apps.nexuslauncher")
+    SELECT ts_end AS launcher_end_time_ns
+    FROM launches
+    WHERE (package = 'com.android.launcher3' OR package = 'com.google.android.apps.nexuslauncher')
   ),
   (
     SELECT MIN(slice.ts) AS user_create_time_ns

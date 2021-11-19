@@ -708,6 +708,7 @@ struct CommandLineOptions {
   bool wide = false;
   bool force_full_sort = false;
   std::string metatrace_path;
+  bool dev = false;
 };
 
 void PrintUsage(char** argv) {
@@ -759,7 +760,12 @@ Options:
                                       Loads metric proto and sql files from
                                       DISK_PATH/protos and DISK_PATH/sql
                                       respectively, and mounts them onto
-                                      VIRTUAL_PATH.)",
+                                      VIRTUAL_PATH.
+ --dev                                Enables features which are reserved for
+                                      local development use only and
+                                      *should not* be enabled on production
+                                      builds. The features behind this flag can
+                                      break at any time without any warning.)",
                 argv[0]);
 }
 
@@ -772,6 +778,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
     OPT_FORCE_FULL_SORT,
     OPT_HTTP_PORT,
     OPT_METRIC_EXTENSION,
+    OPT_DEV,
   };
 
   static const option long_options[] = {
@@ -791,6 +798,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
       {"full-sort", no_argument, nullptr, OPT_FORCE_FULL_SORT},
       {"http-port", required_argument, nullptr, OPT_HTTP_PORT},
       {"metric-extension", required_argument, nullptr, OPT_METRIC_EXTENSION},
+      {"dev", no_argument, nullptr, OPT_DEV},
       {nullptr, 0, nullptr, 0}};
 
   bool explicit_interactive = false;
@@ -879,6 +887,11 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 
     if (option == OPT_METRIC_EXTENSION) {
       command_line_options.raw_metric_extensions.push_back(optarg);
+      continue;
+    }
+
+    if (option == OPT_DEV) {
+      command_line_options.dev = true;
       continue;
     }
 
@@ -995,7 +1008,8 @@ util::Status RunQueries(const std::string& query_file_path,
   return util::OkStatus();
 }
 
-base::Status ParseSingleMetricExtensionPath(const std::string& raw_extension,
+base::Status ParseSingleMetricExtensionPath(bool dev,
+                                            const std::string& raw_extension,
                                             MetricExtension& parsed_extension) {
   // We cannot easily use ':' as a path separator because windows paths can have
   // ':' in them (e.g. C:\foo\bar).
@@ -1007,6 +1021,15 @@ base::Status ParseSingleMetricExtensionPath(const std::string& raw_extension,
 
   parsed_extension.SetDiskPath(std::move(parts[0]));
   parsed_extension.SetVirtualPath(std::move(parts[1]));
+
+  if (parsed_extension.virtual_path() == "/") {
+    if (!dev) {
+      return base::ErrStatus(
+          "Local development features must be enabled (using the "
+          "--dev flag) to override built-in metrics");
+    }
+    parsed_extension.SetVirtualPath("");
+  }
 
   if (parsed_extension.virtual_path() == "shell/") {
     return base::Status(
@@ -1037,11 +1060,12 @@ base::Status CheckForDuplicateMetricExtension(
 }
 
 base::Status ParseMetricExtensionPaths(
+    bool dev,
     const std::vector<std::string>& raw_metric_extensions,
     std::vector<MetricExtension>& metric_extensions) {
   for (const auto& raw_extension : raw_metric_extensions) {
     metric_extensions.push_back({});
-    RETURN_IF_ERROR(ParseSingleMetricExtensionPath(raw_extension,
+    RETURN_IF_ERROR(ParseSingleMetricExtensionPath(dev, raw_extension,
                                                    metric_extensions.back()));
   }
   return CheckForDuplicateMetricExtension(metric_extensions);
@@ -1252,8 +1276,8 @@ util::Status TraceProcessorMain(int argc, char** argv) {
                             : SortingMode::kDefaultHeuristics;
 
   std::vector<MetricExtension> metric_extensions;
-  RETURN_IF_ERROR(ParseMetricExtensionPaths(options.raw_metric_extensions,
-                                            metric_extensions));
+  RETURN_IF_ERROR(ParseMetricExtensionPaths(
+      options.dev, options.raw_metric_extensions, metric_extensions));
 
   for (const auto& extension : metric_extensions) {
     config.skip_builtin_metric_paths.push_back(extension.virtual_path());
@@ -1282,8 +1306,8 @@ util::Status TraceProcessorMain(int argc, char** argv) {
     t_load = base::GetWallTimeNs() - t_load_start;
 
     double t_load_s = static_cast<double>(t_load.count()) / 1E9;
-    PERFETTO_ILOG("Trace loaded: %.2f MB (%.1f MB/s)", size_mb,
-                  size_mb / t_load_s);
+    PERFETTO_ILOG("Trace loaded: %.2f MB in %.2fs (%.1f MB/s)", size_mb,
+                  t_load_s, size_mb / t_load_s);
 
     RETURN_IF_ERROR(PrintStats());
   }
