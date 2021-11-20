@@ -425,6 +425,7 @@ std::set<GroupAndName> FtraceConfigMuxer::GetFtraceEvents(
         InsertEvent("ion", "ion_stat", &events);
         InsertEvent("mm_event", "mm_event_record", &events);
         InsertEvent("dmabuf_heap", "dma_heap_stat", &events);
+        InsertEvent("gpu_mem", "gpu_mem_total", &events);
         continue;
       }
 

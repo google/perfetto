@@ -17,8 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_RSS_STAT_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_RSS_STAT_TRACKER_H_
 
-#include <unordered_map>
-
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
@@ -49,7 +48,7 @@ class RssStatTracker {
                                             bool is_curr,
                                             uint32_t pid);
 
-  std::unordered_map<int64_t, UniqueTid> mm_id_to_utid_;
+  base::FlatHashMap<int64_t, UniqueTid> mm_id_to_utid_;
   std::vector<StringId> rss_members_;
   TraceProcessorContext* const context_;
 };

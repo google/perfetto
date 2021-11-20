@@ -25,9 +25,9 @@
 #include <map>
 #include <memory>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
@@ -428,7 +428,7 @@ class SpanJoinOperatorTable : public SqliteTable {
   TableDefinition t1_defn_;
   TableDefinition t2_defn_;
   PartitioningType partitioning_;
-  std::unordered_map<size_t, ColumnLocator> global_index_to_column_locator_;
+  base::FlatHashMap<size_t, ColumnLocator> global_index_to_column_locator_;
 
   sqlite3* const db_;
 };

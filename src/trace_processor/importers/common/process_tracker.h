@@ -19,6 +19,7 @@
 
 #include <tuple>
 
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -132,8 +133,8 @@ class ProcessTracker {
 
   // Returns the upid for a given pid.
   base::Optional<UniquePid> UpidForPidForTesting(uint32_t pid) {
-    auto it = pids_.find(pid);
-    return it == pids_.end() ? base::nullopt : base::make_optional(it->second);
+    auto it = pids_.Find(pid);
+    return it ? base::make_optional(*it) : base::nullopt;
   }
 
   // Returns the bounds of a range that includes all UniqueTids that have the
@@ -188,10 +189,10 @@ class ProcessTracker {
   // simultaneously. This is no longer the case so this should be removed
   // (though it seems like there are subtle things which break in Chrome if this
   // changes).
-  std::unordered_map<uint32_t /* tid */, std::vector<UniqueTid>> tids_;
+  base::FlatHashMap<uint32_t /* tid */, std::vector<UniqueTid>> tids_;
 
   // Mapping of the most recently seen pid to the associated upid.
-  std::unordered_map<uint32_t /* pid (aka tgid) */, UniquePid> pids_;
+  base::FlatHashMap<uint32_t /* pid (aka tgid) */, UniquePid> pids_;
 
   // Pending thread associations. The meaning of a pair<ThreadA, ThreadB> in
   // this vector is: we know that A and B belong to the same process, but we
