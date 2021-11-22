@@ -23,6 +23,7 @@
 
 #include <algorithm>
 #include <functional>
+#include <limits>
 
 namespace perfetto {
 namespace base {
