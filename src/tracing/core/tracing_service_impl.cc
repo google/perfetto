@@ -1178,7 +1178,7 @@ base::Status TracingServiceImpl::StartTracing(TracingSessionID tsid) {
     task_runner_->PostDelayedTask(
         [weak_this, tsid] {
           if (weak_this)
-            weak_this->ReadBuffers(tsid, nullptr);
+            weak_this->ReadBuffersIntoFile(tsid);
         },
         tracing_session->delay_to_next_write_period_ms());
   }
@@ -1598,7 +1598,7 @@ void TracingServiceImpl::DisableTracingNotifyConsumerAndFlushFile(
 
   if (tracing_session->write_into_file) {
     tracing_session->write_period_ms = 0;
-    ReadBuffers(tracing_session->id, nullptr);
+    ReadBuffersIntoFile(tracing_session->id);
   }
 
   if (tracing_session->on_disable_callback_for_bugreport) {
@@ -1964,6 +1964,17 @@ void TracingServiceImpl::PeriodicClearIncrementalStateTask(
   task_runner_->PostTask([] { g_crash_key_ds_clear_count.Clear(); });
 }
 
+bool TracingServiceImpl::ReadBuffersIntoConsumer(
+    TracingSessionID tsid,
+    ConsumerEndpointImpl* consumer) {
+  PERFETTO_DCHECK(consumer);
+  return ReadBuffers(tsid, consumer);
+}
+
+bool TracingServiceImpl::ReadBuffersIntoFile(TracingSessionID tsid) {
+  return ReadBuffers(tsid, nullptr);
+}
+
 // Note: when this is called to write into a file passed when starting tracing
 // |consumer| will be == nullptr (as opposite to the case of a consumer asking
 // to send the trace data back over IPC).
@@ -2296,7 +2307,7 @@ bool TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
     task_runner_->PostDelayedTask(
         [weak_this, tsid] {
           if (weak_this)
-            weak_this->ReadBuffers(tsid, nullptr);
+            weak_this->ReadBuffersIntoFile(tsid);
         },
         tracing_session->delay_to_next_write_period_ms());
     return true;
@@ -2308,7 +2319,7 @@ bool TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
     task_runner_->PostTask([weak_this, weak_consumer, tsid] {
       if (!weak_this || !weak_consumer)
         return;
-      weak_this->ReadBuffers(tsid, weak_consumer.get());
+      weak_this->ReadBuffersIntoConsumer(tsid, weak_consumer.get());
     });
   }
 
@@ -3460,7 +3471,7 @@ void TracingServiceImpl::ConsumerEndpointImpl::ReadBuffers() {
     consumer_->OnTraceData({}, /* has_more = */ false);
     return;
   }
-  if (!service_->ReadBuffers(tracing_session_id_, this)) {
+  if (!service_->ReadBuffersIntoConsumer(tracing_session_id_, this)) {
     consumer_->OnTraceData({}, /* has_more = */ false);
   }
 }
