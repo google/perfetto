@@ -32,6 +32,7 @@ namespace base {
 // Pointers are not stable, neither for keys nor values.
 // Has similar performances of a RobinHood hash (without the complications)
 // and 2x an unordered map.
+// Doc: http://go/perfetto-hashtables .
 //
 // When used to implement a string pool in TraceProcessor, the performance
 // characteristics obtained by replaying the set of strings seeen in a 4GB trace
@@ -141,7 +142,6 @@ class FlatHashMap {
     values_ = std::move(other.values_);
     capacity_ = other.capacity_;
     size_ = other.size_;
-    size_plus_tombstones_ = other.size_plus_tombstones_;
     max_probe_length_ = other.max_probe_length_;
     load_limit_ = other.load_limit_;
     load_limit_percent_ = other.load_limit_percent_;
@@ -159,49 +159,70 @@ class FlatHashMap {
   FlatHashMap& operator=(const FlatHashMap&) = delete;
 
   std::pair<Value*, bool> Insert(Key key, Value value) {
-    if (PERFETTO_UNLIKELY(size_plus_tombstones_ >= load_limit_))
-      GrowAndRehash();
-    PERFETTO_DCHECK((capacity_ & (capacity_ - 1)) == 0);  // Must be a pow2.
     const size_t key_hash = Hasher{}(key);
     const uint8_t tag = HashToTag(key_hash);
-    const size_t kSlotNotFound = std::numeric_limits<size_t>::max();
-    size_t insertion_slot = kSlotNotFound;
-    size_t probe_len = 0;
+    static constexpr size_t kSlotNotFound = std::numeric_limits<size_t>::max();
 
-    // Start the iteration at the desired slot (key_hash % capacity_) searching
-    // either for a free slot or a tombstone. In the worst case we might end up
-    // scanning the whole array of slots. The Probe functions are guaranteed to
-    // visit all the slots within |capacity_| steps.
-    // If we find a free slot, we can stop the search immediately (a free slot
-    // acts as an "end of chain for entries having the same hash".
-    // If we find a tombstones (a deleted slot) we remember its position, but
-    // have to keep searching until a free slot to make sure we don't insert a
-    // duplicate key.
-    for (; probe_len < capacity_; ++probe_len) {
-      const size_t idx = Probe::Calc(key_hash, probe_len, capacity_);
-      PERFETTO_DCHECK(idx < capacity_);
-      const uint8_t tag_idx = tags_[idx];
-      if (tag_idx == kFreeSlot) {
-        // Rationale for "insertion_slot == kSlotNotFound": if we encountered
-        // a tombstone while iterating we should much rather reuse that,
-        // rather then expanding the probing length and taking another slot.
-        if (AppendOnly || insertion_slot == kSlotNotFound)
+    // This for loop does in reality at most two attempts:
+    // The first iteration either:
+    //  - Early-returns, because the key exists already,
+    //  - Finds an insertion slot and proceeds because the load is < limit.
+    // The second iteration is only hit in the unlikely case of this insertion
+    // bringing the table beyond the target |load_limit_| (or the edge case
+    // of the HT being full, if |load_limit_pct_| = 100).
+    // We cannot simply pre-grow the table before insertion, because we must
+    // guarantee that calling Insert() with a key that already exists doesn't
+    // invalidate iterators.
+    size_t insertion_slot;
+    size_t probe_len;
+    for (;;) {
+      PERFETTO_DCHECK((capacity_ & (capacity_ - 1)) == 0);  // Must be a pow2.
+      insertion_slot = kSlotNotFound;
+      // Start the iteration at the desired slot (key_hash % capacity_)
+      // searching either for a free slot or a tombstone. In the worst case we
+      // might end up scanning the whole array of slots. The Probe functions are
+      // guaranteed to visit all the slots within |capacity_| steps. If we find
+      // a free slot, we can stop the search immediately (a free slot acts as an
+      // "end of chain for entries having the same hash". If we find a
+      // tombstones (a deleted slot) we remember its position, but have to keep
+      // searching until a free slot to make sure we don't insert a duplicate
+      // key.
+      for (probe_len = 0; probe_len < capacity_;) {
+        const size_t idx = Probe::Calc(key_hash, probe_len, capacity_);
+        PERFETTO_DCHECK(idx < capacity_);
+        const uint8_t tag_idx = tags_[idx];
+        ++probe_len;
+        if (tag_idx == kFreeSlot) {
+          // Rationale for "insertion_slot == kSlotNotFound": if we encountered
+          // a tombstone while iterating we should reuse that rather than
+          // taking another slot.
+          if (AppendOnly || insertion_slot == kSlotNotFound)
+            insertion_slot = idx;
+          break;
+        }
+        // We should never encounter tombstones in AppendOnly mode.
+        PERFETTO_DCHECK(!(tag_idx == kTombstone && AppendOnly));
+        if (!AppendOnly && tag_idx == kTombstone) {
           insertion_slot = idx;
-        break;
-      }
-      // We should never encounter tombstones in AppendOnly mode.
-      PERFETTO_DCHECK(!(tag_idx == kTombstone && AppendOnly));
-      if (!AppendOnly && tag_idx == kTombstone) {
-        insertion_slot = idx;
+          continue;
+        }
+        if (tag_idx == tag && keys_[idx] == key) {
+          // The key is already in the map.
+          return std::make_pair(&values_[idx], false);
+        }
+      }  // for (idx)
+
+      // If we got to this point the key does not exist (otherwise we would have
+      // hit the the return above) and we are going to insert a new entry.
+      // Before doing so, ensure we stay under the target load limit.
+      if (PERFETTO_UNLIKELY(size_ >= load_limit_)) {
+        MaybeGrowAndRehash(/*grow=*/true);
         continue;
       }
-      if (tag_idx == tag && keys_[idx] == key) {
-        // The key is already in the map.
-        return std::make_pair(&values_[idx], false);
-      }
-    }  // for (idx)
+      PERFETTO_DCHECK(insertion_slot != kSlotNotFound);
+      break;
+    }  // for (attempt)
 
-    // We should never run out of slots.
     PERFETTO_CHECK(insertion_slot < capacity_);
 
     // We found a free slot (or a tombstone). Proceed with the insertion.
@@ -209,9 +230,10 @@ class FlatHashMap {
     new (&keys_[insertion_slot]) Key(std::move(key));
     new (value_idx) Value(std::move(value));
     tags_[insertion_slot] = tag;
-    max_probe_length_ = std::max(max_probe_length_, probe_len + 1);
+    PERFETTO_DCHECK(probe_len > 0 && probe_len <= capacity_);
+    max_probe_length_ = std::max(max_probe_length_, probe_len);
     size_++;
-    size_plus_tombstones_++;
+
     return std::make_pair(value_idx, true);
   }
 
@@ -233,13 +255,17 @@ class FlatHashMap {
   }
 
   void Clear() {
+    // Avoid trivial heap operations on zero-capacity std::move()-d objects.
+    if (PERFETTO_UNLIKELY(capacity_ == 0))
+      return;
+
     for (size_t i = 0; i < capacity_; ++i) {
       const uint8_t tag = tags_[i];
       if (tag != kFreeSlot && tag != kTombstone)
         EraseInternal(i);
     }
     // Clear all tombstones. We really need to do this for AppendOnly.
-    GrowAndRehash();
+    MaybeGrowAndRehash(/*grow=*/false);
   }
 
   Value& operator[](Key key) {
@@ -252,10 +278,6 @@ class FlatHashMap {
 
   size_t size() const { return size_; }
   size_t capacity() const { return capacity_; }
-  void set_load_limit_pct(int percent) {
-    PERFETTO_CHECK(percent > 0 && percent <= 100);
-    load_limit_percent_ = percent;
-  }
 
   // "protected" here is only for the flat_hash_map_benchmark.cc. Everything
   // below is by all means private.
@@ -286,30 +308,24 @@ class FlatHashMap {
 
   void EraseInternal(size_t idx) {
     PERFETTO_DCHECK(tags_[idx] > kTombstone);
-    PERFETTO_DCHECK(size_ > 0 && size_plus_tombstones_ > 0);
-    PERFETTO_DCHECK(size_plus_tombstones_ >= size_);
+    PERFETTO_DCHECK(size_ > 0);
     tags_[idx] = kTombstone;
     keys_[idx].~Key();
     values_[idx].~Value();
     size_--;
   }
 
-  PERFETTO_NO_INLINE void GrowAndRehash() {
-    PERFETTO_DCHECK(size_ <= size_plus_tombstones_);
-    PERFETTO_DCHECK(size_plus_tombstones_ <= capacity_);
+  PERFETTO_NO_INLINE void MaybeGrowAndRehash(bool grow) {
+    PERFETTO_DCHECK(size_ <= capacity_);
     const size_t old_capacity = capacity_;
-    size_t new_capacity = std::max(old_capacity, size_t(1024));
-    size_t old_size_mb = old_capacity * (sizeof(Key) + sizeof(Value));
 
     // Grow quickly up to 1MB, then chill.
-    if (size_ < load_limit_) {
-      // If we have a lot of tombstones, don't grow at all, just rehash. The
-      // re-hasing loop will remove the tombstones and repack the slots.
-    } else if (old_size_mb < 1 * 1024 * 1024) {
-      new_capacity *= 8;
-    } else {
-      new_capacity *= 2;
-    }
+    const size_t old_size_bytes = old_capacity * (sizeof(Key) + sizeof(Value));
+    const size_t grow_factor = old_size_bytes < (1024u * 1024u) ? 8 : 2;
+    const size_t new_capacity =
+        grow ? std::max(old_capacity * grow_factor, size_t(1024))
+             : old_capacity;
+
     auto old_tags(std::move(tags_));
     auto old_keys(std::move(keys_));
     auto old_values(std::move(values_));
@@ -331,7 +347,7 @@ class FlatHashMap {
       }
     }
     PERFETTO_DCHECK(new_size == old_size);
-    size_ = size_plus_tombstones_ = new_size;
+    size_ = new_size;
   }
 
   // Doesn't call destructors. Use Clear() for that.
@@ -341,7 +357,6 @@ class FlatHashMap {
     capacity_ = n;
     max_probe_length_ = 0;
     size_ = 0;
-    size_plus_tombstones_ = 0;
     load_limit_ = n * static_cast<size_t>(load_limit_percent_) / 100;
     load_limit_ = std::min(load_limit_, n);
 
@@ -361,7 +376,6 @@ class FlatHashMap {
 
   size_t capacity_ = 0;
   size_t size_ = 0;
-  size_t size_plus_tombstones_ = 0;
   size_t max_probe_length_ = 0;
   size_t load_limit_ = 0;  // Updated every time |capacity_| changes.
   int load_limit_percent_ =
