@@ -677,7 +677,10 @@ class TracingServiceImpl : public TracingService {
   void ScrapeSharedMemoryBuffers(TracingSession*, ProducerEndpointImpl*);
   void PeriodicClearIncrementalStateTask(TracingSessionID, bool post_next_only);
   TraceBuffer* GetBufferByID(BufferID);
-  bool ReadBuffers(TracingSessionID, ConsumerEndpointImpl*);
+  bool ReadBuffers(TracingSessionID, TracingSession*, ConsumerEndpointImpl*);
+  // Returns true if `*tracing_session` is waiting for a trigger that hasn't
+  // happened.
+  static bool IsWaitingForTrigger(TracingSession*);
   void OnStartTriggersTimeout(TracingSessionID tsid);
   void MaybeLogUploadEvent(const TraceConfig&,
                            PerfettoStatsdAtom atom,
