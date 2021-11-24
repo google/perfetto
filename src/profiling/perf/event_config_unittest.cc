@@ -18,6 +18,7 @@
 
 #include <linux/perf_event.h>
 #include <stdint.h>
+#include <time.h>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/optional.h"
@@ -325,6 +326,40 @@ TEST(EventConfigTest, CallstackSamplingModeDetection) {
 
     EXPECT_NE(event_config->perf_attr()->sample_regs_user, 0u);
     EXPECT_NE(event_config->perf_attr()->sample_stack_user, 0u);
+  }
+}
+
+TEST(EventConfigTest, TimestampClockId) {
+  {  // if unset, a default is used
+    protos::gen::PerfEventConfig cfg;
+    base::Optional<EventConfig> event_config =
+        EventConfig::Create(AsDataSourceConfig(cfg));
+
+    ASSERT_TRUE(event_config.has_value());
+    EXPECT_TRUE(event_config->perf_attr()->use_clockid);
+    EXPECT_EQ(event_config->perf_attr()->clockid, CLOCK_MONOTONIC_RAW);
+  }
+  {  // explicit boottime
+    protos::gen::PerfEventConfig cfg;
+    cfg.mutable_timebase()->set_timestamp_clock(
+        protos::gen::PerfEvents::PERF_CLOCK_BOOTTIME);
+    base::Optional<EventConfig> event_config =
+        EventConfig::Create(AsDataSourceConfig(cfg));
+
+    ASSERT_TRUE(event_config.has_value());
+    EXPECT_TRUE(event_config->perf_attr()->use_clockid);
+    EXPECT_EQ(event_config->perf_attr()->clockid, CLOCK_BOOTTIME);
+  }
+  {  // explicit monotonic
+    protos::gen::PerfEventConfig cfg;
+    cfg.mutable_timebase()->set_timestamp_clock(
+        protos::gen::PerfEvents::PERF_CLOCK_MONOTONIC);
+    base::Optional<EventConfig> event_config =
+        EventConfig::Create(AsDataSourceConfig(cfg));
+
+    ASSERT_TRUE(event_config.has_value());
+    EXPECT_TRUE(event_config->perf_attr()->use_clockid);
+    EXPECT_EQ(event_config->perf_attr()->clockid, CLOCK_MONOTONIC);
   }
 }
 
