@@ -16,6 +16,7 @@
 
 #include "perfetto/ext/base/flat_hash_map.h"
 
+#include <array>
 #include <functional>
 #include <random>
 #include <set>
@@ -169,8 +170,8 @@ TYPED_TEST(FlatHashMapTest, AllTagsAreValid) {
 }
 
 TYPED_TEST(FlatHashMapTest, FillWithTombstones) {
-  FlatHashMap<Key, Value, Hasher, typename TestFixture::Probe> fmap;
-  fmap.set_load_limit_pct(100);
+  FlatHashMap<Key, Value, Hasher, typename TestFixture::Probe> fmap(
+      /*initial_capacity=*/0, /*load_limit_pct=*/100);
 
   for (int rep = 0; rep < 3; rep++) {
     for (int i = 0; i < 1024; i++)
@@ -191,11 +192,11 @@ TYPED_TEST(FlatHashMapTest, FillWithTombstones) {
 }
 
 TYPED_TEST(FlatHashMapTest, Collisions) {
-  FlatHashMap<int, int, CollidingHasher, typename TestFixture::Probe> fmap;
-  fmap.set_load_limit_pct(100);
+  FlatHashMap<int, int, CollidingHasher, typename TestFixture::Probe> fmap(
+      /*initial_capacity=*/0, /*load_limit_pct=*/100);
 
   for (int rep = 0; rep < 3; rep++) {
-    // Insert four values which collide on th esame bucket.
+    // Insert four values which collide on the same bucket.
     ASSERT_TRUE(fmap.Insert(1001, 1001).second);
     ASSERT_TRUE(fmap.Insert(2001, 2001).second);
     ASSERT_TRUE(fmap.Insert(3001, 3001).second);
@@ -269,6 +270,40 @@ TYPED_TEST(FlatHashMapTest, Iterator) {
   fmap.Clear();
   it = fmap.GetIterator();
   ASSERT_FALSE(it);
+}
+
+// Test that Insert() and operator[] don't invalidate pointers if the key exists
+// already, regardless of the load factor.
+TYPED_TEST(FlatHashMapTest, DontRehashIfKeyAlreadyExists) {
+  static constexpr size_t kInitialCapacity = 128;
+  static std::array<size_t, 3> kLimitPct{25, 50, 100};
+
+  for (size_t limit_pct : kLimitPct) {
+    FlatHashMap<size_t, size_t, AlreadyHashed<size_t>,
+                typename TestFixture::Probe>
+        fmap(kInitialCapacity, static_cast<int>(limit_pct));
+
+    const size_t limit = kInitialCapacity * limit_pct / 100u;
+    ASSERT_EQ(fmap.capacity(), kInitialCapacity);
+    std::vector<size_t*> key_ptrs;
+    for (size_t i = 0; i < limit; i++) {
+      auto it_and_ins = fmap.Insert(i, i);
+      ASSERT_TRUE(it_and_ins.second);
+      ASSERT_EQ(fmap.capacity(), kInitialCapacity);
+      key_ptrs.push_back(it_and_ins.first);
+    }
+
+    // Re-insert existing items. It should not cause rehashing.
+    for (size_t i = 0; i < limit; i++) {
+      auto it_and_ins = fmap.Insert(i, i);
+      ASSERT_FALSE(it_and_ins.second);
+      ASSERT_EQ(it_and_ins.first, key_ptrs[i]);
+
+      size_t* key_ptr = &fmap[i];
+      ASSERT_EQ(key_ptr, key_ptrs[i]);
+      ASSERT_EQ(fmap.capacity(), kInitialCapacity);
+    }
+  }
 }
 
 TYPED_TEST(FlatHashMapTest, VsUnorderedMap) {

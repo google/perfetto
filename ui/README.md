@@ -29,7 +29,7 @@ $ out/debug/ui_unittests --watch
 Finally run:
 
 ```bash
-$ ./ui/run-dev-server out/debug
+$ ./ui/run-dev-server
 ```
 
 and navigate to `localhost:10000`.
