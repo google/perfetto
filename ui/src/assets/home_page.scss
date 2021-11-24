@@ -109,7 +109,7 @@
         opacity: 0;
         color: #da4534;
         font-weight: 400;
-        @include transition;
+        @include transition();
         &.show { opacity: 1; }
       }
     }  // .channel-select

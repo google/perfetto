@@ -90,12 +90,12 @@
 
         &:hover {
           background-color: hsl(88, 50%, 84%);
-          box-shadow: 0 0 4px 0px #999;
+          box-shadow: 0 0 4px 0 #999;
         }
 
         &.selected {
           background-color: hsl(88, 50%, 67%);
-          box-shadow: 0 0 4px 0px #999;
+          box-shadow: 0 0 4px 0 #999;
         }
 
         &.disabled {
@@ -140,7 +140,7 @@
         padding: 4px;
         height: 30px;
         &:hover, &:active {
-          box-shadow: 0 0 4px 0px #ccc;
+          box-shadow: 0 0 4px 0 #ccc;
           background-color: #fafafa;
         }
         i {
@@ -290,7 +290,7 @@
 
     height: auto;
     width: 100%;
-    padding: 0px;
+    padding: 0;
     display: flex;
     align-items: center;
   }
@@ -317,7 +317,7 @@
     padding: 7px;
 
     &:hover:enabled {
-      box-shadow: 0 0 3px 0px #aaa;
+      box-shadow: 0 0 3px 0 #aaa;
     }
 
     &:not(:enabled) {
@@ -358,7 +358,7 @@
     margin-bottom: 20px;
     display: flex;
     align-items: center;
-    padding: 0px;
+    padding: 0;
 
     input {
       border-radius: 20px;
@@ -484,7 +484,7 @@
           height: 26px;
           border-radius: 100px;
           background: #f5f5f5;
-          box-shadow: 0px 3px 3px rgba(0,0,0,0.15);
+          box-shadow: 0 3px 3px rgba(0,0,0,0.15);
           content: '';
           transition: all 0.3s ease;
         }
@@ -582,7 +582,7 @@
           height: 20px;
           border-radius: 100px;
           background: #f5f5f5;
-          box-shadow: 0px 3px 3px rgba(0,0,0,0.15);
+          box-shadow: 0 3px 3px rgba(0,0,0,0.15);
           content: '';
           transition: all 0.3s ease;
         }
@@ -636,12 +636,12 @@
 
       &:hover {
         background-color: hsl(88, 50%, 84%);
-        box-shadow: 0 0 4px 0px #999;
+        box-shadow: 0 0 4px 0 #999;
       }
 
       &.selected {
         background-color: hsl(88, 50%, 67%);
-        box-shadow: 0 0 4px 0px #999;
+        box-shadow: 0 0 4px 0 #999;
       }
 
       img {
@@ -716,7 +716,7 @@
       width: 100%;
       appearance: none;
       -webkit-appearance: none;
-      scroll-snap-type: mandatory;
+      scroll-snap-type: x mandatory;
       background-color : transparent;
       outline: none;
       margin-left: -10px;
@@ -947,7 +947,7 @@
     }
 
     &.no-top-bar {
-      white-space: 'pre';
+      white-space: pre;
       &::before {
         height: 0;
       }
@@ -1054,12 +1054,12 @@
 
         &:hover {
           background-color: hsl(88, 50%, 84%);
-          box-shadow: 0 0 4px 0px #999;
+          box-shadow: 0 0 4px 0 #999;
         }
 
         &.selected {
           background-color: hsl(88, 50%, 67%);
-          box-shadow: 0 0 4px 0px #999;
+          box-shadow: 0 0 4px 0 #999;
         }
       }
     }
@@ -1076,7 +1076,7 @@
       background-color: hsl(88, 50%, 67%);
 
       &:hover {
-        box-shadow: 0 0 4px 0px #999;
+        box-shadow: 0 0 4px 0 #999;
       }
     }
 
@@ -1100,7 +1100,7 @@
 .inline-chip {
   @include transition();
   &:hover, &:active {
-    box-shadow: 0 0 2px 0px #ccc;
+    box-shadow: 0 0 2px 0 #ccc;
     background-color: #fafafa;
   }
 
