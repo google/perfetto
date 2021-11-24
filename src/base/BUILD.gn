@@ -160,6 +160,10 @@ perfetto_unittest_source_set("unittests") {
     "http:unittests",
   ]
 
+  if (enable_perfetto_ipc) {
+    deps += [ "http:unittests" ]
+  }
+
   sources = [
     "base64_unittest.cc",
     "circular_queue_unittest.cc",
