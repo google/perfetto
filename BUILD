@@ -330,6 +330,14 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //include/perfetto/ext/base/http:http
+perfetto_filegroup(
+    name = "include_perfetto_ext_base_http_http",
+    srcs = [
+        "include/perfetto/ext/base/http/http_server.h",
+    ],
+)
+
 # GN target: //include/perfetto/ext/base:base
 perfetto_filegroup(
     name = "include_perfetto_ext_base_base",
@@ -639,6 +647,24 @@ perfetto_filegroup(
     srcs = [
         "src/android_stats/perfetto_atoms.h",
     ],
+)
+
+# GN target: //src/base/http:http
+perfetto_cc_library(
+    name = "src_base_http_http",
+    srcs = [
+        "src/base/http/http_server.cc",
+    ],
+    hdrs = [
+        ":include_perfetto_base_base",
+        ":include_perfetto_ext_base_base",
+        ":include_perfetto_ext_base_http_http",
+    ],
+    deps = [
+        ":src_base_base",
+        ":src_base_unix_socket",
+    ],
+    linkstatic = True,
 )
 
 # GN target: //src/base:base
@@ -3845,7 +3871,7 @@ perfetto_cc_binary(
                ":protos_perfetto_trace_track_event_zero",
                ":protozero",
                ":src_base_base",
-               ":src_base_unix_socket",
+               ":src_base_http_http",
                ":src_trace_processor_containers_containers",
                ":src_trace_processor_importers_gen_cc_chrome_track_event_descriptor",
                ":src_trace_processor_importers_gen_cc_config_descriptor",

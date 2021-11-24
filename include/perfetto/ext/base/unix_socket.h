@@ -140,6 +140,10 @@ class UnixSocketRaw {
                const int* send_fds = nullptr,
                size_t num_fds = 0);
 
+  ssize_t SendStr(const std::string& str) {
+    return Send(str.data(), str.size());
+  }
+
   // |fd_vec| and |max_files| are ignored on Windows.
   ssize_t Receive(void* msg,
                   size_t len,
