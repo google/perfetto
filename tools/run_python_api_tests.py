@@ -22,6 +22,13 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def main():
+  try:
+    import numpy
+    import pandas
+  except ModuleNotFoundError:
+    print('Cannot proceed. Please `pip3 install pandas numpy`', file=sys.stderr)
+    return 1
+
   # Append test and src paths so that all imports are loaded in correctly
   sys.path.append(os.path.join(ROOT_DIR, 'test', 'trace_processor', 'python'))
   sys.path.append(
