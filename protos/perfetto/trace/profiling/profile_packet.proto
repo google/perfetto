@@ -279,9 +279,9 @@ message Profiling {
 // individual sample with a counter value, and optionally a
 // callstack.
 //
-// Timestamps are within the root packet. This used to use the CLOCK_BOOTTIME
-// domain, but now the default is CLOCK_MONOTONIC_RAW which is compatible with
-// more event types.
+// Timestamps are within the root packet. The config can specify the clock, or
+// the implementation will default to CLOCK_MONOTONIC_RAW. Within the Android R
+// timeframe, the default was CLOCK_BOOTTIME.
 //
 // There are several distinct views of this message:
 // * indication of kernel buffer data loss (kernel_records_lost set)
