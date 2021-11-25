@@ -4,6 +4,9 @@ Unreleased:
     * Changed compiler flags. Assume recent x64 CPUs (-msse4.2 -mavx -mpopcnt).
       This behavior affects only standalone builds and can be changed by setting
       enable_perfetto_x64_cpu_opt=false in the GN args.
+    * The java heap profiler now rescans all the processes every time for
+      continous_dump_config. The scan_pids_only_on_start can be used to restore
+      the old behavior.
   Trace Processor:
     * Changed LIKE comparisions to be case-senstive. This may break existing
       queries but was a necessary from a performance perspective.
