@@ -335,6 +335,7 @@ perfetto_filegroup(
     name = "include_perfetto_ext_base_http_http",
     srcs = [
         "include/perfetto/ext/base/http/http_server.h",
+        "include/perfetto/ext/base/http/sha1.h",
     ],
 )
 
@@ -654,6 +655,7 @@ perfetto_cc_library(
     name = "src_base_http_http",
     srcs = [
         "src/base/http/http_server.cc",
+        "src/base/http/sha1.cc",
     ],
     hdrs = [
         ":include_perfetto_base_base",
