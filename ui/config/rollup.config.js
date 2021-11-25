@@ -65,6 +65,16 @@ function defBundle(bundle, distDir) {
       // Translate source maps to point back to the .ts sources.
       sourcemaps(),
     ],
+    onwarn: function(warning, warn) {
+      // Ignore circular dependency warnings coming from third party code.
+      if (warning.code === 'CIRCULAR_DEPENDENCY' &&
+          warning.importer.includes('node_modules')) {
+        return;
+      }
+
+      // Call the default warning handler for all remaining warnings.
+      warn(warning);
+    }
   };
 }
 
