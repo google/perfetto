@@ -16,6 +16,7 @@ import {Draft} from 'immer';
 
 import {assertExists, assertTrue} from '../base/logging';
 import {randomColor} from '../common/colorizer';
+import {RecordConfig} from '../controller/record_config_types';
 import {ACTUAL_FRAMES_SLICE_TRACK_KIND} from '../tracks/actual_frames/common';
 import {ASYNC_SLICE_TRACK_KIND} from '../tracks/async_slices/common';
 import {COUNTER_TRACK_KIND} from '../tracks/counter/common';
@@ -50,7 +51,6 @@ import {
   LogsPagination,
   NewEngineMode,
   OmniboxState,
-  RecordConfig,
   RecordingTarget,
   SCROLLING_TRACK_GROUP,
   State,

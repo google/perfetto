@@ -12,20 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  getDefaultRecordingTargets,
-  NamedRecordConfig,
-  RecordConfig,
-  RecordingTarget
-} from '../common/state';
+import {getDefaultRecordingTargets, RecordingTarget} from '../common/state';
 import {
   createEmptyRecordConfig,
-  JsonObject,
-  runParser,
-  validateNamedRecordConfig,
-  validateRecordConfig,
-  ValidationResult
-} from '../controller/validate_config';
+  NamedRecordConfig,
+  namedRecordConfigValidator,
+  RecordConfig,
+  recordConfigValidator
+} from '../controller/record_config_types';
+import {runValidator, ValidationResult} from '../controller/validators';
 
 const LOCAL_STORAGE_RECORD_CONFIGS_KEY = 'recordConfigs';
 const LOCAL_STORAGE_AUTOSAVE_CONFIG_KEY = 'autosaveConfig';
@@ -129,8 +124,8 @@ export class RecordConfigStore {
 
         for (let i = 0; i < parsedConfigsLocalStorage.length; ++i) {
           try {
-            validConfigLocalStorage.push(runParser(
-                validateNamedRecordConfig, parsedConfigsLocalStorage[i]));
+            validConfigLocalStorage.push(runValidator(
+                namedRecordConfigValidator, parsedConfigsLocalStorage[i]));
           } catch {
             // Parsing failed with unrecoverable error (e.g. title or key are
             // missing), ignore the result.
@@ -177,8 +172,7 @@ export class AutosaveConfigStore {
     }
     const parsed = JSON.parse(savedItem);
     if (parsed !== null && typeof parsed === 'object') {
-      this.config =
-          runParser(validateRecordConfig, parsed as JsonObject).result;
+      this.config = runValidator(recordConfigValidator, parsed).result;
       this.hasSavedConfig = true;
     }
   }
