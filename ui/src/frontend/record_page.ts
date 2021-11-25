@@ -32,12 +32,14 @@ import {
   isLinuxTarget,
   LoadedConfig,
   MAX_TIME,
-  RecordConfig,
   RecordingTarget,
   RecordMode
 } from '../common/state';
 import {AdbOverWebUsb} from '../controller/adb';
-import {createEmptyRecordConfig} from '../controller/validate_config';
+import {
+  createEmptyRecordConfig,
+  RecordConfig
+} from '../controller/record_config_types';
 
 import {globals} from './globals';
 import {createPage, PageAttrs} from './pages';
