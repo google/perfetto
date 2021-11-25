@@ -17,7 +17,8 @@ import {produce} from 'immer';
 import {assertExists} from '../base/logging';
 import {Actions} from '../common/actions';
 import {ConversionJobStatus} from '../common/conversion_jobs';
-import {createEmptyState, State} from '../common/state';
+import {createEmptyState} from '../common/empty_state';
+import {State} from '../common/state';
 import {RecordConfig, STATE_VERSION} from '../common/state';
 import {
   BUCKET_NAME,
