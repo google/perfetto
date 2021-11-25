@@ -175,6 +175,7 @@ class UnixSocketRaw {
 #endif
   SockFamily family_ = SockFamily::kUnix;
   SockType type_ = SockType::kStream;
+  uint32_t tx_timeout_ms_ = 0;
 };
 
 // A non-blocking UNIX domain socket. Allows also to transfer file descriptors.

@@ -165,11 +165,19 @@ AlignedUniquePtr<T> AlignedAllocTyped(size_t n_membs) {
 template <typename Func>
 class OnScopeExitWrapper {
  public:
-  explicit OnScopeExitWrapper(Func f) : f_(std::move(f)) {}
-  ~OnScopeExitWrapper() { f_(); }
+  explicit OnScopeExitWrapper(Func f) : f_(std::move(f)), active_(true) {}
+  OnScopeExitWrapper(OnScopeExitWrapper&& other) noexcept
+      : f_(std::move(other.f_)), active_(other.active_) {
+    other.active_ = false;
+  }
+  ~OnScopeExitWrapper() {
+    if (active_)
+      f_();
+  }
 
  private:
-  Func const f_;
+  Func f_;
+  bool active_;
 };
 
 template <typename Func>
