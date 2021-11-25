@@ -16,8 +16,10 @@ import {applyPatches, Patch} from 'immer';
 
 import {assertExists} from '../base/logging';
 import {DeferredAction} from '../common/actions';
-import {createEmptyState, State} from '../common/state';
+import {createEmptyState} from '../common/empty_state';
+import {State} from '../common/state';
 import {globals as frontendGlobals} from '../frontend/globals';
+
 import {ControllerAny} from './controller';
 
 export interface App {
