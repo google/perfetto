@@ -6898,6 +6898,7 @@ filegroup {
     name: "perfetto_src_base_http_http",
     srcs: [
         "src/base/http/http_server.cc",
+        "src/base/http/sha1.cc",
     ],
 }
 
@@ -6906,6 +6907,7 @@ filegroup {
     name: "perfetto_src_base_http_unittests",
     srcs: [
         "src/base/http/http_server_unittest.cc",
+        "src/base/http/sha1_unittest.cc",
     ],
 }
 
