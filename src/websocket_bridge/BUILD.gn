@@ -12,19 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../gn/perfetto.gni")
-
-assert(perfetto_build_standalone)
-
-executable("tracebox") {
+source_set("lib") {
   deps = [
     "../../gn:default_deps",
     "../base",
-    "../perfetto_cmd",
-    "../perfetto_cmd:trigger_perfetto_cmd",
-    "../traced/probes",
-    "../traced/service",
-    "../websocket_bridge:lib",
+    "../base:unix_socket",
+    "../base/http",
+    "../tracing/ipc:default_socket",
   ]
-  sources = [ "tracebox.cc" ]
+  sources = [
+    "websocket_bridge.cc",
+    "websocket_bridge.h",
+  ]
+}
+
+executable("websocket_bridge") {
+  deps = [
+    ":lib",
+    "../../gn:default_deps",
+  ]
+  sources = [ "websocket_bridge_main.cc" ]
 }
