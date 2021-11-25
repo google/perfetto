@@ -15,12 +15,12 @@
 import {Draft, produce} from 'immer';
 import * as m from 'mithril';
 
+import {assertExists} from '../base/logging';
 import {Actions} from '../common/actions';
-import {RecordConfig} from '../common/state';
+import {RecordConfig} from '../controller/record_config_types';
 
 import {copyToClipboard} from './clipboard';
 import {globals} from './globals';
-import {assertExists} from '../base/logging';
 
 declare type Setter<T> = (draft: Draft<RecordConfig>, val: T) => void;
 declare type Getter<T> = (cfg: RecordConfig) => T;
