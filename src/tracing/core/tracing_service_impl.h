@@ -681,10 +681,33 @@ class TracingServiceImpl : public TracingService {
   void ScrapeSharedMemoryBuffers(TracingSession*, ProducerEndpointImpl*);
   void PeriodicClearIncrementalStateTask(TracingSessionID, bool post_next_only);
   TraceBuffer* GetBufferByID(BufferID);
-  bool ReadBuffers(TracingSessionID, TracingSession*, ConsumerEndpointImpl*);
+
   // Returns true if `*tracing_session` is waiting for a trigger that hasn't
   // happened.
-  static bool IsWaitingForTrigger(TracingSession*);
+  static bool IsWaitingForTrigger(TracingSession* tracing_session);
+
+  // Reads the buffers from `*tracing_session` and returns them (along with some
+  // metadata packets).
+  //
+  // The function stops when the cumulative size of the return packets exceeds
+  // `threshold` (so it's not a strict upper bound) and sets `*has_more` to
+  // true, or when there are no more packets (and sets `*has_more` to false).
+  std::vector<TracePacket> ReadBuffers(TracingSession* tracing_session,
+                                       size_t threshold,
+                                       bool* has_more);
+
+  // If `*tracing_session` has a filter, applies it to `*packets`. Doesn't
+  // change the number of `*packets`, only their content.
+  void MaybeFilterPackets(TracingSession* tracing_session,
+                          std::vector<TracePacket>* packets);
+
+  // If `*tracing_session` is configured to write into a file, writes `packets`
+  // into the file.
+  //
+  // Returns true if the file should be closed (because it's full or there has
+  // been an error), false otherwise.
+  bool WriteIntoFile(TracingSession* tracing_session,
+                     std::vector<TracePacket> packets);
   void OnStartTriggersTimeout(TracingSessionID tsid);
   void MaybeLogUploadEvent(const TraceConfig&,
                            PerfettoStatsdAtom atom,
