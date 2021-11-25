@@ -15,9 +15,13 @@
  */
 #include "perfetto/ext/base/http/http_server.h"
 
+#include <cinttypes>
+
 #include <vector>
 
+#include "perfetto/ext/base/base64.h"
 #include "perfetto/ext/base/endian.h"
+#include "perfetto/ext/base/http/sha1.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 
@@ -25,8 +29,22 @@ namespace perfetto {
 namespace base {
 
 namespace {
-// 32 MiB payload + 128K for HTTP headers.
-constexpr size_t kMaxRequestSize = (32 * 1024 + 128) * 1024;
+constexpr size_t kMaxPayloadSize = 32 * 1024 * 1024;
+constexpr size_t kMaxRequestSize = kMaxPayloadSize + 4096;
+
+enum WebsocketOpcode : uint8_t {
+  kOpcodeContinuation = 0x0,
+  kOpcodeText = 0x1,
+  kOpcodeBinary = 0x2,
+  kOpcodeDataUnused = 0x3,
+  kOpcodeClose = 0x8,
+  kOpcodePing = 0x9,
+  kOpcodePong = 0xA,
+  kOpcodeControlUnused = 0xB,
+};
+
+// From https://datatracker.ietf.org/doc/html/rfc6455#section-1.3.
+constexpr char kWebsocketGuid[] = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
 }  // namespace
 
@@ -103,7 +121,13 @@ void HttpServer::OnDataAvailable(UnixSocket* sock) {
   // At this point |rxbuf| can contain a partial HTTP request, a full one or
   // more (in case of HTTP Keepalive pipelining).
   for (;;) {
-    size_t bytes_consumed = ParseOneHttpRequest(conn);
+    size_t bytes_consumed;
+
+    if (conn->is_websocket()) {
+      bytes_consumed = ParseOneWebsocketFrame(conn);
+    } else {
+      bytes_consumed = ParseOneHttpRequest(conn);
+    }
 
     if (bytes_consumed == 0)
       break;
@@ -176,6 +200,8 @@ size_t HttpServer::ParseOneHttpRequest(HttpServerConnection* conn) {
           conn->origin_allowed_ = hdr_value.ToStdString();
       } else if (hdr_name.CaseInsensitiveEq("connection")) {
         conn->keepalive_ = hdr_value.CaseInsensitiveEq("keep-alive");
+        http_req.is_websocket_handshake =
+            hdr_value.CaseInsensitiveEq("upgrade");
       }
     }
   }
@@ -185,7 +211,8 @@ size_t HttpServer::ParseOneHttpRequest(HttpServerConnection* conn) {
   PERFETTO_CHECK(buf_view.size() <= conn->rxbuf_used);
   const size_t headers_size = conn->rxbuf_used - buf_view.size();
 
-  if (body_size + headers_size >= kMaxRequestSize) {
+  if (body_size + headers_size >= kMaxRequestSize ||
+      body_size > kMaxPayloadSize) {
     conn->SendResponseAndClose("413 Payload Too Large");
     return 0;
   }
@@ -246,11 +273,185 @@ bool HttpServer::IsOriginAllowed(StringView origin) {
   return false;
 }
 
+void HttpServerConnection::UpgradeToWebsocket(const HttpRequest& req) {
+  PERFETTO_CHECK(req.is_websocket_handshake);
+
+  // |origin_allowed_| is set to the req.origin only if it's in the allowlist.
+  if (origin_allowed_.empty())
+    return SendResponseAndClose("403 Forbidden", {}, "Origin not allowed");
+
+  auto ws_ver = req.GetHeader("sec-webSocket-version").value_or(StringView());
+  auto ws_key = req.GetHeader("sec-webSocket-key").value_or(StringView());
+
+  if (!ws_ver.CaseInsensitiveEq("13"))
+    return SendResponseAndClose("505 HTTP Version Not Supported", {});
+
+  if (ws_key.size() != 24) {
+    // The nonce must be a base64 encoded 16 bytes value (24 after base64).
+    return SendResponseAndClose("400 Bad Request", {});
+  }
+
+  // From https://datatracker.ietf.org/doc/html/rfc6455#section-1.3 :
+  // For this header field, the server has to take the value (as present
+  // in the header field, e.g., the base64-encoded [RFC4648] version minus
+  // any leading and trailing whitespace) and concatenate this with the
+  // Globally Unique Identifier (GUID, [RFC4122]) "258EAFA5-E914-47DA-
+  // 95CA-C5AB0DC85B11" in string form, which is unlikely to be used by
+  // network endpoints that do not understand the WebSocket Protocol.  A
+  // SHA-1 hash (160 bits) [FIPS.180-3], base64-encoded (see Section 4 of
+  // [RFC4648]), of this concatenation is then returned in the server's
+  // handshake.
+  StackString<128> signed_nonce("%.*s%s", static_cast<int>(ws_key.size()),
+                                ws_key.data(), kWebsocketGuid);
+  auto digest = SHA1Hash(signed_nonce.c_str(), signed_nonce.len());
+  std::string digest_b64 = Base64Encode(digest.data(), digest.size());
+
+  StackString<128> accept_hdr("Sec-WebSocket-Accept: %s", digest_b64.c_str());
+
+  std::initializer_list<const char*> headers = {
+      "Upgrade: websocket",   //
+      "Connection: Upgrade",  //
+      accept_hdr.c_str(),     //
+  };
+  PERFETTO_DLOG("[HTTP] Handshaking WebSocket for %.*s",
+                static_cast<int>(req.uri.size()), req.uri.data());
+  for (const char* hdr : headers)
+    PERFETTO_DLOG("> %s", hdr);
+
+  SendResponseHeaders("101 Switching Protocols", headers,
+                      HttpServerConnection::kOmitContentLength);
+
+  is_websocket_ = true;
+}
+
+size_t HttpServer::ParseOneWebsocketFrame(HttpServerConnection* conn) {
+  auto* rxbuf = reinterpret_cast<uint8_t*>(conn->rxbuf.Get());
+  const size_t frame_size = conn->rxbuf_used;
+  uint8_t* rd = rxbuf;
+  uint8_t* const end = rxbuf + frame_size;
+
+  auto avail = [&] {
+    PERFETTO_CHECK(rd <= end);
+    return static_cast<size_t>(end - rd);
+  };
+
+  // From https://datatracker.ietf.org/doc/html/rfc6455#section-5.2 :
+  //   0                   1                   2                   3
+  //   0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+  //  +-+-+-+-+-------+-+-------------+-------------------------------+
+  //  |F|R|R|R| opcode|M| Payload len |    Extended payload length    |
+  //  |I|S|S|S|  (4)  |A|     (7)     |             (16/64)           |
+  //  |N|V|V|V|       |S|             |   (if payload len==126/127)   |
+  //  | |1|2|3|       |K|             |                               |
+  //  +-+-+-+-+-------+-+-------------+ - - - - - - - - - - - - - - - +
+  //  |     Extended payload length continued, if payload len == 127  |
+  //  + - - - - - - - - - - - - - - - +-------------------------------+
+  //  |                               |Masking-key, if MASK set to 1  |
+  //  +-------------------------------+-------------------------------+
+  //  | Masking-key (continued)       |          Payload Data         |
+  //  +-------------------------------- - - - - - - - - - - - - - - - +
+  //  :                     Payload Data continued ...                :
+  //  + - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - +
+  //  |                     Payload Data continued ...                |
+  //  +---------------------------------------------------------------+
+
+  if (avail() < 2)
+    return 0;  // Can't even decode the frame header. Wait for more data.
+
+  uint8_t h0 = *(rd++);
+  uint8_t h1 = *(rd++);
+  const bool fin = !!(h0 & 0x80);  // This bit is set if this frame is the last
+                                   // data to complete this message.
+  const uint8_t opcode = h0 & 0x0F;
+
+  const bool has_mask = !!(h1 & 0x80);
+  uint64_t payload_len_u64 = (h1 & 0x7F);
+  uint8_t extended_payload_size = 0;
+  if (payload_len_u64 == 126) {
+    extended_payload_size = 2;
+  } else if (payload_len_u64 == 127) {
+    extended_payload_size = 8;
+  }
+
+  if (extended_payload_size > 0) {
+    if (avail() < extended_payload_size)
+      return 0;  // Not enough data to read the extended header.
+    payload_len_u64 = 0;
+    for (uint8_t i = 0; i < extended_payload_size; ++i) {
+      payload_len_u64 <<= 8;
+      payload_len_u64 |= *(rd++);
+    }
+  }
+
+  if (payload_len_u64 >= kMaxPayloadSize) {
+    PERFETTO_ELOG("[HTTP] Websocket payload too big (%" PRIu64 " > %zu)",
+                  payload_len_u64, kMaxPayloadSize);
+    conn->Close();
+    return 0;
+  }
+  const size_t payload_len = static_cast<size_t>(payload_len_u64);
+
+  if (!has_mask) {
+    // https://datatracker.ietf.org/doc/html/rfc6455#section-5.1
+    // The server MUST close the connection upon receiving a frame that is
+    // not masked.
+    PERFETTO_ELOG("[HTTP] Websocket inbound frames must be masked");
+    conn->Close();
+    return 0;
+  }
+
+  uint8_t mask[4];
+  if (avail() < sizeof(mask))
+    return 0;  // Not enough data to read the masking key.
+  memcpy(mask, rd, sizeof(mask));
+  rd += sizeof(mask);
+
+  PERFETTO_DLOG(
+      "[HTTP] Websocket fin=%d opcode=%u, payload_len=%zu (avail=%zu), "
+      "mask=%02x%02x%02x%02x",
+      fin, opcode, payload_len, avail(), mask[0], mask[1], mask[2], mask[3]);
+
+  if (avail() < payload_len)
+    return 0;  // Not enouh data to read the payload.
+  uint8_t* const payload_start = rd;
+
+  // Unmask the payload.
+  for (uint32_t i = 0; i < payload_len; ++i)
+    payload_start[i] ^= mask[i % sizeof(mask)];
+
+  if (opcode == kOpcodePing) {
+    PERFETTO_DLOG("[HTTP] Websocket PING");
+    conn->SendWebsocketFrame(kOpcodePong, payload_start, payload_len);
+  } else if (opcode == kOpcodeBinary || opcode == kOpcodeText ||
+             opcode == kOpcodeContinuation) {
+    // We do NOT handle fragmentation. We propagate all fragments as individual
+    // messages, breaking the message-oriented nature of websockets. We do this
+    // because in all our use cases we need only a byte stream without caring
+    // about message boundaries.
+    // If we wanted to support fragmentation, we'd have to stash
+    // kOpcodeContinuation messages in a buffer, until we FIN bit is set.
+    // When loading traces with trace processor, the messages can be up to
+    // 32MB big (SLICE_SIZE in trace_stream.ts). The double-buffering would
+    // slow down significantly trace loading with no benefits.
+    WebsocketMessage msg(conn);
+    msg.data =
+        StringView(reinterpret_cast<const char*>(payload_start), payload_len);
+    msg.is_text = opcode == kOpcodeText;
+    req_handler_->OnWebsocketMessage(msg);
+  } else if (opcode == kOpcodeClose) {
+    conn->Close();
+  } else {
+    PERFETTO_LOG("Unsupported WebSocket opcode: %d", opcode);
+  }
+  return static_cast<size_t>(rd - rxbuf) + payload_len;
+}
+
 void HttpServerConnection::SendResponseHeaders(
     const char* http_code,
     std::initializer_list<const char*> headers,
     size_t content_length) {
   PERFETTO_CHECK(!headers_sent_);
+  PERFETTO_CHECK(!is_websocket_);
   headers_sent_ = true;
   std::vector<char> resp_hdr;
   resp_hdr.reserve(512);
@@ -296,6 +497,7 @@ void HttpServerConnection::SendResponseHeaders(
 }
 
 void HttpServerConnection::SendResponseBody(const void* data, size_t len) {
+  PERFETTO_CHECK(!is_websocket_);
   if (data == nullptr) {
     PERFETTO_DCHECK(len == 0);
     return;
@@ -323,6 +525,39 @@ void HttpServerConnection::SendResponse(
     Close();
 }
 
+void HttpServerConnection::SendWebsocketMessage(const void* data, size_t len) {
+  SendWebsocketFrame(kOpcodeBinary, data, len);
+}
+
+void HttpServerConnection::SendWebsocketFrame(uint8_t opcode,
+                                              const void* payload,
+                                              size_t payload_len) {
+  PERFETTO_CHECK(is_websocket_);
+
+  uint8_t hdr[10]{};
+  uint32_t hdr_len = 0;
+
+  hdr[0] = opcode | 0x80 /* FIN=1, no fragmentation */;
+  if (payload_len < 126) {
+    hdr_len = 2;
+    hdr[1] = static_cast<uint8_t>(payload_len);
+  } else if (payload_len < 0xffff) {
+    hdr_len = 4;
+    hdr[1] = 126;  // Special value: Header extends for 2 bytes.
+    uint16_t len_be = HostToBE16(static_cast<uint16_t>(payload_len));
+    memcpy(&hdr[2], &len_be, sizeof(len_be));
+  } else {
+    hdr_len = 10;
+    hdr[1] = 127;  // Special value: Header extends for 4 bytes.
+    uint64_t len_be = HostToBE64(payload_len);
+    memcpy(&hdr[2], &len_be, sizeof(len_be));
+  }
+
+  sock->Send(hdr, hdr_len);
+  if (payload && payload_len > 0)
+    sock->Send(payload, payload_len);
+}
+
 HttpServerConnection::HttpServerConnection(std::unique_ptr<UnixSocket> s)
     : sock(std::move(s)), rxbuf(PagedMemory::Allocate(kMaxRequestSize)) {}
 
@@ -337,6 +572,7 @@ Optional<StringView> HttpRequest::GetHeader(StringView name) const {
 }
 
 HttpRequestHandler::~HttpRequestHandler() = default;
+void HttpRequestHandler::OnWebsocketMessage(const WebsocketMessage&) {}
 void HttpRequestHandler::OnHttpConnectionClosed(HttpServerConnection*) {}
 
 }  // namespace base

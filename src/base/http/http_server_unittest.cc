@@ -39,6 +39,7 @@ class MockHttpHandler : public HttpRequestHandler {
  public:
   MOCK_METHOD1(OnHttpRequest, void(const HttpRequest&));
   MOCK_METHOD1(OnHttpConnectionClosed, void(HttpServerConnection*));
+  MOCK_METHOD1(OnWebsocketMessage, void(const WebsocketMessage&));
 };
 
 class HttpCli {
@@ -59,7 +60,7 @@ class HttpCli {
     sock.SendStr(body);
   }
 
-  std::string RecvAndWaitConnClose() {
+  std::string Recv(size_t min_bytes) {
     static int n = 0;
     auto checkpoint_name = "rx_" + std::to_string(n++);
     auto checkpoint = task_runner_->CreateCheckpoint(checkpoint_name);
@@ -69,14 +70,16 @@ class HttpCli {
       char buf[1024]{};
       auto rsize = PERFETTO_EINTR(sock.Receive(buf, sizeof(buf)));
       ASSERT_GE(rsize, 0);
-      if (rsize == 0)
-        checkpoint();
       rxbuf.append(buf, static_cast<size_t>(rsize));
+      if (rsize == 0 || (min_bytes && rxbuf.length() >= min_bytes))
+        checkpoint();
     });
     task_runner_->RunUntilCheckpoint(checkpoint_name);
     task_runner_->RemoveFileDescriptorWatch(sock.fd());
     return rxbuf;
   }
+
+  std::string RecvAndWaitConnClose() { return Recv(0); }
 
   TestTaskRunner* task_runner_;
   UnixSocketRaw sock;
@@ -103,6 +106,7 @@ TEST_F(HttpServerTest, GET) {
                   req.GetHeader("X-header").value_or("N/A").ToStdString());
         EXPECT_EQ("foo",
                   req.GetHeader("X-header2").value_or("N/A").ToStdString());
+        EXPECT_FALSE(req.is_websocket_handshake);
         req.conn->SendResponseAndClose("200 OK", {}, "<html>");
       }));
   EXPECT_CALL(handler_, OnHttpConnectionClosed(_)).Times(kIterations);
@@ -211,6 +215,105 @@ TEST_F(HttpServerTest, POST_Keepalive) {
         "\r\n";
   }
   EXPECT_EQ(cli.RecvAndWaitConnClose(), expected_response);
+}
+
+TEST_F(HttpServerTest, Websocket) {
+  srv_.AddAllowedOrigin("http://foo.com");
+  srv_.AddAllowedOrigin("http://websocket.com");
+  for (int rep = 0; rep < 3; rep++) {
+    HttpCli cli(&task_runner_);
+    EXPECT_CALL(handler_, OnHttpRequest(_))
+        .WillOnce(Invoke([&](const HttpRequest& req) {
+          EXPECT_EQ(req.uri.ToStdString(), "/websocket");
+          EXPECT_EQ(req.method.ToStdString(), "GET");
+          EXPECT_EQ(req.origin.ToStdString(), "http://websocket.com");
+          EXPECT_TRUE(req.is_websocket_handshake);
+          req.conn->UpgradeToWebsocket(req);
+        }));
+
+    cli.SendHttpReq({
+        "GET /websocket HTTP/1.1",                      //
+        "Origin: http://websocket.com",                 //
+        "Connection: upgrade",                          //
+        "Upgrade: websocket",                           //
+        "Sec-WebSocket-Version: 13",                    //
+        "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==",  //
+    });
+    std::string expected_resp =
+        "HTTP/1.1 101 Switching Protocols\r\n"
+        "Upgrade: websocket\r\n"
+        "Connection: Upgrade\r\n"
+        "Sec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n"
+        "Access-Control-Allow-Origin: http://websocket.com\r\n"
+        "Vary: Origin\r\n"
+        "\r\n";
+    EXPECT_EQ(cli.Recv(expected_resp.size()), expected_resp);
+
+    for (int i = 0; i < 3; i++) {
+      EXPECT_CALL(handler_, OnWebsocketMessage(_))
+          .WillOnce(Invoke([i](const WebsocketMessage& msg) {
+            EXPECT_EQ(msg.data.ToStdString(), "test message");
+            StackString<6> resp("PONG%d", i);
+            msg.conn->SendWebsocketMessage(resp.c_str(), resp.len());
+          }));
+
+      // A frame from a real tcpdump capture:
+      //   1... .... = Fin: True
+      //   .000 .... = Reserved: 0x0
+      //   .... 0001 = Opcode: Text (1)
+      //   1... .... = Mask: True
+      //   .000 1100 = Payload length: 12
+      //   Masking-Key: e17e8eb9
+      //   Masked payload: "test message"
+      cli.sock.SendStr(
+          "\x81\x8c\xe1\x7e\x8e\xb9\x95\x1b\xfd\xcd\xc1\x13\xeb\xca\x92\x1f\xe9"
+          "\xdc");
+      EXPECT_EQ(cli.Recv(2 + 5), "\x82\x05PONG" + std::to_string(i));
+    }
+
+    cli.sock.Shutdown();
+    auto checkpoint_name = "ws_close_" + std::to_string(rep);
+    auto ws_close = task_runner_.CreateCheckpoint(checkpoint_name);
+    EXPECT_CALL(handler_, OnHttpConnectionClosed(_))
+        .WillOnce(InvokeWithoutArgs(ws_close));
+    task_runner_.RunUntilCheckpoint(checkpoint_name);
+  }
+}
+
+TEST_F(HttpServerTest, Websocket_OriginNotAllowed) {
+  srv_.AddAllowedOrigin("http://websocket.com");
+  srv_.AddAllowedOrigin("http://notallowed.commando");
+  srv_.AddAllowedOrigin("http://iamnotallowed.com");
+  srv_.AddAllowedOrigin("iamnotallowed.com");
+  // The origin must match in full, including scheme. This won't match.
+  srv_.AddAllowedOrigin("notallowed.com");
+
+  HttpCli cli(&task_runner_);
+  EXPECT_CALL(handler_, OnHttpConnectionClosed(_));
+  EXPECT_CALL(handler_, OnHttpRequest(_))
+      .WillOnce(Invoke([&](const HttpRequest& req) {
+        EXPECT_EQ(req.origin.ToStdString(), "http://notallowed.com");
+        EXPECT_TRUE(req.is_websocket_handshake);
+        req.conn->UpgradeToWebsocket(req);
+      }));
+
+  cli.SendHttpReq({
+      "GET /websocket HTTP/1.1",                      //
+      "Origin: http://notallowed.com",                //
+      "Connection: upgrade",                          //
+      "Upgrade: websocket",                           //
+      "Sec-WebSocket-Version: 13",                    //
+      "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==",  //
+  });
+  std::string expected_resp =
+      "HTTP/1.1 403 Forbidden\r\n"
+      "Content-Length: 18\r\n"
+      "Connection: close\r\n"
+      "\r\n"
+      "Origin not allowed";
+
+  EXPECT_EQ(cli.Recv(expected_resp.size()), expected_resp);
+  cli.sock.Shutdown();
 }
 
 }  // namespace
