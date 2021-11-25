@@ -13,6 +13,9 @@
 # limitations under the License.
 
 source_set("http") {
-  sources = [ "http_server.h" ]
+  sources = [
+    "http_server.h",
+    "sha1.h",
+  ]
   public_deps = [ "..:base" ]
 }

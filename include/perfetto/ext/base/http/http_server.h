@@ -47,6 +47,7 @@ struct HttpRequest {
   StringView uri;
   StringView origin;
   StringView body;
+  bool is_websocket_handshake = false;
 
  private:
   friend class HttpServer;
@@ -58,6 +59,24 @@ struct HttpRequest {
   static constexpr uint32_t kMaxHeaders = 32;
   std::array<Header, kMaxHeaders> headers{};
   size_t num_headers = 0;
+};
+
+struct WebsocketMessage {
+  explicit WebsocketMessage(HttpServerConnection* c) : conn(c) {}
+
+  HttpServerConnection* conn;
+
+  // Note: message boundaries are not respected in case of fragmentation.
+  // This websocket implementation preserves only the byte stream, but not the
+  // atomicity of inbound messages (like SOCK_STREAM, unlike SOCK_DGRAM).
+  // Holds onto the connection's |rxbuf|. This is valid only within the scope
+  // of the OnWebsocketMessage() callback.
+  StringView data;
+
+  // If false the payload contains binary data. If true it's supposed to contain
+  // text. Note that there is no guarantee this will be the case. This merely
+  // reflect the opcode that the client sets on each message.
+  bool is_text = false;
 };
 
 class HttpServerConnection {
@@ -86,6 +105,24 @@ class HttpServerConnection {
     SendResponse(http_code, headers, content, true);
   }
 
+  // The metods below are only valid for websocket connections.
+
+  // Upgrade an existing connection to a websocket. This can be called only in
+  // the context of OnHttpRequest(req) if req.is_websocket_handshake == true.
+  // If the origin is not in the |allowed_origins_|, the request will fail with
+  // a 403 error (this is because there is no browser-side CORS support for
+  // websockets).
+  void UpgradeToWebsocket(const HttpRequest&);
+  void SendWebsocketMessage(const void* data, size_t len);
+  void SendWebsocketMessage(StringView sv) {
+    SendWebsocketMessage(sv.data(), sv.size());
+  }
+  void SendWebsocketFrame(uint8_t opcode,
+                          const void* payload,
+                          size_t payload_len);
+
+  bool is_websocket() const { return is_websocket_; }
+
  private:
   friend class HttpServer;
 
@@ -94,6 +131,7 @@ class HttpServerConnection {
   std::unique_ptr<UnixSocket> sock;
   PagedMemory rxbuf;
   size_t rxbuf_used = 0;
+  bool is_websocket_ = false;
   bool headers_sent_ = false;
   size_t content_len_headers_ = 0;
   size_t content_len_actual_ = 0;
@@ -112,6 +150,7 @@ class HttpRequestHandler {
  public:
   virtual ~HttpRequestHandler();
   virtual void OnHttpRequest(const HttpRequest&) = 0;
+  virtual void OnWebsocketMessage(const WebsocketMessage&);
   virtual void OnHttpConnectionClosed(HttpServerConnection*);
 };
 
@@ -124,6 +163,7 @@ class HttpServer : public UnixSocket::EventListener {
 
  private:
   size_t ParseOneHttpRequest(HttpServerConnection*);
+  size_t ParseOneWebsocketFrame(HttpServerConnection*);
   void HandleCorsPreflightRequest(const HttpRequest&);
   bool IsOriginAllowed(StringView);
 
