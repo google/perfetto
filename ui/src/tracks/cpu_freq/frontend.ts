@@ -36,7 +36,7 @@ class CpuFreqTrack extends Track<Config, Data> {
     return new CpuFreqTrack(args);
   }
 
-  private mouseXpos = 0;
+  private mousePos = {x: 0, y: 0};
   private hoveredValue: number|undefined = undefined;
   private hoveredTs: number|undefined = undefined;
   private hoveredTsEnd: number|undefined = undefined;
@@ -192,7 +192,7 @@ class CpuFreqTrack extends Track<Config, Data> {
       }
 
       // Draw the tooltip.
-      this.drawTrackHoverTooltip(ctx, this.mouseXpos, text);
+      this.drawTrackHoverTooltip(ctx, this.mousePos, text);
     }
 
     // Write the Y scale on the top left corner.
@@ -214,12 +214,12 @@ class CpuFreqTrack extends Track<Config, Data> {
         timeScale.timeToPx(data.end));
   }
 
-  onMouseMove({x}: {x: number, y: number}) {
+  onMouseMove(pos: {x: number, y: number}) {
     const data = this.data();
     if (data === undefined) return;
-    this.mouseXpos = x;
+    this.mousePos = pos;
     const {timeScale} = globals.frontendLocalState;
-    const time = timeScale.pxToTime(x);
+    const time = timeScale.pxToTime(pos.x);
 
     const [left, right] = searchSegment(data.timestamps, time);
     this.hoveredTs = left === -1 ? undefined : data.timestamps[left];

@@ -84,7 +84,7 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
   private extraSqlColumns: string[];
 
   private charWidth = -1;
-  private hoverXpos?: number;
+  private hoverPos?: {x: number, y: number};
   protected hoveredSlice?: T['slice'];
   private hoverTooltip: string[] = [];
   private maxDataDepth = 0;
@@ -333,11 +333,11 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
     // If a slice is hovered, draw the tooltip.
     const tooltip = this.hoverTooltip;
     if (this.hoveredSlice !== undefined && tooltip.length > 0 &&
-        this.hoverXpos !== undefined) {
+        this.hoverPos !== undefined) {
       if (tooltip.length === 1) {
-        this.drawTrackHoverTooltip(ctx, this.hoverXpos, tooltip[0]);
+        this.drawTrackHoverTooltip(ctx, this.hoverPos, tooltip[0]);
       } else {
-        this.drawTrackHoverTooltip(ctx, this.hoverXpos, tooltip[0], tooltip[1]);
+        this.drawTrackHoverTooltip(ctx, this.hoverPos, tooltip[0], tooltip[1]);
       }
     }  // if (howSlice)
   }
@@ -529,7 +529,7 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
   }
 
   onMouseMove(position: {x: number, y: number}): void {
-    this.hoverXpos = position.x;
+    this.hoverPos = position;
     this.updateHoveredSlice(this.findSlice(position));
   }
 
@@ -548,7 +548,7 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
       globals.dispatch(Actions.setHighlightedSliceId({sliceId: -1}));
       this.onSliceOut({slice: assertExists(lastHoveredSlice)});
       this.hoverTooltip = [];
-      this.hoverXpos = undefined;
+      this.hoverPos = undefined;
     } else {
       const args: OnSliceOverArgs<T['slice']> = {slice: this.hoveredSlice};
       globals.dispatch(
