@@ -67,7 +67,7 @@ export function drawDoubleHeadedArrow(
   }
 }
 
-export function drawIncompleteSliceWithCurrentFill(
+export function drawIncompleteSlice(
     ctx: CanvasRenderingContext2D,
     x: number,
     y: number,
@@ -87,17 +87,4 @@ export function drawIncompleteSliceWithCurrentFill(
   ctx.lineTo(x + width, y + 4 * triangleSize);
   ctx.lineTo(x, y + height);
   ctx.fill();
-}
-
-// TODO(hjd): We should kill this. It encourages code with poor performance.
-// (Ideally you want to change fillStyle as few times as possible).
-export function drawIncompleteSlice(
-    ctx: CanvasRenderingContext2D,
-    x: number,
-    y: number,
-    width: number,
-    height: number,
-    color: string) {
-  ctx.fillStyle = color;
-  drawIncompleteSliceWithCurrentFill(ctx, x, y, width, height);
 }

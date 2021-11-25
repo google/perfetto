@@ -14,10 +14,7 @@
 
 import {assertExists} from '../base/logging';
 import {Actions} from '../common/actions';
-import {
-  cropText,
-  drawIncompleteSliceWithCurrentFill
-} from '../common/canvas_utils';
+import {cropText, drawIncompleteSlice} from '../common/canvas_utils';
 import {colorCompare, colorToStr, GRAY_COLOR} from '../common/colorizer';
 import {NUM, QueryResult} from '../common/query_result';
 import {SelectionKind} from '../common/state';
@@ -274,7 +271,7 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
         this.drawChevron(ctx, slice.x, y, sliceHeight);
       } else if (slice.flags & SLICE_FLAGS_INCOMPLETE) {
         const w = Math.max(slice.w - 2, 2);
-        drawIncompleteSliceWithCurrentFill(ctx, slice.x, y, w, sliceHeight);
+        drawIncompleteSlice(ctx, slice.x, y, w, sliceHeight);
       } else if (slice.w > SLICE_MIN_WIDTH_PX) {
         ctx.fillRect(slice.x, y, slice.w, sliceHeight);
       }
