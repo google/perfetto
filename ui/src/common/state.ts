@@ -273,6 +273,7 @@ type Selection =
     (NoteSelection|SliceSelection|CounterSelection|HeapProfileSelection|
      CpuProfileSampleSelection|ChromeSliceSelection|ThreadStateSelection|
      AreaSelection|PerfSamplesSelection)&{trackId?: string};
+export type SelectionKind = Selection['kind'];  // 'THREAD_STATE' | 'SLICE' ...
 
 export interface LogsPagination {
   offset: number;
