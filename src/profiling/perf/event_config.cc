@@ -183,6 +183,25 @@ base::Optional<PerfCounter> ToPerfCounter(
   }
 }
 
+int32_t ToClockId(protos::gen::PerfEvents::PerfClock pb_enum) {
+  using protos::gen::PerfEvents;
+  switch (static_cast<int>(pb_enum)) {  // cast to pacify -Wswitch-enum
+    case PerfEvents::PERF_CLOCK_REALTIME:
+      return CLOCK_REALTIME;
+    case PerfEvents::PERF_CLOCK_MONOTONIC:
+      return CLOCK_MONOTONIC;
+    case PerfEvents::PERF_CLOCK_MONOTONIC_RAW:
+      return CLOCK_MONOTONIC_RAW;
+    case PerfEvents::PERF_CLOCK_BOOTTIME:
+      return CLOCK_BOOTTIME;
+    // Default to a monotonic clock since it should be compatible with all types
+    // of events. Whereas boottime cannot be used with hardware events due to
+    // potential access within non-maskable interrupts.
+    default:
+      return CLOCK_MONOTONIC_RAW;
+  }
+}
+
 }  // namespace
 
 // static
@@ -385,9 +404,7 @@ base::Optional<EventConfig> EventConfig::Create(
   // What the samples will contain.
   pe.sample_type = PERF_SAMPLE_TID | PERF_SAMPLE_TIME | PERF_SAMPLE_READ;
   // PERF_SAMPLE_TIME:
-  // We used to use CLOCK_BOOTTIME, but that is not nmi-safe, and therefore
-  // works only for software events.
-  pe.clockid = CLOCK_MONOTONIC_RAW;
+  pe.clockid = ToClockId(pb_config.timebase().timestamp_clock());
   pe.use_clockid = true;
 
   if (sample_callstacks) {

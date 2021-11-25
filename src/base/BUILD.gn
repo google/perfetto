@@ -157,7 +157,12 @@ perfetto_unittest_source_set("unittests") {
     ":test_support",
     "../../gn:default_deps",
     "../../gn:gtest_and_gmock",
+    "http:unittests",
   ]
+
+  if (enable_perfetto_ipc) {
+    deps += [ "http:unittests" ]
+  }
 
   sources = [
     "base64_unittest.cc",

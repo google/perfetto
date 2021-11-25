@@ -135,7 +135,7 @@ class TraceProcessor:
 
       except ModuleNotFoundError:
         raise TraceProcessorException(
-            'The sufficient libraries are not installed')
+            'Python dependencies missing. Please pip3 install pandas numpy')
 
     def __len__(self):
       return self.__count
