@@ -40,8 +40,11 @@ void JavaHprofProducer::DoContinuousDump(DataSourceInstanceID id,
   auto it = data_sources_.find(id);
   if (it == data_sources_.end())
     return;
-  const DataSource& ds = it->second;
-  SignalDataSource(ds);
+  DataSource& ds = it->second;
+  if (!ds.config().continuous_dump_config().scan_pids_only_on_start()) {
+    ds.CollectPids();
+  }
+  ds.SendSignal();
   auto weak_producer = weak_factory_.GetWeakPtr();
   task_runner_->PostDelayedTask(
       [weak_producer, id, dump_interval] {
@@ -52,10 +55,16 @@ void JavaHprofProducer::DoContinuousDump(DataSourceInstanceID id,
       dump_interval);
 }
 
-// static
-void JavaHprofProducer::SignalDataSource(const DataSource& ds) {
-  const std::set<pid_t>& pids = ds.pids;
-  for (pid_t pid : pids) {
+JavaHprofProducer::DataSource::DataSource(
+    DataSourceConfig ds_config,
+    JavaHprofConfig config,
+    std::vector<std::string> normalized_cmdlines)
+    : ds_config_(ds_config),
+      config_(config),
+      normalized_cmdlines_(normalized_cmdlines) {}
+
+void JavaHprofProducer::DataSource::SendSignal() const {
+  for (pid_t pid : pids_) {
     auto opt_status = ReadStatus(pid);
     if (!opt_status) {
       PERFETTO_PLOG("Failed to read /proc/%d/status. Not signalling.", pid);
@@ -69,21 +78,30 @@ void JavaHprofProducer::SignalDataSource(const DataSource& ds) {
           pid);
       continue;
     }
-    if (!CanProfile(ds.ds_config, uids->effective,
-                    ds.config.target_installed_by())) {
+    if (!CanProfile(ds_config_, uids->effective,
+                    config_.target_installed_by())) {
       PERFETTO_ELOG("%d (UID %" PRIu64 ") not profileable.", pid,
                     uids->effective);
       continue;
     }
     PERFETTO_DLOG("Sending %d to %d", kJavaHeapprofdSignal, pid);
     union sigval signal_value;
-    signal_value.sival_int =
-        static_cast<int32_t>(ds.ds_config.tracing_session_id() %
-                             std::numeric_limits<int32_t>::max());
+    signal_value.sival_int = static_cast<int32_t>(
+        ds_config_.tracing_session_id() % std::numeric_limits<int32_t>::max());
     if (sigqueue(pid, kJavaHeapprofdSignal, signal_value) != 0) {
       PERFETTO_DPLOG("sigqueue");
     }
   }
+}
+
+void JavaHprofProducer::DataSource::CollectPids() {
+  pids_.clear();
+  for (uint64_t pid : config_.pid()) {
+    pids_.emplace(static_cast<pid_t>(pid));
+  }
+  FindPidsForCmdlines(normalized_cmdlines_, &pids_);
+  if (config_.min_anonymous_memory_kb() > 0)
+    RemoveUnderAnonThreshold(config_.min_anonymous_memory_kb(), &pids_);
 }
 
 void JavaHprofProducer::IncreaseConnectionBackoff() {
@@ -104,23 +122,15 @@ void JavaHprofProducer::SetupDataSource(DataSourceInstanceID id,
   }
   JavaHprofConfig config;
   config.ParseFromString(ds_config.java_hprof_config_raw());
-  DataSource ds;
-  ds.id = id;
-  for (uint64_t pid : config.pid())
-    ds.pids.emplace(static_cast<pid_t>(pid));
   base::Optional<std::vector<std::string>> normalized_cmdlines =
       NormalizeCmdlines(config.process_cmdline());
   if (!normalized_cmdlines.has_value()) {
     PERFETTO_ELOG("Rejecting data source due to invalid cmdline in config.");
     return;
   }
-  FindPidsForCmdlines(normalized_cmdlines.value(), &ds.pids);
-  if (config.min_anonymous_memory_kb() > 0)
-    RemoveUnderAnonThreshold(config.min_anonymous_memory_kb(), &ds.pids);
-
-  ds.config = std::move(config);
-  ds.ds_config = std::move(ds_config);
-  data_sources_.emplace(id, std::move(ds));
+  DataSource ds(ds_config, std::move(config), std::move(*normalized_cmdlines));
+  ds.CollectPids();
+  data_sources_.emplace(id, ds);
 }
 
 void JavaHprofProducer::StartDataSource(DataSourceInstanceID id,
@@ -131,7 +141,7 @@ void JavaHprofProducer::StartDataSource(DataSourceInstanceID id,
     return;
   }
   const DataSource& ds = it->second;
-  const auto continuous_dump_config = ds.config.continuous_dump_config();
+  const auto& continuous_dump_config = ds.config().continuous_dump_config();
   uint32_t dump_interval = continuous_dump_config.dump_interval_ms();
   if (dump_interval) {
     auto weak_producer = weak_factory_.GetWeakPtr();
@@ -143,7 +153,7 @@ void JavaHprofProducer::StartDataSource(DataSourceInstanceID id,
         },
         continuous_dump_config.dump_phase_ms());
   }
-  SignalDataSource(ds);
+  ds.SendSignal();
 }
 
 void JavaHprofProducer::StopDataSource(DataSourceInstanceID id) {
