@@ -21,7 +21,7 @@ import {
   DeferredAction,
 } from '../common/actions';
 import {Engine} from '../common/engine';
-import {PERF_SAMPLE_FLAG} from '../common/feature_flags';
+import {featureFlags, PERF_SAMPLE_FLAG} from '../common/feature_flags';
 import {
   NUM,
   NUM_NULL,
@@ -49,6 +49,13 @@ import {
 } from '../tracks/process_scheduling/common';
 import {PROCESS_SUMMARY_TRACK} from '../tracks/process_summary/common';
 import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state/common';
+
+const TRACKS_V2_FLAG = featureFlags.register({
+  id: 'tracksV2',
+  name: 'Tracks V2',
+  description: 'Show tracks built on top of the Track V2 API.',
+  defaultValue: false,
+});
 
 const MEM_DMA_COUNTER_NAME = 'mem.dma_heap';
 const MEM_DMA = 'mem.dma_buffer';
@@ -869,6 +876,17 @@ class TrackDecider {
         trackKindPriority,
         config: {trackId, maxDepth, tid, isThreadSlice: onlyThreadSlice === 1}
       });
+
+      if (TRACKS_V2_FLAG.get()) {
+        this.tracksToAdd.push({
+          engineId: this.engineId,
+          kind: 'GenericSliceTrack',
+          name,
+          trackGroup: uuid,
+          trackKindPriority,
+          config: {sqlTrackId: trackId},
+        });
+      }
     }
   }
 

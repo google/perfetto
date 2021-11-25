@@ -59,8 +59,13 @@ export interface SliceRect {
  */
 export abstract class Track<Config = {}, Data extends TrackData = TrackData> {
   // The UI-generated track ID (not to be confused with the SQL track.id).
-  private trackId: string;
+  protected readonly trackId: string;
   protected readonly engine: Engine;
+
+  // When true this is a new controller-less track type.
+  // TODO(hjd): eventually all tracks will be controller-less and this
+  // should be removed then.
+  protected frontendOnly = false;
 
   // Caches the last state.track[this.trackId]. This is to deal with track
   // deletion, see comments in trackState() below.
@@ -94,6 +99,9 @@ export abstract class Track<Config = {}, Data extends TrackData = TrackData> {
   }
 
   data(): Data|undefined {
+    if (this.frontendOnly) {
+      return undefined;
+    }
     return globals.trackDataStore.get(this.trackId) as Data;
   }
 
@@ -115,11 +123,13 @@ export abstract class Track<Config = {}, Data extends TrackData = TrackData> {
     return false;
   }
 
-  onMouseOut() {}
+  onMouseOut(): void {}
+
+  onFullRedraw(): void {}
 
   render(ctx: CanvasRenderingContext2D) {
     globals.frontendLocalState.addVisibleTrack(this.trackState.id);
-    if (this.data() === undefined) {
+    if (this.data() === undefined && !this.frontendOnly) {
       const {visibleWindowTime, timeScale} = globals.frontendLocalState;
       const startPx = Math.floor(timeScale.timeToPx(visibleWindowTime.start));
       const endPx = Math.ceil(timeScale.timeToPx(visibleWindowTime.end));

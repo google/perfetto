@@ -43,7 +43,7 @@ const MD_PALETTE: Color[] = [
   {c: 'yellow', h: 54, s: 100, l: 62},
 ];
 
-const GREY_COLOR: Color = {
+export const GRAY_COLOR: Color = {
   c: 'grey',
   h: 0,
   s: 0,
@@ -129,7 +129,7 @@ export function colorForTid(tid: number): Color {
 
 export function colorForThread(thread?: {pid?: number, tid: number}): Color {
   if (thread === undefined) {
-    return Object.assign({}, GREY_COLOR);
+    return Object.assign({}, GRAY_COLOR);
   }
   const tid = thread.pid ? thread.pid : thread.tid;
   return colorForTid(tid);
@@ -171,4 +171,15 @@ export function hslForThreadIdleSlice(
   let newLightness = isSelected ? lightness * 1.8 : lightness * 1.4;
   newLightness = Math.min(newLightness, 88);
   return [hue, saturation, newLightness];
+}
+
+export function colorToStr(color: Color) {
+  if (color.a !== undefined) {
+    return `hsla(${color.h}, ${color.s}%, ${color.l}%, ${color.a})`;
+  }
+  return `hsl(${color.h}, ${color.s}%, ${color.l}%)`;
+}
+
+export function colorCompare(x: Color, y: Color) {
+  return (x.h - y.h) || (x.s - y.s) || (x.l - y.l);
 }
