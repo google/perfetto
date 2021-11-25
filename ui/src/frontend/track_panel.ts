@@ -314,6 +314,18 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
     return m(TrackComponent, {trackState: this.trackState, track: this.track});
   }
 
+  oncreate() {
+    if (this.track !== undefined) {
+      this.track.onFullRedraw();
+    }
+  }
+
+  onupdate() {
+    if (this.track !== undefined) {
+      this.track.onFullRedraw();
+    }
+  }
+
   highlightIfTrackSelected(ctx: CanvasRenderingContext2D, size: PanelSize) {
     const localState = globals.frontendLocalState;
     const selection = globals.state.currentSelection;

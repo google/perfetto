@@ -153,8 +153,7 @@ export class ChromeSliceTrack extends Track<Config, Data> {
       }
 
       if (isIncomplete && rect.width > SLICE_HEIGHT / 4) {
-        drawIncompleteSlice(
-            ctx, rect.left, rect.top, rect.width, SLICE_HEIGHT, color);
+        drawIncompleteSlice(ctx, rect.left, rect.top, rect.width, SLICE_HEIGHT);
       } else if (isThreadSlice) {
         // We draw two rectangles, representing the ratio between wall time and
         // time spent on cpu.
