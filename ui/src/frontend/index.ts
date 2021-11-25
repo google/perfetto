@@ -18,8 +18,9 @@ import * as m from 'mithril';
 import {defer} from '../base/deferred';
 import {assertExists, reportError, setErrorHandler} from '../base/logging';
 import {Actions, DeferredAction, StateActions} from '../common/actions';
+import {createEmptyState} from '../common/empty_state';
 import {initializeImmerJs} from '../common/immer_init';
-import {createEmptyState, State} from '../common/state';
+import {State} from '../common/state';
 import {initWasm} from '../common/wasm_engine_proxy';
 import {ControllerWorkerInitMessage} from '../common/worker_messages';
 import {
