@@ -37,7 +37,7 @@ class ProcessSchedulingTrack extends Track<Config, Data> {
     return new ProcessSchedulingTrack(args);
   }
 
-  private mouseXpos?: number;
+  private mousePos?: {x: number, y: number};
   private utidHoveredInThisTrack = -1;
 
   constructor(args: NewTrackArgs) {
@@ -113,31 +113,31 @@ class ProcessSchedulingTrack extends Track<Config, Data> {
     }
 
     const hoveredThread = globals.threads.get(this.utidHoveredInThisTrack);
-    if (hoveredThread !== undefined && this.mouseXpos !== undefined) {
+    if (hoveredThread !== undefined && this.mousePos !== undefined) {
       const tidText = `T: ${hoveredThread.threadName} [${hoveredThread.tid}]`;
       if (hoveredThread.pid) {
         const pidText = `P: ${hoveredThread.procName} [${hoveredThread.pid}]`;
-        this.drawTrackHoverTooltip(ctx, this.mouseXpos, pidText, tidText);
+        this.drawTrackHoverTooltip(ctx, this.mousePos, pidText, tidText);
       } else {
-        this.drawTrackHoverTooltip(ctx, this.mouseXpos, tidText);
+        this.drawTrackHoverTooltip(ctx, this.mousePos, tidText);
       }
     }
   }
 
-  onMouseMove({x, y}: {x: number, y: number}) {
+  onMouseMove(pos: {x: number, y: number}) {
     const data = this.data();
-    this.mouseXpos = x;
+    this.mousePos = pos;
     if (data === undefined) return;
-    if (y < MARGIN_TOP || y > MARGIN_TOP + RECT_HEIGHT) {
+    if (pos.y < MARGIN_TOP || pos.y > MARGIN_TOP + RECT_HEIGHT) {
       this.utidHoveredInThisTrack = -1;
       globals.dispatch(Actions.setHoveredUtidAndPid({utid: -1, pid: -1}));
       return;
     }
 
     const cpuTrackHeight = Math.floor(RECT_HEIGHT / data.maxCpu);
-    const cpu = Math.floor((y - MARGIN_TOP) / (cpuTrackHeight + 1));
+    const cpu = Math.floor((pos.y - MARGIN_TOP) / (cpuTrackHeight + 1));
     const {timeScale} = globals.frontendLocalState;
-    const t = timeScale.pxToTime(x);
+    const t = timeScale.pxToTime(pos.x);
 
     const [i, j] = searchRange(data.starts, t, searchEq(data.cpus, cpu));
     if (i === j || i >= data.starts.length || t > data.ends[i]) {
@@ -156,7 +156,7 @@ class ProcessSchedulingTrack extends Track<Config, Data> {
   onMouseOut() {
     this.utidHoveredInThisTrack = -1;
     globals.dispatch(Actions.setHoveredUtidAndPid({utid: -1, pid: -1}));
-    this.mouseXpos = 0;
+    this.mousePos = undefined;
   }
 }
 
