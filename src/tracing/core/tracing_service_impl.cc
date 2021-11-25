@@ -2232,7 +2232,7 @@ bool TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
     const size_t max_iovecs = total_slices + packets.size();
 
     size_t num_iovecs = 0;
-    bool stop_writing_into_file = tracing_session->write_period_ms == 0;
+    bool stop_writing_into_file = false;
     std::unique_ptr<struct iovec[]> iovecs(new struct iovec[max_iovecs]);
     size_t num_iovecs_at_last_packet = 0;
     uint64_t bytes_about_to_be_written = 0;
@@ -2282,7 +2282,7 @@ bool TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
 
     PERFETTO_DLOG("Draining into file, written: %" PRIu64 " KB, stop: %d",
                   (total_wr_size + 1023) / 1024, stop_writing_into_file);
-    if (stop_writing_into_file) {
+    if (stop_writing_into_file || tracing_session->write_period_ms == 0) {
       // Ensure all data was written to the file before we close it.
       base::FlushFile(fd);
       tracing_session->write_into_file.reset();
