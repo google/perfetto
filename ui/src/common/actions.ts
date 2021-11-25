@@ -32,6 +32,7 @@ import {
 } from '../tracks/process_scheduling/common';
 import {PROCESS_SUMMARY_TRACK} from '../tracks/process_summary/common';
 
+import {createEmptyState} from './empty_state';
 import {DEFAULT_VIEWING_OPTION, PERF_SAMPLES_KEY} from './flamegraph_util';
 import {
   AggregationAttrs,
@@ -43,7 +44,6 @@ import {
   AdbRecordingTarget,
   Area,
   CallsiteInfo,
-  createEmptyState,
   EngineMode,
   FlamegraphStateViewingOption,
   LoadedConfig,
