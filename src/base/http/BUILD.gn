@@ -16,8 +16,6 @@ import("../../../gn/perfetto.gni")
 import("../../../gn/perfetto_component.gni")
 import("../../../gn/test.gni")
 
-assert(enable_perfetto_ipc)
-
 perfetto_component("http") {
   deps = [
     "..:base",
