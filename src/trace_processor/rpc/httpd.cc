@@ -24,6 +24,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/unix_task_runner.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/rpc/rpc.h"
@@ -55,6 +56,7 @@ class Httpd : public base::HttpRequestHandler {
  private:
   // HttpRequestHandler implementation.
   void OnHttpRequest(const base::HttpRequest&) override;
+  void OnWebsocketMessage(const base::WebsocketMessage&) override;
 
   void ServeHelpPage(const base::HttpRequest&);
 
@@ -73,13 +75,19 @@ base::StringView Vec2Sv(const std::vector<uint8_t>& v) {
 void SendRpcChunk(const void* data, uint32_t len) {
   if (data == nullptr) {
     // Unrecoverable RPC error case.
+    if (!g_cur_conn->is_websocket())
+      g_cur_conn->SendResponseBody("0\r\n\r\n", 5);
     g_cur_conn->Close();
     return;
   }
-  base::StackString<32> chunk_hdr("%x\r\n", len);
-  g_cur_conn->SendResponseBody(chunk_hdr.c_str(), chunk_hdr.len());
-  g_cur_conn->SendResponseBody(data, len);
-  g_cur_conn->SendResponseBody("\r\n", 2);
+  if (g_cur_conn->is_websocket()) {
+    g_cur_conn->SendWebsocketMessage(data, len);
+  } else {
+    base::StackString<32> chunk_hdr("%x\r\n", len);
+    g_cur_conn->SendResponseBody(chunk_hdr.c_str(), chunk_hdr.len());
+    g_cur_conn->SendResponseBody(data, len);
+    g_cur_conn->SendResponseBody("\r\n", 2);
+  }
 }
 
 Httpd::Httpd(std::unique_ptr<TraceProcessor> preloaded_instance)
@@ -129,6 +137,12 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
   if (req.uri == "/status") {
     auto status = trace_processor_rpc_.GetStatus();
     return conn.SendResponse("200 OK", headers, Vec2Sv(status));
+  }
+
+  if (req.uri == "/websocket" && req.is_websocket_handshake) {
+    // Will trigger OnWebsocketMessage() when is received.
+    // It returns a 403 if the origin is not in kAllowedCORSOrigins.
+    return conn.UpgradeToWebsocket(req);
   }
 
   // --- Everything below this line is a legacy endpoint not used by the UI.
@@ -234,6 +248,16 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
   }
 
   return conn.SendResponseAndClose("404 Not Found", headers);
+}
+
+void Httpd::OnWebsocketMessage(const base::WebsocketMessage& msg) {
+  PERFETTO_CHECK(g_cur_conn == nullptr);
+  g_cur_conn = msg.conn;
+  trace_processor_rpc_.SetRpcResponseFunction(SendRpcChunk);
+  // OnRpcRequest() will call SendRpcChunk() one or more times.
+  trace_processor_rpc_.OnRpcRequest(msg.data.data(), msg.data.size());
+  trace_processor_rpc_.SetRpcResponseFunction(nullptr);
+  g_cur_conn = nullptr;
 }
 
 }  // namespace
