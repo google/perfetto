@@ -59,8 +59,13 @@ export interface SliceRect {
  */
 export abstract class Track<Config = {}, Data extends TrackData = TrackData> {
   // The UI-generated track ID (not to be confused with the SQL track.id).
-  private trackId: string;
+  protected readonly trackId: string;
   protected readonly engine: Engine;
+
+  // When true this is a new controller-less track type.
+  // TODO(hjd): eventually all tracks will be controller-less and this
+  // should be removed then.
+  protected frontendOnly = false;
 
   // Caches the last state.track[this.trackId]. This is to deal with track
   // deletion, see comments in trackState() below.
@@ -94,6 +99,9 @@ export abstract class Track<Config = {}, Data extends TrackData = TrackData> {
   }
 
   data(): Data|undefined {
+    if (this.frontendOnly) {
+      return undefined;
+    }
     return globals.trackDataStore.get(this.trackId) as Data;
   }
 
@@ -115,11 +123,13 @@ export abstract class Track<Config = {}, Data extends TrackData = TrackData> {
     return false;
   }
 
-  onMouseOut() {}
+  onMouseOut(): void {}
+
+  onFullRedraw(): void {}
 
   render(ctx: CanvasRenderingContext2D) {
     globals.frontendLocalState.addVisibleTrack(this.trackState.id);
-    if (this.data() === undefined) {
+    if (this.data() === undefined && !this.frontendOnly) {
       const {visibleWindowTime, timeScale} = globals.frontendLocalState;
       const startPx = Math.floor(timeScale.timeToPx(visibleWindowTime.start));
       const endPx = Math.ceil(timeScale.timeToPx(visibleWindowTime.end));
@@ -130,37 +140,64 @@ export abstract class Track<Config = {}, Data extends TrackData = TrackData> {
   }
 
   drawTrackHoverTooltip(
-      ctx: CanvasRenderingContext2D, xPos: number, text: string,
+      ctx: CanvasRenderingContext2D, pos: {x: number, y: number}, text: string,
       text2?: string) {
     ctx.font = '10px Roboto Condensed';
-    const textWidth = ctx.measureText(text).width;
-    let width = textWidth;
-    let textYPos = this.getHeight() / 2;
-
-    if (text2 !== undefined) {
-      const text2Width = ctx.measureText(text2).width;
-      width = Math.max(textWidth, text2Width);
-      textYPos = this.getHeight() / 2 - 6;
-    }
-
-    // Move tooltip over if it would go off the right edge of the viewport.
-    const rectWidth = width + 16;
-    const endPx = globals.frontendLocalState.timeScale.endPx;
-    if (xPos + rectWidth > endPx) {
-      xPos -= (xPos + rectWidth - endPx);
-    }
-
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-    const rectMargin = this.getHeight() / 12;
-    ctx.fillRect(
-        xPos, rectMargin, rectWidth, this.getHeight() - rectMargin * 2);
-    ctx.fillStyle = 'hsl(200, 50%, 40%)';
-    ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText(text, xPos + 8, textYPos);
+    ctx.textAlign = 'left';
 
+    // TODO(hjd): Avoid measuring text all the time (just use monospace?)
+    const textMetrics = ctx.measureText(text);
+    const text2Metrics = ctx.measureText(text2 || '');
+
+    // Padding on each side of the box containing the tooltip:
+    const paddingPx = 4;
+
+    // Figure out the width of the tool tip box:
+    let width = Math.max(textMetrics.width, text2Metrics.width);
+    width += paddingPx * 2;
+
+    // and the height:
+    let height = 0;
+    height += textMetrics.fontBoundingBoxAscent;
+    height += textMetrics.fontBoundingBoxDescent;
     if (text2 !== undefined) {
-      ctx.fillText(text2, xPos + 8, this.getHeight() / 2 + 6);
+      height += text2Metrics.fontBoundingBoxAscent;
+      height += text2Metrics.fontBoundingBoxDescent;
+    }
+    height += paddingPx * 2;
+
+    let x = pos.x;
+    let y = pos.y;
+
+    // Move box to the top right of the mouse:
+    x += 10;
+    y -= 10;
+
+    // Ensure the box is on screen:
+    const endPx = globals.frontendLocalState.timeScale.endPx;
+    if (x + width > endPx) {
+      x -= x + width - endPx;
+    }
+    if (y < 0) {
+      y = 0;
+    }
+    if (y + height > this.getHeight()) {
+      y -= y + height - this.getHeight();
+    }
+
+    // Draw everything:
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.fillRect(x, y, width, height);
+
+    ctx.fillStyle = 'hsl(200, 50%, 40%)';
+    ctx.fillText(
+        text, x + paddingPx, y + paddingPx + textMetrics.fontBoundingBoxAscent);
+    if (text2 !== undefined) {
+      const yOffsetPx = textMetrics.fontBoundingBoxAscent +
+          textMetrics.fontBoundingBoxDescent +
+          text2Metrics.fontBoundingBoxAscent;
+      ctx.fillText(text, x + paddingPx, y + paddingPx + yOffsetPx);
     }
   }
 
