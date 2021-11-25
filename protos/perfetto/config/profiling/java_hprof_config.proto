@@ -27,6 +27,13 @@ message JavaHprofConfig {
     optional uint32 dump_phase_ms = 1;
     // ms to wait between following dumps.
     optional uint32 dump_interval_ms = 2;
+    // If true, scans all the processes to find `process_cmdline` and filter by
+    // `min_anonymous_memory_kb` only at data source start. Default on Android
+    // S-.
+    //
+    // If false, rescans all the processes to find on every dump. Default on
+    // Android T+.
+    optional bool scan_pids_only_on_start = 3;
   }
 
   // This input is normalized in the following way: if it contains slashes,
