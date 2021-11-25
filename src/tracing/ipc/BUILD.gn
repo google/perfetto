@@ -27,7 +27,6 @@ source_set("common") {
     "../../../include/perfetto/ext/tracing/ipc",
   ]
   sources = [
-    "default_socket.cc",
     "memfd.cc",
     "memfd.h",
     "posix_shared_memory.cc",
@@ -36,10 +35,22 @@ source_set("common") {
     "shared_memory_windows.h",
   ]
   deps = [
+    ":default_socket",
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/ipc",
     "../../base",
     "../core",
+  ]
+}
+
+source_set("default_socket") {
+  sources = [ "default_socket.cc" ]
+  public_deps = [ "../../../include/perfetto/ext/tracing/ipc" ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/ext/ipc",
+    "../../../include/perfetto/ext/tracing/core",
+    "../../base",
   ]
 }
 
