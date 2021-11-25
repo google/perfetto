@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {RecordConfig} from '../controller/record_config_types';
+
 import {
   AggregationAttrs,
   PivotAttrs,
@@ -472,87 +474,6 @@ export function hasActiveProbes(config: RecordConfig) {
     return true;
   }
   return config.chromeHighOverheadCategoriesSelected.length > 0;
-}
-
-export interface RecordConfig {
-  // Global settings
-  mode: RecordMode;
-  durationMs: number;
-  bufferSizeMb: number;
-  maxFileSizeMb: number;      // Only for mode == 'LONG_TRACE'.
-  fileWritePeriodMs: number;  // Only for mode == 'LONG_TRACE'.
-
-  cpuSched: boolean;
-  cpuFreq: boolean;
-  cpuCoarse: boolean;
-  cpuCoarsePollMs: number;
-  cpuSyscall: boolean;
-
-  gpuFreq: boolean;
-  gpuMemTotal: boolean;
-
-  ftrace: boolean;
-  atrace: boolean;
-  ftraceEvents: string[];
-  ftraceExtraEvents: string;
-  atraceCats: string[];
-  atraceApps: string;
-  ftraceBufferSizeKb: number;
-  ftraceDrainPeriodMs: number;
-  androidLogs: boolean;
-  androidLogBuffers: string[];
-  androidFrameTimeline: boolean;
-
-  batteryDrain: boolean;
-  batteryDrainPollMs: number;
-
-  boardSensors: boolean;
-
-  memHiFreq: boolean;
-  memLmk: boolean;
-  meminfo: boolean;
-  meminfoPeriodMs: number;
-  meminfoCounters: string[];
-  vmstat: boolean;
-  vmstatPeriodMs: number;
-  vmstatCounters: string[];
-
-  heapProfiling: boolean;
-  hpSamplingIntervalBytes: number;
-  hpProcesses: string;
-  hpContinuousDumpsPhase: number;
-  hpContinuousDumpsInterval: number;
-  hpSharedMemoryBuffer: number;
-  hpBlockClient: boolean;
-  hpAllHeaps: boolean;
-
-  javaHeapDump: boolean;
-  jpProcesses: string;
-  jpContinuousDumpsPhase: number;
-  jpContinuousDumpsInterval: number;
-
-  procStats: boolean;
-  procStatsPeriodMs: number;
-
-  chromeCategoriesSelected: string[];
-  chromeHighOverheadCategoriesSelected: string[];
-
-  chromeLogs: boolean;
-  taskScheduling: boolean;
-  ipcFlows: boolean;
-  jsExecution: boolean;
-  webContentRendering: boolean;
-  uiRendering: boolean;
-  inputEvents: boolean;
-  navigationAndLoading: boolean;
-
-  symbolizeKsyms: boolean;
-}
-
-export interface NamedRecordConfig {
-  title: string;
-  config: RecordConfig;
-  key: string;
 }
 
 export function getDefaultRecordingTargets(): RecordingTarget[] {

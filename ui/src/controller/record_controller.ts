@@ -44,7 +44,6 @@ import {
   isChromeTarget,
   isCrOSTarget,
   isLinuxTarget,
-  RecordConfig,
   RecordingTarget
 } from '../common/state';
 import {publishBufferUsage, publishTrackData} from '../frontend/publish';
@@ -64,6 +63,7 @@ import {
 } from './consumer_port_types';
 import {Controller} from './controller';
 import {App, globals} from './globals';
+import {RecordConfig} from './record_config_types';
 import {Consumer, RpcConsumerPort} from './record_controller_interfaces';
 
 type RPCImplMethod = (Method|rpc.ServiceMethod<Message<{}>, Message<{}>>);
