@@ -26,6 +26,7 @@ const INPUT_MIN_LINES = 2;
 const INPUT_MAX_LINES = 10;
 const INPUT_LINE_HEIGHT_EM = 1.2;
 const TAB_SPACES = 2;
+const TAB_SPACES_STRING = ' '.repeat(TAB_SPACES);
 const QUERY_ID = 'analyze-page-query';
 
 class QueryInput implements m.ClassComponent {
@@ -47,12 +48,61 @@ class QueryInput implements m.ClassComponent {
     if (event.code === 'Tab') {
       // Handle tabs to insert spaces.
       event.preventDefault();
-      const whitespace = ' '.repeat(TAB_SPACES);
       const {selectionStart, selectionEnd} = target;
-      target.value = target.value.substring(0, selectionStart) + whitespace +
-          target.value.substring(selectionEnd);
-      target.selectionEnd = selectionStart + TAB_SPACES;
+      const lastLineBreak = target.value.lastIndexOf('\n', selectionEnd);
+
+      if (lastLineBreak < selectionStart) {
+        // Selection does not contain line breaks, therefore is on a single
+        // line. In this case, replace the selection with spaces.
+        target.value = target.value.substring(0, selectionStart) +
+            TAB_SPACES_STRING + target.value.substring(selectionEnd);
+        target.selectionEnd = selectionStart + TAB_SPACES;
+      } else {
+        this.handleMultilineTab(target, event);
+      }
     }
+  }
+
+  // Handle Tab press when the current selection is multiline: find all the
+  // lines intersecting with the selection, and either indent or dedent (if
+  // Shift key is held) them.
+  private static handleMultilineTab(
+      target: HTMLTextAreaElement, event: KeyboardEvent) {
+    const {selectionStart, selectionEnd} = target;
+    const firstLineBreak = target.value.lastIndexOf('\n', selectionStart);
+
+    // If no line break is found (selection begins at the first line),
+    // replacementStart would have the correct value of 0.
+    const replacementStart = firstLineBreak + 1;
+    const replacement = target.value.substring(replacementStart, selectionEnd)
+                            .split('\n')
+                            .map((line) => {
+                              if (event.shiftKey) {
+                                // When Shift is held, remove whitespace at the
+                                // beginning
+                                return this.dedent(line);
+                              } else {
+                                return TAB_SPACES_STRING + line;
+                              }
+                            })
+                            .join('\n');
+    target.value = target.value.substring(0, replacementStart) + replacement +
+        target.value.substring(selectionEnd);
+
+    // Restore the selection start.
+    target.selectionStart = selectionStart;
+
+    // Restore the selection end, adjusted for changed string length.
+    target.selectionEnd = replacement.length + replacementStart;
+  }
+
+  // Chop off up to TAB_SPACES leading spaces from a string.
+  private static dedent(line: string): string {
+    let i = 0;
+    while (i < line.length && i < TAB_SPACES && line[i] === ' ') {
+      i++;
+    }
+    return line.substring(i);
   }
 
   onInput(textareaValue: string) {
