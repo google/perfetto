@@ -167,6 +167,9 @@ export class TrackGroupPanel extends Panel<Attrs> {
       this.backgroundColor =
           getComputedStyle(dom).getPropertyValue('--expanded-background');
     }
+    if (this.summaryTrack !== undefined) {
+      this.summaryTrack.onFullRedraw();
+    }
   }
 
   highlightIfTrackSelected(ctx: CanvasRenderingContext2D, size: PanelSize) {

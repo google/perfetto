@@ -24,6 +24,7 @@ executable("tracebox") {
     "../perfetto_cmd:trigger_perfetto_cmd",
     "../traced/probes",
     "../traced/service",
+    "../websocket_bridge:lib",
   ]
   sources = [ "tracebox.cc" ]
 }

@@ -17,8 +17,9 @@ import {produce} from 'immer';
 import {assertExists} from '../base/logging';
 import {Actions} from '../common/actions';
 import {ConversionJobStatus} from '../common/conversion_jobs';
-import {createEmptyState, State} from '../common/state';
-import {RecordConfig, STATE_VERSION} from '../common/state';
+import {createEmptyState} from '../common/empty_state';
+import {State} from '../common/state';
+import {STATE_VERSION} from '../common/state';
 import {
   BUCKET_NAME,
   saveState,
@@ -30,7 +31,8 @@ import {Router} from '../frontend/router';
 
 import {Controller} from './controller';
 import {globals} from './globals';
-import {JsonObject, runParser, validateRecordConfig} from './validate_config';
+import {RecordConfig, recordConfigValidator} from './record_config_types';
+import {runValidator} from './validators';
 
 export class PermalinkController extends Controller<'main'> {
   private lastRequestId?: string;
@@ -76,10 +78,9 @@ export class PermalinkController extends Controller<'main'> {
           if (PermalinkController.isRecordConfig(stateOrConfig)) {
             // This permalink state only contains a RecordConfig. Show the
             // recording page with the config, but keep other state as-is.
-            const validConfig = runParser(
-                                    validateRecordConfig,
-                                    stateOrConfig as unknown as JsonObject)
-                                    .result;
+            const validConfig =
+                runValidator(recordConfigValidator, stateOrConfig as unknown)
+                    .result;
             globals.dispatch(Actions.setRecordConfig({config: validConfig}));
             Router.navigate('#!/record');
             return;

@@ -16,6 +16,7 @@ import {Draft} from 'immer';
 
 import {assertExists, assertTrue} from '../base/logging';
 import {randomColor} from '../common/colorizer';
+import {RecordConfig} from '../controller/record_config_types';
 import {ACTUAL_FRAMES_SLICE_TRACK_KIND} from '../tracks/actual_frames/common';
 import {ASYNC_SLICE_TRACK_KIND} from '../tracks/async_slices/common';
 import {COUNTER_TRACK_KIND} from '../tracks/counter/common';
@@ -32,6 +33,7 @@ import {
 } from '../tracks/process_scheduling/common';
 import {PROCESS_SUMMARY_TRACK} from '../tracks/process_summary/common';
 
+import {createEmptyState} from './empty_state';
 import {DEFAULT_VIEWING_OPTION, PERF_SAMPLES_KEY} from './flamegraph_util';
 import {
   AggregationAttrs,
@@ -43,14 +45,12 @@ import {
   AdbRecordingTarget,
   Area,
   CallsiteInfo,
-  createEmptyState,
   EngineMode,
   FlamegraphStateViewingOption,
   LoadedConfig,
   LogsPagination,
   NewEngineMode,
   OmniboxState,
-  RecordConfig,
   RecordingTarget,
   SCROLLING_TRACK_GROUP,
   State,

@@ -12,12 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  createEmptyState,
-  getContainingTrackId,
-  State,
-  TrackKindPriority
-} from './state';
+import {createEmptyState} from './empty_state';
+import {getContainingTrackId, State, TrackKindPriority} from './state';
 
 test('createEmptyState', () => {
   const state: State = createEmptyState();

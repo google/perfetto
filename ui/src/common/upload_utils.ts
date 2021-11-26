@@ -12,9 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {RecordConfig} from '../controller/record_config_types';
+
 export const BUCKET_NAME = 'perfetto-ui-data';
 import * as uuidv4 from 'uuid/v4';
-import {State, RecordConfig} from './state';
+import {State} from './state';
 
 export async function saveTrace(trace: File|ArrayBuffer): Promise<string> {
   // TODO(hjd): This should probably also be a hash but that requires

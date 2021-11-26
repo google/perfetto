@@ -16,8 +16,6 @@ import("../../../gn/perfetto.gni")
 import("../../../gn/perfetto_component.gni")
 import("../../../gn/test.gni")
 
-assert(enable_perfetto_ipc)
-
 perfetto_component("http") {
   deps = [
     "..:base",
@@ -28,7 +26,10 @@ perfetto_component("http") {
     "../../../include/perfetto/base",
     "../../../include/perfetto/ext/base/http",
   ]
-  sources = [ "http_server.cc" ]
+  sources = [
+    "http_server.cc",
+    "sha1.cc",
+  ]
 }
 
 perfetto_unittest_source_set("unittests") {
@@ -39,5 +40,8 @@ perfetto_unittest_source_set("unittests") {
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
   ]
-  sources = [ "http_server_unittest.cc" ]
+  sources = [
+    "http_server_unittest.cc",
+    "sha1_unittest.cc",
+  ]
 }

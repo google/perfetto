@@ -20,6 +20,7 @@
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/traced/traced.h"
 #include "src/perfetto_cmd/perfetto_cmd.h"
+#include "src/websocket_bridge/websocket_bridge.h"
 
 #include <stdio.h>
 
@@ -39,6 +40,7 @@ const Applet g_applets[]{
     {"traced_probes", ProbesMain},
     {"perfetto", PerfettoCmdMain},
     {"trigger_perfetto", TriggerPerfettoMain},
+    {"websocket_bridge", WebsocketBridgeMain},
 };
 
 void PrintUsage() {

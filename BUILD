@@ -244,6 +244,7 @@ perfetto_cc_library(
         ":src_tracing_core_service",
         ":src_tracing_ipc_common",
         ":src_tracing_ipc_consumer_consumer",
+        ":src_tracing_ipc_default_socket",
         ":src_tracing_ipc_producer_producer",
         ":src_tracing_ipc_service_service",
     ],
@@ -335,6 +336,7 @@ perfetto_filegroup(
     name = "include_perfetto_ext_base_http_http",
     srcs = [
         "include/perfetto/ext/base/http/http_server.h",
+        "include/perfetto/ext/base/http/sha1.h",
     ],
 )
 
@@ -654,6 +656,7 @@ perfetto_cc_library(
     name = "src_base_http_http",
     srcs = [
         "src/base/http/http_server.cc",
+        "src/base/http/sha1.cc",
     ],
     hdrs = [
         ":include_perfetto_base_base",
@@ -1808,13 +1811,20 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_tracing_ipc_common",
     srcs = [
-        "src/tracing/ipc/default_socket.cc",
         "src/tracing/ipc/memfd.cc",
         "src/tracing/ipc/memfd.h",
         "src/tracing/ipc/posix_shared_memory.cc",
         "src/tracing/ipc/posix_shared_memory.h",
         "src/tracing/ipc/shared_memory_windows.cc",
         "src/tracing/ipc/shared_memory_windows.h",
+    ],
+)
+
+# GN target: //src/tracing/ipc:default_socket
+perfetto_filegroup(
+    name = "src_tracing_ipc_default_socket",
+    srcs = [
+        "src/tracing/ipc/default_socket.cc",
     ],
 )
 
@@ -3557,6 +3567,7 @@ perfetto_cc_library(
         ":src_tracing_in_process_backend",
         ":src_tracing_ipc_common",
         ":src_tracing_ipc_consumer_consumer",
+        ":src_tracing_ipc_default_socket",
         ":src_tracing_ipc_producer_producer",
         ":src_tracing_ipc_service_service",
         ":src_tracing_platform_impl",
@@ -3649,6 +3660,7 @@ perfetto_cc_binary(
         ":src_tracing_core_core",
         ":src_tracing_ipc_common",
         ":src_tracing_ipc_consumer_consumer",
+        ":src_tracing_ipc_default_socket",
         ":src_tracing_ipc_producer_producer",
         "src/perfetto_cmd/main.cc",
     ],

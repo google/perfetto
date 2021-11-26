@@ -92,6 +92,7 @@ cc_binary {
         ":perfetto_src_tracing_common",
         ":perfetto_src_tracing_core_core",
         ":perfetto_src_tracing_ipc_common",
+        ":perfetto_src_tracing_ipc_default_socket",
         ":perfetto_src_tracing_ipc_producer_producer",
         "src/profiling/memory/main.cc",
     ],
@@ -347,6 +348,7 @@ cc_library_shared {
         ":perfetto_src_tracing_common",
         ":perfetto_src_tracing_core_core",
         ":perfetto_src_tracing_ipc_common",
+        ":perfetto_src_tracing_ipc_default_socket",
         ":perfetto_src_tracing_ipc_producer_producer",
     ],
     shared_libs: [
@@ -548,6 +550,7 @@ cc_library_shared {
         ":perfetto_src_tracing_core_service",
         ":perfetto_src_tracing_ipc_common",
         ":perfetto_src_tracing_ipc_consumer_consumer",
+        ":perfetto_src_tracing_ipc_default_socket",
         ":perfetto_src_tracing_ipc_producer_producer",
         ":perfetto_src_tracing_ipc_service_service",
     ],
@@ -732,6 +735,7 @@ cc_library_static {
         ":perfetto_src_tracing_in_process_backend",
         ":perfetto_src_tracing_ipc_common",
         ":perfetto_src_tracing_ipc_consumer_consumer",
+        ":perfetto_src_tracing_ipc_default_socket",
         ":perfetto_src_tracing_ipc_producer_producer",
         ":perfetto_src_tracing_ipc_service_service",
         ":perfetto_src_tracing_platform_impl",
@@ -924,6 +928,7 @@ cc_binary {
         ":perfetto_src_tracing_core_core",
         ":perfetto_src_tracing_ipc_common",
         ":perfetto_src_tracing_ipc_consumer_consumer",
+        ":perfetto_src_tracing_ipc_default_socket",
         ":perfetto_src_tracing_ipc_producer_producer",
         "src/perfetto_cmd/main.cc",
     ],
@@ -1099,6 +1104,7 @@ cc_library_static {
         ":perfetto_src_tracing_core_service",
         ":perfetto_src_tracing_ipc_common",
         ":perfetto_src_tracing_ipc_consumer_consumer",
+        ":perfetto_src_tracing_ipc_default_socket",
         ":perfetto_src_tracing_ipc_producer_producer",
         ":perfetto_src_tracing_ipc_service_service",
         ":perfetto_test_end_to_end_integrationtests",
@@ -1355,6 +1361,7 @@ cc_library_static {
         ":perfetto_src_tracing_core_service",
         ":perfetto_src_tracing_ipc_common",
         ":perfetto_src_tracing_ipc_consumer_consumer",
+        ":perfetto_src_tracing_ipc_default_socket",
         ":perfetto_src_tracing_ipc_producer_producer",
         ":perfetto_src_tracing_ipc_service_service",
         ":perfetto_test_test_helper",
@@ -1796,6 +1803,7 @@ cc_test {
         ":perfetto_src_tracing_in_process_backend",
         ":perfetto_src_tracing_ipc_common",
         ":perfetto_src_tracing_ipc_consumer_consumer",
+        ":perfetto_src_tracing_ipc_default_socket",
         ":perfetto_src_tracing_ipc_producer_producer",
         ":perfetto_src_tracing_ipc_service_service",
         ":perfetto_src_tracing_platform_impl",
@@ -6898,6 +6906,7 @@ filegroup {
     name: "perfetto_src_base_http_http",
     srcs: [
         "src/base/http/http_server.cc",
+        "src/base/http/sha1.cc",
     ],
 }
 
@@ -6906,6 +6915,7 @@ filegroup {
     name: "perfetto_src_base_http_unittests",
     srcs: [
         "src/base/http/http_server_unittest.cc",
+        "src/base/http/sha1_unittest.cc",
     ],
 }
 
@@ -8921,7 +8931,6 @@ filegroup {
 filegroup {
     name: "perfetto_src_tracing_ipc_common",
     srcs: [
-        "src/tracing/ipc/default_socket.cc",
         "src/tracing/ipc/memfd.cc",
         "src/tracing/ipc/posix_shared_memory.cc",
         "src/tracing/ipc/shared_memory_windows.cc",
@@ -8933,6 +8942,14 @@ filegroup {
     name: "perfetto_src_tracing_ipc_consumer_consumer",
     srcs: [
         "src/tracing/ipc/consumer/consumer_ipc_client_impl.cc",
+    ],
+}
+
+// GN: //src/tracing/ipc:default_socket
+filegroup {
+    name: "perfetto_src_tracing_ipc_default_socket",
+    srcs: [
+        "src/tracing/ipc/default_socket.cc",
     ],
 }
 
@@ -9461,6 +9478,7 @@ cc_test {
         ":perfetto_src_tracing_core_unittests",
         ":perfetto_src_tracing_ipc_common",
         ":perfetto_src_tracing_ipc_consumer_consumer",
+        ":perfetto_src_tracing_ipc_default_socket",
         ":perfetto_src_tracing_ipc_producer_producer",
         ":perfetto_src_tracing_ipc_service_service",
         ":perfetto_src_tracing_ipc_unittests",
@@ -10035,6 +10053,7 @@ cc_binary {
         ":perfetto_src_tracing_core_core",
         ":perfetto_src_tracing_core_service",
         ":perfetto_src_tracing_ipc_common",
+        ":perfetto_src_tracing_ipc_default_socket",
         ":perfetto_src_tracing_ipc_producer_producer",
         "src/profiling/perf/main.cc",
     ],
@@ -10199,6 +10218,7 @@ cc_binary {
         ":perfetto_src_tracing_common",
         ":perfetto_src_tracing_core_core",
         ":perfetto_src_tracing_ipc_common",
+        ":perfetto_src_tracing_ipc_default_socket",
         ":perfetto_src_tracing_ipc_producer_producer",
         "src/perfetto_cmd/trigger_perfetto_main.cc",
     ],

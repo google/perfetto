@@ -23,8 +23,8 @@ import {
 import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state/common';
 
 import {StateActions} from './actions';
+import {createEmptyState} from './empty_state';
 import {
-  createEmptyState,
   SCROLLING_TRACK_GROUP,
   State,
   TraceUrlSource,
