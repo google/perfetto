@@ -51,7 +51,7 @@ class QueryInput implements m.ClassComponent {
       const {selectionStart, selectionEnd} = target;
       const lastLineBreak = target.value.lastIndexOf('\n', selectionEnd);
 
-      if (lastLineBreak < selectionStart) {
+      if (selectionStart === selectionEnd || lastLineBreak < selectionStart) {
         // Selection does not contain line breaks, therefore is on a single
         // line. In this case, replace the selection with spaces.
         target.value = target.value.substring(0, selectionStart) +
