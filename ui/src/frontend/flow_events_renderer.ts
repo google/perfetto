@@ -263,8 +263,11 @@ export class FlowEventsRenderer {
       begin: {x: number, y: number, dir: LineDirection},
       end: {x: number, y: number, dir: LineDirection}, hue: number,
       intensity: number, width: number) {
+    const hasArrowHead = Math.abs(begin.x - end.x) > 3 * TRIANGLE_SIZE;
     const END_OFFSET =
-        (end.dir === 'RIGHT' || end.dir === 'LEFT' ? TRIANGLE_SIZE : 0);
+        (((end.dir === 'RIGHT' || end.dir === 'LEFT') && hasArrowHead) ?
+             TRIANGLE_SIZE :
+             0);
     const color = `hsl(${hue}, 50%, ${intensity}%)`;
     // draw curved line from begin to end (bezier curve)
     ctx.strokeStyle = color;
@@ -300,17 +303,23 @@ export class FlowEventsRenderer {
       ctx.arc(end.x, end.y, CIRCLE_RADIUS, 0, 2 * Math.PI);
       ctx.closePath();
       ctx.fill();
-    } else {
-      const dx = this.getDeltaX(end.dir, TRIANGLE_SIZE);
-      const dy = this.getDeltaY(end.dir, TRIANGLE_SIZE);
-      // draw small triangle
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.moveTo(end.x, end.y);
-      ctx.lineTo(end.x - dx - dy, end.y + dx - dy);
-      ctx.lineTo(end.x - dx + dy, end.y - dx - dy);
-      ctx.closePath();
-      ctx.fill();
+    } else if (hasArrowHead) {
+      this.drawArrowHead(end, ctx, color);
     }
+  }
+
+  private drawArrowHead(
+      end: {x: number; y: number; dir: LineDirection},
+      ctx: CanvasRenderingContext2D, color: string) {
+    const dx = this.getDeltaX(end.dir, TRIANGLE_SIZE);
+    const dy = this.getDeltaY(end.dir, TRIANGLE_SIZE);
+    // draw small triangle
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(end.x, end.y);
+    ctx.lineTo(end.x - dx - dy, end.y + dx - dy);
+    ctx.lineTo(end.x - dx + dy, end.y - dx - dy);
+    ctx.closePath();
+    ctx.fill();
   }
 }
