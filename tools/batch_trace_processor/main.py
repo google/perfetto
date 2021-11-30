@@ -23,46 +23,9 @@ import numpy as np
 import pandas as pd
 import plotille
 
-from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
-from perfetto.trace_processor import TraceProcessor
-from perfetto.trace_processor.api import TraceProcessorException
+from perfetto.trace_processor import TraceProcessorException
 
-
-@dataclass
-class TpArg:
-  shell_path: str
-  verbose: bool
-  file: str
-
-
-def create_tp_args(args, files):
-  return [TpArg(args.shell_path, args.verbose, f) for f in files]
-
-
-def create_tp(arg):
-  return TraceProcessor(
-      file_path=arg.file, bin_path=arg.shell_path, verbose=arg.verbose)
-
-
-def close_tp(tp):
-  tp.close()
-
-
-def query_single_result(tp, query):
-  df = tp.query(query).as_pandas_dataframe()
-  if len(df.index) != 1:
-    raise TraceProcessorException("Query should only return a single row")
-
-  if len(df.columns) != 1:
-    raise TraceProcessorException("Query should only return a single column")
-
-  return df.iloc[0, 0]
-
-
-def query_file_and_return_last(tp, queries_str):
-  queries = [q.strip() for q in queries_str.split(";\n")]
-  return [tp.query(q).as_pandas_dataframe() for q in queries if q][-1]
+from perfetto.batch_trace_processor.api import BatchTraceProcessor
 
 
 def prefix_path_column(path, df):
@@ -72,16 +35,14 @@ def prefix_path_column(path, df):
 
 class TpBatchShell(cmd.Cmd):
 
-  def __init__(self, executor, files, tps):
+  def __init__(self, files, batch_tp):
     super().__init__()
-    self.executor = executor
     self.files = files
-    self.tps = tps
+    self.batch_tp = batch_tp
 
   def do_histogram(self, arg):
     try:
-      data = list(
-          self.executor.map(lambda tp: query_single_result(tp, arg), self.tps))
+      data = self.batch_tp.query_single_result(arg)
       print(plotille.histogram(data))
       self.print_percentiles(data)
     except TraceProcessorException as ex:
@@ -89,8 +50,7 @@ class TpBatchShell(cmd.Cmd):
 
   def do_vhistogram(self, arg):
     try:
-      data = list(
-          self.executor.map(lambda tp: query_single_result(tp, arg), self.tps))
+      data = self.batch_tp.query_single_result(arg)
       print(plotille.hist(data))
       self.print_percentiles(data)
     except TraceProcessorException as ex:
@@ -98,8 +58,7 @@ class TpBatchShell(cmd.Cmd):
 
   def do_count(self, arg):
     try:
-      data = list(
-          self.executor.map(lambda tp: query_single_result(tp, arg), self.tps))
+      data = self.batch_tp.query_single_result(arg)
       counts = dict()
       for i in data:
         counts[i] = counts.get(i, 0) + 1
@@ -145,32 +104,28 @@ def main():
   if not files:
     logging.info("At least one file must be specified in files or file list")
 
-  executor = ThreadPoolExecutor()
-
   logging.info('Loading traces...')
-  tps = [tp for tp in executor.map(create_tp, create_tp_args(args, files))]
+  with BatchTraceProcessor(
+      files, bin_path=args.shell_path, verbose=args.verbose) as batch_tp:
+    if args.query_file:
+      logging.info('Running query file...')
 
-  if args.query_file:
-    logging.info('Running query file...')
+      with open(args.query_file, 'r') as f:
+        queries_str = f.read()
 
-    with open(args.query_file, 'r') as f:
-      query = f.read()
+      queries = [q.strip() for q in queries_str.split(";\n")]
+      out = [batch_tp.query(q) for q in queries if q][-1]
+      res = pd.concat(
+          [prefix_path_column(path, df) for (path, df) in zip(files, out)])
+      print(res.to_csv(index=False))
 
-    out = list(
-        executor.map(lambda tp: query_file_and_return_last(tp, query), tps))
-    res = pd.concat(
-        [prefix_path_column(path, df) for (path, df) in zip(files, out)])
-    print(res.to_csv(index=False))
+    if args.interactive or not args.query_file:
+      try:
+        TpBatchShell(files, batch_tp).cmdloop()
+      except KeyboardInterrupt:
+        pass
 
-  if args.interactive or not args.query_file:
-    try:
-      TpBatchShell(executor, files, tps).cmdloop()
-    except KeyboardInterrupt:
-      pass
-
-  logging.info("Closing; please wait...")
-  executor.map(close_tp, tps)
-  executor.shutdown()
+    logging.info("Closing; please wait...")
 
 
 if __name__ == '__main__':
