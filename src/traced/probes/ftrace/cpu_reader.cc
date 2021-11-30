@@ -28,6 +28,7 @@
 #include "perfetto/ext/base/crash_keys.h"
 #include "perfetto/ext/base/metatrace.h"
 #include "perfetto/ext/base/optional.h"
+#include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
@@ -139,6 +140,16 @@ bool SetBlocking(int fd, bool is_blocking) {
   int flags = fcntl(fd, F_GETFL, 0);
   flags = (is_blocking) ? (flags & ~O_NONBLOCK) : (flags | O_NONBLOCK);
   return fcntl(fd, F_SETFL, flags) == 0;
+}
+
+void LogInvalidPage(const void* start, size_t size) {
+  PERFETTO_ELOG("Invalid ftrace page");
+  std::string hexdump = base::HexDump(start, size);
+  // Only a single line per log message, because log message size might be
+  // limited.
+  for (base::StringSplitter ss(std::move(hexdump), '\n'); ss.Next();) {
+    PERFETTO_ELOG("%s", ss.cur_token());
+  }
 }
 
 }  // namespace
@@ -411,6 +422,7 @@ bool CpuReader::ProcessPagesForDataSource(
     if (!page_header.has_value() || page_header->size == 0 ||
         parse_pos >= curr_page_end ||
         parse_pos + page_header->size > curr_page_end) {
+      LogInvalidPage(curr_page, base::kPageSize);
       PERFETTO_DFATAL("invalid page header");
       return false;
     }
@@ -436,6 +448,7 @@ bool CpuReader::ProcessPagesForDataSource(
 
     if (evt_size != page_header->size) {
       pages_parsed_ok = false;
+      LogInvalidPage(curr_page, base::kPageSize);
       PERFETTO_DFATAL("could not parse ftrace page");
     }
   }
