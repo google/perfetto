@@ -22,6 +22,16 @@ import {PivotTableQueryGenerator} from './pivot_table_query_generator';
 
 const TABLES = ['slice'];
 
+// Normalize query for comparison by replacing repeated whitespace characters
+// with a single space.
+function normalize(s: string): string {
+  return s.replace(/\s+/g, ' ');
+}
+
+function expectQueryEqual(actual: string, expected: string) {
+  expect(normalize(actual)).toEqual(normalize(expected));
+}
+
 test('Generate query with pivots and aggregations', () => {
   const pivotTableQueryGenerator = new PivotTableQueryGenerator();
   const selectedPivots: PivotAttrs[] = [
@@ -56,9 +66,10 @@ test('Generate query with pivots and aggregations', () => {
       ')\n' +
       'GROUP BY "slice type",  "slice id",  "slice dur (SUM)"\n' +
       'ORDER BY "slice dur (SUM)" DESC\n';
-  expect(pivotTableQueryGenerator.generateQuery(
-             selectedPivots, selectedAggregations, WHERE_FILTERS, TABLES))
-      .toEqual(expectedQuery);
+  expectQueryEqual(
+      pivotTableQueryGenerator.generateQuery(
+          selectedPivots, selectedAggregations, WHERE_FILTERS, TABLES),
+      expectedQuery);
 });
 
 test('Generate query with pivots', () => {
@@ -81,9 +92,10 @@ test('Generate query with pivots', () => {
       'slice.dur != -1\n' +
       ')\n' +
       'GROUP BY "slice type",  "slice id"\n';
-  expect(pivotTableQueryGenerator.generateQuery(
-             selectedPivots, selectedAggregations, WHERE_FILTERS, TABLES))
-      .toEqual(expectedQuery);
+  expectQueryEqual(
+      pivotTableQueryGenerator.generateQuery(
+          selectedPivots, selectedAggregations, WHERE_FILTERS, TABLES),
+      expectedQuery);
 });
 
 test('Generate query with aggregations', () => {
@@ -112,9 +124,10 @@ test('Generate query with aggregations', () => {
       ')\n' +
       'GROUP BY "slice dur (SUM)",  "slice dur (MAX)"\n' +
       'ORDER BY "slice dur (SUM)" DESC,  "slice dur (MAX)" ASC\n';
-  expect(pivotTableQueryGenerator.generateQuery(
-             selectedPivots, selectedAggregations, WHERE_FILTERS, TABLES))
-      .toEqual(expectedQuery);
+  expectQueryEqual(
+      pivotTableQueryGenerator.generateQuery(
+          selectedPivots, selectedAggregations, WHERE_FILTERS, TABLES),
+      expectedQuery);
 });
 
 test('Generate a query with stack pivot', () => {
@@ -162,9 +175,10 @@ test('Generate a query with stack pivot', () => {
       '"slice stack_id (hidden)",  "slice parent_stack_id (hidden)",  ' +
       '"slice category",  "slice id (COUNT)"\n' +
       'ORDER BY "slice id (COUNT)" DESC\n';
-  expect(pivotTableQueryGenerator.generateQuery(
-             selectedPivots, selectedAggregations, WHERE_FILTERS, TABLES))
-      .toEqual(expectedQuery);
+  expectQueryEqual(
+      pivotTableQueryGenerator.generateQuery(
+          selectedPivots, selectedAggregations, WHERE_FILTERS, TABLES),
+      expectedQuery);
 });
 
 test('Generate a descendant stack query', () => {
@@ -194,13 +208,14 @@ test('Generate a descendant stack query', () => {
       'ORDER BY "slice depth (hidden)" ASC\n';
 
   const table = ['descendant_slice_by_stack(stack_id) AS slice'];
-  expect(pivotTableQueryGenerator.generateStackQuery(
-             selectedPivots,
-             selectedAggregations,
-             WHERE_FILTERS,
-             table,
-             /* stack_id = */ 'stack_id'))
-      .toEqual(expectedQuery);
+  expectQueryEqual(
+      pivotTableQueryGenerator.generateStackQuery(
+          selectedPivots,
+          selectedAggregations,
+          WHERE_FILTERS,
+          table,
+          /* stack_id = */ 'stack_id'),
+      expectedQuery);
 });
 
 test('Generate a descendant stack query with another pivot', () => {
@@ -257,11 +272,12 @@ test('Generate a descendant stack query with another pivot', () => {
       'ORDER BY "slice depth (hidden)" ASC\n';
 
   const table = ['descendant_slice_by_stack(stack_id) AS slice'];
-  expect(pivotTableQueryGenerator.generateStackQuery(
-             selectedPivots,
-             selectedAggregations,
-             WHERE_FILTERS,
-             table,
-             /* stack_id = */ 'stack_id'))
-      .toEqual(expectedQuery);
+  expectQueryEqual(
+      pivotTableQueryGenerator.generateStackQuery(
+          selectedPivots,
+          selectedAggregations,
+          WHERE_FILTERS,
+          table,
+          /* stack_id = */ 'stack_id'),
+      expectedQuery);
 });
