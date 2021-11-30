@@ -8229,7 +8229,6 @@ filegroup {
         "src/trace_processor/importers/gzip/gzip_trace_parser.cc",
         "src/trace_processor/importers/json/json_trace_parser.cc",
         "src/trace_processor/importers/json/json_trace_tokenizer.cc",
-        "src/trace_processor/importers/json/json_tracker.cc",
         "src/trace_processor/importers/proto/android_probes_module.cc",
         "src/trace_processor/importers/proto/android_probes_parser.cc",
         "src/trace_processor/importers/proto/android_probes_tracker.cc",
