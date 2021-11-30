@@ -427,31 +427,73 @@ class TrackDecider {
 
   async addAnnotationTracks(): Promise<void> {
     const sliceResult = await this.engine.query(`
-    SELECT id, name, upid FROM annotation_slice_track`);
+    SELECT id, name, upid, group_name FROM annotation_slice_track`);
 
     const sliceIt = sliceResult.iter({
       id: NUM,
       name: STR,
       upid: NUM,
+      group_name: STR_NULL,
     });
+
+    interface GroupIds {
+      id: string;
+      summaryTrackId: string;
+    }
+
+    const groupNameToIds = new Map<string, GroupIds>();
 
     for (; sliceIt.valid(); sliceIt.next()) {
       const id = sliceIt.id;
       const name = sliceIt.name;
       const upid = sliceIt.upid;
+      const groupName = sliceIt.group_name;
+
+      let trackId = undefined;
+      let trackGroupId =
+          upid === 0 ? SCROLLING_TRACK_GROUP : this.upidToUuid.get(upid);
+
+      if (groupName) {
+        // If this is the first track encountered for a certain group,
+        // create an id for the group and use this track as the group's
+        // summary track.
+        const groupIds = groupNameToIds.get(groupName);
+        if (groupIds) {
+          trackGroupId = groupIds.id;
+        } else {
+          trackGroupId = uuidv4();
+          trackId = uuidv4();
+          groupNameToIds.set(groupName, {
+            id: trackGroupId,
+            summaryTrackId: trackId,
+          });
+        }
+      }
+
       this.tracksToAdd.push({
+        id: trackId,
         engineId: this.engineId,
         kind: SLICE_TRACK_KIND,
         name,
         trackKindPriority: TrackDecider.inferTrackKindPriority(name),
-        trackGroup: upid === 0 ? SCROLLING_TRACK_GROUP :
-                                 this.upidToUuid.get(upid),
+        trackGroup: trackGroupId,
         config: {
           maxDepth: 0,
           namespace: 'annotation',
           trackId: id,
         },
       });
+    }
+
+    for (const [groupName, groupIds] of groupNameToIds) {
+      const addGroup = Actions.addTrackGroup({
+        engineId: this.engineId,
+        summaryTrackId: groupIds.summaryTrackId,
+        name: groupName,
+        id: groupIds.id,
+        collapsed: true,
+      });
+      this.addTrackGroupActions.push(addGroup);
     }
 
     const counterResult = await this.engine.query(`
@@ -1159,6 +1201,7 @@ class TrackDecider {
     await this.addGpuFreqTracks();
     await this.addGlobalCounterTracks();
     await this.addCpuPerfCounterTracks();
+    await this.addAnnotationTracks();
     await this.groupGlobalIonTracks();
 
     // Create the per-process track groups. Note that this won't necessarily
@@ -1180,7 +1223,6 @@ class TrackDecider {
     await this.addThreadSliceTracks();
     await this.addThreadCpuSampleTracks();
     await this.addLogsTrack();
-    await this.addAnnotationTracks();
 
     this.addTrackGroupActions.push(
         Actions.addTracks({tracks: this.tracksToAdd}));
