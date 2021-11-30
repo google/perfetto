@@ -2090,12 +2090,10 @@ bool TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
     EmitLifecycleEvents(tracing_session, &packets);
 
   size_t packets_bytes = 0;  // SUM(slice.size() for each slice in |packets|).
-  size_t total_slices = 0;   // SUM(#slices in |packets|).
 
   // Add up size for packets added by the Maybe* calls above.
   for (const TracePacket& packet : packets) {
     packets_bytes += packet.size();
-    total_slices += packet.slices().size();
   }
 
   // This is a rough threshold to determine how much to read from the buffer in
@@ -2166,7 +2164,6 @@ bool TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
 
       // Append the packet (inclusive of the trusted uid) to |packets|.
       packets_bytes += packet.size();
-      total_slices += packet.slices().size();
       did_hit_threshold = packets_bytes >= kApproxBytesPerTask &&
                           !tracing_session->write_into_file;
       packets.emplace_back(std::move(packet));
@@ -2175,7 +2172,6 @@ bool TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
 
   const bool has_more = did_hit_threshold;
 
-  size_t prev_packets_size = packets.size();
   if (!tracing_session->config.builtin_data_sources()
            .disable_service_events()) {
     // We don't bother snapshotting clocks here because we wouldn't be able to
@@ -2196,12 +2192,6 @@ bool TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
   if (!has_more && tracing_session->should_emit_stats) {
     EmitStats(tracing_session, &packets);
     tracing_session->should_emit_stats = false;
-  }
-
-  // Add sizes of packets emitted by the EmitLifecycleEvents + EmitStats.
-  for (size_t i = prev_packets_size; i < packets.size(); ++i) {
-    packets_bytes += packets[i].size();
-    total_slices += packets[i].slices().size();
   }
 
   // +-------------------------------------------------------------------------+
@@ -2255,6 +2245,10 @@ bool TracingServiceImpl::ReadBuffers(TracingSessionID tsid,
                                   ? tracing_session->max_file_size_bytes
                                   : std::numeric_limits<size_t>::max();
 
+    size_t total_slices = 0;
+    for (const TracePacket& packet : packets) {
+      total_slices += packet.slices().size();
+    }
     // When writing into a file, the file should look like a root trace.proto
     // message. Each packet should be prepended with a proto preamble stating
     // its field id (within trace.proto) and size. Hence the addition below.
