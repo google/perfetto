@@ -211,8 +211,6 @@ source_set("storage_full") {
     "importers/json/json_trace_parser.h",
     "importers/json/json_trace_tokenizer.cc",
     "importers/json/json_trace_tokenizer.h",
-    "importers/json/json_tracker.cc",
-    "importers/json/json_tracker.h",
     "importers/proto/android_probes_module.cc",
     "importers/proto/android_probes_module.h",
     "importers/proto/android_probes_parser.cc",
@@ -462,7 +460,6 @@ perfetto_unittest_source_set("unittests") {
   if (enable_perfetto_trace_processor_json) {
     sources += [
       "importers/json/json_trace_tokenizer_unittest.cc",
-      "importers/json/json_tracker_unittest.cc",
       "importers/json/json_utils_unittest.cc",
     ]
     deps += [ "../../gn:jsoncpp" ]
