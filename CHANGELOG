@@ -11,6 +11,7 @@ Unreleased:
     * Changed LIKE comparisions to be case-senstive. This may break existing
       queries but was a necessary from a performance perspective.
     * Changed compiler flags, assume recent x64 CPUs (see above).
+    * Changed how displayTimeUnit is handled in JSON traces to match catapult.
   UI:
     *
   SDK:

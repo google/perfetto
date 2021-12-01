@@ -272,58 +272,6 @@ TEST(JsonTraceTokenizerTest, ExtractValueForJsonKey) {
   ASSERT_EQ(*line, R"({"ts": 149029, "foo": "bar"})");
 }
 
-TEST(JsonTraceTokenizerTest, DisplayTimeUnit) {
-  ASSERT_EQ(MaybeParseDisplayTimeUnit(R"(
-    {
-    }
-  )"),
-            base::nullopt);
-  ASSERT_EQ(MaybeParseDisplayTimeUnit(R"(
-    {
-      "displayTimeUnit": 0
-    }
-  )"),
-            base::nullopt);
-  ASSERT_EQ(MaybeParseDisplayTimeUnit(R"(
-    {
-      "str": "displayTimeUnit"
-    }
-  )"),
-            base::nullopt);
-
-  ASSERT_EQ(MaybeParseDisplayTimeUnit(R"(
-    {
-      "traceEvents": [
-        {
-          "pid": 1, "tid": 1, "name": "test",
-          "ts": 1, "dur": 1000, "ph": "X", "cat": "fee"
-        }
-      ],
-      "displayTimeUnit": "ms"
-    }
-  )"),
-            json::TimeUnit::kMs);
-  ASSERT_EQ(MaybeParseDisplayTimeUnit(R"(
-    {
-      "traceEvents": [
-        {
-          "pid": 1, "tid": 1, "name": "test",
-          "ts": 1, "dur": 1000, "ph": "X", "cat": "fee"
-        }
-      ],
-      "displayTimeUnit": "ns"
-    }
-  )"),
-            json::TimeUnit::kNs);
-
-  ASSERT_EQ(MaybeParseDisplayTimeUnit(R"(
-    {
-      "displayTimeUnit":"ms"
-    }
-  )"),
-            json::TimeUnit::kMs);
-}
-
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto
