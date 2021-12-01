@@ -124,10 +124,11 @@ namespace stats {
   F(process_tracker_errors,             kSingle,  kError,    kAnalysis, ""),   \
   F(json_tokenizer_failure,             kSingle,  kError,    kTrace,    ""),   \
   F(json_parser_failure,                kSingle,  kError,    kTrace,    ""),   \
-  F(json_display_time_unit_too_late,    kSingle,  kError,    kTrace,           \
-      "The displayTimeUnit key came too late in the JSON trace so was "        \
-      "ignored. Trace processor only supports displayTimeUnit appearing "      \
-      "at the start of JSON traces"),                                          \
+  F(json_display_time_unit,             kSingle,  kInfo,     kTrace,           \
+      "The displayTimeUnit key was set in the JSON trace. In some prior "      \
+      "versions of trace processor this key could effect how the trace "       \
+      "processor parsed timestamps and durations. In this version the key is " \
+      "ignored which more closely matches the bavahiour of catapult."),        \
   F(heap_graph_invalid_string_id,       kIndexed, kError,    kTrace,    ""),   \
   F(heap_graph_non_finalized_graph,     kSingle,  kError,    kTrace,    ""),   \
   F(heap_graph_malformed_packet,        kIndexed, kError,    kTrace,    ""),   \

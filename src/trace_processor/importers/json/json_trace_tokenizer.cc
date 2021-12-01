@@ -22,7 +22,6 @@
 #include "perfetto/ext/base/string_utils.h"
 
 #include "perfetto/trace_processor/trace_blob_view.h"
-#include "src/trace_processor/importers/json/json_tracker.h"
 #include "src/trace_processor/importers/json/json_utils.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/trace_sorter.h"
@@ -364,54 +363,6 @@ ReadSystemLineRes ReadOneSystemTraceLine(const char* start,
   return ReadSystemLineRes::kNeedsMoreData;
 }
 
-base::Optional<json::TimeUnit> MaybeParseDisplayTimeUnit(
-    base::StringView buffer) {
-  size_t idx = buffer.find("\"displayTimeUnit\"");
-  if (idx == base::StringView::npos)
-    return base::nullopt;
-
-  base::StringView time_unit = buffer.substr(idx);
-  std::string key;
-  const char* value_start = nullptr;
-  ReadKeyRes res =
-      ReadOneJsonKey(time_unit.data(), time_unit.end(), &key, &value_start);
-
-  // If we didn't read the key successfully, it could have been that
-  // displayTimeUnit is used somewhere else in the dict (maybe as a value?) so
-  // just ignore it.
-  if (res == ReadKeyRes::kEndOfDictionary || res == ReadKeyRes::kFatalError ||
-      res == ReadKeyRes::kNeedsMoreData) {
-    return base::nullopt;
-  }
-
-  // Double check that we did actually get the displayTimeUnit key.
-  if (key != "displayTimeUnit")
-    return base::nullopt;
-
-  // If the value isn't a string, we can do little except bail.
-  if (value_start[0] != '"')
-    return base::nullopt;
-
-  std::string value;
-  const char* unused;
-  ReadStringRes value_res =
-      ReadOneJsonString(value_start + 1, time_unit.end(), &value, &unused);
-
-  // If we didn't read the value successfully, we could be in another key
-  // in a nested dictionary. Just ignore the error.
-  if (value_res == ReadStringRes::kFatalError ||
-      value_res == ReadStringRes::kNeedsMoreData) {
-    return base::nullopt;
-  }
-
-  if (value == "ns") {
-    return json::TimeUnit::kNs;
-  } else if (value == "ms") {
-    return json::TimeUnit::kMs;
-  }
-  return base::nullopt;
-}
-
 JsonTraceTokenizer::JsonTraceTokenizer(TraceProcessorContext* ctx)
     : context_(ctx) {}
 JsonTraceTokenizer::~JsonTraceTokenizer() = default;
@@ -425,17 +376,6 @@ util::Status JsonTraceTokenizer::Parse(TraceBlobView blob) {
   const char* end = buf + buffer_.size();
 
   if (offset_ == 0) {
-    // It's possible the displayTimeUnit key is at the end of the json
-    // file so to be correct we ought to parse the whole file looking
-    // for this key before parsing any events however this would require
-    // two passes on the file so for now we only handle displayTimeUnit
-    // correctly if it is at the beginning of the file.
-    base::Optional<json::TimeUnit> timeunit =
-        MaybeParseDisplayTimeUnit(base::StringView(buf, blob.size()));
-    if (timeunit) {
-      JsonTracker::GetOrCreate(context_)->SetTimeUnit(*timeunit);
-    }
-
     // Strip leading whitespace.
     while (next != end && isspace(*next)) {
       next++;
@@ -481,7 +421,6 @@ util::Status JsonTraceTokenizer::ParseInternal(const char* start,
                                                const char* end,
                                                const char** out) {
   PERFETTO_DCHECK(json::IsJsonSupported());
-  JsonTracker* json_tracker = JsonTracker::GetOrCreate(context_);
   auto* trace_sorter = context_->sorter.get();
 
   const char* next = start;
@@ -513,19 +452,10 @@ util::Status JsonTraceTokenizer::ParseInternal(const char* start,
         return ParseInternal(next + 1, end, out);
       } else if (key == "displayTimeUnit") {
         std::string time_unit;
-        auto string_res = ReadOneJsonString(next + 1, end, &time_unit, &next);
-        if (string_res == ReadStringRes::kFatalError)
+        auto result = ReadOneJsonString(next + 1, end, &time_unit, &next);
+        if (result == ReadStringRes::kFatalError)
           return util::ErrStatus("Could not parse displayTimeUnit");
-        if (string_res == ReadStringRes::kNeedsMoreData)
-          return util::ErrStatus("displayTimeUnit too large");
-        if (time_unit != "ms" && time_unit != "ns")
-          return util::ErrStatus("displayTimeUnit unknown");
-        // If the displayTimeUnit came after the first chunk, the increment the
-        // too late stat.
-        if (offset_ != 0) {
-          context_->storage->IncrementStats(
-              stats::json_display_time_unit_too_late);
-        }
+        context_->storage->IncrementStats(stats::json_display_time_unit);
         return ParseInternal(next, end, out);
       } else if (key == "otherData") {
         base::StringView unparsed;
@@ -618,7 +548,7 @@ util::Status JsonTraceTokenizer::ParseInternal(const char* start,
         base::Optional<std::string> opt_raw_ts;
         RETURN_IF_ERROR(ExtractValueForJsonKey(unparsed, "ts", &opt_raw_ts));
         base::Optional<int64_t> opt_ts =
-            opt_raw_ts ? json_tracker->CoerceToTs(*opt_raw_ts) : base::nullopt;
+            opt_raw_ts ? json::CoerceToTs(*opt_raw_ts) : base::nullopt;
         int64_t ts = 0;
         if (opt_ts.has_value()) {
           ts = opt_ts.value();
