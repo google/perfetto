@@ -238,8 +238,13 @@ class TraceProcessor:
 
     return response.metatrace
 
-  # TODO(@aninditaghosh): Investigate context managers for
-  # cleaner usage
+  def __enter__(self):
+    return self
+
+  def __exit__(self, _, __, ___):
+    self.close()
+    return False
+
   def close(self):
     if hasattr(self, 'subprocess'):
       self.subprocess.kill()

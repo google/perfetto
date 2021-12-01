@@ -616,7 +616,8 @@ export class TraceController extends Controller<States> {
         id INTEGER PRIMARY KEY,
         name STRING,
         __metric_name STRING,
-        upid INTEGER
+        upid INTEGER,
+        group_name STRING
       );
     `);
 
@@ -672,6 +673,7 @@ export class TraceController extends Controller<States> {
         let hasDur = false;
         let hasUpid = false;
         let hasValue = false;
+        let hasGroupName = false;
         const it = result.iter({name: STR});
         for (; it.valid(); it.next()) {
           const name = it.name;
@@ -679,17 +681,22 @@ export class TraceController extends Controller<States> {
           hasDur = hasDur || name === 'dur';
           hasUpid = hasUpid || name === 'upid';
           hasValue = hasValue || name === 'value';
+          hasGroupName = hasGroupName || name === 'group_name';
         }
 
         const upidColumnSelect = hasUpid ? 'upid' : '0 AS upid';
         const upidColumnWhere = hasUpid ? 'upid' : '0';
+        const groupNameColumn =
+            hasGroupName ? 'group_name' : 'NULL AS group_name';
         if (hasSliceName && hasDur) {
           await engine.query(`
-            INSERT INTO annotation_slice_track(name, __metric_name, upid)
+            INSERT INTO annotation_slice_track(
+              name, __metric_name, upid, group_name)
             SELECT DISTINCT
               track_name,
               '${metric}' as metric_name,
-              ${upidColumnSelect}
+              ${upidColumnSelect},
+              ${groupNameColumn}
             FROM ${metric}_event
             WHERE track_type = 'slice'
           `);

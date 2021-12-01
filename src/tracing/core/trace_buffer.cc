@@ -27,25 +27,6 @@
 #define TRACE_BUFFER_VERBOSE_LOGGING() 0  // Set to 1 when debugging unittests.
 #if TRACE_BUFFER_VERBOSE_LOGGING()
 #define TRACE_BUFFER_DLOG PERFETTO_DLOG
-namespace {
-constexpr char kHexDigits[] = "0123456789abcdef";
-std::string HexDump(const uint8_t* src, size_t size) {
-  std::string buf;
-  buf.reserve(4096 * 4);
-  char line[64];
-  char* c = line;
-  for (size_t i = 0; i < size; i++) {
-    *c++ = kHexDigits[(src[i] >> 4) & 0x0f];
-    *c++ = kHexDigits[(src[i] >> 0) & 0x0f];
-    if (i % 16 == 15) {
-      buf.append("\n");
-      buf.append(line);
-      c = line;
-    }
-  }
-  return buf;
-}
-}  // namespace
 #else
 #define TRACE_BUFFER_DLOG(...) void()
 #endif
@@ -224,7 +205,8 @@ void TraceBuffer::CopyChunkUntrusted(ProducerID producer_id_trusted,
     TRACE_BUFFER_DLOG("  copying @ [%lu - %lu] %zu", wptr - begin(),
                       uintptr_t(wptr - begin()) + record_size, record_size);
     WriteChunkRecord(wptr, record, src, size);
-    TRACE_BUFFER_DLOG("Chunk raw: %s", HexDump(wptr, record_size).c_str());
+    TRACE_BUFFER_DLOG("Chunk raw: %s",
+                      base::HexDump(wptr, record_size).c_str());
     stats_.set_chunks_rewritten(stats_.chunks_rewritten() + 1);
     return;
   }
@@ -281,7 +263,7 @@ void TraceBuffer::CopyChunkUntrusted(ProducerID producer_id_trusted,
   TRACE_BUFFER_DLOG("  copying @ [%lu - %lu] %zu", wptr_ - begin(),
                     uintptr_t(wptr_ - begin()) + record_size, record_size);
   WriteChunkRecord(wptr_, record, src, size);
-  TRACE_BUFFER_DLOG("Chunk raw: %s", HexDump(wptr_, record_size).c_str());
+  TRACE_BUFFER_DLOG("Chunk raw: %s", base::HexDump(wptr_, record_size).c_str());
   wptr_ += record_size;
   if (wptr_ >= end()) {
     PERFETTO_DCHECK(padding_size == 0);
@@ -456,7 +438,7 @@ bool TraceBuffer::TryPatchChunkContents(ProducerID producer_id,
   }
   TRACE_BUFFER_DLOG(
       "Chunk raw (after patch): %s",
-      HexDump(chunk_begin, chunk_meta.chunk_record->size).c_str());
+      base::HexDump(chunk_begin, chunk_meta.chunk_record->size).c_str());
 
   stats_.set_patches_succeeded(stats_.patches_succeeded() + patches_size);
   if (!other_patches_pending) {
