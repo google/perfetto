@@ -514,8 +514,9 @@ base::Optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
   trace_config_.reset(new TraceConfig());
 
   bool parsed = false;
-  const bool will_trace = !is_attach() && !query_service_ && !bugreport_;
-  if (!will_trace) {
+  const bool will_trace_or_trigger =
+      !is_attach() && !query_service_ && !bugreport_;
+  if (!will_trace_or_trigger) {
     if ((!trace_config_raw.empty() || has_config_options)) {
       PERFETTO_ELOG("Cannot specify a trace config with this option");
       return 1;
@@ -545,7 +546,7 @@ base::Optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
   if (parsed) {
     *trace_config_->mutable_statsd_metadata() = std::move(statsd_metadata);
     trace_config_raw.clear();
-  } else if (will_trace) {
+  } else if (will_trace_or_trigger) {
     PERFETTO_ELOG("The trace config is invalid, bailing out.");
     return 1;
   }
@@ -573,20 +574,22 @@ base::Optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     return 1;
   }
 
-  if (trace_config_->activate_triggers().empty() &&
-      trace_config_->incident_report_config().destination_package().empty() &&
+  // Only save to incidentd if:
+  // 1) --upload is set
+  // 2) |skip_incidentd| is absent or false.
+  // 3) we are not simply activating triggers.
+  save_to_incidentd_ =
+      upload_flag_ &&
       !trace_config_->incident_report_config().skip_incidentd() &&
-      upload_flag_) {
+      trace_config_->activate_triggers().empty();
+
+  if (save_to_incidentd_ &&
+      trace_config_->incident_report_config().destination_package().empty()) {
     PERFETTO_ELOG(
         "Missing IncidentReportConfig.destination_package with --dropbox / "
         "--upload.");
     return 1;
   }
-
-  // Only save to incidentd if both --upload is set and |skip_incidentd| is
-  // absent or false.
-  save_to_incidentd_ =
-      upload_flag_ && !trace_config_->incident_report_config().skip_incidentd();
 
   // Respect the wishes of the config with respect to statsd logging or fall
   // back on the presence of the --upload flag if not set.
@@ -644,7 +647,7 @@ base::Optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
   }
 
   bool open_out_file = true;
-  if (!will_trace) {
+  if (!will_trace_or_trigger) {
     open_out_file = false;
     if (!trace_out_path_.empty() || upload_flag_) {
       PERFETTO_ELOG("Can't pass an --out file (or --upload) with this option");
