@@ -19,6 +19,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "src/trace_processor/forwarding_trace_parser.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/trace_sorter.h"
 
@@ -71,6 +72,18 @@ util::Status SystraceTraceParser::Parse(TraceBlobView blob) {
                       blob.data() + blob.size());
 
   if (state_ == ParseState::kBeforeParse) {
+    // Remove anything before the TRACE:\n marker, which is emitted when
+    // obtaining traces via  `adb shell "atrace -t 1 sched" > out.txt`.
+    std::array<uint8_t, 7> kAtraceMarker = {'T', 'R', 'A', 'C', 'E', ':', '\n'};
+    auto search_end = partial_buf_.begin() +
+                      static_cast<int>(std::min(partial_buf_.size(),
+                                                kGuessTraceMaxLookahead));
+    auto it = std::search(partial_buf_.begin(), search_end,
+                          kAtraceMarker.begin(), kAtraceMarker.end());
+    if (it != search_end)
+      partial_buf_.erase(partial_buf_.begin(), it + kAtraceMarker.size());
+
+    // Deal with HTML traces.
     state_ = partial_buf_[0] == '<' ? ParseState::kHtmlBeforeSystrace
                                     : ParseState::kSystrace;
   }
