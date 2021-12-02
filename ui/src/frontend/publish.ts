@@ -144,6 +144,7 @@ export function publishAggregateData(
 
 export function publishQueryResult(args: {id: string, data?: {}}) {
   globals.queryResults.set(args.id, args.data);
+  globals.dispatch(Actions.setCurrentTab({tab: 'query_result'}));
   globals.publishRedraw();
 }
 
