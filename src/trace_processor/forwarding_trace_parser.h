@@ -24,6 +24,8 @@
 namespace perfetto {
 namespace trace_processor {
 
+constexpr size_t kGuessTraceMaxLookahead = 64;
+
 enum TraceType {
   kUnknownTraceType,
   kProtoTraceType,

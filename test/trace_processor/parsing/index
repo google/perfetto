@@ -163,3 +163,10 @@ very_long_sched.py android_trace_quality very_long_sched_android_trace_quality.o
 
 # Multiuser
 android_multiuser_switch.textproto android_multiuser android_multiuser_switch.out
+
+# Output of atrace -z.
+../../data/atrace_compressed.ctrace sched_smoke.sql atrace_compressed_sched_count.out
+
+# Output of adb shell "atrace -t 1 sched" > out.txt". It has extra garbage
+# coming from stderr before the TRACE: marker. See b/208691037.
+../../data/atrace_uncompressed_b_208691037 sched_smoke.sql atrace_uncompressed_sched_count.out
