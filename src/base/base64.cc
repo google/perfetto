@@ -146,7 +146,7 @@ Optional<std::string> Base64Decode(const char* src, size_t src_size) {
 
   PERFETTO_CHECK(res <= static_cast<ssize_t>(dst.size()));
   dst.resize(static_cast<size_t>(res));
-  return make_optional(dst);
+  return base::make_optional(dst);
 }
 
 }  // namespace base
