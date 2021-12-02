@@ -39,6 +39,7 @@
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
 #include "protos/perfetto/trace/ftrace/power.gen.h"
 #include "protos/perfetto/trace/ftrace/sched.gen.h"
+#include "protos/perfetto/trace/ftrace/task.gen.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
 #include "src/traced/probes/ftrace/test/test_messages.gen.h"
 #include "src/traced/probes/ftrace/test/test_messages.pbzero.h"
@@ -540,20 +541,20 @@ TEST(CpuReaderTest, ReallyLongEvent) {
 }
 
 // This event is as the event for ParseSinglePrint above except the string
-// is extended to overflow the page size written in the header.
-static ExamplePage g_single_print_malformed{
+// is extended and not null terminated.
+static ExamplePage g_single_print_non_null_terminated{
     "synthetic",
     R"(
-    00000000: ba12 6a33 c628 0200 2c00 0000 0000 0000  ................
-    00000010: def0 ec67 8d21 0000 0800 0000 0500 0001  ................
-    00000020: 2870 0000 ac5d 1661 86ff ffff 4865 6c6c  ................
-    00000030: 6f2c 2077 6f72 6c64 2120 776f 726c 6421  ................
-    00000040: 0a00 ff00 0000 0000 0000 0000 0000 0000  ................
+    00000000: ba12 6a33 c628 0200 2c00 0000 0000 0000  ..j3.(..,.......
+    00000010: def0 ec67 8d21 0000 0800 0000 0500 0001  ...g.!..........
+    00000020: 2870 0000 ac5d 1661 86ff ffff 4865 6c6c  (p...].a....Hell
+    00000030: 6f2c 2077 6f72 6c64 2161 6161 6161 6161  o, world!aaaaaaa
+    00000040: 6161 6161 6161 6161 6161 6161 6161 6161  aaaaaaaaaaaaaaaa
   )",
 };
 
-TEST(CpuReaderTest, ParseSinglePrintMalformed) {
-  const ExamplePage* test_case = &g_single_print_malformed;
+TEST(CpuReaderTest, ParseSinglePrintNonNullTerminated) {
+  const ExamplePage* test_case = &g_single_print_non_null_terminated;
 
   BundleProvider bundle_provider(base::kPageSize);
   ProtoTranslationTable* table = GetTable(test_case->name);
@@ -579,18 +580,67 @@ TEST(CpuReaderTest, ParseSinglePrintMalformed) {
       parse_pos, &page_header.value(), table, &ds_config, compact_buffer.get(),
       bundle_provider.writer(), &metadata);
 
-  ASSERT_EQ(0u, evt_bytes);
+  ASSERT_EQ(44u, evt_bytes);
 
   auto bundle = bundle_provider.ParseProto();
   ASSERT_TRUE(bundle);
   ASSERT_EQ(bundle->event().size(), 1u);
-  // Although one field is malformed we still see data for the rest
-  // since we write the fields as we parse them for speed.
   const protos::gen::FtraceEvent& event = bundle->event()[0];
   EXPECT_EQ(event.pid(), 28712ul);
   EXPECT_TRUE(WithinOneMicrosecond(event.timestamp(), 608934, 535199));
+  EXPECT_EQ(event.print().buf(), "Hello, world!aaa");
+}
+
+static ExamplePage g_single_print_zero_size{
+    "synthetic",
+    R"(
+    00000000: ba12 6a33 c628 0200 2c00 0000 0000 0000  ..j3.(..,.......
+    00000010: def0 ec67 8d21 0000 0800 0000 0500 0001  ...g.!..........
+    00000020: 2870 0000 ac5d 1661 86ff ffff 0000 0000  (p...].a........
+    00000030: 0000 0000 0000 0000 0000 0000 0000 0000  ................
+    00000040: 0000 0000 0000 0000 0000 0000 0000 0000  ................
+  )",
+};
+
+TEST(CpuReaderTest, ParseSinglePrintZeroSize) {
+  const ExamplePage* test_case = &g_single_print_zero_size;
+
+  BundleProvider bundle_provider(base::kPageSize);
+  ProtoTranslationTable* table = GetTable(test_case->name);
+  auto page = PageFromXxd(test_case->data);
+
+  FtraceDataSourceConfig ds_config = EmptyConfig();
+  ds_config.event_filter.AddEnabledEvent(
+      table->EventToFtraceId(GroupAndName("ftrace", "print")));
+
+  FtraceMetadata metadata{};
+  std::unique_ptr<CompactSchedBuffer> compact_buffer(new CompactSchedBuffer());
+  const uint8_t* parse_pos = page.get();
+  base::Optional<CpuReader::PageHeader> page_header =
+      CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
+
+  const uint8_t* page_end = page.get() + base::kPageSize;
+  ASSERT_TRUE(page_header.has_value());
+  EXPECT_FALSE(page_header->lost_events);
+  EXPECT_TRUE(parse_pos < page_end);
+  EXPECT_TRUE(parse_pos + page_header->size < page_end);
+
+  size_t evt_bytes = CpuReader::ParsePagePayload(
+      parse_pos, &page_header.value(), table, &ds_config, compact_buffer.get(),
+      bundle_provider.writer(), &metadata);
+
+  ASSERT_EQ(44u, evt_bytes);
+
+  auto bundle = bundle_provider.ParseProto();
+  ASSERT_TRUE(bundle);
+  ASSERT_EQ(bundle->event().size(), 1u);
+  const protos::gen::FtraceEvent& event = bundle->event()[0];
+  EXPECT_EQ(event.pid(), 28712ul);
+  EXPECT_TRUE(WithinOneMicrosecond(event.timestamp(), 608934, 535199));
+  EXPECT_TRUE(event.print().has_buf());
   EXPECT_EQ(event.print().buf(), "");
 }
+
 
 TEST(CpuReaderTest, FilterByEvent) {
   const ExamplePage* test_case = &g_single_print;
@@ -1134,6 +1184,42 @@ TEST(CpuReaderTest, TaskRenameEvent) {
                                     bundle_provider.writer(), &metadata));
   EXPECT_THAT(metadata.rename_pids, Contains(9999));
   EXPECT_THAT(metadata.pids, Contains(9999));
+}
+
+// Regression test for b/205763418: Kernels without f0a515780393("tracing: Don't
+// make assumptions about length of string on task rename") can output non
+// zero-terminated strings in some cases. Even though it's a kernel bug, there's
+// no point in rejecting that.
+TEST(CpuReaderTest, EventNonZeroTerminated) {
+  BundleProvider bundle_provider(base::kPageSize);
+
+  BinaryWriter writer;
+  ProtoTranslationTable* table = GetTable("android_seed_N2F62_3.10.49");
+
+  constexpr uint32_t kTaskRenameId = 19;
+
+  writer.Write<int32_t>(1001);           // Common field.
+  writer.Write<int32_t>(9999);           // Common pid
+  writer.Write<int32_t>(9999);           // Pid
+  writer.WriteFixedString(16, "Hello");  // Old Comm
+  std::array<char, 16> newcomm;
+  memcpy(&newcomm, "0123456789abcdef", sizeof newcomm);
+  writer.Write(newcomm);       // New Comm - not null terminated
+  writer.Write<uint64_t>(10);  // flags
+  writer.Write<int16_t>(10);   // oom_score_adj
+
+  auto input = writer.GetCopy();
+  auto length = writer.written();
+  FtraceMetadata metadata{};
+
+  ASSERT_TRUE(CpuReader::ParseEvent(
+      kTaskRenameId, input.get(), input.get() + length, table,
+      bundle_provider.writer()->add_event(), &metadata));
+  std::unique_ptr<protos::gen::FtraceEventBundle> a =
+      bundle_provider.ParseProto();
+  ASSERT_NE(a, nullptr);
+  ASSERT_EQ(a->event().size(), 1u);
+  ASSERT_EQ(a->event()[0].task_rename().newcomm(), "0123456789abcdef");
 }
 
 // Page with a single sched_switch, no data loss.
