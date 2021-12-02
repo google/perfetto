@@ -30,7 +30,6 @@
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
-#include "src/trace_processor/importers/json/json_tracker.h"
 #include "src/trace_processor/importers/json/json_utils.h"
 #include "src/trace_processor/tables/slice_tables.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -137,11 +136,9 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
     row.track_id = track_id;
     row.category = cat_id;
     row.name = name_id;
-    row.thread_ts =
-        JsonTracker::GetOrCreate(context_)->CoerceToTs(value["tts"]);
+    row.thread_ts = json::CoerceToTs(value["tts"]);
     // tdur will only exist on 'X' events.
-    row.thread_dur =
-        JsonTracker::GetOrCreate(context_)->CoerceToTs(value["tdur"]);
+    row.thread_dur = json::CoerceToTs(value["tdur"]);
     // JSON traces don't report these counters as part of slices.
     row.thread_instruction_count = base::nullopt;
     row.thread_instruction_delta = base::nullopt;
@@ -161,8 +158,7 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
       auto opt_slice_id = slice_tracker->End(timestamp, track_id, cat_id,
                                              name_id, args_inserter);
       // Now try to update thread_dur if we have a tts field.
-      auto opt_tts =
-          JsonTracker::GetOrCreate(context_)->CoerceToTs(value["tts"]);
+      auto opt_tts = json::CoerceToTs(value["tts"]);
       if (opt_slice_id.has_value() && opt_tts) {
         auto* thread_slice = storage->mutable_thread_slice_table();
         auto maybe_row = thread_slice->id().IndexOf(*opt_slice_id);
@@ -176,8 +172,7 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
       break;
     }
     case 'X': {  // TRACE_EVENT (scoped event).
-      base::Optional<int64_t> opt_dur =
-          JsonTracker::GetOrCreate(context_)->CoerceToTs(value["dur"]);
+      base::Optional<int64_t> opt_dur = json::CoerceToTs(value["dur"]);
       if (!opt_dur.has_value())
         return;
       TrackId track_id = context_->track_tracker->InternThreadTrack(utid);

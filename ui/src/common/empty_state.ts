@@ -26,7 +26,7 @@ const AUTOLOAD_STARTED_CONFIG_FLAG = featureFlags.register({
   name: 'Auto-load last used recording config',
   description: 'Starting a recording automatically saves its configuration. ' +
       'This flag controls whether this config is automatically loaded.',
-  defaultValue: false,
+  defaultValue: true,
 });
 
 export function createEmptyState(): State {

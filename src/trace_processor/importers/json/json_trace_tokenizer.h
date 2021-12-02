@@ -94,11 +94,6 @@ ReadSystemLineRes ReadOneSystemTraceLine(const char* start,
                                          std::string* line,
                                          const char** next);
 
-// Parses the "displayTimeUnit" key from the given trace buffer
-// and returns the associated time unit if one exists.
-base::Optional<json::TimeUnit> MaybeParseDisplayTimeUnit(
-    base::StringView buffer);
-
 // Reads a JSON trace in chunks and extracts top level json objects.
 class JsonTraceTokenizer : public ChunkedTraceReader {
  public:
