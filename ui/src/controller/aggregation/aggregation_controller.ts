@@ -26,6 +26,7 @@ import {
 import {NUM} from '../../common/query_result';
 import {Area, Sorting} from '../../common/state';
 import {publishAggregateData} from '../../frontend/publish';
+import {AreaSelectionHandler} from '../area_selection_handler';
 import {Controller} from '../controller';
 import {globals} from '../globals';
 
@@ -38,17 +39,9 @@ function isStringColumn(column: Column): boolean {
   return column.kind === 'STRING' || column.kind === 'STATE';
 }
 
-function isAreaEqual(area: Area, previousArea?: Area) {
-  if (previousArea === undefined || area.startSec !== previousArea.startSec ||
-      area.endSec !== previousArea.endSec) {
-    return false;
-  }
-  return area.tracks.every((element, i) => element === previousArea.tracks[i]);
-}
-
 export abstract class AggregationController extends Controller<'main'> {
   readonly kind: string;
-  private previousArea?: Area;
+  private areaSelectionHandler: AreaSelectionHandler;
   private previousSorting?: Sorting;
   private requestingData = false;
   private queuedRequest = false;
@@ -64,6 +57,7 @@ export abstract class AggregationController extends Controller<'main'> {
   constructor(private args: AggregationControllerArgs) {
     super('main');
     this.kind = this.args.kind;
+    this.areaSelectionHandler = new AreaSelectionHandler();
   }
 
   run() {
@@ -82,22 +76,20 @@ export abstract class AggregationController extends Controller<'main'> {
       });
       return;
     }
-    const selectedArea = globals.state.areas[selection.areaId];
     const aggregatePreferences =
         globals.state.aggregatePreferences[this.args.kind];
 
-    const areaChanged = !isAreaEqual(selectedArea, this.previousArea);
     const sortingChanged = aggregatePreferences &&
         this.previousSorting !== aggregatePreferences.sorting;
-    if (!areaChanged && !sortingChanged) return;
+    const [hasAreaChanged, area] = this.areaSelectionHandler.getAreaChange();
+    if ((!hasAreaChanged && !sortingChanged) || !area) return;
 
     if (this.requestingData) {
       this.queuedRequest = true;
     } else {
       this.requestingData = true;
       if (sortingChanged) this.previousSorting = aggregatePreferences.sorting;
-      if (areaChanged) this.previousArea = Object.assign({}, selectedArea);
-      this.getAggregateData(selectedArea, areaChanged)
+      this.getAggregateData(area, hasAreaChanged)
           .then(data => publishAggregateData({data, kind: this.args.kind}))
           .finally(() => {
             this.requestingData = false;
