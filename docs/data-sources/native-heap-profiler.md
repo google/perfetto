@@ -566,9 +566,12 @@ subject to change**.
 
 ```sql
 select name, map_name, cumulative_size
-       from experimental_flamegraph(8300973884377,1,'native')
+       from experimental_flamegraph
+       where ts = 8300973884377
+            and upid = 1
+            and profile_type = 'native'
        order by abs(cumulative_size) desc;
-``` 
+```
 
 | name | map_name | cumulative_size |
 |------|----------|----------------|
