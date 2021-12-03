@@ -40,6 +40,7 @@ type QueryResultsStore = Map<string, {}|undefined>;
 type PivotTableHelperStore = Map<string, PivotTableHelper>;
 type AggregateDataStore = Map<string, AggregateData>;
 type Description = Map<string, string>;
+
 export interface SliceDetails {
   ts?: number;
   dur?: number;
@@ -104,14 +105,17 @@ export interface ThreadStateDetails {
 export interface FlamegraphDetails {
   type?: string;
   id?: number;
-  ts?: number;
-  tsNs?: number;
-  pid?: number;
-  upid?: number;
+  startNs?: number;
+  durNs?: number;
+  pids?: number[];
+  upids?: number[];
   flamegraph?: CallsiteInfo[];
   expandedCallsite?: CallsiteInfo;
   viewingOption?: string;
   expandedId?: number;
+  // isInAreaSelection is true if a flamegraph is part of the current area
+  // selection.
+  isInAreaSelection?: boolean;
 }
 
 export interface CpuProfileDetails {
