@@ -1,0 +1,65 @@
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 10000
+      pid: 200
+      netif_receive_skb {
+        name: "rmnet0"
+        len: 1000
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 1
+    event {
+      timestamp: 10000
+      pid: 300
+      netif_receive_skb {
+        name: "rmnet0"
+        len: 1000
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 10010
+      pid: 400
+      netif_receive_skb {
+        name: "rmnet0"
+        len: 1000
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 1
+    event {
+      timestamp: 10011
+      pid: 500
+      netif_receive_skb {
+        name: "rmnet0"
+        len: 1000
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 4
+    event {
+      timestamp: 12000
+      pid: 600
+      netif_receive_skb {
+        name: "wlan"
+        len: 1300
+      }
+    }
+  }
+}
