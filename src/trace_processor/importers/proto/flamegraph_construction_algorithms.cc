@@ -139,8 +139,11 @@ static FlamegraphTableAndMergedCallsites BuildFlamegraphTableTreeStructure(
 
         // The 'ts' column is given a default value, taken from the query.
         // So if the query is:
-        // `select * form experimental_flamegraph(605908369259172, 1, 'native')`
-        // then ts == 605908369259172
+        // `select * form experimental_flamegraph
+        //  where ts = 605908369259172
+        //  and upid = 1
+        //  and profile_type = 'native'`
+        // then row.ts == 605908369259172, for all rows
         // This is not accurate. However, at present there is no other
         // straightforward way of assigning timestamps to non-leaf nodes in the
         // flamegraph tree. Non-leaf nodes would have to be assigned >= 1

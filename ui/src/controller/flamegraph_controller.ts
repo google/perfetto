@@ -384,8 +384,7 @@ export class FlamegraphController extends Controller<'main'> {
     // for each marker.
     let focusRegexConditional = '';
     if (focusRegex !== '') {
-      const linkingWord = type === 'perf' ? 'and' : 'where';
-      focusRegexConditional = `${linkingWord} focus_str = '${focusRegex}'`;
+      focusRegexConditional = `and focus_str = '${focusRegex}'`;
     }
 
     /*
@@ -410,8 +409,11 @@ export class FlamegraphController extends Controller<'main'> {
         `select id, name, map_name, parent_id, depth, cumulative_size,
           cumulative_alloc_size, cumulative_count, cumulative_alloc_count,
           size, alloc_size, count, alloc_count, source_file, line_number
-          from experimental_flamegraph(${endNs}, ${upids[0]}, '${type}') ${
-            focusRegexConditional}`);
+          from experimental_flamegraph
+          where profile_type = '${type}'
+            and ts = ${endNs}
+            and upid = ${upids[0]}
+            ${focusRegexConditional}`);
   }
 
   getMinSizeDisplayed(flamegraphData: CallsiteInfo[], rootSize?: number):
