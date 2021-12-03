@@ -74,7 +74,10 @@ We can then use them to get the flamegraph data.
 
 ```sql
 select name, cumulative_size
-       from experimental_flamegraph(56785646801, 1, 'graph')
+       from experimental_flamegraph
+       where ts = 56785646801
+            and upid = 1
+            and profile_type = 'graph'
        order by 2 desc;
 ```
 
