@@ -72,7 +72,8 @@ export const MAX_TIME = 180;
 // 11: Rename updateChromeCategories to fetchChromeCategories.
 // 12: Add a field to cache mapping from UI track ID to trace track ID in order
 //     to speed up flow arrows rendering.
-export const STATE_VERSION = 12;
+// 13: FlamegraphState changed to support area selection.
+export const STATE_VERSION = 13;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -244,9 +245,9 @@ export interface PerfSamplesSelection {
 
 export interface FlamegraphState {
   kind: 'FLAMEGRAPH_STATE';
-  id: number;
-  upid: number;
-  ts: number;
+  upids: number[];
+  startNs: number;
+  endNs: number;
   type: string;
   viewingOption: FlamegraphStateViewingOption;
   focusRegex: string;
