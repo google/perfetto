@@ -28,13 +28,4 @@ export interface Slice {
   subTitle: string;
   baseColor: Color;
   color: Color;
-
-  // These properties change @ 60FPS and shouldn't be touched by the Impl.
-  // to the Impl. These are really ephemeral and change on every frame. But
-  // the Impl doesn't see every frame. Somebody might be tempted to reason on
-  // those but then fail.
-  // TODO(hjd): Would be nice to find some clever typing hack to avoid exposing
-  // these.
-  x: number;
-  w: number;
 }
