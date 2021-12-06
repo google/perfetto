@@ -197,7 +197,7 @@ export abstract class Track<Config = {}, Data extends TrackData = TrackData> {
       const yOffsetPx = textMetrics.fontBoundingBoxAscent +
           textMetrics.fontBoundingBoxDescent +
           text2Metrics.fontBoundingBoxAscent;
-      ctx.fillText(text, x + paddingPx, y + paddingPx + yOffsetPx);
+      ctx.fillText(text2, x + paddingPx, y + paddingPx + yOffsetPx);
     }
   }
 
