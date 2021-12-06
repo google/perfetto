@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {AreaById, createEmptyState} from '../common/state';
+import {AreaById} from '../common/state';
 import {globals as frontendGlobals} from '../frontend/globals';
 
 import {AreaSelectionHandler} from './area_selection_handler';
+import {createEmptyState} from '../common/empty_state';
 
 test('validAreaAfterUndefinedArea', () => {
   const areaId = '0';
