@@ -57,6 +57,21 @@ export const BASE_SLICE_ROW = {
 
 export type BaseSliceRow = typeof BASE_SLICE_ROW;
 
+// These properties change @ 60FPS and shouldn't be touched by the subclass.
+// since the Impl doesn't see every frame attempting to reason on them in a
+// subclass will run in to issues.
+interface SliceInternal {
+  x: number;
+  w: number;
+}
+
+// We use this to avoid exposing subclasses to the properties that live on
+// SliceInternal. Within BaseSliceTrack the underlying storage and private
+// methods use CastInternal<T['slice']> (i.e. whatever the subclass requests
+// plus our implementation fields) but when we call 'virtual' methods that
+// the subclass should implement we use just T['slice'] hiding x & w.
+type CastInternal<S extends Slice> = S&SliceInternal;
+
 // The meta-type which describes the types used to extend the BaseSliceTrack.
 // Derived classes can extend this interface to override these types if needed.
 export interface BaseSliceTrackTypes {
@@ -69,7 +84,7 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
                                                    BaseSliceTrackTypes> extends
     Track<T['config']> {
   // This is the slice cache.
-  private slices = new Array<T['slice']>();
+  private slices = new Array<CastInternal<T['slice']>>();
   protected sliceLayout: SliceLayout = {...DEFAULT_SLICE_LAYOUT};
 
   // These are the over-skirted cached bounds.
@@ -199,7 +214,7 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
     // Filter only the visible slices. |this.slices| will have more slices than
     // needed because maybeRequestData() over-fetches to handle small pan/zooms.
     // We don't want to waste time drawing slices that are off screen.
-    const vizSlices = this.getVisibleSlices(vizTime.start, vizTime.end);
+    const vizSlices = this.getVisibleSlicesInternal(vizTime.start, vizTime.end);
 
     let selection = globals.state.currentSelection;
 
@@ -217,7 +232,7 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
     const rowSpacing = this.computedRowSpacing;
 
     // First pass: compute geometry of slices.
-    let selSlice: T['slice']|undefined;
+    let selSlice: CastInternal<T['slice']>|undefined;
 
     // pxEnd is the last visible pixel in the visible viewport. Drawing
     // anything < 0 or > pxEnd doesn't produce any visible effect as it goes
@@ -451,7 +466,7 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
   // abstract call.
   convertQueryResultToSlices(
       queryRes: QueryResult, startNs: number, endNs: number, bucketNs: number) {
-    const slices = new Array<T['slice']>(queryRes.numRows());
+    const slices = new Array<CastInternal<T['slice']>>(queryRes.numRows());
     const it = queryRes.iter(this.getRowSpec());
 
     let maxDataDepth = this.maxDataDepth;
@@ -463,10 +478,17 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
 
       // Construct the base slice. The Impl will construct and return the full
       // derived T["slice"] (e.g. CpuSlice) in the rowToSlice() method.
-      slices[i] = this.rowToSlice(it);
+      slices[i] = this.rowToSliceInternal(it);
     }
     this.maxDataDepth = maxDataDepth;
     this.slices = slices;
+  }
+
+  private rowToSliceInternal(row: T['row']): CastInternal<T['slice']> {
+    const slice = this.rowToSlice(row) as CastInternal<T['slice']>;
+    slice.x = -1;
+    slice.w = -1;
+    return slice;
   }
 
   rowToSlice(row: T['row']): T['slice'] {
@@ -500,8 +522,6 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
       // them to something.
       baseColor: DEFAULT_SLICE_COLOR,
       color: DEFAULT_SLICE_COLOR,
-      x: -1,
-      w: -1,
     };
   }
 
@@ -568,7 +588,13 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
     return true;
   }
 
-  getVisibleSlices(startS: number, endS: number): Array<T['slice']> {
+  private getVisibleSlicesInternal(startS: number, endS: number):
+      Array<CastInternal<T['slice']>> {
+    return this.getVisibleSlices(startS, endS);
+  }
+
+  getVisibleSlices(startS: number, endS: number):
+      Array<CastInternal<T['slice']>> {
     let startIdx = -1;
     let endIdx = -1;
     let i = 0;
