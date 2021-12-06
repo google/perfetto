@@ -152,6 +152,9 @@ class FtraceParser {
                            uint32_t pid,
                            protozero::ConstBytes);
   void ParseCpuhpPause(int64_t, uint32_t, protozero::ConstBytes);
+  void ParseNetifReceiveSkb(uint32_t cpu,
+                            int64_t timestamp,
+                            protozero::ConstBytes);
 
   TraceProcessorContext* context_;
   RssStatTracker rss_stat_tracker_;
@@ -217,6 +220,9 @@ class FtraceParser {
   // Keep kMmEventCounterSize equal to mm_event_type::MM_TYPE_NUM in the kernel.
   static constexpr size_t kMmEventCounterSize = 7;
   std::array<MmEventCounterNames, kMmEventCounterSize> mm_event_counter_names_;
+
+  // Record number of received bytes from the network interface card.
+  std::unordered_map<StringId, uint64_t> nic_received_bytes_;
 
   bool has_seen_first_ftrace_packet_ = false;
 
