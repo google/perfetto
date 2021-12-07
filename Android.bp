@@ -8116,6 +8116,8 @@ genrule {
         "src/trace_processor/metrics/sql/android/span_view_stats.sql",
         "src/trace_processor/metrics/sql/android/startup/hsc.sql",
         "src/trace_processor/metrics/sql/android/startup/launches.sql",
+        "src/trace_processor/metrics/sql/android/startup/launches_maxsdk28.sql",
+        "src/trace_processor/metrics/sql/android/startup/launches_minsdk29.sql",
         "src/trace_processor/metrics/sql/android/thread_counter_span_view.sql",
         "src/trace_processor/metrics/sql/android/unsymbolized_frames.sql",
         "src/trace_processor/metrics/sql/chrome/actual_power_by_category.sql",

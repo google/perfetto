@@ -85,7 +85,7 @@ def main():
     with open(file_name, 'r') as f:
       relpath = os.path.relpath(file_name, root_path)
       sql_outputs[relpath] = "".join(
-          x for x in f.readlines() if not x.startswith('--'))
+          x.lstrip() for x in f.readlines() if not x.lstrip().startswith('--'))
 
   with open(args.cpp_out, 'w+') as output:
     output.write(REPLACEMENT_HEADER)
