@@ -18,12 +18,12 @@ android_startup {
       }
     }
     zygote_new_process: false
-    activity_hosting_process_count: 2
+    activity_hosting_process_count: 1
     to_first_frame {
       dur_ns: 108
       main_thread_by_task_state {
-        running_dur_ns: 41
-        runnable_dur_ns: 129
+        running_dur_ns: 10
+        runnable_dur_ns: 80
         uninterruptible_sleep_dur_ns: 0
         interruptible_sleep_dur_ns: 10
       }
@@ -33,6 +33,10 @@ android_startup {
         dur_ms: 8e-06
       }
       mcycles_by_core_type {
+      }
+      time_activity_start {
+        dur_ns: 2
+        dur_ms: 2e-06
       }
       dur_ms: 0.000108
     }
