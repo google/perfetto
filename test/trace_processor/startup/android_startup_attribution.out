@@ -17,6 +17,10 @@ android_startup {
         dur_ns: 2
         dur_ms: 2e-06
       }
+      time_activity_resume {
+        dur_ns: 5
+        dur_ms: 5e-06
+      }
       dur_ms: 999.9999
       time_dex_open {
         dur_ns: 20
