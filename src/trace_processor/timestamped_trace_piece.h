@@ -77,9 +77,19 @@ struct TrackEventData : public TracePacketData {
   std::array<double, kMaxNumExtraCounters> extra_counter_values = {};
 };
 
+// On Windows std::aligned_storage was broken before VS 2017 15.8 and the
+// compiler (even clang-cl) requires -D_ENABLE_EXTENDED_ALIGNED_STORAGE. Given
+// the alignment here is purely a performance enhancment with no other
+// functional requirement, disable it on Win.
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#define PERFETTO_TTS_ALIGNMENT alignas(64)
+#else
+#define PERFETTO_TTS_ALIGNMENT
+#endif
+
 // A TimestampedTracePiece is (usually a reference to) a piece of a trace that
 // is sorted by TraceSorter.
-struct alignas(64) TimestampedTracePiece {
+struct PERFETTO_TTS_ALIGNMENT TimestampedTracePiece {
   enum class Type {
     kInvalid = 0,
     kFtraceEvent,

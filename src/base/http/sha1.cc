@@ -30,7 +30,7 @@ inline uint32_t BSwap32(uint32_t x) {
 #if defined(__GNUC__)
   return __builtin_bswap32(x);
 #elif defined(_MSC_VER)
-  return _byteswap_ulong(val);
+  return _byteswap_ulong(x);
 #else
   return (((x & 0xff000000u) >> 24) | ((x & 0x00ff0000u) >> 8) |
           ((x & 0x0000ff00u) << 8) | ((x & 0x000000ffu) << 24));

@@ -27,6 +27,10 @@
 #include "test/test_helper.h"
 #endif
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#include <Windows.h>
+#endif
+
 namespace perfetto {
 namespace test {
 
