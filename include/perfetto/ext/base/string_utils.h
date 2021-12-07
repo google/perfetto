@@ -17,6 +17,7 @@
 #ifndef INCLUDE_PERFETTO_EXT_BASE_STRING_UTILS_H_
 #define INCLUDE_PERFETTO_EXT_BASE_STRING_UTILS_H_
 
+#include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -124,7 +125,6 @@ std::string ReplaceAll(std::string str,
                        const std::string& to_replace,
                        const std::string& replacement);
 std::string TrimLeading(const std::string& str);
-std::string Base64Encode(const void* raw, size_t size);
 
 // A BSD-style strlcpy without the return value.
 // Copies at most |dst_size|-1 characters. Unlike strncpy, it always \0
@@ -167,6 +167,41 @@ inline void StringCopy(char* dst, const char* src, size_t dst_size) {
 //   vs the edge case of *just* fitting in the buffer.
 size_t SprintfTrunc(char* dst, size_t dst_size, const char* fmt, ...)
     PERFETTO_PRINTF_FORMAT(3, 4);
+
+// A helper class to facilitate construction and usage of write-once stack
+// strings.
+// Example usage:
+//   StackString<32> x("format %d %s", 42, string_arg);
+//   TakeString(x.c_str() | x.string_view() | x.ToStdString());
+// Rather than char x[32] + sprintf.
+// Advantages:
+// - Avoids useless zero-fills caused by people doing `char buf[32] {}` (mainly
+//   by fearing unknown snprintf failure modes).
+// - Makes the code more robust in case of snprintf truncations (len() and
+//  string_view() will return the truncated length, unlike snprintf).
+template <size_t N>
+class StackString {
+ public:
+  explicit PERFETTO_PRINTF_FORMAT(/* 1=this */ 2, 3)
+      StackString(const char* fmt, ...) {
+    buf_[0] = '\0';
+    va_list args;
+    va_start(args, fmt);
+    int res = vsnprintf(buf_, sizeof(buf_), fmt, args);
+    va_end(args);
+    buf_[sizeof(buf_) - 1] = '\0';
+    len_ = res < 0 ? 0 : std::min(static_cast<size_t>(res), sizeof(buf_) - 1);
+  }
+
+  StringView string_view() const { return StringView(buf_, len_); }
+  std::string ToStdString() const { return std::string(buf_, len_); }
+  const char* c_str() const { return buf_; }
+  size_t len() const { return len_; }
+
+ private:
+  char buf_[N];
+  size_t len_ = 0;  // Does not include the \0.
+};
 
 }  // namespace base
 }  // namespace perfetto

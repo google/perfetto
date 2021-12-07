@@ -28,6 +28,13 @@ message DataSourceDescriptor {
   // e.g., "linux.ftrace", "chromium.tracing"
   optional string name = 1;
 
+  // When non-zero, this is a unique ID within the scope of the Producer for
+  // this data source (it is NOT globally unique). This is useful to
+  // differentiate between data sources with matching names when calling
+  // UpdateDataSource(). This field has been introduced in November 2021
+  // (v22, Android T) and is not supported on older versions.
+  optional uint64 id = 7;
+
   // When true the data source is expected to ack the stop request through the
   // NotifyDataSourceStopped() IPC. This field has been introduced after
   // Android P in Jul 2018 and is not supported on older versions.

@@ -69,14 +69,32 @@ message FtraceEventBundle {
   // When we do that, we report the fallback clock in each bundle so we can do
   // proper clock syncing at parsing time in TraceProcessor. We cannot use the
   // TracePacket timestamp_clock_id because: (1) there is no per-packet
-  // timestamp for ftrace bundles; (2) technically we cannot be guaranteed that
-  // "global" matches CLOCK_MONOTONIC (although it seems to do so in practice).
+  // timestamp for ftrace bundles; (2) "global" does not match CLOCK_MONOTONIC.
   // Having a dedicated and explicit flag allows us to correct further misakes
   // in future by looking at the kernel version.
   // This field has been introduced in perfetto v19 / Android T (13).
   // This field is omitted when the ftrace clock is just "boot", as that is the
   // default assumption (and for consistency with the past).
   optional FtraceClock ftrace_clock = 5;
+
+  // The timestamp according to the ftrace clock, taken at the same instant
+  // as |boot_timestamp|. This is used to sync ftrace events when a non-boot
+  // clock is used as the ftrace clock. We don't use the ClockSnapshot packet
+  // because the ftrace global/local clocks don't match any of the clock_gettime
+  // domains and can be only read by traced_probes.
+  //
+  // Only set when |ftrace_clock| != FTRACE_CLOCK_UNSPECIFIED.
+  //
+  // Implementation note: Populated by reading the 'now ts:' field in
+  // tracefs/per_cpu/cpuX/stat.
+  optional int64 ftrace_timestamp = 6;
+
+  // The timestamp according to CLOCK_BOOTTIME, taken at the same instant as
+  // |ftrace_timestamp|. See documentation of |ftrace_timestamp| for
+  // more info.
+  //
+  // Only set when |ftrace_clock| != FTRACE_CLOCK_UNSPECIFIED.
+  optional int64 boot_timestamp = 7;
 }
 
 enum FtraceClock {

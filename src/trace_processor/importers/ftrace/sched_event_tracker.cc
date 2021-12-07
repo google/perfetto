@@ -36,7 +36,8 @@ namespace perfetto {
 namespace trace_processor {
 
 SchedEventTracker::SchedEventTracker(TraceProcessorContext* context)
-    : context_(context) {
+    : waker_utid_id_(context->storage->InternString("waker_utid")),
+      context_(context) {
   // pre-parse sched_switch
   auto* switch_descriptor = GetMessageDescriptorForId(
       protos::pbzero::FtraceEvent::kSchedSwitchFieldNumber);
@@ -58,6 +59,10 @@ SchedEventTracker::SchedEventTracker(TraceProcessorContext* context)
         context->storage->InternString(waking_descriptor->fields[i].name);
   }
   sched_waking_id_ = context->storage->InternString(waking_descriptor->name);
+
+  // Pre-allocate space for 128 CPUs, which should be enough for most hosts.
+  // It's OK if this number is too small, the vector will be grown on-demand.
+  pending_sched_per_cpu_.reserve(128);
 }
 
 SchedEventTracker::~SchedEventTracker() = default;
@@ -81,7 +86,6 @@ void SchedEventTracker::PushSchedSwitch(uint32_t cpu,
     return;
   }
   context_->event_tracker->UpdateMaxTimestamp(ts);
-  PERFETTO_DCHECK(cpu < kMaxCpus);
 
   StringId next_comm_id = context_->storage->InternString(next_comm);
   UniqueTid next_utid = context_->process_tracker->UpdateThreadName(
@@ -89,7 +93,7 @@ void SchedEventTracker::PushSchedSwitch(uint32_t cpu,
 
   // First use this data to close the previous slice.
   bool prev_pid_match_prev_next_pid = false;
-  auto* pending_sched = &pending_sched_per_cpu_[cpu];
+  auto* pending_sched = PendingSchedByCPU(cpu);
   uint32_t pending_slice_idx = pending_sched->pending_slice_storage_idx;
   if (pending_slice_idx < std::numeric_limits<uint32_t>::max()) {
     prev_pid_match_prev_next_pid = prev_pid == pending_sched->last_pid;
@@ -135,12 +139,11 @@ void SchedEventTracker::PushSchedSwitchCompact(uint32_t cpu,
     return;
   }
   context_->event_tracker->UpdateMaxTimestamp(ts);
-  PERFETTO_DCHECK(cpu < kMaxCpus);
 
   UniqueTid next_utid = context_->process_tracker->UpdateThreadName(
       next_pid, next_comm_id, ThreadNamePriority::kFtrace);
 
-  auto* pending_sched = &pending_sched_per_cpu_[cpu];
+  auto* pending_sched = PendingSchedByCPU(cpu);
 
   // If we're processing the first compact event for this cpu, don't start a
   // slice since we're missing the "prev_*" fields. The successive events will
@@ -275,14 +278,13 @@ void SchedEventTracker::PushSchedWakingCompact(uint32_t cpu,
     return;
   }
   context_->event_tracker->UpdateMaxTimestamp(ts);
-  PERFETTO_DCHECK(cpu < kMaxCpus);
 
   // We infer the task that emitted the event (i.e. common_pid) from the
   // scheduling slices. Drop the event if we haven't seen any sched_switch
   // events for this cpu yet.
   // Note that if sched_switch wasn't enabled, we will have to skip all
   // compact waking events.
-  auto* pending_sched = &pending_sched_per_cpu_[cpu];
+  auto* pending_sched = PendingSchedByCPU(cpu);
   if (pending_sched->last_utid == std::numeric_limits<UniqueTid>::max()) {
     context_->storage->IncrementStats(stats::compact_sched_waking_skipped);
     return;
@@ -317,7 +319,11 @@ void SchedEventTracker::PushSchedWakingCompact(uint32_t cpu,
   auto* instants = context_->storage->mutable_instant_table();
   auto ref_type_id = context_->storage->InternString(
       GetRefTypeStringMap()[static_cast<size_t>(RefType::kRefUtid)]);
-  instants->Insert({ts, sched_waking_id_, wakee_utid, ref_type_id});
+  tables::InstantTable::Id id =
+      instants->Insert({ts, sched_waking_id_, wakee_utid, ref_type_id}).id;
+
+  context_->args_tracker->AddArgsTo(id).AddArg(
+      waker_utid_id_, Variadic::UnsignedInteger(curr_utid));
 }
 
 void SchedEventTracker::FlushPendingEvents() {
@@ -339,7 +345,11 @@ void SchedEventTracker::FlushPendingEvents() {
     slices->mutable_end_state()->Set(row, id);
   }
 
-  pending_sched_per_cpu_ = {};
+  // Re-initialize the pending_sched_per_cpu_ vector with default values, we do
+  // this instead of calling .clear() to avoid having to frequently resize the
+  // vector.
+  std::fill(pending_sched_per_cpu_.begin(), pending_sched_per_cpu_.end(),
+            PendingSchedInfo{});
 }
 
 }  // namespace trace_processor

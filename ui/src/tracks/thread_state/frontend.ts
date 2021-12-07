@@ -69,6 +69,14 @@ class ThreadStateTrack extends Track<Config, Data> {
     ctx.font = '10px Roboto Condensed';
 
     for (let i = 0; i < data.starts.length; i++) {
+      // NOTE: Unlike userspace and scheduling slices, thread state slices are
+      // allowed to overlap; specifically, sleeping slices are allowed to
+      // overlap with non-sleeping slices. We do this because otherwise
+      // sleeping slices generally dominate traces making it seem like there are
+      // no running/runnable etc. slices until you zoom in. By drawing both,
+      // we get a more accurate representation of the trace and prevent weird
+      // artifacts when zooming.
+      // See b/201793731 for an example of why we do this.
       const tStart = data.starts[i];
       const tEnd = data.ends[i];
       const state = data.strings[data.state[i]];
@@ -80,6 +88,7 @@ class ThreadStateTrack extends Track<Config, Data> {
       if (state === 'x') continue;
       const rectStart = timeScale.timeToPx(tStart);
       const rectEnd = timeScale.timeToPx(tEnd);
+      const rectWidth = rectEnd - rectStart;
 
       const currentSelection = globals.state.currentSelection;
       const isSelected = currentSelection &&
@@ -94,7 +103,6 @@ class ThreadStateTrack extends Track<Config, Data> {
       }
       ctx.fillStyle = colorStr;
 
-      const rectWidth = rectEnd - rectStart;
       ctx.fillRect(rectStart, MARGIN_TOP, rectWidth, RECT_HEIGHT);
 
       // Don't render text when we have less than 10px to play with.

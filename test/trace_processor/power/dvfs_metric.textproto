@@ -1,0 +1,55 @@
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 200001000000
+      pid: 2
+      clock_set_rate {
+        name : "domain@1"
+        state: 400000
+      }
+    }
+    event {
+      timestamp: 200002000000
+      pid: 2
+      clock_set_rate {
+        name : "bus_throughput"
+        state: 1014000
+      }
+    }
+    event {
+      timestamp: 200003000000
+      pid: 2
+      clock_set_rate {
+        name: "domain@1"
+        state: 1024000
+      }
+    }
+    event {
+      timestamp: 200004000000
+      pid: 2
+      clock_set_rate {
+        name: "domain@1"
+        state: 553000
+      }
+    }
+    event {
+      timestamp: 200005000000
+      pid: 2
+      clock_set_rate {
+        name: "bus_throughput"
+        state: 2028000
+      }
+    }
+    event {
+      timestamp: 200005999999
+      pid: 527
+      clock_set_rate {
+        name: "domain@1"
+        state: 553000
+      }
+    }
+  }
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 2
+}

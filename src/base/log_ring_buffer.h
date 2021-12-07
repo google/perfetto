@@ -24,6 +24,7 @@
 #include <atomic>
 
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/ext/base/thread_annotations.h"
 
 namespace perfetto {
 namespace base {
@@ -81,11 +82,12 @@ class LogRingBuffer {
     slot = slot % kLogRingBufEntries;
 
     char* const msg = events_[slot];
+    PERFETTO_ANNOTATE_BENIGN_RACE_SIZED(msg, kLogRingBufMsgLen,
+                                        "see comments in log_ring_buffer.h")
     snprintf(msg, kLogRingBufMsgLen, "%.*s%.*s %.*s",
              static_cast<int>(tstamp.size()), tstamp.data(),
              static_cast<int>(source.size()), source.data(),
              static_cast<int>(log_msg.size()), log_msg.data());
-    // lack of \0 on snprintf maxing-out is fine, we don't rely on \0 in Read().
   }
 
   // Reads back the buffer in FIFO order, up to |len - 1| characters at most
@@ -106,9 +108,8 @@ class LogRingBuffer {
       if (*src == '\0')
         continue;  // Empty slot. Skip.
       char* const wptr = dst + dst_written;
-      // |src| might not be null terminated. This can happen either if
-      // the string was too long and snprintf truncated it, or simply if some
-      // thread-race happened. In either case, limit the copy length.
+      // |src| might not be null terminated. This can happen if some
+      // thread-race happened. Limit the copy length.
       const size_t limit = std::min(len - dst_written, kLogRingBufMsgLen);
       for (size_t i = 0; i < limit; ++i) {
         const char c = src[i];

@@ -163,6 +163,8 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
     obj.self_size = object.self_size();
     obj.type_id = object.type_id();
 
+    // Even though the field is named reference_field_id_base, it has always
+    // been used as a base for reference_object_id.
     uint64_t base_obj_id = object.reference_field_id_base();
 
     // In S+ traces, this field will not be set for normal instances. It will be
@@ -184,6 +186,11 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
               value += base_obj_id;
             obj.referred_objects.push_back(value);
           });
+    }
+
+    if (object.has_native_allocation_registry_size_field()) {
+      obj.native_allocation_registry_size =
+          object.native_allocation_registry_size_field();
     }
 
     if (parse_error) {

@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/importers/proto/proto_trace_tokenizer.h"
+#include "perfetto/trace_processor/trace_blob.h"
 
 #include "perfetto/ext/base/utils.h"
 
@@ -27,7 +28,7 @@ util::Status ProtoTraceTokenizer::Decompress(TraceBlobView input,
                                              TraceBlobView* output) {
   PERFETTO_DCHECK(util::IsGzipSupported());
 
-  uint8_t out[4096];
+  uint8_t zbuf[4096];
 
   std::vector<uint8_t> data;
   data.reserve(input.length());
@@ -38,7 +39,7 @@ util::Status ProtoTraceTokenizer::Decompress(TraceBlobView input,
 
   using ResultCode = util::GzipDecompressor::ResultCode;
   for (auto ret = ResultCode::kOk; ret != ResultCode::kEof;) {
-    auto res = decompressor_.Decompress(out, base::ArraySize(out));
+    auto res = decompressor_.Decompress(zbuf, base::ArraySize(zbuf));
     ret = res.ret;
     if (ret == ResultCode::kError || ret == ResultCode::kNoProgress ||
         ret == ResultCode::kNeedsMoreInput) {
@@ -46,12 +47,11 @@ util::Status ProtoTraceTokenizer::Decompress(TraceBlobView input,
                              static_cast<int>(ret));
     }
 
-    data.insert(data.end(), out, out + res.bytes_written);
+    data.insert(data.end(), zbuf, zbuf + res.bytes_written);
   }
 
-  std::unique_ptr<uint8_t[]> out_data(new uint8_t[data.size()]);
-  memcpy(out_data.get(), data.data(), data.size());
-  *output = TraceBlobView(std::move(out_data), 0, data.size());
+  TraceBlob out_blob = TraceBlob::CopyFrom(data.data(), data.size());
+  *output = TraceBlobView(std::move(out_blob));
   return util::OkStatus();
 }
 

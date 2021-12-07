@@ -12,7 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {validateRecordConfig} from '../controller/validate_config';
+import {createEmptyRecordConfig} from '../controller/validate_config';
+import {
+  autosaveConfigStore,
+  recordTargetStore
+} from '../frontend/record_config';
+
+import {featureFlags} from './feature_flags';
 import {
   AggregationAttrs,
   PivotAttrs,
@@ -65,9 +71,13 @@ export const MAX_TIME = 180;
 // 6: Common PivotTableConfig and pivot table specific PivotTableState.
 // 7: Split Chrome categories in two and add 'symbolize ksyms' flag.
 // 8: Rename several variables
-// 9: Add a field to track last loaded recording profile name
 // "[...]HeapProfileFlamegraph[...]" -> "[...]Flamegraph[...]".
-export const STATE_VERSION = 9;
+// 9: Add a field to track last loaded recording profile name
+// 10: Change last loaded profile tracking type to accommodate auto-save.
+// 11: Rename updateChromeCategories to fetchChromeCategories.
+// 12: Add a field to cache mapping from UI track ID to trace track ID in order
+//     to speed up flow arrows rendering.
+export const STATE_VERSION = 12;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -138,6 +148,7 @@ export interface TrackState {
   engineId: string;
   kind: string;
   name: string;
+  labels?: string[];
   trackKindPriority: TrackKindPriority;
   trackGroup?: string;
   config: {};
@@ -317,6 +328,22 @@ export interface PivotTableState {
   selectedTrackIds?: number[];
 }
 
+export interface LoadedConfigNone {
+  type: 'NONE';
+}
+
+export interface LoadedConfigAutomatic {
+  type: 'AUTOMATIC';
+}
+
+export interface LoadedConfigNamed {
+  type: 'NAMED';
+  name: string;
+}
+
+export type LoadedConfig =
+    LoadedConfigNone|LoadedConfigAutomatic|LoadedConfigNamed;
+
 export interface State {
   // tslint:disable-next-line:no-any
   [key: string]: any;
@@ -330,7 +357,7 @@ export interface State {
    */
   recordConfig: RecordConfig;
   displayConfigAsPbtxt: boolean;
-  lastLoadedConfigTitle: string|null;
+  lastLoadedConfig: LoadedConfig;
 
   /**
    * Open traces.
@@ -341,6 +368,7 @@ export interface State {
   traceUuid?: string;
   trackGroups: ObjectById<TrackGroupState>;
   tracks: ObjectById<TrackState>;
+  uiTrackIdByTraceTrackId: Map<number, string>;
   areas: ObjectById<AreaById>;
   aggregatePreferences: ObjectById<AggregationState>;
   visibleTracks: string[];
@@ -397,7 +425,7 @@ export interface State {
   lastRecordingError?: string;
   recordingStatus?: string;
 
-  updateChromeCategories: boolean;
+  fetchChromeCategories: boolean;
   chromeCategories: string[]|undefined;
   analyzePageQuery?: string;
 }
@@ -450,10 +478,7 @@ export function hasActiveProbes(config: RecordConfig) {
   if (config.chromeCategoriesSelected.length > 0) {
     return true;
   }
-  if (config.chromeHighOverheadCategoriesSelected.length > 0) {
-    return true;
-  }
-  return false;
+  return config.chromeHighOverheadCategoriesSelected.length > 0;
 }
 
 export interface RecordConfig {
@@ -531,8 +556,10 @@ export interface RecordConfig {
   symbolizeKsyms: boolean;
 }
 
-export function createEmptyRecordConfig(): RecordConfig {
-  return validateRecordConfig({});
+export interface NamedRecordConfig {
+  title: string;
+  config: RecordConfig;
+  key: string;
 }
 
 export function getDefaultRecordingTargets(): RecordingTarget[] {
@@ -790,6 +817,14 @@ export function getBuiltinChromeCategoryList(): string[] {
   ];
 }
 
+const AUTOLOAD_STARTED_CONFIG_FLAG = featureFlags.register({
+  id: 'autoloadStartedConfig',
+  name: 'Auto-load last used recording config',
+  description: 'Starting a recording automatically saves its configuration. ' +
+      'This flag controls whether this config is automatically loaded.',
+  defaultValue: false,
+});
+
 export function createEmptyState(): State {
   return {
     version: STATE_VERSION,
@@ -800,6 +835,7 @@ export function createEmptyState(): State {
     engines: {},
     traceTime: {...defaultTraceTime},
     tracks: {},
+    uiTrackIdByTraceTrackId: new Map<number, string>(),
     aggregatePreferences: {},
     trackGroups: {},
     visibleTracks: [],
@@ -813,9 +849,11 @@ export function createEmptyState(): State {
     pivotTableConfig: {},
     pivotTable: {},
 
-    recordConfig: createEmptyRecordConfig(),
+    recordConfig: AUTOLOAD_STARTED_CONFIG_FLAG.get() ?
+        autosaveConfigStore.get() :
+        createEmptyRecordConfig(),
     displayConfigAsPbtxt: false,
-    lastLoadedConfigTitle: null,
+    lastLoadedConfig: {type: 'NONE'},
 
     frontendLocalState: {
       omniboxState: {
@@ -855,10 +893,10 @@ export function createEmptyState(): State {
     recordingInProgress: false,
     recordingCancelled: false,
     extensionInstalled: false,
-    recordingTarget: getDefaultRecordingTargets()[0],
+    recordingTarget: recordTargetStore.getValidTarget(),
     availableAdbDevices: [],
 
-    updateChromeCategories: false,
+    fetchChromeCategories: false,
     chromeCategories: undefined,
   };
 }

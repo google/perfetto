@@ -32,13 +32,13 @@ using base::StringSplitter;
 NinjaLogParser::NinjaLogParser(TraceProcessorContext* ctx) : ctx_(ctx) {}
 NinjaLogParser::~NinjaLogParser() = default;
 
-util::Status NinjaLogParser::Parse(std::unique_ptr<uint8_t[]> buf, size_t len) {
+util::Status NinjaLogParser::Parse(TraceBlobView blob) {
   // A trace is read in chunks of arbitrary size (for http fetch() pipeliniing),
   // not necessarily aligned on a line boundary.
   // Here we push everything into a vector and, on each call, consume only
   // the leading part until the last \n, keeping the rest for the next call.
-  const char* src = reinterpret_cast<const char*>(&buf[0]);
-  log_.insert(log_.end(), src, src + len);
+  const char* src = reinterpret_cast<const char*>(blob.data());
+  log_.insert(log_.end(), src, src + blob.size());
 
   // Find the last \n.
   size_t valid_size = log_.size();
@@ -167,9 +167,8 @@ void NinjaLogParser::NotifyEndOfFile() {
     } else {
       // All workers are busy, allocate a new one.
       uint32_t worker_id = ++last_worker_id;
-      char name[32];
-      snprintf(name, sizeof(name), "Worker %zu", workers.size() + 1);
-      StringId name_id = ctx_->storage->InternString(name);
+      base::StackString<32> name("Worker %zu", workers.size() + 1);
+      StringId name_id = ctx_->storage->InternString(name.string_view());
       auto utid = ctx_->process_tracker->UpdateThread(worker_id, job.build_id);
       ctx_->process_tracker->UpdateThreadNameByUtid(utid, name_id,
                                                     ThreadNamePriority::kOther);

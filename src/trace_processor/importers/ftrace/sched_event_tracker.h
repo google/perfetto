@@ -110,8 +110,16 @@ class SchedEventTracker : public Destructible {
 
   void ClosePendingSlice(uint32_t slice_idx, int64_t ts, int64_t prev_state);
 
-  // Infromation retained from the preceding sched_switch seen on a given cpu.
-  std::array<PendingSchedInfo, kMaxCpus> pending_sched_per_cpu_{};
+  // Information retained from the preceding sched_switch seen on a given cpu.
+  std::vector<PendingSchedInfo> pending_sched_per_cpu_;
+
+  // Get the sched info for the given CPU, resizing the vector if necessary.
+  PendingSchedInfo* PendingSchedByCPU(uint32_t cpu) {
+    if (PERFETTO_UNLIKELY(cpu >= pending_sched_per_cpu_.size())) {
+      pending_sched_per_cpu_.resize(cpu + 1);
+    }
+    return &pending_sched_per_cpu_[cpu];
+  }
 
   static constexpr uint8_t kSchedSwitchMaxFieldId = 7;
   std::array<StringId, kSchedSwitchMaxFieldId + 1> sched_switch_field_ids_;
@@ -120,6 +128,8 @@ class SchedEventTracker : public Destructible {
   static constexpr uint8_t kSchedWakingMaxFieldId = 5;
   std::array<StringId, kSchedWakingMaxFieldId + 1> sched_waking_field_ids_;
   StringId sched_waking_id_;
+
+  StringId waker_utid_id_;
 
   TraceProcessorContext* const context_;
 };

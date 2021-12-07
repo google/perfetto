@@ -37,6 +37,7 @@
 #include "src/tracing/test/test_shared_memory.h"
 #include "test/gtest_and_gmock.h"
 
+#include "protos/perfetto/common/track_event_descriptor.gen.h"
 #include "protos/perfetto/trace/perfetto/tracing_service_event.gen.h"
 #include "protos/perfetto/trace/test_event.gen.h"
 #include "protos/perfetto/trace/test_event.pbzero.h"
@@ -3546,6 +3547,8 @@ TEST_F(TracingServiceImplTest, QueryServiceState) {
   producer1->RegisterDataSource("p1_ds");
   producer2->RegisterDataSource("p2_ds");
 
+  producer2->RegisterDataSource("common_ds");
+
   TracingServiceState svc_state = consumer->QueryServiceState();
 
   EXPECT_EQ(svc_state.producers_size(), 2);
@@ -3556,31 +3559,125 @@ TEST_F(TracingServiceImplTest, QueryServiceState) {
   EXPECT_EQ(svc_state.producers().at(1).name(), "producer2");
   EXPECT_EQ(svc_state.producers().at(1).uid(), 1002);
 
-  EXPECT_EQ(svc_state.data_sources_size(), 4);
+  EXPECT_EQ(svc_state.data_sources_size(), 5);
 
-  EXPECT_EQ(svc_state.data_sources().at(0).producer_id(), 1);
-  EXPECT_EQ(svc_state.data_sources().at(0).ds_descriptor().name(), "common_ds");
+  auto count_ds = [&](int32_t producer_id, const std::string& ds_name) {
+    int count = 0;
+    for (const auto& ds : svc_state.data_sources()) {
+      if (ds.producer_id() == producer_id &&
+          ds.ds_descriptor().name() == ds_name)
+        ++count;
+    }
+    return count;
+  };
 
-  EXPECT_EQ(svc_state.data_sources().at(1).producer_id(), 2);
-  EXPECT_EQ(svc_state.data_sources().at(1).ds_descriptor().name(), "common_ds");
-
-  EXPECT_EQ(svc_state.data_sources().at(2).producer_id(), 1);
-  EXPECT_EQ(svc_state.data_sources().at(2).ds_descriptor().name(), "p1_ds");
-
-  EXPECT_EQ(svc_state.data_sources().at(3).producer_id(), 2);
-  EXPECT_EQ(svc_state.data_sources().at(3).ds_descriptor().name(), "p2_ds");
+  EXPECT_EQ(count_ds(1, "common_ds"), 1);
+  EXPECT_EQ(count_ds(1, "p1_ds"), 1);
+  EXPECT_EQ(count_ds(2, "common_ds"), 2);
+  EXPECT_EQ(count_ds(2, "p2_ds"), 1);
 
   // Test that descriptors are cleared when a producer disconnects.
   producer1.reset();
   svc_state = consumer->QueryServiceState();
 
   EXPECT_EQ(svc_state.producers_size(), 1);
-  EXPECT_EQ(svc_state.data_sources_size(), 2);
+  EXPECT_EQ(svc_state.data_sources_size(), 3);
 
-  EXPECT_EQ(svc_state.data_sources().at(0).producer_id(), 2);
-  EXPECT_EQ(svc_state.data_sources().at(0).ds_descriptor().name(), "common_ds");
+  EXPECT_EQ(count_ds(1, "common_ds"), 0);
+  EXPECT_EQ(count_ds(1, "p1_ds"), 0);
+  EXPECT_EQ(count_ds(2, "common_ds"), 2);
+  EXPECT_EQ(count_ds(2, "p2_ds"), 1);
+}
+
+TEST_F(TracingServiceImplTest, UpdateDataSource) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer1 = CreateMockProducer();
+  producer1->Connect(svc.get(), "producer1", /*uid=*/0);
+
+  std::unique_ptr<MockProducer> producer2 = CreateMockProducer();
+  producer2->Connect(svc.get(), "producer2", /*uid=*/1002);
+
+  producer1->RegisterTrackEventDataSource({"cat1"}, 1);
+  producer2->RegisterTrackEventDataSource({}, 1);
+  producer2->RegisterTrackEventDataSource({}, 2);
+
+  // This request should fail because ID=2 is already registered.
+  producer2->RegisterTrackEventDataSource({"this_should_fail"}, 2);
+
+  TracingServiceState svc_state = consumer->QueryServiceState();
+
+  auto parse_desc = [](const perfetto::protos::gen::DataSourceDescriptor& dsd) {
+    perfetto::protos::gen::TrackEventDescriptor desc;
+    auto desc_raw = dsd.track_event_descriptor_raw();
+    EXPECT_TRUE(desc.ParseFromArray(desc_raw.data(), desc_raw.size()));
+    return desc;
+  };
+
+  EXPECT_EQ(svc_state.data_sources_size(), 3);
+
+  EXPECT_EQ(svc_state.data_sources().at(0).producer_id(), 1);
+  EXPECT_EQ(svc_state.data_sources().at(0).ds_descriptor().name(),
+            "track_event");
+  EXPECT_EQ(svc_state.data_sources().at(0).ds_descriptor().id(), 1u);
+  auto ted = parse_desc(svc_state.data_sources().at(0).ds_descriptor());
+  EXPECT_EQ(ted.available_categories_size(), 1);
+  EXPECT_EQ(ted.available_categories()[0].name(), "cat1");
+
   EXPECT_EQ(svc_state.data_sources().at(1).producer_id(), 2);
-  EXPECT_EQ(svc_state.data_sources().at(1).ds_descriptor().name(), "p2_ds");
+  EXPECT_EQ(svc_state.data_sources().at(1).ds_descriptor().name(),
+            "track_event");
+  EXPECT_EQ(svc_state.data_sources().at(1).ds_descriptor().id(), 1u);
+  ted = parse_desc(svc_state.data_sources().at(1).ds_descriptor());
+  EXPECT_EQ(ted.available_categories_size(), 0);
+
+  EXPECT_EQ(svc_state.data_sources().at(2).ds_descriptor().id(), 2u);
+
+  // Test that TrackEvent DataSource is updated.
+  producer2->UpdateTrackEventDataSource({"cat1", "cat2"}, 2);
+
+  svc_state = consumer->QueryServiceState();
+
+  EXPECT_EQ(svc_state.data_sources_size(), 3);
+
+  EXPECT_EQ(svc_state.data_sources().at(0).producer_id(), 1);
+  EXPECT_EQ(svc_state.data_sources().at(0).ds_descriptor().id(), 1u);
+  ted = parse_desc(svc_state.data_sources().at(0).ds_descriptor());
+  EXPECT_EQ(ted.available_categories_size(), 1);
+
+  EXPECT_EQ(svc_state.data_sources().at(1).ds_descriptor().id(), 1u);
+  ted = parse_desc(svc_state.data_sources().at(1).ds_descriptor());
+  EXPECT_EQ(ted.available_categories_size(), 0);
+
+  EXPECT_EQ(svc_state.data_sources().at(2).producer_id(), 2);
+  EXPECT_EQ(svc_state.data_sources().at(2).ds_descriptor().id(), 2u);
+  ted = parse_desc(svc_state.data_sources().at(2).ds_descriptor());
+  EXPECT_EQ(ted.available_categories_size(), 2);
+  EXPECT_EQ(ted.available_categories()[0].name(), "cat1");
+  EXPECT_EQ(ted.available_categories()[1].name(), "cat2");
+
+  // Test removal of a category.
+  producer2->UpdateTrackEventDataSource({"cat2"}, 2);
+
+  svc_state = consumer->QueryServiceState();
+
+  EXPECT_EQ(svc_state.data_sources_size(), 3);
+  EXPECT_EQ(svc_state.data_sources().at(2).ds_descriptor().id(), 2u);
+  ted = parse_desc(svc_state.data_sources().at(2).ds_descriptor());
+  EXPECT_EQ(ted.available_categories_size(), 1);
+  EXPECT_EQ(ted.available_categories()[0].name(), "cat2");
+
+  // Test adding a category to the first data source.
+  producer2->UpdateTrackEventDataSource({"cat3"}, 1);
+
+  svc_state = consumer->QueryServiceState();
+
+  EXPECT_EQ(svc_state.data_sources_size(), 3);
+  EXPECT_EQ(svc_state.data_sources().at(1).ds_descriptor().id(), 1u);
+  ted = parse_desc(svc_state.data_sources().at(1).ds_descriptor());
+  EXPECT_EQ(ted.available_categories_size(), 1);
+  EXPECT_EQ(ted.available_categories()[0].name(), "cat3");
 }
 
 TEST_F(TracingServiceImplTest, LimitSessionsPerUid) {

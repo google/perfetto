@@ -16,10 +16,10 @@
 
 #include "src/trace_processor/importers/ftrace/ftrace_module_impl.h"
 #include "perfetto/base/build_config.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/ftrace/ftrace_parser.h"
 #include "src/trace_processor/importers/ftrace/ftrace_tokenizer.h"
 #include "src/trace_processor/timestamped_trace_piece.h"
-#include "src/trace_processor/util/trace_blob_view.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
@@ -42,9 +42,9 @@ ModuleResult FtraceModuleImpl::TokenizePacket(
     uint32_t field_id) {
   if (field_id == TracePacket::kFtraceEventsFieldNumber) {
     auto ftrace_field = decoder.ftrace_events();
-    const size_t fld_off = packet->offset_of(ftrace_field.data);
     return tokenizer_.TokenizeFtraceBundle(
-        packet->slice(fld_off, ftrace_field.size), seq_state);
+        packet->slice(ftrace_field.data, ftrace_field.size), seq_state,
+        decoder.trusted_packet_sequence_id());
   }
   return ModuleResult::Ignored();
 }

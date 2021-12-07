@@ -541,6 +541,7 @@ button.query-ctrl {
   --expanded-background: hsl(215, 22%, 19%);
   --expanded-transparent: hsl(215, 22%, 19%, 0);
   display: grid;
+  align-items: center;
   grid-template-columns: auto 1fr;
   grid-template-rows: 1fr;
   transition: background-color .4s, color .4s;
@@ -581,6 +582,7 @@ button.query-ctrl {
     align-items: center;
     line-height: 1;
     width: var(--track-shell-width);
+    min-height: 40px;
     transition: background-color .4s;
     h1 {
       grid-area: title;
@@ -604,6 +606,9 @@ button.query-ctrl {
     &.selected {
       background-color: #ebeef9;
     }
+  }
+  .track-content {
+    @include track_shell_title();
   }
 }
 

@@ -30,6 +30,11 @@
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "src/tracing/core/metatrace_writer.h"
 
+// This translation unit is only ever used in Android in-tree builds.
+// These producers are here  to dynamically start heapprofd and other services
+// via sysprops when a trace that requests them is active. That can only happen
+// in in-tree builds of Android.
+
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 #include <sys/system_properties.h>
 #endif

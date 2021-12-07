@@ -19,13 +19,14 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "perfetto/trace_processor/ref_counted.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_record.h"
 #include "src/trace_processor/importers/json/json_utils.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
 #include "src/trace_processor/importers/systrace/systrace_line.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
-#include "src/trace_processor/util/trace_blob_view.h"
 
 // GCC can't figure out the relationship between TimestampedTracePiece's type
 // and the union, and thus thinks that we may be moving or destroying
@@ -55,17 +56,17 @@ struct InlineSchedWaking {
 
 struct TracePacketData {
   TraceBlobView packet;
-  std::shared_ptr<PacketSequenceStateGeneration> sequence_state;
+  RefPtr<PacketSequenceStateGeneration> sequence_state;
 };
 
 struct FtraceEventData {
   TraceBlobView event;
-  std::shared_ptr<PacketSequenceStateGeneration> sequence_state;
+  RefPtr<PacketSequenceStateGeneration> sequence_state;
 };
 
 struct TrackEventData : public TracePacketData {
   TrackEventData(TraceBlobView pv,
-                 std::shared_ptr<PacketSequenceStateGeneration> generation)
+                 RefPtr<PacketSequenceStateGeneration> generation)
       : TracePacketData{std::move(pv), std::move(generation)} {}
 
   static constexpr size_t kMaxNumExtraCounters = 8;
@@ -78,7 +79,7 @@ struct TrackEventData : public TracePacketData {
 
 // A TimestampedTracePiece is (usually a reference to) a piece of a trace that
 // is sorted by TraceSorter.
-struct TimestampedTracePiece {
+struct alignas(64) TimestampedTracePiece {
   enum class Type {
     kInvalid = 0,
     kFtraceEvent,
@@ -91,11 +92,10 @@ struct TimestampedTracePiece {
     kSystraceLine,
   };
 
-  TimestampedTracePiece(
-      int64_t ts,
-      uint64_t idx,
-      TraceBlobView tbv,
-      std::shared_ptr<PacketSequenceStateGeneration> sequence_state)
+  TimestampedTracePiece(int64_t ts,
+                        uint64_t idx,
+                        TraceBlobView tbv,
+                        RefPtr<PacketSequenceStateGeneration> sequence_state)
       : packet_data{std::move(tbv), std::move(sequence_state)},
         timestamp(ts),
         packet_idx(idx),
@@ -242,6 +242,22 @@ struct TimestampedTracePiece {
            (timestamp == o.timestamp && packet_idx < o.packet_idx);
   }
 
+  // For std::sort(). Without this the compiler will fall back on invoking
+  // move operators on temporary objects.
+  friend void swap(TimestampedTracePiece& a, TimestampedTracePiece& b) {
+    // We know that TimestampedTracePiece is 64-byte aligned (because of the
+    // alignas(64) in the declaration above). We also know that swapping it is
+    // trivial and we can just swap the memory without invoking move operators.
+    // The cast to aligned_storage below allows the compiler to turn this into
+    // a bunch of movaps with large XMM registers (128/256/512 bit depending on
+    // -mavx).
+    using AS =
+        typename std::aligned_storage<sizeof(TimestampedTracePiece),
+                                      alignof(TimestampedTracePiece)>::type;
+    using std::swap;
+    swap(reinterpret_cast<AS&>(a), reinterpret_cast<AS&>(b));
+  }
+
   // Fields ordered for packing.
 
   // Data for different types of TimestampedTracePiece.
@@ -260,6 +276,14 @@ struct TimestampedTracePiece {
   uint64_t packet_idx;
   Type type;
 };
+
+// std::sort<TTS> is an extremely hot path in TraceProcessor (in trace_sorter.h)
+// When TTS is 512-bit wide, we can leverage SIMD instructions to swap it by
+// declaring it aligned at its own size, without losing any space in the
+// CircularQueue due to fragmentation. This makes a 6% difference in the
+// ingestion time of a large trace. See the comments above in the swap() above.
+static_assert(sizeof(TimestampedTracePiece) <= 64,
+              "TimestampedTracePiece cannot grow beyond 64 bytes");
 
 }  // namespace trace_processor
 }  // namespace perfetto

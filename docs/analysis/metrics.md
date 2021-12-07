@@ -86,6 +86,133 @@ Since the same code is running locally and remotely, developers can be confident
 in reproducing the issue and use the trace processor and/or the Perfetto UI to
 identify the problem.
 
+## Metric Helper Functions
+
+There are several useful helpers functions which are available when writing a metric.
+
+### CREATE_FUNCTION.
+`CREATE_FUNCTION` allows you to define a parameterized SQL statement which
+is executable as a function. The inspiration from this function is the
+`CREATE FUNCTION` syntax which is available in other SQL engines (e.g.
+[Postgres](https://www.postgresql.org/docs/current/sql-createfunction.html)).
+
+NOTE: CREATE_FUNCTION only supports returning *exactly* a single value (i.e.
+single row and single column). For returning multiple a single row with
+multiple columns or multiples rows, see `CREATE_VIEW_FUNCTION` instead.
+
+Usage of `CREATE_FUNCTION` is as follows:
+```sql
+-- First, we define the function we'll use in the following statement.
+SELECT CREATE_FUNCTION(
+  -- First argument: prototype of the function; this is very similar to
+  -- function definitions in other languages - you set the function name
+  -- (IS_TS_IN_RANGE in this example) and the arguments
+  -- (ts, begin_ts and end_ts) along with their types (LONG for all
+  -- arguments here).
+  'IS_TS_IN_RANGE(ts LONG, begin_ts LONG, end_ts LONG)',
+  -- Second argument: the return type of the function. Only single values
+  -- can be returned in CREATE_FUNCTION. See CREATE_VIEW_FUNCTION for defining
+  -- a function returning multiple rows/columns.
+  'BOOL',
+  -- Third argument: the SQL body of the function. This should always be a
+  -- SELECT statement (even if you're not selecting from a table as in this
+  -- example). Arguments can be accessed by prefixing argument names
+  -- with $ (e.g. $ts, $begin_ts, $end_ts).
+  'SELECT $ts >= $begin_ts AND $ts <= $end_ts'
+);
+
+-- Now we can actually use the function in queries as if it was any other
+-- function.
+
+-- For example, it can appear in the SELECT to produce a column:
+SELECT ts, IS_TS_IN_RANGE(slice.ts, 100000, 200000) AS in_range
+FROM slice
+
+-- It can also appear in a where clause:
+SELECT ts
+FROM counter
+WHERE IS_TS_IN_RANGE(counter.ts, 100000, 200000) AS in_range
+
+-- It can even appear in a join on clause:
+SELECT slice.ts
+FROM launches
+JOIN slice ON IS_TS_IN_RANGE(slice.ts, launches.ts, launches.end_ts)
+```
+
+### RUN_METRIC
+`RUN_METRIC` allows you to run another metric file. This allows you to use views
+or tables defined in that file without repeatition.
+
+Conceptually, `RUN_METRIC` adds *composability* for SQL queries to break a big SQL
+metric into smaller, reusable files. This is similar to how functions allow decomposing
+large chunks in traditional programming languages.
+
+A simple usage of `RUN_METRIC` would be as follows:
+
+In file android/foo.sql:
+```sql
+CREATE VIEW view_defined_in_foo AS
+SELECT *
+FROM slice
+LIMIT 1;
+```
+
+In file android/bar.sql
+```sql
+SELECT RUN_METRIC('android/foo.sql');
+
+CREATE VIEW view_depending_on_view_from_foo AS
+SELECT *
+FROM view_defined_in_foo
+LIMIT 1;
+```
+
+`RUN_METRIC` also supports running *templated* metric files. Here's an example of
+what that looks like:
+
+In file android/slice_template.sql:
+```sql
+CREATE VIEW {{view_name}} AS
+SELECT *
+FROM slice
+WHERE slice.name = '{{slice_name}}';
+```
+
+In file android/metric.sql:
+```sql
+SELECT RUN_METRIC(
+  'android/slice_template.sql',
+  'view_name', 'choreographer_slices',
+  'slice_name', 'Chroeographer#doFrame'
+);
+
+CREATE VIEW long_choreographer_slices AS
+SELECT *
+FROM choreographer_slices
+WHERE dur > 1e6;
+```
+
+When running `slice_template.sql`, trace processor will substitute the arguments
+passed to `RUN_METRIC` into the templated file *before* executing the file using
+SQLite.
+
+In other words, this is what SQLite sees and executes in practice for the above
+example:
+```sql
+CREATE VIEW choreographer_slices AS
+SELECT *
+FROM slice
+WHERE slice.name = 'Chroeographer#doFrame';
+
+CREATE VIEW long_choreographer_slices AS
+SELECT *
+FROM choreographer_slices
+WHERE dur > 1e6;
+```
+
+The syntax for templated metric files is essentially a highly simplified version of
+[Jinja's](https://jinja.palletsprojects.com/en/3.0.x/) syntax.
+
 ## Walkthrough: prototyping a metric
 
 TIP: To see how to add a new metric to trace processor, see the checklist

@@ -68,8 +68,7 @@ bool FDMaps::Parse() {
     return false;
 
   unwindstack::SharedString name("");
-  unwindstack::MapInfo* prev_map = nullptr;
-  unwindstack::MapInfo* prev_real_map = nullptr;
+  std::shared_ptr<unwindstack::MapInfo> prev_map;
   return android::procinfo::ReadMapFileContent(
       &content[0], [&](const android::procinfo::MapInfo& mapinfo) {
         // Mark a device map in /dev/ and not in /dev/ashmem/ specially.
@@ -82,13 +81,10 @@ bool FDMaps::Parse() {
         if (name != mapinfo.name) {
           name = unwindstack::SharedString(mapinfo.name);
         }
-        maps_.emplace_back(new unwindstack::MapInfo(
-            prev_map, prev_real_map, mapinfo.start, mapinfo.end, mapinfo.pgoff,
+        maps_.emplace_back(unwindstack::MapInfo::Create(
+            prev_map, mapinfo.start, mapinfo.end, mapinfo.pgoff,
             flags, name));
-        prev_map = maps_.back().get();
-        if (!prev_map->IsBlank()) {
-          prev_real_map = prev_map;
-        }
+        prev_map = maps_.back();
       });
 }
 
@@ -135,8 +131,8 @@ unwindstack::DexFiles* UnwindingMetadata::GetDexFiles(unwindstack::ArchEnum arch
 const std::string& UnwindingMetadata::GetBuildId(
     const unwindstack::FrameData& frame) {
   if (!frame.map_name.empty()) {
-    unwindstack::MapInfo* map_info = fd_maps.Find(frame.pc);
-    if (map_info)
+    std::shared_ptr<unwindstack::MapInfo> map_info = fd_maps.Find(frame.pc);
+    if (map_info != nullptr)
       return map_info->GetBuildID();
   }
 

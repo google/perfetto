@@ -56,7 +56,9 @@ function tmux_ensure_bash() {
 
 function reset_tracing() {
   if is_android "$OUT"; then
-    adb shell 'echo 0 > /d/tracing/tracing_on'
+    # Newer versions of Android don't have debugfs mounted at all
+    # anymore so use /sys/kernel/tracing if /d/tracing doesn't exist
+    adb shell 'test -d /sys/kernel/tracing && echo 0 > /sys/kernel/tracing/tracing_on || echo 0 > /sys/kernel/debug/tracing/tracing_on'
   elif ! is_mac; then
     # shellcheck disable=SC2016
     local script='

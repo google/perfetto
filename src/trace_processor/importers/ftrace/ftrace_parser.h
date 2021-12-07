@@ -24,7 +24,6 @@
 #include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
 #include "src/trace_processor/timestamped_trace_piece.h"
 #include "src/trace_processor/types/trace_processor_context.h"
-#include "src/trace_processor/util/trace_blob_view.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -49,8 +48,8 @@ class FtraceParser {
                              protozero::ConstBytes,
                              PacketSequenceStateGeneration*);
   void ParseSchedSwitch(uint32_t cpu, int64_t timestamp, protozero::ConstBytes);
-  void ParseSchedWakeup(int64_t timestamp, protozero::ConstBytes);
-  void ParseSchedWaking(int64_t timestamp, protozero::ConstBytes);
+  void ParseSchedWakeup(int64_t timestamp, uint32_t pid, protozero::ConstBytes);
+  void ParseSchedWaking(int64_t timestamp, uint32_t pid, protozero::ConstBytes);
   void ParseSchedProcessFree(int64_t timestamp, protozero::ConstBytes);
   void ParseCpuFreq(int64_t timestamp, protozero::ConstBytes);
   void ParseGpuFreq(int64_t timestamp, protozero::ConstBytes);
@@ -192,6 +191,7 @@ class FtraceParser {
   const StringId sched_blocked_reason_id_;
   const StringId io_wait_id_;
   const StringId function_id_;
+  const StringId waker_utid_id_;
 
   struct FtraceMessageStrings {
     // The string id of name of the event field (e.g. sched_switch's id).

@@ -132,6 +132,7 @@ source_set("storage_minimal") {
     "importers/syscalls/syscall_tracker.h",
     "importers/systrace/systrace_line.h",
     "timestamped_trace_piece.h",
+    "trace_blob.cc",
     "trace_processor_context.cc",
     "trace_processor_storage.cc",
     "trace_processor_storage_impl.cc",
@@ -174,7 +175,6 @@ source_set("storage_minimal") {
     "../../protos/perfetto/trace/sys_stats:zero",
     "../../protos/perfetto/trace/system_info:zero",
     "../../protos/perfetto/trace/track_event:zero",
-    "util:trace_blob_view",
   ]
 
   # json_utils optionally depends on jsoncpp.
@@ -337,7 +337,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "analysis",
       "db",
       "importers/common",
-      "metrics:lib",
+      "metrics",
       "sqlite",
       "storage",
       "tables",
@@ -365,7 +365,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "../../src/profiling/symbolizer",
       "../../src/profiling/symbolizer:symbolize_database",
       "../base",
-      "metrics:lib",
+      "metrics",
       "util",
     ]
     if (enable_perfetto_trace_processor_linenoise) {
@@ -406,6 +406,7 @@ perfetto_unittest_source_set("unittests") {
     "importers/proto/proto_trace_parser_unittest.cc",
     "importers/syscalls/syscall_tracker_unittest.cc",
     "importers/systrace/systrace_parser_unittest.cc",
+    "ref_counted_unittest.cc",
     "trace_sorter_unittest.cc",
   ]
   deps = [

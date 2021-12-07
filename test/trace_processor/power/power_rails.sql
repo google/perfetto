@@ -15,6 +15,6 @@
 --
 select name, AVG(value), COUNT(*)
 from counters
-where name like "power.%"
+where name GLOB "power.*"
 group by name
 limit 20

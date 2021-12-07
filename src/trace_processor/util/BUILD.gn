@@ -61,21 +61,13 @@ source_set("protozero_to_text") {
   ]
 }
 
-source_set("trace_blob_view") {
-  sources = [ "trace_blob_view.h" ]
-  deps = [
-    "../../../gn:default_deps",
-    "../../base",
-  ]
-}
-
 source_set("interned_message_view") {
   sources = [ "interned_message_view.h" ]
+  public_deps = [ "../../../include/perfetto/trace_processor" ]
   deps = [
     "../../../gn:default_deps",
     "../../base",
   ]
-  public_deps = [ ":trace_blob_view" ]
 }
 
 source_set("descriptors") {

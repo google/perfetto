@@ -12,31 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {RecordConfig} from '../common/state';
-import {JsonObject, validateRecordConfig} from '../controller/validate_config';
+import {
+  getDefaultRecordingTargets,
+  NamedRecordConfig,
+  RecordConfig,
+  RecordingTarget
+} from '../common/state';
+import {
+  createEmptyRecordConfig,
+  JsonObject,
+  runParser,
+  validateNamedRecordConfig,
+  validateRecordConfig,
+  ValidationResult
+} from '../controller/validate_config';
 
 const LOCAL_STORAGE_RECORD_CONFIGS_KEY = 'recordConfigs';
-
-class NamedRecordConfig {
-  title: string;
-  config: RecordConfig;
-  key: string;
-
-  constructor(title: string, config: RecordConfig, key: string) {
-    this.title = title;
-    this.config = validateRecordConfig(config as unknown as JsonObject);
-    this.key = key;
-  }
-
-  static isValid(jsonObject: object): jsonObject is NamedRecordConfig {
-    return (jsonObject as NamedRecordConfig).title !== undefined &&
-        (jsonObject as NamedRecordConfig).config !== undefined &&
-        (jsonObject as NamedRecordConfig).key !== undefined;
-  }
-}
+const LOCAL_STORAGE_AUTOSAVE_CONFIG_KEY = 'autosaveConfig';
+const LOCAL_STORAGE_RECORD_TARGET_OS_KEY = 'recordTargetOS';
 
 export class RecordConfigStore {
-  recordConfigs: NamedRecordConfig[];
+  recordConfigs: Array<ValidationResult<NamedRecordConfig>>;
   recordConfigNames: Set<string>;
 
   constructor() {
@@ -45,20 +41,43 @@ export class RecordConfigStore {
     this.reloadFromLocalStorage();
   }
 
+  private _save() {
+    window.localStorage.setItem(
+        LOCAL_STORAGE_RECORD_CONFIGS_KEY,
+        JSON.stringify(this.recordConfigs.map((x) => x.result)));
+  }
+
   save(recordConfig: RecordConfig, title?: string): void {
     // We reload from local storage in case of concurrent
     // modifications of local storage from a different tab.
     this.reloadFromLocalStorage();
 
     const savedTitle = title ? title : new Date().toJSON();
-    const config =
-        new NamedRecordConfig(savedTitle, recordConfig, new Date().toJSON());
+    const config: NamedRecordConfig = {
+      title: savedTitle,
+      config: recordConfig,
+      key: new Date().toJSON()
+    };
 
-    this.recordConfigs.push(config);
+    this.recordConfigs.push({result: config, invalidKeys: [], extraKeys: []});
     this.recordConfigNames.add(savedTitle);
 
-    window.localStorage.setItem(
-        LOCAL_STORAGE_RECORD_CONFIGS_KEY, JSON.stringify(this.recordConfigs));
+    this._save();
+  }
+
+  overwrite(recordConfig: RecordConfig, key: string) {
+    // We reload from local storage in case of concurrent
+    // modifications of local storage from a different tab.
+    this.reloadFromLocalStorage();
+
+    const found = this.recordConfigs.find((e) => e.result.key === key);
+    if (found === undefined) {
+      throw new Error('trying to overwrite non-existing config');
+    }
+
+    found.result.config = recordConfig;
+
+    this._save();
   }
 
   delete(key: string): void {
@@ -68,17 +87,16 @@ export class RecordConfigStore {
 
     let idx = -1;
     for (let i = 0; i < this.recordConfigs.length; ++i) {
-      if (this.recordConfigs[i].key === key) {
+      if (this.recordConfigs[i].result.key === key) {
         idx = i;
         break;
       }
     }
 
     if (idx !== -1) {
-      this.recordConfigNames.delete(this.recordConfigs[idx].title);
+      this.recordConfigNames.delete(this.recordConfigs[idx].result.title);
       this.recordConfigs.splice(idx, 1);
-      window.localStorage.setItem(
-          LOCAL_STORAGE_RECORD_CONFIGS_KEY, JSON.stringify(this.recordConfigs));
+      this._save();
     } else {
       // TODO(bsebastien): Show a warning message to the user in the UI.
       console.warn('The config selected doesn\'t exist any more');
@@ -88,8 +106,7 @@ export class RecordConfigStore {
   private clearRecordConfigs(): void {
     this.recordConfigs = [];
     this.recordConfigNames.clear();
-    window.localStorage.setItem(
-        LOCAL_STORAGE_RECORD_CONFIGS_KEY, JSON.stringify([]));
+    this._save();
   }
 
   reloadFromLocalStorage(): void {
@@ -100,7 +117,8 @@ export class RecordConfigStore {
       this.recordConfigNames.clear();
 
       try {
-        const validConfigLocalStorage: NamedRecordConfig[] = [];
+        const validConfigLocalStorage:
+            Array<ValidationResult<NamedRecordConfig>> = [];
         const parsedConfigsLocalStorage = JSON.parse(configsLocalStorage);
 
         // Check if it's an array.
@@ -110,20 +128,20 @@ export class RecordConfigStore {
         }
 
         for (let i = 0; i < parsedConfigsLocalStorage.length; ++i) {
-          if (!NamedRecordConfig.isValid(parsedConfigsLocalStorage[i])) {
-            continue;
+          try {
+            validConfigLocalStorage.push(runParser(
+                validateNamedRecordConfig, parsedConfigsLocalStorage[i]));
+          } catch {
+            // Parsing failed with unrecoverable error (e.g. title or key are
+            // missing), ignore the result.
+            console.log(
+                'Validation of saved record config has failed: ' +
+                JSON.stringify(parsedConfigsLocalStorage[i]));
           }
-          this.recordConfigNames.add(parsedConfigsLocalStorage[i].title);
-          validConfigLocalStorage.push(new NamedRecordConfig(
-              parsedConfigsLocalStorage[i].title,
-              parsedConfigsLocalStorage[i].config,
-              parsedConfigsLocalStorage[i].key));
         }
 
         this.recordConfigs = validConfigLocalStorage;
-        window.localStorage.setItem(
-            LOCAL_STORAGE_RECORD_CONFIGS_KEY,
-            JSON.stringify(validConfigLocalStorage));
+        this._save();
       } catch (e) {
         this.clearRecordConfigs();
       }
@@ -140,3 +158,74 @@ export class RecordConfigStore {
 // This class is a singleton to avoid many instances
 // conflicting as they attempt to edit localStorage.
 export const recordConfigStore = new RecordConfigStore();
+
+export class AutosaveConfigStore {
+  config: RecordConfig;
+
+  // Whether the current config is a default one or has been saved before.
+  // Used to determine whether the button to load "last started config" should
+  // be present in the recording profiles list.
+  hasSavedConfig: boolean;
+
+  constructor() {
+    this.hasSavedConfig = false;
+    this.config = createEmptyRecordConfig();
+    const savedItem =
+        window.localStorage.getItem(LOCAL_STORAGE_AUTOSAVE_CONFIG_KEY);
+    if (savedItem === null) {
+      return;
+    }
+    const parsed = JSON.parse(savedItem);
+    if (parsed !== null && typeof parsed === 'object') {
+      this.config =
+          runParser(validateRecordConfig, parsed as JsonObject).result;
+      this.hasSavedConfig = true;
+    }
+  }
+
+  get(): RecordConfig {
+    return this.config;
+  }
+
+  save(newConfig: RecordConfig) {
+    window.localStorage.setItem(
+        LOCAL_STORAGE_AUTOSAVE_CONFIG_KEY, JSON.stringify(newConfig));
+    this.config = newConfig;
+    this.hasSavedConfig = true;
+  }
+}
+
+export const autosaveConfigStore = new AutosaveConfigStore();
+
+export class RecordTargetStore {
+  recordTargetOS: string|null;
+
+  constructor() {
+    this.recordTargetOS = null;
+    const savedTarget =
+        window.localStorage.getItem(LOCAL_STORAGE_RECORD_TARGET_OS_KEY);
+    if (typeof savedTarget === 'string') {
+      this.recordTargetOS = savedTarget;
+    }
+  }
+
+  get(): string|null {
+    return this.recordTargetOS;
+  }
+
+  getValidTarget(): RecordingTarget {
+    const validTargets = getDefaultRecordingTargets();
+    const savedOS = this.get();
+
+    const validSavedTarget = validTargets.find((el) => el.os === savedOS);
+    return validSavedTarget || validTargets[0];
+  }
+
+  save(newTargetOS: string) {
+    window.localStorage.setItem(
+        LOCAL_STORAGE_RECORD_TARGET_OS_KEY, newTargetOS);
+    this.recordTargetOS = newTargetOS;
+  }
+}
+
+export const recordTargetStore = new RecordTargetStore();

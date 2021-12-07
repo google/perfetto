@@ -277,12 +277,21 @@ class PackedRepeatedFieldIterator {
 // [ field 0 (invalid) ] [ fields 1 .. N ] [ repeated fields ]
 //                                        ^                  ^
 //                                        num_fields_        size_
+// Note that if a message has high field numbers, upon creation |size_| can be
+// < |num_fields_| (until a heap expansion is hit while inserting).
 class PERFETTO_EXPORT TypedProtoDecoderBase : public ProtoDecoder {
  public:
   // If the field |id| is known at compile time, prefer the templated
   // specialization at<kFieldNumber>().
   const Field& Get(uint32_t id) const {
-    return PERFETTO_LIKELY(id < num_fields_) ? fields_[id] : fields_[0];
+    if (PERFETTO_LIKELY(id < num_fields_ && id < size_))
+      return fields_[id];
+    // If id >= num_fields_, the field id is invalid (was not known in the
+    // .proto) and we return the 0th field, which is always !valid().
+    // If id >= size_ and <= num_fields, the id is valid but the field has not
+    // been seen while decoding (hence the stack storage has not been expanded)
+    // so we return the 0th invalid field.
+    return fields_[0];
   }
 
   // Returns an object that allows to iterate over all instances of a repeated
@@ -290,8 +299,27 @@ class PERFETTO_EXPORT TypedProtoDecoderBase : public ProtoDecoder {
   //   for (auto it = decoder.GetRepeated<int32_t>(N); it; ++it) { ... }
   template <typename T>
   RepeatedFieldIterator<T> GetRepeated(uint32_t field_id) const {
-    return RepeatedFieldIterator<T>(field_id, &fields_[num_fields_],
-                                    &fields_[size_], &fields_[field_id]);
+    const Field* repeated_begin;
+    // The storage for repeated fields starts after the slot for the highest
+    // field id (refer to the diagram in the class-level comment). However, if
+    // a message has more than INITIAL_STACK_CAPACITY field there will be no
+    // slots available for the repeated fields (if ExpandHeapStorage() was not
+    // called). Imagine a message that has highest field id = 102 and that is
+    // still using the stack:
+    // [ F0 ] [ F1 ] ... [ F100 ] [ F101 ] [ F1012] [ repeated fields ]
+    //                                            ^ num_fields_
+    //                          ^ size (== capacity)
+    if (PERFETTO_LIKELY(num_fields_ < size_)) {
+      repeated_begin = &fields_[num_fields_];
+    } else {
+      // This is the case of not having any storage space for repeated fields.
+      // This makes it so begin == end, so the iterator will just skip @ last.
+      repeated_begin = &fields_[size_];
+    }
+    const Field* repeated_end = &fields_[size_];
+    const Field* last = &Get(field_id);
+    return RepeatedFieldIterator<T>(field_id, repeated_begin, repeated_end,
+                                    last);
   }
 
   // Returns an objects that allows to iterate over all entries of a packed
@@ -315,10 +343,9 @@ class PERFETTO_EXPORT TypedProtoDecoderBase : public ProtoDecoder {
     if (field.valid()) {
       return PackedRepeatedFieldIterator<wire_type, cpp_type>(
           field.data(), field.size(), parse_error_location);
-    } else {
-      return PackedRepeatedFieldIterator<wire_type, cpp_type>(
-          nullptr, 0, parse_error_location);
     }
+    return PackedRepeatedFieldIterator<wire_type, cpp_type>(
+        nullptr, 0, parse_error_location);
   }
 
  protected:
@@ -330,7 +357,10 @@ class PERFETTO_EXPORT TypedProtoDecoderBase : public ProtoDecoder {
       : ProtoDecoder(buffer, length),
         fields_(storage),
         num_fields_(num_fields),
-        size_(num_fields),
+        // The reason for "capacity -1" is to avoid hitting the expansion path
+        // in TypedProtoDecoderBase::ParseAllFields() when we are just setting
+        // fields < INITIAL_STACK_CAPACITY (which is the most common case).
+        size_(std::min(num_fields, capacity - 1)),
         capacity_(capacity) {
     // The reason why Field needs to be trivially de/constructible is to avoid
     // implicit initializers on all the ~1000 entries. We need it to initialize
@@ -340,7 +370,8 @@ class PERFETTO_EXPORT TypedProtoDecoderBase : public ProtoDecoder {
                       std::is_trivially_destructible<Field>::value &&
                       std::is_trivial<Field>::value,
                   "Field must be a trivial aggregate type");
-    memset(fields_, 0, sizeof(Field) * num_fields_);
+    memset(fields_, 0, sizeof(Field) * capacity_);
+    PERFETTO_DCHECK(capacity > 0);
   }
 
   void ParseAllFields();
@@ -358,14 +389,23 @@ class PERFETTO_EXPORT TypedProtoDecoderBase : public ProtoDecoder {
   // case of a large number of repeated fields.
   Field* fields_;
 
-  // Number of fields without accounting repeated storage. This is equal to
-  // MAX_FIELD_ID + 1 (to account for the invalid 0th field).
-  // This value is always <= size_ (and hence <= capacity);
+  // Number of known fields, without accounting repeated storage. This is equal
+  // to MAX_FIELD_ID + 1 (to account for the invalid 0th field). It never
+  // changes after construction.
+  // This is unrelated with |size_| and |capacity_|. If the highest field id of
+  // a proto message is 131, |num_fields_| will be = 132 but, on initialization,
+  // |size_| = |capacity_| = 100 (INITIAL_STACK_CAPACITY).
+  // One cannot generally assume that |fields_| has enough storage to
+  // dereference every field. That is only true:
+  // - For field ids < INITIAL_STACK_CAPACITY.
+  // - After the first call to ExpandHeapStorage().
   uint32_t num_fields_;
 
-  // Number of active |fields_| entries. This is initially equal to the highest
-  // number of fields for the message (num_fields_ == MAX_FIELD_ID + 1) and can
-  // grow up to |capacity_| in the case of repeated fields.
+  // Number of active |fields_| entries. This is initially equal to
+  // min(num_fields_, INITIAL_STACK_CAPACITY - 1) and after ExpandHeapStorage()
+  // becomes == |num_fields_|. If the message has non-packed repeated fields, it
+  // can grow further, up to |capacity_|.
+  // |size_| is always <= |capacity_|. But |num_fields_| can be > |size_|.
   uint32_t size_;
 
   // Initially equal to kFieldsCapacity of the TypedProtoDecoder
@@ -375,6 +415,11 @@ class PERFETTO_EXPORT TypedProtoDecoderBase : public ProtoDecoder {
   uint32_t capacity_;
 };
 
+// This constant is a tradeoff between having a larger stack frame and being
+// able to decode field IDs up to N (or N - num_fields repeated fields) without
+// falling back on the heap.
+#define PROTOZERO_DECODER_INITIAL_STACK_CAPACITY 100
+
 // Template class instantiated by the auto-generated decoder classes declared in
 // xxx.pbzero.h files.
 template <int MAX_FIELD_ID, bool HAS_NONPACKED_REPEATED_FIELDS>
@@ -383,17 +428,25 @@ class TypedProtoDecoder : public TypedProtoDecoderBase {
   TypedProtoDecoder(const uint8_t* buffer, size_t length)
       : TypedProtoDecoderBase(on_stack_storage_,
                               /*num_fields=*/MAX_FIELD_ID + 1,
-                              kCapacity,
+                              PROTOZERO_DECODER_INITIAL_STACK_CAPACITY,
                               buffer,
                               length) {
-    static_assert(MAX_FIELD_ID <= kMaxDecoderFieldId, "Field ordinal too high");
     TypedProtoDecoderBase::ParseAllFields();
   }
 
   template <uint32_t FIELD_ID>
   const Field& at() const {
     static_assert(FIELD_ID <= MAX_FIELD_ID, "FIELD_ID > MAX_FIELD_ID");
-    return fields_[FIELD_ID];
+    // If the field id is < the on-stack capacity, it's safe to always
+    // dereference |fields_|, whether it's still using the stack or it fell
+    // back on the heap. Because both terms of the if () are known at compile
+    // time, the compiler elides the branch for ids < INITIAL_STACK_CAPACITY.
+    if (FIELD_ID < PROTOZERO_DECODER_INITIAL_STACK_CAPACITY) {
+      return fields_[FIELD_ID];
+    } else {
+      // Otherwise use the slowpath Get() which will do a runtime check.
+      return Get(FIELD_ID);
+    }
   }
 
   TypedProtoDecoder(TypedProtoDecoder&& other) noexcept
@@ -408,20 +461,7 @@ class TypedProtoDecoder : public TypedProtoDecoderBase {
   }
 
  private:
-  // In the case of non-repeated fields, this constant defines the highest field
-  // id we are able to decode. This is to limit the on-stack storage.
-  // In the case of repeated fields, this constant defines the max number of
-  // repeated fields that we'll be able to store before falling back on the
-  // heap. Keep this value in sync with the one in protozero_generator.cc.
-  static constexpr size_t kMaxDecoderFieldId = 999;
-
-  // If we the message has no repeated fields we need at most N Field entries
-  // in the on-stack storage, where N is the highest field id.
-  // Otherwise we need some room to store repeated fields.
-  static constexpr size_t kCapacity =
-      1 + (HAS_NONPACKED_REPEATED_FIELDS ? kMaxDecoderFieldId : MAX_FIELD_ID);
-
-  Field on_stack_storage_[kCapacity];
+  Field on_stack_storage_[PROTOZERO_DECODER_INITIAL_STACK_CAPACITY];
 };
 
 }  // namespace protozero

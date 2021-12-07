@@ -21,6 +21,7 @@
 
 #include <atomic>
 #include <functional>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -28,6 +29,7 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/status.h"
 #include "perfetto/trace_processor/trace_processor.h"
+#include "src/trace_processor/sqlite/create_function.h"
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
 #include "src/trace_processor/sqlite/query_cache.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
@@ -46,10 +48,16 @@ class TraceProcessorImpl : public TraceProcessor,
  public:
   explicit TraceProcessorImpl(const Config&);
 
+  TraceProcessorImpl(const TraceProcessorImpl&) = delete;
+  TraceProcessorImpl& operator=(const TraceProcessorImpl&) = delete;
+
+  TraceProcessorImpl(TraceProcessorImpl&&) = delete;
+  TraceProcessorImpl& operator=(TraceProcessorImpl&&) = delete;
+
   ~TraceProcessorImpl() override;
 
   // TraceProcessorStorage implementation:
-  util::Status Parse(std::unique_ptr<uint8_t[]>, size_t) override;
+  util::Status Parse(TraceBlobView) override;
   void NotifyEndOfFile() override;
 
   // TraceProcessor implementation:
@@ -104,7 +112,15 @@ class TraceProcessorImpl : public TraceProcessor,
   }
 
   bool IsRootMetricField(const std::string& metric_name);
+
+  // Keep this first: we need this to be destroyed after we clean up
+  // everything else.
   ScopedDb db_;
+
+  // State necessary for CREATE_FUNCTION invocations. We store this here as we
+  // need to finalize any prepared statements *before* we destroy the database.
+  CreateFunction::State create_function_state_;
+
   std::unique_ptr<QueryCache> query_cache_;
 
   DescriptorPool pool_;

@@ -21,9 +21,11 @@ perfetto_proto_library("@TYPE@") {
   ]
   sources = [
     "batt_metric.proto",
+    "camera_metric.proto",
     "cpu_metric.proto",
     "display_metrics.proto",
     "dma_heap_metric.proto",
+    "dvfs_metric.proto",
     "fastrpc_metric.proto",
     "g2d_metric.proto",
     "gpu_metric.proto",

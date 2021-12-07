@@ -189,17 +189,26 @@ void TypedProtoDecoderBase::ParseAllFields() {
     res = ParseOneField(cur, end_);
     PERFETTO_DCHECK(res.parse_res != ParseFieldResult::kOk || res.next != cur);
     cur = res.next;
-    if (PERFETTO_UNLIKELY(res.parse_res == ParseFieldResult::kSkip)) {
+    if (PERFETTO_UNLIKELY(res.parse_res == ParseFieldResult::kSkip))
       continue;
-    } else if (PERFETTO_UNLIKELY(res.parse_res == ParseFieldResult::kAbort)) {
+    if (PERFETTO_UNLIKELY(res.parse_res == ParseFieldResult::kAbort))
       break;
-    }
+
     PERFETTO_DCHECK(res.parse_res == ParseFieldResult::kOk);
     PERFETTO_DCHECK(res.field.valid());
     auto field_id = res.field.id();
     if (PERFETTO_UNLIKELY(field_id >= num_fields_))
       continue;
 
+    // There are two reasons why we might want to expand the heap capacity:
+    // 1. We are writing a non-repeated field, which has an id >
+    //    INITIAL_STACK_CAPACITY. In this case ExpandHeapStorage() ensures to
+    //    allocate at least (num_fields_ + 1) slots.
+    // 2. We are writing a repeated field but ran out of capacity.
+    if (PERFETTO_UNLIKELY(field_id >= size_ || size_ >= capacity_))
+      ExpandHeapStorage();
+
+    PERFETTO_DCHECK(field_id < size_);
     Field* fld = &fields_[field_id];
     if (PERFETTO_LIKELY(!fld->valid())) {
       // This is the first time we see this field.
@@ -214,12 +223,7 @@ void TypedProtoDecoderBase::ParseAllFields() {
       //    supposed to return the last value of X, not the first one.
       // This is so that the RepeatedFieldIterator will iterate in the right
       // order, see comments on RepeatedFieldIterator.
-      if (PERFETTO_UNLIKELY(size_ >= capacity_)) {
-        ExpandHeapStorage();
-        // ExpandHeapStorage moves fields_ so we need to update the ptr to fld:
-        fld = &fields_[field_id];
-        PERFETTO_DCHECK(size_ < capacity_);
-      }
+      PERFETTO_DCHECK(size_ < capacity_);
       fields_[size_++] = *fld;
       *fld = std::move(res.field);
     }
@@ -228,17 +232,34 @@ void TypedProtoDecoderBase::ParseAllFields() {
 }
 
 void TypedProtoDecoderBase::ExpandHeapStorage() {
-  uint32_t new_capacity = capacity_ * 2;
-  PERFETTO_CHECK(new_capacity > size_);
+  // When we expand the heap we must ensure that we have at very last capacity
+  // to deal with all known fields plus at least one repeated field. We go +2048
+  // here based on observations on a large 4GB android trace. This is to avoid
+  // trivial re-allocations when dealing with repeated fields of a message that
+  // has > INITIAL_STACK_CAPACITY fields.
+  const uint32_t min_capacity = num_fields_ + 2048;  // Any num >= +1 will do.
+  const uint32_t new_capacity = std::max(capacity_ * 2, min_capacity);
+  PERFETTO_CHECK(new_capacity > size_ && new_capacity > num_fields_);
   std::unique_ptr<Field[]> new_storage(new Field[new_capacity]);
 
+  static_assert(std::is_trivially_constructible<Field>::value,
+                "Field must be trivially constructible");
   static_assert(std::is_trivially_copyable<Field>::value,
                 "Field must be trivially copyable");
+
+  // Zero-initialize the slots for known field IDs slots, as they can be
+  // randomly accessed. Instead, there is no need to initialize the repeated
+  // slots, because they are written linearly with no gaps and are always
+  // initialized before incrementing |size_|.
+  const uint32_t new_size = std::max(size_, num_fields_);
+  memset(&new_storage[size_], 0, sizeof(Field) * (new_size - size_));
+
   memcpy(&new_storage[0], fields_, sizeof(Field) * size_);
 
   heap_storage_ = std::move(new_storage);
   fields_ = &heap_storage_[0];
   capacity_ = new_capacity;
+  size_ = new_size;
 }
 
 }  // namespace protozero

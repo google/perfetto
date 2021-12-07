@@ -50,7 +50,7 @@ class NinjaLogParser : public ChunkedTraceReader {
   NinjaLogParser& operator=(const NinjaLogParser&) = delete;
 
   // ChunkedTraceReader implementation
-  util::Status Parse(std::unique_ptr<uint8_t[]>, size_t) override;
+  util::Status Parse(TraceBlobView) override;
   void NotifyEndOfFile() override;
 
  private:

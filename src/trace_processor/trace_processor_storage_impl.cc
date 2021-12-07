@@ -82,9 +82,8 @@ TraceProcessorStorageImpl::TraceProcessorStorageImpl(const Config& cfg) {
 
 TraceProcessorStorageImpl::~TraceProcessorStorageImpl() {}
 
-util::Status TraceProcessorStorageImpl::Parse(std::unique_ptr<uint8_t[]> data,
-                                              size_t size) {
-  if (size == 0)
+util::Status TraceProcessorStorageImpl::Parse(TraceBlobView blob) {
+  if (blob.size() == 0)
     return util::OkStatus();
   if (unrecoverable_parse_error_)
     return util::ErrStatus(
@@ -96,10 +95,10 @@ util::Status TraceProcessorStorageImpl::Parse(std::unique_ptr<uint8_t[]> data,
       stats::parse_trace_duration_ns);
 
   if (hash_input_size_remaining_ > 0 && !context_.uuid_found_in_trace) {
-    const size_t hash_size = std::min(hash_input_size_remaining_, size);
+    const size_t hash_size = std::min(hash_input_size_remaining_, blob.size());
     hash_input_size_remaining_ -= hash_size;
 
-    trace_hash_.Update(reinterpret_cast<const char*>(data.get()), hash_size);
+    trace_hash_.Update(reinterpret_cast<const char*>(blob.data()), hash_size);
     base::Uuid uuid(static_cast<int64_t>(trace_hash_.digest()), 0);
     const StringId id_for_uuid =
         context_.storage->InternString(base::StringView(uuid.ToPrettyString()));
@@ -107,7 +106,7 @@ util::Status TraceProcessorStorageImpl::Parse(std::unique_ptr<uint8_t[]> data,
                                            Variadic::String(id_for_uuid));
   }
 
-  util::Status status = context_.chunk_reader->Parse(std::move(data), size);
+  util::Status status = context_.chunk_reader->Parse(std::move(blob));
   unrecoverable_parse_error_ |= !status.ok();
   return status;
 }

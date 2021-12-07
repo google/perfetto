@@ -29,7 +29,7 @@ service ProducerPort {
   rpc InitializeConnection(InitializeConnectionRequest)
       returns (InitializeConnectionResponse) {}
 
-  // Advertises a data source.
+  // Advertises a new data source.
   rpc RegisterDataSource(RegisterDataSourceRequest)
       returns (RegisterDataSourceResponse) {}
 
@@ -92,6 +92,17 @@ service ProducerPort {
   // When the Sync() response is received, the producer is guaranteed that the
   // service has seen both data source registrations.
   rpc Sync(SyncRequest) returns (SyncResponse) {}
+
+  // ----------------------------------------------------
+  // All methods below have been introduced in Android T.
+  // ----------------------------------------------------
+
+  // Updates the data source descriptor for an already-registered data source.
+  // This can be used to update the list of features supported.
+  // Only the data source with a matching data_source_descriptor.id is updated.
+  // The data_source_descriptor.name cannot be changed.
+  rpc UpdateDataSource(UpdateDataSourceRequest)
+      returns (UpdateDataSourceResponse) {}
 }
 
 // Arguments for rpc InitializeConnection().
@@ -186,6 +197,16 @@ message RegisterDataSourceResponse {
   // Only set in case of errors, when |data_source_id| == 0.
   optional string error = 1;
 };
+
+// Arguments for rpc UpdateDataSource().
+
+message UpdateDataSourceRequest {
+  // The new data_source_descriptor.{id, name} must match {id, name} of a
+  // data source previously registered via RegisterDataSource().
+  optional protos.DataSourceDescriptor data_source_descriptor = 1;
+}
+
+message UpdateDataSourceResponse {};
 
 // Arguments for rpc UnregisterDataSource().
 

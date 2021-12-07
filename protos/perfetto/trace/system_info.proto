@@ -37,4 +37,8 @@ message SystemInfo {
   // the build system and the repo (standalone vs AOSP).
   // This is intended for human debugging only.
   optional string tracing_service_version = 4;
+
+  // The Android SDK vesion (e.g. 21 for L, 31 for S etc).
+  // Introduced in Android T.
+  optional uint64 android_sdk_version = 5;
 }

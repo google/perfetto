@@ -175,11 +175,13 @@ declare_args() {
         is_perfetto_build_generator
   }
 
-  # Enables base::Watchdog. Is supported only on Linux-based platforms.
+  # Enables base::Watchdog. Is supported only on Linux-based platforms in
+  # standalone GN builds (NOT in bazel/blaze).
   # gn/BUILD.gn further restricts this to OS_LINUX || OS_ANDROID when generating
   # the perfetto_build_flags.h header.
   enable_perfetto_watchdog =
-      perfetto_build_with_android || perfetto_build_standalone
+      perfetto_build_with_android ||
+      (perfetto_build_standalone && !is_perfetto_build_generator)
 
   # Misc host executable under tools/.
   enable_perfetto_tools =
@@ -232,10 +234,19 @@ declare_args() {
   # libbacktrace when enabled.
   enable_perfetto_stderr_crash_dump =
       is_debug && perfetto_build_standalone && !is_wasm && !is_win
+
+  # Enables more aggressive compiler flags that assume recent Intel CPUs.
+  # Runtime checks during initialization will print an error message and exit
+  # if the CPU doesn't support those flags.
+  enable_perfetto_x64_cpu_opt =
+      current_cpu == "x64" && (is_linux || is_mac) && !is_wasm &&
+      perfetto_build_standalone && !is_perfetto_build_generator
 }
 
 declare_args() {
-  perfetto_enable_git_rev_version_header = enable_perfetto_version_gen
+  perfetto_enable_git_rev_version_header =
+      enable_perfetto_version_gen && perfetto_build_standalone &&
+      !is_perfetto_build_generator
 
   # The traced_probes daemon is very Linux-specific, as it depends on ftrace and
   # various /proc interfaces. There is no point making its code platform-neutral

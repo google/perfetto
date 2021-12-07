@@ -21,12 +21,12 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/string_utils.h"
 
+#include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/json/json_tracker.h"
 #include "src/trace_processor/importers/json/json_utils.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/trace_sorter.h"
 #include "src/trace_processor/util/status_macros.h"
-#include "src/trace_processor/util/trace_blob_view.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -416,11 +416,10 @@ JsonTraceTokenizer::JsonTraceTokenizer(TraceProcessorContext* ctx)
     : context_(ctx) {}
 JsonTraceTokenizer::~JsonTraceTokenizer() = default;
 
-util::Status JsonTraceTokenizer::Parse(std::unique_ptr<uint8_t[]> data,
-                                       size_t size) {
+util::Status JsonTraceTokenizer::Parse(TraceBlobView blob) {
   PERFETTO_DCHECK(json::IsJsonSupported());
 
-  buffer_.insert(buffer_.end(), data.get(), data.get() + size);
+  buffer_.insert(buffer_.end(), blob.data(), blob.data() + blob.size());
   const char* buf = buffer_.data();
   const char* next = buf;
   const char* end = buf + buffer_.size();
@@ -432,7 +431,7 @@ util::Status JsonTraceTokenizer::Parse(std::unique_ptr<uint8_t[]> data,
     // two passes on the file so for now we only handle displayTimeUnit
     // correctly if it is at the beginning of the file.
     base::Optional<json::TimeUnit> timeunit =
-        MaybeParseDisplayTimeUnit(base::StringView(buf, size));
+        MaybeParseDisplayTimeUnit(base::StringView(buf, blob.size()));
     if (timeunit) {
       JsonTracker::GetOrCreate(context_)->SetTimeUnit(*timeunit);
     }

@@ -138,6 +138,12 @@ export class ChromeSliceDetailsPanel extends SlicePanel {
       builder.add('Start time', timeToCode(sliceInfo.ts));
       builder.add(
           'Duration', this.computeDuration(sliceInfo.ts, sliceInfo.dur));
+      if (sliceInfo.thread_ts !== undefined &&
+          sliceInfo.thread_dur !== undefined) {
+        builder.add(
+            'Thread duration',
+            this.computeDuration(sliceInfo.thread_ts, sliceInfo.thread_dur));
+      }
       builder.add(
           'Slice ID', sliceInfo.id ? sliceInfo.id.toString() : 'Unknown');
       if (sliceInfo.description) {

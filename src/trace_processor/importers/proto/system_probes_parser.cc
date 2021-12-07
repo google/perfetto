@@ -44,6 +44,60 @@ namespace {
 // pid == 2 on Linux and Android.
 const uint32_t kKthreaddPid = 2;
 const char kKthreaddName[] = "kthreadd";
+
+base::Optional<int> VersionStringToSdkVersion(const std::string& version) {
+  // TODO(lalitm): remove this when the SDK version polling saturates
+  // S/T traces in practice.
+  if (base::StartsWith(version, "T") || base::StartsWith(version, "S")) {
+    return 31;
+  }
+
+  // Documentation for this mapping can be found at
+  // https://source.android.com/compatibility/cdd.
+  if (version == "12") {
+    return 31;
+  } else if (version == "11") {
+    return 30;
+  } else if (version == "10") {
+    return 29;
+  } else if (version == "9") {
+    return 28;
+  } else if (version == "8.1") {
+    return 27;
+  } else if (version == "8.0") {
+    return 26;
+  } else if (version == "7.1") {
+    return 25;
+  } else if (version == "7.0") {
+    return 24;
+  } else if (version == "6.0") {
+    return 23;
+  } else if (version == "5.1" || version == "5.1.1") {
+    return 22;
+  } else if (version == "5.0" || version == "5.0.1" || version == "5.0.2") {
+    return 21;
+  }
+  // If we reached this point, we don't know how to parse this version
+  // so just return null.
+  return base::nullopt;
+}
+
+base::Optional<int> FingerprintToSdkVersion(const std::string& fingerprint) {
+  // Try to parse the SDK version from the fingerprint.
+  // Examples of fingerprints:
+  // google/shamu/shamu:7.0/NBD92F/3753956:userdebug/dev-keys
+  // google/coral/coral:12/SP1A.210812.015/7679548:userdebug/dev-keys
+  size_t colon = fingerprint.find(':');
+  if (colon == std::string::npos)
+    return base::nullopt;
+
+  size_t slash = fingerprint.find('/', colon);
+  if (slash == std::string::npos)
+    return base::nullopt;
+
+  std::string version = fingerprint.substr(colon + 1, slash - (colon + 1));
+  return VersionStringToSdkVersion(version);
+}
 }  // namespace
 
 SystemProbesParser::SystemProbesParser(TraceProcessorContext* context)
@@ -122,12 +176,13 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
   for (auto it = sys_stats.devfreq(); it; ++it) {
     protos::pbzero::SysStats::DevfreqValue::Decoder vm(*it);
     auto key = static_cast<base::StringView>(vm.key());
-    // Append " Frequency" to align names with FtraceParser::ParseClockSetRate
+    // Append " Frequency" to align names with
+    // FtraceParser::ParseClockSetRate
     base::StringView devfreq_subtitle("Frequency");
-    char counter_name[255];
-    snprintf(counter_name, sizeof(counter_name), "%.*s %.*s", int(key.size()),
-             key.data(), int(devfreq_subtitle.size()), devfreq_subtitle.data());
-    StringId name = context_->storage->InternString(counter_name);
+    base::StackString<255> counter_name(
+        "%.*s %.*s", int(key.size()), key.data(), int(devfreq_subtitle.size()),
+        devfreq_subtitle.data());
+    StringId name = context_->storage->InternString(counter_name.string_view());
     TrackId track = context_->track_tracker->InternGlobalCounterTrack(name);
     context_->event_tracker->PushCounter(ts, static_cast<double>(vm.value()),
                                          track);
@@ -242,7 +297,8 @@ void SystemProbesParser::ParseProcessTree(ConstBytes blob) {
     auto ppid = static_cast<uint32_t>(proc.ppid());
 
     // If the parent pid is kthreadd's pid, even though this pid is of a
-    // "process", we want to treat it as being a child thread of kthreadd.
+    // "process", we want to treat it as being a child thread of
+    // kthreadd.
     if (ppid == kKthreaddPid) {
       context_->process_tracker->SetProcessMetadata(
           kKthreaddPid, base::nullopt, kKthreaddName, base::StringView());
@@ -448,14 +504,29 @@ void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
             packet.android_build_fingerprint())));
   }
 
+  // If we have the SDK version in the trace directly just use that.
+  // Otherwise, try and parse it from the fingerprint.
+  base::Optional<int64_t> opt_sdk_version;
+  if (packet.has_android_sdk_version()) {
+    opt_sdk_version = static_cast<int64_t>(packet.android_sdk_version());
+  } else if (packet.has_android_build_fingerprint()) {
+    opt_sdk_version = FingerprintToSdkVersion(
+        packet.android_build_fingerprint().ToStdString());
+  }
+
+  if (opt_sdk_version) {
+    context_->metadata_tracker->SetMetadata(
+        metadata::android_sdk_version, Variadic::Integer(*opt_sdk_version));
+  }
+
   int64_t hz = packet.hz();
   if (hz > 0)
     ms_per_tick_ = 1000u / static_cast<uint64_t>(hz);
 }
 
 void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
-  // invalid_freq is used as the guard in thread_time_in_state_cpu_freq_ids_,
-  // see IsValidCpuFreqIndex.
+  // invalid_freq is used as the guard in
+  // thread_time_in_state_cpu_freq_ids_, see IsValidCpuFreqIndex.
   uint32_t invalid_freq = 0;
   thread_time_in_state_cpu_freqs_.push_back(invalid_freq);
 

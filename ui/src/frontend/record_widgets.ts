@@ -54,6 +54,7 @@ class DocsChip implements m.ClassComponent<DocsChipAttrs> {
 export interface ProbeAttrs {
   title: string;
   img: string|null;
+  compact?: boolean;
   descr: m.Children;
   isEnabled: Getter<boolean>;
   setEnabled: Setter<boolean>;
@@ -71,7 +72,7 @@ export class Probe implements m.ClassComponent<ProbeAttrs> {
     const enabled = attrs.isEnabled(globals.state.recordConfig);
 
     return m(
-        `.probe${enabled ? '.enabled' : ''}`,
+        `.probe${attrs.compact ? '.compact' : ''}${enabled ? '.enabled' : ''}`,
         attrs.img && m('img', {
           src: `${globals.root}assets/${attrs.img}`,
           onclick: () => onToggle(!enabled),
@@ -84,8 +85,25 @@ export class Probe implements m.ClassComponent<ProbeAttrs> {
             },
           }),
           m('span', attrs.title)),
-        m('div', m('div', attrs.descr), m('.probe-config', children)));
+        attrs.compact ?
+            '' :
+            m('div', m('div', attrs.descr), m('.probe-config', children)));
   }
+}
+
+export function CompactProbe(args: {
+  title: string,
+  isEnabled: Getter<boolean>,
+  setEnabled: Setter<boolean>
+}) {
+  return m(Probe, {
+    title: args.title,
+    img: null,
+    compact: true,
+    descr: '',
+    isEnabled: args.isEnabled,
+    setEnabled: args.setEnabled
+  } as ProbeAttrs);
 }
 
 // +-------------------------------------------------------------+

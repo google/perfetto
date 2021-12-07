@@ -303,29 +303,6 @@ TEST(StringUtilsTest, TrimLeading) {
   EXPECT_EQ(TrimLeading(" aaaaa     "), "aaaaa     ");
 }
 
-TEST(StringUtilsTest, Base64Encode) {
-  auto base64_encode = [](const std::string& str) {
-    return Base64Encode(str.c_str(), str.size());
-  };
-
-  EXPECT_EQ(base64_encode(""), "");
-  EXPECT_EQ(base64_encode("f"), "Zg==");
-  EXPECT_EQ(base64_encode("fo"), "Zm8=");
-  EXPECT_EQ(base64_encode("foo"), "Zm9v");
-  EXPECT_EQ(base64_encode("foob"), "Zm9vYg==");
-  EXPECT_EQ(base64_encode("fooba"), "Zm9vYmE=");
-  EXPECT_EQ(base64_encode("foobar"), "Zm9vYmFy");
-
-  EXPECT_EQ(Base64Encode("foo\0bar", 7), "Zm9vAGJhcg==");
-
-  std::vector<uint8_t> buffer = {0x04, 0x53, 0x42, 0x35,
-                                 0x32, 0xFF, 0x00, 0xFE};
-  EXPECT_EQ(Base64Encode(buffer.data(), buffer.size()), "BFNCNTL/AP4=");
-
-  buffer = {0xfb, 0xf0, 0x3e, 0x07, 0xfc};
-  EXPECT_EQ(Base64Encode(buffer.data(), buffer.size()), "+/A+B/w=");
-}
-
 TEST(StringUtilsTest, StringCopy) {
   // Nothing should be written when |dst_size| = 0.
   {
@@ -378,6 +355,12 @@ TEST(StringUtilsTest, SprintfTrunc) {
   }
 
   {
+    UninitializedBuf<1> dst;
+    ASSERT_EQ(0u, SprintfTrunc(dst, sizeof(dst), "whatever"));
+    EXPECT_STREQ(dst, "");
+  }
+
+  {
     UninitializedBuf<3> dst;
     ASSERT_EQ(1u, SprintfTrunc(dst, sizeof(dst), "1"));
     EXPECT_STREQ(dst, "1");
@@ -405,6 +388,38 @@ TEST(StringUtilsTest, SprintfTrunc) {
     UninitializedBuf<11> dst;
     ASSERT_EQ(10u, SprintfTrunc(dst, sizeof(dst), "a %d b %s", 42, "foo"));
     EXPECT_STREQ(dst, "a 42 b foo");
+  }
+}
+
+TEST(StringUtilsTest, StackString) {
+  {
+    StackString<1> s("123");
+    EXPECT_EQ(0u, s.len());
+    EXPECT_STREQ("", s.c_str());
+  }
+
+  {
+    StackString<4> s("123");
+    EXPECT_EQ(3u, s.len());
+    EXPECT_STREQ("123", s.c_str());
+    EXPECT_EQ(s.ToStdString(), std::string(s.c_str()));
+    EXPECT_EQ(s.string_view().ToStdString(), s.ToStdString());
+  }
+
+  {
+    StackString<3> s("123");
+    EXPECT_EQ(2u, s.len());
+    EXPECT_STREQ("12", s.c_str());
+    EXPECT_EQ(s.ToStdString(), std::string(s.c_str()));
+    EXPECT_EQ(s.string_view().ToStdString(), s.ToStdString());
+  }
+
+  {
+    StackString<11> s("foo %d %s", 42, "bar!!!OVERFLOW");
+    EXPECT_EQ(10u, s.len());
+    EXPECT_STREQ("foo 42 bar", s.c_str());
+    EXPECT_EQ(s.ToStdString(), std::string(s.c_str()));
+    EXPECT_EQ(s.string_view().ToStdString(), s.ToStdString());
   }
 }
 

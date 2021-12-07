@@ -16,8 +16,11 @@ import("../../../../gn/perfetto.gni")
 
 source_set("base") {
   sources = [
+    "android_utils.h",
+    "base64.h",
     "circular_queue.h",
     "container_annotations.h",
+    "crash_keys.h",
     "ctrl_c_handler.h",
     "endian.h",
     "event_fd.h",
@@ -34,6 +37,7 @@ source_set("base") {
     "pipe.h",
     "scoped_file.h",
     "small_set.h",
+    "small_vector.h",
     "string_splitter.h",
     "string_utils.h",
     "string_view.h",

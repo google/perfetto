@@ -62,9 +62,14 @@ mode.
 :     Prints out help text for the `perfetto` tool.
 
 
-## LIGHTWEIGHT MODE
+## SIMPLE MODE
 
-The general syntax for using `perfetto` in *lightweight mode* is as follows:
+For ease of use, the `perfetto` command includes support for a subset of
+configurations via command line arguments. On-device, these
+configurations behave equivalently to the same configurations provided
+by a *CONFIG_FILE* (see below).
+
+The general syntax for using `perfetto` in *simple mode* is as follows:
 
 ```
  adb shell perfetto [ --time TIMESPEC ] [ --buffer SIZE ] [ --size SIZE ]
@@ -73,7 +78,7 @@ The general syntax for using `perfetto` in *lightweight mode* is as follows:
 
 
 The following table lists the available options when using `perfetto` in
-*lightweight mode*.
+*simple mode*.
 
 `-t`, `--time` _TIME[s|m|h]_
 :    Specifies the trace duration in seconds, minutes, or hours.

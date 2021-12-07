@@ -24,6 +24,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/paged_memory.h"
 #include "perfetto/protozero/proto_utils.h"
@@ -288,7 +289,8 @@ class StringPool {
   // Maps hashes of strings to the Id in the string pool.
   // TODO(lalitm): At some point we should benchmark just using a static
   // hashtable of 1M elements, we can afford paying a fixed 8MB here
-  std::unordered_map<StringHash, Id> string_index_;
+  std::unordered_map<StringHash, Id, base::AlreadyHashed<StringHash>>
+      string_index_;
 };
 
 }  // namespace trace_processor

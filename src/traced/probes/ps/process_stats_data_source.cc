@@ -23,6 +23,7 @@
 
 #include "perfetto/base/task_runner.h"
 #include "perfetto/base/time.h"
+#include "perfetto/ext/base/crash_keys.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/metatrace.h"
@@ -53,6 +54,10 @@ namespace {
 // Default upper bound on the number of thread cpu frequency keys, used if none
 // was provided in the config. The cache is trimmed if it exceeds this size.
 const size_t kThreadTimeInStateCacheSize = 10000;
+
+// TODO(b/189749310): For debugging of b/189749310. Remove by Jan 2022.
+base::CrashKey g_crash_key_proc_file("proc_file");
+base::CrashKey g_crash_key_proc_count("proc_count");
 
 int32_t ReadNextNumericDir(DIR* dirp) {
   while (struct dirent* dir_ent = readdir(dirp)) {
@@ -152,9 +157,8 @@ void ProcessStatsDataSource::WriteAllProcesses() {
     return;
   while (int32_t pid = ReadNextNumericDir(*proc_dir)) {
     WriteProcessOrThread(pid);
-    char task_path[255];
-    sprintf(task_path, "/proc/%d/task", pid);
-    base::ScopedDir task_dir(opendir(task_path));
+    base::StackString<128> task_path("/proc/%d/task", pid);
+    base::ScopedDir task_dir(opendir(task_path.c_str()));
     if (!task_dir)
       continue;
 
@@ -279,17 +283,19 @@ base::ScopedDir ProcessStatsDataSource::OpenProcDir() {
 
 std::string ProcessStatsDataSource::ReadProcPidFile(int32_t pid,
                                                     const std::string& file) {
+  base::StackString<128> path("/proc/%" PRId32 "/%s", pid, file.c_str());
+  auto scoped_key = g_crash_key_proc_file.SetScoped(path.string_view());
+  g_crash_key_proc_count.Set(g_crash_key_proc_count.int_value() + 1);
   std::string contents;
   contents.reserve(4096);
-  if (!base::ReadFile("/proc/" + std::to_string(pid) + "/" + file, &contents))
+  if (!base::ReadFile(path.c_str(), &contents))
     return "";
   return contents;
 }
 
 base::ScopedDir ProcessStatsDataSource::OpenProcTaskDir(int32_t pid) {
-  char task_path[255];
-  sprintf(task_path, "/proc/%d/task", pid);
-  return base::ScopedDir(opendir(task_path));
+  base::StackString<128> task_path("/proc/%d/task", pid);
+  return base::ScopedDir(opendir(task_path.c_str()));
 }
 
 std::string ProcessStatsDataSource::ReadProcStatusEntry(const std::string& buf,
@@ -367,6 +373,7 @@ void ProcessStatsDataSource::Tick(
     base::WeakPtr<ProcessStatsDataSource> weak_this) {
   if (!weak_this)
     return;
+  g_crash_key_proc_count.Clear();
   ProcessStatsDataSource& thiz = *weak_this;
   uint32_t period_ms = thiz.poll_period_ms_;
   uint32_t delay_ms =

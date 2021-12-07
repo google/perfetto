@@ -106,6 +106,7 @@ constexpr ProcessName kProcessNames[] = {
      "Service: recording.mojom.RecordingService"},
     {ChromeProcessDescriptor::PROCESS_SERVICE_SHAPEDETECTION,
      "Service: shape_detection.mojom.ShapeDetectionService"},
+    {ChromeProcessDescriptor::PROCESS_RENDERER_EXTENSION, "Extension Renderer"},
 };
 
 struct ThreadName {
@@ -166,6 +167,7 @@ constexpr ThreadName kThreadNames[] = {
     {ChromeThreadDescriptor::THREAD_NETWORKCONFIGWATCHER,
      "NetworkConfigWatcher"},
     {ChromeThreadDescriptor::THREAD_WASAPI_RENDER, "wasapi_render_thread"},
+    {ChromeThreadDescriptor::THREAD_LOADER_LOCK_SAMPLER, "LoaderLockSampler"},
 };
 
 }  // namespace

@@ -11,6 +11,8 @@ syntax = "proto2";
 
 package perfetto.protos;
 
+option go_package = "github.com/google/perfetto/perfetto_proto";
+
 // Begin of protos/perfetto/common/gpu_counter_descriptor.proto
 
 // Description of GPU counters.
@@ -157,6 +159,13 @@ message TrackEventDescriptor {
 message DataSourceDescriptor {
   // e.g., "linux.ftrace", "chromium.tracing"
   optional string name = 1;
+
+  // When non-zero, this is a unique ID within the scope of the Producer for
+  // this data source (it is NOT globally unique). This is useful to
+  // differentiate between data sources with matching names when calling
+  // UpdateDataSource(). This field has been introduced in November 2021
+  // (v22, Android T) and is not supported on older versions.
+  optional uint64 id = 7;
 
   // When true the data source is expected to ack the stop request through the
   // NotifyDataSourceStopped() IPC. This field has been introduced after
@@ -392,6 +401,22 @@ message FtraceConfig {
   // initialized synchronously on the data source start and hence avoiding
   // timing races in tests.
   optional bool initialize_ksyms_synchronously_for_testing = 14;
+
+  // When this boolean is true AND the ftrace_events contains "kmem/rss_stat",
+  // this option causes traced_probes to enable the "kmem/rss_stat_throttled"
+  // event instad if present, and fall back to "kmem/rss_stat" if not present.
+  // The historical context for this is the following:
+  // - Up to Android S (12), the rss_stat was internally throttled in its
+  //   kernel implementation.
+  // - A change introduced in the kernels after S has introduced a new
+  //   "rss_stat_throttled" making the original "rss_stat" event unthrottled
+  //   (hence very spammy).
+  // - Not all Android T/13 devices will receive a new kernel though, hence we
+  //   need to deal with both cases.
+  // For more context: go/rss-stat-throttled.
+  // TODO(kaleshsingh): implement the logic behind this. Right now this flag
+  // does nothing.
+  optional bool throttle_rss_stat = 15;
 }
 
 // End of protos/perfetto/config/ftrace/ftrace_config.proto

@@ -17,11 +17,15 @@ import("../../../gn/test.gni")
 if (enable_perfetto_trace_processor_sqlite) {
   source_set("sqlite") {
     sources = [
+      "create_function.cc",
+      "create_function.h",
       "db_sqlite_table.cc",
       "db_sqlite_table.h",
       "query_cache.h",
       "query_constraints.cc",
       "query_constraints.h",
+      "register_function.cc",
+      "register_function.h",
       "scoped_db.h",
       "span_join_operator_table.cc",
       "span_join_operator_table.h",
@@ -51,6 +55,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "../importers/common",
       "../storage",
       "../types",
+      "../util",
     ]
   }
 

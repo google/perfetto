@@ -40,7 +40,6 @@ gn_args = ' '.join([
     'host_os="linux"',
     'is_debug=false',
     'is_perfetto_build_generator=true',
-    'enable_perfetto_watchdog=true',
     'monolithic_binaries=true',
     'target_os="linux"',
     'enable_perfetto_heapprofd=false',
@@ -109,24 +108,24 @@ external_deps = {
         'PERFETTO_CONFIG.deps.sqlite_ext_percentile'
     ],
     '//gn:zlib': ['PERFETTO_CONFIG.deps.zlib'],
-    '//src/trace_processor/metrics:gen_merged_sql_metrics': [[
-        ':cc_merged_sql_metrics'
+    '//src/trace_processor/metrics/sql:gen_amalgamated_sql_metrics': [[
+        ':cc_amalgamated_sql_metrics'
     ]],
     gn_utils.GEN_VERSION_TARGET: ['PERFETTO_CONFIG.deps.version_header'],
 }
 
 
-def gen_sql_metrics(target):
-  label = BazelLabel(get_bazel_label_name(target.name), 'genrule')
+def gen_amalgamated_sql_metrics(target):
+  label = BazelLabel(get_bazel_label_name(target.name), 'perfetto_genrule')
   label.srcs += [re.sub('^//', '', x) for x in sorted(target.inputs)]
   label.outs += target.outputs
-  label.cmd = r'$(location gen_merged_sql_metrics_py) --cpp_out=$@ $(SRCS)'
-  label.exec_tools += [':gen_merged_sql_metrics_py']
+  label.cmd = r'$(location gen_amalgamated_sql_metrics_py) --cpp_out=$@ $(SRCS)'
+  label.exec_tools += [':gen_amalgamated_sql_metrics_py']
   return [label]
 
 
 def gen_version_header(target):
-  label = BazelLabel(get_bazel_label_name(target.name), 'genrule')
+  label = BazelLabel(get_bazel_label_name(target.name), 'perfetto_genrule')
   label.srcs += [re.sub('^//', '', x) for x in sorted(target.inputs)]
   label.outs += target.outputs
   label.cmd = r'$(location gen_version_header_py)'
@@ -145,7 +144,8 @@ def gen_cc_metrics_descriptor(target):
 
 custom_actions = {
     gn_utils.GEN_VERSION_TARGET: gen_version_header,
-    '//src/trace_processor/metrics:gen_merged_sql_metrics': gen_sql_metrics,
+    '//src/trace_processor/metrics/sql:gen_amalgamated_sql_metrics':
+        gen_amalgamated_sql_metrics,
 }
 
 # ------------------------------------------------------------------------------
@@ -360,7 +360,7 @@ def gen_target(gn_target):
   elif gn_target.type == 'static_library':
     bazel_type = 'perfetto_cc_library'
   elif gn_target.type == 'source_set':
-    bazel_type = 'filegroup'
+    bazel_type = 'perfetto_filegroup'
   else:
     raise Error('target type not supported: %s' % gn_target.type)
 
@@ -449,7 +449,10 @@ def generate_build(gn_desc, targets, extras):
 load("@perfetto_cfg//:perfetto_cfg.bzl", "PERFETTO_CONFIG")
 load(
     "@perfetto//bazel:rules.bzl",
+    "perfetto_build_config_cc_library",
     "perfetto_cc_binary",
+    "perfetto_filegroup",
+    "perfetto_genrule",
     "perfetto_cc_ipc_library",
     "perfetto_cc_library",
     "perfetto_cc_proto_descriptor",

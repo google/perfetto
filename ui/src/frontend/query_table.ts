@@ -25,7 +25,6 @@ import {globals} from './globals';
 import {Panel} from './panel';
 import {Router} from './router';
 import {
-  findUiTrackId,
   horizontalScrollAndZoomToRange,
   verticalScrollToTrack
 } from './scroll_helper';
@@ -57,8 +56,8 @@ class QueryTableRow implements m.ClassComponent<QueryTableRowAttrs> {
     const sliceDur = fromNs(Math.max(row.dur as number, 1));
     const sliceEnd = sliceStart + sliceDur;
     const trackId = row.track_id as number;
-    const uiTrackId = findUiTrackId(trackId);
-    if (uiTrackId === null) return;
+    const uiTrackId = globals.state.uiTrackIdByTraceTrackId.get(trackId);
+    if (uiTrackId === undefined) return;
     verticalScrollToTrack(uiTrackId, true);
     horizontalScrollAndZoomToRange(sliceStart, sliceEnd);
     let sliceId: number|undefined;
@@ -159,9 +158,15 @@ export class QueryTable extends Panel<QueryTableAttrs> {
               },
               'Close'),
             ),
+        // TODO(rsavitski): the x-scrollable works for the
+        // dedicated query page, but is insufficient in the case of
+        // the results being presented within the bottom details
+        // pane in the timeline view. In that case, the
+        // details-panel-container enforces non-scrollability.
+        // Ideally we'd want to make that case scrollable as well.
         resp.error ?
             m('.query-error', `SQL error: ${resp.error}`) :
-            m('.query-table-container .x-scrollable',
+            m('.query-table-container.x-scrollable',
               m('table.query-table', m('thead', header), m('tbody', rows))));
   }
 

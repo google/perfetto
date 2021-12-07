@@ -20,7 +20,6 @@ import {Area} from '../common/state';
 import {Flow, globals} from './globals';
 import {toggleHelp} from './help_modal';
 import {
-  findUiTrackId,
   horizontalScrollAndZoomToRange,
   verticalScrollToTrack
 } from './scroll_helper';
@@ -163,7 +162,8 @@ function moveByFocusedFlow(direction: Direction) {
   for (const flow of globals.connectedFlows) {
     if (flow.id === flowId) {
       const flowPoint = (direction === 'Backward' ? flow.begin : flow.end);
-      const uiTrackId = findUiTrackId(flowPoint.trackId);
+      const uiTrackId =
+          globals.state.uiTrackIdByTraceTrackId.get(flowPoint.trackId);
       if (uiTrackId) {
         globals.makeSelection(Actions.selectChromeSlice(
             {id: flowPoint.sliceId, trackId: uiTrackId, table: 'slice'}));

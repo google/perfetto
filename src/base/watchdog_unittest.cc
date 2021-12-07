@@ -36,17 +36,21 @@ namespace perfetto {
 namespace base {
 namespace {
 
+static auto kCrashReasonIgnored = WatchdogCrashReason::kUnspecified;
+
 class TestWatchdog : public Watchdog {
  public:
   explicit TestWatchdog(uint32_t polling_interval_ms)
-      : Watchdog(polling_interval_ms) {}
+      : Watchdog(polling_interval_ms) {
+    disable_kill_failsafe_for_testing_ = true;
+  }
   ~TestWatchdog() override {}
 };
 
 TEST(WatchdogTest, NoTimerCrashIfNotEnabled) {
   // CreateFatalTimer should be a noop if the watchdog is not enabled.
   TestWatchdog watchdog(100);
-  auto handle = watchdog.CreateFatalTimer(1);
+  auto handle = watchdog.CreateFatalTimer(1, kCrashReasonIgnored);
   usleep(100 * 1000);
 }
 
@@ -56,7 +60,7 @@ TEST(WatchdogTest, TimerCrash) {
       {
         TestWatchdog watchdog(100);
         watchdog.Start();
-        auto handle = watchdog.CreateFatalTimer(20);
+        auto handle = watchdog.CreateFatalTimer(20, kCrashReasonIgnored);
         usleep(200 * 1000);
       },
       "");
@@ -68,7 +72,7 @@ TEST(WatchdogTest, CrashEvenWhenMove) {
       {
         TestWatchdog watchdog(100);
         watchdog.Start();
-        timers.emplace(0, watchdog.CreateFatalTimer(20));
+        timers.emplace(0, watchdog.CreateFatalTimer(20, kCrashReasonIgnored));
         usleep(200 * 1000);
       },
       "");
@@ -145,7 +149,7 @@ TEST(WatchdogTest, TimerCrashDeliveredToCallerThread) {
       expected_tid = GetThreadId();
       TestWatchdog watchdog(100);
       watchdog.Start();
-      auto handle = watchdog.CreateFatalTimer(2);
+      auto handle = watchdog.CreateFatalTimer(2, kCrashReasonIgnored);
       usleep(200 * 1000);  // This will be interrupted by the fatal timer.
       std::unique_lock<std::mutex> lock(mutex);
       quit = true;
@@ -157,6 +161,7 @@ TEST(WatchdogTest, TimerCrashDeliveredToCallerThread) {
   };
 
   std::vector<std::thread> threads;
+
   for (size_t i = 0; i < 8; i++)
     threads.emplace_back(thread_fn, i);
 

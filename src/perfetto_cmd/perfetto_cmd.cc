@@ -17,16 +17,13 @@
 #include "src/perfetto_cmd/perfetto_cmd.h"
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/ext/base/scoped_file.h"
 
 #include <fcntl.h>
 #include <stdio.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <time.h>
-
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-#include <sys/system_properties.h>
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 
 // For dup().
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
@@ -43,9 +40,11 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/time.h"
+#include "perfetto/ext/base/android_utils.h"
 #include "perfetto/ext/base/ctrl_c_handler.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/getopt.h"
+#include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/thread_utils.h"
 #include "perfetto/ext/base/utils.h"
@@ -134,12 +133,12 @@ bool ParseTraceConfigPbtxt(const std::string& file_name,
 
 bool IsUserBuild() {
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
-  char value[PROP_VALUE_MAX];
-  if (!__system_property_get("ro.build.type", value)) {
+  std::string build_type = base::GetAndroidProp("ro.build.type");
+  if (build_type.empty()) {
     PERFETTO_ELOG("Unable to read ro.build.type: assuming user build");
     return true;
   }
-  return strcmp(value, "user") == 0;
+  return build_type == "user";
 #else
   return false;
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
@@ -182,7 +181,11 @@ Usage: %s
   --background     -d      : Exits immediately and continues in the background.
                              Prints the PID of the bg process. The printed PID
                              can used to gracefully terminate the tracing
-                             session by ussuing a `kill -TERM $PRINTED_PID`.
+                             session by issuing a `kill -TERM $PRINTED_PID`.
+  --background-wait -D     : Like --background, but waits (up to 30s) for all
+                             data sources to be started before exiting. Exit
+                             code is zero if a successful acknowledgement is
+                             received, non-zero otherwise (error or timeout).
   --config         -c      : /path/to/trace/config/file or - for stdin
   --out            -o      : /path/to/out/trace/file or - for stdout
   --txt                    : Parse config as pbtxt. Not for production use.
@@ -256,6 +259,7 @@ base::Optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
       {"config", required_argument, nullptr, 'c'},
       {"out", required_argument, nullptr, 'o'},
       {"background", no_argument, nullptr, 'd'},
+      {"background-wait", no_argument, nullptr, 'D'},
       {"time", required_argument, nullptr, 't'},
       {"buffer", required_argument, nullptr, 'b'},
       {"size", required_argument, nullptr, 's'},
@@ -295,7 +299,7 @@ base::Optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
 
   for (;;) {
     int option =
-        getopt_long(argc, argv, "hc:o:dt:b:s:a:", long_options, nullptr);
+        getopt_long(argc, argv, "hc:o:dDt:b:s:a:", long_options, nullptr);
 
     if (option == -1)
       break;  // EOF.
@@ -333,6 +337,13 @@ base::Optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
       background_ = true;
       continue;
     }
+
+    if (option == 'D') {
+      background_ = true;
+      background_wait_ = true;
+      continue;
+    }
+
     if (option == 't') {
       has_config_options = true;
       config_options.time = std::string(optarg);
@@ -488,8 +499,8 @@ base::Optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     return 1;
   }
 
-  if (bugreport_ &&
-      (is_attach() | is_detach() || query_service_ || has_config_options)) {
+  if (bugreport_ && (is_attach() || is_detach() || query_service_ ||
+                     has_config_options || background_wait_)) {
     PERFETTO_ELOG("--save-for-bugreport cannot take any other argument");
     return 1;
   }
@@ -691,10 +702,79 @@ base::Optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
   }
 
   if (background_) {
-    base::Daemonize();
+    if (background_wait_) {
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+      background_wait_pipe_ = base::Pipe::Create(base::Pipe::kRdNonBlock);
+#endif
+    }
+
+    base::Daemonize([this]() -> int {
+      background_wait_pipe_.wr.reset();
+
+      if (background_wait_) {
+        return WaitOnBgProcessPipe();
+      }
+
+      return 0;
+    });
+    background_wait_pipe_.rd.reset();
   }
 
-  return base::nullopt;  // Continues in ConnectToServiceAndRun() below.
+  return base::nullopt;  // Continues in ConnectToServiceRunAndMaybeNotify()
+                         // below.
+}
+
+void PerfettoCmd::NotifyBgProcessPipe(BgProcessStatus status) {
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  if (!background_wait_pipe_.wr) {
+    return;
+  }
+  static_assert(sizeof status == 1, "Enum bigger than one byte");
+  PERFETTO_EINTR(write(background_wait_pipe_.wr.get(), &status, 1));
+  background_wait_pipe_.wr.reset();
+#else   // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  base::ignore_result(status);
+#endif  //! PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+}
+
+PerfettoCmd::BgProcessStatus PerfettoCmd::WaitOnBgProcessPipe() {
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  base::ScopedPlatformHandle fd = std::move(background_wait_pipe_.rd);
+  PERFETTO_CHECK(fd);
+
+  BgProcessStatus msg;
+  static_assert(sizeof msg == 1, "Enum bigger than one byte");
+  std::array<pollfd, 1> pollfds = {pollfd{fd.get(), POLLIN, 0}};
+
+  int ret = PERFETTO_EINTR(poll(&pollfds[0], pollfds.size(), 30000 /*ms*/));
+  PERFETTO_CHECK(ret >= 0);
+  if (ret == 0) {
+    fprintf(stderr, "Timeout waiting for all data sources to start\n");
+    return kBackgroundTimeout;
+  }
+  ssize_t read_ret = PERFETTO_EINTR(read(fd.get(), &msg, 1));
+  PERFETTO_CHECK(read_ret >= 0);
+  if (read_ret == 0) {
+    fprintf(stderr, "Background process didn't report anything\n");
+    return kBackgroundOtherError;
+  }
+
+  if (msg != kBackgroundOk) {
+    fprintf(stderr, "Background process failed, BgProcessStatus=%d\n",
+            static_cast<int>(msg));
+    return msg;
+  }
+#endif  //! PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+
+  return kBackgroundOk;
+}
+
+int PerfettoCmd::ConnectToServiceRunAndMaybeNotify() {
+  int exit_code = ConnectToServiceAndRun();
+
+  NotifyBgProcessPipe(exit_code == 0 ? kBackgroundOk : kBackgroundOtherError);
+
+  return exit_code;
 }
 
 int PerfettoCmd::ConnectToServiceAndRun() {
@@ -792,6 +872,12 @@ int PerfettoCmd::ConnectToServiceAndRun() {
 
 void PerfettoCmd::OnConnect() {
   LogUploadEvent(PerfettoStatsdAtom::kOnConnect);
+
+  if (background_wait_) {
+    consumer_endpoint_->ObserveEvents(
+        perfetto::ObservableEvents::TYPE_ALL_DATA_SOURCES_STARTED);
+  }
+
   if (query_service_) {
     consumer_endpoint_->QueryServiceState(
         [this](bool success, const TracingServiceState& svc_state) {
@@ -1073,7 +1159,11 @@ void PerfettoCmd::PrintServiceState(bool success,
 }
 
 void PerfettoCmd::OnObservableEvents(
-    const ObservableEvents& /*observable_events*/) {}
+    const ObservableEvents& observable_events) {
+  if (observable_events.all_data_sources_started()) {
+    NotifyBgProcessPipe(kBackgroundOk);
+  }
+}
 
 void PerfettoCmd::LogUploadEvent(PerfettoStatsdAtom atom) {
   if (!statsd_logging_)
@@ -1095,7 +1185,7 @@ int PERFETTO_EXPORT_ENTRYPOINT PerfettoCmdMain(int argc, char** argv) {
   auto opt_res = cmd.ParseCmdlineAndMaybeDaemonize(argc, argv);
   if (opt_res.has_value())
     return *opt_res;
-  return cmd.ConnectToServiceAndRun();
+  return cmd.ConnectToServiceRunAndMaybeNotify();
 }
 
 }  // namespace perfetto

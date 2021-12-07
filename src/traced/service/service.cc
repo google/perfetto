@@ -153,7 +153,7 @@ int PERFETTO_EXPORT_ENTRYPOINT ServiceMain(int argc, char** argv) {
   }
 
   if (background) {
-    base::Daemonize();
+    base::Daemonize([] { return 0; });
   }
 
   base::UnixTaskRunner task_runner;
@@ -199,8 +199,13 @@ int PERFETTO_EXPORT_ENTRYPOINT ServiceMain(int argc, char** argv) {
     return 1;
   }
 
+  // Advertise builtin producers only on in-tree builds. These producers serve
+  // only to dynamically start heapprofd and other services via sysprops, but
+  // that can only ever happen in in-tree builds.
+#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
   BuiltinProducer builtin_producer(&task_runner, /*lazy_stop_delay_ms=*/30000);
   builtin_producer.ConnectInProcess(svc->service());
+#endif
 
   // Set the CPU limit and start the watchdog running. The memory limit will
   // be set inside the service code as it relies on the size of buffers.

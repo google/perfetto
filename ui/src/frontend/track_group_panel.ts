@@ -49,14 +49,18 @@ export class TrackGroupPanel extends Panel<Attrs> {
   private readonly trackGroupId: string;
   private shellWidth = 0;
   private backgroundColor = '#ffffff';  // Updated from CSS later.
-  private summaryTrack: Track;
+  private summaryTrack: Track|undefined;
 
   constructor({attrs}: m.CVnode<Attrs>) {
     super();
     this.trackGroupId = attrs.trackGroupId;
     const trackCreator = trackRegistry.get(this.summaryTrackState.kind);
-    this.summaryTrack =
-        trackCreator.create({trackId: this.summaryTrackState.id});
+    const engineId = this.summaryTrackState.engineId;
+    const engine = globals.engines.get(engineId);
+    if (engine !== undefined) {
+      this.summaryTrack =
+          trackCreator.create({trackId: this.summaryTrackState.id, engine});
+    }
   }
 
   get trackGroupState(): TrackGroupState {
@@ -102,6 +106,12 @@ export class TrackGroupPanel extends Panel<Attrs> {
       }
     }
 
+    let child = '';
+    if (this.summaryTrackState.labels &&
+        this.summaryTrackState.labels.length > 0) {
+      child = this.summaryTrackState.labels.join(', ');
+    }
+
     return m(
         `.track-group-panel[collapsed=${collapsed}]`,
         {id: 'track_' + this.trackGroupId},
@@ -136,7 +146,10 @@ export class TrackGroupPanel extends Panel<Attrs> {
                 checkBox) :
               ''),
 
-        this.summaryTrack ? m(TrackContent, {track: this.summaryTrack}) : null);
+        this.summaryTrack ? m(TrackContent,
+                              {track: this.summaryTrack},
+                              this.trackGroupState.collapsed ? '' : child) :
+                            null);
   }
 
   oncreate(vnode: m.CVnodeDOM<Attrs>) {

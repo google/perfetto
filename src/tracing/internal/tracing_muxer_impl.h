@@ -103,6 +103,8 @@ class TracingMuxerImpl : public TracingMuxer {
   bool RegisterDataSource(const DataSourceDescriptor&,
                           DataSourceFactory,
                           DataSourceStaticState*) override;
+  void UpdateDataSourceDescriptor(const DataSourceDescriptor&,
+                                  const DataSourceStaticState*) override;
   std::unique_ptr<TraceWriterBase> CreateTraceWriter(
       DataSourceStaticState*,
       uint32_t data_source_instance_index,
@@ -380,6 +382,8 @@ class TracingMuxerImpl : public TracingMuxer {
     std::vector<std::unique_ptr<ConsumerImpl>> consumers;
   };
 
+  void UpdateDataSourceOnAllBackends(RegisteredDataSource& rds,
+                                     bool is_changed);
   explicit TracingMuxerImpl(const TracingInitArgs&);
   void Initialize(const TracingInitArgs& args);
   ConsumerImpl* FindConsumer(TracingSessionGlobalID session_id);
@@ -409,6 +413,7 @@ class TracingMuxerImpl : public TracingMuxer {
 
   std::atomic<TracingSessionGlobalID> next_tracing_session_id_{};
   std::atomic<uint32_t> next_data_source_index_{};
+  uint32_t muxer_id_for_testing_{};
 
   // Maximum number of times we will try to reconnect producer backend.
   // Should only be modified for testing purposes.

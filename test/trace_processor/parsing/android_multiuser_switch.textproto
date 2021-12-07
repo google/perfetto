@@ -5,7 +5,7 @@ packet {
       timestamp: 3000000000 # 3e9
       pid: 4064
       print {
-        buf: "S|1204|onBeforeStartUser-10|0\n"
+        buf: "S|1204|UserDetailView.Adapter#onClick|0\n"
       }
     }
   }
@@ -17,7 +17,7 @@ packet {
       timestamp: 3100000000
       pid: 4064
       print {
-        buf: "F|1204|onBeforeStartUser-10|0\n"
+        buf: "F|1204|UserDetailView.Adapter#onClick|0\n"
       }
     }
   }
