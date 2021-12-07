@@ -46,6 +46,7 @@
 #include "protos/perfetto/trace/ftrace/lowmemorykiller.pbzero.h"
 #include "protos/perfetto/trace/ftrace/mali.pbzero.h"
 #include "protos/perfetto/trace/ftrace/mm_event.pbzero.h"
+#include "protos/perfetto/trace/ftrace/net.pbzero.h"
 #include "protos/perfetto/trace/ftrace/oom.pbzero.h"
 #include "protos/perfetto/trace/ftrace/power.pbzero.h"
 #include "protos/perfetto/trace/ftrace/raw_syscalls.pbzero.h"
@@ -575,6 +576,10 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kCpuhpPauseFieldNumber: {
         ParseCpuhpPause(ts, pid, data);
+        break;
+      }
+      case FtraceEvent::kNetifReceiveSkbFieldNumber: {
+        ParseNetifReceiveSkb(cpu, ts, data);
         break;
       }
       default:
@@ -1577,6 +1582,33 @@ void FtraceParser::ParseCpuhpPause(int64_t,
                                    protozero::ConstBytes blob) {
   protos::pbzero::CpuhpPauseFtraceEvent::Decoder evt(blob.data, blob.size);
   // TODO(b/183110813): Parse and visualize this event.
+}
+
+void FtraceParser::ParseNetifReceiveSkb(uint32_t cpu,
+                                        int64_t timestamp,
+                                        protozero::ConstBytes blob) {
+  protos::pbzero::NetifReceiveSkbFtraceEvent::Decoder evt(blob.data, blob.size);
+  base::StringView net_device = evt.name();
+  base::StackString<255> counter_name("%.*s Received KB",
+                                      static_cast<int>(net_device.size()),
+                                      net_device.data());
+  StringId name = context_->storage->InternString(counter_name.string_view());
+
+  nic_received_bytes_[name] += evt.len();
+
+  uint64_t nic_received_kilobytes = nic_received_bytes_[name] / 1024;
+  TrackId track = context_->track_tracker->InternGlobalCounterTrack(name);
+  base::Optional<CounterId> id = context_->event_tracker->PushCounter(
+      timestamp, static_cast<double>(nic_received_kilobytes), track);
+  if (!id) {
+    return;
+  }
+  // Store cpu & len as args for metrics computation
+  StringId cpu_key = context_->storage->InternString("cpu");
+  StringId len_key = context_->storage->InternString("len");
+  context_->args_tracker->AddArgsTo(*id)
+      .AddArg(cpu_key, Variadic::UnsignedInteger(cpu))
+      .AddArg(len_key, Variadic::UnsignedInteger(evt.len()));
 }
 
 }  // namespace trace_processor
