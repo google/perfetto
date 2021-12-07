@@ -34,10 +34,12 @@ def add_startup(trace, ts, pid):
       new_tid=pid,
       new_comm='com.google.android.calendar',
       flags=0)
+  trace.add_atrace_begin(ts=ts + 3, tid=pid, pid=pid, buf='bindApplication')
+  trace.add_atrace_end(ts=ts + 4, tid=pid, pid=pid)
   trace.add_atrace_async_end(
-      ts=ts + 4, tid=2, pid=2, buf='launching: com.google.android.calendar')
+      ts=ts + 5, tid=2, pid=2, buf='launching: com.google.android.calendar')
   trace.add_atrace_begin(
-      ts=ts + 5,
+      ts=ts + 6,
       tid=2,
       pid=2,
       buf='MetricsLogger:launchObserverNotifyActivityLaunchFinished')
