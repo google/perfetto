@@ -66,16 +66,17 @@ class HttpCli {
     auto checkpoint = task_runner_->CreateCheckpoint(checkpoint_name);
     std::string rxbuf;
     sock.SetBlocking(false);
-    task_runner_->AddFileDescriptorWatch(sock.fd(), [&] {
+    task_runner_->AddFileDescriptorWatch(sock.watch_handle(), [&] {
       char buf[1024]{};
       auto rsize = PERFETTO_EINTR(sock.Receive(buf, sizeof(buf)));
-      ASSERT_GE(rsize, 0);
+      if (rsize < 0)
+        return;
       rxbuf.append(buf, static_cast<size_t>(rsize));
       if (rsize == 0 || (min_bytes && rxbuf.length() >= min_bytes))
         checkpoint();
     });
     task_runner_->RunUntilCheckpoint(checkpoint_name);
-    task_runner_->RemoveFileDescriptorWatch(sock.fd());
+    task_runner_->RemoveFileDescriptorWatch(sock.watch_handle());
     return rxbuf;
   }
 
@@ -289,7 +290,9 @@ TEST_F(HttpServerTest, Websocket_OriginNotAllowed) {
   srv_.AddAllowedOrigin("notallowed.com");
 
   HttpCli cli(&task_runner_);
-  EXPECT_CALL(handler_, OnHttpConnectionClosed(_));
+  auto close_checkpoint = task_runner_.CreateCheckpoint("close");
+  EXPECT_CALL(handler_, OnHttpConnectionClosed(_))
+      .WillOnce(InvokeWithoutArgs(close_checkpoint));
   EXPECT_CALL(handler_, OnHttpRequest(_))
       .WillOnce(Invoke([&](const HttpRequest& req) {
         EXPECT_EQ(req.origin.ToStdString(), "http://notallowed.com");
@@ -314,6 +317,7 @@ TEST_F(HttpServerTest, Websocket_OriginNotAllowed) {
 
   EXPECT_EQ(cli.Recv(expected_resp.size()), expected_resp);
   cli.sock.Shutdown();
+  task_runner_.RunUntilCheckpoint("close");
 }
 
 }  // namespace
