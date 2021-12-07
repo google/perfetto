@@ -71,6 +71,8 @@ sql_files = [
   "android/gpu_counter_span_view.sql",
   "android/thread_counter_span_view.sql",
   "android/unsymbolized_frames.sql",
+  "android/startup/launches_maxsdk28.sql",
+  "android/startup/launches_minsdk29.sql",
   "android/startup/launches.sql",
   "android/startup/hsc.sql",
   "chrome/actual_power_by_category.sql",

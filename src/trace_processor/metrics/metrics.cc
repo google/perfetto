@@ -620,8 +620,9 @@ base::Status RunMetric::Run(RunMetric::Context* ctx,
   auto metric_it = std::find_if(
       ctx->metrics->begin(), ctx->metrics->end(),
       [path](const SqlMetricFile& metric) { return metric.path == path; });
-  if (metric_it == ctx->metrics->end())
-    return base::ErrStatus("RUN_METRIC: Unknown filename provided");
+  if (metric_it == ctx->metrics->end()) {
+    return base::ErrStatus("RUN_METRIC: Unknown filename provided %s", path);
+  }
   const auto& sql = metric_it->sql;
 
   std::unordered_map<std::string, std::string> substitutions;
