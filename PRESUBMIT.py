@@ -242,8 +242,7 @@ def CheckProtoEventList(input_api, output_api):
     if f.LocalPath() != 'tools/ftrace_proto_gen/event_list':
       continue
     if any((not new_line.startswith('removed')) and new_line != old_line
-           for old_line, new_line in itertools.izip(f.OldContents(),
-                                                    f.NewContents())):
+           for old_line, new_line in zip(f.OldContents(), f.NewContents())):
       return [
           output_api.PresubmitError(
               'event_list only has two supported changes: '
