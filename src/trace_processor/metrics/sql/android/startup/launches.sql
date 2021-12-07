@@ -57,22 +57,38 @@ END;
 -- However it is possible that the process dies during the activity launch
 -- and is respawned.
 DROP TABLE IF EXISTS launch_processes;
-CREATE TABLE launch_processes(launch_id INT, upid BIG INT);
+CREATE TABLE launch_processes(launch_id INT, upid BIG INT, launch_type STRING);
 
-INSERT INTO launch_processes
-SELECT launches.id, process.upid
-FROM launches
-LEFT JOIN package_list ON (
-  launches.package = package_list.package_name
-)
-JOIN process ON (
-  launches.package = process.name OR
-  process.uid = package_list.uid
-)
-JOIN thread ON (
-  process.upid = thread.upid AND
-  process.pid = thread.tid
-)
-WHERE (process.start_ts IS NULL OR process.start_ts < launches.ts_end)
-AND (thread.end_ts IS NULL OR thread.end_ts > launches.ts_end)
-ORDER BY process.start_ts DESC;
+SELECT CREATE_FUNCTION(
+  'STARTUP_SLICE_COUNT(start_ts LONG, end_ts LONG, utid INT, name STRING)',
+  'INT',
+  '
+    SELECT COUNT(1)
+    FROM thread_track t
+    JOIN slice s ON s.track_id = t.id
+    WHERE
+      t.utid = $utid AND
+      s.ts >= $start_ts AND
+      s.ts < $end_ts AND
+      s.name = $name
+  '
+);
+
+INSERT INTO launch_processes(launch_id, upid, launch_type)
+SELECT
+  l.id AS launch_id,
+  p.upid,
+  CASE
+    WHEN STARTUP_SLICE_COUNT(l.ts, l.ts_end, t.utid, 'bindApplication') > 0
+      THEN 'cold'
+    WHEN STARTUP_SLICE_COUNT(l.ts, l.ts_end, t.utid, 'activityStart') > 0
+      THEN 'warm'
+    WHEN STARTUP_SLICE_COUNT(l.ts, l.ts_end, t.utid, 'activityResume') > 0
+      THEN 'hot'
+    ELSE NULL
+  END AS launch_type
+FROM launches l
+LEFT JOIN package_list ON (l.package = package_list.package_name)
+JOIN process p ON (l.package = p.name OR p.uid = package_list.uid)
+JOIN thread t ON (p.upid = t.upid AND t.is_main_thread)
+WHERE launch_type IS NOT NULL;
