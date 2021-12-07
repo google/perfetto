@@ -9,6 +9,14 @@ Unreleased:
     *
 
 
+v22.1 - 2021-12-07:
+  Tracing service and probes:
+    * Added workaround for a Linux kernel bug causing some ftrace strings to
+      be non-null-terminated (https://github.com/torvalds/linux/commit/f0a5157).
+  Trace Processor:
+    * Fixed build failures on Windows.
+
+
 v22.0 - 2021-12-03:
   Tracing service and probes:
     * Added Android SDK version to the SystemInfo trace packet.
