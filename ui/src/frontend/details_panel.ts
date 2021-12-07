@@ -247,6 +247,13 @@ export class DetailsPanel implements m.ClassComponent {
               })
             });
           }
+          if (globals.flamegraphDetails.isInAreaSelection) {
+            detailsPanels.push({
+              key: 'flamegraph_selection',
+              name: 'Flamegraph Selection',
+              vnode: m(FlamegraphDetailsPanel, {key: 'flamegraph'})
+            });
+          }
           break;
         case 'SLICE':
           detailsPanels.push({

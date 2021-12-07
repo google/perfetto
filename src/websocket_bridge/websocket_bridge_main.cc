@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 The Android Open Source Project
+ * Copyright (C) 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,13 +14,10 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/importers/json/json_tracker.h"
+#include "src/websocket_bridge/websocket_bridge.h"
 
-namespace perfetto {
-namespace trace_processor {
-
-JsonTracker::JsonTracker(TraceProcessorContext*) {}
-JsonTracker::~JsonTracker() = default;
-
-}  // namespace trace_processor
-}  // namespace perfetto
+// This is split in a dedicated translation unit so that tracebox can refer to
+// WebsocketBridgeMain() without pulling in a main() symbol.
+int main(int argc, char** argv) {
+  return perfetto::WebsocketBridgeMain(argc, argv);
+}

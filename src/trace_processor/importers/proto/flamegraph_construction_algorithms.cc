@@ -93,7 +93,7 @@ static FlamegraphTableAndMergedCallsites BuildFlamegraphTableTreeStructure(
     TraceStorage* storage,
     base::Optional<UniquePid> upid,
     base::Optional<std::string> upid_group,
-    base::Optional<int64_t> timestamp,
+    int64_t default_timestamp,
     StringId profile_type) {
   const tables::StackProfileCallsiteTable& callsites_tbl =
       storage->stack_profile_callsite_table();
@@ -136,18 +136,19 @@ static FlamegraphTableAndMergedCallsites BuildFlamegraphTableTreeStructure(
         } else {
           row.depth = 0;
         }
-        // For heap profiling, the 'ts' column is always the arbitrary value
-        // inputed in a query of the form below, not the actual time
-        // when the allocation happened:
-        // `select * form experimental_flamegraph(605908369259172, 1, 'native')`
-        // However, removing this value would break the query with constraints
-        // such as the one above because SQLite will do an equality check on the
-        // `ts` column: `ts == 605908369259172`.
-        // TODO(octaviant) find a way of removing this or giving it a meaningful
-        // value
-        if (timestamp) {
-          row.ts = *timestamp;
-        }
+
+        // The 'ts' column is given a default value, taken from the query.
+        // So if the query is:
+        // `select * form experimental_flamegraph
+        //  where ts = 605908369259172
+        //  and upid = 1
+        //  and profile_type = 'native'`
+        // then row.ts == 605908369259172, for all rows
+        // This is not accurate. However, at present there is no other
+        // straightforward way of assigning timestamps to non-leaf nodes in the
+        // flamegraph tree. Non-leaf nodes would have to be assigned >= 1
+        // timestamps, which would increase data size without an advantage.
+        row.ts = default_timestamp;
         if (upid) {
           row.upid = *upid;
         }
@@ -399,14 +400,33 @@ BuildNativeCallStackSamplingFlamegraph(
         SqlValue::Long(tc.value)};
     filtered = filtered.Filter({cs});
   }
-
   if (filtered.row_count() == 0) {
-    return nullptr;
+    std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> empty_tbl(
+        new tables::ExperimentalFlamegraphNodesTable(
+            storage->mutable_string_pool(), nullptr));
+    return empty_tbl;
+  }
+
+  // The logic underneath is selecting a default timestamp to be used by all
+  // frames which do not have a timestamp. The timestamp is taken from the query
+  // value and it's not meaningful for the row. It prevents however the rows
+  // with no timestamp from being filtered out by Sqlite, after we create the
+  // table ExperimentalFlamegraphNodesTable in this class.
+  int64_t default_timestamp = 0;
+  if (!time_constraints.empty()) {
+    auto& tc = time_constraints[0];
+    if (tc.op == FilterOp::kGt) {
+      default_timestamp = tc.value + 1;
+    } else if (tc.op == FilterOp::kLt) {
+      default_timestamp = tc.value - 1;
+    } else {
+      default_timestamp = tc.value;
+    }
   }
   StringId profile_type = storage->InternString("perf");
   FlamegraphTableAndMergedCallsites table_and_callsites =
       BuildFlamegraphTableTreeStructure(storage, upid, upid_group,
-                                        base::nullopt, profile_type);
+                                        default_timestamp, profile_type);
   return BuildFlamegraphTableCallstackSizeAndCount(
       std::move(table_and_callsites.tbl),
       table_and_callsites.callsite_to_merged_callsite, filtered);

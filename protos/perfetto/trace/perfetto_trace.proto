@@ -785,6 +785,13 @@ message JavaHprofConfig {
     optional uint32 dump_phase_ms = 1;
     // ms to wait between following dumps.
     optional uint32 dump_interval_ms = 2;
+    // If true, scans all the processes to find `process_cmdline` and filter by
+    // `min_anonymous_memory_kb` only at data source start. Default on Android
+    // S-.
+    //
+    // If false, rescans all the processes to find on every dump. Default on
+    // Android T+.
+    optional bool scan_pids_only_on_start = 3;
   }
 
   // This input is normalized in the following way: if it contains slashes,
@@ -829,6 +836,7 @@ message JavaHprofConfig {
 
 // Begin of protos/perfetto/common/perf_events.proto
 
+// Next id: 12
 message PerfEvents {
   // What event to sample on, and how often. Commented from the perspective of
   // its use in |PerfEventConfig|.
@@ -860,6 +868,13 @@ message PerfEvents {
       Tracepoint tracepoint = 3;
       RawEvent raw_event = 5;
     }
+
+    // If set, samples will be timestamped with the given clock.
+    // If unset, the clock is chosen by the implementation.
+    // For software events, prefer PERF_CLOCK_BOOTTIME. However it cannot be
+    // used for hardware events (due to interrupt safety), for which the
+    // recommendation is to use one of the monotonic clocks.
+    optional PerfClock timestamp_clock = 11;
 
     // Optional arbitrary name for the event, to identify it in the parsed
     // trace. Does *not* affect the profiling itself. If unset, the trace
@@ -899,6 +914,17 @@ message PerfEvents {
     optional uint64 config = 2;
     optional uint64 config1 = 3;
     optional uint64 config2 = 4;
+  }
+
+  // Subset of clocks that is supported by perf timestamping.
+  // CLOCK_TAI is excluded since it's not expected to be used in practice, but
+  // would require additions to the trace clock synchronisation logic.
+  enum PerfClock {
+    UNKNOWN_PERF_CLOCK = 0;
+    PERF_CLOCK_REALTIME = 1;
+    PERF_CLOCK_MONOTONIC = 2;
+    PERF_CLOCK_MONOTONIC_RAW = 3;
+    PERF_CLOCK_BOOTTIME = 4;
   }
 }
 
@@ -4849,6 +4875,16 @@ message MmEventRecordFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/mm_event.proto
 
+// Begin of protos/perfetto/trace/ftrace/net.proto
+
+message NetifReceiveSkbFtraceEvent {
+  optional uint32 len = 1;
+  optional string name = 2;
+  optional uint64 skbaddr = 3;
+}
+
+// End of protos/perfetto/trace/ftrace/net.proto
+
 // Begin of protos/perfetto/trace/ftrace/oom.proto
 
 message OomScoreAdjUpdateFtraceEvent {
@@ -5128,6 +5164,17 @@ message SyncWaitFtraceEvent {
 }
 
 // End of protos/perfetto/trace/ftrace/sync.proto
+
+// Begin of protos/perfetto/trace/ftrace/synthetic.proto
+
+message RssStatThrottledFtraceEvent {
+  optional uint32 curr = 1;
+  optional int32 member = 2;
+  optional uint32 mm_id = 3;
+  optional int64 size = 4;
+}
+
+// End of protos/perfetto/trace/ftrace/synthetic.proto
 
 // Begin of protos/perfetto/trace/ftrace/systrace.proto
 
@@ -5600,6 +5647,8 @@ message FtraceEvent {
     SdeSdePerfCrtcUpdateFtraceEvent sde_sde_perf_crtc_update = 356;
     SdeSdePerfSetQosLutsFtraceEvent sde_sde_perf_set_qos_luts = 357;
     SdeSdePerfUpdateBusFtraceEvent sde_sde_perf_update_bus = 358;
+    RssStatThrottledFtraceEvent rss_stat_throttled = 359;
+    NetifReceiveSkbFtraceEvent netif_receive_skb = 360;
   }
 }
 
@@ -8163,9 +8212,9 @@ message Profiling {
 // individual sample with a counter value, and optionally a
 // callstack.
 //
-// Timestamps are within the root packet. This used to use the CLOCK_BOOTTIME
-// domain, but now the default is CLOCK_MONOTONIC_RAW which is compatible with
-// more event types.
+// Timestamps are within the root packet. The config can specify the clock, or
+// the implementation will default to CLOCK_MONOTONIC_RAW. Within the Android R
+// timeframe, the default was CLOCK_BOOTTIME.
 //
 // There are several distinct views of this message:
 // * indication of kernel buffer data loss (kernel_records_lost set)

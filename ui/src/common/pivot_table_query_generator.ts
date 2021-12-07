@@ -121,7 +121,6 @@ export class PivotTableQueryGenerator {
   private generateJoinQuery(
       pivots: PivotAttrs[], aggregations: AggregationAttrs[],
       whereFilters: string[], joinTables: string[]): string {
-    let joinQuery = 'SELECT\n';
 
     const pivotCols = [];
     for (const pivot of pivots) {
@@ -147,15 +146,14 @@ export class PivotTableQueryGenerator {
           `${getSqlAggregationAlias(aggregation)}`);
     }
 
-    joinQuery += pivotCols.concat(aggCols).join(',\n  ');
-    joinQuery += '\n';
-    joinQuery += 'FROM\n';
-    joinQuery += joinTables.join(',\n  ');
-    joinQuery += '\n';
-    joinQuery += 'WHERE\n';
-    joinQuery += whereFilters.join(' AND\n  ');
-    joinQuery += '\n';
-    return joinQuery;
+    return `
+      SELECT
+        ${pivotCols.concat(aggCols).join(',\n  ')}
+      FROM
+        ${joinTables.join(',\n  ')}
+      WHERE
+        ${whereFilters.join(' AND\n  ')}
+    `;
   }
 
   // Partitions the aggregations from the subquery generateJoinQuery over
@@ -170,7 +168,6 @@ export class PivotTableQueryGenerator {
           pivots, aggregations, whereFilters, joinTables);
     }
 
-    let aggQuery = 'SELECT\n';
     const pivotCols = getSqlAliasedPivotColumns(pivots);
     let partitionByPivotCols = pivotCols;
     if (pivots.length > 0 && pivots[0].isStackPivot) {
@@ -211,13 +208,14 @@ export class PivotTableQueryGenerator {
           `${getSqlAggregationAlias(aggregation)}`);
     }
 
-    aggQuery += pivotCols.concat(aggCols).join(',\n  ');
-    aggQuery += '\n';
-    aggQuery += 'FROM (\n';
-    aggQuery +=
-        this.generateJoinQuery(pivots, aggregations, whereFilters, joinTables);
-    aggQuery += ')\n';
-    return aggQuery;
+    return `
+      SELECT
+        ${pivotCols.concat(aggCols).join(',\n  ')}
+      FROM (
+        ${
+        this.generateJoinQuery(pivots, aggregations, whereFilters, joinTables)}
+      )
+    `;
   }
 
   // Takes a list of pivots and aggregations and generates a query that
@@ -233,7 +231,6 @@ export class PivotTableQueryGenerator {
       return '';
     }
 
-    let query = '\nSELECT\n';
 
     const pivotCols = getSqlAliasedPivotColumns(pivots);
     const aggCols = getSqlAliasedAggregationsColumns(
@@ -241,19 +238,20 @@ export class PivotTableQueryGenerator {
         /* has_pivots_selected = */ pivots.length > 0,
         isStackQuery);
 
-    query += pivotCols.concat(aggCols).join(',\n  ');
-    query += '\n';
-    query += 'FROM (\n';
-    query += this.generateAggregationQuery(
-        pivots, aggregations, whereFilters, joinTables, isStackQuery);
-    query += ')\n';
-    query += 'GROUP BY ';
-
-    // Grouping by each pivot, additional pivots, and aggregations.
     const aggregationsGroupBy =
         aggregations.map(aggregation => getSqlAggregationAlias(aggregation));
-    query += pivotCols.concat(aggregationsGroupBy).join(',  ');
-    query += '\n';
+
+    let query = `
+      SELECT
+        ${pivotCols.concat(aggCols).join(',\n  ')}
+      FROM (
+        ${
+        this.generateAggregationQuery(
+            pivots, aggregations, whereFilters, joinTables, isStackQuery)}
+      )
+      GROUP BY
+        ${pivotCols.concat(aggregationsGroupBy).join(',  ')}
+    `;
 
     const pivotsOrderBy = [];
 
@@ -274,9 +272,10 @@ export class PivotTableQueryGenerator {
         aggregations.map(aggregation => orderString(aggregation));
 
     if (orderBy && pivotsOrderBy.length + aggregationsOrderBy.length > 0) {
-      query += 'ORDER BY ';
-      query += pivotsOrderBy.concat(aggregationsOrderBy).join(',  ');
-      query += '\n';
+      query += `
+        ORDER BY
+          ${pivotsOrderBy.concat(aggregationsOrderBy).join(',  ')}
+      `;
     }
     return query;
   }

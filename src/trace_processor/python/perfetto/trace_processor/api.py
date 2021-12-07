@@ -135,7 +135,7 @@ class TraceProcessor:
 
       except ModuleNotFoundError:
         raise TraceProcessorException(
-            'The sufficient libraries are not installed')
+            'Python dependencies missing. Please pip3 install pandas numpy')
 
     def __len__(self):
       return self.__count
@@ -238,8 +238,13 @@ class TraceProcessor:
 
     return response.metatrace
 
-  # TODO(@aninditaghosh): Investigate context managers for
-  # cleaner usage
+  def __enter__(self):
+    return self
+
+  def __exit__(self, _, __, ___):
+    self.close()
+    return False
+
   def close(self):
     if hasattr(self, 'subprocess'):
       self.subprocess.kill()

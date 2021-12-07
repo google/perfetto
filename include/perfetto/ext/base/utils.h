@@ -165,16 +165,31 @@ AlignedUniquePtr<T> AlignedAllocTyped(size_t n_membs) {
 template <typename Func>
 class OnScopeExitWrapper {
  public:
-  explicit OnScopeExitWrapper(Func f) : f_(std::move(f)) {}
-  ~OnScopeExitWrapper() { f_(); }
+  explicit OnScopeExitWrapper(Func f) : f_(std::move(f)), active_(true) {}
+  OnScopeExitWrapper(OnScopeExitWrapper&& other) noexcept
+      : f_(std::move(other.f_)), active_(other.active_) {
+    other.active_ = false;
+  }
+  ~OnScopeExitWrapper() {
+    if (active_)
+      f_();
+  }
 
  private:
-  Func const f_;
+  Func f_;
+  bool active_;
 };
 
 template <typename Func>
 PERFETTO_WARN_UNUSED_RESULT OnScopeExitWrapper<Func> OnScopeExit(Func f) {
   return OnScopeExitWrapper<Func>(std::move(f));
+}
+
+// Returns a xxd-style hex dump (hex + ascii chars) of the input data.
+std::string HexDump(const void* data, size_t len, size_t bytes_per_line = 16);
+inline std::string HexDump(const std::string& data,
+                           size_t bytes_per_line = 16) {
+  return HexDump(data.data(), data.size(), bytes_per_line);
 }
 
 }  // namespace base

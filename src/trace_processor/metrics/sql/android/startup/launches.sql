@@ -12,29 +12,6 @@
 -- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
---
-
--- Marks the beginning of the trace and is equivalent to when the statsd launch
--- logging begins.
-DROP VIEW IF EXISTS activity_intent_received;
-CREATE VIEW activity_intent_received AS
-SELECT ts FROM slice
-WHERE name = 'MetricsLogger:launchObserverNotifyIntentStarted';
-
--- We partition the trace into spans based on posted activity intents.
--- We will refine these progressively in the next steps to only encompass
--- activity starts.
-DROP TABLE IF EXISTS activity_intent_recv_spans;
-CREATE TABLE activity_intent_recv_spans(id INT, ts BIG INT, dur BIG INT);
-
-INSERT INTO activity_intent_recv_spans
-SELECT
-  ROW_NUMBER()
-    OVER(ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS id,
-  ts,
-  LEAD(ts, 1, (SELECT end_ts FROM trace_bounds)) OVER(ORDER BY ts) - ts AS dur
-FROM activity_intent_received
-ORDER BY ts;
 
 -- The start of the launching event corresponds to the end of the AM handling
 -- the startActivity intent, whereas the end corresponds to the first frame drawn.
@@ -52,64 +29,66 @@ JOIN process USING(upid)
 WHERE s.name GLOB 'launching: *'
 AND (process.name IS NULL OR process.name = 'system_server');
 
--- Filter activity_intent_recv_spans, keeping only the ones that triggered
--- a launch.
-DROP VIEW IF EXISTS launch_partitions;
-CREATE VIEW launch_partitions AS
-SELECT * FROM activity_intent_recv_spans AS spans
-WHERE 1 = (
-  SELECT COUNT(1)
-  FROM launching_events
-  WHERE launching_events.ts BETWEEN spans.ts AND spans.ts + spans.dur);
+SELECT CREATE_FUNCTION(
+  'ANDROID_SDK_LEVEL()',
+  'INT', "
+    SELECT int_value
+    FROM metadata
+    WHERE name = 'android_sdk_version'
+  ");
 
--- Successful activity launch. The end of the 'launching' event is not related
--- to whether it actually succeeded or not.
-DROP VIEW IF EXISTS activity_intent_launch_successful;
-CREATE VIEW activity_intent_launch_successful AS
-SELECT ts FROM slice
-WHERE name = 'MetricsLogger:launchObserverNotifyActivityLaunchFinished';
-
--- All activity launches in the trace, keyed by ID.
-DROP TABLE IF EXISTS launches;
-CREATE TABLE launches(
-  ts BIG INT,
-  ts_end BIG INT,
-  dur BIG INT,
-  id INT,
-  package STRING);
-
--- Use the starting event package name. The finish event package name
--- is not reliable in the case of failed launches.
-INSERT INTO launches
-SELECT
-  lpart.ts AS ts,
-  launching_events.ts_end AS ts_end,
-  launching_events.ts_end - lpart.ts AS dur,
-  lpart.id AS id,
-  package_name AS package
-FROM launch_partitions AS lpart
-JOIN launching_events ON
-  (launching_events.ts BETWEEN lpart.ts AND lpart.ts + lpart.dur) AND
-  (launching_events.ts_end BETWEEN lpart.ts AND lpart.ts + lpart.dur)
-WHERE (
-  SELECT COUNT(1)
-  FROM activity_intent_launch_successful AS successful
-  WHERE successful.ts BETWEEN lpart.ts AND lpart.ts + lpart.dur
-) > 0;
+-- Note: on Q, we didn't have Android fingerprints but we *did*
+-- have ActivityMetricsLogger events so we will use this approach
+-- if we see any such events.
+SELECT CASE
+  WHEN (
+    ANDROID_SDK_LEVEL() >= 29
+    OR (
+      SELECT COUNT(1) FROM slice
+      WHERE name GLOB 'MetricsLogger:*'
+    ) > 0
+  )
+  THEN RUN_METRIC('android/startup/launches_minsdk29.sql')
+  ELSE RUN_METRIC('android/startup/launches_maxsdk28.sql')
+END;
 
 -- Maps a launch to the corresponding set of processes that handled the
 -- activity start. The vast majority of cases should be a single process.
 -- However it is possible that the process dies during the activity launch
 -- and is respawned.
 DROP TABLE IF EXISTS launch_processes;
-CREATE TABLE launch_processes(launch_id INT, upid BIG INT);
+CREATE TABLE launch_processes(launch_id INT, upid BIG INT, launch_type STRING);
 
-INSERT INTO launch_processes
-SELECT launches.id, process.upid
-FROM launches
-  LEFT JOIN package_list ON (launches.package = package_list.package_name)
-  JOIN process ON (launches.package = process.name OR process.uid = package_list.uid)
-  JOIN thread ON (process.upid = thread.upid AND process.pid = thread.tid)
-WHERE (process.start_ts IS NULL OR process.start_ts < launches.ts_end)
-AND (thread.end_ts IS NULL OR thread.end_ts > launches.ts_end)
-ORDER BY process.start_ts DESC;
+SELECT CREATE_FUNCTION(
+  'STARTUP_SLICE_COUNT(start_ts LONG, end_ts LONG, utid INT, name STRING)',
+  'INT',
+  '
+    SELECT COUNT(1)
+    FROM thread_track t
+    JOIN slice s ON s.track_id = t.id
+    WHERE
+      t.utid = $utid AND
+      s.ts >= $start_ts AND
+      s.ts < $end_ts AND
+      s.name = $name
+  '
+);
+
+INSERT INTO launch_processes(launch_id, upid, launch_type)
+SELECT
+  l.id AS launch_id,
+  p.upid,
+  CASE
+    WHEN STARTUP_SLICE_COUNT(l.ts, l.ts_end, t.utid, 'bindApplication') > 0
+      THEN 'cold'
+    WHEN STARTUP_SLICE_COUNT(l.ts, l.ts_end, t.utid, 'activityStart') > 0
+      THEN 'warm'
+    WHEN STARTUP_SLICE_COUNT(l.ts, l.ts_end, t.utid, 'activityResume') > 0
+      THEN 'hot'
+    ELSE NULL
+  END AS launch_type
+FROM launches l
+LEFT JOIN package_list ON (l.package = package_list.package_name)
+JOIN process p ON (l.package = p.name OR p.uid = package_list.uid)
+JOIN thread t ON (p.upid = t.upid AND t.is_main_thread)
+WHERE launch_type IS NOT NULL;

@@ -72,10 +72,8 @@ export function drawIncompleteSlice(
     x: number,
     y: number,
     width: number,
-    height: number,
-    color: string) {
+    height: number) {
   ctx.beginPath();
-  ctx.fillStyle = color;
   const triangleSize = height / 4;
   ctx.moveTo(x, y);
   ctx.lineTo(x + width, y);

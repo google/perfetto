@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 The Android Open Source Project
+ * Copyright (C) 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,27 +14,24 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/importers/json/json_tracker.h"
+#ifndef INCLUDE_PERFETTO_EXT_BASE_HTTP_SHA1_H_
+#define INCLUDE_PERFETTO_EXT_BASE_HTTP_SHA1_H_
 
-#include "test/gtest_and_gmock.h"
+#include <stddef.h>
 
-#include <json/value.h>
+#include <array>
+#include <string>
 
 namespace perfetto {
-namespace trace_processor {
-namespace {
+namespace base {
 
-TEST(JsonTrackerTest, Ns) {
-  JsonTracker tracker(nullptr);
-  tracker.SetTimeUnit(json::TimeUnit::kNs);
-  ASSERT_EQ(tracker.CoerceToTs(Json::Value(42)).value_or(-1), 42);
-}
+constexpr size_t kSHA1Length = 20;
+using SHA1Digest = std::array<uint8_t, kSHA1Length>;
 
-TEST(JsonTraceUtilsTest, Us) {
-  JsonTracker tracker(nullptr);
-  ASSERT_EQ(tracker.CoerceToTs(Json::Value(42)).value_or(-1), 42000);
-}
+SHA1Digest SHA1Hash(const std::string& str);
+SHA1Digest SHA1Hash(const void* data, size_t size);
 
-}  // namespace
-}  // namespace trace_processor
+}  // namespace base
 }  // namespace perfetto
+
+#endif  // INCLUDE_PERFETTO_EXT_BASE_HTTP_SHA1_H_

@@ -353,3 +353,5 @@ sde/sde_perf_calc_crtc
 sde/sde_perf_crtc_update
 sde/sde_perf_set_qos_luts
 sde/sde_perf_update_bus
+synthetic/rss_stat_throttled
+net/netif_receive_skb

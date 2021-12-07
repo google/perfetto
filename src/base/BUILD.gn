@@ -159,9 +159,14 @@ perfetto_unittest_source_set("unittests") {
     "../../gn:gtest_and_gmock",
   ]
 
+  if (enable_perfetto_ipc) {
+    deps += [ "http:unittests" ]
+  }
+
   sources = [
     "base64_unittest.cc",
     "circular_queue_unittest.cc",
+    "flat_hash_map_unittest.cc",
     "flat_set_unittest.cc",
     "getopt_compat_unittest.cc",
     "logging_unittest.cc",
@@ -211,13 +216,33 @@ perfetto_unittest_source_set("unittests") {
 }
 
 if (enable_perfetto_benchmarks) {
+  declare_args() {
+    perfetto_benchmark_3p_libs_prefix = ""
+  }
   source_set("benchmarks") {
+    # If you intend to reproduce the comparison with {Absl, Folly, Tessil}
+    # you need to manually install those libraries and then set the GN arg
+    # perfetto_benchmark_3p_libs_prefix = "/usr/local"
     testonly = true
     deps = [
       ":base",
       "../../gn:benchmark",
       "../../gn:default_deps",
     ]
-    sources = [ "flat_set_benchmark.cc" ]
+    if (perfetto_benchmark_3p_libs_prefix != "") {
+      configs -= [ "//gn/standalone:c++11" ]
+      configs += [ "//gn/standalone:c++17" ]
+      defines = [ "PERFETTO_HASH_MAP_COMPARE_THIRD_PARTY_LIBS" ]
+      cflags = [ "-isystem${perfetto_benchmark_3p_libs_prefix}/include" ]
+      libs = [
+        "${perfetto_benchmark_3p_libs_prefix}/lib/libfolly.a",
+        "${perfetto_benchmark_3p_libs_prefix}/lib/libabsl_raw_hash_set.a",
+        "${perfetto_benchmark_3p_libs_prefix}/lib/libabsl_hash.a",
+      ]
+    }
+    sources = [
+      "flat_hash_map_benchmark.cc",
+      "flat_set_benchmark.cc",
+    ]
   }
 }

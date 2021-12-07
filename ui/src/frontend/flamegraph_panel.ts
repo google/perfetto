@@ -14,7 +14,7 @@
 
 import * as m from 'mithril';
 
-import {assertExists} from '../base/logging';
+import {assertExists, assertTrue} from '../base/logging';
 import {Actions} from '../common/actions';
 import {
   ALLOC_SPACE_MEMORY_ALLOCATED_KEY,
@@ -74,7 +74,7 @@ const RENDER_OBJ_COUNT: NodeRendering = {
 export class FlamegraphDetailsPanel extends Panel<FlamegraphDetailsPanelAttrs> {
   private profileType?: ProfileType = undefined;
   private ts = 0;
-  private pid = 0;
+  private pids: number[] = [];
   private flamegraph: Flamegraph = new Flamegraph([]);
   private focusRegex = '';
   private updateFocusRegexDebounced = debounce(() => {
@@ -84,13 +84,13 @@ export class FlamegraphDetailsPanel extends Panel<FlamegraphDetailsPanelAttrs> {
   view() {
     const flamegraphDetails = globals.flamegraphDetails;
     if (flamegraphDetails && flamegraphDetails.type !== undefined &&
-        flamegraphDetails.ts !== undefined &&
-        flamegraphDetails.tsNs !== undefined &&
-        flamegraphDetails.pid !== undefined &&
-        flamegraphDetails.upid !== undefined) {
+        flamegraphDetails.startNs !== undefined &&
+        flamegraphDetails.durNs !== undefined &&
+        flamegraphDetails.pids !== undefined &&
+        flamegraphDetails.upids !== undefined) {
       this.profileType = toProfileType(flamegraphDetails.type);
-      this.ts = flamegraphDetails.tsNs;
-      this.pid = flamegraphDetails.pid;
+      this.ts = flamegraphDetails.durNs;
+      this.pids = flamegraphDetails.pids;
       if (flamegraphDetails.flamegraph) {
         this.flamegraph.updateDataIfChanged(
             this.nodeRendering(), flamegraphDetails.flamegraph);
@@ -134,7 +134,7 @@ export class FlamegraphDetailsPanel extends Panel<FlamegraphDetailsPanelAttrs> {
                         toSelectedCallsite(
                             flamegraphDetails.expandedCallsite)}`),
                   m('div.time',
-                    `Snapshot time: ${timeToCode(flamegraphDetails.ts)}`),
+                    `Snapshot time: ${timeToCode(flamegraphDetails.durNs)}`),
                   m('input[type=text][placeholder=Focus]', {
                     oninput: (e: Event) => {
                       const target = (e.target as HTMLInputElement);
@@ -216,7 +216,10 @@ export class FlamegraphDetailsPanel extends Panel<FlamegraphDetailsPanelAttrs> {
     if (!engine) return;
     getCurrentTrace()
         .then(file => {
-          convertTraceToPprofAndDownload(file, this.pid, this.ts);
+          assertTrue(
+              this.pids.length === 1,
+              'Native profiles can only contain one pid.');
+          convertTraceToPprofAndDownload(file, this.pids[0], this.ts);
         })
         .catch(error => {
           throw new Error(`Failed to get current trace ${error}`);
@@ -261,13 +264,13 @@ export class FlamegraphDetailsPanel extends Panel<FlamegraphDetailsPanelAttrs> {
     switch (profileType) {
       case ProfileType.PERF_SAMPLE:
         return [this.buildButtonComponent(PERF_SAMPLES_KEY, 'samples')];
-      case ProfileType.NATIVE_HEAP_PROFILE:
+      case ProfileType.JAVA_HEAP_GRAPH:
         return [
           this.buildButtonComponent(
               SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY, 'space'),
           this.buildButtonComponent(OBJECTS_ALLOCATED_NOT_FREED_KEY, 'objects')
         ];
-      case ProfileType.JAVA_HEAP_GRAPH:
+      case ProfileType.NATIVE_HEAP_PROFILE:
         return [
           this.buildButtonComponent(
               SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY, 'space'),

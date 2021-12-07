@@ -19,6 +19,7 @@
 
 #include <stdint.h>
 
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -78,11 +79,11 @@ class FlowTracker {
     }
   };
 
-  using FlowToSourceSliceMap = std::unordered_map<FlowId, SliceId>;
-  using PendingFlowsMap = std::unordered_map<TrackId, std::vector<FlowId>>;
+  using FlowToSourceSliceMap = base::FlatHashMap<FlowId, SliceId>;
+  using PendingFlowsMap = base::FlatHashMap<TrackId, std::vector<FlowId>>;
   using V1FlowIdToFlowIdMap =
-      std::unordered_map<V1FlowId, FlowId, V1FlowIdHasher>;
-  using FlowIdToV1FlowId = std::unordered_map<FlowId, V1FlowId>;
+      base::FlatHashMap<V1FlowId, FlowId, V1FlowIdHasher>;
+  using FlowIdToV1FlowId = base::FlatHashMap<FlowId, V1FlowId>;
 
   void InsertFlow(FlowId flow_id,
                   SliceId outgoing_slice_id,

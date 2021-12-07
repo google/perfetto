@@ -16,6 +16,7 @@ import {Draft} from 'immer';
 
 import {assertExists, assertTrue} from '../base/logging';
 import {randomColor} from '../common/colorizer';
+import {RecordConfig} from '../controller/record_config_types';
 import {ACTUAL_FRAMES_SLICE_TRACK_KIND} from '../tracks/actual_frames/common';
 import {ASYNC_SLICE_TRACK_KIND} from '../tracks/async_slices/common';
 import {COUNTER_TRACK_KIND} from '../tracks/counter/common';
@@ -32,6 +33,7 @@ import {
 } from '../tracks/process_scheduling/common';
 import {PROCESS_SUMMARY_TRACK} from '../tracks/process_summary/common';
 
+import {createEmptyState} from './empty_state';
 import {DEFAULT_VIEWING_OPTION, PERF_SAMPLES_KEY} from './flamegraph_util';
 import {
   AggregationAttrs,
@@ -43,14 +45,12 @@ import {
   AdbRecordingTarget,
   Area,
   CallsiteInfo,
-  createEmptyState,
   EngineMode,
   FlamegraphStateViewingOption,
   LoadedConfig,
   LogsPagination,
   NewEngineMode,
   OmniboxState,
-  RecordConfig,
   RecordingTarget,
   SCROLLING_TRACK_GROUP,
   State,
@@ -60,6 +60,7 @@ import {
   TrackState,
   VisibleState,
 } from './state';
+import {toNs} from './time';
 
 type StateDraft = Draft<State>;
 
@@ -616,8 +617,13 @@ export const StateActions = {
       ts: args.ts,
       type: args.type,
     };
-    this.openFlamegraph(
-        state, {...args, viewingOption: DEFAULT_VIEWING_OPTION});
+    this.openFlamegraph(state, {
+      type: args.type,
+      startNs: toNs(state.traceTime.startSec),
+      endNs: args.ts,
+      upids: [args.upid],
+      viewingOption: DEFAULT_VIEWING_OPTION
+    });
   },
 
   selectPerfSamples(
@@ -630,21 +636,27 @@ export const StateActions = {
       ts: args.ts,
       type: args.type,
     };
-    this.openFlamegraph(state, {...args, viewingOption: PERF_SAMPLES_KEY});
+    this.openFlamegraph(state, {
+      type: args.type,
+      startNs: toNs(state.traceTime.startSec),
+      endNs: args.ts,
+      upids: [args.upid],
+      viewingOption: PERF_SAMPLES_KEY
+    });
   },
 
   openFlamegraph(state: StateDraft, args: {
-    id: number,
-    upid: number,
-    ts: number,
+    upids: number[],
+    startNs: number,
+    endNs: number,
     type: string,
     viewingOption: FlamegraphStateViewingOption
   }): void {
     state.currentFlamegraphState = {
       kind: 'FLAMEGRAPH_STATE',
-      id: args.id,
-      upid: args.upid,
-      ts: args.ts,
+      upids: args.upids,
+      startNs: args.startNs,
+      endNs: args.endNs,
       type: args.type,
       viewingOption: args.viewingOption,
       focusRegex: ''

@@ -29,26 +29,28 @@
     }
     input[type=file] { display:none; }
     >header {
-        font-family: 'Raleway', sans-serif;
+        font-family: 'Roboto Condensed', sans-serif;
+        font-weight: 700;
+        font-size: 24px;
         height: var(--topbar-height);
         line-height: var(--topbar-height);
         vertical-align: middle;
         padding: 0 20px;
         color: #fff;
-        font-weight: 400;
-        font-size: 24px;
-        letter-spacing: 0.5px;
         overflow: visible;
         .brand {
           height: 40px;
           margin-top: 4px;
+        }
+        &::before {
+          z-index: 10;
         }
         &.canary::before, &.autopush::before {
           display: block;
           position: absolute;
           font-size: 10px;
           line-height: 10px;
-          font-family: 'Roboto', sans-serif;
+          font-family: 'Raleway', sans-serif;
           left: 155px;
           top: 7px;
         }
@@ -183,7 +185,7 @@
                         margin-left: 10px;
                         border-radius: 50%;
                         border: 2px solid #b4b7ba;
-                        border-color: #b4b7ba transparent #b4b7ba transparent;
+                        border-color: #b4b7ba transparent;
                         animation: pending-spinner 1.25s linear infinite;
                       }
                       @keyframes pending-spinner {
@@ -225,6 +227,7 @@
       height: - var(--sidebar-padding-bottom);
       grid-template-columns: repeat(4, min-content);
       grid-gap: 10px;
+      user-select: text;
 
       > button {
         color: hsl(217, 39%, 94%);
@@ -270,7 +273,7 @@
         right: 8px;
         bottom: 3px;
         font-size: 12px;
-        font-family: 'Roboto Condensed', 'Roboto', sans-serif;
+        font-family: 'Roboto Condensed', sans-serif;
         a {
           color: rgba(255, 255, 255, 0.5);
           text-decoration: none;

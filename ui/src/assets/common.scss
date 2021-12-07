@@ -70,7 +70,7 @@
 
 * {
     box-sizing: border-box;
-    -webkit-tap-highlight-color: none;
+    -webkit-tap-highlight-color: transparent;
     touch-action: none;
 }
 
@@ -89,6 +89,10 @@ body>main {
     margin: 0;
     user-select: none;
     overscroll-behavior: none;
+}
+
+pre, code {
+  font-family: var(--monospace-font);
 }
 
 // This is to minimize Mac vs Linux Chrome Headless rendering differences
@@ -155,17 +159,13 @@ button.close {
 
 .full-page-loading-screen {
     position: absolute;
-    background: #3e4a5a;
     width: 100%;
     height: 100%;
     display: flex;
     justify-content: center;
     align-items: center;
     flex-direction: row;
-    background-image: url('assets/logo-3d.png');
-    background-attachment: fixed;
-    background-repeat: no-repeat;
-    background-position: center;
+    background: #3e4a5a url('assets/logo-3d.png') no-repeat fixed center;
 }
 
 .page {
@@ -484,7 +484,7 @@ button.query-ctrl {
 
 .debug-panel-border {
   position: absolute;
-  top: 0px;
+  top: 0;
   height: 100%;
   width: 100%;
   border: 1px solid rgba(69, 187, 73, 0.5);
@@ -498,7 +498,7 @@ button.query-ctrl {
   left: 0;
   width: 600px;
   color: var(--stroke-color);
-  font-family: monospace;
+  font-family: var(--monospace-font);
   padding: 10px 24px;
   z-index: 100;
   background-color: rgba(27, 28, 29, 0.90);
@@ -522,13 +522,13 @@ button.query-ctrl {
     border-bottom: 1px solid var(--stroke-color);
   }
   div {
-    margin: 2px 0px;
+    margin: 2px 0;
   }
   table, td, th {
     border: 1px solid var(--stroke-color);
     text-align: center;
     padding: 4px;
-    margin: 4px 0px;
+    margin: 4px 0;
   }
   table {
     border-collapse: collapse;
@@ -755,7 +755,7 @@ button.query-ctrl {
   margin-left: 10px;
   border-radius: 50%;
   border: 2px solid #408ee0;
-  border-color: #408ee0 transparent #408ee0 transparent;
+  border-color: #408ee0 transparent;
   animation: spinner 1.25s linear infinite;
   @keyframes spinner {
     0% { transform: rotate(0deg); }

@@ -8,7 +8,7 @@ android_startup {
     }
     zygote_new_process: false
     to_first_frame {
-      dur_ns: 4
+      dur_ns: 5
       main_thread_by_task_state {
         running_dur_ns: 0
         runnable_dur_ns: 0
@@ -22,11 +22,19 @@ android_startup {
       }
       mcycles_by_core_type {
       }
-      dur_ms: 4e-06
+      time_bind_application {
+        dur_ns: 1
+        dur_ms: 1e-06
+      }
+      dur_ms: 5e-06
+      to_bind_application {
+        dur_ns: 3
+        dur_ms: 3e-06
+      }
     }
     event_timestamps {
       intent_received: 100
-      first_frame: 104
+      first_frame: 105
     }
     activity_hosting_process_count: 1
   }
@@ -39,7 +47,7 @@ android_startup {
     }
     zygote_new_process: false
     to_first_frame {
-      dur_ns: 4
+      dur_ns: 5
       main_thread_by_task_state {
         running_dur_ns: 0
         runnable_dur_ns: 0
@@ -53,11 +61,19 @@ android_startup {
       }
       mcycles_by_core_type {
       }
-      dur_ms: 4e-06
+      time_bind_application {
+        dur_ns: 1
+        dur_ms: 1e-06
+      }
+      dur_ms: 5e-06
+      to_bind_application {
+        dur_ns: 3
+        dur_ms: 3e-06
+      }
     }
     event_timestamps {
       intent_received: 200
-      first_frame: 204
+      first_frame: 205
     }
     activity_hosting_process_count: 1
   }

@@ -94,15 +94,11 @@
   -moz-osx-font-smoothing: grayscale;
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
-  -webkit-transform: translateZ(0);
   transform: translateZ(0);
-  transition: -webkit-transform .25s ease-out;
   transition: transform .25s ease-out;
-  transition: transform .25s ease-out,-webkit-transform .25s ease-out;
 }
 
 .modal-btn:focus, .modal-btn:hover {
-  -webkit-transform: scale(1.05);
   transform: scale(1.05);
 }
 
@@ -195,7 +191,7 @@
   border: 1px solid #999;
   background: #eee;
   font-size: 10px;
-  font-family: monospace;
+  font-family: var(--monospace-font);
   -webkit-user-select: text;
   margin-top: 10px;
   margin-bottom: 10px;

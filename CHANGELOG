@@ -1,15 +1,47 @@
 Unreleased:
   Tracing service and probes:
+    *
+  Trace Processor:
+    *
+  UI:
+    *
+  SDK:
+    *
+
+
+v22.0 - 2021-12-03:
+  Tracing service and probes:
     * Added Android SDK version to the SystemInfo trace packet.
     * Changed compiler flags. Assume recent x64 CPUs (-msse4.2 -mavx -mpopcnt).
       This behavior affects only standalone builds and can be changed by setting
       enable_perfetto_x64_cpu_opt=false in the GN args.
+    * The java heap profiler now rescans all the processes every time for
+      continous_dump_config. The scan_pids_only_on_start can be used to restore
+      the old behavior.
+    * Added support for building on ARM Macs.
+    * Added support for the rss_stat_throttled event on Android via
+      FtraceConfig.throttle_rss_stat. In newer Android kernels the base rss_stat
+      event is now unthrottled. rss_stat used to be throttled by a downstream
+      kernel change, unnecessary after https://lkml.org/lkml/2021/10/25/1411 .
+      atrace.rc configures throttling from userspace at boot.
+    * Fixed a bug that caused IPCs to stall traced and hit the watchdog if in
+      the middle of a suspend/resume. Switched from SND_TIMEO to poll(POLLOUT).
+    * Added "linux.sysfs_power" data source to poll /sys/class/power_supply/
+      and report periodically battery charge and drain rate if supported.
   Trace Processor:
+    * Speeded up proto trace ingestion by 2x (~20 MB/s -> ~40 MB/s).
     * Changed LIKE comparisions to be case-senstive. This may break existing
       queries but was a necessary from a performance perspective.
+      Going forward, GLOB must be used, instead of LIKE, for checked in metrics
+      to avoid unnecessary slowdowns.
     * Changed compiler flags, assume recent x64 CPUs (see above).
+    * Changed how displayTimeUnit is handled in JSON traces to match catapult.
+    * Added websocket endpoint to RPC interface to reduce query latency.
+    * Added support for hot-reloading metrics (see //docs/analysis/metrics.md).
   UI:
-    *
+    * Added ability to save/restore record config. Remember last used config.
+    * Fixed bug causing the recording page to hold onto the USB interface making
+      adb unusable after a recording session.
   SDK:
     * Added UpdateDataSource() descriptor IPC endpoint to allow updates of the
       data source capabilities (e.g., category list for track event).

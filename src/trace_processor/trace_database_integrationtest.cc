@@ -58,9 +58,24 @@ TEST(TraceProcessorCustomConfigTest, SkipInternalMetricsMatchingMountPath) {
   ASSERT_EQ(it.Get(0).long_value, 1);
 }
 
+TEST(TraceProcessorCustomConfigTest, EmptyStringSkipsAllMetrics) {
+  auto config = Config();
+  config.skip_builtin_metric_paths = {""};
+  auto processor = TraceProcessor::CreateInstance(config);
+  processor->NotifyEndOfFile();
+
+  // Check that other metrics have been loaded.
+  auto it = processor->ExecuteQuery(
+      "select count(*) from trace_metrics "
+      "where name = 'trace_metadata';");
+  ASSERT_TRUE(it.Next());
+  ASSERT_EQ(it.Get(0).type, SqlValue::kLong);
+  ASSERT_EQ(it.Get(0).long_value, 0);
+}
+
 TEST(TraceProcessorCustomConfigTest, HandlesMalformedMountPath) {
   auto config = Config();
-  config.skip_builtin_metric_paths = {"", "androi"};
+  config.skip_builtin_metric_paths = {"androi"};
   auto processor = TraceProcessor::CreateInstance(config);
   processor->NotifyEndOfFile();
 

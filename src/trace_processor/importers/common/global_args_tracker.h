@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_GLOBAL_ARGS_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_GLOBAL_ARGS_TRACKER_H_
 
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/small_vector.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -116,13 +117,16 @@ class GlobalArgsTracker {
     auto* arg_table = context_->storage->mutable_arg_table();
 
     ArgSetHash digest = hash.digest();
-    auto it = arg_row_for_hash_.find(digest);
-    if (it != arg_row_for_hash_.end())
-      return arg_table->arg_set_id()[it->second];
+    auto it_and_inserted =
+        arg_row_for_hash_.Insert(digest, arg_table->row_count());
+    if (!it_and_inserted.second) {
+      // Already inserted.
+      return arg_table->arg_set_id()[*it_and_inserted.first];
+    }
 
-    // The +1 ensures that nothing has an id == kInvalidArgSetId == 0.
-    ArgSetId id = static_cast<uint32_t>(arg_row_for_hash_.size()) + 1;
-    arg_row_for_hash_.emplace(digest, arg_table->row_count());
+    // Taking size() after the Insert() ensures that nothing has an id == 0
+    // (0 == kInvalidArgSetId).
+    ArgSetId id = static_cast<uint32_t>(arg_row_for_hash_.size());
     for (uint32_t i : valid_indexes) {
       const auto& arg = args[i];
 
@@ -171,7 +175,7 @@ class GlobalArgsTracker {
  private:
   using ArgSetHash = uint64_t;
 
-  std::unordered_map<ArgSetHash, uint32_t, base::AlreadyHashed<ArgSetHash>>
+  base::FlatHashMap<ArgSetHash, uint32_t, base::AlreadyHashed<ArgSetHash>>
       arg_row_for_hash_;
 
   TraceProcessorContext* context_;

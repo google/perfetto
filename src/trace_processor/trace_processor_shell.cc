@@ -342,7 +342,6 @@ util::Status RegisterMetric(const std::string& register_metric) {
   base::ReadFile(register_metric, &sql);
 
   std::string path = "shell/" + BaseName(register_metric);
-
   return g_tp->RegisterMetric(path, sql);
 }
 
@@ -387,9 +386,19 @@ enum OutputFormat {
   kNone,
 };
 
-util::Status RunMetrics(const std::vector<std::string>& metric_names,
+struct MetricNameAndPath {
+  std::string name;
+  base::Optional<std::string> no_ext_path;
+};
+
+util::Status RunMetrics(const std::vector<MetricNameAndPath>& metrics,
                         OutputFormat format,
                         const google::protobuf::DescriptorPool& pool) {
+  std::vector<std::string> metric_names(metrics.size());
+  for (size_t i = 0; i < metrics.size(); ++i) {
+    metric_names[i] = metrics[i].name;
+  }
+
   if (format == OutputFormat::kTextProto) {
     std::string out;
     util::Status status =
@@ -416,10 +425,10 @@ util::Status RunMetrics(const std::vector<std::string>& metric_names,
       google::protobuf::DynamicMessageFactory factory(&pool);
       auto* descriptor =
           pool.FindMessageTypeByName("perfetto.protos.TraceMetrics");
-      std::unique_ptr<google::protobuf::Message> metrics(
+      std::unique_ptr<google::protobuf::Message> metric_msg(
           factory.GetPrototype(descriptor)->New());
-      metrics->ParseFromArray(metric_result.data(),
-                              static_cast<int>(metric_result.size()));
+      metric_msg->ParseFromArray(metric_result.data(),
+                                 static_cast<int>(metric_result.size()));
 
       // We need to instantiate field options from dynamic message factory
       // because otherwise it cannot parse our custom extensions.
@@ -427,7 +436,7 @@ util::Status RunMetrics(const std::vector<std::string>& metric_names,
           factory.GetPrototype(
               pool.FindMessageTypeByName("google.protobuf.FieldOptions"));
       auto out = proto_to_json::MessageToJsonWithAnnotations(
-          *metrics, field_options_prototype, 0);
+          *metric_msg, field_options_prototype, 0);
       fwrite(out.c_str(), sizeof(char), out.size(), stdout);
       break;
     }
@@ -708,6 +717,7 @@ struct CommandLineOptions {
   bool wide = false;
   bool force_full_sort = false;
   std::string metatrace_path;
+  bool dev = false;
 };
 
 void PrintUsage(char** argv) {
@@ -759,7 +769,12 @@ Options:
                                       Loads metric proto and sql files from
                                       DISK_PATH/protos and DISK_PATH/sql
                                       respectively, and mounts them onto
-                                      VIRTUAL_PATH.)",
+                                      VIRTUAL_PATH.
+ --dev                                Enables features which are reserved for
+                                      local development use only and
+                                      *should not* be enabled on production
+                                      builds. The features behind this flag can
+                                      break at any time without any warning.)",
                 argv[0]);
 }
 
@@ -772,6 +787,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
     OPT_FORCE_FULL_SORT,
     OPT_HTTP_PORT,
     OPT_METRIC_EXTENSION,
+    OPT_DEV,
   };
 
   static const option long_options[] = {
@@ -791,6 +807,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
       {"full-sort", no_argument, nullptr, OPT_FORCE_FULL_SORT},
       {"http-port", required_argument, nullptr, OPT_HTTP_PORT},
       {"metric-extension", required_argument, nullptr, OPT_METRIC_EXTENSION},
+      {"dev", no_argument, nullptr, OPT_DEV},
       {nullptr, 0, nullptr, 0}};
 
   bool explicit_interactive = false;
@@ -879,6 +896,11 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 
     if (option == OPT_METRIC_EXTENSION) {
       command_line_options.raw_metric_extensions.push_back(optarg);
+      continue;
+    }
+
+    if (option == OPT_DEV) {
+      command_line_options.dev = true;
       continue;
     }
 
@@ -995,7 +1017,8 @@ util::Status RunQueries(const std::string& query_file_path,
   return util::OkStatus();
 }
 
-base::Status ParseSingleMetricExtensionPath(const std::string& raw_extension,
+base::Status ParseSingleMetricExtensionPath(bool dev,
+                                            const std::string& raw_extension,
                                             MetricExtension& parsed_extension) {
   // We cannot easily use ':' as a path separator because windows paths can have
   // ':' in them (e.g. C:\foo\bar).
@@ -1007,6 +1030,15 @@ base::Status ParseSingleMetricExtensionPath(const std::string& raw_extension,
 
   parsed_extension.SetDiskPath(std::move(parts[0]));
   parsed_extension.SetVirtualPath(std::move(parts[1]));
+
+  if (parsed_extension.virtual_path() == "/") {
+    if (!dev) {
+      return base::ErrStatus(
+          "Local development features must be enabled (using the "
+          "--dev flag) to override built-in metrics");
+    }
+    parsed_extension.SetVirtualPath("");
+  }
 
   if (parsed_extension.virtual_path() == "shell/") {
     return base::Status(
@@ -1037,11 +1069,12 @@ base::Status CheckForDuplicateMetricExtension(
 }
 
 base::Status ParseMetricExtensionPaths(
+    bool dev,
     const std::vector<std::string>& raw_metric_extensions,
     std::vector<MetricExtension>& metric_extensions) {
   for (const auto& raw_extension : raw_metric_extensions) {
     metric_extensions.push_back({});
-    RETURN_IF_ERROR(ParseSingleMetricExtensionPath(raw_extension,
+    RETURN_IF_ERROR(ParseSingleMetricExtensionPath(dev, raw_extension,
                                                    metric_extensions.back()));
   }
   return CheckForDuplicateMetricExtension(metric_extensions);
@@ -1123,13 +1156,9 @@ base::Status LoadMetricExtension(const MetricExtension& extension) {
   return base::OkStatus();
 }
 
-util::Status RunMetrics(const CommandLineOptions& options,
-                        std::vector<MetricExtension>& metric_extensions) {
-  // Descriptor pool used for printing output as textproto. Building on top of
-  // generated pool so default protos in google.protobuf.descriptor.proto are
-  // available.
-  google::protobuf::DescriptorPool pool(
-      google::protobuf::DescriptorPool::generated_pool());
+util::Status PopulateDescriptorPool(
+    google::protobuf::DescriptorPool& pool,
+    const std::vector<MetricExtension>& metric_extensions) {
   // TODO(b/182165266): There is code duplication here with trace_processor_impl
   // SetupMetrics. This will be removed when we switch the output formatter to
   // use internal DescriptorPool.
@@ -1143,65 +1172,100 @@ util::Status RunMetrics(const CommandLineOptions& options,
   ExtendPoolWithBinaryDescriptor(pool, kAllChromeMetricsDescriptor.data(),
                                  kAllChromeMetricsDescriptor.size(),
                                  skip_prefixes);
+  return base::OkStatus();
+}
 
-  std::vector<std::string> metrics;
-  for (base::StringSplitter ss(options.metric_names, ','); ss.Next();) {
-    metrics.emplace_back(ss.cur_token());
+util::Status LoadMetrics(const std::string& raw_metric_names,
+                         google::protobuf::DescriptorPool& pool,
+                         std::vector<MetricNameAndPath>& name_and_path) {
+  std::vector<std::string> split;
+  for (base::StringSplitter ss(raw_metric_names, ','); ss.Next();) {
+    split.emplace_back(ss.cur_token());
   }
 
   // For all metrics which are files, register them and extend the metrics
   // proto.
-  for (size_t i = 0; i < metrics.size(); ++i) {
-    const std::string& metric_or_path = metrics[i];
-
+  for (const std::string& metric_or_path : split) {
     // If there is no extension, we assume it is a builtin metric.
     auto ext_idx = metric_or_path.rfind('.');
-    if (ext_idx == std::string::npos)
+    if (ext_idx == std::string::npos) {
+      name_and_path.emplace_back(
+          MetricNameAndPath{metric_or_path, base::nullopt});
       continue;
+    }
 
-    std::string no_ext_name = metric_or_path.substr(0, ext_idx);
+    std::string no_ext_path = metric_or_path.substr(0, ext_idx);
 
     // The proto must be extended before registering the metric.
-    util::Status status = ExtendMetricsProto(no_ext_name + ".proto", &pool);
+    util::Status status = ExtendMetricsProto(no_ext_path + ".proto", &pool);
     if (!status.ok()) {
       return util::ErrStatus("Unable to extend metrics proto %s: %s",
                              metric_or_path.c_str(), status.c_message());
     }
 
-    status = RegisterMetric(no_ext_name + ".sql");
+    status = RegisterMetric(no_ext_path + ".sql");
     if (!status.ok()) {
       return util::ErrStatus("Unable to register metric %s: %s",
                              metric_or_path.c_str(), status.c_message());
     }
+    name_and_path.emplace_back(
+        MetricNameAndPath{BaseName(no_ext_path), no_ext_path});
+  }
+  return base::OkStatus();
+}
 
-    metrics[i] = BaseName(no_ext_name);
+OutputFormat ParseOutputFormat(const CommandLineOptions& options) {
+  if (!options.query_file_path.empty())
+    return OutputFormat::kNone;
+  if (options.metric_output == "binary")
+    return OutputFormat::kBinaryProto;
+  if (options.metric_output == "json")
+    return OutputFormat::kJson;
+  return OutputFormat::kTextProto;
+}
+
+base::Status LoadMetricsAndExtensionsSql(
+    const std::vector<MetricNameAndPath>& metrics,
+    const std::vector<MetricExtension>& extensions) {
+  for (const MetricExtension& extension : extensions) {
+    const std::string& disk_path = extension.disk_path();
+    const std::string& virtual_path = extension.virtual_path();
+
+    RETURN_IF_ERROR(LoadMetricExtensionSql(disk_path + "sql/", virtual_path));
   }
 
-  OutputFormat format;
-  if (!options.query_file_path.empty()) {
-    format = OutputFormat::kNone;
-  } else if (options.metric_output == "binary") {
-    format = OutputFormat::kBinaryProto;
-  } else if (options.metric_output == "json") {
-    format = OutputFormat::kJson;
-  } else {
-    format = OutputFormat::kTextProto;
+  for (const MetricNameAndPath& metric : metrics) {
+    // Ignore builtin metrics.
+    if (!metric.no_ext_path.has_value())
+      continue;
+    RETURN_IF_ERROR(RegisterMetric(metric.no_ext_path.value() + ".sql"));
   }
-
-  return RunMetrics(std::move(metrics), format, pool);
+  return base::OkStatus();
 }
 
 void PrintShellUsage() {
   PERFETTO_ELOG(
       "Available commands:\n"
-      ".quit, .q    Exit the shell.\n"
-      ".help        This text.\n"
-      ".dump FILE   Export the trace as a sqlite database.\n"
-      ".read FILE   Executes the queries in the FILE.\n"
-      ".reset       Destroys all tables/view created by the user.\n");
+      ".quit, .q         Exit the shell.\n"
+      ".help             This text.\n"
+      ".dump FILE        Export the trace as a sqlite database.\n"
+      ".read FILE        Executes the queries in the FILE.\n"
+      ".reset            Destroys all tables/view created by the user.\n"
+      ".load-metrics-sql Reloads SQL from extension and custom metric paths\n"
+      "                  specified in command line args.\n"
+      ".run-metrics      Runs metrics specified in command line args\n"
+      "                  and prints the result.\n");
 }
 
-util::Status StartInteractiveShell(uint32_t column_width) {
+struct InteractiveOptions {
+  uint32_t column_width;
+  OutputFormat metric_format;
+  std::vector<MetricExtension> extensions;
+  std::vector<MetricNameAndPath> metrics;
+  const google::protobuf::DescriptorPool* pool;
+};
+
+util::Status StartInteractiveShell(const InteractiveOptions& options) {
   SetupLineEditor();
 
   for (;;) {
@@ -1230,6 +1294,23 @@ util::Status StartInteractiveShell(uint32_t column_width) {
         if (!status.ok()) {
           PERFETTO_ELOG("%s", status.c_message());
         }
+      } else if (strcmp(command, "load-metrics-sql") == 0) {
+        base::Status status =
+            LoadMetricsAndExtensionsSql(options.metrics, options.extensions);
+        if (!status.ok()) {
+          PERFETTO_ELOG("%s", status.c_message());
+        }
+      } else if (strcmp(command, "run-metrics") == 0) {
+        if (options.metrics.empty()) {
+          PERFETTO_ELOG("No metrics specified on command line");
+          continue;
+        }
+
+        base::Status status =
+            RunMetrics(options.metrics, options.metric_format, *options.pool);
+        if (!status.ok()) {
+          PERFETTO_ELOG("%s", status.c_message());
+        }
       } else {
         PrintShellUsage();
       }
@@ -1238,7 +1319,7 @@ util::Status StartInteractiveShell(uint32_t column_width) {
 
     base::TimeNanos t_start = base::GetWallTimeNs();
     auto it = g_tp->ExecuteQuery(line.get());
-    PrintQueryResultInteractively(&it, t_start, column_width);
+    PrintQueryResultInteractively(&it, t_start, options.column_width);
   }
   return util::OkStatus();
 }
@@ -1252,8 +1333,8 @@ util::Status TraceProcessorMain(int argc, char** argv) {
                             : SortingMode::kDefaultHeuristics;
 
   std::vector<MetricExtension> metric_extensions;
-  RETURN_IF_ERROR(ParseMetricExtensionPaths(options.raw_metric_extensions,
-                                            metric_extensions));
+  RETURN_IF_ERROR(ParseMetricExtensionPaths(
+      options.dev, options.raw_metric_extensions, metric_extensions));
 
   for (const auto& extension : metric_extensions) {
     config.skip_builtin_metric_paths.push_back(extension.virtual_path());
@@ -1282,8 +1363,8 @@ util::Status TraceProcessorMain(int argc, char** argv) {
     t_load = base::GetWallTimeNs() - t_load_start;
 
     double t_load_s = static_cast<double>(t_load.count()) / 1E9;
-    PERFETTO_ILOG("Trace loaded: %.2f MB (%.1f MB/s)", size_mb,
-                  size_mb / t_load_s);
+    PERFETTO_ILOG("Trace loaded: %.2f MB in %.2fs (%.1f MB/s)", size_mb,
+                  t_load_s, size_mb / t_load_s);
 
     RETURN_IF_ERROR(PrintStats());
   }
@@ -1304,8 +1385,23 @@ util::Status TraceProcessorMain(int argc, char** argv) {
     RETURN_IF_ERROR(RunQueries(options.pre_metrics_path, false));
   }
 
+  // Descriptor pool used for printing output as textproto. Building on top of
+  // generated pool so default protos in google.protobuf.descriptor.proto are
+  // available.
+  // For some insane reason, the descriptor pool is not movable so we need to
+  // create it here so we can create references and pass it everywhere.
+  google::protobuf::DescriptorPool pool(
+      google::protobuf::DescriptorPool::generated_pool());
+  RETURN_IF_ERROR(PopulateDescriptorPool(pool, metric_extensions));
+
+  std::vector<MetricNameAndPath> metrics;
   if (!options.metric_names.empty()) {
-    RETURN_IF_ERROR(RunMetrics(options, metric_extensions));
+    RETURN_IF_ERROR(LoadMetrics(options.metric_names, pool, metrics));
+  }
+
+  OutputFormat metric_format = ParseOutputFormat(options);
+  if (!metrics.empty()) {
+    RETURN_IF_ERROR(RunMetrics(metrics, metric_format, pool));
   }
 
   if (!options.query_file_path.empty()) {
@@ -1318,7 +1414,9 @@ util::Status TraceProcessorMain(int argc, char** argv) {
   }
 
   if (options.launch_shell) {
-    RETURN_IF_ERROR(StartInteractiveShell(options.wide ? 40 : 20));
+    RETURN_IF_ERROR(StartInteractiveShell(
+        InteractiveOptions{options.wide ? 40u : 20u, metric_format,
+                           metric_extensions, metrics, &pool}));
   } else if (!options.perf_file_path.empty()) {
     RETURN_IF_ERROR(PrintPerfFile(options.perf_file_path, t_load, t_query));
   }
