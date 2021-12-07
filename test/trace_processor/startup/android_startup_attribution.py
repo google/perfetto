@@ -18,7 +18,7 @@ from os import sys, path
 import synth_common
 
 APP_PID = 3
-APP_TID = 1
+APP_TID = APP_PID
 SECOND_APP_TID = 3
 JIT_TID = 4
 GC_TID = 5
@@ -64,6 +64,10 @@ trace.add_atrace_async_begin(
     pid=SYSTEM_SERVER_PID,
     tid=SYSTEM_SERVER_TID,
     buf='launching: com.some.app')
+
+# Emulate a hot start (and therefore that we only see activityResume).
+trace.add_atrace_begin(ts=125, tid=APP_TID, pid=APP_PID, buf='activityResume')
+trace.add_atrace_end(ts=130, tid=APP_TID, pid=APP_PID)
 
 # OpenDex slices within the startup.
 trace.add_atrace_begin(
