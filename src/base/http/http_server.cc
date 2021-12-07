@@ -29,7 +29,7 @@ namespace perfetto {
 namespace base {
 
 namespace {
-constexpr size_t kMaxPayloadSize = 32 * 1024 * 1024;
+constexpr size_t kMaxPayloadSize = 64 * 1024 * 1024;
 constexpr size_t kMaxRequestSize = kMaxPayloadSize + 4096;
 
 enum WebsocketOpcode : uint8_t {
