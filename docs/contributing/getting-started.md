@@ -47,8 +47,6 @@ can be bypassed, as those are not built as part of the Android tree.
 ## Community
 
 You can reach us on our [Discord channel](https://discord.gg/35ShE3A).
-If you prefer using IRC we have an experimental Discord <> IRC bridge
-synced with `#perfetto-dev` on [Freenode](https://webchat.freenode.net/).
 
 Mailing list: https://groups.google.com/forum/#!forum/perfetto-dev
 
