@@ -35,22 +35,28 @@ namespace stats {
   F(ftrace_bundle_tokenizer_errors,     kSingle,  kError,    kAnalysis, ""),   \
   F(ftrace_cpu_bytes_read_begin,        kIndexed, kInfo,     kTrace,    ""),   \
   F(ftrace_cpu_bytes_read_end,          kIndexed, kInfo,     kTrace,    ""),   \
-  F(ftrace_cpu_commit_overrun_begin,    kIndexed, kError,    kTrace,    ""),   \
-  F(ftrace_cpu_commit_overrun_end,      kIndexed, kError,    kTrace,    ""),   \
-  F(ftrace_cpu_dropped_events_begin,    kIndexed, kError,    kTrace,    ""),   \
-  F(ftrace_cpu_dropped_events_end,      kIndexed, kError,    kTrace,    ""),   \
+  F(ftrace_cpu_bytes_read_delta,        kIndexed, kInfo,     kTrace,    ""),   \
+  F(ftrace_cpu_commit_overrun_begin,    kIndexed, kInfo,     kTrace,    ""),   \
+  F(ftrace_cpu_commit_overrun_end,      kIndexed, kInfo,     kTrace,    ""),   \
+  F(ftrace_cpu_commit_overrun_delta,    kIndexed, kError,    kTrace,    ""),   \
+  F(ftrace_cpu_dropped_events_begin,    kIndexed, kInfo,     kTrace,    ""),   \
+  F(ftrace_cpu_dropped_events_end,      kIndexed, kInfo,     kTrace,    ""),   \
+  F(ftrace_cpu_dropped_events_delta,    kIndexed, kError,    kTrace,    ""),   \
   F(ftrace_cpu_entries_begin,           kIndexed, kInfo,     kTrace,    ""),   \
   F(ftrace_cpu_entries_end,             kIndexed, kInfo,     kTrace,    ""),   \
+  F(ftrace_cpu_entries_delta,           kIndexed, kInfo,     kTrace,    ""),   \
   F(ftrace_cpu_now_ts_begin,            kIndexed, kInfo,     kTrace,    ""),   \
   F(ftrace_cpu_now_ts_end,              kIndexed, kInfo,     kTrace,    ""),   \
   F(ftrace_cpu_oldest_event_ts_begin,   kIndexed, kInfo,     kTrace,    ""),   \
   F(ftrace_cpu_oldest_event_ts_end,     kIndexed, kInfo,     kTrace,    ""),   \
   F(ftrace_cpu_overrun_begin,           kIndexed, kInfo,     kTrace,    ""),   \
-  F(ftrace_cpu_overrun_end,             kIndexed, kDataLoss, kTrace,           \
+  F(ftrace_cpu_overrun_end,             kIndexed, kInfo,     kTrace,    ""),   \
+  F(ftrace_cpu_overrun_delta,           kIndexed, kDataLoss, kTrace,           \
       "The kernel ftrace buffer cannot keep up with the rate of events "       \
       "produced. Indexed by CPU. This is likely a misconfiguration."),         \
   F(ftrace_cpu_read_events_begin,       kIndexed, kInfo,     kTrace,    ""),   \
   F(ftrace_cpu_read_events_end,         kIndexed, kInfo,     kTrace,    ""),   \
+  F(ftrace_cpu_read_events_delta,       kIndexed, kInfo,     kTrace,    ""),   \
   F(fuchsia_non_numeric_counters,       kSingle,  kError,    kAnalysis, ""),   \
   F(fuchsia_timestamp_overflow,         kSingle,  kError,    kAnalysis, ""),   \
   F(fuchsia_invalid_event,              kSingle,  kError,    kAnalysis, ""),   \

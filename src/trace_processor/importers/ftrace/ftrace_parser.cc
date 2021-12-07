@@ -223,8 +223,14 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
 
 void FtraceParser::ParseFtraceStats(ConstBytes blob) {
   protos::pbzero::FtraceStats::Decoder evt(blob.data, blob.size);
-  size_t phase =
-      evt.phase() == protos::pbzero::FtraceStats_Phase_END_OF_TRACE ? 1 : 0;
+  bool is_start =
+      evt.phase() == protos::pbzero::FtraceStats_Phase_START_OF_TRACE;
+  bool is_end = evt.phase() == protos::pbzero::FtraceStats_Phase_END_OF_TRACE;
+  if (!is_start && !is_end) {
+    PERFETTO_ELOG("Ignoring unknown ftrace stats phase %d", evt.phase());
+    return;
+  }
+  size_t phase = is_end ? 1 : 0;
 
   // This code relies on the fact that each ftrace_cpu_XXX_end event is
   // just after the corresponding ftrace_cpu_XXX_begin event.
@@ -238,15 +244,81 @@ void FtraceParser::ParseFtraceStats(ConstBytes blob) {
   for (auto it = evt.cpu_stats(); it; ++it) {
     protos::pbzero::FtraceCpuStats::Decoder cpu_stats(*it);
     int cpu = static_cast<int>(cpu_stats.cpu());
+
+    int64_t entries = static_cast<int64_t>(cpu_stats.entries());
+    int64_t overrun = static_cast<int64_t>(cpu_stats.overrun());
+    int64_t commit_overrun = static_cast<int64_t>(cpu_stats.commit_overrun());
+    int64_t bytes_read = static_cast<int64_t>(cpu_stats.bytes_read());
+    int64_t dropped_events = static_cast<int64_t>(cpu_stats.dropped_events());
+    int64_t read_events = static_cast<int64_t>(cpu_stats.read_events());
+    int64_t now_ts = static_cast<int64_t>(cpu_stats.now_ts() * 1e9);
+
     storage->SetIndexedStats(stats::ftrace_cpu_entries_begin + phase, cpu,
-                             static_cast<int64_t>(cpu_stats.entries()));
+                             entries);
     storage->SetIndexedStats(stats::ftrace_cpu_overrun_begin + phase, cpu,
-                             static_cast<int64_t>(cpu_stats.overrun()));
+                             overrun);
     storage->SetIndexedStats(stats::ftrace_cpu_commit_overrun_begin + phase,
-                             cpu,
-                             static_cast<int64_t>(cpu_stats.commit_overrun()));
+                             cpu, commit_overrun);
     storage->SetIndexedStats(stats::ftrace_cpu_bytes_read_begin + phase, cpu,
-                             static_cast<int64_t>(cpu_stats.bytes_read()));
+                             bytes_read);
+    storage->SetIndexedStats(stats::ftrace_cpu_dropped_events_begin + phase,
+                             cpu, dropped_events);
+    storage->SetIndexedStats(stats::ftrace_cpu_read_events_begin + phase, cpu,
+                             read_events);
+    storage->SetIndexedStats(stats::ftrace_cpu_now_ts_begin + phase, cpu,
+                             now_ts);
+
+    if (is_end) {
+      auto opt_entries_begin =
+          storage->GetIndexedStats(stats::ftrace_cpu_entries_begin, cpu);
+      if (opt_entries_begin) {
+        int64_t delta_entries = entries - opt_entries_begin.value();
+        storage->SetIndexedStats(stats::ftrace_cpu_entries_delta, cpu,
+                                 delta_entries);
+      }
+
+      auto opt_overrun_begin =
+          storage->GetIndexedStats(stats::ftrace_cpu_overrun_begin, cpu);
+      if (opt_overrun_begin) {
+        int64_t delta_overrun = overrun - opt_overrun_begin.value();
+        storage->SetIndexedStats(stats::ftrace_cpu_overrun_delta, cpu,
+                                 delta_overrun);
+      }
+
+      auto opt_commit_overrun_begin =
+          storage->GetIndexedStats(stats::ftrace_cpu_commit_overrun_begin, cpu);
+      if (opt_commit_overrun_begin) {
+        int64_t delta_commit_overrun =
+            commit_overrun - opt_commit_overrun_begin.value();
+        storage->SetIndexedStats(stats::ftrace_cpu_commit_overrun_delta, cpu,
+                                 delta_commit_overrun);
+      }
+
+      auto opt_bytes_read_begin =
+          storage->GetIndexedStats(stats::ftrace_cpu_bytes_read_begin, cpu);
+      if (opt_bytes_read_begin) {
+        int64_t delta_bytes_read = bytes_read - opt_bytes_read_begin.value();
+        storage->SetIndexedStats(stats::ftrace_cpu_bytes_read_delta, cpu,
+                                 delta_bytes_read);
+      }
+
+      auto opt_dropped_events_begin =
+          storage->GetIndexedStats(stats::ftrace_cpu_dropped_events_begin, cpu);
+      if (opt_dropped_events_begin) {
+        int64_t delta_dropped_events =
+            dropped_events - opt_dropped_events_begin.value();
+        storage->SetIndexedStats(stats::ftrace_cpu_dropped_events_delta, cpu,
+                                 delta_dropped_events);
+      }
+
+      auto opt_read_events_begin =
+          storage->GetIndexedStats(stats::ftrace_cpu_read_events_begin, cpu);
+      if (opt_read_events_begin) {
+        int64_t delta_read_events = read_events - opt_read_events_begin.value();
+        storage->SetIndexedStats(stats::ftrace_cpu_read_events_delta, cpu,
+                                 delta_read_events);
+      }
+    }
 
     // oldest_event_ts can often be set to very high values, possibly because
     // of wrapping. Ensure that we are not overflowing to avoid ubsan
@@ -266,14 +338,6 @@ void FtraceParser::ParseFtraceStats(ConstBytes blob) {
       storage->SetIndexedStats(stats::ftrace_cpu_oldest_event_ts_begin + phase,
                                cpu, static_cast<int64_t>(oldest_event_ts));
     }
-
-    storage->SetIndexedStats(stats::ftrace_cpu_now_ts_begin + phase, cpu,
-                             static_cast<int64_t>(cpu_stats.now_ts() * 1e9));
-    storage->SetIndexedStats(stats::ftrace_cpu_dropped_events_begin + phase,
-                             cpu,
-                             static_cast<int64_t>(cpu_stats.dropped_events()));
-    storage->SetIndexedStats(stats::ftrace_cpu_read_events_begin + phase, cpu,
-                             static_cast<int64_t>(cpu_stats.read_events()));
   }
 }
 

@@ -256,6 +256,17 @@ class TraceStorage {
     stats_[key].indexed_values[index] = value;
   }
 
+  // Example usage: opt_cpu_failure = GetIndexedStats(stats::cpu_failure, 1);
+  base::Optional<int64_t> GetIndexedStats(size_t key, int index) {
+    PERFETTO_DCHECK(key < stats::kNumKeys);
+    PERFETTO_DCHECK(stats::kTypes[key] == stats::kIndexed);
+    auto kv = stats_[key].indexed_values.find(index);
+    if (kv != stats_[key].indexed_values.end()) {
+      return kv->second;
+    }
+    return base::nullopt;
+  }
+
   class ScopedStatsTracer {
    public:
     ScopedStatsTracer(TraceStorage* storage, size_t key)
