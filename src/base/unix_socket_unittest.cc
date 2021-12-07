@@ -332,53 +332,6 @@ TEST_F(UnixSocketTest, BlockingSend) {
   tx_thread.join();
 }
 
-// Regression test for b/193234818. SO_SNDTIMEO is unreliable on most systems.
-// It doesn't guarantee that the whole send() call blocks for at most X, as the
-// kernel rearms the timeout if the send buffers frees up and allows a partial
-// send. This test reproduces the issue 100% on Mac. Unfortunately on Linux the
-// repro seem to happen only when a suspend happens in the middle.
-TEST_F(UnixSocketTest, BlockingSendTimeout) {
-  TestTaskRunner ttr;
-  UnixSocketRaw send_sock;
-  UnixSocketRaw recv_sock;
-  std::tie(send_sock, recv_sock) =
-      UnixSocketRaw::CreatePairPosix(kTestSocket.family(), SockType::kStream);
-
-  auto blocking_send_done = ttr.CreateCheckpoint("blocking_send_done");
-
-  std::thread tx_thread([&] {
-    // Fill the tx buffer in non-blocking mode.
-    send_sock.SetBlocking(false);
-    char buf[1024 * 16]{};
-    while (send_sock.Send(buf, sizeof(buf)) > 0) {
-    }
-
-    // Then do a blocking send. It should return a partial value within the tx
-    // timeout.
-    send_sock.SetBlocking(true);
-    send_sock.SetTxTimeout(10);
-    ASSERT_LT(send_sock.Send(buf, sizeof(buf)),
-              static_cast<ssize_t>(sizeof(buf)));
-    ttr.PostTask(blocking_send_done);
-  });
-
-  // This task needs to be slow enough so that doesn't unblock the send, but
-  // fast enough so that within a blocking cycle, the send re-attempts and
-  // re-arms the timeout.
-  PeriodicTask read_slowly_task(&ttr);
-  PeriodicTask::Args args;
-  args.period_ms = 1;  // Read 1 byte every ms (1 KiB/s).
-  args.task = [&] {
-    char rxbuf[1]{};
-    recv_sock.Receive(rxbuf, sizeof(rxbuf));
-  };
-  read_slowly_task.Start(args);
-
-  ttr.RunUntilCheckpoint("blocking_send_done");
-  read_slowly_task.Reset();
-  tx_thread.join();
-}
-
 // Regression test for b/76155349 . If the receiver end disconnects while the
 // sender is in the middle of a large send(), the socket should gracefully give
 // up (i.e. Shutdown()) but not crash.
@@ -938,6 +891,53 @@ TEST_F(UnixSocketTest, PartialSendMsgAll) {
   // Make sure the re-entry logic was actually triggered.
   ASSERT_EQ(hdr.msg_iov, nullptr);
   ASSERT_EQ(memcmp(&send_buf[0], &recv_buf[0], send_buf.size()), 0);
+}
+
+// Regression test for b/193234818. SO_SNDTIMEO is unreliable on most systems.
+// It doesn't guarantee that the whole send() call blocks for at most X, as the
+// kernel rearms the timeout if the send buffers frees up and allows a partial
+// send. This test reproduces the issue 100% on Mac. Unfortunately on Linux the
+// repro seem to happen only when a suspend happens in the middle.
+TEST_F(UnixSocketTest, BlockingSendTimeout) {
+  TestTaskRunner ttr;
+  UnixSocketRaw send_sock;
+  UnixSocketRaw recv_sock;
+  std::tie(send_sock, recv_sock) =
+      UnixSocketRaw::CreatePairPosix(kTestSocket.family(), SockType::kStream);
+
+  auto blocking_send_done = ttr.CreateCheckpoint("blocking_send_done");
+
+  std::thread tx_thread([&] {
+    // Fill the tx buffer in non-blocking mode.
+    send_sock.SetBlocking(false);
+    char buf[1024 * 16]{};
+    while (send_sock.Send(buf, sizeof(buf)) > 0) {
+    }
+
+    // Then do a blocking send. It should return a partial value within the tx
+    // timeout.
+    send_sock.SetBlocking(true);
+    send_sock.SetTxTimeout(10);
+    ASSERT_LT(send_sock.Send(buf, sizeof(buf)),
+              static_cast<ssize_t>(sizeof(buf)));
+    ttr.PostTask(blocking_send_done);
+  });
+
+  // This task needs to be slow enough so that doesn't unblock the send, but
+  // fast enough so that within a blocking cycle, the send re-attempts and
+  // re-arms the timeout.
+  PeriodicTask read_slowly_task(&ttr);
+  PeriodicTask::Args args;
+  args.period_ms = 1;  // Read 1 byte every ms (1 KiB/s).
+  args.task = [&] {
+    char rxbuf[1]{};
+    recv_sock.Receive(rxbuf, sizeof(rxbuf));
+  };
+  read_slowly_task.Start(args);
+
+  ttr.RunUntilCheckpoint("blocking_send_done");
+  read_slowly_task.Reset();
+  tx_thread.join();
 }
 #endif  // !OS_WIN
 
