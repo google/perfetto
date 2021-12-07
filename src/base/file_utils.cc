@@ -237,15 +237,14 @@ base::Status ListFilesRecursive(const std::string& dir_path,
     if (glob_path.length() + 1 > MAX_PATH)
       return base::ErrStatus("Directory path %s is too long", dir_path.c_str());
     WIN32_FIND_DATAA ffd;
-    // We do not use a ScopedResource for the HANDLE from FindFirstFile because
-    // the invalid value INVALID_HANDLE_VALUE is not a constexpr under some
-    // compile configurations, and thus cannot be used as a template argument.
-    HANDLE hFind = FindFirstFileA(glob_path.c_str(), &ffd);
-    if (hFind == INVALID_HANDLE_VALUE) {
+
+    base::ScopedResource<HANDLE, FindClose, nullptr, false,
+                         base::PlatformHandleChecker>
+        hFind(FindFirstFileA(glob_path.c_str(), &ffd));
+    if (!hFind) {
       // For empty directories, there should be at least one entry '.'.
       // If FindFirstFileA returns INVALID_HANDLE_VALUE, this means directory
       // couldn't be accessed.
-      FindClose(hFind);
       return base::ErrStatus("Failed to open directory %s", cur_dir.c_str());
     }
     do {
@@ -254,13 +253,12 @@ base::Status ListFilesRecursive(const std::string& dir_path,
       if (ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
         std::string subdir_path = cur_dir + ffd.cFileName + '/';
         dir_queue.push_back(subdir_path);
-      } else if (ffd.dwFileAttributes & FILE_ATTRIBUTE_NORMAL) {
+      } else {
         const std::string full_path = cur_dir + ffd.cFileName;
         PERFETTO_CHECK(full_path.length() > root_dir_path.length());
         output.push_back(full_path.substr(root_dir_path.length()));
       }
-    } while (FindNextFileA(hFind, &ffd));
-    FindClose(hFind);
+    } while (FindNextFileA(*hFind, &ffd));
 #else
     ScopedDir dir = ScopedDir(opendir(cur_dir.c_str()));
     if (!dir) {
