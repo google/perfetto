@@ -1,0 +1,64 @@
+/*
+ * Copyright (C) 2020 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto2";
+
+package perfetto.protos;
+
+message AndroidNetworkMetric {
+  message PacketStatistic {
+    // Packet count
+    optional int64 packets = 1;
+
+    // Packet Bytes
+    optional int64 bytes = 2;
+
+    // Timestamp when first packet received or transmitted
+    optional int64 first_packet_timestamp_ns = 3;
+
+    // Timestamp when last packet received or transmitted
+    optional int64 last_packet_timestamp_ns = 4;
+
+    // Interval between first & last packet. The minimum interval is 10ms.
+    optional int64 interval_ns = 5;
+
+    // Data Speed
+    optional double data_rate_kbps = 6;
+  }
+
+  message CorePacketStatistic {
+    optional uint32 id = 1;
+    optional PacketStatistic packet_statistic = 2;
+  }
+
+  message Rx {
+    // Total packets statistic
+    optional PacketStatistic total = 1;
+    // Per core packets statistic
+    repeated CorePacketStatistic core = 2;
+  }
+
+  message NetDevice {
+    // Network device name
+    optional string name = 1;
+
+    // Ingress traffic statistic
+    optional Rx rx = 2;
+  }
+
+  // Network device metrics
+  repeated NetDevice net_devices = 1;
+}
