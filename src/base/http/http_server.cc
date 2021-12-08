@@ -29,7 +29,7 @@ namespace perfetto {
 namespace base {
 
 namespace {
-constexpr size_t kMaxPayloadSize = 32 * 1024 * 1024;
+constexpr size_t kMaxPayloadSize = 64 * 1024 * 1024;
 constexpr size_t kMaxRequestSize = kMaxPayloadSize + 4096;
 
 enum WebsocketOpcode : uint8_t {
@@ -464,11 +464,12 @@ void HttpServerConnection::SendResponseHeaders(
   append("HTTP/1.1 ");
   append(http_code);
   append("\r\n");
-  for (const char* hdr : headers) {
-    if (strlen(hdr) == 0)
+  for (const char* hdr_cstr : headers) {
+    StringView hdr = (hdr_cstr);
+    if (hdr.empty())
       continue;
-    has_connection_header |= strncasecmp(hdr, "connection:", 11) == 0;
-    append(hdr);
+    has_connection_header |= hdr.substr(0, 11).CaseInsensitiveEq("connection:");
+    append(hdr_cstr);
     append("\r\n");
   }
   content_len_actual_ = 0;
