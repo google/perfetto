@@ -38,6 +38,7 @@ import "protos/perfetto/metrics/android/lmk_reason_metric.proto";
 import "protos/perfetto/metrics/android/mem_metric.proto";
 import "protos/perfetto/metrics/android/mem_unagg_metric.proto";
 import "protos/perfetto/metrics/android/multiuser_metric.proto";
+import "protos/perfetto/metrics/android/network_metric.proto";
 import "protos/perfetto/metrics/android/package_list.proto";
 import "protos/perfetto/metrics/android/powrails_metric.proto";
 import "protos/perfetto/metrics/android/profiler_smaps.proto";
@@ -94,7 +95,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 40
+// Next id: 41
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -195,6 +196,9 @@ message TraceMetrics {
 
   // Metrics for dynamic voltage and frequency scaling.
   optional AndroidDvfsMetric android_dvfs = 39;
+
+  // Metrics for network performance.
+  optional AndroidNetworkMetric android_netperf = 40;
 
   // Demo extensions.
   extensions 450 to 499;
