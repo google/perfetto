@@ -541,7 +541,6 @@ button.query-ctrl {
   --expanded-background: hsl(215, 22%, 19%);
   --expanded-transparent: hsl(215, 22%, 19%, 0);
   display: grid;
-  align-items: center;
   grid-template-columns: auto 1fr;
   grid-template-rows: 1fr;
   transition: background-color .4s, color .4s;
