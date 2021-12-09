@@ -760,7 +760,11 @@ void HeapGraphTracker::PopulateNativeSize(const SequenceState& seq) {
     auto cleaner_objs = objects_tbl.FilterToRowMap(
         {objects_tbl.type_id().eq(class_id.value),
          objects_tbl.upid().eq(seq.current_upid),
-         objects_tbl.graph_sample_ts().eq(seq.current_ts)});
+         objects_tbl.graph_sample_ts().eq(seq.current_ts),
+         // If a Cleaner is not reachable, its associated native memory must
+         // have been already freed. Skip it.
+         objects_tbl.reachable().ne_value(SqlValue::Long(0)),
+        });
     for (auto obj_it = cleaner_objs.IterateRows(); obj_it; obj_it.Next()) {
       base::Optional<tables::HeapGraphObjectTable::Id> referent_id =
           GetReferenceByFieldName(objects_tbl.id()[obj_it.row()],

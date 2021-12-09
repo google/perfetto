@@ -1,0 +1,217 @@
+packet {
+  trusted_packet_sequence_id: 999
+  timestamp: 10
+  heap_graph {
+    pid: 2
+    types {
+      id: 54
+      location_id: 5
+      class_name: "java.lang.Object"
+      object_size: 8
+      kind: KIND_NOREFERENCES
+      classloader_id: 0
+    }
+    types {
+      id: 12171
+      location_id: 5
+      class_name: "java.lang.ref.Reference"
+      object_size: 24
+      superclass_id: 54
+      reference_field_id: 1 # pendingNext
+      reference_field_id: 2 # queue
+      reference_field_id: 3 # queueNext
+      reference_field_id: 15420 # referent
+      kind: KIND_NORMAL
+      classloader_id: 0
+    }
+    types {
+      id: 11645
+      location_id: 5
+      class_name: "java.lang.ref.PhantomReference"
+      object_size: 24
+      superclass_id: 12171
+      kind: KIND_PHANTOM_REFERENCE
+      classloader_id: 0
+    }
+    types {
+      id: 17
+      location_id: 5
+      class_name: "sun.misc.Cleaner"
+      object_size: 36
+      superclass_id: 11645
+      reference_field_id: 14946 # next
+      reference_field_id: 14947 # prev
+      reference_field_id: 14948 # thunk
+      kind: KIND_PHANTOM_REFERENCE
+      classloader_id: 0
+    }
+    types {
+      id: 11646
+      location_id: 5
+      class_name: "java.lang.Class<sun.misc.Cleaner>"
+    }
+    types {
+      id: 16
+      location_id: 10
+      class_name: "libcore.util.NativeAllocationRegistry$CleanerThunk"
+      object_size: 24
+      superclass_id: 54
+      reference_field_id: 19501 # this$0
+      kind: KIND_NORMAL
+      classloader_id: 0
+    }
+    types {
+      id: 778
+      location_id: 10
+      class_name: "libcore.util.NativeAllocationRegistry"
+      object_size: 32
+      superclass_id: 54
+      reference_field_id: 19502
+      kind: KIND_NORMAL
+      classloader_id: 0
+    }
+    types {
+      id: 777
+      location_id: 6
+      class_name: "android.graphics.Bitmap"
+      object_size: 46
+      superclass_id: 54
+      # References omitted
+      kind: KIND_NORMAL
+      classloader_id: 0
+    }
+    types {
+      id: 15
+      location_id: 8
+      class_name: "android.os.BinderProxy"
+      object_size: 17
+      superclass_id: 54
+      kind: KIND_NOREFERENCES
+      classloader_id: 0
+    }
+    objects {
+      id: 0x1
+      type_id: 777 # android.graphics.Bitmap
+    }
+    objects {
+      id: 0x2
+      type_id: 15 # android.os.BinderProxy
+    }
+    objects {
+      id: 0x3
+      type_id: 778 # libcore.util.NativeAllocationRegistry
+      reference_object_id: 0x0 # classLoader omitted
+      native_allocation_registry_size_field: 123456
+    }
+    objects {
+      id: 0x4
+      type_id: 16 # libcore.util.NativeAllocationRegistry$CleanerThunk
+      reference_object_id: 0x3 # this$0
+    }
+    objects {
+      id: 0x5
+      type_id: 16 # libcore.util.NativeAllocationRegistry$CleanerThunk
+      reference_object_id: 0x3 # this$0
+    }
+    # This Cleaner has not been deleted: it's reachable from a root (through the
+    # sun.misc.Cleaner.first static field).
+    objects {
+      id: 0x6
+      type_id: 17 # sun.misc.Cleaner
+      reference_object_id: 0x0 # next
+      reference_object_id: 0x0 # prev
+      reference_object_id: 0x4 # thunk
+      reference_object_id: 0x0 # pendingNext
+      reference_object_id: 0x0 # queue
+      reference_object_id: 0x0 # queueNext
+      reference_object_id: 0x1 # referent
+    }
+    # This Cleaner has been deleted: it's not reachable from a root and its .prev
+    # and .next point to this.
+    objects {
+      id: 0x7
+      type_id: 17 # sun.misc.Cleaner
+      reference_object_id: 0x7 # next
+      reference_object_id: 0x7 # prev
+      reference_object_id: 0x5 # thunk
+      reference_object_id: 0x0 # pendingNext
+      reference_object_id: 0x0 # queue
+      reference_object_id: 0x0 # queueNext
+      reference_object_id: 0x2 # referent
+    }
+    objects {
+      id: 0x8
+      type_id: 11646 # java.lang.Class<sun.misc.Cleaner>
+      self_size: 288
+      # omitted fields
+      reference_field_id: 14950 # first
+      reference_object_id: 0x6
+    }
+    roots {
+      object_ids: 0x8
+      root_type: ROOT_STICKY_CLASS
+    }
+    roots {
+      object_ids: 0x1
+      object_ids: 0x2
+      root_type: ROOT_JAVA_FRAME
+    }
+    field_names {
+      iid: 1
+      str: "java.lang.ref.Reference java.lang.ref.Reference.pendingNext"
+    }
+    field_names {
+      iid: 2
+      str: "java.lang.ref.ReferenceQueue java.lang.ref.Reference.queue"
+    }
+    field_names {
+      iid: 3
+      str: "java.lang.ref.Reference java.lang.ref.Reference.queueNext"
+    }
+    field_names {
+      iid: 14950
+      str: "sun.misc.Cleaner sun.misc.Cleaner.first"
+    }
+    field_names {
+      iid: 15420
+      str: "java.lang.Object java.lang.ref.Reference.referent"
+    }
+    field_names {
+      iid: 14946
+      str: "sun.misc.Cleaner sun.misc.Cleaner.next"
+    }
+    field_names {
+      iid: 14947
+      str: "sun.misc.Cleaner sun.misc.Cleaner.prev"
+    }
+    field_names {
+      iid: 14948
+      str: "java.lang.Runnable sun.misc.Cleaner.thunk"
+    }
+    field_names {
+      iid: 19501
+      str: "libcore.util.NativeAllocationRegistry libcore.util.NativeAllocationRegistry$CleanerThunk.this$0"
+    }
+    field_names {
+      iid: 19502
+      str: "java.lang.ClassLoader libcore.util.NativeAllocationRegistry.classLoader"
+    }
+    location_names {
+      iid: 5
+      str: "/apex/com.android.art/javalib/core-oj.jar"
+    }
+    location_names {
+      iid: 10
+      str: "/apex/com.android.art/javalib/core-libart.jar"
+    }
+    location_names {
+      iid: 6
+      str: "/system/framework/framework.jar"
+    }
+    location_names {
+      iid: 8
+      str: "/system/framework/framework.jar!classes2.dex"
+    }
+    index: 0
+  }
+}
