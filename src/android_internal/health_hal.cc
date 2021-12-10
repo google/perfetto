@@ -22,6 +22,7 @@
 namespace perfetto {
 namespace android_internal {
 
+using ::android::hardware::Return;
 using ::android::hardware::health::V2_0::IHealth;
 using ::android::hardware::health::V2_0::Result;
 
@@ -48,35 +49,37 @@ bool GetBatteryCounter(BatteryCounter counter, int64_t* value) {
   // in the same thread.
   // See https://source.android.com/devices/architecture/hidl/threading .
 
-  Result res;
+  Return<void> ret;
+  Result res = Result::UNKNOWN;
   switch (counter) {
     case BatteryCounter::kUnspecified:
-      res = Result::NOT_FOUND;
       break;
 
     case BatteryCounter::kCharge:
-      g_svc->getChargeCounter([&res, value](Result hal_res, int32_t hal_value) {
-        res = hal_res;
-        *value = hal_value;
-      });
+      ret = g_svc->getChargeCounter(
+          [&res, value](Result hal_res, int32_t hal_value) {
+            res = hal_res;
+            *value = hal_value;
+          });
       break;
 
     case BatteryCounter::kCapacityPercent:
-      g_svc->getCapacity([&res, value](Result hal_res, int64_t hal_value) {
+      ret = g_svc->getCapacity([&res, value](Result hal_res, int32_t hal_value) {
         res = hal_res;
         *value = hal_value;
       });
       break;
 
     case BatteryCounter::kCurrent:
-      g_svc->getCurrentNow([&res, value](Result hal_res, int32_t hal_value) {
-        res = hal_res;
-        *value = hal_value;
-      });
+      ret =
+          g_svc->getCurrentNow([&res, value](Result hal_res, int32_t hal_value) {
+            res = hal_res;
+            *value = hal_value;
+          });
       break;
 
     case BatteryCounter::kCurrentAvg:
-      g_svc->getCurrentAverage(
+      ret = g_svc->getCurrentAverage(
           [&res, value](Result hal_res, int32_t hal_value) {
             res = hal_res;
             *value = hal_value;
@@ -84,10 +87,10 @@ bool GetBatteryCounter(BatteryCounter counter, int64_t* value) {
       break;
   }  // switch(counter)
 
-  if (res == Result::CALLBACK_DIED)
+  if (ret.isDeadObject())
     g_svc.clear();
 
-  return res == Result::SUCCESS;
+  return ret.isOk() && res == Result::SUCCESS;
 }
 
 }  // namespace android_internal
