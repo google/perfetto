@@ -312,6 +312,9 @@ void __attribute__((constructor(1024))) RunAccurateMalloc() {
 
   // Wait around so we can verify it did't crash.
   for (;;) {
+    // Call sleep, otherwise an empty busy loop is undefined behavior:
+    // http://en.cppreference.com/w/cpp/language/memory_model#Progress_guarantee
+    sleep(1);
   }
 }
 
@@ -351,6 +354,9 @@ void __attribute__((noreturn)) RunAccurateMallocWithVforkCommon() {
 
   // Wait around so we can verify it did't crash.
   for (;;) {
+    // Call sleep, otherwise an empty busy loop is undefined behavior:
+    // http://en.cppreference.com/w/cpp/language/memory_model#Progress_guarantee
+    sleep(1);
   }
 }
 
@@ -387,6 +393,9 @@ void __attribute__((constructor(1024))) RunAccurateSample() {
 
   // Wait around so we can verify it did't crash.
   for (;;) {
+    // Call sleep, otherwise an empty busy loop is undefined behavior:
+    // http://en.cppreference.com/w/cpp/language/memory_model#Progress_guarantee
+    sleep(1);
   }
 }
 
@@ -493,6 +502,9 @@ void __attribute__((constructor(1024))) RunCustomLifetime() {
 
   // Wait around so we can verify it didn't crash.
   for (;;) {
+    // Call sleep, otherwise an empty busy loop is undefined behavior:
+    // http://en.cppreference.com/w/cpp/language/memory_model#Progress_guarantee
+    sleep(1);
   }
 }
 
