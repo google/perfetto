@@ -744,6 +744,8 @@ cc_library_static {
     shared_libs: [
         "liblog",
     ],
+    host_supported: true,
+    vendor_available: true,
     export_include_dirs: [
         "include",
         "include/perfetto/base/build_configs/android_tree",
