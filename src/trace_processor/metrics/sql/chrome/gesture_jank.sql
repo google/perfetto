@@ -24,40 +24,9 @@
 --          active development and the values & meaning might change without
 --          notice.
 
--- Get all chrome processes and threads tables set up.
-SELECT RUN_METRIC('chrome/chrome_processes.sql');
-
--- When working on InputLatency events we need to ensure we have all the events
--- from the browser, renderer, and GPU processes. This query isn't quite
--- perfect. In system tracing we could have 3 browser processes all in the
--- background and this would match, but for now its the best we can do (renderer
--- and GPU names on android are quite complicated, but this should filter 99%
--- (citation needed) of what we want.
---
--- See b/151077536 for historical context.
--- TODO(b/197841224): Refactor or remove this table.
-DROP VIEW IF EXISTS sufficient_chrome_processes;
-CREATE VIEW sufficient_chrome_processes AS
-  SELECT
-    CASE WHEN (
-      SELECT COUNT(*) FROM chrome_process) = 0
-    THEN
-      FALSE
-    ELSE (
-      SELECT COUNT(*) >= 3 FROM (
-        SELECT name FROM chrome_process
-        WHERE
-          name GLOB "Browser" OR
-          name GLOB "Renderer" OR
-          name GLOB "Gpu" OR
-          name GLOB 'com.android.chrome*' OR
-          name GLOB 'com.chrome.beta*' OR
-          name GLOB 'com.chrome.dev*' OR
-          name GLOB 'com.chrome.canary*' OR
-          name GLOB 'com.google.android.apps.chrome*' OR
-          name GLOB 'org.chromium.chrome*'
-        GROUP BY name
-    )) END AS have_enough_chrome_processes;
+-- Temporarily get the sufficient_chrome_processes view until dependency
+-- is removed
+SELECT RUN_METRIC('chrome/sufficient_chrome_processes.sql');
 
 -- A simple table that checks the time between VSync (this can be used to
 -- determine if we're refreshing at 90 FPS or 60 FPS.
