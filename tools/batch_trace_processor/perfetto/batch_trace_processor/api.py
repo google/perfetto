@@ -50,6 +50,7 @@ class BatchTraceProcessor:
     """
     self.executor = ThreadPoolExecutor()
     self.paths = file_paths
+    self.closed = False
 
     def create_tp(arg):
       return TraceProcessor(
@@ -110,8 +111,13 @@ class BatchTraceProcessor:
     No further calls to other methods in this class should be made after
     calling this method.
     """
+    if self.closed:
+      return
+
     self.executor.map(lambda tp: tp.close(), self.tps)
     self.executor.shutdown()
+
+    self.closed = True
 
   def __execute_on_tps(self, fn):
     return list(self.executor.map(fn, self.tps))
@@ -122,3 +128,6 @@ class BatchTraceProcessor:
   def __exit__(self, _, __, ___):
     self.close()
     return False
+
+  def __del__(self):
+    self.close()
