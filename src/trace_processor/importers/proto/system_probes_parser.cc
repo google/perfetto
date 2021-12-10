@@ -306,6 +306,14 @@ void SystemProbesParser::ParseProcessTree(ConstBytes blob) {
     } else {
       auto raw_cmdline = proc.cmdline();
       base::StringView argv0 = raw_cmdline ? *raw_cmdline : base::StringView();
+      // Chrome child process overwrites /proc/self/cmdline and replaces all
+      // '\0' with ' '. This makes argv0 contain the full command line. Extract
+      // the actual argv0 if it's Chrome.
+      static const char kChromeBinary[] = "/chrome ";
+      auto pos = argv0.find(kChromeBinary);
+      if (pos != base::StringView::npos) {
+        argv0 = argv0.substr(0, pos + strlen(kChromeBinary) - 1);
+      }
 
       std::string cmdline_str;
       for (auto cmdline_it = raw_cmdline; cmdline_it;) {
