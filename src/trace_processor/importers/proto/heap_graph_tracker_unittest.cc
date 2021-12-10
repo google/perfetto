@@ -155,6 +155,13 @@ TEST(HeapGraphTrackerTest, PopulateNativeSize) {
     tracker.AddObject(kSeqId, kPid, kTimestamp, std::move(obj));
   }
 
+  {
+    HeapGraphTracker::SourceRoot root;
+    root.root_type = context.storage->InternString("ROOT");
+    root.object_ids.emplace_back(kObjCleaner);
+    tracker.AddRoot(kSeqId, kPid, kTimestamp, std::move(root));
+  }
+
   tracker.FinalizeProfile(kSeqId);
 
   const auto& objs_table = context.storage->heap_graph_object_table();
