@@ -94,8 +94,13 @@ target_initrc = {
 
 target_host_supported = [
     '//:libperfetto',
+    '//:libperfetto_client_experimental',
     '//protos/perfetto/trace:perfetto_trace_protos',
     '//src/trace_processor:trace_processor_shell',
+]
+
+target_vendor_available = [
+    '//:libperfetto_client_experimental',
 ]
 
 # All module names are prefixed with this string to avoid collisions.
@@ -204,7 +209,6 @@ additional_args = {
         ('include_dirs', {'bionic/libc/kernel'}),
     ],
     'perfetto_integrationtests': [
-        ('cflags', {'-fno-finite-loops'}),
         ('test_suites', {'general-tests'}),
         ('test_config', 'PerfettoIntegrationTests.xml'),
     ],
@@ -458,6 +462,7 @@ class Module(object):
     self.tools = set()
     self.cmd = None
     self.host_supported = False
+    self.vendor_available = False
     self.init_rc = set()
     self.out = set()
     self.export_include_dirs = set()
@@ -502,6 +507,7 @@ class Module(object):
     self._output_field(output, 'tools')
     self._output_field(output, 'cmd', sort=False)
     self._output_field(output, 'host_supported')
+    self._output_field(output, 'vendor_available')
     self._output_field(output, 'init_rc')
     self._output_field(output, 'out')
     self._output_field(output, 'export_include_dirs')
@@ -857,6 +863,7 @@ def create_modules_from_target(blueprint, gn, gn_target_name):
 
   blueprint.add_module(module)
   module.host_supported = (name_without_toolchain in target_host_supported)
+  module.vendor_available = (name_without_toolchain in target_vendor_available)
   module.init_rc = target_initrc.get(target.name, [])
   module.srcs.update(
       gn_utils.label_to_path(src)
