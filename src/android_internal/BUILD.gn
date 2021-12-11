@@ -37,6 +37,7 @@ if (perfetto_build_with_android) {
     ]
     libs = [
       "android.hardware.health@2.0",
+      "android.hardware.health-V1-ndk",
       "android.hardware.power.stats@1.0",
       "android.hardware.power.stats-V1-cpp",
       "android.hardware.atrace@1.0",
@@ -45,6 +46,7 @@ if (perfetto_build_with_android) {
       "cutils",
       "base",
       "binder",
+      "binder_ndk",
       "log",
       "hidlbase",
       "incident",
