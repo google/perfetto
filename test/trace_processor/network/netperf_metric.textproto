@@ -1,6 +1,13 @@
- packet {
+packet {
   ftrace_events {
     cpu: 0
+    event {
+     timestamp: 100000000
+     pid: 200
+     softirq_entry {
+       vec: 3
+     }
+    }
     event {
       timestamp: 100000000
       pid: 200
@@ -9,11 +16,26 @@
         len: 1024
       }
     }
+    event {
+     timestamp: 100100000
+     pid: 200
+     softirq_exit {
+       vec: 3
+     }
+    }
   }
 }
-packet {
+
+packet {  
   ftrace_events {
     cpu: 1
+    event {
+     timestamp: 120000000
+     pid: 300
+     softirq_entry {
+       vec: 3
+     }
+    }
     event {
       timestamp: 120000000
       pid: 300
@@ -22,11 +44,26 @@ packet {
         len: 1024
       }
     }
+    event {
+     timestamp: 120100000
+     pid: 300
+     softirq_exit {
+       vec: 3
+     }
+    }
   }
 }
+
 packet {
   ftrace_events {
     cpu: 0
+    event {
+     timestamp: 140000000
+     pid: 400
+     softirq_entry {
+       vec: 3
+     }
+    }
     event {
       timestamp: 140000000
       pid: 400
@@ -35,11 +72,26 @@ packet {
         len: 1024
       }
     }
+    event {
+     timestamp: 140100000
+     pid: 400
+     softirq_exit {
+       vec: 3
+     }
+    }
   }
 }
+
 packet {
   ftrace_events {
     cpu: 1
+    event {
+     timestamp: 140000000
+     pid: 500
+     softirq_entry {
+       vec: 3
+     }
+    }
     event {
       timestamp: 140000000
       pid: 500
@@ -48,8 +100,16 @@ packet {
         len: 1024
       }
     }
+    event {
+     timestamp: 140100000
+     pid: 500
+     softirq_exit {
+       vec: 3
+     }
+    }
   }
 }
+
 packet {
   ftrace_events {
     cpu: 4

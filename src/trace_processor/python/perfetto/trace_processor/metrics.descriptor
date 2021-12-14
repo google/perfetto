@@ -398,11 +398,13 @@ cpuMcycles%
 
 identifier (	R
 identifier
-¹
-4protos/perfetto/metrics/android/network_metric.protoperfetto.protos"ï
+”
+4protos/perfetto/metrics/android/network_metric.protoperfetto.protos"Ê
+
 AndroidNetworkMetricP
 net_devices (2/.perfetto.protos.AndroidNetworkMetric.NetDeviceR
-netDevicesü
+netDevicesU
+net_rx_action (21.perfetto.protos.AndroidNetworkMetric.NetRxActionRnetRxActionü
 PacketStatistic
 packets (Rpackets
 bytes (Rbytes9
@@ -419,7 +421,19 @@ intervalNs$
 core (29.perfetto.protos.AndroidNetworkMetric.CorePacketStatisticRcoreY
 	NetDevice
 name (	Rname8
-rx (2(.perfetto.protos.AndroidNetworkMetric.RxRrx
+rx (2(.perfetto.protos.AndroidNetworkMetric.RxRrxq
+NetRxActionStatistic
+count (Rcount
+
+runtime_ms (R	runtimeMs$
+avg_runtime_ms (RavgRuntimeMs
+CoreNetRxActionStatistic
+id (Ridq
+net_rx_action_statistic (2:.perfetto.protos.AndroidNetworkMetric.NetRxActionStatisticRnetRxActionStatisticî
+NetRxActionP
+total (2:.perfetto.protos.AndroidNetworkMetric.NetRxActionStatisticRtotalR
+core (2>.perfetto.protos.AndroidNetworkMetric.CoreNetRxActionStatisticRcore9
+avg_interstack_latency_ms (RavgInterstackLatencyMs
 ˆ
 2protos/perfetto/metrics/android/package_list.protoperfetto.protos"À
 AndroidPackageListG
