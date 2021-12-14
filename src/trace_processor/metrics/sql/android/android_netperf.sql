@@ -33,7 +33,7 @@ CREATE VIEW device_total_ingress_traffic AS
     MIN(ts) AS start_ts,
     MAX(ts) AS end_ts,
     IIF((MAX(ts) - MIN(ts)) > 10000000, MAX(ts)-MIN(ts), 10000000) AS interval,
-    count(1) AS packets,
+    COUNT(1) AS packets,
     SUM(len) AS bytes
   FROM rx_packets
   GROUP BY dev;
@@ -45,7 +45,7 @@ CREATE VIEW device_per_core_ingress_traffic AS
     AndroidNetworkMetric_CorePacketStatistic(
       'id', cpu,
       'packet_statistic', AndroidNetworkMetric_PacketStatistic(
-        'packets', count(1),
+        'packets', COUNT(1),
         'bytes', SUM(len),
         'first_packet_timestamp_ns', MIN(ts),
         'last_packet_timestamp_ns', MAX(ts),
@@ -81,6 +81,40 @@ CREATE VIEW device_ingress_traffic_statistic AS
   FROM device_total_ingress_traffic
   ORDER BY dev;
 
+DROP VIEW IF EXISTS net_rx_actions;
+CREATE VIEW net_rx_actions AS
+  SELECT
+    s.ts,
+    s.dur,
+    CAST(SUBSTR(t.name, 13, 1) AS int) AS cpu
+  FROM slice s
+  LEFT JOIN track t
+    ON s.track_id = t.id
+  WHERE s.name = "NET_RX";
+
+DROP VIEW IF EXISTS total_net_rx_action_statistic;
+CREATE VIEW total_net_rx_action_statistic AS
+  SELECT
+    COUNT(1) AS times,
+    SUM(dur) AS runtime,
+    AVG(dur) AS avg_runtime,
+    (SELECT COUNT(1) FROM rx_packets) AS total_packet
+  FROM net_rx_actions;
+
+DROP VIEW IF EXISTS per_core_net_rx_action_statistic;
+CREATE VIEW per_core_net_rx_action_statistic AS
+  SELECT
+    AndroidNetworkMetric_CoreNetRxActionStatistic(
+      'id', cpu,
+      'net_rx_action_statistic', AndroidNetworkMetric_NetRxActionStatistic(
+        'count', COUNT(1),
+        'runtime_ms', SUM(dur)/1e6,
+        'avg_runtime_ms', AVG(dur)/1e6
+      )
+    ) AS proto
+  FROM net_rx_actions
+  GROUP BY cpu;
+
 DROP VIEW IF EXISTS android_netperf_output;
 CREATE VIEW android_netperf_output AS
   SELECT AndroidNetworkMetric(
@@ -88,6 +122,23 @@ CREATE VIEW android_netperf_output AS
       SELECT
         RepeatedField(proto)
       FROM device_ingress_traffic_statistic
+    ),
+    'net_rx_action', AndroidNetworkMetric_NetRxAction(
+       'total', AndroidNetworkMetric_NetRxActionStatistic(
+         'count', (SELECT times FROM total_net_rx_action_statistic),
+         'runtime_ms', (SELECT runtime/1e6 FROM total_net_rx_action_statistic),
+         'avg_runtime_ms', (SELECT avg_runtime/1e6 FROM total_net_rx_action_statistic)
+       ),
+       'core', (
+         SELECT
+           RepeatedField(proto)
+         FROM per_core_net_rx_action_statistic
+       ),
+       'avg_interstack_latency_ms', (
+         SELECT
+           runtime/total_packet/1e6
+         FROM total_net_rx_action_statistic
+       )
     )
   );
 
