@@ -20,22 +20,22 @@ package perfetto.protos;
 
 message AndroidNetworkMetric {
   message PacketStatistic {
-    // Packet count
+    // Packet count.
     optional int64 packets = 1;
 
-    // Packet Bytes
+    // Packet Bytes.
     optional int64 bytes = 2;
 
-    // Timestamp when first packet received or transmitted
+    // Timestamp when first packet received or transmitted.
     optional int64 first_packet_timestamp_ns = 3;
 
-    // Timestamp when last packet received or transmitted
+    // Timestamp when last packet received or transmitted.
     optional int64 last_packet_timestamp_ns = 4;
 
     // Interval between first & last packet. The minimum interval is 10ms.
     optional int64 interval_ns = 5;
 
-    // Data Speed
+    // Data Speed.
     optional double data_rate_kbps = 6;
   }
 
@@ -45,20 +45,50 @@ message AndroidNetworkMetric {
   }
 
   message Rx {
-    // Total packets statistic
+    // Total packets statistic.
     optional PacketStatistic total = 1;
-    // Per core packets statistic
+    // Per core packets statistic.
     repeated CorePacketStatistic core = 2;
   }
 
   message NetDevice {
-    // Network device name
+    // Network device name.
     optional string name = 1;
 
-    // Ingress traffic statistic
+    // Ingress traffic statistic.
     optional Rx rx = 2;
   }
 
-  // Network device metrics
+  message NetRxActionStatistic {
+    // SoftIrq NET_RX action count.
+    optional int64 count = 1;
+
+    // SoftIrq NET_RX action was running in millisecond.
+    optional double runtime_ms = 2;
+
+    // SoftIrq NET_RX action average running time.
+    optional double avg_runtime_ms = 3;
+  }
+
+  message CoreNetRxActionStatistic {
+    optional uint32 id = 1;
+    optional NetRxActionStatistic net_rx_action_statistic = 2;
+  }
+
+  message NetRxAction {
+    // Total NET_RX action statistics.
+    optional NetRxActionStatistic total = 1;
+
+    // Per core NET_RX action statistics.
+    repeated CoreNetRxActionStatistic core = 2;
+
+    // The average packet time moves through the kernel stack.
+    optional double avg_interstack_latency_ms = 3;
+  }
+
+  // Network device metrics.
   repeated NetDevice net_devices = 1;
+
+  // SoftIrq NET_RX action metrics.
+  optional NetRxAction net_rx_action = 2;
 }
