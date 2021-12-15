@@ -58,4 +58,28 @@ android_netperf{
       }
     }
   }
+  net_rx_action {
+    total {
+      count: 4
+      runtime_ms: 0.4
+      avg_runtime_ms: 0.1
+    }
+    core {
+      id: 0
+      net_rx_action_statistic {
+        count: 2
+        runtime_ms: 0.2
+        avg_runtime_ms: 0.1
+      }
+    }
+    core {
+      id: 1
+      net_rx_action_statistic {
+        count: 2
+        runtime_ms: 0.2
+        avg_runtime_ms: 0.1
+      }
+    }
+    avg_interstack_latency_ms: 0.08
+  }
 }
