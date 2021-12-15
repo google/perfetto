@@ -30,17 +30,17 @@
     </target_preparer>
     <target_preparer class="com.android.compatibility.common.tradefed.targetprep.FilePusher">
         <option name="cleanup" value="true" />
-        <option name="push" value="CtsPerfettoTestCases->/data/local/tests/unrestricted/CtsPerfettoTestCases" />
+        <option name="push" value="CtsPerfettoTestCases->/data/local/tmp/CtsPerfettoTestCases" />
         <option name="append-bitness" value="true" />
     </target_preparer>
     <target_preparer class="com.android.tradefed.targetprep.RunCommandTargetPreparer">
         <option name="run-command" value="setprop persist.traced_perf.enable 1" />
     </target_preparer>
     <test class="com.android.tradefed.testtype.GTest" >
-        <option name="native-test-device-path" value="/data/local/tests/unrestricted" />
+        <option name="native-test-device-path" value="/data/local/tmp" />
         <option name="module-name" value="CtsPerfettoTestCases" />
-        <option name="runtime-hint" value="2m30s" />
+        <option name="runtime-hint" value="0m30s" />
         <!-- test-timeout unit is ms -->
-        <option name="native-test-timeout" value="180000" />
+        <option name="native-test-timeout" value="40000" />
     </test>
 </configuration>
