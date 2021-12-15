@@ -1,6 +1,6 @@
 SELECT
   ts,
-  RTRIM(name, " Received KB") AS dev,
+  REPLACE(name, " Received KB", "") AS dev,
   EXTRACT_ARG(arg_set_id, 'cpu') AS cpu,
   EXTRACT_ARG(arg_set_id, 'len') AS len
 FROM
