@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<MessageDescriptor, 361> descriptors{{
+std::array<MessageDescriptor, 362> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -3861,6 +3861,17 @@ std::array<MessageDescriptor, 361> descriptors{{
             {},
             {"len", ProtoSchemaType::kUint32},
             {"name", ProtoSchemaType::kString},
+            {"skbaddr", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "net_dev_xmit",
+        4,
+        {
+            {},
+            {"len", ProtoSchemaType::kUint32},
+            {"name", ProtoSchemaType::kString},
+            {"rc", ProtoSchemaType::kInt32},
             {"skbaddr", ProtoSchemaType::kUint64},
         },
     },
