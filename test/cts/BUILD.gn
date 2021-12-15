@@ -32,12 +32,6 @@ static_library("perfetto_cts_deps") {
     "../../src/base:test_support",
     "../../test:test_helper",
   ]
-
-  if (enable_perfetto_heapprofd) {
-    deps += [
-      "../../src/profiling/memory:end_to_end_tests",
-    ]
-  }
   sources = [
     "device_feature_test_cts.cc",
     "end_to_end_integrationtest_cts.cc",
