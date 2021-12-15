@@ -31,11 +31,8 @@ cc_test {
     "perfetto_gtest_logcat_printer",
   ],
   shared_libs: [
-    "heapprofd_client_api",
     "libandroid",
-    "libsqlite",
     "liblog",
-    "libz",
   ],
   test_suites: [
     "cts",
