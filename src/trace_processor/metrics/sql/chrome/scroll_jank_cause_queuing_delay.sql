@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-SELECT RUN_METRIC('chrome/chrome_thread_slice_with_cpu_time.sql');
+SELECT RUN_METRIC('chrome/chrome_thread_slice.sql');
 SELECT RUN_METRIC('chrome/scroll_flow_event_queuing_delay.sql');
 
 -- See b/184134310 why we remove ThreadController active.
@@ -24,7 +24,7 @@ CREATE VIEW blocking_tasks_no_threadcontroller_active AS
     ancestor.id AS task_ancestor_id,
     ancestor.name AS task_ancestor_name
   FROM
-    chrome_thread_slice_with_cpu_time AS slice LEFT JOIN
+    chrome_thread_slice AS slice LEFT JOIN
     ancestor_slice(slice.id) as ancestor ON ancestor.id = slice.parent_id
   WHERE
     slice.name != "ThreadController active" AND
@@ -114,10 +114,11 @@ CREATE VIEW all_descendant_blocking_tasks_queuing_delay AS
 DROP TABLE IF EXISTS all_descendant_blocking_tasks_queuing_delay_with_cpu_time;
 CREATE TABLE all_descendant_blocking_tasks_queuing_delay_with_cpu_time AS
   SELECT
-    cpu.slice_cpu_time AS descendant_slice_cpu_time,
-    cpu.slice_cpu_time / descendant.slice_cpu_time AS descendant_cpu_percentage,
-    cpu.slice_cpu_time /
-        (descendant.slice_cpu_time /
+    cpu.thread_dur AS descendant_thread_dur,
+    CAST(cpu.thread_dur AS REAL) / descendant.thread_dur
+        AS descendant_cpu_percentage,
+    CAST(cpu.thread_dur AS REAL) /
+        (descendant.thread_dur /
           (1 << (descendant.descendant_depth - 1))) > 0.5
             AS descendant_cpu_time_above_relative_threshold,
     descendant_dur / descendant.dur AS descendant_dur_percentage,
@@ -128,8 +129,8 @@ CREATE TABLE all_descendant_blocking_tasks_queuing_delay_with_cpu_time AS
   FROM
     all_descendant_blocking_tasks_queuing_delay descendant LEFT JOIN (
       SELECT
-        id, slice_cpu_time
-      FROM chrome_thread_slice_with_cpu_time
+        id, thread_dur
+      FROM chrome_thread_slice
     ) AS cpu ON
         cpu.id = descendant.descendant_id;
 
@@ -237,11 +238,11 @@ CREATE VIEW descendant_blocking_tasks_queuing_delay AS
       END, "-") AS descendant_name,
     GROUP_CONCAT(
       CASE WHEN descendant_depth < invalid_depth OR descendant_major_slice THEN
-        descendant_slice_cpu_time
+        descendant_thread_dur
       ELSE
         NULL
       END
-    , "-") AS descendant_slice_cpu_time,
+    , "-") AS descendant_thread_dur,
     GROUP_CONCAT(
       CASE WHEN descendant_depth < invalid_depth OR descendant_major_slice THEN
         descendant_cpu_percentage
