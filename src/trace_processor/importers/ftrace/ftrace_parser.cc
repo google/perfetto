@@ -646,6 +646,10 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         ParseNetifReceiveSkb(cpu, ts, data);
         break;
       }
+      case FtraceEvent::kNetDevXmitFieldNumber: {
+        ParseNetDevXmit(cpu, ts, data);
+        break;
+      }
       default:
         break;
     }
@@ -1664,6 +1668,37 @@ void FtraceParser::ParseNetifReceiveSkb(uint32_t cpu,
   TrackId track = context_->track_tracker->InternGlobalCounterTrack(name);
   base::Optional<CounterId> id = context_->event_tracker->PushCounter(
       timestamp, static_cast<double>(nic_received_kilobytes), track);
+  if (!id) {
+    return;
+  }
+  // Store cpu & len as args for metrics computation
+  StringId cpu_key = context_->storage->InternString("cpu");
+  StringId len_key = context_->storage->InternString("len");
+  context_->args_tracker->AddArgsTo(*id)
+      .AddArg(cpu_key, Variadic::UnsignedInteger(cpu))
+      .AddArg(len_key, Variadic::UnsignedInteger(evt.len()));
+}
+
+void FtraceParser::ParseNetDevXmit(uint32_t cpu,
+                                   int64_t timestamp,
+                                   protozero::ConstBytes blob) {
+  protos::pbzero::NetDevXmitFtraceEvent::Decoder evt(blob.data, blob.size);
+  base::StringView net_device = evt.name();
+  base::StackString<255> counter_name("%.*s Transmitted KB",
+                                      static_cast<int>(net_device.size()),
+                                      net_device.data());
+  StringId name = context_->storage->InternString(counter_name.string_view());
+
+  // Make sure driver took care of packet.
+  if (evt.rc() != 0) {
+    return;
+  }
+  nic_transmitted_bytes_[name] += evt.len();
+
+  uint64_t nic_transmitted_kilobytes = nic_transmitted_bytes_[name] / 1024;
+  TrackId track = context_->track_tracker->InternGlobalCounterTrack(name);
+  base::Optional<CounterId> id = context_->event_tracker->PushCounter(
+      timestamp, static_cast<double>(nic_transmitted_kilobytes), track);
   if (!id) {
     return;
   }

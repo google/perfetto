@@ -155,6 +155,7 @@ class FtraceParser {
   void ParseNetifReceiveSkb(uint32_t cpu,
                             int64_t timestamp,
                             protozero::ConstBytes);
+  void ParseNetDevXmit(uint32_t cpu, int64_t timestamp, protozero::ConstBytes);
 
   TraceProcessorContext* context_;
   RssStatTracker rss_stat_tracker_;
@@ -223,6 +224,9 @@ class FtraceParser {
 
   // Record number of received bytes from the network interface card.
   std::unordered_map<StringId, uint64_t> nic_received_bytes_;
+
+  // Record number of transmitted bytes to the network interface card.
+  std::unordered_map<StringId, uint64_t> nic_transmitted_bytes_;
 
   bool has_seen_first_ftrace_packet_ = false;
 
