@@ -16,6 +16,7 @@
 
 #include <ctype.h>
 
+#include <limits>
 #include <map>
 #include <set>
 #include <stack>
