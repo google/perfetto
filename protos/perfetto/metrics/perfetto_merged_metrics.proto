@@ -85,6 +85,32 @@ message AndroidCameraMetric {
 
 // End of protos/perfetto/metrics/android/camera_metric.proto
 
+// Begin of protos/perfetto/metrics/android/camera_unagg_metric.proto
+
+message AndroidCameraUnaggregatedMetric {
+  message Value {
+    optional int64 ts = 1;
+    optional double value = 2;
+  }
+
+  // Timeseries for the sum of DMA and RSS across GCA, cameraserver
+  // and HAL. This provides a single number for the memory
+  // pressure using the camera is putting on the rest of the
+  // system.
+  //
+  // Note: this number assumes that all DMA pressure is coming
+  // from the camera as this is usually a pretty good
+  // approximation. Being more accurate here would increase the
+  // complexity of the metric significantly.
+  //
+  // Note: if there are multiple GCA/cameraserver/HAL processes
+  // in the trace, this metric will simply take the latest
+  // one in the trace and ignore the others.
+  repeated Value gc_rss_and_dma = 1;
+}
+
+// End of protos/perfetto/metrics/android/camera_unagg_metric.proto
+
 // Begin of protos/perfetto/metrics/android/cpu_metric.proto
 
 message AndroidCpuMetric {
@@ -1351,7 +1377,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 41
+// Next id: 42
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -1455,6 +1481,11 @@ message TraceMetrics {
 
   // Metrics for network performance.
   optional AndroidNetworkMetric android_netperf = 40;
+
+  // Metrics for the Camera team.
+  // Note: this generates a lot of data so should not be requested unless it
+  // is clear that this data is necessary.
+  optional AndroidCameraUnaggregatedMetric android_camera_unagg = 41;
 
   // Demo extensions.
   extensions 450 to 499;

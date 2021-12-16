@@ -126,18 +126,22 @@ def main():
     return 1
 
   print()
-  print('Provide the path to the SQL file relative to the chosen folder {}'
-        .format(chosen_folder_path_rel_root))
+  print(
+      'Provide either the name of a built-in metric OR path to the file (with '
+      'extension .sql) relative to the chosen folder {}'.format(
+          chosen_folder_path_rel_root))
   stdout_write(
       'If the file does not already exist, an empty file will be created: ')
 
-  sql_file = sys.stdin.readline().rstrip()
-  sql_path = os.path.abspath(os.path.join(chosen_folder_path, sql_file))
-  create_if_not_exists(sql_path)
+  sql_file_or_metric = sys.stdin.readline().rstrip()
+  if sql_file_or_metric.endswith('.sql'):
+    sql_path = os.path.abspath(
+        os.path.join(chosen_folder_path, sql_file_or_metric))
+    create_if_not_exists(sql_path)
 
   default_out_file = '{}_{}.out'.format(
       pathlib.Path(trace_file).stem,
-      pathlib.Path(sql_file).stem)
+      pathlib.Path(sql_file_or_metric).stem)
 
   print()
   print('Provide the name of the output file (or leave empty '
@@ -154,7 +158,8 @@ def main():
   print()
   print('Appending test to index file')
   with open(os.path.join(chosen_folder_path, 'index'), 'a') as index_file:
-    index_file.write('{} {} {}\n'.format(trace_file, sql_file, out_file))
+    index_file.write('{} {} {}\n'.format(trace_file, sql_file_or_metric,
+                                         out_file))
 
   return 0
 
