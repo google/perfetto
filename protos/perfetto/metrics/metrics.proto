@@ -21,6 +21,7 @@ package perfetto.protos;
 import "protos/perfetto/metrics/android/batt_metric.proto";
 import "protos/perfetto/metrics/android/cpu_metric.proto";
 import "protos/perfetto/metrics/android/camera_metric.proto";
+import "protos/perfetto/metrics/android/camera_unagg_metric.proto";
 import "protos/perfetto/metrics/android/display_metrics.proto";
 import "protos/perfetto/metrics/android/dma_heap_metric.proto";
 import "protos/perfetto/metrics/android/dvfs_metric.proto";
@@ -95,7 +96,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 41
+// Next id: 42
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -199,6 +200,11 @@ message TraceMetrics {
 
   // Metrics for network performance.
   optional AndroidNetworkMetric android_netperf = 40;
+
+  // Metrics for the Camera team.
+  // Note: this generates a lot of data so should not be requested unless it
+  // is clear that this data is necessary.
+  optional AndroidCameraUnaggregatedMetric android_camera_unagg = 41;
 
   // Demo extensions.
   extensions 450 to 499;
