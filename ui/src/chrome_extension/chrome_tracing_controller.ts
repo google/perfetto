@@ -62,6 +62,9 @@ export class ChromeTracingController extends RpcConsumerPort {
     this.api = rpcClient.api();
     this.api.Tracing.on('tracingComplete', this.onTracingComplete.bind(this));
     this.api.Tracing.on('bufferUsage', this.onBufferUsage.bind(this));
+    this.uiPort.onDisconnect.addListener(() => {
+      this.devtoolsSocket.detach();
+    });
   }
 
   handleCommand(methodName: string, requestData: Uint8Array) {
