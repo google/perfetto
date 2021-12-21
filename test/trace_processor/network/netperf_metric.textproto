@@ -17,16 +17,24 @@ packet {
       }
     }
     event {
-     timestamp: 100100000
-     pid: 200
-     softirq_exit {
-       vec: 3
-     }
+      timestamp: 100100000
+      pid: 200
+      net_dev_xmit {
+        name: "rmnet0"
+        len: 1024
+      }
+    }
+    event {
+      timestamp: 100100000
+      pid: 200
+      softirq_exit {
+        vec: 3
+      }
     }
   }
 }
 
-packet {  
+packet {
   ftrace_events {
     cpu: 1
     event {
@@ -40,6 +48,14 @@ packet {
       timestamp: 120000000
       pid: 300
       netif_receive_skb {
+        name: "rmnet0"
+        len: 1024
+      }
+    }
+    event {
+      timestamp: 120100000
+      pid: 300
+      net_dev_xmit {
         name: "rmnet0"
         len: 1024
       }
@@ -73,6 +89,14 @@ packet {
       }
     }
     event {
+      timestamp: 140100000
+      pid: 400
+      net_dev_xmit {
+        name: "rmnet0"
+        len: 1024
+      }
+    }
+    event {
      timestamp: 140100000
      pid: 400
      softirq_exit {
@@ -101,6 +125,14 @@ packet {
       }
     }
     event {
+      timestamp: 140100000
+      pid: 500
+      net_dev_xmit {
+        name: "rmnet0"
+        len: 1024
+      }
+    }
+    event {
      timestamp: 140100000
      pid: 500
      softirq_exit {
@@ -117,7 +149,15 @@ packet {
       timestamp: 100000000
       pid: 600
       netif_receive_skb {
-        name: "wlan"
+        name: "wlan0"
+        len: 512
+      }
+    }
+    event {
+      timestamp: 101000000
+      pid: 600
+      net_dev_xmit {
+        name: "wlan0"
         len: 512
       }
     }

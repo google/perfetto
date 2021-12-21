@@ -33,9 +33,41 @@ android_netperf{
         }
       }
     }
+    tx {
+      total {
+        packets: 4
+        bytes: 4096
+        first_packet_timestamp_ns: 100100000
+        last_packet_timestamp_ns: 140100000
+        interval_ns: 40000000
+        data_rate_kbps: 800.0
+      }
+      core {
+        id: 0
+        packet_statistic {
+          packets: 2
+          bytes: 2048
+          first_packet_timestamp_ns: 100100000
+          last_packet_timestamp_ns: 140100000
+          interval_ns: 40000000
+          data_rate_kbps: 400.0
+        }
+      }
+      core {
+        id: 1
+        packet_statistic {
+          packets: 2
+          bytes: 2048
+          first_packet_timestamp_ns: 120100000
+          last_packet_timestamp_ns: 140100000
+          interval_ns: 20000000
+          data_rate_kbps: 800.0
+        }
+      }
+    }
   }
   net_devices {
-    name: "wlan"
+    name: "wlan0"
     rx {
       total {
         packets: 1
@@ -52,6 +84,27 @@ android_netperf{
           bytes: 512
           first_packet_timestamp_ns: 100000000
           last_packet_timestamp_ns: 100000000
+          interval_ns: 10000000
+          data_rate_kbps: 400.0
+        }
+      }
+    }
+    tx {
+      total {
+        packets: 1
+        bytes: 512
+        first_packet_timestamp_ns: 101000000
+        last_packet_timestamp_ns: 101000000
+        interval_ns: 10000000
+        data_rate_kbps: 400.0
+      }
+      core {
+        id: 4
+        packet_statistic {
+          packets: 1
+          bytes: 512
+          first_packet_timestamp_ns: 101000000
+          last_packet_timestamp_ns: 101000000
           interval_ns: 10000000
           data_rate_kbps: 400.0
         }
