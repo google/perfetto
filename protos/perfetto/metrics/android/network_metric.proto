@@ -47,7 +47,16 @@ message AndroidNetworkMetric {
   message Rx {
     // Total packets statistic.
     optional PacketStatistic total = 1;
+
     // Per core packets statistic.
+    repeated CorePacketStatistic core = 2;
+  }
+
+  message Tx {
+    // Total packets statistic
+    optional PacketStatistic total = 1;
+
+    // Per core packets statistic
     repeated CorePacketStatistic core = 2;
   }
 
@@ -57,6 +66,9 @@ message AndroidNetworkMetric {
 
     // Ingress traffic statistic.
     optional Rx rx = 2;
+
+    // Egress traffic statistic
+    optional Tx tx = 3;
   }
 
   message NetRxActionStatistic {
