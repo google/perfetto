@@ -169,6 +169,22 @@ CREATE VIEW net_rx_actions AS
     ON s.track_id = t.id
   WHERE s.name = "NET_RX";
 
+DROP VIEW IF EXISTS cpu_freq_view;
+CREATE VIEW cpu_freq_view AS
+SELECT
+  cpu,
+  ts,
+  LEAD(ts, 1, (SELECT end_ts from trace_bounds))
+    OVER (PARTITION by cpu ORDER BY ts) - ts AS dur,
+  CAST(value AS INT) as freq_khz
+FROM counter
+JOIN cpu_counter_track on counter.track_id = cpu_counter_track.id
+WHERE name = 'cpufreq';
+
+DROP TABLE IF EXISTS cpu_freq_net_rx_action_per_core;
+CREATE VIRTUAL TABLE cpu_freq_net_rx_action_per_core
+USING SPAN_LEFT_JOIN(net_rx_actions PARTITIONED cpu, cpu_freq_view PARTITIONED cpu);
+
 DROP VIEW IF EXISTS total_net_rx_action_statistic;
 CREATE VIEW total_net_rx_action_statistic AS
   SELECT
@@ -178,19 +194,26 @@ CREATE VIEW total_net_rx_action_statistic AS
     (SELECT COUNT(1) FROM rx_packets) AS total_packet
   FROM net_rx_actions;
 
+DROP VIEW IF EXISTS activated_cores;
+CREATE VIEW activated_cores AS
+ SELECT
+   DISTINCT cpu
+ FROM net_rx_actions;
+
 DROP VIEW IF EXISTS per_core_net_rx_action_statistic;
 CREATE VIEW per_core_net_rx_action_statistic AS
   SELECT
     AndroidNetworkMetric_CoreNetRxActionStatistic(
       'id', cpu,
       'net_rx_action_statistic', AndroidNetworkMetric_NetRxActionStatistic(
-        'count', COUNT(1),
-        'runtime_ms', SUM(dur)/1e6,
-        'avg_runtime_ms', AVG(dur)/1e6
+        'count', (SELECT COUNT(1) FROM net_rx_actions AS na WHERE na.cpu = ac.cpu),
+        'runtime_ms',  (SELECT SUM(dur)/1e6 FROM net_rx_actions AS na WHERE na.cpu = ac.cpu),
+        'avg_runtime_ms', (SELECT AVG(dur)/1e6 FROM net_rx_actions AS na WHERE na.cpu = ac.cpu),
+        'avg_freq_khz', (SELECT SUM(dur * freq_khz) / SUM(dur) FROM cpu_freq_net_rx_action_per_core AS cc WHERE cc.cpu = ac.cpu),
+        'mcycles', (SELECT CAST(SUM(dur * freq_khz / 1000) / 1e9 AS INT) FROM cpu_freq_net_rx_action_per_core AS cc WHERE cc.cpu = ac.cpu)
       )
     ) AS proto
-  FROM net_rx_actions
-  GROUP BY cpu;
+  FROM activated_cores AS ac;
 
 DROP VIEW IF EXISTS android_netperf_output;
 CREATE VIEW android_netperf_output AS
@@ -204,7 +227,9 @@ CREATE VIEW android_netperf_output AS
        'total', AndroidNetworkMetric_NetRxActionStatistic(
          'count', (SELECT times FROM total_net_rx_action_statistic),
          'runtime_ms', (SELECT runtime/1e6 FROM total_net_rx_action_statistic),
-         'avg_runtime_ms', (SELECT avg_runtime/1e6 FROM total_net_rx_action_statistic)
+         'avg_runtime_ms', (SELECT avg_runtime/1e6 FROM total_net_rx_action_statistic),
+         'avg_freq_khz', (SELECT SUM(dur * freq_khz) / SUM(dur) FROM cpu_freq_net_rx_action_per_core),
+         'mcycles', (SELECT CAST(SUM(dur * freq_khz / 1000) / 1e9 AS INT) FROM cpu_freq_net_rx_action_per_core)
        ),
        'core', (
          SELECT
