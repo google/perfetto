@@ -886,6 +886,13 @@ message AndroidNetworkMetric {
 
     // SoftIrq NET_RX action average running time.
     optional double avg_runtime_ms = 3;
+
+    // CPU megacycles (i.e. cycles divided by 1e6).
+    optional int64 mcycles = 4;
+
+    // Average weighted CPU frequency by the time the NET_RX Action
+    // running at each frequency.
+    optional int64 avg_freq_khz = 5;
   }
 
   message CoreNetRxActionStatistic {
