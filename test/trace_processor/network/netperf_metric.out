@@ -114,25 +114,31 @@ android_netperf{
   net_rx_action {
     total {
       count: 4
-      runtime_ms: 0.4
-      avg_runtime_ms: 0.1
+      runtime_ms: 2.0
+      avg_runtime_ms: 0.5
+      avg_freq_khz: 1500000
+      mcycles: 3
     }
     core {
       id: 0
       net_rx_action_statistic {
         count: 2
-        runtime_ms: 0.2
-        avg_runtime_ms: 0.1
+        runtime_ms: 1.0
+        avg_runtime_ms: 0.5
+        avg_freq_khz: 1500000
+        mcycles: 1
       }
     }
     core {
       id: 1
       net_rx_action_statistic {
         count: 2
-        runtime_ms: 0.2
-        avg_runtime_ms: 0.1
+        runtime_ms: 1.0
+        avg_runtime_ms: 0.5
+        avg_freq_khz: 1500000
+        mcycles: 1
       }
     }
-    avg_interstack_latency_ms: 0.08
+    avg_interstack_latency_ms: 0.4
   }
 }
