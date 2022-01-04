@@ -4,6 +4,14 @@ packet {
     event {
      timestamp: 100000000
      pid: 200
+     cpu_frequency {
+       cpu_id: 0
+       state: 2000000
+     }
+    }
+    event {
+     timestamp: 100000000
+     pid: 200
      softirq_entry {
        vec: 3
      }
@@ -25,7 +33,7 @@ packet {
       }
     }
     event {
-      timestamp: 100100000
+      timestamp: 100500000
       pid: 200
       softirq_exit {
         vec: 3
@@ -37,6 +45,14 @@ packet {
 packet {
   ftrace_events {
     cpu: 1
+    event {
+     timestamp: 120000000
+     pid: 200
+     cpu_frequency {
+       cpu_id: 1
+       state: 2000000
+     }
+    }
     event {
      timestamp: 120000000
      pid: 300
@@ -61,7 +77,7 @@ packet {
       }
     }
     event {
-     timestamp: 120100000
+     timestamp: 120500000
      pid: 300
      softirq_exit {
        vec: 3
@@ -75,6 +91,14 @@ packet {
     cpu: 0
     event {
      timestamp: 140000000
+     pid: 200
+     cpu_frequency {
+       cpu_id: 0
+       state: 1000000
+     }
+    }
+    event {
+     timestamp: 140000000
      pid: 400
      softirq_entry {
        vec: 3
@@ -97,7 +121,7 @@ packet {
       }
     }
     event {
-     timestamp: 140100000
+     timestamp: 140500000
      pid: 400
      softirq_exit {
        vec: 3
@@ -109,6 +133,14 @@ packet {
 packet {
   ftrace_events {
     cpu: 1
+    event {
+     timestamp: 140000000
+     pid: 200
+     cpu_frequency {
+       cpu_id: 1
+       state: 1000000
+     }
+    }
     event {
      timestamp: 140000000
      pid: 500
@@ -133,7 +165,7 @@ packet {
       }
     }
     event {
-     timestamp: 140100000
+     timestamp: 140500000
      pid: 500
      softirq_exit {
        vec: 3
@@ -145,6 +177,14 @@ packet {
 packet {
   ftrace_events {
     cpu: 4
+    event {
+     timestamp: 100000000
+     pid: 200
+     cpu_frequency {
+       cpu_id: 4
+       state: 2000000
+     }
+    }
     event {
       timestamp: 100000000
       pid: 600
