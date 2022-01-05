@@ -65,6 +65,7 @@
 #include "src/perfetto_cmd/trigger_producer.h"
 
 #include "protos/perfetto/common/tracing_service_state.gen.h"
+#include "protos/perfetto/common/track_event_descriptor.gen.h"
 
 namespace perfetto {
 namespace {
@@ -1152,6 +1153,20 @@ void PerfettoCmd::PrintServiceState(bool success,
     printf("  producer_id: %d\n", ds.producer_id());
     printf("  descriptor: {\n");
     printf("    name: \"%s\"\n", ds.ds_descriptor().name().c_str());
+    if (!ds.ds_descriptor().track_event_descriptor_raw().empty()) {
+      auto raw = ds.ds_descriptor().track_event_descriptor_raw();
+      perfetto::protos::gen::TrackEventDescriptor desc;
+      if (desc.ParseFromArray(raw.data(), raw.size())) {
+        printf("    track_event_descriptor: {\n");
+        for (const auto& cat : desc.available_categories()) {
+          printf("      available_categories: {\n");
+          printf("        name: \"%s\"\n", cat.name().c_str());
+          printf("        description: \"%s\"\n", cat.description().c_str());
+          printf("      }\n");
+        }
+        printf("    }\n");
+      }
+    }
     printf("  }\n");
     printf("}\n");
   }
