@@ -236,6 +236,7 @@ class HeapGraphTracker : public Destructible {
   StringPool::Id referent_str_id_;
   StringPool::Id cleaner_thunk_this0_str_id_;
   StringPool::Id native_size_str_id_;
+  StringPool::Id cleaner_next_str_id_;
 };
 
 }  // namespace trace_processor
