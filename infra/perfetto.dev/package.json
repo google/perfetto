@@ -7,7 +7,7 @@
   "author": "Perfetto Team",
   "license": "Apache-2.0",
   "dependencies": {
-    "mermaid": "^8.5.0"
+    "mermaid": "^8.13.8"
   },
   "devDependencies": {
     "argparse": "^2.0.1",
