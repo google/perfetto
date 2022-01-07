@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import io
 import os
 import unittest
 
@@ -21,11 +22,11 @@ from trace_processor.api import TraceProcessor
 
 class TestApi(unittest.TestCase):
 
-  def test_trace_file(self):
+  def test_trace_path(self):
     # Get path to trace_processor_shell and construct TraceProcessor
     tp = TraceProcessor(
-        file_path=os.path.join(os.environ["ROOT_DIR"], 'test', 'data',
-                               'example_android_trace_30s.pb'),
+        trace=os.path.join(os.environ["ROOT_DIR"], 'test', 'data',
+                           'example_android_trace_30s.pb'),
         bin_path=os.environ["SHELL_PATH"])
     qr_iterator = tp.query('select * from slice limit 10')
     dur_result = [
@@ -48,3 +49,51 @@ class TestApi(unittest.TestCase):
     self.assertEqual(count, expected_count)
 
     tp.close()
+
+  def test_trace_byteio(self):
+    f = io.BytesIO(
+        b'\n(\n&\x08\x00\x12\x12\x08\x01\x10\xc8\x01\x1a\x0b\x12\t'
+        b'B|200|foo\x12\x0e\x08\x02\x10\xc8\x01\x1a\x07\x12\x05E|200')
+    with TraceProcessor(trace=f, bin_path=os.environ["SHELL_PATH"]) as tp:
+      qr_iterator = tp.query('select * from slice limit 10')
+      res = list(qr_iterator)
+
+      self.assertEqual(len(res), 1)
+
+      row = res[0]
+      self.assertEqual(row.ts, 1)
+      self.assertEqual(row.dur, 1)
+      self.assertEqual(row.name, 'foo')
+
+  def test_trace_file(self):
+    path = os.path.join(os.environ["ROOT_DIR"], 'test', 'data',
+                        'example_android_trace_30s.pb')
+    with open(path, 'rb') as file:
+      with TraceProcessor(trace=file, bin_path=os.environ["SHELL_PATH"]) as tp:
+        qr_iterator = tp.query('select * from slice limit 10')
+        dur_result = [
+            178646, 119740, 58073, 155000, 173177, 20209377, 3589167, 90104,
+            275312, 65313
+        ]
+
+        for num, row in enumerate(qr_iterator):
+          self.assertEqual(row.dur, dur_result[num])
+
+  def test_trace_generator(self):
+
+    def reader_generator():
+      path = os.path.join(os.environ["ROOT_DIR"], 'test', 'data',
+                          'example_android_trace_30s.pb')
+      with open(path, 'rb') as file:
+        yield file.read(1024)
+
+    with TraceProcessor(
+        trace=reader_generator(), bin_path=os.environ["SHELL_PATH"]) as tp:
+      qr_iterator = tp.query('select * from slice limit 10')
+      dur_result = [
+          178646, 119740, 58073, 155000, 173177, 20209377, 3589167, 90104,
+          275312, 65313
+      ]
+
+      for num, row in enumerate(qr_iterator):
+        self.assertEqual(row.dur, dur_result[num])
