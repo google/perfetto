@@ -22,6 +22,7 @@ from typing import Any, Callable, Dict, Tuple, Union, List
 
 import pandas as pd
 
+from perfetto.trace_processor import LoadableTrace
 from perfetto.trace_processor import TraceProcessor
 from perfetto.trace_processor import TraceProcessorException
 
@@ -30,33 +31,27 @@ from perfetto.trace_processor import TraceProcessorException
 class _TpArg:
   bin_path: str
   verbose: bool
-  file: str
+  trace: LoadableTrace
 
 
 @dc.dataclass
-class TraceFile:
-  trace_path: str
+class BatchLoadableTrace:
+  trace: LoadableTrace
   args: Dict[str, str]
-
-
-def _create_trace_file(path_or_trace_file: Union[str, TraceFile]) -> TraceFile:
-  if isinstance(path_or_trace_file, str):
-    return TraceFile(trace_path=path_or_trace_file, args={})
-  return path_or_trace_file
 
 
 class BatchTraceProcessor:
   """Run ad-hoc SQL queries across many Perfetto traces.
 
   Usage:
-    with BatchTraceProcessor(files=files) as btp:
+    with BatchTraceProcessor(traces) as btp:
       dfs = btp.query('select * from slice')
       for df in dfs:
         print(df)
   """
 
   def __init__(self,
-               files: Union[List[TraceFile], List[str]],
+               traces: List[Union[LoadableTrace, BatchLoadableTrace]],
                bin_path: str = None,
                verbose: bool = False):
     """Creates a batch trace processor instance.
@@ -65,26 +60,37 @@ class BatchTraceProcessor:
     Python across many traces.
 
     Args:
-      files: Either a list of trace file paths or a list of TraceFile objects
-        indicating the traces to load into this batch trace processor instance.
+      traces: A list of traces to load into this instance. Each object in
+        the list can be one of the following types:
+        1) path to a trace file to open and read
+        2) a file like object (file, io.BytesIO or similar) to read
+        3) a generator yielding bytes
+        4) a BatchLoadableTrace object; this is basically a wrapper around
+           one of the above types plus an args field; see |query_and_flatten|
+           for the motivation for the args field.
       bin_path: Optional path to a trace processor shell binary to use to
         load the traces.
       verbose: Optional flag indiciating whether verbose trace processor
         output should be printed to stderr.
     """
+
+    def _create_batch_trace(x: Union[LoadableTrace, BatchLoadableTrace]
+                           ) -> BatchLoadableTrace:
+      if isinstance(x, BatchLoadableTrace):
+        return x
+      return BatchLoadableTrace(trace=x, args={})
+
+    def create_tp(arg: _TpArg) -> TraceProcessor:
+      return TraceProcessor(
+          trace=arg.trace, bin_path=arg.bin_path, verbose=arg.verbose)
+
     self.tps = None
     self.closed = False
     self.executor = cf.ThreadPoolExecutor()
 
-    self.files = [_create_trace_file(file) for file in files]
+    self.traces = [_create_batch_trace(t) for t in traces]
 
-    def create_tp(arg: _TpArg) -> TraceProcessor:
-      return TraceProcessor(
-          file_path=arg.file, bin_path=arg.bin_path, verbose=arg.verbose)
-
-    tp_args = [
-        _TpArg(bin_path, verbose, file.trace_path) for file in self.files
-    ]
+    tp_args = [_TpArg(bin_path, verbose, t.trace) for t in self.traces]
     self.tps = list(self.executor.map(create_tp, tp_args))
 
   def metric(self, metrics: List[str]):
@@ -127,21 +133,21 @@ class BatchTraceProcessor:
       sql: The SQL statement to execute.
 
     Returns:
-      A Pandas dataframe containing the result of executing the query across all
-      the traces. The dataframe will have an additional column 'trace_path'
-      indicating the trace file associated with that row. Also, if |TraceFile|
-      objects were passed to the constructor, the contents of the |args|
-      dictionary will also be emitted as other columns (key being column name,
-      value being the value in the dataframe).
+      A concatenated Pandas dataframe containing the result of executing the
+      query across all the traces.
+
+      If |BatchLoadableTrace| objects were passed to the constructor, the
+      contents of the |args| dictionary will also be emitted as extra columns
+      (key being column name, value being the value in the dataframe).
 
       For example:
-        files = [TraceFile(trace_path='/tmp/path', args={"foo": "bar"})]
-        with BatchTraceProcessor(files=files) as btp:
+        traces = [BatchLoadableTrace(trace='/tmp/path', args={"foo": "bar"})]
+        with BatchTraceProcessor(traces) as btp:
           df = btp.query_and_flatten('select count(1) as cnt from slice')
 
       Then df will look like this:
-        cnt           trace_path              foo
-        100           /tmp/path               bar
+        cnt             foo
+        100             bar
 
     Raises:
       TraceProcessorException: An error occurred running the query.
@@ -211,15 +217,14 @@ class BatchTraceProcessor:
       be added to the dataframe (see |query_and_flatten| for details).
     """
 
-    def wrapped(pair: Tuple[TraceProcessor, TraceFile]):
-      (tp, file) = pair
+    def wrapped(pair: Tuple[TraceProcessor, BatchLoadableTrace]):
+      (tp, trace) = pair
       df = fn(tp)
-      df["trace_path"] = file.trace_path
-      for key, value in file.args.items():
+      for key, value in trace.args.items():
         df[key] = value
       return df
 
-    df = pd.concat(list(self.executor.map(wrapped, zip(self.tps, self.files))))
+    df = pd.concat(list(self.executor.map(wrapped, zip(self.tps, self.traces))))
     return df.reset_index(drop=True)
 
   def close(self):
