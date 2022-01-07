@@ -103,3 +103,6 @@ Googlers: You can check build progress and logs on
 [go/perfetto-ui-autopush](http://go/perfetto-ui-autopush) and
 [go/perfetto-ui-channels](http://go/perfetto-ui-channels) for the design docs of
 the serving infrastructure.
+
+## Publishing the Perfetto Chrome extension
+Googlers: see go/perfetto-release-chrome-extension
