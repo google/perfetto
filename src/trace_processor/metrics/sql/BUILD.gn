@@ -62,6 +62,7 @@ sql_files = [
   "android/process_metadata.sql",
   "android/process_oom_score.sql",
   "android/profiler_smaps.sql",
+  "android/android_rt_runtime.sql",
   "android/mem_stats_priority_breakdown.sql",
   "android/android_multiuser.sql",
   "android/android_multiuser_populator.sql",
