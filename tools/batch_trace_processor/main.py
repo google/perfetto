@@ -23,24 +23,26 @@ import numpy as np
 import pandas as pd
 import plotille
 
-from perfetto.trace_processor import TraceProcessorException
-
 from perfetto.batch_trace_processor.api import BatchTraceProcessor
-
-
-def prefix_path_column(path, df):
-  df['trace_file_path'] = path
-  return df
+from perfetto.trace_processor import TraceProcessorException
+from typing import List
 
 
 class TpBatchShell(cmd.Cmd):
 
-  def __init__(self, files, batch_tp):
+  def __init__(self, files: List[str], batch_tp: BatchTraceProcessor):
     super().__init__()
     self.files = files
     self.batch_tp = batch_tp
 
-  def do_histogram(self, arg):
+  def do_table(self, arg: str):
+    try:
+      data = self.batch_tp.query_and_flatten(arg)
+      print(data)
+    except TraceProcessorException as ex:
+      logging.error("Query failed: {}".format(ex))
+
+  def do_histogram(self, arg: str):
     try:
       data = self.batch_tp.query_single_result(arg)
       print(plotille.histogram(data))
@@ -48,7 +50,7 @@ class TpBatchShell(cmd.Cmd):
     except TraceProcessorException as ex:
       logging.error("Query failed: {}".format(ex))
 
-  def do_vhistogram(self, arg):
+  def do_vhistogram(self, arg: str):
     try:
       data = self.batch_tp.query_single_result(arg)
       print(plotille.hist(data))
@@ -56,7 +58,7 @@ class TpBatchShell(cmd.Cmd):
     except TraceProcessorException as ex:
       logging.error("Query failed: {}".format(ex))
 
-  def do_count(self, arg):
+  def do_count(self, arg: str):
     try:
       data = self.batch_tp.query_single_result(arg)
       counts = dict()
@@ -114,9 +116,10 @@ def main():
         queries_str = f.read()
 
       queries = [q.strip() for q in queries_str.split(";\n")]
-      out = [batch_tp.query(q) for q in queries if q][-1]
-      res = pd.concat(
-          [prefix_path_column(path, df) for (path, df) in zip(files, out)])
+      for q in queries[:-1]:
+        batch_tp.query(q)
+
+      res = batch_tp.query_and_flatten(queries[-1])
       print(res.to_csv(index=False))
 
     if args.interactive or not args.query_file:
