@@ -229,7 +229,7 @@ class TraceProcessor:
       get_loader().parse_file(self.http, trace)
     elif hasattr(trace, 'read'):
       while True:
-        chunk = trace.read()
+        chunk = trace.read(32 * 1024 * 1024)
         if not chunk:
           break
         self.http.parse(chunk)
