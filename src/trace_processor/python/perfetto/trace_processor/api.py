@@ -13,12 +13,15 @@
 # limitations under the License.
 
 from urllib.parse import urlparse
+from typing import BinaryIO, Generator, List, Optional, Union
 
 from .http import TraceProcessorHttp
 from .loader import get_loader
 from .protos import ProtoFactory
 from .shell import load_shell
 
+# Union of types supported for a trace which can be loaded by shell.
+LoadableTrace = Union[None, str, BinaryIO, Generator[bytes, None, None]]
 
 # Custom exception raised if any trace_processor functions return a
 # response with an error defined
@@ -122,7 +125,6 @@ class TraceProcessor:
     # TraceProcesor.
     def as_pandas_dataframe(self):
       try:
-        import numpy as np
         import pandas as pd
 
         # Populate the dataframe with the query results
@@ -144,7 +146,8 @@ class TraceProcessor:
           rows.append(row)
 
         df = pd.DataFrame(rows, columns=self.__column_names)
-        return df.where(df.notnull(), None).reset_index(drop=True)
+        return df.astype(object).where(df.notnull(),
+                                       None).reset_index(drop=True)
 
       except ModuleNotFoundError:
         raise TraceProcessorException(
@@ -176,27 +179,67 @@ class TraceProcessor:
       return result
 
   def __init__(self,
-               addr=None,
-               file_path=None,
-               bin_path=None,
-               unique_port=True,
-               verbose=False):
-    # Load trace_processor_shell or access via given address
-    if addr:
-      p = urlparse(addr)
-      tp = TraceProcessorHttp(p.netloc if p.netloc else p.path)
-    else:
+               trace: LoadableTrace = None,
+               addr: Optional[str] = None,
+               bin_path: Optional[str] = None,
+               unique_port: bool = True,
+               verbose: bool = False,
+               file_path: Optional[str] = None):
+    """Create a trace processor instance.
+
+    Args:
+      trace: Trace to be loaded into the trace processor instance. One of
+        three types of argument is supported:
+        1) path to a trace file to open and read
+        2) a file like object (file, io.BytesIO or similar) to read
+        3) a generator yielding bytes
+      addr: address of a running trace processor instance. For advanced
+        use only.
+      bin_path: path to a trace processor shell binary. For advanced use
+        only.
+      unique_port: whether the trace processor shell instance should be
+        be started on a unique port. Only used when |addr| is not set.
+        For advanced use only.
+      verbose: whether trace processor shell should emit verbose logs;
+        can be very spammy. For advanced use only.
+      file_path (deprecated): path to a trace file to load. Please use
+        |trace| instead of this field: specifying both will cause
+        an exception to be thrown.
+    """
+
+    def create_tp_http():
+      if addr:
+        p = urlparse(addr)
+        return TraceProcessorHttp(p.netloc if p.netloc else p.path)
+
       url, self.subprocess = load_shell(
           bin_path=bin_path, unique_port=unique_port, verbose=verbose)
-      tp = TraceProcessorHttp(url)
-    self.http = tp
+      return TraceProcessorHttp(url)
+
+    if trace and file_path:
+      raise TraceProcessorException(
+          "trace and file_path cannot both be specified.")
+
+    self.http = create_tp_http()
     self.protos = ProtoFactory()
 
-    # Parse trace by its file_path into the loaded instance of trace_processor
     if file_path:
       get_loader().parse_file(self.http, file_path)
+    elif isinstance(trace, str):
+      get_loader().parse_file(self.http, trace)
+    elif hasattr(trace, 'read'):
+      while True:
+        chunk = trace.read(32 * 1024 * 1024)
+        if not chunk:
+          break
+        self.http.parse(chunk)
+      self.http.notify_eof()
+    elif trace:
+      for chunk in trace:
+        self.http.parse(chunk)
+      self.http.notify_eof()
 
-  def query(self, sql):
+  def query(self, sql: str):
     """Executes passed in SQL query using class defined HTTP API, and returns
     the response as a QueryResultIterator. Raises TraceProcessorException if
     the response returns with an error.
@@ -216,7 +259,7 @@ class TraceProcessor:
     return TraceProcessor.QueryResultIterator(response.column_names,
                                               response.batch)
 
-  def metric(self, metrics):
+  def metric(self, metrics: List[str]):
     """Returns the metrics data corresponding to the passed in trace metric.
     Raises TraceProcessorException if the response returns with an error.
 
@@ -254,7 +297,8 @@ class TraceProcessor:
   def __enter__(self):
     return self
 
-  def __exit__(self, _, __, ___):
+  def __exit__(self, a, b, c):
+    del a, b, c  # Unused.
     self.close()
     return False
 
