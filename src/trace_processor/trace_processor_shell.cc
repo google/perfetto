@@ -1255,7 +1255,9 @@ void PrintShellUsage() {
       ".load-metrics-sql Reloads SQL from extension and custom metric paths\n"
       "                  specified in command line args.\n"
       ".run-metrics      Runs metrics specified in command line args\n"
-      "                  and prints the result.\n");
+      "                  and prints the result.\n"
+      ".width WIDTH      Changes the column width of interactive query\n"
+      "                  output.");
 }
 
 struct InteractiveOptions {
