@@ -50,32 +50,41 @@ def prt(msg, colors=ANSI.END):
   print(colors + msg + ANSI.END)
 
 
-def open_trace_in_browser(path):
+def open_trace(path, open_browser):
   # We reuse the HTTP+RPC port because it's the only one allowed by the CSP.
   PORT = 9001
   os.chdir(os.path.dirname(path))
   fname = os.path.basename(path)
   socketserver.TCPServer.allow_reuse_address = True
   with socketserver.TCPServer(('127.0.0.1', PORT), HttpHandler) as httpd:
-    webbrowser.open_new_tab(
-        'https://ui.perfetto.dev/#!/?url=http://127.0.0.1:%d/%s' %
-        (PORT, fname))
+    if open_browser:
+      webbrowser.open_new_tab(
+          'https://ui.perfetto.dev/#!/?url=http://127.0.0.1:%d/%s' %
+          (PORT, fname))
+    else:
+      print('Open URL in browser: '
+            'https://ui.perfetto.dev/#!/?url=http://127.0.0.1:%d/%s' %
+            (PORT, fname))
+
     while httpd.__dict__.get('last_request') != '/' + fname:
       httpd.handle_request()
 
 
 def main():
   examples = '\n'.join([
-      ANSI.BOLD + 'Usage:' + ANSI.END, '  -i path/trace_file_name'
+      ANSI.BOLD + 'Usage:' + ANSI.END, '  -i path/trace_file_name [-n]'
   ])
   parser = argparse.ArgumentParser(
       epilog=examples, formatter_class=argparse.RawTextHelpFormatter)
 
   help = 'Input trace filename'
   parser.add_argument('-i', '--trace', help=help)
+  parser.add_argument('-n', '--no-open-browser', action='store_true',
+                      default=False)
 
   args = parser.parse_args()
   trace_file = args.trace
+  open_browser = not args.no_open_browser
 
   if trace_file is None:
     prt('Please specify trace file name with -i/--trace argument', ANSI.RED)
@@ -85,7 +94,7 @@ def main():
     sys.exit(1)
 
   prt('Opening the trace (%s) in the browser' % trace_file)
-  open_trace_in_browser(trace_file)
+  open_trace(trace_file, open_browser)
 
 
 if __name__ == '__main__':
