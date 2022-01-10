@@ -88,9 +88,10 @@ class BatchTraceProcessor:
     self.closed = False
     self.executor = cf.ThreadPoolExecutor()
 
-    self.traces = [_create_batch_trace(t) for t in traces]
+    batch_traces = [_create_batch_trace(t) for t in traces]
+    self.args = [t.args for t in batch_traces]
 
-    tp_args = [_TpArg(bin_path, verbose, t.trace) for t in self.traces]
+    tp_args = [_TpArg(bin_path, verbose, t.trace) for t in batch_traces]
     self.tps = list(self.executor.map(create_tp, tp_args))
 
   def metric(self, metrics: List[str]):
@@ -218,13 +219,13 @@ class BatchTraceProcessor:
     """
 
     def wrapped(pair: Tuple[TraceProcessor, BatchLoadableTrace]):
-      (tp, trace) = pair
+      (tp, args) = pair
       df = fn(tp)
-      for key, value in trace.args.items():
+      for key, value in args.items():
         df[key] = value
       return df
 
-    df = pd.concat(list(self.executor.map(wrapped, zip(self.tps, self.traces))))
+    df = pd.concat(list(self.executor.map(wrapped, zip(self.tps, self.args))))
     return df.reset_index(drop=True)
 
   def close(self):
