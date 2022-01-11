@@ -41,7 +41,7 @@ tools/diff_test_trace_processor.py \
   --perf-file=/ci/artifacts/perf/tp-perf-all.json \
   ${TP_SHELL}
 
-tools/run_python_api_tests.py ${TP_SHELL}
+python/run_tests.py ${TP_SHELL}
 
 # Don't run benchmarks under x86 (running out of address space because of 4GB)
 # limit or debug (too slow and pointless).
