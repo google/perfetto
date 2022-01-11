@@ -1416,9 +1416,9 @@ TEST_F(TracingServiceImplTest, LockdownMode) {
   producer->WaitForDataSourceStart("data_source");
 
   std::unique_ptr<MockProducer> producer_otheruid = CreateMockProducer();
-  auto x =
-      svc->ConnectProducer(producer_otheruid.get(),
-                           base::GetCurrentUserId() + 1, "mock_producer_ouid");
+  auto x = svc->ConnectProducer(producer_otheruid.get(),
+                                base::GetCurrentUserId() + 1,
+                                base::GetProcessId(), "mock_producer_ouid");
   EXPECT_CALL(*producer_otheruid, OnConnect()).Times(0);
   task_runner.RunUntilIdle();
   Mock::VerifyAndClearExpectations(producer_otheruid.get());
@@ -1786,7 +1786,7 @@ TEST_F(TracingServiceImplTest, ProducerShmAndPageSizeOverriddenByTraceConfig) {
     auto name = "mock_producer_" + std::to_string(i);
     producer[i] = CreateMockProducer();
     producer[i]->Connect(svc.get(), name, base::GetCurrentUserId(),
-                         kSizes[i].hint_size_kb * 1024,
+                         base::GetProcessId(), kSizes[i].hint_size_kb * 1024,
                          kSizes[i].hint_page_size_kb * 1024);
     producer[i]->RegisterDataSource("data_source");
   }
@@ -2427,11 +2427,13 @@ TEST_F(TracingServiceImplTest, ProducerUIDsAndPacketSequenceIDs) {
   consumer->Connect(svc.get());
 
   std::unique_ptr<MockProducer> producer1 = CreateMockProducer();
-  producer1->Connect(svc.get(), "mock_producer1", 123u /* uid */);
+  producer1->Connect(svc.get(), "mock_producer1", 123u /* uid */,
+                     1001 /* pid */);
   producer1->RegisterDataSource("data_source");
 
   std::unique_ptr<MockProducer> producer2 = CreateMockProducer();
-  producer2->Connect(svc.get(), "mock_producer2", 456u /* uid */);
+  producer2->Connect(svc.get(), "mock_producer2", 456u /* uid */,
+                     2002 /* pid */);
   producer2->RegisterDataSource("data_source");
 
   TraceConfig trace_config;
@@ -2482,6 +2484,7 @@ TEST_F(TracingServiceImplTest, ProducerUIDsAndPacketSequenceIDs) {
           Property(&protos::gen::TracePacket::for_testing,
                    Property(&protos::gen::TestEvent::str, Eq("payload1a1"))),
           Property(&protos::gen::TracePacket::trusted_uid, Eq(123)),
+          Property(&protos::gen::TracePacket::trusted_pid, Eq(1001)),
           Property(&protos::gen::TracePacket::trusted_packet_sequence_id,
                    Eq(2u)))));
   EXPECT_THAT(
@@ -2490,6 +2493,7 @@ TEST_F(TracingServiceImplTest, ProducerUIDsAndPacketSequenceIDs) {
           Property(&protos::gen::TracePacket::for_testing,
                    Property(&protos::gen::TestEvent::str, Eq("payload1a2"))),
           Property(&protos::gen::TracePacket::trusted_uid, Eq(123)),
+          Property(&protos::gen::TracePacket::trusted_pid, Eq(1001)),
           Property(&protos::gen::TracePacket::trusted_packet_sequence_id,
                    Eq(2u)))));
   EXPECT_THAT(
@@ -2498,6 +2502,7 @@ TEST_F(TracingServiceImplTest, ProducerUIDsAndPacketSequenceIDs) {
           Property(&protos::gen::TracePacket::for_testing,
                    Property(&protos::gen::TestEvent::str, Eq("payload1b1"))),
           Property(&protos::gen::TracePacket::trusted_uid, Eq(123)),
+          Property(&protos::gen::TracePacket::trusted_pid, Eq(1001)),
           Property(&protos::gen::TracePacket::trusted_packet_sequence_id,
                    Eq(3u)))));
   EXPECT_THAT(
@@ -2506,6 +2511,7 @@ TEST_F(TracingServiceImplTest, ProducerUIDsAndPacketSequenceIDs) {
           Property(&protos::gen::TracePacket::for_testing,
                    Property(&protos::gen::TestEvent::str, Eq("payload1b2"))),
           Property(&protos::gen::TracePacket::trusted_uid, Eq(123)),
+          Property(&protos::gen::TracePacket::trusted_pid, Eq(1001)),
           Property(&protos::gen::TracePacket::trusted_packet_sequence_id,
                    Eq(3u)))));
   EXPECT_THAT(
@@ -2514,6 +2520,7 @@ TEST_F(TracingServiceImplTest, ProducerUIDsAndPacketSequenceIDs) {
           Property(&protos::gen::TracePacket::for_testing,
                    Property(&protos::gen::TestEvent::str, Eq("payload2a1"))),
           Property(&protos::gen::TracePacket::trusted_uid, Eq(456)),
+          Property(&protos::gen::TracePacket::trusted_pid, Eq(2002)),
           Property(&protos::gen::TracePacket::trusted_packet_sequence_id,
                    Eq(4u)))));
 }
@@ -3728,7 +3735,7 @@ TEST_F(TracingServiceImplTest, ProducerProvidedSMB) {
   SharedMemory* shm_raw = shm.get();
 
   // Service should adopt the SMB provided by the producer.
-  producer->Connect(svc.get(), "mock_producer", /*uid=*/42,
+  producer->Connect(svc.get(), "mock_producer", /*uid=*/42, /*pid=*/1025,
                     /*shared_memory_size_hint_bytes=*/0, kShmPageSizeBytes,
                     std::move(shm));
   EXPECT_TRUE(producer->endpoint()->IsShmemProvidedByProducer());
@@ -3783,7 +3790,7 @@ TEST_F(TracingServiceImplTest, ProducerProvidedSMBInvalidSizes) {
 
   // Service should not adopt the SMB provided by the producer, because the SMB
   // size isn't a multiple of the page size.
-  producer->Connect(svc.get(), "mock_producer", /*uid=*/42,
+  producer->Connect(svc.get(), "mock_producer", /*uid=*/42, /*pid=*/1025,
                     /*shared_memory_size_hint_bytes=*/0, kShmPageSizeBytes,
                     std::move(shm));
   EXPECT_FALSE(producer->endpoint()->IsShmemProvidedByProducer());
