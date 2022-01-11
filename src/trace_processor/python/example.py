@@ -15,7 +15,7 @@
 
 import argparse
 
-from perfetto.trace_processor import TraceProcessor
+from perfetto.trace_processor import TraceProcessor, TraceProcessorConfig
 
 
 def main():
@@ -34,16 +34,17 @@ def main():
   parser.add_argument("-f", "--file", help="Absolute path to trace", type=str)
   args = parser.parse_args()
 
+  config = TraceProcessorConfig(bin_path=args.binary)
+
   # Pass arguments into api to construct the trace processor and load the trace
   if args.address is None and args.file is None:
     raise Exception("You must specify an address or a file path to trace")
   elif args.address is None:
-    tp = TraceProcessor(file_path=args.file, bin_path=args.binary)
+    tp = TraceProcessor(trace=args.file, config=config)
   elif args.file is None:
-    tp = TraceProcessor(addr=args.address)
+    tp = TraceProcessor(addr=args.address, config=config)
   else:
-    tp = TraceProcessor(
-        addr=args.address, file_path=args.file, bin_path=args.binary)
+    tp = TraceProcessor(trace=args.file, addr=args.address, config=config)
 
   # Iterate through QueryResultIterator
   res_it = tp.query('select * from slice limit 10')

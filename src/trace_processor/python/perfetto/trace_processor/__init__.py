@@ -13,5 +13,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .api import TraceProcessor, TraceProcessorException
+from .api import LoadableTrace, TraceProcessor, TraceProcessorConfig, TraceProcessorException
 from .http import TraceProcessorHttp
