@@ -19,6 +19,8 @@ load(
     "perfetto_py_library",
 )
 
+licenses(["notice"])
+
 perfetto_py_binary(
     name = "trace_processor_py_example",
     srcs = ["example.py"],
