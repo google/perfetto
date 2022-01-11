@@ -12,4 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .breakdown import compute_breakdown, compute_breakdown_for_startup
+from perfetto.experimental.slice_breakdown.breakdown import compute_breakdown
+from perfetto.experimental.slice_breakdown.breakdown import compute_breakdown_for_startup

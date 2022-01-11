@@ -18,6 +18,9 @@ import os
 import sys
 import unittest
 
+from test import api_unittest
+from test import api_integrationtest
+
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
@@ -29,13 +32,6 @@ def main():
     print('Cannot proceed. Please `pip3 install pandas numpy`', file=sys.stderr)
     return 1
 
-  # Append test and src paths so that all imports are loaded in correctly
-  sys.path.append(os.path.join(ROOT_DIR, 'test', 'trace_processor', 'python'))
-  sys.path.append(
-      os.path.join(ROOT_DIR, 'src', 'trace_processor', 'python', 'perfetto'))
-  import api_unittest
-  import api_integrationtest
-
   # Set paths to trace_processor_shell and root directory as environment
   # variables
   parser = argparse.ArgumentParser()
@@ -43,7 +39,6 @@ def main():
   os.environ["SHELL_PATH"] = parser.parse_args().shell
   os.environ["ROOT_DIR"] = ROOT_DIR
 
-  # Initialise test suite
   loader = unittest.TestLoader()
   suite = unittest.TestSuite()
 

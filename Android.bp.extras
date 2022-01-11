@@ -112,14 +112,14 @@ python_library {
 
 filegroup {
     name: "perfetto-trace-processor-python-srcs",
-    srcs: ["src/trace_processor/python/perfetto/**/*.py"],
-    path: "src/trace_processor/python",
+    srcs: ["python/perfetto/trace_processor/*.py"],
+    path: "python",
 }
 
 filegroup {
     name: "perfetto-trace-processor-python-data",
-    srcs: ["src/trace_processor/python/perfetto/**/*.descriptor*"],
-    path: "src/trace_processor/python",
+    srcs: ["python/perfetto/trace_processor/*.descriptor*"],
+    path: "python",
 }
 
 // Added automatically by a large-scale-change that took the approach of

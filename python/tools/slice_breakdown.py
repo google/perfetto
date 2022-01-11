@@ -19,8 +19,8 @@ down by process, thread and thread state.
 import argparse
 import sys
 
-from perfetto.slice_breakdown import compute_breakdown
-from perfetto.slice_breakdown import compute_breakdown_for_startup
+from perfetto.experimental.slice_breakdown import compute_breakdown
+from perfetto.experimental.slice_breakdown import compute_breakdown_for_startup
 from perfetto.trace_processor import TraceProcessor
 from perfetto.trace_processor import TraceProcessorConfig
 
