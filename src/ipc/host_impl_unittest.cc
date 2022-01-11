@@ -478,6 +478,39 @@ TEST_F(HostImplTest, MoveReplyObjectAndReplyAsynchronously) {
   task_runner_->RunUntilCheckpoint("on_reply_received");
 }
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+// Check ClientInfo of the service.
+TEST_F(HostImplTest, ServiceClientInfo) {
+  FakeService* fake_service = new FakeService("FakeService");
+  ASSERT_TRUE(host_->ExposeService(std::unique_ptr<Service>(fake_service)));
+  auto on_bind = task_runner_->CreateCheckpoint("on_bind");
+  cli_->BindService("FakeService");
+  EXPECT_CALL(*cli_, OnServiceBound(_)).WillOnce(InvokeWithoutArgs(on_bind));
+  task_runner_->RunUntilCheckpoint("on_bind");
+
+  RequestProto req_args;
+  req_args.set_data("foo");
+  cli_->InvokeMethod(cli_->last_bound_service_id_, 1, req_args);
+  EXPECT_CALL(*fake_service, OnFakeMethod1(_, _))
+      .WillOnce(
+          Invoke([fake_service](const RequestProto& req, DeferredBase* reply) {
+            ASSERT_EQ("foo", req.data());
+            std::unique_ptr<ReplyProto> reply_args(new ReplyProto());
+            reply_args->set_data("bar");
+            reply->Resolve(AsyncResult<ProtoMessage>(
+                std::unique_ptr<ProtoMessage>(reply_args.release())));
+            // Verifies the pid() and uid() values in ClientInfo.
+            const auto& client_info = fake_service->client_info();
+            ASSERT_EQ(client_info.uid(), getuid());
+            ASSERT_EQ(client_info.pid(), getpid());
+          }));
+
+  EXPECT_CALL(*cli_, OnInvokeMethodReply(_)).WillOnce(Return());
+  task_runner_->RunUntilIdle();
+}
+#endif  // OS_WIN
+
 // TODO(primiano): add the tests below in next CLs.
 // TEST(HostImplTest, ManyClients) {}
 // TEST(HostImplTest, OverlappingRequstsOutOfOrder) {}
