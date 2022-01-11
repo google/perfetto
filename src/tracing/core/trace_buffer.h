@@ -158,7 +158,6 @@ class TraceBuffer {
   struct PacketSequenceProperties {
     ProducerID producer_id_trusted;
     uid_t producer_uid_trusted;
-    pid_t producer_pid_trusted;
     WriterID writer_id;
   };
 
@@ -191,7 +190,6 @@ class TraceBuffer {
   // TODO(eseckler): Pass in a PacketStreamProperties instead of individual IDs.
   void CopyChunkUntrusted(ProducerID producer_id_trusted,
                           uid_t producer_uid_trusted,
-                          pid_t producer_pid_trusted,
                           WriterID writer_id,
                           ChunkID chunk_id,
                           uint16_t num_fragments,
@@ -379,17 +377,8 @@ class TraceBuffer {
       kLastReadPacketSkipped = 1 << 1
     };
 
-    ChunkMeta(ChunkRecord* r,
-              uint16_t p,
-              bool complete,
-              uint8_t f,
-              uid_t u,
-              pid_t pid)
-        : chunk_record{r},
-          trusted_uid{u},
-          trusted_pid(pid),
-          flags{f},
-          num_fragments{p} {
+    ChunkMeta(ChunkRecord* r, uint16_t p, bool complete, uint8_t f, uid_t u)
+        : chunk_record{r}, trusted_uid{u}, flags{f}, num_fragments{p} {
       if (complete)
         index_flags = kComplete;
     }
@@ -418,7 +407,6 @@ class TraceBuffer {
 
     ChunkRecord* const chunk_record;  // Addr of ChunkRecord within |data_|.
     const uid_t trusted_uid;          // uid of the producer.
-    const pid_t trusted_pid;          // pid of the producer.
 
     // Flags set by TraceBuffer to track the state of the chunk in the index.
     uint8_t index_flags = 0;
