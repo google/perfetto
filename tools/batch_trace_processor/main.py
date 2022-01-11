@@ -23,8 +23,8 @@ import numpy as np
 import pandas as pd
 import plotille
 
-from perfetto.batch_trace_processor.api import BatchTraceProcessor
-from perfetto.trace_processor import TraceProcessorException
+from perfetto.batch_trace_processor.api import BatchTraceProcessor, BatchTraceProcessorConfig
+from perfetto.trace_processor import TraceProcessorException, TraceProcessorConfig
 from typing import List
 
 
@@ -107,8 +107,13 @@ def main():
     logging.info("At least one file must be specified in files or file list")
 
   logging.info('Loading traces...')
-  with BatchTraceProcessor(
-      files, bin_path=args.shell_path, verbose=args.verbose) as batch_tp:
+  config = BatchTraceProcessorConfig(
+      tp_config=TraceProcessorConfig(
+          bin_path=args.shell_path,
+          verbose=args.verbose,
+      ))
+
+  with BatchTraceProcessor(files, config) as batch_tp:
     if args.query_file:
       logging.info('Running query file...')
 

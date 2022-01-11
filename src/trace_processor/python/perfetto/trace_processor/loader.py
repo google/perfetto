@@ -53,7 +53,7 @@ class LoaderStandalone:
     tp_http.notify_eof()
     return tp_http
 
-  def get_shell_path(bin_path=None):
+  def get_shell_path(bin_path):
     # Try to use preexisting binary before attempting to download
     # trace_processor
     if bin_path is None:
@@ -68,7 +68,7 @@ class LoaderStandalone:
         raise Exception('Path to binary is not valid')
       return bin_path
 
-  def get_free_port(unique_port=False):
+  def get_free_port(unique_port):
     if not unique_port:
       return LoaderStandalone.TP_PORT, f'localhost:{LoaderStandalone.TP_PORT}'
     free_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -80,6 +80,8 @@ class LoaderStandalone:
 
 
 # Return vendor class if it exists before falling back on LoaderStandalone
+# TODO(lalitm): remove this after migrating all consumers to
+# TraceProcessorConfig.
 def get_loader():
   try:
     from .loader_vendor import LoaderVendor
