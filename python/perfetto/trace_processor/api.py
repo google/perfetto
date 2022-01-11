@@ -17,13 +17,14 @@ from enum import unique
 from urllib.parse import urlparse
 from typing import BinaryIO, Callable, Generator, List, Optional, Tuple, Union
 
-from .http import TraceProcessorHttp
-from .loader import get_loader
-from .protos import ProtoFactory
-from .shell import load_shell
+from perfetto.trace_processor.http import TraceProcessorHttp
+from perfetto.trace_processor.loader import get_loader
+from perfetto.trace_processor.protos import ProtoFactory
+from perfetto.trace_processor.shell import load_shell
 
 # Union of types supported for a trace which can be loaded by shell.
 LoadableTrace = Union[None, str, BinaryIO, Generator[bytes, None, None]]
+
 
 # Custom exception raised if any trace_processor functions return a
 # response with an error defined

@@ -26,10 +26,10 @@ from compat import iteritems
 
 SOURCE_TARGET = [
     ('protos/perfetto/trace_processor/trace_processor.proto',
-     'src/trace_processor/python/perfetto/trace_processor/trace_processor.descriptor'
+     'python/perfetto/trace_processor/trace_processor.descriptor'
     ),
     ('protos/perfetto/metrics/metrics.proto',
-     'src/trace_processor/python/perfetto/trace_processor/metrics.descriptor'),
+     'python/perfetto/trace_processor/metrics.descriptor'),
 ]
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))

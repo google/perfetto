@@ -18,9 +18,9 @@ import os
 from typing import Optional
 import unittest
 
-from trace_processor.api import TraceProcessor
-from trace_processor.api import TraceProcessorConfig
-from trace_processor.api import LoadableTrace
+from perfetto.trace_processor.api import TraceProcessor
+from perfetto.trace_processor.api import TraceProcessorConfig
+from perfetto.trace_processor.api import LoadableTrace
 
 
 def create_tp(trace: LoadableTrace):
