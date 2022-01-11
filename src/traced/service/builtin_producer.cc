@@ -20,7 +20,6 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/base/proc_utils.h"
 #include "perfetto/ext/base/metatrace.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/weak_ptr.h"
@@ -68,7 +67,7 @@ BuiltinProducer::~BuiltinProducer() {
 
 void BuiltinProducer::ConnectInProcess(TracingService* svc) {
   endpoint_ = svc->ConnectProducer(
-      this, base::GetCurrentUserId(), base::GetProcessId(), "traced",
+      this, base::GetCurrentUserId(), "traced",
       /*shared_memory_size_hint_bytes=*/16 * 1024, /*in_process=*/true,
       TracingService::ProducerSMBScrapingMode::kDisabled,
       /*shared_memory_page_size_hint_bytes=*/4096);
