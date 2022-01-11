@@ -21,6 +21,8 @@ load(
 
 licenses(["notice"])
 
+package(default_visibility = ["//visibility:private"])
+
 perfetto_py_binary(
     name = "trace_processor_py_example",
     srcs = ["example.py"],
