@@ -65,6 +65,16 @@ uid_t GetPosixPeerUid(base::UnixSocket* sock) {
 #endif
 }
 
+pid_t GetLinuxPeerPid(base::UnixSocket* sock) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  return sock->peer_pid_linux();
+#else
+  base::ignore_result(sock);
+  return base::kInvalidPid;  // Unsupported.
+#endif
+}
+
 }  // namespace
 
 // static
@@ -240,7 +250,8 @@ void HostImpl::OnInvokeMethod(ClientConnection* client,
 
   auto peer_uid = GetPosixPeerUid(client->sock.get());
   auto scoped_key = g_crash_key_uid.SetScoped(static_cast<int64_t>(peer_uid));
-  service->client_info_ = ClientInfo(client->id, peer_uid);
+  service->client_info_ =
+      ClientInfo(client->id, peer_uid, GetLinuxPeerPid(client->sock.get()));
   service->received_fd_ = &client->received_fd;
   method.invoker(service, *decoded_req_args, std::move(deferred_reply));
   service->received_fd_ = nullptr;
@@ -307,7 +318,8 @@ void HostImpl::OnDisconnect(base::UnixSocket* sock) {
     return;
   ClientID client_id = it->second->id;
 
-  ClientInfo client_info(client_id, GetPosixPeerUid(sock));
+  ClientInfo client_info(client_id, GetPosixPeerUid(sock),
+                         GetLinuxPeerPid(sock));
   clients_by_socket_.erase(it);
   PERFETTO_DCHECK(clients_.count(client_id));
   clients_.erase(client_id);

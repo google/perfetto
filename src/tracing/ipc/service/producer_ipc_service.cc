@@ -117,7 +117,7 @@ void ProducerIPCService::InitializeConnection(
 
   // ConnectProducer will call OnConnect() on the next task.
   producer->service_endpoint = core_service_->ConnectProducer(
-      producer.get(), client_info.uid(), req.producer_name(),
+      producer.get(), client_info.uid(), client_info.pid(), req.producer_name(),
       req.shared_memory_size_hint_bytes(),
       /*in_process=*/false, smb_scraping_mode,
       req.shared_memory_page_size_hint_bytes(), std::move(shmem),
