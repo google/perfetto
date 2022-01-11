@@ -2,7 +2,13 @@ Unreleased:
   Tracing service and probes:
     *
   Trace Processor:
-    *
+    * The argument for the trace path in constructor of TraceProcessor
+      in the Python API taks |trace| is renamed from |file_path| to |trace|.
+      |file_path| is deprecated and may be removed in the future.
+    * The Python API now takes a TraceProcessorConfig in the constructor
+      instead of passing parameters directly. This may break existing code
+      but migration should be trivial (all current options are still
+      supported).
   UI:
     *
   SDK:
