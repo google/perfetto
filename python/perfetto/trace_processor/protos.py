@@ -19,8 +19,7 @@ from google.protobuf.descriptor_pool import DescriptorPool
 
 class ProtoFactory:
 
-  def __init__(self, tp_descriptor: bytes,
-               metrics_descriptor: bytes):
+  def __init__(self, tp_descriptor: bytes, metrics_descriptor: bytes):
     # Declare descriptor pool
     self.descriptor_pool = DescriptorPool()
 

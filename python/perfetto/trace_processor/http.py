@@ -16,7 +16,7 @@
 import http.client
 from typing import List
 
-from .protos import ProtoFactory
+from perfetto.trace_processor.protos import ProtoFactory
 
 
 class TraceProcessorHttp:

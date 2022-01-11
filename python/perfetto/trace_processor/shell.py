@@ -18,7 +18,7 @@ import subprocess
 import time
 from urllib import request, error
 
-from .loader import get_loader
+from perfetto.trace_processor.loader import get_loader
 
 
 def load_shell(bin_path, unique_port, verbose):
