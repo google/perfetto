@@ -14,17 +14,18 @@
 # limitations under the License.
 
 import http.client
+from typing import List
 
-from .protos import ProtoFactory
+from perfetto.trace_processor.protos import ProtoFactory
 
 
 class TraceProcessorHttp:
 
-  def __init__(self, url):
-    self.protos = ProtoFactory()
+  def __init__(self, url: str, protos: ProtoFactory):
+    self.protos = protos
     self.conn = http.client.HTTPConnection(url)
 
-  def execute_query(self, query):
+  def execute_query(self, query: str):
     args = self.protos.RawQueryArgs()
     args.sql_query = query
     byte_data = args.SerializeToString()
@@ -34,7 +35,7 @@ class TraceProcessorHttp:
       result.ParseFromString(f.read())
       return result
 
-  def compute_metric(self, metrics):
+  def compute_metric(self, metrics: List[str]):
     args = self.protos.ComputeMetricArgs()
     args.metric_names.extend(metrics)
     byte_data = args.SerializeToString()
@@ -44,7 +45,7 @@ class TraceProcessorHttp:
       result.ParseFromString(f.read())
       return result
 
-  def parse(self, chunk):
+  def parse(self, chunk: bytes):
     self.conn.request('POST', '/parse', body=chunk)
     with self.conn.getresponse() as f:
       return f.read()

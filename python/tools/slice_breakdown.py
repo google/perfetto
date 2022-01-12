@@ -19,21 +19,21 @@ down by process, thread and thread state.
 import argparse
 import sys
 
-from perfetto.slice_breakdown import compute_breakdown, compute_breakdown_for_startup
+from perfetto.experimental.slice_breakdown import compute_breakdown
+from perfetto.experimental.slice_breakdown import compute_breakdown_for_startup
 from perfetto.trace_processor import TraceProcessor
+from perfetto.trace_processor import TraceProcessorConfig
 
 
 def compute_breakdown_wrapper(args):
-  tp = TraceProcessor(
-      file_path=args.file, bin_path=args.shell_path, verbose=args.verbose)
-  if args.startup_bounds:
-    breakdown = compute_breakdown_for_startup(tp, args.startup_package,
-                                              args.process_name)
-  else:
-    breakdown = compute_breakdown(tp, args.start_ts, args.end_ts,
-                                  args.process_name)
-  tp.close()
-
+  config = TraceProcessorConfig(bin_path=args.shell_path, verbose=args.verbose)
+  with TraceProcessor(trace=args.file, config=config) as tp:
+    if args.startup_bounds:
+      breakdown = compute_breakdown_for_startup(tp, args.startup_package,
+                                                args.process_name)
+    else:
+      breakdown = compute_breakdown(tp, args.start_ts, args.end_ts,
+                                    args.process_name)
   return breakdown
 
 

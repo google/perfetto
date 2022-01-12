@@ -15,19 +15,30 @@
 
 import io
 import os
+from typing import Optional
 import unittest
 
-from trace_processor.api import TraceProcessor
+from perfetto.trace_processor.api import TraceProcessor
+from perfetto.trace_processor.api import TraceProcessorConfig
+from perfetto.trace_processor.api import LoadableTrace
+
+
+def create_tp(trace: LoadableTrace):
+  return TraceProcessor(
+      trace=trace,
+      config=TraceProcessorConfig(bin_path=os.environ["SHELL_PATH"]))
+
+
+def example_android_trace_path():
+  return os.path.join(os.environ["ROOT_DIR"], 'test', 'data',
+                      'example_android_trace_30s.pb')
 
 
 class TestApi(unittest.TestCase):
 
   def test_trace_path(self):
     # Get path to trace_processor_shell and construct TraceProcessor
-    tp = TraceProcessor(
-        trace=os.path.join(os.environ["ROOT_DIR"], 'test', 'data',
-                           'example_android_trace_30s.pb'),
-        bin_path=os.environ["SHELL_PATH"])
+    tp = create_tp(trace=example_android_trace_path())
     qr_iterator = tp.query('select * from slice limit 10')
     dur_result = [
         178646, 119740, 58073, 155000, 173177, 20209377, 3589167, 90104, 275312,
@@ -54,7 +65,7 @@ class TestApi(unittest.TestCase):
     f = io.BytesIO(
         b'\n(\n&\x08\x00\x12\x12\x08\x01\x10\xc8\x01\x1a\x0b\x12\t'
         b'B|200|foo\x12\x0e\x08\x02\x10\xc8\x01\x1a\x07\x12\x05E|200')
-    with TraceProcessor(trace=f, bin_path=os.environ["SHELL_PATH"]) as tp:
+    with create_tp(trace=f) as tp:
       qr_iterator = tp.query('select * from slice limit 10')
       res = list(qr_iterator)
 
@@ -66,10 +77,8 @@ class TestApi(unittest.TestCase):
       self.assertEqual(row.name, 'foo')
 
   def test_trace_file(self):
-    path = os.path.join(os.environ["ROOT_DIR"], 'test', 'data',
-                        'example_android_trace_30s.pb')
-    with open(path, 'rb') as file:
-      with TraceProcessor(trace=file, bin_path=os.environ["SHELL_PATH"]) as tp:
+    with open(example_android_trace_path(), 'rb') as file:
+      with create_tp(trace=file) as tp:
         qr_iterator = tp.query('select * from slice limit 10')
         dur_result = [
             178646, 119740, 58073, 155000, 173177, 20209377, 3589167, 90104,
@@ -82,13 +91,10 @@ class TestApi(unittest.TestCase):
   def test_trace_generator(self):
 
     def reader_generator():
-      path = os.path.join(os.environ["ROOT_DIR"], 'test', 'data',
-                          'example_android_trace_30s.pb')
-      with open(path, 'rb') as file:
+      with open(example_android_trace_path(), 'rb') as file:
         yield file.read(1024)
 
-    with TraceProcessor(
-        trace=reader_generator(), bin_path=os.environ["SHELL_PATH"]) as tp:
+    with create_tp(trace=reader_generator()) as tp:
       qr_iterator = tp.query('select * from slice limit 10')
       dur_result = [
           178646, 119740, 58073, 155000, 173177, 20209377, 3589167, 90104,

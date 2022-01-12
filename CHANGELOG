@@ -2,7 +2,16 @@ Unreleased:
   Tracing service and probes:
     *
   Trace Processor:
-    *
+    * Changed the argument for the trace path in constructor of TraceProcessor
+      in the Python API from |file_path| to |trace|.
+      |file_path| is deprecated and may be removed in the future.
+    * Changed the Python API constructor. Now it takes a TraceProcessorConfig
+      instead of passing parameters directly. This may break existing code
+      but migration should be trivial (all current options are still
+      supported).
+    * Fixed a HTTP keepalive bug in trace_processor --httpd. The bug, introduced
+      in v22.0, caused each RPC request to close the connection, effectively
+      defeating the 'Connection: Keep-Alive', after each query made by the UI.
   UI:
     *
   SDK:

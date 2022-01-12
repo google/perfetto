@@ -15,23 +15,30 @@
 
 import unittest
 
-from trace_processor.api import TraceProcessor, TraceProcessorException
-from trace_processor.protos import ProtoFactory
+from perfetto.trace_processor.api import TraceProcessor
+from perfetto.trace_processor.api import TraceProcessorException
+from perfetto.trace_processor.api import TraceProcessorConfig
+from perfetto.trace_processor.protos import ProtoFactory
+
+TP_CONFIG = TraceProcessorConfig()
+PROTO_FACTORY = ProtoFactory(
+    tp_descriptor=TP_CONFIG.read_tp_descriptor(),
+    metrics_descriptor=TP_CONFIG.read_metrics_descriptor())
 
 
 class TestQueryResultIterator(unittest.TestCase):
   # The numbers input into cells correspond the CellType enum values
   # defined under trace_processor.proto
-  CELL_VARINT = ProtoFactory().CellsBatch().CELL_VARINT
-  CELL_STRING = ProtoFactory().CellsBatch().CELL_STRING
-  CELL_INVALID = ProtoFactory().CellsBatch().CELL_INVALID
-  CELL_NULL = ProtoFactory().CellsBatch().CELL_NULL
+  CELL_VARINT = PROTO_FACTORY.CellsBatch().CELL_VARINT
+  CELL_STRING = PROTO_FACTORY.CellsBatch().CELL_STRING
+  CELL_INVALID = PROTO_FACTORY.CellsBatch().CELL_INVALID
+  CELL_NULL = PROTO_FACTORY.CellsBatch().CELL_NULL
 
   def test_one_batch(self):
     int_values = [100, 200]
     str_values = ['bar1', 'bar2']
 
-    batch = ProtoFactory().CellsBatch()
+    batch = PROTO_FACTORY.CellsBatch()
     batch.cells.extend([
         TestQueryResultIterator.CELL_STRING,
         TestQueryResultIterator.CELL_VARINT,
@@ -56,7 +63,7 @@ class TestQueryResultIterator(unittest.TestCase):
     int_values = [100, 200, 300, 400]
     str_values = ['bar1', 'bar2', 'bar3', 'bar4']
 
-    batch_1 = ProtoFactory().CellsBatch()
+    batch_1 = PROTO_FACTORY.CellsBatch()
     batch_1.cells.extend([
         TestQueryResultIterator.CELL_STRING,
         TestQueryResultIterator.CELL_VARINT,
@@ -69,7 +76,7 @@ class TestQueryResultIterator(unittest.TestCase):
     batch_1.string_cells = "\0".join(str_values[:2]) + "\0"
     batch_1.is_last_batch = False
 
-    batch_2 = ProtoFactory().CellsBatch()
+    batch_2 = PROTO_FACTORY.CellsBatch()
     batch_2.cells.extend([
         TestQueryResultIterator.CELL_STRING,
         TestQueryResultIterator.CELL_VARINT,
@@ -91,7 +98,7 @@ class TestQueryResultIterator(unittest.TestCase):
       self.assertEqual(row.foo_null, None)
 
   def test_empty_batch(self):
-    batch = ProtoFactory().CellsBatch()
+    batch = PROTO_FACTORY.CellsBatch()
     batch.is_last_batch = True
 
     qr_iterator = TraceProcessor.QueryResultIterator([], [batch])
@@ -101,7 +108,7 @@ class TestQueryResultIterator(unittest.TestCase):
       self.assertIsNone(row.foo_num)
 
   def test_invalid_batch(self):
-    batch = ProtoFactory().CellsBatch()
+    batch = PROTO_FACTORY.CellsBatch()
 
     # Since the batch isn't defined as the last batch, the QueryResultsIterator
     # expects another batch and thus raises IndexError as no next batch exists.
@@ -112,7 +119,7 @@ class TestQueryResultIterator(unittest.TestCase):
     int_values = [100, 200, 300, 500, 600]
     str_values = ['bar1', 'bar2', 'bar3']
 
-    batch = ProtoFactory().CellsBatch()
+    batch = PROTO_FACTORY.CellsBatch()
     batch.cells.extend([
         TestQueryResultIterator.CELL_STRING,
         TestQueryResultIterator.CELL_VARINT,
@@ -143,7 +150,7 @@ class TestQueryResultIterator(unittest.TestCase):
   def test_incorrect_cells_batch(self):
     str_values = ['bar1', 'bar2']
 
-    batch = ProtoFactory().CellsBatch()
+    batch = PROTO_FACTORY.CellsBatch()
     batch.cells.extend([
         TestQueryResultIterator.CELL_STRING,
         TestQueryResultIterator.CELL_VARINT,
@@ -163,7 +170,7 @@ class TestQueryResultIterator(unittest.TestCase):
         pass
 
   def test_incorrect_columns_batch(self):
-    batch = ProtoFactory().CellsBatch()
+    batch = PROTO_FACTORY.CellsBatch()
     batch.cells.extend([
         TestQueryResultIterator.CELL_VARINT, TestQueryResultIterator.CELL_VARINT
     ])
@@ -178,7 +185,7 @@ class TestQueryResultIterator(unittest.TestCase):
           ['foo_id', 'foo_num', 'foo_dur', 'foo_ms'], [batch])
 
   def test_invalid_cell_type(self):
-    batch = ProtoFactory().CellsBatch()
+    batch = PROTO_FACTORY.CellsBatch()
     batch.cells.extend([
         TestQueryResultIterator.CELL_INVALID,
         TestQueryResultIterator.CELL_VARINT
@@ -200,7 +207,7 @@ class TestQueryResultIterator(unittest.TestCase):
     int_values = [100, 200]
     str_values = ['bar1', 'bar2']
 
-    batch = ProtoFactory().CellsBatch()
+    batch = PROTO_FACTORY.CellsBatch()
     batch.cells.extend([
         TestQueryResultIterator.CELL_STRING,
         TestQueryResultIterator.CELL_VARINT,
@@ -226,7 +233,7 @@ class TestQueryResultIterator(unittest.TestCase):
     int_values = [100, 200, 300, 400]
     str_values = ['bar1', 'bar2', 'bar3', 'bar4']
 
-    batch_1 = ProtoFactory().CellsBatch()
+    batch_1 = PROTO_FACTORY.CellsBatch()
     batch_1.cells.extend([
         TestQueryResultIterator.CELL_STRING,
         TestQueryResultIterator.CELL_VARINT,
@@ -239,7 +246,7 @@ class TestQueryResultIterator(unittest.TestCase):
     batch_1.string_cells = "\0".join(str_values[:2]) + "\0"
     batch_1.is_last_batch = False
 
-    batch_2 = ProtoFactory().CellsBatch()
+    batch_2 = PROTO_FACTORY.CellsBatch()
     batch_2.cells.extend([
         TestQueryResultIterator.CELL_STRING,
         TestQueryResultIterator.CELL_VARINT,
@@ -262,7 +269,7 @@ class TestQueryResultIterator(unittest.TestCase):
       self.assertEqual(row['foo_null'], None)
 
   def test_empty_batch_as_pandas(self):
-    batch = ProtoFactory().CellsBatch()
+    batch = PROTO_FACTORY.CellsBatch()
     batch.is_last_batch = True
 
     qr_iterator = TraceProcessor.QueryResultIterator([], [batch])
@@ -276,7 +283,7 @@ class TestQueryResultIterator(unittest.TestCase):
     int_values = [100, 200, 300, 500, 600]
     str_values = ['bar1', 'bar2', 'bar3']
 
-    batch = ProtoFactory().CellsBatch()
+    batch = PROTO_FACTORY.CellsBatch()
     batch.cells.extend([
         TestQueryResultIterator.CELL_STRING,
         TestQueryResultIterator.CELL_VARINT,
@@ -308,7 +315,7 @@ class TestQueryResultIterator(unittest.TestCase):
   def test_incorrect_cells_batch_as_pandas(self):
     str_values = ['bar1', 'bar2']
 
-    batch = ProtoFactory().CellsBatch()
+    batch = PROTO_FACTORY.CellsBatch()
     batch.cells.extend([
         TestQueryResultIterator.CELL_STRING,
         TestQueryResultIterator.CELL_VARINT,
@@ -327,7 +334,7 @@ class TestQueryResultIterator(unittest.TestCase):
       qr_df = qr_iterator.as_pandas_dataframe()
 
   def test_invalid_cell_type_as_pandas(self):
-    batch = ProtoFactory().CellsBatch()
+    batch = PROTO_FACTORY.CellsBatch()
     batch.cells.extend([
         TestQueryResultIterator.CELL_INVALID,
         TestQueryResultIterator.CELL_VARINT
