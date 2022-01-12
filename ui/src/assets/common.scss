@@ -583,6 +583,15 @@ button.query-ctrl {
     width: var(--track-shell-width);
     min-height: 40px;
     transition: background-color .4s;
+
+    .chip {
+      background-color: #bed6ff;
+      border-radius: 3px;
+      font-size: smaller;
+      padding: 0 0.1rem;
+      margin-left: 1ch;
+    }
+
     h1 {
       grid-area: title;
       @include track_shell_title();
