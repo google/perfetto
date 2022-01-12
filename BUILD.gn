@@ -89,6 +89,7 @@ if (enable_perfetto_integration_tests) {
   }
   all_targets += [
     ":perfetto_integrationtests",
+    "examples/sdk:sdk_example",
     "test:client_api_example",
     "test/stress_test",
   ]
