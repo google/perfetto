@@ -17,13 +17,10 @@ import unittest
 
 from perfetto.trace_processor.api import TraceProcessor
 from perfetto.trace_processor.api import TraceProcessorException
-from perfetto.trace_processor.api import TraceProcessorConfig
+from perfetto.trace_processor.api import PLATFORM_DELEGATE
 from perfetto.trace_processor.protos import ProtoFactory
 
-TP_CONFIG = TraceProcessorConfig()
-PROTO_FACTORY = ProtoFactory(
-    tp_descriptor=TP_CONFIG.read_tp_descriptor(),
-    metrics_descriptor=TP_CONFIG.read_metrics_descriptor())
+PROTO_FACTORY = ProtoFactory(PLATFORM_DELEGATE())
 
 
 class TestQueryResultIterator(unittest.TestCase):
