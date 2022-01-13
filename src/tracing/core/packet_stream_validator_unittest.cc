@@ -151,6 +151,76 @@ TEST(PacketStreamValidatorTest, FragmentedPacketWithUid) {
   }
 }
 
+TEST(PacketStreamValidatorTest, SimplePacketWithPid) {
+  protos::gen::TracePacket proto;
+  proto.set_trusted_pid(123);
+  std::string ser_buf = proto.SerializeAsString();
+
+  Slices seq;
+  seq.emplace_back(&ser_buf[0], ser_buf.size());
+  EXPECT_FALSE(PacketStreamValidator::Validate(seq));
+}
+
+TEST(PacketStreamValidatorTest, SimplePacketWithZeroPid) {
+  protos::gen::TracePacket proto;
+  proto.set_trusted_pid(0);
+  std::string ser_buf = proto.SerializeAsString();
+
+  Slices seq;
+  seq.emplace_back(&ser_buf[0], ser_buf.size());
+  EXPECT_FALSE(PacketStreamValidator::Validate(seq));
+}
+
+TEST(PacketStreamValidatorTest, SimplePacketWithNegativeOnePid) {
+  protos::gen::TracePacket proto;
+  proto.set_trusted_pid(-1);
+  std::string ser_buf = proto.SerializeAsString();
+
+  Slices seq;
+  seq.emplace_back(&ser_buf[0], ser_buf.size());
+  EXPECT_FALSE(PacketStreamValidator::Validate(seq));
+}
+
+TEST(PacketStreamValidatorTest, ComplexPacketWithPid) {
+  protos::gen::TracePacket proto;
+  proto.mutable_for_testing()->set_str("string field");
+  proto.mutable_ftrace_events()->set_cpu(0);
+  auto* ft = proto.mutable_ftrace_events()->add_event();
+  ft->set_pid(42);
+  ft->mutable_sched_switch()->set_prev_comm("tom");
+  ft->mutable_sched_switch()->set_prev_pid(123);
+  ft->mutable_sched_switch()->set_next_comm("jerry");
+  ft->mutable_sched_switch()->set_next_pid(456);
+  proto.set_trusted_pid(123);
+  std::string ser_buf = proto.SerializeAsString();
+
+  Slices seq;
+  seq.emplace_back(&ser_buf[0], ser_buf.size());
+  EXPECT_FALSE(PacketStreamValidator::Validate(seq));
+}
+
+TEST(PacketStreamValidatorTest, FragmentedPacketWithPid) {
+  protos::gen::TracePacket proto;
+  proto.mutable_for_testing()->set_str("string field");
+  proto.set_trusted_pid(123);
+  proto.mutable_ftrace_events()->set_cpu(0);
+  auto* ft = proto.mutable_ftrace_events()->add_event();
+  ft->set_pid(42);
+  ft->mutable_sched_switch()->set_prev_comm("tom");
+  ft->mutable_sched_switch()->set_prev_pid(123);
+  ft->mutable_sched_switch()->set_next_comm("jerry");
+  ft->mutable_sched_switch()->set_next_pid(456);
+  proto.mutable_for_testing()->set_str("foo");
+  std::string ser_buf = proto.SerializeAsString();
+
+  for (size_t i = 0; i < ser_buf.size(); i++) {
+    Slices seq;
+    seq.emplace_back(&ser_buf[0], i);
+    seq.emplace_back(&ser_buf[i], ser_buf.size() - i);
+    EXPECT_FALSE(PacketStreamValidator::Validate(seq));
+  }
+}
+
 TEST(PacketStreamValidatorTest, TruncatedPacket) {
   protos::gen::TracePacket proto;
   proto.mutable_for_testing()->set_str("string field");
