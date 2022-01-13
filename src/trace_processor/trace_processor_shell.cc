@@ -35,6 +35,7 @@
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/getopt.h"
+#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -1254,7 +1255,9 @@ void PrintShellUsage() {
       ".load-metrics-sql Reloads SQL from extension and custom metric paths\n"
       "                  specified in command line args.\n"
       ".run-metrics      Runs metrics specified in command line args\n"
-      "                  and prints the result.\n");
+      "                  and prints the result.\n"
+      ".width WIDTH      Changes the column width of interactive query\n"
+      "                  output.");
 }
 
 struct InteractiveOptions {
@@ -1268,6 +1271,7 @@ struct InteractiveOptions {
 util::Status StartInteractiveShell(const InteractiveOptions& options) {
   SetupLineEditor();
 
+  uint32_t column_width = options.column_width;
   for (;;) {
     ScopedLine line = GetLine("> ");
     if (!line)
@@ -1294,6 +1298,13 @@ util::Status StartInteractiveShell(const InteractiveOptions& options) {
         if (!status.ok()) {
           PERFETTO_ELOG("%s", status.c_message());
         }
+      } else if (strcmp(command, "width") == 0 && strlen(arg)) {
+        base::Optional<uint32_t> width = base::CStringToUInt32(arg);
+        if (!width) {
+          PERFETTO_ELOG("Invalid column width specified");
+          continue;
+        }
+        column_width = *width;
       } else if (strcmp(command, "load-metrics-sql") == 0) {
         base::Status status =
             LoadMetricsAndExtensionsSql(options.metrics, options.extensions);
@@ -1319,7 +1330,7 @@ util::Status StartInteractiveShell(const InteractiveOptions& options) {
 
     base::TimeNanos t_start = base::GetWallTimeNs();
     auto it = g_tp->ExecuteQuery(line.get());
-    PrintQueryResultInteractively(&it, t_start, options.column_width);
+    PrintQueryResultInteractively(&it, t_start, column_width);
   }
   return util::OkStatus();
 }

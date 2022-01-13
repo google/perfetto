@@ -451,5 +451,6 @@ message FtraceEvent {
     SdeSdePerfUpdateBusFtraceEvent sde_sde_perf_update_bus = 358;
     RssStatThrottledFtraceEvent rss_stat_throttled = 359;
     NetifReceiveSkbFtraceEvent netif_receive_skb = 360;
+    NetDevXmitFtraceEvent net_dev_xmit = 361;
   }
 }

@@ -258,6 +258,10 @@ enum BuiltinClock {
   BUILTIN_CLOCK_MAX_ID = 63;
 
   reserved 7, 8;
+
+  // An internal CL (ag/16521245) has taken this for BUILTIN_CLOCK_TSC.
+  // That might get upstreamed later on. Avoid diverging on this ID in future.
+  reserved 9;
 }
 
 // End of protos/perfetto/common/builtin_clock.proto
@@ -622,6 +626,10 @@ message HeapprofdConfig {
   //
   // BUGS
   // Before Android 12, setting this to 0 would crash the target process.
+  //
+  // N.B. This must be explicitly set to a non-zero value for all heaps (with
+  // this field or with heap_sampling_intervals), otherwise the producer will
+  // not start.
   optional uint64 sampling_interval_bytes = 1;
 
   // If less than the given numbers of bytes are left free in the shared
@@ -676,6 +684,8 @@ message HeapprofdConfig {
   // crash the target process before Android 12.
   //
   // Introduced in Android 12.
+  //
+  // All values must be non-zero or the producer will not start.
   repeated uint64 heap_sampling_intervals = 22;
 
   // Sample all heaps registered by target process. Introduced in Android 12.
@@ -4882,6 +4892,12 @@ message NetifReceiveSkbFtraceEvent {
   optional string name = 2;
   optional uint64 skbaddr = 3;
 }
+message NetDevXmitFtraceEvent {
+  optional uint32 len = 1;
+  optional string name = 2;
+  optional int32 rc = 3;
+  optional uint64 skbaddr = 4;
+}
 
 // End of protos/perfetto/trace/ftrace/net.proto
 
@@ -5649,6 +5665,7 @@ message FtraceEvent {
     SdeSdePerfUpdateBusFtraceEvent sde_sde_perf_update_bus = 358;
     RssStatThrottledFtraceEvent rss_stat_throttled = 359;
     NetifReceiveSkbFtraceEvent netif_receive_skb = 360;
+    NetDevXmitFtraceEvent net_dev_xmit = 361;
   }
 }
 
@@ -9125,7 +9142,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 79.
+// Next id: 80.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -9246,6 +9263,10 @@ message TracePacket {
   oneof optional_trusted_packet_sequence_id {
     uint32 trusted_packet_sequence_id = 10;
   }
+
+  // Trusted process id of the producer which generated this packet, written by
+  // the service.
+  optional int32 trusted_pid = 79;
 
   // Incrementally emitted interned data, valid only on the packet's sequence
   // (packets with the same |trusted_packet_sequence_id|). The writer will

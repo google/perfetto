@@ -169,7 +169,6 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
 
     // Terminate chunked stream.
     conn.SendResponseBody("0\r\n\r\n", 5);
-    conn.Close();
     return;
   }
 

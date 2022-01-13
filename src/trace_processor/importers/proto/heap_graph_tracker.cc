@@ -296,7 +296,9 @@ HeapGraphTracker::HeapGraphTracker(TraceProcessorContext* context)
       cleaner_thunk_this0_str_id_(context_->storage->InternString(
           "libcore.util.NativeAllocationRegistry$CleanerThunk.this$0")),
       native_size_str_id_(context_->storage->InternString(
-          "libcore.util.NativeAllocationRegistry.size")) {}
+          "libcore.util.NativeAllocationRegistry.size")),
+      cleaner_next_str_id_(
+          context_->storage->InternString("sun.misc.Cleaner.next")) {}
 
 HeapGraphTracker::SequenceState& HeapGraphTracker::GetOrCreateSequence(
     uint32_t seq_id) {
@@ -762,14 +764,22 @@ void HeapGraphTracker::PopulateNativeSize(const SequenceState& seq) {
          objects_tbl.upid().eq(seq.current_upid),
          objects_tbl.graph_sample_ts().eq(seq.current_ts)});
     for (auto obj_it = cleaner_objs.IterateRows(); obj_it; obj_it.Next()) {
+      tables::HeapGraphObjectTable::Id cleaner_obj_id =
+          objects_tbl.id()[obj_it.row()];
       base::Optional<tables::HeapGraphObjectTable::Id> referent_id =
-          GetReferenceByFieldName(objects_tbl.id()[obj_it.row()],
-                                  referent_str_id_);
+          GetReferenceByFieldName(cleaner_obj_id, referent_str_id_);
       base::Optional<tables::HeapGraphObjectTable::Id> thunk_id =
-          GetReferenceByFieldName(objects_tbl.id()[obj_it.row()],
-                                  cleaner_thunk_str_id_);
+          GetReferenceByFieldName(cleaner_obj_id, cleaner_thunk_str_id_);
 
       if (!referent_id || !thunk_id) {
+        continue;
+      }
+
+      base::Optional<tables::HeapGraphObjectTable::Id> next_id =
+          GetReferenceByFieldName(cleaner_obj_id, cleaner_next_str_id_);
+      if (next_id.has_value() && *next_id == cleaner_obj_id) {
+        // sun.misc.Cleaner.next points to the sun.misc.Cleaner: this means
+        // that the sun.misc.Cleaner.clean() has already been called. Skip this.
         continue;
       }
       cleaners.push_back(Cleaner{*referent_id, *thunk_id});

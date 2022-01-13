@@ -41,6 +41,8 @@ export class ChromeTracingController extends RpcConsumerPort {
   private api: ProtocolProxyApi.ProtocolApi;
   private devtoolsSocket: DevToolsSocket;
   private lastBufferUsageEvent: Protocol.Tracing.BufferUsageEvent|undefined;
+  private tracingSessionOngoing = false;
+  private tracingSessionId = 0;
 
   constructor(port: chrome.runtime.Port) {
     super({
@@ -60,6 +62,9 @@ export class ChromeTracingController extends RpcConsumerPort {
     this.api = rpcClient.api();
     this.api.Tracing.on('tracingComplete', this.onTracingComplete.bind(this));
     this.api.Tracing.on('bufferUsage', this.onBufferUsage.bind(this));
+    this.uiPort.onDisconnect.addListener(() => {
+      this.devtoolsSocket.detach();
+    });
   }
 
   handleCommand(methodName: string, requestData: Uint8Array) {
@@ -180,8 +185,18 @@ export class ChromeTracingController extends RpcConsumerPort {
   }
 
   async disableTracing() {
-    await this.api.Tracing.end();
+    await this.endTracing(this.tracingSessionId);
     this.sendMessage({type: 'DisableTracingResponse'});
+  }
+
+  async endTracing(tracingSessionId: number) {
+    if (tracingSessionId !== this.tracingSessionId) {
+      return;
+    }
+    if (this.tracingSessionOngoing) {
+      await this.api.Tracing.end();
+    }
+    this.tracingSessionOngoing = false;
   }
 
   getTraceStats() {
@@ -253,16 +268,20 @@ export class ChromeTracingController extends RpcConsumerPort {
         bufferUsageReportingInterval: 200
       };
 
+      const traceConfig = TraceConfig.decode(traceConfigProto);
       if (browserSupportsPerfettoConfig()) {
         const configEncoded = base64Encode(traceConfigProto);
         await this.api.Tracing.start(
             {perfettoConfig: configEncoded, ...requestParams});
+        this.tracingSessionOngoing = true;
+        const tracingSessionId = ++this.tracingSessionId;
+        setTimeout(
+            () => this.endTracing(tracingSessionId), traceConfig.durationMs);
       } else {
         console.log(
             'Used Chrome version is too old to support ' +
             'perfettoConfig parameter. Using chrome config only instead.');
 
-        const traceConfig = TraceConfig.decode(traceConfigProto);
         if (hasSystemDataSourceConfig(traceConfig)) {
           this.sendErrorMessage(
               'System tracing is not supported by this Chrome version. Choose' +

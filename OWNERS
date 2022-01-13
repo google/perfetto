@@ -1,22 +1,35 @@
-hjd@google.com
+# Global OWNERS that can approve Perfetto changes.
+# Please look first at OWNERS in the various subdirectories before falling back
+# on this, as the former tend to be more brain-cache-hot.
+
+# Perfetto tracing internals and API/ABI boundaries.
 primiano@google.com
 skyostil@google.com
-lalitm@google.com
-fmayer@google.com
-taylori@google.com
-rsavitski@google.com
-ilkos@google.com
 
-# For Chrome-related reviews.
-oysteine@google.com
+# UI, Ftrace interop, traced_probes, protozero, Android internals.
+hjd@google.com
+
+# Trace Processor, metrics, infra.
+lalitm@google.com
+
+# Callstack / memory profilers, traced_probes & Linux internals.
+ddiproietto@google.com
+rsavitski@google.com
+
+# Chromium-related things and tracing SDK.
 eseckler@google.com
 nuskos@google.com
-khokhlov@google.com
-ssid@google.com
-ddrone@google.com
-altimin@google.com
+oysteine@google.com
 
-# chromium.org aliases for DEPS on third_party/perfetto.
+# Most Android-related metrics.
+ilkos@google.com
+
+# fmayer@ left the team. Please try first rsavitski@, ddiproietto@ or primiano@
+# and leave fmayer@ as an emergency-only escalation on profilers.
+fmayer@google.com
+
+# chromium.org aliases for adding DEPS entries from chromium subprojects to
+# third_party/perfetto.
 eseckler@chromium.org
 nuskos@chromium.org
 skyostil@chromium.org

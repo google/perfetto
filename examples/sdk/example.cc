@@ -15,12 +15,22 @@
  */
 
 // This example demonstrates in-process tracing with Perfetto.
+// This program adds trace in a few example functions like DrawPlayer DrawGame
+// etc. and collect the trace in file `example.pftrace`.
+// This output file is not readable directly. It can be read after converting
+// it to text, by running the command:
+// `./tools/traceconv text example.pftrace`
+// or it can be opened in UI : https://ui.perfetto.dev
+//
+// To compile this file, run: `./tools/ninja -C out/default sdk_example`.
 
 #include "trace_categories.h"
 
 #include <chrono>
 #include <fstream>
 #include <thread>
+
+namespace {
 
 void InitializePerfetto() {
   perfetto::TracingInitArgs args;
@@ -61,8 +71,11 @@ void StopTracing(std::unique_ptr<perfetto::TracingSession> tracing_session) {
   // directly into a file by passing a file descriptor into Setup() above.
   std::ofstream output;
   output.open("example.pftrace", std::ios::out | std::ios::binary);
-  output.write(&trace_data[0], trace_data.size());
+  output.write(&trace_data[0], std::streamsize(trace_data.size()));
   output.close();
+  PERFETTO_LOG(
+      "Trace written in example.pftrace file. To read this trace in "
+      "text form, run `./tools/traceconv text example.pftrace`");
 }
 
 void DrawPlayer(int player_number) {
@@ -82,6 +95,8 @@ void DrawGame() {
   // Record the rendering framerate as a counter sample.
   TRACE_COUNTER("rendering", "Framerate", 120);
 }
+
+}  // namespace
 
 int main(int, const char**) {
   InitializePerfetto();

@@ -69,12 +69,13 @@ MockProducer::~MockProducer() {
 void MockProducer::Connect(TracingService* svc,
                            const std::string& producer_name,
                            uid_t uid,
+                           pid_t pid,
                            size_t shared_memory_size_hint_bytes,
                            size_t shared_memory_page_size_hint_bytes,
                            std::unique_ptr<SharedMemory> shm) {
   producer_name_ = producer_name;
   service_endpoint_ = svc->ConnectProducer(
-      this, uid, producer_name, shared_memory_size_hint_bytes,
+      this, uid, pid, producer_name, shared_memory_size_hint_bytes,
       /*in_process=*/true, TracingService::ProducerSMBScrapingMode::kDefault,
       shared_memory_page_size_hint_bytes, std::move(shm));
   auto checkpoint_name = "on_producer_connect_" + producer_name;

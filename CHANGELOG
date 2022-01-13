@@ -9,6 +9,43 @@ Unreleased:
     *
 
 
+v23.0 - 2022-01-11:
+  Tracing service and probes:
+    * Added workaround for a kernel ftrace bug causing some "comm" fields to be
+      not null-terminated. https://github.com/torvalds/linux/commit/f0a5157803 .
+    * Added ability to talk to the newer AIDL-based health hal in traced_probes.
+      It still falls back on the older HIDL interface for older devices.
+  Trace Processor:
+    * Changed the argument for the trace path in constructor of TraceProcessor
+      in the Python API from |file_path| to |trace|.
+      |file_path| is deprecated and may be removed in the future.
+    * Changed the Python API constructor. Now it takes a TraceProcessorConfig
+      instead of passing parameters directly. This may break existing code
+      but migration should be trivial (all current options are still
+      supported).
+    * Fixed a HTTP keepalive bug in trace_processor --httpd. The bug, introduced
+      in v22.0, caused each RPC request to close the connection, effectively
+      defeating the 'Connection: Keep-Alive', after each query made by the UI.
+    * Added parsing of netif_receive_skb events from proto traces.
+    * Added android_netperf metric based on netif events.
+    * Fixed a bug that would cause fetch errors when loading traces > 32 MB when
+      using trace_processor --httpd.
+    * Added a workaround to tokenize properly /proc/pid/cmdline for chrome
+      processes on Linux/CrOS. Chrome rewrites its cmdline replacing \0 -> ' '.
+  UI:
+    *
+  SDK:
+    *
+
+
+v22.1 - 2021-12-07:
+  Tracing service and probes:
+    * Added workaround for a Linux kernel bug causing some ftrace strings to
+      be non-null-terminated (https://github.com/torvalds/linux/commit/f0a5157).
+  Trace Processor:
+    * Fixed build failures on Windows.
+
+
 v22.0 - 2021-12-03:
   Tracing service and probes:
     * Added Android SDK version to the SystemInfo trace packet.

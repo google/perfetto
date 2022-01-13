@@ -321,6 +321,7 @@ class PERFETTO_EXPORT TracingService {
   virtual std::unique_ptr<ProducerEndpoint> ConnectProducer(
       Producer*,
       uid_t uid,
+      pid_t pid,
       const std::string& name,
       size_t shared_memory_size_hint_bytes = 0,
       bool in_process = false,

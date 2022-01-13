@@ -62,7 +62,7 @@ TEST(HeapGraphTrackerTest, PopulateNativeSize) {
   tracker.AddInternedLocationName(kSeqId, kLocation,
                                   context.storage->InternString("location"));
 
-  enum Fields : uint64_t { kReferent = 1, kThunk, kThis0 };
+  enum Fields : uint64_t { kReferent = 1, kThunk, kThis0, kNext };
 
   tracker.AddInternedFieldName(kSeqId, kReferent,
                                "java.lang.ref.Reference.referent");
@@ -70,6 +70,7 @@ TEST(HeapGraphTrackerTest, PopulateNativeSize) {
   tracker.AddInternedFieldName(
       kSeqId, kThis0,
       "libcore.util.NativeAllocationRegistry$CleanerThunk.this$0");
+  tracker.AddInternedFieldName(kSeqId, kNext, "sun.misc.Cleaner.next");
 
   enum Types : uint64_t {
     kTypeBitmap = 1,
@@ -89,7 +90,7 @@ TEST(HeapGraphTrackerTest, PopulateNativeSize) {
   tracker.AddInternedType(
       kSeqId, kTypeCleaner, context.storage->InternString("sun.misc.Cleaner"),
       kLocation, /*object_size=*/0,
-      /*reference_field_name_ids=*/{kReferent, kThunk}, /*superclass_id=*/0,
+      /*reference_field_name_ids=*/{kReferent, kThunk, kNext}, /*superclass_id=*/0,
       /*classloader_id=*/0, /*no_reference_fields=*/false,
       /*kind=*/normal_kind);
 
@@ -129,7 +130,7 @@ TEST(HeapGraphTrackerTest, PopulateNativeSize) {
     HeapGraphTracker::SourceObject obj;
     obj.object_id = kObjCleaner;
     obj.type_id = kTypeCleaner;
-    obj.referred_objects = {kObjBitmap, kObjThunk};
+    obj.referred_objects = {kObjBitmap, kObjThunk, 0};
 
     tracker.AddObject(kSeqId, kPid, kTimestamp, std::move(obj));
   }
