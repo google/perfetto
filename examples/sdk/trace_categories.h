@@ -17,7 +17,17 @@
 #ifndef TRACE_CATEGORIES_H
 #define TRACE_CATEGORIES_H
 
+// This source file can be built in two ways:
+// 1. As part of the regular GN build, against standard includes.
+// 2. To test that the amalgmated SDK works, against the perfetto.h source.
+#ifdef PERFETTO_SDK_EXAMPLE_USE_INTERNAL_HEADERS
+#include "perfetto/tracing/core/trace_config.h"
+#include "perfetto/tracing/tracing.h"
+#include "perfetto/tracing/track_event.h"
+#include "protos/perfetto/trace/track_event/process_descriptor.gen.h"
+#else
 #include <perfetto.h>
+#endif
 
 // The set of track event categories that the example is using.
 PERFETTO_DEFINE_CATEGORIES(
