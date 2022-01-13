@@ -13,18 +13,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import subprocess
 import time
 from urllib import request, error
 
-from perfetto.trace_processor.loader import get_loader
+from perfetto.trace_processor.platform import PlatformDelegate
+
+# Default port that trace_processor_shell runs on
+TP_PORT = 9001
 
 
-def load_shell(bin_path, unique_port, verbose):
-  shell_path = get_loader().get_shell_path(bin_path=bin_path)
-  port, url = get_loader().get_free_port(unique_port=unique_port)
-  p = subprocess.Popen([shell_path, '-D', '--http-port', port],
+def load_shell(bin_path: str, unique_port: bool, verbose: bool,
+               platform_delegate: PlatformDelegate):
+  addr, port = platform_delegate.get_bind_addr(
+      port=0 if unique_port else TP_PORT)
+  url = f'{addr}:{str(port)}'
+
+  shell_path = platform_delegate.get_shell_path(bin_path=bin_path)
+  p = subprocess.Popen([shell_path, '-D', '--http-port',
+                        str(port)],
                        stdout=subprocess.DEVNULL,
                        stderr=None if verbose else subprocess.DEVNULL)
 
@@ -38,7 +45,7 @@ def load_shell(bin_path, unique_port, verbose):
         raise Exception(
             "Trace processor failed to start, please file a bug at https://goto.google.com/perfetto-bug"
         )
-      req = request.urlretrieve(f'http://{url}/status')
+      _ = request.urlretrieve(f'http://{url}/status')
       time.sleep(1)
       break
     except error.URLError:
