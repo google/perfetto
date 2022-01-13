@@ -49,7 +49,7 @@ constexpr size_t kBufSize = 2048;
 // Wrap FindClose to: (1) make the return unix-style; (2) deal with stdcall.
 int CloseFindHandle(HANDLE h) {
   return FindClose(h) ? 0 : -1;
-};
+}
 #endif
 
 }  // namespace
