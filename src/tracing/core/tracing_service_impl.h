@@ -86,6 +86,7 @@ class TracingServiceImpl : public TracingService {
    public:
     ProducerEndpointImpl(ProducerID,
                          uid_t uid,
+                         pid_t pid,
                          TracingServiceImpl*,
                          base::TaskRunner*,
                          Producer*,
@@ -149,6 +150,7 @@ class TracingServiceImpl : public TracingService {
 
     ProducerID const id_;
     const uid_t uid_;
+    const pid_t pid_;
     TracingServiceImpl* const service_;
     base::TaskRunner* const task_runner_;
     Producer* producer_;
@@ -255,6 +257,7 @@ class TracingServiceImpl : public TracingService {
   void UnregisterDataSource(ProducerID, const std::string& name);
   void CopyProducerPageIntoLogBuffer(ProducerID,
                                      uid_t,
+                                     pid_t,
                                      WriterID,
                                      ChunkID,
                                      BufferID,
@@ -315,6 +318,7 @@ class TracingServiceImpl : public TracingService {
   std::unique_ptr<TracingService::ProducerEndpoint> ConnectProducer(
       Producer*,
       uid_t uid,
+      pid_t pid,
       const std::string& producer_name,
       size_t shared_memory_size_hint_bytes = 0,
       bool in_process = false,
