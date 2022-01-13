@@ -13,18 +13,23 @@
 # limitations under the License.
 
 import dataclasses as dc
-from enum import unique
 from urllib.parse import urlparse
-from typing import BinaryIO, Callable, Generator, List, Optional, Tuple, Union
+from typing import BinaryIO, Generator, List, Optional, Union
 
 from perfetto.trace_processor.http import TraceProcessorHttp
-from perfetto.trace_processor.loader import get_loader
+from perfetto.trace_processor.platform import PlatformDelegate
 from perfetto.trace_processor.protos import ProtoFactory
 from perfetto.trace_processor.shell import load_shell
 
+# Defining this field as a module variable means this can be changed by
+# implementations at startup and used for all TraceProcessor objects
+# without having to specify on each one.
+# In Google3, this field is rewritten using Copybara to a implementation
+# which can integrates with internal infra.
+PLATFORM_DELEGATE = PlatformDelegate
+
 # Union of types supported for a trace which can be loaded by shell.
 LoadableTrace = Union[None, str, BinaryIO, Generator[bytes, None, None]]
-
 
 # Custom exception raised if any trace_processor functions return a
 # response with an error defined
@@ -40,45 +45,13 @@ class TraceProcessorConfig:
   unique_port: bool
   verbose: bool
 
-  read_tp_descriptor: Callable[[], bytes]
-  read_metrics_descriptor: Callable[[], bytes]
-  parse_file: Callable[[TraceProcessorHttp, str], TraceProcessorHttp]
-  get_shell_path: Callable[[str], None]
-  get_free_port: Callable[[bool], Tuple[str, str]]
-
-  def __init__(
-      self,
-      bin_path: Optional[str] = None,
-      unique_port: bool = True,
-      verbose: bool = False,
-      read_tp_descriptor: Callable[[], bytes] = get_loader().read_tp_descriptor,
-      read_metrics_descriptor: Callable[[], bytes] = get_loader(
-      ).read_metrics_descriptor,
-      parse_file: Callable[[TraceProcessorHttp, str],
-                           TraceProcessorHttp] = get_loader().parse_file,
-      get_shell_path: Callable[[str], None] = get_loader().get_shell_path,
-      get_free_port: Callable[[bool], Tuple[str, str]] = get_loader(
-      ).get_free_port):
+  def __init__(self,
+               bin_path: Optional[str] = None,
+               unique_port: bool = True,
+               verbose: bool = False):
     self.bin_path = bin_path
     self.unique_port = unique_port
     self.verbose = verbose
-
-    self.read_tp_descriptor = read_tp_descriptor
-    self.read_metrics_descriptor = read_metrics_descriptor
-    self.parse_file = parse_file
-    self.get_shell_path = get_shell_path
-    self.get_free_port = get_free_port
-
-    try:
-      # This is the only place in trace processor which should import
-      # from a "vendor" namespace - the purpose of this code is to allow
-      # for users to set their own "default" config for trace processor
-      # without needing to specify the config in every place when trace
-      # processor is used.
-      from .vendor import override_default_tp_config
-      return override_default_tp_config(self)
-    except ModuleNotFoundError:
-      pass
 
 
 class TraceProcessor:
@@ -241,11 +214,6 @@ class TraceProcessor:
         1) path to a trace file to open and read
         2) a file like object (file, io.BytesIO or similar) to read
         3) a generator yielding bytes
-        4) a custom string format which can be understood by
-           TraceProcessorConfig.parse_file function. The default
-           implementation of this function only supports file paths (i.e. option
-           1) but callers can choose to change the implementation to parse
-           a custom string format and use that to retrieve a race.
       addr: address of a running trace processor instance. Useful to query an
         already loaded trace.
       config: configuration options which customize functionality of trace
@@ -255,30 +223,19 @@ class TraceProcessor:
         an exception to be thrown.
     """
 
-    def create_tp_http(protos: ProtoFactory) -> TraceProcessorHttp:
-      if addr:
-        p = urlparse(addr)
-        return TraceProcessorHttp(
-            p.netloc if p.netloc else p.path, protos=protos)
-
-      url, self.subprocess = load_shell(
-          bin_path=config.bin_path,
-          unique_port=config.unique_port,
-          verbose=config.verbose)
-      return TraceProcessorHttp(url, protos=protos)
-
     if trace and file_path:
       raise TraceProcessorException(
           "trace and file_path cannot both be specified.")
 
-    self.protos = ProtoFactory(config.read_tp_descriptor(),
-                               config.read_metrics_descriptor())
-    self.http = create_tp_http(self.protos)
+    self.config = config
+    self.platform_delegate = PLATFORM_DELEGATE()
+    self.protos = ProtoFactory(self.platform_delegate)
+    self.http = self._create_tp_http(addr)
 
     if file_path:
-      config.parse_file(self.http, file_path)
+      self.platform_delegate.parse_file(self.http, file_path)
     elif isinstance(trace, str):
-      config.parse_file(self.http, trace)
+      self.platform_delegate.parse_file(self.http, trace)
     elif hasattr(trace, 'read'):
       while True:
         chunk = trace.read(32 * 1024 * 1024)
@@ -345,6 +302,18 @@ class TraceProcessor:
       raise TraceProcessorException(response.error)
 
     return response.metatrace
+
+  def _create_tp_http(self, addr: str) -> TraceProcessorHttp:
+    if addr:
+      p = urlparse(addr)
+      parsed = p.netloc if p.netloc else p.path
+      return TraceProcessorHttp(parsed, protos=self.protos)
+
+    url, self.subprocess = load_shell(self.config.bin_path,
+                                      self.config.unique_port,
+                                      self.config.verbose,
+                                      self.platform_delegate)
+    return TraceProcessorHttp(url, protos=self.protos)
 
   def __enter__(self):
     return self

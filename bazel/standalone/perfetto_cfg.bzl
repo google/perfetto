@@ -53,12 +53,9 @@ PERFETTO_CONFIG = struct(
 
         # The Python targets are empty on the standalone build because we assume
         # any relevant deps are installed on the system or are not applicable.
-        tp_init_py = [],
-        gfile_py = [],
         protobuf_py = [],
-        protobuf_descriptor_pb2_py = [],
-        pyglib_py = [],
         pandas_py = [],
+        tp_vendor_py = [],
     ),
 
     # This struct allows embedders to customize the cc_opts for Perfetto
