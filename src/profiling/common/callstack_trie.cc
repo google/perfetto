@@ -100,14 +100,16 @@ Interned<Frame> GlobalCallstackTrie::InternCodeLocation(
     const unwindstack::FrameData& loc,
     const std::string& build_id) {
   Mapping map(string_interner_.Intern(build_id));
-  map.exact_offset = loc.map_exact_offset;
-  map.start_offset = loc.map_elf_start_offset;
-  map.start = loc.map_start;
-  map.end = loc.map_end;
-  map.load_bias = loc.map_load_bias;
-  base::StringSplitter sp(loc.map_name, '/');
-  while (sp.Next())
-    map.path_components.emplace_back(string_interner_.Intern(sp.cur_token()));
+  if (loc.map_info != nullptr) {
+    map.exact_offset = loc.map_info->offset();
+    map.start_offset = loc.map_info->elf_start_offset();
+    map.start = loc.map_info->start();
+    map.end = loc.map_info->end();
+    map.load_bias = loc.map_info->GetLoadBias();
+    base::StringSplitter sp(loc.map_info->GetFullName(), '/');
+    while (sp.Next())
+      map.path_components.emplace_back(string_interner_.Intern(sp.cur_token()));
+  }
 
   Frame frame(mapping_interner_.Intern(std::move(map)),
               string_interner_.Intern(loc.function_name), loc.rel_pc);
