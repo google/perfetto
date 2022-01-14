@@ -24,10 +24,6 @@
 --          active development and the values & meaning might change without
 --          notice.
 
--- Temporarily get the sufficient_chrome_processes view until dependency
--- is removed
-SELECT RUN_METRIC('chrome/sufficient_chrome_processes.sql');
-
 -- A simple table that checks the time between VSync (this can be used to
 -- determine if we're refreshing at 90 FPS or 60 FPS.
 --
