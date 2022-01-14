@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {featureFlags} from '../common/feature_flags';
+
 let lastReloadDialogTime = 0;
 const kMinTimeBetweenDialogsMs = 10000;
 const changedPaths = new Set<string>();
@@ -46,6 +48,16 @@ function reloadCSS() {
   parent.appendChild(css);
 }
 
+const rapidReloadFlag = featureFlags.register({
+  id: 'rapidReload',
+  name: 'Development: rapid live reload',
+  defaultValue: false,
+  description: 'During development, instantly reload the page on change. ' +
+      'Enables lower latency of live reload at the cost of potential ' +
+      'multiple re-reloads.',
+  devOnly: true,
+});
+
 function reloadDelayed() {
   setTimeout(() => {
     let pathsStr = '';
@@ -54,10 +66,11 @@ function reloadDelayed() {
     }
     changedPaths.clear();
     if (Date.now() - lastReloadDialogTime < kMinTimeBetweenDialogsMs) return;
-    const reload = confirm(`${pathsStr}changed, click to reload`);
+    const reload =
+        rapidReloadFlag.get() || confirm(`${pathsStr}changed, click to reload`);
     lastReloadDialogTime = Date.now();
     if (reload) {
       window.location.reload();
     }
-  }, 1000);
+  }, rapidReloadFlag.get() ? 0 : 1000);
 }
