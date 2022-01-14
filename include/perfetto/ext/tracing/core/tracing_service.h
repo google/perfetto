@@ -25,6 +25,7 @@
 
 #include "perfetto/base/export.h"
 #include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/sys_types.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/shared_memory.h"
 #include "perfetto/tracing/buffer_exhausted_policy.h"
