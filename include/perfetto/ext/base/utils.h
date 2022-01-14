@@ -17,19 +17,19 @@
 #ifndef INCLUDE_PERFETTO_EXT_BASE_UTILS_H_
 #define INCLUDE_PERFETTO_EXT_BASE_UTILS_H_
 
-#include "perfetto/base/build_config.h"
-#include "perfetto/base/compiler.h"
-
 #include <errno.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <sys/types.h>
 
 #include <atomic>
 #include <functional>
 #include <memory>
 #include <string>
+
+#include "perfetto/base/build_config.h"
+#include "perfetto/base/compiler.h"
+#include "perfetto/ext/base/sys_types.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 // Even if Windows has errno.h, the all syscall-restart behavior does not apply.
@@ -47,23 +47,8 @@
   }())
 #endif
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-using uid_t = unsigned int;
-#if !PERFETTO_BUILDFLAG(PERFETTO_COMPILER_GCC)
-using pid_t = unsigned int;
-#endif
-#if defined(_WIN64)
-using ssize_t = int64_t;
-#else
-using ssize_t = long;
-#endif
-#endif
-
 namespace perfetto {
 namespace base {
-
-constexpr uid_t kInvalidUid = static_cast<uid_t>(-1);
-constexpr pid_t kInvalidPid = static_cast<pid_t>(-1);
 
 // Do not add new usages of kPageSize, consider using GetSysPageSize() below.
 // TODO(primiano): over time the semantic of kPageSize became too ambiguous.

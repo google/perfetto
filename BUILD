@@ -372,6 +372,7 @@ perfetto_filegroup(
         "include/perfetto/ext/base/string_view.h",
         "include/perfetto/ext/base/string_writer.h",
         "include/perfetto/ext/base/subprocess.h",
+        "include/perfetto/ext/base/sys_types.h",
         "include/perfetto/ext/base/temp_file.h",
         "include/perfetto/ext/base/thread_annotations.h",
         "include/perfetto/ext/base/thread_checker.h",
