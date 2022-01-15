@@ -15,15 +15,14 @@
 
 import io
 import os
-from typing import Optional
 import unittest
 
 from perfetto.trace_processor.api import TraceProcessor
 from perfetto.trace_processor.api import TraceProcessorConfig
-from perfetto.trace_processor.api import LoadableTrace
+from perfetto.trace_processor.api import TraceReference
 
 
-def create_tp(trace: LoadableTrace):
+def create_tp(trace: TraceReference):
   return TraceProcessor(
       trace=trace,
       config=TraceProcessorConfig(bin_path=os.environ["SHELL_PATH"]))
