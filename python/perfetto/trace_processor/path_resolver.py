@@ -12,6 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from perfetto.batch_trace_processor.api import TraceListReference
-from perfetto.batch_trace_processor.api import BatchTraceProcessorConfig
-from perfetto.batch_trace_processor.api import BatchTraceProcessor
+from typing import Type
+
+from perfetto.trace_processor import util
+from perfetto.trace_processor.resolver import TraceUriResolver
+
+
+class PathUriResolver(TraceUriResolver):
+  PREFIX: str = None
+
+  def __init__(self, path: str):
+    self.path = path
+
+  def resolve(self) -> TraceUriResolver.Result:
+    return [
+        TraceUriResolver.Result(
+            trace=util.file_generator(self.path), metadata=dict())
+    ]
+
+  @classmethod
+  def from_trace_uri(cls: Type['PathUriResolver'],
+                     args_str: str) -> 'PathUriResolver':
+    return PathUriResolver(args_str)

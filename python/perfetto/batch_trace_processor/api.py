@@ -21,11 +21,13 @@ from typing import Any, Callable, Dict, Tuple, Union, List
 
 import pandas as pd
 
-from perfetto.trace_processor.api import LoadableTrace
+from perfetto.batch_trace_processor.platform import PlatformDelegate
+from perfetto.trace_processor import resolver_registry
+from perfetto.trace_processor.api import PLATFORM_DELEGATE as TP_PLATFORM_DELEGATE
 from perfetto.trace_processor.api import TraceProcessor
 from perfetto.trace_processor.api import TraceProcessorException
 from perfetto.trace_processor.api import TraceProcessorConfig
-from perfetto.batch_trace_processor.platform import PlatformDelegate
+from perfetto.trace_processor.resolver_registry import ResolverRegistry
 
 # Defining this field as a module variable means this can be changed by
 # implementations at startup and used for all BatchTraceProcessor objects
@@ -34,11 +36,7 @@ from perfetto.batch_trace_processor.platform import PlatformDelegate
 # which can integrates with internal infra.
 PLATFORM_DELEGATE = PlatformDelegate
 
-
-@dc.dataclass
-class BatchLoadableTrace:
-  trace: LoadableTrace
-  args: Dict[str, str]
+TraceListReference = resolver_registry.TraceListReference
 
 
 @dc.dataclass
@@ -47,7 +45,6 @@ class BatchTraceProcessorConfig:
 
   def __init__(self, tp_config: TraceProcessorConfig = TraceProcessorConfig()):
     self.tp_config = tp_config
-
 
 class BatchTraceProcessor:
   """Run ad-hoc SQL queries across many Perfetto traces.
@@ -59,54 +56,68 @@ class BatchTraceProcessor:
         print(df)
   """
 
-  def __init__(
-      self,
-      traces: Union[str, List[Union[LoadableTrace, BatchLoadableTrace]]],
-      config: BatchTraceProcessorConfig = BatchTraceProcessorConfig()):
+  def __init__(self,
+               traces: TraceListReference,
+               config: BatchTraceProcessorConfig = BatchTraceProcessorConfig()):
     """Creates a batch trace processor instance.
 
     BatchTraceProcessor is the blessed way of running ad-hoc queries in
     Python across many traces.
 
     Args:
-      traces: A list of traces where each item is one of the following types:
+      traces: A list of traces, a trace URI resolver or a URI which
+        can be resolved to a list of traces.
+
+        If a list, each of items must be one of the following types:
         1) path to a trace file to open and read
         2) a file like object (file, io.BytesIO or similar) to read
         3) a generator yielding bytes
-        4) a BatchLoadableTrace object; this is basically a wrapper around
-           one of the above types plus an args field; see |query_and_flatten|
-           for the motivation for the args field.
+        4) an URI which resolves to a trace
+
+        A trace URI resolver is a subclass of resolver.TraceUriResolver
+        which generates a list of trace references when the |resolve|
+        method is called on it.
+
+        A URI is similar to a connection string (e.g. for a web
+        address or SQL database) which specifies where to lookup traces
+        and which traces to pick from this data source. The format of a
+        string should be as follows:
+        resolver_name:key_1=list,of,values;key_2=value
+
+        Custom resolvers can be provided to handle URIs via
+        |config.resolver_registry|.
       config: configuration options which customize functionality of batch
         trace processor and underlying trace processors.
     """
 
-    def _create_batch_trace(x: Union[LoadableTrace, BatchLoadableTrace]
-                           ) -> BatchLoadableTrace:
-      if isinstance(x, BatchLoadableTrace):
-        return x
-      return BatchLoadableTrace(trace=x, args={})
-
-    def _create_tp(trace: BatchLoadableTrace) -> TraceProcessor:
-      return TraceProcessor(trace=trace.trace, config=config.tp_config)
-
-    batch_traces = [_create_batch_trace(t) for t in traces]
-    trace_count = len(batch_traces)
+    self.tps = None
+    self.closed = False
 
     self.platform_delegate = PLATFORM_DELEGATE()
+    self.tp_platform_delegate = TP_PLATFORM_DELEGATE()
+    self.config = config
+
+    # Make sure the descendent trace processors are using the same resolver
+    # registry (even though they won't actually use it as we will resolve
+    # everything fully in this class).
+    self.resolver_registry = config.tp_config.resolver_registry or \
+      self.tp_platform_delegate.default_resolver_registry()
+    self.config.tp_config.resolver_registry = self.resolver_registry
+
+    # Resolve all the traces to their final form.
+    resolved = self.resolver_registry.resolve(traces)
 
     # As trace processor is completely CPU bound, it makes sense to just
     # max out the CPUs available.
     query_executor = self.platform_delegate.create_query_executor(
-        trace_count) or cf.ThreadPoolExecutor(
+        len(resolved)) or cf.ThreadPoolExecutor(
             max_workers=multiprocessing.cpu_count())
     load_exectuor = self.platform_delegate.create_load_executor(
-        trace_count) or query_executor
+        len(resolved)) or query_executor
 
-    self.tps = None
-    self.closed = False
     self.query_executor = query_executor
-    self.args = [t.args for t in batch_traces]
-    self.tps = list(load_exectuor.map(_create_tp, batch_traces))
+    self.metadata = [t.metadata for t in resolved]
+    self.tps = list(load_exectuor.map(self._create_tp, resolved))
 
   def metric(self, metrics: List[str]):
     """Computes the provided metrics.
@@ -151,18 +162,26 @@ class BatchTraceProcessor:
       A concatenated Pandas dataframe containing the result of executing the
       query across all the traces.
 
-      If |BatchLoadableTrace| objects were passed to the constructor, the
-      contents of the |args| dictionary will also be emitted as extra columns
-      (key being column name, value being the value in the dataframe).
+      If an URI or a trace resolver was passed to the constructor, the
+      contents of the |metadata| dictionary emitted by the resolver will also
+      be emitted as extra columns (key being column name, value being the
+      value in the dataframe).
 
       For example:
-        traces = [BatchLoadableTrace(trace='/tmp/path', args={"foo": "bar"})]
-        with BatchTraceProcessor(traces) as btp:
+        class CustomResolver(TraceResolver):
+          def resolve(self):
+            return [TraceResolver.Result(trace='/tmp/path',
+                                        metadata={
+                                          'path': '/tmp/path'
+                                          'foo': 'bar'
+                                        })]
+
+        with BatchTraceProcessor(CustomResolver()) as btp:
           df = btp.query_and_flatten('select count(1) as cnt from slice')
 
       Then df will look like this:
-        cnt             foo
-        100             bar
+        cnt       path              foo
+        100       /tmp/path         bar
 
     Raises:
       TraceProcessorException: An error occurred running the query.
@@ -232,15 +251,15 @@ class BatchTraceProcessor:
       be added to the dataframe (see |query_and_flatten| for details).
     """
 
-    def wrapped(pair: Tuple[TraceProcessor, BatchLoadableTrace]):
-      (tp, args) = pair
+    def wrapped(pair: Tuple[TraceProcessor, Dict[str, str]]):
+      (tp, metadata) = pair
       df = fn(tp)
-      for key, value in args.items():
+      for key, value in metadata.items():
         df[key] = value
       return df
 
     df = pd.concat(
-        list(self.query_executor.map(wrapped, zip(self.tps, self.args))))
+        list(self.query_executor.map(wrapped, zip(self.tps, self.metadata))))
     return df.reset_index(drop=True)
 
   def close(self):
@@ -259,6 +278,9 @@ class BatchTraceProcessor:
     if self.tps:
       for tp in self.tps:
         tp.close()
+
+  def _create_tp(self, trace: ResolverRegistry.Result) -> TraceProcessor:
+    return TraceProcessor(trace=trace.generator, config=self.config.tp_config)
 
   def __enter__(self):
     return self
