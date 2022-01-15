@@ -20,8 +20,9 @@ import tempfile
 from typing import Tuple
 from urllib import request
 
-# Limit parsing file to 32MB to maintain parity with the UI
-MAX_BYTES_LOADED = 32 * 1024 * 1024
+from perfetto.trace_processor.path_resolver import PathUriResolver
+from perfetto.trace_processor.resolver_registry import ResolverRegistry
+
 
 # URL to download script to run trace_processor
 SHELL_URL = 'http://get.perfetto.dev/trace_processor'
@@ -34,19 +35,6 @@ class PlatformDelegate:
     ws = os.path.dirname(__file__)
     with open(os.path.join(ws, file), 'rb') as x:
       return x.read()
-
-  # TODO(lalitm): when we add trace resolving in future CL, remove this
-  # function.
-  def parse_file(self, tp_http, file_path: str):
-    with open(file_path, 'rb') as f:
-      f_size = os.path.getsize(file_path)
-      bytes_read = 0
-      while (bytes_read < f_size):
-        chunk = f.read(MAX_BYTES_LOADED)
-        tp_http.parse(chunk)
-        bytes_read += len(chunk)
-    tp_http.notify_eof()
-    return tp_http
 
   def get_shell_path(self, bin_path: str) -> str:
     if bin_path is not None:
@@ -71,3 +59,6 @@ class PlatformDelegate:
     port = free_socket.getsockname()[1]
     free_socket.close()
     return 'localhost', port
+
+  def default_resolver_registry(self) -> ResolverRegistry:
+    return ResolverRegistry(resolvers=[PathUriResolver])

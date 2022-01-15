@@ -17,6 +17,7 @@ INSTALL_BUILD_DEPS_ARGS=""
 source $(dirname ${BASH_SOURCE[0]})/common.sh
 
 bazel build //:all --verbose_failures
+bazel build //python:all --verbose_failures
 
 # Smoke test that processes run without crashing.
 ./bazel-bin/traced &

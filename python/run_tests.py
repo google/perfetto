@@ -20,6 +20,7 @@ import unittest
 
 from test import api_unittest
 from test import api_integrationtest
+from test import resolver_unittest
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -44,6 +45,7 @@ def main():
 
   # Add all relevant tests to test suite
   suite.addTests(loader.loadTestsFromModule(api_unittest))
+  suite.addTests(loader.loadTestsFromModule(resolver_unittest))
   suite.addTests(loader.loadTestsFromModule(api_integrationtest))
 
   # Initialise runner to run all tests in suite
