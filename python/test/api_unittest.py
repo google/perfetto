@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # Copyright (C) 2020 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -328,7 +327,7 @@ class TestQueryResultIterator(unittest.TestCase):
     # of type STRING, but there are no string cells defined in the batch. Thus
     # an IndexError occurs as it tries to access the empty string cells list.
     with self.assertRaises(IndexError):
-      qr_df = qr_iterator.as_pandas_dataframe()
+      _ = qr_iterator.as_pandas_dataframe()
 
   def test_invalid_cell_type_as_pandas(self):
     batch = PROTO_FACTORY.CellsBatch()
@@ -346,4 +345,4 @@ class TestQueryResultIterator(unittest.TestCase):
     # CELL_VARINT but that doesn't match the data which are both ints*
     # so we should raise a TraceProcessorException.
     with self.assertRaises(TraceProcessorException):
-      qr_df = qr_iterator.as_pandas_dataframe()
+      _ = qr_iterator.as_pandas_dataframe()
