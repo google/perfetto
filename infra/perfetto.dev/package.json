@@ -14,7 +14,7 @@
     "ejs": "^3.0.1",
     "fs-extra": "^9.0.0",
     "highlight.js": "^10.1.2",
-    "marked": "^0.8.0",
+    "marked": "^4.0.10",
     "node-sass": "^5.0.0",
     "node-watch": "^0.7.1",
     "protobufjs": "^6.9.0"
