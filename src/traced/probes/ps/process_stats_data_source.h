@@ -17,6 +17,7 @@
 #ifndef SRC_TRACED_PROBES_PS_PROCESS_STATS_DATA_SOURCE_H_
 #define SRC_TRACED_PROBES_PS_PROCESS_STATS_DATA_SOURCE_H_
 
+#include <array>
 #include <limits>
 #include <memory>
 #include <set>
@@ -103,9 +104,20 @@ class ProcessStatsDataSource : public ProbesDataSource {
 
   // Functions for snapshotting process/thread long-term info and relationships.
   void WriteProcess(int32_t pid, const std::string& proc_status);
-  void WriteThread(int32_t tid, int32_t tgid, const char* optional_name);
+  void WriteThread(int32_t tid,
+                   int32_t tgid,
+                   const char* optional_name,
+                   const std::string& proc_status);
   void WriteProcessOrThread(int32_t pid);
   std::string ReadProcStatusEntry(const std::string& buf, const char* key);
+
+  constexpr static size_t kMaxNamespacedTidSize = 8;
+  using TidArray = std::array<int32_t, kMaxNamespacedTidSize>;
+  // Reads the thread IDs in each non-root level of PID namespace from
+  // /proc/tid/status.
+  void ReadNamespacedTids(int32_t tid,
+                          const std::string& proc_status,
+                          TidArray& out);
 
   // Functions for periodically sampling process stats/counters.
   static void Tick(base::WeakPtr<ProcessStatsDataSource>);
