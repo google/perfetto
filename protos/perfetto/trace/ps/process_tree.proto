@@ -25,7 +25,7 @@ package perfetto.protos;
 message ProcessTree {
   // Representation of a thread.
   message Thread {
-    // The thread id (as per gettid())
+    // The thread ID (as per gettid()) in the root PID namespace.
     optional int32 tid = 1;
 
     // Thread group id (i.e. the PID of the process, == TID of the main thread)
@@ -33,11 +33,17 @@ message ProcessTree {
 
     // The name of the thread.
     optional string name = 2;
+
+    // The non-root-level thread IDs if the thread runs in a PID namespace. Read
+    // from the NSpid entry of /proc/<tid>/status, with the first element (root-
+    // level thread ID) omitted.
+    repeated int32 nstid = 4;
   }
 
   // Representation of a process.
   message Process {
-    // The UNIX process ID, aka thread group ID (as per getpid()).
+    // The UNIX process ID, aka thread group ID (as per getpid()) in the root
+    // PID namespace.
     optional int32 pid = 1;
 
     // The parent process ID, as per getppid().
@@ -54,6 +60,11 @@ message ProcessTree {
 
     // The uid for the process, as per /proc/pid/status.
     optional int32 uid = 5;
+
+    // The non-root-level process IDs if the process runs in a PID namespace.
+    // Read from the NSpid entry of /proc/<pid>/status, with the first element (
+    // root-level process ID) omitted.
+    repeated int32 nspid = 6;
   }
 
   // List of processes and threads in the client. These lists are incremental
