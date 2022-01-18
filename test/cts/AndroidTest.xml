@@ -39,7 +39,7 @@
     <test class="com.android.tradefed.testtype.GTest" >
         <option name="native-test-device-path" value="/data/local/tmp" />
         <option name="module-name" value="CtsPerfettoTestCases" />
-        <option name="runtime-hint" value="0m30s" />
+        <option name="runtime-hint" value="0m40s" />
         <!-- test-timeout unit is ms -->
         <option name="native-test-timeout" value="40000" />
     </test>
