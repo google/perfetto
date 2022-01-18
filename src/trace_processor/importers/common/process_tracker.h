@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_PROCESS_TRACKER_H_
 
 #include <tuple>
+#include <unordered_set>
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_view.h"
@@ -93,6 +94,22 @@ class ProcessTracker {
   // Virtual for testing.
   virtual UniqueTid UpdateThread(uint32_t tid, uint32_t tgid);
 
+  // Associates trusted_pid with track UUID.
+  void UpdateTrustedPid(uint32_t trusted_pid, uint64_t uuid);
+
+  // Returns the trusted_pid associated with the track UUID, or base::nullopt if
+  // not found.
+  base::Optional<uint32_t> GetTrustedPid(uint64_t uuid);
+
+  // Performs namespace-local to root-level resolution of thread or process id,
+  // given tid (can be root-level or namespace-local, but we don't know
+  // beforehand) and root-level pid/tgid that the thread belongs to.
+  // Returns the root-level thread id for tid on successful resolution;
+  // otherwise, returns base::nullopt on resolution failure, or the thread of
+  // tid isn't running in a pid namespace.
+  base::Optional<uint32_t> ResolveNamespacedTid(uint32_t root_level_pid,
+                                                uint32_t tid);
+
   // Called when a task_newtask without the CLONE_THREAD flag is observed.
   // This force the tracker to start both a new UTID and a new UPID.
   UniquePid StartNewProcess(base::Optional<int64_t> timestamp,
@@ -163,6 +180,15 @@ class ProcessTracker {
   // Called when the trace was fully loaded.
   void NotifyEndOfFile();
 
+  // Tracks the namespace-local pids for a process running in a pid namespace.
+  void UpdateNamespacedProcess(uint32_t pid, std::vector<uint32_t> nspid);
+
+  // Tracks the namespace-local thread ids for a thread running in a pid
+  // namespace.
+  void UpdateNamespacedThread(uint32_t pid,
+                              uint32_t tid,
+                              std::vector<uint32_t> nstid);
+
  private:
   // Returns the utid of a thread having |tid| and |pid| as the parent process.
   // pid == base::nullopt matches all processes.
@@ -207,6 +233,26 @@ class ProcessTracker {
 
   // A mapping from utid to the priority of a thread name source.
   std::vector<ThreadNamePriority> thread_name_priorities_;
+
+  // A mapping from track UUIDs to trusted pids.
+  std::unordered_map<uint64_t, uint32_t> trusted_pids_;
+
+  struct NamespacedThread {
+    uint32_t pid;                 // Root-level pid.
+    uint32_t tid;                 // Root-level tid.
+    std::vector<uint32_t> nstid;  // Namespace-local tids.
+  };
+  // Keeps track of pid-namespaced threads, keyed by root-level thread ids.
+  std::unordered_map<uint32_t /* tid */, NamespacedThread> namespaced_threads_;
+
+  struct NamespacedProcess {
+    uint32_t pid;                          // Root-level pid.
+    std::vector<uint32_t> nspid;           // Namespace-local pids.
+    std::unordered_set<uint32_t> threads;  // Root-level thread IDs.
+  };
+  // Keeps track pid-namespaced processes, keyed by root-level pids.
+  std::unordered_map<uint32_t /* pid (aka tgid) */, NamespacedProcess>
+      namespaced_processes_;
 };
 
 }  // namespace trace_processor
