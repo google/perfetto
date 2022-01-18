@@ -207,6 +207,14 @@ export class PivotTableHelper {
         this._selectedAggregations[index].order === 'DESC' ? 'ASC' : 'DESC';
   }
 
+  // Change aggregation function to existing column.
+  changeAggregation(index: number, aggregation: string) {
+    if (index < 0 || index >= this._selectedAggregations.length) {
+      throw Error(`Column index "${index}" is out of bounds.`);
+    }
+    this._selectedAggregations[index].aggregation = aggregation;
+  }
+
   // Moves target column to the requested destination.
   reorderPivotTableDraggedColumn(
       isPivot: boolean, targetColumnIdx: number, destinationColumnIdx: number) {
