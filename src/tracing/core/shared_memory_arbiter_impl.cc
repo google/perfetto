@@ -107,7 +107,7 @@ Chunk SharedMemoryArbiterImpl::GetNewChunk(
   static const unsigned kMaxStallIntervalUs = 100000;
   static const int kLogAfterNStalls = 3;
   static const int kFlushCommitsAfterEveryNStalls = 2;
-  static const int kAssertAtNStalls = 100;
+  static const int kAssertAtNStalls = 200;
 
   for (;;) {
     // TODO(primiano): Probably this lock is not really required and this code
