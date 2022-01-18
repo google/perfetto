@@ -127,11 +127,6 @@ constexpr uint32_t kMaxTracingDurationMillis = 7 * 24 * kMillisPerHour;
 constexpr uint32_t kGuardrailsMaxTracingBufferSizeKb = 128 * 1024;
 constexpr uint32_t kGuardrailsMaxTracingDurationMillis = 24 * kMillisPerHour;
 
-// TODO(primiano): this is to investigate b/191600928. Remove in Jan 2022.
-base::CrashKey g_crash_key_prod_name("producer_name");
-base::CrashKey g_crash_key_ds_count("ds_count");
-base::CrashKey g_crash_key_ds_clear_count("ds_clear_count");
-
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) || PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
 struct iovec {
   void* iov_base;  // Address
@@ -1947,8 +1942,6 @@ void TracingServiceImpl::PeriodicClearIncrementalStateTask(
     }
   }
 
-  g_crash_key_ds_clear_count.Set(ds_clear_count);
-
   for (const auto& kv : clear_map) {
     ProducerID producer_id = kv.first;
     const std::vector<DataSourceInstanceID>& data_sources = kv.second;
@@ -1959,10 +1952,6 @@ void TracingServiceImpl::PeriodicClearIncrementalStateTask(
     }
     producer->ClearIncrementalState(data_sources);
   }
-
-  // ClearIncrementalState internally posts a task for each data source. Clear
-  // the crash key in a task queued at the end of the tasks atove.
-  task_runner_->PostTask([] { g_crash_key_ds_clear_count.Clear(); });
 }
 
 bool TracingServiceImpl::ReadBuffersIntoConsumer(
@@ -2432,7 +2421,6 @@ void TracingServiceImpl::RegisterDataSource(ProducerID producer_id,
 
   auto reg_ds = data_sources_.emplace(desc.name(),
                                       RegisteredDataSource{producer_id, desc});
-  g_crash_key_ds_count.Set(static_cast<int64_t>(data_sources_.size()));
 
   // If there are existing tracing sessions, we need to check if the new
   // data source is enabled by any of them.
@@ -2552,7 +2540,6 @@ void TracingServiceImpl::UnregisterDataSource(ProducerID producer_id,
     if (it->second.producer_id == producer_id &&
         it->second.descriptor.name() == name) {
       data_sources_.erase(it);
-      g_crash_key_ds_count.Set(static_cast<int64_t>(data_sources_.size()));
       return;
     }
   }
@@ -3992,7 +3979,6 @@ void TracingServiceImpl::ProducerEndpointImpl::ClearIncrementalState(
   task_runner_->PostTask([weak_this, data_sources] {
     if (weak_this) {
       base::StringView producer_name(weak_this->name_);
-      auto scoped_crash_key = g_crash_key_prod_name.SetScoped(producer_name);
       weak_this->producer_->ClearIncrementalState(data_sources.data(),
                                                   data_sources.size());
     }
