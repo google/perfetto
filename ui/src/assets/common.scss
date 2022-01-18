@@ -235,6 +235,42 @@ button.close {
       .disabled {
         cursor: default;
       }
+      .dropdown {
+        display: inline-block;
+        position: relative;
+      }
+      .popup-menu {
+        position: absolute;
+        background-color: white;
+        right: 0;
+        box-shadow: 0 0 4px 0 #999;
+
+        &.closed {
+          display: none;
+        }
+
+        &.open {
+          display: block;
+        }
+
+        button {
+          border-radius: 0;
+          margin: 0;
+          height: auto;
+          background: transparent;
+          color: #111;
+          font-size: 12px;
+          padding: 0.4em 1em;
+          white-space: nowrap;
+          width: 100%;
+          text-align: right;
+          line-height: 1;
+
+          &:hover {
+            background: #c7d0db;
+          }
+        }
+      }
     }
     thead td {
         position: sticky;
@@ -765,3 +801,4 @@ button.query-ctrl {
 .allow-white-space {
   white-space: pre
 }
+
