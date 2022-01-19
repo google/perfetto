@@ -20,8 +20,8 @@ import tempfile
 from typing import Tuple
 from urllib import request
 
-from perfetto.trace_processor.path_resolver import PathUriResolver
-from perfetto.trace_processor.resolver_registry import ResolverRegistry
+from perfetto.trace_uri_resolver.path import PathUriResolver
+from perfetto.trace_uri_resolver.registry import ResolverRegistry
 
 
 # URL to download script to run trace_processor
