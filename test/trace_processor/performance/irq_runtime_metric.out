@@ -1,0 +1,50 @@
+android_irq_runtime: {
+  hw_irq: {
+    max_runtime: 4000000
+    total_count: 4
+    threshold_metric: {
+      threshold: "1ms"
+      over_threshold_count: 3
+      anomaly_ratio: 0.75
+    }
+    longest_irq_slices: {
+      irq_name: "IRQ (resource3)"
+      ts: 300005000000
+      dur: 4000000
+    }
+    longest_irq_slices: {
+      irq_name: "IRQ (resource3)"
+      ts: 300001000000
+      dur: 3000000
+    }
+    longest_irq_slices: {
+      irq_name: "IRQ (resource2)"
+      ts: 200001000000
+      dur: 2000000
+    }
+    longest_irq_slices: {
+      irq_name: "IRQ (resource1)"
+      ts: 100001000000
+      dur: 1000000
+    }
+  }
+  sw_irq: {
+    max_runtime: 6000000
+    total_count: 2
+    threshold_metric: {
+      threshold: "5ms"
+      over_threshold_count: 1
+      anomaly_ratio: 0.5
+    }
+    longest_irq_slices: {
+      irq_name: "TIMER"
+      ts: 500001000000
+      dur: 6000000
+    }
+    longest_irq_slices: {
+      irq_name: "BLOCK"
+      ts: 400001000000
+      dur: 800000
+    }
+  }
+}
