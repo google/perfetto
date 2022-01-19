@@ -19,9 +19,10 @@ from typing import Optional
 class PlatformDelegate:
   """Abstracts operations which can vary based on platform."""
 
-  def create_query_executor(trace_count: int
+  def create_query_executor(self, trace_count: int
                            ) -> Optional[cf.ThreadPoolExecutor]:
     return None
 
-  def create_load_executor(trace_count: int) -> Optional[cf.ThreadPoolExecutor]:
+  def create_load_executor(self,
+                           trace_count: int) -> Optional[cf.ThreadPoolExecutor]:
     return None
