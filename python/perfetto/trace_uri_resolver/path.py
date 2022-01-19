@@ -14,8 +14,8 @@
 
 from typing import Type
 
-from perfetto.trace_processor import util
-from perfetto.trace_processor.resolver import TraceUriResolver
+from perfetto.trace_uri_resolver import util
+from perfetto.trace_uri_resolver.resolver import TraceUriResolver
 
 
 class PathUriResolver(TraceUriResolver):

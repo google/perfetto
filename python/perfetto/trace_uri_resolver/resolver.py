@@ -15,7 +15,7 @@
 import dataclasses as dc
 from typing import BinaryIO, Dict, Generator, List, Type, Union
 
-from perfetto.trace_processor import util
+from perfetto.trace_uri_resolver import util
 
 TraceUri = str
 TraceGenerator = Generator[bytes, None, None]
