@@ -17,7 +17,7 @@ import("../gn/fuzzer.gni")
 import("../gn/perfetto.gni")
 
 if (!build_with_chromium && enable_perfetto_integration_tests) {
-  source_set("end_to_end_integrationtests") {
+  source_set("integrationtests") {
     testonly = true
     deps = [
       ":test_helper",
@@ -54,10 +54,13 @@ if (!build_with_chromium && enable_perfetto_integration_tests) {
       "../src/perfetto_cmd:trigger_perfetto",
     ]
 
-    sources = [ "end_to_end_integrationtest.cc" ]
+    sources = [
+      "android_integrationtest.cc",
+      "cmdline_integrationtest.cc",
+      "ftrace_integrationtest.cc",
+      "traced_integrationtest.cc",
+    ]
     if (start_daemons_for_testing) {
-      cflags = [ "-DPERFETTO_START_DAEMONS_FOR_TESTING" ]
-
       # In CTS mode we use /syste/bin/perfetto for the cmdline tests and the
       # perfetto_cmd is not required. Outside of CTS mode, instead, we need to
       # build the cmdline code as part of the test executable.
@@ -138,9 +141,6 @@ if (enable_perfetto_benchmarks || is_fuzzer ||
         "android_test_utils.h",
       ]
     }
-    if (start_daemons_for_testing) {
-      cflags = [ "-DPERFETTO_START_DAEMONS_FOR_TESTING" ]
-    }
     if (!build_with_chromium && enable_perfetto_traced_probes) {
       deps += [
         "../include/perfetto/ext/traced",
@@ -165,9 +165,6 @@ if (enable_perfetto_benchmarks) {
       "../src/base:test_support",
     ]
     sources = [ "end_to_end_benchmark.cc" ]
-    if (start_daemons_for_testing) {
-      cflags = [ "-DPERFETTO_START_DAEMONS_FOR_TESTING" ]
-    }
   }
 
   source_set("benchmark_main") {
