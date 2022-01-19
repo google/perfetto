@@ -16,12 +16,12 @@ import dataclasses as dc
 from urllib.parse import urlparse
 from typing import List, Optional
 
-from perfetto.trace_processor import resolver_registry
 from perfetto.trace_processor.http import TraceProcessorHttp
 from perfetto.trace_processor.platform import PlatformDelegate
 from perfetto.trace_processor.protos import ProtoFactory
-from perfetto.trace_processor.resolver_registry import ResolverRegistry
 from perfetto.trace_processor.shell import load_shell
+from perfetto.trace_uri_resolver import registry
+from perfetto.trace_uri_resolver.registry import ResolverRegistry
 
 # Defining this field as a module variable means this can be changed by
 # implementations at startup and used for all TraceProcessor objects
@@ -30,7 +30,7 @@ from perfetto.trace_processor.shell import load_shell
 # which can integrates with internal infra.
 PLATFORM_DELEGATE = PlatformDelegate
 
-TraceReference = resolver_registry.TraceReference
+TraceReference = registry.TraceReference
 
 # Custom exception raised if any trace_processor functions return a
 # response with an error defined
