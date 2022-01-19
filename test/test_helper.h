@@ -44,8 +44,8 @@
 
 namespace perfetto {
 
-// This value has been bumped to 10s in Oct 2020 because the x86 cuttlefish
-// emulator is sensibly slower (up to 10x) than real hw and caused flakes.
+// This value has been bumped to 10s in Oct 2020 because the GCE-based emulator
+// can be sensibly slower than real hw (more than 10x) and caused flakes.
 // See bugs duped against b/171771440.
 constexpr uint32_t kDefaultTestTimeoutMs = 10000;
 
@@ -241,9 +241,13 @@ class TestHelper : public Consumer {
   bool IsShmemProvidedByProducer();
   void ProduceStartupEventBatch(const protos::gen::TestConfig& config);
 
+  void WaitFor(std::function<bool()> predicate,
+               const std::string& error_msg,
+               uint32_t timeout_ms = kDefaultTestTimeoutMs);
   void WaitForConsumerConnect();
   void WaitForProducerSetup();
   void WaitForProducerEnabled();
+  void WaitForDataSourceConnected(const std::string& ds_name);
   void WaitForTracingDisabled(uint32_t timeout_ms = kDefaultTestTimeoutMs);
   void WaitForReadData(uint32_t read_count = 0,
                        uint32_t timeout_ms = kDefaultTestTimeoutMs);
