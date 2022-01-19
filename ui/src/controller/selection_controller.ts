@@ -282,7 +282,7 @@ export class SelectionController extends Controller<'main'> {
       const row = result.firstRow({
         ts: NUM,
         dur: NUM,
-        state: STR,
+        state: STR_NULL,
         ioWait: NUM_NULL,
         utid: NUM,
         cpu: NUM_NULL,
@@ -293,7 +293,7 @@ export class SelectionController extends Controller<'main'> {
       const timeFromStart = fromNs(ts) - globals.state.traceTime.startSec;
       const dur = fromNs(row.dur);
       const ioWait = row.ioWait === null ? undefined : row.ioWait > 0;
-      const state = translateState(row.state, ioWait);
+      const state = translateState(row.state || undefined, ioWait);
       const utid = row.utid;
       const cpu = row.cpu === null ? undefined : row.cpu;
       const sliceId = row.id === null ? undefined : row.id;
