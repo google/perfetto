@@ -35,6 +35,7 @@ perfetto_py_library(
     name = "trace_processor_py",
     srcs = glob(["perfetto/trace_processor/*.py"]),
     data = [
+        ":trace_uri_resolver",
         "perfetto/trace_processor/trace_processor.descriptor",
         "perfetto/trace_processor/metrics.descriptor",
         PERFETTO_CONFIG.root + ":trace_processor_shell",
@@ -46,6 +47,14 @@ perfetto_py_library(
         ".",
     ],
     visibility = PERFETTO_CONFIG.public_visibility,
+)
+
+perfetto_py_library(
+    name = "trace_uri_resolver",
+    srcs = glob(["perfetto/trace_uri_resolver/*.py"]),
+    imports = [
+        ".",
+    ],
 )
 
 perfetto_py_library(

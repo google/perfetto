@@ -17,17 +17,17 @@
 import concurrent.futures as cf
 import dataclasses as dc
 import multiprocessing
-from typing import Any, Callable, Dict, Tuple, Union, List
+from typing import Any, Callable, Dict, Tuple, List
 
 import pandas as pd
 
 from perfetto.batch_trace_processor.platform import PlatformDelegate
-from perfetto.trace_processor import resolver_registry
 from perfetto.trace_processor.api import PLATFORM_DELEGATE as TP_PLATFORM_DELEGATE
 from perfetto.trace_processor.api import TraceProcessor
 from perfetto.trace_processor.api import TraceProcessorException
 from perfetto.trace_processor.api import TraceProcessorConfig
-from perfetto.trace_processor.resolver_registry import ResolverRegistry
+from perfetto.trace_uri_resolver import registry
+from perfetto.trace_uri_resolver.registry import ResolverRegistry
 
 # Defining this field as a module variable means this can be changed by
 # implementations at startup and used for all BatchTraceProcessor objects
@@ -36,7 +36,7 @@ from perfetto.trace_processor.resolver_registry import ResolverRegistry
 # which can integrates with internal infra.
 PLATFORM_DELEGATE = PlatformDelegate
 
-TraceListReference = resolver_registry.TraceListReference
+TraceListReference = registry.TraceListReference
 
 
 @dc.dataclass

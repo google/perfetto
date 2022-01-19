@@ -14,10 +14,10 @@
 
 import unittest
 
-from perfetto.trace_processor.util import parse_trace_uri
-from perfetto.trace_processor.resolver import _args_dict_from_uri
-from perfetto.trace_processor.resolver import TraceUriResolver
-from perfetto.trace_processor.resolver_registry import ResolverRegistry
+from perfetto.trace_uri_resolver.util import parse_trace_uri
+from perfetto.trace_uri_resolver.resolver import _args_dict_from_uri
+from perfetto.trace_uri_resolver.resolver import TraceUriResolver
+from perfetto.trace_uri_resolver.registry import ResolverRegistry
 
 
 class SimpleResolver(TraceUriResolver):
