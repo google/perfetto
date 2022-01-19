@@ -28,6 +28,7 @@
 #include "perfetto/ext/tracing/core/shared_memory_arbiter.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/ext/tracing/ipc/consumer_ipc_client.h"
+#include "perfetto/ext/tracing/ipc/default_socket.h"
 #include "perfetto/ext/tracing/ipc/service_ipc_host.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "src/base/test/test_task_runner.h"
@@ -48,6 +49,17 @@ namespace perfetto {
 // can be sensibly slower than real hw (more than 10x) and caused flakes.
 // See bugs duped against b/171771440.
 constexpr uint32_t kDefaultTestTimeoutMs = 10000;
+
+inline const char* GetTestProducerSockName() {
+// If we're building on Android and starting the daemons ourselves,
+// create the sockets in a world-writable location.
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) && \
+    PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
+  return "/data/local/tmp/traced_producer";
+#else
+  return ::perfetto::GetProducerSocket();
+#endif
+}
 
 // This is used only in daemon starting integrations tests.
 class ServiceThread {

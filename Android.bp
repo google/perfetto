@@ -1111,7 +1111,7 @@ cc_library_static {
         ":perfetto_src_tracing_ipc_default_socket",
         ":perfetto_src_tracing_ipc_producer_producer",
         ":perfetto_src_tracing_ipc_service_service",
-        ":perfetto_test_end_to_end_integrationtests",
+        ":perfetto_test_integrationtests",
         ":perfetto_test_test_helper",
         "test/cts/device_feature_test_cts.cc",
         "test/cts/end_to_end_integrationtest_cts.cc",
@@ -1814,7 +1814,7 @@ cc_test {
         ":perfetto_src_tracing_system_backend",
         ":perfetto_src_tracing_test_api_test_support",
         ":perfetto_src_tracing_test_client_api_integrationtests",
-        ":perfetto_test_end_to_end_integrationtests",
+        ":perfetto_test_integrationtests",
         ":perfetto_test_test_helper",
     ],
     shared_libs: [
@@ -9072,11 +9072,14 @@ filegroup {
     ],
 }
 
-// GN: //test:end_to_end_integrationtests
+// GN: //test:integrationtests
 filegroup {
-    name: "perfetto_test_end_to_end_integrationtests",
+    name: "perfetto_test_integrationtests",
     srcs: [
-        "test/end_to_end_integrationtest.cc",
+        "test/android_integrationtest.cc",
+        "test/cmdline_integrationtest.cc",
+        "test/ftrace_integrationtest.cc",
+        "test/traced_integrationtest.cc",
     ],
 }
 
