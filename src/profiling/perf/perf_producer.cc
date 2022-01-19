@@ -68,7 +68,7 @@ namespace {
 // The proper fix is in the platform, see bug for progress.
 constexpr uint32_t kProcDescriptorsAndroidDelayMs = 50;
 
-constexpr uint32_t kMemoryLimitCheckPeriodMs = 5 * 1000;
+constexpr uint32_t kMemoryLimitCheckPeriodMs = 1000;
 
 constexpr uint32_t kInitialConnectionBackoffMs = 100;
 constexpr uint32_t kMaxConnectionBackoffMs = 30 * 1000;
