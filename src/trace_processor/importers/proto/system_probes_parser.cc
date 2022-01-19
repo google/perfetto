@@ -296,6 +296,14 @@ void SystemProbesParser::ParseProcessTree(ConstBytes blob) {
     auto pid = static_cast<uint32_t>(proc.pid());
     auto ppid = static_cast<uint32_t>(proc.ppid());
 
+    if (proc.has_nspid()) {
+      std::vector<uint32_t> nspid;
+      for (auto nspid_it = proc.nspid(); nspid_it; nspid_it++) {
+        nspid.emplace_back(static_cast<uint32_t>(*nspid_it));
+      }
+      context_->process_tracker->UpdateNamespacedProcess(pid, std::move(nspid));
+    }
+
     // If the parent pid is kthreadd's pid, even though this pid is of a
     // "process", we want to treat it as being a child thread of
     // kthreadd.
@@ -343,6 +351,15 @@ void SystemProbesParser::ParseProcessTree(ConstBytes blob) {
       StringId thread_name_id = context_->storage->InternString(thd.name());
       context_->process_tracker->UpdateThreadName(
           tid, thread_name_id, ThreadNamePriority::kProcessTree);
+    }
+
+    if (thd.has_nstid()) {
+      std::vector<uint32_t> nstid;
+      for (auto nstid_it = thd.nstid(); nstid_it; nstid_it++) {
+        nstid.emplace_back(static_cast<uint32_t>(*nstid_it));
+      }
+      context_->process_tracker->UpdateNamespacedThread(tgid, tid,
+                                                        std::move(nstid));
     }
   }
 }

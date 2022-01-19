@@ -50,10 +50,6 @@ constexpr uint32_t kDefaultPollingInterval = 30 * 1000;
 
 base::CrashKey g_crash_key_reason("wdog_reason");
 
-// TODO(primiano): for debugging b/191600928. Remove in Jan 2022.
-base::CrashKey g_crash_key_mono("wdog_mono");
-base::CrashKey g_crash_key_boot("wdog_boot");
-
 bool IsMultipleOf(uint32_t number, uint32_t divisor) {
   return number >= divisor && number % divisor == 0;
 }
@@ -217,8 +213,6 @@ void Watchdog::SetCpuLimit(uint32_t percentage, uint32_t window_ms) {
 void Watchdog::ThreadMain() {
   // Register crash keys explicitly to avoid running out of slots at crash time.
   g_crash_key_reason.Register();
-  g_crash_key_boot.Register();
-  g_crash_key_mono.Register();
 
   base::ScopedFile stat_fd(base::OpenFile("/proc/self/stat", O_RDONLY));
   if (!stat_fd) {
@@ -303,8 +297,6 @@ void Watchdog::ThreadMain() {
 void Watchdog::SerializeLogsAndKillThread(int tid,
                                           WatchdogCrashReason crash_reason) {
   g_crash_key_reason.Set(static_cast<int>(crash_reason));
-  g_crash_key_boot.Set(base::GetBootTimeS().count());
-  g_crash_key_mono.Set(base::GetWallTimeS().count());
 
   // We are about to die. Serialize the logs into the crash buffer so the
   // debuggerd crash handler picks them up and attaches to the bugreport.
