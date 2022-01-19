@@ -32,7 +32,7 @@ class ResolverRegistry:
     generator: TraceGenerator
     metadata: Dict[str, str]
 
-  def __init__(self, resolvers: List[TraceUriResolver] = []):
+  def __init__(self, resolvers: List[Type[TraceUriResolver]] = []):
     self.registry: Dict[str, Type[TraceUriResolver]] = dict()
 
     for resolver in resolvers:
