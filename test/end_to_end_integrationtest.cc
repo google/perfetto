@@ -199,6 +199,23 @@ class PerfettoTest : public ::testing::Test {
  public:
   void SetUp() override {
     ftrace_procfs_ = FtraceProcfs::CreateGuessingMountPoint();
+
+// On android we do expect that tracefs is accessible, both in the case of
+// running as part of traced/probes system daemons and shell. On Linux this is
+// up to the system admin, don't hard fail.
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+    if (!ftrace_procfs_) {
+      PERFETTO_ELOG(
+          "Cannot acces tracefs. On Linux you need to manually run `sudo chown "
+          "-R $USER /sys/kernel/tracing` to enable these tests. Skipping");
+      GTEST_SKIP();
+    } else {
+      // Recent kernels set tracing_on=1 by default. On Android this is
+      // disabled by initrc scripts. Be tolerant on Linux where we don't have
+      // that and force disable ftrace.
+      ftrace_procfs_->SetTracingOn(false);
+    }
+#endif
   }
 
   std::unique_ptr<FtraceProcfs> ftrace_procfs_;
@@ -206,7 +223,16 @@ class PerfettoTest : public ::testing::Test {
 
 class PerfettoCmdlineTest : public ::testing::Test {
  public:
-  void SetUp() override { exec_allowed_ = true; }
+  void SetUp() override {
+#if defined(ADDRESS_SANITIZER) || defined(THREAD_SANITIZER) || \
+    defined(MEMORY_SANITIZER) || defined(LEAK_SANITIZER)
+    // Disable cmdline tests on sanitizets because they use fork() and that
+    // messes up leak / races detections, which has been fixed only recently
+    // (see https://github.com/google/sanitizers/issues/836 ).
+    PERFETTO_LOG("Skipping cmdline integration tests on sanitizers");
+    GTEST_SKIP();
+#endif
+  }
 
   void TearDown() override {}
 
@@ -254,7 +280,7 @@ class PerfettoCmdlineTest : public ::testing::Test {
   base::TestTaskRunner task_runner_;
 
  private:
-  bool exec_allowed_;
+  bool exec_allowed_ = true;
   TestHelper test_helper_{&task_runner_};
 };
 
@@ -296,34 +322,13 @@ static void VerifyBugreportTraceContents() {
 #define TEST_PRODUCER_SOCK_NAME ::perfetto::GetProducerSocket()
 #endif
 
-// Defining this macro out-of-line works around C/C++'s macro rules (see
-// https://stackoverflow.com/questions/26284393/nested-operator-in-c-preprocessor).
-#define DisableTest(x) DISABLED_##x
-
-#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
-#define TreeHuggerOnly(x) x
-#else
-#define TreeHuggerOnly(x) DisableTest(x)
-#endif
-
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 #define AndroidOnly(x) x
 #else
-#define AndroidOnly(x) DisableTest(x)
+#define AndroidOnly(x) DISABLED_##x
 #endif
 
-// Disable cmdline tests on sanitizets because they use fork() and that messes
-// up leak / races detections, which has been fixed only recently (see
-// https://github.com/google/sanitizers/issues/836 ).
-#if defined(ADDRESS_SANITIZER) || defined(THREAD_SANITIZER) || \
-    defined(MEMORY_SANITIZER) || defined(LEAK_SANITIZER)
-#define NoSanitizers(X) DisableTest(X)
-#else
-#define NoSanitizers(X) X
-#endif
-
-// TODO(b/73453011): reenable on more platforms (including standalone Android).
-TEST_F(PerfettoTest, TreeHuggerOnly(TestFtraceProducer)) {
+TEST_F(PerfettoTest, TestFtraceProducer) {
   base::TestTaskRunner task_runner;
 
   TestHelper helper(&task_runner);
@@ -368,8 +373,7 @@ TEST_F(PerfettoTest, TreeHuggerOnly(TestFtraceProducer)) {
   }
 }
 
-// TODO(b/73453011): reenable on more platforms (including standalone Android).
-TEST_F(PerfettoTest, TreeHuggerOnly(TestFtraceFlush)) {
+TEST_F(PerfettoTest, TestFtraceFlush) {
   base::TestTaskRunner task_runner;
 
   TestHelper helper(&task_runner);
@@ -383,10 +387,14 @@ TEST_F(PerfettoTest, TreeHuggerOnly(TestFtraceFlush)) {
   helper.ConnectConsumer();
   helper.WaitForConsumerConnect();
 
-  const uint32_t kTestTimeoutMs = 30000;
+  // Wait for the traced_probes service to connect. We want to start tracing
+  // only after it connects, otherwise we'll start a tracing session with 0
+  // producers connected (which is valid but not what we want here).
+  helper.WaitForDataSourceConnected("linux.ftrace");
+
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(32);
-  trace_config.set_duration_ms(kTestTimeoutMs);
+  trace_config.set_duration_ms(kDefaultTestTimeoutMs);
 
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("linux.ftrace");
@@ -397,21 +405,23 @@ TEST_F(PerfettoTest, TreeHuggerOnly(TestFtraceFlush)) {
 
   helper.StartTracing(trace_config);
 
+  // Wait for traced_probes to start.
+  helper.WaitFor([&] { return ftrace_procfs_->IsTracingEnabled(); }, "ftrace");
+
   // Do a first flush just to synchronize with the producer. The problem here
   // is that, on a Linux workstation, the producer can take several seconds just
-  // to get to the point where ftrace is ready. We use the flush ack as a
+  // to get to the point where it is fully ready. We use the flush ack as a
   // synchronization point.
-  helper.FlushAndWait(kTestTimeoutMs);
+  helper.FlushAndWait(kDefaultTestTimeoutMs);
 
-  EXPECT_TRUE(ftrace_procfs_->IsTracingEnabled());
   const char kMarker[] = "just_one_event";
   EXPECT_TRUE(ftrace_procfs_->WriteTraceMarker(kMarker));
 
   // This is the real flush we are testing.
-  helper.FlushAndWait(kTestTimeoutMs);
+  helper.FlushAndWait(kDefaultTestTimeoutMs);
 
   helper.DisableTracing();
-  helper.WaitForTracingDisabled(kTestTimeoutMs);
+  helper.WaitForTracingDisabled(kDefaultTestTimeoutMs);
 
   helper.ReadData();
   helper.WaitForReadData();
@@ -427,15 +437,12 @@ TEST_F(PerfettoTest, TreeHuggerOnly(TestFtraceFlush)) {
   ASSERT_EQ(marker_found, 1);
 }
 
-TEST_F(PerfettoTest, TreeHuggerOnly(TestKmemActivity)) {
+TEST_F(PerfettoTest, TestKmemActivity) {
   using C = protos::gen::VmstatCounters;
 
   base::TestTaskRunner task_runner;
 
   TestHelper helper(&task_runner);
-
-  // Create kmem_activity trigger proc before starting service
-  auto kmem_activity_trigger_proc = Exec("trigger_perfetto", {"kmem_activity"});
 
   helper.StartServiceIfRequired();
 
@@ -444,8 +451,10 @@ TEST_F(PerfettoTest, TreeHuggerOnly(TestKmemActivity)) {
   probes.Connect();
 #endif
 
+  auto* producer = helper.ConnectFakeProducer();
   helper.ConnectConsumer();
   helper.WaitForConsumerConnect();
+  helper.WaitForDataSourceConnected("linux.ftrace");
 
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(1024);
@@ -515,13 +524,16 @@ TEST_F(PerfettoTest, TreeHuggerOnly(TestKmemActivity)) {
 
   helper.StartTracing(trace_config);
 
+  // Linearize with StartTracing. This ensures that the service has seen the
+  // StartTracing IPC and has armed the triggers.
+  helper.FlushAndWait(kDefaultTestTimeoutMs);
+
   // Generating synthetic memory pressure to trigger kmem activity is
   // inherently flaky on different devices. The same goes for writing
   // /proc/sys/vm/compact_memory to trigger compaction, since compaction is
   // only started if needed (even if explicitly triggered from proc).
   // Trigger kmem activity using perfetto trigger.
-  std::string stderr_str;
-  EXPECT_EQ(0, kmem_activity_trigger_proc.Run(&stderr_str)) << stderr_str;
+  producer->ActivateTrigger("kmem_activity");
 
   helper.WaitForTracingDisabled();
 
@@ -636,8 +648,7 @@ TEST_F(PerfettoTest, MAYBE_KernelAddressSymbolization) {
   ASSERT_GT(symbols_parsed, 100);
 }
 
-// TODO(b/73453011): reenable on more platforms (including standalone Android).
-TEST_F(PerfettoTest, TreeHuggerOnly(TestBatteryTracing)) {
+TEST_F(PerfettoTest, AndroidOnly(TestBatteryTracing)) {
   base::TestTaskRunner task_runner;
 
   TestHelper helper(&task_runner);
@@ -1210,7 +1221,7 @@ TEST_F(PerfettoTest, TraceFilterLargePackets) {
                     Property(&protos::gen::TestEvent::str, SizeIs(kMsgSize)))));
 }
 
-TEST_F(PerfettoCmdlineTest, NoSanitizers(InvalidCases)) {
+TEST_F(PerfettoCmdlineTest, InvalidCases) {
   std::string cfg("duration_ms: 100");
 
   auto invalid_arg = ExecPerfetto({"--invalid-arg"});
@@ -1299,25 +1310,25 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(InvalidCases)) {
   EXPECT_THAT(stderr_, HasSubstr("Cannot specify a trace config"));
 }
 
-TEST_F(PerfettoCmdlineTest, NoSanitizers(Version)) {
+TEST_F(PerfettoCmdlineTest, Version) {
   auto perfetto = ExecPerfetto({"--version"});
   EXPECT_EQ(0, perfetto.Run(&stderr_)) << stderr_;
 }
 
-TEST_F(PerfettoCmdlineTest, NoSanitizers(TxtConfig)) {
+TEST_F(PerfettoCmdlineTest, TxtConfig) {
   std::string cfg("duration_ms: 100");
   auto perfetto = ExecPerfetto({"-c", "-", "--txt", "-o", "-"}, cfg);
   StartServiceIfRequiredNoNewExecsAfterThis();
   EXPECT_EQ(0, perfetto.Run(&stderr_)) << stderr_;
 }
 
-TEST_F(PerfettoCmdlineTest, NoSanitizers(SimpleConfig)) {
+TEST_F(PerfettoCmdlineTest, SimpleConfig) {
   auto perfetto = ExecPerfetto({"-o", "-", "-c", "-", "-t", "100ms"});
   StartServiceIfRequiredNoNewExecsAfterThis();
   EXPECT_EQ(0, perfetto.Run(&stderr_)) << stderr_;
 }
 
-TEST_F(PerfettoCmdlineTest, NoSanitizers(DetachAndAttach)) {
+TEST_F(PerfettoCmdlineTest, DetachAndAttach) {
   auto attach_to_not_existing = ExecPerfetto({"--attach=not_existent"});
 
   std::string cfg("duration_ms: 10000; write_into_file: true");
@@ -1334,7 +1345,7 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(DetachAndAttach)) {
   EXPECT_EQ(0, stop_valid_stop.Run(&stderr_));
 }
 
-TEST_F(PerfettoCmdlineTest, NoSanitizers(StartTracingTrigger)) {
+TEST_F(PerfettoCmdlineTest, StartTracingTrigger) {
   // See |message_count| and |message_size| in the TraceConfig above.
   constexpr size_t kMessageCount = 11;
   constexpr size_t kMessageSize = 32;
@@ -1425,7 +1436,7 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(StartTracingTrigger)) {
   EXPECT_EQ(for_testing_packets, kMessageCount);
 }
 
-TEST_F(PerfettoCmdlineTest, NoSanitizers(StopTracingTrigger)) {
+TEST_F(PerfettoCmdlineTest, StopTracingTrigger) {
   // See |message_count| and |message_size| in the TraceConfig above.
   constexpr size_t kMessageCount = 11;
   constexpr size_t kMessageSize = 32;
@@ -1528,8 +1539,7 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(StopTracingTrigger)) {
 
 // Dropbox on the commandline client only works on android builds. So disable
 // this test on all other builds.
-TEST_F(PerfettoCmdlineTest,
-       NoSanitizers(TreeHuggerOnly(NoDataNoFileWithoutTrigger))) {
+TEST_F(PerfettoCmdlineTest, AndroidOnly(NoDataNoFileWithoutTrigger)) {
   // See |message_count| and |message_size| in the TraceConfig above.
   constexpr size_t kMessageCount = 11;
   constexpr size_t kMessageSize = 32;
@@ -1584,7 +1594,7 @@ TEST_F(PerfettoCmdlineTest,
               ::testing::HasSubstr("Skipping write to incident. Empty trace."));
 }
 
-TEST_F(PerfettoCmdlineTest, NoSanitizers(StopTracingTriggerFromConfig)) {
+TEST_F(PerfettoCmdlineTest, StopTracingTriggerFromConfig) {
   // See |message_count| and |message_size| in the TraceConfig above.
   constexpr size_t kMessageCount = 11;
   constexpr size_t kMessageSize = 32;
@@ -1687,7 +1697,7 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(StopTracingTriggerFromConfig)) {
   }
 }
 
-TEST_F(PerfettoCmdlineTest, NoSanitizers(TriggerFromConfigStopsFileOpening)) {
+TEST_F(PerfettoCmdlineTest, TriggerFromConfigStopsFileOpening) {
   // See |message_count| and |message_size| in the TraceConfig above.
   constexpr size_t kMessageCount = 11;
   constexpr size_t kMessageSize = 32;
@@ -1745,7 +1755,7 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(TriggerFromConfigStopsFileOpening)) {
   EXPECT_FALSE(base::ReadFile(path, &trace_str));
 }
 
-TEST_F(PerfettoCmdlineTest, NoSanitizers(Query)) {
+TEST_F(PerfettoCmdlineTest, Query) {
   auto query = ExecPerfetto({"--query"});
   auto query_raw = ExecPerfetto({"--query-raw"});
   StartServiceIfRequiredNoNewExecsAfterThis();
@@ -1753,8 +1763,7 @@ TEST_F(PerfettoCmdlineTest, NoSanitizers(Query)) {
   EXPECT_EQ(0, query_raw.Run(&stderr_)) << stderr_;
 }
 
-TEST_F(PerfettoCmdlineTest,
-       NoSanitizers(AndroidOnly(CmdTriggerWithUploadFlag))) {
+TEST_F(PerfettoCmdlineTest, AndroidOnly(CmdTriggerWithUploadFlag)) {
   // See |message_count| and |message_size| in the TraceConfig above.
   constexpr size_t kMessageCount = 2;
   constexpr size_t kMessageSize = 2;

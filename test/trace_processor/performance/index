@@ -1,0 +1,2 @@
+# IRQ max runtime and count over 1ms
+irq_runtime_metric.textproto android_irq_runtime irq_runtime_metric.out
