@@ -59,6 +59,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/temp_file.h"
 #include "perfetto/ext/base/utils.h"
+#include "perfetto/ext/base/uuid.h"
 #include "perfetto/ext/base/version.h"
 #include "perfetto/ext/base/watchdog.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
@@ -1428,12 +1429,17 @@ void TracingServiceImpl::ActivateTriggers(
                   trigger_name.c_str());
     base::Hash hash;
     hash.Update(trigger_name.c_str(), trigger_name.size());
+    std::string triggered_session_name;
+    base::Uuid triggered_session_uuid;
+    TracingSessionID triggered_session_id = 0;
+    int trigger_mode = 0;
 
     uint64_t trigger_name_hash = hash.digest();
     size_t count_in_window =
         PurgeExpiredAndCountTriggerInWindow(now_ns, trigger_name_hash);
 
-    bool trigger_applied = false;
+    bool trigger_matched = false;
+    bool trigger_activated = false;
     for (auto& id_and_tracing_session : tracing_sessions_) {
       auto& tracing_session = id_and_tracing_session.second;
       TracingSessionID tsid = id_and_tracing_session.first;
@@ -1479,7 +1485,14 @@ void TracingServiceImpl::ActivateTriggers(
                              trigger_name);
         continue;
       }
-      trigger_applied = true;
+      trigger_matched = true;
+      triggered_session_id = tracing_session.id;
+      triggered_session_name = tracing_session.config.unique_session_name();
+      triggered_session_uuid.set_lsb_msb(
+          tracing_session.config.trace_uuid_lsb(),
+          tracing_session.config.trace_uuid_msb());
+      trigger_mode = static_cast<int>(
+          tracing_session.config.trigger_config().trigger_mode());
 
       const bool triggers_already_received =
           !tracing_session.received_triggers.empty();
@@ -1496,9 +1509,7 @@ void TracingServiceImpl::ActivateTriggers(
           if (tracing_session.state != TracingSession::CONFIGURED)
             break;
 
-          PERFETTO_DLOG("Triggering '%s' on tracing session %" PRIu64
-                        " with duration of %" PRIu32 "ms.",
-                        iter->name().c_str(), tsid, iter->stop_delay_ms());
+          trigger_activated = true;
           MaybeLogUploadEvent(tracing_session.config,
                               PerfettoStatsdAtom::kTracedTriggerStartTracing,
                               iter->name());
@@ -1517,9 +1528,7 @@ void TracingServiceImpl::ActivateTriggers(
           if (triggers_already_received)
             break;
 
-          PERFETTO_DLOG("Triggering '%s' on tracing session %" PRIu64
-                        " with duration of %" PRIu32 "ms.",
-                        iter->name().c_str(), tsid, iter->stop_delay_ms());
+          trigger_activated = true;
           MaybeLogUploadEvent(tracing_session.config,
                               PerfettoStatsdAtom::kTracedTriggerStopTracing,
                               iter->name());
@@ -1544,10 +1553,21 @@ void TracingServiceImpl::ActivateTriggers(
       }
     }  // for (.. : tracing_sessions_)
 
-    if (trigger_applied) {
+    if (trigger_matched) {
       trigger_history_.emplace_back(TriggerHistory{now_ns, trigger_name_hash});
     }
-  }
+
+    if (trigger_activated) {
+      // Log only the trigger that actually caused a trace stop/start, don't log
+      // the follow-up ones, even if they matched.
+      PERFETTO_LOG(
+          "Trace trigger activated: trigger_name=\"%s\" trigger_mode=%d "
+          "trace_name=\"%s\" trace_uuid=\"%s\" tsid=%" PRIu64,
+          trigger_name.c_str(), trigger_mode, triggered_session_name.c_str(),
+          triggered_session_uuid.ToPrettyString().c_str(),
+          triggered_session_id);
+    }
+  }  // for (trigger_name : triggers)
 }
 
 // Always invoked kDataSourceStopTimeoutMs after DisableTracing(). In nominal
