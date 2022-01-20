@@ -29,7 +29,9 @@
 --
 -- Note: In traces without the "Java" category there will be no VSync
 --       TraceEvents and this table will be empty.
---
+
+SELECT RUN_METRIC('chrome/jank_utilities.sql');
+
 -- Note: Must be a TABLE because it uses a window function which can behave
 --       strangely in views.
 DROP TABLE IF EXISTS vsync_intervals;
@@ -113,6 +115,31 @@ CREATE VIEW joined_{{prefix}}_begin_and_end AS
     )
   ORDER BY begin.ts;
 
+-- Prepare all gesture updates that were not coalesced to be joined with their
+-- respective scrolls to calculate jank
+DROP VIEW IF EXISTS gesture_update;
+CREATE VIEW gesture_update AS
+  SELECT
+      EXTRACT_ARG(arg_set_id, "chrome_latency_info.trace_id") AS trace_id,
+      EXTRACT_ARG(arg_set_id, 'chrome_latency_info.{{id_field}}')
+          AS {{id_field}},
+      *
+  FROM
+    slice JOIN track ON slice.track_id = track.id
+  WHERE
+    slice.name = 'InputLatency::{{gesture_update}}' AND
+    slice.dur != -1 AND
+    NOT COALESCE(
+            EXTRACT_ARG(arg_set_id, "chrome_latency_info.is_coalesced"),
+            TRUE)
+    AND slice.arg_set_id IN (
+      SELECT arg_set_id
+      FROM args
+      WHERE args.arg_set_id = slice.arg_set_id
+      AND flat_key = 'chrome_latency_info.component_info.component_type'
+      AND string_value = 'COMPONENT_INPUT_EVENT_GPU_SWAP_BUFFER'
+    );
+
 -- Get the "update" events by name ordered by the |{{id_field}}|, and
 -- timestamp. Then compute the number of frames (relative to vsync interval)
 -- that each event took. 1.6e+7 is 16 ms in nanoseconds and is used in case
@@ -123,14 +150,9 @@ CREATE VIEW joined_{{prefix}}_begin_and_end AS
 -- We remove updates with |dur| == -1 because this means we have no "end" event
 -- and can't reasonably determine what it should be. We have separate tracking
 -- to ensure this only happens at the end of the trace where its expected.
---
--- Note: Must be a TABLE because it uses a window function which can behave
---       strangely in views.
-DROP TABLE IF EXISTS {{id_field}}_update;
-CREATE TABLE {{id_field}}_update AS
+DROP VIEW IF EXISTS {{id_field}}_update;
+CREATE VIEW {{id_field}}_update AS
   SELECT
-    ROW_NUMBER() OVER (
-      ORDER BY {{id_field}} ASC, ts ASC) AS row_number,
     begin_id,
     begin_ts,
     begin_dur,
@@ -142,48 +164,53 @@ CREATE TABLE {{id_field}}_update AS
         end_ts_and_dur
       ELSE
         ts + dur
-      END AS maybe_gesture_end,
+    END AS maybe_gesture_end,
     id,
     ts,
     dur,
     track_id,
     trace_id,
     dur/avg_vsync_interval AS gesture_frames_exact
-  FROM joined_{{prefix}}_begin_and_end begin_and_end JOIN (
-    SELECT
-      EXTRACT_ARG(arg_set_id, "chrome_latency_info.trace_id") AS trace_id,
-      EXTRACT_ARG(arg_set_id, 'chrome_latency_info.{{id_field}}')
-          AS {{id_field}},
-      *
-    FROM
-      slice JOIN track ON slice.track_id = track.id
-    WHERE
-      slice.name = 'InputLatency::{{gesture_update}}' AND
-      slice.dur != -1 AND
-      NOT COALESCE(
-              EXTRACT_ARG(arg_set_id, "chrome_latency_info.is_coalesced"),
-              TRUE)
-      AND slice.arg_set_id IN (
-        SELECT arg_set_id
-        FROM args
-        WHERE args.arg_set_id = slice.arg_set_id
-        AND flat_key = 'chrome_latency_info.component_info.component_type'
-        AND string_value = 'COMPONENT_INPUT_EVENT_GPU_SWAP_BUFFER'
-      )
-  ) gesture_update ON
+  FROM joined_{{prefix}}_begin_and_end begin_and_end JOIN gesture_update ON
   gesture_update.ts <= begin_and_end.end_ts AND
   gesture_update.ts >= begin_and_end.begin_ts AND
   gesture_update.trace_id > begin_and_end.begin_trace_id AND
   gesture_update.trace_id < begin_and_end.end_trace_id AND (
     gesture_update.{{id_field}} IS NULL OR
     gesture_update.{{id_field}} = begin_and_end.begin_{{id_field}}
-  );
+  )
+  ORDER BY {{id_field}} ASC, ts ASC;
 
--- This takes the "update" events and joins it to the previous "update" event
--- (previous row and NULL if there isn't one) and the next "update" event (next
--- row and again NULL if there isn't one). Then we compute the duration of the
--- event (relative to fps) and see if it increased by more than 0.5 (which is
--- 1/2 of 16 ms at 60 fps, and so on).
+-- This takes the "update" events and get to the previous "update" event through LAG
+-- (previous row and NULL if there isn't one) and the next "update" event through LEAD
+-- (next row and again NULL if there isn't one). Then we compute the duration of the
+-- event (relative to fps).
+--
+-- We only compare an "update" event to another event within the same gesture
+-- ({{id_field}} == prev/next {{id_field}}). This controls somewhat for
+-- variability of gestures.
+--
+-- Note: Must be a TABLE because it uses a window function which can behave
+--       strangely in views.
+
+DROP TABLE IF EXISTS {{prefix}}_jank_maybe_null_prev_and_next_without_precompute;
+CREATE TABLE {{prefix}}_jank_maybe_null_prev_and_next_without_precompute AS
+  SELECT
+    *,
+    maybe_gesture_end - begin_ts AS {{prefix}}_dur,
+    LAG(ts) OVER sorted_frames AS prev_ts,
+    LAG({{id_field}}) OVER sorted_frames AS prev_{{id_field}},
+    LAG(gesture_frames_exact) OVER sorted_frames AS prev_gesture_frames_exact,
+    LEAD(ts) OVER sorted_frames AS next_ts,
+    LEAD({{id_field}}) OVER sorted_frames AS next_{{id_field}},
+    LEAD(gesture_frames_exact) OVER sorted_frames AS next_gesture_frames_exact
+  FROM {{id_field}}_update
+  WINDOW sorted_frames AS (ORDER BY {{id_field}} ASC, ts ASC)
+  ORDER BY {{id_field}} ASC, ts ASC;
+
+
+-- We compute the duration of the event (relative to fps) and see if it
+-- increased by more than 0.5 (which is 1/2 of 16 ms at 60 fps, and so on).
 --
 -- A small number is added to 0.5 in order to make sure that the comparison does
 -- not filter out ratios that are precisely 0.5, which can fall a little above
@@ -193,52 +220,19 @@ CREATE TABLE {{id_field}}_update AS
 -- rate more than 1 FPS (and therefore VSync interval less than a second), this
 -- ratio should increase with increments more than minimal value in numerator
 -- (1ns) divided by maximum value in denominator, giving 1e-9.
---
---
--- We only compare an "update" event to another event within the same gesture
--- ({{id_field}} == prev/next {{id_field}}). This controls somewhat for
--- variability of gestures.
---
--- Note: Must be a TABLE because it uses a window function which can behave
---       strangely in views.
-DROP TABLE IF EXISTS {{prefix}}_jank_maybe_null_prev_and_next;
-CREATE TABLE {{prefix}}_jank_maybe_null_prev_and_next AS
+-- Note: Logic is inside the isJankyFrame function found in jank_utilities.sql.
+DROP VIEW IF EXISTS {{prefix}}_jank_maybe_null_prev_and_next;
+CREATE VIEW {{prefix}}_jank_maybe_null_prev_and_next AS
   SELECT
-    currprev.*,
-    CASE WHEN
-      currprev.{{id_field}} != prev_{{id_field}} OR
-      prev_ts IS NULL OR
-      prev_ts < currprev.begin_ts OR
-      prev_ts > currprev.maybe_gesture_end
-    THEN
-      FALSE
-    ELSE
-      currprev.gesture_frames_exact > prev_gesture_frames_exact + 0.5 + 1e-9
-    END AS prev_jank,
-    CASE WHEN
-      currprev.{{id_field}} != next.{{id_field}} OR
-      next.ts IS NULL OR
-      next.ts < currprev.begin_ts OR
-      next.ts > currprev.maybe_gesture_end
-    THEN
-      FALSE
-    ELSE
-      currprev.gesture_frames_exact > next.gesture_frames_exact + 0.5 + 1e-9
-    END AS next_jank,
-    next.gesture_frames_exact AS next_gesture_frames_exact
-  FROM (
-    SELECT
-      curr.*,
-      curr.maybe_gesture_end - curr.begin_ts AS {{prefix}}_dur,
-      prev.ts AS prev_ts,
-      prev.{{id_field}} AS prev_{{id_field}},
-      prev.gesture_frames_exact AS prev_gesture_frames_exact
-    FROM
-      {{id_field}}_update curr LEFT JOIN
-      {{id_field}}_update prev ON prev.row_number + 1 = curr.row_number
-  ) currprev LEFT JOIN
-  {{id_field}}_update next ON currprev.row_number + 1 = next.row_number
-  ORDER BY currprev.{{id_field}} ASC, currprev.ts ASC;
+    *,
+     IsJankyFrame({{id_field}}, prev_{{id_field}},
+     prev_ts, begin_ts, maybe_gesture_end,
+     gesture_frames_exact, prev_gesture_frames_exact) AS prev_jank,
+    IsJankyFrame({{id_field}}, next_{{id_field}},
+     next_ts, begin_ts, maybe_gesture_end,
+     gesture_frames_exact, next_gesture_frames_exact) AS next_jank
+  FROM {{prefix}}_jank_maybe_null_prev_and_next_without_precompute
+  ORDER BY {{id_field}} ASC, ts ASC;
 
 -- This just uses prev_jank and next_jank to see if each "update" event is a
 -- jank.
