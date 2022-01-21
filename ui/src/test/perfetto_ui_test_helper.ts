@@ -35,7 +35,7 @@ export async function waitForPerfettoIdle(
     page: puppeteer.Page, minIdleMs?: number) {
   minIdleMs = minIdleMs || 3000;
   const tickMs = 250;
-  const timeoutMs = 30000;
+  const timeoutMs = 60000;
   const minIdleTicks = Math.ceil(minIdleMs / tickMs);
   const timeoutTicks = Math.ceil(timeoutMs / tickMs);
   let consecutiveIdleTicks = 0;
