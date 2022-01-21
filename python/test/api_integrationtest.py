@@ -19,16 +19,14 @@ import unittest
 
 import pandas as pd
 
-from perfetto.trace_processor.api import PLATFORM_DELEGATE, TraceProcessor
-from perfetto.trace_processor.api import TraceProcessorConfig
-from perfetto.trace_processor.api import TraceReference
-from perfetto.trace_processor.resolver import TraceUriResolver
-from perfetto.trace_processor.resolver_registry import ResolverRegistry
-from perfetto.trace_processor.path_resolver import PathUriResolver
-
 from perfetto.batch_trace_processor.api import BatchTraceProcessor
 from perfetto.batch_trace_processor.api import BatchTraceProcessorConfig
 from perfetto.batch_trace_processor.api import TraceListReference
+from perfetto.trace_processor.api import PLATFORM_DELEGATE, TraceProcessor
+from perfetto.trace_processor.api import TraceProcessorConfig
+from perfetto.trace_processor.api import TraceReference
+from perfetto.trace_uri_resolver.resolver import TraceUriResolver
+from perfetto.trace_uri_resolver.path import PathUriResolver
 
 
 class SimpleResolver(TraceUriResolver):

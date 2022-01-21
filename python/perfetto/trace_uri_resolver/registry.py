@@ -13,13 +13,13 @@
 # limitations under the License.
 
 import dataclasses as dc
-from typing import Dict, List, Optional, Tuple, Type, Union
+from typing import Dict, List, Type, Union
 
-from perfetto.trace_processor import util
-from perfetto.trace_processor.resolver import TraceContent
-from perfetto.trace_processor.resolver import TraceGenerator
-from perfetto.trace_processor.resolver import TraceUri
-from perfetto.trace_processor.resolver import TraceUriResolver
+from perfetto.trace_uri_resolver import util
+from perfetto.trace_uri_resolver.resolver import TraceContent
+from perfetto.trace_uri_resolver.resolver import TraceGenerator
+from perfetto.trace_uri_resolver.resolver import TraceUri
+from perfetto.trace_uri_resolver.resolver import TraceUriResolver
 
 TraceReference = Union[TraceUriResolver, TraceUri, TraceContent]
 TraceListReference = Union[TraceReference, List[TraceReference]]
@@ -32,7 +32,7 @@ class ResolverRegistry:
     generator: TraceGenerator
     metadata: Dict[str, str]
 
-  def __init__(self, resolvers: List[TraceUriResolver] = []):
+  def __init__(self, resolvers: List[Type[TraceUriResolver]] = []):
     self.registry: Dict[str, Type[TraceUriResolver]] = dict()
 
     for resolver in resolvers:

@@ -20,7 +20,7 @@ static_library("perfetto_cts_deps") {
   complete_static_lib = true
   testonly = true
   deps = [
-    "..:end_to_end_integrationtests",
+    "..:integrationtests",
     "../..:libperfetto_client_experimental",
     "../../gn:default_deps",
     "../../gn:gtest_and_gmock",

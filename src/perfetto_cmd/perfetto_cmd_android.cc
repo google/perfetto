@@ -49,10 +49,14 @@ void PerfettoCmd::SaveTraceIntoDropboxAndIncidentOrCrash() {
   // Save the trace as an incident.
   SaveOutputToIncidentTraceOrCrash();
 
-  if (!uuid_.empty()) {
+  // Skip the trace-uuid link for traces that are too small. Realistically those
+  // traces contain only a marker (e.g. seized_for_bugreport, or the trace
+  // expired without triggers). Those are useless and introduce only noise.
+  if (!uuid_.empty() && bytes_written_ > 4096) {
     base::Uuid uuid(uuid_);
-    PERFETTO_LOG("go/trace-uuid/%s  (%" PRIu64 " bytes)",
-                 uuid.ToPrettyString().c_str(), bytes_written_);
+    PERFETTO_LOG("go/trace-uuid/%s name=\"%s\" size=%" PRIu64,
+                 uuid.ToPrettyString().c_str(),
+                 trace_config_->unique_session_name().c_str(), bytes_written_);
   }
 
   // Ask incidentd to create a report, which will read the file we just
