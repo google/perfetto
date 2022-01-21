@@ -224,10 +224,6 @@ void AssertExpectedArtAllocsPresent(
       for (const auto& sample : proc_dump.samples()) {
         if (sample.self_allocated() > 0) {
           found_alloc = true;
-
-          // ART only reports when memory is allocated, not when it's released.
-          EXPECT_TRUE(sample.self_freed() == 0)
-              << "self_freed: " << sample.self_freed();
         }
       }
     }
