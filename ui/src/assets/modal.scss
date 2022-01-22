@@ -183,7 +183,6 @@
 .modal-pre {
   white-space: pre-line;
   font-size: 13px;
-  user-select: text;
 }
 
 .modal-logs, .modal-bash {
@@ -192,7 +191,6 @@
   background: #eee;
   font-size: 10px;
   font-family: var(--monospace-font);
-  -webkit-user-select: text;
   margin-top: 10px;
   margin-bottom: 10px;
   min-height: 50px;
