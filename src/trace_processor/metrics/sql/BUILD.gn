@@ -90,6 +90,7 @@ sql_files = [
   "chrome/estimated_power_by_rail_mode.sql",
   "chrome/sufficient_chrome_processes.sql",
   "chrome/gesture_jank.sql",
+  "chrome/jank_utilities.sql",
   "chrome/gesture_flow_event.sql",
   "chrome/gesture_flow_event_queuing_delay.sql",
   "chrome/rail_modes.sql",

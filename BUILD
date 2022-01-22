@@ -1109,6 +1109,7 @@ perfetto_genrule(
         "src/trace_processor/metrics/sql/chrome/gesture_flow_event.sql",
         "src/trace_processor/metrics/sql/chrome/gesture_flow_event_queuing_delay.sql",
         "src/trace_processor/metrics/sql/chrome/gesture_jank.sql",
+        "src/trace_processor/metrics/sql/chrome/jank_utilities.sql",
         "src/trace_processor/metrics/sql/chrome/rail_modes.sql",
         "src/trace_processor/metrics/sql/chrome/scroll_flow_event.sql",
         "src/trace_processor/metrics/sql/chrome/scroll_flow_event_queuing_delay.sql",
@@ -2736,6 +2737,7 @@ perfetto_proto_library(
     name = "protos_perfetto_trace_android_protos",
     srcs = [
         "protos/perfetto/trace/android/android_log.proto",
+        "protos/perfetto/trace/android/camera_event.proto",
         "protos/perfetto/trace/android/frame_timeline_event.proto",
         "protos/perfetto/trace/android/gpu_mem_event.proto",
         "protos/perfetto/trace/android/graphics_frame_event.proto",
