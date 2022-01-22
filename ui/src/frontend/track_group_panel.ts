@@ -129,10 +129,8 @@ export class TrackGroupPanel extends Panel<Attrs> {
           m('.fold-button',
             m('i.material-icons',
               this.trackGroupState.collapsed ? EXPAND_DOWN : EXPAND_UP)),
-          m('h1',
-            {
-              title: name,
-            },
+          m('h1.track-title',
+            {title: name},
             name,
             ('namespace' in this.summaryTrackState.config) &&
                 m('span.chip', 'metric')),
