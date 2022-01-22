@@ -98,7 +98,6 @@
   font-family: 'Roboto Condensed', sans-serif;
   font-weight: 300;
   color: #3c4b5d;
-  user-select: text;
 
   .material-icons {
     @include transition(0.3s);
@@ -381,7 +380,6 @@ table.half-width {
   display: grid;
   grid-template-rows: auto 1fr;
   font-family: 'Roboto Condensed', sans-serif;
-  user-select: text;
 
   header {
     position: sticky;

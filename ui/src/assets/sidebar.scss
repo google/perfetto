@@ -207,7 +207,6 @@
                   white-space: break-spaces;
                   font-family: 'Roboto Condensed', sans-serif;
                   word-break: break-all;
-                  user-select: text;
                   font-weight: 300;
                   letter-spacing: 0;
                   margin-top: -10px;
@@ -227,7 +226,6 @@
       height: - var(--sidebar-padding-bottom);
       grid-template-columns: repeat(4, min-content);
       grid-gap: 10px;
-      user-select: text;
 
       > button {
         color: hsl(217, 39%, 94%);
