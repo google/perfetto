@@ -39,8 +39,8 @@ class AsyncTrackSetTrackerUnittest : public testing::Test {
 
     unnestable_id_ = tracker_->CreateUnnestableTrackSetForTesting(
         1, storage_->InternString("test"));
-    legacy_unnestable_id_ =
-        tracker_->InternAndroidSet(2, storage_->InternString("test"));
+    legacy_unnestable_id_ = tracker_->InternAndroidLegacyUnnestableTrackSet(
+        2, storage_->InternString("test"));
   }
 
  protected:
@@ -57,7 +57,8 @@ class AsyncTrackSetTrackerUnittest : public testing::Test {
 namespace {
 
 TEST_F(AsyncTrackSetTrackerUnittest, Smoke) {
-  auto set_id = tracker_->InternAndroidSet(1, storage_->InternString("test"));
+  auto set_id = tracker_->InternAndroidLegacyUnnestableTrackSet(
+      1, storage_->InternString("test"));
 
   auto begin = tracker_->Begin(set_id, 1);
   auto end = tracker_->End(set_id, 1);
