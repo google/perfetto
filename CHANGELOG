@@ -1,6 +1,7 @@
 Unreleased:
   Tracing service and probes:
-    *
+    * Changed output format of perfetto --query. Made the output more compact
+      and added a summary of ongoing tracing sessions for the caller UID.
   Trace Processor:
     *
   UI:
