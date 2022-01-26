@@ -170,7 +170,8 @@ CREATE VIEW {{id_field}}_update AS
     dur,
     track_id,
     trace_id,
-    dur/avg_vsync_interval AS gesture_frames_exact
+    dur/avg_vsync_interval AS gesture_frames_exact,
+    avg_vsync_interval
   FROM joined_{{prefix}}_begin_and_end begin_and_end JOIN gesture_update ON
   gesture_update.ts <= begin_and_end.end_ts AND
   gesture_update.ts >= begin_and_end.begin_ts AND
