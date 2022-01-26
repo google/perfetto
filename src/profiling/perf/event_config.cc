@@ -168,6 +168,38 @@ base::Optional<PerfCounter> ToPerfCounter(
       return PerfCounter::BuiltinCounter(name, PerfEvents::SW_PAGE_FAULTS,
                                          PERF_TYPE_SOFTWARE,
                                          PERF_COUNT_SW_PAGE_FAULTS);
+    case PerfEvents::SW_TASK_CLOCK:
+      return PerfCounter::BuiltinCounter(name, PerfEvents::SW_TASK_CLOCK,
+                                         PERF_TYPE_SOFTWARE,
+                                         PERF_COUNT_SW_TASK_CLOCK);
+    case PerfEvents::SW_CONTEXT_SWITCHES:
+      return PerfCounter::BuiltinCounter(name, PerfEvents::SW_CONTEXT_SWITCHES,
+                                         PERF_TYPE_SOFTWARE,
+                                         PERF_COUNT_SW_CONTEXT_SWITCHES);
+    case PerfEvents::SW_CPU_MIGRATIONS:
+      return PerfCounter::BuiltinCounter(name, PerfEvents::SW_CPU_MIGRATIONS,
+                                         PERF_TYPE_SOFTWARE,
+                                         PERF_COUNT_SW_CPU_MIGRATIONS);
+    case PerfEvents::SW_PAGE_FAULTS_MIN:
+      return PerfCounter::BuiltinCounter(name, PerfEvents::SW_PAGE_FAULTS_MIN,
+                                         PERF_TYPE_SOFTWARE,
+                                         PERF_COUNT_SW_PAGE_FAULTS_MIN);
+    case PerfEvents::SW_PAGE_FAULTS_MAJ:
+      return PerfCounter::BuiltinCounter(name, PerfEvents::SW_PAGE_FAULTS_MAJ,
+                                         PERF_TYPE_SOFTWARE,
+                                         PERF_COUNT_SW_PAGE_FAULTS_MAJ);
+    case PerfEvents::SW_ALIGNMENT_FAULTS:
+      return PerfCounter::BuiltinCounter(name, PerfEvents::SW_ALIGNMENT_FAULTS,
+                                         PERF_TYPE_SOFTWARE,
+                                         PERF_COUNT_SW_ALIGNMENT_FAULTS);
+    case PerfEvents::SW_EMULATION_FAULTS:
+      return PerfCounter::BuiltinCounter(name, PerfEvents::SW_EMULATION_FAULTS,
+                                         PERF_TYPE_SOFTWARE,
+                                         PERF_COUNT_SW_EMULATION_FAULTS);
+    case PerfEvents::SW_DUMMY:
+      return PerfCounter::BuiltinCounter(
+          name, PerfEvents::SW_DUMMY, PERF_TYPE_SOFTWARE, PERF_COUNT_SW_DUMMY);
+
     case PerfEvents::HW_CPU_CYCLES:
       return PerfCounter::BuiltinCounter(name, PerfEvents::HW_CPU_CYCLES,
                                          PERF_TYPE_HARDWARE,
@@ -176,6 +208,39 @@ base::Optional<PerfCounter> ToPerfCounter(
       return PerfCounter::BuiltinCounter(name, PerfEvents::HW_INSTRUCTIONS,
                                          PERF_TYPE_HARDWARE,
                                          PERF_COUNT_HW_INSTRUCTIONS);
+    case PerfEvents::HW_CACHE_REFERENCES:
+      return PerfCounter::BuiltinCounter(name, PerfEvents::HW_CACHE_REFERENCES,
+                                         PERF_TYPE_HARDWARE,
+                                         PERF_COUNT_HW_CACHE_REFERENCES);
+    case PerfEvents::HW_CACHE_MISSES:
+      return PerfCounter::BuiltinCounter(name, PerfEvents::HW_CACHE_MISSES,
+                                         PERF_TYPE_HARDWARE,
+                                         PERF_COUNT_HW_CACHE_MISSES);
+    case PerfEvents::HW_BRANCH_INSTRUCTIONS:
+      return PerfCounter::BuiltinCounter(
+          name, PerfEvents::HW_BRANCH_INSTRUCTIONS, PERF_TYPE_HARDWARE,
+          PERF_COUNT_HW_BRANCH_INSTRUCTIONS);
+    case PerfEvents::HW_BRANCH_MISSES:
+      return PerfCounter::BuiltinCounter(name, PerfEvents::HW_BRANCH_MISSES,
+                                         PERF_TYPE_HARDWARE,
+                                         PERF_COUNT_HW_BRANCH_MISSES);
+    case PerfEvents::HW_BUS_CYCLES:
+      return PerfCounter::BuiltinCounter(name, PerfEvents::HW_BUS_CYCLES,
+                                         PERF_TYPE_HARDWARE,
+                                         PERF_COUNT_HW_BUS_CYCLES);
+    case PerfEvents::HW_STALLED_CYCLES_FRONTEND:
+      return PerfCounter::BuiltinCounter(
+          name, PerfEvents::HW_STALLED_CYCLES_FRONTEND, PERF_TYPE_HARDWARE,
+          PERF_COUNT_HW_STALLED_CYCLES_FRONTEND);
+    case PerfEvents::HW_STALLED_CYCLES_BACKEND:
+      return PerfCounter::BuiltinCounter(
+          name, PerfEvents::HW_STALLED_CYCLES_BACKEND, PERF_TYPE_HARDWARE,
+          PERF_COUNT_HW_STALLED_CYCLES_BACKEND);
+    case PerfEvents::HW_REF_CPU_CYCLES:
+      return PerfCounter::BuiltinCounter(name, PerfEvents::HW_REF_CPU_CYCLES,
+                                         PERF_TYPE_HARDWARE,
+                                         PERF_COUNT_HW_REF_CPU_CYCLES);
+
     default:
       PERFETTO_ELOG("Unrecognised PerfEvents::Counter enum value: %zu",
                     static_cast<size_t>(pb_enum));
