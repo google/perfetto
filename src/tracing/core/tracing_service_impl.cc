@@ -3667,6 +3667,7 @@ void TracingServiceImpl::ConsumerEndpointImpl::QueryServiceState(
     producer->set_name(kv.second->name_);
     producer->set_sdk_version(kv.second->sdk_version_);
     producer->set_uid(static_cast<int32_t>(kv.second->uid()));
+    producer->set_pid(static_cast<int32_t>(kv.second->pid()));
   }
 
   for (const auto& kv : service_->data_sources_) {
@@ -3675,6 +3676,42 @@ void TracingServiceImpl::ConsumerEndpointImpl::QueryServiceState(
     *data_source->mutable_ds_descriptor() = registered_data_source.descriptor;
     data_source->set_producer_id(
         static_cast<int>(registered_data_source.producer_id));
+  }
+
+  svc_state.set_supports_tracing_sessions(true);
+  for (const auto& kv : service_->tracing_sessions_) {
+    const TracingSession& s = kv.second;
+    // List only tracing sessions for the calling UID (or everything for root).
+    if (uid_ != 0 && uid_ != s.consumer_uid)
+      continue;
+    auto* session = svc_state.add_tracing_sessions();
+    session->set_id(s.id);
+    session->set_consumer_uid(static_cast<int>(s.consumer_uid));
+    session->set_duration_ms(s.config.duration_ms());
+    session->set_num_data_sources(
+        static_cast<uint32_t>(s.data_source_instances.size()));
+    session->set_unique_session_name(s.config.unique_session_name());
+    for (const auto& snap_kv : s.initial_clock_snapshot) {
+      if (snap_kv.first == protos::pbzero::BUILTIN_CLOCK_REALTIME)
+        session->set_start_realtime_ns(static_cast<int64_t>(snap_kv.second));
+    }
+    for (const auto& buf : s.config.buffers())
+      session->add_buffer_size_kb(buf.size_kb());
+
+    switch (s.state) {
+      case TracingSession::State::DISABLED:
+        session->set_state("DISABLED");
+        break;
+      case TracingSession::State::CONFIGURED:
+        session->set_state("CONFIGURED");
+        break;
+      case TracingSession::State::STARTED:
+        session->set_state("STARTED");
+        break;
+      case TracingSession::State::DISABLING_WAITING_STOP_ACKS:
+        session->set_state("STOP_WAIT");
+        break;
+    }
   }
   callback(/*success=*/true, svc_state);
 }
