@@ -57,7 +57,8 @@ def check(path):
 
     if 'like' in line.casefold():
       sys.stderr.write(
-          'LIKE is banned in trace processor metrics. Prefer GLOB instead.')
+          'LIKE is banned in trace processor metrics. Prefer GLOB instead.\n')
+      sys.stderr.write('Offending file: %s\n' % path)
       errors += 1
 
   return errors
