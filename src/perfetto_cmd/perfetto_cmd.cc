@@ -1137,43 +1137,86 @@ void PerfettoCmd::PrintServiceState(bool success,
     return;
   }
 
-  printf("Not meant for machine consumption. Use --query-raw for scripts.\n");
+  printf(
+      "\x1b[31mNot meant for machine consumption. Use --query-raw for "
+      "scripts.\x1b[0m\n\n");
+  printf(
+      "Service: %s\n"
+      "Tracing sessions: %d (started: %d)\n",
+      svc_state.tracing_service_version().c_str(), svc_state.num_sessions(),
+      svc_state.num_sessions_started());
 
+  printf(R"(
+
+PRODUCER PROCESSES CONNECTED:
+
+ID         PID        UID        NAME                             SDK
+==         ===        ===        ====                             ===
+)");
   for (const auto& producer : svc_state.producers()) {
-    printf("producers: {\n");
-    printf("  id: %d\n", producer.id());
-    printf("  name: \"%s\" \n", producer.name().c_str());
-    printf("  uid: %d \n", producer.uid());
-    printf("  sdk_version: \"%s\" \n", producer.sdk_version().c_str());
-    printf("}\n");
+    printf("%-10d %-10d %-10d %-32s %s\n", producer.id(), producer.pid(),
+           producer.uid(), producer.name().c_str(),
+           producer.sdk_version().c_str());
   }
 
+  printf(R"(
+
+DATA SOURCES REGISTERED:
+
+NAME                                     PRODUCER                     DETAILS
+===                                      ========                     ========
+)");
   for (const auto& ds : svc_state.data_sources()) {
-    printf("data_sources: {\n");
-    printf("  producer_id: %d\n", ds.producer_id());
-    printf("  descriptor: {\n");
-    printf("    name: \"%s\"\n", ds.ds_descriptor().name().c_str());
+    char producer_id_and_name[128]{};
+    const int ds_producer_id = ds.producer_id();
+    for (const auto& producer : svc_state.producers()) {
+      if (producer.id() == ds_producer_id) {
+        base::SprintfTrunc(producer_id_and_name, sizeof(producer_id_and_name),
+                           "%s (%d)", producer.name().c_str(), ds_producer_id);
+        break;
+      }
+    }
+
+    printf("%-40s %-40s ", ds.ds_descriptor().name().c_str(),
+           producer_id_and_name);
+    // Print the category names for clients using the track event SDK.
     if (!ds.ds_descriptor().track_event_descriptor_raw().empty()) {
       auto raw = ds.ds_descriptor().track_event_descriptor_raw();
       perfetto::protos::gen::TrackEventDescriptor desc;
       if (desc.ParseFromArray(raw.data(), raw.size())) {
-        printf("    track_event_descriptor: {\n");
         for (const auto& cat : desc.available_categories()) {
-          printf("      available_categories: {\n");
-          printf("        name: \"%s\"\n", cat.name().c_str());
-          printf("        description: \"%s\"\n", cat.description().c_str());
-          printf("      }\n");
+          printf("%s,", cat.name().c_str());
         }
-        printf("    }\n");
       }
     }
-    printf("  }\n");
-    printf("}\n");
-  }
-  printf("tracing_service_version: \"%s\"\n",
-         svc_state.tracing_service_version().c_str());
-  printf("num_sessions: %d\n", svc_state.num_sessions());
-  printf("num_sessions_started: %d\n", svc_state.num_sessions_started());
+    printf("\n");
+  }  // for data_sources()
+
+  if (svc_state.supports_tracing_sessions()) {
+    printf(R"(
+
+TRACING SESSIONS:
+
+ID      UID     STATE      NAME         BUF (#) KB   DUR (s)   #DS  STARTED
+===     ===     =====      ====         ==========   =======   ===  =======
+)");
+    for (const auto& sess : svc_state.tracing_sessions()) {
+      uint32_t buf_tot_kb = 0;
+      for (uint32_t kb : sess.buffer_size_kb())
+        buf_tot_kb += kb;
+      int sec =
+          static_cast<int>((sess.start_realtime_ns() / 1000000000) % 86400);
+      int h = sec / 3600;
+      int m = (sec - (h * 3600)) / 60;
+      int s = (sec - h * 3600 - m * 60);
+      printf("%-7" PRIu64
+             " %-7d %-10s %-12s (%d) %-8u %-9u %-4u %02d:%02d:%02d\n",
+             sess.id(), sess.consumer_uid(), sess.state().c_str(),
+             sess.unique_session_name().c_str(), sess.buffer_size_kb_size(),
+             buf_tot_kb, sess.duration_ms() / 1000, sess.num_data_sources(), h,
+             m, s);
+    }  // for tracing_sessions()
+  }    // if (supports_tracing_sessions)
 }
 
 void PerfettoCmd::OnObservableEvents(
