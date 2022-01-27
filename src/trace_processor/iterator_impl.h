@@ -40,7 +40,7 @@ class IteratorImpl {
                sqlite3* db,
                ScopedStmt,
                uint32_t column_count,
-               util::Status,
+               base::Status,
                uint32_t sql_stats_row);
   ~IteratorImpl();
 
@@ -63,7 +63,7 @@ class IteratorImpl {
 
     int ret = sqlite3_step(*stmt_);
     if (PERFETTO_UNLIKELY(ret != SQLITE_ROW && ret != SQLITE_DONE)) {
-      status_ = util::ErrStatus("%s", sqlite3_errmsg(db_));
+      status_ = base::ErrStatus("%s", sqlite3_errmsg(db_));
       return false;
     }
     return ret == SQLITE_ROW;
@@ -106,7 +106,7 @@ class IteratorImpl {
 
   uint32_t ColumnCount() { return column_count_; }
 
-  util::Status Status() { return status_; }
+  base::Status Status() { return status_; }
 
  private:
   // Dummy function to pass to ScopedResource.
@@ -127,7 +127,7 @@ class IteratorImpl {
   sqlite3* db_ = nullptr;
   ScopedStmt stmt_;
   uint32_t column_count_ = 0;
-  util::Status status_;
+  base::Status status_;
 
   uint32_t sql_stats_row_ = 0;
   bool called_next_ = false;
