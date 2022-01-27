@@ -357,3 +357,4 @@ synthetic/rss_stat_throttled
 net/netif_receive_skb
 net/net_dev_xmit
 sock/inet_sock_set_state
+tcp/tcp_retransmit_skb

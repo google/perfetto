@@ -5376,6 +5376,20 @@ message TaskRenameFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/task.proto
 
+// Begin of protos/perfetto/trace/ftrace/tcp.proto
+
+message TcpRetransmitSkbFtraceEvent {
+  optional uint32 daddr = 1;
+  optional uint32 dport = 2;
+  optional uint32 saddr = 3;
+  optional uint64 skaddr = 4;
+  optional uint64 skbaddr = 5;
+  optional uint32 sport = 6;
+  optional int32 state = 7;
+}
+
+// End of protos/perfetto/trace/ftrace/tcp.proto
+
 // Begin of protos/perfetto/trace/ftrace/thermal.proto
 
 message ThermalTemperatureFtraceEvent {
@@ -5823,6 +5837,7 @@ message FtraceEvent {
     NetifReceiveSkbFtraceEvent netif_receive_skb = 360;
     NetDevXmitFtraceEvent net_dev_xmit = 361;
     InetSockSetStateFtraceEvent inet_sock_set_state = 362;
+    TcpRetransmitSkbFtraceEvent tcp_retransmit_skb = 363;
   }
 }
 
