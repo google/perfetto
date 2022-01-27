@@ -28,7 +28,7 @@ IteratorImpl::IteratorImpl(TraceProcessorImpl* trace_processor,
                            sqlite3* db,
                            ScopedStmt stmt,
                            uint32_t column_count,
-                           util::Status status,
+                           base::Status status,
                            uint32_t sql_stats_row)
     : trace_processor_(trace_processor),
       db_(db),
@@ -76,7 +76,7 @@ uint32_t Iterator::ColumnCount() {
   return iterator_->ColumnCount();
 }
 
-util::Status Iterator::Status() {
+base::Status Iterator::Status() {
   return iterator_->Status();
 }
 
