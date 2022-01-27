@@ -283,9 +283,9 @@ class ProtoTraceParserTest : public ::testing::Test {
     RowMap rm = args.FilterToRowMap({args.arg_set_id().eq(set_id)});
     bool found = false;
     for (auto it = rm.IterateRows(); it; it.Next()) {
-      if (args.key()[it.row()] == key_id) {
-        EXPECT_EQ(args.flat_key()[it.row()], key_id);
-        if (storage_->GetArgValue(it.row()) == value) {
+      if (args.key()[it.index()] == key_id) {
+        EXPECT_EQ(args.flat_key()[it.index()], key_id);
+        if (storage_->GetArgValue(it.index()) == value) {
           found = true;
           break;
         }

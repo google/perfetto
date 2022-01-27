@@ -162,8 +162,8 @@ class BFS {
     auto rows = flow.FilterToRowMap({start_col.eq(slice_id.value)});
 
     for (auto row_it = rows.IterateRows(); row_it; row_it.Next()) {
-      flow_rows_.push_back(row_it.row());
-      SliceId next_slice_id = end_col[row_it.row()];
+      flow_rows_.push_back(row_it.index());
+      SliceId next_slice_id = end_col[row_it.index()];
       if (known_slices_.count(next_slice_id) != 0) {
         continue;
       }
@@ -179,7 +179,7 @@ class BFS {
   void GoToRelativesImpl(RowMap::Iterator it) {
     const auto& slice = context_->storage->slice_table();
     for (; it; it.Next()) {
-      auto relative_slice_id = slice.id()[it.row()];
+      auto relative_slice_id = slice.id()[it.index()];
       if (known_slices_.count(relative_slice_id))
         continue;
       known_slices_.insert(relative_slice_id);

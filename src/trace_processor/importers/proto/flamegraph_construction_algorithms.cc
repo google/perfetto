@@ -372,7 +372,7 @@ BuildNativeCallStackSamplingFlamegraph(
   }
 
   for (auto it = threads_in_pid_rm.IterateRows(); it; it.Next()) {
-    utids.insert(storage->thread_table().id()[it.row()]);
+    utids.insert(storage->thread_table().id()[it.index()]);
   }
 
   // 3.Get all row indices in perf_sample that correspond to the requested utids
