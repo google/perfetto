@@ -67,13 +67,13 @@ CREATE VIEW {{prefix}}_latency_info_flow_step_and_ancestors AS
         ts AS gesture_ts,
         dur AS {{prefix}}_dur,
         track_id AS gesture_track_id,
-        trace_id AS {{id_field}},
+        trace_id AS {{prefix}}_trace_id,
         jank,
         {{id_field}},
         avg_vsync_interval
       FROM {{prefix}}_jank
   ) gesture ON
-    flow.trace_id = gesture.{{id_field}}
+    flow.trace_id = gesture.{{prefix}}_trace_id
   UNION ALL
   SELECT
     'InputLatency::{{gesture_update}}' AS name,
@@ -95,7 +95,7 @@ CREATE VIEW {{prefix}}_latency_info_flow_step_and_ancestors AS
     ts AS gesture_ts,
     dur AS {{prefix}}_dur,
     track_id AS gesture_track_id,
-    trace_id AS {{id_field}},
+    trace_id AS {{prefix}}_trace_id,
     jank,
     {{id_field}},
     avg_vsync_interval
@@ -140,7 +140,7 @@ CREATE VIEW {{prefix}}_max_latency_info_ts_per_trace_id AS
     MIN(ts) AS max_flow_ts
   FROM {{prefix}}_latency_info_flow_step
   WHERE
-    trace_id = {{id_field}} AND
+    trace_id = {{prefix}}_trace_id AND
     ts > gesture_ts + {{prefix}}_dur
   GROUP BY gesture_slice_id;
 
