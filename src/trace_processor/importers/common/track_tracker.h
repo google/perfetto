@@ -52,15 +52,6 @@ class TrackTracker {
                                        bool source_id_is_process_scoped,
                                        StringId source_scope);
 
-  // Creates and inserts a global async track into the storage.
-  TrackId CreateGlobalAsyncTrack(StringId name);
-
-  // Creates and inserts a Android async track into the storage.
-  TrackId CreateAndroidAsyncTrack(StringId name, UniquePid upid);
-
-  // Creates and inserts a FrameTimeline async track into the storage.
-  TrackId CreateFrameTimelineAsyncTrack(StringId name, UniquePid upid);
-
   // Interns a track for legacy Chrome process-scoped instant events into the
   // storage.
   TrackId InternLegacyChromeProcessInstantTrack(UniquePid upid);
@@ -110,6 +101,17 @@ class TrackTracker {
                                  uint32_t perf_session_id,
                                  uint32_t cpu,
                                  bool is_timebase);
+
+  // NOTE:
+  // The below method should only be called by AsyncTrackSetTracker
+
+  // Creates and inserts a global async track into the storage.
+  TrackId CreateGlobalAsyncTrack(StringId name, StringId source);
+
+  // Creates and inserts a Android async track into the storage.
+  TrackId CreateProcessAsyncTrack(StringId name,
+                                  UniquePid upid,
+                                  StringId source);
 
  private:
   struct GpuTrackTuple {
@@ -163,7 +165,6 @@ class TrackTracker {
 
   const StringId fuchsia_source_ = kNullStringId;
   const StringId chrome_source_ = kNullStringId;
-  const StringId android_source_ = kNullStringId;
 
   TraceProcessorContext* const context_;
 };
