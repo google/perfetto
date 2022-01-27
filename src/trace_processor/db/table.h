@@ -60,7 +60,7 @@ class Table {
     // Returns the value at the current row for column |col_idx|.
     SqlValue Get(uint32_t col_idx) const {
       const auto& col = table_->columns_[col_idx];
-      return col.GetAtIdx(its_[col.row_map_idx_].row());
+      return col.GetAtIdx(its_[col.row_map_idx_].index());
     }
 
    private:

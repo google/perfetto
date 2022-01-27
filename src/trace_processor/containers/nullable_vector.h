@@ -86,15 +86,15 @@ class NullableVector : public NullableVectorBase {
   base::Optional<T> Get(uint32_t idx) const {
     if (mode_ == Mode::kDense) {
       bool contains = valid_.Contains(idx);
-      return contains ? base::Optional<T>(data_[idx]) : base::nullopt;
+      return contains ? base::make_optional(data_[idx]) : base::nullopt;
     } else {
-      auto opt_idx = valid_.IndexOf(idx);
-      return opt_idx ? base::Optional<T>(data_[*opt_idx]) : base::nullopt;
+      auto opt_row = valid_.RowOf(idx);
+      return opt_row ? base::make_optional(data_[*opt_row]) : base::nullopt;
     }
   }
 
-  // Returns the non-null value at |ordinal| where |ordinal| gives the index
-  // of the entry in-terms of non-null entries only.
+  // Returns the non-null value at |non_null_idx| where |non_null_idx| gives the
+  // index of the entry in-terms of non-null entries only.
   //
   // For example:
   // this = [0, null, 2, null, 4]
@@ -103,12 +103,12 @@ class NullableVector : public NullableVectorBase {
   // GetNonNull(1) = 2
   // GetNonNull(2) = 4
   // ...
-  T GetNonNull(uint32_t ordinal) const {
+  T GetNonNull(uint32_t non_null_idx) const {
     if (mode_ == Mode::kDense) {
-      return data_[valid_.Get(ordinal)];
+      return data_[valid_.Get(non_null_idx)];
     } else {
-      PERFETTO_DCHECK(ordinal < data_.size());
-      return data_[ordinal];
+      PERFETTO_DCHECK(non_null_idx < data_.size());
+      return data_[non_null_idx];
     }
   }
 
@@ -143,18 +143,18 @@ class NullableVector : public NullableVectorBase {
       }
       data_[idx] = val;
     } else {
-      auto opt_idx = valid_.IndexOf(idx);
+      auto opt_row = valid_.RowOf(idx);
 
       // Generally, we will be setting a null row to non-null so optimize for
       // that path.
-      if (PERFETTO_UNLIKELY(opt_idx)) {
-        data_[*opt_idx] = val;
+      if (PERFETTO_UNLIKELY(opt_row)) {
+        data_[*opt_row] = val;
       } else {
         valid_.Insert(idx);
 
-        opt_idx = valid_.IndexOf(idx);
-        PERFETTO_DCHECK(opt_idx);
-        data_.insert(data_.begin() + static_cast<ptrdiff_t>(*opt_idx), val);
+        opt_row = valid_.RowOf(idx);
+        PERFETTO_DCHECK(opt_row);
+        data_.insert(data_.begin() + static_cast<ptrdiff_t>(*opt_row), val);
       }
     }
   }
@@ -166,7 +166,7 @@ class NullableVector : public NullableVectorBase {
   bool IsDense() const { return mode_ == Mode::kDense; }
 
  private:
-  NullableVector(Mode mode) : mode_(mode) {}
+  explicit NullableVector(Mode mode) : mode_(mode) {}
 
   Mode mode_ = Mode::kSparse;
 
