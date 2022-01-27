@@ -39,8 +39,6 @@ util::Status SqlStatsTable::Init(int, const char* const*, Schema* schema) {
   *schema = Schema(
       {
           SqliteTable::Column(Column::kQuery, "query", SqlValue::Type::kString),
-          SqliteTable::Column(Column::kTimeQueued, "queued",
-                              SqlValue::Type::kLong),
           SqliteTable::Column(Column::kTimeStarted, "started",
                               SqlValue::Type::kLong),
           SqliteTable::Column(Column::kTimeFirstNext, "first_next",
@@ -48,7 +46,7 @@ util::Status SqlStatsTable::Init(int, const char* const*, Schema* schema) {
           SqliteTable::Column(Column::kTimeEnded, "ended",
                               SqlValue::Type::kLong),
       },
-      {Column::kTimeQueued});
+      {Column::kTimeStarted});
   return util::OkStatus();
 }
 
@@ -88,9 +86,6 @@ int SqlStatsTable::Cursor::Column(sqlite3_context* context, int col) {
     case Column::kQuery:
       sqlite3_result_text(context, stats.queries()[row_].c_str(), -1,
                           sqlite_utils::kSqliteStatic);
-      break;
-    case Column::kTimeQueued:
-      sqlite3_result_int64(context, stats.times_queued()[row_]);
       break;
     case Column::kTimeStarted:
       sqlite3_result_int64(context, stats.times_started()[row_]);

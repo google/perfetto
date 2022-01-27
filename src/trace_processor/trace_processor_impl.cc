@@ -980,8 +980,7 @@ size_t TraceProcessorImpl::RestoreInitialTables() {
   return deletion_list.size();
 }
 
-Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql,
-                                          int64_t time_queued) {
+Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
   sqlite3_stmt* raw_stmt;
   int err;
   {
@@ -1000,7 +999,7 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql,
 
   base::TimeNanos t_start = base::GetWallTimeNs();
   uint32_t sql_stats_row =
-      context_.storage->mutable_sql_stats()->RecordQueryBegin(sql, time_queued,
+      context_.storage->mutable_sql_stats()->RecordQueryBegin(sql,
                                                               t_start.count());
 
   std::unique_ptr<IteratorImpl> impl(new IteratorImpl(

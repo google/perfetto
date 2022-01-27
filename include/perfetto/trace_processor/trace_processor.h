@@ -45,8 +45,7 @@ class PERFETTO_EXPORT TraceProcessor : public TraceProcessorStorage {
 
   // Executes a SQLite query on the loaded portion of the trace. The returned
   // iterator can be used to load rows from the result.
-  virtual Iterator ExecuteQuery(const std::string& sql,
-                                int64_t time_queued = 0) = 0;
+  virtual Iterator ExecuteQuery(const std::string& sql) = 0;
 
   // Registers a metric at the given path which will run the specified SQL.
   virtual base::Status RegisterMetric(const std::string& path,

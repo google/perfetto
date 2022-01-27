@@ -136,16 +136,16 @@ message AppendTraceDataResult {
 message QueryArgs {
   optional string sql_query = 1;
 
-  // Wall time when the query was queued. Used only for query stats.
-  optional uint64 time_queued_ns = 2;
+  // Was time_queued_ns
+  reserved 2;
 }
 
 // Input for the /raw_query endpoint.
 message RawQueryArgs {
   optional string sql_query = 1;
 
-  // Wall time when the query was queued. Used only for query stats.
-  optional uint64 time_queued_ns = 2;
+  // Was time_queued_ns
+  reserved 2;
 }
 
 // Output for the /raw_query endpoint.
