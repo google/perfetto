@@ -35,6 +35,7 @@ CREATE VIEW {{prefix}}_flow_event_queuing_delay AS
     dur,
     track_id,
     {{id_field}},
+    avg_vsync_interval,
     {{prefix}}_slice_id,
     {{prefix}}_ts,
     {{prefix}}_dur,
