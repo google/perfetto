@@ -125,7 +125,8 @@ class FtraceParser {
   void ParseDirectReclaimEnd(int64_t timestamp,
                              uint32_t pid,
                              protozero::ConstBytes);
-  void ParseWorkqueueExecuteStart(int64_t timestamp,
+  void ParseWorkqueueExecuteStart(uint32_t cpu,
+                                  int64_t timestamp,
                                   uint32_t pid,
                                   protozero::ConstBytes,
                                   PacketSequenceStateGeneration* seq_state);
@@ -162,6 +163,7 @@ class FtraceParser {
 
   const StringId sched_wakeup_name_id_;
   const StringId sched_waking_name_id_;
+  const StringId cpu_id_;
   const StringId cpu_freq_name_id_;
   const StringId gpu_freq_name_id_;
   const StringId cpu_idle_name_id_;
