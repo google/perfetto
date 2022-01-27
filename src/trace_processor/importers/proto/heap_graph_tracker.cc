@@ -758,14 +758,14 @@ void HeapGraphTracker::PopulateNativeSize(const SequenceState& seq) {
       class_tbl.FilterToRowMap({class_tbl.name().eq("sun.misc.Cleaner")});
   for (auto class_it = cleaner_classes.IterateRows(); class_it;
        class_it.Next()) {
-    auto class_id = class_tbl.id()[class_it.row()];
+    auto class_id = class_tbl.id()[class_it.index()];
     auto cleaner_objs = objects_tbl.FilterToRowMap(
         {objects_tbl.type_id().eq(class_id.value),
          objects_tbl.upid().eq(seq.current_upid),
          objects_tbl.graph_sample_ts().eq(seq.current_ts)});
     for (auto obj_it = cleaner_objs.IterateRows(); obj_it; obj_it.Next()) {
       tables::HeapGraphObjectTable::Id cleaner_obj_id =
-          objects_tbl.id()[obj_it.row()];
+          objects_tbl.id()[obj_it.index()];
       base::Optional<tables::HeapGraphObjectTable::Id> referent_id =
           GetReferenceByFieldName(cleaner_obj_id, referent_str_id_);
       base::Optional<tables::HeapGraphObjectTable::Id> thunk_id =

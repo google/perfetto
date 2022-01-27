@@ -229,7 +229,7 @@ class Column {
       case ColumnType::kId: {
         if (value.type != SqlValue::Type::kLong)
           return base::nullopt;
-        return row_map().IndexOf(static_cast<uint32_t>(value.long_value));
+        return row_map().RowOf(static_cast<uint32_t>(value.long_value));
       }
     }
     PERFETTO_FATAL("For GCC");

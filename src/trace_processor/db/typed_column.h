@@ -162,7 +162,7 @@ template <typename Id>
 struct IdColumn : public Column {
   Id operator[](uint32_t row) const { return Id(row_map().Get(row)); }
   base::Optional<uint32_t> IndexOf(Id id) const {
-    return row_map().IndexOf(id.value);
+    return row_map().RowOf(id.value);
   }
 
   // Reinterpret cast a Column to IdColumn or crash if that is likely to be
