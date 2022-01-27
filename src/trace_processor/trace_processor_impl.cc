@@ -908,7 +908,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
 
 TraceProcessorImpl::~TraceProcessorImpl() = default;
 
-util::Status TraceProcessorImpl::Parse(TraceBlobView blob) {
+base::Status TraceProcessorImpl::Parse(TraceBlobView blob) {
   bytes_parsed_ += blob.size();
   return TraceProcessorStorageImpl::Parse(std::move(blob));
 }
@@ -990,10 +990,10 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql,
                              &raw_stmt, nullptr);
   }
 
-  util::Status status;
+  base::Status status;
   uint32_t col_count = 0;
   if (err != SQLITE_OK) {
-    status = util::ErrStatus("%s", sqlite3_errmsg(*db_));
+    status = base::ErrStatus("%s", sqlite3_errmsg(*db_));
   } else {
     col_count = static_cast<uint32_t>(sqlite3_column_count(raw_stmt));
   }
@@ -1024,7 +1024,7 @@ bool TraceProcessorImpl::IsRootMetricField(const std::string& metric_name) {
   return field_idx != nullptr;
 }
 
-util::Status TraceProcessorImpl::RegisterMetric(const std::string& path,
+base::Status TraceProcessorImpl::RegisterMetric(const std::string& path,
                                                 const std::string& sql) {
   std::string stripped_sql;
   for (base::StringSplitter sp(sql, '\n'); sp.Next();) {
@@ -1041,7 +1041,7 @@ util::Status TraceProcessorImpl::RegisterMetric(const std::string& path,
       [&path](const metrics::SqlMetricFile& m) { return m.path == path; });
   if (it != sql_metrics_.end()) {
     it->sql = stripped_sql;
-    return util::OkStatus();
+    return base::OkStatus();
   }
 
   auto sep_idx = path.rfind('/');
@@ -1050,7 +1050,7 @@ util::Status TraceProcessorImpl::RegisterMetric(const std::string& path,
 
   auto sql_idx = basename.rfind(".sql");
   if (sql_idx == std::string::npos) {
-    return util::ErrStatus("Unable to find .sql extension for metric");
+    return base::ErrStatus("Unable to find .sql extension for metric");
   }
   auto no_ext_name = basename.substr(0, sql_idx);
 
@@ -1082,19 +1082,19 @@ util::Status TraceProcessorImpl::RegisterMetric(const std::string& path,
   }
 
   sql_metrics_.emplace_back(metric);
-  return util::OkStatus();
+  return base::OkStatus();
 }
 
-util::Status TraceProcessorImpl::ExtendMetricsProto(const uint8_t* data,
+base::Status TraceProcessorImpl::ExtendMetricsProto(const uint8_t* data,
                                                     size_t size) {
   return ExtendMetricsProto(data, size, /*skip_prefixes*/ {});
 }
 
-util::Status TraceProcessorImpl::ExtendMetricsProto(
+base::Status TraceProcessorImpl::ExtendMetricsProto(
     const uint8_t* data,
     size_t size,
     const std::vector<std::string>& skip_prefixes) {
-  util::Status status =
+  base::Status status =
       pool_.AddFromFileDescriptorSet(data, size, skip_prefixes);
   if (!status.ok())
     return status;
@@ -1109,27 +1109,27 @@ util::Status TraceProcessorImpl::ExtendMetricsProto(
         std::unique_ptr<metrics::BuildProto::Context>(
             new metrics::BuildProto::Context{this, &pool_, &desc}));
   }
-  return util::OkStatus();
+  return base::OkStatus();
 }
 
-util::Status TraceProcessorImpl::ComputeMetric(
+base::Status TraceProcessorImpl::ComputeMetric(
     const std::vector<std::string>& metric_names,
     std::vector<uint8_t>* metrics_proto) {
   auto opt_idx = pool_.FindDescriptorIdx(".perfetto.protos.TraceMetrics");
   if (!opt_idx.has_value())
-    return util::Status("Root metrics proto descriptor not found");
+    return base::Status("Root metrics proto descriptor not found");
 
   const auto& root_descriptor = pool_.descriptors()[opt_idx.value()];
   return metrics::ComputeMetrics(this, metric_names, sql_metrics_, pool_,
                                  root_descriptor, metrics_proto);
 }
 
-util::Status TraceProcessorImpl::ComputeMetricText(
+base::Status TraceProcessorImpl::ComputeMetricText(
     const std::vector<std::string>& metric_names,
     TraceProcessor::MetricResultFormat format,
     std::string* metrics_string) {
   std::vector<uint8_t> metrics_proto;
-  util::Status status = ComputeMetric(metric_names, &metrics_proto);
+  base::Status status = ComputeMetric(metric_names, &metrics_proto);
   if (!status.ok())
     return status;
   switch (format) {
@@ -1155,7 +1155,7 @@ void TraceProcessorImpl::EnableMetatrace() {
   metatrace::Enable();
 }
 
-util::Status TraceProcessorImpl::DisableAndReadMetatrace(
+base::Status TraceProcessorImpl::DisableAndReadMetatrace(
     std::vector<uint8_t>* trace_proto) {
   protozero::HeapBuffered<protos::pbzero::Trace> trace;
   metatrace::DisableAndReadBuffer([&trace](metatrace::Record* record) {
@@ -1180,7 +1180,7 @@ util::Status TraceProcessorImpl::DisableAndReadMetatrace(
     }
   });
   *trace_proto = trace.SerializeAsArray();
-  return util::OkStatus();
+  return base::OkStatus();
 }
 
 }  // namespace trace_processor
