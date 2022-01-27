@@ -146,8 +146,8 @@ RowMap::RowMap() : RowMap(0, 0) {}
 
 RowMap::RowMap(uint32_t start, uint32_t end, OptimizeFor optimize_for)
     : mode_(Mode::kRange),
-      start_idx_(start),
-      end_idx_(end),
+      start_index_(start),
+      end_index_(end),
       optimize_for_(optimize_for) {}
 
 RowMap::RowMap(BitVector bit_vector)
@@ -159,7 +159,7 @@ RowMap::RowMap(std::vector<uint32_t> vec)
 RowMap RowMap::Copy() const {
   switch (mode_) {
     case Mode::kRange:
-      return RowMap(start_idx_, end_idx_);
+      return RowMap(start_index_, end_index_);
     case Mode::kBitVector:
       return RowMap(bit_vector_.Copy());
     case Mode::kIndexVector:
@@ -176,20 +176,22 @@ RowMap RowMap::SelectRowsSlow(const RowMap& selector) const {
     case Mode::kRange:
       switch (mode_) {
         case Mode::kRange:
-          return SelectRangeWithRange(start_idx_, end_idx_, selector.start_idx_,
-                                      selector.end_idx_);
+          return SelectRangeWithRange(start_index_, end_index_,
+                                      selector.start_index_,
+                                      selector.end_index_);
         case Mode::kBitVector:
-          return SelectBvWithRange(bit_vector_, selector.start_idx_,
-                                   selector.end_idx_);
+          return SelectBvWithRange(bit_vector_, selector.start_index_,
+                                   selector.end_index_);
         case Mode::kIndexVector:
-          return SelectIvWithRange(index_vector_, selector.start_idx_,
-                                   selector.end_idx_);
+          return SelectIvWithRange(index_vector_, selector.start_index_,
+                                   selector.end_index_);
       }
       break;
     case Mode::kBitVector:
       switch (mode_) {
         case Mode::kRange:
-          return SelectRangeWithBv(start_idx_, end_idx_, selector.bit_vector_);
+          return SelectRangeWithBv(start_index_, end_index_,
+                                   selector.bit_vector_);
         case Mode::kBitVector:
           return SelectBvWithBv(bit_vector_, selector.bit_vector_);
         case Mode::kIndexVector:
@@ -199,7 +201,7 @@ RowMap RowMap::SelectRowsSlow(const RowMap& selector) const {
     case Mode::kIndexVector:
       switch (mode_) {
         case Mode::kRange:
-          return SelectRangeWithIv(start_idx_, end_idx_,
+          return SelectRangeWithIv(start_index_, end_index_,
                                    selector.index_vector_);
         case Mode::kBitVector:
           return SelectBvWithIv(bit_vector_, selector.index_vector_);
