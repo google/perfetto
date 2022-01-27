@@ -52,6 +52,7 @@ import "protos/perfetto/metrics/android/sysui_cuj_metrics.proto";
 import "protos/perfetto/metrics/android/task_names.proto";
 import "protos/perfetto/metrics/android/thread_time_in_state_metric.proto";
 import "protos/perfetto/metrics/android/trace_quality.proto";
+import "protos/perfetto/metrics/android/android_trusty_workqueues.proto";
 import "protos/perfetto/metrics/android/unsymbolized_frames.proto";
 
 // Trace processor metadata
@@ -98,7 +99,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 44
+// Next id: 45
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -213,6 +214,9 @@ message TraceMetrics {
 
   // Metrics for IRQ runtime.
   optional AndroidIrqRuntimeMetric android_irq_runtime = 43;
+
+  // Metrics for the Trusty team.
+  optional AndroidTrustyWorkqueues android_trusty_workqueues = 44;
 
   // Demo extensions.
   extensions 450 to 499;
