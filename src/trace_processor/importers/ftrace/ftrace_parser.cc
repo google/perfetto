@@ -104,6 +104,7 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       rss_stat_tracker_(context),
       sched_wakeup_name_id_(context->storage->InternString("sched_wakeup")),
       sched_waking_name_id_(context->storage->InternString("sched_waking")),
+      cpu_id_(context->storage->InternString("cpu")),
       cpu_freq_name_id_(context->storage->InternString("cpufreq")),
       gpu_freq_name_id_(context->storage->InternString("gpufreq")),
       cpu_idle_name_id_(context->storage->InternString("cpuidle")),
@@ -583,7 +584,7 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         break;
       }
       case FtraceEvent::kWorkqueueExecuteStartFieldNumber: {
-        ParseWorkqueueExecuteStart(ts, pid, data, seq_state);
+        ParseWorkqueueExecuteStart(cpu, ts, pid, data, seq_state);
         break;
       }
       case FtraceEvent::kWorkqueueExecuteEndFieldNumber: {
@@ -1416,6 +1417,7 @@ void FtraceParser::ParseDirectReclaimEnd(int64_t timestamp,
 }
 
 void FtraceParser::ParseWorkqueueExecuteStart(
+    uint32_t cpu,
     int64_t timestamp,
     uint32_t pid,
     ConstBytes blob,
@@ -1438,7 +1440,12 @@ void FtraceParser::ParseWorkqueueExecuteStart(
 
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track = context_->track_tracker->InternThreadTrack(utid);
-  context_->slice_tracker->Begin(timestamp, track, workqueue_id_, name_id);
+
+  auto args_inserter = [this, cpu](ArgsTracker::BoundInserter* inserter) {
+    inserter->AddArg(cpu_id_, Variadic::Integer(cpu));
+  };
+  context_->slice_tracker->Begin(timestamp, track, workqueue_id_, name_id,
+                                 args_inserter);
 }
 
 void FtraceParser::ParseWorkqueueExecuteEnd(int64_t timestamp,
