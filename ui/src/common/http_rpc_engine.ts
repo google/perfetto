@@ -13,12 +13,14 @@
 // limitations under the License.
 
 import {fetchWithTimeout} from '../base/http_utils';
-import {assertTrue} from '../base/logging';
+import {assertExists} from '../base/logging';
 import {StatusResult} from '../common/protos';
 
 import {Engine, LoadingTracker} from './engine';
 
 export const RPC_URL = 'http://127.0.0.1:9001/';
+export const WS_URL = 'ws://127.0.0.1:9001/websocket';
+
 const RPC_CONNECT_TIMEOUT_MS = 2000;
 
 export interface HttpRpcState {
@@ -29,9 +31,10 @@ export interface HttpRpcState {
 
 export class HttpRpcEngine extends Engine {
   readonly id: string;
-  private requestQueue = new Array<Uint8Array>();
-  private requestPending = false;
   errorHandler: (err: string) => void = () => {};
+  private requestQueue = new Array<Uint8Array>();
+  private websocket?: WebSocket;
+  private connected = false;
 
   constructor(id: string, loadingTracker?: LoadingTracker) {
     super(loadingTracker);
@@ -39,47 +42,35 @@ export class HttpRpcEngine extends Engine {
   }
 
   rpcSendRequestBytes(data: Uint8Array): void {
-    if (!this.requestPending && this.requestQueue.length === 0) {
-      this.beginFetch(data);
+    if (this.websocket === undefined) {
+      this.websocket = new WebSocket(WS_URL);
+      this.websocket.onopen = () => this.onWebsocketConnected();
+      this.websocket.onmessage = (e) => this.onWebsocketMessage(e);
+      this.websocket.onclose = (e) =>
+          this.errorHandler(`Websocket closed (${e.code}: ${e.reason})`);
+      this.websocket.onerror = (e) =>
+          this.errorHandler(`WebSocket error: ${e}`);
+    }
+
+    if (this.connected) {
+      this.websocket.send(data);
     } else {
-      this.requestQueue.push(data);
+      this.requestQueue.push(data);  // onWebsocketConnected() will flush this.
     }
   }
 
-  private beginFetch(data: Uint8Array) {
-    assertTrue(!this.requestPending);
-    this.requestPending = true;
-    // Deliberately not using fetchWithTimeout() here. These queries can be
-    // arbitrarily long.
-    // Deliberately not setting cache: no-cache. Doing so invalidates also the
-    // CORS pre-flight responses, causing one OPTIONS request for each POST.
-    // no-cache is also useless because trace-processor's replies are already
-    // marked as no-cache and browsers generally already assume that POST
-    // requests are not idempotent.
-    fetch(RPC_URL + 'rpc', {
-      method: 'post',
-      headers: {'Content-Type': 'application/x-protobuf'},
-      body: data,
-    })
-        .then(resp => this.endFetch(resp))
-        .catch(err => this.errorHandler(err));
+  private onWebsocketConnected() {
+    for (;;) {
+      const queuedMsg = this.requestQueue.shift();
+      if (queuedMsg === undefined) break;
+      assertExists(this.websocket).send(queuedMsg);
+    }
+    this.connected = true;
   }
 
-  private endFetch(resp: Response) {
-    assertTrue(this.requestPending);
-    if (resp.status !== 200) {
-      throw new Error(`HTTP ${resp.status} - ${resp.statusText}`);
-    }
-    resp.arrayBuffer().then(arrBuf => {
-      // Note: another request can sneak in via enqueueRequest() between the
-      // arrayBuffer() call and this continuation. At this point
-      // this.pendingRequest might be set again.
-      // If not (the most common case) submit the next queued request, if any.
-      this.requestPending = false;
-      if (this.requestQueue.length > 0) {
-        this.beginFetch(this.requestQueue.shift()!);
-      }
-      super.onRpcResponseBytes(new Uint8Array(arrBuf));
+  private onWebsocketMessage(e: MessageEvent) {
+    assertExists(e.data as Blob).arrayBuffer().then(buf => {
+      super.onRpcResponseBytes(new Uint8Array(buf));
     });
   }
 
