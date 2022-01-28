@@ -293,7 +293,6 @@ export abstract class Engine {
     rpc.request = TPM.TPM_QUERY_STREAMING;
     rpc.queryArgs = new QueryArgs();
     rpc.queryArgs.sqlQuery = sqlQuery;
-    rpc.queryArgs.timeQueuedNs = Math.floor(performance.now() * 1e6);
     const result = createQueryResult({
       query: sqlQuery,
     });

@@ -191,13 +191,11 @@ class TraceStorage {
    public:
     static constexpr size_t kMaxLogEntries = 100;
     uint32_t RecordQueryBegin(const std::string& query,
-                              int64_t time_queued,
                               int64_t time_started);
     void RecordQueryFirstNext(uint32_t row, int64_t time_first_next);
     void RecordQueryEnd(uint32_t row, int64_t time_end);
     size_t size() const { return queries_.size(); }
     const std::deque<std::string>& queries() const { return queries_; }
-    const std::deque<int64_t>& times_queued() const { return times_queued_; }
     const std::deque<int64_t>& times_started() const { return times_started_; }
     const std::deque<int64_t>& times_first_next() const {
       return times_first_next_;
@@ -208,7 +206,6 @@ class TraceStorage {
     uint32_t popped_queries_ = 0;
 
     std::deque<std::string> queries_;
-    std::deque<int64_t> times_queued_;
     std::deque<int64_t> times_started_;
     std::deque<int64_t> times_first_next_;
     std::deque<int64_t> times_ended_;

@@ -408,7 +408,7 @@ TEST(QueryResultSerializerTest, ErrorBeforeStartingQuery) {
   TestDeserializer deser;
   deser.SerializeAndDeserialize(&ser);
   EXPECT_EQ(deser.cells.size(), 0u);
-  EXPECT_EQ(deser.error, "incomplete input");
+  EXPECT_EQ(deser.error, "incomplete input (errcode: 1)");
   EXPECT_TRUE(deser.eof_reached);
 }
 
