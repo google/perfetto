@@ -15,15 +15,88 @@
 
 import io
 import os
-from typing import Optional
 import unittest
 
-from perfetto.trace_processor.api import TraceProcessor
+import pandas as pd
+
+from perfetto.batch_trace_processor.api import BatchTraceProcessor
+from perfetto.batch_trace_processor.api import BatchTraceProcessorConfig
+from perfetto.batch_trace_processor.api import TraceListReference
+from perfetto.trace_processor.api import PLATFORM_DELEGATE, TraceProcessor
 from perfetto.trace_processor.api import TraceProcessorConfig
-from perfetto.trace_processor.api import LoadableTrace
+from perfetto.trace_processor.api import TraceReference
+from perfetto.trace_uri_resolver.resolver import TraceUriResolver
+from perfetto.trace_uri_resolver.path import PathUriResolver
 
 
-def create_tp(trace: LoadableTrace):
+class SimpleResolver(TraceUriResolver):
+  PREFIX = 'simple'
+
+  def __init__(self, path, skip_resolve_file=False):
+    self.path = path
+    self.file = open(example_android_trace_path(), 'rb')
+    self.skip_resolve_file = skip_resolve_file
+
+  def file_gen(self):
+    with open(example_android_trace_path(), 'rb') as f:
+      yield f.read()
+
+  def resolve(self):
+    res = [
+        TraceUriResolver.Result(
+            self.file_gen(), metadata={'source': 'generator'}),
+        TraceUriResolver.Result(
+            example_android_trace_path(), metadata={'source': 'path'}),
+    ]
+    if not self.skip_resolve_file:
+      res.extend([
+          TraceUriResolver.Result(
+              PathUriResolver(example_android_trace_path()),
+              metadata={'source': 'path_resolver'}),
+          TraceUriResolver.Result(self.file, metadata={'source': 'file'}),
+      ])
+    return res
+
+
+class RecursiveResolver(SimpleResolver):
+  PREFIX = 'recursive'
+
+  def __init__(self, path, skip_resolve_file):
+    super().__init__(path=path, skip_resolve_file=skip_resolve_file)
+
+  def resolve(self):
+    srf = self.skip_resolve_file
+    return [
+        TraceUriResolver.Result(
+            self.file_gen(), metadata={'source': 'recursive_gen'}),
+        TraceUriResolver.Result(
+            f'simple:path={self.path};skip_resolve_file={srf}',
+            metadata={
+                'source': 'recursive_path',
+                'root_source': 'recursive_path'
+            }),
+        TraceUriResolver.Result(
+            SimpleResolver(
+                path=self.path, skip_resolve_file=self.skip_resolve_file),
+            metadata={
+                'source': 'recursive_obj',
+                'root_source': 'recursive_obj'
+            }),
+    ]
+
+
+def create_batch_tp(traces: TraceListReference):
+  default = PLATFORM_DELEGATE().default_resolver_registry()
+  default.register(SimpleResolver)
+  default.register(RecursiveResolver)
+  return BatchTraceProcessor(
+      traces=traces,
+      config=BatchTraceProcessorConfig(
+          TraceProcessorConfig(
+              bin_path=os.environ["SHELL_PATH"], resolver_registry=default)))
+
+
+def create_tp(trace: TraceReference):
   return TraceProcessor(
       trace=trace,
       config=TraceProcessorConfig(bin_path=os.environ["SHELL_PATH"]))
@@ -103,3 +176,43 @@ class TestApi(unittest.TestCase):
 
       for num, row in enumerate(qr_iterator):
         self.assertEqual(row.dur, dur_result[num])
+
+  def test_simple_resolver(self):
+    dur = [178646, 178646, 178646, 178646]
+    source = ['generator', 'path', 'path_resolver', 'file']
+    expected = pd.DataFrame(list(zip(dur, source)), columns=['dur', 'source'])
+
+    with create_batch_tp(
+        traces='simple:path={}'.format(example_android_trace_path())) as btp:
+      df = btp.query_and_flatten('select dur from slice limit 1')
+      pd.testing.assert_frame_equal(df, expected, check_dtype=False)
+
+    with create_batch_tp(
+        traces=SimpleResolver(path=example_android_trace_path())) as btp:
+      df = btp.query_and_flatten('select dur from slice limit 1')
+      pd.testing.assert_frame_equal(df, expected, check_dtype=False)
+
+  def test_recursive_resolver(self):
+    dur = [
+        178646, 178646, 178646, 178646, 178646, 178646, 178646, 178646, 178646
+    ]
+    source = ['recursive_gen', 'generator', 'path', 'generator', 'path']
+    root_source = [
+        None, 'recursive_path', 'recursive_path', 'recursive_obj',
+        'recursive_obj'
+    ]
+    expected = pd.DataFrame(
+        list(zip(dur, source, root_source)),
+        columns=['dur', 'source', 'root_source'])
+
+    uri = 'recursive:path={};skip_resolve_file=true'.format(
+        example_android_trace_path())
+    with create_batch_tp(traces=uri) as btp:
+      df = btp.query_and_flatten('select dur from slice limit 1')
+      pd.testing.assert_frame_equal(df, expected, check_dtype=False)
+
+    with create_batch_tp(
+        traces=RecursiveResolver(
+            path=example_android_trace_path(), skip_resolve_file=True)) as btp:
+      df = btp.query_and_flatten('select dur from slice limit 1')
+      pd.testing.assert_frame_equal(df, expected, check_dtype=False)

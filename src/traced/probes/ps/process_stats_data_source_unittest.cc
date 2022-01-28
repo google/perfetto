@@ -653,5 +653,37 @@ TEST_F(ProcessStatsDataSourceTest, ThreadTimeInState) {
     base::Rmdir(path);
 }
 
+TEST_F(ProcessStatsDataSourceTest, NamespacedProcess) {
+  auto data_source = GetProcessStatsDataSource(DataSourceConfig());
+  EXPECT_CALL(*data_source, ReadProcPidFile(42, "status"))
+      .WillOnce(Return(
+          "Name: foo\nTgid:\t42\nPid:   42\nPPid:  17\nNSpid:\t42\t2\n"));
+  EXPECT_CALL(*data_source, ReadProcPidFile(42, "cmdline"))
+      .WillOnce(Return(std::string("foo\0bar\0baz\0", 12)));
+
+  EXPECT_CALL(*data_source, ReadProcPidFile(43, "status"))
+      .WillOnce(Return(
+          "Name: foo\nTgid:\t42\nPid:   43\nPPid:  17\nNSpid:\t43\t3\n"));
+
+  data_source->OnPids({42, 43});
+
+  auto trace = writer_raw_->GetAllTracePackets();
+  ASSERT_EQ(trace.size(), 1u);
+  auto ps_tree = trace[0].process_tree();
+  ASSERT_EQ(ps_tree.processes_size(), 1);
+  auto first_process = ps_tree.processes()[0];
+  ASSERT_EQ(first_process.pid(), 42);
+  ASSERT_EQ(first_process.ppid(), 17);
+  auto nspid = first_process.nspid();
+  EXPECT_THAT(nspid, ElementsAre(2));
+
+  ASSERT_EQ(ps_tree.threads_size(), 1);
+  auto first_thread = ps_tree.threads()[0];
+  ASSERT_EQ(first_thread.tid(), 43);
+  ASSERT_EQ(first_thread.tgid(), 42);
+  auto nstid = first_thread.nstid();
+  EXPECT_THAT(nstid, ElementsAre(3));
+}
+
 }  // namespace
 }  // namespace perfetto

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # Copyright (C) 2020 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,13 +16,10 @@ import unittest
 
 from perfetto.trace_processor.api import TraceProcessor
 from perfetto.trace_processor.api import TraceProcessorException
-from perfetto.trace_processor.api import TraceProcessorConfig
+from perfetto.trace_processor.api import PLATFORM_DELEGATE
 from perfetto.trace_processor.protos import ProtoFactory
 
-TP_CONFIG = TraceProcessorConfig()
-PROTO_FACTORY = ProtoFactory(
-    tp_descriptor=TP_CONFIG.read_tp_descriptor(),
-    metrics_descriptor=TP_CONFIG.read_metrics_descriptor())
+PROTO_FACTORY = ProtoFactory(PLATFORM_DELEGATE())
 
 
 class TestQueryResultIterator(unittest.TestCase):
@@ -331,7 +327,7 @@ class TestQueryResultIterator(unittest.TestCase):
     # of type STRING, but there are no string cells defined in the batch. Thus
     # an IndexError occurs as it tries to access the empty string cells list.
     with self.assertRaises(IndexError):
-      qr_df = qr_iterator.as_pandas_dataframe()
+      _ = qr_iterator.as_pandas_dataframe()
 
   def test_invalid_cell_type_as_pandas(self):
     batch = PROTO_FACTORY.CellsBatch()
@@ -349,4 +345,4 @@ class TestQueryResultIterator(unittest.TestCase):
     # CELL_VARINT but that doesn't match the data which are both ints*
     # so we should raise a TraceProcessorException.
     with self.assertRaises(TraceProcessorException):
-      qr_df = qr_iterator.as_pandas_dataframe()
+      _ = qr_iterator.as_pandas_dataframe()

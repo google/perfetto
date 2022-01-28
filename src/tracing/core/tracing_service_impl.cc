@@ -59,6 +59,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/temp_file.h"
 #include "perfetto/ext/base/utils.h"
+#include "perfetto/ext/base/uuid.h"
 #include "perfetto/ext/base/version.h"
 #include "perfetto/ext/base/watchdog.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
@@ -126,11 +127,6 @@ constexpr uint32_t kMaxTracingDurationMillis = 7 * 24 * kMillisPerHour;
 // These apply only if enable_extra_guardrails is true.
 constexpr uint32_t kGuardrailsMaxTracingBufferSizeKb = 128 * 1024;
 constexpr uint32_t kGuardrailsMaxTracingDurationMillis = 24 * kMillisPerHour;
-
-// TODO(primiano): this is to investigate b/191600928. Remove in Jan 2022.
-base::CrashKey g_crash_key_prod_name("producer_name");
-base::CrashKey g_crash_key_ds_count("ds_count");
-base::CrashKey g_crash_key_ds_clear_count("ds_clear_count");
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) || PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
 struct iovec {
@@ -1433,12 +1429,17 @@ void TracingServiceImpl::ActivateTriggers(
                   trigger_name.c_str());
     base::Hash hash;
     hash.Update(trigger_name.c_str(), trigger_name.size());
+    std::string triggered_session_name;
+    base::Uuid triggered_session_uuid;
+    TracingSessionID triggered_session_id = 0;
+    int trigger_mode = 0;
 
     uint64_t trigger_name_hash = hash.digest();
     size_t count_in_window =
         PurgeExpiredAndCountTriggerInWindow(now_ns, trigger_name_hash);
 
-    bool trigger_applied = false;
+    bool trigger_matched = false;
+    bool trigger_activated = false;
     for (auto& id_and_tracing_session : tracing_sessions_) {
       auto& tracing_session = id_and_tracing_session.second;
       TracingSessionID tsid = id_and_tracing_session.first;
@@ -1484,7 +1485,14 @@ void TracingServiceImpl::ActivateTriggers(
                              trigger_name);
         continue;
       }
-      trigger_applied = true;
+      trigger_matched = true;
+      triggered_session_id = tracing_session.id;
+      triggered_session_name = tracing_session.config.unique_session_name();
+      triggered_session_uuid.set_lsb_msb(
+          tracing_session.config.trace_uuid_lsb(),
+          tracing_session.config.trace_uuid_msb());
+      trigger_mode = static_cast<int>(
+          tracing_session.config.trigger_config().trigger_mode());
 
       const bool triggers_already_received =
           !tracing_session.received_triggers.empty();
@@ -1501,9 +1509,7 @@ void TracingServiceImpl::ActivateTriggers(
           if (tracing_session.state != TracingSession::CONFIGURED)
             break;
 
-          PERFETTO_DLOG("Triggering '%s' on tracing session %" PRIu64
-                        " with duration of %" PRIu32 "ms.",
-                        iter->name().c_str(), tsid, iter->stop_delay_ms());
+          trigger_activated = true;
           MaybeLogUploadEvent(tracing_session.config,
                               PerfettoStatsdAtom::kTracedTriggerStartTracing,
                               iter->name());
@@ -1522,9 +1528,7 @@ void TracingServiceImpl::ActivateTriggers(
           if (triggers_already_received)
             break;
 
-          PERFETTO_DLOG("Triggering '%s' on tracing session %" PRIu64
-                        " with duration of %" PRIu32 "ms.",
-                        iter->name().c_str(), tsid, iter->stop_delay_ms());
+          trigger_activated = true;
           MaybeLogUploadEvent(tracing_session.config,
                               PerfettoStatsdAtom::kTracedTriggerStopTracing,
                               iter->name());
@@ -1549,10 +1553,21 @@ void TracingServiceImpl::ActivateTriggers(
       }
     }  // for (.. : tracing_sessions_)
 
-    if (trigger_applied) {
+    if (trigger_matched) {
       trigger_history_.emplace_back(TriggerHistory{now_ns, trigger_name_hash});
     }
-  }
+
+    if (trigger_activated) {
+      // Log only the trigger that actually caused a trace stop/start, don't log
+      // the follow-up ones, even if they matched.
+      PERFETTO_LOG(
+          "Trace trigger activated: trigger_name=\"%s\" trigger_mode=%d "
+          "trace_name=\"%s\" trace_uuid=\"%s\" tsid=%" PRIu64,
+          trigger_name.c_str(), trigger_mode, triggered_session_name.c_str(),
+          triggered_session_uuid.ToPrettyString().c_str(),
+          triggered_session_id);
+    }
+  }  // for (trigger_name : triggers)
 }
 
 // Always invoked kDataSourceStopTimeoutMs after DisableTracing(). In nominal
@@ -1947,8 +1962,6 @@ void TracingServiceImpl::PeriodicClearIncrementalStateTask(
     }
   }
 
-  g_crash_key_ds_clear_count.Set(ds_clear_count);
-
   for (const auto& kv : clear_map) {
     ProducerID producer_id = kv.first;
     const std::vector<DataSourceInstanceID>& data_sources = kv.second;
@@ -1959,10 +1972,6 @@ void TracingServiceImpl::PeriodicClearIncrementalStateTask(
     }
     producer->ClearIncrementalState(data_sources);
   }
-
-  // ClearIncrementalState internally posts a task for each data source. Clear
-  // the crash key in a task queued at the end of the tasks atove.
-  task_runner_->PostTask([] { g_crash_key_ds_clear_count.Clear(); });
 }
 
 bool TracingServiceImpl::ReadBuffersIntoConsumer(
@@ -2432,7 +2441,6 @@ void TracingServiceImpl::RegisterDataSource(ProducerID producer_id,
 
   auto reg_ds = data_sources_.emplace(desc.name(),
                                       RegisteredDataSource{producer_id, desc});
-  g_crash_key_ds_count.Set(static_cast<int64_t>(data_sources_.size()));
 
   // If there are existing tracing sessions, we need to check if the new
   // data source is enabled by any of them.
@@ -2552,7 +2560,6 @@ void TracingServiceImpl::UnregisterDataSource(ProducerID producer_id,
     if (it->second.producer_id == producer_id &&
         it->second.descriptor.name() == name) {
       data_sources_.erase(it);
-      g_crash_key_ds_count.Set(static_cast<int64_t>(data_sources_.size()));
       return;
     }
   }
@@ -3660,6 +3667,7 @@ void TracingServiceImpl::ConsumerEndpointImpl::QueryServiceState(
     producer->set_name(kv.second->name_);
     producer->set_sdk_version(kv.second->sdk_version_);
     producer->set_uid(static_cast<int32_t>(kv.second->uid()));
+    producer->set_pid(static_cast<int32_t>(kv.second->pid()));
   }
 
   for (const auto& kv : service_->data_sources_) {
@@ -3668,6 +3676,42 @@ void TracingServiceImpl::ConsumerEndpointImpl::QueryServiceState(
     *data_source->mutable_ds_descriptor() = registered_data_source.descriptor;
     data_source->set_producer_id(
         static_cast<int>(registered_data_source.producer_id));
+  }
+
+  svc_state.set_supports_tracing_sessions(true);
+  for (const auto& kv : service_->tracing_sessions_) {
+    const TracingSession& s = kv.second;
+    // List only tracing sessions for the calling UID (or everything for root).
+    if (uid_ != 0 && uid_ != s.consumer_uid)
+      continue;
+    auto* session = svc_state.add_tracing_sessions();
+    session->set_id(s.id);
+    session->set_consumer_uid(static_cast<int>(s.consumer_uid));
+    session->set_duration_ms(s.config.duration_ms());
+    session->set_num_data_sources(
+        static_cast<uint32_t>(s.data_source_instances.size()));
+    session->set_unique_session_name(s.config.unique_session_name());
+    for (const auto& snap_kv : s.initial_clock_snapshot) {
+      if (snap_kv.first == protos::pbzero::BUILTIN_CLOCK_REALTIME)
+        session->set_start_realtime_ns(static_cast<int64_t>(snap_kv.second));
+    }
+    for (const auto& buf : s.config.buffers())
+      session->add_buffer_size_kb(buf.size_kb());
+
+    switch (s.state) {
+      case TracingSession::State::DISABLED:
+        session->set_state("DISABLED");
+        break;
+      case TracingSession::State::CONFIGURED:
+        session->set_state("CONFIGURED");
+        break;
+      case TracingSession::State::STARTED:
+        session->set_state("STARTED");
+        break;
+      case TracingSession::State::DISABLING_WAITING_STOP_ACKS:
+        session->set_state("STOP_WAIT");
+        break;
+    }
   }
   callback(/*success=*/true, svc_state);
 }
@@ -3992,7 +4036,6 @@ void TracingServiceImpl::ProducerEndpointImpl::ClearIncrementalState(
   task_runner_->PostTask([weak_this, data_sources] {
     if (weak_this) {
       base::StringView producer_name(weak_this->name_);
-      auto scoped_crash_key = g_crash_key_prod_name.SetScoped(producer_name);
       weak_this->producer_->ClearIncrementalState(data_sources.data(),
                                                   data_sources.size());
     }

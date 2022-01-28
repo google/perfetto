@@ -35,18 +35,26 @@ perfetto_py_library(
     name = "trace_processor_py",
     srcs = glob(["perfetto/trace_processor/*.py"]),
     data = [
+        ":trace_uri_resolver",
         "perfetto/trace_processor/trace_processor.descriptor",
         "perfetto/trace_processor/metrics.descriptor",
         PERFETTO_CONFIG.root + ":trace_processor_shell",
-    ] + PERFETTO_CONFIG.deps.tp_init_py,
-    deps = PERFETTO_CONFIG.deps.gfile_py +
+    ],
+    deps = PERFETTO_CONFIG.deps.tp_vendor_py +
         PERFETTO_CONFIG.deps.protobuf_py +
-        PERFETTO_CONFIG.deps.protobuf_descriptor_pb2_py +
-        PERFETTO_CONFIG.deps.pyglib_py,
+        PERFETTO_CONFIG.deps.pandas_py,
     imports = [
         ".",
     ],
     visibility = PERFETTO_CONFIG.public_visibility,
+)
+
+perfetto_py_library(
+    name = "trace_uri_resolver",
+    srcs = glob(["perfetto/trace_uri_resolver/*.py"]),
+    imports = [
+        ".",
+    ],
 )
 
 perfetto_py_library(
@@ -79,7 +87,8 @@ perfetto_py_library(
     ]),
     deps = [
         ":trace_processor_py",
-    ] + PERFETTO_CONFIG.deps.pandas_py,
+    ] + PERFETTO_CONFIG.deps.pandas_py +
+        PERFETTO_CONFIG.deps.tp_vendor_py,
     imports = [
         ".",
     ],

@@ -130,10 +130,8 @@ unwindstack::DexFiles* UnwindingMetadata::GetDexFiles(unwindstack::ArchEnum arch
 
 const std::string& UnwindingMetadata::GetBuildId(
     const unwindstack::FrameData& frame) {
-  if (!frame.map_name.empty()) {
-    std::shared_ptr<unwindstack::MapInfo> map_info = fd_maps.Find(frame.pc);
-    if (map_info != nullptr)
-      return map_info->GetBuildID();
+  if (frame.map_info != nullptr && !frame.map_info->name().empty()) {
+    return frame.map_info->GetBuildID();
   }
 
   return empty_string_;

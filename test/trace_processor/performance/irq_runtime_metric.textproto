@@ -1,0 +1,97 @@
+packet {
+  ftrace_events {
+    cpu: 1
+    event {
+      timestamp: 100001000000
+      pid: 10
+      irq_handler_entry {
+        irq: 100
+        name : "resource1"
+      }
+    }
+    event {
+      timestamp: 100002000000
+      pid: 10
+      irq_handler_exit {
+        irq: 100
+        ret: 1
+      }
+    }
+    event {
+      timestamp: 200001000000
+      pid: 20
+      irq_handler_entry {
+        irq: 200
+        name : "resource2"
+      }
+    }
+    event {
+      timestamp: 200003000000
+      pid: 20
+      irq_handler_exit {
+        irq: 200
+        ret: 1
+      }
+    }
+    event {
+      timestamp: 300001000000
+      pid: 30
+      irq_handler_entry {
+        irq: 300
+        name : "resource3"
+      }
+    }
+    event {
+      timestamp: 300004000000
+      pid: 30
+      irq_handler_exit {
+        irq: 300
+        ret: 1
+      }
+    }
+    event {
+      timestamp: 300005000000
+      pid: 30
+      irq_handler_entry {
+        irq: 300
+        name : "resource3"
+      }
+    }
+    event {
+      timestamp: 300009000000
+      pid: 30
+      irq_handler_exit {
+        irq: 300
+        ret: 1
+      }
+    }
+    event {
+      timestamp: 400001000000
+      pid: 40
+      softirq_entry {
+        vec: 4
+      }
+    }
+    event {
+      timestamp: 400001800000
+      pid: 40
+      softirq_exit {
+        vec: 4
+       }
+    }
+    event {
+      timestamp: 500001000000
+      pid: 50
+      softirq_entry {
+        vec: 1
+      }
+    }
+    event {
+      timestamp: 500007000000
+      pid: 50
+      softirq_exit {
+        vec: 1
+      }
+    }
+  }
+}

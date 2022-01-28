@@ -12,6 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from perfetto.batch_trace_processor.api import BatchLoadableTrace
+from perfetto.batch_trace_processor.api import TraceListReference
 from perfetto.batch_trace_processor.api import BatchTraceProcessorConfig
 from perfetto.batch_trace_processor.api import BatchTraceProcessor

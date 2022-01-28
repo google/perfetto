@@ -20,6 +20,7 @@ perfetto_proto_library("@TYPE@") {
     "source_set",
   ]
   sources = [
+    "android_trusty_workqueues.proto",
     "batt_metric.proto",
     "camera_metric.proto",
     "camera_unagg_metric.proto",
@@ -33,6 +34,7 @@ perfetto_proto_library("@TYPE@") {
     "hwcomposer.proto",
     "hwui_metric.proto",
     "ion_metric.proto",
+    "irq_runtime_metric.proto",
     "jank_metric.proto",
     "java_heap_histogram.proto",
     "java_heap_stats.proto",

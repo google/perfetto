@@ -31,6 +31,7 @@ import "protos/perfetto/metrics/android/gpu_metric.proto";
 import "protos/perfetto/metrics/android/hwcomposer.proto";
 import "protos/perfetto/metrics/android/hwui_metric.proto";
 import "protos/perfetto/metrics/android/ion_metric.proto";
+import "protos/perfetto/metrics/android/irq_runtime_metric.proto";
 import "protos/perfetto/metrics/android/jank_metric.proto";
 import "protos/perfetto/metrics/android/java_heap_histogram.proto";
 import "protos/perfetto/metrics/android/java_heap_stats.proto";
@@ -51,6 +52,7 @@ import "protos/perfetto/metrics/android/sysui_cuj_metrics.proto";
 import "protos/perfetto/metrics/android/task_names.proto";
 import "protos/perfetto/metrics/android/thread_time_in_state_metric.proto";
 import "protos/perfetto/metrics/android/trace_quality.proto";
+import "protos/perfetto/metrics/android/android_trusty_workqueues.proto";
 import "protos/perfetto/metrics/android/unsymbolized_frames.proto";
 
 // Trace processor metadata
@@ -97,7 +99,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 43
+// Next id: 45
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -207,7 +209,14 @@ message TraceMetrics {
   // is clear that this data is necessary.
   optional AndroidCameraUnaggregatedMetric android_camera_unagg = 41;
 
+  // Metrics for RT runtime.
   optional AndroidRtRuntimeMetric android_rt_runtime = 42;
+
+  // Metrics for IRQ runtime.
+  optional AndroidIrqRuntimeMetric android_irq_runtime = 43;
+
+  // Metrics for the Trusty team.
+  optional AndroidTrustyWorkqueues android_trusty_workqueues = 44;
 
   // Demo extensions.
   extensions 450 to 499;

@@ -365,9 +365,6 @@ source_set("end_to_end_tests") {
   } else {
     deps += [ ":heapprofd_standalone_client" ]
   }
-  if (start_daemons_for_testing) {
-    defines = [ "PERFETTO_START_DAEMONS_FOR_TESTING" ]
-  }
 }
 
 perfetto_fuzzer_test("unwinding_fuzzer") {
