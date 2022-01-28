@@ -457,10 +457,12 @@ base::Status RunMetrics(const std::vector<MetricNameAndPath>& metrics,
 void PrintQueryResultInteractively(Iterator* it,
                                    base::TimeNanos t_start,
                                    uint32_t column_width) {
-  base::TimeNanos t_end = t_start;
+  base::TimeNanos t_end = base::GetWallTimeNs();
   for (uint32_t rows = 0; it->Next(); rows++) {
     if (rows % 32 == 0) {
-      if (rows > 0) {
+      if (rows == 0) {
+        t_end = base::GetWallTimeNs();
+      } else {
         fprintf(stderr, "...\nType 'q' to stop, Enter for more records: ");
         fflush(stderr);
         char input[32];
@@ -468,8 +470,6 @@ void PrintQueryResultInteractively(Iterator* it,
           exit(0);
         if (input[0] == 'q')
           break;
-      } else {
-        t_end = base::GetWallTimeNs();
       }
       for (uint32_t i = 0; i < it->ColumnCount(); i++)
         printf("%-*.*s ", column_width, column_width,
@@ -515,7 +515,7 @@ void PrintQueryResultInteractively(Iterator* it,
          static_cast<double>((t_end - t_start).count()) / 1E6);
 }
 
-base::Status PrintQueryResultAsCsv(Iterator* it, FILE* output) {
+base::Status PrintQueryResultAsCsv(Iterator* it, bool has_more, FILE* output) {
   for (uint32_t c = 0; c < it->ColumnCount(); c++) {
     if (c > 0)
       fprintf(output, ",");
@@ -523,7 +523,8 @@ base::Status PrintQueryResultAsCsv(Iterator* it, FILE* output) {
   }
   fprintf(output, "\n");
 
-  for (uint32_t rows = 0; it->Next(); rows++) {
+  uint32_t rows;
+  for (rows = 0; has_more; rows++, has_more = it->Next()) {
     for (uint32_t c = 0; c < it->ColumnCount(); c++) {
       if (c > 0)
         fprintf(output, ",");
@@ -552,109 +553,47 @@ base::Status PrintQueryResultAsCsv(Iterator* it, FILE* output) {
   return it->Status();
 }
 
-bool IsCommentLine(const std::string& buffer) {
-  return base::StartsWith(buffer, "--");
+base::Status RunQueriesWithoutOutput(const std::string& sql_query) {
+  auto it = g_tp->ExecuteQuery(sql_query);
+  if (it.StatementWithOutputCount() > 0)
+    return base::ErrStatus("Unexpected result from a query.");
+
+  RETURN_IF_ERROR(it.Status());
+  return it.Next() ? base::ErrStatus("Unexpected result from a query.")
+                   : it.Status();
 }
 
-bool HasEndOfQueryDelimiter(const std::string& buffer) {
-  return base::EndsWith(buffer, ";\n") || base::EndsWith(buffer, ";") ||
-         base::EndsWith(buffer, ";\r\n");
-}
-
-base::Status LoadQueries(FILE* input, std::vector<std::string>* output) {
-  char buffer[4096];
-  while (!feof(input) && !ferror(input)) {
-    std::string sql_query;
-    while (fgets(buffer, sizeof(buffer), input)) {
-      std::string line = base::TrimLeading(buffer);
-
-      if (IsCommentLine(line))
-        continue;
-
-      sql_query.append(line);
-
-      if (HasEndOfQueryDelimiter(line))
-        break;
-    }
-    if (!sql_query.empty() && sql_query.back() == '\n')
-      sql_query.resize(sql_query.size() - 1);
-
-    // If we have a new line at the end of the file or an extra new line
-    // somewhere in the file, we'll end up with an empty query which we should
-    // just ignore.
-    if (sql_query.empty())
-      continue;
-
-    output->push_back(sql_query);
-  }
-  if (ferror(input)) {
-    return base::ErrStatus("Error reading query file");
-  }
-  return base::OkStatus();
-}
-
-base::Status RunQueriesWithoutOutput(const std::vector<std::string>& queries) {
-  for (const auto& sql_query : queries) {
-    PERFETTO_DLOG("Executing query: %s", sql_query.c_str());
-
-    auto it = g_tp->ExecuteQuery(sql_query);
-    RETURN_IF_ERROR(it.Status());
-    if (it.Next()) {
-      return base::ErrStatus("Unexpected result from a query.");
-    }
-    RETURN_IF_ERROR(it.Status());
-  }
-  return base::OkStatus();
-}
-
-base::Status RunQueriesAndPrintResult(const std::vector<std::string>& queries,
+base::Status RunQueriesAndPrintResult(const std::string& sql_query,
                                       FILE* output) {
-  bool is_first_query = true;
-  bool has_output = false;
-  for (const auto& sql_query : queries) {
-    // Add an extra newline separator between query results.
-    if (!is_first_query)
-      fprintf(output, "\n");
-    is_first_query = false;
+  PERFETTO_ILOG("Executing query: %s", sql_query.c_str());
 
-    PERFETTO_ILOG("Executing query: %s", sql_query.c_str());
+  auto it = g_tp->ExecuteQuery(sql_query);
+  RETURN_IF_ERROR(it.Status());
 
-    auto it = g_tp->ExecuteQuery(sql_query);
-    RETURN_IF_ERROR(it.Status());
-    if (it.ColumnCount() == 0) {
-      bool it_has_more = it.Next();
-      RETURN_IF_ERROR(it.Status());
-      PERFETTO_DCHECK(!it_has_more);
-      continue;
-    }
+  bool has_more = it.Next();
+  RETURN_IF_ERROR(it.Status());
 
-    // If we have a single column with the name |suppress_query_output| that's
-    // a hint to shell that it should not treat the query as having real
-    // meaning.
-    if (it.ColumnCount() == 1 &&
-        it.GetColumnName(0) == "suppress_query_output") {
-      // We should only see a single null value as this feature is usually used
-      // as SELECT RUN_METRIC(<metric file>) as suppress_query_output and
-      // RUN_METRIC returns a single null.
-      bool has_next = it.Next();
-      RETURN_IF_ERROR(it.Status());
-      PERFETTO_DCHECK(has_next);
-      PERFETTO_DCHECK(it.Get(0).is_null());
-
-      has_next = it.Next();
-      RETURN_IF_ERROR(it.Status());
-      PERFETTO_DCHECK(!has_next);
-      continue;
-    }
-
-    if (has_output) {
-      return base::ErrStatus(
-          "More than one query generated result rows. This is unsupported.");
-    }
-    has_output = true;
-    RETURN_IF_ERROR(PrintQueryResultAsCsv(&it, output));
+  uint32_t prev_count = it.StatementCount() - 1;
+  uint32_t prev_with_output = has_more ? it.StatementWithOutputCount() - 1
+                                       : it.StatementWithOutputCount();
+  uint32_t prev_without_output_count = prev_count - prev_with_output;
+  if (prev_with_output > 0) {
+    return base::ErrStatus(
+        "Result rows were returned for multiples queries. Ensure that only the "
+        "final statement is a SELECT statment or use `suppress_query_output` "
+        "to prevent function invocations causing this "
+        "error (see "
+        "https://perfetto.dev/docs/contributing/"
+        "testing#trace-processor-diff-tests).");
   }
-  return base::OkStatus();
+  for (uint32_t i = 0; i < prev_without_output_count; ++i) {
+    fprintf(output, "\n");
+  }
+  if (it.ColumnCount() == 0) {
+    PERFETTO_DCHECK(!has_more);
+    return base::OkStatus();
+  }
+  return PrintQueryResultAsCsv(&it, has_more, output);
 }
 
 base::Status PrintPerfFile(const std::string& perf_file_path,
@@ -997,13 +936,8 @@ base::Status LoadTrace(const std::string& trace_file_path, double* size_mb) {
 
 base::Status RunQueries(const std::string& query_file_path,
                         bool expect_output) {
-  std::vector<std::string> queries;
-  base::ScopedFstream file(fopen(query_file_path.c_str(), "r"));
-  if (!file) {
-    return base::ErrStatus("Could not open query file (path: %s)",
-                           query_file_path.c_str());
-  }
-  RETURN_IF_ERROR(LoadQueries(file.get(), &queries));
+  std::string queries;
+  base::ReadFile(query_file_path.c_str(), &queries);
 
   base::Status status;
   if (expect_output) {

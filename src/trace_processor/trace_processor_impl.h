@@ -61,8 +61,7 @@ class TraceProcessorImpl : public TraceProcessor,
   void NotifyEndOfFile() override;
 
   // TraceProcessor implementation:
-  Iterator ExecuteQuery(const std::string& sql,
-                        int64_t time_queued = 0) override;
+  Iterator ExecuteQuery(const std::string& sql) override;
 
   base::Status RegisterMetric(const std::string& path,
                               const std::string& sql) override;

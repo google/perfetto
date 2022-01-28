@@ -76,13 +76,13 @@ class QueryResultSerializer {
   }
 
  private:
-  void SerializeColumnNames(protos::pbzero::QueryResult*);
+  void SerializeMetadata(protos::pbzero::QueryResult*);
   void SerializeBatch(protos::pbzero::QueryResult*);
   void MaybeSerializeError(protos::pbzero::QueryResult*);
 
   std::unique_ptr<IteratorImpl> iter_;
   const uint32_t num_cols_;
-  bool did_write_column_names_ = false;
+  bool did_write_metadata_ = false;
   bool eof_reached_ = false;
   uint32_t col_ = UINT32_MAX;
 
