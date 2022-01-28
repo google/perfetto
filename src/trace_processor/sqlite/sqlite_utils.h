@@ -123,6 +123,38 @@ inline void ReportSqlValue(
   }
 }
 
+inline base::Status PrepareStmt(sqlite3* db,
+                                const char* sql,
+                                ScopedStmt* stmt,
+                                const char** tail) {
+  sqlite3_stmt* raw_stmt = nullptr;
+  int err = sqlite3_prepare_v2(db, sql, -1, &raw_stmt, tail);
+  stmt->reset(raw_stmt);
+  if (err != SQLITE_OK)
+    return base::ErrStatus("%s (errcode: %d)", sqlite3_errmsg(db), err);
+  return base::OkStatus();
+}
+
+inline bool IsStmtDone(sqlite3_stmt* stmt) {
+  return !sqlite3_stmt_busy(stmt);
+}
+
+inline base::Status StepStmtUntilDone(sqlite3_stmt* stmt) {
+  PERFETTO_DCHECK(stmt);
+
+  if (IsStmtDone(stmt))
+    return base::OkStatus();
+
+  int err;
+  for (err = sqlite3_step(stmt); err == SQLITE_ROW; err = sqlite3_step(stmt)) {
+  }
+  if (err != SQLITE_DONE) {
+    return base::ErrStatus("%s (errcode: %d)",
+                           sqlite3_errmsg(sqlite3_db_handle(stmt)), err);
+  }
+  return base::OkStatus();
+}
+
 inline util::Status GetColumnsForTable(
     sqlite3* db,
     const std::string& raw_table_name,
