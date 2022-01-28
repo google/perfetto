@@ -23,10 +23,12 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/uuid.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "src/android_internal/incident_service.h"
 #include "src/android_internal/lazy_library_loader.h"
+#include "src/android_internal/tracing_service_proxy.h"
 
 namespace perfetto {
 namespace {
@@ -35,10 +37,12 @@ constexpr int64_t kSendfileTimeoutNs = 10UL * 1000 * 1000 * 1000;  // 10s
 
 }  // namespace
 
-void PerfettoCmd::SaveTraceIntoDropboxAndIncidentOrCrash() {
+void PerfettoCmd::SaveTraceIntoIncidentOrCrash() {
   PERFETTO_CHECK(save_to_incidentd_);
-  PERFETTO_CHECK(
-      !trace_config_->incident_report_config().destination_package().empty());
+
+  const auto& cfg = trace_config_->incident_report_config();
+  PERFETTO_CHECK(!cfg.destination_package().empty());
+  PERFETTO_CHECK(!cfg.skip_incidentd());
 
   if (bytes_written_ == 0) {
     LogUploadEvent(PerfettoStatsdAtom::kNotUploadingEmptyTrace);
@@ -52,7 +56,7 @@ void PerfettoCmd::SaveTraceIntoDropboxAndIncidentOrCrash() {
   // Skip the trace-uuid link for traces that are too small. Realistically those
   // traces contain only a marker (e.g. seized_for_bugreport, or the trace
   // expired without triggers). Those are useless and introduce only noise.
-  if (!uuid_.empty() && bytes_written_ > 4096) {
+  if (bytes_written_ > 4096) {
     base::Uuid uuid(uuid_);
     PERFETTO_LOG("go/trace-uuid/%s name=\"%s\" size=%" PRIu64,
                  uuid.ToPrettyString().c_str(),
@@ -61,11 +65,51 @@ void PerfettoCmd::SaveTraceIntoDropboxAndIncidentOrCrash() {
 
   // Ask incidentd to create a report, which will read the file we just
   // wrote.
-  const auto& cfg = trace_config_->incident_report_config();
   PERFETTO_LAZY_LOAD(android_internal::StartIncidentReport, incident_fn);
   PERFETTO_CHECK(incident_fn(cfg.destination_package().c_str(),
                              cfg.destination_class().c_str(),
                              cfg.privacy_level()));
+}
+
+void PerfettoCmd::ReportTraceToAndroidFrameworkOrCrash() {
+  PERFETTO_CHECK(report_to_android_framework_);
+  PERFETTO_CHECK(trace_out_stream_);
+
+  const auto& cfg = trace_config_->android_report_config();
+  PERFETTO_CHECK(!cfg.reporter_service_package().empty());
+  PERFETTO_CHECK(!cfg.skip_report());
+
+  if (bytes_written_ == 0) {
+    // TODO(lalitm): change this to a dedicated atom decoupled from
+    // incidentd.
+    LogUploadEvent(PerfettoStatsdAtom::kNotUploadingEmptyTrace);
+    PERFETTO_LOG("Skipping reporting trace to Android. Empty trace.");
+    return;
+  }
+
+  // TODO(lalitm): add atom for beginning report here.
+  base::StackString<128> self_fd("/proc/self/fd/%d",
+                                 fileno(*trace_out_stream_));
+  base::ScopedFile fd(base::OpenFile(self_fd.c_str(), O_RDONLY | O_CLOEXEC));
+  if (!fd) {
+    PERFETTO_FATAL("Failed to dup fd when reporting to Android");
+  }
+
+  base::Uuid uuid(uuid_);
+  PERFETTO_LAZY_LOAD(android_internal::ReportTrace, report_fn);
+  PERFETTO_CHECK(report_fn(cfg.reporter_service_package().c_str(),
+                           cfg.reporter_service_class().c_str(), fd.release(),
+                           uuid.lsb(), uuid.msb(),
+                           cfg.use_pipe_in_framework_for_testing()));
+
+  // Skip the trace-uuid link for traces that are too small. Realistically those
+  // traces contain only a marker (e.g. seized_for_bugreport, or the trace
+  // expired without triggers). Those are useless and introduce only noise.
+  if (bytes_written_ > 4096) {
+    PERFETTO_LOG("go/trace-uuid/%s name=\"%s\" size=%" PRIu64,
+                 uuid.ToPrettyString().c_str(),
+                 trace_config_->unique_session_name().c_str(), bytes_written_);
+  }
 }
 
 // Open a staging file (unlinking the previous instance), copy the trace

@@ -115,8 +115,9 @@ class PerfettoCmd : public Consumer {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   static base::ScopedFile CreateUnlinkedTmpFile();
-  void SaveTraceIntoDropboxAndIncidentOrCrash();
+  void SaveTraceIntoIncidentOrCrash();
   void SaveOutputToIncidentTraceOrCrash();
+  void ReportTraceToAndroidFrameworkOrCrash();
 #endif
   void LogUploadEvent(PerfettoStatsdAtom atom);
   void LogTriggerEvents(PerfettoTriggerAtom atom,
@@ -135,6 +136,7 @@ class PerfettoCmd : public Consumer {
   base::EventFd ctrl_c_evt_;
   base::Pipe background_wait_pipe_;
   bool save_to_incidentd_ = false;
+  bool report_to_android_framework_ = false;
   bool statsd_logging_ = false;
   bool update_guardrail_state_ = false;
   uint64_t bytes_written_ = 0;
