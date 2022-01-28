@@ -140,6 +140,7 @@ class TracingServiceImpl : public TracingService {
     }
 
     uid_t uid() const { return uid_; }
+    pid_t pid() const { return pid_; }
 
    private:
     friend class TracingServiceImpl;

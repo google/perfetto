@@ -78,6 +78,8 @@ cgroup_attach_task_post_s.textproto print_systrace.sql cgroup_attach_task_post_s
 # Check error handling when parsing print events.
 bad_print.textproto list_slices.sql bad_print_textproto_list_slices.out
 bad_print.systrace list_slices.sql bad_print_systrace_list_slices.out
+instant_atrace.py instant_with_thread.sql instant_atrace_instant_with_thread.out
+instant_async_atrace.py instant_async.sql instant_async_atrace_instant_async.out
 
 # Match legacy Catapult behaviour when we see multiple S events b2b with the same cookie
 # name and upid.

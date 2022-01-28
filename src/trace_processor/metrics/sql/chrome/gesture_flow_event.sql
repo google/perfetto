@@ -69,7 +69,8 @@ CREATE VIEW {{prefix}}_latency_info_flow_step_and_ancestors AS
         track_id AS gesture_track_id,
         trace_id AS {{id_field}},
         jank,
-        {{id_field}}
+        {{id_field}},
+        avg_vsync_interval
       FROM {{prefix}}_jank
   ) gesture ON
     flow.trace_id = gesture.{{id_field}}
@@ -96,7 +97,8 @@ CREATE VIEW {{prefix}}_latency_info_flow_step_and_ancestors AS
     track_id AS gesture_track_id,
     trace_id AS {{id_field}},
     jank,
-    {{id_field}}
+    {{id_field}},
+    avg_vsync_interval
   FROM {{prefix}}_jank
   ORDER BY {{id_field}} ASC, trace_id ASC, ts ASC;
 
@@ -183,6 +185,7 @@ CREATE TABLE {{prefix}}_latency_info_flow_null_step_removed AS
     curr.track_id,
     curr.trace_id,
     curr.{{id_field}},
+    curr.avg_vsync_interval,
     curr.gesture_slice_id,
     curr.gesture_ts,
     curr.{{prefix}}_dur,
@@ -230,6 +233,7 @@ CREATE VIEW {{prefix}}_flow_event AS
     curr.dur,
     curr.track_id,
     curr.{{id_field}},
+    curr.avg_vsync_interval,
     curr.gesture_slice_id AS {{prefix}}_slice_id,
     curr.gesture_ts AS {{prefix}}_ts,
     curr.{{prefix}}_dur AS {{prefix}}_dur,
