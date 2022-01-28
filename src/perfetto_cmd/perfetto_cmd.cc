@@ -568,29 +568,66 @@ base::Optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     uuid_ = uuid.ToString();
   }
 
-  if (!trace_config_->incident_report_config().destination_package().empty() &&
-      !upload_flag_) {
+  bool has_incidentd_package =
+      !trace_config_->incident_report_config().destination_package().empty();
+  if (has_incidentd_package && !upload_flag_) {
     PERFETTO_ELOG(
         "Unexpected IncidentReportConfig without --dropbox / --upload.");
     return 1;
   }
 
+  bool has_android_reporter_package = !trace_config_->android_report_config()
+                                           .reporter_service_package()
+                                           .empty();
+  if (has_android_reporter_package && !upload_flag_) {
+    PERFETTO_ELOG(
+        "Unexpected AndroidReportConfig without --dropbox / --upload.");
+    return 1;
+  }
+
+  if (has_incidentd_package && has_android_reporter_package) {
+    PERFETTO_ELOG(
+        "Only one of IncidentReportConfig and AndroidReportConfig "
+        "allowed in the same config.");
+    return 1;
+  }
+
+  // If the upload flag is set, we can only be doing one of three things:
+  // 1. Reporting to either incidentd or Android framework.
+  // 2. Skipping incidentd/Android report because it was explicitly
+  //    specified in the config.
+  // 3. Activating triggers.
+  bool incidentd_valid =
+      has_incidentd_package ||
+      trace_config_->incident_report_config().skip_incidentd();
+  bool android_report_valid =
+      has_android_reporter_package ||
+      trace_config_->android_report_config().skip_report();
+  bool has_triggers = !trace_config_->activate_triggers().empty();
+  if (upload_flag_ && !incidentd_valid && !android_report_valid &&
+      !has_triggers) {
+    PERFETTO_ELOG(
+        "One of IncidentReportConfig, AndroidReportConfig or activate_triggers "
+        "must be specified with --dropbox / --upload.");
+    return 1;
+  }
+
   // Only save to incidentd if:
-  // 1) --upload is set
+  // 1) |destination_package| is set
   // 2) |skip_incidentd| is absent or false.
   // 3) we are not simply activating triggers.
   save_to_incidentd_ =
-      upload_flag_ &&
+      has_incidentd_package &&
       !trace_config_->incident_report_config().skip_incidentd() &&
-      trace_config_->activate_triggers().empty();
+      !has_triggers;
 
-  if (save_to_incidentd_ &&
-      trace_config_->incident_report_config().destination_package().empty()) {
-    PERFETTO_ELOG(
-        "Missing IncidentReportConfig.destination_package with --dropbox / "
-        "--upload.");
-    return 1;
-  }
+  // Only report to the Andorid framework if:
+  // 1) |reporter_service_package| is set
+  // 2) |skip_report| is absent or false.
+  // 3) we are not simply activating triggers.
+  report_to_android_framework_ =
+      has_android_reporter_package &&
+      !trace_config_->android_report_config().skip_report() && !has_triggers;
 
   // Respect the wishes of the config with respect to statsd logging or fall
   // back on the presence of the --upload flag if not set.
@@ -640,7 +677,7 @@ base::Optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
   // In this case we don't intend to send any trace config to the service,
   // rather use that as a signal to the cmdline client to connect as a producer
   // and activate triggers.
-  if (!trace_config_->activate_triggers().empty()) {
+  if (has_triggers) {
     for (const auto& trigger : trace_config_->activate_triggers()) {
       triggers_to_activate_.push_back(trigger);
     }
@@ -698,10 +735,18 @@ base::Optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     }
   }
 
-  if (save_to_incidentd_ && !ignore_guardrails_ &&
-      (trace_config_->duration_ms() == 0 &&
-       trace_config_->trigger_config().trigger_timeout_ms() == 0)) {
+  bool will_trace_indefinitely =
+      trace_config_->duration_ms() == 0 &&
+      trace_config_->trigger_config().trigger_timeout_ms() == 0;
+  if (will_trace_indefinitely && save_to_incidentd_ && !ignore_guardrails_) {
     PERFETTO_ELOG("Can't trace indefinitely when tracing to Incidentd.");
+    return 1;
+  }
+
+  if (will_trace_indefinitely && report_to_android_framework_ &&
+      !ignore_guardrails_) {
+    PERFETTO_ELOG(
+        "Can't trace indefinitely when reporting to Android framework.");
     return 1;
   }
 
@@ -817,7 +862,7 @@ int PerfettoCmd::ConnectToServiceAndRun() {
 
   RateLimiter::Args args{};
   args.is_user_build = IsUserBuild();
-  args.is_uploading = save_to_incidentd_;
+  args.is_uploading = save_to_incidentd_ || report_to_android_framework_;
   args.current_time = base::GetWallTimeS();
   args.ignore_guardrails = ignore_guardrails_;
   args.allow_user_build_tracing = trace_config_->allow_user_build_tracing();
@@ -1027,7 +1072,11 @@ void PerfettoCmd::FinalizeTraceAndExit() {
 
   if (save_to_incidentd_) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-    SaveTraceIntoDropboxAndIncidentOrCrash();
+    SaveTraceIntoIncidentOrCrash();
+#endif
+  } else if (report_to_android_framework_) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+    ReportTraceToAndroidFrameworkOrCrash();
 #endif
   } else {
     trace_out_stream_.reset();
