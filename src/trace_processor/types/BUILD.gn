@@ -21,6 +21,7 @@ source_set("types") {
     "softirq_action.h",
     "task_state.cc",
     "task_state.h",
+    "tcp_state.h",
     "trace_processor_context.h",
     "variadic.cc",
     "variadic.h",
