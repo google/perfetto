@@ -26,7 +26,7 @@ import "protos/perfetto/config/data_source_config.proto";
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 34.
+// Next id: 35.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -437,4 +437,52 @@ message TraceConfig {
   // old field number for trace_filter
   reserved 32;
   optional TraceFilter trace_filter = 33;
+
+  // Android-only. Not for general use. If set, reports the trace to the
+  // Android framework. This field is read by perfetto_cmd, rather than the
+  // tracing service. This field must be set when passing the --upload flag to
+  // perfetto_cmd.
+  message AndroidReportConfig {
+    // In this message, either:
+    //  * |reporter_service_package| and |reporter_service_class| must be set.
+    //  * |skip_reporting| must be explicitly set to true.
+
+    optional string reporter_service_package = 1;
+    optional string reporter_service_class = 2;
+
+    // If true, then skips reporting the trace to Android framework.
+    //
+    // This flag is useful in testing (e.g. Perfetto-statsd integration tests)
+    // or when we explicitly don't want to report traces to the framework even
+    // when they usually would (e.g. configs deployed using statsd but only
+    // used for inclusion in bugreports using |bugreport_score|).
+    //
+    // The motivation for having this flag, instead of just not setting
+    // |framework_report_config|, is prevent accidents where
+    // |framework_report_config| is omitted by mistake.
+    optional bool skip_report = 3;
+
+    // If true, will direct the Android framework to read the data in trace
+    // file and pass it to the reporter class over a pipe instead of passing
+    // the file descriptor directly.
+    //
+    // This flag is needed because the Android test framework does not
+    // currently support priv-app helper apps (in terms of SELinux) and we
+    // really don't want to add an allow rule for untrusted_app to receive
+    // trace fds.
+    //
+    // Because of this, we instead will direct the framework to create a new
+    // pipe and pass this to the reporter process instead. As the pipe is
+    // created by the framework, we won't have any problems with SELinux
+    // (system_server is already allowed to pass pipe fds, even
+    // to untrusted apps).
+    //
+    // As the name suggests this option *MUST* only be used for testing.
+    // Note that the framework will reject (and drop) files which are too
+    // large both for simplicity and to be minimize the amount of data we
+    // pass to a non-priv app (note that the framework will still check
+    // manifest permissions even though SELinux permissions are worked around).
+    optional bool use_pipe_in_framework_for_testing = 4;
+  }
+  optional AndroidReportConfig android_report_config = 34;
 }

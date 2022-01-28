@@ -16,8 +16,8 @@
 
 #include "src/android_internal/health_hal.h"
 
-#include <android/binder_manager.h>
 #include <aidl/android/hardware/health/IHealth.h>
+#include <android/binder_manager.h>
 #include <android/hardware/health/2.0/IHealth.h>
 #include <healthhalutils/HealthHalUtils.h>
 
