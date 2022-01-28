@@ -17,21 +17,29 @@
 #include "src/android_internal/tracing_service_proxy.h"
 
 #include <android/tracing/ITracingServiceProxy.h>
+#include <android/tracing/TraceReportParams.h>
 #include <binder/IBinder.h>
 #include <binder/IServiceManager.h>
+#include <binder/ParcelFileDescriptor.h>
 #include <binder/Status.h>
+#include <utils/String16.h>
 
 namespace perfetto {
 namespace android_internal {
 
 using android::sp;
 using android::binder::Status;
+using android::os::ParcelFileDescriptor;
 using android::tracing::ITracingServiceProxy;
+using android::tracing::TraceReportParams;
+
+namespace {
+static constexpr char kServiceName[] = "tracing.proxy";
+}
 
 bool NotifyTraceSessionEnded(bool session_stolen) {
-  sp<ITracingServiceProxy> service = android::interface_cast<ITracingServiceProxy>(
-      android::defaultServiceManager()->getService(android::String16("tracing.proxy")));
-
+  auto service = android::waitForService<ITracingServiceProxy>(
+      android::String16(kServiceName));
   if (service == nullptr) {
     return false;
   }
@@ -40,5 +48,38 @@ bool NotifyTraceSessionEnded(bool session_stolen) {
   return s.isOk();
 }
 
-} // namespace android_internal
-} // namespace perfetto
+bool ReportTrace(const char* reporter_package_name,
+                 const char* reporter_class_name,
+                 int owned_trace_fd,
+                 int64_t uuid_lsb,
+                 int64_t uuid_msb,
+                 bool use_pipe_in_framework_for_testing) {
+  // Keep this first so we recapture the raw fd in a RAII type as soon as
+  // possible.
+  android::base::unique_fd fd(owned_trace_fd);
+
+  auto service = android::waitForService<ITracingServiceProxy>(
+      android::String16(kServiceName));
+  if (service == nullptr) {
+    return false;
+  }
+
+  TraceReportParams params{};
+  params.reporterPackageName = android::String16(reporter_package_name);
+  params.reporterClassName = android::String16(reporter_class_name);
+  params.fd = ParcelFileDescriptor(std::move(fd));
+  params.uuidLsb = uuid_lsb;
+  params.uuidMsb = uuid_msb;
+  params.usePipeForTesting = use_pipe_in_framework_for_testing;
+
+  Status s = service->reportTrace(std::move(params));
+  if (!s.isOk()) {
+    __android_log_print(ANDROID_LOG_ERROR, "perfetto", "reportTrace failed: %s",
+                        s.toString8().c_str());
+  }
+
+  return s.isOk();
+}
+
+}  // namespace android_internal
+}  // namespace perfetto
