@@ -2261,114 +2261,109 @@ void TracingServiceImpl::MaybeFilterPackets(TracingSession* tracing_session,
   // entire packet is filtered out, we emit a zero-sized TracePacket proto. That
   // makes debugging and reasoning about the trace stats easier.
   // This place swaps the contents of each |packets| entry in place.
-  if (tracing_session->trace_filter) {
-    auto& trace_filter = *tracing_session->trace_filter;
-    // The filter root shoud be reset from protos.Trace to protos.TracePacket
-    // by the earlier call to SetFilterRoot() in EnableTracing().
-    PERFETTO_DCHECK(trace_filter.root_msg_index() != 0);
-    std::vector<protozero::MessageFilter::InputSlice> filter_input;
-    for (auto it = packets->begin(); it != packets->end(); ++it) {
-      const auto& packet_slices = it->slices();
-      filter_input.clear();
-      filter_input.resize(packet_slices.size());
-      ++tracing_session->filter_input_packets;
-      tracing_session->filter_input_bytes += it->size();
-      for (size_t i = 0; i < packet_slices.size(); ++i)
-        filter_input[i] = {packet_slices[i].start, packet_slices[i].size};
-      auto filtered_packet = trace_filter.FilterMessageFragments(
-          &filter_input[0], filter_input.size());
+  if (!tracing_session->trace_filter) {
+    return;
+  }
+  protozero::MessageFilter& trace_filter = *tracing_session->trace_filter;
+  // The filter root shoud be reset from protos.Trace to protos.TracePacket
+  // by the earlier call to SetFilterRoot() in EnableTracing().
+  PERFETTO_DCHECK(trace_filter.root_msg_index() != 0);
+  std::vector<protozero::MessageFilter::InputSlice> filter_input;
+  for (TracePacket& packet : *packets) {
+    const auto& packet_slices = packet.slices();
+    filter_input.clear();
+    filter_input.resize(packet_slices.size());
+    ++tracing_session->filter_input_packets;
+    tracing_session->filter_input_bytes += packet.size();
+    for (size_t i = 0; i < packet_slices.size(); ++i)
+      filter_input[i] = {packet_slices[i].start, packet_slices[i].size};
+    auto filtered_packet = trace_filter.FilterMessageFragments(
+        &filter_input[0], filter_input.size());
 
-      // Replace the packet in-place with the filtered one (unless failed).
-      *it = TracePacket();
-      if (filtered_packet.error) {
-        ++tracing_session->filter_errors;
-        PERFETTO_DLOG("Trace packet filtering failed @ packet %" PRIu64,
-                      tracing_session->filter_input_packets);
-        continue;
-      }
-      tracing_session->filter_output_bytes += filtered_packet.size;
-      AppendOwnedSlicesToPacket(std::move(filtered_packet.data),
-                                filtered_packet.size, kMaxTracePacketSliceSize,
-                                &*it);
-
-    }  // for (packet)
-  }    // if (trace_filter)
+    // Replace the packet in-place with the filtered one (unless failed).
+    packet = TracePacket();
+    if (filtered_packet.error) {
+      ++tracing_session->filter_errors;
+      PERFETTO_DLOG("Trace packet filtering failed @ packet %" PRIu64,
+                    tracing_session->filter_input_packets);
+      continue;
+    }
+    tracing_session->filter_output_bytes += filtered_packet.size;
+    AppendOwnedSlicesToPacket(std::move(filtered_packet.data),
+                              filtered_packet.size, kMaxTracePacketSliceSize,
+                              &packet);
+  }
 }
 
 bool TracingServiceImpl::WriteIntoFile(TracingSession* tracing_session,
                                        std::vector<TracePacket> packets) {
-  // If the caller asked us to write into a file by setting
-  // |write_into_file| == true in the trace config, drain the packets read
-  // (if any) into the given file descriptor.
-  if (tracing_session->write_into_file) {
-    const uint64_t max_size = tracing_session->max_file_size_bytes
-                                  ? tracing_session->max_file_size_bytes
-                                  : std::numeric_limits<size_t>::max();
+  if (!tracing_session->write_into_file) {
+    return false;
+  }
+  const uint64_t max_size = tracing_session->max_file_size_bytes
+                                ? tracing_session->max_file_size_bytes
+                                : std::numeric_limits<size_t>::max();
 
-    size_t total_slices = 0;
-    for (const TracePacket& packet : packets) {
-      total_slices += packet.slices().size();
-    }
-    // When writing into a file, the file should look like a root trace.proto
-    // message. Each packet should be prepended with a proto preamble stating
-    // its field id (within trace.proto) and size. Hence the addition below.
-    const size_t max_iovecs = total_slices + packets.size();
+  size_t total_slices = 0;
+  for (const TracePacket& packet : packets) {
+    total_slices += packet.slices().size();
+  }
+  // When writing into a file, the file should look like a root trace.proto
+  // message. Each packet should be prepended with a proto preamble stating
+  // its field id (within trace.proto) and size. Hence the addition below.
+  const size_t max_iovecs = total_slices + packets.size();
 
-    size_t num_iovecs = 0;
-    bool stop_writing_into_file = false;
-    std::unique_ptr<struct iovec[]> iovecs(new struct iovec[max_iovecs]);
-    size_t num_iovecs_at_last_packet = 0;
-    uint64_t bytes_about_to_be_written = 0;
-    for (TracePacket& packet : packets) {
-      std::tie(iovecs[num_iovecs].iov_base, iovecs[num_iovecs].iov_len) =
-          packet.GetProtoPreamble();
-      bytes_about_to_be_written += iovecs[num_iovecs].iov_len;
-      num_iovecs++;
-      for (const Slice& slice : packet.slices()) {
-        // writev() doesn't change the passed pointer. However, struct iovec
-        // take a non-const ptr because it's the same struct used by readv().
-        // Hence the const_cast here.
-        char* start = static_cast<char*>(const_cast<void*>(slice.start));
-        bytes_about_to_be_written += slice.size;
-        iovecs[num_iovecs++] = {start, slice.size};
-      }
-
-      if (tracing_session->bytes_written_into_file +
-              bytes_about_to_be_written >=
-          max_size) {
-        stop_writing_into_file = true;
-        num_iovecs = num_iovecs_at_last_packet;
-        break;
-      }
-
-      num_iovecs_at_last_packet = num_iovecs;
-    }
-    PERFETTO_DCHECK(num_iovecs <= max_iovecs);
-    int fd = *tracing_session->write_into_file;
-
-    uint64_t total_wr_size = 0;
-
-    // writev() can take at most IOV_MAX entries per call. Batch them.
-    constexpr size_t kIOVMax = IOV_MAX;
-    for (size_t i = 0; i < num_iovecs; i += kIOVMax) {
-      int iov_batch_size = static_cast<int>(std::min(num_iovecs - i, kIOVMax));
-      ssize_t wr_size = PERFETTO_EINTR(writev(fd, &iovecs[i], iov_batch_size));
-      if (wr_size <= 0) {
-        PERFETTO_PLOG("writev() failed");
-        stop_writing_into_file = true;
-        break;
-      }
-      total_wr_size += static_cast<size_t>(wr_size);
+  size_t num_iovecs = 0;
+  bool stop_writing_into_file = false;
+  std::unique_ptr<struct iovec[]> iovecs(new struct iovec[max_iovecs]);
+  size_t num_iovecs_at_last_packet = 0;
+  uint64_t bytes_about_to_be_written = 0;
+  for (TracePacket& packet : packets) {
+    std::tie(iovecs[num_iovecs].iov_base, iovecs[num_iovecs].iov_len) =
+        packet.GetProtoPreamble();
+    bytes_about_to_be_written += iovecs[num_iovecs].iov_len;
+    num_iovecs++;
+    for (const Slice& slice : packet.slices()) {
+      // writev() doesn't change the passed pointer. However, struct iovec
+      // take a non-const ptr because it's the same struct used by readv().
+      // Hence the const_cast here.
+      char* start = static_cast<char*>(const_cast<void*>(slice.start));
+      bytes_about_to_be_written += slice.size;
+      iovecs[num_iovecs++] = {start, slice.size};
     }
 
-    tracing_session->bytes_written_into_file += total_wr_size;
+    if (tracing_session->bytes_written_into_file + bytes_about_to_be_written >=
+        max_size) {
+      stop_writing_into_file = true;
+      num_iovecs = num_iovecs_at_last_packet;
+      break;
+    }
 
-    PERFETTO_DLOG("Draining into file, written: %" PRIu64 " KB, stop: %d",
-                  (total_wr_size + 1023) / 1024, stop_writing_into_file);
-    return stop_writing_into_file;
-  }  // if (tracing_session->write_into_file)
+    num_iovecs_at_last_packet = num_iovecs;
+  }
+  PERFETTO_DCHECK(num_iovecs <= max_iovecs);
+  int fd = *tracing_session->write_into_file;
 
-  return false;
+  uint64_t total_wr_size = 0;
+
+  // writev() can take at most IOV_MAX entries per call. Batch them.
+  constexpr size_t kIOVMax = IOV_MAX;
+  for (size_t i = 0; i < num_iovecs; i += kIOVMax) {
+    int iov_batch_size = static_cast<int>(std::min(num_iovecs - i, kIOVMax));
+    ssize_t wr_size = PERFETTO_EINTR(writev(fd, &iovecs[i], iov_batch_size));
+    if (wr_size <= 0) {
+      PERFETTO_PLOG("writev() failed");
+      stop_writing_into_file = true;
+      break;
+    }
+    total_wr_size += static_cast<size_t>(wr_size);
+  }
+
+  tracing_session->bytes_written_into_file += total_wr_size;
+
+  PERFETTO_DLOG("Draining into file, written: %" PRIu64 " KB, stop: %d",
+                (total_wr_size + 1023) / 1024, stop_writing_into_file);
+  return stop_writing_into_file;
 }
 
 void TracingServiceImpl::FreeBuffers(TracingSessionID tsid) {
