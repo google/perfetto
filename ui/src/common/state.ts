@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {assertTrue} from '../base/logging';
 import {RecordConfig} from '../controller/record_config_types';
 
 import {
@@ -436,7 +437,12 @@ export declare type RecordMode =
     'STOP_WHEN_FULL' | 'RING_BUFFER' | 'LONG_TRACE';
 
 // 'Q','P','O' for Android, 'L' for Linux, 'C' for Chrome.
-export declare type TargetOs = 'Q' | 'P' | 'O' | 'C' | 'L' | 'CrOS';
+export declare type TargetOs = 'S' | 'R' | 'Q' | 'P' | 'O' | 'C' | 'L' | 'CrOS';
+
+export function isTargetOsAtLeast(target: RecordingTarget, osVersion: string) {
+  assertTrue(osVersion.length === 1);
+  return target.os >= osVersion;
+}
 
 export function isAndroidP(target: RecordingTarget) {
   return target.os === 'P';
