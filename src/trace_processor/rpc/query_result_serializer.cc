@@ -62,9 +62,9 @@ bool QueryResultSerializer::Serialize(std::vector<uint8_t>* buf) {
 bool QueryResultSerializer::Serialize(protos::pbzero::QueryResult* res) {
   PERFETTO_CHECK(!eof_reached_);
 
-  if (!did_write_column_names_) {
-    SerializeColumnNames(res);
-    did_write_column_names_ = true;
+  if (!did_write_metadata_) {
+    SerializeMetadata(res);
+    did_write_metadata_ = true;
   }
 
   // In case of an error we still want to go through SerializeBatch(). That will
@@ -258,11 +258,13 @@ void QueryResultSerializer::MaybeSerializeError(
   res->set_error(err);
 }
 
-void QueryResultSerializer::SerializeColumnNames(
+void QueryResultSerializer::SerializeMetadata(
     protos::pbzero::QueryResult* res) {
-  PERFETTO_DCHECK(!did_write_column_names_);
+  PERFETTO_DCHECK(!did_write_metadata_);
   for (uint32_t c = 0; c < num_cols_; c++)
     res->add_column_names(iter_->GetColumnName(c));
+  res->set_statement_count(iter_->StatementCount());
+  res->set_statement_with_output_count(iter_->StatementCountWithOutput());
 }
 
 }  // namespace trace_processor

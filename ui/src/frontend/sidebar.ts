@@ -100,7 +100,6 @@ const SQL_STATS = `
 with first as (select started as ts from sqlstats limit 1)
 select query,
     round((max(ended - started, 0))/1e6) as runtime_ms,
-    round((max(started - queued, 0))/1e6) as latency_ms,
     round((started - first.ts)/1e6) as t_start_ms
 from sqlstats, first
 order by started desc`;
