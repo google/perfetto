@@ -2,3 +2,4 @@
 netif_receive_skb.textproto netif_receive_skb.sql netif_receive_skb.out
 net_dev_xmit.textproto net_dev_xmit.sql net_dev_xmit.out
 netperf_metric.textproto android_netperf netperf_metric.out
+inet_sock_set_state.textproto inet_sock_set_state.sql inet_sock_set_state.out

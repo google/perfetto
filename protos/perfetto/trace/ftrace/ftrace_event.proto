@@ -54,6 +54,7 @@ import "protos/perfetto/trace/ftrace/sched.proto";
 import "protos/perfetto/trace/ftrace/scm.proto";
 import "protos/perfetto/trace/ftrace/sde.proto";
 import "protos/perfetto/trace/ftrace/signal.proto";
+import "protos/perfetto/trace/ftrace/sock.proto";
 import "protos/perfetto/trace/ftrace/sync.proto";
 import "protos/perfetto/trace/ftrace/synthetic.proto";
 import "protos/perfetto/trace/ftrace/systrace.proto";
@@ -452,5 +453,6 @@ message FtraceEvent {
     RssStatThrottledFtraceEvent rss_stat_throttled = 359;
     NetifReceiveSkbFtraceEvent netif_receive_skb = 360;
     NetDevXmitFtraceEvent net_dev_xmit = 361;
+    InetSockSetStateFtraceEvent inet_sock_set_state = 362;
   }
 }
