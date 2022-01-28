@@ -9,7 +9,8 @@ Unreleased:
     * Add support for multi-line SQL comments; previously only single line
       comments were supported.
   UI:
-    *
+    * Changed HTTP+RPC to use the /websocket endpoint available in newer
+      versions of trace_processor --httpd.
   SDK:
     *
 
