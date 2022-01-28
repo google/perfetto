@@ -157,6 +157,9 @@ class FtraceParser {
                             int64_t timestamp,
                             protozero::ConstBytes);
   void ParseNetDevXmit(uint32_t cpu, int64_t timestamp, protozero::ConstBytes);
+  void ParseInetSockSetState(int64_t timestamp,
+                             uint32_t pid,
+                             protozero::ConstBytes);
 
   TraceProcessorContext* context_;
   RssStatTracker rss_stat_tracker_;
@@ -184,6 +187,7 @@ class FtraceParser {
   const StringId oom_kill_id_;
   const StringId workqueue_id_;
   const StringId irq_id_;
+  const StringId tcp_state_id_;
   const StringId ret_arg_id_;
   const StringId direct_reclaim_nr_reclaimed_id_;
   const StringId direct_reclaim_order_id_;
@@ -229,6 +233,12 @@ class FtraceParser {
 
   // Record number of transmitted bytes to the network interface card.
   std::unordered_map<StringId, uint64_t> nic_transmitted_bytes_;
+
+  // Keep sock to stream number mapping.
+  std::unordered_map<uint64_t, uint32_t> skaddr_to_stream_;
+
+  // Record number of tcp steams.
+  uint32_t num_of_tcp_stream_ = 0;
 
   bool has_seen_first_ftrace_packet_ = false;
 
