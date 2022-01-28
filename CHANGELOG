@@ -5,7 +5,8 @@ Unreleased:
   Trace Processor:
     *
   UI:
-    *
+    * Changed HTTP+RPC to use the /websocket endpoint available in newer
+      versions of trace_processor --httpd.
   SDK:
     *
 
