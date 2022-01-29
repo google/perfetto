@@ -3,9 +3,14 @@ Unreleased:
     * Changed output format of perfetto --query. Made the output more compact
       and added a summary of ongoing tracing sessions for the caller UID.
   Trace Processor:
-    *
+    * Add support for multiple SQL statements to be passed to
+      TraceProcessor::ExecuteQuery. All queries will be executed fully, with
+      the returned iterator yielding rows for the final statement.
+    * Add support for multi-line SQL comments; previously only single line
+      comments were supported.
   UI:
-    *
+    * Changed HTTP+RPC to use the /websocket endpoint available in newer
+      versions of trace_processor --httpd.
   SDK:
     *
 
@@ -66,6 +71,9 @@ v22.0 - 2021-12-03:
       the middle of a suspend/resume. Switched from SND_TIMEO to poll(POLLOUT).
     * Added "linux.sysfs_power" data source to poll /sys/class/power_supply/
       and report periodically battery charge and drain rate if supported.
+    * Add snapshotting for non-BOOTTIME ftrace clocks. This fixes handling of
+      ftrace events from old Linux kernel versions (i.e. 3.x) and adds
+      proper support for using the "global" clock rather than "boot".
   Trace Processor:
     * Speeded up proto trace ingestion by 2x (~20 MB/s -> ~40 MB/s).
     * Changed LIKE comparisions to be case-senstive. This may break existing
@@ -76,6 +84,7 @@ v22.0 - 2021-12-03:
     * Changed how displayTimeUnit is handled in JSON traces to match catapult.
     * Added websocket endpoint to RPC interface to reduce query latency.
     * Added support for hot-reloading metrics (see //docs/analysis/metrics.md).
+    * Added ingestion support for non-BOOTTIME ftrace clocks.
   UI:
     * Added ability to save/restore record config. Remember last used config.
     * Fixed bug causing the recording page to hold onto the USB interface making

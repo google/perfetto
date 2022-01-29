@@ -1,0 +1,121 @@
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 10000000
+      pid: 123
+      inet_sock_set_state {
+        family: 2
+        protocol: 6
+        daddr: 19216801
+        saddr: 127001
+        dport: 5001
+        sport: 0
+        newstate: 2
+        oldstate: 7
+        skaddr: 77889900
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 1
+    event {
+      timestamp: 110000000
+      pid: 234
+      inet_sock_set_state {
+        family: 2
+        protocol: 6
+        daddr: 19216801
+        saddr: 127001
+        dport: 5001
+        sport: 56789
+        newstate: 1
+        oldstate: 2
+        skaddr: 77889900
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 610000000
+      pid: 456
+      inet_sock_set_state {
+        family: 2
+        protocol: 6
+        daddr: 19216801
+        saddr: 127001
+        dport: 5001
+        sport: 56789
+        newstate: 8
+        oldstate: 1
+        skaddr: 77889900
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 710000000
+      pid:567
+      inet_sock_set_state {
+        family: 10
+        protocol: 6
+        daddr: 0
+        saddr: 0
+        dport: 5002
+        sport: 0
+        newstate: 2
+        oldstate: 7
+        skaddr: 33445566
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 1
+    event {
+      timestamp: 720000000
+      pid: 234
+      inet_sock_set_state {
+        family: 10
+        protocol: 6
+        daddr: 0
+        saddr: 0
+        dport: 5002
+        sport: 56790
+        newstate: 1
+        oldstate: 2
+        skaddr: 33445566
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 1020000000
+      pid: 456
+      inet_sock_set_state {
+        family: 10
+        protocol: 6
+        daddr: 0
+        saddr: 0
+        dport: 5002
+        sport: 567090
+        newstate: 8
+        oldstate: 1
+        skaddr: 33445566
+      }
+    }
+  }
+}
+

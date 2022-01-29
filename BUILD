@@ -1070,6 +1070,7 @@ perfetto_genrule(
         "src/trace_processor/metrics/sql/android/android_task_names.sql",
         "src/trace_processor/metrics/sql/android/android_thread_time_in_state.sql",
         "src/trace_processor/metrics/sql/android/android_trace_quality.sql",
+        "src/trace_processor/metrics/sql/android/android_trusty_workqueues.sql",
         "src/trace_processor/metrics/sql/android/composer_execution.sql",
         "src/trace_processor/metrics/sql/android/composition_layers.sql",
         "src/trace_processor/metrics/sql/android/cpu_info.sql",
@@ -1263,6 +1264,7 @@ perfetto_filegroup(
         "src/trace_processor/types/softirq_action.h",
         "src/trace_processor/types/task_state.cc",
         "src/trace_processor/types/task_state.h",
+        "src/trace_processor/types/tcp_state.h",
         "src/trace_processor/types/trace_processor_context.h",
         "src/trace_processor/types/variadic.cc",
         "src/trace_processor/types/variadic.h",
@@ -2605,6 +2607,7 @@ perfetto_cc_proto_library(
 perfetto_proto_library(
     name = "protos_perfetto_metrics_android_protos",
     srcs = [
+        "protos/perfetto/metrics/android/android_trusty_workqueues.proto",
         "protos/perfetto/metrics/android/batt_metric.proto",
         "protos/perfetto/metrics/android/camera_metric.proto",
         "protos/perfetto/metrics/android/camera_unagg_metric.proto",
@@ -2878,6 +2881,7 @@ perfetto_proto_library(
         "protos/perfetto/trace/ftrace/scm.proto",
         "protos/perfetto/trace/ftrace/sde.proto",
         "protos/perfetto/trace/ftrace/signal.proto",
+        "protos/perfetto/trace/ftrace/sock.proto",
         "protos/perfetto/trace/ftrace/sync.proto",
         "protos/perfetto/trace/ftrace/synthetic.proto",
         "protos/perfetto/trace/ftrace/systrace.proto",

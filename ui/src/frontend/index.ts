@@ -146,6 +146,7 @@ function setupContentSecurityPolicy() {
     'connect-src': [
       `'self'`,
       'http://127.0.0.1:9001',  // For trace_processor_shell --httpd.
+      'ws://127.0.0.1:9001',    // Ditto, for the websocket RPC.
       'https://www.google-analytics.com',
       'https://*.googleapis.com',  // For Google Cloud Storage fetches.
       'blob:',
