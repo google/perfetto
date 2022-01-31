@@ -97,7 +97,7 @@ export class FlowEventsRendererArgs {
 
 export class FlowEventsRenderer {
   private getTrackGroupIdByTrackId(trackId: number): string|undefined {
-    const uiTrackId = globals.state.uiTrackIdByTraceTrackId.get(trackId);
+    const uiTrackId = globals.state.uiTrackIdByTraceTrackId[trackId];
     return uiTrackId ? globals.state.tracks[uiTrackId].trackGroup : undefined;
   }
 
