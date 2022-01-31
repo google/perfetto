@@ -56,7 +56,7 @@ class QueryTableRow implements m.ClassComponent<QueryTableRowAttrs> {
     const sliceDur = fromNs(Math.max(row.dur as number, 1));
     const sliceEnd = sliceStart + sliceDur;
     const trackId = row.track_id as number;
-    const uiTrackId = globals.state.uiTrackIdByTraceTrackId.get(trackId);
+    const uiTrackId = globals.state.uiTrackIdByTraceTrackId[trackId];
     if (uiTrackId === undefined) return;
     verticalScrollToTrack(uiTrackId, true);
     horizontalScrollAndZoomToRange(sliceStart, sliceEnd);
