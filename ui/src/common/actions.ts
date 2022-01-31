@@ -183,14 +183,14 @@ export const StateActions = {
       state: StateDraft, trackState: TrackState, uiTrackId: string) {
     const config = trackState.config as {trackId: number};
     if (config.trackId !== undefined) {
-      state.uiTrackIdByTraceTrackId.set(config.trackId, uiTrackId);
+      state.uiTrackIdByTraceTrackId[config.trackId] = uiTrackId;
       return;
     }
 
     const multiple = trackState.config as {trackIds: number[]};
     if (multiple.trackIds !== undefined) {
       for (const trackId of multiple.trackIds) {
-        state.uiTrackIdByTraceTrackId.set(trackId, uiTrackId);
+        state.uiTrackIdByTraceTrackId[trackId] = uiTrackId;
       }
     }
   },
