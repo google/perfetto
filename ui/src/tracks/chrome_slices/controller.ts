@@ -21,6 +21,8 @@ import {
 
 import {Config, Data, SLICE_TRACK_KIND} from './common';
 
+// the lowest bucketNs gets is 2, but add some room in case of fp error
+const MIN_QUANT_NS = 3;
 
 class ChromeSliceTrackController extends TrackController<Config, Data> {
   static readonly kind = SLICE_TRACK_KIND;
@@ -53,9 +55,16 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
       this.maxDurNs = queryRes.firstRow({maxDur: NUM_NULL}).maxDur || 0;
     }
 
+    // Buckets are always even and positive, don't quantize once we zoom to
+    // nanosecond-scale, so that we can see exact sizes.
+    let tsq = `ts`;
+    if (bucketNs > MIN_QUANT_NS) {
+      tsq = `(ts + ${bucketNs / 2}) / ${bucketNs} * ${bucketNs}`;
+    }
+
     const query = `
       SELECT
-        (ts + ${bucketNs / 2}) / ${bucketNs} * ${bucketNs} as tsq,
+        ${tsq} as tsq,
         ts,
         max(iif(dur = -1, (SELECT end_ts FROM trace_bounds) - ts, dur)) as dur,
         depth,
@@ -115,15 +124,19 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
       const durNs = it.dur;
       const endNs = startNs + durNs;
 
-      let endNsQ = Math.floor((endNs + bucketNs / 2 - 1) / bucketNs) * bucketNs;
-      endNsQ = Math.max(endNsQ, startNsQ + bucketNs);
+      let endNsQ = endNs;
+      if (bucketNs > MIN_QUANT_NS) {
+        endNsQ = Math.floor((endNs + bucketNs / 2 - 1) / bucketNs) * bucketNs;
+        endNsQ = Math.max(endNsQ, startNsQ + bucketNs);
+      }
 
-      if (!it.isInstant && startNsQ === endNsQ) {
-        throw new Error(
-            'Expected startNsQ and endNsQ to differ (' +
-            `startNsQ: ${startNsQ}, startNs: ${startNs},` +
-            ` endNsQ: ${endNsQ}, durNs: ${durNs},` +
-            ` endNs: ${endNs}, bucketNs: ${bucketNs})`);
+      let isInstant = it.isInstant;
+      // Floating point rounding with large numbers of nanoseconds can mean
+      // there isn't enough precision to distinguish the start and end of a very
+      // short event so we just display the event as an instant when zoomed in
+      // rather than fail completely if the start and end time are the same.
+      if (startNsQ === endNsQ) {
+        isInstant = 1;
       }
 
       slices.starts[row] = fromNs(startNsQ);
@@ -131,11 +144,11 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
       slices.depths[row] = it.depth;
       slices.sliceIds[row] = it.sliceId;
       slices.titles[row] = internString(it.name);
-      slices.isInstant[row] = it.isInstant;
+      slices.isInstant[row] = isInstant;
       slices.isIncomplete[row] = it.isIncomplete;
 
       let cpuTimeRatio = 1;
-      if (!it.isInstant && !it.isIncomplete) {
+      if (!isInstant && !it.isIncomplete) {
         // Rounding the CPU time ratio to two decimal places and ensuring
         // it is less than or equal to one, incase the thread duration exceeds
         // the total duration.
