@@ -17,22 +17,19 @@
 #ifndef SRC_TRACE_PROCESSOR_TRACE_SORTER_H_
 #define SRC_TRACE_PROCESSOR_TRACE_SORTER_H_
 
+#include <algorithm>
+#include <memory>
+#include <utility>
 #include <vector>
 
 #include "perfetto/ext/base/circular_queue.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
-#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/timestamped_trace_piece.h"
-
-namespace Json {
-class Value;
-}  // namespace Json
 
 namespace perfetto {
 namespace trace_processor {
 
-class FuchsiaProviderView;
 class PacketSequenceState;
 struct SystraceLine;
 
