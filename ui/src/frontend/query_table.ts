@@ -135,29 +135,42 @@ export class QueryTable extends Panel<QueryTableAttrs> {
       rows.push(m(QueryTableRow, {row: resp.rows[i], columns: resp.columns}));
     }
 
+    const headers = [
+      m(
+          'header.overview',
+          `Query result - ${Math.round(resp.durationMs)} ms`,
+          m('span.code', resp.query),
+          resp.error ? null :
+                       m('button.query-ctrl',
+                         {
+                           onclick: () => {
+                             queryResponseToClipboard(resp);
+                           },
+                         },
+                         'Copy as .tsv'),
+          m('button.query-ctrl',
+            {
+              onclick: () => {
+                globals.queryResults.delete(queryId);
+                globals.rafScheduler.scheduleFullRedraw();
+              }
+            },
+            'Close'),
+          ),
+    ];
+
+
+    if (resp.statementWithOutputCount > 1) {
+      headers.push(
+          m('header.overview',
+            `${resp.statementWithOutputCount} out of ${resp.statementCount} ` +
+                `statements returned a result. Only the results for the last ` +
+                `statement are displayed in the table below.`));
+    }
+
     return m(
         'div',
-        m(
-            'header.overview',
-            `Query result - ${Math.round(resp.durationMs)} ms`,
-            m('span.code', resp.query),
-            resp.error ? null :
-                         m('button.query-ctrl',
-                           {
-                             onclick: () => {
-                               queryResponseToClipboard(resp);
-                             },
-                           },
-                           'Copy as .tsv'),
-            m('button.query-ctrl',
-              {
-                onclick: () => {
-                  globals.queryResults.delete(queryId);
-                  globals.rafScheduler.scheduleFullRedraw();
-                }
-              },
-              'Close'),
-            ),
+        ...headers,
         // TODO(rsavitski): the x-scrollable works for the
         // dedicated query page, but is insufficient in the case of
         // the results being presented within the bottom details
