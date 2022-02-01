@@ -30,6 +30,7 @@
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "src/base/test/test_task_runner.h"
+#include "src/protozero/filtering/filter_bytecode_generator.h"
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
 #include "src/tracing/core/trace_writer_impl.h"
 #include "src/tracing/test/mock_consumer.h"
@@ -1729,6 +1730,73 @@ TEST_F(TracingServiceImplTest, WriteIntoFileWithPath) {
               Contains(Property(
                   &protos::gen::TracePacket::for_testing,
                   Property(&protos::gen::TestEvent::str, Eq("payload")))));
+}
+
+TEST_F(TracingServiceImplTest, WriteIntoFileFilterMultipleChunks) {
+  static const size_t kNumTestPackets = 5;
+  static const size_t kPayloadSize = 500 * 1024UL;
+  static_assert(kNumTestPackets * kPayloadSize >
+                    TracingServiceImpl::kWriteIntoFileChunkSize,
+                "This test covers filtering multiple chunks");
+
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("data_source");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(4096);
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("data_source");
+  ds_config->set_target_buffer(0);
+  trace_config.set_write_into_file(true);
+  trace_config.set_file_write_period_ms(100000);  // 100s
+
+  protozero::FilterBytecodeGenerator filt;
+  // Message 0: root Trace proto.
+  filt.AddNestedField(1 /* root trace.packet*/, 1);
+  filt.EndMessage();
+  // Message 1: TracePacket proto. Allow all fields.
+  filt.AddSimpleFieldRange(1, 1000);
+  filt.EndMessage();
+  trace_config.mutable_trace_filter()->set_bytecode(filt.Serialize());
+
+  base::TempFile tmp_file = base::TempFile::Create();
+  consumer->EnableTracing(trace_config, base::ScopedFile(dup(tmp_file.fd())));
+
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("data_source");
+  producer->WaitForDataSourceStart("data_source");
+
+  std::unique_ptr<TraceWriter> writer =
+      producer->CreateTraceWriter("data_source");
+  for (size_t i = 0; i < kNumTestPackets; i++) {
+    auto tp = writer->NewTracePacket();
+    std::string payload(kPayloadSize, 'c');
+    tp->set_for_testing()->set_str(payload.c_str(), payload.size());
+  }
+
+  writer->Flush();
+  writer.reset();
+
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("data_source");
+  consumer->WaitForTracingDisabled();
+
+  consumer->GetTraceStats();
+  TraceStats stats = consumer->WaitForTraceStats(true);
+
+  std::string trace_raw;
+  ASSERT_TRUE(base::ReadFile(tmp_file.path().c_str(), &trace_raw));
+  protozero::ProtoDecoder dec(trace_raw.data(), trace_raw.size());
+  size_t total_size = 0;
+  for (auto field = dec.ReadField(); field.valid(); field = dec.ReadField()) {
+    total_size += field.size();
+  }
+  EXPECT_EQ(total_size, stats.filter_stats().output_bytes());
+  EXPECT_GT(total_size, kNumTestPackets * kPayloadSize);
 }
 
 // Test the logic that allows the trace config to set the shm total size and
