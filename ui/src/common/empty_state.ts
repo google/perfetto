@@ -39,7 +39,7 @@ export function createEmptyState(): State {
     engines: {},
     traceTime: {...defaultTraceTime},
     tracks: {},
-    uiTrackIdByTraceTrackId: new Map<number, string>(),
+    uiTrackIdByTraceTrackId: {},
     aggregatePreferences: {},
     trackGroups: {},
     visibleTracks: [],
