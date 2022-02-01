@@ -59,6 +59,7 @@ import "protos/perfetto/trace/ftrace/sync.proto";
 import "protos/perfetto/trace/ftrace/synthetic.proto";
 import "protos/perfetto/trace/ftrace/systrace.proto";
 import "protos/perfetto/trace/ftrace/task.proto";
+import "protos/perfetto/trace/ftrace/tcp.proto";
 import "protos/perfetto/trace/ftrace/thermal.proto";
 import "protos/perfetto/trace/ftrace/vmscan.proto";
 import "protos/perfetto/trace/ftrace/workqueue.proto";
@@ -454,5 +455,6 @@ message FtraceEvent {
     NetifReceiveSkbFtraceEvent netif_receive_skb = 360;
     NetDevXmitFtraceEvent net_dev_xmit = 361;
     InetSockSetStateFtraceEvent inet_sock_set_state = 362;
+    TcpRetransmitSkbFtraceEvent tcp_retransmit_skb = 363;
   }
 }
