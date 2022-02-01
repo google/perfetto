@@ -58,6 +58,7 @@
 #include "protos/perfetto/trace/ftrace/sock.pbzero.h"
 #include "protos/perfetto/trace/ftrace/systrace.pbzero.h"
 #include "protos/perfetto/trace/ftrace/task.pbzero.h"
+#include "protos/perfetto/trace/ftrace/tcp.pbzero.h"
 #include "protos/perfetto/trace/ftrace/thermal.pbzero.h"
 #include "protos/perfetto/trace/ftrace/vmscan.pbzero.h"
 #include "protos/perfetto/trace/ftrace/workqueue.pbzero.h"
@@ -130,6 +131,9 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       workqueue_id_(context_->storage->InternString("workqueue")),
       irq_id_(context_->storage->InternString("irq")),
       tcp_state_id_(context_->storage->InternString("tcp_state")),
+      tcp_event_id_(context_->storage->InternString("tcp_event")),
+      tcp_retransmited_name_id_(
+          context_->storage->InternString("TCP Retransmit Skb")),
       ret_arg_id_(context_->storage->InternString("ret")),
       direct_reclaim_nr_reclaimed_id_(
           context->storage->InternString("direct_reclaim_nr_reclaimed")),
@@ -656,6 +660,10 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kInetSockSetStateFieldNumber: {
         ParseInetSockSetState(ts, pid, data);
+        break;
+      }
+      case FtraceEvent::kTcpRetransmitSkbFieldNumber: {
+        ParseTcpRetransmitSkb(ts, data);
         break;
       }
       default:
@@ -1782,6 +1790,23 @@ void FtraceParser::ParseInetSockSetState(int64_t timestamp,
       async_track, static_cast<int64_t>(evt.skaddr()));
   context_->slice_tracker->Begin(timestamp, start_id, tcp_state_id_,
                                  slice_name_id);
+}
+
+void FtraceParser::ParseTcpRetransmitSkb(int64_t timestamp,
+                                         protozero::ConstBytes blob) {
+  protos::pbzero::TcpRetransmitSkbFtraceEvent::Decoder evt(blob.data,
+                                                           blob.size);
+
+  // Push event as instant to async task set tracker.
+  auto async_track = context_->async_track_set_tracker->InternGlobalTrackSet(
+      tcp_retransmited_name_id_);
+  base::StackString<64> str("sport=%" PRIu32 ",dport=%" PRIu32 "", evt.sport(),
+                            evt.dport());
+  StringId slice_name_id = context_->storage->InternString(str.string_view());
+  TrackId track_id =
+      context_->async_track_set_tracker->Scoped(async_track, timestamp, 0);
+  context_->slice_tracker->Scoped(timestamp, track_id, tcp_event_id_,
+                                  slice_name_id, 0);
 }
 
 }  // namespace trace_processor
