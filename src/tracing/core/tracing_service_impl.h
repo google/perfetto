@@ -81,6 +81,11 @@ class TracingServiceImpl : public TracingService {
       128 * 1024 - 512;  // This is ipc::kIPCBufferSize - 512, see assertion in
                          // tracing_integration_test.cc and b/195065199
 
+  // This is a rough threshold to determine how many bytes to read from the
+  // buffers on each iteration when writing into a file. Since filtering
+  // allocates memory, this limits the amount of memory allocated.
+  static constexpr size_t kWriteIntoFileChunkSize = 1024 * 1024ul;
+
   // The implementation behind the service endpoint exposed to each producer.
   class ProducerEndpointImpl : public TracingService::ProducerEndpoint {
    public:

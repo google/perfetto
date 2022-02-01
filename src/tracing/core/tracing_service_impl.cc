@@ -2068,12 +2068,23 @@ bool TracingServiceImpl::ReadBuffersIntoFile(TracingSessionID tsid) {
   // and throttle it.
   auto on_ret = base::OnScopeExit([] { base::MaybeReleaseAllocatorMemToOS(); });
 
-  bool has_more;
-  std::vector<TracePacket> packets = ReadBuffers(
-      tracing_session, std::numeric_limits<size_t>::max(), &has_more);
+  // ReadBuffers() can allocate memory internally, for filtering. By limiting
+  // the data that ReadBuffers() reads to kWriteIntoChunksSize per iteration,
+  // we limit the amount of memory used on each iteration.
+  //
+  // It would be tempting to split this into multiple tasks like in
+  // ReadBuffersIntoConsumer, but that's not currently possible.
+  // ReadBuffersIntoFile has to read the whole available data before returning,
+  // to support the disable_immediately=true code paths.
+  bool has_more = true;
+  bool stop_writing_into_file = false;
+  do {
+    std::vector<TracePacket> packets =
+        ReadBuffers(tracing_session, kWriteIntoFileChunkSize, &has_more);
 
-  bool stop_writing_into_file =
-      WriteIntoFile(tracing_session, std::move(packets));
+    stop_writing_into_file = WriteIntoFile(tracing_session, std::move(packets));
+  } while (has_more && !stop_writing_into_file);
+
   if (stop_writing_into_file || tracing_session->write_period_ms == 0) {
     // Ensure all data was written to the file before we close it.
     base::FlushFile(tracing_session->write_into_file.get());
@@ -2226,8 +2237,12 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
 
   *has_more = did_hit_threshold;
 
-  if (!tracing_session->config.builtin_data_sources()
-           .disable_service_events()) {
+  // Only emit the "read complete" lifetime event when there is no more trace
+  // data available to read. These events are used as safe points to limit
+  // sorting in trace processor: the code shouldn't emit the event unless the
+  // buffers are empty.
+  if (!*has_more && !tracing_session->config.builtin_data_sources()
+                         .disable_service_events()) {
     // We don't bother snapshotting clocks here because we wouldn't be able to
     // emit it and we shouldn't have significant drift from the last snapshot in
     // any case.
