@@ -1,0 +1,34 @@
+packet {
+  ftrace_events {
+    cpu: 1
+    event {
+      timestamp: 110000000
+      pid: 234
+      tcp_retransmit_skb {
+        daddr: 19216801
+        saddr: 127001
+        dport: 5001
+        sport: 56789
+        state: 1
+        skaddr: 77889900
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 1
+    event {
+      timestamp: 720000000
+      pid: 234
+      tcp_retransmit_skb {
+        daddr: 0
+        saddr: 0
+        dport: 5002
+        sport: 56790
+        state: 2
+        skaddr: 33445566
+      }
+    }
+  }
+}
