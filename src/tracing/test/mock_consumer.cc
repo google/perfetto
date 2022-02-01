@@ -125,11 +125,13 @@ void MockConsumer::GetTraceStats() {
   service_endpoint_->GetTraceStats();
 }
 
-void MockConsumer::WaitForTraceStats(bool success) {
+TraceStats MockConsumer::WaitForTraceStats(bool success) {
   static int i = 0;
   auto checkpoint_name = "on_trace_stats_" + std::to_string(i++);
   auto on_trace_stats = task_runner_->CreateCheckpoint(checkpoint_name);
-  auto result_callback = [on_trace_stats](bool, const TraceStats&) {
+  TraceStats stats;
+  auto result_callback = [on_trace_stats, &stats](bool, const TraceStats& s) {
+    stats = s;
     on_trace_stats();
   };
   if (success) {
@@ -142,6 +144,7 @@ void MockConsumer::WaitForTraceStats(bool success) {
         .WillOnce(Invoke(result_callback));
   }
   task_runner_->RunUntilCheckpoint(checkpoint_name);
+  return stats;
 }
 
 void MockConsumer::ObserveEvents(uint32_t enabled_event_types) {
