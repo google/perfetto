@@ -21,8 +21,8 @@ const DEFAULT_ROUTE = '/';
 
 /*
  * A broken down representation of a route.
- * For instance: #!/record/gpu?trace_id=a0b1c2
- * becomes: {page: '/record', subpage: '/gpu', args: {trace_id: 'a0b1c2'}}
+ * For instance: #!/record/gpu?local_cache_key=a0b1
+ * becomes: {page: '/record', subpage: '/gpu', args: {local_cache_key: 'a0b1'}}
  */
 export interface Route {
   page: string;
@@ -37,19 +37,19 @@ export interface Route {
  * Args are !== the querystring (location.search) which is sent to the
  * server. The route args are NOT sent to the HTTP server.
  * Given this URL:
- * http://host/?foo=1&bar=2#!/page/subpage?trace_id=a0b1c2&baz=3.
+ * http://host/?foo=1&bar=2#!/page/subpage?local_cache_key=a0b1&baz=3.
  *
  * location.search = 'foo=1&bar=2'.
  *   This is seen by the HTTP server. We really don't use querystrings as the
  *   perfetto UI is client only.
  *
- * location.hash = '#!/page/subpage?trace_id=a0b1c2'.
+ * location.hash = '#!/page/subpage?local_cache_key=a0b1'.
  *   This is client-only. All the routing logic in the Perfetto UI uses only
  *   this.
  */
 export interface RouteArgs {
-  // The trace_id is special and is persisted across navigations.
-  trace_id?: string;
+  // The local_cache_key is special and is persisted across navigations.
+  local_cache_key?: string;
 
   // These are transient and are really set only on startup.
   openFromAndroidBugTool?: string;
@@ -71,18 +71,18 @@ export interface RoutesMap {
  * 2) Handles the (optional) args, e.g. #!/page?arg=1&arg2=2.
  * Route args are carry information that is orthogonal to the page (e.g. the
  * trace id).
- * trace_id has some special treatment: once a URL has a trace_id argument,
+ * local_cache_key has some special treatment: once a URL has a local_cache_key,
  * it gets automatically appended to further navigations that don't have one.
- * For instance if the current url is #!/viewer?trace_id=1234 and a later
+ * For instance if the current url is #!/viewer?local_cache_key=1234 and a later
  * action (either user-initiated or code-initited) navigates to #!/info, the
  * rotuer will automatically replace the history entry with
- * #!/info?trace_id=1234.
+ * #!/info?local_cache_key=1234.
  * This is to keep propagating the trace id across page changes, for handling
  * tab discards (b/175041881).
  *
  * This class does NOT deal with the "load a trace when the url contains ?url=
- * or ?trace_id=". That logic lives in trace_url_handler.ts, which is triggered
- * by Router.onRouteChanged().
+ * or ?local_cache_key=". That logic lives in trace_url_handler.ts, which is
+ * triggered by Router.onRouteChanged().
  */
 export class Router {
   private readonly recentChanges: number[] = [];
@@ -104,20 +104,21 @@ export class Router {
     const oldRoute = Router.parseUrl(e.oldURL);
     const newRoute = Router.parseUrl(e.newURL);
 
-    if (newRoute.args.trace_id === undefined && oldRoute.args.trace_id) {
-      // Propagate the trace_id across navigations. When a trace is loaded, the
-      // URL becomes #!/viewer?trace_id=a0b1c2. The ?trace_id arg allows
+    if (newRoute.args.local_cache_key === undefined &&
+        oldRoute.args.local_cache_key) {
+      // Propagate `local_cache_key across` navigations. When a trace is loaded,
+      // the URL becomes #!/viewer?local_cache_key=123. `local_cache_key` allows
       // reopening the trace from cache in the case of a reload or discard.
       // When using the UI we can hit "bare" links (e.g. just '#!/info') which
       // don't have the trace_uuid:
       // - When clicking on an <a> element from the sidebar.
       // - When the code calls Router.navigate().
       // - When the user pastes a URL from docs page.
-      // In all these cases we want to keep propagating the trace_id argument.
-      // We do so by re-setting the trace_id argument and doing a
+      // In all these cases we want to keep propagating the `local_cache_key`.
+      // We do so by re-setting the `local_cache_key` and doing a
       // location.replace which overwrites the history entry (note
       // location.replace is NOT just a String.replace operation).
-      newRoute.args.trace_id = oldRoute.args.trace_id;
+      newRoute.args.local_cache_key = oldRoute.args.local_cache_key;
     }
 
     const args = m.buildQueryString(newRoute.args);
@@ -153,9 +154,9 @@ export class Router {
   /*
    * Breaks down a fragment into a Route object.
    * Sample input:
-   * '#!/record/gpu?trace_id=629329-18bba4'
+   * '#!/record/gpu?local_cache_key=abcd-1234'
    * Sample output:
-   * {page: '/record', subpage: '/gpu', args: {trace_id: '629329-18bba4'}}
+   * {page: '/record', subpage: '/gpu', args: {local_cache_key: 'abcd-1234'}}
    */
   static parseFragment(hash: string): Route {
     const prefixLength = ROUTE_PREFIX.length;
@@ -175,6 +176,17 @@ export class Router {
     const argsStart = hash.indexOf('?');
     const argsStr = argsStart < 0 ? '' : hash.substr(argsStart + 1);
     const args = argsStr ? m.parseQueryString(hash.substr(argsStart)) : {};
+
+    // TODO(primiano): remove this in mid-2022. trace_id is the same concept of
+    // local_cache_key. Just at some point we renamed it to make it more obvious
+    // to people that those URLs cannot be copy-pasted in bugs. For now this
+    // handles cases of reloading pages from old version.
+    if ('trace_id' in args) {
+      if (!('local_cache_key' in args)) {
+        args['local_cache_key'] = args['trace_id'];
+      }
+      delete args['trace_id'];
+    }
 
     return {page, subpage, args};
   }

@@ -321,7 +321,7 @@ function onCssLoaded() {
   }
   installFileDropHandler();
 
-  // Handles the initial ?trace_id=a0b1c2 or ?s=permalink or ?url=... cases.
+  // Handles the initial ?local_cache_key=123 or ?s=permalink or ?url=... cases.
   maybeOpenTraceFromRoute(Router.parseUrl(window.location.href));
 }
 
