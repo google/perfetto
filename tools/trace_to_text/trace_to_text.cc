@@ -176,7 +176,7 @@ int TraceToText(std::istream* input, std::ostream* output) {
   printer.SetInitialIndentLevel(1);
 
   static constexpr size_t kMaxMsgSize = protozero::ProtoRingBuffer::kMaxMsgSize;
-  std::unique_ptr<char> data(new char[kMaxMsgSize]);
+  std::unique_ptr<char[]> data(new char[kMaxMsgSize]);
   protozero::ProtoRingBuffer ring_buffer;
 
   uint32_t packet = 0;
