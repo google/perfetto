@@ -63,4 +63,8 @@ message SysStatsConfig {
   // This option can be used to record unchanging values.
   // Updates from frequency changes can come from ftrace/set_clock_rate.
   optional uint32 devfreq_period_ms = 7;
+
+  // Polls /sys/devices/system/cpu/cpu*/cpufreq/cpuinfo_cur_freq every X ms.
+  // This is required to be > 10ms to avoid excessive CPU usage.
+  optional uint32 cpufreq_period_ms = 8;
 }
