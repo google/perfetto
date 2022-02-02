@@ -56,9 +56,16 @@ bool CanProfileAndroid(const DataSourceConfig& ds_config,
   constexpr auto kAidAppStart = 10000;     // AID_APP_START
   constexpr auto kAidAppEnd = 19999;       // AID_APP_END
   constexpr auto kAidUserOffset = 100000;  // AID_USER_OFFSET
+  constexpr auto kAidSystem = 1000;        // AID_SYSTEM
 
   if (!build_type.empty() && build_type != "user") {
     return true;
+  }
+
+  // TODO(b/217368496): remove this.
+  if (uid == kAidSystem) {
+    return ds_config.session_initiator() ==
+      DataSourceConfig::SESSION_INITIATOR_TRUSTED_SYSTEM;
   }
 
   uint64_t uid_without_profile = uid % kAidUserOffset;
