@@ -35,13 +35,19 @@ class CpuFreqInfo {
   Range GetFreqs(uint32_t cpu);
   uint32_t GetCpuFreqIndex(uint32_t cpu, uint32_t freq);
 
+  const std::vector<uint32_t>& ReadCpuCurrFreq();
+
  private:
+  // e.g. /sys/devices/system/cpu
+  std::string sysfs_cpu_path_;
   // All frequencies of all CPUs, ordered by CPU and frequency. Includes a guard
   // at the end.
   std::vector<uint32_t> frequencies_;
   // frequencies_index_[cpu] points to first frequency in frequencies_. Includes
   // a guard at the end.
   std::vector<size_t> frequencies_index_;
+  // Placeholder for CPU current frequency, refresh in ReadCpuCurrFreq()
+  std::vector<uint32_t> cpu_curr_freq_;
 
   std::string ReadFile(std::string path);
 };

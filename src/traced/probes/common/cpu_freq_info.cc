@@ -16,6 +16,8 @@
 
 #include "src/traced/probes/common/cpu_freq_info.h"
 
+#include <unistd.h>
+
 #include <set>
 
 #include "perfetto/ext/base/file_utils.h"
@@ -42,10 +44,11 @@ void ReadAndAppendFreqs(std::set<CpuAndFreq>* freqs,
 
 }  // namespace
 
-CpuFreqInfo::CpuFreqInfo(std::string cpu_dir_path) {
-  base::ScopedDir cpu_dir(opendir(cpu_dir_path.c_str()));
+CpuFreqInfo::CpuFreqInfo(std::string sysfs_cpu_path)
+    : sysfs_cpu_path_{sysfs_cpu_path} {
+  base::ScopedDir cpu_dir(opendir(sysfs_cpu_path_.c_str()));
   if (!cpu_dir) {
-    PERFETTO_PLOG("Failed to opendir(%s)", cpu_dir_path.c_str());
+    PERFETTO_PLOG("Failed to opendir(%s)", sysfs_cpu_path_.c_str());
     return;
   }
   // Accumulate cpu and freqs into a set to ensure stable order.
@@ -64,11 +67,11 @@ CpuFreqInfo::CpuFreqInfo(std::string cpu_dir_path) {
     uint32_t cpu_index = maybe_cpu_index.value();
     ReadAndAppendFreqs(
         &freqs, cpu_index,
-        ReadFile(cpu_dir_path + "/cpu" + std::to_string(cpu_index) +
+        ReadFile(sysfs_cpu_path_ + "/cpu" + std::to_string(cpu_index) +
                  "/cpufreq/scaling_available_frequencies"));
     ReadAndAppendFreqs(
         &freqs, cpu_index,
-        ReadFile(cpu_dir_path + "/cpu" + std::to_string(cpu_index) +
+        ReadFile(sysfs_cpu_path_ + "/cpu" + std::to_string(cpu_index) +
                  "/cpufreq/scaling_boost_frequencies"));
   }
 
@@ -116,6 +119,30 @@ std::string CpuFreqInfo::ReadFile(std::string path) {
   if (!base::ReadFile(path, &contents))
     return "";
   return contents;
+}
+
+const std::vector<uint32_t>& CpuFreqInfo::ReadCpuCurrFreq() {
+  // Check if capacity of cpu_curr_freq_ is enough for all CPUs
+  auto num_cpus = static_cast<size_t>(sysconf(_SC_NPROCESSORS_CONF));
+  if (cpu_curr_freq_.size() < num_cpus)
+    cpu_curr_freq_.resize(num_cpus);
+
+  for (uint32_t i = 0; i < cpu_curr_freq_.size(); i++) {
+    // Read CPU current frequency. Set 0 for offline/disabled cpus.
+    std::string buf(ReadFile(sysfs_cpu_path_ + "/cpu" + std::to_string(i) +
+                             "/cpufreq/scaling_cur_freq"));
+    if (buf.empty()) {
+      cpu_curr_freq_[i] = 0;
+      continue;
+    }
+    auto freq = base::StringToUInt32(base::StripSuffix(buf, "\n"));
+    if (!freq.has_value()) {
+      cpu_curr_freq_[i] = 0;
+      continue;
+    }
+    cpu_curr_freq_[i] = freq.value();
+  }
+  return cpu_curr_freq_;
 }
 
 }  // namespace perfetto
