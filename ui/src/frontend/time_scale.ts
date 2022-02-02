@@ -15,7 +15,7 @@
 import {assertFalse, assertTrue} from '../base/logging';
 import {TimeSpan} from '../common/time';
 
-const MAX_ZOOM_SPAN_SEC = 1e-6;  // 1us.
+const MAX_ZOOM_SPAN_SEC = 1e-8;  // 10 ns.
 
 /**
  * Defines a mapping between number and seconds for the entire application.
