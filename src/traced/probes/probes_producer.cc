@@ -324,9 +324,9 @@ std::unique_ptr<ProbesDataSource> ProbesProducer::CreateSysStatsDataSource(
     TracingSessionID session_id,
     const DataSourceConfig& config) {
   auto buffer_id = static_cast<BufferID>(config.target_buffer());
-  return std::unique_ptr<SysStatsDataSource>(
-      new SysStatsDataSource(task_runner_, session_id,
-                             endpoint_->CreateTraceWriter(buffer_id), config));
+  return std::unique_ptr<SysStatsDataSource>(new SysStatsDataSource(
+      task_runner_, session_id, endpoint_->CreateTraceWriter(buffer_id), config,
+      std::unique_ptr<CpuFreqInfo>(new CpuFreqInfo())));
 }
 
 std::unique_ptr<ProbesDataSource> ProbesProducer::CreateMetatraceDataSource(
