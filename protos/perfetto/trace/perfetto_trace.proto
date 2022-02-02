@@ -1360,6 +1360,10 @@ message SysStatsConfig {
   // This option can be used to record unchanging values.
   // Updates from frequency changes can come from ftrace/set_clock_rate.
   optional uint32 devfreq_period_ms = 7;
+
+  // Polls /sys/devices/system/cpu/cpu*/cpufreq/cpuinfo_cur_freq every X ms.
+  // This is required to be > 10ms to avoid excessive CPU usage.
+  optional uint32 cpufreq_period_ms = 8;
 }
 
 // End of protos/perfetto/config/sys_stats/sys_stats_config.proto
@@ -8785,6 +8789,11 @@ message SysStats {
 
   // One entry per device.
   repeated DevfreqValue devfreq = 10;
+
+  // Cpu current frequency from
+  // /sys/devices/system/cpu/cpu*/cpufreq/cpuinfo_cur_freq in kHz.
+  // One entry per cpu. Report 0 for offline cpu
+  repeated uint32 cpufreq_khz = 11;
 }
 
 // End of protos/perfetto/trace/sys_stats/sys_stats.proto
