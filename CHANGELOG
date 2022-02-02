@@ -3,9 +3,14 @@ Unreleased:
     * Changed output format of perfetto --query. Made the output more compact
       and added a summary of ongoing tracing sessions for the caller UID.
   Trace Processor:
-    *
+    * Add support for multiple SQL statements to be passed to
+      TraceProcessor::ExecuteQuery. All queries will be executed fully, with
+      the returned iterator yielding rows for the final statement.
+    * Add support for multi-line SQL comments; previously only single line
+      comments were supported.
   UI:
-    *
+    * Changed HTTP+RPC to use the /websocket endpoint available in newer
+      versions of trace_processor --httpd.
   SDK:
     *
 

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {assertTrue} from '../base/logging';
 import {RecordConfig} from '../controller/record_config_types';
 
 import {
@@ -73,7 +74,10 @@ export const MAX_TIME = 180;
 // 12: Add a field to cache mapping from UI track ID to trace track ID in order
 //     to speed up flow arrows rendering.
 // 13: FlamegraphState changed to support area selection.
-export const STATE_VERSION = 13;
+// 14: Changed the type of uiTrackIdByTraceTrackId from `Map` to an object with
+// typed key/value because a `Map` does not preserve type during
+// serialisation+deserialisation.
+export const STATE_VERSION = 14;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -116,7 +120,7 @@ export interface TraceArrayBufferSource {
   url?: string;
   fileName?: string;
 
-  // |uuid| is set only when loading from the cache via ?trace_id=123. When set,
+  // |uuid| is set only when loading via ?local_cache_key=1234. When set,
   // this matches global.state.traceUuid, with the exception of the following
   // time window: When a trace T1 is loaded and the user loads another trace T2,
   // this |uuid| will be == T2, but the globals.state.traceUuid will be
@@ -365,7 +369,7 @@ export interface State {
   traceUuid?: string;
   trackGroups: ObjectById<TrackGroupState>;
   tracks: ObjectById<TrackState>;
-  uiTrackIdByTraceTrackId: Map<number, string>;
+  uiTrackIdByTraceTrackId: {[key: number]: string;};
   areas: ObjectById<AreaById>;
   aggregatePreferences: ObjectById<AggregationState>;
   visibleTracks: string[];
@@ -436,7 +440,12 @@ export declare type RecordMode =
     'STOP_WHEN_FULL' | 'RING_BUFFER' | 'LONG_TRACE';
 
 // 'Q','P','O' for Android, 'L' for Linux, 'C' for Chrome.
-export declare type TargetOs = 'Q' | 'P' | 'O' | 'C' | 'L' | 'CrOS';
+export declare type TargetOs = 'S' | 'R' | 'Q' | 'P' | 'O' | 'C' | 'L' | 'CrOS';
+
+export function isTargetOsAtLeast(target: RecordingTarget, osVersion: string) {
+  assertTrue(osVersion.length === 1);
+  return target.os >= osVersion;
+}
 
 export function isAndroidP(target: RecordingTarget) {
   return target.os === 'P';

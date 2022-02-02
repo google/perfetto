@@ -136,16 +136,16 @@ message AppendTraceDataResult {
 message QueryArgs {
   optional string sql_query = 1;
 
-  // Wall time when the query was queued. Used only for query stats.
-  optional uint64 time_queued_ns = 2;
+  // Was time_queued_ns
+  reserved 2;
 }
 
 // Input for the /raw_query endpoint.
 message RawQueryArgs {
   optional string sql_query = 1;
 
-  // Wall time when the query was queued. Used only for query stats.
-  optional uint64 time_queued_ns = 2;
+  // Was time_queued_ns
+  reserved 2;
 }
 
 // Output for the /raw_query endpoint.
@@ -231,6 +231,12 @@ message QueryResult {
     reserved 7;
   }
   repeated CellsBatch batch = 3;
+
+  // The number of statements in the provided SQL.
+  optional uint32 statement_count = 4;
+
+  // The number of statements which produced output rows in the provided SQL.
+  optional uint32 statement_with_output_count = 5;
 }
 
 // Input for the /status endpoint.

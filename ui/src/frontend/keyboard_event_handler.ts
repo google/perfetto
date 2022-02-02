@@ -163,7 +163,7 @@ function moveByFocusedFlow(direction: Direction) {
     if (flow.id === flowId) {
       const flowPoint = (direction === 'Backward' ? flow.begin : flow.end);
       const uiTrackId =
-          globals.state.uiTrackIdByTraceTrackId.get(flowPoint.trackId);
+          globals.state.uiTrackIdByTraceTrackId[flowPoint.trackId];
       if (uiTrackId) {
         globals.makeSelection(Actions.selectChromeSlice(
             {id: flowPoint.sliceId, trackId: uiTrackId, table: 'slice'}));

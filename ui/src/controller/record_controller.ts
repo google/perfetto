@@ -44,6 +44,7 @@ import {
   isChromeTarget,
   isCrOSTarget,
   isLinuxTarget,
+  isTargetOsAtLeast,
   RecordingTarget
 } from '../common/state';
 import {publishBufferUsage, publishTrackData} from '../frontend/publish';
@@ -127,7 +128,9 @@ export function genConfig(
     procThreadAssociationPolling = true;
     procThreadAssociationFtrace = true;
     uiCfg.ftrace = true;
-    uiCfg.symbolizeKsyms = true;
+    if (isTargetOsAtLeast(target, 'S')) {
+      uiCfg.symbolizeKsyms = true;
+    }
     ftraceEvents.add('sched/sched_switch');
     ftraceEvents.add('power/suspend_resume');
     ftraceEvents.add('sched/sched_wakeup');

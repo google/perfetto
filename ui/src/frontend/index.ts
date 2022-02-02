@@ -146,6 +146,7 @@ function setupContentSecurityPolicy() {
     'connect-src': [
       `'self'`,
       'http://127.0.0.1:9001',  // For trace_processor_shell --httpd.
+      'ws://127.0.0.1:9001',    // Ditto, for the websocket RPC.
       'https://www.google-analytics.com',
       'https://*.googleapis.com',  // For Google Cloud Storage fetches.
       'blob:',
@@ -320,7 +321,7 @@ function onCssLoaded() {
   }
   installFileDropHandler();
 
-  // Handles the initial ?trace_id=a0b1c2 or ?s=permalink or ?url=... cases.
+  // Handles the initial ?local_cache_key=123 or ?s=permalink or ?url=... cases.
   maybeOpenTraceFromRoute(Router.parseUrl(window.location.href));
 }
 
