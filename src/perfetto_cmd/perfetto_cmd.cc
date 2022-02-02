@@ -831,7 +831,6 @@ int PerfettoCmd::ConnectToServiceAndRun() {
   // connect as a consumer or run the trace. So bail out after processing all
   // the options.
   if (!triggers_to_activate_.empty()) {
-    LogUploadEvent(PerfettoStatsdAtom::kTriggerBegin);
     LogTriggerEvents(PerfettoTriggerAtom::kCmdTrigger, triggers_to_activate_);
 
     bool finished_with_success = false;
@@ -843,10 +842,7 @@ int PerfettoCmd::ConnectToServiceAndRun() {
         },
         &triggers_to_activate_);
     task_runner_.Run();
-    if (finished_with_success) {
-      LogUploadEvent(PerfettoStatsdAtom::kTriggerSuccess);
-    } else {
-      LogUploadEvent(PerfettoStatsdAtom::kTriggerFailure);
+    if (!finished_with_success) {
       LogTriggerEvents(PerfettoTriggerAtom::kCmdTriggerFail,
                        triggers_to_activate_);
     }
@@ -891,8 +887,6 @@ int PerfettoCmd::ConnectToServiceAndRun() {
 
   auto err_atom = ConvertRateLimiterResponseToAtom(limiter_->ShouldTrace(args));
   if (err_atom) {
-    // TODO(lalitm): remove this once we're ready on server side.
-    LogUploadEvent(PerfettoStatsdAtom::kHitGuardrails);
     LogUploadEvent(err_atom.value());
     return 1;
   }
