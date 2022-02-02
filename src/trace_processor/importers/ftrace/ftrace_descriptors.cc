@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<MessageDescriptor, 363> descriptors{{
+std::array<MessageDescriptor, 364> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -3873,6 +3873,20 @@ std::array<MessageDescriptor, 363> descriptors{{
             {"name", ProtoSchemaType::kString},
             {"rc", ProtoSchemaType::kInt32},
             {"skbaddr", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "tcp_retransmit_skb",
+        7,
+        {
+            {},
+            {"daddr", ProtoSchemaType::kUint32},
+            {"dport", ProtoSchemaType::kUint32},
+            {"saddr", ProtoSchemaType::kUint32},
+            {"skaddr", ProtoSchemaType::kUint64},
+            {"skbaddr", ProtoSchemaType::kUint64},
+            {"sport", ProtoSchemaType::kUint32},
+            {"state", ProtoSchemaType::kInt32},
         },
     },
     {
