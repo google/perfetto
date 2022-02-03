@@ -383,7 +383,7 @@ export class TraceController extends Controller<States> {
     }));
 
     globals.dispatchMultiple(actions);
-    Router.navigate(`#!/viewer?trace_id=${traceUuid}`);
+    Router.navigate(`#!/viewer?local_cache_key=${traceUuid}`);
 
     // Make sure the helper views are available before we start adding tracks.
     await this.initialiseHelperViews();
@@ -586,9 +586,10 @@ export class TraceController extends Controller<States> {
     const engineConfig = assertExists(globals.state.engines[engine.id]);
     if (!(await cacheTrace(engineConfig.source, traceUuid))) {
       // If the trace is not cacheable (cacheable means it has been opened from
-      // URL or RPC) only append '?trace_id' to the URL, without the trace_id
-      // value. Doing otherwise would cause an error if the tab is discarded or
-      // the user hits the reload button because the trace is not in the cache.
+      // URL or RPC) only append '?local_cache_key' to the URL, without the
+      // local_cache_key value. Doing otherwise would cause an error if the tab
+      // is discarded or the user hits the reload button because the trace is
+      // not in the cache.
       return '';
     }
     return traceUuid;

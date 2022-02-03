@@ -1650,6 +1650,12 @@ void TracingServiceImpl::Flush(TracingSessionID tsid,
     return;
   }
 
+  if (tracing_session->state != TracingSession::STARTED) {
+    PERFETTO_ELOG("Flush() called, but tracing has not been started");
+    callback(false);
+    return;
+  }
+
   FlushRequestID flush_request_id = ++last_flush_request_id_;
   PendingFlush& pending_flush =
       tracing_session->pending_flushes
