@@ -427,7 +427,10 @@ class TrackDecider {
 
   async addAnnotationTracks(): Promise<void> {
     const sliceResult = await this.engine.query(`
-    SELECT id, name, upid, group_name FROM annotation_slice_track`);
+      select id, name, upid, group_name
+      from annotation_slice_track
+      order by name
+    `);
 
     const sliceIt = sliceResult.iter({
       id: NUM,
@@ -449,7 +452,7 @@ class TrackDecider {
       const upid = sliceIt.upid;
       const groupName = sliceIt.group_name;
 
-      let trackId = undefined;
+      let summaryTrackId = undefined;
       let trackGroupId =
           upid === 0 ? SCROLLING_TRACK_GROUP : this.upidToUuid.get(upid);
 
@@ -462,16 +465,16 @@ class TrackDecider {
           trackGroupId = groupIds.id;
         } else {
           trackGroupId = uuidv4();
-          trackId = uuidv4();
+          summaryTrackId = uuidv4();
           groupNameToIds.set(groupName, {
             id: trackGroupId,
-            summaryTrackId: trackId,
+            summaryTrackId,
           });
         }
       }
 
       this.tracksToAdd.push({
-        id: trackId,
+        id: summaryTrackId,
         engineId: this.engineId,
         kind: SLICE_TRACK_KIND,
         name,
