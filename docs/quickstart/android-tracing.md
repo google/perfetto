@@ -7,17 +7,17 @@ instrumentation via atrace and all other data sources listed in this site).
 ## Starting the tracing services
 
 Perfetto is based on [platform services](/docs/concepts/service-model.md)
-that are avilable since Android 9 (P) but are enabled by default only since
-Android 11 (R).
-On Android 9 (P) and 10 (Q) you need to do the following to ensure that the
+that are avilable since Android 9 (Pie) but are enabled by default only since
+Android 11 (Red Velvet Cake).
+On Android 9 (Pie) and 10 (Queen Cake) you need to do the following to ensure that the
 tracing services are enabled before getting started:
 
 ```bash
-# Needed only on Android 9 (P) and 10 (Q) on non-Pixel phones.
+# Needed only on Android 9 (Pie) and 10 (Queen Cake) on non-Pixel phones.
 adb shell setprop persist.traced.enable 1
 ```
 
-If you are running a version of Android older than P, you can still capture a
+If you are running a version of Android older than Pie, you can still capture a
 trace with Perfetto using the `record_android_trace` script. See instructions
 below in the
 [Recording a trace through the cmdline](#recording-a-trace-through-the-cmdline)
@@ -132,8 +132,8 @@ all the various knobs of Perfetto.
 If you are running on a Mac or Linux host, or are using a bash-based terminal
 on Windows, you can use the following:
 
-WARNING: The below command does not work on Android P because the `--txt` option
-was introduced in Q. The binary protobuf format should be used instead; the
+WARNING: The below command does not work on Android Pie because the `--txt` option
+was introduced in Queen Cake. The binary protobuf format should be used instead; the
 details of this can be found on the
 [_Trace configuration_ page](https://perfetto.dev/docs/concepts/config#pbtx-vs-binary-format).
 
