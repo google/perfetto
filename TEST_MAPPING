@@ -8,5 +8,10 @@
     {
       "name": "libsurfaceflinger_unittest"
     }
+  ],
+  "hwasan-postsubmit": [
+    {
+      "name": "CtsPerfettoTestCases"
+    }
   ]
 }
