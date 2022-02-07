@@ -57,21 +57,21 @@ CLEANUP_OLD_DIRS = [
 # Dependencies required to build code on the host or when targeting desktop OS.
 BUILD_DEPS_TOOLCHAIN_HOST = [
     # GN. From https://chrome-infra-packages.appspot.com/dl/gn/gn/.
-    # git_revision:83dad00afb232d7235dd70dff1ee90292d72a01e .
+    # git_revision:0725d7827575b239594fbc8fd5192873a1d62f44 .
     Dependency(
         'buildtools/mac/gn',
-        'https://storage.googleapis.com/perfetto/gn-mac-1695-83dad00a',
-        '513d3adeb56b745e62af4e3ccb76b76f023c6aaa25d6a2be9a89e44cd10a4c1a',
+        'https://storage.googleapis.com/perfetto/gn-mac-1968-0725d782',
+        '9ced623a664560bba38bbadb9b91158ca4186358c847e17ab7d982b351373c2e',
         'darwin', 'x64'),
     Dependency(
         'buildtools/linux64/gn',
-        'https://storage.googleapis.com/perfetto/gn-linux64-1695-83dad00a',
-        '4f589364153f182b05cd845e93407489d6ce8acc03290c897928a7bd22b20cce',
+        'https://storage.googleapis.com/perfetto/gn-linux64-1968-0725d782',
+        'f706aaa0676e3e22f5fc9ca482295d7caee8535d1869f99efa2358177b64f5cd',
         'linux', 'x64'),
     Dependency(
         'buildtools/win/gn.exe',
-        'https://storage.googleapis.com/perfetto/gn-win-1695-83dad00a',
-        '908c29556539292203d2952ebf55df03697cbc7cf526a3e295f31ba2576e4cac',
+        'https://storage.googleapis.com/perfetto/gn-win-1968-0725d782',
+        '001f777f023c7a6959c778fb3a6b6cfc63f6baef953410ecdeaec350fb12285b',
         'windows', 'x64'),
 
     # clang-format
