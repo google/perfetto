@@ -26,10 +26,13 @@
 #include "perfetto/tracing/track_event_interned_data_index.h"
 #include "protos/perfetto/common/data_source_descriptor.gen.h"
 #include "protos/perfetto/common/track_event_descriptor.pbzero.h"
+#include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/trace_packet_defaults.pbzero.h"
 #include "protos/perfetto/trace/track_event/debug_annotation.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_descriptor.pbzero.h"
+
+using perfetto::protos::pbzero::ClockSnapshot;
 
 namespace perfetto {
 
@@ -48,6 +51,13 @@ std::atomic<perfetto::base::PlatformThreadId> g_main_thread;
 static constexpr const char kLegacySlowPrefix[] = "disabled-by-default-";
 static constexpr const char kSlowTag[] = "slow";
 static constexpr const char kDebugTag[] = "debug";
+// Allows to specify a custom unit different than the default (ns) for
+// the incremental clock.
+// A multiplier of 1000 means that a timestamp = 3 should be
+// interpreted as 3000 ns = 3 us.
+// TODO(mohitms): Move it to TrackEventConfig.
+constexpr uint64_t kIncrementalTimestampUnitMultiplier = 1;
+static_assert(kIncrementalTimestampUnitMultiplier >= 1, "");
 
 void ForEachObserver(
     std::function<bool(TrackEventSessionObserver*&)> callback) {
@@ -303,50 +313,94 @@ uint64_t TrackEventInternal::GetTimeNs() {
 }
 
 // static
+TraceTimestamp TrackEventInternal::GetTraceTime() {
+  return {TrackEventIncrementalState::kClockIdIncremental, GetTimeNs()};
+}
+
+// static
 int TrackEventInternal::GetSessionCount() {
   return session_count_.load();
 }
 
 // static
-void TrackEventInternal::ResetIncrementalState(TraceWriterBase* trace_writer,
-                                               TraceTimestamp timestamp) {
+void TrackEventInternal::ResetIncrementalState(
+    TraceWriterBase* trace_writer,
+    TrackEventIncrementalState* incr_state,
+    const TraceTimestamp& timestamp) {
+  auto sequence_timestamp = timestamp;
+  if (timestamp.clock_id != TrackEventInternal::GetClockId() &&
+      timestamp.clock_id != TrackEventIncrementalState::kClockIdIncremental) {
+    sequence_timestamp = TrackEventInternal::GetTraceTime();
+  }
+
+  incr_state->last_timestamp_ns = sequence_timestamp.value;
   auto default_track = ThreadTrack::Current();
   {
     // Mark any incremental state before this point invalid. Also set up
     // defaults so that we don't need to repeat constant data for each packet.
     auto packet = NewTracePacket(
-        trace_writer, timestamp,
+        trace_writer, incr_state, timestamp,
         protos::pbzero::TracePacket::SEQ_INCREMENTAL_STATE_CLEARED);
     auto defaults = packet->set_trace_packet_defaults();
-    defaults->set_timestamp_clock_id(GetClockId());
+    defaults->set_timestamp_clock_id(
+        TrackEventIncrementalState::kClockIdIncremental);
 
     // Establish the default track for this event sequence.
     auto track_defaults = defaults->set_track_event_defaults();
     track_defaults->set_track_uuid(default_track.uuid);
+
+    ClockSnapshot* clocks = packet->set_clock_snapshot();
+    // Trace clock.
+    ClockSnapshot::Clock* trace_clock = clocks->add_clocks();
+    trace_clock->set_clock_id(GetClockId());
+    trace_clock->set_timestamp(sequence_timestamp.value);
+    // Delta-encoded incremental clock in nano seconds.
+    // TODO(b/168311581): Make the unit of this clock configurable to allow
+    // trade-off between precision and encoded trace size.
+    ClockSnapshot::Clock* clock_incremental = clocks->add_clocks();
+    clock_incremental->set_clock_id(
+        TrackEventIncrementalState::kClockIdIncremental);
+    auto ts_unit_multiplier = kIncrementalTimestampUnitMultiplier;
+    clock_incremental->set_timestamp(sequence_timestamp.value /
+                                     ts_unit_multiplier);
+    clock_incremental->set_is_incremental(true);
+    clock_incremental->set_unit_multiplier_ns(ts_unit_multiplier);
   }
 
   // Every thread should write a descriptor for its default track, because most
   // trace points won't explicitly reference it. We also write the process
   // descriptor from every thread that writes trace events to ensure it gets
   // emitted at least once.
-  WriteTrackDescriptor(default_track, trace_writer);
-  WriteTrackDescriptor(ProcessTrack::Current(), trace_writer);
+  WriteTrackDescriptor(default_track, trace_writer, incr_state,
+                       sequence_timestamp);
+
+  WriteTrackDescriptor(ProcessTrack::Current(), trace_writer, incr_state,
+                       sequence_timestamp);
 }
 
 // static
 protozero::MessageHandle<protos::pbzero::TracePacket>
 TrackEventInternal::NewTracePacket(TraceWriterBase* trace_writer,
-                                   TraceTimestamp timestamp,
+                                   TrackEventIncrementalState* incr_state,
+                                   const TraceTimestamp& timestamp,
                                    uint32_t seq_flags) {
   auto packet = trace_writer->NewTracePacket();
-  packet->set_timestamp(timestamp.nanoseconds);
-  if (timestamp.clock_id != GetClockId()) {
-    packet->set_timestamp_clock_id(static_cast<uint32_t>(timestamp.clock_id));
-  } else if (GetClockId() != protos::pbzero::BUILTIN_CLOCK_BOOTTIME) {
-    // TODO(skyostil): Stop emitting the clock id for the default trace clock
-    // for every event once the trace processor understands trace packet
-    // defaults.
-    packet->set_timestamp_clock_id(GetClockId());
+  if (timestamp.clock_id == TrackEventIncrementalState::kClockIdIncremental) {
+    if (incr_state->last_timestamp_ns <= timestamp.value) {
+      // No need to set the clock id here, since kClockIdIncremental is the
+      // clock id assumed by default.
+      auto ts_unit_multiplier = kIncrementalTimestampUnitMultiplier;
+      auto time_diff_ns = timestamp.value - incr_state->last_timestamp_ns;
+      packet->set_timestamp(time_diff_ns / ts_unit_multiplier);
+      incr_state->last_timestamp_ns = timestamp.value;
+    } else {
+      // TODO(mohitms): Consider using kIncrementalTimestampUnitMultiplier.
+      packet->set_timestamp(timestamp.value);
+      packet->set_timestamp_clock_id(GetClockId());
+    }
+  } else {
+    packet->set_timestamp(timestamp.value);
+    packet->set_timestamp_clock_id(timestamp.clock_id);
   }
   packet->set_sequence_flags(seq_flags);
   return packet;
@@ -359,11 +413,10 @@ EventContext TrackEventInternal::WriteEvent(
     const Category* category,
     const char* name,
     perfetto::protos::pbzero::TrackEvent::Type type,
-    TraceTimestamp timestamp) {
+    const TraceTimestamp& timestamp) {
   PERFETTO_DCHECK(g_main_thread);
   PERFETTO_DCHECK(!incr_state->was_cleared);
-
-  auto packet = NewTracePacket(trace_writer, timestamp);
+  auto packet = NewTracePacket(trace_writer, incr_state, timestamp);
   EventContext ctx(std::move(packet), incr_state);
 
   auto track_event = ctx.event();

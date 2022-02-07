@@ -59,6 +59,7 @@
 #include "protos/perfetto/common/track_event_descriptor.pbzero.h"
 #include "protos/perfetto/config/interceptor_config.gen.h"
 #include "protos/perfetto/config/track_event/track_event_config.gen.h"
+#include "protos/perfetto/trace/clock_snapshot.gen.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "protos/perfetto/trace/gpu/gpu_render_stage_event.gen.h"
 #include "protos/perfetto/trace/gpu/gpu_render_stage_event.pbzero.h"
@@ -72,6 +73,7 @@
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "protos/perfetto/trace/trace_packet_defaults.gen.h"
 #include "protos/perfetto/trace/track_event/chrome_process_descriptor.gen.h"
 #include "protos/perfetto/trace/track_event/chrome_process_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/counter_descriptor.gen.h"
@@ -968,6 +970,11 @@ TEST_P(PerfettoApiTest, TrackEvent) {
   bool process_descriptor_found = false;
   uint32_t sequence_id = 0;
   int32_t cur_pid = perfetto::test::GetCurrentProcessId();
+  uint64_t recent_absolute_time_ns = 0;
+  bool found_incremental_clock = false;
+  constexpr auto kClockIdIncremental =
+      perfetto::internal::TrackEventIncrementalState::kClockIdIncremental;
+
   for (const auto& packet : trace.packet()) {
     if (packet.has_track_descriptor()) {
       const auto& desc = packet.track_descriptor();
@@ -984,6 +991,17 @@ TEST_P(PerfettoApiTest, TrackEvent) {
       incremental_state_was_cleared = true;
       categories.clear();
       event_names.clear();
+      EXPECT_EQ(kClockIdIncremental,
+                packet.trace_packet_defaults().timestamp_clock_id());
+    }
+    if (packet.has_clock_snapshot()) {
+      for (auto& clock : packet.clock_snapshot().clocks()) {
+        if (clock.is_incremental()) {
+          found_incremental_clock = true;
+          recent_absolute_time_ns = clock.timestamp();
+          EXPECT_EQ(kClockIdIncremental, clock.clock_id());
+        }
+      }
     }
 
     if (!packet.has_track_event())
@@ -1013,18 +1031,13 @@ TEST_P(PerfettoApiTest, TrackEvent) {
         event_names[it.iid()] = it.name();
       }
     }
-
-    EXPECT_GT(packet.timestamp(), 0u);
-    EXPECT_LE(packet.timestamp(), now);
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE) && \
-    !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+    EXPECT_TRUE(found_incremental_clock);
+    uint64_t absolute_timestamp = packet.timestamp() + recent_absolute_time_ns;
+    recent_absolute_time_ns = absolute_timestamp;
+    EXPECT_GT(absolute_timestamp, 0u);
+    EXPECT_LE(absolute_timestamp, now);
+    // Packet uses default (incremental) clock.
     EXPECT_FALSE(packet.has_timestamp_clock_id());
-#else
-    constexpr auto kClockMonotonic =
-        perfetto::protos::pbzero::ClockSnapshot::Clock::MONOTONIC;
-    EXPECT_EQ(packet.timestamp_clock_id(),
-              static_cast<uint32_t>(kClockMonotonic));
-#endif
     if (track_event.type() ==
         perfetto::protos::gen::TrackEvent::TYPE_SLICE_BEGIN) {
       EXPECT_FALSE(begin_found);
@@ -1049,6 +1062,84 @@ TEST_P(PerfettoApiTest, TrackEvent) {
   // Dummy instantiation of test templates.
   TestTrackEventInsideTemplate(true);
   TestCategoryAsTemplateParameter<kTestCategory>();
+}
+
+TEST_P(PerfettoApiTest, TrackEventWithIncrementalTimestamp) {
+  // Create a new trace session.
+  auto* tracing_session = NewTraceWithCategories({"bar"});
+  constexpr auto kClockIdIncremental =
+      perfetto::internal::TrackEventIncrementalState::kClockIdIncremental;
+  tracing_session->get()->StartBlocking();
+
+  std::map<uint64_t, std::string> event_names;
+
+  auto empty_lambda = [](perfetto::EventContext) {};
+
+  constexpr uint64_t kInstantEvent1Time = 92718891479583;
+  TRACE_EVENT_INSTANT(
+      "bar", "InstantEvent1",
+      perfetto::TraceTimestamp{kClockIdIncremental, kInstantEvent1Time},
+      empty_lambda);
+
+  constexpr uint64_t kInstantEvent2Time = 92718891618959;
+  TRACE_EVENT_INSTANT(
+      "bar", "InstantEvent2",
+      perfetto::TraceTimestamp{kClockIdIncremental, kInstantEvent2Time},
+      empty_lambda);
+
+  perfetto::TrackEvent::Flush();
+  tracing_session->get()->StopBlocking();
+
+  std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
+  perfetto::protos::gen::Trace trace;
+  ASSERT_TRUE(trace.ParseFromArray(raw_trace.data(), raw_trace.size()));
+
+  uint64_t absolute_timestamp = 0;
+  int event_count = 0;
+  // Go through the packets and add the timestamps of those packets that use the
+  // incremental clock - in order to get the absolute timestamps of the track
+  // events.
+  for (const auto& packet : trace.packet()) {
+    if (packet.has_clock_snapshot()) {
+      for (auto& clock : packet.clock_snapshot().clocks()) {
+        if (clock.is_incremental()) {
+          absolute_timestamp = clock.timestamp();
+          EXPECT_EQ(clock.clock_id(), kClockIdIncremental);
+        }
+      }
+    } else if (!packet.has_timestamp_clock_id()) {
+      // Packets that don't have a timestamp_clock_id default to the incremental
+      // clock.
+      absolute_timestamp += packet.timestamp();
+    }
+
+    if (packet.sequence_flags() &
+        perfetto::protos::pbzero::TracePacket::SEQ_INCREMENTAL_STATE_CLEARED) {
+      event_names.clear();
+    }
+
+    if (!packet.has_track_event())
+      continue;
+
+    // Update incremental state.
+    if (packet.has_interned_data()) {
+      const auto& interned_data = packet.interned_data();
+      for (const auto& it : interned_data.event_names()) {
+        EXPECT_EQ(event_names.find(it.iid()), event_names.end());
+        event_names[it.iid()] = it.name();
+      }
+    }
+
+    if (event_names[packet.track_event().name_iid()] == "InstantEvent1") {
+      event_count++;
+      ASSERT_EQ(absolute_timestamp, kInstantEvent1Time);
+    } else if (event_names[packet.track_event().name_iid()] ==
+               "InstantEvent2") {
+      event_count++;
+      ASSERT_EQ(absolute_timestamp, kInstantEvent2Time);
+    }
+  }
+  ASSERT_EQ(event_count, 2);
 }
 
 TEST_P(PerfettoApiTest, TrackEventCategories) {
@@ -1754,6 +1845,9 @@ TEST_P(PerfettoApiTest, TrackEventCustomTrackAndTimestamp) {
   for (const auto& packet : trace.packet()) {
     if (!packet.has_track_event())
       continue;
+
+    EXPECT_EQ(packet.timestamp_clock_id(),
+              static_cast<uint32_t>(perfetto::TrackEvent::GetTraceClockId()));
     event_count++;
     switch (packet.track_event().type()) {
       case perfetto::protos::gen::TrackEvent::TYPE_SLICE_BEGIN:
