@@ -100,11 +100,6 @@ def main():
   else:
     assert False, 'Unsupported system %r' % system
 
-  machine = platform.machine()
-  if machine == 'arm64':
-    for name, config in configs.items():
-      configs[name] = config + ('host_cpu="arm64"',)
-
   if args.ccache:
     for config_name, gn_args in iteritems(configs):
       configs[config_name] = gn_args + ('cc_wrapper="ccache"',)
