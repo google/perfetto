@@ -70,7 +70,7 @@ packet {
     objects {
       id: 0x04
       type_id: 3
-      self_size: 256
+      self_size: 1024
       reference_field_id: 2
       reference_object_id: 0x01
     }
