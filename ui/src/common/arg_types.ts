@@ -22,9 +22,9 @@ export interface ArgsTreeMap {
 }
 
 export function isArgTreeArray(item: ArgsTree): item is ArgsTreeArray {
-  return typeof item === 'object' && item.length !== undefined;
+  return typeof item === 'object' && Array.isArray(item);
 }
 
 export function isArgTreeMap(item: ArgsTree): item is ArgsTreeMap {
-  return typeof item === 'object' && item.length === undefined;
+  return typeof item === 'object' && !Array.isArray(item);
 }
