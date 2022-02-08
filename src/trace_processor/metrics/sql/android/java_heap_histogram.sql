@@ -40,36 +40,43 @@ WITH RECURSIVE cls_visitor(cls_id, category) AS (
 )
 SELECT * FROM cls_visitor;
 
-DROP VIEW IF EXISTS java_heap_histogram_output;
-CREATE VIEW java_heap_histogram_output AS
-WITH
--- Base histogram table
-heap_obj_histograms AS (
+DROP TABLE IF EXISTS heap_obj_histograms;
+CREATE TABLE heap_obj_histograms AS
   SELECT
     o.upid,
     o.graph_sample_ts,
-    IFNULL(c.deobfuscated_name, c.name) AS type_name,
-    special.category,
+    o.type_id cls_id,
     COUNT(1) obj_count,
-    SUM(CASE o.reachable WHEN TRUE THEN 1 ELSE 0 END) reachable_obj_count
+    SUM(IIF(o.reachable, 1, 0)) reachable_obj_count,
+    SUM(self_size) / 1024 size_kb,
+    SUM(IIF(o.reachable, self_size, 0)) / 1024 reachable_size_kb,
+    SUM(native_size) / 1024 native_size_kb,
+    SUM(IIF(o.reachable, native_size, 0)) / 1024 reachable_native_size_kb
   FROM heap_graph_object o
-  JOIN heap_graph_class c ON o.type_id = c.id
-  LEFT JOIN android_special_classes special ON special.cls_id = c.id
-  GROUP BY 1, 2, 3, 4
-  ORDER BY 6 DESC
-),
+  GROUP BY 1, 2, 3
+  ORDER BY 1, 2, 3;
+
+DROP VIEW IF EXISTS java_heap_histogram_output;
+CREATE VIEW java_heap_histogram_output AS
+WITH
 -- Group by to build the repeated field by upid, ts
 heap_obj_histogram_count_protos AS (
   SELECT
     upid,
     graph_sample_ts,
     RepeatedField(JavaHeapHistogram_TypeCount(
-      'type_name', type_name,
+      'type_name', IFNULL(c.deobfuscated_name, c.name),
       'category', category,
       'obj_count', obj_count,
-      'reachable_obj_count', reachable_obj_count
+      'reachable_obj_count', reachable_obj_count,
+      'size_kb', size_kb,
+      'reachable_size_kb', reachable_size_kb,
+      'native_size_kb', native_size_kb,
+      'reachable_native_size_kb', reachable_native_size_kb
     )) AS count_protos
-  FROM heap_obj_histograms
+  FROM heap_obj_histograms hist
+  JOIN heap_graph_class c ON hist.cls_id = c.id
+  LEFT JOIN android_special_classes special USING(cls_id)
   GROUP BY 1, 2
 ),
 -- Group by to build the repeated field by upid
