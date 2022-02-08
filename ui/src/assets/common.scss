@@ -235,6 +235,12 @@ button.close {
         display: inline-block;
         position: relative;
       }
+      .indent {
+        display: inline-block;
+        // 24px is the width of expand_more/expand_less icon to pad out cells
+        // without the button
+        width: 24px;
+      }
       .popup-menu {
         position: absolute;
         background-color: white;
@@ -694,6 +700,26 @@ button.query-ctrl {
 
 .disallow-selection {
   user-select: none;
+}
+
+.pivot-table-redux {
+  user-select: text;
+
+  button.mode-button {
+    border-radius: 10px;
+    padding: 7px;
+    margin: 5px;
+    background-color: #c7d0db;
+  }
+
+  &.edit {
+    padding: 10px;
+    display: flex;
+  }
+
+  &.query-error {
+    color: red;
+  }
 }
 
 .pivot-table-editor-container {
