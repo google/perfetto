@@ -8,30 +8,50 @@ java_heap_histogram {
     samples {
       ts: 10
       type_count {
-        type_name: "DeobfuscatedA[]"
-        obj_count: 1
-        reachable_obj_count: 1
-      }
-      type_count {
         type_name: "FactoryProducerDelegateImplActor"
         obj_count: 1
         reachable_obj_count: 1
+        size_kb: 0
+        reachable_size_kb: 0
+        native_size_kb: 0
+        reachable_native_size_kb: 0
       }
       type_count {
         type_name: "Foo"
         obj_count: 2
         reachable_obj_count: 1
+        size_kb: 0
+        reachable_size_kb: 0
+        native_size_kb: 0
+        reachable_native_size_kb: 0
       }
       type_count {
         type_name: "DeobfuscatedA"
         obj_count: 1
         reachable_obj_count: 0
+        size_kb: 1
+        reachable_size_kb: 0
+        native_size_kb: 0
+        reachable_native_size_kb: 0
+      }
+      type_count {
+        type_name: "DeobfuscatedA[]"
+        obj_count: 1
+        reachable_obj_count: 1
+        size_kb: 0
+        reachable_size_kb: 0
+        native_size_kb: 0
+        reachable_native_size_kb: 0
       }
       type_count {
         type_name: "java.lang.Class<DeobfuscatedA[]>"
         obj_count: 1
         reachable_obj_count: 0
-      }
-    }
+        size_kb: 0
+        reachable_size_kb: 0
+        native_size_kb: 0
+        reachable_native_size_kb: 0
+       }
+     }
   }
 }
