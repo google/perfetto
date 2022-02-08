@@ -94,9 +94,9 @@ void PERFETTO_EXPORT __attribute__((constructor)) CheckCpuOptimizations() {
   const bool have_sse4_2 = ecx & (1u << 20);
   const bool have_avx =
       // Does the OS save/restore XMM and YMM state?
-      ((GetXCR0EAX() & xcr0_avx_mask) == xcr0_avx_mask) &&
       (ecx & (1u << 27)) &&  // OS support XGETBV.
-      (ecx & (1u << 28));    // AVX supported in hardware
+      (ecx & (1u << 28)) &&  // AVX supported in hardware
+      ((GetXCR0EAX() & xcr0_avx_mask) == xcr0_avx_mask);
 
   if (!have_sse4_2 || !have_popcnt || !have_avx) {
     fprintf(
