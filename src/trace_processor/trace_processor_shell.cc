@@ -566,6 +566,7 @@ base::Status RunQueriesWithoutOutput(const std::string& sql_query) {
 base::Status RunQueriesAndPrintResult(const std::string& sql_query,
                                       FILE* output) {
   PERFETTO_ILOG("Executing query: %s", sql_query.c_str());
+  auto query_start = std::chrono::steady_clock::now();
 
   auto it = g_tp->ExecuteQuery(sql_query);
   RETURN_IF_ERROR(it.Status());
@@ -593,7 +594,15 @@ base::Status RunQueriesAndPrintResult(const std::string& sql_query,
     PERFETTO_DCHECK(!has_more);
     return base::OkStatus();
   }
-  return PrintQueryResultAsCsv(&it, has_more, output);
+
+  auto query_end = std::chrono::steady_clock::now();
+  RETURN_IF_ERROR(PrintQueryResultAsCsv(&it, has_more, output));
+
+  auto dur = query_end - query_start;
+  PERFETTO_ILOG(
+      "Query execution time: %lld ms",
+      std::chrono::duration_cast<std::chrono::milliseconds>(dur).count());
+  return base::OkStatus();
 }
 
 base::Status PrintPerfFile(const std::string& perf_file_path,
