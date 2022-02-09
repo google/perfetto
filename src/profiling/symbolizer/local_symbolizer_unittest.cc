@@ -162,6 +162,79 @@ TEST(LocalBinaryIndexerTest, SimpleTree) {
   EXPECT_EQ(bin2.value().file_name, tmp.path() + "/dir2/elf1");
 }
 
+TEST(LocalBinaryFinderTest, AbsolutePath) {
+  base::TmpDirTree tmp;
+  tmp.AddDir("root");
+  tmp.AddDir("root/dir");
+  tmp.AddFile("root/dir/elf1.so", CreateElfWithBuildId("AAAAAAAAAAAAAAAAAAAA"));
+
+  LocalBinaryFinder finder({tmp.path() + "/root"});
+
+  base::Optional<FoundBinary> bin1 =
+      finder.FindBinary("/dir/elf1.so", "AAAAAAAAAAAAAAAAAAAA");
+  ASSERT_TRUE(bin1.has_value());
+  EXPECT_EQ(bin1.value().file_name, tmp.path() + "/root/dir/elf1.so");
+}
+
+TEST(LocalBinaryFinderTest, AbsolutePathWithoutBaseApk) {
+  base::TmpDirTree tmp;
+  tmp.AddDir("root");
+  tmp.AddDir("root/dir");
+  tmp.AddFile("root/dir/elf1.so", CreateElfWithBuildId("AAAAAAAAAAAAAAAAAAAA"));
+
+  LocalBinaryFinder finder({tmp.path() + "/root"});
+
+  base::Optional<FoundBinary> bin1 =
+      finder.FindBinary("/dir/base.apk!elf1.so", "AAAAAAAAAAAAAAAAAAAA");
+  ASSERT_TRUE(bin1.has_value());
+  EXPECT_EQ(bin1.value().file_name, tmp.path() + "/root/dir/elf1.so");
+}
+
+TEST(LocalBinaryFinderTest, OnlyFilename) {
+  base::TmpDirTree tmp;
+  tmp.AddDir("root");
+  tmp.AddFile("root/elf1.so", CreateElfWithBuildId("AAAAAAAAAAAAAAAAAAAA"));
+
+  LocalBinaryFinder finder({tmp.path() + "/root"});
+
+  base::Optional<FoundBinary> bin1 =
+      finder.FindBinary("/ignored_dir/elf1.so", "AAAAAAAAAAAAAAAAAAAA");
+  ASSERT_TRUE(bin1.has_value());
+  EXPECT_EQ(bin1.value().file_name, tmp.path() + "/root/elf1.so");
+}
+
+TEST(LocalBinaryFinderTest, OnlyFilenameWithoutBaseApk) {
+  base::TmpDirTree tmp;
+  tmp.AddDir("root");
+  tmp.AddFile("root/elf1.so", CreateElfWithBuildId("AAAAAAAAAAAAAAAAAAAA"));
+
+  LocalBinaryFinder finder({tmp.path() + "/root"});
+
+  base::Optional<FoundBinary> bin1 = finder.FindBinary(
+      "/ignored_dir/base.apk!elf1.so", "AAAAAAAAAAAAAAAAAAAA");
+  ASSERT_TRUE(bin1.has_value());
+  EXPECT_EQ(bin1.value().file_name, tmp.path() + "/root/elf1.so");
+}
+
+TEST(LocalBinaryFinderTest, BuildIdSubdir) {
+  base::TmpDirTree tmp;
+  tmp.AddDir("root");
+  tmp.AddDir("root/.build-id");
+  tmp.AddDir("root/.build-id/41");
+  tmp.AddFile("root/.build-id/41/41414141414141414141414141414141414141.debug",
+              CreateElfWithBuildId("AAAAAAAAAAAAAAAAAAAA"));
+
+  LocalBinaryFinder finder({tmp.path() + "/root"});
+
+  base::Optional<FoundBinary> bin1 =
+      finder.FindBinary("/ignored_dir/ignored_name.so", "AAAAAAAAAAAAAAAAAAAA");
+  ASSERT_TRUE(bin1.has_value());
+  EXPECT_EQ(
+      bin1.value().file_name,
+      tmp.path() +
+          "/root/.build-id/41/41414141414141414141414141414141414141.debug");
+}
+
 }  // namespace
 }  // namespace profiling
 }  // namespace perfetto
