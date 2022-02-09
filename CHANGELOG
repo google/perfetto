@@ -9,6 +9,17 @@ Unreleased:
     *
 
 
+v24.1 - 2022-02-09:
+  Tracing service and probes:
+    * Fixed build failures on Windows.
+  Trace Processor:
+    * Fixed build failures on Windows.
+  UI:
+    *
+  SDK:
+    *
+
+
 v24.0 - 2022-02-08:
   Tracing service and probes:
     * Added "cpufreq_period_ms" in data source "linux.sys_stats" to poll
