@@ -946,7 +946,9 @@ export const StateActions = {
 
   resetPivotTableRequest(state: StateDraft, args: {pivotTableId: string}):
       void {
-        state.pivotTable[args.pivotTableId].requestedAction = undefined;
+        if (state.pivotTable[args.pivotTableId] !== undefined) {
+          state.pivotTable[args.pivotTableId].requestedAction = undefined;
+        }
       },
 
   setPivotTableRequest(
