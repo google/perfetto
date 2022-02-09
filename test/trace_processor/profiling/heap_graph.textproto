@@ -124,7 +124,7 @@ packet {
       id: 3
       class_name: "a"
       location_id: 1
-      object_size: 256
+      object_size: 1024
     }
     types {
       id: 4
