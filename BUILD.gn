@@ -77,6 +77,9 @@ if (enable_perfetto_tools) {
 if (enable_perfetto_unittests) {
   import("gn/perfetto_unittests.gni")
   test("perfetto_unittests") {
+    if (is_fuchsia) {
+      use_cfv2 = false
+    }
     deps = perfetto_unittests_targets
   }
   all_targets += [ ":perfetto_unittests" ]
