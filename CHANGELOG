@@ -9,15 +9,18 @@ Unreleased:
     *
 
 
+v24.2 - 2022-02-10:
+  SDK:
+    * Revert of incremental timestamps, introduced in v24.0.
+      Some clients were depending on non-incremental timestamps.
+      Future releases will re-enable this but offer an opt-out.
+
+
 v24.1 - 2022-02-09:
   Tracing service and probes:
     * Fixed build failures on Windows.
   Trace Processor:
     * Fixed build failures on Windows.
-  UI:
-    *
-  SDK:
-    *
 
 
 v24.0 - 2022-02-08:
@@ -50,7 +53,8 @@ v24.0 - 2022-02-08:
     * Changed postMessage() API, suppressed confirmation dialog when the opener
       is in the same origin, for cases when the UI is self-hosted.
   SDK:
-    *
+    * Changed timestamps emitted by the SDK to be incremental by default, using
+      ClockSnapshot + TracePacketDefaults.
 
 
 v23.0 - 2022-01-11:
