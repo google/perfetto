@@ -1475,6 +1475,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/json/json_utils.h",
         "src/trace_processor/importers/ninja/ninja_log_parser.cc",
         "src/trace_processor/importers/ninja/ninja_log_parser.h",
+        "src/trace_processor/importers/proto/android_camera_event_module.cc",
+        "src/trace_processor/importers/proto/android_camera_event_module.h",
         "src/trace_processor/importers/proto/async_track_set_tracker.cc",
         "src/trace_processor/importers/proto/async_track_set_tracker.h",
         "src/trace_processor/importers/proto/chrome_string_lookup.cc",
