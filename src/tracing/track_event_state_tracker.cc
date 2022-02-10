@@ -17,10 +17,8 @@
 #include "perfetto/tracing/track_event_state_tracker.h"
 
 #include "perfetto/ext/base/hash.h"
-#include "perfetto/tracing/internal/track_event_internal.h"
 
 #include "protos/perfetto/common/interceptor_descriptor.gen.h"
-#include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/perfetto/trace/trace_packet_defaults.pbzero.h"
@@ -31,8 +29,6 @@
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
 
 namespace perfetto {
-
-using internal::TrackEventIncrementalState;
 
 TrackEventStateTracker::~TrackEventStateTracker() = default;
 TrackEventStateTracker::Delegate::~Delegate() = default;
@@ -49,15 +45,8 @@ void TrackEventStateTracker::ProcessTracePacket(
   perfetto::protos::pbzero::TrackEvent::Decoder track_event(
       packet.track_event());
 
-  auto clock_id = packet.timestamp_clock_id();
-  if (!packet.has_timestamp_clock_id())
-    clock_id = sequence_state.default_clock_id;
+  // TODO(skyostil): Support incremental timestamps.
   uint64_t timestamp = packet.timestamp();
-  // TODO(mohitms): Incorporate unit multiplier as well.
-  if (clock_id == TrackEventIncrementalState::kClockIdIncremental) {
-    timestamp += sequence_state.most_recent_absolute_time_ns;
-    sequence_state.most_recent_absolute_time_ns = timestamp;
-  }
 
   Track* track = &sequence_state.track;
   if (track_event.has_track_uuid()) {
@@ -174,19 +163,6 @@ void TrackEventStateTracker::UpdateIncrementalState(
   }
 #endif
 
-  perfetto::protos::pbzero::ClockSnapshot::Decoder snapshot(
-      packet.clock_snapshot());
-  for (auto it = snapshot.clocks(); it; ++it) {
-    perfetto::protos::pbzero::ClockSnapshot::Clock::Decoder clock(*it);
-    // TODO(mohitms) : Handle the incremental clock other than default one.
-    if (clock.is_incremental() &&
-        clock.clock_id() == TrackEventIncrementalState::kClockIdIncremental) {
-      sequence_state.most_recent_absolute_time_ns =
-          clock.timestamp() * clock.unit_multiplier_ns();
-      break;
-    }
-  }
-
   if (packet.sequence_flags() &
       perfetto::protos::pbzero::TracePacket::SEQ_INCREMENTAL_STATE_CLEARED) {
     // Convert any existing event names and categories on the stack to
@@ -232,8 +208,6 @@ void TrackEventStateTracker::UpdateIncrementalState(
       perfetto::protos::pbzero::TrackEventDefaults::Decoder
           track_event_defaults(defaults.track_event_defaults());
       sequence_state.track.uuid = track_event_defaults.track_uuid();
-      if (defaults.has_timestamp_clock_id())
-        sequence_state.default_clock_id = defaults.timestamp_clock_id();
     }
   }
   if (packet.has_track_descriptor()) {
