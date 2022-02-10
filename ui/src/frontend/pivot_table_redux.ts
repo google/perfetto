@@ -159,7 +159,7 @@ export class PivotTableRedux extends Panel {
 
     // Avoid rendering the intermediate results row if it has only one leaf
     // row.
-    if (!tree.isCollapsed && tree.rows.length > 1) {
+    if (!tree.isCollapsed && path.length > 0 && tree.rows.length > 1) {
       sink.push(this.renderSectionRow(path, tree, result));
     }
     for (const row of tree.rows) {
