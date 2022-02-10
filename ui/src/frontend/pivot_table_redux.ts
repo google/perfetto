@@ -181,6 +181,17 @@ export class PivotTableRedux extends Panel {
     }
   }
 
+  renderTotalsRow(queryResult: PivotTableReduxResult) {
+    const overallValuesRow =
+        [m('td.total-values',
+           {'colspan': queryResult.metadata.pivotColumns.length},
+           m('strong', 'Total values:'))];
+    for (const aggValue of queryResult.tree.aggregates) {
+      overallValuesRow.push(m('td', `${aggValue}`));
+    }
+    return m('tr', overallValuesRow);
+  }
+
   renderResultsTable() {
     const state = globals.state.pivotTableRedux;
     if (state.query !== null || state.queryResult === null) {
@@ -196,7 +207,7 @@ export class PivotTableRedux extends Panel {
     return m(
         'table.query-table.pivot-table',
         m('thead', m('tr', allColumns.map(column => m('td', column)))),
-        m('tbody', renderedRows));
+        m('tbody', this.renderTotalsRow(state.queryResult), renderedRows));
   }
 
   renderQuery(): m.Vnode {
