@@ -132,9 +132,11 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       irq_id_(context_->storage->InternString("irq")),
       tcp_state_id_(context_->storage->InternString("tcp_state")),
       tcp_event_id_(context_->storage->InternString("tcp_event")),
+      napi_gro_id_(context_->storage->InternString("napi_gro")),
       tcp_retransmited_name_id_(
           context_->storage->InternString("TCP Retransmit Skb")),
       ret_arg_id_(context_->storage->InternString("ret")),
+      len_arg_id_(context->storage->InternString("len")),
       direct_reclaim_nr_reclaimed_id_(
           context->storage->InternString("direct_reclaim_nr_reclaimed")),
       direct_reclaim_order_id_(
@@ -664,6 +666,14 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kTcpRetransmitSkbFieldNumber: {
         ParseTcpRetransmitSkb(ts, data);
+        break;
+      }
+      case FtraceEvent::kNapiGroReceiveEntryFieldNumber: {
+        ParseNapiGroReceiveEntry(cpu, ts, data);
+        break;
+      }
+      case FtraceEvent::kNapiGroReceiveExitFieldNumber: {
+        ParseNapiGroReceiveExit(cpu, ts, data);
         break;
       }
       default:
@@ -1724,12 +1734,10 @@ void FtraceParser::ParseNetDevXmit(uint32_t cpu,
   if (!id) {
     return;
   }
-  // Store cpu & len as args for metrics computation
-  StringId cpu_key = context_->storage->InternString("cpu");
-  StringId len_key = context_->storage->InternString("len");
+  // Store cpu & len as args for metrics computation.
   context_->args_tracker->AddArgsTo(*id)
-      .AddArg(cpu_key, Variadic::UnsignedInteger(cpu))
-      .AddArg(len_key, Variadic::UnsignedInteger(evt.len()));
+      .AddArg(cpu_id_, Variadic::UnsignedInteger(cpu))
+      .AddArg(len_arg_id_, Variadic::UnsignedInteger(evt.len()));
 }
 
 void FtraceParser::ParseInetSockSetState(int64_t timestamp,
@@ -1807,6 +1815,42 @@ void FtraceParser::ParseTcpRetransmitSkb(int64_t timestamp,
       context_->async_track_set_tracker->Scoped(async_track, timestamp, 0);
   context_->slice_tracker->Scoped(timestamp, track_id, tcp_event_id_,
                                   slice_name_id, 0);
+}
+
+void FtraceParser::ParseNapiGroReceiveEntry(uint32_t cpu,
+                                            int64_t timestamp,
+                                            protozero::ConstBytes blob) {
+  protos::pbzero::NapiGroReceiveEntryFtraceEvent::Decoder evt(blob.data,
+                                                              blob.size);
+  base::StackString<255> track_name("Napi Gro Cpu %d", cpu);
+  StringId track_name_id =
+      context_->storage->InternString(track_name.string_view());
+  base::StringView net_device = evt.name();
+  StringId slice_name_id = context_->storage->InternString(net_device);
+  TrackId track = context_->track_tracker->InternCpuTrack(track_name_id, cpu);
+  auto len = evt.len();
+  auto args_inserter = [this, len](ArgsTracker::BoundInserter* inserter) {
+    inserter->AddArg(len_arg_id_, Variadic::Integer(len));
+  };
+  context_->slice_tracker->Begin(timestamp, track, napi_gro_id_, slice_name_id,
+                                 args_inserter);
+}
+
+void FtraceParser::ParseNapiGroReceiveExit(uint32_t cpu,
+                                           int64_t timestamp,
+                                           protozero::ConstBytes blob) {
+  protos::pbzero::NapiGroReceiveExitFtraceEvent::Decoder evt(blob.data,
+                                                             blob.size);
+  base::StackString<255> track_name("Napi Gro Cpu %d", cpu);
+  StringId track_name_id =
+      context_->storage->InternString(track_name.string_view());
+  TrackId track = context_->track_tracker->InternCpuTrack(track_name_id, cpu);
+  auto ret = evt.ret();
+  auto args_inserter = [this, ret](ArgsTracker::BoundInserter* inserter) {
+    inserter->AddArg(ret_arg_id_, Variadic::Integer(ret));
+  };
+  context_->slice_tracker->End(timestamp, track, napi_gro_id_, {},
+                               args_inserter);
 }
 
 }  // namespace trace_processor

@@ -161,6 +161,12 @@ class FtraceParser {
                              uint32_t pid,
                              protozero::ConstBytes);
   void ParseTcpRetransmitSkb(int64_t timestamp, protozero::ConstBytes);
+  void ParseNapiGroReceiveEntry(uint32_t cpu,
+                                int64_t timestamp,
+                                protozero::ConstBytes);
+  void ParseNapiGroReceiveExit(uint32_t cpu,
+                               int64_t timestamp,
+                               protozero::ConstBytes);
 
   TraceProcessorContext* context_;
   RssStatTracker rss_stat_tracker_;
@@ -190,8 +196,10 @@ class FtraceParser {
   const StringId irq_id_;
   const StringId tcp_state_id_;
   const StringId tcp_event_id_;
+  const StringId napi_gro_id_;
   const StringId tcp_retransmited_name_id_;
   const StringId ret_arg_id_;
+  const StringId len_arg_id_;
   const StringId direct_reclaim_nr_reclaimed_id_;
   const StringId direct_reclaim_order_id_;
   const StringId direct_reclaim_may_writepage_id_;
