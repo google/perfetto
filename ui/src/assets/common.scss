@@ -720,6 +720,11 @@ button.query-ctrl {
   &.query-error {
     color: red;
   }
+
+  .total-values {
+    text-align: right;
+    padding-right: 10px;
+  }
 }
 
 .pivot-table-editor-container {
