@@ -1,19 +1,54 @@
 Unreleased:
   Tracing service and probes:
+    *
+  Trace Processor:
+    *
+  UI:
+    *
+  SDK:
+    *
+
+
+v24.1 - 2022-02-09:
+  Tracing service and probes:
+    * Fixed build failures on Windows.
+  Trace Processor:
+    * Fixed build failures on Windows.
+  UI:
+    *
+  SDK:
+    *
+
+
+v24.0 - 2022-02-08:
+  Tracing service and probes:
+    * Added "cpufreq_period_ms" in data source "linux.sys_stats" to poll
+      /sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq periodically.
+    * Added support for Trusty TEE workqueue events.
+    * Added support for more PMU events in traced_perf.
     * Changed output format of perfetto --query. Made the output more compact
       and added a summary of ongoing tracing sessions for the caller UID.
-    * Added "cpufreq_period_ms" in data source "linux.sys_stats" to poll
-      /sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq periodically for
-      current frequency of CPUs in kHz.
+    * Changed timeout for traced stall detection from 2s to 4s.
+    * Changed internal buffer management to split trace filtering in smaller
+      tasks and avoid too large memory allocation when filtering.
+    * Fixed a bug that could cause producers to see Flush() requests after an
+      OnStop() and mis-behave if the tracing session is extremely short.
   Trace Processor:
-    * Add support for multiple SQL statements to be passed to
-      TraceProcessor::ExecuteQuery. All queries will be executed fully, with
-      the returned iterator yielding rows for the final statement.
-    * Add support for multi-line SQL comments; previously only single line
+    * Added support for passing multiple SQL statements to ExecuteQuery(). All
+      queries will be executed fully, with the returned iterator yielding rows
+      for the final statement.
+    * Added support for multi-line SQL comments; previously only single line
       comments were supported.
   UI:
+    * Added support for parsing instant events from legacy systrace formats.
+    * Added ingestion and visualization for inet_sock_set_state and
+      tcp_retransmit_skb events, showing TCP connections on dedicated tracks.
     * Changed HTTP+RPC to use the /websocket endpoint available in newer
       versions of trace_processor --httpd.
+    * Changed text selection/copy: now allowed by default for DOM elements.
+    * Changed search to also lookup slices by ID when the term is a number.
+    * Changed postMessage() API, suppressed confirmation dialog when the opener
+      is in the same origin, for cases when the UI is self-hosted.
   SDK:
     *
 

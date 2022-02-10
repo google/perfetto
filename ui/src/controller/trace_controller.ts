@@ -78,8 +78,9 @@ import {
   PivotTableController,
   PivotTableControllerArgs
 } from './pivot_table_controller';
-import { QueryController, QueryControllerArgs } from './query_controller';
-import { SearchController } from './search_controller';
+import {PivotTableReduxController} from './pivot_table_redux_controller';
+import {QueryController, QueryControllerArgs} from './query_controller';
+import {SearchController} from './search_controller';
 import {
   SelectionController,
   SelectionControllerArgs
@@ -230,6 +231,8 @@ export class TraceController extends Controller<States> {
           engine,
           app: globals,
         }));
+        childControllers.push(
+            Child('pivot_table_redux', PivotTableReduxController, {engine}));
 
         childControllers.push(Child('logs', LogsController, {
           engine,
