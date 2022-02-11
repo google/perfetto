@@ -203,8 +203,7 @@ util::Status DecompressTrace(const uint8_t* data,
     for (auto ret = ResultCode::kOk; ret != ResultCode::kEof;) {
       auto res = decompressor.Decompress(out, base::ArraySize(out));
       ret = res.ret;
-      if (ret == ResultCode::kError || ret == ResultCode::kNoProgress ||
-          ret == ResultCode::kNeedsMoreInput) {
+      if (ret == ResultCode::kError || ret == ResultCode::kNeedsMoreInput) {
         return util::ErrStatus("Failed while decompressing stream");
       }
       output->insert(output->end(), out, out + res.bytes_written);
