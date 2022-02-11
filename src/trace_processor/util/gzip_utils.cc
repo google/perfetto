@@ -44,9 +44,7 @@ GzipDecompressor::GzipDecompressor() : z_stream_(new z_stream()) {
   z_stream_->zalloc = nullptr;
   z_stream_->zfree = nullptr;
   z_stream_->opaque = nullptr;
-  // TODO(mohitms): Should we instead use `32 + MAX_WBITS` here to make
-  // it more readable ?
-  inflateInit2(z_stream_.get(), 32 + 15);
+  inflateInit2(z_stream_.get(), 32 + MAX_WBITS);
 }
 
 GzipDecompressor::~GzipDecompressor() {
@@ -84,7 +82,7 @@ GzipDecompressor::Result GzipDecompressor::Decompress(uint8_t* out,
     case Z_STREAM_END:
       return Result{ResultCode::kEof, out_size - z_stream_->avail_out};
     case Z_BUF_ERROR:
-      return Result{ResultCode::kNoProgress, 0};
+      return Result{ResultCode::kNeedsMoreInput, 0};
     default:
       return Result{ResultCode::kOk, out_size - z_stream_->avail_out};
   }
