@@ -41,8 +41,7 @@ util::Status ProtoTraceTokenizer::Decompress(TraceBlobView input,
   for (auto ret = ResultCode::kOk; ret != ResultCode::kEof;) {
     auto res = decompressor_.Decompress(zbuf, base::ArraySize(zbuf));
     ret = res.ret;
-    if (ret == ResultCode::kError || ret == ResultCode::kNoProgress ||
-        ret == ResultCode::kNeedsMoreInput) {
+    if (ret == ResultCode::kError || ret == ResultCode::kNeedsMoreInput) {
       return util::ErrStatus("Failed to decompress (error code: %d)",
                              static_cast<int>(ret));
     }
