@@ -1,4 +1,8 @@
-import {PivotTableReduxQuery} from '../common/state';
+import {Area, PivotTableReduxQuery} from '../common/state';
+import {toNs} from '../common/time';
+import {
+  getSelectedTrackIds
+} from '../controller/aggregation/slice_aggregation_controller';
 
 export interface Table {
   name: string;
@@ -90,7 +94,9 @@ function generateInnerQuery(
     pivots: string[],
     aggregations: string[],
     table: string,
-    includeTrack: boolean): string {
+    includeTrack: boolean,
+    area: Area,
+    constrainToArea: boolean): string {
   const pivotColumns = pivots.concat(includeTrack ? ['track_id'] : []);
   const aggregationColumns: string[] = [];
 
@@ -99,10 +105,20 @@ function generateInnerQuery(
     aggregationColumns.push(`SUM(${agg}) as ${aggregationAlias(i, 0)}`);
   }
 
+  // The condition is inverted because flipped order of literals makes JS
+  // formatter insert huge amounts of whitespace for no good reason.
+  const filter = !constrainToArea ? '' : `
+    where
+      ts > ${toNs(area.startSec)}
+      and ts < ${toNs(area.endSec)}
+      and track_id in (${getSelectedTrackIds(area).join(', ')})
+  `;
+
   return `
     select
       ${pivotColumns.concat(aggregationColumns).join(',\n')}
     from ${table}
+    ${filter}
     group by ${pivotColumns.join(', ')}
   `;
 }
@@ -138,7 +154,9 @@ export function aggregationIndex(
 
 export function generateQuery(
     selectedPivots: ColumnSet,
-    selectedAggregations: ColumnSet): PivotTableReduxQuery {
+    selectedAggregations: ColumnSet,
+    area: Area,
+    constrainToArea: boolean): PivotTableReduxQuery {
   const sliceTableAggregations =
       computeSliceTableAggregations(selectedAggregations);
   const slicePivots: string[] = [];
@@ -203,7 +221,9 @@ export function generateQuery(
           slicePivots,
           sliceTableAggregations.flatAggregations,
           sliceTableAggregations.tableName,
-          nonSlicePivots.length > 0)}
+          nonSlicePivots.length > 0,
+          area,
+          constrainToArea)}
     ) preaggregated
     ${nonSlicePivots.length > 0 ? joins : ''}
     group by ${nonSlicePivots.concat(prefixedSlicePivots).join(', ')}
