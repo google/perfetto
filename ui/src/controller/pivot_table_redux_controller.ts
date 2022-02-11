@@ -2,6 +2,7 @@ import {Actions} from '../common/actions';
 import {Engine} from '../common/engine';
 import {featureFlags} from '../common/feature_flags';
 import {ColumnType} from '../common/query_result';
+import {PivotTableReduxResult} from '../common/state';
 import {aggregationIndex} from '../frontend/pivot_table_redux_query_generator';
 
 import {Controller} from './controller';
@@ -98,6 +99,22 @@ class TreeBuilder {
   }
 }
 
+function createEmptyQueryResult(): PivotTableReduxResult {
+  return {
+    tree: {
+      aggregates: [],
+      isCollapsed: false,
+      children: new Map(),
+      rows: [],
+    },
+    metadata: {
+      pivotColumns: [],
+      aggregationColumns: [],
+    }
+  };
+}
+
+
 // Controller responsible for showing the panel with pivot table, as well as
 // executing its queries and post-processing query results.
 export class PivotTableReduxController extends Controller<{}> {
@@ -114,9 +131,6 @@ export class PivotTableReduxController extends Controller<{}> {
     if (!PIVOT_TABLE_REDUX_FLAG.get()) {
       return;
     }
-
-    const selection = globals.state.currentSelection;
-    const hasSelection = selection !== null;
 
     const pivotTableState = globals.state.pivotTableRedux;
     if (pivotTableState.queryId > this.lastStartedQueryId &&
@@ -143,6 +157,21 @@ export class PivotTableReduxController extends Controller<{}> {
           it.next();
           return row;
         }
+
+        if (!it.valid()) {
+          // Iterator is invalid after creation; means that there are no rows
+          // satisfying filtering criteria. Return an empty tree.
+          globals.dispatch(Actions.setPivotStateReduxState({
+            pivotTableState: {
+              queryId: this.lastStartedQueryId,
+              query: null,
+              queryResult: createEmptyQueryResult(),
+              selectionArea: pivotTableState.selectionArea
+            }
+          }));
+          return;
+        }
+
         const treeBuilder = new TreeBuilder(
             query.metadata.pivotColumns.length,
             query.metadata.aggregationColumns.length,
@@ -159,12 +188,19 @@ export class PivotTableReduxController extends Controller<{}> {
               tree: treeBuilder.build(),
               metadata: query.metadata,
             },
-            enabled: true
+            selectionArea: pivotTableState.selectionArea
           }
         }));
       });
     }
 
-    globals.dispatch(Actions.togglePivotTableRedux({enabled: hasSelection}));
+    const selection = globals.state.currentSelection;
+    if (selection !== null && selection.kind === 'AREA') {
+      const enabledArea = globals.state.areas[selection.areaId];
+      globals.dispatch(
+          Actions.togglePivotTableRedux({selectionArea: enabledArea}));
+    } else {
+      globals.dispatch(Actions.togglePivotTableRedux({selectionArea: null}));
+    }
   }
 }
