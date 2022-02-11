@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<MessageDescriptor, 364> descriptors{{
+std::array<MessageDescriptor, 365> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -3876,6 +3876,22 @@ std::array<MessageDescriptor, 364> descriptors{{
         },
     },
     {
+        "inet_sock_set_state",
+        9,
+        {
+            {},
+            {"daddr", ProtoSchemaType::kUint32},
+            {"dport", ProtoSchemaType::kUint32},
+            {"family", ProtoSchemaType::kUint32},
+            {"newstate", ProtoSchemaType::kInt32},
+            {"oldstate", ProtoSchemaType::kInt32},
+            {"protocol", ProtoSchemaType::kUint32},
+            {"saddr", ProtoSchemaType::kUint32},
+            {"skaddr", ProtoSchemaType::kUint64},
+            {"sport", ProtoSchemaType::kUint32},
+        },
+    },
+    {
         "tcp_retransmit_skb",
         7,
         {
@@ -3890,19 +3906,16 @@ std::array<MessageDescriptor, 364> descriptors{{
         },
     },
     {
-        "inet_sock_set_state",
-        9,
+        "cros_ec_sensorhub_data",
+        6,
         {
             {},
-            {"daddr", ProtoSchemaType::kUint32},
-            {"dport", ProtoSchemaType::kUint32},
-            {"family", ProtoSchemaType::kUint32},
-            {"newstate", ProtoSchemaType::kInt32},
-            {"oldstate", ProtoSchemaType::kInt32},
-            {"protocol", ProtoSchemaType::kUint32},
-            {"saddr", ProtoSchemaType::kUint32},
-            {"skaddr", ProtoSchemaType::kUint64},
-            {"sport", ProtoSchemaType::kUint32},
+            {"current_time", ProtoSchemaType::kInt64},
+            {"current_timestamp", ProtoSchemaType::kInt64},
+            {"delta", ProtoSchemaType::kInt64},
+            {"ec_fifo_timestamp", ProtoSchemaType::kUint32},
+            {"ec_sensor_num", ProtoSchemaType::kUint32},
+            {"fifo_timestamp", ProtoSchemaType::kInt64},
         },
     },
 }};

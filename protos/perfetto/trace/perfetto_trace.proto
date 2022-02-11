@@ -3544,6 +3544,19 @@ message CpuhpPauseFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/cpuhp.proto
 
+// Begin of protos/perfetto/trace/ftrace/cros_ec.proto
+
+message CrosEcSensorhubDataFtraceEvent {
+  optional int64 current_time = 1;
+  optional int64 current_timestamp = 2;
+  optional int64 delta = 3;
+  optional uint32 ec_fifo_timestamp = 4;
+  optional uint32 ec_sensor_num = 5;
+  optional int64 fifo_timestamp = 6;
+}
+
+// End of protos/perfetto/trace/ftrace/cros_ec.proto
+
 // Begin of protos/perfetto/trace/ftrace/dmabuf_heap.proto
 
 message DmaHeapStatFtraceEvent {
@@ -5932,6 +5945,7 @@ message FtraceEvent {
     NetDevXmitFtraceEvent net_dev_xmit = 361;
     InetSockSetStateFtraceEvent inet_sock_set_state = 362;
     TcpRetransmitSkbFtraceEvent tcp_retransmit_skb = 363;
+    CrosEcSensorhubDataFtraceEvent cros_ec_sensorhub_data = 364;
   }
 }
 
