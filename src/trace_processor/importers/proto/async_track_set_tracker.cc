@@ -133,8 +133,10 @@ TrackId AsyncTrackSetTracker::Scoped(TrackSetId id, int64_t ts, int64_t dur) {
         return state.slice_type == TrackState::SliceType::kTimestamp &&
                state.ts_end <= ts;
       });
-  if (it != set.tracks.end())
+  if (it != set.tracks.end()) {
+    it->ts_end = ts + dur;
     return it->id;
+  }
 
   TrackState state;
   state.slice_type = TrackState::SliceType::kTimestamp;
