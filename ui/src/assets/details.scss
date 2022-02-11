@@ -21,6 +21,9 @@
     border: 1px solid rgba(0,0,0,0.1);
     border-bottom: none;
     cursor: row-resize;
+    // Disable user selection since this handle is draggable to resize the
+    // bottom panels.
+    user-select: none;
     height: 28px;
     min-height: 28px;
     display: grid;
