@@ -103,7 +103,7 @@ TEST(ReadTraceIntegrationTest, DoubleGzipDecompressTrace) {
   std::vector<uint8_t> decompressed;
   util::Status status = trace_processor::DecompressTrace(
       raw_compressed_trace.data(), raw_compressed_trace.size(), &decompressed);
-  ASSERT_TRUE(status.ok());
+  ASSERT_TRUE(status.ok()) << status.message();
 
   protos::pbzero::Trace::Decoder decoder(decompressed.data(),
                                          decompressed.size());

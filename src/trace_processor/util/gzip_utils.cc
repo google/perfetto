@@ -55,7 +55,7 @@ void GzipDecompressor::Reset() {
   inflateReset(z_stream_.get());
 }
 
-void GzipDecompressor::SetInput(const uint8_t* data, size_t size) {
+void GzipDecompressor::Feed(const uint8_t* data, size_t size) {
   // This const_cast is not harmfull as zlib will not modify the data in this
   // pointer. This is only necessary because of the build flags we use to be
   // compatible with other embedders.
@@ -63,8 +63,8 @@ void GzipDecompressor::SetInput(const uint8_t* data, size_t size) {
   z_stream_->avail_in = static_cast<uInt>(size);
 }
 
-GzipDecompressor::Result GzipDecompressor::Decompress(uint8_t* out,
-                                                      size_t out_size) {
+GzipDecompressor::Result GzipDecompressor::ExtractOutput(uint8_t* out,
+                                                         size_t out_size) {
   if (z_stream_->avail_in == 0)
     return Result{ResultCode::kNeedsMoreInput, 0};
 
