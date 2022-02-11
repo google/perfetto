@@ -29,26 +29,32 @@ namespace util {
 // build flags.
 bool IsGzipSupported();
 
-// Usage: To decompress in a streaming way, feed the sequence of mem-blocks,
-// one by one, by calling 'SetInput'. For each time 'SetInput' is called,
-// client should call 'Decompress' again and again to extrat the partially
-// available output, until there in no more output to extract.
+// Usage: To decompress in a streaming way, there are two ways of using it:
+// 1. [Commonly used] - Feed the sequence of mem-blocks in 'FeedAndExtract' one
+//    by one. Output will be produced in given output_consumer, which is simply
+//    a callback. On each 'FeedAndExtract', output_consumer could get invoked
+//    any number of times, based on how much partial output is available.
+
+// 2. [Uncommon ; Discouraged] - Feed the sequence of mem-blocks one by one, by
+//    calling 'Feed'. For each time 'Feed' is called, client should call
+//    'ExtractOutput' again and again to extrat the partially available output,
+//    until there in no more output to extract. Also see 'ResultCode' enum.
 class GzipDecompressor {
  public:
   enum class ResultCode {
     // 'kOk' means nothing bad happened so far, but continue doing what you
     // were doing.
     kOk,
-    // While calling 'Decompress' repeatedly, if we get 'kEof', it means
+    // While calling 'ExtractOutput' repeatedly, if we get 'kEof', it means
     // we have extracted all the partially available data and we are also
     // done, i.e. there is no need to feed more input.
     kEof,
     // Some error. Possibly invalid compressed stream or corrupted data.
     kError,
-    // While calling 'Decompress' repeatedly, if we get 'kNeedsMoreInput',
+    // While calling 'ExtractOutput' repeatedly, if we get 'kNeedsMoreInput',
     // it means we have extracted all the partially available data, but we are
-    // not done yet. We need to call the 'SetInput' to feed the next input
-    // mem-block and go through the Decompress loop again.
+    // not done yet. We need to call the 'Feed' to feed the next input
+    // mem-block and go through the ExtractOutput loop again.
     kNeedsMoreInput,
   };
   struct Result {
@@ -66,12 +72,31 @@ class GzipDecompressor {
   GzipDecompressor& operator=(const GzipDecompressor&) = delete;
 
   // Feed the next mem-block.
-  void SetInput(const uint8_t* data, size_t size);
+  void Feed(const uint8_t* data, size_t size);
 
-  // Extract the newly available partial output. On each 'SetInput', this method
+  // Feed the next mem-block and extract output in the callback consumer.
+  // callback can get invoked multiple times if there are multiple
+  // mem-blocks to output.
+  template <typename Callback = void(const uint8_t* ptr, size_t size)>
+  ResultCode FeedAndExtract(const uint8_t* data,
+                            size_t size,
+                            const Callback& output_consumer) {
+    Feed(data, size);
+    uint8_t buffer[4096];
+    Result result;
+    do {
+      result = ExtractOutput(buffer, sizeof(buffer));
+      if (result.ret != ResultCode::kError && result.bytes_written > 0) {
+        output_consumer(buffer, result.bytes_written);
+      }
+    } while (result.ret == ResultCode::kOk);
+    return result.ret;
+  }
+
+  // Extract the newly available partial output. On each 'Feed', this method
   // should be called repeatedly until there is no more data to output
   // i.e. (either 'kEof' or 'kNeedsMoreInput').
-  Result Decompress(uint8_t* out, size_t out_size);
+  Result ExtractOutput(uint8_t* out, size_t out_capacity);
 
   // Sets the state of the decompressor to reuse with other gzip streams.
   // This is almost like constructing a new 'GzipDecompressor' object
