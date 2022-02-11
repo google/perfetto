@@ -917,8 +917,8 @@ export const StateActions = {
     }
   },
 
-  togglePivotTableRedux(state: StateDraft, args: {enabled: boolean}) {
-    state.pivotTableRedux.enabled = args.enabled;
+  togglePivotTableRedux(state: StateDraft, args: {selectionArea: Area|null}) {
+    state.pivotTableRedux.selectionArea = args.selectionArea;
   },
 
   addNewPivotTable(state: StateDraft, args: {

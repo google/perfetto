@@ -57,26 +57,31 @@ function addPivotTableOnAreaSelection(
       {pivotTableId: SLICE_AGGREGATION_PIVOT_TABLE_ID, action: 'QUERY'}));
 }
 
+export function getSelectedTrackIds(area: Area): number[] {
+  const selectedTrackIds = [];
+  for (const trackId of area.tracks) {
+    const track = globals.state.tracks[trackId];
+    // Track will be undefined for track groups.
+    if (track !== undefined) {
+      if (track.kind === SLICE_TRACK_KIND) {
+        selectedTrackIds.push((track.config as SliceConfig).trackId);
+      }
+      if (track.kind === ASYNC_SLICE_TRACK_KIND) {
+        const config = track.config as AsyncSliceConfig;
+        for (const id of config.trackIds) {
+          selectedTrackIds.push(id);
+        }
+      }
+    }
+  }
+  return selectedTrackIds;
+}
+
 export class SliceAggregationController extends AggregationController {
   async createAggregateView(engine: Engine, area: Area) {
     await engine.query(`drop view if exists ${this.kind};`);
 
-    const selectedTrackIds = [];
-    for (const trackId of area.tracks) {
-      const track = globals.state.tracks[trackId];
-      // Track will be undefined for track groups.
-      if (track !== undefined) {
-        if (track.kind === SLICE_TRACK_KIND) {
-          selectedTrackIds.push((track.config as SliceConfig).trackId);
-        }
-        if (track.kind === ASYNC_SLICE_TRACK_KIND) {
-          const config = track.config as AsyncSliceConfig;
-          for (const id of config.trackIds) {
-            selectedTrackIds.push(id);
-          }
-        }
-      }
-    }
+    const selectedTrackIds = getSelectedTrackIds(area);
 
     if (selectedTrackIds.length === 0) return false;
 
