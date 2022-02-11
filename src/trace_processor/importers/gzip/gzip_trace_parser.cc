@@ -87,7 +87,7 @@ util::Status GzipTraceParser::ParseUnowned(const uint8_t* data, size_t size) {
         decompressor_.Decompress(buffer_.get() + bytes_written_,
                                  kUncompressedBufferSize - bytes_written_);
     ret = result.ret;
-    if (ret == ResultCode::kError || ret == ResultCode::kNoProgress)
+    if (ret == ResultCode::kError)
       return util::ErrStatus("Failed to decompress trace chunk");
 
     if (ret == ResultCode::kNeedsMoreInput) {
