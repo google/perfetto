@@ -95,7 +95,7 @@ class TrackTracker {
                                 StringId description = StringId::Null(),
                                 StringId unit = StringId::Null());
 
-  // Creaates a counter track for values within perf samples.
+  // Creates a counter track for values within perf samples.
   // The tracks themselves are managed by PerfSampleTracker.
   TrackId CreatePerfCounterTrack(StringId name,
                                  uint32_t perf_session_id,
