@@ -38,46 +38,33 @@ bool IsGzipSupported() {
 #endif
 }
 
-#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
+#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)  // Real Implementation
+
 GzipDecompressor::GzipDecompressor() : z_stream_(new z_stream()) {
   z_stream_->zalloc = nullptr;
   z_stream_->zfree = nullptr;
   z_stream_->opaque = nullptr;
-  inflateInit2(z_stream_.get(), 32 + 15);
+  inflateInit2(z_stream_.get(), 32 + MAX_WBITS);
 }
-#else
-GzipDecompressor::GzipDecompressor() = default;
-#endif
 
 GzipDecompressor::~GzipDecompressor() {
-#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
-  // Ensure the call to inflateEnd to prevent leaks of internal state.
   inflateEnd(z_stream_.get());
-#endif
 }
 
 void GzipDecompressor::Reset() {
-#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
   inflateReset(z_stream_.get());
-#endif
 }
 
-void GzipDecompressor::SetInput(const uint8_t* data, size_t size) {
-#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
+void GzipDecompressor::Feed(const uint8_t* data, size_t size) {
   // This const_cast is not harmfull as zlib will not modify the data in this
   // pointer. This is only necessary because of the build flags we use to be
   // compatible with other embedders.
   z_stream_->next_in = const_cast<uint8_t*>(data);
   z_stream_->avail_in = static_cast<uInt>(size);
-#else
-  base::ignore_result(data);
-  base::ignore_result(size);
-#endif
 }
 
-GzipDecompressor::Result GzipDecompressor::Decompress(uint8_t* out,
-                                                      size_t out_size) {
-#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
+GzipDecompressor::Result GzipDecompressor::ExtractOutput(uint8_t* out,
+                                                         size_t out_size) {
   if (z_stream_->avail_in == 0)
     return Result{ResultCode::kNeedsMoreInput, 0};
 
@@ -95,16 +82,23 @@ GzipDecompressor::Result GzipDecompressor::Decompress(uint8_t* out,
     case Z_STREAM_END:
       return Result{ResultCode::kEof, out_size - z_stream_->avail_out};
     case Z_BUF_ERROR:
-      return Result{ResultCode::kNoProgress, 0};
+      return Result{ResultCode::kNeedsMoreInput, 0};
     default:
       return Result{ResultCode::kOk, out_size - z_stream_->avail_out};
   }
-#else
-  base::ignore_result(out);
-  base::ignore_result(out_size);
-  return Result{ResultCode::kError, 0};
-#endif
 }
+
+#else  // Dummy Implementation
+
+GzipDecompressor::GzipDecompressor() = default;
+GzipDecompressor::~GzipDecompressor() = default;
+void GzipDecompressor::Reset() {}
+void GzipDecompressor::SetInput(const uint8_t*, size_t) {}
+GzipDecompressor::Result GzipDecompressor::Decompress(uint8_t*, size_t) {
+  Result{ResultCode::kError, 0};
+}
+
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 
 }  // namespace util
 }  // namespace trace_processor
