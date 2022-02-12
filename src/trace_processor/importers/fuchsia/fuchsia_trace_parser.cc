@@ -262,14 +262,8 @@ void FuchsiaTraceParser::ParseTracePacket(int64_t, TimestampedTracePiece ttp) {
           UniqueTid utid =
               procs->UpdateThread(static_cast<uint32_t>(tinfo.tid),
                                   static_cast<uint32_t>(tinfo.pid));
-          InstantId id = context_->event_tracker->PushInstant(
-              ts, name, utid, RefType::kRefUtid);
-          auto inserter = context_->args_tracker->AddArgsTo(id);
-          for (const Arg& arg : args) {
-            inserter.AddArg(
-                arg.name, arg.value.ToStorageVariadic(context_->storage.get()));
-          }
-          context_->args_tracker->Flush();
+          TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+          slices->Scoped(ts, track_id, cat, name, 0, insert_args);
           break;
         }
         case kCounter: {
@@ -379,9 +373,6 @@ void FuchsiaTraceParser::ParseTracePacket(int64_t, TimestampedTracePiece ttp) {
           break;
         }
         case kAsyncInstant: {
-          // TODO(eseckler): Consider storing these instants as 0-duration
-          // slices instead, so that they get nested underneath begin/end
-          // slices.
           int64_t correlation_id;
           if (!cursor.ReadInt64(&correlation_id)) {
             context_->storage->IncrementStats(stats::fuchsia_invalid_event);
@@ -391,15 +382,7 @@ void FuchsiaTraceParser::ParseTracePacket(int64_t, TimestampedTracePiece ttp) {
               procs->GetOrCreateProcess(static_cast<uint32_t>(tinfo.pid));
           TrackId track_id = context_->track_tracker->InternFuchsiaAsyncTrack(
               name, upid, correlation_id);
-          InstantId id = context_->event_tracker->PushInstant(
-              ts, name, track_id.value, RefType::kRefTrack);
-          auto inserter = context_->args_tracker->AddArgsTo(id);
-          for (const Arg& arg : args) {
-            inserter.AddArg(
-                arg.name, arg.name,
-                arg.value.ToStorageVariadic(context_->storage.get()));
-          }
-          context_->args_tracker->Flush();
+          slices->Scoped(ts, track_id, cat, name, 0, insert_args);
           break;
         }
         case kAsyncEnd: {
