@@ -15,7 +15,8 @@
 --
 select
   ts,
-  name,
-  value
-from instants
+  name
+from slice
+where
+  dur = 0
 limit 10;
