@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import subprocess
 import time
 from urllib import request, error
@@ -30,10 +31,15 @@ def load_shell(bin_path: str, unique_port: bool, verbose: bool,
   url = f'{addr}:{str(port)}'
 
   shell_path = platform_delegate.get_shell_path(bin_path=bin_path)
-  p = subprocess.Popen([shell_path, '-D', '--http-port',
-                        str(port)],
-                       stdout=subprocess.DEVNULL,
-                       stderr=None if verbose else subprocess.DEVNULL)
+  if os.name == 'nt' and not shell_path.endswith('.exe'):
+    tp_exec = ['python3', shell_path]
+  else:
+    tp_exec = [shell_path]
+
+  p = subprocess.Popen(
+      tp_exec + ['-D', '--http-port', str(port)],
+      stdout=subprocess.DEVNULL,
+      stderr=None if verbose else subprocess.DEVNULL)
 
   while True:
     try:
