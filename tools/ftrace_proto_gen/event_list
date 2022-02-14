@@ -359,3 +359,5 @@ net/net_dev_xmit
 sock/inet_sock_set_state
 tcp/tcp_retransmit_skb
 cros_ec/cros_ec_sensorhub_data
+net/napi_gro_receive_entry
+net/napi_gro_receive_exit

@@ -1,0 +1,75 @@
+packet {
+  ftrace_events {
+    cpu: 2
+    event {
+      timestamp: 10000
+      pid: 200
+      napi_gro_receive_entry {
+        name: "rmnet0"
+        len: 1000
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 2
+    event {
+      timestamp: 10020
+      pid: 300
+      napi_gro_receive_exit {
+        ret: 2
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 2
+    event {
+      timestamp: 20000
+      pid: 200
+      napi_gro_receive_entry {
+        name: "rmnet0"
+        len: 1000
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 2
+    event {
+      timestamp: 20020
+      pid: 300
+      napi_gro_receive_exit {
+        ret: 1
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 4
+    event {
+      timestamp: 30000
+      pid: 200
+      napi_gro_receive_entry {
+        name: "wlan"
+        len: 500
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 4
+    event {
+      timestamp: 30020
+      pid: 300
+      napi_gro_receive_exit {
+        ret: 3
+      }
+    }
+  }
+}
