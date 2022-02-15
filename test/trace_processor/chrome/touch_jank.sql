@@ -20,5 +20,6 @@ SELECT
   trace_id,
   jank,
   ts,
-  dur
+  dur,
+  jank_budget
 FROM touch_jank;
