@@ -8431,6 +8431,7 @@ filegroup {
         "src/trace_processor/dynamic/experimental_slice_layout_generator_unittest.cc",
         "src/trace_processor/dynamic/thread_state_generator_unittest.cc",
         "src/trace_processor/forwarding_trace_parser_unittest.cc",
+        "src/trace_processor/importers/ftrace/binder_tracker_unittest.cc",
         "src/trace_processor/importers/ftrace/sched_event_tracker_unittest.cc",
         "src/trace_processor/importers/fuchsia/fuchsia_trace_utils_unittest.cc",
         "src/trace_processor/importers/memory_tracker/graph_processor_unittest.cc",
