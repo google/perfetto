@@ -4,7 +4,8 @@ Unreleased:
   Trace Processor:
     *
   UI:
-    *
+    * Added flow arrows between binder transaction pairs (request/reply
+      and async send/async recv).
   SDK:
     *
 
