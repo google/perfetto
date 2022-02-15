@@ -310,6 +310,7 @@ class GnParser(object):
       # This is typically: 'proto', 'protozero', 'ipc'.
       self.proto_plugin = None
       self.proto_paths = set()
+      self.proto_exports = set()
 
       self.sources = set()
       # TODO(primiano): consider whether the public section should be part of
@@ -401,6 +402,7 @@ class GnParser(object):
       target.type = 'proto_library'
       target.proto_plugin = proto_target_type
       target.proto_paths.update(self.get_proto_paths(proto_desc))
+      target.proto_exports.update(self.get_proto_exports(proto_desc))
       target.sources.update(proto_desc.get('sources', []))
       assert (all(x.endswith('.proto') for x in target.sources))
     elif target.type == 'source_set':
@@ -459,22 +461,15 @@ class GnParser(object):
 
     return target
 
+  def get_proto_exports(self, proto_desc):
+    # exports in metadata will be available for source_set targets.
+    metadata = proto_desc.get('metadata', {})
+    return metadata.get('exports', [])
+
   def get_proto_paths(self, proto_desc):
     # import_dirs in metadata will be available for source_set targets.
     metadata = proto_desc.get('metadata', {})
-    import_dirs = metadata.get('import_dirs', [])
-    if import_dirs:
-      return import_dirs
-
-    # For all non-source-set targets, we need to parse the command line
-    # of the protoc invocation.
-    proto_paths = []
-    args = proto_desc.get('args', [])
-    for i, arg in enumerate(args):
-      if arg != '--proto_path':
-        continue
-      proto_paths.append(re.sub('^../../', '//', args[i + 1]))
-    return proto_paths
+    return metadata.get('import_dirs', [])
 
   def get_proto_target_type(self, target):
     """ Checks if the target is a proto library and return the plugin.
@@ -497,7 +492,7 @@ class GnParser(object):
       return 'descriptor', desc
 
     # Source set proto targets have a non-empty proto_library_sources in the
-    # metadata of the descirption.
+    # metadata of the description.
     metadata = desc.get('metadata', {})
     if 'proto_library_sources' in metadata:
       return 'source_set', desc
