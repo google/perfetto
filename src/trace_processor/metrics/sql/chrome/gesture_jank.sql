@@ -221,7 +221,7 @@ CREATE TABLE {{prefix}}_jank_maybe_null_prev_and_next_without_precompute AS
 -- rate more than 1 FPS (and therefore VSync interval less than a second), this
 -- ratio should increase with increments more than minimal value in numerator
 -- (1ns) divided by maximum value in denominator, giving 1e-9.
--- Note: Logic is inside the isJankyFrame function found in jank_utilities.sql.
+-- Note: Logic is inside the IsJankyFrame function found in jank_utilities.sql.
 DROP VIEW IF EXISTS {{prefix}}_jank_maybe_null_prev_and_next;
 CREATE VIEW {{prefix}}_jank_maybe_null_prev_and_next AS
   SELECT
@@ -237,6 +237,15 @@ CREATE VIEW {{prefix}}_jank_maybe_null_prev_and_next AS
 
 -- This just uses prev_jank and next_jank to see if each "update" event is a
 -- jank.
+--
+-- JankBudget is the time in ns that we need to reduce the current
+-- gesture (|id|) for this frame not to be considered janky (i.e., how much
+-- faster for IsJankyFrame() to have not returned true).
+--
+-- For JankBudget we use the frames_exact of current, previous and next to find
+-- the jank budget in exact frame count. We then multiply by avg_vsync_internal
+-- to get the jank budget time.
+-- Note: Logic is inside the JankBudget function found in jank_utilities.sql.
 DROP VIEW IF EXISTS {{prefix}}_jank;
 CREATE VIEW {{prefix}}_jank AS
   SELECT
@@ -244,6 +253,8 @@ CREATE VIEW {{prefix}}_jank AS
     (next_jank IS NOT NULL AND next_jank) OR
     (prev_jank IS NOT NULL AND prev_jank)
     AS jank,
+    JankBudget(gesture_frames_exact, prev_gesture_frames_exact,
+      next_gesture_frames_exact) * avg_vsync_interval AS jank_budget,
     *
   FROM {{prefix}}_jank_maybe_null_prev_and_next
   ORDER BY {{id_field}} ASC, ts ASC;
@@ -274,6 +285,9 @@ CREATE VIEW {{prefix}}_jank_output AS
         SELECT CAST(SUM(dur)/1e6 AS REAL) FROM {{prefix}}_jank WHERE jank
       ),
       'num_{{prefix}}_update_count', COUNT(*),
-      'num_{{prefix}}_update_jank_count', SUM(jank)
+      'num_{{prefix}}_update_jank_count', SUM(jank),
+      '{{prefix}}_jank_budget_ms', (
+        SELECT CAST(SUM(jank_budget) AS REAL) FROM {{prefix}}_jank WHERE jank
+      )
     )
   FROM {{prefix}}_jank;
