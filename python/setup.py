@@ -2,10 +2,13 @@ from distutils.core import setup
 
 setup(
     name='perfetto',
-    packages=['perfetto', 'perfetto.trace_processor'],
+    packages=[
+        'perfetto', 'perfetto.batch_trace_processor',
+        'perfetto.trace_processor', 'perfetto.trace_uri_resolver'
+    ],
     package_data={'perfetto.trace_processor': ['*.descriptor']},
     include_package_data=True,
-    version='0.3.0',
+    version='0.4.0',
     license='apache-2.0',
     description='Python API for Perfetto\'s Trace Processor',
     author='Perfetto',
