@@ -153,8 +153,8 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
   } else if (line.event_name == "binder_transaction") {
     auto id = base::StringToInt32(args["transaction"]);
     auto dest_node = base::StringToInt32(args["dest_node"]);
-    auto dest_tgid = base::StringToInt32(args["dest_proc"]);
-    auto dest_tid = base::StringToInt32(args["dest_thread"]);
+    auto dest_tgid = base::StringToUInt32(args["dest_proc"]);
+    auto dest_tid = base::StringToUInt32(args["dest_thread"]);
     auto is_reply = base::StringToInt32(args["reply"]).value() == 1;
     auto flags_str = args["flags"];
     char* end;
