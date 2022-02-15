@@ -25,6 +25,18 @@ packet {
       }
     }
     event {
+      timestamp: 100090000
+      pid: 234
+      tcp_retransmit_skb {
+        daddr: 19216801
+        saddr: 127001
+        dport: 5001
+        sport: 56789
+        state: 1
+        skaddr: 77889900
+      }
+    }
+    event {
       timestamp: 100100000
       pid: 200
       net_dev_xmit {

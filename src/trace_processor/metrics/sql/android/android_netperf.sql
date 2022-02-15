@@ -47,6 +47,16 @@ CREATE VIEW net_devices AS
  SELECT DISTINCT dev
  FROM rx_packets;
 
+DROP VIEW IF EXISTS tcp_retransmitted_count;
+CREATE VIEW tcp_retransmitted_count AS
+  SELECT
+     COUNT(1) AS cnt
+  FROM slice s
+  LEFT JOIN track t
+    ON s.track_id = t.id
+  WHERE
+    t.name = "TCP Retransmit Skb";
+
 DROP VIEW IF EXISTS device_per_core_ingress_traffic;
 CREATE VIEW device_per_core_ingress_traffic AS
   SELECT
@@ -241,6 +251,11 @@ CREATE VIEW android_netperf_output AS
            runtime/total_packet/1e6
          FROM total_net_rx_action_statistic
        )
+    ),
+    'retransmission_rate', (
+      SELECT
+        (SELECT cnt FROM tcp_retransmitted_count) * 100.0 / COUNT(1)
+      FROM tx_packets
     )
   );
 
