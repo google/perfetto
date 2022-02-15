@@ -394,6 +394,7 @@ perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
     "forwarding_trace_parser_unittest.cc",
+    "importers/ftrace/binder_tracker_unittest.cc",
     "importers/ftrace/sched_event_tracker_unittest.cc",
     "importers/fuchsia/fuchsia_trace_utils_unittest.cc",
     "importers/memory_tracker/graph_processor_unittest.cc",
