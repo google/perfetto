@@ -1005,7 +1005,7 @@ perfetto_filegroup(
 perfetto_cc_proto_descriptor(
     name = "src_trace_processor_importers_gen_cc_chrome_track_event_descriptor",
     deps = [
-        ":protos_third_party_chromium_chrome_track_event_descriptor",
+        ":protos_third_party_chromium_descriptor",
     ],
     outs = [
         "src/trace_processor/importers/chrome_track_event.descriptor.h",
@@ -1025,7 +1025,7 @@ perfetto_cc_proto_descriptor(
 perfetto_cc_proto_descriptor(
     name = "src_trace_processor_importers_gen_cc_track_event_descriptor",
     deps = [
-        ":protos_perfetto_trace_track_event_track_event_descriptor",
+        ":protos_perfetto_trace_track_event_descriptor",
     ],
     outs = [
         "src/trace_processor/importers/track_event.descriptor.h",
@@ -3410,6 +3410,17 @@ perfetto_cc_protocpp_library(
     ],
 )
 
+# GN target: //protos/perfetto/trace/track_event:descriptor
+perfetto_proto_descriptor(
+    name = "protos_perfetto_trace_track_event_descriptor",
+    deps = [
+        ":protos_perfetto_trace_track_event_protos",
+    ],
+    outs = [
+        "protos_perfetto_trace_track_event_descriptor.bin",
+    ],
+)
+
 # GN target: //protos/perfetto/trace/track_event:lite
 perfetto_cc_proto_library(
     name = "protos_perfetto_trace_track_event_lite",
@@ -3452,31 +3463,6 @@ perfetto_proto_library(
     ],
 )
 
-# GN target: //protos/perfetto/trace/track_event:track_event_descriptor
-perfetto_proto_descriptor(
-    name = "protos_perfetto_trace_track_event_track_event_descriptor",
-    deps = [
-        ":protos_perfetto_trace_track_event_track_event_protos",
-    ],
-    outs = [
-        "protos_perfetto_trace_track_event_track_event_descriptor.bin",
-    ],
-)
-
-# GN target: //protos/perfetto/trace/track_event:track_event_descriptor
-perfetto_proto_library(
-    name = "protos_perfetto_trace_track_event_track_event_protos",
-    srcs = [
-        "protos/perfetto/trace/track_event/track_event.proto",
-    ],
-    visibility = [
-        PERFETTO_CONFIG.proto_library_visibility,
-    ],
-    deps = [
-        ":protos_perfetto_trace_track_event_protos",
-    ],
-)
-
 # GN target: //protos/perfetto/trace/track_event:zero
 perfetto_cc_protozero_library(
     name = "protos_perfetto_trace_track_event_zero",
@@ -3485,28 +3471,14 @@ perfetto_cc_protozero_library(
     ],
 )
 
-# GN target: //protos/third_party/chromium:chrome_track_event_descriptor
+# GN target: //protos/third_party/chromium:descriptor
 perfetto_proto_descriptor(
-    name = "protos_third_party_chromium_chrome_track_event_descriptor",
+    name = "protos_third_party_chromium_descriptor",
     deps = [
-        ":protos_third_party_chromium_chrome_track_event_protos",
+        ":protos_third_party_chromium_protos",
     ],
     outs = [
-        "protos_third_party_chromium_chrome_track_event_descriptor.bin",
-    ],
-)
-
-# GN target: //protos/third_party/chromium:chrome_track_event_descriptor
-perfetto_proto_library(
-    name = "protos_third_party_chromium_chrome_track_event_protos",
-    srcs = [
-        "protos/third_party/chromium/chrome_track_event.proto",
-    ],
-    visibility = [
-        PERFETTO_CONFIG.proto_library_visibility,
-    ],
-    deps = [
-        ":protos_perfetto_trace_track_event_protos",
+        "protos_third_party_chromium_descriptor.bin",
     ],
 )
 
@@ -3518,7 +3490,7 @@ perfetto_cc_proto_library(
     ],
 )
 
-# GN target: //protos/third_party/chromium:lite
+# GN target: //protos/third_party/chromium:source_set
 perfetto_proto_library(
     name = "protos_third_party_chromium_protos",
     srcs = [
