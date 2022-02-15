@@ -1289,8 +1289,8 @@ void FtraceParser::ParseBinderTransaction(int64_t timestamp,
   protos::pbzero::BinderTransactionFtraceEvent::Decoder evt(blob.data,
                                                             blob.size);
   int32_t dest_node = static_cast<int32_t>(evt.target_node());
-  int32_t dest_tgid = static_cast<int32_t>(evt.to_proc());
-  int32_t dest_tid = static_cast<int32_t>(evt.to_thread());
+  uint32_t dest_tgid = static_cast<uint32_t>(evt.to_proc());
+  uint32_t dest_tid = static_cast<uint32_t>(evt.to_thread());
   int32_t transaction_id = static_cast<int32_t>(evt.debug_id());
   bool is_reply = static_cast<int32_t>(evt.reply()) == 1;
   uint32_t flags = static_cast<uint32_t>(evt.flags());
