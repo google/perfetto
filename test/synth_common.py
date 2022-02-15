@@ -16,7 +16,7 @@
 import argparse
 
 from collections import namedtuple
-from google.protobuf import descriptor, descriptor_pb2, message_factory, descriptor_pool
+from google.protobuf import descriptor_pb2, message_factory, descriptor_pool
 
 CLONE_THREAD = 0x00010000
 CLONE_VFORK = 0x00004000

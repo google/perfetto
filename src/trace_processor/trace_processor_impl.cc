@@ -17,7 +17,6 @@
 #include "src/trace_processor/trace_processor_impl.h"
 
 #include <algorithm>
-#include <cinttypes>
 #include <memory>
 
 #include "perfetto/base/logging.h"
@@ -49,6 +48,7 @@
 #include "src/trace_processor/iterator_impl.h"
 #include "src/trace_processor/sqlite/create_function.h"
 #include "src/trace_processor/sqlite/register_function.h"
+#include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/sqlite/span_join_operator_table.h"
 #include "src/trace_processor/sqlite/sql_stats_table.h"
 #include "src/trace_processor/sqlite/sqlite3_str_split.h"
@@ -738,6 +738,106 @@ void InsertIntoTraceMetricsTable(sqlite3* db, const std::string& metric_name) {
   }
 }
 
+void IncrementCountForStmt(sqlite3_stmt* stmt,
+                           IteratorImpl::StmtMetadata* metadata) {
+  metadata->statement_count++;
+
+  // If the stmt is already done, it clearly didn't have any output.
+  if (sqlite_utils::IsStmtDone(stmt))
+    return;
+
+  // If the statement only has a single column and that column is named
+  // "suppress_query_output", treat it as a statement without output for
+  // accounting purposes. This is done so that embedders (e.g. shell) can
+  // strictly check that only the last query produces output while also
+  // providing an escape hatch for SELECT RUN_METRIC() invocations (which
+  // sadly produce output).
+  if (sqlite3_column_count(stmt) == 1 &&
+      strcmp(sqlite3_column_name(stmt, 0), "suppress_query_output") == 0) {
+    return;
+  }
+
+  // Otherwise, the statement has output and so increment the count.
+  metadata->statement_count_with_output++;
+}
+
+base::Status PrepareAndStepUntilLastValidStmt(
+    sqlite3* db,
+    const std::string& sql,
+    ScopedStmt* output_stmt,
+    IteratorImpl::StmtMetadata* metadata) {
+  ScopedStmt prev_stmt;
+  // A sql string can contain several statements. Some of them might be comment
+  // only, e.g. "SELECT 1; /* comment */; SELECT 2;". Here we process one
+  // statement on each iteration. SQLite's sqlite_prepare_v2 (wrapped by
+  // PrepareStmt) returns on each iteration a pointer to the unprocessed string.
+  //
+  // Unfortunately we cannot call PrepareStmt and tokenize all statements
+  // upfront because sqlite_prepare_v2 also semantically checks the statement
+  // against the schema. In some cases statements might depend on the execution
+  // of previous ones (e.e. CREATE VIEW x; SELECT FROM x; DELETE VIEW x;).
+  //
+  // Also, unfortunately, we need to PrepareStmt to find out if a statement is a
+  // comment or a real statement.
+  //
+  // The logic here is the following:
+  //  - We invoke PrepareStmt on each statement.
+  //  - If the statement is a comment we simply skip it.
+  //  - If the statement is valid, we step once to make sure side effects take
+  //    effect.
+  //  - If we encounter a valid statement afterwards, we step internally through
+  //    all rows of the previous one. This ensures that any further side effects
+  //    take hold *before* we step into the next statement.
+  //  - Once no further non-comment statements are encountered, we return an
+  //    iterator to the last valid statement.
+  for (const char* rem_sql = sql.c_str(); rem_sql && rem_sql[0];) {
+    ScopedStmt cur_stmt;
+    {
+      PERFETTO_TP_TRACE("QUERY_PREPARE");
+      const char* tail = nullptr;
+      RETURN_IF_ERROR(sqlite_utils::PrepareStmt(db, rem_sql, &cur_stmt, &tail));
+      rem_sql = tail;
+    }
+
+    // The only situation where we'd have an ok status but also no prepared
+    // statement is if the statement of SQL we parsed was a pure comment. In
+    // this case, just continue to the next statement.
+    if (!cur_stmt)
+      continue;
+
+    // Before stepping into |cur_stmt|, we need to finish iterating through
+    // the previous statement so we don't have two clashing statements (e.g.
+    // SELECT * FROM v and DROP VIEW v) partially stepped into.
+    if (prev_stmt)
+      RETURN_IF_ERROR(sqlite_utils::StepStmtUntilDone(prev_stmt.get()));
+
+    PERFETTO_DLOG("Executing statement: %s", sqlite3_sql(*cur_stmt));
+
+    // Now step once into |cur_stmt| so that when we prepare the next statment
+    // we will have executed any dependent bytecode in this one.
+    int err = sqlite3_step(*cur_stmt);
+    if (err != SQLITE_ROW && err != SQLITE_DONE)
+      return base::ErrStatus("%s (errcode: %d)", sqlite3_errmsg(db), err);
+
+    // Increment the neecessary counts for the statement.
+    IncrementCountForStmt(cur_stmt.get(), metadata);
+
+    // Propogate the current statement to the next iteration.
+    prev_stmt = std::move(cur_stmt);
+  }
+
+  // If we didn't manage to prepare a single statment, that means everything
+  // in the SQL was treated as a comment.
+  if (!prev_stmt)
+    return base::ErrStatus("No valid SQL to run");
+
+  // Update the output statment and column count.
+  *output_stmt = std::move(prev_stmt);
+  metadata->column_count =
+      static_cast<uint32_t>(sqlite3_column_count(output_stmt->get()));
+  return base::OkStatus();
+}
+
 }  // namespace
 
 TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
@@ -908,7 +1008,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
 
 TraceProcessorImpl::~TraceProcessorImpl() = default;
 
-util::Status TraceProcessorImpl::Parse(TraceBlobView blob) {
+base::Status TraceProcessorImpl::Parse(TraceBlobView blob) {
   bytes_parsed_ += blob.size();
   return TraceProcessorStorageImpl::Parse(std::move(blob));
 }
@@ -980,31 +1080,21 @@ size_t TraceProcessorImpl::RestoreInitialTables() {
   return deletion_list.size();
 }
 
-Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql,
-                                          int64_t time_queued) {
-  sqlite3_stmt* raw_stmt;
-  int err;
-  {
-    PERFETTO_TP_TRACE("QUERY_PREPARE");
-    err = sqlite3_prepare_v2(*db_, sql.c_str(), static_cast<int>(sql.size()),
-                             &raw_stmt, nullptr);
-  }
+Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
+  PERFETTO_TP_TRACE("QUERY_EXECUTE");
 
-  util::Status status;
-  uint32_t col_count = 0;
-  if (err != SQLITE_OK) {
-    status = util::ErrStatus("%s", sqlite3_errmsg(*db_));
-  } else {
-    col_count = static_cast<uint32_t>(sqlite3_column_count(raw_stmt));
-  }
-
-  base::TimeNanos t_start = base::GetWallTimeNs();
   uint32_t sql_stats_row =
-      context_.storage->mutable_sql_stats()->RecordQueryBegin(sql, time_queued,
-                                                              t_start.count());
+      context_.storage->mutable_sql_stats()->RecordQueryBegin(
+          sql, base::GetWallTimeNs().count());
+
+  ScopedStmt stmt;
+  IteratorImpl::StmtMetadata metadata;
+  base::Status status =
+      PrepareAndStepUntilLastValidStmt(*db_, sql, &stmt, &metadata);
+  PERFETTO_DCHECK((status.ok() && stmt) || (!status.ok() && !stmt));
 
   std::unique_ptr<IteratorImpl> impl(new IteratorImpl(
-      this, *db_, ScopedStmt(raw_stmt), col_count, status, sql_stats_row));
+      this, *db_, status, std::move(stmt), std::move(metadata), sql_stats_row));
   return Iterator(std::move(impl));
 }
 
@@ -1024,7 +1114,7 @@ bool TraceProcessorImpl::IsRootMetricField(const std::string& metric_name) {
   return field_idx != nullptr;
 }
 
-util::Status TraceProcessorImpl::RegisterMetric(const std::string& path,
+base::Status TraceProcessorImpl::RegisterMetric(const std::string& path,
                                                 const std::string& sql) {
   std::string stripped_sql;
   for (base::StringSplitter sp(sql, '\n'); sp.Next();) {
@@ -1041,7 +1131,7 @@ util::Status TraceProcessorImpl::RegisterMetric(const std::string& path,
       [&path](const metrics::SqlMetricFile& m) { return m.path == path; });
   if (it != sql_metrics_.end()) {
     it->sql = stripped_sql;
-    return util::OkStatus();
+    return base::OkStatus();
   }
 
   auto sep_idx = path.rfind('/');
@@ -1050,7 +1140,7 @@ util::Status TraceProcessorImpl::RegisterMetric(const std::string& path,
 
   auto sql_idx = basename.rfind(".sql");
   if (sql_idx == std::string::npos) {
-    return util::ErrStatus("Unable to find .sql extension for metric");
+    return base::ErrStatus("Unable to find .sql extension for metric");
   }
   auto no_ext_name = basename.substr(0, sql_idx);
 
@@ -1082,19 +1172,19 @@ util::Status TraceProcessorImpl::RegisterMetric(const std::string& path,
   }
 
   sql_metrics_.emplace_back(metric);
-  return util::OkStatus();
+  return base::OkStatus();
 }
 
-util::Status TraceProcessorImpl::ExtendMetricsProto(const uint8_t* data,
+base::Status TraceProcessorImpl::ExtendMetricsProto(const uint8_t* data,
                                                     size_t size) {
   return ExtendMetricsProto(data, size, /*skip_prefixes*/ {});
 }
 
-util::Status TraceProcessorImpl::ExtendMetricsProto(
+base::Status TraceProcessorImpl::ExtendMetricsProto(
     const uint8_t* data,
     size_t size,
     const std::vector<std::string>& skip_prefixes) {
-  util::Status status =
+  base::Status status =
       pool_.AddFromFileDescriptorSet(data, size, skip_prefixes);
   if (!status.ok())
     return status;
@@ -1109,27 +1199,27 @@ util::Status TraceProcessorImpl::ExtendMetricsProto(
         std::unique_ptr<metrics::BuildProto::Context>(
             new metrics::BuildProto::Context{this, &pool_, &desc}));
   }
-  return util::OkStatus();
+  return base::OkStatus();
 }
 
-util::Status TraceProcessorImpl::ComputeMetric(
+base::Status TraceProcessorImpl::ComputeMetric(
     const std::vector<std::string>& metric_names,
     std::vector<uint8_t>* metrics_proto) {
   auto opt_idx = pool_.FindDescriptorIdx(".perfetto.protos.TraceMetrics");
   if (!opt_idx.has_value())
-    return util::Status("Root metrics proto descriptor not found");
+    return base::Status("Root metrics proto descriptor not found");
 
   const auto& root_descriptor = pool_.descriptors()[opt_idx.value()];
   return metrics::ComputeMetrics(this, metric_names, sql_metrics_, pool_,
                                  root_descriptor, metrics_proto);
 }
 
-util::Status TraceProcessorImpl::ComputeMetricText(
+base::Status TraceProcessorImpl::ComputeMetricText(
     const std::vector<std::string>& metric_names,
     TraceProcessor::MetricResultFormat format,
     std::string* metrics_string) {
   std::vector<uint8_t> metrics_proto;
-  util::Status status = ComputeMetric(metric_names, &metrics_proto);
+  base::Status status = ComputeMetric(metric_names, &metrics_proto);
   if (!status.ok())
     return status;
   switch (format) {
@@ -1155,7 +1245,7 @@ void TraceProcessorImpl::EnableMetatrace() {
   metatrace::Enable();
 }
 
-util::Status TraceProcessorImpl::DisableAndReadMetatrace(
+base::Status TraceProcessorImpl::DisableAndReadMetatrace(
     std::vector<uint8_t>* trace_proto) {
   protozero::HeapBuffered<protos::pbzero::Trace> trace;
   metatrace::DisableAndReadBuffer([&trace](metatrace::Record* record) {
@@ -1180,7 +1270,7 @@ util::Status TraceProcessorImpl::DisableAndReadMetatrace(
     }
   });
   *trace_proto = trace.SerializeAsArray();
-  return util::OkStatus();
+  return base::OkStatus();
 }
 
 }  // namespace trace_processor

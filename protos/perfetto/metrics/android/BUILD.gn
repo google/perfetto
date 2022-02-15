@@ -20,8 +20,10 @@ perfetto_proto_library("@TYPE@") {
     "source_set",
   ]
   sources = [
+    "android_trusty_workqueues.proto",
     "batt_metric.proto",
     "camera_metric.proto",
+    "camera_unagg_metric.proto",
     "cpu_metric.proto",
     "display_metrics.proto",
     "dma_heap_metric.proto",
@@ -32,6 +34,7 @@ perfetto_proto_library("@TYPE@") {
     "hwcomposer.proto",
     "hwui_metric.proto",
     "ion_metric.proto",
+    "irq_runtime_metric.proto",
     "jank_metric.proto",
     "java_heap_histogram.proto",
     "java_heap_stats.proto",
@@ -45,6 +48,7 @@ perfetto_proto_library("@TYPE@") {
     "powrails_metric.proto",
     "process_metadata.proto",
     "profiler_smaps.proto",
+    "rt_runtime_metric.proto",
     "simpleperf.proto",
     "startup_metric.proto",
     "surfaceflinger.proto",

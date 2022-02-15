@@ -53,9 +53,9 @@ export function maybeOpenTraceFromRoute(route: Route) {
     return;
   }
 
-  if (route.args.trace_id) {
+  if (route.args.local_cache_key) {
     // Handles the case of loading traces from the cache storage.
-    maybeOpenCachedTrace(route.args.trace_id);
+    maybeOpenCachedTrace(route.args.local_cache_key);
     return;
   }
 }
@@ -68,29 +68,29 @@ export function maybeOpenTraceFromRoute(route: Route) {
  * It must take decision based on the app state, not on URL change events.
  * Fragment changes are handled by the union of Router.onHashChange() and this
  * function, as follows:
- * 1. '' -> URL without a ?trace_id=xxx arg:
+ * 1. '' -> URL without a ?local_cache_key=xxx arg:
  *  - no effect (except redrawing)
- * 2. URL without trace_id -> URL with trace_id:
+ * 2. URL without local_cache_key -> URL with local_cache_key:
  *  - Load cached trace (without prompting any dialog).
  *  - Show a (graceful) error dialog in the case of cache misses.
- * 3. '' -> URL with a ?trace_id=xxx arg:
+ * 3. '' -> URL with a ?local_cache_key=xxx arg:
  *  - Same as case 2.
- * 4. URL with trace_id=1 -> URL with trace_id=2:
+ * 4. URL with local_cache_key=1 -> URL with local_cache_key=2:
  *  a) If 2 != uuid of the trace currently loaded (globals.state.traceUuid):
  *  - Ask the user if they intend to switch trace and load 2.
  *  b) If 2 == uuid of current trace (e.g., after a new trace has loaded):
  *  - no effect (except redrawing).
- * 5. URL with trace_id -> URL without trace_id:
- *  - Redirect to ?trace_id=1234 where 1234 is the UUID of the previous URL
- *    (this might or might not match globals.state.traceUuid).
+ * 5. URL with local_cache_key -> URL without local_cache_key:
+ *  - Redirect to ?local_cache_key=1234 where 1234 is the UUID of the previous
+ *    URL (this might or might not match globals.state.traceUuid).
  *
  * Backward navigation cases:
- * 6. URL without trace_id <- URL with trace_id:
+ * 6. URL without local_cache_key <- URL with local_cache_key:
  *  - Same as case 5.
- * 7. URL with trace_id=1 <- URL with trace_id=2:
- *  - Same as case 4a: go back to trace_id=1 but ask the user for confirmation.
- * 8. landing page <- URL with trace_id:
- *  - Same as case 5: re-append the trace_id.
+ * 7. URL with local_cache_key=1 <- URL with local_cache_key=2:
+ *  - Same as case 4a: go back to local_cache_key=1 but ask the user to confirm.
+ * 8. landing page <- URL with local_cache_key:
+ *  - Same as case 5: re-append the local_cache_key.
  */
 async function maybeOpenCachedTrace(traceUuid: string) {
   if (traceUuid === globals.state.traceUuid) {
@@ -101,12 +101,12 @@ async function maybeOpenCachedTrace(traceUuid: string) {
   if (traceUuid === '') {
     // This can happen if we switch from an empty UI state to an invalid UUID
     // (e.g. due to a cache miss, below). This can also happen if the user just
-    // types /#!/viewer?trace_id=.
+    // types /#!/viewer?local_cache_key=.
     return;
   }
 
   // This handles the case when a trace T1 is loaded and then the url is set to
-  // ?trace_id=T2. In that case the globals.state.traceUuid remains set to T1
+  // ?local_cache_key=T2. In that case globals.state.traceUuid remains set to T1
   // until T2 has been loaded by the trace processor (can take several seconds).
   // This early out prevents to re-trigger the openTraceFromXXX() action if the
   // URL changes (e.g. if the user navigates back/fwd) while the new trace is
@@ -122,7 +122,8 @@ async function maybeOpenCachedTrace(traceUuid: string) {
   const maybeTrace = await tryGetTrace(traceUuid);
 
   const navigateToOldTraceUuid = () => {
-    Router.navigate(`#!/viewer?trace_id=${globals.state.traceUuid || ''}`);
+    Router.navigate(
+        `#!/viewer?local_cache_key=${globals.state.traceUuid || ''}`);
   };
 
   if (!maybeTrace) {
@@ -131,8 +132,8 @@ async function maybeOpenCachedTrace(traceUuid: string) {
       content: m(
           'div',
           m('p',
-            'You are trying to load a cached trace by setting the ?trace_id ' +
-                'argument in the URL.'),
+            'You are trying to load a cached trace by setting the ' +
+                '?local_cache_key argument in the URL.'),
           m('p', 'Unfortunately the trace wasn\'t in the cache storage.'),
           m('p',
             'This can happen if a tab was discarded and wasn\'t opened ' +
@@ -147,7 +148,7 @@ async function maybeOpenCachedTrace(traceUuid: string) {
 
   // If the UI is in a blank state (no trace has been ever opened), just load
   // the trace without showing any further dialog. This is the case of tab
-  // discarding, reloading or pasting a url with a trace_id in an empty
+  // discarding, reloading or pasting a url with a local_cache_key in an empty
   // instance.
   if (globals.state.traceUuid === undefined) {
     globals.dispatch(Actions.openTraceFromBuffer(maybeTrace));
@@ -165,7 +166,7 @@ async function maybeOpenCachedTrace(traceUuid: string) {
         'div',
         m('p',
           'You are seeing this because you either pasted a URL with ' +
-              'a different ?trace_id=xxx argument or because you hit ' +
+              'a different ?local_cache_key=xxx argument or because you hit ' +
               'the history back/fwd button and reached a different trace.'),
         m('p',
           'If you continue another trace will be loaded and the UI ' +

@@ -39,7 +39,7 @@ export function createEmptyState(): State {
     engines: {},
     traceTime: {...defaultTraceTime},
     tracks: {},
-    uiTrackIdByTraceTrackId: new Map<number, string>(),
+    uiTrackIdByTraceTrackId: {},
     aggregatePreferences: {},
     trackGroups: {},
     visibleTracks: [],
@@ -102,5 +102,7 @@ export function createEmptyState(): State {
 
     fetchChromeCategories: false,
     chromeCategories: undefined,
+    pivotTableRedux:
+        {selectionArea: null, query: null, queryId: 0, queryResult: null},
   };
 }

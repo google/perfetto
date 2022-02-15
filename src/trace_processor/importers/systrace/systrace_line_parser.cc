@@ -41,6 +41,7 @@ SystraceLineParser::SystraceLineParser(TraceProcessorContext* ctx)
       rss_stat_tracker_(context_),
       sched_wakeup_name_id_(ctx->storage->InternString("sched_wakeup")),
       sched_waking_name_id_(ctx->storage->InternString("sched_waking")),
+      cpufreq_name_id_(ctx->storage->InternString("cpufreq")),
       cpuidle_name_id_(ctx->storage->InternString("cpuidle")),
       workqueue_name_id_(ctx->storage->InternString("workqueue")),
       sched_blocked_reason_id_(
@@ -123,6 +124,19 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
     context_->args_tracker->AddArgsTo(instant_id)
         .AddArg(waker_utid_id_, Variadic::UnsignedInteger(utid));
 
+  } else if (line.event_name == "cpu_frequency") {
+    base::Optional<uint32_t> event_cpu = base::StringToUInt32(args["cpu_id"]);
+    base::Optional<double> new_state = base::StringToDouble(args["state"]);
+    if (!event_cpu.has_value()) {
+      return util::Status("Could not convert event cpu");
+    }
+    if (!event_cpu.has_value()) {
+      return util::Status("Could not convert state");
+    }
+
+    TrackId track = context_->track_tracker->InternCpuCounterTrack(
+        cpufreq_name_id_, event_cpu.value());
+    context_->event_tracker->PushCounter(line.ts, new_state.value(), track);
   } else if (line.event_name == "cpu_idle") {
     base::Optional<uint32_t> event_cpu = base::StringToUInt32(args["cpu_id"]);
     base::Optional<double> new_state = base::StringToDouble(args["state"]);

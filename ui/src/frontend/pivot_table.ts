@@ -26,6 +26,7 @@ import {Panel} from './panel';
 import {
   PivotTableHelper,
 } from './pivot_table_helper';
+import {PopupMenuButton} from './popup_menu';
 
 interface ExpandableCellAttrs {
   pivotTableId: string;
@@ -71,48 +72,59 @@ class PivotTableHeader implements m.ClassComponent<PivotTableHeaderAttrs> {
     const cols = [];
     for (const column of resp.columns) {
       const isPivot = column.aggregation === undefined;
-      let sortIcon;
+      const cellContents = [m('span', column.name)];
       if (!isPivot) {
-        sortIcon =
-            column.order === 'DESC' ? 'arrow_drop_down' : 'arrow_drop_up';
-      }
-      cols.push(m(
-          'td',
-          {
-            class: pivotTable.isLoadingQuery ? 'disabled' : '',
-            draggable: !pivotTable.isLoadingQuery,
-            ondragstart: (e: DragEvent) => {
-              helper.selectedColumnOnDrag(e, isPivot, column.index);
-            },
-            ondrop: (e: DragEvent) => {
-              helper.removeHighlightFromDropLocation(e);
-              helper.selectedColumnOnDrop(e, isPivot, column.index);
+        const items = [{
+          text: column.order === 'DESC' ? 'Sort \u25B2' : 'Sort \u25BC',
+          callback: () => {
+            if (!pivotTable.isLoadingQuery) {
+              helper.togglePivotTableAggregationSorting(column.index);
               helper.queryPivotTableChanges();
-            },
-            ondragenter: (e: DragEvent) => {
-              helper.highlightDropLocation(e, isPivot);
-            },
-            ondragleave: (e: DragEvent) => {
-              helper.removeHighlightFromDropLocation(e);
             }
-          },
-          column.name,
-          (!isPivot && sortIcon !== undefined ?
-               m('i.material-icons',
-                 {
-                   onclick: () => {
-                     if (!pivotTable.isLoadingQuery) {
-                       helper.togglePivotTableAggregationSorting(column.index);
-                       helper.queryPivotTableChanges();
-                     }
-                   }
-                 },
-                 sortIcon) :
-               null),
-          (!isPivot && resp.totalAggregations !== undefined ?
-               m('.total-aggregation',
-                 `(${resp.totalAggregations[column.name]})`) :
-               null)));
+          }
+        }];
+
+        for (const aggregation of helper.availableAggregations) {
+          if (aggregation === column.aggregation) {
+            continue;
+          }
+
+          items.push({
+            text: aggregation,
+            callback: () => {
+              helper.changeAggregation(column.index, aggregation);
+              helper.queryPivotTableChanges();
+            }
+          });
+        }
+        cellContents.push(m(PopupMenuButton, {icon: 'arrow_drop_down', items}));
+        if (resp.totalAggregations !== undefined) {
+          cellContents.push(
+              m('.total-aggregation',
+                `(${resp.totalAggregations[column.name]})`));
+        }
+      }
+      cols.push(
+          m('td',
+            {
+              class: pivotTable.isLoadingQuery ? 'disabled' : '',
+              draggable: !pivotTable.isLoadingQuery,
+              ondragstart: (e: DragEvent) => {
+                helper.selectedColumnOnDrag(e, isPivot, column.index);
+              },
+              ondrop: (e: DragEvent) => {
+                helper.removeHighlightFromDropLocation(e);
+                helper.selectedColumnOnDrop(e, isPivot, column.index);
+                helper.queryPivotTableChanges();
+              },
+              ondragenter: (e: DragEvent) => {
+                helper.highlightDropLocation(e, isPivot);
+              },
+              ondragleave: (e: DragEvent) => {
+                helper.removeHighlightFromDropLocation(e);
+              }
+            },
+            cellContents));
     }
     return m('tr', cols);
   }

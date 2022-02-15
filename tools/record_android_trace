@@ -219,8 +219,25 @@ def main():
   device_file = device_dir + fname
 
   cmd = [perfetto_cmd, '--background', '--txt', '-o', device_file]
+  on_device_config = None
+  on_host_config = None
   if args.config is not None:
     cmd += ['-c', '-']
+    if api_level < 24:
+      # adb shell does not redirect stdin. Push the config on a temporary file
+      # on the device.
+      mktmp = adb('shell', 'mktemp', '--tmpdir', '/data/local/tmp', stdout=subprocess.PIPE)
+      on_device_config = mktmp.communicate()[0].decode().strip().strip()
+      if mktmp.returncode != 0:
+        prt('Failed to create config on device', ANSI.RED)
+        sys.exit(1)
+      exit_code = adb('push', '--sync', args.config, on_device_config).wait()
+      if exit_code != 0:
+        prt('Failed to push config on device', ANSI.RED)
+        sys.exit(1)
+      cmd = ['cat', on_device_config, '|'] + cmd
+    else:
+      on_host_config = args.config
   else:
     cmd += ['-t', args.time, '-b', args.buffer]
     for app in args.app:
@@ -243,10 +260,12 @@ def main():
   if not os.path.exists(host_dir):
     shutil.os.makedirs(host_dir)
 
-  with open(args.config or os.devnull, 'rb') as f:
+  with open(on_host_config or os.devnull, 'rb') as f:
     print('Running ' + ' '.join(cmd))
     proc = adb('shell', *cmd, stdin=f, stdout=subprocess.PIPE)
     proc_out = proc.communicate()[0].decode().strip()
+    if on_device_config is not None:
+      adb('shell', 'rm', on_device_config).wait()
     # On older versions of Android (x86_64 emulator running API 22) the output
     # looks like:
     #   WARNING: linker: /data/local/tmp/tracebox: unused DT entry: ...
@@ -380,7 +399,7 @@ def check_hash(file_name, sha_value):
 
 
 # BEGIN_SECTION_GENERATED_BY(roll-prebuilts)
-# Revision: v22.1
+# Revision: v23.0
 PERFETTO_PREBUILT_MANIFEST = [{
     'tool':
         'tracebox',
@@ -389,11 +408,11 @@ PERFETTO_PREBUILT_MANIFEST = [{
     'file_name':
         'tracebox',
     'file_size':
-        1034636,
+        1038732,
     'url':
-        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v22.1/android-arm/tracebox',
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v23.0/android-arm/tracebox',
     'sha256':
-        'f97875395431b87a38830f73f22b45fedbf5bbcefcdd9f61ab87bcd64b0594e4'
+        'b37507c28e8eade93fa9f0da86d6b9779f69aadea9d7e33cd3b85866c7b755fc'
 }, {
     'tool':
         'tracebox',
@@ -402,11 +421,11 @@ PERFETTO_PREBUILT_MANIFEST = [{
     'file_name':
         'tracebox',
     'file_size':
-        1563840,
+        1572032,
     'url':
-        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v22.1/android-arm64/tracebox',
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v23.0/android-arm64/tracebox',
     'sha256':
-        '45cca4277d83b30d33ff5e2bf99120844498d5512bd15c40301157921b3482aa'
+        '83306c567da4f1b3eb910a0407abf88fcc099d22a191ceb096837381b2ebff79'
 }, {
     'tool':
         'tracebox',
@@ -415,11 +434,11 @@ PERFETTO_PREBUILT_MANIFEST = [{
     'file_name':
         'tracebox',
     'file_size':
-        1591652,
+        1595748,
     'url':
-        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v22.1/android-x86/tracebox',
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v23.0/android-x86/tracebox',
     'sha256':
-        'fc4f86b92837d3efee4df202da092cd5a945613078b4fe4b8829de0794bf5cdb'
+        '527c2ff54350fe73197b5164e6f7ed21f3d10c38a667e57781222d679dca4707'
 }, {
     'tool':
         'tracebox',
@@ -428,11 +447,11 @@ PERFETTO_PREBUILT_MANIFEST = [{
     'file_name':
         'tracebox',
     'file_size':
-        1809600,
+        1821888,
     'url':
-        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v22.1/android-x64/tracebox',
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v23.0/android-x64/tracebox',
     'sha256':
-        '4610eff243aec24dc0d948503464e466d73045d0383bc625ee820cfd43d3f9a5'
+        '99cfbb37e7c3ae4ea70fc51811601c409fcd81589d4311a4b805a67f4760203b'
 }]
 
 

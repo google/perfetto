@@ -37,17 +37,17 @@ SELECT CREATE_FUNCTION(
     WHERE name = 'android_sdk_version'
   ");
 
+SELECT CREATE_FUNCTION(
+  'METRICS_LOGGER_SLICE_COUNT()',
+  'INT',
+  "SELECT COUNT(1) FROM slice WHERE name GLOB 'MetricsLogger:*'"
+);
+
 -- Note: on Q, we didn't have Android fingerprints but we *did*
 -- have ActivityMetricsLogger events so we will use this approach
 -- if we see any such events.
 SELECT CASE
-  WHEN (
-    ANDROID_SDK_LEVEL() >= 29
-    OR (
-      SELECT COUNT(1) FROM slice
-      WHERE name GLOB 'MetricsLogger:*'
-    ) > 0
-  )
+  WHEN (ANDROID_SDK_LEVEL() >= 29 OR METRICS_LOGGER_SLICE_COUNT() > 0)
   THEN RUN_METRIC('android/startup/launches_minsdk29.sql')
   ELSE RUN_METRIC('android/startup/launches_maxsdk28.sql')
 END;

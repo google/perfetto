@@ -576,7 +576,7 @@ def main(argv):
 
 
 # BEGIN_SECTION_GENERATED_BY(roll-prebuilts)
-# Revision: v22.1
+# Revision: v23.0
 PERFETTO_PREBUILT_MANIFEST = [{
     'tool':
         'trace_to_text',
@@ -585,11 +585,11 @@ PERFETTO_PREBUILT_MANIFEST = [{
     'file_name':
         'trace_to_text',
     'file_size':
-        6956224,
+        6939864,
     'url':
-        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v22.1/mac-amd64/trace_to_text',
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v23.0/mac-amd64/trace_to_text',
     'sha256':
-        'b40ec5ef358e35ecebacd490dba8320aa3a0bf223da4219f2eba1d3ee7ef3a48',
+        '1626880d1fbec8efc9702583b6c22d617079a08226df414d65888a6b3c7572c8',
     'platform':
         'darwin',
     'machine': ['x86_64']
@@ -601,11 +601,11 @@ PERFETTO_PREBUILT_MANIFEST = [{
     'file_name':
         'trace_to_text.exe',
     'file_size':
-        6663680,
+        6658560,
     'url':
-        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v22.1/windows-amd64/trace_to_text.exe',
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v23.0/windows-amd64/trace_to_text.exe',
     'sha256':
-        '603eb120cbb5db41cf258aa742902ea73ee700d8e6d61900f64fa996d3e1714b',
+        '14334fc93ecb0498201bf2ad72ebe69938c43cb6641cf94cfd7ad646603039ed',
     'platform':
         'win32',
     'machine': ['amd64']
@@ -617,11 +617,11 @@ PERFETTO_PREBUILT_MANIFEST = [{
     'file_name':
         'trace_to_text',
     'file_size':
-        7518480,
+        7513024,
     'url':
-        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v22.1/linux-amd64/trace_to_text',
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v23.0/linux-amd64/trace_to_text',
     'sha256':
-        '480e851deb76413f3f7ab113f230bcac19ca4bdd9f5c275f7a4d3cc9318c2db6',
+        'e19163f152717d9922e1926489b64c50b30ea772ebb0f21f6abb6e8cd25615b3',
     'platform':
         'linux',
     'machine': ['x86_64']

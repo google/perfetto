@@ -17,13 +17,15 @@
 #include "src/trace_processor/importers/proto/async_track_set_tracker.h"
 
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto {
 namespace trace_processor {
 
 AsyncTrackSetTracker::AsyncTrackSetTracker(TraceProcessorContext* context)
-    : context_(context) {}
+    : android_source_(context->storage->InternString("android")),
+      context_(context) {}
 
 AsyncTrackSetTracker::TrackSetId AsyncTrackSetTracker::InternGlobalTrackSet(
     StringId name) {
@@ -42,45 +44,45 @@ AsyncTrackSetTracker::TrackSetId AsyncTrackSetTracker::InternGlobalTrackSet(
   return global_track_set_ids_[name] = id;
 }
 
-AsyncTrackSetTracker::TrackSetId AsyncTrackSetTracker::InternAndroidSet(
+AsyncTrackSetTracker::TrackSetId AsyncTrackSetTracker::InternProcessTrackSet(
     UniquePid upid,
     StringId name) {
-  AndroidTuple tuple{upid, name};
+  ProcessTuple tuple{upid, name};
 
-  auto it = android_track_set_ids_.find(tuple);
-  if (it != android_track_set_ids_.end())
+  auto it = process_track_set_ids_.find(tuple);
+  if (it != process_track_set_ids_.end())
     return it->second;
 
   uint32_t id = static_cast<uint32_t>(track_sets_.size());
 
   TrackSet set;
-  set.android_tuple = tuple;
-  set.type = TrackSetType::kAndroid;
-  set.nesting_behaviour = NestingBehaviour::kLegacySaturatingUnnestable;
-  track_sets_.emplace_back(set);
-
-  android_track_set_ids_[tuple] = id;
-  return id;
-}
-
-AsyncTrackSetTracker::TrackSetId AsyncTrackSetTracker::InternFrameTimelineSet(
-    UniquePid upid,
-    StringId name) {
-  FrameTimelineTuple tuple{upid, name};
-
-  auto it = frame_timeline_track_set_ids_.find(tuple);
-  if (it != frame_timeline_track_set_ids_.end())
-    return it->second;
-
-  uint32_t id = static_cast<uint32_t>(track_sets_.size());
-
-  TrackSet set;
-  set.frame_timeline_tuple = tuple;
-  set.type = TrackSetType::kFrameTimeline;
+  set.process_tuple = tuple;
+  set.type = TrackSetType::kProcess;
   set.nesting_behaviour = NestingBehaviour::kUnnestable;
   track_sets_.emplace_back(set);
 
-  frame_timeline_track_set_ids_[tuple] = id;
+  process_track_set_ids_[tuple] = id;
+  return id;
+}
+
+AsyncTrackSetTracker::TrackSetId
+AsyncTrackSetTracker::InternAndroidLegacyUnnestableTrackSet(UniquePid upid,
+                                                            StringId name) {
+  ProcessTuple tuple{upid, name};
+
+  auto it = android_legacy_unnestable_track_set_ids_.find(tuple);
+  if (it != android_legacy_unnestable_track_set_ids_.end())
+    return it->second;
+
+  uint32_t id = static_cast<uint32_t>(track_sets_.size());
+
+  TrackSet set;
+  set.process_tuple = tuple;
+  set.type = TrackSetType::kAndroidLegacyUnnestable;
+  set.nesting_behaviour = NestingBehaviour::kLegacySaturatingUnnestable;
+  track_sets_.emplace_back(set);
+
+  android_legacy_unnestable_track_set_ids_[tuple] = id;
   return id;
 }
 
@@ -131,8 +133,10 @@ TrackId AsyncTrackSetTracker::Scoped(TrackSetId id, int64_t ts, int64_t dur) {
         return state.slice_type == TrackState::SliceType::kTimestamp &&
                state.ts_end <= ts;
       });
-  if (it != set.tracks.end())
+  if (it != set.tracks.end()) {
+    it->ts_end = ts + dur;
     return it->id;
+  }
 
   TrackState state;
   state.slice_type = TrackState::SliceType::kTimestamp;
@@ -178,14 +182,18 @@ AsyncTrackSetTracker::GetOrCreateTrackForCookie(TrackSet& set, int64_t cookie) {
 TrackId AsyncTrackSetTracker::CreateTrackForSet(const TrackSet& set) {
   switch (set.type) {
     case TrackSetType::kGlobal:
+      // TODO(lalitm): propogate source from callers rather than just passing
+      // kNullStringId here.
       return context_->track_tracker->CreateGlobalAsyncTrack(
-          set.global_track_name);
-    case TrackSetType::kAndroid:
-      return context_->track_tracker->CreateAndroidAsyncTrack(
-          set.android_tuple.name, set.android_tuple.upid);
-    case TrackSetType::kFrameTimeline:
-      return context_->track_tracker->CreateFrameTimelineAsyncTrack(
-          set.frame_timeline_tuple.name, set.frame_timeline_tuple.upid);
+          set.global_track_name, kNullStringId);
+    case TrackSetType::kProcess:
+      // TODO(lalitm): propogate source from callers rather than just passing
+      // kNullStringId here.
+      return context_->track_tracker->CreateProcessAsyncTrack(
+          set.process_tuple.name, set.process_tuple.upid, kNullStringId);
+    case TrackSetType::kAndroidLegacyUnnestable:
+      return context_->track_tracker->CreateProcessAsyncTrack(
+          set.process_tuple.name, set.process_tuple.upid, android_source_);
   }
   PERFETTO_FATAL("For GCC");
 }

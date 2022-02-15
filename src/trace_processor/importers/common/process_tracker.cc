@@ -220,6 +220,48 @@ UniqueTid ProcessTracker::UpdateThread(uint32_t tid, uint32_t pid) {
   return utid;
 }
 
+void ProcessTracker::UpdateTrustedPid(uint32_t trusted_pid, uint64_t uuid) {
+  trusted_pids_[uuid] = trusted_pid;
+}
+
+base::Optional<uint32_t> ProcessTracker::GetTrustedPid(uint64_t uuid) {
+  if (trusted_pids_.find(uuid) == trusted_pids_.end())
+    return base::nullopt;
+  return trusted_pids_[uuid];
+}
+
+base::Optional<uint32_t> ProcessTracker::ResolveNamespacedTid(
+    uint32_t root_level_pid,
+    uint32_t tid) {
+  if (root_level_pid <= 0)  // Not a valid pid.
+    return base::nullopt;
+
+  // If the process doesn't run in a namespace (or traced_probes doesn't observe
+  // that), return base::nullopt as failure to resolve.
+  auto process_it = namespaced_processes_.find(root_level_pid);
+  if (process_it == namespaced_processes_.end())
+    return base::nullopt;
+
+  // Check if it's the main thread.
+  const auto& process = process_it->second;
+  auto ns_level = process.nspid.size() - 1;
+  auto pid_local = process.nspid.back();
+  if (pid_local == tid)
+    return root_level_pid;
+
+  // Check if any non-main thread has a matching ns-local thread ID.
+  for (const auto& root_level_tid : process.threads) {
+    const auto& thread = namespaced_threads_[root_level_tid];
+    PERFETTO_DCHECK(thread.nstid.size() > ns_level);
+    auto tid_ns_local = thread.nstid[ns_level];
+    if (tid_ns_local == tid)
+      return thread.tid;
+  }
+
+  // Failed to resolve or the thread isn't namespaced
+  return base::nullopt;
+}
+
 UniquePid ProcessTracker::StartNewProcess(base::Optional<int64_t> timestamp,
                                           base::Optional<uint32_t> parent_tid,
                                           uint32_t pid,
@@ -474,6 +516,22 @@ ArgsTracker::BoundInserter ProcessTracker::AddArgsTo(UniquePid upid) {
 
 void ProcessTracker::NotifyEndOfFile() {
   args_tracker_.Flush();
+}
+
+void ProcessTracker::UpdateNamespacedProcess(uint32_t pid,
+                                             std::vector<uint32_t> nspid) {
+  namespaced_processes_[pid] = {pid, std::move(nspid), {}};
+}
+
+void ProcessTracker::UpdateNamespacedThread(uint32_t pid,
+                                            uint32_t tid,
+                                            std::vector<uint32_t> nstid) {
+  PERFETTO_DCHECK(namespaced_processes_.find(pid) !=
+                  namespaced_processes_.end());
+  auto& process = namespaced_processes_[pid];
+  process.threads.emplace(tid);
+
+  namespaced_threads_[tid] = {pid, tid, std::move(nstid)};
 }
 
 }  // namespace trace_processor

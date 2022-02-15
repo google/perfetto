@@ -30,15 +30,6 @@
 
 #include "protos/perfetto/ipc/wire_protocol.gen.h"
 
-#if (PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD) || \
-     PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)) &&   \
-    (PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||         \
-     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID))
-#define PERFETTO_LOG_TXBUF_FOR_B_191600928
-// TODO(primiano): temporary for investigating b/191600928. Remove in Jan 2022
-#include <sys/ioctl.h>
-#endif
-
 // TODO(primiano): put limits on #connections/uid and req. queue (b/69093705).
 
 namespace perfetto {
@@ -49,11 +40,7 @@ namespace {
 constexpr base::SockFamily kHostSockFamily =
     kUseTCPSocket ? base::SockFamily::kInet : base::SockFamily::kUnix;
 
-// TODO(primiano): temporary for investigating b/191600928. Remove in Jan 2022.
 base::CrashKey g_crash_key_uid("ipc_uid");
-base::CrashKey g_crash_key_tx_b("ipc_tx_boot");
-base::CrashKey g_crash_key_tx_m("ipc_tx_mono");
-base::CrashKey g_crash_key_tx_qlen("ipc_tx_qlen");
 
 uid_t GetPosixPeerUid(base::UnixSocket* sock) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
@@ -62,6 +49,16 @@ uid_t GetPosixPeerUid(base::UnixSocket* sock) {
   return 0;
 #else
   return sock->peer_uid_posix();
+#endif
+}
+
+pid_t GetLinuxPeerPid(base::UnixSocket* sock) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  return sock->peer_pid_linux();
+#else
+  base::ignore_result(sock);
+  return base::kInvalidPid;  // Unsupported.
 #endif
 }
 
@@ -240,7 +237,8 @@ void HostImpl::OnInvokeMethod(ClientConnection* client,
 
   auto peer_uid = GetPosixPeerUid(client->sock.get());
   auto scoped_key = g_crash_key_uid.SetScoped(static_cast<int64_t>(peer_uid));
-  service->client_info_ = ClientInfo(client->id, peer_uid);
+  service->client_info_ =
+      ClientInfo(client->id, peer_uid, GetLinuxPeerPid(client->sock.get()));
   service->received_fd_ = &client->received_fd;
   method.invoker(service, *decoded_req_args, std::move(deferred_reply));
   service->received_fd_ = nullptr;
@@ -278,17 +276,6 @@ void HostImpl::SendFrame(ClientConnection* client, const Frame& frame, int fd) {
 
   std::string buf = BufferedFrameDeserializer::Serialize(frame);
 
-  auto crash_key_b = g_crash_key_tx_b.SetScoped(base::GetBootTimeS().count());
-  auto crash_key_w = g_crash_key_tx_m.SetScoped(base::GetWallTimeS().count());
-
-#if defined(PERFETTO_LOG_TXBUF_FOR_B_191600928)
-  int32_t tx_queue_len = 0;
-  ioctl(client->sock->fd(), TIOCOUTQ, &tx_queue_len);
-  auto crash_key_qlen = g_crash_key_tx_qlen.SetScoped(tx_queue_len);
-#else
-  base::ignore_result(g_crash_key_tx_qlen);
-#endif
-
   // When a new Client connects in OnNewClientConnection we set a timeout on
   // Send (see call to SetTxTimeout).
   //
@@ -307,7 +294,8 @@ void HostImpl::OnDisconnect(base::UnixSocket* sock) {
     return;
   ClientID client_id = it->second->id;
 
-  ClientInfo client_info(client_id, GetPosixPeerUid(sock));
+  ClientInfo client_info(client_id, GetPosixPeerUid(sock),
+                         GetLinuxPeerPid(sock));
   clients_by_socket_.erase(it);
   PERFETTO_DCHECK(clients_.count(client_id));
   clients_.erase(client_id);

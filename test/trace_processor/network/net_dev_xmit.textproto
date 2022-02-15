@@ -1,0 +1,70 @@
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 10000
+      pid: 200
+      net_dev_xmit {
+        name: "rmnet0"
+        len: 1000
+        rc: 0
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 1
+    event {
+      timestamp: 10000
+      pid: 300
+      net_dev_xmit {
+        name: "rmnet0"
+        len: 1000
+        rc: 0
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 10010
+      pid: 400
+      net_dev_xmit {
+        name: "rmnet0"
+        len: 1000
+        rc: 0
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 1
+    event {
+      timestamp: 10011
+      pid: 500
+      net_dev_xmit {
+        name: "rmnet0"
+        len: 1000
+        rc: 16
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 4
+    event {
+      timestamp: 12000
+      pid: 600
+      net_dev_xmit {
+        name: "wlan0"
+        len: 1300
+        rc: 0
+      }
+    }
+  }
+}

@@ -57,27 +57,26 @@ class TraceProcessorImpl : public TraceProcessor,
   ~TraceProcessorImpl() override;
 
   // TraceProcessorStorage implementation:
-  util::Status Parse(TraceBlobView) override;
+  base::Status Parse(TraceBlobView) override;
   void NotifyEndOfFile() override;
 
   // TraceProcessor implementation:
-  Iterator ExecuteQuery(const std::string& sql,
-                        int64_t time_queued = 0) override;
+  Iterator ExecuteQuery(const std::string& sql) override;
 
-  util::Status RegisterMetric(const std::string& path,
+  base::Status RegisterMetric(const std::string& path,
                               const std::string& sql) override;
 
-  util::Status ExtendMetricsProto(const uint8_t* data, size_t size) override;
+  base::Status ExtendMetricsProto(const uint8_t* data, size_t size) override;
 
-  util::Status ExtendMetricsProto(
+  base::Status ExtendMetricsProto(
       const uint8_t* data,
       size_t size,
       const std::vector<std::string>& skip_prefixes) override;
 
-  util::Status ComputeMetric(const std::vector<std::string>& metric_names,
+  base::Status ComputeMetric(const std::vector<std::string>& metric_names,
                              std::vector<uint8_t>* metrics) override;
 
-  util::Status ComputeMetricText(const std::vector<std::string>& metric_names,
+  base::Status ComputeMetricText(const std::vector<std::string>& metric_names,
                                  TraceProcessor::MetricResultFormat format,
                                  std::string* metrics_string) override;
 
@@ -92,7 +91,7 @@ class TraceProcessorImpl : public TraceProcessor,
 
   void EnableMetatrace() override;
 
-  util::Status DisableAndReadMetatrace(
+  base::Status DisableAndReadMetatrace(
       std::vector<uint8_t>* trace_proto) override;
 
  private:

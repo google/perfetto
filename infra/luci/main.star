@@ -13,11 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-lucicfg.check_version("1.23.3", "Please update depot_tools")
+lucicfg.check_version("1.30.9", "Please update depot_tools")
 
-# Enable LUCI Realms support and launch all builds in realms-aware mode.
-lucicfg.enable_experiment("crbug.com/1085650")
-luci.builder.defaults.experiments.set({"luci.use_realms": 100})
+# Use LUCI Scheduler BBv2 names and add Scheduler realms configs.
+lucicfg.enable_experiment("crbug.com/1182002")
 
 # Enable bbagent.
 luci.recipe.defaults.use_bbagent.set(True)
@@ -75,7 +74,7 @@ luci.bucket(
     ],
 )
 
-def official_builder(name, os):
+def official_builder(name, os, caches=[]):
     luci.builder(
         name = name,
         bucket = "official",
@@ -98,9 +97,13 @@ def official_builder(name, os):
                 refs = ["refs/tags/v.+"],
             ),
         ],
+        caches = [
+            swarming.cache(cache, name = cache)
+            for cache in caches
+        ]
     )
 
 official_builder("perfetto-official-builder-linux", "Linux")
-official_builder("perfetto-official-builder-mac", "Mac")
-official_builder("perfetto-official-builder-windows", "Windows")
+official_builder("perfetto-official-builder-mac", "Mac", ["macos_sdk"])
+official_builder("perfetto-official-builder-windows", "Windows", ["windows_sdk"])
 official_builder("perfetto-official-builder-android", "Linux")

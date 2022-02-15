@@ -204,6 +204,10 @@ message TracingServiceState {
     // Typically matches the process name.
     optional string name = 2;
 
+    // Unix pid of the remote process. Supported only on Linux-based systems.
+    // Introduced in v24 / Android T.
+    optional int32 pid = 5;
+
     // Unix uid of the remote process.
     optional int32 uid = 3;
 
@@ -224,11 +228,52 @@ message TracingServiceState {
     optional int32 producer_id = 2;
   }
 
+  message TracingSession {
+    // The TracingSessionID.
+    optional uint64 id = 1;
+
+    // The Unix uid of the consumer that started the session.
+    // This is meaningful only if the caller is root. In all other cases only
+    // tracing sessions that match the caller UID will be displayed.
+    optional int32 consumer_uid = 2;
+
+    // Internal state of the tracing session.
+    // These strings are FYI only and subjected to change.
+    optional string state = 3;
+
+    // The unique_session_name as set in the trace config (might be empty).
+    optional string unique_session_name = 4;
+
+    // The number and size of each buffer.
+    repeated uint32 buffer_size_kb = 5;
+
+    // Duration, as specified in the TraceConfig.duration_ms.
+    optional uint32 duration_ms = 6;
+
+    // Number of data sources involved in the session.
+    optional uint32 num_data_sources = 7;
+
+    // Time when the session was started, in the CLOCK_REALTIME domain.
+    // Available only on Linux-based systems.
+    optional int64 start_realtime_ns = 8;
+  }
+
   // Lists all the producers connected.
   repeated Producer producers = 1;
 
   // Lists the data sources available.
   repeated DataSource data_sources = 2;
+
+  // Lists the tracing sessions active AND owned by a consumer that has the same
+  // UID of the caller (or all of them if the caller is root).
+  // Introduced in v24 / Android T.
+  repeated TracingSession tracing_sessions = 6;
+
+  // This is always set to true from v24 and beyond. This flag is only used to
+  // tell the difference between: (1) talking to a recent service which happens
+  // to have no tracing session active; (2) talking to an older version of the
+  // service which will never report any tracing session.
+  optional bool supports_tracing_sessions = 7;
 
   // Total number of tracing sessions.
   optional int32 num_sessions = 3;
@@ -258,6 +303,10 @@ enum BuiltinClock {
   BUILTIN_CLOCK_MAX_ID = 63;
 
   reserved 7, 8;
+
+  // An internal CL (ag/16521245) has taken this for BUILTIN_CLOCK_TSC.
+  // That might get upstreamed later on. Avoid diverging on this ID in future.
+  reserved 9;
 }
 
 // End of protos/perfetto/common/builtin_clock.proto
@@ -888,14 +937,56 @@ message PerfEvents {
     optional string name = 10;
   }
 
+  // Builtin counter names from the uapi header. Commented with their perf tool
+  // aliases.
+  // TODO(rsavitski): consider generating enums for cache events (should be
+  // finite), and generally make this list as extensive as possible. Excluding
+  // things like dynamic PMUs since those don't fit into a static enum.
+  // Next id: 21
   enum Counter {
     UNKNOWN_COUNTER = 0;
-    // software:
+
+    // cpu-clock
     SW_CPU_CLOCK = 1;
+    // page-faults, faults
     SW_PAGE_FAULTS = 2;
-    // hardware:
+    // task-clock
+    SW_TASK_CLOCK = 3;
+    // context-switches, cs
+    SW_CONTEXT_SWITCHES = 4;
+    // cpu-migrations, migrations
+    SW_CPU_MIGRATIONS = 5;
+    // minor-faults
+    SW_PAGE_FAULTS_MIN = 6;
+    // major-faults
+    SW_PAGE_FAULTS_MAJ = 7;
+    // alignment-faults
+    SW_ALIGNMENT_FAULTS = 8;
+    // emulation-faults
+    SW_EMULATION_FAULTS = 9;
+    // dummy
+    SW_DUMMY = 20;
+
+    // cpu-cycles, cycles
     HW_CPU_CYCLES = 10;
+    // instructions
     HW_INSTRUCTIONS = 11;
+    // cache-references
+    HW_CACHE_REFERENCES = 12;
+    // cache-misses
+    HW_CACHE_MISSES = 13;
+    // branch-instructions, branches
+    HW_BRANCH_INSTRUCTIONS = 14;
+    // branch-misses
+    HW_BRANCH_MISSES = 15;
+    // bus-cycles
+    HW_BUS_CYCLES = 16;
+    // stalled-cycles-frontend, idle-cycles-frontend
+    HW_STALLED_CYCLES_FRONTEND = 17;
+    // stalled-cycles-backend, idle-cycles-backend
+    HW_STALLED_CYCLES_BACKEND = 18;
+    // ref-cycles
+    HW_REF_CPU_CYCLES = 19;
   }
 
   message Tracepoint {
@@ -1311,6 +1402,10 @@ message SysStatsConfig {
   // This option can be used to record unchanging values.
   // Updates from frequency changes can come from ftrace/set_clock_rate.
   optional uint32 devfreq_period_ms = 7;
+
+  // Polls /sys/devices/system/cpu/cpu*/cpufreq/cpuinfo_cur_freq every X ms.
+  // This is required to be > 10ms to avoid excessive CPU usage.
+  optional uint32 cpufreq_period_ms = 8;
 }
 
 // End of protos/perfetto/config/sys_stats/sys_stats_config.proto
@@ -1547,7 +1642,7 @@ message DataSourceConfig {
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 34.
+// Next id: 35.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -1958,6 +2053,54 @@ message TraceConfig {
   // old field number for trace_filter
   reserved 32;
   optional TraceFilter trace_filter = 33;
+
+  // Android-only. Not for general use. If set, reports the trace to the
+  // Android framework. This field is read by perfetto_cmd, rather than the
+  // tracing service. This field must be set when passing the --upload flag to
+  // perfetto_cmd.
+  message AndroidReportConfig {
+    // In this message, either:
+    //  * |reporter_service_package| and |reporter_service_class| must be set.
+    //  * |skip_reporting| must be explicitly set to true.
+
+    optional string reporter_service_package = 1;
+    optional string reporter_service_class = 2;
+
+    // If true, then skips reporting the trace to Android framework.
+    //
+    // This flag is useful in testing (e.g. Perfetto-statsd integration tests)
+    // or when we explicitly don't want to report traces to the framework even
+    // when they usually would (e.g. configs deployed using statsd but only
+    // used for inclusion in bugreports using |bugreport_score|).
+    //
+    // The motivation for having this flag, instead of just not setting
+    // |framework_report_config|, is prevent accidents where
+    // |framework_report_config| is omitted by mistake.
+    optional bool skip_report = 3;
+
+    // If true, will direct the Android framework to read the data in trace
+    // file and pass it to the reporter class over a pipe instead of passing
+    // the file descriptor directly.
+    //
+    // This flag is needed because the Android test framework does not
+    // currently support priv-app helper apps (in terms of SELinux) and we
+    // really don't want to add an allow rule for untrusted_app to receive
+    // trace fds.
+    //
+    // Because of this, we instead will direct the framework to create a new
+    // pipe and pass this to the reporter process instead. As the pipe is
+    // created by the framework, we won't have any problems with SELinux
+    // (system_server is already allowed to pass pipe fds, even
+    // to untrusted apps).
+    //
+    // As the name suggests this option *MUST* only be used for testing.
+    // Note that the framework will reject (and drop) files which are too
+    // large both for simplicity and to be minimize the amount of data we
+    // pass to a non-priv app (note that the framework will still check
+    // manifest permissions even though SELinux permissions are worked around).
+    optional bool use_pipe_in_framework_for_testing = 4;
+  }
+  optional AndroidReportConfig android_report_config = 34;
 }
 
 // End of protos/perfetto/config/trace_config.proto

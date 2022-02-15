@@ -117,7 +117,7 @@ multiple processes.
 ## Janks explained
 
 The jank types are defined in
-[JankInfo.h](http://cs/android/frameworks/native/libs/gui/include/gui/JankInfo.h?l=22).
+[JankInfo.h](https://cs.android.com/android/platform/superproject/+/master:frameworks/native/libs/gui/include/gui/JankInfo.h?l=22).
 Since each app is written differently, there is no common way to go into the
 internals of the apps and specify what the reason for the jank was. Our goal is
 not to do this but rather, provide a quick way to tell if app was janky or if

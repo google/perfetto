@@ -87,7 +87,6 @@ body>main {
     width: 100%;
     padding: 0;
     margin: 0;
-    user-select: none;
     overscroll-behavior: none;
 }
 
@@ -185,9 +184,6 @@ button.close {
 }
 
 .alerts {
-  * {
-    user-select: text;
-  }
   grid-area: alerts;
   background-color: #f2f2f2;
   >div {
@@ -234,6 +230,48 @@ button.close {
       }
       .disabled {
         cursor: default;
+      }
+      .dropdown {
+        display: inline-block;
+        position: relative;
+      }
+      .indent {
+        display: inline-block;
+        // 24px is the width of expand_more/expand_less icon to pad out cells
+        // without the button
+        width: 24px;
+      }
+      .popup-menu {
+        position: absolute;
+        background-color: white;
+        right: 0;
+        box-shadow: 0 0 4px 0 #999;
+
+        &.closed {
+          display: none;
+        }
+
+        &.open {
+          display: block;
+        }
+
+        button {
+          border-radius: 0;
+          margin: 0;
+          height: auto;
+          background: transparent;
+          color: #111;
+          font-size: 12px;
+          padding: 0.4em 1em;
+          white-space: nowrap;
+          width: 100%;
+          text-align: right;
+          line-height: 1;
+
+          &:hover {
+            background: #c7d0db;
+          }
+        }
       }
     }
     thead td {
@@ -413,6 +451,7 @@ canvas.main-canvas {
 
 .panels {
   grid-area: space;
+  user-select: none;
 }
 
 .panel {
@@ -462,13 +501,8 @@ header.overview {
       color: hsl(213, 22%, 40%);
   }
   span.code {
-    user-select: text;
     flex-grow: 1;
   }
-}
-
-.query-error {
-  user-select: text;
 }
 
 button.query-ctrl {
@@ -583,6 +617,19 @@ button.query-ctrl {
     width: var(--track-shell-width);
     min-height: 40px;
     transition: background-color .4s;
+
+    .track-title {
+      user-select: text;
+    }
+
+    .chip {
+      background-color: #bed6ff;
+      border-radius: 3px;
+      font-size: smaller;
+      padding: 0 0.1rem;
+      margin-left: 1ch;
+    }
+
     h1 {
       grid-area: title;
       @include track_shell_title();
@@ -653,6 +700,35 @@ button.query-ctrl {
 
 .disallow-selection {
   user-select: none;
+}
+
+.pivot-table-redux {
+  user-select: text;
+
+  button.mode-button {
+    border-radius: 10px;
+    padding: 7px;
+    margin: 5px;
+    background-color: #c7d0db;
+  }
+
+  &.edit {
+    padding: 10px;
+    display: flex;
+  }
+
+  &.query-error {
+    color: red;
+  }
+
+  .total-values {
+    text-align: right;
+    padding-right: 10px;
+  }
+
+  .empty-result {
+    padding: 10px;
+  }
 }
 
 .pivot-table-editor-container {
@@ -740,7 +816,6 @@ button.query-ctrl {
     }
   }
   span {
-    user-select: text;
     flex-grow: 1;
   }
 }
@@ -765,3 +840,4 @@ button.query-ctrl {
 .allow-white-space {
   white-space: pre
 }
+

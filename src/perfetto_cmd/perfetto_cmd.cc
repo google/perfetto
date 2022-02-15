@@ -65,6 +65,7 @@
 #include "src/perfetto_cmd/trigger_producer.h"
 
 #include "protos/perfetto/common/tracing_service_state.gen.h"
+#include "protos/perfetto/common/track_event_descriptor.gen.h"
 
 namespace perfetto {
 namespace {
@@ -567,29 +568,66 @@ base::Optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     uuid_ = uuid.ToString();
   }
 
-  if (!trace_config_->incident_report_config().destination_package().empty() &&
-      !upload_flag_) {
+  bool has_incidentd_package =
+      !trace_config_->incident_report_config().destination_package().empty();
+  if (has_incidentd_package && !upload_flag_) {
     PERFETTO_ELOG(
         "Unexpected IncidentReportConfig without --dropbox / --upload.");
     return 1;
   }
 
+  bool has_android_reporter_package = !trace_config_->android_report_config()
+                                           .reporter_service_package()
+                                           .empty();
+  if (has_android_reporter_package && !upload_flag_) {
+    PERFETTO_ELOG(
+        "Unexpected AndroidReportConfig without --dropbox / --upload.");
+    return 1;
+  }
+
+  if (has_incidentd_package && has_android_reporter_package) {
+    PERFETTO_ELOG(
+        "Only one of IncidentReportConfig and AndroidReportConfig "
+        "allowed in the same config.");
+    return 1;
+  }
+
+  // If the upload flag is set, we can only be doing one of three things:
+  // 1. Reporting to either incidentd or Android framework.
+  // 2. Skipping incidentd/Android report because it was explicitly
+  //    specified in the config.
+  // 3. Activating triggers.
+  bool incidentd_valid =
+      has_incidentd_package ||
+      trace_config_->incident_report_config().skip_incidentd();
+  bool android_report_valid =
+      has_android_reporter_package ||
+      trace_config_->android_report_config().skip_report();
+  bool has_triggers = !trace_config_->activate_triggers().empty();
+  if (upload_flag_ && !incidentd_valid && !android_report_valid &&
+      !has_triggers) {
+    PERFETTO_ELOG(
+        "One of IncidentReportConfig, AndroidReportConfig or activate_triggers "
+        "must be specified with --dropbox / --upload.");
+    return 1;
+  }
+
   // Only save to incidentd if:
-  // 1) --upload is set
+  // 1) |destination_package| is set
   // 2) |skip_incidentd| is absent or false.
   // 3) we are not simply activating triggers.
   save_to_incidentd_ =
-      upload_flag_ &&
+      has_incidentd_package &&
       !trace_config_->incident_report_config().skip_incidentd() &&
-      trace_config_->activate_triggers().empty();
+      !has_triggers;
 
-  if (save_to_incidentd_ &&
-      trace_config_->incident_report_config().destination_package().empty()) {
-    PERFETTO_ELOG(
-        "Missing IncidentReportConfig.destination_package with --dropbox / "
-        "--upload.");
-    return 1;
-  }
+  // Only report to the Andorid framework if:
+  // 1) |reporter_service_package| is set
+  // 2) |skip_report| is absent or false.
+  // 3) we are not simply activating triggers.
+  report_to_android_framework_ =
+      has_android_reporter_package &&
+      !trace_config_->android_report_config().skip_report() && !has_triggers;
 
   // Respect the wishes of the config with respect to statsd logging or fall
   // back on the presence of the --upload flag if not set.
@@ -639,7 +677,7 @@ base::Optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
   // In this case we don't intend to send any trace config to the service,
   // rather use that as a signal to the cmdline client to connect as a producer
   // and activate triggers.
-  if (!trace_config_->activate_triggers().empty()) {
+  if (has_triggers) {
     for (const auto& trigger : trace_config_->activate_triggers()) {
       triggers_to_activate_.push_back(trigger);
     }
@@ -697,10 +735,18 @@ base::Optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     }
   }
 
-  if (save_to_incidentd_ && !ignore_guardrails_ &&
-      (trace_config_->duration_ms() == 0 &&
-       trace_config_->trigger_config().trigger_timeout_ms() == 0)) {
+  bool will_trace_indefinitely =
+      trace_config_->duration_ms() == 0 &&
+      trace_config_->trigger_config().trigger_timeout_ms() == 0;
+  if (will_trace_indefinitely && save_to_incidentd_ && !ignore_guardrails_) {
     PERFETTO_ELOG("Can't trace indefinitely when tracing to Incidentd.");
+    return 1;
+  }
+
+  if (will_trace_indefinitely && report_to_android_framework_ &&
+      !ignore_guardrails_) {
+    PERFETTO_ELOG(
+        "Can't trace indefinitely when reporting to Android framework.");
     return 1;
   }
 
@@ -785,7 +831,6 @@ int PerfettoCmd::ConnectToServiceAndRun() {
   // connect as a consumer or run the trace. So bail out after processing all
   // the options.
   if (!triggers_to_activate_.empty()) {
-    LogUploadEvent(PerfettoStatsdAtom::kTriggerBegin);
     LogTriggerEvents(PerfettoTriggerAtom::kCmdTrigger, triggers_to_activate_);
 
     bool finished_with_success = false;
@@ -797,10 +842,7 @@ int PerfettoCmd::ConnectToServiceAndRun() {
         },
         &triggers_to_activate_);
     task_runner_.Run();
-    if (finished_with_success) {
-      LogUploadEvent(PerfettoStatsdAtom::kTriggerSuccess);
-    } else {
-      LogUploadEvent(PerfettoStatsdAtom::kTriggerFailure);
+    if (!finished_with_success) {
       LogTriggerEvents(PerfettoTriggerAtom::kCmdTriggerFail,
                        triggers_to_activate_);
     }
@@ -816,7 +858,7 @@ int PerfettoCmd::ConnectToServiceAndRun() {
 
   RateLimiter::Args args{};
   args.is_user_build = IsUserBuild();
-  args.is_uploading = save_to_incidentd_;
+  args.is_uploading = save_to_incidentd_ || report_to_android_framework_;
   args.current_time = base::GetWallTimeS();
   args.ignore_guardrails = ignore_guardrails_;
   args.allow_user_build_tracing = trace_config_->allow_user_build_tracing();
@@ -845,8 +887,6 @@ int PerfettoCmd::ConnectToServiceAndRun() {
 
   auto err_atom = ConvertRateLimiterResponseToAtom(limiter_->ShouldTrace(args));
   if (err_atom) {
-    // TODO(lalitm): remove this once we're ready on server side.
-    LogUploadEvent(PerfettoStatsdAtom::kHitGuardrails);
     LogUploadEvent(err_atom.value());
     return 1;
   }
@@ -1026,7 +1066,11 @@ void PerfettoCmd::FinalizeTraceAndExit() {
 
   if (save_to_incidentd_) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-    SaveTraceIntoDropboxAndIncidentOrCrash();
+    SaveTraceIntoIncidentOrCrash();
+#endif
+  } else if (report_to_android_framework_) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+    ReportTraceToAndroidFrameworkOrCrash();
 #endif
   } else {
     trace_out_stream_.reset();
@@ -1136,29 +1180,86 @@ void PerfettoCmd::PrintServiceState(bool success,
     return;
   }
 
-  printf("Not meant for machine consumption. Use --query-raw for scripts.\n");
+  printf(
+      "\x1b[31mNot meant for machine consumption. Use --query-raw for "
+      "scripts.\x1b[0m\n\n");
+  printf(
+      "Service: %s\n"
+      "Tracing sessions: %d (started: %d)\n",
+      svc_state.tracing_service_version().c_str(), svc_state.num_sessions(),
+      svc_state.num_sessions_started());
 
+  printf(R"(
+
+PRODUCER PROCESSES CONNECTED:
+
+ID         PID        UID        NAME                             SDK
+==         ===        ===        ====                             ===
+)");
   for (const auto& producer : svc_state.producers()) {
-    printf("producers: {\n");
-    printf("  id: %d\n", producer.id());
-    printf("  name: \"%s\" \n", producer.name().c_str());
-    printf("  uid: %d \n", producer.uid());
-    printf("  sdk_version: \"%s\" \n", producer.sdk_version().c_str());
-    printf("}\n");
+    printf("%-10d %-10d %-10d %-32s %s\n", producer.id(), producer.pid(),
+           producer.uid(), producer.name().c_str(),
+           producer.sdk_version().c_str());
   }
 
+  printf(R"(
+
+DATA SOURCES REGISTERED:
+
+NAME                                     PRODUCER                     DETAILS
+===                                      ========                     ========
+)");
   for (const auto& ds : svc_state.data_sources()) {
-    printf("data_sources: {\n");
-    printf("  producer_id: %d\n", ds.producer_id());
-    printf("  descriptor: {\n");
-    printf("    name: \"%s\"\n", ds.ds_descriptor().name().c_str());
-    printf("  }\n");
-    printf("}\n");
-  }
-  printf("tracing_service_version: \"%s\"\n",
-         svc_state.tracing_service_version().c_str());
-  printf("num_sessions: %d\n", svc_state.num_sessions());
-  printf("num_sessions_started: %d\n", svc_state.num_sessions_started());
+    char producer_id_and_name[128]{};
+    const int ds_producer_id = ds.producer_id();
+    for (const auto& producer : svc_state.producers()) {
+      if (producer.id() == ds_producer_id) {
+        base::SprintfTrunc(producer_id_and_name, sizeof(producer_id_and_name),
+                           "%s (%d)", producer.name().c_str(), ds_producer_id);
+        break;
+      }
+    }
+
+    printf("%-40s %-40s ", ds.ds_descriptor().name().c_str(),
+           producer_id_and_name);
+    // Print the category names for clients using the track event SDK.
+    if (!ds.ds_descriptor().track_event_descriptor_raw().empty()) {
+      auto raw = ds.ds_descriptor().track_event_descriptor_raw();
+      perfetto::protos::gen::TrackEventDescriptor desc;
+      if (desc.ParseFromArray(raw.data(), raw.size())) {
+        for (const auto& cat : desc.available_categories()) {
+          printf("%s,", cat.name().c_str());
+        }
+      }
+    }
+    printf("\n");
+  }  // for data_sources()
+
+  if (svc_state.supports_tracing_sessions()) {
+    printf(R"(
+
+TRACING SESSIONS:
+
+ID      UID     STATE      NAME         BUF (#) KB   DUR (s)   #DS  STARTED
+===     ===     =====      ====         ==========   =======   ===  =======
+)");
+    for (const auto& sess : svc_state.tracing_sessions()) {
+      uint32_t buf_tot_kb = 0;
+      for (uint32_t kb : sess.buffer_size_kb())
+        buf_tot_kb += kb;
+      int sec =
+          static_cast<int>((sess.start_realtime_ns() / 1000000000) % 86400);
+      int h = sec / 3600;
+      int m = (sec - (h * 3600)) / 60;
+      int s = (sec - h * 3600 - m * 60);
+      printf("%-7" PRIu64
+             " %-7d %-10s %-12s (%d) %-8u %-9u %-4u %02d:%02d:%02d\n",
+             sess.id(), sess.consumer_uid(), sess.state().c_str(),
+             sess.unique_session_name().c_str(), sess.buffer_size_kb_size(),
+             buf_tot_kb, sess.duration_ms() / 1000, sess.num_data_sources(), h,
+             m, s);
+    }  // for tracing_sessions()
+  }    // if (supports_tracing_sessions)
 }
 
 void PerfettoCmd::OnObservableEvents(

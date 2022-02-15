@@ -165,10 +165,9 @@ int TraceToText(std::istream* input, std::ostream* output) {
   OstreamOutputStream zero_copy_output(output);
   OstreamOutputStream* zero_copy_output_ptr = &zero_copy_output;
 
-  constexpr uint32_t kCompressedPacketFieldDescriptor = 50;
   const Reflection* reflect = msg->GetReflection();
-  const FieldDescriptor* compressed_desc =
-      trace_descriptor->FindFieldByNumber(kCompressedPacketFieldDescriptor);
+  const FieldDescriptor* compressed_desc = trace_descriptor->FindFieldByNumber(
+      protos::pbzero::TracePacket::kCompressedPacketsFieldNumber);
 
   std::unique_ptr<Message> compressed_packets_msg(prototype->New());
   std::string compressed_packets;
@@ -177,7 +176,7 @@ int TraceToText(std::istream* input, std::ostream* output) {
   printer.SetInitialIndentLevel(1);
 
   static constexpr size_t kMaxMsgSize = protozero::ProtoRingBuffer::kMaxMsgSize;
-  std::unique_ptr<char> data(new char[kMaxMsgSize]);
+  std::unique_ptr<char[]> data(new char[kMaxMsgSize]);
   protozero::ProtoRingBuffer ring_buffer;
 
   uint32_t packet = 0;
@@ -200,7 +199,7 @@ int TraceToText(std::istream* input, std::ostream* output) {
         break;
       bytes_processed += token.len;
 
-      if (token.field_id != 1) {
+      if (token.field_id != protos::pbzero::Trace::kPacketFieldNumber) {
         PERFETTO_ELOG("Skipping invalid field");
         continue;
       }

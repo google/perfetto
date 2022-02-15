@@ -34,11 +34,11 @@ TEST(RowMapUnittest, SmokeRange) {
   ASSERT_EQ(rm.Get(1), 31u);
   ASSERT_EQ(rm.Get(16), 46u);
 
-  ASSERT_EQ(rm.IndexOf(29), base::nullopt);
-  ASSERT_EQ(rm.IndexOf(30), 0u);
-  ASSERT_EQ(rm.IndexOf(37), 7u);
-  ASSERT_EQ(rm.IndexOf(46), 16u);
-  ASSERT_EQ(rm.IndexOf(47), base::nullopt);
+  ASSERT_EQ(rm.RowOf(29), base::nullopt);
+  ASSERT_EQ(rm.RowOf(30), 0u);
+  ASSERT_EQ(rm.RowOf(37), 7u);
+  ASSERT_EQ(rm.RowOf(46), 16u);
+  ASSERT_EQ(rm.RowOf(47), base::nullopt);
 }
 
 TEST(RowMapUnittest, SmokeBitVector) {
@@ -50,12 +50,12 @@ TEST(RowMapUnittest, SmokeBitVector) {
   ASSERT_EQ(rm.Get(1u), 4u);
   ASSERT_EQ(rm.Get(2u), 5u);
 
-  ASSERT_EQ(rm.IndexOf(0u), 0u);
-  ASSERT_EQ(rm.IndexOf(4u), 1u);
-  ASSERT_EQ(rm.IndexOf(5u), 2u);
+  ASSERT_EQ(rm.RowOf(0u), 0u);
+  ASSERT_EQ(rm.RowOf(4u), 1u);
+  ASSERT_EQ(rm.RowOf(5u), 2u);
 
-  ASSERT_EQ(rm.IndexOf(1u), base::nullopt);
-  ASSERT_EQ(rm.IndexOf(100u), base::nullopt);
+  ASSERT_EQ(rm.RowOf(1u), base::nullopt);
+  ASSERT_EQ(rm.RowOf(100u), base::nullopt);
 }
 
 TEST(RowMapUnittest, SmokeIndexVector) {
@@ -70,12 +70,12 @@ TEST(RowMapUnittest, SmokeIndexVector) {
   ASSERT_EQ(rm.Get(4u), 100u);
   ASSERT_EQ(rm.Get(5u), 1u);
 
-  ASSERT_EQ(rm.IndexOf(32u), 0u);
-  ASSERT_EQ(rm.IndexOf(56u), 1u);
-  ASSERT_EQ(rm.IndexOf(24u), 2u);
-  ASSERT_EQ(rm.IndexOf(0u), 3u);
-  ASSERT_EQ(rm.IndexOf(100u), 4u);
-  ASSERT_EQ(rm.IndexOf(1u), 5u);
+  ASSERT_EQ(rm.RowOf(32u), 0u);
+  ASSERT_EQ(rm.RowOf(56u), 1u);
+  ASSERT_EQ(rm.RowOf(24u), 2u);
+  ASSERT_EQ(rm.RowOf(0u), 3u);
+  ASSERT_EQ(rm.RowOf(100u), 4u);
+  ASSERT_EQ(rm.RowOf(1u), 5u);
 }
 
 TEST(RowMapUnittest, InsertToRangeAfter) {
@@ -84,7 +84,7 @@ TEST(RowMapUnittest, InsertToRangeAfter) {
 
   ASSERT_EQ(rm.size(), 5u);
   ASSERT_EQ(rm.Get(4u), 10u);
-  ASSERT_EQ(rm.IndexOf(10u), 4u);
+  ASSERT_EQ(rm.RowOf(10u), 4u);
 }
 
 TEST(RowMapUnittest, InsertToBitVectorBefore) {
@@ -105,7 +105,7 @@ TEST(RowMapUnittest, InsertToBitVectorAfter) {
 
   ASSERT_EQ(rm.size(), 5u);
   ASSERT_EQ(rm.Get(4u), 10u);
-  ASSERT_EQ(rm.IndexOf(10u), 4u);
+  ASSERT_EQ(rm.RowOf(10u), 4u);
 }
 
 TEST(RowMapUnittest, InsertToIndexVectorAfter) {
@@ -114,7 +114,7 @@ TEST(RowMapUnittest, InsertToIndexVectorAfter) {
 
   ASSERT_EQ(rm.size(), 5u);
   ASSERT_EQ(rm.Get(4u), 10u);
-  ASSERT_EQ(rm.IndexOf(10u), 4u);
+  ASSERT_EQ(rm.RowOf(10u), 4u);
 }
 
 TEST(RowMapUnittest, ContainsRange) {

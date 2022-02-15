@@ -20,6 +20,7 @@ import "protos/perfetto/common/trace_stats.proto";
 import "protos/perfetto/config/trace_config.proto";
 import "protos/perfetto/trace/extension_descriptor.proto";
 import "protos/perfetto/trace/android/android_log.proto";
+import "protos/perfetto/trace/android/camera_event.proto";
 import "protos/perfetto/trace/android/frame_timeline_event.proto";
 import "protos/perfetto/trace/android/gpu_mem_event.proto";
 import "protos/perfetto/trace/android/graphics_frame_event.proto";
@@ -85,7 +86,7 @@ package perfetto.protos;
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 79.
+// Next id: 81.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -147,6 +148,7 @@ message TracePacket {
     FrameTimelineEvent frame_timeline_event = 76;
     AndroidEnergyEstimationBreakdown android_energy_estimation_breakdown = 77;
     UiState ui_state = 78;
+    AndroidCameraFrameEvent android_camera_frame_event = 80;
 
     // Only used in profile packets.
     ProfiledFrameSymbols profiled_frame_symbols = 55;
@@ -206,6 +208,10 @@ message TracePacket {
   oneof optional_trusted_packet_sequence_id {
     uint32 trusted_packet_sequence_id = 10;
   }
+
+  // Trusted process id of the producer which generated this packet, written by
+  // the service.
+  optional int32 trusted_pid = 79;
 
   // Incrementally emitted interned data, valid only on the packet's sequence
   // (packets with the same |trusted_packet_sequence_id|). The writer will

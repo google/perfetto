@@ -34,6 +34,20 @@ namespace trace_processor {
 // columns can refer to the same RowMap. The RowMap defines the access pattern
 // to iterate on rows.
 //
+// Naming convention:
+//
+// As both the input and output of RowMap is a uint32_t, it can be quite
+// confusing to reason about what parameters/return values of the functions
+// of RowMap actually means. To help with this, we define a strict convention
+// of naming.
+//
+// row:     input - that is, rows are what are passed into operator[]; named as
+//          such because a "row" number in a table is converted to an index to
+//          lookup in the backing vectors.
+// index:   output - that is, indices are what are returned from operator[];
+//          named as such because an "index" is what's used to lookup data
+//          from the backing vectors.
+//
 // Implementation details:
 //
 // Behind the scenes, this class is impelemented using one of three backing
@@ -69,15 +83,15 @@ class RowMap {
   // BitVector::SetBitsIterator.
   class RangeIterator {
    public:
-    RangeIterator(const RowMap* rm) : rm_(rm), index_(rm->start_idx_) {}
+    RangeIterator(const RowMap* rm) : rm_(rm), index_(rm->start_index_) {}
 
     void Next() { ++index_; }
 
-    operator bool() const { return index_ < rm_->end_idx_; }
+    operator bool() const { return index_ < rm_->end_index_; }
 
     uint32_t index() const { return index_; }
 
-    uint32_t ordinal() const { return index_ - rm_->start_idx_; }
+    uint32_t ordinal() const { return index_ - rm_->start_index_; }
 
    private:
     const RowMap* rm_ = nullptr;
@@ -105,6 +119,10 @@ class RowMap {
   };
 
  public:
+  // Input type.
+  using InputRow = uint32_t;
+  using OutputIndex = uint32_t;
+
   // Allows efficient iteration over the rows of a RowMap.
   //
   // Note: you should usually prefer to use the methods on RowMap directly (if
@@ -158,12 +176,8 @@ class RowMap {
       PERFETTO_FATAL("For GCC");
     }
 
-    // Returns the row pointed to by this iterator.
-    uint32_t row() const {
-      // RowMap uses the row/index nomenclature for referring to the mapping
-      // from index to a row (as the name suggests). However, the data
-      // structures used by RowMap use the index/ordinal naming (because they
-      // don't have the concept of a "row"). Switch the naming here.
+    // Returns the index pointed to by this iterator.
+    OutputIndex index() const {
       switch (rm_->mode_) {
         case Mode::kRange:
           return range_it_->index();
@@ -175,12 +189,8 @@ class RowMap {
       PERFETTO_FATAL("For GCC");
     }
 
-    // Returns the index of the row the iterator points to.
-    uint32_t index() const {
-      // RowMap uses the row/index nomenclature for referring to the mapping
-      // from index to a row (as the name suggests). However, the data
-      // structures used by RowMap use the index/ordinal naming (because they
-      // don't have the concept of a "row"). Switch the naming here.
+    // Returns the row of the index the iterator points to.
+    InputRow row() const {
       switch (rm_->mode_) {
         case Mode::kRange:
           return range_it_->ordinal();
@@ -216,21 +226,23 @@ class RowMap {
   // By default this will be implemented using a range.
   RowMap();
 
-  // Creates a RowMap containing the range of rows between |start| and |end|
-  // i.e. all rows between |start| (inclusive) and |end| (exclusive).
-  explicit RowMap(uint32_t start,
-                  uint32_t end,
+  // Creates a RowMap containing the range of indices between |start| and |end|
+  // i.e. all indices between |start| (inclusive) and |end| (exclusive).
+  explicit RowMap(OutputIndex start,
+                  OutputIndex end,
                   OptimizeFor optimize_for = OptimizeFor::kMemory);
 
   // Creates a RowMap backed by a BitVector.
   explicit RowMap(BitVector bit_vector);
 
   // Creates a RowMap backed by an std::vector<uint32_t>.
-  explicit RowMap(std::vector<uint32_t> vec);
+  explicit RowMap(std::vector<OutputIndex> vec);
 
-  // Creates a RowMap containing just |row|.
+  // Creates a RowMap containing just |index|.
   // By default this will be implemented using a range.
-  static RowMap SingleRow(uint32_t row) { return RowMap(row, row + 1); }
+  static RowMap SingleRow(OutputIndex index) {
+    return RowMap(index, index + 1);
+  }
 
   // Creates a copy of the RowMap.
   // We have an explicit copy function because RowMap can hold onto large chunks
@@ -238,11 +250,12 @@ class RowMap {
   // accidental leaks and copies.
   RowMap Copy() const;
 
-  // Returns the size of the RowMap; that is the number of rows in the RowMap.
+  // Returns the size of the RowMap; that is the number of indices in the
+  // RowMap.
   uint32_t size() const {
     switch (mode_) {
       case Mode::kRange:
-        return end_idx_ - start_idx_;
+        return end_index_ - start_index_;
       case Mode::kBitVector:
         return bit_vector_.GetNumBitsSet();
       case Mode::kIndexVector:
@@ -254,54 +267,54 @@ class RowMap {
   // Returns whether this rowmap is empty.
   bool empty() const { return size() == 0; }
 
-  // Returns the row at index |row|.
-  uint32_t Get(uint32_t idx) const {
-    PERFETTO_DCHECK(idx < size());
+  // Returns the index at the given |row|.
+  OutputIndex Get(InputRow row) const {
+    PERFETTO_DCHECK(row < size());
     switch (mode_) {
       case Mode::kRange:
-        return GetRange(idx);
+        return GetRange(row);
       case Mode::kBitVector:
-        return GetBitVector(idx);
+        return GetBitVector(row);
       case Mode::kIndexVector:
-        return GetIndexVector(idx);
+        return GetIndexVector(row);
     }
     PERFETTO_FATAL("For GCC");
   }
 
-  // Returns whether the RowMap contains the given row.
-  bool Contains(uint32_t row) const {
+  // Returns whether the RowMap contains the given index.
+  bool Contains(OutputIndex index) const {
     switch (mode_) {
       case Mode::kRange: {
-        return row >= start_idx_ && row < end_idx_;
+        return index >= start_index_ && index < end_index_;
       }
       case Mode::kBitVector: {
-        return row < bit_vector_.size() && bit_vector_.IsSet(row);
+        return index < bit_vector_.size() && bit_vector_.IsSet(index);
       }
       case Mode::kIndexVector: {
-        auto it = std::find(index_vector_.begin(), index_vector_.end(), row);
+        auto it = std::find(index_vector_.begin(), index_vector_.end(), index);
         return it != index_vector_.end();
       }
     }
     PERFETTO_FATAL("For GCC");
   }
 
-  // Returns the first index of the given |row| in the RowMap.
-  base::Optional<uint32_t> IndexOf(uint32_t row) const {
+  // Returns the first row of the given |index| in the RowMap.
+  base::Optional<InputRow> RowOf(OutputIndex index) const {
     switch (mode_) {
       case Mode::kRange: {
-        if (row < start_idx_ || row >= end_idx_)
+        if (index < start_index_ || index >= end_index_)
           return base::nullopt;
-        return row - start_idx_;
+        return index - start_index_;
       }
       case Mode::kBitVector: {
-        return row < bit_vector_.size() && bit_vector_.IsSet(row)
-                   ? base::make_optional(bit_vector_.GetNumBitsSet(row))
+        return index < bit_vector_.size() && bit_vector_.IsSet(index)
+                   ? base::make_optional(bit_vector_.GetNumBitsSet(index))
                    : base::nullopt;
       }
       case Mode::kIndexVector: {
-        auto it = std::find(index_vector_.begin(), index_vector_.end(), row);
+        auto it = std::find(index_vector_.begin(), index_vector_.end(), index);
         return it != index_vector_.end()
-                   ? base::make_optional(static_cast<uint32_t>(
+                   ? base::make_optional(static_cast<InputRow>(
                          std::distance(index_vector_.begin(), it)))
                    : base::nullopt;
       }
@@ -309,8 +322,8 @@ class RowMap {
     PERFETTO_FATAL("For GCC");
   }
 
-  // Performs an ordered insert the row into the current RowMap (precondition:
-  // this RowMap is ordered based on the rows it contains).
+  // Performs an ordered insert of the index into the current RowMap
+  // (precondition: this RowMap is ordered based on the indices it contains).
   //
   // Example:
   // this = [1, 5, 10, 11, 20]
@@ -320,41 +333,41 @@ class RowMap {
   // Insert(2)   // this = [1, 2, 5, 10, 11, 12, 20, 21]
   //
   // Speecifically, this means that it is only valid to call Insert on a RowMap
-  // which is sorted by the rows it contains; this is automatically true when
+  // which is sorted by the indices it contains; this is automatically true when
   // the RowMap is in range or BitVector mode but is a required condition for
   // IndexVector mode.
-  void Insert(uint32_t row) {
+  void Insert(OutputIndex index) {
     switch (mode_) {
       case Mode::kRange:
-        if (row == end_idx_) {
+        if (index == end_index_) {
           // Fast path: if we're just appending to the end of the range, we can
           // stay in range mode and just bump the end index.
-          end_idx_++;
+          end_index_++;
         } else {
           // Slow path: the insert is somewhere else other than the end. This
           // means we need to switch to using a BitVector instead.
-          bit_vector_.Resize(start_idx_, false);
-          bit_vector_.Resize(end_idx_, true);
+          bit_vector_.Resize(start_index_, false);
+          bit_vector_.Resize(end_index_, true);
           *this = RowMap(std::move(bit_vector_));
 
-          InsertIntoBitVector(row);
+          InsertIntoBitVector(index);
         }
         break;
       case Mode::kBitVector:
-        InsertIntoBitVector(row);
+        InsertIntoBitVector(index);
         break;
       case Mode::kIndexVector: {
         PERFETTO_DCHECK(
             std::is_sorted(index_vector_.begin(), index_vector_.end()));
         auto it =
-            std::upper_bound(index_vector_.begin(), index_vector_.end(), row);
-        index_vector_.insert(it, row);
+            std::upper_bound(index_vector_.begin(), index_vector_.end(), index);
+        index_vector_.insert(it, index);
         break;
       }
     }
   }
 
-  // Updates this RowMap by 'picking' the rows at indicies given by |picker|.
+  // Updates this RowMap by 'picking' the indices given by |picker|.
   // This is easiest to explain with an example; suppose we have the following
   // RowMaps:
   // this  : [0, 1, 4, 10, 11]
@@ -365,8 +378,8 @@ class RowMap {
   //
   // Conceptually, we are performing the following algorithm:
   // RowMap rm = Copy()
-  // for (idx : picker)
-  //   rm[i++] = this[idx]
+  // for (p : picker)
+  //   rm[i++] = this[p]
   // return rm;
   RowMap SelectRows(const RowMap& selector) const {
     uint32_t size = selector.size();
@@ -385,8 +398,8 @@ class RowMap {
   }
 
   // Intersects |other| with |this| writing the result into |this|.
-  // By "intersect", we mean to keep only the rows present in both RowMaps. The
-  // order of the preserved rows will be the same as |this|.
+  // By "intersect", we mean to keep only the indices present in both RowMaps.
+  // The order of the preserved indices will be the same as |this|.
   //
   // Conceptually, we are performing the following algorithm:
   // for (idx : this)
@@ -398,8 +411,9 @@ class RowMap {
       // of them as the new RowMap.
       // We have this as an explicit fast path as this is very common for
       // constraints on id and sorted columns to satisfy this condition.
-      start_idx_ = std::max(start_idx_, other.start_idx_);
-      end_idx_ = std::max(start_idx_, std::min(end_idx_, other.end_idx_));
+      start_index_ = std::max(start_index_, other.start_index_);
+      end_index_ =
+          std::max(start_index_, std::min(end_index_, other.end_index_));
       return;
     }
 
@@ -410,7 +424,7 @@ class RowMap {
   // Filters the current RowMap into the RowMap given by |out| based on the
   // return value of |p(idx)|.
   //
-  // Precondition: |out| should be sorted by the rows inside it (this is
+  // Precondition: |out| should be sorted by the indices inside it (this is
   // required to keep this method efficient). This is automatically true if the
   // mode is out is Range or BitVector but needs to be enforced if the mode is
   // IndexVector.
@@ -450,13 +464,13 @@ class RowMap {
     // cases where |out| has only a few entries so we can scan |out| instead of
     // scanning |this|.
 
-    // Ideally, we'd always just scan the rows in |out| and keep those which
+    // Ideally, we'd always just scan |out| and keep the indices in |this| which
     // meet |p|. However, if |this| is a BitVector, we end up needing expensive
-    // |IndexOfNthSet| calls (as we need to lookup the row before passing it to
-    // |p|).
+    // |IndexOfNthSet| calls (as we need to convert the row to an index before
+    // passing it to |p|).
     switch (mode_) {
       case Mode::kRange: {
-        auto ip = [this, p](uint32_t idx) { return p(GetRange(idx)); };
+        auto ip = [this, p](uint32_t row) { return p(GetRange(row)); };
         out->Filter(ip);
         break;
       }
@@ -542,12 +556,12 @@ class RowMap {
       case Mode::kRange: {
         // TODO(lalitm): investigate whether we can reuse the data inside
         // out->bit_vector_ at some point.
-        BitVector bv(out->end_idx_, false);
+        BitVector bv(out->end_index_, false);
         for (auto out_it = bv.IterateAllBits(); it; it.Next(), out_it.Next()) {
           uint32_t ordinal = it.ordinal();
-          if (ordinal < out->start_idx_)
+          if (ordinal < out->start_index_)
             continue;
-          if (ordinal >= out->end_idx_)
+          if (ordinal >= out->end_index_)
             break;
 
           if (p(it.index())) {
@@ -587,16 +601,16 @@ class RowMap {
 
   template <typename Predicate>
   void FilterRange(Predicate p) {
-    uint32_t count = end_idx_ - start_idx_;
+    uint32_t count = end_index_ - start_index_;
 
-    // Optimization: if we are only going to scan a few rows, it's not
+    // Optimization: if we are only going to scan a few indices, it's not
     // worth the haslle of working with a BitVector.
     constexpr uint32_t kSmallRangeLimit = 2048;
     bool is_small_range = count < kSmallRangeLimit;
 
     // Optimization: weif the cost of a BitVector is more than the highest
     // possible cost an index vector could have, use the index vector.
-    uint32_t bit_vector_cost = BitVector::ApproxBytesCost(end_idx_);
+    uint32_t bit_vector_cost = BitVector::ApproxBytesCost(end_index_);
     uint32_t index_vector_cost_ub = sizeof(uint32_t) * count;
 
     // If either of the conditions hold which make it better to use an
@@ -608,21 +622,21 @@ class RowMap {
       // big and good performance.
       std::vector<uint32_t> iv(std::min(kSmallRangeLimit, count));
 
-      uint32_t out_idx = 0;
+      uint32_t out_i = 0;
       for (uint32_t i = 0; i < count; ++i) {
         // If we reach the capacity add another small set of indices.
-        if (PERFETTO_UNLIKELY(out_idx == iv.size()))
+        if (PERFETTO_UNLIKELY(out_i == iv.size()))
           iv.resize(iv.size() + kSmallRangeLimit);
 
         // We keep this branch free by always writing the index but only
         // incrementing the out index if the return value is true.
-        bool value = p(i + start_idx_);
-        iv[out_idx] = i + start_idx_;
-        out_idx += value;
+        bool value = p(i + start_index_);
+        iv[out_i] = i + start_index_;
+        out_i += value;
       }
 
       // Make the vector the correct size and as small as possible.
-      iv.resize(out_idx);
+      iv.resize(out_i);
       iv.shrink_to_fit();
 
       *this = RowMap(std::move(iv));
@@ -631,7 +645,7 @@ class RowMap {
 
     // Otherwise, create a bitvector which spans the full range using
     // |p| as the filler for the bits between start and end.
-    *this = RowMap(BitVector::Range(start_idx_, end_idx_, p));
+    *this = RowMap(BitVector::Range(start_index_, end_index_, p));
   }
 
   void InsertIntoBitVector(uint32_t row) {
@@ -642,17 +656,17 @@ class RowMap {
     bit_vector_.Set(row);
   }
 
-  PERFETTO_ALWAYS_INLINE uint32_t GetRange(uint32_t idx) const {
+  PERFETTO_ALWAYS_INLINE OutputIndex GetRange(InputRow row) const {
     PERFETTO_DCHECK(mode_ == Mode::kRange);
-    return start_idx_ + idx;
+    return start_index_ + row;
   }
-  PERFETTO_ALWAYS_INLINE uint32_t GetBitVector(uint32_t idx) const {
+  PERFETTO_ALWAYS_INLINE OutputIndex GetBitVector(uint32_t row) const {
     PERFETTO_DCHECK(mode_ == Mode::kBitVector);
-    return bit_vector_.IndexOfNthSet(idx);
+    return bit_vector_.IndexOfNthSet(row);
   }
-  PERFETTO_ALWAYS_INLINE uint32_t GetIndexVector(uint32_t idx) const {
+  PERFETTO_ALWAYS_INLINE OutputIndex GetIndexVector(uint32_t row) const {
     PERFETTO_DCHECK(mode_ == Mode::kIndexVector);
-    return index_vector_[idx];
+    return index_vector_[row];
   }
 
   RowMap SelectRowsSlow(const RowMap& selector) const;
@@ -660,14 +674,14 @@ class RowMap {
   Mode mode_ = Mode::kRange;
 
   // Only valid when |mode_| == Mode::kRange.
-  uint32_t start_idx_ = 0;  // This is an inclusive index.
-  uint32_t end_idx_ = 0;    // This is an exclusive index.
+  OutputIndex start_index_ = 0;  // This is an inclusive index.
+  OutputIndex end_index_ = 0;    // This is an exclusive index.
 
   // Only valid when |mode_| == Mode::kBitVector.
   BitVector bit_vector_;
 
   // Only valid when |mode_| == Mode::kIndexVector.
-  std::vector<uint32_t> index_vector_;
+  std::vector<OutputIndex> index_vector_;
 
   OptimizeFor optimize_for_ = OptimizeFor::kMemory;
 };

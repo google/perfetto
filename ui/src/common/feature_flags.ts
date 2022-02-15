@@ -22,6 +22,7 @@ interface FlagSettings {
   defaultValue: boolean;
   description: string;
   name?: string;
+  devOnly?: boolean;
 }
 
 export enum OverrideState {
@@ -80,7 +81,10 @@ class Flags {
   }
 
   allFlags(): Flag[] {
-    return [...this.flags.values()];
+    const includeDevFlags =
+        ['127.0.0.1', '::1', 'localhost'].includes(window.location.hostname);
+    return [...this.flags.values()].filter(
+        flag => includeDevFlags || !flag.devOnly);
   }
 
   resetAll() {
@@ -151,6 +155,7 @@ class FlagImpl implements Flag {
   readonly name: string;
   readonly description: string;
   readonly defaultValue: boolean;
+  readonly devOnly: boolean;
 
   constructor(registry: Flags, state: OverrideState, settings: FlagSettings) {
     this.registry = registry;
@@ -159,6 +164,7 @@ class FlagImpl implements Flag {
     this.description = settings.description;
     this.defaultValue = settings.defaultValue;
     this.name = settings.name || settings.id;
+    this.devOnly = settings.devOnly || false;
   }
 
   get(): boolean {

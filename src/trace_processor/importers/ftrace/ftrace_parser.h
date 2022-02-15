@@ -125,7 +125,8 @@ class FtraceParser {
   void ParseDirectReclaimEnd(int64_t timestamp,
                              uint32_t pid,
                              protozero::ConstBytes);
-  void ParseWorkqueueExecuteStart(int64_t timestamp,
+  void ParseWorkqueueExecuteStart(uint32_t cpu,
+                                  int64_t timestamp,
                                   uint32_t pid,
                                   protozero::ConstBytes,
                                   PacketSequenceStateGeneration* seq_state);
@@ -155,12 +156,24 @@ class FtraceParser {
   void ParseNetifReceiveSkb(uint32_t cpu,
                             int64_t timestamp,
                             protozero::ConstBytes);
+  void ParseNetDevXmit(uint32_t cpu, int64_t timestamp, protozero::ConstBytes);
+  void ParseInetSockSetState(int64_t timestamp,
+                             uint32_t pid,
+                             protozero::ConstBytes);
+  void ParseTcpRetransmitSkb(int64_t timestamp, protozero::ConstBytes);
+  void ParseNapiGroReceiveEntry(uint32_t cpu,
+                                int64_t timestamp,
+                                protozero::ConstBytes);
+  void ParseNapiGroReceiveExit(uint32_t cpu,
+                               int64_t timestamp,
+                               protozero::ConstBytes);
 
   TraceProcessorContext* context_;
   RssStatTracker rss_stat_tracker_;
 
   const StringId sched_wakeup_name_id_;
   const StringId sched_waking_name_id_;
+  const StringId cpu_id_;
   const StringId cpu_freq_name_id_;
   const StringId gpu_freq_name_id_;
   const StringId cpu_idle_name_id_;
@@ -181,7 +194,12 @@ class FtraceParser {
   const StringId oom_kill_id_;
   const StringId workqueue_id_;
   const StringId irq_id_;
+  const StringId tcp_state_id_;
+  const StringId tcp_event_id_;
+  const StringId napi_gro_id_;
+  const StringId tcp_retransmited_name_id_;
   const StringId ret_arg_id_;
+  const StringId len_arg_id_;
   const StringId direct_reclaim_nr_reclaimed_id_;
   const StringId direct_reclaim_order_id_;
   const StringId direct_reclaim_may_writepage_id_;
@@ -223,6 +241,15 @@ class FtraceParser {
 
   // Record number of received bytes from the network interface card.
   std::unordered_map<StringId, uint64_t> nic_received_bytes_;
+
+  // Record number of transmitted bytes to the network interface card.
+  std::unordered_map<StringId, uint64_t> nic_transmitted_bytes_;
+
+  // Keep sock to stream number mapping.
+  std::unordered_map<uint64_t, uint32_t> skaddr_to_stream_;
+
+  // Record number of tcp steams.
+  uint32_t num_of_tcp_stream_ = 0;
 
   bool has_seen_first_ftrace_packet_ = false;
 

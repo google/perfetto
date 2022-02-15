@@ -26,6 +26,7 @@ import "protos/perfetto/trace/ftrace/cgroup.proto";
 import "protos/perfetto/trace/ftrace/clk.proto";
 import "protos/perfetto/trace/ftrace/compaction.proto";
 import "protos/perfetto/trace/ftrace/cpuhp.proto";
+import "protos/perfetto/trace/ftrace/cros_ec.proto";
 import "protos/perfetto/trace/ftrace/dmabuf_heap.proto";
 import "protos/perfetto/trace/ftrace/dpu.proto";
 import "protos/perfetto/trace/ftrace/ext4.proto";
@@ -54,10 +55,12 @@ import "protos/perfetto/trace/ftrace/sched.proto";
 import "protos/perfetto/trace/ftrace/scm.proto";
 import "protos/perfetto/trace/ftrace/sde.proto";
 import "protos/perfetto/trace/ftrace/signal.proto";
+import "protos/perfetto/trace/ftrace/sock.proto";
 import "protos/perfetto/trace/ftrace/sync.proto";
 import "protos/perfetto/trace/ftrace/synthetic.proto";
 import "protos/perfetto/trace/ftrace/systrace.proto";
 import "protos/perfetto/trace/ftrace/task.proto";
+import "protos/perfetto/trace/ftrace/tcp.proto";
 import "protos/perfetto/trace/ftrace/thermal.proto";
 import "protos/perfetto/trace/ftrace/vmscan.proto";
 import "protos/perfetto/trace/ftrace/workqueue.proto";
@@ -451,5 +454,11 @@ message FtraceEvent {
     SdeSdePerfUpdateBusFtraceEvent sde_sde_perf_update_bus = 358;
     RssStatThrottledFtraceEvent rss_stat_throttled = 359;
     NetifReceiveSkbFtraceEvent netif_receive_skb = 360;
+    NetDevXmitFtraceEvent net_dev_xmit = 361;
+    InetSockSetStateFtraceEvent inet_sock_set_state = 362;
+    TcpRetransmitSkbFtraceEvent tcp_retransmit_skb = 363;
+    CrosEcSensorhubDataFtraceEvent cros_ec_sensorhub_data = 364;
+    NapiGroReceiveEntryFtraceEvent napi_gro_receive_entry = 365;
+    NapiGroReceiveExitFtraceEvent napi_gro_receive_exit = 366;
   }
 }

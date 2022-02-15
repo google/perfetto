@@ -37,7 +37,7 @@ from platform import system, machine
 # root (to avoid ending up with buildtools/protobuf/protobuf-1.2.3/... and have
 # instead just buildtools/protobuf).
 # |target_os| is either 'darwin', 'linux', 'windows' or 'all'
-# |target_arch| is either 'x64', 'aarch64' or 'all'
+# |target_arch| is either 'x64', 'arm64' or 'all'
 # in both cases the dep only applies on matching platforms
 # |target_arch| can be 'all' when 'target_os' is not 'all' for example in the
 # case of MacOS universal binaries.
@@ -57,21 +57,26 @@ CLEANUP_OLD_DIRS = [
 # Dependencies required to build code on the host or when targeting desktop OS.
 BUILD_DEPS_TOOLCHAIN_HOST = [
     # GN. From https://chrome-infra-packages.appspot.com/dl/gn/gn/.
-    # git_revision:83dad00afb232d7235dd70dff1ee90292d72a01e .
+    # git_revision:0725d7827575b239594fbc8fd5192873a1d62f44 .
     Dependency(
         'buildtools/mac/gn',
-        'https://storage.googleapis.com/perfetto/gn-mac-1695-83dad00a',
-        '513d3adeb56b745e62af4e3ccb76b76f023c6aaa25d6a2be9a89e44cd10a4c1a',
+        'https://storage.googleapis.com/perfetto/gn-mac-1968-0725d782',
+        '9ced623a664560bba38bbadb9b91158ca4186358c847e17ab7d982b351373c2e',
         'darwin', 'x64'),
     Dependency(
+        'buildtools/mac/gn',
+        'https://storage.googleapis.com/perfetto/gn-mac-arm64-1968-0725d782',
+        'd22336b5210b4dad5e36e8c28ce81187f491822cf4d8fd0a257b30d6bee3fd3f',
+        'darwin', 'arm64'),
+    Dependency(
         'buildtools/linux64/gn',
-        'https://storage.googleapis.com/perfetto/gn-linux64-1695-83dad00a',
-        '4f589364153f182b05cd845e93407489d6ce8acc03290c897928a7bd22b20cce',
+        'https://storage.googleapis.com/perfetto/gn-linux64-1968-0725d782',
+        'f706aaa0676e3e22f5fc9ca482295d7caee8535d1869f99efa2358177b64f5cd',
         'linux', 'x64'),
     Dependency(
         'buildtools/win/gn.exe',
-        'https://storage.googleapis.com/perfetto/gn-win-1695-83dad00a',
-        '908c29556539292203d2952ebf55df03697cbc7cf526a3e295f31ba2576e4cac',
+        'https://storage.googleapis.com/perfetto/gn-win-1968-0725d782',
+        '001f777f023c7a6959c778fb3a6b6cfc63f6baef953410ecdeaec350fb12285b',
         'windows', 'x64'),
 
     # clang-format
@@ -80,7 +85,7 @@ BUILD_DEPS_TOOLCHAIN_HOST = [
         'buildtools/mac/clang-format',
         'https://storage.googleapis.com/chromium-clang-format/62bde1baa7196ad9df969fc1f06b66360b1a927b',
         '6df686a937443cbe6efc013467a7ba5f98d3f187eb7765bb7abc6ce47626cf66',
-        'darwin', 'x64'),
+        'darwin', 'all'),
     # From https://chromium.googlesource.com/chromium/src/buildtools/+/refs/heads/master/linux64/clang-format.sha1
     Dependency(
         'buildtools/linux64/clang-format',
@@ -103,18 +108,18 @@ BUILD_DEPS_TOOLCHAIN_HOST = [
     # Ninja
     Dependency(
         'buildtools/mac/ninja',
-        'https://storage.googleapis.com/perfetto/ninja-mac-c15b0698da038b2bd2e8970c14c75fadc06b1add',
-        '4224b90734590b0148ad8ee63ee7b295e88e0652e4d1f4271ef2b91d880b0e19',
-        'darwin', 'x64'),
+        'https://storage.googleapis.com/perfetto/ninja-mac-x64_and_arm64-182',
+        '36e8b7aaa06911e1334feb664dd731a1cd69a15eb916a231a3d10ff65fca2c73',
+        'darwin', 'all'),
     Dependency(
         'buildtools/linux64/ninja',
-        'https://storage.googleapis.com/perfetto/ninja-linux64-c866952bda50c29a669222477309287119bbb7e8',
+        'https://storage.googleapis.com/perfetto/ninja-linux64-182',
         '54ac6a01362190aaabf4cf276f9c8982cdf11b225438940fdde3339be0f2ecdc',
         'linux', 'x64'),
     Dependency(
         'buildtools/win/ninja.exe',
-        'https://storage.googleapis.com/perfetto/ninja-win-4a5f05c24afef05ef03329a1bbfedee0678b524a',
-        '6f8af488be74ed8787d04e107080d05330587a4198ba047bd5b7f5b0c3150d61',
+        'https://storage.googleapis.com/perfetto/ninja-win-182',
+        '09ced0fcd1a4dec7d1b798a2cf9ce5d20e5d2fbc2337343827f192ce47d0f491',
         'windows', 'x64'),
 
     # Keep the revision in sync with Chrome's PACKAGE_VERSION in
@@ -213,7 +218,7 @@ BUILD_DEPS_HOST = [
     Dependency(
         'buildtools/android-unwinding',
         'https://android.googlesource.com/platform/system/unwinding.git',
-        '734cc2f1d45d5e0269654cb5b8fdecfc93dd2ad3', 'all', 'all'),
+        'b61aebb7f7afaad9b775a59dcd0ea6289fc4325a', 'all', 'all'),
     Dependency('buildtools/android-logging',
                'https://android.googlesource.com/platform/system/logging.git',
                '7b36b566c9113fc703d68f76e8f40c0c2432481c', 'all', 'all'),
@@ -244,7 +249,7 @@ BUILD_DEPS_HOST = [
         'buildtools/bloaty.zip',
         'https://storage.googleapis.com/perfetto/bloaty-1.1-b3b829de35babc2fe831b9488ad2e50bca939412-mac.zip',
         '2d301bd72a20e3f42888c9274ceb4dca76c103608053572322412c2c65ab8cb8',
-        'darwin', 'x64'),
+        'darwin', 'all'),
 ]
 
 # Dependencies required to build Android code.
@@ -257,7 +262,7 @@ BUILD_DEPS_ANDROID = [
         'buildtools/ndk.zip',
         'https://dl.google.com/android/repository/android-ndk-r21e-darwin-x86_64.zip',
         '437278103a3db12632c05b1be5c41bbb8522791a67e415cc54411a65366f499d',
-        'darwin', 'x64'),
+        'darwin', 'all'),
     Dependency(
         'buildtools/ndk.zip',
         'https://dl.google.com/android/repository/android-ndk-r21e-linux-x86_64.zip',
@@ -279,7 +284,7 @@ TEST_DEPS_ANDROID = [
         'buildtools/android_sdk/platform-tools.zip',
         'https://dl.google.com/android/repository/platform-tools_r26.0.0-darwin.zip',
         '98d392cbd21ca20d643c7e1605760cc49075611e317c534096b5564053f4ac8e',
-        'darwin', 'x64'),
+        'darwin', 'all'),
     Dependency(
         'buildtools/android_sdk/platform-tools.zip',
         'https://dl.google.com/android/repository/platform-tools_r26.0.0-linux.zip',
@@ -303,7 +308,7 @@ UI_DEPS = [
         'buildtools/mac/nodejs.tgz',
         'https://storage.googleapis.com/chromium-nodejs/14.15.4/17ba7216e09de1bffb9dc80b7ec617a1cee40330',
         'b81a466347d2ae34b1370b6681ba173e9fb082338170a41624b37be7a2052b7e',
-        'darwin', 'x64'),
+        'darwin', 'all'),
     Dependency(
         'buildtools/linux64/nodejs.tgz',
         'https://storage.googleapis.com/chromium-nodejs/14.15.4/b2e40ddbac04d05baafbb007f203c6663c9d4ca9',
@@ -313,7 +318,7 @@ UI_DEPS = [
         'buildtools/mac/emsdk.tgz',
         'https://storage.googleapis.com/perfetto/emscripten-2.0.12-mac.tgz',
         'aa125f8c8ff8a386d43e18c8ea0c98c875cc19160a899403e8967a5478f96f31',
-        'darwin', 'x64'),
+        'darwin', 'all'),
     Dependency(
         'buildtools/linux64/emsdk.tgz',
         'https://storage.googleapis.com/perfetto/emscripten-2.0.12-linux.tgz',
@@ -361,8 +366,8 @@ def DownloadURL(url, out_file):
 
 def GetArch():
   arch = machine()
-  if arch == 'aarch64':
-    return 'aarch64'
+  if arch == 'arm64':
+    return 'arm64'
   else:
     # Assume everything else is x64 matching previous behaviour.
     return 'x64'

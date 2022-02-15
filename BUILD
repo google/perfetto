@@ -372,6 +372,7 @@ perfetto_filegroup(
         "include/perfetto/ext/base/string_view.h",
         "include/perfetto/ext/base/string_writer.h",
         "include/perfetto/ext/base/subprocess.h",
+        "include/perfetto/ext/base/sys_types.h",
         "include/perfetto/ext/base/temp_file.h",
         "include/perfetto/ext/base/thread_annotations.h",
         "include/perfetto/ext/base/thread_checker.h",
@@ -1036,6 +1037,7 @@ perfetto_genrule(
     srcs = [
         "src/trace_processor/metrics/sql/android/android_batt.sql",
         "src/trace_processor/metrics/sql/android/android_camera.sql",
+        "src/trace_processor/metrics/sql/android/android_camera_unagg.sql",
         "src/trace_processor/metrics/sql/android/android_cpu.sql",
         "src/trace_processor/metrics/sql/android/android_cpu_agg.sql",
         "src/trace_processor/metrics/sql/android/android_cpu_raw_metrics_per_core.sql",
@@ -1047,6 +1049,7 @@ perfetto_genrule(
         "src/trace_processor/metrics/sql/android/android_hwui_metric.sql",
         "src/trace_processor/metrics/sql/android/android_hwui_threads.sql",
         "src/trace_processor/metrics/sql/android/android_ion.sql",
+        "src/trace_processor/metrics/sql/android/android_irq_runtime.sql",
         "src/trace_processor/metrics/sql/android/android_jank.sql",
         "src/trace_processor/metrics/sql/android/android_lmk.sql",
         "src/trace_processor/metrics/sql/android/android_lmk_reason.sql",
@@ -1058,6 +1061,7 @@ perfetto_genrule(
         "src/trace_processor/metrics/sql/android/android_package_list.sql",
         "src/trace_processor/metrics/sql/android/android_powrails.sql",
         "src/trace_processor/metrics/sql/android/android_proxy_power.sql",
+        "src/trace_processor/metrics/sql/android/android_rt_runtime.sql",
         "src/trace_processor/metrics/sql/android/android_simpleperf.sql",
         "src/trace_processor/metrics/sql/android/android_startup.sql",
         "src/trace_processor/metrics/sql/android/android_surfaceflinger.sql",
@@ -1066,6 +1070,7 @@ perfetto_genrule(
         "src/trace_processor/metrics/sql/android/android_task_names.sql",
         "src/trace_processor/metrics/sql/android/android_thread_time_in_state.sql",
         "src/trace_processor/metrics/sql/android/android_trace_quality.sql",
+        "src/trace_processor/metrics/sql/android/android_trusty_workqueues.sql",
         "src/trace_processor/metrics/sql/android/composer_execution.sql",
         "src/trace_processor/metrics/sql/android/composition_layers.sql",
         "src/trace_processor/metrics/sql/android/cpu_info.sql",
@@ -1097,7 +1102,7 @@ perfetto_genrule(
         "src/trace_processor/metrics/sql/chrome/actual_power_by_rail_mode.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_event_metadata.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_processes.sql",
-        "src/trace_processor/metrics/sql/chrome/chrome_thread_slice_with_cpu_time.sql",
+        "src/trace_processor/metrics/sql/chrome/chrome_thread_slice.sql",
         "src/trace_processor/metrics/sql/chrome/cpu_time_by_category.sql",
         "src/trace_processor/metrics/sql/chrome/cpu_time_by_rail_mode.sql",
         "src/trace_processor/metrics/sql/chrome/estimated_power_by_category.sql",
@@ -1105,6 +1110,7 @@ perfetto_genrule(
         "src/trace_processor/metrics/sql/chrome/gesture_flow_event.sql",
         "src/trace_processor/metrics/sql/chrome/gesture_flow_event_queuing_delay.sql",
         "src/trace_processor/metrics/sql/chrome/gesture_jank.sql",
+        "src/trace_processor/metrics/sql/chrome/jank_utilities.sql",
         "src/trace_processor/metrics/sql/chrome/rail_modes.sql",
         "src/trace_processor/metrics/sql/chrome/scroll_flow_event.sql",
         "src/trace_processor/metrics/sql/chrome/scroll_flow_event_queuing_delay.sql",
@@ -1258,6 +1264,7 @@ perfetto_filegroup(
         "src/trace_processor/types/softirq_action.h",
         "src/trace_processor/types/task_state.cc",
         "src/trace_processor/types/task_state.h",
+        "src/trace_processor/types/tcp_state.h",
         "src/trace_processor/types/trace_processor_context.h",
         "src/trace_processor/types/variadic.cc",
         "src/trace_processor/types/variadic.h",
@@ -1468,6 +1475,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/json/json_utils.h",
         "src/trace_processor/importers/ninja/ninja_log_parser.cc",
         "src/trace_processor/importers/ninja/ninja_log_parser.h",
+        "src/trace_processor/importers/proto/android_camera_event_module.cc",
+        "src/trace_processor/importers/proto/android_camera_event_module.h",
         "src/trace_processor/importers/proto/async_track_set_tracker.cc",
         "src/trace_processor/importers/proto/async_track_set_tracker.h",
         "src/trace_processor/importers/proto/chrome_string_lookup.cc",
@@ -2600,8 +2609,10 @@ perfetto_cc_proto_library(
 perfetto_proto_library(
     name = "protos_perfetto_metrics_android_protos",
     srcs = [
+        "protos/perfetto/metrics/android/android_trusty_workqueues.proto",
         "protos/perfetto/metrics/android/batt_metric.proto",
         "protos/perfetto/metrics/android/camera_metric.proto",
+        "protos/perfetto/metrics/android/camera_unagg_metric.proto",
         "protos/perfetto/metrics/android/cpu_metric.proto",
         "protos/perfetto/metrics/android/display_metrics.proto",
         "protos/perfetto/metrics/android/dma_heap_metric.proto",
@@ -2612,6 +2623,7 @@ perfetto_proto_library(
         "protos/perfetto/metrics/android/hwcomposer.proto",
         "protos/perfetto/metrics/android/hwui_metric.proto",
         "protos/perfetto/metrics/android/ion_metric.proto",
+        "protos/perfetto/metrics/android/irq_runtime_metric.proto",
         "protos/perfetto/metrics/android/jank_metric.proto",
         "protos/perfetto/metrics/android/java_heap_histogram.proto",
         "protos/perfetto/metrics/android/java_heap_stats.proto",
@@ -2625,6 +2637,7 @@ perfetto_proto_library(
         "protos/perfetto/metrics/android/powrails_metric.proto",
         "protos/perfetto/metrics/android/process_metadata.proto",
         "protos/perfetto/metrics/android/profiler_smaps.proto",
+        "protos/perfetto/metrics/android/rt_runtime_metric.proto",
         "protos/perfetto/metrics/android/simpleperf.proto",
         "protos/perfetto/metrics/android/startup_metric.proto",
         "protos/perfetto/metrics/android/surfaceflinger.proto",
@@ -2729,6 +2742,7 @@ perfetto_proto_library(
     name = "protos_perfetto_trace_android_protos",
     srcs = [
         "protos/perfetto/trace/android/android_log.proto",
+        "protos/perfetto/trace/android/camera_event.proto",
         "protos/perfetto/trace/android/frame_timeline_event.proto",
         "protos/perfetto/trace/android/gpu_mem_event.proto",
         "protos/perfetto/trace/android/graphics_frame_event.proto",
@@ -2837,6 +2851,7 @@ perfetto_proto_library(
         "protos/perfetto/trace/ftrace/clk.proto",
         "protos/perfetto/trace/ftrace/compaction.proto",
         "protos/perfetto/trace/ftrace/cpuhp.proto",
+        "protos/perfetto/trace/ftrace/cros_ec.proto",
         "protos/perfetto/trace/ftrace/dmabuf_heap.proto",
         "protos/perfetto/trace/ftrace/dpu.proto",
         "protos/perfetto/trace/ftrace/ext4.proto",
@@ -2869,10 +2884,12 @@ perfetto_proto_library(
         "protos/perfetto/trace/ftrace/scm.proto",
         "protos/perfetto/trace/ftrace/sde.proto",
         "protos/perfetto/trace/ftrace/signal.proto",
+        "protos/perfetto/trace/ftrace/sock.proto",
         "protos/perfetto/trace/ftrace/sync.proto",
         "protos/perfetto/trace/ftrace/synthetic.proto",
         "protos/perfetto/trace/ftrace/systrace.proto",
         "protos/perfetto/trace/ftrace/task.proto",
+        "protos/perfetto/trace/ftrace/tcp.proto",
         "protos/perfetto/trace/ftrace/test_bundle_wrapper.proto",
         "protos/perfetto/trace/ftrace/thermal.proto",
         "protos/perfetto/trace/ftrace/vmscan.proto",
@@ -4182,78 +4199,4 @@ perfetto_py_binary(
     data = ["CHANGELOG"],
     main = "tools/write_version_header.py",
     python_version = "PY3",
-)
-
-perfetto_py_binary(
-    name = "trace_processor_py_example",
-    srcs = ["src/trace_processor/python/example.py"],
-    deps = [":trace_processor_py"] + PERFETTO_CONFIG.deps.pandas_py,
-    main = "src/trace_processor/python/example.py",
-    python_version = "PY3",
-)
-
-perfetto_py_library(
-    name = "trace_processor_py",
-    srcs = glob(["src/trace_processor/python/perfetto/trace_processor/*.py"]),
-    data = [
-        "src/trace_processor/python/perfetto/trace_processor/trace_processor.descriptor",
-        "src/trace_processor/python/perfetto/trace_processor/metrics.descriptor",
-        ":trace_processor_shell",
-    ] + PERFETTO_CONFIG.deps.tp_init_py,
-    deps = PERFETTO_CONFIG.deps.gfile_py + 
-        PERFETTO_CONFIG.deps.protobuf_py + 
-        PERFETTO_CONFIG.deps.protobuf_descriptor_pb2_py + 
-        PERFETTO_CONFIG.deps.pyglib_py,
-    imports = [
-        "src/trace_processor/python",
-    ],
-    visibility = PERFETTO_CONFIG.public_visibility,
-)
-
-perfetto_py_library(
-    name = "experimental_slice_breakdown_lib",
-    srcs = glob(["tools/slice_breakdown/perfetto/slice_breakdown/*.py"]),
-    deps = [
-        ":trace_processor_py",
-    ],
-    imports = [
-        "tools/slice_breakdown",
-    ],
-)
-
-perfetto_py_binary(
-    name = "experimental_slice_breakdown_bin",
-    srcs = ["tools/slice_breakdown/main.py"],
-    main = "tools/slice_breakdown/main.py",
-    deps = [
-        ":experimental_slice_breakdown_lib",
-        ":trace_processor_py",
-    ] + PERFETTO_CONFIG.deps.pandas_py,
-    python_version = "PY3",
-    legacy_create_init = 0,
-)
-
-perfetto_py_library(
-    name = "batch_trace_processor",
-    srcs = glob([
-      "tools/batch_trace_processor/perfetto/batch_trace_processor/*.py"
-    ]),
-    deps = [
-        ":trace_processor_py",
-    ] + PERFETTO_CONFIG.deps.pandas_py,
-    imports = [
-        "tools/batch_trace_processor",
-    ],
-)
-
-perfetto_py_binary(
-    name = "batch_trace_processor_shell",
-    srcs = ["tools/batch_trace_processor/main.py"],
-    main = "tools/batch_trace_processor/main.py",
-    deps = [
-        ":trace_processor_py",
-        ":batch_trace_processor",
-    ] + PERFETTO_CONFIG.deps.pandas_py,
-    python_version = "PY3",
-    legacy_create_init = 0,
 )

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {assertTrue} from '../base/logging';
+import {PivotTree} from '../controller/pivot_table_redux_controller';
 import {RecordConfig} from '../controller/record_config_types';
 
 import {
@@ -73,7 +75,11 @@ export const MAX_TIME = 180;
 // 12: Add a field to cache mapping from UI track ID to trace track ID in order
 //     to speed up flow arrows rendering.
 // 13: FlamegraphState changed to support area selection.
-export const STATE_VERSION = 13;
+// 14: Changed the type of uiTrackIdByTraceTrackId from `Map` to an object with
+// typed key/value because a `Map` does not preserve type during
+// serialisation+deserialisation.
+// 15: Added state for Pivot Table V2
+export const STATE_VERSION = 15;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -116,7 +122,7 @@ export interface TraceArrayBufferSource {
   url?: string;
   fileName?: string;
 
-  // |uuid| is set only when loading from the cache via ?trace_id=123. When set,
+  // |uuid| is set only when loading via ?local_cache_key=1234. When set,
   // this matches global.state.traceUuid, with the exception of the following
   // time window: When a trace T1 is loaded and the user loads another trace T2,
   // this |uuid| will be == T2, but the globals.state.traceUuid will be
@@ -325,6 +331,41 @@ export interface PivotTableState {
   selectedTrackIds?: number[];
 }
 
+// Auxiliary metadata needed to parse the query result, as well as to render it
+// correctly. Generated together with the text of query and passed without the
+// change to the query response.
+export interface PivotTableReduxQueryMetadata {
+  pivotColumns: string[];
+  aggregationColumns: string[];
+}
+
+// Everything that's necessary to run the query for pivot table
+export interface PivotTableReduxQuery {
+  text: string;
+  metadata: PivotTableReduxQueryMetadata;
+}
+
+// Pivot table query result
+export interface PivotTableReduxResult {
+  // Hierarchical pivot structure on top of rows
+  tree: PivotTree;
+  // Copy of the query metadata from the request, bundled up with the query
+  // result to ensure the correct rendering.
+  metadata: PivotTableReduxQueryMetadata;
+}
+
+export interface PivotTableReduxState {
+  // Currently selected area, if null, pivot table is not going to be visible.
+  selectionArea: Area|null;
+  // Increasing identifier of the query request, used to avoid performing the
+  // same query more than once.
+  queryId: number;
+  // Query request
+  query: PivotTableReduxQuery|null;
+  // Query response
+  queryResult: PivotTableReduxResult|null;
+}
+
 export interface LoadedConfigNone {
   type: 'NONE';
 }
@@ -365,7 +406,7 @@ export interface State {
   traceUuid?: string;
   trackGroups: ObjectById<TrackGroupState>;
   tracks: ObjectById<TrackState>;
-  uiTrackIdByTraceTrackId: Map<number, string>;
+  uiTrackIdByTraceTrackId: {[key: number]: string;};
   areas: ObjectById<AreaById>;
   aggregatePreferences: ObjectById<AggregationState>;
   visibleTracks: string[];
@@ -384,6 +425,7 @@ export interface State {
   traceConversionInProgress: boolean;
   pivotTableConfig: PivotTableConfig;
   pivotTable: ObjectById<PivotTableState>;
+  pivotTableRedux: PivotTableReduxState;
 
   /**
    * This state is updated on the frontend at 60Hz and eventually syncronised to
@@ -436,7 +478,12 @@ export declare type RecordMode =
     'STOP_WHEN_FULL' | 'RING_BUFFER' | 'LONG_TRACE';
 
 // 'Q','P','O' for Android, 'L' for Linux, 'C' for Chrome.
-export declare type TargetOs = 'Q' | 'P' | 'O' | 'C' | 'L' | 'CrOS';
+export declare type TargetOs = 'S' | 'R' | 'Q' | 'P' | 'O' | 'C' | 'L' | 'CrOS';
+
+export function isTargetOsAtLeast(target: RecordingTarget, osVersion: string) {
+  assertTrue(osVersion.length === 1);
+  return target.os >= osVersion;
+}
 
 export function isAndroidP(target: RecordingTarget) {
   return target.os === 'P';

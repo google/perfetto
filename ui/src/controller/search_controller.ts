@@ -257,6 +257,7 @@ export class SearchController extends Controller<'main'> {
       0 as utid
       from slice
       where slice.name like ${searchLiteral}
+        ${isNaN(Number(search)) ? '' : `or sliceId = ${search}`}
     union
     select
       slice_id as sliceId,

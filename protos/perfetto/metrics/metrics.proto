@@ -21,6 +21,7 @@ package perfetto.protos;
 import "protos/perfetto/metrics/android/batt_metric.proto";
 import "protos/perfetto/metrics/android/cpu_metric.proto";
 import "protos/perfetto/metrics/android/camera_metric.proto";
+import "protos/perfetto/metrics/android/camera_unagg_metric.proto";
 import "protos/perfetto/metrics/android/display_metrics.proto";
 import "protos/perfetto/metrics/android/dma_heap_metric.proto";
 import "protos/perfetto/metrics/android/dvfs_metric.proto";
@@ -30,6 +31,7 @@ import "protos/perfetto/metrics/android/gpu_metric.proto";
 import "protos/perfetto/metrics/android/hwcomposer.proto";
 import "protos/perfetto/metrics/android/hwui_metric.proto";
 import "protos/perfetto/metrics/android/ion_metric.proto";
+import "protos/perfetto/metrics/android/irq_runtime_metric.proto";
 import "protos/perfetto/metrics/android/jank_metric.proto";
 import "protos/perfetto/metrics/android/java_heap_histogram.proto";
 import "protos/perfetto/metrics/android/java_heap_stats.proto";
@@ -42,6 +44,7 @@ import "protos/perfetto/metrics/android/network_metric.proto";
 import "protos/perfetto/metrics/android/package_list.proto";
 import "protos/perfetto/metrics/android/powrails_metric.proto";
 import "protos/perfetto/metrics/android/profiler_smaps.proto";
+import "protos/perfetto/metrics/android/rt_runtime_metric.proto";
 import "protos/perfetto/metrics/android/simpleperf.proto";
 import "protos/perfetto/metrics/android/startup_metric.proto";
 import "protos/perfetto/metrics/android/surfaceflinger.proto";
@@ -49,6 +52,7 @@ import "protos/perfetto/metrics/android/sysui_cuj_metrics.proto";
 import "protos/perfetto/metrics/android/task_names.proto";
 import "protos/perfetto/metrics/android/thread_time_in_state_metric.proto";
 import "protos/perfetto/metrics/android/trace_quality.proto";
+import "protos/perfetto/metrics/android/android_trusty_workqueues.proto";
 import "protos/perfetto/metrics/android/unsymbolized_frames.proto";
 
 // Trace processor metadata
@@ -95,7 +99,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 41
+// Next id: 45
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -199,6 +203,20 @@ message TraceMetrics {
 
   // Metrics for network performance.
   optional AndroidNetworkMetric android_netperf = 40;
+
+  // Metrics for the Camera team.
+  // Note: this generates a lot of data so should not be requested unless it
+  // is clear that this data is necessary.
+  optional AndroidCameraUnaggregatedMetric android_camera_unagg = 41;
+
+  // Metrics for RT runtime.
+  optional AndroidRtRuntimeMetric android_rt_runtime = 42;
+
+  // Metrics for IRQ runtime.
+  optional AndroidIrqRuntimeMetric android_irq_runtime = 43;
+
+  // Metrics for the Trusty team.
+  optional AndroidTrustyWorkqueues android_trusty_workqueues = 44;
 
   // Demo extensions.
   extensions 450 to 499;

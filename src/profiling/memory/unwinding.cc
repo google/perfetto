@@ -129,7 +129,6 @@ bool DoUnwind(WireMessage* msg, UnwindingMetadata* metadata, AllocRecord* out) {
     PERFETTO_DLOG("Unable to construct unwindstack::Regs");
     unwindstack::FrameData frame_data{};
     frame_data.function_name = "ERROR READING REGISTERS";
-    frame_data.map_name = "ERROR";
 
     out->frames.clear();
     out->build_ids.clear();
@@ -191,7 +190,6 @@ bool DoUnwind(WireMessage* msg, UnwindingMetadata* metadata, AllocRecord* out) {
     unwindstack::FrameData frame_data{};
     frame_data.function_name =
         "ERROR " + StringifyLibUnwindstackError(error_code);
-    frame_data.map_name = "ERROR";
 
     out->frames.emplace_back(std::move(frame_data));
     out->build_ids.emplace_back("");

@@ -44,6 +44,14 @@ namespace perfetto {
 namespace base {
 namespace {
 constexpr size_t kBufSize = 2048;
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+// Wrap FindClose to: (1) make the return unix-style; (2) deal with stdcall.
+int CloseFindHandle(HANDLE h) {
+  return FindClose(h) ? 0 : -1;
+}
+#endif
+
 }  // namespace
 
 ssize_t Read(int fd, void* dst, size_t dst_size) {
@@ -238,9 +246,7 @@ base::Status ListFilesRecursive(const std::string& dir_path,
       return base::ErrStatus("Directory path %s is too long", dir_path.c_str());
     WIN32_FIND_DATAA ffd;
 
-    // Wrap FindClose to: (1) make the return unix-style; (2) deal w/ stdcall.
-    static auto find_close = [](HANDLE h) { return FindClose(h) ? 0 : -1; };
-    base::ScopedResource<HANDLE, find_close, nullptr, false,
+    base::ScopedResource<HANDLE, CloseFindHandle, nullptr, false,
                          base::PlatformHandleChecker>
         hFind(FindFirstFileA(glob_path.c_str(), &ffd));
     if (!hFind) {

@@ -37,6 +37,7 @@ import {AnyAttrsVnode, PanelContainer} from './panel_container';
 import {PivotTable} from './pivot_table';
 import {ColumnDisplay, ColumnPicker} from './pivot_table_editor';
 import {PivotTableHelper} from './pivot_table_helper';
+import {PivotTableRedux} from './pivot_table_redux';
 import {QueryTable} from './query_table';
 import {SliceDetailsPanel} from './slice_details_panel';
 import {ThreadStatePanel} from './thread_state_panel';
@@ -323,6 +324,16 @@ export class DetailsPanel implements m.ClassComponent {
         key: 'query_result',
         name: `Query Result (${count})`,
         vnode: m(QueryTable, {key: 'query', queryId: 'command'})
+      });
+    }
+
+    if (globals.state.pivotTableRedux.selectionArea !== null) {
+      detailsPanels.push({
+        key: 'pivot_table_redux',
+        name: 'Pivot Table',
+        vnode:
+            m(PivotTableRedux,
+              {selectionArea: globals.state.pivotTableRedux.selectionArea})
       });
     }
 
