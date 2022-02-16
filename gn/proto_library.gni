@@ -254,6 +254,16 @@ template("perfetto_proto_library") {
       }
     }
 
+    # The distinction between deps and public_deps does not matter for GN
+    # but Bazel cares about the difference so we distinguish between the two.
+    public_deps_ = []
+    if (defined(invoker.public_deps)) {
+      foreach(dep, invoker.public_deps) {
+        public_deps_ = [ string_replace(dep, expansion_token, gen_type) ]
+      }
+    }
+    deps_ += public_deps_
+
     if (gen_type == "zero") {
       protozero_library(target_name_) {
         proto_in_dir = proto_path
@@ -328,6 +338,7 @@ template("perfetto_proto_library") {
         metadata = {
           proto_library_sources = invoker.sources
           import_dirs = import_dirs_
+          exports = get_path_info(public_deps_, "abspath")
         }
         forward_variables_from(invoker, vars_to_forward)
       }
