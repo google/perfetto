@@ -45,7 +45,7 @@ executable("trigger_perfetto") {
 # is shared both by the executable and tests.
 source_set("perfetto_cmd") {
   public_deps = [
-    ":protos",
+    ":protos_cpp",
     "../../include/perfetto/ext/traced",
   ]
   deps = [
@@ -83,12 +83,12 @@ source_set("perfetto_cmd") {
 
 perfetto_cc_proto_descriptor("gen_cc_config_descriptor") {
   descriptor_name = "perfetto_config.descriptor"
-  descriptor_target = "../../protos/perfetto/config:perfetto_config_descriptor"
+  descriptor_target = "../../protos/perfetto/config:merged_config_descriptor"
 }
 
 source_set("trigger_perfetto_cmd") {
   public_deps = [
-    ":protos",
+    ":protos_cpp",
     "../../include/perfetto/ext/traced",
   ]
   deps = [
@@ -113,8 +113,11 @@ source_set("trigger_producer") {
   ]
 }
 
-perfetto_proto_library("protos") {
-  proto_generators = [ "cpp" ]
+perfetto_proto_library("protos_@TYPE@") {
+  proto_generators = [
+    "cpp",
+    "source_set",
+  ]
   sources = [ "perfetto_cmd_state.proto" ]
   proto_path = perfetto_root_path
 }

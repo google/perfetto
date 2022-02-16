@@ -395,7 +395,7 @@ class GnParser(object):
       target.is_third_party_dep_ = True
       return target
 
-    proto_target_type, proto_desc = self.get_proto_target_type_(target)
+    proto_target_type, proto_desc = self.get_proto_target_type(target)
     if proto_target_type is not None:
       self.proto_libs[target.name] = target
       target.type = 'proto_library'
@@ -444,7 +444,7 @@ class GnParser(object):
         target.proto_paths.update(dep.proto_paths)
 
         # Don't bubble deps for action targets
-        if target.type != 'action':
+        if target.type != 'action' and proto_target_type != 'descriptor':
           target.proto_deps.update(dep.proto_deps)  # Bubble up deps.
       elif dep.type == 'source_set':
         target.source_set_deps.add(dep_name)
@@ -476,7 +476,7 @@ class GnParser(object):
       proto_paths.append(re.sub('^../../', '//', args[i + 1]))
     return proto_paths
 
-  def get_proto_target_type_(self, target):
+  def get_proto_target_type(self, target):
     """ Checks if the target is a proto library and return the plugin.
 
         Returns:
