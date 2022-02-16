@@ -49,6 +49,8 @@ ON dropped_frames_with_upid.upid = process.upid;
 -- All tracks generated from chrome_dropped_frames_event are
 -- placed under a track group named 'Dropped Frames', whose summary
 -- track is the first track ('All Processes') in chrome_dropped_frames_event.
+-- Note that the 'All Processes' track is generated only when dropped frames
+-- come from more than one origin process.
 DROP VIEW IF EXISTS chrome_dropped_frames_event;
 CREATE VIEW chrome_dropped_frames_event AS
 SELECT
@@ -59,6 +61,8 @@ SELECT
   'Dropped Frame' AS slice_name,
   'Dropped Frames' AS group_name
 FROM dropped_frames_with_process_info
+WHERE (SELECT COUNT(DISTINCT process_id)
+       FROM dropped_frames_with_process_info) > 1
 GROUP BY ts
 UNION ALL
 SELECT

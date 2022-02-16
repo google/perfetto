@@ -30,4 +30,5 @@ message ScrollJank {
   optional int64 num_scroll_update_count = 5 [(unit) = "count_biggerIsBetter"];
   optional int64 num_scroll_update_jank_count = 6
       [(unit) = "count_smallerIsBetter"];
+  optional double scroll_jank_budget_ms = 7 [(unit) = "ms_smallerIsBetter"];
 }

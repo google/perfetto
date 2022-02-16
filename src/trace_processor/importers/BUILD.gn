@@ -21,12 +21,10 @@ perfetto_cc_proto_descriptor("gen_cc_config_descriptor") {
 
 perfetto_cc_proto_descriptor("gen_cc_chrome_track_event_descriptor") {
   descriptor_name = "chrome_track_event.descriptor"
-  descriptor_target =
-      "../../../protos/third_party/chromium:chrome_track_event_descriptor"
+  descriptor_target = "../../../protos/third_party/chromium:descriptor"
 }
 
 perfetto_cc_proto_descriptor("gen_cc_track_event_descriptor") {
   descriptor_name = "track_event.descriptor"
-  descriptor_target =
-      "../../../protos/perfetto/trace/track_event:track_event_descriptor"
+  descriptor_target = "../../../protos/perfetto/trace/track_event:descriptor"
 }

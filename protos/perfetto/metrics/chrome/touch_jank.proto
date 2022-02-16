@@ -31,4 +31,5 @@ message TouchJank {
   optional int64 num_touch_update_count = 5 [(unit) = "count_biggerIsBetter"];
   optional int64 num_touch_update_jank_count = 6
       [(unit) = "count_smallerIsBetter"];
+  optional double touch_jank_budget_ms = 7 [(unit) = "ms_smallerIsBetter"];
 }
