@@ -37,7 +37,8 @@ class ExperimentalSchedUpidGenerator
   uint32_t EstimateRowCount() override;
   util::Status ValidateConstraints(const QueryConstraints&) override;
   std::unique_ptr<Table> ComputeTable(const std::vector<Constraint>&,
-                                      const std::vector<Order>&) override;
+                                      const std::vector<Order>&,
+                                      const BitVector& cols_used) override;
 
  private:
   NullableVector<uint32_t> ComputeUpidColumn();

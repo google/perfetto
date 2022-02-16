@@ -96,7 +96,8 @@ util::Status DescendantGenerator::ValidateConstraints(
 
 std::unique_ptr<Table> DescendantGenerator::ComputeTable(
     const std::vector<Constraint>& cs,
-    const std::vector<Order>&) {
+    const std::vector<Order>&,
+    const BitVector&) {
   const auto& slices = context_->storage->slice_table();
 
   uint32_t column = GetConstraintColumnIndex(context_);

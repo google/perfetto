@@ -55,7 +55,8 @@ class ConnectedFlowGenerator : public DbSqliteTable::DynamicTableGenerator {
   uint32_t EstimateRowCount() override;
   util::Status ValidateConstraints(const QueryConstraints&) override;
   std::unique_ptr<Table> ComputeTable(const std::vector<Constraint>& cs,
-                                      const std::vector<Order>& ob) override;
+                                      const std::vector<Order>& ob,
+                                      const BitVector& cols_used) override;
 
  private:
   Mode mode_;
