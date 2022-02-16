@@ -2899,6 +2899,9 @@ perfetto_proto_library(
         ":protos_perfetto_trace_system_info_protos",
         ":protos_perfetto_trace_track_event_protos",
     ],
+    exports = [
+        ":protos_perfetto_trace_track_event_protos",
+    ],
 )
 
 # GN target: //protos/perfetto/trace:non_minimal_zero
@@ -3191,6 +3194,9 @@ perfetto_proto_library(
     ],
     visibility = PERFETTO_CONFIG.public_visibility,
     deps = [
+        ":protos_perfetto_trace_track_event_protos",
+    ],
+    exports = [
         ":protos_perfetto_trace_track_event_protos",
     ],
 )
