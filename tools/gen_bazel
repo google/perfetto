@@ -172,6 +172,7 @@ class BazelLabel(object):
     self.tools = []
     self.exec_tools = []
     self.outs = []
+    self.exports = []
 
   def __lt__(self, other):
     if isinstance(other, self.__class__):
@@ -188,7 +189,7 @@ class BazelLabel(object):
     any_deps = len(self.deps) + len(self.external_deps) > 0
     ORD = [
         'name', 'srcs', 'hdrs', 'visibility', 'deps', 'outs', 'cmd', 'tools',
-        'exec_tools'
+        'exec_tools', 'exports'
     ]
     hasher = lambda x: sum((99,) + tuple(ord(c) for c in x))
     key_sorter = lambda kv: ORD.index(kv[0]) if kv[0] in ORD else hasher(kv[0])
@@ -288,6 +289,10 @@ def gen_proto_label(target):
       sources_label.visibility = PUBLIC_VISIBILITY
     else:
       sources_label.visibility = ['PERFETTO_CONFIG.proto_library_visibility']
+
+    sources_label.exports = sorted([
+      ':' + get_sources_label(d) for d in target.proto_exports
+    ])
     return sources_label
 
   # For all other types of plugins, we need to generate 
