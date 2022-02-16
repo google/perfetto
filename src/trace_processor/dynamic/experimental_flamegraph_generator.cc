@@ -324,7 +324,8 @@ util::Status ExperimentalFlamegraphGenerator::ValidateConstraints(
 
 std::unique_ptr<Table> ExperimentalFlamegraphGenerator::ComputeTable(
     const std::vector<Constraint>& cs,
-    const std::vector<Order>&) {
+    const std::vector<Order>&,
+    const BitVector&) {
   // Get the input column values and compute the flamegraph using them.
   auto values = GetFlamegraphInputValues(cs);
 

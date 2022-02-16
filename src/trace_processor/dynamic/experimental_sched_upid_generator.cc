@@ -48,7 +48,8 @@ util::Status ExperimentalSchedUpidGenerator::ValidateConstraints(
 
 std::unique_ptr<Table> ExperimentalSchedUpidGenerator::ComputeTable(
     const std::vector<Constraint>&,
-    const std::vector<Order>&) {
+    const std::vector<Order>&,
+    const BitVector&) {
   if (!upid_column_) {
     upid_column_.reset(new NullableVector<uint32_t>(ComputeUpidColumn()));
   }
