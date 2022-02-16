@@ -32,6 +32,7 @@ android_netperf{
           data_rate_kbps: 800.0
         }
       }
+      gro_aggregation_ratio: '1:1.75'
     }
     tx {
       total {
