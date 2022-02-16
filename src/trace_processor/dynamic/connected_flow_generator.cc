@@ -198,7 +198,8 @@ class BFS {
 
 std::unique_ptr<Table> ConnectedFlowGenerator::ComputeTable(
     const std::vector<Constraint>& cs,
-    const std::vector<Order>&) {
+    const std::vector<Order>&,
+    const BitVector&) {
   const auto& flow = context_->storage->flow_table();
   const auto& slice = context_->storage->slice_table();
 

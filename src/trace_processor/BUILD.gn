@@ -432,6 +432,7 @@ perfetto_unittest_source_set("unittests") {
     "../base",
     "../protozero",
     "../protozero:testing_messages_zero",
+    "containers",
     "containers:unittests",
     "db:unittests",
     "importers/common",

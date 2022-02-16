@@ -35,11 +35,11 @@ class QueryConstraintsTest : public ::testing::Test {
 };
 
 TEST_F(QueryConstraintsTest, ConvertToAndFromSqlString) {
-  QueryConstraints qc;
+  QueryConstraints qc(0);
   qc.AddConstraint(12, 0, 0);
 
   QueryConstraints::SqliteString only_constraint = qc.ToNewSqlite3String();
-  ASSERT_TRUE(strcmp(only_constraint.get(), "C1,12,0,O0") == 0);
+  ASSERT_TRUE(strcmp(only_constraint.get(), "C1,12,0;O0;U0") == 0);
 
   QueryConstraints qc_constraint =
       QueryConstraints::FromString(only_constraint.get());
@@ -49,17 +49,17 @@ TEST_F(QueryConstraintsTest, ConvertToAndFromSqlString) {
   qc.AddOrderBy(21, true);
 
   QueryConstraints::SqliteString result = qc.ToNewSqlite3String();
-  ASSERT_TRUE(strcmp(result.get(), "C1,12,0,O2,1,0,21,1") == 0);
+  ASSERT_TRUE(strcmp(result.get(), "C1,12,0;O2,1,0,21,1;U0") == 0);
 
   QueryConstraints qc_result = QueryConstraints::FromString(result.get());
   ASSERT_EQ(qc, qc_result);
 }
 
 TEST_F(QueryConstraintsTest, CheckEmptyConstraints) {
-  QueryConstraints qc;
+  QueryConstraints qc(0);
 
   QueryConstraints::SqliteString string_result = qc.ToNewSqlite3String();
-  ASSERT_TRUE(strcmp(string_result.get(), "C0,O0") == 0);
+  ASSERT_TRUE(strcmp(string_result.get(), "C0;O0;U0") == 0);
 
   QueryConstraints qc_result =
       QueryConstraints::FromString(string_result.get());
@@ -68,15 +68,33 @@ TEST_F(QueryConstraintsTest, CheckEmptyConstraints) {
 }
 
 TEST_F(QueryConstraintsTest, OnlyOrderBy) {
-  QueryConstraints qc;
+  QueryConstraints qc(0);
   qc.AddOrderBy(3, true);
 
   QueryConstraints::SqliteString string_result = qc.ToNewSqlite3String();
-  ASSERT_TRUE(strcmp(string_result.get(), "C0,O1,3,1") == 0);
+  ASSERT_TRUE(strcmp(string_result.get(), "C0;O1,3,1;U0") == 0);
 
   QueryConstraints qc_result =
       QueryConstraints::FromString(string_result.get());
   ASSERT_EQ(qc, qc_result);
+}
+
+TEST_F(QueryConstraintsTest, ColsUsed) {
+  ASSERT_EQ(QueryConstraints(0), QueryConstraints::FromString("C0;O0;U0"));
+
+  ASSERT_EQ(QueryConstraints(4), QueryConstraints::FromString("C0;O0;U4"));
+
+  ASSERT_EQ(QueryConstraints(1ull << 63),
+            QueryConstraints::FromString("C0;O0;U9223372036854775808"));
+
+  ASSERT_EQ(QueryConstraints(9223372036854775807ull),
+            QueryConstraints::FromString("C0;O0;U9223372036854775807"));
+
+  ASSERT_EQ(QueryConstraints(),
+            QueryConstraints::FromString("C0;O0;U18446744073709551615"));
+
+  auto str = QueryConstraints(0xFFFFFFFFFFFFFFFF).ToNewSqlite3String();
+  ASSERT_STREQ(str.get(), "C0;O0;U18446744073709551615");
 }
 
 }  // namespace

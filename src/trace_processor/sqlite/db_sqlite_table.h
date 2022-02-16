@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_SQLITE_DB_SQLITE_TABLE_H_
 #define SRC_TRACE_PROCESSOR_SQLITE_DB_SQLITE_TABLE_H_
 
+#include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/db/table.h"
 #include "src/trace_processor/sqlite/query_cache.h"
 #include "src/trace_processor/sqlite/sqlite_table.h"
@@ -65,7 +66,8 @@ class DbSqliteTable : public SqliteTable {
     // vectors.
     virtual std::unique_ptr<Table> ComputeTable(
         const std::vector<Constraint>& cs,
-        const std::vector<Order>& ob) = 0;
+        const std::vector<Order>& ob,
+        const BitVector& cols_used) = 0;
   };
 
   class Cursor : public SqliteTable::Cursor {

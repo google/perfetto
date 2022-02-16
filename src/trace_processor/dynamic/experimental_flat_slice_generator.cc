@@ -46,7 +46,8 @@ util::Status ExperimentalFlatSliceGenerator::ValidateConstraints(
 
 std::unique_ptr<Table> ExperimentalFlatSliceGenerator::ComputeTable(
     const std::vector<Constraint>& cs,
-    const std::vector<Order>&) {
+    const std::vector<Order>&,
+    const BitVector&) {
   using CI = tables::ExperimentalFlatSliceTable::ColumnIndex;
   auto start_it = std::find_if(cs.begin(), cs.end(), [](const Constraint& c) {
     return c.col_idx == static_cast<uint32_t>(CI::start_bound) &&
