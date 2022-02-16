@@ -50,6 +50,9 @@ message AndroidNetworkMetric {
 
     // Per core packets statistic.
     repeated CorePacketStatistic core = 2;
+
+    // GRO aggregation ratio.
+    optional string gro_aggregation_ratio = 3;
   }
 
   message Tx {
