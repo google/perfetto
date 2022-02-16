@@ -119,7 +119,8 @@ util::Status ExperimentalAnnotatedStackGenerator::ValidateConstraints(
 
 std::unique_ptr<Table> ExperimentalAnnotatedStackGenerator::ComputeTable(
     const std::vector<Constraint>& cs,
-    const std::vector<Order>&) {
+    const std::vector<Order>&,
+    const BitVector&) {
   const auto& cs_table = context_->storage->stack_profile_callsite_table();
   const auto& f_table = context_->storage->stack_profile_frame_table();
   const auto& m_table = context_->storage->stack_profile_mapping_table();

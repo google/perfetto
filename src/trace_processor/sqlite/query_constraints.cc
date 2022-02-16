@@ -26,10 +26,12 @@
 namespace perfetto {
 namespace trace_processor {
 
-QueryConstraints::QueryConstraints() = default;
+QueryConstraints::QueryConstraints(uint64_t cols_used)
+    : cols_used_(cols_used) {}
 QueryConstraints::~QueryConstraints() = default;
 QueryConstraints::QueryConstraints(QueryConstraints&&) noexcept = default;
-QueryConstraints& QueryConstraints::operator=(QueryConstraints&&) = default;
+QueryConstraints& QueryConstraints::operator=(QueryConstraints&&) noexcept =
+    default;
 
 int QueryConstraints::FreeSqliteString(char* resource) {
   sqlite3_free(resource);
@@ -38,7 +40,8 @@ int QueryConstraints::FreeSqliteString(char* resource) {
 
 bool QueryConstraints::operator==(const QueryConstraints& other) const {
   if ((other.constraints().size() != constraints().size()) ||
-      (other.order_by().size() != order_by().size())) {
+      (other.order_by().size() != order_by().size()) ||
+      other.cols_used() != cols_used()) {
     return false;
   }
 
@@ -79,6 +82,8 @@ void QueryConstraints::AddOrderBy(int column, unsigned char desc) {
 QueryConstraints::SqliteString QueryConstraints::ToNewSqlite3String() const {
   std::string str_result;
   str_result.reserve(512);
+
+  // Add all the constraints.
   str_result.append("C");
   str_result.append(std::to_string(constraints_.size()));
   str_result.append(",");
@@ -88,6 +93,9 @@ QueryConstraints::SqliteString QueryConstraints::ToNewSqlite3String() const {
     str_result.append(std::to_string(cs.op));
     str_result.append(",");
   }
+  str_result.back() = ';';
+
+  // Add all the clauses.
   str_result.append("O");
   str_result.append(std::to_string(order_by_.size()));
   str_result.append(",");
@@ -97,44 +105,67 @@ QueryConstraints::SqliteString QueryConstraints::ToNewSqlite3String() const {
     str_result.append(std::to_string(ob.desc));
     str_result.append(",");
   }
+  str_result.back() = ';';
 
-  // The last char is a "," so overwriting with the null terminator on purpose.
-  SqliteString result(
-      static_cast<char*>(sqlite3_malloc(static_cast<int>(str_result.size()))));
-  base::StringCopy(result.get(), str_result.c_str(), str_result.size());
+  // Add the columns used.
+  str_result.append("U");
+  str_result.append(std::to_string(cols_used_));
+
+  SqliteString result(static_cast<char*>(
+      sqlite3_malloc(static_cast<int>(str_result.size() + 1))));
+  base::StringCopy(result.get(), str_result.c_str(), str_result.size() + 1);
   return result;
 }
 
 QueryConstraints QueryConstraints::FromString(const char* idxStr) {
   QueryConstraints qc;
 
-  base::StringSplitter splitter(std::string(idxStr), ',');
+  base::StringSplitter outer_splitter(std::string(idxStr), ';');
 
-  PERFETTO_CHECK(splitter.Next() && splitter.cur_token_size() > 1);
-  // The '+ 1' skips the letter 'C' in the first token.
-  long num_constraints = strtol(splitter.cur_token() + 1, nullptr, 10);
-  for (int i = 0; i < num_constraints; ++i) {
-    PERFETTO_CHECK(splitter.Next());
-    int col = static_cast<int>(strtol(splitter.cur_token(), nullptr, 10));
-    PERFETTO_CHECK(splitter.Next());
-    unsigned char op =
-        static_cast<unsigned char>(strtol(splitter.cur_token(), nullptr, 10));
-    qc.AddConstraint(col, op, 0);
+  // Handle the CONSTRAINT section of the string.
+  PERFETTO_CHECK(outer_splitter.Next() && outer_splitter.cur_token_size() > 1);
+  {
+    base::StringSplitter splitter(&outer_splitter, ',');
+    PERFETTO_CHECK(splitter.Next() && splitter.cur_token_size() > 1);
+
+    // The '[1]' skips the letter 'C' in the first token.
+    int64_t num_constraints = *base::CStringToInt64(&splitter.cur_token()[1]);
+    for (int i = 0; i < num_constraints; ++i) {
+      PERFETTO_CHECK(splitter.Next());
+      int col = static_cast<int>(*base::CStringToInt32(splitter.cur_token()));
+      PERFETTO_CHECK(splitter.Next());
+      unsigned char op = static_cast<unsigned char>(
+          *base::CStringToUInt32(splitter.cur_token()));
+      qc.AddConstraint(col, op, 0);
+    }
   }
 
-  PERFETTO_CHECK(splitter.Next() && splitter.cur_token_size() > 1);
-  // The '+ 1' skips the letter 'O' in the current token.
-  long num_order_by = strtol(splitter.cur_token() + 1, nullptr, 10);
-  for (int i = 0; i < num_order_by; ++i) {
-    PERFETTO_CHECK(splitter.Next());
-    int col = static_cast<int>(strtol(splitter.cur_token(), nullptr, 10));
-    PERFETTO_CHECK(splitter.Next());
-    unsigned char desc =
-        static_cast<unsigned char>(strtol(splitter.cur_token(), nullptr, 10));
-    qc.AddOrderBy(col, desc);
+  // Handle the ORDER BY section of the string.
+  PERFETTO_CHECK(outer_splitter.Next() && outer_splitter.cur_token_size() > 1);
+  {
+    base::StringSplitter splitter(&outer_splitter, ',');
+    PERFETTO_CHECK(splitter.Next() && splitter.cur_token_size() > 1);
+
+    // The '[1]' skips the letter 'O' in the current token.
+    int64_t num_order_by = *base::CStringToInt64(&splitter.cur_token()[1]);
+    for (int i = 0; i < num_order_by; ++i) {
+      PERFETTO_CHECK(splitter.Next());
+      int col = static_cast<int>(*base::CStringToInt32(splitter.cur_token()));
+      PERFETTO_CHECK(splitter.Next());
+      unsigned char desc = static_cast<unsigned char>(
+          *base::CStringToUInt32(splitter.cur_token()));
+      qc.AddOrderBy(col, desc);
+    }
   }
 
-  PERFETTO_DCHECK(!splitter.Next());
+  // Handle the COLS USED section of the string.
+  PERFETTO_CHECK(outer_splitter.Next() && outer_splitter.cur_token_size() > 1);
+  {
+    // The '[1]' skips the letter 'U' in the current token.
+    qc.cols_used_ = *base::CStringToUInt64(&outer_splitter.cur_token()[1]);
+  }
+
+  PERFETTO_DCHECK(!outer_splitter.Next());
   return qc;
 }
 

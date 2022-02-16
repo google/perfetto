@@ -17,6 +17,7 @@
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
 
 #include "perfetto/ext/base/string_writer.h"
+#include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/sqlite/query_cache.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/tp_metatrace.h"
@@ -83,6 +84,17 @@ SqlValue SqliteValueToSqlValue(sqlite3_value* sqlite_val) {
   return value;
 }
 
+BitVector ColsUsedBitVector(uint64_t sqlite_cols_used, size_t col_count) {
+  return BitVector::Range(
+      0, static_cast<uint32_t>(col_count), [sqlite_cols_used](uint32_t idx) {
+        // If the lowest bit of |sqlite_cols_used| is set, the first column is
+        // used. The second lowest bit corresponds to the second column etc. If
+        // the most significant bit of |sqlite_cols_used| is set, that means
+        // that any column after the first 63 columns could be used.
+        return sqlite_cols_used & (1ull << std::min(idx, 63u));
+      });
+}
+
 }  // namespace
 
 DbSqliteTable::DbSqliteTable(sqlite3*, Context context)
@@ -111,7 +123,8 @@ void DbSqliteTable::RegisterTable(
 
   // Figure out if the table needs explicit args (in the form of constraints
   // on hidden columns) passed to it in order to make the query valid.
-  util::Status status = generator->ValidateConstraints({});
+  util::Status status = generator->ValidateConstraints(
+      QueryConstraints(std::numeric_limits<uint64_t>::max()));
   bool requires_args = !status.ok();
 
   Context context{cache, std::move(schema), TableComputation::kDynamic, nullptr,
@@ -438,8 +451,10 @@ int DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
       });
       // If we have a dynamically created table, regenerate the table based on
       // the new constraints.
-      dynamic_table_ =
-          db_sqlite_table_->generator_->ComputeTable(constraints_, orders_);
+      BitVector cols_used_bv = ColsUsedBitVector(
+          qc.cols_used(), db_sqlite_table_->schema_.columns.size());
+      dynamic_table_ = db_sqlite_table_->generator_->ComputeTable(
+          constraints_, orders_, cols_used_bv);
       upstream_table_ = dynamic_table_.get();
       if (!upstream_table_)
         return SQLITE_CONSTRAINT;

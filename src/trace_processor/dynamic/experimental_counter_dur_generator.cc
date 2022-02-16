@@ -50,7 +50,8 @@ util::Status ExperimentalCounterDurGenerator::ValidateConstraints(
 
 std::unique_ptr<Table> ExperimentalCounterDurGenerator::ComputeTable(
     const std::vector<Constraint>&,
-    const std::vector<Order>&) {
+    const std::vector<Order>&,
+    const BitVector&) {
   if (!dur_column_) {
     dur_column_.reset(
         new NullableVector<int64_t>(ComputeDurColumn(*counter_table_)));

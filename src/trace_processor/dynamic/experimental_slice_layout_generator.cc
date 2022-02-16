@@ -75,7 +75,8 @@ util::Status ExperimentalSliceLayoutGenerator::ValidateConstraints(
 
 std::unique_ptr<Table> ExperimentalSliceLayoutGenerator::ComputeTable(
     const std::vector<Constraint>& cs,
-    const std::vector<Order>&) {
+    const std::vector<Order>&,
+    const BitVector&) {
   std::set<TrackId> selected_tracks;
   std::string filter_string = "";
   for (const auto& c : cs) {

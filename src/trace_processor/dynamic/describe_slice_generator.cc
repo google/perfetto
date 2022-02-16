@@ -70,7 +70,8 @@ util::Status DescribeSliceGenerator::ValidateConstraints(
 
 std::unique_ptr<Table> DescribeSliceGenerator::ComputeTable(
     const std::vector<Constraint>& cs,
-    const std::vector<Order>&) {
+    const std::vector<Order>&,
+    const BitVector&) {
   auto input = GetDescribeSliceInputValues(cs);
   const auto& slices = context_->storage->slice_table();
 

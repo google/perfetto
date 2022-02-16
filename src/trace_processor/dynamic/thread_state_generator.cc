@@ -38,7 +38,8 @@ util::Status ThreadStateGenerator::ValidateConstraints(
 
 std::unique_ptr<Table> ThreadStateGenerator::ComputeTable(
     const std::vector<Constraint>&,
-    const std::vector<Order>&) {
+    const std::vector<Order>&,
+    const BitVector&) {
   if (!unsorted_thread_state_table_) {
     int64_t trace_end_ts =
         context_->storage->GetTraceTimestampBoundsNs().second;
