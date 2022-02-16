@@ -33,6 +33,6 @@ perfetto_proto_library("custom_options_@TYPE@") {
 perfetto_proto_library("descriptor") {
   proto_generators = [ "descriptor" ]
   generate_descriptor = "metrics.descriptor"
-  deps = [ "android:source_set" ]
+  deps = [ ":source_set" ]
   sources = [ "metrics.proto" ]
 }
