@@ -15,6 +15,7 @@
 import("../../gn/perfetto.gni")
 import("../../gn/perfetto_cc_proto_descriptor.gni")
 import("../../gn/perfetto_host_executable.gni")
+import("../../gn/test.gni")
 import("../../gn/wasm.gni")
 
 perfetto_host_executable("trace_to_text") {
@@ -83,6 +84,23 @@ static_library("libpprofbuilder") {
   public_deps = [ ":pprofbuilder" ]
 }
 
+source_set("trace_to_text_lib") {
+  deps = [
+    ":gen_cc_trace_descriptor",
+    ":utils",
+    "../../gn:default_deps",
+    "../../include/perfetto/base",
+    "../../src/protozero:proto_ring_buffer",
+    "../../src/trace_processor:storage_minimal",
+    "../../src/trace_processor/util:gzip",
+  ]
+  sources = [
+    "proto_full_utils.h",
+    "trace_to_text.cc",
+    "trace_to_text.h",
+  ]
+}
+
 # The core source files that are used both by the "full" version (the host
 # executable) and by the "lite" version (the WASM module for the UI).
 source_set("common") {
@@ -132,12 +150,11 @@ source_set("full") {
   testonly = true
   deps = [
     ":common",
-    ":gen_cc_trace_descriptor",
+    ":trace_to_text_lib",
     ":utils",
     "../../gn:default_deps",
     "../../gn:protobuf_full",
     "../../protos/perfetto/trace:zero",
-    "../../src/protozero:proto_ring_buffer",
   ]
   if (enable_perfetto_zlib) {
     deps += [ "../../gn:zlib" ]
@@ -145,7 +162,6 @@ source_set("full") {
   sources = [
     "proto_full_utils.cc",
     "proto_full_utils.h",
-    "trace_to_text.cc",
   ]
 }
 
@@ -162,4 +178,16 @@ if (enable_perfetto_ui) {
 perfetto_cc_proto_descriptor("gen_cc_trace_descriptor") {
   descriptor_name = "trace.descriptor"
   descriptor_target = "../../protos/perfetto/trace:descriptor"
+}
+
+perfetto_unittest_source_set("unittests") {
+  testonly = true
+  deps = [
+    ":trace_to_text_lib",
+    "../../gn:default_deps",
+    "../../gn:gtest_and_gmock",
+    "../../include/perfetto/base",
+    "../../include/perfetto/ext/base:base",
+  ]
+  sources = [ "trace_to_text_unittest.cc" ]
 }
